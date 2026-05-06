@@ -327,7 +327,7 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
 .titlebarSearchText {
   flex: 1;
   opacity: 0.35;
-  text-align: center;
+  text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
