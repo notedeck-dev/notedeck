@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, toRef, watch } from 'vue'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMenuKeyboard } from '@/composables/useMenuKeyboard'
+import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { type Account, isGuestAccount } from '@/stores/accounts'
@@ -40,7 +41,17 @@ const emit = defineEmits<{
 
 const { navigateToUser } = useNavigation()
 const menuRef = ref<HTMLElement | null>(null)
+const dialogRef = ref<HTMLDialogElement | null>(null)
 const fixedStyle = ref<Record<string, string>>({})
+
+useNativeDialog(
+  dialogRef,
+  computed(() => menuVisible.value && isCompact.value),
+  {
+    onCancel: () => emit('close'),
+    leaveDuration: 180,
+  },
+)
 const { activate: activateKeyboard, deactivate: deactivateKeyboard } =
   useMenuKeyboard({
     containerRef: menuRef,
@@ -98,18 +109,19 @@ function modeIcon(key: string, active: boolean): string {
 </script>
 
 <template>
+    <!-- Desktop: anchored popup -->
     <div
-      v-if="menuVisible"
+      v-if="!isCompact && menuVisible"
       ref="menuRef"
       class="_popupMenu"
       :class="[
         $style.navAccountMenu,
-        { [$style.menuRight]: navCollapsed && !fixedStyle.position, [$style.mobile]: isCompact },
+        { [$style.menuRight]: navCollapsed && !fixedStyle.position },
         menuLeaving
           ? (navCollapsed ? $style.menuLeaveRight : $style.menuLeave)
           : (navCollapsed ? $style.menuEnterRight : $style.menuEnter),
       ]"
-      :style="navCollapsed && !isCompact ? fixedStyle : undefined"
+      :style="navCollapsed ? fixedStyle : undefined"
       @click.stop
     >
       <!-- Mode toggles (auth required) -->
@@ -175,6 +187,87 @@ function modeIcon(key: string, active: boolean): string {
         </button>
       </template>
     </div>
+
+    <!-- Mobile: bottom sheet via native <dialog> -->
+    <dialog
+      v-if="isCompact && menuVisible"
+      ref="dialogRef"
+      class="_nativeDialog"
+      :class="[$style.mobileBackdrop, menuLeaving ? $style.sheetBackdropLeave : $style.sheetBackdropEnter]"
+    >
+      <div
+        autofocus
+        tabindex="-1"
+        ref="menuRef"
+        class="_popupMenu"
+        :class="[
+          $style.navAccountMenu,
+          $style.mobile,
+          menuLeaving ? $style.sheetContentLeave : $style.sheetContentEnter,
+        ]"
+        @click.stop
+      >
+        <template v-if="account.hasToken && Object.keys(modes).length > 0">
+          <button
+            v-for="(val, key) in modes"
+            :key="key"
+            class="_button"
+            :class="[$style.navAccountMenuItem, { [$style.modeActive]: val }]"
+            :disabled="togglingMode"
+            @click="hapticSelection(); emit('toggle-mode', key as string)"
+            @keydown.enter="emit('toggle-mode', key as string)"
+          >
+            <span :class="$style.navAccountMenuLabel">{{ modeLabel(key as string) }}</span>
+            <i :class="['ti', modeIcon(key as string, val)]" />
+          </button>
+        </template>
+        <div v-if="modeError" :class="$style.navAccountMenuError">{{ modeError }}</div>
+        <template v-if="!isGuestAccount(account)">
+          <div v-if="account.hasToken && Object.keys(modes).length > 0" :class="$style.navAccountMenuDivider" />
+          <button class="_button" :class="$style.navAccountMenuItem" @click="navigateToUser(account.id, account.userId)">
+            <span>プロフィール</span>
+            <i class="ti ti-user" />
+          </button>
+          <div :class="$style.navAccountMenuDivider" />
+          <button class="_button" :class="$style.navAccountMenuItem" @click="account.hasToken ? openUrl(`https://${account.host}/settings`) : showLoginPrompt()">
+            <span>設定</span>
+            <i class="ti ti-external-link" />
+          </button>
+        </template>
+        <button v-if="isAdmin" class="_button" :class="$style.navAccountMenuItem" @click="openUrl(`https://${account.host}/admin`)">
+          <span>コントロールパネル</span>
+          <i class="ti ti-external-link" />
+        </button>
+
+        <div v-if="hasUpperSection" :class="$style.navAccountMenuDivider" />
+        <button class="_button" :class="$style.navAccountMenuItem" @click="emit('clear-cache')">
+          <span>キャッシュ削除</span>
+          <i class="ti ti-eraser" />
+        </button>
+        <template v-if="account.hasToken">
+          <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountLogout]" @click="emit('logout')">
+            <span>ログアウト</span>
+            <i class="ti ti-logout" />
+          </button>
+        </template>
+        <template v-else-if="isGuestAccount(account)">
+          <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountLogout]" @click="emit('logout')">
+            <span>データを削除</span>
+            <i class="ti ti-trash" />
+          </button>
+        </template>
+        <template v-else>
+          <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountRelogin]" @click="emit('relogin', account.host)">
+            <span>再ログイン</span>
+            <i class="ti ti-login" />
+          </button>
+          <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountLogout]" @click="emit('logout')">
+            <span>データを削除</span>
+            <i class="ti ti-trash" />
+          </button>
+        </template>
+      </div>
+    </dialog>
 </template>
 
 <style lang="scss" module>
@@ -244,13 +337,35 @@ function modeIcon(key: string, active: boolean): string {
   word-break: break-word;
 }
 
+/* Mobile bottom sheet — used inside <dialog class="_nativeDialog"> */
 .mobile {
-  position: fixed;
-  bottom: calc(50px + var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
-  left: 8px;
-  right: 8px;
-  top: auto;
-  margin: 0;
+  &.navAccountMenu {
+    position: static;
+    width: 100%;
+    margin: 0;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    top: auto;
+    min-width: 0;
+    border-radius: 16px 16px 0 0;
+    background: color-mix(in srgb, var(--nd-navBg) 96%, transparent);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+    max-height: 80vh;
+    overflow-y: auto;
+    padding: 8px 0 calc(8px + var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
+
+    &:focus,
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
+  .navAccountMenuItem {
+    padding: 10px 16px;
+    min-height: 44px;
+    font-size: 0.9em;
+  }
 }
 
 .navAccountLogout {

@@ -1,11 +1,21 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, ref, useCssModule, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onUnmounted,
+  ref,
+  toRef,
+  useCssModule,
+  watch,
+} from 'vue'
 import { useCommandStore } from '@/commands/registry'
 import ColumnBadges from '@/components/common/ColumnBadges.vue'
 import { useAccountActions } from '@/composables/useAccountActions'
 import { useColumnBadge } from '@/composables/useColumnBadge'
 import { COLUMN_ICONS, COLUMN_LABELS } from '@/composables/useColumnTabs'
+import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
+import { useVaporTransition } from '@/composables/useVaporTransition'
 import {
   type Account,
   getAccountLabel,
@@ -210,9 +220,55 @@ function openLaunchPad(e: MouseEvent) {
   })
 }
 
+function toggleProfileMenu() {
+  if (props.showProfileMenu) {
+    emit('update:showProfileMenu', false)
+  } else {
+    closeDrawerAndDo(() => emit('update:showProfileMenu', true))
+  }
+}
+
+function toggleSettingsMenu() {
+  if (props.showSettingsMenu) {
+    emit('update:showSettingsMenu', false)
+  } else {
+    closeDrawerAndDo(() => emit('update:showSettingsMenu', true))
+  }
+}
+
 // Account menu
 const accountMenuId = ref<string | null>(null)
 const showAccountPopup = ref(false)
+const accountDialogRef = ref<HTMLDialogElement | null>(null)
+const { visible: accountPopupVisible, leaving: accountPopupLeaving } =
+  useVaporTransition(toRef(showAccountPopup), {
+    enterDuration: 200,
+    leaveDuration: 200,
+  })
+
+useNativeDialog(
+  accountDialogRef,
+  computed(() => accountPopupVisible.value && isCompact.value),
+  {
+    onCancel: () => {
+      showAccountPopup.value = false
+      accountMenuId.value = null
+    },
+    leaveDuration: 200,
+  },
+)
+
+function toggleAccountPopup() {
+  if (showAccountPopup.value) {
+    showAccountPopup.value = false
+    accountMenuId.value = null
+  } else {
+    closeDrawerAndDo(() => {
+      showAccountPopup.value = true
+      accountMenuId.value = null
+    })
+  }
+}
 const accountMenuStyle = ref<Record<string, string>>({})
 const selectedAccount = computed(() =>
   accountsStore.accounts.find((a) => a.id === accountMenuId.value),
@@ -506,7 +562,7 @@ defineExpose({
                 :class="$style.item"
                 title="プロファイル"
                 @pointerdown.stop
-                @click.stop="emit('update:showProfileMenu', !props.showProfileMenu)"
+                @click.stop="toggleProfileMenu()"
               >
                 <i class="ti ti-layout" />
                 <span :class="$style.label">プロファイル</span>
@@ -520,7 +576,7 @@ defineExpose({
                 :class="$style.item"
                 title="設定"
                 @pointerdown.stop
-                @click.stop="emit('update:showSettingsMenu', !props.showSettingsMenu)"
+                @click.stop="toggleSettingsMenu()"
               >
                 <i class="ti ti-settings" />
                 <span :class="$style.label">設定</span>
@@ -575,7 +631,7 @@ defineExpose({
               :class="$style.item"
               title="アカウント"
               @pointerdown.stop
-              @click.stop="isCompact ? (showAccountPopup = !showAccountPopup, accountMenuId = null) : commandStore.execute('account-menu')"
+              @click.stop="isCompact ? toggleAccountPopup() : commandStore.execute('account-menu')"
             >
               <div :class="$style.iconWrap">
                 <i class="ti ti-user" />
@@ -583,8 +639,9 @@ defineExpose({
               </div>
               <span :class="$style.label">アカウント</span>
             </button>
+            <!-- Desktop: anchored popup above the button -->
             <div
-              v-if="showAccountPopup"
+              v-if="!isCompact && showAccountPopup"
               :class="$style.accountPopup"
               @click.stop="accountMenuId = null"
             >
@@ -642,6 +699,74 @@ defineExpose({
                 <span>アカウント管理</span>
               </button>
             </div>
+
+            <!-- Mobile: bottom sheet via native <dialog> -->
+            <dialog
+              v-if="isCompact && accountPopupVisible"
+              ref="accountDialogRef"
+              class="_nativeDialog"
+              :class="[$style.mobileBackdrop, accountPopupLeaving ? $style.sheetBackdropLeave : $style.sheetBackdropEnter]"
+            >
+              <div
+                autofocus
+                tabindex="-1"
+                :class="[$style.accountPopup, $style.accountPopupMobile, accountPopupLeaving ? $style.sheetContentLeave : $style.sheetContentEnter]"
+                @click.stop="accountMenuId = null"
+              >
+                <div
+                  v-for="acc in accountsStore.accounts"
+                  :key="acc.id"
+                  :class="$style.accountPopupItem"
+                  @click.stop="toggleAccountMenu(acc.id, $event)"
+                >
+                  <div
+                    :class="[$style.accountPopupBtn, { [$style.accountPopupBtnActive]: accountMenuId === acc.id }]"
+                    :title="getAccountLabel(acc)"
+                  >
+                    <div :class="$style.avatarWrap">
+                      <img
+                        v-if="isGuestAccount(acc)"
+                        src="/avatar-guest.svg"
+                        :class="$style.avatar"
+                      />
+                      <img
+                        v-else-if="acc.avatarUrl"
+                        :src="proxyThumbUrl(acc.avatarUrl, 56)"
+                        :class="$style.avatar"
+                      />
+                      <div v-else :class="[$style.avatar, $style.avatarPlaceholder]" />
+                      <img
+                        :src="getServerIconUrl(acc.host)"
+                        :class="$style.serverBadge"
+                        :title="acc.host"
+                      />
+                      <span
+                        :class="[$style.onlineIndicator, onlineStatusClass(acc.id)]"
+                      />
+                    </div>
+                    <span :class="$style.accountPopupName">{{ getAccountLabel(acc) }}</span>
+                    <i class="ti ti-chevron-right" :class="$style.accountPopupChevron" />
+                  </div>
+                </div>
+                <div :class="$style.accountPopupDivider" />
+                <button
+                  class="_button"
+                  :class="$style.accountPopupBtn"
+                  @click="showAccountPopup = false; closeDrawerAndDo(navigateToLogin)"
+                >
+                  <div :class="$style.accountPopupIcon"><i class="ti ti-plus" /></div>
+                  <span>アカウント追加</span>
+                </button>
+                <button
+                  class="_button"
+                  :class="$style.accountPopupBtn"
+                  @click="showAccountPopup = false; closeDrawerAndDo(() => windowsStore.open('account-manager'))"
+                >
+                  <div :class="$style.accountPopupIcon"><i class="ti ti-settings" /></div>
+                  <span>アカウント管理</span>
+                </button>
+              </div>
+            </dialog>
             <!-- NavAccountMenu: position:fixed で右横に配置（overflow制約を回避） -->
             <NavAccountMenu
               v-if="showAccountPopup && selectedAccount"
@@ -725,6 +850,7 @@ defineExpose({
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/navMenu';
 
 .wrapper {
   display: contents;
@@ -776,7 +902,7 @@ defineExpose({
 }
 
 .instanceIcon {
-  width: 20px;
+  width: 30px;
   aspect-ratio: 1;
   border-radius: 4px;
   user-select: none;
@@ -927,6 +1053,33 @@ defineExpose({
   background: var(--nd-navBg);
   border-radius: var(--nd-radius-md);
   box-shadow: var(--nd-shadow-m);
+}
+
+// Mobile bottom sheet — used inside <dialog class="_nativeDialog">
+.accountPopupMobile {
+  position: static;
+  bottom: auto;
+  left: auto;
+  right: auto;
+  width: 100%;
+  margin: 0;
+  border-radius: 16px 16px 0 0;
+  background: color-mix(in srgb, var(--nd-navBg) 96%, transparent);
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 8px 0 calc(8px + var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
+
+  &:focus,
+  &:focus-visible {
+    outline: none;
+  }
+
+  .accountPopupBtn {
+    padding: 10px 16px;
+    min-height: 44px;
+    font-size: 0.9em;
+  }
 }
 
 .accountPopupItem {
@@ -1205,7 +1358,7 @@ defineExpose({
   }
 
   .instanceIcon {
-    width: 20px;
+    width: 30px;
     border-radius: 4px;
   }
 

@@ -25,3 +25,29 @@
     to { opacity: 0; transform: translateY(8px); }
   }
 }
+
+// Mobile bottom-sheet — used together with a `<dialog class="_nativeDialog">`
+// host. The `mobileBackdrop` class anchors the sheet to the viewport bottom;
+// `sheetContentEnter` / `sheetContentLeave` slide the inner content up/down.
+:global(dialog._nativeDialog[open]).mobileBackdrop {
+  align-items: flex-end;
+  justify-content: stretch;
+}
+
+.sheetBackdropEnter {
+  animation: sheetBdIn var(--nd-duration-base, 0.18s) var(--nd-ease-decel, ease);
+}
+.sheetBackdropLeave {
+  animation: sheetBdOut var(--nd-duration-base, 0.18s) ease-out forwards;
+}
+@keyframes sheetBdIn { from { opacity: 0; } }
+@keyframes sheetBdOut { to { opacity: 0; } }
+
+.sheetContentEnter {
+  animation: sheetIn 0.25s var(--nd-ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+.sheetContentLeave {
+  animation: sheetOut 0.2s var(--nd-ease-decel, ease) forwards;
+}
+@keyframes sheetIn { from { transform: translateY(100%); } }
+@keyframes sheetOut { to { transform: translateY(100%); } }

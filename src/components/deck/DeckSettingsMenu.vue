@@ -12,6 +12,7 @@ import {
 } from 'vue'
 
 import { useMenuKeyboard } from '@/composables/useMenuKeyboard'
+import { useNativeDialog } from '@/composables/useNativeDialog'
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { type ConfirmOptions, useConfirm } from '@/stores/confirm'
@@ -56,6 +57,16 @@ function toggleSection(key: string) {
 
 const menuEl = ref<HTMLElement | null>(null)
 const fixedStyle = ref<CSSProperties | undefined>()
+const dialogRef = ref<HTMLDialogElement | null>(null)
+
+useNativeDialog(
+  dialogRef,
+  computed(() => menuVisible.value && isCompact.value),
+  {
+    onCancel: () => emit('close'),
+    leaveDuration: 180,
+  },
+)
 
 const { activate: activateKeyboard, deactivate: deactivateKeyboard } =
   useMenuKeyboard({
@@ -68,7 +79,7 @@ watch(
   () => props.show,
   (val) => {
     if (val) {
-      if (props.anchor) {
+      if (props.anchor && !isCompact.value) {
         const rect = props.anchor.getBoundingClientRect()
         fixedStyle.value = {
           position: 'fixed',
@@ -78,7 +89,7 @@ watch(
       } else {
         fixedStyle.value = undefined
       }
-      nextTick(activateKeyboard)
+      if (!isCompact.value) nextTick(activateKeyboard)
     } else {
       deactivateKeyboard()
     }
@@ -245,9 +256,10 @@ usePortal(settingsMenuPortalRef)
 </script>
 
 <template>
-  <div v-if="show || menuVisible" ref="settingsMenuPortalRef">
+  <!-- Desktop: portal-rendered popup -->
+  <div v-if="!isCompact && (show || menuVisible)" ref="settingsMenuPortalRef">
   <div v-if="show" :class="$style.menuBackdrop" @pointerdown="emit('close')" />
-    <div v-if="menuVisible" ref="menuEl" :class="[$style.settingsMenu, { [$style.mobile]: isCompact }, menuLeaving ? $style.menuLeave : $style.menuEnter]" :style="fixedStyle" class="_popupMenu" @pointerdown.stop>
+    <div v-if="menuVisible" ref="menuEl" :class="[$style.settingsMenu, menuLeaving ? $style.menuLeave : $style.menuEnter]" :style="fixedStyle" class="_popupMenu" @pointerdown.stop>
       <div :class="$style.menuBody">
       <!-- アピアランス -->
       <div :class="$style.categorySection">
@@ -445,6 +457,83 @@ usePortal(settingsMenuPortalRef)
       </div>
     </div>
   </div>
+
+  <!-- Mobile: bottom sheet via native <dialog> -->
+  <dialog
+    v-if="isCompact && menuVisible"
+    ref="dialogRef"
+    class="_nativeDialog"
+    :class="[$style.mobileBackdrop, menuLeaving ? $style.sheetBackdropLeave : $style.sheetBackdropEnter]"
+  >
+    <div autofocus tabindex="-1" ref="menuEl" :class="[$style.settingsMenu, $style.mobile, menuLeaving ? $style.sheetContentLeave : $style.sheetContentEnter]" class="_popupMenu" @pointerdown.stop>
+      <div :class="$style.menuBody">
+      <!-- アピアランス -->
+      <div :class="$style.categorySection">
+        <button :class="$style.categoryHeader" @click="openToolWindow('appearanceEditor')">
+          <i class="ti ti-brush" />
+          <span>アピアランス</span>
+          <i class="ti ti-chevron-right" :class="$style.chevronNav" />
+        </button>
+      </div>
+
+      <!-- 環境設定 (フラットに展開) -->
+      <div :class="$style.categorySection">
+        <button :class="$style.categoryHeader" @click="openToolWindow('aiSettings')">
+          <i class="ti ti-robot" />
+          <span>AI</span>
+          <i class="ti ti-chevron-right" :class="$style.chevronNav" />
+        </button>
+      </div>
+      <div :class="$style.categorySection">
+        <button :class="$style.categoryHeader" @click="openToolWindow('performanceEditor')">
+          <i class="ti ti-gauge" />
+          <span>パフォーマンス</span>
+          <span v-if="Object.keys(perfStore.overrides).length > 0" :class="$style.activeDot" />
+          <i class="ti ti-chevron-right" :class="$style.chevronNav" />
+        </button>
+      </div>
+      <div :class="$style.categorySection">
+        <button :class="$style.categoryHeader" @click="openToolWindow('cssEditor')">
+          <i class="ti ti-code" />
+          <span>カスタムCSS</span>
+          <span v-if="themeStore.customCss" :class="$style.activeDot" />
+          <i class="ti ti-chevron-right" :class="$style.chevronNav" />
+        </button>
+      </div>
+      <div :class="$style.categorySection">
+        <button :class="$style.categoryHeader" @click="openToolWindow('tasksEditor')">
+          <i class="ti ti-player-play" />
+          <span>タスク</span>
+          <i class="ti ti-chevron-right" :class="$style.chevronNav" />
+        </button>
+      </div>
+      <div :class="$style.categorySection">
+        <button :class="$style.categoryHeader" @click="openToolWindow('snippetsEditor')">
+          <i class="ti ti-code-plus" />
+          <span>スニペット</span>
+          <i class="ti ti-chevron-right" :class="$style.chevronNav" />
+        </button>
+      </div>
+
+      <!-- データ -->
+      <div :class="$style.categorySection">
+        <button :class="$style.categoryHeader" @click="openToolWindow('backup')">
+          <i class="ti ti-database" />
+          <span>バックアップ</span>
+          <i class="ti ti-chevron-right" :class="$style.chevronNav" />
+        </button>
+      </div>
+      <div :class="$style.categorySection">
+        <button :class="$style.categoryHeader" @click="openToolWindow('cacheEditor')">
+          <i class="ti ti-eraser" />
+          <span>キャッシュ</span>
+          <i class="ti ti-chevron-right" :class="$style.chevronNav" />
+        </button>
+      </div>
+
+      </div>
+    </div>
+  </dialog>
 </template>
 
 <style lang="scss" module>
@@ -640,14 +729,27 @@ usePortal(settingsMenuPortalRef)
   position: relative;
 }
 
+/* Mobile bottom sheet — used inside <dialog class="_nativeDialog"> */
 .mobile {
-  width: 234px;
-  max-width: calc(100vw - 16px);
-  min-width: 0;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--nd-navBg) 92%, transparent);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
-  max-height: 70vh;
+  &.settingsMenu {
+    position: static;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin: 0;
+    bottom: auto;
+    right: auto;
+    border-radius: 16px 16px 0 0;
+    background: color-mix(in srgb, var(--nd-navBg) 96%, transparent);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+    max-height: 80vh;
+    padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
+
+    &:focus,
+    &:focus-visible {
+      outline: none;
+    }
+  }
 
   .settingsMenuItem {
     padding: 8px 12px;
@@ -657,6 +759,10 @@ usePortal(settingsMenuPortalRef)
   .categoryHeader {
     padding: 8px 12px;
     min-height: 44px;
+  }
+
+  .categorySection:last-child {
+    border-bottom: none;
   }
 }
 
