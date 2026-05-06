@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useCommandStore } from '@/commands/registry'
 import ColumnBadges from '@/components/common/ColumnBadges.vue'
 import { useColumnBadge } from '@/composables/useColumnBadge'
 import { useColumnTabs } from '@/composables/useColumnTabs'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import { useUiStore } from '@/stores/ui'
 
 const props = defineProps<{
   columns: DeckColumn[]
@@ -21,6 +22,21 @@ const emit = defineEmits<{
 
 const commandStore = useCommandStore()
 const deckStore = useDeckStore()
+const { platformName } = useUiStore()
+
+const platformLabel: Record<string, string> = {
+  windows: 'Windows',
+  macos: 'macOS',
+  linux: 'Linux',
+  android: 'Android',
+  ios: 'iOS',
+}
+
+const profileIndicatorLabel = computed(() => {
+  const profile = deckStore.currentProfileName ?? 'プロファイル'
+  const os = platformName ? (platformLabel[platformName] ?? platformName) : null
+  return os ? `${os}: ${profile}` : profile
+})
 
 function onProfileClick() {
   commandStore.openWithInput('~')
@@ -60,7 +76,7 @@ const {
         @click="onProfileClick()"
       >
         <i class="ti ti-layout" />
-        <span :class="$style.profileName">{{ deckStore.currentProfileName ?? 'プロファイル' }}</span>
+        <span :class="$style.profileName">{{ profileIndicatorLabel }}</span>
       </button>
     </div>
 
@@ -155,7 +171,7 @@ const {
 .profileName {
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 120px;
+  max-width: 200px;
 }
 
 .tabsScroll {
