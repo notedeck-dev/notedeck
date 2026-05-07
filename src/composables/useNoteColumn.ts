@@ -663,6 +663,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
       streamingBatch.setPaused(true)
       resubscribe(adapter)
       setNotes([])
+      error.value = null
       isLoading.value = true
       try {
         // Load cache if requested
@@ -707,6 +708,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     // Swap subscription (stream/WebSocket stays connected)
     resubscribe(adapter)
     setNotes(snapshotNotes)
+    error.value = null
     await nextTick()
     if (scroller.value) scroller.value.scrollTop = scrollTop
 

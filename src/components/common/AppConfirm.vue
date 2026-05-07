@@ -1,11 +1,34 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
+import SystemIcon from '@/components/common/SystemIcon.vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
-import { useConfirm } from '@/stores/confirm'
+import { type ConfirmIcon, useConfirm } from '@/stores/confirm'
 
 const { visible: show, options, resolve } = useConfirm()
+
+const iconType = computed<Exclude<ConfirmIcon, 'none'> | null>(() => {
+  if (options.value.icon === 'none') return null
+  if (options.value.icon) return options.value.icon
+  switch (options.value.type) {
+    case 'danger':
+    case 'warning':
+      return 'warn'
+    case 'info':
+      return 'info'
+    case 'success':
+      return 'success'
+    case 'error':
+      return 'error'
+    case 'question':
+      return 'question'
+    case 'waiting':
+      return 'waiting'
+    default:
+      return null
+  }
+})
 
 const { visible, entering, leaving } = useVaporTransition(show, {
   enterDuration: 200,
@@ -37,6 +60,9 @@ useNativeDialog(dialogRef, visible, {
         :class="[entering && $style.contentEnter, leaving && $style.contentLeave]"
       >
         <div :class="$style.header">
+          <div v-if="iconType" :class="$style.icon">
+            <SystemIcon :type="iconType" />
+          </div>
           <div :class="$style.title">{{ options.title }}</div>
         </div>
         <div :class="$style.body">
@@ -63,8 +89,19 @@ useNativeDialog(dialogRef, visible, {
 @use '@/styles/popup';
 
 .header {
-  padding: 16px 20px 4px;
+  padding: 20px 20px 4px;
   text-align: center;
+}
+
+.icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+
+  svg {
+    width: 40px;
+    height: 40px;
+  }
 }
 
 .title {

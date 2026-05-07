@@ -180,6 +180,40 @@ export function markTimelineDenied(accountId: string, tlType: string): void {
     runtimeDenied.set(accountId, set)
   }
   set.add(tlType)
+  // Drop memory cache so the next detect() rebuilds with the new denied applied.
+  // Without this, a stale memory hit would re-expose a tab we just learned is dead.
+  availableTlCache.delete(accountId)
+}
+
+/** Apply runtime-denied set to a result in-place. */
+function applyRuntimeDenied(
+  accountId: string,
+  result: TimelineAvailability,
+): void {
+  const rtDenied = getRuntimeDenied(accountId)
+  for (const d of rtDenied) {
+    result.denied.add(d)
+    const idx = result.available.indexOf(d as TimelineType)
+    if (idx >= 0) result.available.splice(idx, 1)
+  }
+}
+
+/**
+ * Strip TL types unreachable for the account in-place.
+ * Currently only guests, who lack auth for `home` and `social` (= hybrid).
+ * Applied even on cache hits so stale entries from older builds get cleaned up.
+ */
+function applyAccountExclusions(
+  accountId: string,
+  result: TimelineAvailability,
+): void {
+  const account = useAccountsStore().accountMap.get(accountId)
+  if (account?.hasToken !== false) return
+  for (const t of ['home', 'social'] as const) {
+    const idx = result.available.indexOf(t)
+    if (idx >= 0) result.available.splice(idx, 1)
+    result.denied.add(t)
+  }
 }
 
 export function getRuntimeDenied(accountId: string): Set<string> {
@@ -190,7 +224,41 @@ export function clearRuntimeDenied(accountId: string): void {
   runtimeDenied.delete(accountId)
 }
 
-/** Core network fetch logic for policies. Caches result in memory + localStorage. */
+/**
+ * Translate a flat policies object into TL availability/denial sets.
+ * Shared by authenticated (i/get-policies) and unauthenticated (meta.policies) paths.
+ */
+function applyPoliciesToAvailability(
+  policies: Record<string, boolean>,
+  available: TimelineType[],
+  denied: Set<string>,
+): void {
+  const hasPolicySupport = Object.keys(policies).length > 0
+  for (const [policyKey, tlTypes] of Object.entries(POLICY_TIMELINE_MAP)) {
+    if (hasPolicySupport) {
+      if (policies[policyKey] === true) {
+        available.push(...tlTypes)
+      } else {
+        for (const t of tlTypes) denied.add(t)
+      }
+    } else {
+      available.push(...tlTypes)
+    }
+  }
+  for (const [key, value] of Object.entries(policies)) {
+    if (POLICY_HANDLED_KEYS.has(key)) continue
+    const match = key.match(TL_AVAILABLE_RE)
+    if (!match) continue
+    const type = match[1] as string
+    if (value === true) {
+      available.push(type)
+    } else {
+      denied.add(type)
+    }
+  }
+}
+
+/** Core network fetch logic for authenticated policies. */
 async function fetchPoliciesFromNetwork(
   accountId: string,
 ): Promise<TimelineAvailability> {
@@ -203,7 +271,6 @@ async function fetchPoliciesFromNetwork(
     boolean
   >
 
-  // Separate mode flags from policies
   const policies: Record<string, boolean> = {}
   for (const [key, value] of Object.entries(data)) {
     if (key.startsWith('isIn') && key.endsWith('Mode')) {
@@ -213,46 +280,41 @@ async function fetchPoliciesFromNetwork(
     }
   }
 
-  // Determine if server supports the policy system.
-  const hasPolicySupport =
-    Object.keys(policies).length > 0 || Object.keys(modes).length > 0
+  applyPoliciesToAvailability(policies, available, denied)
 
-  // Standard TLs
-  const handledKeys = POLICY_HANDLED_KEYS
-  for (const [policyKey, tlTypes] of Object.entries(POLICY_TIMELINE_MAP)) {
-    if (hasPolicySupport) {
-      if (policies[policyKey] === true) {
-        available.push(...tlTypes)
-      } else {
-        for (const t of tlTypes) denied.add(t)
-      }
-    } else {
-      available.push(...tlTypes)
-    }
+  const result: TimelineAvailability = { available, denied, modes }
+  applyAccountExclusions(accountId, result)
+  applyRuntimeDenied(accountId, result)
+  availableTlCache.set(accountId, result)
+  writeCache(STORAGE_KEYS.policies(accountId), serializeAvailability(result))
+  return result
+}
+
+/**
+ * Public fallback for unauthenticated accounts: read default policies from
+ * the server's `meta` endpoint (no auth required). Tabs that the server has
+ * disabled at policy level (e.g. ltlAvailable=false) are filtered out before
+ * any TL fetch is attempted.
+ */
+async function fetchPoliciesFromMeta(
+  accountId: string,
+): Promise<TimelineAvailability> {
+  const denied = new Set<string>()
+  const available: TimelineType[] = []
+
+  const meta = (unwrap(await commands.apiGetMetaDetail(accountId)) ??
+    {}) as Record<string, unknown>
+  const rawPolicies = (meta.policies ?? {}) as Record<string, unknown>
+  const policies: Record<string, boolean> = {}
+  for (const [k, v] of Object.entries(rawPolicies)) {
+    if (typeof v === 'boolean') policies[k] = v
   }
 
-  // Fork-specific: scan *TlAvailable patterns dynamically
-  for (const [key, value] of Object.entries(policies)) {
-    if (handledKeys.has(key)) continue
-    const match = key.match(TL_AVAILABLE_RE)
-    if (!match) continue
-    const type = match[1] as string
-    if (value === true) {
-      available.push(type)
-    } else {
-      denied.add(type)
-    }
-  }
+  applyPoliciesToAvailability(policies, available, denied)
 
-  // Apply runtime-denied types (from previous "disabled" API errors)
-  const rtDenied = getRuntimeDenied(accountId)
-  for (const d of rtDenied) {
-    denied.add(d)
-    const idx = available.indexOf(d as TimelineType)
-    if (idx >= 0) available.splice(idx, 1)
-  }
-
-  const result = { available, denied, modes }
+  const result: TimelineAvailability = { available, denied, modes: {} }
+  applyAccountExclusions(accountId, result)
+  applyRuntimeDenied(accountId, result)
   availableTlCache.set(accountId, result)
   writeCache(STORAGE_KEYS.policies(accountId), serializeAvailability(result))
   return result
@@ -267,44 +329,20 @@ async function fetchPoliciesFromNetwork(
 export async function detectAvailableTimelines(
   accountId: string,
 ): Promise<TimelineAvailability> {
-  // 1. Memory cache
+  // 1. Memory cache (markTimelineDenied invalidates this so fresh denials surface)
   const cached = availableTlCache.get(accountId)
   if (cached) return cached
 
-  // Logged-out: use cached policies from authenticated session (preserves tabs)
-  const account = useAccountsStore().accountMap.get(accountId)
-  if (account && !account.hasToken) {
-    const stored = readCache<SerializedAvailability>(
-      STORAGE_KEYS.policies(accountId),
-    )
-    if (stored) {
-      const result = deserializeAvailability(stored.data)
-      availableTlCache.set(accountId, result)
-      return result
-    }
-    // No cache (guest account): conservative fallback
-    const result: TimelineAvailability = {
-      available: ['local', 'global'],
-      denied: new Set(),
-      modes: {},
-    }
-    availableTlCache.set(accountId, result)
-    return result
-  }
-
-  // 2. localStorage cache (SWR)
+  // 2. localStorage cache (SWR) — shared by both authenticated and logged-out.
+  //    applyAccountExclusions cleans up entries from older builds that may
+  //    have stored guest-unreachable types like 'home' or 'social'.
   const stored = readCache<SerializedAvailability>(
     STORAGE_KEYS.policies(accountId),
   )
   if (stored) {
     const result = deserializeAvailability(stored.data)
-    // Apply runtime-denied on top of cached data
-    const rtDenied = getRuntimeDenied(accountId)
-    for (const d of rtDenied) {
-      result.denied.add(d)
-      const idx = result.available.indexOf(d as TimelineType)
-      if (idx >= 0) result.available.splice(idx, 1)
-    }
+    applyAccountExclusions(accountId, result)
+    applyRuntimeDenied(accountId, result)
     availableTlCache.set(accountId, result)
     if (Date.now() - stored.updatedAt >= POLICY_CACHE_TTL_MS) {
       fetchPoliciesFromNetwork(accountId).catch(() => {
@@ -314,20 +352,38 @@ export async function detectAvailableTimelines(
     return result
   }
 
-  // 3. No cache — network required
-  try {
-    return await fetchPoliciesFromNetwork(accountId)
-  } catch (e) {
-    console.warn('[availableTimelines] failed to detect policies:', e)
-    // Conservative fallback: keep only 'home'
-    const result: TimelineAvailability = {
-      available: ['home'],
-      denied: new Set(),
-      modes: {},
+  // 3. No cache — try network.
+  //    - Authenticated: i/get-policies (per-user role-aggregated).
+  //    - Guest: meta.policies (server defaults, no auth).
+  const account = useAccountsStore().accountMap.get(accountId)
+  if (account?.hasToken) {
+    try {
+      return await fetchPoliciesFromNetwork(accountId)
+    } catch (e) {
+      console.warn('[availableTimelines] failed to detect policies (auth):', e)
     }
-    availableTlCache.set(accountId, result)
-    return result
+  } else if (account) {
+    try {
+      return await fetchPoliciesFromMeta(accountId)
+    } catch (e) {
+      console.warn('[availableTimelines] failed to detect policies (meta):', e)
+    }
   }
+
+  // 4. Final fallback: token state determines safe defaults; runtime-denied
+  //    applied so tabs we already learned are dead stay hidden.
+  const fallbackAvailable: TimelineType[] = account?.hasToken
+    ? ['home']
+    : ['local', 'global']
+  const result: TimelineAvailability = {
+    available: fallbackAvailable,
+    denied: new Set(),
+    modes: {},
+  }
+  applyAccountExclusions(accountId, result)
+  applyRuntimeDenied(accountId, result)
+  availableTlCache.set(accountId, result)
+  return result
 }
 
 /** Invalidate the cached availability for an account (e.g., after mode toggle). */

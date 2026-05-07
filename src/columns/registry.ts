@@ -175,6 +175,7 @@ export const COLUMN_REGISTRY: Record<ColumnType, ColumnSpec> = {
     label: 'タイムライン',
     icon: 'home',
     group: 'account',
+    guestAllowed: true,
     defaultProps: { tl: 'home', name: null },
     component: () => import('@/components/deck/DeckTimelineColumn.vue'),
   },

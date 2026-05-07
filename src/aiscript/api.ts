@@ -92,7 +92,13 @@ export function createAiScriptEnv(
         await options.onDialog(title, text, type)
       } else {
         const { confirm } = useConfirm()
-        await confirm({ title, message: text, okLabel: 'OK', hideCancel: true })
+        await confirm({
+          title,
+          message: text,
+          okLabel: 'OK',
+          hideCancel: true,
+          type,
+        })
       }
       return values.NULL
     },
@@ -107,7 +113,7 @@ export function createAiScriptEnv(
       return values.BOOL(result)
     }
     const { confirm } = useConfirm()
-    const result = await confirm({ title, message: text })
+    const result = await confirm({ title, message: text, type: 'question' })
     return values.BOOL(result)
   })
 

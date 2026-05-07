@@ -39,11 +39,16 @@ const props = defineProps<{
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
 
-// Guest accounts can only access public timelines (local/global), not home
+// Guest accounts can only access public timelines (local/global), not home/social
 const accountData = accountsStore.accountMap.get(props.column.accountId ?? '')
-const defaultTl: TimelineType =
-  accountData?.hasToken === false ? 'local' : 'home'
-const tlType = ref<TimelineType>(props.column.tl || defaultTl)
+const isGuestAccountForTl = accountData?.hasToken === false
+const defaultTl: TimelineType = isGuestAccountForTl ? 'local' : 'home'
+const savedTl = props.column.tl
+const initialTl: TimelineType =
+  isGuestAccountForTl && (savedTl === 'home' || savedTl === 'social')
+    ? defaultTl
+    : savedTl || defaultTl
+const tlType = ref<TimelineType>(initialTl)
 
 // --- Filter ---
 const columnFilters = computed<TimelineFilter>(() => props.column.filters ?? {})
@@ -71,17 +76,38 @@ const noteColumnConfig: NoteColumnConfig = {
         ...buildTimelineOptions(),
       })
     } catch (e) {
-      // Handle "disabled" timeline errors: remove related TL tabs and switch
-      if (String(e).includes('disabled')) {
+      // Promote server errors that mean "this tab is unreachable" into
+      // runtime-denied state. Both code-form (LTL_DISABLED, GTL_DISABLED,
+      // CREDENTIAL_REQUIRED) and the legacy "disabled" substring are honored.
+      const errStr = String(e)
+      const explicitTarget: TimelineType | null = errStr.includes(
+        'LTL_DISABLED',
+      )
+        ? 'local'
+        : errStr.includes('GTL_DISABLED')
+          ? 'global'
+          : null
+      const isUnreachable =
+        explicitTarget !== null ||
+        errStr.includes('disabled') ||
+        errStr.includes('CREDENTIAL_REQUIRED')
+      if (isUnreachable) {
+        const target = explicitTarget ?? tlType.value
         const aid = props.column.accountId
-        const related = new Set(getRelatedTimelineTypes(tlType.value))
+        // CREDENTIAL_REQUIRED only kills the failing tab; *_DISABLED takes the
+        // whole policy group (e.g. local + social share ltlAvailable).
+        const related = errStr.includes('CREDENTIAL_REQUIRED')
+          ? new Set<string>([target])
+          : new Set(getRelatedTimelineTypes(target))
         if (aid) {
           for (const t of related) markTimelineDenied(aid, t)
         }
         availableStandardTl.value = availableStandardTl.value.filter(
           (t) => !related.has(t),
         )
-        switchTl(availableStandardTl.value[0] ?? 'home')
+        if (related.has(tlType.value)) {
+          switchTl(availableStandardTl.value[0] ?? 'home')
+        }
         return []
       }
       throw e
@@ -186,7 +212,10 @@ const allTlTypes = computed(() => {
   if (!policyLoaded.value) return TL_TYPES.map((t) => t) // No account — show all
   const allowed = availableStandardTl.value
   if (allowed.length === 0) {
-    // Policies loaded but nothing available — show home only as safe fallback
+    // Policies loaded but nothing available. Guests have no home/social, so
+    // returning empty is the only honest answer; authenticated users fall
+    // back to home as a last resort.
+    if (isGuestAccountForTl) return []
     return TL_TYPES.filter((t) => t.value === 'home')
   }
   const allowedSet = new Set(allowed)
@@ -376,6 +405,11 @@ onMounted(async () => {
   try {
     if (host && accountId) {
       await Promise.all([applyPolicies(accountId, host), refreshFilterKeys()])
+      if (availableStandardTl.value.length === 0) {
+        // Nothing reachable for this account (e.g. guest on a closed server).
+        // Leave connectReady=false so useNoteColumn doesn't fire a doomed fetch.
+        return
+      }
       if (!availableStandardTl.value.includes(tlType.value)) {
         // Only update tlType synchronously here — full reconnect will happen
         // via connectReady watcher in useNoteColumn, avoiding a double-connect race.
