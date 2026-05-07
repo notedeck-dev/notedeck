@@ -11,8 +11,11 @@ import { useCommandStore } from '@/commands/registry'
 import { useColumnHistory } from '@/composables/useColumnHistory'
 import { openDeckWindow } from '@/composables/useDeckWindow'
 import { openPipWindow } from '@/composables/usePipWindow'
+import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
+import { useWindowsStore } from '@/stores/windows'
+import { buildWindowUri } from '@/utils/windowUri'
 
 const CommandPalette = defineAsyncComponent(
   () => import('@/components/common/CommandPalette.vue'),
@@ -24,9 +27,24 @@ const TitleBarMenu = defineAsyncComponent(
 const appWindow = getCurrentWindow()
 const commandStore = useCommandStore()
 const deckStore = useDeckStore()
+const windowsStore = useWindowsStore()
+const accountsStore = useAccountsStore()
 const { platformName, isDesktop } = useUiStore()
 const isCompact = useIsCompactLayout()
 const { canGoBack, canGoForward, goBack, goForward } = useColumnHistory()
+
+const topWindowUri = computed(() => {
+  const win = windowsStore.topWindow
+  if (!win) return null
+  const accId = win.props.accountId
+  if (typeof accId !== 'string') return null
+  const account = accountsStore.accounts.find((a) => a.id === accId)
+  return buildWindowUri(win, account?.host ?? null)
+})
+
+const activeUri = computed(
+  () => topWindowUri.value ?? deckStore.activeColumnUri,
+)
 
 const platformLabel: Record<string, string> = {
   windows: 'Windows',
@@ -37,7 +55,7 @@ const platformLabel: Record<string, string> = {
 }
 
 const titleBarText = computed(() => {
-  if (deckStore.activeColumnUri) return deckStore.activeColumnUri
+  if (activeUri.value) return activeUri.value
   const parts: string[] = []
   if (platformName) parts.push(platformLabel[platformName] ?? platformName)
   if (deckStore.currentProfileName) parts.push(deckStore.currentProfileName)
@@ -167,9 +185,9 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
       <!-- Open: command palette input replaces the search bar -->
       <CommandPalette v-if="commandStore.isOpen" :class="$style.centerBar" />
       <!-- Closed: URI display / search trigger -->
-      <button v-else :class="[$style.titlebarSearchBar, $style.centerBar]" @click="commandStore.openWithInput(deckStore.activeColumnUri ?? '')">
+      <button v-else :class="[$style.titlebarSearchBar, $style.centerBar]" @click="commandStore.openWithInput(activeUri ?? '')">
         <i :class="[$style.titlebarSearchIcon, 'ti', 'ti-search']" />
-        <span :class="[$style.titlebarSearchText, { [$style.hasUri]: deckStore.activeColumnUri }]">{{ titleBarText }}</span>
+        <span :class="[$style.titlebarSearchText, { [$style.hasUri]: activeUri }]">{{ titleBarText }}</span>
         <kbd :class="$style.titlebarSearchKbd">Ctrl+K</kbd>
       </button>
     </div>

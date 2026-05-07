@@ -116,6 +116,12 @@ export const useWindowsStore = defineStore('windows', () => {
 
   const hasModal = computed(() => windows.value.some((w) => w.modal))
 
+  /** The frontmost (highest zIndex) window, or null when none are open. */
+  const topWindow = computed<DeckWindow | null>(() => {
+    if (windows.value.length === 0) return null
+    return [...windows.value].sort((a, b) => b.zIndex - a.zIndex)[0] ?? null
+  })
+
   /** Types that match by both type and specific props (multi-instance). */
   const PROPS_DEDUP_KEYS: Partial<Record<WindowType, string[]>> = {
     'note-detail': ['noteId', 'accountId'],
@@ -272,6 +278,7 @@ export const useWindowsStore = defineStore('windows', () => {
   return {
     windows,
     hasModal,
+    topWindow,
     open,
     close,
     bringToFront,

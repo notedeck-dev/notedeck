@@ -15,6 +15,8 @@ import { useWindowsStore } from '@/stores/windows'
  *   notedeck://<host>/notifications
  *   notedeck://<host>/search?q=<query>
  *   notedeck://<host>/user/<userId>
+ *   notedeck://<host>/user/<userId>/following
+ *   notedeck://<host>/user/<userId>/followers
  *   notedeck://<host>/note/<noteId>
  *   notedeck://<host>/list/<listId>
  *   notedeck://<host>/antenna/<antennaId>
@@ -27,6 +29,10 @@ import { useWindowsStore } from '@/stores/windows'
  *   notedeck://<host>/announcements
  *   notedeck://<host>/drive
  *   notedeck://<host>/gallery
+ *   notedeck://<host>/gallery/<postId>
+ *   notedeck://<host>/page/<pageId>
+ *   notedeck://<host>/play/<flashId>
+ *   notedeck://<host>/instance/<targetHost>
  */
 export async function handleDeepLink(rawUrl: string): Promise<void> {
   let url: URL
@@ -91,7 +97,17 @@ export async function handleDeepLink(rawUrl: string): Promise<void> {
 
     case 'user':
       if (rest[0] && accountId) {
-        handleOpenWindow('user-profile', { accountId, userId: rest[0] })
+        const userId = rest[0]
+        const sub = rest[1]
+        if (sub === 'following' || sub === 'followers') {
+          handleOpenWindow('follow-list', {
+            accountId,
+            userId,
+            initialTab: sub,
+          })
+        } else {
+          handleOpenWindow('user-profile', { accountId, userId })
+        }
       }
       break
 
@@ -102,7 +118,9 @@ export async function handleDeepLink(rawUrl: string): Promise<void> {
       break
 
     case 'list':
-      if (rest[0]) handleAddColumn('list', accountId, { listId: rest[0] })
+      if (rest[0] && accountId) {
+        handleOpenWindow('list-detail', { accountId, listId: rest[0] })
+      }
       break
 
     case 'antenna':
@@ -114,7 +132,9 @@ export async function handleDeepLink(rawUrl: string): Promise<void> {
       break
 
     case 'clip':
-      if (rest[0]) handleAddColumn('clip', accountId, { clipId: rest[0] })
+      if (rest[0] && accountId) {
+        handleOpenWindow('clip-detail', { accountId, clipId: rest[0] })
+      }
       break
 
     case 'channel':
@@ -142,7 +162,32 @@ export async function handleDeepLink(rawUrl: string): Promise<void> {
       break
 
     case 'gallery':
-      handleAddColumn('gallery', accountId)
+      if (rest[0] && accountId) {
+        handleOpenWindow('gallery-detail', { accountId, postId: rest[0] })
+      } else {
+        handleAddColumn('gallery', accountId)
+      }
+      break
+
+    case 'page':
+      if (rest[0] && accountId) {
+        handleOpenWindow('page-detail', { accountId, pageId: rest[0] })
+      }
+      break
+
+    case 'play':
+      if (rest[0] && accountId) {
+        handleOpenWindow('play-detail', { accountId, flashId: rest[0] })
+      }
+      break
+
+    case 'instance':
+      if (rest[0] && accountId) {
+        handleOpenWindow('federation-instance', {
+          accountId,
+          host: rest[0],
+        })
+      }
       break
 
     default:
