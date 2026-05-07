@@ -4,12 +4,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 Adapted from Misskey's MkSystemIcon.vue:
 https://github.com/misskey-dev/misskey/blob/develop/packages/frontend/src/components/global/MkSystemIcon.vue
-NoteDeck テーマ変数に合わせて色を置換。info / question / error の 3 種のみ移植。
+NoteDeck テーマ変数に合わせて色を置換。
 -->
 
 <script setup lang="ts">
 defineProps<{
-  type: 'info' | 'question' | 'error'
+  type: 'info' | 'question' | 'success' | 'warn' | 'error' | 'waiting'
 }>()
 </script>
 
@@ -53,6 +53,41 @@ defineProps<{
     />
   </svg>
   <svg
+    v-else-if="type === 'success'"
+    :class="[$style.icon, $style.success]"
+    viewBox="0 0 160 160"
+  >
+    <path
+      d="M62,80L74,92L98,68"
+      pathLength="1"
+      :class="[$style.line, $style.animLine]"
+    />
+    <circle
+      cx="80"
+      cy="80"
+      r="56"
+      pathLength="1"
+      :class="[$style.line, $style.animCircle]"
+    />
+  </svg>
+  <svg
+    v-else-if="type === 'warn'"
+    :class="[$style.icon, $style.warn]"
+    viewBox="0 0 160 160"
+  >
+    <path
+      d="M80,64L80,88"
+      pathLength="1"
+      :class="[$style.line, $style.animLine]"
+    />
+    <path d="M80,108L80,108" :class="[$style.line, $style.animFade]" />
+    <path
+      d="M92,28L144,116C148.709,124.65 144.083,135.82 136,136L24,136C15.917,135.82 11.291,124.65 16,116L68,28C73.498,19.945 86.771,19.945 92,28Z"
+      pathLength="1"
+      :class="[$style.line, $style.animLine]"
+    />
+  </svg>
+  <svg
     v-else-if="type === 'error'"
     :class="[$style.icon, $style.error]"
     viewBox="0 0 160 160"
@@ -77,6 +112,26 @@ defineProps<{
       :class="[$style.line, $style.animCircle]"
     />
   </svg>
+  <svg
+    v-else-if="type === 'waiting'"
+    :class="[$style.icon, $style.waiting]"
+    viewBox="0 0 160 160"
+  >
+    <circle
+      cx="80"
+      cy="80"
+      r="56"
+      pathLength="1"
+      :class="[$style.line, $style.animCircleWaiting]"
+    />
+    <circle
+      cx="80"
+      cy="80"
+      r="56"
+      style="opacity: 0.25"
+      :class="[$style.line]"
+    />
+  </svg>
 </template>
 
 <style lang="scss" module>
@@ -92,8 +147,20 @@ defineProps<{
     color: var(--nd-fg);
   }
 
+  &.success {
+    color: var(--nd-success);
+  }
+
+  &.warn {
+    color: var(--nd-warn);
+  }
+
   &.error {
     color: var(--nd-error);
+  }
+
+  &.waiting {
+    color: var(--nd-accent);
   }
 }
 
@@ -120,10 +187,16 @@ defineProps<{
   transform: rotate(-90deg);
 }
 
+.animCircleWaiting {
+  stroke-dasharray: 1;
+  stroke-dashoffset: calc(1 / 1.5);
+  animation: waiting 0.75s linear infinite;
+  transform-origin: center;
+}
+
 .animFade {
   opacity: 0;
-  animation: fade-in var(--duration, 0.5s) cubic-bezier(0, 0, 0.25, 1) 1 forwards
-    ;
+  animation: fade-in var(--duration, 0.5s) cubic-bezier(0, 0, 0.25, 1) 1 forwards;
   animation-delay: var(--delay, 0s);
 }
 
@@ -135,6 +208,15 @@ defineProps<{
   100% {
     stroke-dashoffset: 0;
     opacity: 1;
+  }
+}
+
+@keyframes waiting {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
   }
 }
 

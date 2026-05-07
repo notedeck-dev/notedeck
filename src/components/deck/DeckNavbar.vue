@@ -85,6 +85,7 @@ async function toggleOfflineMode() {
       : 'すべての通信を停止し、キャッシュ済みデータのみ表示します。',
     okLabel: isOn ? '解除' : '切替',
     cancelLabel: 'キャンセル',
+    type: 'question',
   })
   if (ok) await offlineModeStore.toggle()
 }
@@ -98,6 +99,7 @@ async function toggleRealtimeMode() {
       : 'リアルタイム更新に切り替えます。',
     okLabel: '切替',
     cancelLabel: 'キャンセル',
+    type: 'question',
   })
   if (ok) realtimeModeStore.toggle()
 }

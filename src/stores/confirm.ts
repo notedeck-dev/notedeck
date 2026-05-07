@@ -1,11 +1,30 @@
 import { ref } from 'vue'
 
+export type ConfirmType =
+  | 'normal'
+  | 'danger'
+  | 'warning'
+  | 'info'
+  | 'success'
+  | 'error'
+  | 'question'
+  | 'waiting'
+export type ConfirmIcon =
+  | 'info'
+  | 'question'
+  | 'success'
+  | 'warn'
+  | 'error'
+  | 'waiting'
+  | 'none'
+
 export interface ConfirmOptions {
   title: string
   message: string
   okLabel?: string
   cancelLabel?: string
-  type?: 'normal' | 'danger'
+  type?: ConfirmType
+  icon?: ConfirmIcon
   hideCancel?: boolean
 }
 
