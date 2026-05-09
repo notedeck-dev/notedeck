@@ -324,16 +324,3 @@ pub async fn api_delete_chat_message(
         .await
 }
 
-// --- Legacy messaging ---
-
-#[tauri::command]
-#[specta::specta]
-pub async fn api_create_messaging_message(
-    app_state: State<'_, AppState>,
-    account_id: String,
-    params: serde_json::Value,
-) -> Result<ChatMessage> {
-    let (db, client) = app_state.ready().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
-    client.create_messaging_message(&host, &token, params).await
-}

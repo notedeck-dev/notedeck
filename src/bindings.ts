@@ -868,14 +868,6 @@ async apiDeleteChatMessage(accountId: string, messageId: string) : Promise<Resul
     else return { status: "error", error: e  as any };
 }
 },
-async apiCreateMessagingMessage(accountId: string, params: JsonValue) : Promise<Result<ChatMessage, { code: string; message: string }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("api_create_messaging_message", { accountId, params }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async apiSearchUsersByQuery(accountId: string, query: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_users_by_query", { accountId, query, limit }) };
