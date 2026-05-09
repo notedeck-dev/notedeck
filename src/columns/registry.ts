@@ -266,6 +266,9 @@ export const COLUMN_REGISTRY: Record<ColumnType, ColumnSpec> = {
     icon: 'messages',
     group: 'account',
     crossAccount: true,
+    // ログアウト中・ゲストアカウントでも追加可能。ログアウト中は
+    // `chat_messages_cache` から履歴を読める (#460)。timeline と同じ流儀。
+    guestAllowed: true,
     component: () => import('@/components/deck/DeckChatColumn.vue'),
   },
   achievements: {

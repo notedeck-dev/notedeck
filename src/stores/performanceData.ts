@@ -74,6 +74,16 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     label: '通知保持上限',
     description: '通知カラムに保持する通知の最大数',
   },
+  chatMessageStoreMax: {
+    min: 500,
+    max: 50000,
+    step: 500,
+    unit: '件',
+    category: 'note',
+    label: 'チャットメッセージストア上限',
+    description:
+      'グローバル chatMessageStore の保持上限。長時間チャットしている場合のメモリに影響 (#460)',
+  },
   mfmCacheMax: {
     min: 32,
     max: 2048,
@@ -478,6 +488,7 @@ export const SLIDER_LOW: PerformanceConfig = {
   noteStoreMax: 800,
   noteListMax: 150,
   maxNotifications: 100,
+  chatMessageStoreMax: 2000,
   mfmCacheMax: 128,
   imageProxyCacheMax: 64,
   ogpCacheMax: 128,
@@ -529,6 +540,7 @@ export const SLIDER_HIGH: PerformanceConfig = {
   noteStoreMax: 3000,
   noteListMax: 300,
   maxNotifications: 500,
+  chatMessageStoreMax: 10000,
   mfmCacheMax: 512,
   imageProxyCacheMax: 512,
   ogpCacheMax: 512,

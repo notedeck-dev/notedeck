@@ -4,6 +4,9 @@
   "emojiPersistPerHost": 500,
   "noteStoreMax": 1500,
   "noteListMax": 200,
+  // chat メッセージの正規化ストア (chatMessageStore) 上限。チャットは note より
+  // 流量が低いので default はやや控えめ。LRU 風 eviction で古いメッセージから掃除。
+  "chatMessageStoreMax": 5000,
   "maxNotifications": 300,
   "mfmCacheMax": 256,
   "imageProxyCacheMax": 128,

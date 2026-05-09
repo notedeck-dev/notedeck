@@ -21,6 +21,8 @@ export interface PerformanceConfig {
   noteStoreMax: number
   noteListMax: number
   maxNotifications: number
+  // Chat
+  chatMessageStoreMax: number
   // Parse cache
   mfmCacheMax: number
   imageProxyCacheMax: number

@@ -99,6 +99,49 @@ async defaultEvictionConfig() : Promise<Result<EvictionConfig, { code: string; m
     else return { status: "error", error: e  as any };
 }
 },
+async chatCacheStats() : Promise<Result<ChatCacheStats, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("chat_cache_stats") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async chatCacheCount(accountId: string) : Promise<Result<number, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("chat_cache_count", { accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async clearChatCacheForAccount(accountId: string) : Promise<Result<number, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_chat_cache_for_account", { accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * chat 用の eviction config を即時適用する。`apply_eviction_config` (notes 用) と並列。
+ */
+async applyChatEvictionConfig(config: ChatEvictionConfig) : Promise<Result<number, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("apply_chat_eviction_config", { config }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async defaultChatEvictionConfig() : Promise<Result<ChatEvictionConfig, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("default_chat_eviction_config") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async loadServers() : Promise<Result<StoredServer[], { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("load_servers") };
@@ -1310,25 +1353,25 @@ async apiListRegistryKeys(accountId: string, scope: string[]) : Promise<Result<P
     else return { status: "error", error: e  as any };
 }
 },
-async apiGetChatHistory(accountId: string, limit: number | null, room: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
+async apiGetChatHistory(accountId: string, limit: number | null, room: boolean | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("api_get_chat_history", { accountId, limit, room }) };
+    return { status: "ok", data: await TAURI_INVOKE("api_get_chat_history", { accountId, limit, room, cache }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async apiGetChatUserMessages(accountId: string, userId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
+async apiGetChatUserMessages(accountId: string, userId: string, limit: number | null, sinceId: string | null, untilId: string | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("api_get_chat_user_messages", { accountId, userId, limit, sinceId, untilId }) };
+    return { status: "ok", data: await TAURI_INVOKE("api_get_chat_user_messages", { accountId, userId, limit, sinceId, untilId, cache }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async apiGetChatRoomMessages(accountId: string, roomId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
+async apiGetChatRoomMessages(accountId: string, roomId: string, limit: number | null, sinceId: string | null, untilId: string | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("api_get_chat_room_messages", { accountId, roomId, limit, sinceId, untilId }) };
+    return { status: "ok", data: await TAURI_INVOKE("api_get_chat_room_messages", { accountId, roomId, limit, sinceId, untilId, cache }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1337,6 +1380,30 @@ async apiGetChatRoomMessages(accountId: string, roomId: string, limit: number | 
 async apiCreateChatMessage(accountId: string, userId: string | null, roomId: string | null, text: string) : Promise<Result<ChatMessage, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_chat_message", { accountId, userId, roomId, text }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async apiGetCachedChatHistory(accountId: string, limit: number | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_get_cached_chat_history", { accountId, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async apiGetCachedChatThreadMessages(accountId: string, threadId: string, untilId: string | null, limit: number | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_get_cached_chat_thread_messages", { accountId, threadId, untilId, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async apiGetCachedChatLatestMessageId(accountId: string, threadId: string) : Promise<Result<string | null, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_get_cached_chat_latest_message_id", { accountId, threadId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1937,6 +2004,13 @@ export type AuthSession = { sessionId: string; url: string; host: string }
 export type AvatarDecoration = { id: string; url: string; angle?: number | null; flipH?: boolean | null; offsetX?: number | null; offsetY?: number | null }
 export type CacheStats = { noteCount: number; dbSizeBytes: number }
 export type Channel = { id: string; name: string; color?: string | null }
+export type ChatCacheStats = { messageCount: number; bytes: number }
+/**
+ * `chat_messages_cache` の eviction policy。`EvictionConfig` (notes 用) と独立して
+ * 制御できるよう別 struct で管理する。デフォルトは notes と同じ「per-account 1M 件
+ * hard cap、TTL なし」(チャット履歴の永続性を尊重 — 設計判断は notedeck #460)。
+ */
+export type ChatEvictionConfig = { perAccountLimit: number | null; ttlDays: number | null }
 export type ChatMessage = { id: string; createdAt: string; fromUserId: string; fromUser: ChatUser | null; toUserId: string | null; toUser: ChatUser | null; toRoomId: string | null; toRoom: ChatRoom | null; text: string | null; fileId: string | null; file: NormalizedDriveFile | null; isRead: boolean | null; reactions?: ChatMessageReaction[] }
 export type ChatMessageReaction = { user: ChatReactionUser | null; reaction: string }
 export type ChatReactionUser = { id: string; name: string | null; username: string; host: string | null; avatarUrl: string | null }

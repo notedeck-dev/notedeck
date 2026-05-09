@@ -612,15 +612,23 @@ export class MisskeyApi implements ApiAdapter {
     )
   }
 
-  async getChatHistory(limit?: number): Promise<ChatMessage[]> {
+  async getChatHistory(
+    limit?: number,
+    cache?: boolean | null,
+  ): Promise<ChatMessage[]> {
     return unwrapAny(
-      await commands.apiGetChatHistory(this.accountId, limit ?? 100, null),
+      await commands.apiGetChatHistory(
+        this.accountId,
+        limit ?? 100,
+        null,
+        cache ?? null,
+      ),
     )
   }
 
   async getChatUserMessages(
     userId: string,
-    options: PaginationOptions = {},
+    options: PaginationOptions & { cache?: boolean | null } = {},
   ): Promise<ChatMessage[]> {
     return unwrapAny(
       await commands.apiGetChatUserMessages(
@@ -629,13 +637,14 @@ export class MisskeyApi implements ApiAdapter {
         options.limit ?? 30,
         options.sinceId ?? null,
         options.untilId ?? null,
+        options.cache ?? null,
       ),
     )
   }
 
   async getChatRoomMessages(
     roomId: string,
-    options: PaginationOptions = {},
+    options: PaginationOptions & { cache?: boolean | null } = {},
   ): Promise<ChatMessage[]> {
     return unwrapAny(
       await commands.apiGetChatRoomMessages(
@@ -644,7 +653,37 @@ export class MisskeyApi implements ApiAdapter {
         options.limit ?? 30,
         options.sinceId ?? null,
         options.untilId ?? null,
+        options.cache ?? null,
       ),
+    )
+  }
+
+  /** ローカル DB から chat history (各 thread の最新 1 件) を取得する (#460)。 */
+  async getCachedChatHistory(limit?: number): Promise<ChatMessage[]> {
+    return unwrapAny(
+      await commands.apiGetCachedChatHistory(this.accountId, limit ?? 100),
+    )
+  }
+
+  /** ローカル DB から chat thread のメッセージを取得する。 */
+  async getCachedChatThreadMessages(
+    threadId: string,
+    options: { limit?: number; untilId?: string | null } = {},
+  ): Promise<ChatMessage[]> {
+    return unwrapAny(
+      await commands.apiGetCachedChatThreadMessages(
+        this.accountId,
+        threadId,
+        options.untilId ?? null,
+        options.limit ?? 30,
+      ),
+    )
+  }
+
+  /** Gap 検出用: 該当 thread の DB 最新 message id (since_id 計算)。 */
+  async getCachedChatLatestMessageId(threadId: string): Promise<string | null> {
+    return unwrapAny(
+      await commands.apiGetCachedChatLatestMessageId(this.accountId, threadId),
     )
   }
 

@@ -591,14 +591,14 @@ export interface ApiAdapter {
     roleId: string,
     options?: PaginationOptions,
   ): Promise<NormalizedNote[]>
-  getChatHistory(limit?: number): Promise<ChatMessage[]>
+  getChatHistory(limit?: number, cache?: boolean | null): Promise<ChatMessage[]>
   getChatUserMessages(
     userId: string,
-    options?: PaginationOptions,
+    options?: PaginationOptions & { cache?: boolean | null },
   ): Promise<ChatMessage[]>
   getChatRoomMessages(
     roomId: string,
-    options?: PaginationOptions,
+    options?: PaginationOptions & { cache?: boolean | null },
   ): Promise<ChatMessage[]>
   createChatMessage(params: {
     userId?: string

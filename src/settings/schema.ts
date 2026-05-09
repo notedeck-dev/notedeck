@@ -58,6 +58,18 @@ export interface NotedeckSettings {
   /** preset='custom' のとき適用する TTL (日)。null = 無期限。 */
   'cache.ttlDays'?: number | null
 
+  // --- Chat cache (chat_messages_cache の自動掃除、#460) ---
+  /**
+   * チャット履歴をローカル DB にキャッシュするか。
+   * - `true` (default): REST/WS で受信した chat メッセージを SQLite に upsert する
+   * - `false`: 透過的にキャッシュを停止 (履歴は揮発、再起動で消える)
+   */
+  'chat.cacheEnabled'?: boolean
+  /** アカウントごとの chat 件数上限。null = 無制限。default 1,000,000。 */
+  'chat.perAccountLimit'?: number | null
+  /** chat の TTL (日)。null = 無期限保持 (default)。 */
+  'chat.ttlDays'?: number | null
+
   // keybinds は keybinds.json5 に分離済み（独立ファイル）
   // AI は ai.json5 に分離済み。システムプロンプトは skills/ に統合済み
 }
@@ -82,6 +94,11 @@ export const DEFAULT_SETTINGS: NotedeckSettings = {
   // デフォルトは notecli の `EvictionConfig::default()` (= per-account 1M cap、
   // TTL なし) と同等のバランスプリセット。
   'cache.evictionPreset': 'balanced',
+  // チャット履歴キャッシュは default ON (#460)。プライバシーで止めたい場合は
+  // false にすれば WS/REST で受信した chat も DB に書かれない。
+  'chat.cacheEnabled': true,
+  'chat.perAccountLimit': 1_000_000,
+  'chat.ttlDays': null,
 }
 
 /**

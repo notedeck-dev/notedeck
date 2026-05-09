@@ -6,7 +6,7 @@
  * デフォルトは notecli の `EvictionConfig::default()` (balanced) を尊重する。
  * 「ストレージ優先」を選びたいヘビーユーザーだけが明示的に下げる前提。
  */
-import type { EvictionConfig } from '@/bindings'
+import type { ChatEvictionConfig, EvictionConfig } from '@/bindings'
 import type { NotedeckSettings } from '@/settings/schema'
 
 export type EvictionPreset = NonNullable<
@@ -52,6 +52,27 @@ export function resolveEvictionConfig(
       }
     default:
       return BALANCED
+  }
+}
+
+/**
+ * settings から ChatEvictionConfig を解決する (#460)。
+ *
+ * 設計判断:
+ * - チャット履歴も notes と同じく「永続記録」を尊重し、デフォルトは notecli の
+ *   `ChatEvictionConfig::default()` (per-account 1M cap、TTL なし) と同等。
+ * - notes のような preset (検索優先 / バランス / ストレージ優先) は v1 では作らない。
+ *   ユーザー要求が来てから C-phase で UI を足す。
+ * - `chat.cacheEnabled` が false のときは「キャッシュ書込み禁止」モード。
+ *   既に DB に入っているメッセージは退避方針を選びたい余地があるが、 v1 では
+ *   eviction はそのまま走らせる (= 既存ローカル履歴は残る)。透過的に保ちたい。
+ */
+export function resolveChatEvictionConfig(
+  settings: NotedeckSettings,
+): ChatEvictionConfig {
+  return {
+    perAccountLimit: settings['chat.perAccountLimit'] ?? 1_000_000,
+    ttlDays: settings['chat.ttlDays'] ?? null,
   }
 }
 

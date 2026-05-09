@@ -1,6 +1,6 @@
 use tauri::State;
 
-use notecli::db::EvictionConfig;
+use notecli::db::{ChatEvictionConfig, EvictionConfig};
 use notecli::keychain;
 use notecli::models::{Account, AccountPublic, StoredServer};
 
@@ -121,6 +121,63 @@ pub async fn apply_eviction_config(
 #[specta::specta]
 pub async fn default_eviction_config() -> Result<EvictionConfig> {
     Ok(EvictionConfig::default())
+}
+
+// --- Chat cache management ---
+
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatCacheStats {
+    pub message_count: i64,
+    pub bytes: i64,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn chat_cache_stats(app_state: State<'_, AppState>) -> Result<ChatCacheStats> {
+    let db = app_state.db().await;
+    let (message_count, bytes) = db.chat_cache_stats()?;
+    Ok(ChatCacheStats {
+        message_count,
+        bytes,
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn chat_cache_count(
+    app_state: State<'_, AppState>,
+    account_id: String,
+) -> Result<i64> {
+    let db = app_state.db().await;
+    db.chat_cache_count(&account_id)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_chat_cache_for_account(
+    app_state: State<'_, AppState>,
+    account_id: String,
+) -> Result<u64> {
+    let db = app_state.db().await;
+    db.clear_chat_cache_for_account(&account_id)
+}
+
+/// chat 用の eviction config を即時適用する。`apply_eviction_config` (notes 用) と並列。
+#[tauri::command]
+#[specta::specta]
+pub async fn apply_chat_eviction_config(
+    app_state: State<'_, AppState>,
+    config: ChatEvictionConfig,
+) -> Result<u64> {
+    let db = app_state.db().await;
+    db.cleanup_chat_with_eviction(&config)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn default_chat_eviction_config() -> Result<ChatEvictionConfig> {
+    Ok(ChatEvictionConfig::default())
 }
 
 // --- Guest / Anonymous API ---
