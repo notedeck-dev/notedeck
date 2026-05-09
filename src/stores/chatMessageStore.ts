@@ -12,9 +12,22 @@
  */
 import { defineStore } from 'pinia'
 import { shallowRef, triggerRef } from 'vue'
-import type { ChatMessage, ChatMessageReaction } from '@/bindings'
+import type { ChatMessage } from '@/adapters/types'
 import { useFrameScheduler } from '@/composables/useFrameScheduler'
 import { usePerformanceStore } from '@/stores/performance'
+
+/**
+ * `bindings.ChatReactionUser` (string | null) と `ChatMessageReaction['user']`
+ * (string | undefined) の両方を受けるための広めの reactor 型。
+ * 内部で null → undefined に正規化してから格納する。
+ */
+type ReactorInput = {
+  id: string
+  username: string
+  name?: string | null
+  host?: string | null
+  avatarUrl?: string | null
+} | null
 
 /** 同じ react/unreact event が複数経路から重複到達した時の dedup window。 */
 const CHAT_UPDATE_DEDUP_WINDOW_MS = 1500
@@ -25,14 +38,14 @@ export type ChatMessageUpdateEvent =
       messageId: string
       userId?: string | null
       reaction: string
-      reactor?: ChatMessageReaction['user']
+      reactor?: ReactorInput
     }
   | {
       type: 'unreacted'
       messageId: string
       userId?: string | null
       reaction: string
-      reactor?: ChatMessageReaction['user']
+      reactor?: ReactorInput
     }
   | {
       type: 'deleted'
@@ -180,9 +193,19 @@ export const useChatMessageStore = defineStore('chatMessages', () => {
 
     switch (event.type) {
       case 'reacted': {
+        const r = event.reactor
+        const user = r
+          ? {
+              id: r.id,
+              username: r.username,
+              name: r.name ?? undefined,
+              host: r.host ?? undefined,
+              avatarUrl: r.avatarUrl ?? undefined,
+            }
+          : null
         const reactions = [
           ...(msg.reactions ?? []),
-          { user: event.reactor ?? null, reaction: event.reaction },
+          { user, reaction: event.reaction },
         ]
         messageMap.value.set(event.messageId, { ...msg, reactions })
         scheduleTrigger()
