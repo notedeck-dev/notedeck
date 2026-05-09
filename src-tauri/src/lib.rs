@@ -179,6 +179,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             commands::api_read_announcement,
             commands::api_react_chat_message,
             commands::api_unreact_chat_message,
+            commands::api_delete_chat_message,
             commands::api_create_messaging_message,
             commands::api_search_users_by_query,
             commands::api_search_hashtags,

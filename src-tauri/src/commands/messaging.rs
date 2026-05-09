@@ -294,6 +294,29 @@ pub async fn api_unreact_chat_message(
         .await
 }
 
+// --- Chat delete ---
+
+/// Misskey 新 Chat API の `chat/messages/delete` をラップする (#468)。
+/// Misskey はハード削除のみで、削除成功後 WS `chat:deleted` event が
+/// 配信される。notecli 側の streaming.rs がそれを受けて
+/// `chat_messages_cache` から自動削除し、フロントには
+/// `stream-chat-message-deleted` event が emit される。フロントの
+/// QuerySubscription はその event を受けて UI からも消すため、
+/// この command の呼び出し側で楽観更新は不要。
+#[tauri::command]
+#[specta::specta]
+pub async fn api_delete_chat_message(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    message_id: String,
+) -> Result<()> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    client
+        .delete_chat_message(&host, &token, &message_id)
+        .await
+}
+
 // --- Legacy messaging ---
 
 #[tauri::command]

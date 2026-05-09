@@ -883,6 +883,24 @@ async function handleUnreact(messageId: string, reaction: string) {
   }
 }
 
+/**
+ * チャットメッセージを Misskey 側から削除する (#468)。
+ * 削除成功後 WS `chat:deleted` event が配信され、QuerySubscription の
+ * `onDelete` 経由で UI から自動的に消える。先回りで `removeMessage()`
+ * しても dedup window で吸収されるが、楽観更新は不要なのでここでは行わない。
+ */
+async function handleDelete(messageId: string) {
+  const accId = activeAccountId.value
+  if (!accId) return
+  if (!ensureActiveAccountAuth()) return
+
+  try {
+    unwrap(await commands.apiDeleteChatMessage(accId, messageId))
+  } catch (e) {
+    handleActionError(e)
+  }
+}
+
 function pickReaction(reaction: string) {
   if (reactionTargetId.value) {
     handleReact(reactionTargetId.value, reaction)
@@ -1273,6 +1291,7 @@ onBeforeUnmount(() => {
               :other-avatar-url="currentRoomId ? undefined : conversationOtherAvatarUrl ?? undefined"
               @react="handleReact"
               @unreact="handleUnreact"
+              @delete="handleDelete"
             />
           </div>
         </template>
