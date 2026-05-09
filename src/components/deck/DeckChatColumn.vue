@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import {
   computed,
   nextTick,
@@ -14,7 +15,7 @@ import type {
   ChatMessage,
   NormalizedDriveFile,
 } from '@/adapters/types'
-import type { JsonValue } from '@/bindings'
+import type { ChatReactionUser, JsonValue } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAvatar from '@/components/common/MkAvatar.vue'
@@ -27,11 +28,25 @@ import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
+import { useChatMessageStore } from '@/stores/chatMessageStore'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
+
+/**
+ * `stream-chat-message-reacted` / `stream-chat-message-unreacted` の WS payload (#460)。
+ * notecli `StreamChatMessageReactedEvent` / `StreamChatMessageUnreactedEvent` と同形だが
+ * specta export 対象外なので frontend 側で手書き定義する。
+ */
+interface StreamChatReactionPayload {
+  accountId: string
+  subscriptionId: string
+  messageId: string
+  reaction: string
+  user: ChatReactionUser | null
+}
 
 const props = defineProps<{
   column: DeckColumnType
@@ -54,6 +69,7 @@ const {
 
 const accountsStore = useAccountsStore()
 const multiAdapters = useMultiAccountAdapters()
+const chatMessageStore = useChatMessageStore()
 
 /**
  * 操作対象アカウントが投稿可能 (token 保持) かをチェックする (#460)。
@@ -88,7 +104,12 @@ function handleActionError(e: unknown) {
 const chatSound = useNoteSound(() => account.value?.host, 'syuilo/waon')
 
 const viewMode = ref<'history' | 'conversation'>('history')
-const messages = shallowRef<ChatMessage[]>([])
+// B-5: messages は chatMessageStore からの ID 参照のみで管理する。
+// `messageIds` の真値を持ち、`messages` は store から resolve した derived。
+// これにより WS の reaction/unreaction event が store.applyUpdate 経由で
+// in-place 更新されると、UI が自動的に再描画される。
+const messageIds = ref<string[]>([])
+const messages = computed(() => chatMessageStore.resolve(messageIds.value))
 const currentOtherId = ref<string | null>(null)
 const currentRoomId = ref<string | null>(null)
 const conversationTitle = ref('')
@@ -122,8 +143,11 @@ interface HistoryEntry {
 const historyEntries = shallowRef<HistoryEntry[]>([])
 const loadProgress = ref<{ host: string; done: boolean }[]>([])
 
-// Per-account: legacy chatHistory for getHistoryEntries()
-const chatHistory = shallowRef<ChatMessage[]>([])
+// Per-account: chatHistory も messageIds ベースで store から resolve する (B-5)。
+const chatHistoryIds = ref<string[]>([])
+const chatHistory = computed(() =>
+  chatMessageStore.resolve(chatHistoryIds.value),
+)
 
 const myUserId = computed(() => {
   if (isCrossAccount.value) {
@@ -238,7 +262,7 @@ async function connectPerAccount() {
   if (props.column.accountId) {
     const cached = await loadCachedHistory(props.column.accountId)
     if (cached.length > 0) {
-      chatHistory.value = cached
+      setChatHistory(cached)
       isLoading.value = false
     }
   }
@@ -269,19 +293,62 @@ async function connectPerAccount() {
       ) as unknown as ChatMessage[]
     }
 
-    chatHistory.value = [...userHistory, ...roomHistory].sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    setChatHistory(
+      [...userHistory, ...roomHistory].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
     )
   } catch (e) {
     // キャッシュで既に hydrate 済みならエラー表示しない (B-1 fallback と同じ判断)。
     // 「オフライン」表示は DeckColumn の offlineBanner に任せる。
-    if (chatHistory.value.length === 0) {
+    if (chatHistoryIds.value.length === 0) {
       error.value = AppError.from(e)
     }
   } finally {
     isLoading.value = false
   }
+}
+
+/**
+ * Per-account history を store + IDs に流す (B-5)。`chatMessageStore.put` で
+ * 実体を入れ、`chatHistoryIds` に id を持たせて UI には computed `chatHistory`
+ * から resolve させる。
+ */
+function setChatHistory(msgs: ChatMessage[]) {
+  chatMessageStore.put(msgs)
+  chatHistoryIds.value = msgs.map((m) => m.id)
+}
+
+/**
+ * Conversation の messages を store + IDs に流す (B-5)。
+ */
+function setMessages(msgs: ChatMessage[]) {
+  chatMessageStore.put(msgs)
+  messageIds.value = msgs.map((m) => m.id)
+}
+
+function appendMessage(msg: ChatMessage) {
+  if (messageIds.value.includes(msg.id)) return
+  chatMessageStore.put([msg])
+  messageIds.value = [...messageIds.value, msg.id]
+}
+
+function prependMessages(older: ChatMessage[]) {
+  if (older.length === 0) return
+  chatMessageStore.put(older)
+  const existing = new Set(messageIds.value)
+  const newIds = older
+    .slice()
+    .reverse()
+    .map((m) => m.id)
+    .filter((id) => !existing.has(id))
+  messageIds.value = [...newIds, ...messageIds.value]
+}
+
+function removeMessage(messageId: string) {
+  messageIds.value = messageIds.value.filter((id) => id !== messageId)
+  chatMessageStore.remove(messageId)
 }
 
 async function connectCrossAccount() {
@@ -310,6 +377,7 @@ async function connectCrossAccount() {
   )
   const cachedAll = cachedResults.flat()
   if (cachedAll.length > 0) {
+    chatMessageStore.put(cachedAll.map((x) => x.msg))
     historyEntries.value = buildCrossAccountHistoryEntries(cachedAll)
     isLoading.value = false
   }
@@ -367,6 +435,7 @@ async function connectCrossAccount() {
   for (const r of results) {
     if (r.status === 'fulfilled') allMessages.push(...r.value)
   }
+  chatMessageStore.put(allMessages.map((x) => x.msg))
   historyEntries.value = buildCrossAccountHistoryEntries(allMessages)
   isLoading.value = false
   loadProgress.value = []
@@ -486,24 +555,24 @@ async function openConversation(
       // 1. Cache hydrate (B-2): 即時に thread を表示する。
       const cached = await loadCachedThread(threadId)
       if (cached.length > 0) {
-        messages.value = cached
+        setMessages(cached)
         viewMode.value = 'conversation'
         isLoading.value = false
         scrollToBottom()
       }
 
       if (isLoggedOut || !adapter) {
-        if (cached.length === 0) messages.value = []
+        if (cached.length === 0) setMessages([])
       } else {
         // 2. 並行で API fetch して reconcile
         try {
           const msgs = await adapter.api.getChatRoomMessages(
             currentRoomId.value,
           )
-          messages.value = msgs.slice().reverse()
+          setMessages(msgs.slice().reverse())
         } catch {
           // cache hydrate 済みならそのまま、空ならそのまま空 (error は最終 catch で吸収)
-          if (cached.length === 0) messages.value = []
+          if (cached.length === 0) setMessages([])
         }
         if (isCrossAccount.value) adapter.stream.connect()
         chatSub = createQuerySubscription({
@@ -532,21 +601,21 @@ async function openConversation(
       // 1. Cache hydrate (B-2)
       const cached = await loadCachedThread(threadId)
       if (cached.length > 0) {
-        messages.value = cached
+        setMessages(cached)
         viewMode.value = 'conversation'
         isLoading.value = false
         scrollToBottom()
       }
 
       if (isLoggedOut || !adapter) {
-        if (cached.length === 0) messages.value = []
+        if (cached.length === 0) setMessages([])
       } else {
         // 2. 並行で API fetch して reconcile
         try {
           const msgs = await adapter.api.getChatUserMessages(otherId)
-          messages.value = msgs.slice().reverse()
+          setMessages(msgs.slice().reverse())
         } catch {
-          if (cached.length === 0) messages.value = []
+          if (cached.length === 0) setMessages([])
         }
         if (isCrossAccount.value) adapter.stream.connect()
         chatSub = createQuerySubscription({
@@ -569,21 +638,21 @@ async function openConversation(
 }
 
 function onNewMessage(msg: ChatMessage) {
-  if (messages.value.some((m) => m.id === msg.id)) return
-  messages.value = [...messages.value, msg]
+  if (messageIds.value.includes(msg.id)) return
+  appendMessage(msg)
   if (!props.column.soundMuted) chatSound.play()
   scrollToBottom()
 }
 
 function onMessageDeleted(messageId: string) {
-  messages.value = messages.value.filter((m) => m.id !== messageId)
+  removeMessage(messageId)
 }
 
 function goBack() {
   chatSub?.dispose()
   chatSub = null
   viewMode.value = 'history'
-  messages.value = []
+  messageIds.value = []
   currentOtherId.value = null
   currentRoomId.value = null
   conversationAccountId.value = null
@@ -615,8 +684,8 @@ async function sendMessage() {
     ) as unknown as ChatMessage
     messageText.value = ''
     attachedFile.value = null
-    if (!messages.value.some((m) => m.id === sent.id)) {
-      messages.value = [...messages.value, sent]
+    if (!messageIds.value.includes(sent.id)) {
+      appendMessage(sent)
       scrollToBottom()
     }
   } catch (e) {
@@ -750,6 +819,11 @@ function closeReactionPicker() {
   reactionTargetId.value = null
 }
 
+/**
+ * 楽観的な reaction/unreaction 更新を chatMessageStore.applyUpdate() 経由に
+ * 統一する (B-3 + B-5)。WS event と同じ経路で in-place 更新するため、後続で
+ * 流れてくる WS `react`/`unreact` event は dedup window で吸収される。
+ */
 function updateMessageReaction(
   messageId: string,
   reaction: string,
@@ -761,27 +835,30 @@ function updateMessageReaction(
     : account.value
   if (!acc) return
 
-  messages.value = messages.value.map((msg) => {
-    if (msg.id !== messageId) return msg
-    const reactions = [...(msg.reactions ?? [])]
-    if (add) {
-      reactions.push({
-        user: {
-          id: acc.userId ?? '',
-          username: acc.username ?? '',
-          name: acc.displayName ?? undefined,
-          avatarUrl: acc.avatarUrl ?? undefined,
+  const reactor: ChatReactionUser = {
+    id: acc.userId ?? '',
+    username: acc.username ?? '',
+    name: acc.displayName ?? null,
+    host: acc.host ?? null,
+    avatarUrl: acc.avatarUrl ?? null,
+  }
+  chatMessageStore.applyUpdate(
+    add
+      ? {
+          type: 'reacted',
+          messageId,
+          userId: reactor.id,
+          reaction,
+          reactor,
+        }
+      : {
+          type: 'unreacted',
+          messageId,
+          userId: reactor.id,
+          reaction,
+          reactor,
         },
-        reaction,
-      })
-    } else {
-      const idx = reactions.findIndex(
-        (r) => r.reaction === reaction && r.user?.id === acc.userId,
-      )
-      if (idx >= 0) reactions.splice(idx, 1)
-    }
-    return { ...msg, reactions }
-  })
+  )
 }
 
 const chatScroller = ref<NoteScrollerExpose | null>(null)
@@ -861,12 +938,12 @@ async function loadOlder() {
       return
     }
     if (older.length > 0) {
-      const prevFirstId = messages.value[0]?.id
-      messages.value = [...older.slice().reverse(), ...messages.value]
+      const prevFirstId = messageIds.value[0]
+      prependMessages(older)
       // Restore scroll position to the previously first message after prepend
       if (prevFirstId) {
         await nextTick()
-        const newIndex = messages.value.findIndex((m) => m.id === prevFirstId)
+        const newIndex = messageIds.value.indexOf(prevFirstId)
         if (newIndex >= 0) {
           chatScroller.value?.scrollToIndex(newIndex, {
             align: 'start',
@@ -902,13 +979,66 @@ function scrollToTop(smooth = false) {
   })
 }
 
+// B-5: 表示中の message id を chatMessageStore に登録して eviction から保護する。
+// view mode に応じて conversation の messageIds、history view の chatHistoryIds と
+// historyEntries 内の message.id を返す。
+let unregisterRoot: (() => void) | null = null
+
+// B-3: WS reaction event を `chatMessageStore.applyUpdate()` に流して UI 反映する。
+// 楽観的更新と同じ経路なので chatMessageStore の dedup window で重複を吸収する。
+const reactionUnlisteners: UnlistenFn[] = []
+
+async function subscribeReactionEvents() {
+  const reactedUnlisten = await listen<StreamChatReactionPayload>(
+    'stream-chat-message-reacted',
+    (event) => {
+      const { messageId, reaction, user } = event.payload
+      chatMessageStore.applyUpdate({
+        type: 'reacted',
+        messageId,
+        userId: user?.id ?? null,
+        reaction,
+        reactor: user ?? null,
+      })
+    },
+  )
+  reactionUnlisteners.push(reactedUnlisten)
+
+  const unreactedUnlisten = await listen<StreamChatReactionPayload>(
+    'stream-chat-message-unreacted',
+    (event) => {
+      const { messageId, reaction, user } = event.payload
+      chatMessageStore.applyUpdate({
+        type: 'unreacted',
+        messageId,
+        userId: user?.id ?? null,
+        reaction,
+        reactor: user ?? null,
+      })
+    },
+  )
+  reactionUnlisteners.push(unreactedUnlisten)
+}
+
 onMounted(() => {
+  unregisterRoot = chatMessageStore.registerRoot(() => {
+    if (viewMode.value === 'conversation') return messageIds.value
+    // history view: per-account の chatHistoryIds + cross-account historyEntries
+    const ids: string[] = [...chatHistoryIds.value]
+    for (const e of historyEntries.value) ids.push(e.message.id)
+    return ids
+  })
+  subscribeReactionEvents()
   connect()
 })
 
 onBeforeUnmount(() => {
   chatSub?.dispose()
   chatSub = null
+  for (const unlisten of reactionUnlisteners) unlisten()
+  reactionUnlisteners.length = 0
+  unregisterRoot?.()
+  unregisterRoot = null
 })
 </script>
 
