@@ -15,7 +15,7 @@ import type {
   ChatMessage,
   NormalizedDriveFile,
 } from '@/adapters/types'
-import type { ChatReactionUser, JsonValue } from '@/bindings'
+import type { ChatReactionUser } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAvatar from '@/components/common/MkAvatar.vue'
@@ -773,17 +773,21 @@ async function sendMessage() {
   if (!accId) return
   if (!ensureActiveAccountAuth()) return
 
+  // Misskey v2025 で legacy `messaging/messages/create` (`apiCreateMessagingMessage`) は
+  // 削除済みなので、新 Chat API #15686 の `chat/messages/create-to-{user,room}`
+  // (`apiCreateChatMessage`) に統一する。text / fileId のいずれか一方でも送信可能。
   isSending.value = true
   try {
-    const params: Record<string, unknown> = {
-      text: messageText.value.trim() || undefined,
-    }
-    if (currentOtherId.value) params.userId = currentOtherId.value
-    if (currentRoomId.value) params.roomId = currentRoomId.value
-    if (attachedFile.value) params.fileId = attachedFile.value.id
-
+    const text = messageText.value.trim() || null
+    const fileId = attachedFile.value?.id ?? null
     const sent = unwrap(
-      await commands.apiCreateMessagingMessage(accId, params as JsonValue),
+      await commands.apiCreateChatMessage(
+        accId,
+        currentOtherId.value,
+        currentRoomId.value,
+        text,
+        fileId,
+      ),
     ) as unknown as ChatMessage
     messageText.value = ''
     attachedFile.value = null

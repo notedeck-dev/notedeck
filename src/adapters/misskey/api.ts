@@ -690,7 +690,8 @@ export class MisskeyApi implements ApiAdapter {
   async createChatMessage(params: {
     userId?: string
     roomId?: string
-    text: string
+    text?: string
+    fileId?: string
   }): Promise<ChatMessage> {
     this.requireAuth()
     return unwrapAny(
@@ -698,7 +699,8 @@ export class MisskeyApi implements ApiAdapter {
         this.accountId,
         params.userId ?? null,
         params.roomId ?? null,
-        params.text,
+        params.text ?? null,
+        params.fileId ?? null,
       ),
     )
   }

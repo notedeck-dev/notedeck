@@ -187,6 +187,10 @@ pub async fn api_get_chat_room_messages(
     Ok(msgs)
 }
 
+/// Misskey 新 Chat API の `chat/messages/create-to-{user,room}` をラップする。
+/// `text` / `file_id` は両方 Option で、どちらか一方は必須 (Misskey 側で
+/// バリデーション)。`user_id` / `room_id` も両方 Option で、どちらか一方は必須
+/// (こちらは本関数で先回り検証)。
 #[tauri::command]
 #[specta::specta]
 pub async fn api_create_chat_message(
@@ -194,19 +198,22 @@ pub async fn api_create_chat_message(
     account_id: String,
     user_id: Option<String>,
     room_id: Option<String>,
-    text: String,
+    text: Option<String>,
+    file_id: Option<String>,
 ) -> Result<ChatMessage> {
     let (db, client) = app_state.ready().await;
     let (host, token) = get_credentials(&db, &account_id)?;
+    let text_ref = text.as_deref();
+    let file_id_ref = file_id.as_deref();
     let msg = match (user_id, room_id) {
         (Some(uid), _) => {
             client
-                .create_chat_message_to_user(&host, &token, &uid, &text)
+                .create_chat_message_to_user(&host, &token, &uid, text_ref, file_id_ref)
                 .await?
         }
         (_, Some(rid)) => {
             client
-                .create_chat_message_to_room(&host, &token, &rid, &text)
+                .create_chat_message_to_room(&host, &token, &rid, text_ref, file_id_ref)
                 .await?
         }
         _ => {
