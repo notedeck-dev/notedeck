@@ -40,11 +40,13 @@ const displayUser = computed(() => {
   if (!u) return null
   return {
     name: u.name || u.username,
+    hasName: !!u.name,
     avatarUrl: u.avatarUrl ?? null,
     avatarDecorations: u.avatarDecorations ?? [],
     username: u.username,
     host: u.host ?? null,
     isCat: u.isCat,
+    emojis: u.emojis ?? {},
   }
 })
 
@@ -185,7 +187,14 @@ usePortal(lightboxPortalRef)
     <div :class="$style.chatBubbleWrapper">
       <div :class="$style.chatBubble">
         <div v-if="!isMine && displayUser" :class="$style.chatSender">
-          {{ displayUser.name }}
+          <MkMfm
+            v-if="displayUser.hasName"
+            :text="displayUser.name"
+            :emojis="displayUser.emojis"
+            :server-host="serverHost"
+            plain
+          />
+          <template v-else>{{ displayUser.username }}</template>
         </div>
         <div v-if="message.text" :class="$style.chatText">
           <MkMfm :text="message.text" :server-host="serverHost" @mention-hover="onMentionHover" @mention-leave="onMentionLeave" />
