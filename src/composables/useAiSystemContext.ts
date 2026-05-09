@@ -12,6 +12,7 @@
 import type { Account } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { type AiConfig, resolveDataSources } from './useAiConfig'
+import type { StoredMemo } from './useMemos'
 
 /**
  * AI に送ってはいけないフィールド名 (credential / 機密データ)。
@@ -52,6 +53,11 @@ export interface AiContextInput {
   /** Phase 1 C5 で接続予定。未指定なら出力しない。 */
   recentConversation?: unknown[]
   /**
+   * 既に projection 済みのローカルメモ (Zettelkasten 形式 markdown)。
+   * 空配列 / undefined なら出力しない。
+   */
+  memos?: ProjectedMemo[]
+  /**
    * accountId → host 引きのための accounts 一覧 (任意)。指定すると
    * `<currentColumn>` 内に `accountHost` を補強し、AI が「このカラムは
    * どのサーバーか」を即把握できる。
@@ -64,6 +70,9 @@ export const MAX_VISIBLE_NOTES = 10
 
 /** AI 送信時に context に含める直近会話の上限ターン数 (= 直近 N メッセージ)。 */
 export const MAX_RECENT_TURNS = 20
+
+/** AI 送信時に context に含めるローカルメモの上限件数 (updatedAt 降順 + 先頭切り出し)。 */
+export const MAX_MEMOS = 20
 
 /**
  * AI 送信用に可視 item を軽量化する projection。
@@ -174,6 +183,44 @@ export function projectRecentConversation(
     })
   }
   return out
+}
+
+/**
+ * ローカルメモを <memos> ブロックに渡せる形へ投影する。
+ *
+ * メモは Zettelkasten 形式の永続 markdown ファイルで、PKM 用途。本文 (`text`) と
+ * id / 更新時刻だけ抜き、draft 専用フィールド (cw / visibility / fileIds /
+ * pollChoices / scheduledAt 等) は AI に渡さない (AI 側で本質的に不要 + 機密性も
+ * 低減)。createdAt は memoKey 自体が `YYYYMMDDHHmmss` 形式の Zettelkasten id =
+ * 作成時刻なので、AI は id から推測できる (= 別フィールドとして渡す必要なし)。
+ *
+ * - updatedAt 降順ソート (新しいメモが上)
+ * - limit (default {@link MAX_MEMOS}) で先頭切り出し
+ *
+ * 入力は `useMemos.ts` の `loadAllMemos(accountId)` の戻り値 `StoredMemos`
+ * (= Record<memoKey, StoredMemo>) を `Object.entries` で展開した形。
+ */
+export interface ProjectedMemo {
+  id: string
+  text: string
+  updatedAt: string
+}
+
+export type MemoEntry = readonly [memoKey: string, memo: StoredMemo]
+
+export function projectMemos(
+  entries: readonly MemoEntry[] | undefined,
+  limit = MAX_MEMOS,
+): ProjectedMemo[] {
+  if (!entries || entries.length === 0) return []
+  const sorted = [...entries].sort(([, a], [, b]) =>
+    a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0,
+  )
+  return sorted.slice(0, limit).map(([memoKey, memo]) => ({
+    id: memoKey,
+    text: memo.data.text,
+    updatedAt: memo.updatedAt,
+  }))
 }
 
 function projectOneNote(n: unknown): ProjectedNote {
@@ -295,6 +342,9 @@ export function buildAiContextBlock(
     parts.push(
       `  <recentConversation>\n${jsonBlock(ctx.recentConversation)}\n  </recentConversation>`,
     )
+  }
+  if (ds.memos && ctx.memos && ctx.memos.length > 0) {
+    parts.push(`  <memos>\n${jsonBlock(ctx.memos)}\n  </memos>`)
   }
 
   if (parts.length === 0) return ''

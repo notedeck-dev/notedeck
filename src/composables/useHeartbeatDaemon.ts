@@ -49,7 +49,9 @@ import {
 import {
   buildAiContextBlock,
   composeHeartbeatSystemPrompt,
+  projectMemos,
 } from './useAiSystemContext'
+import { ensureMemosLoaded, loadAllMemos } from './useMemos'
 
 /**
  * Rust scheduler (`commands/heartbeat.rs`) が `nd:ai-heartbeat-tick` event で
@@ -719,9 +721,19 @@ export function useHeartbeatDaemon() {
           ? eligibleCaps.map(toAnthropicTool)
           : eligibleCaps.map(toOpenAiTool)
 
+    // memos は active account のものだけを context に含める (#464)。
+    // heartbeat は currentColumn=null だが memos は column 非依存なので
+    // ds.memos が ON なら自律 tick からも参照される。
+    await ensureMemosLoaded()
+    const heartbeatActiveAccountId = accountsStore.activeAccount?.id ?? null
+    const heartbeatMemoEntries = heartbeatActiveAccountId
+      ? Object.entries(loadAllMemos(heartbeatActiveAccountId))
+      : []
+
     const notedeckContext = buildAiContextBlock(config.value, {
       activeAccount: accountsStore.activeAccount,
       currentColumn: null,
+      memos: projectMemos(heartbeatMemoEntries),
       accounts: accountsStore.accounts,
     })
     const heartbeatContext = `<heartbeat-skills>\n${skillBodies.join('\n\n---\n\n')}\n</heartbeat-skills>`

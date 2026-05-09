@@ -37,6 +37,8 @@
 
   // データソース: AI に送る system prompt に含める情報
   // permissions と違い、Phase 1 から即動作する (system prompt 末尾に <notedeck-context> として注入)
+  // - memos: ローカル Zettelkasten 形式の markdown メモを <memos> ブロックとして
+  //   注入。active account のみ、updatedAt 降順で上限 20 件。
   dataSources: {
     preset: 'readonly',
     custom: {
@@ -44,6 +46,7 @@
       'currentColumn': true,
       'visibleNotes': false,
       'recentConversation': false,
+      'memos': false,
     },
   },
 

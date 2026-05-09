@@ -54,6 +54,7 @@ export const DATA_SOURCE_KEYS = [
   'currentColumn',
   'visibleNotes',
   'recentConversation',
+  'memos',
 ] as const
 export type DataSourceKey = (typeof DATA_SOURCE_KEYS)[number]
 
@@ -251,18 +252,21 @@ const DATA_SOURCE_PRESETS: Record<
     currentColumn: true,
     visibleNotes: false,
     recentConversation: false,
+    memos: false,
   },
   safe: {
     currentAccount: true,
     currentColumn: true,
     visibleNotes: true,
     recentConversation: true,
+    memos: true,
   },
   full: {
     currentAccount: true,
     currentColumn: true,
     visibleNotes: true,
     recentConversation: true,
+    memos: true,
   },
 }
 

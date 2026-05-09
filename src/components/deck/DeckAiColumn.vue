@@ -19,9 +19,11 @@ import { useAiConversation } from '@/composables/useAiConversation'
 import {
   buildAiContextBlock,
   joinSystemPrompt,
+  projectMemos,
   projectRecentConversation,
   projectVisibleItems,
 } from '@/composables/useAiSystemContext'
+import { ensureMemosLoaded, loadAllMemos } from '@/composables/useMemos'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSessionMeta, useAiSessionsStore } from '@/stores/aiSessions'
@@ -61,6 +63,10 @@ const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
 
 void sessionsStore.loadAllMeta()
+// メモは <memos> データソースとして AI context に注入し得るので、
+// AI カラムが mount された時点で in-memory cache をウォームアップしておく
+// (sendMessage は同期 cache 取得しか行わないため)。
+void ensureMemosLoaded()
 
 const { config: aiConfig } = useAiConfig()
 const aiChat = useAiChat()
@@ -510,11 +516,20 @@ async function sendMessage() {
           !m.heartbeat,
       )
 
+      // memos は active account のものだけを context に含める。AI カラム自体は
+      // cross-account だが、メモは per-account 設計なので「いま操作中の account
+      // の draft / Zettelkasten」が一番文脈として明確。
+      const activeAccountId = accountsStore.activeAccount?.id ?? null
+      const memoEntries = activeAccountId
+        ? Object.entries(loadAllMemos(activeAccountId))
+        : []
+
       const contextBlock = buildAiContextBlock(aiConfig.value, {
         activeAccount: accountsStore.activeAccount,
         currentColumn: focusedColumn ?? props.column,
         visibleNotes: projectVisibleItems(visibleNotesRaw, focusedColumn?.type),
         recentConversation: projectRecentConversation(history),
+        memos: projectMemos(memoEntries),
         accounts: accountsStore.accounts,
       })
       const system = joinSystemPrompt(skillsPrompt, contextBlock)

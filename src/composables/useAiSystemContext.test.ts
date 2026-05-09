@@ -11,14 +11,18 @@ import {
   buildHeartbeatContextBlock,
   composeHeartbeatSystemPrompt,
   joinSystemPrompt,
+  MAX_MEMOS,
   MAX_RECENT_TURNS,
   MAX_VISIBLE_NOTES,
+  type MemoEntry,
   pickVisibleBlockTag,
+  projectMemos,
   projectRecentConversation,
   projectVisibleItems,
   projectVisibleNotes,
   stripCredentials,
 } from './useAiSystemContext'
+import type { StoredMemo } from './useMemos'
 
 const SAMPLE_ACCOUNT: Account = {
   id: 'acc-1',
@@ -126,6 +130,7 @@ describe('buildAiContextBlock', () => {
         currentColumn: false,
         visibleNotes: false,
         recentConversation: false,
+        memos: false,
       },
     }
     const block = buildAiContextBlock(cfg, {
@@ -604,6 +609,139 @@ describe('projectRecentConversation', () => {
       },
     ])
     expect(out).toEqual([{ role: 'user', content: '' }])
+  })
+})
+
+describe('projectMemos', () => {
+  function makeMemo(text: string, updatedAt: string): StoredMemo {
+    return {
+      updatedAt,
+      data: {
+        text,
+        cw: 'secret-cw',
+        showCw: true,
+        visibility: 'followers',
+        localOnly: true,
+        fileIds: ['file-1'],
+        pollChoices: ['a', 'b'],
+        pollMultiple: true,
+        showPoll: true,
+        scheduledAt: '2026-01-01T00:00:00Z',
+      },
+    }
+  }
+
+  it('returns empty array for empty / undefined input', () => {
+    expect(projectMemos(undefined)).toEqual([])
+    expect(projectMemos([])).toEqual([])
+  })
+
+  it('keeps only id / text / updatedAt and drops draft-only fields', () => {
+    const entries: MemoEntry[] = [
+      ['20260101010101', makeMemo('first body', '2026-01-01T01:01:01Z')],
+    ]
+    const out = projectMemos(entries)
+    expect(out).toEqual([
+      {
+        id: '20260101010101',
+        text: 'first body',
+        updatedAt: '2026-01-01T01:01:01Z',
+      },
+    ])
+    // draft 専用フィールドが落ちていることを明示確認
+    const memo = out[0] as unknown as Record<string, unknown>
+    expect(memo).not.toHaveProperty('cw')
+    expect(memo).not.toHaveProperty('visibility')
+    expect(memo).not.toHaveProperty('fileIds')
+    expect(memo).not.toHaveProperty('pollChoices')
+    expect(memo).not.toHaveProperty('scheduledAt')
+    expect(memo).not.toHaveProperty('localOnly')
+  })
+
+  it('sorts by updatedAt descending (newest first)', () => {
+    const entries: MemoEntry[] = [
+      ['20260101000000', makeMemo('older', '2026-01-01T00:00:00Z')],
+      ['20260201000000', makeMemo('newest', '2026-02-01T00:00:00Z')],
+      ['20260115000000', makeMemo('middle', '2026-01-15T00:00:00Z')],
+    ]
+    const out = projectMemos(entries)
+    expect(out.map((m) => m.text)).toEqual(['newest', 'middle', 'older'])
+  })
+
+  it('caps the result at MAX_MEMOS (20) by default', () => {
+    const entries: MemoEntry[] = Array.from({ length: 30 }, (_, i) => {
+      // i が大きいほど updatedAt が新しい
+      const day = String(i + 1).padStart(2, '0')
+      return [
+        `2026010100000${i}`,
+        makeMemo(`memo-${i}`, `2026-01-${day}T00:00:00Z`),
+      ] as MemoEntry
+    })
+    const out = projectMemos(entries)
+    expect(out).toHaveLength(MAX_MEMOS)
+    // 一番新しい (= i=29) が先頭
+    expect(out[0]?.text).toBe('memo-29')
+  })
+
+  it('respects custom limit', () => {
+    const entries: MemoEntry[] = Array.from(
+      { length: 5 },
+      (_, i) =>
+        [
+          `2026010100000${i}`,
+          makeMemo(`m${i}`, `2026-01-0${i + 1}T00:00:00Z`),
+        ] as MemoEntry,
+    )
+    expect(projectMemos(entries, 2)).toHaveLength(2)
+  })
+})
+
+describe('buildAiContextBlock — memos', () => {
+  const SAMPLE_MEMO = {
+    id: '20260101010101',
+    text: 'todo: write release notes',
+    updatedAt: '2026-01-01T01:01:01Z',
+  }
+
+  it('emits <memos> when ds.memos is on and memos array is non-empty', () => {
+    const cfg = configWithDataSources('safe')
+    const block = buildAiContextBlock(cfg, {
+      activeAccount: null,
+      currentColumn: null,
+      memos: [SAMPLE_MEMO],
+    })
+    expect(block).toContain('<memos>')
+    expect(block).toContain('"id": "20260101010101"')
+    expect(block).toContain('"text": "todo: write release notes"')
+  })
+
+  it('omits <memos> when ds.memos is off (readonly preset)', () => {
+    const cfg = configWithDataSources('readonly')
+    const block = buildAiContextBlock(cfg, {
+      activeAccount: null,
+      currentColumn: null,
+      memos: [SAMPLE_MEMO],
+    })
+    expect(block).not.toContain('<memos>')
+  })
+
+  it('omits <memos> when memos array is empty even if enabled', () => {
+    const cfg = configWithDataSources('safe')
+    const block = buildAiContextBlock(cfg, {
+      activeAccount: null,
+      currentColumn: null,
+      memos: [],
+    })
+    expect(block).not.toContain('<memos>')
+  })
+
+  it('omits <memos> when memos is undefined even if enabled', () => {
+    const cfg = configWithDataSources('safe')
+    const block = buildAiContextBlock(cfg, {
+      activeAccount: null,
+      currentColumn: null,
+    })
+    expect(block).not.toContain('<memos>')
   })
 })
 

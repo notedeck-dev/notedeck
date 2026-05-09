@@ -236,6 +236,12 @@ const DATA_SOURCE_LABELS: Record<DataSourceKey, DataSourceLabel> = {
     icon: 'ti-messages',
     description: '直近の会話を context に含める',
   },
+  memos: {
+    label: 'ローカルメモ (上限 20 件)',
+    icon: 'ti-notes',
+    description:
+      'Zettelkasten 形式のローカルメモを context に含める (現在のアカウントのみ)',
+  },
 }
 
 const HIGH_RISK_SET = new Set<PermissionKey>(HIGH_RISK_PERMISSION_KEYS)
