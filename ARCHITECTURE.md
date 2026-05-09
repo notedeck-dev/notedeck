@@ -1284,7 +1284,7 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 |-------|------|---------|---|
 | **A** | notecli `chat_messages_cache` テーブル + WS 全 event (`message`/`deleted`/`react`/`unreact`) を notecli 内で DB 反映 + REST 受信時の透過 upsert + `chat.cacheEnabled` opt-out + frontend `chatMessageStore` (Pinia 正規化ストア) 新設 + adapter 層の `cache` 引数と cached-getter wrapper | UI 影響なし (既存 `DeckChatColumn` はそのまま動作) | ✅ 実装済 |
 | **B-1** | (a) `DeckChatColumn` の `connect` / `openConversation` / `loadOlder` でログアウト中・API エラー時にキャッシュ fallback (b) chat カラムを `guestAllowed: true` (timeline と統一)、ログアウト中アカウントでも追加可能 (c) auth 必須操作 (送信・リアクションピッカー・添付) はボタン押下時点で `showLoginPrompt()` で先行誘導 (d) 「ログアウト中」バナーは DeckColumn 既存仕組みに任せる | **ログアウト後でも履歴閲覧できる**。トークン失効・サーバ BAN・オフライン時もキャッシュで救済。auth 必須操作は TL カラムと同じ「再ログインすると操作できます」トーストで誘導 | ✅ 実装済 |
-| **B-2** | 起動時の即時 hydrate (DB → render → 並行で API fetch して reconcile) | 体感速度向上。起動直後のチャット履歴が瞬時に出る | 未着手 |
+| **B-2** | `connectPerAccount` / `connectCrossAccount` / `openConversation` で **キャッシュから先に hydrate して即時 render → 並行で API fetch して reconcile** (server is source of truth で完全置換)。cross-account history view の entry build を `buildCrossAccountHistoryEntries` に抽出して両 phase で再利用 | カラム作成・タブ切替・thread を開く操作が**瞬時に表示**される。ネット遅延の影響は API reconcile 中だけ | ✅ 実装済 |
 | **B-3** | WS `react` / `unreact` イベントを `chatMessageStore.applyUpdate()` で UI 反映 | 他クライアントの reaction がリアルタイムに見える (現状は楽観的更新のみ) | 未着手 |
 | **B-4** | 起動 / WS 再接続時の sinceId gap reconcile | WS 切断中に届いたメッセージを起動時に取り戻す | 未着手 |
 | **B-5** | `DeckChatColumn.vue` を ID 参照ベースに refactor して `chatMessageStore` を唯一の実体に統合 + SnapshotStore のタブ切替復元 | アーキ整合 (`noteStore` パターンに揃う) | 未着手 |
