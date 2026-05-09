@@ -5,7 +5,7 @@ description = "Misskey IDE — integrated deck environment for browsing, posting
 edition = "2021"
 
 [dependencies]
-notecli = { git = "https://github.com/hitalin/notecli", rev = "5f80dbe2e5c083a61af81c5befd1e6736c12e02a", features = ["specta"] }
+notecli = { git = "https://github.com/hitalin/notecli", rev = "c3d1eff62bd2e68325e7108c7d771432f6ac93ea", features = ["specta"] }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
