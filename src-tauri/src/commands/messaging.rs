@@ -104,7 +104,13 @@ pub async fn api_get_unread_chat(
 ) -> Result<bool> {
     let (db, client) = app_state.ready().await;
     let (host, token) = get_credentials(&db, &account_id)?;
-    client.get_unread_chat(&host, &token).await
+    // notecli #9 (#469) で `messaging/unread` 廃止に伴い `chat/history` の
+    // isRead 集計に切り替わったため、自分送信メッセージ除外用に user_id を渡す。
+    let me_user_id = match db.get_account(&account_id) {
+        Ok(Some(account)) => account.user_id.clone(),
+        _ => return Ok(false),
+    };
+    client.get_unread_chat(&host, &token, &me_user_id).await
 }
 
 // --- Chat ---
