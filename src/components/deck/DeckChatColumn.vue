@@ -21,6 +21,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkChatMessage from '@/components/common/MkChatMessage.vue'
 import MkDrivePicker from '@/components/common/MkDrivePicker.vue'
+import MkMfm from '@/components/common/MkMfm.vue'
 import MkReactionPicker from '@/components/common/MkReactionPicker.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import {
@@ -159,6 +160,10 @@ interface HistoryEntry {
   message: ChatMessage
   isRoom: boolean
   name: string
+  /** 表示名 (`name`) が user-defined か (false なら fallback の username/roomId を使用)。 */
+  hasName: boolean
+  /** name に含まれる `:shortcode:` を画像に解決するための辞書。 */
+  emojis?: Record<string, string>
   avatarUrl?: string
   avatarDecorations?: AvatarDecoration[]
   otherId?: string
@@ -248,6 +253,10 @@ function buildCrossAccountHistoryEntries(
         message: msg,
         isRoom: true,
         name: msg.toRoom?.name || 'Room',
+        hasName: !!msg.toRoom?.name,
+        // ChatRoom には emojis 辞書が無いので、最新メッセージ送信者の辞書で代替する
+        // (同一サーバー上の shortcode は同じ辞書で解決できる)
+        emojis: msg.fromUser?.emojis ?? undefined,
         avatarUrl: msg.fromUser?.avatarUrl ?? undefined,
         avatarDecorations: msg.fromUser?.avatarDecorations,
         roomId: msg.toRoomId,
@@ -266,6 +275,8 @@ function buildCrossAccountHistoryEntries(
         message: msg,
         isRoom: false,
         name: other?.name || other?.username || otherId,
+        hasName: !!other?.name,
+        emojis: other?.emojis ?? undefined,
         avatarUrl: other?.avatarUrl ?? undefined,
         avatarDecorations: other?.avatarDecorations,
         otherId,
@@ -535,6 +546,8 @@ function getHistoryEntries() {
     message: ChatMessage
     isRoom: boolean
     name: string
+    hasName: boolean
+    emojis?: Record<string, string>
     avatarUrl?: string
     avatarDecorations?: AvatarDecoration[]
   }[] = []
@@ -548,6 +561,8 @@ function getHistoryEntries() {
         message: msg,
         isRoom: true,
         name: msg.toRoom?.name || 'Room',
+        hasName: !!msg.toRoom?.name,
+        emojis: msg.fromUser?.emojis ?? undefined,
         avatarUrl: msg.fromUser?.avatarUrl ?? undefined,
         avatarDecorations: msg.fromUser?.avatarDecorations,
       })
@@ -563,6 +578,8 @@ function getHistoryEntries() {
         message: msg,
         isRoom: false,
         name: other?.name || other?.username || otherId,
+        hasName: !!other?.name,
+        emojis: other?.emojis ?? undefined,
         avatarUrl: other?.avatarUrl ?? undefined,
         avatarDecorations: other?.avatarDecorations,
       })
@@ -1178,7 +1195,16 @@ onBeforeUnmount(() => {
             />
           </div>
           <div :class="$style.historyInfo">
-            <div :class="$style.historyName">{{ entry.name }}</div>
+            <div :class="$style.historyName">
+              <MkMfm
+                v-if="entry.hasName"
+                :text="entry.name"
+                :emojis="entry.emojis"
+                :server-host="entry.serverHost"
+                plain
+              />
+              <template v-else>{{ entry.name }}</template>
+            </div>
             <div :class="$style.historyPreview">{{ entry.message.text || '(ファイル)' }}</div>
           </div>
           <div :class="$style.historyMeta">
@@ -1209,7 +1235,16 @@ onBeforeUnmount(() => {
             <i :class="entry.isRoom ? 'ti ti-users' : 'ti ti-user'" />
           </div>
           <div :class="$style.historyInfo">
-            <div :class="$style.historyName">{{ entry.name }}</div>
+            <div :class="$style.historyName">
+              <MkMfm
+                v-if="entry.hasName"
+                :text="entry.name"
+                :emojis="entry.emojis"
+                :server-host="account?.host"
+                plain
+              />
+              <template v-else>{{ entry.name }}</template>
+            </div>
             <div :class="$style.historyPreview">{{ entry.message.text || '(ファイル)' }}</div>
           </div>
         </button>
