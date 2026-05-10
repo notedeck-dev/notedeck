@@ -144,6 +144,9 @@ function buildEntry(acc: Account, key: string, memo: StoredMemo): MemoEntry {
     },
     emojis: emojiDict,
     reactionEmojis: emojiDict,
+    // memo.data.author 埋め込みブロックがあれば avatar / 表示名を上書き (#493)。
+    // skill が後で消えても author block は memo に永続化されているので壊れない。
+    author: memo.data.author,
   })
   // Cross-account ビューでは @username だけだとどのサーバーか分からないため
   // host を埋めて MkNote 側で `@username@host` のフルアドレス表示にする

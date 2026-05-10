@@ -111,6 +111,8 @@ const previewNote = computed<NormalizedNote | null>(() => {
     },
     emojis: emojiDict,
     reactionEmojis: emojiDict,
+    // memo.data.author 埋め込みブロックがあれば preview にも反映 (#493)
+    author: d.author,
   })
 })
 

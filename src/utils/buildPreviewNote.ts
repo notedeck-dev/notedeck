@@ -26,6 +26,13 @@ export interface BuildPreviewNoteOptions {
   poll?: PreviewPollInput
   emojis?: Record<string, string>
   reactionEmojis?: Record<string, string>
+  /**
+   * 著者の埋め込みオーバーライド (#493)。memo.data.author 由来。
+   * 指定時、note.user の name と avatarUrl をこの値で上書き (= persona memo
+   * を avatar+名前で見分けられるようにする)。username は account 由来のまま
+   * 残し、@username 表示は維持する。
+   */
+  author?: { id: string; displayName: string; avatarUrl?: string }
 }
 
 function buildPoll(input: PreviewPollInput): NormalizedPoll | undefined {
@@ -58,8 +65,8 @@ export function buildPreviewNote(
       id: account.userId,
       username: account.username,
       host: null,
-      name: account.displayName,
-      avatarUrl: getAccountAvatarUrl(account),
+      name: opts.author?.displayName ?? account.displayName,
+      avatarUrl: opts.author?.avatarUrl ?? getAccountAvatarUrl(account),
     },
     visibility: opts.visibility,
     emojis: opts.emojis ?? {},

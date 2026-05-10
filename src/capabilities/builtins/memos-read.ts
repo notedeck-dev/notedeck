@@ -23,6 +23,7 @@ interface ProjectedMemoRow {
   text: string
   updatedAt: string
   tags?: string[]
+  author?: { id: string; displayName: string; avatarUrl?: string }
 }
 
 function pickString(input: unknown): string | undefined {
@@ -61,6 +62,7 @@ function projectRow(memoKey: string, memo: StoredMemo): ProjectedMemoRow {
     updatedAt: memo.updatedAt,
   }
   if (memo.data.tags.length > 0) row.tags = memo.data.tags
+  if (memo.data.author) row.author = { ...memo.data.author }
   return row
 }
 
@@ -85,7 +87,7 @@ export const memosListCapability: Command = {
   signature: {
     description:
       'NoteDeck のローカル memo を絞り込んで列挙する。' +
-      ' tag / 経過日数 / 部分一致クエリでフィルタ可能。' +
+      ' tag / 経過日数 / 部分一致クエリ / 作者でフィルタ可能。' +
       ' updatedAt 降順、limit 件で打ち切り (default 10、最大 50)。' +
       ' AI は memos.search でキーワード検索する前に memos.list で全体像を' +
       ' 把握するのが効率的。',
@@ -93,6 +95,13 @@ export const memosListCapability: Command = {
       tag: {
         type: 'string',
         description: '指定すると tags にこの値が含まれるメモのみ返す',
+        optional: true,
+      },
+      authorId: {
+        type: 'string',
+        description:
+          '指定すると author.id がこの値のメモのみ返す (`skill:<id>` で persona' +
+          ' 別のメモ抽出、ユーザー本人は author 未設定なので "self" を渡すと該当)',
         optional: true,
       },
       olderThanDays: {
@@ -120,7 +129,7 @@ export const memosListCapability: Command = {
     returns: {
       type: 'array',
       description:
-        '`{ id, text, updatedAt, tags? }` の配列。空配列なら一致なし',
+        '`{ id, text, updatedAt, tags?, author? }` の配列。空配列なら一致なし',
     },
     cheap: true,
   },
@@ -129,6 +138,7 @@ export const memosListCapability: Command = {
     await ensureMemosLoaded()
     const accountId = resolveAccountId(params?.accountId)
     const tag = pickString(params?.tag)
+    const authorIdFilter = pickString(params?.authorId)
     const olderThanDays = pickPositiveNumber(params?.olderThanDays)
     const queryRaw = pickString(params?.query)
     const queryLower = queryRaw?.toLowerCase()
@@ -142,6 +152,14 @@ export const memosListCapability: Command = {
     const entries: Array<[string, StoredMemo]> = Object.entries(all)
     const filtered = entries.filter(([, memo]) => {
       if (tag && !memo.data.tags.includes(tag)) return false
+      if (authorIdFilter) {
+        // "self" sentinel = author 未設定 (= ユーザー本人) のみ
+        if (authorIdFilter === 'self') {
+          if (memo.data.author) return false
+        } else if (memo.data.author?.id !== authorIdFilter) {
+          return false
+        }
+      }
       if (olderThanIso && memo.updatedAt > olderThanIso) return false
       if (queryLower && !memo.data.text.toLowerCase().includes(queryLower)) {
         return false
@@ -168,11 +186,18 @@ export const memosSearchCapability: Command = {
       ' 大小無視の substring + 直近更新の recency boost で並べ、' +
       ' limit 件 (default 10、最大 50) を返す。embedding 由来の semantic' +
       ' 検索はないので、ヒットしない場合は AI が言い換え (例:「旅行」→' +
-      '「出張」「バカンス」) で再試行することを想定。',
+      '「出張」「バカンス」) で再試行することを想定。' +
+      ' authorId で persona / 本人別のメモ検索も可能。',
     params: {
       query: {
         type: 'string',
         description: '検索文字列 (空文字不可、大小無視の部分一致)',
+      },
+      authorId: {
+        type: 'string',
+        description:
+          '指定すると author.id がこの値のメモのみ検索 (`skill:<id>` / "self")',
+        optional: true,
       },
       limit: {
         type: 'number',
@@ -187,7 +212,7 @@ export const memosSearchCapability: Command = {
     },
     returns: {
       type: 'array',
-      description: '`{ id, text, updatedAt, tags? }` の配列',
+      description: '`{ id, text, updatedAt, tags?, author? }` の配列',
     },
     cheap: true,
   },
@@ -196,15 +221,24 @@ export const memosSearchCapability: Command = {
     await ensureMemosLoaded()
     const query = pickString(params?.query)
     if (!query) throw new Error('memos.search: query is required')
+    const authorIdFilter = pickString(params?.authorId)
     const limit = clampLimit(params?.limit)
     const accountId = resolveAccountId(params?.accountId)
     const queryLower = query.toLowerCase()
 
     const all = loadAllMemos(accountId)
     const entries: Array<[string, StoredMemo]> = Object.entries(all)
-    const hits = entries.filter(([, memo]) =>
-      memo.data.text.toLowerCase().includes(queryLower),
-    )
+    const hits = entries.filter(([, memo]) => {
+      if (!memo.data.text.toLowerCase().includes(queryLower)) return false
+      if (authorIdFilter) {
+        if (authorIdFilter === 'self') {
+          if (memo.data.author) return false
+        } else if (memo.data.author?.id !== authorIdFilter) {
+          return false
+        }
+      }
+      return true
+    })
     // recency boost: 単純に updatedAt 降順 (= 新しいほど上位)。
     // 本格的な BM25 / TF-IDF はオーバーキル、まず使い始めて必要なら拡張。
     hits.sort(([, a], [, b]) => compareUpdatedAtDesc(a, b))

@@ -740,6 +740,45 @@ describe('projectMemos', () => {
     ]
     expect(projectMemos(entries, undefined, [])).toHaveLength(1)
   })
+
+  it('emits author block (id+displayName) when memo has author embed (#493)', () => {
+    const memo: StoredMemo = {
+      updatedAt: '2026-01-01T00:00:00Z',
+      data: {
+        text: 'persona memo',
+        cw: '',
+        showCw: false,
+        visibility: 'public',
+        localOnly: false,
+        fileIds: [],
+        pollChoices: [],
+        pollMultiple: false,
+        showPoll: false,
+        scheduledAt: null,
+        tags: [],
+        author: {
+          id: 'skill:aizu-9k2x',
+          displayName: '藍',
+          avatarUrl: 'https://example.com/aizu.svg',
+        },
+      },
+    }
+    const out = projectMemos([['20260101000000', memo]])
+    expect(out[0]?.author).toEqual({
+      id: 'skill:aizu-9k2x',
+      displayName: '藍',
+    })
+    // avatarUrl は AI には不要なので落とす
+    expect(out[0]?.author).not.toHaveProperty('avatarUrl')
+  })
+
+  it('omits author when memo has no author embed', () => {
+    const entries: MemoEntry[] = [
+      ['20260101000000', makeMemo('plain memo', '2026-01-01T00:00:00Z')],
+    ]
+    const out = projectMemos(entries)
+    expect(out[0]).not.toHaveProperty('author')
+  })
 })
 
 describe('buildAiContextBlock — memos', () => {

@@ -8,6 +8,7 @@ import {
   saveMemo,
 } from '@/composables/useMemos'
 import { useAccountsStore } from '@/stores/accounts'
+import { resolveIdentity } from '@/utils/identity'
 
 /**
  * Phase 5+: AI がローカルメモ (Zettelkasten 形式 markdown) を作成 / 編集する
@@ -55,7 +56,32 @@ function resolveAccountId(input: unknown): string {
   return active
 }
 
-function emptyMemoData(text: string, tags: string[] = []): MemoData {
+/**
+ * authorId から memo の author 埋め込みブロックを組み立てる (#493)。
+ * 解決不可なら null を返さずエラー (= 偽 ID で memo に「存在しない作者」が
+ * 記録されるのを防ぐ)。Identity 解決時点でのスナップショットなので、後で
+ * skill / account が削除されても memo の author block は残る (immutable)。
+ */
+function buildAuthorBlock(authorId: string): MemoData['author'] {
+  const identity = resolveIdentity(authorId)
+  if (!identity) {
+    throw new Error(
+      `memos: authorId "${authorId}" is not resolvable (skill not installed / not isPersona / account not found)`,
+    )
+  }
+  const author: NonNullable<MemoData['author']> = {
+    id: identity.id,
+    displayName: identity.displayName,
+  }
+  if (identity.avatarUrl) author.avatarUrl = identity.avatarUrl
+  return author
+}
+
+function emptyMemoData(
+  text: string,
+  tags: string[] = [],
+  author?: MemoData['author'],
+): MemoData {
   return {
     text,
     cw: '',
@@ -68,6 +94,7 @@ function emptyMemoData(text: string, tags: string[] = []): MemoData {
     showPoll: false,
     scheduledAt: null,
     tags,
+    author,
   }
 }
 
@@ -88,8 +115,10 @@ export const memosCreateCapability: Command = {
   signature: {
     description:
       'NoteDeck のローカル markdown メモを新規作成する。' +
-      ' text + 任意の tags のみ指定可。CW / visibility / poll 等の投稿用フィールドは触らない' +
+      ' text + 任意の tags / authorId 指定可。CW / visibility / poll 等の投稿用フィールドは触らない' +
       ' (= デフォルト値で作成)。memoKey は Zettelkasten 形式 (`YYYYMMDDHHmmss`) で自動採番。' +
+      ' authorId を渡すと <persona> block の指示通り memo に author 埋め込みブロックが' +
+      ' 記録される (skill / account の表示情報を作成時に snapshot)。' +
       ' 投稿前に確認モーダルが出る。',
     params: {
       text: {
@@ -103,6 +132,15 @@ export const memosCreateCapability: Command = {
           ' ユーザーが skill body 等で意味付けするので AI は文脈に応じて分類タグを付ける',
         optional: true,
       },
+      authorId: {
+        type: 'string',
+        description:
+          '作者の Identity ID (`skill:<persona-id>` / Misskey accountId 等)。' +
+          ' 未指定 = ユーザー本人扱い。<persona> block で指示された persona の' +
+          ' authorId をここに渡すと、その persona のアイコン / 名前が memo に' +
+          ' 埋め込まれて UI で表示される',
+        optional: true,
+      },
       accountId: {
         type: 'string',
         description: ACCOUNT_ID_PARAM_DESC,
@@ -112,7 +150,7 @@ export const memosCreateCapability: Command = {
     returns: {
       type: 'object',
       description:
-        '`{ id, text, updatedAt, accountId, tags? }` — id は Zettelkasten 形式の memoKey',
+        '`{ id, text, updatedAt, accountId, tags?, author? }` — id は Zettelkasten 形式',
     },
   },
   visible: false,
@@ -120,10 +158,16 @@ export const memosCreateCapability: Command = {
     const text = pickString(params?.text)
     if (!text) throw new Error('memos.create: text is required')
     const tags = pickStringArray(params?.tags) ?? []
+    const authorIdInput = pickString(params?.authorId)
+    const author = authorIdInput ? buildAuthorBlock(authorIdInput) : undefined
     const accountId = resolveAccountId(params?.accountId)
     await ensureMemosLoaded()
     const memoKey = generateMemoKey()
-    const stored = saveMemo(accountId, memoKey, emptyMemoData(text, tags))
+    const stored = saveMemo(
+      accountId,
+      memoKey,
+      emptyMemoData(text, tags, author),
+    )
     const result: Record<string, unknown> = {
       id: memoKey,
       text: stored.data.text,
@@ -131,6 +175,7 @@ export const memosCreateCapability: Command = {
       accountId,
     }
     if (stored.data.tags.length > 0) result.tags = stored.data.tags
+    if (stored.data.author) result.author = stored.data.author
     return result
   },
 }
@@ -147,7 +192,7 @@ export const memosUpdateCapability: Command = {
   requiresConfirmation: true,
   signature: {
     description:
-      '既存ローカルメモの text / tags を更新する (どちらも optional、未指定なら維持)。' +
+      '既存ローカルメモの text / tags / authorId を更新する (すべて optional、未指定なら維持)。' +
       ' CW / visibility 等の他のフィールドは既存値を保持。' +
       ' id は <memos> ブロックで参照できる Zettelkasten 形式 memoKey。' +
       ' 投稿前に確認モーダルが出る。',
@@ -167,6 +212,14 @@ export const memosUpdateCapability: Command = {
           '新しい tags 配列 (未指定なら既存維持)。空配列 [] を渡すと tags を全削除',
         optional: true,
       },
+      authorId: {
+        type: 'string',
+        description:
+          '作者を変更する場合の Identity ID (空文字 "" を渡すと author を消す)。' +
+          ' 通常は memo の作者を変える用途なし。AI が persona として書いた memo を' +
+          ' ユーザー本人に戻す等の特殊操作で使う',
+        optional: true,
+      },
       accountId: {
         type: 'string',
         description: ACCOUNT_ID_PARAM_DESC,
@@ -175,7 +228,7 @@ export const memosUpdateCapability: Command = {
     },
     returns: {
       type: 'object',
-      description: '`{ id, text, updatedAt, accountId, tags? }`',
+      description: '`{ id, text, updatedAt, accountId, tags?, author? }`',
     },
   },
   visible: false,
@@ -184,8 +237,21 @@ export const memosUpdateCapability: Command = {
     if (!id) throw new Error('memos.update: id is required')
     const text = pickString(params?.text)
     const tags = pickStringArray(params?.tags)
-    if (text === undefined && tags === undefined) {
-      throw new Error('memos.update: at least one of text / tags is required')
+    // authorId: 未指定 (param に key 自体ない) = 既存維持、空文字 "" = author 削除、
+    // 値あり = resolveIdentity で再 snapshot
+    let authorPatch: { author: MemoData['author'] } | undefined
+    if (params && 'authorId' in params) {
+      const raw = params.authorId
+      if (typeof raw === 'string' && raw.trim() === '') {
+        authorPatch = { author: undefined }
+      } else if (typeof raw === 'string') {
+        authorPatch = { author: buildAuthorBlock(raw.trim()) }
+      }
+    }
+    if (text === undefined && tags === undefined && authorPatch === undefined) {
+      throw new Error(
+        'memos.update: at least one of text / tags / authorId is required',
+      )
     }
     const accountId = resolveAccountId(params?.accountId)
     await ensureMemosLoaded()
@@ -197,6 +263,7 @@ export const memosUpdateCapability: Command = {
       ...existing.data,
       text: text ?? existing.data.text,
       tags: tags ?? existing.data.tags,
+      author: authorPatch ? authorPatch.author : existing.data.author,
     })
     const result: Record<string, unknown> = {
       id,
@@ -205,6 +272,7 @@ export const memosUpdateCapability: Command = {
       accountId,
     }
     if (stored.data.tags.length > 0) result.tags = stored.data.tags
+    if (stored.data.author) result.author = stored.data.author
     return result
   },
 }

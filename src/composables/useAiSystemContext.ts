@@ -219,6 +219,12 @@ export interface ProjectedMemo {
   updatedAt: string
   /** 任意の自由記述タグ (#492)。空配列なら省略 (token 節約)。 */
   tags?: string[]
+  /**
+   * 著者の埋め込み情報 (#493)。`{ id, displayName }` のみ AI に渡す
+   * (avatarUrl は AI には不要、画像は UI のみで使う)。memo に author block
+   * が無ければ省略 (= ユーザー本人と暗黙解釈)。
+   */
+  author?: { id: string; displayName: string }
 }
 
 export type MemoEntry = readonly [memoKey: string, memo: StoredMemo]
@@ -246,6 +252,12 @@ export function projectMemos(
       updatedAt: memo.updatedAt,
     }
     if (memo.data.tags.length > 0) projected.tags = memo.data.tags
+    if (memo.data.author) {
+      projected.author = {
+        id: memo.data.author.id,
+        displayName: memo.data.author.displayName,
+      }
+    }
     return projected
   })
 }
