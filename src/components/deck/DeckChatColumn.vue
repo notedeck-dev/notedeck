@@ -173,6 +173,24 @@ interface HistoryEntry {
 const historyEntries = shallowRef<HistoryEntry[]>([])
 const loadProgress = ref<{ host: string; done: boolean }[]>([])
 
+// 履歴 view (#483) の絞り込み。AI カラム ([DeckAiColumn.vue]) と同じ
+// header-extra 入力 + 大文字小文字無視の substring match パターン。
+// 検索対象は thread 名 (`entry.name`) + 直近メッセージのプレビュー本文
+// (`entry.message.text`)。
+const searchQuery = ref('')
+
+function matchesSearch(name: string, preview: string | null | undefined) {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return true
+  if (name.toLowerCase().includes(q)) return true
+  if (preview?.toLowerCase().includes(q)) return true
+  return false
+}
+
+const filteredHistoryEntries = computed<HistoryEntry[]>(() =>
+  historyEntries.value.filter((e) => matchesSearch(e.name, e.message.text)),
+)
+
 // Per-account: chatHistory も messageIds ベースで store から resolve する (B-5)。
 const chatHistoryIds = ref<string[]>([])
 const chatHistory = computed(() =>
@@ -538,19 +556,21 @@ async function connectCrossAccount() {
   void prefetchThreads(prefetchTargets)
 }
 
-// Per-account history entries (legacy)
-function getHistoryEntries() {
+// Per-account history entries
+interface PerAccountHistoryEntry {
+  key: string
+  message: ChatMessage
+  isRoom: boolean
+  name: string
+  hasName: boolean
+  emojis?: Record<string, string>
+  avatarUrl?: string
+  avatarDecorations?: AvatarDecoration[]
+}
+
+const perAccountHistoryEntries = computed<PerAccountHistoryEntry[]>(() => {
   const seen = new Set<string>()
-  const entries: {
-    key: string
-    message: ChatMessage
-    isRoom: boolean
-    name: string
-    hasName: boolean
-    emojis?: Record<string, string>
-    avatarUrl?: string
-    avatarDecorations?: AvatarDecoration[]
-  }[] = []
+  const entries: PerAccountHistoryEntry[] = []
 
   for (const msg of chatHistory.value) {
     if (msg.toRoomId) {
@@ -587,11 +607,24 @@ function getHistoryEntries() {
   }
 
   return entries
-}
+})
 
-async function openConversation(
-  entry: HistoryEntry | ReturnType<typeof getHistoryEntries>[0],
-) {
+const filteredPerAccountEntries = computed<PerAccountHistoryEntry[]>(() =>
+  perAccountHistoryEntries.value.filter((e) =>
+    matchesSearch(e.name, e.message.text),
+  ),
+)
+
+const hasNoSearchHits = computed(() => {
+  if (!searchQuery.value.trim()) return false
+  return isCrossAccount.value
+    ? filteredHistoryEntries.value.length === 0 &&
+        historyEntries.value.length > 0
+    : filteredPerAccountEntries.value.length === 0 &&
+        perAccountHistoryEntries.value.length > 0
+})
+
+async function openConversation(entry: HistoryEntry | PerAccountHistoryEntry) {
   chatSub?.dispose()
   chatSub = null
 
@@ -760,6 +793,8 @@ function goBack() {
   currentRoomId.value = null
   conversationAccountId.value = null
   conversationServerHost.value = null
+  // 検索文字は履歴一覧 view 専用なので戻るタイミングで空にしておく。
+  searchQuery.value = ''
 }
 
 const canSend = computed(() => {
@@ -1170,6 +1205,18 @@ onBeforeUnmount(() => {
       </div>
     </template>
 
+    <template v-if="viewMode === 'history'" #header-extra>
+      <div :class="$style.searchBar">
+        <i :class="$style.searchIcon" class="ti ti-search" />
+        <input
+          v-model="searchQuery"
+          :class="$style.searchInput"
+          type="text"
+          placeholder="チャットを検索..."
+        />
+      </div>
+    </template>
+
     <ColumnEmptyState
       v-if="error && viewMode === 'history'"
       :message="error.message"
@@ -1189,11 +1236,20 @@ onBeforeUnmount(() => {
 
     <!-- History View: Cross-account -->
     <div v-if="isCrossAccount && viewMode === 'history'" :class="$style.chatBody">
-      <ColumnEmptyState v-if="historyEntries.length === 0 && !isLoading" message="会話はありません" :image-url="serverInfoImageUrl" />
+      <ColumnEmptyState
+        v-if="historyEntries.length === 0 && !isLoading"
+        message="会話はありません"
+        :image-url="serverInfoImageUrl"
+      />
+      <ColumnEmptyState
+        v-else-if="hasNoSearchHits"
+        message="一致するチャットがありません"
+        :image-url="serverInfoImageUrl"
+      />
 
       <div v-else :class="$style.historyList">
         <button
-          v-for="entry in historyEntries"
+          v-for="entry in filteredHistoryEntries"
           :key="entry.key"
           :class="$style.historyItem"
           @click="openConversation(entry)"
@@ -1238,11 +1294,20 @@ onBeforeUnmount(() => {
 
     <!-- History View: Per-account -->
     <div v-else-if="!isCrossAccount && viewMode === 'history'" :class="$style.chatBody">
-      <ColumnEmptyState v-if="chatHistory.length === 0 && !isLoading" message="会話はありません" :image-url="serverInfoImageUrl" />
+      <ColumnEmptyState
+        v-if="chatHistory.length === 0 && !isLoading"
+        message="会話はありません"
+        :image-url="serverInfoImageUrl"
+      />
+      <ColumnEmptyState
+        v-else-if="hasNoSearchHits"
+        message="一致するチャットがありません"
+        :image-url="serverInfoImageUrl"
+      />
 
       <div v-else :class="$style.historyList">
         <button
-          v-for="entry in getHistoryEntries()"
+          v-for="entry in filteredPerAccountEntries"
           :key="entry.key"
           :class="$style.historyItem"
           @click="openConversation(entry)"
@@ -1411,6 +1476,41 @@ onBeforeUnmount(() => {
   &.done {
     background: var(--nd-accent);
     opacity: 0.8;
+  }
+}
+
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--nd-divider);
+  background: var(--nd-bg);
+}
+
+.searchIcon {
+  flex-shrink: 0;
+  opacity: 0.4;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  background: var(--nd-buttonBg);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  padding: 6px 10px;
+  font-size: 0.85em;
+  color: var(--nd-fg);
+  outline: none;
+
+  &:focus {
+    box-shadow: 0 0 0 2px var(--nd-accent);
+  }
+
+  &::placeholder {
+    color: var(--nd-fg);
+    opacity: 0.4;
   }
 }
 
