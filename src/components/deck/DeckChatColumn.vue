@@ -191,6 +191,47 @@ const filteredHistoryEntries = computed<HistoryEntry[]>(() =>
   historyEntries.value.filter((e) => matchesSearch(e.name, e.message.text)),
 )
 
+// 会話 view 内検索 (#483 v1)。トグル式で、有効時は messages を本文 + 送信者名で
+// 大文字小文字無視 substring filter する。loadOlder と scrollToBottom は
+// searchQuery 非空時に抑止して、検索中の自動スクロール / 履歴継ぎ足しを止める。
+const showConvSearch = ref(false)
+const convSearchQuery = ref('')
+const convSearchInputRef = ref<HTMLInputElement | null>(null)
+
+function toggleConvSearch() {
+  showConvSearch.value = !showConvSearch.value
+  if (showConvSearch.value) {
+    nextTick(() => convSearchInputRef.value?.focus())
+  } else {
+    convSearchQuery.value = ''
+  }
+}
+
+function closeConvSearch() {
+  showConvSearch.value = false
+  convSearchQuery.value = ''
+}
+
+const filteredMessages = computed(() => {
+  const q = convSearchQuery.value.trim().toLowerCase()
+  if (!q) return messages.value
+  return messages.value.filter((m) => {
+    if (m.text?.toLowerCase().includes(q)) return true
+    const u = m.fromUser
+    if (u?.name?.toLowerCase().includes(q)) return true
+    if (u?.username?.toLowerCase().includes(q)) return true
+    if (m.file?.name.toLowerCase().includes(q)) return true
+    return false
+  })
+})
+
+const hasNoConvSearchHits = computed(
+  () =>
+    convSearchQuery.value.trim() !== '' && filteredMessages.value.length === 0,
+)
+
+const isConvSearching = computed(() => convSearchQuery.value.trim() !== '')
+
 // Per-account: chatHistory も messageIds ベースで store から resolve する (B-5)。
 const chatHistoryIds = ref<string[]>([])
 const chatHistory = computed(() =>
@@ -628,6 +669,10 @@ async function openConversation(entry: HistoryEntry | PerAccountHistoryEntry) {
   chatSub?.dispose()
   chatSub = null
 
+  // 検索 state は thread をまたいで持ち越さない。
+  showConvSearch.value = false
+  convSearchQuery.value = ''
+
   conversationTitle.value = entry.name
   conversationOtherAvatarUrl.value = entry.avatarUrl ?? null
   isLoading.value = true
@@ -777,7 +822,8 @@ function onNewMessage(msg: ChatMessage) {
   if (messageIds.value.includes(msg.id)) return
   appendMessage(msg)
   if (!props.column.soundMuted) chatSound.play()
-  scrollToBottom()
+  // 検索中は表示位置を維持する (新着で自動スクロールするとヒット箇所を見失うため)。
+  if (!isConvSearching.value) scrollToBottom()
 }
 
 function onMessageDeleted(messageId: string) {
@@ -793,8 +839,10 @@ function goBack() {
   currentRoomId.value = null
   conversationAccountId.value = null
   conversationServerHost.value = null
-  // 検索文字は履歴一覧 view 専用なので戻るタイミングで空にしておく。
+  // 検索 state は view ごとに独立。view 切替時に持ち越さない。
   searchQuery.value = ''
+  showConvSearch.value = false
+  convSearchQuery.value = ''
 }
 
 const canSend = computed(() => {
@@ -1099,6 +1147,9 @@ function handleScroll() {
   const now = Date.now()
   if (now - lastScrollCheck < 200) return
   lastScrollCheck = now
+  // 検索中はフィルタ後配列の上端で fetch すると、検索対象を後方に拡張する意味と
+  // 検索結果に新規挿入する意味が混ざって UX が予測不能になるので抑止する。
+  if (isConvSearching.value) return
   const el = chatScroller.value?.getElement()
   if (!el) return
   if (el.scrollTop < 100) {
@@ -1195,6 +1246,16 @@ onBeforeUnmount(() => {
     </template>
 
     <template #header-meta>
+      <!-- Conversation view: 検索トグル (#483 v2) はタイトル行に置く -->
+      <button
+        v-if="viewMode === 'conversation'"
+        :class="[$style.headerActionBtn, { [$style.active]: showConvSearch }]"
+        :title="showConvSearch ? '検索を閉じる' : 'メッセージを検索'"
+        @click.stop="toggleConvSearch"
+      >
+        <i :class="showConvSearch ? 'ti ti-x' : 'ti ti-search'" />
+      </button>
+
       <div v-if="!isCrossAccount && account" :class="$style.headerAccount">
         <img :src="getAccountAvatarUrl(account)" :class="$style.headerAvatar" />
         <img
@@ -1205,6 +1266,7 @@ onBeforeUnmount(() => {
       </div>
     </template>
 
+    <!-- History view: 常設検索バー (#483 v1) はサブヘッダーに置く -->
     <template v-if="viewMode === 'history'" #header-extra>
       <div :class="$style.searchBar">
         <i :class="$style.searchIcon" class="ti ti-search" />
@@ -1340,9 +1402,29 @@ onBeforeUnmount(() => {
 
     <!-- Conversation View -->
     <div v-else-if="viewMode === 'conversation'" :class="[$style.chatBody, $style.conversation]" @click="closeReactionPicker">
+      <!-- メッセージ検索バー (#483 v2: showConvSearch toggle) -->
+      <div v-if="showConvSearch" :class="$style.searchBar">
+        <i :class="$style.searchIcon" class="ti ti-search" />
+        <input
+          ref="convSearchInputRef"
+          v-model="convSearchQuery"
+          :class="$style.searchInput"
+          type="text"
+          placeholder="メッセージを検索..."
+          @keydown.escape="closeConvSearch"
+        />
+      </div>
+
+      <ColumnEmptyState
+        v-if="hasNoConvSearchHits"
+        message="一致するメッセージがありません"
+        :image-url="serverInfoImageUrl"
+      />
+
       <NoteScroller
+        v-else
         ref="chatScroller"
-        :items="messages"
+        :items="filteredMessages"
         :estimated-height="80"
         :class="$style.messagesContainer"
         @scroll="handleScroll"
@@ -1486,6 +1568,32 @@ onBeforeUnmount(() => {
   padding: 8px 12px;
   border-bottom: 1px solid var(--nd-divider);
   background: var(--nd-bg);
+  flex-shrink: 0;
+}
+
+.headerActionBtn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  color: var(--nd-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 1em;
+
+  &:hover {
+    opacity: 1;
+    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  }
+
+  &.active {
+    opacity: 1;
+    color: var(--nd-accent);
+  }
 }
 
 .searchIcon {
