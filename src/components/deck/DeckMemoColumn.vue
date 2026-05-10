@@ -453,11 +453,22 @@ function closeMenu() {
 
 .embeddedForm {
   border-bottom: 1px solid var(--nd-divider);
+  flex-shrink: 0;
 }
 
+// DeckColumn.columnBody は overflow: hidden で固定高なので、メモ一覧側で
+// scroll container を作らないとアイテム展開時に内容がはみ出してスクロール
+// 不可になる (`tlScroller` 系と同じパターン)。
 .list {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--nd-scrollbarHandle) transparent;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
 .item {
