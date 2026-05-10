@@ -11,6 +11,8 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'column.add',
         'column.list',
         'drive.list',
+        'memos.create',
+        'memos.update',
         'notes.children',
         'notes.create',
         'notes.react',

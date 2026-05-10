@@ -715,8 +715,12 @@ describe('buildAiContextBlock — memos', () => {
     expect(block).toContain('"text": "todo: write release notes"')
   })
 
-  it('omits <memos> when ds.memos is off (readonly preset)', () => {
+  it('omits <memos> when ds.memos is explicitly disabled via custom preset', () => {
     const cfg = configWithDataSources('readonly')
+    cfg.dataSources = {
+      preset: 'custom',
+      custom: { ...cfg.dataSources.custom, memos: false },
+    }
     const block = buildAiContextBlock(cfg, {
       activeAccount: null,
       currentColumn: null,

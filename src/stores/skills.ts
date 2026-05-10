@@ -285,6 +285,7 @@ export const useSkillsStore = defineStore('skills', () => {
     } else {
       skills.value = fileSkills
       await migrateLegacyAizu()
+      await seedMissingBuiltIns()
     }
 
     initialized.value = true
@@ -302,6 +303,59 @@ export const useSkillsStore = defineStore('skills', () => {
     }
     skills.value = seeded
     await Promise.all(seeded.map((s) => persist(s)))
+    setStorageJson(
+      STORAGE_KEYS.skillsSeededBuiltins,
+      seeded.map((s) => s.id),
+    )
+  }
+
+  /**
+   * 既に skill ディレクトリに何か入っている既存ユーザー向けに、後から
+   * 追加された built-in テンプレを補填する。
+   *
+   * 「過去 seed した id」を localStorage に蓄積しているので、ユーザーが
+   * 内蔵 skill を意図的に削除した場合は再生成しない (= seed 済 id は永続)。
+   * 新しく defaults/skills/ に追加された未知 id だけが対象になる。
+   */
+  async function seedMissingBuiltIns(): Promise<void> {
+    const templates = await loadBuiltInTemplates()
+    const seenIds = new Set(skills.value.map((s) => s.id))
+    const previouslySeeded = new Set(
+      getStorageJson<string[]>(STORAGE_KEYS.skillsSeededBuiltins, []),
+    )
+
+    const toAdd: SkillMeta[] = []
+    for (const tpl of templates) {
+      const { meta, body } = parseSkillFile(tpl.raw)
+      const fm = meta as SkillFrontmatter
+      const skill = metaFromFrontmatter(fm, body, tpl.id)
+      skill.builtIn = true
+      // 既に同 id の skill ファイルがある: 何もしない (ユーザー編集を尊重)
+      if (seenIds.has(skill.id)) {
+        previouslySeeded.add(skill.id)
+        continue
+      }
+      // 過去に seed したことがある = ユーザーが削除した: 再生成しない
+      if (previouslySeeded.has(skill.id)) continue
+      toAdd.push(skill)
+    }
+
+    if (toAdd.length === 0) {
+      // seenIds 経由で既知の id を `previouslySeeded` に追加した分は永続化
+      setStorageJson(
+        STORAGE_KEYS.skillsSeededBuiltins,
+        Array.from(previouslySeeded),
+      )
+      return
+    }
+
+    skills.value = [...skills.value, ...toAdd]
+    await Promise.all(toAdd.map((s) => persist(s)))
+    for (const s of toAdd) previouslySeeded.add(s.id)
+    setStorageJson(
+      STORAGE_KEYS.skillsSeededBuiltins,
+      Array.from(previouslySeeded),
+    )
   }
 
   /**

@@ -36,13 +36,13 @@ describe('defaultConfig', () => {
     expect(resolved['network.external']).toBe(false)
   })
 
-  it('default dataSources include account/column but not visibleNotes/recentConversation/memos', () => {
+  it('default dataSources include account/column/memos but not visibleNotes/recentConversation', () => {
     const resolved = resolveDataSources(defaultConfig().dataSources)
     expect(resolved.currentAccount).toBe(true)
     expect(resolved.currentColumn).toBe(true)
     expect(resolved.visibleNotes).toBe(false)
     expect(resolved.recentConversation).toBe(false)
-    expect(resolved.memos).toBe(false)
+    expect(resolved.memos).toBe(true)
   })
 })
 
@@ -81,6 +81,7 @@ describe('resolvePermissions / resolveDataSources', () => {
         'account.write': false,
         'drive.read': true,
         'drive.write': false,
+        'memos.write': false,
         'network.external': true,
         clipboard: false,
         notifications: false,

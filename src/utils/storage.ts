@@ -93,6 +93,10 @@ export const STORAGE_KEYS = {
   // AI settings
   aiSettings: 'nd-ai-settings',
   skillsActive: 'nd-skills-active',
+  // 過去に seed した built-in skill id のリスト。ユーザーが内蔵 skill を
+  // 削除した場合の再生成を防ぐ + 新しく追加された built-in だけを補填する
+  // ために使う。
+  skillsSeededBuiltins: 'nd-skills-seeded-builtins',
   // HEARTBEAT (#411) Cheap Check First の transient state:
   // skill id ごとの { lastResultsHash, lastAiRunAt } を 1 つの map に格納
   heartbeatCheapCheckState: 'nd-heartbeat-cheap-check-state',

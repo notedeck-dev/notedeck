@@ -1068,7 +1068,7 @@ function onKeydown(e: KeyboardEvent) {
                 <div v-else :class="$style.chatText">{{ msg.content }}</div>
               </div>
               <button
-                v-if="msg.role === 'assistant' && msg.content && !isGenerating"
+                v-if="msg.content && (msg.role === 'user' || (msg.role === 'assistant' && !isGenerating))"
                 class="_button"
                 :class="$style.copyBtn"
                 :title="copiedMessageId === msg.id ? 'コピーしました' : 'コピー'"
