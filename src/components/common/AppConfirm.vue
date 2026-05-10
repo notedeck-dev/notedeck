@@ -113,6 +113,11 @@ useNativeDialog(dialogRef, visible, {
 .body {
   padding: 4px 20px 12px;
   text-align: center;
+  // 長文 message (e.g. AI capability の params JSON) で
+  // ダイアログが viewport を超えないようスクロール可能にする
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .message {
@@ -121,6 +126,8 @@ useNativeDialog(dialogRef, visible, {
   font-size: 0.85em;
   line-height: 1.5;
   opacity: 0.8;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .actions {
