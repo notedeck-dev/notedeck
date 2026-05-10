@@ -33,6 +33,16 @@ export type MfmToken =
   | { type: 'search'; query: string }
   | { type: 'mathInline'; value: string }
   | { type: 'mathBlock'; value: string }
+  // Markdown 拡張 (memo 用、opt-in)。`parseTokens(text, { markdown: true })`
+  // で有効化される。Misskey 本家の MFM には存在しないので、ノート表示では
+  // 既存挙動を保つために明示 opt-in 設計とする (memo 表示でだけ有効化)。
+  | { type: 'heading'; level: number; children: MfmToken[] }
+  | { type: 'list'; ordered: boolean; items: MfmToken[][] }
+
+export interface ParseOptions {
+  /** Markdown 構文 (heading / list) を block レベルで解釈する。memo 用。 */
+  markdown?: boolean
+}
 
 const emojiRegex =
   /(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F)(?:\u200D(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F))*/gu
@@ -130,6 +140,7 @@ const inlinePatterns: PatternDef[] = [
 function parseQuoteBlock(
   text: string,
   pos: number,
+  opts: ParseOptions,
 ): { end: number; token: MfmToken } | null {
   if (text[pos] !== '>') return null
   // Must be at start of text or preceded by newline
@@ -157,7 +168,83 @@ function parseQuoteBlock(
   const inner = lines.join('\n')
   return {
     end: i,
-    token: { type: 'quote', children: parseTokens(inner) },
+    token: { type: 'quote', children: parseTokens(inner, opts) },
+  }
+}
+
+/**
+ * Markdown ATX heading (`# heading` 〜 `###### heading`)。
+ * 行頭でかつ `#` の連続後にスペースが必要。`#tag` (hashtag) とは衝突しない。
+ */
+function parseHeading(
+  text: string,
+  pos: number,
+  opts: ParseOptions,
+): { end: number; token: MfmToken } | null {
+  if (pos > 0 && text[pos - 1] !== '\n') return null
+  let level = 0
+  while (level < 6 && text[pos + level] === '#') level++
+  if (level === 0 || text[pos + level] !== ' ') return null
+  const lineStart = pos + level + 1
+  const nlIdx = text.indexOf('\n', lineStart)
+  const end = nlIdx < 0 ? text.length : nlIdx + 1
+  const content = text.slice(lineStart, nlIdx < 0 ? text.length : nlIdx)
+  return {
+    end,
+    token: { type: 'heading', level, children: parseTokens(content, opts) },
+  }
+}
+
+/**
+ * Markdown list — `- item` / `* item` / `1. item`。連続する同形式の行をまとめる。
+ * unordered の場合 marker (`-` か `*`) を統一して継続判定。
+ */
+function parseList(
+  text: string,
+  pos: number,
+  opts: ParseOptions,
+): { end: number; token: MfmToken } | null {
+  if (pos > 0 && text[pos - 1] !== '\n') return null
+  const orderedMatch = /^(\d+)\. /.exec(text.slice(pos))
+  let ordered: boolean
+  let firstMarker: string
+  if (orderedMatch) {
+    ordered = true
+    firstMarker = orderedMatch[0] as string
+  } else if (
+    (text[pos] === '-' || text[pos] === '*') &&
+    text[pos + 1] === ' '
+  ) {
+    ordered = false
+    firstMarker = `${text[pos]} `
+  } else {
+    return null
+  }
+
+  const items: MfmToken[][] = []
+  let i = pos
+  while (i < text.length) {
+    let prefixLen: number
+    if (ordered) {
+      const m = /^\d+\. /.exec(text.slice(i))
+      if (!m) break
+      prefixLen = (m[0] as string).length
+    } else {
+      // unordered は最初に検出した marker (`- ` or `* `) と一致する行のみ継続
+      if (!text.startsWith(firstMarker, i)) break
+      prefixLen = firstMarker.length
+    }
+    const lineStart = i + prefixLen
+    const nlIdx = text.indexOf('\n', lineStart)
+    const lineEnd = nlIdx < 0 ? text.length : nlIdx
+    items.push(parseTokens(text.slice(lineStart, lineEnd), opts))
+    i = nlIdx < 0 ? text.length : nlIdx + 1
+  }
+
+  if (items.length === 0) return null
+  return {
+    end: i,
+    token: { type: 'list', ordered, items },
   }
 }
 
@@ -184,6 +271,7 @@ function parseSearchBlock(
 function parseMathBlock(
   text: string,
   pos: number,
+  _opts: ParseOptions,
 ): { end: number; token: MfmToken } | null {
   if (text[pos] !== '\\' || text[pos + 1] !== '[') return null
   // Must be at start of text or preceded by newline
@@ -206,6 +294,7 @@ function parseMathBlock(
 function parseCodeBlock(
   text: string,
   pos: number,
+  _opts: ParseOptions,
 ): { end: number; token: MfmToken } | null {
   if (!text.startsWith('```', pos)) return null
   // Must be at start of text or preceded by newline
@@ -229,6 +318,7 @@ function parseCodeBlock(
 function parseFnBlock(
   text: string,
   pos: number,
+  opts: ParseOptions,
 ): { end: number; token: MfmToken } | null {
   if (text[pos] !== '$' || text[pos + 1] !== '[') return null
   let i = pos + 2
@@ -278,7 +368,7 @@ function parseFnBlock(
   const content = text.slice(contentStart, i)
   return {
     end: i + 1,
-    token: { type: 'fn', name, args, children: parseTokens(content) },
+    token: { type: 'fn', name, args, children: parseTokens(content, opts) },
   }
 }
 
@@ -294,6 +384,7 @@ const tagTypeMap: Record<string, MfmToken['type']> = {
 function parseTagBlock(
   text: string,
   pos: number,
+  opts: ParseOptions,
 ): { end: number; token: MfmToken } | null {
   for (const tag of ['small', 'center', 'plain', 'b', 'i', 's'] as const) {
     const open = `<${tag}>`
@@ -312,7 +403,7 @@ function parseTagBlock(
       | 'bold'
       | 'italic'
       | 'strike'
-    return { end, token: { type, children: parseTokens(content) } }
+    return { end, token: { type, children: parseTokens(content, opts) } }
   }
   return null
 }
@@ -325,13 +416,15 @@ function findFirstBlock(
   tryParse: (
     text: string,
     pos: number,
+    opts: ParseOptions,
   ) => { end: number; token: MfmToken } | null,
+  opts: ParseOptions,
 ): BlockMatch | null {
   let from = 0
   while (from < text.length) {
     const idx = text.indexOf(needle, from)
     if (idx < 0) return null
-    const result = tryParse(text, idx)
+    const result = tryParse(text, idx, opts)
     if (result) {
       return {
         index: idx,
@@ -358,7 +451,29 @@ function findFirstSearchBlock(text: string): BlockMatch | null {
   }
 }
 
-export function parseTokens(text: string): MfmToken[] {
+/**
+ * Markdown list 用の専用 finder。`-`, `*`, 数字 はテキスト中に頻出するため、
+ * findFirstBlock の単純な needle 検索ではなく行頭 marker を regex で
+ * 検出してから parseList に委ねる。
+ */
+function findFirstListBlock(
+  text: string,
+  opts: ParseOptions,
+): BlockMatch | null {
+  const re = /(?:^|\n)(?:[-*] |\d+\. )/g
+  const m = re.exec(text)
+  if (!m) return null
+  const index = m[0].startsWith('\n') ? m.index + 1 : m.index
+  const result = parseList(text, index, opts)
+  if (!result) return null
+  return {
+    index,
+    consumeLength: result.end - index,
+    token: result.token,
+  }
+}
+
+export function parseTokens(text: string, opts: ParseOptions = {}): MfmToken[] {
   if (!text) return []
 
   const tokens: MfmToken[] = []
@@ -369,17 +484,20 @@ export function parseTokens(text: string): MfmToken[] {
 
     // Block-level patterns
     const blockCandidates = [
-      findFirstBlock(remaining, '```', parseCodeBlock),
-      findFirstBlock(remaining, '$[', parseFnBlock),
-      findFirstBlock(remaining, '<small>', parseTagBlock),
-      findFirstBlock(remaining, '<center>', parseTagBlock),
-      findFirstBlock(remaining, '<plain>', parseTagBlock),
-      findFirstBlock(remaining, '<b>', parseTagBlock),
-      findFirstBlock(remaining, '<i>', parseTagBlock),
-      findFirstBlock(remaining, '<s>', parseTagBlock),
-      findFirstBlock(remaining, '>', parseQuoteBlock),
-      findFirstBlock(remaining, '\\[', parseMathBlock),
+      findFirstBlock(remaining, '```', parseCodeBlock, opts),
+      findFirstBlock(remaining, '$[', parseFnBlock, opts),
+      findFirstBlock(remaining, '<small>', parseTagBlock, opts),
+      findFirstBlock(remaining, '<center>', parseTagBlock, opts),
+      findFirstBlock(remaining, '<plain>', parseTagBlock, opts),
+      findFirstBlock(remaining, '<b>', parseTagBlock, opts),
+      findFirstBlock(remaining, '<i>', parseTagBlock, opts),
+      findFirstBlock(remaining, '<s>', parseTagBlock, opts),
+      findFirstBlock(remaining, '>', parseQuoteBlock, opts),
+      findFirstBlock(remaining, '\\[', parseMathBlock, opts),
       findFirstSearchBlock(remaining),
+      // Markdown 拡張 (memo 用 opt-in)
+      opts.markdown ? findFirstBlock(remaining, '#', parseHeading, opts) : null,
+      opts.markdown ? findFirstListBlock(remaining, opts) : null,
     ]
     for (const c of blockCandidates) {
       if (c && (!earliest || c.index < earliest.index)) {

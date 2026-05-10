@@ -818,11 +818,14 @@ function handleReset() {
                 :checked="config.personaSkillId === s.id"
                 @change="config.personaSkillId = s.id"
               />
-              <img
+              <!-- SVG icon を accent 色で render (DeckAiColumn.personaIndicator と同じ
+                   mask + currentColor パターン) -->
+              <span
                 v-if="s.iconUrl"
-                :src="s.iconUrl"
-                :alt="s.name"
                 :class="$style.personaOptionAvatar"
+                :style="{ '--icon-url': `url('${s.iconUrl}')` }"
+                :title="s.name"
+                aria-hidden="true"
               />
               <i v-else class="ti ti-user-circle" :class="$style.personaOptionIcon" />
               <div :class="$style.personaOptionMain">
@@ -1480,12 +1483,16 @@ function handleReset() {
   flex-shrink: 0;
 }
 
+// SVG mask + currentColor でテーマアクセント色化 (DeckAiColumn.personaIndicator
+// と同じパターン)。ラスタ画像は表示できないが、persona icon は SVG 前提。
 .personaOptionAvatar {
   width: 24px;
   height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
   flex-shrink: 0;
+  background-color: currentColor;
+  color: var(--nd-accent);
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+  mask: var(--icon-url) center / contain no-repeat;
 }
 
 .personaOptionMain {

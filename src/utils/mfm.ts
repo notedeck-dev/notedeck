@@ -3,13 +3,15 @@
  * Re-exports parser types and functions for convenience.
  */
 import { usePerformanceStore } from '@/stores/performance'
-import type { MfmToken } from './mfmParser'
+import type { MfmToken, ParseOptions } from './mfmParser'
 import { parseTokens } from './mfmParser'
 
-export type { MfmToken } from './mfmParser'
+export type { MfmToken, ParseOptions } from './mfmParser'
 export { parseTokens } from './mfmParser'
 
+// 標準 MFM と markdown 拡張は別 cache (token 構造が異なるため key を分ける)
 const parseCache = new Map<string, MfmToken[]>()
+const parseCacheMd = new Map<string, MfmToken[]>()
 const MAX_MFM_LENGTH = 10000
 
 function getMfmCacheMax(): number {
@@ -20,7 +22,7 @@ function getMfmCacheMax(): number {
   }
 }
 
-export function parseMfm(text: string): MfmToken[] {
+export function parseMfm(text: string, opts?: ParseOptions): MfmToken[] {
   if (!text) return []
 
   // Prevent excessive CPU/memory from extremely long MFM input
@@ -28,22 +30,24 @@ export function parseMfm(text: string): MfmToken[] {
     return [{ type: 'text', value: text }]
   }
 
-  const cached = parseCache.get(text)
+  const cache = opts?.markdown ? parseCacheMd : parseCache
+
+  const cached = cache.get(text)
   if (cached) {
     // LRU: move to end so it's evicted last
-    parseCache.delete(text)
-    parseCache.set(text, cached)
+    cache.delete(text)
+    cache.set(text, cached)
     return cached
   }
 
-  const tokens = parseTokens(text)
+  const tokens = parseTokens(text, opts)
 
   const cacheMax = getMfmCacheMax()
-  if (parseCache.size >= cacheMax) {
-    const first = parseCache.keys().next().value
-    if (first !== undefined) parseCache.delete(first)
+  if (cache.size >= cacheMax) {
+    const first = cache.keys().next().value
+    if (first !== undefined) cache.delete(first)
   }
-  parseCache.set(text, tokens)
+  cache.set(text, tokens)
 
   return tokens
 }

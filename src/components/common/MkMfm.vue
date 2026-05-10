@@ -17,6 +17,11 @@ const props = defineProps<{
   plain?: boolean
   myUsername?: string
   myHost?: string
+  /**
+   * Markdown 拡張 (heading / list) を有効化する。memo 表示等で使用 (opt-in)。
+   * ノート本文には影響しないので Misskey 互換性は保たれる。
+   */
+  markdown?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -41,7 +46,7 @@ function isMentionMe(username: string, host: string | null): boolean {
 
 const resolvedTokens = computed(() => {
   if (props.tokens) return props.tokens
-  return parseMfm(props.text ?? '')
+  return parseMfm(props.text ?? '', { markdown: props.markdown })
 })
 
 const emojiUrls = computed(() => {
@@ -428,7 +433,15 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
     --><!-- Search --><div v-else-if="token.type === 'search'" :class="$style.mfmSearch"><input :class="$style.mfmSearchInput" type="text" :value="token.query" readonly /><button :class="$style.mfmSearchButton" @click.stop="openUrl(`https://www.google.com/search?q=${encodeURIComponent(token.query)}`)">検索</button></div><!--
     --><!-- Math Inline --><span v-else-if="token.type === 'mathInline'" :class="$style.mfmMath" v-html="renderKatex(token.value, false)"></span><!--
     --><!-- Math Block --><div v-else-if="token.type === 'mathBlock'" :class="$style.mfmMathBlock" v-html="renderKatex(token.value, true)"></div><!--
-    --><!-- Text --><template v-else>{{ token.value }}</template><!--
+    --><!-- Heading (Markdown 拡張) --><h1 v-else-if="token.type === 'heading' && token.level === 1" :class="[$style.mfmHeading, $style.mfmHeading1]"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" /></h1><!--
+    --><h2 v-else-if="token.type === 'heading' && token.level === 2" :class="[$style.mfmHeading, $style.mfmHeading2]"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" /></h2><!--
+    --><h3 v-else-if="token.type === 'heading' && token.level === 3" :class="[$style.mfmHeading, $style.mfmHeading3]"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" /></h3><!--
+    --><h4 v-else-if="token.type === 'heading' && token.level === 4" :class="[$style.mfmHeading, $style.mfmHeading4]"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" /></h4><!--
+    --><h5 v-else-if="token.type === 'heading' && token.level === 5" :class="[$style.mfmHeading, $style.mfmHeading5]"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" /></h5><!--
+    --><h6 v-else-if="token.type === 'heading'" :class="[$style.mfmHeading, $style.mfmHeading6]"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" /></h6><!--
+    --><!-- List (Markdown 拡張、ordered) --><ol v-else-if="token.type === 'list' && token.ordered" :class="$style.mfmList"><li v-for="(item, j) in token.items" :key="j"><MkMfm :tokens="item" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" /></li></ol><!--
+    --><!-- List (Markdown 拡張、unordered) --><ul v-else-if="token.type === 'list'" :class="$style.mfmList"><li v-for="(item, j) in token.items" :key="j"><MkMfm :tokens="item" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" /></li></ul><!--
+    --><!-- Text --><template v-else-if="token.type === 'text'">{{ token.value }}</template><!--
   --></template></span>
 </template>
 
@@ -547,6 +560,28 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   border-left: 3px solid var(--nd-divider, rgba(128, 128, 128, 0.3));
   color: var(--nd-fg-muted, var(--nd-fg));
   opacity: 0.85;
+}
+
+/* Markdown 拡張: heading (memo 用 opt-in) */
+.mfmHeading {
+  display: block;
+  margin: 0.6em 0 0.3em;
+  font-weight: bold;
+  line-height: 1.25;
+  color: var(--nd-fgHighlighted, var(--nd-fg));
+}
+.mfmHeading1 { font-size: 1.6em; }
+.mfmHeading2 { font-size: 1.4em; }
+.mfmHeading3 { font-size: 1.2em; }
+.mfmHeading4 { font-size: 1.05em; }
+.mfmHeading5 { font-size: 0.95em; opacity: 0.9; }
+.mfmHeading6 { font-size: 0.85em; opacity: 0.8; }
+
+/* Markdown 拡張: list */
+.mfmList {
+  display: block;
+  margin: 4px 0;
+  padding-left: 1.5em;
 }
 
 /* Search */
