@@ -697,7 +697,7 @@ describe('projectMemos', () => {
           makeMemo(`m${i}`, `2026-01-0${i + 1}T00:00:00Z`),
         ] as MemoEntry,
     )
-    expect(projectMemos(entries, 2)).toHaveLength(2)
+    expect(projectMemos(entries, { limit: 2 })).toHaveLength(2)
   })
 
   it('emits tags only when non-empty (token saving)', () => {
@@ -730,7 +730,7 @@ describe('projectMemos', () => {
         makeMemo('draft memo', '2026-03-01T00:00:00Z', ['draft', 'idea']),
       ],
     ]
-    const out = projectMemos(entries, undefined, ['hidden'])
+    const out = projectMemos(entries, { excludeTags: ['hidden'] })
     expect(out.map((m) => m.id)).toEqual(['20260301000000', '20260101000000'])
   })
 
@@ -738,7 +738,7 @@ describe('projectMemos', () => {
     const entries: MemoEntry[] = [
       ['20260101000000', makeMemo('a', '2026-01-01T00:00:00Z', ['hidden'])],
     ]
-    expect(projectMemos(entries, undefined, [])).toHaveLength(1)
+    expect(projectMemos(entries, { excludeTags: [] })).toHaveLength(1)
   })
 
   it('emits author block (id+displayName) when memo has author embed (#493)', () => {
@@ -778,6 +778,125 @@ describe('projectMemos', () => {
     ]
     const out = projectMemos(entries)
     expect(out[0]).not.toHaveProperty('author')
+  })
+
+  it('expandLinks adds memos referenced by primary entries (#494)', () => {
+    const a = makeMemo(
+      'see [b](memo:20260102000000) and [c](memo:20260103000000)',
+      '2026-05-10T10:00:00Z',
+    )
+    const b = makeMemo('memo b body', '2026-04-10T00:00:00Z')
+    const c = makeMemo('memo c body', '2026-03-10T00:00:00Z')
+    const allMemosByAccount = new Map([
+      [
+        'acc-1',
+        {
+          '20260101000000': a,
+          '20260102000000': b,
+          '20260103000000': c,
+        },
+      ],
+    ])
+    const out = projectMemos([['20260101000000', a]], {
+      expandLinks: true,
+      allMemosByAccount,
+    })
+    expect(out.map((m) => m.id).sort()).toEqual([
+      '20260101000000',
+      '20260102000000',
+      '20260103000000',
+    ])
+    const expanded = out.filter((m) => m.expandedFromLink)
+    expect(expanded.map((m) => m.id).sort()).toEqual([
+      '20260102000000',
+      '20260103000000',
+    ])
+  })
+
+  it('expandLinks respects excludeTags (#494)', () => {
+    const a = makeMemo('[hidden](memo:20260102000000)', '2026-05-10T00:00:00Z')
+    const hidden = makeMemo('private', '2026-04-10T00:00:00Z', ['hidden'])
+    const allMemosByAccount = new Map([
+      [
+        'acc-1',
+        {
+          '20260101000000': a,
+          '20260102000000': hidden,
+        },
+      ],
+    ])
+    const out = projectMemos([['20260101000000', a]], {
+      expandLinks: true,
+      excludeTags: ['hidden'],
+      allMemosByAccount,
+    })
+    expect(out.map((m) => m.id)).toEqual(['20260101000000'])
+  })
+
+  it('expandLinks caps results at expandBudget', () => {
+    const seed = makeMemo(
+      '[1](memo:20260101000000) [2](memo:20260102000000) [3](memo:20260103000000)',
+      '2026-05-10T00:00:00Z',
+    )
+    const allMemosByAccount = new Map([
+      [
+        'acc-1',
+        {
+          '20260200000000': seed,
+          '20260101000000': makeMemo('1', '2026-01-01T00:00:00Z'),
+          '20260102000000': makeMemo('2', '2026-02-01T00:00:00Z'),
+          '20260103000000': makeMemo('3', '2026-03-01T00:00:00Z'),
+        },
+      ],
+    ])
+    const out = projectMemos([['20260200000000', seed]], {
+      expandLinks: true,
+      expandBudget: 2,
+      allMemosByAccount,
+    })
+    const expanded = out.filter((m) => m.expandedFromLink)
+    expect(expanded.length).toBe(2)
+  })
+
+  it('includeBacklinks attaches referencedBy ids (#494)', () => {
+    const target = makeMemo('the target', '2026-05-10T00:00:00Z')
+    const caller1 = makeMemo(
+      'see [t](memo:20260510120000)',
+      '2026-04-01T00:00:00Z',
+    )
+    const caller2 = makeMemo(
+      'also [x](memo:20260510120000)',
+      '2026-03-01T00:00:00Z',
+    )
+    const allMemosByAccount = new Map([
+      [
+        'acc-1',
+        {
+          '20260510120000': target,
+          '20260101000000': caller1,
+          '20260102000000': caller2,
+        },
+      ],
+    ])
+    const out = projectMemos([['20260510120000', target]], {
+      includeBacklinks: true,
+      allMemosByAccount,
+    })
+    const targetRow = out.find((m) => m.id === '20260510120000')
+    expect(targetRow?.referencedBy?.sort()).toEqual([
+      '20260101000000',
+      '20260102000000',
+    ])
+  })
+
+  it('includeBacklinks omits referencedBy when no callers', () => {
+    const target = makeMemo('lonely', '2026-05-10T00:00:00Z')
+    const allMemosByAccount = new Map([['acc-1', { '20260510120000': target }]])
+    const out = projectMemos([['20260510120000', target]], {
+      includeBacklinks: true,
+      allMemosByAccount,
+    })
+    expect(out[0]).not.toHaveProperty('referencedBy')
   })
 })
 

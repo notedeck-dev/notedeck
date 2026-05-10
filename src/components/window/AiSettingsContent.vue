@@ -397,6 +397,37 @@ function selectPermissionPreset(preset: PresetKey) {
   showPermissionsPresetDropdown.value = false
 }
 
+// --- memosConfig (#494) — expandLinks / includeBacklinks toggle ---
+// undefined はどちらも default true として解釈する (= 後付け設定なので既存
+// プロファイルが false に倒れないよう、明示的に false を書いた場合のみ off)。
+const memoExpandLinks = computed(
+  () => config.value.dataSources.memosConfig?.expandLinks !== false,
+)
+const memoIncludeBacklinks = computed(
+  () => config.value.dataSources.memosConfig?.includeBacklinks !== false,
+)
+
+function ensureMemosConfig(): { excludeTags: string[] } & Record<
+  string,
+  unknown
+> {
+  const cfg = config.value.dataSources
+  if (!cfg.memosConfig) {
+    cfg.memosConfig = { excludeTags: [] }
+  }
+  return cfg.memosConfig
+}
+
+function toggleMemoExpandLinks() {
+  const m = ensureMemosConfig()
+  m.expandLinks = !memoExpandLinks.value
+}
+
+function toggleMemoIncludeBacklinks() {
+  const m = ensureMemosConfig()
+  m.includeBacklinks = !memoIncludeBacklinks.value
+}
+
 function togglePermissionCustom(key: PermissionKey) {
   config.value.permissions.custom[key] = !config.value.permissions.custom[key]
 }
@@ -971,6 +1002,68 @@ function handleReset() {
                 :class="{ on: resolvedDataSources[key] }"
                 :aria-checked="resolvedDataSources[key]"
                 :disabled="config.dataSources.preset !== 'custom'"
+                role="switch"
+              >
+                <span class="nd-toggle-switch-knob" />
+              </button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Memos (#494) — link expand / backlinks の詳細設定 -->
+      <div :class="$style.section">
+        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('memos')">
+          <i class="ti ti-notes" />
+          メモの渡し方
+          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.memos }]" />
+        </button>
+        <template v-if="expandedSections.memos">
+          <div :class="$style.toggleList">
+            <div
+              :class="[
+                $style.switchRow,
+                { [$style.switchRowDisabled]: !resolvedDataSources.memos },
+              ]"
+              @click="resolvedDataSources.memos && toggleMemoExpandLinks()"
+            >
+              <i class="ti ti-link" :class="$style.switchRowIcon" />
+              <div :class="$style.switchRowLabelStack">
+                <span :class="$style.switchRowLabel">リンク先メモを展開</span>
+                <span :class="$style.switchRowSubLabel">
+                  本文の `[name](memo:&lt;id&gt;)` で参照されているメモを 1 階層自動で AI に渡す。OFF にすると AI は明示的に `memos.backlinks` 等を呼ばない限り参照先を見ない。
+                </span>
+              </div>
+              <button
+                class="nd-toggle-switch"
+                :class="{ on: memoExpandLinks }"
+                :aria-checked="memoExpandLinks"
+                :disabled="!resolvedDataSources.memos"
+                role="switch"
+              >
+                <span class="nd-toggle-switch-knob" />
+              </button>
+            </div>
+
+            <div
+              :class="[
+                $style.switchRow,
+                { [$style.switchRowDisabled]: !resolvedDataSources.memos },
+              ]"
+              @click="resolvedDataSources.memos && toggleMemoIncludeBacklinks()"
+            >
+              <i class="ti ti-arrow-back-up" :class="$style.switchRowIcon" />
+              <div :class="$style.switchRowLabelStack">
+                <span :class="$style.switchRowLabel">バックリンクを添付</span>
+                <span :class="$style.switchRowSubLabel">
+                  各メモに `referencedBy: [...]` を付けて「どのメモから参照されているか」を AI に伝える。
+                </span>
+              </div>
+              <button
+                class="nd-toggle-switch"
+                :class="{ on: memoIncludeBacklinks }"
+                :aria-checked="memoIncludeBacklinks"
+                :disabled="!resolvedDataSources.memos"
                 role="switch"
               >
                 <span class="nd-toggle-switch-knob" />

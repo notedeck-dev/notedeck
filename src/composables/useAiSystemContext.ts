@@ -11,8 +11,9 @@
 
 import type { Account } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
+import { extractMemoRefs } from '@/utils/memoLinks'
 import { type AiConfig, resolveDataSources } from './useAiConfig'
-import type { StoredMemo } from './useMemos'
+import type { StoredMemo, StoredMemos } from './useMemos'
 
 /**
  * AI に送ってはいけないフィールド名 (credential / 機密データ)。
@@ -225,17 +226,45 @@ export interface ProjectedMemo {
    * が無ければ省略 (= ユーザー本人と暗黙解釈)。
    */
   author?: { id: string; displayName: string }
+  /**
+   * `[name](memo:<id>)` link を辿って自動展開された memo にだけ true (#494)。
+   * 通常 memo には付かない (= 直接列挙された memo と区別する目印)。
+   */
+  expandedFromLink?: true
+  /**
+   * このメモを参照しているメモ id 一覧 (= backlinks)。`includeBacklinks`
+   * オプション true 時にだけ添付される (#494)。空配列なら省略。
+   */
+  referencedBy?: string[]
 }
 
 export type MemoEntry = readonly [memoKey: string, memo: StoredMemo]
 
+export interface ProjectMemosOptions {
+  limit?: number
+  excludeTags?: readonly string[]
+  /** memo: link 先の memo を 1 階層 budget cap 内で context に追加 (#494) */
+  expandLinks?: boolean
+  /** 各 memo に referencedBy 配列を添付 (#494) */
+  includeBacklinks?: boolean
+  /**
+   * link expand / backlinks 計算用のフルメモ map。expand or backlinks 有効時
+   * に必須。entries で渡されない memo を resolve する根拠。Map<accountId, StoredMemos>。
+   */
+  allMemosByAccount?: Map<string, StoredMemos>
+  /** expand 時の最大件数 cap (#494)。default 5。 */
+  expandBudget?: number
+}
+
+const DEFAULT_EXPAND_BUDGET = 5
+
 export function projectMemos(
   entries: readonly MemoEntry[] | undefined,
-  limit = MAX_MEMOS,
-  excludeTags: readonly string[] = [],
+  options: ProjectMemosOptions = {},
 ): ProjectedMemo[] {
   if (!entries || entries.length === 0) return []
-  const excludeSet = new Set(excludeTags)
+  const limit = options.limit ?? MAX_MEMOS
+  const excludeSet = new Set(options.excludeTags ?? [])
   const filtered =
     excludeSet.size === 0
       ? entries
@@ -245,21 +274,83 @@ export function projectMemos(
   const sorted = [...filtered].sort(([, a], [, b]) =>
     a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0,
   )
-  return sorted.slice(0, limit).map(([memoKey, memo]) => {
-    const projected: ProjectedMemo = {
-      id: memoKey,
-      text: memo.data.text,
-      updatedAt: memo.updatedAt,
-    }
-    if (memo.data.tags.length > 0) projected.tags = memo.data.tags
-    if (memo.data.author) {
-      projected.author = {
-        id: memo.data.author.id,
-        displayName: memo.data.author.displayName,
+  const primary = sorted.slice(0, limit)
+  const projected: ProjectedMemo[] = primary.map(([memoKey, memo]) =>
+    projectOneMemo(memoKey, memo),
+  )
+
+  // --- Link expand: budget cap 内で参照先メモを追加 (#494) ---
+  if (options.expandLinks && options.allMemosByAccount) {
+    const budget = options.expandBudget ?? DEFAULT_EXPAND_BUDGET
+    const known = new Set(primary.map(([k]) => k))
+    let added = 0
+    for (const [, memo] of primary) {
+      if (added >= budget) break
+      const refs = extractMemoRefs(memo.data.text)
+      for (const ref of refs) {
+        if (added >= budget) break
+        if (known.has(ref)) continue
+        // excludeTags も expand 対象に効かせる (= 同じ private 扱いを引き継ぐ)
+        const found = lookupMemo(ref, options.allMemosByAccount)
+        if (!found) continue
+        if (
+          excludeSet.size > 0 &&
+          found.data.tags.some((t) => excludeSet.has(t))
+        ) {
+          continue
+        }
+        const row = projectOneMemo(ref, found)
+        row.expandedFromLink = true
+        projected.push(row)
+        known.add(ref)
+        added++
       }
     }
-    return projected
-  })
+  }
+
+  // --- Backlinks 添付 (#494) ---
+  if (options.includeBacklinks && options.allMemosByAccount) {
+    for (const row of projected) {
+      const callers: string[] = []
+      for (const memos of options.allMemosByAccount.values()) {
+        for (const [callerKey, callerMemo] of Object.entries(memos)) {
+          if (callerKey === row.id) continue
+          const refs = extractMemoRefs(callerMemo.data.text)
+          if (refs.includes(row.id)) callers.push(callerKey)
+        }
+      }
+      if (callers.length > 0) row.referencedBy = callers
+    }
+  }
+
+  return projected
+}
+
+function projectOneMemo(memoKey: string, memo: StoredMemo): ProjectedMemo {
+  const row: ProjectedMemo = {
+    id: memoKey,
+    text: memo.data.text,
+    updatedAt: memo.updatedAt,
+  }
+  if (memo.data.tags.length > 0) row.tags = memo.data.tags
+  if (memo.data.author) {
+    row.author = {
+      id: memo.data.author.id,
+      displayName: memo.data.author.displayName,
+    }
+  }
+  return row
+}
+
+function lookupMemo(
+  memoKey: string,
+  allMemosByAccount: Map<string, StoredMemos>,
+): StoredMemo | null {
+  for (const memos of allMemosByAccount.values()) {
+    const m = memos[memoKey]
+    if (m) return m
+  }
+  return null
 }
 
 function projectOneNote(n: unknown): ProjectedNote {

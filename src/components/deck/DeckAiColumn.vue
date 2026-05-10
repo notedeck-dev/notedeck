@@ -558,14 +558,23 @@ async function sendMessage() {
         ? Object.entries(loadAllMemos(activeAccountId))
         : []
 
-      // memosConfig.excludeTags があれば AI 注入から該当 tag メモを除外 (#492)
-      const excludeTags = aiConfig.value.dataSources.memosConfig?.excludeTags
+      // memosConfig.excludeTags があれば AI 注入から該当 tag メモを除外 (#492)。
+      // expandLinks / includeBacklinks (#494) も同 config で制御 (default true)。
+      const memosCfg = aiConfig.value.dataSources.memosConfig
+      const allMemosByAccount = activeAccountId
+        ? new Map([[activeAccountId, loadAllMemos(activeAccountId)]])
+        : new Map()
       const contextBlock = buildAiContextBlock(aiConfig.value, {
         activeAccount: accountsStore.activeAccount,
         currentColumn: focusedColumn ?? props.column,
         visibleNotes: projectVisibleItems(visibleNotesRaw, focusedColumn?.type),
         recentConversation: projectRecentConversation(history),
-        memos: projectMemos(memoEntries, undefined, excludeTags),
+        memos: projectMemos(memoEntries, {
+          excludeTags: memosCfg?.excludeTags,
+          expandLinks: memosCfg?.expandLinks !== false,
+          includeBacklinks: memosCfg?.includeBacklinks !== false,
+          allMemosByAccount,
+        }),
         accounts: accountsStore.accounts,
         persona: personaIdentity
           ? {
