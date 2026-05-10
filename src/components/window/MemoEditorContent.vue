@@ -75,6 +75,13 @@ const serverNotFoundImageUrl = computed(() => {
 })
 
 const author = computed(() => {
+  // memo.data.author 埋め込み (#493) があれば persona の身元を表示
+  // (例: `唯 (@yui)`)。なければ保存先 account の `@user@host`。
+  const embedded = memo.value?.data.author
+  if (embedded) {
+    const handle = embedded.id.replace(/^skill:/, '')
+    return `${embedded.displayName} (@${handle})`
+  }
   const acc = account.value
   if (!acc) return null
   return `@${acc.username}@${acc.host}`

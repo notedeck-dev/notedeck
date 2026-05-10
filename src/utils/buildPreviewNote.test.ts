@@ -29,7 +29,7 @@ describe('buildPreviewNote', () => {
     expect(note.user.username).toBe('taka')
   })
 
-  it('overrides name/avatarUrl with author embed (#493)', () => {
+  it('overrides name/avatarUrl/username/id with author embed (#493)', () => {
     const note = buildPreviewNote({
       account: ACCOUNT,
       id: 'memo:acc-1:20260101010101',
@@ -44,11 +44,15 @@ describe('buildPreviewNote', () => {
         avatarUrl: 'https://example.com/aizu.svg',
       },
     })
-    // username は account 由来のまま (= memo の保存空間オーナー)
-    expect(note.user.username).toBe('taka')
     // 表示名 / アバターは author で上書き (= persona の身元)
     expect(note.user.name).toBe('藍')
     expect(note.user.avatarUrl).toBe('https://example.com/aizu.svg')
+    // username は author.id から `skill:` prefix を除いたもの (= persona id)
+    expect(note.user.username).toBe('aizu-9k2x')
+    // host は null (persona はローカル概念で host を持たない)
+    expect(note.user.host).toBe(null)
+    // user.id も author.id (= persona と同一視できる identity)
+    expect(note.user.id).toBe('skill:aizu-9k2x')
   })
 
   it('falls back to account avatarUrl when author has no avatarUrl', () => {

@@ -149,8 +149,10 @@ function buildEntry(acc: Account, key: string, memo: StoredMemo): MemoEntry {
     author: memo.data.author,
   })
   // Cross-account ビューでは @username だけだとどのサーバーか分からないため
-  // host を埋めて MkNote 側で `@username@host` のフルアドレス表示にする
-  if (isCrossAccount.value) {
+  // host を埋めて MkNote 側で `@username@host` のフルアドレス表示にする。
+  // ただし memo.data.author で persona に上書き済みの場合 (= persona は
+  // ローカル概念で host を持たない) は host を埋めない (`@yui` のみ表示)。
+  if (isCrossAccount.value && !memo.data.author) {
     note.user = { ...note.user, host: acc.host }
   }
   return {
