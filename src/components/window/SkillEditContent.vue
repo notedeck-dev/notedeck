@@ -186,11 +186,13 @@ const statusText = computed(() => {
 
 <style module lang="scss">
 .content {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 12px 14px 14px;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .empty {
