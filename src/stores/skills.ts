@@ -48,6 +48,20 @@ export interface SkillMeta {
    * 型は常に `string[]` (空配列含む) — `triggers` と同じパターン。
    */
   cheapCheckCapabilities: string[]
+  /**
+   * Persona-eligible flag (#491): この skill を AI session の persona
+   * 候補として扱うか。true のとき:
+   * - AI session のチャットヘッダ persona セレクタに表示される
+   * - session.personaSkillId として選ばれると `<persona>` block が
+   *   system prompt に注入され、authorId='skill:<id>' の memo を作れる
+   *
+   * skill.iconUrl は「skill そのもののアイコン」(例: 翻訳 skill のレンチ)、
+   * persona の avatar は「想起されるキャラクターの顔」と意味が違うので、
+   * iconUrl 有無ではなく明示フラグで判別する。
+   *
+   * 未指定 = false。
+   */
+  isPersona?: boolean
 }
 
 export function generateSkillId(name: string): string {
@@ -76,6 +90,7 @@ interface SkillFrontmatter {
   updatedAt?: number
   iconUrl?: string
   cheapCheckCapabilities?: string[]
+  isPersona?: boolean
 }
 
 function asArray(v: unknown): string[] {
@@ -106,6 +121,7 @@ function frontmatterFromMeta(skill: SkillMeta): Record<string, unknown> {
   if (skill.cheapCheckCapabilities && skill.cheapCheckCapabilities.length > 0) {
     out.cheapCheckCapabilities = skill.cheapCheckCapabilities
   }
+  if (skill.isPersona) out.isPersona = true
   return out
 }
 
@@ -143,6 +159,7 @@ function metaFromFrontmatter(
     builtIn: !!fm.builtIn,
     iconUrl: fm.iconUrl,
     cheapCheckCapabilities: asArray(fm.cheapCheckCapabilities),
+    isPersona: !!fm.isPersona,
   }
 }
 
@@ -232,11 +249,26 @@ export const useSkillsStore = defineStore('skills', () => {
   /**
    * Phase 2 で AI provider に渡す system prompt を組み立てるためのヘルパ。
    * mode='always' + 明示的に active な mode='manual' のスキルを宣言順で結合する。
+   *
+   * #491 拡張:
+   * - `extraSkillIds`: session-only に追加する skill (= activeIds を汚さず
+   *   その session だけで含める。session.personaSkillId 注入で使う)
+   * - `excludePersonaSkillsExcept`: 指定 id 以外の `isPersona: true` skill を
+   *   除外 (= 複数 always-persona があるとき session の persona 以外を抑制)
    */
-  function composedSystemPrompt(): string {
+  function composedSystemPrompt(
+    extraSkillIds: readonly string[] = [],
+    excludePersonaSkillsExcept?: string,
+  ): string {
     const set = new Set(effectiveActiveIds.value)
+    for (const id of extraSkillIds) set.add(id)
     return skills.value
       .filter((s) => set.has(s.id))
+      .filter((s) => {
+        if (excludePersonaSkillsExcept === undefined) return true
+        if (!s.isPersona) return true
+        return s.id === excludePersonaSkillsExcept
+      })
       .map((s) => s.body.trim())
       .filter((b) => b.length > 0)
       .join('\n\n')

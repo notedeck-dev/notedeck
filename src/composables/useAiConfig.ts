@@ -187,6 +187,15 @@ export interface AiConfig {
   permissions: PermissionsConfig
   dataSources: DataSourcesConfig
   heartbeat: HeartbeatConfig
+  /**
+   * このアプリで AI が振る舞う persona (#491)。skill で `isPersona: true`
+   * を設定したものから 1 つ選択する。空文字 / 未指定 = 通常の汎用 AI として
+   * 動作 (chat / heartbeat / command / task すべて persona なし)。
+   *
+   * persona は session ごとに切り替えるものではなく、「この AI は誰か」と
+   * いう同一性設定として扱う (= AI 設定全体の一部)。
+   */
+  personaSkillId?: string
 }
 
 export const PROVIDER_KEYS: readonly ProviderKey[] = [

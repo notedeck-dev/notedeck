@@ -38,6 +38,7 @@ import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
 import { timestampTitle } from '@/utils/aiSessionTitle'
 import { highlightCode, highlighterLoaded } from '@/utils/highlight'
+import { resolveIdentity } from '@/utils/identity'
 import { renderSimpleMarkdown } from '@/utils/simpleMarkdown'
 import DeckColumnComponent from './DeckColumn.vue'
 
@@ -77,6 +78,20 @@ const titleGen = useAiChat()
 // `column.aiCurrentSessionId` を reactive に橋渡し。useAiConversation は
 // この ref の変化を購読してメッセージ参照を切り替える。
 const currentSessionId = computed(() => props.column.aiCurrentSessionId ?? null)
+
+// Persona (#491) — session 作成時に snapshot された session.personaSkillId
+// から解決。aiConfig.personaSkillId は新規 session のデフォルトに過ぎず、
+// 過去 session の persona 表示を上書きしない (= Git commit Author 型 immutable)。
+// dangling (skill 削除 / isPersona OFF) のときは null。
+const currentSession = computed(() =>
+  currentSessionId.value
+    ? (sessionsStore.get(currentSessionId.value) ?? null)
+    : null,
+)
+const currentPersona = computed(() => {
+  const id = currentSession.value?.personaSkillId
+  return id ? resolveIdentity(`skill:${id}`) : null
+})
 
 const conversation = useAiConversation(currentSessionId)
 const messages = conversation.messages
@@ -403,9 +418,13 @@ async function generateAiTitleAsync(
 /** 必要なら新規セッションを作って ID を返す。 */
 function ensureSession(): string {
   if (currentSessionId.value) return currentSessionId.value
+  // Persona (#491): 新規 session 作成時に aiConfig.personaSkillId を snapshot。
+  // 後で global 設定を変更しても過去 session の persona は固定されたまま
+  // (= Git commit の Author header と同じ immutable semantic)。
   const session = sessionsStore.createNew({
     model: aiConfig.value[aiConfig.value.provider]?.model ?? '',
     provider: aiConfig.value.provider,
+    personaSkillId: aiConfig.value.personaSkillId || undefined,
   })
   deckStore.updateColumn(props.column.id, {
     aiCurrentSessionId: session.id,
@@ -472,7 +491,22 @@ async function sendMessage() {
 
   activeStreamSessionId.value = sessionId
 
-  const skillsPrompt = skillsStore.composedSystemPrompt() || ''
+  // Persona (#491) — session 作成時 snapshot された personaSkillId を読む
+  // (= 過去 session は当時の persona、新規 session は aiConfig 由来のデフォルト)。
+  // skill body を skillsPrompt に session-only で含め、<persona> block を
+  // system prompt に注入。dangling 時は通常チャット動作。
+  const personaSkillId =
+    sessionsStore.get(sessionId)?.personaSkillId || undefined
+  const personaIdentity = personaSkillId
+    ? resolveIdentity(`skill:${personaSkillId}`)
+    : null
+  // identity が解決できない (= 該当 skill 不在 or isPersona=false) なら扱わない
+  const effectivePersonaSkillId = personaIdentity ? personaSkillId : undefined
+  const skillsPrompt =
+    skillsStore.composedSystemPrompt(
+      effectivePersonaSkillId ? [effectivePersonaSkillId] : [],
+      effectivePersonaSkillId,
+    ) || ''
   // ユーザーが Timeline をクリックしていないケースに備えて、fallback として
   // 画面上に存在する最初の TIMELINE_LIKE カラムを使う。
   const focusedColumnId =
@@ -531,6 +565,13 @@ async function sendMessage() {
         recentConversation: projectRecentConversation(history),
         memos: projectMemos(memoEntries),
         accounts: accountsStore.accounts,
+        persona: personaIdentity
+          ? {
+              id: personaIdentity.id,
+              displayName: personaIdentity.displayName,
+              bio: personaIdentity.bio,
+            }
+          : undefined,
       })
       const system = joinSystemPrompt(skillsPrompt, contextBlock)
 
@@ -840,6 +881,19 @@ function onKeydown(e: KeyboardEvent) {
     </template>
 
     <template v-if="viewMode === 'chat'" #header-meta>
+      <div
+        v-if="currentPersona"
+        :class="[$style.headerAction, $style.personaIndicator]"
+        :title="`Persona: ${currentPersona.displayName} (AI 設定で変更)`"
+      >
+        <span
+          v-if="currentPersona.avatarUrl"
+          :class="$style.personaIndicatorAvatar"
+          :style="{ '--icon-url': `url('${currentPersona.avatarUrl}')` }"
+          aria-hidden="true"
+        />
+        <i v-else class="ti ti-user-circle" />
+      </div>
       <button
         class="_button"
         :class="$style.headerAction"
@@ -1138,6 +1192,36 @@ function onKeydown(e: KeyboardEvent) {
     background: var(--nd-buttonHoverBg);
     opacity: 1;
   }
+}
+
+// Persona indicator — チャットヘッダに「現在の persona」を表示する read-only
+// バッジ。スキルカラムのアイテムアイコンと同型の `mask + currentColor` パターン
+// で SVG をテーマアクセント色で着色する。
+//
+// hover 時はプロファイル切替インディケーターの UI 慣例に従い、背景にアクセント色を
+// 敷いて SVG 側を「抜く」形に反転 (= color: var(--nd-bg) に切り替え、SVG 部分が
+// 背景色で打ち抜かれて見える)。
+.personaIndicator {
+  overflow: hidden;
+  padding: 0;
+  opacity: 1;
+  cursor: default;
+  color: var(--nd-accent);
+  background: transparent;
+  transition: background var(--nd-duration-base), color var(--nd-duration-base);
+
+  &:hover {
+    background: var(--nd-accent);
+    color: var(--nd-bg);
+  }
+}
+
+.personaIndicatorAvatar {
+  width: 100%;
+  height: 100%;
+  background-color: currentColor;
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+  mask: var(--icon-url) center / contain no-repeat;
 }
 
 // --- セッション一覧ビュー ---

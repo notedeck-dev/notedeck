@@ -66,6 +66,12 @@
   //     readonly preset = write 系 / external network を全て deny (推奨 default)
   //     daemon 側で resolve → 各 capability の required permissions と照合して
   //     満たさないものを tool 一覧から除外
+
+  // Persona (#491): この AI が振る舞う人格を `isPersona: true` な skill から選ぶ。
+  // 未指定 = 汎用 AI。AI 設定ウィンドウで切替可能。chat / heartbeat / command /
+  // task すべての session に同じ persona が反映される (= 同一性設定)。
+  personaSkillId: '',
+
   heartbeat: {
     enabled: false,
     intervalMinutes: 30,

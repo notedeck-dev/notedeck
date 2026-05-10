@@ -63,6 +63,19 @@ export interface AiContextInput {
    * どのサーバーか」を即把握できる。
    */
   accounts?: readonly Account[]
+  /**
+   * セッションの persona (#491)。session.personaSkillId が指定された
+   * チャットでこのフィールドが渡され、`<persona>` block が system prompt
+   * 末尾の `<notedeck-context>` 内に注入される。AI は block の指示を読んで
+   * `authorId='<id>'` で memos.create を呼ぶ。
+   *
+   * avatarUrl は AI に不要なので含めない (= UI 表示専用)。
+   */
+  persona?: {
+    id: string
+    displayName: string
+    bio?: string
+  }
 }
 
 /** AI に渡す可視ノートの上限件数。 */
@@ -345,6 +358,24 @@ export function buildAiContextBlock(
   }
   if (ds.memos && ctx.memos && ctx.memos.length > 0) {
     parts.push(`  <memos>\n${jsonBlock(ctx.memos)}\n  </memos>`)
+  }
+  // persona block (#491) — session.personaSkillId 由来。dataSources で
+  // on/off せず、session 自身が persona を持っていれば常に注入する。
+  // block + instruction を一体型 prose で書き、AI が役割を確実に把握できる
+  // ようにする (memos.create の authorId 規約も同 block 内で示す)。
+  if (ctx.persona) {
+    const lines: string[] = ['  <persona>']
+    lines.push(
+      `    あなたは ${ctx.persona.displayName} (id: ${ctx.persona.id}) として振る舞う。`,
+    )
+    lines.push(
+      `    memos.create / memos.update を呼ぶ際は authorId='${ctx.persona.id}' を指定する。`,
+    )
+    if (ctx.persona.bio) {
+      lines.push(`    bio: ${ctx.persona.bio}`)
+    }
+    lines.push('  </persona>')
+    parts.push(lines.join('\n'))
   }
 
   if (parts.length === 0) return ''

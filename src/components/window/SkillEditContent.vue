@@ -33,6 +33,7 @@ const description = ref('')
 const author = ref('')
 const version = ref('')
 const mode = ref<SkillMode>('manual')
+const isPersona = ref(false)
 const body = ref('')
 
 const dirty = ref(false)
@@ -50,6 +51,7 @@ watch(
     author.value = s.author ?? ''
     version.value = s.version
     mode.value = s.mode
+    isPersona.value = !!s.isPersona
     body.value = s.body
     dirty.value = false
     suppressDirty = false
@@ -68,7 +70,7 @@ function scheduleSave() {
   }, 500)
 }
 
-watch([name, description, author, version, mode, body], scheduleSave)
+watch([name, description, author, version, mode, isPersona, body], scheduleSave)
 
 function save() {
   if (!skill.value) return
@@ -78,6 +80,7 @@ function save() {
     author: author.value || undefined,
     version: version.value || skill.value.version,
     mode: mode.value,
+    isPersona: isPersona.value,
     body: body.value,
   })
   dirty.value = false
@@ -157,6 +160,21 @@ const statusText = computed(() => {
           <span>
             HEARTBEAT 有効時、tick ごとにこの skill body を AI に読ませます
             (#411 / OpenClaw HEARTBEAT.md 相当)。
+          </span>
+        </div>
+        <div :class="$style.row">
+          <label :class="$style.label">Persona</label>
+          <label :class="$style.toggleRow">
+            <input v-model="isPersona" type="checkbox" />
+            <span>このスキルを AI セッションの persona 候補にする</span>
+          </label>
+        </div>
+        <div v-if="isPersona" :class="$style.modeHint">
+          <i class="ti ti-user-circle" />
+          <span>
+            ON にすると、AI セッションヘッダの persona セレクタにこのスキルが
+            表示されます。選択中のセッションで AI はこの persona として振る舞い、
+            memo の作者として記録されます (#491)。
           </span>
         </div>
         <div v-if="isBuiltIn || isFromStore" :class="$style.note">
@@ -263,6 +281,20 @@ const statusText = computed(() => {
   span {
     color: var(--nd-fg);
     opacity: 0.75;
+  }
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--nd-fg);
+  cursor: pointer;
+  user-select: none;
+
+  input {
+    margin: 0;
   }
 }
 

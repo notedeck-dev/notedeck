@@ -42,6 +42,14 @@ export interface AiSessionMeta {
   messageCount: number
   /** 最後のメッセージ本文プレビュー (drawer 表示用、120 文字 trim)。空可。 */
   lastMessagePreview: string
+  /**
+   * このセッションが作成された時点の persona skill id (#491、snapshot)。
+   * `aiConfig.personaSkillId` (= 新規セッションのデフォルト) と独立に session
+   * 自身が値を保持するため、後でグローバル設定を変えても過去セッションの
+   * persona 表示は固定されたまま (Git commit の Author header と同じ
+   * immutable semantic)。空文字 / 未指定 = persona なしで作成された session。
+   */
+  personaSkillId?: string
 }
 
 /** メタ + 本文。chat 以外の kind が増えたら discriminated union 化する。 */
@@ -75,6 +83,7 @@ const KNOWN_FIELDS = new Set([
   'createdAt',
   'updatedAt',
   'messages',
+  'personaSkillId',
 ])
 
 function serialize(session: AiSession): string {
@@ -89,6 +98,7 @@ function serialize(session: AiSession): string {
     updatedAt: session.updatedAt,
     messages: session.messages,
   }
+  if (session.personaSkillId) out.personaSkillId = session.personaSkillId
   if (session.unknownFields) {
     for (const [k, v] of Object.entries(session.unknownFields)) {
       out[k] = v
@@ -126,6 +136,10 @@ function deserialize(raw: string): AiSession | null {
     // drawer 表示用 preview は listSorted() 側で computed する。AiSession 自体には
     // 永続化せず、空文字を入れて型を満たす。
     lastMessagePreview: '',
+    personaSkillId:
+      typeof r.personaSkillId === 'string' && r.personaSkillId
+        ? r.personaSkillId
+        : undefined,
     unknownFields:
       Object.keys(unknownFields).length > 0 ? unknownFields : undefined,
   }
@@ -205,6 +219,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
       updatedAt: s.updatedAt,
       messageCount: s.messages.length,
       lastMessagePreview: buildLastMessagePreview(s.messages),
+      personaSkillId: s.personaSkillId,
     }))
     arr.sort((a, b) => b.updatedAt - a.updatedAt)
     return arr
@@ -213,12 +228,18 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
   /**
    * 新規セッションを生成してキャッシュに登録。ファイル書込は最初の
    * `updateMessages()` または `setTitle()` 呼び出し時に走る。
+   *
+   * `personaSkillId` を渡すと session に snapshot 保存される (#491)。
+   * 呼出側は `aiConfig.personaSkillId` をデフォルトとして渡すのが想定 —
+   * 一度 session 作成後は global 設定変更で過去 session の persona 表示は
+   * 変わらない (Git commit Author header と同じ immutable semantic)。
    */
   function createNew(opts: {
     model: string
     provider: string
     title?: string
     kind?: AiSessionKind
+    personaSkillId?: string
   }): AiSession {
     const existing = new Set(sessions.value.keys())
     const id = generateSessionId(new Date(), existing)
@@ -235,6 +256,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
       messageCount: 0,
       messages: [],
       lastMessagePreview: '',
+      personaSkillId: opts.personaSkillId || undefined,
     }
     sessions.value.set(id, session)
     sessions.value = new Map(sessions.value)
