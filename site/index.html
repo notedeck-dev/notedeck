@@ -157,7 +157,7 @@
           </div>
           <h3>外部から駆動できる</h3>
           <p class="pillar-lead">物理ボタンも CLI も AI も、<strong>同じ API で叩く。</strong></p>
-          <p>localhost の HTTP API (Bearer トークン認証) で外部スクリプト・別アプリからデッキを操作。AI tool calling / AiScript / HTTP API / CLI / コマンドパレットの 5 経路が単一の capability registry を共有する。Stream Deck・Raycast・MCP との連携もこの延長線上に。</p>
+          <p>localhost:19820 の REST API (Bearer トークン認証 / OAuth 不要) で投稿・TL 取得・カラム操作・コマンド実行を HTTP 制御。20+ エンドポイントは OpenAPI で自動ドキュメント生成、SSE でリアルタイムイベント受信。AI tool calling / AiScript / HTTP API / CLI / コマンドパレットの 5 経路が単一の capability registry を共有 — Raycast・Obsidian・Stream Deck・MCP・自作ボット、どれも同じ仕組みで繋がる。</p>
         </div>
         <div class="pillar glass fade-in" data-direction="up">
           <div class="pillar-icon">
@@ -232,21 +232,6 @@
             <li>メモリ上のトークンは自動 zeroize</li>
             <li>localhost API は DNS Rebinding 対策済み</li>
             <li>SSRF 防止（プライベート IP 範囲をブロック）</li>
-          </ul>
-        </div>
-      </div>
-
-      <!-- Highlight: API -->
-      <div class="highlight-row fade-in" data-direction="right">
-        <div class="highlight-text glass">
-          <span class="highlight-badge">拡張性</span>
-          <h3>外部ツールからデッキを操作</h3>
-          <p>NoteDeck はバックグラウンドで REST API サーバー（localhost:19820）を起動。ノート投稿、タイムライン取得、カラム操作、コマンド実行 — すべてを HTTP で制御可能。Raycast、Obsidian、StreamDeck、自作ボットとの連携が、OAuth なしで実現します。</p>
-          <ul class="highlight-list">
-            <li>20 以上の REST エンドポイント</li>
-            <li>OpenAPI 仕様 + 自動ドキュメント生成</li>
-            <li>SSE でリアルタイムイベント受信</li>
-            <li>AiScript プラグインでカラム動的生成</li>
           </ul>
         </div>
       </div>
