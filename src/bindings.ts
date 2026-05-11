@@ -1782,6 +1782,19 @@ async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; mess
 }
 },
 /**
+ * `http.fetch` capability 実装。
+ * 
+ * 検証 → reqwest 構築 → 送信 → response 整形 の単線。
+ */
+async httpFetch(request: HttpFetchRequest) : Promise<Result<HttpFetchResponse, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("http_fetch", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * global heartbeat を登録 / 更新する。既存があれば interval を
  * 上書きする。同じ interval が既に動いていたとしても abort + 再 spawn
  * するので、JS 側の reactive watch から idempotent に呼んで OK。
@@ -2096,6 +2109,8 @@ export type FollowChartSection = { followings: FollowChartGroup; followers: Foll
  */
 export type GalleryPost = { id: string; createdAt: string; updatedAt: string; title: string; description: string | null; userId: string; user?: NormalizedUser | null; files: NormalizedDriveFile[]; isSensitive?: boolean; likedCount?: number; isLiked?: boolean | null }
 export type HealthCheckResult = { ok: boolean; status: number; message: string }
+export type HttpFetchRequest = { url: string; method: string | null; headers: Partial<{ [key in string]: string }> | null; body: string | null; timeoutMs: number | null }
+export type HttpFetchResponse = { status: number; headers: Partial<{ [key in string]: string }>; body: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 export type NormalizedDriveFile = { id: string; name: string; type: string; url: string; thumbnailUrl: string | null; size?: number; isSensitive?: boolean }
 export type NormalizedNote = { id: string; _accountId: string; _serverHost: string; createdAt: string; text: string | null; cw: string | null; user: NormalizedUser; visibility: string; emojis?: Partial<{ [key in string]: string }>; reactionEmojis?: Partial<{ [key in string]: string }>; reactions?: Partial<{ [key in string]: number }>; myReaction: string | null; renoteCount: number; repliesCount: number; files?: NormalizedDriveFile[]; poll?: NormalizedPoll | null; replyId?: string | null; renoteId?: string | null; channelId?: string | null; channel?: Channel | null; reactionAcceptance?: string | null; uri?: string | null; url?: string | null; updatedAt?: string | null; localOnly?: boolean; visibleUserIds?: string[]; isFavorited?: boolean; 

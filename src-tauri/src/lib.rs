@@ -292,6 +292,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             // AI chat (LLM streaming via reqwest + emit)
             commands::ai_chat_send,
             commands::ai_chat_cancel,
+            // HTTP fetch (http.fetch capability / Nd:http)
+            commands::http_fetch,
             // HEARTBEAT (#411 Phase 6) — per-column scheduler
             commands::heartbeat_configure,
             commands::heartbeat_unconfigure,

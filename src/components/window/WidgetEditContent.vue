@@ -26,11 +26,11 @@ import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
 import AiScriptUiRenderer, {
   type PostFormRequest,
 } from '@/components/deck/widgets/AiScriptUiRenderer.vue'
+import { useAiConfig } from '@/composables/useAiConfig'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useAccountsStore } from '@/stores/accounts'
-import { useDeckStore } from '@/stores/deck'
 import { useToast } from '@/stores/toast'
 import { useWidgetsStore } from '@/stores/widgets'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -51,8 +51,8 @@ defineEmits<{
 const widgetsStore = useWidgetsStore()
 widgetsStore.ensureLoaded()
 const accountsStore = useAccountsStore()
-const deckStore = useDeckStore()
 const commandStore = useCommandStore()
+const { config: aiConfig } = useAiConfig()
 const { show: showToast } = useToast()
 
 const widget = computed(() => widgetsStore.getWidget(props.widgetId))
@@ -185,9 +185,10 @@ async function run() {
 
   if (currentNdCtx) cleanupNoteDeckEnv(currentNdCtx)
   const ndCtx: NoteDeckEnvContext = {
-    deckStore,
     commandStore,
+    getAiConfig: () => aiConfig.value,
     registeredCommandIds: [] as string[],
+    subscriptions: [],
   }
   const ndEnv = createNoteDeckEnv(ndCtx)
   currentNdCtx = ndCtx
