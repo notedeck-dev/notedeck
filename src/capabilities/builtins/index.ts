@@ -11,6 +11,7 @@ import { NOTIFICATIONS_BUILTIN_CAPABILITIES } from './notifications'
 import { TASKS_BUILTIN_CAPABILITIES } from './tasks'
 import { THEME_BUILTIN_CAPABILITIES } from './theme'
 import { BUILTIN_CAPABILITIES as TIME_BUILTIN_CAPABILITIES } from './time'
+import { UI_BUILTIN_CAPABILITIES } from './ui'
 import { USER_BUILTIN_CAPABILITIES } from './user'
 
 /**
@@ -35,4 +36,5 @@ export const ALL_BUILTIN_CAPABILITIES: readonly Command[] = [
   ...MEMOS_BUILTIN_CAPABILITIES,
   ...MEMOS_READ_BUILTIN_CAPABILITIES,
   ...TASKS_BUILTIN_CAPABILITIES,
+  ...UI_BUILTIN_CAPABILITIES,
 ]

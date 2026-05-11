@@ -31,6 +31,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'theme.apply',
         'theme.list',
         'time.now',
+        'ui.notify',
         'user.lookup',
       ].sort(),
     )
