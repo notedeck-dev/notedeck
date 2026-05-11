@@ -1,4 +1,5 @@
 import { onScopeDispose, ref, shallowRef, watch } from 'vue'
+import { registerQuery, unregisterQuery } from '@/aiscript/events'
 import {
   events,
   type JsonValue,
@@ -90,6 +91,9 @@ export function useQuerySubscription(opts: UseQuerySubscriptionOptions) {
 
     queryId.value = snapshot.queryId
     revision.value = snapshot.revision
+    // Nd:on('note:new' / 'notification:new') の queryDelta fan-out 用に
+    // queryId -> {flavor, accountId} マップを更新する。
+    registerQuery(snapshot.queryId, snapshot.key)
 
     unlistenDelta = await events.queryDelta.listen((event) => {
       if (disposed) return
@@ -143,6 +147,7 @@ export function useQuerySubscription(opts: UseQuerySubscriptionOptions) {
     unlistenDelta = null
     const id = queryId.value
     if (id) {
+      unregisterQuery(id)
       commands.queryClose(id).catch((e) => {
         console.warn('[query-subscription] close failed:', e)
       })

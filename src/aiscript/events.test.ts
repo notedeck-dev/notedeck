@@ -1,5 +1,15 @@
-import { describe, expect, it } from 'vitest'
-import { diffColumns, diffStreamingStates } from './events'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { QueryKey } from '@/bindings'
+import {
+  _resetEventStateForTest,
+  diffColumns,
+  diffStreamingStates,
+  extractInsertIds,
+  registerQuery,
+  SUPPORTED_EVENT_NAMES,
+  subscribeNoteDeckEvent,
+  unregisterQuery,
+} from './events'
 
 // Note: subscribeNoteDeckEvent 本体は Pinia store の watch に依存するため、
 // ロジックの単体テストは差分計算ヘルパに切り出して検証する。実 watch の挙動は
@@ -46,6 +56,98 @@ describe('diffColumns', () => {
     ])
     expect(result.added.map((c) => c.id)).toEqual(['c'])
     expect(result.removedIds).toEqual(['b'])
+  })
+})
+
+const noop = (): void => {
+  /* test handler placeholder */
+}
+
+describe('SUPPORTED_EVENT_NAMES', () => {
+  it('includes the Phase 1 + Phase 2 events', () => {
+    expect(SUPPORTED_EVENT_NAMES).toEqual([
+      'account:switch',
+      'column:added',
+      'column:removed',
+      'streaming:status',
+      'note:new',
+      'notification:new',
+    ])
+  })
+})
+
+describe('extractInsertIds', () => {
+  it('returns the id field from each object item', () => {
+    expect(extractInsertIds([{ id: 'a', text: 'hello' }, { id: 'b' }])).toEqual(
+      ['a', 'b'],
+    )
+  })
+
+  it('skips items without a string id', () => {
+    expect(
+      extractInsertIds([
+        { id: 'a' },
+        { id: 42 },
+        null,
+        'string-item',
+        [],
+        { name: 'no-id' },
+      ]),
+    ).toEqual(['a'])
+  })
+
+  it('returns empty for an empty array', () => {
+    expect(extractInsertIds([])).toEqual([])
+  })
+})
+
+describe('subscribeNoteDeckEvent (Phase 2: note:new / notification:new)', () => {
+  afterEach(() => {
+    _resetEventStateForTest()
+  })
+
+  function timelineKey(accountId: string): QueryKey {
+    return {
+      kind: 'timeline',
+      account_id: accountId,
+      timeline_type: 'home',
+      list_id: null,
+    }
+  }
+
+  function notificationsKey(accountId: string): QueryKey {
+    return { kind: 'notifications', account_id: accountId }
+  }
+
+  function chatUserKey(accountId: string, otherId: string): QueryKey {
+    return { kind: 'chatUser', account_id: accountId, other_id: otherId }
+  }
+
+  it('rejects unsupported event names with a helpful error', () => {
+    expect(() =>
+      subscribeNoteDeckEvent(
+        // biome-ignore lint/suspicious/noExplicitAny: テストで未知 event を渡す
+        'something:weird' as any,
+        noop,
+      ),
+    ).toThrow()
+  })
+
+  it('returns an unsubscribe function for note:new and removes the handler', () => {
+    const unsub = subscribeNoteDeckEvent('note:new', noop)
+    expect(typeof unsub).toBe('function')
+    unsub()
+  })
+
+  it('registerQuery + unregisterQuery do not throw', () => {
+    expect(() => {
+      registerQuery('q-1', timelineKey('acc-1'))
+      registerQuery('q-2', notificationsKey('acc-1'))
+      registerQuery('q-3', chatUserKey('acc-1', 'user-x'))
+      unregisterQuery('q-1')
+      unregisterQuery('q-2')
+      unregisterQuery('q-3')
+    }).not.toThrow()
   })
 })
 
