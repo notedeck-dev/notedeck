@@ -1,6 +1,7 @@
 import type { Command } from '@/commands/registry'
 import { ACCOUNT_BUILTIN_CAPABILITIES } from './account'
 import { AI_BUILTIN_CAPABILITIES } from './ai'
+import { CLIPBOARD_BUILTIN_CAPABILITIES } from './clipboard'
 import { COLUMN_BUILTIN_CAPABILITIES } from './column'
 import { DRIVE_BUILTIN_CAPABILITIES } from './drive'
 import { HTTP_BUILTIN_CAPABILITIES } from './http'
@@ -45,4 +46,5 @@ export const ALL_BUILTIN_CAPABILITIES: readonly Command[] = [
   ...SKILLS_BUILTIN_CAPABILITIES,
   ...WIDGETS_BUILTIN_CAPABILITIES,
   ...PLUGINS_BUILTIN_CAPABILITIES,
+  ...CLIPBOARD_BUILTIN_CAPABILITIES,
 ]
