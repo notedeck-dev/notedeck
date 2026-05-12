@@ -673,6 +673,7 @@ export const useThemeStore = defineStore('theme', () => {
     applyAccountTheme,
     clearAccountTheme,
     applyCurrentTheme,
+    isCurrentDark,
     setCustomCss,
     fetchAccountTheme,
     getAccountThemes,

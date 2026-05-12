@@ -1,4 +1,5 @@
 import type { Command } from '@/commands/registry'
+import { useAccountsStore } from '@/stores/accounts'
 import { useThemeStore } from '@/stores/theme'
 import type { MisskeyTheme } from '@/theme/types'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
@@ -145,6 +146,12 @@ export const themeApplyCapability: Command = {
     const mode: 'dark' | 'light' =
       explicitMode ?? (theme.base === 'light' ? 'light' : 'dark')
     store.selectTheme(id, mode)
+    // 適用モード != 現在アプリモードなら manualMode も切り替えて画面に反映
+    // (= ライトテーマ apply 時はライトモードに自動切替)
+    if (store.isCurrentDark() !== (mode === 'dark')) {
+      store.manualMode = mode
+      store.applyCurrentTheme()
+    }
     return { applied: true, id, mode }
   },
 }
@@ -211,7 +218,16 @@ export const themeCreateCapability: Command = {
       props,
     }
     const store = useThemeStore()
-    const installed = await store.installTheme(JSON.stringify(theme))
+    // テーママネージャーカラムは `$notedeck.installedFor` が現アカウントを
+    // 含むテーマだけを表示する (孤児テーマは非表示)。AI が作ったテーマも
+    // ユーザーから見えるよう、全 logged-in account を自動で installedFor に
+    // 入れる。
+    const accounts = useAccountsStore()
+    const forAccountIds = accounts.accounts.map((a) => a.id)
+    const installed = await store.installTheme(
+      JSON.stringify(theme),
+      forAccountIds,
+    )
     return { id: theme.id, name: theme.name, base: theme.base, installed }
   },
 }
