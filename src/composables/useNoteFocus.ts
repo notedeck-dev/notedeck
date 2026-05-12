@@ -68,6 +68,11 @@ export function useNoteFocus(
     return notes.value[idx]?.id ?? undefined
   })
 
+  // capability `column.focusedNote` から横断で読めるよう deck store に反映
+  watch(focusedNoteId, (id) => {
+    deckStore.setFocusedNoteId(columnId, id ?? null)
+  })
+
   const isActive = computed(() => deckStore.activeColumnId === columnId)
 
   function getFocusedNote(): NormalizedNote | null {

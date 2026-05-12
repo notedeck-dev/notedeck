@@ -295,8 +295,76 @@ export const columnRemoveCapability: Command = {
   },
 }
 
+/**
+ * `column.focusedNote` — 現在 active なカラムで focus されているノートを返す。
+ * `useNoteFocus` から deck store に持ち上げられた `focusedNoteIdByColumn` を
+ * 引いて、対応するノートメタを返す。AI Actions プラグインが「ユーザーが今見て
+ * るノートを翻訳」のような操作で使う。
+ *
+ * カラムが active でない / focus されたノートがない場合は { note: null }。
+ */
+export const columnFocusedNoteCapability: Command = {
+  id: 'column.focusedNote',
+  label: 'フォーカス中のノートを取得',
+  icon: 'ti-target',
+  category: 'column',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['notes.read'],
+  signature: {
+    description:
+      '現在 active なカラム内で focus 中のノートを返す。未 focus / active' +
+      'カラムが none の場合は { note: null }。AI Actions が「これ翻訳」のような' +
+      '操作で使う。',
+    params: {},
+    returns: {
+      type: 'object',
+      description:
+        '{ columnId, noteId, note: { id, text, userId, ... } } | { note: null }',
+    },
+    cheap: true,
+  },
+  visible: false,
+  execute: () => {
+    const store = useDeckStore()
+    const columnId = store.activeColumnId
+    if (!columnId) return { note: null }
+    const noteId = store.focusedNoteIdByColumn.get(columnId)
+    if (!noteId) return { note: null }
+    const notes = store.visibleNotesByColumn[columnId] as
+      | NormalizedNoteLike[]
+      | undefined
+    const note = notes?.find((n) => n.id === noteId) ?? null
+    if (!note) return { note: null }
+    return {
+      columnId,
+      noteId,
+      note: {
+        id: note.id,
+        text: note.text ?? null,
+        userId: note.userId ?? null,
+        createdAt: note.createdAt ?? null,
+        cw: note.cw ?? null,
+        renoteId: note.renoteId ?? null,
+        replyId: note.replyId ?? null,
+      },
+    }
+  },
+}
+
+interface NormalizedNoteLike {
+  id: string
+  text?: string | null
+  userId?: string | null
+  createdAt?: string | null
+  cw?: string | null
+  renoteId?: string | null
+  replyId?: string | null
+}
+
 export const COLUMN_BUILTIN_CAPABILITIES: readonly Command[] = [
   columnActiveCapability,
+  columnFocusedNoteCapability,
   columnListCapability,
   columnAddCapability,
   columnRemoveCapability,

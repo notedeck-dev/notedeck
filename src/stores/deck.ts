@@ -251,6 +251,18 @@ export const useDeckStore = defineStore('deck', () => {
 
   const navCollapsed = ref(false)
   const activeColumnId = ref<string | null>(null)
+  /**
+   * カラム ID → 現在 focus されているノート ID。
+   * `useNoteFocus.ts` から書き込まれ、`column.focusedNote` capability で読まれる。
+   * カラム削除時にエントリも掃除する。
+   */
+  const focusedNoteIdByColumn = ref<Map<string, string>>(new Map())
+  function setFocusedNoteId(columnId: string, noteId: string | null) {
+    const next = new Map(focusedNoteIdByColumn.value)
+    if (noteId) next.set(columnId, noteId)
+    else next.delete(columnId)
+    focusedNoteIdByColumn.value = next
+  }
   /** Incremented to trigger a refresh on the active column */
   const refreshTrigger = ref(0)
 
@@ -403,6 +415,7 @@ export const useDeckStore = defineStore('deck', () => {
     if (lastFocusedTimelineColumnId.value === id) {
       lastFocusedTimelineColumnId.value = null
     }
+    setFocusedNoteId(id, null)
     hapticMedium()
   }
 
@@ -695,6 +708,8 @@ export const useDeckStore = defineStore('deck', () => {
     navCollapsed,
     activeColumnId,
     activeColumnUri,
+    focusedNoteIdByColumn,
+    setFocusedNoteId,
     visibleNotesByColumn,
     lastFocusedTimelineColumnId,
     reportVisibleItems,
