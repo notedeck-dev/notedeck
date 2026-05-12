@@ -209,6 +209,10 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'ユーザー定義タスクの実行',
     icon: 'ti-player-play',
   },
+  'ai.invoke': {
+    label: 'AI 呼び出し (プラグイン / 外部経路から)',
+    icon: 'ti-sparkles',
+  },
 }
 
 interface DataSourceLabel {

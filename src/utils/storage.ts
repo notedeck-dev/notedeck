@@ -77,6 +77,10 @@ export const STORAGE_KEYS = {
   // Per-feature
   keybinds: 'nd-keybinds',
   plugins: 'nd-plugins',
+  // 過去に seed した built-in plugin installId のリスト。skillsSeededBuiltins と
+  // 同じ目的: ユーザーが内蔵プラグインを削除した場合の再生成を防ぐ + 新しく
+  // 追加された built-in だけを補填する。
+  pluginsSeededBuiltins: 'nd-plugins-seeded-builtins',
   widgets: 'nd-widgets',
   widgetsSidebarOrder: 'nd-widgets-sidebar-order',
   recentEmojis: 'nd-recent-emojis',

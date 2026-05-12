@@ -87,7 +87,7 @@ export async function dispatchCapability(
     }
   }
   try {
-    const result = await cap.execute(params)
+    const result = await cap.execute(params, { aiConfig })
     return { ok: true, result }
   } catch (e) {
     return {

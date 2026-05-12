@@ -8,6 +8,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
       [
         'account.current',
         'account.list',
+        'ai.chat',
         'column.add',
         'column.list',
         'column.remove',
@@ -37,9 +38,10 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
     )
   })
 
-  it('every entry is properly tagged for AI tool calling', () => {
+  it('every entry has a signature with a description', () => {
+    // aiTool は capability ごとに true/false が選択される (例: ai.chat は false
+    // で AI 本体からの自己再帰を防ぐ)。registry 登録の必須項目は signature。
     for (const cap of ALL_BUILTIN_CAPABILITIES) {
-      expect(cap.aiTool, `${cap.id} aiTool`).toBe(true)
       expect(cap.signature, `${cap.id} signature`).toBeDefined()
       expect(typeof cap.signature?.description, `${cap.id} description`).toBe(
         'string',

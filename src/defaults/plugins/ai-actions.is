@@ -1,0 +1,49 @@
+// AI Actions — NoteDeck 本体の AI を呼び出す built-in サンプルプラグイン。
+//
+// `Nd:call('ai.chat', ...)` で本体 AI に 1 ターンだけ問い合わせ、
+// 結果をデスクトップ通知で表示する。各コマンドの prompt は config で
+// 編集可能 (= ユーザーが自分の用途に合わせて改変できる)。
+//
+// Phase 1: 固定プロンプトのデモ 3 種。実用的な拡張 (クリップボード連携 /
+// コマンドパレットから引数を渡す UI 等) は Phase 2 以降。
+
+@askAi(title, prompt) {
+	let result = Nd:call('ai.chat', { prompt: prompt })
+	Nd:call('ui.notify', { title: title, body: result.response })
+}
+
+Nd:register_command(
+	'ai-actions:translate-sample',
+	'AI Actions: サンプル文を日本語に翻訳',
+	'ti-language',
+	@() {
+		askAi(
+			'翻訳',
+			'次の英文を自然な日本語に翻訳してください。訳文だけ返してください: "Good morning, how are you today?"'
+		)
+	},
+	{ permissions: ['ai.invoke', 'notifications'] }
+)
+
+Nd:register_command(
+	'ai-actions:summarize-sample',
+	'AI Actions: サンプル文を要約',
+	'ti-text-recognition',
+	@() {
+		askAi(
+			'要約',
+			'次のテキストを 1 文で要約してください: NoteDeck は Misskey 専用のデスクトップアプリで、複数アカウントの統合・カラムベースの UI・拡張可能なプラグイン機構・本体組込みの AI チャットを備える。'
+		)
+	},
+	{ permissions: ['ai.invoke', 'notifications'] }
+)
+
+Nd:register_command(
+	'ai-actions:joke',
+	'AI Actions: ジョークを 1 つ',
+	'ti-mood-smile',
+	@() {
+		askAi('AI のジョーク', 'プログラミングに関する短いジョークを 1 つ日本語で')
+	},
+	{ permissions: ['ai.invoke', 'notifications'] }
+)

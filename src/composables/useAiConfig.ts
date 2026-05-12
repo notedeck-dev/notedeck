@@ -37,6 +37,7 @@ export const PERMISSION_KEYS = [
   'clipboard',
   'notifications',
   'tasks.run',
+  'ai.invoke',
 ] as const
 export type PermissionKey = (typeof PERMISSION_KEYS)[number]
 
@@ -249,6 +250,7 @@ const PERMISSION_PRESETS: Record<
     clipboard: false,
     notifications: false,
     'tasks.run': false,
+    'ai.invoke': false,
   },
   safe: {
     'notes.read': true,
@@ -264,6 +266,7 @@ const PERMISSION_PRESETS: Record<
     clipboard: true,
     notifications: true,
     'tasks.run': true,
+    'ai.invoke': true,
   },
   full: {
     'notes.read': true,
@@ -279,6 +282,7 @@ const PERMISSION_PRESETS: Record<
     clipboard: true,
     notifications: true,
     'tasks.run': true,
+    'ai.invoke': true,
   },
 }
 

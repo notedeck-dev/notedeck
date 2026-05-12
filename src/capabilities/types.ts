@@ -64,3 +64,15 @@ export interface CapabilitySignature {
 
 // 呼び出し元側で permissions 宣言型を参照するときの再 export
 export type { PermissionKey }
+
+/**
+ * Capability の execute() に渡されるコンテキスト。dispatcher が組み立てる。
+ *
+ * 多くの capability は `params` だけで完結するが、`ai.chat` のように現在の
+ * AI 設定 (provider/endpoint/model) を必要とするものは ctx 経由で受け取る。
+ * 未指定でも動く capability が大多数なので optional。
+ */
+export interface DispatchContext {
+  /** dispatch 時の AiConfig (UI / HEARTBEAT で異なる permissions セットが渡る) */
+  aiConfig?: import('@/composables/useAiConfig').AiConfig
+}

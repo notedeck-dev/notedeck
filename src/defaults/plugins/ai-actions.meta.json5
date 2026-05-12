@@ -1,0 +1,10 @@
+{
+  installId: 'ai-actions-builtin',
+  name: 'ai-actions',
+  version: '1.0.0',
+  author: 'NoteDeck',
+  description: 'NoteDeck 本体の AI に問い合わせるサンプルプラグイン。コマンドパレットから AI 翻訳・要約・ジョーク等を試せる。',
+  permissions: ['ai.invoke', 'notifications'],
+  configData: {},
+  active: true,
+}
