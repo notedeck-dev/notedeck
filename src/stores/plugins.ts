@@ -10,6 +10,69 @@ import {
   setStorageJson,
 } from '@/utils/storage'
 
+interface BuiltInPluginTemplate {
+  installId: string
+  meta: PluginFileMeta
+  src: string
+}
+
+/**
+ * `@/defaults/plugins/*.is` + `*.meta.json5` を vite glob で読み込む。
+ * 初回起動 / 後追い追加で seed する用 (skill の loadBuiltInTemplates と同型)。
+ */
+function loadBuiltInPluginTemplates(): BuiltInPluginTemplate[] {
+  const srcModules = import.meta.glob('@/defaults/plugins/*.is', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  })
+  const metaModules = import.meta.glob('@/defaults/plugins/*.meta.json5', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  })
+
+  const out: BuiltInPluginTemplate[] = []
+  for (const [path, raw] of Object.entries(srcModules)) {
+    const filename = path.split('/').pop() ?? ''
+    const metaPath = path.replace(/\.is$/, '.meta.json5')
+    const metaRaw = metaModules[metaPath] as string | undefined
+    if (!metaRaw) {
+      console.warn(`[plugins] built-in ${filename} has no meta sidecar`)
+      continue
+    }
+    try {
+      const meta = JSON5.parse(metaRaw) as PluginFileMeta
+      out.push({
+        installId: meta.installId,
+        meta,
+        src: raw as string,
+      })
+    } catch (e) {
+      console.warn(`[plugins] failed to parse built-in ${metaPath}:`, e)
+    }
+  }
+  return out
+}
+
+function pluginMetaToFullMeta(tpl: BuiltInPluginTemplate): PluginMeta {
+  return {
+    installId: tpl.meta.installId,
+    name: tpl.meta.name,
+    version: tpl.meta.version,
+    author: tpl.meta.author,
+    description: tpl.meta.description,
+    permissions: tpl.meta.permissions,
+    config: tpl.meta.config,
+    configData: tpl.meta.configData || {},
+    src: tpl.src,
+    active: tpl.meta.active ?? true,
+    installedFor: tpl.meta.installedFor,
+    storeId: tpl.meta.storeId,
+    iconUrl: tpl.meta.iconUrl,
+  }
+}
+
 export interface PluginConfigDef {
   type: 'string' | 'number' | 'boolean'
   label: string
@@ -79,6 +142,11 @@ export const usePluginsStore = defineStore('plugins', () => {
       )
     } else {
       initialized.value = true
+      // ブラウザ環境 (ファイル I/O なし) でも built-in を seed して
+      // 動作確認ができるようにする
+      seedMissingBuiltIns().catch((e) =>
+        console.warn('[plugins] built-in seed failed:', e),
+      )
     }
   }
 
@@ -195,6 +263,59 @@ export const usePluginsStore = defineStore('plugins', () => {
         console.warn('[plugins] migration to files failed:', e),
       )
     }
+
+    // Seed built-in plugins (初回起動 + 後追い追加に対応)。
+    await seedMissingBuiltIns()
+  }
+
+  /**
+   * `src/defaults/plugins/` 配下のテンプレートを seed する。
+   *
+   * - 既に同 installId のプラグインがある → ユーザー編集を尊重して何もしない
+   * - 過去に seed したことがある (= ユーザーが削除した) → 再生成しない
+   * - 未知の built-in installId だけが対象
+   *
+   * skill の seedMissingBuiltIns と同型 (storage key も対応関係にある)。
+   */
+  async function seedMissingBuiltIns(): Promise<void> {
+    const templates = loadBuiltInPluginTemplates()
+    if (templates.length === 0) return
+
+    const seenIds = new Set(plugins.value.map((p) => p.installId))
+    const previouslySeeded = new Set(
+      getStorageJson<string[]>(STORAGE_KEYS.pluginsSeededBuiltins, []),
+    )
+
+    const toAdd: PluginMeta[] = []
+    for (const tpl of templates) {
+      if (seenIds.has(tpl.installId)) {
+        previouslySeeded.add(tpl.installId)
+        continue
+      }
+      if (previouslySeeded.has(tpl.installId)) continue
+      toAdd.push(pluginMetaToFullMeta(tpl))
+    }
+
+    if (toAdd.length === 0) {
+      setStorageJson(
+        STORAGE_KEYS.pluginsSeededBuiltins,
+        Array.from(previouslySeeded),
+      )
+      return
+    }
+
+    plugins.value = [...plugins.value, ...toAdd]
+    savePluginsToStorage(plugins.value)
+    if (initialized.value) {
+      await Promise.all(toAdd.map((p) => persistSinglePlugin(p))).catch((e) =>
+        console.warn('[plugins] failed to seed built-in plugin files:', e),
+      )
+    }
+    for (const p of toAdd) previouslySeeded.add(p.installId)
+    setStorageJson(
+      STORAGE_KEYS.pluginsSeededBuiltins,
+      Array.from(previouslySeeded),
+    )
   }
 
   function addPlugin(plugin: PluginMeta) {

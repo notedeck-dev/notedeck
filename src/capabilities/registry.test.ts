@@ -33,10 +33,10 @@ describe('registry', () => {
     expect(getCapability('a.read')).toBe(cap)
   })
 
-  it('throws when registering a command without aiTool: true', () => {
-    expect(() => registerCapability(makeCapability({ aiTool: false }))).toThrow(
-      /aiTool: true/,
-    )
+  it('registers a command with aiTool: false (= AI 本体からは呼べないが他経路は OK)', () => {
+    const cap = makeCapability({ id: 'no-ai', aiTool: false })
+    registerCapability(cap)
+    expect(getCapability('no-ai')).toBe(cap)
   })
 
   it('throws when registering a command without signature', () => {

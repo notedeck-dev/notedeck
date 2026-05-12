@@ -209,6 +209,38 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'ユーザー定義タスクの実行',
     icon: 'ti-player-play',
   },
+  'ai.invoke': {
+    label: 'AI 呼び出し (プラグイン / 外部経路から)',
+    icon: 'ti-sparkles',
+  },
+  'skills.read': {
+    label: 'スキルの読取',
+    icon: 'ti-book',
+  },
+  'skills.write': {
+    label: 'スキルの追記/編集',
+    icon: 'ti-edit',
+  },
+  'theme.write': {
+    label: 'テーマの作成/編集',
+    icon: 'ti-palette',
+  },
+  'widgets.read': {
+    label: 'ウィジェットの読取',
+    icon: 'ti-layout-grid',
+  },
+  'widgets.write': {
+    label: 'ウィジェットの作成/編集 (AiScript)',
+    icon: 'ti-code',
+  },
+  'plugins.read': {
+    label: 'プラグインの読取',
+    icon: 'ti-puzzle',
+  },
+  'plugins.write': {
+    label: 'プラグインの作成/編集 (AiScript) — AI 直接呼出しは不可',
+    icon: 'ti-puzzle',
+  },
 }
 
 interface DataSourceLabel {

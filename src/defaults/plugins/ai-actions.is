@@ -1,0 +1,79 @@
+// AI Actions — NoteDeck 本体の AI を呼び出す built-in サンプルプラグイン。
+//
+// フロー: コマンドパレットから実行 → クリップボードのテキストを読取
+// → ai.chat で本体 AI に問合せ → 結果をデスクトップ通知 + 結果も
+// クリップボードに書き戻す (= 他アプリへ貼り付けやすく)。
+//
+// プロンプトは config で編集可能 (ユーザー自身の用途に合わせて改変可)。
+
+@runAiAction(title, instruction) {
+	let clip = Nd:call('clipboard.read', {})
+	if (clip.text == '' || clip.text == null) {
+		Nd:call('ui.notify', {
+			title: title
+			body: 'クリップボードにテキストがありません。先にコピーしてから実行してください。'
+		})
+		return null
+	}
+	let result = Nd:call('ai.chat', {
+		prompt: `${instruction}\n\n---\n${clip.text}`
+	})
+	let response = result.response
+	Nd:call('clipboard.write', { text: response })
+	Nd:call('ui.notify', {
+		title: title
+		body: response
+	})
+}
+
+Nd:register_command(
+	'ai-actions:translate-ja',
+	'AI Actions: クリップボードを日本語に翻訳',
+	'ti-language',
+	@() {
+		runAiAction(
+			'翻訳'
+			'次のテキストを自然な日本語に翻訳して、訳文だけ返してください。すでに日本語の場合は英語に翻訳してください:'
+		)
+	},
+	{ permissions: ['ai.invoke', 'clipboard', 'notifications'] }
+)
+
+Nd:register_command(
+	'ai-actions:summarize',
+	'AI Actions: クリップボードを要約',
+	'ti-text-recognition',
+	@() {
+		runAiAction(
+			'要約'
+			'次のテキストを 1〜2 文で簡潔に要約してください:'
+		)
+	},
+	{ permissions: ['ai.invoke', 'clipboard', 'notifications'] }
+)
+
+Nd:register_command(
+	'ai-actions:proofread',
+	'AI Actions: クリップボードを校正',
+	'ti-edit',
+	@() {
+		runAiAction(
+			'校正'
+			'次の文章を自然な日本語に校正し、校正後の文だけ返してください:'
+		)
+	},
+	{ permissions: ['ai.invoke', 'clipboard', 'notifications'] }
+)
+
+Nd:register_command(
+	'ai-actions:reply-suggest',
+	'AI Actions: クリップボードへの返信案',
+	'ti-message',
+	@() {
+		runAiAction(
+			'返信案'
+			'次の SNS 投稿に対する自然な返信を 1 つ日本語で提案してください:'
+		)
+	},
+	{ permissions: ['ai.invoke', 'clipboard', 'notifications'] }
+)

@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   THEME_BUILTIN_CAPABILITIES,
   themeApplyCapability,
+  themeCreateCapability,
   themeListCapability,
+  themeReadCapability,
+  themeUpdateCapability,
 } from './theme'
 
 // Note: theme.apply の execute は最終的に applyCurrentTheme → window.matchMedia
@@ -37,9 +40,102 @@ describe('theme.apply capability', () => {
   })
 })
 
+describe('theme.read capability', () => {
+  it('declares no permissions, aiTool: true, cheap: true', () => {
+    expect(themeReadCapability.id).toBe('theme.read')
+    expect(themeReadCapability.permissions).toEqual([])
+    expect(themeReadCapability.aiTool).toBe(true)
+    expect(themeReadCapability.signature?.cheap).toBe(true)
+  })
+
+  it('throws when id is missing', () => {
+    expect(() => themeReadCapability.execute({})).toThrow(/id is required/)
+  })
+
+  it('marks id as required (no other params)', () => {
+    const params = themeReadCapability.signature?.params
+    expect(params?.id?.optional).not.toBe(true)
+    expect(Object.keys(params ?? {})).toEqual(['id'])
+  })
+})
+
+describe('theme.create capability', () => {
+  it('declares theme.write permission, requires confirmation', () => {
+    expect(themeCreateCapability.id).toBe('theme.create')
+    expect(themeCreateCapability.permissions).toEqual(['theme.write'])
+    expect(themeCreateCapability.aiTool).toBe(true)
+    expect(themeCreateCapability.requiresConfirmation).toBe(true)
+  })
+
+  it('rejects missing name / invalid base / missing props', async () => {
+    await expect(themeCreateCapability.execute({})).rejects.toThrow(
+      /name is required/,
+    )
+    await expect(themeCreateCapability.execute({ name: 'X' })).rejects.toThrow(
+      /base must be/,
+    )
+    await expect(
+      themeCreateCapability.execute({ name: 'X', base: 'dark' }),
+    ).rejects.toThrow(/props must be/)
+    await expect(
+      themeCreateCapability.execute({
+        name: 'X',
+        base: 'invalid',
+        props: { a: '1' },
+      }),
+    ).rejects.toThrow(/base must be/)
+  })
+
+  it('rejects props containing non-string values', async () => {
+    await expect(
+      themeCreateCapability.execute({
+        name: 'X',
+        base: 'dark',
+        props: { accent: 123 } as unknown as Record<string, string>,
+      }),
+    ).rejects.toThrow(/props must be/)
+  })
+
+  it('declares base enum and id optional', () => {
+    expect(themeCreateCapability.signature?.params?.base?.enum).toEqual([
+      'dark',
+      'light',
+    ])
+    expect(themeCreateCapability.signature?.params?.id?.optional).toBe(true)
+    expect(themeCreateCapability.signature?.params?.name?.optional).not.toBe(
+      true,
+    )
+  })
+})
+
+describe('theme.update capability', () => {
+  it('declares theme.write permission, requires confirmation', () => {
+    expect(themeUpdateCapability.id).toBe('theme.update')
+    expect(themeUpdateCapability.permissions).toEqual(['theme.write'])
+    expect(themeUpdateCapability.requiresConfirmation).toBe(true)
+  })
+
+  it('throws when id is missing', async () => {
+    await expect(themeUpdateCapability.execute({})).rejects.toThrow(
+      /id is required/,
+    )
+  })
+
+  it('marks all body fields except id as optional', () => {
+    const params = themeUpdateCapability.signature?.params
+    expect(params?.id?.optional).not.toBe(true)
+    expect(params?.name?.optional).toBe(true)
+    expect(params?.base?.optional).toBe(true)
+    expect(params?.props?.optional).toBe(true)
+  })
+})
+
 describe('THEME_BUILTIN_CAPABILITIES', () => {
-  it('contains list and apply', () => {
+  it('contains list / read / apply / create / update', () => {
     expect(THEME_BUILTIN_CAPABILITIES).toContain(themeListCapability)
+    expect(THEME_BUILTIN_CAPABILITIES).toContain(themeReadCapability)
     expect(THEME_BUILTIN_CAPABILITIES).toContain(themeApplyCapability)
+    expect(THEME_BUILTIN_CAPABILITIES).toContain(themeCreateCapability)
+    expect(THEME_BUILTIN_CAPABILITIES).toContain(themeUpdateCapability)
   })
 })

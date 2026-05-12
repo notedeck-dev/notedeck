@@ -102,6 +102,60 @@ export const columnListCapability: Command = {
 }
 
 /**
+ * `column.active` — 現在フォーカスされているカラムを返す。
+ * AI / プラグインが「ユーザーが今見てる文脈」を最小限把握するための入口。
+ * フォーカス対象がない / カラムが無い場合は { column: null }。
+ *
+ * カラム内の「フォーカスされたノート」は composable scope に閉じているため
+ * 本 capability では扱わない (Phase 2 で store 持ち上げ + 別 capability で対応)。
+ */
+export const columnActiveCapability: Command = {
+  id: 'column.active',
+  label: 'アクティブなカラムを取得',
+  icon: 'ti-columns',
+  category: 'column',
+  shortcuts: [],
+  aiTool: true,
+  permissions: [],
+  signature: {
+    description:
+      '現在フォーカスされているカラム情報を返す。なければ' +
+      ' { column: null }。column.list より軽量で、AI が「今ユーザーが' +
+      '見てる場所」を 1 呼び出しで把握できる。',
+    params: {},
+    returns: {
+      type: 'object',
+      description:
+        '{ column: { id, type, name, accountId, tl?, query?, listId?, ... } | null }',
+    },
+    cheap: true,
+  },
+  visible: false,
+  execute: () => {
+    const store = useDeckStore()
+    const id = store.activeColumnId
+    if (!id) return { column: null }
+    const col = store.getColumn(id)
+    if (!col) return { column: null }
+    return {
+      column: {
+        id: col.id,
+        type: col.type,
+        name: col.name,
+        accountId: col.accountId,
+        ...(col.tl ? { tl: col.tl } : {}),
+        ...(col.query ? { query: col.query } : {}),
+        ...(col.listId ? { listId: col.listId } : {}),
+        ...(col.antennaId ? { antennaId: col.antennaId } : {}),
+        ...(col.channelId ? { channelId: col.channelId } : {}),
+        ...(col.clipId ? { clipId: col.clipId } : {}),
+        ...(col.userId ? { userId: col.userId } : {}),
+      },
+    }
+  },
+}
+
+/**
  * `column.add` — 新しいカラムをデッキに追加する。
  * AI が「ノートのカラムを追加して」と頼まれたときに呼ぶ。AiScript プラグインからも
  * `Nd:call('column.add', ...)` 経由で同じ entrypoint を呼ぶ。
@@ -242,6 +296,7 @@ export const columnRemoveCapability: Command = {
 }
 
 export const COLUMN_BUILTIN_CAPABILITIES: readonly Command[] = [
+  columnActiveCapability,
   columnListCapability,
   columnAddCapability,
   columnRemoveCapability,

@@ -4,7 +4,11 @@ import {
   registerCapability,
   unregisterCapability,
 } from '@/capabilities/registry'
-import type { CapabilitySignature, PermissionKey } from '@/capabilities/types'
+import type {
+  CapabilitySignature,
+  DispatchContext,
+  PermissionKey,
+} from '@/capabilities/types'
 import type { ConfirmOptions } from '@/stores/confirm'
 import type { QuickPickStep } from './quickPick'
 
@@ -40,10 +44,13 @@ export interface Command {
   category: 'general' | 'navigation' | 'column' | 'account' | 'note' | 'window'
   shortcuts: Shortcut[]
   /**
-   * 実行関数。引数は optional で、UI 経由は引数なし、AI tool 経由は params 付き
-   * で呼ばれる。戻り値は AI tool への応答として使われるため `unknown` を返せる。
+   * 実行関数。
+   * - `params`: UI 経由は引数なし、AI tool / Nd:call / dispatcher 経由は params 付き
+   * - `ctx`: dispatcher が組み立てる実行コンテキスト (例: 現在の AiConfig)。
+   *   UI 直接呼び出しでは渡されない。多くの capability は不要なので optional
+   * 戻り値は AI tool への応答として使われるため `unknown` を返せる。
    */
-  execute: (params?: Record<string, unknown>) => unknown
+  execute: (params?: Record<string, unknown>, ctx?: DispatchContext) => unknown
   /** false を返すとパレットでグレー表示＋実行不可 */
   enabled?: () => boolean
   /** false にするとパレットに非表示 (ショートカットのみ) */

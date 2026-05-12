@@ -8,6 +8,10 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
       [
         'account.current',
         'account.list',
+        'ai.chat',
+        'clipboard.read',
+        'clipboard.write',
+        'column.active',
         'column.add',
         'column.list',
         'column.remove',
@@ -27,19 +31,40 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'notes.timeline',
         'notes.user',
         'notifications.list',
+        'plugins.create',
+        'plugins.delete',
+        'plugins.list',
+        'plugins.read',
+        'plugins.setActive',
+        'plugins.update',
+        'skills.append',
+        'skills.list',
+        'skills.read',
+        'skills.replaceSection',
+        'skills.toggle',
         'tasks.run',
         'theme.apply',
+        'theme.create',
         'theme.list',
+        'theme.read',
+        'theme.update',
         'time.now',
         'ui.notify',
         'user.lookup',
+        'widgets.create',
+        'widgets.delete',
+        'widgets.list',
+        'widgets.read',
+        'widgets.setAutoRun',
+        'widgets.update',
       ].sort(),
     )
   })
 
-  it('every entry is properly tagged for AI tool calling', () => {
+  it('every entry has a signature with a description', () => {
+    // aiTool は capability ごとに true/false が選択される (例: ai.chat は false
+    // で AI 本体からの自己再帰を防ぐ)。registry 登録の必須項目は signature。
     for (const cap of ALL_BUILTIN_CAPABILITIES) {
-      expect(cap.aiTool, `${cap.id} aiTool`).toBe(true)
       expect(cap.signature, `${cap.id} signature`).toBeDefined()
       expect(typeof cap.signature?.description, `${cap.id} description`).toBe(
         'string',
@@ -49,9 +74,11 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
 
   it('every id uses dot-notation (Phase 1 命名規約)', () => {
     for (const cap of ALL_BUILTIN_CAPABILITIES) {
-      // capability id は <subject>.<verb> ドット区切り。Phase 1 の
-      // permissions key と統一されている。
-      expect(cap.id, `${cap.id} should be dotted`).toMatch(/^[a-z]+\.[a-z]+$/)
+      // capability id は <subject>.<verb> ドット区切り。verb は単一語が
+      // 推奨だが skills.replaceSection のように camelCase 複合語も許可する。
+      expect(cap.id, `${cap.id} should be dotted`).toMatch(
+        /^[a-z]+\.[a-zA-Z]+$/,
+      )
     }
   })
 })

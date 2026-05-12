@@ -273,7 +273,10 @@ describe('Nd:call', () => {
       values.STR('demo.with-params'),
       utils.jsToVal({ q: 'AI', limit: 5 }),
     ])
-    expect(execute).toHaveBeenCalledWith({ q: 'AI', limit: 5 })
+    expect(execute).toHaveBeenCalledWith(
+      { q: 'AI', limit: 5 },
+      expect.objectContaining({ aiConfig: expect.any(Object) }),
+    )
   })
 
   it('throws with unknown_capability when id is not registered', async () => {

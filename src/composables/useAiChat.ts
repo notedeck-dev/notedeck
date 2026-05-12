@@ -260,3 +260,55 @@ export function useAiChat() {
     cancel,
   }
 }
+
+/**
+ * Composable に依存しない one-shot 版。capability 経由 (`ai.chat`) や非 Vue
+ * 環境から呼ぶ用。挙動は `useAiChat.sendMessage` と同等だが、`onScopeDispose`
+ * を使わないので component 外でも安全。
+ *
+ * - tool calling / onToolUse / cancel は未対応 (= 必要なら `useAiChat` を使う)
+ * - 1 リクエストにつき 1 listener を作って done/error で必ず解除する
+ */
+export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
+  const streamId = `ai-once-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  let accumulated = ''
+  let unlisten: UnlistenFn | null = null
+
+  return new Promise<string>((resolve, reject) => {
+    listen<AiChatEventPayload>(EVENT_NAME, (event) => {
+      const p = event.payload
+      if (p.stream_id !== streamId) return
+      if (p.kind === 'delta' && p.text) {
+        accumulated += p.text
+      } else if (p.kind === 'done') {
+        unlisten?.()
+        resolve(accumulated)
+      } else if (p.kind === 'error') {
+        unlisten?.()
+        reject(new Error(p.error ?? '不明なエラー'))
+      }
+      // 'tool_use' は無視 (one-shot では tools を渡さない前提)
+    })
+      .then((un) => {
+        unlisten = un
+        return commands.aiChatSend({
+          stream_id: streamId,
+          provider: opts.provider,
+          endpoint: opts.endpoint,
+          model: opts.model,
+          messages: opts.history.map(toWireMessage),
+          system: opts.system && opts.system.length > 0 ? opts.system : null,
+          max_tokens: opts.maxTokens ?? null,
+          tools: null,
+        })
+      })
+      .then((res) => {
+        unwrap(res)
+      })
+      .catch((e) => {
+        unlisten?.()
+        const message = e instanceof Error ? e.message : String(e)
+        reject(new Error(message))
+      })
+  })
+}

@@ -1,5 +1,6 @@
 import type { Command } from '@/commands/registry'
 import { useThemeStore } from '@/stores/theme'
+import type { MisskeyTheme } from '@/theme/types'
 
 /**
  * `theme.list` — インストール済みテーマの一覧を返す。
@@ -44,6 +45,53 @@ export const themeListCapability: Command = {
  * テーマの `base` ('dark' | 'light') から適用先 mode を自動判定する。
  * `theme.list` で取得した id を渡す想定。
  */
+/**
+ * `theme.read` — 指定 id のテーマの中身 (props) を返す。
+ * AI が「現在の配色を見て調整」のように、theme.update を呼ぶ前の現状把握用。
+ * 色情報は機密ではないため permission 不要 (theme.list / apply と同じ扱い)。
+ */
+export const themeReadCapability: Command = {
+  id: 'theme.read',
+  label: 'テーマの内容を読む',
+  icon: 'ti-palette',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: [],
+  signature: {
+    description:
+      '指定 id のテーマの全プロパティ (Misskey 互換 CSS 変数) を返す。' +
+      ' theme.update で差分編集する前の現状把握に使う。',
+    params: {
+      id: {
+        type: 'string',
+        description: '対象テーマの id (theme.list で取得)',
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, name, base, props: Record<string,string> }',
+    },
+    cheap: true,
+  },
+  visible: false,
+  execute: (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) throw new Error('theme.read: id is required')
+    const store = useThemeStore()
+    const theme = store.installedThemes.find((t) => t.id === id)
+    if (!theme) {
+      throw new Error(`theme.read: theme "${id}" is not installed`)
+    }
+    return {
+      id: theme.id,
+      name: theme.name,
+      base: theme.base ?? null,
+      props: { ...theme.props },
+    }
+  },
+}
+
 export const themeApplyCapability: Command = {
   id: 'theme.apply',
   label: 'テーマを適用',
@@ -93,7 +141,155 @@ export const themeApplyCapability: Command = {
   },
 }
 
+/**
+ * `theme.create` — 新規テーマを installedThemes に追加する。
+ * AI が「ユーザーの好みに合わせて配色提案」「メモのトーンに合わせた季節テーマ」
+ * のように動的にテーマを作るための capability。frontmatter 相当の id は
+ * 衝突しないよう自動生成 (`custom-<timestamp>`) でも、明示指定でも OK。
+ */
+export const themeCreateCapability: Command = {
+  id: 'theme.create',
+  label: 'テーマを作成',
+  icon: 'ti-palette',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['theme.write'],
+  requiresConfirmation: true,
+  signature: {
+    description:
+      '新規テーマを作成して installedThemes に追加する。' +
+      ' props は Misskey 互換 CSS 変数 (例: { accent: "#5f6", panel: "#0a0a0a" })。' +
+      ' 既存 id を指定した場合は theme.update と同等の挙動になる。',
+    params: {
+      name: { type: 'string', description: 'テーマ名 (UI 表示用)' },
+      base: {
+        type: 'string',
+        description: 'ダーク / ライト どちらの slot に置くか',
+        enum: ['dark', 'light'],
+      },
+      props: {
+        type: 'object',
+        description: 'Misskey 互換 CSS 変数のマップ ({ key: string })',
+      },
+      id: {
+        type: 'string',
+        description: 'テーマ id (省略時は custom-<timestamp> で自動生成)',
+        optional: true,
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, name, base, installed: boolean }',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const name = typeof params?.name === 'string' ? params.name : ''
+    const baseRaw = typeof params?.base === 'string' ? params.base : ''
+    const props = isStringRecord(params?.props) ? params.props : null
+    const explicitId = typeof params?.id === 'string' ? params.id : ''
+    if (!name) throw new Error('theme.create: name is required')
+    if (baseRaw !== 'dark' && baseRaw !== 'light') {
+      throw new Error('theme.create: base must be "dark" or "light"')
+    }
+    if (!props) {
+      throw new Error('theme.create: props must be an object of string values')
+    }
+    const theme: MisskeyTheme = {
+      id: explicitId || `custom-${Date.now()}`,
+      name,
+      base: baseRaw,
+      props,
+    }
+    const store = useThemeStore()
+    const installed = await store.installTheme(JSON.stringify(theme))
+    return { id: theme.id, name: theme.name, base: theme.base, installed }
+  },
+}
+
+/**
+ * `theme.update` — 既存テーマの props / name / base を部分更新する。
+ * 内部的には installTheme (= upsert) を呼ぶので、id 不一致なら新規扱いに
+ * ならないよう execute 側で必ず id 存在チェックを行う。
+ */
+export const themeUpdateCapability: Command = {
+  id: 'theme.update',
+  label: 'テーマを更新',
+  icon: 'ti-palette',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['theme.write'],
+  requiresConfirmation: true,
+  signature: {
+    description:
+      '既存テーマの props / name / base を部分更新する。指定された' +
+      'フィールドだけ上書きされる。id は theme.list で取得した値を渡す。',
+    params: {
+      id: { type: 'string', description: '対象テーマの id' },
+      name: { type: 'string', description: '新しいテーマ名', optional: true },
+      base: {
+        type: 'string',
+        description: 'ダーク / ライト',
+        enum: ['dark', 'light'],
+        optional: true,
+      },
+      props: {
+        type: 'object',
+        description:
+          '上書きする CSS 変数 ({ key: string })。既存とマージされる',
+        optional: true,
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, updated: boolean }',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) throw new Error('theme.update: id is required')
+    const store = useThemeStore()
+    const current = store.installedThemes.find((t) => t.id === id)
+    if (!current) {
+      throw new Error(`theme.update: theme "${id}" is not installed`)
+    }
+    const name =
+      typeof params?.name === 'string' && params.name.length > 0
+        ? params.name
+        : current.name
+    const baseRaw = typeof params?.base === 'string' ? params.base : ''
+    const base: 'dark' | 'light' =
+      baseRaw === 'dark' || baseRaw === 'light'
+        ? baseRaw
+        : (current.base ?? 'dark')
+    const propsPatch = isStringRecord(params?.props) ? params.props : null
+    const merged: MisskeyTheme = {
+      id,
+      name,
+      base,
+      props: propsPatch ? { ...current.props, ...propsPatch } : current.props,
+    }
+    if (current.$notedeck) merged.$notedeck = current.$notedeck
+    const updated = await store.installTheme(JSON.stringify(merged))
+    return { id, updated }
+  },
+}
+
+function isStringRecord(v: unknown): v is Record<string, string> {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return false
+  for (const value of Object.values(v as Record<string, unknown>)) {
+    if (typeof value !== 'string') return false
+  }
+  return true
+}
+
 export const THEME_BUILTIN_CAPABILITIES: readonly Command[] = [
   themeListCapability,
+  themeReadCapability,
   themeApplyCapability,
+  themeCreateCapability,
+  themeUpdateCapability,
 ]
