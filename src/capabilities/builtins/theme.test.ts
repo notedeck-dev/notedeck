@@ -4,6 +4,7 @@ import {
   themeApplyCapability,
   themeCreateCapability,
   themeListCapability,
+  themeReadCapability,
   themeUpdateCapability,
 } from './theme'
 
@@ -36,6 +37,25 @@ describe('theme.apply capability', () => {
     expect(modeEnum).toEqual(['dark', 'light'])
     expect(themeApplyCapability.signature?.params?.mode?.optional).toBe(true)
     expect(themeApplyCapability.signature?.params?.id?.optional).not.toBe(true)
+  })
+})
+
+describe('theme.read capability', () => {
+  it('declares no permissions, aiTool: true, cheap: true', () => {
+    expect(themeReadCapability.id).toBe('theme.read')
+    expect(themeReadCapability.permissions).toEqual([])
+    expect(themeReadCapability.aiTool).toBe(true)
+    expect(themeReadCapability.signature?.cheap).toBe(true)
+  })
+
+  it('throws when id is missing', () => {
+    expect(() => themeReadCapability.execute({})).toThrow(/id is required/)
+  })
+
+  it('marks id as required (no other params)', () => {
+    const params = themeReadCapability.signature?.params
+    expect(params?.id?.optional).not.toBe(true)
+    expect(Object.keys(params ?? {})).toEqual(['id'])
   })
 })
 
@@ -111,8 +131,9 @@ describe('theme.update capability', () => {
 })
 
 describe('THEME_BUILTIN_CAPABILITIES', () => {
-  it('contains list / apply / create / update', () => {
+  it('contains list / read / apply / create / update', () => {
     expect(THEME_BUILTIN_CAPABILITIES).toContain(themeListCapability)
+    expect(THEME_BUILTIN_CAPABILITIES).toContain(themeReadCapability)
     expect(THEME_BUILTIN_CAPABILITIES).toContain(themeApplyCapability)
     expect(THEME_BUILTIN_CAPABILITIES).toContain(themeCreateCapability)
     expect(THEME_BUILTIN_CAPABILITIES).toContain(themeUpdateCapability)

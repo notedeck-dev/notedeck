@@ -45,6 +45,53 @@ export const themeListCapability: Command = {
  * テーマの `base` ('dark' | 'light') から適用先 mode を自動判定する。
  * `theme.list` で取得した id を渡す想定。
  */
+/**
+ * `theme.read` — 指定 id のテーマの中身 (props) を返す。
+ * AI が「現在の配色を見て調整」のように、theme.update を呼ぶ前の現状把握用。
+ * 色情報は機密ではないため permission 不要 (theme.list / apply と同じ扱い)。
+ */
+export const themeReadCapability: Command = {
+  id: 'theme.read',
+  label: 'テーマの内容を読む',
+  icon: 'ti-palette',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: [],
+  signature: {
+    description:
+      '指定 id のテーマの全プロパティ (Misskey 互換 CSS 変数) を返す。' +
+      ' theme.update で差分編集する前の現状把握に使う。',
+    params: {
+      id: {
+        type: 'string',
+        description: '対象テーマの id (theme.list で取得)',
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, name, base, props: Record<string,string> }',
+    },
+    cheap: true,
+  },
+  visible: false,
+  execute: (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) throw new Error('theme.read: id is required')
+    const store = useThemeStore()
+    const theme = store.installedThemes.find((t) => t.id === id)
+    if (!theme) {
+      throw new Error(`theme.read: theme "${id}" is not installed`)
+    }
+    return {
+      id: theme.id,
+      name: theme.name,
+      base: theme.base ?? null,
+      props: { ...theme.props },
+    }
+  },
+}
+
 export const themeApplyCapability: Command = {
   id: 'theme.apply',
   label: 'テーマを適用',
@@ -241,6 +288,7 @@ function isStringRecord(v: unknown): v is Record<string, string> {
 
 export const THEME_BUILTIN_CAPABILITIES: readonly Command[] = [
   themeListCapability,
+  themeReadCapability,
   themeApplyCapability,
   themeCreateCapability,
   themeUpdateCapability,

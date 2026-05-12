@@ -43,6 +43,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'theme.apply',
         'theme.create',
         'theme.list',
+        'theme.read',
         'theme.update',
         'time.now',
         'ui.notify',
