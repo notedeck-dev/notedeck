@@ -9,6 +9,7 @@ import { MEMOS_READ_BUILTIN_CAPABILITIES } from './memos-read'
 import { NOTES_BUILTIN_CAPABILITIES } from './notes'
 import { NOTES_WRITE_BUILTIN_CAPABILITIES } from './notes-write'
 import { NOTIFICATIONS_BUILTIN_CAPABILITIES } from './notifications'
+import { PLUGINS_BUILTIN_CAPABILITIES } from './plugins'
 import { SKILLS_BUILTIN_CAPABILITIES } from './skills'
 import { TASKS_BUILTIN_CAPABILITIES } from './tasks'
 import { THEME_BUILTIN_CAPABILITIES } from './theme'
@@ -43,4 +44,5 @@ export const ALL_BUILTIN_CAPABILITIES: readonly Command[] = [
   ...AI_BUILTIN_CAPABILITIES,
   ...SKILLS_BUILTIN_CAPABILITIES,
   ...WIDGETS_BUILTIN_CAPABILITIES,
+  ...PLUGINS_BUILTIN_CAPABILITIES,
 ]

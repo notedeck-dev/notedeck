@@ -233,6 +233,14 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'ウィジェットの作成/編集 (AiScript)',
     icon: 'ti-code',
   },
+  'plugins.read': {
+    label: 'プラグインの読取',
+    icon: 'ti-puzzle',
+  },
+  'plugins.write': {
+    label: 'プラグインの作成/編集 (AiScript) — AI 直接呼出しは不可',
+    icon: 'ti-puzzle',
+  },
 }
 
 interface DataSourceLabel {

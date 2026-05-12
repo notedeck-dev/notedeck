@@ -43,6 +43,8 @@ export const PERMISSION_KEYS = [
   'theme.write',
   'widgets.read',
   'widgets.write',
+  'plugins.read',
+  'plugins.write',
 ] as const
 export type PermissionKey = (typeof PERMISSION_KEYS)[number]
 
@@ -261,6 +263,8 @@ const PERMISSION_PRESETS: Record<
     'theme.write': false,
     'widgets.read': true,
     'widgets.write': false,
+    'plugins.read': true,
+    'plugins.write': false,
   },
   safe: {
     'notes.read': true,
@@ -282,6 +286,8 @@ const PERMISSION_PRESETS: Record<
     'theme.write': false,
     'widgets.read': true,
     'widgets.write': true,
+    'plugins.read': true,
+    'plugins.write': true,
   },
   full: {
     'notes.read': true,
@@ -303,6 +309,8 @@ const PERMISSION_PRESETS: Record<
     'theme.write': true,
     'widgets.read': true,
     'widgets.write': true,
+    'plugins.read': true,
+    'plugins.write': true,
   },
 }
 
