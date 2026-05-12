@@ -14,7 +14,7 @@ pnpm tauri:dev    # Tauri デスクトップ開発
 pnpm test         # vitest run
 pnpm lint         # biome check
 pnpm lint:fix     # biome check --write
-pnpm typecheck    # vue-tsc --noEmit
+pnpm typecheck    # vue-tsc -b --noEmit
 ```
 
 ## Git ワークフロー
@@ -22,7 +22,7 @@ pnpm typecheck    # vue-tsc --noEmit
 - **main への直接 push 禁止** — 必ずブランチを切って PR 経由でマージする
 - ブランチ命名: `feat/*`, `fix/*`, `refactor/*`, `chore/*`, `docs/*`
 - コミット: Conventional Commits 形式
-- pre-commit hook (lefthook): biome check + vue-tsc --noEmit
+- pre-commit hook (lefthook): biome check + vue-tsc -b --noEmit
 
 ## スタイリング
 
