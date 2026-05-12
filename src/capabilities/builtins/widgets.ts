@@ -4,6 +4,13 @@ import {
   useWidgetsStore,
   type WidgetMeta,
 } from '@/stores/widgets'
+import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+
+interface WidgetSnapshot {
+  src: string
+  name?: string
+  autoRun?: boolean
+}
 
 /**
  * Widget 系 capability — AI が AiScript ウィジェットを動的に作成・編集
@@ -269,6 +276,89 @@ export const widgetsDeleteCapability: Command = {
   },
 }
 
+export const widgetsHistoryCapability: Command = {
+  id: 'widgets.history',
+  label: 'ウィジェットの編集履歴',
+  icon: 'ti-history',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['widgets.read'],
+  signature: {
+    description:
+      '指定 installId のウィジェットの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。',
+    params: {
+      installId: {
+        type: 'string',
+        description: '対象ウィジェットの installId',
+      },
+    },
+    returns: {
+      type: 'array',
+      description: '編集前 snapshot の配列 (新しい順)',
+    },
+    cheap: true,
+  },
+  visible: false,
+  execute: async (params) => {
+    const installId =
+      typeof params?.installId === 'string' ? params.installId : ''
+    if (!installId) throw new Error('widgets.history: installId is required')
+    const store = useWidgetsStore()
+    const widget = store.getWidget(installId)
+    if (!widget) {
+      throw new Error(`widgets.history: widget "${installId}" not found`)
+    }
+    const basename = widget.name || widget.installId
+    return await listSnapshots<WidgetSnapshot>('widget', basename)
+  },
+}
+
+export const widgetsRevertCapability: Command = {
+  id: 'widgets.revert',
+  label: 'ウィジェットを過去の状態に戻す',
+  icon: 'ti-arrow-back-up',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['widgets.write'],
+  requiresConfirmation: true,
+  signature: {
+    description: 'ウィジェット src を編集履歴の index 番目に戻す。',
+    params: {
+      installId: {
+        type: 'string',
+        description: '対象ウィジェットの installId',
+      },
+      index: { type: 'number', description: 'snapshot index (0 = 最新)' },
+    },
+    returns: {
+      type: 'object',
+      description: '{ installId, reverted: boolean, at: number }',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const installId =
+      typeof params?.installId === 'string' ? params.installId : ''
+    const index = typeof params?.index === 'number' ? params.index : -1
+    if (!installId) throw new Error('widgets.revert: installId is required')
+    if (index < 0) throw new Error('widgets.revert: index must be >= 0')
+    const store = useWidgetsStore()
+    const widget = store.getWidget(installId)
+    if (!widget) {
+      throw new Error(`widgets.revert: widget "${installId}" not found`)
+    }
+    const basename = widget.name || widget.installId
+    const entry = await getSnapshotAt<WidgetSnapshot>('widget', basename, index)
+    if (!entry) {
+      throw new Error(`widgets.revert: no snapshot at index ${index}`)
+    }
+    store.updateSrc(installId, entry.snapshot.src)
+    return { installId, reverted: true, at: entry.at }
+  },
+}
+
 export const WIDGETS_BUILTIN_CAPABILITIES: readonly Command[] = [
   widgetsListCapability,
   widgetsReadCapability,
@@ -276,4 +366,6 @@ export const WIDGETS_BUILTIN_CAPABILITIES: readonly Command[] = [
   widgetsUpdateCapability,
   widgetsSetAutoRunCapability,
   widgetsDeleteCapability,
+  widgetsHistoryCapability,
+  widgetsRevertCapability,
 ]

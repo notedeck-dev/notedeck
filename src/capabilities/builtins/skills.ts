@@ -1,5 +1,13 @@
 import type { Command } from '@/commands/registry'
 import { useSkillsStore } from '@/stores/skills'
+import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+
+interface SkillSnapshot {
+  body: string
+  name?: string
+  version?: string
+  mode?: string
+}
 
 /**
  * Skill 系 capability — 「自己拡張する IDE」の中核 (memory:
@@ -282,10 +290,88 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+export const skillsHistoryCapability: Command = {
+  id: 'skills.history',
+  label: 'スキルの編集履歴を取得',
+  icon: 'ti-history',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['skills.read'],
+  signature: {
+    description:
+      '指定 id の skill の編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。' +
+      ' 各エントリは { at: 時刻 ms, snapshot: { body, name?, version?, mode? } }。',
+    params: {
+      id: { type: 'string', description: '対象 skill の id' },
+    },
+    returns: {
+      type: 'array',
+      description: '編集前 snapshot の配列 (新しい順)',
+    },
+    cheap: true,
+  },
+  visible: false,
+  execute: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) throw new Error('skills.history: id is required')
+    const store = useSkillsStore()
+    const skill = store.skills.find((s) => s.id === id)
+    if (!skill) throw new Error(`skills.history: skill "${id}" not found`)
+    const basename = skill.name || skill.id
+    return await listSnapshots<SkillSnapshot>('skill', basename)
+  },
+}
+
+export const skillsRevertCapability: Command = {
+  id: 'skills.revert',
+  label: 'スキルを過去の編集前状態に戻す',
+  icon: 'ti-arrow-back-up',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['skills.write'],
+  requiresConfirmation: true,
+  signature: {
+    description:
+      'skill を編集履歴の index 番目の snapshot に戻す。skills.history で index を取得。',
+    params: {
+      id: { type: 'string', description: '対象 skill の id' },
+      index: {
+        type: 'number',
+        description: 'snapshot index (0 = 最新、skills.history の順序と一致)',
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, reverted: boolean, at: number }',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    const index = typeof params?.index === 'number' ? params.index : -1
+    if (!id) throw new Error('skills.revert: id is required')
+    if (index < 0) throw new Error('skills.revert: index must be >= 0')
+    const store = useSkillsStore()
+    const skill = store.skills.find((s) => s.id === id)
+    if (!skill) throw new Error(`skills.revert: skill "${id}" not found`)
+    const basename = skill.name || skill.id
+    const entry = await getSnapshotAt<SkillSnapshot>('skill', basename, index)
+    if (!entry) {
+      throw new Error(`skills.revert: no snapshot at index ${index}`)
+    }
+    store.update(id, { body: entry.snapshot.body })
+    return { id, reverted: true, at: entry.at }
+  },
+}
+
 export const SKILLS_BUILTIN_CAPABILITIES: readonly Command[] = [
   skillsListCapability,
   skillsReadCapability,
   skillsAppendCapability,
   skillsReplaceSectionCapability,
   skillsToggleCapability,
+  skillsHistoryCapability,
+  skillsRevertCapability,
 ]

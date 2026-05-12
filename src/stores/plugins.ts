@@ -2,6 +2,7 @@ import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
+import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
   getStorageJson,
@@ -398,6 +399,14 @@ export const usePluginsStore = defineStore('plugins', () => {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
     if (plugin) {
+      // 編集前 src を history sidecar に push (fire-and-forget)
+      pushSnapshot('plugin', plugin.name || plugin.installId, {
+        src: plugin.src,
+        name: plugin.name,
+        version: plugin.version,
+        permissions: plugin.permissions,
+        active: plugin.active,
+      }).catch((e) => console.warn('[plugins] history push failed:', e))
       plugin.src = src
       persist(plugin)
     }

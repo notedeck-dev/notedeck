@@ -2,6 +2,7 @@ import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
   getStorageJson,
@@ -254,6 +255,12 @@ export const useWidgetsStore = defineStore('widgets', () => {
     ensureLoaded()
     const widget = widgets.value.find((w) => w.installId === installId)
     if (widget) {
+      // 編集前 src を history sidecar に push (fire-and-forget)
+      pushSnapshot('widget', widget.name || widget.installId, {
+        src: widget.src,
+        name: widget.name,
+        autoRun: widget.autoRun,
+      }).catch((e) => console.warn('[widgets] history push failed:', e))
       widget.src = src
       widget.updatedAt = Date.now()
       persist(widget)

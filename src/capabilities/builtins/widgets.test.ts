@@ -78,13 +78,15 @@ describe('widget capabilities — declaration', () => {
 })
 
 describe('WIDGETS_BUILTIN_CAPABILITIES', () => {
-  it('contains all 6 widget capabilities', () => {
+  it('contains all 8 widget capabilities (incl. history / revert)', () => {
     const ids = WIDGETS_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
     expect(ids).toEqual([
       'widgets.create',
       'widgets.delete',
+      'widgets.history',
       'widgets.list',
       'widgets.read',
+      'widgets.revert',
       'widgets.setAutoRun',
       'widgets.update',
     ])

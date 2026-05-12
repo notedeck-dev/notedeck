@@ -58,13 +58,15 @@ describe('skill capabilities — declaration', () => {
 })
 
 describe('SKILLS_BUILTIN_CAPABILITIES', () => {
-  it('contains all 5 skill capabilities', () => {
+  it('contains all 7 skill capabilities (incl. history / revert)', () => {
     const ids = SKILLS_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
     expect(ids).toEqual([
       'skills.append',
+      'skills.history',
       'skills.list',
       'skills.read',
       'skills.replaceSection',
+      'skills.revert',
       'skills.toggle',
     ])
   })

@@ -1,5 +1,14 @@
 import type { Command } from '@/commands/registry'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
+import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+
+interface PluginSnapshot {
+  src: string
+  name?: string
+  version?: string
+  permissions?: string[]
+  active?: boolean
+}
 
 /**
  * Plugin 系 capability — AI が AiScript プラグインを動的に作成・編集できる
@@ -291,6 +300,84 @@ function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string')
 }
 
+export const pluginsHistoryCapability: Command = {
+  id: 'plugins.history',
+  label: 'プラグインの編集履歴',
+  icon: 'ti-history',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['plugins.read'],
+  signature: {
+    description:
+      '指定 installId のプラグインの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。',
+    params: {
+      installId: { type: 'string', description: '対象プラグインの installId' },
+    },
+    returns: {
+      type: 'array',
+      description: '編集前 snapshot の配列 (新しい順)',
+    },
+    cheap: true,
+  },
+  visible: false,
+  execute: async (params) => {
+    const installId =
+      typeof params?.installId === 'string' ? params.installId : ''
+    if (!installId) throw new Error('plugins.history: installId is required')
+    const store = usePluginsStore()
+    const plugin = store.getPlugin(installId)
+    if (!plugin) {
+      throw new Error(`plugins.history: plugin "${installId}" not found`)
+    }
+    const basename = plugin.name || plugin.installId
+    return await listSnapshots<PluginSnapshot>('plugin', basename)
+  },
+}
+
+export const pluginsRevertCapability: Command = {
+  id: 'plugins.revert',
+  label: 'プラグインを過去の状態に戻す',
+  icon: 'ti-arrow-back-up',
+  category: 'general',
+  shortcuts: [],
+  aiTool: false, // AI 本体は plugins.write 系を呼べない (handler 常時実行リスク回避)
+  permissions: ['plugins.write'],
+  requiresConfirmation: true,
+  signature: {
+    description:
+      'プラグイン src を編集履歴の index 番目に戻す (aiTool:false)。',
+    params: {
+      installId: { type: 'string', description: '対象プラグインの installId' },
+      index: { type: 'number', description: 'snapshot index (0 = 最新)' },
+    },
+    returns: {
+      type: 'object',
+      description: '{ installId, reverted: boolean, at: number }',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const installId =
+      typeof params?.installId === 'string' ? params.installId : ''
+    const index = typeof params?.index === 'number' ? params.index : -1
+    if (!installId) throw new Error('plugins.revert: installId is required')
+    if (index < 0) throw new Error('plugins.revert: index must be >= 0')
+    const store = usePluginsStore()
+    const plugin = store.getPlugin(installId)
+    if (!plugin) {
+      throw new Error(`plugins.revert: plugin "${installId}" not found`)
+    }
+    const basename = plugin.name || plugin.installId
+    const entry = await getSnapshotAt<PluginSnapshot>('plugin', basename, index)
+    if (!entry) {
+      throw new Error(`plugins.revert: no snapshot at index ${index}`)
+    }
+    store.updateSrc(installId, entry.snapshot.src)
+    return { installId, reverted: true, at: entry.at }
+  },
+}
+
 export const PLUGINS_BUILTIN_CAPABILITIES: readonly Command[] = [
   pluginsListCapability,
   pluginsReadCapability,
@@ -298,4 +385,6 @@ export const PLUGINS_BUILTIN_CAPABILITIES: readonly Command[] = [
   pluginsUpdateCapability,
   pluginsSetActiveCapability,
   pluginsDeleteCapability,
+  pluginsHistoryCapability,
+  pluginsRevertCapability,
 ]

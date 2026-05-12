@@ -86,13 +86,15 @@ describe('plugin capabilities — declaration', () => {
 })
 
 describe('PLUGINS_BUILTIN_CAPABILITIES', () => {
-  it('contains all 6 plugin capabilities', () => {
+  it('contains all 8 plugin capabilities (incl. history / revert)', () => {
     const ids = PLUGINS_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
     expect(ids).toEqual([
       'plugins.create',
       'plugins.delete',
+      'plugins.history',
       'plugins.list',
       'plugins.read',
+      'plugins.revert',
       'plugins.setActive',
       'plugins.update',
     ])

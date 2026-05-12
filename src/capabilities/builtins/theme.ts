@@ -1,6 +1,14 @@
 import type { Command } from '@/commands/registry'
 import { useThemeStore } from '@/stores/theme'
 import type { MisskeyTheme } from '@/theme/types'
+import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+
+interface ThemeSnapshot {
+  id: string
+  name: string
+  base?: 'dark' | 'light'
+  props: Record<string, string>
+}
 
 /**
  * `theme.list` — インストール済みテーマの一覧を返す。
@@ -286,10 +294,82 @@ function isStringRecord(v: unknown): v is Record<string, string> {
   return true
 }
 
+export const themeHistoryCapability: Command = {
+  id: 'theme.history',
+  label: 'テーマの編集履歴',
+  icon: 'ti-history',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: [],
+  signature: {
+    description:
+      '指定 id のテーマの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。',
+    params: {
+      id: { type: 'string', description: '対象テーマの id' },
+    },
+    returns: {
+      type: 'array',
+      description: '編集前 snapshot の配列 (新しい順)',
+    },
+    cheap: true,
+  },
+  visible: false,
+  execute: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) throw new Error('theme.history: id is required')
+    return await listSnapshots<ThemeSnapshot>('theme', id)
+  },
+}
+
+export const themeRevertCapability: Command = {
+  id: 'theme.revert',
+  label: 'テーマを過去の状態に戻す',
+  icon: 'ti-arrow-back-up',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['theme.write'],
+  requiresConfirmation: true,
+  signature: {
+    description: 'テーマ props を編集履歴の index 番目に戻す。',
+    params: {
+      id: { type: 'string', description: '対象テーマの id' },
+      index: { type: 'number', description: 'snapshot index (0 = 最新)' },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, reverted: boolean, at: number }',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    const index = typeof params?.index === 'number' ? params.index : -1
+    if (!id) throw new Error('theme.revert: id is required')
+    if (index < 0) throw new Error('theme.revert: index must be >= 0')
+    const entry = await getSnapshotAt<ThemeSnapshot>('theme', id, index)
+    if (!entry) {
+      throw new Error(`theme.revert: no snapshot at index ${index}`)
+    }
+    const restored: MisskeyTheme = {
+      id: entry.snapshot.id,
+      name: entry.snapshot.name,
+      base: entry.snapshot.base,
+      props: entry.snapshot.props,
+    }
+    const store = useThemeStore()
+    await store.installTheme(JSON.stringify(restored))
+    return { id, reverted: true, at: entry.at }
+  },
+}
+
 export const THEME_BUILTIN_CAPABILITIES: readonly Command[] = [
   themeListCapability,
   themeReadCapability,
   themeApplyCapability,
   themeCreateCapability,
   themeUpdateCapability,
+  themeHistoryCapability,
+  themeRevertCapability,
 ]

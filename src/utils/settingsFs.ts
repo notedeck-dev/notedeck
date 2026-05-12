@@ -392,6 +392,74 @@ export async function writeAiSessionFile(
   return writeSettingsFile(SESSIONS_DIR, filename, content)
 }
 
+// --- Edit history sidecar helpers (skill / widget / plugin / theme) ---
+//
+// 各 kind の編集前 snapshot をリング 10 件で `<basename>.history.json5` に
+// サイドカー保存する。実装は対応する dir (skills/widgets/plugins/themes) に
+// 隣接する別ファイル。Tauri 外 (ブラウザ) では呼んでも no-op (上位で
+// localStorage fallback)。
+
+const HISTORY_EXT = '.history.json5'
+
+export type HistoryKind = 'skill' | 'widget' | 'plugin' | 'theme'
+
+function historyDirFor(kind: HistoryKind): string {
+  switch (kind) {
+    case 'skill':
+      return SKILLS_DIR
+    case 'widget':
+      return WIDGETS_DIR
+    case 'plugin':
+      return PLUGINS_DIR
+    case 'theme':
+      return THEMES_DIR
+  }
+}
+
+export function historyFilename(basename: string): string {
+  return sanitizeFilename(basename) + HISTORY_EXT
+}
+
+export async function readHistorySidecar(
+  kind: HistoryKind,
+  basename: string,
+): Promise<string | null> {
+  if (!isTauri) return null
+  try {
+    return await readSettingsFile(
+      historyDirFor(kind),
+      historyFilename(basename),
+    )
+  } catch {
+    return null
+  }
+}
+
+export async function writeHistorySidecar(
+  kind: HistoryKind,
+  basename: string,
+  content: string,
+): Promise<void> {
+  if (!isTauri) return
+  return writeSettingsFile(
+    historyDirFor(kind),
+    historyFilename(basename),
+    content,
+  )
+}
+
+export async function deleteHistorySidecar(
+  kind: HistoryKind,
+  basename: string,
+): Promise<void> {
+  if (!isTauri) return
+  try {
+    await deleteSettingsFile(historyDirFor(kind), historyFilename(basename))
+  } catch {
+    // 存在しないだけのときは無視
+  }
+}
+
 export async function deleteAiSessionFile(filename: string): Promise<void> {
   return deleteSettingsFile(SESSIONS_DIR, filename)
 }
