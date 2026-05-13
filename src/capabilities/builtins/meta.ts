@@ -163,9 +163,64 @@ export const metaConfigCapability: Command = {
   },
 }
 
+/**
+ * `meta.heartbeat` — HEARTBEAT daemon の現在設定スナップショットを返す
+ * (read only)。AI 自身が「自分の起動条件 / 暴走防止上限」を理解できるが、
+ * **編集は塞ぐ** (memory: feedback_ai_capability_scope の `heartbeat.write`
+ * 塞ぐリスト — AI が interval / dailyMaxAiRuns を変えると自己強化 loop で
+ * コスト爆発する)。
+ */
+export const metaHeartbeatCapability: Command = {
+  id: 'meta.heartbeat',
+  label: 'HEARTBEAT 設定スナップショット',
+  icon: 'ti-activity',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: [],
+  signature: {
+    description:
+      'HEARTBEAT daemon の現在設定 (enabled / intervalMinutes / target / ' +
+      'dailyMaxAiRuns / onDailyLimit / desktopNotification / cheapCheck) を' +
+      '読み取り専用で返す。AI 自身の起動条件を理解するため。' +
+      '**編集は塞がれている** (AI が自分の interval を変えると暴走するため)。',
+    params: {},
+    returns: {
+      type: 'object',
+      description:
+        '{ enabled, intervalMinutes, target, dailyMaxAiRuns, onDailyLimit, desktopNotification, cheapCheck: { enabled, maxSkipHours }, permissionsPreset }',
+    },
+    cheap: true,
+  },
+  visible: false,
+  execute: (_params, ctx) => {
+    if (!ctx?.aiConfig) {
+      throw new Error(
+        'meta.heartbeat: aiConfig が ctx に渡される dispatchCapability 経由で呼ばれる必要があります',
+      )
+    }
+    const hb = ctx.aiConfig.heartbeat
+    return {
+      enabled: hb.enabled,
+      intervalMinutes: hb.intervalMinutes,
+      target: hb.target,
+      dailyMaxAiRuns: hb.dailyMaxAiRuns,
+      onDailyLimit: hb.onDailyLimit,
+      desktopNotification: hb.desktopNotification,
+      cheapCheck: {
+        enabled: hb.cheapCheck.enabled,
+        maxSkipHours: hb.cheapCheck.maxSkipHours,
+      },
+      // permissions の生 map は素出ししない (= meta.config と同様の方針)
+      permissionsPreset: hb.permissions.preset,
+    }
+  },
+}
+
 export const META_BUILTIN_CAPABILITIES: readonly Command[] = [
   metaPermissionsCapability,
   metaActiveSkillsCapability,
   metaPersonaCapability,
   metaConfigCapability,
+  metaHeartbeatCapability,
 ]

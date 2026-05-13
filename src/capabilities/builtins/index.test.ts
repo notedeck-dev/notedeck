@@ -49,6 +49,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'memos.update',
         'meta.activeSkills',
         'meta.config',
+        'meta.heartbeat',
         'meta.permissions',
         'meta.persona',
         'misstore.search',

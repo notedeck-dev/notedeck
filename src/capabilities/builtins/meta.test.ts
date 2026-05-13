@@ -66,11 +66,12 @@ describe('meta.config', () => {
 })
 
 describe('META_BUILTIN_CAPABILITIES', () => {
-  it('contains 4 meta capabilities', () => {
+  it('contains 5 meta capabilities (incl. heartbeat read)', () => {
     const ids = META_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
     expect(ids).toEqual([
       'meta.activeSkills',
       'meta.config',
+      'meta.heartbeat',
       'meta.permissions',
       'meta.persona',
     ])
