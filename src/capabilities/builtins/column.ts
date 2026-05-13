@@ -362,10 +362,150 @@ interface NormalizedNoteLike {
   replyId?: string | null
 }
 
+/**
+ * `column.move` — 既存カラムを指定インデックスに移動。layout が group の
+ * 配列なので、ここでは「単一カラムを 1 グループとして指定位置に挿入」する
+ * insertColumnAt の薄ラッパー。AI が「○○カラムを左に」と言ったときに使う。
+ */
+export const columnMoveCapability: Command = {
+  id: 'column.move',
+  label: 'カラムを移動',
+  icon: 'ti-arrows-horizontal',
+  category: 'column',
+  shortcuts: [],
+  aiTool: true,
+  permissions: [],
+  signature: {
+    description:
+      '既存カラムを指定インデックスに移動する。targetIndex は 0 ベース ' +
+      '(0 = 最左)。column.list の並び順 (= layout group 順) と一致。',
+    params: {
+      columnId: { type: 'string', description: '対象 columnId' },
+      targetIndex: {
+        type: 'number',
+        description: '移動先 index (0 = 最左、layout group 配列の位置)',
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ moved: true, columnId, targetIndex }',
+    },
+  },
+  visible: false,
+  execute: (params) => {
+    const columnId = typeof params?.columnId === 'string' ? params.columnId : ''
+    if (!columnId) throw new Error('column.move: columnId is required')
+    const targetIndexRaw =
+      typeof params?.targetIndex === 'number' ? params.targetIndex : NaN
+    if (!Number.isFinite(targetIndexRaw)) {
+      throw new Error('column.move: targetIndex must be a finite number')
+    }
+    const targetIndex = Math.max(0, Math.floor(targetIndexRaw))
+    const store = useDeckStore()
+    store.insertColumnAt(columnId, targetIndex)
+    return { moved: true, columnId, targetIndex }
+  },
+}
+
+/**
+ * AI 経由で更新できる安全フィールド。type / accountId / listId 等の identity
+ * フィールドは触らない (= 「list カラム A」を「list カラム B」に書き換える
+ * のは破壊的)。
+ */
+const SAFE_COLUMN_UPDATE_FIELDS = [
+  'name',
+  'width',
+  'query',
+  'soundMuted',
+] as const
+type SafeColumnUpdateField = (typeof SAFE_COLUMN_UPDATE_FIELDS)[number]
+
+/**
+ * `column.updateSettings` — 既存カラムの安全な表示プロパティ (name / width /
+ * query / soundMuted) のみを更新。identity (type / accountId 等) は触らない。
+ */
+export const columnUpdateSettingsCapability: Command = {
+  id: 'column.updateSettings',
+  label: 'カラム設定を更新',
+  icon: 'ti-adjustments',
+  category: 'column',
+  shortcuts: [],
+  aiTool: true,
+  permissions: [],
+  signature: {
+    description:
+      '既存カラムの表示プロパティ (name / width / query / soundMuted) を更新する。' +
+      ' identity 系 (type / accountId / listId 等) は触れない (= AI 経路で塞ぐ)。',
+    params: {
+      columnId: { type: 'string', description: '対象 columnId' },
+      name: {
+        type: 'string',
+        description: 'カラム表示名 (空文字でリセット)',
+        optional: true,
+      },
+      width: {
+        type: 'number',
+        description: 'カラム幅 (px)',
+        optional: true,
+      },
+      query: {
+        type: 'string',
+        description: 'search カラムなどの検索クエリ',
+        optional: true,
+      },
+      soundMuted: {
+        type: 'boolean',
+        description: 'カラム単位のサウンドミュート',
+        optional: true,
+      },
+    },
+    returns: {
+      type: 'object',
+      description:
+        '{ updated: true, columnId, applied: 適用したフィールド名の配列 }',
+    },
+  },
+  visible: false,
+  execute: (params) => {
+    const columnId = typeof params?.columnId === 'string' ? params.columnId : ''
+    if (!columnId) {
+      throw new Error('column.updateSettings: columnId is required')
+    }
+    const updates: Partial<DeckColumn> = {}
+    const applied: SafeColumnUpdateField[] = []
+    if (typeof params?.name === 'string') {
+      updates.name = params.name.length > 0 ? params.name : null
+      applied.push('name')
+    }
+    if (typeof params?.width === 'number' && Number.isFinite(params.width)) {
+      updates.width = Math.max(120, Math.floor(params.width))
+      applied.push('width')
+    }
+    if (typeof params?.query === 'string') {
+      updates.query = params.query
+      applied.push('query')
+    }
+    if (typeof params?.soundMuted === 'boolean') {
+      updates.soundMuted = params.soundMuted
+      applied.push('soundMuted')
+    }
+    if (applied.length === 0) {
+      throw new Error(
+        'column.updateSettings: at least one of name/width/query/soundMuted is required',
+      )
+    }
+    const store = useDeckStore()
+    store.updateColumn(columnId, updates)
+    return { updated: true, columnId, applied }
+  },
+}
+
 export const COLUMN_BUILTIN_CAPABILITIES: readonly Command[] = [
   columnActiveCapability,
   columnFocusedNoteCapability,
   columnListCapability,
   columnAddCapability,
   columnRemoveCapability,
+  columnMoveCapability,
+  columnUpdateSettingsCapability,
 ]
