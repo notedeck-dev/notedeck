@@ -401,9 +401,11 @@ export async function writeAiSessionFile(
 
 const HISTORY_EXT = '.history.json5'
 
-export type HistoryKind = 'skill' | 'widget' | 'plugin' | 'theme'
+export type HistoryKind = 'skill' | 'widget' | 'plugin' | 'theme' | 'css'
 
-function historyDirFor(kind: HistoryKind): string {
+// css は root 直下の単一ファイル (custom.css) なので subdir を持たない。
+// 他 kind と異なり historyDirFor の対象外 (sidecar も root に置く)。
+function historyDirFor(kind: Exclude<HistoryKind, 'css'>): string {
   switch (kind) {
     case 'skill':
       return SKILLS_DIR
@@ -426,6 +428,9 @@ export async function readHistorySidecar(
 ): Promise<string | null> {
   if (!isTauri) return null
   try {
+    if (kind === 'css') {
+      return await readRootSettingsFile(historyFilename(basename))
+    }
     return await readSettingsFile(
       historyDirFor(kind),
       historyFilename(basename),
@@ -441,6 +446,9 @@ export async function writeHistorySidecar(
   content: string,
 ): Promise<void> {
   if (!isTauri) return
+  if (kind === 'css') {
+    return writeRootSettingsFile(historyFilename(basename), content)
+  }
   return writeSettingsFile(
     historyDirFor(kind),
     historyFilename(basename),
@@ -454,6 +462,13 @@ export async function deleteHistorySidecar(
 ): Promise<void> {
   if (!isTauri) return
   try {
+    if (kind === 'css') {
+      // root 直下なので deleteSettingsFile は使えない。専用コマンドが
+      // 無いため write で空文字 (no-op に近い) … ではなく、現状 root file の
+      // delete コマンドは存在しないので no-op で済ませる。history file は
+      // 上書きされるだけで停滞コストは小さい。
+      return
+    }
     await deleteSettingsFile(historyDirFor(kind), historyFilename(basename))
   } catch {
     // 存在しないだけのときは無視
