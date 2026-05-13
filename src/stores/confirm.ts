@@ -35,6 +35,21 @@ export interface ConfirmOptions {
   code?: string
   /** code 用の言語キー (default: 'json')。`highlightCode` の lang と一致。 */
   codeLanguage?: string
+  /**
+   * プラグイン / ウィジェットのインストール / 更新を確認するときに、MisStore の
+   * カード風の構造化プレビューを表示する。指定された場合 AppConfirm が
+   * `message` の下、`code` の上にレンダリングする。AI tool calling 経由の
+   * `plugins.create` / `widgets.create` 等で「ストアタブと統一感のある確認 UI」
+   * を出すために使う。
+   */
+  installPreview?: {
+    kind: 'plugin' | 'widget'
+    name: string
+    version?: string
+    author?: string
+    description?: string
+    permissions?: string[]
+  }
 }
 
 const visible = ref(false)

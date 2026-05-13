@@ -80,11 +80,14 @@ export interface Command {
    * - `true` — `cap.label` + signature.description + 引数 JSON で汎用モーダル
    *   を出す (write 系はこれで十分)
    * - 関数 — params を見て動的に `ConfirmOptions` を返す。`null` を返すと
-   *   その回はスキップ可能 (= no-op エッジケース)
+   *   その回はスキップ可能 (= no-op エッジケース)。snapshot 取得など I/O が
+   *   必要なケースのため async (= `Promise` 返却) もサポート。
    */
   requiresConfirmation?:
     | boolean
-    | ((params: Record<string, unknown> | undefined) => ConfirmOptions | null)
+    | ((
+        params: Record<string, unknown> | undefined,
+      ) => ConfirmOptions | null | Promise<ConfirmOptions | null>)
 }
 
 export const useCommandStore = defineStore('commands', () => {

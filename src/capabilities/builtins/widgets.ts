@@ -110,7 +110,26 @@ export const widgetsCreateCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['widgets.write'],
-  requiresConfirmation: true,
+  requiresConfirmation: (params) => {
+    const name = typeof params?.name === 'string' ? params.name : ''
+    const src = typeof params?.src === 'string' ? params.src : ''
+    const autoRun = params?.autoRun === true
+    return {
+      title: 'ウィジェットをインストール',
+      message: autoRun
+        ? 'AI が生成したウィジェットをインストールします。カラム表示時に自動実行されます。'
+        : 'AI が生成したウィジェットをインストールします。自動実行は無効です (= 手動で起動)。',
+      installPreview: {
+        kind: 'widget',
+        name,
+      },
+      code: src,
+      codeLanguage: 'is',
+      okLabel: 'インストール',
+      cancelLabel: 'やめる',
+      type: 'normal',
+    }
+  },
   signature: {
     description:
       'AiScript ソースから新規ウィジェットを作成する。autoRun の' +
@@ -164,7 +183,26 @@ export const widgetsUpdateCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['widgets.write'],
-  requiresConfirmation: true,
+  requiresConfirmation: (params) => {
+    const installId =
+      typeof params?.installId === 'string' ? params.installId : ''
+    const src = typeof params?.src === 'string' ? params.src : ''
+    const cur = useWidgetsStore().getWidget(installId)
+    if (!cur) return null
+    return {
+      title: 'ウィジェットを更新',
+      message: `${cur.name} の AiScript を ${cur.src.length} → ${src.length} 文字に置換します。`,
+      installPreview: {
+        kind: 'widget',
+        name: cur.name,
+      },
+      code: src,
+      codeLanguage: 'is',
+      okLabel: '更新',
+      cancelLabel: 'やめる',
+      type: 'warning',
+    }
+  },
   signature: {
     description:
       'ウィジェットの AiScript ソースを全文置換する。意図しない上書きを' +

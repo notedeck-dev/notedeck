@@ -74,7 +74,7 @@ export async function dispatchCapability(
     }
   }
   // 確認ダイアログ (write 系などで requiresConfirmation: true)
-  const confirmOpts = buildConfirmOptions(cap, params)
+  const confirmOpts = await buildConfirmOptions(cap, params)
   if (confirmOpts) {
     const confirmFn = options?.confirmFn ?? useConfirm().confirm
     const accepted = await confirmFn(confirmOpts)
@@ -104,13 +104,13 @@ export async function dispatchCapability(
  * - true → label + description + 引数 JSON で汎用モーダル
  * - 関数 → 関数の戻り値をそのまま使う (null 戻りは個別スキップ)
  */
-function buildConfirmOptions(
+async function buildConfirmOptions(
   cap: Command,
   params: Record<string, unknown> | undefined,
-): ConfirmOptions | null {
+): Promise<ConfirmOptions | null> {
   if (!cap.requiresConfirmation) return null
   if (typeof cap.requiresConfirmation === 'function') {
-    return cap.requiresConfirmation(params)
+    return await cap.requiresConfirmation(params)
   }
   // boolean true → 汎用モーダル
   const desc = cap.signature?.description ?? ''

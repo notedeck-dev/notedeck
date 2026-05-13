@@ -68,6 +68,30 @@ useNativeDialog(dialogRef, visible, {
         </div>
         <div :class="$style.body">
           <p v-if="options.message" :class="$style.message">{{ options.message }}</p>
+          <div v-if="options.installPreview" :class="$style.installPreview">
+            <div :class="$style.installIcon">
+              <i :class="['ti', options.installPreview.kind === 'widget' ? 'ti-layout-grid-add' : 'ti-puzzle']" />
+            </div>
+            <div :class="$style.installBody">
+              <div :class="$style.installRow1">
+                <span :class="$style.installName">{{ options.installPreview.name }}</span>
+                <span v-if="options.installPreview.version" :class="$style.installVersion">v{{ options.installPreview.version }}</span>
+              </div>
+              <div v-if="options.installPreview.author" :class="$style.installAuthor">
+                {{ options.installPreview.author }}
+              </div>
+              <div v-if="options.installPreview.description" :class="$style.installDesc">
+                {{ options.installPreview.description }}
+              </div>
+              <div v-if="options.installPreview.permissions?.length" :class="$style.installPerms">
+                <span
+                  v-for="p in options.installPreview.permissions"
+                  :key="p"
+                  :class="$style.installPermChip"
+                >{{ p }}</span>
+              </div>
+            </div>
+          </div>
           <div
             v-if="options.code"
             :key="`code-${highlighterLoaded}`"
@@ -135,6 +159,95 @@ useNativeDialog(dialogRef, visible, {
   opacity: 0.8;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+// install preview — plugin / widget のインストール確認時に MisStore カード風の
+// 構造化レイアウトを表示する。タイトルは中央寄せだが、ここは情報密度のため
+// 左寄せでまとめる。
+.installPreview {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 8px;
+  padding: 12px;
+  text-align: left;
+  background: color-mix(in srgb, var(--nd-fg) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nd-divider) 60%, transparent);
+  border-radius: 8px;
+}
+
+.installIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  color: var(--nd-accent);
+  font-size: 24px;
+}
+
+.installBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.installRow1 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.installName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nd-fgHighlighted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.installVersion {
+  font-size: 11px;
+  color: var(--nd-fg);
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.installAuthor {
+  font-size: 11px;
+  color: var(--nd-fg);
+  opacity: 0.6;
+}
+
+.installDesc {
+  font-size: 12px;
+  color: var(--nd-fg);
+  opacity: 0.8;
+  line-height: 1.4;
+  margin-top: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.installPerms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.installPermChip {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nd-accent) 14%, transparent);
+  color: var(--nd-fg);
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
 }
 
 // code block — capability の引数 JSON / コード片用。タイトルは中央寄せだが

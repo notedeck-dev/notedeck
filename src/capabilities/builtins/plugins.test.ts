@@ -30,11 +30,11 @@ describe('plugin capabilities — declaration', () => {
     )
   })
 
-  it('plugins.create: write permission, aiTool:false, requires confirmation', () => {
+  it('plugins.create: write permission, aiTool:true, install preview confirmation', () => {
     expect(pluginsCreateCapability.id).toBe('plugins.create')
     expect(pluginsCreateCapability.permissions).toEqual(['plugins.write'])
-    expect(pluginsCreateCapability.aiTool).toBe(false)
-    expect(pluginsCreateCapability.requiresConfirmation).toBe(true)
+    expect(pluginsCreateCapability.aiTool).toBe(true)
+    expect(typeof pluginsCreateCapability.requiresConfirmation).toBe('function')
     expect(() => pluginsCreateCapability.execute({})).toThrow(
       /name is required/,
     )
@@ -43,11 +43,32 @@ describe('plugin capabilities — declaration', () => {
     )
   })
 
-  it('plugins.update: write permission, aiTool:false, requires confirmation', () => {
+  it('plugins.create: requiresConfirmation builds installPreview kind=plugin', async () => {
+    if (typeof pluginsCreateCapability.requiresConfirmation !== 'function') {
+      throw new Error('requiresConfirmation must be a function')
+    }
+    const opts = await pluginsCreateCapability.requiresConfirmation({
+      name: 'demo',
+      src: 'sample',
+      version: '1.2.3',
+      author: 'AI',
+      description: 'desc',
+      permissions: ['write:notes'],
+    })
+    expect(opts?.installPreview?.kind).toBe('plugin')
+    expect(opts?.installPreview?.name).toBe('demo')
+    expect(opts?.installPreview?.version).toBe('1.2.3')
+    expect(opts?.installPreview?.author).toBe('AI')
+    expect(opts?.installPreview?.permissions).toEqual(['write:notes'])
+    expect(opts?.code).toBe('sample')
+    expect(opts?.codeLanguage).toBe('is')
+  })
+
+  it('plugins.update: write permission, aiTool:true, install preview confirmation', () => {
     expect(pluginsUpdateCapability.id).toBe('plugins.update')
     expect(pluginsUpdateCapability.permissions).toEqual(['plugins.write'])
-    expect(pluginsUpdateCapability.aiTool).toBe(false)
-    expect(pluginsUpdateCapability.requiresConfirmation).toBe(true)
+    expect(pluginsUpdateCapability.aiTool).toBe(true)
+    expect(typeof pluginsUpdateCapability.requiresConfirmation).toBe('function')
     expect(() => pluginsUpdateCapability.execute({})).toThrow(
       /installId is required/,
     )
@@ -56,24 +77,26 @@ describe('plugin capabilities — declaration', () => {
     )
   })
 
-  it('plugins.setActive: write permission, aiTool:false (= AI が勝手に有効化させない)', () => {
+  it('plugins.setActive: write permission, aiTool:true, install preview confirmation (有効化時のみ)', () => {
     expect(pluginsSetActiveCapability.id).toBe('plugins.setActive')
     expect(pluginsSetActiveCapability.permissions).toEqual(['plugins.write'])
-    expect(pluginsSetActiveCapability.aiTool).toBe(false)
-    expect(pluginsSetActiveCapability.requiresConfirmation).not.toBe(true)
+    expect(pluginsSetActiveCapability.aiTool).toBe(true)
+    expect(typeof pluginsSetActiveCapability.requiresConfirmation).toBe(
+      'function',
+    )
   })
 
-  it('plugins.delete: write permission, aiTool:false, requires confirmation (= 不可逆)', () => {
+  it('plugins.delete: write permission, aiTool:true, install preview confirmation (= 不可逆)', () => {
     expect(pluginsDeleteCapability.id).toBe('plugins.delete')
     expect(pluginsDeleteCapability.permissions).toEqual(['plugins.write'])
-    expect(pluginsDeleteCapability.aiTool).toBe(false)
-    expect(pluginsDeleteCapability.requiresConfirmation).toBe(true)
+    expect(pluginsDeleteCapability.aiTool).toBe(true)
+    expect(typeof pluginsDeleteCapability.requiresConfirmation).toBe('function')
     expect(() => pluginsDeleteCapability.execute({})).toThrow(
       /installId is required/,
     )
   })
 
-  it('plugins.create: optional metadata fields', () => {
+  it('plugins.create: optional metadata fields (active param is removed — AI 経由で active true にできない)', () => {
     const params = pluginsCreateCapability.signature?.params
     expect(params?.name?.optional).not.toBe(true)
     expect(params?.src?.optional).not.toBe(true)
@@ -81,7 +104,7 @@ describe('plugin capabilities — declaration', () => {
     expect(params?.author?.optional).toBe(true)
     expect(params?.description?.optional).toBe(true)
     expect(params?.permissions?.optional).toBe(true)
-    expect(params?.active?.optional).toBe(true)
+    expect(params?.active).toBeUndefined()
   })
 })
 
@@ -100,13 +123,17 @@ describe('PLUGINS_BUILTIN_CAPABILITIES', () => {
     ])
   })
 
-  it('write capabilities are all aiTool: false (= AI 本体から呼べない)', () => {
+  it('全 write capability が aiTool:true (各 confirm ダイアログで承認を取る)', () => {
     const writeCaps = PLUGINS_BUILTIN_CAPABILITIES.filter((c) =>
       c.permissions?.includes('plugins.write'),
     )
     expect(writeCaps.length).toBeGreaterThan(0)
     for (const cap of writeCaps) {
-      expect(cap.aiTool, `${cap.id} must be aiTool:false`).toBe(false)
+      expect(cap.aiTool, `${cap.id} must be aiTool:true`).toBe(true)
+      expect(
+        cap.requiresConfirmation,
+        `${cap.id} must have requiresConfirmation`,
+      ).toBeTruthy()
     }
   })
 

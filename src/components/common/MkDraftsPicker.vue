@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import type {
   NormalizedNote,
   NormalizedUser,
@@ -15,6 +15,7 @@ import {
   refreshDrafts,
   type StoredDraft,
 } from '@/composables/useDrafts'
+import { usePortal } from '@/composables/usePortal'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useServersStore } from '@/stores/servers'
@@ -272,6 +273,8 @@ const menuState = ref<{
   entry: DraftEntry
 } | null>(null)
 const menuRef = ref<HTMLElement | null>(null)
+const menuPortalRef = useTemplateRef<HTMLElement>('menuPortalRef')
+usePortal(menuPortalRef)
 
 function onContextMenu(e: MouseEvent, entry: DraftEntry) {
   e.preventDefault()
@@ -444,41 +447,43 @@ async function onDeleteAll() {
       </div>
     </div>
 
-    <Teleport to="body">
-      <div
-        v-if="menuState"
-        :class="$style.menuBackdrop"
-        @click="closeMenu"
-        @contextmenu.prevent="closeMenu"
+  </div>
+
+  <!-- Context menu (usePortal moves the backdrop to <body> to escape contain/overflow) -->
+  <div
+    v-if="menuState"
+    ref="menuPortalRef"
+    :class="$style.menuBackdrop"
+    :style="themeVars"
+    @click="closeMenu"
+    @contextmenu.prevent="closeMenu"
+  >
+    <div
+      ref="menuRef"
+      class="_popup"
+      :class="$style.menu"
+      :style="{ top: `${menuState.y}px`, left: `${menuState.x}px` }"
+      @click.stop
+      @contextmenu.stop.prevent
+    >
+      <button
+        class="_button"
+        :class="$style.menuItem"
+        @click="onPick(menuState.entry); closeMenu()"
       >
-        <div
-          ref="menuRef"
-          class="_popup"
-          :class="$style.menu"
-          :style="{ top: `${menuState.y}px`, left: `${menuState.x}px` }"
-          @click.stop
-          @contextmenu.stop.prevent
-        >
-          <button
-            class="_button"
-            :class="$style.menuItem"
-            @click="onPick(menuState.entry); closeMenu()"
-          >
-            <i :class="menuState.entry.draft.data.scheduledAt ? 'ti ti-pencil' : 'ti ti-arrow-back-up'" />
-            {{ menuState.entry.draft.data.scheduledAt ? '内容・時刻を編集' : '復元して投稿フォームに反映' }}
-          </button>
-          <div :class="$style.menuDivider" />
-          <button
-            class="_button"
-            :class="[$style.menuItem, $style.menuItemDanger]"
-            @click="onDelete(menuState.entry); closeMenu()"
-          >
-            <i class="ti ti-trash" />
-            {{ menuState.entry.draft.data.scheduledAt ? '予約を取消' : '削除' }}
-          </button>
-        </div>
-      </div>
-    </Teleport>
+        <i :class="menuState.entry.draft.data.scheduledAt ? 'ti ti-pencil' : 'ti ti-arrow-back-up'" />
+        {{ menuState.entry.draft.data.scheduledAt ? '内容・時刻を編集' : '復元して投稿フォームに反映' }}
+      </button>
+      <div :class="$style.menuDivider" />
+      <button
+        class="_button"
+        :class="[$style.menuItem, $style.menuItemDanger]"
+        @click="onDelete(menuState.entry); closeMenu()"
+      >
+        <i class="ti ti-trash" />
+        {{ menuState.entry.draft.data.scheduledAt ? '予約を取消' : '削除' }}
+      </button>
+    </div>
   </div>
 </template>
 
