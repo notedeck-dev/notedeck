@@ -46,9 +46,45 @@ describe('user.search capability', () => {
   })
 })
 
+describe('user.mute / unmute / renoteMute / unrenoteMute', () => {
+  it.each([
+    'user.mute',
+    'user.unmute',
+    'user.renoteMute',
+    'user.unrenoteMute',
+  ] as const)('%s declares account.write + confirmation', (id) => {
+    const cap = USER_BUILTIN_CAPABILITIES.find((c) => c.id === id)
+    if (!cap) throw new Error(`${id} not found`)
+    expect(cap.permissions).toEqual(['account.write'])
+    expect(typeof cap.requiresConfirmation).toBe('function')
+    expect(cap.aiTool).toBe(true)
+    expect(cap.signature?.params?.userId?.optional).not.toBe(true)
+  })
+
+  it('mute capabilities throw when userId is missing', async () => {
+    for (const id of [
+      'user.mute',
+      'user.unmute',
+      'user.renoteMute',
+      'user.unrenoteMute',
+    ]) {
+      const cap = USER_BUILTIN_CAPABILITIES.find((c) => c.id === id)
+      if (!cap) throw new Error(`${id} not found`)
+      await expect(cap.execute({})).rejects.toThrow(/userId is required/)
+    }
+  })
+})
+
 describe('USER_BUILTIN_CAPABILITIES', () => {
-  it('contains user.lookup + user.search', () => {
+  it('contains lookup / search + 4 mute capabilities', () => {
     const ids = USER_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
-    expect(ids).toEqual(['user.lookup', 'user.search'])
+    expect(ids).toEqual([
+      'user.lookup',
+      'user.mute',
+      'user.renoteMute',
+      'user.search',
+      'user.unmute',
+      'user.unrenoteMute',
+    ])
   })
 })

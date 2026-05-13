@@ -153,7 +153,155 @@ export const userSearchCapability: Command = {
   },
 }
 
+/**
+ * Mute / RenoteMute 系 — 相手に通知されない静かな見え方制御。
+ * AI 経路で開放可。block (対外性高) とは別軸 — block は塞ぐリスト
+ * (memory: feedback_ai_capability_scope)。
+ *
+ * 確認 UI は normal (= danger ではない)。可逆操作 (unmute / unrenoteMute あり)
+ * かつ相手側に通知が飛ばないため心理的負荷が低い。
+ */
+function muteConfirm(action: string, scope: string) {
+  return (params: Record<string, unknown> | undefined) => {
+    const userId = typeof params?.userId === 'string' ? params.userId : ''
+    return {
+      title: `${scope}を${action}`,
+      message: `userId \`${userId}\` を ${scope}${action}します (相手に通知は飛びません)。`,
+      okLabel: action,
+      cancelLabel: 'やめる' as const,
+      type: 'normal' as const,
+    }
+  }
+}
+
+function pickUserId(
+  params: Record<string, unknown> | undefined,
+  cap: string,
+): string {
+  const userId = typeof params?.userId === 'string' ? params.userId : ''
+  if (!userId) throw new Error(`${cap}: userId is required`)
+  return userId
+}
+
+function pickAccountId(
+  params: Record<string, unknown> | undefined,
+): string | undefined {
+  if (typeof params?.accountId !== 'string') return undefined
+  const trimmed = params.accountId.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+const USER_ID_PARAM = {
+  type: 'string' as const,
+  description: '対象 userId (user.lookup / search で取得)',
+}
+const ACCOUNT_ID_PARAM = {
+  type: 'string' as const,
+  description: '操作元アカウント。未指定なら active。',
+  optional: true,
+}
+
+export const userMuteCapability: Command = {
+  id: 'user.mute',
+  label: 'ユーザーをミュート',
+  icon: 'ti-volume-off',
+  category: 'account',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['account.write'],
+  requiresConfirmation: muteConfirm('ミュート', 'ノート + 通知'),
+  signature: {
+    description:
+      '指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は' +
+      '飛ばない。リノートだけ消したいなら user.renoteMute を使う。',
+    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
+    returns: { type: 'object', description: '{ muted: true, userId }' },
+  },
+  visible: false,
+  execute: async (params) => {
+    const userId = pickUserId(params, 'user.mute')
+    const api = await getApiAdapter(pickAccountId(params))
+    await api.muteUser(userId)
+    return { muted: true, userId }
+  },
+}
+
+export const userUnmuteCapability: Command = {
+  id: 'user.unmute',
+  label: 'ユーザーのミュートを解除',
+  icon: 'ti-volume',
+  category: 'account',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['account.write'],
+  requiresConfirmation: muteConfirm('解除', 'ノート + 通知'),
+  signature: {
+    description: '指定 userId のミュートを解除する。',
+    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
+    returns: { type: 'object', description: '{ unmuted: true, userId }' },
+  },
+  visible: false,
+  execute: async (params) => {
+    const userId = pickUserId(params, 'user.unmute')
+    const api = await getApiAdapter(pickAccountId(params))
+    await api.unmuteUser(userId)
+    return { unmuted: true, userId }
+  },
+}
+
+export const userRenoteMuteCapability: Command = {
+  id: 'user.renoteMute',
+  label: 'リノートだけミュート',
+  icon: 'ti-volume-3',
+  category: 'account',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['account.write'],
+  requiresConfirmation: muteConfirm('リノートミュート', 'リノートだけ'),
+  signature: {
+    description:
+      '指定 userId のリノートだけを非表示にする (オリジナル投稿は見える)。' +
+      'user.mute と独立に動作。',
+    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
+    returns: { type: 'object', description: '{ renoteMuted: true, userId }' },
+  },
+  visible: false,
+  execute: async (params) => {
+    const userId = pickUserId(params, 'user.renoteMute')
+    const api = await getApiAdapter(pickAccountId(params))
+    await api.renoteMuteUser(userId)
+    return { renoteMuted: true, userId }
+  },
+}
+
+export const userUnrenoteMuteCapability: Command = {
+  id: 'user.unrenoteMute',
+  label: 'リノートミュートを解除',
+  icon: 'ti-volume-2',
+  category: 'account',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['account.write'],
+  requiresConfirmation: muteConfirm('リノートミュート解除', 'リノートだけ'),
+  signature: {
+    description: '指定 userId のリノートミュートを解除する。',
+    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
+    returns: { type: 'object', description: '{ renoteUnmuted: true, userId }' },
+  },
+  visible: false,
+  execute: async (params) => {
+    const userId = pickUserId(params, 'user.unrenoteMute')
+    const api = await getApiAdapter(pickAccountId(params))
+    await api.unrenoteMuteUser(userId)
+    return { renoteUnmuted: true, userId }
+  },
+}
+
 export const USER_BUILTIN_CAPABILITIES: readonly Command[] = [
   userLookupCapability,
   userSearchCapability,
+  userMuteCapability,
+  userUnmuteCapability,
+  userRenoteMuteCapability,
+  userUnrenoteMuteCapability,
 ]
