@@ -281,6 +281,80 @@ describe('dispatchCapability — confirmation flow', () => {
     ])
   })
 
+  it('runs preflight BEFORE confirm and returns preflight_failed (skipping confirm)', async () => {
+    let confirmCalls = 0
+    registerCapability(
+      makeCapability({
+        id: 'plugins.create',
+        permissions: ['plugins.write'],
+        preflight: () => ({ error: 'bad src: diagnostics: [...]' }),
+        requiresConfirmation: true,
+        execute: () => 'should not run',
+      }),
+    )
+    const r = await dispatchCapability(
+      'plugins.create',
+      { src: 'broken' },
+      configWithPreset('full'),
+      {
+        confirmFn: async () => {
+          confirmCalls++
+          return true
+        },
+      },
+    )
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.code).toBe('preflight_failed')
+      expect(r.error).toContain('diagnostics:')
+    }
+    expect(confirmCalls).toBe(0)
+  })
+
+  it('continues to confirm + execute when preflight returns null', async () => {
+    let executed = false
+    registerCapability(
+      makeCapability({
+        id: 'plugins.create',
+        permissions: ['plugins.write'],
+        preflight: () => null,
+        requiresConfirmation: true,
+        execute: () => {
+          executed = true
+          return 'created'
+        },
+      }),
+    )
+    const r = await dispatchCapability(
+      'plugins.create',
+      { src: 'let x = 1' },
+      configWithPreset('full'),
+      { confirmFn: async () => true },
+    )
+    expect(r).toEqual({ ok: true, result: 'created' })
+    expect(executed).toBe(true)
+  })
+
+  it('supports async preflight', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'plugins.create',
+        permissions: ['plugins.write'],
+        preflight: async () => ({ error: 'async fail' }),
+      }),
+    )
+    const r = await dispatchCapability(
+      'plugins.create',
+      undefined,
+      configWithPreset('full'),
+    )
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.code).toBe('preflight_failed')
+      expect(r.error).toBe('async fail')
+    }
+  })
+
   it('checks permissions BEFORE confirm (no confirm if denied)', async () => {
     let confirmCalls = 0
     registerCapability(

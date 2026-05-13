@@ -43,6 +43,7 @@ export type SlashRunResult =
         | 'parse_error'
         | 'unknown_capability'
         | 'permission_denied'
+        | 'preflight_failed'
         | 'execute_failed'
         | 'user_cancelled'
       displayName: string

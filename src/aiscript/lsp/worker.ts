@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-import { Parser } from '@syuilo/aiscript'
+import { validateAiScript } from '../validate'
 
 // LSP message parameter types
 interface LspTextDocument {
@@ -40,16 +40,6 @@ interface LspDiagnostic {
 // Document storage
 const documents = new Map<string, string>()
 const diagnosticTimers = new Map<string, ReturnType<typeof setTimeout>>()
-
-// Inline sanitize to avoid path alias issues in workers
-function sanitizeCode(code: string): string {
-  return code
-    .replace(/\uFEFF/g, '')
-    .replace(/\u200B|\u200C|\u200D|\u200E|\u200F|\u2060/g, '')
-    .replace(/\u00A0/g, ' ')
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-}
 
 // Built-in completions data
 const keywords = [
@@ -321,40 +311,17 @@ function validateDocument(uri: string) {
   const text = documents.get(uri)
   if (text === undefined) return
 
-  const code = sanitizeCode(text)
-  const diagnostics: LspDiagnostic[] = []
-
-  if (code.trim()) {
-    try {
-      const parser = new Parser()
-      parser.parse(code)
-    } catch (e) {
-      if (e instanceof Error) {
-        const lineMatch = e.message.match(/at line (\d+)/i)
-        let startLine = 0
-        let endChar = 0
-
-        if (lineMatch) {
-          const lineNum = Math.max(0, parseInt(lineMatch[1] ?? '0', 10) - 1)
-          const lines = text.split('\n')
-          startLine = Math.min(lineNum, lines.length - 1)
-          endChar = (lines[startLine] ?? '').length
-        } else {
-          endChar = (text.split('\n')[0] ?? '').length
-        }
-
-        diagnostics.push({
-          range: {
-            start: { line: startLine, character: 0 },
-            end: { line: startLine, character: endChar },
-          },
-          severity: DiagnosticSeverity.Error,
-          message: e.message,
-          source: 'aiscript',
-        })
-      }
-    }
-  }
+  const result = validateAiScript(text)
+  // LSP は 0-based 行/列、validateAiScript は 1-based なので変換
+  const diagnostics: LspDiagnostic[] = result.diagnostics.map((d) => ({
+    range: {
+      start: { line: d.line - 1, character: d.column - 1 },
+      end: { line: d.endLine - 1, character: d.endColumn - 1 },
+    },
+    severity: DiagnosticSeverity.Error,
+    message: d.message,
+    source: 'aiscript',
+  }))
 
   notify('textDocument/publishDiagnostics', { uri, diagnostics })
 }

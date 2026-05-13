@@ -88,6 +88,22 @@ export interface Command {
     | ((
         params: Record<string, unknown> | undefined,
       ) => ConfirmOptions | null | Promise<ConfirmOptions | null>)
+  /**
+   * confirm ダイアログより前に走る入力検証フック。`null` を返したら通常フロー、
+   * `{ error }` を返したら dispatcher が `{ ok: false, code: 'preflight_failed' }`
+   * で即時 fail-fast する (= confirm を出さず AI に diagnostics を返す)。
+   *
+   * 用途: AI が壊れた src を渡してきたとき、ユーザー確認ダイアログ表示前に
+   * 弾いて AI 内ループで自動修復させる二重防壁 (#553)。
+   */
+  preflight?: (
+    params: Record<string, unknown> | undefined,
+  ) => PreflightFailure | null | Promise<PreflightFailure | null>
+}
+
+export interface PreflightFailure {
+  /** AI へそのまま返るエラー文字列。診断 JSON を埋め込んでよい。 */
+  error: string
 }
 
 export const useCommandStore = defineStore('commands', () => {

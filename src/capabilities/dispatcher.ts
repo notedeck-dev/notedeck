@@ -23,6 +23,7 @@ import { getCapability, listCapabilities } from './registry'
 export type DispatchErrorCode =
   | 'unknown_capability'
   | 'permission_denied'
+  | 'preflight_failed'
   | 'execute_failed'
   | 'user_cancelled'
 
@@ -71,6 +72,17 @@ export async function dispatchCapability(
       ok: false,
       code: 'permission_denied',
       error: `Permission denied for ${capabilityId}: required [${denied.join(', ')}] not allowed by current ai.json5 settings`,
+    }
+  }
+  // preflight (入力検証 — 確認ダイアログより前に走る)
+  if (cap.preflight) {
+    const failure = await cap.preflight(params)
+    if (failure) {
+      return {
+        ok: false,
+        code: 'preflight_failed',
+        error: failure.error,
+      }
     }
   }
   // 確認ダイアログ (write 系などで requiresConfirmation: true)
