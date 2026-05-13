@@ -225,6 +225,10 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'テーマの作成/編集',
     icon: 'ti-palette',
   },
+  'navbar.write': {
+    label: 'ナビバー構成の編集',
+    icon: 'ti-layout-sidebar',
+  },
   'widgets.read': {
     label: 'ウィジェットの読取',
     icon: 'ti-layout-grid',
