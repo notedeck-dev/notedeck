@@ -244,6 +244,10 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'ナビバー構成の編集',
     icon: 'ti-layout-sidebar',
   },
+  'keybinds.write': {
+    label: 'キーバインドの編集',
+    icon: 'ti-keyboard',
+  },
   'widgets.read': {
     label: 'ウィジェットの読取',
     icon: 'ti-layout-grid',
