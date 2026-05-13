@@ -14,6 +14,8 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'ai.sessions.read',
         'ai.sessions.search',
         'ai.setPersona',
+        'chat.react',
+        'chat.unreact',
         'clipboard.read',
         'clipboard.write',
         'clips.addNote',
