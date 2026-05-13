@@ -23,9 +23,9 @@ assignees: ''
 ## 環境
 
 - **OS**: (例: Windows 11, macOS 15, Ubuntu 24.04)
-- **NoteDeck バージョン**: (例: v0.5.0)
+- **NoteDeck バージョン**: (例: v0.24.0)
 - **サーバー**: (例: misskey.io, submarin.online)
-- **サーバーソフトウェア**: (例: Misskey v2025.3.0, Firefish v1.0)
+- **サーバーソフトウェア**: (例: Misskey v2025.3.0, yamisskey, misskey-tempura)
 
 ## スクリーンショット
 
