@@ -202,6 +202,11 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
   'drive.write': { label: 'ドライブの書込/削除', icon: 'ti-folder-plus' },
   'memos.read': { label: 'ローカルメモの読取/検索', icon: 'ti-eye' },
   'memos.write': { label: 'ローカルメモの作成/編集/削除', icon: 'ti-notes' },
+  'clips.read': { label: 'クリップの読取', icon: 'ti-paperclip' },
+  'clips.write': {
+    label: 'クリップの作成/ノート追加・削除',
+    icon: 'ti-paperclip',
+  },
   'drafts.read': { label: '下書きの読取', icon: 'ti-note' },
   'drafts.write': { label: '下書きの作成/編集/削除', icon: 'ti-edit' },
   'network.external': { label: '外部ネットワークアクセス', icon: 'ti-world' },
