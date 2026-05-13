@@ -2,6 +2,7 @@ import type { Command } from '@/commands/registry'
 import { ACCOUNT_BUILTIN_CAPABILITIES } from './account'
 import { AI_BUILTIN_CAPABILITIES } from './ai'
 import { AI_SESSIONS_BUILTIN_CAPABILITIES } from './aiSessions'
+import { CHAT_BUILTIN_CAPABILITIES } from './chat'
 import { CLIPBOARD_BUILTIN_CAPABILITIES } from './clipboard'
 import { CLIPS_BUILTIN_CAPABILITIES } from './clips'
 import { COLUMN_BUILTIN_CAPABILITIES } from './column'
@@ -51,6 +52,7 @@ export const ALL_BUILTIN_CAPABILITIES: readonly Command[] = [
   ...NOTES_BUILTIN_CAPABILITIES,
   ...NOTES_WRITE_BUILTIN_CAPABILITIES,
   ...CLIPS_BUILTIN_CAPABILITIES,
+  ...CHAT_BUILTIN_CAPABILITIES,
   ...DRAFTS_BUILTIN_CAPABILITIES,
   ...USER_BUILTIN_CAPABILITIES,
   ...NOTIFICATIONS_BUILTIN_CAPABILITIES,
