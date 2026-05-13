@@ -297,6 +297,78 @@ export const userUnrenoteMuteCapability: Command = {
   },
 }
 
+/**
+ * Follow / Unfollow — 相手に通知が飛ぶ慎重カテゴリ (memory:
+ * feedback_ai_capability_scope の慎重リスト)。確認 UI は warning。
+ *
+ * 鍵アカウントなら follow リクエストが飛ぶ (= 承認待ち)。AI は承認状態を
+ * 知らないので、エラーになっても無視するのではなく上位に伝播させる。
+ */
+function followConfirm(action: '送る' | '解除') {
+  return (params: Record<string, unknown> | undefined) => {
+    const userId = typeof params?.userId === 'string' ? params.userId : ''
+    return {
+      title: `フォロー${action === '送る' ? 'を送る' : 'を解除'}`,
+      message:
+        action === '送る'
+          ? `userId \`${userId}\` にフォローリクエストを送ります (相手に「フォローされた」通知が飛びます)。鍵アカウントなら承認待ち。`
+          : `userId \`${userId}\` のフォローを解除します (相手に「フォロワー減少」通知は飛びません)。`,
+      okLabel: action === '送る' ? 'フォロー' : 'フォロー解除',
+      cancelLabel: 'やめる' as const,
+      type: 'warning' as const,
+    }
+  }
+}
+
+export const userFollowCapability: Command = {
+  id: 'user.follow',
+  label: 'ユーザーをフォロー',
+  icon: 'ti-user-plus',
+  category: 'account',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['account.write'],
+  requiresConfirmation: followConfirm('送る'),
+  signature: {
+    description:
+      '指定 userId をフォローする (相手に通知が飛ぶ)。鍵アカウントの場合は ' +
+      'フォローリクエスト送信 = 承認待ちになる。userId は user.lookup / search で取得。',
+    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
+    returns: { type: 'object', description: '{ followed: true, userId }' },
+  },
+  visible: false,
+  execute: async (params) => {
+    const userId = pickUserId(params, 'user.follow')
+    const api = await getApiAdapter(pickAccountId(params))
+    await api.followUser(userId)
+    return { followed: true, userId }
+  },
+}
+
+export const userUnfollowCapability: Command = {
+  id: 'user.unfollow',
+  label: 'ユーザーのフォローを解除',
+  icon: 'ti-user-minus',
+  category: 'account',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['account.write'],
+  requiresConfirmation: followConfirm('解除'),
+  signature: {
+    description:
+      '指定 userId のフォローを解除する (相手にフォロワー減少の通知は飛ばない)。',
+    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
+    returns: { type: 'object', description: '{ unfollowed: true, userId }' },
+  },
+  visible: false,
+  execute: async (params) => {
+    const userId = pickUserId(params, 'user.unfollow')
+    const api = await getApiAdapter(pickAccountId(params))
+    await api.unfollowUser(userId)
+    return { unfollowed: true, userId }
+  },
+}
+
 export const USER_BUILTIN_CAPABILITIES: readonly Command[] = [
   userLookupCapability,
   userSearchCapability,
@@ -304,4 +376,6 @@ export const USER_BUILTIN_CAPABILITIES: readonly Command[] = [
   userUnmuteCapability,
   userRenoteMuteCapability,
   userUnrenoteMuteCapability,
+  userFollowCapability,
+  userUnfollowCapability,
 ]

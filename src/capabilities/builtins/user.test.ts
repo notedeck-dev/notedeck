@@ -75,14 +75,48 @@ describe('user.mute / unmute / renoteMute / unrenoteMute', () => {
   })
 })
 
+describe('user.follow / unfollow', () => {
+  it.each(['user.follow', 'user.unfollow'] as const)(
+    '%s declares account.write + warning confirmation',
+    (id) => {
+      const cap = USER_BUILTIN_CAPABILITIES.find((c) => c.id === id)
+      if (!cap) throw new Error(`${id} not found`)
+      expect(cap.permissions).toEqual(['account.write'])
+      expect(typeof cap.requiresConfirmation).toBe('function')
+      expect(cap.aiTool).toBe(true)
+      expect(cap.signature?.params?.userId?.optional).not.toBe(true)
+    },
+  )
+
+  it('follow/unfollow throw when userId is missing', async () => {
+    for (const id of ['user.follow', 'user.unfollow']) {
+      const cap = USER_BUILTIN_CAPABILITIES.find((c) => c.id === id)
+      if (!cap) throw new Error(`${id} not found`)
+      await expect(cap.execute({})).rejects.toThrow(/userId is required/)
+    }
+  })
+
+  it('follow confirmation message warns about notification', async () => {
+    const cap = USER_BUILTIN_CAPABILITIES.find((c) => c.id === 'user.follow')
+    if (!cap || typeof cap.requiresConfirmation !== 'function') {
+      throw new Error('user.follow not found')
+    }
+    const opts = await cap.requiresConfirmation({ userId: 'u1' })
+    expect(opts?.type).toBe('warning')
+    expect(opts?.message).toContain('通知が飛び')
+  })
+})
+
 describe('USER_BUILTIN_CAPABILITIES', () => {
-  it('contains lookup / search + 4 mute capabilities', () => {
+  it('contains lookup / search + 4 mute + 2 follow capabilities', () => {
     const ids = USER_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
     expect(ids).toEqual([
+      'user.follow',
       'user.lookup',
       'user.mute',
       'user.renoteMute',
       'user.search',
+      'user.unfollow',
       'user.unmute',
       'user.unrenoteMute',
     ])
