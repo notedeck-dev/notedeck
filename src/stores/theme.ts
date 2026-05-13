@@ -430,6 +430,14 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   function setCustomCss(css: string): void {
+    // 編集前 snapshot を history sidecar に push (fire-and-forget)。
+    // 内容が同じ場合は no-op (= UI 再描画で同値が来た場合の bloat 防止)。
+    const prev = customCss.value
+    if (prev !== css) {
+      pushSnapshot('css', 'custom.css', { body: prev }).catch((e) =>
+        console.warn('[theme] custom.css history push failed:', e),
+      )
+    }
     customCss.value = css
     setStorageString(STORAGE_KEYS.themeCustomCss, css || null)
     applyCustomCss(css)
