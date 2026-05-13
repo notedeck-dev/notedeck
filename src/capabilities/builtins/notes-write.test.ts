@@ -3,7 +3,26 @@ import {
   NOTES_WRITE_BUILTIN_CAPABILITIES,
   notesCreateCapability,
   notesReactCapability,
+  notesUnreactCapability,
 } from './notes-write'
+
+describe('notes.unreact capability', () => {
+  it('declares notes.react permission, confirmation, aiTool', () => {
+    expect(notesUnreactCapability.id).toBe('notes.unreact')
+    expect(notesUnreactCapability.permissions).toEqual(['notes.react'])
+    expect(notesUnreactCapability.requiresConfirmation).toBe(true)
+    expect(notesUnreactCapability.aiTool).toBe(true)
+  })
+
+  it('requires noteId', async () => {
+    expect(notesUnreactCapability.signature?.params?.noteId?.optional).not.toBe(
+      true,
+    )
+    await expect(notesUnreactCapability.execute({})).rejects.toThrow(
+      /noteId is required/,
+    )
+  })
+})
 
 describe('notes.create capability', () => {
   it('declares notes.write permission and aiTool: true', () => {
@@ -83,9 +102,8 @@ describe('notes.react capability', () => {
 })
 
 describe('NOTES_WRITE_BUILTIN_CAPABILITIES', () => {
-  it('contains notes.create and notes.react', () => {
-    expect(NOTES_WRITE_BUILTIN_CAPABILITIES).toHaveLength(2)
-    expect(NOTES_WRITE_BUILTIN_CAPABILITIES).toContain(notesCreateCapability)
-    expect(NOTES_WRITE_BUILTIN_CAPABILITIES).toContain(notesReactCapability)
+  it('contains create / react / unreact', () => {
+    const ids = NOTES_WRITE_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
+    expect(ids).toEqual(['notes.create', 'notes.react', 'notes.unreact'])
   })
 })

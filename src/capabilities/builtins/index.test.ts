@@ -57,6 +57,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'notes.search',
         'notes.show',
         'notes.timeline',
+        'notes.unreact',
         'notes.user',
         'notifications.list',
         'notifications.markRead',

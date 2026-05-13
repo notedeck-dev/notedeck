@@ -181,7 +181,55 @@ export const notesReactCapability: Command = {
   },
 }
 
+/** `notes.unreact` — 自分が付けたリアクションを解除する。
+ *
+ * Misskey の API は `notes/reactions/delete` で reaction 種別を指定せず削除
+ * (= 1 ノートに付けられる reaction は 1 つだけだから一意に決まる)。
+ * notes.react と対称、可逆操作なので確認 UI は標準 (danger だが内容は軽い)。
+ */
+export const notesUnreactCapability: Command = {
+  id: 'notes.unreact',
+  label: 'リアクションを解除',
+  icon: 'ti-mood-x',
+  category: 'note',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['notes.react'],
+  requiresConfirmation: true,
+  signature: {
+    description:
+      'Misskey ノートに付けた自分のリアクションを解除する。1 ノートに付け' +
+      'られる reaction は 1 つだけなので種別指定不要。' +
+      ' 別サーバーで操作するときは accountId を指定する。',
+    params: {
+      noteId: {
+        type: 'string',
+        description: '対象の noteId',
+      },
+      accountId: {
+        type: 'string',
+        description: ACCOUNT_ID_PARAM_DESC,
+        optional: true,
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '`{ ok: true, noteId }`',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const noteId = pickString(params?.noteId)
+    if (!noteId) throw new Error('notes.unreact: noteId is required')
+    const accountId = pickString(params?.accountId)
+    const api = await getApiAdapter(accountId)
+    await api.deleteReaction(noteId)
+    return { ok: true, noteId }
+  },
+}
+
 export const NOTES_WRITE_BUILTIN_CAPABILITIES: readonly Command[] = [
   notesCreateCapability,
   notesReactCapability,
+  notesUnreactCapability,
 ]
