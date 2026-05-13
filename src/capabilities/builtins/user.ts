@@ -369,6 +369,101 @@ export const userUnfollowCapability: Command = {
   },
 }
 
+/**
+ * `user.followers` / `user.following` — 指定ユーザーのフォロワー / フォロー一覧。
+ *
+ * Misskey の users/followers / users/following。read-only、公開設定 (= 鍵垢の
+ * 場合は本人または承認済みフォロワーのみ) はサーバー側で制御される。
+ * 軽量 read なので account.read で十分。
+ */
+const FOLLOW_LIMIT_PARAM = {
+  type: 'number' as const,
+  description: '取得件数 (default 30)',
+  optional: true,
+}
+const UNTIL_ID_PARAM = {
+  type: 'string' as const,
+  description: 'untilId (古い方向のページング)',
+  optional: true,
+}
+
+function pickLimit(params: Record<string, unknown> | undefined): number {
+  const v = params?.limit
+  return typeof v === 'number' && Number.isFinite(v) ? v : 30
+}
+
+function pickUntilId(
+  params: Record<string, unknown> | undefined,
+): string | undefined {
+  if (typeof params?.untilId !== 'string') return undefined
+  const t = params.untilId.trim()
+  return t.length > 0 ? t : undefined
+}
+
+export const userFollowersCapability: Command = {
+  id: 'user.followers',
+  label: 'フォロワー一覧',
+  icon: 'ti-users',
+  category: 'account',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['account.read'],
+  signature: {
+    description:
+      '指定 userId のフォロワー一覧を返す (read-only)。鍵垢の場合は本人 / 承認済み' +
+      'フォロワーのみ参照可 (= サーバー側で制御)。',
+    params: {
+      userId: USER_ID_PARAM,
+      limit: FOLLOW_LIMIT_PARAM,
+      untilId: UNTIL_ID_PARAM,
+      accountId: ACCOUNT_ID_PARAM,
+    },
+    returns: { type: 'array', description: 'FollowRelation の配列' },
+    cheap: true,
+  },
+  visible: false,
+  execute: async (params) => {
+    const userId = pickUserId(params, 'user.followers')
+    const api = await getApiAdapter(pickAccountId(params))
+    return await api.getFollowers(userId, {
+      limit: pickLimit(params),
+      untilId: pickUntilId(params),
+    })
+  },
+}
+
+export const userFollowingCapability: Command = {
+  id: 'user.following',
+  label: 'フォロー一覧',
+  icon: 'ti-user-check',
+  category: 'account',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['account.read'],
+  signature: {
+    description:
+      '指定 userId がフォローしているユーザー一覧を返す (read-only)。' +
+      '鍵垢の場合は本人 / 承認済みフォロワーのみ参照可。',
+    params: {
+      userId: USER_ID_PARAM,
+      limit: FOLLOW_LIMIT_PARAM,
+      untilId: UNTIL_ID_PARAM,
+      accountId: ACCOUNT_ID_PARAM,
+    },
+    returns: { type: 'array', description: 'FollowRelation の配列' },
+    cheap: true,
+  },
+  visible: false,
+  execute: async (params) => {
+    const userId = pickUserId(params, 'user.following')
+    const api = await getApiAdapter(pickAccountId(params))
+    return await api.getFollowing(userId, {
+      limit: pickLimit(params),
+      untilId: pickUntilId(params),
+    })
+  },
+}
+
 export const USER_BUILTIN_CAPABILITIES: readonly Command[] = [
   userLookupCapability,
   userSearchCapability,
@@ -378,4 +473,6 @@ export const USER_BUILTIN_CAPABILITIES: readonly Command[] = [
   userUnrenoteMuteCapability,
   userFollowCapability,
   userUnfollowCapability,
+  userFollowersCapability,
+  userFollowingCapability,
 ]
