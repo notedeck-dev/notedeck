@@ -288,9 +288,85 @@ export const notesDeleteCapability: Command = {
   },
 }
 
+/**
+ * `notes.pin` / `notes.unpin` — 自分のプロファイルにノートを pin / 解除する。
+ * 公開プロファイルの top に表示される。可逆操作 (unpin あり) なので確認 UI は
+ * 標準 (danger だが内容は軽い)。Misskey の上限は通常 5 件。
+ */
+export const notesPinCapability: Command = {
+  id: 'notes.pin',
+  label: 'ノートをプロファイルに pin',
+  icon: 'ti-pin',
+  category: 'note',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['notes.write'],
+  requiresConfirmation: true,
+  signature: {
+    description:
+      '自分のプロファイル top に指定ノートを pin する。Misskey の上限は通常 ' +
+      '5 件で、上限超過時はサーバー側でエラーになる。',
+    params: {
+      noteId: {
+        type: 'string',
+        description: 'pin する noteId (自分のノートのみ)',
+      },
+      accountId: {
+        type: 'string',
+        description: ACCOUNT_ID_PARAM_DESC,
+        optional: true,
+      },
+    },
+    returns: { type: 'object', description: '{ pinned: true, noteId }' },
+  },
+  visible: false,
+  execute: async (params) => {
+    const noteId = pickString(params?.noteId)
+    if (!noteId) throw new Error('notes.pin: noteId is required')
+    const accountId = pickString(params?.accountId)
+    const api = await getApiAdapter(accountId)
+    await api.pinNote(noteId)
+    return { pinned: true, noteId }
+  },
+}
+
+export const notesUnpinCapability: Command = {
+  id: 'notes.unpin',
+  label: 'ノートの pin を解除',
+  icon: 'ti-pinned-off',
+  category: 'note',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['notes.write'],
+  requiresConfirmation: true,
+  signature: {
+    description: '自分のプロファイル top に pin したノートを解除する。',
+    params: {
+      noteId: { type: 'string', description: 'pin 解除する noteId' },
+      accountId: {
+        type: 'string',
+        description: ACCOUNT_ID_PARAM_DESC,
+        optional: true,
+      },
+    },
+    returns: { type: 'object', description: '{ unpinned: true, noteId }' },
+  },
+  visible: false,
+  execute: async (params) => {
+    const noteId = pickString(params?.noteId)
+    if (!noteId) throw new Error('notes.unpin: noteId is required')
+    const accountId = pickString(params?.accountId)
+    const api = await getApiAdapter(accountId)
+    await api.unpinNote(noteId)
+    return { unpinned: true, noteId }
+  },
+}
+
 export const NOTES_WRITE_BUILTIN_CAPABILITIES: readonly Command[] = [
   notesCreateCapability,
   notesReactCapability,
   notesUnreactCapability,
   notesDeleteCapability,
+  notesPinCapability,
+  notesUnpinCapability,
 ]

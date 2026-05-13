@@ -127,13 +127,37 @@ describe('notes.delete capability', () => {
   })
 })
 
+describe('notes.pin / unpin', () => {
+  it.each([
+    'notes.pin',
+    'notes.unpin',
+  ] as const)('%s declares notes.write + confirmation', (id) => {
+    const cap = NOTES_WRITE_BUILTIN_CAPABILITIES.find((c) => c.id === id)
+    if (!cap) throw new Error(`${id} not found`)
+    expect(cap.permissions).toEqual(['notes.write'])
+    expect(cap.requiresConfirmation).toBe(true)
+    expect(cap.aiTool).toBe(true)
+    expect(cap.signature?.params?.noteId?.optional).not.toBe(true)
+  })
+
+  it('throw when noteId is missing', async () => {
+    for (const id of ['notes.pin', 'notes.unpin']) {
+      const cap = NOTES_WRITE_BUILTIN_CAPABILITIES.find((c) => c.id === id)
+      if (!cap) throw new Error(`${id} not found`)
+      await expect(cap.execute({})).rejects.toThrow(/noteId is required/)
+    }
+  })
+})
+
 describe('NOTES_WRITE_BUILTIN_CAPABILITIES', () => {
-  it('contains create / react / unreact / delete', () => {
+  it('contains create / react / unreact / delete / pin / unpin', () => {
     const ids = NOTES_WRITE_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
     expect(ids).toEqual([
       'notes.create',
       'notes.delete',
+      'notes.pin',
       'notes.react',
+      'notes.unpin',
       'notes.unreact',
     ])
   })
