@@ -225,6 +225,10 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'テーマの作成/編集',
     icon: 'ti-palette',
   },
+  'performance.write': {
+    label: 'パフォーマンス設定の編集',
+    icon: 'ti-gauge',
+  },
   'widgets.read': {
     label: 'ウィジェットの読取',
     icon: 'ti-layout-grid',

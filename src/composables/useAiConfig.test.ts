@@ -91,6 +91,7 @@ describe('resolvePermissions / resolveDataSources', () => {
         'skills.read': true,
         'skills.write': false,
         'theme.write': false,
+        'performance.write': false,
         'widgets.read': true,
         'widgets.write': false,
         'plugins.read': true,
@@ -193,6 +194,7 @@ describe('preset key coverage', () => {
       'ai.invoke',
       'skills.write',
       'theme.write',
+      'performance.write',
       'widgets.write',
       'plugins.write',
     ] as const) {
