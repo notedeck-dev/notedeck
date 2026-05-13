@@ -41,6 +41,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'notes.timeline',
         'notes.user',
         'notifications.list',
+        'notifications.markRead',
         'plugins.create',
         'plugins.delete',
         'plugins.history',

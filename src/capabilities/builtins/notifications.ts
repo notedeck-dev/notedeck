@@ -3,6 +3,7 @@ import type { ApiAdapter } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { projectVisibleItems } from '@/composables/useAiSystemContext'
 import { useAccountsStore } from '@/stores/accounts'
+import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /**
  * AI が 1 回の呼び出しで取得できる通知の上限 (Misskey API native 上限と一致)。
@@ -95,6 +96,76 @@ export const notificationsListCapability: Command = {
   },
 }
 
+/**
+ * `notifications.markRead` — 指定アカウントの通知をすべて既読化する
+ * (Misskey `notifications/mark-all-as-read`)。AI が「通知整理して」「全部
+ * 既読にして」と言われたときに使う。読み逃しのリスクがあるので確認 UI 必須。
+ */
+export const notificationsMarkReadCapability: Command = {
+  id: 'notifications.markRead',
+  label: '通知をすべて既読化',
+  icon: 'ti-bell-check',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['notifications'],
+  requiresConfirmation: (params) => {
+    const accountId =
+      typeof params?.accountId === 'string' ? params.accountId : ''
+    return {
+      title: '通知をすべて既読化',
+      message: accountId
+        ? `アカウント \`${accountId}\` の通知をすべて既読化します。`
+        : 'ログイン中の全アカウントの通知をすべて既読化します。',
+      okLabel: '既読化',
+      cancelLabel: 'やめる',
+      type: 'warning',
+    }
+  },
+  signature: {
+    description:
+      '指定アカウントの通知をすべて既読化する (= Misskey ' +
+      '`notifications/mark-all-as-read`)。未読バッジが消える。' +
+      ' accountId を省略すると hasToken な全アカウントに対して実行する。',
+    params: {
+      accountId: {
+        type: 'string',
+        description:
+          'どのアカウントを既読化するか。省略時は全アカウント。' +
+          ' 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。',
+        optional: true,
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ markedAccounts: 既読化を実行したアカウント数 }',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const explicitId =
+      typeof params?.accountId === 'string' &&
+      params.accountId.trim().length > 0
+        ? params.accountId.trim()
+        : null
+    const accountsStore = useAccountsStore()
+    const targetIds = explicitId
+      ? [explicitId]
+      : accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.id)
+    let marked = 0
+    for (const id of targetIds) {
+      try {
+        unwrap(await commands.apiMarkAllNotificationsAsRead(id))
+        marked++
+      } catch (e) {
+        console.warn(`[notifications.markRead] account ${id} failed:`, e)
+      }
+    }
+    return { markedAccounts: marked }
+  },
+}
+
 export const NOTIFICATIONS_BUILTIN_CAPABILITIES: readonly Command[] = [
   notificationsListCapability,
+  notificationsMarkReadCapability,
 ]
