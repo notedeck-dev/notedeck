@@ -86,6 +86,11 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'widgets.revert',
         'widgets.setAutoRun',
         'widgets.update',
+        'windows.close',
+        'windows.closeAll',
+        'windows.focus',
+        'windows.list',
+        'windows.open',
       ].sort(),
     )
   })
