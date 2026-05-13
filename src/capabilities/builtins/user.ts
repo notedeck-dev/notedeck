@@ -3,6 +3,7 @@ import type { ApiAdapter } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { stripCredentials } from '@/composables/useAiSystemContext'
 import { useAccountsStore } from '@/stores/accounts'
+import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /**
  * `user.lookup` — username (+ optional host) から Misskey ユーザー情報を引く。
@@ -88,6 +89,71 @@ export const userLookupCapability: Command = {
   },
 }
 
+/**
+ * `user.search` — username / display name の部分一致でユーザーを探す。
+ *
+ * `user.lookup` は完全一致な `@user@host` から 1 件引く動線、こちらは「○○ さん
+ * 誰だっけ?」のようなあいまい検索で複数候補を返す。Misskey `users/search-by-username-and-name`
+ * を使う。adapter 経由ではなく `apiSearchUsersByQuery` を直接叩く
+ * (NormalizedUser 配列に正規化済み)。
+ */
+export const userSearchCapability: Command = {
+  id: 'user.search',
+  label: 'ユーザーをあいまい検索',
+  icon: 'ti-search',
+  category: 'account',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['account.read'],
+  signature: {
+    description:
+      'username / display name の部分一致でユーザーを検索する (Misskey ' +
+      '`users/search-by-username-and-name` 相当)。空 query なら最近やり取りした' +
+      'ユーザー一覧。完全一致での 1 件引きは user.lookup を使う。',
+    params: {
+      query: {
+        type: 'string',
+        description: '検索文字列 (空文字なら最近のユーザー一覧)',
+      },
+      limit: {
+        type: 'number',
+        description: '取得件数 (1-100, default 10)',
+        optional: true,
+      },
+      accountId: {
+        type: 'string',
+        description:
+          'どのアカウントの adapter で検索するか。未指定なら active アカウント。',
+        optional: true,
+      },
+    },
+    returns: {
+      type: 'array',
+      description:
+        'NormalizedUser の配列 (id / username / host / name / avatarUrl)',
+    },
+    cheap: true,
+  },
+  visible: false,
+  execute: async (params) => {
+    const query = typeof params?.query === 'string' ? params.query : ''
+    const limitRaw = typeof params?.limit === 'number' ? params.limit : 10
+    const limit = Math.max(1, Math.min(100, Math.floor(limitRaw)))
+    const accountId =
+      typeof params?.accountId === 'string' &&
+      params.accountId.trim().length > 0
+        ? params.accountId.trim()
+        : null
+    const store = useAccountsStore()
+    const id = accountId ?? store.activeAccountId
+    if (!id) throw new Error('user.search: no active account')
+    const raw = unwrap(await commands.apiSearchUsersByQuery(id, query, limit))
+    if (!Array.isArray(raw)) return []
+    return raw.map((u) => stripCredentials(u as Record<string, unknown>))
+  },
+}
+
 export const USER_BUILTIN_CAPABILITIES: readonly Command[] = [
   userLookupCapability,
+  userSearchCapability,
 ]

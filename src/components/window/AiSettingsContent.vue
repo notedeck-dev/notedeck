@@ -202,6 +202,13 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
   'drive.write': { label: 'ドライブの書込/削除', icon: 'ti-folder-plus' },
   'memos.read': { label: 'ローカルメモの読取/検索', icon: 'ti-eye' },
   'memos.write': { label: 'ローカルメモの作成/編集/削除', icon: 'ti-notes' },
+  'clips.read': { label: 'クリップの読取', icon: 'ti-paperclip' },
+  'clips.write': {
+    label: 'クリップの作成/ノート追加・削除',
+    icon: 'ti-paperclip',
+  },
+  'drafts.read': { label: '下書きの読取', icon: 'ti-note' },
+  'drafts.write': { label: '下書きの作成/編集/削除', icon: 'ti-edit' },
   'network.external': { label: '外部ネットワークアクセス', icon: 'ti-world' },
   clipboard: { label: 'クリップボード', icon: 'ti-clipboard' },
   notifications: { label: 'デスクトップ通知', icon: 'ti-bell' },
@@ -212,6 +219,10 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
   'ai.invoke': {
     label: 'AI 呼び出し (プラグイン / 外部経路から)',
     icon: 'ti-sparkles',
+  },
+  'ai.persona.write': {
+    label: 'AI persona の切替',
+    icon: 'ti-user-circle',
   },
   'skills.read': {
     label: 'スキルの読取',
@@ -224,6 +235,22 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
   'theme.write': {
     label: 'テーマの作成/編集',
     icon: 'ti-palette',
+  },
+  'styles.write': {
+    label: 'カスタム CSS の編集',
+    icon: 'ti-brush',
+  },
+  'navbar.write': {
+    label: 'ナビバー構成の編集',
+    icon: 'ti-layout-sidebar',
+  },
+  'keybinds.write': {
+    label: 'キーバインドの編集',
+    icon: 'ti-keyboard',
+  },
+  'performance.write': {
+    label: 'パフォーマンス設定の編集',
+    icon: 'ti-gauge',
   },
   'widgets.read': {
     label: 'ウィジェットの読取',
