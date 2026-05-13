@@ -97,6 +97,7 @@ describe('resolvePermissions / resolveDataSources', () => {
         'skills.write': false,
         'theme.write': false,
         'styles.write': false,
+        'navbar.write': false,
         'widgets.read': true,
         'widgets.write': false,
         'plugins.read': true,
@@ -203,6 +204,7 @@ describe('preset key coverage', () => {
       'skills.write',
       'theme.write',
       'styles.write',
+      'navbar.write',
       'widgets.write',
       'plugins.write',
     ] as const) {

@@ -240,6 +240,10 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'カスタム CSS の編集',
     icon: 'ti-brush',
   },
+  'navbar.write': {
+    label: 'ナビバー構成の編集',
+    icon: 'ti-layout-sidebar',
+  },
   'widgets.read': {
     label: 'ウィジェットの読取',
     icon: 'ti-layout-grid',
