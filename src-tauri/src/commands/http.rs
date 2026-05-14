@@ -159,7 +159,9 @@ pub fn validate_external_url(url_str: &str) -> Result<(), String> {
 /// host 文字列単体の検証。Misskey 用の `commands::validate_host` とは
 /// 「Misskey host 制約 (path 不可など) を引き締めない」点で異なるが、
 /// SSRF 防御 (loopback / private / link-local / reserved TLD) は同等。
-fn validate_external_host(host: &str) -> Result<(), String> {
+///
+/// vault モジュール (`vault::ssrf`) からも再利用する。
+pub(crate) fn validate_external_host(host: &str) -> Result<(), String> {
     let h = host.trim().to_ascii_lowercase();
     if h.is_empty() {
         return Err("host is empty".to_string());
@@ -189,7 +191,9 @@ fn validate_external_host(host: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn check_ip_safe(ip: IpAddr) -> Result<(), String> {
+/// 解決済み IP アドレスが外部接続向けに安全か検証する。
+/// vault モジュール (`vault::ssrf` の DNS pinning) からも再利用する。
+pub(crate) fn check_ip_safe(ip: IpAddr) -> Result<(), String> {
     if ip.is_loopback() {
         return Err("loopback address not allowed".to_string());
     }

@@ -25,6 +25,16 @@ pub enum VaultError {
     StoreIo { message: String },
     /// OS キーチェーン操作に失敗した。
     Keychain { message: String },
+    /// `vault_fetch` の path が不正 (絶対 URL / protocol-relative / userinfo 等)。
+    InvalidPath { message: String },
+    /// redirect 先などが `allowed_hosts` に含まれていない。
+    HostNotAllowed { host: String },
+    /// SSRF 検証で拒否された (loopback / private / 名前解決失敗など)。
+    SsrfDenied { reason: String },
+    /// リクエストがタイムアウトした。
+    Timeout,
+    /// リクエストの送信に失敗した (DNS / TLS / 接続エラー)。
+    RequestFailed { message: String },
 }
 
 impl std::fmt::Display for VaultError {
@@ -38,6 +48,11 @@ impl std::fmt::Display for VaultError {
             VaultError::InvalidInput { message } => write!(f, "invalid input: {message}"),
             VaultError::StoreIo { message } => write!(f, "store io error: {message}"),
             VaultError::Keychain { message } => write!(f, "keychain error: {message}"),
+            VaultError::InvalidPath { message } => write!(f, "invalid path: {message}"),
+            VaultError::HostNotAllowed { host } => write!(f, "host not allowed: {host}"),
+            VaultError::SsrfDenied { reason } => write!(f, "ssrf denied: {reason}"),
+            VaultError::Timeout => write!(f, "request timed out"),
+            VaultError::RequestFailed { message } => write!(f, "request failed: {message}"),
         }
     }
 }

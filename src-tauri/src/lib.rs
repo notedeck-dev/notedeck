@@ -310,6 +310,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             commands::vault_delete_secret,
             commands::vault_delete_connection,
             commands::vault_set_ai_visible,
+            commands::vault_fetch,
+            commands::vault_test_connection,
             query_runtime::query_subscribe_timeline,
             query_runtime::query_subscribe_antenna,
             query_runtime::query_subscribe_channel,

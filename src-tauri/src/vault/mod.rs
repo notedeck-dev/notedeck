@@ -9,11 +9,15 @@
 //!
 //! Phase A: データモデル + secret backend。
 
+pub mod auth_inject;
 pub mod backend;
 pub mod connections_store;
 pub mod error;
+pub mod fetch;
 pub mod keychain_backend;
 pub mod model;
+pub mod redaction;
+pub mod ssrf;
 
 pub use backend::SecretBackend;
 pub use error::{VaultError, VaultResult};

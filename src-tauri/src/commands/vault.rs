@@ -10,6 +10,7 @@ use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 
 use crate::vault::connections_store;
+use crate::vault::fetch::{self, VaultFetchRequest, VaultFetchResponse};
 use crate::vault::model::{validate_connection_id, validate_slot};
 use crate::vault::{
     AuthType, Connection, ConnectionKind, ConnectionOrigin, KeychainBackend, SecretBackend,
@@ -396,4 +397,83 @@ pub async fn vault_set_ai_visible(
     connection.updated_at = now_millis();
     connections_store::save(&app, &file)?;
     Ok(())
+}
+
+/// 登録済み接続を使って HTTP リクエストを実行する。
+///
+/// secret は Rust 側で注入され、フロントエンドには渡らない。SSRF 防御
+/// (DNS pinning / redirect 再検証 / allowedHosts) とレスポンス redaction を通す。
+///
+/// Phase B 時点では main ウィンドウからのみ呼べる。AI tool 経路の許可
+/// (`allowFromAiTool`) と confirmation は Phase D で capability registry 側に実装する。
+#[tauri::command]
+#[specta::specta]
+pub async fn vault_fetch(
+    app: tauri::AppHandle,
+    window: tauri::Window,
+    id: String,
+    request: VaultFetchRequest,
+) -> VaultResult<VaultFetchResponse> {
+    assert_main_window(&window)?;
+    let response = fetch::vault_fetch(&app, &id, request).await?;
+    touch_last_used(&app, &id);
+    Ok(response)
+}
+
+/// 接続の疎通テスト結果。
+#[derive(Debug, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultTestResult {
+    /// HTTP ステータス (リクエストが届いた場合)。
+    pub status: Option<u16>,
+    /// 2xx / 3xx なら true。
+    pub ok: bool,
+    /// 失敗時の理由 (SSRF / timeout / DNS など)。secret は含まない。
+    pub error: Option<String>,
+}
+
+/// 接続の疎通テスト。baseUrl への GET (または指定パス) を 1 回実行する。
+#[tauri::command]
+#[specta::specta]
+pub async fn vault_test_connection(
+    app: tauri::AppHandle,
+    window: tauri::Window,
+    id: String,
+    test_path: Option<String>,
+) -> VaultResult<VaultTestResult> {
+    assert_main_window(&window)?;
+    validate_connection_id(&id)?;
+
+    let request = VaultFetchRequest {
+        path: test_path.unwrap_or_else(|| "/".to_string()),
+        method: Some("GET".to_string()),
+        headers: None,
+        body: None,
+        timeout_ms: Some(10_000),
+        slot: None,
+    };
+
+    match fetch::vault_fetch(&app, &id, request).await {
+        Ok(resp) => Ok(VaultTestResult {
+            status: Some(resp.status),
+            ok: (200..400).contains(&resp.status),
+            error: None,
+        }),
+        Err(e) => Ok(VaultTestResult {
+            status: None,
+            ok: false,
+            error: Some(e.to_string()),
+        }),
+    }
+}
+
+/// 接続の `last_used_at` を現在時刻で更新する (ベストエフォート、失敗は無視)。
+fn touch_last_used(app: &tauri::AppHandle, id: &str) {
+    let Ok(mut file) = connections_store::load(app) else {
+        return;
+    };
+    if let Some(connection) = file.connections.iter_mut().find(|c| c.id == id) {
+        connection.last_used_at = Some(now_millis());
+        let _ = connections_store::save(app, &file);
+    }
 }
