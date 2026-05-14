@@ -1,4 +1,5 @@
 import type { Command } from '@/commands/registry'
+import { useMisStoreStore } from '@/stores/misstore'
 import { useSkillsStore } from '@/stores/skills'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
 
@@ -437,12 +438,167 @@ export const skillsRevertCapability: Command = {
   },
 }
 
+/**
+ * `skills.install` — MisStore (misstore.hital.in) から既製 skill を取得して
+ * skills store に追加する。AI が「翻訳がうまい persona ない？」のように
+ * 推薦から install まで一気通貫で実行できるようにするためのラッパ。
+ *
+ * 設計判断 (memory: project_self_extending_ide_roadmap.md):
+ * - これは **AI が他 persona / curator skill を取得する経路**であり、
+ *   skill self-edit (= AI が自分の設計図を書き換える) とは別物。
+ *   後者は鶏卵問題のため意図的に避けている。
+ * - 内部実装は `useMisStoreStore.installSkill(entry)` (sha512 検証 +
+ *   frontmatter parse + add/update まで完備) を呼ぶだけ。
+ */
+export const skillsInstallCapability: Command = {
+  id: 'skills.install',
+  label: 'MisStore からスキルを入れる',
+  icon: 'ti-download',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['skills.write', 'network.external'],
+  requiresConfirmation: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) return null
+    const misStore = useMisStoreStore()
+    await misStore.fetchSkills()
+    const entry = misStore.skills.find((s) => s.id === id)
+    if (!entry) return null
+    return {
+      title: 'MisStore からスキルを入れる',
+      message:
+        `${entry.name} (v${entry.version} / by ${entry.author}) を MisStore から取得します。` +
+        (entry.mode === 'always'
+          ? ' (mode=always: 常に system prompt に注入されます)'
+          : ` (mode=${entry.mode ?? 'manual'})`),
+      installPreview: {
+        kind: 'skill',
+        name: entry.name,
+        version: entry.version,
+        author: entry.author,
+        description: entry.description,
+      },
+      code: entry.description,
+      codeLanguage: 'plaintext',
+      okLabel: 'インストール',
+      cancelLabel: 'やめる',
+      type: 'normal',
+    }
+  },
+  signature: {
+    description:
+      'MisStore (misstore.hital.in) の既製スキルをインストールする。' +
+      ' id は `misstore.search` で取得した値を渡す。sha512 検証付き。' +
+      ' 既存の同 storeId / 同 id は上書き更新 (= 再インストール = アップデート)。',
+    params: {
+      id: {
+        type: 'string',
+        description: 'MisStore registry 上の skill id',
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, name, mode, installed: boolean }',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) throw new Error('skills.install: id is required')
+    const misStore = useMisStoreStore()
+    await misStore.fetchSkills()
+    const entry = misStore.skills.find((s) => s.id === id)
+    if (!entry) {
+      throw new Error(
+        `skills.install: skill "${id}" not found in MisStore (try misstore.search first)`,
+      )
+    }
+    await misStore.installSkill(entry)
+    return {
+      id: entry.id,
+      name: entry.name,
+      mode: entry.mode ?? 'manual',
+      installed: true,
+    }
+  },
+}
+
+/**
+ * `skills.uninstall` — インストール済みスキルを完全削除する。
+ *
+ * 安全弁: builtIn skill (= NoteDeck 標準同梱) は削除を拒否する。
+ * AI が誤って自己定義 (= 自分が立脚している persona) を消すのを防ぐ。
+ */
+export const skillsUninstallCapability: Command = {
+  id: 'skills.uninstall',
+  label: 'スキルを削除',
+  icon: 'ti-trash',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['skills.write'],
+  requiresConfirmation: (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) return null
+    const cur = useSkillsStore().skills.find((s) => s.id === id)
+    if (!cur) return null
+    if (cur.builtIn) return null
+    return {
+      title: 'スキルを削除',
+      message:
+        `${cur.name} (v${cur.version} / ${cur.mode} mode) を完全に削除します。` +
+        ' frontmatter・本文・編集履歴ファイルは残りません (= 不可逆)。',
+      installPreview: {
+        kind: 'skill',
+        name: cur.name,
+        version: cur.version,
+        description: `${cur.mode} mode / ${cur.scope} scope`,
+      },
+      okLabel: '削除',
+      cancelLabel: 'やめる',
+      type: 'danger',
+    }
+  },
+  signature: {
+    description:
+      'インストール済みスキルを完全削除する。builtIn (NoteDeck 標準同梱) skill は' +
+      ' 削除拒否される (= 安全弁)。MisStore 経由 install したものは普通に消せる。',
+    params: {
+      id: { type: 'string', description: '削除するスキルの id' },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, removed: boolean }',
+    },
+  },
+  visible: false,
+  execute: (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) throw new Error('skills.uninstall: id is required')
+    const store = useSkillsStore()
+    const skill = store.skills.find((s) => s.id === id)
+    if (!skill) {
+      throw new Error(`skills.uninstall: skill "${id}" is not installed`)
+    }
+    if (skill.builtIn) {
+      throw new Error(
+        `skills.uninstall: cannot remove built-in skill "${id}" (safety guard)`,
+      )
+    }
+    store.remove(id)
+    return { id, removed: true }
+  },
+}
+
 export const SKILLS_BUILTIN_CAPABILITIES: readonly Command[] = [
   skillsListCapability,
   skillsReadCapability,
   skillsAppendCapability,
   skillsReplaceSectionCapability,
   skillsToggleCapability,
+  skillsInstallCapability,
+  skillsUninstallCapability,
   skillsHistoryCapability,
   skillsRevertCapability,
 ]
