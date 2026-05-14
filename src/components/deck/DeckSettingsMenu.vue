@@ -40,6 +40,7 @@ function openToolWindow(
     | 'cssEditor'
     | 'plugins'
     | 'aiSettings'
+    | 'connections'
     | 'performanceEditor'
     | 'appearanceEditor'
     | 'backup'
@@ -79,6 +80,13 @@ function openToolWindow(
           <button :class="$style.categoryHeader" @click="openToolWindow('aiSettings')">
             <i class="ti ti-robot" />
             <span>AI</span>
+            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
+          </button>
+        </div>
+        <div :class="$style.categorySection">
+          <button :class="$style.categoryHeader" @click="openToolWindow('connections')">
+            <i class="ti ti-plug-connected" />
+            <span>接続</span>
             <i class="ti ti-chevron-right" :class="$style.chevronNav" />
           </button>
         </div>

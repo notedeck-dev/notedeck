@@ -62,6 +62,12 @@ yay -S misskey-notedeck-bin
 nix run github:hitalin/notedeck
 ```
 
+## セキュリティモデル
+
+NoteDeck は Misskey トークン・AI API キー・外部サービス接続 (Secret Vault) のシークレットを **OS のキーチェーン** (macOS Keychain / Windows Credential Manager / Linux Secret Service) に格納し、フロントエンドや AI には raw な値を渡しません。外部 API へのリクエストは Rust 側でシークレットを注入し、SSRF 防御 (loopback / private アドレス拒否、DNS pinning、リダイレクト再検証) を通します。
+
+ただし **同じ OS ユーザーで動く他のプロセス** (同一アカウント上のマルウェア等) は防御対象外です。OS キーチェーンは「別ユーザー・リモートからの窃取」を防ぎますが、同一ユーザー権限を持つプロセスからの読み取りは OS の責務であり、NoteDeck では防げません。高い脅威環境では OS レベルの対策 (フルディスク暗号化、信頼できるソフトウェアのみの実行) を併用してください。
+
 ## 貢献する
 
 PR を歓迎します。詳しくは [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。

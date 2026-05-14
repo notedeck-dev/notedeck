@@ -47,6 +47,12 @@ const ProfileEditorContent = defineAsyncComponent({
 const AiSettingsContent = defineAsyncComponent(
   () => import('@/components/window/AiSettingsContent.vue'),
 )
+const ConnectionsContent = defineAsyncComponent(
+  () => import('@/components/window/ConnectionsContent.vue'),
+)
+const ConnectionEditContent = defineAsyncComponent(
+  () => import('@/components/window/ConnectionEditContent.vue'),
+)
 const AboutContent = defineAsyncComponent(
   () => import('@/components/window/AboutContent.vue'),
 )
@@ -307,6 +313,13 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
       <SkillEditContent
         v-if="win.type === 'skill-edit'"
         :skill-id="(win.props.skillId as string)"
+        @close="closeWindow(win.id)"
+      />
+      <ConnectionsContent v-if="win.type === 'connections'" />
+      <ConnectionEditContent
+        v-if="win.type === 'connectionEdit'"
+        :connection-id="(win.props.connectionId as string | undefined)"
+        :template-id="(win.props.templateId as string | undefined)"
         @close="closeWindow(win.id)"
       />
     </DeckWindow>

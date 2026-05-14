@@ -17,6 +17,7 @@ mod streaming;
 mod timeline;
 mod user;
 mod utility;
+mod vault;
 
 // Re-export all commands so lib.rs `commands::xxx` paths remain unchanged
 pub use admin::*;
@@ -38,6 +39,7 @@ pub use streaming::*;
 pub use timeline::*;
 pub use user::*;
 pub use utility::*;
+pub use vault::*;
 
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};

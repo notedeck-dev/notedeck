@@ -612,6 +612,25 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
   2 つだけハードコードされているグローバルホットキーを、任意の capability に bind 可能に拡張。
   `settings.json` の `globalShortcuts` セクションで管理。Stream Deck / Raycast 未導入のユーザー
   でも外部ホットキー連携を享受可能
+- [ ] **汎用 Secret Vault** (#564) — AiScript / AI / プラグインから任意の外部サービストークンを
+  OS キーチェーン経由で利用可能に。Misskey トークン / AI API キーで運用している credential proxy
+  実行モデル (Rust 側で注入、JS / AI には raw secret を渡さない) を任意の外部 API へ拡張。
+  **仕様は 5 round の adversarial review で確定済み (v5.1)**。Phase 1 のスコープ:
+  - **接続モデル**: `connections.json5` (metadata、atomic write + file lock) + OS キーチェーン
+    (`vault/v1/<conn_id>/<slot>`)。authType は Bearer / Header / Query / Basic の判別共用体、
+    slot 引数で OAuth (v2) への拡張余地を確保
+  - **`vault.fetch` capability**: Rust 側で secret 注入。HTTP/1.1 only + redirect 各 hop で
+    URL/IP/allowedHosts 再検証 + DNS pinning で SSRF/rebinding 防御。response は literal redaction
+    (per-fetch nonce placeholder) + drop_headers
+  - **AI 統合**: `aiVisible` toggle (default OFF) で開示制御、error は `denied`/`rate_limited`/
+    `external` の 3 値正規化 (enumeration 防止)、AI/user/HEARTBEAT 独立 rate バケット、
+    timing 量子化、confirmation scope (`once` / `session-connection`)
+  - **型安全**: secret は `secrecy::SecretString` で workspace 一貫、`Debug` derive 禁止 lint、
+    dispatcher caller は transport 由来固定
+  - HTTP API (19820) からは vault を完全排除、CLI は Tauri IPC + peer credential 検査
+  - 内蔵テンプレ 6 種 (GitHub/OpenAI/Anthropic/OpenRouter/Linear/Slack) + URL ペースト推論
+  - OAuth 2 フロー / Webhook (inbound) / MCP 連携 / dynamic capability は v2 以降。
+    詳細仕様は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault" 節
 
 ### 未完了: AI 統合 — v1.0.0 以降
 

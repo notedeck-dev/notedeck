@@ -1841,6 +1841,136 @@ async heartbeatStatus() : Promise<Result<number | null, { code: string; message:
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * 全接続のメタデータ一覧を返す (secret は含まない)。
+ */
+async vaultListConnections() : Promise<Result<Connection[], VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_list_connections") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 単一接続のメタデータを返す。
+ */
+async vaultGetConnection(id: string) : Promise<Result<Connection | null, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_get_connection", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 接続のメタデータを作成 / 更新する (secret は別コマンド)。
+ */
+async vaultUpsertConnection(input: ConnectionUpsert) : Promise<Result<Connection, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_upsert_connection", { input }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 接続のメタデータと secret を 1 トランザクションで作成 / 更新する。
+ * 
+ * TOCTOU を避けるため、メタデータ保存 → keychain 書き込みを 1 コマンドにまとめる。
+ * keychain 書き込みに失敗したらメタデータ側の slot 登録もロールバックする。
+ */
+async vaultUpsertConnectionWithSecret(input: ConnectionUpsert, slot: string, secret: string) : Promise<Result<Connection, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_upsert_connection_with_secret", { input, slot, secret }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 既存接続の secret を設定 / 入れ替える。
+ */
+async vaultSetSecret(id: string, slot: string, secret: string) : Promise<Result<Connection, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_set_secret", { id, slot, secret }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 接続の secret 設定状況を返す (値そのものは決して返さない)。
+ */
+async vaultGetSecretStatus(id: string) : Promise<Result<SecretStatus, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_get_secret_status", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 接続の特定 slot の secret を削除する。
+ */
+async vaultDeleteSecret(id: string, slot: string) : Promise<Result<null, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_delete_secret", { id, slot }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 接続を削除する。全 slot の secret を keychain から消し、メタデータも削除する。
+ */
+async vaultDeleteConnection(id: string) : Promise<Result<null, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_delete_connection", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 接続を AI に開示するかを切り替える。
+ */
+async vaultSetAiVisible(id: string, visible: boolean) : Promise<Result<null, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_set_ai_visible", { id, visible }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 登録済み接続を使って HTTP リクエストを実行する。
+ * 
+ * secret は Rust 側で注入され、フロントエンドには渡らない。SSRF 防御
+ * (DNS pinning / redirect 再検証 / allowedHosts) とレスポンス redaction を通す。
+ * 
+ * Phase B 時点では main ウィンドウからのみ呼べる。AI tool 経路の許可
+ * (`allowFromAiTool`) と confirmation は Phase D で capability registry 側に実装する。
+ */
+async vaultFetch(id: string, request: VaultFetchRequest) : Promise<Result<VaultFetchResponse, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_fetch", { id, request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 接続の疎通テスト。baseUrl への GET (または指定パス) を 1 回実行する。
+ */
+async vaultTestConnection(id: string, testPath: string | null) : Promise<Result<VaultTestResult, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_test_connection", { id, testPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async querySubscribeTimeline(accountId: string, timelineType: TimelineType, listId: string | null) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_timeline", { accountId, timelineType, listId }) };
@@ -2029,6 +2159,28 @@ export type Antenna = { id: string; name: string }
  */
 export type ApRequestChart = { deliverSucceeded: number[]; deliverFailed: number[]; inboxReceived: number[] }
 export type AuthSession = { sessionId: string; url: string; host: string }
+/**
+ * 認証方式。Rust 側で secret を注入する際の形を判別共用体で表現する。
+ * 
+ * v2 で `oauth2` variant を追加する余地を残すため `#[serde(tag = "kind")]`。
+ */
+export type AuthType = 
+/**
+ * `Authorization: Bearer <secret>`
+ */
+{ kind: "bearer" } | 
+/**
+ * `<name>: <secret>`
+ */
+{ kind: "header"; name: string } | 
+/**
+ * URL クエリパラメータ `?<param>=<secret>`
+ */
+{ kind: "query"; param: string } | 
+/**
+ * `Authorization: Basic base64(<username>:<secret>)`
+ */
+{ kind: "basic"; username: string }
 export type AvatarDecoration = { id: string; url: string; angle?: number | null; flipH?: boolean | null; offsetX?: number | null; offsetY?: number | null }
 export type CacheStats = { noteCount: number; dbSizeBytes: number }
 export type Channel = { id: string; name: string; color?: string | null }
@@ -2066,6 +2218,61 @@ isFavorited?: boolean | null;
  * `notesCount` は一部エンドポイントのみ返る。
  */
 notesCount?: number | null }
+/**
+ * 接続メタデータ。secret 本体は含まない (OS キーチェーンに別管理)。
+ * 
+ * `Debug` を derive してよい — secret を持たないため。
+ */
+export type Connection = { 
+/**
+ * ULID。
+ */
+id: string; 
+/**
+ * 表示名。
+ */
+name: string; 
+/**
+ * scheme + host + path のみ。query / userinfo / fragment は保存時に拒否。
+ */
+baseUrl: string; kind?: ConnectionKind; authType: AuthType; 
+/**
+ * 接続が到達してよいホスト。空なら baseUrl の host のみ (upsert 時に自動投入)。
+ */
+allowedHosts?: string[]; 
+/**
+ * `None` = 全アカウント共通、`Some(account_id)` = 特定アカウント専用。
+ */
+accountScope?: string | null; origin?: ConnectionOrigin; externalSource?: string | null; 
+/**
+ * テンプレート由来の場合の id (`builtin:github@1` 形式)。
+ */
+templateId?: string | null; 
+/**
+ * AI に開示するか。default false — 明示的に opt-in しないと AI からは見えない。
+ */
+aiVisible?: boolean; 
+/**
+ * secret が設定済みの slot 名一覧。keychain 列挙 API がないため metadata 側が source of truth。
+ */
+slots?: string[]; lastUsedAt?: string | null; lastSecretUpdatedAt?: string | null; displayName?: string | null; icon?: string | null; notes?: string | null; createdAt: string; updatedAt: string }
+/**
+ * 接続種別。v2 で `inbound` (webhook receiver) を追加する余地を残す。
+ */
+export type ConnectionKind = "outbound"
+/**
+ * 接続メタデータの出自。v1 では常に `Vault` (= ユーザーが手動登録)。
+ */
+export type ConnectionOrigin = "vault" | 
+/**
+ * vault 以外 (Misskey アカウント / AI provider key / プラグイン管理 等)。
+ * 詳細は `external_source` フィールドで表現する。
+ */
+"external"
+/**
+ * 接続の作成 / 更新の入力。`id` が `None` なら新規作成。
+ */
+export type ConnectionUpsert = { id: string | null; name: string; baseUrl: string; authType: AuthType; allowedHosts?: string[]; accountScope?: string | null; notes?: string | null }
 export type CreateNoteParams = { text: string | null; cw: string | null; visibility: string | null; localOnly: boolean | null; modeFlags: Partial<{ [key in string]: boolean }> | null; replyId: string | null; renoteId: string | null; fileIds: string[] | null; poll: CreateNotePoll | null; scheduledAt: string | null }
 export type CreateNotePoll = { choices: string[]; multiple: boolean | null; expiresAt: number | null }
 /**
@@ -2184,6 +2391,14 @@ export type QuerySnapshot = { queryId: string; key: QueryKey; runtimeState: Quer
 export type ReactionInfo = { user: NormalizedUser; reaction: string }
 export type SearchOptions = { limit?: number; sinceId: string | null; untilId: string | null; sinceDate: number | null; untilDate: number | null }
 /**
+ * secret slot の設定状況。
+ */
+export type SecretSlotStatus = { name: string; present: boolean }
+/**
+ * 接続の全 slot の設定状況。
+ */
+export type SecretStatus = { slots: SecretSlotStatus[] }
+/**
  * `charts/drive` (Size は KB 単位)
  */
 export type ServerDriveChart = { local: ServerDriveChartSection; remote: ServerDriveChartSection }
@@ -2251,6 +2466,129 @@ type: string; note: UserReactionNoteRef }
  */
 export type UserReactionNoteRef = { id: string }
 export type UserRole = { id: string; name: string; color: string | null; iconUrl: string | null; description: string | null; displayOrder?: number }
+/**
+ * Vault 操作のエラー。
+ * 
+ * フロントエンドにはこの enum がそのまま渡る (`specta::Type` で型生成)。
+ * secret 値は variant に含めない — メッセージ生成時に leak しないこと。
+ */
+export type VaultError = 
+/**
+ * connection_id が `connections.json` に存在しない。
+ */
+{ code: "connection_not_found" } | 
+/**
+ * secret が当該 slot に設定されていない。Phase B (`vault_fetch`) で使う。
+ */
+{ code: "secret_not_set" } | 
+/**
+ * secret が短すぎる (最小 16 文字)。redaction の誤マッチ防止のため拒否する。
+ */
+{ code: "secret_too_short" } | 
+/**
+ * slot 名が `^[a-z][a-z0-9_]{0,31}$` に一致しない。
+ */
+{ code: "invalid_slot" } | 
+/**
+ * connection_id が ULID 形式でない。
+ */
+{ code: "invalid_connection_id" } | 
+/**
+ * 入力値が不正 (baseUrl パース失敗 / authType 不整合など)。
+ */
+{ code: "invalid_input"; message: string } | 
+/**
+ * メタデータファイルの読み書きに失敗した。
+ */
+{ code: "store_io"; message: string } | 
+/**
+ * OS キーチェーン操作に失敗した。
+ */
+{ code: "keychain"; message: string } | 
+/**
+ * `vault_fetch` の path が不正 (絶対 URL / protocol-relative / userinfo 等)。
+ */
+{ code: "invalid_path"; message: string } | 
+/**
+ * redirect 先などが `allowed_hosts` に含まれていない。
+ */
+{ code: "host_not_allowed"; host: string } | 
+/**
+ * SSRF 検証で拒否された (loopback / private / 名前解決失敗など)。
+ */
+{ code: "ssrf_denied"; reason: string } | 
+/**
+ * リクエストがタイムアウトした。
+ */
+{ code: "timeout" } | 
+/**
+ * リクエストの送信に失敗した (DNS / TLS / 接続エラー)。
+ */
+{ code: "request_failed"; message: string }
+/**
+ * `vault_fetch` のリクエスト。
+ */
+export type VaultFetchRequest = { 
+/**
+ * baseUrl からの相対パス。絶対 URL は拒否。
+ */
+path: string; 
+/**
+ * HTTP メソッド。未指定なら GET。
+ */
+method?: string | null; 
+/**
+ * 追加ヘッダー。`Authorization` / `Cookie` 等は除去される。
+ */
+headers?: Partial<{ [key in string]: string }> | null; 
+/**
+ * リクエストボディ (文字列)。
+ */
+body?: string | null; 
+/**
+ * タイムアウト (ミリ秒)。1000〜120000、未指定なら 30000。
+ */
+timeoutMs?: number | null; 
+/**
+ * 使う secret slot。未指定なら "primary"。
+ */
+slot?: string | null }
+/**
+ * `vault_fetch` のレスポンス。
+ */
+export type VaultFetchResponse = { status: number; headers: Partial<{ [key in string]: string }>; 
+/**
+ * redaction 済みの body。
+ */
+body: string; 
+/**
+ * 何箇所 secret を redact したか。
+ */
+redactedCount: number; 
+/**
+ * レスポンス body のバイト数 (打ち切り後)。
+ */
+bytesTotal: number; 
+/**
+ * 500 KiB 上限で打ち切ったか。
+ */
+truncated: boolean }
+/**
+ * 接続の疎通テスト結果。
+ */
+export type VaultTestResult = { 
+/**
+ * HTTP ステータス (リクエストが届いた場合)。
+ */
+status: number | null; 
+/**
+ * 2xx / 3xx なら true。
+ */
+ok: boolean; 
+/**
+ * 失敗時の理由 (SSRF / timeout / DNS など)。secret は含まない。
+ */
+error: string | null }
 
 /** tauri-specta globals **/
 

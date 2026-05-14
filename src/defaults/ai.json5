@@ -34,6 +34,7 @@
       'clipboard': false,
       'notifications': false,
       'tasks.run': false,
+      'vault.use': false,
     },
   },
 

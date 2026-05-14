@@ -56,6 +56,7 @@ export const PERMISSION_KEYS = [
   'plugins.write',
   'ai.sessions.read',
   'logs.read',
+  'vault.use',
 ] as const
 export type PermissionKey = (typeof PERMISSION_KEYS)[number]
 
@@ -68,6 +69,7 @@ export const HIGH_RISK_PERMISSION_KEYS: readonly PermissionKey[] = [
   'account.write',
   'drive.write',
   'network.external',
+  'vault.use',
 ]
 
 export const DATA_SOURCE_KEYS = [
@@ -287,6 +289,7 @@ const PERMISSION_PRESETS: Record<
     'plugins.write': false,
     'ai.sessions.read': true,
     'logs.read': true,
+    'vault.use': false,
   },
   safe: {
     'notes.read': true,
@@ -321,6 +324,7 @@ const PERMISSION_PRESETS: Record<
     'plugins.write': true,
     'ai.sessions.read': true,
     'logs.read': true,
+    'vault.use': false,
   },
   full: {
     'notes.read': true,
@@ -355,6 +359,7 @@ const PERMISSION_PRESETS: Record<
     'plugins.write': true,
     'ai.sessions.read': true,
     'logs.read': true,
+    'vault.use': true,
   },
 }
 

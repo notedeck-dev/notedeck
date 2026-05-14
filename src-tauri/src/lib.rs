@@ -25,6 +25,7 @@ mod query_bridge;
 mod query_runtime;
 mod rate_limit;
 mod streaming;
+mod vault;
 mod win_chrome;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -299,6 +300,18 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             commands::heartbeat_unconfigure,
             commands::heartbeat_trigger_now,
             commands::heartbeat_status,
+            // Secret Vault (#564) — 外部サービス接続のメタデータ + secret 管理
+            commands::vault_list_connections,
+            commands::vault_get_connection,
+            commands::vault_upsert_connection,
+            commands::vault_upsert_connection_with_secret,
+            commands::vault_set_secret,
+            commands::vault_get_secret_status,
+            commands::vault_delete_secret,
+            commands::vault_delete_connection,
+            commands::vault_set_ai_visible,
+            commands::vault_fetch,
+            commands::vault_test_connection,
             query_runtime::query_subscribe_timeline,
             query_runtime::query_subscribe_antenna,
             query_runtime::query_subscribe_channel,

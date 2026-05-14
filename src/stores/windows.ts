@@ -35,6 +35,8 @@ export type WindowType =
   | 'play-edit'
   | 'widget-edit'
   | 'skill-edit'
+  | 'connections'
+  | 'connectionEdit'
 
 export interface DeckWindow {
   id: string
@@ -106,6 +108,9 @@ export const WINDOW_SIZES: Record<
   'widget-edit': { width: 500, maxHeight: 720 },
   // Skill edit window (markdown + frontmatter のフォーム編集)
   'skill-edit': { width: 500, maxHeight: 720 },
+  // Secret Vault (#564): 外部サービス接続の一覧 / 編集
+  connections: { width: 440, maxHeight: 650 },
+  connectionEdit: { width: 440, maxHeight: 720 },
 }
 
 export const useWindowsStore = defineStore('windows', () => {
@@ -140,6 +145,7 @@ export const useWindowsStore = defineStore('windows', () => {
     'play-edit': ['flashId', 'accountId'],
     'widget-edit': ['widgetId'],
     'skill-edit': ['skillId'],
+    connectionEdit: ['connectionId'],
   }
 
   /** Types that are always singletons (at most one instance). */
@@ -159,6 +165,7 @@ export const useWindowsStore = defineStore('windows', () => {
     'cacheEditor',
     'tasksEditor',
     'snippetsEditor',
+    'connections',
   ])
 
   // PiP WebView (別 OS ウィンドウ) 内では DeckWindow オーバーレイが存在しないため、

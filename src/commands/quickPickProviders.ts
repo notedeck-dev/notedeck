@@ -90,6 +90,13 @@ export function getSettingsItems(): QuickPickItem[] {
       action: () => useWindowsStore().open('aiSettings'),
     },
     {
+      id: 'connections',
+      label: '接続',
+      icon: 'plug-connected',
+      group: '環境設定',
+      action: () => useWindowsStore().open('connections'),
+    },
+    {
       id: 'keybinds',
       label: 'キーバインド',
       icon: 'keyboard',

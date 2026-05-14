@@ -23,7 +23,9 @@ specta-typescript = "0.0.9"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 uuid = { version = "1", features = ["v4"] }
+ulid = "1"
 zeroize = "1"
+secrecy = { version = "0.10", features = ["serde"] }
 subtle = "2"
 rand = "0.9"
 axum = "0.8"

@@ -144,6 +144,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'user.unfollow',
         'user.unmute',
         'user.unrenoteMute',
+        'vault.fetch',
         'widgets.create',
         'widgets.delete',
         'widgets.history',
