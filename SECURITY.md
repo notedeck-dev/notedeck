@@ -547,6 +547,7 @@ skill / widget / plugin / theme の **write 系 capability** (`skills.replaceSec
 
 | 項目 | 状態 | 備考 |
 |------|------|------|
+| 同一 OS ユーザーの他プロセス | 受容 | OS キーチェーンは別ユーザー・リモートからの窃取を防ぐが、同一ユーザー権限のプロセス (同一アカウント上のマルウェア等) からの読み取りは OS の責務。高い脅威環境ではフルディスク暗号化・信頼できるソフトウェアのみの実行を併用する |
 | CSP `unsafe-eval` | 受容 | AiScript エンジンが必要とするため除去不可 |
 | SSRF DNS TOCTOU | 受容 | デスクトップアプリでは脅威が限定的。DNS 解決後の IP 再検証は VPN / 社内 Misskey ユーザーをブロックするため実装しない |
 | Tor (.onion) 非対応 | 受容 | HTTPS 強制の緩和はセキュリティ劣化を招き、SOCKS5 対応も VPN には不要。`.onion` Misskey インスタンスの需要もないため対応しない |
