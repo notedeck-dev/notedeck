@@ -5,16 +5,23 @@
  * ユーザーは secret を貼るだけで接続を作れるようにする。
  * テンプレ id は `builtin:<id>@<version>` 形式 — v2 で MisStore 配布の
  * `@<author>/<id>@<version>` 形式と名前空間を分離するための予約。
+ *
+ * v1 では AI プロバイダー 3 種のみ。GitHub / Linear / Slack 等の汎用 API
+ * テンプレは需要を見て v1.x で追加する (手動追加 / URL ペーストは現状でも可)。
  */
 
 import type { AuthType } from '@/bindings'
+import { proxyUrl } from '@/utils/imageProxy'
 
 export interface ConnectionTemplate {
   /** `builtin:<id>@<version>` 形式の識別子。 */
   id: string
   /** 表示名。 */
   name: string
-  /** tabler icon 名 (`ti ti-<icon>`)。 */
+  /**
+   * favicon 取得に失敗したときの fallback アイコン (`ti ti-<icon>`)。
+   * 通常は baseUrl host の favicon を表示する ([`faviconUrl`])。
+   */
   icon: string
   /** デフォルト baseUrl。 */
   baseUrl: string
@@ -31,17 +38,6 @@ export interface ConnectionTemplate {
 }
 
 export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
-  {
-    id: 'builtin:github@1',
-    name: 'GitHub',
-    icon: 'brand-github',
-    baseUrl: 'https://api.github.com',
-    authType: { kind: 'bearer' },
-    allowedHosts: ['api.github.com', 'uploads.github.com'],
-    testPath: '/user',
-    secretLabel: 'Personal Access Token',
-    secretHelpUrl: 'https://github.com/settings/tokens',
-  },
   {
     id: 'builtin:openai@1',
     name: 'OpenAI',
@@ -75,29 +71,30 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     secretLabel: 'API Key',
     secretHelpUrl: 'https://openrouter.ai/keys',
   },
-  {
-    id: 'builtin:linear@1',
-    name: 'Linear',
-    icon: 'layout-kanban',
-    baseUrl: 'https://api.linear.app',
-    authType: { kind: 'header', name: 'Authorization' },
-    allowedHosts: ['api.linear.app'],
-    testPath: '/graphql',
-    secretLabel: 'API Key',
-    secretHelpUrl: 'https://linear.app/settings/api',
-  },
-  {
-    id: 'builtin:slack@1',
-    name: 'Slack',
-    icon: 'brand-slack',
-    baseUrl: 'https://slack.com',
-    authType: { kind: 'bearer' },
-    allowedHosts: ['slack.com'],
-    testPath: '/api/auth.test',
-    secretLabel: 'Bot / User OAuth Token',
-    secretHelpUrl: 'https://api.slack.com/apps',
-  },
 ]
+
+/**
+ * baseUrl の host から favicon URL を導出する。
+ *
+ * DuckDuckGo の favicon サービスを使う — 任意のサービスに対して動作し、
+ * NoteDeck 側でロゴ画像をバンドル・メンテする必要がない。これにより
+ * 内蔵テンプレ以外のユーザー登録接続でもロゴが自動で付く。
+ * 取得は NoteDeck の画像プロキシ経由 (キャッシュ + プライバシー保護)。
+ * 取得失敗時は呼び出し側で tabler icon に fallback する。
+ *
+ * `api.` / `www.` などの API サブドメインは favicon を持たないことが多いので
+ * 除去して apex ドメインで引く (例: `api.openai.com` → `openai.com`)。
+ */
+export function faviconUrl(baseUrl: string): string | null {
+  try {
+    const host = new URL(baseUrl).host
+    if (!host) return null
+    const apex = host.replace(/^(api|www|console)\./, '')
+    return proxyUrl(`https://icons.duckduckgo.com/ip3/${apex}.ico`) ?? null
+  } catch {
+    return null
+  }
+}
 
 /** 貼り付けられた URL の host から一致するテンプレートを探す。 */
 export function matchTemplateByUrl(rawUrl: string): ConnectionTemplate | null {

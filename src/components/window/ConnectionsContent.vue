@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { describeAuthType, useVault } from '@/composables/useVault'
 import {
   BUILTIN_TEMPLATES,
+  faviconUrl,
   matchTemplateByUrl,
 } from '@/data/connectionTemplates'
 import { useWindowsStore } from '@/stores/windows'
@@ -12,6 +13,10 @@ const windowsStore = useWindowsStore()
 
 const pasteUrl = ref('')
 const pasteError = ref('')
+
+// favicon の取得に失敗したロゴのキー集合 (テンプレ id / 接続 id)。
+// 失敗したものは tabler icon に fallback する。
+const failedIcons = ref(new Set<string>())
 
 const connections = computed(() => vault.connections.value)
 const isEmpty = computed(
@@ -86,7 +91,14 @@ function hostOf(baseUrl: string): string {
           :class="$style.templateBtn"
           @click="startFromTemplate(tpl.id)"
         >
-          <i class="ti" :class="`ti-${tpl.icon}`" />
+          <img
+            v-if="faviconUrl(tpl.baseUrl) && !failedIcons.has(tpl.id)"
+            :src="faviconUrl(tpl.baseUrl)!"
+            :class="$style.logo"
+            alt=""
+            @error="failedIcons.add(tpl.id)"
+          />
+          <i v-else class="ti" :class="`ti-${tpl.icon}`" />
           <span>{{ tpl.name }}</span>
         </button>
       </div>
@@ -129,6 +141,14 @@ function hostOf(baseUrl: string): string {
           :class="$style.row"
           @click="openEdit({ connectionId: conn.id })"
         >
+          <img
+            v-if="faviconUrl(conn.baseUrl) && !failedIcons.has(conn.id)"
+            :src="faviconUrl(conn.baseUrl)!"
+            :class="$style.rowLogo"
+            alt=""
+            @error="failedIcons.add(conn.id)"
+          />
+          <i v-else class="ti ti-plug-connected" :class="$style.rowLogoFallback" />
           <div :class="$style.rowMain">
             <span :class="$style.rowName">{{ conn.name }}</span>
             <span :class="$style.rowMeta">
@@ -205,6 +225,27 @@ function hostOf(baseUrl: string): string {
     font-size: 22px;
     color: var(--nd-fgMuted);
   }
+}
+
+.logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.rowLogo {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.rowLogoFallback {
+  font-size: 18px;
+  color: var(--nd-fgMuted);
+  flex-shrink: 0;
 }
 
 .pasteRow {
