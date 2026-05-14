@@ -1,5 +1,6 @@
 import type { Command } from '@/commands/registry'
 import { useAccountsStore } from '@/stores/accounts'
+import { useMisStoreStore } from '@/stores/misstore'
 import { useThemeStore } from '@/stores/theme'
 import type { MisskeyTheme } from '@/theme/types'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
@@ -456,12 +457,156 @@ export const themeRevertCapability: Command = {
   },
 }
 
+/**
+ * `theme.install` — MisStore (misstore.hital.in) から既製テーマを取得して
+ * installedThemes に追加する。AI が「ダークなら Dracula が定番」のように
+ * 推薦して install まで一気通貫で実行できるようにするためのラッパ。
+ *
+ * 内部実装は `useMisStoreStore.installTheme(entry, forAccountIds)` を呼ぶだけ。
+ * sha512 検証・$notedeck.storeId 紐付け・既存 installedFor の union は
+ * misstore store 側で実装済。
+ */
+export const themeInstallCapability: Command = {
+  id: 'theme.install',
+  label: 'MisStore からテーマを入れる',
+  icon: 'ti-download',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['theme.write', 'network.external'],
+  requiresConfirmation: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) return null
+    const misStore = useMisStoreStore()
+    await misStore.fetchThemes()
+    const entry = misStore.themes.find((t) => t.id === id)
+    if (!entry) return null
+    return {
+      title: 'MisStore からテーマを入れる',
+      message: `${entry.name} (${entry.base} / by ${entry.author}) を MisStore から取得してインストールします。`,
+      installPreview: {
+        kind: 'theme',
+        name: entry.name,
+        version: entry.version,
+        author: entry.author,
+        description: entry.description,
+      },
+      code: JSON.stringify(entry.themeProps, null, 2),
+      codeLanguage: 'json',
+      okLabel: 'インストール',
+      cancelLabel: 'やめる',
+      type: 'normal',
+    }
+  },
+  signature: {
+    description:
+      'MisStore (misstore.hital.in) の既製テーマをインストールする。' +
+      ' id は `misstore.search` で取得した値を渡す。' +
+      ' sha512 検証付き。インストール後は theme.apply で適用可能。',
+    params: {
+      id: {
+        type: 'string',
+        description: 'MisStore registry 上の theme id (例: "ame", "dracula")',
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, name, base, installed: boolean }',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) throw new Error('theme.install: id is required')
+    const misStore = useMisStoreStore()
+    await misStore.fetchThemes()
+    const entry = misStore.themes.find((t) => t.id === id)
+    if (!entry) {
+      throw new Error(
+        `theme.install: theme "${id}" not found in MisStore (try misstore.search first)`,
+      )
+    }
+    const accounts = useAccountsStore()
+    const forAccountIds = accounts.accounts.map((a) => a.id)
+    await misStore.installTheme(entry, forAccountIds)
+    return {
+      id: entry.id,
+      name: entry.name,
+      base: entry.base,
+      installed: true,
+    }
+  },
+}
+
+/**
+ * `theme.uninstall` — インストール済みテーマを完全削除する。
+ * cross-account (Global) からの除去と同等で、ファイル・selection・
+ * applyCurrentTheme まで連動する。per-account 紐付けの解除は別途
+ * 設計が必要なため、ここではシンプルに「完全削除」に統一する。
+ */
+export const themeUninstallCapability: Command = {
+  id: 'theme.uninstall',
+  label: 'テーマを削除',
+  icon: 'ti-trash',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['theme.write'],
+  requiresConfirmation: (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) return null
+    const theme = useThemeStore().installedThemes.find((t) => t.id === id)
+    if (!theme) return null
+    return {
+      title: 'テーマを削除',
+      message: `${theme.name} (${theme.base ?? 'dark'}) を完全に削除します。元に戻すには再インストールが必要です。`,
+      installPreview: {
+        kind: 'theme',
+        name: theme.name,
+        version: id,
+        description: `${theme.base ?? 'dark'} テーマ / ${Object.keys(theme.props).length} 変数`,
+      },
+      code: JSON.stringify(theme.props, null, 2),
+      codeLanguage: 'json',
+      okLabel: '削除',
+      cancelLabel: 'やめる',
+      type: 'danger',
+    }
+  },
+  signature: {
+    description:
+      'インストール済みテーマを完全削除する。選択中だった場合は selection も解除され、' +
+      ' デフォルトテーマにフォールバックする。',
+    params: {
+      id: { type: 'string', description: '削除するテーマの id' },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, removed: boolean }',
+    },
+  },
+  visible: false,
+  execute: (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) throw new Error('theme.uninstall: id is required')
+    const store = useThemeStore()
+    const theme = store.installedThemes.find((t) => t.id === id)
+    if (!theme) {
+      throw new Error(`theme.uninstall: theme "${id}" is not installed`)
+    }
+    store.removeTheme(id)
+    return { id, removed: true }
+  },
+}
+
 export const THEME_BUILTIN_CAPABILITIES: readonly Command[] = [
   themeListCapability,
   themeReadCapability,
   themeApplyCapability,
   themeCreateCapability,
   themeUpdateCapability,
+  themeInstallCapability,
+  themeUninstallCapability,
   themeHistoryCapability,
   themeRevertCapability,
 ]

@@ -3,9 +3,11 @@ import {
   PLUGINS_BUILTIN_CAPABILITIES,
   pluginsCreateCapability,
   pluginsDeleteCapability,
+  pluginsInstallCapability,
   pluginsListCapability,
   pluginsReadCapability,
   pluginsSetActiveCapability,
+  pluginsUninstallCapability,
   pluginsUpdateCapability,
 } from './plugins'
 
@@ -141,17 +143,68 @@ describe('plugins.create / plugins.update — preflight (#553)', () => {
   })
 })
 
+describe('plugins.install capability', () => {
+  it('declares plugins.write + network.external permissions and aiTool', () => {
+    expect(pluginsInstallCapability.id).toBe('plugins.install')
+    expect(pluginsInstallCapability.permissions).toEqual([
+      'plugins.write',
+      'network.external',
+    ])
+    expect(pluginsInstallCapability.aiTool).toBe(true)
+    expect(typeof pluginsInstallCapability.requiresConfirmation).toBe(
+      'function',
+    )
+  })
+
+  it('throws when id is missing', async () => {
+    await expect(pluginsInstallCapability.execute({})).rejects.toThrow(
+      /id is required/,
+    )
+  })
+
+  it('marks id as the only required param', () => {
+    const params = pluginsInstallCapability.signature?.params
+    expect(params?.id?.optional).not.toBe(true)
+    expect(Object.keys(params ?? {})).toEqual(['id'])
+  })
+})
+
+describe('plugins.uninstall capability', () => {
+  it('declares plugins.write permission and aiTool', () => {
+    expect(pluginsUninstallCapability.id).toBe('plugins.uninstall')
+    expect(pluginsUninstallCapability.permissions).toEqual(['plugins.write'])
+    expect(pluginsUninstallCapability.aiTool).toBe(true)
+    expect(typeof pluginsUninstallCapability.requiresConfirmation).toBe(
+      'function',
+    )
+  })
+
+  it('throws when neither installId nor storeId is provided', () => {
+    expect(() => pluginsUninstallCapability.execute({})).toThrow(
+      /installId or storeId is required/,
+    )
+  })
+
+  it('marks both installId and storeId as optional (one of them required)', () => {
+    const params = pluginsUninstallCapability.signature?.params
+    expect(params?.installId?.optional).toBe(true)
+    expect(params?.storeId?.optional).toBe(true)
+  })
+})
+
 describe('PLUGINS_BUILTIN_CAPABILITIES', () => {
-  it('contains all 8 plugin capabilities (incl. history / revert)', () => {
+  it('contains all 10 plugin capabilities (incl. install / uninstall)', () => {
     const ids = PLUGINS_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
     expect(ids).toEqual([
       'plugins.create',
       'plugins.delete',
       'plugins.history',
+      'plugins.install',
       'plugins.list',
       'plugins.read',
       'plugins.revert',
       'plugins.setActive',
+      'plugins.uninstall',
       'plugins.update',
     ])
   })

@@ -1,4 +1,5 @@
 import type { Command } from '@/commands/registry'
+import { useMisStoreStore } from '@/stores/misstore'
 import {
   generateWidgetId,
   useWidgetsStore,
@@ -442,11 +443,178 @@ export const widgetsRevertCapability: Command = {
   },
 }
 
+/**
+ * `widgets.install` — MisStore (misstore.hital.in) から既製ウィジェットを取得して
+ * widgets store に追加する。AI が「天気 widget が欲しい」のように推薦から
+ * install まで一気通貫で実行できるようにするためのラッパ。
+ *
+ * 内部実装は `useMisStoreStore.installWidget(entry)` を呼ぶだけ。
+ * sha512 検証・同 storeId の重複インストール抑止は misstore store 側で実装済。
+ * カラムへの attach はしない (= 「とりあえず手元に入れる」が capability の責務)。
+ */
+export const widgetsInstallCapability: Command = {
+  id: 'widgets.install',
+  label: 'MisStore からウィジェットを入れる',
+  icon: 'ti-download',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['widgets.write', 'network.external'],
+  requiresConfirmation: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) return null
+    const misStore = useMisStoreStore()
+    await misStore.fetchWidgets()
+    const entry = misStore.widgets.find((w) => w.id === id)
+    if (!entry) return null
+    return {
+      title: 'MisStore からウィジェットを入れる',
+      message:
+        `${entry.name} (v${entry.version} / by ${entry.author}) を MisStore から取得します。` +
+        (entry.autoRun
+          ? ' カラム表示時に自動実行されます。'
+          : ' 自動実行は無効です (= 手動で起動)。'),
+      installPreview: {
+        kind: 'widget',
+        name: entry.name,
+        version: entry.version,
+        author: entry.author,
+        description: entry.description,
+      },
+      code: entry.description,
+      codeLanguage: 'plaintext',
+      okLabel: 'インストール',
+      cancelLabel: 'やめる',
+      type: 'normal',
+    }
+  },
+  signature: {
+    description:
+      'MisStore (misstore.hital.in) の既製ウィジェットをインストールする。' +
+      ' id は `misstore.search` で取得した値を渡す。sha512 検証付き。' +
+      ' 既に同 storeId のウィジェットがインストール済みなら既存 installId を返す。',
+    params: {
+      id: {
+        type: 'string',
+        description: 'MisStore registry 上の widget id',
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ installId, name, autoRun, installed: boolean }',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) throw new Error('widgets.install: id is required')
+    const misStore = useMisStoreStore()
+    await misStore.fetchWidgets()
+    const entry = misStore.widgets.find((w) => w.id === id)
+    if (!entry) {
+      throw new Error(
+        `widgets.install: widget "${id}" not found in MisStore (try misstore.search first)`,
+      )
+    }
+    const widget = await misStore.installWidget(entry)
+    return {
+      installId: widget.installId,
+      name: widget.name,
+      autoRun: widget.autoRun,
+      installed: true,
+    }
+  },
+}
+
+/**
+ * `widgets.uninstall` — インストール済みウィジェットを完全削除する。
+ * `widgets.delete` と同等動作だが、命名を MisStore install/uninstall 対称形に
+ * 揃えるためのエイリアス。AI が「入れて」「外して」と自然言語で発話したとき
+ * id ベースでも installId ベースでも理解できるよう、両方を受け付ける。
+ */
+export const widgetsUninstallCapability: Command = {
+  id: 'widgets.uninstall',
+  label: 'ウィジェットを削除',
+  icon: 'ti-trash',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['widgets.write'],
+  requiresConfirmation: (params) => {
+    const installId =
+      typeof params?.installId === 'string' ? params.installId : ''
+    const storeId = typeof params?.storeId === 'string' ? params.storeId : ''
+    const widgetsStore = useWidgetsStore()
+    const cur = installId
+      ? widgetsStore.getWidget(installId)
+      : widgetsStore.widgets.find((w) => w.storeId === storeId)
+    if (!cur) return null
+    return {
+      title: 'ウィジェットを削除',
+      message:
+        `${cur.name} を削除します。AiScript ソース・メタ・Mk:save 領域が` +
+        'すべて消えます (= 不可逆)。',
+      installPreview: {
+        kind: 'widget',
+        name: cur.name,
+      },
+      okLabel: '削除',
+      cancelLabel: 'やめる',
+      type: 'danger',
+    }
+  },
+  signature: {
+    description:
+      'インストール済みウィジェットを完全削除する。installId か storeId の' +
+      ' どちらかを渡す (両方渡されたら installId 優先)。' +
+      ' widgets.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。',
+    params: {
+      installId: {
+        type: 'string',
+        description: '対象ウィジェットの installId (widgets.list で取得)',
+        optional: true,
+      },
+      storeId: {
+        type: 'string',
+        description:
+          'MisStore registry 上の id (= widgets.install で渡した id)',
+        optional: true,
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ installId, removed: boolean }',
+    },
+  },
+  visible: false,
+  execute: (params) => {
+    const installId =
+      typeof params?.installId === 'string' ? params.installId : ''
+    const storeId = typeof params?.storeId === 'string' ? params.storeId : ''
+    if (!installId && !storeId) {
+      throw new Error('widgets.uninstall: installId or storeId is required')
+    }
+    const store = useWidgetsStore()
+    const widget = installId
+      ? store.getWidget(installId)
+      : store.widgets.find((w) => w.storeId === storeId)
+    if (!widget) {
+      throw new Error(
+        `widgets.uninstall: widget not found (installId="${installId}" storeId="${storeId}")`,
+      )
+    }
+    store.removeWidget(widget.installId)
+    return { installId: widget.installId, removed: true }
+  },
+}
+
 export const WIDGETS_BUILTIN_CAPABILITIES: readonly Command[] = [
   widgetsListCapability,
   widgetsReadCapability,
   widgetsCreateCapability,
   widgetsUpdateCapability,
+  widgetsInstallCapability,
+  widgetsUninstallCapability,
   widgetsSetAutoRunCapability,
   widgetsDeleteCapability,
   widgetsHistoryCapability,

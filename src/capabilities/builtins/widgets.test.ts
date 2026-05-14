@@ -3,9 +3,11 @@ import {
   WIDGETS_BUILTIN_CAPABILITIES,
   widgetsCreateCapability,
   widgetsDeleteCapability,
+  widgetsInstallCapability,
   widgetsListCapability,
   widgetsReadCapability,
   widgetsSetAutoRunCapability,
+  widgetsUninstallCapability,
   widgetsUpdateCapability,
 } from './widgets'
 
@@ -91,17 +93,68 @@ describe('widget capabilities — declaration', () => {
   })
 })
 
+describe('widgets.install capability', () => {
+  it('declares widgets.write + network.external permissions and aiTool', () => {
+    expect(widgetsInstallCapability.id).toBe('widgets.install')
+    expect(widgetsInstallCapability.permissions).toEqual([
+      'widgets.write',
+      'network.external',
+    ])
+    expect(widgetsInstallCapability.aiTool).toBe(true)
+    expect(typeof widgetsInstallCapability.requiresConfirmation).toBe(
+      'function',
+    )
+  })
+
+  it('throws when id is missing', async () => {
+    await expect(widgetsInstallCapability.execute({})).rejects.toThrow(
+      /id is required/,
+    )
+  })
+
+  it('marks id as the only required param', () => {
+    const params = widgetsInstallCapability.signature?.params
+    expect(params?.id?.optional).not.toBe(true)
+    expect(Object.keys(params ?? {})).toEqual(['id'])
+  })
+})
+
+describe('widgets.uninstall capability', () => {
+  it('declares widgets.write permission and aiTool', () => {
+    expect(widgetsUninstallCapability.id).toBe('widgets.uninstall')
+    expect(widgetsUninstallCapability.permissions).toEqual(['widgets.write'])
+    expect(widgetsUninstallCapability.aiTool).toBe(true)
+    expect(typeof widgetsUninstallCapability.requiresConfirmation).toBe(
+      'function',
+    )
+  })
+
+  it('throws when neither installId nor storeId is provided', () => {
+    expect(() => widgetsUninstallCapability.execute({})).toThrow(
+      /installId or storeId is required/,
+    )
+  })
+
+  it('marks both installId and storeId as optional (one of them required)', () => {
+    const params = widgetsUninstallCapability.signature?.params
+    expect(params?.installId?.optional).toBe(true)
+    expect(params?.storeId?.optional).toBe(true)
+  })
+})
+
 describe('WIDGETS_BUILTIN_CAPABILITIES', () => {
-  it('contains all 8 widget capabilities (incl. history / revert)', () => {
+  it('contains all 10 widget capabilities (incl. install / uninstall)', () => {
     const ids = WIDGETS_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
     expect(ids).toEqual([
       'widgets.create',
       'widgets.delete',
       'widgets.history',
+      'widgets.install',
       'widgets.list',
       'widgets.read',
       'widgets.revert',
       'widgets.setAutoRun',
+      'widgets.uninstall',
       'widgets.update',
     ])
   })

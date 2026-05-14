@@ -3,8 +3,10 @@ import {
   THEME_BUILTIN_CAPABILITIES,
   themeApplyCapability,
   themeCreateCapability,
+  themeInstallCapability,
   themeListCapability,
   themeReadCapability,
+  themeUninstallCapability,
   themeUpdateCapability,
 } from './theme'
 
@@ -130,12 +132,59 @@ describe('theme.update capability', () => {
   })
 })
 
+describe('theme.install capability', () => {
+  it('declares theme.write + network.external permissions and aiTool', () => {
+    expect(themeInstallCapability.id).toBe('theme.install')
+    expect(themeInstallCapability.permissions).toEqual([
+      'theme.write',
+      'network.external',
+    ])
+    expect(themeInstallCapability.aiTool).toBe(true)
+    expect(typeof themeInstallCapability.requiresConfirmation).toBe('function')
+  })
+
+  it('throws when id is missing', async () => {
+    await expect(themeInstallCapability.execute({})).rejects.toThrow(
+      /id is required/,
+    )
+  })
+
+  it('marks id as the only required param', () => {
+    const params = themeInstallCapability.signature?.params
+    expect(params?.id?.optional).not.toBe(true)
+    expect(Object.keys(params ?? {})).toEqual(['id'])
+  })
+})
+
+describe('theme.uninstall capability', () => {
+  it('declares theme.write permission and aiTool', () => {
+    expect(themeUninstallCapability.id).toBe('theme.uninstall')
+    expect(themeUninstallCapability.permissions).toEqual(['theme.write'])
+    expect(themeUninstallCapability.aiTool).toBe(true)
+    expect(typeof themeUninstallCapability.requiresConfirmation).toBe(
+      'function',
+    )
+  })
+
+  it('throws when id is missing', () => {
+    expect(() => themeUninstallCapability.execute({})).toThrow(/id is required/)
+  })
+
+  it('marks id as the only required param', () => {
+    const params = themeUninstallCapability.signature?.params
+    expect(params?.id?.optional).not.toBe(true)
+    expect(Object.keys(params ?? {})).toEqual(['id'])
+  })
+})
+
 describe('THEME_BUILTIN_CAPABILITIES', () => {
-  it('contains list / read / apply / create / update', () => {
+  it('contains list / read / apply / create / update / install / uninstall', () => {
     expect(THEME_BUILTIN_CAPABILITIES).toContain(themeListCapability)
     expect(THEME_BUILTIN_CAPABILITIES).toContain(themeReadCapability)
     expect(THEME_BUILTIN_CAPABILITIES).toContain(themeApplyCapability)
     expect(THEME_BUILTIN_CAPABILITIES).toContain(themeCreateCapability)
     expect(THEME_BUILTIN_CAPABILITIES).toContain(themeUpdateCapability)
+    expect(THEME_BUILTIN_CAPABILITIES).toContain(themeInstallCapability)
+    expect(THEME_BUILTIN_CAPABILITIES).toContain(themeUninstallCapability)
   })
 })

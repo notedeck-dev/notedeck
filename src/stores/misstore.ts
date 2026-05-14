@@ -4,6 +4,11 @@ import { launchPlugin, parsePluginMeta } from '@/aiscript/plugin-api'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import { type SkillMeta, useSkillsStore } from '@/stores/skills'
 import { useThemeStore } from '@/stores/theme'
+import {
+  generateWidgetId,
+  useWidgetsStore,
+  type WidgetMeta,
+} from '@/stores/widgets'
 import { parseSkillFile } from '@/utils/skillFrontmatter'
 
 const STORE_BASE_URL = 'https://misstore.hital.in'
@@ -174,6 +179,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
   const widgets = shallowRef<StoreWidgetEntry[]>([])
   const widgetsLoading = ref(false)
   const widgetsError = ref<string | null>(null)
+  const installingWidget = ref<string | null>(null)
   let widgetsLastFetchedAt = 0
 
   const skillEntries = shallowRef<StoreSkillEntry[]>([])
@@ -437,6 +443,49 @@ export const useMisStoreStore = defineStore('misstore', () => {
     }
   }
 
+  // --- Install widget ---
+
+  /**
+   * MisStore からウィジェットを取得して widgetsStore に追加する。
+   * 同 storeId のウィジェットが既にあれば再インストールせず early return
+   * (UI 側の DeckWidgetColumn ライブラリインストール挙動と整合)。
+   *
+   * AI capability (`widgets.install`) はカラム文脈を持たないので、
+   * deckStore.addWidget ではなく widgetsStore.addWidget を直接呼んで
+   * カラム外の独立 widget として保存する。カラムへの attach は後から
+   * ユーザーが UI でやる想定 (= 「とりあえず手元に入れておく」が正)。
+   */
+  async function installWidget(entry: StoreWidgetEntry): Promise<WidgetMeta> {
+    installingWidget.value = entry.id
+    try {
+      const widgetsStore = useWidgetsStore()
+      const existing = widgetsStore.widgets.find((w) => w.storeId === entry.id)
+      if (existing) return existing
+
+      const src = await fetchWidgetSource(entry)
+      const now = Date.now()
+      const widget: WidgetMeta = {
+        installId: generateWidgetId(),
+        name: entry.name,
+        src,
+        autoRun: entry.autoRun,
+        storeId: entry.id,
+        createdAt: now,
+        updatedAt: now,
+        ...(entry.iconUrl ? { iconUrl: entry.iconUrl } : {}),
+      }
+      widgetsStore.addWidget(widget)
+      return widget
+    } finally {
+      installingWidget.value = null
+    }
+  }
+
+  function isWidgetInstalled(entry: StoreWidgetEntry): boolean {
+    const widgetsStore = useWidgetsStore()
+    return widgetsStore.widgets.some((w) => w.storeId === entry.id)
+  }
+
   // --- Install theme ---
 
   /**
@@ -528,6 +577,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
     widgets,
     widgetsLoading,
     widgetsError,
+    installingWidget,
     skills: skillEntries,
     skillsLoading,
     skillsError,
@@ -543,9 +593,11 @@ export const useMisStoreStore = defineStore('misstore', () => {
     refreshSkills,
     installPlugin,
     installTheme,
+    installWidget,
     installSkill,
     isInstalled,
     isThemeInstalled,
+    isWidgetInstalled,
     isSkillInstalled,
     installedNames,
   }

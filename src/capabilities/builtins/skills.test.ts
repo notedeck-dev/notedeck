@@ -3,10 +3,12 @@ import {
   replaceMarkdownSection,
   SKILLS_BUILTIN_CAPABILITIES,
   skillsAppendCapability,
+  skillsInstallCapability,
   skillsListCapability,
   skillsReadCapability,
   skillsReplaceSectionCapability,
   skillsToggleCapability,
+  skillsUninstallCapability,
 } from './skills'
 
 // Note: execute は内部で useSkillsStore (Pinia) を呼ぶため、unit 環境では
@@ -59,17 +61,66 @@ describe('skill capabilities — declaration', () => {
   })
 })
 
+describe('skills.install capability', () => {
+  it('declares skills.write + network.external permissions and aiTool', () => {
+    expect(skillsInstallCapability.id).toBe('skills.install')
+    expect(skillsInstallCapability.permissions).toEqual([
+      'skills.write',
+      'network.external',
+    ])
+    expect(skillsInstallCapability.aiTool).toBe(true)
+    expect(typeof skillsInstallCapability.requiresConfirmation).toBe('function')
+  })
+
+  it('throws when id is missing', async () => {
+    await expect(skillsInstallCapability.execute({})).rejects.toThrow(
+      /id is required/,
+    )
+  })
+
+  it('marks id as the only required param', () => {
+    const params = skillsInstallCapability.signature?.params
+    expect(params?.id?.optional).not.toBe(true)
+    expect(Object.keys(params ?? {})).toEqual(['id'])
+  })
+})
+
+describe('skills.uninstall capability', () => {
+  it('declares skills.write permission and aiTool', () => {
+    expect(skillsUninstallCapability.id).toBe('skills.uninstall')
+    expect(skillsUninstallCapability.permissions).toEqual(['skills.write'])
+    expect(skillsUninstallCapability.aiTool).toBe(true)
+    expect(typeof skillsUninstallCapability.requiresConfirmation).toBe(
+      'function',
+    )
+  })
+
+  it('throws when id is missing', () => {
+    expect(() => skillsUninstallCapability.execute({})).toThrow(
+      /id is required/,
+    )
+  })
+
+  it('marks id as the only required param', () => {
+    const params = skillsUninstallCapability.signature?.params
+    expect(params?.id?.optional).not.toBe(true)
+    expect(Object.keys(params ?? {})).toEqual(['id'])
+  })
+})
+
 describe('SKILLS_BUILTIN_CAPABILITIES', () => {
-  it('contains all 7 skill capabilities (incl. history / revert)', () => {
+  it('contains all 9 skill capabilities (incl. install / uninstall)', () => {
     const ids = SKILLS_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
     expect(ids).toEqual([
       'skills.append',
       'skills.history',
+      'skills.install',
       'skills.list',
       'skills.read',
       'skills.replaceSection',
       'skills.revert',
       'skills.toggle',
+      'skills.uninstall',
     ])
   })
 })

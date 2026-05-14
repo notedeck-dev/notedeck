@@ -1,5 +1,7 @@
 import { parsePluginMeta } from '@/aiscript/plugin-api'
 import type { Command } from '@/commands/registry'
+import { useAccountsStore } from '@/stores/accounts'
+import { useMisStoreStore } from '@/stores/misstore'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
 import { preflightValidateSrc } from './aiscript'
@@ -511,6 +513,173 @@ export const pluginsRevertCapability: Command = {
   },
 }
 
+/**
+ * `plugins.install` — MisStore (misstore.hital.in) から既製プラグインを取得して
+ * plugins store に追加する。AI が「○○の機能ない？」のように推薦から install
+ * まで一気通貫で実行できるようにするためのラッパ。
+ *
+ * 内部実装は `useMisStoreStore.installPlugin(entry, forAccountIds)` を呼ぶだけ。
+ * sha512 検証・parsePluginMeta・既存 storeId への installedFor union は
+ * misstore store 側で実装済 (= 同 storeId のプラグインがあれば再インストール
+ * せず installedFor に accountIds を追加するだけ)。インストール後は active=true で
+ * 自動起動される (misstore.ts installPlugin の挙動)。
+ */
+export const pluginsInstallCapability: Command = {
+  id: 'plugins.install',
+  label: 'MisStore からプラグインを入れる',
+  icon: 'ti-download',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['plugins.write', 'network.external'],
+  requiresConfirmation: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) return null
+    const misStore = useMisStoreStore()
+    await misStore.fetchPlugins()
+    const entry = misStore.plugins.find((p) => p.id === id)
+    if (!entry) return null
+    return {
+      title: 'MisStore からプラグインを入れる',
+      message:
+        `${entry.name} (v${entry.version} / by ${entry.author}) を MisStore から取得します。` +
+        ' インストール直後に自動で active=true で起動されます。',
+      installPreview: {
+        kind: 'plugin',
+        name: entry.name,
+        version: entry.version,
+        author: entry.author,
+        description: entry.description,
+      },
+      code: entry.description,
+      codeLanguage: 'plaintext',
+      okLabel: 'インストール',
+      cancelLabel: 'やめる',
+      type: 'normal',
+    }
+  },
+  signature: {
+    description:
+      'MisStore (misstore.hital.in) の既製プラグインをインストールする。' +
+      ' id は `misstore.search` で取得した値を渡す。sha512 検証付き。' +
+      ' 既に同 storeId のプラグインがあれば再インストールせず installedFor を' +
+      ' 全 logged-in account で union 更新するだけ。',
+    params: {
+      id: {
+        type: 'string',
+        description: 'MisStore registry 上の plugin id',
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, name, installed: boolean }',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const id = typeof params?.id === 'string' ? params.id : ''
+    if (!id) throw new Error('plugins.install: id is required')
+    const misStore = useMisStoreStore()
+    await misStore.fetchPlugins()
+    const entry = misStore.plugins.find((p) => p.id === id)
+    if (!entry) {
+      throw new Error(
+        `plugins.install: plugin "${id}" not found in MisStore (try misstore.search first)`,
+      )
+    }
+    const accounts = useAccountsStore()
+    const forAccountIds = accounts.accounts.map((a) => a.id)
+    await misStore.installPlugin(entry, forAccountIds)
+    return { id: entry.id, name: entry.name, installed: true }
+  },
+}
+
+/**
+ * `plugins.uninstall` — インストール済みプラグインを完全削除する。
+ * `plugins.delete` と同等動作だが、命名を MisStore install/uninstall 対称形に
+ * 揃え、storeId からも引けるエイリアス。AI が「MisStore で入れた○○外して」
+ * と発話したとき id ベースで消せるよう、両方を受け付ける。
+ */
+export const pluginsUninstallCapability: Command = {
+  id: 'plugins.uninstall',
+  label: 'プラグインを削除',
+  icon: 'ti-trash',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['plugins.write'],
+  requiresConfirmation: (params) => {
+    const installId =
+      typeof params?.installId === 'string' ? params.installId : ''
+    const storeId = typeof params?.storeId === 'string' ? params.storeId : ''
+    const pluginsStore = usePluginsStore()
+    const cur = installId
+      ? pluginsStore.getPlugin(installId)
+      : pluginsStore.plugins.find((p) => p.storeId === storeId)
+    if (!cur) return null
+    return {
+      title: 'プラグインを削除',
+      message:
+        `${cur.name} を削除します。AiScript ソース・メタ・Mk:save 領域が` +
+        'すべて消えます (= 不可逆)。',
+      installPreview: {
+        kind: 'plugin',
+        name: cur.name,
+        version: cur.version,
+        author: cur.author,
+        description: cur.description,
+        permissions: cur.permissions ?? [],
+      },
+      okLabel: '削除',
+      cancelLabel: 'やめる',
+      type: 'danger',
+    }
+  },
+  signature: {
+    description:
+      'インストール済みプラグインを完全削除する。installId か storeId の' +
+      ' どちらかを渡す (両方渡されたら installId 優先)。' +
+      ' plugins.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。',
+    params: {
+      installId: {
+        type: 'string',
+        description: '対象プラグインの installId (plugins.list で取得)',
+        optional: true,
+      },
+      storeId: {
+        type: 'string',
+        description:
+          'MisStore registry 上の id (= plugins.install で渡した id)',
+        optional: true,
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ installId, removed: boolean }',
+    },
+  },
+  visible: false,
+  execute: (params) => {
+    const installId =
+      typeof params?.installId === 'string' ? params.installId : ''
+    const storeId = typeof params?.storeId === 'string' ? params.storeId : ''
+    if (!installId && !storeId) {
+      throw new Error('plugins.uninstall: installId or storeId is required')
+    }
+    const store = usePluginsStore()
+    const plugin = installId
+      ? store.getPlugin(installId)
+      : store.plugins.find((p) => p.storeId === storeId)
+    if (!plugin) {
+      throw new Error(
+        `plugins.uninstall: plugin not found (installId="${installId}" storeId="${storeId}")`,
+      )
+    }
+    store.removePlugin(plugin.installId)
+    return { installId: plugin.installId, removed: true }
+  },
+}
+
 export const PLUGINS_BUILTIN_CAPABILITIES: readonly Command[] = [
   pluginsListCapability,
   pluginsReadCapability,
@@ -518,6 +687,8 @@ export const PLUGINS_BUILTIN_CAPABILITIES: readonly Command[] = [
   pluginsUpdateCapability,
   pluginsSetActiveCapability,
   pluginsDeleteCapability,
+  pluginsInstallCapability,
+  pluginsUninstallCapability,
   pluginsHistoryCapability,
   pluginsRevertCapability,
 ]
