@@ -1,6 +1,6 @@
 [package]
 name = "notedeck"
-version = "0.28.0"
+version = "0.28.1"
 description = "Misskey IDE — integrated deck environment for browsing, posting, searching, and connecting"
 edition = "2021"
 # `gen_openapi` is a dev-only helper binary; keep `cargo run` (tauri dev) on the app.
