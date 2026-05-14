@@ -34,6 +34,9 @@ const basicUsername = ref('')
 const allowedHostsText = ref('')
 const notes = ref('')
 const aiVisible = ref(false)
+// 「信頼済み」= AI / AiScript からの利用を確認ダイアログなしで許可する。
+// aiVisible が前提なので、OFF にしたら aiTrusted も意味を失う。
+const aiTrusted = ref(false)
 // テンプレ由来 / AI プロバイダー接続のメタデータ。フォームには出さず、
 // upsert 時に保持して上書き消失を防ぐ。
 const connTemplateId = ref<string | null>(null)
@@ -93,6 +96,7 @@ onMounted(async () => {
       allowedHostsText.value = (conn.allowedHosts ?? []).join(', ')
       notes.value = conn.notes ?? ''
       aiVisible.value = conn.aiVisible ?? false
+      aiTrusted.value = conn.aiTrusted ?? false
       hasSecret.value = (conn.slots ?? []).length > 0
       connTemplateId.value = conn.templateId ?? null
       protocol.value = conn.protocol ?? null
@@ -194,6 +198,8 @@ async function save() {
     // AI 開示状態を反映 (新規・更新どちらも)。
     if (connId) {
       await vault.setAiVisible(connId, aiVisible.value)
+      // 信頼状態は aiVisible が前提。OFF のときは必ず false に倒す。
+      await vault.setAiTrusted(connId, aiVisible.value && aiTrusted.value)
     }
 
     emit('close')
@@ -397,6 +403,15 @@ const testResultText = computed(() => {
             </span>
           </span>
         </label>
+        <label :class="[$style.toggleRow, $style.toggleSub, !aiVisible && $style.toggleDisabled]">
+          <input v-model="aiTrusted" type="checkbox" :disabled="!aiVisible" />
+          <span>
+            <span :class="$style.toggleLabel">確認なしで使う</span>
+            <span :class="$style.toggleHint">
+              AI・ウィジェット・プラグインがこの接続を使うとき確認ダイアログを出しません
+            </span>
+          </span>
+        </label>
       </div>
     </details>
 
@@ -573,6 +588,17 @@ const testResultText = computed(() => {
   align-items: flex-start;
   gap: 8px;
   cursor: pointer;
+}
+
+// 「AI からのアクセスを許可」の下にぶら下がるサブトグル。階層を視覚的に示す。
+.toggleSub {
+  margin-top: 8px;
+  padding-left: 22px;
+}
+
+.toggleDisabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .toggleLabel {

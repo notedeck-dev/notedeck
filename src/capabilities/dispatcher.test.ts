@@ -186,7 +186,7 @@ describe('dispatchCapability — confirmation flow', () => {
       {
         confirmFn: async () => {
           confirmCalls++
-          return true
+          return { accepted: true, remember: false }
         },
       },
     )
@@ -214,7 +214,7 @@ describe('dispatchCapability — confirmation flow', () => {
       {
         confirmFn: async (opts) => {
           calls.push(`confirm:${opts.title}`)
-          return true
+          return { accepted: true, remember: false }
         },
       },
     )
@@ -240,7 +240,8 @@ describe('dispatchCapability — confirmation flow', () => {
       'notes.create',
       { text: 'hello' },
       configWithPreset('full'),
-      { confirmFn: async () => false }, // user clicked cancel
+      // user clicked cancel
+      { confirmFn: async () => ({ accepted: false, remember: false }) },
     )
     expect(r.ok).toBe(false)
     if (!r.ok) {
@@ -271,7 +272,7 @@ describe('dispatchCapability — confirmation flow', () => {
       {
         confirmFn: async (opts) => {
           seenOpts.push({ title: opts.title, message: opts.message })
-          return true
+          return { accepted: true, remember: false }
         },
       },
     )
@@ -299,7 +300,7 @@ describe('dispatchCapability — confirmation flow', () => {
       {
         confirmFn: async () => {
           confirmCalls++
-          return true
+          return { accepted: true, remember: false }
         },
       },
     )
@@ -329,7 +330,7 @@ describe('dispatchCapability — confirmation flow', () => {
       'plugins.create',
       { src: 'let x = 1' },
       configWithPreset('full'),
-      { confirmFn: async () => true },
+      { confirmFn: async () => ({ accepted: true, remember: false }) },
     )
     expect(r).toEqual({ ok: true, result: 'created' })
     expect(executed).toBe(true)
@@ -355,6 +356,91 @@ describe('dispatchCapability — confirmation flow', () => {
     }
   })
 
+  it('SKIPS confirm + executes when function-form requiresConfirmation returns null', async () => {
+    let confirmCalls = 0
+    let executed = false
+    registerCapability(
+      makeCapability({
+        id: 'vault.fetch',
+        permissions: ['vault.use'],
+        // null = この回は確認不要 (信頼済み接続など)
+        requiresConfirmation: () => null,
+        execute: () => {
+          executed = true
+          return 'fetched'
+        },
+      }),
+    )
+    const r = await dispatchCapability(
+      'vault.fetch',
+      { connectionRef: 'Habitica' },
+      configWithPreset('full'),
+      {
+        confirmFn: async () => {
+          confirmCalls++
+          return { accepted: true, remember: false }
+        },
+      },
+    )
+    expect(r).toEqual({ ok: true, result: 'fetched' })
+    expect(confirmCalls).toBe(0)
+    expect(executed).toBe(true)
+  })
+
+  it('calls onConfirmRemember when decision.remember is true', async () => {
+    const rememberCalls: (Record<string, unknown> | undefined)[] = []
+    registerCapability(
+      makeCapability({
+        id: 'vault.fetch',
+        permissions: ['vault.use'],
+        requiresConfirmation: () => ({
+          title: '確認',
+          message: '',
+          rememberLabel: '今後この接続を確認なしで使う',
+        }),
+        onConfirmRemember: (params) => {
+          rememberCalls.push(params)
+        },
+        execute: () => 'fetched',
+      }),
+    )
+    const r = await dispatchCapability(
+      'vault.fetch',
+      { connectionRef: 'Habitica' },
+      configWithPreset('full'),
+      {
+        confirmFn: async () => ({ accepted: true, remember: true }),
+      },
+    )
+    expect(r).toEqual({ ok: true, result: 'fetched' })
+    expect(rememberCalls).toEqual([{ connectionRef: 'Habitica' }])
+  })
+
+  it('does NOT call onConfirmRemember when decision.remember is false', async () => {
+    let rememberCalls = 0
+    registerCapability(
+      makeCapability({
+        id: 'vault.fetch',
+        permissions: ['vault.use'],
+        requiresConfirmation: true,
+        onConfirmRemember: () => {
+          rememberCalls++
+        },
+        execute: () => 'fetched',
+      }),
+    )
+    const r = await dispatchCapability(
+      'vault.fetch',
+      { connectionRef: 'Habitica' },
+      configWithPreset('full'),
+      {
+        confirmFn: async () => ({ accepted: true, remember: false }),
+      },
+    )
+    expect(r).toEqual({ ok: true, result: 'fetched' })
+    expect(rememberCalls).toBe(0)
+  })
+
   it('checks permissions BEFORE confirm (no confirm if denied)', async () => {
     let confirmCalls = 0
     registerCapability(
@@ -371,7 +457,7 @@ describe('dispatchCapability — confirmation flow', () => {
       {
         confirmFn: async () => {
           confirmCalls++
-          return true
+          return { accepted: true, remember: false }
         },
       },
     )

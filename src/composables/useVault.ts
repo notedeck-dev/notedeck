@@ -87,6 +87,12 @@ async function setAiVisible(id: string, visible: boolean): Promise<void> {
   await refresh()
 }
 
+/** 接続を「信頼済み」(AI / AiScript から確認なしで利用可) に切り替える。 */
+async function setAiTrusted(id: string, trusted: boolean): Promise<void> {
+  unwrap(await commands.vaultSetAiTrusted(id, trusted))
+  await refresh()
+}
+
 /** 接続の疎通テストを実行する。 */
 async function testConnection(
   id: string,
@@ -130,6 +136,7 @@ export function useVault() {
     deleteSecret,
     deleteConnection,
     setAiVisible,
+    setAiTrusted,
     testConnection,
     fetch,
   }

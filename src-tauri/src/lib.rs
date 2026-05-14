@@ -308,6 +308,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             commands::vault_delete_secret,
             commands::vault_delete_connection,
             commands::vault_set_ai_visible,
+            commands::vault_set_ai_trusted,
             commands::vault_fetch,
             commands::vault_test_connection,
             commands::ai_migrate_provider_to_vault,

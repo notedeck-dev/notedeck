@@ -1,5 +1,24 @@
+import type { Connection } from '@/bindings'
 import type { Command } from '@/commands/registry'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+
+/**
+ * `connectionRef` (接続名 — 大文字小文字無視 — または id) を `aiVisible: true` な
+ * 接続に解決する。見つからなければ `null`。`execute` と `requiresConfirmation` /
+ * `onConfirmRemember` で同じ解決ロジックを共有するために切り出している。
+ */
+async function resolveVisibleConnection(
+  ref: string,
+): Promise<Connection | null> {
+  const all = unwrap(await commands.vaultListConnections())
+  const visible = all.filter((c) => c.aiVisible)
+  const lower = ref.toLowerCase()
+  return (
+    visible.find((c) => c.name.toLowerCase() === lower) ??
+    visible.find((c) => c.id === ref) ??
+    null
+  )
+}
 
 /**
  * `vault.fetch` — 登録済みの外部サービス接続 (Secret Vault, #564) を使って
@@ -11,8 +30,12 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
  * UI からの直接操作 (接続編集画面のテスト等) は `commands.vaultFetch` を
  * 直接呼ぶため、この制限を受けない。
  *
- * 呼び出し都度 confirmation を出す (`requiresConfirmation: true`) —
- * 外部 API への送信は AI / プラグインが暴走すると情報漏洩につながるため。
+ * confirmation は接続の信頼状態で決まる:
+ * - `aiTrusted: true` の接続 → 確認なし (`requiresConfirmation` が null を返す)
+ * - それ以外 → 都度確認。ダイアログに「今後この接続を確認なしで使う」を出し、
+ *   ON で許可されたら `onConfirmRemember` が接続を `aiTrusted: true` に昇格する。
+ * AI チャット・ウィジェット・プラグインすべてがこの 1 つの接続フラグで governed
+ * される (呼び出し元単位の許可は持たない)。
  */
 export const vaultFetchCapability: Command = {
   id: 'vault.fetch',
@@ -22,7 +45,32 @@ export const vaultFetchCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['vault.use'],
-  requiresConfirmation: true,
+  requiresConfirmation: async (params) => {
+    const ref =
+      typeof params?.connectionRef === 'string' ? params.connectionRef : ''
+    const conn = ref ? await resolveVisibleConnection(ref) : null
+    // 信頼済み接続は確認なしで通す。
+    if (conn?.aiTrusted) return null
+    return {
+      title: '外部接続へのリクエストを許可しますか?',
+      message: conn
+        ? `接続「${conn.name}」(${conn.baseUrl}) に HTTP リクエストを送ります。`
+        : '登録済みの外部サービス接続に HTTP リクエストを送ります。',
+      code: JSON.stringify(params ?? {}, null, 2),
+      codeLanguage: 'json',
+      okLabel: '許可',
+      cancelLabel: 'やめる',
+      type: 'danger',
+      // 接続が解決できたときだけ remember を出す (解決先が確定しているため)。
+      ...(conn ? { rememberLabel: '今後この接続を確認なしで使う' } : {}),
+    }
+  },
+  onConfirmRemember: async (params) => {
+    const ref =
+      typeof params?.connectionRef === 'string' ? params.connectionRef : ''
+    const conn = ref ? await resolveVisibleConnection(ref) : null
+    if (conn) unwrap(await commands.vaultSetAiTrusted(conn.id, true))
+  },
   signature: {
     description:
       '登録済みの外部サービス接続を使って HTTP リクエストを送る。' +
@@ -76,12 +124,7 @@ export const vaultFetchCapability: Command = {
     if (!path) throw new Error('path is required')
 
     // aiVisible な接続だけを対象に、名前 (大文字小文字無視) または id で解決する。
-    const all = unwrap(await commands.vaultListConnections())
-    const visible = all.filter((c) => c.aiVisible)
-    const lower = ref.toLowerCase()
-    const conn =
-      visible.find((c) => c.name.toLowerCase() === lower) ??
-      visible.find((c) => c.id === ref)
+    const conn = await resolveVisibleConnection(ref)
     if (!conn) {
       throw new Error(
         `connection "${ref}" は利用できません (存在しないか、AI からのアクセスが許可されていません)`,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import SystemIcon from '@/components/common/SystemIcon.vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
@@ -45,13 +45,27 @@ const { visible, entering, leaving } = useVaporTransition(show, {
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
 
+// `rememberLabel` 付きダイアログのチェックボックス状態。ダイアログを開くたび
+// (新しい options がセットされるたび) に false へリセットする。
+const remember = ref(false)
+watch(show, (v) => {
+  if (v) remember.value = false
+})
+
+function accept() {
+  resolve({ accepted: true, remember: remember.value })
+}
+function cancel() {
+  resolve({ accepted: false, remember: false })
+}
+
 useNativeDialog(dialogRef, visible, {
   get initialFocus() {
     return options.value.type === 'danger'
       ? '._button:first-child'
       : '._button:last-child'
   },
-  onCancel: () => resolve(false),
+  onCancel: cancel,
   leaveDuration: 200,
 })
 </script>
@@ -106,14 +120,18 @@ useNativeDialog(dialogRef, visible, {
             v-html="highlightCode(options.code, options.codeLanguage ?? 'json')"
           />
         </div>
+        <label v-if="options.rememberLabel" :class="$style.remember">
+          <input v-model="remember" type="checkbox" />
+          <span>{{ options.rememberLabel }}</span>
+        </label>
         <div :class="$style.actions">
-          <button v-if="!options.hideCancel" class="_button" :class="$style.btnCancel" @click="resolve(false)">
+          <button v-if="!options.hideCancel" class="_button" :class="$style.btnCancel" @click="cancel">
             {{ options.cancelLabel || 'キャンセル' }}
           </button>
           <button
             class="_button"
             :class="options.type === 'danger' ? $style.btnDanger : $style.btnOk"
-            @click="resolve(true)"
+            @click="accept"
           >
             {{ options.okLabel || 'OK' }}
           </button>
@@ -289,10 +307,28 @@ useNativeDialog(dialogRef, visible, {
   }
 }
 
+// rememberLabel 付きダイアログのチェックボックス行。body と actions の間に
+// 置く。body の中央寄せとは別に、左寄せで自然なフォーム行として見せる。
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 4px;
+  font-size: 0.82em;
+  color: var(--nd-fg);
+  opacity: 0.85;
+  cursor: pointer;
+
+  input {
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+}
+
 .actions {
   display: flex;
   gap: 6px;
-  padding: 0 16px 16px;
+  padding: 8px 16px 16px;
   justify-content: center;
 }
 

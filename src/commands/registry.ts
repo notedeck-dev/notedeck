@@ -89,6 +89,16 @@ export interface Command {
         params: Record<string, unknown> | undefined,
       ) => ConfirmOptions | null | Promise<ConfirmOptions | null>)
   /**
+   * 確認ダイアログで「次回から確認しない」系のチェックボックス
+   * (`ConfirmOptions.rememberLabel`) が ON のまま許可されたときに呼ばれる。
+   * 信頼状態の永続化など、確認スキップを次回以降に効かせる副作用をここで行う。
+   * `requiresConfirmation` が `rememberLabel` 付き `ConfirmOptions` を返す
+   * capability だけが実装すればよい。
+   */
+  onConfirmRemember?: (
+    params: Record<string, unknown> | undefined,
+  ) => void | Promise<void>
+  /**
    * confirm ダイアログより前に走る入力検証フック。`null` を返したら通常フロー、
    * `{ error }` を返したら dispatcher が `{ ok: false, code: 'preflight_failed' }`
    * で即時 fail-fast する (= confirm を出さず AI に diagnostics を返す)。

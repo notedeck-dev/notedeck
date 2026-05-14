@@ -180,6 +180,7 @@ fn upsert_metadata(
                 template_id: input.template_id,
                 protocol: input.protocol,
                 ai_visible: false,
+                ai_trusted: false,
                 slots: Vec::new(),
                 last_used_at: None,
                 last_secret_updated_at: None,
@@ -414,6 +415,30 @@ pub async fn vault_set_ai_visible(
         .find(|c| c.id == id)
         .ok_or(VaultError::ConnectionNotFound)?;
     connection.ai_visible = visible;
+    connection.updated_at = now_millis();
+    connections_store::save(&app, &file)?;
+    Ok(())
+}
+
+/// 接続を「信頼済み」(AI / AiScript から確認なしで利用可) に切り替える。
+#[tauri::command]
+#[specta::specta]
+pub async fn vault_set_ai_trusted(
+    app: tauri::AppHandle,
+    window: tauri::Window,
+    id: String,
+    trusted: bool,
+) -> VaultResult<()> {
+    assert_main_window(&window)?;
+    validate_connection_id(&id)?;
+
+    let mut file = connections_store::load(&app)?;
+    let connection = file
+        .connections
+        .iter_mut()
+        .find(|c| c.id == id)
+        .ok_or(VaultError::ConnectionNotFound)?;
+    connection.ai_trusted = trusted;
     connection.updated_at = now_millis();
     connections_store::save(&app, &file)?;
     Ok(())

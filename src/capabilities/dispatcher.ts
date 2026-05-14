@@ -16,7 +16,11 @@ import {
   type PermissionKey,
   resolvePermissions,
 } from '@/composables/useAiConfig'
-import { type ConfirmOptions, useConfirm } from '@/stores/confirm'
+import {
+  type ConfirmDecision,
+  type ConfirmOptions,
+  useConfirm,
+} from '@/stores/confirm'
 import { sanitizeToolName } from './identifier'
 import { getCapability, listCapabilities } from './registry'
 
@@ -33,11 +37,12 @@ export type DispatchResult =
 
 /**
  * テスト容易性のために confirm 関数を差し替えられる。production では
- * 未指定で `useConfirm().confirm` が使われる。テストは `() => Promise.resolve(true)`
- * 等で skip / accept / reject を制御する。
+ * 未指定で `useConfirm().confirmWithDecision` が使われる。テストは
+ * `() => Promise.resolve({ accepted: true, remember: false })` 等で
+ * skip / accept / reject / remember を制御する。
  */
 export interface DispatchOptions {
-  confirmFn?: (opts: ConfirmOptions) => Promise<boolean>
+  confirmFn?: (opts: ConfirmOptions) => Promise<ConfirmDecision>
 }
 
 /**
@@ -88,14 +93,19 @@ export async function dispatchCapability(
   // 確認ダイアログ (write 系などで requiresConfirmation: true)
   const confirmOpts = await buildConfirmOptions(cap, params)
   if (confirmOpts) {
-    const confirmFn = options?.confirmFn ?? useConfirm().confirm
-    const accepted = await confirmFn(confirmOpts)
-    if (!accepted) {
+    const confirmFn = options?.confirmFn ?? useConfirm().confirmWithDecision
+    const decision = await confirmFn(confirmOpts)
+    if (!decision.accepted) {
       return {
         ok: false,
         code: 'user_cancelled',
         error: `User cancelled execution of ${capabilityId}`,
       }
+    }
+    // 「次回から確認しない」が ON のまま許可されたら capability に通知する。
+    // 信頼状態の永続化など、確認スキップを次回以降に効かせる副作用を委ねる。
+    if (decision.remember && cap.onConfirmRemember) {
+      await cap.onConfirmRemember(params)
     }
   }
   try {

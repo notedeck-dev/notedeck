@@ -94,6 +94,10 @@ pub struct Connection {
     /// AI に開示するか。default false — 明示的に opt-in しないと AI からは見えない。
     #[serde(default)]
     pub ai_visible: bool,
+    /// AI / AiScript からの利用を確認ダイアログなしで許可するか。default false。
+    /// `ai_visible` が前提 (false なら無意味)。`vault.fetch` の確認をスキップさせる。
+    #[serde(default)]
+    pub ai_trusted: bool,
     /// secret が設定済みの slot 名一覧。keychain 列挙 API がないため metadata 側が source of truth。
     #[serde(default)]
     pub slots: Vec<String>,
@@ -179,5 +183,54 @@ mod tests {
         assert!(validate_connection_id(&valid).is_ok());
         assert!(validate_connection_id("not-a-ulid").is_err());
         assert!(validate_connection_id("").is_err());
+    }
+
+    #[test]
+    fn ai_trusted_defaults_to_false_for_legacy_json_without_the_field() {
+        // 既存 connections.json は `aiTrusted` フィールドを持たない。
+        // `#[serde(default)]` で false にデシリアライズされ migration 不要。
+        let legacy = r#"{
+            "id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
+            "name": "Legacy",
+            "baseUrl": "https://example.com",
+            "authType": { "kind": "bearer" },
+            "aiVisible": true,
+            "createdAt": "0",
+            "updatedAt": "0"
+        }"#;
+        let conn: Connection = serde_json::from_str(legacy).unwrap();
+        assert!(!conn.ai_trusted);
+        assert!(conn.ai_visible);
+    }
+
+    #[test]
+    fn ai_trusted_round_trips_through_serde() {
+        let conn = Connection {
+            id: "01HZZZZZZZZZZZZZZZZZZZZZZZ".to_string(),
+            name: "Trusted".to_string(),
+            base_url: "https://example.com".to_string(),
+            kind: ConnectionKind::default(),
+            auth_type: AuthType::Bearer,
+            allowed_hosts: vec![],
+            account_scope: None,
+            origin: ConnectionOrigin::default(),
+            external_source: None,
+            template_id: None,
+            protocol: None,
+            ai_visible: true,
+            ai_trusted: true,
+            slots: vec![],
+            last_used_at: None,
+            last_secret_updated_at: None,
+            display_name: None,
+            icon: None,
+            notes: None,
+            created_at: "0".to_string(),
+            updated_at: "0".to_string(),
+        };
+        let json = serde_json::to_string(&conn).unwrap();
+        assert!(json.contains("\"aiTrusted\":true"));
+        let back: Connection = serde_json::from_str(&json).unwrap();
+        assert!(back.ai_trusted);
     }
 }

@@ -1901,6 +1901,17 @@ async vaultSetAiVisible(id: string, visible: boolean) : Promise<Result<null, Vau
 }
 },
 /**
+ * 接続を「信頼済み」(AI / AiScript から確認なしで利用可) に切り替える。
+ */
+async vaultSetAiTrusted(id: string, trusted: boolean) : Promise<Result<null, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("vault_set_ai_trusted", { id, trusted }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * 登録済み接続を使って HTTP リクエストを実行する。
  * 
  * secret は Rust 側で注入され、フロントエンドには渡らない。SSRF 防御
@@ -2236,7 +2247,12 @@ protocol?: ConnectionProtocol | null;
 /**
  * AI に開示するか。default false — 明示的に opt-in しないと AI からは見えない。
  */
-aiVisible?: boolean; 
+aiVisible?: boolean;
+/**
+ * AI / AiScript からの利用を確認ダイアログなしで許可するか。default false。
+ * `ai_visible` が前提 (false なら無意味)。`vault.fetch` の確認をスキップさせる。
+ */
+aiTrusted?: boolean;
 /**
  * secret が設定済みの slot 名一覧。keychain 列挙 API がないため metadata 側が source of truth。
  */
