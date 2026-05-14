@@ -26,6 +26,7 @@ import {
 } from '@/composables/useAiSystemContext'
 import { ensureMemosLoaded, loadAllMemos } from '@/composables/useMemos'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
+import { describeAuthType, useVault } from '@/composables/useVault'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSessionMeta, useAiSessionsStore } from '@/stores/aiSessions'
 import { useConfirm } from '@/stores/confirm'
@@ -63,6 +64,7 @@ skillsStore.ensureLoaded()
 const sessionsStore = useAiSessionsStore()
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
+const vault = useVault()
 
 void sessionsStore.loadAllMeta()
 // メモは <memos> データソースとして AI context に注入し得るので、
@@ -565,6 +567,18 @@ async function sendMessage() {
       const allMemosByAccount = activeAccountId
         ? new Map([[activeAccountId, loadAllMemos(activeAccountId)]])
         : new Map()
+
+      // Secret Vault (#564): aiVisible な接続を AI に開示する。
+      // secret / id は渡さず name / baseUrl / auth のみ projection する。
+      await vault.refresh()
+      const availableConnections = vault.connections.value
+        .filter((c) => c.aiVisible)
+        .map((c) => ({
+          name: c.name,
+          baseUrl: c.baseUrl,
+          auth: describeAuthType(c.authType),
+        }))
+
       const contextBlock = buildAiContextBlock(aiConfig.value, {
         activeAccount: accountsStore.activeAccount,
         currentColumn: focusedColumn ?? props.column,
@@ -584,6 +598,7 @@ async function sendMessage() {
               bio: personaIdentity.bio,
             }
           : undefined,
+        availableConnections,
       })
       const system = joinSystemPrompt(skillsPrompt, contextBlock)
 

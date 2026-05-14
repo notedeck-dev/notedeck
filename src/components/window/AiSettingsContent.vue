@@ -276,6 +276,10 @@ const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'アプリログの読取 (warn/error)',
     icon: 'ti-bug',
   },
+  'vault.use': {
+    label: '外部サービス接続の利用 (Secret Vault)',
+    icon: 'ti-plug-connected',
+  },
 }
 
 interface DataSourceLabel {

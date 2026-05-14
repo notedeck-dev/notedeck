@@ -77,6 +77,17 @@ export interface AiContextInput {
     displayName: string
     bio?: string
   }
+  /**
+   * AI に開示する外部サービス接続 (Secret Vault, #564)。
+   * `aiVisible: true` な接続のみを呼び出し側で projection 済みで渡す。
+   * secret / id は含めず、AI が `vault.fetch` の connectionRef に使う
+   * `name` と参考情報の `baseUrl` / `auth` のみ。空配列なら出力しない。
+   */
+  availableConnections?: {
+    name: string
+    baseUrl: string
+    auth: string
+  }[]
 }
 
 /** AI に渡す可視ノートの上限件数。 */
@@ -475,6 +486,14 @@ export function buildAiContextBlock(
   }
   if (ds.memos && ctx.memos && ctx.memos.length > 0) {
     parts.push(`  <memos>\n${jsonBlock(ctx.memos)}\n  </memos>`)
+  }
+  // 外部サービス接続 (#564)。dataSources では on/off せず、`aiVisible: true`
+  // な接続が存在すれば常に列挙する (vault.use 権限は dispatcher が enforce)。
+  // AI はここに出ている name を `vault.fetch` の connectionRef に使う。
+  if (ctx.availableConnections && ctx.availableConnections.length > 0) {
+    parts.push(
+      `  <available-connections>\n${jsonBlock(ctx.availableConnections)}\n  </available-connections>`,
+    )
   }
   // persona block (#491) — session.personaSkillId 由来。dataSources で
   // on/off せず、session 自身が persona を持っていれば常に注入する。
