@@ -10,11 +10,9 @@ import {
   useAiChat,
 } from '@/composables/useAiChat'
 import {
-  getApiKeyStatus,
-  type ProviderKey,
   reloadAiConfig,
+  resolveAiConnection,
   useAiConfig,
-  watchApiKeyChanges,
 } from '@/composables/useAiConfig'
 import { useAiConversation } from '@/composables/useAiConversation'
 import {
@@ -289,22 +287,24 @@ async function onDeleteSession(
 }
 
 // --- プロバイダー接続チェック ---
+//
+// AI プロバイダーは Vault 接続 (#564) に統合済み。activeConnectionId が指す
+// 接続が存在し、protocol が設定され、secret が登録され、model が指定済みなら
+// 'connected'。
 
 async function checkProvider(): Promise<void> {
   providerStatus.value = 'checking'
   try {
-    const provider: ProviderKey = aiConfig.value.provider
-    const settings = aiConfig.value[provider]
-    if (!settings.endpoint || !settings.model) {
-      providerStatus.value = 'disconnected'
-      return
-    }
-    if (provider === 'custom') {
-      providerStatus.value = 'connected'
-      return
-    }
-    const hasKey = await getApiKeyStatus(provider)
-    providerStatus.value = hasKey ? 'connected' : 'disconnected'
+    await vault.refresh()
+    const resolved = resolveAiConnection(
+      aiConfig.value,
+      vault.connections.value,
+    )
+    const ready =
+      resolved !== null &&
+      resolved.model.length > 0 &&
+      (resolved.connection.slots?.length ?? 0) > 0
+    providerStatus.value = ready ? 'connected' : 'disconnected'
   } catch {
     providerStatus.value = 'disconnected'
   }
@@ -312,19 +312,15 @@ async function checkProvider(): Promise<void> {
 
 watch(
   () => [
-    aiConfig.value.provider,
-    aiConfig.value[aiConfig.value.provider]?.endpoint,
-    aiConfig.value[aiConfig.value.provider]?.model,
+    aiConfig.value.activeConnectionId,
+    aiConfig.value.models[aiConfig.value.activeConnectionId],
+    vault.connections.value,
   ],
   () => {
     void checkProvider()
   },
-  { immediate: true },
+  { immediate: true, deep: true },
 )
-
-watch(watchApiKeyChanges(), () => {
-  void checkProvider()
-})
 
 // --- スクロール ---
 
@@ -381,9 +377,8 @@ async function generateAiTitleAsync(
   const before = sessionsStore.get(sessionId)
   if (!before) return
   const titleBefore = before.title
-  const provider: ProviderKey = aiConfig.value.provider
-  const settings = aiConfig.value[provider]
-  if (!settings.endpoint || !settings.model) return
+  const resolved = resolveAiConnection(aiConfig.value, vault.connections.value)
+  if (!resolved || !resolved.model) return
 
   // 会話を 1 つの user メッセージに集約する。assistant role を history に
   // 置くと Anthropic 側が「続きを書く」モードになりタイトルが取れない。
@@ -393,9 +388,8 @@ async function generateAiTitleAsync(
 
   try {
     const raw = await titleGen.sendMessage({
-      provider,
-      endpoint: settings.endpoint,
-      model: settings.model,
+      connectionId: resolved.connection.id,
+      model: resolved.model,
       history: [
         { id: 'u', role: 'user', content: conversationPrompt, timestamp: 0 },
       ],
@@ -424,9 +418,10 @@ function ensureSession(): string {
   // Persona (#491): 新規 session 作成時に aiConfig.personaSkillId を snapshot。
   // 後で global 設定を変更しても過去 session の persona は固定されたまま
   // (= Git commit の Author header と同じ immutable semantic)。
+  const resolved = resolveAiConnection(aiConfig.value, vault.connections.value)
   const session = sessionsStore.createNew({
-    model: aiConfig.value[aiConfig.value.provider]?.model ?? '',
-    provider: aiConfig.value.provider,
+    model: resolved?.model ?? '',
+    connectionId: aiConfig.value.activeConnectionId,
     personaSkillId: aiConfig.value.personaSkillId || undefined,
   })
   deckStore.updateColumn(props.column.id, {
@@ -454,8 +449,8 @@ async function sendMessage() {
   // updateColumn 直後の再評価タイミングに依存したくないため。
   const sessionId = ensureSession()
 
-  const provider: ProviderKey = aiConfig.value.provider
-  const settings = aiConfig.value[provider]
+  const resolved = resolveAiConnection(aiConfig.value, vault.connections.value)
+  if (!resolved) return
 
   const now = Date.now()
   const userMsg: ChatMessage = {
@@ -529,7 +524,7 @@ async function sendMessage() {
   const toolsForProvider: unknown[] | undefined =
     eligibleCaps.length === 0
       ? undefined
-      : provider === 'anthropic'
+      : resolved.protocol === 'anthropic'
         ? eligibleCaps.map(toAnthropicTool)
         : eligibleCaps.map(toOpenAiTool)
 
@@ -604,9 +599,8 @@ async function sendMessage() {
 
       let pendingToolUse: ToolUseEvent | null = null
       const turnText = await aiChat.sendMessage({
-        provider,
-        endpoint: settings.endpoint,
-        model: settings.model,
+        connectionId: resolved.connection.id,
+        model: resolved.model,
         history,
         system,
         tools: toolsForProvider,

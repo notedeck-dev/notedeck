@@ -26,8 +26,8 @@ export interface ChatMessage {
 }
 
 export interface AiChatSendOptions {
-  provider: string
-  endpoint: string
+  /** 使用する Vault 接続の id (#564)。endpoint / 認証 / protocol は Rust 側で解決。 */
+  connectionId: string
   model: string
   /** Conversation history (excluding the system prompt). */
   history: ChatMessage[]
@@ -228,8 +228,7 @@ export function useAiChat() {
           activeUnlisten = un
           return commands.aiChatSend({
             stream_id: streamId,
-            provider: opts.provider,
-            endpoint: opts.endpoint,
+            connection_id: opts.connectionId,
             model: opts.model,
             messages: opts.history.map(toWireMessage),
             system: opts.system && opts.system.length > 0 ? opts.system : null,
@@ -293,8 +292,7 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
         unlisten = un
         return commands.aiChatSend({
           stream_id: streamId,
-          provider: opts.provider,
-          endpoint: opts.endpoint,
+          connection_id: opts.connectionId,
           model: opts.model,
           messages: opts.history.map(toWireMessage),
           system: opts.system && opts.system.length > 0 ? opts.system : null,

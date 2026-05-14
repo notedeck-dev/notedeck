@@ -10,7 +10,7 @@
  * テンプレは需要を見て v1.x で追加する (手動追加 / URL ペーストは現状でも可)。
  */
 
-import type { AuthType } from '@/bindings'
+import type { AuthType, ConnectionProtocol } from '@/bindings'
 import { proxyUrl } from '@/utils/imageProxy'
 
 export interface ConnectionTemplate {
@@ -35,6 +35,13 @@ export interface ConnectionTemplate {
   secretLabel: string
   /** secret 発行手順への URL。 */
   secretHelpUrl: string
+  /**
+   * LLM プロトコル。設定すると AI プロバイダー接続として扱われ、
+   * AI 設定の接続ピッカーに表示される。汎用 API テンプレでは未設定。
+   */
+  protocol?: ConnectionProtocol
+  /** AI 設定で接続を選んだときに初期表示するモデル名。 */
+  defaultModel?: string
 }
 
 export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
@@ -42,12 +49,14 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     id: 'builtin:openai@1',
     name: 'OpenAI',
     icon: 'sparkles',
-    baseUrl: 'https://api.openai.com',
+    baseUrl: 'https://api.openai.com/v1',
     authType: { kind: 'bearer' },
     allowedHosts: ['api.openai.com'],
-    testPath: '/v1/models',
+    testPath: '/models',
     secretLabel: 'API Key',
     secretHelpUrl: 'https://platform.openai.com/api-keys',
+    protocol: 'openai-compat',
+    defaultModel: 'gpt-4o',
   },
   {
     id: 'builtin:anthropic@1',
@@ -59,17 +68,20 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     testPath: '/v1/models',
     secretLabel: 'API Key',
     secretHelpUrl: 'https://console.anthropic.com/settings/keys',
+    protocol: 'anthropic',
+    defaultModel: 'claude-opus-4-7',
   },
   {
     id: 'builtin:openrouter@1',
     name: 'OpenRouter',
     icon: 'router',
-    baseUrl: 'https://openrouter.ai',
+    baseUrl: 'https://openrouter.ai/api/v1',
     authType: { kind: 'bearer' },
     allowedHosts: ['openrouter.ai'],
-    testPath: '/api/v1/models',
+    testPath: '/models',
     secretLabel: 'API Key',
     secretHelpUrl: 'https://openrouter.ai/keys',
+    protocol: 'openai-compat',
   },
 ]
 

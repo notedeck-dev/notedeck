@@ -10,8 +10,6 @@ import {
   DATA_SOURCE_KEYS,
   type DataSourceKey,
   defaultConfig,
-  deleteApiKey,
-  getApiKeyStatus,
   HEARTBEAT_DAILY_MAX_AI_RUNS_MAX,
   HEARTBEAT_DAILY_MAX_AI_RUNS_MIN,
   HEARTBEAT_INTERVAL_DEFAULT_MINUTES,
@@ -22,13 +20,10 @@ import {
   HIGH_RISK_PERMISSION_KEYS,
   PERMISSION_KEYS,
   type PermissionKey,
-  PROVIDER_KEYS,
   type PresetKey,
-  type ProviderKey,
-  type ProviderSettings,
+  resolveAiConnection,
   resolveDataSources,
   resolvePermissions,
-  setApiKey,
   setDataSourcePreset,
   setPermissionPreset,
   useAiConfig,
@@ -37,10 +32,12 @@ import { useClickOutside } from '@/composables/useClickOutside'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useVault } from '@/composables/useVault'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { faviconUrl } from '@/data/connectionTemplates'
 import { useAccountsStore } from '@/stores/accounts'
 import { useSkillsStore } from '@/stores/skills'
-import { commands, unwrap } from '@/utils/tauriInvoke'
+import { useWindowsStore } from '@/stores/windows'
 
 const jsonLang = json()
 
@@ -74,94 +71,6 @@ const { tab, containerRef: editorRef } = useEditorTabs(
 )
 
 useWindowExternalFile(() => ({ name: 'ai.json5' }))
-
-// --- Provider schema (data-driven UI) ---
-
-interface ProviderOption {
-  value: ProviderKey
-  label: string
-  icon: string
-  /** URL path appended to endpoint for connection test */
-  testPath: string
-  /** Whether this provider requires an API key for normal operation */
-  needsApiKey: boolean
-}
-
-interface FieldDef {
-  key: keyof ProviderSettings
-  label: string
-  icon: string
-  placeholder: string
-}
-
-const PROVIDERS: ProviderOption[] = [
-  {
-    value: 'anthropic',
-    label: 'Anthropic Claude',
-    icon: 'ti-sparkles',
-    testPath: '/v1/models',
-    needsApiKey: true,
-  },
-  {
-    value: 'openai',
-    label: 'OpenAI ChatGPT',
-    icon: 'ti-brand-openai',
-    testPath: '/models',
-    needsApiKey: true,
-  },
-  {
-    value: 'custom',
-    label: 'カスタム (OpenAI互換)',
-    icon: 'ti-plug',
-    testPath: '/models',
-    needsApiKey: true,
-  },
-]
-
-const PROVIDER_FIELDS: Record<ProviderKey, FieldDef[]> = {
-  anthropic: [
-    {
-      key: 'endpoint',
-      label: 'エンドポイント',
-      icon: 'ti-link',
-      placeholder: 'https://api.anthropic.com',
-    },
-    {
-      key: 'model',
-      label: 'モデル',
-      icon: 'ti-cube',
-      placeholder: 'claude-opus-4-7, claude-sonnet-4-6, etc.',
-    },
-  ],
-  openai: [
-    {
-      key: 'endpoint',
-      label: 'エンドポイント',
-      icon: 'ti-link',
-      placeholder: 'https://api.openai.com/v1',
-    },
-    {
-      key: 'model',
-      label: 'モデル',
-      icon: 'ti-cube',
-      placeholder: 'gpt-4o, gpt-4o-mini, etc.',
-    },
-  ],
-  custom: [
-    {
-      key: 'endpoint',
-      label: 'エンドポイント',
-      icon: 'ti-link',
-      placeholder: 'https://openrouter.ai/api/v1 など (OpenAI 互換)',
-    },
-    {
-      key: 'model',
-      label: 'モデル',
-      icon: 'ti-cube',
-      placeholder: 'anthropic/claude-sonnet-4 など',
-    },
-  ],
-}
 
 // --- Permissions / DataSources schema (data-driven UI) ---
 
@@ -324,7 +233,7 @@ const HIGH_RISK_SET = new Set<PermissionKey>(HIGH_RISK_PERMISSION_KEYS)
 
 const { config, save: saveConfig, mergeConfig } = useAiConfig()
 
-const expandedSections = reactive<Record<string, boolean>>({ provider: true })
+const expandedSections = reactive<Record<string, boolean>>({ connection: true })
 
 function toggleSection(key: string) {
   expandedSections[key] = !expandedSections[key]
@@ -386,37 +295,44 @@ watch(rawJson, (v) => {
   }, 500)
 })
 
-// --- Computed helpers ---
+// --- AI 接続 (Vault #564) ---
 
-const currentProvider = computed(
-  () =>
-    // biome-ignore lint: PROVIDERS is a non-empty constant array
-    PROVIDERS.find((p) => p.value === config.value.provider) ?? PROVIDERS[0]!,
+const vault = useVault()
+const windowsStore = useWindowsStore()
+
+onMounted(() => {
+  void vault.refresh()
+})
+
+// AI プロバイダーとして使える接続 = protocol が設定済みの接続。
+const aiConnections = computed(() =>
+  vault.connections.value.filter((c) => c.protocol != null),
 )
 
-const currentFields = computed(() => PROVIDER_FIELDS[config.value.provider])
+// 現在選択中の接続 (resolveAiConnection で解決)。未選択 / 不在なら null。
+const currentConnection = computed(
+  () => resolveAiConnection(config.value, vault.connections.value)?.connection,
+)
 
-const currentSettings = computed(() => config.value[config.value.provider])
-
-const customEndpointInsecure = computed(() => {
-  if (config.value.provider !== 'custom') return false
-  const ep = config.value.custom.endpoint?.trim() ?? ''
-  return ep.length > 0 && /^http:\/\//i.test(ep)
+// 選択中接続のモデル名。`config.models[connectionId]` に保存する。
+const currentModel = computed<string>({
+  get: () => {
+    const id = config.value.activeConnectionId
+    return id ? (config.value.models[id] ?? '') : ''
+  },
+  set: (value) => {
+    const id = config.value.activeConnectionId
+    if (id) config.value.models = { ...config.value.models, [id]: value }
+  },
 })
 
-// --- Provider dropdown ---
-
-const showProviderDropdown = ref(false)
-const providerDropdownRef = ref<HTMLElement | null>(null)
-
-function selectProvider(value: ProviderKey) {
-  config.value.provider = value
-  showProviderDropdown.value = false
+function selectConnection(id: string): void {
+  config.value.activeConnectionId = id
 }
 
-useClickOutside(providerDropdownRef, () => {
-  showProviderDropdown.value = false
-})
+function openConnectionsWindow(): void {
+  windowsStore.open('connections')
+}
 
 // --- Permissions / DataSources preset dropdowns ---
 
@@ -566,119 +482,6 @@ useClickOutside(heartbeatPermPresetRef, () => {
   showHeartbeatPermPresetDropdown.value = false
 })
 
-// --- API key (keychain) ---
-
-const apiKeyStatus = reactive<Record<ProviderKey, boolean>>({
-  anthropic: false,
-  openai: false,
-  custom: false,
-})
-const editingKey = ref<ProviderKey | null>(null)
-const draftKey = ref('')
-const showDraftKey = ref(false)
-
-async function refreshApiKeyStatus(provider: ProviderKey) {
-  try {
-    apiKeyStatus[provider] = await getApiKeyStatus(provider)
-  } catch (e) {
-    console.warn(
-      `[ai-settings] failed to read keychain status for ${provider}:`,
-      e,
-    )
-    apiKeyStatus[provider] = false
-  }
-}
-
-async function refreshAllStatuses() {
-  await Promise.all(PROVIDER_KEYS.map(refreshApiKeyStatus))
-}
-
-onMounted(refreshAllStatuses)
-
-// プロバイダー切替時に編集モードをリセット
-watch(
-  () => config.value.provider,
-  () => {
-    editingKey.value = null
-    draftKey.value = ''
-    showDraftKey.value = false
-  },
-)
-
-function startEdit(provider: ProviderKey) {
-  editingKey.value = provider
-  draftKey.value = ''
-  showDraftKey.value = false
-  expandedSections.apiKey = true
-}
-
-function cancelEdit() {
-  editingKey.value = null
-  draftKey.value = ''
-  showDraftKey.value = false
-}
-
-async function saveDraftKey(provider: ProviderKey) {
-  if (!draftKey.value) {
-    cancelEdit()
-    return
-  }
-  await setApiKey(provider, draftKey.value)
-  draftKey.value = ''
-  editingKey.value = null
-  showDraftKey.value = false
-  await refreshApiKeyStatus(provider)
-}
-
-async function clearKey(provider: ProviderKey) {
-  await deleteApiKey(provider)
-  await refreshApiKeyStatus(provider)
-}
-
-// --- Connection test ---
-
-const testStatus = ref<'idle' | 'testing' | 'ok' | 'error'>('idle')
-const testMessage = ref('')
-
-async function testConnection() {
-  testStatus.value = 'testing'
-  testMessage.value = ''
-
-  try {
-    const provider = currentProvider.value
-    const settings = currentSettings.value
-    const url = `${settings.endpoint}${provider.testPath}`
-
-    // For test purposes, prefer the draft key (currently being entered) over
-    // the stored one — the keychain key body is intentionally not exposed.
-    // Tests with no draft key run unauthenticated; this fails for providers
-    // requiring auth, which surfaces "set a key first" naturally.
-    const testKey = editingKey.value === provider.value ? draftKey.value : ''
-
-    const result = unwrap(
-      await commands.checkEndpointHealth(url, testKey || null),
-    ) as unknown as {
-      ok: boolean
-      status: number
-      message: string
-    }
-    if (result.ok) {
-      testStatus.value = 'ok'
-      testMessage.value = result.message
-    } else {
-      testStatus.value = 'error'
-      testMessage.value = result.message
-    }
-  } catch (e) {
-    testStatus.value = 'error'
-    testMessage.value = e instanceof Error ? e.message : '接続失敗'
-  }
-
-  setTimeout(() => {
-    if (testStatus.value !== 'testing') testStatus.value = 'idle'
-  }, 3000)
-}
-
 // --- Import/Export ---
 
 const {
@@ -736,151 +539,86 @@ function handleReset() {
 
     <!-- API Settings Tab -->
     <div v-show="tab === 'api'" :class="$style.panel">
-      <!-- Provider -->
+      <!-- AI 接続 (Vault #564) -->
       <div :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('provider')">
-          <i class="ti ti-cloud" />
-          プロバイダー
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.provider }]" />
+        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('connection')">
+          <i class="ti ti-plug-connected" />
+          AI 接続
+          <span :class="$style.statusBadge">
+            <i
+              v-if="currentConnection"
+              class="ti ti-shield-check"
+              :class="$style.badgeOk"
+            />
+            <i v-else class="ti ti-shield-off" :class="$style.badgeNone" />
+            {{ currentConnection ? currentConnection.name : '未選択' }}
+          </span>
+          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.connection }]" />
         </button>
-        <template v-if="expandedSections.provider">
-          <div ref="providerDropdownRef" :class="$style.dropdown">
-            <button
-              class="_button"
-              :class="$style.dropdownTrigger"
-              @click="showProviderDropdown = !showProviderDropdown"
+        <template v-if="expandedSections.connection">
+          <div :class="$style.keyHint">
+            <i class="ti ti-info-circle" />
+            API キーは Secret Vault (OS キーチェーン) に保管され、フロントエンドや AI には渡りません。接続の追加・編集は「接続」ウィンドウで行います。
+          </div>
+          <div :class="$style.personaList">
+            <label
+              v-for="conn in aiConnections"
+              :key="conn.id"
+              :class="[$style.personaOption, { [$style.personaOptionActive]: config.activeConnectionId === conn.id }]"
             >
-              <i :class="'ti ' + currentProvider.icon" />
-              <span>{{ currentProvider.label }}</span>
-              <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
-            </button>
-            <div v-if="showProviderDropdown" :class="$style.dropdownPanel">
-              <button
-                v-for="opt in PROVIDERS"
-                :key="opt.value"
-                class="_button"
-                :class="[$style.dropdownItem, { [$style.selected]: config.provider === opt.value }]"
-                @click="selectProvider(opt.value)"
-              >
-                <i :class="'ti ' + opt.icon" />
-                <span>{{ opt.label }}</span>
-                <i v-if="config.provider === opt.value" class="ti ti-check" :class="$style.checkIcon" />
-              </button>
+              <input
+                type="radio"
+                :checked="config.activeConnectionId === conn.id"
+                @change="selectConnection(conn.id)"
+              />
+              <img
+                v-if="faviconUrl(conn.baseUrl)"
+                :src="faviconUrl(conn.baseUrl) ?? ''"
+                :class="$style.connOptionAvatar"
+                alt=""
+                aria-hidden="true"
+              />
+              <i v-else class="ti ti-plug" :class="$style.personaOptionIcon" />
+              <div :class="$style.personaOptionMain">
+                <div :class="$style.personaOptionName">{{ conn.name }}</div>
+                <div :class="$style.personaOptionDesc">
+                  {{ conn.protocol === 'anthropic' ? 'Anthropic' : 'OpenAI 互換' }}
+                  · {{ conn.baseUrl }}
+                </div>
+              </div>
+            </label>
+            <div v-if="aiConnections.length === 0" :class="$style.personaEmpty">
+              <i class="ti ti-info-circle" />
+              <span>
+                AI プロバイダー接続がありません。「接続」ウィンドウで OpenAI / Anthropic / OpenRouter のテンプレートから接続を追加してください。
+              </span>
             </div>
           </div>
+          <button
+            class="_button"
+            :class="$style.keyBtn"
+            @click="openConnectionsWindow"
+          >
+            <i class="ti ti-plug" />
+            接続を追加 / 管理
+          </button>
         </template>
       </div>
 
-      <!-- Custom provider safety notice -->
-      <div v-if="config.provider === 'custom'" :class="[$style.section, $style.noticeSection]">
-        <div :class="$style.notice">
-          <i class="ti ti-shield-lock" />
-          <div>
-            <strong>信頼できるエンドポイントのみ使用してください。</strong><br />
-            Custom は任意 URL を許可します (OpenRouter / Groq / 自前 LLM ゲートウェイ等)。プロンプト内容と API キーがそのままエンドポイントに送信されます。
-          </div>
-        </div>
-        <div v-if="customEndpointInsecure" :class="$style.warning">
-          <i class="ti ti-alert-triangle" />
-          <div>
-            <strong>HTTP 接続は推奨されません。</strong>
-            通信が暗号化されないため、API キーやプロンプトが平文で漏洩する可能性があります。HTTPS を使用してください。
-          </div>
-        </div>
-      </div>
-
-      <!-- Provider-specific fields (data-driven, plain text only) -->
-      <div v-for="field in currentFields" :key="field.key" :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection(field.key)">
-          <i :class="'ti ' + field.icon" />
-          {{ field.label }}
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections[field.key] }]" />
+      <!-- モデル -->
+      <div v-if="currentConnection" :class="$style.section">
+        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('model')">
+          <i class="ti ti-cube" />
+          モデル
+          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.model }]" />
         </button>
-        <template v-if="expandedSections[field.key]">
+        <template v-if="expandedSections.model">
           <input
-            v-model="currentSettings[field.key]"
+            v-model="currentModel"
             :class="$style.input"
             type="text"
-            :placeholder="field.placeholder"
+            placeholder="claude-opus-4-7, gpt-4o, anthropic/claude-sonnet-4 など"
           />
-        </template>
-      </div>
-
-      <!-- API Key (keychain — body never exposed to frontend) -->
-      <div v-if="currentProvider.needsApiKey" :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('apiKey')">
-          <i class="ti ti-key" />
-          APIキー
-          <span :class="$style.statusBadge">
-            <i v-if="apiKeyStatus[currentProvider.value]" class="ti ti-shield-check" :class="$style.badgeOk" />
-            <i v-else class="ti ti-shield-off" :class="$style.badgeNone" />
-            {{ apiKeyStatus[currentProvider.value] ? '設定済み' : '未設定' }}
-          </span>
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.apiKey }]" />
-        </button>
-        <template v-if="expandedSections.apiKey">
-          <div :class="$style.keyHint">
-            <i class="ti ti-lock" />
-            キーは OS のキーチェーンに保管されます (DevTools / ファイルから取得不可)
-          </div>
-          <!-- Edit mode -->
-          <template v-if="editingKey === currentProvider.value">
-            <div :class="$style.inputRow">
-              <input
-                v-model="draftKey"
-                :class="$style.input"
-                :type="showDraftKey ? 'text' : 'password'"
-                placeholder="新しい API キーを入力"
-                @keydown.enter="saveDraftKey(currentProvider.value)"
-                @keydown.esc="cancelEdit"
-              />
-              <button
-                class="_button"
-                :class="$style.visibilityBtn"
-                @click="showDraftKey = !showDraftKey"
-              >
-                <i :class="showDraftKey ? 'ti ti-eye-off' : 'ti ti-eye'" />
-              </button>
-            </div>
-            <div :class="$style.keyActions">
-              <button
-                class="_button"
-                :class="[$style.keyBtn, $style.primary]"
-                :disabled="!draftKey"
-                @click="saveDraftKey(currentProvider.value)"
-              >
-                <i class="ti ti-check" />
-                保存
-              </button>
-              <button class="_button" :class="$style.keyBtn" @click="cancelEdit">
-                <i class="ti ti-x" />
-                キャンセル
-              </button>
-            </div>
-          </template>
-          <!-- Status mode: show "クリア" if set, otherwise "キーを入力" -->
-          <template v-else>
-            <div :class="$style.keyActions">
-              <button
-                v-if="apiKeyStatus[currentProvider.value]"
-                class="_button"
-                :class="[$style.keyBtn, $style.danger]"
-                @click="clearKey(currentProvider.value)"
-              >
-                <i class="ti ti-trash" />
-                クリア
-              </button>
-              <button
-                v-else
-                class="_button"
-                :class="$style.keyBtn"
-                @click="startEdit(currentProvider.value)"
-              >
-                <i class="ti ti-pencil" />
-                キーを入力
-              </button>
-            </div>
-          </template>
         </template>
       </div>
 
@@ -1360,33 +1098,6 @@ function handleReset() {
         </template>
       </div>
 
-      <!-- Connection Test -->
-      <div :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('test')">
-          <i class="ti ti-plug-connected" />
-          接続テスト
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.test }]" />
-        </button>
-        <template v-if="expandedSections.test">
-          <button
-            class="_button"
-            :class="[$style.testBtn, { [$style.testing]: testStatus === 'testing' }]"
-            :disabled="testStatus === 'testing'"
-            @click="testConnection"
-          >
-            <i :class="testStatus === 'testing' ? 'ti ti-loader-2' : 'ti ti-plug-connected'" />
-            {{ testStatus === 'testing' ? '接続テスト中...' : '接続テスト' }}
-          </button>
-          <div v-if="testStatus === 'ok'" :class="$style.codeSuccess">
-            <i class="ti ti-check" />
-            {{ testMessage }}
-          </div>
-          <div v-if="testStatus === 'error'" :class="$style.errorMessage">
-            <i class="ti ti-alert-triangle" />
-            {{ testMessage }}
-          </div>
-        </template>
-      </div>
     </div>
 
     <!-- ai.json5 raw editor tab -->
@@ -1657,6 +1368,15 @@ function handleReset() {
   color: var(--nd-accent);
   -webkit-mask: var(--icon-url) center / contain no-repeat;
   mask: var(--icon-url) center / contain no-repeat;
+}
+
+// 接続 favicon (ラスタ画像)。persona icon と違い SVG mask は使わずそのまま表示。
+.connOptionAvatar {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: var(--nd-radius-sm);
+  object-fit: contain;
 }
 
 .personaOptionMain {

@@ -4,10 +4,11 @@ import { dispatchCapability } from '@/capabilities/dispatcher'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import type { ChatMessage } from '@/composables/useAiChat'
-import { useAiConfig } from '@/composables/useAiConfig'
+import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useSensitiveMask } from '@/composables/useSensitiveMask'
 import { useServerImages } from '@/composables/useServerImages'
+import { useVault } from '@/composables/useVault'
 import { useVerticalResize } from '@/composables/useVerticalResize'
 import { useAiSessionsStore } from '@/stores/aiSessions'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
@@ -35,6 +36,7 @@ const windowsStore = useWindowsStore()
 const keybindsStore = useKeybindsStore()
 const sessionsStore = useAiSessionsStore()
 const { config: aiConfig } = useAiConfig()
+const vault = useVault()
 
 const SENSITIVE_RAW_KEYS = new Set<string>([
   'i',
@@ -196,11 +198,10 @@ function runFromList(taskId: string) {
  * 決めるパターンは AI Chat カラム経由で `tasks.run` を tool として呼ばせる。
  */
 async function runWithAi(def: TaskDefinition): Promise<void> {
-  const provider = aiConfig.value.provider
-  const model = aiConfig.value[provider]?.model
-  if (!model) {
+  const resolved = resolveAiConnection(aiConfig.value, vault.connections.value)
+  if (!resolved || !resolved.model) {
     useToast().show(
-      `AI 設定 (${provider}) の model が未設定のため AI 実行できません`,
+      'AI 接続が未選択、または model が未設定のため AI 実行できません',
       'error',
     )
     return
@@ -209,8 +210,8 @@ async function runWithAi(def: TaskDefinition): Promise<void> {
   const session = sessionsStore.createNew({
     kind: 'task',
     title: def.label,
-    model,
-    provider,
+    model: resolved.model,
+    connectionId: resolved.connection.id,
   })
 
   const now = Date.now()

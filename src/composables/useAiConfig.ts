@@ -1,18 +1,12 @@
 import JSON5 from 'json5'
 import { type Ref, ref } from 'vue'
+import type { Connection, ConnectionProtocol } from '@/bindings'
 import defaultAiJson5 from '@/defaults/ai.json5?raw'
 import { isTauri, readAiSettings, writeAiSettings } from '@/utils/settingsFs'
 import { getStorageJson, removeStorage, STORAGE_KEYS } from '@/utils/storage'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 // --- Type definitions ---
-
-export interface ProviderSettings {
-  endpoint: string
-  model: string
-}
-
-export type ProviderKey = 'anthropic' | 'openai' | 'custom'
 
 export type PresetKey = 'readonly' | 'safe' | 'full' | 'custom'
 
@@ -224,10 +218,16 @@ export interface HeartbeatConfig {
  */
 
 export interface AiConfig {
-  provider: ProviderKey
-  anthropic: ProviderSettings
-  openai: ProviderSettings
-  custom: ProviderSettings
+  /**
+   * 使用する Vault 接続の id (#564)。AI プロバイダーの endpoint / API キー /
+   * protocol はこの接続から解決する。空文字 = 未選択 (AI 設定で要選択)。
+   */
+  activeConnectionId: string
+  /**
+   * 接続ごとのモデル名。`{ [connectionId]: model }`。Connection 自体は
+   * endpoint + secret + protocol のみを持ち、モデル選択は AI 設定の関心。
+   */
+  models: Record<string, string>
   permissions: PermissionsConfig
   dataSources: DataSourcesConfig
   heartbeat: HeartbeatConfig
@@ -242,11 +242,32 @@ export interface AiConfig {
   personaSkillId?: string
 }
 
-export const PROVIDER_KEYS: readonly ProviderKey[] = [
-  'anthropic',
-  'openai',
-  'custom',
-]
+/**
+ * AI 設定から解決した「使用する接続 + モデル + protocol」。
+ * チャット送信 / ツール整形に必要な情報をまとめたもの。
+ */
+export interface ResolvedAiConnection {
+  connection: Connection
+  model: string
+  protocol: ConnectionProtocol
+}
+
+/**
+ * `activeConnectionId` から実際の接続を解決する。接続が存在しない /
+ * protocol 未設定 (= AI プロバイダーでない) 場合は `null`。
+ */
+export function resolveAiConnection(
+  cfg: AiConfig,
+  connections: readonly Connection[],
+): ResolvedAiConnection | null {
+  const connection = connections.find((c) => c.id === cfg.activeConnectionId)
+  if (!connection || !connection.protocol) return null
+  return {
+    connection,
+    model: cfg.models[connection.id] ?? '',
+    protocol: connection.protocol,
+  }
+}
 
 // --- Preset definitions ---
 
@@ -439,10 +460,8 @@ const defaultFileConfig: AiConfig = JSON5.parse(defaultAiJson5)
 
 export function defaultConfig(): AiConfig {
   return {
-    provider: defaultFileConfig.provider,
-    anthropic: { ...defaultFileConfig.anthropic },
-    openai: { ...defaultFileConfig.openai },
-    custom: { ...defaultFileConfig.custom },
+    activeConnectionId: defaultFileConfig.activeConnectionId ?? '',
+    models: { ...(defaultFileConfig.models ?? {}) },
     permissions: {
       preset: defaultFileConfig.permissions.preset,
       custom: { ...defaultFileConfig.permissions.custom },
@@ -572,76 +591,112 @@ function mergeHeartbeat(
   })
 }
 
-/** Deep-merge partial config into defaults, preserving nested provider fields. */
+/** Deep-merge partial config into defaults. */
 function mergeConfig(base: AiConfig, partial: Partial<AiConfig>): AiConfig {
   const result = { ...base, ...partial }
-  for (const key of PROVIDER_KEYS) {
-    result[key] = { ...base[key], ...(partial[key] ?? {}) }
-  }
+  result.activeConnectionId =
+    partial.activeConnectionId ?? base.activeConnectionId
+  result.models = { ...base.models, ...(partial.models ?? {}) }
   result.permissions = mergePermissions(base.permissions, partial.permissions)
   result.dataSources = mergeDataSources(base.dataSources, partial.dataSources)
   result.heartbeat = mergeHeartbeat(base.heartbeat, partial.heartbeat)
   return result
 }
 
-// --- API keys (OS keychain via notecli::keychain) ---
+// --- Migration: legacy ai.<provider> keychain → Vault connections (#564) ---
 //
-// API keys are stored in the OS keychain (same mechanism as Misskey tokens),
-// keyed by `ai.<provider>`. The frontend never receives the key body — only
-// a boolean status — so DevTools and XSS cannot exfiltrate it.
+// 旧来 AI API キーは OS キーチェーンに `ai.<provider>` で格納し、ai.json5 に
+// provider / endpoint / model を持っていた。#564 後続でこれを Vault 接続に
+// 統合する: 起動時に `ai.<provider>` を検出し、Vault 接続 (origin=external,
+// externalSource=ai-provider) へ移し替え、ai.json5 は activeConnectionId +
+// models だけを持つ形に移行する。
 
-/**
- * Module-scoped counter that increments on every API key mutation. Composables
- * can `watch()` it to react to keychain changes (e.g. re-checking provider
- * status after a key is set/cleared).
- */
-const apiKeyChangeCounter = ref(0)
-
-export function watchApiKeyChanges() {
-  return apiKeyChangeCounter
+/** 旧 ai.json5 が持っていた provider 系フィールド (移行読込専用)。 */
+interface LegacyAiProviderFields {
+  provider?: 'anthropic' | 'openai' | 'custom'
+  anthropic?: { endpoint?: string; model?: string }
+  openai?: { endpoint?: string; model?: string }
+  custom?: { endpoint?: string; model?: string }
 }
 
-export async function setApiKey(
-  provider: ProviderKey,
-  key: string,
-): Promise<void> {
-  unwrap(await commands.aiSetApiKey(provider, key))
-  apiKeyChangeCounter.value++
-}
-
-export async function getApiKeyStatus(provider: ProviderKey): Promise<boolean> {
-  return unwrap(await commands.aiGetApiKeyStatus(provider))
-}
-
-export async function deleteApiKey(provider: ProviderKey): Promise<void> {
-  unwrap(await commands.aiDeleteApiKey(provider))
-  apiKeyChangeCounter.value++
-}
-
-// --- Migration: localStorage → keychain (one-shot) ---
-
-interface LegacyAiConfig {
+/** 旧 localStorage AI 設定 (さらに前の世代)。 */
+interface LegacyLocalStorageAiConfig {
   anthropic?: { apiKey?: string }
   openai?: { apiKey?: string }
   custom?: { apiKey?: string }
 }
 
-async function migrateFromLocalStorageOnce(): Promise<void> {
-  const legacy = getStorageJson<LegacyAiConfig | null>(
+/**
+ * さらに前の世代の localStorage AI 設定を消す。localStorage には API キーを
+ * 平文で持っていた時期があった (現在は keychain → Vault)。値の移行はもう
+ * 行わず、残骸を削除するだけ。
+ */
+function dropLegacyLocalStorageAiConfig(): void {
+  const legacy = getStorageJson<LegacyLocalStorageAiConfig | null>(
     STORAGE_KEYS.aiSettings,
     null,
   )
-  if (!legacy) return
-  for (const k of PROVIDER_KEYS) {
-    const apiKey = legacy[k]?.apiKey
-    if (!apiKey) continue
+  if (legacy) removeStorage(STORAGE_KEYS.aiSettings)
+}
+
+const LEGACY_PROVIDER_META: Record<
+  'anthropic' | 'openai' | 'custom',
+  { name: string; protocol: ConnectionProtocol; fallbackBaseUrl: string }
+> = {
+  anthropic: {
+    name: 'Anthropic',
+    protocol: 'anthropic',
+    fallbackBaseUrl: 'https://api.anthropic.com',
+  },
+  openai: {
+    name: 'OpenAI',
+    protocol: 'openai-compat',
+    fallbackBaseUrl: 'https://api.openai.com/v1',
+  },
+  custom: {
+    name: 'Custom (OpenAI 互換)',
+    protocol: 'openai-compat',
+    fallbackBaseUrl: '',
+  },
+}
+
+/**
+ * 旧 `ai.<provider>` キーチェーンエントリーを Vault 接続へ移行する。
+ *
+ * 移行できた接続について `models[connId]` と `activeConnectionId` を埋めて
+ * 返す。移行対象が無ければ `null`。Rust 側 `ai_migrate_provider_to_vault` が
+ * キーチェーンエントリー不在なら `null` を返すため、キー未設定の provider は
+ * 自然にスキップされる。
+ */
+async function migrateProvidersToVault(
+  legacy: LegacyAiProviderFields,
+): Promise<{ activeConnectionId: string; models: Record<string, string> }> {
+  const models: Record<string, string> = {}
+  let activeConnectionId = ''
+
+  for (const key of ['anthropic', 'openai', 'custom'] as const) {
+    const meta = LEGACY_PROVIDER_META[key]
+    const settings = legacy[key]
+    const baseUrl = settings?.endpoint?.trim() || meta.fallbackBaseUrl
+    if (!baseUrl) continue // custom で endpoint 未設定なら移行しようがない
     try {
-      await setApiKey(k, apiKey)
+      const migrated = unwrap(
+        await commands.aiMigrateProviderToVault(
+          key,
+          meta.name,
+          baseUrl,
+          meta.protocol,
+        ),
+      )
+      if (!migrated) continue // キーチェーンに該当エントリー無し
+      models[migrated.id] = settings?.model?.trim() ?? ''
+      if (legacy.provider === key) activeConnectionId = migrated.id
     } catch (e) {
-      console.warn(`[ai-settings] keychain migration failed for ${k}:`, e)
+      console.warn(`[ai-settings] vault migration failed for ${key}:`, e)
     }
   }
-  removeStorage(STORAGE_KEYS.aiSettings)
+
+  return { activeConnectionId, models }
 }
 
 // --- Exposed for tests ---
@@ -664,12 +719,36 @@ const _initialized: Ref<boolean> = ref(false)
 let _initStarted = false
 
 async function _initFileStorage(): Promise<void> {
-  await migrateFromLocalStorageOnce()
+  dropLegacyLocalStorageAiConfig()
   const aiContent = await readAiSettings()
   if (aiContent) {
     try {
-      const parsed = JSON5.parse(aiContent) as Partial<AiConfig>
+      const parsed = JSON5.parse(aiContent) as Partial<AiConfig> &
+        LegacyAiProviderFields
       _config.value = mergeConfig(defaultConfig(), parsed)
+      // 旧 provider 系フィールドが残っていれば Vault 接続へ一度だけ移行する。
+      const hasLegacyFields =
+        'provider' in parsed ||
+        'anthropic' in parsed ||
+        'openai' in parsed ||
+        'custom' in parsed
+      if (hasLegacyFields) {
+        const { activeConnectionId, models } =
+          await migrateProvidersToVault(parsed)
+        _config.value = {
+          ..._config.value,
+          activeConnectionId:
+            _config.value.activeConnectionId || activeConnectionId,
+          models: { ...models, ..._config.value.models },
+        }
+        // 移行後の形 (provider 系フィールドを含まない) で書き戻し、
+        // 次回起動以降は移行をスキップする。
+        try {
+          await writeAiSettings(`${JSON5.stringify(_config.value, null, 2)}\n`)
+        } catch (e) {
+          console.warn('[ai-settings] failed to persist migrated config:', e)
+        }
+      }
     } catch (e) {
       console.warn('[ai-settings] failed to parse ai.json5:', e)
       _config.value = defaultConfig()

@@ -7,13 +7,38 @@ vi.mock('@/composables/useAiChat', () => ({
   }),
 }))
 
+// `ai.chat` は Vault 接続から endpoint / protocol / model を解決する。
+// Tauri invoke を回避するため useVault をモックし、AI プロバイダー接続を 1 件返す。
+vi.mock('@/composables/useVault', () => ({
+  useVault: () => ({
+    connections: {
+      value: [
+        {
+          id: 'conn-anthropic',
+          name: 'Anthropic',
+          baseUrl: 'https://api.anthropic.com',
+          protocol: 'anthropic',
+          slots: ['primary'],
+        },
+      ],
+    },
+    refresh: vi.fn(async () => undefined),
+  }),
+}))
+
 import { sendAiChatOnce } from '@/composables/useAiChat'
 import type { AiConfig } from '@/composables/useAiConfig'
 import { defaultConfig } from '@/composables/useAiConfig'
 import { AI_BUILTIN_CAPABILITIES, aiChatCapability } from './ai'
 
+const DEFAULT_MODEL = 'claude-test-model'
+
 function makeAiConfig(): AiConfig {
-  return defaultConfig()
+  return {
+    ...defaultConfig(),
+    activeConnectionId: 'conn-anthropic',
+    models: { 'conn-anthropic': DEFAULT_MODEL },
+  }
 }
 
 describe('ai.chat capability', () => {
@@ -77,14 +102,13 @@ describe('ai.chat capability', () => {
     )
   })
 
-  it('falls back to provider default model when model param is missing', async () => {
+  it('falls back to the connection model when model param is missing', async () => {
     const mock = vi.mocked(sendAiChatOnce)
     mock.mockClear()
     const cfg = makeAiConfig()
     await aiChatCapability.execute({ prompt: 'q' }, { aiConfig: cfg })
-    const expectedModel = cfg.anthropic.model // provider default = anthropic
     expect(mock).toHaveBeenCalledWith(
-      expect.objectContaining({ model: expectedModel }),
+      expect.objectContaining({ model: DEFAULT_MODEL }),
     )
   })
 })

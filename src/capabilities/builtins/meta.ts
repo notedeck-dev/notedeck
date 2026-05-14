@@ -1,5 +1,9 @@
 import type { Command } from '@/commands/registry'
-import { resolvePermissions } from '@/composables/useAiConfig'
+import {
+  resolveAiConnection,
+  resolvePermissions,
+} from '@/composables/useAiConfig'
+import { useVault } from '@/composables/useVault'
 import { useSkillsStore } from '@/stores/skills'
 
 /**
@@ -123,13 +127,13 @@ export const metaConfigCapability: Command = {
   permissions: [],
   signature: {
     description:
-      '現在の AI 設定の機密でない部分 (provider / model / dataSources flags) を返す。' +
+      '現在の AI 設定の機密でない部分 (protocol / model / dataSources flags) を返す。' +
       ' API キー / endpoint / custom permissions の生 map は **明示的に除外**。',
     params: {},
     returns: {
       type: 'object',
       description:
-        '{ provider, model, dataSourcesEnabled: { [key]: boolean } }',
+        '{ protocol, model, dataSourcesEnabled: { [key]: boolean } }',
     },
     cheap: true,
   },
@@ -141,17 +145,15 @@ export const metaConfigCapability: Command = {
       )
     }
     const cfg = ctx.aiConfig
-    const providerSettings =
-      cfg.provider === 'anthropic'
-        ? cfg.anthropic
-        : cfg.provider === 'openai'
-          ? cfg.openai
-          : cfg.custom
+    // cheap capability なので Tauri 呼出 (vault.refresh) はしない。
+    // 接続一覧の cache は AI カラム側の watch で常に最新化されている。
+    const vault = useVault()
+    const resolved = resolveAiConnection(cfg, vault.connections.value)
     // dataSources は preset ベースで bool だけ返す (機密マップ素出しを避ける)
     const ds = cfg.dataSources.custom
     return {
-      provider: cfg.provider,
-      model: providerSettings.model,
+      protocol: resolved?.protocol ?? '',
+      model: resolved?.model ?? '',
       dataSourcesEnabled: {
         currentAccount: ds.currentAccount,
         currentColumn: ds.currentColumn,

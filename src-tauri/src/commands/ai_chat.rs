@@ -10,7 +10,6 @@ use tauri::{async_runtime::JoinHandle, Emitter, State};
 
 use notecli::error::NoteDeckError;
 
-use super::ai::{read_ai_api_key, validate_ai_provider};
 use super::Result;
 
 /// In-flight chat streaming tasks keyed by `stream_id`. Used by `ai_chat_cancel`
@@ -68,8 +67,9 @@ pub struct AiChatMessage {
 #[derive(Debug, Clone, Deserialize, Type)]
 pub struct AiChatRequest {
     pub stream_id: String,
-    pub provider: String,
-    pub endpoint: String,
+    /// 使用する Vault 接続 (#564 後続)。endpoint / 認証 / protocol は
+    /// この接続から Rust 側で解決する。secret はフロントには渡らない。
+    pub connection_id: String,
     pub model: String,
     pub messages: Vec<AiChatMessage>,
     pub system: Option<String>,
@@ -167,10 +167,6 @@ pub async fn ai_chat_send(
     http: State<'_, reqwest::Client>,
     req: AiChatRequest,
 ) -> Result<()> {
-    validate_ai_provider(&req.provider)?;
-    if req.endpoint.trim().is_empty() {
-        return Err(NoteDeckError::InvalidInput("endpoint is empty".into()));
-    }
     if req.model.trim().is_empty() {
         return Err(NoteDeckError::InvalidInput("model is empty".into()));
     }
@@ -185,11 +181,39 @@ pub async fn ai_chat_send(
         )));
     }
 
-    let api_key = read_ai_api_key(&req.provider)?.unwrap_or_default();
-    if req.provider != "custom" && api_key.is_empty() {
+    // Vault 接続を解決する: endpoint / protocol はメタデータから、secret は
+    // OS キーチェーンから。secret はこの Rust 側だけで展開しフロントには返さない。
+    let file = crate::vault::connections_store::load(&app)
+        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+    let connection = file
+        .connections
+        .iter()
+        .find(|c| c.id == req.connection_id)
+        .ok_or_else(|| {
+            NoteDeckError::InvalidInput("AI 接続が見つかりません".into())
+        })?
+        .clone();
+    let protocol = connection.protocol.ok_or_else(|| {
+        NoteDeckError::InvalidInput(
+            "選択された接続は AI プロバイダーではありません".into(),
+        )
+    })?;
+    let endpoint = connection.base_url.clone();
+    let api_key = {
+        use crate::vault::SecretBackend as _;
+        crate::vault::KeychainBackend
+            .load(&req.connection_id, "primary")
+            .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?
+            .map(|s| {
+                use secrecy::ExposeSecret as _;
+                s.expose_secret().to_string()
+            })
+            .unwrap_or_default()
+    };
+    if api_key.is_empty() {
         return Err(NoteDeckError::Auth(format!(
-            "API key for {} is not set",
-            req.provider
+            "接続「{}」の API キーが設定されていません",
+            connection.name
         )));
     }
 
@@ -199,10 +223,13 @@ pub async fn ai_chat_send(
     let stream_id_for_task = stream_id.clone();
 
     let handle = tauri::async_runtime::spawn(async move {
-        let result = match req.provider.as_str() {
-            "anthropic" => run_anthropic(&client, &req, &api_key, &app_handle).await,
-            "openai" | "custom" => run_openai_compat(&client, &req, &api_key, &app_handle).await,
-            other => Err(format!("Unknown provider: {other}")),
+        let result = match protocol {
+            crate::vault::ConnectionProtocol::Anthropic => {
+                run_anthropic(&client, &req, &endpoint, &api_key, &app_handle).await
+            }
+            crate::vault::ConnectionProtocol::OpenaiCompat => {
+                run_openai_compat(&client, &req, &endpoint, &api_key, &app_handle).await
+            }
         };
         match result {
             Ok(()) => emit_done(&app_handle, &stream_id_for_task),
@@ -402,12 +429,13 @@ async fn run_anthropic(
     // 引数は呼び出し側の互換性のため残してある。
     _shared_http: &reqwest::Client,
     req: &AiChatRequest,
+    endpoint: &str,
     api_key: &str,
     app: &tauri::AppHandle,
 ) -> std::result::Result<(), String> {
     use serde_json::json;
 
-    let url = format!("{}/v1/messages", req.endpoint.trim_end_matches('/'));
+    let url = format!("{}/v1/messages", endpoint.trim_end_matches('/'));
     let messages: Vec<serde_json::Value> = req
         .messages
         .iter()
@@ -561,12 +589,13 @@ async fn run_openai_compat(
     // 引数は呼び出し側の互換性のため残してある。
     _shared_http: &reqwest::Client,
     req: &AiChatRequest,
+    endpoint: &str,
     api_key: &str,
     app: &tauri::AppHandle,
 ) -> std::result::Result<(), String> {
     use serde_json::json;
 
-    let url = format!("{}/chat/completions", req.endpoint.trim_end_matches('/'));
+    let url = format!("{}/chat/completions", endpoint.trim_end_matches('/'));
     let mut messages: Vec<serde_json::Value> = Vec::new();
     if let Some(sys) = req.system.as_deref().filter(|s| !s.is_empty()) {
         messages.push(json!({"role": "system", "content": sys}));

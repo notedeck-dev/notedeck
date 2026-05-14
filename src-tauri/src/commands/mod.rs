@@ -21,7 +21,8 @@ mod vault;
 
 // Re-export all commands so lib.rs `commands::xxx` paths remain unchanged
 pub use admin::*;
-pub use ai::*;
+// `ai` モジュールは現在 `pub(crate)` ヘルパー (read_ai_api_key 等) のみで
+// Tauri コマンドを export しない。利用側は `crate::commands::ai::...` を直接参照。
 pub use ai_chat::*;
 pub use auth::*;
 pub use charts::*;

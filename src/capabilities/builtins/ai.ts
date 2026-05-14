@@ -1,5 +1,7 @@
 import type { Command } from '@/commands/registry'
 import { sendAiChatOnce } from '@/composables/useAiChat'
+import { resolveAiConnection } from '@/composables/useAiConfig'
+import { useVault } from '@/composables/useVault'
 
 /**
  * `ai.chat` — NoteDeck 本体の AI に 1 ターンだけ問い合わせて応答を得る。
@@ -66,21 +68,21 @@ export const aiChatCapability: Command = {
       )
     }
     const cfg = ctx.aiConfig
-    const provider = cfg.provider
-    const providerSettings =
-      provider === 'anthropic'
-        ? cfg.anthropic
-        : provider === 'openai'
-          ? cfg.openai
-          : cfg.custom
+    const vault = useVault()
+    await vault.refresh()
+    const resolved = resolveAiConnection(cfg, vault.connections.value)
+    if (!resolved) {
+      throw new Error(
+        'AI 接続が未選択です。AI 設定で Vault 接続を選んでください',
+      )
+    }
     const model =
       typeof params?.model === 'string' && params.model.length > 0
         ? params.model
-        : providerSettings.model
+        : resolved.model
 
     const response = await sendAiChatOnce({
-      provider,
-      endpoint: providerSettings.endpoint,
+      connectionId: resolved.connection.id,
       model,
       history: [
         {

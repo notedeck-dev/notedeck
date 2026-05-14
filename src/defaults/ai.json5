@@ -1,19 +1,11 @@
 // NoteDeck ai.json5 デフォルト
-// AI 設定（API キーは含まない — OS キーチェーンに ai.<provider> で格納）
+// AI 設定（API キー / endpoint は含まない — Vault 接続 (#564) に統合済み）
 {
-  provider: 'anthropic',
-  anthropic: {
-    endpoint: 'https://api.anthropic.com',
-    model: 'claude-opus-4-7',
-  },
-  openai: {
-    endpoint: 'https://api.openai.com/v1',
-    model: 'gpt-4o',
-  },
-  custom: {
-    endpoint: '',
-    model: '',
-  },
+  // 使用する Vault 接続の id。空 = 未選択 (AI 設定で接続を選ぶ)。
+  // endpoint / API キー / protocol はこの接続から解決する。
+  activeConnectionId: '',
+  // 接続ごとのモデル名 { [connectionId]: model }。
+  models: {},
 
   // 権限: AI に渡してよい操作の許可セット
   // Phase 1 では値の保存のみで enforce しない (Phase 2-5 で段階実装)

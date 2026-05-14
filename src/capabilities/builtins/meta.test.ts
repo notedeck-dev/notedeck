@@ -43,16 +43,16 @@ describe('meta.persona', () => {
 })
 
 describe('meta.config', () => {
-  it('returns provider/model/dataSourcesEnabled but NEVER endpoint or API key', () => {
+  it('returns protocol/model/dataSourcesEnabled but NEVER endpoint or API key', () => {
     const cfg = defaultConfig()
     const result = metaConfigCapability.execute({}, { aiConfig: cfg }) as {
-      provider: string
+      protocol: string
       model: string
       dataSourcesEnabled: Record<string, boolean>
       endpoint?: unknown
       apiKey?: unknown
     }
-    expect(typeof result.provider).toBe('string')
+    expect(typeof result.protocol).toBe('string')
     expect(typeof result.model).toBe('string')
     expect(result.dataSourcesEnabled.currentAccount).toBeDefined()
     // 機密フィールドが漏れていないこと

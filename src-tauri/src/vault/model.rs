@@ -33,6 +33,21 @@ pub enum ConnectionKind {
     Outbound,
 }
 
+/// LLM プロバイダーのプロトコル。AI チャット (#564 後続) で使う。
+///
+/// `Some(_)` の接続は「AI プロバイダーとして使える接続」として AI 設定の
+/// ピッカーに出る。`ai_chat` の SSE パース分岐にも使う。
+/// 通常の vault 接続 (GitHub 等) は `None`。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ConnectionProtocol {
+    /// Anthropic Messages API (SSE: `content_block_delta`)。認証は `x-api-key`。
+    Anthropic,
+    /// OpenAI Chat Completions 互換 (SSE: `data: {...}` + `[DONE]`)。
+    /// 認証は `Authorization: Bearer`。OpenAI / OpenRouter / 自前ゲートウェイ等。
+    OpenaiCompat,
+}
+
 /// 接続メタデータの出自。v1 では常に `Vault` (= ユーザーが手動登録)。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default)]
 #[serde(rename_all = "snake_case")]
@@ -72,6 +87,10 @@ pub struct Connection {
     /// テンプレート由来の場合の id (`builtin:github@1` 形式)。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub template_id: Option<String>,
+    /// LLM プロトコル。`Some(_)` なら AI プロバイダーとして使える接続。
+    /// 通常の vault 接続は `None`。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub protocol: Option<ConnectionProtocol>,
     /// AI に開示するか。default false — 明示的に opt-in しないと AI からは見えない。
     #[serde(default)]
     pub ai_visible: bool,

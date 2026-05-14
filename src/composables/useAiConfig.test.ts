@@ -229,14 +229,14 @@ describe('preset key coverage', () => {
 })
 
 describe('mergeConfig', () => {
-  it('legacy ai.json5 without permissions/dataSources is filled with defaults', () => {
+  it('ai.json5 without permissions/dataSources is filled with defaults', () => {
     const partial: Partial<AiConfig> = {
-      provider: 'openai',
-      openai: { endpoint: 'https://api.example.com', model: 'gpt-test' },
+      activeConnectionId: '01HXXXXXXXXXXXXXXXXXXXXXXX',
+      models: { '01HXXXXXXXXXXXXXXXXXXXXXXX': 'gpt-test' },
     }
     const merged = mergeConfig(defaultConfig(), partial)
-    expect(merged.provider).toBe('openai')
-    expect(merged.openai.model).toBe('gpt-test')
+    expect(merged.activeConnectionId).toBe('01HXXXXXXXXXXXXXXXXXXXXXXX')
+    expect(merged.models['01HXXXXXXXXXXXXXXXXXXXXXXX']).toBe('gpt-test')
     // Permissions/dataSources fall back to defaults (readonly preset)
     expect(merged.permissions.preset).toBe('readonly')
     expect(merged.dataSources.preset).toBe('readonly')

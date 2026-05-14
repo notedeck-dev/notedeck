@@ -36,7 +36,8 @@ export interface AiSessionMeta {
   kind: AiSessionKind
   title: string
   model: string
-  provider: string
+  /** 使用する Vault 接続の id (#564)。旧 session は空文字。 */
+  connectionId: string
   createdAt: number
   updatedAt: number
   messageCount: number
@@ -66,7 +67,7 @@ interface PersistShape {
   kind: AiSessionKind
   title: string
   model: string
-  provider: string
+  connectionId: string
   createdAt: number
   updatedAt: number
   messages: ChatMessage[]
@@ -79,7 +80,7 @@ const KNOWN_FIELDS = new Set([
   'kind',
   'title',
   'model',
-  'provider',
+  'connectionId',
   'createdAt',
   'updatedAt',
   'messages',
@@ -93,7 +94,7 @@ function serialize(session: AiSession): string {
     kind: session.kind,
     title: session.title,
     model: session.model,
-    provider: session.provider,
+    connectionId: session.connectionId,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
     messages: session.messages,
@@ -128,7 +129,7 @@ function deserialize(raw: string): AiSession | null {
     kind: (r.kind as AiSessionKind) || 'chat',
     title: typeof r.title === 'string' ? r.title : '',
     model: typeof r.model === 'string' ? r.model : '',
-    provider: typeof r.provider === 'string' ? r.provider : '',
+    connectionId: typeof r.connectionId === 'string' ? r.connectionId : '',
     createdAt: typeof r.createdAt === 'number' ? r.createdAt : Date.now(),
     updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : Date.now(),
     messages,
@@ -214,7 +215,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
       kind: s.kind,
       title: s.title,
       model: s.model,
-      provider: s.provider,
+      connectionId: s.connectionId,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
       messageCount: s.messages.length,
@@ -236,7 +237,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
    */
   function createNew(opts: {
     model: string
-    provider: string
+    connectionId: string
     title?: string
     kind?: AiSessionKind
     personaSkillId?: string
@@ -250,7 +251,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
       kind: opts.kind ?? 'chat',
       title: opts.title ?? '',
       model: opts.model,
-      provider: opts.provider,
+      connectionId: opts.connectionId,
       createdAt: now,
       updatedAt: now,
       messageCount: 0,

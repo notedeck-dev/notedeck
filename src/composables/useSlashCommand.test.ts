@@ -14,10 +14,8 @@ import {
 
 function configWithPreset(preset: 'readonly' | 'safe' | 'full'): AiConfig {
   return {
-    provider: 'anthropic',
-    anthropic: { apiKey: '', model: '', endpoint: '' },
-    openai: { apiKey: '', model: '', endpoint: '' },
-    custom: { apiKey: '', model: '', endpoint: '' },
+    activeConnectionId: '',
+    models: {},
     permissions: { preset, custom: {} as never },
     dataSources: { preset, custom: {} as never },
   } as unknown as AiConfig

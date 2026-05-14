@@ -42,7 +42,7 @@ import {
   type AiConfig,
   HEARTBEAT_ACK_MAX_CHARS,
   type HeartbeatTarget,
-  type ProviderKey,
+  resolveAiConnection,
   resolvePermissions,
   useAiConfig,
 } from './useAiConfig'
@@ -52,6 +52,7 @@ import {
   projectMemos,
 } from './useAiSystemContext'
 import { ensureMemosLoaded, loadAllMemos } from './useMemos'
+import { useVault } from './useVault'
 
 /**
  * Rust scheduler (`commands/heartbeat.rs`) が `nd:ai-heartbeat-tick` event で
@@ -302,7 +303,7 @@ async function resolveTargetSession(
   target: HeartbeatTarget,
   sessionsStore: ReturnType<typeof useAiSessionsStore>,
   defaultModel: string,
-  defaultProvider: string,
+  defaultConnectionId: string,
 ): Promise<AiSession | null> {
   if (target === 'none') return null
   if (target === 'auto') {
@@ -316,7 +317,7 @@ async function resolveTargetSession(
       kind: 'heartbeat',
       title: timestampTitle(new Date(), 'のHEARTBEAT'),
       model: defaultModel,
-      provider: defaultProvider,
+      connectionId: defaultConnectionId,
     })
   }
   return sessionsStore.get(target) ?? null
@@ -334,6 +335,7 @@ export function useHeartbeatDaemon() {
   const sessionsStore = useAiSessionsStore()
   const accountsStore = useAccountsStore()
   const skillsStore = useSkillsStore()
+  const vault = useVault()
   const aiChat = useAiChat()
   // タイトル生成は本体 AI inference と並行実行されるため独立 instance。
   // (chat session で同じパターンを採用している)
@@ -374,13 +376,15 @@ export function useHeartbeatDaemon() {
   ): Promise<void> {
     const cfg = config.value.heartbeat
     if (cfg.target === 'none') return
-    const provider: ProviderKey = config.value.provider
-    const settings = config.value[provider]
+    const resolvedConn = resolveAiConnection(
+      config.value,
+      vault.connections.value,
+    )
     const target = await resolveTargetSession(
       cfg.target,
       sessionsStore,
-      settings.model,
-      provider,
+      resolvedConn?.model ?? '',
+      config.value.activeConnectionId,
     )
     if (!target) return
     const ts = Date.now()
@@ -404,14 +408,12 @@ export function useHeartbeatDaemon() {
     initialTitle: string,
     reportText: string,
   ): Promise<void> {
-    const provider: ProviderKey = config.value.provider
-    const settings = config.value[provider]
-    if (!settings.endpoint || !settings.model) return
+    const resolved = resolveAiConnection(config.value, vault.connections.value)
+    if (!resolved || !resolved.model) return
     try {
       const raw = await titleGen.sendMessage({
-        provider,
-        endpoint: settings.endpoint,
-        model: settings.model,
+        connectionId: resolved.connection.id,
+        model: resolved.model,
         history: [
           {
             id: 'u',
@@ -633,8 +635,10 @@ export function useHeartbeatDaemon() {
     }
 
     // target session に append (target='none' なら log のみ)
-    const provider: ProviderKey = config.value.provider
-    const settings = config.value[provider]
+    const resolvedConn = resolveAiConnection(
+      config.value,
+      vault.connections.value,
+    )
     // session が新規作成されるかを resolveTargetSession 呼び出し前に判定。
     // target='auto' で既存 heartbeat session が無い場合だけ新規作成される。
     const willCreateNew =
@@ -645,8 +649,8 @@ export function useHeartbeatDaemon() {
     const target = await resolveTargetSession(
       cfg.target,
       sessionsStore,
-      settings.model,
-      provider,
+      resolvedConn?.model ?? '',
+      config.value.activeConnectionId,
     )
     if (!target) {
       console.debug(
@@ -693,9 +697,8 @@ export function useHeartbeatDaemon() {
     skillBodies: string[],
     payload: HeartbeatTickPayload,
   ): Promise<string | null> {
-    const provider: ProviderKey = config.value.provider
-    const settings = config.value[provider]
-    if (!settings.endpoint || !settings.model) {
+    const resolved = resolveAiConnection(config.value, vault.connections.value)
+    if (!resolved || !resolved.model) {
       console.debug('[heartbeat] AI provider not configured, skip')
       return null
     }
@@ -717,7 +720,7 @@ export function useHeartbeatDaemon() {
     const tools: unknown[] | undefined =
       eligibleCaps.length === 0
         ? undefined
-        : provider === 'anthropic'
+        : resolved.protocol === 'anthropic'
           ? eligibleCaps.map(toAnthropicTool)
           : eligibleCaps.map(toOpenAiTool)
 
@@ -761,9 +764,8 @@ export function useHeartbeatDaemon() {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       let pendingToolUse: ToolUseEvent | null = null
       const turnText = await aiChat.sendMessage({
-        provider,
-        endpoint: settings.endpoint,
-        model: settings.model,
+        connectionId: resolved.connection.id,
+        model: resolved.model,
         history,
         system,
         tools,

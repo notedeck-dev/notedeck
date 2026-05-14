@@ -13,7 +13,8 @@ use crate::vault::connections_store;
 use crate::vault::fetch::{self, VaultFetchRequest, VaultFetchResponse};
 use crate::vault::model::{validate_connection_id, validate_slot};
 use crate::vault::{
-    AuthType, Connection, ConnectionKind, ConnectionOrigin, KeychainBackend, SecretBackend,
+    AuthType, Connection, ConnectionKind, ConnectionOrigin, ConnectionProtocol, KeychainBackend,
+    SecretBackend,
     VaultError, VaultResult,
 };
 
@@ -94,6 +95,18 @@ pub struct ConnectionUpsert {
     pub account_scope: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
+    /// テンプレート由来の場合の id (`builtin:openai@1` 形式)。
+    #[serde(default)]
+    pub template_id: Option<String>,
+    /// LLM プロトコル。AI プロバイダー接続なら `Some(_)`。
+    #[serde(default)]
+    pub protocol: Option<ConnectionProtocol>,
+    /// 出自。`ai-provider` 移行などで `External` を指定する。未指定なら `Vault`。
+    #[serde(default)]
+    pub origin: Option<ConnectionOrigin>,
+    /// `origin = External` の詳細 (`ai-provider` 等)。
+    #[serde(default)]
+    pub external_source: Option<String>,
 }
 
 /// secret slot の設定状況。
@@ -144,6 +157,12 @@ fn upsert_metadata(
             existing.allowed_hosts = allowed_hosts;
             existing.account_scope = input.account_scope;
             existing.notes = input.notes;
+            existing.template_id = input.template_id;
+            existing.protocol = input.protocol;
+            if let Some(origin) = input.origin {
+                existing.origin = origin;
+            }
+            existing.external_source = input.external_source;
             existing.updated_at = now;
             existing.clone()
         }
@@ -156,9 +175,10 @@ fn upsert_metadata(
                 auth_type: input.auth_type,
                 allowed_hosts,
                 account_scope: input.account_scope,
-                origin: ConnectionOrigin::Vault,
-                external_source: None,
-                template_id: None,
+                origin: input.origin.unwrap_or(ConnectionOrigin::Vault),
+                external_source: input.external_source,
+                template_id: input.template_id,
+                protocol: input.protocol,
                 ai_visible: false,
                 slots: Vec::new(),
                 last_used_at: None,
@@ -465,6 +485,70 @@ pub async fn vault_test_connection(
             error: Some(e.to_string()),
         }),
     }
+}
+
+/// AI プロバイダーの API キーを Vault 接続へ移行する (#564 後続)。
+///
+/// 旧来 `ai.<provider>` キーチェーンに保存していた AI API キーを、Vault の
+/// 接続 (`origin = External`, `externalSource = "ai-provider"`) に移し替える。
+/// 移行後、旧キーチェーンエントリーは削除する。
+///
+/// キーチェーンに該当 provider のエントリーが無い場合は `None` を返す
+/// (移行対象なし)。フロント側は返り値の接続 id を `ai.json5` に記録する。
+#[tauri::command]
+#[specta::specta]
+pub async fn ai_migrate_provider_to_vault(
+    app: tauri::AppHandle,
+    window: tauri::Window,
+    provider: String,
+    name: String,
+    base_url: String,
+    protocol: ConnectionProtocol,
+) -> VaultResult<Option<Connection>> {
+    assert_main_window(&window)?;
+
+    let api_key = crate::commands::ai::read_ai_api_key(&provider)
+        .map_err(|e| VaultError::InvalidInput {
+            message: e.to_string(),
+        })?;
+    let Some(api_key) = api_key.filter(|k| !k.is_empty()) else {
+        return Ok(None);
+    };
+
+    // AI チャットの認証は `ai_chat.rs` 側で protocol 別に注入するが、`vault_fetch`
+    // 経由でも使えるよう authType も protocol に合わせて設定しておく。
+    let auth_type = match protocol {
+        ConnectionProtocol::Anthropic => AuthType::Header {
+            name: "x-api-key".to_string(),
+        },
+        ConnectionProtocol::OpenaiCompat => AuthType::Bearer,
+    };
+
+    let connection = upsert_metadata(
+        &app,
+        ConnectionUpsert {
+            id: None,
+            name,
+            base_url,
+            auth_type,
+            allowed_hosts: Vec::new(),
+            account_scope: None,
+            notes: None,
+            template_id: None,
+            protocol: Some(protocol),
+            origin: Some(ConnectionOrigin::External),
+            external_source: Some("ai-provider".to_string()),
+        },
+    )?;
+
+    let conn_id = connection.id.clone();
+    backend().store(&conn_id, "primary", &SecretString::from(api_key))?;
+    let connection = register_slot(&app, &conn_id, "primary")?;
+
+    // 旧キーチェーンエントリーを削除する。失敗しても移行自体は成功扱い。
+    let _ = notecli::keychain::delete_token(&crate::commands::ai::ai_keychain_id(&provider));
+
+    Ok(Some(connection))
 }
 
 /// 接続の `last_used_at` を現在時刻で更新する (ベストエフォート、失敗は無視)。

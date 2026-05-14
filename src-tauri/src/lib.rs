@@ -265,7 +265,6 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             commands::fetch_nodeinfo,
             commands::fetch_server_meta,
             commands::fetch_image_base64,
-            commands::check_endpoint_health,
             commands::get_cli_commands,
             commands::get_rustc_version,
             commands::get_openapi_spec,
@@ -287,9 +286,6 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             commands::export_settings_json,
             commands::import_settings_json,
             // AI credentials (OS keychain via notecli::keychain)
-            commands::ai_set_api_key,
-            commands::ai_get_api_key_status,
-            commands::ai_delete_api_key,
             // AI chat (LLM streaming via reqwest + emit)
             commands::ai_chat_send,
             commands::ai_chat_cancel,
@@ -312,6 +308,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             commands::vault_set_ai_visible,
             commands::vault_fetch,
             commands::vault_test_connection,
+            commands::ai_migrate_provider_to_vault,
             query_runtime::query_subscribe_timeline,
             query_runtime::query_subscribe_antenna,
             query_runtime::query_subscribe_channel,

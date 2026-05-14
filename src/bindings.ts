@@ -1516,14 +1516,6 @@ async fetchImageBase64(url: string) : Promise<Result<string | null, { code: stri
     else return { status: "error", error: e  as any };
 }
 },
-async checkEndpointHealth(url: string, bearerToken: string | null) : Promise<Result<HealthCheckResult, { code: string; message: string }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("check_endpoint_health", { url, bearerToken }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async getCliCommands() : Promise<CliCommandInfo[]> {
     return await TAURI_INVOKE("get_cli_commands");
 },
@@ -1716,41 +1708,6 @@ async exportSettingsJson() : Promise<Result<boolean, { code: string; message: st
 async importSettingsJson() : Promise<Result<boolean, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("import_settings_json") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Store an AI API key in the OS keychain.
- * Empty `api_key` removes the entry instead.
- */
-async aiSetApiKey(provider: string, apiKey: string) : Promise<Result<null, { code: string; message: string }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("ai_set_api_key", { provider, apiKey }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Returns true if an AI API key is stored for the given provider.
- * The key itself is never returned to the frontend.
- */
-async aiGetApiKeyStatus(provider: string) : Promise<Result<boolean, { code: string; message: string }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("ai_get_api_key_status", { provider }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * Delete an AI API key from the OS keychain. No-op if missing.
- */
-async aiDeleteApiKey(provider: string) : Promise<Result<null, { code: string; message: string }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("ai_delete_api_key", { provider }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1971,6 +1928,24 @@ async vaultTestConnection(id: string, testPath: string | null) : Promise<Result<
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * AI プロバイダーの API キーを Vault 接続へ移行する (#564 後続)。
+ * 
+ * 旧来 `ai.<provider>` キーチェーンに保存していた AI API キーを、Vault の
+ * 接続 (`origin = External`, `externalSource = "ai-provider"`) に移し替える。
+ * 移行後、旧キーチェーンエントリーは削除する。
+ * 
+ * キーチェーンに該当 provider のエントリーが無い場合は `None` を返す
+ * (移行対象なし)。フロント側は返り値の接続 id を `ai.json5` に記録する。
+ */
+async aiMigrateProviderToVault(provider: string, name: string, baseUrl: string, protocol: ConnectionProtocol) : Promise<Result<Connection | null, VaultError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_migrate_provider_to_vault", { provider, name, baseUrl, protocol }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async querySubscribeTimeline(accountId: string, timelineType: TimelineType, listId: string | null) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_timeline", { accountId, timelineType, listId }) };
@@ -2145,7 +2120,12 @@ tool_use_input?: JsonValue | null;
  * 設定されている場合 content は実行結果テキスト、role は user 想定。
  */
 tool_result_for?: string | null }
-export type AiChatRequest = { stream_id: string; provider: string; endpoint: string; model: string; messages: AiChatMessage[]; system: string | null; max_tokens: number | null; 
+export type AiChatRequest = { stream_id: string; 
+/**
+ * 使用する Vault 接続 (#564 後続)。endpoint / 認証 / protocol は
+ * この接続から Rust 側で解決する。secret はフロントには渡らない。
+ */
+connection_id: string; model: string; messages: AiChatMessage[]; system: string | null; max_tokens: number | null; 
 /**
  * Provider 形式 (Anthropic or OpenAI) の生 tool definition 配列。
  * フロントが provider に応じて事前変換した形で渡す。空 / None なら
@@ -2249,6 +2229,11 @@ accountScope?: string | null; origin?: ConnectionOrigin; externalSource?: string
  */
 templateId?: string | null; 
 /**
+ * LLM プロトコル。`Some(_)` なら AI プロバイダーとして使える接続。
+ * 通常の vault 接続は `None`。
+ */
+protocol?: ConnectionProtocol | null; 
+/**
  * AI に開示するか。default false — 明示的に opt-in しないと AI からは見えない。
  */
 aiVisible?: boolean; 
@@ -2270,9 +2255,42 @@ export type ConnectionOrigin = "vault" |
  */
 "external"
 /**
+ * LLM プロバイダーのプロトコル。AI チャット (#564 後続) で使う。
+ * 
+ * `Some(_)` の接続は「AI プロバイダーとして使える接続」として AI 設定の
+ * ピッカーに出る。`ai_chat` の SSE パース分岐にも使う。
+ * 通常の vault 接続 (GitHub 等) は `None`。
+ */
+export type ConnectionProtocol = 
+/**
+ * Anthropic Messages API (SSE: `content_block_delta`)。認証は `x-api-key`。
+ */
+"anthropic" | 
+/**
+ * OpenAI Chat Completions 互換 (SSE: `data: {...}` + `[DONE]`)。
+ * 認証は `Authorization: Bearer`。OpenAI / OpenRouter / 自前ゲートウェイ等。
+ */
+"openai-compat"
+/**
  * 接続の作成 / 更新の入力。`id` が `None` なら新規作成。
  */
-export type ConnectionUpsert = { id: string | null; name: string; baseUrl: string; authType: AuthType; allowedHosts?: string[]; accountScope?: string | null; notes?: string | null }
+export type ConnectionUpsert = { id: string | null; name: string; baseUrl: string; authType: AuthType; allowedHosts?: string[]; accountScope?: string | null; notes?: string | null; 
+/**
+ * テンプレート由来の場合の id (`builtin:openai@1` 形式)。
+ */
+templateId?: string | null; 
+/**
+ * LLM プロトコル。AI プロバイダー接続なら `Some(_)`。
+ */
+protocol?: ConnectionProtocol | null; 
+/**
+ * 出自。`ai-provider` 移行などで `External` を指定する。未指定なら `Vault`。
+ */
+origin?: ConnectionOrigin | null; 
+/**
+ * `origin = External` の詳細 (`ai-provider` 等)。
+ */
+externalSource?: string | null }
 export type CreateNoteParams = { text: string | null; cw: string | null; visibility: string | null; localOnly: boolean | null; modeFlags: Partial<{ [key in string]: boolean }> | null; replyId: string | null; renoteId: string | null; fileIds: string[] | null; poll: CreateNotePoll | null; scheduledAt: string | null }
 export type CreateNotePoll = { choices: string[]; multiple: boolean | null; expiresAt: number | null }
 /**
@@ -2315,7 +2333,6 @@ export type FollowChartSection = { followings: FollowChartGroup; followers: Foll
  * packages/backend/src/models/GalleryPost.ts。
  */
 export type GalleryPost = { id: string; createdAt: string; updatedAt: string; title: string; description: string | null; userId: string; user?: NormalizedUser | null; files: NormalizedDriveFile[]; isSensitive?: boolean; likedCount?: number; isLiked?: boolean | null }
-export type HealthCheckResult = { ok: boolean; status: number; message: string }
 export type HttpFetchRequest = { url: string; method: string | null; headers: Partial<{ [key in string]: string }> | null; body: string | null; timeoutMs: number | null }
 export type HttpFetchResponse = { status: number; headers: Partial<{ [key in string]: string }>; body: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>

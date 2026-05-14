@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import type { AuthType, ConnectionUpsert, VaultTestResult } from '@/bindings'
+import type {
+  AuthType,
+  ConnectionProtocol,
+  ConnectionUpsert,
+  VaultTestResult,
+} from '@/bindings'
 import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES } from '@/data/connectionTemplates'
 import { useConfirm } from '@/stores/confirm'
@@ -29,6 +34,11 @@ const basicUsername = ref('')
 const allowedHostsText = ref('')
 const notes = ref('')
 const aiVisible = ref(false)
+// テンプレ由来 / AI プロバイダー接続のメタデータ。フォームには出さず、
+// upsert 時に保持して上書き消失を防ぐ。
+const connTemplateId = ref<string | null>(null)
+const protocol = ref<ConnectionProtocol | null>(null)
+const externalSource = ref<string | null>(null)
 
 // secret: 既存接続では「鍵を入れ替える」を押すまで入力欄を出さない。
 const hasSecret = ref(false)
@@ -62,6 +72,8 @@ onMounted(async () => {
       testPath.value = tpl.testPath
       secretLabel.value = tpl.secretLabel
       secretHelpUrl.value = tpl.secretHelpUrl
+      connTemplateId.value = tpl.id
+      protocol.value = tpl.protocol ?? null
     }
   }
 
@@ -82,6 +94,9 @@ onMounted(async () => {
       notes.value = conn.notes ?? ''
       aiVisible.value = conn.aiVisible ?? false
       hasSecret.value = (conn.slots ?? []).length > 0
+      connTemplateId.value = conn.templateId ?? null
+      protocol.value = conn.protocol ?? null
+      externalSource.value = conn.externalSource ?? null
       // テンプレ由来なら test path / secret help を引き継ぐ。
       const tpl = conn.templateId
         ? BUILTIN_TEMPLATES.find((t) => t.id === conn.templateId)
@@ -121,6 +136,12 @@ function buildUpsert(): ConnectionUpsert {
     allowedHosts,
     accountScope: null,
     notes: notes.value.trim() || null,
+    templateId: connTemplateId.value,
+    protocol: protocol.value,
+    // origin は省略 (null) で既存値を保持する。externalSource は upsert 時に
+    // 無条件上書きされるため、ロード時の値をそのまま渡して消失を防ぐ。
+    origin: null,
+    externalSource: externalSource.value,
   }
 }
 
