@@ -3,7 +3,7 @@
 //! Run after changing any HTTP route or response model:
 //!
 //! ```sh
-//! cargo run --bin gen_openapi
+//! cargo run --bin gen_openapi --features gen-openapi
 //! ```
 //!
 //! The committed `openapi.json` is the external-facing API artifact and is
