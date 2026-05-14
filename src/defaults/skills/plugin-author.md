@@ -1,7 +1,7 @@
 ---
 id: plugin-author
 name: プラグイン作者
-version: 1.0.0
+version: 1.1.0
 description: 自然言語の依頼から AiScript プラグインを生成し、確認ダイアログ経由でユーザーに承認を取ってインストールするまでを担当するスキル。
 mode: always
 scope: global
@@ -15,9 +15,40 @@ isPersona: false
 `plugins.create` capability を呼ぶ。インストール確認ダイアログはこちらでは
 組み立てなくてよい (dispatcher が自動で MisStore カード風 UI を出す)。
 
-ユーザーがウィジェット (画面上の小道具) を頼んだ場合は `widgets.create` を
-代わりに呼ぶ。判断基準: ストリームに対するハンドラ (note_post_pre / note_view
-など) を仕込みたいなら **plugin**、画面に何かを描画したいだけなら **widget**。
+ユーザーがウィジェット (画面上の小道具) を頼んだ場合は `widget-author` skill の
+方針に従って `widgets.create` を呼ぶ。判断基準: ストリームに対するハンドラ
+(note_post_pre / note_view など) を仕込みたいなら **plugin**、画面に何かを
+描画したいだけなら **widget**。
+
+AiScript の文法・組込み関数・名前空間は別スキル `aiscript-author` に詳しく
+まとめてある。書く前に必ずそちらを参照すること。
+
+## 必ず守るフィードバックループ — validate → 修正 → re-validate
+
+`plugins.create` / `plugins.update` / `widgets.create` / `widgets.update` を
+呼ぶ前に、**必ず** `aiscript.validate` capability で src を構文検証する。
+
+```
+aiscript.validate({ src: "/// @ 0.16.0\n### { ... }\n@on_note(...) { ... }", entryPoint: "plugin" })
+```
+
+返り値:
+- `{ ok: true, diagnostics: [] }` → そのまま `plugins.create` を呼ぶ
+- `{ ok: false, diagnostics: [{ severity, message, line, column, ... }] }` →
+  diagnostics を読んで src を修正し、再度 `aiscript.validate` を呼ぶ
+
+このループを **最大 3 回** 回す。それでも直らないなら diagnostics をそのまま
+ユーザーに見せて「ここで詰まりました」と相談する (= 黙って壊れた src を保存しない)。
+
+### 二重防壁
+
+`aiscript.validate` をスキップして直接 `plugins.create` を呼んでも、dispatcher
+の preflight が同じ検証を走らせる。構文エラーがあれば確認ダイアログを出す**前**
+に `{ ok: false, code: 'preflight_failed', error: '...diagnostics: [...]' }`
+が tool_result で返るので、AI は自動的にループへ戻れる。
+
+ただしユーザー体験的には事前 validate のほうが速い (= preflight で弾かれると
+1 round-trip 余分にかかる) ので、必ず `aiscript.validate` を先に呼ぶこと。
 
 ## AiScript メタヘッダ (必須)
 
@@ -71,7 +102,9 @@ create が成功したら短く伝える:
 
 1. `plugins.list` で対象を特定 (name で照合)
 2. `plugins.read` で現状の src を取得
-3. 必要な差分だけを反映した **全文** を書き、`plugins.update` を呼ぶ
+3. 必要な差分だけを反映した **全文** を書く
+4. `aiscript.validate` で構文検証 (上記ループ)
+5. `plugins.update` を呼ぶ
 
 `plugins.update` も確認ダイアログが出る (= ユーザー承認が必要)。
 
@@ -93,11 +126,5 @@ create が成功したら短く伝える:
 - 先回りで勝手に有効化・削除しない (ユーザー意図の明示が必要)
 - 不要に過大な permissions を要求しない (= 最小権限の原則)
 - ヘッダの name と `plugins.create` の name 引数を食い違わせない
-
-## AiScript の主要 API (リファレンス)
-
-- 投稿フック: `@on_note(note) { ... }`、`@note_post_pre(note) { ... }`
-- 通知: `Mk:dialog(title, text)`, `Mk:confirm(...)`
-- 永続: `Mk:save(key, value)`, `Mk:load(key)`
-- HTTP: `Mk:api('endpoint', params)` (Misskey API)
-- 文字列・配列・数値は AiScript 標準ライブラリ参照
+- `aiscript.validate` をスキップしない (= シンタックスエラーで preflight に
+  弾かれると無駄な round-trip になる)

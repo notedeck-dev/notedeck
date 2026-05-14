@@ -2,6 +2,7 @@ import { parsePluginMeta } from '@/aiscript/plugin-api'
 import type { Command } from '@/commands/registry'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { preflightValidateSrc } from './aiscript'
 
 interface PluginSnapshot {
   src: string
@@ -117,6 +118,7 @@ export const pluginsCreateCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['plugins.write'],
+  preflight: (params) => preflightValidateSrc(params, 'plugin'),
   requiresConfirmation: (params) => ({
     title: 'プラグインをインストール',
     message:
@@ -214,6 +216,7 @@ export const pluginsUpdateCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['plugins.write'],
+  preflight: (params) => preflightValidateSrc(params, 'plugin'),
   requiresConfirmation: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''

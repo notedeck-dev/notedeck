@@ -108,6 +108,39 @@ describe('plugin capabilities — declaration', () => {
   })
 })
 
+describe('plugins.create / plugins.update — preflight (#553)', () => {
+  it('plugins.create has a preflight hook', () => {
+    expect(typeof pluginsCreateCapability.preflight).toBe('function')
+  })
+
+  it('plugins.update has a preflight hook', () => {
+    expect(typeof pluginsUpdateCapability.preflight).toBe('function')
+  })
+
+  it('preflight returns null for syntactically valid AiScript src', async () => {
+    const r = await pluginsCreateCapability.preflight?.({
+      name: 'demo',
+      src: 'let x = 1',
+    })
+    expect(r).toBeNull()
+  })
+
+  it('preflight returns a failure with diagnostics JSON for broken src', async () => {
+    const r = await pluginsCreateCapability.preflight?.({
+      name: 'demo',
+      src: 'let x = (',
+    })
+    expect(r).not.toBeNull()
+    expect(r?.error).toMatch(/構文エラー/)
+    expect(r?.error).toMatch(/diagnostics:/)
+  })
+
+  it('preflight returns null when src is missing (= execute will throw with a clearer message)', async () => {
+    const r = await pluginsCreateCapability.preflight?.({ name: 'demo' })
+    expect(r).toBeNull()
+  })
+})
+
 describe('PLUGINS_BUILTIN_CAPABILITIES', () => {
   it('contains all 8 plugin capabilities (incl. history / revert)', () => {
     const ids = PLUGINS_BUILTIN_CAPABILITIES.map((c) => c.id).sort()

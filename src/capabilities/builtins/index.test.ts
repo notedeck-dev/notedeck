@@ -14,6 +14,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'ai.sessions.read',
         'ai.sessions.search',
         'ai.setPersona',
+        'aiscript.validate',
         'announcements.list',
         'antenna.list',
         'antenna.notes',

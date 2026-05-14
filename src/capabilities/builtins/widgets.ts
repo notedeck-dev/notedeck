@@ -5,6 +5,7 @@ import {
   type WidgetMeta,
 } from '@/stores/widgets'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { preflightValidateSrc } from './aiscript'
 
 interface WidgetSnapshot {
   src: string
@@ -110,6 +111,7 @@ export const widgetsCreateCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['widgets.write'],
+  preflight: (params) => preflightValidateSrc(params, 'widget'),
   requiresConfirmation: (params) => {
     const name = typeof params?.name === 'string' ? params.name : ''
     const src = typeof params?.src === 'string' ? params.src : ''
@@ -183,6 +185,7 @@ export const widgetsUpdateCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['widgets.write'],
+  preflight: (params) => preflightValidateSrc(params, 'widget'),
   requiresConfirmation: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
