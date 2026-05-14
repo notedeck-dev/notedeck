@@ -3,17 +3,6 @@ name = "notedeck"
 version = "0.28.1"
 description = "Misskey IDE — integrated deck environment for browsing, posting, searching, and connecting"
 edition = "2021"
-# `gen_openapi` is a dev-only helper binary; keep `cargo run` (tauri dev) on the app.
-default-run = "notedeck"
-
-# `gen_openapi` is gated behind a feature so neither `cargo build` nor the Tauri
-# bundler picks it up — otherwise the macOS universal build fails trying to
-# bundle a binary that was never lipo'd. Regenerate with:
-#   cargo run --bin gen_openapi --features gen-openapi
-[[bin]]
-name = "gen_openapi"
-required-features = ["gen-openapi"]
-
 [dependencies]
 notecli = { git = "https://github.com/hitalin/notecli", rev = "59b39c2288b608cc81c434545eb1b3bdd757ba64", features = ["specta"] }
 tauri = { version = "2", features = ["devtools"] }
@@ -70,8 +59,6 @@ windows = { version = "0.61", features = [
 [features]
 default = ["desktop"]
 desktop = ["tauri/tray-icon", "dep:tauri-plugin-global-shortcut", "dep:tauri-plugin-autostart", "dep:tauri-plugin-updater", "dep:tauri-plugin-process"]
-# Enables the `gen_openapi` dev-only helper binary.
-gen-openapi = []
 
 [dev-dependencies]
 tempfile = "3"

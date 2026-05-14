@@ -4,7 +4,7 @@
 //! committed artifact a reviewable diff: any API surface change shows up in
 //! `openapi.json` in the PR.
 //!
-//! If this test fails, run `cargo run --bin gen_openapi --features gen-openapi` and commit the result.
+//! If this test fails, run `cargo run --example gen_openapi` and commit the result.
 
 #[test]
 fn openapi_snapshot_is_current() {
@@ -14,6 +14,6 @@ fn openapi_snapshot_is_current() {
     assert_eq!(
         generated.trim(),
         committed.trim(),
-        "openapi.json is stale — run `cargo run --bin gen_openapi --features gen-openapi` and commit the result",
+        "openapi.json is stale — run `cargo run --example gen_openapi` and commit the result",
     );
 }
