@@ -1,9 +1,20 @@
 ---
 id: aiscript-author
 name: AiScript 文法リファレンス
-version: 1.0.0
-description: AiScript 0.16 の値型・制御構文・名前空間付き組込み関数・プラグイン/ウィジェットのハンドラ規約を集約したリファレンス。プラグインやウィジェットを生成する前に参照する。
-mode: always
+version: 1.1.0
+description: AiScript 0.16 の値型・制御構文・名前空間付き組込み関数・プラグイン/ウィジェットのハンドラ規約を集約したリファレンス。plugin-author / widget-author と同じ triggers でセット起動される (依存先として常に同伴)。
+mode: trigger
+triggers:
+  - プラグイン
+  - ぷらぐいん
+  - plugin
+  - ウィジェット
+  - ウィジット
+  - widget
+  - 小道具
+  - aiscript
+  - 自動化
+  - 自動投稿
 scope: global
 builtIn: true
 isPersona: false

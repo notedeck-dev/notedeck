@@ -1,9 +1,20 @@
 ---
 id: widget-author
 name: ウィジェット作者
-version: 1.0.0
+version: 1.1.0
 description: 自然言語の依頼から AiScript ウィジェットを生成し、確認ダイアログ経由でユーザーに承認を取ってインストールするまでを担当するスキル。
-mode: always
+mode: trigger
+triggers:
+  - プラグイン
+  - ぷらぐいん
+  - plugin
+  - ウィジェット
+  - ウィジット
+  - widget
+  - 小道具
+  - aiscript
+  - 自動化
+  - 自動投稿
 scope: global
 builtIn: true
 isPersona: false
