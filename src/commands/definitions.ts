@@ -1,6 +1,7 @@
 import { useCommandStore } from '@/commands/registry'
 import { useAccountActions } from '@/composables/useAccountActions'
 import { isEntityType, useEntityCrud } from '@/composables/useEntityCrud'
+import { useGuideStore } from '@/composables/useGuide'
 import type { NoteAction } from '@/composables/useNoteFocus'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
@@ -268,6 +269,19 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('settings-menu'),
     execute: () => commandStore.openWithInput('*'),
+  })
+
+  // 新規ユーザー向けセットアップ wizard。AI / capability dispatcher を経由せず、
+  // TS state machine + 既存 spotlight 機構で windows.open を案内する。
+  // memory: feedback_no_onboarding_ui / feedback_no_welcome_column と整合 (=
+  // 自動 popup なし、カラムでもなくユーザー明示起動)
+  commandStore.register({
+    id: 'guide',
+    label: 'ガイド',
+    icon: 'help-circle',
+    category: 'general',
+    shortcuts: keybindsStore.getShortcuts('guide'),
+    execute: () => useGuideStore().start(),
   })
 
   commandStore.register({
@@ -870,6 +884,7 @@ export function unregisterDefaultCommands() {
     'account-menu',
     'profile-menu',
     'settings-menu',
+    'guide',
     'toggle-dark-mode',
     'toggle-offline-mode',
     'toggle-realtime-mode',
