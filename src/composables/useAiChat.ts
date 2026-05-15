@@ -1,6 +1,7 @@
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { onScopeDispose, ref } from 'vue'
 import type { AiChatMessage, JsonValue } from '@/bindings'
+import { extractErrorMessage } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /** Single chat message stored in the conversation. */
@@ -218,7 +219,14 @@ export function useAiChat() {
           cleanup()
           resolve(finalText)
         } else if (p.kind === 'error') {
-          const message = p.error ?? '不明なエラー'
+          // p.error は型定義上 string だが、Rust 側から非文字列が来た場合の保険
+          console.error('[ai-chat] stream error event:', p.error)
+          const message =
+            p.error == null
+              ? '不明なエラー'
+              : typeof p.error === 'string'
+                ? p.error
+                : extractErrorMessage(p.error)
           lastError.value = message
           cleanup()
           reject(new Error(message))
@@ -243,7 +251,11 @@ export function useAiChat() {
           unwrap(res)
         })
         .catch((e) => {
-          const message = e instanceof Error ? e.message : String(e)
+          // 診断: Tauri unwrap で投げられた raw error を console に dump
+          console.error('[ai-chat] invoke error raw:', e)
+          // Tauri unwrap が raw `{code, message}` を投げてくるので、
+          // `String(e)` で `[object Object]` 化しないよう extractor を使う。
+          const message = extractErrorMessage(e)
           lastError.value = message
           cleanup()
           reject(new Error(message))
@@ -304,8 +316,9 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
         unwrap(res)
       })
       .catch((e) => {
+        console.error('[ai-chat one-shot] invoke error raw:', e)
         unlisten?.()
-        const message = e instanceof Error ? e.message : String(e)
+        const message = extractErrorMessage(e)
         reject(new Error(message))
       })
   })

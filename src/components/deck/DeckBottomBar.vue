@@ -4,6 +4,7 @@ import { useCommandStore } from '@/commands/registry'
 import ColumnBadges from '@/components/common/ColumnBadges.vue'
 import { useColumnBadge } from '@/composables/useColumnBadge'
 import { useColumnTabs } from '@/composables/useColumnTabs'
+import { columnTargetId, useSpotlightStore } from '@/composables/useSpotlight'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
@@ -51,6 +52,12 @@ function onAddColumnClick() {
 }
 
 const { getBadge, clearBadge } = useColumnBadge()
+const spotlightStore = useSpotlightStore()
+
+/** group のいずれかのカラム ID が spotlight 中なら true */
+function isGroupSpotlighted(group: readonly string[]): boolean {
+  return group.some((id) => spotlightStore.spotlights.has(columnTargetId(id)))
+}
 
 const {
   visibleGroups,
@@ -85,8 +92,16 @@ const {
         v-for="(group, gi) in visibleGroups"
         :key="groupPrimaryId(group)"
         class="_button"
-        :class="[$style.tab, { [$style.tabActive]: activeColumnIndex === gi }]"
-        @click="clearBadge(columnType(groupPrimaryId(group))); emit('scroll-to-column', gi)"
+        :class="[
+          $style.tab,
+          { [$style.tabActive]: activeColumnIndex === gi },
+          isGroupSpotlighted(group) && $style.spotlighted,
+        ]"
+        @click="
+          group.forEach((id) => spotlightStore.clear(columnTargetId(id)));
+          clearBadge(columnType(groupPrimaryId(group)));
+          emit('scroll-to-column', gi)
+        "
       >
         <div :class="$style.iconWrap">
           <i :class="'ti ti-' + columnIcon(groupPrimaryId(group))" />
@@ -235,6 +250,62 @@ const {
 
 .stackBadge { @include nav-stack-badge; }
 .badge { @include nav-badge; }
+
+// AI 操作の可視化 (Spotlight): Windows タスクバーの「新規起動」インジケーター風。
+// 朱色 #E34234 背景 + オレンジグラデーション枠線 + 上向き glow。
+// Misskey accent (#86b300, 黄緑) との warm/cool 対比で「AI 由来の出来事」を
+// 視覚的に分離しつつ、補色ではないので馴染む。
+//
+// 既存 .tabActive が ::after で短い緑バーを描いているので、spotlight 中は
+// それを隠して朱色バー (より長い) だけ見せる。
+.spotlighted {
+  position: relative;
+  isolation: isolate;
+
+  // spotlight 中は既存アクティブバー (緑) と被らないよう隠す
+  &.tabActive::after {
+    display: none;
+  }
+
+  // アイテム全体をクリーム→オレンジ→朱色のグラデで塗りつぶす
+  // 3 ストップで明度差を作ることでグラデが視認できる。alpha 0.85 で軽く透過。
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      180deg,
+      rgba(170, 30, 30, 0.55) 0%,
+      rgba(200, 55, 45, 0.3) 50%,
+      rgba(220, 90, 80, 0.05) 100%
+    );
+    box-shadow: 0 -1px 8px rgba(170, 30, 30, 0.25);
+    pointer-events: none;
+    z-index: 0;
+    animation: spotlightFill 2.4s ease-out 1 forwards;
+  }
+
+  // 子要素 (アイコン/バッジ) を色レイヤーより上に持ち上げる
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      animation: none;
+      opacity: 1;
+    }
+  }
+}
+
+@keyframes spotlightFill {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
+}
 
 .actionBtn {
   display: flex;

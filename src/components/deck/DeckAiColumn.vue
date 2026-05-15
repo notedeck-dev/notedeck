@@ -37,6 +37,7 @@ import { usePrompt } from '@/stores/prompt'
 import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
 import { timestampTitle } from '@/utils/aiSessionTitle'
+import { extractErrorMessage } from '@/utils/errors'
 import { highlightCode, highlighterLoaded } from '@/utils/highlight'
 import { resolveIdentity } from '@/utils/identity'
 import { renderSimpleMarkdown } from '@/utils/simpleMarkdown'
@@ -706,7 +707,12 @@ async function sendMessage() {
       void generateAiTitleAsync(sessionId, text, finalAssistantText)
     }
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e)
+    // 診断: AI ストリーム失敗時の raw error を console に dump。
+    // [object Object] 表示の根本原因 (= 想定外の error shape) を追跡しやすくする。
+    console.error('[ai-column] stream error raw:', e)
+    // 任意の error shape (Error / `{code,message}` / 入れ子オブジェクト / 文字列)
+    // から表示可能な文字列を取り出す。`[object Object]` 化を防ぐ。
+    const message = extractErrorMessage(e)
     const cur = sessionsStore.get(sessionId)
     if (cur) {
       const last = cur.messages[cur.messages.length - 1]

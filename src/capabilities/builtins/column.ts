@@ -500,6 +500,63 @@ export const columnUpdateSettingsCapability: Command = {
   },
 }
 
+/**
+ * `sidebar.toggle` — サイドバースロット (左ナビバー連動の単一カラム枠) を
+ * 指定 type で開閉する。既に同 type が開いていれば閉じる (toggle 動作)。
+ *
+ * 「サイドバーで通知を開いて」のような AI 依頼に対応するための capability。
+ * `column.add` (デッキに新規追加) とは別物: こちらは置換式の単一スロットを
+ * 操作する (= ナビバーボタンをクリックしたのと同じ動作)。
+ */
+export const sidebarToggleCapability: Command = {
+  id: 'sidebar.toggle',
+  label: 'サイドバーで開閉',
+  icon: 'ti-layout-sidebar',
+  category: 'column',
+  shortcuts: [],
+  aiTool: true,
+  permissions: [],
+  signature: {
+    description:
+      'サイドバースロットを指定タイプで開く (既に同タイプなら閉じる)。' +
+      ' navbar ボタンクリックと同じ動作。デッキへの新規追加ではない。',
+    params: {
+      type: {
+        type: 'string',
+        description:
+          'カラム種別 (notifications / chat / search / ai / memos など)',
+        enum: ADDABLE_COLUMN_TYPES,
+      },
+      accountId: {
+        type: 'string',
+        description: 'アカウント ID。省略時は cross-account (null)',
+        optional: true,
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ type, opened: true 開いた / false 閉じた }',
+    },
+  },
+  visible: false,
+  execute: (params) => {
+    const type = typeof params?.type === 'string' ? params.type : ''
+    if (!ADDABLE_COLUMN_TYPES.includes(type as ColumnType)) {
+      throw new Error(
+        `Unsupported column type "${type}". ` +
+          `Supported: ${ADDABLE_COLUMN_TYPES.join(', ')}`,
+      )
+    }
+    const accountId =
+      typeof params?.accountId === 'string' ? params.accountId : null
+    const deck = useDeckStore()
+    deck.toggleSidebarColumn(type as ColumnType, accountId)
+    const after = deck.columns.find((c) => c.sidebar)
+    const opened = after != null && after.type === type
+    return { type, opened }
+  },
+}
+
 export const COLUMN_BUILTIN_CAPABILITIES: readonly Command[] = [
   columnActiveCapability,
   columnFocusedNoteCapability,
@@ -508,4 +565,5 @@ export const COLUMN_BUILTIN_CAPABILITIES: readonly Command[] = [
   columnRemoveCapability,
   columnMoveCapability,
   columnUpdateSettingsCapability,
+  sidebarToggleCapability,
 ]

@@ -20,6 +20,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { usePortal } from '@/composables/usePortal'
 import { useRippleEffect } from '@/composables/useRippleEffect'
 import { provideScrollDirection } from '@/composables/useScrollDirection'
+import { useSpotlightStore } from '@/composables/useSpotlight'
 import { useUpdater } from '@/composables/useUpdater'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { useAccountsStore } from '@/stores/accounts'
@@ -47,6 +48,7 @@ const {
 } = useNavigation()
 const commandStore = useCommandStore()
 const deckStore = useDeckStore()
+const spotlightStore = useSpotlightStore()
 const uiStore = useUiStore()
 const accountsStore = useAccountsStore()
 const isCompact = useIsCompactLayout()
@@ -233,6 +235,11 @@ function acceptCrossWindowDrop() {
 
 <template>
   <div :class="[$style.root, { [$style.mobile]: isCompact }]">
+    <!-- Spotlight 用 SR-only aria-live 領域 (AI 操作のテキスト読み上げ) -->
+    <div :class="$style.srOnly" aria-live="polite" aria-atomic="true">
+      {{ spotlightStore.lastAnnouncement }}
+    </div>
+
     <DeckNavbar
       ref="navbarRef"
       :mobile-drawer-open="mobileDrawerOpen"
@@ -352,6 +359,20 @@ function acceptCrossWindowDrop() {
   flex: 1;
   min-height: 0;
   width: 100%;
+}
+
+// Spotlight (AI 操作可視化) 用 SR-only aria-live region。
+// 視覚的には不可視、スクリーンリーダーのみ拾う。
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .mobile {

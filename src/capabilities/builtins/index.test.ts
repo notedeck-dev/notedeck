@@ -36,6 +36,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'column.move',
         'column.remove',
         'column.updateSettings',
+        'sidebar.toggle',
         'drafts.create',
         'drafts.delete',
         'drafts.list',

@@ -10,12 +10,19 @@
  * ので、ユーザーが `safe` プリセットを選んでいれば書き込み系は自動 deny される。
  */
 
+import { nextTick } from 'vue'
+import { COLUMN_LABELS } from '@/columns/registry'
 import type { Command } from '@/commands/registry'
 import {
   type AiConfig,
   type PermissionKey,
   resolvePermissions,
 } from '@/composables/useAiConfig'
+import {
+  columnTargetId,
+  navbarTargetId,
+  useSpotlightStore,
+} from '@/composables/useSpotlight'
 import {
   type ConfirmDecision,
   type ConfirmOptions,
@@ -110,12 +117,74 @@ export async function dispatchCapability(
   }
   try {
     const result = await cap.execute(params, { aiConfig })
+    // AI 操作の可視化: 成功時のみ、対応する UI 要素を一時的に光らせる。
+    // DOM 更新後 (navbar に新 item が反映されてから) に highlight する。
+    // 防御: spotlight 副作用が万一失敗しても本体 (AI flow) に影響しないよう
+    // catch + Promise rejection 無視で完全分離する。
+    void nextTick(() => {
+      try {
+        emitSpotlightFromCapability(cap.id, params, result)
+      } catch (err) {
+        console.warn('[dispatcher] spotlight emit failed (ignored):', err)
+      }
+    }).catch((err) => {
+      console.warn('[dispatcher] spotlight nextTick rejected (ignored):', err)
+    })
     return { ok: true, result }
   } catch (e) {
     return {
       ok: false,
       code: 'execute_failed',
       error: e instanceof Error ? e.message : String(e),
+    }
+  }
+}
+
+/**
+ * Capability 実行成功後に、対応する UI 要素を spotlight する。
+ * ユーザークリックは dispatcher を通らないので、自然に AI 経由だけが光る。
+ * MVP は `column.add` → navbar ボタン のみ。Phase 2 で拡張。
+ */
+function emitSpotlightFromCapability(
+  capId: string,
+  params: Record<string, unknown> | undefined,
+  result: unknown,
+): void {
+  // === DEBUG: spotlight 発火を必ず追える console.log ===
+  console.debug('[spotlight] capability succeeded:', { capId, params, result })
+  if (capId === 'column.add') {
+    // 新規追加されたカラム本体 (= bottombar / mobile nav のタブが反応する)
+    // を spotlight する。ナビバー (= サイドバースロット) は AI による
+    // 新規カラム追加では破壊的になり得るので対象にしない (#feedback)。
+    const r = result as { id?: string; type?: string } | null
+    const newColumnId = r?.id
+    const type = r?.type ?? (params?.type as string | undefined)
+    if (newColumnId && type) {
+      const label = COLUMN_LABELS[type] ?? type
+      const targetId = columnTargetId(newColumnId)
+      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
+      useSpotlightStore().highlight(targetId, {
+        label: `AI が${label}カラムを追加しました`,
+      })
+    } else {
+      console.warn(
+        '[spotlight] column.add succeeded but cannot derive target:',
+        { newColumnId, type, result, params },
+      )
+    }
+  } else if (capId === 'sidebar.toggle') {
+    // サイドバースロットを開閉した → ナビバーボタンが反応する target
+    const r = result as { type?: string; opened?: boolean } | null
+    const type = r?.type ?? (params?.type as string | undefined)
+    const accountId = (params?.accountId as string | null | undefined) ?? null
+    // 「開いた」ときだけ spotlight (閉じた = もうそのボタンを見る理由がない)
+    if (r?.opened && type) {
+      const label = COLUMN_LABELS[type] ?? type
+      const targetId = navbarTargetId(type, accountId)
+      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
+      useSpotlightStore().highlight(targetId, {
+        label: `AI が${label}カラムをサイドバーに開きました`,
+      })
     }
   }
 }

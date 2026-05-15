@@ -15,6 +15,7 @@ import { useColumnBadge } from '@/composables/useColumnBadge'
 import { COLUMN_ICONS, COLUMN_LABELS } from '@/composables/useColumnTabs'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
+import { navbarTargetId, useSpotlightStore } from '@/composables/useSpotlight'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import {
   type Account,
@@ -69,6 +70,14 @@ const realtimeModeStore = useRealtimeModeStore()
 const windowsStore = useWindowsStore()
 const isCompact = useIsCompactLayout()
 const { getBadge, clearBadge } = useColumnBadge()
+const spotlightStore = useSpotlightStore()
+
+function isNavSpotlighted(item: NavItem): boolean {
+  if (isNavDivider(item)) return false
+  return spotlightStore.spotlights.has(
+    navbarTargetId(item.type, item.accountId),
+  )
+}
 
 const accountAttentionCount = computed(
   () =>
@@ -124,6 +133,8 @@ function getNavAction(item: NavItem): () => void {
       /* divider has no action */
     }
   return () => {
+    // spotlight 中のボタンをユーザーがクリック = 認識した。即 clear
+    spotlightStore.clear(navbarTargetId(item.type, item.accountId))
     clearBadge(item.type)
     deckStore.toggleSidebarColumn(item.type, item.accountId, {
       ...item.columnProps,
@@ -488,7 +499,11 @@ defineExpose({
               <button
                 v-else
                 class="_button"
-                :class="[$style.item, { [$style.sidebarActive]: sidebarType === navItem.type }]"
+                :class="[
+                  $style.item,
+                  { [$style.sidebarActive]: sidebarType === navItem.type },
+                  isNavSpotlighted(navItem) && $style.spotlighted,
+                ]"
                 :title="navLabel(navItem)"
                 @click="hapticLight(); closeDrawerAndDo(getNavAction(navItem))"
               >
@@ -892,6 +907,51 @@ defineExpose({
   :global(.ti) {
     opacity: 1;
   }
+}
+
+// AI 操作の可視化 (Spotlight): Windows タスクバー風アンダーバー (朱色 + オレンジ枠)。
+// 現状 MVP では emit されないが、Phase 2 のサイドバー toggle 系 capability で
+// 自動的に光るよう infrastructure として常駐。.sidebarActive は背景色のみで
+// ::after/::before を使わないので隠す処理は不要。
+.spotlighted {
+  position: relative;
+  isolation: isolate;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      180deg,
+      rgba(170, 30, 30, 0.55) 0%,
+      rgba(200, 55, 45, 0.3) 50%,
+      rgba(220, 90, 80, 0.05) 100%
+    );
+    box-shadow: 0 -1px 8px rgba(170, 30, 30, 0.25);
+    pointer-events: none;
+    z-index: 0;
+    animation: spotlightFill 2.4s ease-out 1 forwards;
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      animation: none;
+      opacity: 1;
+    }
+  }
+}
+
+@keyframes spotlightFill {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .onlineActive {

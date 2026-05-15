@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import ColumnBadges from '@/components/common/ColumnBadges.vue'
 import { useColumnBadge } from '@/composables/useColumnBadge'
 import { useColumnTabs } from '@/composables/useColumnTabs'
+import { columnTargetId, useSpotlightStore } from '@/composables/useSpotlight'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 
 const props = defineProps<{
@@ -35,6 +36,11 @@ watch(
 )
 
 const { getBadge } = useColumnBadge()
+const spotlightStore = useSpotlightStore()
+
+function isGroupSpotlighted(group: readonly string[]): boolean {
+  return group.some((id) => spotlightStore.spotlights.has(columnTargetId(id)))
+}
 
 const {
   visibleGroups,
@@ -64,8 +70,15 @@ const {
         v-for="(group, gi) in visibleGroups"
         :key="groupPrimaryId(group)"
         class="_button"
-        :class="[$style.tab, { [$style.active]: activeColumnIndex === gi }]"
-        @click="emit('scroll-to-column', gi)"
+        :class="[
+          $style.tab,
+          { [$style.active]: activeColumnIndex === gi },
+          isGroupSpotlighted(group) && $style.spotlighted,
+        ]"
+        @click="
+          group.forEach((id) => spotlightStore.clear(columnTargetId(id)));
+          emit('scroll-to-column', gi)
+        "
       >
         <div :class="$style.iconWrap">
           <i :class="'ti ti-' + columnIcon(groupPrimaryId(group))" />
@@ -169,5 +182,52 @@ const {
 
 .stackBadge { @include nav-stack-badge; }
 .badge { @include nav-badge; }
+
+// AI 操作の可視化 (Spotlight): Windows タスクバー風アンダーバー (朱色 + オレンジ枠)。
+// 既存 .active が ::after で短い緑バーを描くので、spotlight 中は隠して朱色バー優先。
+.spotlighted {
+  position: relative;
+  isolation: isolate;
+
+  &.active::after {
+    display: none;
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      180deg,
+      rgba(170, 30, 30, 0.55) 0%,
+      rgba(200, 55, 45, 0.3) 50%,
+      rgba(220, 90, 80, 0.05) 100%
+    );
+    box-shadow: 0 -1px 8px rgba(170, 30, 30, 0.25);
+    pointer-events: none;
+    z-index: 0;
+    animation: spotlightFill 2.4s ease-out 1 forwards;
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      animation: none;
+      opacity: 1;
+    }
+  }
+}
+
+@keyframes spotlightFill {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
+}
 
 </style>

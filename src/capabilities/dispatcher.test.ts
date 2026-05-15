@@ -1,10 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest'
+// @vitest-environment happy-dom
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Command } from '@/commands/registry'
 import {
   type AiConfig,
   defaultConfig,
   setPermissionPreset,
 } from '@/composables/useAiConfig'
+import { useSpotlightStore } from '@/composables/useSpotlight'
 import { dispatchCapability } from './dispatcher'
 import { _clearCapabilitiesForTest, registerCapability } from './registry'
 
@@ -32,6 +35,13 @@ function configWithPreset(preset: 'readonly' | 'safe' | 'full'): AiConfig {
 afterEach(() => {
   _clearCapabilitiesForTest()
 })
+
+// nextTick の microtask を flush するためのヘルパー (dispatcher は void nextTick で
+// spotlight を emit するので、await で済む)
+async function flushNextTick() {
+  await Promise.resolve()
+  await Promise.resolve()
+}
 
 describe('dispatchCapability', () => {
   it('returns ok + result for a registered no-permission capability', async () => {
@@ -464,5 +474,123 @@ describe('dispatchCapability — confirmation flow', () => {
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.code).toBe('permission_denied')
     expect(confirmCalls).toBe(0)
+  })
+})
+
+describe('dispatchCapability spotlight emission', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('column.add 成功時に新規カラム本体 (column:<id>) を spotlight する', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'column.add',
+        execute: (params) => ({
+          id: 'col-1',
+          type: (params as { type?: string } | undefined)?.type,
+        }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    const r = await dispatchCapability(
+      'column.add',
+      { type: 'notifications' },
+      configWithPreset('full'),
+    )
+
+    expect(r.ok).toBe(true)
+    await flushNextTick()
+    // bottombar / mobile-nav タブが反応する target
+    expect(store.isActive('column:col-1')).toBe(true)
+    expect(store.lastAnnouncement).toContain('通知')
+    // ナビバー (サイドバースロット) は対象外
+    expect(store.isActive('navbar:notifications:null')).toBe(false)
+  })
+
+  it('column.add に accountId が指定されていても target は column id ベース', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'column.add',
+        execute: (params) => ({
+          id: 'col-2',
+          type: (params as { type?: string } | undefined)?.type,
+        }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    await dispatchCapability(
+      'column.add',
+      { type: 'chat', accountId: 'abc' },
+      configWithPreset('full'),
+    )
+
+    await flushNextTick()
+    expect(store.isActive('column:col-2')).toBe(true)
+  })
+
+  it('column.add 以外の capability では spotlight を emit しない', async () => {
+    registerCapability(makeCapability({ id: 'time.now', execute: () => 'now' }))
+
+    const store = useSpotlightStore()
+    await dispatchCapability('time.now', undefined, configWithPreset('full'))
+
+    await flushNextTick()
+    expect(store.spotlights.size).toBe(0)
+  })
+
+  it('permission_denied のときは spotlight を emit しない', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'column.add',
+        permissions: ['notes.write'],
+        execute: () => ({ id: 'col-3', type: 'notifications' }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    const r = await dispatchCapability(
+      'column.add',
+      { type: 'notifications' },
+      configWithPreset('readonly'),
+    )
+
+    expect(r.ok).toBe(false)
+    await flushNextTick()
+    expect(store.spotlights.size).toBe(0)
+  })
+
+  it('execute_failed のときは spotlight を emit しない', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'column.add',
+        execute: () => {
+          throw new Error('boom')
+        },
+      }),
+    )
+
+    const store = useSpotlightStore()
+    const r = await dispatchCapability(
+      'column.add',
+      { type: 'notifications' },
+      configWithPreset('full'),
+    )
+
+    expect(r.ok).toBe(false)
+    await flushNextTick()
+    expect(store.spotlights.size).toBe(0)
+  })
+
+  it('vi.useFakeTimers と無関係に highlight が同期反映される (Map にエントリが入る)', () => {
+    // 防御テスト: vi.useFakeTimers を使わなくても store API は同期で動く
+    vi.useFakeTimers()
+    setActivePinia(createPinia())
+    const store = useSpotlightStore()
+    store.highlight('navbar:notifications:null')
+    expect(store.isActive('navbar:notifications:null')).toBe(true)
+    vi.useRealTimers()
   })
 })
