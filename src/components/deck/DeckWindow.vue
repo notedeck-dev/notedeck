@@ -113,7 +113,7 @@ const icons: Record<string, string> = {
   'skill-edit': 'ti ti-sparkles',
   connections: 'ti ti-plug-connected',
   connectionEdit: 'ti ti-plug-connected',
-  tutorial: 'ti ti-school',
+  tutorial: 'ti ti-presentation-analytics',
 }
 
 const isMinimized = computed(() => props.window.minimized)

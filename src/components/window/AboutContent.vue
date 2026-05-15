@@ -2,7 +2,6 @@
 import { getTauriVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { onMounted, ref } from 'vue'
-import { useTutorialStore } from '@/composables/useTutorial'
 import { useUpdater } from '@/composables/useUpdater'
 import { useUiStore } from '@/stores/ui'
 import { commands } from '@/utils/tauriInvoke'
@@ -12,7 +11,6 @@ const tauriVersion = ref('')
 const rustVersion = ref('')
 const copied = ref(false)
 const uiStore = useUiStore()
-const tutorialStore = useTutorialStore()
 const {
   isChecking,
   isUpToDate,
@@ -117,12 +115,6 @@ function reportBug() {
           </button>
         </div>
       </template>
-      <div :class="$style.actionGroup">
-        <button class="_button" :class="$style.actionBtn" @click="tutorialStore.start()">
-          <i class="ti ti-school" />
-          チュートリアルを起動
-        </button>
-      </div>
       <div :class="$style.actionGroup">
         <button class="_button" :class="[$style.actionBtn, { [$style.feedback]: copied }]" @click="copyInfo">
           <i :class="copied ? 'ti ti-check' : 'ti ti-copy'" />

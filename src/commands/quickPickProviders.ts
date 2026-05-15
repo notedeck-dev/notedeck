@@ -42,6 +42,14 @@ import { useCommandStore } from './registry'
 
 export function getSettingsItems(): QuickPickItem[] {
   return [
+    // Help (= ヘルプ / Misskey本家踏襲、最上段に配置)
+    {
+      id: 'tutorial',
+      label: 'チュートリアルを見る',
+      icon: 'presentation-analytics',
+      group: 'ヘルプ',
+      action: () => useTutorialStore().start(),
+    },
     // Appearance
     {
       id: 'toggle-dark-mode',
@@ -181,14 +189,6 @@ export function getSettingsItems(): QuickPickItem[] {
           '設定インポート',
           '現在の設定が上書きされます。',
         ),
-    },
-    // Help — 新規ユーザー向けセットアップ wizard
-    {
-      id: 'tutorial',
-      label: 'チュートリアルを起動',
-      icon: 'school',
-      group: 'ヘルプ',
-      action: () => useTutorialStore().start(),
     },
   ]
 }
