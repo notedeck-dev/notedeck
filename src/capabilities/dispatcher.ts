@@ -20,12 +20,14 @@ import {
   resolvePermissions,
 } from '@/composables/useAiConfig'
 import {
+  accountTargetId,
   columnTargetId,
   navbarTargetId,
   noteTargetId,
   useSpotlightStore,
   windowTargetId,
 } from '@/composables/useSpotlight'
+import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import {
   type ConfirmDecision,
   type ConfirmOptions,
@@ -301,6 +303,17 @@ function emitSpotlightFromCapability(
   } else if (capId === 'notes.delete') {
     // 削除は対象 DOM が消えるので視覚 spotlight 無し。SR テキストのみ。
     useSpotlightStore().announce('AI がノートを削除しました')
+  } else if (capId === 'account.switch') {
+    // アクティブアカウント切替: navbar popup が開いていれば該当行が朱色 glow。
+    // 閉じていれば視覚効果は無いが SR で読み上げ。
+    const r = result as { id?: string } | null
+    if (r?.id) {
+      const acc = useAccountsStore().accounts.find((a) => a.id === r.id)
+      const label = acc ? getAccountLabel(acc) : r.id
+      useSpotlightStore().highlight(accountTargetId(r.id), {
+        label: `AI がアクティブアカウントを ${label} に切り替えました`,
+      })
+    }
   }
 }
 

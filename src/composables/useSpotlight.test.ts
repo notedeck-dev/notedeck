@@ -2,6 +2,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  accountTargetId,
   columnTargetId,
   navbarTargetId,
   noteTargetId,
@@ -163,5 +164,11 @@ describe('windowTargetId', () => {
 describe('noteTargetId', () => {
   it('note id を note:<id> 形式で組み立てる', () => {
     expect(noteTargetId('9abc123')).toBe('note:9abc123')
+  })
+})
+
+describe('accountTargetId', () => {
+  it('account id を account:<id> 形式で組み立てる', () => {
+    expect(accountTargetId('acc-1')).toBe('account:acc-1')
   })
 })

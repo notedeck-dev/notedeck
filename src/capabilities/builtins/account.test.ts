@@ -6,6 +6,7 @@ import {
   ACCOUNT_BUILTIN_CAPABILITIES,
   accountCurrentCapability,
   accountListCapability,
+  accountSwitchCapability,
 } from './account'
 
 const SAMPLE: Account = {
@@ -71,9 +72,51 @@ describe('account.list capability', () => {
   })
 })
 
+describe('account.switch capability', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('declares account.write permission and aiTool: true', () => {
+    expect(accountSwitchCapability.permissions).toEqual(['account.write'])
+    expect(accountSwitchCapability.aiTool).toBe(true)
+  })
+
+  it('preflight rejects missing or non-string id', async () => {
+    expect(await accountSwitchCapability.preflight?.({})).toMatchObject({
+      error: expect.stringContaining('id'),
+    })
+    expect(
+      await accountSwitchCapability.preflight?.({ id: 123 }),
+    ).toMatchObject({
+      error: expect.stringContaining('id'),
+    })
+  })
+
+  it('preflight rejects id that is not logged in', async () => {
+    const store = useAccountsStore()
+    store.accounts = [SAMPLE]
+    expect(
+      await accountSwitchCapability.preflight?.({ id: 'acc-missing' }),
+    ).toMatchObject({
+      error: expect.stringContaining('not logged in'),
+    })
+  })
+
+  it('switches active account and returns { ok: true, id }', () => {
+    const store = useAccountsStore()
+    store.accounts = [SAMPLE, { ...SAMPLE, id: 'acc-2', username: 'taka2' }]
+    store.activeAccountId = 'acc-1'
+    const result = accountSwitchCapability.execute({ id: 'acc-2' })
+    expect(result).toEqual({ ok: true, id: 'acc-2' })
+    expect(store.activeAccountId).toBe('acc-2')
+  })
+})
+
 describe('ACCOUNT_BUILTIN_CAPABILITIES', () => {
-  it('contains both capabilities', () => {
+  it('contains all three capabilities', () => {
     expect(ACCOUNT_BUILTIN_CAPABILITIES).toContain(accountCurrentCapability)
     expect(ACCOUNT_BUILTIN_CAPABILITIES).toContain(accountListCapability)
+    expect(ACCOUNT_BUILTIN_CAPABILITIES).toContain(accountSwitchCapability)
   })
 })

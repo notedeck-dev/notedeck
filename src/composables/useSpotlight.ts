@@ -119,3 +119,11 @@ export function windowTargetId(windowId: string): string {
 export function noteTargetId(noteId: string): string {
   return `note:${noteId}`
 }
+
+/**
+ * アカウント切替 UI のアバター/アイテムを指す target ID。
+ * NoteDeck のアカウント popup 内 item を光らせるのに使う。
+ */
+export function accountTargetId(accountId: string): string {
+  return `account:${accountId}`
+}

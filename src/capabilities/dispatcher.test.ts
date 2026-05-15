@@ -905,4 +905,24 @@ describe('dispatchCapability spotlight emission', () => {
     expect(store.spotlights.size).toBe(0)
     expect(store.lastAnnouncement).toContain('削除')
   })
+
+  it('account.switch 成功時に account:<id> を spotlight する', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'account.switch',
+        execute: () => ({ id: 'acc-2', ok: true }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    await dispatchCapability(
+      'account.switch',
+      { id: 'acc-2' },
+      configWithPreset('full'),
+    )
+
+    await flushNextTick()
+    expect(store.isActive('account:acc-2')).toBe(true)
+    expect(store.lastAnnouncement).toContain('切り替え')
+  })
 })

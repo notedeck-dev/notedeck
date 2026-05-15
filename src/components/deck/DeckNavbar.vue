@@ -15,7 +15,11 @@ import { useColumnBadge } from '@/composables/useColumnBadge'
 import { COLUMN_ICONS, COLUMN_LABELS } from '@/composables/useColumnTabs'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
-import { navbarTargetId, useSpotlightStore } from '@/composables/useSpotlight'
+import {
+  accountTargetId,
+  navbarTargetId,
+  useSpotlightStore,
+} from '@/composables/useSpotlight'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import {
   type Account,
@@ -77,6 +81,13 @@ function isNavSpotlighted(item: NavItem): boolean {
   return spotlightStore.spotlights.has(
     navbarTargetId(item.type, item.accountId),
   )
+}
+
+function isAccountSpotlighted(id: string): boolean {
+  return spotlightStore.spotlights.has(accountTargetId(id))
+}
+function clearAccountSpotlight(id: string): void {
+  spotlightStore.clear(accountTargetId(id))
 }
 
 const accountAttentionCount = computed(
@@ -641,7 +652,8 @@ defineExpose({
                 <div
                   v-for="acc in accountsStore.accounts"
                   :key="acc.id"
-                  :class="$style.accountPopupItem"
+                  :class="[$style.accountPopupItem, { [$style.spotlighted]: isAccountSpotlighted(acc.id) }]"
+                  @mousedown="clearAccountSpotlight(acc.id)"
                   @click.stop="toggleAccountMenu(acc.id)"
                 >
                   <div
@@ -1018,6 +1030,32 @@ defineExpose({
 
 .accountPopupItem {
   position: relative;
+}
+
+/* AI Spotlight: account.switch でこの行を朱色 glow で囲む */
+.accountPopupItem.spotlighted::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 2px rgba(170, 30, 30, 0.7),
+    0 0 24px 8px rgba(170, 30, 30, 0.4);
+  animation: spotlightAccountAppear 2.4s ease-out 1 forwards;
+  z-index: 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .accountPopupItem.spotlighted::after {
+    animation: none;
+    opacity: 1;
+  }
+}
+@keyframes spotlightAccountAppear {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .accountPopupBtn {

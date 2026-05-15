@@ -8,6 +8,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
       [
         'account.current',
         'account.list',
+        'account.switch',
         'ai.chat',
         'ai.listPersonas',
         'ai.sessions.list',
