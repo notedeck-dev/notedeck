@@ -582,9 +582,9 @@ async function fetchAll(): Promise<void> {
   state.value = 'ok'
   await nextTick()
   renderAll()
-  // 初期 mount がオフスクリーン (content-visibility: auto で skipped) だった
-  // 場合、chart.js が 0×0 でレイアウトしてしまう。次フレームでサイズ確定後に
-  // 再描画することで「軸だけ出てバーが無い」状態を回避する。
+  // 初期 mount が useColumnMount の shell 状態から復帰した直後だと canvas が
+  // 0×0 でレイアウトされる場合がある。次フレームでサイズ確定後に再描画して
+  // 「軸だけ出てバーが無い」状態を回避する。
   requestAnimationFrame(redrawAllCharts)
 }
 
@@ -609,11 +609,6 @@ function prettyJson(v: unknown): string {
   return v ? JSON.stringify(v, null, 2) : ''
 }
 
-// DeckColumn の `content-visibility: auto` が canvas 描画と相性が悪く、
-// 「軸だけ出てバーが出ない」「hover で復活」等のタイミング依存バグを引き起こす。
-// WebKit は `contentvisibilityautostatechange` 非対応で遷移を検知できない、
-// そもそも初期 mount がスキップ中なら chartArea が 0 で固まる、などリカバリは
-// 困難。このカラム単体でのみ content-visibility を無効化するのが最も確実。
 function redrawAllCharts(): void {
   for (const chart of chartInstances.values()) {
     chart.resize()
@@ -621,29 +616,13 @@ function redrawAllCharts(): void {
   }
 }
 
-let overriddenColumnEl: HTMLElement | null = null
-let originalContentVisibility = ''
 let visibilityObserver: IntersectionObserver | null = null
 
 onMounted(() => {
-  // Layer 1: 祖先の `.deckColumn` (content-visibility: auto) を探して override。
-  // 起点は常時 DOM に存在する bodyRef にする (chartsListRef は state='ok' まで
-  // null なので onMounted 時点では辿れない)。
-  let el: HTMLElement | null = bodyRef.value
-  while (el) {
-    if (getComputedStyle(el).contentVisibility === 'auto') {
-      overriddenColumnEl = el
-      originalContentVisibility = el.style.contentVisibility
-      el.style.contentVisibility = 'visible'
-      break
-    }
-    el = el.parentElement
-  }
-
   fetchAll()
 
-  // Layer 2: IntersectionObserver で viewport 再突入を検知し、chart を強制再描画。
-  // override が効かなかった / 他要因で canvas が 0×0 に陥ったケースのフォールバック。
+  // IntersectionObserver で viewport 再突入を検知し、chart を強制再描画。
+  // canvas が 0×0 に陥ったケースの safety net (chart.js の resize/update 保証)。
   if (bodyRef.value && 'IntersectionObserver' in window) {
     visibilityObserver = new IntersectionObserver(
       (entries) => {
@@ -662,10 +641,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   visibilityObserver?.disconnect()
   visibilityObserver = null
-  if (overriddenColumnEl) {
-    overriddenColumnEl.style.contentVisibility = originalContentVisibility
-    overriddenColumnEl = null
-  }
   destroyAllCharts()
 })
 

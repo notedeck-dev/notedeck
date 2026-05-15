@@ -4,7 +4,10 @@
    Apply `contain: layout style paint` to v-for items inside a scroll container.
    NOTE: Do NOT use `content-visibility: auto` inside virtualized lists —
    it conflicts with @tanstack/virtual's measureElement (offsetHeight returns
-   contain-intrinsic-size instead of actual height, corrupting position calc). */
+   contain-intrinsic-size instead of actual height, corrupting position calc).
+   Do NOT re-introduce `content-visibility: auto` on `.deckColumn` either:
+   the parent skip state initialised inner dynamic-size content (virtualizer
+   scrollHeight / canvas) to 0 and broke notification + charts columns (#407). */
 
 /* Header */
 .tlHeaderIcon {
