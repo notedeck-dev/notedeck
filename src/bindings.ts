@@ -2247,12 +2247,12 @@ protocol?: ConnectionProtocol | null;
 /**
  * AI に開示するか。default false — 明示的に opt-in しないと AI からは見えない。
  */
-aiVisible?: boolean;
+aiVisible?: boolean; 
 /**
  * AI / AiScript からの利用を確認ダイアログなしで許可するか。default false。
  * `ai_visible` が前提 (false なら無意味)。`vault.fetch` の確認をスキップさせる。
  */
-aiTrusted?: boolean;
+aiTrusted?: boolean; 
 /**
  * secret が設定済みの slot 名一覧。keychain 列挙 API がないため metadata 側が source of truth。
  */
