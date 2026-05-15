@@ -70,12 +70,12 @@ export interface NotedeckSettings {
   /** chat の TTL (日)。null = 無期限保持 (default)。 */
   'chat.ttlDays'?: number | null
 
-  // --- Guide (新規ユーザー向けセットアップ wizard、/guide コマンド) ---
+  // --- Tutorial (新規ユーザー向けセットアップ wizard、/tutorial コマンド) ---
   /**
-   * /guide を一度でも完走したかのフラグ。再実行は常に可能だが、再実行時に
+   * /tutorial を一度でも完走したかのフラグ。再実行は常に可能だが、再実行時に
    * 「セットアップ完了済みです」とすぐ案内できるようにこのフラグで判定する。
    */
-  'guide.completed'?: boolean
+  'tutorial.completed'?: boolean
 
   // keybinds は keybinds.json5 に分離済み（独立ファイル）
   // AI は ai.json5 に分離済み。システムプロンプトは skills/ に統合済み

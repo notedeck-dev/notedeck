@@ -16,6 +16,7 @@ import {
 import { refreshProfileCommands } from '@/commands/definitions'
 import { switchProfileWithWindows } from '@/composables/useDeckWindow'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
+import { useTutorialStore } from '@/composables/useTutorial'
 import { formatUserHandle, searchUsers } from '@/composables/useUserSearch'
 import {
   getAccountAvatarUrl,
@@ -41,6 +42,14 @@ import { useCommandStore } from './registry'
 
 export function getSettingsItems(): QuickPickItem[] {
   return [
+    // Help (= ヘルプ / Misskey本家踏襲、最上段に配置)
+    {
+      id: 'tutorial',
+      label: 'チュートリアルを見る',
+      icon: 'presentation-analytics',
+      group: 'ヘルプ',
+      action: () => useTutorialStore().start(),
+    },
     // Appearance
     {
       id: 'toggle-dark-mode',

@@ -37,6 +37,7 @@ export type WindowType =
   | 'skill-edit'
   | 'connections'
   | 'connectionEdit'
+  | 'tutorial'
 
 export interface DeckWindow {
   id: string
@@ -49,7 +50,6 @@ export interface DeckWindow {
   width?: number
   height?: number
   zIndex: number
-  modal: boolean
   minimized: boolean
   maximized: boolean
 }
@@ -111,6 +111,9 @@ export const WINDOW_SIZES: Record<
   // Secret Vault (#564): 外部サービス接続の一覧 / 編集
   connections: { width: 440, maxHeight: 650 },
   connectionEdit: { width: 440, maxHeight: 720 },
+  // Tutorial — 新規ユーザー向けセットアップ wizard。背景の他 window と並べて
+  // 進められるよう小さめサイズ。
+  tutorial: { width: 380, maxHeight: 420 },
 }
 
 export const useWindowsStore = defineStore('windows', () => {
@@ -118,8 +121,6 @@ export const useWindowsStore = defineStore('windows', () => {
   let windowCounter = 0
   let topZIndex = 1500
   const overlayCleanups = new Map<string, () => void>()
-
-  const hasModal = computed(() => windows.value.some((w) => w.modal))
 
   /** The frontmost (highest zIndex) window, or null when none are open. */
   const topWindow = computed<DeckWindow | null>(() => {
@@ -166,6 +167,7 @@ export const useWindowsStore = defineStore('windows', () => {
     'tasksEditor',
     'snippetsEditor',
     'connections',
+    'tutorial',
   ])
 
   // PiP WebView (別 OS ウィンドウ) 内では DeckWindow オーバーレイが存在しないため、
@@ -211,15 +213,13 @@ export const useWindowsStore = defineStore('windows', () => {
 
     topZIndex++
     const id = `win-${Date.now()}-${++windowCounter}`
-    const isModal = type === 'login'
     const win: DeckWindow = {
       id,
       type,
       props,
       x,
       y,
-      zIndex: isModal ? topZIndex + 300 : topZIndex,
-      modal: isModal,
+      zIndex: topZIndex,
       minimized: false,
       maximized: false,
     }
@@ -243,7 +243,7 @@ export const useWindowsStore = defineStore('windows', () => {
     const win = windows.value.find((w) => w.id === id)
     if (!win) return
     topZIndex++
-    win.zIndex = win.modal ? topZIndex + 300 : topZIndex
+    win.zIndex = topZIndex
   }
 
   function updatePosition(id: string, x: number, y: number) {
@@ -284,7 +284,6 @@ export const useWindowsStore = defineStore('windows', () => {
 
   return {
     windows,
-    hasModal,
     topWindow,
     open,
     close,

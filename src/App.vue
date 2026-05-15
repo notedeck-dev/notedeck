@@ -40,11 +40,6 @@ const DeckWindowLayer = defineAsyncComponent(
   () => import('@/components/deck/DeckWindowLayer.vue'),
 )
 
-// /guide コマンドで mount される setup wizard overlay。store 起動時のみ DOM に乗る
-const GuideOverlay = defineAsyncComponent(
-  () => import('@/components/guide/GuideOverlay.vue'),
-)
-
 // console.warn / console.error を logs store にラップ。AI が `logs.recent`
 // capability で自己診断できるようにする。`[ai-credentials]` のような
 // 明示的に機密扱いの scope は捨てる (push しない)。
@@ -214,7 +209,6 @@ onUnmounted(() => {
 
     <template v-if="!isPipWindow">
       <DeckWindowLayer />
-      <GuideOverlay />
     </template>
   </div>
 </template>

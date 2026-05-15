@@ -2,6 +2,7 @@
 import { computed, ref, toRef } from 'vue'
 
 import { useNativeDialog } from '@/composables/useNativeDialog'
+import { useTutorialStore } from '@/composables/useTutorial'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { usePerformanceStore } from '@/stores/performance'
 import { useThemeStore } from '@/stores/theme'
@@ -34,6 +35,12 @@ useNativeDialog(
 )
 
 const windowsStore = useWindowsStore()
+const tutorialStore = useTutorialStore()
+
+function openTutorial(): void {
+  tutorialStore.start()
+  emit('close')
+}
 
 function openToolWindow(
   type:
@@ -68,6 +75,13 @@ function openToolWindow(
       @pointerdown.stop
     >
       <div :class="$style.menuBody">
+        <div :class="$style.categorySection">
+          <button :class="$style.categoryHeader" @click="openTutorial">
+            <i class="ti ti-presentation-analytics" />
+            <span>チュートリアルを見る</span>
+            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
+          </button>
+        </div>
         <div :class="$style.categorySection">
           <button :class="$style.categoryHeader" @click="openToolWindow('appearanceEditor')">
             <i class="ti ti-brush" />

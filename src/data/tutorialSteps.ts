@@ -1,14 +1,15 @@
 /**
- * /guide コマンドの step 宣言データ。
+ * /tutorial コマンドの step 宣言データ。
  *
  * 各 step は宣言的に「何を開く」「何を待つ」「既に済んでいたら skip」を持つ。
- * 実行ロジックは useGuide store 側にある。
+ * 実行ロジックは useTutorial store 側にある。
  *
  * 設計上の注意:
- * - AI capability dispatcher を経由しない (= ガイドは AI を呼ばない)。
+ * - AI capability dispatcher を経由しない (= チュートリアルは AI を呼ばない)。
  *   windows.open / column.add などはストア API を直接叩く
  * - spotlight は step の action 内で `useSpotlightStore().highlight()` を
- *   ガイドが自分で emit する (= dispatcher 経由でないため自動 emit されない)
+ *   チュートリアルが自分で emit する (= dispatcher 経由でないため自動 emit
+ *   されない)
  */
 
 import { WINDOW_LABELS } from '@/components/deck/windowLabels'
@@ -20,22 +21,22 @@ import { useWindowsStore } from '@/stores/windows'
 
 /**
  * step の precheck 戻り値。
- * - `'skip'`: 既に満たされている → ガイドが自動でスキップ
+ * - `'skip'`: 既に満たされている → チュートリアルが自動でスキップ
  * - `'show'`: ユーザーに見せる必要あり
  */
-export type GuidePrecheck = 'skip' | 'show'
+export type TutorialPrecheck = 'skip' | 'show'
 
 /**
  * 自動進行を仕掛けるための watch ターゲット。
  * `watch()` の戻り値を Vue `watch` で監視し、`isComplete()` が true を返した
  * 瞬間に store が次の step に進める。
  */
-export interface GuideCompletionWatcher {
+export interface TutorialCompletionWatcher {
   watch: () => unknown
   isComplete: (value: unknown) => boolean
 }
 
-export interface GuideStep {
+export interface TutorialStep {
   /** step id (kebab-case)。テスト・デバッグ用 */
   id: string
   /** カード上部に表示する短いタイトル */
@@ -45,15 +46,15 @@ export interface GuideStep {
   /** step に入った時に一度だけ呼ばれるアクション (windows.open など) */
   onEnter?: () => void
   /** 既に満たされていれば skip するかを返す。未指定 = 常に show */
-  precheck?: () => GuidePrecheck
+  precheck?: () => TutorialPrecheck
   /**
    * 自動進行ウォッチ。手動 [次へ] と併用される (= watch が反応しなければ
    * ユーザーが [次へ] を押せばよい)。
    */
-  completion?: GuideCompletionWatcher
+  completion?: TutorialCompletionWatcher
   /**
    * 最終 step かどうか。true なら store の finish() を呼んで
-   * settings.guide.completed = true を立てる。
+   * settings.tutorial.completed = true を立てる。
    */
   isFinal?: boolean
 }
@@ -73,14 +74,14 @@ function hasAuthenticatedAccount(): boolean {
 }
 
 /**
- * ガイド step リスト。順序がそのままユーザー体験の順序になる。
+ * チュートリアル step リスト。順序がそのままユーザー体験の順序になる。
  *
  * 1. welcome — 説明だけ
- * 2. ai-setup — connections window 開いて AI 接続待ち
- * 3. account-login — login window 開いて Misskey ログイン待ち
+ * 2. account-login — login window 開いて Misskey ログイン待ち (基本機能)
+ * 3. ai-setup — connections window 開いて AI 接続待ち (拡張機能、後回し可)
  * 4. complete — 完了カード
  */
-export function buildGuideSteps(): GuideStep[] {
+export function buildTutorialSteps(): TutorialStep[] {
   return [
     {
       id: 'welcome',
@@ -91,10 +92,31 @@ export function buildGuideSteps(): GuideStep[] {
     },
 
     {
+      id: 'account-login',
+      title: 'Misskey アカウントを追加',
+      description:
+        'ログインウィンドウで Misskey サーバーのホスト名' +
+        ' (例: misskey.io) を入れて認証してください。' +
+        'ログインが完了すると自動で次へ進みます。',
+      precheck: () => (hasAuthenticatedAccount() ? 'skip' : 'show'),
+      onEnter: () => {
+        const id = useWindowsStore().open('login', {})
+        useSpotlightStore().highlight(windowTargetId(id), {
+          label: `チュートリアルが${WINDOW_LABELS.login}を開きました`,
+        })
+      },
+      completion: {
+        watch: () =>
+          useAccountsStore().accounts.filter((a) => a.hasToken).length,
+        isComplete: () => hasAuthenticatedAccount(),
+      },
+    },
+
+    {
       id: 'ai-setup',
       title: 'AI 接続を追加',
       description:
-        '右に開いた接続管理ウィンドウで、Anthropic / OpenAI など' +
+        '別の接続管理ウィンドウで、Anthropic / OpenAI など' +
         ' AI プロバイダの API キーを Vault に登録してください。' +
         '登録すると自動で次へ進みます。',
       precheck: () => {
@@ -112,34 +134,13 @@ export function buildGuideSteps(): GuideStep[] {
       onEnter: () => {
         const id = useWindowsStore().open('connections', {})
         useSpotlightStore().highlight(windowTargetId(id), {
-          label: `ガイドが${WINDOW_LABELS.connections}を開きました`,
+          label: `チュートリアルが${WINDOW_LABELS.connections}を開きました`,
         })
       },
       completion: {
         // Vault 接続が増えたら次へ
         watch: () => useVault().connections.value.length,
         isComplete: () => hasAnyAiConnection(),
-      },
-    },
-
-    {
-      id: 'account-login',
-      title: 'Misskey アカウントを追加',
-      description:
-        '右に開いたログインウィンドウで、Misskey サーバーのホスト名' +
-        ' (例: misskey.io) を入れて認証してください。' +
-        'ログインが完了すると自動で次へ進みます。',
-      precheck: () => (hasAuthenticatedAccount() ? 'skip' : 'show'),
-      onEnter: () => {
-        const id = useWindowsStore().open('login', {})
-        useSpotlightStore().highlight(windowTargetId(id), {
-          label: `ガイドが${WINDOW_LABELS.login}を開きました`,
-        })
-      },
-      completion: {
-        watch: () =>
-          useAccountsStore().accounts.filter((a) => a.hasToken).length,
-        isComplete: () => hasAuthenticatedAccount(),
       },
     },
 

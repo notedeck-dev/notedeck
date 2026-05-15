@@ -2,12 +2,13 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { useGuideStore } from './useGuide'
+import { useWindowsStore } from '@/stores/windows'
+import { useTutorialStore } from './useTutorial'
 
 /**
- * step の precheck / completion / onEnter を制御するため、`buildGuideSteps` を
- * テストごとに mock する。実 store API (vault / accounts / windows / settings)
- * を呼ばないようにする。
+ * step の precheck / completion / onEnter を制御するため、`buildTutorialSteps`
+ * をテストごとに mock する。実 store API (vault / accounts / settings) を
+ * 呼ばないようにする。windows store は実体を使う (= window 開閉の連動も検証)。
  */
 const mockSteps: Array<{
   id: string
@@ -19,8 +20,8 @@ const mockSteps: Array<{
   isFinal?: boolean
 }> = []
 
-vi.mock('@/data/guideSteps', () => ({
-  buildGuideSteps: () => mockSteps.map((s) => ({ ...s })),
+vi.mock('@/data/tutorialSteps', () => ({
+  buildTutorialSteps: () => mockSteps.map((s) => ({ ...s })),
 }))
 
 const settingsSetSpy = vi.fn()
@@ -28,25 +29,27 @@ vi.mock('@/stores/settings', () => ({
   useSettingsStore: () => ({ set: settingsSetSpy }),
 }))
 
-describe('useGuideStore', () => {
+describe('useTutorialStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     mockSteps.length = 0
     settingsSetSpy.mockReset()
   })
 
-  it('start() で最初の precheck=show step に遷移する', () => {
+  it('start() で window を開き、最初の precheck=show step に遷移する', () => {
     mockSteps.push(
       { id: 'a', title: 'A', description: '', precheck: () => 'skip' },
       { id: 'b', title: 'B', description: '', precheck: () => 'show' },
       { id: 'c', title: 'C', description: '', isFinal: true },
     )
-    const store = useGuideStore()
+    const store = useTutorialStore()
+    const windowsStore = useWindowsStore()
     store.start()
     expect(store.active).toBe(true)
     expect(store.currentStep?.id).toBe('b')
     expect(store.currentNumber).toBe(2)
     expect(store.totalSteps).toBe(3)
+    expect(windowsStore.windows.some((w) => w.type === 'tutorial')).toBe(true)
   })
 
   it('全 step が precheck=skip なら最終 step (= complete) に遷移する', () => {
@@ -55,7 +58,7 @@ describe('useGuideStore', () => {
       { id: 'b', title: 'B', description: '', precheck: () => 'skip' },
       { id: 'c', title: 'C', description: '', isFinal: true },
     )
-    const store = useGuideStore()
+    const store = useTutorialStore()
     store.start()
     expect(store.currentStep?.id).toBe('c')
   })
@@ -66,7 +69,8 @@ describe('useGuideStore', () => {
       { id: 'b', title: 'B', description: '' },
       { id: 'c', title: 'C', description: '', isFinal: true },
     )
-    const store = useGuideStore()
+    const store = useTutorialStore()
+    const windowsStore = useWindowsStore()
     store.start()
     expect(store.currentStep?.id).toBe('a')
     store.next()
@@ -75,7 +79,9 @@ describe('useGuideStore', () => {
     expect(store.currentStep?.id).toBe('c')
     store.next() // 最終 step → finish
     expect(store.active).toBe(false)
-    expect(settingsSetSpy).toHaveBeenCalledWith('guide.completed', true)
+    expect(settingsSetSpy).toHaveBeenCalledWith('tutorial.completed', true)
+    // window も閉じられる
+    expect(windowsStore.windows.some((w) => w.type === 'tutorial')).toBe(false)
   })
 
   it('next() は precheck=skip の step を飛ばす', () => {
@@ -84,7 +90,7 @@ describe('useGuideStore', () => {
       { id: 'b', title: 'B', description: '', precheck: () => 'skip' },
       { id: 'c', title: 'C', description: '', isFinal: true },
     )
-    const store = useGuideStore()
+    const store = useTutorialStore()
     store.start()
     expect(store.currentStep?.id).toBe('a')
     store.next()
@@ -96,7 +102,7 @@ describe('useGuideStore', () => {
       { id: 'a', title: 'A', description: '' },
       { id: 'b', title: 'B', description: '', isFinal: true },
     )
-    const store = useGuideStore()
+    const store = useTutorialStore()
     store.start()
     store.skip()
     expect(store.currentStep?.id).toBe('b')
@@ -105,22 +111,24 @@ describe('useGuideStore', () => {
     expect(settingsSetSpy).not.toHaveBeenCalled()
   })
 
-  it('cancel() はガイドを閉じ、completed flag は立てない', () => {
+  it('cancel() はチュートリアルを閉じ、completed flag は立てない', () => {
     mockSteps.push({ id: 'a', title: 'A', description: '' })
-    const store = useGuideStore()
+    const store = useTutorialStore()
+    const windowsStore = useWindowsStore()
     store.start()
     store.cancel()
     expect(store.active).toBe(false)
     expect(settingsSetSpy).not.toHaveBeenCalled()
+    expect(windowsStore.windows.some((w) => w.type === 'tutorial')).toBe(false)
   })
 
   it('finish() を直接呼んで completed flag が立つ', () => {
     mockSteps.push({ id: 'a', title: 'A', description: '', isFinal: true })
-    const store = useGuideStore()
+    const store = useTutorialStore()
     store.start()
     store.finish()
     expect(store.active).toBe(false)
-    expect(settingsSetSpy).toHaveBeenCalledWith('guide.completed', true)
+    expect(settingsSetSpy).toHaveBeenCalledWith('tutorial.completed', true)
   })
 
   it('onEnter は step 遷移時に呼ばれる', () => {
@@ -136,7 +144,7 @@ describe('useGuideStore', () => {
         isFinal: true,
       },
     )
-    const store = useGuideStore()
+    const store = useTutorialStore()
     store.start()
     expect(onEnterA).toHaveBeenCalledOnce()
     expect(onEnterB).not.toHaveBeenCalled()
@@ -145,9 +153,8 @@ describe('useGuideStore', () => {
   })
 
   it('onEnter が throw しても store の state は壊れない', () => {
-    // suppress expected console.warn from store's defensive catch
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
-      // noop
+      // suppress expected console.warn from store's defensive catch
     })
     mockSteps.push({
       id: 'a',
@@ -157,48 +164,75 @@ describe('useGuideStore', () => {
         throw new Error('boom')
       },
     })
-    const store = useGuideStore()
+    const store = useTutorialStore()
     expect(() => store.start()).not.toThrow()
     expect(store.active).toBe(true)
     consoleSpy.mockRestore()
   })
 
-  it('completion watcher が isComplete=true を返すと次へ進む', async () => {
-    let counter = 0
-    mockSteps.push(
-      {
-        id: 'a',
-        title: 'A',
-        description: '',
-        completion: {
-          watch: () => counter,
-          isComplete: (v) => (v as number) > 0,
-        },
-      },
-      { id: 'b', title: 'B', description: '', isFinal: true },
-    )
-    const store = useGuideStore()
-    store.start()
-    expect(store.currentStep?.id).toBe('a')
-    // counter が変わるだけだと watch が反応しないので、reactive ref で監視する
-    // ここでは代わりに直接 next() を呼んだ場合のセマンティクスで確認する
-    counter = 1
-    // 実 reactive 値ではないので watcher は反応しない (= manual next 経路)
-    store.next()
-    await nextTick()
-    expect(store.currentStep?.id).toBe('b')
-  })
-
-  it('多重 start() は無視される (active 中の再起動防止)', () => {
+  it('完了ボタンに頼らず外部から window が close されると内部状態がリセットされる', async () => {
     mockSteps.push(
       { id: 'a', title: 'A', description: '' },
       { id: 'b', title: 'B', description: '', isFinal: true },
     )
-    const store = useGuideStore()
+    const store = useTutorialStore()
+    const windowsStore = useWindowsStore()
+    store.start()
+    expect(store.active).toBe(true)
+    const id = store.windowId
+    expect(id).not.toBeNull()
+    // ユーザーが window ヘッダ [×] を押した相当
+    if (id) windowsStore.close(id)
+    await nextTick()
+    expect(store.active).toBe(false)
+    // completed flag は立たない (cancel 相当)
+    expect(settingsSetSpy).not.toHaveBeenCalled()
+  })
+
+  it('goToStep(i) で precheck=skip でも任意 step に手動ジャンプできる', () => {
+    mockSteps.push(
+      { id: 'a', title: 'A', description: '' },
+      { id: 'b', title: 'B', description: '', precheck: () => 'skip' },
+      { id: 'c', title: 'C', description: '', isFinal: true },
+    )
+    const store = useTutorialStore()
+    store.start()
+    expect(store.currentStep?.id).toBe('a')
+    // 手動で precheck=skip の step に飛ぶ (= ドットクリック相当)
+    store.goToStep(1)
+    expect(store.currentStep?.id).toBe('b')
+  })
+
+  it('goToStep は範囲外 / inactive 時は no-op', () => {
+    mockSteps.push(
+      { id: 'a', title: 'A', description: '' },
+      { id: 'b', title: 'B', description: '', isFinal: true },
+    )
+    const store = useTutorialStore()
+    // inactive
+    store.goToStep(0)
+    expect(store.active).toBe(false)
+    // active 後
+    store.start()
+    store.goToStep(99)
+    expect(store.currentStep?.id).toBe('a')
+    store.goToStep(-1)
+    expect(store.currentStep?.id).toBe('a')
+  })
+
+  it('多重 start() は無視され、既存 window が focus される', () => {
+    mockSteps.push(
+      { id: 'a', title: 'A', description: '' },
+      { id: 'b', title: 'B', description: '', isFinal: true },
+    )
+    const store = useTutorialStore()
+    const windowsStore = useWindowsStore()
     store.start()
     store.next()
     expect(store.currentStep?.id).toBe('b')
-    store.start() // 既に active なので何もしない
+    const beforeCount = windowsStore.windows.length
+    store.start() // 既に active なので二重 open しない
     expect(store.currentStep?.id).toBe('b')
+    expect(windowsStore.windows.length).toBe(beforeCount)
   })
 })

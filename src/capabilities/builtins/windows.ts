@@ -82,7 +82,6 @@ export const windowsListCapability: Command = {
       x: w.x,
       y: w.y,
       zIndex: w.zIndex,
-      modal: w.modal,
       minimized: w.minimized,
       maximized: w.maximized,
     }))

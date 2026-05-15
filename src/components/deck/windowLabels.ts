@@ -43,4 +43,5 @@ export const WINDOW_LABELS: Record<string, string> = {
   'skill-edit': 'スキル編集',
   connections: '接続',
   connectionEdit: '接続を編集',
+  tutorial: 'チュートリアル',
 }

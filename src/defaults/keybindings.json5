@@ -60,6 +60,11 @@
     shortcuts: [{ key: ",", ctrl: true, scope: "global" }],
   },
   {
+    // チュートリアル: F1 が help/guide 系の universal convention
+    commandId: "tutorial",
+    shortcuts: [{ key: "F1", scope: "global" }],
+  },
+  {
     commandId: "toggle-dark-mode",
     shortcuts: [{ key: "d", scope: "body" }],
   },

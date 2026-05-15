@@ -107,20 +107,12 @@ const WidgetEditContent = defineAsyncComponent(
 const SkillEditContent = defineAsyncComponent(
   () => import('@/components/window/SkillEditContent.vue'),
 )
+const TutorialContent = defineAsyncComponent(
+  () => import('@/components/tutorial/TutorialContent.vue'),
+)
 
 const windowsStore = useWindowsStore()
 const themeStore = useThemeStore()
-
-// Backdrop fade transition
-const hasModal = computed(() => windowsStore.hasModal)
-const {
-  visible: backdropVisible,
-  entering: backdropEntering,
-  leaving: backdropLeaving,
-} = useVaporTransition(hasModal, {
-  enterDuration: 200,
-  leaveDuration: 200,
-})
 
 const renderedWindows = computed(() => windowsStore.windows)
 
@@ -147,18 +139,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <!-- Modal backdrop -->
-  <div
-    v-if="backdropVisible"
-    :class="[
-      $style.windowBackdrop,
-      backdropEntering && $style.backdropEnter,
-      backdropLeaving && $style.backdropLeave,
-    ]"
-    @click="windowsStore.windows.filter(w => w.modal).forEach(w => closeWindow(w.id))"
-  />
-
-  <!-- Windows -->
+  <!-- Windows (モーダル / 背景 dimming は廃止、すべて並列に表示) -->
   <div>
     <DeckWindow
       v-for="win in renderedWindows"
@@ -238,6 +219,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         :initial-tab="(win.props.initialTab as string | undefined)"
       />
       <AboutContent v-if="win.type === 'about'" />
+      <TutorialContent v-if="win.type === 'tutorial'" />
       <NavEditorContent
         v-if="win.type === 'navEditor'"
         :initial-tab="(win.props.initialTab as string | undefined)"
@@ -327,34 +309,4 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </template>
 
 <style lang="scss" module>
-.windowBackdrop {
-  position: fixed;
-  top: var(--nd-app-inset-top, 0px);
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: var(--nd-z-window);
-  background: var(--nd-modalBg);
-}
-
-.backdropEnter {
-  animation: backdrop-enter 0.18s ease-out both;
-}
-
-.backdropLeave {
-  animation: backdrop-leave var(--nd-duration-base) ease-out both;
-}
-
-@keyframes backdrop-enter {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes backdrop-leave {
-  to {
-    opacity: 0;
-  }
-}
-
 </style>
