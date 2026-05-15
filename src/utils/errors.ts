@@ -45,11 +45,42 @@ export class AppError extends Error {
     if (typeof e === 'object' && e !== null && 'code' in e && 'message' in e) {
       return new AppError(
         (e as { code: string }).code as ErrorCode,
-        (e as { message: string }).message,
+        extractErrorMessage((e as { message: unknown }).message),
       )
     }
     if (typeof e === 'string') return new AppError('UNKNOWN', e)
     if (e instanceof Error) return new AppError('UNKNOWN', e.message)
-    return new AppError('UNKNOWN', String(e))
+    return new AppError('UNKNOWN', extractErrorMessage(e))
   }
+}
+
+/**
+ * 任意の値から「表示可能なエラーメッセージ文字列」を抽出する。
+ * `String({})` が `[object Object]` を返してしまうのを避け、
+ * オブジェクトは JSON 表現で読める形に正規化する。
+ */
+export function extractErrorMessage(e: unknown): string {
+  if (e === null) return 'null'
+  if (e === undefined) return 'undefined'
+  if (typeof e === 'string') return e
+  if (typeof e === 'number' || typeof e === 'boolean') return String(e)
+  if (e instanceof Error) return e.message
+  if (typeof e === 'object') {
+    // 既知の shape を優先抽出
+    const o = e as Record<string, unknown>
+    if (typeof o.message === 'string') return o.message
+    if (typeof o.message === 'object' && o.message !== null) {
+      return extractErrorMessage(o.message)
+    }
+    if (typeof o.error === 'string') return o.error
+    if (typeof o.detail === 'string') return o.detail
+    if (typeof o.code === 'string') return o.code
+    // フォールバック: JSON 形式 (循環参照は捕捉)
+    try {
+      return JSON.stringify(e)
+    } catch {
+      return Object.prototype.toString.call(e)
+    }
+  }
+  return String(e)
 }
