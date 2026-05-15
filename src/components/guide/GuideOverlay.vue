@@ -118,7 +118,7 @@ onUnmounted(() => {
   border-radius: 12px;
   box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.18),
-    0 0 0 1px rgba(170, 30, 30, 0.45);
+    0 0 0 1px color-mix(in srgb, var(--nd-warn) 45%, transparent);
   color: var(--nd-fg);
   font-size: 0.9em;
   animation: guideAppear 0.25s ease-out 1 forwards;

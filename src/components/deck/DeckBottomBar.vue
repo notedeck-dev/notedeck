@@ -276,11 +276,11 @@ const {
     border-radius: inherit;
     background: linear-gradient(
       180deg,
-      rgba(170, 30, 30, 0.55) 0%,
-      rgba(200, 55, 45, 0.3) 50%,
-      rgba(220, 90, 80, 0.05) 100%
+      color-mix(in srgb, var(--nd-warn) 55%, transparent) 0%,
+      color-mix(in srgb, var(--nd-warn) 30%, transparent) 50%,
+      color-mix(in srgb, var(--nd-warn) 5%, transparent) 100%
     );
-    box-shadow: 0 -1px 8px rgba(170, 30, 30, 0.25);
+    box-shadow: 0 -1px 8px color-mix(in srgb, var(--nd-warn) 25%, transparent);
     pointer-events: none;
     z-index: 0;
     animation: spotlightFill 2.4s ease-out 1 forwards;

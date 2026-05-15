@@ -410,8 +410,8 @@ onBeforeUnmount(() => {
     border-radius: inherit;
     pointer-events: none;
     box-shadow:
-      0 0 0 2px rgba(170, 30, 30, 0.7),
-      0 0 24px 8px rgba(170, 30, 30, 0.4);
+      0 0 0 2px color-mix(in srgb, var(--nd-warn) 70%, transparent),
+      0 0 24px 8px color-mix(in srgb, var(--nd-warn) 40%, transparent);
     animation: spotlightWindowAppear 2.4s ease-out 1 forwards;
   }
 
