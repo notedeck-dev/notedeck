@@ -50,7 +50,6 @@ export interface DeckWindow {
   width?: number
   height?: number
   zIndex: number
-  modal: boolean
   minimized: boolean
   maximized: boolean
 }
@@ -122,8 +121,6 @@ export const useWindowsStore = defineStore('windows', () => {
   let windowCounter = 0
   let topZIndex = 1500
   const overlayCleanups = new Map<string, () => void>()
-
-  const hasModal = computed(() => windows.value.some((w) => w.modal))
 
   /** The frontmost (highest zIndex) window, or null when none are open. */
   const topWindow = computed<DeckWindow | null>(() => {
@@ -216,15 +213,13 @@ export const useWindowsStore = defineStore('windows', () => {
 
     topZIndex++
     const id = `win-${Date.now()}-${++windowCounter}`
-    const isModal = type === 'login'
     const win: DeckWindow = {
       id,
       type,
       props,
       x,
       y,
-      zIndex: isModal ? topZIndex + 300 : topZIndex,
-      modal: isModal,
+      zIndex: topZIndex,
       minimized: false,
       maximized: false,
     }
@@ -248,7 +243,7 @@ export const useWindowsStore = defineStore('windows', () => {
     const win = windows.value.find((w) => w.id === id)
     if (!win) return
     topZIndex++
-    win.zIndex = win.modal ? topZIndex + 300 : topZIndex
+    win.zIndex = topZIndex
   }
 
   function updatePosition(id: string, x: number, y: number) {
@@ -289,7 +284,6 @@ export const useWindowsStore = defineStore('windows', () => {
 
   return {
     windows,
-    hasModal,
     topWindow,
     open,
     close,

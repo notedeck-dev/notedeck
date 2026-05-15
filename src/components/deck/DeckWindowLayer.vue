@@ -114,17 +114,6 @@ const TutorialContent = defineAsyncComponent(
 const windowsStore = useWindowsStore()
 const themeStore = useThemeStore()
 
-// Backdrop fade transition
-const hasModal = computed(() => windowsStore.hasModal)
-const {
-  visible: backdropVisible,
-  entering: backdropEntering,
-  leaving: backdropLeaving,
-} = useVaporTransition(hasModal, {
-  enterDuration: 200,
-  leaveDuration: 200,
-})
-
 const renderedWindows = computed(() => windowsStore.windows)
 
 function getThemeVars(accountId: unknown): Record<string, string> | undefined {
@@ -150,19 +139,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </script>
 
 <template>
-  <!-- Modal backdrop -->
-  <!-- 背景クリックでは閉じない (= 誤クリックで入力中のフォームが消える事故を防止)。
-       閉じるには window ヘッダの [×] か Escape キーを使う。 -->
-  <div
-    v-if="backdropVisible"
-    :class="[
-      $style.windowBackdrop,
-      backdropEntering && $style.backdropEnter,
-      backdropLeaving && $style.backdropLeave,
-    ]"
-  />
-
-  <!-- Windows -->
+  <!-- Windows (モーダル / 背景 dimming は廃止、すべて並列に表示) -->
   <div>
     <DeckWindow
       v-for="win in renderedWindows"
@@ -332,37 +309,4 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </template>
 
 <style lang="scss" module>
-.windowBackdrop {
-  position: fixed;
-  top: var(--nd-app-inset-top, 0px);
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: var(--nd-z-window);
-  // モーダル window (login 等) の背景。`--nd-modalBg` (0.5) を使うと背景が
-  // 暗くなりすぎるため、コマンドパレットの背景 (0.08) と揃えた控えめな
-  // dimming にする。
-  background: rgba(0, 0, 0, 0.08);
-}
-
-.backdropEnter {
-  animation: backdrop-enter 0.18s ease-out both;
-}
-
-.backdropLeave {
-  animation: backdrop-leave var(--nd-duration-base) ease-out both;
-}
-
-@keyframes backdrop-enter {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes backdrop-leave {
-  to {
-    opacity: 0;
-  }
-}
-
 </style>
