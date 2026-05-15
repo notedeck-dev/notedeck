@@ -13,6 +13,7 @@
 import { nextTick } from 'vue'
 import { COLUMN_LABELS } from '@/columns/registry'
 import type { Command } from '@/commands/registry'
+import { WINDOW_LABELS } from '@/components/deck/windowLabels'
 import {
   type AiConfig,
   type PermissionKey,
@@ -22,6 +23,7 @@ import {
   columnTargetId,
   navbarTargetId,
   useSpotlightStore,
+  windowTargetId,
 } from '@/composables/useSpotlight'
 import {
   type ConfirmDecision,
@@ -29,6 +31,7 @@ import {
   useConfirm,
 } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
+import { useWindowsStore } from '@/stores/windows'
 import { sanitizeToolName } from './identifier'
 import { getCapability, listCapabilities } from './registry'
 
@@ -224,6 +227,35 @@ function emitSpotlightFromCapability(
     useSpotlightStore().highlight(targetId, {
       label: 'AI が通知を既読化しました',
     })
+  } else if (capId === 'windows.open') {
+    // 新規 or 既存 focus されたウィンドウを朱色 glow で枠を光らせる
+    const r = result as { id?: string } | null
+    const type = params?.type as string | undefined
+    if (r?.id) {
+      const label = type ? (WINDOW_LABELS[type] ?? type) : 'ウィンドウ'
+      const targetId = windowTargetId(r.id)
+      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
+      useSpotlightStore().highlight(targetId, {
+        label: `AI が${label}ウィンドウを開きました`,
+      })
+    }
+  } else if (capId === 'windows.focus') {
+    // 既存ウィンドウを最前面に → 同じ window:${id} を再点灯
+    const r = result as { id?: string } | null
+    if (r?.id) {
+      const win = useWindowsStore().windows.find((w) => w.id === r.id)
+      const label = win ? (WINDOW_LABELS[win.type] ?? win.type) : 'ウィンドウ'
+      const targetId = windowTargetId(r.id)
+      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
+      useSpotlightStore().highlight(targetId, {
+        label: `AI が${label}ウィンドウを前面に出しました`,
+      })
+    }
+  } else if (capId === 'windows.close') {
+    // 閉じた window の DOM は消えているので announce のみ
+    useSpotlightStore().announce('AI がウィンドウを閉じました')
+  } else if (capId === 'windows.closeAll') {
+    useSpotlightStore().announce('AI が全ウィンドウを閉じました')
   }
 }
 

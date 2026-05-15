@@ -106,3 +106,8 @@ export function columnTargetId(columnId: string): string {
 export function navbarTargetId(type: string, accountId: string | null): string {
   return `navbar:${type}:${accountId ?? 'null'}`
 }
+
+/** DeckWindow を一意に指す target ID (windows store の id ベース) */
+export function windowTargetId(windowId: string): string {
+  return `window:${windowId}`
+}

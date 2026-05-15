@@ -701,4 +701,84 @@ describe('dispatchCapability spotlight emission', () => {
     await flushNextTick()
     expect(store.isActive('navbar:notifications:null')).toBe(true)
   })
+
+  it('windows.open 成功時に window:<id> を spotlight する', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'windows.open',
+        execute: () => ({ id: 'win-1' }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    await dispatchCapability(
+      'windows.open',
+      { type: 'note-detail' },
+      configWithPreset('full'),
+    )
+
+    await flushNextTick()
+    expect(store.isActive('window:win-1')).toBe(true)
+    expect(store.lastAnnouncement).toContain('ノート')
+  })
+
+  it('windows.focus 成功時に window:<id> を spotlight する', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'windows.focus',
+        execute: () => ({ focused: true, id: 'win-2' }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    await dispatchCapability(
+      'windows.focus',
+      { id: 'win-2' },
+      configWithPreset('full'),
+    )
+
+    await flushNextTick()
+    expect(store.isActive('window:win-2')).toBe(true)
+    expect(store.lastAnnouncement).toContain('前面')
+  })
+
+  it('windows.close 成功時は announce のみ (視覚 spotlight なし)', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'windows.close',
+        execute: () => ({ closed: true, id: 'win-3' }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    await dispatchCapability(
+      'windows.close',
+      { id: 'win-3' },
+      configWithPreset('full'),
+    )
+
+    await flushNextTick()
+    expect(store.spotlights.size).toBe(0)
+    expect(store.lastAnnouncement).toContain('閉じ')
+  })
+
+  it('windows.closeAll 成功時も announce のみ', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'windows.closeAll',
+        execute: () => ({ closedAll: true }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    await dispatchCapability(
+      'windows.closeAll',
+      undefined,
+      configWithPreset('full'),
+    )
+
+    await flushNextTick()
+    expect(store.spotlights.size).toBe(0)
+    expect(store.lastAnnouncement).toContain('全ウィンドウ')
+  })
 })

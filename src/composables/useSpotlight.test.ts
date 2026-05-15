@@ -5,6 +5,7 @@ import {
   columnTargetId,
   navbarTargetId,
   useSpotlightStore,
+  windowTargetId,
 } from './useSpotlight'
 
 describe('useSpotlightStore', () => {
@@ -149,5 +150,11 @@ describe('navbarTargetId', () => {
 
   it('accountId が文字列のときそれを埋め込む', () => {
     expect(navbarTargetId('chat', 'abc123')).toBe('navbar:chat:abc123')
+  })
+})
+
+describe('windowTargetId', () => {
+  it('window id を window:<id> 形式で組み立てる', () => {
+    expect(windowTargetId('win-abc')).toBe('window:win-abc')
   })
 })

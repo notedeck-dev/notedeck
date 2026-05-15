@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
+import { useSpotlightStore, windowTargetId } from '@/composables/useSpotlight'
 import { provideWindowEditAction } from '@/composables/useWindowEditAction'
 import { provideWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { provideWindowExternalLink } from '@/composables/useWindowExternalLink'
@@ -11,6 +12,7 @@ import {
   WINDOW_SIZES,
 } from '@/stores/windows'
 import { isTauri, openSettingsFileInEditor } from '@/utils/settingsFs'
+import { WINDOW_LABELS } from './windowLabels'
 
 const props = defineProps<{
   window: DeckWindow
@@ -20,6 +22,11 @@ const props = defineProps<{
 const emit = defineEmits<{ close: [] }>()
 
 const windowsStore = useWindowsStore()
+const spotlightStore = useSpotlightStore()
+
+const isSpotlighted = computed(() =>
+  spotlightStore.spotlights.has(windowTargetId(props.window.id)),
+)
 const isCompact = useIsCompactLayout()
 const baseSize = computed(() => WINDOW_SIZES[props.window.type])
 
@@ -60,48 +67,8 @@ function runEditAction() {
   }
 }
 
-const BASE_TITLES: Record<string, string> = {
-  'note-detail': 'ノート',
-  'note-inspector': 'ノートインスペクタ',
-  'notification-inspector': '通知インスペクタ',
-  'user-profile': 'プロフィール',
-  'federation-instance': 'サーバー',
-  'follow-list': 'フォロー / フォロワー',
-  login: 'アカウント追加',
-  search: '検索',
-  notifications: '通知',
-  plugins: 'プラグイン',
-  keybinds: 'キーバインド',
-  cssEditor: 'カスタムCSS',
-  themeEditor: 'テーマ',
-  profileEditor: 'プロファイルエディタ',
-  ai: 'AI アシスタント',
-  aiSettings: 'AI 設定',
-  chat: 'チャット',
-  about: 'NoteDeck について',
-  navEditor: 'ナビバー',
-  performanceEditor: 'パフォーマンス',
-  appearanceEditor: 'アピアランス',
-  backup: 'バックアップ',
-  cacheEditor: 'キャッシュ',
-  tasksEditor: 'タスク設定',
-  snippetsEditor: 'スニペット',
-  memoEditor: 'メモ',
-  'page-detail': 'ページ',
-  'play-detail': 'Play',
-  'gallery-detail': 'ギャラリー',
-  'list-detail': 'リスト',
-  'clip-detail': 'クリップ',
-  'page-edit': 'ページを編集',
-  'play-edit': 'Play を編集',
-  'widget-edit': 'ウィジット編集',
-  'skill-edit': 'スキル編集',
-  connections: '接続',
-  connectionEdit: '接続を編集',
-}
-
 const windowTitle = computed(() => {
-  const base = BASE_TITLES[props.window.type] ?? ''
+  const base = WINDOW_LABELS[props.window.type] ?? ''
   if (props.window.type === 'follow-list' && props.window.props.username) {
     return `@${props.window.props.username} のフォロー / フォロワー`
   }
@@ -325,6 +292,8 @@ function onResizePointerUp() {
 }
 
 function onWindowMouseDown() {
+  // spotlight 中なら認識した = 即解除
+  spotlightStore.clear(windowTargetId(props.window.id))
   windowsStore.bringToFront(props.window.id)
 }
 
@@ -336,7 +305,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    :class="[$style.deckWindow, { [$style.dragging]: isDragging, [$style.resizing]: isResizing, [$style.userSized]: isUserSized, [$style.minimized]: isMinimized, [$style.maximized]: isMaximized, [$style.mobile]: isCompact }]"
+    :class="[$style.deckWindow, { [$style.dragging]: isDragging, [$style.resizing]: isResizing, [$style.userSized]: isUserSized, [$style.minimized]: isMinimized, [$style.maximized]: isMaximized, [$style.mobile]: isCompact, [$style.spotlighted]: isSpotlighted }]"
     :style="windowStyle"
     @mousedown="onWindowMouseDown"
   >
@@ -428,6 +397,37 @@ onBeforeUnmount(() => {
 .dragging {
   opacity: 0.92;
   will-change: translate;
+}
+
+// AI 操作の可視化 (Spotlight): dispatcher が windows.open / windows.focus
+// 成功時に光らせる。塗りつぶしだとウィンドウ内容が読めなくなるので、
+// 外周の朱色 glow で「この window が AI 由来で操作された」ことだけ示す。
+.spotlighted {
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow:
+      0 0 0 2px rgba(170, 30, 30, 0.7),
+      0 0 24px 8px rgba(170, 30, 30, 0.4);
+    animation: spotlightWindowAppear 2.4s ease-out 1 forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      animation: none;
+      opacity: 1;
+    }
+  }
+}
+
+@keyframes spotlightWindowAppear {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .resizing {
