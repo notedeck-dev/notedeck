@@ -593,4 +593,112 @@ describe('dispatchCapability spotlight emission', () => {
     expect(store.isActive('navbar:notifications:null')).toBe(true)
     vi.useRealTimers()
   })
+
+  it('column.remove は視覚 spotlight なし、announce のみ', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'column.remove',
+        execute: () => undefined,
+      }),
+    )
+
+    const store = useSpotlightStore()
+    const r = await dispatchCapability(
+      'column.remove',
+      { id: 'col-xxx' },
+      configWithPreset('full'),
+    )
+
+    expect(r.ok).toBe(true)
+    await flushNextTick()
+    expect(store.spotlights.size).toBe(0)
+    expect(store.lastAnnouncement).toContain('削除')
+  })
+
+  it('column.move 成功時に column:<id> を spotlight する', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'column.move',
+        execute: (params) => ({
+          moved: true,
+          columnId: (params as { columnId?: string } | undefined)?.columnId,
+          targetIndex: 0,
+        }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    await dispatchCapability(
+      'column.move',
+      { columnId: 'col-move-1', targetIndex: 2 },
+      configWithPreset('full'),
+    )
+
+    await flushNextTick()
+    expect(store.isActive('column:col-move-1')).toBe(true)
+    expect(store.lastAnnouncement).toContain('移動')
+  })
+
+  it('column.updateSettings 成功時に column:<id> を spotlight する', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'column.updateSettings',
+        execute: (params) => ({
+          updated: true,
+          columnId: (params as { columnId?: string } | undefined)?.columnId,
+          applied: ['name'],
+        }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    await dispatchCapability(
+      'column.updateSettings',
+      { columnId: 'col-set-1', name: 'New name' },
+      configWithPreset('full'),
+    )
+
+    await flushNextTick()
+    expect(store.isActive('column:col-set-1')).toBe(true)
+    expect(store.lastAnnouncement).toContain('更新')
+  })
+
+  it('notifications.markRead 成功時に navbar:notifications:<accountId> を spotlight', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'notifications.markRead',
+        execute: () => ({ markedAccounts: 1 }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    await dispatchCapability(
+      'notifications.markRead',
+      { accountId: 'acc-1' },
+      configWithPreset('full'),
+    )
+
+    await flushNextTick()
+    expect(store.isActive('navbar:notifications:acc-1')).toBe(true)
+    expect(store.lastAnnouncement).toContain('既読')
+  })
+
+  it('notifications.markRead accountId 省略時は navbar:notifications:null を spotlight', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'notifications.markRead',
+        execute: () => ({ markedAccounts: 3 }),
+      }),
+    )
+
+    const store = useSpotlightStore()
+    await dispatchCapability(
+      'notifications.markRead',
+      undefined,
+      configWithPreset('full'),
+    )
+
+    await flushNextTick()
+    expect(store.isActive('navbar:notifications:null')).toBe(true)
+  })
 })

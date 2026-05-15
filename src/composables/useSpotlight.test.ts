@@ -101,6 +101,25 @@ describe('useSpotlightStore', () => {
     expect(store.lastAnnouncement).toBe('AI が通知を追加')
   })
 
+  it('announce() は spotlights には影響せず lastAnnouncement だけ更新', () => {
+    const store = useSpotlightStore()
+    expect(store.spotlights.size).toBe(0)
+    expect(store.lastAnnouncement).toBe('')
+
+    store.announce('AI がカラムを削除しました')
+
+    expect(store.lastAnnouncement).toBe('AI がカラムを削除しました')
+    // 視覚 spotlight には影響しない (削除系などターゲット DOM が無い場合用)
+    expect(store.spotlights.size).toBe(0)
+  })
+
+  it('announce() に空文字を渡すと lastAnnouncement を上書きしない', () => {
+    const store = useSpotlightStore()
+    store.announce('first message')
+    store.announce('')
+    expect(store.lastAnnouncement).toBe('first message')
+  })
+
   it('複数 targetId が独立に管理される', () => {
     const store = useSpotlightStore()
     store.highlight('navbar:notifications:null', { durationMs: 1000 })

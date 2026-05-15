@@ -76,7 +76,15 @@ export const useSpotlightStore = defineStore('spotlight', () => {
     return spotlights.value.has(targetId)
   }
 
-  return { spotlights, lastAnnouncement, highlight, clear, isActive }
+  /**
+   * 視覚 spotlight 無しで SR 用テキストだけ流す。削除系のように DOM が
+   * 消えてしまう capability や、視覚化対象が無い裏方処理の通知に使う。
+   */
+  function announce(message: string): void {
+    if (message) lastAnnouncement.value = message
+  }
+
+  return { spotlights, lastAnnouncement, highlight, clear, isActive, announce }
 })
 
 /**

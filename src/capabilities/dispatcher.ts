@@ -28,6 +28,7 @@ import {
   type ConfirmOptions,
   useConfirm,
 } from '@/stores/confirm'
+import { useDeckStore } from '@/stores/deck'
 import { sanitizeToolName } from './identifier'
 import { getCapability, listCapabilities } from './registry'
 
@@ -186,6 +187,43 @@ function emitSpotlightFromCapability(
         label: `AI が${label}カラムをサイドバーに開きました`,
       })
     }
+  } else if (capId === 'column.remove') {
+    // 削除は対象 DOM が消えるので視覚 spotlight 無し。SR テキストのみ announce。
+    // type は ID から逆引きできない (既に削除済み) → 汎用文
+    useSpotlightStore().announce('AI がカラムを削除しました')
+  } else if (capId === 'column.move') {
+    // 移動後の位置で該当カラムタブを光らせる
+    const r = result as { columnId?: string } | null
+    if (r?.columnId) {
+      const col = useDeckStore().getColumn(r.columnId)
+      const label = col?.type ? (COLUMN_LABELS[col.type] ?? col.type) : 'カラム'
+      const targetId = columnTargetId(r.columnId)
+      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
+      useSpotlightStore().highlight(targetId, {
+        label: `AI が${label}カラムを移動しました`,
+      })
+    }
+  } else if (capId === 'column.updateSettings') {
+    const r = result as { columnId?: string; applied?: string[] } | null
+    if (r?.columnId) {
+      const col = useDeckStore().getColumn(r.columnId)
+      const label = col?.type ? (COLUMN_LABELS[col.type] ?? col.type) : 'カラム'
+      const fields = r.applied?.join(', ') ?? '設定'
+      const targetId = columnTargetId(r.columnId)
+      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
+      useSpotlightStore().highlight(targetId, {
+        label: `AI が${label}カラムの${fields}を更新しました`,
+      })
+    }
+  } else if (capId === 'notifications.markRead') {
+    // accountId 指定があれば per-account の navbar、なければ null (全アカウント)
+    const accountId =
+      typeof params?.accountId === 'string' ? params.accountId : null
+    const targetId = navbarTargetId('notifications', accountId)
+    console.debug('[spotlight] highlight target:', targetId)
+    useSpotlightStore().highlight(targetId, {
+      label: 'AI が通知を既読化しました',
+    })
   }
 }
 
