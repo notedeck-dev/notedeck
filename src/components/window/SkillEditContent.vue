@@ -35,6 +35,9 @@ const version = ref('')
 const mode = ref<SkillMode>('manual')
 const isPersona = ref(false)
 const body = ref('')
+// triggers は textarea で 1 行 1 trigger として編集する。store には string[]
+// で保存されるので join/split で相互変換する。
+const triggersText = ref('')
 
 const dirty = ref(false)
 const saved = ref(false)
@@ -53,6 +56,7 @@ watch(
     mode.value = s.mode
     isPersona.value = !!s.isPersona
     body.value = s.body
+    triggersText.value = s.triggers.join('\n')
     dirty.value = false
     suppressDirty = false
   },
@@ -70,10 +74,19 @@ function scheduleSave() {
   }, 500)
 }
 
-watch([name, description, author, version, mode, isPersona, body], scheduleSave)
+watch(
+  [name, description, author, version, mode, isPersona, body, triggersText],
+  scheduleSave,
+)
 
 function save() {
   if (!skill.value) return
+  // カンマと改行のいずれも区切り扱い (= ユーザーがどちらで入れても 1 行 1 個に
+  // 正規化されて保存される。表示時は改行 join で 1 行 1 個として見える)
+  const triggers = triggersText.value
+    .split(/[,\n]/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0)
   skillsStore.update(props.skillId, {
     name: name.value.trim() || skill.value.name,
     description: description.value || undefined,
@@ -82,6 +95,7 @@ function save() {
     mode: mode.value,
     isPersona: isPersona.value,
     body: body.value,
+    triggers,
   })
   dirty.value = false
   saved.value = true
@@ -161,6 +175,27 @@ const statusText = computed(() => {
             HEARTBEAT 有効時、tick ごとにこの skill body を AI に読ませます
             (#411 / OpenClaw HEARTBEAT.md 相当)。
           </span>
+        </div>
+        <div v-if="mode === 'trigger'" :class="$style.modeHint">
+          <i class="ti ti-bolt" />
+          <span>
+            自動起動: ユーザーの入力に下のトリガー語のいずれかが含まれた
+            ターンだけ、この skill body が system prompt に注入されます
+            (大文字小文字無視の部分一致)。
+          </span>
+        </div>
+        <div :class="$style.row">
+          <label :class="$style.label">トリガー語</label>
+          <textarea
+            v-model="triggersText"
+            :class="[$style.input, $style.textarea]"
+            rows="3"
+            placeholder="カンマまたは改行で区切る (例: どこ, 使い方, help)"
+          />
+        </div>
+        <div v-if="mode !== 'trigger' && triggersText.trim()" :class="$style.note">
+          <i class="ti ti-info-circle" />
+          <span>トリガー語はモードを「自動」にしたときだけ反応します</span>
         </div>
         <div :class="$style.row">
           <label :class="$style.label">Persona</label>
@@ -312,6 +347,15 @@ const statusText = computed(() => {
     outline: none;
     border-color: var(--nd-accent);
   }
+}
+
+.textarea {
+  height: auto;
+  min-height: 60px;
+  padding: 6px 8px;
+  font-family: var(--nd-monoFont, monospace);
+  line-height: 1.4;
+  resize: vertical;
 }
 
 .note {
