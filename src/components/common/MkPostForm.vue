@@ -168,6 +168,13 @@ const autoSaveLabel = computed(() =>
   props.memoMode ? 'メモを自動保存' : '下書きを自動保存',
 )
 
+const rememberVisibilityEnabled = computed<boolean>({
+  get: () => settingsStore.get('postForm.rememberVisibility') ?? false,
+  set: (v) => {
+    settingsStore.set('postForm.rememberVisibility', v)
+  },
+})
+
 // --- Popup exclusive control ---
 // ピッカー系 (emoji / drive / memo) はシングルトン: 同時に1つだけ開く
 const popups = usePopupControl()
@@ -595,6 +602,24 @@ function onKeydown(e: KeyboardEvent) {
                 <span
                   class="nd-toggle-switch"
                   :class="{ on: autoSaveEnabled }"
+                  :style="{ marginLeft: 'auto' }"
+                  aria-hidden="true"
+                >
+                  <span class="nd-toggle-switch-knob" />
+                </span>
+              </div>
+              <!-- Remember visibility toggle -->
+              <div
+                :class="$style.moreMenuItem"
+                role="switch"
+                :aria-checked="rememberVisibilityEnabled"
+                @click="rememberVisibilityEnabled = !rememberVisibilityEnabled"
+              >
+                <i class="ti ti-bookmark" />
+                公開範囲を記憶
+                <span
+                  class="nd-toggle-switch"
+                  :class="{ on: rememberVisibilityEnabled }"
                   :style="{ marginLeft: 'auto' }"
                   aria-hidden="true"
                 >

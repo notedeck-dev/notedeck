@@ -72,15 +72,20 @@ pnpm typecheck    # vue-tsc -b --noEmit
 ```bash
 # Cargo.lock も同期
 cd src-tauri && cargo check && cd ..
+
+# openapi.json もバージョン番号を埋め込んでいるため再生成
+# (忘れると CI の openapi_snapshot_is_current テストが落ちる)
+cd src-tauri && cargo run --example gen_openapi && cd ..
 ```
 
-コミット: `chore: bump version to X.Y.Z`
+コミット例: `chore: bump version to X.Y.Z` + `chore: regenerate openapi.json for X.Y.Z`
+(1 コミットにまとめても 2 コミットに分けても可。過去ログは分けるパターンが多い)
 
 ### 2. PR 作成・マージ
 
 - develop → main の PR を作成（タイトル例: `Release vX.Y.Z`）
 - `pnpm changelog` で変更一覧を PR 本文に記載
-- CI（lint, typecheck, test）が通ることを確認
+- CI（lint, typecheck, test, openapi_snapshot）が通ることを確認
 - マージ
 
 ### 3. タグ作成・プッシュ（CI トリガー）
