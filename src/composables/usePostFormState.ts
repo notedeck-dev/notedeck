@@ -216,6 +216,21 @@ export function usePostFormState(
       }
     }
 
+    // rememberVisibility: 最後に使った値で上書き。
+    // 返信・編集・メモ・チャネルは visibility が文脈で決まるため対象外。
+    const isContextual =
+      props.replyTo || props.editNote || memoMode || props.channelId
+    if (!isContextual && settingsStore.get('postForm.rememberVisibility')) {
+      const last = settingsStore.get('postForm.lastUsedVisibility')
+      if (last && visibilityOptions.some((o) => o.value === last)) {
+        visibility.value = last as NoteVisibility
+      }
+      const lastLocal = settingsStore.get('postForm.lastUsedLocalOnly')
+      if (typeof lastLocal === 'boolean') {
+        localOnly.value = lastLocal
+      }
+    }
+
     // Auto-correct if current visibility is disabled
     if (disabled.has(visibility.value)) {
       const first = visibilityOptions.find((o) => !disabled.has(o.value))
@@ -329,6 +344,16 @@ export function usePostFormState(
       },
       activeAccountId.value,
     )
+
+    // rememberVisibility ON のときは送信した visibility を記憶
+    if (
+      !props.replyTo &&
+      !props.channelId &&
+      settingsStore.get('postForm.rememberVisibility')
+    ) {
+      settingsStore.set('postForm.lastUsedVisibility', visibility.value)
+      settingsStore.set('postForm.lastUsedLocalOnly', localOnly.value)
+    }
 
     // Close form optimistically before awaiting API
     posted.value = true

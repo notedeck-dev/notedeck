@@ -30,6 +30,14 @@ export interface NotedeckSettings {
   'postForm.preview'?: boolean
   'postForm.autoSaveDraft'?: boolean
   'postForm.autoSaveMemo'?: boolean
+  /**
+   * ON のとき、最後に投稿した visibility / localOnly を次回の投稿フォーム
+   * 初期値として使う。OFF (デフォルト) はサーバーの defaultNoteVisibility に従う。
+   * 返信・編集・メモ・チャネル投稿は文脈で visibility が決まるため対象外。
+   */
+  'postForm.rememberVisibility'?: boolean
+  'postForm.lastUsedVisibility'?: 'public' | 'home' | 'followers' | 'specified'
+  'postForm.lastUsedLocalOnly'?: boolean
 
   // --- Lists ---
   /**
