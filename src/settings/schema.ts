@@ -34,10 +34,15 @@ export interface NotedeckSettings {
    * ON のとき、最後に投稿した visibility / localOnly を次回の投稿フォーム
    * 初期値として使う。OFF (デフォルト) はサーバーの defaultNoteVisibility に従う。
    * 返信・編集・メモ・チャネル投稿は文脈で visibility が決まるため対象外。
+   * 記憶値はアカウントごとに保持 (サーバーの defaultNoteVisibility が per-account
+   * なので、記憶も per-account でないとアカウント切替時に意図しない値が適用される)。
    */
   'postForm.rememberVisibility'?: boolean
-  'postForm.lastUsedVisibility'?: 'public' | 'home' | 'followers' | 'specified'
-  'postForm.lastUsedLocalOnly'?: boolean
+  'postForm.lastUsedVisibilityByAccount'?: Record<
+    string,
+    'public' | 'home' | 'followers' | 'specified'
+  >
+  'postForm.lastUsedLocalOnlyByAccount'?: Record<string, boolean>
 
   // --- Lists ---
   /**

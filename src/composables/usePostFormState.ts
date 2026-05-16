@@ -218,14 +218,19 @@ export function usePostFormState(
 
     // rememberVisibility: 最後に使った値で上書き。
     // 返信・編集・メモ・チャネルは visibility が文脈で決まるため対象外。
+    // 記憶値はアカウントごとに保持。
     const isContextual =
       props.replyTo || props.editNote || memoMode || props.channelId
     if (!isContextual && settingsStore.get('postForm.rememberVisibility')) {
-      const last = settingsStore.get('postForm.lastUsedVisibility')
+      const lastMap = settingsStore.get('postForm.lastUsedVisibilityByAccount')
+      const last = lastMap?.[activeAccountId.value]
       if (last && visibilityOptions.some((o) => o.value === last)) {
         visibility.value = last as NoteVisibility
       }
-      const lastLocal = settingsStore.get('postForm.lastUsedLocalOnly')
+      const lastLocalMap = settingsStore.get(
+        'postForm.lastUsedLocalOnlyByAccount',
+      )
+      const lastLocal = lastLocalMap?.[activeAccountId.value]
       if (typeof lastLocal === 'boolean') {
         localOnly.value = lastLocal
       }
@@ -345,14 +350,25 @@ export function usePostFormState(
       activeAccountId.value,
     )
 
-    // rememberVisibility ON のときは送信した visibility を記憶
+    // rememberVisibility ON のときは送信した visibility を記憶 (per-account)
     if (
       !props.replyTo &&
       !props.channelId &&
       settingsStore.get('postForm.rememberVisibility')
     ) {
-      settingsStore.set('postForm.lastUsedVisibility', visibility.value)
-      settingsStore.set('postForm.lastUsedLocalOnly', localOnly.value)
+      const accId = activeAccountId.value
+      const prevVis =
+        settingsStore.get('postForm.lastUsedVisibilityByAccount') ?? {}
+      settingsStore.set('postForm.lastUsedVisibilityByAccount', {
+        ...prevVis,
+        [accId]: visibility.value,
+      })
+      const prevLocal =
+        settingsStore.get('postForm.lastUsedLocalOnlyByAccount') ?? {}
+      settingsStore.set('postForm.lastUsedLocalOnlyByAccount', {
+        ...prevLocal,
+        [accId]: localOnly.value,
+      })
     }
 
     // Close form optimistically before awaiting API
