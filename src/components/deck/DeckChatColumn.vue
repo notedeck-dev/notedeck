@@ -171,7 +171,6 @@ interface HistoryEntry {
 }
 
 const historyEntries = shallowRef<HistoryEntry[]>([])
-const loadProgress = ref<{ host: string; done: boolean }[]>([])
 
 // 履歴 view (#483) の絞り込み。AI カラム ([DeckAiColumn.vue]) と同じ
 // header-extra 入力 + 大文字小文字無視の substring match パターン。
@@ -498,11 +497,6 @@ async function connectCrossAccount() {
     return
   }
 
-  loadProgress.value = accounts.map((acc) => ({
-    host: acc.host,
-    done: false,
-  }))
-
   // 1. 全アカウントのキャッシュを並列取得して即時 render (B-2 hydrate)
   const cachedResults = await Promise.all(
     accounts.map(async (acc) => {
@@ -524,47 +518,41 @@ async function connectCrossAccount() {
   // 2. 並行で API fetch して reconcile。ログイン中アカウントは fresh、
   //    ログアウト中は引き続き cache (上の hydrate と同じ結果)、API エラー時は cache fallback。
   const results = await Promise.allSettled(
-    accounts.map(async (acc, i) => {
-      try {
-        if (!acc.hasToken) {
-          const cached = await loadCachedHistory(acc.id)
-          return cached.map((msg) => ({
-            msg,
-            accountId: acc.id,
-            host: acc.host,
-          }))
-        }
+    accounts.map(async (acc) => {
+      if (!acc.hasToken) {
+        const cached = await loadCachedHistory(acc.id)
+        return cached.map((msg) => ({
+          msg,
+          accountId: acc.id,
+          host: acc.host,
+        }))
+      }
 
-        const adapter = await multiAdapters.getOrCreate(acc.id)
-        if (!adapter) return []
+      const adapter = await multiAdapters.getOrCreate(acc.id)
+      if (!adapter) return []
+      try {
+        const userHistory = await adapter.api.getChatHistory()
+        let roomHistory: ChatMessage[] = []
         try {
-          const userHistory = await adapter.api.getChatHistory()
-          let roomHistory: ChatMessage[] = []
-          try {
-            roomHistory = unwrap(
-              await commands.apiGetChatHistory(acc.id, 100, true, null),
-            ) as unknown as ChatMessage[]
-          } catch {
-            // room chat not supported
-          }
-          return [...userHistory, ...roomHistory].map((msg) => ({
-            msg,
-            accountId: acc.id,
-            host: acc.host,
-          }))
+          roomHistory = unwrap(
+            await commands.apiGetChatHistory(acc.id, 100, true, null),
+          ) as unknown as ChatMessage[]
         } catch {
-          // API エラー → キャッシュ fallback (UI 上の indicator は省略)
-          const cached = await loadCachedHistory(acc.id)
-          return cached.map((msg) => ({
-            msg,
-            accountId: acc.id,
-            host: acc.host,
-          }))
+          // room chat not supported
         }
-      } finally {
-        loadProgress.value = loadProgress.value.map((p, j) =>
-          j === i ? { ...p, done: true } : p,
-        )
+        return [...userHistory, ...roomHistory].map((msg) => ({
+          msg,
+          accountId: acc.id,
+          host: acc.host,
+        }))
+      } catch {
+        // API エラー → キャッシュ fallback
+        const cached = await loadCachedHistory(acc.id)
+        return cached.map((msg) => ({
+          msg,
+          accountId: acc.id,
+          host: acc.host,
+        }))
       }
     }),
   )
@@ -577,7 +565,6 @@ async function connectCrossAccount() {
   chatMessageStore.put(allMessages.map((x) => x.msg))
   historyEntries.value = buildCrossAccountHistoryEntries(allMessages)
   isLoading.value = false
-  loadProgress.value = []
 
   // B-6: ログイン中アカウントの thread を裏で prefetch (UI 変更なし)。
   const tokenAccountIds = new Set(
@@ -1286,16 +1273,6 @@ onBeforeUnmount(() => {
       is-error
     />
 
-    <!-- Per-account progress (cross-account) -->
-    <div v-if="isCrossAccount && loadProgress.length > 0" :class="$style.chatProgress">
-      <span
-        v-for="(p, i) in loadProgress"
-        :key="i"
-        :class="[$style.progressDot, { [$style.done]: p.done }]"
-        :title="p.host"
-      />
-    </div>
-
     <!-- History View: Cross-account -->
     <div v-if="isCrossAccount && viewMode === 'history'" :class="$style.chatBody">
       <ColumnEmptyState
@@ -1536,29 +1513,6 @@ onBeforeUnmount(() => {
 
 .chatBody {
   composes: tlBody from './column-common.module.scss';
-}
-
-.chatProgress {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 6px 12px;
-  flex-shrink: 0;
-}
-
-.progressDot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--nd-fg);
-  opacity: 0.15;
-  transition: opacity var(--nd-duration-slower), background var(--nd-duration-slower);
-
-  &.done {
-    background: var(--nd-accent);
-    opacity: 0.8;
-  }
 }
 
 .searchBar {
