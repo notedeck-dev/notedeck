@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { generateSessionTitle, timestampTitle } from '@/utils/aiSessionTitle'
+import {
+  generateSessionTitle,
+  isTimestampTitle,
+  timestampTitle,
+} from '@/utils/aiSessionTitle'
 
 const FROZEN = new Date(2026, 3, 30, 15, 30, 12) // 2026-04-30 local
 
@@ -69,5 +73,28 @@ describe('generateSessionTitle', () => {
     expect(generateSessionTitle('```ts\nconsole.log(1)\n```', FROZEN)).toBe(
       '2026-04-30 15:30 のチャット',
     )
+  })
+})
+
+describe('isTimestampTitle', () => {
+  it('returns true for the default のチャット suffix', () => {
+    expect(isTimestampTitle('2026-05-15 17:52 のチャット')).toBe(true)
+  })
+
+  it('returns true for the HEARTBEAT suffix', () => {
+    expect(isTimestampTitle('2026-05-15 17:52 のHEARTBEAT')).toBe(true)
+  })
+
+  it('returns false for an AI-generated title', () => {
+    expect(isTimestampTitle('通知カラムの追加リクエスト')).toBe(false)
+  })
+
+  it('returns false for an empty string', () => {
+    expect(isTimestampTitle('')).toBe(false)
+  })
+
+  it('returns false when a suffix is missing', () => {
+    expect(isTimestampTitle('2026-05-15 17:52')).toBe(false)
+    expect(isTimestampTitle('2026-05-15')).toBe(false)
   })
 })

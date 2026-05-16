@@ -36,6 +36,15 @@ export function timestampTitle(now: Date, suffix = 'のチャット'): string {
 }
 
 /**
+ * 与えられたタイトルが `timestampTitle()` 由来の自動生成タイトルかを判定する。
+ * Slash / エラー fallback が「ユーザーが手動 rename したタイトル」を
+ * 上書きしてしまわないようガードする用途で使う (#484)。
+ */
+export function isTimestampTitle(title: string): boolean {
+  return /^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \S/.test(title)
+}
+
+/**
  * ユーザー発話を整形してタイトルを返す。整形後 4 文字未満なら日付フォールバック。
  */
 export function generateSessionTitle(
