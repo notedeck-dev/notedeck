@@ -36,7 +36,11 @@ import {
 import { usePrompt } from '@/stores/prompt'
 import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
-import { timestampTitle } from '@/utils/aiSessionTitle'
+import {
+  generateSessionTitle,
+  isTimestampTitle,
+  timestampTitle,
+} from '@/utils/aiSessionTitle'
 import { extractErrorMessage } from '@/utils/errors'
 import { highlightCode, highlighterLoaded } from '@/utils/highlight'
 import { resolveIdentity } from '@/utils/identity'
@@ -374,12 +378,29 @@ async function generateAiTitleAsync(
 ): Promise<void> {
   // 初期プレースホルダー (timestampTitle) は sendMessage 側で既にセット済み。
   // AI 生成に失敗した場合は何もせず、プレースホルダーがそのまま残る。
-  if (providerStatus.value !== 'connected') return
+  // 診断ログ (#484): 日付フォールバックのまま残る原因を特定するため
+  // 各 early return / 失敗パスに warn を出す。
+  if (providerStatus.value !== 'connected') {
+    console.warn(
+      '[ai-title-gen] skip: provider not connected',
+      providerStatus.value,
+    )
+    return
+  }
   const before = sessionsStore.get(sessionId)
-  if (!before) return
+  if (!before) {
+    console.warn('[ai-title-gen] skip: session not found', sessionId)
+    return
+  }
   const titleBefore = before.title
   const resolved = resolveAiConnection(aiConfig.value, vault.connections.value)
-  if (!resolved || !resolved.model) return
+  if (!resolved || !resolved.model) {
+    console.warn('[ai-title-gen] skip: connection/model unresolved', {
+      hasResolved: !!resolved,
+      model: resolved?.model,
+    })
+    return
+  }
 
   // 会話を 1 つの user メッセージに集約する。assistant role を history に
   // 置くと Anthropic 側が「続きを書く」モードになりタイトルが取れない。
@@ -402,12 +423,27 @@ async function generateAiTitleAsync(
       .replace(/^[\s「『"'“”]+|[\s」』"'“”。．、]+$/g, '')
       .trim()
       .slice(0, 40)
-    if (!cleaned) return
+    if (!cleaned) {
+      console.warn('[ai-title-gen] skip: cleaned title is empty', {
+        rawLength: raw.length,
+        rawPreview: raw.slice(0, 80),
+      })
+      return
+    }
     // ユーザーが間に手動 rename していたら触らない
     const cur = sessionsStore.get(sessionId)
-    if (cur && cur.title === titleBefore) {
-      sessionsStore.setTitle(sessionId, cleaned)
+    if (!cur) {
+      console.warn('[ai-title-gen] skip: session lost during generation')
+      return
     }
+    if (cur.title !== titleBefore) {
+      console.warn('[ai-title-gen] skip: title changed by user during gen', {
+        titleBefore,
+        titleNow: cur.title,
+      })
+      return
+    }
+    sessionsStore.setTitle(sessionId, cleaned)
   } catch (e) {
     console.warn('[ai-title-gen] failed:', e)
   }
@@ -711,11 +747,27 @@ async function sendMessage() {
     // 初回 round 完了後にバックグラウンドで AI にタイトルを再生成させる
     if (wasFirstRound && finalAssistantText) {
       void generateAiTitleAsync(sessionId, text, finalAssistantText)
+    } else if (wasFirstRound && !finalAssistantText) {
+      // #484 診断: 初回 round で本文テキストが空 (tool_use のみで完結等) のため
+      // タイトル生成を skip した。日付フォールバックがそのまま残るケース。
+      console.warn(
+        '[ai-title-gen] skip: first round produced no assistant text',
+        { toolRound, sessionId },
+      )
     }
   } catch (e) {
     // 診断: AI ストリーム失敗時の raw error を console に dump。
     // [object Object] 表示の根本原因 (= 想定外の error shape) を追跡しやすくする。
     console.error('[ai-column] stream error raw:', e)
+    // ストリーム例外で抜けた初回 round はタイトル生成も走らないため、
+    // ユーザー入力から決定論的に fallback タイトルを付ける (#484)。
+    // ユーザーが手動 rename している場合 (= timestamp 形式でない) は触らない。
+    if (wasFirstRound) {
+      const cur = sessionsStore.get(sessionId)
+      if (cur && isTimestampTitle(cur.title)) {
+        sessionsStore.setTitle(sessionId, generateSessionTitle(text))
+      }
+    }
     // 任意の error shape (Error / `{code,message}` / 入れ子オブジェクト / 文字列)
     // から表示可能な文字列を取り出す。`[object Object]` 化を防ぐ。
     const message = extractErrorMessage(e)
@@ -792,6 +844,14 @@ async function runSlashAndAppend(text: string): Promise<void> {
     assistantToolUse,
     toolResultMsg,
   ])
+  // Slash 専用セッションには「/<cmd> の実行」形式でタイトルを付ける (#484)。
+  // AI を呼ばないので入力テキスト先頭トークン (= /cmd 部分) から決定論的に命名。
+  // ユーザーが手動 rename している場合 (= timestamp 形式でない) は触らない。
+  const afterRun = sessionsStore.get(sessionId)
+  if (afterRun && isTimestampTitle(afterRun.title)) {
+    const cmdToken = text.split(/\s+/)[0]
+    sessionsStore.setTitle(sessionId, `${cmdToken} の実行`)
+  }
   scrollToBottom()
 }
 
