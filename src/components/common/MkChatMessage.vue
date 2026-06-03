@@ -18,6 +18,7 @@ const props = defineProps<{
   myUserId?: string
   accountId?: string
   serverHost?: string
+  myAvatarUrl?: string
   otherAvatarUrl?: string
 }>()
 
@@ -93,9 +94,17 @@ const groupedReactions = computed(() => {
       userName = r.user.name || r.user.username
       avatarUrl = r.user.avatarUrl
       isMe = r.user.id === props.myUserId
-    } else if (props.otherAvatarUrl) {
-      // 1-on-1: no user in reaction = the other participant reacted
-      avatarUrl = props.otherAvatarUrl
+    } else {
+      // 1on1 (packMessageLiteFor1on1) はリアクションから reactor を削除する。
+      // Misskey 本家 (room.vue normalizeMessage) と同じく、メッセージ送信者から
+      // 逆算する: 自分のメッセージへのリアクション = 相手、相手のメッセージ = 自分。
+      // (自分のメッセージに自分でリアクションした場合は相手扱いになる本家と同じ制約)
+      if (isMine.value) {
+        avatarUrl = props.otherAvatarUrl
+      } else {
+        avatarUrl = props.myAvatarUrl
+        isMe = true
+      }
     }
 
     const existing = map.get(r.reaction)
@@ -181,11 +190,11 @@ usePortal(lightboxPortalRef)
 <template>
   <div :class="[$style.chatMsg, { [$style.mine]: isMine }]">
     <MkAvatar
-      v-if="!isMine && displayUser"
+      v-if="displayUser"
       :class="$style.chatAvatar"
       :avatar-url="displayUser.avatarUrl"
       :decorations="displayUser.avatarDecorations"
-      :size="32"
+      :size="42"
       :is-cat="displayUser.isCat"
     />
     <div :class="$style.chatBubbleWrapper">
@@ -218,7 +227,16 @@ usePortal(lightboxPortalRef)
             {{ message.file.name }}
           </a>
         </div>
-        <div :class="$style.chatTime">{{ timeStr }}</div>
+      </div>
+      <div :class="$style.chatMeta">
+        <button
+          :class="$style.chatMoreBtn"
+          title="メニュー"
+          @click.stop="moreMenuRef?.open($event)"
+        >
+          <i class="ti ti-dots" />
+        </button>
+        <span :class="$style.chatTime">{{ timeStr }}</span>
       </div>
 
       <!-- Reactions -->
@@ -258,15 +276,6 @@ usePortal(lightboxPortalRef)
           <span v-if="r.count > 1" :class="$style.reactionCount">{{ r.count }}</span>
         </button>
       </div>
-
-      <!-- Add reaction button -->
-      <button
-        :class="$style.chatAddReaction"
-        title="リアクション"
-        @click.stop="emit('react', message.id, '')"
-      >
-        <i class="ti ti-mood-plus" />
-      </button>
     </div>
   </div>
 
@@ -274,6 +283,8 @@ usePortal(lightboxPortalRef)
     ref="moreMenuRef"
     :message="message"
     :is-mine="!!isMine"
+    :account-id="accountId"
+    @react="emit('react', $event, '')"
     @delete="emit('delete', $event)"
   />
 
@@ -319,26 +330,18 @@ usePortal(lightboxPortalRef)
     .chatReactions {
       justify-content: flex-end;
     }
-
-    .chatAddReaction {
-      left: -28px;
-    }
   }
 
   &:not(.mine) {
     .chatBubble {
       border-bottom-left-radius: 4px;
     }
-
-    .chatAddReaction {
-      right: -28px;
-    }
   }
 }
 
 .chatAvatar {
-  width: 32px;
-  height: 32px;
+  width: 42px;
+  height: 42px;
   flex-shrink: 0;
   margin-top: 4px;
 }
@@ -346,10 +349,6 @@ usePortal(lightboxPortalRef)
 .chatBubbleWrapper {
   max-width: 75%;
   position: relative;
-
-  &:hover .chatAddReaction {
-    opacity: 1;
-  }
 }
 
 .chatBubble {
@@ -384,11 +383,42 @@ usePortal(lightboxPortalRef)
   cursor: pointer;
 }
 
+.chatMeta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  padding: 0 2px;
+}
+
+.mine .chatMeta {
+  flex-direction: row-reverse;
+}
+
 .chatTime {
   font-size: 0.7em;
   opacity: 0.5;
-  text-align: right;
-  margin-top: 2px;
+}
+
+.chatMoreBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.08));
+  color: var(--nd-fg);
+  opacity: 0.5;
+  cursor: pointer;
+  font-size: 0.8em;
+  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
+
+  &:hover {
+    opacity: 1;
+    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.15));
+  }
 }
 
 /* Reactions */
@@ -463,28 +493,6 @@ usePortal(lightboxPortalRef)
 }
 
 /* Add reaction button */
-.chatAddReaction {
-  position: absolute;
-  top: 2px;
-  border: none;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.08));
-  color: var(--nd-fg);
-  opacity: 0;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  font-size: 0.85em;
-  transition: opacity var(--nd-duration-base);
-
-  &:hover {
-    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.15));
-  }
-}
-
 /* Lightbox */
 .lightboxOverlay {
   position: fixed;

@@ -248,6 +248,14 @@ const myUserId = computed(() => {
   return account.value.userId
 })
 
+// 1on1 リアクションの reactor 逆算 (本家準拠) 用の自分のアバター。
+const myAvatarUrl = computed(() => {
+  const acc = isCrossAccount.value
+    ? accountsStore.accounts.find((a) => a.id === conversationAccountId.value)
+    : account.value
+  return acc?.avatarUrl ?? null
+})
+
 // --- Active account for conversation (cross-account or per-account) ---
 const activeAccountId = computed(() =>
   isCrossAccount.value ? conversationAccountId.value : props.column.accountId,
@@ -1416,6 +1424,7 @@ onBeforeUnmount(() => {
               :my-user-id="myUserId"
               :account-id="activeAccountId ?? undefined"
               :server-host="activeServerHost ?? undefined"
+              :my-avatar-url="currentRoomId ? undefined : myAvatarUrl ?? undefined"
               :other-avatar-url="currentRoomId ? undefined : conversationOtherAvatarUrl ?? undefined"
               @react="handleReact"
               @unreact="handleUnreact"
