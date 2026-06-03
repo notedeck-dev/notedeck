@@ -2186,7 +2186,7 @@ export type ChatMessage = { id: string; createdAt: string; fromUserId: string; f
 export type ChatMessageReaction = { user: ChatReactionUser | null; reaction: string }
 export type ChatReactionUser = { id: string; name: string | null; username: string; host: string | null; avatarUrl: string | null }
 export type ChatRoom = { id: string; name: string | null; description: string | null }
-export type ChatUser = { id: string; name: string | null; username: string; host: string | null; avatarUrl: string | null; emojis?: Partial<{ [key in string]: string }> }
+export type ChatUser = { id: string; name: string | null; username: string; host: string | null; avatarUrl: string | null; emojis?: Partial<{ [key in string]: string }>; avatarDecorations?: AvatarDecoration[] }
 /**
  * Metadata for a single CLI argument.
  */
