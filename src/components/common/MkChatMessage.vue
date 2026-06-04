@@ -6,6 +6,7 @@ import MkChatMessageMoreMenu from '@/components/common/MkChatMessageMoreMenu.vue
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useHoverPopup } from '@/composables/useHoverPopup'
+import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteAccountId } from '@/composables/useNoteContext'
 import { usePortal } from '@/composables/usePortal'
 import { proxyThumbUrl, proxyUrl } from '@/utils/imageProxy'
@@ -33,6 +34,13 @@ const emit = defineEmits<{
 const moreMenuRef = ref<InstanceType<typeof MkChatMessageMoreMenu> | null>(null)
 
 const { reactionUrl } = useEmojiResolver()
+const { navigateToUser } = useNavigation()
+
+function onAvatarClick(e: MouseEvent) {
+  e.stopPropagation()
+  if (!props.accountId) return
+  navigateToUser(props.accountId, props.message.fromUserId)
+}
 
 const AVATAR_ERROR = '/avatar-error.svg'
 
@@ -191,6 +199,7 @@ usePortal(lightboxPortalRef)
       :decorations="displayUser.avatarDecorations"
       :size="42"
       :is-cat="displayUser.isCat"
+      @click="onAvatarClick"
     />
     <div :class="$style.chatBubbleWrapper">
       <div
@@ -329,6 +338,7 @@ usePortal(lightboxPortalRef)
   height: 42px;
   flex-shrink: 0;
   margin-top: 4px;
+  cursor: pointer;
 }
 
 .chatBubbleWrapper {
