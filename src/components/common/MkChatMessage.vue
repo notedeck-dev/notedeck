@@ -6,6 +6,7 @@ import MkChatMessageMoreMenu from '@/components/common/MkChatMessageMoreMenu.vue
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useHoverPopup } from '@/composables/useHoverPopup'
+import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteAccountId } from '@/composables/useNoteContext'
 import { usePortal } from '@/composables/usePortal'
 import { proxyThumbUrl, proxyUrl } from '@/utils/imageProxy'
@@ -33,6 +34,13 @@ const emit = defineEmits<{
 const moreMenuRef = ref<InstanceType<typeof MkChatMessageMoreMenu> | null>(null)
 
 const { reactionUrl } = useEmojiResolver()
+const { navigateToUser } = useNavigation()
+
+function onAvatarClick(e: MouseEvent) {
+  e.stopPropagation()
+  if (!props.accountId) return
+  navigateToUser(props.accountId, props.message.fromUserId)
+}
 
 const AVATAR_ERROR = '/avatar-error.svg'
 
@@ -44,14 +52,9 @@ const displayUser = computed(() => {
   const u = props.message.fromUser
   if (!u) return null
   return {
-    name: u.name || u.username,
-    hasName: !!u.name,
     avatarUrl: u.avatarUrl ?? null,
     avatarDecorations: u.avatarDecorations ?? [],
-    username: u.username,
-    host: u.host ?? null,
     isCat: u.isCat,
-    emojis: u.emojis ?? {},
   }
 })
 
@@ -196,22 +199,13 @@ usePortal(lightboxPortalRef)
       :decorations="displayUser.avatarDecorations"
       :size="42"
       :is-cat="displayUser.isCat"
+      @click="onAvatarClick"
     />
     <div :class="$style.chatBubbleWrapper">
       <div
         :class="$style.chatBubble"
         @contextmenu.prevent.stop="moreMenuRef?.open($event)"
       >
-        <div v-if="!isMine && displayUser" :class="$style.chatSender">
-          <MkMfm
-            v-if="displayUser.hasName"
-            :text="displayUser.name"
-            :emojis="displayUser.emojis"
-            :server-host="serverHost"
-            plain
-          />
-          <template v-else>{{ displayUser.username }}</template>
-        </div>
         <div v-if="message.text" :class="$style.chatText">
           <MkMfm :text="message.text" :server-host="serverHost" @mention-hover="onMentionHover" @mention-leave="onMentionLeave" />
         </div>
@@ -344,6 +338,7 @@ usePortal(lightboxPortalRef)
   height: 42px;
   flex-shrink: 0;
   margin-top: 4px;
+  cursor: pointer;
 }
 
 .chatBubbleWrapper {
@@ -358,13 +353,6 @@ usePortal(lightboxPortalRef)
   font-size: 0.95em;
   line-height: 1.5;
   word-break: break-word;
-}
-
-.chatSender {
-  font-size: 0.8em;
-  font-weight: 600;
-  opacity: 0.7;
-  margin-bottom: 2px;
 }
 
 .chatText {
