@@ -166,6 +166,46 @@ const { tab: topTab, containerRef: profileRef } = useEditorTabs<TopTab>(
 const user = ref<NormalizedUserDetail | null>(null)
 const userRelation = ref<UserRelation | null>(null)
 
+// User memo (#458): 他ユーザーへの自分用メモ。プロフィール上に常時表示の
+// スティッキーエリアとして置き、その場編集 → blur で自動保存する。
+// メニューや「追加」ボタンといった別導線は設けない (本家の二重導線を統合)。
+const memoDraft = ref('')
+const memoTextareaEl = useTemplateRef<HTMLTextAreaElement>('memoTextareaEl')
+const canEditMemo = computed(
+  () => !isOwnProfile.value && (account.value?.hasToken ?? false),
+)
+
+function adjustMemoTextarea() {
+  const el = memoTextareaEl.value
+  if (!el) return
+  el.style.height = '0px'
+  el.style.height = `${el.scrollHeight}px`
+}
+
+async function saveMemo() {
+  if (!adapter || !user.value) return
+  const next = memoDraft.value
+  if ((user.value.memo ?? '') === next) return // 変更なし
+  try {
+    await adapter.api.updateUserMemo(user.value.id, next)
+    user.value.memo = next
+  } catch (e) {
+    const err = AppError.from(e)
+    console.error('[user:memo]', err.code, err.message)
+    toast.show(`メモの保存に失敗しました（${err.displayCode}）`, 'error')
+    memoDraft.value = user.value.memo ?? '' // 失敗時は元に戻す
+  }
+}
+
+// user 読み込み・切替時に draft を同期し、textarea 高さを合わせる。
+watch(
+  () => user.value?.memo,
+  (memo) => {
+    memoDraft.value = memo ?? ''
+    nextTick(adjustMemoTextarea)
+  },
+)
+
 // ヘッダー「Web UIで開く」ボタンの登録 — 自プロフィールは編集画面、他は公開ページ
 useWindowExternalLink(() => {
   const u = user.value
@@ -1062,13 +1102,10 @@ const showBlockConfirm = ref(false)
 const showInvalidateFollowerConfirm = ref(false)
 const showReportForm = ref(false)
 const showListPicker = ref(false)
-const showMemoEditor = ref(false)
 const showAntennaPicker = ref(false)
 const reportComment = ref('')
 const userLists = ref<UserList[]>([])
 const userAntennas = ref<Antenna[]>([])
-const memoDraft = ref('')
-const memoBusy = ref(false)
 const antennaBusy = ref(false)
 
 type UserMenuView =
@@ -1078,7 +1115,6 @@ type UserMenuView =
   | 'invalidateFollowerConfirm'
   | 'reportForm'
   | 'listPicker'
-  | 'memoEditor'
   | 'antennaPicker'
 const userMenuView = computed<UserMenuView>(() => {
   if (showMuteConfirm.value) return 'muteConfirm'
@@ -1086,7 +1122,6 @@ const userMenuView = computed<UserMenuView>(() => {
   if (showInvalidateFollowerConfirm.value) return 'invalidateFollowerConfirm'
   if (showReportForm.value) return 'reportForm'
   if (showListPicker.value) return 'listPicker'
-  if (showMemoEditor.value) return 'memoEditor'
   if (showAntennaPicker.value) return 'antennaPicker'
   return 'main'
 })
@@ -1101,7 +1136,6 @@ function userMenuBack() {
   showInvalidateFollowerConfirm.value = false
   showReportForm.value = false
   showListPicker.value = false
-  showMemoEditor.value = false
   showAntennaPicker.value = false
   reportComment.value = ''
 }
@@ -1344,29 +1378,6 @@ function openDirectMessage() {
     serverHost: account.value?.host ?? null,
   })
   closeUserMenu()
-}
-
-function openMemoEditor() {
-  memoDraft.value = user.value?.memo ?? ''
-  showMemoEditor.value = true
-}
-
-async function saveMemo() {
-  if (!adapter || !user.value || memoBusy.value) return
-  memoBusy.value = true
-  try {
-    const memo = memoDraft.value
-    await adapter.api.updateUserMemo(user.value.id, memo)
-    user.value.memo = memo
-    toast.show('メモを保存しました')
-    closeUserMenu()
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[user:memo]', err.code, err.message)
-    toast.show(`メモの保存に失敗しました（${err.displayCode}）`, 'error')
-  } finally {
-    memoBusy.value = false
-  }
 }
 
 async function toggleWithReplies() {
@@ -1708,6 +1719,20 @@ async function handlePosted(editedNoteId?: string) {
             <img v-if="role.iconUrl" :src="role.iconUrl" :class="$style.roleIcon" />
             {{ role.name }}
           </span>
+        </div>
+
+        <!-- User memo (self-only sticky note about this user, #458) -->
+        <div v-if="canEditMemo" :class="$style.memo">
+          <div :class="$style.memoHeading">メモ（自分のみ）</div>
+          <textarea
+            ref="memoTextareaEl"
+            v-model="memoDraft"
+            :class="$style.memoTextarea"
+            rows="1"
+            placeholder="このユーザーへのメモを追加..."
+            @blur="saveMemo"
+            @input="adjustMemoTextarea"
+          />
         </div>
 
         <!-- Description -->
@@ -2158,10 +2183,6 @@ async function handlePosted(editedNoteId?: string) {
             <i class="ti ti-antenna" />
             アンテナに追加
           </button>
-          <button class="_popupItem" @click="openMemoEditor">
-            <i class="ti ti-note" />
-            メモを編集
-          </button>
           <template v-if="user?.isFollowing">
             <div class="_popupDivider" />
             <button class="_popupItem" @click="toggleWithReplies">
@@ -2315,26 +2336,6 @@ async function handlePosted(editedNoteId?: string) {
             </button>
           </template>
           <div v-else class="_popupConfirmText">リストがありません</div>
-        </template>
-        <!-- Memo editor -->
-        <template v-else-if="userMenuView === 'memoEditor'">
-          <div class="_popupConfirmText">@{{ user?.username }} へのメモ</div>
-          <div class="_popupReportInputWrap">
-            <textarea
-              v-model="memoDraft"
-              class="_popupReportInput"
-              placeholder="このユーザーへの自分用メモ..."
-              rows="3"
-            />
-          </div>
-          <button class="_popupItem" :disabled="memoBusy" @click="saveMemo">
-            <i class="ti ti-device-floppy" />
-            保存
-          </button>
-          <button class="_popupItem" @click="userMenuBack">
-            <i class="ti ti-x" />
-            キャンセル
-          </button>
         </template>
         <!-- Antenna picker -->
         <template v-else-if="userMenuView === 'antennaPicker'">
@@ -2604,6 +2605,38 @@ async function handlePosted(editedNoteId?: string) {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.memo {
+  margin: 12px 24px 0 154px;
+  padding: 8px 10px;
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius);
+  background: var(--nd-buttonBg);
+}
+
+.memoHeading {
+  font-size: 0.78em;
+  font-weight: bold;
+  opacity: 0.55;
+  margin-bottom: 2px;
+}
+
+.memoTextarea {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  min-height: 0;
+  line-height: 1.5;
+  font-size: 0.9em;
+  font-family: inherit;
+  color: var(--nd-fg);
+  background: transparent;
 }
 
 .remoteCaution {
@@ -3234,6 +3267,10 @@ async function handlePosted(editedNoteId?: string) {
   .description {
     padding: 16px;
     text-align: center;
+  }
+
+  .memo {
+    margin: 12px 16px 0;
   }
 
   .profileFields {
