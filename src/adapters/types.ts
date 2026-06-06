@@ -100,6 +100,8 @@ export interface SearchOptions {
   untilId?: string
   sinceDate?: number
   untilDate?: number
+  /** 指定ユーザーのノートのみに絞る (notes/search の userId) */
+  userId?: string
 }
 
 // `UserList` は specta 経由で Rust 側から自動生成される正規化型 (notecli の
@@ -107,10 +109,11 @@ export interface SearchOptions {
 import type { UserList } from '@/bindings'
 export type { UserList }
 
-export interface Antenna {
-  id: string
-  name: string
-}
+// `Antenna` は specta 経由で Rust 側から自動生成される正規化型 (notecli の
+// notecli::models::Antenna)。src/users/keywords 等の full entity を扱うため
+// bindings から re-export する。
+import type { Antenna } from '@/bindings'
+export type { Antenna }
 
 // `Clip` は specta 経由で Rust 側から自動生成される正規化型 (notecli の
 // notecli::models::Clip)。重複定義を避けるため bindings から re-export。
@@ -288,6 +291,12 @@ export interface NormalizedUserDetail extends NormalizedUser {
   followingVisibility?: 'public' | 'followers' | 'private'
   followersVisibility?: 'public' | 'followers' | 'private'
   followedMessage?: string | null
+  /** このユーザーに対する自分用メモ (users/update-memo) */
+  memo?: string | null
+  /** フォロー中のみ意味を持つ: 'normal' | 'none' (投稿通知) */
+  notify?: 'normal' | 'none' | null
+  /** フォロー中のみ意味を持つ: TL に他者宛て返信を含めるか */
+  withReplies?: boolean | null
 }
 
 export interface NormalizedPoll {
@@ -577,10 +586,21 @@ export interface ApiAdapter {
   followUser(userId: string): Promise<void>
   unfollowUser(userId: string): Promise<void>
   invalidateFollower(userId: string): Promise<void>
+  /** フォロー設定を更新する (following/update)。notify / withReplies はフォロー中のみ有効 */
+  updateFollowing(
+    userId: string,
+    options: { notify?: 'normal' | 'none'; withReplies?: boolean },
+  ): Promise<void>
+  /** このユーザーへの自分用メモを更新する (users/update-memo)。空文字で削除 */
+  updateUserMemo(userId: string, memo: string): Promise<void>
   acceptFollowRequest(userId: string): Promise<void>
   rejectFollowRequest(userId: string): Promise<void>
   getUserLists(): Promise<UserList[]>
   getAntennas(): Promise<Antenna[]>
+  /** 単一アンテナの設定を取得する (antennas/show) */
+  getAntenna(antennaId: string): Promise<Antenna>
+  /** アンテナ設定を更新する (antennas/update) */
+  updateAntenna(antenna: Antenna): Promise<Antenna>
   getAntennaNotes(
     antennaId: string,
     options?: PaginationOptions,

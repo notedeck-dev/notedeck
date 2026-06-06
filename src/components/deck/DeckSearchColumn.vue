@@ -359,6 +359,7 @@ async function performSearchPerAccount(q: string, hint: string) {
         let results = await adapter.api.searchNotes(hint, {
           sinceDate: getSinceDateMs(),
           untilDate: getUntilDateMs(),
+          userId: props.column.userId,
         })
         if (regexMode.value) {
           results = await filterNotesByRegexAsync(results, q)
@@ -459,6 +460,7 @@ async function loadMorePerAccount() {
       untilId: lastNote.id,
       sinceDate: getSinceDateMs(),
       untilDate: getUntilDateMs(),
+      userId: props.column.userId,
     })
     if (regexMode.value) {
       older = await filterNotesByRegexAsync(older, q)

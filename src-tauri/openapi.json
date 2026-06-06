@@ -2118,6 +2118,13 @@
               "null"
             ]
           },
+          "memo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "このユーザーに対する自分用メモ (users/update-memo)"
+          },
           "name": {
             "type": [
               "string",
@@ -2127,6 +2134,13 @@
           "notesCount": {
             "type": "integer",
             "format": "int64"
+          },
+          "notify": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "フォロー中のみ意味を持つ: 'normal' | 'none' (投稿通知)"
           },
           "onlineStatus": {
             "type": [
@@ -2148,6 +2162,13 @@
           },
           "username": {
             "type": "string"
+          },
+          "withReplies": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "フォロー中のみ意味を持つ: TL に他者への返信を含めるか"
           }
         }
       },

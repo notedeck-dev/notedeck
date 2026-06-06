@@ -11,6 +11,7 @@ import {
 } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type {
+  Antenna,
   NormalizedNote,
   NormalizedUserDetail,
   ServerAdapter,
@@ -57,6 +58,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useSensitiveMask } from '@/composables/useSensitiveMask'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
+import { useDeckStore } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
@@ -85,6 +87,7 @@ const portalRef = useTemplateRef<HTMLElement>('portalRef')
 usePortal(portalRef)
 const accountsStore = useAccountsStore()
 const serversStore = useServersStore()
+const deckStore = useDeckStore()
 const toast = useToast()
 
 // Declared up-front because `topTabs` (below) reads `isOwnProfile` inside its
@@ -958,6 +961,7 @@ const showPostForm = ref(false)
 const postFormReplyTo = ref<NormalizedNote | undefined>()
 const postFormRenoteId = ref<string | undefined>()
 const postFormEditNote = ref<NormalizedNote | undefined>()
+const postFormInitialText = ref<string | undefined>()
 
 const isFollowLoading = ref(false)
 const showQrCode = ref(false)
@@ -1058,8 +1062,14 @@ const showBlockConfirm = ref(false)
 const showInvalidateFollowerConfirm = ref(false)
 const showReportForm = ref(false)
 const showListPicker = ref(false)
+const showMemoEditor = ref(false)
+const showAntennaPicker = ref(false)
 const reportComment = ref('')
 const userLists = ref<UserList[]>([])
+const userAntennas = ref<Antenna[]>([])
+const memoDraft = ref('')
+const memoBusy = ref(false)
+const antennaBusy = ref(false)
 
 type UserMenuView =
   | 'main'
@@ -1068,12 +1078,16 @@ type UserMenuView =
   | 'invalidateFollowerConfirm'
   | 'reportForm'
   | 'listPicker'
+  | 'memoEditor'
+  | 'antennaPicker'
 const userMenuView = computed<UserMenuView>(() => {
   if (showMuteConfirm.value) return 'muteConfirm'
   if (showBlockConfirm.value) return 'blockConfirm'
   if (showInvalidateFollowerConfirm.value) return 'invalidateFollowerConfirm'
   if (showReportForm.value) return 'reportForm'
   if (showListPicker.value) return 'listPicker'
+  if (showMemoEditor.value) return 'memoEditor'
+  if (showAntennaPicker.value) return 'antennaPicker'
   return 'main'
 })
 
@@ -1087,6 +1101,8 @@ function userMenuBack() {
   showInvalidateFollowerConfirm.value = false
   showReportForm.value = false
   showListPicker.value = false
+  showMemoEditor.value = false
+  showAntennaPicker.value = false
   reportComment.value = ''
 }
 
@@ -1287,6 +1303,131 @@ async function addToList(listId: string) {
   }
 }
 
+// リモートユーザーは `@user@host`、ローカルユーザーは `@user`。
+// メンション投稿・アンテナの users 配列いずれもこの形式を受け付ける。
+const userAcct = computed(() => {
+  const u = user.value
+  if (!u) return null
+  return u.host ? `@${u.username}@${u.host}` : `@${u.username}`
+})
+
+function composeNoteToUser() {
+  const acct = userAcct.value
+  if (!acct) return
+  postFormReplyTo.value = undefined
+  postFormRenoteId.value = undefined
+  postFormEditNote.value = undefined
+  postFormInitialText.value = `${acct} `
+  showPostForm.value = true
+  closeUserMenu()
+}
+
+function searchUserNotes() {
+  if (!user.value) return
+  deckStore.addColumn({
+    type: 'search',
+    accountId: props.accountId,
+    userId: user.value.id,
+    name: `${userAcct.value ?? user.value.username} の検索`,
+    width: 360,
+  })
+  closeUserMenu()
+}
+
+function openMemoEditor() {
+  memoDraft.value = user.value?.memo ?? ''
+  showMemoEditor.value = true
+}
+
+async function saveMemo() {
+  if (!adapter || !user.value || memoBusy.value) return
+  memoBusy.value = true
+  try {
+    const memo = memoDraft.value
+    await adapter.api.updateUserMemo(user.value.id, memo)
+    user.value.memo = memo
+    toast.show('メモを保存しました')
+    closeUserMenu()
+  } catch (e) {
+    const err = AppError.from(e)
+    console.error('[user:memo]', err.code, err.message)
+    toast.show(`メモの保存に失敗しました（${err.displayCode}）`, 'error')
+  } finally {
+    memoBusy.value = false
+  }
+}
+
+async function toggleWithReplies() {
+  if (!adapter || !user.value) return
+  const next = !user.value.withReplies
+  try {
+    await adapter.api.updateFollowing(user.value.id, { withReplies: next })
+    user.value.withReplies = next
+    toast.show(next ? 'TLに返信を含めます' : 'TLに返信を含めません')
+  } catch (e) {
+    const err = AppError.from(e)
+    console.error('[following:withReplies]', err.code, err.message)
+    toast.show(`設定の更新に失敗しました（${err.displayCode}）`, 'error')
+  }
+}
+
+async function toggleNotify() {
+  if (!adapter || !user.value) return
+  const next = user.value.notify === 'normal' ? 'none' : 'normal'
+  try {
+    await adapter.api.updateFollowing(user.value.id, { notify: next })
+    user.value.notify = next
+    toast.show(next === 'normal' ? '投稿を通知します' : '投稿を通知しません')
+  } catch (e) {
+    const err = AppError.from(e)
+    console.error('[following:notify]', err.code, err.message)
+    toast.show(`設定の更新に失敗しました（${err.displayCode}）`, 'error')
+  }
+}
+
+async function openAntennaPicker() {
+  if (!adapter) return
+  try {
+    const all = await adapter.api.getAntennas()
+    // ユーザーソースのアンテナのみ追加対象 (keyword 系には個別ユーザーを足せない)。
+    userAntennas.value = all.filter((a) => a.src === 'users')
+    showAntennaPicker.value = true
+  } catch (e) {
+    const err = AppError.from(e)
+    console.error('[antenna:fetch]', err.code, err.message)
+    toast.show(`アンテナの取得に失敗しました（${err.displayCode}）`, 'error')
+  }
+}
+
+async function addToAntenna(antenna: Antenna) {
+  if (!adapter || antennaBusy.value) return
+  const acct = userAcct.value
+  if (!acct) return
+  antennaBusy.value = true
+  try {
+    // 最新の設定を取得してから users を append (他フィールドを保持して往復する)。
+    const current = await adapter.api.getAntenna(antenna.id)
+    const existing = current.users ?? []
+    if (existing.some((u) => u.toLowerCase() === acct.toLowerCase())) {
+      toast.show('すでに追加されています')
+      closeUserMenu()
+      return
+    }
+    await adapter.api.updateAntenna({
+      ...current,
+      users: [...existing, acct],
+    })
+    toast.show(`${antenna.name} に追加しました`)
+    closeUserMenu()
+  } catch (e) {
+    const err = AppError.from(e)
+    console.error('[antenna:add]', err.code, err.message)
+    toast.show(`アンテナへの追加に失敗しました（${err.displayCode}）`, 'error')
+  } finally {
+    antennaBusy.value = false
+  }
+}
+
 const windowsStore = useWindowsStore()
 
 function openFollowList(type: 'following' | 'followers') {
@@ -1330,12 +1471,14 @@ async function handleRenote(target: NormalizedNote) {
 function handleReply(target: NormalizedNote) {
   postFormReplyTo.value = target
   postFormRenoteId.value = undefined
+  postFormInitialText.value = undefined
   showPostForm.value = true
 }
 
 function handleQuote(target: NormalizedNote) {
   postFormReplyTo.value = undefined
   postFormRenoteId.value = target.id
+  postFormInitialText.value = undefined
   showPostForm.value = true
 }
 
@@ -1343,6 +1486,7 @@ function handleEdit(target: NormalizedNote) {
   postFormReplyTo.value = undefined
   postFormRenoteId.value = undefined
   postFormEditNote.value = target
+  postFormInitialText.value = undefined
   showPostForm.value = true
 }
 
@@ -1386,6 +1530,7 @@ async function handleDeleteAndEdit(target: NormalizedNote) {
       : undefined
     postFormRenoteId.value = undefined
     postFormEditNote.value = undefined
+    postFormInitialText.value = undefined
     showPostForm.value = true
   } catch (e) {
     error.value = AppError.from(e)
@@ -1950,6 +2095,7 @@ async function handlePosted(editedNoteId?: string) {
         :reply-to="postFormReplyTo"
         :renote-id="postFormRenoteId"
         :edit-note="postFormEditNote"
+        :initial-text="postFormInitialText"
         @close="closePostForm"
         @posted="handlePosted"
       />
@@ -1958,6 +2104,15 @@ async function handlePosted(editedNoteId?: string) {
       <PopupMenu ref="userMenuRef" @close="userMenuBack">
         <!-- Main -->
         <template v-if="userMenuView === 'main'">
+          <button class="_popupItem" @click="composeNoteToUser">
+            <i class="ti ti-pencil" />
+            ユーザー指定ノートを作成
+          </button>
+          <button class="_popupItem" @click="searchUserNotes">
+            <i class="ti ti-search" />
+            ユーザーのノートを検索
+          </button>
+          <div class="_popupDivider" />
           <button class="_popupItem" @click="handleCopyUsername">
             <i class="ti ti-at" />
             ユーザー名をコピー
@@ -1983,6 +2138,33 @@ async function handlePosted(editedNoteId?: string) {
             <i class="ti ti-list" />
             リストに追加
           </button>
+          <button class="_popupItem" @click="openAntennaPicker">
+            <i class="ti ti-antenna" />
+            アンテナに追加
+          </button>
+          <button class="_popupItem" @click="openMemoEditor">
+            <i class="ti ti-note" />
+            メモを編集
+          </button>
+          <template v-if="user?.isFollowing">
+            <div class="_popupDivider" />
+            <button class="_popupItem" @click="toggleWithReplies">
+              <i
+                :class="
+                  user?.withReplies ? 'ti ti-checkbox' : 'ti ti-square'
+                "
+              />
+              TLに他の人への返信を含める
+            </button>
+            <button class="_popupItem" @click="toggleNotify">
+              <i
+                :class="
+                  user?.notify === 'normal' ? 'ti ti-bell-ringing' : 'ti ti-bell'
+                "
+              />
+              投稿を通知
+            </button>
+          </template>
           <div class="_popupDivider" />
           <button
             class="_popupItem"
@@ -2117,6 +2299,49 @@ async function handlePosted(editedNoteId?: string) {
             </button>
           </template>
           <div v-else class="_popupConfirmText">リストがありません</div>
+        </template>
+        <!-- Memo editor -->
+        <template v-else-if="userMenuView === 'memoEditor'">
+          <div class="_popupConfirmText">@{{ user?.username }} へのメモ</div>
+          <div class="_popupReportInputWrap">
+            <textarea
+              v-model="memoDraft"
+              class="_popupReportInput"
+              placeholder="このユーザーへの自分用メモ..."
+              rows="3"
+            />
+          </div>
+          <button class="_popupItem" :disabled="memoBusy" @click="saveMemo">
+            <i class="ti ti-device-floppy" />
+            保存
+          </button>
+          <button class="_popupItem" @click="userMenuBack">
+            <i class="ti ti-x" />
+            キャンセル
+          </button>
+        </template>
+        <!-- Antenna picker -->
+        <template v-else-if="userMenuView === 'antennaPicker'">
+          <button class="_popupItem" @click="userMenuBack">
+            <i class="ti ti-arrow-left" />
+            戻る
+          </button>
+          <div class="_popupDivider" />
+          <template v-if="userAntennas.length > 0">
+            <button
+              v-for="antenna in userAntennas"
+              :key="antenna.id"
+              class="_popupItem"
+              :disabled="antennaBusy"
+              @click="addToAntenna(antenna)"
+            >
+              <i class="ti ti-antenna" />
+              {{ antenna.name }}
+            </button>
+          </template>
+          <div v-else class="_popupConfirmText">
+            ユーザーソースのアンテナがありません
+          </div>
         </template>
       </PopupMenu>
 

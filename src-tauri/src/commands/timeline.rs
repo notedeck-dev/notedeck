@@ -132,6 +132,32 @@ pub async fn api_get_antennas(
     client.get_antennas(&host, &token).await
 }
 
+/// 単一アンテナの設定を取得する (antennas/show)。
+#[tauri::command]
+#[specta::specta]
+pub async fn api_get_antenna(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    antenna_id: String,
+) -> Result<Antenna> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    client.get_antenna(&host, &token, &antenna_id).await
+}
+
+/// アンテナ設定を更新する (antennas/update)。変更済みの Antenna を全フィールド往復させる。
+#[tauri::command]
+#[specta::specta]
+pub async fn api_update_antenna(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    antenna: Antenna,
+) -> Result<Antenna> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    client.update_antenna(&host, &token, &antenna).await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_antenna_notes(

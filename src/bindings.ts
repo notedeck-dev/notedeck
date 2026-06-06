@@ -222,6 +222,28 @@ async apiGetAntennas(accountId: string) : Promise<Result<Antenna[], { code: stri
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * 単一アンテナの設定を取得する (antennas/show)。
+ */
+async apiGetAntenna(accountId: string, antennaId: string) : Promise<Result<Antenna, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_get_antenna", { accountId, antennaId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * アンテナ設定を更新する (antennas/update)。変更済みの Antenna を全フィールド往復させる。
+ */
+async apiUpdateAntenna(accountId: string, antenna: Antenna) : Promise<Result<Antenna, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_update_antenna", { accountId, antenna }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async apiGetAntennaNotes(accountId: string, antennaId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_antenna_notes", { accountId, antennaId, limit, sinceId, untilId }) };
@@ -417,6 +439,29 @@ async apiUnfollowUser(accountId: string, userId: string) : Promise<Result<null, 
 async apiInvalidateFollower(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_invalidate_follower", { accountId, userId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * フォロー設定を更新する (following/update)。
+ * `notify` は "normal" | "none"、`with_replies` は TL に他者宛て返信を含めるか。
+ */
+async apiUpdateFollowing(accountId: string, userId: string, notify: string | null, withReplies: boolean | null) : Promise<Result<null, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_update_following", { accountId, userId, notify, withReplies }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * このユーザーに対する自分用メモを更新する (users/update-memo)。
+ */
+async apiUpdateUserMemo(accountId: string, userId: string, memo: string) : Promise<Result<null, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_update_user_memo", { accountId, userId, memo }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2144,7 +2189,15 @@ connection_id: string; model: string; messages: AiChatMessage[]; system: string 
  */
 tools: JsonValue | null }
 export type AiChatRole = "system" | "user" | "assistant"
-export type Antenna = { id: string; name: string }
+export type Antenna = { id: string; name: string; 
+/**
+ * 'home' | 'all' | 'users' | 'list' | 'users_blacklist'
+ */
+src?: string; userListId?: string | null; 
+/**
+ * ソースが 'users' / 'users_blacklist' のときの対象 (["@user@host", ...])
+ */
+users?: string[]; keywords?: string[][]; excludeKeywords?: string[][]; caseSensitive?: boolean; localOnly?: boolean; excludeBots?: boolean; withReplies?: boolean; withFile?: boolean; notify?: boolean }
 /**
  * `charts/ap-request` (ActivityPub の配送成功/失敗/受信数)
  */
@@ -2371,7 +2424,19 @@ users?: NormalizedUser[] | null }
 export type NormalizedPoll = { choices: NormalizedPollChoice[]; multiple?: boolean; expiresAt: string | null }
 export type NormalizedPollChoice = { text: string; votes?: number; isVoted?: boolean }
 export type NormalizedUser = { id: string; username: string; host: string | null; name: string | null; avatarUrl: string | null; isBot?: boolean; isCat?: boolean; avatarDecorations?: AvatarDecoration[]; emojis?: Partial<{ [key in string]: string }>; instance?: UserInstance | null }
-export type NormalizedUserDetail = { id: string; username: string; host: string | null; name: string | null; avatarUrl: string | null; bannerUrl: string | null; description: string | null; followersCount?: number; followingCount?: number; notesCount?: number; isBot?: boolean; isCat?: boolean; isFollowing?: boolean; isFollowed?: boolean; createdAt?: string; avatarDecorations?: AvatarDecoration[]; emojis?: Partial<{ [key in string]: string }>; roles?: UserRole[]; fields?: UserField[]; url?: string | null; birthday?: string | null; location?: string | null; onlineStatus?: string | null; followingVisibility?: string | null; followersVisibility?: string | null; followedMessage?: string | null }
+export type NormalizedUserDetail = { id: string; username: string; host: string | null; name: string | null; avatarUrl: string | null; bannerUrl: string | null; description: string | null; followersCount?: number; followingCount?: number; notesCount?: number; isBot?: boolean; isCat?: boolean; isFollowing?: boolean; isFollowed?: boolean; createdAt?: string; avatarDecorations?: AvatarDecoration[]; emojis?: Partial<{ [key in string]: string }>; roles?: UserRole[]; fields?: UserField[]; url?: string | null; birthday?: string | null; location?: string | null; onlineStatus?: string | null; followingVisibility?: string | null; followersVisibility?: string | null; followedMessage?: string | null; 
+/**
+ * このユーザーに対する自分用メモ (users/update-memo)
+ */
+memo?: string | null; 
+/**
+ * フォロー中のみ意味を持つ: 'normal' | 'none' (投稿通知)
+ */
+notify?: string | null; 
+/**
+ * フォロー中のみ意味を持つ: TL に他者への返信を含めるか
+ */
+withReplies?: boolean | null }
 /**
  * Per-note capture (`subNote`) update. account_id まで付けて mixed-account batch
  * でも JS 側で正しく fan-out できるようにする。
@@ -2422,7 +2487,11 @@ itemIds: string[] }
 export type QueryRuntimeState = "live" | "warm" | "suspended"
 export type QuerySnapshot = { queryId: string; key: QueryKey; runtimeState: QueryRuntimeState; subscriberCount: number; revision: number; sourceSubscriptionId: string | null }
 export type ReactionInfo = { user: NormalizedUser; reaction: string }
-export type SearchOptions = { limit?: number; sinceId: string | null; untilId: string | null; sinceDate: number | null; untilDate: number | null }
+export type SearchOptions = { limit?: number; sinceId: string | null; untilId: string | null; sinceDate: number | null; untilDate: number | null; 
+/**
+ * 指定ユーザーのノートのみに絞る (notes/search の userId)
+ */
+userId?: string | null }
 /**
  * secret slot の設定状況。
  */

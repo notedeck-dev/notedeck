@@ -178,6 +178,38 @@ pub async fn api_invalidate_follower(
     client.invalidate_follower(&host, &token, &user_id).await
 }
 
+/// フォロー設定を更新する (following/update)。
+/// `notify` は "normal" | "none"、`with_replies` は TL に他者宛て返信を含めるか。
+#[tauri::command]
+#[specta::specta]
+pub async fn api_update_following(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    user_id: String,
+    notify: Option<String>,
+    with_replies: Option<bool>,
+) -> Result<()> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    client
+        .update_following(&host, &token, &user_id, notify.as_deref(), with_replies)
+        .await
+}
+
+/// このユーザーに対する自分用メモを更新する (users/update-memo)。
+#[tauri::command]
+#[specta::specta]
+pub async fn api_update_user_memo(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    user_id: String,
+    memo: String,
+) -> Result<()> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    client.update_user_memo(&host, &token, &user_id, &memo).await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn api_accept_follow_request(

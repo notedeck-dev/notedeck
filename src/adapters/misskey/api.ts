@@ -430,6 +430,7 @@ export class MisskeyApi implements ApiAdapter {
         untilId: options.untilId ?? null,
         sinceDate: options.sinceDate ?? null,
         untilDate: options.untilDate ?? null,
+        userId: options.userId ?? null,
       }),
     )
   }
@@ -497,6 +498,26 @@ export class MisskeyApi implements ApiAdapter {
     unwrapAny(await commands.apiInvalidateFollower(this.accountId, userId))
   }
 
+  async updateFollowing(
+    userId: string,
+    options: { notify?: 'normal' | 'none'; withReplies?: boolean },
+  ): Promise<void> {
+    this.requireAuth()
+    unwrapAny(
+      await commands.apiUpdateFollowing(
+        this.accountId,
+        userId,
+        options.notify ?? null,
+        options.withReplies ?? null,
+      ),
+    )
+  }
+
+  async updateUserMemo(userId: string, memo: string): Promise<void> {
+    this.requireAuth()
+    unwrapAny(await commands.apiUpdateUserMemo(this.accountId, userId, memo))
+  }
+
   async acceptFollowRequest(userId: string): Promise<void> {
     this.requireAuth()
     unwrapAny(await commands.apiAcceptFollowRequest(this.accountId, userId))
@@ -513,6 +534,16 @@ export class MisskeyApi implements ApiAdapter {
 
   async getAntennas(): Promise<Antenna[]> {
     return unwrapAny(await commands.apiGetAntennas(this.accountId))
+  }
+
+  async getAntenna(antennaId: string): Promise<Antenna> {
+    this.requireAuth()
+    return unwrapAny(await commands.apiGetAntenna(this.accountId, antennaId))
+  }
+
+  async updateAntenna(antenna: Antenna): Promise<Antenna> {
+    this.requireAuth()
+    return unwrapAny(await commands.apiUpdateAntenna(this.accountId, antenna))
   }
 
   async getAntennaNotes(
