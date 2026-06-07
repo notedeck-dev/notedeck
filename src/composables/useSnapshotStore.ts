@@ -33,18 +33,22 @@ function resolveSnapshot(snap: Snapshot): ResolvedSnapshot | null {
   return { notes, scrollTop: snap.scrollTop }
 }
 
-/** Save note IDs + scroll position for instant restore. */
+/**
+ * Save note IDs + scroll position for instant restore.
+ * `noteIds` は表示述語でフィルタしない「列のメンバーシップ」(orderedIds) を渡すこと。
+ * フィルタ後の表示リストを渡すと、ミュート等の可視性状態が snapshot に焼き込まれ、
+ * 解除しても復活できなくなる（#574）。可視性は復帰後に述語で再適用される。
+ */
 export function save(
   columnId: string,
   cacheKey: string,
-  notes: NormalizedNote[],
+  noteIds: string[],
   scrollTop: number,
 ): void {
   const maxNotes = usePerformanceStore().get('snapshotMaxNotes')
   evictExpired()
-  const ids = notes.slice(0, maxNotes).map((n) => n.id)
   store.set(key(columnId, cacheKey), {
-    noteIds: ids,
+    noteIds: noteIds.slice(0, maxNotes),
     scrollTop,
     savedAt: Date.now(),
   })

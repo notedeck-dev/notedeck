@@ -40,6 +40,7 @@ export default defineConfig({
             'tests/utils/**/*.test.ts',
             'tests/core/**/*.test.ts',
             'tests/stores/**/*.test.ts',
+            'tests/composables/**/*.test.ts',
           ],
           exclude: ['src/**/*.dom.test.ts'],
           environment: 'node',

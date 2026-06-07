@@ -640,6 +640,8 @@ export interface ApiAdapter {
   }): Promise<ChatMessage>
   muteUser(userId: string): Promise<void>
   unmuteUser(userId: string): Promise<void>
+  /** 自分がミュート中のユーザー ID 一覧（#574: 起動時の mute store hydrate 用）。 */
+  getMutedUsers(): Promise<string[]>
   renoteMuteUser(userId: string): Promise<void>
   unrenoteMuteUser(userId: string): Promise<void>
   blockUser(userId: string): Promise<void>

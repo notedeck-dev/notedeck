@@ -19,6 +19,12 @@ export const useNoteStore = defineStore('notes', () => {
   const { schedule } = useFrameScheduler()
   const noteMap = shallowRef(new Map<string, NormalizedNote>())
   const deleteListeners = new Set<(id: string) => void>()
+  /**
+   * 削除済みノートの tombstone（セッション揮発）。SQLite 再読込で復活した
+   * 削除済みノートを表示述語 isDeleted で握り潰すため（#602）。表示述語の
+   * 素材その1で、将来 muted/archived と OR 合成する拡張点（合成は consumption 層）。
+   */
+  const deletedIds = new Set<string>()
   /** Recently applied update signatures per noteId, for dedup across delivery paths. */
   const recentUpdateSigs = new Map<string, string>()
   const recentUpdateTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -167,10 +173,22 @@ export const useNoteStore = defineStore('notes', () => {
     return result
   }
 
-  function remove(id: string) {
+  /**
+   * ノートを削除する。
+   * @param tombstone - true（既定）で deletedIds に記録し、再読込での復活を
+   *   表示述語が抑止する。背景検証の verify-miss は heuristic（一時的 false-negative
+   *   で生きたノートを永久に隠す危険）なので false を渡して tombstone しない。
+   */
+  function remove(id: string, tombstone = true) {
+    if (tombstone) deletedIds.add(id)
     noteMap.value.delete(id)
     scheduleTrigger()
     for (const listener of deleteListeners) listener(id)
+  }
+
+  /** ノートが削除済み tombstone かを返す。表示述語の素材（#602）。 */
+  function isDeleted(id: string): boolean {
+    return deletedIds.has(id)
   }
 
   function onDelete(listener: (id: string) => void): () => void {
@@ -279,6 +297,7 @@ export const useNoteStore = defineStore('notes', () => {
     resolve,
     update,
     remove,
+    isDeleted,
     onDelete,
     applyUpdate,
     notifyMutation,

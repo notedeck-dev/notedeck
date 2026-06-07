@@ -8,6 +8,7 @@ import { useNoteStore } from '@/stores/notes'
 import { usePerformanceStore } from '@/stores/performance'
 import { insertIntoSorted } from '@/utils/sortNotes'
 import { commands } from '@/utils/tauriInvoke'
+import { useNoteVisibility } from './useNoteVisibility'
 
 /** @deprecated Use usePerformanceStore().get('noteListMax') instead. Kept for test compatibility. */
 export const NOTE_LIST_MAX = 200
@@ -23,6 +24,7 @@ export interface UseNoteListOptions {
 
 export function useNoteList(options: UseNoteListOptions) {
   const noteStore = useNoteStore()
+  const visibility = useNoteVisibility()
   const perfStore = usePerformanceStore()
   const maxNotes = options.maxNotes ?? perfStore.get('noteListMax')
   const orderedIds = shallowRef<string[]>([])
@@ -43,7 +45,12 @@ export function useNoteList(options: UseNoteListOptions) {
   onScopeDispose(unregisterRoot)
 
   const notes = computed({
-    get: () => noteStore.resolve(orderedIds.value),
+    // 削除済みノートはキャッシュ再読込で noteMap/orderedIds に復活しうるため、
+    // 表示時の可視性述語で除外する（#602）。muted/archived の合成もこの述語に集約。
+    get: () =>
+      noteStore
+        .resolve(orderedIds.value)
+        .filter((n) => !visibility.isHidden(n)),
     set: (newNotes: NormalizedNote[]) => {
       const trimmed =
         newNotes.length > maxNotes ? newNotes.slice(0, maxNotes) : newNotes
@@ -134,6 +141,9 @@ export function useNoteList(options: UseNoteListOptions) {
 
   return {
     notes,
+    // 表示述語でフィルタされない「列のメンバーシップ」。snapshot 保存はこれを使う
+    // ことで、ミュート等の可視性状態を焼き込まず、解除で復活できる（#574）。
+    orderedIds,
     noteIds,
     setNotes,
     mergeUpdate,

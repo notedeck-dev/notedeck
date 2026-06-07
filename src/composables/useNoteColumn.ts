@@ -101,6 +101,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
   const {
     notes,
+    orderedIds,
     noteIds,
     setNotes,
     mergeUpdate,
@@ -770,12 +771,13 @@ export function useNoteColumn(config: NoteColumnConfig) {
   onUnmounted(() => {
     // Save snapshot for instant restore if column is re-mounted
     const unmountCacheKey = config.cache?.getKey()
-    if (notes.value.length > 0 && unmountCacheKey) {
+    if (orderedIds.value.length > 0 && unmountCacheKey) {
       const el = noteScrollerRef.value?.getElement?.()
+      // unfiltered な orderedIds を保存（可視性は復帰後に述語で再適用）
       snapshotStore.save(
         config.getColumn().id,
         unmountCacheKey,
-        notes.value,
+        orderedIds.value,
         el?.scrollTop ?? 0,
       )
     }
@@ -798,6 +800,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     viewMarkerId,
     error,
     notes,
+    orderedIds,
     focusedNoteId,
     pendingCount,
     animatingIds,

@@ -696,6 +696,17 @@ async apiUnrenoteMuteUser(accountId: string, userId: string) : Promise<Result<nu
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * 自分がミュート中のユーザー ID 一覧を取得する（#574: 起動時の mute store hydrate）。
+ */
+async apiGetMutedUsers(accountId: string) : Promise<Result<string[], { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_get_muted_users", { accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async apiBlockUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_block_user", { accountId, userId }) };

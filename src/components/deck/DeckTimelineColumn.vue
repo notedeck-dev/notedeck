@@ -316,13 +316,14 @@ function onTabChange(value: string) {
 async function switchTl(type: TimelineType) {
   if (type === tlType.value) return
 
-  // Save current tab snapshot via unified SnapshotStore
+  // Save current tab snapshot via unified SnapshotStore.
+  // unfiltered な orderedIds を保存（ミュート等の可視性を焼き込まない / #574）
   const col = noteColumnRef.value
   if (col) {
     snapshotStore.save(
       props.column.id,
       tlType.value,
-      (col.notes ?? []).slice(),
+      ((col.orderedIds as string[] | undefined) ?? []).slice(),
       (col.scroller as HTMLElement | undefined)?.scrollTop ?? 0,
     )
   }

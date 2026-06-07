@@ -2,6 +2,8 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NormalizedNote } from '@/adapters/types'
 import { NOTE_LIST_MAX, useNoteList } from '@/composables/useNoteList'
+import { useMuteStore } from '@/stores/mutes'
+import { useNoteStore } from '@/stores/notes'
 
 function makeNote(id: string, createdAt?: string): NormalizedNote {
   return {
@@ -77,6 +79,55 @@ describe('useNoteList', () => {
     const items = Array.from({ length: 50 }, (_, i) => makeNote(String(i)))
     setNotes(items)
     expect(notes.value).toHaveLength(50)
+  })
+
+  it('does not resurrect a deleted note when the cache reloads it (#602)', () => {
+    const { notes, setNotes } = createNoteList()
+    const noteStore = useNoteStore()
+    setNotes([makeNote('1'), makeNote('2'), makeNote('3')])
+
+    noteStore.remove('2')
+
+    // Tab switch reloads the SQLite cache, which still contains the deleted note.
+    setNotes([makeNote('1'), makeNote('2'), makeNote('3')])
+
+    expect(notes.value.map((n) => n.id)).toEqual(['1', '3'])
+  })
+
+  it('reactively hides an already-displayed note when its author is muted (#574)', () => {
+    const { notes, setNotes } = createNoteList()
+    const muteStore = useMuteStore()
+    // makeNote authors every note as user 'u1' on account 'acc1'.
+    setNotes([makeNote('1'), makeNote('2'), makeNote('3')])
+    expect(notes.value).toHaveLength(3)
+
+    // Mute without reloading the list — the computed must re-evaluate.
+    muteStore.mute('acc1', 'u1')
+    expect(notes.value).toHaveLength(0)
+
+    // Unmute restores the notes reactively.
+    muteStore.unmute('acc1', 'u1')
+    expect(notes.value.map((n) => n.id)).toEqual(['1', '2', '3'])
+  })
+
+  it('retains muted notes in orderedIds so a snapshot restores them on unmute (#574)', () => {
+    const { notes, setNotes, orderedIds } = createNoteList()
+    const muteStore = useMuteStore()
+    const noteStore = useNoteStore()
+    setNotes([makeNote('1'), makeNote('2'), makeNote('3')]) // all authored by 'u1'
+
+    muteStore.mute('acc1', 'u1')
+    expect(notes.value).toHaveLength(0) // hidden at display
+
+    // A tab-switch snapshot must capture the unfiltered membership, not the
+    // filtered display — otherwise muted notes are baked out and unmute can't
+    // bring them back.
+    expect(orderedIds.value).toEqual(['1', '2', '3'])
+
+    // Simulate snapshot save (unfiltered ids) → restore.
+    setNotes(noteStore.resolve(orderedIds.value))
+    muteStore.unmute('acc1', 'u1')
+    expect(notes.value.map((n) => n.id)).toEqual(['1', '2', '3'])
   })
 
   it('passes trimmed notes to onNotesChanged callback', () => {

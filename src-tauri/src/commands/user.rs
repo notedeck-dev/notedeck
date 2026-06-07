@@ -356,6 +356,18 @@ pub async fn api_unrenote_mute_user(
     client.unrenote_mute_user(&host, &token, &user_id).await
 }
 
+/// 自分がミュート中のユーザー ID 一覧を取得する（#574: 起動時の mute store hydrate）。
+#[tauri::command]
+#[specta::specta]
+pub async fn api_get_muted_users(
+    app_state: State<'_, AppState>,
+    account_id: String,
+) -> Result<Vec<String>> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    client.muted_user_ids(&host, &token).await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn api_block_user(
