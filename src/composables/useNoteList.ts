@@ -43,7 +43,12 @@ export function useNoteList(options: UseNoteListOptions) {
   onScopeDispose(unregisterRoot)
 
   const notes = computed({
-    get: () => noteStore.resolve(orderedIds.value),
+    // 削除済みノートはキャッシュ再読込で noteMap/orderedIds に復活しうるため、
+    // 表示時に tombstone で除外する（#602）。将来 muted/archived を OR 合成する点。
+    get: () =>
+      noteStore
+        .resolve(orderedIds.value)
+        .filter((n) => !noteStore.isDeleted(n.id)),
     set: (newNotes: NormalizedNote[]) => {
       const trimmed =
         newNotes.length > maxNotes ? newNotes.slice(0, maxNotes) : newNotes

@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NormalizedNote } from '@/adapters/types'
 import { NOTE_LIST_MAX, useNoteList } from '@/composables/useNoteList'
+import { useNoteStore } from '@/stores/notes'
 
 function makeNote(id: string, createdAt?: string): NormalizedNote {
   return {
@@ -77,6 +78,19 @@ describe('useNoteList', () => {
     const items = Array.from({ length: 50 }, (_, i) => makeNote(String(i)))
     setNotes(items)
     expect(notes.value).toHaveLength(50)
+  })
+
+  it('does not resurrect a deleted note when the cache reloads it (#602)', () => {
+    const { notes, setNotes } = createNoteList()
+    const noteStore = useNoteStore()
+    setNotes([makeNote('1'), makeNote('2'), makeNote('3')])
+
+    noteStore.remove('2')
+
+    // Tab switch reloads the SQLite cache, which still contains the deleted note.
+    setNotes([makeNote('1'), makeNote('2'), makeNote('3')])
+
+    expect(notes.value.map((n) => n.id)).toEqual(['1', '3'])
   })
 
   it('passes trimmed notes to onNotesChanged callback', () => {

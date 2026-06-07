@@ -68,10 +68,12 @@ export async function purgeStaleCachedNotes(
       noteStore.update(id, fresh)
     }
 
-    // Purge notes that no longer exist on the server
+    // Purge notes that no longer exist on the server.
+    // verify-miss は heuristic（一時的 false-negative）なので tombstone しない。
+    // 生きたノートをセッション中ずっと永久非表示にしてしまう false-positive を避ける。
     for (const id of idsToVerify) {
       if (!verifiedIds.has(id)) {
-        noteStore.remove(id)
+        noteStore.remove(id, false)
         commands.apiDeleteCachedNote(id).catch(catchLog('delete-cached-note'))
       }
     }
