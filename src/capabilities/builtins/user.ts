@@ -3,6 +3,7 @@ import type { ApiAdapter } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { stripCredentials } from '@/composables/useAiSystemContext'
 import { useAccountsStore } from '@/stores/accounts'
+import { useMuteStore } from '@/stores/mutes'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /**
@@ -220,8 +221,12 @@ export const userMuteCapability: Command = {
   visible: false,
   execute: async (params) => {
     const userId = pickUserId(params, 'user.mute')
-    const api = await getApiAdapter(pickAccountId(params))
+    const rawAccountId = pickAccountId(params)
+    const api = await getApiAdapter(rawAccountId)
     await api.muteUser(userId)
+    // 過去ノートを即時非表示に（#574）。UserProfileContent と同じ楽観反映。
+    const accountId = rawAccountId ?? useAccountsStore().activeAccountId
+    if (accountId) useMuteStore().mute(accountId, userId)
     return { muted: true, userId }
   },
 }
@@ -243,8 +248,12 @@ export const userUnmuteCapability: Command = {
   visible: false,
   execute: async (params) => {
     const userId = pickUserId(params, 'user.unmute')
-    const api = await getApiAdapter(pickAccountId(params))
+    const rawAccountId = pickAccountId(params)
+    const api = await getApiAdapter(rawAccountId)
     await api.unmuteUser(userId)
+    // 隠れていた過去ノートを即時復活（#574）。
+    const accountId = rawAccountId ?? useAccountsStore().activeAccountId
+    if (accountId) useMuteStore().unmute(accountId, userId)
     return { unmuted: true, userId }
   },
 }
