@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NormalizedNote } from '@/adapters/types'
 import { NOTE_LIST_MAX, useNoteList } from '@/composables/useNoteList'
+import { useMuteStore } from '@/stores/mutes'
 import { useNoteStore } from '@/stores/notes'
 
 function makeNote(id: string, createdAt?: string): NormalizedNote {
@@ -91,6 +92,22 @@ describe('useNoteList', () => {
     setNotes([makeNote('1'), makeNote('2'), makeNote('3')])
 
     expect(notes.value.map((n) => n.id)).toEqual(['1', '3'])
+  })
+
+  it('reactively hides an already-displayed note when its author is muted (#574)', () => {
+    const { notes, setNotes } = createNoteList()
+    const muteStore = useMuteStore()
+    // makeNote authors every note as user 'u1' on account 'acc1'.
+    setNotes([makeNote('1'), makeNote('2'), makeNote('3')])
+    expect(notes.value).toHaveLength(3)
+
+    // Mute without reloading the list — the computed must re-evaluate.
+    muteStore.mute('acc1', 'u1')
+    expect(notes.value).toHaveLength(0)
+
+    // Unmute restores the notes reactively.
+    muteStore.unmute('acc1', 'u1')
+    expect(notes.value.map((n) => n.id)).toEqual(['1', '2', '3'])
   })
 
   it('passes trimmed notes to onNotesChanged callback', () => {

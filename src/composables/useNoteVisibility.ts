@@ -1,4 +1,5 @@
 import type { NormalizedNote } from '@/adapters/types'
+import { useMuteStore } from '@/stores/mutes'
 import { useNoteStore } from '@/stores/notes'
 
 /**
@@ -15,13 +16,23 @@ import { useNoteStore } from '@/stores/notes'
  */
 export function useNoteVisibility() {
   const noteStore = useNoteStore()
+  const muteStore = useMuteStore()
 
-  /** 表示から隠すべきノートか。現在の判定材料は削除 tombstone のみ（#602）。 */
+  /**
+   * 表示から隠すべきノートか。判定材料:
+   * - 削除 tombstone（#602, 非 reactive・再読込復活を抑止）
+   * - ミュート（#574, per-account reactive・投稿者/reply先/renote元のいずれか）
+   * ミュートは reactive なので、この述語を読む computed は解除で即復活する。
+   */
   function isHidden(note: NormalizedNote): boolean {
-    return noteStore.isDeleted(note.id)
-    // 将来の OR 合成点:
-    //   || muteStore.isMuted(note.user.id)        // #574
-    //   || archiveStore.isArchived(note.user.id)  // 魚拓
+    if (noteStore.isDeleted(note.id)) return true
+    const acc = note._accountId
+    return (
+      muteStore.isMuted(acc, note.user.id) ||
+      muteStore.isMuted(acc, note.reply?.user?.id) ||
+      muteStore.isMuted(acc, note.renote?.user?.id)
+    )
+    // 将来の OR 合成点: || archiveStore.isArchived(...)  // 魚拓
   }
 
   return { isHidden }

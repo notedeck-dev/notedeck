@@ -10,6 +10,7 @@ import {
 import { useRoute } from 'vue-router'
 import { useHeartbeatDaemon } from '@/composables/useHeartbeatDaemon'
 import { useKeyboard } from '@/composables/useKeyboard'
+import { useMuteSync } from '@/composables/useMuteSync'
 import { listenPipEvents } from '@/composables/usePipWindow'
 import { useTheme } from '@/composables/useTheme'
 import { useLogsStore } from '@/stores/logs'
@@ -169,6 +170,9 @@ onMounted(async () => {
 
   // Defer theme account fetching (network I/O) to after first paint
   useTheme()
+
+  // ミュート一覧を各アカウント分 hydrate（#574: 過去ノートを起動直後から非表示に）
+  useMuteSync()
 
   if (isTauri) {
     // Set up PiP event listener in main window
