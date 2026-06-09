@@ -16,6 +16,7 @@ import type {
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkEmoji from '@/components/common/MkEmoji.vue'
+import MkMfm from '@/components/common/MkMfm.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import type {
   NoteTreeHandlers,
@@ -56,7 +57,12 @@ const note = ref<NormalizedNote | null>(null)
 const ancestors = ref<NormalizedNote[]>([])
 const children = ref<NormalizedNote[]>([])
 const renotes = ref<NormalizedNote[]>([])
-const reactions = ref<NoteReaction[]>([])
+const reactionUsers = ref<NoteReaction[]>([])
+// 本家準拠: リアクション種別チップで絞り込んでユーザー一覧を表示する
+const reactionTab = ref<string | null>(null)
+const reactionTypes = computed(() =>
+  note.value ? Object.keys(note.value.reactions) : [],
+)
 const isLoading = ref(true)
 const error = ref<AppError | null>(null)
 const myUserId = ref<string | undefined>()
@@ -111,21 +117,6 @@ onMounted(async () => {
     return
   }
   myUserId.value = account.userId
-
-  // Logged-out / offline: show cached note in read-only mode
-  if (!account.hasToken) {
-    const cached = noteStore.get(props.noteId)
-    if (cached) {
-      note.value = cached
-    } else {
-      error.value = new AppError(
-        'NETWORK',
-        'オフラインのためノート詳細を表示できません',
-      )
-    }
-    isLoading.value = false
-    return
-  }
 
   // Show cached note immediately (skip skeleton) while fetching fresh data
   const cached = noteStore.get(props.noteId)
@@ -185,21 +176,31 @@ watch(activeTab, async (tab) => {
     if (tab === 'renotes') {
       renotes.value = await adapter.api.getNoteRenotes(props.noteId)
     } else if (tab === 'reactions') {
-      reactions.value = await adapter.api.getNoteReactions(
-        props.noteId,
-        undefined,
-        100,
-      )
+      reactionTab.value = reactionTypes.value[0] ?? null
     }
   } catch (e) {
     console.warn('[NoteDetail] failed to load tab:', tab, e)
   }
 })
 
-function getReactionUrl(reaction: NoteReaction): string | null {
+watch(reactionTab, async (type) => {
+  if (!type || !adapter) return
+  reactionUsers.value = []
+  try {
+    reactionUsers.value = await adapter.api.getNoteReactions(
+      props.noteId,
+      type,
+      100,
+    )
+  } catch (e) {
+    console.warn('[NoteDetail] failed to load reactions:', type, e)
+  }
+})
+
+function reactionTypeUrl(type: string): string | null {
   if (!note.value) return null
   return reactionUrlRaw(
-    reaction.type,
+    type,
     note.value.emojis,
     note.value.reactionEmojis,
     note.value._serverHost,
@@ -472,27 +473,36 @@ async function handlePosted(editedNoteId?: string) {
 
       <!-- Tab: Renotes -->
       <div v-if="activeTab === 'renotes'">
-        <div v-if="renotes.length > 0" :class="$style.renoteUsers">
-          <button
-            v-for="rn in renotes"
-            :key="rn.id"
-            class="_button"
-            :class="$style.renoteUserItem"
-            @click="navToUser(accountId, rn.user.id)"
-          >
-            <MkAvatar
-              :avatar-url="rn.user.avatarUrl"
-              :decorations="rn.user.avatarDecorations"
-              :size="36"
-              :is-cat="rn.user.isCat"
-            />
-            <span :class="$style.renoteUserName">
-              {{ rn.user.name || rn.user.username }}
-            </span>
-            <span :class="$style.renoteUserHandle">
-              @{{ rn.user.username }}
-            </span>
-          </button>
+        <div v-if="renotes.length > 0" :class="$style.tabPane">
+          <div :class="$style.userCards">
+            <button
+              v-for="rn in renotes"
+              :key="rn.id"
+              class="_button"
+              :class="$style.userCard"
+              @click="navToUser(accountId, rn.user.id)"
+            >
+              <MkAvatar
+                :avatar-url="rn.user.avatarUrl"
+                :decorations="rn.user.avatarDecorations"
+                :size="34"
+                :is-cat="rn.user.isCat"
+              />
+              <div :class="$style.userCardBody">
+                <span :class="$style.userCardName">
+                  <MkMfm
+                    v-if="rn.user.name"
+                    :text="rn.user.name"
+                    :emojis="rn.user.emojis"
+                    :server-host="rn._serverHost"
+                    plain
+                  />
+                  <template v-else>{{ rn.user.username }}</template>
+                </span>
+                <span :class="$style.userCardAcct">@{{ rn.user.username }}<template v-if="rn.user.host">@{{ rn.user.host }}</template></span>
+              </div>
+            </button>
+          </div>
         </div>
         <div v-else :class="$style.stateMessage">
           リノートはありません
@@ -501,40 +511,54 @@ async function handlePosted(editedNoteId?: string) {
 
       <!-- Tab: Reactions -->
       <div v-if="activeTab === 'reactions'">
-        <div v-if="reactions.length > 0" :class="$style.reactionUsers">
-          <div
-            v-for="r in reactions"
-            :key="r.id"
-            :class="$style.reactionUserItem"
-          >
+        <div v-if="reactionTypes.length > 0" :class="$style.tabPane">
+          <div :class="$style.reactionChips">
             <button
+              v-for="rt in reactionTypes"
+              :key="rt"
               class="_button"
-              :class="$style.reactionUserLeft"
+              :class="[$style.reactionChip, { [$style.reactionChipActive]: reactionTab === rt }]"
+              @click="reactionTab = rt"
+            >
+              <img
+                v-if="reactionTypeUrl(rt)"
+                :src="proxyUrl(reactionTypeUrl(rt)!)"
+                :alt="rt"
+                :class="$style.reactionChipEmoji"
+                decoding="async"
+              />
+              <MkEmoji v-else :emoji="rt" :class="$style.reactionChipEmoji" />
+              <span :class="$style.reactionChipCount">{{ note.reactions[rt] }}</span>
+            </button>
+          </div>
+          <div v-if="reactionUsers.length > 0" :class="$style.userCards">
+            <button
+              v-for="r in reactionUsers"
+              :key="r.id"
+              class="_button"
+              :class="$style.userCard"
               @click="navToUser(accountId, r.user.id)"
             >
               <MkAvatar
                 :avatar-url="r.user.avatarUrl"
                 :decorations="r.user.avatarDecorations"
-                :size="36"
+                :size="34"
                 :is-cat="r.user.isCat"
               />
-              <span :class="$style.reactionUserName">
-                {{ r.user.name || r.user.username }}
-              </span>
-              <span :class="$style.reactionUserHandle">
-                @{{ r.user.username }}
-              </span>
+              <div :class="$style.userCardBody">
+                <span :class="$style.userCardName">
+                  <MkMfm
+                    v-if="r.user.name"
+                    :text="r.user.name"
+                    :emojis="r.user.emojis"
+                    :server-host="note._serverHost"
+                    plain
+                  />
+                  <template v-else>{{ r.user.username }}</template>
+                </span>
+                <span :class="$style.userCardAcct">@{{ r.user.username }}<template v-if="r.user.host">@{{ r.user.host }}</template></span>
+              </div>
             </button>
-            <span :class="$style.reactionType">
-              <img
-                v-if="getReactionUrl(r)"
-                :src="proxyUrl(getReactionUrl(r)!)"
-                :alt="r.type"
-                :class="$style.reactionEmojiImg"
-                decoding="async"
-              />
-              <MkEmoji v-else :emoji="r.type" :class="$style.reactionEmoji" />
-            </span>
           </div>
         </div>
         <div v-else :class="$style.stateMessage">
@@ -625,16 +649,27 @@ async function handlePosted(editedNoteId?: string) {
   }
 }
 
-.renoteUsers {
-  display: flex;
-  flex-direction: column;
+.tabPane {
+  padding: 16px;
 }
 
-.renoteUserItem {
+/* 本家 MkNoteDetailed の renotes/reactions グリッド準拠 */
+.userCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 12px;
+}
+
+/* 本家 MkUserCardMini 準拠。_button 併用のため self-chain で
+   特異度を (0,2,0) に上げる (WebView2 の _button 衝突対策)。 */
+.userCard.userCard {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 24px;
+  gap: 12px;
+  padding: 16px;
+  text-align: left;
+  background: var(--nd-panel);
+  border-radius: 8px;
   transition: background var(--nd-duration-base);
 
   &:hover {
@@ -642,74 +677,57 @@ async function handlePosted(editedNoteId?: string) {
   }
 }
 
-.renoteUserName {
-  font-weight: bold;
-  font-size: 0.9em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.renoteUserHandle {
-  font-size: 0.8em;
-  opacity: 0.6;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.reactionUsers {
-  display: flex;
-  flex-direction: column;
-}
-
-.reactionUserItem {
-  display: flex;
-  align-items: center;
-  padding: 10px 24px;
-  gap: 10px;
-}
-
-.reactionUserLeft {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.userCardBody {
   flex: 1;
   min-width: 0;
-  transition: opacity var(--nd-duration-base);
+  font-size: 0.9em;
+}
 
-  &:hover {
-    opacity: 0.7;
+.userCardName {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userCardAcct {
+  display: block;
+  font-size: 0.85em;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reactionChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.reactionChip.reactionChip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: solid 1px var(--nd-divider);
+  border-radius: 6px;
+
+  &.reactionChipActive {
+    border-color: var(--nd-accent);
   }
 }
 
-.reactionUserName {
-  font-weight: bold;
-  font-size: 0.9em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.reactionChipEmoji {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 }
 
-.reactionUserHandle {
+.reactionChipCount {
   font-size: 0.8em;
-  opacity: 0.6;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.reactionType {
-  flex-shrink: 0;
-}
-
-.reactionEmojiImg {
-  height: 1.5em;
-  width: auto;
-}
-
-.reactionEmoji {
-  font-size: 1.5em;
+  opacity: 0.7;
 }
 
 .stateMessage {
@@ -730,11 +748,6 @@ async function handlePosted(editedNoteId?: string) {
 .mobile {
   .detailTabItem {
     min-height: 44px;
-  }
-
-  .renoteUserItem,
-  .reactionUserItem {
-    padding: 10px 16px;
   }
 }
 
