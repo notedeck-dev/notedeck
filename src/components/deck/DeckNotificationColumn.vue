@@ -311,10 +311,23 @@ function onFilterChange(value: string) {
   activeFilter.value = value as NotifFilterKey
 }
 
-// ミュートした notifier / 削除ノートの通知を表示時に隠す（#606、本家整合）
-const { isNotificationHidden } = useNoteVisibility()
+// ミュートした notifier / 削除ノートの通知を表示時に隠す（#606）。
+// grouped 通知はミュート済みリアクター/リノーターを除外し、全員ミュートなら
+// 通知ごと隠す（#575）。一部のみなら当該ユーザーを除いて表示する。
+const { isNotificationHidden, visibleReactions, visibleGroupedUsers } =
+  useNoteVisibility()
 const visibleNotifications = computed(() =>
-  notifications.value.filter((n) => !isNotificationHidden(n)),
+  notifications.value
+    .filter((n) => !isNotificationHidden(n))
+    .map((n) => {
+      if (n.type === 'reaction:grouped' && n.reactions) {
+        return { ...n, reactions: visibleReactions(n) }
+      }
+      if (n.type === 'renote:grouped' && n.users) {
+        return { ...n, users: visibleGroupedUsers(n) }
+      }
+      return n
+    }),
 )
 
 const filteredNotifications = computed(() => {

@@ -1,4 +1,9 @@
-import type { NormalizedNote, NormalizedNotification } from '@/adapters/types'
+import type {
+  NormalizedNote,
+  NormalizedNotification,
+  NormalizedUser,
+  ReactionInfo,
+} from '@/adapters/types'
 import { useMuteStore } from '@/stores/mutes'
 import { useNoteStore } from '@/stores/notes'
 
@@ -35,20 +40,48 @@ export function useNoteVisibility() {
     // 将来の OR 合成点: || archiveStore.isArchived(...)  // 魚拓
   }
 
+  /** grouped reaction 通知から、ミュート済みリアクターを除いた一覧（#575） */
+  function visibleReactions(notif: NormalizedNotification): ReactionInfo[] {
+    if (!notif.reactions) return []
+    return notif.reactions.filter(
+      (r) => !muteStore.isMuted(notif._accountId, r.user.id),
+    )
+  }
+
+  /** grouped renote 通知から、ミュート済みリノーターを除いた一覧（#575） */
+  function visibleGroupedUsers(
+    notif: NormalizedNotification,
+  ): NormalizedUser[] {
+    if (!notif.users) return []
+    return notif.users.filter((u) => !muteStore.isMuted(notif._accountId, u.id))
+  }
+
   /**
-   * 表示から隠すべき通知か（#606）。本家の read-time フィルタ
-   * （notifierId ベースの NotificationEntityService#filterValidNotifier）と
-   * 同じ挙動: ミュートした notifier の通知を丸ごと隠す。
+   * 表示から隠すべき通知か（#606 / #575）。
    * - notifier（reaction/follow/mention 等の発生元ユーザー）がミュート済み
+   *   = 本家 read-time フィルタ（NotificationEntityService#filterValidNotifier）相当
    * - 関連ノートが削除 / ミュート投稿者（isHidden 経由）
-   * grouped 通知は単一 notifier を持たず、本家も reactors をフィルタしない
-   * （#575 の保留事項）ため対象外。
+   * - grouped 通知でリアクター/リノーターが全員ミュート済み（#575）。
+   *   本家は grouped reactors を貫通させる（漏れ）が、NoteDeck は「存在ごと
+   *   隠す」ため独自に除外する。一部のみミュートなら通知は残し、表示側で
+   *   visibleReactions / visibleGroupedUsers により当該ユーザーを除外する。
    */
   function isNotificationHidden(notif: NormalizedNotification): boolean {
     if (muteStore.isMuted(notif._accountId, notif.user?.id)) return true
     if (notif.note && isHidden(notif.note)) return true
+    if (notif.type === 'reaction:grouped' && notif.reactions?.length) {
+      return visibleReactions(notif).length === 0
+    }
+    if (notif.type === 'renote:grouped' && notif.users?.length) {
+      return visibleGroupedUsers(notif).length === 0
+    }
     return false
   }
 
-  return { isHidden, isNotificationHidden }
+  return {
+    isHidden,
+    isNotificationHidden,
+    visibleReactions,
+    visibleGroupedUsers,
+  }
 }

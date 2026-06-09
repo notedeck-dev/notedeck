@@ -92,6 +92,10 @@ describe('useNoteVisibility', () => {
   })
 })
 
+function makeUser(id: string) {
+  return { id, username: 'user', host: null, avatarUrl: null }
+}
+
 function makeNotif(
   type: string,
   extra: Partial<NormalizedNotification> = {},
@@ -152,24 +156,48 @@ describe('useNoteVisibility.isNotificationHidden (#606)', () => {
     expect(isNotificationHidden(notif)).toBe(true)
   })
 
-  it('does not filter grouped reactions (本家 parity)', () => {
+  it('hides a grouped reaction when all reactors are muted (#575)', () => {
     const muteStore = useMuteStore()
     const { isNotificationHidden } = useNoteVisibility()
     const notif = makeNotif('reaction:grouped', {
       reactions: [
-        {
-          user: {
-            id: 'muted-user',
-            username: 'u',
-            host: null,
-            avatarUrl: null,
-          },
-          reaction: '👍',
-        },
+        { user: makeUser('muted-user'), reaction: '👍' },
+        { user: makeUser('muted-user'), reaction: '🎉' },
+      ],
+    })
+    expect(isNotificationHidden(notif)).toBe(false)
+
+    muteStore.mute('acc1', 'muted-user')
+    expect(isNotificationHidden(notif)).toBe(true)
+  })
+
+  it('keeps a grouped reaction with a non-muted reactor, filtering the muted one (#575)', () => {
+    const muteStore = useMuteStore()
+    const { isNotificationHidden, visibleReactions } = useNoteVisibility()
+    const notif = makeNotif('reaction:grouped', {
+      reactions: [
+        { user: makeUser('muted-user'), reaction: '👍' },
+        { user: makeUser('other-user'), reaction: '🎉' },
       ],
     })
     muteStore.mute('acc1', 'muted-user')
-    // grouped 通知は単一 notifier を持たず、本家も reactors をフィルタしないため残す
     expect(isNotificationHidden(notif)).toBe(false)
+    const visible = visibleReactions(notif)
+    expect(visible).toHaveLength(1)
+    expect(visible[0].user.id).toBe('other-user')
+  })
+
+  it('hides a grouped renote when all renoters are muted (#575)', () => {
+    const muteStore = useMuteStore()
+    const { isNotificationHidden, visibleGroupedUsers } = useNoteVisibility()
+    const notif = makeNotif('renote:grouped', {
+      users: [makeUser('muted-user'), makeUser('other-user')],
+    })
+    muteStore.mute('acc1', 'muted-user')
+    expect(isNotificationHidden(notif)).toBe(false)
+    expect(visibleGroupedUsers(notif)).toHaveLength(1)
+
+    muteStore.mute('acc1', 'other-user')
+    expect(isNotificationHidden(notif)).toBe(true)
   })
 })
