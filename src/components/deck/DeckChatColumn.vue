@@ -29,6 +29,7 @@ import {
   type PrefetchTarget,
   useChatThreadPrefetch,
 } from '@/composables/useChatThreadPrefetch'
+import { useChatVisibility } from '@/composables/useChatVisibility'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
@@ -132,6 +133,9 @@ function handleActionError(e: unknown) {
 
 const chatSound = useNoteSound(() => account.value?.host, 'syuilo/waon')
 
+// ミュートユーザーのチャットを「存在ごと」隠す（#575、本家にない独自仕様）
+const { isPartnerMuted, isMessageHidden } = useChatVisibility()
+
 const viewMode = ref<'history' | 'conversation'>('history')
 // B-5: messages は chatMessageStore からの ID 参照のみで管理する。
 // `messageIds` の真値を持ち、`messages` は store から resolve した derived。
@@ -189,7 +193,11 @@ function matchesSearch(name: string, preview: string | null | undefined) {
 }
 
 const filteredHistoryEntries = computed<HistoryEntry[]>(() =>
-  historyEntries.value.filter((e) => matchesSearch(e.name, e.message.text)),
+  historyEntries.value.filter(
+    (e) =>
+      !(!e.isRoom && isPartnerMuted(e.accountId, e.otherId)) &&
+      matchesSearch(e.name, e.message.text),
+  ),
 )
 
 // 会話 view 内検索 (#483 v1)。トグル式で、有効時は messages を本文 + 送信者名で
@@ -214,9 +222,12 @@ function closeConvSearch() {
 }
 
 const filteredMessages = computed(() => {
+  // ミュート送信者の発言は常に隠す（room 内個別発言にも適用）。検索の前段。
+  const acc = activeAccountId.value
+  const visible = messages.value.filter((m) => !isMessageHidden(acc, m))
   const q = convSearchQuery.value.trim().toLowerCase()
-  if (!q) return messages.value
-  return messages.value.filter((m) => {
+  if (!q) return visible
+  return visible.filter((m) => {
     if (m.text?.toLowerCase().includes(q)) return true
     const u = m.fromUser
     if (u?.name?.toLowerCase().includes(q)) return true
@@ -604,6 +615,7 @@ interface PerAccountHistoryEntry {
   emojis?: Record<string, string>
   avatarUrl?: string
   avatarDecorations?: AvatarDecoration[]
+  otherId?: string
 }
 
 /**
@@ -654,6 +666,7 @@ const perAccountHistoryEntries = computed<PerAccountHistoryEntry[]>(() => {
         emojis: other?.emojis ?? undefined,
         avatarUrl: other?.avatarUrl ?? undefined,
         avatarDecorations: other?.avatarDecorations,
+        otherId,
       })
     }
   }
@@ -662,8 +675,10 @@ const perAccountHistoryEntries = computed<PerAccountHistoryEntry[]>(() => {
 })
 
 const filteredPerAccountEntries = computed<PerAccountHistoryEntry[]>(() =>
-  perAccountHistoryEntries.value.filter((e) =>
-    matchesSearch(e.name, e.message.text),
+  perAccountHistoryEntries.value.filter(
+    (e) =>
+      !(!e.isRoom && isPartnerMuted(props.column.accountId, e.otherId)) &&
+      matchesSearch(e.name, e.message.text),
   ),
 )
 
@@ -839,6 +854,8 @@ async function openConversation(
 
 function onNewMessage(msg: ChatMessage) {
   if (messageIds.value.includes(msg.id)) return
+  // ミュート送信者の着信は存在ごと無視（append もサウンドもしない）
+  if (isMessageHidden(activeAccountId.value, msg)) return
   appendMessage(msg)
   if (!props.column.soundMuted) chatSound.play()
   // 検索中は表示位置を維持する (新着で自動スクロールするとヒット箇所を見失うため)。
