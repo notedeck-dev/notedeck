@@ -646,8 +646,10 @@ export interface ApiAdapter {
   unmuteUser(userId: string): Promise<void>
   /** 自分がミュート中のユーザー ID 一覧（#574: 起動時の mute store hydrate 用）。 */
   getMutedUsers(): Promise<string[]>
-  /** 自分の mutedWords / hardMutedWords（#610: 起動時の word mute store hydrate 用、read のみ）。 */
+  /** 自分の mutedWords / hardMutedWords / mutedInstances（#610/#613: 起動時 hydrate 用、read のみ）。 */
   getMutedWords(): Promise<MutedWordsResult>
+  /** 自分が renote mute 中のユーザー ID 一覧（#614: 起動時の renote mute store hydrate 用）。 */
+  getRenoteMutedUsers(): Promise<string[]>
   renoteMuteUser(userId: string): Promise<void>
   unrenoteMuteUser(userId: string): Promise<void>
   blockUser(userId: string): Promise<void>

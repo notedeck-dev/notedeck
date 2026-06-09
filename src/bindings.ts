@@ -708,11 +708,23 @@ async apiGetMutedUsers(accountId: string) : Promise<Result<string[], { code: str
 }
 },
 /**
- * 自分の mutedWords / hardMutedWords を取得する（#610: 起動時の word mute store hydrate、read のみ）。
+ * 自分の mutedWords / hardMutedWords / mutedInstances を取得する
+ * （#610/#613: 起動時の word/instance mute store hydrate、read のみ）。
  */
 async apiGetMutedWords(accountId: string) : Promise<Result<MutedWordsResult, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_muted_words", { accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 自分が renote mute 中のユーザー ID 一覧を取得する（#614: 起動時の renote mute store hydrate）。
+ */
+async apiGetRenoteMutedUsers(accountId: string) : Promise<Result<string[], { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_get_renote_muted_users", { accountId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2436,7 +2448,11 @@ export type MutedWord = string[] | string
  * `i`(meDetailed) から取得する word mute 設定（read のみ、#610）。
  * soft = `mutedWords`（隠して展開可）、hard = `hardMutedWords`（完全非表示）。
  */
-export type MutedWordsResult = { mutedWords: MutedWord[]; hardMutedWords: MutedWord[] }
+export type MutedWordsResult = { mutedWords: MutedWord[]; hardMutedWords: MutedWord[]; 
+/**
+ * インスタンスミュート（#613）。ミュート対象ホスト名の配列。同じ `i` から取得。
+ */
+mutedInstances: string[] }
 export type NormalizedDriveFile = { id: string; name: string; type: string; url: string; thumbnailUrl: string | null; size?: number; isSensitive?: boolean }
 export type NormalizedNote = { id: string; _accountId: string; _serverHost: string; createdAt: string; text: string | null; cw: string | null; user: NormalizedUser; visibility: string; emojis?: Partial<{ [key in string]: string }>; reactionEmojis?: Partial<{ [key in string]: string }>; reactions?: Partial<{ [key in string]: number }>; myReaction: string | null; renoteCount: number; repliesCount: number; files?: NormalizedDriveFile[]; poll?: NormalizedPoll | null; replyId?: string | null; renoteId?: string | null; channelId?: string | null; channel?: Channel | null; reactionAcceptance?: string | null; uri?: string | null; url?: string | null; updatedAt?: string | null; localOnly?: boolean; visibleUserIds?: string[]; isFavorited?: boolean; 
 /**

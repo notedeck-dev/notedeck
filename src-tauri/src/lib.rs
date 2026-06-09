@@ -544,6 +544,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::api_unrenote_mute_user,
             commands::api_get_muted_users,
             commands::api_get_muted_words,
+            commands::api_get_renote_muted_users,
             commands::api_block_user,
             commands::api_unblock_user,
             commands::api_report_user,

@@ -12,6 +12,7 @@ import { useHeartbeatDaemon } from '@/composables/useHeartbeatDaemon'
 import { useKeyboard } from '@/composables/useKeyboard'
 import { useMuteSync } from '@/composables/useMuteSync'
 import { listenPipEvents } from '@/composables/usePipWindow'
+import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
 import { useTheme } from '@/composables/useTheme'
 import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { useLogsStore } from '@/stores/logs'
@@ -174,8 +175,10 @@ onMounted(async () => {
 
   // ミュート一覧を各アカウント分 hydrate（#574: 過去ノートを起動直後から非表示に）
   useMuteSync()
-  // ワードミュート（mutedWords / hardMutedWords）を各アカウント分 hydrate（#610）
+  // ワードミュート（mutedWords / hardMutedWords）+ インスタンスミュート（#610/#613）
   useWordMuteSync()
+  // リノートミュート一覧を各アカウント分 hydrate（#614）
+  useRenoteMuteSync()
 
   if (isTauri) {
     // Set up PiP event listener in main window

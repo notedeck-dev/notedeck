@@ -4,6 +4,7 @@ import type { Command } from '@/commands/registry'
 import { stripCredentials } from '@/composables/useAiSystemContext'
 import { useAccountsStore } from '@/stores/accounts'
 import { useMuteStore } from '@/stores/mutes'
+import { useRenoteMuteStore } from '@/stores/renoteMutes'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /**
@@ -277,8 +278,12 @@ export const userRenoteMuteCapability: Command = {
   visible: false,
   execute: async (params) => {
     const userId = pickUserId(params, 'user.renoteMute')
-    const api = await getApiAdapter(pickAccountId(params))
+    const rawAccountId = pickAccountId(params)
+    const api = await getApiAdapter(rawAccountId)
     await api.renoteMuteUser(userId)
+    // 並んでいるリノートを即時非表示（#614）。
+    const accountId = rawAccountId ?? useAccountsStore().activeAccountId
+    if (accountId) useRenoteMuteStore().mute(accountId, userId)
     return { renoteMuted: true, userId }
   },
 }
@@ -300,8 +305,12 @@ export const userUnrenoteMuteCapability: Command = {
   visible: false,
   execute: async (params) => {
     const userId = pickUserId(params, 'user.unrenoteMute')
-    const api = await getApiAdapter(pickAccountId(params))
+    const rawAccountId = pickAccountId(params)
+    const api = await getApiAdapter(rawAccountId)
     await api.unrenoteMuteUser(userId)
+    // 隠れていたリノートを即時復活（#614）。
+    const accountId = rawAccountId ?? useAccountsStore().activeAccountId
+    if (accountId) useRenoteMuteStore().unmute(accountId, userId)
     return { renoteUnmuted: true, userId }
   },
 }

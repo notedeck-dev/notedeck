@@ -2,8 +2,10 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { NormalizedNote, NormalizedNotification } from '@/adapters/types'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
+import { useInstanceMuteStore } from '@/stores/instanceMutes'
 import { useMuteStore } from '@/stores/mutes'
 import { useNoteStore } from '@/stores/notes'
+import { useRenoteMuteStore } from '@/stores/renoteMutes'
 import { useWordMuteStore } from '@/stores/wordMutes'
 
 function makeNote(
@@ -249,6 +251,89 @@ describe('useNoteVisibility word mute (#610)', () => {
       renote: makeNote('0', 'other', { text: 'banned word inside' }),
     })
     wordMuteStore.setWords('acc1', [], [['banned']])
+    expect(isHidden(note)).toBe(true)
+  })
+})
+
+describe('useNoteVisibility renote mute (#614)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('hides a pure renote from a renote-muted user, restores on unmute', () => {
+    const renoteMuteStore = useRenoteMuteStore()
+    const { isHidden } = useNoteVisibility()
+    const renote = makeNote('1', 'renoter', {
+      text: null,
+      renote: makeNote('0', 'orig'),
+    })
+    expect(isHidden(renote)).toBe(false)
+
+    renoteMuteStore.mute('acc1', 'renoter')
+    expect(isHidden(renote)).toBe(true)
+
+    renoteMuteStore.unmute('acc1', 'renoter')
+    expect(isHidden(renote)).toBe(false)
+  })
+
+  it('does not hide a quote (text present) from a renote-muted user', () => {
+    const renoteMuteStore = useRenoteMuteStore()
+    const { isHidden } = useNoteVisibility()
+    const quote = makeNote('1', 'renoter', {
+      text: 'my comment',
+      renote: makeNote('0', 'orig'),
+    })
+    renoteMuteStore.mute('acc1', 'renoter')
+    expect(isHidden(quote)).toBe(false)
+  })
+
+  it('does not hide a normal note from a renote-muted user', () => {
+    const renoteMuteStore = useRenoteMuteStore()
+    const { isHidden } = useNoteVisibility()
+    const note = makeNote('1', 'renoter', { text: 'just posting' })
+    renoteMuteStore.mute('acc1', 'renoter')
+    expect(isHidden(note)).toBe(false)
+  })
+})
+
+describe('useNoteVisibility instance mute (#613)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  function noteFromHost(id: string, host: string | null): NormalizedNote {
+    return makeNote(id, 'u1', {
+      user: { id: 'u1', username: 'u', host, avatarUrl: null },
+    })
+  }
+
+  it('hides a note from a muted instance, restores on unmute', () => {
+    const instanceMuteStore = useInstanceMuteStore()
+    const { isHidden } = useNoteVisibility()
+    const note = noteFromHost('1', 'bad.example')
+    expect(isHidden(note)).toBe(false)
+
+    instanceMuteStore.setMuted('acc1', ['bad.example'])
+    expect(isHidden(note)).toBe(true)
+
+    instanceMuteStore.setMuted('acc1', [])
+    expect(isHidden(note)).toBe(false)
+  })
+
+  it('does not hide local (host=null) notes', () => {
+    const instanceMuteStore = useInstanceMuteStore()
+    const { isHidden } = useNoteVisibility()
+    instanceMuteStore.setMuted('acc1', ['bad.example'])
+    expect(isHidden(noteFromHost('1', null))).toBe(false)
+  })
+
+  it('hides when the renote target is from a muted instance', () => {
+    const instanceMuteStore = useInstanceMuteStore()
+    const { isHidden } = useNoteVisibility()
+    const note = makeNote('1', 'local', {
+      renote: noteFromHost('0', 'bad.example'),
+    })
+    instanceMuteStore.setMuted('acc1', ['bad.example'])
     expect(isHidden(note)).toBe(true)
   })
 })

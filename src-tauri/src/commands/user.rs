@@ -368,7 +368,8 @@ pub async fn api_get_muted_users(
     client.muted_user_ids(&host, &token).await
 }
 
-/// 自分の mutedWords / hardMutedWords を取得する（#610: 起動時の word mute store hydrate、read のみ）。
+/// 自分の mutedWords / hardMutedWords / mutedInstances を取得する
+/// （#610/#613: 起動時の word/instance mute store hydrate、read のみ）。
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_muted_words(
@@ -378,6 +379,18 @@ pub async fn api_get_muted_words(
     let (db, client) = app_state.ready().await;
     let (host, token) = get_credentials(&db, &account_id)?;
     client.muted_words(&host, &token).await
+}
+
+/// 自分が renote mute 中のユーザー ID 一覧を取得する（#614: 起動時の renote mute store hydrate）。
+#[tauri::command]
+#[specta::specta]
+pub async fn api_get_renote_muted_users(
+    app_state: State<'_, AppState>,
+    account_id: String,
+) -> Result<Vec<String>> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    client.renote_muted_user_ids(&host, &token).await
 }
 
 #[tauri::command]

@@ -5,8 +5,10 @@ import type {
   ReactionInfo,
 } from '@/adapters/types'
 import { useAccountsStore } from '@/stores/accounts'
+import { useInstanceMuteStore } from '@/stores/instanceMutes'
 import { useMuteStore } from '@/stores/mutes'
 import { useNoteStore } from '@/stores/notes'
+import { useRenoteMuteStore } from '@/stores/renoteMutes'
 import { useWordMuteStore } from '@/stores/wordMutes'
 
 /**
@@ -25,6 +27,8 @@ export function useNoteVisibility() {
   const noteStore = useNoteStore()
   const muteStore = useMuteStore()
   const wordMuteStore = useWordMuteStore()
+  const renoteMuteStore = useRenoteMuteStore()
+  const instanceMuteStore = useInstanceMuteStore()
   const accountsStore = useAccountsStore()
 
   /** ワードミュートのマッチ対象テキスト（本家準拠で cw + text）。 */
@@ -52,9 +56,33 @@ export function useNoteVisibility() {
       muteStore.isMuted(acc, note.user.id) ||
       muteStore.isMuted(acc, note.reply?.user?.id) ||
       muteStore.isMuted(acc, note.renote?.user?.id) ||
-      isHardWordMuted(note)
+      isHardWordMuted(note) ||
+      isRenoteMuted(note) ||
+      isInstanceMuted(note)
     )
     // 将来の OR 合成点: || archiveStore.isArchived(...)  // 魚拓
+  }
+
+  /**
+   * リノートミュート（#614）。純粋リノート（`renote && text===null`）の
+   * リノート主（note.user）が renote mute 対象なら隠す。引用（text あり）は対象外。
+   */
+  function isRenoteMuted(note: NormalizedNote): boolean {
+    if (note.renote == null || note.text != null) return false
+    return renoteMuteStore.isMuted(note._accountId, note.user.id)
+  }
+
+  /**
+   * インスタンスミュート（#613）。本家準拠で note / reply先 / renote元 の
+   * 投稿者 host のいずれかが mutedInstances に含まれれば隠す。
+   */
+  function isInstanceMuted(note: NormalizedNote): boolean {
+    const acc = note._accountId
+    return (
+      instanceMuteStore.isMuted(acc, note.user.host) ||
+      instanceMuteStore.isMuted(acc, note.reply?.user?.host) ||
+      instanceMuteStore.isMuted(acc, note.renote?.user?.host)
+    )
   }
 
   /**
