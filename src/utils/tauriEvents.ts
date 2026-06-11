@@ -63,7 +63,6 @@ export interface TauriEventPayloads {
   'deck:drag-end': { columnId: string; sourceWindowId: string }
   'deck:profile-updated': { profileId: string }
   'deck:profiles-changed': undefined
-  'pip:open-note': { accountId: string; noteId: string }
   'pip:return-to-deck': Omit<DeckColumn, 'id'>
 }
 

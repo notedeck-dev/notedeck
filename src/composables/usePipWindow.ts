@@ -132,17 +132,9 @@ export function isPipOpen(): boolean {
  * Returns cleanup function.
  */
 export async function listenPipEvents(handlers: {
-  onOpenNote?: (accountId: string, noteId: string) => void
   onReturnToDeck?: (columnConfig: Omit<DeckColumn, 'id'>) => void
 }): Promise<() => void> {
-  const unlistenNote = await listenTauri('pip:open-note', (payload) => {
-    handlers.onOpenNote?.(payload.accountId, payload.noteId)
-  })
-  const unlistenReturn = await listenTauri('pip:return-to-deck', (payload) => {
+  return await listenTauri('pip:return-to-deck', (payload) => {
     handlers.onReturnToDeck?.(payload)
   })
-  return () => {
-    unlistenNote()
-    unlistenReturn()
-  }
 }

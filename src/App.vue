@@ -17,7 +17,6 @@ import { useTheme } from '@/composables/useTheme'
 import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { useLogsStore } from '@/stores/logs'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
-import { useWindowsStore } from '@/stores/windows'
 import {
   getStorageString,
   removeStorage,
@@ -183,15 +182,9 @@ onMounted(async () => {
   if (isTauri) {
     // Set up PiP event listener in main window
     if (!isPipWindow.value) {
-      const windowsStore = useWindowsStore()
       const { useDeckStore } = await import('@/stores/deck')
       const deckStore = useDeckStore()
       cleanupPipListener = await listenPipEvents({
-        onOpenNote: async (accountId, noteId) => {
-          windowsStore.open('note-detail', { accountId, noteId })
-          const { getCurrentWindow } = await import('@tauri-apps/api/window')
-          await getCurrentWindow().setFocus()
-        },
         onReturnToDeck: async (columnConfig) => {
           deckStore.addColumn(columnConfig)
           const { getCurrentWindow } = await import('@tauri-apps/api/window')
