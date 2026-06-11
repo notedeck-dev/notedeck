@@ -408,6 +408,39 @@ export const useDeckStore = defineStore('deck', () => {
     }
   }
 
+  /** ハッシュタグクリック等から検索カラムをクエリ付きで開く。 */
+  function openSearchWith(query: string) {
+    const existing = columns.value.find((c) => c.sidebar)
+    if (existing && existing.type === 'search') {
+      // 既に開いている → query を差し替え (DeckSearchColumn 側の watch が再検索する)
+      updateColumn(existing.id, { query })
+      activeColumnId.value = null
+      nextTick(() => {
+        activeColumnId.value = existing.id
+      })
+    } else if (existing) {
+      updateColumn(existing.id, {
+        type: 'search',
+        accountId: null,
+        name: null,
+        query,
+      })
+      activeColumnId.value = null
+      nextTick(() => {
+        activeColumnId.value = existing.id
+      })
+    } else {
+      addColumnAt(0, {
+        type: 'search',
+        name: null,
+        width: 360,
+        accountId: null,
+        sidebar: true,
+        query,
+      })
+    }
+  }
+
   /** sidebar チャットカラムが会話ターゲットを取り出して消費する。 */
   function consumePendingChatTarget(): ChatConversationTarget | null {
     const t = pendingChatTarget.value
@@ -774,6 +807,7 @@ export const useDeckStore = defineStore('deck', () => {
     toggleSidebarColumn,
     pendingChatTarget,
     openChatWith,
+    openSearchWith,
     consumePendingChatTarget,
     updateColumn,
     swapColumns,

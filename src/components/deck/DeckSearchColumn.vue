@@ -286,6 +286,16 @@ watch(searchQuery, (val) => {
   debounceTimer = setTimeout(() => searchLocal(q), 200)
 })
 
+// ハッシュタグクリック等で外部から query が差し替えられたとき (deck.openSearchWith)
+watch(
+  () => props.column.query,
+  (q) => {
+    if (!q || q === searchQuery.value) return
+    searchQuery.value = q
+    performSearch()
+  },
+)
+
 // Re-search when date filters or sort order change (debounced)
 let filterTimer: ReturnType<typeof setTimeout> | null = null
 watch([sinceDate, untilDate, ascending], () => {

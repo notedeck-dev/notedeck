@@ -81,6 +81,14 @@ export function useNavigation() {
     toggleOrOpenColumn('search')
   }
 
+  /** ハッシュタグクリックから検索カラムを `#tag` クエリ付きで開く。 */
+  function navigateToHashtag(tag: string) {
+    if (!isDeckActive()) {
+      router.push('/deck')
+    }
+    deckStore.openSearchWith(`#${tag}`)
+  }
+
   function navigateToNotifications() {
     toggleOrOpenColumn('notifications')
   }
@@ -99,6 +107,7 @@ export function useNavigation() {
     navigateToChannel,
     navigateToLogin,
     navigateToSearch,
+    navigateToHashtag,
     navigateToNotifications,
     navigateToAi,
     navigateToChat,
