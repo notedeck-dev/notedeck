@@ -14,13 +14,13 @@
 import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
-import { PERSIST_DEBOUNCE_MS } from '@/constants/persist'
 import {
   CURRENT_SCHEMA_VERSION,
   DEFAULT_SETTINGS,
   type NotedeckSettings,
   parseSettings,
 } from '@/settings/schema'
+import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri } from '@/utils/settingsFs'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -51,8 +51,6 @@ export const useSettingsStore = defineStore('settings', () => {
 
   /** 直近の永続化エラー (成功時は null にリセット) */
   const lastError = ref<string | null>(null)
-
-  let persistTimer: ReturnType<typeof setTimeout> | null = null
 
   /**
    * settings.json5 を読み込んで settings を初期化する。
@@ -108,16 +106,12 @@ export const useSettingsStore = defineStore('settings', () => {
     schedulePersist()
   }
 
-  function schedulePersist(): void {
-    if (persistTimer != null) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => {
-      persistTimer = null
-      persist().catch((e) => {
-        console.warn('[settings] persist failed:', e)
-        lastError.value = e instanceof Error ? e.message : String(e)
-      })
-    }, PERSIST_DEBOUNCE_MS)
-  }
+  const { schedule: schedulePersist, flush } = createDebouncedPersist(persist, {
+    onError: (e) => {
+      console.warn('[settings] persist failed:', e)
+      lastError.value = e instanceof Error ? e.message : String(e)
+    },
+  })
 
   async function persist(): Promise<void> {
     if (!isTauri) return // Web ビルドでは no-op
@@ -133,18 +127,6 @@ export const useSettingsStore = defineStore('settings', () => {
       lastError.value = null
     } finally {
       saving.value = false
-    }
-  }
-
-  /**
-   * ペンディング中の書き込みを即座にフラッシュする。
-   * アプリ終了前など、debounce を待たずに確実に書き出したい時に呼ぶ。
-   */
-  async function flush(): Promise<void> {
-    if (persistTimer != null) {
-      clearTimeout(persistTimer)
-      persistTimer = null
-      await persist()
     }
   }
 

@@ -3,13 +3,13 @@ import { defineStore } from 'pinia'
 import { computed, nextTick, reactive, ref } from 'vue'
 import type { TimelineFilter, TimelineType } from '@/adapters/types'
 import * as snapshotStore from '@/composables/useSnapshotStore'
-import { PERSIST_DEBOUNCE_MS } from '@/constants/persist'
 import defaultNavbarJson5 from '@/defaults/navbar.json5?raw'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useDeckWallpaperStore } from '@/stores/deckWallpaper'
 import { generateWidgetId, useWidgetsStore } from '@/stores/widgets'
 import { buildColumnUri } from '@/utils/columnUri'
+import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import * as deckLayout from '@/utils/deckLayout'
 import { hapticMedium } from '@/utils/haptics'
 import { isTauri, readNavbar, writeNavbar } from '@/utils/settingsFs'
@@ -197,27 +197,13 @@ export const useDeckStore = defineStore('deck', () => {
   const navItems = ref<NavItem[]>([...DEFAULT_NAV_ITEMS])
   const isNavCustomized = ref(false)
 
-  let navPersistTimer: ReturnType<typeof setTimeout> | null = null
-
-  function scheduleNavPersist() {
-    if (navPersistTimer) clearTimeout(navPersistTimer)
-    navPersistTimer = setTimeout(() => {
-      navPersistTimer = null
-      flushNavPersist()
-    }, PERSIST_DEBOUNCE_MS)
-  }
-
-  function flushNavPersist() {
-    if (navPersistTimer) {
-      clearTimeout(navPersistTimer)
-      navPersistTimer = null
-    }
+  const { schedule: scheduleNavPersist } = createDebouncedPersist(() => {
     if (!isTauri) return
     const content = JSON5.stringify(navItems.value, null, 2)
     writeNavbar(content).catch((e) =>
       console.warn('[deck] failed to persist navbar:', e),
     )
-  }
+  })
 
   function setNavItems(items: NavItem[] | undefined) {
     if (items == null) {

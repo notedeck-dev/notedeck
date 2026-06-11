@@ -1,10 +1,9 @@
 import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
-
-import { PERSIST_DEBOUNCE_MS } from '@/constants/persist'
 import type { DeckColumn, DeckProfile, DeckWindowLayout } from '@/stores/deck'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
+import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import * as settingsFs from '@/utils/settingsFs'
 import {
   getStorageJson,
@@ -210,21 +209,16 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   // --- Persistence (debounced) ---
 
-  let persistTimer: ReturnType<typeof setTimeout> | null = null
+  const { schedule: schedulePersist, cancel: cancelPersist } =
+    createDebouncedPersist(persistNow)
 
-  function schedulePersist() {
-    if (persistTimer) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => {
-      persistTimer = null
-      flushPersist()
-    }, PERSIST_DEBOUNCE_MS)
+  /** debounce を待たず即時書き込み (ペンディングは破棄) */
+  function flushPersist() {
+    cancelPersist()
+    persistNow()
   }
 
-  function flushPersist() {
-    if (persistTimer) {
-      clearTimeout(persistTimer)
-      persistTimer = null
-    }
+  function persistNow() {
     try {
       const profiles = profilesData.value
       // Sync: localStorage + bump version

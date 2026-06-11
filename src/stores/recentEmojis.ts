@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { shallowRef } from 'vue'
-import { PERSIST_DEBOUNCE_MS } from '@/constants/persist'
+import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
 
 const MAX_RECENT = 32
@@ -12,15 +12,9 @@ export const useRecentEmojisStore = defineStore('recentEmojis', () => {
     getStorageJson<Record<string, string[]>>(STORAGE_KEYS.recentEmojis, {}),
   )
 
-  let persistTimer: ReturnType<typeof setTimeout> | null = null
-
-  function scheduleSave() {
-    if (persistTimer) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => {
-      setStorageJson(STORAGE_KEYS.recentEmojis, map.value)
-      persistTimer = null
-    }, PERSIST_DEBOUNCE_MS)
-  }
+  const { schedule: scheduleSave } = createDebouncedPersist(() =>
+    setStorageJson(STORAGE_KEYS.recentEmojis, map.value),
+  )
 
   function get(host: string): string[] {
     return map.value[host] ?? []

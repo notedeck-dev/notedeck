@@ -3,8 +3,8 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 
 import type { Shortcut } from '@/commands/registry'
-import { PERSIST_DEBOUNCE_MS } from '@/constants/persist'
 import defaultKeybindsJson5 from '@/defaults/keybindings.json5?raw'
+import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri, readKeybinds, writeKeybinds } from '@/utils/settingsFs'
 
 export interface KeybindEntry {
@@ -18,15 +18,9 @@ export const useKeybindsStore = defineStore('keybinds', () => {
   const overrides = ref<Record<string, Shortcut[]>>({})
   const initialized = ref(false)
 
-  let persistTimer: ReturnType<typeof setTimeout> | null = null
-
-  function schedulePersist(): void {
-    if (persistTimer != null) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => {
-      persistTimer = null
-      persist().catch((e) => console.warn('[keybinds] persist failed:', e))
-    }, PERSIST_DEBOUNCE_MS)
-  }
+  const { schedule: schedulePersist } = createDebouncedPersist(persist, {
+    onError: (e) => console.warn('[keybinds] persist failed:', e),
+  })
 
   async function persist(): Promise<void> {
     if (!isTauri) return

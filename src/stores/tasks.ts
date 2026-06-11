@@ -1,11 +1,11 @@
 import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { PERSIST_DEBOUNCE_MS } from '@/constants/persist'
 import defaultTasksJson5 from '@/defaults/tasks.json5?raw'
 import { useToast } from '@/stores/toast'
 import { parseTasks, TasksParseError } from '@/tasks/schema'
 import { TASKS_FILE_VERSION, type TaskDefinition } from '@/tasks/types'
+import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri, readTasks, writeTasks } from '@/utils/settingsFs'
 
 export const useTasksStore = defineStore('tasks', () => {
@@ -13,15 +13,9 @@ export const useTasksStore = defineStore('tasks', () => {
   const initialized = ref(false)
   const lastError = ref<string | null>(null)
 
-  let persistTimer: ReturnType<typeof setTimeout> | null = null
-
-  function schedulePersist(): void {
-    if (persistTimer != null) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => {
-      persistTimer = null
-      persist().catch((e) => console.warn('[tasks] persist failed:', e))
-    }, PERSIST_DEBOUNCE_MS)
-  }
+  const { schedule: schedulePersist } = createDebouncedPersist(persist, {
+    onError: (e) => console.warn('[tasks] persist failed:', e),
+  })
 
   async function persist(): Promise<void> {
     if (!isTauri) return

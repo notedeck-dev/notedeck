@@ -2,12 +2,12 @@ import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { detectQualitySync } from '@/composables/useAdaptiveQuality'
-import { PERSIST_DEBOUNCE_MS } from '@/constants/persist'
 import { frameEngine } from '@/engine/frameEngine'
 import {
   frameTelemetry,
   type QualityLevel,
 } from '@/engine/telemetry/frameTelemetry'
+import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri, readPerformance, writePerformance } from '@/utils/settingsFs'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -103,15 +103,9 @@ export const usePerformanceStore = defineStore('performance', () => {
   const overrides = ref<Partial<PerformanceConfig>>({})
   const initialized = ref(false)
 
-  let persistTimer: ReturnType<typeof setTimeout> | null = null
-
-  function schedulePersist(): void {
-    if (persistTimer != null) clearTimeout(persistTimer)
-    persistTimer = setTimeout(() => {
-      persistTimer = null
-      persist().catch((e) => console.warn('[performance] persist failed:', e))
-    }, PERSIST_DEBOUNCE_MS)
-  }
+  const { schedule: schedulePersist } = createDebouncedPersist(persist, {
+    onError: (e) => console.warn('[performance] persist failed:', e),
+  })
 
   async function persist(): Promise<void> {
     if (!isTauri) return
