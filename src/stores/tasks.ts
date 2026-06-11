@@ -1,17 +1,12 @@
 import JSON5 from 'json5'
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
-import { useCommandStore } from '@/commands/registry'
-import { TASK_COMMAND_PREFIX } from '@/commands/taskCommandPrefix'
+import { ref } from 'vue'
 import { PERSIST_DEBOUNCE_MS } from '@/constants/persist'
 import defaultTasksJson5 from '@/defaults/tasks.json5?raw'
-import { useTaskRunnerStore } from '@/stores/taskRunner'
 import { useToast } from '@/stores/toast'
 import { parseTasks, TasksParseError } from '@/tasks/schema'
 import { TASKS_FILE_VERSION, type TaskDefinition } from '@/tasks/types'
 import { isTauri, readTasks, writeTasks } from '@/utils/settingsFs'
-
-export { TASK_COMMAND_PREFIX }
 
 export const useTasksStore = defineStore('tasks', () => {
   const definitions = ref<TaskDefinition[]>([])
@@ -19,7 +14,6 @@ export const useTasksStore = defineStore('tasks', () => {
   const lastError = ref<string | null>(null)
 
   let persistTimer: ReturnType<typeof setTimeout> | null = null
-  const registeredIds = new Set<string>()
 
   function schedulePersist(): void {
     if (persistTimer != null) clearTimeout(persistTimer)
@@ -38,34 +32,6 @@ export const useTasksStore = defineStore('tasks', () => {
     const content = JSON5.stringify(payload, null, 2)
     await writeTasks(`${content}\n`)
   }
-
-  function syncCommands(): void {
-    const commandStore = useCommandStore()
-    const runner = useTaskRunnerStore()
-    const next = new Set(
-      definitions.value.map((t) => TASK_COMMAND_PREFIX + t.id),
-    )
-    for (const id of registeredIds) {
-      if (!next.has(id)) commandStore.unregister(id)
-    }
-    registeredIds.clear()
-    for (const t of definitions.value) {
-      const id = TASK_COMMAND_PREFIX + t.id
-      commandStore.register({
-        id,
-        label: `タスク: ${t.label}`,
-        icon: 'player-play',
-        category: 'general',
-        shortcuts: [],
-        execute: () => {
-          void runner.runTask(t.id)
-        },
-      })
-      registeredIds.add(id)
-    }
-  }
-
-  watch(definitions, () => syncCommands(), { deep: true })
 
   function setFromRaw(raw: string): void {
     try {
@@ -125,7 +91,6 @@ export const useTasksStore = defineStore('tasks', () => {
       setFromRaw(defaultTasksJson5)
     }
     initialized.value = true
-    syncCommands()
   }
 
   function getById(id: string): TaskDefinition | undefined {

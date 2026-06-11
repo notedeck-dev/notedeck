@@ -6,6 +6,7 @@ import {
   unregisterDefaultCommands,
 } from '@/commands/definitions'
 import { useCommandStore } from '@/commands/registry'
+import { startTaskCommandSync } from '@/commands/taskCommands'
 import {
   listenDeckWindowEvents,
   saveCurrentWindowLayout,
@@ -95,6 +96,7 @@ export function useDeckInit(options: {
       initDesktopNotifications()
       initOgpListener()
       loadCliCommands()
+      startTaskCommandSync()
       void useTasksStore().init()
       onNotificationAction((ctx) => {
         if (ctx.noteId) {
