@@ -581,7 +581,7 @@ function primaryShortcut(cmd: Command): string | null {
 .overlayBg {
   position: fixed;
   inset: 0;
-  z-index: 2549;
+  z-index: calc(var(--nd-z-palette) - 1);
   background: rgba(0, 0, 0, 0.08);
 }
 
@@ -642,7 +642,7 @@ function primaryShortcut(cmd: Command): string | null {
    ======================================== */
 .dropdown {
   position: fixed;
-  z-index: 2550;
+  z-index: var(--nd-z-palette);
   background: var(--nd-popup, #252526);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-top: none;

@@ -640,7 +640,7 @@ async function onDeleteAll() {
 .menuBackdrop {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  z-index: var(--nd-z-popup);
 }
 
 .menu {

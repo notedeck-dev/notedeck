@@ -77,7 +77,7 @@ onUnmounted(() => {
   position: fixed;
   top: 8px;
   right: 8px;
-  z-index: 999999;
+  z-index: var(--nd-z-dev);
   padding: 6px 10px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.8);
