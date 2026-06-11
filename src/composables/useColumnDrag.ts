@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import type { useDeckStore } from '@/stores/deck'
 import { hapticLight, hapticMedium } from '@/utils/haptics'
+import { emitTauri } from '@/utils/tauriEvents'
 
 type DeckStore = ReturnType<typeof useDeckStore>
 
@@ -326,21 +327,18 @@ export function useColumnDrag(
   }
 
   /** Emit a cross-window drag event via Tauri IPC (no-op in browser) */
-  function emitDragEvent(event: string, columnId: string | null) {
+  function emitDragEvent(
+    event: 'deck:drag-start' | 'deck:drag-end',
+    columnId: string | null,
+  ) {
     if (!columnId) return
-    import('@tauri-apps/api/event')
-      .then(({ emit }) => {
-        emit(event, {
-          columnId,
-          sourceWindowId: deckStore.currentWindowId ?? '__main__',
-        }).catch((e) => {
-          if (import.meta.env.DEV)
-            console.debug('[column-drag] emit failed:', e)
-        })
-      })
-      .catch(() => {
-        // Not running in Tauri (browser dev mode) — expected
-      })
+    emitTauri(event, {
+      columnId,
+      sourceWindowId: deckStore.currentWindowId ?? '__main__',
+    }).catch((e) => {
+      // Not running in Tauri (browser dev mode) — expected
+      if (import.meta.env.DEV) console.debug('[column-drag] emit failed:', e)
+    })
   }
 
   return { dragColumnId, dropTarget, startDrag }

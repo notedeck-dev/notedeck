@@ -13,6 +13,7 @@ import {
   setStorageJson,
   setStorageString,
 } from '@/utils/storage'
+import { emitTauri, listenTauri } from '@/utils/tauriEvents'
 
 /** Deep-clone reactive state into a plain object safe for serialization.
  *  structuredClone strips Vue Proxy wrappers without the overhead of
@@ -237,8 +238,10 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       }
       // Notify other windows
       if (windowProfileId.value) {
-        emitSync('deck:profile-updated', {
+        emitTauri('deck:profile-updated', {
           profileId: windowProfileId.value,
+        }).catch(() => {
+          // Not running in Tauri (browser dev mode)
         })
       }
     } catch (e) {
@@ -247,14 +250,6 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
   }
 
   // --- Cross-window sync ---
-
-  function emitSync(event: string, payload?: Record<string, unknown>) {
-    import('@tauri-apps/api/event')
-      .then(({ emit }) => emit(event, payload))
-      .catch(() => {
-        // Not running in Tauri (browser dev mode)
-      })
-  }
 
   function reloadFromStorage() {
     profilesData.value = getStorageJson<DeckProfile[]>(
@@ -269,19 +264,18 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   async function startSync() {
     stopSync()
-    const { listen } = await import('@tauri-apps/api/event')
 
     // Profile content changed (columns/layout)
     unlistenFns.push(
-      await listen<{ profileId: string }>('deck:profile-updated', (event) => {
-        if (event.payload.profileId !== windowProfileId.value) return
+      await listenTauri('deck:profile-updated', (payload) => {
+        if (payload.profileId !== windowProfileId.value) return
         reloadFromStorage()
       }),
     )
 
     // Profile list changed (add/delete/rename)
     unlistenFns.push(
-      await listen('deck:profiles-changed', () => {
+      await listenTauri('deck:profiles-changed', () => {
         reloadFromStorage()
       }),
     )
@@ -321,7 +315,9 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       )
     }
     // Notify all windows that the profile list changed
-    emitSync('deck:profiles-changed')
+    emitTauri('deck:profiles-changed').catch(() => {
+      // Not running in Tauri (browser dev mode)
+    })
   }
 
   /** Write only the given profile to its file. */

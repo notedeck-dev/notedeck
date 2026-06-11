@@ -1,7 +1,8 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import type { UnlistenFn } from '@tauri-apps/api/event'
 import { onScopeDispose, ref } from 'vue'
 import type { AiChatMessage, JsonValue } from '@/bindings'
 import { extractErrorMessage } from '@/utils/errors'
+import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /** Single chat message stored in the conversation. */
@@ -58,7 +59,7 @@ export interface ToolUseEvent {
   input: Record<string, unknown>
 }
 
-interface AiChatEventPayload {
+export interface AiChatEventPayload {
   stream_id: string
   kind: 'delta' | 'done' | 'error' | 'tool_use'
   text?: string
@@ -67,8 +68,6 @@ interface AiChatEventPayload {
   tool_use_name?: string
   tool_use_input?: Record<string, unknown>
 }
-
-const EVENT_NAME = 'nd:ai-chat-event'
 
 function generateStreamId(): string {
   return `ai-stream-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -201,8 +200,7 @@ export function useAiChat() {
 
     return new Promise<string>((resolve, reject) => {
       // Subscribe BEFORE invoking, so we never miss the first delta.
-      listen<AiChatEventPayload>(EVENT_NAME, (event) => {
-        const p = event.payload
+      listenTauri('nd:ai-chat-event', (p) => {
         if (p.stream_id !== streamId) return
         if (p.kind === 'delta' && p.text) {
           currentText.value += p.text
@@ -286,8 +284,7 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
   let unlisten: UnlistenFn | null = null
 
   return new Promise<string>((resolve, reject) => {
-    listen<AiChatEventPayload>(EVENT_NAME, (event) => {
-      const p = event.payload
+    listenTauri('nd:ai-chat-event', (p) => {
       if (p.stream_id !== streamId) return
       if (p.kind === 'delta' && p.text) {
         accumulated += p.text

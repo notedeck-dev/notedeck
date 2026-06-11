@@ -23,7 +23,7 @@
  * 並行実行ガード: `running` flag で同時実行 (= API call 暴発) を防ぐ。
  */
 
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import type { UnlistenFn } from '@tauri-apps/api/event'
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { dispatchCapability } from '@/capabilities/dispatcher'
 import { getCapability, listCapabilities } from '@/capabilities/registry'
@@ -36,6 +36,7 @@ import { timestampTitle } from '@/utils/aiSessionTitle'
 import { sendDesktopNotification } from '@/utils/desktopNotification'
 import { isTauri } from '@/utils/settingsFs'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
+import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { type ChatMessage, type ToolUseEvent, useAiChat } from './useAiChat'
 import {
@@ -483,25 +484,22 @@ export function useHeartbeatDaemon() {
 
   // --- tick listener (App lifecycle で 1 度だけ) ---
   ;(async () => {
-    unlisten = await listen<HeartbeatTickPayload>(
-      'nd:ai-heartbeat-tick',
-      (event) => {
-        if (isRunning.value) {
-          console.debug(
-            `[heartbeat] skip (already running) source=${event.payload.source}`,
-          )
-          return
-        }
-        isRunning.value = true
-        runOnce(event.payload)
-          .catch((e) => {
-            console.warn('[heartbeat] daemon error:', e)
-          })
-          .finally(() => {
-            isRunning.value = false
-          })
-      },
-    )
+    unlisten = await listenTauri('nd:ai-heartbeat-tick', (tick) => {
+      if (isRunning.value) {
+        console.debug(
+          `[heartbeat] skip (already running) source=${tick.source}`,
+        )
+        return
+      }
+      isRunning.value = true
+      runOnce(tick)
+        .catch((e) => {
+          console.warn('[heartbeat] daemon error:', e)
+        })
+        .finally(() => {
+          isRunning.value = false
+        })
+    })
   })()
 
   onScopeDispose(() => {

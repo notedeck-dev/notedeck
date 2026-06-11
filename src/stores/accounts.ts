@@ -1,10 +1,10 @@
-import { listen } from '@tauri-apps/api/event'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { destroyAdapter } from '@/adapters/factory'
 import type { ServerSoftware } from '@/adapters/types'
 import { deleteAllMemos } from '@/composables/useMemos'
 import { removeStorage, STORAGE_KEYS } from '@/utils/storage'
+import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 export interface Account {
@@ -51,9 +51,9 @@ let earlyListenerRegistered = false
 export function initEarlyAccountListener(): void {
   if (earlyListenerRegistered) return
   earlyListenerRegistered = true
-  void listen<Account[]>('nd:accounts-early', (event) => {
-    if (onEarlyArrive) onEarlyArrive(event.payload)
-    else earlyPayload = event.payload
+  void listenTauri('nd:accounts-early', (payload) => {
+    if (onEarlyArrive) onEarlyArrive(payload)
+    else earlyPayload = payload
   })
 }
 

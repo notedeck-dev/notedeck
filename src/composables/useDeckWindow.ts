@@ -1,7 +1,7 @@
-import { emit, listen } from '@tauri-apps/api/event'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { DeckWindowLayout } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import { emitTauri, listenTauri } from '@/utils/tauriEvents'
 
 let windowCounter = 0
 
@@ -51,7 +51,7 @@ export async function openColumnWindow(
       deckStore.recallColumnsFromWindow(windowId)
       deckStore.removeWindowLayout(windowId)
       // Notify other windows
-      emit('deck:window-closed', { windowId }).catch((e) => {
+      emitTauri('deck:window-closed', { windowId }).catch((e) => {
         if (import.meta.env.DEV) console.debug('[deck-window] emit failed:', e)
       })
     })
@@ -182,52 +182,37 @@ export async function listenDeckWindowEvents(): Promise<() => void> {
 
   // When a sub-window closes, its columns are recalled (handled in openColumnWindow)
   // But we also need to listen for cross-window column moves
-  const unlisten1 = await listen<{
-    columnId: string
-    targetWindowId: string | null
-  }>('deck:move-column', (event) => {
+  const unlisten1 = await listenTauri('deck:move-column', (payload) => {
     const deckStore = useDeckStore()
-    deckStore.moveColumnToWindow(
-      event.payload.columnId,
-      event.payload.targetWindowId,
-    )
+    deckStore.moveColumnToWindow(payload.columnId, payload.targetWindowId)
   })
   cleanups.push(unlisten1)
 
-  const unlisten2 = await listen<{ windowId: string }>(
-    'deck:window-closed',
-    () => {
-      // Sub-window already handles recall in its destroyed handler
-      // This event is for UI refresh in other windows
-    },
-  )
+  const unlisten2 = await listenTauri('deck:window-closed', () => {
+    // Sub-window already handles recall in its destroyed handler
+    // This event is for UI refresh in other windows
+  })
   cleanups.push(unlisten2)
 
   // Cross-window drag: show overlay when another window starts dragging
-  const unlisten3 = await listen<{ columnId: string; sourceWindowId: string }>(
-    'deck:drag-start',
-    (event) => {
-      const deckStore = useDeckStore()
-      const myWindowId = deckStore.currentWindowId ?? '__main__'
-      // Only show overlay if this is NOT the source window
-      if (event.payload.sourceWindowId !== myWindowId) {
-        deckStore.crossWindowDragColumnId = event.payload.columnId
-      }
-    },
-  )
+  const unlisten3 = await listenTauri('deck:drag-start', (payload) => {
+    const deckStore = useDeckStore()
+    const myWindowId = deckStore.currentWindowId ?? '__main__'
+    // Only show overlay if this is NOT the source window
+    if (payload.sourceWindowId !== myWindowId) {
+      deckStore.crossWindowDragColumnId = payload.columnId
+    }
+  })
   cleanups.push(unlisten3)
 
   // Cross-window drag: dismiss overlay when drag ends
-  const unlisten4 = await listen<{ columnId: string; sourceWindowId: string }>(
-    'deck:drag-end',
-    (event) => {
-      const deckStore = useDeckStore()
-      const myWindowId = deckStore.currentWindowId ?? '__main__'
-      if (event.payload.sourceWindowId !== myWindowId) {
-        deckStore.crossWindowDragColumnId = null
-      }
-    },
-  )
+  const unlisten4 = await listenTauri('deck:drag-end', (payload) => {
+    const deckStore = useDeckStore()
+    const myWindowId = deckStore.currentWindowId ?? '__main__'
+    if (payload.sourceWindowId !== myWindowId) {
+      deckStore.crossWindowDragColumnId = null
+    }
+  })
   cleanups.push(unlisten4)
 
   return () => {
@@ -247,7 +232,7 @@ export async function requestMoveColumn(
   // Update local store immediately so the column disappears/appears in this window
   deckStore.moveColumnToWindow(columnId, targetWindowId)
   // Notify other windows
-  await emit('deck:move-column', { columnId, targetWindowId })
+  await emitTauri('deck:move-column', { columnId, targetWindowId })
 
   // Auto-close sub-window if it has no more columns
   if (deckStore.currentWindowId && deckStore.windowLayout.length === 0) {

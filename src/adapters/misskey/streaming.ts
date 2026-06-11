@@ -1,5 +1,5 @@
-import { listen } from '@tauri-apps/api/event'
 import { events } from '@/bindings'
+import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import type {
   NoteUpdateEvent,
@@ -7,24 +7,6 @@ import type {
   StreamAdapter,
   StreamConnectionState,
 } from '../types'
-
-/** Consolidated stream event from Rust TauriEmitter */
-interface StreamEventEnvelope {
-  kind: string
-  payload: StreamEventPayload
-}
-
-/**
- * Stream event payload (subset). note 系・capture 系は全て Rust 側で batched
- * 配信に移行済み。ここで listen するのは:
- *   - stream-status (connection state)
- *   - すべての raw event (StreamInspector 用)
- * のみ。
- */
-interface StreamEventPayload {
-  accountId: string
-  state?: StreamConnectionState
-}
 
 export class MisskeyStream implements StreamAdapter {
   private accountId: string
@@ -95,12 +77,11 @@ export class MisskeyStream implements StreamAdapter {
     // Bump generation so any in-flight listen() from a previous call will self-discard
     const gen = ++this._listenerGeneration
 
-    listen<StreamEventEnvelope>('stream-event', (event) => {
+    listenTauri('stream-event', ({ kind, payload: p }) => {
       // Stale listener guard: if a newer registerListeners() has been called,
       // this callback belongs to a superseded generation — ignore it.
       if (gen !== this._listenerGeneration) return
 
-      const { kind, payload: p } = event.payload
       if (p.accountId !== this.accountId) return
 
       // Emit raw envelope to inspector subscribers before dispatch

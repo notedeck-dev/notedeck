@@ -61,9 +61,9 @@ export function useHorizontalWheel(
 
     // Windows hwheel: Tauri event → same rAF batch
     if ((window as unknown as Record<string, unknown>).__TAURI_INTERNALS__) {
-      const { listen } = await import('@tauri-apps/api/event')
-      unlistenHWheel = await listen<number>('nd:hwheel', (ev) => {
-        scheduleScroll(ev.payload)
+      const { listenTauri } = await import('@/utils/tauriEvents')
+      unlistenHWheel = await listenTauri('nd:hwheel', (delta) => {
+        scheduleScroll(delta)
       })
     }
   }

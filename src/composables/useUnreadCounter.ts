@@ -1,17 +1,10 @@
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import type { UnlistenFn } from '@tauri-apps/api/event'
 import { computed, onUnmounted, type Ref, ref, watch } from 'vue'
 import { useAccountsStore } from '@/stores/accounts'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import type { PerformanceKey } from '@/stores/performance'
 import { usePerformanceStore } from '@/stores/performance'
-
-interface StreamEventEnvelope {
-  kind: string
-  payload: {
-    accountId: string
-    eventType?: string
-  }
-}
+import { listenTauri, type StreamEventEnvelope } from '@/utils/tauriEvents'
 
 export interface UnreadCounterConfig {
   /** Performance store key for polling interval (seconds) */
@@ -64,10 +57,9 @@ export function useUnreadCounter(key: string, config: UnreadCounterConfig) {
   async function setupListener() {
     if (state.listenerSetUp) return
     state.listenerSetUp = true
-    state.unlistenFn = await listen<StreamEventEnvelope>(
+    state.unlistenFn = await listenTauri(
       'stream-event',
-      (event) => {
-        const { kind, payload } = event.payload
+      ({ kind, payload }) => {
         const { accountId } = payload
         const current = state.counts.value[accountId] ?? 0
         const result = config.onStreamEvent(kind, payload, current)

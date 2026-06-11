@@ -152,8 +152,8 @@ async function returnToDeck() {
   const config = pipColumnConfig?.()
   if (!config) return
   const { id: _, ...rest } = config
-  const { emit } = await import('@tauri-apps/api/event')
-  await emit('pip:return-to-deck', rest)
+  const { emitTauri } = await import('@/utils/tauriEvents')
+  await emitTauri('pip:return-to-deck', rest)
   const { getCurrentWindow } = await import('@tauri-apps/api/window')
   await getCurrentWindow().close()
 }

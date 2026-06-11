@@ -1,9 +1,10 @@
-import { emit, listen } from '@tauri-apps/api/event'
+import { emit } from '@tauri-apps/api/event'
 import { isColumnType } from '@/columns/registry'
 import { useCommandStore } from '@/commands/registry'
 import { useDeckStore } from '@/stores/deck'
+import { listenTauri } from '@/utils/tauriEvents'
 
-interface QueryRequest {
+export interface QueryRequest {
   id: string
   type: string
   params: Record<string, unknown>
@@ -73,15 +74,15 @@ let unlisten: (() => void) | null = null
 export async function initApiBridge() {
   if (unlisten) return
 
-  const unlistenFn = await listen<QueryRequest>(
+  const unlistenFn = await listenTauri(
     'nd:query-request',
-    async (event) => {
-      const { id, type, params } = event.payload
+    async ({ id, type, params }) => {
       const handler = handlers[type]
       const result = handler
         ? handler(params)
         : { error: `Unknown query type: ${type}` }
 
+      // 動的イベント名なので TauriEventPayloads の対象外 (型付け不可)
       await emit(`nd:query-response-${id}`, result)
     },
   )

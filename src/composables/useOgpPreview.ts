@@ -1,7 +1,7 @@
-import { listen } from '@tauri-apps/api/event'
 import { ref } from 'vue'
 import { usePerformanceStore } from '@/stores/performance'
 import type { OgpData } from '@/utils/ogp'
+import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const ogpCache = new Map<string, OgpData | null>()
@@ -47,12 +47,9 @@ export function populateOgpCache(hints: Record<string, OgpData>) {
 let ogpUnlisten: (() => void) | null = null
 export async function initOgpListener(): Promise<void> {
   ogpUnlisten?.()
-  ogpUnlisten = await listen<Record<string, OgpData>>(
-    'nd:ogp-hints',
-    (event) => {
-      populateOgpCache(event.payload)
-    },
-  )
+  ogpUnlisten = await listenTauri('nd:ogp-hints', (hints) => {
+    populateOgpCache(hints)
+  })
 }
 
 export function useOgpPreview(initialUrl: string, accountId?: string) {
