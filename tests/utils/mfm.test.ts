@@ -355,6 +355,23 @@ describe('parseMfm', () => {
     expect(inner.children).toEqual([{ type: 'text', value: 'hello' }])
   })
 
+  it('parses $[fn] containing a link with bracketed label', () => {
+    const tokens = parseMfm(
+      '$[jelly 🥇: ?[<plain>月</plain>](https://yami.ski/@Ot)]',
+    )
+    expect(tokens).toHaveLength(1)
+    const fn = tokens[0] as MfmToken & { type: 'fn' }
+    expect(fn.type).toBe('fn')
+    expect(fn.name).toBe('jelly')
+    const link = fn.children.find((t) => t.type === 'link') as
+      | (MfmToken & { type: 'link' })
+      | undefined
+    expect(link).toBeDefined()
+    expect(link?.url).toBe('https://yami.ski/@Ot')
+    expect(link?.silent).toBe(true)
+    expect(link?.label).toEqual([{ type: 'plain', value: '月' }])
+  })
+
   it('parses fg/bg color functions', () => {
     const tokens = parseMfm('$[bg.color=51b3fc $[fg.color=000000 text]]')
     const bg = tokens[0] as MfmToken & { type: 'fn' }

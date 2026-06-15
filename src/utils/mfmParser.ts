@@ -350,12 +350,15 @@ function parseFnBlock(
   if (text[i] !== ' ') return null
   i++
 
+  // 括弧の対応を数える。`$[fn]` の入れ子だけでなく、リンク `[label]` /
+  // サイレントリンク `?[label]` のような `[...]` も `[` で +1 / `]` で -1 して
+  // バランスさせる。そうしないとリンクラベルを閉じる `]` が fn を早期に閉じてしまう。
   let depth = 1
   const contentStart = i
   while (i < text.length && depth > 0) {
-    if (text[i] === '$' && text[i + 1] === '[') {
+    if (text[i] === '[') {
       depth++
-      i += 2
+      i++
     } else if (text[i] === ']') {
       depth--
       if (depth === 0) break
