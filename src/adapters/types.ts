@@ -280,6 +280,8 @@ export interface NormalizedUserDetail extends NormalizedUser {
   isCat: boolean
   isFollowing: boolean
   isFollowed: boolean
+  /** 鍵アカウント (フォローに承認が必要) かどうか */
+  isLocked?: boolean
   /** 鍵アカウントへフォローリクエスト送信済みで未承認の状態 */
   hasPendingFollowRequestFromYou?: boolean
   createdAt: string

@@ -6,7 +6,7 @@
     "license": {
       "name": "MIT"
     },
-    "version": "1.1.6"
+    "version": "1.1.7"
   },
   "paths": {
     "/api": {
@@ -2115,6 +2115,10 @@
           },
           "isFollowing": {
             "type": "boolean"
+          },
+          "isLocked": {
+            "type": "boolean",
+            "description": "鍵アカウント (フォローに承認が必要) かどうか"
           },
           "location": {
             "type": [

@@ -2485,6 +2485,10 @@ export type NormalizedPollChoice = { text: string; votes?: number; isVoted?: boo
 export type NormalizedUser = { id: string; username: string; host: string | null; name: string | null; avatarUrl: string | null; isBot?: boolean; isCat?: boolean; avatarDecorations?: AvatarDecoration[]; emojis?: Partial<{ [key in string]: string }>; instance?: UserInstance | null }
 export type NormalizedUserDetail = { id: string; username: string; host: string | null; name: string | null; avatarUrl: string | null; bannerUrl: string | null; description: string | null; followersCount?: number; followingCount?: number; notesCount?: number; isBot?: boolean; isCat?: boolean; isFollowing?: boolean; isFollowed?: boolean; 
 /**
+ * 鍵アカウント (フォローに承認が必要) かどうか
+ */
+isLocked?: boolean; 
+/**
  * 鍵アカウントへフォローリクエスト送信済みで未承認の状態
  */
 hasPendingFollowRequestFromYou?: boolean; createdAt?: string; avatarDecorations?: AvatarDecoration[]; emojis?: Partial<{ [key in string]: string }>; roles?: UserRole[]; fields?: UserField[]; url?: string | null; birthday?: string | null; location?: string | null; onlineStatus?: string | null; followingVisibility?: string | null; followersVisibility?: string | null; followedMessage?: string | null; 

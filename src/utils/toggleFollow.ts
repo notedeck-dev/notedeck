@@ -28,6 +28,19 @@ export async function toggleFollow(
 
   const prev = user.isFollowing
 
+  // 鍵アカウントへのフォローは following/create が承認待ちリクエストを作るため、
+  // isFollowing / followersCount は楽観更新せず pending 状態として扱う
+  if (!prev && user.isLocked) {
+    user.hasPendingFollowRequestFromYou = true
+    try {
+      await api.followUser(user.id)
+    } catch (e) {
+      user.hasPendingFollowRequestFromYou = false
+      throw e
+    }
+    return
+  }
+
   try {
     user.isFollowing = !prev
     if (prev) {
