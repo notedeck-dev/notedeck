@@ -114,7 +114,12 @@ pub struct AiChatEvent {
 
 const EVENT_NAME: &str = "nd:ai-chat-event";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
+/// Time allowed to establish the TCP+TLS connection.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
+/// Per-read idle timeout for the SSE body. Unlike a total timeout this does NOT
+/// kill a healthy long generation — it only fires when no bytes arrive for this
+/// long, so a silently-dropped mid-stream connection is still bounded.
+const READ_TIMEOUT: Duration = Duration::from_secs(120);
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 /// Hard cap on the total bytes (system + all message contents) sent in one
 /// chat request. Prevents accidental paste-of-a-huge-file and runaway costs.
@@ -124,13 +129,17 @@ const MAX_REQUEST_BYTES: usize = 256 * 1024;
 ///
 /// 共有 `reqwest::Client` (lib.rs の `shared_http`) を使うと、HTTP/2 の
 /// RST_STREAM や connection pool の半閉じ接続再利用が原因で
-/// "error decoding response body" になるケースが発生する (大きい tool_result
-/// を AI が処理した後の長いレスポンス中に多い)。それを避けるため:
+/// "error decoding response body" / "os error 103" になるケースが発生する
+/// (大きい tool_result を AI が処理した後の長いレスポンス中に多い)。それを避けるため:
 ///
 /// - `http1_only()` で HTTP/2 を無効化 (SSE は HTTP/1.1 chunked が安定)
-/// - pool は default のまま (= ストリーム終了後は idle 接続として残るが、
-///   AI 用途では request 頻度が低いので問題にならない)
-/// - timeout は per-request の `REQUEST_TIMEOUT` で 180s
+/// - `pool_max_idle_per_host(0)` で idle 接続を保持しない。AI は低頻度なので毎回
+///   新規接続のコストは無視でき、モバイルで NAT が切った半閉じ接続を次リクエストで
+///   掴む事故 (#508 の os error 103 の一因) を防げる
+/// - total timeout は持たない。代わりに `connect_timeout` (接続確立) と
+///   `read_timeout` (チャンク間 idle) を使う。total timeout だと健全な長文生成が
+///   180s で問答無用に切られていた (#508 の「長文応答で切れる」直因)。read_timeout
+///   は無音が続いたときだけ発火するので長文生成自体は切らない
 ///
 /// `OnceLock` でプロセス生存期間 1 回だけ構築。
 static STREAMING_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
@@ -139,7 +148,9 @@ fn streaming_client() -> &'static reqwest::Client {
     STREAMING_CLIENT.get_or_init(|| {
         reqwest::Client::builder()
             .http1_only()
-            .timeout(REQUEST_TIMEOUT)
+            .pool_max_idle_per_host(0)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(READ_TIMEOUT)
             .user_agent("notedeck-ai-streaming")
             .build()
             .expect("failed to build AI streaming client")
@@ -461,7 +472,6 @@ async fn run_anthropic(
         .header("x-api-key", api_key)
         .header("anthropic-version", ANTHROPIC_VERSION)
         .header("content-type", "application/json")
-        .timeout(REQUEST_TIMEOUT)
         .json(&body)
         .send()
         .await
@@ -618,7 +628,6 @@ async fn run_openai_compat(
     let mut request = streaming_client()
         .post(&url)
         .header("content-type", "application/json")
-        .timeout(REQUEST_TIMEOUT)
         .json(&body);
     if !api_key.is_empty() {
         request = request.header("authorization", format!("Bearer {api_key}"));
