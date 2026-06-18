@@ -53,6 +53,8 @@ export interface ColumnRuntimeInfo {
   columnId: string
   accountId: string | null
   columnType: string
+  /** 下流の channel subscription id (= stream event payload.subscriptionId)。未確定時 null */
+  subscriptionId: string | null
   state: 'live' | 'warm' | 'suspended'
   ts: number
 }

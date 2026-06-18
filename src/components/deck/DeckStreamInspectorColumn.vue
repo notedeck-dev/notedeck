@@ -17,7 +17,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useVerticalResize } from '@/composables/useVerticalResize'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
-import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import {
   ALL_KINDS,
@@ -38,6 +38,7 @@ const props = defineProps<{
 const { account, columnThemeVars } = useColumnTheme(() => props.column)
 const { serverInfoImageUrl } = useServerImages(() => props.column)
 const serversStore = useServersStore()
+const deckStore = useDeckStore()
 const inspectorStore = useStreamInspectorStore()
 const accountsStore = useAccountsStore()
 const jsonLang = json()
@@ -57,16 +58,30 @@ const paused = ref(false)
 const selectedId = ref<number | null>(null)
 const enabledKinds = ref(new Set<string>(ALL_KINDS))
 const clearedBefore = ref(0)
+/** ダッシュボードで有効化中のカラム subscriptionId 集合。空 = 全カラム表示（複数同時可） */
+const focusedSubIds = ref(new Set<string>())
 
 const filteredBuffer = computed(() => {
   const aid = props.column.accountId
+  const subs = focusedSubIds.value
   return inspectorStore.buffer.filter((e) => {
     if (e.ts < clearedBefore.value) return false
     if (!enabledKinds.value.has(e.kind)) return false
     if (aid != null && e.accountId !== aid) return false
+    if (subs.size > 0 && !subs.has(e.payload.subscriptionId as string))
+      return false
     return true
   })
 })
+
+/** カラムマーククリックで有効/無効をトグル（複数同時に有効化できる。kind ピルと同様） */
+function onMarkClick(subId: string | null) {
+  if (!subId) return
+  const next = new Set(focusedSubIds.value)
+  if (next.has(subId)) next.delete(subId)
+  else next.add(subId)
+  focusedSubIds.value = next
+}
 
 // Freeze display when paused
 const displayBuffer = shallowRef<StreamEventEntry[]>([])
@@ -153,17 +168,23 @@ function connToStatus(
   }
 }
 
+// ボトムバーと同じ並び (deckStore.layout 順) で回す。layout に無いカラム
+// (削除済み / 別プロファイル) は自動的に外れるので残留しない。runtimeStates を
+// 持つ = stream 系カラムのみが対象。すべて reactive に追従する。
 const dashboardRows = computed(() => {
   const aid = props.column.accountId
-  const rows = [...inspectorStore.runtimeStates.values()]
-    .filter((info) => aid == null || info.accountId === aid)
-    .map((info) => {
-      const connection = info.accountId
-        ? (inspectorStore.connectionState.get(info.accountId) ?? null)
-        : null
-      return {
+  return deckStore.layout.flat().flatMap((colId) => {
+    const info = inspectorStore.runtimeStates.get(colId)
+    if (!info) return []
+    if (aid != null && info.accountId !== aid) return []
+    const connection = info.accountId
+      ? (inspectorStore.connectionState.get(info.accountId) ?? null)
+      : null
+    return [
+      {
         columnId: info.columnId,
         accountId: info.accountId,
+        subscriptionId: info.subscriptionId,
         host: hostOf(info.accountId),
         onlineStatus: connToStatus(connection),
         typeLabel: COLUMN_LABELS[info.columnType] ?? info.columnType,
@@ -172,13 +193,9 @@ const dashboardRows = computed(() => {
         lastEventTs: info.accountId
           ? (lastEventTsByAccount.value.get(info.accountId) ?? null)
           : null,
-      }
-    })
-  rows.sort(
-    (a, b) =>
-      a.host.localeCompare(b.host) || a.typeLabel.localeCompare(b.typeLabel),
-  )
-  return rows
+      },
+    ]
+  })
 })
 
 function ageText(ts: number | null): string {
@@ -293,13 +310,23 @@ function onDetailWheel(e: WheelEvent) {
     <div ref="wrapperRef" :class="$style.wrapper">
       <!-- Status dashboard: kept-alive stream columns -->
       <div v-if="dashboardRows.length > 0" :class="$style.dashboard">
-        <div
+        <button
           v-for="row in dashboardRows"
           :key="row.columnId"
-          :class="[$style.mark, row.state !== 'live' && $style.markDim]"
+          type="button"
+          class="_button"
+          :class="[
+            $style.mark,
+            {
+              [$style.markDim]: row.state !== 'live',
+              [$style.markActive]:
+                !!row.subscriptionId && focusedSubIds.has(row.subscriptionId),
+            },
+          ]"
           :title="`${row.host} · ${row.typeLabel} · ${row.state} · ${ageText(
             row.lastEventTs,
           )}`"
+          @click="onMarkClick(row.subscriptionId)"
         >
           <i :class="['ti', `ti-${row.typeIcon}`, $style.markIcon]" />
           <ColumnBadges :account-id="row.accountId" :size="12" />
@@ -307,7 +334,7 @@ function onDetailWheel(e: WheelEvent) {
             v-if="row.onlineStatus"
             :class="[$style.connDot, $style[`conn_${row.onlineStatus}`]]"
           />
-        </div>
+        </button>
       </div>
 
       <!-- Filter pills -->
@@ -454,9 +481,26 @@ function onDetailWheel(e: WheelEvent) {
   justify-content: center;
   width: 26px;
   height: 26px;
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0.85;
+  cursor: pointer;
   --column-badge-border: var(--nd-bg);
+  transition:
+    opacity var(--nd-duration-fast),
+    color var(--nd-duration-fast),
+    background var(--nd-duration-fast);
+
+  &:hover {
+    opacity: 1;
+    background: var(--nd-buttonHoverBg);
+  }
+}
+
+.markActive {
+  opacity: 1;
+  color: var(--nd-accent);
+  background: var(--nd-buttonHoverBg);
 }
 
 .markDim {

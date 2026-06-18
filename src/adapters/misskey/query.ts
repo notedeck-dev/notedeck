@@ -44,6 +44,13 @@ export function createQuerySubscription(
   let runtimeState: SubscriptionRuntimeState = 'live'
   let unlistenDelta: (() => void) | null = null
   let lastRevision = 0
+  // 下流の channel subscription id (= stream event payload.subscriptionId)。
+  // open 解決まで null。Stream Inspector のカラム別フィルタで使う。
+  let sourceSubscriptionId: string | null = null
+  let resolveReady!: () => void
+  const ready = new Promise<void>((r) => {
+    resolveReady = r
+  })
 
   ;(async () => {
     let snap: QuerySnapshot
@@ -51,6 +58,7 @@ export function createQuerySubscription(
       snap = await opts.open()
     } catch (e) {
       console.error('[query-subscription] open failed:', e)
+      resolveReady()
       return
     }
     if (disposed) {
@@ -58,10 +66,13 @@ export function createQuerySubscription(
         if (import.meta.env.DEV)
           console.debug('[query-subscription] late close ignored:', e)
       })
+      resolveReady()
       return
     }
     queryId = snap.queryId
     lastRevision = snap.revision
+    sourceSubscriptionId = snap.sourceSubscriptionId
+    resolveReady()
 
     try {
       unlistenDelta = await events.queryDelta.listen((event) => {
@@ -104,6 +115,10 @@ export function createQuerySubscription(
   }
 
   return {
+    get subscriptionId() {
+      return sourceSubscriptionId
+    },
+    whenReady: () => ready,
     dispose: () => {
       if (disposed) return
       disposed = true

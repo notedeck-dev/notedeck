@@ -719,6 +719,13 @@ export type SubscriptionRuntimeState = 'live' | 'warm' | 'suspended'
 
 export interface ManagedChannelSubscription extends ChannelSubscription {
   setRuntimeState(state: SubscriptionRuntimeState): void
+  /**
+   * Underlying channel subscription id — matches the `subscriptionId` field on
+   * stream event payloads. Null until the subscription has opened.
+   */
+  readonly subscriptionId: string | null
+  /** Resolves once the underlying subscription is open (subscriptionId set). */
+  whenReady(): Promise<void>
 }
 
 export type MainChannelEvent = {
