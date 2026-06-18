@@ -546,6 +546,9 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 
 .twemoji {
   height: 1.25em;
+  /* width 属性 (20px) を上書きし、幅を高さ=font-size に追従させる。
+     これがないと MFM の $[x2]/$[x3]/$[x4] で絵文字が拡大されない。 */
+  width: auto;
   vertical-align: -0.25em;
   object-fit: contain;
 }
