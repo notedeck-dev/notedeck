@@ -172,6 +172,13 @@ export function useColumnMount(
   opts: {
     isCompact: Ref<boolean>
     isActive: Ref<boolean>
+    /**
+     * While true, keep this column mounted even when off-screen. Set by the
+     * Stream Inspector (capturing) so off-screen columns stay subscribed and
+     * observable on mobile, where they would otherwise unload after a few
+     * seconds. Debug-scoped: only true while an inspector column exists.
+     */
+    keepMounted?: Ref<boolean>
   },
 ): { shouldMount: ComputedRef<boolean> } {
   const registry = inject(COLUMN_REGISTRY_KEY, null)
@@ -196,7 +203,10 @@ export function useColumnMount(
   onBeforeUnmount(() => registry.unregister(colId))
 
   const shouldMount = computed(
-    () => opts.isActive.value || registry.isMounted(colId),
+    () =>
+      opts.isActive.value ||
+      registry.isMounted(colId) ||
+      (opts.keepMounted?.value ?? false),
   )
   return { shouldMount }
 }

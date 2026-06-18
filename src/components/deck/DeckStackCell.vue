@@ -3,6 +3,7 @@ import { computed, toRef, useCssModule, useTemplateRef } from 'vue'
 import { COLUMN_COMPONENTS } from '@/columns/registry'
 import { useColumnMount } from '@/composables/useColumnMount'
 import type { DeckColumn } from '@/stores/deck'
+import { useStreamInspectorStore } from '@/stores/streamInspector'
 
 const props = defineProps<{
   colId: string
@@ -22,9 +23,13 @@ defineEmits<{
 const $style = useCssModule()
 const cellRef = useTemplateRef<HTMLElement>('cellRef')
 
+// Stream Inspector が存在する間は画面外カラムも mount 維持し、購読を生かして
+// 観測可能にする（モバイルの自動 unload 対策）。
+const inspectorStore = useStreamInspectorStore()
 const { shouldMount } = useColumnMount(props.colId, cellRef, {
   isCompact: toRef(props, 'isCompact'),
   isActive: toRef(props, 'isActive'),
+  keepMounted: computed(() => inspectorStore.capturing),
 })
 
 const columnComponent = computed(() =>
