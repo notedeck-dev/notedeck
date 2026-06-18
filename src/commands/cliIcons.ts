@@ -2,7 +2,7 @@
 export const CLI_ICONS: Record<string, string> = {
   post: 'send',
   search: 'search',
-  tl: 'list',
+  timeline: 'list',
   notifications: 'bell',
   mentions: 'at',
   note: 'note',
