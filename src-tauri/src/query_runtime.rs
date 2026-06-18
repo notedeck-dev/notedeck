@@ -205,13 +205,13 @@ pub async fn run_delta_flusher(app: AppHandle) {
         };
         for delta in runtime.drain_pending() {
             if let Err(e) = delta.emit(&app) {
-                eprintln!("[query-delta] emit failed: {e}");
+                tracing::warn!("[query-delta] emit failed: {e}");
             }
         }
         let captures = runtime.drain_captures();
         if !captures.is_empty() {
             if let Err(e) = (NoteCaptureBatch { captures }).emit(&app) {
-                eprintln!("[note-capture-batch] emit failed: {e}");
+                tracing::warn!("[note-capture-batch] emit failed: {e}");
             }
         }
     }

@@ -6,7 +6,7 @@ import { onMounted, ref } from 'vue'
 
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
-import { getSettingsDir } from '@/utils/settingsFs'
+import { getLogDir, getSettingsDir } from '@/utils/settingsFs'
 
 const menuOpen = ref(false)
 const activeCategory = ref<string | null>(null)
@@ -113,6 +113,12 @@ async function openSettingsDir() {
   closeMenu()
 }
 
+async function openLogDir() {
+  const dir = await getLogDir()
+  if (dir) await revealItemInDir(dir)
+  closeMenu()
+}
+
 // ── Actions ──
 const zoomLevel = ref(1)
 
@@ -152,6 +158,10 @@ defineExpose({ toggleMenu })
           <button class="_popupItem" @click="openSettingsDir">
             <i class="ti ti-folder-open" />
             <span>設定フォルダを開く</span>
+          </button>
+          <button class="_popupItem" @click="openLogDir">
+            <i class="ti ti-folder-open" />
+            <span>ログフォルダを開く</span>
           </button>
           <div class="_popupDivider" />
           <button class="_popupItem" @click="toggleAutostart">

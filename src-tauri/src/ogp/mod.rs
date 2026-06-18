@@ -379,7 +379,7 @@ impl OgpCache {
                     match plugin.summarize(&parsed, &self.http_client).await {
                         Ok(data) => return Ok(data),
                         Err(e) => {
-                            eprintln!("[ogp] plugin failed for {url}: {e}, falling back");
+                            tracing::warn!("[ogp] plugin failed for {url}: {e}, falling back");
                             break;
                         }
                     }

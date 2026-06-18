@@ -1,16 +1,91 @@
 <script setup lang="ts">
 import { getTauriVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, shallowRef } from 'vue'
+import type { HealthReport, Status } from '@/bindings'
 import { useUpdater } from '@/composables/useUpdater'
 import { useUiStore } from '@/stores/ui'
-import { commands } from '@/utils/tauriInvoke'
+import { AppError } from '@/utils/errors'
+import { commands, unwrap } from '@/utils/tauriInvoke'
 import { version as appVersion } from '../../../package.json'
 
 const tauriVersion = ref('')
 const rustVersion = ref('')
 const copied = ref(false)
 const uiStore = useUiStore()
+
+// 自己診断 (#644): notecli doctor + ランタイム状態。About を開いた時に走らせ、
+// 「情報をコピー」「バグを報告」の本文に診断を同梱する (VS Code Report Issue モデル)。
+const health = shallowRef<HealthReport | null>(null)
+const healthLoading = ref(false)
+const healthError = ref<string | null>(null)
+
+const STATUS_ICON: Record<Status, string> = {
+  ok: 'ti ti-circle-check',
+  warn: 'ti ti-alert-triangle',
+  fail: 'ti ti-circle-x',
+}
+
+const overallStatus = computed<Status>(() => {
+  const checks = health.value?.doctor.checks ?? []
+  if (checks.some((c) => c.status === 'fail')) return 'fail'
+  if (checks.some((c) => c.status === 'warn')) return 'warn'
+  return 'ok'
+})
+
+// 正常な項目は畳んで、注意・問題だけ出す (健康なら "正常" の一行で済む)。
+const problemChecks = computed(() =>
+  (health.value?.doctor.checks ?? []).filter((c) => c.status !== 'ok'),
+)
+
+const healthSummary = computed(() => {
+  if (healthLoading.value) return '診断中...'
+  if (healthError.value) return '診断に失敗しました'
+  if (!health.value) return ''
+  const fails = problemChecks.value.filter((c) => c.status === 'fail').length
+  const warns = problemChecks.value.filter((c) => c.status === 'warn').length
+  if (fails > 0) return `${fails} 件の問題`
+  if (warns > 0) return `${warns} 件の警告`
+  return '正常'
+})
+
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+async function runHealthcheck() {
+  if (healthLoading.value) return
+  healthLoading.value = true
+  healthError.value = null
+  try {
+    health.value = unwrap(await commands.runHealthcheck())
+  } catch (e) {
+    healthError.value = AppError.from(e).message
+  } finally {
+    healthLoading.value = false
+  }
+}
+
+/** 診断結果を Markdown 風テキストに整形 (コピー / バグ報告で同梱)。 */
+function diagnosticsText(): string {
+  const r = health.value
+  if (!r) return ''
+  const sym = (s: Status) =>
+    s === 'ok' ? 'OK' : s === 'warn' ? 'WARN' : 'FAIL'
+  const lines = r.doctor.checks.map(
+    (c) =>
+      `- [${sym(c.status)}] ${c.account ? `${c.account} ` : ''}${c.name}: ${c.message}${c.fix ? ` (→ ${c.fix})` : ''}`,
+  )
+  lines.push(`- backendReady: ${r.backendReady}`)
+  lines.push(`- cache: ${r.noteCacheCount} notes / ${fmtBytes(r.dbSizeBytes)}`)
+  lines.push(
+    `- heartbeat: ${r.heartbeatIntervalMinutes != null ? `${r.heartbeatIntervalMinutes}min` : 'off'}`,
+  )
+  if (r.logDir) lines.push(`- logDir: ${r.logDir}`)
+  return lines.join('\n')
+}
 const {
   isChecking,
   isUpToDate,
@@ -53,6 +128,7 @@ onMounted(async () => {
   } catch {
     // Fallback for environments where Tauri API is unavailable
   }
+  runHealthcheck()
 })
 
 const infoRows = [
@@ -66,7 +142,9 @@ const infoRows = [
 ]
 
 function getInfoText() {
-  return infoRows.map((r) => `${r.label}: ${r.get()}`).join('\n')
+  const info = infoRows.map((r) => `${r.label}: ${r.get()}`).join('\n')
+  const diag = diagnosticsText()
+  return diag ? `${info}\n\n# 診断\n${diag}` : info
 }
 
 async function copyInfo() {
@@ -79,7 +157,9 @@ async function copyInfo() {
 
 function reportBug() {
   const env = infoRows.map((r) => `- **${r.label}**: ${r.get()}`).join('\n')
-  const body = `## 現象\n\n<!-- 何が起きたか -->\n\n## 再現手順\n\n1.\n2.\n3.\n\n## 期待する動作\n\n<!-- 本来どうなるべきか -->\n\n## 環境\n\n${env}\n\n## スクリーンショット\n\n<!-- あれば添付 -->`
+  const diag = diagnosticsText()
+  const diagSection = diag ? `\n\n## 診断\n\n${diag}` : ''
+  const body = `## 現象\n\n<!-- 何が起きたか -->\n\n## 再現手順\n\n1.\n2.\n3.\n\n## 期待する動作\n\n<!-- 本来どうなるべきか -->\n\n## 環境\n\n${env}${diagSection}\n\n## スクリーンショット\n\n<!-- あれば添付 -->`
   const url = `https://github.com/hitalin/notedeck/issues/new?labels=bug&body=${encodeURIComponent(body)}`
   openUrl(url)
 }
@@ -97,6 +177,31 @@ function reportBug() {
         <span :class="$style.aboutLabel">{{ row.label }}:</span>
         <span :class="$style.aboutValue">{{ row.get() }}</span>
       </div>
+    </div>
+
+    <div :class="$style.diag">
+      <div :class="$style.diagHead">
+        <i
+          :class="[
+            healthLoading ? 'ti ti-loader-2' : healthError ? STATUS_ICON.fail : STATUS_ICON[overallStatus],
+            $style.diagIcon,
+            !healthLoading && !healthError && $style[overallStatus],
+            healthError && $style.fail,
+          ]"
+        />
+        <span :class="$style.diagSummary">診断: {{ healthSummary }}</span>
+        <button class="_button" :class="$style.diagRefresh" :disabled="healthLoading" title="再診断" @click="runHealthcheck">
+          <i class="ti ti-refresh" />
+        </button>
+      </div>
+      <div v-if="healthError" :class="$style.diagError">{{ healthError }}</div>
+      <template v-else>
+        <div v-for="(c, i) in problemChecks" :key="i" :class="$style.checkRow">
+          <i :class="[STATUS_ICON[c.status], $style.checkIcon, $style[c.status]]" />
+          <span :class="$style.checkName">{{ c.account ? `${c.account} ` : '' }}{{ c.name }}</span>
+          <span :class="$style.checkMsg">{{ c.message }}</span>
+        </div>
+      </template>
     </div>
 
     <div :class="$style.actions">
@@ -191,6 +296,83 @@ function reportBug() {
 .updateBtn {
   background: var(--nd-accent) !important;
   color: var(--nd-fgOnAccent, #fff) !important;
+}
+
+.diag {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 16px;
+  font-size: 0.85em;
+}
+
+.diagHead {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.diagIcon {
+  font-size: 1em;
+
+  &.ok { color: var(--nd-success); }
+  &.warn { color: var(--nd-warn); }
+  &.fail { color: var(--nd-error); }
+}
+
+.diagSummary {
+  color: var(--nd-fg);
+  font-weight: 600;
+}
+
+.diagRefresh {
+  position: absolute;
+  right: 0;
+  background: transparent;
+  border: none;
+  color: var(--nd-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  padding: 2px 4px;
+
+  &:hover { opacity: 1; }
+  &:disabled { opacity: 0.3; cursor: default; }
+}
+
+.diagError {
+  color: var(--nd-error);
+  font-size: 0.9em;
+}
+
+.checkRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-left: 2px;
+  line-height: 1.4;
+}
+
+.checkIcon {
+  flex-shrink: 0;
+  font-size: 0.9em;
+
+  &.ok { color: var(--nd-success); }
+  &.warn { color: var(--nd-warn); }
+  &.fail { color: var(--nd-error); }
+}
+
+.checkName {
+  color: var(--nd-fg);
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.checkMsg {
+  color: var(--nd-fg);
+  opacity: 0.9;
+  word-break: break-word;
 }
 
 .actions { @include action-bar; }

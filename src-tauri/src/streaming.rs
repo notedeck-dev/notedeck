@@ -124,7 +124,7 @@ impl TauriEmitter {
             builder = builder.channel_id(NOTIFICATION_CHANNEL_ID);
         }
         if let Err(e) = builder.show() {
-            eprintln!("[notification] failed to send: {e}");
+            tracing::warn!("[notification] failed to send: {e}");
         }
     }
 }
@@ -239,7 +239,7 @@ impl FrontendEmitter for TauriEmitter {
             payload: &payload,
         };
         if let Err(e) = self.app.emit("stream-event", &wrapped) {
-            eprintln!("[stream] emit {event} failed: {e}");
+            tracing::warn!("[stream] emit {event} failed: {e}");
         }
     }
 }

@@ -38,6 +38,39 @@ pub fn run() {
     }
 }
 
+/// Install the global `tracing` subscriber: stdout plus a daily-rotating
+/// `notedeck.log` in the OS log dir (`app_log_dir`). The `EnvFilter` keeps the
+/// previous default (`notedeck=info,notecli=info,warn`) and still honors `RUST_LOG`.
+/// If the log dir can't be resolved we log to stdout only — logging must never
+/// block startup. Called once from `setup`.
+fn init_logging(app: &tauri::App) {
+    use tracing_subscriber::prelude::*;
+
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "notedeck=info,notecli=info,warn".parse().expect("default tracing filter must parse"));
+
+    // File layer is optional: skipped if the log dir can't be created.
+    let file_layer = app
+        .path()
+        .app_log_dir()
+        .ok()
+        .filter(|dir| std::fs::create_dir_all(dir).is_ok())
+        .map(|dir| {
+            let appender = tracing_appender::rolling::daily(&dir, "notedeck.log");
+            let (non_blocking, guard) = tracing_appender::non_blocking(appender);
+            // Keep the writer thread alive for the whole process (flushes on drop),
+            // mirroring how the tokio runtime handle is leaked above.
+            Box::leak(Box::new(guard));
+            tracing_subscriber::fmt::layer().with_ansi(false).with_writer(non_blocking)
+        });
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(tracing_subscriber::fmt::layer())
+        .with(file_layer)
+        .init();
+}
+
 fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
     // Limit tokio worker threads (~2MB stack per thread).
     // 4 threads balance concurrency (multi-server WS + OGP + DB) vs memory.
@@ -49,13 +82,6 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .build()?,
     ));
     tauri::async_runtime::set(runtime.handle().clone());
-
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "notedeck=info,notecli=info,warn".parse().expect("default tracing filter must parse")),
-        )
-        .init();
 
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_os::init())
@@ -95,6 +121,13 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
     let has_tray_for_setup = has_tray.clone();
 
     builder = builder.setup(move |app| {
+        // Structured logging (#644): stdout (unchanged behavior) + a daily-rotating
+        // file in the OS log dir, so background work (notecli wrapper / HEARTBEAT /
+        // AI SSE) leaves a trace for bug reports and the healthcheck view.
+        // Initialized here (not earlier) because the log dir needs the app handle;
+        // if it can't be resolved we fall back to stdout-only so startup never blocks.
+        init_logging(app);
+
         // tauri-specta typed events (e.g. QueryDelta) require the registry to be mounted.
         specta_builder.mount_events(app);
 
@@ -108,7 +141,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
         // Initialize platform keychain + filesystem migrations (both lightweight)
         if let Err(e) = notecli::keychain::init_store() {
-            eprintln!("Warning: keychain unavailable ({e})");
+            tracing::warn!("keychain unavailable ({e})");
         }
         migrations::run_fs(&app_dir)?;
 
@@ -195,14 +228,14 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             let db = match db_handle.join().expect("db open thread panicked") {
                 Ok(d) => std::sync::Arc::new(d),
                 Err(e) => {
-                    eprintln!("Fatal: DB open failed: {e}");
+                    tracing::error!("Fatal: DB open failed: {e}");
                     return;
                 }
             };
             let client = match client_handle.join().expect("client init thread panicked") {
                 Ok(c) => std::sync::Arc::new(c),
                 Err(e) => {
-                    eprintln!("Fatal: MisskeyClient init failed: {e}");
+                    tracing::error!("Fatal: MisskeyClient init failed: {e}");
                     return;
                 }
             };
@@ -669,6 +702,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::delete_settings_file,
             commands::rename_settings_file,
             commands::get_settings_dir,
+            commands::get_log_dir,
             commands::open_settings_file_in_editor,
             commands::read_root_settings_file,
             commands::write_root_settings_file,
@@ -687,6 +721,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::heartbeat_unconfigure,
             commands::heartbeat_trigger_now,
             commands::heartbeat_status,
+            // Healthcheck (#644) — notecli doctor + ランタイム状態の自己診断
+            commands::run_healthcheck,
             // Secret Vault (#564) — 外部サービス接続のメタデータ + secret 管理
             commands::vault_list_connections,
             commands::vault_get_connection,

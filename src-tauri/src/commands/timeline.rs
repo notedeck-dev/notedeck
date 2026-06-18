@@ -45,7 +45,7 @@ pub async fn api_get_timeline(
         .get_timeline(&host, &token, &account_id, timeline_type, opts)
         .await?;
     if let Err(e) = db.cache_notes(&notes, &cache_key) {
-        eprintln!("[cache] failed to cache timeline notes: {e}");
+        tracing::warn!("[cache] failed to cache timeline notes: {e}");
     }
 
     // Background OGP prefetch: extract URLs and spawn async task (non-blocking)
@@ -182,7 +182,7 @@ pub async fn api_get_antenna_notes(
         )
         .await?;
     if let Err(e) = db.cache_notes(&notes, &format!("antenna:{antenna_id}")) {
-        eprintln!("[cache] failed to cache antenna notes: {e}");
+        tracing::warn!("[cache] failed to cache antenna notes: {e}");
     }
     Ok(notes)
 }
@@ -209,7 +209,7 @@ pub async fn api_get_favorites(
         )
         .await?;
     if let Err(e) = db.cache_notes(&notes, "favorites") {
-        eprintln!("[cache] failed to cache favorites: {e}");
+        tracing::warn!("[cache] failed to cache favorites: {e}");
     }
     Ok(notes)
 }
@@ -253,7 +253,7 @@ pub async fn api_get_mentions(
         )
         .await?;
     if let Err(e) = db.cache_notes(&notes, "mentions") {
-        eprintln!("[cache] failed to cache mentions: {e}");
+        tracing::warn!("[cache] failed to cache mentions: {e}");
     }
     Ok(notes)
 }
@@ -295,7 +295,7 @@ pub async fn api_get_clip_notes(
         )
         .await?;
     if let Err(e) = db.cache_notes(&notes, &format!("clip:{clip_id}")) {
-        eprintln!("[cache] failed to cache clip notes: {e}");
+        tracing::warn!("[cache] failed to cache clip notes: {e}");
     }
     Ok(notes)
 }
@@ -349,7 +349,7 @@ pub async fn api_get_channel_notes(
         )
         .await?;
     if let Err(e) = db.cache_notes(&notes, &format!("channel:{channel_id}")) {
-        eprintln!("[cache] failed to cache channel notes: {e}");
+        tracing::warn!("[cache] failed to cache channel notes: {e}");
     }
     Ok(notes)
 }
@@ -380,7 +380,7 @@ pub async fn api_get_role_notes(
         )
         .await?;
     if let Err(e) = db.cache_notes(&notes, &format!("role:{role_id}")) {
-        eprintln!("[cache] failed to cache role notes: {e}");
+        tracing::warn!("[cache] failed to cache role notes: {e}");
     }
     Ok(notes)
 }

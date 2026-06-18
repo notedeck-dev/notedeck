@@ -55,7 +55,7 @@ pub async fn api_get_user_notes(
         )
         .await?;
     if let Err(e) = db.cache_notes(&notes, &format!("user:{user_id}")) {
-        eprintln!("[cache] failed to cache user notes: {e}");
+        tracing::warn!("[cache] failed to cache user notes: {e}");
     }
     Ok(notes)
 }

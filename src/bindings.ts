@@ -1720,6 +1720,19 @@ async getSettingsDir() : Promise<Result<string, { code: string; message: string 
 }
 },
 /**
+ * Get the log directory path (`app_log_dir`, holds `notedeck.log` — #644).
+ * Separate from the settings dir, so the "ファイル → ログフォルダを開く" menu
+ * item can reveal it. Created if missing so it opens even when empty.
+ */
+async getLogDir() : Promise<Result<string, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_log_dir") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * Open a settings file in the OS default editor. WSL2 では xdg-open が GUI
  * エディタへルーティングできないため、wslpath で Windows パスへ変換し
  * cmd.exe start 経由で Windows 側の既定アプリに委譲する。
@@ -1883,6 +1896,14 @@ async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: stri
 async heartbeatStatus() : Promise<Result<number | null, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("run_healthcheck") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2285,6 +2306,19 @@ export type ChatMessageReaction = { user: ChatReactionUser | null; reaction: str
 export type ChatReactionUser = { id: string; name: string | null; username: string; host: string | null; avatarUrl: string | null }
 export type ChatRoom = { id: string; name: string | null; description: string | null }
 export type ChatUser = { id: string; name: string | null; username: string; host: string | null; avatarUrl: string | null; emojis?: Partial<{ [key in string]: string }>; avatarDecorations?: AvatarDecoration[] }
+export type Check = { 
+/**
+ * チェック項目名 (database, keychain, credentials, network, auth)
+ */
+name: string; status: Status; message: string; 
+/**
+ * アカウント別チェックの場合の対象 (@user@host)。環境チェックは None。
+ */
+account?: string | null; 
+/**
+ * 失敗・警告時にユーザーが実行すべき修復コマンド/手順。
+ */
+fix?: string | null }
 /**
  * Metadata for a single CLI argument.
  */
@@ -2447,6 +2481,23 @@ export type FollowChartSection = { followings: FollowChartGroup; followers: Foll
  * packages/backend/src/models/GalleryPost.ts。
  */
 export type GalleryPost = { id: string; createdAt: string; updatedAt: string; title: string; description: string | null; userId: string; user?: NormalizedUser | null; files: NormalizedDriveFile[]; isSensitive?: boolean; likedCount?: number; isLiked?: boolean | null }
+export type HealthReport = { 
+/**
+ * notecli doctor の結果 (database / keychain / accounts / network / auth)。
+ */
+doctor: Report; 
+/**
+ * バックエンド (DB + MisskeyClient) の初期化が完了しているか。
+ */
+backendReady: boolean; noteCacheCount: number; dbSizeBytes: number; 
+/**
+ * HEARTBEAT scheduler の現在 interval (分)。未登録なら null。
+ */
+heartbeatIntervalMinutes: number | null; 
+/**
+ * notedeck.log を含むログディレクトリ (#644)。解決できなければ null。
+ */
+logDir: string | null }
 export type HttpFetchRequest = { url: string; method: string | null; headers: Partial<{ [key in string]: string }> | null; body: string | null; timeoutMs: number | null }
 export type HttpFetchResponse = { status: number; headers: Partial<{ [key in string]: string }>; body: string }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
@@ -2554,6 +2605,7 @@ itemIds: string[] }
 export type QueryRuntimeState = "live" | "warm" | "suspended"
 export type QuerySnapshot = { queryId: string; key: QueryKey; runtimeState: QueryRuntimeState; subscriberCount: number; revision: number; sourceSubscriptionId: string | null }
 export type ReactionInfo = { user: NormalizedUser; reaction: string }
+export type Report = { ok: boolean; checks: Check[] }
 export type SearchOptions = { limit?: number; sinceId: string | null; untilId: string | null; sinceDate: number | null; untilDate: number | null; 
 /**
  * 指定ユーザーのノートのみに絞る (notes/search の userId)
@@ -2586,6 +2638,7 @@ export type ServerNotesChartSection = { total: number[]; inc: number[]; dec: num
  */
 export type ServerUsersChart = { local: ServerUsersChartSection; remote: ServerUsersChartSection }
 export type ServerUsersChartSection = { total: number[]; inc: number[]; dec: number[] }
+export type Status = "ok" | "warn" | "fail"
 export type StoredServer = { host: string; software: string; version: string; featuresJson: string; updatedAt: number }
 export type SummaryData = { title: string | null; description: string | null; icon: string | null; sitename: string | null; thumbnail: string | null; medias: string[]; player: Player | null; url: string; sensitive: boolean }
 export type TimelineFilter = { withRenotes: boolean | null; withReplies: boolean | null; withFiles: boolean | null; withBots: boolean | null; withSensitive: boolean | null }
