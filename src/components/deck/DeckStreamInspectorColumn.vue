@@ -500,7 +500,19 @@ function onDetailWheel(e: WheelEvent) {
 .markActive {
   opacity: 1;
   color: var(--nd-accent);
-  background: var(--nd-buttonHoverBg);
+
+  // ボトムバーの .tabActive と同じ表現: 全面塗りではなく下線バー + accent 文字色
+  &::after {
+    content: "";
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    translate: -50% 0;
+    width: 16px;
+    height: 2.5px;
+    border-radius: 3px 3px 0 0;
+    background: var(--nd-accent);
+  }
 }
 
 .markDim {
