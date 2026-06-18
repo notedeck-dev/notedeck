@@ -8,6 +8,7 @@ mod content;
 mod drafts;
 mod enrichment;
 mod federation;
+mod health;
 mod heartbeat;
 mod lists;
 mod http;
@@ -31,6 +32,7 @@ pub use content::*;
 pub use drafts::*;
 pub use enrichment::*;
 pub use federation::*;
+pub use health::*;
 pub use heartbeat::*;
 pub use lists::*;
 pub use http::*;
@@ -95,6 +97,12 @@ impl AppState {
         // Also signal DB channel in case initialize_db() wasn't called
         let _ = self.db_tx.send(Some(Arc::clone(&db)));
         let _ = self.tx.send(Some(Arc::new(AppStateInner { db, client })));
+    }
+
+    /// Non-blocking check of full readiness (DB + MisskeyClient). Used by the
+    /// healthcheck so it can report startup state without awaiting init.
+    pub fn is_ready(&self) -> bool {
+        self.rx.borrow().is_some()
     }
 
     /// Await until DB is ready (fast path — does not wait for MisskeyClient).

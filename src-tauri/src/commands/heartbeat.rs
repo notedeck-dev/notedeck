@@ -100,7 +100,7 @@ impl HeartbeatScheduler {
         }
     }
 
-    fn current_interval(&self) -> Option<u32> {
+    pub(crate) fn current_interval(&self) -> Option<u32> {
         self.inner
             .lock()
             .ok()

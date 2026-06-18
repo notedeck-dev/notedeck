@@ -63,6 +63,11 @@ export async function getSettingsDir(): Promise<string> {
   return unwrap(await commands.getSettingsDir())
 }
 
+export async function getLogDir(): Promise<string> {
+  if (!isTauri) return ''
+  return unwrap(await commands.getLogDir())
+}
+
 /**
  * OS 既定アプリ (通常はユーザーが登録したテキストエディタ) で設定ファイルを開く。
  * WSL2 環境では xdg-open が GUI エディタへ届かないため、Rust 側で

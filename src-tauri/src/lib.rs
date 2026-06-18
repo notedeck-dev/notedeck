@@ -702,6 +702,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::delete_settings_file,
             commands::rename_settings_file,
             commands::get_settings_dir,
+            commands::get_log_dir,
             commands::open_settings_file_in_editor,
             commands::read_root_settings_file,
             commands::write_root_settings_file,
@@ -720,6 +721,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::heartbeat_unconfigure,
             commands::heartbeat_trigger_now,
             commands::heartbeat_status,
+            // Healthcheck (#644) — notecli doctor + ランタイム状態の自己診断
+            commands::run_healthcheck,
             // Secret Vault (#564) — 外部サービス接続のメタデータ + secret 管理
             commands::vault_list_connections,
             commands::vault_get_connection,
