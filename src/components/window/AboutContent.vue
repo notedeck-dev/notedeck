@@ -6,6 +6,7 @@ import type { HealthReport, Status } from '@/bindings'
 import { useUpdater } from '@/composables/useUpdater'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
+import { highlightCode, highlighterLoaded } from '@/utils/highlight'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { version as appVersion } from '../../../package.json'
 
@@ -68,24 +69,24 @@ async function runHealthcheck() {
   }
 }
 
-/** 診断結果を Markdown 風テキストに整形 (コピー / バグ報告で同梱)。 */
-function diagnosticsText(): string {
+// 診断結果をデバッグログ体裁に整形 (UI のコードブロック・コピー・バグ報告で共用)。
+const diagnosticsLog = computed<string>(() => {
   const r = health.value
   if (!r) return ''
   const sym = (s: Status) =>
-    s === 'ok' ? 'OK' : s === 'warn' ? 'WARN' : 'FAIL'
+    s === 'ok' ? '[OK]  ' : s === 'warn' ? '[WARN]' : '[FAIL]'
   const lines = r.doctor.checks.map(
     (c) =>
-      `- [${sym(c.status)}] ${c.account ? `${c.account} ` : ''}${c.name}: ${c.message}${c.fix ? ` (→ ${c.fix})` : ''}`,
+      `${sym(c.status)} ${c.account ? `${c.account} ` : ''}${c.name}: ${c.message}${c.fix ? ` (→ ${c.fix})` : ''}`,
   )
-  lines.push(`- backendReady: ${r.backendReady}`)
-  lines.push(`- cache: ${r.noteCacheCount} notes / ${fmtBytes(r.dbSizeBytes)}`)
+  lines.push(`backendReady: ${r.backendReady}`)
+  lines.push(`cache: ${r.noteCacheCount} notes / ${fmtBytes(r.dbSizeBytes)}`)
   lines.push(
-    `- heartbeat: ${r.heartbeatIntervalMinutes != null ? `${r.heartbeatIntervalMinutes}min` : 'off'}`,
+    `heartbeat: ${r.heartbeatIntervalMinutes != null ? `${r.heartbeatIntervalMinutes}min` : 'off'}`,
   )
-  if (r.logDir) lines.push(`- logDir: ${r.logDir}`)
+  if (r.logDir) lines.push(`logDir: ${r.logDir}`)
   return lines.join('\n')
-}
+})
 const {
   isChecking,
   isUpToDate,
@@ -143,8 +144,8 @@ const infoRows = [
 
 function getInfoText() {
   const info = infoRows.map((r) => `${r.label}: ${r.get()}`).join('\n')
-  const diag = diagnosticsText()
-  return diag ? `${info}\n\n# 診断\n${diag}` : info
+  const diag = diagnosticsLog.value
+  return diag ? `${info}\n\n# 診断\n\`\`\`\n${diag}\n\`\`\`` : info
 }
 
 async function copyInfo() {
@@ -157,8 +158,8 @@ async function copyInfo() {
 
 function reportBug() {
   const env = infoRows.map((r) => `- **${r.label}**: ${r.get()}`).join('\n')
-  const diag = diagnosticsText()
-  const diagSection = diag ? `\n\n## 診断\n\n${diag}` : ''
+  const diag = diagnosticsLog.value
+  const diagSection = diag ? `\n\n## 診断\n\n\`\`\`\n${diag}\n\`\`\`` : ''
   const body = `## 現象\n\n<!-- 何が起きたか -->\n\n## 再現手順\n\n1.\n2.\n3.\n\n## 期待する動作\n\n<!-- 本来どうなるべきか -->\n\n## 環境\n\n${env}${diagSection}\n\n## スクリーンショット\n\n<!-- あれば添付 -->`
   const url = `https://github.com/hitalin/notedeck/issues/new?labels=bug&body=${encodeURIComponent(body)}`
   openUrl(url)
@@ -195,13 +196,13 @@ function reportBug() {
         </button>
       </div>
       <div v-if="healthError" :class="$style.diagError">{{ healthError }}</div>
-      <template v-else>
-        <div v-for="(c, i) in problemChecks" :key="i" :class="$style.checkRow">
-          <i :class="[STATUS_ICON[c.status], $style.checkIcon, $style[c.status]]" />
-          <span :class="$style.checkName">{{ c.account ? `${c.account} ` : '' }}{{ c.name }}</span>
-          <span :class="$style.checkMsg">{{ c.message }}</span>
-        </div>
-      </template>
+      <!-- 診断ログを log 言語としてシンタックスハイライト (エディタ系ウィンドウと同じ見た目) -->
+      <div
+        v-else-if="diagnosticsLog"
+        :key="`diag-${highlighterLoaded}`"
+        :class="$style.logBlock"
+        v-html="highlightCode(diagnosticsLog, 'log')"
+      />
     </div>
 
     <div :class="$style.actions">
@@ -346,33 +347,29 @@ function reportBug() {
   font-size: 0.9em;
 }
 
-.checkRow {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding-left: 2px;
-  line-height: 1.4;
-}
+.logBlock {
+  text-align: left;
+  font-size: 0.75em;
+  line-height: 1.5;
+  border-radius: var(--nd-radius-sm);
+  border: 1px solid var(--nd-panelBorder);
+  overflow: hidden;
 
-.checkIcon {
-  flex-shrink: 0;
-  font-size: 0.9em;
+  :global(pre) {
+    margin: 0;
+    padding: 8px 10px;
+    max-height: 200px;
+    overflow: auto;
+    background: var(--nd-codeBg, var(--nd-panelHighlight));
+    scrollbar-width: thin;
+  }
 
-  &.ok { color: var(--nd-success); }
-  &.warn { color: var(--nd-warn); }
-  &.fail { color: var(--nd-error); }
-}
-
-.checkName {
-  color: var(--nd-fg);
-  opacity: 0.7;
-  flex-shrink: 0;
-}
-
-.checkMsg {
-  color: var(--nd-fg);
-  opacity: 0.9;
-  word-break: break-word;
+  :global(code) {
+    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+    user-select: all;
+  }
 }
 
 .actions { @include action-bar; }

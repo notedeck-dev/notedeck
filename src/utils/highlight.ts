@@ -108,6 +108,8 @@ function initHighlighter(): Promise<void> {
       import('shiki/dist/langs/sql.mjs'),
       import('shiki/dist/langs/typescript.mjs'),
       import('shiki/dist/langs/yaml.mjs'),
+      // healthcheck の診断ログ表示用 (#644)
+      import('shiki/dist/langs/log.mjs'),
     ])
 
     highlighter = shikiCore.createHighlighterCoreSync({

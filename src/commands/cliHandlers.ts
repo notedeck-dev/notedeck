@@ -123,7 +123,7 @@ export function createCliHandlers(
       })
     },
 
-    tl: (args) => {
+    timeline: (args) => {
       const accountId = activeAccountId()
       if (!accountId) return
       const type = (args.trim() || 'home') as string

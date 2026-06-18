@@ -77,8 +77,8 @@ export const WINDOW_SIZES: Record<
   profileEditor: { width: 400, maxHeight: 700 },
   // Login
   login: { width: 380, maxHeight: 480 },
-  // About
-  about: { width: 380, maxHeight: 480 },
+  // About — 診断ログのコードブロックとアクションボタンが収まる高さ
+  about: { width: 460, maxHeight: 640 },
   // Nav editor
   navEditor: { width: 400, maxHeight: 700 },
   // Performance editor
