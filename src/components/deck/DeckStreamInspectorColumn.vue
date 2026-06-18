@@ -58,29 +58,32 @@ const paused = ref(false)
 const selectedId = ref<number | null>(null)
 const enabledKinds = ref(new Set<string>(ALL_KINDS))
 const clearedBefore = ref(0)
-/** ダッシュボードで有効化中のカラム subscriptionId 集合。空 = 全カラム表示（複数同時可） */
-const focusedSubIds = ref(new Set<string>())
+/**
+ * 無効化(OFF)したカラムの subscriptionId 集合。デフォルトは全カラム有効＝空集合。
+ * kind ピルと同じファセット型: 有効(色付き)=そのカラムのイベントを流す。
+ * クリックで OFF にしたカラムだけ除外する。
+ */
+const disabledSubIds = ref(new Set<string>())
 
 const filteredBuffer = computed(() => {
   const aid = props.column.accountId
-  const subs = focusedSubIds.value
+  const disabled = disabledSubIds.value
   return inspectorStore.buffer.filter((e) => {
     if (e.ts < clearedBefore.value) return false
     if (!enabledKinds.value.has(e.kind)) return false
     if (aid != null && e.accountId !== aid) return false
-    if (subs.size > 0 && !subs.has(e.payload.subscriptionId as string))
-      return false
+    if (disabled.has(e.payload.subscriptionId as string)) return false
     return true
   })
 })
 
-/** カラムマーククリックで有効/無効をトグル（複数同時に有効化できる。kind ピルと同様） */
+/** カラムマーククリックで有効/無効をトグル（デフォルト全有効、クリックで OFF） */
 function onMarkClick(subId: string | null) {
   if (!subId) return
-  const next = new Set(focusedSubIds.value)
+  const next = new Set(disabledSubIds.value)
   if (next.has(subId)) next.delete(subId)
   else next.add(subId)
-  focusedSubIds.value = next
+  disabledSubIds.value = next
 }
 
 // Freeze display when paused
@@ -318,9 +321,10 @@ function onDetailWheel(e: WheelEvent) {
           :class="[
             $style.mark,
             {
-              [$style.markDim]: row.state !== 'live',
               [$style.markActive]:
-                !!row.subscriptionId && focusedSubIds.has(row.subscriptionId),
+                !!row.subscriptionId && !disabledSubIds.has(row.subscriptionId),
+              [$style.markOff]:
+                !!row.subscriptionId && disabledSubIds.has(row.subscriptionId),
             },
           ]"
           :title="`${row.host} · ${row.typeLabel} · ${row.state} · ${ageText(
@@ -515,8 +519,13 @@ function onDetailWheel(e: WheelEvent) {
   }
 }
 
-.markDim {
-  opacity: 0.35;
+// 無効化(OFF=除外)したカラム。ボトムバーの非アクティブタブと同じく dim。
+.markOff {
+  opacity: 0.3;
+
+  &:hover {
+    opacity: 0.55;
+  }
 }
 
 .markIcon {
