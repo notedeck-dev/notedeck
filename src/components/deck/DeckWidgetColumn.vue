@@ -435,6 +435,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 }
 
 .widgetItem {
+  flex-shrink: 0;
   border: 1px solid var(--nd-divider);
   border-radius: 10px;
   background: var(--nd-panel);
