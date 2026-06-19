@@ -670,6 +670,7 @@ function onKeydown(e: KeyboardEvent) {
               <span :class="$style.postingDots">...</span>
             </template>
             <template v-else>
+              {{ editNote ? '編集' : replyTo ? '返信' : renoteId ? '引用' : scheduledAt ? '予約' : 'ノート' }}
               <svg viewBox="0 0 24 24" width="16" height="16" :class="$style.submitIcon">
                 <template v-if="editNote">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
@@ -684,7 +685,6 @@ function onKeydown(e: KeyboardEvent) {
                   <path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
                 </template>
               </svg>
-              {{ editNote ? '編集' : replyTo ? '返信' : renoteId ? '引用' : scheduledAt ? '予約' : 'ノート' }}
             </template>
           </button>
         </div>
