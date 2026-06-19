@@ -39,6 +39,7 @@ import MkPoll from './MkPoll.vue'
 import NoteMoreMenu from './NoteMoreMenu.vue'
 import NoteReactionPickerPopup from './NoteReactionPickerPopup.vue'
 import NoteReactionUsersPopup from './NoteReactionUsersPopup.vue'
+import RenoteMoreMenu from './RenoteMoreMenu.vue'
 
 const MkUserPopup = defineAsyncComponent(() => import('./MkUserPopup.vue'))
 const MkUrlPreview = defineAsyncComponent(() => import('./MkUrlPreview.vue'))
@@ -109,6 +110,7 @@ const { canInteract, isGuest } = useAccountMode(() => props.note._accountId)
 const { spawn: spawnRipple } = useRippleEffect()
 
 const moreMenuRef = ref<InstanceType<typeof NoteMoreMenu> | null>(null)
+const renoteMoreMenuRef = ref<InstanceType<typeof RenoteMoreMenu> | null>(null)
 const reactionPickerRef = ref<InstanceType<
   typeof NoteReactionPickerPopup
 > | null>(null)
@@ -489,6 +491,28 @@ const mentionPopupPortalRef = useTemplateRef<HTMLElement>(
 )
 usePortal(mentionPopupPortalRef)
 
+const renoteUserPopup = useHoverPopup()
+
+function onRenoteUserMouseEnter(e: MouseEvent) {
+  const el = e.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  popupTheme.value = extractColumnThemeVars(el)
+  renoteUserPopup.show({ x: rect.right + 8, y: rect.top })
+}
+
+function onRenoteUserMouseLeave() {
+  renoteUserPopup.hide()
+}
+
+function closeRenoteUserPopup() {
+  renoteUserPopup.forceClose()
+}
+
+const renoteUserPopupPortalRef = useTemplateRef<HTMLElement>(
+  'renoteUserPopupPortalRef',
+)
+usePortal(renoteUserPopupPortalRef)
+
 function handleReactionClick(e: MouseEvent, reaction: string) {
   if (longPressed.value) return
   if (!canInteract.value) {
@@ -555,7 +579,12 @@ function handlePickerReaction(reaction: string) {
         height="28"
         decoding="async"
       />
-      <span :class="$style.renoteUser">
+      <span
+        :class="$style.renoteUser"
+        @click.stop="navigateToUser(note.user.id, $event)"
+        @mouseenter="onRenoteUserMouseEnter"
+        @mouseleave="onRenoteUserMouseLeave"
+      >
         <MkMfm
           v-if="note.user.name"
           :text="note.user.name"
@@ -565,7 +594,10 @@ function handlePickerReaction(reaction: string) {
         />
         <template v-else>{{ note.user.username }}</template>
       </span>
-      <span :class="$style.renoteLabel">リノート</span>
+      <span :class="$style.renoteLabel">がリノート</span>
+      <button :class="$style.renoteMoreButton" @click.stop="renoteMoreMenuRef?.open($event)">
+        <i class="ti ti-dots" />
+      </button>
       <span :class="$style.renoteTime">{{ formatTime(note.createdAt) }}</span>
     </div>
 
@@ -904,6 +936,17 @@ function handlePickerReaction(reaction: string) {
     />
   </div>
 
+  <div v-if="renoteUserPopup.isVisible.value && isPureRenote" ref="renoteUserPopupPortalRef">
+    <MkUserPopup
+      :user-id="note.user.id"
+      :account-id="note._accountId"
+      :x="renoteUserPopup.position.value.x"
+      :y="renoteUserPopup.position.value.y"
+      :theme-vars="popupTheme"
+      @close="closeRenoteUserPopup"
+    />
+  </div>
+
   <NoteReactionUsersPopup
     ref="reactionUsersRef"
     :note-id="effectiveNote.id"
@@ -932,6 +975,13 @@ function handlePickerReaction(reaction: string) {
     @bookmark="emit('bookmark', $event)"
     @pin="emit('pin', $event)"
     @delete-and-edit="emit('deleteAndEdit', $event)"
+  />
+
+  <RenoteMoreMenu
+    v-if="isPureRenote"
+    ref="renoteMoreMenuRef"
+    :note="note"
+    @delete="emit('delete', $event)"
   />
 
   <NoteReactionPickerPopup
@@ -1115,6 +1165,11 @@ function handlePickerReaction(reaction: string) {
 
 .renoteUser {
   font-weight: bold;
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
 
   :deep(.custom-emoji) {
     height: 1.2em;
@@ -1127,8 +1182,27 @@ function handlePickerReaction(reaction: string) {
 }
 
 .renoteTime {
-  margin-left: auto;
   opacity: 0.6;
+}
+
+.renoteMoreButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  margin-left: auto;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
+
+  &:hover {
+    background: color-mix(in srgb, currentColor 12%, transparent);
+    opacity: 1;
+  }
 }
 
 /* Main article layout */
