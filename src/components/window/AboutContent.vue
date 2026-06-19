@@ -2,7 +2,7 @@
 import { getTauriVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, onMounted, ref, shallowRef } from 'vue'
-import type { HealthReport, Status } from '@/bindings'
+import type { Check, HealthReport, Status } from '@/bindings'
 import { useUpdater } from '@/composables/useUpdater'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
@@ -25,6 +25,16 @@ const STATUS_ICON: Record<Status, string> = {
   ok: 'ti ti-circle-check',
   warn: 'ti ti-alert-triangle',
   fail: 'ti ti-circle-x',
+}
+
+const STATUS_SYM: Record<Status, string> = {
+  ok: '[OK]  ',
+  warn: '[WARN]',
+  fail: '[FAIL]',
+}
+
+function formatCheck(c: Check): string {
+  return `${STATUS_SYM[c.status]} ${c.account ? `${c.account} ` : ''}${c.name}: ${c.message}${c.fix ? ` (→ ${c.fix})` : ''}`
 }
 
 const overallStatus = computed<Status>(() => {
@@ -50,12 +60,6 @@ const healthSummary = computed(() => {
   return '正常'
 })
 
-function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-  return `${(n / 1024 / 1024).toFixed(1)} MB`
-}
-
 async function runHealthcheck() {
   if (healthLoading.value) return
   healthLoading.value = true
@@ -69,24 +73,11 @@ async function runHealthcheck() {
   }
 }
 
-// 診断結果をデバッグログ体裁に整形 (UI のコードブロック・コピー・バグ報告で共用)。
-const diagnosticsLog = computed<string>(() => {
-  const r = health.value
-  if (!r) return ''
-  const sym = (s: Status) =>
-    s === 'ok' ? '[OK]  ' : s === 'warn' ? '[WARN]' : '[FAIL]'
-  const lines = r.doctor.checks.map(
-    (c) =>
-      `${sym(c.status)} ${c.account ? `${c.account} ` : ''}${c.name}: ${c.message}${c.fix ? ` (→ ${c.fix})` : ''}`,
-  )
-  lines.push(`backendReady: ${r.backendReady}`)
-  lines.push(`cache: ${r.noteCacheCount} notes / ${fmtBytes(r.dbSizeBytes)}`)
-  lines.push(
-    `heartbeat: ${r.heartbeatIntervalMinutes != null ? `${r.heartbeatIntervalMinutes}min` : 'off'}`,
-  )
-  if (r.logDir) lines.push(`logDir: ${r.logDir}`)
-  return lines.join('\n')
-})
+// 問題のある行だけをデバッグログ体裁に整形 (UI 表示・コピー・バグ報告で共用)。
+// 正常時は空文字なのでブロックも本文の診断セクションも出ない。
+const diagnosticsLog = computed<string>(() =>
+  problemChecks.value.map(formatCheck).join('\n'),
+)
 const {
   isChecking,
   isUpToDate,
@@ -196,7 +187,7 @@ function reportBug() {
         </button>
       </div>
       <div v-if="healthError" :class="$style.diagError">{{ healthError }}</div>
-      <!-- 診断ログを log 言語としてシンタックスハイライト (エディタ系ウィンドウと同じ見た目) -->
+      <!-- 問題のある行だけを log 言語でシンタックスハイライト (正常時は非表示) -->
       <div
         v-else-if="diagnosticsLog"
         :key="`diag-${highlighterLoaded}`"
