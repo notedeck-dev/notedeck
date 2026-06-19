@@ -290,11 +290,11 @@ export function usePostFormState(
           type: 'warning',
           actions: [
             { value: 'home', label: 'ホームに投稿', primary: true },
-            { value: 'cancel', label: 'やめる' },
+            { value: 'cancel', label: 'やめる', cancel: true },
             { value: 'ignore', label: 'このまま投稿' },
           ],
         })
-        if (!result || result === 'cancel') return
+        if (!result) return
         if (result === 'home') visibility.value = 'home'
         // result === 'ignore' → そのまま public で投稿
       }

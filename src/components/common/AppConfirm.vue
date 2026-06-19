@@ -134,7 +134,7 @@ useNativeDialog(dialogRef, visible, {
               :key="action.value"
               class="_button"
               :class="action.primary ? (options.type === 'danger' ? $style.btnDanger : $style.btnOk) : $style.btnCancel"
-              @click="resolveAction(action.value)"
+              @click="action.cancel ? cancel() : resolveAction(action.value)"
             >
               {{ action.label }}
             </button>

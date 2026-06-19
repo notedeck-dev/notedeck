@@ -22,6 +22,8 @@ export interface ConfirmAction {
   value: string
   label: string
   primary?: boolean
+  /** true のとき、このボタンはキャンセル扱い（confirmWithAction は null を返す）。 */
+  cancel?: boolean
 }
 
 export interface ConfirmOptions {
