@@ -295,6 +295,15 @@ const isOwnNote = computed(() => {
   return account?.userId === effectiveNote.value.user.id
 })
 
+// リノート可否（Misskey WebUI と同じ判定）
+// public/home は誰でも可、followers は自分のノートのみ、specified は不可
+const canRenote = computed(() => {
+  const v = effectiveNote.value.visibility
+  return (
+    v === 'public' || v === 'home' || (v === 'followers' && isOwnNote.value)
+  )
+})
+
 // User hover popup
 const userPopup = useHoverPopup()
 const popupTheme = ref<Record<string, string>>({})
@@ -817,11 +826,14 @@ function handlePickerReaction(reaction: string) {
               {{ effectiveNote.repliesCount }}
             </span>
           </button>
-          <button :class="[$style.footerButton, $style.renoteButton, { [$style.renoted]: isRenoted, [$style.footerDisabled]: isGuest }]" :disabled="isGuest" @click.stop="canInteract ? openRenoteMenu($event) : showLoginPrompt()">
+          <button v-if="canRenote" :class="[$style.footerButton, $style.renoteButton, { [$style.renoted]: isRenoted, [$style.footerDisabled]: isGuest }]" :disabled="isGuest" @click.stop="canInteract ? openRenoteMenu($event) : showLoginPrompt()">
             <i class="ti ti-repeat" />
             <span v-if="effectiveNote.renoteCount > 0" :class="$style.buttonCount">
               {{ effectiveNote.renoteCount }}
             </span>
+          </button>
+          <button v-else :class="[$style.footerButton, $style.renoteButton, $style.footerDisabled]" disabled>
+            <i class="ti ti-ban" />
           </button>
           <button
             :class="[$style.footerButton, $style.reactionButton, { [$style.footerDisabled]: isGuest }]"
