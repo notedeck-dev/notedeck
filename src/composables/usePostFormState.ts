@@ -28,6 +28,7 @@ import {
   saveMemo,
 } from '@/composables/useMemos'
 import { useAccountsStore } from '@/stores/accounts'
+import { useConfirm } from '@/stores/confirm'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
@@ -37,6 +38,16 @@ import {
 } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+
+function isAnnoying(text: string): boolean {
+  return (
+    text.includes('$[x2') ||
+    text.includes('$[x3') ||
+    text.includes('$[x4') ||
+    text.includes('$[scale') ||
+    text.includes('$[position')
+  )
+}
 
 export function usePostFormState(
   props: {
@@ -266,6 +277,25 @@ export function usePostFormState(
     }
 
     if (!adapter || !canPost.value) return
+
+    // 迷惑投稿チェック: public かつ MFM 拡大/位置指定を含む場合に警告
+    if (!props.editNote && visibility.value === 'public') {
+      const textToCheck =
+        showCw.value && cw.value?.trim() ? cw.value : (text.value ?? '')
+      if (isAnnoying(textToCheck)) {
+        const { confirm } = useConfirm()
+        const ok = await confirm({
+          title: 'この投稿は迷惑になる可能性があります',
+          message:
+            'テキストの拡大や位置指定の MFM が含まれています。公開範囲をホームに変更して投稿しますか？',
+          type: 'warning',
+          okLabel: 'ホームに投稿',
+          cancelLabel: 'やめる',
+        })
+        if (!ok) return
+        visibility.value = 'home'
+      }
+    }
 
     isPosting.value = true
     error.value = null
