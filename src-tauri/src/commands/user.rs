@@ -104,7 +104,7 @@ pub async fn api_get_user_achievements(
     user_id: String,
 ) -> Result<serde_json::Value> {
     let (db, client) = app_state.ready().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (host, token) = get_credentials_or_anon(&db, &account_id)?;
     client
         .get_user_achievements(&host, &token, &user_id)
         .await
