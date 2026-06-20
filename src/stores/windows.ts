@@ -64,7 +64,7 @@ export const WINDOW_SIZES: Record<
   'note-detail': { width: 500, maxHeight: 600 },
   'note-inspector': { width: 620, maxHeight: 720 },
   'notification-inspector': { width: 620, maxHeight: 720 },
-  'user-profile': { width: 800, maxHeight: 650 },
+  'user-profile': { width: 620, maxHeight: 650 },
   'federation-instance': { width: 500, maxHeight: 650 },
   'follow-list': { width: 500, maxHeight: 650 },
   aiSettings: { width: 400, maxHeight: 700 },
