@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useTemplateRef } from 'vue'
+
 export interface EditorTabDef {
   value: string
   icon: string
@@ -13,10 +15,18 @@ defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+
+const tabsEl = useTemplateRef<HTMLDivElement>('tabsEl')
+
+function onWheel(e: WheelEvent) {
+  const el = tabsEl.value
+  if (!el) return
+  el.scrollLeft += e.deltaY + e.deltaX
+}
 </script>
 
 <template>
-  <div :class="$style.tabs">
+  <div ref="tabsEl" :class="$style.tabs" @wheel.prevent="onWheel">
     <button
       v-for="t in tabs"
       :key="t.value"
@@ -38,6 +48,12 @@ const emit = defineEmits<{
   gap: 0;
   border-bottom: 1px solid var(--nd-divider);
   flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .tab {
@@ -50,6 +66,7 @@ const emit = defineEmits<{
   color: var(--nd-fg);
   opacity: 0.5;
   border-bottom: 2px solid transparent;
+  flex-shrink: 0;
   transition: opacity var(--nd-duration-base), border-color var(--nd-duration-base);
 
   &:hover {
