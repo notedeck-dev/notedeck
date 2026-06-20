@@ -301,6 +301,11 @@ const {
   maxItems: MAX_PROFILE_NOTES,
   onError: raiseWindowError,
 })
+// ゲスト時は withFiles フィルタが無視されて全ノートが返るため、
+// filesNotes.length === 0 ではなく実際のファイル有無で判定する
+const hasFilesContent = computed(() =>
+  filesNotes.value.some((n) => n.files.length > 0),
+)
 
 // Achievements top-tab
 const achievements = ref<Achievement[]>([])
@@ -1685,9 +1690,11 @@ async function handlePosted(editedNoteId?: string) {
           <div v-if="isLoadingFiles" :class="$style.stateMessage">
             <LoadingSpinner />
           </div>
-          <div v-if="!isLoadingFiles && filesNotes.length === 0" :class="$style.stateMessage">
-            ファイルはありません
-          </div>
+          <ColumnEmptyState
+            v-else-if="!hasFilesContent"
+            message="ファイルはありません"
+            :image-url="serverInfoImageUrl"
+          />
         </div>
 
         <!--
