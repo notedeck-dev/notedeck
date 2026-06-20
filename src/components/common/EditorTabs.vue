@@ -27,7 +27,7 @@ const emit = defineEmits<{
       @click="emit('update:modelValue', t.value)"
     >
       <i :class="'ti ti-' + t.icon" />
-      <span v-if="modelValue === t.value" :class="$style.label">{{ t.label }}</span>
+      <span :class="$style.label">{{ t.label }}</span>
     </button>
   </div>
 </template>
