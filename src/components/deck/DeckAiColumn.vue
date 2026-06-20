@@ -1550,6 +1550,10 @@ function onKeydown(e: KeyboardEvent) {
   &.mine {
     flex-direction: row-reverse;
 
+    .chatBubbleWrapper {
+      flex-direction: row-reverse;
+    }
+
     .chatBubble {
       background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
       border-bottom-right-radius: 4px;
