@@ -103,10 +103,15 @@ function onWheel(e: WheelEvent) {
     opacity: 1;
     border-bottom-color: var(--nd-accent);
     color: var(--nd-accent);
+
+    .label {
+      display: inline;
+    }
   }
 }
 
 .label {
+  display: none;
   white-space: nowrap;
 }
 </style>
