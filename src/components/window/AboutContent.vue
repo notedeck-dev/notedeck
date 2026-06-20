@@ -243,14 +243,15 @@ function reportBug() {
 }
 
 .aboutLogo {
-  width: 64px;
-  height: 64px;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
 }
 
 .aboutTitle {
-  font-size: 1.2em;
-  font-weight: bold;
+  font-size: 0.85em;
   color: var(--nd-fg);
+  opacity: 0.7;
 }
 
 .aboutInfo {
