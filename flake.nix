@@ -39,7 +39,7 @@
           buildInputs = with pkgs; [
             # Node.js
             nodejs
-            pnpm_10
+            pnpm_11
 
             # Java (Android)
             jdk17
