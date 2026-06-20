@@ -1747,18 +1747,17 @@ async function handlePosted(editedNoteId?: string) {
           <div v-if="isLoadingReactions" :class="$style.stateMessage">
             <LoadingSpinner />
           </div>
-          <div
+          <ColumnEmptyState
             v-else-if="reactionsError"
-            :class="[$style.stateMessage, $style.stateError]"
-          >
-            {{ reactionsError }}
-          </div>
-          <div
+            :message="reactionsError"
+            is-error
+            :image-url="serverErrorImageUrl"
+          />
+          <ColumnEmptyState
             v-else-if="reactionEntries.length === 0"
-            :class="$style.stateMessage"
-          >
-            リアクションはありません
-          </div>
+            message="リアクションはありません"
+            :image-url="serverInfoImageUrl"
+          />
         </div>
 
         <div v-show="topTab === 'pages'" :class="$style.pagesPane">
