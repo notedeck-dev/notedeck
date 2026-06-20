@@ -1067,26 +1067,28 @@ function onKeydown(e: KeyboardEvent) {
                 {{ session.lastMessagePreview }}
               </div>
             </div>
-            <div :class="$style.rowActions">
-              <button
-                class="_button"
-                :class="$style.rowActionBtn"
-                title="名前を変更"
-                @click="onRenameSession($event, session.id)"
-              >
-                <i class="ti ti-pencil" />
-              </button>
-              <button
-                class="_button"
-                :class="[$style.rowActionBtn, $style.rowActionBtnDanger]"
-                title="削除"
-                @click="onDeleteSession($event, session.id)"
-              >
-                <i class="ti ti-trash" />
-              </button>
-            </div>
-            <div :class="$style.rowTime">
-              {{ relativeTime(session.updatedAt) }}
+            <div :class="$style.rowRight">
+              <div :class="$style.rowTime">
+                {{ relativeTime(session.updatedAt) }}
+              </div>
+              <div :class="$style.rowActions">
+                <button
+                  class="_button"
+                  :class="$style.rowActionBtn"
+                  title="名前を変更"
+                  @click="onRenameSession($event, session.id)"
+                >
+                  <i class="ti ti-pencil" />
+                </button>
+                <button
+                  class="_button"
+                  :class="[$style.rowActionBtn, $style.rowActionBtnDanger]"
+                  title="削除"
+                  @click="onDeleteSession($event, session.id)"
+                >
+                  <i class="ti ti-trash" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1474,12 +1476,17 @@ function onKeydown(e: KeyboardEvent) {
   white-space: nowrap;
 }
 
+.rowRight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
 .rowTime {
   font-size: 0.75em;
   opacity: 0.5;
-  flex-shrink: 0;
-  align-self: flex-start;
-  margin-top: 2px;
 }
 
 // スキルカラムの行アクションと同じパターン: hover で出現するインラインボタン群。
