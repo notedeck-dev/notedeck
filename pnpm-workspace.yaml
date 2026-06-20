@@ -1,0 +1,6 @@
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  lefthook: true
+  ttf2woff2: true
+  vue-demi: true
