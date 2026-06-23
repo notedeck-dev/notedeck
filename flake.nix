@@ -63,7 +63,8 @@
 
           shellHook = ''
             export PATH="${androidHome}/platform-tools:$PATH"
-            export LIBGL_DRIVERS_PATH="${pkgs.mesa}/lib/dri"
+            export LANG="C.UTF-8"
+            export GST_PLUGIN_SYSTEM_PATH_1_0="${pkgs.gst_all_1.gstreamer}/lib/gstreamer-1.0:${pkgs.gst_all_1.gst-plugins-base}/lib/gstreamer-1.0:${pkgs.gst_all_1.gst-plugins-good}/lib/gstreamer-1.0"
             export __EGL_VENDOR_LIBRARY_FILENAMES="${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json"
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (desktopDeps ++ (with pkgs; [
               gdk-pixbuf
@@ -79,6 +80,9 @@
               libxrender
               libGL
               dbus
+              gst_all_1.gstreamer
+              gst_all_1.gst-plugins-base
+              gst_all_1.gst-plugins-good
             ]))}:$LD_LIBRARY_PATH"
           '';
         };
