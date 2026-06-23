@@ -64,6 +64,7 @@
           shellHook = ''
             export PATH="${androidHome}/platform-tools:$PATH"
             export LANG="C.UTF-8"
+            export GIO_EXTRA_MODULES="${pkgs.glib-networking}/lib/gio/modules"
             export GST_PLUGIN_SYSTEM_PATH_1_0="${pkgs.gst_all_1.gstreamer}/lib/gstreamer-1.0:${pkgs.gst_all_1.gst-plugins-base}/lib/gstreamer-1.0:${pkgs.gst_all_1.gst-plugins-good}/lib/gstreamer-1.0"
             export __EGL_VENDOR_LIBRARY_FILENAMES="${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json"
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (desktopDeps ++ (with pkgs; [
