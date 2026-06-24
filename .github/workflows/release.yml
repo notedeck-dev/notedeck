@@ -90,8 +90,14 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.rust_targets }}
+
+      # rust-toolchain.toml が 1.92.0 を pin しているため、dtolnay が stable に
+      # 足した target は実ビルド (1.92.0) に効かない。override 配下で明示追加する。
+      - name: Add Rust targets (macOS universal)
+        if: matrix.rust_targets != ''
+        run: rustup target add ${RUST_TARGETS//,/ }
+        env:
+          RUST_TARGETS: ${{ matrix.rust_targets }}
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
