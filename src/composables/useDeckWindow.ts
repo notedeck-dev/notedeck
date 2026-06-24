@@ -76,10 +76,12 @@ export async function openDeckWindow(
     const win = new WebviewWindow(windowId, {
       url,
       title: 'NoteDeck',
-      width: 900,
-      height: 700,
-      minWidth: 400,
-      minHeight: 400,
+      // Match the main window defaults (tauri.conf.json) so a new window
+      // opens at the same size instead of a smaller one.
+      width: 1200,
+      height: 800,
+      minWidth: 360,
+      minHeight: 640,
       decorations: false,
       resizable: true,
       visible: false,
