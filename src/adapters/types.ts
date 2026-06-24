@@ -107,17 +107,20 @@ export interface SearchOptions {
 // `UserList` は specta 経由で Rust 側から自動生成される正規化型 (notecli の
 // notecli::models::UserList)。重複定義を避けるため bindings から re-export。
 import type { UserList } from '@/bindings'
+
 export type { UserList }
 
 // `Antenna` は specta 経由で Rust 側から自動生成される正規化型 (notecli の
 // notecli::models::Antenna)。src/users/keywords 等の full entity を扱うため
 // bindings から re-export する。
 import type { Antenna } from '@/bindings'
+
 export type { Antenna }
 
 // `Clip` は specta 経由で Rust 側から自動生成される正規化型 (notecli の
 // notecli::models::Clip)。重複定義を避けるため bindings から re-export。
 import type { Clip } from '@/bindings'
+
 export type { Clip }
 
 export interface CreateAntennaParams {
@@ -417,6 +420,7 @@ import type {
   UserNotesChart,
   UserPvChart,
 } from '@/bindings'
+
 export type {
   ActiveUsersChart,
   ApRequestChart,
@@ -433,14 +437,17 @@ export type {
 // クエリパラメタ補助 (FederationInstanceSort / FederationInstancesParams) のみ
 // TS 側に残す。
 import type { FederationInstance } from '@/bindings'
+
 export type { FederationInstance }
 
 // Pages / Gallery / Flash 型も specta 経由で Rust 側から自動生成される。
 import type { Flash, GalleryPost, Page } from '@/bindings'
+
 export type { Flash, GalleryPost, Page }
 
 // ワードミュート（#610）。mutedWords / hardMutedWords は notecli が `i` から取得。
 import type { MutedWord, MutedWordsResult } from '@/bindings'
+
 export type { MutedWord, MutedWordsResult }
 
 /** Misskey Pages の取得対象 endpoint (Rust 側で allowlist チェック)。 */
