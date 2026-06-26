@@ -48,6 +48,7 @@ pub async fn auth_start(
             "read:gallery",
             "read:gallery-likes",
             "write:gallery-likes",
+            "read:federation",
         ]
         .into_iter()
         .map(String::from)
