@@ -1,6 +1,10 @@
 import { computed, onMounted, type Ref, shallowRef } from 'vue'
 import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import {
+  loadCachedTimeline,
+  loadCachedTimelineBefore,
+} from '@/composables/useNoteColumnCache'
 import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { useAccountsStore } from '@/stores/accounts'
@@ -19,6 +23,13 @@ export interface CrossAccountNotesOptions {
 
   /** Whether this is cross-account mode */
   isCrossAccount: () => boolean
+
+  /**
+   * Offline cache key (e.g. 'mentions' | 'specified')。指定すると、
+   * ログイン中アカウントが無い（全員ログアウト）場合でも全アカウントの
+   * SQLite キャッシュを読んで表示する。未指定なら従来通り live のみ。
+   */
+  cacheKey?: () => string | null
 
   /** Loading / error / scroller refs from useColumnSetup */
   isLoading: Ref<boolean>
@@ -81,6 +92,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   const {
     fetchNotes,
     isCrossAccount,
+    cacheKey,
     isLoading,
     error,
     scroller,
@@ -108,10 +120,38 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     }
   }
 
+  /** 全アカウント（ログアウト済み含む）の SQLite キャッシュを読んで merge する */
+  async function loadCrossAccountCache(): Promise<NormalizedNote[]> {
+    const key = cacheKey?.()
+    if (!key) return []
+    const results = await mapWithConcurrency(
+      accountsStore.accounts,
+      async (acc) => {
+        try {
+          return await loadCachedTimeline(acc.id, key)
+        } catch {
+          return []
+        }
+      },
+      3,
+    )
+    return dedupAsync(collectFulfilled(results))
+  }
+
   async function connectCrossAccount() {
     error.value = null
     isLoading.value = true
+
+    // オフラインファースト: キャッシュを即時表示（ログアウト中のアカウント分も含む）
+    const cached = await loadCrossAccountCache()
+    if (cached.length > 0) rawNotes.value = cached
+
     const accounts = accountsStore.accounts.filter((a) => a.hasToken)
+    // 全アカウントがログアウト中なら live fetch せずキャッシュ表示のみ
+    if (accounts.length === 0) {
+      isLoading.value = false
+      return
+    }
 
     try {
       const results = await mapWithConcurrency(
@@ -124,7 +164,11 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         3,
       )
 
-      rawNotes.value = await dedupAsync(collectFulfilled(results))
+      // live を優先しつつキャッシュとマージ（dedup は先勝ち）
+      rawNotes.value = await dedupAsync([
+        ...collectFulfilled(results),
+        ...cached,
+      ])
     } catch (e) {
       error.value = AppError.from(e)
     } finally {
@@ -135,19 +179,36 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   async function loadMoreCrossAccount() {
     if (isLoading.value || rawNotes.value.length === 0) return
     isLoading.value = true
-    const accounts = accountsStore.accounts.filter((a) => a.hasToken)
+    const key = cacheKey?.()
 
     try {
+      // 全アカウントを対象（ログアウト中も含む）。ログイン中は live API で
+      // untilId 遡り、ログアウト中は SQLite キャッシュを createdAt で遡る。
       const results = await mapWithConcurrency(
-        accounts,
+        accountsStore.accounts,
         async (acc) => {
-          const adapter = await multiAdapters.getOrCreate(acc.id)
-          if (!adapter) return []
           const lastForAccount = [...rawNotes.value]
             .reverse()
             .find((n) => n._accountId === acc.id)
-          if (!lastForAccount) return fetchNotes(adapter)
-          return fetchNotes(adapter, { untilId: lastForAccount.id })
+
+          if (acc.hasToken) {
+            const adapter = await multiAdapters.getOrCreate(acc.id)
+            if (!adapter) return []
+            if (!lastForAccount) return fetchNotes(adapter)
+            return fetchNotes(adapter, { untilId: lastForAccount.id })
+          }
+
+          // ログアウト中: hasToken 不要でキャッシュを遡る
+          if (!key || !lastForAccount) return []
+          try {
+            return await loadCachedTimelineBefore(
+              acc.id,
+              key,
+              lastForAccount.createdAt,
+            )
+          } catch {
+            return []
+          }
         },
         3,
       )

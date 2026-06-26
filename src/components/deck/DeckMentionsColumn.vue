@@ -97,6 +97,7 @@ const {
       ? adapter.api.getMentions({ ...opts, visibility: 'specified' })
       : adapter.api.getMentions(opts),
   isCrossAccount: () => isCrossAccount.value,
+  cacheKey: () => config.value.cacheKey,
   isLoading,
   error,
   scroller,

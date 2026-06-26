@@ -252,7 +252,14 @@ pub async fn api_get_mentions(
             visibility.as_deref(),
         )
         .await?;
-    if let Err(e) = db.cache_notes(&notes, "mentions") {
+    // ダイレクト（specified）と通常メンションは別カラム・別キャッシュキー。
+    // 同じキーに混ぜると read 側（cacheKey='specified' / 'mentions'）と不整合になる。
+    let cache_key = if visibility.as_deref() == Some("specified") {
+        "specified"
+    } else {
+        "mentions"
+    };
+    if let Err(e) = db.cache_notes(&notes, cache_key) {
         tracing::warn!("[cache] failed to cache mentions: {e}");
     }
     Ok(notes)
