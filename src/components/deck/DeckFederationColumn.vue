@@ -235,9 +235,11 @@ function onInstanceClick(inst: FederationInstance) {
 
       <ColumnEmptyState
         v-if="error && instances.length === 0"
-        :message="error.message"
+        :error="error"
+        subject="連合情報"
+        :has-token="!!account?.hasToken"
         :image-url="serverErrorImageUrl"
-        is-error
+        :info-image-url="serverInfoImageUrl"
       />
       <ColumnEmptyState
         v-else-if="!isLoading && instances.length === 0"

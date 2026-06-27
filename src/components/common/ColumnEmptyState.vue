@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { AppError } from '@/utils/errors'
 import { proxyUrl } from '@/utils/imageProxy'
+import { restrictedAccessNotice } from '@/utils/restrictedAccess'
 import SystemIcon from './SystemIcon.vue'
 
 const props = withDefaults(
   defineProps<{
-    /** メッセージテキスト */
-    message: string
+    /** メッセージテキスト。error 指定時は省略可（error から導出）。 */
+    message?: string
     /** Misskey サーバーのカスタム画像 URL（infoImageUrl / notFoundImageUrl / serverErrorImageUrl） */
     imageUrl?: string
     /** エラー状態かどうか */
@@ -20,6 +22,19 @@ const props = withDefaults(
     ctaLabel?: string
     /** CTA ボタンのアイコン（Tabler icon クラス名、例: 'ti-pencil'） */
     ctaIcon?: string
+    /**
+     * API エラー。指定すると CREDENTIAL_REQUIRED / ACCESS_DENIED を
+     * 「このサーバーは○○を公開していません」等の案内に出し分ける
+     * （本家は匿名公開だが一部フォークが認証必須に絞っているエンドポイント向け）。
+     * 該当しないエラーは message 同様そのまま表示する。
+     */
+    error?: AppError | null
+    /** error の案内で使う対象名詞（例: '連合情報' / 'ユーザー情報'）。 */
+    subject?: string
+    /** ログイン済みか。未ログイン時のみ「公開していません」案内にする。 */
+    hasToken?: boolean
+    /** info 状態（CREDENTIAL_REQUIRED 未ログイン等）で使う画像。未指定なら imageUrl。 */
+    infoImageUrl?: string
   }>(),
   {
     isError: false,
@@ -30,17 +45,42 @@ const emit = defineEmits<{
   cta: []
 }>()
 
-const resolvedImageUrl = computed(() => proxyUrl(props.imageUrl))
+/** error 指定時、CREDENTIAL_REQUIRED 等を案内文に変換（該当しなければ生メッセージ）。 */
+const notice = computed(() => {
+  if (!props.error) return null
+  return (
+    restrictedAccessNotice(
+      props.error,
+      props.subject ?? '情報',
+      props.hasToken ?? false,
+    ) ?? { message: props.error.message, info: false }
+  )
+})
+
+const effectiveMessage = computed(
+  () => notice.value?.message ?? props.message ?? '',
+)
+const effectiveIsError = computed(() =>
+  notice.value ? !notice.value.info : props.isError,
+)
+
+const resolvedImageUrl = computed(() =>
+  proxyUrl(
+    notice.value?.info
+      ? (props.infoImageUrl ?? props.imageUrl)
+      : props.imageUrl,
+  ),
+)
 
 const resolvedFallbackType = computed<'info' | 'question' | 'error'>(() => {
   if (props.fallbackKind === 'notFound') return 'question'
   if (props.fallbackKind) return props.fallbackKind
-  return props.isError ? 'error' : 'info'
+  return effectiveIsError.value ? 'error' : 'info'
 })
 </script>
 
 <template>
-  <div :class="[$style.root, isError && $style.error]">
+  <div :class="[$style.root, effectiveIsError && $style.error]">
     <img
       v-if="resolvedImageUrl"
       :src="resolvedImageUrl"
@@ -54,7 +94,7 @@ const resolvedFallbackType = computed<'info' | 'question' | 'error'>(() => {
       :type="resolvedFallbackType"
       :class="$style.fallbackIcon"
     />
-    <div :class="$style.message">{{ message }}</div>
+    <div :class="$style.message">{{ effectiveMessage }}</div>
     <button
       v-if="ctaLabel"
       :class="$style.cta"

@@ -102,7 +102,7 @@ interface UserSummary {
 
 const users = ref<UserSummary[]>([])
 const usersLoading = ref(false)
-const usersError = ref<string | null>(null)
+const usersError = ref<AppError | null>(null)
 const usersFetched = ref(false)
 
 async function fetchUsers() {
@@ -123,7 +123,7 @@ async function fetchUsers() {
     ) as unknown as UserSummary[]
     usersFetched.value = true
   } catch (e) {
-    usersError.value = AppError.from(e).message
+    usersError.value = AppError.from(e)
   } finally {
     usersLoading.value = false
   }
@@ -317,7 +317,14 @@ usePortal(postPortalRef)
       <!-- Users tab -->
       <template v-else-if="activeTab === 'users'">
         <div v-if="usersLoading" :class="$style.columnLoading"><LoadingSpinner /></div>
-        <ColumnEmptyState v-else-if="usersError" :message="usersError" :image-url="serverErrorImageUrl" is-error />
+        <ColumnEmptyState
+          v-else-if="usersError"
+          :error="usersError"
+          subject="ユーザー情報"
+          :has-token="!!account?.hasToken"
+          :image-url="serverErrorImageUrl"
+          :info-image-url="serverInfoImageUrl"
+        />
         <ColumnEmptyState v-else-if="users.length === 0" message="ユーザーが見つかりません" :image-url="serverInfoImageUrl" />
         <div v-else :class="$style.exploreList">
           <MkUserListItem
