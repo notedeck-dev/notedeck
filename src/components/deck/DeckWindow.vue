@@ -172,15 +172,41 @@ const windowStyle = computed<Record<string, string | number>>(() => {
   if (isMaximized.value) {
     return { ...(props.themeVars ?? {}), zIndex: props.window.zIndex }
   }
-  return {
+  const style: Record<string, string | number> = {
     ...(props.themeVars ?? {}),
-    '--nd-win-x': `${winX.value}px`,
     '--nd-win-y': `${winY.value}px`,
     '--nd-win-w': `${winWidth.value}px`,
     '--nd-win-h': `${winHeight.value}px`,
     zIndex: props.window.zIndex,
   }
+  // 右上アンカー窓は viewport 右端からの相対配置にする。open() 時点の innerWidth
+  // に依存しないため、初回起動の早期表示でも確実に右上へ出る。ドラッグ/リサイズ
+  // すると anchor が外れ (updatePosition)、通常の x 配置へ切り替わる。
+  if (
+    props.window.anchor === 'top-right' &&
+    !isDragging.value &&
+    !isResizing.value
+  ) {
+    style['--nd-win-x'] = '0px'
+    style.left = 'auto'
+    style.right = '32px'
+    return style
+  }
+  style['--nd-win-x'] = `${winX.value}px`
+  return style
 })
+
+// 右上アンカー窓は描画上 viewport 右端基準で配置される (x は未確定)。掴んだ
+// 瞬間に左へジャンプしないよう、現在の見た目上の x を clientWidth から算出する。
+function resolveStartX(): number {
+  if (props.window.anchor === 'top-right') {
+    return Math.max(
+      50,
+      document.documentElement.clientWidth - winWidth.value - 32,
+    )
+  }
+  return props.window.x
+}
 
 function onHeaderPointerDown(e: PointerEvent) {
   if ((e.target as HTMLElement).closest('button')) return
@@ -188,11 +214,12 @@ function onHeaderPointerDown(e: PointerEvent) {
   // isDragging を立てる前に start 値と dragX/dragY を初期化する。
   // winX/winY computed は isDragging が true のとき dragX/dragY を返すため、
   // 順序を逆にすると一瞬 ref の初期値 (0) が使われて左上にジャンプして見える。
+  const startX = resolveStartX()
   dragStartX = e.clientX
   dragStartY = e.clientY
-  dragStartWinX = props.window.x
+  dragStartWinX = startX
   dragStartWinY = props.window.y
-  dragX.value = props.window.x
+  dragX.value = startX
   dragY.value = props.window.y
   isDragging.value = true
   document.body.style.userSelect = 'none'
@@ -229,7 +256,7 @@ function onResizePointerDown(dir: ResizeDir, e: PointerEvent) {
   resizeDir = dir
   rsStartX = e.clientX
   rsStartY = e.clientY
-  rsStartWinX = props.window.x
+  rsStartWinX = resolveStartX()
   rsStartWinY = props.window.y
   // ⚠️ isResizing を true にする前にサイズを読む。
   // winWidth/winHeight computed は isResizing 中は resizeW/resizeH (初期 0) を返すため、
@@ -416,6 +443,17 @@ onBeforeUnmount(() => {
     animation: spotlightWindowAppear 2.4s ease-out 1 forwards;
   }
 
+  // モバイルはウィンドウが画面端に張り付くため、外側 (inset:-2px) の光が
+  // viewport 外にはみ出て上辺しか見えない。内側に、かつ content
+  // (header/body は z-index:1) より前面で、全辺 (上下左右) を光らせる。
+  &.mobile::after {
+    inset: 0;
+    z-index: 4;
+    box-shadow:
+      inset 0 0 0 2px color-mix(in srgb, var(--nd-warn) 80%, transparent),
+      inset 0 0 24px 8px color-mix(in srgb, var(--nd-warn) 35%, transparent);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     &::after {
       animation: none;
@@ -577,13 +615,18 @@ onBeforeUnmount(() => {
   left: 0 !important;
   top: var(--nd-app-inset-top, 0px) !important;
   right: 0 !important;
-  bottom: 0 !important;
+  // ボトムバー (mobile nav) の上端で止め、覆い隠さない。height: auto + top/bottom
+  // で高さが決まるので、ウィンドウが画面下まで伸びすぎる問題も同時に解消する。
+  bottom: var(--nd-mobileNavHeight, 0px) !important;
   width: 100% !important;
   height: auto !important;
   max-height: none !important;
   translate: none !important;
   border-radius: 0;
-  z-index: calc(var(--nd-z-navbar) + 1) !important;
+  // ウィンドウより navbar (drawer 2001 / overlay 2000) と bottom nav (1999) を
+  // 上位にする。ウィンドウを開いていてもナビを開いて操作できるよう、
+  // 意味的に正しい window レイヤー (--nd-z-window=1700) に下げる。
+  z-index: var(--nd-z-window) !important;
 
   .windowBtn {
     width: 44px;

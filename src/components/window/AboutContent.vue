@@ -3,6 +3,7 @@ import { getTauriVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import type { Check, HealthReport, Status } from '@/bindings'
+import { useTutorialStore } from '@/composables/useTutorial'
 import { useUpdater } from '@/composables/useUpdater'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
@@ -10,10 +11,22 @@ import { highlightCode, highlighterLoaded } from '@/utils/highlight'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { version as appVersion } from '../../../package.json'
 
+const emit = defineEmits<{
+  close: []
+}>()
+
 const tauriVersion = ref('')
 const rustVersion = ref('')
 const copied = ref(false)
 const uiStore = useUiStore()
+const tutorialStore = useTutorialStore()
+
+// チュートリアル (= ヘルプ/案内) の再実行はここから。設定メニューではなく
+// About に置く (チュートリアルは設定項目ではないため)。起動時に About は閉じる。
+function openTutorial(): void {
+  tutorialStore.start()
+  emit('close')
+}
 
 // 自己診断 (#644): notecli doctor + ランタイム状態。About を開いた時に走らせ、
 // 「情報をコピー」「バグを報告」の本文に診断を同梱する (VS Code Report Issue モデル)。
@@ -164,6 +177,13 @@ function reportBug() {
       <div :class="$style.aboutTitle">NoteDeck</div>
     </div>
 
+    <div :class="$style.tutorialCta">
+      <button class="_button" :class="$style.tutorialBtn" @click="openTutorial">
+        <i class="ti ti-presentation-analytics" />
+        チュートリアルを見る
+      </button>
+    </div>
+
     <div :class="$style.aboutInfo">
       <div v-for="row in infoRows" :key="row.label" :class="$style.aboutRow">
         <span :class="$style.aboutLabel">{{ row.label }}:</span>
@@ -252,6 +272,20 @@ function reportBug() {
   font-size: 0.85em;
   color: var(--nd-fg);
   opacity: 0.7;
+}
+
+// チュートリアルは技術情報 (バージョン / 診断 / バグ報告) と混同させないため、
+// 上部に独立した全幅 CTA として置き、区切り線で下のブロックと分ける。
+.tutorialCta {
+  display: flex;
+  justify-content: center;
+  padding: 4px 16px 12px;
+  border-bottom: 1px solid var(--nd-panelBorder);
+}
+
+.tutorialBtn {
+  @include btn-action;
+  width: 100%;
 }
 
 .aboutInfo {

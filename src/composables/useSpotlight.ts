@@ -127,3 +127,11 @@ export function noteTargetId(noteId: string): string {
 export function accountTargetId(accountId: string): string {
   return `account:${accountId}`
 }
+
+/**
+ * コマンドパレットの個別アイテムを指す target ID (QuickPickItem.id ベース)。
+ * チュートリアル / AI がパレット内の特定項目を指し示すのに使う。
+ */
+export function commandItemTargetId(itemId: string): string {
+  return `command:${itemId}`
+}

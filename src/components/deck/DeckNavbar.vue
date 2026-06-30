@@ -476,7 +476,7 @@ defineExpose({
             class="_button"
             :class="$style.instanceBtn"
             title="NoteDeck について"
-            @click="windowsStore.open('about')"
+            @click="closeDrawerAndDo(() => windowsStore.open('about'))"
           >
             <img src="/favicon.svg" :class="$style.instanceIcon" alt="NoteDeck" />
             <span v-if="props.updateAvailable" :class="$style.updateDot" />

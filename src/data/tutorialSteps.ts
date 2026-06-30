@@ -12,11 +12,19 @@
  *   されない)
  */
 
+import { useCommandStore } from '@/commands/registry'
 import { WINDOW_LABELS } from '@/components/deck/windowLabels'
 import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
-import { useSpotlightStore, windowTargetId } from '@/composables/useSpotlight'
+import {
+  commandItemTargetId,
+  navbarTargetId,
+  useSpotlightStore,
+  windowTargetId,
+} from '@/composables/useSpotlight'
 import { useVault } from '@/composables/useVault'
 import { useAccountsStore } from '@/stores/accounts'
+import { useDeckStore } from '@/stores/deck'
+import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 
 /**
@@ -73,21 +81,42 @@ function hasAuthenticatedAccount(): boolean {
   return useAccountsStore().accounts.some((a) => a.hasToken)
 }
 
+/** カラムが 1 枚以上あるか */
+function hasAnyColumn(): boolean {
+  return useDeckStore().columns.length > 0
+}
+
+/** AI チャットカラム (sidebar スロット) が今開いているか */
+function isAiColumnOpen(): boolean {
+  return useDeckStore().columns.some((c) => c.sidebar && c.type === 'ai')
+}
+
+/** AI プロバイダ (アクティブ接続) が選択・解決済みか */
+function hasResolvedAiProvider(): boolean {
+  const { config } = useAiConfig()
+  return resolveAiConnection(config.value, useVault().connections.value) != null
+}
+
 /**
  * チュートリアル step リスト。順序がそのままユーザー体験の順序になる。
+ * 最小限で「ログイン → カラム → AI 接続/プロバイダ選択 → AIカラム」まで通す。
  *
- * 1. welcome — 説明だけ
- * 2. account-login — login window 開いて Misskey ログイン待ち (基本機能)
- * 3. ai-setup — connections window 開いて AI 接続待ち (拡張機能、後回し可)
- * 4. complete — 完了カード
+ * 1. welcome          — NoteDeck の趣旨を一言
+ * 2. account-login    — Misskey にログイン
+ * 3. add-first-column — 最初のカラム (ホーム TL) を追加 = デッキを体得
+ * 4. ai-setup         — AI プロバイダの API キーを Vault に登録
+ * 5. ai-select-provider — AI 設定で接続をプロバイダとして選択
+ * 6. ai-column        — サイドバーの AI ボタン (spotlight) から AI カラムを開く
+ * 7. complete         — 完了カード
  */
 export function buildTutorialSteps(): TutorialStep[] {
   return [
     {
       id: 'welcome',
-      title: 'NoteDeck セットアップ',
+      title: 'NoteDeck へようこそ',
       description:
-        'NoteDeck を使い始めるために必要な設定を 2 ステップで案内します。' +
+        'NoteDeck は Misskey を、カラムを並べたデッキ・コマンドパレット・AI で' +
+        '統合した環境です。基本を数ステップで案内します。' +
         '途中でやめても、設定済みの内容は保たれます。',
     },
 
@@ -113,22 +142,40 @@ export function buildTutorialSteps(): TutorialStep[] {
     },
 
     {
+      id: 'add-first-column',
+      title: '最初のカラムを追加',
+      description:
+        'NoteDeck はカラムを並べて使います。カラム追加 (＋) から' +
+        '「タイムライン」を選ぶとホームタイムラインが表示されます。' +
+        '追加すると自動で次へ進みます。',
+      precheck: () => (hasAnyColumn() ? 'skip' : 'show'),
+      onEnter: () => {
+        // カラム追加 UI を開く: desktop はコマンドパレット (+ モード)、compact は
+        // AddColumnDialog。どちらも add-column コマンド (toggleAddMenu) 経由で開く。
+        // 開いた UI の「タイムライン」項目を spotlight で指し示す (palette/dialog
+        // 共通ターゲット)。dialog は遅延ロードなので duration を長めに取る。
+        useCommandStore().execute('add-column')
+        useSpotlightStore().highlight(commandItemTargetId('col-timeline'), {
+          label: 'チュートリアルがタイムラインの項目を示しています',
+          durationMs: 6000,
+        })
+      },
+      completion: {
+        watch: () => useDeckStore().columns.length,
+        isComplete: () => hasAnyColumn(),
+      },
+    },
+
+    {
       id: 'ai-setup',
       title: 'AI 接続を追加',
       description:
-        '別の接続管理ウィンドウで、Anthropic / OpenAI など' +
+        '接続管理ウィンドウで、Anthropic / OpenAI など' +
         ' AI プロバイダの API キーを Vault に登録してください。' +
         '登録すると自動で次へ進みます。',
       precheck: () => {
-        const { config } = useAiConfig()
-        const resolved = resolveAiConnection(
-          config.value,
-          useVault().connections.value,
-        )
-        // active 接続が AI provider として解決済み = setup 済み
-        if (resolved) return 'skip'
-        // active が未指定でも AI 接続が登録済みなら skip 扱い (= ユーザーが
-        // 既に Vault に AI 接続を持っている状態。後で active を選べばよい)
+        // active 接続が AI provider として解決済み、または AI 接続が登録済みなら skip
+        if (hasResolvedAiProvider()) return 'skip'
         return hasAnyAiConnection() ? 'skip' : 'show'
       },
       onEnter: () => {
@@ -145,11 +192,54 @@ export function buildTutorialSteps(): TutorialStep[] {
     },
 
     {
+      id: 'ai-select-provider',
+      title: 'AI プロバイダを選択',
+      description:
+        'AI 設定を開きました。登録した接続を AI プロバイダとして選んでください。' +
+        '選ぶと自動で次へ進みます。',
+      precheck: () => (hasResolvedAiProvider() ? 'skip' : 'show'),
+      onEnter: () => {
+        const id = useWindowsStore().open('aiSettings', {})
+        useSpotlightStore().highlight(windowTargetId(id), {
+          label: `チュートリアルが${WINDOW_LABELS.aiSettings}を開きました`,
+        })
+      },
+      completion: {
+        watch: () => useAiConfig().config.value.activeConnectionId,
+        isComplete: () => hasResolvedAiProvider(),
+      },
+    },
+
+    {
+      id: 'ai-column',
+      title: 'AI カラムを開く',
+      description:
+        'サイドバーの AI ボタン (光っています) から AI カラムを開いて' +
+        'みましょう。ここで AI と対話できます。',
+      precheck: () => (isAiColumnOpen() ? 'skip' : 'show'),
+      onEnter: () => {
+        // compact (スマホ) は navbar がドロワーなので、まず開いて AI ボタンを
+        // 画面にかぶせて見せる (desktop は navbar 常時表示なので不要)。
+        if (useUiStore().isCompactLayout) {
+          useUiStore().mobileDrawerOpen = true
+        }
+        // ナビバーの AI ボタンを spotlight で指し示す (クリックで自動 clear)。
+        // 開く動作はユーザーに任せ、completion で開いたことを検知する。
+        useSpotlightStore().highlight(navbarTargetId('ai', null), {
+          label: 'チュートリアルが AI カラムのボタンを示しています',
+        })
+      },
+      completion: {
+        watch: () => isAiColumnOpen(),
+        isComplete: () => isAiColumnOpen(),
+      },
+    },
+
+    {
       id: 'complete',
       title: 'セットアップ完了',
       description:
-        'これで NoteDeck を使い始められます。AI チャットや Misskey の' +
-        'タイムラインを楽しんでください。',
+        'これで NoteDeck を使い始められます。あとは自由に触ってみてください。',
       isFinal: true,
     },
   ]

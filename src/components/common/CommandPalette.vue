@@ -13,12 +13,17 @@ import { useCommandStore } from '@/commands/registry'
 import { handleDeepLink } from '@/composables/useDeepLink'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePortal } from '@/composables/usePortal'
+import {
+  commandItemTargetId,
+  useSpotlightStore,
+} from '@/composables/useSpotlight'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import { shortcutLabel } from '@/utils/shortcutLabel'
 
 const commandStore = useCommandStore()
+const spotlightStore = useSpotlightStore()
 const query = ref('')
 const selectedIndex = ref(0)
 const inputRef = ref<HTMLInputElement | null>(null)
@@ -130,6 +135,8 @@ const currentGroupStartIndex = computed(() => {
 })
 
 async function selectQuickPickItem(item: QuickPickItem) {
+  // ユーザーが選んだ = 認識した。spotlight を即 clear (光らせ続けない原則)
+  spotlightStore.clear(commandItemTargetId(item.id))
   if (item.children) {
     const children = await item.children()
     // Skip push if palette was closed during async (e.g. finalizeAddColumn)
@@ -494,7 +501,7 @@ function primaryShortcut(cmd: Command): string | null {
           <button
             v-for="(item, ii) in group.items"
             :key="item.id"
-            :class="[$style.item, { [$style.selected]: flatQuickPickList[selectedIndex]?.id === item.id }]"
+            :class="[$style.item, { [$style.selected]: flatQuickPickList[selectedIndex]?.id === item.id, [$style.spotlighted]: spotlightStore.spotlights.has(commandItemTargetId(item.id)) }]"
             :data-selected="flatQuickPickList[selectedIndex]?.id === item.id ? '' : undefined"
             @click="selectQuickPickItem(item)"
             @mouseenter="selectedIndex = flatQuickPickList.indexOf(item)"
@@ -713,6 +720,48 @@ function primaryShortcut(cmd: Command): string | null {
   &:hover:not(.selected) {
     background: rgba(255, 255, 255, 0.04);
   }
+
+  // AI / チュートリアルが指し示した項目を一時的に光らせる。視覚仕様は
+  // navbar / bottombar の spotlight と統一 (#576: 朱色縦グラデ 2.4s)。
+  &.spotlighted {
+    position: relative;
+    isolation: isolate;
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--nd-warn) 55%, transparent) 0%,
+        color-mix(in srgb, var(--nd-warn) 30%, transparent) 50%,
+        color-mix(in srgb, var(--nd-warn) 5%, transparent) 100%
+      );
+      box-shadow: 0 -1px 8px color-mix(in srgb, var(--nd-warn) 25%, transparent);
+      pointer-events: none;
+      z-index: 0;
+      animation: spotlightFill 2.4s ease-out 1 forwards;
+    }
+
+    > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      &::before {
+        animation: none;
+        opacity: 1;
+      }
+    }
+  }
+}
+
+@keyframes spotlightFill {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .itemIcon {

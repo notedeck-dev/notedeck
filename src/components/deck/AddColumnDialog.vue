@@ -16,6 +16,10 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
+import {
+  commandItemTargetId,
+  useSpotlightStore,
+} from '@/composables/useSpotlight'
 import { formatUserHandle, useUserSearch } from '@/composables/useUserSearch'
 import {
   getAccountAvatarUrl,
@@ -40,6 +44,7 @@ const emit = defineEmits<{
 const { navigateToLogin } = useNavigation()
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
+const spotlightStore = useSpotlightStore()
 
 function finalizeColumn(config: Omit<DeckColumn, 'id'>) {
   if (props.mode === 'pip') {
@@ -67,6 +72,8 @@ const requiresAuth = computed(() => {
 })
 
 function selectColumnType(type: ColumnType) {
+  // 選んだ = 認識した。spotlight を即 clear (光らせ続けない原則)
+  spotlightStore.clear(commandItemTargetId(`col-${type}`))
   addColumnType.value = type
   // Account-independent types: skip account selection
   if (ACCOUNT_INDEPENDENT_TYPES.has(type)) {
@@ -319,7 +326,7 @@ function close() {
               v-for="t in g.types"
               :key="t"
               class="_button"
-              :class="$style.addTypeBtn"
+              :class="[$style.addTypeBtn, { [$style.spotlighted]: spotlightStore.spotlights.has(commandItemTargetId(`col-${t}`)) }]"
               @click="selectColumnType(t)"
             >
               <i class="ti" :class="`ti-${COLUMN_REGISTRY[t].icon}`" />
@@ -589,6 +596,48 @@ function close() {
     text-align: center;
     opacity: 0.7;
   }
+
+  // AI / チュートリアルが指し示した項目を一時的に光らせる。視覚仕様は
+  // navbar / bottombar / コマンドパレットの spotlight と統一 (#576: 朱色縦グラデ 2.4s)。
+  &.spotlighted {
+    position: relative;
+    isolation: isolate;
+
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--nd-warn) 55%, transparent) 0%,
+        color-mix(in srgb, var(--nd-warn) 30%, transparent) 50%,
+        color-mix(in srgb, var(--nd-warn) 5%, transparent) 100%
+      );
+      box-shadow: 0 -1px 8px color-mix(in srgb, var(--nd-warn) 25%, transparent);
+      pointer-events: none;
+      z-index: 0;
+      animation: spotlightFill 2.4s ease-out 1 forwards;
+    }
+
+    > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      &::before {
+        animation: none;
+        opacity: 1;
+      }
+    }
+  }
+}
+
+@keyframes spotlightFill {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .addCategorySection {

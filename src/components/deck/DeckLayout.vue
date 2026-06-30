@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { storeToRefs } from 'pinia'
 import {
   computed,
   defineAsyncComponent,
@@ -58,7 +59,8 @@ const showAddMenu = ref(false)
 const showCompose = ref(false)
 const showProfileMenu = ref(false)
 const showSettingsMenu = ref(false)
-const mobileDrawerOpen = ref(false)
+// ドロワー開閉は store 所有 (チュートリアル等が programmatic に開けるよう)
+const { mobileDrawerOpen } = storeToRefs(uiStore)
 const pendingFilePaths = ref<string[]>([])
 const pendingComposeAccountId = ref<string | null>(null)
 const addMenuPortalRef = useTemplateRef<HTMLElement>('addMenuPortalRef')

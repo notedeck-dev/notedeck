@@ -218,7 +218,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         v-if="win.type === 'aiSettings'"
         :initial-tab="(win.props.initialTab as string | undefined)"
       />
-      <AboutContent v-if="win.type === 'about'" />
+      <AboutContent v-if="win.type === 'about'" @close="closeWindow(win.id)" />
       <TutorialContent v-if="win.type === 'tutorial'" />
       <NavEditorContent
         v-if="win.type === 'navEditor'"
