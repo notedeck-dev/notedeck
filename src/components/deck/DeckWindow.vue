@@ -443,6 +443,17 @@ onBeforeUnmount(() => {
     animation: spotlightWindowAppear 2.4s ease-out 1 forwards;
   }
 
+  // モバイルはウィンドウが画面端に張り付くため、外側 (inset:-2px) の光が
+  // viewport 外にはみ出て上辺しか見えない。内側に、かつ content
+  // (header/body は z-index:1) より前面で、全辺 (上下左右) を光らせる。
+  &.mobile::after {
+    inset: 0;
+    z-index: 4;
+    box-shadow:
+      inset 0 0 0 2px color-mix(in srgb, var(--nd-warn) 80%, transparent),
+      inset 0 0 24px 8px color-mix(in srgb, var(--nd-warn) 35%, transparent);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     &::after {
       animation: none;
