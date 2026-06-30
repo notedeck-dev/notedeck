@@ -52,6 +52,9 @@ export interface DeckWindow {
   zIndex: number
   minimized: boolean
   maximized: boolean
+  // 右上アンカー (WINDOW_SIZES[type].anchor 由来)。描画時に viewport 右端からの
+  // 相対配置にするための印。ユーザーがドラッグ/リサイズすると外れて x 配置に戻る。
+  anchor?: 'top-right'
 }
 
 export const WINDOW_MIN_SIZE = { width: 240, height: 180 }
@@ -232,6 +235,7 @@ export const useWindowsStore = defineStore('windows', () => {
       zIndex: topZIndex,
       minimized: false,
       maximized: false,
+      anchor: size.anchor,
     }
     windows.value.push(win)
     if (useUiStore().isMobilePlatform) {
@@ -261,6 +265,8 @@ export const useWindowsStore = defineStore('windows', () => {
     if (win) {
       win.x = x
       win.y = y
+      // ユーザーが動かしたら右上アンカーを解除し、以後は x/y 配置に従う。
+      win.anchor = undefined
     }
   }
 

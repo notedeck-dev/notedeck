@@ -172,15 +172,41 @@ const windowStyle = computed<Record<string, string | number>>(() => {
   if (isMaximized.value) {
     return { ...(props.themeVars ?? {}), zIndex: props.window.zIndex }
   }
-  return {
+  const style: Record<string, string | number> = {
     ...(props.themeVars ?? {}),
-    '--nd-win-x': `${winX.value}px`,
     '--nd-win-y': `${winY.value}px`,
     '--nd-win-w': `${winWidth.value}px`,
     '--nd-win-h': `${winHeight.value}px`,
     zIndex: props.window.zIndex,
   }
+  // 右上アンカー窓は viewport 右端からの相対配置にする。open() 時点の innerWidth
+  // に依存しないため、初回起動の早期表示でも確実に右上へ出る。ドラッグ/リサイズ
+  // すると anchor が外れ (updatePosition)、通常の x 配置へ切り替わる。
+  if (
+    props.window.anchor === 'top-right' &&
+    !isDragging.value &&
+    !isResizing.value
+  ) {
+    style['--nd-win-x'] = '0px'
+    style.left = 'auto'
+    style.right = '32px'
+    return style
+  }
+  style['--nd-win-x'] = `${winX.value}px`
+  return style
 })
+
+// 右上アンカー窓は描画上 viewport 右端基準で配置される (x は未確定)。掴んだ
+// 瞬間に左へジャンプしないよう、現在の見た目上の x を clientWidth から算出する。
+function resolveStartX(): number {
+  if (props.window.anchor === 'top-right') {
+    return Math.max(
+      50,
+      document.documentElement.clientWidth - winWidth.value - 32,
+    )
+  }
+  return props.window.x
+}
 
 function onHeaderPointerDown(e: PointerEvent) {
   if ((e.target as HTMLElement).closest('button')) return
@@ -188,11 +214,12 @@ function onHeaderPointerDown(e: PointerEvent) {
   // isDragging を立てる前に start 値と dragX/dragY を初期化する。
   // winX/winY computed は isDragging が true のとき dragX/dragY を返すため、
   // 順序を逆にすると一瞬 ref の初期値 (0) が使われて左上にジャンプして見える。
+  const startX = resolveStartX()
   dragStartX = e.clientX
   dragStartY = e.clientY
-  dragStartWinX = props.window.x
+  dragStartWinX = startX
   dragStartWinY = props.window.y
-  dragX.value = props.window.x
+  dragX.value = startX
   dragY.value = props.window.y
   isDragging.value = true
   document.body.style.userSelect = 'none'
@@ -229,7 +256,7 @@ function onResizePointerDown(dir: ResizeDir, e: PointerEvent) {
   resizeDir = dir
   rsStartX = e.clientX
   rsStartY = e.clientY
-  rsStartWinX = props.window.x
+  rsStartWinX = resolveStartX()
   rsStartWinY = props.window.y
   // ⚠️ isResizing を true にする前にサイズを読む。
   // winWidth/winHeight computed は isResizing 中は resizeW/resizeH (初期 0) を返すため、
