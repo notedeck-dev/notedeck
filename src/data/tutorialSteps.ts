@@ -15,7 +15,11 @@
 import { useCommandStore } from '@/commands/registry'
 import { WINDOW_LABELS } from '@/components/deck/windowLabels'
 import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
-import { useSpotlightStore, windowTargetId } from '@/composables/useSpotlight'
+import {
+  navbarTargetId,
+  useSpotlightStore,
+  windowTargetId,
+} from '@/composables/useSpotlight'
 import { useVault } from '@/composables/useVault'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
@@ -81,6 +85,11 @@ function hasAnyColumn(): boolean {
   return useDeckStore().columns.length > 0
 }
 
+/** AI チャットカラム (sidebar スロット) が今開いているか */
+function isAiColumnOpen(): boolean {
+  return useDeckStore().columns.some((c) => c.sidebar && c.type === 'ai')
+}
+
 /** AI プロバイダ (アクティブ接続) が選択・解決済みか */
 function hasResolvedAiProvider(): boolean {
   const { config } = useAiConfig()
@@ -94,14 +103,15 @@ function isCompactLayout(): boolean {
 
 /**
  * チュートリアル step リスト。順序がそのままユーザー体験の順序になる。
- * 最小限で「ログイン → 最初のカラム → AI 接続/プロバイダ選択」まで通す。
+ * 最小限で「ログイン → カラム → AI 接続/プロバイダ選択 → AIカラム」まで通す。
  *
  * 1. welcome          — NoteDeck の趣旨を一言
  * 2. account-login    — Misskey にログイン
  * 3. add-first-column — 最初のカラム (ホーム TL) を追加 = デッキを体得
  * 4. ai-setup         — AI プロバイダの API キーを Vault に登録
  * 5. ai-select-provider — AI 設定で接続をプロバイダとして選択
- * 6. complete         — 完了カード
+ * 6. ai-column        — サイドバーの AI ボタン (spotlight) から AI カラムを開く
+ * 7. complete         — 完了カード
  */
 export function buildTutorialSteps(): TutorialStep[] {
   return [
@@ -196,6 +206,26 @@ export function buildTutorialSteps(): TutorialStep[] {
       completion: {
         watch: () => useAiConfig().config.value.activeConnectionId,
         isComplete: () => hasResolvedAiProvider(),
+      },
+    },
+
+    {
+      id: 'ai-column',
+      title: 'AI カラムを開く',
+      description:
+        'サイドバーの AI ボタン (光っています) から AI カラムを開いて' +
+        'みましょう。ここで AI と対話できます。',
+      precheck: () => (isAiColumnOpen() ? 'skip' : 'show'),
+      onEnter: () => {
+        // ナビバーの AI ボタンを spotlight で指し示す (クリックで自動 clear)。
+        // 開く動作はユーザーに任せ、completion で開いたことを検知する。
+        useSpotlightStore().highlight(navbarTargetId('ai', null), {
+          label: 'チュートリアルが AI カラムのボタンを示しています',
+        })
+      },
+      completion: {
+        watch: () => isAiColumnOpen(),
+        isComplete: () => isAiColumnOpen(),
       },
     },
 
