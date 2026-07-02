@@ -252,17 +252,21 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
             commands::export_account_list(&app_handle, &db);
 
-            // Emit account list to frontend early — before full AppState.initialize() —
-            // so the accounts store can populate without waiting for IPC readiness.
-            commands::emit_accounts_early(&app_handle, &db);
-
-            // Streaming manager (depends on DB)
+            // Streaming manager (depends on DB)。
+            // 必ず emit_accounts_early より前に manage する: アカウント一覧を
+            // 受けた JS は即カラムを mount して query_subscribe_* を invoke する
+            // ため、後に置くと State 未登録で "state not managed" の即時エラー
+            // になる race がある (query 購読は初回失敗すると再試行されない)。
             let emitter = std::sync::Arc::new(streaming::TauriEmitter::new(app_handle.clone()));
             app_handle.manage(notecli::streaming::StreamingManager::new(
                 emitter,
                 event_bus.clone(),
                 db.clone(),
             ));
+
+            // Emit account list to frontend early — before full AppState.initialize() —
+            // so the accounts store can populate without waiting for IPC readiness.
+            commands::emit_accounts_early(&app_handle, &db);
 
             // Stage 2: Signal full AppState — unblocks commands needing MisskeyClient.
             app_state.initialize(db.clone(), client.clone());

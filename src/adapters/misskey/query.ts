@@ -49,11 +49,26 @@ export function createQuerySubscription(
   })
 
   ;(async () => {
-    let snap: QuerySnapshot
-    try {
-      snap = await opts.open()
-    } catch (e) {
-      console.error('[query-subscription] open failed:', e)
+    // open() は WS 接続 + 購読作成を含み、起動直後 (ネットワーク未確立 /
+    // バックエンド初期化中) は失敗しうる。一発死させると WS が後で復活
+    // しても Rust 側に購読が存在せず replay 対象にならないため、notecli の
+    // 再接続ループと同じ Equal Jitter バックオフで成功するまで再試行する。
+    let snap: QuerySnapshot | null = null
+    let backoffMs = 1000
+    const BACKOFF_CAP_MS = 30_000
+    while (!disposed) {
+      try {
+        snap = await opts.open()
+        break
+      } catch (e) {
+        console.error('[query-subscription] open failed (retrying):', e)
+        const jittered = backoffMs / 2 + Math.random() * (backoffMs / 2)
+        await new Promise((r) => setTimeout(r, jittered))
+        backoffMs = Math.min(backoffMs * 2, BACKOFF_CAP_MS)
+      }
+    }
+    if (!snap) {
+      // disposed by unmount while retrying
       resolveReady()
       return
     }
