@@ -41,6 +41,7 @@ import { useNoteStore } from '@/stores/notes'
 import { usePerformanceStore } from '@/stores/performance'
 import { useServersStore } from '@/stores/servers'
 import { useToast } from '@/stores/toast'
+import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import { AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
@@ -885,6 +886,34 @@ async function pullRefresh() {
     scrollToTop()
   }
 }
+
+// 復帰時 backlog 補填 (#506): 背景化中にリスナーが死んでいた間の通知を
+// REST で埋める。pull-refresh と同じ経路だがスクロール位置は動かさない。
+const uiStoreForResume = useUiStore()
+let lastResumeBackfill = 0
+watch(
+  () => uiStoreForResume.deckResumeSignal,
+  async () => {
+    if (Date.now() - lastResumeBackfill < 3000) return
+    lastResumeBackfill = Date.now()
+    try {
+      if (isCrossAccount.value) {
+        await connectCrossAccount(true)
+      } else {
+        const adapter = getAdapter()
+        if (!adapter) return
+        const fetched = await fetchNotifications(
+          adapter.api,
+          account.value?.host,
+        )
+        notifications.value = mergeNotifications(fetched, notifications.value)
+        saveCache()
+      }
+    } catch {
+      // 補填は best-effort (手動 pull-refresh で回復できる)
+    }
+  },
+)
 
 useColumnPullScroller(scroller)
 

@@ -44,7 +44,14 @@ export async function reattachQueryDeltaListener(): Promise<void> {
   let fn: () => void
   try {
     fn = await events.queryDelta.listen((event) => {
-      for (const h of handlers) h(event.payload)
+      for (const h of handlers) {
+        try {
+          h(event.payload)
+        } catch (e) {
+          // 1 つの handler の例外で他の購読への配送を止めない
+          console.error('[query-delta-bus] handler failed:', e)
+        }
+      }
     })
   } catch (e) {
     console.error('[query-delta-bus] listen failed:', e)
