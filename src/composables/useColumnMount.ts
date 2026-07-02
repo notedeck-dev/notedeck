@@ -10,8 +10,10 @@ import {
   type Ref,
   reactive,
   type ShallowRef,
+  watch,
 } from 'vue'
 import { usePerformanceStore } from '@/stores/performance'
+import { useUiStore } from '@/stores/ui'
 
 /**
  * Per-cell registry for column visibility / mount / live-budget state.
@@ -59,11 +61,24 @@ export function provideColumnMountRegistry(
   rootRef?: Readonly<ShallowRef<HTMLElement | null>> | Ref<HTMLElement | null>,
 ): ColumnMountRegistry {
   const perfStore = usePerformanceStore()
+  const uiStore = useUiStore()
   const visibility = reactive(new Map<string, boolean>())
   const mounted = reactive(new Map<string, boolean>())
   const live = reactive(new Map<string, boolean>())
 
   const unloadTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  // 復帰直後、背景化前に張られた unload timer が凍結明けに IO の初期エントリ
+  // より先に発火すると unmount→remount フラップが起きる。timer は全部捨てて、
+  // 直後の re-observe 初期エントリに再評価させる (依然不可視なら
+  // setIntersecting(false) が新しい timer を張り直す)。
+  watch(
+    () => uiStore.deckResumeSignal,
+    () => {
+      for (const timer of unloadTimers.values()) clearTimeout(timer)
+      unloadTimers.clear()
+    },
+  )
 
   function register(colId: string, opts: { initialMounted: boolean }): void {
     if (!mounted.has(colId)) {
@@ -190,7 +205,7 @@ export function useColumnMount(
   registry.register(colId, { initialMounted: !opts.isCompact.value })
 
   const rootRef = inject(COLUMNS_ROOT_KEY, null)
-  useIntersectionObserver(
+  const observer = useIntersectionObserver(
     cellRef,
     ([entry]) => {
       if (document.hidden) return
@@ -198,6 +213,21 @@ export function useColumnMount(
       registry.setIntersecting(colId, entry.isIntersecting)
     },
     { root: rootRef ?? undefined, threshold: 0, rootMargin: '0px 10%' },
+  )
+
+  // Android 背景化中は `document.hidden` ガードで交差イベントを捨てるため、
+  // 復帰時に visibility マップが stale なままになりうる (IO は交差状態が
+  // 変わらない限り再発火しない)。observer を張り直すと observe() が仕様上
+  // 必ず現在の交差状態で初期エントリを配送するので、それで復元する。
+  // stale のままだと [isVisible, isLive] watch が発火せず、カラムが
+  // Suspended に落ちたまま新着を捨て続ける (#506)。
+  const uiStore = useUiStore()
+  watch(
+    () => uiStore.deckResumeSignal,
+    () => {
+      observer.pause()
+      observer.resume()
+    },
   )
 
   onBeforeUnmount(() => registry.unregister(colId))

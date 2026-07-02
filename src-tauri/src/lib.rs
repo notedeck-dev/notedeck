@@ -1,3 +1,4 @@
+#[cfg(not(mobile))]
 use std::sync::Arc;
 use tauri::Manager;
 #[cfg(not(mobile))]
