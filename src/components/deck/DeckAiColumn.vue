@@ -343,6 +343,44 @@ watch(currentSessionId, () => {
 // 待たずに watch から直接 store を更新するために保持する。
 const activeStreamSessionId = ref<string | null>(null)
 
+// ストリーム切断 (#508: Android の ECONNABORTED 等) で失敗したターンの再試行用。
+// tool を 1 つでも実行したターンは再送で write capability が二重実行される
+// 恐れがあるため記録しない (= 再試行ボタンを出さない)。
+const retryContext = ref<{
+  sessionId: string
+  userMsgId: string
+  placeholderId: string
+  userText: string
+} | null>(null)
+
+const canRetry = computed(
+  () =>
+    retryContext.value !== null &&
+    retryContext.value.sessionId === currentSessionId.value &&
+    !aiChat.isStreaming.value,
+)
+
+/**
+ * 失敗した user + assistant のペアを取り除き、同じ内容で通常の送信経路を
+ * 再走行する。history が失敗前と同一になるので、送信ロジックの分岐を増やさず
+ * に済む。
+ */
+async function retryLastSend(): Promise<void> {
+  const r = retryContext.value
+  if (!r || aiChat.isStreaming.value) return
+  if (r.sessionId !== currentSessionId.value) return
+  retryContext.value = null
+  const cur = sessionsStore.get(r.sessionId)
+  if (!cur) return
+  sessionsStore.updateMessages(
+    r.sessionId,
+    cur.messages.filter(
+      (m) => m.id !== r.userMsgId && m.id !== r.placeholderId,
+    ),
+  )
+  await sendMessage(r.userText)
+}
+
 // Stream deltas → update last assistant message in-place
 watch(aiChat.currentText, (text) => {
   if (!aiChat.isStreaming.value || !text) return
@@ -467,9 +505,13 @@ function ensureSession(): string {
   return session.id
 }
 
-async function sendMessage() {
-  const text = input.value.trim()
+async function sendMessage(presetText?: string | Event) {
+  // template の @click からは Event が渡るので string のみ preset 扱いにする。
+  // preset は retryLastSend からの再送で、入力欄のドラフトには触れない。
+  const preset = typeof presetText === 'string' ? presetText : undefined
+  const text = (preset ?? input.value).trim()
   if (!text || aiChat.isStreaming.value) return
+  retryContext.value = null
 
   // Slash コマンドは AI を経由せず capability を直接実行する経路。
   // provider 未接続でも動くので、provider check より先に分岐する。
@@ -500,7 +542,7 @@ async function sendMessage() {
   const before = sessionsStore.get(sessionId)
   if (!before) return
   sessionsStore.updateMessages(sessionId, [...before.messages, userMsg])
-  input.value = ''
+  if (!preset) input.value = ''
   scrollToBottom()
 
   // この round が assistant 応答のない初回かどうかを記録 (AI 生成タイトル用)。
@@ -775,10 +817,26 @@ async function sendMessage() {
     if (cur) {
       const last = cur.messages[cur.messages.length - 1]
       if (last?.role === 'assistant' && last.id === placeholderId) {
+        // mid-stream 切断 (#508) では placeholder に途中までの応答が入っている。
+        // 上書きで捨てず、末尾にエラーを添えて温存する。
+        const partial = last.content
         sessionsStore.updateMessages(sessionId, [
           ...cur.messages.slice(0, -1),
-          { ...last, content: `⚠️ ${message}` },
+          {
+            ...last,
+            content: partial ? `${partial}\n\n⚠️ ${message}` : `⚠️ ${message}`,
+          },
         ])
+      }
+    }
+    // tool 未実行のターンだけ再試行を許可する (#508)。tool 実行後の再送は
+    // write capability (投稿/クリップ等) の二重実行につながるため出さない。
+    if (toolRound === 0) {
+      retryContext.value = {
+        sessionId,
+        userMsgId: userMsg.id,
+        placeholderId,
+        userText: text,
       }
     }
   }
@@ -1238,6 +1296,14 @@ function onKeydown(e: KeyboardEvent) {
         </template>
 
         <div ref="messagesEndRef" />
+      </div>
+
+      <!-- ストリーム切断 (#508) からの再試行導線。tool 実行済みターンでは出ない -->
+      <div v-if="canRetry" :class="$style.retryBar">
+        <button class="_button" :class="$style.retryBtn" @click="retryLastSend">
+          <i class="ti ti-refresh" />
+          <span>再試行</span>
+        </button>
       </div>
 
       <div :class="$style.chatInput">
@@ -1877,6 +1943,29 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 // Chat カラム (DeckChatColumn.vue) の入力欄スタイルに揃える。
+.retryBar {
+  display: flex;
+  justify-content: center;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+
+.retryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.85em;
+  color: var(--nd-fg);
+  background: var(--nd-panel);
+  border: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.1));
+
+  &:hover {
+    background: var(--nd-panel-highlight, rgba(255, 255, 255, 0.06));
+  }
+}
+
 .chatInput {
   display: flex;
   flex-direction: column;
