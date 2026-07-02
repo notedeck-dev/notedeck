@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { loadCliCommands } from '@/commands/cliParser'
 import {
   registerDefaultCommands,
@@ -14,6 +14,7 @@ import {
 import { handleDeepLink } from '@/composables/useDeepLink'
 import { initOgpListener } from '@/composables/useOgpPreview'
 import { destroyApiBridge, initApiBridge } from '@/core/apiBridge'
+import { reattachQueryDeltaListener } from '@/core/queryDeltaBus'
 import { useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePluginsStore } from '@/stores/plugins'
@@ -58,9 +59,27 @@ export function useDeckInit(options: {
     }
   }
 
+  // Android ネイティブ (MainActivity.onResume) からの復帰通知 (#506)。
+  // WebView が visibilitychange を発火しない復帰パターンの保険。
+  // emitDeckResume の下流 (reconnect / observer 張り直し / refetch) は
+  // すべて冪等なので visibilitychange との二重発火は無害。
+  function onNativeResume() {
+    uiStore.emitDeckResume()
+  }
+
   function onPageHide() {
     deckStore.flushSave()
   }
+
+  // 背景化で失われうる Tauri イベントリスナーの再アタッチ (#506)。
+  // adapter の stream-event は useColumnSetup の reconnect() が張り直すが、
+  // ノート本体を運ぶ query-delta は bus に集約したのでここで張り直す。
+  watch(
+    () => uiStore.deckResumeSignal,
+    () => {
+      void reattachQueryDeltaListener()
+    },
+  )
 
   let updateCheckHandle: { cancel: () => void } | undefined
 
@@ -70,6 +89,7 @@ export function useDeckInit(options: {
     handleResizeRef = () => options.navbarRef.value?.handleResize()
     window.addEventListener('resize', handleResizeRef)
     document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('nd-app-resumed', onNativeResume)
     window.addEventListener('pagehide', onPageHide)
 
     // Critical: start streaming immediately
@@ -177,6 +197,7 @@ export function useDeckInit(options: {
     unregisterDefaultCommands()
     if (handleResizeRef) window.removeEventListener('resize', handleResizeRef)
     document.removeEventListener('visibilitychange', onVisibilityChange)
+    window.removeEventListener('nd-app-resumed', onNativeResume)
     window.removeEventListener('pagehide', onPageHide)
     unlistenQuickNote?.()
     unlistenDeepLink?.()

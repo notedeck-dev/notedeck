@@ -9,6 +9,7 @@ import {
   nextTick,
   shallowRef,
 } from 'vue'
+import { useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
 import {
   provideColumnMountRegistry,
@@ -155,6 +156,23 @@ describe('useColumnMount: 復帰時の visibility リフレッシュ (#506)', ()
     // 再 observe の初期エントリ (実ブラウザでは仕様上必ず配送される) で復元
     after?.callback([{ isIntersecting: true }])
     expect(live.isVisible.value).toBe(true)
+  })
+
+  it('アクティブカラムは IO が false でも可視扱いになる', async () => {
+    const { live } = mountHarness()
+    await nextTick()
+    const io = MockIntersectionObserver.instances.at(-1)
+
+    io?.callback([{ isIntersecting: false }])
+    expect(live.isVisible.value).toBe(false)
+
+    // モバイル swipe モードで stale false が残っても、表示中 (アクティブ)
+    // カラムのストリームは warm/Suspended に落ちない (#506 フォローアップ)
+    useDeckStore().setActiveColumn('col-1')
+    expect(live.isVisible.value).toBe(true)
+
+    useDeckStore().setActiveColumn('other-col')
+    expect(live.isVisible.value).toBe(false)
   })
 
   it('deckResume が保留中の unload timer を破棄して unmount フラップを防ぐ', async () => {

@@ -3,12 +3,8 @@ import type {
   NoteUpdateEvent,
   SubscriptionRuntimeState,
 } from '@/adapters/types'
-import {
-  events,
-  type JsonValue,
-  type NoteUpdate,
-  type QuerySnapshot,
-} from '@/bindings'
+import type { JsonValue, NoteUpdate, QuerySnapshot } from '@/bindings'
+import { onQueryDelta } from '@/core/queryDeltaBus'
 import { commands } from '@/utils/tauriInvoke'
 
 export interface CreateQuerySubscriptionOptions {
@@ -30,7 +26,7 @@ export interface CreateQuerySubscriptionOptions {
  *
  * Lifecycle:
  *  1. open() resolves → store queryId
- *  2. listen events.queryDelta → fan out inserts/deletes filtered by queryId
+ *  2. onQueryDelta (queryDeltaBus) → fan out inserts/deletes filtered by queryId
  *  3. dispose() → unlisten + queryClose
  *
  * `setRuntimeState()` maps live/warm/suspended to `query_set_runtime_state`,
@@ -74,29 +70,19 @@ export function createQuerySubscription(
     sourceSubscriptionId = snap.sourceSubscriptionId
     resolveReady()
 
-    try {
-      unlistenDelta = await events.queryDelta.listen((event) => {
-        if (disposed) return
-        const delta = event.payload
-        if (delta.queryId !== queryId) return
-        if (delta.revision <= lastRevision) return
-        for (const insert of delta.inserts) opts.onInsert(insert)
-        if (opts.onDelete) {
-          for (const id of delta.deletes) opts.onDelete(id)
-        }
-        if (opts.onUpdate) {
-          for (const u of delta.updates) opts.onUpdate(toNoteUpdateEvent(u))
-        }
-        lastRevision = delta.revision
-      })
-    } catch (e) {
-      console.error('[query-subscription] listen failed:', e)
-    }
-    if (disposed) {
-      unlistenDelta?.()
-      unlistenDelta = null
-      return
-    }
+    unlistenDelta = onQueryDelta((delta) => {
+      if (disposed) return
+      if (delta.queryId !== queryId) return
+      if (delta.revision <= lastRevision) return
+      for (const insert of delta.inserts) opts.onInsert(insert)
+      if (opts.onDelete) {
+        for (const id of delta.deletes) opts.onDelete(id)
+      }
+      if (opts.onUpdate) {
+        for (const u of delta.updates) opts.onUpdate(toNoteUpdateEvent(u))
+      }
+      lastRevision = delta.revision
+    })
 
     if (runtimeState !== 'live' && queryId) {
       commands.querySetRuntimeState(queryId, runtimeState).catch((e) => {

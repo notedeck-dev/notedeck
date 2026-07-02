@@ -12,6 +12,7 @@ import {
   type ShallowRef,
   watch,
 } from 'vue'
+import { useDeckStore } from '@/stores/deck'
 import { usePerformanceStore } from '@/stores/performance'
 import { useUiStore } from '@/stores/ui'
 
@@ -252,7 +253,18 @@ export function useColumnLive(columnId: string): {
 } {
   const visibility = inject(COLUMN_VISIBILITY_KEY, null)
   const live = inject(COLUMN_LIVE_KEY, null)
-  const isVisible = computed(() => visibility?.get(columnId) ?? true)
+  const deckStore = useDeckStore()
+  // アクティブカラムは IO 判定に関わらず常に可視扱いにする。
+  // shouldMount が isActive を例外にしているのと同じ理由: アクティブ =
+  // ユーザーが見ているカラムで、モバイル swipe モードでは唯一の表示カラム。
+  // IO の判定が stale false になっても (Android 背景化中の破棄イベント等)、
+  // 表示中カラムのストリームが warm→Suspended に落ちて新着が止まる事故を
+  // 構造的に防ぐ (#506 フォローアップ)。
+  const isVisible = computed(
+    () =>
+      deckStore.activeColumnId === columnId ||
+      (visibility?.get(columnId) ?? true),
+  )
   const isLive = computed(() => live?.get(columnId) ?? true)
   return { isVisible, isLive }
 }

@@ -1,11 +1,8 @@
 import { onScopeDispose, ref, shallowRef, watch } from 'vue'
 import { registerQuery, unregisterQuery } from '@/aiscript/events'
-import {
-  events,
-  type JsonValue,
-  type QueryRuntimeState,
-  type QuerySnapshot,
-} from '@/bindings'
+import type { JsonValue, QueryRuntimeState, QuerySnapshot } from '@/bindings'
+import { onQueryDelta } from '@/core/queryDeltaBus'
+import { useUiStore } from '@/stores/ui'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 export interface UseQuerySubscriptionOptions {
@@ -95,22 +92,25 @@ export function useQuerySubscription(opts: UseQuerySubscriptionOptions) {
     // queryId -> {flavor, accountId} マップを更新する。
     registerQuery(snapshot.queryId, snapshot.key)
 
-    unlistenDelta = await events.queryDelta.listen((event) => {
+    unlistenDelta = onQueryDelta((delta) => {
       if (disposed) return
-      const delta = event.payload
       if (delta.queryId !== queryId.value) return
       if (delta.revision <= revision.value) return
       for (const insert of delta.inserts) applyInsert(insert)
       for (const id of delta.deletes) applyDelete(id)
       revision.value = delta.revision
     })
-    if (disposed) {
-      unlistenDelta?.()
-      return
-    }
 
     await loadSnapshot()
   })()
+
+  // フォアグラウンド復帰時: リスナー停止中に取り逃した delta を snapshot
+  // 再取得で埋める (bus の再アタッチは useDeckInit 側で行う)。
+  const uiStore = useUiStore()
+  watch(
+    () => uiStore.deckResumeSignal,
+    () => void loadSnapshot(),
+  )
 
   if (opts.isLive) {
     const isLiveFn = opts.isLive
