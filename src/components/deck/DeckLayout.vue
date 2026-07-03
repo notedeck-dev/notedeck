@@ -27,6 +27,7 @@ import { useVaporTransition } from '@/composables/useVaporTransition'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
+import { useToast } from '@/stores/toast'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckBottomBar from './DeckBottomBar.vue'
@@ -97,7 +98,11 @@ const wallpaperStyle = computed(() =>
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|avif|bmp|svg)$/i
 
 function openCompose() {
-  if (accountsStore.accounts.length === 0) return
+  if (accountsStore.accounts.length === 0) {
+    // 他の auth 必須操作と同じく無言で握りつぶさずフィードバックを返す (#693)
+    useToast().show('ログインすると投稿できます', 'info')
+    return
+  }
   showCompose.value = !showCompose.value
   if (!showCompose.value) {
     pendingFilePaths.value = []
