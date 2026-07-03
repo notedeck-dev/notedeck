@@ -20,6 +20,7 @@ import {
   saveDraft,
 } from '@/composables/useDrafts'
 import { useFileAttachment } from '@/composables/useFileAttachment'
+import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import {
   deleteMemo,
   ensureMemosLoaded,
@@ -277,6 +278,14 @@ export function usePostFormState(
     }
 
     if (!adapter || !canPost.value) return
+
+    // ログアウト済み (トークン無し) アカウントは API 到達前に止める (#693)。
+    // 素通しすると生の "No token found" エラーが出た上、救済のサーバー
+    // 下書き保存もトークン必須で必ず失敗する。入力は消さずフォームに残す。
+    if (account.value?.hasToken === false) {
+      showLoginPrompt()
+      return
+    }
 
     // 迷惑投稿チェック: public かつ MFM 拡大/位置指定を含む場合に警告
     if (!props.editNote && visibility.value === 'public') {

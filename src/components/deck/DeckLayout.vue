@@ -17,6 +17,7 @@ import { useBackButton } from '@/composables/useBackButton'
 import { useDeckInit } from '@/composables/useDeckInit'
 import { requestMoveColumn } from '@/composables/useDeckWindow'
 import { useFileDrop } from '@/composables/useFileDrop'
+import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePortal } from '@/composables/usePortal'
 import { useRippleEffect } from '@/composables/useRippleEffect'
@@ -24,7 +25,7 @@ import { provideScrollDirection } from '@/composables/useScrollDirection'
 import { useSpotlightStore } from '@/composables/useSpotlight'
 import { useUpdater } from '@/composables/useUpdater'
 import { useVaporTransition } from '@/composables/useVaporTransition'
-import { useAccountsStore } from '@/stores/accounts'
+import { isGuestAccount, useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useToast } from '@/stores/toast'
@@ -98,9 +99,16 @@ const wallpaperStyle = computed(() =>
 const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|avif|bmp|svg)$/i
 
 function openCompose() {
-  if (accountsStore.accounts.length === 0) {
-    // 他の auth 必須操作と同じく無言で握りつぶさずフィードバックを返す (#693)
-    useToast().show('ログインすると投稿できます', 'info')
+  const accounts = accountsStore.accounts
+  if (!accounts.some((a) => a.hasToken)) {
+    // 投稿可能なアカウントが無い間は無言で握りつぶさずフィードバックを返す (#693)。
+    // ログアウト済みアカウントが残っていれば再ログイン誘導、
+    // 未ログイン (0 件・ゲストのみ) なら新規ログイン誘導。
+    if (accounts.some((a) => !isGuestAccount(a))) {
+      showLoginPrompt()
+    } else {
+      useToast().show('ログインすると投稿できます', 'info')
+    }
     return
   }
   showCompose.value = !showCompose.value
