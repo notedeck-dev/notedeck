@@ -1,4 +1,5 @@
 import { events } from '@/bindings'
+import { recordStreamHealth, removeStreamHealth } from '@/core/streamHealth'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import type {
@@ -163,6 +164,7 @@ export class MisskeyStream implements StreamAdapter {
     // 呼び出し元はアカウントのライフサイクル終端 (削除/ログアウト) のみで、
     // カラム側の遷移は hasToken watch とカラム削除が駆動するため通知不要。
     this.cleanup()
+    removeStreamHealth(this.accountId)
     commands.streamDisconnect(this.accountId).catch((e) => {
       console.warn('[stream] disconnect failed:', e)
     })
@@ -219,6 +221,10 @@ export class MisskeyStream implements StreamAdapter {
    * adapter benefit without each holding its own timer.
    */
   private setStatus(state: StreamConnectionState): void {
+    // 診断用の生の遷移記録 (#698)。表示用 _state は grace でデバウンス
+    // されるが、健康状態の「いつから」は生の真実を記録する
+    recordStreamHealth(this.accountId, state)
+
     if (state === 'connected') {
       this.hasConnected = true
       this.clearGraceTimer()

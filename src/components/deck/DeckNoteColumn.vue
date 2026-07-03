@@ -17,6 +17,7 @@ import {
   useNoteColumn,
 } from '@/composables/useNoteColumn'
 import { usePortal } from '@/composables/usePortal'
+import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
 import { isGuestAccount } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
@@ -84,6 +85,22 @@ const isStreaming = !!props.noteColumnConfig.streaming
 const offlineModeStore = useOfflineModeStore()
 const realtimeModeStore = useRealtimeModeStore()
 const isPollingMode = computed(() => !realtimeModeStore.isRealtime)
+
+// オフラインバッジの tooltip (#698): いつからどの状態かを添える。
+// cross-account カラム (accountId なし) や記録なしは既定文言のまま
+const offlineDetail = computed(() => {
+  const accountId = props.column.accountId
+  if (!accountId) return 'オフライン'
+  const h = getStreamHealth(accountId)
+  if (!h) return 'オフライン'
+  const label =
+    h.state === 'reconnecting'
+      ? '再接続中'
+      : h.state === 'disconnected'
+        ? '切断'
+        : h.state
+  return `${label} (${formatHealthDuration(h.since)})`
+})
 
 const webUiUrl = computed(() => {
   if (!props.webUiPath || !account.value) return undefined
@@ -160,7 +177,11 @@ defineExpose({
         </div>
       </div>
 
-      <div v-if="(isOffline || offlineModeStore.isOfflineMode) && !isLoggedOut" :class="$style.offlineBanner">
+      <div
+        v-if="(isOffline || offlineModeStore.isOfflineMode) && !isLoggedOut"
+        :class="$style.offlineBanner"
+        :title="offlineDetail"
+      >
         <i class="ti ti-cloud-off" />オフライン
       </div>
       <div v-else-if="isPollingMode && !isLoggedOut" :class="$style.pollingBanner">

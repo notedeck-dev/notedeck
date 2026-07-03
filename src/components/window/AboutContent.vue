@@ -5,6 +5,8 @@ import { computed, onMounted, ref, shallowRef } from 'vue'
 import type { Check, HealthReport, Status } from '@/bindings'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { useUpdater } from '@/composables/useUpdater'
+import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
+import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { highlightCode, highlighterLoaded } from '@/utils/highlight'
@@ -20,6 +22,7 @@ const rustVersion = ref('')
 const copied = ref(false)
 const uiStore = useUiStore()
 const tutorialStore = useTutorialStore()
+const accountsStore = useAccountsStore()
 
 // チュートリアル (= ヘルプ/案内) の再実行はここから。設定メニューではなく
 // About に置く (チュートリアルは設定項目ではないため)。起動時に About は閉じる。
@@ -50,17 +53,44 @@ function formatCheck(c: Check): string {
   return `${STATUS_SYM[c.status]} ${c.account ? `${c.account} ` : ''}${c.name}: ${c.message}${c.fix ? ` (→ ${c.fix})` : ''}`
 }
 
-const overallStatus = computed<Status>(() => {
-  const checks = health.value?.doctor.checks ?? []
-  if (checks.some((c) => c.status === 'fail')) return 'fail'
-  if (checks.some((c) => c.status === 'warn')) return 'warn'
-  return 'ok'
+// ストリーミング接続の診断 (#698)。doctor の checks と同じ形に整形して
+// 合流させる: connected / 状態記録なし (カラム未表示等) は正常として出さず、
+// reconnecting / disconnected だけを継続時間つきで出す。恒久障害の
+// 「気づき」自体はカラムのオフラインバッジが担い、ここは診断・報告用。
+const healthCheckedAt = ref(0)
+const streamChecks = computed<Check[]>(() => {
+  // 再診断ボタンで継続時間の表示を更新するための依存
+  void healthCheckedAt.value
+  const checks: Check[] = []
+  for (const acc of accountsStore.accounts) {
+    if (!acc.hasToken) continue
+    const h = getStreamHealth(acc.id)
+    if (!h || h.state === 'connected' || h.state === 'initializing') continue
+    checks.push({
+      name: 'streaming',
+      status: h.state === 'disconnected' ? 'fail' : 'warn',
+      message:
+        h.state === 'disconnected'
+          ? `ストリーム切断 (${formatHealthDuration(h.since)})`
+          : `ストリーム再接続中 (${formatHealthDuration(h.since)})`,
+      account: getAccountLabel(acc),
+      fix: 'ネットワークとサーバーの状態を確認',
+    })
+  }
+  return checks
 })
 
 // 正常な項目は畳んで、注意・問題だけ出す (健康なら "正常" の一行で済む)。
-const problemChecks = computed(() =>
-  (health.value?.doctor.checks ?? []).filter((c) => c.status !== 'ok'),
-)
+const problemChecks = computed(() => [
+  ...(health.value?.doctor.checks ?? []).filter((c) => c.status !== 'ok'),
+  ...streamChecks.value,
+])
+
+const overallStatus = computed<Status>(() => {
+  if (problemChecks.value.some((c) => c.status === 'fail')) return 'fail'
+  if (problemChecks.value.some((c) => c.status === 'warn')) return 'warn'
+  return 'ok'
+})
 
 const healthSummary = computed(() => {
   if (healthLoading.value) return '診断中...'
@@ -77,6 +107,7 @@ async function runHealthcheck() {
   if (healthLoading.value) return
   healthLoading.value = true
   healthError.value = null
+  healthCheckedAt.value = Date.now()
   try {
     health.value = unwrap(await commands.runHealthcheck())
   } catch (e) {
