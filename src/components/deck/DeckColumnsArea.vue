@@ -6,9 +6,11 @@ import { useColumnResize } from '@/composables/useColumnResize'
 import { useColumnScroll } from '@/composables/useColumnScroll'
 import { useHorizontalWheel } from '@/composables/useHorizontalWheel'
 import * as snapshotStore from '@/composables/useSnapshotStore'
+import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useIsCompactLayout } from '@/stores/ui'
+import { useWindowsStore } from '@/stores/windows'
 import { COLUMN_SELECTOR } from '@/utils/themeVars'
 import DeckStackCell from './DeckStackCell.vue'
 
@@ -28,6 +30,8 @@ const COLUMN_PRELOADERS: Partial<Record<string, () => Promise<unknown>>> = {
 
 const $style = useCssModule()
 const deckStore = useDeckStore()
+const accountsStore = useAccountsStore()
+const windowsStore = useWindowsStore()
 
 // Column drag & drop (CSS Module class names are passed as selectors)
 const columnDrag = useColumnDrag(deckStore, {
@@ -240,6 +244,25 @@ defineExpose({
       :class="$style.dropPlaceholder"
       :style="{ flexBasis: `${dropInsertWidth}px` }"
     />
+    <!-- 空デッキの導線 (#692)。アカウント 0 件でもデッキシェルを見せる方針に伴い、
+         迷子にならない最小限の CTA だけ置く (Welcome カラム的な UI は作らない) -->
+    <div v-if="deckStore.windowLayout.length === 0" :class="$style.emptyState">
+      <i class="ti ti-layout-columns" :class="$style.emptyIcon" />
+      <template v-if="accountsStore.accounts.length === 0">
+        <p :class="$style.emptyText">サーバーにログインして始めましょう</p>
+        <button
+          class="_button"
+          :class="$style.emptyBtn"
+          @click="windowsStore.open('login')"
+        >
+          <i class="ti ti-login-2" />
+          <span>ログイン</span>
+        </button>
+      </template>
+      <p v-else :class="$style.emptyText">
+        ナビバーの <i class="ti ti-plus" /> からカラムを追加できます
+      </p>
+    </div>
     <template
       v-for="(group, groupIndex) in deckStore.windowLayout"
       :key="group.join('-')"
@@ -277,6 +300,41 @@ defineExpose({
 </template>
 
 <style lang="scss" module>
+.emptyState {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.emptyIcon {
+  font-size: 40px;
+  color: var(--nd-fg);
+  opacity: 0.3;
+}
+
+.emptyText {
+  font-size: 14px;
+  color: var(--nd-fg);
+  opacity: 0.6;
+}
+
+.emptyBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border-radius: 8px;
+  background: var(--nd-accent);
+  color: #fff;
+
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
 .columns {
   flex: 1;
   display: flex;

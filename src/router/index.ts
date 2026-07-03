@@ -13,12 +13,6 @@ export const router = createRouter({
       component: () => import('@/views/DeckPage.vue'),
     },
     {
-      path: '/login',
-      name: 'login',
-      component: () => import('@/views/LoginPage.vue'),
-      meta: { public: true },
-    },
-    {
       path: '/note/:accountId/:noteId',
       name: 'note-detail',
       component: () => import('@/views/NoteDetailPage.vue'),
@@ -54,17 +48,19 @@ router.beforeEach((to) => {
   const isPublic = to.meta.public === true
   const hasAccounts = accountsStore.accounts.length > 0
 
-  if (!isPublic && !hasAccounts) {
-    // 初回起動 (チュートリアル未完了) は /login 直行ではなくチュートリアルへ
-    // 誘導するため deck に留める。誘導自体は setupAccountRedirect が行う。
-    if (useSettingsStore().get('tutorial.completed') !== true) return
-    return { name: 'login' }
+  // アカウント 0 件でもデッキシェルは隠さない (#692)。ログインは全画面
+  // ページではなくデッキ内のログインウィンドウから行う。アカウント必須の
+  // データページのみデッキへ戻す。
+  if (!isPublic && !hasAccounts && to.name !== 'deck') {
+    return { name: 'deck' }
   }
 })
 
-// After accounts finish loading with none registered: 初回起動ならチュートリアルを
-// 開き、チュートリアル完了済みなら従来どおりログインへリダイレクトする。
-export function setupAccountRedirect(): void {
+// After accounts finish loading with none registered: 初回起動なら
+// チュートリアルを開く (デッキ上で動く)。以前はチュートリアル完了済みだと
+// /login へ強制遷移していたが、#692 でアカウント 0 件でもデッキを見せる
+// 方針に変更した。
+export function setupFirstRunTutorial(): void {
   const accountsStore = useAccountsStore()
   const stop = watch(
     () => accountsStore.isLoaded,
@@ -74,12 +70,9 @@ export function setupAccountRedirect(): void {
       if (accountsStore.accounts.length === 0) {
         const route = router.currentRoute.value
         if (route.meta.public === true) return
-        // 初回起動: ログインフォーム直行ではなくチュートリアルへ誘導する
         if (useSettingsStore().get('tutorial.completed') !== true) {
           useTutorialStore().start()
-          return
         }
-        router.replace({ name: 'login' })
       }
     },
     { immediate: true },

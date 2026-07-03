@@ -1,12 +1,10 @@
 import { useRouter } from 'vue-router'
-import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
 
 export function useNavigation() {
   const router = useRouter()
   const windowsStore = useWindowsStore()
-  const accountsStore = useAccountsStore()
   const deckStore = useDeckStore()
 
   function isDeckActive(): boolean {
@@ -57,15 +55,9 @@ export function useNavigation() {
   }
 
   function navigateToLogin(host?: string) {
-    if (accountsStore.accounts.length === 0) {
-      router.push(host ? { path: '/login', query: { host } } : '/login')
-      return
-    }
-    if (isDeckActive()) {
-      windowsStore.open('login', host ? { initialHost: host } : {})
-    } else {
-      router.push(host ? { path: '/login', query: { host } } : '/login')
-    }
+    // ログインは常にデッキ内ウィンドウ (#692)。DeckWindowLayer は App.vue
+    // 直下 (PiP 以外) にあるため、どのルートからでも開ける。
+    windowsStore.open('login', host ? { initialHost: host } : {})
   }
 
   function toggleOrOpenColumn(

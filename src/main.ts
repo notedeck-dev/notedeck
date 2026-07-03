@@ -3,7 +3,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import { ALL_BUILTIN_CAPABILITIES } from './capabilities/builtins'
 import { registerCapability } from './capabilities/registry'
-import { router, setupAccountRedirect } from './router'
+import { router, setupFirstRunTutorial } from './router'
 import { initEarlyAccountListener, useAccountsStore } from './stores/accounts'
 import { useKeybindsStore } from './stores/keybinds'
 import { usePerformanceStore } from './stores/performance'
@@ -128,8 +128,8 @@ if (isTauri) {
 app.use(router)
 
 if (isTauri) {
-  // Redirect to login reactively after accounts load (non-blocking)
-  setupAccountRedirect()
+  // 初回起動 (アカウント 0 件 + チュートリアル未完了) の誘導 (non-blocking)
+  setupFirstRunTutorial()
 }
 
 app.mount('#app')
