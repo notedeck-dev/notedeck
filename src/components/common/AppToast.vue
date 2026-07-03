@@ -47,7 +47,7 @@ usePortal(toastPortalRef)
   top: 15%;
   left: 50%;
   translate: -50% 0;
-  z-index: var(--nd-z-popup);
+  z-index: var(--nd-z-toast);
   display: flex;
   flex-direction: column;
   align-items: center;
