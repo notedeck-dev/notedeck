@@ -6,6 +6,10 @@ use notecli::streaming::StreamingManager;
 use super::{get_credentials, AppState, Result};
 
 /// Ensure the streaming WebSocket is connected for the given account.
+///
+/// 初回接続失敗も notecli の再接続ループに委譲されるため、失敗しても Ok を
+/// 返す (invoke の resolve は接続確立を意味しない)。接続の生死は
+/// stream-status イベントでフロントへ伝わる。
 async fn ensure_stream_connected(
     db: &Database,
     streaming: &StreamingManager,

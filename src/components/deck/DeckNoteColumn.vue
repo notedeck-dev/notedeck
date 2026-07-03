@@ -17,10 +17,12 @@ import {
   useNoteColumn,
 } from '@/composables/useNoteColumn'
 import { usePortal } from '@/composables/usePortal'
+import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
 import { isGuestAccount } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
+import { useToast } from '@/stores/toast'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
@@ -84,6 +86,28 @@ const isStreaming = !!props.noteColumnConfig.streaming
 const offlineModeStore = useOfflineModeStore()
 const realtimeModeStore = useRealtimeModeStore()
 const isPollingMode = computed(() => !realtimeModeStore.isRealtime)
+
+// オフラインバッジの詳細 (#698): いつからどの状態かを添える。デスクトップは
+// hover tooltip、モバイルは hover が無いのでタップで toast に出す。
+// cross-account カラム (accountId なし) や記録なしは既定文言のまま
+const offlineDetail = computed(() => {
+  if (offlineModeStore.isOfflineMode) return 'オフラインモード'
+  const accountId = props.column.accountId
+  if (!accountId) return 'オフライン'
+  const h = getStreamHealth(accountId)
+  // WS は connected のまま API fetch 失敗でバナーが出るケースがあるので、
+  // reconnecting/disconnected 以外は既定文言に落とす
+  if (!h || h.state === 'connected' || h.state === 'initializing') {
+    return 'オフライン (サーバーへのリクエストに失敗)'
+  }
+  const label = h.state === 'reconnecting' ? '再接続中' : '切断'
+  return `${label} (${formatHealthDuration(h.since)})`
+})
+
+const toast = useToast()
+function showOfflineDetail(): void {
+  toast.show(offlineDetail.value, 'info')
+}
 
 const webUiUrl = computed(() => {
   if (!props.webUiPath || !account.value) return undefined
@@ -160,7 +184,13 @@ defineExpose({
         </div>
       </div>
 
-      <div v-if="(isOffline || offlineModeStore.isOfflineMode) && !isLoggedOut" :class="$style.offlineBanner">
+      <!-- モバイルは hover が無いのでタップで同じ詳細を toast に出す -->
+      <div
+        v-if="(isOffline || offlineModeStore.isOfflineMode) && !isLoggedOut"
+        :class="$style.offlineBanner"
+        :title="offlineDetail"
+        @click="showOfflineDetail"
+      >
         <i class="ti ti-cloud-off" />オフライン
       </div>
       <div v-else-if="isPollingMode && !isLoggedOut" :class="$style.pollingBanner">

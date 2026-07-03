@@ -8,6 +8,7 @@ import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { useStreamingStore } from '@/stores/streaming'
 import { useWindowsStore } from '@/stores/windows'
+import { AppError } from '@/utils/errors'
 import { removeStorage, STORAGE_KEYS } from '@/utils/storage'
 
 export function useAccountActions() {
@@ -42,13 +43,23 @@ export function useAccountActions() {
   }
 
   /** アカウントとカラムをすべて削除する */
-  function deleteAccountData(acc: Account) {
+  async function deleteAccountData(acc: Account) {
     for (const col of deckStore.columns) {
       if (col.accountId === acc.id) {
         deckStore.removeColumn(col.id)
       }
     }
-    accountsStore.removeAccount(acc.id)
+    try {
+      await accountsStore.removeAccount(acc.id)
+    } catch (e) {
+      // backend 削除に失敗したのに「カラムだけ消えて無言」にならないよう通知する
+      const { useToast } = await import('@/stores/toast')
+      useToast().show(
+        `アカウント削除に失敗しました: ${AppError.from(e).message}`,
+        'error',
+      )
+      return
+    }
     removeStorage(STORAGE_KEYS.shellCache)
     removeStorage(STORAGE_KEYS.shellCacheVersion)
   }

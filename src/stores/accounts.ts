@@ -132,13 +132,20 @@ export const useAccountsStore = defineStore('accounts', () => {
     }
   }
 
+  // 削除/ログアウトは「資格情報の無効化 → backend 切断」の順に行う (#700)。
+  // backend 切断を先にすると、購読の自己回復リトライがまだ有効な資格情報で
+  // connect し直して WS が復活し、誰にも切断されないまま残る競合窓がある。
+  // 無効化を先にすれば復活は資格情報エラーで失敗し、窓の間に確立済みの
+  // 接続も最後の切断がまとめて掃除する。副次効果として、backend 側の
+  // 無効化が失敗した場合に adapter を壊さない (アカウントはまだ生きている)。
+
   async function removeAccount(id: string): Promise<void> {
-    destroyAdapter(id)
     unwrap(await commands.deleteAccount(id))
     accounts.value = accounts.value.filter((a) => a.id !== id)
     if (activeAccountId.value === id) {
       activeAccountId.value = accounts.value[0]?.id ?? null
     }
+    destroyAdapter(id)
     // Clean up localStorage caches associated with this account
     removeStorage(STORAGE_KEYS.notificationCache(id))
     removeStorage(STORAGE_KEYS.policies(id))
@@ -146,10 +153,10 @@ export const useAccountsStore = defineStore('accounts', () => {
   }
 
   async function logoutAccount(id: string): Promise<void> {
-    destroyAdapter(id)
     unwrap(await commands.logoutAccount(id))
     const account = accounts.value.find((a) => a.id === id)
     if (account) account.hasToken = false
+    destroyAdapter(id)
   }
 
   function switchAccount(id: string): void {
