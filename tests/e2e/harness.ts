@@ -221,9 +221,18 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
     )
   }
 
+  // NOTEDECK_E2E_VERBOSE=1 でアプリの stdout/stderr をテスト出力へ流す。
+  // 起動失敗 (WebKit の EGL/DMABUF クラッシュ等) は 19820 タイムアウトとして
+  // しか観測できず、死因がログに残らないため CI では常時有効にする
+  const verbose = process.env.NOTEDECK_E2E_VERBOSE === '1'
   const appProc = spawn(binary, [], {
     env: { ...process.env, NOTEDECK_APP_DIR: profileDir, ...options.env },
-    stdio: 'ignore',
+    stdio: verbose ? ['ignore', 'inherit', 'inherit'] : 'ignore',
+  })
+  appProc.once('exit', (code, signal) => {
+    if (verbose) {
+      console.error(`[e2e] app process exited: code=${code} signal=${signal}`)
+    }
   })
 
   const cleanup = async () => {

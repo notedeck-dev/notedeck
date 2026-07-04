@@ -103,6 +103,12 @@ jobs:
         run: xvfb-run -a --server-args="-screen 0 1280x800x24" pnpm test:e2e
         env:
           NOTEDECK_E2E_SCREENSHOT: '1'
+          NOTEDECK_E2E_VERBOSE: '1'
+          # GPU なしランナーでは WebKitGTK が DMABUF/EGL 初期化に失敗して
+          # WebView 生成前にクラッシュし、HTTP API (19820) が一度も開かない。
+          # ソフトウェアレンダリングに落として回避する
+          WEBKIT_DISABLE_DMABUF_RENDERER: '1'
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
 
       - name: Upload screenshot artifact
         if: always()
