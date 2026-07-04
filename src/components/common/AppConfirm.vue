@@ -335,10 +335,11 @@ useNativeDialog(dialogRef, visible, {
 }
 
 // rememberLabel 付きダイアログのチェックボックス行。body と actions の間に
-// 置く。body の中央寄せとは別に、左寄せで自然なフォーム行として見せる。
+// 置き、ダイアログ本体に合わせて中央揃えにする。
 .remember {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 0 20px 4px;
   font-size: 0.82em;
