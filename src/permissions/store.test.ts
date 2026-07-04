@@ -8,8 +8,12 @@ import {
 } from './schema'
 import {
   _resetPermissionsForTest,
+  addConfirmSkip,
+  confirmSkipScope,
+  isConfirmSkipped,
   migrateLegacyPermissions,
   normalizePermissionsFile,
+  removeConfirmSkip,
   resolveForProfiled,
   usePermissionsConfig,
 } from './store'
@@ -181,6 +185,55 @@ describe('normalizePermissionsFile', () => {
     expect(file.principals.plugin?.preset).toBe('safe')
     expect(file.principals['ai.heartbeat']?.preset).toBe('readonly')
     expect(file.principals.external?.custom['deck.read']).toBe(false)
+  })
+})
+
+describe('confirmSkips —「今後確認しない」の記憶 (#714)', () => {
+  it('normalizePermissionsFile は有効な scope のみ保持し、重複と不正値を落とす', () => {
+    const file = normalizePermissionsFile({
+      schemaVersion: 1,
+      principals: {},
+      confirmSkips: {
+        'ai.chat': ['clips.create', 'clips.create', 42 as never],
+        'plugin:widget:clock': ['notes.create'],
+        // 無人実行 (heartbeat) と external は「今後確認しない」の対象外
+        'ai.heartbeat': ['notes.create'],
+        external: ['notes.create'],
+        bogus: ['notes.create'],
+      },
+    })
+    expect(file.confirmSkips['ai.chat']).toEqual(['clips.create'])
+    expect(file.confirmSkips['plugin:widget:clock']).toEqual(['notes.create'])
+    expect(file.confirmSkips['ai.heartbeat']).toBeUndefined()
+    expect(file.confirmSkips.external).toBeUndefined()
+    expect(file.confirmSkips.bogus).toBeUndefined()
+  })
+
+  it('confirmSkips が無い旧ファイルは空で補完される', () => {
+    const file = normalizePermissionsFile({ schemaVersion: 1, principals: {} })
+    expect(file.confirmSkips).toEqual({})
+  })
+
+  it('confirmSkipScope: ai.chat と plugin (個体単位) のみスキップ可能', () => {
+    expect(confirmSkipScope({ kind: 'ai.chat' })).toBe('ai.chat')
+    expect(confirmSkipScope({ kind: 'plugin', pluginId: 'widget:clock' })).toBe(
+      'plugin:widget:clock',
+    )
+    expect(confirmSkipScope({ kind: 'user' })).toBeNull()
+    expect(confirmSkipScope({ kind: 'ai.heartbeat' })).toBeNull()
+    expect(confirmSkipScope({ kind: 'external' })).toBeNull()
+  })
+
+  it('add / isSkipped / remove が一貫して動く', () => {
+    usePermissionsConfig()
+    expect(isConfirmSkipped('ai.chat', 'clips.create')).toBe(false)
+    addConfirmSkip('ai.chat', 'clips.create')
+    expect(isConfirmSkipped('ai.chat', 'clips.create')).toBe(true)
+    // 別 scope には効かない
+    expect(isConfirmSkipped('plugin:widget:clock', 'clips.create')).toBe(false)
+    removeConfirmSkip('ai.chat', 'clips.create')
+    expect(isConfirmSkipped('ai.chat', 'clips.create')).toBe(false)
+    _resetPermissionsForTest()
   })
 })
 

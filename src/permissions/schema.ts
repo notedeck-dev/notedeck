@@ -313,6 +313,12 @@ export const PROFILED_PRINCIPAL_IDS: readonly ProfiledPrincipalId[] = [
 export interface PermissionsFileConfig {
   schemaVersion: number
   principals: Record<string, PermissionsConfig>
+  /**
+   * 「今後確認しない」の記憶 (#714): scope → 確認をスキップする capability id
+   * 一覧。scope は `ai.chat` か `plugin:<pluginId>` (個体単位) のみ —
+   * ai.heartbeat (無人実行) と external は同意すり替え防止のため対象外。
+   */
+  confirmSkips: Record<string, string[]>
 }
 
 /**

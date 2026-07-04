@@ -71,7 +71,28 @@ export function defaultPermissionsFile(): PermissionsFileConfig {
         custom: { ...EXTERNAL_DEFAULT_PROFILE.custom },
       },
     },
+    confirmSkips: {},
   }
+}
+
+/**
+ * confirmSkips (#714) の読み込み時正規化: 有効な scope (`ai.chat` /
+ * `plugin:<id>`) のみ保持し、capability id の重複・非文字列を落とす。
+ * ai.heartbeat / external / 未知キーは (外部エディタで書かれても) 破棄 —
+ * 無人実行と外部アプリの確認スキップは構造的に成立させない。
+ */
+function normalizeConfirmSkips(raw: unknown): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const [scope, ids] of Object.entries(raw as Record<string, unknown>)) {
+    if (scope !== 'ai.chat' && !scope.startsWith('plugin:')) continue
+    if (!Array.isArray(ids)) continue
+    const clean = [
+      ...new Set(ids.filter((v): v is string => typeof v === 'string')),
+    ]
+    if (clean.length > 0) out[scope] = clean
+  }
+  return out
 }
 
 /**
@@ -92,6 +113,7 @@ export function normalizePermissionsFile(
   return {
     schemaVersion: PERMISSIONS_SCHEMA_VERSION,
     principals,
+    confirmSkips: normalizeConfirmSkips(parsed?.confirmSkips),
   }
 }
 
@@ -158,6 +180,7 @@ export function migrateLegacyPermissions(
       plugin: { preset: chat.preset, custom: { ...chat.custom } },
       external,
     },
+    confirmSkips: {},
   }
 }
 
@@ -355,4 +378,61 @@ export function resolveForProfiled(
   const profile =
     _file.value.principals[id] ?? normalizeProfile(READONLY_PROFILE, id)
   return clampForPrincipal(resolvePermissions(profile), id)
+}
+
+// --- 「今後確認しない」の記憶 (#714) ---
+//
+// 確認ダイアログで「今後この操作を確認しない」を ON にして許可された
+// capability を scope 単位で記憶し、次回以降の確認をスキップする。保存先は
+// permissions.json5 — 権限プロファイルと同じく capability から書き換え不能
+// (自己昇格防止、ファイル冒頭 doc 参照)。
+
+/**
+ * principal の確認スキップ scope。null = スキップ不可 (常に確認)。
+ *
+ * - `ai.chat` → 'ai.chat' (capability 単位で記憶)
+ * - `plugin` → `plugin:<pluginId>` (個体単位 — 1 つのプラグイン / ウィジェット
+ *   への同意が他の AiScript に波及しない)
+ * - `user` → null (本人操作の confirm は削らない — vault の信頼と同じ規則)
+ * - `ai.heartbeat` → null (無人実行。チャットで押した同意の波及はもちろん、
+ *   heartbeat 自身のダイアログでの記憶も認めない — 同意すり替え防止 #712 §3.3)
+ * - `external` → null (外部アプリの書き込みは都度確認)
+ */
+export function confirmSkipScope(principal: Principal): string | null {
+  switch (principal.kind) {
+    case 'ai.chat':
+      return 'ai.chat'
+    case 'plugin':
+      return `plugin:${principal.pluginId}`
+    case 'user':
+    case 'ai.heartbeat':
+    case 'external':
+      return null
+  }
+}
+
+/** scope × capability が「今後確認しない」記憶済みかを返す。 */
+export function isConfirmSkipped(scope: string, capabilityId: string): boolean {
+  usePermissionsConfig()
+  return _file.value.confirmSkips[scope]?.includes(capabilityId) ?? false
+}
+
+/** 「今後確認しない」を記憶して永続化する。 */
+export function addConfirmSkip(scope: string, capabilityId: string): void {
+  const { file, save } = usePermissionsConfig()
+  const list = file.value.confirmSkips[scope] ?? []
+  if (list.includes(capabilityId)) return
+  file.value.confirmSkips[scope] = [...list, capabilityId]
+  save()
+}
+
+/** 記憶した「今後確認しない」を取り消して永続化する (権限ウィンドウの導線)。 */
+export function removeConfirmSkip(scope: string, capabilityId: string): void {
+  const { file, save } = usePermissionsConfig()
+  const next = (file.value.confirmSkips[scope] ?? []).filter(
+    (id) => id !== capabilityId,
+  )
+  if (next.length > 0) file.value.confirmSkips[scope] = next
+  else delete file.value.confirmSkips[scope]
+  save()
 }

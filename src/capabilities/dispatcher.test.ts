@@ -473,6 +473,187 @@ describe('dispatchCapability — confirmation flow', () => {
     expect(rememberCalls).toBe(0)
   })
 
+  it('ai.chat: remember=true で許可すると次回から確認をスキップする (#714)', async () => {
+    let confirmCalls = 0
+    let executed = 0
+    registerCapability(
+      makeCapability({
+        id: 'clips.create',
+        requiresConfirmation: true,
+        execute: () => {
+          executed++
+          return 'created'
+        },
+      }),
+    )
+    const opts = {
+      confirmFn: async () => {
+        confirmCalls++
+        return { accepted: true, remember: true }
+      },
+    }
+    const first = await dispatchCapability(
+      'clips.create',
+      undefined,
+      { principal: { kind: 'ai.chat' } },
+      opts,
+    )
+    expect(first.ok).toBe(true)
+    expect(confirmCalls).toBe(1)
+
+    const second = await dispatchCapability(
+      'clips.create',
+      undefined,
+      { principal: { kind: 'ai.chat' } },
+      opts,
+    )
+    expect(second).toEqual({ ok: true, result: 'created' })
+    expect(confirmCalls).toBe(1) // 2 回目は確認なし
+    expect(executed).toBe(2)
+  })
+
+  it('汎用 remember は capability 単位 — 別 capability は引き続き確認される (#714)', async () => {
+    let confirmCalls = 0
+    registerCapability(
+      makeCapability({ id: 'clips.create', requiresConfirmation: true }),
+    )
+    registerCapability(
+      makeCapability({ id: 'memos.write', requiresConfirmation: true }),
+    )
+    const opts = {
+      confirmFn: async () => {
+        confirmCalls++
+        return { accepted: true, remember: true }
+      },
+    }
+    const ctx = { principal: { kind: 'ai.chat' } as const }
+    await dispatchCapability('clips.create', undefined, ctx, opts)
+    await dispatchCapability('memos.write', undefined, ctx, opts)
+    expect(confirmCalls).toBe(2)
+  })
+
+  it('ai.chat の remember は ai.heartbeat に波及しない — 無人実行は常に確認 (#714)', async () => {
+    let confirmCalls = 0
+    registerCapability(
+      makeCapability({ id: 'clips.create', requiresConfirmation: true }),
+    )
+    const opts = {
+      confirmFn: async (o: { rememberLabel?: string }) => {
+        confirmCalls++
+        // heartbeat のダイアログには remember チェックボックス自体を出さない
+        if (confirmCalls > 1) expect(o.rememberLabel).toBeUndefined()
+        return { accepted: true, remember: true }
+      },
+    }
+    await dispatchCapability(
+      'clips.create',
+      undefined,
+      { principal: { kind: 'ai.chat' } },
+      opts,
+    )
+    // chat で remember 済みでも heartbeat は毎回確認。remember=true を返しても
+    // 記憶されない
+    for (let i = 0; i < 2; i++) {
+      const r = await dispatchCapability(
+        'clips.create',
+        undefined,
+        { principal: { kind: 'ai.heartbeat' } },
+        opts,
+      )
+      expect(r.ok).toBe(true)
+    }
+    expect(confirmCalls).toBe(3)
+  })
+
+  it('plugin の remember は個体単位 — 別プラグインには波及しない (#714)', async () => {
+    let confirmCalls = 0
+    registerCapability(
+      makeCapability({ id: 'clips.create', requiresConfirmation: true }),
+    )
+    const opts = {
+      confirmFn: async () => {
+        confirmCalls++
+        return { accepted: true, remember: true }
+      },
+    }
+    const pluginA = { principal: { kind: 'plugin', pluginId: 'a' } as const }
+    await dispatchCapability('clips.create', undefined, pluginA, opts)
+    expect(confirmCalls).toBe(1)
+    // 同一プラグインはスキップ
+    await dispatchCapability('clips.create', undefined, pluginA, opts)
+    expect(confirmCalls).toBe(1)
+    // 別プラグインは確認される
+    await dispatchCapability(
+      'clips.create',
+      undefined,
+      { principal: { kind: 'plugin', pluginId: 'b' } },
+      opts,
+    )
+    expect(confirmCalls).toBe(2)
+  })
+
+  it('user principal には remember チェックボックスを出さず、remember=true でも記憶しない (#714)', async () => {
+    let confirmCalls = 0
+    registerCapability(
+      makeCapability({ id: 'clips.create', requiresConfirmation: true }),
+    )
+    const opts = {
+      confirmFn: async (o: { rememberLabel?: string }) => {
+        confirmCalls++
+        expect(o.rememberLabel).toBeUndefined()
+        return { accepted: true, remember: true }
+      },
+    }
+    const ctx = { principal: { kind: 'user' } as const }
+    await dispatchCapability('clips.create', undefined, ctx, opts)
+    await dispatchCapability('clips.create', undefined, ctx, opts)
+    expect(confirmCalls).toBe(2)
+  })
+
+  it('ai.chat の汎用確認には rememberLabel が注入される (#714)', async () => {
+    let seenLabel: string | undefined
+    registerCapability(
+      makeCapability({ id: 'clips.create', requiresConfirmation: true }),
+    )
+    await dispatchCapability(
+      'clips.create',
+      undefined,
+      { principal: { kind: 'ai.chat' } },
+      {
+        confirmFn: async (o) => {
+          seenLabel = o.rememberLabel
+          return { accepted: true, remember: false }
+        },
+      },
+    )
+    expect(seenLabel).toBe('今後この操作を確認しない')
+  })
+
+  it('onConfirmRemember を持つ capability (vault) は汎用スキップの対象外 (#714)', async () => {
+    let confirmCalls = 0
+    registerCapability(
+      makeCapability({
+        id: 'vault.fetch',
+        permissions: ['vault.use'],
+        requiresConfirmation: true,
+        onConfirmRemember: () => {},
+        execute: () => 'fetched',
+      }),
+    )
+    const opts = {
+      confirmFn: async () => {
+        confirmCalls++
+        return { accepted: true, remember: true }
+      },
+    }
+    const ctx = ctxWithPreset('full')
+    await dispatchCapability('vault.fetch', undefined, ctx, opts)
+    // remember は onConfirmRemember (接続単位の信頼) に委ねられ、
+    // capability 単位の汎用スキップとしては記憶されない
+    await dispatchCapability('vault.fetch', undefined, ctx, opts)
+    expect(confirmCalls).toBe(2)
+  })
+
   it('checks permissions BEFORE confirm (no confirm if denied)', async () => {
     let confirmCalls = 0
     registerCapability(

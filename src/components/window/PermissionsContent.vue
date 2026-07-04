@@ -4,6 +4,7 @@ import { type Diagnostic, linter } from '@codemirror/lint'
 import JSON5 from 'json5'
 import { computed, onMounted, ref, watch } from 'vue'
 import type { ApiTokenMeta } from '@/bindings'
+import { getCapability } from '@/capabilities/registry'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import PermissionProfileEditor from '@/components/window/PermissionProfileEditor.vue'
@@ -11,7 +12,10 @@ import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useVault } from '@/composables/useVault'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { presetChipLabel } from '@/permissions/labels'
-import type { ProfiledPrincipalId } from '@/permissions/principal'
+import {
+  type ProfiledPrincipalId,
+  principalActorLabel,
+} from '@/permissions/principal'
 import {
   AI_INSTRUCTION_KEYS,
   EXTERNAL_READ_FLOOR,
@@ -20,6 +24,7 @@ import {
 } from '@/permissions/schema'
 import {
   normalizePermissionsFile,
+  removeConfirmSkip,
   resolveForProfiled,
   usePermissionsConfig,
 } from '@/permissions/store'
@@ -280,6 +285,42 @@ function disabledFor(id: ProfiledPrincipalId) {
   if (id === 'external') return EXTERNAL_DISABLED
   return undefined
 }
+
+// --- 「今後確認しない」の一覧・取り消し (#714) ---
+// 記憶は dispatcher が confirmSkips に書く。ここは袋小路にしないための導線 —
+// scope (ai.chat / plugin 個体) ごとの記憶を該当 principal 行に出して外せる。
+
+interface ConfirmSkipEntry {
+  scope: string
+  capabilityId: string
+  label: string
+  /** plugin 行のみ: どの個体 (プラグイン / ウィジェット) の記憶か */
+  owner: string | null
+}
+
+function confirmSkipEntriesFor(id: ProfiledPrincipalId): ConfirmSkipEntry[] {
+  const skips = permissionsFile.value.confirmSkips
+  const scopes =
+    id === 'ai.chat'
+      ? ['ai.chat']
+      : id === 'plugin'
+        ? Object.keys(skips).filter((s) => s.startsWith('plugin:'))
+        : []
+  return scopes.flatMap((scope) =>
+    (skips[scope] ?? []).map((capabilityId) => ({
+      scope,
+      capabilityId,
+      label: getCapability(capabilityId)?.label ?? capabilityId,
+      owner:
+        id === 'plugin'
+          ? principalActorLabel({
+              kind: 'plugin',
+              pluginId: scope.slice('plugin:'.length),
+            })
+          : null,
+    })),
+  )
+}
 </script>
 
 <template>
@@ -327,6 +368,36 @@ function disabledFor(id: ProfiledPrincipalId) {
           :principal-id="row.id"
           :disabled-keys="disabledFor(row.id)"
         />
+
+        <!-- 「今後確認しない」で記憶した操作の一覧・取り消し (#714) -->
+        <div
+          v-if="confirmSkipEntriesFor(row.id).length > 0"
+          :class="$style.tokenSection"
+        >
+          <div :class="$style.tokenSectionLabel">確認なしで実行できる操作</div>
+          <div :class="$style.hint">
+            確認ダイアログで「今後この操作を確認しない」を選んだ操作。取り消すと次回から再び確認されます。
+          </div>
+          <div :class="$style.tokenList">
+            <div
+              v-for="entry in confirmSkipEntriesFor(row.id)"
+              :key="entry.scope + '/' + entry.capabilityId"
+              :class="$style.tokenRow"
+            >
+              <i class="ti ti-shield-check" :class="$style.tokenIcon" />
+              <span :class="$style.tokenName">{{ entry.label }}</span>
+              <span v-if="entry.owner" :class="$style.skipOwner">{{ entry.owner }}</span>
+              <button
+                class="_button"
+                :class="$style.tokenRevoke"
+                title="取り消す"
+                @click="removeConfirmSkip(entry.scope, entry.capabilityId)"
+              >
+                <i class="ti ti-x" />
+              </button>
+            </div>
+          </div>
+        </div>
 
         <!-- 外部アプリ行: 永続 API トークン管理を併設 (#712 §8.1) -->
         <div v-if="row.id === 'external'" :class="$style.tokenSection">
@@ -600,6 +671,16 @@ function disabledFor(id: ProfiledPrincipalId) {
   color: var(--nd-fg);
   opacity: 0.5;
   font-size: 0.9em;
+}
+
+.skipOwner {
+  color: var(--nd-fg);
+  opacity: 0.5;
+  font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
 }
 
 .tokenRevoke {

@@ -26,7 +26,12 @@ import {
 import { recordPluginDenial } from '@/permissions/pluginDenials'
 import { type Principal, principalActorLabel } from '@/permissions/principal'
 import type { PermissionKey } from '@/permissions/schema'
-import { resolveFor } from '@/permissions/store'
+import {
+  addConfirmSkip,
+  confirmSkipScope,
+  isConfirmSkipped,
+  resolveFor,
+} from '@/permissions/store'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import {
   type ConfirmDecision,
@@ -125,13 +130,28 @@ export async function dispatchCapability(
   }
   // 確認ダイアログ (write 系などで requiresConfirmation: true)
   const confirmOpts = await buildConfirmOptions(cap, params, capCtx)
-  if (confirmOpts) {
+  // 汎用「今後確認しない」(#714): capability 固有の remember (vault の接続
+  // 単位の信頼) を持たない capability に、scope × capability 単位のスキップを
+  // 適用する。scope は ai.chat / plugin 個体のみ — user (本人操作の confirm は
+  // 削らない)・ai.heartbeat (無人実行)・external は confirmSkipScope が null を
+  // 返し、常に確認される。
+  const skipScope = cap.onConfirmRemember
+    ? null
+    : confirmSkipScope(ctx.principal)
+  const skipConfirmed =
+    confirmOpts !== null &&
+    skipScope !== null &&
+    isConfirmSkipped(skipScope, cap.id)
+  if (confirmOpts && !skipConfirmed) {
     // 帰属表示 (#712 §3.3): 誰の要求かをダイアログ冒頭に必須表示する。
     // 無人 HEARTBEAT のモーダルが本人のチャット確認と誤認されないよう、
     // capability 側実装に任せず dispatcher が一律で注入する。
     const actor = principalActorLabel(ctx.principal)
     if (actor) {
       confirmOpts.attribution = `${actor}が「${cap.label}」を実行しようとしています`
+    }
+    if (skipScope !== null && !confirmOpts.rememberLabel) {
+      confirmOpts.rememberLabel = '今後この操作を確認しない'
     }
     const confirmFn = options?.confirmFn ?? useConfirm().confirmWithDecision
     const decision = await confirmFn(confirmOpts)
@@ -142,10 +162,15 @@ export async function dispatchCapability(
         error: `User cancelled execution of ${capabilityId}`,
       }
     }
-    // 「次回から確認しない」が ON のまま許可されたら capability に通知する。
-    // 信頼状態の永続化など、確認スキップを次回以降に効かせる副作用を委ねる。
-    if (decision.remember && cap.onConfirmRemember) {
-      await cap.onConfirmRemember(params, capCtx)
+    // 「次回から確認しない」が ON のまま許可されたら次回以降に効かせる。
+    // capability 固有実装 (vault の接続信頼) があればそちらへ委ね、
+    // 無ければ scope × capability 単位で permissions.json5 に記憶する。
+    if (decision.remember) {
+      if (cap.onConfirmRemember) {
+        await cap.onConfirmRemember(params, capCtx)
+      } else if (skipScope !== null) {
+        addConfirmSkip(skipScope, cap.id)
+      }
     }
   }
   try {

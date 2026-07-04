@@ -510,6 +510,12 @@ const { activate, deactivate } = useMenuKeyboard({
 - `.` を含む id は `^[a-zA-Z0-9_-]{1,128}$` 制約のため `_` に変換 (例: `time.now` → `time_now`)
 - dispatcher で逆引きするため AI / プラグイン作者は意識不要
 
+**確認ダイアログの「今後確認しない」(#714):**
+- `requiresConfirmation` な capability の確認で「今後この操作を確認しない」を ON にして許可すると、scope × capability 単位で `permissions.json5` の `confirmSkips` に記憶され、次回以降の確認をスキップする (保存先は権限プロファイルと同じく capability から書き換え不能)
+- scope は `ai.chat` と `plugin:<pluginId>` (プラグイン / ウィジェット個体単位) のみ。user (本人操作の confirm は削らない) / `ai.heartbeat` (無人実行 — チャットの同意の波及も heartbeat 自身での記憶も不可) / `external` は対象外で常に確認される (同意すり替え防止 #712 §3.3)
+- 記憶の一覧・取り消しは権限ウィンドウの該当 principal 行内「確認なしで実行できる操作」
+- capability 固有の remember (`onConfirmRemember` — vault.fetch の接続単位信頼) を持つ capability は汎用スキップの対象外
+
 **編集履歴 + revert:**
 - skill / widget / plugin / theme の各カテゴリで `*.history` / `*.revert` capability を提供
 - 編集前のスナップショットをリング (10 件) で sidecar 管理 (`src/utils/historyFs.ts`)
