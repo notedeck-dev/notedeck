@@ -264,7 +264,7 @@ const ROWS: readonly {
   {
     id: 'plugin',
     icon: 'ti-puzzle',
-    label: 'プラグイン',
+    label: 'AiScript',
     hint: 'AiScript プラグイン / ウィジェット / Play に許可する操作',
   },
   {
