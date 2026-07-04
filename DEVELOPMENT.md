@@ -70,6 +70,7 @@ pnpm build        # Production build
 pnpm tauri:build  # Tauri native build
 pnpm test         # Run unit tests
 pnpm test:watch   # Run tests in watch mode
+pnpm test:e2e     # Run E2E tests (要デバッグビルド、下記参照)
 pnpm lint         # Lint & format check
 pnpm lint:fix     # Lint & format fix
 pnpm typecheck    # TypeScript type check
@@ -84,6 +85,26 @@ pnpm clean        # Remove build artifacts
 |------------|------|----------------|------|
 | `unit` | Node.js | `*.test.ts` | ロジック・ユーティリティ |
 | `dom` | happy-dom | `*.dom.test.ts` | Vue コンポーネント・DOM 操作 |
+
+### E2E テスト（[#702](https://github.com/hitalin/notedeck/issues/702)）
+
+実アプリ（デバッグビルド）を隔離プロファイルで起動し、外部アプリと同じ
+HTTP API 面（[#709](https://github.com/hitalin/notedeck/issues/709)、port 19820）で駆動する。設定は `vitest.e2e.config.ts`
+（`pnpm test` とは独立、`tests/e2e/` 配下）。
+
+```bash
+cd src-tauri && cargo build && cd ..   # デバッグバイナリを用意 (初回のみ)
+nix develop -c pnpm test:e2e           # WSL2 では nix develop 必須 (EGL 対策)
+```
+
+- ハーネス（`tests/e2e/harness.ts`）は一時ディレクトリを `NOTEDECK_APP_DIR`
+  に指定してバイナリを spawn し、実データに触れない。バイナリの場所は
+  `NOTEDECK_E2E_BINARY` で上書き可能
+- port 19820 が使用中（= 実アプリ起動中）の場合は誤操作防止のため即失敗する
+- デバッグビルドは devUrl（vite 5173）から frontend を読むため、vite が
+  いなければハーネスが自前で起動・終了する
+- アサーションは HTTP の state 読み取り（`/api/health` / `/api/deck/columns`
+  等）ベース。DOM/ピクセルには依存しない
 
 ## Architecture
 

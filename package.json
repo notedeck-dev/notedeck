@@ -9,6 +9,7 @@
     "build": "vue-tsc -b && vite build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "typecheck": "vue-tsc -b --noEmit",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
