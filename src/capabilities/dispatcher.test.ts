@@ -11,6 +11,7 @@ import type { ProfiledPrincipalId } from '@/permissions/principal'
 import { setPermissionPreset } from '@/permissions/schema'
 import {
   _resetPermissionsForTest,
+  removeConfirmSkip,
   usePermissionsConfig,
 } from '@/permissions/store'
 import { type DispatchContext, dispatchCapability } from './dispatcher'
@@ -654,6 +655,86 @@ describe('dispatchCapability — confirmation flow', () => {
     // capability 単位の汎用スキップとしては記憶されない
     await dispatchCapability('vault.fetch', undefined, ctx, opts)
     expect(confirmCalls).toBe(2)
+  })
+
+  it('external principal には remember チェックボックスを出さず、remember=true でも記憶しない (#714)', async () => {
+    let confirmCalls = 0
+    setPrincipalPreset('external', 'full')
+    registerCapability(
+      makeCapability({ id: 'clips.create', requiresConfirmation: true }),
+    )
+    const opts = {
+      confirmFn: async (o: { rememberLabel?: string }) => {
+        confirmCalls++
+        expect(o.rememberLabel).toBeUndefined()
+        return { accepted: true, remember: true }
+      },
+    }
+    const ctx = { principal: { kind: 'external' } as const }
+    await dispatchCapability('clips.create', undefined, ctx, opts)
+    await dispatchCapability('clips.create', undefined, ctx, opts)
+    expect(confirmCalls).toBe(2)
+  })
+
+  it('remember チェック付きでもキャンセルしたら記憶しない (#714)', async () => {
+    let confirmCalls = 0
+    registerCapability(
+      makeCapability({ id: 'clips.create', requiresConfirmation: true }),
+    )
+    const ctx = { principal: { kind: 'ai.chat' } as const }
+    const r = await dispatchCapability('clips.create', undefined, ctx, {
+      confirmFn: async () => {
+        confirmCalls++
+        return { accepted: false, remember: true }
+      },
+    })
+    expect(r.ok).toBe(false)
+    // キャンセル + remember は無効 — 次回も確認される
+    await dispatchCapability('clips.create', undefined, ctx, {
+      confirmFn: async () => {
+        confirmCalls++
+        return { accepted: true, remember: false }
+      },
+    })
+    expect(confirmCalls).toBe(2)
+  })
+
+  it('remember なしで許可した場合は次回も確認される (#714)', async () => {
+    let confirmCalls = 0
+    registerCapability(
+      makeCapability({ id: 'clips.create', requiresConfirmation: true }),
+    )
+    const opts = {
+      confirmFn: async () => {
+        confirmCalls++
+        return { accepted: true, remember: false }
+      },
+    }
+    const ctx = { principal: { kind: 'ai.chat' } as const }
+    await dispatchCapability('clips.create', undefined, ctx, opts)
+    await dispatchCapability('clips.create', undefined, ctx, opts)
+    expect(confirmCalls).toBe(2)
+  })
+
+  it('removeConfirmSkip で取り消すと再び確認される — 権限ウィンドウの取り消し導線 (#714)', async () => {
+    let confirmCalls = 0
+    registerCapability(
+      makeCapability({ id: 'clips.create', requiresConfirmation: true }),
+    )
+    const opts = {
+      confirmFn: async () => {
+        confirmCalls++
+        return { accepted: true, remember: true }
+      },
+    }
+    const ctx = { principal: { kind: 'ai.chat' } as const }
+    await dispatchCapability('clips.create', undefined, ctx, opts)
+    await dispatchCapability('clips.create', undefined, ctx, opts)
+    expect(confirmCalls).toBe(1) // スキップ確立
+
+    removeConfirmSkip('ai.chat', 'clips.create')
+    await dispatchCapability('clips.create', undefined, ctx, opts)
+    expect(confirmCalls).toBe(2) // 取り消し後は再確認
   })
 
   it('checks permissions BEFORE confirm (no confirm if denied)', async () => {
