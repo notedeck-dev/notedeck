@@ -327,7 +327,13 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(not(mobile))]
         {
             use tauri_plugin_deep_link::DeepLinkExt;
-            app.deep_link().register("notedeck")?;
+            // OS への URL スキーム登録は best-effort — update-desktop-database
+            // (desktop-file-utils) が無い環境 (最小構成 Linux / CI) では spawn が
+            // ENOENT で失敗するが、deep-link 以外の全機能は無関係なので起動を
+            // 止めない (? で伝播すると setup hook 全体が panic しアプリが死ぬ)
+            if let Err(e) = app.deep_link().register("notedeck") {
+                tracing::warn!("[deep-link] scheme registration failed (non-fatal): {e}");
+            }
 
             let deep_link_handle = app.app_handle().clone();
             app.deep_link().on_open_url(move |event| {
