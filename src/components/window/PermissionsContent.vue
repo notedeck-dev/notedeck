@@ -458,6 +458,7 @@ function disabledFor(id: ProfiledPrincipalId) {
 .codeEditorWrap {
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
+  flex-shrink: 0; // .principalRow と同じ理由 (overflow: hidden との組合せ)
   overflow: hidden;
 }
 
@@ -476,6 +477,10 @@ function disabledFor(id: ProfiledPrincipalId) {
 .principalRow {
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
+  // overflow: hidden は flex item の自動最小サイズを 0 にするため、.content が
+  // 窓の max-height に達すると行が圧縮されて中身がクリップされる (スクロールも
+  // 発火しない)。shrink を止めて超過分を .content の overflow-y に流す
+  flex-shrink: 0;
   overflow: hidden;
 }
 
