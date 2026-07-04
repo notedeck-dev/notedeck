@@ -22,6 +22,7 @@ export const WINDOW_LABELS: Record<string, string> = {
   profileEditor: 'プロファイルエディタ',
   ai: 'AI アシスタント',
   aiSettings: 'AI 設定',
+  permissions: '権限',
   chat: 'チャット',
   about: 'NoteDeck について',
   navEditor: 'ナビバー',

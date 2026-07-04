@@ -47,6 +47,9 @@ const ProfileEditorContent = defineAsyncComponent({
 const AiSettingsContent = defineAsyncComponent(
   () => import('@/components/window/AiSettingsContent.vue'),
 )
+const PermissionsContent = defineAsyncComponent(
+  () => import('@/components/window/PermissionsContent.vue'),
+)
 const ConnectionsContent = defineAsyncComponent(
   () => import('@/components/window/ConnectionsContent.vue'),
 )
@@ -218,6 +221,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         v-if="win.type === 'aiSettings'"
         :initial-tab="(win.props.initialTab as string | undefined)"
       />
+      <PermissionsContent v-if="win.type === 'permissions'" />
       <AboutContent v-if="win.type === 'about'" @close="closeWindow(win.id)" />
       <TutorialContent v-if="win.type === 'tutorial'" />
       <NavEditorContent

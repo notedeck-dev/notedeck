@@ -25,6 +25,7 @@ const WINDOW_TITLES: Partial<Record<WindowType, string>> = {
   themeEditor: 'テーマ',
   profileEditor: 'プロファイル',
   aiSettings: 'AI 設定',
+  permissions: '権限',
   about: 'NoteDeck について',
   navEditor: 'ナビバー',
   performanceEditor: 'パフォーマンス',
@@ -84,6 +85,9 @@ const ProfileEditorContent = defineAsyncComponent(
 )
 const AiSettingsContent = defineAsyncComponent(
   () => import('@/components/window/AiSettingsContent.vue'),
+)
+const PermissionsContent = defineAsyncComponent(
+  () => import('@/components/window/PermissionsContent.vue'),
 )
 const AboutContent = defineAsyncComponent(
   () => import('@/components/window/AboutContent.vue'),
@@ -298,6 +302,7 @@ onMounted(async () => {
           v-else-if="windowPayload.type === 'aiSettings'"
           :initial-tab="(windowPayload.props.initialTab as string | undefined)"
         />
+        <PermissionsContent v-else-if="windowPayload.type === 'permissions'" />
         <AboutContent v-else-if="windowPayload.type === 'about'" />
         <NavEditorContent
           v-else-if="windowPayload.type === 'navEditor'"

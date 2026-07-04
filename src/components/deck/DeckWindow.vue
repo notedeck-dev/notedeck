@@ -92,6 +92,7 @@ const icons: Record<string, string> = {
   profileEditor: 'ti ti-layout-columns',
   ai: 'ti ti-brain',
   aiSettings: 'ti ti-robot',
+  permissions: 'ti ti-shield-lock',
   chat: 'ti ti-messages',
   about: 'ti ti-info-circle',
   navEditor: 'ti ti-layout-sidebar-left-collapse',

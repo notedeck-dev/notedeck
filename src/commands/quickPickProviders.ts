@@ -91,6 +91,13 @@ export function getSettingsItems(): QuickPickItem[] {
       action: () => useWindowsStore().open('aiSettings'),
     },
     {
+      id: 'permissions',
+      label: '権限',
+      icon: 'shield-lock',
+      group: '環境設定',
+      action: () => useWindowsStore().open('permissions'),
+    },
+    {
       id: 'connections',
       label: '接続',
       icon: 'plug-connected',

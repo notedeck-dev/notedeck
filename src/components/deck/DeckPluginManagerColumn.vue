@@ -21,10 +21,9 @@ import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
 import PluginCard from './PluginCard.vue'
 
-// 拒否バッジのクリック → 権限編集 UI (#712 §8.4)。暫定期間は AI 設定の
-// プラグイン権限セクション。PR 2 で権限ウィンドウの plugin 行へ付け替える。
+// 拒否バッジのクリック → 権限ウィンドウの plugin 行 (#712 §8.4)
 function openPermissionSettings(): void {
-  useWindowsStore().open('aiSettings')
+  useWindowsStore().open('permissions')
 }
 
 const props = defineProps<{

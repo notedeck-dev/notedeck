@@ -29,6 +29,7 @@ const VALID_WINDOW_TYPES: readonly WindowType[] = [
   'themeEditor',
   'profileEditor',
   'aiSettings',
+  'permissions',
   'about',
   'navEditor',
   'performanceEditor',

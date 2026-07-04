@@ -17,6 +17,7 @@ export type WindowType =
   | 'themeEditor'
   | 'profileEditor'
   | 'aiSettings'
+  | 'permissions'
   | 'about'
   | 'navEditor'
   | 'performanceEditor'
@@ -71,6 +72,7 @@ export const WINDOW_SIZES: Record<
   'federation-instance': { width: 500, maxHeight: 650 },
   'follow-list': { width: 500, maxHeight: 650 },
   aiSettings: { width: 400, maxHeight: 700 },
+  permissions: { width: 420, maxHeight: 700 },
   // Tool windows
   plugins: { width: 500, maxHeight: 650 },
   // Editor windows
@@ -161,6 +163,7 @@ export const useWindowsStore = defineStore('windows', () => {
     'cssEditor',
     'themeEditor',
     'aiSettings',
+    'permissions',
     'about',
     'navEditor',
     'profileEditor',

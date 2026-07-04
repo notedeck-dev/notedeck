@@ -40,6 +40,7 @@ function openToolWindow(
     | 'cssEditor'
     | 'plugins'
     | 'aiSettings'
+    | 'permissions'
     | 'connections'
     | 'performanceEditor'
     | 'appearanceEditor'
@@ -80,6 +81,13 @@ function openToolWindow(
           <button :class="$style.categoryHeader" @click="openToolWindow('aiSettings')">
             <i class="ti ti-robot" />
             <span>AI</span>
+            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
+          </button>
+        </div>
+        <div :class="$style.categorySection">
+          <button :class="$style.categoryHeader" @click="openToolWindow('permissions')">
+            <i class="ti ti-shield-lock" />
+            <span>権限</span>
             <i class="ti ti-chevron-right" :class="$style.chevronNav" />
           </button>
         </div>
