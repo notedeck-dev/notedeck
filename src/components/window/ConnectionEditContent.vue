@@ -522,6 +522,13 @@ const testResultText = computed(() => {
   flex-direction: column;
   padding: 16px;
   gap: 0;
+  // 詳細トグルを開くと窓の max-height を超えることがある — 超過分をスクロール
+  // に流す (PermissionsContent と同じパターン)
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-color: var(--nd-scrollbarHandle) transparent;
+  scrollbar-width: thin;
 }
 
 .section {
