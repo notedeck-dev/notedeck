@@ -700,7 +700,7 @@ AiScript / AI / プラグインが**任意の外部サービス** (GitHub / Line
 | metadata | `<configDir>/notedeck/connections.json` | 接続定義。Rust が source of truth として読み書き (atomic write: 同一 dir への一時ファイル + rename)。`schemaVersion` + `connections[]` |
 | secret | OS キーチェーン | `service` = `notedeck`、`account` = `vault/v1/<conn_id>/<slot>`。`/` 区切りの構造化 path で既存エントリーと名前空間分離。slot で OAuth (v2) 拡張余地を確保 |
 
-`Connection` フィールド: `id` (ULID) / `name` / `baseUrl` (scheme+host+path のみ、query/userinfo/fragment 拒否) / `kind` ('outbound') / `authType` / `allowedHosts` / `accountScope` / `origin` / `templateId` / `aiVisible` / `slots` / `notes` 等。`authType` は判別共用体: `{ kind: 'bearer' }` / `{ kind: 'header', name }` / `{ kind: 'query', param }` / `{ kind: 'basic', username }`。
+`Connection` フィールド: `id` (ULID) / `name` / `baseUrl` (scheme+host+path のみ、query/userinfo/fragment 拒否) / `kind` ('outbound') / `authType` / `allowedHosts` / `accountScope` / `origin` / `templateId` / `exposedTo` (開示先 principal クラス #712) / `trustedFor` / `slots` / `notes` 等。`authType` は判別共用体: `{ kind: 'bearer' }` / `{ kind: 'header', name }` / `{ kind: 'query', param }` / `{ kind: 'basic', username }`。
 
 #### Rust モジュール (`src-tauri/src/vault/`)
 
@@ -718,7 +718,7 @@ AiScript / AI / プラグインが**任意の外部サービス** (GitHub / Line
 
 #### Tauri コマンド (`src-tauri/src/commands/vault.rs`)
 
-12 コマンド: `vault_list_connections` / `vault_get_connection` / `vault_upsert_connection` / `vault_upsert_connection_with_secret` / `vault_set_secret` / `vault_get_secret_status` / `vault_delete_secret` / `vault_delete_connection` / `vault_set_ai_visible` / `vault_fetch` / `vault_test_connection` / `ai_migrate_provider_to_vault`。全コマンド入口で `assert_main_window` (main ウィンドウ限定) + `validate_slot` + `validate_conn_id`。secret は `secrecy::SecretString` で扱い、最小長 16 文字を強制。
+12 コマンド: `vault_list_connections` / `vault_get_connection` / `vault_upsert_connection` / `vault_upsert_connection_with_secret` / `vault_set_secret` / `vault_get_secret_status` / `vault_delete_secret` / `vault_delete_connection` / `vault_set_exposed` / `vault_set_trusted` / `vault_fetch` / `vault_test_connection` / `ai_migrate_provider_to_vault`。全コマンド入口で `assert_main_window` (main ウィンドウ限定) + `validate_slot` + `validate_conn_id`。secret は `secrecy::SecretString` で扱い、最小長 16 文字を強制。
 
 #### `vault.fetch` のセキュリティ
 
@@ -729,8 +729,9 @@ AiScript / AI / プラグインが**任意の外部サービス** (GitHub / Line
 #### AI 統合
 
 - `vault.fetch` は capability registry に登録 (`aiTool: true`, permission `vault.use`, `requiresConfirmation: true`)。AI / AiScript / コマンドパレットから呼べる
-- `aiVisible` toggle (接続単位、default OFF) で AI 開示を制御。`vault.fetch` capability は `aiVisible: true` の接続のみ `connectionRef` (name / id) で解決
-- AI の system prompt に `<available-connections>` ブロックを注入 (`aiVisible` な接続の name / baseUrl / auth のみ、secret / id は出さない)
+- 開示は principal クラス別 (#712 §6.1): `exposedTo: ('ai' | 'external')[]` (接続単位、default 空 = 非開示)。「AI に見せる」「外部アプリに見せる」は別の同意で、`vault.fetch` capability は呼び出し principal のクラスに開示された接続のみ `connectionRef` (name / id) で解決。plugin principal は恒久拒否 (`vault_not_exposed_to_plugins`)
+- 「今後確認なし」(`trustedFor`) もクラス別 — 外部アプリでの確認同意が AI の trust に化けない
+- AI の system prompt に `<available-connections>` ブロックを注入 (Ai クラスに開示された接続の name / baseUrl / auth のみ、secret / id は出さない)
 - permission `vault.use` は preset readonly/safe = false、full = true。HIGH_RISK 指定
 
 #### v1 スコープ外 (後続)

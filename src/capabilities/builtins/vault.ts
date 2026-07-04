@@ -1,17 +1,71 @@
-import type { Connection } from '@/bindings'
+import type { Connection, PrincipalClass } from '@/bindings'
+import type { CapabilityContext } from '@/capabilities/types'
 import type { Command } from '@/commands/registry'
+import { recordPluginDenial } from '@/permissions/pluginDenials'
+import type { Principal } from '@/permissions/principal'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /**
- * `connectionRef` (接続名 — 大文字小文字無視 — または id) を `aiVisible: true` な
- * 接続に解決する。見つからなければ `null`。`execute` と `requiresConfirmation` /
- * `onConfirmRemember` で同じ解決ロジックを共有するために切り出している。
+ * principal → 開示先クラスのマッピング (#712 §6.1)。
+ * - ai.chat / ai.heartbeat → 'ai'
+ * - external → 'external'
+ * - user → null を返すが全開示 (本人は常に全接続を扱える)
+ * - plugin → 恒久拒否 (プラグインに secret は渡さない — 復旧トグルも無い)
+ */
+function classOf(principal: Principal): PrincipalClass | 'user' | null {
+  switch (principal.kind) {
+    case 'user':
+      return 'user'
+    case 'ai.chat':
+    case 'ai.heartbeat':
+      return 'ai'
+    case 'external':
+      return 'external'
+    case 'plugin':
+      return null
+  }
+}
+
+function requirePrincipal(ctx: CapabilityContext | undefined): Principal {
+  const principal = ctx?.principal
+  if (!principal) {
+    throw new Error(
+      'vault.fetch: principal が ctx に渡される dispatchCapability 経由で呼ばれる必要があります',
+    )
+  }
+  return principal
+}
+
+/**
+ * plugin principal なら専用エラーで拒否する (#712 §6.1)。
+ * エラーコード `vault_not_exposed_to_plugins` はプラグイン作者向け —
+ * 破壊的変更 (旧 aiVisible 接続はプラグインからも見えていた) なので、
+ * 復旧方法 (プラグイン設定値としての入力) まで文言で案内する。
+ */
+function rejectPlugin(principal: Principal): void {
+  if (principal.kind !== 'plugin') return
+  recordPluginDenial(principal.pluginId, 'vault.fetch', ['vault.use'])
+  throw new Error(
+    'vault_not_exposed_to_plugins: Secret Vault はプラグインには開示されません' +
+      ' (NoteDeck のセキュリティ設計)。外部 API キーが必要な場合はユーザーに' +
+      'プラグイン設定値としての入力を求めてください',
+  )
+}
+
+/**
+ * `connectionRef` (接続名 — 大文字小文字無視 — または id) を、principal の
+ * クラスに開示された接続に解決する。見つからなければ `null`。`execute` と
+ * `requiresConfirmation` / `onConfirmRemember` で同じ解決ロジックを共有する。
  */
 async function resolveVisibleConnection(
   ref: string,
+  principal: Principal,
 ): Promise<Connection | null> {
+  const cls = classOf(principal)
+  if (cls === null) return null
   const all = unwrap(await commands.vaultListConnections())
-  const visible = all.filter((c) => c.aiVisible)
+  const visible =
+    cls === 'user' ? all : all.filter((c) => c.exposedTo?.includes(cls))
   const lower = ref.toLowerCase()
   return (
     visible.find((c) => c.name.toLowerCase() === lower) ??
@@ -25,17 +79,15 @@ async function resolveVisibleConnection(
  * HTTP リクエストを送る。secret は Rust 側で注入され、AI / AiScript には
  * 渡らない。
  *
- * この capability から到達できるのは **`aiVisible: true` な接続のみ**。
- * ユーザーが明示的に「AI からのアクセスを許可」した接続だけが対象になる。
- * UI からの直接操作 (接続編集画面のテスト等) は `commands.vaultFetch` を
- * 直接呼ぶため、この制限を受けない。
+ * この capability から到達できるのは **呼び出し principal のクラスに開示された
+ * 接続のみ** (#712 §6.1)。「AI に見せる」「外部アプリに見せる」は別の同意で、
+ * 片方への開示がもう片方に波及しない。plugin principal は恒久拒否。
  *
- * confirmation は接続の信頼状態で決まる:
- * - `aiTrusted: true` の接続 → 確認なし (`requiresConfirmation` が null を返す)
- * - それ以外 → 都度確認。ダイアログに「今後この接続を確認なしで使う」を出し、
- *   ON で許可されたら `onConfirmRemember` が接続を `aiTrusted: true` に昇格する。
- * AI チャット・ウィジェット・プラグインすべてがこの 1 つの接続フラグで governed
- * される (呼び出し元単位の許可は持たない)。
+ * confirmation は接続の per-class 信頼状態で決まる (#712 §6.2):
+ * - `trustedFor` に呼び出しクラスが含まれる接続 → 確認なし
+ * - それ以外 → 都度確認。「今後この接続を確認なしで使う」ON で許可されたら
+ *   `onConfirmRemember` が **呼び出しクラスだけ** を `trustedFor` に追加する
+ *   — 外部アプリでの同意が AI の trust に化けない。
  */
 export const vaultFetchCapability: Command = {
   id: 'vault.fetch',
@@ -45,12 +97,23 @@ export const vaultFetchCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['vault.use'],
-  requiresConfirmation: async (params) => {
+  requiresConfirmation: async (params, ctx) => {
+    const principal = requirePrincipal(ctx)
+    rejectPlugin(principal)
+    const cls = classOf(principal)
     const ref =
       typeof params?.connectionRef === 'string' ? params.connectionRef : ''
-    const conn = ref ? await resolveVisibleConnection(ref) : null
-    // 信頼済み接続は確認なしで通す。
-    if (conn?.aiTrusted) return null
+    const conn = ref ? await resolveVisibleConnection(ref, principal) : null
+    // 呼び出しクラスで信頼済みの接続は確認なしで通す (user は常に確認あり —
+    // 本人操作の confirm は削らない)
+    if (
+      conn &&
+      cls !== 'user' &&
+      cls !== null &&
+      conn.trustedFor?.includes(cls)
+    ) {
+      return null
+    }
     return {
       title: '外部接続へのリクエストを許可しますか?',
       message: conn
@@ -61,15 +124,21 @@ export const vaultFetchCapability: Command = {
       okLabel: '許可',
       cancelLabel: 'やめる',
       type: 'danger',
-      // 接続が解決できたときだけ remember を出す (解決先が確定しているため)。
-      ...(conn ? { rememberLabel: '今後この接続を確認なしで使う' } : {}),
+      // 接続が解決できた + remember の同意先クラスが確定しているときだけ出す
+      ...(conn && cls !== 'user' && cls !== null
+        ? { rememberLabel: '今後この接続を確認なしで使う' }
+        : {}),
     }
   },
-  onConfirmRemember: async (params) => {
+  onConfirmRemember: async (params, ctx) => {
+    const principal = requirePrincipal(ctx)
+    const cls = classOf(principal)
+    // 昇格は呼び出しクラスだけに効かせる (#712 §6.2)
+    if (cls === 'user' || cls === null) return
     const ref =
       typeof params?.connectionRef === 'string' ? params.connectionRef : ''
-    const conn = ref ? await resolveVisibleConnection(ref) : null
-    if (conn) unwrap(await commands.vaultSetAiTrusted(conn.id, true))
+    const conn = ref ? await resolveVisibleConnection(ref, principal) : null
+    if (conn) unwrap(await commands.vaultSetTrusted(conn.id, cls, true))
   },
   signature: {
     description:
@@ -116,18 +185,20 @@ export const vaultFetchCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
+    const principal = requirePrincipal(ctx)
+    rejectPlugin(principal)
     const ref =
       typeof params?.connectionRef === 'string' ? params.connectionRef : ''
     if (!ref) throw new Error('connectionRef is required')
     const path = typeof params?.path === 'string' ? params.path : ''
     if (!path) throw new Error('path is required')
 
-    // aiVisible な接続だけを対象に、名前 (大文字小文字無視) または id で解決する。
-    const conn = await resolveVisibleConnection(ref)
+    // principal のクラスに開示された接続だけを対象に解決する
+    const conn = await resolveVisibleConnection(ref, principal)
     if (!conn) {
       throw new Error(
-        `connection "${ref}" は利用できません (存在しないか、AI からのアクセスが許可されていません)`,
+        `connection "${ref}" は利用できません (存在しないか、この呼び出し元へのアクセスが許可されていません)`,
       )
     }
 

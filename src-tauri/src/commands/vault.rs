@@ -179,8 +179,10 @@ fn upsert_metadata(
                 external_source: input.external_source,
                 template_id: input.template_id,
                 protocol: input.protocol,
-                ai_visible: false,
-                ai_trusted: false,
+                exposed_to: vec![],
+                trusted_for: vec![],
+                legacy_ai_visible: None,
+                legacy_ai_trusted: None,
                 slots: Vec::new(),
                 last_used_at: None,
                 last_secret_updated_at: None,
@@ -396,14 +398,15 @@ pub async fn vault_delete_connection(
     Ok(())
 }
 
-/// 接続を AI に開示するかを切り替える。
+/// 接続の開示先クラスを切り替える (#712 §6.1)。
 #[tauri::command]
 #[specta::specta]
-pub async fn vault_set_ai_visible(
+pub async fn vault_set_exposed(
     app: tauri::AppHandle,
     window: tauri::Window,
     id: String,
-    visible: bool,
+    principal_class: crate::vault::model::PrincipalClass,
+    exposed: bool,
 ) -> VaultResult<()> {
     assert_main_window(&window)?;
     validate_connection_id(&id)?;
@@ -414,19 +417,30 @@ pub async fn vault_set_ai_visible(
         .iter_mut()
         .find(|c| c.id == id)
         .ok_or(VaultError::ConnectionNotFound)?;
-    connection.ai_visible = visible;
+    if exposed {
+        if !connection.exposed_to.contains(&principal_class) {
+            connection.exposed_to.push(principal_class);
+        }
+    } else {
+        connection.exposed_to.retain(|c| *c != principal_class);
+        // 開示を外したクラスの trust も意味を失うので同時に外す
+        connection.trusted_for.retain(|c| *c != principal_class);
+    }
     connection.updated_at = now_millis();
     connections_store::save(&app, &file)?;
     Ok(())
 }
 
-/// 接続を「信頼済み」(AI / AiScript から確認なしで利用可) に切り替える。
+/// 接続を「信頼済み」(確認なしで利用可) にするクラスを切り替える (#712 §6.2)。
+/// 旧 `vault_set_ai_trusted(id, bool)` の置換 — クラスを明示することで
+/// 「外部アプリでの確認同意が AI の trust に化ける」経路が構造的に消える。
 #[tauri::command]
 #[specta::specta]
-pub async fn vault_set_ai_trusted(
+pub async fn vault_set_trusted(
     app: tauri::AppHandle,
     window: tauri::Window,
     id: String,
+    principal_class: crate::vault::model::PrincipalClass,
     trusted: bool,
 ) -> VaultResult<()> {
     assert_main_window(&window)?;
@@ -438,7 +452,13 @@ pub async fn vault_set_ai_trusted(
         .iter_mut()
         .find(|c| c.id == id)
         .ok_or(VaultError::ConnectionNotFound)?;
-    connection.ai_trusted = trusted;
+    if trusted {
+        if !connection.trusted_for.contains(&principal_class) {
+            connection.trusted_for.push(principal_class);
+        }
+    } else {
+        connection.trusted_for.retain(|c| *c != principal_class);
+    }
     connection.updated_at = now_millis();
     connections_store::save(&app, &file)?;
     Ok(())

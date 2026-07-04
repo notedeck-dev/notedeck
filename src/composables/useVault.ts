@@ -11,6 +11,7 @@ import type {
   AuthType,
   Connection,
   ConnectionUpsert,
+  PrincipalClass,
   SecretStatus,
   VaultFetchRequest,
   VaultFetchResponse,
@@ -81,15 +82,23 @@ async function deleteConnection(id: string): Promise<void> {
   await refresh()
 }
 
-/** 接続を AI に開示するかを切り替える。 */
-async function setAiVisible(id: string, visible: boolean): Promise<void> {
-  unwrap(await commands.vaultSetAiVisible(id, visible))
+/** 接続の開示先クラス (AI / 外部アプリ) を切り替える (#712 §6.1)。 */
+async function setExposed(
+  id: string,
+  principalClass: PrincipalClass,
+  exposed: boolean,
+): Promise<void> {
+  unwrap(await commands.vaultSetExposed(id, principalClass, exposed))
   await refresh()
 }
 
-/** 接続を「信頼済み」(AI / AiScript から確認なしで利用可) に切り替える。 */
-async function setAiTrusted(id: string, trusted: boolean): Promise<void> {
-  unwrap(await commands.vaultSetAiTrusted(id, trusted))
+/** 接続を「信頼済み」(確認なしで利用可) にするクラスを切り替える (#712 §6.2)。 */
+async function setTrusted(
+  id: string,
+  principalClass: PrincipalClass,
+  trusted: boolean,
+): Promise<void> {
+  unwrap(await commands.vaultSetTrusted(id, principalClass, trusted))
   await refresh()
 }
 
@@ -135,8 +144,8 @@ export function useVault() {
     getSecretStatus,
     deleteSecret,
     deleteConnection,
-    setAiVisible,
-    setAiTrusted,
+    setExposed,
+    setTrusted,
     testConnection,
     fetch,
   }

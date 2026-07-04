@@ -2020,22 +2020,24 @@ async vaultDeleteConnection(id: string) : Promise<Result<null, VaultError>> {
 }
 },
 /**
- * 接続を AI に開示するかを切り替える。
+ * 接続の開示先クラスを切り替える (#712 §6.1)。
  */
-async vaultSetAiVisible(id: string, visible: boolean) : Promise<Result<null, VaultError>> {
+async vaultSetExposed(id: string, principalClass: PrincipalClass, exposed: boolean) : Promise<Result<null, VaultError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("vault_set_ai_visible", { id, visible }) };
+    return { status: "ok", data: await TAURI_INVOKE("vault_set_exposed", { id, principalClass, exposed }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * 接続を「信頼済み」(AI / AiScript から確認なしで利用可) に切り替える。
+ * 接続を「信頼済み」(確認なしで利用可) にするクラスを切り替える (#712 §6.2)。
+ * 旧 `vault_set_ai_trusted(id, bool)` の置換 — クラスを明示することで
+ * 「外部アプリでの確認同意が AI の trust に化ける」経路が構造的に消える。
  */
-async vaultSetAiTrusted(id: string, trusted: boolean) : Promise<Result<null, VaultError>> {
+async vaultSetTrusted(id: string, principalClass: PrincipalClass, trusted: boolean) : Promise<Result<null, VaultError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("vault_set_ai_trusted", { id, trusted }) };
+    return { status: "ok", data: await TAURI_INVOKE("vault_set_trusted", { id, principalClass, trusted }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2412,14 +2414,15 @@ templateId?: string | null;
  */
 protocol?: ConnectionProtocol | null; 
 /**
- * AI に開示するか。default false — 明示的に opt-in しないと AI からは見えない。
+ * 開示先クラス (#712 §6.1)。空 = どこにも開示しない (default)。
+ * External は誰も自動付与しない — 外部アプリへの開示は必ず明示 opt-in。
  */
-aiVisible?: boolean; 
+exposedTo?: PrincipalClass[]; 
 /**
- * AI / AiScript からの利用を確認ダイアログなしで許可するか。default false。
- * `ai_visible` が前提 (false なら無意味)。`vault.fetch` の確認をスキップさせる。
+ * 確認ダイアログなしで vault.fetch を許可するクラス。
+ * `exposed_to` に含まれるクラスにのみ意味を持つ。
  */
-aiTrusted?: boolean; 
+trustedFor?: PrincipalClass[]; 
 /**
  * secret が設定済みの slot 名一覧。keychain 列挙 API がないため metadata 側が source of truth。
  */
@@ -2631,6 +2634,24 @@ content?: JsonValue | null; variables?: JsonValue | null; script?: string | null
  */
 export type PerformanceConfig = { memory_cache_max_total: number; memory_cache_max_item: number; max_concurrent_fetches: number; rust_ogp_cache_max: number; max_requests_per_window: number; circuit_breaker_threshold: number; circuit_breaker_duration: number; image_cache_ttl_days: number }
 export type Player = { url: string; width: number | null; height: number | null; allow?: string[] }
+/**
+ * 接続を開示する先の principal クラス (#712 §6.1)。
+ * principal そのものより粗い 2 クラス — 接続ごとに 4 principal 分のトグルを
+ * 並べるのは Apple 式に反する。「AI に見せる」「外部アプリに見せる」の
+ * 2 つの同意が、ユーザーのメンタルモデルの実際の粒度。
+ * 
+ * plugin クラスは存在しない — プラグインへの vault 開示は恒久不可
+ * (プラグインに secret を渡す同意設計が必要になったとき別途)。
+ */
+export type PrincipalClass = 
+/**
+ * ai.chat + ai.heartbeat
+ */
+"ai" | 
+/**
+ * HTTP API 経由の外部アプリ (全永続トークン)
+ */
+"external"
 export type PvChartGroup = { user: number[]; visitor: number[] }
 export type QueryDelta = { queryId: string; revision: number; inserts: JsonValue[]; deletes: string[]; 
 /**

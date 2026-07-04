@@ -649,11 +649,11 @@ async function sendMessage(presetText?: string | Event) {
         ? new Map([[activeAccountId, loadAllMemos(activeAccountId)]])
         : new Map()
 
-      // Secret Vault (#564): aiVisible な接続を AI に開示する。
+      // Secret Vault (#564): Ai クラスに開示された接続を AI に見せる (#712 §6.1)。
       // secret / id は渡さず name / baseUrl / auth のみ projection する。
       await vault.refresh()
       const availableConnections = vault.connections.value
-        .filter((c) => c.aiVisible)
+        .filter((c) => c.exposedTo?.includes('ai'))
         .map((c) => ({
           name: c.name,
           baseUrl: c.baseUrl,

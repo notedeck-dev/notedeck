@@ -8,6 +8,7 @@ import type {
 } from '@/bindings'
 import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES } from '@/data/connectionTemplates'
+import { resolveForProfiled, usePermissionsConfig } from '@/permissions/store'
 import { useConfirm } from '@/stores/confirm'
 
 const props = defineProps<{
@@ -33,10 +34,28 @@ const queryParam = ref('')
 const basicUsername = ref('')
 const allowedHostsText = ref('')
 const notes = ref('')
-const aiVisible = ref(false)
-// 「信頼済み」= AI / AiScript からの利用を確認ダイアログなしで許可する。
-// aiVisible が前提なので、OFF にしたら aiTrusted も意味を失う。
-const aiTrusted = ref(false)
+const { file: permissionsFile } = usePermissionsConfig()
+
+// 二段 gate の状態依存 chip (#712 §6.3): vault.use が実効 OFF のクラスに
+// 開示トグルを ON にしても列挙にすら出ない — dead toggle にしない受動表示
+const aiVaultUseEnabled = computed(() => {
+  void permissionsFile.value
+  return (
+    resolveForProfiled('ai.chat')['vault.use'] ||
+    resolveForProfiled('ai.heartbeat')['vault.use']
+  )
+})
+const externalVaultUseEnabled = computed(() => {
+  void permissionsFile.value
+  return resolveForProfiled('external')['vault.use']
+})
+
+// 開示先クラス別トグル (#712 §6.1)。「AI に見せる」「外部アプリに見せる」は
+// 別の同意 — 片方への開示がもう片方に波及しない。trusted は開示が前提。
+const exposedAi = ref(false)
+const trustedAi = ref(false)
+const exposedExternal = ref(false)
+const trustedExternal = ref(false)
 // テンプレ由来 / AI プロバイダー接続のメタデータ。フォームには出さず、
 // upsert 時に保持して上書き消失を防ぐ。
 const connTemplateId = ref<string | null>(null)
@@ -95,8 +114,10 @@ onMounted(async () => {
         basicUsername.value = conn.authType.username
       allowedHostsText.value = (conn.allowedHosts ?? []).join(', ')
       notes.value = conn.notes ?? ''
-      aiVisible.value = conn.aiVisible ?? false
-      aiTrusted.value = conn.aiTrusted ?? false
+      exposedAi.value = conn.exposedTo?.includes('ai') ?? false
+      trustedAi.value = conn.trustedFor?.includes('ai') ?? false
+      exposedExternal.value = conn.exposedTo?.includes('external') ?? false
+      trustedExternal.value = conn.trustedFor?.includes('external') ?? false
       hasSecret.value = (conn.slots ?? []).length > 0
       connTemplateId.value = conn.templateId ?? null
       protocol.value = conn.protocol ?? null
@@ -195,11 +216,17 @@ async function save() {
       }
     }
 
-    // AI 開示状態を反映 (新規・更新どちらも)。
+    // 開示先クラスを反映 (新規・更新どちらも)。信頼は開示が前提 —
+    // OFF のときは必ず false に倒す (Rust 側でも開示 OFF で trust を外す)。
     if (connId) {
-      await vault.setAiVisible(connId, aiVisible.value)
-      // 信頼状態は aiVisible が前提。OFF のときは必ず false に倒す。
-      await vault.setAiTrusted(connId, aiVisible.value && aiTrusted.value)
+      await vault.setExposed(connId, 'ai', exposedAi.value)
+      await vault.setTrusted(connId, 'ai', exposedAi.value && trustedAi.value)
+      await vault.setExposed(connId, 'external', exposedExternal.value)
+      await vault.setTrusted(
+        connId,
+        'external',
+        exposedExternal.value && trustedExternal.value,
+      )
     }
 
     emit('close')
@@ -395,23 +422,53 @@ const testResultText = computed(() => {
           />
         </label>
         <label :class="$style.toggleRow">
-          <input v-model="aiVisible" type="checkbox" />
+          <input v-model="exposedAi" type="checkbox" />
           <span>
-            <span :class="$style.toggleLabel">AI からのアクセスを許可</span>
+            <span :class="$style.toggleLabel">AI に見せる</span>
             <span :class="$style.toggleHint">
-              OFF だと AI には接続の存在自体が見えません
+              OFF だと AI (チャット / HEARTBEAT) には接続の存在自体が見えません
             </span>
           </span>
         </label>
-        <label :class="[$style.toggleRow, $style.toggleSub, !aiVisible && $style.toggleDisabled]">
-          <input v-model="aiTrusted" type="checkbox" :disabled="!aiVisible" />
+        <div v-if="exposedAi && !aiVaultUseEnabled" :class="$style.gateChip">
+          <i class="ti ti-info-circle" />
+          AI の vault.use が無効のため、この接続はまだ見えません — 権限設定 (AI 設定) を開いて許可してください
+        </div>
+        <label :class="[$style.toggleRow, $style.toggleSub, !exposedAi && $style.toggleDisabled]">
+          <input v-model="trustedAi" type="checkbox" :disabled="!exposedAi" />
           <span>
-            <span :class="$style.toggleLabel">確認なしで使う</span>
+            <span :class="$style.toggleLabel">確認なしで使う (AI)</span>
             <span :class="$style.toggleHint">
-              AI・ウィジェット・プラグインがこの接続を使うとき確認ダイアログを出しません
+              AI がこの接続を使うとき確認ダイアログを出しません
             </span>
           </span>
         </label>
+        <label :class="$style.toggleRow">
+          <input v-model="exposedExternal" type="checkbox" />
+          <span>
+            <span :class="$style.toggleLabel">外部アプリに見せる</span>
+            <span :class="$style.toggleHint">
+              HTTP API (永続トークン) 経由の外部アプリから使えるようにします
+            </span>
+          </span>
+        </label>
+        <div v-if="exposedExternal && !externalVaultUseEnabled" :class="$style.gateChip">
+          <i class="ti ti-info-circle" />
+          外部アプリの vault.use が無効のため、この接続はまだ見えません — 権限設定を開いて許可してください
+        </div>
+        <label :class="[$style.toggleRow, $style.toggleSub, !exposedExternal && $style.toggleDisabled]">
+          <input v-model="trustedExternal" type="checkbox" :disabled="!exposedExternal" />
+          <span>
+            <span :class="$style.toggleLabel">確認なしで使う (外部アプリ)</span>
+            <span :class="$style.toggleHint">
+              外部アプリがこの接続を使うとき確認ダイアログを出しません
+            </span>
+          </span>
+        </label>
+        <div :class="$style.gateChip">
+          <i class="ti ti-shield-x" />
+          プラグインには開示されません (NoteDeck のセキュリティ設計)
+        </div>
       </div>
     </details>
 
@@ -599,6 +656,21 @@ const testResultText = computed(() => {
 .toggleDisabled {
   cursor: default;
   opacity: 0.45;
+}
+
+// 二段 gate / plugin 恒久拒否の受動表示 chip (#712 §6.3)
+.gateChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 6px;
+  font-size: 0.8em;
+  color: var(--nd-fg);
+  opacity: 0.65;
+
+  i {
+    flex-shrink: 0;
+  }
 }
 
 .toggleLabel {

@@ -59,6 +59,22 @@ pub enum ConnectionOrigin {
     External,
 }
 
+/// 接続を開示する先の principal クラス (#712 §6.1)。
+/// principal そのものより粗い 2 クラス — 接続ごとに 4 principal 分のトグルを
+/// 並べるのは Apple 式に反する。「AI に見せる」「外部アプリに見せる」の
+/// 2 つの同意が、ユーザーのメンタルモデルの実際の粒度。
+///
+/// plugin クラスは存在しない — プラグインへの vault 開示は恒久不可
+/// (プラグインに secret を渡す同意設計が必要になったとき別途)。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PrincipalClass {
+    /// ai.chat + ai.heartbeat
+    Ai,
+    /// HTTP API 経由の外部アプリ (全永続トークン)
+    External,
+}
+
 /// 接続メタデータ。secret 本体は含まない (OS キーチェーンに別管理)。
 ///
 /// `Debug` を derive してよい — secret を持たないため。
@@ -91,13 +107,23 @@ pub struct Connection {
     /// 通常の vault 接続は `None`。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protocol: Option<ConnectionProtocol>,
-    /// AI に開示するか。default false — 明示的に opt-in しないと AI からは見えない。
+    /// 開示先クラス (#712 §6.1)。空 = どこにも開示しない (default)。
+    /// External は誰も自動付与しない — 外部アプリへの開示は必ず明示 opt-in。
     #[serde(default)]
-    pub ai_visible: bool,
-    /// AI / AiScript からの利用を確認ダイアログなしで許可するか。default false。
-    /// `ai_visible` が前提 (false なら無意味)。`vault.fetch` の確認をスキップさせる。
+    pub exposed_to: Vec<PrincipalClass>,
+    /// 確認ダイアログなしで vault.fetch を許可するクラス。
+    /// `exposed_to` に含まれるクラスにのみ意味を持つ。
     #[serde(default)]
-    pub ai_trusted: bool,
+    pub trusted_for: Vec<PrincipalClass>,
+    /// 旧 `aiVisible` (移行読込専用 #712)。load 時に `exposed_to: [Ai]` へ
+    /// 変換され、次回保存で消える (serialize しない)。
+    #[serde(default, rename = "aiVisible", skip_serializing)]
+    #[specta(skip)]
+    pub legacy_ai_visible: Option<bool>,
+    /// 旧 `aiTrusted` (移行読込専用 #712)。
+    #[serde(default, rename = "aiTrusted", skip_serializing)]
+    #[specta(skip)]
+    pub legacy_ai_trusted: Option<bool>,
     /// secret が設定済みの slot 名一覧。keychain 列挙 API がないため metadata 側が source of truth。
     #[serde(default)]
     pub slots: Vec<String>,
@@ -186,9 +212,10 @@ mod tests {
     }
 
     #[test]
-    fn ai_trusted_defaults_to_false_for_legacy_json_without_the_field() {
-        // 既存 connections.json は `aiTrusted` フィールドを持たない。
-        // `#[serde(default)]` で false にデシリアライズされ migration 不要。
+    fn legacy_ai_fields_are_readable_and_new_fields_default_empty() {
+        // 既存 connections.json は aiVisible / aiTrusted を持つ。移行読込専用
+        // フィールドとして読め、exposed_to / trusted_for は空で初期化される
+        // (実変換は connections_store::load が行う)。
         let legacy = r#"{
             "id": "01HZZZZZZZZZZZZZZZZZZZZZZZ",
             "name": "Legacy",
@@ -199,12 +226,14 @@ mod tests {
             "updatedAt": "0"
         }"#;
         let conn: Connection = serde_json::from_str(legacy).unwrap();
-        assert!(!conn.ai_trusted);
-        assert!(conn.ai_visible);
+        assert_eq!(conn.legacy_ai_visible, Some(true));
+        assert_eq!(conn.legacy_ai_trusted, None);
+        assert!(conn.exposed_to.is_empty());
+        assert!(conn.trusted_for.is_empty());
     }
 
     #[test]
-    fn ai_trusted_round_trips_through_serde() {
+    fn exposed_to_round_trips_and_legacy_fields_are_not_serialized() {
         let conn = Connection {
             id: "01HZZZZZZZZZZZZZZZZZZZZZZZ".to_string(),
             name: "Trusted".to_string(),
@@ -217,8 +246,10 @@ mod tests {
             external_source: None,
             template_id: None,
             protocol: None,
-            ai_visible: true,
-            ai_trusted: true,
+            exposed_to: vec![PrincipalClass::Ai],
+            trusted_for: vec![PrincipalClass::Ai],
+            legacy_ai_visible: Some(true),
+            legacy_ai_trusted: Some(true),
             slots: vec![],
             last_used_at: None,
             last_secret_updated_at: None,
@@ -229,8 +260,13 @@ mod tests {
             updated_at: "0".to_string(),
         };
         let json = serde_json::to_string(&conn).unwrap();
-        assert!(json.contains("\"aiTrusted\":true"));
+        assert!(json.contains("\"exposedTo\":[\"ai\"]"));
+        assert!(json.contains("\"trustedFor\":[\"ai\"]"));
+        // 旧フィールドは serialize されない (= 次回保存で消える)
+        assert!(!json.contains("aiVisible"));
+        assert!(!json.contains("aiTrusted"));
         let back: Connection = serde_json::from_str(&json).unwrap();
-        assert!(back.ai_trusted);
+        assert_eq!(back.exposed_to, vec![PrincipalClass::Ai]);
+        assert_eq!(back.legacy_ai_visible, None);
     }
 }
