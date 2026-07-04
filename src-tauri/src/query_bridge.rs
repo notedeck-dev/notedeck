@@ -15,6 +15,17 @@ pub async fn query_frontend(
     query_type: &str,
     params: Value,
 ) -> Result<Value, String> {
+    query_frontend_with_timeout(app, query_type, params, Duration::from_secs(5)).await
+}
+
+/// [`query_frontend`] のタイムアウト指定版。capability 実行のように
+/// ユーザー確認ダイアログ待ちを挟みうる query で使う。
+pub async fn query_frontend_with_timeout(
+    app: &AppHandle,
+    query_type: &str,
+    params: Value,
+    timeout: Duration,
+) -> Result<Value, String> {
     let id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = tokio::sync::oneshot::channel::<Value>();
     let tx = Mutex::new(Some(tx));
@@ -37,7 +48,7 @@ pub async fn query_frontend(
     )
     .map_err(|e| e.to_string())?;
 
-    tokio::time::timeout(Duration::from_secs(5), rx)
+    tokio::time::timeout(timeout, rx)
         .await
         .map_err(|_| "Query timed out".to_string())?
         .map_err(|_| "Channel closed".to_string())

@@ -66,6 +66,31 @@
   // task すべての session に同じ persona が反映される (= 同一性設定)。
   personaSkillId: '',
 
+  // 外部アプリ向け HTTP API (#709): MCP / Raycast / 外部 AI エージェントが
+  // port 19820 経由で capability を実行するときの権限。chat / heartbeat とは
+  // 独立管理で、default は readonly preset (write 系 / external network 全 deny)。
+  httpApi: {
+    permissions: {
+      preset: 'readonly',
+      custom: {
+        'notes.read': true,
+        'notes.write': false,
+        'notes.react': false,
+        'account.read': true,
+        'account.write': false,
+        'drive.read': true,
+        'drive.write': false,
+        'memos.read': true,
+        'memos.write': false,
+        'network.external': false,
+        'clipboard': false,
+        'notifications': false,
+        'tasks.run': false,
+        'vault.use': false,
+      },
+    },
+  },
+
   heartbeat: {
     enabled: false,
     intervalMinutes: 30,

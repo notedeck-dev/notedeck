@@ -217,6 +217,19 @@ export interface HeartbeatConfig {
  * スキルカラムから個別に on/off できる。
  */
 
+/**
+ * 外部アプリ向け HTTP API (port 19820) 経由の capability 実行設定 (#709)。
+ *
+ * MCP ブリッジ / Raycast / Stream Deck / 外部 AI エージェントが叩く経路。
+ * permissions はチャット (`AiConfig.permissions`) / HEARTBEAT
+ * (`HeartbeatConfig.permissions`) と独立に管理し、default は `readonly`
+ * preset (write 系 / external network 全 deny)。dispatcher が照合するので
+ * 外部クライアントは許可された capability しか実行できない。
+ */
+export interface HttpApiConfig {
+  permissions: PermissionsConfig
+}
+
 export interface AiConfig {
   /**
    * 使用する Vault 接続の id (#564)。AI プロバイダーの endpoint / API キー /
@@ -231,6 +244,7 @@ export interface AiConfig {
   permissions: PermissionsConfig
   dataSources: DataSourcesConfig
   heartbeat: HeartbeatConfig
+  httpApi: HttpApiConfig
   /**
    * このアプリで AI が振る舞う persona (#491)。skill で `isPersona: true`
    * を設定したものから 1 つ選択する。空文字 / 未指定 = 通常の汎用 AI として
@@ -486,6 +500,12 @@ export function defaultConfig(): AiConfig {
       onDailyLimit: defaultFileConfig.heartbeat.onDailyLimit,
       desktopNotification: defaultFileConfig.heartbeat.desktopNotification,
     },
+    httpApi: {
+      permissions: {
+        preset: defaultFileConfig.httpApi.permissions.preset,
+        custom: { ...defaultFileConfig.httpApi.permissions.custom },
+      },
+    },
   }
 }
 
@@ -600,6 +620,12 @@ function mergeConfig(base: AiConfig, partial: Partial<AiConfig>): AiConfig {
   result.permissions = mergePermissions(base.permissions, partial.permissions)
   result.dataSources = mergeDataSources(base.dataSources, partial.dataSources)
   result.heartbeat = mergeHeartbeat(base.heartbeat, partial.heartbeat)
+  result.httpApi = {
+    permissions: mergePermissions(
+      base.httpApi.permissions,
+      partial.httpApi?.permissions,
+    ),
+  }
   return result
 }
 

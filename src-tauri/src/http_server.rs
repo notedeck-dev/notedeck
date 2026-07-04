@@ -444,6 +444,96 @@ async fn execute_command(
     Ok(Json(data))
 }
 
+// --- Capability API (#709: 外部アプリ向け操作面) ---
+
+/// Capability 実行はユーザー確認ダイアログ待ちを挟みうるので、
+/// query_bridge 既定の 5 秒ではなく長めのタイムアウトを使う。
+const CAPABILITY_EXECUTE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+
+#[utoipa::path(get, path = "/api/capabilities", tag = "capabilities",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Registered capabilities with signatures (id, name, label, category, description, params, returns, permissions, requiresConfirmation)"),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+    )
+)]
+async fn list_capabilities(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
+    let data = query_bridge::query_frontend(&state.app_handle, "capabilities/list", json!({}))
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "QUERY_FAILED".to_string(),
+            message: e,
+        })?;
+    Ok(Json(data))
+}
+
+#[utoipa::path(post, path = "/api/capabilities/{capability_id}/execute", tag = "capabilities",
+    security(("bearer_auth" = [])),
+    params(("capability_id" = String, Path, description = "Capability ID (dotted `notes.create` or sanitized `notes_create`)")),
+    request_body(content = Value, description = "Capability params (JSON object, omit for parameterless capabilities)"),
+    responses(
+        (status = 200, description = "Executed: `{ ok: true, result }`"),
+        (status = 400, description = "Preflight (input validation) failed", body = ApiErrorResponse),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+        (status = 403, description = "Denied by httpApi permissions profile", body = ApiErrorResponse),
+        (status = 404, description = "Unknown capability", body = ApiErrorResponse),
+        (status = 409, description = "User cancelled the confirmation dialog", body = ApiErrorResponse),
+    )
+)]
+async fn execute_capability(
+    State(state): State<DeckState>,
+    Path(capability_id): Path<String>,
+    body: Option<Json<Value>>,
+) -> (StatusCode, Json<Value>) {
+    let params = body.map(|Json(v)| v).unwrap_or(Value::Null);
+    let data = match query_bridge::query_frontend_with_timeout(
+        &state.app_handle,
+        "capabilities/execute",
+        json!({ "capabilityId": capability_id, "params": params }),
+        CAPABILITY_EXECUTE_TIMEOUT,
+    )
+    .await
+    {
+        Ok(data) => data,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "ok": false, "code": "query_failed", "error": e })),
+            );
+        }
+    };
+
+    // DispatchResult (`{ok, result}` / `{ok, code, error}`) を HTTP status に写像する。
+    // body はそのまま返す (外部クライアントは code で機械判別できる)。
+    match data.get("ok").and_then(Value::as_bool) {
+        Some(true) => (StatusCode::OK, Json(data)),
+        Some(false) => {
+            let status = match data.get("code").and_then(Value::as_str) {
+                Some("unknown_capability") => StatusCode::NOT_FOUND,
+                Some("permission_denied") => StatusCode::FORBIDDEN,
+                Some("preflight_failed") => StatusCode::BAD_REQUEST,
+                Some("user_cancelled") => StatusCode::CONFLICT,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            (status, Json(data))
+        }
+        // frontend が DispatchResult 以外 (handleQuery の error envelope 等) を
+        // 返した場合は構造化エラーに正規化する。
+        None => {
+            let error = data
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("unexpected response from frontend")
+                .to_string();
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "ok": false, "code": "execute_failed", "error": error })),
+            )
+        }
+    }
+}
+
 // --- OpenAPI docs ---
 
 /// NoteDeck-specific deck/command routes, as an [`OpenApiRouter`].
@@ -456,6 +546,8 @@ fn deck_openapi_router() -> OpenApiRouter<DeckState> {
         .routes(routes!(get_deck_active))
         .routes(routes!(list_commands))
         .routes(routes!(execute_command))
+        .routes(routes!(list_capabilities))
+        .routes(routes!(execute_capability))
 }
 
 /// Public image-proxy route, as an [`OpenApiRouter`].

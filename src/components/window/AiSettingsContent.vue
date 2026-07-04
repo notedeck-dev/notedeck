@@ -482,6 +482,46 @@ useClickOutside(heartbeatPermPresetRef, () => {
   showHeartbeatPermPresetDropdown.value = false
 })
 
+// --- 外部連携 HTTP API (#709) ---
+
+// 外部アプリ (MCP / Raycast / 外部 AI エージェント等) が port 19820 経由で
+// capability を実行するときの権限。chat / HEARTBEAT とは独立管理。
+const resolvedHttpApiPermissions = computed(() =>
+  resolvePermissions(config.value.httpApi.permissions),
+)
+
+function selectHttpApiPermissionPreset(next: PresetKey): void {
+  config.value.httpApi.permissions = setPermissionPreset(
+    config.value.httpApi.permissions,
+    next,
+  )
+  showHttpApiPermPresetDropdown.value = false
+}
+
+function toggleHttpApiPermissionCustom(key: PermissionKey): void {
+  if (config.value.httpApi.permissions.preset !== 'custom') return
+  config.value.httpApi.permissions = {
+    preset: 'custom',
+    custom: {
+      ...config.value.httpApi.permissions.custom,
+      [key]: !config.value.httpApi.permissions.custom[key],
+    },
+  }
+}
+
+const currentHttpApiPermissionPreset = computed(
+  () =>
+    PRESET_OPTIONS.find(
+      (p) => p.value === config.value.httpApi.permissions.preset,
+    ) ?? FALLBACK_PRESET_OPTION,
+)
+
+const showHttpApiPermPresetDropdown = ref(false)
+const httpApiPermPresetRef = ref<HTMLElement | null>(null)
+useClickOutside(httpApiPermPresetRef, () => {
+  showHttpApiPermPresetDropdown.value = false
+})
+
 // --- Import/Export ---
 
 const {
@@ -1095,6 +1135,80 @@ function handleReset() {
               </div>
             </div>
           </template>
+        </template>
+      </div>
+
+      <!-- 外部連携 HTTP API (#709): 外部アプリからの capability 実行権限 -->
+      <div :class="$style.section">
+        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('httpApi')">
+          <i class="ti ti-plug-connected" />
+          外部連携 (HTTP API)
+          <span :class="$style.statusBadge">
+            <i class="ti ti-info-circle" :class="$style.badgeNone" />
+            {{ currentHttpApiPermissionPreset.label }}
+          </span>
+          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.httpApi }]" />
+        </button>
+        <template v-if="expandedSections.httpApi">
+          <div :class="$style.field">
+            <label :class="$style.fieldLabel">
+              <span>外部アプリからの操作権限</span>
+            </label>
+            <div ref="httpApiPermPresetRef" :class="$style.dropdown">
+              <button
+                class="_button"
+                :class="$style.dropdownTrigger"
+                @click="showHttpApiPermPresetDropdown = !showHttpApiPermPresetDropdown"
+              >
+                <i :class="'ti ' + currentHttpApiPermissionPreset.icon" />
+                <span>{{ currentHttpApiPermissionPreset.label }}</span>
+                <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
+              </button>
+              <div v-if="showHttpApiPermPresetDropdown" :class="$style.dropdownPanel">
+                <button
+                  v-for="opt in PRESET_OPTIONS"
+                  :key="opt.value"
+                  class="_button"
+                  :class="[$style.dropdownItem, { [$style.selected]: config.httpApi.permissions.preset === opt.value }]"
+                  @click="selectHttpApiPermissionPreset(opt.value)"
+                >
+                  <i :class="'ti ' + opt.icon" />
+                  <span>{{ opt.label }}</span>
+                  <i v-if="config.httpApi.permissions.preset === opt.value" class="ti ti-check" :class="$style.checkIcon" />
+                </button>
+              </div>
+            </div>
+
+            <div :class="$style.toggleList">
+              <div
+                v-for="key in PERMISSION_KEYS"
+                :key="key"
+                :class="[
+                  $style.switchRow,
+                  { [$style.switchRowDisabled]: config.httpApi.permissions.preset !== 'custom' },
+                ]"
+                @click="toggleHttpApiPermissionCustom(key)"
+              >
+                <i :class="['ti ' + PERMISSION_LABELS[key].icon, $style.switchRowIcon]" />
+                <span :class="$style.switchRowLabel">{{ PERMISSION_LABELS[key].label }}</span>
+                <i
+                  v-if="HIGH_RISK_SET.has(key)"
+                  class="ti ti-alert-triangle"
+                  :class="$style.warningIcon"
+                  title="高リスク操作"
+                />
+                <button
+                  class="nd-toggle-switch"
+                  :class="{ on: resolvedHttpApiPermissions[key] }"
+                  :aria-checked="resolvedHttpApiPermissions[key]"
+                  :disabled="config.httpApi.permissions.preset !== 'custom'"
+                  role="switch"
+                >
+                  <span class="nd-toggle-switch-knob" />
+                </button>
+              </div>
+            </div>
+          </div>
         </template>
       </div>
 
