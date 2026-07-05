@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let syncCalls = 0
 let syncFailuresRemaining = 0
+let lockdownCalls = 0
 
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: true,
@@ -25,6 +26,10 @@ vi.mock('@/utils/tauriInvoke', () => ({
       }
       return Promise.resolve({ status: 'ok', data: null })
     },
+    permissionsLockdown: () => {
+      lockdownCalls++
+      return Promise.resolve({ status: 'ok', data: null })
+    },
   },
   unwrap: (r: unknown) => r,
 }))
@@ -32,6 +37,7 @@ vi.mock('@/utils/tauriInvoke', () => ({
 beforeEach(() => {
   syncCalls = 0
   syncFailuresRemaining = 0
+  lockdownCalls = 0
   vi.useFakeTimers()
 })
 
@@ -60,12 +66,13 @@ describe('syncExternalToRust リトライ (#718)', () => {
     await done
 
     expect(syncCalls).toBe(3)
-    // 回復したので恒久失敗の警告は出ない
+    // 回復したので恒久失敗の警告は出ず、lockdown も呼ばれない
     expect(
       warn.mock.calls.some((c) =>
         String(c[0]).includes('permissions_sync failed'),
       ),
     ).toBe(false)
+    expect(lockdownCalls).toBe(0)
     warn.mockRestore()
   })
 
@@ -92,6 +99,8 @@ describe('syncExternalToRust リトライ (#718)', () => {
         String(c[0]).includes('permissions_sync failed after 3 attempts'),
       ),
     ).toBe(true)
+    // 失敗確定後は Rust gate をフェイルセーフに倒す (#718)
+    expect(lockdownCalls).toBe(1)
     warn.mockRestore()
   })
 })

@@ -2226,6 +2226,24 @@ async permissionsSync(externalGranted: Partial<{ [key in string]: boolean }>) : 
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * external gate をフェイルセーフに倒す (#718)。sync がリトライ後も失敗し
+ * 続けると、フロントの絞った権限が Rust に届かず古い広い map のまま動いて
+ * しまう。フロントは失敗確定時にこれを呼び、floor 以外を全 deny の状態
+ * (空 map) に固定する。以後は次の成功 sync が来るまで最小権限で動く。
+ * 
+ * 引数を取らないので、payload の serialize / 大きさ起因で `permissions_sync`
+ * が失敗するケースでも到達できる (IPC 自体が全断ならこの呼び出しも失敗する
+ * が、その場合フロントは警告に残す)。
+ */
+async permissionsLockdown() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("permissions_lockdown") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 

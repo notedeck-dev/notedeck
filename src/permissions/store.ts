@@ -287,7 +287,6 @@ async function syncExternalToRust(): Promise<void> {
   if (!isTauri) return
   // 呼び出し時点の granted を送る。sync 失敗を握りつぶすと Rust gate が古い
   // (広い) 権限のまま動き続けるため、一時障害はリトライで回復させる (#718)。
-  // それでも失敗が続いたら警告に残す (恒久的な silent fail を作らない)。
   const granted = resolveForProfiled('external')
   for (let attempt = 1; attempt <= SYNC_MAX_ATTEMPTS; attempt++) {
     try {
@@ -295,10 +294,19 @@ async function syncExternalToRust(): Promise<void> {
       return
     } catch (e) {
       if (attempt === SYNC_MAX_ATTEMPTS) {
+        // リトライ枯渇。古い広い権限のまま動かさないよう Rust gate を
+        // フェイルセーフに倒す (floor 以外を全 deny #718)。無引数なので
+        // payload 起因の sync 失敗でも到達しうる。lockdown も失敗 (IPC 全断)
+        // なら Rust は到達不能なので警告に残すしかない。
         console.warn(
-          `[permissions] permissions_sync failed after ${SYNC_MAX_ATTEMPTS} attempts:`,
+          `[permissions] permissions_sync failed after ${SYNC_MAX_ATTEMPTS} attempts; locking external gate down:`,
           e,
         )
+        try {
+          unwrap(await commands.permissionsLockdown())
+        } catch (e2) {
+          console.warn('[permissions] permissions_lockdown also failed:', e2)
+        }
         return
       }
       await new Promise((resolve) =>

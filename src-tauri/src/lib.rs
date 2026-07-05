@@ -777,6 +777,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             perf_config::update_performance_config,
             perf_config::get_performance_config,
             permissions_gate::permissions_sync,
+            permissions_gate::permissions_lockdown,
         ])
         .events(tauri_specta::collect_events![
             query_runtime::QueryDelta,

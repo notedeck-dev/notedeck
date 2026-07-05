@@ -58,6 +58,24 @@ pub fn permissions_sync(external_granted: HashMap<String, bool>) -> Result<(), S
     Ok(())
 }
 
+/// external gate をフェイルセーフに倒す (#718)。sync がリトライ後も失敗し
+/// 続けると、フロントの絞った権限が Rust に届かず古い広い map のまま動いて
+/// しまう。フロントは失敗確定時にこれを呼び、floor 以外を全 deny の状態
+/// (空 map) に固定する。以後は次の成功 sync が来るまで最小権限で動く。
+///
+/// 引数を取らないので、payload の serialize / 大きさ起因で `permissions_sync`
+/// が失敗するケースでも到達できる (IPC 自体が全断ならこの呼び出しも失敗する
+/// が、その場合フロントは警告に残す)。
+#[tauri::command]
+#[specta::specta]
+pub fn permissions_lockdown() -> Result<(), String> {
+    let mut guard = EXTERNAL_GRANTED
+        .write()
+        .map_err(|e| format!("permissions lockdown lock poisoned: {e}"))?;
+    *guard = Some(HashMap::new());
+    Ok(())
+}
+
 /// テスト用: sync 状態を初期化する。
 #[cfg(test)]
 pub fn reset_external_granted_for_test() {
@@ -320,6 +338,20 @@ mod tests {
         assert!(!is_granted("deck.read"));
         // floor は synced 値に関わらず true (resolveFor 側でも clamp 済み)
         assert!(is_granted("clips.read"));
+        reset_external_granted_for_test();
+    }
+
+    #[test]
+    fn lockdown_denies_non_floor_even_after_broad_sync() {
+        // 広い権限が同期された後に lockdown すると floor 以外は全 deny (#718)
+        sync(&[("notes.write", true), ("notifications", true)]);
+        assert!(is_granted("notes.write"));
+        permissions_lockdown().unwrap();
+        assert!(!is_granted("notes.write"));
+        assert!(!is_granted("notifications"));
+        // floor は lockdown 後も維持 (トークン発行 = read 同意の下限)
+        assert!(is_granted("notes.read"));
+        assert!(is_granted("account.read"));
         reset_external_granted_for_test();
     }
 }
