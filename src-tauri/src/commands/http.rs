@@ -24,10 +24,13 @@
 
 use std::collections::HashMap;
 use std::net::IpAddr;
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
+
+use crate::vault::ssrf::PinningResolver;
 
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 const MAX_TIMEOUT_SECS: u64 = 120;
@@ -76,9 +79,16 @@ pub async fn http_fetch(
         ));
     }
 
+    // DNS pinning resolver: 名前解決後の IP を check_ip_safe で検証してから
+    // 接続する。validate_external_url の host 文字列検査だけでは、A レコードが
+    // loopback / private / メタデータ (169.254.169.254) を指す公開ホスト名や
+    // DNS rebinding を防げない。vault の外向き fetch と同じ防御を共有する。
+    // resolver は redirect の各 hop でも呼ばれるため、リダイレクト先の内部宛ても
+    // 同様に弾かれる。
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(timeout_secs))
         .redirect(reqwest::redirect::Policy::limited(5))
+        .dns_resolver(Arc::new(PinningResolver::new()))
         .build()
         .map_err(|e| format!("failed to build HTTP client: {e}"))?;
 
@@ -140,8 +150,8 @@ fn parse_method(method: Option<&str>) -> Result<reqwest::Method, String> {
 }
 
 /// URL が外部公開向けに安全か検証する。host 名が IP 直書きならその IP を、
-/// hostname なら reserved TLD を弾く。実際の DNS 解決後の IP チェックは
-/// reqwest 内部に任せる (= 一次防御)。
+/// hostname なら reserved TLD を弾く (= 一次防御)。DNS 解決後の IP 検証は
+/// http_fetch が注入する PinningResolver が担う (二次防御・rebinding 対策)。
 pub fn validate_external_url(url_str: &str) -> Result<(), String> {
     let url =
         reqwest::Url::parse(url_str).map_err(|e| format!("invalid URL: {e}"))?;
