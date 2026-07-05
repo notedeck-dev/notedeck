@@ -11,12 +11,10 @@ import {
 } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type {
-  Antenna,
   NormalizedNote,
   NormalizedUserDetail,
   ServerAdapter,
   UserList,
-  UserRelation,
 } from '@/adapters/types'
 import type { Clip, Flash, GalleryPost, JsonValue, Page } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
@@ -27,9 +25,10 @@ import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkEmoji from '@/components/common/MkEmoji.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import MkNote from '@/components/common/MkNote.vue'
-import PopupMenu from '@/components/common/PopupMenu.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import UserProfileFileGrid from '@/components/window/UserProfileFileGrid.vue'
+import UserProfileMenu from '@/components/window/user-profile/UserProfileMenu.vue'
+import UserProfileQrCode from '@/components/window/user-profile/UserProfileQrCode.vue'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -59,13 +58,10 @@ import { usePortal } from '@/composables/usePortal'
 import { useSensitiveMask } from '@/composables/useSensitiveMask'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
-import { useDeckStore } from '@/stores/deck'
-import { useMutesStore } from '@/stores/mutes'
 import { useServersStore } from '@/stores/servers'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import type { Achievement } from '@/utils/achievements'
-import { generateUserEmbedCode } from '@/utils/embedCode'
 import { AppError } from '@/utils/errors'
 import {
   displayUrl,
@@ -89,8 +85,6 @@ const portalRef = useTemplateRef<HTMLElement>('portalRef')
 usePortal(portalRef)
 const accountsStore = useAccountsStore()
 const serversStore = useServersStore()
-const deckStore = useDeckStore()
-const mutesStore = useMutesStore()
 const toast = useToast()
 
 // Declared up-front because `topTabs` (below) reads `isOwnProfile` inside its
@@ -174,7 +168,6 @@ const { tab: topTab, containerRef: profileRef } = useEditorTabs<TopTab>(
 )
 
 const user = ref<NormalizedUserDetail | null>(null)
-const userRelation = ref<UserRelation | null>(null)
 
 // User memo (#458): 他ユーザーへの自分用メモ。プロフィール上に常時表示の
 // スティッキーエリアとして置き、その場編集 → blur で自動保存する。
@@ -193,11 +186,11 @@ function adjustMemoTextarea() {
 }
 
 async function saveMemo() {
-  if (!adapter || !user.value) return
+  if (!adapter.value || !user.value) return
   const next = memoDraft.value
   if ((user.value.memo ?? '') === next) return // 変更なし
   try {
-    await adapter.api.updateUserMemo(user.value.id, next)
+    await adapter.value.api.updateUserMemo(user.value.id, next)
     user.value.memo = next
   } catch (e) {
     const err = AppError.from(e)
@@ -291,8 +284,8 @@ const {
   loadMore: loadMoreFilesTab,
 } = usePaginatedList<NormalizedNote>({
   fetch: (untilId) =>
-    adapter
-      ? adapter.api.getUserNotes(props.userId, {
+    adapter.value
+      ? adapter.value.api.getUserNotes(props.userId, {
           limit: 20,
           untilId,
           withFiles: true,
@@ -483,7 +476,8 @@ function openRemoteProfile() {
   openSafeUrl(remoteProfileUrl.value)
 }
 
-let adapter: ServerAdapter | null = null
+// メニュー子コンポーネントにも渡すため reactive に持つ (代入は onMounted の 1 回のみ)
+const adapter = shallowRef<ServerAdapter | null>(null)
 
 onMounted(async () => {
   const account = accountsStore.accounts.find((a) => a.id === props.accountId)
@@ -501,8 +495,9 @@ onMounted(async () => {
       pinnedReactions: false,
       hasToken: account.hasToken,
     })
-    adapter = result.adapter
-    const userDetail = await adapter.api.getUserDetail(props.userId)
+    const a = result.adapter
+    adapter.value = a
+    const userDetail = await a.api.getUserDetail(props.userId)
     user.value = userDetail
 
     // Prefetch banner image so it appears instantly when DOM renders
@@ -510,20 +505,13 @@ onMounted(async () => {
       new Image().src = userDetail.bannerUrl
     }
 
-    // Relation (mute/block/follow) も認証必須 — 自分自身は対象外
-    if (account.hasToken && !isOwnProfile.value) {
-      void refreshUserRelation()
-    }
-
     // Pinned notes require auth — skip for logged-out/guest accounts
     if (account.hasToken) {
-      const userPinnedNoteIds = await adapter.api.getUserPinnedNoteIds(
-        props.userId,
-      )
+      const userPinnedNoteIds = await a.api.getUserPinnedNoteIds(props.userId)
       pinnedNoteIds.value = userPinnedNoteIds
       if (userPinnedNoteIds.length > 0) {
         const pinned = await Promise.all(
-          userPinnedNoteIds.map((id) => adapter?.api.getNote(id)),
+          userPinnedNoteIds.map((id) => a.api.getNote(id)),
         )
         pinnedNotes.value = pinned.filter((n): n is NormalizedNote => n != null)
       }
@@ -544,16 +532,17 @@ onMounted(async () => {
 })
 
 async function fetchNotes(untilId?: string): Promise<NormalizedNote[]> {
-  if (!adapter) return []
+  const a = adapter.value
+  if (!a) return []
   const tab = activeTab.value
   if (tab === 'highlight') {
-    return adapter.api.getUserFeaturedNotes(props.userId, {
+    return a.api.getUserFeaturedNotes(props.userId, {
       limit: 30,
       untilId,
     })
   }
   if (tab === 'all') {
-    return adapter.api.getUserNotes(props.userId, {
+    return a.api.getUserNotes(props.userId, {
       limit: 20,
       untilId,
       withReplies: true,
@@ -561,13 +550,13 @@ async function fetchNotes(untilId?: string): Promise<NormalizedNote[]> {
     })
   }
   if (tab === 'files') {
-    return adapter.api.getUserNotes(props.userId, {
+    return a.api.getUserNotes(props.userId, {
       limit: 20,
       untilId,
       withFiles: true,
     })
   }
-  return adapter.api.getUserNotes(props.userId, { limit: 20, untilId })
+  return a.api.getUserNotes(props.userId, { limit: 20, untilId })
 }
 
 async function loadRawUserJson() {
@@ -597,7 +586,8 @@ async function loadRawUserJson() {
 async function fetchUserReactions(
   untilId?: string,
 ): Promise<UserReactionEntry[]> {
-  if (!adapter) return []
+  const a = adapter.value
+  if (!a) return []
   const params: Record<string, JsonValue> = {
     userId: props.userId,
     limit: REACTIONS_PAGE_SIZE,
@@ -612,7 +602,7 @@ async function fetchUserReactions(
   const entries: UserReactionEntry[] = []
   for (const item of raw) {
     try {
-      const normalized = await adapter.api.getNote(item.note.id)
+      const normalized = await a.api.getNote(item.note.id)
       entries.push({
         id: item.id,
         createdAt: item.createdAt,
@@ -827,90 +817,12 @@ const postFormEditNote = ref<NormalizedNote | undefined>()
 const postFormInitialText = ref<string | undefined>()
 
 const isFollowLoading = ref(false)
-const showQrCode = ref(false)
-const qrCodeContainerEl = ref<HTMLDivElement | null>(null)
-
-async function fetchImageAsDataUrl(url: string): Promise<string | undefined> {
-  try {
-    return unwrap(await commands.fetchImageBase64(url)) ?? undefined
-  } catch {
-    return undefined
-  }
-}
-
-async function openQrCode() {
-  if (!user.value || !account.value) return
-  showQrCode.value = true
-  await nextTick()
-
-  const container = qrCodeContainerEl.value
-  if (!container) return
-  container.replaceChildren()
-
-  const profileUrl = `https://${account.value.host}/users/${user.value.id}`
-
-  const serverInfo = await serversStore.getServerInfo(account.value.host)
-
-  const { colord } = await import('colord')
-  const baseColor = colord(serverInfo.themeColor || '#86b300')
-  const hsl = baseColor.toHsl()
-
-  const imageDataUrl = serverInfo.iconUrl
-    ? await fetchImageAsDataUrl(serverInfo.iconUrl)
-    : undefined
-
-  const { default: QRCodeStyling } = await import('qr-code-styling')
-  const qr = new QRCodeStyling({
-    width: 600,
-    height: 600,
-    margin: 42,
-    type: 'canvas',
-    data: profileUrl,
-    image: imageDataUrl,
-    qrOptions: {
-      typeNumber: 0,
-      mode: 'Byte',
-      errorCorrectionLevel: 'H',
-    },
-    imageOptions: {
-      hideBackgroundDots: true,
-      imageSize: 0.3,
-      margin: 16,
-    },
-    dotsOptions: {
-      type: 'dots',
-      color: colord({ h: hsl.h, s: 100, l: 18 }).toRgbString(),
-    },
-    cornersDotOptions: {
-      type: 'dot',
-    },
-    cornersSquareOptions: {
-      type: 'extra-rounded',
-    },
-    backgroundOptions: {
-      color: colord({ h: hsl.h, s: 100, l: 97 }).toRgbString(),
-    },
-  })
-
-  qr.append(container)
-
-  const canvas = container.querySelector('canvas')
-  if (canvas) {
-    Object.assign(canvas.style, {
-      position: 'absolute',
-      top: '0',
-      left: '0',
-      width: '100%',
-      height: '100%',
-    })
-  }
-}
 
 async function handleToggleFollow() {
-  if (!adapter || !user.value || isOwnProfile.value) return
+  if (!adapter.value || !user.value || isOwnProfile.value) return
   isFollowLoading.value = true
   try {
-    await toggleFollow(adapter.api, user.value)
+    await toggleFollow(adapter.value.api, user.value)
   } catch (e) {
     error.value = AppError.from(e)
   } finally {
@@ -918,364 +830,18 @@ async function handleToggleFollow() {
   }
 }
 
-// User action menu state
-const userMenuRef = ref<InstanceType<typeof PopupMenu>>()
-const showMuteConfirm = ref(false)
-const showBlockConfirm = ref(false)
-const showInvalidateFollowerConfirm = ref(false)
-const showReportForm = ref(false)
-const showListPicker = ref(false)
-const showAntennaPicker = ref(false)
-const reportComment = ref('')
-const userLists = ref<UserList[]>([])
-const userAntennas = ref<Antenna[]>([])
-const antennaBusy = ref(false)
+// User action menu (mute/block/report/list/antenna 等) は
+// UserProfileMenu.vue に分離した。ここでは開閉の ref と compose 連携のみ持つ。
+const userMenuRef = ref<InstanceType<typeof UserProfileMenu>>()
+const qrCodeRef = ref<InstanceType<typeof UserProfileQrCode>>()
 
-type UserMenuView =
-  | 'main'
-  | 'muteConfirm'
-  | 'blockConfirm'
-  | 'invalidateFollowerConfirm'
-  | 'reportForm'
-  | 'listPicker'
-  | 'antennaPicker'
-const userMenuView = computed<UserMenuView>(() => {
-  if (showMuteConfirm.value) return 'muteConfirm'
-  if (showBlockConfirm.value) return 'blockConfirm'
-  if (showInvalidateFollowerConfirm.value) return 'invalidateFollowerConfirm'
-  if (showReportForm.value) return 'reportForm'
-  if (showListPicker.value) return 'listPicker'
-  if (showAntennaPicker.value) return 'antennaPicker'
-  return 'main'
-})
-
-function closeUserMenu() {
-  userMenuRef.value?.close()
-}
-
-function userMenuBack() {
-  showMuteConfirm.value = false
-  showBlockConfirm.value = false
-  showInvalidateFollowerConfirm.value = false
-  showReportForm.value = false
-  showListPicker.value = false
-  showAntennaPicker.value = false
-  reportComment.value = ''
-}
-
-async function refreshUserRelation() {
-  if (!adapter || !user.value) return
-  try {
-    const [relation] = await adapter.api.getUserRelations([user.value.id])
-    userRelation.value = relation ?? null
-  } catch (e) {
-    console.error('[user:relation]', AppError.from(e).message)
-  }
-}
-
-async function handleMuteUser() {
-  if (!adapter || !user.value) return
-  try {
-    await adapter.api.muteUser(user.value.id)
-    // 過去ノートをリロード無しで即時非表示にする（#574）。表示述語が reactive に再評価。
-    mutesStore.muteUser(props.accountId, user.value.id)
-    toast.show('ミュートしました')
-    void refreshUserRelation()
-    closeUserMenu()
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[user:mute]', err.code, err.message)
-    toast.show(`ミュートに失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-async function handleUnmuteUser() {
-  if (!adapter || !user.value) return
-  try {
-    await adapter.api.unmuteUser(user.value.id)
-    // ミュート中に隠れていた過去ノートを即時復活させる（#574）。
-    mutesStore.unmuteUser(props.accountId, user.value.id)
-    toast.show('ミュートを解除しました')
-    void refreshUserRelation()
-    closeUserMenu()
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[user:unmute]', err.code, err.message)
-    toast.show(`ミュート解除に失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-async function handleBlockUser() {
-  if (!adapter || !user.value) return
-  try {
-    await adapter.api.blockUser(user.value.id)
-    toast.show('ブロックしました')
-    void refreshUserRelation()
-    closeUserMenu()
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[user:block]', err.code, err.message)
-    toast.show(`ブロックに失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-async function handleUnblockUser() {
-  if (!adapter || !user.value) return
-  try {
-    await adapter.api.unblockUser(user.value.id)
-    toast.show('ブロックを解除しました')
-    void refreshUserRelation()
-    closeUserMenu()
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[user:unblock]', err.code, err.message)
-    toast.show(`ブロック解除に失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-async function handleRenoteMuteUser() {
-  if (!adapter || !user.value) return
-  try {
-    await adapter.api.renoteMuteUser(user.value.id)
-    toast.show('リノートをミュートしました')
-    void refreshUserRelation()
-    closeUserMenu()
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[user:renote-mute]', err.code, err.message)
-    toast.show(`リノートミュートに失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-async function handleUnrenoteMuteUser() {
-  if (!adapter || !user.value) return
-  try {
-    await adapter.api.unrenoteMuteUser(user.value.id)
-    toast.show('リノートのミュートを解除しました')
-    void refreshUserRelation()
-    closeUserMenu()
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[user:renote-unmute]', err.code, err.message)
-    toast.show(
-      `リノートミュート解除に失敗しました（${err.displayCode}）`,
-      'error',
-    )
-  }
-}
-
-async function handleInvalidateFollower() {
-  if (!adapter || !user.value) return
-  try {
-    await adapter.api.invalidateFollower(user.value.id)
-    toast.show('フォロワーを解除しました')
-    void refreshUserRelation()
-    closeUserMenu()
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[user:invalidate-follower]', err.code, err.message)
-    toast.show(`フォロワー解除に失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-async function handleReportUser() {
-  if (!adapter || !user.value || !reportComment.value.trim()) return
-  try {
-    await adapter.api.reportUser(user.value.id, reportComment.value)
-    toast.show('通報しました')
-    closeUserMenu()
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[user:report]', err.code, err.message)
-    toast.show(`通報に失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-async function copyText(text: string, successMessage: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    toast.show(successMessage)
-  } catch (e) {
-    console.error('[user:copy]', e)
-    toast.show('コピーに失敗しました', 'error')
-  } finally {
-    closeUserMenu()
-  }
-}
-
-function handleCopyUsername() {
-  if (!user.value) return
-  const host = user.value.host ?? account.value?.host
-  if (!host) return
-  copyText(`@${user.value.username}@${host}`, 'ユーザー名をコピーしました')
-}
-
-function handleCopyProfileUrl() {
-  if (!user.value || !account.value) return
-  const canonical = user.value.host
-    ? `@${user.value.username}@${user.value.host}`
-    : `@${user.value.username}`
-  copyText(
-    `https://${account.value.host}/${canonical}`,
-    'プロフィール URL をコピーしました',
-  )
-}
-
-function handleCopyRss() {
-  if (!user.value) return
-  const host = user.value.host ?? account.value?.host
-  if (!host) return
-  copyText(
-    `${host}/@${user.value.username}.atom`,
-    'RSS の URL をコピーしました',
-  )
-}
-
-function handleCopyEmbedCode() {
-  if (!user.value || !account.value) return
-  // リモートユーザーはホストサーバーで埋め込みを取得できないので除外 (Misskey 本家踏襲)
-  if (user.value.host) return
-  const code = generateUserEmbedCode(account.value.host, user.value.id)
-  copyText(code, '埋め込みコードをコピーしました')
-}
-
-async function openListPicker() {
-  if (!adapter) return
-  try {
-    userLists.value = await adapter.api.getUserLists()
-    showListPicker.value = true
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[list:fetch]', err.code, err.message)
-    toast.show(`リストの取得に失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-async function addToList(listId: string) {
-  if (!adapter || !user.value) return
-  try {
-    await adapter.api.addUserToList(listId, user.value.id)
-    toast.show('リストに追加しました')
-    closeUserMenu()
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[list:add]', err.code, err.message)
-    toast.show(`リストへの追加に失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-// リモートユーザーは `@user@host`、ローカルユーザーは `@user`。
-// メンション投稿・アンテナの users 配列いずれもこの形式を受け付ける。
-const userAcct = computed(() => {
-  const u = user.value
-  if (!u) return null
-  return u.host ? `@${u.username}@${u.host}` : `@${u.username}`
-})
-
-function composeNoteToUser() {
-  const acct = userAcct.value
-  if (!acct) return
+/** メニューの「ユーザー指定ノートを作成」— 投稿フォームは親が所有する */
+function handleComposeToUser(acct: string) {
   postFormReplyTo.value = undefined
   postFormRenoteId.value = undefined
   postFormEditNote.value = undefined
   postFormInitialText.value = `${acct} `
   showPostForm.value = true
-  closeUserMenu()
-}
-
-function searchUserNotes() {
-  if (!user.value) return
-  deckStore.addColumn({
-    type: 'search',
-    accountId: props.accountId,
-    userId: user.value.id,
-    name: `${userAcct.value ?? user.value.username} の検索`,
-    width: 360,
-  })
-  closeUserMenu()
-}
-
-function openDirectMessage() {
-  if (!user.value) return
-  deckStore.openChatWith({
-    accountId: props.accountId,
-    userId: user.value.id,
-    name: user.value.name || user.value.username,
-    avatarUrl: user.value.avatarUrl ?? null,
-    serverHost: account.value?.host ?? null,
-  })
-  closeUserMenu()
-}
-
-async function toggleWithReplies() {
-  if (!adapter || !user.value) return
-  const next = !user.value.withReplies
-  try {
-    await adapter.api.updateFollowing(user.value.id, { withReplies: next })
-    user.value.withReplies = next
-    toast.show(next ? 'TLに返信を含めます' : 'TLに返信を含めません')
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[following:withReplies]', err.code, err.message)
-    toast.show(`設定の更新に失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-async function toggleNotify() {
-  if (!adapter || !user.value) return
-  const next = user.value.notify === 'normal' ? 'none' : 'normal'
-  try {
-    await adapter.api.updateFollowing(user.value.id, { notify: next })
-    user.value.notify = next
-    toast.show(next === 'normal' ? '投稿を通知します' : '投稿を通知しません')
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[following:notify]', err.code, err.message)
-    toast.show(`設定の更新に失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-async function openAntennaPicker() {
-  if (!adapter) return
-  try {
-    const all = await adapter.api.getAntennas()
-    // ユーザーソースのアンテナのみ追加対象 (keyword 系には個別ユーザーを足せない)。
-    userAntennas.value = all.filter((a) => a.src === 'users')
-    showAntennaPicker.value = true
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[antenna:fetch]', err.code, err.message)
-    toast.show(`アンテナの取得に失敗しました（${err.displayCode}）`, 'error')
-  }
-}
-
-async function addToAntenna(antenna: Antenna) {
-  if (!adapter || antennaBusy.value) return
-  const acct = userAcct.value
-  if (!acct) return
-  antennaBusy.value = true
-  try {
-    // 最新の設定を取得してから users を append (他フィールドを保持して往復する)。
-    const current = await adapter.api.getAntenna(antenna.id)
-    const existing = current.users ?? []
-    if (existing.some((u) => u.toLowerCase() === acct.toLowerCase())) {
-      toast.show('すでに追加されています')
-      closeUserMenu()
-      return
-    }
-    await adapter.api.updateAntenna({
-      ...current,
-      users: [...existing, acct],
-    })
-    toast.show(`${antenna.name} に追加しました`)
-    closeUserMenu()
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[antenna:add]', err.code, err.message)
-    toast.show(`アンテナへの追加に失敗しました（${err.displayCode}）`, 'error')
-  } finally {
-    antennaBusy.value = false
-  }
 }
 
 const windowsStore = useWindowsStore()
@@ -1291,28 +857,28 @@ function openFollowList(type: 'following' | 'followers') {
 }
 
 async function handleReaction(reaction: string, note: NormalizedNote) {
-  if (!adapter) return
+  if (!adapter.value) return
   try {
-    await toggleReaction(adapter.api, note, reaction)
+    await toggleReaction(adapter.value.api, note, reaction)
   } catch (e) {
     error.value = AppError.from(e)
   }
 }
 
 async function handleVote(choice: number, target: NormalizedNote) {
-  if (!adapter) return
+  if (!adapter.value) return
   const { votePoll } = await import('@/utils/votePoll')
   try {
-    await votePoll(adapter.api, target, choice)
+    await votePoll(adapter.value.api, target, choice)
   } catch (e) {
     error.value = AppError.from(e)
   }
 }
 
 async function handleRenote(target: NormalizedNote) {
-  if (!adapter) return
+  if (!adapter.value) return
   try {
-    await adapter.api.createNote({ renoteId: target.id })
+    await adapter.value.api.createNote({ renoteId: target.id })
   } catch (e) {
     error.value = AppError.from(e)
   }
@@ -1341,15 +907,15 @@ function handleEdit(target: NormalizedNote) {
 }
 
 async function handlePin(target: NormalizedNote) {
-  if (!adapter) return
+  if (!adapter.value) return
   try {
     const isPinned = pinnedNoteIds.value.includes(target.id)
     if (isPinned) {
-      await adapter.api.unpinNote(target.id)
+      await adapter.value.api.unpinNote(target.id)
       pinnedNoteIds.value = pinnedNoteIds.value.filter((id) => id !== target.id)
       pinnedNotes.value = pinnedNotes.value.filter((n) => n.id !== target.id)
     } else {
-      await adapter.api.pinNote(target.id)
+      await adapter.value.api.pinNote(target.id)
       pinnedNoteIds.value = [...pinnedNoteIds.value, target.id]
       pinnedNotes.value = [...pinnedNotes.value, target]
     }
@@ -1359,9 +925,9 @@ async function handlePin(target: NormalizedNote) {
 }
 
 async function handleDelete(target: NormalizedNote) {
-  if (!adapter) return
+  if (!adapter.value) return
   try {
-    await adapter.api.deleteNote(target.id)
+    await adapter.value.api.deleteNote(target.id)
     const id = target.id
     notes.value = notes.value.filter((n) => n.id !== id && n.renoteId !== id)
   } catch (e) {
@@ -1370,13 +936,13 @@ async function handleDelete(target: NormalizedNote) {
 }
 
 async function handleDeleteAndEdit(target: NormalizedNote) {
-  if (!adapter) return
+  if (!adapter.value) return
   try {
-    await adapter.api.deleteNote(target.id)
+    await adapter.value.api.deleteNote(target.id)
     const id = target.id
     notes.value = notes.value.filter((n) => n.id !== id && n.renoteId !== id)
     postFormReplyTo.value = target.replyId
-      ? await adapter.api.getNote(target.replyId).catch(() => undefined)
+      ? await adapter.value.api.getNote(target.replyId).catch(() => undefined)
       : undefined
     postFormRenoteId.value = undefined
     postFormEditNote.value = undefined
@@ -1396,9 +962,9 @@ function closePostForm() {
 
 async function handlePosted(editedNoteId?: string) {
   closePostForm()
-  if (editedNoteId && adapter) {
+  if (editedNoteId && adapter.value) {
     try {
-      const updated = await adapter.api.getNote(editedNoteId)
+      const updated = await adapter.value.api.getNote(editedNoteId)
       notes.value = notes.value.map((n) =>
         n.id === editedNoteId
           ? updated
@@ -1503,7 +1069,7 @@ async function handlePosted(editedNoteId?: string) {
             >
               {{ followButtonLabel }}
             </button>
-            <button class="_button" :class="$style.bannerActionBtn" title="QRコード" @click="openQrCode">
+            <button class="_button" :class="$style.bannerActionBtn" title="QRコード" @click="qrCodeRef?.open()">
               <i class="ti ti-qrcode" />
             </button>
           </div>
@@ -1971,250 +1537,19 @@ async function handlePosted(editedNoteId?: string) {
         @posted="handlePosted"
       />
 
-      <!-- User action menu -->
-      <PopupMenu ref="userMenuRef" @close="userMenuBack">
-        <!-- Main -->
-        <template v-if="userMenuView === 'main'">
-          <button class="_popupItem" @click="composeNoteToUser">
-            <i class="ti ti-pencil" />
-            ユーザー指定ノートを作成
-          </button>
-          <button class="_popupItem" @click="searchUserNotes">
-            <i class="ti ti-search" />
-            ユーザーのノートを検索
-          </button>
-          <button class="_popupItem" @click="openDirectMessage">
-            <i class="ti ti-message" />
-            ダイレクトメッセージ
-          </button>
-          <div class="_popupDivider" />
-          <button class="_popupItem" @click="handleCopyUsername">
-            <i class="ti ti-at" />
-            ユーザー名をコピー
-          </button>
-          <button class="_popupItem" @click="handleCopyProfileUrl">
-            <i class="ti ti-share" />
-            プロフィール URL をコピー
-          </button>
-          <button class="_popupItem" @click="handleCopyRss">
-            <i class="ti ti-rss" />
-            RSS をコピー
-          </button>
-          <button
-            v-if="!user?.host"
-            class="_popupItem"
-            @click="handleCopyEmbedCode"
-          >
-            <i class="ti ti-code" />
-            埋め込み
-          </button>
-          <div class="_popupDivider" />
-          <button class="_popupItem" @click="openListPicker">
-            <i class="ti ti-list" />
-            リストに追加
-          </button>
-          <button class="_popupItem" @click="openAntennaPicker">
-            <i class="ti ti-antenna" />
-            アンテナに追加
-          </button>
-          <template v-if="user?.isFollowing">
-            <div class="_popupDivider" />
-            <button class="_popupItem" @click="toggleWithReplies">
-              <i
-                :class="
-                  user?.withReplies ? 'ti ti-checkbox' : 'ti ti-square'
-                "
-              />
-              TLに他の人への返信を含める
-            </button>
-            <button class="_popupItem" @click="toggleNotify">
-              <i
-                :class="
-                  user?.notify === 'normal' ? 'ti ti-bell-ringing' : 'ti ti-bell'
-                "
-              />
-              投稿を通知
-            </button>
-          </template>
-          <div class="_popupDivider" />
-          <button
-            class="_popupItem"
-            @click="
-              userRelation?.isMuted ? handleUnmuteUser() : (showMuteConfirm = true)
-            "
-          >
-            <i :class="userRelation?.isMuted ? 'ti ti-eye' : 'ti ti-eye-off'" />
-            {{ userRelation?.isMuted ? 'ミュート解除' : 'ミュート' }}
-          </button>
-          <button
-            class="_popupItem"
-            @click="
-              userRelation?.isRenoteMuted
-                ? handleUnrenoteMuteUser()
-                : handleRenoteMuteUser()
-            "
-          >
-            <i
-              :class="
-                userRelation?.isRenoteMuted ? 'ti ti-repeat' : 'ti ti-repeat-off'
-              "
-            />
-            {{ userRelation?.isRenoteMuted ? 'リノートミュート解除' : 'リノートをミュート' }}
-          </button>
-          <button
-            class="_popupItem _popupItemDanger"
-            @click="
-              userRelation?.isBlocking
-                ? handleUnblockUser()
-                : (showBlockConfirm = true)
-            "
-          >
-            <i class="ti ti-ban" />
-            {{ userRelation?.isBlocking ? 'ブロック解除' : 'ブロック' }}
-          </button>
-          <button
-            v-if="userRelation?.isFollowed"
-            class="_popupItem _popupItemDanger"
-            @click="showInvalidateFollowerConfirm = true"
-          >
-            <i class="ti ti-link-off" />
-            フォロワーを解除
-          </button>
-          <div class="_popupDivider" />
-          <button class="_popupItem _popupItemDanger" @click="showReportForm = true">
-            <i class="ti ti-alert-triangle" />
-            通報
-          </button>
-        </template>
-        <!-- Mute confirm -->
-        <template v-else-if="userMenuView === 'muteConfirm'">
-          <div class="_popupConfirmText">@{{ user?.username }} をミュートしますか？</div>
-          <button class="_popupItem _popupItemDanger" @click="handleMuteUser">
-            <i class="ti ti-eye-off" />
-            ミュート
-          </button>
-          <button class="_popupItem" @click="userMenuBack">
-            <i class="ti ti-x" />
-            キャンセル
-          </button>
-        </template>
-        <!-- Block confirm -->
-        <template v-else-if="userMenuView === 'blockConfirm'">
-          <div class="_popupConfirmText">@{{ user?.username }} をブロックしますか？</div>
-          <button class="_popupItem _popupItemDanger" @click="handleBlockUser">
-            <i class="ti ti-ban" />
-            ブロック
-          </button>
-          <button class="_popupItem" @click="userMenuBack">
-            <i class="ti ti-x" />
-            キャンセル
-          </button>
-        </template>
-        <!-- Invalidate follower confirm -->
-        <template v-else-if="userMenuView === 'invalidateFollowerConfirm'">
-          <div class="_popupConfirmText">
-            @{{ user?.username }} のフォロワーを解除しますか？
-          </div>
-          <button
-            class="_popupItem _popupItemDanger"
-            @click="handleInvalidateFollower"
-          >
-            <i class="ti ti-link-off" />
-            解除
-          </button>
-          <button class="_popupItem" @click="userMenuBack">
-            <i class="ti ti-x" />
-            キャンセル
-          </button>
-        </template>
-        <!-- Report form -->
-        <template v-else-if="userMenuView === 'reportForm'">
-          <div class="_popupConfirmText">@{{ user?.username }} を通報</div>
-          <div class="_popupReportInputWrap">
-            <textarea
-              v-model="reportComment"
-              class="_popupReportInput"
-              placeholder="通報理由を入力..."
-              rows="3"
-            />
-          </div>
-          <button
-            class="_popupItem _popupItemDanger"
-            :disabled="!reportComment.trim()"
-            @click="handleReportUser"
-          >
-            <i class="ti ti-alert-triangle" />
-            送信
-          </button>
-          <button class="_popupItem" @click="userMenuBack">
-            <i class="ti ti-x" />
-            キャンセル
-          </button>
-        </template>
-        <!-- List picker -->
-        <template v-else-if="userMenuView === 'listPicker'">
-          <button class="_popupItem" @click="userMenuBack">
-            <i class="ti ti-arrow-left" />
-            戻る
-          </button>
-          <div class="_popupDivider" />
-          <template v-if="userLists.length > 0">
-            <button
-              v-for="list in userLists"
-              :key="list.id"
-              class="_popupItem"
-              @click="addToList(list.id)"
-            >
-              <i class="ti ti-list" />
-              {{ list.name }}
-            </button>
-          </template>
-          <div v-else class="_popupConfirmText">リストがありません</div>
-        </template>
-        <!-- Antenna picker -->
-        <template v-else-if="userMenuView === 'antennaPicker'">
-          <button class="_popupItem" @click="userMenuBack">
-            <i class="ti ti-arrow-left" />
-            戻る
-          </button>
-          <div class="_popupDivider" />
-          <template v-if="userAntennas.length > 0">
-            <button
-              v-for="antenna in userAntennas"
-              :key="antenna.id"
-              class="_popupItem"
-              :disabled="antennaBusy"
-              @click="addToAntenna(antenna)"
-            >
-              <i class="ti ti-antenna" />
-              {{ antenna.name }}
-            </button>
-          </template>
-          <div v-else class="_popupConfirmText">
-            ユーザーソースのアンテナがありません
-          </div>
-        </template>
-      </PopupMenu>
+      <!-- User action menu (mute/block/report 等は UserProfileMenu が所有) -->
+      <UserProfileMenu
+        ref="userMenuRef"
+        :adapter="adapter"
+        :account-id="accountId"
+        :user="user"
+        :account-host="account?.host"
+        :has-token="account?.hasToken ?? false"
+        :is-own-profile="isOwnProfile"
+        @compose="handleComposeToUser"
+      />
 
-      <div v-if="showQrCode" :class="$style.qrOverlay" @click="showQrCode = false">
-        <div :class="$style.qrModal" @click.stop>
-          <button class="_button" :class="$style.qrCloseBtn" @click="showQrCode = false">
-            <i class="ti ti-x" />
-          </button>
-          <div ref="qrCodeContainerEl" :class="$style.qrCanvas" />
-          <div :class="$style.qrUser">
-            <img v-if="user?.avatarUrl" :src="proxyUrl(user.avatarUrl)" :class="$style.qrAvatar" />
-            <div :class="$style.qrUserInfo">
-              <div :class="$style.qrName">
-                <MkMfm v-if="user?.name" :text="user.name" :emojis="user?.emojis" :server-host="account?.host" plain />
-                <template v-else>{{ user?.username }}</template>
-              </div>
-              <div :class="$style.qrAcct">@{{ user?.username }}@{{ account?.host }}</div>
-            </div>
-          </div>
-          <img :class="$style.qrLogo" src="/misskey-logo.svg" alt="Misskey" />
-        </div>
-      </div>
+      <UserProfileQrCode ref="qrCodeRef" :user="user" :account-host="account?.host" />
     </div>
   </div>
 </template>
@@ -2925,96 +2260,6 @@ async function handlePosted(editedNoteId?: string) {
   i {
     font-size: 1em;
   }
-}
-
-.qrOverlay {
-  position: fixed;
-  inset: 0;
-  z-index: var(--nd-z-popup);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: var(--nd-overlayDark);
-}
-
-.qrModal {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.qrCloseBtn {
-  position: absolute;
-  top: -40px;
-  right: -40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.15);
-  font-size: 16px;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.3);
-  }
-}
-
-.qrCanvas {
-  position: relative;
-  width: min(230px, 80vw);
-  border-radius: 12px;
-  overflow: clip;
-  aspect-ratio: 1;
-}
-
-.qrUser {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  margin-top: 28px;
-  color: #fff;
-  max-width: 230px;
-}
-
-.qrAvatar {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  object-fit: cover;
-  margin-bottom: 16px;
-}
-
-.qrUserInfo {
-  overflow: hidden;
-  max-width: 100%;
-}
-
-.qrName {
-  font-weight: bold;
-  font-size: 1.1em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.qrAcct {
-  font-size: 0.9em;
-  opacity: 0.7;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.qrLogo {
-  width: 100px;
-  margin-top: 28px;
-  filter: drop-shadow(0 0 6px rgb(0 0 0 / 43%));
 }
 
 .mobileName {}
