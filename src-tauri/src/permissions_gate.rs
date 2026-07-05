@@ -243,6 +243,17 @@ pub fn external_may_read_deck() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// EXTERNAL_GRANTED はプロセス全体で共有のため、これを触るテストが
+    /// 並列実行されると互いの sync/reset が混線して flaky になる (CI 実績あり)。
+    /// state を変更するテストはこの lock を先頭で取って直列化する。
+    static STATE_LOCK: Mutex<()> = Mutex::new(());
+
+    fn lock_state() -> std::sync::MutexGuard<'static, ()> {
+        // 先行テストの assert 失敗で poison されても後続テストは続行してよい
+        STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     fn sync(pairs: &[(&str, bool)]) {
         let map: HashMap<String, bool> = pairs
@@ -322,6 +333,7 @@ mod tests {
 
     #[test]
     fn floor_keys_are_granted_even_before_first_sync() {
+        let _guard = lock_state();
         reset_external_granted_for_test();
         assert!(is_granted("notes.read"));
         assert!(is_granted("account.read"));
@@ -333,6 +345,7 @@ mod tests {
 
     #[test]
     fn synced_map_controls_non_floor_keys() {
+        let _guard = lock_state();
         sync(&[("notes.write", true), ("deck.read", false)]);
         assert!(is_granted("notes.write"));
         assert!(!is_granted("deck.read"));
@@ -343,6 +356,7 @@ mod tests {
 
     #[test]
     fn lockdown_denies_non_floor_even_after_broad_sync() {
+        let _guard = lock_state();
         // 広い権限が同期された後に lockdown すると floor 以外は全 deny (#718)
         sync(&[("notes.write", true), ("notifications", true)]);
         assert!(is_granted("notes.write"));
