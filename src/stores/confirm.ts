@@ -85,6 +85,14 @@ export interface ConfirmOptions {
    * 立てられないので、システムの権限確認になりすませない。
    */
   trusted?: boolean
+  /**
+   * 同一操作をまとめる不透明な識別子 (#720)。このダイアログが「今後確認しない」
+   * チェック付きで許可されると、キューで待機している同じ `dedupKey` のダイアログも
+   * 同じ許可で自動解決される (再度聞かない)。confirm 層はこの文字列の意味を
+   * 解釈しない — dispatcher が `scope:capabilityId` を渡し、「一度の同意を同一
+   * 操作の待機分へ波及させる」#716 の理想を満たす。
+   */
+  dedupKey?: string
 }
 
 /**
@@ -170,8 +178,20 @@ export function useConfirm() {
 
   function resolve(decision: ConfirmDecision) {
     visible.value = false
+    const dedupKey = options.value.dedupKey
     resolvePromise?.(decision)
     resolvePromise = null
+    // 「今後確認しない」で許可されたら、キューで待つ同一操作 (同じ dedupKey) を
+    // 同じ許可で自動解決する (#720/#716: 一度の同意を同一操作の待機分へ波及)。
+    // remember は記録済みなので重複記録を避けるため false で返す。
+    if (decision.accepted && decision.remember && dedupKey) {
+      for (let i = queue.length - 1; i >= 0; i--) {
+        if (queue[i]?.opts.dedupKey === dedupKey) {
+          const [removed] = queue.splice(i, 1)
+          removed?.resolve({ accepted: true, remember: false })
+        }
+      }
+    }
     if (queue.length > 0) {
       drainScheduled = true
       setTimeout(() => {

@@ -151,6 +151,12 @@ export async function dispatchCapability(
     // 信頼マーカー (#720): これは NoteDeck 本体の権限確認である。プラグインの
     // Mk:confirm はこのフラグを立てられないので、システム確認になりすませない。
     confirmOpts.trusted = true
+    // 同一操作の dedup key (#720): 「今後確認しない」で許可したら、キューで
+    // 待機している同じ scope×capability の確認も自動承認させる (#716 の
+    // 「一度の同意を同一操作の待機分へ波及」)。skip 不可 scope では付けない。
+    if (skipScope !== null) {
+      confirmOpts.dedupKey = `${skipScope}:${cap.id}`
+    }
     // 帰属表示 (#712 §3.3): 誰の要求かをダイアログ冒頭に必須表示する。
     // 無人 HEARTBEAT のモーダルが本人のチャット確認と誤認されないよう、
     // capability 側実装に任せず dispatcher が一律で注入する。

@@ -132,4 +132,66 @@ describe('useConfirm', () => {
       remember: false,
     })
   })
+
+  // #720/#716: 「今後確認しない」で許可したら、キューで待つ同一操作
+  // (同じ dedupKey) は再度聞かず同じ許可で自動解決する。
+  it('remember 許可はキュー内の同一操作を自動承認する (#720)', async () => {
+    const { confirmWithDecision, resolve } = useConfirm()
+    const KEY = 'plugin:widget:w1:http.fetch'
+    const first = confirmWithDecision({
+      title: 'http',
+      message: '',
+      dedupKey: KEY,
+    })
+    const sameA = confirmWithDecision({
+      title: 'http',
+      message: '',
+      dedupKey: KEY,
+    })
+    const sameB = confirmWithDecision({
+      title: 'http',
+      message: '',
+      dedupKey: KEY,
+    })
+    // 別操作 (異なる dedupKey) は波及しない
+    const other = confirmWithDecision({
+      title: 'other',
+      message: '',
+      dedupKey: 'plugin:widget:w1:notes.write',
+    })
+
+    // 1 件目を「今後確認しない」で許可
+    resolve({ accepted: true, remember: true })
+    await expect(first).resolves.toEqual({ accepted: true, remember: true })
+    // 同一 dedupKey の待機分は自動承認 (remember は記録済みなので false で返す)
+    await expect(sameA).resolves.toEqual({ accepted: true, remember: false })
+    await expect(sameB).resolves.toEqual({ accepted: true, remember: false })
+
+    // 別操作は自動承認されず、通常どおり次に表示される
+    vi.runAllTimers()
+    resolve({ accepted: false, remember: false })
+    await expect(other).resolves.toEqual({ accepted: false, remember: false })
+  })
+
+  it('remember なし許可では同一操作を自動承認しない (#720)', async () => {
+    const { confirmWithDecision, resolve } = useConfirm()
+    const KEY = 'plugin:widget:w1:http.fetch'
+    const first = confirmWithDecision({
+      title: 'http',
+      message: '',
+      dedupKey: KEY,
+    })
+    const same = confirmWithDecision({
+      title: 'http',
+      message: '',
+      dedupKey: KEY,
+    })
+
+    // remember なしで許可 → 波及しない (待機分は個別に確認される)
+    resolve({ accepted: true, remember: false })
+    await expect(first).resolves.toEqual({ accepted: true, remember: false })
+    vi.runAllTimers()
+    resolve({ accepted: false, remember: false })
+    await expect(same).resolves.toEqual({ accepted: false, remember: false })
+  })
 })
