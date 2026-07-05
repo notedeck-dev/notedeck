@@ -362,7 +362,7 @@ function createPluginSpecificEnv(
     }
     const endpoint = endpointVal?.type === 'str' ? endpointVal.value : ''
     // プラグインの生 Misskey API は endpoint 対応表 gate に従属 (#712 / #711)
-    assertMisskeyApiAllowed(
+    await assertMisskeyApiAllowed(
       { kind: 'plugin', pluginId: plugin.installId, name: plugin.name },
       endpoint,
     )

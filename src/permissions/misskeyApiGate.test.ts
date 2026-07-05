@@ -18,73 +18,73 @@ afterEach(() => {
 })
 
 describe('assertMisskeyApiAllowed (#712 §5.5)', () => {
-  it('plugin=readonly では notes/create が拒否され、notes/show は通る', () => {
+  it('plugin=readonly では notes/create が拒否され、notes/show は通る', async () => {
     setPluginPreset('readonly')
-    expect(() =>
+    await expect(
       assertMisskeyApiAllowed(
         { kind: 'plugin', pluginId: 'p1' },
         'notes/create',
       ),
-    ).toThrow(/permission_denied.*notes\.write/)
-    expect(() =>
+    ).rejects.toThrow(/permission_denied.*notes\.write/)
+    await expect(
       assertMisskeyApiAllowed({ kind: 'plugin', pluginId: 'p1' }, 'notes/show'),
-    ).not.toThrow()
+    ).resolves.toBeUndefined()
   })
 
-  it('plugin 行で notes.write を許可すると notes/create が通る', () => {
+  it('plugin 行で notes.write を許可すると notes/create が通る', async () => {
     setPluginPreset('full')
-    expect(() =>
+    await expect(
       assertMisskeyApiAllowed(
         { kind: 'plugin', pluginId: 'p1' },
         'notes/create',
       ),
-    ).not.toThrow()
+    ).resolves.toBeUndefined()
   })
 
-  it('対応表に無い endpoint は deny-by-default', () => {
+  it('対応表に無い endpoint は deny-by-default', async () => {
     setPluginPreset('full')
-    expect(() =>
+    await expect(
       assertMisskeyApiAllowed(
         { kind: 'plugin', pluginId: 'p1' },
         'some-fork/original-endpoint',
       ),
-    ).toThrow(/unknown endpoint/)
+    ).rejects.toThrow(/unknown endpoint/)
   })
 
-  it('admin 系 / 高感度 endpoint は full でも deny', () => {
+  it('admin 系 / 高感度 endpoint は full でも deny', async () => {
     setPluginPreset('full')
-    expect(() =>
+    await expect(
       assertMisskeyApiAllowed(
         { kind: 'plugin', pluginId: 'p1' },
         'admin/accounts/delete',
       ),
-    ).toThrow(/開放されません/)
-    expect(() =>
+    ).rejects.toThrow(/開放されません/)
+    await expect(
       assertMisskeyApiAllowed(
         { kind: 'plugin', pluginId: 'p1' },
         'i/regenerate-token',
       ),
-    ).toThrow(/開放されません/)
+    ).rejects.toThrow(/開放されません/)
   })
 
-  it('user (playground) は gate 免除', () => {
+  it('user (playground) は gate 免除', async () => {
     setPluginPreset('readonly')
-    expect(() =>
+    await expect(
       assertMisskeyApiAllowed({ kind: 'user' }, 'notes/create'),
-    ).not.toThrow()
-    expect(() =>
+    ).resolves.toBeUndefined()
+    await expect(
       assertMisskeyApiAllowed({ kind: 'user' }, 'admin/accounts/delete'),
-    ).not.toThrow()
+    ).resolves.toBeUndefined()
   })
 
-  it('拒否は pluginDenials に記録される (#712 §8.4)', () => {
+  it('拒否は pluginDenials に記録される (#712 §8.4)', async () => {
     setPluginPreset('readonly')
-    expect(() =>
+    await expect(
       assertMisskeyApiAllowed(
         { kind: 'plugin', pluginId: 'badge-plugin' },
         'notes/create',
       ),
-    ).toThrow()
+    ).rejects.toThrow()
     const entry = getPluginDenial('badge-plugin')
     expect(entry?.lastTarget).toBe('Mk:api notes/create')
     expect(entry?.lastKeys).toEqual(['notes.write'])

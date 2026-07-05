@@ -17,19 +17,25 @@ import {
 import { recordPluginDenial } from './pluginDenials'
 import type { Principal } from './principal'
 import type { PermissionKey } from './schema'
-import { resolveForProfiled } from './store'
+import { resolveForProfiled, whenPermissionsReady } from './store'
 
 /**
- * principal が endpoint を呼んでよいか判定し、拒否なら throw する。
+ * principal が endpoint を呼んでよいか判定し、拒否なら throw (reject) する。
  * plugin 拒否はプラグインカラムの拒否バッジ (#712 §8.4) にも記録する。
  */
-export function assertMisskeyApiAllowed(
+export async function assertMisskeyApiAllowed(
   principal: Principal,
   endpoint: string,
-): void {
+): Promise<void> {
   // user (playground) は gate 免除。ai.chat / ai.heartbeat / external は
   // そもそも Mk:api に到達しない (AiScript env は plugin / user のみ)
   if (principal.kind !== 'plugin') return
+
+  // 起動直後は permissions.json5 の読込 (async) 完了前に autoRun ウィジェット
+  // 等がここへ到達しうる。plugin のデフォルトプロファイル (safe) はユーザーの
+  // 制限 (readonly 等) より広いため、読込前の判定は許可側に倒れる (#716)。
+  // dispatcher と同じく読込完了を待ってから判定する。
+  await whenPermissionsReady()
 
   const rule: MisskeyEndpointRule | undefined = MISSKEY_ENDPOINT_RULES[endpoint]
 

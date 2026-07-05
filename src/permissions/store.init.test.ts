@@ -49,4 +49,30 @@ describe('whenPermissionsReady (#716)', () => {
     expect(ready).toBe(true)
     expect(isConfirmSkipped('plugin:widget:w1', 'http.fetch')).toBe(true)
   })
+
+  it('Mk:api gate も読込完了を待ち、制限済みプロファイルで判定する', async () => {
+    const { _resetPermissionsForTest } = await import('./store')
+    const { assertMisskeyApiAllowed } = await import('./misskeyApiGate')
+    _resetPermissionsForTest()
+
+    // plugin=readonly に制限したユーザーの起動直後を再現。読込前のデフォルト
+    // (safe) は notes.react を許可するので、待たずに判定すると許可側に倒れる
+    let settled = false
+    const p = assertMisskeyApiAllowed(
+      { kind: 'plugin', pluginId: 'w1' },
+      'notes/reactions/create',
+    ).finally(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    resolveRead?.(
+      JSON.stringify({
+        principals: { plugin: { preset: 'readonly', custom: {} } },
+      }),
+    )
+    await expect(p).rejects.toThrow(/permission_denied.*notes\.react/)
+  })
 })

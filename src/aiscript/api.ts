@@ -132,7 +132,7 @@ export function createAiScriptEnv(
     const endpoint = endpointVal?.type === 'str' ? endpointVal.value : ''
     // plugin principal は endpoint 対応表 gate で判定 (#712 §5.5 / #711)。
     // 拒否なら throw (プラグイン作者向けの理由付きメッセージ)
-    assertMisskeyApiAllowed(options.principal, endpoint)
+    await assertMisskeyApiAllowed(options.principal, endpoint)
     const params =
       paramsVal?.type === 'obj'
         ? (utils.valToJs(paramsVal) as Record<string, unknown>)
