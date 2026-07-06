@@ -111,6 +111,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'registry.set',
         'role.notes',
         'skills.append',
+        'skills.create',
         'skills.history',
         'skills.install',
         'skills.list',

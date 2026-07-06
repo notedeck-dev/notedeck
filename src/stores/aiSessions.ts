@@ -57,6 +57,14 @@ export interface AiSessionMeta {
 export interface AiSession extends AiSessionMeta {
   schemaVersion: number
   messages: ChatMessage[]
+  /**
+   * このセッションで一度でも発火した mode='trigger' skill の id 累積 (#725)。
+   * トリガー語を含まないフォローアップターンでも skill 本文を system prompt に
+   * 保ち続ける session-sticky 状態。セッション新規作成で自然に空になる。
+   * dangling id (後で削除された skill) は composedSystemPrompt 側が無視する
+   * ので掃除不要。
+   */
+  triggeredSkillIds?: string[]
   /** 知らないフィールドは forward-compat で保持して書き戻す。 */
   unknownFields?: Record<string, unknown>
 }
@@ -85,6 +93,7 @@ const KNOWN_FIELDS = new Set([
   'updatedAt',
   'messages',
   'personaSkillId',
+  'triggeredSkillIds',
 ])
 
 function serialize(session: AiSession): string {
@@ -100,6 +109,9 @@ function serialize(session: AiSession): string {
     messages: session.messages,
   }
   if (session.personaSkillId) out.personaSkillId = session.personaSkillId
+  if (session.triggeredSkillIds?.length) {
+    out.triggeredSkillIds = session.triggeredSkillIds
+  }
   if (session.unknownFields) {
     for (const [k, v] of Object.entries(session.unknownFields)) {
       out[k] = v
@@ -119,6 +131,11 @@ function deserialize(raw: string): AiSession | null {
   if (!parsed || typeof parsed !== 'object') return null
   const r = parsed as PersistShape
   const messages = Array.isArray(r.messages) ? r.messages : []
+  const triggeredSkillIds = Array.isArray(r.triggeredSkillIds)
+    ? r.triggeredSkillIds.filter(
+        (x): x is string => typeof x === 'string' && x.length > 0,
+      )
+    : []
   const unknownFields: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(r)) {
     if (!KNOWN_FIELDS.has(k)) unknownFields[k] = v
@@ -141,6 +158,8 @@ function deserialize(raw: string): AiSession | null {
       typeof r.personaSkillId === 'string' && r.personaSkillId
         ? r.personaSkillId
         : undefined,
+    triggeredSkillIds:
+      triggeredSkillIds.length > 0 ? triggeredSkillIds : undefined,
     unknownFields:
       Object.keys(unknownFields).length > 0 ? unknownFields : undefined,
   }
@@ -299,6 +318,34 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
     schedulePersist(id)
   }
 
+  /**
+   * このターンで発火した trigger skill の id をセッションへ累積する (#725)。
+   * 既存との union (初出順維持) で、新規 id がなければ no-op — retry 再送等で
+   * 同じ text から再判定されても無駄な persist が走らない。
+   */
+  function addTriggeredSkillIds(id: string, skillIds: readonly string[]): void {
+    if (skillIds.length === 0) return
+    const cur = sessions.value.get(id)
+    if (!cur) return
+    const merged = [...(cur.triggeredSkillIds ?? [])]
+    const set = new Set(merged)
+    for (const sid of skillIds) {
+      if (!set.has(sid)) {
+        set.add(sid)
+        merged.push(sid)
+      }
+    }
+    if (merged.length === (cur.triggeredSkillIds?.length ?? 0)) return
+    const updated: AiSession = {
+      ...cur,
+      triggeredSkillIds: merged,
+      updatedAt: Date.now(),
+    }
+    sessions.value.set(id, updated)
+    sessions.value = new Map(sessions.value)
+    schedulePersist(id)
+  }
+
   function schedulePersist(id: string): void {
     const existing = persistTimers.get(id)
     if (existing) clearTimeout(existing)
@@ -356,6 +403,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
     upsertRaw,
     updateMessages,
     setTitle,
+    addTriggeredSkillIds,
     flush,
     deleteSession,
   }

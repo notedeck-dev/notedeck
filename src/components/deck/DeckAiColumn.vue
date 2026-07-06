@@ -528,12 +528,17 @@ async function sendMessage(presetText?: string | Event) {
   // identity が解決できない (= 該当 skill 不在 or isPersona=false) なら扱わない
   const effectivePersonaSkillId = personaIdentity ? personaSkillId : undefined
   // mode='trigger' な skill のうち、今回の user 入力に triggers が部分一致した
-  // ものをこのターン限定で extraSkillIds に追加。activeIds は汚さない。
+  // ものをセッションへ累積し、以降のターンはトリガー語なしでも維持する
+  // (#725 session-sticky)。activeIds は汚さず、新規セッション作成で空に戻る。
+  // 削除済み skill の dangling id は composedSystemPrompt が無視する。
   // ターン中 (tool round 反復) は同じ skillsPrompt を使う = 初回入力で確定。
   const triggerIds = skillsStore.triggerMatchingSkillIds(text)
+  sessionsStore.addTriggeredSkillIds(sessionId, triggerIds)
+  const sessionTriggerIds =
+    sessionsStore.get(sessionId)?.triggeredSkillIds ?? []
   const extraSkillIds = [
     ...(effectivePersonaSkillId ? [effectivePersonaSkillId] : []),
-    ...triggerIds,
+    ...sessionTriggerIds,
   ]
   const skillsPrompt =
     skillsStore.composedSystemPrompt(extraSkillIds, effectivePersonaSkillId) ||

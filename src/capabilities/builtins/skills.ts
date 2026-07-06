@@ -1,6 +1,10 @@
 import type { Command } from '@/commands/registry'
 import { useMisStoreStore } from '@/stores/misstore'
-import { useSkillsStore } from '@/stores/skills'
+import {
+  generateSkillId,
+  type SkillMode,
+  useSkillsStore,
+} from '@/stores/skills'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
 
 interface SkillSnapshot {
@@ -96,6 +100,165 @@ export const skillsReadCapability: Command = {
       body: skill.body,
       mode: skill.mode,
     }
+  },
+}
+
+function normalizeSkillMode(v: unknown): SkillMode {
+  return v === 'always' ||
+    v === 'trigger' ||
+    v === 'heartbeat' ||
+    v === 'manual'
+    ? v
+    : 'manual'
+}
+
+function toStringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return []
+  return v.map(String).filter((s) => s.length > 0)
+}
+
+/**
+ * `skills.create` — 新規スキルの作成 (#726)。
+ *
+ * 設計判断:
+ * - 冒頭コメントの「frontmatter は AI に触らせない」は維持する。raw
+ *   frontmatter は受け取らず、ホワイトリスト化した構造化パラメータのみ
+ *   受ける。builtIn / isPersona / storeId はパラメータに存在しない
+ *   (= 物理的に付与不可能)
+ * - 新規作成専用。id は内部生成 (generateSkillId) で AI に選ばせない
+ *   (= 将来の built-in id の先取り占拠や既存スキルの上書きを構造的に排除)。
+ *   self-edit は従来どおり append / replaceSection の領分
+ * - mode=always / heartbeat は保存直後から AI の指示ストリームに自動合流
+ *   するため warning 型 confirm にする
+ * - mode=trigger で triggers 空は永久に発火しない死にスキルになるので拒否
+ *   (ファイル読込側 metaFromFrontmatter が寛容なのはユーザー手書きファイルで
+ *   起動を落とさないため。create は AI がエラーを読んでリトライできる)
+ * - cheapCheckCapabilities は素通しで保存する。cheap=true でない id は
+ *   HEARTBEAT runner 側が無視する既存フィルタに委ねる
+ */
+export const skillsCreateCapability: Command = {
+  id: 'skills.create',
+  label: 'スキルを作成',
+  icon: 'ti-plus',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['skills.write'],
+  requiresConfirmation: (params) => {
+    const name = typeof params?.name === 'string' ? params.name.trim() : ''
+    const body = typeof params?.body === 'string' ? params.body : ''
+    if (!name || !body.trim()) return null
+    const mode = normalizeSkillMode(params?.mode)
+    const triggers = toStringArray(params?.triggers)
+    const modeNote =
+      mode === 'always'
+        ? ' mode=always: 保存後は常に system prompt に注入されます。'
+        : mode === 'heartbeat'
+          ? ' mode=heartbeat: HEARTBEAT 有効中、tick ごとに自動実行されます。'
+          : mode === 'trigger'
+            ? ` (mode=trigger: 「${triggers.join('」「')}」で自動ロード)`
+            : ' (mode=manual: 有効化するまで使われません)'
+    return {
+      title: 'スキルを作成',
+      message: `AI が生成したスキル「${name}」を新規保存します。${modeNote}`,
+      installPreview: {
+        kind: 'skill',
+        name,
+        version: '0.1.0',
+        description: `${mode} mode / global scope`,
+      },
+      code: body,
+      codeLanguage: 'markdown',
+      okLabel: '作成',
+      cancelLabel: 'やめる',
+      type: mode === 'always' || mode === 'heartbeat' ? 'warning' : 'normal',
+    }
+  },
+  signature: {
+    description:
+      '新規スキルを作成する。既存スキルの編集はできない (skills.append / ' +
+      'skills.replaceSection を使う)。id は内部生成される。作成直後は ' +
+      'mode=manual なら未有効 (skills.toggle で有効化)、trigger なら次ターン' +
+      'からマッチで自動ロード、always は常時注入される。' +
+      'body に frontmatter (---) を含めないこと (mode 等はパラメータで渡す)。',
+    params: {
+      name: { type: 'string', description: 'スキル名 (UI 表示用)' },
+      body: {
+        type: 'string',
+        description: 'markdown 本文 (frontmatter は含めない)',
+      },
+      description: {
+        type: 'string',
+        description: 'スキル一覧に表示される 1 行説明',
+        optional: true,
+      },
+      mode: {
+        type: 'string',
+        description:
+          '実行モード (default: manual)。always / heartbeat は影響が大きい' +
+          'のでユーザーが明示したときのみ',
+        enum: ['manual', 'trigger', 'always', 'heartbeat'],
+        optional: true,
+      },
+      triggers: {
+        type: 'array',
+        description:
+          'mode=trigger のとき必須。user 入力への部分一致でロードされる' +
+          '語の配列 (大文字小文字無視)',
+        optional: true,
+      },
+      cheapCheckCapabilities: {
+        type: 'array',
+        description:
+          'mode=heartbeat 用。変化検知に使う cheap capability id の配列 ' +
+          '(変化なしの tick は AI 呼び出しを skip)',
+        optional: true,
+      },
+    },
+    returns: {
+      type: 'object',
+      description: '{ id, name, mode }',
+    },
+  },
+  visible: false,
+  execute: (params) => {
+    const name = typeof params?.name === 'string' ? params.name.trim() : ''
+    const body = typeof params?.body === 'string' ? params.body : ''
+    if (!name) throw new Error('skills.create: name is required')
+    if (!body.trim()) throw new Error('skills.create: body is required')
+    if (/^---\r?\n/.test(body)) {
+      throw new Error(
+        'skills.create: body must not start with a frontmatter block (---). ' +
+          'mode / triggers / description はパラメータで渡すこと',
+      )
+    }
+    const mode = normalizeSkillMode(params?.mode)
+    const triggers = toStringArray(params?.triggers)
+    if (mode === 'trigger' && triggers.length === 0) {
+      throw new Error(
+        'skills.create: mode="trigger" requires non-empty triggers ' +
+          '(= 永久に発火しないスキルになる)',
+      )
+    }
+    const description =
+      typeof params?.description === 'string' && params.description
+        ? params.description
+        : undefined
+    const store = useSkillsStore()
+    let id = generateSkillId(name)
+    while (store.skills.some((s) => s.id === id)) id = generateSkillId(name)
+    const skill = store.add({
+      id,
+      name,
+      version: '0.1.0',
+      description,
+      mode,
+      triggers,
+      scope: 'global',
+      body,
+      cheapCheckCapabilities: toStringArray(params?.cheapCheckCapabilities),
+    })
+    return { id: skill.id, name: skill.name, mode: skill.mode }
   },
 }
 
@@ -595,6 +758,7 @@ export const skillsUninstallCapability: Command = {
 export const SKILLS_BUILTIN_CAPABILITIES: readonly Command[] = [
   skillsListCapability,
   skillsReadCapability,
+  skillsCreateCapability,
   skillsAppendCapability,
   skillsReplaceSectionCapability,
   skillsToggleCapability,

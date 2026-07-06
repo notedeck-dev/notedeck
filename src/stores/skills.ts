@@ -11,8 +11,9 @@ import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
  * Skill 実行モード:
  * - `always`: AI セッション開始時に常に system prompt に注入
  * - `manual`: ユーザーが UI からトグルしたときだけ active
- * - `trigger`: user 入力に triggers[] のいずれかが部分一致したターンだけ
- *   session-only に active 化。`triggerMatchingSkillIds` で判定し
+ * - `trigger`: user 入力に triggers[] のいずれかが部分一致したら active 化し、
+ *   そのセッション中は維持される (#725 session-sticky)。
+ *   `triggerMatchingSkillIds` で判定 → session の triggeredSkillIds に累積 →
  *   `composedSystemPrompt` の extraSkillIds 経由で注入する
  * - `heartbeat`: AI 設定の heartbeat 有効化中、tick ごとに body を AI に読ませる
  *   (OpenClaw HEARTBEAT.md 相当 / #411)
@@ -576,8 +577,9 @@ export const useSkillsStore = defineStore('skills', () => {
   /**
    * `mode: 'trigger'` の skill のうち、`triggers[]` のいずれかが `input` に
    * 部分一致したものの id を返す。AI チャット送信時に呼び、戻り id を
-   * `composedSystemPrompt` の `extraSkillIds` に渡すと、その入力ターンだけ
-   * skill body が system prompt に注入される。
+   * session の `triggeredSkillIds` に累積して `composedSystemPrompt` の
+   * `extraSkillIds` に渡すと、そのセッション中は skill body が system prompt
+   * に注入され続ける (#725 session-sticky)。
    *
    * - 大文字小文字無視 (英日 trigger 混在に対応)
    * - 空文字 input / 空 triggers / 非 trigger mode は対象外
