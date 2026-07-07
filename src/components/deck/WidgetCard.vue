@@ -330,6 +330,8 @@ function handlePrimaryClick() {
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
+  /* row3 の折り返しで独立行になっても右端に寄せる (#729) */
+  margin-left: auto;
   opacity: 0;
   transition: opacity 0.15s;
 

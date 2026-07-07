@@ -10,6 +10,7 @@ import {
 import type { NormalizedDriveFile } from '@/adapters/types'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useLongPress } from '@/composables/useLongPress'
+import { usePinchZoom } from '@/composables/usePinchZoom'
 import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -49,6 +50,16 @@ function onLightboxSlideEnd() {
   lightboxSlideClass.value = null
 }
 
+// ピンチズーム / パン / ダブルタップズーム (#730)
+const {
+  transformStyle: zoomStyle,
+  zoomed,
+  reset: resetZoom,
+} = usePinchZoom(lightboxContentRef)
+
+// 画像切替・クローズでズームを解除
+watch(lightboxIndex, () => resetZoom())
+
 useSwipeTab(
   lightboxContentRef,
   () => {
@@ -73,6 +84,8 @@ useSwipeTab(
     classes: { swiping: 'nd-lb-swiping', snapBack: 'nd-lb-snap-back' },
     wheel: true,
     checkHorizontalScroll: false,
+    // ズーム中の1本指ドラッグはパンに割り当てる
+    enabled: () => !zoomed.value,
   },
 )
 const lightboxFile = computed(() =>
@@ -405,6 +418,7 @@ async function openInBrowser() {
           :src="safeMediaSrc(lightboxFile.url)"
           :alt="lightboxFile.name"
           :class="$style.lightboxImage"
+          :style="zoomStyle"
           draggable="false"
           v-bind="longPressHandlers"
           @contextmenu="onLightboxContextMenu"
@@ -707,7 +721,8 @@ async function openInBrowser() {
   align-items: center;
   justify-content: center;
   cursor: default;
-  touch-action: pan-y;
+  /* スワイプ / ピンチズーム / パンは JS で処理する */
+  touch-action: none;
 }
 
 .lightboxOverlay {
@@ -752,7 +767,7 @@ async function openInBrowser() {
   -webkit-touch-callout: default;
   -webkit-user-select: auto;
   user-select: auto;
-  touch-action: auto;
+  touch-action: none;
 }
 
 .lightboxVideo {

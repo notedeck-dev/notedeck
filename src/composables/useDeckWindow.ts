@@ -155,18 +155,21 @@ export async function saveCurrentWindowLayout(opts?: {
       '@tauri-apps/api/window'
     )
     const win = getCurrentWindow()
-    const [pos, size, monitor] = await Promise.all([
+    const [pos, size, monitor, factor] = await Promise.all([
       win.outerPosition(),
       win.outerSize(),
       currentMonitor(),
+      win.scaleFactor(),
     ])
 
+    // WebviewWindow の生成オプション (x/y/width/height) は論理px なので、
+    // 物理px で返る outerPosition/outerSize を論理px に正規化して保存する (#721)
     const layout: DeckWindowLayout = {
       id: deckStore.currentWindowId,
-      x: pos.x,
-      y: pos.y,
-      width: size.width,
-      height: size.height,
+      x: Math.round(pos.x / factor),
+      y: Math.round(pos.y / factor),
+      width: Math.round(size.width / factor),
+      height: Math.round(size.height / factor),
       monitor: monitor?.name ?? undefined,
     }
     deckStore.saveWindowLayout(layout, opts)
@@ -283,9 +286,10 @@ async function resolveWindowPosition(
     // Check if the saved monitor is still connected
     const savedMonitor = monitors.find((m) => m.name === wl.monitor)
     if (savedMonitor) {
-      // Monitor exists — verify coordinates are within its bounds
-      const mx = savedMonitor.position.x
-      const my = savedMonitor.position.y
+      // Monitor exists — verify coordinates are within its bounds.
+      // wl は論理px なのでモニター境界 (物理px) も論理px に揃える (#721)
+      const mx = savedMonitor.position.x / savedMonitor.scaleFactor
+      const my = savedMonitor.position.y / savedMonitor.scaleFactor
       const mw = savedMonitor.size.width / savedMonitor.scaleFactor
       const mh = savedMonitor.size.height / savedMonitor.scaleFactor
       if (
@@ -305,8 +309,8 @@ async function resolveWindowPosition(
 
     // Monitor disconnected — center on primary
     if (primary) {
-      const px = primary.position.x
-      const py = primary.position.y
+      const px = primary.position.x / primary.scaleFactor
+      const py = primary.position.y / primary.scaleFactor
       const pw = primary.size.width / primary.scaleFactor
       const ph = primary.size.height / primary.scaleFactor
       return {

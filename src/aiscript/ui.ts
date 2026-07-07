@@ -33,6 +33,24 @@ function genComponentId(): string {
   return `ais-${Date.now()}-${++componentIdCounter}`
 }
 
+// valToJs 相当の変換だが、ネストした fn を '<function>' に潰さず VFn のまま残す。
+// Ui:C:buttons の buttons 配列内 onClick など、props 直下以外のイベントハンドラは
+// AiScriptUiRenderer の callHandler が VFn を期待するためこちらを使う。
+function valToJsPreservingFn(val: Value): unknown {
+  if (val.type === 'fn') return val
+  if (val.type === 'arr') {
+    return (val.value as Value[]).map(valToJsPreservingFn)
+  }
+  if (val.type === 'obj') {
+    const obj: Record<string, unknown> = {}
+    for (const [k, v] of val.value as Map<string, Value>) {
+      obj[k] = valToJsPreservingFn(v)
+    }
+    return obj
+  }
+  return utils.valToJs(val)
+}
+
 function valueToUiComponent(val: Value): UiComponent | null {
   if (val.type !== 'obj') return null
   const obj = val.value as Map<string, Value>
@@ -57,7 +75,7 @@ function valueToUiComponent(val: Value): UiComponent | null {
         // Keep VFn as-is for event handlers
         props[k] = v
       } else {
-        props[k] = utils.valToJs(v)
+        props[k] = valToJsPreservingFn(v)
       }
     }
   }

@@ -70,6 +70,18 @@ const config = computed(() => ({
   overflow-y: auto;
 }
 
+/*
+ * Scalar はビューポート幅 (1000px) でしかナビサイドバーを畳まないため、
+ * 狭いカラムでも 288px 固定のサイドバーが居座り本文が窮屈になる (#708)。
+ * カラム幅 (DeckColumn の container) 基準で畳んで本文に全幅を渡す。
+ * !important は Scalar 側の `lg:flex` (media query + .scalar-app スコープ) に勝つため。
+ */
+@container (max-width: 768px) {
+  .docsContainer :global(.t-doc__sidebar) {
+    display: none !important;
+  }
+}
+
 .docsError {
   padding: 16px;
   color: var(--nd-love);

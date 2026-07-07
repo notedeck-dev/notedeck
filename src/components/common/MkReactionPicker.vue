@@ -361,6 +361,7 @@ onMounted(() => {
     max-width: 100%;
     max-height: 100%;
     flex: 1;
+    min-height: 0;
   }
 }
 
@@ -395,6 +396,8 @@ onMounted(() => {
 
 .pickerScroll {
   flex: 1;
+  /* flex 子の min-height:auto がコンテンツ高で膨らみスクロール不能になるのを防ぐ (#715) */
+  min-height: 0;
   overflow-y: auto;
   padding: 8px;
   contain: paint;

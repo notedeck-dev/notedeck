@@ -462,25 +462,22 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // since `decorations: false` strips them from the OS frame.
         win_chrome::apply_to_main(app.handle());
 
-        // Fit window to monitor if larger than available screen (e.g. low-res VMs)
+        // Fit window to monitor if larger than available screen (e.g. low-res VMs).
+        // 物理px同士で比較・設定する: monitor.scale_factor() を介した論理px換算は
+        // WSLg 等のスケール誤報告で誤縮小の原因になる (#721)。
         #[cfg(not(mobile))]
         if let Some(w) = app.get_webview_window("main") {
-            if let Ok(Some(monitor)) = w.current_monitor() {
+            if let (Ok(Some(monitor)), Ok(outer)) = (w.current_monitor(), w.outer_size()) {
                 let screen = monitor.size();
-                let scale = monitor.scale_factor();
-                let screen_w = (screen.width as f64 / scale) as u32;
-                let screen_h = (screen.height as f64 / scale) as u32;
-
-                if let Ok(outer) = w.outer_size() {
-                    let win_w = (outer.width as f64 / scale) as u32;
-                    let win_h = (outer.height as f64 / scale) as u32;
-
-                    if win_w > screen_w || win_h > screen_h {
-                        let new_w = win_w.min(screen_w);
-                        let new_h = win_h.min(screen_h);
-                        let _ = w.set_size(tauri::LogicalSize::new(new_w, new_h));
-                        let _ = w.center();
-                    }
+                if outer.width > screen.width || outer.height > screen.height {
+                    // 誤縮小でモバイルレイアウト (420px 論理) に落ちないよう下限を設ける
+                    let scale = monitor.scale_factor();
+                    let floor_w = (600.0 * scale) as u32;
+                    let floor_h = (480.0 * scale) as u32;
+                    let new_w = outer.width.min(screen.width).max(floor_w);
+                    let new_h = outer.height.min(screen.height).max(floor_h);
+                    let _ = w.set_size(tauri::PhysicalSize::new(new_w, new_h));
+                    let _ = w.center();
                 }
             }
         }
