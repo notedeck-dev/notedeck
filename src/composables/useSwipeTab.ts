@@ -29,6 +29,8 @@ export interface SwipeOptions {
   wheel?: boolean
   /** Check for horizontally scrollable children before swiping (default: true) */
   checkHorizontalScroll?: boolean
+  /** Return false to temporarily disable swipe tracking (e.g. while zoomed) */
+  enabled?: () => boolean
 }
 
 /** Check if touch target is inside a horizontally scrollable element */
@@ -104,6 +106,7 @@ export function useSwipeTab(
   }
 
   function onTouchStart(e: TouchEvent) {
+    if (options?.enabled && !options.enabled()) return
     const touch = e.touches[0]
     if (!touch) return
     // Skip swipe if touch is inside a horizontally scrollable child (e.g. CodeMirror)
@@ -231,6 +234,7 @@ export function useSwipeTab(
   let lastWheelAt = 0
 
   function onWheel(e: WheelEvent) {
+    if (options?.enabled && !options.enabled()) return
     // Only react to horizontal scroll (deltaX) or shift+wheel (deltaY as horizontal)
     const dx = e.deltaX || (e.shiftKey ? e.deltaY : 0)
     if (dx === 0) return
