@@ -63,7 +63,6 @@ const titleBarText = computed(() => {
   return `NoteDeck${suffix}`
 })
 const isMaximized = ref(false)
-const isCompactSize = ref(false)
 
 const MOBILE_WIDTH = 420
 const MOBILE_HEIGHT = 780
@@ -74,21 +73,12 @@ async function syncMaximized() {
   isMaximized.value = await appWindow.isMaximized()
 }
 
-async function syncMobileState() {
-  const factor = await appWindow.scaleFactor()
-  const size = await appWindow.innerSize()
-  const logicalWidth = size.width / factor
-  isCompactSize.value = logicalWidth <= MOBILE_WIDTH + 20
-}
-
 let unlisten: (() => void) | null = null
 
 onMounted(async () => {
   await syncMaximized()
-  await syncMobileState()
   unlisten = await appWindow.onResized(async () => {
     await syncMaximized()
-    await syncMobileState()
   })
 })
 
@@ -109,7 +99,7 @@ async function close() {
 }
 
 async function toggleMobileSize() {
-  if (isCompactSize.value) {
+  if (isCompact.value) {
     if (savedDesktopSize) {
       await appWindow.setSize(
         new LogicalSize(savedDesktopSize.width, savedDesktopSize.height),
@@ -125,11 +115,11 @@ async function toggleMobileSize() {
     } else if (isMaximized.value) {
       await appWindow.unmaximize()
     }
-    const factor = await appWindow.scaleFactor()
-    const current = await appWindow.innerSize()
+    // scaleFactor 換算は WSLg 等でスケール報告が揺れると狂うため、
+    // CSS 論理px (innerWidth/innerHeight) をそのまま保存する (#721)
     savedDesktopSize = {
-      width: current.width / factor,
-      height: current.height / factor,
+      width: window.innerWidth,
+      height: window.innerHeight,
     }
     await appWindow.setSize(new LogicalSize(MOBILE_WIDTH, MOBILE_HEIGHT))
   }
@@ -216,10 +206,10 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
         </button>
         <button
           :class="[$style.titlebarBtn, $style.titlebarWindowBtn]"
-          :title="isCompactSize ? 'デスクトップサイズ' : 'モバイルサイズ'"
+          :title="isCompact ? 'デスクトップサイズ' : 'モバイルサイズ'"
           @click="toggleMobileSize"
         >
-          <i :class="isCompactSize ? 'ti ti-device-desktop' : 'ti ti-device-mobile'" />
+          <i :class="isCompact ? 'ti ti-device-desktop' : 'ti ti-device-mobile'" />
         </button>
       </template>
       <template v-if="isDesktop">
