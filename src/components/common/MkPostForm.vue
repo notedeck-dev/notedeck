@@ -28,7 +28,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useIsCompactLayout } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { buildPreviewNote } from '@/utils/buildPreviewNote'
-import { parseMfm } from '@/utils/mfm'
+import { buildReplyMentions } from '@/utils/replyMentions'
 import {
   formatScheduleAbsolute,
   formatScheduleRelative,
@@ -39,6 +39,8 @@ import MkDrivePicker from './MkDrivePicker.vue'
 import MkMfm from './MkMfm.vue'
 import MkNote from './MkNote.vue'
 import MkPostFormButtonsPicker from './MkPostFormButtonsPicker.vue'
+import PostFormFilePreviews from './post-form/PostFormFilePreviews.vue'
+import PostFormPollEditor from './post-form/PostFormPollEditor.vue'
 
 const MkReactionPicker = defineAsyncComponent(
   () => import('./MkReactionPicker.vue'),
@@ -145,23 +147,6 @@ const {
   },
   { memoMode: props.memoMode },
 )
-
-// Stable keys for poll choices (avoid index-based v-for key bugs on add/remove)
-let pollKeyCounter = 0
-const pollChoiceKeys = ref<number[]>(
-  pollChoices.value.map(() => pollKeyCounter++),
-)
-
-const origAddPollChoice = addPollChoice
-const origRemovePollChoice = removePollChoice
-const addPollChoiceKeyed = () => {
-  origAddPollChoice()
-  pollChoiceKeys.value.push(pollKeyCounter++)
-}
-const removePollChoiceKeyed = (index: number) => {
-  origRemovePollChoice(index)
-  pollChoiceKeys.value.splice(index, 1)
-}
 
 // --- Auto-save toggle (persisted in settings, like preview).
 // 非 memoMode は drafts に自動保存、memoMode は memos に自動保存。
@@ -362,40 +347,8 @@ onMounted(async () => {
     visibility.value = props.editNote.visibility
   } else if (props.replyTo) {
     visibility.value = props.replyTo.visibility
-    const myUserId = account.value?.userId
-    const mentions: string[] = []
-    const seen = new Set<string>()
-
-    // 1. Reply target user
-    const replyUser = props.replyTo.user
-    if (replyUser.id !== myUserId) {
-      const acct = replyUser.host
-        ? `@${replyUser.username}@${replyUser.host}`
-        : `@${replyUser.username}`
-      mentions.push(acct)
-      seen.add(acct.toLowerCase())
-    }
-
-    // 2. Mentions in the reply target's text (reply chain participants)
-    if (props.replyTo.text) {
-      for (const token of parseMfm(props.replyTo.text)) {
-        if (token.type !== 'mention') continue
-        const acct = token.acct
-        const lower = acct.toLowerCase()
-        if (seen.has(lower)) continue
-        // Skip self
-        const isSelf = token.host
-          ? token.username.toLowerCase() ===
-              account.value?.username?.toLowerCase() &&
-            token.host.toLowerCase() === account.value?.host?.toLowerCase()
-          : token.username.toLowerCase() ===
-            account.value?.username?.toLowerCase()
-        if (isSelf) continue
-        seen.add(lower)
-        mentions.push(acct)
-      }
-    }
-
+    // リプライ先 + 本文中の会話参加者へのメンションを prefill (#707 で抽出)
+    const mentions = buildReplyMentions(props.replyTo, account.value ?? null)
     if (mentions.length > 0) {
       text.value = `${mentions.join(' ')} `
     }
@@ -791,55 +744,21 @@ function onKeydown(e: KeyboardEvent) {
       </div>
 
       <!-- Poll editor -->
-      <div v-if="showPoll" :class="$style.pollEditor">
-        <div v-for="(_, i) in pollChoices" :key="pollChoiceKeys[i]" :class="$style.pollChoiceRow">
-          <input
-            v-model="pollChoices[i]"
-            :class="$style.pollChoiceInput"
-            :placeholder="`選択肢 ${i + 1}`"
-          />
-          <button
-            v-if="pollChoices.length > 2"
-            class="_button"
-            :class="$style.pollChoiceRemove"
-            @click="removePollChoiceKeyed(i)"
-          >
-            <i class="ti ti-x" />
-          </button>
-        </div>
-        <div :class="$style.pollActions">
-          <button
-            v-if="pollChoices.length < 10"
-            class="_button"
-            :class="$style.pollAddBtn"
-            @click="addPollChoiceKeyed"
-          >
-            <i class="ti ti-plus" /> 選択肢を追加
-          </button>
-          <label :class="$style.pollMultipleLabel">
-            <input v-model="pollMultiple" type="checkbox" />
-            複数選択
-          </label>
-        </div>
-      </div>
+      <PostFormPollEditor
+        v-if="showPoll"
+        v-model:multiple="pollMultiple"
+        :choices="pollChoices"
+        @add="addPollChoice"
+        @remove="removePollChoice"
+      />
 
       <!-- File previews -->
-      <div v-if="attachedFiles.length > 0 || isUploading" :class="$style.filePreviewArea">
-        <div v-for="file in attachedFiles" :key="file.id" :class="$style.filePreview">
-          <img
-            v-if="file.thumbnailUrl || file.type.startsWith('image/')"
-            :src="file.thumbnailUrl || file.url"
-            :class="$style.fileThumb"
-          />
-          <div v-else :class="$style.fileIcon">
-            <i class="ti ti-file-text" />
-          </div>
-          <button class="_button" :class="$style.fileRemove" title="削除" @click="removeFile(file.id)">
-            <i class="ti ti-x" />
-          </button>
-        </div>
-        <div v-if="isUploading" :class="$style.fileUploading">アップロード中...</div>
-      </div>
+      <PostFormFilePreviews
+        v-if="attachedFiles.length > 0 || isUploading"
+        :files="attachedFiles"
+        :uploading="isUploading"
+        @remove="removeFile"
+      />
 
       <!-- Error -->
       <div v-if="error" :class="$style.postError">{{ error }}</div>
@@ -1731,84 +1650,6 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 /* ── Poll editor ── */
-.pollEditor {
-  padding: 8px 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.pollChoiceRow {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.pollChoiceInput {
-  flex: 1;
-  padding: 6px 10px;
-  font-size: 0.9em;
-  font-family: inherit;
-  color: var(--nd-fg);
-  background: var(--nd-buttonBg);
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  outline: none;
-
-  &::placeholder {
-    color: var(--nd-fg);
-    opacity: 0.35;
-  }
-}
-
-.pollChoiceRemove {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-fg);
-  opacity: 0.5;
-  flex-shrink: 0;
-
-  &:hover {
-    opacity: 1;
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
-  }
-}
-
-.pollActions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-top: 2px;
-}
-
-.pollAddBtn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  font-size: 0.8em;
-  color: var(--nd-accent);
-  border-radius: var(--nd-radius-sm);
-
-  &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
-  }
-}
-
-.pollMultipleLabel {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.8em;
-  color: var(--nd-fg);
-  opacity: 0.7;
-  cursor: pointer;
-}
-
 /* ── Footer ── */
 .footer {
   position: relative;
@@ -1979,65 +1820,6 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 /* ── File preview ── */
-.filePreviewArea {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 24px;
-}
-
-.filePreview {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  border-radius: var(--nd-radius-md);
-  overflow: hidden;
-  background: var(--nd-buttonBg);
-}
-
-.fileThumb {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.fileIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  color: var(--nd-fg);
-  opacity: 0.5;
-}
-
-.fileRemove {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--nd-overlayDark);
-  color: #fff;
-  cursor: pointer;
-}
-
-.fileUploading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 80px;
-  height: 80px;
-  border-radius: var(--nd-radius-md);
-  background: var(--nd-buttonBg);
-  font-size: 0.7em;
-  opacity: 0.6;
-}
-
 /* ── Schedule indicator (textarea 右下にフローティング) ── */
 .scheduleIndicator {
   position: absolute;
