@@ -39,7 +39,7 @@ import { isTauri } from '@/utils/settingsFs'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { type ChatMessage, type ToolUseEvent, useAiChat } from './useAiChat'
+import { type ChatMessage, useAiChat } from './useAiChat'
 import {
   type AiConfig,
   HEARTBEAT_ACK_MAX_CHARS,
@@ -47,6 +47,7 @@ import {
   resolveAiConnection,
   useAiConfig,
 } from './useAiConfig'
+import { type AiSendSessionPort, useAiSendLoop } from './useAiSendLoop'
 import {
   buildAiContextBlock,
   composeHeartbeatSystemPrompt,
@@ -102,7 +103,35 @@ export function applyHeartbeatSuppression(
   return body
 }
 
-const MAX_TOOL_ROUNDS = 5
+/** useAiSendLoop に渡す heartbeat 専用の使い捨てセッション id */
+export const HEARTBEAT_EPHEMERAL_SESSION_ID = 'heartbeat-ephemeral'
+
+/**
+ * heartbeat の AI 推論は永続 session を持たず、tick ごとに使い捨ての wire
+ * history で走る。send ループを DeckAiColumn と共有する (#707) ため、
+ * useAiSendLoop の session port を in-memory で満たす。
+ */
+export function createEphemeralAiSession(): {
+  port: AiSendSessionPort
+  /** tick 開始時に履歴を空へ戻す */
+  reset(): void
+} {
+  let messages: ChatMessage[] = []
+  return {
+    port: {
+      get: (id) =>
+        id === HEARTBEAT_EPHEMERAL_SESSION_ID
+          ? { title: '', messages }
+          : undefined,
+      updateMessages: (id, next) => {
+        if (id === HEARTBEAT_EPHEMERAL_SESSION_ID) messages = next
+      },
+    },
+    reset: () => {
+      messages = []
+    },
+  }
+}
 
 /**
  * AI 推論の連続失敗がこの回数に達したら daemon を自動 disable + warning toast。
@@ -345,6 +374,17 @@ export function useHeartbeatDaemon() {
   // (chat session で同じパターンを採用している)
   const titleGen = useAiChat()
   const toast = useToast()
+
+  // send ループ本体は DeckAiColumn と共有 (#707)。heartbeat の推論履歴は
+  // 永続 session に残さず tick ごとに使い捨てる (報告は target session への
+  // append で別管理)。
+  const ephemeral = createEphemeralAiSession()
+  const sendLoop = useAiSendLoop({
+    chat: aiChat,
+    sessions: ephemeral.port,
+    dispatch: (name, input) =>
+      dispatchCapability(name, input, { principal: { kind: 'ai.heartbeat' } }),
+  })
 
   const isRunning = ref(false)
   /**
@@ -704,14 +744,6 @@ export function useHeartbeatDaemon() {
       return null
     }
 
-    const initialUser: ChatMessage = {
-      id: `msg-${Date.now()}-hb-u`,
-      role: 'user',
-      content: `Heartbeat tick at ${new Date(payload.triggered_at_ms).toISOString()}`,
-      timestamp: Date.now(),
-    }
-    const history: ChatMessage[] = [initialUser]
-
     const granted = resolveForProfiled('ai.heartbeat')
     const eligibleCaps = listCapabilities().filter((c) => {
       if (!c.aiTool || !c.signature) return false
@@ -761,53 +793,21 @@ export function useHeartbeatDaemon() {
       HEARTBEAT_INSTRUCTION,
     )
 
-    let finalText = ''
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      let pendingToolUse: ToolUseEvent | null = null
-      const turnText = await aiChat.sendMessage({
-        connectionId: resolved.connection.id,
-        model: resolved.model,
-        history,
-        system,
-        tools,
-        onToolUse: (e) => {
-          pendingToolUse = e
-        },
-      })
-
-      if (!pendingToolUse) {
-        finalText = turnText
-        break
-      }
-      const toolUse: ToolUseEvent = pendingToolUse
-      const dispatch = await dispatchCapability(toolUse.name, toolUse.input, {
-        principal: { kind: 'ai.heartbeat' },
-      })
-      const resultText = dispatch.ok
-        ? typeof dispatch.result === 'string'
-          ? dispatch.result
-          : JSON.stringify(dispatch.result)
-        : `Error (${dispatch.code}): ${dispatch.error}`
-      const ts = Date.now()
-      history.push({
-        id: `msg-${ts}-hb-a${round}`,
-        role: 'assistant',
-        content: turnText,
-        timestamp: ts,
-        toolUseId: toolUse.toolUseId,
-        toolUseName: toolUse.name,
-        toolUseInput: toolUse.input,
-      })
-      history.push({
-        id: `msg-${ts}-hb-r${round}`,
-        role: 'user',
-        content: resultText,
-        timestamp: ts,
-        toolResultFor: toolUse.toolUseId,
-      })
-    }
-
-    return finalText
+    // tool round / dispatch 結果の整形は useAiSendLoop の責務 (#707)。
+    // context は tick 開始時に一度組み立てた system を全 round で使い回す。
+    ephemeral.reset()
+    const outcome = await sendLoop.runSend({
+      sessionId: HEARTBEAT_EPHEMERAL_SESSION_ID,
+      text: `Heartbeat tick at ${new Date(payload.triggered_at_ms).toISOString()}`,
+      connectionId: resolved.connection.id,
+      model: resolved.model,
+      tools,
+      buildSystem: () => system,
+    })
+    if (outcome.status === 'aborted') return null
+    // throw に変換して呼び出し側の連続失敗カウント (auto-disable) に乗せる
+    if (outcome.status === 'error') throw new Error(outcome.message)
+    return outcome.finalText
   }
 
   // App.vue が daemon を mount するだけで使う (provide/inject なし)。
