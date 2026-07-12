@@ -1,0 +1,45 @@
+name: ベータテスター応募
+description: ストア配布 (Google Play / App Store) のクローズドテストに参加する
+title: "[Beta] ストア配布ベータテスト応募"
+labels: ["beta-test"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ご協力ありがとうございます！ 応募は下の 2 項目を埋めるだけで完了です。
+
+        テスター登録に必要な連絡先 (Google アカウントのメールアドレス等) をこの Issue に公開で書く必要はありません。
+        登録の準備が整い次第、こちらからこの Issue 上で共有方法をご案内します。
+        応募後のキャンセルもいつでも可能です。お気軽にどうぞ。
+  - type: dropdown
+    id: platform
+    attributes:
+      label: テストできるプラットフォーム
+      description: 複数選択できます
+      multiple: true
+      options:
+        - Android (Google Play)
+        - iOS (TestFlight)
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 端末と OS バージョン
+      placeholder: "例: Pixel 8 / Android 15"
+    validations:
+      required: true
+  - type: input
+    id: server
+    attributes:
+      label: 普段使っている Misskey サーバー (任意)
+      placeholder: "例: misskey.io"
+    validations:
+      required: false
+  - type: textarea
+    id: note
+    attributes:
+      label: ひとこと (任意)
+      description: 意気込みや質問など、あれば自由にどうぞ
+    validations:
+      required: false
