@@ -343,8 +343,8 @@ describe('runSend: エラー時の partial 温存 (#508)', () => {
   })
 })
 
-describe('retryContext (#646: write capability 二重実行防止)', () => {
-  it('tool 未実行 (toolRound=0) のエラーで retryContext を記録する', async () => {
+describe('retryContext (#646 → #737: write capability 二重実行防止)', () => {
+  it('tool 未実行 (toolRound=0) のエラーで mode=resend を記録する', async () => {
     const { deps } = makeDeps([
       () => {
         throw new Error('boom')
@@ -357,10 +357,11 @@ describe('retryContext (#646: write capability 二重実行防止)', () => {
     expect(loop.retryContext.value).toMatchObject({
       sessionId: 's1',
       userText: 'こんにちは',
+      mode: 'resend',
     })
   })
 
-  it('tool 実行済みターンのエラーでは記録しない', async () => {
+  it('tool 実行済みターンのエラーは mode=continue を記録する (#737: 再送でなく継続)', async () => {
     const { dispatch, deps } = makeDeps([
       toolStep('', 'toolu_1', 'notes.create'),
       () => {
@@ -373,7 +374,11 @@ describe('retryContext (#646: write capability 二重実行防止)', () => {
 
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(outcome.status).toBe('error')
-    expect(loop.retryContext.value).toBeNull()
+    expect(loop.retryContext.value).toMatchObject({
+      sessionId: 's1',
+      userText: 'こんにちは',
+      mode: 'continue',
+    })
   })
 
   it('runSend 開始時に前回の retryContext をクリアする', async () => {
@@ -394,7 +399,7 @@ describe('retryContext (#646: write capability 二重実行防止)', () => {
 })
 
 describe('prepareRetry', () => {
-  it('失敗した user + assistant ペアを session から除去し userText を返す', async () => {
+  it('resend: 失敗した user + assistant ペアを session から除去し userText を返す', async () => {
     const { sessions, deps } = makeDeps(
       [
         () => {
@@ -413,12 +418,35 @@ describe('prepareRetry', () => {
     await loop.runSend(request())
     expect(sessions.get('s1')?.messages).toHaveLength(4)
 
-    const text = loop.prepareRetry('s1')
+    const retry = loop.prepareRetry('s1')
 
-    expect(text).toBe('こんにちは')
+    expect(retry).toEqual({ mode: 'resend', text: 'こんにちは' })
     expect(loop.retryContext.value).toBeNull()
     // 失敗ペアが消え、既存の会話だけが残る
     expect(sessions.get('s1')?.messages.map((m) => m.id)).toEqual(['u0', 'a0'])
+  })
+
+  it('continue: 失敗 placeholder のみ除去し、user と実行済み tool_use / tool_result は残す (#737)', async () => {
+    const { sessions, deps } = makeDeps([
+      toolStep('検索します', 'toolu_1', 'notes.create'),
+      () => {
+        throw new Error('boom after tool')
+      },
+    ])
+    const loop = useAiSendLoop(deps)
+
+    await loop.runSend(request())
+    // user / assistant(tool_use) / user(tool_result) / placeholder(⚠️)
+    expect(sessions.get('s1')?.messages).toHaveLength(4)
+
+    const retry = loop.prepareRetry('s1')
+
+    expect(retry).toEqual({ mode: 'continue', text: 'こんにちは' })
+    const remaining = sessions.get('s1')?.messages ?? []
+    expect(remaining).toHaveLength(3)
+    expect(remaining[0]).toMatchObject({ role: 'user', content: 'こんにちは' })
+    expect(remaining[1]).toMatchObject({ toolUseId: 'toolu_1' })
+    expect(remaining[2]).toMatchObject({ toolResultFor: 'toolu_1' })
   })
 
   it('別セッション表示中や streaming 中は何もしない', async () => {
@@ -439,6 +467,89 @@ describe('prepareRetry', () => {
     chat.isStreaming.value = false
 
     expect(sessions.get('s1')?.messages).toHaveLength(2)
+  })
+})
+
+describe('runSend: continuation (#737 tool 実行ターンの安全な再試行)', () => {
+  /** tool 実行済みターンが失敗した直後の session 状態を作る。 */
+  async function failAfterTool() {
+    const { chat, sessions, dispatch, deps } = makeDeps([
+      toolStep('実行します', 'toolu_1', 'notes.create', { text: 'hi' }),
+      () => {
+        throw new Error('切断')
+      },
+      textStep('投稿しました'),
+    ])
+    const loop = useAiSendLoop(deps)
+    await loop.runSend(request())
+    return { chat, sessions, dispatch, deps, loop }
+  }
+
+  it('user メッセージを追加せず、実行済み tool_result を含む履歴で続きを生成する', async () => {
+    const { chat, sessions, dispatch, loop } = await failAfterTool()
+    const retry = loop.prepareRetry('s1')
+    expect(retry?.mode).toBe('continue')
+
+    const outcome = await loop.runSend(
+      request({ text: retry?.text ?? '', continuation: true }),
+    )
+
+    expect(outcome).toMatchObject({ status: 'done', finalText: '投稿しました' })
+    // 継続で dispatch が再実行されていない (= 二重投稿なし)
+    expect(dispatch).toHaveBeenCalledTimes(1)
+
+    const messages = sessions.get('s1')?.messages ?? []
+    // user / assistant(tool_use) / tool_result / assistant(final) — user は 1 つだけ
+    expect(
+      messages.filter((m) => m.role === 'user' && !m.toolResultFor),
+    ).toHaveLength(1)
+    expect(messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: '投稿しました',
+    })
+
+    // 継続 round の wire history は tool_result で終わる (placeholder 除外済み)
+    const contHistory = chat.calls[2]?.history ?? []
+    expect(contHistory.at(-1)?.toolResultFor).toBe('toolu_1')
+  })
+
+  it('継続 round の system に切断通知を付与する', async () => {
+    const { chat, loop } = await failAfterTool()
+    loop.prepareRetry('s1')
+
+    await loop.runSend(request({ continuation: true }))
+
+    expect(chat.calls[2]?.system).toContain('SYSTEM')
+    expect(chat.calls[2]?.system).toContain('切断')
+  })
+
+  it('継続がさらに失敗しても mode=continue を再記録する (再継続可能)', async () => {
+    const { deps } = makeDeps([
+      toolStep('', 'toolu_1', 'notes.create'),
+      () => {
+        throw new Error('切断 1 回目')
+      },
+      () => {
+        throw new Error('切断 2 回目')
+      },
+    ])
+    const loop = useAiSendLoop(deps)
+    await loop.runSend(request())
+    expect(loop.prepareRetry('s1')?.mode).toBe('continue')
+
+    // 継続 1 round 目 (このターン内では tool 未実行) で再度切断しても、
+    // ターン全体としては実行済み tool を含むため resend に落ちてはいけない
+    const outcome = await loop.runSend(request({ continuation: true }))
+    expect(outcome.status).toBe('error')
+    expect(loop.retryContext.value?.mode).toBe('continue')
+  })
+
+  it('tool_use assistant しか無い session では wasFirstRound=true (タイトル生成が動く)', async () => {
+    const { loop } = await failAfterTool()
+    loop.prepareRetry('s1')
+
+    const outcome = await loop.runSend(request({ continuation: true }))
+    expect(outcome).toMatchObject({ status: 'done', wasFirstRound: true })
   })
 })
 

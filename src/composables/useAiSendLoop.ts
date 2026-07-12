@@ -48,12 +48,21 @@ export interface AiSendLoopDeps {
 
 export interface AiSendRequest {
   sessionId: string
-  /** ユーザー入力テキスト (user メッセージとして追加される) */
+  /**
+   * ユーザー入力テキスト (user メッセージとして追加される)。
+   * continuation では追加されない (元ターンの user メッセージが履歴に残っている)。
+   */
   text: string
   connectionId: string
   model: string
   /** provider 形式に変換済みの tool definition 配列 */
   tools?: unknown[]
+  /**
+   * 切断ターンの継続モード (#737)。user メッセージを追加せず、session に
+   * 残っている実行済み tool_use / tool_result を含む履歴から続きを生成する。
+   * 実行済み tool を再生成しないため write capability の二重実行が起きない。
+   */
+  continuation?: boolean
   /**
    * round ごとに wire history から system prompt を組み立てる。
    * context (memos / visible notes 等) は round 間で変わりうるため毎回呼ぶ。
@@ -72,15 +81,37 @@ export type AiSendOutcome =
 
 /**
  * ストリーム切断 (#508) で失敗したターンの再試行用コンテキスト。
- * tool を 1 つでも実行したターンは再送で write capability が二重実行される
- * 恐れがあるため記録しない (#646 §C)。
+ *
+ * - `resend` — tool 未実行のターン。user + placeholder を取り除き、同じ
+ *   text で通常送信を再走行する (#646 §C)
+ * - `continue` — tool 実行済みのターン (#737)。dispatch は sendMessage の
+ *   完了後にのみ走り、結果は次の sendMessage 前に session へ記録済みなので、
+ *   「実行済みだが未記録」の tool は存在しない。よって失敗 placeholder だけ
+ *   取り除き、実行済み tool_use / tool_result を履歴に残したまま続きを
+ *   生成すれば、write capability を再実行する経路は構造的に無い
  */
 export interface AiRetryContext {
   sessionId: string
-  userMsgId: string
+  /** resend で取り除く user メッセージ (continuation 起点では undefined) */
+  userMsgId?: string
   placeholderId: string
   userText: string
+  mode: 'resend' | 'continue'
 }
+
+export interface AiRetryPlan {
+  mode: 'resend' | 'continue'
+  /** 再送 (resend) / 継続時の trigger 再解決 (continue) に使う元の入力 */
+  text: string
+}
+
+/**
+ * 継続モードで system prompt 末尾に付ける通知 (#737)。実行済み tool の
+ * 繰り返しをモデル側でも抑止する 2 重目の防壁 (1 重目は「実行済み round を
+ * 再生成しない」という構造そのもの)。
+ */
+export const CONTINUATION_NOTICE =
+  '直前の応答は途中で切断されました。会話履歴にある tool 実行結果は既に実行済みです。同じ書き込み操作を繰り返さず、既存の結果を使って応答の続きを完成させてください。'
 
 /**
  * tool_use ループで暴走しないための上限。1 ターン中に AI が連続で tool を
@@ -115,19 +146,30 @@ export function useAiSendLoop(deps: AiSendLoopDeps) {
     retryContext.value = null
 
     const now = Date.now()
-    const userMsg: ChatMessage = {
-      id: `msg-${now}-u`,
-      role: 'user',
-      content: req.text,
-      timestamp: now,
-    }
     const before = deps.sessions.get(req.sessionId)
     if (!before) return { status: 'aborted' }
-    deps.sessions.updateMessages(req.sessionId, [...before.messages, userMsg])
-    deps.onUpdate?.()
 
-    // この round が assistant 応答のない初回かどうか (AI 生成タイトル用)
-    const wasFirstRound = !before.messages.some((m) => m.role === 'assistant')
+    // continuation (#737) では user メッセージを追加しない (失敗ターンの
+    // user + 実行済み tool_use / tool_result が session に残っている)。
+    let userMsgId: string | undefined
+    if (!req.continuation) {
+      const userMsg: ChatMessage = {
+        id: `msg-${now}-u`,
+        role: 'user',
+        content: req.text,
+        timestamp: now,
+      }
+      userMsgId = userMsg.id
+      deps.sessions.updateMessages(req.sessionId, [...before.messages, userMsg])
+      deps.onUpdate?.()
+    }
+
+    // このターンが assistant 応答のない初回かどうか (AI 生成タイトル用)。
+    // 失敗ターンの残骸 (tool_use 付き assistant) は「完了した応答」ではない
+    // ので数えない (= continuation でも初回ならタイトル生成が動く)。
+    const wasFirstRound = !before.messages.some(
+      (m) => m.role === 'assistant' && !m.toolUseId,
+    )
 
     // Pre-add empty assistant placeholder so streaming has a target slot
     const assistantMsg: ChatMessage = {
@@ -165,7 +207,13 @@ export function useAiSendLoop(deps: AiSendLoopDeps) {
             !m.heartbeat,
         )
 
-        const system = await req.buildSystem(history)
+        const base = await req.buildSystem(history)
+        // 継続モードでは切断通知を付け、実行済み tool の繰り返しを抑止する
+        const system = req.continuation
+          ? base
+            ? `${base}\n\n${CONTINUATION_NOTICE}`
+            : CONTINUATION_NOTICE
+          : base
 
         let pendingToolUse: ToolUseEvent | null = null
         const turnText = await deps.chat.sendMessage({
@@ -294,15 +342,16 @@ export function useAiSendLoop(deps: AiSendLoopDeps) {
           ])
         }
       }
-      // tool 未実行のターンだけ再試行を許可する (#508)。tool 実行後の再送は
-      // write capability (投稿/クリップ等) の二重実行につながるため出さない。
-      if (toolRound === 0) {
-        retryContext.value = {
-          sessionId: req.sessionId,
-          userMsgId: userMsg.id,
-          placeholderId,
-          userText: req.text,
-        }
+      // 再試行コンテキスト (#508 / #737)。tool 未実行の新規ターンは resend
+      // (ターン全体を再送)、tool 実行済み or 継続中のターンは continue
+      // (実行済み tool を保持して続きから生成)。再送による write capability
+      // の二重実行はこの分岐で構造的に防ぐ。
+      retryContext.value = {
+        sessionId: req.sessionId,
+        userMsgId,
+        placeholderId,
+        userText: req.text,
+        mode: toolRound === 0 && !req.continuation ? 'resend' : 'continue',
       }
       return { status: 'error', message, wasFirstRound }
     } finally {
@@ -312,25 +361,29 @@ export function useAiSendLoop(deps: AiSendLoopDeps) {
   }
 
   /**
-   * 再試行の準備: 失敗した user + assistant のペアを session から取り除き、
-   * 再送すべき userText を返す。history が失敗前と同一になるので、呼び出し側は
-   * 通常の送信経路を再走行するだけでよい。実行できない状況 (別セッション表示中 /
-   * streaming 中 / コンテキスト無し) では null を返し、状態を変えない。
+   * 再試行の準備。実行できない状況 (別セッション表示中 / streaming 中 /
+   * コンテキスト無し) では null を返し、状態を変えない。
+   *
+   * - resend: 失敗した user + placeholder を取り除く。history が失敗前と
+   *   同一になるので、呼び出し側は通常の送信経路を再走行するだけでよい
+   * - continue (#737): 失敗 placeholder のみ取り除く。user と実行済み
+   *   tool_use / tool_result は履歴に残し、呼び出し側は continuation: true
+   *   で runSend を再走行する
    */
-  function prepareRetry(currentSessionId: string | null): string | null {
+  function prepareRetry(currentSessionId: string | null): AiRetryPlan | null {
     const r = retryContext.value
     if (!r || deps.chat.isStreaming.value) return null
     if (r.sessionId !== currentSessionId) return null
     retryContext.value = null
     const cur = deps.sessions.get(r.sessionId)
     if (!cur) return null
+    const removeIds =
+      r.mode === 'resend' ? [r.userMsgId, r.placeholderId] : [r.placeholderId]
     deps.sessions.updateMessages(
       r.sessionId,
-      cur.messages.filter(
-        (m) => m.id !== r.userMsgId && m.id !== r.placeholderId,
-      ),
+      cur.messages.filter((m) => !removeIds.includes(m.id)),
     )
-    return r.userText
+    return { mode: r.mode, text: r.userText }
   }
 
   return {

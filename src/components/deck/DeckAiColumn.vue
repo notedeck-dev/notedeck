@@ -361,13 +361,15 @@ const canRetry = computed(
 )
 
 /**
- * 失敗した user + assistant のペアを取り除き、同じ内容で通常の送信経路を
- * 再走行する。history が失敗前と同一になるので、送信ロジックの分岐を増やさず
- * に済む。
+ * 失敗ターンの再試行 (#508 / #737)。
+ * - resend: user + placeholder を取り除いて同じ内容を通常送信で再走行
+ * - continue: 実行済み tool_use / tool_result を残したまま続きを生成
+ *   (write capability を再実行しない継続モード)
  */
 async function retryLastSend(): Promise<void> {
-  const text = sendLoop.prepareRetry(currentSessionId.value)
-  if (text) await sendMessage(text)
+  const retry = sendLoop.prepareRetry(currentSessionId.value)
+  if (!retry) return
+  await sendMessage(retry.text, { continuation: retry.mode === 'continue' })
 }
 
 // --- 送信 ---
@@ -480,13 +482,18 @@ function ensureSession(): string {
   return session.id
 }
 
-async function sendMessage(presetText?: string | Event) {
+async function sendMessage(
+  presetText?: string | Event,
+  opts?: { continuation?: boolean },
+) {
   // template の @click からは Event が渡るので string のみ preset 扱いにする。
   // preset は retryLastSend からの再送で、入力欄のドラフトには触れない。
   const preset = typeof presetText === 'string' ? presetText : undefined
   const text = (preset ?? input.value).trim()
   if (!text || aiChat.isStreaming.value) return
   sendLoop.retryContext.value = null
+  // 継続 (#737): user メッセージを追加せず失敗ターンの続きを生成する
+  const continuation = opts?.continuation === true
 
   // Slash コマンドは AI を経由せず capability を直接実行する経路。
   // provider 未接続でも動くので、provider check より先に分岐する。
@@ -572,6 +579,7 @@ async function sendMessage(presetText?: string | Event) {
     connectionId: resolved.connection.id,
     model: resolved.model,
     tools: toolsForProvider,
+    continuation,
     // round ごとに context を組み直す (memos / vault 開示状態は round 間で
     // 変わりうるため)。history は sendLoop が組み立てた wire history。
     buildSystem: async (history) => {
@@ -1104,7 +1112,8 @@ function onKeydown(e: KeyboardEvent) {
         <div ref="messagesEndRef" />
       </div>
 
-      <!-- ストリーム切断 (#508) からの再試行導線。tool 実行済みターンでは出ない -->
+      <!-- ストリーム切断 (#508) からの再試行導線。tool 実行済みターンは
+           実行済み結果を保持したまま続きを生成する継続モードで再試行する (#737) -->
       <div v-if="canRetry" :class="$style.retryBar">
         <button class="_button" :class="$style.retryBtn" @click="retryLastSend">
           <i class="ti ti-refresh" />
