@@ -25,11 +25,30 @@ const uiStore = useUiStore()
 const tutorialStore = useTutorialStore()
 const accountsStore = useAccountsStore()
 
+const REPO_URL = 'https://github.com/hitalin/notedeck'
+const SITE_URL = 'https://notedeck.hital.in'
+const SPONSOR_URL = 'https://github.com/sponsors/hitalin'
+
 // チュートリアル (= ヘルプ/案内) の再実行はここから。設定メニューではなく
-// About に置く (チュートリアルは設定項目ではないため)。起動時に About は閉じる。
+// About に置く (チュートリアルは設定項目ではないため)。ほぼ一度しか使われない
+// 機能なので CTA にはせず、リンク行 (formLink) の1つに置く。起動時に About は閉じる。
 function openTutorial(): void {
   tutorialStore.start()
   emit('close')
+}
+
+// バージョン情報テーブルは普段は畳んでおく (必要なのはバグ報告・コピー時で、
+// その2つは表示に依存せず infoRows から本文を生成する)
+const infoOpen = ref(false)
+
+// ロゴのイースターエッグ: クリックすると HEARTBEAT にちなんだ鼓動を打つ。
+// 一度 class を外してから付け直すことで、連打や中断後も確実に再発火させる
+const logoBeating = ref(false)
+function beatLogo(): void {
+  logoBeating.value = false
+  requestAnimationFrame(() => {
+    logoBeating.value = true
+  })
 }
 
 // 自己診断 (#644): notecli doctor + ランタイム状態。About を開いた時に走らせ、
@@ -200,134 +219,390 @@ function reportBug() {
   const diag = diagnosticsLog.value
   const diagSection = diag ? `\n\n## 診断\n\n\`\`\`\n${diag}\n\`\`\`` : ''
   const body = `## 現象\n\n<!-- 何が起きたか -->\n\n## 再現手順\n\n1.\n2.\n3.\n\n## 期待する動作\n\n<!-- 本来どうなるべきか -->\n\n## 環境\n\n${env}${diagSection}\n\n## スクリーンショット\n\n<!-- あれば添付 -->`
-  const url = `https://github.com/hitalin/notedeck/issues/new?labels=bug&body=${encodeURIComponent(body)}`
+  const url = `${REPO_URL}/issues/new?labels=bug&body=${encodeURIComponent(body)}`
   openUrl(url)
 }
 </script>
 
 <template>
   <div :class="$style.aboutContent">
-    <div :class="$style.aboutHeader">
-      <img src="/favicon.svg" :class="$style.aboutLogo" alt="NoteDeck" />
-      <div :class="$style.aboutTitle">NoteDeck</div>
+    <!-- 本家 about-misskey ページ踏襲の hero: アイコン + 名前 + バージョン薄字 -->
+    <div :class="$style.aboutHero">
+      <button type="button" class="_button" :class="$style.logoBtn" aria-label="NoteDeck" @click="beatLogo">
+        <img
+          src="/favicon.svg"
+          :class="[$style.aboutLogo, logoBeating && $style.beating]"
+          alt=""
+          @animationend="logoBeating = false"
+        />
+      </button>
+      <button
+        type="button"
+        class="_button"
+        :class="$style.aboutTitle"
+        title="公式サイトを開く"
+        @click="openUrl(SITE_URL)"
+      >
+        NoteDeck
+      </button>
+      <!-- バージョン表記自体がアップデート確認のタッチポイント (モバイルは表示のみ) -->
+      <template v-if="!uiStore.isMobilePlatform">
+        <button
+          type="button"
+          class="_button"
+          :class="[$style.aboutVersion, isUpToDate && $style.versionOk]"
+          title="アップデートを確認"
+          :disabled="isChecking"
+          @click="checkForUpdate(true)"
+        >
+          v{{ appVersion }}
+          <i
+            :class="[
+              isChecking ? 'ti ti-loader-2 nd-spin' : isUpToDate ? 'ti ti-check' : 'ti ti-refresh',
+              $style.versionIcon,
+            ]"
+          />
+          <span v-if="isUpToDate">最新</span>
+        </button>
+        <button
+          v-if="updateAvailable"
+          type="button"
+          class="_button"
+          :class="$style.updatePill"
+          :disabled="isInstalling"
+          @click="installUpdate"
+        >
+          <i class="ti ti-download" />
+          {{ isInstalling ? 'インストール中...' : `v${updateVersion} にアップデート` }}
+        </button>
+      </template>
+      <div v-else :class="$style.aboutVersion">v{{ appVersion }}</div>
     </div>
 
-    <div :class="$style.tutorialCta">
-      <button class="_button" :class="$style.tutorialBtn" @click="openTutorial">
+    <div :class="$style.aboutLinks">
+      <button type="button" class="_button" :class="$style.pillBtn" @click="openTutorial">
         <i class="ti ti-presentation-analytics" />
         チュートリアルを見る
       </button>
     </div>
 
-    <div :class="$style.aboutInfo">
-      <div v-for="row in infoRows" :key="row.label" :class="$style.aboutRow">
-        <span :class="$style.aboutLabel">{{ row.label }}:</span>
-        <span :class="$style.aboutValue">{{ row.get() }}</span>
-      </div>
-    </div>
-
-    <div :class="$style.diag">
-      <div :class="$style.diagHead">
-        <i
-          :class="[
-            healthLoading ? 'ti ti-loader-2' : healthError ? STATUS_ICON.fail : STATUS_ICON[overallStatus],
-            $style.diagIcon,
-            !healthLoading && !healthError && $style[overallStatus],
-            healthError && $style.fail,
-          ]"
-        />
-        <span :class="$style.diagSummary">診断: {{ healthSummary }}</span>
-        <button class="_button" :class="$style.diagRefresh" :disabled="healthLoading" title="再診断" @click="runHealthcheck">
-          <i class="ti ti-refresh" />
+    <!-- 本家 about-misskey の projectMembers 踏襲 (行の型は formLink に統一)。
+         飛び先を Sponsors にすることで寄付導線を兼ねる -->
+    <div :class="$style.formSection">
+      <div :class="$style.formSectionLabel">開発者</div>
+      <div :class="$style.sectionBody">
+        <button type="button" class="_button" :class="$style.formLink" @click="openUrl(SPONSOR_URL)">
+          <img src="https://github.com/hitalin.png?size=48" :class="$style.devAvatar" alt="" />
+          <span>@hitalin</span>
+          <span :class="$style.formLinkSuffix">GitHub Sponsors <i class="ti ti-external-link" /></span>
         </button>
       </div>
-      <div v-if="healthError" :class="$style.diagError">{{ healthError }}</div>
-      <!-- 問題のある行だけを log 言語でシンタックスハイライト (正常時は非表示) -->
-      <div
-        v-else-if="diagnosticsLog"
-        :key="`diag-${highlighterLoaded}`"
-        :class="$style.logBlock"
-        v-html="highlightCode(diagnosticsLog, 'log')"
-      />
     </div>
 
-    <div :class="$style.actions">
-      <template v-if="!uiStore.isMobilePlatform">
-        <div v-if="updateAvailable" :class="$style.actionGroup">
-          <span :class="$style.updateVersion">v{{ appVersion }} → v{{ updateVersion }}</span>
-          <button class="_button" :class="[$style.actionBtn, $style.updateBtn]" :disabled="isInstalling" @click="installUpdate">
-            <i class="ti ti-download" />
-            {{ isInstalling ? 'インストール中...' : 'アップデート' }}
-          </button>
-        </div>
-        <div v-else :class="$style.actionGroup">
-          <button class="_button" :class="[$style.actionBtn, { [$style.feedback]: isUpToDate }]" :disabled="isChecking" @click="checkForUpdate(true)">
-            <i :class="isChecking ? 'ti ti-loader-2' : isUpToDate ? 'ti ti-check' : 'ti ti-refresh'" />
-            {{ isChecking ? '確認中...' : isUpToDate ? '最新バージョンです' : 'アップデートを確認' }}
-          </button>
-        </div>
-      </template>
-      <div :class="$style.actionGroup">
-        <button class="_button" :class="[$style.actionBtn, { [$style.feedback]: copied }]" @click="copyInfo">
+    <!-- 本家 FormSection 踏襲 (DeckServerInfoColumn の formSection と同型) -->
+    <div :class="$style.formSection">
+      <div :class="$style.infoHead">
+        <button
+          type="button"
+          class="_button"
+          :class="[$style.formSectionLabel, $style.infoToggle, infoOpen && $style.infoOpen]"
+          @click="infoOpen = !infoOpen"
+        >
+          バージョン情報
+          <i class="ti ti-chevron-down" :class="$style.infoChevron" />
+        </button>
+        <!-- コピーされる本体はこのセクションの infoRows なのでここに置く -->
+        <button
+          class="_button"
+          :class="[$style.infoCopy, copied && $style.infoCopied]"
+          :title="copied ? 'コピーしました' : '情報をコピー'"
+          @click="copyInfo"
+        >
           <i :class="copied ? 'ti ti-check' : 'ti ti-copy'" />
-          {{ copied ? 'コピーしました' : '情報をコピー' }}
         </button>
-        <button class="_button" :class="$style.actionBtn" @click="reportBug">
-          <i class="ti ti-bug" />
-          バグを報告
+      </div>
+      <div v-if="infoOpen" :class="$style.aboutInfo">
+        <div v-for="row in infoRows" :key="row.label" :class="$style.aboutRow">
+          <span :class="$style.aboutLabel">{{ row.label }}:</span>
+          <span :class="$style.aboutValue">{{ row.get() }}</span>
+        </div>
+      </div>
+      <!-- バグ報告はバージョン情報 (と診断結果) を本文に同梱するのでこのセクションに置く -->
+      <div :class="$style.sectionBody">
+        <button type="button" class="_button" :class="$style.formLink" @click="reportBug">
+          <i class="ti ti-bug" :class="$style.formLinkIcon" />
+          <span>バグを報告</span>
+          <span :class="$style.formLinkSuffix">GitHub Issues<i class="ti ti-external-link" /></span>
         </button>
+      </div>
+    </div>
+
+    <div :class="$style.formSection">
+      <div :class="$style.formSectionLabel">自己診断</div>
+      <div :class="$style.diag">
+        <div :class="$style.diagHead">
+          <i
+            :class="[
+              healthLoading ? 'ti ti-loader-2' : healthError ? STATUS_ICON.fail : STATUS_ICON[overallStatus],
+              $style.diagIcon,
+              !healthLoading && !healthError && $style[overallStatus],
+              healthError && $style.fail,
+            ]"
+          />
+          <span :class="$style.diagSummary">{{ healthSummary }}</span>
+          <button class="_button" :class="$style.diagRefresh" :disabled="healthLoading" title="再診断" @click="runHealthcheck">
+            <i class="ti ti-refresh" />
+          </button>
+        </div>
+        <div v-if="healthError" :class="$style.diagError">{{ healthError }}</div>
+        <!-- 問題のある行だけを log 言語でシンタックスハイライト (正常時は非表示) -->
+        <div
+          v-else-if="diagnosticsLog"
+          :key="`diag-${highlighterLoaded}`"
+          :class="$style.logBlock"
+          v-html="highlightCode(diagnosticsLog, 'log')"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <style lang="scss" module>
-@use '@/styles/buttons' as *;
-
 .aboutContent {
   display: flex;
   flex-direction: column;
 }
 
-.aboutHeader {
+// 本家 about-misskey の hero (container) 踏襲: 中央寄せ、アイコンの下に
+// 名前、その下にバージョンを opacity 0.5 で置く
+.aboutHero {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 20px 16px 8px;
+  text-align: center;
+  padding: 20px 16px 12px;
+}
+
+.logoBtn {
+  display: block;
+  border-radius: 10px;
 }
 
 .aboutLogo {
+  display: block;
   width: 48px;
   height: 48px;
   border-radius: 10px;
 }
 
+.beating {
+  animation: heartbeat 0.9s ease-in-out;
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.12); }
+  30% { transform: scale(0.98); }
+  45% { transform: scale(1.18); }
+  70% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .beating {
+    animation: none;
+  }
+}
+
+// タイトル自体が公式サイトへの導線 (ロゴは鼓動イースターエッグに割り当て済み)
 .aboutTitle {
+  margin-top: 0.75em;
+  color: var(--nd-fg);
+
+  &:hover {
+    color: var(--nd-accent);
+    text-decoration: underline;
+  }
+}
+
+.aboutVersion {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.85em;
   color: var(--nd-fg);
-  opacity: 0.7;
+  opacity: 0.5;
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  &.versionOk {
+    color: var(--nd-accent);
+    opacity: 0.9;
+  }
 }
 
-// チュートリアルは技術情報 (バージョン / 診断 / バグ報告) と混同させないため、
-// 上部に独立した全幅 CTA として置き、区切り線で下のブロックと分ける。
-.tutorialCta {
+.versionIcon {
+  font-size: 0.9em;
+}
+
+// 更新があるときだけバージョンの直下に出すアクセント色ピル (pillBtn と同型)
+.updatePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 7px 14px;
+  border-radius: var(--nd-radius-full);
+  background: var(--nd-accent);
+  color: var(--nd-fgOnAccent);
+  font-weight: bold;
+  font-size: 0.85em;
+  transition: background var(--nd-duration-base);
+
+  &:hover:not(:disabled) {
+    background: hsl(from var(--nd-accent) h s calc(l + 5));
+  }
+
+  &:disabled {
+    opacity: 0.7;
+  }
+}
+
+// 本家 about-misskey の「I ❤ #Misskey」ボタン (MkButton rounded) 踏襲:
+// 中央寄せのピル型ボタン。導線が増えてもピルを足すだけにする。
+.aboutLinks {
   display: flex;
   justify-content: center;
-  padding: 4px 16px 12px;
-  border-bottom: 1px solid var(--nd-panelBorder);
+  gap: 6px;
+  padding: 0 16px 16px;
 }
 
-.tutorialBtn {
-  @include btn-action;
+// 本家 FormSection 踏襲 (DeckServerInfoColumn の formSection と同型)
+.formSection {
+  border-top: solid 0.5px var(--nd-divider);
+}
+
+.formSectionLabel {
+  font-weight: bold;
+  padding: 1em 16px 0;
+  font-size: 0.85em;
+}
+
+// セクション本文の共通余白。行 (formLink) はこの中に置く
+.sectionBody {
+  padding: 10px 16px 14px;
+}
+
+.formLink {
+  display: flex;
+  align-items: center;
   width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  background: var(--nd-buttonBg);
+  border-radius: var(--nd-radius-sm);
+  font-size: 0.9em;
+  color: var(--nd-fg);
+  text-align: left;
+  transition: background var(--nd-duration-base);
+
+  &:hover {
+    background: var(--nd-buttonHoverBg);
+  }
+}
+
+.formLinkIcon {
+  margin-right: 0.75em;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.formLinkSuffix {
+  margin-left: auto;
+  opacity: 0.7;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 0.9em;
+}
+
+// 開発者行のアバター (formLink 行の高さに合わせた小サイズ)
+.devAvatar {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--nd-radius-full);
+  margin-right: 0.75em;
+  flex-shrink: 0;
+}
+
+.infoHead {
+  position: relative;
+}
+
+// 情報コピー (対象 = このセクションの infoRows)。diagRefresh と同型のアイコンボタン
+.infoCopy {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--nd-fg);
+  opacity: 0.6;
+  padding: 2px 4px;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &.infoCopied {
+    color: var(--nd-accent);
+    opacity: 1;
+  }
+}
+
+// バージョン情報の折りたたみトグル (DeckServerInfoColumn の rulesToggle と同型)
+.infoToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  color: var(--nd-fg);
+  padding-bottom: 1em;
+
+  &.infoOpen .infoChevron {
+    transform: rotate(180deg);
+  }
+}
+
+.infoChevron {
+  opacity: 0.6;
+  transition: transform var(--nd-duration-slow);
+}
+
+// 本家 MkButton (primary rounded) と同じ色使い: accent 背景 + fgOnAccent 太字、
+// hover は明度 +5
+.pillBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: var(--nd-radius-full);
+  background: var(--nd-accent);
+  color: var(--nd-fgOnAccent);
+  font-weight: bold;
+  font-size: 0.85em;
+  transition: background var(--nd-duration-base);
+
+  &:hover {
+    background: hsl(from var(--nd-accent) h s calc(l + 5));
+  }
 }
 
 .aboutInfo {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px 16px;
+  padding: 0 16px 12px;
   font-size: 0.85em;
   font-family: monospace;
 }
@@ -348,23 +623,11 @@ function reportBug() {
   user-select: all;
 }
 
-.updateVersion {
-  font-size: 0.85em;
-  font-weight: 600;
-  color: var(--nd-accent);
-  padding: 0 8px;
-}
-
-.updateBtn {
-  background: var(--nd-accent) !important;
-  color: var(--nd-fgOnAccent, #fff) !important;
-}
-
 .diag {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px 16px;
+  padding: 8px 16px 14px;
   font-size: 0.85em;
 }
 
@@ -433,14 +696,4 @@ function reportBug() {
   }
 }
 
-.actions { @include action-bar; }
-.actionGroup { @include action-group; }
-
-.actionBtn {
-  @include btn-action;
-
-  &.feedback {
-    color: var(--nd-accent);
-  }
-}
 </style>

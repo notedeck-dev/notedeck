@@ -82,8 +82,8 @@ export const WINDOW_SIZES: Record<
   profileEditor: { width: 400, maxHeight: 700 },
   // Login
   login: { width: 380, maxHeight: 480 },
-  // About — コードブロックは内部スクロールのため小さめで収まる
-  about: { width: 380, maxHeight: 520 },
+  // About — hero (80px アイコン) + リンク行 + 技術情報。診断のコードブロックは内部スクロール
+  about: { width: 380, maxHeight: 640 },
   // Nav editor
   navEditor: { width: 400, maxHeight: 700 },
   // Performance editor
