@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, toRef, useCssModule, useTemplateRef } from 'vue'
 import { COLUMN_COMPONENTS } from '@/columns/registry'
+import ColumnErrorBoundary from '@/components/deck/ColumnErrorBoundary.vue'
 import { useColumnMount } from '@/composables/useColumnMount'
 import type { DeckColumn } from '@/stores/deck'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
@@ -47,12 +48,13 @@ const columnComponent = computed(() =>
     @mousedown="$emit('mousedown', $event)"
     @pointerdown="$emit('pointerdown', $event)"
   >
-    <component
-      :is="columnComponent"
-      v-if="shouldMount && column && columnComponent"
-      :key="colId"
-      :column="column"
-    />
+    <ColumnErrorBoundary v-if="shouldMount && column && columnComponent">
+      <component
+        :is="columnComponent"
+        :key="colId"
+        :column="column"
+      />
+    </ColumnErrorBoundary>
     <div v-else :class="$style.columnShell" aria-hidden="true">
       <div :class="$style.columnShellHeader" />
       <div :class="$style.columnShellBody">
