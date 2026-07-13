@@ -211,7 +211,8 @@ export const widgetsUpdateCapability: Command = {
     description:
       'ウィジェットの AiScript ソースを全文置換する。意図しない上書きを' +
       '防ぐため、事前に widgets.read で現状を取得してから差分判断して' +
-      'から渡すことを推奨。',
+      'から渡すことを推奨。実行後の print / エラーは `aiscript.logs` で' +
+      '確認できる。',
     params: {
       installId: {
         type: 'string',

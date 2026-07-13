@@ -33,6 +33,7 @@ const MkPostForm = defineAsyncComponent(
 )
 
 import { useAccountsStore } from '@/stores/accounts'
+import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 import AiScriptEditor from './AiScriptEditor.vue'
 import type { PostFormRequest } from './AiScriptUiRenderer.vue'
@@ -145,12 +146,19 @@ async function run() {
       }
     : undefined
 
+  const runLog = useAiScriptLogsStore().beginRun(
+    'widget',
+    props.widget.installId,
+    props.widget.name,
+  )
+
   const parser = new Parser()
   let ast: Ast.Node[]
   try {
     ast = parser.parse(sanitizeCode(code.value))
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
+    runLog.system(`parse error: ${error.value}`)
     running.value = false
     return
   }
@@ -192,10 +200,12 @@ async function run() {
   const ioOpts = createInterpreterOptions({
     onOutput: (text) => {
       output.value.push({ text, isError: false })
+      runLog.print(text)
     },
     onError: (err) => {
       error.value = err.message
       output.value.push({ text: err.message, isError: true })
+      runLog.error(err.message)
     },
   })
 
@@ -225,8 +235,10 @@ async function run() {
 
   try {
     await interp.exec(ast)
+    runLog.system('run completed')
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
+    runLog.system(`run aborted: ${error.value}`)
   }
 
   running.value = false

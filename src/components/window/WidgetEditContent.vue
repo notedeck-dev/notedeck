@@ -33,6 +33,7 @@ import { useEditorTabs } from '@/composables/useEditorTabs'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useAccountsStore } from '@/stores/accounts'
+import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
 import { useWidgetsStore } from '@/stores/widgets'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -135,12 +136,19 @@ async function run() {
         unwrap(await commands.apiRequest(accId, endpoint, params as JsonValue))
     : undefined
 
+  const runLog = useAiScriptLogsStore().beginRun(
+    'widget',
+    props.widgetId,
+    widget.value.name,
+  )
+
   const parser = new Parser()
   let ast: Ast.Node[]
   try {
     ast = parser.parse(sanitizeCode(code.value))
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
+    runLog.system(`parse error: ${error.value}`)
     running.value = false
     return
   }
@@ -182,10 +190,12 @@ async function run() {
   const ioOpts = createInterpreterOptions({
     onOutput: (text) => {
       output.value.push({ text, isError: false })
+      runLog.print(text)
     },
     onError: (err) => {
       error.value = err.message
       output.value.push({ text: err.message, isError: true })
+      runLog.error(err.message)
     },
   })
 
@@ -214,8 +224,10 @@ async function run() {
 
   try {
     await interp.exec(ast)
+    runLog.system('run completed')
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
+    runLog.system(`run aborted: ${error.value}`)
   }
 
   running.value = false

@@ -247,7 +247,8 @@ export const pluginsUpdateCapability: Command = {
   signature: {
     description:
       'プラグインの AiScript ソースを全文置換する。' +
-      'plugins.read で現状を取得してから差分判断する運用を推奨。',
+      'plugins.read で現状を取得してから差分判断する運用を推奨。' +
+      '実行後の print / エラーは `aiscript.logs` で確認できる。',
     params: {
       installId: { type: 'string', description: '対象プラグインの installId' },
       src: { type: 'string', description: '新しい AiScript ソース全文' },

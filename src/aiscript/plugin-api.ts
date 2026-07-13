@@ -3,6 +3,10 @@ import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
 import type { JsonValue } from '@/bindings'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import {
+  type AiScriptRunLogger,
+  useAiScriptLogsStore,
+} from '@/stores/aiscriptLogs'
+import {
   type PluginConfigDef,
   type PluginMeta,
   usePluginsStore,
@@ -451,14 +455,9 @@ export function applyNotePostInterruptors<T>(
 // Launch / Abort
 // ---------------------------------------------------------------------------
 
-const MAX_PLUGIN_LOGS = 200
-const pluginLogs = new Map<string, { text: string; isError: boolean }[]>()
-
-export function getPluginLogs(
-  installId: string,
-): { text: string; isError: boolean }[] {
-  return pluginLogs.get(installId) ?? []
-}
+// 実行ログは useAiScriptLogsStore に集約する (#710)。実行中の書き込み口を
+// installId ごとに保持し、abort 時の system イベント記録に使う。
+const pluginRunLoggers = new Map<string, AiScriptRunLogger>()
 
 export async function launchPlugin(plugin: PluginMeta): Promise<void> {
   if (!plugin.src || !plugin.active) return
@@ -466,8 +465,12 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
   // Abort existing instance if re-launching
   abortPlugin(plugin.installId)
 
-  const logs: { text: string; isError: boolean }[] = []
-  pluginLogs.set(plugin.installId, logs)
+  const runLog = useAiScriptLogsStore().beginRun(
+    'plugin',
+    plugin.installId,
+    plugin.name,
+  )
+  pluginRunLoggers.set(plugin.installId, runLog)
 
   const ctx = { accountId: null as string | null }
   pluginAccountContext.set(plugin.installId, ctx)
@@ -506,13 +509,8 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
   const env = { ...baseEnv, ...pluginEnv, ...ndEnv }
 
   const ioOpts = createInterpreterOptions({
-    onOutput: (text) => {
-      if (logs.length < MAX_PLUGIN_LOGS) logs.push({ text, isError: false })
-    },
-    onError: (err) => {
-      if (logs.length < MAX_PLUGIN_LOGS)
-        logs.push({ text: err.message, isError: true })
-    },
+    onOutput: (text) => runLog.print(text),
+    onError: (err) => runLog.error(err.message),
   })
 
   const code = sanitizeCode(plugin.src)
@@ -524,10 +522,7 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
     ast = result.ast
     legacy = result.legacy
   } catch (e) {
-    logs.push({
-      text: `Parse error: ${e instanceof Error ? e.message : String(e)}`,
-      isError: true,
-    })
+    runLog.system(`parse error: ${e instanceof Error ? e.message : String(e)}`)
     return
   }
 
@@ -535,11 +530,9 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
   ndCtx.interpreter = interpreter
   try {
     await execAiScript(interpreter, ast, legacy)
+    runLog.system('run completed')
   } catch (e) {
-    logs.push({
-      text: `Runtime error: ${e instanceof Error ? e.message : String(e)}`,
-      isError: true,
-    })
+    runLog.system(`run aborted: ${e instanceof Error ? e.message : String(e)}`)
   }
   pluginContexts.set(plugin.installId, interpreter)
 }
@@ -549,6 +542,7 @@ export function abortPlugin(installId: string): void {
   if (interp) {
     interp.abort()
     pluginContexts.delete(installId)
+    pluginRunLoggers.get(installId)?.system('aborted')
   }
   const ndCtx = pluginNdContexts.get(installId)
   if (ndCtx) {
@@ -556,7 +550,7 @@ export function abortPlugin(installId: string): void {
     pluginNdContexts.delete(installId)
   }
   pluginAccountContext.delete(installId)
-  pluginLogs.delete(installId)
+  pluginRunLoggers.delete(installId)
   removePluginHandlers(installId)
 }
 
