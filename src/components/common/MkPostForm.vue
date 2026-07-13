@@ -27,6 +27,7 @@ import {
   getAccountLabel,
   isGuestAccount,
 } from '@/stores/accounts'
+import { useConfirm } from '@/stores/confirm'
 import { useEmojisStore } from '@/stores/emojis'
 import { usePostFormStore } from '@/stores/postForm'
 import { useSettingsStore } from '@/stores/settings'
@@ -139,6 +140,8 @@ const {
   removePollChoice,
   resetForm,
   restoreSlot,
+  saveCurrentSlot,
+  hasAnyContent,
 } = usePostFormState(
   props,
   {
@@ -427,9 +430,47 @@ function onOverlayPointerDown(e: PointerEvent) {
 
 function onOverlayClick(e: MouseEvent) {
   if (overlayPointerDown && e.target === e.currentTarget) {
-    emit('close')
+    requestClose()
   }
   overlayPointerDown = false
+}
+
+const { confirmWithAction } = useConfirm()
+let closing = false
+
+/** ×・オーバーレイ・Esc の閉じ経路を集約。自動保存 OFF で書きかけが
+ *  あるときだけ「保存して閉じる / 破棄 / キャンセル」を確認する */
+async function requestClose() {
+  if (closing) return
+  if (posted.value || autoSaveEnabled.value || !hasAnyContent()) {
+    emit('close')
+    return
+  }
+  closing = true
+  try {
+    const choice = await confirmWithAction({
+      title: props.memoMode
+        ? '書きかけのメモがあります'
+        : '書きかけの投稿があります',
+      message: props.memoMode
+        ? '閉じる前にメモとして保存しますか？'
+        : '閉じる前に下書きとして保存しますか？',
+      icon: 'question',
+      actions: [
+        { value: 'save', label: '保存して閉じる', primary: true },
+        { value: 'discard', label: '破棄' },
+        { value: 'cancel', label: 'キャンセル', cancel: true },
+      ],
+    })
+    if (choice === 'save') {
+      await saveCurrentSlot()
+      emit('close')
+    } else if (choice === 'discard') {
+      emit('close')
+    }
+  } finally {
+    closing = false
+  }
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -438,7 +479,7 @@ function onKeydown(e: KeyboardEvent) {
     if (!isPosting.value) post()
   }
   if (e.key === 'Escape' && !props.inline) {
-    emit('close')
+    requestClose()
   }
 }
 </script>
@@ -449,7 +490,7 @@ function onKeydown(e: KeyboardEvent) {
       <!-- Header -->
       <header :class="$style.header">
         <div v-if="!inline" :class="$style.headerLeft">
-          <button class="_button" :class="$style.headerBtn" title="閉じる" @click="emit('close')">
+          <button class="_button" :class="$style.headerBtn" title="閉じる" @click="requestClose">
             <i class="ti ti-x" />
           </button>
           <div v-if="account" :class="$style.accountWrapper">
