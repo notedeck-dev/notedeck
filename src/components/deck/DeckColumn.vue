@@ -15,6 +15,7 @@ import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
+import { useToast } from '@/stores/toast'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
 
 const props = defineProps<{
@@ -143,7 +144,13 @@ async function close() {
     okLabel: '削除',
     type: 'danger',
   })
-  if (ok) deckStore.removeColumn(props.columnId)
+  if (!ok) return
+  const undo = deckStore.removeColumn(props.columnId)
+  if (undo) {
+    useToast().show('カラムを削除しました', 'info', {
+      action: { label: '元に戻す', onClick: undo },
+    })
+  }
 }
 
 /** Return this PiP column back to the main deck window */

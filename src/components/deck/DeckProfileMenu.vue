@@ -8,6 +8,7 @@ import { useVaporTransition } from '@/composables/useVaporTransition'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
+import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 
 const props = defineProps<{
@@ -69,8 +70,19 @@ async function remove(id: string) {
     type: 'danger',
   })
   if (!ok) return
-  deckStore.deleteProfile(id)
+  const undo = deckStore.deleteProfile(id)
   refreshProfileCommands()
+  if (undo) {
+    useToast().show('プロファイルを削除しました', 'info', {
+      action: {
+        label: '元に戻す',
+        onClick: () => {
+          undo()
+          refreshProfileCommands()
+        },
+      },
+    })
+  }
 }
 
 function openEditor(id: string) {
