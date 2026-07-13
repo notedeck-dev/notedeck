@@ -316,3 +316,48 @@ describe('plugins.update — アクティブなら再起動する (#744)', () =>
     expect(oInactive?.message).not.toContain('再起動されます')
   })
 })
+
+describe('plugins.setActive — 有効化で起動 / 無効化で停止する', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(launchPlugin).mockClear()
+  })
+
+  function addPlugin(active: boolean): PluginMeta {
+    const plugin: PluginMeta = {
+      installId: `p-setactive-${active}`,
+      name: 'test-plugin',
+      version: '1.0.0',
+      configData: {},
+      src: 'let x = 1',
+      active,
+    }
+    usePluginsStore().addPlugin(plugin)
+    return plugin
+  }
+
+  it('active: true でフラグ更新に加えて launchPlugin を呼ぶ', async () => {
+    const plugin = addPlugin(false)
+    const r = (await pluginsSetActiveCapability.execute({
+      installId: plugin.installId,
+      active: true,
+    })) as { active: boolean }
+    expect(r.active).toBe(true)
+    expect(usePluginsStore().getPlugin(plugin.installId)?.active).toBe(true)
+    expect(launchPlugin).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(launchPlugin).mock.calls[0]?.[0]?.installId).toBe(
+      plugin.installId,
+    )
+  })
+
+  it('active: false では launchPlugin を呼ばない (abort のみ)', async () => {
+    const plugin = addPlugin(true)
+    const r = (await pluginsSetActiveCapability.execute({
+      installId: plugin.installId,
+      active: false,
+    })) as { active: boolean }
+    expect(r.active).toBe(false)
+    expect(usePluginsStore().getPlugin(plugin.installId)?.active).toBe(false)
+    expect(launchPlugin).not.toHaveBeenCalled()
+  })
+})

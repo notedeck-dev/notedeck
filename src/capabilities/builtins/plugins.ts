@@ -1,4 +1,8 @@
-import { launchPlugin, parsePluginMeta } from '@/aiscript/plugin-api'
+import {
+  abortPlugin,
+  launchPlugin,
+  parsePluginMeta,
+} from '@/aiscript/plugin-api'
 import type { Command } from '@/commands/registry'
 import { useAccountsStore } from '@/stores/accounts'
 import { useMisStoreStore } from '@/stores/misstore'
@@ -331,7 +335,8 @@ export const pluginsSetActiveCapability: Command = {
       'プラグインの active 状態を切り替える。有効化 (true) すると ' +
       'handler が起動して Misskey API 介入の副作用が走り得るので、AI が ' +
       '呼ぶときは確認ダイアログでユーザー承認を取る。無効化 (false) は ' +
-      '即実行 (= 可逆な停止操作)。',
+      '即実行 (= 可逆な停止操作)。有効化後は aiscript.logs (source: plugin) ' +
+      'に "started" が記録されるので起動確認に使える。',
     params: {
       installId: { type: 'string', description: '対象プラグインの installId' },
       active: {
@@ -345,7 +350,7 @@ export const pluginsSetActiveCapability: Command = {
     },
   },
   visible: false,
-  execute: (params) => {
+  execute: async (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     if (!installId) {
@@ -357,6 +362,13 @@ export const pluginsSetActiveCapability: Command = {
       throw new Error(`plugins.setActive: plugin "${installId}" not found`)
     }
     store.setActive(installId, active)
+    // フラグ更新だけでは handler は起動しない (UI トグルと同じく launch/abort が必要)
+    const updated = store.getPlugin(installId)
+    if (active && updated) {
+      await launchPlugin(updated)
+    } else {
+      abortPlugin(installId)
+    }
     return { installId, active }
   },
 }
