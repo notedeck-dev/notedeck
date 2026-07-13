@@ -8,10 +8,10 @@ PackageName: NoteDeck
 PackageUrl: https://github.com/hitalin/notedeck
 License: AGPL-3.0
 LicenseUrl: https://github.com/hitalin/notedeck/blob/main/LICENSE
-ShortDescription: Misskey Pro — ヘビーユーザーのための Misskey 統合デッキ環境 (IDE)
+ShortDescription: Misskey Pro — Misskey廃人のための Misskey 統合デッキ環境 (IDE)
 Description: |-
   NoteDeck は「Misskey Pro」— Misskey とそのフォークに対応した、
-  ヘビーユーザーのための統合デッキ環境 (IDE) です。
+  Misskey廃人のための統合デッキ環境 (IDE) です。
   ローカル全文検索、AI 統合、localhost API など、Web UI にはない機能を備えています。
 Tags:
   - misskey

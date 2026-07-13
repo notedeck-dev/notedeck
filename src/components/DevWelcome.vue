@@ -14,7 +14,7 @@ const appVersion = __APP_VERSION__
         :class="$style.icon"
       />
       <h1 :class="$style.title">Note<span>Deck</span></h1>
-      <p :class="$style.tagline">Misskey Pro — ヘビーユーザーのための Misskey IDE</p>
+      <p :class="$style.tagline">Misskey Pro — Misskey廃人のための Misskey IDE</p>
       <div :class="$style.notice">
         <p>デスクトップアプリとして起動してください</p>
         <div :class="$style.cmd">

@@ -4,7 +4,7 @@
 
 # NoteDeck
 
-**Misskey Pro — ヘビーユーザーのための Misskey 統合デッキ環境 (IDE: Integrated Deck Environment)**
+**Misskey Pro — Misskey廃人のための Misskey 統合デッキ環境 (IDE: Integrated Deck Environment)**
 
 [![CI](https://github.com/hitalin/notedeck/actions/workflows/ci.yml/badge.svg)](https://github.com/hitalin/notedeck/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/hitalin/notedeck?style=flat-square)](https://github.com/hitalin/notedeck/releases/latest)
