@@ -1615,6 +1615,21 @@
           "url"
         ],
         "properties": {
+          "blurhash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "blurhash プレースホルダ文字列"
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "画像の高さ (px)"
+          },
           "id": {
             "type": "string"
           },
@@ -1639,6 +1654,14 @@
           },
           "url": {
             "type": "string"
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "画像の幅 (px)。フロントの aspect-ratio 予約 (レイアウトシフト防止) 用"
           }
         }
       },

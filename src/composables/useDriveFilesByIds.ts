@@ -12,6 +12,8 @@ interface DriveFileRaw {
   size: number
   isSensitive: boolean
   comment?: string | null
+  properties?: { width?: number | null; height?: number | null } | null
+  blurhash?: string | null
 }
 
 // key: `${accountId}:${fileId}` — プロセス内の寿命全体で使い回す軽量キャッシュ
@@ -28,6 +30,9 @@ function normalize(raw: DriveFileRaw): NormalizedDriveFile {
     size: raw.size,
     isSensitive: raw.isSensitive,
     comment: raw.comment ?? null,
+    width: raw.properties?.width ?? null,
+    height: raw.properties?.height ?? null,
+    blurhash: raw.blurhash ?? null,
   }
 }
 

@@ -13,6 +13,7 @@ import { useLongPress } from '@/composables/useLongPress'
 import { usePinchZoom } from '@/composables/usePinchZoom'
 import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
+import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { isSafeUrl, openSafeUrl } from '@/utils/url'
 import PopupMenu from './PopupMenu.vue'
@@ -123,6 +124,21 @@ const previewableCount = computed(() => {
   const c = previewableFiles.value.length
   return c <= 4 ? c : 'many'
 })
+
+// 単一メディアは寸法が分かる場合に aspect-ratio を予約して、
+// ロード完了時にセルの高さが伸びるレイアウトシフトを防ぐ
+// (max-height の clamp は CSS 側でそのまま効く)
+const singleMediaStyle = computed(() => {
+  if (previewableFiles.value.length !== 1) return undefined
+  const f = previewableFiles.value[0]
+  if (!f?.width || !f?.height) return undefined
+  return { aspectRatio: `${f.width} / ${f.height}` }
+})
+
+function blurhashPlaceholder(file: NormalizedDriveFile): string | null {
+  if (!file.blurhash || loadedIds.value.has(file.id)) return null
+  return blurhashToDataUrl(file.blurhash)
+}
 
 function onImageLoaded(fileId: string) {
   const next = new Set(loadedIds.value)
@@ -295,13 +311,20 @@ async function openInBrowser() {
   </div>
 
   <!-- Grid: Previewable files only (image + video) -->
-  <div v-if="previewableFiles.length > 0" :class="[$style.mediaGrid, $style[`mediaCount${previewableCount}`]]">
+  <div v-if="previewableFiles.length > 0" :class="[$style.mediaGrid, $style[`mediaCount${previewableCount}`]]" :style="singleMediaStyle">
     <div
       v-for="file in previewableFiles"
       :key="file.id"
       :class="[$style.mediaCell, { [$style.isSensitive]: file.isSensitive && !revealedIds.has(file.id), [$style.isLoaded]: loadedIds.has(file.id) || erroredIds.has(file.id) }]"
       @click="openLightbox(file, $event)"
     >
+      <img
+        v-if="blurhashPlaceholder(file)"
+        :src="blurhashPlaceholder(file)!"
+        :class="$style.blurhashPlaceholder"
+        alt=""
+        aria-hidden="true"
+      />
       <template v-if="isImage(file)">
         <img
           v-if="!erroredIds.has(file.id)"
@@ -613,6 +636,16 @@ async function openInBrowser() {
   &.isLoaded::before {
     display: none;
   }
+}
+
+/* blurhash: 実画像ロードまでの間、シマーの上・実画像の下に敷く */
+.blurhashPlaceholder {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
 }
 
 .mediaImage {
