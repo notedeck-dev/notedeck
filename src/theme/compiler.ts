@@ -75,5 +75,12 @@ export function compileMisskeyTheme(
     }
   }
 
+  // NoteDeck 独自の派生変数: テーマが明示しない限り accent から算出する
+  // (本家テーマ形式に accentDarken prop は無いため、静的 fallback のままだと
+  //  カスタムテーマの accent 変更にボタン hover 等が追従しない)
+  if (compiled.accentDarken === undefined && compiled.accent) {
+    compiled.accentDarken = color.darken(compiled.accent, 6)
+  }
+
   return compiled
 }

@@ -184,6 +184,33 @@ describe('compileMisskeyTheme', () => {
     expect(accentedBg).not.toBeNull()
   })
 
+  it('derives accentDarken from accent when the theme does not define it', () => {
+    const serverTheme: MisskeyTheme = {
+      id: 'server-custom',
+      name: 'Custom',
+      base: 'dark',
+      props: { accent: '#ff6600' },
+    }
+    const compiled = compileMisskeyTheme(serverTheme, DARK_BASE)
+    const accent = parseColor(compiled.accent)
+    const darkened = parseColor(compiled.accentDarken)
+    expect(darkened).not.toBeNull()
+    // accent より暗い（RGB 合計が小さい）こと
+    const sum = (c: readonly number[] | null) =>
+      (c?.[0] ?? 0) + (c?.[1] ?? 0) + (c?.[2] ?? 0)
+    expect(sum(darkened)).toBeLessThan(sum(accent))
+  })
+
+  it('keeps an explicit accentDarken prop untouched', () => {
+    const theme: MisskeyTheme = {
+      id: 't',
+      name: 't',
+      props: { accent: '#86b300', accentDarken: '#123456' },
+    }
+    const compiled = compileMisskeyTheme(theme, EMPTY_BASE)
+    expect(compiled.accentDarken).toBe('#123456')
+  })
+
   it('passes through rgba values in props', () => {
     const theme: MisskeyTheme = {
       id: 't',
