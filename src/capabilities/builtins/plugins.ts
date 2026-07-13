@@ -1,4 +1,8 @@
-import { parsePluginMeta } from '@/aiscript/plugin-api'
+import {
+  abortPlugin,
+  launchPlugin,
+  parsePluginMeta,
+} from '@/aiscript/plugin-api'
 import type { Command } from '@/commands/registry'
 import { useAccountsStore } from '@/stores/accounts'
 import { useMisStoreStore } from '@/stores/misstore'
@@ -228,7 +232,11 @@ export const pluginsUpdateCapability: Command = {
     const newMeta = parsePluginMeta(src)
     return {
       title: 'プラグインを更新',
-      message: `${cur.name} の AiScript を ${cur.src.length} → ${src.length} 文字に置換します。`,
+      message:
+        `${cur.name} の AiScript を ${cur.src.length} → ${src.length} 文字に置換します。` +
+        (cur.active
+          ? 'アクティブなため、保存後すぐ新しいコードで再起動されます。'
+          : ''),
       installPreview: {
         kind: 'plugin',
         name: newMeta?.name ?? cur.name,
@@ -247,18 +255,23 @@ export const pluginsUpdateCapability: Command = {
   signature: {
     description:
       'プラグインの AiScript ソースを全文置換する。' +
-      'plugins.read で現状を取得してから差分判断する運用を推奨。',
+      'plugins.read で現状を取得してから差分判断する運用を推奨。' +
+      'アクティブなプラグインは保存後に新 src で自動再起動されるので、' +
+      '`aiscript.logs` で実行結果 (起動 / print / エラー) を確認し、' +
+      'エラーがあれば修正して再保存するループを回すこと。',
     params: {
       installId: { type: 'string', description: '対象プラグインの installId' },
       src: { type: 'string', description: '新しい AiScript ソース全文' },
     },
     returns: {
       type: 'object',
-      description: '{ installId, length: 新 src の文字数 }',
+      description:
+        '{ installId, length: 新 src の文字数, relaunched: boolean }。' +
+        'relaunched=true ならアクティブなプラグインを新 src で再起動済み。',
     },
   },
   visible: false,
-  execute: (params) => {
+  execute: async (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const src = typeof params?.src === 'string' ? params.src : ''
@@ -269,7 +282,15 @@ export const pluginsUpdateCapability: Command = {
       throw new Error(`plugins.update: plugin "${installId}" not found`)
     }
     store.updateSrc(installId, src)
-    return { installId, length: src.length }
+    // アクティブなら UI の保存と同様に新 src で再起動する (#744)。
+    // launchPlugin は内部で既存インスタンスを abort する。
+    const updated = store.getPlugin(installId)
+    let relaunched = false
+    if (updated?.active) {
+      await launchPlugin(updated)
+      relaunched = true
+    }
+    return { installId, length: src.length, relaunched }
   },
 }
 
@@ -314,7 +335,8 @@ export const pluginsSetActiveCapability: Command = {
       'プラグインの active 状態を切り替える。有効化 (true) すると ' +
       'handler が起動して Misskey API 介入の副作用が走り得るので、AI が ' +
       '呼ぶときは確認ダイアログでユーザー承認を取る。無効化 (false) は ' +
-      '即実行 (= 可逆な停止操作)。',
+      '即実行 (= 可逆な停止操作)。有効化後は aiscript.logs (source: plugin) ' +
+      'に "started" が記録されるので起動確認に使える。',
     params: {
       installId: { type: 'string', description: '対象プラグインの installId' },
       active: {
@@ -328,7 +350,7 @@ export const pluginsSetActiveCapability: Command = {
     },
   },
   visible: false,
-  execute: (params) => {
+  execute: async (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     if (!installId) {
@@ -340,6 +362,13 @@ export const pluginsSetActiveCapability: Command = {
       throw new Error(`plugins.setActive: plugin "${installId}" not found`)
     }
     store.setActive(installId, active)
+    // フラグ更新だけでは handler は起動しない (UI トグルと同じく launch/abort が必要)
+    const updated = store.getPlugin(installId)
+    if (active && updated) {
+      await launchPlugin(updated)
+    } else {
+      abortPlugin(installId)
+    }
     return { installId, active }
   },
 }

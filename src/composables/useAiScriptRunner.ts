@@ -18,6 +18,10 @@ import type { JsonValue } from '@/bindings'
 import { useCommandStore } from '@/commands/registry'
 import type AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import type { Principal } from '@/permissions/principal'
+import {
+  logSourceOfPrincipal,
+  useAiScriptLogsStore,
+} from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -70,6 +74,13 @@ export function useAiScriptRunner() {
     reset()
     running.value = true
 
+    const logSource = logSourceOfPrincipal(options.principal)
+    const runLog = useAiScriptLogsStore().beginRun(
+      logSource.source,
+      logSource.sourceId,
+      logSource.name,
+    )
+
     const sanitized = sanitizeCode(code)
 
     let ast: Ast.Node[]
@@ -80,6 +91,7 @@ export function useAiScriptRunner() {
       legacy = result.legacy
     } catch (e) {
       runError.value = AppError.from(e).message
+      runLog.system(`parse error: ${AppError.from(e).message}`)
       running.value = false
       return
     }
@@ -120,9 +132,13 @@ export function useAiScriptRunner() {
     })
 
     const ioOpts = createInterpreterOptions({
-      onOutput: (text) => consoleOutput.value.push({ text, isError: false }),
+      onOutput: (text) => {
+        consoleOutput.value.push({ text, isError: false })
+        runLog.print(text)
+      },
       onError: (err) => {
         runError.value = err.message
+        runLog.error(err.message)
       },
     })
 
@@ -145,8 +161,10 @@ export function useAiScriptRunner() {
     interpreter.value = interp
     try {
       await execAiScript(interp, ast, legacy)
+      runLog.system('run completed')
     } catch (e) {
       runError.value = AppError.from(e).message
+      runLog.system(`run aborted: ${AppError.from(e).message}`)
     }
     running.value = false
   }

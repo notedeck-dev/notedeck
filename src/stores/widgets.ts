@@ -251,6 +251,48 @@ export const useWidgetsStore = defineStore('widgets', () => {
     saveSidebarOrderToStorage(ids)
   }
 
+  // --- AI 経由の再実行シグナル (#744) ---
+  // widgets.update capability だけが requestRerun を発火し、マウント中の
+  // WidgetAiScript が rerunSignal を watch して新 src で再実行する。
+  // ユーザーのウィジェット内エディタ編集 (debounce 自動保存) では発火しない。
+  const rerunSignals = ref<Map<string, number>>(new Map())
+  const mountedCounts = ref<Map<string, number>>(new Map())
+
+  function registerMounted(installId: string) {
+    mountedCounts.value.set(
+      installId,
+      (mountedCounts.value.get(installId) ?? 0) + 1,
+    )
+  }
+
+  function unregisterMounted(installId: string) {
+    const n = (mountedCounts.value.get(installId) ?? 0) - 1
+    if (n > 0) mountedCounts.value.set(installId, n)
+    else mountedCounts.value.delete(installId)
+  }
+
+  /** マウント中インスタンスに再実行を要求する。返り値は対象インスタンス数 (0 = 発火なし) */
+  function requestRerun(installId: string): number {
+    const mounted = mountedCounts.value.get(installId) ?? 0
+    if (mounted > 0) {
+      rerunSignals.value.set(
+        installId,
+        (rerunSignals.value.get(installId) ?? 0) + 1,
+      )
+    }
+    return mounted
+  }
+
+  /** WidgetAiScript が watch する再実行シグナル (単調増加カウンタ) */
+  function rerunSignal(installId: string): number {
+    return rerunSignals.value.get(installId) ?? 0
+  }
+
+  /** マウント中インスタンス数 (シグナルを発火しない read-only 版) */
+  function mountedCount(installId: string): number {
+    return mountedCounts.value.get(installId) ?? 0
+  }
+
   function updateSrc(installId: string, src: string) {
     ensureLoaded()
     const widget = widgets.value.find((w) => w.installId === installId)
@@ -324,5 +366,10 @@ export const useWidgetsStore = defineStore('widgets', () => {
     addToSidebar,
     removeFromSidebar,
     reorderSidebar,
+    registerMounted,
+    unregisterMounted,
+    requestRerun,
+    rerunSignal,
+    mountedCount,
   }
 })

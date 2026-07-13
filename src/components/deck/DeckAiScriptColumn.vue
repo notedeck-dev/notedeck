@@ -29,6 +29,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { useVerticalResize } from '@/composables/useVerticalResize'
+import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -199,12 +200,19 @@ async function run() {
       }
     : undefined
 
+  const runLog = useAiScriptLogsStore().beginRun(
+    'playground',
+    props.column.id,
+    props.column.name ?? undefined,
+  )
+
   const parser = new Parser()
   let ast: Ast.Node[]
   try {
     ast = parser.parse(sanitizeCode(code.value))
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
+    runLog.system(`parse error: ${error.value}`)
     running.value = false
     return
   }
@@ -249,9 +257,13 @@ async function run() {
   })
 
   const ioOpts = createInterpreterOptions({
-    onOutput: (text) => output.value.push({ text, isError: false }),
+    onOutput: (text) => {
+      output.value.push({ text, isError: false })
+      runLog.print(text)
+    },
     onError: (err) => {
       error.value = err.message
+      runLog.error(err.message)
     },
   })
 
@@ -269,8 +281,10 @@ async function run() {
 
   try {
     await interp.exec(ast)
+    runLog.system('run completed')
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
+    runLog.system(`run aborted: ${error.value}`)
   }
   running.value = false
 }

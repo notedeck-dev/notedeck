@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { launchPlugin } from '@/aiscript/plugin-api'
+import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import {
   PLUGINS_BUILTIN_CAPABILITIES,
   pluginsCreateCapability,
@@ -10,6 +13,19 @@ import {
   pluginsUninstallCapability,
   pluginsUpdateCapability,
 } from './plugins'
+
+vi.mock('@/aiscript/plugin-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/aiscript/plugin-api')>()
+  return { ...actual, launchPlugin: vi.fn().mockResolvedValue(undefined) }
+})
+
+// unit プロジェクトは node 環境のため localStorage を stub する (deck.test.ts と同じ)
+const storage = new Map<string, string>()
+vi.stubGlobal('localStorage', {
+  getItem: (key: string) => storage.get(key) ?? null,
+  setItem: (key: string, value: string) => storage.set(key, value),
+  removeItem: (key: string) => storage.delete(key),
+})
 
 // Note: execute は usePluginsStore (Pinia) に依存するため store mock 抜きでは
 // 走らない。capability 定義 (id / permissions / aiTool / requiresConfirmation)
@@ -69,17 +85,17 @@ describe('plugin capabilities — declaration', () => {
     expect(opts?.codeLanguage).toBe('is')
   })
 
-  it('plugins.update: write permission, aiTool:true, install preview confirmation', () => {
+  it('plugins.update: write permission, aiTool:true, install preview confirmation', async () => {
     expect(pluginsUpdateCapability.id).toBe('plugins.update')
     expect(pluginsUpdateCapability.permissions).toEqual(['plugins.write'])
     expect(pluginsUpdateCapability.aiTool).toBe(true)
     expect(typeof pluginsUpdateCapability.requiresConfirmation).toBe('function')
-    expect(() => pluginsUpdateCapability.execute({})).toThrow(
+    await expect(pluginsUpdateCapability.execute({})).rejects.toThrow(
       /installId is required/,
     )
-    expect(() => pluginsUpdateCapability.execute({ installId: 'x' })).toThrow(
-      /src is required/,
-    )
+    await expect(
+      pluginsUpdateCapability.execute({ installId: 'x' }),
+    ).rejects.toThrow(/src is required/)
   })
 
   it('plugins.setActive: write permission, aiTool:true, install preview confirmation (有効化時のみ)', () => {
@@ -236,5 +252,112 @@ describe('PLUGINS_BUILTIN_CAPABILITIES', () => {
     for (const cap of readCaps) {
       expect(cap.aiTool, `${cap.id} should be aiTool:true`).toBe(true)
     }
+  })
+})
+
+describe('plugins.update — アクティブなら再起動する (#744)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(launchPlugin).mockClear()
+  })
+
+  function addPlugin(active: boolean): PluginMeta {
+    const plugin: PluginMeta = {
+      installId: `p-test-${active}`,
+      name: 'test-plugin',
+      version: '1.0.0',
+      configData: {},
+      src: 'let x = 1',
+      active,
+    }
+    usePluginsStore().addPlugin(plugin)
+    return plugin
+  }
+
+  it('非アクティブなプラグインは再起動せず relaunched: false', async () => {
+    const plugin = addPlugin(false)
+    const r = (await pluginsUpdateCapability.execute({
+      installId: plugin.installId,
+      src: 'let y = 2',
+    })) as { relaunched: boolean }
+    expect(r.relaunched).toBe(false)
+    expect(launchPlugin).not.toHaveBeenCalled()
+  })
+
+  it('アクティブなプラグインは新 src で再起動し relaunched: true', async () => {
+    const plugin = addPlugin(true)
+    const r = (await pluginsUpdateCapability.execute({
+      installId: plugin.installId,
+      src: 'let y = 2',
+    })) as { relaunched: boolean }
+    expect(r.relaunched).toBe(true)
+    expect(launchPlugin).toHaveBeenCalledTimes(1)
+    const arg = vi.mocked(launchPlugin).mock.calls[0]?.[0]
+    expect(arg?.src).toBe('let y = 2')
+    expect(arg?.active).toBe(true)
+  })
+
+  it('確認ダイアログはアクティブ時のみ再起動を予告する', async () => {
+    if (typeof pluginsUpdateCapability.requiresConfirmation !== 'function') {
+      throw new Error('requiresConfirmation must be a function')
+    }
+    const active = addPlugin(true)
+    const oActive = await pluginsUpdateCapability.requiresConfirmation(
+      { installId: active.installId, src: 'let y = 2' },
+      {},
+    )
+    expect(oActive?.message).toContain('再起動されます')
+
+    const inactive = addPlugin(false)
+    const oInactive = await pluginsUpdateCapability.requiresConfirmation(
+      { installId: inactive.installId, src: 'let y = 2' },
+      {},
+    )
+    expect(oInactive?.message).not.toContain('再起動されます')
+  })
+})
+
+describe('plugins.setActive — 有効化で起動 / 無効化で停止する', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(launchPlugin).mockClear()
+  })
+
+  function addPlugin(active: boolean): PluginMeta {
+    const plugin: PluginMeta = {
+      installId: `p-setactive-${active}`,
+      name: 'test-plugin',
+      version: '1.0.0',
+      configData: {},
+      src: 'let x = 1',
+      active,
+    }
+    usePluginsStore().addPlugin(plugin)
+    return plugin
+  }
+
+  it('active: true でフラグ更新に加えて launchPlugin を呼ぶ', async () => {
+    const plugin = addPlugin(false)
+    const r = (await pluginsSetActiveCapability.execute({
+      installId: plugin.installId,
+      active: true,
+    })) as { active: boolean }
+    expect(r.active).toBe(true)
+    expect(usePluginsStore().getPlugin(plugin.installId)?.active).toBe(true)
+    expect(launchPlugin).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(launchPlugin).mock.calls[0]?.[0]?.installId).toBe(
+      plugin.installId,
+    )
+  })
+
+  it('active: false では launchPlugin を呼ばない (abort のみ)', async () => {
+    const plugin = addPlugin(true)
+    const r = (await pluginsSetActiveCapability.execute({
+      installId: plugin.installId,
+      active: false,
+    })) as { active: boolean }
+    expect(r.active).toBe(false)
+    expect(usePluginsStore().getPlugin(plugin.installId)?.active).toBe(false)
+    expect(launchPlugin).not.toHaveBeenCalled()
   })
 })

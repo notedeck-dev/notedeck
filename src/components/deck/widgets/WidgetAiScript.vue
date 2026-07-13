@@ -33,6 +33,7 @@ const MkPostForm = defineAsyncComponent(
 )
 
 import { useAccountsStore } from '@/stores/accounts'
+import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 import AiScriptEditor from './AiScriptEditor.vue'
 import type { PostFormRequest } from './AiScriptUiRenderer.vue'
@@ -127,7 +128,23 @@ function stop() {
 onBeforeUnmount(() => {
   flushPendingSave()
   stop()
+  widgetsStore.unregisterMounted(props.widget.installId)
 })
+
+// AI 経由の widgets.update (#744): 新しい src を反映して再実行する。
+// pending の自動保存が古いコードで上書き返さないよう先にキャンセルする。
+watch(
+  () => widgetsStore.rerunSignal(props.widget.installId),
+  (sig, prev) => {
+    if (sig <= (prev ?? 0)) return
+    if (saveTimer) {
+      clearTimeout(saveTimer)
+      saveTimer = null
+    }
+    code.value = props.widget.src ?? ''
+    run()
+  },
+)
 
 async function run() {
   if (running.value) return
@@ -145,12 +162,19 @@ async function run() {
       }
     : undefined
 
+  const runLog = useAiScriptLogsStore().beginRun(
+    'widget',
+    props.widget.installId,
+    props.widget.name,
+  )
+
   const parser = new Parser()
   let ast: Ast.Node[]
   try {
     ast = parser.parse(sanitizeCode(code.value))
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
+    runLog.system(`parse error: ${error.value}`)
     running.value = false
     return
   }
@@ -192,10 +216,12 @@ async function run() {
   const ioOpts = createInterpreterOptions({
     onOutput: (text) => {
       output.value.push({ text, isError: false })
+      runLog.print(text)
     },
     onError: (err) => {
       error.value = err.message
       output.value.push({ text: err.message, isError: true })
+      runLog.error(err.message)
     },
   })
 
@@ -225,8 +251,10 @@ async function run() {
 
   try {
     await interp.exec(ast)
+    runLog.system('run completed')
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
+    runLog.system(`run aborted: ${error.value}`)
   }
 
   running.value = false
@@ -235,6 +263,7 @@ async function run() {
 // autoRun=true な widget は mount のたびに自動実行する。
 // (フラグを下げない: カラム再表示・ナビバートグル・他カラム参照のたびに UI を出すため)
 onMounted(() => {
+  widgetsStore.registerMounted(props.widget.installId)
   if (props.widget.autoRun && code.value) {
     run()
   }

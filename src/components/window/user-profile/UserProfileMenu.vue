@@ -7,6 +7,10 @@ import type {
   UserList,
   UserRelation,
 } from '@/adapters/types'
+import {
+  getPluginHandlers,
+  setPluginAccountContext,
+} from '@/aiscript/plugin-api'
 import PopupMenu from '@/components/common/PopupMenu.vue'
 import { useDeckStore } from '@/stores/deck'
 import { useMutesStore } from '@/stores/mutes'
@@ -92,6 +96,11 @@ function open(event: MouseEvent) {
 }
 
 defineExpose({ open })
+
+// プラグインの user_action (#731) — note_action (NoteMoreMenu) と同じ発火パターン
+const userActions = computed(() =>
+  getPluginHandlers('user_action', props.accountId),
+)
 
 function closeUserMenu() {
   userMenuRef.value?.close()
@@ -474,6 +483,18 @@ async function addToAntenna(antenna: Antenna) {
             "
           />
           投稿を通知
+        </button>
+      </template>
+      <template v-if="user && userActions.length > 0">
+        <div class="_popupDivider" />
+        <button
+          v-for="action in userActions"
+          :key="action.pluginInstallId + action.title"
+          class="_popupItem"
+          @click="setPluginAccountContext(action.pluginInstallId, accountId); action.handler(user); closeUserMenu()"
+        >
+          <i class="ti ti-plug" />
+          {{ action.title }}
         </button>
       </template>
       <div class="_popupDivider" />

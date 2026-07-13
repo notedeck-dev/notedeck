@@ -2,7 +2,6 @@
 import { computed, reactive, ref, watch } from 'vue'
 import {
   abortPlugin,
-  getPluginLogs,
   launchPlugin,
   parsePluginMeta,
 } from '@/aiscript/plugin-api'
@@ -12,6 +11,7 @@ import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import { pluginSrcFilename } from '@/utils/settingsFs'
 
@@ -36,8 +36,11 @@ const plugin = computed(() =>
     : undefined,
 )
 
+const aiscriptLogsStore = useAiScriptLogsStore()
 const pluginLogs = computed(() =>
-  editingPluginId.value ? getPluginLogs(editingPluginId.value) : [],
+  editingPluginId.value
+    ? aiscriptLogsStore.entriesFor('plugin', editingPluginId.value)
+    : [],
 )
 
 // 新規インストールモード
@@ -400,11 +403,17 @@ async function importPlugin() {
     <div v-if="!isNewInstall && tab === 'logs'" :class="$style.logsPanel">
       <div v-if="pluginLogs.length > 0" :class="$style.logsList">
         <div
-          v-for="(log, i) in pluginLogs"
-          :key="i"
-          :class="[$style.logLine, { [$style.logError]: log.isError }]"
+          v-for="log in pluginLogs"
+          :key="log.seq"
+          :class="[
+            $style.logLine,
+            {
+              [$style.logError]: log.level === 'error',
+              [$style.logSystem]: log.level === 'system',
+            },
+          ]"
         >
-          {{ log.text }}
+          {{ log.message }}
         </div>
       </div>
       <div v-else :class="$style.logsEmpty">
@@ -755,6 +764,11 @@ async function importPlugin() {
 
   &.logError {
     color: var(--nd-love);
+  }
+
+  &.logSystem {
+    opacity: 0.6;
+    font-style: italic;
   }
 }
 

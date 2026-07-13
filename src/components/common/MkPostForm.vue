@@ -8,6 +8,11 @@ import {
   watch,
 } from 'vue'
 import type { NormalizedDriveFile, NormalizedNote } from '@/adapters/types'
+import {
+  getPluginHandlers,
+  type PluginHandler,
+  setPluginAccountContext,
+} from '@/aiscript/plugin-api'
 import { useAutocomplete } from '@/composables/useAutocomplete'
 import type { StoredDraft } from '@/composables/useDrafts'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
@@ -286,6 +291,42 @@ function pickEmoji(reaction: string) {
 // --- Hashtag ---
 function insertHashtag() {
   insertAtCursor(textareaRef.value, '#')
+}
+
+// --- Plugin post_form_action (#731) ---
+const showPluginActionsMenu = popups.register()
+
+const postFormActions = computed(() =>
+  getPluginHandlers('post_form_action', activeAccountId.value),
+)
+
+function togglePluginActionsMenu() {
+  popups.toggle(showPluginActionsMenu)
+}
+
+function runPostFormAction(action: PluginHandler) {
+  showPluginActionsMenu.value = false
+  if (activeAccountId.value) {
+    setPluginAccountContext(action.pluginInstallId, activeAccountId.value)
+  }
+  // handler は (form, update) の 2 引数 (plugin-api.ts の register_post_form_action)。
+  // update は 'text' / 'cw' キーに対応し、cw: null は CW 解除。
+  action.handler(
+    { text: text.value, cw: showCw.value ? cw.value : null },
+    (key: unknown, value: unknown) => {
+      if (key === 'text' && typeof value === 'string') {
+        text.value = value
+      } else if (key === 'cw') {
+        if (value == null) {
+          showCw.value = false
+          cw.value = ''
+        } else if (typeof value === 'string') {
+          showCw.value = true
+          cw.value = value
+        }
+      }
+    },
+  )
 }
 
 // --- MFM menu ---
@@ -898,6 +939,24 @@ function onKeydown(e: KeyboardEvent) {
               <i class="ti ti-trash" />
             </button>
           </template>
+
+          <!-- Plugin post_form_action (#731) — 登録があるときだけ表示 -->
+          <div v-if="postFormActions.length > 0" :class="$style.footerPopupWrapper">
+            <button class="_button" :class="$style.footerBtn" title="プラグイン" @click.stop="togglePluginActionsMenu">
+              <i class="ti ti-plug" />
+            </button>
+            <div v-if="showPluginActionsMenu" :class="[$style.footerPopup, $style.mfmMenu]" @click.stop>
+              <button
+                v-for="action in postFormActions"
+                :key="action.pluginInstallId + action.title"
+                class="_button"
+                :class="$style.mfmMenuItem"
+                @click="runPostFormAction(action)"
+              >
+                {{ action.title }}
+              </button>
+            </div>
+          </div>
         </div>
         <div v-if="!props.inline" :class="$style.footerRight">
           <!-- Post form editor -->

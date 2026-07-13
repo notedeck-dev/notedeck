@@ -195,7 +195,11 @@ export const widgetsUpdateCapability: Command = {
     if (!cur) return null
     return {
       title: 'ウィジェットを更新',
-      message: `${cur.name} の AiScript を ${cur.src.length} → ${src.length} 文字に置換します。`,
+      message:
+        `${cur.name} の AiScript を ${cur.src.length} → ${src.length} 文字に置換します。` +
+        (useWidgetsStore().mountedCount(installId) > 0
+          ? '表示中のウィジェットは保存後すぐ新しいコードで再実行されます。'
+          : ''),
       installPreview: {
         kind: 'widget',
         name: cur.name,
@@ -211,7 +215,10 @@ export const widgetsUpdateCapability: Command = {
     description:
       'ウィジェットの AiScript ソースを全文置換する。意図しない上書きを' +
       '防ぐため、事前に widgets.read で現状を取得してから差分判断して' +
-      'から渡すことを推奨。',
+      'から渡すことを推奨。表示中のウィジェットは保存後に新 src で自動' +
+      '再実行されるので、`aiscript.logs` で実行結果 (print / エラー) を' +
+      '確認し、エラーがあれば修正して再保存するループを回すこと。' +
+      '表示されていないウィジェットは実行されない (rerunning=false)。',
     params: {
       installId: {
         type: 'string',
@@ -221,7 +228,9 @@ export const widgetsUpdateCapability: Command = {
     },
     returns: {
       type: 'object',
-      description: '{ installId, length: 新 src の文字数 }',
+      description:
+        '{ installId, length: 新 src の文字数, rerunning: boolean }。' +
+        'rerunning=true なら表示中インスタンスが新 src で再実行される。',
     },
   },
   visible: false,
@@ -236,7 +245,10 @@ export const widgetsUpdateCapability: Command = {
       throw new Error(`widgets.update: widget "${installId}" not found`)
     }
     store.updateSrc(installId, src)
-    return { installId, length: src.length }
+    // 表示中のインスタンスに再実行を要求する (#744)。ユーザーのエディタ編集
+    // (debounce 自動保存) と違い、AI 経由の保存だけがこのシグナルを発火する。
+    const rerunning = store.requestRerun(installId) > 0
+    return { installId, length: src.length, rerunning }
   },
 }
 
