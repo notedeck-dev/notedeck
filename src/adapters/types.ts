@@ -751,6 +751,7 @@ export interface FollowRelation {
 export interface UserRelation {
   id: string
   isFollowing: boolean
+  hasPendingFollowRequestFromYou?: boolean
   isFollowed: boolean
   isBlocking: boolean
   isBlocked: boolean

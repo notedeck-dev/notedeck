@@ -30,6 +30,7 @@ type TabType = 'following' | 'followers'
 const activeTab = ref<TabType>(props.initialTab ?? 'following')
 const followingIds = ref<Set<string>>(new Set())
 const followedByIds = ref<Set<string>>(new Set())
+const pendingIds = ref<Set<string>>(new Set())
 const followLoadingIds = ref<Set<string>>(new Set())
 
 const account = accountsStore.accounts.find((a) => a.id === props.accountId)
@@ -96,6 +97,7 @@ watch(activeTab, () => {
   resetUsers()
   followingIds.value = new Set()
   followedByIds.value = new Set()
+  pendingIds.value = new Set()
   loadUsers()
 })
 
@@ -106,12 +108,15 @@ async function fetchRelations(batch: NormalizedUser[]) {
     const relations = await adapter.api.getUserRelations(ids)
     const newFollowing = new Set(followingIds.value)
     const newFollowed = new Set(followedByIds.value)
+    const newPending = new Set(pendingIds.value)
     for (const r of relations) {
       if (r.isFollowing) newFollowing.add(r.id)
       if (r.isFollowed) newFollowed.add(r.id)
+      if (r.hasPendingFollowRequestFromYou) newPending.add(r.id)
     }
     followingIds.value = newFollowing
     followedByIds.value = newFollowed
+    pendingIds.value = newPending
   } catch {
     // Non-critical
   }
@@ -128,15 +133,33 @@ async function toggleFollow(targetUser: NormalizedUser) {
   if (!adapter || followLoadingIds.value.has(targetUser.id)) return
   followLoadingIds.value = new Set([...followLoadingIds.value, targetUser.id])
   try {
-    const isCurrentlyFollowing = followingIds.value.has(targetUser.id)
-    if (isCurrentlyFollowing) {
+    if (pendingIds.value.has(targetUser.id)) {
+      // 鍵アカウントへの未承認リクエストはキャンセル
+      // (following/delete は notFollowing エラーになる)
+      await adapter.api.cancelFollowRequest(targetUser.id)
+      const next = new Set(pendingIds.value)
+      next.delete(targetUser.id)
+      pendingIds.value = next
+    } else if (followingIds.value.has(targetUser.id)) {
       await adapter.api.unfollowUser(targetUser.id)
       const next = new Set(followingIds.value)
       next.delete(targetUser.id)
       followingIds.value = next
     } else {
       await adapter.api.followUser(targetUser.id)
-      followingIds.value = new Set([...followingIds.value, targetUser.id])
+      // 鍵アカウントは承認待ちになるだけなので、サーバーの relation で状態を確定する
+      let pending = false
+      try {
+        const [rel] = await adapter.api.getUserRelations([targetUser.id])
+        pending = rel?.hasPendingFollowRequestFromYou === true
+      } catch {
+        // relation 取得失敗時は従来どおりフォロー中扱い
+      }
+      if (pending) {
+        pendingIds.value = new Set([...pendingIds.value, targetUser.id])
+      } else {
+        followingIds.value = new Set([...followingIds.value, targetUser.id])
+      }
     }
   } catch (e) {
     const err = AppError.from(e)
@@ -195,12 +218,15 @@ function navigateUser(userId: string) {
         <button
           v-if="account?.userId !== u.id"
           class="_button"
-          :class="[$style.followBtn, { [$style.followBtnFollowing]: followingIds.has(u.id), [$style.followBtnDisabled]: !account?.hasToken }]"
+          :class="[$style.followBtn, { [$style.followBtnFollowing]: followingIds.has(u.id) || pendingIds.has(u.id), [$style.followBtnDisabled]: !account?.hasToken }]"
           :disabled="followLoadingIds.has(u.id) || isGuest"
           @click.stop="account?.hasToken ? toggleFollow(u) : showLoginPrompt()"
         >
           <template v-if="followLoadingIds.has(u.id)">
             <i class="ti ti-loader-2 nd-spin" />
+          </template>
+          <template v-else-if="pendingIds.has(u.id)">
+            フォロー許可待ち
           </template>
           <template v-else-if="followingIds.has(u.id)">
             フォロー中
