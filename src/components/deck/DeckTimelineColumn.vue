@@ -9,6 +9,7 @@ import type {
 import MkAd from '@/components/common/MkAd.vue'
 import { useAds } from '@/composables/useAds'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
+import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { useAccountsStore } from '@/stores/accounts'
@@ -327,6 +328,9 @@ async function switchTl(type: TimelineType) {
       tlType.value,
       ((col.orderedIds as string[] | undefined) ?? []).slice(),
       (col.scroller as HTMLElement | undefined)?.scrollTop ?? 0,
+      (
+        col.noteScrollerRef as NoteScrollerExpose | null | undefined
+      )?.getScrollAnchor?.() ?? null,
     )
   }
 
@@ -337,7 +341,11 @@ async function switchTl(type: TimelineType) {
   // Restore snapshot if available, otherwise full reconnect
   const snapshot = snapshotStore.restore(props.column.id, type)
   if (snapshot && snapshot.notes.length > 0) {
-    await col?.switchWithSnapshot(snapshot.notes, snapshot.scrollTop)
+    await col?.switchWithSnapshot(
+      snapshot.notes,
+      snapshot.scrollTop,
+      snapshot.anchor,
+    )
   } else {
     await reconnect(true)
   }

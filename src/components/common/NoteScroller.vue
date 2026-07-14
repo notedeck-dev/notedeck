@@ -169,6 +169,37 @@ defineExpose({
       behavior: opts?.behavior ?? 'smooth',
     })
   },
+  /** スクロール位置復元用アンカー: 先頭可視アイテムの id + その上端からのオフセット。
+   *  ピクセル scrollTop は仮想スクローラの再測定でズレるため、id 基準で保存する */
+  getScrollAnchor: (): { id: string; offset: number } | null => {
+    const el = scrollContainer.value
+    if (!el || el.scrollTop <= 0) return null
+    const scrollTop = el.scrollTop
+    for (const item of virtualizer.value.getVirtualItems()) {
+      if (item.end > scrollTop) {
+        const id = props.items[item.index]?.id
+        if (id == null) return null
+        return { id: String(id), offset: scrollTop - item.start }
+      }
+    }
+    return null
+  },
+  /** アンカー id へ復元する。id が見つからなければ false (呼び出し側で scrollTop にフォールバック) */
+  restoreScrollAnchor: (id: string, offset: number): boolean => {
+    const index = props.items.findIndex((it) => it.id === id)
+    if (index < 0) return false
+    virtualizer.value.scrollToIndex(index, { align: 'start', behavior: 'auto' })
+    // 動的高さの再測定で位置が動くため、次フレームで再アンカーしてから offset を足す
+    requestAnimationFrame(() => {
+      virtualizer.value.scrollToIndex(index, {
+        align: 'start',
+        behavior: 'auto',
+      })
+      const el = scrollContainer.value
+      if (el) el.scrollTop += offset
+    })
+    return true
+  },
 })
 
 defineSlots<{

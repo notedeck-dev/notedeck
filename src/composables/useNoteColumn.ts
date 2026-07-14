@@ -378,10 +378,20 @@ export function useNoteColumn(config: NoteColumnConfig) {
       : null
     if (snapshot) {
       setNotes(snapshot.notes)
-      const savedScrollTop = snapshot.scrollTop
+      const { scrollTop: savedScrollTop, anchor } = snapshot
       nextTick(() => {
-        const el = noteScrollerRef.value?.getElement?.()
-        if (el) el.scrollTop = savedScrollTop
+        // アンカー (note id) 基準で復元し、仮想スクローラの再測定による
+        // ピクセルずれジャンプを防ぐ。見つからなければ scrollTop にフォールバック
+        const restored = anchor
+          ? (noteScrollerRef.value?.restoreScrollAnchor?.(
+              anchor.id,
+              anchor.offset,
+            ) ?? false)
+          : false
+        if (!restored) {
+          const el = noteScrollerRef.value?.getElement?.()
+          if (el) el.scrollTop = savedScrollTop
+        }
       })
     }
 
@@ -760,6 +770,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
   async function switchWithSnapshot(
     snapshotNotes: NormalizedNote[],
     scrollTop: number,
+    anchor: snapshotStore.ScrollAnchor | null = null,
   ) {
     const adapter = getAdapter()
     if (!adapter || !config.streaming || !streamingBatch) {
@@ -776,7 +787,13 @@ export function useNoteColumn(config: NoteColumnConfig) {
     setNotes(snapshotNotes)
     error.value = null
     await nextTick()
-    if (scroller.value) scroller.value.scrollTop = scrollTop
+    const restored = anchor
+      ? (noteScrollerRef.value?.restoreScrollAnchor?.(
+          anchor.id,
+          anchor.offset,
+        ) ?? false)
+      : false
+    if (!restored && scroller.value) scroller.value.scrollTop = scrollTop
 
     // Sync isAtTop with restored scroll position (resetBatch forces it to true)
     streamingBatch.isAtTop.value = scrollTop <= 10
@@ -844,6 +861,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
         unmountCacheKey,
         orderedIds.value,
         el?.scrollTop ?? 0,
+        noteScrollerRef.value?.getScrollAnchor?.() ?? null,
       )
     }
     disconnect()

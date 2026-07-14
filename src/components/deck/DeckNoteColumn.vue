@@ -120,6 +120,7 @@ usePortal(postFormPortalRef)
 defineExpose({
   account,
   scroller,
+  noteScrollerRef,
   reconnect,
   switchWithSnapshot,
   notes,
