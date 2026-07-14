@@ -10,7 +10,13 @@
   border-radius: var(--nd-radius-sm);
   font-size: 0.8em;
   font-weight: bold;
-  transition: background var(--nd-duration-base), color var(--nd-duration-base);
+  transition: background var(--nd-duration-base), color var(--nd-duration-base),
+    transform var(--nd-duration-fast);
+
+  // 押下フィードバック (reduced-motion は global.css のブランケット指定で無効化される)
+  &:active:not(:disabled) {
+    transform: scale(0.96);
+  }
 }
 
 @mixin btn-secondary {
