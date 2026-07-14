@@ -2074,13 +2074,17 @@ function onKeydown(e: KeyboardEvent) {
 .mobile {
   &.postOverlay {
     padding-top: var(--nd-safe-area-top, env(safe-area-inset-top));
-    padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
+    /* ソフトキーボード表示中は footer (絵文字/添付等) が覆われないよう底上げ */
+    padding-bottom: max(
+      var(--nd-safe-area-bottom, env(safe-area-inset-bottom)),
+      var(--nd-keyboard-inset, 0px)
+    );
   }
 
   .emojiPopup {
     position: fixed;
     top: auto;
-    bottom: 0;
+    bottom: var(--nd-keyboard-inset, 0px);
     left: 0;
     right: 0;
     width: 100%;

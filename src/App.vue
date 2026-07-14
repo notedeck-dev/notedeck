@@ -10,6 +10,7 @@ import {
 import { useRoute } from 'vue-router'
 import { useHeartbeatDaemon } from '@/composables/useHeartbeatDaemon'
 import { useKeyboard } from '@/composables/useKeyboard'
+import { initKeyboardInset } from '@/composables/useKeyboardInset'
 import { useMuteSync } from '@/composables/useMuteSync'
 import { listenPipEvents } from '@/composables/usePipWindow'
 import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
@@ -139,6 +140,9 @@ onMounted(async () => {
     document.documentElement.dataset.platform = platformName
   }
   document.documentElement.dataset.env = isTauri ? 'tauri' : 'web'
+
+  // ソフトキーボード高さを --nd-keyboard-inset に反映 (モバイルのみ)
+  if (uiStore.isMobilePlatform) initKeyboardInset()
 
   // Show window immediately (visible: false in tauri.conf.json to avoid WebView2 flash).
   // NOTE: setDecorations(false) は呼ばない。config で既に false であり、
