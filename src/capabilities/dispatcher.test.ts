@@ -1541,7 +1541,7 @@ describe('dispatchCapability — 第三者 deny floor と external read floor (#
     expect(tasks).toEqual({ ok: true, result: 'ran' })
   })
 
-  it('plugin は vault.use が floor で常時拒否される', async () => {
+  it('plugin の vault.use は preset に従う (#759 — 接続側の開示が gate)', async () => {
     registerCapability(
       makeCapability({
         id: 'vault.fetch',
@@ -1549,11 +1549,18 @@ describe('dispatchCapability — 第三者 deny floor と external read floor (#
         execute: () => 'secret-op',
       }),
     )
-    setPrincipalPreset('plugin', 'full')
-    const r = await dispatchCapability('vault.fetch', undefined, {
+    // default (readonly) では拒否
+    const denied = await dispatchCapability('vault.fetch', undefined, {
       principal: { kind: 'plugin', pluginId: 'p1' },
     })
-    expect(r.ok).toBe(false)
+    expect(denied.ok).toBe(false)
+
+    // full にすれば permission 層は通る (接続の開示は vault.fetch 側で判定)
+    setPrincipalPreset('plugin', 'full')
+    const allowed = await dispatchCapability('vault.fetch', undefined, {
+      principal: { kind: 'plugin', pluginId: 'p1' },
+    })
+    expect(allowed).toEqual({ ok: true, result: 'secret-op' })
   })
 
   it('external は custom で Misskey read 4 キーを全 OFF にしても read が通る (下限)', async () => {

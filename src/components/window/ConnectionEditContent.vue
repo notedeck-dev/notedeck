@@ -45,15 +45,22 @@ const aiVaultUseEnabled = computed(() => {
     resolveForProfiled('ai.heartbeat')['vault.use']
   )
 })
+const pluginVaultUseEnabled = computed(() => {
+  void permissionsFile.value
+  return resolveForProfiled('plugin')['vault.use']
+})
 const externalVaultUseEnabled = computed(() => {
   void permissionsFile.value
   return resolveForProfiled('external')['vault.use']
 })
 
-// 開示先クラス別トグル (#712 §6.1)。「AI に見せる」「外部アプリに見せる」は
-// 別の同意 — 片方への開示がもう片方に波及しない。trusted は開示が前提。
+// 開示先クラス別トグル (#712 §6.1 / #759)。「AI に見せる」「プラグインに見せる」
+// 「外部アプリに見せる」は別の同意 — 片方への開示が他方に波及しない。
+// trusted は開示が前提。
 const exposedAi = ref(false)
 const trustedAi = ref(false)
+const exposedPlugin = ref(false)
+const trustedPlugin = ref(false)
 const exposedExternal = ref(false)
 const trustedExternal = ref(false)
 // テンプレ由来 / AI プロバイダー接続のメタデータ。フォームには出さず、
@@ -116,6 +123,8 @@ onMounted(async () => {
       notes.value = conn.notes ?? ''
       exposedAi.value = conn.exposedTo?.includes('ai') ?? false
       trustedAi.value = conn.trustedFor?.includes('ai') ?? false
+      exposedPlugin.value = conn.exposedTo?.includes('plugin') ?? false
+      trustedPlugin.value = conn.trustedFor?.includes('plugin') ?? false
       exposedExternal.value = conn.exposedTo?.includes('external') ?? false
       trustedExternal.value = conn.trustedFor?.includes('external') ?? false
       hasSecret.value = (conn.slots ?? []).length > 0
@@ -221,6 +230,12 @@ async function save() {
     if (connId) {
       await vault.setExposed(connId, 'ai', exposedAi.value)
       await vault.setTrusted(connId, 'ai', exposedAi.value && trustedAi.value)
+      await vault.setExposed(connId, 'plugin', exposedPlugin.value)
+      await vault.setTrusted(
+        connId,
+        'plugin',
+        exposedPlugin.value && trustedPlugin.value,
+      )
       await vault.setExposed(connId, 'external', exposedExternal.value)
       await vault.setTrusted(
         connId,
@@ -444,6 +459,28 @@ const testResultText = computed(() => {
           </span>
         </label>
         <label :class="$style.toggleRow">
+          <input v-model="exposedPlugin" type="checkbox" />
+          <span>
+            <span :class="$style.toggleLabel">プラグイン・ウィジェットに見せる</span>
+            <span :class="$style.toggleHint">
+              AiScript プラグイン / ウィジェットからこの接続を使えるようにします
+            </span>
+          </span>
+        </label>
+        <div v-if="exposedPlugin && !pluginVaultUseEnabled" :class="$style.gateChip">
+          <i class="ti ti-info-circle" />
+          プラグインの vault.use が無効のため、この接続はまだ見えません — 権限ウィンドウを開いて許可してください
+        </div>
+        <label :class="[$style.toggleRow, $style.toggleSub, !exposedPlugin && $style.toggleDisabled]">
+          <input v-model="trustedPlugin" type="checkbox" :disabled="!exposedPlugin" />
+          <span>
+            <span :class="$style.toggleLabel">確認なしで使う (プラグイン)</span>
+            <span :class="$style.toggleHint">
+              プラグイン / ウィジェットがこの接続を使うとき確認ダイアログを出しません
+            </span>
+          </span>
+        </label>
+        <label :class="$style.toggleRow">
           <input v-model="exposedExternal" type="checkbox" />
           <span>
             <span :class="$style.toggleLabel">外部アプリに見せる</span>
@@ -465,10 +502,6 @@ const testResultText = computed(() => {
             </span>
           </span>
         </label>
-        <div :class="$style.gateChip">
-          <i class="ti ti-shield-x" />
-          プラグインには開示されません (NoteDeck のセキュリティ設計)
-        </div>
       </div>
     </details>
 
@@ -665,7 +698,7 @@ const testResultText = computed(() => {
   opacity: 0.45;
 }
 
-// 二段 gate / plugin 恒久拒否の受動表示 chip (#712 §6.3)
+// 二段 gate の受動表示 chip (#712 §6.3)
 .gateChip {
   display: flex;
   align-items: center;

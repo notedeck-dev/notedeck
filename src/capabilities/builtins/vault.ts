@@ -1,28 +1,27 @@
 import type { Connection, PrincipalClass } from '@/bindings'
 import type { CapabilityContext } from '@/capabilities/types'
 import type { Command } from '@/commands/registry'
-import { recordPluginDenial } from '@/permissions/pluginDenials'
 import type { Principal } from '@/permissions/principal'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /**
- * principal → 開示先クラスのマッピング (#712 §6.1)。
+ * principal → 開示先クラスのマッピング (#712 §6.1 / #759)。
  * - ai.chat / ai.heartbeat → 'ai'
+ * - plugin → 'plugin' (接続ごとの opt-in 開示 — default 非開示)
  * - external → 'external'
- * - user → null を返すが全開示 (本人は常に全接続を扱える)
- * - plugin → 恒久拒否 (プラグインに secret は渡さない — 復旧トグルも無い)
+ * - user → 'user' を返すが全開示 (本人は常に全接続を扱える)
  */
-function classOf(principal: Principal): PrincipalClass | 'user' | null {
+function classOf(principal: Principal): PrincipalClass | 'user' {
   switch (principal.kind) {
     case 'user':
       return 'user'
     case 'ai.chat':
     case 'ai.heartbeat':
       return 'ai'
+    case 'plugin':
+      return 'plugin'
     case 'external':
       return 'external'
-    case 'plugin':
-      return null
   }
 }
 
@@ -37,22 +36,6 @@ function requirePrincipal(ctx: CapabilityContext | undefined): Principal {
 }
 
 /**
- * plugin principal なら専用エラーで拒否する (#712 §6.1)。
- * エラーコード `vault_not_exposed_to_plugins` はプラグイン作者向け —
- * 破壊的変更 (旧 aiVisible 接続はプラグインからも見えていた) なので、
- * 復旧方法 (プラグイン設定値としての入力) まで文言で案内する。
- */
-function rejectPlugin(principal: Principal): void {
-  if (principal.kind !== 'plugin') return
-  recordPluginDenial(principal.pluginId, 'vault.fetch', ['vault.use'])
-  throw new Error(
-    'vault_not_exposed_to_plugins: Secret Vault はプラグインには開示されません' +
-      ' (NoteDeck のセキュリティ設計)。外部 API キーが必要な場合はユーザーに' +
-      'プラグイン設定値としての入力を求めてください',
-  )
-}
-
-/**
  * `connectionRef` (接続名 — 大文字小文字無視 — または id) を、principal の
  * クラスに開示された接続に解決する。見つからなければ `null`。`execute` と
  * `requiresConfirmation` / `onConfirmRemember` で同じ解決ロジックを共有する。
@@ -62,7 +45,6 @@ async function resolveVisibleConnection(
   principal: Principal,
 ): Promise<Connection | null> {
   const cls = classOf(principal)
-  if (cls === null) return null
   const all = unwrap(await commands.vaultListConnections())
   const visible =
     cls === 'user' ? all : all.filter((c) => c.exposedTo?.includes(cls))
@@ -80,8 +62,8 @@ async function resolveVisibleConnection(
  * 渡らない。
  *
  * この capability から到達できるのは **呼び出し principal のクラスに開示された
- * 接続のみ** (#712 §6.1)。「AI に見せる」「外部アプリに見せる」は別の同意で、
- * 片方への開示がもう片方に波及しない。plugin principal は恒久拒否。
+ * 接続のみ** (#712 §6.1 / #759)。「AI に見せる」「プラグインに見せる」
+ * 「外部アプリに見せる」は別の同意で、片方への開示が他方に波及しない。
  *
  * confirmation は接続の per-class 信頼状態で決まる (#712 §6.2):
  * - `trustedFor` に呼び出しクラスが含まれる接続 → 確認なし
@@ -99,19 +81,13 @@ export const vaultFetchCapability: Command = {
   permissions: ['vault.use'],
   requiresConfirmation: async (params, ctx) => {
     const principal = requirePrincipal(ctx)
-    rejectPlugin(principal)
     const cls = classOf(principal)
     const ref =
       typeof params?.connectionRef === 'string' ? params.connectionRef : ''
     const conn = ref ? await resolveVisibleConnection(ref, principal) : null
     // 呼び出しクラスで信頼済みの接続は確認なしで通す (user は常に確認あり —
     // 本人操作の confirm は削らない)
-    if (
-      conn &&
-      cls !== 'user' &&
-      cls !== null &&
-      conn.trustedFor?.includes(cls)
-    ) {
+    if (conn && cls !== 'user' && conn.trustedFor?.includes(cls)) {
       return null
     }
     return {
@@ -125,7 +101,7 @@ export const vaultFetchCapability: Command = {
       cancelLabel: 'やめる',
       type: 'danger',
       // 接続が解決できた + remember の同意先クラスが確定しているときだけ出す
-      ...(conn && cls !== 'user' && cls !== null
+      ...(conn && cls !== 'user'
         ? { rememberLabel: '今後この接続を確認なしで使う' }
         : {}),
     }
@@ -134,7 +110,7 @@ export const vaultFetchCapability: Command = {
     const principal = requirePrincipal(ctx)
     const cls = classOf(principal)
     // 昇格は呼び出しクラスだけに効かせる (#712 §6.2)
-    if (cls === 'user' || cls === null) return
+    if (cls === 'user') return
     const ref =
       typeof params?.connectionRef === 'string' ? params.connectionRef : ''
     const conn = ref ? await resolveVisibleConnection(ref, principal) : null
@@ -187,7 +163,6 @@ export const vaultFetchCapability: Command = {
   visible: false,
   execute: async (params, ctx) => {
     const principal = requirePrincipal(ctx)
-    rejectPlugin(principal)
     const ref =
       typeof params?.connectionRef === 'string' ? params.connectionRef : ''
     if (!ref) throw new Error('connectionRef is required')

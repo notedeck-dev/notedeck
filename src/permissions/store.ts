@@ -426,8 +426,10 @@ export function profileFor(principal: Principal): PermissionsConfig | null {
  *
  * - plugin / external: THIRD_PARTY_DENY_KEYS (AI 指示チャネル + tasks.run) を
  *   恒久 OFF。full preset でも拒否 (「同意しても成立させない」構造的禁止)
- * - plugin: vault.use も恒久 OFF (Secret Vault はプラグインに開示しない)
  * - external: EXTERNAL_READ_FLOOR (Misskey コンテンツ read 4 キー) を常時 ON
+ *
+ * plugin の vault.use はここで clamp しない (#759) — Secret Vault 側の
+ * per-connection 開示 (`exposedTo: ['plugin']`, default 非開示) が gate になる。
  */
 function clampForPrincipal(
   map: Record<PermissionKey, boolean>,
@@ -435,9 +437,6 @@ function clampForPrincipal(
 ): Record<PermissionKey, boolean> {
   if (id === 'plugin' || id === 'external') {
     for (const key of THIRD_PARTY_DENY_KEYS) map[key] = false
-  }
-  if (id === 'plugin') {
-    map['vault.use'] = false
   }
   if (id === 'external') {
     for (const key of EXTERNAL_READ_FLOOR) map[key] = true

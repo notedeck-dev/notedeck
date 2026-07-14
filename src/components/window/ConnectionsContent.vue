@@ -41,7 +41,7 @@ function classBadge(
     cls === 'ai'
       ? resolveForProfiled('ai.chat')['vault.use'] ||
         resolveForProfiled('ai.heartbeat')['vault.use']
-      : resolveForProfiled('external')['vault.use']
+      : resolveForProfiled(cls)['vault.use']
   if (!vaultUse || (conn.slots?.length ?? 0) === 0) return 'inactive'
   return 'active'
 }
@@ -104,6 +104,17 @@ function classBadge(
             "
           >
             <i class="ti ti-robot" />
+          </span>
+          <span
+            v-if="classBadge(conn, 'plugin') !== 'hidden'"
+            :class="[$style.connBadge, $style[`cls_${classBadge(conn, 'plugin')}`]]"
+            :title="
+              classBadge(conn, 'plugin') === 'active'
+                ? 'プラグイン・ウィジェットから利用可能'
+                : 'プラグインに開示中 (vault.use が無効か secret 未設定でまだ使えません)'
+            "
+          >
+            <i class="ti ti-puzzle" />
           </span>
           <span
             v-if="classBadge(conn, 'external') !== 'hidden'"
