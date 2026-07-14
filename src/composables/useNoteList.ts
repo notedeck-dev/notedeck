@@ -121,8 +121,19 @@ export function useNoteList(options: UseNoteListOptions) {
     }
   }
 
+  /** ユーザー操作で削除中のノート id。NoteScroller の leave アニメに使う */
+  const removingIds = shallowRef<ReadonlySet<string>>(new Set())
+
   async function removeNote(note: NormalizedNote) {
     const id = note.id
+    // リストから消す前にフェードアウトを見せる (reduced-motion では即時)
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      removingIds.value = new Set([...removingIds.value, id])
+      await new Promise((resolve) => setTimeout(resolve, 180))
+      const next = new Set(removingIds.value)
+      next.delete(id)
+      removingIds.value = next
+    }
     const prevIds = orderedIds.value
     notes.value = notes.value.filter((n) => n.id !== id && n.renoteId !== id)
 
@@ -151,5 +162,6 @@ export function useNoteList(options: UseNoteListOptions) {
     onNoteUpdate,
     handlePosted,
     removeNote,
+    removingIds,
   }
 }

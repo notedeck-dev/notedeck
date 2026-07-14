@@ -120,6 +120,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     onNoteUpdate,
     handlePosted,
     removeNote,
+    removingIds,
   } = useNoteList({
     getMyUserId: () => account.value?.userId,
     getAdapter,
@@ -895,6 +896,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     handleScroll,
     handlePosted,
     removeNote,
+    removingIds,
     loadMore,
     refresh,
     isPulling,

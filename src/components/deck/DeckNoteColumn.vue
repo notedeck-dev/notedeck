@@ -65,6 +65,7 @@ const {
   postForm,
   handlers,
   noteScrollerRef,
+  removingIds,
   scroller,
   scrollToTop,
   handleScroll,
@@ -229,6 +230,7 @@ defineExpose({
           :items="notes"
           :focused-id="focusedNoteId"
           :animating-ids="animatingIds"
+          :leaving-ids="removingIds"
           :prefetch="(notes) => { prefetchNoteImages(notes); prefetchNoteMfm(notes) }"
           :class="$style.tlScroller"
           @scroll="handleScroll"
