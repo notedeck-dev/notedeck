@@ -416,3 +416,25 @@ jobs:
           installers-regex: '-windows-x64-setup\.exe$'
           version: ${{ steps.version.outputs.version }}
           token: ${{ secrets.WINGET_TOKEN }}
+
+  announce:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Post to Misskey
+        env:
+          MISSKEY_TOKEN: ${{ secrets.MISSKEY_TOKEN }}
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          TEXT="🚀 NoteDeck v${VERSION} をリリースしました
+
+          https://github.com/${{ github.repository }}/releases/tag/v${VERSION}"
+          jq -n --arg i "$MISSKEY_TOKEN" --arg text "$TEXT" \
+            '{i: $i, text: $text, visibility: "public"}' \
+            | curl -sf https://misskey.io/api/notes/create \
+              -H "Content-Type: application/json" \
+              -d @-
