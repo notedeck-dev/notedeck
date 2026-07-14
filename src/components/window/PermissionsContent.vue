@@ -162,11 +162,6 @@ const TASKS_RULE = {
   reason: 'タスクは本人と AI のみが実行できます',
   fixedValue: false,
 } as const
-const PLUGIN_VAULT_RULE = {
-  keys: ['vault.use'],
-  reason: 'Secret Vault はプラグインには開示されません',
-  fixedValue: false,
-} as const
 const EXTERNAL_FLOOR_RULE = {
   keys: EXTERNAL_READ_FLOOR,
   reason:
@@ -174,7 +169,7 @@ const EXTERNAL_FLOOR_RULE = {
   fixedValue: true,
 } as const
 
-const PLUGIN_DISABLED = [INSTRUCTION_RULE, TASKS_RULE, PLUGIN_VAULT_RULE]
+const PLUGIN_DISABLED = [INSTRUCTION_RULE, TASKS_RULE]
 const EXTERNAL_DISABLED = [INSTRUCTION_RULE, TASKS_RULE, EXTERNAL_FLOOR_RULE]
 
 // --- 状態依存 chip: vault.use 実効 ON かつ開示接続 0 件 (#712 §6.3) ---
@@ -186,6 +181,11 @@ const aiVaultChip = computed(() => {
     resolveForProfiled('ai.heartbeat')['vault.use']
   if (!vaultUse) return false
   return !vault.connections.value.some((c) => c.exposedTo?.includes('ai'))
+})
+const pluginVaultChip = computed(() => {
+  void permissionsFile.value
+  if (!resolveForProfiled('plugin')['vault.use']) return false
+  return !vault.connections.value.some((c) => c.exposedTo?.includes('plugin'))
 })
 const externalVaultChip = computed(() => {
   void permissionsFile.value
@@ -409,7 +409,7 @@ function handleReset() {
         <p :class="$style.hint">{{ row.hint }}</p>
 
         <div
-          v-if="(row.id === 'ai.chat' && aiVaultChip) || (row.id === 'external' && externalVaultChip)"
+          v-if="(row.id === 'ai.chat' && aiVaultChip) || (row.id === 'plugin' && pluginVaultChip) || (row.id === 'external' && externalVaultChip)"
           :class="$style.stateChip"
         >
           <i class="ti ti-info-circle" />

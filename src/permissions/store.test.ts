@@ -255,10 +255,10 @@ describe('resolveForProfiled — principal 別 clamp (#712 PR 1c)', () => {
     _resetPermissionsForTest()
   })
 
-  it('plugin は vault.use も clamp、external は Misskey read 4 キーが常時 true', () => {
+  it('plugin の vault.use は clamp されない (#759 — 接続側の開示が gate)、external は Misskey read 4 キーが常時 true', () => {
     const { file } = usePermissionsConfig()
     file.value.principals.plugin = { preset: 'full', custom: {} as never }
-    expect(resolveForProfiled('plugin')['vault.use']).toBe(false)
+    expect(resolveForProfiled('plugin')['vault.use']).toBe(true)
 
     const allOff = Object.fromEntries(
       PERMISSION_KEYS.map((k) => [k, false]),

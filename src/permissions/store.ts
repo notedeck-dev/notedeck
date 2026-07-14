@@ -76,8 +76,9 @@ function safeFallbackFile(): PermissionsFileConfig {
  *   vault.use 等) は据え置き opt-in
  * - `plugin`: safe + `network.external` (PLUGIN_DEFAULT_PROFILE #714 followup)
  *   — 外部 API 連携ウィジェットを初期状態で妨げない (http.fetch の都度確認は
- *   残る)。危険権限 (skills.write / tasks.run / vault.use) は preset に
- *   関わらず clampForPrincipal が恒久 deny する
+ *   残る)。危険権限 (skills.write / tasks.run) は preset に関わらず
+ *   clampForPrincipal が恒久 deny する。vault.use は safe で OFF (opt-in) —
+ *   接続側の per-connection 開示と合わせた二段 gate (#759)
  * - `ai.heartbeat`: `readonly` — 無人実行は安全側 (#712 §4.4)
  * - `external`: 縮小 custom (#712 §4.4 — 「トークン発行 = Misskey read の
  *   同意」にローカル私的データを含めない)
@@ -426,8 +427,10 @@ export function profileFor(principal: Principal): PermissionsConfig | null {
  *
  * - plugin / external: THIRD_PARTY_DENY_KEYS (AI 指示チャネル + tasks.run) を
  *   恒久 OFF。full preset でも拒否 (「同意しても成立させない」構造的禁止)
- * - plugin: vault.use も恒久 OFF (Secret Vault はプラグインに開示しない)
  * - external: EXTERNAL_READ_FLOOR (Misskey コンテンツ read 4 キー) を常時 ON
+ *
+ * plugin の vault.use はここで clamp しない (#759) — Secret Vault 側の
+ * per-connection 開示 (`exposedTo: ['plugin']`, default 非開示) が gate になる。
  */
 function clampForPrincipal(
   map: Record<PermissionKey, boolean>,
@@ -435,9 +438,6 @@ function clampForPrincipal(
 ): Record<PermissionKey, boolean> {
   if (id === 'plugin' || id === 'external') {
     for (const key of THIRD_PARTY_DENY_KEYS) map[key] = false
-  }
-  if (id === 'plugin') {
-    map['vault.use'] = false
   }
   if (id === 'external') {
     for (const key of EXTERNAL_READ_FLOOR) map[key] = true

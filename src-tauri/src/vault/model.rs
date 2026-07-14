@@ -60,17 +60,16 @@ pub enum ConnectionOrigin {
 }
 
 /// 接続を開示する先の principal クラス (#712 §6.1)。
-/// principal そのものより粗い 2 クラス — 接続ごとに 4 principal 分のトグルを
-/// 並べるのは Apple 式に反する。「AI に見せる」「外部アプリに見せる」の
-/// 2 つの同意が、ユーザーのメンタルモデルの実際の粒度。
-///
-/// plugin クラスは存在しない — プラグインへの vault 開示は恒久不可
-/// (プラグインに secret を渡す同意設計が必要になったとき別途)。
+/// principal そのものより粗いクラス — 接続ごとに全 principal 分のトグルを
+/// 並べるのは Apple 式に反する。「AI に見せる」「プラグインに見せる」
+/// 「外部アプリに見せる」の 3 つの同意が、ユーザーのメンタルモデルの実際の粒度。
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PrincipalClass {
     /// ai.chat + ai.heartbeat
     Ai,
+    /// AiScript プラグイン / ウィジェット (#759 — per-connection opt-in、default 非開示)
+    Plugin,
     /// HTTP API 経由の外部アプリ (全永続トークン)
     External,
 }

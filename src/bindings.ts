@@ -2667,18 +2667,19 @@ export type PerformanceConfig = { memory_cache_max_total: number; memory_cache_m
 export type Player = { url: string; width: number | null; height: number | null; allow?: string[] }
 /**
  * 接続を開示する先の principal クラス (#712 §6.1)。
- * principal そのものより粗い 2 クラス — 接続ごとに 4 principal 分のトグルを
- * 並べるのは Apple 式に反する。「AI に見せる」「外部アプリに見せる」の
- * 2 つの同意が、ユーザーのメンタルモデルの実際の粒度。
- * 
- * plugin クラスは存在しない — プラグインへの vault 開示は恒久不可
- * (プラグインに secret を渡す同意設計が必要になったとき別途)。
+ * principal そのものより粗いクラス — 接続ごとに全 principal 分のトグルを
+ * 並べるのは Apple 式に反する。「AI に見せる」「プラグインに見せる」
+ * 「外部アプリに見せる」の 3 つの同意が、ユーザーのメンタルモデルの実際の粒度。
  */
 export type PrincipalClass = 
 /**
  * ai.chat + ai.heartbeat
  */
 "ai" | 
+/**
+ * AiScript プラグイン / ウィジェット (#759 — per-connection opt-in、default 非開示)
+ */
+"plugin" | 
 /**
  * HTTP API 経由の外部アプリ (全永続トークン)
  */
