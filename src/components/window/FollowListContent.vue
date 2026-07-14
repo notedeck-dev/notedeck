@@ -13,6 +13,7 @@ import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { isGuestAccount, useAccountsStore } from '@/stores/accounts'
+import { useConfirm } from '@/stores/confirm'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
 
@@ -30,7 +31,10 @@ type TabType = 'following' | 'followers'
 const activeTab = ref<TabType>(props.initialTab ?? 'following')
 const followingIds = ref<Set<string>>(new Set())
 const followedByIds = ref<Set<string>>(new Set())
+const pendingIds = ref<Set<string>>(new Set())
 const followLoadingIds = ref<Set<string>>(new Set())
+/** hover 中の行のフォローボタンだけ「解除」表示に変える */
+const hoveredFollowId = ref<string | null>(null)
 
 const account = accountsStore.accounts.find((a) => a.id === props.accountId)
 const isOwnProfile = computed(() => account?.userId === props.userId)
@@ -96,6 +100,7 @@ watch(activeTab, () => {
   resetUsers()
   followingIds.value = new Set()
   followedByIds.value = new Set()
+  pendingIds.value = new Set()
   loadUsers()
 })
 
@@ -106,12 +111,15 @@ async function fetchRelations(batch: NormalizedUser[]) {
     const relations = await adapter.api.getUserRelations(ids)
     const newFollowing = new Set(followingIds.value)
     const newFollowed = new Set(followedByIds.value)
+    const newPending = new Set(pendingIds.value)
     for (const r of relations) {
       if (r.isFollowing) newFollowing.add(r.id)
       if (r.isFollowed) newFollowed.add(r.id)
+      if (r.hasPendingFollowRequestFromYou) newPending.add(r.id)
     }
     followingIds.value = newFollowing
     followedByIds.value = newFollowed
+    pendingIds.value = newPending
   } catch {
     // Non-critical
   }
@@ -124,19 +132,52 @@ function onScroll(e: Event) {
   }
 }
 
+const { confirm } = useConfirm()
+
 async function toggleFollow(targetUser: NormalizedUser) {
   if (!adapter || followLoadingIds.value.has(targetUser.id)) return
+  // フォロー解除だけは誤タップに備えて確認を挟む
+  if (
+    followingIds.value.has(targetUser.id) &&
+    !pendingIds.value.has(targetUser.id)
+  ) {
+    const ok = await confirm({
+      title: 'フォロー解除',
+      message: `@${targetUser.username} のフォローを解除しますか？`,
+      okLabel: '解除',
+      type: 'danger',
+    })
+    if (!ok) return
+  }
   followLoadingIds.value = new Set([...followLoadingIds.value, targetUser.id])
   try {
-    const isCurrentlyFollowing = followingIds.value.has(targetUser.id)
-    if (isCurrentlyFollowing) {
+    if (pendingIds.value.has(targetUser.id)) {
+      // 鍵アカウントへの未承認リクエストはキャンセル
+      // (following/delete は notFollowing エラーになる)
+      await adapter.api.cancelFollowRequest(targetUser.id)
+      const next = new Set(pendingIds.value)
+      next.delete(targetUser.id)
+      pendingIds.value = next
+    } else if (followingIds.value.has(targetUser.id)) {
       await adapter.api.unfollowUser(targetUser.id)
       const next = new Set(followingIds.value)
       next.delete(targetUser.id)
       followingIds.value = next
     } else {
       await adapter.api.followUser(targetUser.id)
-      followingIds.value = new Set([...followingIds.value, targetUser.id])
+      // 鍵アカウントは承認待ちになるだけなので、サーバーの relation で状態を確定する
+      let pending = false
+      try {
+        const [rel] = await adapter.api.getUserRelations([targetUser.id])
+        pending = rel?.hasPendingFollowRequestFromYou === true
+      } catch {
+        // relation 取得失敗時は従来どおりフォロー中扱い
+      }
+      if (pending) {
+        pendingIds.value = new Set([...pendingIds.value, targetUser.id])
+      } else {
+        followingIds.value = new Set([...followingIds.value, targetUser.id])
+      }
     }
   } catch (e) {
     const err = AppError.from(e)
@@ -195,15 +236,20 @@ function navigateUser(userId: string) {
         <button
           v-if="account?.userId !== u.id"
           class="_button"
-          :class="[$style.followBtn, { [$style.followBtnFollowing]: followingIds.has(u.id), [$style.followBtnDisabled]: !account?.hasToken }]"
+          :class="[$style.followBtn, { [$style.followBtnFollowing]: followingIds.has(u.id) || pendingIds.has(u.id), [$style.followBtnDisabled]: !account?.hasToken }]"
           :disabled="followLoadingIds.has(u.id) || isGuest"
           @click.stop="account?.hasToken ? toggleFollow(u) : showLoginPrompt()"
+          @mouseenter="hoveredFollowId = u.id"
+          @mouseleave="hoveredFollowId = null"
         >
           <template v-if="followLoadingIds.has(u.id)">
             <i class="ti ti-loader-2 nd-spin" />
           </template>
+          <template v-else-if="pendingIds.has(u.id)">
+            {{ hoveredFollowId === u.id ? 'リクエスト取消' : 'フォロー許可待ち' }}
+          </template>
           <template v-else-if="followingIds.has(u.id)">
-            フォロー中
+            {{ hoveredFollowId === u.id ? 'フォロー解除' : 'フォロー中' }}
           </template>
           <template v-else>
             フォロー
@@ -354,6 +400,13 @@ function navigateUser(userId: string) {
 .followBtnFollowing {
   color: var(--nd-fg);
   background: var(--nd-buttonBg);
+
+  /* hover 時はラベルが「解除」に変わるのに合わせ danger 色に寄せる */
+  &:hover {
+    background: color-mix(in srgb, var(--nd-love) 20%, var(--nd-buttonBg));
+    color: var(--nd-love);
+    opacity: 1;
+  }
 }
 
 .followBtnDisabled {

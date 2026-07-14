@@ -14,6 +14,8 @@ const props = withDefaults(
     focusedId?: string
     /** Set of note IDs currently animating (slide-in for new streaming notes) */
     animatingIds?: ReadonlySet<string>
+    /** 削除中のノート id (leave フェードアウト + 後続行のスライドアップ) */
+    leavingIds?: ReadonlySet<string>
     /** Called with items beyond nearViewport that should be image-prefetched */
     prefetch?: (items: T[]) => void
   }>(),
@@ -21,6 +23,7 @@ const props = withDefaults(
     estimatedHeight: 150,
     focusedId: undefined,
     animatingIds: () => new Set(),
+    leavingIds: () => new Set(),
     prefetch: undefined,
   },
 )
@@ -31,6 +34,27 @@ const emit = defineEmits<{
 }>()
 
 const scrollContainer = ref<HTMLElement | null>(null)
+
+// 削除アニメ中とその直後だけ行の translate をトランジションさせ、
+// 後続行が FLIP 風にスライドアップして詰まるように見せる。
+// 常時 transition を付けるとスクロール中の再測定でジッターするため限定する
+const shifting = ref(false)
+let shiftTimer: ReturnType<typeof setTimeout> | null = null
+watch(
+  () => props.leavingIds.size,
+  (size) => {
+    if (size > 0) {
+      if (shiftTimer) clearTimeout(shiftTimer)
+      shifting.value = true
+    } else if (shifting.value) {
+      if (shiftTimer) clearTimeout(shiftTimer)
+      shiftTimer = setTimeout(() => {
+        shifting.value = false
+        shiftTimer = null
+      }, 300)
+    }
+  },
+)
 
 // Dynamic estimateSize — exponential moving average (EMA) of measured item heights.
 // Converges fast during bootstrap (first 10), then tracks recent height trends.
@@ -169,6 +193,37 @@ defineExpose({
       behavior: opts?.behavior ?? 'smooth',
     })
   },
+  /** スクロール位置復元用アンカー: 先頭可視アイテムの id + その上端からのオフセット。
+   *  ピクセル scrollTop は仮想スクローラの再測定でズレるため、id 基準で保存する */
+  getScrollAnchor: (): { id: string; offset: number } | null => {
+    const el = scrollContainer.value
+    if (!el || el.scrollTop <= 0) return null
+    const scrollTop = el.scrollTop
+    for (const item of virtualizer.value.getVirtualItems()) {
+      if (item.end > scrollTop) {
+        const id = props.items[item.index]?.id
+        if (id == null) return null
+        return { id: String(id), offset: scrollTop - item.start }
+      }
+    }
+    return null
+  },
+  /** アンカー id へ復元する。id が見つからなければ false (呼び出し側で scrollTop にフォールバック) */
+  restoreScrollAnchor: (id: string, offset: number): boolean => {
+    const index = props.items.findIndex((it) => it.id === id)
+    if (index < 0) return false
+    virtualizer.value.scrollToIndex(index, { align: 'start', behavior: 'auto' })
+    // 動的高さの再測定で位置が動くため、次フレームで再アンカーしてから offset を足す
+    requestAnimationFrame(() => {
+      virtualizer.value.scrollToIndex(index, {
+        align: 'start',
+        behavior: 'auto',
+      })
+      const el = scrollContainer.value
+      if (el) el.scrollTop += offset
+    })
+    return true
+  },
 })
 
 defineSlots<{
@@ -194,6 +249,8 @@ defineSlots<{
         :class="[
           $style.noteItem,
           animatingIds.has(props.items[vRow.index]!.id) && $style.enterAnimation,
+          leavingIds.has(props.items[vRow.index]!.id) && $style.leaveAnimation,
+          shifting && $style.shifting,
         ]"
         :style="{ translate: `0 ${vRow.start}px` }"
       >
@@ -211,6 +268,8 @@ defineSlots<{
   overscroll-behavior: contain;
   position: relative;
   contain: layout style;
+  /* classic scrollbar 環境でバー出現時に中身が横ズレしないよう予約 */
+  scrollbar-gutter: stable;
 
   /* Scroll-edge fade: subtle shadow that appears when content is scrollable */
   &::after {
@@ -240,6 +299,24 @@ defineSlots<{
   top: 0;
   left: 0;
   width: 100%;
+}
+
+/* 削除中のフェードアウト (positioning は translate、transform は自由) */
+.leaveAnimation {
+  animation: note-leave 0.18s var(--nd-ease-decel) both;
+  pointer-events: none;
+}
+
+@keyframes note-leave {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* 削除直後だけ行位置の変化を滑らかにする (FLIP 風スライドアップ) */
+.shifting {
+  transition: translate 0.2s var(--nd-ease-decel);
 }
 
 /* Misskey-style slide-in animation for streaming notes.

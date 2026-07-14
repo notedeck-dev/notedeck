@@ -8,11 +8,13 @@ import {
   watch,
 } from 'vue'
 import type { NormalizedDriveFile } from '@/adapters/types'
+import { useBackButton } from '@/composables/useBackButton'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useLongPress } from '@/composables/useLongPress'
 import { usePinchZoom } from '@/composables/usePinchZoom'
 import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
+import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { isSafeUrl, openSafeUrl } from '@/utils/url'
 import PopupMenu from './PopupMenu.vue'
@@ -124,6 +126,21 @@ const previewableCount = computed(() => {
   return c <= 4 ? c : 'many'
 })
 
+// 単一メディアは寸法が分かる場合に aspect-ratio を予約して、
+// ロード完了時にセルの高さが伸びるレイアウトシフトを防ぐ
+// (max-height の clamp は CSS 側でそのまま効く)
+const singleMediaStyle = computed(() => {
+  if (previewableFiles.value.length !== 1) return undefined
+  const f = previewableFiles.value[0]
+  if (!f?.width || !f?.height) return undefined
+  return { aspectRatio: `${f.width} / ${f.height}` }
+})
+
+function blurhashPlaceholder(file: NormalizedDriveFile): string | null {
+  if (!file.blurhash || loadedIds.value.has(file.id)) return null
+  return blurhashToDataUrl(file.blurhash)
+}
+
 function onImageLoaded(fileId: string) {
   const next = new Set(loadedIds.value)
   next.add(fileId)
@@ -157,6 +174,55 @@ function openLightbox(file: NormalizedDriveFile, e: Event) {
 function closeLightbox() {
   lightboxIndex.value = null
 }
+
+// Android 戻るボタンで閉じる (他のオーバーレイと同様 #704 F)
+const lightboxOpen = computed(() => lightboxIndex.value !== null)
+useBackButton(lightboxOpen, closeLightbox)
+
+// --- スワイプ下閉じ (ズーム中は 1 本指ドラッグがパンなので無効) ---
+const lbDragY = ref(0)
+let lbDragStartX = 0
+let lbDragStartY = 0
+let lbDragAxis: 'v' | 'h' | null = null
+let lbDragging = false
+
+function onLbTouchStart(e: TouchEvent) {
+  const touch = e.touches[0]
+  if (zoomed.value || e.touches.length !== 1 || !touch) return
+  lbDragging = true
+  lbDragAxis = null
+  lbDragStartX = touch.clientX
+  lbDragStartY = touch.clientY
+}
+
+function onLbTouchMove(e: TouchEvent) {
+  const touch = e.touches[0]
+  if (!lbDragging || zoomed.value || e.touches.length !== 1 || !touch) return
+  const dx = touch.clientX - lbDragStartX
+  const dy = touch.clientY - lbDragStartY
+  if (lbDragAxis === null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+    // 軸ロック: 横は useSwipeTab (画像切替) に任せる
+    lbDragAxis = Math.abs(dy) > Math.abs(dx) ? 'v' : 'h'
+  }
+  if (lbDragAxis !== 'v') return
+  lbDragY.value = Math.max(0, dy)
+}
+
+function onLbTouchEnd() {
+  if (!lbDragging) return
+  lbDragging = false
+  if (lbDragY.value > 96) closeLightbox()
+  lbDragY.value = 0
+}
+
+const lbDragStyle = computed(() =>
+  lbDragY.value > 0
+    ? {
+        transform: `translateY(${lbDragY.value}px)`,
+        opacity: String(Math.max(0.3, 1 - lbDragY.value / 400)),
+      }
+    : undefined,
+)
 
 function prevImage() {
   if (lightboxIndex.value !== null && lightboxIndex.value > 0) {
@@ -295,13 +361,20 @@ async function openInBrowser() {
   </div>
 
   <!-- Grid: Previewable files only (image + video) -->
-  <div v-if="previewableFiles.length > 0" :class="[$style.mediaGrid, $style[`mediaCount${previewableCount}`]]">
+  <div v-if="previewableFiles.length > 0" :class="[$style.mediaGrid, $style[`mediaCount${previewableCount}`]]" :style="singleMediaStyle">
     <div
       v-for="file in previewableFiles"
       :key="file.id"
       :class="[$style.mediaCell, { [$style.isSensitive]: file.isSensitive && !revealedIds.has(file.id), [$style.isLoaded]: loadedIds.has(file.id) || erroredIds.has(file.id) }]"
       @click="openLightbox(file, $event)"
     >
+      <img
+        v-if="blurhashPlaceholder(file)"
+        :src="blurhashPlaceholder(file)!"
+        :class="$style.blurhashPlaceholder"
+        alt=""
+        aria-hidden="true"
+      />
       <template v-if="isImage(file)">
         <img
           v-if="!erroredIds.has(file.id)"
@@ -410,8 +483,13 @@ async function openInBrowser() {
       <div
         ref="lightboxContentRef"
         :class="[$style.lightboxContent, lightboxSlideClass]"
+        :style="lbDragStyle"
         @animationend="onLightboxSlideEnd"
         @click.stop
+        @touchstart.passive="onLbTouchStart"
+        @touchmove.passive="onLbTouchMove"
+        @touchend.passive="onLbTouchEnd"
+        @touchcancel.passive="onLbTouchEnd"
       >
         <img
           v-if="isImage(lightboxFile)"
@@ -615,6 +693,16 @@ async function openInBrowser() {
   }
 }
 
+/* blurhash: 実画像ロードまでの間、シマーの上・実画像の下に敷く */
+.blurhashPlaceholder {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
 .mediaImage {
   display: block;
   width: 100%;
@@ -624,7 +712,8 @@ async function openInBrowser() {
   opacity: 0;
   transform: scale(0.98);
   transition: opacity var(--nd-duration-slower) var(--nd-ease-spring),
-    transform var(--nd-duration-slower) var(--nd-ease-spring);
+    transform var(--nd-duration-slower) var(--nd-ease-spring),
+    filter var(--nd-duration-slow) var(--nd-ease-decel);
   position: relative;
   z-index: 1;
 

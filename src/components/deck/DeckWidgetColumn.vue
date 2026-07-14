@@ -5,6 +5,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { usePointerReorder } from '@/composables/usePointerReorder'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import {
@@ -153,10 +154,19 @@ function openLibraryWidgetEditor(widget: WidgetMeta) {
   })
 }
 
+const { confirm } = useConfirm()
+
 /** ライブラリから widget 本体を削除 (コードも消える)。
  *  本体削除前に全 widget カラムから参照を剥がして dangling id を残さない
  *  (widgetsStore 側は sidebarWidgetIds の自動 cleanup のみ)。 */
-function deleteFromLibrary(widget: WidgetMeta) {
+async function deleteFromLibrary(widget: WidgetMeta) {
+  const ok = await confirm({
+    title: 'ウィジットを削除',
+    message: `「${widget.name}」をライブラリから削除しますか？ウィジットのコードも消えます。この操作は取り消せません。`,
+    okLabel: '削除',
+    type: 'danger',
+  })
+  if (!ok) return
   deckStore.detachWidgetFromAllColumns(widget.installId)
   widgetsStore.removeWidget(widget.installId)
 }

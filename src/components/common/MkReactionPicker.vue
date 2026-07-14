@@ -8,6 +8,7 @@ import { useRecentEmojisStore } from '@/stores/recentEmojis'
 import { useIsCompactLayout } from '@/stores/ui'
 import { hapticLight } from '@/utils/haptics'
 import { proxyUrl } from '@/utils/imageProxy'
+import { isImeComposing } from '@/utils/ime'
 import { char2twemojiUrl } from '@/utils/twemoji'
 import MkReactionPickerSection from './MkReactionPickerSection.vue'
 
@@ -148,6 +149,7 @@ function getEmojiButtons(): HTMLButtonElement[] {
 }
 
 function onSearchKeydown(e: KeyboardEvent) {
+  if (isImeComposing(e)) return
   if (e.key === 'ArrowDown') {
     e.preventDefault()
     const buttons = getEmojiButtons()

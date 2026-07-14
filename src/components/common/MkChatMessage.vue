@@ -5,7 +5,7 @@ import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkChatMessageMoreMenu from '@/components/common/MkChatMessageMoreMenu.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
-import { useHoverPopup } from '@/composables/useHoverPopup'
+import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
 import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteAccountId } from '@/composables/useNoteContext'
 import { usePortal } from '@/composables/usePortal'
@@ -150,7 +150,7 @@ function handleReactionClick(reaction: string, reacted: boolean) {
 }
 
 // User hover popup for mentions
-const mentionPopup = useHoverPopup()
+const mentionPopup = useHoverPopup(USER_POPUP_HOVER)
 const mentionUserId = ref('')
 let mentionHovering = false
 

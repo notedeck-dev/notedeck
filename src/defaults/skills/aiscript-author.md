@@ -1,7 +1,7 @@
 ---
 id: aiscript-author
 name: AiScript 文法リファレンス
-version: 1.1.0
+version: 1.2.0
 description: AiScript 0.16 の値型・制御構文・名前空間付き組込み関数・プラグイン/ウィジェットのハンドラ規約を集約したリファレンス。plugin-author / widget-author と同じ triggers でセット起動される (依存先として常に同伴)。
 mode: trigger
 triggers:
@@ -188,18 +188,38 @@ Ui:render([
 - `switch`, `select` — トグル / 選択
 - `container`, `folder` — レイアウト
 
-## プラグインのハンドラ
+## プラグインのフック (Plugin:register_*)
+
+フック登録は Misskey 互換の `Plugin:register_*` API をトップレベルで呼ぶ。
+`Plugin:register:note_action` のようなコロン区切り alias も同じ意味。
+
+| API | ハンドラ | 発火場所 |
+|---|---|---|
+| `Plugin:register_note_action(title, fn)` | `fn(note)` | ノートの「…」メニュー |
+| `Plugin:register_user_action(title, fn)` | `fn(user)` | ユーザーメニュー |
+| `Plugin:register_post_form_action(title, fn)` | `fn(form, update)` | 投稿フォームのプラグインメニュー |
+| `Plugin:register_note_view_interruptor(fn)` | `fn(note) → note` | タイムライン表示前に note を加工 |
+| `Plugin:register_note_post_interruptor(fn)` | `fn(note) → note` | 投稿直前に note を加工 |
+| `Plugin:register_page_view_interruptor(fn)` | `fn(page) → page` | Page 表示前に加工 |
 
 ```
-@on_note(note) { ... }          // 新着ノートをストリームで観測
-@note_post_pre(note) { ... }    // 投稿直前 (note を加工して戻すと差し替え)
-@note_view(note) { ... }        // タイムライン表示時 (UI 加工)
+Plugin:register_user_action("ユーザー情報", @(user) {
+  Mk:dialog("info", user.username)
+})
+
+Plugin:register_post_form_action("CW を付ける", @(form, update) {
+  // form は { text, cw }。update("text" | "cw", value) で書き換える
+  update("cw", "auto CW")
+})
+
+Plugin:register_note_post_interruptor(@(note) {
+  note.text = `{note.text} #tag`
+  note                          // 加工した note を返すと差し替わる
+})
 ```
 
-- ハンドラは `@<name>(arg) { ... }` 構文
-- 引数 `note` は obj (`note.text`, `note.userId`, `note.user.username` など)
-- 戻り値で note 自体を加工できるハンドラ (`note_post_pre`) と、副作用のみの
-  ハンドラ (`on_note`, `note_view`) がある
+- action 系 (`*_action`) は副作用のみ。interruptor 系は **加工後の値を返す**
+- 引数 `note` / `user` は obj (`note.text`, `user.username` など)
 
 ## ウィジェットの本体
 
@@ -231,7 +251,7 @@ Ui:render([
 | `unexpected ":"` | `arr:0` で要素アクセス | `arr[0]` または `arr.0` |
 | `unexpected EOF` | `### { ... }` の `}` を閉じ忘れ | 閉じる |
 | `Math.pi` が undefined | `.` でなく `:` | `Math:pi` |
-| ハンドラが発火しない | `@on_note(note) { ... }` の `@` を忘れ、または引数なし | `@on_note(note)` シグネチャを守る |
+| フックが発火しない | `@on_note` 等の存在しないハンドラ規約で書いた、またはプラグインが無効のまま | `Plugin:register_*` で登録し、有効化する |
 
 ## 参考
 

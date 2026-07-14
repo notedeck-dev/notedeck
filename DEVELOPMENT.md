@@ -1,6 +1,6 @@
 # NoteDeck Development Guide
 
-Multi-server Misskey IDE (Integrated Deck Environment) with fork support. 設計思想・方針は [DESIGN.md](DESIGN.md) を参照。
+Misskey IDE (Integrated Deck Environment) with fork support — branded as "Misskey Pro" for power users ([BRANDING.md](BRANDING.md))。設計思想・方針は [DESIGN.md](DESIGN.md) を参照。
 
 ## Tech Stack
 

@@ -540,6 +540,9 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 
 .customEmojiPlain {
   height: 1.25em;
+  /* ロード前の intrinsic 0 幅 → 実幅への拡大で行が再ラップするのを軽減
+     (.customEmoji の min-width: 2em と同趣旨。正方形ぶんは先に予約する) */
+  min-width: 1.25em;
   vertical-align: -0.25em;
   object-fit: contain;
 }

@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import type { useDeckStore } from '@/stores/deck'
 import { hapticLight, hapticMedium } from '@/utils/haptics'
 import { emitTauri } from '@/utils/tauriEvents'
@@ -278,34 +278,70 @@ export function useColumnDrag(
     document.body.classList.remove('nd-dragging')
   }
 
+  /** 並べ替え確定を FLIP でアニメーションする (Web Animations API、Vapor 適合) */
+  async function animateColumnFlip(mutate: () => void): Promise<void> {
+    const prefersReduced = window.matchMedia(
+      '(prefers-reduced-motion: reduce)',
+    ).matches
+    const cells = Array.from(
+      document.querySelectorAll<HTMLElement>('.stack-cell[data-column-id]'),
+    )
+    if (prefersReduced || cells.length === 0) {
+      mutate()
+      return
+    }
+    const firstRects = new Map(
+      cells.map((el) => [el.dataset.columnId, el.getBoundingClientRect()]),
+    )
+    mutate()
+    await nextTick()
+    for (const el of document.querySelectorAll<HTMLElement>(
+      '.stack-cell[data-column-id]',
+    )) {
+      const first = firstRects.get(el.dataset.columnId ?? '')
+      if (!first) continue
+      const last = el.getBoundingClientRect()
+      const dx = first.left - last.left
+      const dy = first.top - last.top
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue
+      el.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }],
+        { duration: 200, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+      )
+    }
+  }
+
   function onDragEnd() {
     if (dropTarget.value && dragColumnId.value) {
       const dragId = dragColumnId.value
+      const target = dropTarget.value
 
-      if (dropTarget.value.position === 'insert') {
-        // Drop between columns — unstack / move to position
-        deckStore.insertColumnAt(dragId, dropTarget.value.insertIndex)
-      } else {
-        const { columnId: targetId, position } = dropTarget.value
-        const fromIdx = deckStore.layout.findIndex((ids) =>
-          ids.includes(dragId),
-        )
-        const toIdx = deckStore.layout.findIndex((ids) =>
-          ids.includes(targetId),
-        )
+      void animateColumnFlip(() => {
+        if (target.position === 'insert') {
+          // Drop between columns — unstack / move to position
+          deckStore.insertColumnAt(dragId, target.insertIndex)
+        } else {
+          const { columnId: targetId, position } = target
+          const fromIdx = deckStore.layout.findIndex((ids) =>
+            ids.includes(dragId),
+          )
+          const toIdx = deckStore.layout.findIndex((ids) =>
+            ids.includes(targetId),
+          )
 
-        if (position === 'swap') {
-          if (fromIdx === toIdx && fromIdx >= 0) {
-            // Same group — swap within group
-            deckStore.swapInGroup(dragId, targetId)
-          } else if (fromIdx >= 0 && toIdx >= 0) {
-            // Different groups — swap entire groups
-            deckStore.swapColumns(fromIdx, toIdx)
+          if (position === 'swap') {
+            if (fromIdx === toIdx && fromIdx >= 0) {
+              // Same group — swap within group
+              deckStore.swapInGroup(dragId, targetId)
+            } else if (fromIdx >= 0 && toIdx >= 0) {
+              // Different groups — swap entire groups
+              deckStore.swapColumns(fromIdx, toIdx)
+            }
+          } else if (position === 'above' || position === 'below') {
+            deckStore.stackColumn(dragId, targetId, position)
           }
-        } else if (position === 'above' || position === 'below') {
-          deckStore.stackColumn(dragId, targetId, position)
         }
-      }
+      })
     }
 
     hapticMedium()

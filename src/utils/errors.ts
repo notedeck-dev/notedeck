@@ -11,7 +11,8 @@ export type ErrorCode =
   | 'INVALID_INPUT'
   | 'UNKNOWN'
 
-export const AUTH_ERROR_MESSAGE = 'ログインが必要です。'
+export const AUTH_ERROR_MESSAGE =
+  'ログインが必要です。アカウントメニューから再ログインしてください。'
 
 export class AppError extends Error {
   readonly code: ErrorCode
@@ -27,7 +28,14 @@ export class AppError extends Error {
   }
 
   get isAuth(): boolean {
-    return this.code === 'AUTH' || this.code === 'ACCOUNT_NOT_FOUND'
+    if (this.code === 'AUTH' || this.code === 'ACCOUNT_NOT_FOUND') return true
+    // サーバー側のトークン失効はコア層で code='API' に潰れて届くため、
+    // message 中の Misskey エラーコードで判定する
+    if (this.code === 'API') {
+      const c = this.displayCode
+      return c === 'AUTHENTICATION_FAILED' || c === 'CREDENTIAL_REQUIRED'
+    }
+    return false
   }
 
   /** toast 用のエラーコード。API エラーなら Misskey コードを抽出 */

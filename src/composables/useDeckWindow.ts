@@ -1,7 +1,9 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { nextTick } from 'vue'
 import type { DeckWindowLayout } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { emitTauri, listenTauri } from '@/utils/tauriEvents'
+import { withViewTransition } from '@/utils/viewTransition'
 
 let windowCounter = 0
 
@@ -337,7 +339,12 @@ export async function switchProfileWithWindows(
   await closeAllSubWindows()
 
   // 2. Apply the profile (loads columns with saved windowIds)
-  deckStore.applyProfile(profileId)
+  //    カラム一式が入れ替わるのでクロスフェードでフラッシュを抑える。
+  //    後続のウィンドウ復元は適用後の state を読むため await 必須
+  await withViewTransition(async () => {
+    deckStore.applyProfile(profileId)
+    await nextTick()
+  })
 
   // 3. Restore sub-windows from saved layouts
   const savedWindows = deckStore.getWindowLayouts()

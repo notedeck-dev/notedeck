@@ -65,6 +65,7 @@ const {
   postForm,
   handlers,
   noteScrollerRef,
+  removingIds,
   scroller,
   scrollToTop,
   handleScroll,
@@ -120,6 +121,7 @@ usePortal(postFormPortalRef)
 defineExpose({
   account,
   scroller,
+  noteScrollerRef,
   reconnect,
   switchWithSnapshot,
   notes,
@@ -162,9 +164,12 @@ defineExpose({
 
     <ColumnEmptyState
       v-if="error"
-      :message="error.message"
+      :error="error"
       :image-url="serverErrorImageUrl"
       is-error
+      cta-label="再試行"
+      cta-icon="ti-refresh"
+      @cta="refresh"
     />
 
     <div v-else :class="$style.tlBody">
@@ -225,6 +230,7 @@ defineExpose({
           :items="notes"
           :focused-id="focusedNoteId"
           :animating-ids="animatingIds"
+          :leaving-ids="removingIds"
           :prefetch="(notes) => { prefetchNoteImages(notes); prefetchNoteMfm(notes) }"
           :class="$style.tlScroller"
           @scroll="handleScroll"

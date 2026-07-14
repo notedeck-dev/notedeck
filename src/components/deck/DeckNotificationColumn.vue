@@ -28,13 +28,14 @@ import PopupMenu from '@/components/common/PopupMenu.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
-import { useHoverPopup } from '@/composables/useHoverPopup'
+import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { getStreamHealth } from '@/core/streamHealth'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
@@ -44,7 +45,7 @@ import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
-import { AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
+import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
 import { proxyUrl } from '@/utils/imageProxy'
 import {
@@ -110,7 +111,7 @@ const { navigateToUser: navToUser, navigateToNote: navToNote } = useNavigation()
 const noteSound = useNoteSound(() => account.value?.host, 'syuilo/n-ea')
 
 // User hover popup for notification avatars
-const userPopup = useHoverPopup()
+const userPopup = useHoverPopup(USER_POPUP_HOVER)
 const hoveredUserId = ref('')
 const hoveredAccountId = ref('')
 
@@ -907,26 +908,40 @@ async function pullRefresh() {
 // REST で埋める。pull-refresh と同じ経路だがスクロール位置は動かさない。
 const uiStoreForResume = useUiStore()
 let lastResumeBackfill = 0
+async function resumeBackfill() {
+  if (Date.now() - lastResumeBackfill < 3000) return
+  lastResumeBackfill = Date.now()
+  try {
+    if (isCrossAccount.value) {
+      await connectCrossAccount(true)
+    } else {
+      const adapter = getAdapter()
+      if (!adapter) return
+      const fetched = await fetchNotifications(adapter.api, account.value?.host)
+      notifications.value = mergeNotifications(fetched, notifications.value)
+      saveCache()
+    }
+  } catch {
+    // 補填は best-effort (手動 pull-refresh で回復できる)
+  }
+}
 watch(
   () => uiStoreForResume.deckResumeSignal,
-  async () => {
-    if (Date.now() - lastResumeBackfill < 3000) return
-    lastResumeBackfill = Date.now()
-    try {
-      if (isCrossAccount.value) {
-        await connectCrossAccount(true)
-      } else {
-        const adapter = getAdapter()
-        if (!adapter) return
-        const fetched = await fetchNotifications(
-          adapter.api,
-          account.value?.host,
-        )
-        notifications.value = mergeNotifications(fetched, notifications.value)
-        saveCache()
-      }
-    } catch {
-      // 補填は best-effort (手動 pull-refresh で回復できる)
+  () => void resumeBackfill(),
+)
+
+// WS 瞬断からの再接続でも切断中に欠けた通知を埋める (#704 K)
+watch(
+  () =>
+    props.column.accountId
+      ? getStreamHealth(props.column.accountId)?.state
+      : undefined,
+  (state, prev) => {
+    if (
+      state === 'connected' &&
+      (prev === 'reconnecting' || prev === 'disconnected')
+    ) {
+      void resumeBackfill()
     }
   },
 )
@@ -993,9 +1008,12 @@ onUnmounted(() => {
 
     <ColumnEmptyState
       v-if="error && !isLoggedOut"
-      :message="error.isAuth ? AUTH_ERROR_MESSAGE : error.message"
+      :error="error"
       :image-url="serverErrorImageUrl"
       is-error
+      cta-label="再試行"
+      cta-icon="ti-refresh"
+      @cta="pullRefresh"
     />
 
     <div v-else :class="$style.notifBody">
@@ -1003,8 +1021,14 @@ onUnmounted(() => {
         <LoadingSpinner />
       </div>
 
+      <ColumnEmptyState
+        v-if="!isLoading && filteredNotifications.length === 0"
+        message="通知はありません"
+        :image-url="serverInfoImageUrl"
+      />
+
       <NoteScroller
-        v-if="!(isLoading && notifications.length === 0)"
+        v-if="!(isLoading && notifications.length === 0) && filteredNotifications.length > 0"
         ref="noteScrollerRef"
         :items="filteredNotifications"
         :estimated-height="80"

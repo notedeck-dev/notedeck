@@ -336,6 +336,12 @@ export interface NormalizedDriveFile {
   size: number
   isSensitive: boolean
   comment?: string | null
+  /** 画像の幅 (px)。aspect-ratio 予約 (レイアウトシフト防止) 用 */
+  width?: number | null
+  /** 画像の高さ (px) */
+  height?: number | null
+  /** blurhash プレースホルダ文字列 */
+  blurhash?: string | null
 }
 
 export interface NoteReaction {
@@ -751,6 +757,7 @@ export interface FollowRelation {
 export interface UserRelation {
   id: string
   isFollowing: boolean
+  hasPendingFollowRequestFromYou?: boolean
   isFollowed: boolean
   isBlocking: boolean
   isBlocked: boolean

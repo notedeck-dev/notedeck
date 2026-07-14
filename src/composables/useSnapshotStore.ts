@@ -2,15 +2,25 @@ import type { NormalizedNote } from '@/adapters/types'
 import { useNoteStore } from '@/stores/notes'
 import { usePerformanceStore } from '@/stores/performance'
 
+export interface ScrollAnchor {
+  /** 先頭可視アイテムの note id */
+  id: string
+  /** そのアイテム上端からのピクセルオフセット */
+  offset: number
+}
+
 interface Snapshot {
   noteIds: string[]
   scrollTop: number
+  /** 仮想スクローラの再測定に強いアンカー。あれば scrollTop より優先して復元 */
+  anchor: ScrollAnchor | null
   savedAt: number
 }
 
 export interface ResolvedSnapshot {
   notes: NormalizedNote[]
   scrollTop: number
+  anchor: ScrollAnchor | null
 }
 
 const store = new Map<string, Snapshot>()
@@ -30,7 +40,7 @@ function evictExpired(): void {
 function resolveSnapshot(snap: Snapshot): ResolvedSnapshot | null {
   const notes = useNoteStore().resolve(snap.noteIds)
   if (notes.length === 0) return null
-  return { notes, scrollTop: snap.scrollTop }
+  return { notes, scrollTop: snap.scrollTop, anchor: snap.anchor }
 }
 
 /**
@@ -44,12 +54,14 @@ export function save(
   cacheKey: string,
   noteIds: string[],
   scrollTop: number,
+  anchor: ScrollAnchor | null = null,
 ): void {
   const maxNotes = usePerformanceStore().get('snapshotMaxNotes')
   evictExpired()
   store.set(key(columnId, cacheKey), {
     noteIds: noteIds.slice(0, maxNotes),
     scrollTop,
+    anchor,
     savedAt: Date.now(),
   })
 }

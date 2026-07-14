@@ -51,8 +51,11 @@
   padding: 2px;
   transition: opacity var(--nd-duration-slow);
 
-  &:hover {
-    opacity: 1;
+  /* composes-from の raw 参照でビルド時 hover ガードを迂回するため手動ガード */
+  @media (hover: hover) {
+    &:hover {
+      opacity: 1;
+    }
   }
 
   &:disabled {
@@ -86,6 +89,8 @@
 .columnScroller {
   composes: tlScroller;
   overflow-y: auto;
+  /* classic scrollbar 環境でバー出現時に中身が横ズレしないよう予約 */
+  scrollbar-gutter: stable;
 }
 
 /* Empty & error states */
@@ -125,8 +130,10 @@
   transition: opacity var(--nd-duration-base);
   animation: slide-down var(--nd-duration-slow) var(--nd-ease-spring);
 
-  &:hover {
-    opacity: 0.85;
+  @media (hover: hover) {
+    &:hover {
+      opacity: 0.85;
+    }
   }
 }
 
@@ -172,8 +179,11 @@
   opacity: 0.7;
 }
 
-/* Offline / Logged-out banners */
-%statusBanner {
+/* Offline / Logged-out banners.
+   このファイルは他コンポーネントから `composes: ... from` で raw 参照される
+   ため sass 専用構文 (%placeholder / @extend) は使えない。CSS Modules の
+   composes で共有する */
+.statusBanner {
   position: absolute;
   top: 8px;
   left: 50%;
@@ -193,17 +203,17 @@
 }
 
 .offlineBanner {
-  @extend %statusBanner;
+  composes: statusBanner;
   background: color-mix(in srgb, var(--nd-warn) 70%, transparent);
 }
 
 .loggedOutBanner {
-  @extend %statusBanner;
+  composes: statusBanner;
   background: color-mix(in srgb, var(--nd-error) 70%, transparent);
 }
 
 .pollingBanner {
-  @extend %statusBanner;
+  composes: statusBanner;
   background: color-mix(in srgb, var(--nd-accent) 50%, transparent);
 }
 

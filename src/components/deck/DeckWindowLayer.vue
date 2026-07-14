@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
-import { useVaporTransition } from '@/composables/useVaporTransition'
+import { useVaporTransitionGroup } from '@/composables/useVaporTransition'
 import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
 import DeckWindow from './DeckWindow.vue'
@@ -117,7 +117,14 @@ const TutorialContent = defineAsyncComponent(
 const windowsStore = useWindowsStore()
 const themeStore = useThemeStore()
 
-const renderedWindows = computed(() => windowsStore.windows)
+// 閉じアニメ (windowOut) の間 DOM を残す。reduced-motion では即時除去
+const reduceMotion = window.matchMedia(
+  '(prefers-reduced-motion: reduce)',
+).matches
+const { rendered: renderedWindows, leavingIds } = useVaporTransitionGroup(
+  computed(() => windowsStore.windows),
+  { enterDuration: 200, leaveDuration: reduceMotion ? 0 : 200 },
+)
 
 function getThemeVars(accountId: unknown): Record<string, string> | undefined {
   if (typeof accountId !== 'string') return undefined
@@ -149,6 +156,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
       :key="win.id"
       :window="win"
       :theme-vars="getThemeVars(win.props.accountId)"
+      :closing="leavingIds.has(win.id)"
       @close="closeWindow(win.id)"
     >
       <NoteDetailContent

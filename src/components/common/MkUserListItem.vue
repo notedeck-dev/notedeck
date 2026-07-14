@@ -4,7 +4,7 @@ import type { AvatarDecoration } from '@/adapters/types'
 import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import MkUserPopup from '@/components/common/MkUserPopup.vue'
-import { useHoverPopup } from '@/composables/useHoverPopup'
+import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePortal } from '@/composables/usePortal'
 
@@ -48,7 +48,7 @@ const emit = defineEmits<{
 }>()
 
 const { navigateToUser } = useNavigation()
-const popup = useHoverPopup()
+const popup = useHoverPopup(USER_POPUP_HOVER)
 
 const popupPortalRef = useTemplateRef<HTMLElement>('popupPortalRef')
 usePortal(popupPortalRef)

@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import {
   getSkillDetailUrl,
@@ -139,8 +140,17 @@ function createNewSkill() {
   windowsStore.open('skill-edit', { skillId: skill.id })
 }
 
-function uninstall(skill: SkillMeta) {
+const { confirm } = useConfirm()
+
+async function uninstall(skill: SkillMeta) {
   if (skill.builtIn) return
+  const ok = await confirm({
+    title: 'スキルを削除',
+    message: `「${skill.name}」を削除しますか？スキルの本文も消えます。この操作は取り消せません。`,
+    okLabel: '削除',
+    type: 'danger',
+  })
+  if (!ok) return
   skillsStore.remove(skill.id)
 }
 

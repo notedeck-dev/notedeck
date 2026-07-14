@@ -28,6 +28,7 @@ import {
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { mapWithConcurrency } from '@/utils/concurrency'
+import { isImeComposing } from '@/utils/ime'
 import { parseNoteUrl, parseUserQuery } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
@@ -454,6 +455,7 @@ async function handleDeleteCrossAccount(target: NormalizedNote) {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (isImeComposing(e)) return
   if (e.key === 'Enter') {
     performLookup()
   }

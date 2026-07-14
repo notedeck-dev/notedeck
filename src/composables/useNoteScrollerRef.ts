@@ -6,6 +6,8 @@ export interface NoteScrollerExpose {
     index: number,
     opts?: { align?: string; behavior?: string },
   ) => void
+  getScrollAnchor: () => { id: string; offset: number } | null
+  restoreScrollAnchor: (id: string, offset: number) => boolean
 }
 
 /**

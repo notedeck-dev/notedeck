@@ -453,7 +453,10 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     }
   }
 
-  function deleteProfile(profileId: string) {
+  /** プロファイルを削除する。undo トースト用に復元関数を返す */
+  function deleteProfile(profileId: string): (() => void) | undefined {
+    const removedIndex = profilesData.value.findIndex((p) => p.id === profileId)
+    const removed = profilesData.value[removedIndex]
     const profiles = profilesData.value.filter((p) => p.id !== profileId)
     profilesData.value = profiles
     setStorageJson(STORAGE_KEYS.deckProfiles, profiles)
@@ -467,6 +470,15 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       settingsFs
         .deleteProfile(profileId)
         .catch((e) => console.warn('[deckProfile] failed to delete file:', e))
+    }
+
+    if (!removed) return undefined
+    return () => {
+      if (profilesData.value.some((p) => p.id === profileId)) return
+      const restored = [...profilesData.value]
+      restored.splice(Math.min(removedIndex, restored.length), 0, removed)
+      // saveProfiles が localStorage + ファイル書き戻し + 他ウィンドウ通知まで行う
+      saveProfiles(restored)
     }
   }
 

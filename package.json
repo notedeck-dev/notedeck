@@ -1,8 +1,8 @@
 {
   "name": "notedeck",
-  "description": "Misskey IDE — integrated deck environment for browsing, posting, searching, and connecting",
+  "description": "Misskey Pro — integrated deck environment (IDE) for Misskey power users",
   "private": true,
-  "version": "1.8.0",
+  "version": "1.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -55,6 +55,7 @@
     "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-updater": "^2.10.1",
     "@vueuse/core": "^14.3.0",
+    "blurhash": "^2.0.5",
     "chart.js": "^4.5.1",
     "chartjs-adapter-date-fns": "^3.0.0",
     "chartjs-chart-matrix": "^3.0.4",
@@ -84,6 +85,7 @@
     "happy-dom": "^20.10.6",
     "lefthook": "^2.1.9",
     "lightningcss": "^1.32.0",
+    "postcss": "8.5.18",
     "sass": "^1.101.0",
     "subset-font": "^2.5.0",
     "typescript": "~5.9.3",

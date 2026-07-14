@@ -20,6 +20,7 @@ import {
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
+import { isImeComposing } from '@/utils/ime'
 import { shortcutLabel } from '@/utils/shortcutLabel'
 
 const commandStore = useCommandStore()
@@ -244,6 +245,7 @@ function jumpToGroup(direction: 1 | -1) {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (isImeComposing(e)) return
   const inQuickPick =
     currentQuickPickStep.value != null || activePrefix.value != null
 

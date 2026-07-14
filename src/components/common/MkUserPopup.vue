@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type { NormalizedUserDetail } from '@/adapters/types'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -82,6 +82,29 @@ function handleMouseLeave() {
   emit('close')
 }
 
+// 画面端で見切れないよう座標をクランプ (内容ロード後にサイズが変わるので再計算)
+const rootRef = ref<HTMLElement | null>(null)
+const clamped = ref<{ x: number; y: number } | null>(null)
+
+function clampPosition() {
+  const el = rootRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const margin = 8
+  clamped.value = {
+    x: Math.max(
+      margin,
+      Math.min(props.x, window.innerWidth - rect.width - margin),
+    ),
+    y: Math.max(
+      margin,
+      Math.min(props.y, window.innerHeight - rect.height - margin),
+    ),
+  }
+}
+onMounted(() => nextTick(clampPosition))
+watch(user, () => nextTick(clampPosition))
+
 // Close on Escape
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
@@ -92,9 +115,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 <template>
   <div
+    ref="rootRef"
     :class="[$style.userPopup, { [$style.mobile]: isCompact }]"
-    class="_popup"
-    :style="{ ...themeVars, left: `${x}px`, top: `${y}px` }"
+    class="_popup user-hover-popup"
+    :style="{ ...themeVars, left: `${clamped?.x ?? x}px`, top: `${clamped?.y ?? y}px` }"
     @mouseleave="handleMouseLeave"
   >
     <div v-if="isLoading" :class="$style.popupLoading"><LoadingSpinner /></div>

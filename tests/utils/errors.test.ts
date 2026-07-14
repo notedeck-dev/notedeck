@@ -54,4 +54,19 @@ describe('AppError.from()', () => {
     expect(new AppError('ACCOUNT_NOT_FOUND', 'err').isAuth).toBe(true)
     expect(new AppError('NETWORK', 'err').isAuth).toBe(false)
   })
+
+  it('isAuth detects token expiry inside API errors', () => {
+    // notecli は HTTP 401 を code='API' に潰すため Misskey エラーコードで判定する
+    expect(
+      new AppError('API', 'i: AUTHENTICATION_FAILED: invalid token').isAuth,
+    ).toBe(true)
+    expect(
+      new AppError('API', 'notes/timeline: CREDENTIAL_REQUIRED: login required')
+        .isAuth,
+    ).toBe(true)
+    expect(
+      new AppError('API', 'notes/timeline: RATE_LIMIT_EXCEEDED: slow down')
+        .isAuth,
+    ).toBe(false)
+  })
 })

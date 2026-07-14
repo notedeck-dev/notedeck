@@ -9,7 +9,7 @@ import type {
 import { applyNoteViewInterruptors } from '@/aiscript/plugin-api'
 import { useAccountMode } from '@/composables/useAccountMode'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
-import { useHoverPopup } from '@/composables/useHoverPopup'
+import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useLongPress } from '@/composables/useLongPress'
 import { useNavigation } from '@/composables/useNavigation'
@@ -137,7 +137,8 @@ const { stop: stopReactionsObserver } = useIntersectionObserver(
       stopReactionsObserver()
     }
   },
-  { rootMargin: '150px' },
+  // 画面に入る十分手前で描画を確定させ、遅延出現による押し下げを見せない
+  { rootMargin: '600px' },
 )
 
 const emit = defineEmits<{
@@ -273,7 +274,7 @@ const canRenote = computed(() =>
 )
 
 // User hover popup
-const userPopup = useHoverPopup()
+const userPopup = useHoverPopup(USER_POPUP_HOVER)
 const popupTheme = ref<Record<string, string>>({})
 
 function onAvatarMouseEnter(e: MouseEvent) {
@@ -373,7 +374,7 @@ async function handleMentionClick(username: string, host: string | null) {
 }
 
 // User hover popup for mentions
-const mentionPopup = useHoverPopup()
+const mentionPopup = useHoverPopup(USER_POPUP_HOVER)
 const mentionUserId = ref('')
 let mentionHovering = false
 
@@ -422,7 +423,7 @@ const mentionPopupPortalRef = useTemplateRef<HTMLElement>(
 )
 usePortal(mentionPopupPortalRef)
 
-const renoteUserPopup = useHoverPopup()
+const renoteUserPopup = useHoverPopup(USER_POPUP_HOVER)
 
 function onRenoteUserMouseEnter(e: MouseEvent) {
   const el = e.currentTarget as HTMLElement
@@ -681,7 +682,7 @@ function handlePickerReaction(reaction: string) {
         </div>
 
         <!-- Body -->
-        <div v-show="(effectiveNote.cw === null || cwExpanded) && !softMuteCollapsed" :class="$style.body">
+        <div v-show="(effectiveNote.cw === null || cwExpanded) && !softMuteCollapsed" :class="[$style.body, effectiveNote.cw !== null && cwExpanded && $style.bodyReveal]">
           <div v-if="effectiveNote.text" :class="[$style.textContainer, { [$style.collapsed]: isLongText && !longTextExpanded }]">
             <p :class="$style.text">
               <MkMfm
@@ -734,7 +735,7 @@ function handlePickerReaction(reaction: string) {
         </div>
 
         <!-- Reactions -->
-        <div v-if="sortedReactions.length > 0 && !embedded && !softMuteCollapsed" ref="reactionsAreaRef" :class="$style.reactionsArea">
+        <div v-if="sortedReactions.length > 0 && !embedded && !softMuteCollapsed" ref="reactionsAreaRef" :class="[$style.reactionsArea, !reactionsVisible && $style.reactionsAreaPending]">
           <div
             v-if="reactionsVisible"
             :class="$style.reactions"
@@ -1301,6 +1302,18 @@ function handlePickerReaction(reaction: string) {
   overflow-wrap: break-word;
 }
 
+/* CW 開封時のみ付与。閉じる方向は隠す操作なので即時のまま */
+.bodyReveal {
+  animation: cw-reveal var(--nd-duration-slow) var(--nd-ease-decel) both;
+}
+
+@keyframes cw-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
 .textContainer {
   position: relative;
 
@@ -1356,6 +1369,12 @@ function handlePickerReaction(reaction: string) {
 }
 
 /* Reactions */
+/* 遅延描画が確定するまで 1 行分 (.reactions margin-top 6px + .reaction 42px)
+   の高さを予約し、出現時の押し下げを抑える */
+.reactionsAreaPending {
+  min-height: 48px;
+}
+
 .reactions {
   display: flex;
   flex-wrap: wrap;
@@ -1654,6 +1673,7 @@ function handlePickerReaction(reaction: string) {
   .footerButton { margin-right: 8px; }
   .reaction { height: 32px; font-size: 1em; border-radius: 4px; }
   .reaction .count { font-size: 0.9em; line-height: 32px; }
+  .reactionsAreaPending { min-height: 38px; }
 }
 
 .reactionEnter {

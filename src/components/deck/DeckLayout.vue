@@ -12,6 +12,7 @@ import { useCommandStore } from '@/commands/registry'
 import AppConfirm from '@/components/common/AppConfirm.vue'
 import AppPrompt from '@/components/common/AppPrompt.vue'
 import AppToast from '@/components/common/AppToast.vue'
+import AppTooltip from '@/components/common/AppTooltip.vue'
 import MkRippleEffect from '@/components/common/MkRippleEffect.vue'
 import { useBackButton } from '@/composables/useBackButton'
 import { useDeckInit } from '@/composables/useDeckInit'
@@ -280,7 +281,7 @@ function acceptCrossWindowDrop() {
       :class="[$style.mainArea, { [$style.withWallpaper]: deckStore.wallpaper != null }]"
       :style="wallpaperStyle"
     >
-      <DeckColumnsArea ref="columnsAreaRef" />
+      <DeckColumnsArea ref="columnsAreaRef" @add-column="toggleAddMenu" />
 
       <DeckBottomBar
         v-if="!isCompact"
@@ -352,6 +353,7 @@ function acceptCrossWindowDrop() {
     <AppToast />
     <AppConfirm />
     <AppPrompt />
+    <AppTooltip />
 
     <!-- Misskey-style ripple effects (reaction celebration particles) -->
     <MkRippleEffect

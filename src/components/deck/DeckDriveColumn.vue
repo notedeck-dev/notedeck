@@ -16,6 +16,7 @@ import {
 } from '@/composables/useDriveFolder'
 import { useServerImages } from '@/composables/useServerImages'
 import { getAccountAvatarUrl } from '@/stores/accounts'
+import { useConfirm } from '@/stores/confirm'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
@@ -92,8 +93,17 @@ function openDetail(file: NormalizedDriveFile) {
   deleteError.value = null
 }
 
+const { confirm } = useConfirm()
+
 async function deleteFile() {
   if (!detailFile.value || !props.column.accountId || deleting.value) return
+  const ok = await confirm({
+    title: 'ファイルを削除',
+    message: `「${detailFile.value.name}」をドライブから削除しますか？このファイルを添付したノートからも消えます。この操作は取り消せません。`,
+    okLabel: '削除',
+    type: 'danger',
+  })
+  if (!ok || !detailFile.value || !props.column.accountId) return
   deleting.value = true
   deleteError.value = null
   try {
@@ -147,6 +157,14 @@ async function batchDelete() {
     selectedIds.value.size === 0
   )
     return
+  const count = selectedIds.value.size
+  const ok = await confirm({
+    title: 'ファイルを一括削除',
+    message: `選択中の ${count} 件のファイルをドライブから削除しますか？添付したノートからも消えます。この操作は取り消せません。`,
+    okLabel: '削除',
+    type: 'danger',
+  })
+  if (!ok || batchDeleting.value) return
   batchDeleting.value = true
   batchDeleteError.value = null
   const idsToDelete = [...selectedIds.value]

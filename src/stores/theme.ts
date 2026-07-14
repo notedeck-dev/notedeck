@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { emitNoteDeckEvent } from '@/aiscript/events'
 import { useSettingsStore } from '@/stores/settings'
 import * as themeFileSync from '@/stores/themeFileSync'
@@ -23,6 +23,7 @@ import {
   setStorageString,
 } from '@/utils/storage'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { withViewTransition } from '@/utils/viewTransition'
 
 // Moved inside defineStore below to isolate per-window instance.
 // (Module-level Maps leak data between Tauri multi-window contexts.)
@@ -171,6 +172,13 @@ export const useThemeStore = defineStore('theme', () => {
         if (manualMode.value == null) applyCurrentTheme()
       })
 
+    // settingsStore の値が変わったら再適用する。同一ウィンドウ内の変更は
+    // 各アクションが applyCurrentTheme を呼ぶが、他ウィンドウ発の
+    // nd:settings-changed による settings 再読込はここで拾う。
+    watch([manualMode, selectedDarkThemeId, selectedLightThemeId], () =>
+      applyCurrentTheme(),
+    )
+
     // Kick off async file sync in background (Tauri only)
     if (settingsFs.isTauri) {
       initFileStorage().catch((e) =>
@@ -187,25 +195,45 @@ export const useThemeStore = defineStore('theme', () => {
       : window.matchMedia('(prefers-color-scheme: dark)').matches
   }
 
+  let themeAppliedOnce = false
+
   function applyCurrentTheme(): void {
-    const dark = wantsDark()
-    const selectedId = dark
-      ? selectedDarkThemeId.value
-      : selectedLightThemeId.value
-    const custom = selectedId
-      ? installedThemes.value.find((t) => t.id === selectedId)
-      : null
-    if (custom) {
-      applySource({
-        kind: dark ? 'custom-dark' : 'custom-light',
-        theme: custom,
-      })
-    } else {
-      applySource({
-        kind: dark ? 'builtin-dark' : 'builtin-light',
-        theme: dark ? DARK_THEME : LIGHT_THEME,
-      })
+    const apply = () => {
+      const dark = wantsDark()
+      const selectedId = dark
+        ? selectedDarkThemeId.value
+        : selectedLightThemeId.value
+      let custom = selectedId
+        ? installedThemes.value.find((t) => t.id === selectedId)
+        : null
+      if (selectedId && !custom) {
+        // 他ウィンドウでインストールされた直後は in-memory リストに無いことが
+        // あるので localStorage から再読込して探し直す
+        installedThemes.value = getStorageJson<MisskeyTheme[]>(
+          STORAGE_KEYS.themeInstalledThemes,
+          [],
+        )
+        custom = installedThemes.value.find((t) => t.id === selectedId)
+      }
+      if (custom) {
+        applySource({
+          kind: dark ? 'custom-dark' : 'custom-light',
+          theme: custom,
+        })
+      } else {
+        applySource({
+          kind: dark ? 'builtin-dark' : 'builtin-light',
+          theme: dark ? DARK_THEME : LIGHT_THEME,
+        })
+      }
     }
+    // 初回 (起動時) は即時適用、以後の切替はクロスフェード
+    if (!themeAppliedOnce) {
+      themeAppliedOnce = true
+      apply()
+      return
+    }
+    withViewTransition(apply)
   }
 
   function isCurrentDark(): boolean {

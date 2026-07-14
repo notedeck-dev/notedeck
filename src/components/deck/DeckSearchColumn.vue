@@ -33,6 +33,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
+import { isImeComposing } from '@/utils/ime'
 import {
   extractLiterals,
   filterNotesByRegexAsync,
@@ -612,6 +613,7 @@ function handleScroll() {
 }
 
 function onKeydown(e: KeyboardEvent) {
+  if (isImeComposing(e)) return
   if (e.key === 'Enter') {
     performSearch()
   }

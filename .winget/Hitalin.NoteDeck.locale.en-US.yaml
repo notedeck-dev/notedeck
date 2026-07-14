@@ -8,13 +8,14 @@ PackageName: NoteDeck
 PackageUrl: https://github.com/hitalin/notedeck
 License: AGPL-3.0
 LicenseUrl: https://github.com/hitalin/notedeck/blob/main/LICENSE
-ShortDescription: A multi-platform deck client for Misskey and its forks
+ShortDescription: Misskey Pro — an integrated deck environment (IDE) for Misskey power users
 Description: |-
-  NoteDeck is a deck client for Misskey and its forks.
-  It provides efficient multi-server timeline viewing with features like local full-text search,
-  AI integration, and localhost API that are only possible with a native desktop application.
+  NoteDeck is "Misskey Pro" — an integrated deck environment (IDE)
+  for power users of Misskey and its forks.
+  It offers local full-text search, AI integration, and a localhost API — features a web UI can't provide.
 Tags:
   - misskey
+  - misskey-pro
   - fediverse
   - deck
   - social-media

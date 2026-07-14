@@ -716,5 +716,6 @@ export function usePostFormState(
     saveCurrentSlot,
     restoreSlot,
     removeCurrentSlot,
+    hasAnyContent,
   }
 }

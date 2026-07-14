@@ -115,6 +115,20 @@ impl TauriEmitter {
             _ => return,
         };
 
+        // フォーカス中はアプリ内表示 + 音で足りるため OS 通知は出さない (#704 K)。
+        // Android は webview が凍結されうるため常に出す
+        #[cfg(not(target_os = "android"))]
+        {
+            let focused = self
+                .app
+                .get_webview_window("main")
+                .map(|w| w.is_focused().unwrap_or(false))
+                .unwrap_or(false);
+            if focused {
+                return;
+            }
+        }
+
         let mut builder = self.app.notification().builder().title(&title);
         if let Some(body) = body_opt.as_deref() {
             builder = builder.body(body);

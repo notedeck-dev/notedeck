@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, useCssModule, watch } from 'vue'
+import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import { useColumnDrag } from '@/composables/useColumnDrag'
 import { provideColumnMountRegistry } from '@/composables/useColumnMount'
 import { useColumnResize } from '@/composables/useColumnResize'
@@ -28,6 +29,8 @@ const COLUMN_PRELOADERS: Partial<Record<string, () => Promise<unknown>>> = {
 
 const $style = useCssModule()
 const deckStore = useDeckStore()
+
+const emit = defineEmits<{ 'add-column': [] }>()
 
 // Column drag & drop (CSS Module class names are passed as selectors)
 const columnDrag = useColumnDrag(deckStore, {
@@ -273,10 +276,27 @@ defineExpose({
         :style="{ flexBasis: `${dropInsertWidth}px` }"
       />
     </template>
+
+    <!-- 空デッキ (全カラム削除後) -->
+    <div v-if="deckStore.windowLayout.length === 0" :class="$style.emptyDeck">
+      <ColumnEmptyState
+        message="カラムがありません"
+        cta-label="カラムを追加"
+        cta-icon="ti-plus"
+        @cta="emit('add-column')"
+      />
+    </div>
   </div>
 </template>
 
 <style lang="scss" module>
+.emptyDeck {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .columns {
   flex: 1;
   display: flex;
@@ -351,6 +371,8 @@ defineExpose({
     min-width: 100% !important;
     max-width: 100% !important;
     scroll-snap-align: start;
+    /* 強フリックで複数カラム飛ばさない (1 フリック = 1 カラム) */
+    scroll-snap-stop: always;
   }
 }
 </style>

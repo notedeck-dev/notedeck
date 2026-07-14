@@ -49,6 +49,7 @@ import {
 } from '@/utils/chatHistoryEntries'
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
+import { isImeComposing } from '@/utils/ime'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
@@ -617,10 +618,12 @@ function onNewMessage(msg: ChatMessage) {
   if (messageIds.value.includes(msg.id)) return
   // ミュート送信者の着信は存在ごと無視（append もサウンドもしない）
   if (isMessageHidden(activeAccountId.value, msg)) return
+  // append で DOM が伸びる前に「最下部付近にいたか」を測る
+  const wasNearBottom = isNearBottom()
   thread.append(msg)
   if (!props.column.soundMuted) chatSound.play()
-  // 検索中は表示位置を維持する (新着で自動スクロールするとヒット箇所を見失うため)。
-  if (!isConvSearching.value) scrollToBottom()
+  // 検索中・過去ログ閲覧中は表示位置を維持する (強制スクロールで読書位置を失わない)。
+  if (!isConvSearching.value && wasNearBottom) scrollToBottom()
 }
 
 function goBack() {
@@ -675,6 +678,7 @@ async function sendMessage() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  if (isImeComposing(e)) return
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     sendMessage()
@@ -833,6 +837,14 @@ function updateMessageReaction(
 }
 
 const chatScroller = ref<NoteScrollerExpose | null>(null)
+
+/** 最下部から 120px 以内なら「追従してよい」とみなす */
+function isNearBottom(): boolean {
+  const el = chatScroller.value?.getElement?.()
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 120
+}
+
 function scrollToBottom() {
   requestAnimationFrame(() => {
     if (messages.value.length === 0) return

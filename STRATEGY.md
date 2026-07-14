@@ -2,8 +2,9 @@
 
 ## ポジショニング
 
-NoteDeck は Misskey とそのフォークに対応した**マルチプラットフォーム対応の Misskey 統合デッキ環境 (IDE: Integrated Deck Environment)** である。
-閲覧（ブラウザ）・投稿（エディタ）・検索（データベース）・連携（API ハブ）をひとつのアプリに統合し、
+NoteDeck は Misskey とそのフォークに対応した **Misskey 統合デッキ環境 (IDE: Integrated Deck Environment)** である。
+対外ブランディングは **Misskey Pro** — X Pro（旧 TweetDeck）と同様に「ヘビーユーザー向け」を一語で伝え、ストア検索で Misskey の語に引っかける（詳細は [BRANDING.md](BRANDING.md)）。
+閲覧（ブラウザ）・投稿（エディタ）・検索（データベース）・連携（API ハブ）を統合し、
 notecli（Rust コアエンジン）の上に WebView ベースの統合フロントエンドを提供する。
 
 - **ターゲット**: 複数サーバーのタイムラインを効率よく閲覧・管理し、AI / 外部ツールで自分の SNS 環境を自動化したいユーザー

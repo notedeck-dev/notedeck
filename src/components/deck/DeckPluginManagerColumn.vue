@@ -240,6 +240,24 @@ function openNewPlugin() {
   })
 }
 
+// 1 クリック目で trash ボタンを赤くアーム、2 クリック目で実行 (PluginCard の
+// confirmingUninstall 表示に対応する armed 状態をカラム側で管理)
+const confirmingUninstallId = ref<string | null>(null)
+let uninstallArmTimer: ReturnType<typeof setTimeout> | null = null
+
+function requestUninstall(plugin: PluginMeta) {
+  if (uninstallArmTimer) clearTimeout(uninstallArmTimer)
+  if (confirmingUninstallId.value === plugin.installId) {
+    confirmingUninstallId.value = null
+    handleUninstall(plugin)
+    return
+  }
+  confirmingUninstallId.value = plugin.installId
+  uninstallArmTimer = setTimeout(() => {
+    confirmingUninstallId.value = null
+  }, 3000)
+}
+
 function handleUninstall(plugin: PluginMeta) {
   if (!isCrossAccount.value && accountId.value) {
     // per-account: このアカウントから外す (installedFor から除外)
@@ -355,12 +373,12 @@ function handleUninstall(plugin: PluginMeta) {
               :category="storeByName.get(plugin.name)?.category"
               :category-label="storeByName.get(plugin.name)?.category ? PLUGIN_CATEGORY_LABELS[storeByName.get(plugin.name)!.category] : undefined"
               :active="plugin.active"
-              :confirming-uninstall="false"
+              :confirming-uninstall="confirmingUninstallId === plugin.installId"
               :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
               :denied-badge="getPluginDenial(plugin.installId)"
               @click="openPluginDetail(plugin.installId)"
               @toggle="toggleActive(plugin)"
-              @uninstall="handleUninstall(plugin)"
+              @uninstall="requestUninstall(plugin)"
               @settings="openPluginDetail(plugin.installId)"
               @denied-click="openPermissionSettings()"
             />

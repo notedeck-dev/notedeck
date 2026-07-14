@@ -63,6 +63,8 @@ export interface TauriEventPayloads {
   'deck:drag-end': { columnId: string; sourceWindowId: string }
   'deck:profile-updated': { profileId: string }
   'deck:profiles-changed': undefined
+  /** settings.json5 が永続化された (テーマ等をウィンドウ間で同期する) */
+  'nd:settings-changed': { sourceId: string }
   'pip:return-to-deck': Omit<DeckColumn, 'id'>
 }
 

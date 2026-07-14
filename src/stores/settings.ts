@@ -22,7 +22,11 @@ import {
 } from '@/settings/schema'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri } from '@/utils/settingsFs'
+import { emitTauri, listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+
+/** ウィンドウ間同期イベントで自分自身の emit を無視するための識別子 */
+const SYNC_SOURCE_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
 export const useSettingsStore = defineStore('settings', () => {
   /** 現在の設定値 (load() 完了まで DEFAULT_SETTINGS のコピー) */
@@ -82,6 +86,29 @@ export const useSettingsStore = defineStore('settings', () => {
       settings.value = { ...DEFAULT_SETTINGS }
     }
     initialized.value = true
+    startCrossWindowSync()
+  }
+
+  /**
+   * 他ウィンドウ (ポップアウトカラム / PiP) が settings.json5 を書き換えたら
+   * 再読込して追従する。テーマ等の設定変更がリロードなしで全ウィンドウに届く。
+   */
+  let syncStarted = false
+  function startCrossWindowSync(): void {
+    if (syncStarted || !isTauri) return
+    syncStarted = true
+    listenTauri('nd:settings-changed', async (payload) => {
+      if (payload.sourceId === SYNC_SOURCE_ID) return
+      try {
+        const raw = unwrap(await commands.readNotedeckJson())
+        settings.value =
+          raw.length === 0
+            ? { ...DEFAULT_SETTINGS }
+            : parseSettings(JSON5.parse(raw) as Record<string, unknown>)
+      } catch (e) {
+        console.warn('[settings] cross-window reload failed:', e)
+      }
+    }).catch((e) => console.warn('[settings] sync listen failed:', e))
   }
 
   /**
@@ -125,6 +152,11 @@ export const useSettingsStore = defineStore('settings', () => {
       const content = `${JSON5.stringify(toWrite, null, 2)}\n`
       unwrap(await commands.writeNotedeckJson(content))
       lastError.value = null
+      emitTauri('nd:settings-changed', { sourceId: SYNC_SOURCE_ID }).catch(
+        () => {
+          // Not running in Tauri (browser dev mode)
+        },
+      )
     } finally {
       saving.value = false
     }

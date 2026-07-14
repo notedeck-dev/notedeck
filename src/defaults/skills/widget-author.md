@@ -1,7 +1,7 @@
 ---
 id: widget-author
 name: ウィジェット作者
-version: 1.1.0
+version: 1.1.1
 description: 自然言語の依頼から AiScript ウィジェットを生成し、確認ダイアログ経由でユーザーに承認を取ってインストールするまでを担当するスキル。
 mode: trigger
 triggers:
@@ -107,9 +107,9 @@ widgets.create({
 `autoRun` の挙動:
 - `false` (default, **推奨**) — カラム表示時に手動で「起動」ボタンを押す必要がある。
   ユーザーが意図せずコードが走るのを防ぐ
-- `true` — カラム表示時に自動で AiScript が走る。`@on_note` 相当の副作用は
-  ないが、`Mk:api` を叩くウィジェットなどは autoRun=true だと意図せずネットワーク
-  アクセスが発生する点に注意
+- `true` — カラム表示時に自動で AiScript が走る。ウィジェットに `Plugin:register_*`
+  のようなフックはないが、`Mk:api` を叩くウィジェットなどは autoRun=true だと
+  意図せずネットワークアクセスが発生する点に注意
 
 **ユーザーが「すぐ動かしたい」「自動で表示したい」と明示しない限り
 `autoRun: false` (= default) のままにすること**。後から `widgets.setAutoRun` で

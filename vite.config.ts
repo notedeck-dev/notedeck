@@ -3,7 +3,14 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import vue from '@vitejs/plugin-vue'
 import JSON5 from 'json5'
-import { Features } from 'lightningcss'
+import type {
+  ChildNode,
+  Container,
+  Document,
+  AtRule as PostcssAtRule,
+  Plugin as PostcssPlugin,
+  Rule,
+} from 'postcss'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vite'
 
@@ -18,6 +25,45 @@ function json5Plugin(): Plugin {
       if (!id.endsWith('.json5')) return undefined
       const parsed = JSON5.parse(code)
       return { code: `export default ${JSON.stringify(parsed)}`, map: null }
+    },
+  }
+}
+
+/**
+ * :hover ルールを @media (hover: hover) で包み、タッチ環境の sticky hover
+ * (タップ後にホバー背景が貼り付く Android WebView の定番問題) を全 CSS で防ぐ (#704 F)。
+ * ソース側 350+ 箇所を個別に括る代わりにビルド時に一括変換する。
+ */
+function hoverMediaGuard(): PostcssPlugin {
+  const isHoverMedia = (node: Container<ChildNode> | Document | undefined) => {
+    for (let p = node; p; p = p.parent as Container<ChildNode> | undefined) {
+      if (p.type === 'atrule') {
+        const at = p as unknown as PostcssAtRule
+        if (at.name === 'media' && at.params.includes('hover')) return true
+      }
+    }
+    return false
+  }
+  return {
+    postcssPlugin: 'nd-hover-media-guard',
+    Rule(rule: Rule, { AtRule }) {
+      if (!rule.selector.includes(':hover')) return
+      // 既に hover 系メディアクエリ内なら二重に包まない (再訪問の停止条件でもある)
+      if (isHoverMedia(rule.parent)) return
+      const hoverSelectors = rule.selectors.filter((s) => s.includes(':hover'))
+      const plainSelectors = rule.selectors.filter((s) => !s.includes(':hover'))
+      const media = new AtRule({ name: 'media', params: '(hover: hover)' })
+      if (plainSelectors.length === 0) {
+        rule.replaceWith(media)
+        media.append(rule)
+      } else {
+        // セレクタリスト混在時は :hover 側だけを分離して包む
+        const hoverRule = rule.clone()
+        hoverRule.selectors = hoverSelectors
+        rule.selectors = plainSelectors
+        rule.after(media)
+        media.append(hoverRule)
+      }
     },
   }
 }
@@ -187,12 +233,12 @@ export default defineConfig({
     },
   },
   css: {
-    transformer: 'lightningcss',
-    lightningcss: {
-      // Tauri WebView は全て最新エンジン（WebKit 16+/Chromium 110+/WebKitGTK 2.40+）
-      // targets 未指定 = コンパイルダウンなし（Nesting等をそのまま出力）
-      // vendor prefix も不要なので除外し、minify のみ行う
-      exclude: Features.VendorPrefixes,
+    // 変換ステージは postcss (hoverMediaGuard のため)。
+    // 従来の lightningcss transformer は targets 未指定でコンパイルダウンなし
+    // だったので、失う変換は無い。minify は引き続き build.cssMinify の
+    // lightningcss が担う
+    postcss: {
+      plugins: [hoverMediaGuard()],
     },
     modules: {
       localsConvention: 'camelCaseOnly',

@@ -124,10 +124,14 @@ function hostname(url: string): string {
 <template>
   <MkNoteEmbed v-if="isNoteUrl" :url="url" />
   <div v-else-if="shouldPreview" ref="el" :class="[$style.urlPreview, !loading && 'nd-content-appear']" @click="handleClick">
+    <!-- 実カード (サムネイル 100px + body のタイトル/説明/ホスト行) と同じ
+         構造・寸法にして、差し替え時の高さジャンプを防ぐ -->
     <div v-if="loading" :class="$style.urlPreviewSkeleton">
-      <div :class="$style.skeletonText">
+      <div :class="$style.skeletonThumb" />
+      <div :class="$style.urlPreviewBody">
         <div :class="$style.skeletonLine" style="width: 60%" />
-        <div :class="$style.skeletonLine" style="width: 80%" />
+        <div :class="[$style.skeletonLine, $style.skeletonLineDesc]" style="width: 80%" />
+        <div :class="[$style.skeletonLine, $style.skeletonLineHost]" style="width: 40%" />
       </div>
     </div>
 
@@ -418,18 +422,26 @@ function hostname(url: string): string {
 }
 
 .urlPreviewSkeleton {
-  padding: 8px 12px;
+  display: flex;
   width: 100%;
 }
 
-.skeletonText {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.skeletonThumb {
+  flex-shrink: 0;
+  width: 100px;
+  min-height: 80px;
+  background: linear-gradient(
+    90deg,
+    var(--nd-buttonBg) 25%,
+    var(--nd-panelHighlight) 50%,
+    var(--nd-buttonBg) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
 
 .skeletonLine {
-  height: 10px;
+  height: 14px;
   border-radius: 4px;
   background: linear-gradient(
     90deg,
@@ -439,6 +451,16 @@ function hostname(url: string): string {
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
+}
+
+.skeletonLineDesc {
+  height: 11px;
+  margin-top: 4px;
+}
+
+.skeletonLineHost {
+  height: 11px;
+  margin-top: 8px;
 }
 
 @keyframes shimmer {

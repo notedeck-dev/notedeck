@@ -84,7 +84,7 @@ const disabled = computed(
             <button
               class="_button"
               :class="[$style.iconBtn, confirmingUninstall && $style.iconBtnDanger]"
-              title="アンインストール"
+              :title="confirmingUninstall ? 'もう一度クリックで削除' : 'アンインストール'"
               @click.stop="emit('uninstall')"
             >
               <i class="ti ti-trash" />

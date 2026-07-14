@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, onMounted, provide, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { COLUMN_COMPONENTS } from '@/columns/registry'
 import AppToast from '@/components/common/AppToast.vue'
+import AppTooltip from '@/components/common/AppTooltip.vue'
 import AddColumnDialog from '@/components/deck/AddColumnDialog.vue'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
@@ -407,6 +408,7 @@ onMounted(async () => {
     </template>
 
     <AppToast />
+    <AppTooltip />
   </div>
 </template>
 

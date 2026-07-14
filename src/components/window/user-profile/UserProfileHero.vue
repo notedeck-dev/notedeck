@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import type { NormalizedUserDetail, ServerAdapter } from '@/adapters/types'
 import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
+import { useConfirm } from '@/stores/confirm'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
@@ -39,17 +40,34 @@ const emit = defineEmits<{
 const toast = useToast()
 const windowsStore = useWindowsStore()
 
+const followBtnHover = ref(false)
+
 const followButtonLabel = computed(() => {
   const u = props.user
-  if (u.isFollowing) return 'フォロー中'
-  if (u.hasPendingFollowRequestFromYou) return 'フォロー許可待ち'
+  if (u.isFollowing) {
+    if (followBtnHover.value) return 'フォロー解除'
+    return u.isFollowed ? '相互フォロー' : 'フォロー中'
+  }
+  if (u.hasPendingFollowRequestFromYou) {
+    return followBtnHover.value ? 'リクエスト取消' : 'フォロー許可待ち'
+  }
   return 'フォロー'
 })
 
 const isFollowLoading = ref(false)
+const { confirm } = useConfirm()
 
 async function handleToggleFollow() {
   if (!props.adapter || props.isOwnProfile) return
+  if (props.user.isFollowing) {
+    const ok = await confirm({
+      title: 'フォロー解除',
+      message: `@${props.user.username} のフォローを解除しますか？`,
+      okLabel: '解除',
+      type: 'danger',
+    })
+    if (!ok) return
+  }
   isFollowLoading.value = true
   try {
     await toggleFollow(props.adapter.api, props.user)
@@ -192,6 +210,8 @@ onMounted(() => {
           ]"
           :disabled="isFollowLoading"
           @click="handleToggleFollow"
+          @mouseenter="followBtnHover = true"
+          @mouseleave="followBtnHover = false"
         >
           {{ followButtonLabel }}
         </button>
@@ -435,9 +455,17 @@ onMounted(() => {
     opacity: 0.5;
   }
 
+  /* フォロー済みは塗りを外して未フォロー (accent 塗り) と区別。
+     hover でラベルが「フォロー解除」に変わるのに合わせ danger 色に寄せる */
   &.following {
-    background: var(--nd-accent);
-    color: #fff;
+    background: var(--nd-buttonBg);
+    color: var(--nd-fg);
+
+    &:hover {
+      background: color-mix(in srgb, var(--nd-love) 20%, var(--nd-buttonBg));
+      color: var(--nd-love);
+      opacity: 1;
+    }
   }
 }
 

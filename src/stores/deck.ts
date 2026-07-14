@@ -464,7 +464,10 @@ export const useDeckStore = defineStore('deck', () => {
     })
   }
 
-  function removeColumn(id: string) {
+  /** カラムを削除する。undo トースト用に復元関数を返す */
+  function removeColumn(id: string): (() => void) | undefined {
+    const removed = columns.value.find((c) => c.id === id)
+    const groupIndex = layout.value.findIndex((g) => g.includes(id))
     snapshotStore.evictColumn(id)
     profileStore.mutateProfile((p) => {
       p.columns = p.columns.filter((c) => c.id !== id)
@@ -483,6 +486,19 @@ export const useDeckStore = defineStore('deck', () => {
     }
     setFocusedNoteId(id, null)
     hapticMedium()
+    if (!removed) return undefined
+    return () => {
+      profileStore.mutateProfile((p) => {
+        if (p.columns.some((c) => c.id === id)) return
+        p.columns.push(removed)
+        const idx =
+          groupIndex >= 0
+            ? Math.min(groupIndex, p.layout.length)
+            : p.layout.length
+        p.layout.splice(idx, 0, [id])
+      })
+      profileStore.flushPersist()
+    }
   }
 
   function updateColumn(id: string, updates: Partial<DeckColumn>) {
@@ -601,7 +617,7 @@ export const useDeckStore = defineStore('deck', () => {
     },
   ) {
     const col = getColumn(columnId)
-    if (!col || col.type !== 'widget') return
+    if (col?.type !== 'widget') return
     const installId = generateWidgetId()
     const now = Date.now()
     widgetsStore.addWidget({
@@ -631,7 +647,7 @@ export const useDeckStore = defineStore('deck', () => {
    */
   function attachWidget(columnId: string, installId: string) {
     const col = getColumn(columnId)
-    if (!col || col.type !== 'widget') return
+    if (col?.type !== 'widget') return
     if (col.sidebar === true) {
       widgetsStore.addToSidebar(installId)
       return
@@ -668,7 +684,7 @@ export const useDeckStore = defineStore('deck', () => {
    */
   function removeWidget(columnId: string, installId: string) {
     const col = getColumn(columnId)
-    if (!col || col.type !== 'widget') return
+    if (col?.type !== 'widget') return
     if (col.sidebar === true) {
       widgetsStore.removeWidget(installId)
     } else if (col.widgetIds) {
@@ -679,7 +695,7 @@ export const useDeckStore = defineStore('deck', () => {
 
   function reorderWidgetIds(columnId: string, ids: string[]) {
     const col = getColumn(columnId)
-    if (!col || col.type !== 'widget') return
+    if (col?.type !== 'widget') return
     col.widgetIds = ids
     save()
   }

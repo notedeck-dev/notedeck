@@ -1,7 +1,7 @@
 ---
 id: plugin-author
 name: プラグイン作者
-version: 1.2.0
+version: 1.2.1
 description: 自然言語の依頼から AiScript プラグインを生成し、確認ダイアログ経由でユーザーに承認を取ってインストールするまでを担当するスキル。
 mode: trigger
 triggers:
@@ -27,9 +27,9 @@ isPersona: false
 組み立てなくてよい (dispatcher が自動で MisStore カード風 UI を出す)。
 
 ユーザーがウィジェット (画面上の小道具) を頼んだ場合は `widget-author` skill の
-方針に従って `widgets.create` を呼ぶ。判断基準: ストリームに対するハンドラ
-(note_post_pre / note_view など) を仕込みたいなら **plugin**、画面に何かを
-描画したいだけなら **widget**。
+方針に従って `widgets.create` を呼ぶ。判断基準: UI へのフック
+(`Plugin:register_note_action` / `register_note_view_interruptor` など) を
+仕込みたいなら **plugin**、画面に何かを描画したいだけなら **widget**。
 
 AiScript の文法・組込み関数・名前空間は別スキル `aiscript-author` に詳しく
 まとめてある。書く前に必ずそちらを参照すること。
@@ -40,7 +40,7 @@ AiScript の文法・組込み関数・名前空間は別スキル `aiscript-aut
 呼ぶ前に、**必ず** `aiscript.validate` capability で src を構文検証する。
 
 ```
-aiscript.validate({ src: "/// @ 0.16.0\n### { ... }\n@on_note(...) { ... }", entryPoint: "plugin" })
+aiscript.validate({ src: "/// @ 0.16.0\n### { ... }\nPlugin:register_note_action(...)", entryPoint: "plugin" })
 ```
 
 返り値:
@@ -89,7 +89,7 @@ plugins.create({
   author: "AI Author",
   description: "...",
   permissions: [...],         // ヘッダの permissions と一致させる
-  src: "/// @ 0.16.0\n### {...}\n@on_note(...) { ... }"
+  src: "/// @ 0.16.0\n### {...}\nPlugin:register_note_action(...)"
 })
 ```
 

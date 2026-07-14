@@ -17,6 +17,8 @@ import { WINDOW_LABELS } from './windowLabels'
 const props = defineProps<{
   window: DeckWindow
   themeVars?: Record<string, string>
+  /** 閉じアニメーション中 (DeckWindowLayer の leave 遅延で DOM がまだ残っている間) */
+  closing?: boolean
 }>()
 
 const emit = defineEmits<{ close: [] }>()
@@ -334,7 +336,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    :class="[$style.deckWindow, { [$style.dragging]: isDragging, [$style.resizing]: isResizing, [$style.userSized]: isUserSized, [$style.minimized]: isMinimized, [$style.maximized]: isMaximized, [$style.mobile]: isCompact, [$style.spotlighted]: isSpotlighted }]"
+    :class="[$style.deckWindow, { [$style.dragging]: isDragging, [$style.resizing]: isResizing, [$style.userSized]: isUserSized, [$style.minimized]: isMinimized, [$style.maximized]: isMaximized, [$style.mobile]: isCompact, [$style.spotlighted]: isSpotlighted, [$style.closing]: closing }]"
     :style="windowStyle"
     @mousedown="onWindowMouseDown"
   >
@@ -421,6 +423,16 @@ onBeforeUnmount(() => {
 
 @keyframes windowIn {
   from { opacity: 0; transform: scale(0.88) translateY(6px); }
+}
+
+/* 閉じアニメ: windowIn の逆方向。DeckWindowLayer の leave 遅延中に付与される */
+.closing {
+  animation: windowOut 0.2s var(--nd-ease-decel) both;
+  pointer-events: none;
+}
+
+@keyframes windowOut {
+  to { opacity: 0; transform: scale(0.92) translateY(4px); }
 }
 
 .dragging {

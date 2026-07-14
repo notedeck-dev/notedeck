@@ -2569,7 +2569,19 @@ export type MutedWordsResult = { mutedWords: MutedWord[]; hardMutedWords: MutedW
  * インスタンスミュート（#613）。ミュート対象ホスト名の配列。同じ `i` から取得。
  */
 mutedInstances: string[] }
-export type NormalizedDriveFile = { id: string; name: string; type: string; url: string; thumbnailUrl: string | null; size?: number; isSensitive?: boolean }
+export type NormalizedDriveFile = { id: string; name: string; type: string; url: string; thumbnailUrl: string | null; size?: number; isSensitive?: boolean; 
+/**
+ * 画像の幅 (px)。フロントの aspect-ratio 予約 (レイアウトシフト防止) 用
+ */
+width?: number | null; 
+/**
+ * 画像の高さ (px)
+ */
+height?: number | null; 
+/**
+ * blurhash プレースホルダ文字列
+ */
+blurhash?: string | null }
 export type NormalizedNote = { id: string; _accountId: string; _serverHost: string; createdAt: string; text: string | null; cw: string | null; user: NormalizedUser; visibility: string; emojis?: Partial<{ [key in string]: string }>; reactionEmojis?: Partial<{ [key in string]: string }>; reactions?: Partial<{ [key in string]: number }>; myReaction: string | null; renoteCount: number; repliesCount: number; files?: NormalizedDriveFile[]; poll?: NormalizedPoll | null; replyId?: string | null; renoteId?: string | null; channelId?: string | null; channel?: Channel | null; reactionAcceptance?: string | null; uri?: string | null; url?: string | null; updatedAt?: string | null; localOnly?: boolean; visibleUserIds?: string[]; isFavorited?: boolean; 
 /**
  * Fork-specific mode flags (e.g., isNoteInYamiMode)

@@ -704,6 +704,14 @@ dialog._nativeDialog[open] {
   animation: nd-spin 0.8s linear infinite;
 }
 
+/* ---- View Transitions (テーマ/プロファイル切替のクロスフェード) ----
+   未対応の WebKitGTK では ::view-transition-* が無視されるだけ (エンハンス枠) */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--nd-duration-slow);
+  animation-timing-function: var(--nd-ease-decel);
+}
+
 /* ---- Content crossfade (skeleton → real content) ---- */
 
 @keyframes nd-content-in {
