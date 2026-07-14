@@ -151,6 +151,8 @@ const {
   updateAvailable,
   updateVersion,
   isInstalling,
+  downloadProgress,
+  updateError,
   checkForUpdate,
   installUpdate,
 } = useUpdater()
@@ -272,9 +274,16 @@ function reportBug() {
           :disabled="isInstalling"
           @click="installUpdate"
         >
-          <i class="ti ti-download" />
-          {{ isInstalling ? 'インストール中...' : `v${updateVersion} にアップデート` }}
+          <i :class="isInstalling ? 'ti ti-loader-2 nd-spin' : 'ti ti-download'" />
+          <template v-if="isInstalling && downloadProgress !== null">
+            ダウンロード中… {{ downloadProgress }}%
+          </template>
+          <template v-else-if="isInstalling">インストール中...</template>
+          <template v-else>v{{ updateVersion }} にアップデート</template>
         </button>
+        <div v-if="updateError" :class="$style.updateError">
+          {{ updateError }}
+        </div>
       </template>
       <div v-else :class="$style.aboutVersion">v{{ appVersion }}</div>
     </div>
@@ -467,6 +476,12 @@ function reportBug() {
   &:disabled {
     opacity: 0.7;
   }
+}
+
+.updateError {
+  margin-top: 6px;
+  font-size: 0.8em;
+  color: var(--nd-error, var(--nd-love));
 }
 
 // 本家 about-misskey の「I ❤ #Misskey」ボタン (MkButton rounded) 踏襲:
