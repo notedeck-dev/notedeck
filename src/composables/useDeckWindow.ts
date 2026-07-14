@@ -339,8 +339,9 @@ export async function switchProfileWithWindows(
   await closeAllSubWindows()
 
   // 2. Apply the profile (loads columns with saved windowIds)
-  //    カラム一式が入れ替わるのでクロスフェードでフラッシュを抑える
-  withViewTransition(async () => {
+  //    カラム一式が入れ替わるのでクロスフェードでフラッシュを抑える。
+  //    後続のウィンドウ復元は適用後の state を読むため await 必須
+  await withViewTransition(async () => {
     deckStore.applyProfile(profileId)
     await nextTick()
   })
