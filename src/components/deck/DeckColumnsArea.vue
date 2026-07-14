@@ -371,6 +371,8 @@ defineExpose({
     min-width: 100% !important;
     max-width: 100% !important;
     scroll-snap-align: start;
+    /* 強フリックで複数カラム飛ばさない (1 フリック = 1 カラム) */
+    scroll-snap-stop: always;
   }
 }
 </style>
