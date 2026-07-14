@@ -682,7 +682,7 @@ function handlePickerReaction(reaction: string) {
         </div>
 
         <!-- Body -->
-        <div v-show="(effectiveNote.cw === null || cwExpanded) && !softMuteCollapsed" :class="$style.body">
+        <div v-show="(effectiveNote.cw === null || cwExpanded) && !softMuteCollapsed" :class="[$style.body, effectiveNote.cw !== null && cwExpanded && $style.bodyReveal]">
           <div v-if="effectiveNote.text" :class="[$style.textContainer, { [$style.collapsed]: isLongText && !longTextExpanded }]">
             <p :class="$style.text">
               <MkMfm
@@ -1300,6 +1300,18 @@ function handlePickerReaction(reaction: string) {
 /* Body */
 .body {
   overflow-wrap: break-word;
+}
+
+/* CW 開封時のみ付与。閉じる方向は隠す操作なので即時のまま */
+.bodyReveal {
+  animation: cw-reveal var(--nd-duration-slow) var(--nd-ease-decel) both;
+}
+
+@keyframes cw-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
 }
 
 .textContainer {

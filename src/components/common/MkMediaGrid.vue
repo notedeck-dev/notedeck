@@ -657,7 +657,8 @@ async function openInBrowser() {
   opacity: 0;
   transform: scale(0.98);
   transition: opacity var(--nd-duration-slower) var(--nd-ease-spring),
-    transform var(--nd-duration-slower) var(--nd-ease-spring);
+    transform var(--nd-duration-slower) var(--nd-ease-spring),
+    filter var(--nd-duration-slow) var(--nd-ease-decel);
   position: relative;
   z-index: 1;
 

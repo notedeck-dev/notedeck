@@ -128,7 +128,7 @@ function onSyncChange(e: Event) {
   background-color: #ffcf96;
   border-radius: 50px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  transition: all 400ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  transition: background-color 400ms cubic-bezier(0.68, -0.55, 0.265, 1.55), transform 400ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
   transform: rotate(-45deg);
 
   .checked & {
@@ -158,7 +158,7 @@ function onSyncChange(e: Event) {
   width: 30px;
   height: 3px;
   background-color: #fff;
-  transition: all 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95);
+  transition: width 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95), height 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95), transform 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95);
   border-radius: 50%;
 }
 
@@ -179,25 +179,25 @@ function onSyncChange(e: Event) {
 
 .star4, .star5, .star6 {
   opacity: 0;
-  transition: all 300ms 0ms cubic-bezier(0.445, 0.05, 0.55, 0.95);
+  transition: opacity 300ms 0ms cubic-bezier(0.445, 0.05, 0.55, 0.95), transform 300ms 0ms cubic-bezier(0.445, 0.05, 0.55, 0.95);
 }
 
 .star4 {
   top: 16px; left: 11px; z-index: 0; width: 2px; height: 2px;
   transform: translate3d(3px, 0, 0);
-  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: all 300ms 200ms cubic-bezier(0.445, 0.05, 0.55, 0.95); }
+  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: opacity 300ms 200ms cubic-bezier(0.445, 0.05, 0.55, 0.95), transform 300ms 200ms cubic-bezier(0.445, 0.05, 0.55, 0.95); }
 }
 
 .star5 {
   top: 32px; left: 17px; z-index: 0; width: 3px; height: 3px;
   transform: translate3d(3px, 0, 0);
-  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: all 300ms 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95); }
+  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: opacity 300ms 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95), transform 300ms 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95); }
 }
 
 .star6 {
   top: 36px; left: 28px; z-index: 0; width: 2px; height: 2px;
   transform: translate3d(3px, 0, 0);
-  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: all 300ms 400ms cubic-bezier(0.445, 0.05, 0.55, 0.95); }
+  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: opacity 300ms 400ms cubic-bezier(0.445, 0.05, 0.55, 0.95), transform 300ms 400ms cubic-bezier(0.445, 0.05, 0.55, 0.95); }
 }
 
 .active { /* modifier */ }
