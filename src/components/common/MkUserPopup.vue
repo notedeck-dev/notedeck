@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type { NormalizedUserDetail } from '@/adapters/types'
@@ -167,10 +166,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           リモートユーザー
         </div>
 
-        <button class="_popupItem" @click.stop="openUrl(`https://${account?.host}/@${user.username}${user.host ? `@${user.host}` : ''}`)">
-          <i class="ti ti-external-link" />
-          Web UIで開く
-        </button>
       </div>
     </template>
   </div>
