@@ -59,6 +59,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { usePortal } from '@/composables/usePortal'
 import { useSensitiveMask } from '@/composables/useSensitiveMask'
+import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
 import { useServersStore } from '@/stores/servers'
@@ -157,20 +158,23 @@ function handleMemoSaved(memo: string) {
   if (user.value) user.value.memo = memo
 }
 
-// ヘッダー「Web UIで開く」ボタンの登録 — 自プロフィールは編集画面、他は公開ページ
+// ヘッダー「Web UIで開く」— 自他問わず公開ページ (Page/Play detail と同じ 2 ボタン構成)
 useWindowExternalLink(() => {
   const u = user.value
   const host = account.value?.host
   if (!u || !host) return null
-  if (isOwnProfile.value) {
-    return {
-      url: webUiUrl(host, '/settings/profile'),
-      title: 'プロフィールを編集',
-      icon: 'pencil',
-    }
-  }
   const suffix = u.host ? `@${u.host}` : ''
   return { url: webUiUrl(host, `/@${u.username}${suffix}`) }
+})
+
+// 自プロフィールの編集ボタン — アプリ内編集は非サポートなので WebUI 設定に委譲
+useWindowEditAction(() => {
+  const host = account.value?.host
+  if (!isOwnProfile.value || !host) return null
+  return {
+    onClick: () => openSafeUrl(webUiUrl(host, '/settings/profile')),
+    title: 'プロフィールを編集',
+  }
 })
 
 const MAX_PROFILE_NOTES = 500
