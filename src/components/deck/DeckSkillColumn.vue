@@ -80,22 +80,25 @@ const visibleSkills = computed(() => {
 })
 
 interface SkillSection {
-  key: 'local' | 'store'
+  key: 'builtin' | 'selfmade' | 'store'
   label: string
   items: SkillMeta[]
 }
 
 /**
- * インストール済みタブのセクション分け (プラグインと同形 / 上流の有無):
- *   ビルドイン: storeId 無し。手元が原本 (内蔵 / ユーザー手書き)
- *   ストア配布: storeId 持ち。MisStore に上流がある複製 (改造も自由)
+ * インストール済みタブのセクション分け (プラグインと同形 / 出自 3 分類):
+ *   ビルドイン: アプリ同梱 (builtIn フラグ)
+ *   自作: ユーザー手書き・AI 生成 (storeId 無し、同梱以外)
+ *   ストア配布: storeId 持ち。MisStore に上流がある複製 (改造しても残留)
  * 0 件のセクションは表示しない。
  */
 const installedSections = computed<SkillSection[]>(() => {
-  const local = visibleSkills.value.filter((s) => !s.storeId)
+  const builtin = visibleSkills.value.filter((s) => !s.storeId && s.builtIn)
+  const selfMade = visibleSkills.value.filter((s) => !s.storeId && !s.builtIn)
   const store = visibleSkills.value.filter((s) => !!s.storeId)
   const sections: SkillSection[] = [
-    { key: 'local', label: 'ビルドイン', items: local },
+    { key: 'builtin', label: 'ビルドイン', items: builtin },
+    { key: 'selfmade', label: '自作', items: selfMade },
     { key: 'store', label: 'ストア配布', items: store },
   ]
   return sections.filter((s) => s.items.length > 0)

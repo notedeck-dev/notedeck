@@ -110,6 +110,18 @@ export interface PluginMeta {
 /** インストール/追加先スコープ (#771)。カラムの文脈から決まる。 */
 export type PluginScope = { kind: 'global' } | { kind: 'account'; key: string }
 
+let builtInIdCache: Set<string> | null = null
+
+/** アプリ同梱 (defaults/plugins seed) 由来のプラグインか。セクション分類用。 */
+export function isBuiltInPlugin(installId: string): boolean {
+  if (!builtInIdCache) {
+    builtInIdCache = new Set(
+      loadBuiltInPluginTemplates().map((t) => t.installId),
+    )
+  }
+  return builtInIdCache.has(installId)
+}
+
 /**
  * plugin が scopeKey (`accountScopeKey`) のアカウントに効くか。
  * scopeKey=null は「アカウント文脈なし」= 全体スコープのみ有効。

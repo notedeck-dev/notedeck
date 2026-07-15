@@ -90,9 +90,9 @@ interface ThemeSection {
   items: ThemeEntry[]
 }
 
-// インストール済みタブのセクション構成。モードで責務が変わる:
-//   per-account: ビルドイン + ストア配布 (MisStore 由来) + サーバー (admin Branding)
-//   cross-account (Global): ビルドイン (同梱含む) + ストア配布 — アプリ全体管理
+// インストール済みタブのセクション構成 (出自 3 分類 + サーバー):
+//   per-account: 自作 + ストア配布 (MisStore 由来) + サーバー (admin Branding)
+//   cross-account (Global): ビルドイン (同梱) + 自作 + ストア配布 — アプリ全体管理
 //
 // 「Web UI で選択中のテーマ」(本家 darkTheme/lightTheme Pref) はサーバーに保存
 // されないため、NoteDeck 側でも介入しない。ユーザーが MisStore から取り込んだ
@@ -104,11 +104,27 @@ const themeSections = computed<ThemeSection[]>(() => {
   // logged-in account id 集合 (cross-account = 全アカウント集約 viewer の判定用)。
   const loggedInIds = new Set(accountsStore.accounts.map((a) => a.id))
 
-  // 「ビルドイン」 (NoteDeck エディタ作成 / import / storeId 無し)。
+  // 「ビルドイン」= アプリ同梱 (Mi Dark / Mi Light、削除/編集不可)。
+  // プラグイン/スキルカラムの同梱セクションと同じ扱いで全アカウントカラムのみ。
+  if (isCrossAccount.value) {
+    sections.push({
+      key: 'builtin',
+      label: 'ビルドイン',
+      items: [
+        {
+          theme: mode === 'dark' ? MI_DARK : MI_LIGHT,
+          source: 'builtin',
+          removable: false,
+        },
+      ],
+    })
+  }
+
+  // 「自作」 (NoteDeck エディタ作成 / import / storeId 無し)。
   // - per-account: installedFor に該当アカウントを含むもののみ
   // - 全アカウント: installedFor に少なくとも 1 つの logged-in account を含む
-  //   もの (集約 viewer の semantics) + アプリ同梱 (Mi Dark / Mi Light)
-  const localThemes = themeStore.installedThemes
+  //   もの (集約 viewer の semantics)
+  const selfMadeThemes = themeStore.installedThemes
     .filter((t) => {
       if (t.$notedeck?.storeId) return false
       if ((t.base ?? 'dark') !== mode) return false
@@ -123,19 +139,10 @@ const themeSections = computed<ThemeSection[]>(() => {
       source: 'local',
       removable: true,
     }))
-  // 同梱テーマ (Mi Dark / Mi Light、削除/編集不可) は独立セクションにせず
-  // ビルドインへ混ぜる (プラグイン/スキルカラムの同梱アイテムと同じ扱い)
-  if (isCrossAccount.value) {
-    localThemes.push({
-      theme: mode === 'dark' ? MI_DARK : MI_LIGHT,
-      source: 'builtin',
-      removable: false,
-    })
-  }
   sections.push({
-    key: 'local',
-    label: 'ビルドイン',
-    items: localThemes,
+    key: 'selfmade',
+    label: '自作',
+    items: selfMadeThemes,
   })
 
   if (!isCrossAccount.value && accountId.value) {
