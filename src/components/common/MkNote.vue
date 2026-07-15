@@ -806,7 +806,7 @@ function handlePickerReaction(reaction: string) {
           </button>
           <button v-if="canRenote" :class="[$style.footerButton, $style.renoteButton, { [$style.renoted]: isRenoted, [$style.footerDisabled]: isGuest }]" :disabled="isGuest" @click.stop="canInteract ? openRenoteMenu($event) : showLoginPrompt()">
             <i class="ti ti-repeat" />
-            <span v-if="effectiveNote.renoteCount > 0" :class="$style.buttonCount">
+            <span v-if="effectiveNote.renoteCount > 0" class="note-renote-count" :class="$style.buttonCount">
               {{ effectiveNote.renoteCount }}
             </span>
           </button>

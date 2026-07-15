@@ -67,7 +67,7 @@ const presets = ref({
   fontSize: 0,
   customCursor: '',
   visibilityBg: '',
-  hideReactionCount: '',
+  hideNoteCounts: '',
   hideUserStats: '',
 })
 
@@ -81,10 +81,8 @@ function parsePresetsFromCss(cssStr: string) {
   presets.value.customCursor = cursorMatch?.[1] ?? ''
   const visibilityBgMatch = cssStr.match(/\/\* nd-visibility-bg: (.+?) \*\//)
   presets.value.visibilityBg = visibilityBgMatch?.[1] ?? ''
-  const reactionCountMatch = cssStr.match(
-    /\/\* nd-hide-reaction-count: (.+?) \*\//,
-  )
-  presets.value.hideReactionCount = reactionCountMatch?.[1] ?? ''
+  const noteCountsMatch = cssStr.match(/\/\* nd-hide-note-counts: (.+?) \*\//)
+  presets.value.hideNoteCounts = noteCountsMatch?.[1] ?? ''
   const userStatsMatch = cssStr.match(/\/\* nd-hide-user-stats: (.+?) \*\//)
   presets.value.hideUserStats = userStatsMatch?.[1] ?? ''
 }
@@ -183,7 +181,8 @@ const VISIBILITY_BG_OPTIONS: VisibilityBgOption[] = [
 ]
 
 // 数字の非表示 (#593/#594)。yamisskey の hideReactionCount / hide*Count と
-// 同じ self/others/all の 3 段階。導線 (クリックで一覧を開く等) は残し数字だけ消す
+// 同じ self/others/all の 3 段階。導線 (クリックで一覧を開く等) は残し数字だけ消す。
+// ノート側はリアクション数 + リノート数 (評価シグナル)。返信数は会話の量なので対象外
 interface HideCountOption {
   key: string
   label: string
@@ -269,14 +268,12 @@ function buildPresetCss(): string {
     }
   }
 
-  const reactionTargets = hideCountTargets(presets.value.hideReactionCount)
-  if (reactionTargets.length > 0) {
-    parts.push(
-      `/* nd-hide-reaction-count: ${presets.value.hideReactionCount} */`,
-    )
-    for (const own of reactionTargets) {
+  const noteCountTargets = hideCountTargets(presets.value.hideNoteCounts)
+  if (noteCountTargets.length > 0) {
+    parts.push(`/* nd-hide-note-counts: ${presets.value.hideNoteCounts} */`)
+    for (const own of noteCountTargets) {
       parts.push(
-        `.note-root[data-own="${own}"] .note-reaction-count { display: none; }`,
+        `.note-root[data-own="${own}"] :is(.note-reaction-count, .note-renote-count) { display: none; }`,
       )
     }
   }
@@ -307,7 +304,7 @@ function extractUserCss(fullCss: string): string {
       if (t.startsWith('/* nd-fontsize:')) return false
       if (t.startsWith('/* nd-cursor:')) return false
       if (t.startsWith('/* nd-visibility-bg:')) return false
-      if (t.startsWith('/* nd-hide-reaction-count:')) return false
+      if (t.startsWith('/* nd-hide-note-counts:')) return false
       if (t.startsWith('/* nd-hide-user-stats:')) return false
       // 生成行 (1 行完結) のみ除去。ユーザーが複数行で書いた同セレクタは残す
       if (t.match(/^\.note-root\[data-visibility=.+\{.*\}$/)) return false
@@ -357,7 +354,7 @@ watch(
     presets.value.fontSize,
     presets.value.customCursor,
     presets.value.visibilityBg,
-    presets.value.hideReactionCount,
+    presets.value.hideNoteCounts,
     presets.value.hideUserStats,
   ],
   () => {
@@ -439,7 +436,7 @@ function handleClear() {
       fontSize: 0,
       customCursor: '',
       visibilityBg: '',
-      hideReactionCount: '',
+      hideNoteCounts: '',
       hideUserStats: '',
     }
     userFreeformCss.value = ''
@@ -512,8 +509,8 @@ useClickOutside(visibilityBgDropdownRef, () => {
 })
 
 // Hide-count dropdowns (#593/#594)
-const showReactionCountDropdown = ref(false)
-const reactionCountDropdownRef = ref<HTMLElement | null>(null)
+const showNoteCountsDropdown = ref(false)
+const noteCountsDropdownRef = ref<HTMLElement | null>(null)
 const showUserStatsDropdown = ref(false)
 const userStatsDropdownRef = ref<HTMLElement | null>(null)
 
@@ -521,9 +518,9 @@ function hideCountLabel(key: string): string {
   return HIDE_COUNT_OPTIONS.find((o) => o.key === key)?.label ?? 'デフォルト'
 }
 
-function selectReactionCount(key: string) {
-  presets.value.hideReactionCount = key
-  showReactionCountDropdown.value = false
+function selectNoteCounts(key: string) {
+  presets.value.hideNoteCounts = key
+  showNoteCountsDropdown.value = false
 }
 
 function selectUserStats(key: string) {
@@ -531,8 +528,8 @@ function selectUserStats(key: string) {
   showUserStatsDropdown.value = false
 }
 
-useClickOutside(reactionCountDropdownRef, () => {
-  showReactionCountDropdown.value = false
+useClickOutside(noteCountsDropdownRef, () => {
+  showNoteCountsDropdown.value = false
 })
 
 useClickOutside(userStatsDropdownRef, () => {
@@ -722,36 +719,39 @@ watch(tab, (t) => {
         </template>
       </div>
 
-      <!-- Hide reaction count (#594) -->
+      <!-- Hide note counts (#594) -->
       <div :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('reactionCount')">
+        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('noteCounts')">
           <i class="ti ti-mood-smile" />
-          リアクション数を隠す
-          <span :class="$style.sectionValue">{{ hideCountLabel(presets.hideReactionCount) }}</span>
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.reactionCount }]" />
+          ノートの数字を隠す
+          <span :class="$style.sectionValue">{{ hideCountLabel(presets.hideNoteCounts) }}</span>
+          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.noteCounts }]" />
         </button>
-        <template v-if="expandedSections.reactionCount">
-          <div ref="reactionCountDropdownRef" :class="$style.dropdown">
+        <template v-if="expandedSections.noteCounts">
+          <div ref="noteCountsDropdownRef" :class="$style.dropdown">
             <button
               class="_button"
               :class="$style.dropdownTrigger"
-              @click="showReactionCountDropdown = !showReactionCountDropdown"
+              @click="showNoteCountsDropdown = !showNoteCountsDropdown"
             >
-              <span>{{ hideCountLabel(presets.hideReactionCount) }}</span>
+              <span>{{ hideCountLabel(presets.hideNoteCounts) }}</span>
               <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
             </button>
-            <div v-if="showReactionCountDropdown" :class="$style.dropdownPanel">
+            <div v-if="showNoteCountsDropdown" :class="$style.dropdownPanel">
               <button
                 v-for="opt in HIDE_COUNT_OPTIONS"
                 :key="opt.key"
                 class="_button"
-                :class="[$style.dropdownItem, { [$style.selected]: presets.hideReactionCount === opt.key }]"
-                @click="selectReactionCount(opt.key)"
+                :class="[$style.dropdownItem, { [$style.selected]: presets.hideNoteCounts === opt.key }]"
+                @click="selectNoteCounts(opt.key)"
               >
                 <span>{{ opt.label }}</span>
-                <i v-if="presets.hideReactionCount === opt.key" class="ti ti-check" :class="$style.checkIcon" />
+                <i v-if="presets.hideNoteCounts === opt.key" class="ti ti-check" :class="$style.checkIcon" />
               </button>
             </div>
+          </div>
+          <div :class="$style.hideCountNote">
+            リアクション数とリノート数が消えます (返信数は会話の量なので残ります)
           </div>
         </template>
       </div>
