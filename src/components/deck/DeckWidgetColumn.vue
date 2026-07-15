@@ -389,6 +389,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
             :version="entry.version"
             :capabilities="entry.capabilities ?? []"
             :capability-ok="capabilityChecks[entry.id]?.ok"
+            :capability-badge="capabilityChecks[entry.id]?.badge"
             :capability-reason="capabilityChecks[entry.id]?.reason"
             :installing="installingId === entry.id"
             :already-installed="installedStoreIds.has(entry.id)"

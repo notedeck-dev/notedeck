@@ -18,6 +18,8 @@ export interface CapabilityContext {
 
 export interface CapabilityCheck {
   ok: boolean
+  /** 非互換時の短いラベル (カードのバッジ表示用)。ok のとき null。 */
+  badge: string | null
   /** 非互換時の user-facing メッセージ (tooltip 表示用)。ok のとき null。 */
   reason: string | null
 }
@@ -41,11 +43,12 @@ export function checkKnownCapabilities(
     if (!KNOWN_CAPABILITIES.has(cap)) {
       return {
         ok: false,
+        badge: '要アップデート',
         reason: `未対応の機能: ${cap} (NoteDeck のアップデートが必要です)`,
       }
     }
   }
-  return { ok: true, reason: null }
+  return { ok: true, badge: null, reason: null }
 }
 
 export function checkWidgetCapabilities(
@@ -58,15 +61,17 @@ export function checkWidgetCapabilities(
     if (cap === 'misskey-api' && ctx.accountId === null) {
       return {
         ok: false,
+        badge: '要アカウント',
         reason: 'アカウントが必要です (カラムにアカウントを設定してください)',
       }
     }
     if (cap === 'misskey-account' && ctx.accountId === null) {
       return {
         ok: false,
+        badge: '要ログイン',
         reason: 'ログイン済みアカウントが必要です',
       }
     }
   }
-  return { ok: true, reason: null }
+  return { ok: true, badge: null, reason: null }
 }

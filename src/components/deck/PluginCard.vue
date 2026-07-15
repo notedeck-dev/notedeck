@@ -17,6 +17,8 @@ const props = defineProps<{
   /** store mode: MisStore 宣言の capabilities (バッジ表示用) */
   capabilities?: readonly string[]
   capabilityOk?: boolean
+  /** 非互換理由の短いラベル (要アップデート 等) */
+  capabilityBadge?: string | null
   capabilityReason?: string | null
   confirmingUninstall?: boolean
   /** installed mode: trash ボタンの title (スコープ文脈で言い換える) */
@@ -41,17 +43,28 @@ const emit = defineEmits<{
   (e: 'delete'): void
 }>()
 
+const incompatible = computed(
+  () => props.mode === 'store' && props.capabilityOk === false,
+)
 const disabled = computed(
   () =>
     (props.mode === 'installed' && props.active === false) ||
-    (props.mode === 'store' && props.capabilityOk === false),
+    incompatible.value,
 )
+// 非互換時のみ tooltip で理由 + 必要 capability を開示する
+const incompatTitle = computed(() => {
+  if (!incompatible.value) return ''
+  const caps = props.capabilities?.length
+    ? `Requires: ${props.capabilities.join(', ')}`
+    : ''
+  return [props.capabilityReason ?? '', caps].filter(Boolean).join('\n')
+})
 </script>
 
 <template>
   <div
     :class="[$style.card, disabled && $style.cardDisabled]"
-    :title="mode === 'store' && capabilityOk === false ? (capabilityReason ?? '') : ''"
+    :title="incompatTitle"
     @click="emit('click')"
   >
     <div :class="$style.accentBar" />
@@ -67,7 +80,8 @@ const disabled = computed(
     <div :class="$style.body">
       <div :class="$style.row1">
         <span :class="$style.name">{{ name }}</span>
-        <span v-if="disabled" :class="$style.disabledBadge">無効</span>
+        <span v-if="incompatible" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
+        <span v-else-if="disabled" :class="$style.disabledBadge">無効</span>
         <button
           v-if="deniedBadge"
           class="_button"
@@ -87,14 +101,6 @@ const disabled = computed(
         <span v-if="author" :class="$style.author">{{ author }}</span>
         <span v-if="category" :class="$style.category">
           {{ categoryLabel || category }}
-        </span>
-        <!-- capability badges (store mode) -->
-        <span
-          v-for="cap in capabilities ?? []"
-          :key="cap"
-          :class="[$style.capBadge, capabilityOk === false && $style.capBadgeWarn]"
-        >
-          {{ cap }}
         </span>
         <span :class="$style.spacer" />
         <div :class="$style.actions">
@@ -172,7 +178,7 @@ const disabled = computed(
             >
               <i v-if="installing" class="ti ti-loader-2 nd-spin" />
               <i v-else class="ti ti-download" />
-              {{ installing ? '...' : 'インストール' }}
+              インストール
             </button>
           </template>
         </div>
@@ -346,19 +352,17 @@ const disabled = computed(
   line-height: 1.3;
 }
 
-.capBadge {
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-  color: var(--nd-accent);
+.incompatBadge {
   flex-shrink: 0;
-  line-height: 1.3;
-}
-
-.capBadgeWarn {
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  height: 14px;
+  border-radius: 2px;
   background: color-mix(in srgb, var(--nd-love) 15%, transparent);
   color: var(--nd-love);
+  letter-spacing: 0.02em;
 }
 
 .spacer {

@@ -12,6 +12,8 @@ const props = withDefaults(
     version?: string
     capabilities?: readonly string[]
     capabilityOk?: boolean
+    /** 非互換理由の短いラベル (要アップデート / 要アカウント 等) */
+    capabilityBadge?: string | null
     capabilityReason?: string | null
     /** store mode: インストール処理中 */
     installing?: boolean
@@ -41,6 +43,14 @@ const isLibrary = computed(() => props.mode === 'library')
 const cardDisabled = computed(
   () => isStore.value && props.capabilityOk === false,
 )
+// 非互換時のみ tooltip で理由 + 必要 capability を開示する
+const incompatTitle = computed(() => {
+  if (!cardDisabled.value) return ''
+  const caps = props.capabilities?.length
+    ? `Requires: ${props.capabilities.join(', ')}`
+    : ''
+  return [props.capabilityReason ?? '', caps].filter(Boolean).join('\n')
+})
 
 function handlePrimaryClick() {
   if (cardDisabled.value) return
@@ -56,7 +66,7 @@ function handlePrimaryClick() {
 <template>
   <div
     :class="[$style.card, cardDisabled && $style.cardDisabled]"
-    :title="cardDisabled ? (capabilityReason ?? '') : ''"
+    :title="incompatTitle"
     @click="handlePrimaryClick"
   >
     <div :class="$style.accentBar" />
@@ -72,6 +82,7 @@ function handlePrimaryClick() {
     <div :class="$style.body">
       <div :class="$style.row1">
         <span :class="$style.name">{{ name }}</span>
+        <span v-if="cardDisabled" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
         <span :class="$style.spacer" />
         <span v-if="version" :class="$style.version">v{{ version }}</span>
       </div>
@@ -85,14 +96,6 @@ function handlePrimaryClick() {
           <span v-if="storeId" :class="$style.originBadge">ストア</span>
           <span v-else :class="[$style.originBadge, $style.originBadgeLocal]">ローカル</span>
         </template>
-        <!-- capability badges (store mode) -->
-        <span
-          v-for="cap in capabilities ?? []"
-          :key="cap"
-          :class="[$style.capBadge, capabilityOk === false && $style.capBadgeWarn]"
-        >
-          {{ cap }}
-        </span>
         <span :class="$style.spacer" />
         <div :class="$style.actions">
           <!-- store mode -->
@@ -122,7 +125,7 @@ function handlePrimaryClick() {
             >
               <i v-if="installing" class="ti ti-loader-2 nd-spin" />
               <i v-else class="ti ti-download" />
-              {{ installing ? '...' : 'インストール' }}
+              インストール
             </button>
           </template>
           <!-- library mode -->
@@ -275,7 +278,6 @@ function handlePrimaryClick() {
   margin-top: 4px;
   min-width: 0;
   min-height: 20px;
-  flex-wrap: wrap;
 }
 
 .author {
@@ -305,19 +307,17 @@ function handlePrimaryClick() {
   opacity: 0.85;
 }
 
-.capBadge {
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-  color: var(--nd-accent);
+.incompatBadge {
   flex-shrink: 0;
-  line-height: 1.3;
-}
-
-.capBadgeWarn {
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  height: 14px;
+  border-radius: 2px;
   background: color-mix(in srgb, var(--nd-love) 15%, transparent);
   color: var(--nd-love);
+  letter-spacing: 0.02em;
 }
 
 .spacer {
@@ -330,8 +330,6 @@ function handlePrimaryClick() {
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-  /* row3 の折り返しで独立行になっても右端に寄せる (#729) */
-  margin-left: auto;
   opacity: 0;
   transition: opacity 0.15s;
 

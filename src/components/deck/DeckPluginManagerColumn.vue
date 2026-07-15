@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { abortPlugin, launchPlugin } from '@/aiscript/plugin-api'
+import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
@@ -49,7 +50,9 @@ const pluginsStore = usePluginsStore()
 const windowsStore = useWindowsStore()
 const misStore = useMisStoreStore()
 const accountsStore = useAccountsStore()
-const { serverIconUrl } = useServerImages(() => props.column)
+const { serverIconUrl, serverInfoImageUrl } = useServerImages(
+  () => props.column,
+)
 const { columnThemeVars } = useColumnTheme(() => props.column)
 
 pluginsStore.ensureLoaded()
@@ -430,18 +433,16 @@ async function deleteFromLibrary(plugin: PluginMeta) {
             />
           </ColumnSection>
 
-          <div v-if="visiblePluginCount === 0" :class="$style.empty">
-            <template v-if="textQuery || activeFilter !== 'all'">
+          <template v-if="visiblePluginCount === 0">
+            <div v-if="textQuery || activeFilter !== 'all'" :class="$style.empty">
               一致するプラグインがありません
-            </template>
-            <template v-else>
-              <i class="ti ti-puzzle" :class="$style.emptyIcon" />
-              <span>このカラムに追加されたプラグインはありません</span>
-              <button class="_button" :class="$style.emptyLink" @click="viewTab = 'store'">
-                ストアからインストール...
-              </button>
-            </template>
-          </div>
+            </div>
+            <ColumnEmptyState
+              v-else
+              message="このカラムに追加されたプラグインはありません"
+              :image-url="serverInfoImageUrl"
+            />
+          </template>
 
           <!-- Library picker: スコープ未参加のライブラリ本体を追加/削除 -->
           <div :class="$style.addPluginArea">
@@ -514,6 +515,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
             :already-installed="isEntryInScope(entry)"
             :capabilities="entry.capabilities"
             :capability-ok="capabilityChecks[entry.id]?.ok"
+            :capability-badge="capabilityChecks[entry.id]?.badge"
             :capability-reason="capabilityChecks[entry.id]?.reason"
             :icon-url="entry.iconUrl"
             @install="handleStoreInstall(entry)"
@@ -630,6 +632,8 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 
 // --- List ---
 .list {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
