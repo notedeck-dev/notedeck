@@ -10,7 +10,7 @@ import {
 
 export interface WindowExternalLink {
   url: string
-  /** title 属性。省略時は 'Web で開く' */
+  /** title 属性。省略時は 'Web UIで開く' */
   title?: string
   /** tabler アイコン名 (ti- 接頭辞なし)。省略時は 'world' */
   icon?: string

@@ -33,12 +33,14 @@ import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNoteCapture } from '@/composables/useNoteCapture'
 import { usePortal } from '@/composables/usePortal'
+import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
 import { useIsCompactLayout } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { proxyUrl } from '@/utils/imageProxy'
 import { toggleReaction } from '@/utils/toggleReaction'
+import { webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
   accountId: string
@@ -66,6 +68,18 @@ const reactionTypes = computed(() =>
 const isLoading = ref(true)
 const error = ref<AppError | null>(null)
 const myUserId = ref<string | undefined>()
+
+// ヘッダー「Web UIで開く」— 委譲目的 (自アカウントで操作できる) なので所属サーバーで開く
+const noteWebUrl = computed(() => {
+  const host = accountsStore.accounts.find(
+    (a) => a.id === props.accountId,
+  )?.host
+  return host ? webUiUrl(host, `/notes/${props.noteId}`) : undefined
+})
+
+useWindowExternalLink(() =>
+  noteWebUrl.value ? { url: noteWebUrl.value } : null,
+)
 
 // Note Capture: 投票・リアクション等の pollVoted/reacted イベントを受けて
 // 表示中のノートをリアルタイム更新する。カラムと違い詳細ウィンドウは

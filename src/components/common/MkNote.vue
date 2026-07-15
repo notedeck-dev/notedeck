@@ -23,6 +23,7 @@ import {
   useVaporTransitionGroup,
 } from '@/composables/useVaporTransition'
 import { useAccountsStore } from '@/stores/accounts'
+import { useSettingsStore } from '@/stores/settings'
 import { formatTime } from '@/utils/formatTime'
 import { proxyThumbUrl, proxyUrl } from '@/utils/imageProxy'
 import {
@@ -87,6 +88,16 @@ const allEmojis = computed(() => ({
   ...effectiveNote.value.emojis,
   ...effectiveNote.value.user.emojis,
 }))
+
+// cat ユーザーの本文にゃ化 (#763)。interruptor 適用後の isCat で判定するので、
+// プラグインが isCat を折れば原文表示に戻せる (デにゃいざー)。表示専用で、
+// コピー・検索は原文 (effectiveNote.text) のまま。
+const settingsStore = useSettingsStore()
+const shouldNyaize = computed(
+  () =>
+    effectiveNote.value.user.isCat === true &&
+    settingsStore.get('note.nyaize') !== false,
+)
 const isPureRenote = computed(() => isPureRenoteNote(props.note))
 
 /** 本文から抽出した URL（renote の url/uri と一致するものは除外） */
@@ -687,6 +698,7 @@ function handlePickerReaction(reaction: string) {
             <p :class="$style.text">
               <MkMfm
                 :text="effectiveNote.text"
+                :nyaize="shouldNyaize"
                 :emojis="effectiveNote.emojis"
                 :reaction-emojis="effectiveNote.reactionEmojis"
                 :server-host="effectiveNote._serverHost"

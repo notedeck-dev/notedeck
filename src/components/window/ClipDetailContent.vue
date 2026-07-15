@@ -12,6 +12,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
   accountId: string
@@ -56,7 +57,7 @@ const isOwnClip = computed(
 
 const clipWebUrl = computed(() => {
   if (!clip.value || !account.value?.host) return undefined
-  return `https://${account.value.host}/clips/${clip.value.id}`
+  return webUiUrl(account.value.host, `/clips/${clip.value.id}`)
 })
 
 useWindowExternalLink(() =>

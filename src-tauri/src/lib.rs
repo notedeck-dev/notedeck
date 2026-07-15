@@ -613,6 +613,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::api_get_drive_files,
             commands::api_delete_drive_file,
             commands::api_get_follow_requests,
+            commands::api_get_sent_follow_requests,
             commands::api_search_users,
             commands::api_get_roles,
             commands::api_get_role_users,

@@ -17,6 +17,11 @@ export async function openSafeUrl(
   await openUrl(url)
 }
 
+/** Misskey WebUI (`https://<host>`) の URL を組み立てる。委譲導線は全てここを通す。 */
+export function webUiUrl(host: string, path = ''): string {
+  return `https://${host}${path}`
+}
+
 /**
  * Match `memo:<id>` link scheme. id は Zettelkasten 形式 (`YYYYMMDDHHmmss`、14 桁数字)。
  * `useMemos.generateMemoKey` 形式に合わせる。

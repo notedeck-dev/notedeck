@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import DayNightToggle from '@/components/deck/DayNightToggle.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
+import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { CURRENT_SCHEMA_VERSION, parseSettings } from '@/settings/schema'
@@ -71,6 +72,14 @@ function onFileSelected(e: Event) {
 
 function removeWallpaper() {
   deckStore.clearWallpaper()
+}
+
+// ── Visual tab: note view settings ──
+const nyaizeEnabled = computed(() => settingsStore.get('note.nyaize') !== false)
+
+function toggleNyaize() {
+  hapticSelection()
+  settingsStore.set('note.nyaize', !nyaizeEnabled.value)
 }
 
 // ── Code tab: raw JSON editor ──
@@ -184,6 +193,17 @@ const statusClass = computed(() => {
           <i class="ti ti-photo-off" />
           <span>壁紙を削除</span>
         </button>
+      </div>
+
+      <!-- Note view -->
+      <div :class="$style.section">
+        <AiSwitchRow
+          label="Catユーザーの語尾をにゃ化"
+          sub-label="本家 Web UI と同じ表示。コピー・検索は原文のまま"
+          icon="ti-cat"
+          :on="nyaizeEnabled"
+          @toggle="toggleNyaize"
+        />
       </div>
 
       <input

@@ -26,6 +26,13 @@ export interface NotedeckSettings {
   'modes.realtime'?: boolean
   'modes.offline'?: boolean
 
+  // --- Note view ---
+  /**
+   * cat ユーザーのノート本文を描画時に にゃ化する (#763、本家 Web UI 準拠)。
+   * 表示専用でコピー・検索は原文のまま。false で原文表示。
+   */
+  'note.nyaize'?: boolean
+
   // --- Post form ---
   'postForm.preview'?: boolean
   'postForm.autoSaveDraft'?: boolean
@@ -110,6 +117,8 @@ export const DEFAULT_SETTINGS: NotedeckSettings = {
   // 体験を変えない)
   'modes.realtime': true,
   'modes.offline': false,
+  // 本家 Web UI と同じ表示を基準にするため default ON (#763)
+  'note.nyaize': true,
   // notedeck の差別化要素「過去ノートを一瞬でローカル全文検索」を尊重し、
   // デフォルトは notecli の `EvictionConfig::default()` (= per-account 1M cap、
   // TTL なし) と同等のバランスプリセット。

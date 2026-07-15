@@ -1,41 +1,15 @@
 import { utils, values } from '@syuilo/aiscript'
 import type { Value } from '@syuilo/aiscript/interpreter/value.js'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import type { Principal } from '@/permissions/principal'
 import { useConfirm } from '@/stores/confirm'
+import { nyaize } from '@/utils/nyaize'
 import {
   getStorageString,
   removeStorage,
   setStorageJson,
 } from '@/utils/storage'
-
-// Misskey 本家の nyaize 実装 (misskey-js/src/nyaize.ts)
-const enRegex1 = /(?<=n)a/gi
-const enRegex2 = /(?<=morn)ing/gi
-const enRegex3 = /(?<=every)one/gi
-const koRegex1 = /[나-낳]/g
-const koRegex2 = /(다$)|(다(?=\.))|(다(?= ))|(다(?=!))|(다(?=\?))/gm
-const koRegex3 = /(야(?=\?))|(야$)|(야(?= ))/gm
-
-function nyaize(text: string): string {
-  return text
-    .replaceAll('な', 'にゃ')
-    .replaceAll('ナ', 'ニャ')
-    .replaceAll('ﾅ', 'ﾆｬ')
-    .replace(enRegex1, (x) => (x === 'A' ? 'YA' : 'ya'))
-    .replace(enRegex2, (x) => (x === 'ING' ? 'YAN' : 'yan'))
-    .replace(enRegex3, (x) => (x === 'ONE' ? 'NYAN' : 'nyan'))
-    .replace(koRegex1, (match) =>
-      !Number.isNaN(match.charCodeAt(0))
-        ? String.fromCharCode(
-            match.charCodeAt(0) + '냐'.charCodeAt(0) - '나'.charCodeAt(0),
-          )
-        : match,
-    )
-    .replace(koRegex2, '다냥')
-    .replace(koRegex3, '냥')
-}
+import { openSafeUrl } from '@/utils/url'
 
 export interface AiScriptEnvOptions {
   /**
@@ -185,7 +159,7 @@ export function createAiScriptEnv(
   // --- Mk:url ---
   consts['Mk:url'] = values.FN_NATIVE(async ([urlVal]) => {
     const url = urlVal?.type === 'str' ? urlVal.value : ''
-    if (url) await openUrl(url)
+    if (url) await openSafeUrl(url)
     return values.NULL
   })
 

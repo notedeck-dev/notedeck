@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
 
+import { useBackButton } from '@/composables/useBackButton'
 import { useMenuKeyboard } from '@/composables/useMenuKeyboard'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { useIsCompactLayout } from '@/stores/ui'
 import { COLUMN_SELECTOR, extractThemeVars } from '@/utils/themeVars'
 
 const emit = defineEmits<{
   close: []
 }>()
+
+const isCompact = useIsCompactLayout()
 
 const showMenu = ref(false)
 const menuPos = ref({ x: 0, y: 0 })
@@ -40,6 +44,9 @@ useNativePopover(menuRef, visible, {
   ignoreOutsideClickFor: triggerRef,
 })
 
+// Android back button / gesture でシートを閉じる
+useBackButton(showMenu, () => close())
+
 function open(e: MouseEvent) {
   const el = e.currentTarget as HTMLElement | null
   triggerRef.value = el
@@ -53,9 +60,13 @@ function open(e: MouseEvent) {
   ) as HTMLElement | null
   if (column) menuTheme.value = extractThemeVars(column)
 
+  showMenu.value = true
+
+  // ボトムシート (compact) は下端固定なので位置計算不要
+  if (isCompact.value) return
+
   // 押下点に被ると最初のメニュー項目を誤タップしやすいので少し下にずらす
   menuPos.value = { x: e.clientX + 4, y: e.clientY + 10 }
-  showMenu.value = true
 
   nextTick(() => {
     const menu = menuRef.value
@@ -79,8 +90,27 @@ defineExpose({ open, close, activateKeyboard })
 </script>
 
 <template>
+    <!-- compact: 画面下からスライドするボトムシート -->
+    <!-- inset はインライン必須: global.css の [popover]:popover-open リセット (0,2,0) がクラス指定に勝つ -->
     <div
-      v-if="visible"
+      v-if="visible && isCompact"
+      ref="menuRef"
+      popover="manual"
+      style="inset: 0"
+      :class="[$style.sheetBackdrop, entering && $style.enter, leaving && $style.leave]"
+      @click.self="close()"
+    >
+      <div
+        :class="[$style.sheet, entering && $style.sheetEnter, leaving && $style.sheetLeave]"
+        class="_popup nd-popup-content popup-menu"
+        :style="menuTheme"
+      >
+        <slot />
+      </div>
+    </div>
+    <!-- desktop: 押下点アンカーのポップアップ -->
+    <div
+      v-else-if="visible"
       ref="menuRef"
       popover="manual"
       :class="[$style.popupMenu, entering && $style.contentEnter, leaving && $style.contentLeave]"
@@ -99,6 +129,45 @@ defineExpose({ open, close, activateKeyboard })
   min-width: 200px;
   max-width: 300px;
   padding: 6px 0;
+}
+
+.sheetBackdrop {
+  position: fixed;
+  // inset: 0 はテンプレート側のインライン style で指定 (popover リセットとの特異度競合回避)
+  width: auto;
+  height: auto;
+  background: var(--nd-modalBg);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  // slide 中のシートが viewport 下にはみ出てもスクロールバーを出さない
+  overflow: hidden;
+}
+
+.sheet {
+  width: 100%;
+  max-height: 70vh;
+  max-height: 70dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--nd-radius) var(--nd-radius) 0 0;
+  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+}
+
+.sheetEnter {
+  animation: sheetIn 0.25s var(--nd-ease-decel);
+}
+
+.sheetLeave {
+  animation: sheetOut var(--nd-duration-base) ease-out forwards;
+}
+
+@keyframes sheetIn {
+  from { transform: translateY(100%); }
+}
+
+@keyframes sheetOut {
+  to { transform: translateY(100%); }
 }
 
 </style>

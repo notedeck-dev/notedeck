@@ -12,7 +12,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { AppError } from '@/utils/errors'
 import { formatCount, formatDate } from '@/utils/format'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { safeCssUrl } from '@/utils/url'
+import { safeCssUrl, webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
   accountId: string
@@ -80,12 +80,8 @@ onMounted(() => {
   loadRemoteMeta()
 })
 
-// DeckWindow ヘッダーに「Web で開く」ボタンを登録 (UserProfile と同じ導線)。
-useWindowExternalLink(() => ({
-  url: `https://${props.host}`,
-  title: 'Web UI で開く',
-  icon: 'world',
-}))
+// DeckWindow ヘッダーに「Web UIで開く」ボタンを登録 (UserProfile と同じ導線)。
+useWindowExternalLink(() => ({ url: webUiUrl(props.host) }))
 
 const rawJson = computed(() =>
   instance.value ? JSON.stringify(instance.value, null, 2) : '',

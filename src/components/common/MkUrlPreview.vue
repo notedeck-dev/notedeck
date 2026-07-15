@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   computed,
   defineAsyncComponent,
@@ -15,7 +14,7 @@ import { useOgpPreview } from '@/composables/useOgpPreview'
 import { usePerformanceStore } from '@/stores/performance'
 import { proxyUrl } from '@/utils/imageProxy'
 import { parseNoteUrl } from '@/utils/noteUrl'
-import { isSafeUrl } from '@/utils/url'
+import { isSafeUrl, openSafeUrl } from '@/utils/url'
 
 const perfStore = usePerformanceStore()
 
@@ -109,7 +108,7 @@ function handleClick(e: MouseEvent) {
   e.preventDefault()
   e.stopPropagation()
   const targetUrl = data.value?.url || props.url
-  if (isSafeUrl(targetUrl)) openUrl(targetUrl)
+  openSafeUrl(targetUrl)
 }
 
 function hostname(url: string): string {

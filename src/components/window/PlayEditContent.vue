@@ -11,6 +11,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { webUiUrl } from '@/utils/url'
 
 const AiScriptEditor = defineAsyncComponent(
   () => import('@/components/deck/widgets/AiScriptEditor.vue'),
@@ -26,7 +27,7 @@ const account = computed(
   () => accountsStore.accounts.find((a) => a.id === props.accountId) ?? null,
 )
 const serverUrl = computed(() =>
-  account.value ? `https://${account.value.host}` : '',
+  account.value ? webUiUrl(account.value.host) : '',
 )
 const toast = useToast()
 

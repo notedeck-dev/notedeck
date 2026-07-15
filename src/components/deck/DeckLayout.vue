@@ -459,7 +459,7 @@ function acceptCrossWindowDrop() {
   position: fixed;
   inset: 0;
   z-index: var(--nd-z-navbar);
-  background: rgb(0 0 0 / 0.5);
+  background: var(--nd-modalBg);
 }
 
 .fileDropOverlay {

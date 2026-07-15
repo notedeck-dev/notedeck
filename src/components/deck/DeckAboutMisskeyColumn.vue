@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   computed,
   defineAsyncComponent,
@@ -20,7 +19,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
-import { isSafeUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
@@ -142,7 +141,7 @@ const sponsors = [
 ]
 
 function openLink(url: string) {
-  if (isSafeUrl(url)) openUrl(url)
+  openSafeUrl(url)
 }
 
 async function fetchMeta() {

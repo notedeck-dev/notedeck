@@ -11,6 +11,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { purgeNotificationCacheForAccount } from '@/utils/notificationCache'
 import { removeStorage, STORAGE_KEYS } from '@/utils/storage'
+import { openSafeUrl, webUiUrl } from '@/utils/url'
 
 export function useAccountActions() {
   const accountsStore = useAccountsStore()
@@ -23,16 +24,14 @@ export function useAccountActions() {
     windowsStore.open('user-profile', { accountId: acc.id, userId: acc.userId })
   }
 
-  async function openSettings(acc: Account) {
+  function openSettings(acc: Account) {
     // Misskey Web UI の設定ページを外部ブラウザで開くだけなので、
     // ログアウト中でもリンクとして機能させる。
-    const { openUrl } = await import('@tauri-apps/plugin-opener')
-    openUrl(`https://${acc.host}/settings`)
+    openSafeUrl(webUiUrl(acc.host, '/settings'))
   }
 
-  async function openAdmin(acc: Account) {
-    const { openUrl } = await import('@tauri-apps/plugin-opener')
-    openUrl(`https://${acc.host}/admin`)
+  function openAdmin(acc: Account) {
+    openSafeUrl(webUiUrl(acc.host, '/admin'))
   }
 
   /** トークンを無効化し、ローカルデータは保持する */

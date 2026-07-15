@@ -35,7 +35,7 @@ const MkPostForm = defineAsyncComponent(
 import { useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
-import AiScriptEditor from './AiScriptEditor.vue'
+import { useWindowsStore } from '@/stores/windows'
 import type { PostFormRequest } from './AiScriptUiRenderer.vue'
 import AiScriptUiRenderer from './AiScriptUiRenderer.vue'
 
@@ -65,14 +65,12 @@ const serverUrl = computed(() => {
   const account = accountsStore.accounts.find((a) => a.id === props.accountId)
   return account ? `https://${account.host}` : ''
 })
-const code = ref(props.widget.src ?? '')
+// src の正本は widgetsStore (widget-edit window / AI 経由で更新される)。
+const code = computed(() => props.widget.src ?? '')
 const uiComponents = ref<UiComponent[]>([])
 const output = ref<{ text: string; isError: boolean }[]>([])
 const error = ref<string | null>(null)
 const running = ref(false)
-/** カラム内エディタ表示フラグ。新規作成は widget-edit window で行う前提のため、
- *  既存 widget の src 確認/微修正用に on/off できるが、初期は閉じておく。 */
-const showEditor = ref(false)
 const interpreter = ref<Interpreter | null>(null)
 const { show: showToast } = useToast()
 const dialogRef = ref<InstanceType<typeof AiScriptDialog> | null>(null)
@@ -95,22 +93,14 @@ function closePostForm() {
   postFormData.value = {}
 }
 
-// Persist code on change (debounce + アンマウント時 flush で取りこぼし防止)
-let saveTimer: ReturnType<typeof setTimeout> | null = null
-function flushPendingSave() {
-  if (saveTimer) {
-    clearTimeout(saveTimer)
-    saveTimer = null
-    widgetsStore.updateSrc(props.widget.installId, code.value)
-  }
+// コード編集は widget-edit ウィンドウで行う (#765)
+const windowsStore = useWindowsStore()
+function openEditor() {
+  windowsStore.open('widget-edit', {
+    widgetId: props.widget.installId,
+    accountId: props.accountId,
+  })
 }
-watch(code, (val) => {
-  if (saveTimer) clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    saveTimer = null
-    widgetsStore.updateSrc(props.widget.installId, val)
-  }, 500)
-})
 
 // 走っているインタプリタ (＝Async:interval などのタイマー) を止め、
 // Nd:* で登録したコマンド/購読も解放する。再実行前とアンマウント時に呼ぶ。
@@ -126,22 +116,15 @@ function stop() {
 }
 
 onBeforeUnmount(() => {
-  flushPendingSave()
   stop()
   widgetsStore.unregisterMounted(props.widget.installId)
 })
 
-// AI 経由の widgets.update (#744): 新しい src を反映して再実行する。
-// pending の自動保存が古いコードで上書き返さないよう先にキャンセルする。
+// AI 経由の widgets.update (#744): 新しい src で再実行する。
 watch(
   () => widgetsStore.rerunSignal(props.widget.installId),
   (sig, prev) => {
     if (sig <= (prev ?? 0)) return
-    if (saveTimer) {
-      clearTimeout(saveTimer)
-      saveTimer = null
-    }
-    code.value = props.widget.src ?? ''
     run()
   },
 )
@@ -280,10 +263,10 @@ onMounted(() => {
       <div :class="$style.headerActions">
         <button
           :class="$style.toolBtn"
-          :title="showEditor ? 'エディタを閉じる' : 'コードを編集'"
-          @click="showEditor = !showEditor"
+          title="コードを編集"
+          @click="openEditor"
         >
-          <i :class="showEditor ? 'ti ti-chevron-up' : 'ti ti-code'" />
+          <i class="ti ti-code" />
         </button>
         <button
           :class="[$style.toolBtn, $style.run]"
@@ -313,34 +296,26 @@ onMounted(() => {
     <div :class="$style.widgetBody">
       <AiScriptDialog ref="dialogRef" />
 
-      <AiScriptEditor
-        v-if="showEditor"
-        v-model="code"
-        placeholder="AiScript App code..."
+      <div v-if="error" :class="$style.appError">{{ error }}</div>
+
+      <AiScriptUiRenderer
+        v-if="uiComponents.length"
+        :components="uiComponents"
+        :interpreter="(interpreter as Interpreter | null)"
+        :server-url="serverUrl"
+        @post="handlePost"
       />
 
-      <template v-else>
-        <div v-if="error" :class="$style.appError">{{ error }}</div>
-
-        <AiScriptUiRenderer
-          v-if="uiComponents.length"
-          :components="uiComponents"
-          :interpreter="(interpreter as Interpreter | null)"
-          :server-url="serverUrl"
-          @post="handlePost"
-        />
-
-        <details v-if="output.length" :class="$style.outputPanel">
-          <summary>出力 ({{ output.length }})</summary>
-          <div
-            v-for="(line, i) in output"
-            :key="i"
-            :class="[$style.outputLine, { [$style.error]: line.isError }]"
-          >
-            {{ line.text }}
-          </div>
-        </details>
-      </template>
+      <details v-if="output.length" :class="$style.outputPanel">
+        <summary>出力 ({{ output.length }})</summary>
+        <div
+          v-for="(line, i) in output"
+          :key="i"
+          :class="[$style.outputLine, { [$style.error]: line.isError }]"
+        >
+          {{ line.text }}
+        </div>
+      </details>
     </div>
   </div>
 

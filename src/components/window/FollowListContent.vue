@@ -12,14 +12,19 @@ import MkMfm from '@/components/common/MkMfm.vue'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePaginatedList } from '@/composables/usePaginatedList'
+import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { isGuestAccount, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
+import { webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
   accountId: string
   userId: string
+  /** WebUI の /@acct/(following|followers) を開くヘッダーボタン用。deep link 経由では未指定 */
+  username?: string
+  userHost?: string | null
   initialTab?: 'following' | 'followers'
 }>()
 
@@ -38,6 +43,13 @@ const hoveredFollowId = ref<string | null>(null)
 
 const account = accountsStore.accounts.find((a) => a.id === props.accountId)
 const isOwnProfile = computed(() => account?.userId === props.userId)
+
+// ヘッダー「Web UIで開く」— 表示中タブに対応する WebUI ページを開く
+useWindowExternalLink(() => {
+  if (!account || !props.username) return null
+  const acct = `@${props.username}${props.userHost ? `@${props.userHost}` : ''}`
+  return { url: webUiUrl(account.host, `/${acct}/${activeTab.value}`) }
+})
 const isGuest = account ? isGuestAccount(account) : false
 let adapter: ServerAdapter | null = null
 

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, ref, watch } from 'vue'
 import type { Clip, NormalizedNote } from '@/adapters/types'
 import {
@@ -17,7 +16,6 @@ import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { isSafeUrl } from '@/utils/url'
 import PopupMenu from './PopupMenu.vue'
 
 const props = defineProps<{
@@ -99,11 +97,6 @@ function resetSubViews() {
 
 function backToMain() {
   resetSubViews()
-}
-
-function openInWebUI() {
-  const url = noteWebUrl.value
-  if (url && isSafeUrl(url)) openUrl(url)
 }
 
 function openInspector() {
@@ -322,10 +315,6 @@ defineExpose({ open })
       <button v-if="!isGuest" class="_popupItem" @click="canInteract ? openClipQuickPick() : (showLoginPrompt(), close())">
         <i class="ti ti-paperclip" />
         クリップに追加
-      </button>
-      <button class="_popupItem" @click="openInWebUI(); close()">
-        <i class="ti ti-external-link" />
-        Web UIで開く
       </button>
       <button class="_popupItem" @click="openInspector">
         <i class="ti ti-code" />

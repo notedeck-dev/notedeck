@@ -5,6 +5,7 @@ import { safeUrl } from '@/composables/useDriveFolder'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { webUiUrl } from '@/utils/url'
 
 interface GalleryFile {
   id: string
@@ -46,7 +47,7 @@ const account = computed(
   () => accountsStore.accounts.find((a) => a.id === props.accountId) ?? null,
 )
 const serverUrl = computed(() =>
-  account.value ? `https://${account.value.host}` : '',
+  account.value ? webUiUrl(account.value.host) : '',
 )
 
 const detailPost = ref<GalleryPost>({ ...props.post })

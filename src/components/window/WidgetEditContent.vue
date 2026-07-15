@@ -284,7 +284,13 @@ function toggleAutoRun() {
     <!-- Header (= PluginsContent と同型) -->
     <div v-if="widget" :class="$style.header">
       <div :class="$style.headerIcon">
-        <i class="ti ti-layout-dashboard" />
+        <span
+          v-if="widget.iconUrl"
+          :class="$style.headerIconImg"
+          :style="{ '--icon-url': `url('${widget.iconUrl}')` }"
+          aria-hidden="true"
+        />
+        <i v-else class="ti ti-layout-dashboard" />
       </div>
       <div :class="$style.headerMeta">
         <div v-if="isRenaming" :class="$style.renameRow">
@@ -412,6 +418,14 @@ function toggleAutoRun() {
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
   color: var(--nd-accent);
   font-size: 24px;
+}
+
+.headerIconImg {
+  width: 1em;
+  height: 1em;
+  background-color: currentColor;
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+  mask: var(--icon-url) center / contain no-repeat;
 }
 
 .headerMeta {
