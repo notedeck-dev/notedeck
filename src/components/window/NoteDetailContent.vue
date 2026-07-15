@@ -69,7 +69,7 @@ const isLoading = ref(true)
 const error = ref<AppError | null>(null)
 const myUserId = ref<string | undefined>()
 
-// ヘッダー「Web で開く」— 委譲目的 (自アカウントで操作できる) なので所属サーバーで開く
+// ヘッダー「Web UIで開く」— 委譲目的 (自アカウントで操作できる) なので所属サーバーで開く
 const noteWebUrl = computed(() => {
   const host = accountsStore.accounts.find(
     (a) => a.id === props.accountId,
