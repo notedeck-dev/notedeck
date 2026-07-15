@@ -206,7 +206,8 @@ export const vaultFetchCapability: Command = {
     const conn = await resolveVisibleConnection(ref, principal)
     if (!conn) {
       throw new Error(
-        `connection "${ref}" は利用できません (存在しないか、この呼び出し元へのアクセスが許可されていません)`,
+        `connection "${ref}" は利用できません (存在しないか、この呼び出し元に開示されていません)。` +
+          '設定 → Secret Vault で接続を作成し、呼び出し元への開示を有効にしてください',
       )
     }
 
