@@ -263,6 +263,20 @@ pub async fn api_get_follow_requests(
         .await
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn api_get_sent_follow_requests(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    limit: Option<i64>,
+) -> Result<serde_json::Value> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    client
+        .get_sent_follow_requests(&host, &token, limit.unwrap_or(30).clamp(1, 100))
+        .await
+}
+
 // --- Follow list & relations ---
 
 #[tauri::command]

@@ -877,6 +877,14 @@ async apiGetFollowRequests(accountId: string, limit: number | null) : Promise<Re
     else return { status: "error", error: e  as any };
 }
 },
+async apiGetSentFollowRequests(accountId: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_get_sent_follow_requests", { accountId, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async apiSearchUsers(accountId: string, query: string | null, origin: string | null, sort: string | null, state: string | null, limit: number | null, offset: number | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_users", { accountId, query, origin, sort, state, limit, offset }) };
