@@ -1,7 +1,8 @@
 import JSON5 from 'json5'
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
+import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
@@ -68,6 +69,7 @@ function pluginMetaToFullMeta(tpl: BuiltInPluginTemplate): PluginMeta {
     configData: tpl.meta.configData || {},
     src: tpl.src,
     active: tpl.meta.active ?? true,
+    global: tpl.meta.global,
     installedFor: tpl.meta.installedFor,
     storeId: tpl.meta.storeId,
     iconUrl: tpl.meta.iconUrl,
@@ -92,14 +94,33 @@ export interface PluginMeta {
   configData: Record<string, unknown>
   src: string
   active: boolean
-  /** どの account の per-account プラグインカラム / handler 発火対象に含めるか。
-   *  - 空 / undefined: 後方互換で全 account 対象 (旧プラグイン)
-   *  - 1 つ以上: 該当 account のみで handler 発火 (per-account 有効化) */
+  /** 全体スコープ参加 (#771)。true なら全アカウント (後から追加した分も含む) で
+   *  有効。全アカウントカラムで追加したプラグインはこちら。 */
+  global?: boolean
+  /** アカウント別スコープ参加 (#771)。`accountScopeKey` (host:userId) の配列。
+   *  再ログインで再生成される内部 UUID ではなく安定キーで持つ。
+   *  global と installedFor の両方が無いものはどこにも効かない (ライブラリのみ)。 */
   installedFor?: string[]
   /** misstore 由来の追跡 ID (将来の自動更新用) */
   storeId?: string
   /** 個別アイコン URL (MisStore registry の iconUrl 互換) */
   iconUrl?: string
+}
+
+/** インストール/追加先スコープ (#771)。カラムの文脈から決まる。 */
+export type PluginScope = { kind: 'global' } | { kind: 'account'; key: string }
+
+/**
+ * plugin が scopeKey (`accountScopeKey`) のアカウントに効くか。
+ * scopeKey=null は「アカウント文脈なし」= 全体スコープのみ有効。
+ */
+export function isPluginEffectiveFor(
+  plugin: PluginMeta,
+  scopeKey: string | null,
+): boolean {
+  if (plugin.global) return true
+  if (!scopeKey) return false
+  return plugin.installedFor?.includes(scopeKey) ?? false
 }
 
 /** Metadata fields stored in *.meta.json5 (everything except src). */
@@ -113,6 +134,7 @@ interface PluginFileMeta {
   config?: Record<string, PluginConfigDef>
   configData: Record<string, unknown>
   active: boolean
+  global?: boolean
   installedFor?: string[]
   storeId?: string
   iconUrl?: string
@@ -145,9 +167,9 @@ export const usePluginsStore = defineStore('plugins', () => {
       initialized.value = true
       // ブラウザ環境 (ファイル I/O なし) でも built-in を seed して
       // 動作確認ができるようにする
-      seedMissingBuiltIns().catch((e) =>
-        console.warn('[plugins] built-in seed failed:', e),
-      )
+      seedMissingBuiltIns()
+        .then(() => scheduleScopeMigration())
+        .catch((e) => console.warn('[plugins] built-in seed failed:', e))
     }
   }
 
@@ -184,6 +206,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       ...(plugin.config ? { config: plugin.config } : {}),
       configData: plugin.configData,
       active: plugin.active,
+      ...(plugin.global ? { global: true } : {}),
       ...(plugin.installedFor?.length
         ? { installedFor: plugin.installedFor }
         : {}),
@@ -238,6 +261,7 @@ export const usePluginsStore = defineStore('plugins', () => {
               configData: meta.configData || {},
               src,
               active: meta.active ?? false,
+              global: meta.global,
               installedFor: meta.installedFor,
               storeId: meta.storeId,
               iconUrl: meta.iconUrl,
@@ -267,6 +291,10 @@ export const usePluginsStore = defineStore('plugins', () => {
 
     // Seed built-in plugins (初回起動 + 後追い追加に対応)。
     await seedMissingBuiltIns()
+
+    // レガシー紐付けのスコープ移行 (#771)。files が source of truth に
+    // なった後で走らせる。
+    scheduleScopeMigration()
   }
 
   /**
@@ -341,40 +369,127 @@ export const usePluginsStore = defineStore('plugins', () => {
     }
   }
 
-  /**
-   * プラグインの `installedFor` に accountIds を追加 (union)。
-   * misstore.installPlugin / per-account エディタ保存等で使う。
-   */
-  function linkAccountToPlugin(installId: string, accountIds: string[]) {
-    if (accountIds.length === 0) return
+  /** 全体スコープに参加させる。全アカウントカラムからのインストール/追加用。 */
+  function linkGlobalScope(installId: string) {
+    ensureLoaded()
+    const plugin = plugins.value.find((p) => p.installId === installId)
+    if (!plugin || plugin.global) return
+    plugin.global = true
+    persist(plugin)
+  }
+
+  /** 全体スコープから外す。本体はライブラリに残る (widgets の detach と同型)。 */
+  function unlinkGlobalScope(installId: string) {
+    ensureLoaded()
+    const plugin = plugins.value.find((p) => p.installId === installId)
+    if (!plugin?.global) return
+    plugin.global = undefined
+    persist(plugin)
+  }
+
+  /** アカウント別スコープ (`accountScopeKey`) に参加させる (union)。 */
+  function linkAccountScope(installId: string, scopeKey: string) {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
     if (!plugin) return
     const existing = plugin.installedFor ?? []
-    plugin.installedFor = Array.from(new Set([...existing, ...accountIds]))
+    if (existing.includes(scopeKey)) return
+    plugin.installedFor = [...existing, scopeKey]
     persist(plugin)
   }
 
-  /**
-   * プラグインの per-account 紐付け (`installedFor`) から accountId を外す。
-   * installedFor が空になれば plugins から完全削除する。
-   * per-account プラグインカラムでの「× ボタン」=「このアカウントから外す」用。
-   */
-  function unlinkAccountFromPlugin(installId: string, accountId: string) {
+  /** アカウント別スコープから外す。本体はライブラリに残る。 */
+  function unlinkAccountScope(installId: string, scopeKey: string) {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
-    if (!plugin || !plugin.installedFor) {
-      // installedFor が無い (= 全 account 対象 / 旧プラグイン) は per-account
-      // 単独除去の対象外。完全削除は cross-account カラムから行う想定。
-      return
-    }
-    const remaining = plugin.installedFor.filter((id) => id !== accountId)
-    if (remaining.length === 0) {
-      removePlugin(installId)
-      return
-    }
-    plugin.installedFor = remaining
+    if (!plugin?.installedFor) return
+    const remaining = plugin.installedFor.filter((k) => k !== scopeKey)
+    plugin.installedFor = remaining.length > 0 ? remaining : undefined
     persist(plugin)
+  }
+
+  /** scope に応じて linkGlobalScope / linkAccountScope へ振り分ける。 */
+  function linkScope(installId: string, scope: PluginScope) {
+    if (scope.kind === 'global') linkGlobalScope(installId)
+    else linkAccountScope(installId, scope.key)
+  }
+
+  /** scope に応じて unlinkGlobalScope / unlinkAccountScope へ振り分ける。 */
+  function unlinkScope(installId: string, scope: PluginScope) {
+    if (scope.kind === 'global') unlinkGlobalScope(installId)
+    else unlinkAccountScope(installId, scope.key)
+  }
+
+  /** 安定キーは host:userId 形式で必ず ':' を含む。旧 UUID には含まれない。 */
+  const isScopeKey = (v: string) => v.includes(':')
+
+  let scopesMigrated = false
+
+  /**
+   * レガシー紐付けの一括移行 (#771)。アカウント一覧が必要なので
+   * accounts ロード後に 1 回だけ走る。
+   * - global / installedFor とも無し (旧: 全アカウント対象) → global: true
+   * - installedFor の旧 UUID → 現行アカウントに該当すれば安定キーへ置換、
+   *   該当しなければ破棄 (再ログインで UUID が変わった痕跡)
+   * - 置換の結果 空 (紐付け先が全滅したゾンビ) → global: true で救済
+   * - 置換の結果 全現行アカウントをカバー (旧 全アカウントカラムの
+   *   スナップショット) → global: true に昇格
+   * 安定キーのみのプラグインには触れない (冪等)。
+   */
+  function migrateScopes() {
+    const accountsStore = useAccountsStore()
+    if (!accountsStore.isLoaded || scopesMigrated) return
+    scopesMigrated = true
+    ensureLoaded()
+
+    const uuidToKey = new Map(
+      accountsStore.accounts.map((a) => [a.id, accountScopeKey(a)]),
+    )
+    const allKeys = accountsStore.accounts.map((a) => accountScopeKey(a))
+
+    for (const plugin of plugins.value) {
+      if (plugin.global) continue
+      const list = plugin.installedFor ?? []
+      if (list.length === 0) {
+        if (plugin.installedFor !== undefined) plugin.installedFor = undefined
+        plugin.global = true
+        persist(plugin)
+        continue
+      }
+      if (list.every(isScopeKey)) continue // 移行済み
+
+      const mapped = Array.from(
+        new Set(list.map((v) => (isScopeKey(v) ? v : uuidToKey.get(v)))),
+      ).filter((v): v is string => !!v)
+
+      if (
+        mapped.length === 0 ||
+        (allKeys.length > 0 && allKeys.every((k) => mapped.includes(k)))
+      ) {
+        plugin.global = true
+        plugin.installedFor = undefined
+      } else {
+        plugin.installedFor = mapped
+      }
+      persist(plugin)
+    }
+  }
+
+  /** accounts のロード完了を待って migrateScopes を 1 回だけ実行する。 */
+  function scheduleScopeMigration() {
+    const accountsStore = useAccountsStore()
+    if (accountsStore.isLoaded) {
+      migrateScopes()
+      return
+    }
+    const stop = watch(
+      () => accountsStore.isLoaded,
+      (ready) => {
+        if (!ready) return
+        stop()
+        migrateScopes()
+      },
+    )
   }
 
   function setActive(installId: string, active: boolean) {
@@ -446,8 +561,13 @@ export const usePluginsStore = defineStore('plugins', () => {
     ensureLoaded,
     addPlugin,
     removePlugin,
-    linkAccountToPlugin,
-    unlinkAccountFromPlugin,
+    linkGlobalScope,
+    unlinkGlobalScope,
+    linkAccountScope,
+    unlinkAccountScope,
+    linkScope,
+    unlinkScope,
+    migrateScopes,
     renamePlugin,
     setActive,
     updateConfigData,

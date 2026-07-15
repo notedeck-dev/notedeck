@@ -227,7 +227,8 @@ async function handleInstallPlugin(pluginId: string): Promise<void> {
     console.info('[deep-link] plugin already installed:', pluginId)
     return
   }
-  await misStore.installPlugin(entry)
+  // deep link はカラム文脈を持たないため全体スコープでインストールする
+  await misStore.installPlugin(entry, { kind: 'global' })
 }
 
 async function handleInstallTheme(themeId: string): Promise<void> {

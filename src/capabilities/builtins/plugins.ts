@@ -4,7 +4,6 @@ import {
   parsePluginMeta,
 } from '@/aiscript/plugin-api'
 import type { Command } from '@/commands/registry'
-import { useAccountsStore } from '@/stores/accounts'
 import { useMisStoreStore } from '@/stores/misstore'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
@@ -207,6 +206,8 @@ export const pluginsCreateCapability: Command = {
       configData: {},
       src,
       active: false,
+      // AI 経由はカラム文脈を持たないため全体スコープで作成 (#771)
+      global: true,
     }
     const store = usePluginsStore()
     store.addPlugin(plugin)
@@ -547,11 +548,12 @@ export const pluginsRevertCapability: Command = {
  * plugins store に追加する。AI が「○○の機能ない？」のように推薦から install
  * まで一気通貫で実行できるようにするためのラッパ。
  *
- * 内部実装は `useMisStoreStore.installPlugin(entry, forAccountIds)` を呼ぶだけ。
- * sha512 検証・parsePluginMeta・既存 storeId への installedFor union は
- * misstore store 側で実装済 (= 同 storeId のプラグインがあれば再インストール
- * せず installedFor に accountIds を追加するだけ)。インストール後は active=true で
- * 自動起動される (misstore.ts installPlugin の挙動)。
+ * 内部実装は `useMisStoreStore.installPlugin(entry, scope)` を呼ぶだけ。
+ * sha512 検証・parsePluginMeta・既存 storeId へのスコープ追加は misstore
+ * store 側で実装済 (= 同 storeId のプラグインがあれば再インストールせず
+ * scope 参照を追加するだけ)。AI 経由はカラム文脈を持たないため全体スコープ
+ * (全アカウント対象、後から追加した分も含む #771) で入れる。インストール後は
+ * active=true で自動起動される (misstore.ts installPlugin の挙動)。
  */
 export const pluginsInstallCapability: Command = {
   id: 'plugins.install',
@@ -591,8 +593,8 @@ export const pluginsInstallCapability: Command = {
     description:
       'MisStore (misstore.hital.in) の既製プラグインをインストールする。' +
       ' id は `misstore.search` で取得した値を渡す。sha512 検証付き。' +
-      ' 既に同 storeId のプラグインがあれば再インストールせず installedFor を' +
-      ' 全 logged-in account で union 更新するだけ。',
+      ' 全体スコープ (全アカウント対象) でインストールされ、既に同 storeId の' +
+      ' プラグインがあれば再インストールせず全体スコープへ追加するだけ。',
     params: {
       id: {
         type: 'string',
@@ -616,9 +618,7 @@ export const pluginsInstallCapability: Command = {
         `plugins.install: plugin "${id}" not found in MisStore (try misstore.search first)`,
       )
     }
-    const accounts = useAccountsStore()
-    const forAccountIds = accounts.accounts.map((a) => a.id)
-    await misStore.installPlugin(entry, forAccountIds)
+    await misStore.installPlugin(entry, { kind: 'global' })
     return { id: entry.id, name: entry.name, installed: true }
   },
 }
