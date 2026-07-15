@@ -441,8 +441,6 @@ async function deleteFromLibrary(plugin: PluginMeta) {
               v-else
               message="このカラムに追加されたプラグインはありません"
               :image-url="serverInfoImageUrl"
-              cta-label="ストアからインストール..."
-              @cta="viewTab = 'store'"
             />
           </template>
 
@@ -634,6 +632,8 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 
 // --- List ---
 .list {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
