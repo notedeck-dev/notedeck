@@ -514,6 +514,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
             :already-installed="isEntryInScope(entry)"
             :capabilities="entry.capabilities"
             :capability-ok="capabilityChecks[entry.id]?.ok"
+            :capability-badge="capabilityChecks[entry.id]?.badge"
             :capability-reason="capabilityChecks[entry.id]?.reason"
             :icon-url="entry.iconUrl"
             @install="handleStoreInstall(entry)"

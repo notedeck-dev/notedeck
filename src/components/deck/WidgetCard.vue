@@ -12,6 +12,8 @@ const props = withDefaults(
     version?: string
     capabilities?: readonly string[]
     capabilityOk?: boolean
+    /** 非互換理由の短いラベル (要アップデート / 要アカウント 等) */
+    capabilityBadge?: string | null
     capabilityReason?: string | null
     /** store mode: インストール処理中 */
     installing?: boolean
@@ -80,7 +82,7 @@ function handlePrimaryClick() {
     <div :class="$style.body">
       <div :class="$style.row1">
         <span :class="$style.name">{{ name }}</span>
-        <span v-if="cardDisabled" :class="$style.updateBadge">要アップデート</span>
+        <span v-if="cardDisabled" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
         <span :class="$style.spacer" />
         <span v-if="version" :class="$style.version">v{{ version }}</span>
       </div>
@@ -305,7 +307,7 @@ function handlePrimaryClick() {
   opacity: 0.85;
 }
 
-.updateBadge {
+.incompatBadge {
   flex-shrink: 0;
   padding: 0 5px;
   font-size: 9px;

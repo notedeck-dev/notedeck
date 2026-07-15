@@ -9,12 +9,13 @@ describe('checkKnownCapabilities', () => {
       'notedeck-api',
       'secret-vault',
     ])
-    expect(result).toEqual({ ok: true, reason: null })
+    expect(result).toEqual({ ok: true, badge: null, reason: null })
   })
 
   it('未知 capability は「未対応の機能」として非互換', () => {
     const result = checkKnownCapabilities(['future-thing'])
     expect(result.ok).toBe(false)
+    expect(result.badge).toBe('要アップデート')
     expect(result.reason).toContain('未対応の機能: future-thing')
   })
 })
@@ -28,29 +29,33 @@ describe('checkWidgetCapabilities', () => {
     const result = checkWidgetCapabilities(['notedeck-api'], {
       accountId: null,
     })
-    expect(result).toEqual({ ok: true, reason: null })
+    expect(result).toEqual({ ok: true, badge: null, reason: null })
   })
 
   it('secret-vault は accountId なし (cross-account) でも互換', () => {
     const result = checkWidgetCapabilities(['secret-vault'], {
       accountId: null,
     })
-    expect(result).toEqual({ ok: true, reason: null })
+    expect(result).toEqual({ ok: true, badge: null, reason: null })
   })
 
-  it('misskey-api は accountId 必須', () => {
-    expect(
-      checkWidgetCapabilities(['misskey-api'], { accountId: null }).ok,
-    ).toBe(false)
+  it('misskey-api は accountId 必須 (非互換は「要アカウント」)', () => {
+    const missing = checkWidgetCapabilities(['misskey-api'], {
+      accountId: null,
+    })
+    expect(missing.ok).toBe(false)
+    expect(missing.badge).toBe('要アカウント')
     expect(
       checkWidgetCapabilities(['misskey-api'], { accountId: 'a1' }).ok,
     ).toBe(true)
   })
 
-  it('misskey-account は accountId 必須', () => {
-    expect(
-      checkWidgetCapabilities(['misskey-account'], { accountId: null }).ok,
-    ).toBe(false)
+  it('misskey-account は accountId 必須 (非互換は「要ログイン」)', () => {
+    const missing = checkWidgetCapabilities(['misskey-account'], {
+      accountId: null,
+    })
+    expect(missing.ok).toBe(false)
+    expect(missing.badge).toBe('要ログイン')
     expect(
       checkWidgetCapabilities(['misskey-account'], { accountId: 'a1' }).ok,
     ).toBe(true)
@@ -61,6 +66,7 @@ describe('checkWidgetCapabilities', () => {
       accountId: 'a1',
     })
     expect(result.ok).toBe(false)
+    expect(result.badge).toBe('要アップデート')
     expect(result.reason).toContain('未対応の機能: future-thing')
   })
 })

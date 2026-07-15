@@ -17,6 +17,8 @@ const props = defineProps<{
   /** store mode: MisStore 宣言の capabilities (バッジ表示用) */
   capabilities?: readonly string[]
   capabilityOk?: boolean
+  /** 非互換理由の短いラベル (要アップデート 等) */
+  capabilityBadge?: string | null
   capabilityReason?: string | null
   confirmingUninstall?: boolean
   /** installed mode: trash ボタンの title (スコープ文脈で言い換える) */
@@ -78,7 +80,7 @@ const incompatTitle = computed(() => {
     <div :class="$style.body">
       <div :class="$style.row1">
         <span :class="$style.name">{{ name }}</span>
-        <span v-if="incompatible" :class="$style.updateBadge">要アップデート</span>
+        <span v-if="incompatible" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
         <span v-else-if="disabled" :class="$style.disabledBadge">無効</span>
         <button
           v-if="deniedBadge"
@@ -350,7 +352,7 @@ const incompatTitle = computed(() => {
   line-height: 1.3;
 }
 
-.updateBadge {
+.incompatBadge {
   flex-shrink: 0;
   padding: 0 5px;
   font-size: 9px;
