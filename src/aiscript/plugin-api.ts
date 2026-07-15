@@ -2,11 +2,13 @@ import { type Ast, type Interpreter, utils, values } from '@syuilo/aiscript'
 import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
 import type { JsonValue } from '@/bindings'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
+import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   type AiScriptRunLogger,
   useAiScriptLogsStore,
 } from '@/stores/aiscriptLogs'
 import {
+  isPluginEffectiveFor,
   type PluginConfigDef,
   type PluginMeta,
   usePluginsStore,
@@ -157,26 +159,26 @@ const pluginAccountContext = new Map<string, { accountId: string | null }>()
 const pluginNdContexts = new Map<string, NoteDeckEnvContext>()
 
 /**
- * type に該当する handler を返す。accountId が指定されていれば、各 handler の
- * 提供元 plugin の `installedFor` で per-account 有効/無効を判定する:
- *   - installedFor 未設定 / 空配列 → 旧仕様で全 account に有効 (backward compat)
- *   - 1 つ以上の id がセット → 該当 accountId が含まれる場合のみ有効
- * accountId が null/undefined の場合 (グローバル context など) は filter しない。
+ * type に該当する handler をスコープ評価 (#771) して返す。
+ * 有効 = 提供元 plugin が全体スコープ (global) OR 対象アカウントの
+ * アカウント別スコープ (installedFor に安定キー一致)。
+ * accountId (内部 UUID) は accounts store 経由で安定キーに解決する。
+ * accountId が null/undefined (アカウント文脈なし) の場合は全体スコープのみ。
  */
 export function getPluginHandlers<T extends HandlerType>(
   type: T,
   accountId?: string | null,
 ): PluginHandler[] {
   const matched = pluginHandlers.filter((h) => h.type === type)
-  if (!accountId) return matched
-  // installId → installedFor の lookup を都度作る (handler 数 / plugin 数とも
-  // 通常 一桁〜十数で十分)
+  if (matched.length === 0) return matched
+  const account = accountId
+    ? useAccountsStore().accounts.find((a) => a.id === accountId)
+    : undefined
+  const scopeKey = account ? accountScopeKey(account) : null
   const plugins = usePluginsStore().plugins
   return matched.filter((h) => {
     const plugin = plugins.find((p) => p.installId === h.pluginInstallId)
-    const installedFor = plugin?.installedFor
-    if (!installedFor || installedFor.length === 0) return true
-    return installedFor.includes(accountId)
+    return plugin ? isPluginEffectiveFor(plugin, scopeKey) : false
   })
 }
 
@@ -389,7 +391,7 @@ function createPluginSpecificEnv(
 
 /**
  * Apply all note_view_interruptors to a note object (sync).
- * accountId が渡されれば installedFor で per-account 有効/無効が判定される。
+ * accountId が渡されればスコープ評価 (#771) で有効/無効が判定される。
  */
 export function applyNoteViewInterruptors<T>(
   note: T,

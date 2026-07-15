@@ -1,7 +1,11 @@
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { ref, shallowRef } from 'vue'
 import { launchPlugin, parsePluginMeta } from '@/aiscript/plugin-api'
-import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
+import {
+  type PluginMeta,
+  type PluginScope,
+  usePluginsStore,
+} from '@/stores/plugins'
 import { type SkillMeta, useSkillsStore } from '@/stores/skills'
 import { useThemeStore } from '@/stores/theme'
 import {
@@ -374,22 +378,22 @@ export const useMisStoreStore = defineStore('misstore', () => {
   // --- Install ---
 
   /**
-   * MisStore からプラグインをインストール / 紐付け追加する。
-   * - 同じ storeId の既存プラグインがあれば installedFor に accountIds を union 追加
-   *   (重複インストールは避ける)
-   * - 無ければ新規追加 (installedFor に forAccountIds をセット、storeId 紐付け)
+   * MisStore からプラグインをインストール / スコープ追加する (#771)。
+   * - 同じ storeId の既存プラグインがあればライブラリ本体は再取得せず、
+   *   指定 scope への参照を追加するだけ (重複インストールは避ける)
+   * - 無ければ新規追加 (指定 scope で有効化、storeId 紐付け)
    */
   async function installPlugin(
     entry: StorePluginEntry,
-    forAccountIds: string[] = [],
+    scope: PluginScope,
   ): Promise<void> {
     installing.value = entry.id
     try {
       const pluginsStore = usePluginsStore()
-      // 既に同 storeId でインストール済みなら installedFor を追加するだけ
+      // 既に同 storeId でインストール済みなら scope 参照を追加するだけ
       const existing = pluginsStore.plugins.find((p) => p.storeId === entry.id)
       if (existing) {
-        pluginsStore.linkAccountToPlugin(existing.installId, forAccountIds)
+        pluginsStore.linkScope(existing.installId, scope)
         return
       }
 
@@ -433,7 +437,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
         active: true,
         storeId: entry.id,
         ...(entry.iconUrl ? { iconUrl: entry.iconUrl } : {}),
-        ...(forAccountIds.length > 0 ? { installedFor: forAccountIds } : {}),
+        ...(scope.kind === 'global'
+          ? { global: true }
+          : { installedFor: [scope.key] }),
       }
 
       pluginsStore.addPlugin(newPlugin)
@@ -560,11 +566,6 @@ export const useMisStoreStore = defineStore('misstore', () => {
     )
   }
 
-  const installedNames = computed(() => {
-    const pluginsStore = usePluginsStore()
-    return new Set(pluginsStore.plugins.map((p) => p.name))
-  })
-
   return {
     plugins,
     loading,
@@ -599,6 +600,5 @@ export const useMisStoreStore = defineStore('misstore', () => {
     isThemeInstalled,
     isWidgetInstalled,
     isSkillInstalled,
-    installedNames,
   }
 })

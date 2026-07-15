@@ -7,4 +7,5 @@
   permissions: ['ai.invoke', 'clipboard', 'notifications'],
   configData: {},
   active: true,
+  global: true,
 }

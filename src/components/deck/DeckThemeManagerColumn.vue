@@ -15,6 +15,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { MI_DARK, MI_LIGHT } from '@/theme/builtinThemes'
 import type { MisskeyTheme } from '@/theme/types'
 import { openSafeUrl } from '@/utils/url'
+import ColumnSection from './ColumnSection.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -28,9 +29,7 @@ const themeStore = useThemeStore()
 const misStore = useMisStoreStore()
 const windowsStore = useWindowsStore()
 const accountsStore = useAccountsStore()
-const { serverIconUrl, serverInfoImageUrl } = useServerImages(
-  () => props.column,
-)
+const { serverIconUrl } = useServerImages(() => props.column)
 const { columnThemeVars } = useColumnTheme(() => props.column)
 
 misStore.fetchThemes()
@@ -91,16 +90,13 @@ interface ThemeSection {
   items: ThemeEntry[]
 }
 
-// インストール済みタブのセクション構成。モードで責務が変わる:
-//   per-account: サーバー (admin Branding) + ストア (MisStore 由来 installedThemes)
-//   cross-account (Global): ローカル (NoteDeck 独自 installedThemes) — アプリ全体管理
+// インストール済みタブのセクション構成 (出自 3 分類 + サーバー):
+//   per-account: サイドロード + ストア配布 (MisStore 由来) + サーバー (admin Branding)
+//   cross-account (Global): ビルドイン (同梱) + サイドロード + ストア配布 — アプリ全体管理
 //
 // 「Web UI で選択中のテーマ」(本家 darkTheme/lightTheme Pref) はサーバーに保存
 // されないため、NoteDeck 側でも介入しない。ユーザーが MisStore から取り込んだ
 // テーマを per-column 適用する UX に集中する。
-//
-// NoteDeck builtin (Mi Dark / Mi Light) は内部 fallback としてのみ残し
-// UI には出さない。Misskey 本家の builtin は MisStore 配布予定。
 const themeSections = computed<ThemeSection[]>(() => {
   const mode = currentMode.value
   const sections: ThemeSection[] = []
@@ -108,12 +104,27 @@ const themeSections = computed<ThemeSection[]>(() => {
   // logged-in account id 集合 (cross-account = 全アカウント集約 viewer の判定用)。
   const loggedInIds = new Set(accountsStore.accounts.map((a) => a.id))
 
-  // 「ローカルのテーマ」 (NoteDeck エディタ作成 / import / storeId 無し)。
+  // 「ビルドイン」= アプリ同梱 (Mi Dark / Mi Light、削除/編集不可)。
+  // プラグイン/スキルカラムの同梱セクションと同じ扱いで全アカウントカラムのみ。
+  if (isCrossAccount.value) {
+    sections.push({
+      key: 'builtin',
+      label: 'ビルドイン',
+      items: [
+        {
+          theme: mode === 'dark' ? MI_DARK : MI_LIGHT,
+          source: 'builtin',
+          removable: false,
+        },
+      ],
+    })
+  }
+
+  // 「サイドロード」 (NoteDeck エディタ作成 / import / storeId 無し)。
   // - per-account: installedFor に該当アカウントを含むもののみ
-  // - 全アカウント: installedFor に少なくとも 1 つの logged-in account を含むもの
-  //   (集約 viewer の semantics; どこにも紐付かない孤児テーマは隠す)
-  // 空でもセクション ラベルは出す。
-  const localThemes = themeStore.installedThemes
+  // - 全アカウント: installedFor に少なくとも 1 つの logged-in account を含む
+  //   もの (集約 viewer の semantics)
+  const sideloadedThemes = themeStore.installedThemes
     .filter((t) => {
       if (t.$notedeck?.storeId) return false
       if ((t.base ?? 'dark') !== mode) return false
@@ -129,14 +140,14 @@ const themeSections = computed<ThemeSection[]>(() => {
       removable: true,
     }))
   sections.push({
-    key: 'local',
-    label: 'ローカル',
-    items: localThemes,
+    key: 'sideload',
+    label: 'サイドロード',
+    items: sideloadedThemes,
   })
 
   if (!isCrossAccount.value && accountId.value) {
-    // ストアのテーマ (このアカウントが installedFor に登録されているもののみ)
-    // → サーバーのテーマ (admin Branding) の順で表示。
+    // ストア配布 (MisStore 由来、このアカウントが installedFor に登録されている
+    // もののみ) → サーバーのテーマ (admin Branding) の順で表示。
     const cached = themeStore.accountThemeCache.get(accountId.value)
     const metaTheme = mode === 'dark' ? cached?.metaDark : cached?.metaLight
 
@@ -154,7 +165,7 @@ const themeSections = computed<ThemeSection[]>(() => {
       }))
     sections.push({
       key: 'store',
-      label: 'ストア',
+      label: 'ストア配布',
       items: storeThemes,
     })
 
@@ -166,8 +177,8 @@ const themeSections = computed<ThemeSection[]>(() => {
         : [],
     })
   } else {
-    // 全アカウントカラム: ストア (installedFor が少なくとも 1 つの logged-in
-    // account を含むもの) → ビルトインの順。空でもセクション ラベルは出す。
+    // 全アカウントカラム: ストア配布 (installedFor が少なくとも 1 つの
+    // logged-in account を含むもの)
     const storeThemes = themeStore.installedThemes
       .filter((t) => {
         if (!t.$notedeck?.storeId) return false
@@ -182,24 +193,13 @@ const themeSections = computed<ThemeSection[]>(() => {
       }))
     sections.push({
       key: 'store',
-      label: 'ストア',
+      label: 'ストア配布',
       items: storeThemes,
-    })
-    // builtin (Mi Dark / Mi Light) はアプリ内蔵で削除/編集不可
-    sections.push({
-      key: 'builtin',
-      label: 'ビルトイン',
-      items: [
-        {
-          theme: mode === 'dark' ? MI_DARK : MI_LIGHT,
-          source: 'builtin',
-          removable: false,
-        },
-      ],
     })
   }
 
-  return sections
+  // 0 件のセクションは表示しない
+  return sections.filter((s) => s.items.length > 0)
 })
 
 const installedTotalCount = computed(() =>
@@ -420,24 +420,13 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
       <!-- ===== Installed tab ===== -->
       <template v-if="viewTab === 'installed'">
         <div :class="$style.scroll">
-          <div
+          <ColumnSection
             v-for="section in filteredSections"
             :key="section.key"
-            :class="$style.section"
+            :label="section.label"
+            :count="section.items.length"
           >
-            <h3 :class="$style.sectionTitle">{{ section.label }}</h3>
-            <div v-if="section.items.length === 0" :class="$style.sectionEmpty">
-              <div :class="$style.sectionEmptyCard">
-                <img
-                  v-if="serverInfoImageUrl"
-                  :src="serverInfoImageUrl"
-                  :class="$style.sectionEmptyImage"
-                  alt=""
-                />
-                <span :class="$style.sectionEmptyText">未設定</span>
-              </div>
-            </div>
-            <div v-else :class="$style.grid">
+            <div :class="$style.grid">
               <ThemeCard
                 v-for="entry in section.items"
                 :key="`${entry.source}:${entry.theme.id}`"
@@ -455,7 +444,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
                 @remove="removeTheme(entry)"
               />
             </div>
-          </div>
+          </ColumnSection>
 
           <div v-if="totalFilteredCount === 0" :class="$style.empty">
             <template v-if="searchQuery">
@@ -585,64 +574,11 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
   scrollbar-width: thin;
 }
 
-.section {
-  & + & {
-    margin-top: 4px;
-  }
-}
-
-.sectionTitle {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--nd-fg);
-  opacity: 0.55;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 8px 12px 2px;
-  margin: 0;
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   padding: 4px 10px 8px;
-}
-
-.sectionEmpty {
-  // grid と同じレイアウト (2 列) で、1 列目に空状態画像 + 名前風テキストを
-  // テーマカードと同じ位置に配置する
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  padding: 4px 10px 8px;
-}
-
-.sectionEmptyCard {
-  display: flex;
-  flex-direction: column;
-  border: 2px dashed var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  overflow: hidden;
-  opacity: 0.6;
-}
-
-.sectionEmptyImage {
-  display: block;
-  width: 100%;
-  aspect-ratio: 200 / 150;
-  object-fit: contain;
-  background: color-mix(in srgb, var(--nd-fg) 4%, transparent);
-}
-
-.sectionEmptyText {
-  padding: 4px 6px;
-  text-align: center;
-  font-size: 0.75em;
-  color: var(--nd-fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .storeLoading {

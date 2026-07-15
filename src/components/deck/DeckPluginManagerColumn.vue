@@ -5,7 +5,12 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { getPluginDenial } from '@/permissions/pluginDenials'
-import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
+import {
+  accountScopeKey,
+  getAccountAvatarUrl,
+  useAccountsStore,
+} from '@/stores/accounts'
+import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import {
   getPluginDetailUrl,
@@ -13,9 +18,15 @@ import {
   type StorePluginEntry,
   useMisStoreStore,
 } from '@/stores/misstore'
-import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
+import {
+  isBuiltInPlugin,
+  type PluginMeta,
+  type PluginScope,
+  usePluginsStore,
+} from '@/stores/plugins'
 import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
+import ColumnSection from './ColumnSection.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -55,33 +66,28 @@ const account = computed(() =>
     : (accountsStore.accounts.find((a) => a.id === props.column.accountId) ??
       null),
 )
-const accountId = computed(() => props.column.accountId)
-
-/** カラムの context (per-account / 全アカウント) に応じた installedFor 対象 ids。 */
-function contextAccountIds(): string[] {
-  if (isCrossAccount.value) {
-    return accountsStore.accounts.map((a) => a.id)
-  }
-  return accountId.value ? [accountId.value] : []
-}
-
-const loggedInIds = computed(
-  () => new Set(accountsStore.accounts.map((a) => a.id)),
-)
+/**
+ * このカラムが管理するスコープ (#771)。
+ * - 全アカウントカラム: 全体スコープ (global)
+ * - per-account カラム: 当該アカウントのスコープ (accountScopeKey で紐付け)
+ * per-account カラムでアカウントが見つからない (ログアウト済) 場合は null。
+ */
+const columnScope = computed<PluginScope | null>(() => {
+  if (isCrossAccount.value) return { kind: 'global' }
+  if (!account.value) return null
+  return { kind: 'account', key: accountScopeKey(account.value) }
+})
 
 /**
- * カラム context に該当するか判定する。
- * - per-account カラム: installedFor が当該 account を含む or installedFor 未設定
- *   (旧プラグイン後方互換で全 account 対象扱い)
- * - 全アカウントカラム: installedFor が少なくとも 1 つ logged-in account を含む or 未設定
+ * カラムのスコープに参加しているか。全アカウントカラムは全体スコープ参加分
+ * のみ、per-account カラムは当該アカウントのスコープ参加分のみを表示する
+ * (ウィジェットの「カラム別プール」に対応する「スコープ別プール」)。
  */
 function matchesContext(plugin: PluginMeta): boolean {
-  const installedFor = plugin.installedFor
-  if (!installedFor || installedFor.length === 0) return true
-  if (isCrossAccount.value) {
-    return installedFor.some((id) => loggedInIds.value.has(id))
-  }
-  return installedFor.includes(accountId.value as string)
+  const scope = columnScope.value
+  if (!scope) return false
+  if (scope.kind === 'global') return plugin.global === true
+  return plugin.installedFor?.includes(scope.key) ?? false
 }
 
 // --- View mode ---
@@ -90,10 +96,14 @@ const viewTabs: ViewTab[] = ['installed', 'store']
 const viewTab = ref<ViewTab>('installed')
 const columnContentRef = ref<HTMLElement | null>(null)
 
+const scopeCount = computed(
+  () => pluginsStore.plugins.filter((p) => matchesContext(p)).length,
+)
+
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: `インストール済み ${pluginsStore.plugins.length}`,
+    label: `インストール済み ${scopeCount.value}`,
   },
   { value: 'store', label: 'ストア' },
 ])
@@ -129,7 +139,7 @@ const textQuery = computed(() => {
 })
 
 interface PluginSection {
-  key: 'local' | 'store'
+  key: 'builtin' | 'sideload' | 'store'
   label: string
   items: PluginMeta[]
 }
@@ -155,22 +165,27 @@ const visiblePlugins = computed<PluginMeta[]>(() => {
 })
 
 /**
- * インストール済みタブのセクション分け:
- *   - ローカル: storeId 無し (NoteDeck エディタで作成 / import)
- *   - ストア: storeId 持ち (MisStore からインストール)
- * 検索なし時は空セクションもラベルを出して状態が一目で分かるようにする。
- * 検索 / フィルタ適用時は該当 0 件のセクションは非表示にする。
+ * インストール済みタブのセクション分け (出自 3 分類):
+ *   - ビルドイン: アプリ同梱 seed
+ *   - サイドロード: ＋ボタン手書き・AI 生成・インポート (storeId 無し、同梱以外)
+ *   - ストア配布: storeId 持ち。MisStore に上流がある複製 (手で書き換えても
+ *     storeId が残る限りここ)
+ * 0 件のセクションは表示しない。
  */
 const installedSections = computed<PluginSection[]>(() => {
-  const local = visiblePlugins.value.filter((p) => !p.storeId)
+  const builtin = visiblePlugins.value.filter(
+    (p) => !p.storeId && isBuiltInPlugin(p.installId),
+  )
+  const sideloaded = visiblePlugins.value.filter(
+    (p) => !p.storeId && !isBuiltInPlugin(p.installId),
+  )
   const store = visiblePlugins.value.filter((p) => !!p.storeId)
   const sections: PluginSection[] = [
-    { key: 'local', label: 'ローカル', items: local },
-    { key: 'store', label: 'ストア', items: store },
+    { key: 'builtin', label: 'ビルドイン', items: builtin },
+    { key: 'sideload', label: 'サイドロード', items: sideloaded },
+    { key: 'store', label: 'ストア配布', items: store },
   ]
-  const isFiltering = textQuery.value.length > 0 || activeFilter.value !== 'all'
-  if (isFiltering) return sections.filter((s) => s.items.length > 0)
-  return sections
+  return sections.filter((s) => s.items.length > 0)
 })
 
 const visiblePluginCount = computed(() => visiblePlugins.value.length)
@@ -202,14 +217,22 @@ const filteredStorePlugins = computed(() => {
 const installError = ref<string | null>(null)
 
 async function handleStoreInstall(entry: StorePluginEntry) {
+  const scope = columnScope.value
+  if (!scope) return
   installError.value = null
   try {
-    // per-account: 当該アカウントの installedFor に追加
-    // 全アカウント: 全 logged-in account の installedFor に追加 (集約 viewer)
-    await misStore.installPlugin(entry, contextAccountIds())
+    // 本体はライブラリに 1 つ。既にあればこのカラムのスコープへ参照追加、
+    // 無ければ取得してこのスコープで有効化 (#771)
+    await misStore.installPlugin(entry, scope)
   } catch (e) {
     installError.value = e instanceof Error ? e.message : 'インストール失敗'
   }
+}
+
+/** ストアエントリがこのカラムのスコープに参加済みか (「インストール済み」表示基準)。 */
+function isEntryInScope(entry: StorePluginEntry): boolean {
+  const plugin = pluginsStore.plugins.find((p) => p.storeId === entry.id)
+  return plugin ? matchesContext(plugin) : false
 }
 
 function handleOpenStoreDetail(entry: StorePluginEntry) {
@@ -230,48 +253,59 @@ async function toggleActive(plugin: PluginMeta) {
 function openPluginDetail(pluginId: string) {
   windowsStore.open('plugins', {
     initialPluginId: pluginId,
-    initialAccountIds: contextAccountIds(),
+    ...(columnScope.value ? { initialScope: columnScope.value } : {}),
   })
 }
 
 function openNewPlugin() {
   windowsStore.open('plugins', {
-    initialAccountIds: contextAccountIds(),
+    ...(columnScope.value ? { initialScope: columnScope.value } : {}),
   })
 }
 
-// 1 クリック目で trash ボタンを赤くアーム、2 クリック目で実行 (PluginCard の
-// confirmingUninstall 表示に対応する armed 状態をカラム側で管理)
-const confirmingUninstallId = ref<string | null>(null)
-let uninstallArmTimer: ReturnType<typeof setTimeout> | null = null
-
-function requestUninstall(plugin: PluginMeta) {
-  if (uninstallArmTimer) clearTimeout(uninstallArmTimer)
-  if (confirmingUninstallId.value === plugin.installId) {
-    confirmingUninstallId.value = null
-    handleUninstall(plugin)
-    return
-  }
-  confirmingUninstallId.value = plugin.installId
-  uninstallArmTimer = setTimeout(() => {
-    confirmingUninstallId.value = null
-  }, 3000)
+/**
+ * カード trash = このカラムのスコープから外す (widgets の detach と同型)。
+ * 本体はライブラリに残り、ピッカーから再追加/完全削除できる。
+ */
+function detachFromScope(plugin: PluginMeta) {
+  const scope = columnScope.value
+  if (!scope) return
+  pluginsStore.unlinkScope(plugin.installId, scope)
 }
 
-function handleUninstall(plugin: PluginMeta) {
-  if (!isCrossAccount.value && accountId.value) {
-    // per-account: このアカウントから外す (installedFor から除外)
-    // installedFor が空になれば完全削除 (= abort も走る経路)
-    const remaining = (plugin.installedFor ?? []).filter(
-      (id) => id !== accountId.value,
-    )
-    pluginsStore.unlinkAccountFromPlugin(plugin.installId, accountId.value)
-    if (remaining.length === 0) abortPlugin(plugin.installId)
-  } else {
-    // 全アカウント: 完全削除
-    abortPlugin(plugin.installId)
-    pluginsStore.removePlugin(plugin.installId)
-  }
+const detachTitle = computed(() =>
+  isCrossAccount.value ? '全アカウント対象から外す' : 'このアカウントから外す',
+)
+
+// --- Library picker (スコープ未参加のライブラリ本体の追加/削除) ---
+// ウィジェットカラムのライブラリピッカーと同型 (#771)。
+const showLibraryPicker = ref(false)
+
+/** このカラムのスコープに未参加のライブラリ本体 (= 追加可能候補)。 */
+const libraryCandidates = computed<PluginMeta[]>(() =>
+  pluginsStore.plugins.filter((p) => !matchesContext(p)),
+)
+
+function placeFromLibrary(plugin: PluginMeta) {
+  const scope = columnScope.value
+  if (!scope) return
+  pluginsStore.linkScope(plugin.installId, scope)
+  showLibraryPicker.value = false
+}
+
+const { confirm } = useConfirm()
+
+/** ライブラリから本体ごと削除 (コードも消える)。 */
+async function deleteFromLibrary(plugin: PluginMeta) {
+  const ok = await confirm({
+    title: 'プラグインを削除',
+    message: `「${plugin.name}」をライブラリから削除しますか？プラグインのコードも消えます。この操作は取り消せません。`,
+    okLabel: '削除',
+    type: 'danger',
+  })
+  if (!ok) return
+  abortPlugin(plugin.installId)
+  pluginsStore.removePlugin(plugin.installId)
 }
 </script>
 
@@ -353,15 +387,12 @@ function handleUninstall(plugin: PluginMeta) {
       <!-- ===== Installed tab ===== -->
       <template v-if="viewTab === 'installed'">
         <div :class="$style.list">
-          <div
+          <ColumnSection
             v-for="section in installedSections"
             :key="section.key"
-            :class="$style.section"
+            :label="section.label"
+            :count="section.items.length"
           >
-            <h3 :class="$style.sectionTitle">{{ section.label }}</h3>
-            <div v-if="section.items.length === 0" :class="$style.sectionEmpty">
-              未設定
-            </div>
             <PluginCard
               v-for="plugin in section.items"
               :key="plugin.installId"
@@ -373,16 +404,16 @@ function handleUninstall(plugin: PluginMeta) {
               :category="storeByName.get(plugin.name)?.category"
               :category-label="storeByName.get(plugin.name)?.category ? PLUGIN_CATEGORY_LABELS[storeByName.get(plugin.name)!.category] : undefined"
               :active="plugin.active"
-              :confirming-uninstall="confirmingUninstallId === plugin.installId"
+              :uninstall-title="detachTitle"
               :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
               :denied-badge="getPluginDenial(plugin.installId)"
               @click="openPluginDetail(plugin.installId)"
               @toggle="toggleActive(plugin)"
-              @uninstall="requestUninstall(plugin)"
+              @uninstall="detachFromScope(plugin)"
               @settings="openPluginDetail(plugin.installId)"
               @denied-click="openPermissionSettings()"
             />
-          </div>
+          </ColumnSection>
 
           <div v-if="visiblePluginCount === 0" :class="$style.empty">
             <template v-if="textQuery || activeFilter !== 'all'">
@@ -390,11 +421,41 @@ function handleUninstall(plugin: PluginMeta) {
             </template>
             <template v-else>
               <i class="ti ti-puzzle" :class="$style.emptyIcon" />
-              <span>プラグインがインストールされていません</span>
+              <span>このカラムに追加されたプラグインはありません</span>
               <button class="_button" :class="$style.emptyLink" @click="viewTab = 'store'">
                 ストアからインストール...
               </button>
             </template>
+          </div>
+
+          <!-- Library picker: スコープ未参加のライブラリ本体を追加/削除 -->
+          <div :class="$style.addPluginArea">
+            <button
+              :class="[$style.addPluginBtn, showLibraryPicker && $style.addPluginBtnActive]"
+              @click="showLibraryPicker = !showLibraryPicker"
+            >
+              <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
+              {{ showLibraryPicker ? '閉じる' : 'ライブラリから追加' }}
+            </button>
+          </div>
+
+          <div v-if="showLibraryPicker" :class="$style.pickerWrap">
+            <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
+              ライブラリに追加可能なプラグインがありません。
+            </div>
+            <PluginCard
+              v-for="plugin in libraryCandidates"
+              :key="plugin.installId"
+              mode="library"
+              :name="plugin.name"
+              :description="storeByName.get(plugin.name)?.description ?? plugin.description"
+              :author="storeByName.get(plugin.name)?.author ?? plugin.author"
+              :version="plugin.version"
+              :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
+              @click="openPluginDetail(plugin.installId)"
+              @place="placeFromLibrary(plugin)"
+              @delete="deleteFromLibrary(plugin)"
+            />
           </div>
         </div>
       </template>
@@ -435,7 +496,7 @@ function handleUninstall(plugin: PluginMeta) {
             :category="entry.category"
             :category-label="entry.category ? PLUGIN_CATEGORY_LABELS[entry.category] : undefined"
             :installing="misStore.installing === entry.id"
-            :already-installed="misStore.installedNames.has(entry.name)"
+            :already-installed="isEntryInScope(entry)"
             :icon-url="entry.iconUrl"
             @install="handleStoreInstall(entry)"
             @open-detail="handleOpenStoreDetail(entry)"
@@ -558,27 +619,55 @@ function handleUninstall(plugin: PluginMeta) {
   scrollbar-width: thin;
 }
 
-.section {
-  &:not(:first-child) {
-    margin-top: 8px;
+// --- Library picker (ウィジェットカラムのピッカーと同型) ---
+.addPluginArea {
+  display: flex;
+  justify-content: center;
+  padding: 6px;
+}
+
+.addPluginBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border: 1px dashed var(--nd-divider);
+  border-radius: var(--nd-radius-md);
+  background: none;
+  color: var(--nd-fg);
+  cursor: pointer;
+  font-size: 0.85em;
+  opacity: 0.5;
+  transition: opacity var(--nd-duration-base), border-color var(--nd-duration-base);
+
+  &:hover {
+    opacity: 1;
+    border-color: var(--nd-accent);
+    color: var(--nd-accent);
   }
 }
 
-.sectionTitle {
-  margin: 0;
-  padding: 8px 12px 4px;
-  font-size: 0.75em;
-  font-weight: 600;
-  color: var(--nd-fg);
-  opacity: 0.55;
-  letter-spacing: 0.04em;
+.addPluginBtnActive {
+  opacity: 1;
+  border-color: var(--nd-accent);
+  color: var(--nd-accent);
 }
 
-.sectionEmpty {
-  padding: 6px 12px 10px;
-  font-size: 0.8em;
+.pickerWrap {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0 8px;
+}
+
+.pickerEmpty {
+  margin: 4px 10px;
+  padding: 12px;
+  border: 1px dashed var(--nd-divider);
+  border-radius: var(--nd-radius-md);
   color: var(--nd-fg);
-  opacity: 0.5;
+  opacity: 0.6;
+  font-size: 11.5px;
+  text-align: center;
 }
 
 // --- Store states ---

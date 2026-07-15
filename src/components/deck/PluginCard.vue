@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-type Mode = 'installed' | 'store'
+type Mode = 'installed' | 'store' | 'library'
 
 const props = defineProps<{
   mode: Mode
@@ -15,6 +15,8 @@ const props = defineProps<{
   installing?: boolean
   alreadyInstalled?: boolean
   confirmingUninstall?: boolean
+  /** installed mode: trash ボタンの title (スコープ文脈で言い換える) */
+  uninstallTitle?: string
   iconUrl?: string
   /**
    * 権限拒否バッジ (#712 §8.4)。plugin principal の permission_denied が
@@ -31,6 +33,8 @@ const emit = defineEmits<{
   (e: 'settings'): void
   (e: 'open-detail'): void
   (e: 'denied-click'): void
+  (e: 'place'): void
+  (e: 'delete'): void
 }>()
 
 const disabled = computed(
@@ -84,7 +88,7 @@ const disabled = computed(
             <button
               class="_button"
               :class="[$style.iconBtn, confirmingUninstall && $style.iconBtnDanger]"
-              :title="confirmingUninstall ? 'もう一度クリックで削除' : 'アンインストール'"
+              :title="confirmingUninstall ? 'もう一度クリックで実行' : (uninstallTitle ?? 'アンインストール')"
               @click.stop="emit('uninstall')"
             >
               <i class="ti ti-trash" />
@@ -103,6 +107,26 @@ const disabled = computed(
               @click.stop="emit('toggle')"
             >
               {{ active ? '無効にする' : '有効にする' }}
+            </button>
+          </template>
+
+          <!-- Library mode: スコープ未参加のライブラリ本体 (place / 本体削除) -->
+          <template v-else-if="mode === 'library'">
+            <button
+              class="_button"
+              :class="$style.iconBtn"
+              title="ライブラリから削除 (コードも消える)"
+              @click.stop="emit('delete')"
+            >
+              <i class="ti ti-trash" />
+            </button>
+            <button
+              class="_button"
+              :class="$style.primaryBtn"
+              @click.stop="emit('place')"
+            >
+              <i class="ti ti-plus" />
+              追加
             </button>
           </template>
 

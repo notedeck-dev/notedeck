@@ -12,17 +12,21 @@ import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
-import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
+import {
+  type PluginMeta,
+  type PluginScope,
+  usePluginsStore,
+} from '@/stores/plugins'
 import { pluginSrcFilename } from '@/utils/settingsFs'
 
 const props = defineProps<{
   initialPluginId?: string
   initialTab?: string
-  /** プラグインカラム経由で開いた場合の紐付け対象 account id 一覧。
-   *  - per-account カラム: [accountId]
-   *  - 全アカウントカラム: 全 logged-in account の id
-   *  保存時 installedFor に追加される。 */
-  initialAccountIds?: string[]
+  /** プラグインカラム経由で開いた場合のインストール先スコープ (#771)。
+   *  - per-account カラム: { kind: 'account', key: accountScopeKey }
+   *  - 全アカウントカラム: { kind: 'global' }
+   *  未指定 (カラム外から開いた場合) は全体スコープ扱い。 */
+  initialScope?: PluginScope
 }>()
 
 const pluginsStore = usePluginsStore()
@@ -166,7 +170,7 @@ async function doInstall() {
     }
   }
 
-  const ids = props.initialAccountIds ?? []
+  const scope = props.initialScope ?? { kind: 'global' }
   const newPlugin: PluginMeta = {
     installId: `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: meta.name,
@@ -178,7 +182,9 @@ async function doInstall() {
     configData,
     src: code,
     active: true,
-    ...(ids.length > 0 ? { installedFor: ids } : {}),
+    ...(scope.kind === 'global'
+      ? { global: true }
+      : { installedFor: [scope.key] }),
   }
 
   pluginsStore.addPlugin(newPlugin)
