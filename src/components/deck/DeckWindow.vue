@@ -12,6 +12,7 @@ import {
   WINDOW_SIZES,
 } from '@/stores/windows'
 import { isTauri, openSettingsFileInEditor } from '@/utils/settingsFs'
+import { openSafeUrl } from '@/utils/url'
 import { WINDOW_LABELS } from './windowLabels'
 
 const props = defineProps<{
@@ -50,8 +51,7 @@ async function openExternalLink() {
   const t = externalLink.value
   if (!t || t.disabled) return
   try {
-    const { openUrl } = await import('@tauri-apps/plugin-opener')
-    await openUrl(t.url)
+    await openSafeUrl(t.url)
   } catch (e) {
     console.warn('[DeckWindow] openExternalLink failed:', e)
   }
@@ -358,7 +358,7 @@ onBeforeUnmount(() => {
         class="_button"
         :class="$style.windowBtn"
         :disabled="externalLink.disabled"
-        :title="externalLink.title ?? 'Web で開く'"
+        :title="externalLink.title ?? 'Web UIで開く'"
         @click="openExternalLink"
       >
         <i :class="`ti ti-${externalLink.icon ?? 'world'}`" />

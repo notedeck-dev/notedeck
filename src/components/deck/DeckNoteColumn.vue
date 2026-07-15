@@ -23,6 +23,7 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useToast } from '@/stores/toast'
+import { webUiUrl as buildWebUiUrl } from '@/utils/url'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
@@ -112,7 +113,7 @@ function showOfflineDetail(): void {
 
 const webUiUrl = computed(() => {
   if (!props.webUiPath || !account.value) return undefined
-  return `https://${account.value.host}${props.webUiPath}`
+  return buildWebUiUrl(account.value.host, props.webUiPath)
 })
 
 const postFormPortalRef = useTemplateRef<HTMLElement>('postFormPortalRef')

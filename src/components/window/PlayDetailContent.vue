@@ -21,6 +21,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { webUiUrl } from '@/utils/url'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -42,7 +43,7 @@ const account = computed(
   () => accountsStore.accounts.find((a) => a.id === props.accountId) ?? null,
 )
 const serverUrl = computed(() =>
-  account.value ? `https://${account.value.host}` : '',
+  account.value ? webUiUrl(account.value.host) : '',
 )
 
 interface FlashDetail {

@@ -6,11 +6,7 @@ import { useVaporTransition } from '@/composables/useVaporTransition'
 import { type Account, isGuestAccount } from '@/stores/accounts'
 import { modeIcon, modeLabel } from '@/utils/customTimelines'
 import { hapticSelection } from '@/utils/haptics'
-
-const openUrl = async (url: string) => {
-  const { openUrl: open } = await import('@tauri-apps/plugin-opener')
-  return open(url)
-}
+import { openSafeUrl, webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
   show: boolean
@@ -90,12 +86,12 @@ const hasUpperSection = computed(
           <i class="ti ti-user" />
         </button>
         <div :class="$style.navAccountMenuDivider" />
-        <button class="_button" :class="$style.navAccountMenuItem" @click="openUrl(`https://${account.host}/settings`)">
+        <button class="_button" :class="$style.navAccountMenuItem" @click="openSafeUrl(webUiUrl(account.host, '/settings'))">
           <span>設定</span>
           <i class="ti ti-external-link" />
         </button>
       </template>
-      <button v-if="isAdmin" class="_button" :class="$style.navAccountMenuItem" @click="openUrl(`https://${account.host}/admin`)">
+      <button v-if="isAdmin" class="_button" :class="$style.navAccountMenuItem" @click="openSafeUrl(webUiUrl(account.host, '/admin'))">
         <span>コントロールパネル</span>
         <i class="ti ti-external-link" />
       </button>

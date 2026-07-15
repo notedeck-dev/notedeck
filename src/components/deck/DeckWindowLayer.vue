@@ -192,6 +192,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         v-if="win.type === 'follow-list'"
         :account-id="(win.props.accountId as string)"
         :user-id="(win.props.userId as string)"
+        :username="(win.props.username as string | undefined)"
+        :user-host="(win.props.userHost as string | null | undefined)"
         :initial-tab="(win.props.initialTab as 'following' | 'followers' | undefined)"
       />
       <LoginContent

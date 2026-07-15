@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { ref } from 'vue'
 import type { ServerAd } from '@/adapters/types'
-import { isSafeUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 
 const props = withDefaults(
   defineProps<{
@@ -20,9 +19,7 @@ const emit = defineEmits<{
 const showMenu = ref(false)
 
 function onClick() {
-  if (props.ad.url && isSafeUrl(props.ad.url)) {
-    openUrl(props.ad.url)
-  }
+  openSafeUrl(props.ad.url)
 }
 
 function reduceFrequency() {

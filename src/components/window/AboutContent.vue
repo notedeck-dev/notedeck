@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { getTauriVersion } from '@tauri-apps/api/app'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import type { Check, HealthReport, Status } from '@/bindings'
 import { useTutorialStore } from '@/composables/useTutorial'
@@ -12,6 +11,7 @@ import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { highlightCode, highlighterLoaded } from '@/utils/highlight'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { openSafeUrl } from '@/utils/url'
 import { version as appVersion } from '../../../package.json'
 
 const emit = defineEmits<{
@@ -222,7 +222,7 @@ function reportBug() {
   const diagSection = diag ? `\n\n## 診断\n\n\`\`\`\n${diag}\n\`\`\`` : ''
   const body = `## 現象\n\n<!-- 何が起きたか -->\n\n## 再現手順\n\n1.\n2.\n3.\n\n## 期待する動作\n\n<!-- 本来どうなるべきか -->\n\n## 環境\n\n${env}${diagSection}\n\n## スクリーンショット\n\n<!-- あれば添付 -->`
   const url = `${REPO_URL}/issues/new?labels=bug&body=${encodeURIComponent(body)}`
-  openUrl(url)
+  openSafeUrl(url)
 }
 </script>
 
@@ -243,7 +243,7 @@ function reportBug() {
         class="_button"
         :class="$style.aboutTitle"
         title="公式サイトを開く"
-        @click="openUrl(SITE_URL)"
+        @click="openSafeUrl(SITE_URL)"
       >
         NoteDeck
       </button>
@@ -300,7 +300,7 @@ function reportBug() {
     <div :class="$style.formSection">
       <div :class="$style.formSectionLabel">開発者</div>
       <div :class="$style.sectionBody">
-        <button type="button" class="_button" :class="$style.formLink" @click="openUrl(SPONSOR_URL)">
+        <button type="button" class="_button" :class="$style.formLink" @click="openSafeUrl(SPONSOR_URL)">
           <img src="https://github.com/hitalin.png?size=48" :class="$style.devAvatar" alt="" />
           <span>@hitalin</span>
           <span :class="$style.formLinkSuffix">GitHub Sponsors <i class="ti ti-external-link" /></span>

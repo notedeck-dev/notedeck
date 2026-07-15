@@ -12,6 +12,7 @@ import {
   usePluginsStore,
 } from '@/stores/plugins'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { openSafeUrl } from '@/utils/url'
 import { createAiScriptEnv } from './api'
 import {
   createAiScriptInterpreter,
@@ -341,8 +342,7 @@ function createPluginSpecificEnv(
   consts['Plugin:open_url'] = values.FN_NATIVE(
     async ([urlVal]): Promise<Value> => {
       if (urlVal?.type !== 'str') return values.NULL
-      const { openUrl } = await import('@tauri-apps/plugin-opener')
-      await openUrl(urlVal.value)
+      await openSafeUrl(urlVal.value)
       return values.NULL
     },
   )

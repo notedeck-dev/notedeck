@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, inject, provide, ref, watch } from 'vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import {
@@ -17,6 +16,7 @@ import { useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useToast } from '@/stores/toast'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
+import { openSafeUrl } from '@/utils/url'
 
 const props = defineProps<{
   columnId: string
@@ -196,7 +196,7 @@ function toggleMute() {
 
 function onOpenWebUi() {
   closeMenu()
-  if (props.webUiUrl) openUrl(props.webUiUrl)
+  if (props.webUiUrl) openSafeUrl(props.webUiUrl)
 }
 
 /** Open this column as a PiP window, then remove from deck */

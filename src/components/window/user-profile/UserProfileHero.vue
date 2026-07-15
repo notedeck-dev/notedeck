@@ -98,6 +98,7 @@ function openFollowList(type: 'following' | 'followers') {
     accountId: props.accountId,
     userId: props.user.id,
     username: props.user.username,
+    userHost: props.user.host,
     initialTab: type,
   })
 }

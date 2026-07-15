@@ -1,6 +1,5 @@
 import { utils, values } from '@syuilo/aiscript'
 import type { Value } from '@syuilo/aiscript/interpreter/value.js'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import type { Principal } from '@/permissions/principal'
 import { useConfirm } from '@/stores/confirm'
@@ -10,6 +9,7 @@ import {
   removeStorage,
   setStorageJson,
 } from '@/utils/storage'
+import { openSafeUrl } from '@/utils/url'
 
 export interface AiScriptEnvOptions {
   /**
@@ -159,7 +159,7 @@ export function createAiScriptEnv(
   // --- Mk:url ---
   consts['Mk:url'] = values.FN_NATIVE(async ([urlVal]) => {
     const url = urlVal?.type === 'str' ? urlVal.value : ''
-    if (url) await openUrl(url)
+    if (url) await openSafeUrl(url)
     return values.NULL
   })
 

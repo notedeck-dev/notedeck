@@ -67,7 +67,7 @@ import { formatDate } from '@/utils/format'
 import { proxyUrl } from '@/utils/imageProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { toggleReaction } from '@/utils/toggleReaction'
-import { openSafeUrl } from '@/utils/url'
+import { openSafeUrl, webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
   accountId: string
@@ -164,17 +164,13 @@ useWindowExternalLink(() => {
   if (!u || !host) return null
   if (isOwnProfile.value) {
     return {
-      url: `https://${host}/settings/profile`,
+      url: webUiUrl(host, '/settings/profile'),
       title: 'プロフィールを編集',
       icon: 'pencil',
     }
   }
   const suffix = u.host ? `@${u.host}` : ''
-  return {
-    url: `https://${host}/@${u.username}${suffix}`,
-    title: 'Web UIで開く',
-    icon: 'world',
-  }
+  return { url: webUiUrl(host, `/@${u.username}${suffix}`) }
 })
 
 const MAX_PROFILE_NOTES = 500

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, useCssModule } from 'vue'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
@@ -7,7 +6,7 @@ import { highlightCode, highlighterLoaded } from '@/utils/highlight'
 import { proxyUrl } from '@/utils/imageProxy'
 import { type MfmToken, parseMfm } from '@/utils/mfm'
 import { nyaizeTokens } from '@/utils/nyaize'
-import { isMemoUrl, isSafeUrl } from '@/utils/url'
+import { isMemoUrl, isSafeUrl, openSafeUrl } from '@/utils/url'
 import MkEmoji from './MkEmoji.vue'
 
 const props = defineProps<{
@@ -86,7 +85,7 @@ function handleLinkClick(e: MouseEvent, url: string) {
     emit('memoLinkClick', memo.id)
     return
   }
-  if (isSafeUrl(url)) openUrl(url)
+  openSafeUrl(url)
 }
 
 function escapeHtml(text: string): string {
@@ -447,7 +446,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
     --><!-- Center --><span v-else-if="token.type === 'center'" :class="$style.mfmCenter"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></span><!--
     --><!-- Plain --><span v-else-if="token.type === 'plain'">{{ token.value }}</span><!--
     --><!-- Quote --><blockquote v-else-if="token.type === 'quote'" :class="$style.mfmQuote"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></blockquote><!--
-    --><!-- Search --><div v-else-if="token.type === 'search'" :class="$style.mfmSearch"><input :class="$style.mfmSearchInput" type="text" :value="token.query" readonly /><button :class="$style.mfmSearchButton" @click.stop="openUrl(`https://www.google.com/search?q=${encodeURIComponent(token.query)}`)">検索</button></div><!--
+    --><!-- Search --><div v-else-if="token.type === 'search'" :class="$style.mfmSearch"><input :class="$style.mfmSearchInput" type="text" :value="token.query" readonly /><button :class="$style.mfmSearchButton" @click.stop="openSafeUrl(`https://www.google.com/search?q=${encodeURIComponent(token.query)}`)">検索</button></div><!--
     --><!-- Math Inline --><span v-else-if="token.type === 'mathInline'" :class="$style.mfmMath" v-html="renderKatex(token.value, false)"></span><!--
     --><!-- Math Block --><div v-else-if="token.type === 'mathBlock'" :class="$style.mfmMathBlock" v-html="renderKatex(token.value, true)"></div><!--
     --><!-- Heading (Markdown 拡張) --><h1 v-else-if="token.type === 'heading' && token.level === 1" :class="[$style.mfmHeading, $style.mfmHeading1]"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></h1><!--

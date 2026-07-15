@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { computed, onMounted, ref } from 'vue'
 import { MisskeyAuth } from '@/adapters/misskey/auth'
 import type { AuthSession } from '@/adapters/types'
@@ -13,6 +12,7 @@ import { useServersStore } from '@/stores/servers'
 import { useIsCompactLayout } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { openSafeUrl } from '@/utils/url'
 
 const props = defineProps<{
   initialHost?: string
@@ -66,7 +66,7 @@ async function startLogin() {
   try {
     step.value = 'waiting'
     currentSession = await auth.startAuth(trimmedHost)
-    await openUrl(currentSession.url)
+    await openSafeUrl(currentSession.url)
   } catch (e) {
     step.value = 'error'
     errorMessage.value = AppError.from(e).message

@@ -10,6 +10,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
   accountId: string
@@ -55,7 +56,7 @@ const isOwnList = computed(
 
 const listWebUrl = computed(() => {
   if (!list.value || !account.value?.host) return undefined
-  return `https://${account.value.host}/my/lists/${list.value.id}`
+  return webUiUrl(account.value.host, `/my/lists/${list.value.id}`)
 })
 
 useWindowExternalLink(() =>

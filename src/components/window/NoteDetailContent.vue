@@ -40,6 +40,7 @@ import { useIsCompactLayout } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { proxyUrl } from '@/utils/imageProxy'
 import { toggleReaction } from '@/utils/toggleReaction'
+import { webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
   accountId: string
@@ -73,7 +74,7 @@ const noteWebUrl = computed(() => {
   const host = accountsStore.accounts.find(
     (a) => a.id === props.accountId,
   )?.host
-  return host ? `https://${host}/notes/${props.noteId}` : undefined
+  return host ? webUiUrl(host, `/notes/${props.noteId}`) : undefined
 })
 
 useWindowExternalLink(() =>

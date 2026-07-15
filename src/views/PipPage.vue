@@ -268,6 +268,8 @@ onMounted(async () => {
           v-else-if="windowPayload.type === 'follow-list'"
           :account-id="(windowPayload.props.accountId as string)"
           :user-id="(windowPayload.props.userId as string)"
+          :username="(windowPayload.props.username as string | undefined)"
+          :user-host="(windowPayload.props.userHost as string | null | undefined)"
           :initial-tab="(windowPayload.props.initialTab as 'following' | 'followers' | undefined)"
         />
         <LoginContent
