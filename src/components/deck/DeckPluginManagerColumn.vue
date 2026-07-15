@@ -139,7 +139,7 @@ const textQuery = computed(() => {
 })
 
 interface PluginSection {
-  key: 'builtin' | 'selfmade' | 'store'
+  key: 'builtin' | 'sideload' | 'store'
   label: string
   items: PluginMeta[]
 }
@@ -167,7 +167,7 @@ const visiblePlugins = computed<PluginMeta[]>(() => {
 /**
  * インストール済みタブのセクション分け (出自 3 分類):
  *   - ビルドイン: アプリ同梱 seed
- *   - 自作: ＋ボタン手書き・AI 生成・インポート (storeId 無し、同梱以外)
+ *   - サイドロード: ＋ボタン手書き・AI 生成・インポート (storeId 無し、同梱以外)
  *   - ストア配布: storeId 持ち。MisStore に上流がある複製 (手で書き換えても
  *     storeId が残る限りここ)
  * 0 件のセクションは表示しない。
@@ -176,13 +176,13 @@ const installedSections = computed<PluginSection[]>(() => {
   const builtin = visiblePlugins.value.filter(
     (p) => !p.storeId && isBuiltInPlugin(p.installId),
   )
-  const selfMade = visiblePlugins.value.filter(
+  const sideloaded = visiblePlugins.value.filter(
     (p) => !p.storeId && !isBuiltInPlugin(p.installId),
   )
   const store = visiblePlugins.value.filter((p) => !!p.storeId)
   const sections: PluginSection[] = [
     { key: 'builtin', label: 'ビルドイン', items: builtin },
-    { key: 'selfmade', label: '自作', items: selfMade },
+    { key: 'sideload', label: 'サイドロード', items: sideloaded },
     { key: 'store', label: 'ストア配布', items: store },
   ]
   return sections.filter((s) => s.items.length > 0)

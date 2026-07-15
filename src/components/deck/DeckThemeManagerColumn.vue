@@ -91,8 +91,8 @@ interface ThemeSection {
 }
 
 // インストール済みタブのセクション構成 (出自 3 分類 + サーバー):
-//   per-account: 自作 + ストア配布 (MisStore 由来) + サーバー (admin Branding)
-//   cross-account (Global): ビルドイン (同梱) + 自作 + ストア配布 — アプリ全体管理
+//   per-account: サイドロード + ストア配布 (MisStore 由来) + サーバー (admin Branding)
+//   cross-account (Global): ビルドイン (同梱) + サイドロード + ストア配布 — アプリ全体管理
 //
 // 「Web UI で選択中のテーマ」(本家 darkTheme/lightTheme Pref) はサーバーに保存
 // されないため、NoteDeck 側でも介入しない。ユーザーが MisStore から取り込んだ
@@ -120,11 +120,11 @@ const themeSections = computed<ThemeSection[]>(() => {
     })
   }
 
-  // 「自作」 (NoteDeck エディタ作成 / import / storeId 無し)。
+  // 「サイドロード」 (NoteDeck エディタ作成 / import / storeId 無し)。
   // - per-account: installedFor に該当アカウントを含むもののみ
   // - 全アカウント: installedFor に少なくとも 1 つの logged-in account を含む
   //   もの (集約 viewer の semantics)
-  const selfMadeThemes = themeStore.installedThemes
+  const sideloadedThemes = themeStore.installedThemes
     .filter((t) => {
       if (t.$notedeck?.storeId) return false
       if ((t.base ?? 'dark') !== mode) return false
@@ -140,9 +140,9 @@ const themeSections = computed<ThemeSection[]>(() => {
       removable: true,
     }))
   sections.push({
-    key: 'selfmade',
-    label: '自作',
-    items: selfMadeThemes,
+    key: 'sideload',
+    label: 'サイドロード',
+    items: sideloadedThemes,
   })
 
   if (!isCrossAccount.value && accountId.value) {
