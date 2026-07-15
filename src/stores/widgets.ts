@@ -254,7 +254,7 @@ export const useWidgetsStore = defineStore('widgets', () => {
   // --- AI 経由の再実行シグナル (#744) ---
   // widgets.update capability だけが requestRerun を発火し、マウント中の
   // WidgetAiScript が rerunSignal を watch して新 src で再実行する。
-  // ユーザーのウィジェット内エディタ編集 (debounce 自動保存) では発火しない。
+  // ユーザーの widget-edit ウィンドウでの編集 (debounce 自動保存) では発火しない。
   const rerunSignals = ref<Map<string, number>>(new Map())
   const mountedCounts = ref<Map<string, number>>(new Map())
 
