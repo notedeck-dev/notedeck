@@ -21,7 +21,12 @@ export interface CapabilityCheck {
 }
 
 /** NoteDeck が理解する capability の一覧。 */
-const KNOWN_CAPABILITIES = new Set<string>(['misskey-api', 'misskey-account'])
+const KNOWN_CAPABILITIES = new Set<string>([
+  'misskey-api',
+  'misskey-account',
+  // Nd:* API (notedeck-api.ts)。accountId 非依存なので追加条件なし。
+  'notedeck-api',
+])
 
 export function checkWidgetCapabilities(
   capabilities: readonly string[],
