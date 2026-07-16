@@ -116,9 +116,12 @@ pub async fn auth_complete_and_save(
         .get_account_by_host_user(&session.host, &auth_result.user.id)?
         .ok_or_else(|| NoteDeckError::Auth("Failed to save account".to_string()))?;
 
-    // キーチェーンに保存し、読み戻せたら DB のトークンをクリア
+    // キーチェーンに保存し、読み戻せたら DB のトークンをクリア。
+    // 再起動非永続な store (Linux keyutils) では keychain はキャッシュ扱いとし、
+    // DB フォールバックを残す (#785)
     if keychain::store_token(&saved.id, &token).is_ok()
         && keychain::get_token(&saved.id).ok().flatten().is_some()
+        && keychain::is_persistent()
     {
         let _ = db.clear_token(&saved.id);
     }
