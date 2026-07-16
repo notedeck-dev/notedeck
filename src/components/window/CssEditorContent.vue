@@ -65,7 +65,9 @@ const cssCode = ref(themeStore.customCss)
 const presets = ref({
   customFont: '',
   fontSize: 0,
-  customCursor: '',
+  visibilityBg: '',
+  hideNoteCounts: '',
+  hideUserStats: '',
 })
 
 // Parse existing CSS to restore preset states
@@ -74,8 +76,12 @@ function parsePresetsFromCss(cssStr: string) {
   presets.value.customFont = fontMatch?.[1] ?? ''
   const sizeMatch = cssStr.match(/\/\* nd-fontsize: (.+?) \*\//)
   presets.value.fontSize = sizeMatch ? Number(sizeMatch[1]) : 0
-  const cursorMatch = cssStr.match(/\/\* nd-cursor: (.+?) \*\//)
-  presets.value.customCursor = cursorMatch?.[1] ?? ''
+  const visibilityBgMatch = cssStr.match(/\/\* nd-visibility-bg: (.+?) \*\//)
+  presets.value.visibilityBg = visibilityBgMatch?.[1] ?? ''
+  const noteCountsMatch = cssStr.match(/\/\* nd-hide-note-counts: (.+?) \*\//)
+  presets.value.hideNoteCounts = noteCountsMatch?.[1] ?? ''
+  const userStatsMatch = cssStr.match(/\/\* nd-hide-user-stats: (.+?) \*\//)
+  presets.value.hideUserStats = userStatsMatch?.[1] ?? ''
 }
 parsePresetsFromCss(cssCode.value)
 
@@ -136,23 +142,44 @@ const FONT_SIZE_BASE = 15
 const FONT_SIZE_MIN = -3
 const FONT_SIZE_MAX = 5
 
-interface CursorOption {
-  key: string
-  label: string
-  css: string
+// 公開範囲ごとのノート背景色 (public はデフォルトのまま)
+const VISIBILITY_BG_COLORS: Record<string, { label: string; color: string }> = {
+  home: { label: 'ホーム', color: 'rgba(51, 127, 255, 0.08)' },
+  followers: { label: 'フォロワー', color: 'rgba(0, 170, 100, 0.08)' },
+  specified: { label: 'ダイレクト', color: 'rgba(255, 90, 120, 0.1)' },
 }
 
-const ROCKET_CURSOR_SVG =
-  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><text y='16' font-size='16'>%F0%9F%9A%80</text></svg>"
+interface VisibilityBgOption {
+  key: string
+  label: string
+}
 
-const CURSOR_OPTIONS: CursorOption[] = [
-  { key: '', label: 'デフォルト', css: '' },
-  {
-    key: 'rocket',
-    label: 'ロケット',
-    css: `url("${ROCKET_CURSOR_SVG}") 2 18, auto`,
-  },
+const VISIBILITY_BG_OPTIONS: VisibilityBgOption[] = [
+  { key: '', label: 'デフォルト' },
+  { key: 'tint', label: '背景色で色分け' },
 ]
+
+// 数字の非表示 (#593/#594)。yamisskey の hideReactionCount / hide*Count と
+// 同じ self/others/all の 3 段階。導線 (クリックで一覧を開く等) は残し数字だけ消す。
+// ノート側はリアクション数 + リノート数 (評価シグナル)。返信数は会話の量なので対象外
+interface HideCountOption {
+  key: string
+  label: string
+}
+
+const HIDE_COUNT_OPTIONS: HideCountOption[] = [
+  { key: '', label: 'デフォルト' },
+  { key: 'self', label: '自分のみ隠す' },
+  { key: 'others', label: '他人のみ隠す' },
+  { key: 'all', label: 'すべて隠す' },
+]
+
+function hideCountTargets(key: string): string[] {
+  if (key === 'self') return ['true']
+  if (key === 'others') return ['false']
+  if (key === 'all') return ['true', 'false']
+  return []
+}
 
 const fontSizeLabel = computed(() => {
   if (presets.value.fontSize === 0) return 'デフォルト (15px)'
@@ -201,11 +228,37 @@ function buildPresetCss(): string {
     parts.push(`html { font-size: ${px}px; }`)
   }
 
-  if (presets.value.customCursor) {
-    const opt = CURSOR_OPTIONS.find((o) => o.key === presets.value.customCursor)
-    if (opt?.css) {
-      parts.push(`/* nd-cursor: ${opt.key} */`)
-      parts.push(`*, *::before, *::after { cursor: ${opt.css}; }`)
+  if (presets.value.visibilityBg === 'tint') {
+    parts.push('/* nd-visibility-bg: tint */')
+    for (const [visibility, { color }] of Object.entries(
+      VISIBILITY_BG_COLORS,
+    )) {
+      parts.push(
+        `.note-root[data-visibility="${visibility}"] { background-color: ${color}; }`,
+      )
+    }
+  }
+
+  const noteCountTargets = hideCountTargets(presets.value.hideNoteCounts)
+  if (noteCountTargets.length > 0) {
+    parts.push(`/* nd-hide-note-counts: ${presets.value.hideNoteCounts} */`)
+    for (const own of noteCountTargets) {
+      parts.push(
+        `.note-root[data-own="${own}"] :is(.note-reaction-count, .note-renote-count) { display: none; }`,
+      )
+    }
+  }
+
+  const statsTargets = hideCountTargets(presets.value.hideUserStats)
+  if (statsTargets.length > 0) {
+    parts.push(`/* nd-hide-user-stats: ${presets.value.hideUserStats} */`)
+    for (const own of statsTargets) {
+      parts.push(
+        `.user-stats[data-own="${own}"] .user-stat-count { font-size: 0; }`,
+      )
+      parts.push(
+        `.user-stats[data-own="${own}"] .user-stat-count::before { content: '-'; font-size: 1rem; }`,
+      )
     }
   }
 
@@ -220,12 +273,17 @@ function extractUserCss(fullCss: string): string {
       if (!t) return false
       if (t.startsWith('/* nd-font:')) return false
       if (t.startsWith('/* nd-fontsize:')) return false
-      if (t.startsWith('/* nd-cursor:')) return false
+      if (t.startsWith('/* nd-visibility-bg:')) return false
+      if (t.startsWith('/* nd-hide-note-counts:')) return false
+      if (t.startsWith('/* nd-hide-user-stats:')) return false
+      // 生成行 (1 行完結) のみ除去。ユーザーが複数行で書いた同セレクタは残す
+      if (t.match(/^\.note-root\[data-visibility=.+\{.*\}$/)) return false
+      if (t.match(/^\.note-root\[data-own=.+\{.*\}$/)) return false
+      if (t.match(/^\.user-stats\[data-own=.+\{.*\}$/)) return false
       if (t.startsWith('@import url(')) return false
       if (t.startsWith('@font-face')) return false
       if (t.match(/^html\s*\{\s*font-family:/)) return false
       if (t.match(/^html\s*\{\s*font-size:/)) return false
-      if (t.match(/^\*,\s*\*::before,\s*\*::after\s*\{\s*cursor:/)) return false
       return true
     })
     .join('\n')
@@ -263,7 +321,9 @@ watch(
   () => [
     presets.value.customFont,
     presets.value.fontSize,
-    presets.value.customCursor,
+    presets.value.visibilityBg,
+    presets.value.hideNoteCounts,
+    presets.value.hideUserStats,
   ],
   () => {
     const cssStr = fullCss.value
@@ -339,7 +399,13 @@ const { confirming: confirmingClear, trigger: triggerClear } =
 
 function handleClear() {
   triggerClear(() => {
-    presets.value = { customFont: '', fontSize: 0, customCursor: '' }
+    presets.value = {
+      customFont: '',
+      fontSize: 0,
+      visibilityBg: '',
+      hideNoteCounts: '',
+      hideUserStats: '',
+    }
     userFreeformCss.value = ''
     cssCode.value = ''
     cssError.value = null
@@ -366,27 +432,52 @@ useClickOutside(dropdownRef, () => {
   showFontDropdown.value = false
 })
 
-// Cursor dropdown
-const showCursorDropdown = ref(false)
-const cursorDropdownRef = ref<HTMLElement | null>(null)
+// Visibility background dropdown
+const showVisibilityBgDropdown = ref(false)
+const visibilityBgDropdownRef = ref<HTMLElement | null>(null)
 
-const selectedCursorLabel = computed(() => {
-  const opt = CURSOR_OPTIONS.find((o) => o.key === presets.value.customCursor)
+const selectedVisibilityBgLabel = computed(() => {
+  const opt = VISIBILITY_BG_OPTIONS.find(
+    (o) => o.key === presets.value.visibilityBg,
+  )
   return opt?.label ?? 'デフォルト'
 })
 
-const cursorPreviewStyle = computed(() => {
-  const opt = CURSOR_OPTIONS.find((o) => o.key === presets.value.customCursor)
-  return opt?.css ? { cursor: opt.css } : {}
-})
-
-function selectCursor(key: string) {
-  presets.value.customCursor = key
-  showCursorDropdown.value = false
+function selectVisibilityBg(key: string) {
+  presets.value.visibilityBg = key
+  showVisibilityBgDropdown.value = false
 }
 
-useClickOutside(cursorDropdownRef, () => {
-  showCursorDropdown.value = false
+useClickOutside(visibilityBgDropdownRef, () => {
+  showVisibilityBgDropdown.value = false
+})
+
+// Hide-count dropdowns (#593/#594)
+const showNoteCountsDropdown = ref(false)
+const noteCountsDropdownRef = ref<HTMLElement | null>(null)
+const showUserStatsDropdown = ref(false)
+const userStatsDropdownRef = ref<HTMLElement | null>(null)
+
+function hideCountLabel(key: string): string {
+  return HIDE_COUNT_OPTIONS.find((o) => o.key === key)?.label ?? 'デフォルト'
+}
+
+function selectNoteCounts(key: string) {
+  presets.value.hideNoteCounts = key
+  showNoteCountsDropdown.value = false
+}
+
+function selectUserStats(key: string) {
+  presets.value.hideUserStats = key
+  showUserStatsDropdown.value = false
+}
+
+useClickOutside(noteCountsDropdownRef, () => {
+  showNoteCountsDropdown.value = false
+})
+
+useClickOutside(userStatsDropdownRef, () => {
+  showUserStatsDropdown.value = false
 })
 
 watch(tab, (t) => {
@@ -490,40 +581,120 @@ watch(tab, (t) => {
         </template>
       </div>
 
-      <!-- Cursor -->
+      <!-- Visibility background -->
       <div :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('cursor')">
-          <i class="ti ti-pointer" />
-          カーソル
-          <span :class="$style.sectionValue">{{ selectedCursorLabel }}</span>
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.cursor }]" />
+        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('visibilityBg')">
+          <i class="ti ti-eye" />
+          公開範囲の色分け
+          <span :class="$style.sectionValue">{{ selectedVisibilityBgLabel }}</span>
+          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.visibilityBg }]" />
         </button>
-        <template v-if="expandedSections.cursor">
-          <div ref="cursorDropdownRef" :class="$style.dropdown">
+        <template v-if="expandedSections.visibilityBg">
+          <div ref="visibilityBgDropdownRef" :class="$style.dropdown">
             <button
               class="_button"
               :class="$style.dropdownTrigger"
-              @click="showCursorDropdown = !showCursorDropdown"
+              @click="showVisibilityBgDropdown = !showVisibilityBgDropdown"
             >
-              <span>{{ selectedCursorLabel }}</span>
+              <span>{{ selectedVisibilityBgLabel }}</span>
               <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
             </button>
-            <div v-if="showCursorDropdown" :class="$style.dropdownPanel">
+            <div v-if="showVisibilityBgDropdown" :class="$style.dropdownPanel">
               <button
-                v-for="opt in CURSOR_OPTIONS"
+                v-for="opt in VISIBILITY_BG_OPTIONS"
                 :key="opt.key"
                 class="_button"
-                :class="[$style.dropdownItem, { [$style.selected]: presets.customCursor === opt.key }]"
-                :style="opt.css ? { cursor: opt.css } : {}"
-                @click="selectCursor(opt.key)"
+                :class="[$style.dropdownItem, { [$style.selected]: presets.visibilityBg === opt.key }]"
+                @click="selectVisibilityBg(opt.key)"
               >
                 <span>{{ opt.label }}</span>
-                <i v-if="presets.customCursor === opt.key" class="ti ti-check" :class="$style.checkIcon" />
+                <i v-if="presets.visibilityBg === opt.key" class="ti ti-check" :class="$style.checkIcon" />
               </button>
             </div>
           </div>
-          <div :class="$style.preview" :style="cursorPreviewStyle">
-            ここにマウスを重ねてプレビュー
+          <div v-if="presets.visibilityBg === 'tint'" :class="$style.visibilityBgPreview">
+            <div
+              v-for="({ label, color }, visibility) in VISIBILITY_BG_COLORS"
+              :key="visibility"
+              :class="$style.visibilityBgRow"
+              :style="{ backgroundColor: color }"
+            >
+              {{ label }}
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Hide note counts (#594) -->
+      <div :class="$style.section">
+        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('noteCounts')">
+          <i class="ti ti-mood-smile" />
+          ノートの数字を隠す
+          <span :class="$style.sectionValue">{{ hideCountLabel(presets.hideNoteCounts) }}</span>
+          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.noteCounts }]" />
+        </button>
+        <template v-if="expandedSections.noteCounts">
+          <div ref="noteCountsDropdownRef" :class="$style.dropdown">
+            <button
+              class="_button"
+              :class="$style.dropdownTrigger"
+              @click="showNoteCountsDropdown = !showNoteCountsDropdown"
+            >
+              <span>{{ hideCountLabel(presets.hideNoteCounts) }}</span>
+              <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
+            </button>
+            <div v-if="showNoteCountsDropdown" :class="$style.dropdownPanel">
+              <button
+                v-for="opt in HIDE_COUNT_OPTIONS"
+                :key="opt.key"
+                class="_button"
+                :class="[$style.dropdownItem, { [$style.selected]: presets.hideNoteCounts === opt.key }]"
+                @click="selectNoteCounts(opt.key)"
+              >
+                <span>{{ opt.label }}</span>
+                <i v-if="presets.hideNoteCounts === opt.key" class="ti ti-check" :class="$style.checkIcon" />
+              </button>
+            </div>
+          </div>
+          <div :class="$style.hideCountNote">
+            リアクション数とリノート数が消えます (返信数は会話の量なので残ります)
+          </div>
+        </template>
+      </div>
+
+      <!-- Hide user stats (#593) -->
+      <div :class="$style.section">
+        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('userStats')">
+          <i class="ti ti-chart-bar" />
+          プロフィールの数字を隠す
+          <span :class="$style.sectionValue">{{ hideCountLabel(presets.hideUserStats) }}</span>
+          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.userStats }]" />
+        </button>
+        <template v-if="expandedSections.userStats">
+          <div ref="userStatsDropdownRef" :class="$style.dropdown">
+            <button
+              class="_button"
+              :class="$style.dropdownTrigger"
+              @click="showUserStatsDropdown = !showUserStatsDropdown"
+            >
+              <span>{{ hideCountLabel(presets.hideUserStats) }}</span>
+              <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
+            </button>
+            <div v-if="showUserStatsDropdown" :class="$style.dropdownPanel">
+              <button
+                v-for="opt in HIDE_COUNT_OPTIONS"
+                :key="opt.key"
+                class="_button"
+                :class="[$style.dropdownItem, { [$style.selected]: presets.hideUserStats === opt.key }]"
+                @click="selectUserStats(opt.key)"
+              >
+                <span>{{ opt.label }}</span>
+                <i v-if="presets.hideUserStats === opt.key" class="ti ti-check" :class="$style.checkIcon" />
+              </button>
+            </div>
+          </div>
+          <div :class="$style.hideCountNote">
+            ノート数・フォロー数・フォロワー数が「-」になります (クリック導線は残ります)
           </div>
         </template>
       </div>
@@ -684,6 +855,12 @@ watch(tab, (t) => {
   opacity: 0.8;
 }
 
+// sectionValue がある行では auto マージンを値側だけに持たせ、
+// 値をシェブロン直前に右揃えする (両方 auto だと余白が均等分配され中間に浮く)
+.sectionValue + .chevron {
+  margin-left: 0;
+}
+
 .dropdown {
   position: relative;
   width: 100%;
@@ -753,6 +930,24 @@ watch(tab, (t) => {
   background: var(--nd-bg);
   font-size: 0.9em;
   text-align: center;
+}
+
+.visibilityBgPreview {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg);
+  font-size: 0.9em;
+  overflow: hidden;
+}
+
+.visibilityBgRow {
+  padding: 8px 10px;
+}
+
+.hideCountNote {
+  font-size: 0.75em;
+  opacity: 0.6;
 }
 
 .sliderRow { display: flex; align-items: center; gap: 8px; }

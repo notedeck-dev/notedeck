@@ -500,6 +500,8 @@ function handlePickerReaction(reaction: string) {
       },
     ]"
     :style="channelInfo && showChannelInfo ? { '--nd-channel-color': channelInfo.color } : undefined"
+    :data-visibility="effectiveNote.visibility"
+    :data-own="isOwnNote"
     tabindex="0"
     @mousedown="clearSpotlight"
     @contextmenu.prevent.stop="moreMenuRef?.open($event)"
@@ -775,7 +777,7 @@ function handlePickerReaction(reaction: string) {
               <img v-if="reactionUrls[r.reaction]" :src="proxyUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.customEmoji" decoding="async" loading="lazy" @error="(e: Event) => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/emoji-unknown.svg')) img.src = '/emoji-unknown.svg' }" />
               <img v-else-if="r.reaction.startsWith(':')" src="/emoji-unknown.svg" :alt="r.reaction" :title="r.reaction" :class="$style.customEmoji" />
               <MkEmoji v-else :emoji="r.reaction" :class="$style.reactionEmoji" />
-              <span :class="$style.count">{{ r.count }}</span>
+              <span class="note-reaction-count" :class="$style.count">{{ r.count }}</span>
             </button>
           </div>
         </div>
@@ -804,7 +806,7 @@ function handlePickerReaction(reaction: string) {
           </button>
           <button v-if="canRenote" :class="[$style.footerButton, $style.renoteButton, { [$style.renoted]: isRenoted, [$style.footerDisabled]: isGuest }]" :disabled="isGuest" @click.stop="canInteract ? openRenoteMenu($event) : showLoginPrompt()">
             <i class="ti ti-repeat" />
-            <span v-if="effectiveNote.renoteCount > 0" :class="$style.buttonCount">
+            <span v-if="effectiveNote.renoteCount > 0" class="note-renote-count" :class="$style.buttonCount">
               {{ effectiveNote.renoteCount }}
             </span>
           </button>

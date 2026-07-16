@@ -343,8 +343,8 @@ usePortal(postPortalRef)
                   plain
                 />
               </div>
-              <div :class="$style.exploreUserMeta">
-                <i class="ti ti-users" /> {{ user.followersCount }}
+              <div class="user-stats" :class="$style.exploreUserMeta" :data-own="account?.userId === user.id">
+                <i class="ti ti-users" /> <span class="user-stat-count">{{ user.followersCount }}</span>
               </div>
             </template>
           </MkUserListItem>

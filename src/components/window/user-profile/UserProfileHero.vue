@@ -317,17 +317,17 @@ onMounted(() => {
     </div>
 
     <!-- Stats -->
-    <div :class="$style.stats">
+    <div class="user-stats" :class="$style.stats" :data-own="isOwnProfile">
       <div :class="$style.stat">
-        <b>{{ formatCount(user.notesCount) }}</b>
+        <b class="user-stat-count">{{ formatCount(user.notesCount) }}</b>
         <span>ノート</span>
       </div>
       <button v-if="canSeeFollowing" :class="[$style.stat, $style.statLink]" class="_button" @click="openFollowList('following')">
-        <b>{{ formatCount(user.followingCount) }}</b>
+        <b class="user-stat-count">{{ formatCount(user.followingCount) }}</b>
         <span>フォロー</span>
       </button>
       <button v-if="canSeeFollowers" :class="[$style.stat, $style.statLink]" class="_button" @click="openFollowList('followers')">
-        <b>{{ formatCount(user.followersCount) }}</b>
+        <b class="user-stat-count">{{ formatCount(user.followersCount) }}</b>
         <span>フォロワー</span>
       </button>
     </div>

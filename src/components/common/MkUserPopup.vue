@@ -39,6 +39,8 @@ const account = computed(() =>
 const user = ref<NormalizedUserDetail | null>(null)
 const isLoading = ref(true)
 
+const isOwnUser = computed(() => account.value?.userId === user.value?.id)
+
 onMounted(async () => {
   const cacheKey = `${props.accountId}:${props.userId}`
   try {
@@ -153,10 +155,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <MkMfm :text="user.description" :server-host="account?.host" />
         </div>
 
-        <div :class="$style.popupStats">
-          <span><b>{{ formatCount(user.notesCount) }}</b> ノート</span>
-          <span><b>{{ formatCount(user.followingCount) }}</b> フォロー</span>
-          <span><b>{{ formatCount(user.followersCount) }}</b> フォロワー</span>
+        <div class="user-stats" :class="$style.popupStats" :data-own="isOwnUser">
+          <span><b class="user-stat-count">{{ formatCount(user.notesCount) }}</b> ノート</span>
+          <span><b class="user-stat-count">{{ formatCount(user.followingCount) }}</b> フォロー</span>
+          <span><b class="user-stat-count">{{ formatCount(user.followersCount) }}</b> フォロワー</span>
         </div>
 
         <div v-if="user.isFollowed" :class="$style.popupBadge">フォローされています</div>
