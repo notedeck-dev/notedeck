@@ -279,10 +279,10 @@ pub fn get_credentials(db: &Database, account_id: &str) -> Result<(String, Strin
     let host = account.host.clone();
 
     // Try keychain first (ignore errors — keychain may be unavailable)
-    // Try keychain first (ignore errors — keychain may be unavailable)
     if let Some(token) = keychain::get_token(account_id).ok().flatten() {
-        // Keychain has the token; clear DB copy if still present
-        if !account.token.is_empty() {
+        // Keychain has the token; clear DB copy if still present.
+        // 再起動非永続な store (Linux keyutils) では DB フォールバックを消さない (#785)
+        if !account.token.is_empty() && keychain::is_persistent() {
             let _ = db.clear_token(account_id);
         }
         CREDENTIAL_CACHE.insert(account_id, &host, &token);
@@ -293,7 +293,8 @@ pub fn get_credentials(db: &Database, account_id: &str) -> Result<(String, Strin
     let mut db_token = account.token.clone();
     if !db_token.is_empty() {
         // Try lazy migration to keychain; verify before clearing DB
-        if keychain::store_token(account_id, &db_token).is_ok()
+        if keychain::is_persistent()
+            && keychain::store_token(account_id, &db_token).is_ok()
             && keychain::get_token(account_id).ok().flatten().is_some()
         {
             let _ = db.clear_token(account_id);
