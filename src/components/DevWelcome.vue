@@ -9,7 +9,7 @@ const appVersion = __APP_VERSION__
     <div :class="$style.blob2" />
     <div :class="$style.center">
       <img
-        src="https://raw.githubusercontent.com/hitalin/notedeck/main/src-tauri/icons/128x128%402x.png"
+        src="https://raw.githubusercontent.com/notedeck-dev/notedeck/main/src-tauri/icons/128x128%402x.png"
         alt="NoteDeck"
         :class="$style.icon"
       />

@@ -544,7 +544,7 @@ export const pluginsRevertCapability: Command = {
 }
 
 /**
- * `plugins.install` — MisStore (misstore.hital.in) から既製プラグインを取得して
+ * `plugins.install` — MisStore (store.notedeck.io) から既製プラグインを取得して
  * plugins store に追加する。AI が「○○の機能ない？」のように推薦から install
  * まで一気通貫で実行できるようにするためのラッパ。
  *
@@ -591,7 +591,7 @@ export const pluginsInstallCapability: Command = {
   },
   signature: {
     description:
-      'MisStore (misstore.hital.in) の既製プラグインをインストールする。' +
+      'MisStore (store.notedeck.io) の既製プラグインをインストールする。' +
       ' id は `misstore.search` で取得した値を渡す。sha512 検証付き。' +
       ' 全体スコープ (全アカウント対象) でインストールされ、既に同 storeId の' +
       ' プラグインがあれば再インストールせず全体スコープへ追加するだけ。',

@@ -1,7 +1,7 @@
 /**
  * AiScript App ウィジェットテンプレート
  *
- * テンプレート一覧とソースコードは misstore (https://misstore.hital.in) から配信される。
+ * テンプレート一覧とソースコードは misstore (https://store.notedeck.io) から配信される。
  * 実体は useMisStoreStore が持ち、ここはビュー向けの薄い整形層。
  */
 

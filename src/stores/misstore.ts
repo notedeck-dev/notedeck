@@ -15,7 +15,7 @@ import {
 } from '@/stores/widgets'
 import { parseSkillFile } from '@/utils/skillFrontmatter'
 
-const STORE_BASE_URL = 'https://misstore.hital.in'
+const STORE_BASE_URL = 'https://store.notedeck.io'
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
 export function getPluginDetailUrl(id: string): string {

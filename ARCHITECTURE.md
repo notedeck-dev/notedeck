@@ -62,7 +62,7 @@ graph TB
 
 **技術スタック:**
 - **フレームワーク**: Tauri V2
-- **フロントエンド**: Vue 3 + TypeScript + Vite（Vapor モード移行予定 [#52](https://github.com/hitalin/notedeck/issues/52)）
+- **フロントエンド**: Vue 3 + TypeScript + Vite（Vapor モード移行予定 [#52](https://github.com/notedeck-dev/notedeck/issues/52)）
 - **バックエンド**: Rust (Axum, notecli)
 - **対応プラットフォーム**: Windows, macOS, Linux, Android
 
@@ -508,7 +508,7 @@ notecli tl -f json | jq '.[].text'
 
 ---
 
-### Vue Vapor モード移行（[#52](https://github.com/hitalin/notedeck/issues/52)）
+### Vue Vapor モード移行（[#52](https://github.com/notedeck-dev/notedeck/issues/52)）
 
 Vue 3.6 で導入予定の Vapor モード（仮想DOMレス）への移行準備が**完了**。
 既知の移行ブロッカーはゼロ。Vue 3.6 リリース時にそのまま有効化可能。
@@ -1345,7 +1345,7 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 | リアルタイム通信 | A-4 マルチ配信ブリッジ / A-4b suspend/resume / A-4c reaction freshness |
 | Query 集約 | A-11 Rust Query Runtime + Read Model（インフラ実装済み・カラム移行は段階的） |
 | キャッシュ | A-5 3層画像 / A-6 OGP / A-8 オフラインファースト |
-| チャットキャッシュ | A-12 `chat_messages_cache`（Phase A + B-1〜B-6 実装済み [#460](https://github.com/hitalin/notedeck/issues/460)） |
+| チャットキャッシュ | A-12 `chat_messages_cache`（Phase A + B-1〜B-6 実装済み [#460](https://github.com/notedeck-dev/notedeck/issues/460)） |
 | DOM管理 | A-10 上限付き積み上げ（デフォルト200件/カラム、設定で可変） |
 | レンダリングパフォーマンス | [DEVELOPMENT.md](DEVELOPMENT.md#レンダリングパフォーマンス) に詳細 |
 | OS統合 | A-7 トレイ/ショートカット |

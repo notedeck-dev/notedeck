@@ -1,4 +1,4 @@
-//! Secret Vault ([#564](https://github.com/hitalin/notedeck/issues/564)) の Tauri コマンド層。
+//! Secret Vault ([#564](https://github.com/notedeck-dev/notedeck/issues/564)) の Tauri コマンド層。
 //!
 //! ロジックは [`crate::vault`] モジュールにあり、ここは薄いラッパー。
 //! 全コマンドは main ウィンドウからのみ呼べる (AiScript の WebView 等を遮断)。

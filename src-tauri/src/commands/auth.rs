@@ -67,7 +67,7 @@ pub async fn auth_start(
     }
     let permission_str = perms.join(",");
     let url = format!(
-        "https://{host}/miauth/{session_id}?name=notedeck&icon=https%3A%2F%2Fraw.githubusercontent.com%2Fhitalin%2Fnotedeck%2Fmain%2Fsrc-tauri%2Ficons%2F128x128.png&permission={permission_str}"
+        "https://{host}/miauth/{session_id}?name=notedeck&icon=https%3A%2F%2Fraw.githubusercontent.com%2Fnotedeck-dev%2Fnotedeck%2Fmain%2Fsrc-tauri%2Ficons%2F128x128.png&permission={permission_str}"
     );
     tracker.register(&session_id, &host);
     Ok(AuthSession {

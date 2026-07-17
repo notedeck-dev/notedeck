@@ -5,9 +5,9 @@ PackageLocale: en-US
 Publisher: hitalin
 PublisherUrl: https://github.com/hitalin
 PackageName: NoteDeck
-PackageUrl: https://github.com/hitalin/notedeck
+PackageUrl: https://github.com/notedeck-dev/notedeck
 License: AGPL-3.0
-LicenseUrl: https://github.com/hitalin/notedeck/blob/main/LICENSE
+LicenseUrl: https://github.com/notedeck-dev/notedeck/blob/main/LICENSE
 ShortDescription: Misskey Pro — an integrated deck environment (IDE) for Misskey power users
 Description: |-
   NoteDeck is "Misskey Pro" — an integrated deck environment (IDE)

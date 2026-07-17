@@ -25,8 +25,8 @@ const uiStore = useUiStore()
 const tutorialStore = useTutorialStore()
 const accountsStore = useAccountsStore()
 
-const REPO_URL = 'https://github.com/hitalin/notedeck'
-const SITE_URL = 'https://notedeck.hital.in'
+const REPO_URL = 'https://github.com/notedeck-dev/notedeck'
+const SITE_URL = 'https://notedeck.io'
 const SPONSOR_URL = 'https://github.com/sponsors/hitalin'
 
 // チュートリアル (= ヘルプ/案内) の再実行はここから。設定メニューではなく

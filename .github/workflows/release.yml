@@ -416,6 +416,8 @@ jobs:
           installers-regex: '-windows-x64-setup\.exe$'
           version: ${{ steps.version.outputs.version }}
           token: ${{ secrets.WINGET_TOKEN }}
+          # winget-pkgs fork は notedeck-dev org に移管済み (デフォルトはトークン所有者を参照)
+          fork-user: notedeck-dev
 
   announce:
     needs: publish

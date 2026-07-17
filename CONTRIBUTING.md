@@ -4,7 +4,7 @@
 
 ### バグ報告・機能提案
 
-[Issues](https://github.com/hitalin/notedeck/issues) から報告してください。
+[Issues](https://github.com/notedeck-dev/notedeck/issues) から報告してください。
 再現手順、スクリーンショット、サーバーのソフトウェア名とバージョンがあると助かります。
 
 ### フォーク対応の追加
