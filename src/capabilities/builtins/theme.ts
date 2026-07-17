@@ -458,7 +458,7 @@ export const themeRevertCapability: Command = {
 }
 
 /**
- * `theme.install` — MisStore (misstore.hital.in) から既製テーマを取得して
+ * `theme.install` — MisStore (store.notedeck.io) から既製テーマを取得して
  * installedThemes に追加する。AI が「ダークなら Dracula が定番」のように
  * 推薦して install まで一気通貫で実行できるようにするためのラッパ。
  *
@@ -500,7 +500,7 @@ export const themeInstallCapability: Command = {
   },
   signature: {
     description:
-      'MisStore (misstore.hital.in) の既製テーマをインストールする。' +
+      'MisStore (store.notedeck.io) の既製テーマをインストールする。' +
       ' id は `misstore.search` で取得した値を渡す。' +
       ' sha512 検証付き。インストール後は theme.apply で適用可能。',
     params: {

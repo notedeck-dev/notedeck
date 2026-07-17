@@ -9,7 +9,7 @@
  * Phase 2 A-1 (本ファイル): 型定義のみ。実 dispatcher は A-2 で実装。
  *
  * 設計詳細: #408 "Capability Registry as Single Source of Truth"
- *   https://github.com/hitalin/notedeck/issues/408#issuecomment-4334932896
+ *   https://github.com/notedeck-dev/notedeck/issues/408#issuecomment-4334932896
  */
 
 import type { Principal } from '@/permissions/principal'

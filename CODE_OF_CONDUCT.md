@@ -31,8 +31,8 @@ Examples of unacceptable behavior:
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported by contacting the project maintainer via
-[GitHub Issues](https://github.com/hitalin/notedeck/issues) (private reports
-can use GitHub's [private vulnerability reporting](https://github.com/hitalin/notedeck/security)).
+[GitHub Issues](https://github.com/notedeck-dev/notedeck/issues) (private reports
+can use GitHub's [private vulnerability reporting](https://github.com/notedeck-dev/notedeck/security)).
 
 All complaints will be reviewed and investigated and will result in a response
 that is deemed necessary and appropriate to the circumstances.

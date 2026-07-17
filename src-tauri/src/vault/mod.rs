@@ -1,4 +1,4 @@
-//! 汎用 Secret Vault ([#564](https://github.com/hitalin/notedeck/issues/564))。
+//! 汎用 Secret Vault ([#564](https://github.com/notedeck-dev/notedeck/issues/564))。
 //!
 //! AiScript / AI / プラグインが任意の外部サービスへ接続するためのシークレット基盤。
 //! Misskey トークン・AI API キーで確立済みの credential proxy モデル

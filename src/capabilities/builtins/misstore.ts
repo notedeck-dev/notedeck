@@ -2,17 +2,17 @@ import type { Command } from '@/commands/registry'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /**
- * `misstore.search` — MisStore (misstore.hital.in) のレジストリ JSON を
+ * `misstore.search` — MisStore (store.notedeck.io) のレジストリ JSON を
  * GET して結果をフィルタする。AI がユーザーに「これあるよ」と推薦するため。
  *
  * 命名: ユーザー確定方針で `misstore.<verb>` (固有名 + 動詞)。
  *
- * 内部実装は HTTP fetch だが、エンドポイントが固定 (misstore.hital.in) なので
+ * 内部実装は HTTP fetch だが、エンドポイントが固定 (store.notedeck.io) なので
  * `requiresConfirmation` は false。任意の URL を叩く `http.fetch` とは違う
  * リスクプロファイル。
  */
 
-const MISSTORE_BASE = 'https://misstore.hital.in'
+const MISSTORE_BASE = 'https://store.notedeck.io'
 const VALID_KINDS = ['plugin', 'widget', 'skill', 'theme'] as const
 type Kind = (typeof VALID_KINDS)[number]
 
@@ -34,7 +34,7 @@ export const misstoreSearchCapability: Command = {
   permissions: ['network.external'],
   signature: {
     description:
-      'MisStore (misstore.hital.in) のレジストリを検索する。' +
+      'MisStore (store.notedeck.io) のレジストリを検索する。' +
       ' query は name / description / id の部分一致 (大小無視)。' +
       ' kind 省略時は plugin / widget / skill / theme を全件横断検索。' +
       ' エンドポイントは固定なので確認ダイアログは出ない。',

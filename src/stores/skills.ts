@@ -433,7 +433,7 @@ export const useSkillsStore = defineStore('skills', () => {
       mode: 'manual',
       builtIn: false,
       storeId: 'aizu',
-      iconUrl: 'https://misstore.hital.in/registry/skills/aizu/icon.svg',
+      iconUrl: 'https://store.notedeck.io/registry/skills/aizu/icon.svg',
       updatedAt: Date.now(),
     }
     skills.value = [

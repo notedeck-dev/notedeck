@@ -30,7 +30,7 @@ const obs = new IntersectionObserver((entries) => {
 document.querySelectorAll('.fade-in').forEach((el) => obs.observe(el));
 
 /* Fetch screenshot URL from README */
-fetch('https://raw.githubusercontent.com/hitalin/notedeck/main/README.md')
+fetch('https://raw.githubusercontent.com/notedeck-dev/notedeck/main/README.md')
   .then(r => r.text())
   .then(md => {
     const m = md.match(/<img[^>]+src="(https:\/\/github\.com\/user-attachments\/assets\/[^"]+)"/);
@@ -39,7 +39,7 @@ fetch('https://raw.githubusercontent.com/hitalin/notedeck/main/README.md')
   .catch(() => {});
 
 /* Resolve direct download URLs from GitHub Releases API */
-fetch('https://api.github.com/repos/hitalin/notedeck/releases/latest')
+fetch('https://api.github.com/repos/notedeck-dev/notedeck/releases/latest')
   .then(r => r.json())
   .then(release => {
     const assets = release.assets || [];

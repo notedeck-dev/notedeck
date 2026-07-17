@@ -5,9 +5,9 @@ PackageLocale: ja-JP
 Publisher: hitalin
 PublisherUrl: https://github.com/hitalin
 PackageName: NoteDeck
-PackageUrl: https://github.com/hitalin/notedeck
+PackageUrl: https://github.com/notedeck-dev/notedeck
 License: AGPL-3.0
-LicenseUrl: https://github.com/hitalin/notedeck/blob/main/LICENSE
+LicenseUrl: https://github.com/notedeck-dev/notedeck/blob/main/LICENSE
 ShortDescription: Misskey Pro — Misskey廃人のための Misskey 統合デッキ環境 (IDE)
 Description: |-
   NoteDeck は「Misskey Pro」— Misskey とそのフォークに対応した、

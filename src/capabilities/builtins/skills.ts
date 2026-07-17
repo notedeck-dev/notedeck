@@ -603,7 +603,7 @@ export const skillsRevertCapability: Command = {
 }
 
 /**
- * `skills.install` — MisStore (misstore.hital.in) から既製 skill を取得して
+ * `skills.install` — MisStore (store.notedeck.io) から既製 skill を取得して
  * skills store に追加する。AI が「翻訳がうまい persona ない？」のように
  * 推薦から install まで一気通貫で実行できるようにするためのラッパ。
  *
@@ -652,7 +652,7 @@ export const skillsInstallCapability: Command = {
   },
   signature: {
     description:
-      'MisStore (misstore.hital.in) の既製スキルをインストールする。' +
+      'MisStore (store.notedeck.io) の既製スキルをインストールする。' +
       ' id は `misstore.search` で取得した値を渡す。sha512 検証付き。' +
       ' 既存の同 storeId / 同 id は上書き更新 (= 再インストール = アップデート)。',
     params: {

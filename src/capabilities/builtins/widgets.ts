@@ -456,7 +456,7 @@ export const widgetsRevertCapability: Command = {
 }
 
 /**
- * `widgets.install` — MisStore (misstore.hital.in) から既製ウィジェットを取得して
+ * `widgets.install` — MisStore (store.notedeck.io) から既製ウィジェットを取得して
  * widgets store に追加する。AI が「天気 widget が欲しい」のように推薦から
  * install まで一気通貫で実行できるようにするためのラッパ。
  *
@@ -502,7 +502,7 @@ export const widgetsInstallCapability: Command = {
   },
   signature: {
     description:
-      'MisStore (misstore.hital.in) の既製ウィジェットをインストールする。' +
+      'MisStore (store.notedeck.io) の既製ウィジェットをインストールする。' +
       ' id は `misstore.search` で取得した値を渡す。sha512 検証付き。' +
       ' 既に同 storeId のウィジェットがインストール済みなら既存 installId を返す。',
     params: {

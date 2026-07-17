@@ -450,7 +450,7 @@ NoteDeck 同梱で初回起動時に seed される skill:
 
 - [DESIGN.md](DESIGN.md) — NoteDeck の設計判断 / アーキテクチャ
 - [DEVELOPMENT.md](DEVELOPMENT.md) — 開発者向けガイド
-- [#408](https://github.com/hitalin/notedeck/issues/408) — Capability Registry 設計議論
+- [#408](https://github.com/notedeck-dev/notedeck/issues/408) — Capability Registry 設計議論
 
 外部:
 - misstore 入門ガイド (近日) — SKILL を書いて配布する手順
