@@ -295,11 +295,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Server-sent event stream (`text/event-stream`). Each event carries an `event:` type and a JSON `data:` payload. OpenAPI cannot model a streaming body, so the schema is shown as a string.",
+            "description": "Server-sent event stream (`text/event-stream`). Each event carries an `event:` type and a JSON `data:` payload typed as `SseEventPayload` — the `event:` name selects the variant (`note` / `mention` / `note-updated` / `note-capture-updated` / `notification` / `main-{eventType}` / `chat` / `chat-deleted` / `chat-reacted` / `chat-unreacted` / `status`). The `type` query param filters by event-name prefix.",
             "content": {
               "text/event-stream": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/SseEventPayload"
                 }
               }
             }
@@ -1542,6 +1542,226 @@
           }
         }
       },
+      "ChatMessage": {
+        "type": "object",
+        "required": [
+          "id",
+          "createdAt",
+          "fromUserId"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "file": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NormalizedDriveFile"
+              }
+            ]
+          },
+          "fileId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fromUser": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatUser"
+              }
+            ]
+          },
+          "fromUserId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "isRead": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "reactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessageReaction"
+            }
+          },
+          "text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "toRoom": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatRoom"
+              }
+            ]
+          },
+          "toRoomId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "toUser": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatUser"
+              }
+            ]
+          },
+          "toUserId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ChatMessageReaction": {
+        "type": "object",
+        "required": [
+          "reaction"
+        ],
+        "properties": {
+          "reaction": {
+            "type": "string"
+          },
+          "user": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatReactionUser"
+              }
+            ]
+          }
+        }
+      },
+      "ChatReactionUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "username"
+        ],
+        "properties": {
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "host": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatRoom": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ChatUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "username"
+        ],
+        "properties": {
+          "avatarDecorations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AvatarDecoration"
+            }
+          },
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emojis": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "host": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
       "CreateNoteBody": {
         "type": "object",
         "required": [
@@ -2270,6 +2490,157 @@
           }
         }
       },
+      "NoteDeletedBody": {
+        "type": "object",
+        "properties": {
+          "deletedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "NotePollVotedBody": {
+        "type": "object",
+        "required": [
+          "choice"
+        ],
+        "properties": {
+          "choice": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "NoteReactedBody": {
+        "type": "object",
+        "required": [
+          "reaction"
+        ],
+        "properties": {
+          "emoji": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReactionEmoji",
+                "description": "Custom emoji info。本家は `{ name, url }`、unicode 絵文字は null/欠落。\nフォークが bare string を送る揺れもここで吸収する。"
+              }
+            ]
+          },
+          "reaction": {
+            "type": "string"
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "NoteUnreactedBody": {
+        "type": "object",
+        "required": [
+          "reaction"
+        ],
+        "properties": {
+          "reaction": {
+            "type": "string"
+          },
+          "userId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "NoteUpdateBody": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "body",
+              "updateType"
+            ],
+            "properties": {
+              "body": {
+                "$ref": "#/components/schemas/NoteReactedBody"
+              },
+              "updateType": {
+                "type": "string",
+                "enum": [
+                  "reacted"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "body",
+              "updateType"
+            ],
+            "properties": {
+              "body": {
+                "$ref": "#/components/schemas/NoteUnreactedBody"
+              },
+              "updateType": {
+                "type": "string",
+                "enum": [
+                  "unreacted"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "body",
+              "updateType"
+            ],
+            "properties": {
+              "body": {
+                "$ref": "#/components/schemas/NotePollVotedBody"
+              },
+              "updateType": {
+                "type": "string",
+                "enum": [
+                  "pollVoted"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "body",
+              "updateType"
+            ],
+            "properties": {
+              "body": {
+                "$ref": "#/components/schemas/NoteDeletedBody"
+              },
+              "updateType": {
+                "type": "string",
+                "enum": [
+                  "deleted"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "Typed body of a Misskey `noteUpdated` streaming event.\nAdjacent tagging (`updateType` + `body`) preserves the historical wire shape\n`{ updateType: \"reacted\", body: { ... } }` so the JSON consumers read is\nunchanged while the contract becomes typed end-to-end."
+      },
       "ReactionBody": {
         "type": "object",
         "required": [
@@ -2281,6 +2652,28 @@
             "description": "Reaction emoji (e.g. \"👍\" or \":custom_emoji:\")"
           }
         }
+      },
+      "ReactionEmoji": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "url"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "string"
+          }
+        ]
       },
       "ReactionInfo": {
         "type": "object",
@@ -2294,6 +2687,299 @@
           },
           "user": {
             "$ref": "#/components/schemas/NormalizedUser"
+          }
+        }
+      },
+      "SseEventPayload": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/StreamNoteEvent"
+          },
+          {
+            "$ref": "#/components/schemas/StreamNotificationEvent"
+          },
+          {
+            "$ref": "#/components/schemas/StreamMentionEvent"
+          },
+          {
+            "$ref": "#/components/schemas/StreamMainEvent"
+          },
+          {
+            "$ref": "#/components/schemas/StreamNoteUpdatedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/StreamNoteCaptureEvent"
+          },
+          {
+            "$ref": "#/components/schemas/StreamChatMessageEvent"
+          },
+          {
+            "$ref": "#/components/schemas/StreamChatMessageDeletedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/StreamChatMessageReactedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/StreamChatMessageUnreactedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/StreamStatusEvent"
+          }
+        ],
+        "description": "SSE `data:` payload の union (#781 Phase 4)。discriminator は SSE の\n`event:` フィールド (out-of-band) なので untagged oneOf として文書化する。\n`event:` 名と variant の対応:\nnote/mention → StreamNote/StreamMentionEvent、note-updated →\nStreamNoteUpdatedEvent、note-capture-updated → StreamNoteCaptureEvent、\nnotification → StreamNotificationEvent、main-{eventType} → StreamMainEvent、\nchat → StreamChatMessageEvent、chat-deleted / chat-reacted / chat-unreacted →\nStreamChatMessage{Deleted,Reacted,Unreacted}Event、status → StreamStatusEvent"
+      },
+      "StreamChatMessageDeletedEvent": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "subscriptionId",
+          "messageId"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "subscriptionId": {
+            "type": "string"
+          }
+        }
+      },
+      "StreamChatMessageEvent": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "subscriptionId",
+          "message"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "message": {
+            "$ref": "#/components/schemas/ChatMessage"
+          },
+          "subscriptionId": {
+            "type": "string"
+          }
+        }
+      },
+      "StreamChatMessageReactedEvent": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "subscriptionId",
+          "messageId",
+          "reaction"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "reaction": {
+            "type": "string"
+          },
+          "subscriptionId": {
+            "type": "string"
+          },
+          "user": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatReactionUser"
+              }
+            ]
+          }
+        }
+      },
+      "StreamChatMessageUnreactedEvent": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "subscriptionId",
+          "messageId",
+          "reaction"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "reaction": {
+            "type": "string"
+          },
+          "subscriptionId": {
+            "type": "string"
+          },
+          "user": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChatReactionUser"
+              }
+            ]
+          }
+        }
+      },
+      "StreamConnectionState": {
+        "type": "string",
+        "description": "`stream-status` で報告する接続状態 (#781)。",
+        "enum": [
+          "connected",
+          "reconnecting",
+          "disconnected"
+        ]
+      },
+      "StreamMainEvent": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "subscriptionId",
+          "eventType",
+          "body"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "body": {},
+          "eventType": {
+            "type": "string"
+          },
+          "subscriptionId": {
+            "type": "string"
+          }
+        }
+      },
+      "StreamMentionEvent": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "subscriptionId",
+          "note"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "note": {
+            "$ref": "#/components/schemas/NormalizedNote"
+          },
+          "subscriptionId": {
+            "type": "string"
+          }
+        }
+      },
+      "StreamNoteCaptureEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/NoteUpdateBody"
+          },
+          {
+            "type": "object",
+            "required": [
+              "accountId",
+              "noteId"
+            ],
+            "properties": {
+              "accountId": {
+                "type": "string"
+              },
+              "noteId": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "StreamNoteEvent": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "subscriptionId",
+          "note"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "note": {
+            "$ref": "#/components/schemas/NormalizedNote"
+          },
+          "subscriptionId": {
+            "type": "string"
+          }
+        }
+      },
+      "StreamNoteUpdatedEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/NoteUpdateBody",
+            "description": "flatten でワイヤ形 `{ updateType, body }` を維持する"
+          },
+          {
+            "type": "object",
+            "required": [
+              "accountId",
+              "subscriptionId",
+              "noteId"
+            ],
+            "properties": {
+              "accountId": {
+                "type": "string"
+              },
+              "noteId": {
+                "type": "string"
+              },
+              "subscriptionId": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "StreamNotificationEvent": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "subscriptionId",
+          "notification"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "notification": {
+            "$ref": "#/components/schemas/NormalizedNotification"
+          },
+          "subscriptionId": {
+            "type": "string"
+          }
+        }
+      },
+      "StreamStatusEvent": {
+        "type": "object",
+        "required": [
+          "accountId",
+          "state"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/StreamConnectionState"
           }
         }
       },
