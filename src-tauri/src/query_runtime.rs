@@ -3,7 +3,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use notecli::error::NoteDeckError;
-use notecli::models::TimelineType;
+use notecli::models::{
+    ChatMessage, NormalizedNote, NormalizedNotification, NoteUpdateBody, TimelineType,
+};
 use notecli::streaming::StreamingManager;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -89,12 +91,34 @@ pub struct QueryReadModelSnapshot {
     pub item_ids: Vec<String>,
 }
 
+/// Read-model item flowing through a query delta (#781). Internally tagged so
+/// the frontend receives a discriminated union; every variant carries `id`.
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum QueryItem {
+    // Box は serde/specta とも透過 (ワイヤ形・TS 型は不変)。variant 間の
+    // サイズ差で enum が肥大するのを避ける (clippy::large_enum_variant)。
+    Note(Box<NormalizedNote>),
+    Notification(Box<NormalizedNotification>),
+    ChatMessage(Box<ChatMessage>),
+}
+
+impl QueryItem {
+    fn id(&self) -> &str {
+        match self {
+            Self::Note(n) => &n.id,
+            Self::Notification(n) => &n.id,
+            Self::ChatMessage(m) => &m.id,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryDelta {
     pub query_id: String,
     pub revision: u64,
-    pub inserts: Vec<Value>,
+    pub inserts: Vec<QueryItem>,
     pub deletes: Vec<String>,
     /// Partial note updates (reaction add/remove, poll vote, etc.) routed
     /// from `stream-note-updated`. Items in the read model are not rewritten —
@@ -106,8 +130,9 @@ pub struct QueryDelta {
 #[serde(rename_all = "camelCase")]
 pub struct NoteUpdate {
     pub note_id: String,
-    pub update_type: String,
-    pub body: Value,
+    /// flatten でワイヤ形 `{ noteId, updateType, body }` を維持する
+    #[serde(flatten)]
+    pub update: NoteUpdateBody,
 }
 
 /// Per-note capture (`subNote`) update. account_id まで付けて mixed-account batch
@@ -117,8 +142,8 @@ pub struct NoteUpdate {
 pub struct NoteCapture {
     pub account_id: String,
     pub note_id: String,
-    pub update_type: String,
-    pub body: Value,
+    #[serde(flatten)]
+    pub update: NoteUpdateBody,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
@@ -151,7 +176,7 @@ struct QueryEntry {
 
 #[derive(Debug, Default)]
 struct PendingDelta {
-    inserts: Vec<Value>,
+    inserts: Vec<QueryItem>,
     deletes: Vec<String>,
     updates: Vec<NoteUpdate>,
 }
@@ -455,14 +480,16 @@ impl QueryRuntime {
             return false;
         };
         let body = payload.get("body").cloned().unwrap_or(Value::Null);
+        let Some(update) = NoteUpdateBody::from_raw(update_type, body) else {
+            return false;
+        };
         let Ok(mut inner) = self.inner.lock() else {
             return false;
         };
         inner.pending_captures.push(NoteCapture {
             account_id: account_id.to_string(),
             note_id: note_id.to_string(),
-            update_type: update_type.to_string(),
-            body,
+            update,
         });
         true
     }
@@ -516,9 +543,21 @@ struct StreamChange<'a> {
 }
 
 enum StreamChangeKind {
-    Insert(Value),
+    Insert(QueryItem),
     Delete(String),
     Update(NoteUpdate),
+}
+
+/// payload 断片を正準モデルへ落とす。失敗は型契約からの drift なので
+/// 黙って握り潰さず warn を残して drop する。
+fn parse_item<T: serde::de::DeserializeOwned>(value: &Value) -> Option<T> {
+    match serde_json::from_value(value.clone()) {
+        Ok(v) => Some(v),
+        Err(e) => {
+            tracing::warn!("[query-runtime] item parse failed (type drift?): {e}");
+            None
+        }
+    }
 }
 
 impl<'a> StreamChange<'a> {
@@ -526,24 +565,23 @@ impl<'a> StreamChange<'a> {
         let subscription_id = payload.get("subscriptionId").and_then(Value::as_str)?;
         let kind = match event {
             "stream-note" | "stream-mention" => {
-                StreamChangeKind::Insert(payload.get("note").cloned()?)
+                StreamChangeKind::Insert(QueryItem::Note(Box::new(parse_item(
+                    payload.get("note")?,
+                )?)))
             }
-            "stream-notification" => {
-                StreamChangeKind::Insert(payload.get("notification").cloned()?)
-            }
-            "stream-chat-message" => StreamChangeKind::Insert(payload.get("message").cloned()?),
+            "stream-notification" => StreamChangeKind::Insert(QueryItem::Notification(
+                Box::new(parse_item(payload.get("notification")?)?),
+            )),
+            "stream-chat-message" => StreamChangeKind::Insert(QueryItem::ChatMessage(Box::new(
+                parse_item(payload.get("message")?)?,
+            ))),
             "stream-note-updated" => {
-                let update_type = payload.get("updateType").and_then(Value::as_str)?.to_string();
+                let update_type = payload.get("updateType").and_then(Value::as_str)?;
                 let note_id = payload.get("noteId").and_then(Value::as_str)?.to_string();
-                if update_type == "deleted" {
-                    StreamChangeKind::Delete(note_id)
-                } else {
-                    let body = payload.get("body").cloned().unwrap_or(Value::Null);
-                    StreamChangeKind::Update(NoteUpdate {
-                        note_id,
-                        update_type,
-                        body,
-                    })
+                let body = payload.get("body").cloned().unwrap_or(Value::Null);
+                match NoteUpdateBody::from_raw(update_type, body)? {
+                    NoteUpdateBody::Deleted(_) => StreamChangeKind::Delete(note_id),
+                    update => StreamChangeKind::Update(NoteUpdate { note_id, update }),
                 }
             }
             "stream-chat-message-deleted" => {
@@ -570,10 +608,7 @@ impl<'a> StreamChange<'a> {
         }
         match self.kind {
             StreamChangeKind::Insert(item) => {
-                let Some(id) = item.get("id").and_then(Value::as_str).map(str::to_string)
-                else {
-                    return false;
-                };
+                let id = item.id().to_string();
                 if entry.id_set.contains(&id) {
                     // 既存 id は順序を更新するため一度抜く (同じ Vec 上で先頭に詰め直す)。
                     entry.recent_ids.retain(|i| i != &id);
@@ -988,9 +1023,20 @@ mod tests {
     }
 
     fn note_payload(sub_id: &str, note_id: &str) -> Value {
+        // QueryItem::Note へ deserialize されるため NormalizedNote の必須
+        // フィールドを満たす (#781 で inserts が typed になった)。
         json!({
             "subscriptionId": sub_id,
-            "note": { "id": note_id }
+            "note": {
+                "id": note_id,
+                "_accountId": "acct-1",
+                "_serverHost": "misskey.example",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "user": { "id": "u1", "username": "alice" },
+                "visibility": "public",
+                "renoteCount": 0,
+                "repliesCount": 0
+            }
         })
     }
 
@@ -998,7 +1044,8 @@ mod tests {
         json!({
             "subscriptionId": sub_id,
             "noteId": note_id,
-            "updateType": "deleted"
+            "updateType": "deleted",
+            "body": { "deletedAt": "2026-01-01T00:00:00.000Z" }
         })
     }
 
@@ -1115,7 +1162,10 @@ mod tests {
         assert_eq!(drained.len(), 1);
         assert_eq!(drained[0].updates.len(), 1);
         assert_eq!(drained[0].updates[0].note_id, "n1");
-        assert_eq!(drained[0].updates[0].update_type, "reacted");
+        assert!(matches!(
+            drained[0].updates[0].update,
+            NoteUpdateBody::Reacted(_)
+        ));
         assert!(drained[0].inserts.is_empty());
         assert!(drained[0].deletes.is_empty());
     }

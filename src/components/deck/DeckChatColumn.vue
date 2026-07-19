@@ -10,7 +10,10 @@ import {
   shallowRef,
   watch,
 } from 'vue'
-import { createQuerySubscription } from '@/adapters/misskey/query'
+import {
+  createQuerySubscription,
+  queryItemAsChatMessage,
+} from '@/adapters/misskey/query'
 import type { ChatMessage, NormalizedDriveFile } from '@/adapters/types'
 import type { ChatReactionUser } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
@@ -180,7 +183,10 @@ const thread = useChatThread({
             ? await commands.querySubscribeChatRoom(accountId, target.roomId)
             : await commands.querySubscribeChatUser(accountId, target.otherId),
         ),
-      onInsert: (item) => handlers.onInsert(item as unknown as ChatMessage),
+      onInsert: (item) => {
+        const msg = queryItemAsChatMessage(item)
+        if (msg) handlers.onInsert(msg)
+      },
       onDelete: (id) => handlers.onDelete(id),
     })
   },

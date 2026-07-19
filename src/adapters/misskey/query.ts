@@ -1,9 +1,17 @@
 import type {
+  ChatMessage,
   ManagedChannelSubscription,
+  NormalizedNote,
+  NormalizedNotification,
   NoteUpdateEvent,
   SubscriptionRuntimeState,
 } from '@/adapters/types'
-import type { JsonValue, NoteUpdate, QuerySnapshot } from '@/bindings'
+import type {
+  NoteCapture,
+  NoteUpdate,
+  QueryItem,
+  QuerySnapshot,
+} from '@/bindings'
 import { onQueryDelta } from '@/core/queryDeltaBus'
 import { registerQuery, unregisterQuery } from '@/core/queryRegistry'
 import { commands } from '@/utils/tauriInvoke'
@@ -12,7 +20,7 @@ export interface CreateQuerySubscriptionOptions {
   /** Opens the query and returns its snapshot. Called once. */
   open: () => Promise<QuerySnapshot>
   /** Called for every item in delta.inserts. */
-  onInsert: (item: JsonValue) => void
+  onInsert: (item: QueryItem) => void
   /** Called for every id in delta.deletes. */
   onDelete?: (id: string) => void
   /** Called for every partial note update (reaction / pollVoted etc.) in delta.updates. */
@@ -98,7 +106,8 @@ export function createQuerySubscription(
         for (const id of delta.deletes) opts.onDelete(id)
       }
       if (opts.onUpdate) {
-        for (const u of delta.updates) opts.onUpdate(toNoteUpdateEvent(u))
+        for (const u of delta.updates)
+          opts.onUpdate(toNoteUpdateEvent(u.noteId, u))
       }
       lastRevision = delta.revision
     })
@@ -110,14 +119,6 @@ export function createQuerySubscription(
       })
     }
   })()
-
-  function toNoteUpdateEvent(u: NoteUpdate): NoteUpdateEvent {
-    return {
-      noteId: u.noteId,
-      type: u.updateType as NoteUpdateEvent['type'],
-      body: (u.body ?? {}) as NoteUpdateEvent['body'],
-    }
-  }
 
   return {
     get subscriptionId() {
@@ -149,4 +150,70 @@ export function createQuerySubscription(
       }
     },
   }
+}
+
+/**
+ * QueryDelta / NoteCapture の typed update を adapter の NoteUpdateEvent へ写す
+ * (#781)。switch の網羅性は戻り値型で TS が検査するので、updateType の variant が
+ * 増えたらここがコンパイルエラーになる。
+ * (NoteUpdateBody は bindings 側で flatten により inline 化され named export
+ * されないため、それを含む NoteUpdate | NoteCapture を受ける)
+ */
+export function toNoteUpdateEvent(
+  noteId: string,
+  u: NoteUpdate | NoteCapture,
+): NoteUpdateEvent {
+  switch (u.updateType) {
+    case 'reacted':
+      return {
+        noteId,
+        type: 'reacted',
+        body: {
+          reaction: u.body.reaction,
+          emoji: u.body.emoji,
+          userId: u.body.userId ?? undefined,
+        },
+      }
+    case 'unreacted':
+      return {
+        noteId,
+        type: 'unreacted',
+        body: { reaction: u.body.reaction, userId: u.body.userId ?? undefined },
+      }
+    case 'pollVoted':
+      return {
+        noteId,
+        type: 'pollVoted',
+        body: { choice: u.body.choice, userId: u.body.userId ?? undefined },
+      }
+    case 'deleted':
+      return {
+        noteId,
+        type: 'deleted',
+        body: { deletedAt: u.body.deletedAt ?? undefined },
+      }
+  }
+}
+
+/**
+ * QueryItem (bindings) を adapter 正準型へ落とす境界ヘルパ (#781)。
+ * bindings 側の NormalizedNote は specta の再帰制限で reply/renote が
+ * JsonValue に落ちるため構造的代入ができない。形は kind タグ + Rust 側の
+ * serde 検証で保証されているので、bindings→adapter のキャストはこの
+ * 3 関数だけに閉じ込める。
+ */
+export function queryItemAsNote(item: QueryItem): NormalizedNote | null {
+  return item.kind === 'note' ? (item as unknown as NormalizedNote) : null
+}
+
+export function queryItemAsNotification(
+  item: QueryItem,
+): NormalizedNotification | null {
+  return item.kind === 'notification'
+    ? (item as unknown as NormalizedNotification)
+    : null
+}
+
+export function queryItemAsChatMessage(item: QueryItem): ChatMessage | null {
+  return item.kind === 'chatMessage' ? (item as unknown as ChatMessage) : null
 }

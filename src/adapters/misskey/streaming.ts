@@ -8,6 +8,7 @@ import type {
   StreamAdapter,
   StreamConnectionState,
 } from '../types'
+import { toNoteUpdateEvent } from './query'
 
 export class MisskeyStream implements StreamAdapter {
   private accountId: string
@@ -128,11 +129,9 @@ export class MisskeyStream implements StreamAdapter {
         if (gen !== this._listenerGeneration) return
         for (const c of event.payload.captures) {
           if (c.accountId !== this.accountId) continue
-          this.noteCaptureHandlers.get(c.noteId)?.({
-            noteId: c.noteId,
-            type: c.updateType as NoteUpdateEvent['type'],
-            body: (c.body ?? {}) as NoteUpdateEvent['body'],
-          })
+          this.noteCaptureHandlers.get(c.noteId)?.(
+            toNoteUpdateEvent(c.noteId, c),
+          )
         }
       })
       .then((fn) => {

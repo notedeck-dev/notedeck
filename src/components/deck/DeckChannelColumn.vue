@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent } from 'vue'
-import { createQuerySubscription } from '@/adapters/misskey/query'
+import {
+  createQuerySubscription,
+  queryItemAsNote,
+} from '@/adapters/misskey/query'
 import type { NormalizedNote } from '@/adapters/types'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { useAccountsStore } from '@/stores/accounts'
@@ -42,7 +45,10 @@ const noteColumnConfig: NoteColumnConfig = {
       return createQuerySubscription({
         open: async () =>
           unwrap(await commands.querySubscribeChannel(accountId, channelId)),
-        onInsert: (item) => enqueue(item as unknown as NormalizedNote),
+        onInsert: (item) => {
+          const note = queryItemAsNote(item)
+          if (note) enqueue(note)
+        },
         onDelete: (id) =>
           callbacks.onNoteUpdated?.({
             noteId: id,

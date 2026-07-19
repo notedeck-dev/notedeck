@@ -2667,8 +2667,9 @@ pinnedNotes?: NormalizedNote[] }
  * Per-note capture (`subNote`) update. account_id まで付けて mixed-account batch
  * でも JS 側で正しく fan-out できるようにする。
  */
-export type NoteCapture = { accountId: string; noteId: string; updateType: string; body: JsonValue }
+export type NoteCapture = ({ updateType: "reacted"; body: NoteReactedBody } | { updateType: "unreacted"; body: NoteUnreactedBody } | { updateType: "pollVoted"; body: NotePollVotedBody } | { updateType: "deleted"; body: NoteDeletedBody }) & { accountId: string; noteId: string }
 export type NoteCaptureBatch = { captures: NoteCapture[] }
+export type NoteDeletedBody = { deletedAt?: string | null }
 export type NoteDraft = { id: string; createdAt: string; text: string | null; cw: string | null; visibility: string; localOnly?: boolean; fileIds?: string[]; hashtag?: string | null; replyId?: string | null; renoteId?: string | null; channelId?: string | null; poll?: NoteDraftPoll | null; scheduledAt?: number | null; isActuallyScheduled?: boolean }
 /**
  * Misskey `notes/drafts/*` (2025.6+) のレスポンス。`notes/drafts/list` は
@@ -2677,7 +2678,19 @@ export type NoteDraft = { id: string; createdAt: string; text: string | null; cw
  * (notedeck 側でラッパーを剥がして直接 NoteDraft を渡す)。
  */
 export type NoteDraftPoll = { choices: string[]; multiple?: boolean | null; expiresAt?: number | null }
-export type NoteUpdate = { noteId: string; updateType: string; body: JsonValue }
+export type NotePollVotedBody = { choice: number; userId?: string | null }
+export type NoteReactedBody = { reaction: string; 
+/**
+ * Custom emoji info。本家は `{ name, url }`、unicode 絵文字は null/欠落。
+ * フォークが bare string を送る揺れもここで吸収する。
+ */
+emoji?: ReactionEmoji | null; userId?: string | null }
+export type NoteUnreactedBody = { reaction: string; userId?: string | null }
+export type NoteUpdate = 
+/**
+ * flatten でワイヤ形 `{ noteId, updateType, body }` を維持する
+ */
+({ updateType: "reacted"; body: NoteReactedBody } | { updateType: "unreacted"; body: NoteUnreactedBody } | { updateType: "pollVoted"; body: NotePollVotedBody } | { updateType: "deleted"; body: NoteDeletedBody }) & { noteId: string }
 /**
  * `users/pages` / `pages/show` の 1 件分。本家 packages/backend/src/models/Page.ts。
  * プロフィール一覧で使うのは title / summary / createdAt のみだが、
@@ -2714,13 +2727,18 @@ export type PrincipalClass =
  */
 "external"
 export type PvChartGroup = { user: number[]; visitor: number[] }
-export type QueryDelta = { queryId: string; revision: number; inserts: JsonValue[]; deletes: string[]; 
+export type QueryDelta = { queryId: string; revision: number; inserts: QueryItem[]; deletes: string[]; 
 /**
  * Partial note updates (reaction add/remove, poll vote, etc.) routed
  * from `stream-note-updated`. Items in the read model are not rewritten —
  * consumers apply these to their own per-note state.
  */
 updates: NoteUpdate[] }
+/**
+ * Read-model item flowing through a query delta (#781). Internally tagged so
+ * the frontend receives a discriminated union; every variant carries `id`.
+ */
+export type QueryItem = ({ kind: "note" } & NormalizedNote) | ({ kind: "notification" } & NormalizedNotification) | ({ kind: "chatMessage" } & ChatMessage)
 export type QueryKey = { kind: "timeline"; account_id: string; timeline_type: TimelineType; list_id: string | null } | { kind: "antenna"; account_id: string; antenna_id: string } | { kind: "channel"; account_id: string; channel_id: string } | { kind: "role"; account_id: string; role_id: string } | { kind: "mentions"; account_id: string } | { kind: "notifications"; account_id: string } | { kind: "chatUser"; account_id: string; other_id: string } | { kind: "chatRoom"; account_id: string; room_id: string }
 export type QueryReadModelSnapshot = { queryId: string; revision: number; 
 /**
@@ -2731,6 +2749,7 @@ export type QueryReadModelSnapshot = { queryId: string; revision: number;
 itemIds: string[] }
 export type QueryRuntimeState = "live" | "warm" | "suspended"
 export type QuerySnapshot = { queryId: string; key: QueryKey; runtimeState: QueryRuntimeState; subscriberCount: number; revision: number; sourceSubscriptionId: string | null }
+export type ReactionEmoji = { name: string; url: string } | string
 export type ReactionInfo = { user: NormalizedUser; reaction: string }
 export type Report = { ok: boolean; checks: Check[] }
 export type SearchOptions = { limit?: number; sinceId: string | null; untilId: string | null; sinceDate: number | null; untilDate: number | null; 

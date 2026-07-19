@@ -2847,7 +2847,7 @@ checksum = "72ef4a56884ca558e5ddb05a1d1e7e1bfd9a68d9ed024c21704cc98872dae1bb"
 [[package]]
 name = "notecli"
 version = "0.4.0"
-source = "git+https://github.com/notedeck-dev/notecli?rev=b242213391dc35ea8ad39ba865f925dd7b151e98#b242213391dc35ea8ad39ba865f925dd7b151e98"
+source = "git+https://github.com/notedeck-dev/notecli?rev=684f6a2d89dc9fb9cc6366560c2b69ad45ecc47a#684f6a2d89dc9fb9cc6366560c2b69ad45ecc47a"
 dependencies = [
  "android-native-keyring-store",
  "apple-native-keyring-store",

@@ -15,7 +15,7 @@
  */
 
 import { watch } from 'vue'
-import type { JsonValue } from '@/bindings'
+import type { QueryItem } from '@/bindings'
 import { onQueryDelta } from '@/core/queryDeltaBus'
 import {
   _resetQueryRegistryForTest,
@@ -223,20 +223,13 @@ function stopQueryDeltaListener(): void {
 }
 
 /**
- * queryDelta.inserts は JsonValue[] (note / notification 本体) だが、
+ * queryDelta.inserts は typed QueryItem[] (note / notification 本体) だが、
  * payload に渡すのは `id` のみ。プラグインが本体を取得したければ
  * `Nd:call('notes.show', { id })` 経由で permissions に縛られる形にする
  * (機密ノートの payload 漏洩を防ぐ)。
  */
-export function extractInsertIds(inserts: readonly JsonValue[]): string[] {
-  const ids: string[] = []
-  for (const item of inserts) {
-    if (item && typeof item === 'object' && !Array.isArray(item)) {
-      const id = (item as Record<string, unknown>).id
-      if (typeof id === 'string') ids.push(id)
-    }
-  }
-  return ids
+export function extractInsertIds(inserts: readonly QueryItem[]): string[] {
+  return inserts.map((item) => item.id)
 }
 
 /** @internal テスト用。テスト後にグローバル state をクリアする。 */

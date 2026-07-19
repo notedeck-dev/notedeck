@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { createQuerySubscription } from '@/adapters/misskey/query'
+import {
+  createQuerySubscription,
+  queryItemAsNote,
+} from '@/adapters/misskey/query'
 import type { NormalizedNote } from '@/adapters/types'
 import { useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
@@ -51,7 +54,10 @@ const noteColumnConfig: NoteColumnConfig = {
               listId,
             ),
           ),
-        onInsert: (item) => enqueue(item as unknown as NormalizedNote),
+        onInsert: (item) => {
+          const note = queryItemAsNote(item)
+          if (note) enqueue(note)
+        },
         onDelete: (id) =>
           callbacks.onNoteUpdated?.({
             noteId: id,

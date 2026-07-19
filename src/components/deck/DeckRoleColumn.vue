@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { createQuerySubscription } from '@/adapters/misskey/query'
+import {
+  createQuerySubscription,
+  queryItemAsNote,
+} from '@/adapters/misskey/query'
 import type { NormalizedNote } from '@/adapters/types'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
@@ -28,7 +31,10 @@ const noteColumnConfig: NoteColumnConfig = {
       return createQuerySubscription({
         open: async () =>
           unwrap(await commands.querySubscribeRole(accountId, roleId)),
-        onInsert: (item) => enqueue(item as unknown as NormalizedNote),
+        onInsert: (item) => {
+          const note = queryItemAsNote(item)
+          if (note) enqueue(note)
+        },
         onDelete: (id) =>
           callbacks.onNoteUpdated?.({
             noteId: id,

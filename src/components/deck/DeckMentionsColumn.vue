@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { createQuerySubscription } from '@/adapters/misskey/query'
+import {
+  createQuerySubscription,
+  queryItemAsNote,
+} from '@/adapters/misskey/query'
 import type { NormalizedNote } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -56,7 +59,8 @@ const noteColumnConfig: NoteColumnConfig = {
         open: async () =>
           unwrap(await commands.querySubscribeMentions(accountId)),
         onInsert: (item) => {
-          const note = item as unknown as NormalizedNote
+          const note = queryItemAsNote(item)
+          if (!note) return
           if (isSpecified.value && note.visibility !== 'specified') return
           enqueue(note)
         },

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import type { QueryKey } from '@/bindings'
+import type { QueryItem, QueryKey } from '@/bindings'
 import { registerQuery, unregisterQuery } from '@/core/queryRegistry'
 import {
   _resetEventStateForTest,
@@ -81,23 +81,14 @@ describe('SUPPORTED_EVENT_NAMES', () => {
 })
 
 describe('extractInsertIds', () => {
-  it('returns the id field from each object item', () => {
-    expect(extractInsertIds([{ id: 'a', text: 'hello' }, { id: 'b' }])).toEqual(
-      ['a', 'b'],
-    )
-  })
-
-  it('skips items without a string id', () => {
-    expect(
-      extractInsertIds([
-        { id: 'a' },
-        { id: 42 },
-        null,
-        'string-item',
-        [],
-        { name: 'no-id' },
-      ]),
-    ).toEqual(['a'])
+  it('returns the id field from each item', () => {
+    // #781: inserts は typed QueryItem[]。id の存在は型契約が保証するので
+    // テストは形の最小表現で足りる。
+    const items = [
+      { kind: 'note', id: 'a', text: 'hello' },
+      { kind: 'notification', id: 'b' },
+    ] as unknown as QueryItem[]
+    expect(extractInsertIds(items)).toEqual(['a', 'b'])
   })
 
   it('returns empty for an empty array', () => {

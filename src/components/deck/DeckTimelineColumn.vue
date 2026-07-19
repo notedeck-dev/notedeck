@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { createQuerySubscription } from '@/adapters/misskey/query'
+import {
+  createQuerySubscription,
+  queryItemAsNote,
+} from '@/adapters/misskey/query'
 import type {
   NormalizedNote,
   TimelineFilter,
@@ -128,7 +131,8 @@ const noteColumnConfig: NoteColumnConfig = {
         open: async () =>
           unwrap(await commands.querySubscribeTimeline(accountId, type, null)),
         onInsert: (item) => {
-          const note = item as unknown as NormalizedNote
+          const note = queryItemAsNote(item)
+          if (!note) return
           if (!matchesFilter(note, columnFilters.value, type)) return
           enqueue(note)
         },

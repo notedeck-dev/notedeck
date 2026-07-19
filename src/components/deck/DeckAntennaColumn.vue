@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { createQuerySubscription } from '@/adapters/misskey/query'
+import {
+  createQuerySubscription,
+  queryItemAsNote,
+} from '@/adapters/misskey/query'
 import type { NormalizedNote } from '@/adapters/types'
 import { useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
@@ -30,7 +33,10 @@ const noteColumnConfig: NoteColumnConfig = {
       return createQuerySubscription({
         open: async () =>
           unwrap(await commands.querySubscribeAntenna(accountId, antennaId)),
-        onInsert: (item) => enqueue(item as unknown as NormalizedNote),
+        onInsert: (item) => {
+          const note = queryItemAsNote(item)
+          if (note) enqueue(note)
+        },
         onDelete: (id) =>
           callbacks.onNoteUpdated?.({
             noteId: id,

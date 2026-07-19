@@ -9,7 +9,10 @@ import {
   useTemplateRef,
   watch,
 } from 'vue'
-import { createQuerySubscription } from '@/adapters/misskey/query'
+import {
+  createQuerySubscription,
+  queryItemAsNotification,
+} from '@/adapters/misskey/query'
 import type {
   ApiAdapter,
   ChannelSubscription,
@@ -615,7 +618,8 @@ async function connectPerAccount(useCache = false) {
         open: async () =>
           unwrap(await commands.querySubscribeNotifications(accountId)),
         onInsert: (item) => {
-          const notification = item as unknown as NormalizedNotification
+          const notification = queryItemAsNotification(item)
+          if (!notification) return
           if (!props.column.soundMuted) noteSound.play()
           rafBuffer.push(notification)
           if (rafId === null) {
@@ -683,7 +687,8 @@ async function connectCrossAccount(useCache = false) {
           open: async () =>
             unwrap(await commands.querySubscribeNotifications(acc.id)),
           onInsert: (item) => {
-            const notification = item as unknown as NormalizedNotification
+            const notification = queryItemAsNotification(item)
+            if (!notification) return
             if (!props.column.soundMuted) noteSound.play()
             rafBuffer.push(notification)
             if (rafId === null) {
