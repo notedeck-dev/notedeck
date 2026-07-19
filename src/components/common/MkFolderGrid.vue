@@ -5,13 +5,14 @@ const props = withDefaults(
   defineProps<{
     folders: readonly DriveFolder[]
     showItemMenu?: boolean
-    showCreateCell?: boolean
     selectMode?: boolean
+    /** 親のグリッドに直接セルを流し込む（ファイルグリッドとの連続配置用） */
+    flat?: boolean
   }>(),
   {
     showItemMenu: false,
-    showCreateCell: false,
     selectMode: false,
+    flat: false,
   },
 )
 
@@ -19,7 +20,6 @@ const emit = defineEmits<{
   'folder-click': [folder: DriveFolder]
   /** 右クリック / 「…」ボタン共通のメニュー要求 */
   'folder-menu': [folder: DriveFolder, event: MouseEvent]
-  'create-click': []
 }>()
 
 // ゲート時は preventDefault しない = ネイティブ右クリックメニューを潰さない
@@ -32,7 +32,7 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
 </script>
 
 <template>
-  <div :class="$style.folderGrid">
+  <div :class="flat ? $style.flatGrid : $style.folderGrid">
     <div v-for="folder in folders" :key="folder.id" :class="$style.cellWrap">
       <button
         class="_button"
@@ -55,16 +55,6 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
         <i class="ti ti-dots" />
       </button>
     </div>
-    <button
-      v-if="showCreateCell && !selectMode"
-      class="_button"
-      :class="$style.createCell"
-      aria-label="新規フォルダ"
-      title="新規フォルダ"
-      @click="emit('create-click')"
-    >
-      <i class="ti ti-folder-plus" />
-    </button>
   </div>
 </template>
 
@@ -73,10 +63,17 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
   composes: gridContainer from './drive-grid.module.scss';
 }
 
+/* flat: セルを親グリッドに直接参加させる（フォルダ末尾の空セルを作らない） */
+.flatGrid {
+  display: contents;
+}
+
 .cellWrap {
   position: relative;
   /* グリッドアイテムの最小幅が内容に引っ張られてはみ出すのを防ぐ */
   min-width: 0;
+  /* アイコンをセル幅に追従させる (cqw) ための基準コンテナ */
+  container-type: inline-size;
 }
 
 /* メディアグリッドと同じ正方形セル。名前は outline フォルダアイコンの
@@ -97,7 +94,8 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
 }
 
 .folderIcon {
-  font-size: 6rem;
+  /* セル幅の 7 割を基準に、狭いセル（ピッカー等）でもはみ出さない */
+  font-size: clamp(2.5rem, 70cqw, 6rem);
   color: var(--nd-accent);
   opacity: 0.5;
 }
@@ -107,7 +105,7 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
   position: absolute;
   left: 12%;
   right: 12%;
-  top: 58%;
+  top: 48%;
   transform: translateY(-50%);
   text-align: center;
   font-size: 0.7em;
@@ -156,24 +154,4 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
   }
 }
 
-/* アップロードセルと対称の破線正方形（アイコンのみ、名前は tooltip） */
-.createCell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  aspect-ratio: 1;
-  font-size: 1.75rem;
-  color: var(--nd-accent);
-  opacity: 0.6;
-  border: 2px dashed var(--nd-accent);
-  border-radius: var(--nd-radius-md);
-  background: color-mix(in srgb, var(--nd-accent) 5%, transparent);
-  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
-
-  &:hover {
-    opacity: 1;
-    background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-  }
-}
 </style>

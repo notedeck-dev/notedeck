@@ -14,12 +14,15 @@ const props = withDefaults(
     selectedIds?: Set<string> | null
     showLabel?: boolean
     showItemMenu?: boolean
+    /** 親のグリッドに直接セルを流し込む（フォルダグリッドとの連続配置用） */
+    flat?: boolean
   }>(),
   {
     selectMode: false,
     selectedIds: null,
     showLabel: true,
     showItemMenu: false,
+    flat: false,
   },
 )
 
@@ -40,7 +43,7 @@ function onContextMenu(file: NormalizedDriveFile, e: MouseEvent) {
 </script>
 
 <template>
-  <div :class="$style.driveGrid">
+  <div :class="flat ? $style.flatGrid : $style.driveGrid">
     <slot />
     <div v-for="file in files" :key="file.id" :class="$style.cellWrap">
       <button
@@ -97,6 +100,11 @@ function onContextMenu(file: NormalizedDriveFile, e: MouseEvent) {
 <style lang="scss" module>
 .driveGrid {
   composes: gridContainer from './drive-grid.module.scss';
+}
+
+/* flat: セルを親グリッドに直接参加させる（フォルダとの連続配置用） */
+.flatGrid {
+  display: contents;
 }
 
 .cellWrap {

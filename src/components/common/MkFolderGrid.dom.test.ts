@@ -14,26 +14,23 @@ let container: HTMLElement | null = null
 interface Emitted {
   click: DriveFolder[]
   menu: [DriveFolder, MouseEvent][]
-  create: number
 }
 
 function mountGrid(
   props: Partial<{
     showItemMenu: boolean
-    showCreateCell: boolean
     selectMode: boolean
   }> = {},
 ) {
   container = document.createElement('div')
   document.body.appendChild(container)
-  const emitted: Emitted = { click: [], menu: [], create: 0 }
+  const emitted: Emitted = { click: [], menu: [] }
   app = createApp(MkFolderGrid, {
     folders,
     ...props,
     onFolderClick: (folder: DriveFolder) => emitted.click.push(folder),
     onFolderMenu: (folder: DriveFolder, e: MouseEvent) =>
       emitted.menu.push([folder, e]),
-    onCreateClick: () => emitted.create++,
   })
   app.mount(container)
   return emitted
@@ -45,10 +42,6 @@ function buttons(): HTMLButtonElement[] {
 
 function menuButtons(): HTMLButtonElement[] {
   return buttons().filter((b) => b.title === 'メニュー')
-}
-
-function createCell(): HTMLButtonElement | undefined {
-  return buttons().find((b) => b.getAttribute('aria-label') === '新規フォルダ')
 }
 
 afterEach(() => {
@@ -65,18 +58,9 @@ describe('MkFolderGrid (#792)', () => {
     expect(emitted.click).toEqual([folders[0]])
   })
 
-  it('デフォルト（props 未指定）では「…」と作成セルを描画しない', () => {
+  it('デフォルト（props 未指定）では「…」を描画しない', () => {
     mountGrid()
     expect(menuButtons()).toHaveLength(0)
-    expect(createCell()).toBeUndefined()
-  })
-
-  it('showCreateCell で作成セルが出て create-click が emit される', () => {
-    const emitted = mountGrid({ showCreateCell: true })
-    const cell = createCell()
-    expect(cell).toBeDefined()
-    cell?.click()
-    expect(emitted.create).toBe(1)
   })
 
   it('showItemMenu で「…」が描画され folder-menu が emit される', () => {
@@ -104,14 +88,12 @@ describe('MkFolderGrid (#792)', () => {
     expect(e.defaultPrevented).toBe(false)
   })
 
-  it('selectMode 中は作成セル・「…」非描画かつ contextmenu で emit されない', () => {
+  it('selectMode 中は「…」非描画かつ contextmenu で emit されない', () => {
     const emitted = mountGrid({
       showItemMenu: true,
-      showCreateCell: true,
       selectMode: true,
     })
     expect(menuButtons()).toHaveLength(0)
-    expect(createCell()).toBeUndefined()
     const e = new MouseEvent('contextmenu', { cancelable: true })
     buttons()[0]?.dispatchEvent(e)
     expect(emitted.menu).toHaveLength(0)

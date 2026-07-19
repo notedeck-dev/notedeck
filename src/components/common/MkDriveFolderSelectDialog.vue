@@ -102,7 +102,7 @@ fetchDrive()
       :class="[$style.dialog, entering && $style.contentEnter, leaving && $style.contentLeave]"
       :style="themeVars"
     >
-      <!-- Header: 戻る + ルート + 現在フォルダ名 -->
+      <!-- Header: 戻る + ルート + 現在フォルダ名 + 新規フォルダ -->
       <div :class="$style.header">
         <button v-if="folderStack.length > 0" class="_button" :class="$style.headerBtn" title="戻る" @click="goUp">
           <i class="ti ti-arrow-left" />
@@ -114,19 +114,16 @@ fetchDrive()
           <i :class="currentName ? 'ti ti-folder' : 'ti ti-cloud'" />
           {{ currentName ?? 'ドライブ' }}
         </span>
+        <button class="_button" :class="$style.headerBtn" title="新規フォルダ" aria-label="新規フォルダ" @click="onCreateFolder">
+          <i class="ti ti-folder-plus" />
+        </button>
       </div>
 
-      <!-- Body: フォルダ一覧（クリック = 潜る） + 新規フォルダ -->
+      <!-- Body: フォルダ一覧（クリック = 潜る） -->
       <div :class="$style.body">
         <div v-if="loading" :class="$style.empty"><LoadingSpinner /></div>
         <div v-else-if="error" :class="[$style.empty, $style.error]">{{ error }}</div>
-        <MkFolderGrid
-          v-else
-          :folders="folders"
-          show-create-cell
-          @folder-click="openFolder"
-          @create-click="onCreateFolder"
-        />
+        <MkFolderGrid v-else :folders="folders" @folder-click="openFolder" />
       </div>
 
       <!-- Footer: 押す前に行き先がわかる確定ラベル -->

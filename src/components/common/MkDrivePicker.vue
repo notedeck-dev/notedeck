@@ -116,6 +116,9 @@ fetchDrive()
         <i class="ti ti-cloud" />
         {{ folderStack.length > 0 ? folderStack[folderStack.length - 1]!.name : 'ドライブ' }}
       </span>
+      <button class="_button" :class="$style.dpHeaderBtn" title="アップロード" aria-label="アップロード" :disabled="uploading" @click="openFilePicker">
+        <i :class="uploading ? 'ti ti-loader-2 nd-spin' : 'ti ti-upload'" />
+      </button>
       <button
         class="_button"
         :class="$style.dpConfirm"
@@ -144,30 +147,18 @@ fetchDrive()
       <div v-if="loading" :class="$style.dpEmpty"><LoadingSpinner /></div>
       <div v-else-if="error" :class="[$style.dpEmpty, $style.dpError]">{{ error }}</div>
       <template v-else>
-        <!-- Folders -->
-        <MkFolderGrid :folders="folders" @folder-click="openFolder" />
-
-        <!-- Grid: upload cell (slot 注入) + files -->
-        <MkFileGrid
-          :files="files"
-          select-mode
-          :selected-ids="selectedIds"
-          @file-click="(file) => toggleFile(file.id)"
-        >
-          <button
-            class="_button"
-            :class="$style.dpUploadCell"
-            :disabled="uploading"
-            title="アップロード"
-            @click="openFilePicker"
-          >
-            <div :class="$style.dpUploadThumb">
-              <i v-if="uploading" class="ti ti-loader-2 nd-spin" />
-              <i v-else class="ti ti-plus" />
-            </div>
-            <div :class="$style.dpLabel">アップロード</div>
-          </button>
-        </MkFileGrid>
+        <!-- ドライブカラムと同じ連続配置 (3 列固定)。アップロードはヘッダーに集約 -->
+        <div :class="$style.dpItemsGrid">
+          <MkFolderGrid :folders="folders" flat @folder-click="openFolder" />
+          <MkFileGrid
+            :files="files"
+            select-mode
+            :selected-ids="selectedIds"
+            :show-label="false"
+            flat
+            @file-click="(file) => toggleFile(file.id)"
+          />
+        </div>
 
         <div v-if="uploadError" :class="$style.dpUploadError">{{ uploadError }}</div>
       </template>
@@ -233,8 +224,14 @@ fetchDrive()
   overflow-y: auto;
   scrollbar-color: var(--nd-scrollbarHandle) transparent;
   scrollbar-width: thin;
-  /* フォルダ/ファイルグリッド共通の列数（drive-grid.module.scss の契約変数） */
-  --mk-file-grid-columns: repeat(3, 1fr);
+}
+
+/* フォルダ + ファイルを 3 列で連続配置（ドライブカラムと同型） */
+.dpItemsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 2px;
 }
 
 .dpEmpty {
@@ -249,52 +246,10 @@ fetchDrive()
   opacity: 1;
 }
 
-.dpUploadCell {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transition: opacity var(--nd-duration-base);
-
-  &:hover .dpUploadThumb {
-    opacity: 1;
-    background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-  }
-
-  &:disabled .dpUploadThumb {
-    opacity: 0.3;
-  }
-}
-
-.dpUploadThumb {
-  position: relative;
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  color: var(--nd-accent);
-  opacity: 0.6;
-  border: 2px dashed var(--nd-accent);
-  border-radius: var(--nd-radius-md);
-  background: color-mix(in srgb, var(--nd-accent) 5%, transparent);
-  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
-}
-
 .dpUploadError {
   padding: 8px 12px;
   font-size: 0.75em;
   color: var(--nd-love);
-}
-
-.dpLabel {
-  padding: 3px 4px;
-  font-size: 0.6em;
-  color: var(--nd-fg);
-  opacity: 0.6;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: center;
 }
 
 .dpConfirm {
