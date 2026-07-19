@@ -10,10 +10,10 @@ vi.mock('@/composables/useDriveActions', () => ({
 
 // happy-dom に無い <dialog> showModal / popover 依存を外し、構成と配線を検証する
 vi.mock('@/composables/useNativeDialog', () => ({
-  useNativeDialog: () => {},
+  useNativeDialog: () => undefined,
 }))
 vi.mock('@/composables/useBackButton', () => ({
-  useBackButton: () => {},
+  useBackButton: () => undefined,
 }))
 vi.mock('@/stores/theme', () => ({
   useThemeStore: () => ({ getStyleVarsForAccount: () => ({}) }),

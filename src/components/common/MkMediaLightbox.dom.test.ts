@@ -12,9 +12,11 @@ vi.mock('@/composables/usePinchZoom', () => ({
     reset: vi.fn(),
   }),
 }))
-vi.mock('@/composables/useSwipeTab', () => ({ useSwipeTab: () => {} }))
-vi.mock('@/composables/usePortal', () => ({ usePortal: () => {} }))
-vi.mock('@/composables/useBackButton', () => ({ useBackButton: () => {} }))
+vi.mock('@/composables/useSwipeTab', () => ({ useSwipeTab: () => undefined }))
+vi.mock('@/composables/usePortal', () => ({ usePortal: () => undefined }))
+vi.mock('@/composables/useBackButton', () => ({
+  useBackButton: () => undefined,
+}))
 vi.mock('@/composables/useLongPress', () => ({
   useLongPress: () => ({ handlers: {} }),
 }))
