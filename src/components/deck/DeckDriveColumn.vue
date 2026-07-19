@@ -347,12 +347,13 @@ fetchDrive()
           @create-click="onCreateFolder"
         />
 
-        <!-- File grid -->
+        <!-- File grid (ファイル名は表示せず正方形のみ。名前は tooltip / 詳細ウィンドウ) -->
         <MkFileGrid
           :files="files"
           :select-mode="selectMode"
           :selected-ids="selectedIds"
           :show-item-menu="canWrite"
+          :show-label="false"
           @file-click="onFileClick"
           @file-menu="onFileMenu"
         >
@@ -361,13 +362,12 @@ fetchDrive()
             class="_button"
             :class="$style.driveUploadCell"
             :disabled="uploading"
+            aria-label="アップロード"
+            title="アップロード"
             @click="openFilePicker"
           >
-            <div :class="$style.driveUploadThumb">
-              <i v-if="uploading" class="ti ti-loader-2 nd-spin" />
-              <i v-else class="ti ti-plus" />
-            </div>
-            <div :class="$style.driveUploadLabel">アップロード</div>
+            <i v-if="uploading" class="ti ti-loader-2 nd-spin" />
+            <i v-else class="ti ti-plus" />
           </button>
         </MkFileGrid>
       </template>
@@ -481,28 +481,12 @@ fetchDrive()
 }
 
 /* --- Upload cell (file grid is provided by MkFileGrid) --- */
+/* 新規フォルダセルと対称の破線正方形（アイコンのみ、名前は tooltip） */
 .driveUploadCell {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transition: opacity var(--nd-duration-base);
-
-  &:hover .driveUploadThumb {
-    opacity: 1;
-    background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-  }
-
-  &:disabled .driveUploadThumb {
-    opacity: 0.3;
-  }
-}
-
-.driveUploadThumb {
-  position: relative;
-  aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  aspect-ratio: 1;
   font-size: 28px;
   color: var(--nd-accent);
   opacity: 0.6;
@@ -510,17 +494,15 @@ fetchDrive()
   border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 5%, transparent);
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
-}
 
-.driveUploadLabel {
-  padding: 4px 6px;
-  font-size: 0.65em;
-  color: var(--nd-fg);
-  opacity: 0.7;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: center;
+  &:hover:not(:disabled) {
+    opacity: 1;
+    background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+  }
 }
 
 

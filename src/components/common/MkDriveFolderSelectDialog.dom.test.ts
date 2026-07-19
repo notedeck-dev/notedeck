@@ -82,6 +82,12 @@ function buttonByText(text: string): HTMLButtonElement | undefined {
   )
 }
 
+function createCellButton(): HTMLButtonElement | undefined {
+  return Array.from(container?.querySelectorAll('button') ?? []).find(
+    (b) => b.getAttribute('aria-label') === '新規フォルダ',
+  )
+}
+
 function okButton(): HTMLButtonElement | undefined {
   return buttonByText('に移動')
 }
@@ -155,7 +161,7 @@ describe('MkDriveFolderSelectDialog (#792)', () => {
       parentId: null,
     })
     const emitted = await mountDialog()
-    buttonByText('新規フォルダ')?.click()
+    createCellButton()?.click()
     await vi.waitFor(() =>
       expect(okButton()?.textContent).toContain('「新フォルダX」に移動'),
     )
@@ -166,7 +172,7 @@ describe('MkDriveFolderSelectDialog (#792)', () => {
   it('作成キャンセル（null 戻り）では現階層に留まる', async () => {
     createFolderMock.mockResolvedValueOnce(null)
     await mountDialog()
-    buttonByText('新規フォルダ')?.click()
+    createCellButton()?.click()
     await nextTick()
     expect(okButton()?.textContent).toContain('ルートに移動')
   })

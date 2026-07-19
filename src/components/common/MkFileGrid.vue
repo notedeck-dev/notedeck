@@ -46,6 +46,7 @@ function onContextMenu(file: NormalizedDriveFile, e: MouseEvent) {
       <button
         class="_button"
         :class="[$style.driveGridCell, { [$style.selected]: selectMode && selectedIds?.has(file.id) }]"
+        :title="file.name"
         @click="emit('file-click', file)"
         @contextmenu="onContextMenu(file, $event)"
       >
@@ -100,6 +101,8 @@ function onContextMenu(file: NormalizedDriveFile, e: MouseEvent) {
 
 .cellWrap {
   position: relative;
+  /* グリッドアイテムの最小幅がラベル (nowrap) に引っ張られてはみ出すのを防ぐ */
+  min-width: 0;
 }
 
 .driveGridCell {

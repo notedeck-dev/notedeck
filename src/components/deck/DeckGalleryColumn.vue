@@ -218,6 +218,8 @@ fetchGallery()
 
 .cellWrap {
   position: relative;
+  /* グリッドアイテムの最小幅が内容 (nowrap タイトル) に引っ張られてはみ出すのを防ぐ */
+  min-width: 0;
 }
 
 .galleryGridCell {

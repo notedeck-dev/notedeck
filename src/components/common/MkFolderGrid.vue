@@ -37,11 +37,12 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
       <button
         class="_button"
         :class="$style.folderCell"
+        :title="folder.name"
         @click="emit('folder-click', folder)"
         @contextmenu="onContextMenu(folder, $event)"
       >
         <i class="ti ti-folder" :class="$style.folderIcon" />
-        <span :class="$style.folderLabel">{{ folder.name }}</span>
+        <span :class="$style.folderName">{{ folder.name }}</span>
       </button>
       <button
         v-if="showItemMenu && !selectMode"
@@ -59,12 +60,10 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
       class="_button"
       :class="$style.createCell"
       aria-label="新規フォルダ"
+      title="新規フォルダ"
       @click="emit('create-click')"
     >
-      <div :class="$style.createThumb">
-        <i class="ti ti-folder-plus" />
-      </div>
-      <span :class="$style.folderLabel">新規フォルダ</span>
+      <i class="ti ti-folder-plus" />
     </button>
   </div>
 </template>
@@ -76,15 +75,19 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
 
 .cellWrap {
   position: relative;
+  /* グリッドアイテムの最小幅が内容に引っ張られてはみ出すのを防ぐ */
+  min-width: 0;
 }
 
+/* メディアグリッドと同じ正方形セル。名前は outline フォルダアイコンの
+   本体部分（タブの下）に重ねて表示する */
 .folderCell {
+  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
   width: 100%;
-  padding: 12px 4px;
+  aspect-ratio: 1;
   border-radius: 8px;
   transition: opacity var(--nd-duration-base);
 
@@ -94,14 +97,23 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
 }
 
 .folderIcon {
-  font-size: 2rem;
+  font-size: 4rem;
   color: var(--nd-accent);
-  opacity: 0.7;
+  opacity: 0.5;
 }
 
-.folderLabel {
-  composes: cellLabel from './drive-grid.module.scss';
-  width: 100%;
+.folderName {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 56%;
+  transform: translateY(-50%);
+  text-align: center;
+  font-size: 0.7em;
+  color: var(--nd-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* self-chain で WebView2 の _button 特異度衝突に備える。
@@ -143,35 +155,24 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
   }
 }
 
+/* アップロードセルと対称の破線正方形（アイコンのみ、名前は tooltip） */
 .createCell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  width: 100%;
-  padding: 12px 4px;
-  border-radius: 8px;
-  transition: opacity var(--nd-duration-base);
-
-  &:hover .createThumb {
-    opacity: 1;
-    background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-  }
-}
-
-.createThumb {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 2rem;
-  padding: 4px 0;
-  font-size: 1.5rem;
+  aspect-ratio: 1;
+  font-size: 1.75rem;
   color: var(--nd-accent);
   opacity: 0.6;
   border: 2px dashed var(--nd-accent);
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 5%, transparent);
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
+
+  &:hover {
+    opacity: 1;
+    background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
+  }
 }
 </style>
