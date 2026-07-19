@@ -110,6 +110,7 @@ const icons: Record<string, string> = {
   'gallery-detail': 'ti ti-icons',
   'list-detail': 'ti ti-list',
   'clip-detail': 'ti ti-paperclip',
+  'drive-file-detail': 'ti ti-file',
   'page-edit': 'ti ti-pencil',
   'play-edit': 'ti ti-pencil',
   'widget-edit': 'ti ti-layout-dashboard',

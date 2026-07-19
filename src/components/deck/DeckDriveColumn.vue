@@ -10,19 +10,13 @@ import MkFolderGrid from '@/components/common/MkFolderGrid.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useDriveActions } from '@/composables/useDriveActions'
-import {
-  formatFileSize,
-  isAudio,
-  isImage,
-  isVideo,
-  safeUrl,
-  useDriveFolder,
-} from '@/composables/useDriveFolder'
+import { useDriveFolder } from '@/composables/useDriveFolder'
 import { useServerImages } from '@/composables/useServerImages'
 import { getAccountAvatarUrl } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
+import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
@@ -44,9 +38,9 @@ const {
   loading,
   error,
   fetchDrive,
-  openFolder: _openFolder,
-  goUp: _goUp,
-  goRoot: _goRoot,
+  openFolder,
+  goUp,
+  goRoot,
   selectedIds,
   toggleFile,
   selectAll,
@@ -103,79 +97,17 @@ watch(
   { immediate: true },
 )
 
-// --- Detail view ---
-const detailFile = ref<NormalizedDriveFile | null>(null)
-const deleting = ref(false)
-const deleteError = ref<string | null>(null)
-
-function openFolder(folder: Parameters<typeof _openFolder>[0]) {
-  detailFile.value = null
-  _openFolder(folder)
-}
-
-function goUp() {
-  if (detailFile.value) {
-    detailFile.value = null
-    deleteError.value = null
-    return
-  }
-  _goUp()
-}
-
-function goRoot() {
-  detailFile.value = null
-  deleteError.value = null
-  _goRoot()
-}
-
-function openDetail(file: NormalizedDriveFile) {
-  detailFile.value = file
-  deleteError.value = null
-}
-
 const { confirm } = useConfirm()
-
-async function deleteFile() {
-  if (!detailFile.value || !props.column.accountId || deleting.value) return
-  const ok = await confirm({
-    title: 'ファイルを削除',
-    message: `「${detailFile.value.name}」をドライブから削除しますか？このファイルを添付したノートからも消えます。この操作は取り消せません。`,
-    okLabel: '削除',
-    type: 'danger',
-  })
-  if (!ok || !detailFile.value || !props.column.accountId) return
-  deleting.value = true
-  deleteError.value = null
-  try {
-    unwrap(
-      await commands.apiDeleteDriveFile(
-        props.column.accountId,
-        detailFile.value.id,
-      ),
-    )
-    files.value = files.value.filter((f) => f.id !== detailFile.value?.id)
-    detailFile.value = null
-  } catch (e) {
-    deleteError.value = AppError.from(e).message
-  } finally {
-    deleting.value = false
-  }
-}
+const windowsStore = useWindowsStore()
 
 const driveGridScrollRef = useTemplateRef<HTMLElement>('driveGridScrollRef')
-const driveDetailScrollRef = useTemplateRef<HTMLElement>('driveDetailScrollRef')
 useColumnPullScroller(driveGridScrollRef)
 
 function scrollToTop() {
-  const el = detailFile.value
-    ? driveDetailScrollRef.value
-    : driveGridScrollRef.value
-  el?.scrollTo({ top: 0, behavior: 'smooth' })
+  driveGridScrollRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-const canGoUp = computed(() => {
-  return detailFile.value !== null || folderStack.value.length > 0
-})
+const canGoUp = computed(() => folderStack.value.length > 0)
 
 // --- Selection mode ---
 const selectMode = ref(false)
@@ -277,11 +209,17 @@ async function onMoveConfirm(folderId: string | null) {
   }
 }
 
+// 詳細はカラム内遷移ではなくウィンドウで開く（「詳細系はウィンドウ」モデル #792）
 function onFileClick(file: NormalizedDriveFile) {
   if (selectMode.value) {
     toggleFile(file.id)
   } else {
-    openDetail(file)
+    windowsStore.open('drive-file-detail', {
+      accountId: props.column.accountId,
+      fileId: file.id,
+      originFolderId: currentFolderId.value,
+      originStack: [...folderStack.value],
+    })
   }
 }
 
@@ -347,10 +285,10 @@ fetchDrive()
       <button v-if="folderStack.length > 1" class="_button" :class="$style.headerRefresh" title="ルート" @click.stop="goRoot">
         <i class="ti ti-home" />
       </button>
-      <button v-if="!detailFile && canWrite" class="_button" :class="[$style.headerRefresh, { [$style.headerBtnActive]: selectMode }]" title="選択" @click.stop="toggleSelectMode">
+      <button v-if="canWrite" class="_button" :class="[$style.headerRefresh, { [$style.headerBtnActive]: selectMode }]" title="選択" @click.stop="toggleSelectMode">
         <i class="ti ti-checkbox" />
       </button>
-      <button v-if="!detailFile && !selectMode && canWrite" class="_button" :class="$style.headerRefresh" title="アップロード" :disabled="uploading" @click.stop="openFilePicker">
+      <button v-if="!selectMode && canWrite" class="_button" :class="$style.headerRefresh" title="アップロード" :disabled="uploading" @click.stop="openFilePicker">
         <i class="ti ti-upload" />
       </button>
       <div v-if="account" :class="$style.headerAccount">
@@ -376,167 +314,112 @@ fetchDrive()
       @move-request="onMenuMoveRequest"
     />
 
-    <!-- Detail view -->
-    <template v-if="detailFile">
-      <div ref="driveDetailScrollRef" :class="$style.driveDetailScroll">
-        <div :class="$style.driveDetail">
-          <div :class="$style.driveDetailPreview">
-            <img
-              v-if="isImage(detailFile)"
-              :src="safeUrl(detailFile.url)"
-              :alt="detailFile.name"
-              :class="$style.driveDetailImage"
-            />
-            <video
-              v-else-if="isVideo(detailFile)"
-              :src="safeUrl(detailFile.url)"
-              :class="$style.driveDetailVideo"
-              controls
-            />
-            <audio
-              v-else-if="isAudio(detailFile)"
-              :src="safeUrl(detailFile.url)"
-              controls
-              :class="$style.driveDetailAudio"
-            />
-            <div v-else :class="$style.driveDetailPlaceholder">
-              <i class="ti ti-file" />
-            </div>
-          </div>
-          <div :class="$style.driveDetailInfo">
-            <div :class="$style.driveDetailName">{{ detailFile.name }}</div>
-            <div :class="$style.driveDetailMeta">
-              <span>{{ detailFile.type }}</span>
-              <span>{{ formatFileSize(detailFile.size) }}</span>
-            </div>
-            <div v-if="detailFile.isSensitive" :class="$style.driveDetailSensitive">
-              <i class="ti ti-eye-off" /> NSFW
-            </div>
-          </div>
-          <div :class="$style.driveDetailActions">
-            <button
-              class="_button"
-              :class="$style.driveDeleteBtn"
-              :disabled="deleting"
-              @click="deleteFile"
-            >
-              <i class="ti ti-trash" />
-              {{ deleting ? '削除中...' : '削除' }}
-            </button>
-          </div>
-          <div v-if="deleteError" :class="$style.driveDetailError">{{ deleteError }}</div>
-        </div>
-      </div>
-    </template>
-
     <!-- Grid view -->
-    <template v-else>
-      <!-- Breadcrumb -->
-      <div v-if="folderStack.length > 0" :class="$style.driveBreadcrumb">
-        <button class="_button" :class="$style.driveBreadcrumbItem" @click="goRoot">
-          <i class="ti ti-cloud" />
+    <!-- Breadcrumb -->
+    <div v-if="folderStack.length > 0" :class="$style.driveBreadcrumb">
+      <button class="_button" :class="$style.driveBreadcrumbItem" @click="goRoot">
+        <i class="ti ti-cloud" />
+      </button>
+      <template v-for="(folder, i) in folderStack" :key="folder.id">
+        <i class="ti ti-chevron-right" :class="$style.driveBreadcrumbSep" />
+        <button
+          class="_button"
+          :class="[$style.driveBreadcrumbItem, { [$style.current]: i === folderStack.length - 1 }]"
+          @click="i < folderStack.length - 1 ? openFolder(folder) : undefined"
+        >
+          {{ folder.name }}
         </button>
-        <template v-for="(folder, i) in folderStack" :key="folder.id">
-          <i class="ti ti-chevron-right" :class="$style.driveBreadcrumbSep" />
+      </template>
+    </div>
+
+    <div ref="driveGridScrollRef" :class="$style.driveGridScroll">
+      <div v-if="loading && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
+      <ColumnEmptyState v-else-if="error && !isLoggedOut" :message="error" is-error :image-url="serverErrorImageUrl" />
+      <template v-else-if="!isLoggedOut">
+        <!-- Folders -->
+        <MkFolderGrid
+          :folders="folders"
+          :show-create-cell="canWrite"
+          :show-item-menu="canWrite"
+          :select-mode="selectMode"
+          @folder-click="openFolder"
+          @folder-menu="onFolderMenu"
+          @create-click="onCreateFolder"
+        />
+
+        <!-- File grid -->
+        <MkFileGrid
+          :files="files"
+          :select-mode="selectMode"
+          :selected-ids="selectedIds"
+          :show-item-menu="canWrite"
+          @file-click="onFileClick"
+          @file-menu="onFileMenu"
+        >
           <button
+            v-if="!selectMode && canWrite"
             class="_button"
-            :class="[$style.driveBreadcrumbItem, { [$style.current]: i === folderStack.length - 1 }]"
-            @click="i < folderStack.length - 1 ? openFolder(folder) : undefined"
+            :class="$style.driveUploadCell"
+            :disabled="uploading"
+            @click="openFilePicker"
           >
-            {{ folder.name }}
+            <div :class="$style.driveUploadThumb">
+              <i v-if="uploading" class="ti ti-loader-2 nd-spin" />
+              <i v-else class="ti ti-plus" />
+            </div>
+            <div :class="$style.driveUploadLabel">アップロード</div>
           </button>
-        </template>
-      </div>
+        </MkFileGrid>
+      </template>
+    </div>
 
-      <div ref="driveGridScrollRef" :class="$style.driveGridScroll">
-        <div v-if="loading && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
-        <ColumnEmptyState v-else-if="error && !isLoggedOut" :message="error" is-error :image-url="serverErrorImageUrl" />
-        <template v-else-if="!isLoggedOut">
-          <!-- Folders -->
-          <MkFolderGrid
-            :folders="folders"
-            :show-create-cell="canWrite"
-            :show-item-menu="canWrite"
-            :select-mode="selectMode"
-            @folder-click="openFolder"
-            @folder-menu="onFolderMenu"
-            @create-click="onCreateFolder"
-          />
-
-          <!-- File grid -->
-          <MkFileGrid
-            :files="files"
-            :select-mode="selectMode"
-            :selected-ids="selectedIds"
-            :show-item-menu="canWrite"
-            @file-click="onFileClick"
-            @file-menu="onFileMenu"
-          >
-            <button
-              v-if="!selectMode && canWrite"
-              class="_button"
-              :class="$style.driveUploadCell"
-              :disabled="uploading"
-              @click="openFilePicker"
-            >
-              <div :class="$style.driveUploadThumb">
-                <i v-if="uploading" class="ti ti-loader-2 nd-spin" />
-                <i v-else class="ti ti-plus" />
-              </div>
-              <div :class="$style.driveUploadLabel">アップロード</div>
-            </button>
-          </MkFileGrid>
-        </template>
-      </div>
-
-      <!-- Selection action bar (§2.1: フォルダスコープトグル / 件数 / すべて解除 / 移動 / 削除) -->
-      <div v-if="selectMode" :class="$style.driveActionBar">
-        <button
-          class="_button"
-          :class="$style.driveActionBtn"
-          :disabled="files.length === 0"
-          :aria-label="allCurrentSelected ? 'このフォルダの選択を解除' : 'このフォルダを全選択'"
-          :title="allCurrentSelected ? 'このフォルダの選択を解除' : 'このフォルダを全選択'"
-          @click="toggleCurrentSelection"
-        >
-          <i :class="allCurrentSelected ? 'ti ti-square-off' : 'ti ti-checks'" />
-        </button>
-        <span :class="$style.driveActionCount">
-          {{ selectedIds.size }} 件<template v-if="selectedOutsideCount > 0">（他 {{ selectedOutsideCount }}）</template>
-        </span>
-        <button
-          v-if="selectedIds.size > 0"
-          class="_button"
-          :class="$style.driveActionBtn"
-          aria-label="すべて解除"
-          title="すべて解除"
-          @click="deselectAll"
-        >
-          <i class="ti ti-x" />
-        </button>
-        <button
-          class="_button"
-          :class="$style.driveActionBtn"
-          :disabled="selectedIds.size === 0 || moving"
-          aria-label="移動"
-          title="選択したファイルを移動"
-          @click="openMoveDialogForSelection"
-        >
-          <i :class="moving ? 'ti ti-loader-2 nd-spin' : 'ti ti-folder-symlink'" />
-        </button>
-        <div v-if="batchDeleteError" :class="$style.driveActionError">{{ batchDeleteError }}</div>
-        <button
-          class="_button"
-          :class="[$style.driveActionBtn, $style.driveActionDanger]"
-          :disabled="selectedIds.size === 0 || batchDeleting"
-          aria-label="削除"
-          title="選択したファイルを削除"
-          @click="batchDelete"
-        >
-          <i :class="batchDeleting ? 'ti ti-loader-2 nd-spin' : 'ti ti-trash'" />
-        </button>
-      </div>
-    </template>
+    <!-- Selection action bar (§2.1: フォルダスコープトグル / 件数 / すべて解除 / 移動 / 削除) -->
+    <div v-if="selectMode" :class="$style.driveActionBar">
+      <button
+        class="_button"
+        :class="$style.driveActionBtn"
+        :disabled="files.length === 0"
+        :aria-label="allCurrentSelected ? 'このフォルダの選択を解除' : 'このフォルダを全選択'"
+        :title="allCurrentSelected ? 'このフォルダの選択を解除' : 'このフォルダを全選択'"
+        @click="toggleCurrentSelection"
+      >
+        <i :class="allCurrentSelected ? 'ti ti-square-off' : 'ti ti-checks'" />
+      </button>
+      <span :class="$style.driveActionCount">
+        {{ selectedIds.size }} 件<template v-if="selectedOutsideCount > 0">（他 {{ selectedOutsideCount }}）</template>
+      </span>
+      <button
+        v-if="selectedIds.size > 0"
+        class="_button"
+        :class="$style.driveActionBtn"
+        aria-label="すべて解除"
+        title="すべて解除"
+        @click="deselectAll"
+      >
+        <i class="ti ti-x" />
+      </button>
+      <button
+        class="_button"
+        :class="$style.driveActionBtn"
+        :disabled="selectedIds.size === 0 || moving"
+        aria-label="移動"
+        title="選択したファイルを移動"
+        @click="openMoveDialogForSelection"
+      >
+        <i :class="moving ? 'ti ti-loader-2 nd-spin' : 'ti ti-folder-symlink'" />
+      </button>
+      <div v-if="batchDeleteError" :class="$style.driveActionError">{{ batchDeleteError }}</div>
+      <button
+        class="_button"
+        :class="[$style.driveActionBtn, $style.driveActionDanger]"
+        :disabled="selectedIds.size === 0 || batchDeleting"
+        aria-label="削除"
+        title="選択したファイルを削除"
+        @click="batchDelete"
+      >
+        <i :class="batchDeleting ? 'ti ti-loader-2 nd-spin' : 'ti ti-trash'" />
+      </button>
+    </div>
 
     <MkDriveFolderSelectDialog
       v-if="moveDialogOpen && column.accountId"
@@ -640,112 +523,6 @@ fetchDrive()
   text-align: center;
 }
 
-
-/* --- Detail view --- */
-.driveDetailScroll {
-  composes: columnScroller from './column-common.module.scss';
-}
-
-.driveDetail {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px;
-}
-
-.driveDetailPreview {
-  border-radius: var(--nd-radius-md);
-  overflow: hidden;
-  background: var(--nd-bg);
-}
-
-.driveDetailImage {
-  display: block;
-  width: 100%;
-  max-height: 400px;
-  object-fit: contain;
-}
-
-.driveDetailVideo {
-  display: block;
-  width: 100%;
-  max-height: 400px;
-}
-
-.driveDetailAudio {
-  display: block;
-  width: 100%;
-  padding: 16px;
-}
-
-.driveDetailPlaceholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 120px;
-  font-size: 48px;
-  opacity: 0.2;
-}
-
-.driveDetailInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.driveDetailName {
-  font-size: 0.95em;
-  font-weight: 600;
-  color: var(--nd-fgHighlighted);
-  word-break: break-all;
-}
-
-.driveDetailMeta {
-  display: flex;
-  gap: 12px;
-  font-size: 0.8em;
-  opacity: 0.6;
-}
-
-.driveDetailSensitive {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.8em;
-  color: var(--nd-love);
-}
-
-.driveDetailActions {
-  display: flex;
-  gap: 8px;
-}
-
-.driveDeleteBtn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border-radius: var(--nd-radius-md);
-  background: var(--nd-love-hover);
-  color: var(--nd-love);
-  font-size: 0.85em;
-  font-weight: 600;
-  transition: background var(--nd-duration-base);
-
-  &:hover {
-    background: color-mix(in srgb, var(--nd-love) 25%, transparent);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-}
-
-.driveDetailError {
-  font-size: 0.8em;
-  color: var(--nd-love);
-}
 
 /* --- Selection mode --- */
 .headerBtnActive {

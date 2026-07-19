@@ -38,6 +38,7 @@ export const WINDOW_LABELS: Record<string, string> = {
   'gallery-detail': 'ギャラリー',
   'list-detail': 'リスト',
   'clip-detail': 'クリップ',
+  'drive-file-detail': 'ファイル',
   'page-edit': 'ページを編集',
   'play-edit': 'Play を編集',
   'widget-edit': 'ウィジット編集',

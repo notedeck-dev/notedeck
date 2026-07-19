@@ -32,6 +32,7 @@ export type WindowType =
   | 'gallery-detail'
   | 'list-detail'
   | 'clip-detail'
+  | 'drive-file-detail'
   | 'page-edit'
   | 'play-edit'
   | 'widget-edit'
@@ -106,6 +107,7 @@ export const WINDOW_SIZES: Record<
   'gallery-detail': { width: 500, maxHeight: 720 },
   'list-detail': { width: 500, maxHeight: 720 },
   'clip-detail': { width: 500, maxHeight: 720 },
+  'drive-file-detail': { width: 500, maxHeight: 720 },
   // Misskey content edit windows
   'page-edit': { width: 500, maxHeight: 720 },
   'play-edit': { width: 500, maxHeight: 720 },
@@ -148,6 +150,8 @@ export const useWindowsStore = defineStore('windows', () => {
     'gallery-detail': ['postId', 'accountId'],
     'list-detail': ['listId', 'accountId'],
     'clip-detail': ['clipId', 'accountId'],
+    // origin (フォルダ開始位置) の差は dedup に影響させない
+    'drive-file-detail': ['fileId', 'accountId'],
     'page-edit': ['pageId', 'accountId'],
     'play-edit': ['flashId', 'accountId'],
     'widget-edit': ['widgetId'],
