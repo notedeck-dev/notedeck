@@ -869,6 +869,46 @@ async apiDeleteDriveFile(accountId: string, fileId: string) : Promise<Result<nul
     else return { status: "error", error: e  as any };
 }
 },
+async apiCreateDriveFolder(accountId: string, name: string, parentId: string | null) : Promise<Result<CreatedDriveFolder, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_create_drive_folder", { accountId, name, parentId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async apiUpdateDriveFolder(accountId: string, folderId: string, name: string) : Promise<Result<null, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_update_drive_folder", { accountId, folderId, name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async apiDeleteDriveFolder(accountId: string, folderId: string) : Promise<Result<null, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_delete_drive_folder", { accountId, folderId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async apiUpdateDriveFile(accountId: string, fileId: string, name: string) : Promise<Result<null, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_update_drive_file", { accountId, fileId, name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async apiMoveDriveFiles(accountId: string, fileIds: string[], folderId: string | null) : Promise<Result<null, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_move_drive_files", { accountId, fileIds, folderId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async apiGetFollowRequests(accountId: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_follow_requests", { accountId, limit }) };
@@ -2532,6 +2572,7 @@ export type CreatedApiToken = { meta: ApiTokenMeta;
  * UI はこの場でユーザーに提示 (コピー) させること。
  */
 token: string }
+export type CreatedDriveFolder = { id: string; name: string; parentId?: string | null }
 /**
  * `notes_cache` の eviction policy。 デフォルトは「ほぼ永続保存」 — notedeck の
  * 「過去ノートを一瞬でローカル検索」という UX を尊重し、 暴走防止の hard cap

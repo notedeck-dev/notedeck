@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, provide, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import type { DriveFolder } from '@/adapters/types'
 import { COLUMN_COMPONENTS } from '@/columns/registry'
 import AppToast from '@/components/common/AppToast.vue'
 import AppTooltip from '@/components/common/AppTooltip.vue'
@@ -41,6 +42,7 @@ const WINDOW_TITLES: Partial<Record<WindowType, string>> = {
   'gallery-detail': 'ギャラリー',
   'list-detail': 'リスト',
   'clip-detail': 'クリップ',
+  'drive-file-detail': 'ファイル',
   'page-edit': 'ページ編集',
   'play-edit': 'Play 編集',
   'widget-edit': 'ウィジット編集',
@@ -131,6 +133,9 @@ const ListDetailContent = defineAsyncComponent(
 )
 const ClipDetailContent = defineAsyncComponent(
   () => import('@/components/window/ClipDetailContent.vue'),
+)
+const DriveFileDetailContent = defineAsyncComponent(
+  () => import('@/components/window/DriveFileDetailContent.vue'),
 )
 const PageEditContent = defineAsyncComponent(
   () => import('@/components/window/PageEditContent.vue'),
@@ -358,6 +363,14 @@ onMounted(async () => {
           v-else-if="windowPayload.type === 'clip-detail'"
           :account-id="(windowPayload.props.accountId as string)"
           :clip-id="(windowPayload.props.clipId as string)"
+        />
+        <DriveFileDetailContent
+          v-else-if="windowPayload.type === 'drive-file-detail'"
+          :account-id="(windowPayload.props.accountId as string)"
+          :file-id="(windowPayload.props.fileId as string)"
+          :origin-folder-id="(windowPayload.props.originFolderId as string | null | undefined)"
+          :origin-stack="(windowPayload.props.originStack as DriveFolder[] | undefined)"
+          @close="closeWindow"
         />
         <PageEditContent
           v-else-if="windowPayload.type === 'page-edit'"

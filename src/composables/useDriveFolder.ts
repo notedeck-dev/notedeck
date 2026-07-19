@@ -7,11 +7,13 @@ import { isSafeUrl } from '@/utils/url'
 export interface UseDriveFolderOptions {
   accountId: () => string | undefined
   initialFolderId?: string | null
+  /** folderStack の初期値（移動ダイアログ・詳細ウィンドウの origin 引き継ぎ用） */
+  initialStack?: DriveFolder[]
 }
 
 export function useDriveFolder(options: UseDriveFolderOptions) {
   const currentFolderId = ref<string | null>(options.initialFolderId ?? null)
-  const folderStack = ref<DriveFolder[]>([])
+  const folderStack = ref<DriveFolder[]>([...(options.initialStack ?? [])])
   const folders = shallowRef<DriveFolder[]>([])
   const files = shallowRef<NormalizedDriveFile[]>([])
   const loading = ref(false)
@@ -75,8 +77,18 @@ export function useDriveFolder(options: UseDriveFolderOptions) {
     selectedIds.value = next
   }
 
+  // union（加算）: 他階層で選択済みの ID は捨てない
   function selectAll() {
-    selectedIds.value = new Set(files.value.map((f) => f.id))
+    const next = new Set(selectedIds.value)
+    for (const f of files.value) next.add(f.id)
+    selectedIds.value = next
+  }
+
+  /** 現フォルダの files に含まれる ID のみ解除（他階層の選択は保持） */
+  function deselectCurrent() {
+    const next = new Set(selectedIds.value)
+    for (const f of files.value) next.delete(f.id)
+    selectedIds.value = next
   }
 
   function deselectAll() {
@@ -84,6 +96,16 @@ export function useDriveFolder(options: UseDriveFolderOptions) {
   }
 
   const selectedCount = computed(() => selectedIds.value.size)
+
+  /** 選択中のうち現フォルダの files に無い件数（他階層で選択された分） */
+  const selectedOutsideCount = computed(() => {
+    const currentIds = new Set(files.value.map((f) => f.id))
+    let count = 0
+    for (const id of selectedIds.value) {
+      if (!currentIds.has(id)) count++
+    }
+    return count
+  })
 
   return {
     currentFolderId,
@@ -99,8 +121,10 @@ export function useDriveFolder(options: UseDriveFolderOptions) {
     selectedIds,
     toggleFile,
     selectAll,
+    deselectCurrent,
     deselectAll,
     selectedCount,
+    selectedOutsideCount,
   }
 }
 

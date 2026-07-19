@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
+import type { DriveFolder } from '@/adapters/types'
 import { useVaporTransitionGroup } from '@/composables/useVaporTransition'
 import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
@@ -97,6 +98,9 @@ const ListDetailContent = defineAsyncComponent(
 )
 const ClipDetailContent = defineAsyncComponent(
   () => import('@/components/window/ClipDetailContent.vue'),
+)
+const DriveFileDetailContent = defineAsyncComponent(
+  () => import('@/components/window/DriveFileDetailContent.vue'),
 )
 const PageEditContent = defineAsyncComponent(
   () => import('@/components/window/PageEditContent.vue'),
@@ -289,6 +293,14 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         v-if="win.type === 'clip-detail'"
         :account-id="(win.props.accountId as string)"
         :clip-id="(win.props.clipId as string)"
+      />
+      <DriveFileDetailContent
+        v-if="win.type === 'drive-file-detail'"
+        :account-id="(win.props.accountId as string)"
+        :file-id="(win.props.fileId as string)"
+        :origin-folder-id="(win.props.originFolderId as string | null | undefined)"
+        :origin-stack="(win.props.originStack as DriveFolder[] | undefined)"
+        @close="closeWindow(win.id)"
       />
       <PageEditContent
         v-if="win.type === 'page-edit'"

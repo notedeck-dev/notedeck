@@ -424,6 +424,102 @@ pub async fn api_delete_drive_file(
     client.delete_drive_file(&host, &token, &file_id).await
 }
 
+// --- Drive: 整理（フォルダ CRUD・ファイル移動/リネーム） ---
+
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatedDriveFolder {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub parent_id: Option<String>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn api_create_drive_folder(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    name: String,
+    parent_id: Option<String>,
+) -> Result<CreatedDriveFolder> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    let params = serde_json::json!({ "name": name, "parentId": parent_id });
+    let raw = client
+        .request(&host, &token, "drive/folders/create", params)
+        .await?;
+    Ok(serde_json::from_value(raw)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn api_update_drive_folder(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    folder_id: String,
+    name: String,
+) -> Result<()> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    let params = serde_json::json!({ "folderId": folder_id, "name": name });
+    client
+        .request(&host, &token, "drive/folders/update", params)
+        .await?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn api_delete_drive_folder(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    folder_id: String,
+) -> Result<()> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    let params = serde_json::json!({ "folderId": folder_id });
+    client
+        .request(&host, &token, "drive/folders/delete", params)
+        .await?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn api_update_drive_file(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    file_id: String,
+    name: String,
+) -> Result<()> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    let params = serde_json::json!({ "fileId": file_id, "name": name });
+    client
+        .request(&host, &token, "drive/files/update", params)
+        .await?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn api_move_drive_files(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    file_ids: Vec<String>,
+    folder_id: Option<String>,
+) -> Result<()> {
+    let (db, client) = app_state.ready().await;
+    let (host, token) = get_credentials(&db, &account_id)?;
+    // folder_id: None は JSON null（= ルートへ移動）として送る
+    let params = serde_json::json!({ "fileIds": file_ids, "folderId": folder_id });
+    client
+        .request(&host, &token, "drive/files/move-bulk", params)
+        .await?;
+    Ok(())
+}
+
 // --- Page / Flash / Note / Drive: 詳細取得 + エディタ更新 ---
 
 #[tauri::command]
@@ -612,4 +708,45 @@ pub async fn api_list_registry_keys(
     let (db, client) = app_state.ready().await;
     let (host, token) = get_credentials(&db, &account_id)?;
     client.list_registry_keys(&host, &token, &scope).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CreatedDriveFolder;
+
+    #[test]
+    fn created_drive_folder_deserializes_packed_response() {
+        // Misskey packed DriveFolder は他フィールドを含むが無視される
+        let raw = serde_json::json!({
+            "id": "abc123",
+            "createdAt": "2026-07-20T00:00:00.000Z",
+            "name": "新しいフォルダ",
+            "parentId": "parent1",
+            "foldersCount": 0,
+            "filesCount": 2
+        });
+        let folder: CreatedDriveFolder = serde_json::from_value(raw).unwrap();
+        assert_eq!(folder.id, "abc123");
+        assert_eq!(folder.name, "新しいフォルダ");
+        assert_eq!(folder.parent_id.as_deref(), Some("parent1"));
+    }
+
+    #[test]
+    fn created_drive_folder_accepts_null_and_missing_parent() {
+        let with_null = serde_json::json!({ "id": "a", "name": "n", "parentId": null });
+        let folder: CreatedDriveFolder = serde_json::from_value(with_null).unwrap();
+        assert!(folder.parent_id.is_none());
+
+        let missing = serde_json::json!({ "id": "a", "name": "n" });
+        let folder: CreatedDriveFolder = serde_json::from_value(missing).unwrap();
+        assert!(folder.parent_id.is_none());
+    }
+
+    #[test]
+    fn move_bulk_params_serialize_none_folder_as_null() {
+        let folder_id: Option<String> = None;
+        let params = serde_json::json!({ "fileIds": ["f1", "f2"], "folderId": folder_id });
+        assert!(params["folderId"].is_null());
+        assert_eq!(params["fileIds"].as_array().unwrap().len(), 2);
+    }
 }

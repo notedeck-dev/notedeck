@@ -2,6 +2,7 @@
 import { computed, ref, useTemplateRef } from 'vue'
 import type { GalleryPost, NormalizedDriveFile } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import GalleryItemMenu from '@/components/common/GalleryItemMenu.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
@@ -75,6 +76,21 @@ function isImage(file: NormalizedDriveFile): boolean {
   return file.type.startsWith('image/')
 }
 
+// --- Item context menu (#793: #792 と同じ右クリック / 「…」 / 長押しの契約) ---
+const itemMenuRef = ref<InstanceType<typeof GalleryItemMenu>>()
+const menuPost = ref<GalleryPost | null>(null)
+
+function onPostMenu(post: GalleryPost, e: MouseEvent) {
+  menuPost.value = post
+  itemMenuRef.value?.open(e)
+}
+
+function onPostContextMenu(post: GalleryPost, e: MouseEvent) {
+  e.preventDefault()
+  e.stopPropagation()
+  onPostMenu(post, e)
+}
+
 let lastScrollCheck = 0
 
 function onScroll(e: Event) {
@@ -117,12 +133,12 @@ fetchGallery()
       <ColumnEmptyState v-else-if="posts.length === 0" message="ギャラリーの投稿がありません" :image-url="serverInfoImageUrl" />
       <template v-else>
         <div :class="$style.galleryGrid">
+          <div v-for="post in posts" :key="post.id" :class="$style.cellWrap">
           <button
-            v-for="post in posts"
-            :key="post.id"
             class="_button"
             :class="$style.galleryGridCell"
             @click="openDetail(post)"
+            @contextmenu="onPostContextMenu(post, $event)"
           >
             <div :class="$style.galleryGridThumb">
               <img
@@ -161,10 +177,27 @@ fetchGallery()
               </div>
             </div>
           </button>
+          <button
+            class="_button"
+            :class="$style.cellMenuBtn"
+            :aria-label="`「${post.title}」のメニュー`"
+            title="メニュー"
+            @click.stop="onPostMenu(post, $event)"
+          >
+            <i class="ti ti-dots" />
+          </button>
+          </div>
         </div>
         <div v-if="loading" :class="$style.columnLoading"><LoadingSpinner /></div>
       </template>
     </div>
+
+    <GalleryItemMenu
+      ref="itemMenuRef"
+      :post="menuPost"
+      :account-id="column.accountId"
+      @open-request="openDetail"
+    />
   </DeckColumn>
 </template>
 
@@ -183,9 +216,14 @@ fetchGallery()
   padding: 2px;
 }
 
+.cellWrap {
+  position: relative;
+}
+
 .galleryGridCell {
   display: flex;
   flex-direction: column;
+  width: 100%;
   overflow: hidden;
   transition: opacity var(--nd-duration-base);
   contain: layout style paint;
@@ -194,6 +232,41 @@ fetchGallery()
 
   &:hover {
     opacity: 0.8;
+  }
+}
+
+/* self-chain で WebView2 の _button 特異度衝突に備える。当たり判定 40px。
+   タッチ環境は非表示（タップ → 詳細ウィンドウで同アクションに到達可能 — #792 §8-28）。 */
+.cellMenuBtn.cellMenuBtn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: #fff;
+  font-size: 14px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity var(--nd-duration-base);
+}
+
+@media (hover: hover) {
+  .cellWrap:hover .cellMenuBtn,
+  .cellMenuBtn.cellMenuBtn:focus-visible {
+    opacity: 0.8;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+@media (hover: none) {
+  .cellMenuBtn.cellMenuBtn {
+    display: none;
   }
 }
 
@@ -220,9 +293,10 @@ fetchGallery()
   opacity: 0.3;
 }
 
+/* 右上は「…」オーバーレイと衝突するため右下に置く（ドライブの動画バッジと同位置） */
 .galleryGridBadge {
   position: absolute;
-  top: 4px;
+  bottom: 4px;
   right: 4px;
   display: flex;
   align-items: center;

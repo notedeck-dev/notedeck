@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { NormalizedDriveFile } from '@/adapters/types'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import { isImage, safeUrl, useDriveFolder } from '@/composables/useDriveFolder'
+import MkFileGrid from '@/components/common/MkFileGrid.vue'
+import MkFolderGrid from '@/components/common/MkFolderGrid.vue'
+import { useDriveFolder } from '@/composables/useDriveFolder'
 import { useThemeStore } from '@/stores/theme'
+import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -86,6 +89,18 @@ function confirm() {
   }
 }
 
+// 開きっぱなしのピッカーが移動 / リネーム後に stale にならないよう追従する。
+// 注意: setup store の分割代入はリアクティビティを失い watch が発火しない
+const uiStore = useUiStore()
+watch(
+  () => uiStore.driveFilesChanged,
+  (sig) => {
+    if (sig.accountId === props.accountId) {
+      fetchDrive()
+    }
+  },
+)
+
 // Initial load
 fetchDrive()
 </script>
@@ -130,20 +145,15 @@ fetchDrive()
       <div v-else-if="error" :class="[$style.dpEmpty, $style.dpError]">{{ error }}</div>
       <template v-else>
         <!-- Folders -->
-        <button
-          v-for="folder in folders"
-          :key="folder.id"
-          class="_button"
-          :class="$style.dpFolder"
-          @click="openFolder(folder)"
-        >
-          <i class="ti ti-folder" />
-          <span>{{ folder.name }}</span>
-          <i class="ti ti-chevron-right" :class="$style.dpFolderArrow" />
-        </button>
+        <MkFolderGrid :folders="folders" @folder-click="openFolder" />
 
-        <!-- Grid: upload cell + files -->
-        <div :class="$style.dpGrid">
+        <!-- Grid: upload cell (slot 注入) + files -->
+        <MkFileGrid
+          :files="files"
+          select-mode
+          :selected-ids="selectedIds"
+          @file-click="(file) => toggleFile(file.id)"
+        >
           <button
             class="_button"
             :class="$style.dpUploadCell"
@@ -157,36 +167,7 @@ fetchDrive()
             </div>
             <div :class="$style.dpLabel">アップロード</div>
           </button>
-
-          <button
-            v-for="file in files"
-            :key="file.id"
-            class="_button"
-            :class="[$style.dpGridCell, selectedIds.has(file.id) && $style.selected]"
-            :title="file.name"
-            @click="toggleFile(file.id)"
-          >
-            <div :class="$style.dpThumb">
-              <img
-                v-if="isImage(file) && !file.isSensitive"
-                :src="safeUrl(file.thumbnailUrl) || safeUrl(file.url)"
-                :alt="file.name"
-                :class="$style.dpThumbImg"
-                loading="lazy"
-              />
-              <div v-else-if="file.isSensitive" :class="$style.dpThumbPlaceholder">
-                <i class="ti ti-eye-off" />
-              </div>
-              <div v-else :class="$style.dpThumbPlaceholder">
-                <i class="ti ti-file" />
-              </div>
-              <div :class="[$style.dpCheck, selectedIds.has(file.id) && $style.checked]">
-                <i class="ti ti-check" />
-              </div>
-            </div>
-            <div :class="$style.dpLabel">{{ file.name }}</div>
-          </button>
-        </div>
+        </MkFileGrid>
 
         <div v-if="uploadError" :class="$style.dpUploadError">{{ uploadError }}</div>
       </template>
@@ -252,6 +233,8 @@ fetchDrive()
   overflow-y: auto;
   scrollbar-color: var(--nd-scrollbarHandle) transparent;
   scrollbar-width: thin;
+  /* フォルダ/ファイルグリッド共通の列数（drive-grid.module.scss の契約変数） */
+  --mk-file-grid-columns: repeat(3, 1fr);
 }
 
 .dpEmpty {
@@ -264,58 +247,6 @@ fetchDrive()
 .dpError {
   color: var(--nd-love);
   opacity: 1;
-}
-
-.dpFolder {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
-  font-size: 0.8em;
-  font-weight: 600;
-  color: var(--nd-fgHighlighted);
-  text-align: left;
-  border-bottom: 1px solid var(--nd-divider);
-  transition: background var(--nd-duration-base);
-
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-  }
-
-  :global(.ti-folder) {
-    color: var(--nd-accent);
-    font-size: 16px;
-  }
-}
-
-.dpFolderArrow {
-  font-size: 12px;
-  opacity: 0.3;
-  margin-left: auto;
-}
-
-.dpGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2px;
-  padding: 2px;
-}
-
-.dpGridCell {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transition: opacity var(--nd-duration-base);
-
-  &:hover {
-    opacity: 0.85;
-  }
-
-  &.selected .dpThumb {
-    outline: 3px solid var(--nd-accent);
-    outline-offset: -3px;
-  }
 }
 
 .dpUploadCell {
@@ -353,52 +284,6 @@ fetchDrive()
   padding: 8px 12px;
   font-size: 0.75em;
   color: var(--nd-love);
-}
-
-.dpThumb {
-  position: relative;
-  aspect-ratio: 1;
-  overflow: hidden;
-  background: var(--nd-bg);
-}
-
-.dpThumbImg {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.dpThumbPlaceholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
-  opacity: 0.3;
-}
-
-.dpCheck {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  background: rgba(0, 0, 0, 0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: transparent;
-  font-size: 11px;
-  transition: background var(--nd-duration-base), border-color var(--nd-duration-base), color var(--nd-duration-base);
-
-  &.checked {
-    background: var(--nd-accent);
-    border-color: var(--nd-accent);
-    color: #fff;
-  }
 }
 
 .dpLabel {

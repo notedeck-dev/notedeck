@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
+import type { NormalizedDriveFile } from '@/adapters/types'
+import MkMediaLightbox from '@/components/common/MkMediaLightbox.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { safeUrl } from '@/composables/useDriveFolder'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
@@ -54,6 +56,10 @@ const detailPost = ref<GalleryPost>({ ...props.post })
 const detailImageIndex = ref(0)
 const liking = ref(false)
 
+const currentFile = computed(
+  () => detailPost.value.files[detailImageIndex.value] ?? null,
+)
+
 const galleryWebUrl = computed(() => {
   if (!serverUrl.value) return undefined
   return `${serverUrl.value}/gallery/${props.postId}`
@@ -65,6 +71,53 @@ useWindowExternalLink(() =>
 
 function isImage(file: GalleryFile): boolean {
   return file.type.startsWith('image/')
+}
+
+// --- Sensitive: blur + click-to-reveal (#793: #792 のドライブ詳細と同じ契約) ---
+// reveal 状態は fileId をキーに保持する
+const revealedIds = shallowRef(new Set<string>())
+
+function isRevealed(file: GalleryFile): boolean {
+  return revealedIds.value.has(file.id)
+}
+
+function isBlurred(file: GalleryFile): boolean {
+  return file.isSensitive && !isRevealed(file)
+}
+
+function toggleReveal(file: GalleryFile) {
+  const next = new Set(revealedIds.value)
+  if (next.has(file.id)) {
+    next.delete(file.id)
+  } else {
+    next.add(file.id)
+  }
+  revealedIds.value = next
+}
+
+// --- Lightbox: 画像クリックで拡大 (#793: MkMediaLightbox 再利用) ---
+const lightboxIndex = ref<number | null>(null)
+
+const previewableImages = computed<NormalizedDriveFile[]>(() =>
+  detailPost.value.files.filter(isImage).map((f) => ({
+    id: f.id,
+    name: f.name,
+    type: f.type,
+    url: f.url,
+    thumbnailUrl: f.thumbnailUrl,
+    size: 0,
+    isSensitive: f.isSensitive,
+    comment: null,
+    width: null,
+    height: null,
+    blurhash: null,
+  })),
+)
+
+function openLightbox(file: GalleryFile) {
+  if (isBlurred(file)) return
+  const idx = previewableImages.value.findIndex((f) => f.id === file.id)
+  if (idx >= 0) lightboxIndex.value = idx
 }
 
 function formatDate(dateStr: string): string {
@@ -122,18 +175,29 @@ function onKeydown(e: KeyboardEvent) {
   <div :class="$style.root" tabindex="-1" @keydown="onKeydown">
     <div :class="$style.scroll">
       <div :class="$style.viewer">
-        <template v-if="detailPost.files.length > 0">
+        <template v-if="currentFile">
           <div :class="$style.viewerImage">
-            <img
-              v-if="isImage(detailPost.files[detailImageIndex]!) && !detailPost.files[detailImageIndex]!.isSensitive"
-              :src="safeUrl(detailPost.files[detailImageIndex]!.url)"
-              :alt="detailPost.files[detailImageIndex]!.name"
-              :class="$style.viewerImg"
-            />
-            <div v-else-if="detailPost.files[detailImageIndex]!.isSensitive" :class="$style.placeholder">
-              <i class="ti ti-eye-off" />
-              <span>NSFW</span>
-            </div>
+            <template v-if="isImage(currentFile)">
+              <img
+                :src="safeUrl(currentFile.url)"
+                :alt="currentFile.name"
+                :class="[$style.viewerImg, { [$style.blurred]: isBlurred(currentFile), [$style.zoomable]: !isBlurred(currentFile) }]"
+                @click="openLightbox(currentFile)"
+              />
+              <div v-if="isBlurred(currentFile)" class="_sensitiveOverlay" @click.stop="toggleReveal(currentFile)">
+                <i class="ti ti-eye-off" />
+                <span>NSFW</span>
+              </div>
+              <button
+                v-if="currentFile.isSensitive && isRevealed(currentFile)"
+                class="_button"
+                :class="$style.hideBtn"
+                title="隠す"
+                @click.stop="toggleReveal(currentFile)"
+              >
+                <i class="ti ti-eye" />
+              </button>
+            </template>
             <div v-else :class="$style.placeholder">
               <i class="ti ti-file" />
             </div>
@@ -197,6 +261,13 @@ function onKeydown(e: KeyboardEvent) {
         </div>
       </div>
     </div>
+
+    <MkMediaLightbox
+      v-if="lightboxIndex !== null"
+      :files="previewableImages"
+      :initial-index="lightboxIndex"
+      @close="lightboxIndex = null"
+    />
   </div>
 </template>
 
@@ -221,6 +292,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .viewerImage {
+  position: relative;
   aspect-ratio: 4 / 3;
   overflow: hidden;
 }
@@ -230,6 +302,29 @@ function onKeydown(e: KeyboardEvent) {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.zoomable {
+  cursor: zoom-in;
+}
+
+.blurred {
+  filter: blur(var(--nd-blur));
+}
+
+.hideBtn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-modalBg);
+  color: #fff;
+  z-index: 2;
 }
 
 .placeholder {
