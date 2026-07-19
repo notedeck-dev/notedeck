@@ -4,7 +4,7 @@ version = "1.14.1"
 description = "Misskey Pro — integrated deck environment (IDE) for Misskey power users"
 edition = "2021"
 [dependencies]
-notecli = { git = "https://github.com/notedeck-dev/notecli", rev = "988569e27a6d7aa87366a1f211b82e0b0da28198", features = ["specta"] }
+notecli = { git = "https://github.com/notedeck-dev/notecli", rev = "20bd9630780d6e37ddd71f34beba42894af6f569", features = ["specta"] }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
