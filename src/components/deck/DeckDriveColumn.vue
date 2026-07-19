@@ -224,9 +224,10 @@ async function onFileSelected(e: Event) {
 }
 
 // Listen for external drive-files-changed signal (e.g. from file drop)
-const { driveFilesChanged } = useUiStore()
+// 注意: setup store の分割代入はリアクティビティを失い watch が発火しない
+const uiStore = useUiStore()
 watch(
-  () => driveFilesChanged,
+  () => uiStore.driveFilesChanged,
   (sig) => {
     if (sig.accountId === props.column.accountId) {
       fetchDrive()
