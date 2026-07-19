@@ -53,7 +53,12 @@ const serverUrl = computed(() =>
 )
 
 const detailPost = ref<GalleryPost>({ ...props.post })
+const detailImageIndex = ref(0)
 const liking = ref(false)
+
+const currentFile = computed(
+  () => detailPost.value.files[detailImageIndex.value] ?? null,
+)
 
 const galleryWebUrl = computed(() => {
   if (!serverUrl.value) return undefined
@@ -120,6 +125,18 @@ function formatDate(dateStr: string): string {
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
 }
 
+function prevImage() {
+  if (detailImageIndex.value > 0) {
+    detailImageIndex.value--
+  }
+}
+
+function nextImage() {
+  if (detailImageIndex.value < detailPost.value.files.length - 1) {
+    detailImageIndex.value++
+  }
+}
+
 async function toggleLike() {
   if (liking.value) return
   liking.value = true
@@ -144,44 +161,74 @@ async function toggleLike() {
     liking.value = false
   }
 }
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'ArrowLeft') {
+    prevImage()
+  } else if (e.key === 'ArrowRight') {
+    nextImage()
+  }
+}
 </script>
 
 <template>
-  <div :class="$style.root" tabindex="-1">
+  <div :class="$style.root" tabindex="-1" @keydown="onKeydown">
     <div :class="$style.scroll">
-      <!-- 画像は縦に並べてスクロール閲覧（本家ギャラリー投稿ページと同型） -->
       <div :class="$style.viewer">
-        <div
-          v-for="file in detailPost.files"
-          :key="file.id"
-          :class="$style.viewerItem"
-        >
-          <template v-if="isImage(file)">
-            <img
-              :src="safeUrl(file.url)"
-              :alt="file.name"
-              :class="[$style.viewerImg, { [$style.blurred]: isBlurred(file), [$style.zoomable]: !isBlurred(file) }]"
-              loading="lazy"
-              @click="openLightbox(file)"
-            />
-            <div v-if="isBlurred(file)" class="_sensitiveOverlay" @click.stop="toggleReveal(file)">
-              <i class="ti ti-eye-off" />
-              <span>NSFW</span>
+        <template v-if="currentFile">
+          <div :class="$style.viewerImage">
+            <template v-if="isImage(currentFile)">
+              <img
+                :src="safeUrl(currentFile.url)"
+                :alt="currentFile.name"
+                :class="[$style.viewerImg, { [$style.blurred]: isBlurred(currentFile), [$style.zoomable]: !isBlurred(currentFile) }]"
+                @click="openLightbox(currentFile)"
+              />
+              <div v-if="isBlurred(currentFile)" class="_sensitiveOverlay" @click.stop="toggleReveal(currentFile)">
+                <i class="ti ti-eye-off" />
+                <span>NSFW</span>
+              </div>
+              <button
+                v-if="currentFile.isSensitive && isRevealed(currentFile)"
+                class="_button"
+                :class="$style.hideBtn"
+                title="隠す"
+                @click.stop="toggleReveal(currentFile)"
+              >
+                <i class="ti ti-eye" />
+              </button>
+            </template>
+            <div v-else :class="$style.placeholder">
+              <i class="ti ti-file" />
             </div>
-            <button
-              v-if="file.isSensitive && isRevealed(file)"
-              class="_button"
-              :class="$style.hideBtn"
-              title="隠す"
-              @click.stop="toggleReveal(file)"
-            >
-              <i class="ti ti-eye" />
-            </button>
-          </template>
-          <div v-else :class="$style.placeholder">
-            <i class="ti ti-file" />
           </div>
-        </div>
+          <template v-if="detailPost.files.length > 1">
+            <button
+              v-if="detailImageIndex > 0"
+              class="_button"
+              :class="[$style.navBtn, $style.navPrev]"
+              @click="prevImage"
+            >
+              <i class="ti ti-chevron-left" />
+            </button>
+            <button
+              v-if="detailImageIndex < detailPost.files.length - 1"
+              class="_button"
+              :class="[$style.navBtn, $style.navNext]"
+              @click="nextImage"
+            >
+              <i class="ti ti-chevron-right" />
+            </button>
+            <div :class="$style.dots">
+              <span
+                v-for="(_, i) in detailPost.files"
+                :key="i"
+                :class="[$style.dot, { [$style.active]: i === detailImageIndex }]"
+                @click="detailImageIndex = i"
+              />
+            </div>
+          </template>
+        </template>
       </div>
 
       <div :class="$style.info">
@@ -240,20 +287,21 @@ async function toggleLike() {
 }
 
 .viewer {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  position: relative;
   background: var(--nd-bg);
 }
 
-.viewerItem {
+.viewerImage {
   position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
 }
 
 .viewerImg {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: contain;
 }
 
 .zoomable {
@@ -281,7 +329,7 @@ async function toggleLike() {
 
 .placeholder {
   width: 100%;
-  min-height: 120px;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -292,6 +340,56 @@ async function toggleLike() {
 
   span {
     font-size: 14px;
+  }
+}
+
+.navBtn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--nd-modalBg);
+  color: #fff;
+  font-size: 16px;
+  transition: background var(--nd-duration-base);
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.7);
+  }
+}
+
+.navPrev {
+  left: 8px;
+}
+
+.navNext {
+  right: 8px;
+}
+
+.dots {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: background var(--nd-duration-base);
+
+  &.active {
+    background: #fff;
   }
 }
 

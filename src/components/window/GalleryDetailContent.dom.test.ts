@@ -87,10 +87,8 @@ function mountDetail(files: ReturnType<typeof makeFile>[]) {
   app.mount(container)
 }
 
-function viewerImgs(): HTMLImageElement[] {
-  return Array.from(
-    container?.querySelectorAll('img[class*="viewerImg"]') ?? [],
-  )
+function viewerImg(): HTMLImageElement | null {
+  return container?.querySelector('img[class*="viewerImg"]') ?? null
 }
 
 beforeEach(() => {
@@ -105,12 +103,15 @@ afterEach(() => {
 })
 
 describe('GalleryDetailContent の画像プレビュー (#793)', () => {
-  it('すべての画像が縦に並び、クリックで当該画像を初期位置にライトボックスが開く', async () => {
+  it('画像クリックで当該画像を初期位置にライトボックスが開く', async () => {
     mountDetail([makeFile('a'), makeFile('b')])
-    // 左右送りではなく全画像が同時に描画される
-    expect(viewerImgs()).toHaveLength(2)
-    expect(viewerImgs()[1]?.src).toContain('b.png')
-    viewerImgs()[1]?.click()
+    // 2 枚目に移動してからクリック
+    const next = Array.from(container?.querySelectorAll('button') ?? []).find(
+      (b) => b.className.includes('navNext'),
+    )
+    next?.click()
+    await vi.waitFor(() => expect(viewerImg()?.src).toContain('b.png'))
+    viewerImg()?.click()
     await vi.waitFor(() => expect(lightboxProps).toHaveLength(1))
     expect(lightboxProps[0]).toEqual({ ids: ['a', 'b'], index: 1 })
   })
@@ -118,7 +119,7 @@ describe('GalleryDetailContent の画像プレビュー (#793)', () => {
   it('sensitive は blur + click-to-reveal、reveal 前はライトボックスが開かない', async () => {
     mountDetail([makeFile('a', true)])
     expect(container?.querySelector('._sensitiveOverlay')).toBeTruthy()
-    viewerImgs()[0]?.click()
+    viewerImg()?.click()
     await new Promise((r) => setTimeout(r, 0))
     expect(lightboxProps).toHaveLength(0)
     // reveal → クリックで開く
@@ -126,16 +127,7 @@ describe('GalleryDetailContent の画像プレビュー (#793)', () => {
     await vi.waitFor(() =>
       expect(container?.querySelector('._sensitiveOverlay')).toBeNull(),
     )
-    viewerImgs()[0]?.click()
-    await vi.waitFor(() => expect(lightboxProps).toHaveLength(1))
-  })
-
-  it('sensitive を含む複数枚でも reveal は当該ファイルのみに効く', async () => {
-    mountDetail([makeFile('a'), makeFile('b', true)])
-    expect(viewerImgs()).toHaveLength(2)
-    expect(container?.querySelectorAll('._sensitiveOverlay')).toHaveLength(1)
-    // 通常画像はそのまま開ける
-    viewerImgs()[0]?.click()
+    viewerImg()?.click()
     await vi.waitFor(() => expect(lightboxProps).toHaveLength(1))
   })
 })
