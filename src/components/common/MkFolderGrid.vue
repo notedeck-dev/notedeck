@@ -97,16 +97,17 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
 }
 
 .folderIcon {
-  font-size: 4rem;
+  font-size: 6rem;
   color: var(--nd-accent);
   opacity: 0.5;
 }
 
+/* outline フォルダアイコンの本体（タブの下）中央に重ねる */
 .folderName {
   position: absolute;
-  left: 14%;
-  right: 14%;
-  top: 56%;
+  left: 12%;
+  right: 12%;
+  top: 58%;
   transform: translateY(-50%);
   text-align: center;
   font-size: 0.7em;
