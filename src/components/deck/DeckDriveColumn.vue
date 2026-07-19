@@ -4,6 +4,7 @@ import type { DriveFolder, NormalizedDriveFile } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import DriveItemMenu from '@/components/common/DriveItemMenu.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import MkDriveFolderSelectDialog from '@/components/common/MkDriveFolderSelectDialog.vue'
 import MkFileGrid from '@/components/common/MkFileGrid.vue'
 import MkFolderGrid from '@/components/common/MkFolderGrid.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
@@ -49,7 +50,9 @@ const {
   selectedIds,
   toggleFile,
   selectAll,
+  deselectCurrent,
   deselectAll,
+  selectedOutsideCount,
 } = useDriveFolder({
   accountId: () => props.column.accountId ?? undefined,
   initialFolderId: props.column.folderId,
@@ -184,6 +187,21 @@ function toggleSelectMode() {
   }
 }
 
+// 現フォルダの files がすべて選択済みか（トグルの述語 — フォルダスコープ固定）
+const allCurrentSelected = computed(
+  () =>
+    files.value.length > 0 &&
+    files.value.every((f) => selectedIds.value.has(f.id)),
+)
+
+function toggleCurrentSelection() {
+  if (allCurrentSelected.value) {
+    deselectCurrent()
+  } else {
+    selectAll()
+  }
+}
+
 const batchDeleting = ref(false)
 const batchDeleteError = ref<string | null>(null)
 
@@ -195,9 +213,13 @@ async function batchDelete() {
   )
     return
   const count = selectedIds.value.size
+  const outside = selectedOutsideCount.value
+  // 階層またぎ選択では表示外の選択の存在を confirm 文面で明示する (§2.5-3)
+  const outsideNote =
+    outside > 0 ? `（現在のフォルダ外で選択した ${outside} 件を含む）` : ''
   const ok = await confirm({
     title: 'ファイルを一括削除',
-    message: `選択中の ${count} 件のファイルをドライブから削除しますか？添付したノートからも消えます。この操作は取り消せません。`,
+    message: `選択中の ${count} 件のファイルをドライブから削除しますか？${outsideNote}添付したノートからも消えます。この操作は取り消せません。`,
     okLabel: '削除',
     type: 'danger',
   })
@@ -216,6 +238,42 @@ async function batchDelete() {
     batchDeleteError.value = AppError.from(e).message
   } finally {
     batchDeleting.value = false
+    // 部分成功分を他ビュー（ピッカー等）にも反映する
+    uiStore.emitDriveFilesChanged(props.column.accountId)
+  }
+}
+
+// --- Bulk / single move (#792) ---
+const moveDialogOpen = ref(false)
+const moveFileIds = ref<string[]>([])
+const moving = ref(false)
+
+function openMoveDialogForSelection() {
+  if (selectedIds.value.size === 0) return
+  moveFileIds.value = [...selectedIds.value]
+  moveDialogOpen.value = true
+}
+
+function onMenuMoveRequest(file: NormalizedDriveFile) {
+  moveFileIds.value = [file.id]
+  moveDialogOpen.value = true
+}
+
+async function onMoveConfirm(folderId: string | null) {
+  moveDialogOpen.value = false
+  if (moving.value || moveFileIds.value.length === 0) return
+  moving.value = true
+  try {
+    const ok = await driveActions.moveFiles(
+      props.column.accountId,
+      moveFileIds.value,
+      folderId,
+    )
+    // 成功時は全クリア（選択モードは維持）。一覧更新は bump → watch 経由
+    if (ok) deselectAll()
+  } finally {
+    moving.value = false
+    moveFileIds.value = []
   }
 }
 
@@ -315,6 +373,7 @@ fetchDrive()
       :account-id="column.accountId"
       context="grid"
       @open-request="onMenuOpenRequest"
+      @move-request="onMenuMoveRequest"
     />
 
     <!-- Detail view -->
@@ -430,26 +489,63 @@ fetchDrive()
         </template>
       </div>
 
-      <!-- Selection action bar -->
+      <!-- Selection action bar (§2.1: フォルダスコープトグル / 件数 / すべて解除 / 移動 / 削除) -->
       <div v-if="selectMode" :class="$style.driveActionBar">
-        <div :class="$style.driveActionInfo">
-          <button class="_button" :class="$style.driveActionSelectAll" @click="selectedIds.size === files.length ? deselectAll() : selectAll()">
-            {{ selectedIds.size === files.length ? '全解除' : '全選択' }}
-          </button>
-          <span :class="$style.driveActionCount">{{ selectedIds.size }}件選択</span>
-        </div>
+        <button
+          class="_button"
+          :class="$style.driveActionBtn"
+          :disabled="files.length === 0"
+          :aria-label="allCurrentSelected ? 'このフォルダの選択を解除' : 'このフォルダを全選択'"
+          :title="allCurrentSelected ? 'このフォルダの選択を解除' : 'このフォルダを全選択'"
+          @click="toggleCurrentSelection"
+        >
+          <i :class="allCurrentSelected ? 'ti ti-square-off' : 'ti ti-checks'" />
+        </button>
+        <span :class="$style.driveActionCount">
+          {{ selectedIds.size }} 件<template v-if="selectedOutsideCount > 0">（他 {{ selectedOutsideCount }}）</template>
+        </span>
+        <button
+          v-if="selectedIds.size > 0"
+          class="_button"
+          :class="$style.driveActionBtn"
+          aria-label="すべて解除"
+          title="すべて解除"
+          @click="deselectAll"
+        >
+          <i class="ti ti-x" />
+        </button>
+        <button
+          class="_button"
+          :class="$style.driveActionBtn"
+          :disabled="selectedIds.size === 0 || moving"
+          aria-label="移動"
+          title="選択したファイルを移動"
+          @click="openMoveDialogForSelection"
+        >
+          <i :class="moving ? 'ti ti-loader-2 nd-spin' : 'ti ti-folder-symlink'" />
+        </button>
         <div v-if="batchDeleteError" :class="$style.driveActionError">{{ batchDeleteError }}</div>
         <button
           class="_button"
-          :class="$style.driveActionDelete"
+          :class="[$style.driveActionBtn, $style.driveActionDanger]"
           :disabled="selectedIds.size === 0 || batchDeleting"
+          aria-label="削除"
+          title="選択したファイルを削除"
           @click="batchDelete"
         >
-          <i class="ti ti-trash" />
-          {{ batchDeleting ? '削除中...' : '削除' }}
+          <i :class="batchDeleting ? 'ti ti-loader-2 nd-spin' : 'ti ti-trash'" />
         </button>
       </div>
     </template>
+
+    <MkDriveFolderSelectDialog
+      v-if="moveDialogOpen && column.accountId"
+      :account-id="column.accountId"
+      :initial-folder-id="currentFolderId"
+      :initial-stack="[...folderStack]"
+      @confirm="onMoveConfirm"
+      @cancel="moveDialogOpen = false"
+    />
   </DeckColumn>
 </template>
 
@@ -661,50 +757,33 @@ fetchDrive()
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 2px;
+  padding: 6px 8px;
   border-top: 1px solid var(--nd-divider);
   background: var(--nd-panelBg);
-}
-
-.driveActionInfo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .driveActionCount {
   font-size: 0.8em;
   opacity: 0.6;
+  white-space: nowrap;
+  padding: 0 4px;
 }
 
-.driveActionSelectAll {
-  font-size: 0.8em;
-  color: var(--nd-accent);
-  padding: 4px 8px;
+.driveActionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
   border-radius: var(--nd-radius-sm);
+  color: var(--nd-accent);
+  font-size: 16px;
   transition: background var(--nd-duration-base);
 
   &:hover {
     background: var(--nd-buttonHoverBg);
-  }
-}
-
-.driveActionDelete {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 14px;
-  border-radius: var(--nd-radius-md);
-  background: var(--nd-love-hover);
-  color: var(--nd-love);
-  font-size: 0.8em;
-  font-weight: 600;
-  transition: background var(--nd-duration-base);
-
-  &:hover {
-    background: color-mix(in srgb, var(--nd-love) 25%, transparent);
   }
 
   &:disabled {
@@ -713,10 +792,23 @@ fetchDrive()
   }
 }
 
+.driveActionDanger {
+  margin-left: auto;
+  color: var(--nd-love);
+
+  &:hover {
+    background: var(--nd-love-hover);
+  }
+}
+
 .driveActionError {
   font-size: 0.75em;
   color: var(--nd-love);
   flex: 1;
+  min-width: 0;
   text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
