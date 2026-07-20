@@ -1,3 +1,4 @@
+import { Parser, utils } from '@syuilo/aiscript'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
@@ -12,6 +13,7 @@ import {
   applyNotePostInterruptors,
   applyNoteViewInterruptors,
   getPluginHandlers,
+  isSupportedAiScriptVersion,
   launchAllPlugins,
   launchPlugin,
   parsePluginMeta,
@@ -56,9 +58,9 @@ vi.stubGlobal('localStorage', {
 // Note: 本テストは「メタデータのパース」「handler 登録とスコープ評価 (#771)」
 // 「interruptor の適用」「Mk:api のアカウント文脈ブリッジ」を実 AiScript
 // インタプリタ経由で検証する。UI からの handler 発火は実機で確認する。
-// interruptor テストは modern 構文 (/// @ 1.2.1) を使う — バージョンヘッダー
-// 無しのコードは legacy 0.19 interpreter に落ち、execFnSync が無いため
-// interruptor は登録時に拒否され run ログに通知される。
+// プラグインは本家 Misskey 同様バージョンヘッダー必須 (>= 0.12) で、
+// 実行は常に modern interpreter (1.x)。ヘッダー無し・0.12 未満は
+// parsePluginMeta が null を返し、launchPlugin も run ログ通知付きで拒否する。
 
 const apiRequestMock = vi.mocked(commands.apiRequest)
 const gateMock = vi.mocked(assertMisskeyApiAllowed)
@@ -80,12 +82,18 @@ function makePlugin(overrides: Partial<PluginMeta> = {}): PluginMeta {
   }
 }
 
-/** plugins store に登録した上で launchPlugin する（スコープ評価が効く状態にする） */
+/**
+ * plugins store に登録した上で launchPlugin する（スコープ評価が効く状態にする）。
+ * バージョンヘッダーは必須仕様のため自動前置する。ヘッダー検証自体のテストは
+ * makePlugin + launchPlugin を直接使うこと。
+ */
 async function installAndLaunch(
   src: string,
   overrides: Partial<PluginMeta> = {},
 ): Promise<PluginMeta> {
-  const plugin = makePlugin({ src, ...overrides })
+  const headered =
+    src === '' || src.startsWith('///') ? src : `/// @ 1.2.1\n${src}`
+  const plugin = makePlugin({ src: headered, ...overrides })
   usePluginsStore().plugins.push(plugin)
   launchedIds.push(plugin.installId)
   await launchPlugin(plugin)
@@ -119,7 +127,8 @@ afterEach(() => {
 
 describe('parsePluginMeta', () => {
   it('parses a full metadata header including nested config', () => {
-    const meta = parsePluginMeta(`### {
+    const meta = parsePluginMeta(`/// @ 1.2.1
+### {
   name: "Hello"
   version: "1.2.0"
   author: "alice"
@@ -157,27 +166,47 @@ Mk:toast("hi")
 
   it('strips line comments inside the header', () => {
     const meta = parsePluginMeta(
-      '### {\n  // this is a comment\n  name: "C"\n  version: "2"\n}\n',
+      '/// @ 1.2.1\n### {\n  // this is a comment\n  name: "C"\n  version: "2"\n}\n',
     )
     expect(meta).toMatchObject({ name: 'C', version: '2' })
   })
 
   it('returns null when the ### header is missing', () => {
-    expect(parsePluginMeta('Mk:toast("no header")')).toBeNull()
+    expect(parsePluginMeta('/// @ 1.2.1\nMk:toast("no header")')).toBeNull()
+  })
+
+  it('returns null when the AiScript version header is missing', () => {
+    expect(
+      parsePluginMeta('### {\n  name: "NoLang"\n  version: "1"\n}\n'),
+    ).toBeNull()
+  })
+
+  it('returns null for an unsupported AiScript version (< 0.12)', () => {
+    expect(
+      parsePluginMeta(
+        '/// @ 0.11.0\n### {\n  name: "Old"\n  version: "1"\n}\n',
+      ),
+    ).toBeNull()
   })
 
   it('returns null when name or version is missing', () => {
-    expect(parsePluginMeta('### {\n  name: "OnlyName"\n}\n')).toBeNull()
-    expect(parsePluginMeta('### {\n  version: "1"\n}\n')).toBeNull()
+    expect(
+      parsePluginMeta('/// @ 1.2.1\n### {\n  name: "OnlyName"\n}\n'),
+    ).toBeNull()
+    expect(
+      parsePluginMeta('/// @ 1.2.1\n### {\n  version: "1"\n}\n'),
+    ).toBeNull()
   })
 
   it('returns null for unbalanced braces', () => {
-    expect(parsePluginMeta('### {\n  name: "X"\n  version: "1"\n')).toBeNull()
+    expect(
+      parsePluginMeta('/// @ 1.2.1\n### {\n  name: "X"\n  version: "1"\n'),
+    ).toBeNull()
   })
 
   it('filters non-string entries out of permissions', () => {
     const meta = parsePluginMeta(
-      '### {\n  name: "P"\n  version: "1"\n  permissions: ["a", 1, true]\n}\n',
+      '/// @ 1.2.1\n### {\n  name: "P"\n  version: "1"\n  permissions: ["a", 1, true]\n}\n',
     )
     expect(meta?.permissions).toEqual(['a'])
   })
@@ -327,26 +356,64 @@ describe('interruptors', () => {
     expect(applyNotePostInterruptors(note)).toBe(note)
   })
 
-  it('rejects interruptor registration on legacy scripts (no version header) with a log message', async () => {
-    const plugin = await installAndLaunch(
-      'Plugin:register_note_view_interruptor(@(note) { note })',
+  it('runs 0.x (>= 0.12) plugins on the modern interpreter so interruptors work', async () => {
+    await installAndLaunch(
+      '/// @ 0.16.0\nPlugin:register_note_view_interruptor(@(note) { Obj:set(note, "seen", true)\nreturn note })',
     )
-    // legacy interpreter には execFnSync が無く sync 適用できないため登録自体を拒否する
-    expect(getPluginHandlers('note_view_interruptor')).toHaveLength(0)
-    const note = { id: 'n1' }
-    expect(applyNoteViewInterruptors(note)).toBe(note)
-    // silent fail ではなく run ログで通知される
+    expect(applyNoteViewInterruptors({ id: 'n1' })).toEqual({
+      id: 'n1',
+      seen: true,
+    })
+  })
+})
+
+describe('AiScript version header requirement (launch)', () => {
+  async function launchRaw(src: string): Promise<PluginMeta> {
+    const plugin = makePlugin({ src })
+    usePluginsStore().plugins.push(plugin)
+    launchedIds.push(plugin.installId)
+    await launchPlugin(plugin)
+    return plugin
+  }
+
+  it('rejects launch when the version header is missing, with a run log message', async () => {
+    const plugin = await launchRaw(
+      'Plugin:register_note_action("A", @(note) { note })',
+    )
+    expect(getPluginHandlers('note_action')).toHaveLength(0)
     const entries = useAiScriptLogsStore().entriesFor(
       'plugin',
       plugin.installId,
     )
-    expect(
-      entries.some(
-        (e) =>
-          e.message.includes('note_view_interruptor') &&
-          e.message.includes('version header'),
-      ),
-    ).toBe(true)
+    expect(entries.some((e) => e.message.includes('version header'))).toBe(true)
+  })
+
+  it('rejects launch for an unsupported AiScript version (< 0.12)', async () => {
+    const plugin = await launchRaw(
+      '/// @ 0.11.0\nPlugin:register_note_action("A", @(note) { note })',
+    )
+    expect(getPluginHandlers('note_action')).toHaveLength(0)
+    const entries = useAiScriptLogsStore().entriesFor(
+      'plugin',
+      plugin.installId,
+    )
+    expect(entries.some((e) => e.message.includes('not supported'))).toBe(true)
+  })
+
+  it('built-in plugin sources carry a supported header and parse on the modern parser', async () => {
+    const sources = import.meta.glob('@/defaults/plugins/*.is', {
+      query: '?raw',
+      import: 'default',
+    })
+    const paths = Object.keys(sources)
+    expect(paths.length).toBeGreaterThan(0)
+    for (const path of paths) {
+      const src = (await sources[path]?.()) as string
+      const version = utils.getLangVersion(src)
+      expect(version, path).not.toBeNull()
+      expect(isSupportedAiScriptVersion(version as string), path).toBe(true)
+      expect(() => new Parser().parse(src), path).not.toThrow()
+    }
   })
 })
 
@@ -418,10 +485,10 @@ describe('abort / launchAll', () => {
 
   it('launchAllPlugins launches only active plugins with src', async () => {
     const active = makePlugin({
-      src: 'Plugin:register_note_action("On", @(note) { note })',
+      src: '/// @ 1.2.1\nPlugin:register_note_action("On", @(note) { note })',
     })
     const inactive = makePlugin({
-      src: 'Plugin:register_note_action("Off", @(note) { note })',
+      src: '/// @ 1.2.1\nPlugin:register_note_action("Off", @(note) { note })',
       active: false,
     })
     const empty = makePlugin({ src: '' })
