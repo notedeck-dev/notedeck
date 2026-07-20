@@ -1,4 +1,10 @@
-import { type Ast, type Interpreter, utils, values } from '@syuilo/aiscript'
+import {
+  type Ast,
+  type Interpreter,
+  Parser,
+  utils,
+  values,
+} from '@syuilo/aiscript'
 import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
 import type { JsonValue } from '@/bindings'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
@@ -20,7 +26,6 @@ import {
   createAiScriptInterpreter,
   createInterpreterOptions,
   execAiScript,
-  parseAiScript,
 } from './common'
 import {
   cleanupNoteDeckEnv,
@@ -43,10 +48,25 @@ export interface ParsedPluginMeta {
 }
 
 /**
+ * プラグインが要求できる AiScript バージョン (本家 Misskey と同じ >= 0.12)。
+ * 実行は常に modern interpreter (1.x) — legacy interpreter は Play 専用。
+ */
+export function isSupportedAiScriptVersion(version: string): boolean {
+  const [major = 0, minor = 0] = version.split('.').map(Number)
+  return major >= 1 || (major === 0 && minor >= 12)
+}
+
+/**
  * Extract plugin metadata from the `### { ... }` header block.
- * Returns null if the header is missing or malformed.
+ * Returns null if the version header (`/// @ x.y.z`, >= 0.12) or the
+ * meta header is missing or malformed.
  */
 export function parsePluginMeta(code: string): ParsedPluginMeta | null {
+  const langVersion = utils.getLangVersion(code)
+  if (langVersion == null || !isSupportedAiScriptVersion(langVersion)) {
+    return null
+  }
+
   const body = extractMetaBlock(code)
   if (!body) return null
 
@@ -517,21 +537,34 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
 
   const code = sanitizeCode(plugin.src)
 
+  // 本家 Misskey 同様、プラグインはバージョンヘッダー必須 (>= 0.12) で
+  // 常に modern interpreter で実行する。legacy interpreter は Play 専用。
+  const langVersion = utils.getLangVersion(code)
+  if (langVersion == null) {
+    runLog.system(
+      'version header required: add `/// @ 1.2.1` (AiScript >= 0.12) at the top',
+    )
+    return
+  }
+  if (!isSupportedAiScriptVersion(langVersion)) {
+    runLog.system(
+      `AiScript version '${langVersion}' is not supported (>= 0.12 required)`,
+    )
+    return
+  }
+
   let ast: Ast.Node[]
-  let legacy: boolean
   try {
-    const result = parseAiScript(code)
-    ast = result.ast
-    legacy = result.legacy
+    ast = new Parser().parse(code)
   } catch (e) {
     runLog.system(`parse error: ${e instanceof Error ? e.message : String(e)}`)
     return
   }
 
-  const interpreter = createAiScriptInterpreter(env, ioOpts, legacy)
+  const interpreter = createAiScriptInterpreter(env, ioOpts, false)
   ndCtx.interpreter = interpreter
   try {
-    await execAiScript(interpreter, ast, legacy)
+    await execAiScript(interpreter, ast, false)
     runLog.system('run completed')
   } catch (e) {
     runLog.system(`run aborted: ${e instanceof Error ? e.message : String(e)}`)

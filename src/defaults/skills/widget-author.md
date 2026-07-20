@@ -40,7 +40,7 @@ AiScript の文法・組込み関数・名前空間は別スキル `aiscript-aut
 `aiscript.validate` capability で src を構文検証する。
 
 ```
-aiscript.validate({ src: "/// @ 0.16.0\nUi:render([...])", entryPoint: "widget" })
+aiscript.validate({ src: "/// @ 1.2.1\nUi:render([...])", entryPoint: "widget" })
 ```
 
 返り値:
@@ -67,7 +67,7 @@ aiscript.validate({ src: "/// @ 0.16.0\nUi:render([...])", entryPoint: "widget" 
 メタヘッダはプラグインと違って **必須ではない** が、書くと管理しやすい。
 
 ```
-/// @ 0.16.0
+/// @ 1.2.1
 Ui:render([
   Ui:C:text({ text: "Hello, world" })
 ])
@@ -76,7 +76,7 @@ Ui:render([
 `Mk:save` / `Mk:load` でウィジェット固有領域に状態を持てる:
 
 ```
-/// @ 0.16.0
+/// @ 1.2.1
 var count = (Mk:load("count") or 0)
 
 Ui:render([
@@ -99,7 +99,7 @@ skill の「Ui: (ウィジェット UI 構築)」セクションを参照。
 ```
 widgets.create({
   name: "ウィジェット名",
-  src: "/// @ 0.16.0\nUi:render([...])",
+  src: "/// @ 1.2.1\nUi:render([...])",
   autoRun: false   // 省略可、default: false
 })
 ```

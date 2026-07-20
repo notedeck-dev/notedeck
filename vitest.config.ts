@@ -51,7 +51,7 @@ export default defineConfig({
         ...shared,
         test: {
           name: 'dom',
-          include: ['src/**/*.dom.test.ts'],
+          include: ['src/**/*.dom.test.ts', 'tests/adapters/**/*.test.ts'],
           environment: 'happy-dom',
         },
       },

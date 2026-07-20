@@ -34,6 +34,9 @@ src-tauri/gen/
 *.db-wal
 *.db-shm
 
+# Test coverage
+coverage/
+
 # Nix
 result
 .direnv/

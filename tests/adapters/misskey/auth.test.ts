@@ -1,31 +1,32 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}))
-
-import { invoke } from '@tauri-apps/api/core'
+import { clearMocks, mockIPC } from '@tauri-apps/api/mocks'
+import { afterEach, describe, expect, it } from 'vitest'
 import { MisskeyAuth } from '@/adapters/misskey/auth'
+import type { AuthSession } from '@/bindings'
+
+interface IpcCall {
+  cmd: string
+  args: Record<string, unknown>
+}
 
 describe('MisskeyAuth', () => {
   const auth = new MisskeyAuth()
 
-  beforeEach(() => {
-    vi.mocked(invoke).mockReset()
-  })
-
   afterEach(() => {
-    vi.restoreAllMocks()
+    clearMocks()
   })
 
   describe('startAuth', () => {
     it('invokes auth_start and returns session', async () => {
-      const mockSession = {
+      const mockSession: AuthSession = {
         sessionId: 'session-123',
         url: 'https://example.com/miauth/session-123?name=notedeck&permission=read:account',
         host: 'example.com',
       }
-      vi.mocked(invoke).mockResolvedValue(mockSession)
+      const calls: IpcCall[] = []
+      mockIPC((cmd, args) => {
+        calls.push({ cmd, args: args as Record<string, unknown> })
+        return mockSession
+      })
 
       const session = await auth.startAuth('example.com')
 
@@ -33,25 +34,36 @@ describe('MisskeyAuth', () => {
       expect(session.sessionId).toBe('session-123')
       expect(session.url).toContain('https://example.com/miauth/')
 
-      expect(invoke).toHaveBeenCalledWith('auth_start', {
-        host: 'example.com',
-        permissions: null,
-      })
+      expect(calls).toEqual([
+        {
+          cmd: 'auth_start',
+          args: { host: 'example.com', permissions: null },
+        },
+      ])
     })
 
     it('passes custom permissions', async () => {
-      vi.mocked(invoke).mockResolvedValue({
-        sessionId: 's1',
-        url: 'https://example.com/miauth/s1',
-        host: 'example.com',
+      const calls: IpcCall[] = []
+      mockIPC((cmd, args) => {
+        calls.push({ cmd, args: args as Record<string, unknown> })
+        return {
+          sessionId: 's1',
+          url: 'https://example.com/miauth/s1',
+          host: 'example.com',
+        } satisfies AuthSession
       })
 
       await auth.startAuth('example.com', ['read:account', 'write:notes'])
 
-      expect(invoke).toHaveBeenCalledWith('auth_start', {
-        host: 'example.com',
-        permissions: ['read:account', 'write:notes'],
-      })
+      expect(calls).toEqual([
+        {
+          cmd: 'auth_start',
+          args: {
+            host: 'example.com',
+            permissions: ['read:account', 'write:notes'],
+          },
+        },
+      ])
     })
   })
 })

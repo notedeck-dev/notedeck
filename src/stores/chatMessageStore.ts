@@ -176,6 +176,10 @@ export const useChatMessageStore = defineStore('chatMessages', () => {
       return
     }
 
+    // 未ロードのメッセージには sig を記録しない（ロード後の再配送を dedup で捨てないため）
+    const msg = messageMap.value.get(event.messageId)
+    if (!msg) return
+
     // 同一 sig の重複 event は dedup
     const sig = chatUpdateSig(event)
     if (recentUpdateSigs.get(event.messageId) === sig) return
@@ -187,9 +191,6 @@ export const useChatMessageStore = defineStore('chatMessages', () => {
       recentUpdateTimers.delete(event.messageId)
     }, CHAT_UPDATE_DEDUP_WINDOW_MS)
     recentUpdateTimers.set(event.messageId, timer)
-
-    const msg = messageMap.value.get(event.messageId)
-    if (!msg) return
 
     switch (event.type) {
       case 'reacted': {

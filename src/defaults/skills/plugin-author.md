@@ -40,7 +40,7 @@ AiScript の文法・組込み関数・名前空間は別スキル `aiscript-aut
 呼ぶ前に、**必ず** `aiscript.validate` capability で src を構文検証する。
 
 ```
-aiscript.validate({ src: "/// @ 0.16.0\n### { ... }\nPlugin:register_note_action(...)", entryPoint: "plugin" })
+aiscript.validate({ src: "/// @ 1.2.1\n### { ... }\nPlugin:register_note_action(...)", entryPoint: "plugin" })
 ```
 
 返り値:
@@ -66,7 +66,7 @@ aiscript.validate({ src: "/// @ 0.16.0\n### { ... }\nPlugin:register_note_action
 プラグインソースの先頭には必ず以下のヘッダブロックを書く:
 
 ```
-/// @ 0.16.0
+/// @ 1.2.1
 ### {
   name: "プラグイン名"
   version: "1.0.0"
@@ -76,6 +76,7 @@ aiscript.validate({ src: "/// @ 0.16.0\n### { ... }\nPlugin:register_note_action
 }
 ```
 
+- `/// @` バージョンヘッダーは必須 (AiScript >= 0.12)。無いとインストール・起動とも拒否される (実行は常に AiScript 1.x)
 - `permissions` は **最小限** にする。書き込みが不要なら空配列のまま
 - 必要になる Misskey 互換キー (例): `read:account`, `write:notes`, `read:notifications` 等
 - `config` フィールドはユーザー設定値のスキーマ。不要なら省略
@@ -89,7 +90,7 @@ plugins.create({
   author: "AI Author",
   description: "...",
   permissions: [...],         // ヘッダの permissions と一致させる
-  src: "/// @ 0.16.0\n### {...}\nPlugin:register_note_action(...)"
+  src: "/// @ 1.2.1\n### {...}\nPlugin:register_note_action(...)"
 })
 ```
 

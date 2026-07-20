@@ -1,6 +1,6 @@
 [package]
 name = "notedeck"
-version = "1.16.0"
+version = "1.17.0"
 description = "Misskey Pro — integrated deck environment (IDE) for Misskey power users"
 edition = "2021"
 [dependencies]
@@ -64,6 +64,8 @@ desktop = ["tauri/tray-icon", "dep:tauri-plugin-global-shortcut", "dep:tauri-plu
 
 [dev-dependencies]
 tempfile = "3"
+# MockRuntime (tauri::test) でイベントルーティングをユニットテストするため
+tauri = { version = "2", features = ["test"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

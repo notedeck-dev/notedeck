@@ -18,11 +18,23 @@ function makeAccount(id: string): Account {
   }
 }
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}))
+vi.mock('@/utils/tauriInvoke', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/tauriInvoke')>(
+    '@/utils/tauriInvoke',
+  )
+  return {
+    unwrap: actual.unwrap,
+    commands: {
+      apiFetchAccountTheme: vi.fn(async () => ({ status: 'ok', data: {} })),
+      apiSetRegistryValue: vi.fn(async () => ({ status: 'ok', data: null })),
+      apiDeleteRegistryValue: vi.fn(async () => ({ status: 'ok', data: null })),
+    },
+  }
+})
 
-import { invoke } from '@tauri-apps/api/core'
+import { commands } from '@/utils/tauriInvoke'
+
+const mockFetchTheme = vi.mocked(commands.apiFetchAccountTheme)
 
 describe('theme store', () => {
   beforeEach(() => {
@@ -137,9 +149,12 @@ describe('theme store', () => {
   // --- fetchAccountTheme (meta only; registry sync は責任分離で廃止) ---
 
   it('fetchAccountTheme() stores admin meta defaults (dark + light)', async () => {
-    vi.mocked(invoke).mockResolvedValue({
-      metaDark: JSON.stringify({ name: 'D', props: { bg: '#000' } }),
-      metaLight: JSON.stringify({ name: 'L', props: { bg: '#fff' } }),
+    mockFetchTheme.mockResolvedValue({
+      status: 'ok',
+      data: {
+        metaDark: JSON.stringify({ name: 'D', props: { bg: '#000' } }),
+        metaLight: JSON.stringify({ name: 'L', props: { bg: '#fff' } }),
+      },
     })
 
     const store = useThemeStore()
@@ -154,7 +169,7 @@ describe('theme store', () => {
   })
 
   it('fetchAccountTheme() handles servers without meta defaults', async () => {
-    vi.mocked(invoke).mockResolvedValue({})
+    mockFetchTheme.mockResolvedValue({ status: 'ok', data: {} })
 
     const store = useThemeStore()
     await store.fetchAccountTheme('acc-empty')
@@ -165,19 +180,23 @@ describe('theme store', () => {
   })
 
   it('fetchAccountTheme() does not re-fetch for cached account', async () => {
-    vi.mocked(invoke).mockResolvedValue({
-      metaDark: JSON.stringify({ name: 'D', props: {} }),
+    mockFetchTheme.mockResolvedValue({
+      status: 'ok',
+      data: { metaDark: JSON.stringify({ name: 'D', props: {} }) },
     })
 
     const store = useThemeStore()
     await store.fetchAccountTheme('acc-cache')
     await store.fetchAccountTheme('acc-cache')
 
-    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(mockFetchTheme).toHaveBeenCalledTimes(1)
   })
 
   it('fetchAccountTheme() handles errors gracefully', async () => {
-    vi.mocked(invoke).mockRejectedValue(new Error('Network error'))
+    mockFetchTheme.mockResolvedValue({
+      status: 'error',
+      error: { code: 'Network', message: 'Network error' },
+    })
 
     const store = useThemeStore()
     await store.fetchAccountTheme('acc-offline')
@@ -193,11 +212,14 @@ describe('theme store', () => {
   })
 
   it('getCompiledForAccount() compiles and caches theme', async () => {
-    vi.mocked(invoke).mockResolvedValue({
-      metaDark: JSON.stringify({
-        name: 'Custom',
-        props: { accent: '#ff6600', bg: '#1a1a2e' },
-      }),
+    mockFetchTheme.mockResolvedValue({
+      status: 'ok',
+      data: {
+        metaDark: JSON.stringify({
+          name: 'Custom',
+          props: { accent: '#ff6600', bg: '#1a1a2e' },
+        }),
+      },
     })
 
     const store = useThemeStore()
@@ -216,9 +238,12 @@ describe('theme store', () => {
   })
 
   it('getCompiledForAccount() uses light theme when base is light', async () => {
-    vi.mocked(invoke).mockResolvedValue({
-      metaDark: JSON.stringify({ name: 'D', props: { bg: '#111' } }),
-      metaLight: JSON.stringify({ name: 'L', props: { bg: '#eee' } }),
+    mockFetchTheme.mockResolvedValue({
+      status: 'ok',
+      data: {
+        metaDark: JSON.stringify({ name: 'D', props: { bg: '#111' } }),
+        metaLight: JSON.stringify({ name: 'L', props: { bg: '#eee' } }),
+      },
     })
 
     const store = useThemeStore()
@@ -236,8 +261,9 @@ describe('theme store', () => {
     // 該当テーマが無いので null を返す (デッキ全体の builtin にフォールバック)。
     // 旧実装は cross-mode で dark を当てていたが、dark/light が混在表示される
     // 混乱を避けるため mode strict 化 (#339)。
-    vi.mocked(invoke).mockResolvedValue({
-      metaDark: JSON.stringify({ name: 'D', props: { bg: '#222' } }),
+    mockFetchTheme.mockResolvedValue({
+      status: 'ok',
+      data: { metaDark: JSON.stringify({ name: 'D', props: { bg: '#222' } }) },
     })
 
     const store = useThemeStore()
@@ -250,9 +276,12 @@ describe('theme store', () => {
   })
 
   it('applySource() clears compiled cache so columns recompile', async () => {
-    vi.mocked(invoke).mockResolvedValue({
-      metaDark: JSON.stringify({ name: 'D', props: { bg: '#111' } }),
-      metaLight: JSON.stringify({ name: 'L', props: { bg: '#eee' } }),
+    mockFetchTheme.mockResolvedValue({
+      status: 'ok',
+      data: {
+        metaDark: JSON.stringify({ name: 'D', props: { bg: '#111' } }),
+        metaLight: JSON.stringify({ name: 'L', props: { bg: '#eee' } }),
+      },
     })
 
     const store = useThemeStore()
@@ -272,21 +301,27 @@ describe('theme store', () => {
 
   it('different accounts can have different meta themes', async () => {
     let callCount = 0
-    vi.mocked(invoke).mockImplementation(async () => {
+    mockFetchTheme.mockImplementation(async () => {
       callCount++
       if (callCount === 1) {
         return {
-          metaDark: JSON.stringify({
-            name: 'A-Dark',
-            props: { accent: '#ff0000' },
-          }),
+          status: 'ok',
+          data: {
+            metaDark: JSON.stringify({
+              name: 'A-Dark',
+              props: { accent: '#ff0000' },
+            }),
+          },
         }
       }
       return {
-        metaDark: JSON.stringify({
-          name: 'B-Dark',
-          props: { accent: '#0000ff' },
-        }),
+        status: 'ok',
+        data: {
+          metaDark: JSON.stringify({
+            name: 'B-Dark',
+            props: { accent: '#0000ff' },
+          }),
+        },
       }
     })
 
@@ -307,7 +342,6 @@ describe('theme store', () => {
   // (localStorage persist) の更新のみ行う。
 
   it('applyAccountTheme() updates the cache without calling registry', async () => {
-    vi.mocked(invoke).mockResolvedValue(null)
     const accountsStore = useAccountsStore()
     const themeStore = useThemeStore()
     accountsStore.addAccount(makeAccount('acc-x'))
@@ -325,18 +359,11 @@ describe('theme store', () => {
     expect(cached?.dark?.props.accent).toBe('#abcdef')
     expect(cached?.dark?.id).toBe('account-dark-acc-x')
 
-    const registryWrites = vi
-      .mocked(invoke)
-      .mock.calls.filter(
-        ([cmd]) =>
-          cmd === 'api_set_registry_value' ||
-          cmd === 'api_delete_registry_value',
-      )
-    expect(registryWrites).toHaveLength(0)
+    expect(commands.apiSetRegistryValue).not.toHaveBeenCalled()
+    expect(commands.apiDeleteRegistryValue).not.toHaveBeenCalled()
   })
 
   it('applyAccountTheme() does not override the deck-wide theme', async () => {
-    vi.mocked(invoke).mockResolvedValue(null)
     const accountsStore = useAccountsStore()
     const themeStore = useThemeStore()
     accountsStore.addAccount(makeAccount('acc-y'))
@@ -359,7 +386,6 @@ describe('theme store', () => {
   })
 
   it('clearAccountTheme() removes cache entry without calling registry', async () => {
-    vi.mocked(invoke).mockResolvedValue(null)
     const accountsStore = useAccountsStore()
     const themeStore = useThemeStore()
     accountsStore.addAccount(makeAccount('acc-z'))
@@ -376,9 +402,6 @@ describe('theme store', () => {
     await themeStore.clearAccountTheme('dark', 'acc-z')
 
     expect(themeStore.getAccountThemes('acc-z')?.dark).toBeUndefined()
-    const registryRemoves = vi
-      .mocked(invoke)
-      .mock.calls.filter(([cmd]) => cmd === 'api_delete_registry_value')
-    expect(registryRemoves).toHaveLength(0)
+    expect(commands.apiDeleteRegistryValue).not.toHaveBeenCalled()
   })
 })

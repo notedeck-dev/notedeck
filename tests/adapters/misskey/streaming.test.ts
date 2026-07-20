@@ -1,513 +1,243 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { NormalizedNote, NormalizedNotification } from '@/adapters/types'
-
-// Capture listen callbacks so we can simulate Tauri events
-type ListenCallback = (event: { payload: unknown }) => void
-const listenCallbacks = new Map<string, ListenCallback>()
-const mockUnlisten = vi.fn()
-
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}))
-
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn((eventName: string, callback: ListenCallback) => {
-    listenCallbacks.set(eventName, callback)
-    return Promise.resolve(mockUnlisten)
-  }),
-}))
-
-import { invoke } from '@tauri-apps/api/core'
+import { emit } from '@tauri-apps/api/event'
+import { clearMocks, mockIPC } from '@tauri-apps/api/mocks'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MisskeyStream } from '@/adapters/misskey/streaming'
+import type { NoteUpdateEvent, RawStreamEvent } from '@/adapters/types'
+import type {
+  NormalizedNotification,
+  NoteCaptureBatch,
+  StreamEnvelope,
+  StreamStatusEvent,
+} from '@/bindings'
 
-/** Emit a consolidated stream-event envelope (matching TauriEmitter format) */
-function emitStreamEvent(kind: string, payload: Record<string, unknown>) {
-  const cb = listenCallbacks.get('stream-event')
-  if (cb) cb({ payload: { kind, payload } })
+/**
+ * mockIPC + shouldMockEvents で IPC/イベント境界を丸ごとモックし、
+ * 現行 MisskeyStream (typed events #781 + subNote/unsubNote) を
+ * Rust なしでイベント駆動テストする。
+ * オフライン debounce (#507) は src/adapters/misskey/streaming.test.ts が
+ * カバーしているのでここでは扱わない。
+ */
+
+interface IpcCall {
+  cmd: string
+  args: Record<string, unknown>
 }
 
-describe('MisskeyStream', () => {
-  let stream: MisskeyStream
+function interceptCommands(
+  respond: (cmd: string) => unknown = () => null,
+): IpcCall[] {
+  const calls: IpcCall[] = []
+  mockIPC(
+    (cmd, args) => {
+      calls.push({ cmd, args: args as Record<string, unknown> })
+      return respond(cmd)
+    },
+    { shouldMockEvents: true },
+  )
+  return calls
+}
 
-  beforeEach(() => {
-    stream = new MisskeyStream('acc-1')
-    listenCallbacks.clear()
-    mockUnlisten.mockClear()
-  })
+/** listen() 登録などの in-flight Promise を消化する */
+const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0))
 
+const statusEvent = (
+  accountId: string,
+  state: StreamStatusEvent['state'],
+): StreamStatusEvent => ({ accountId, state })
+
+const notification: NormalizedNotification = {
+  id: 'notif-1',
+  _accountId: 'acc-1',
+  _serverHost: 'example.com',
+  createdAt: '2025-01-01T00:00:00Z',
+  type: 'reaction',
+  user: null,
+  note: null,
+  reaction: '👍',
+}
+
+describe('MisskeyStream (IPC boundary)', () => {
   afterEach(() => {
+    clearMocks()
     vi.restoreAllMocks()
   })
 
-  describe('constructor', () => {
-    it('initializes with "initializing" state', () => {
-      expect(stream.state).toBe('initializing')
-    })
-  })
-
   describe('connect', () => {
-    it('invokes stream_connect and sets state to connected', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
+    it('invokes stream_connect and reflects stream-status events', async () => {
+      const calls = interceptCommands()
+      const stream = new MisskeyStream('acc-1')
+      const onConnected = vi.fn()
+      stream.on('connected', onConnected)
 
       stream.connect()
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith('stream_connect', {
-          accountId: 'acc-1',
-        })
+      await flush()
+
+      expect(calls).toContainEqual({
+        cmd: 'stream_connect',
+        args: { accountId: 'acc-1' },
       })
+
+      await emit('stream-status', statusEvent('acc-1', 'connected'))
 
       expect(stream.state).toBe('connected')
+      expect(onConnected).toHaveBeenCalledTimes(1)
     })
 
-    it('sets state to disconnected on connect failure', async () => {
-      vi.mocked(invoke).mockRejectedValue('connection error')
+    it('ignores stream-status for other accounts', async () => {
+      interceptCommands()
+      const stream = new MisskeyStream('acc-1')
 
       stream.connect()
-      await vi.waitFor(() => {
-        expect(stream.state).toBe('disconnected')
-      })
+      await flush()
+      await emit('stream-status', statusEvent('acc-2', 'connected'))
+
+      expect(stream.state).toBe('initializing')
     })
 
-    it('emits connected event to handlers', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      const handler = vi.fn()
-      stream.on('connected', handler)
+    it('falls to disconnected when stream_connect rejects', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      interceptCommands((cmd) => {
+        if (cmd === 'stream_connect')
+          throw { code: 'WS', message: 'connect failed' }
+        return null
+      })
+      const stream = new MisskeyStream('acc-1')
 
       stream.connect()
-      await vi.waitFor(() => {
-        expect(handler).toHaveBeenCalled()
-      })
-    })
-
-    it('updates state from stream-status events', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      emitStreamEvent('stream-status', {
-        accountId: 'acc-1',
-        state: 'disconnected',
-      })
+      await flush()
 
       expect(stream.state).toBe('disconnected')
     })
+  })
 
-    it('ignores stream-status events for other accounts', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
+  describe('subNote / unsubNote', () => {
+    it('invokes stream_sub_note and delivers note-capture-batch to the handler', async () => {
+      const calls = interceptCommands()
+      const stream = new MisskeyStream('acc-1')
+      const handler = vi.fn<(event: NoteUpdateEvent) => void>()
 
       stream.connect()
-      await vi.waitFor(() => {
-        expect(stream.state).toBe('connected')
+      await flush()
+      stream.subNote('note-1', handler)
+      await flush()
+
+      expect(calls).toContainEqual({
+        cmd: 'stream_sub_note',
+        args: { accountId: 'acc-1', noteId: 'note-1' },
       })
 
-      emitStreamEvent('stream-status', {
-        accountId: 'acc-other',
-        state: 'disconnected',
+      const batch: NoteCaptureBatch = {
+        captures: [
+          {
+            accountId: 'acc-1',
+            noteId: 'note-1',
+            updateType: 'reacted',
+            body: { reaction: '👍', emoji: null, userId: 'user-1' },
+          },
+          // 他アカウント宛はフィルタされる
+          {
+            accountId: 'acc-2',
+            noteId: 'note-1',
+            updateType: 'reacted',
+            body: { reaction: '🎉', emoji: null, userId: 'user-2' },
+          },
+        ],
+      }
+      await emit('note-capture-batch', batch)
+
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(handler).toHaveBeenCalledWith({
+        noteId: 'note-1',
+        type: 'reacted',
+        body: { reaction: '👍', emoji: null, userId: 'user-1' },
+      })
+    })
+
+    it('unsubNote invokes stream_unsub_note and stops delivery', async () => {
+      const calls = interceptCommands()
+      const stream = new MisskeyStream('acc-1')
+      const handler = vi.fn()
+
+      stream.connect()
+      await flush()
+      stream.subNote('note-1', handler)
+      stream.unsubNote('note-1')
+      await flush()
+
+      expect(calls).toContainEqual({
+        cmd: 'stream_unsub_note',
+        args: { accountId: 'acc-1', noteId: 'note-1' },
       })
 
-      expect(stream.state).toBe('connected')
+      await emit('note-capture-batch', {
+        captures: [
+          {
+            accountId: 'acc-1',
+            noteId: 'note-1',
+            updateType: 'deleted',
+            body: { deletedAt: '2025-01-01T00:00:00Z' },
+          },
+        ],
+      } satisfies NoteCaptureBatch)
+
+      expect(handler).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('raw event tap (StreamInspector)', () => {
+    it('delivers stream-envelope to onRawEvent handlers for the own account only', async () => {
+      interceptCommands()
+      const stream = new MisskeyStream('acc-1')
+      const rawHandler = vi.fn<(event: RawStreamEvent) => void>()
+      stream.onRawEvent(rawHandler)
+
+      stream.connect()
+      await flush()
+
+      const envelope: StreamEnvelope = {
+        kind: 'stream-notification',
+        payload: { accountId: 'acc-1', subscriptionId: 'sub-1', notification },
+      }
+      await emit('stream-envelope', envelope)
+      await emit('stream-envelope', {
+        kind: 'stream-notification',
+        payload: {
+          accountId: 'acc-2',
+          subscriptionId: 'sub-2',
+          notification: { ...notification, _accountId: 'acc-2' },
+        },
+      } satisfies StreamEnvelope)
+
+      expect(rawHandler).toHaveBeenCalledTimes(1)
+      expect(rawHandler.mock.calls[0][0].kind).toBe('stream-notification')
+
+      stream.offRawEvent(rawHandler)
+      await emit('stream-envelope', envelope)
+      expect(rawHandler).toHaveBeenCalledTimes(1)
     })
   })
 
   describe('disconnect', () => {
-    it('invokes stream_disconnect and sets state', () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
+    it('invokes stream_disconnect and detaches all listeners', async () => {
+      const calls = interceptCommands()
+      const stream = new MisskeyStream('acc-1')
+      const onConnected = vi.fn()
+      stream.on('connected', onConnected)
 
+      stream.connect()
+      await flush()
       stream.disconnect()
+      await flush()
 
-      expect(invoke).toHaveBeenCalledWith('stream_disconnect', {
-        accountId: 'acc-1',
+      expect(calls).toContainEqual({
+        cmd: 'stream_disconnect',
+        args: { accountId: 'acc-1' },
       })
+
+      await emit('stream-status', statusEvent('acc-1', 'connected'))
+
       expect(stream.state).toBe('disconnected')
-    })
-
-    it('calls unlisten for stream-event listener', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      stream.disconnect()
-      expect(mockUnlisten).toHaveBeenCalled()
-    })
-  })
-
-  describe('subscribeTimeline', () => {
-    it('invokes stream_connect_and_subscribe_timeline and dispatches notes', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      vi.mocked(invoke).mockResolvedValue('sub-123')
-      const notes: NormalizedNote[] = []
-      stream.subscribeTimeline('home', (note) => notes.push(note))
-
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith(
-          'stream_connect_and_subscribe_timeline',
-          {
-            accountId: 'acc-1',
-            timelineType: 'home',
-            listId: null,
-          },
-        )
-      })
-
-      const mockNote: NormalizedNote = {
-        id: 'note-1',
-        _accountId: 'acc-1',
-        _serverHost: 'example.com',
-        createdAt: '2025-01-01T00:00:00Z',
-        text: 'Hello',
-        cw: null,
-        user: {
-          id: 'u1',
-          username: 'test',
-          host: null,
-          name: 'Test',
-          avatarUrl: null,
-        },
-        visibility: 'public',
-        emojis: {},
-        reactionEmojis: {},
-        reactions: {},
-        renoteCount: 0,
-        repliesCount: 0,
-        files: [],
-      }
-
-      emitStreamEvent('stream-note', {
-        accountId: 'acc-1',
-        subscriptionId: 'sub-123',
-        note: mockNote,
-      })
-
-      expect(notes).toHaveLength(1)
-      expect(notes[0]?.id).toBe('note-1')
-    })
-
-    it('filters notes from other accounts', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      vi.mocked(invoke).mockResolvedValue('sub-123')
-      const notes: NormalizedNote[] = []
-      stream.subscribeTimeline('home', (note) => notes.push(note))
-
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith(
-          'stream_connect_and_subscribe_timeline',
-          expect.any(Object),
-        )
-      })
-
-      emitStreamEvent('stream-note', {
-        accountId: 'acc-other',
-        subscriptionId: 'sub-123',
-        note: { id: 'note-x' },
-      })
-
-      expect(notes).toHaveLength(0)
-    })
-
-    it('dispose invokes unsubscribe', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      vi.mocked(invoke).mockResolvedValue('sub-123')
-      const sub = stream.subscribeTimeline('home', () => {
-        /* noop */
-      })
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith(
-          'stream_connect_and_subscribe_timeline',
-          expect.any(Object),
-        )
-      })
-
-      sub.dispose()
-
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith('stream_unsubscribe', {
-          accountId: 'acc-1',
-          subscriptionId: 'sub-123',
-        })
-      })
-    })
-  })
-
-  describe('subscribeMain', () => {
-    it('invokes stream_subscribe_main and dispatches notifications', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      vi.mocked(invoke).mockResolvedValue('sub-456')
-      const events: { type: string; body: unknown }[] = []
-      stream.subscribeMain((event) => events.push(event))
-
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith('stream_subscribe_main', {
-          accountId: 'acc-1',
-        })
-      })
-
-      const mockNotification: NormalizedNotification = {
-        id: 'notif-1',
-        _accountId: 'acc-1',
-        _serverHost: 'example.com',
-        createdAt: '2025-01-01T00:00:00Z',
-        type: 'follow',
-        user: {
-          id: 'u1',
-          username: 'test',
-          host: null,
-          name: 'Test',
-          avatarUrl: null,
-        },
-      }
-
-      emitStreamEvent('stream-notification', {
-        accountId: 'acc-1',
-        subscriptionId: 'sub-456',
-        notification: mockNotification,
-      })
-
-      expect(events).toHaveLength(1)
-      expect(events[0]?.type).toBe('notification')
-    })
-
-    it('dispatches main channel events', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      vi.mocked(invoke).mockResolvedValue('sub-456')
-      const events: { type: string; body: unknown }[] = []
-      stream.subscribeMain((event) => events.push(event))
-
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith(
-          'stream_subscribe_main',
-          expect.any(Object),
-        )
-      })
-
-      emitStreamEvent('stream-main-event', {
-        accountId: 'acc-1',
-        subscriptionId: 'sub-456',
-        eventType: 'followed',
-        body: { userId: 'u2' },
-      })
-
-      expect(events).toHaveLength(1)
-      expect(events[0]?.type).toBe('followed')
-      expect(events[0]?.body).toEqual({ userId: 'u2' })
-    })
-
-    it('dispose invokes unsubscribe', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      vi.mocked(invoke).mockResolvedValue('sub-456')
-      const sub = stream.subscribeMain(() => {
-        /* noop */
-      })
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith(
-          'stream_subscribe_main',
-          expect.any(Object),
-        )
-      })
-
-      sub.dispose()
-
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith('stream_unsubscribe', {
-          accountId: 'acc-1',
-          subscriptionId: 'sub-456',
-        })
-      })
-    })
-  })
-
-  describe('subscribeAntenna', () => {
-    it('invokes stream_connect_and_subscribe_antenna and dispatches notes', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      vi.mocked(invoke).mockResolvedValue('sub-ant-1')
-      const notes: NormalizedNote[] = []
-      stream.subscribeAntenna('antenna-1', (note) => notes.push(note))
-
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith(
-          'stream_connect_and_subscribe_antenna',
-          {
-            accountId: 'acc-1',
-            antennaId: 'antenna-1',
-          },
-        )
-      })
-
-      emitStreamEvent('stream-note', {
-        accountId: 'acc-1',
-        subscriptionId: 'sub-ant-1',
-        note: {
-          id: 'note-ant-1',
-          _accountId: 'acc-1',
-          _serverHost: 'example.com',
-          createdAt: '2025-01-01T00:00:00Z',
-          text: 'Antenna note',
-          cw: null,
-          user: {
-            id: 'u1',
-            username: 'test',
-            host: null,
-            name: 'Test',
-            avatarUrl: null,
-          },
-          visibility: 'public',
-          emojis: {},
-          reactionEmojis: {},
-          reactions: {},
-          renoteCount: 0,
-          repliesCount: 0,
-          files: [],
-        },
-      })
-
-      expect(notes).toHaveLength(1)
-      expect(notes[0]?.id).toBe('note-ant-1')
-    })
-
-    it('dispose invokes unsubscribe', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      vi.mocked(invoke).mockResolvedValue('sub-ant-1')
-      const sub = stream.subscribeAntenna('antenna-1', () => {
-        /* noop */
-      })
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith(
-          'stream_connect_and_subscribe_antenna',
-          expect.any(Object),
-        )
-      })
-
-      sub.dispose()
-
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith('stream_unsubscribe', {
-          accountId: 'acc-1',
-          subscriptionId: 'sub-ant-1',
-        })
-      })
-    })
-  })
-
-  describe('subscribeChatUser', () => {
-    it('invokes stream_subscribe_chat_user and dispatches messages', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      vi.mocked(invoke).mockResolvedValue('sub-chat-1')
-      const messages: unknown[] = []
-      stream.subscribeChatUser('other-user-1', (msg) => messages.push(msg))
-
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith('stream_subscribe_chat_user', {
-          accountId: 'acc-1',
-          otherId: 'other-user-1',
-        })
-      })
-
-      emitStreamEvent('stream-chat-message', {
-        accountId: 'acc-1',
-        subscriptionId: 'sub-chat-1',
-        message: { id: 'msg-1', text: 'Hello' },
-      })
-
-      expect(messages).toHaveLength(1)
-      expect(messages[0]).toEqual({ id: 'msg-1', text: 'Hello' })
-    })
-
-    it('dispose invokes unsubscribe', async () => {
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      stream.connect()
-      await vi.waitFor(() => {
-        expect(listenCallbacks.has('stream-event')).toBe(true)
-      })
-
-      vi.mocked(invoke).mockResolvedValue('sub-chat-1')
-      const sub = stream.subscribeChatUser('other-user-1', () => {
-        /* noop */
-      })
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith(
-          'stream_subscribe_chat_user',
-          expect.any(Object),
-        )
-      })
-
-      sub.dispose()
-
-      await vi.waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith('stream_unsubscribe', {
-          accountId: 'acc-1',
-          subscriptionId: 'sub-chat-1',
-        })
-      })
-    })
-  })
-
-  describe('on / off', () => {
-    it('registers and removes event handlers', () => {
-      const handler = vi.fn()
-      stream.on('connected', handler)
-
-      // Trigger via internal emit (by connecting)
-      vi.mocked(invoke).mockResolvedValue(undefined)
-      stream.on('disconnected', handler)
-
-      stream.disconnect()
-      expect(handler).toHaveBeenCalledTimes(1) // disconnected
-
-      handler.mockClear()
-      stream.off('disconnected', handler)
-
-      stream.disconnect()
-      expect(handler).not.toHaveBeenCalled()
+      expect(onConnected).not.toHaveBeenCalled()
     })
   })
 })

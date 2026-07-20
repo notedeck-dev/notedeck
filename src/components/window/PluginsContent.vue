@@ -154,7 +154,7 @@ async function doInstall() {
   const meta = parsePluginMeta(code)
   if (!meta) {
     installError.value =
-      'メタデータが見つかりません。### { name: "...", version: "..." } ヘッダーが必要です'
+      'ヘッダーが不正です。先頭に /// @ 1.2.1 (AiScript >= 0.12) と ### { name: "...", version: "..." } が必要です'
     return
   }
 
