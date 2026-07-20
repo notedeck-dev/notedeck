@@ -20,6 +20,7 @@ import {
   createAiScriptInterpreter,
   createInterpreterOptions,
   execAiScript,
+  isLegacyScript,
   parseAiScript,
 } from './common'
 import {
@@ -205,6 +206,21 @@ function createPluginSpecificEnv(
   const id = plugin.installId
   const consts: Record<string, Value> = {}
 
+  // interruptor は sync 適用 (execFnSync) が前提だが、バージョンヘッダー無しの
+  // コードが落ちる legacy interpreter (0.19) には execFnSync が無い。
+  // 登録だけ成功して変換が一切効かない silent fail になるため、登録自体を
+  // 拒否して run ログで通知する。
+  const legacy = isLegacyScript(sanitizeCode(plugin.src))
+  const rejectLegacyInterruptor = (name: string): boolean => {
+    if (!legacy) return false
+    pluginRunLoggers
+      .get(id)
+      ?.system(
+        `${name} requires an AiScript version header (/// @ 1.x); ignored on legacy scripts`,
+      )
+    return true
+  }
+
   // --- Plugin:register_note_action ---
   consts['Plugin:register_note_action'] = values.FN_NATIVE(
     ([titleVal, handlerVal]) => {
@@ -272,6 +288,8 @@ function createPluginSpecificEnv(
   consts['Plugin:register_note_view_interruptor'] = values.FN_NATIVE(
     ([handlerVal]) => {
       utils.assertFunction(handlerVal)
+      if (rejectLegacyInterruptor('Plugin:register_note_view_interruptor'))
+        return
       addPluginHandler({
         pluginInstallId: id,
         type: 'note_view_interruptor',
@@ -290,6 +308,8 @@ function createPluginSpecificEnv(
   consts['Plugin:register_note_post_interruptor'] = values.FN_NATIVE(
     ([handlerVal]) => {
       utils.assertFunction(handlerVal)
+      if (rejectLegacyInterruptor('Plugin:register_note_post_interruptor'))
+        return
       addPluginHandler({
         pluginInstallId: id,
         type: 'note_post_interruptor',
@@ -308,6 +328,8 @@ function createPluginSpecificEnv(
   consts['Plugin:register_page_view_interruptor'] = values.FN_NATIVE(
     ([handlerVal]) => {
       utils.assertFunction(handlerVal)
+      if (rejectLegacyInterruptor('Plugin:register_page_view_interruptor'))
+        return
       addPluginHandler({
         pluginInstallId: id,
         type: 'page_view_interruptor',

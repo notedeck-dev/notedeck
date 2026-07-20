@@ -58,7 +58,7 @@ vi.stubGlobal('localStorage', {
 // インタプリタ経由で検証する。UI からの handler 発火は実機で確認する。
 // interruptor テストは modern 構文 (/// @ 1.2.1) を使う — バージョンヘッダー
 // 無しのコードは legacy 0.19 interpreter に落ち、execFnSync が無いため
-// view/post interruptor が動かない (現状の実装挙動)。
+// interruptor は登録時に拒否され run ログに通知される。
 
 const apiRequestMock = vi.mocked(commands.apiRequest)
 const gateMock = vi.mocked(assertMisskeyApiAllowed)
@@ -325,6 +325,28 @@ describe('interruptors', () => {
     const note = { id: 'n1' }
     expect(applyNoteViewInterruptors(note)).toBe(note)
     expect(applyNotePostInterruptors(note)).toBe(note)
+  })
+
+  it('rejects interruptor registration on legacy scripts (no version header) with a log message', async () => {
+    const plugin = await installAndLaunch(
+      'Plugin:register_note_view_interruptor(@(note) { note })',
+    )
+    // legacy interpreter には execFnSync が無く sync 適用できないため登録自体を拒否する
+    expect(getPluginHandlers('note_view_interruptor')).toHaveLength(0)
+    const note = { id: 'n1' }
+    expect(applyNoteViewInterruptors(note)).toBe(note)
+    // silent fail ではなく run ログで通知される
+    const entries = useAiScriptLogsStore().entriesFor(
+      'plugin',
+      plugin.installId,
+    )
+    expect(
+      entries.some(
+        (e) =>
+          e.message.includes('note_view_interruptor') &&
+          e.message.includes('version header'),
+      ),
+    ).toBe(true)
   })
 })
 
