@@ -35,15 +35,17 @@ const NOTIFICATION_CHANNEL_ID: &str = "notedeck_notifications";
 /// When exceeded, the set is cleared to prevent unbounded growth.
 const DEDUP_MAX_IDS: usize = 500;
 
-pub struct TauriEmitter {
-    app: AppHandle,
+// Runtime generic は MockRuntime でのユニットテスト用。本番は default の Wry
+// のみで、挙動は非 generic 時と同一。
+pub struct TauriEmitter<R: tauri::Runtime = tauri::Wry> {
+    app: AppHandle<R>,
     /// Tracks recently shown notification IDs to prevent duplicate OS notifications
     /// when multiple subscriptions exist for the same account.
     recent_notif_ids: Mutex<HashSet<String>>,
 }
 
-impl TauriEmitter {
-    pub fn new(app: AppHandle) -> Self {
+impl<R: tauri::Runtime> TauriEmitter<R> {
+    pub fn new(app: AppHandle<R>) -> Self {
         #[cfg(target_os = "android")]
         {
             use tauri_plugin_notification::{Channel, Importance};
@@ -230,7 +232,7 @@ fn achievement_label(name: &str) -> &str {
     }
 }
 
-impl FrontendEmitter for TauriEmitter {
+impl<R: tauri::Runtime> FrontendEmitter for TauriEmitter<R> {
     fn emit(&self, event: notecli::streaming::StreamEvent) {
         use notecli::streaming::StreamEvent as E;
 
@@ -256,12 +258,12 @@ impl FrontendEmitter for TauriEmitter {
                 None
             }
             E::Status(e) => StreamStatus((**e).clone()).emit(&self.app).err(),
-            E::ChatMessageReacted(e) => {
-                StreamChatMessageReacted((**e).clone()).emit(&self.app).err()
-            }
-            E::ChatMessageUnreacted(e) => {
-                StreamChatMessageUnreacted((**e).clone()).emit(&self.app).err()
-            }
+            E::ChatMessageReacted(e) => StreamChatMessageReacted((**e).clone())
+                .emit(&self.app)
+                .err(),
+            E::ChatMessageUnreacted(e) => StreamChatMessageUnreacted((**e).clone())
+                .emit(&self.app)
+                .err(),
             _ => None,
         };
         if let Some(e) = dedicated {
@@ -274,5 +276,284 @@ impl FrontendEmitter for TauriEmitter {
         if let Err(e) = StreamEnvelope(event).emit(&self.app) {
             tracing::warn!("[stream] emit {kind} failed: {e}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    use notecli::models::NormalizedNote;
+    use notecli::models::TimelineType;
+    use notecli::streaming::{
+        StreamConnectionState, StreamEvent, StreamNoteCaptureEvent, StreamNoteEvent,
+        StreamNotificationEvent, StreamStatusEvent,
+    };
+    use serde_json::json;
+    use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime};
+    use tauri::{App, Manager};
+
+    use crate::query_runtime::{QueryKey, QueryRuntime};
+
+    const RECV_TIMEOUT: Duration = Duration::from_secs(1);
+
+    /// MockRuntime app を組み、production (lib.rs) と同じ streaming イベントを
+    /// mount する。mount しないと tauri_specta の emit が panic する。
+    fn mock_app() -> App<MockRuntime> {
+        let app = mock_builder()
+            .build(mock_context(noop_assets()))
+            .expect("mock app should build");
+        tauri_specta::Builder::<MockRuntime>::new()
+            .events(tauri_specta::collect_events![
+                StreamEnvelope,
+                StreamStatus,
+                StreamChatMessageReacted,
+                StreamChatMessageUnreacted
+            ])
+            .mount_events(&app);
+        app
+    }
+
+    /// 統合チャネル (StreamEnvelope) の受信を channel に集める。
+    fn envelope_rx(app: &App<MockRuntime>) -> mpsc::Receiver<StreamEnvelope> {
+        let (tx, rx) = mpsc::channel();
+        StreamEnvelope::listen(app, move |ev| {
+            let _ = tx.send(ev.payload);
+        });
+        rx
+    }
+
+    fn test_note(note_id: &str) -> std::sync::Arc<NormalizedNote> {
+        // serde 経由で構築し、default フィールドの列挙を避ける (query_runtime tests と同型)
+        std::sync::Arc::new(
+            serde_json::from_value(json!({
+                "id": note_id,
+                "_accountId": "acct-1",
+                "_serverHost": "misskey.example",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "user": { "id": "u1", "username": "alice" },
+                "visibility": "public",
+                "renoteCount": 0,
+                "repliesCount": 0
+            }))
+            .expect("test note fixture should deserialize"),
+        )
+    }
+
+    fn note_event(sub_id: &str, note_id: &str) -> StreamEvent {
+        StreamEvent::Note(Box::new(StreamNoteEvent {
+            account_id: "acct-1".into(),
+            subscription_id: sub_id.into(),
+            note: test_note(note_id),
+        }))
+    }
+
+    fn status_event(state: StreamConnectionState) -> StreamEvent {
+        StreamEvent::Status(Box::new(StreamStatusEvent {
+            account_id: "acct-1".into(),
+            state,
+        }))
+    }
+
+    fn test_notification(id: &str, notif_type: &str) -> NormalizedNotification {
+        serde_json::from_value(json!({
+            "id": id,
+            "_accountId": "acct-1",
+            "_serverHost": "misskey.example",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "type": notif_type,
+        }))
+        .expect("test notification fixture should deserialize")
+    }
+
+    fn notification_event(id: &str, notif_type: &str) -> StreamEvent {
+        StreamEvent::Notification(Box::new(StreamNotificationEvent {
+            account_id: "acct-1".into(),
+            subscription_id: "sub-A".into(),
+            notification: test_notification(id, notif_type),
+        }))
+    }
+
+    fn home_key(account: &str) -> QueryKey {
+        QueryKey::Timeline {
+            account_id: account.into(),
+            timeline_type: TimelineType::new("home"),
+            list_id: None,
+        }
+    }
+
+    /// Status イベントは専用チャネル (stream-status) と統合チャネル
+    /// (stream-envelope) の両方に流れる。QueryRuntime 未 manage でも
+    /// try_state None 経路で panic しない。
+    #[test]
+    fn status_event_flows_to_dedicated_and_envelope_channels() {
+        let app = mock_app();
+        let env_rx = envelope_rx(&app);
+        let (status_tx, status_rx) = mpsc::channel();
+        StreamStatus::listen(&app, move |ev| {
+            let _ = status_tx.send(ev.payload);
+        });
+
+        let emitter = TauriEmitter::new(app.handle().clone());
+        emitter.emit(status_event(StreamConnectionState::Reconnecting));
+
+        let status = status_rx
+            .recv_timeout(RECV_TIMEOUT)
+            .expect("dedicated stream-status should arrive");
+        assert_eq!(status.0.account_id, "acct-1");
+        assert_eq!(status.0.state, StreamConnectionState::Reconnecting);
+
+        let envelope = env_rx
+            .recv_timeout(RECV_TIMEOUT)
+            .expect("stream-envelope should arrive");
+        assert_eq!(envelope.0.kind(), "stream-status");
+    }
+
+    /// NoteCaptureUpdated は QueryRuntime にバッファされ、統合チャネルへの
+    /// 個別 emit は抑止される (NoteCaptureBatch にまとめる IPC 削減)。
+    #[test]
+    fn note_capture_is_suppressed_on_envelope_and_buffered_in_runtime() {
+        let app = mock_app();
+        app.manage(QueryRuntime::default());
+        let env_rx = envelope_rx(&app);
+
+        let emitter = TauriEmitter::new(app.handle().clone());
+        emitter.emit(StreamEvent::NoteCaptureUpdated(Box::new(
+            StreamNoteCaptureEvent {
+                account_id: "acct-1".into(),
+                note_id: "n1".into(),
+                update: notecli::models::NoteUpdateBody::Reacted(
+                    notecli::models::NoteReactedBody {
+                        reaction: ":+1:".into(),
+                        emoji: None,
+                        user_id: Some("u1".into()),
+                    },
+                ),
+            },
+        )));
+        // 直後に status を流し、「capture の envelope が来ていない」ことを
+        // 到着順で確認する (emit は同期配送)
+        emitter.emit(status_event(StreamConnectionState::Connected));
+
+        let first = env_rx
+            .recv_timeout(RECV_TIMEOUT)
+            .expect("stream-envelope should arrive");
+        assert_eq!(
+            first.0.kind(),
+            "stream-status",
+            "capture の個別 envelope は抑止されるはず"
+        );
+
+        let captures = app.state::<QueryRuntime>().drain_captures();
+        assert_eq!(captures.len(), 1);
+        assert_eq!(captures[0].note_id, "n1");
+    }
+
+    /// subscription が attach された query には note イベントが delta として
+    /// バッファされ、同時に firehose (stream-envelope) にも流れる。
+    #[test]
+    fn note_event_with_attached_subscription_buffers_delta_and_emits_envelope() {
+        let app = mock_app();
+        app.manage(QueryRuntime::default());
+        let snap = {
+            let rt = app.state::<QueryRuntime>();
+            let snap = rt.open(home_key("acct-1")).expect("open should succeed");
+            rt.attach_stream_subscription(&snap.query_id, "sub-A".into())
+                .expect("attach should succeed");
+            snap
+        };
+        let env_rx = envelope_rx(&app);
+
+        let emitter = TauriEmitter::new(app.handle().clone());
+        emitter.emit(note_event("sub-A", "n1"));
+
+        let deltas = app.state::<QueryRuntime>().drain_pending();
+        assert_eq!(deltas.len(), 1);
+        assert_eq!(deltas[0].query_id, snap.query_id);
+        assert_eq!(deltas[0].inserts.len(), 1);
+
+        let envelope = env_rx
+            .recv_timeout(RECV_TIMEOUT)
+            .expect("stream-envelope should arrive");
+        assert_eq!(envelope.0.kind(), "stream-note");
+    }
+
+    /// 未知の subscription 宛て note イベントはバッファされないが、
+    /// firehose には流れる (Inspector raw tap 用)。
+    #[test]
+    fn note_event_without_subscription_is_not_buffered_but_still_emitted() {
+        let app = mock_app();
+        app.manage(QueryRuntime::default());
+        let env_rx = envelope_rx(&app);
+
+        let emitter = TauriEmitter::new(app.handle().clone());
+        emitter.emit(note_event("sub-unknown", "n1"));
+
+        assert!(app.state::<QueryRuntime>().drain_pending().is_empty());
+        let envelope = env_rx
+            .recv_timeout(RECV_TIMEOUT)
+            .expect("stream-envelope should arrive");
+        assert_eq!(envelope.0.kind(), "stream-note");
+    }
+
+    /// 同一 ID の通知を 2 回受けても OS 通知の dedup セットには 1 件だけ
+    /// 記録され、統合チャネルへの emit は抑止されない (2 回とも流れる)。
+    /// 未知の notification type を使い OS 通知の副作用なしに dedup 経路を通す。
+    #[test]
+    fn duplicate_notification_dedups_os_side_but_envelope_still_flows() {
+        let app = mock_app();
+        let env_rx = envelope_rx(&app);
+
+        let emitter = TauriEmitter::new(app.handle().clone());
+        emitter.emit(notification_event("notif-1", "someFutureType"));
+        emitter.emit(notification_event("notif-1", "someFutureType"));
+
+        for _ in 0..2 {
+            let envelope = env_rx
+                .recv_timeout(RECV_TIMEOUT)
+                .expect("stream-envelope should arrive for each emit");
+            assert_eq!(envelope.0.kind(), "stream-notification");
+        }
+        let seen = emitter.recent_notif_ids.lock().unwrap();
+        assert_eq!(seen.len(), 1, "同一 ID は 1 件だけ記録されるはず");
+        assert!(seen.contains("notif-1"));
+    }
+
+    /// dedup セットは DEDUP_MAX_IDS を超えるとクリアされ、無限成長しない。
+    /// クリア後は既知 ID も再登録できる (再通知可能)。
+    #[test]
+    fn dedup_set_clears_when_exceeding_max() {
+        let app = mock_app();
+        let emitter = TauriEmitter::new(app.handle().clone());
+
+        for i in 0..DEDUP_MAX_IDS {
+            emitter
+                .send_native_notification(&test_notification(&format!("id-{i}"), "someFutureType"));
+        }
+        assert_eq!(
+            emitter.recent_notif_ids.lock().unwrap().len(),
+            DEDUP_MAX_IDS
+        );
+
+        // 上限 +1 件目でクリアされる
+        emitter.send_native_notification(&test_notification("id-overflow", "someFutureType"));
+        assert_eq!(emitter.recent_notif_ids.lock().unwrap().len(), 0);
+
+        // クリア後は既出 ID を再登録できる
+        emitter.send_native_notification(&test_notification("id-0", "someFutureType"));
+        assert_eq!(emitter.recent_notif_ids.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn achievement_label_maps_known_and_falls_back() {
+        assert_eq!(achievement_label("notes1"), "はじめてのノート");
+        assert_eq!(achievement_label("iLoveMisskey"), "I Love Misskey");
+        // 未知の実績名はそのまま返す
+        assert_eq!(
+            achievement_label("unknownFutureBadge"),
+            "unknownFutureBadge"
+        );
     }
 }

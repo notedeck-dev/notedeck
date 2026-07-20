@@ -64,6 +64,8 @@ desktop = ["tauri/tray-icon", "dep:tauri-plugin-global-shortcut", "dep:tauri-plu
 
 [dev-dependencies]
 tempfile = "3"
+# MockRuntime (tauri::test) でイベントルーティングをユニットテストするため
+tauri = { version = "2", features = ["test"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
