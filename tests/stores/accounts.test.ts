@@ -4,8 +4,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Account } from '@/stores/accounts'
 import { useAccountsStore } from '@/stores/accounts'
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
+vi.mock('@/utils/tauriInvoke', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/tauriInvoke')>(
+    '@/utils/tauriInvoke',
+  )
+  return {
+    unwrap: actual.unwrap,
+    commands: {
+      deleteAccount: vi.fn(async () => ({ status: 'ok', data: null })),
+      logoutAccount: vi.fn(async () => ({ status: 'ok', data: null })),
+    },
+  }
+})
+
+vi.mock('@/adapters/factory', () => ({
+  destroyAdapter: vi.fn(),
 }))
 
 function createTestAccount(overrides: Partial<Account> = {}): Account {

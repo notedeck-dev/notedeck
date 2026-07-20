@@ -2,9 +2,19 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useServersStore } from '@/stores/servers'
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/utils/tauriInvoke', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/tauriInvoke')>(
+    '@/utils/tauriInvoke',
+  )
+  return {
+    unwrap: actual.unwrap,
+    commands: {
+      upsertServer: vi.fn(async () => ({ status: 'ok', data: null })),
+      loadServers: vi.fn(async () => ({ status: 'ok', data: [] })),
+      getServer: vi.fn(async () => ({ status: 'ok', data: null })),
+    },
+  }
+})
 
 vi.mock('@/core/server', () => ({
   detectServer: vi.fn(),

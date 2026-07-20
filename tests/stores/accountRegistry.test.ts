@@ -3,13 +3,27 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAccountRegistryStore } from '@/stores/accountRegistry'
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-}))
+vi.mock('@/utils/tauriInvoke', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/tauriInvoke')>(
+    '@/utils/tauriInvoke',
+  )
+  return {
+    unwrap: actual.unwrap,
+    commands: {
+      apiGetRegistryValue: vi.fn(),
+      apiSetRegistryValue: vi.fn(),
+      apiDeleteRegistryValue: vi.fn(),
+      apiListRegistryKeys: vi.fn(),
+    },
+  }
+})
 
-import { invoke } from '@tauri-apps/api/core'
+import { commands } from '@/utils/tauriInvoke'
 
-const mockInvoke = vi.mocked(invoke)
+const mockGet = vi.mocked(commands.apiGetRegistryValue)
+const mockSet = vi.mocked(commands.apiSetRegistryValue)
+const mockDelete = vi.mocked(commands.apiDeleteRegistryValue)
+const mockListKeys = vi.mocked(commands.apiListRegistryKeys)
 
 const SCOPE = ['client', 'preferences', 'sync']
 
@@ -17,7 +31,7 @@ describe('accountRegistry store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
-    mockInvoke.mockReset()
+    vi.clearAllMocks()
   })
 
   afterEach(() => {
@@ -25,36 +39,32 @@ describe('accountRegistry store', () => {
   })
 
   it('get() fetches via API on cache miss and stores the value', async () => {
-    mockInvoke.mockResolvedValueOnce('dark-theme-id')
+    mockGet.mockResolvedValueOnce({ status: 'ok', data: 'dark-theme-id' })
     const store = useAccountRegistryStore()
 
     const result = await store.get('acc1', SCOPE, 'theme:dark')
 
     expect(result).toBe('dark-theme-id')
-    expect(mockInvoke).toHaveBeenCalledWith('api_get_registry_value', {
-      accountId: 'acc1',
-      scope: SCOPE,
-      key: 'theme:dark',
-    })
+    expect(mockGet).toHaveBeenCalledWith('acc1', SCOPE, 'theme:dark')
     expect(store.getCached('acc1', SCOPE, 'theme:dark')).toBe('dark-theme-id')
   })
 
   it('get() does not call API when cache is hit', async () => {
-    mockInvoke.mockResolvedValueOnce('dark-theme-id')
+    mockGet.mockResolvedValueOnce({ status: 'ok', data: 'dark-theme-id' })
     const store = useAccountRegistryStore()
 
     await store.get('acc1', SCOPE, 'theme:dark')
-    mockInvoke.mockClear()
+    mockGet.mockClear()
     const second = await store.get('acc1', SCOPE, 'theme:dark')
 
     expect(second).toBe('dark-theme-id')
-    expect(mockInvoke).not.toHaveBeenCalled()
+    expect(mockGet).not.toHaveBeenCalled()
   })
 
-  it('get() returns null and stores negative cache when API throws', async () => {
-    mockInvoke.mockRejectedValueOnce({
-      code: 'Network',
-      message: 'offline',
+  it('get() returns null and stores negative cache when API fails', async () => {
+    mockGet.mockResolvedValueOnce({
+      status: 'error',
+      error: { code: 'Network', message: 'offline' },
     })
     const store = useAccountRegistryStore()
 
@@ -65,17 +75,17 @@ describe('accountRegistry store', () => {
   })
 
   it('set() writes through cache and persists to localStorage', async () => {
-    mockInvoke.mockResolvedValueOnce(null)
+    mockSet.mockResolvedValueOnce({ status: 'ok', data: null })
     const store = useAccountRegistryStore()
 
     await store.set('acc1', SCOPE, 'theme:dark', 'my-theme')
 
-    expect(mockInvoke).toHaveBeenCalledWith('api_set_registry_value', {
-      accountId: 'acc1',
-      scope: SCOPE,
-      key: 'theme:dark',
-      value: 'my-theme',
-    })
+    expect(mockSet).toHaveBeenCalledWith(
+      'acc1',
+      SCOPE,
+      'theme:dark',
+      'my-theme',
+    )
     expect(store.getCached('acc1', SCOPE, 'theme:dark')).toBe('my-theme')
 
     const persisted = localStorage.getItem('nd-account-registry')
@@ -83,27 +93,22 @@ describe('accountRegistry store', () => {
   })
 
   it('remove() deletes cache entry and calls API', async () => {
-    mockInvoke
-      .mockResolvedValueOnce(null) // set
-      .mockResolvedValueOnce(null) // remove
+    mockSet.mockResolvedValueOnce({ status: 'ok', data: null })
+    mockDelete.mockResolvedValueOnce({ status: 'ok', data: null })
     const store = useAccountRegistryStore()
 
     await store.set('acc1', SCOPE, 'theme:dark', 'my-theme')
     await store.remove('acc1', SCOPE, 'theme:dark')
 
-    expect(mockInvoke).toHaveBeenLastCalledWith('api_delete_registry_value', {
-      accountId: 'acc1',
-      scope: SCOPE,
-      key: 'theme:dark',
-    })
+    expect(mockDelete).toHaveBeenCalledWith('acc1', SCOPE, 'theme:dark')
     expect(store.getCached('acc1', SCOPE, 'theme:dark')).toBeUndefined()
   })
 
   it('invalidate() drops all cache entries for an account', async () => {
-    mockInvoke
-      .mockResolvedValueOnce('dark')
-      .mockResolvedValueOnce('light')
-      .mockResolvedValueOnce('other-dark')
+    mockGet
+      .mockResolvedValueOnce({ status: 'ok', data: 'dark' })
+      .mockResolvedValueOnce({ status: 'ok', data: 'light' })
+      .mockResolvedValueOnce({ status: 'ok', data: 'other-dark' })
     const store = useAccountRegistryStore()
 
     await store.get('acc1', SCOPE, 'theme:dark')
@@ -118,23 +123,23 @@ describe('accountRegistry store', () => {
   })
 
   it('listKeys() returns the type map from API', async () => {
-    mockInvoke.mockResolvedValueOnce({
-      'theme:dark': 'string',
-      plugins: 'array',
+    mockListKeys.mockResolvedValueOnce({
+      status: 'ok',
+      data: { 'theme:dark': 'string', plugins: 'array' },
     })
     const store = useAccountRegistryStore()
 
     const result = await store.listKeys('acc1', SCOPE)
 
     expect(result).toEqual({ 'theme:dark': 'string', plugins: 'array' })
-    expect(mockInvoke).toHaveBeenCalledWith('api_list_registry_keys', {
-      accountId: 'acc1',
-      scope: SCOPE,
-    })
+    expect(mockListKeys).toHaveBeenCalledWith('acc1', SCOPE)
   })
 
-  it('listKeys() returns empty object when API throws', async () => {
-    mockInvoke.mockRejectedValueOnce(new Error('boom'))
+  it('listKeys() returns empty object when API fails', async () => {
+    mockListKeys.mockResolvedValueOnce({
+      status: 'error',
+      error: { code: 'API', message: 'boom' },
+    })
     const store = useAccountRegistryStore()
 
     const result = await store.listKeys('acc1', SCOPE)
