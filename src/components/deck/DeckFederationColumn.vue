@@ -236,10 +236,14 @@ function onInstanceClick(inst: FederationInstance) {
       <ColumnEmptyState
         v-if="error && instances.length === 0"
         :error="error"
+        :account-id="column.accountId"
         subject="連合情報"
         :has-token="!!account?.hasToken"
         :image-url="serverErrorImageUrl"
         :info-image-url="serverInfoImageUrl"
+        cta-label="再試行"
+        cta-icon="ti-refresh"
+        @cta="fetchInstances(true)"
       />
       <ColumnEmptyState
         v-else-if="!isLoading && instances.length === 0"

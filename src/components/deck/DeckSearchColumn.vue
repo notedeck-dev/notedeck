@@ -751,9 +751,13 @@ onUnmounted(() => {
 
     <ColumnEmptyState
       v-if="error"
-      :message="error.message"
+      :error="error"
+      :account-id="column.accountId"
       :image-url="serverErrorImageUrl"
       is-error
+      cta-label="再試行"
+      cta-icon="ti-refresh"
+      @cta="performSearch"
     />
 
     <div v-else :class="$style.searchBody">

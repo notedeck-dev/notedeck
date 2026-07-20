@@ -13,7 +13,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { useToast } from '@/stores/toast'
-import { AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
+import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
@@ -266,9 +266,13 @@ onMounted(() => {
 
     <ColumnEmptyState
       v-if="error && !isLoggedOut"
-      :message="error.isAuth ? AUTH_ERROR_MESSAGE : error.message"
+      :error="error"
+      :account-id="column.accountId"
       is-error
       :image-url="serverErrorImageUrl"
+      cta-label="再試行"
+      cta-icon="ti-refresh"
+      @cta="fetchRequests"
     />
 
     <div v-else ref="bodyRef" :class="$style.frBody">

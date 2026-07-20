@@ -1,6 +1,6 @@
 import { computed, ref, shallowRef } from 'vue'
 import type { DriveFolder, NormalizedDriveFile } from '@/adapters/types'
-import { AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
+import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { isSafeUrl } from '@/utils/url'
 
@@ -17,7 +17,7 @@ export function useDriveFolder(options: UseDriveFolderOptions) {
   const folders = shallowRef<DriveFolder[]>([])
   const files = shallowRef<NormalizedDriveFile[]>([])
   const loading = ref(false)
-  const error = ref<string | null>(null)
+  const error = ref<AppError | null>(null)
 
   async function fetchDrive(folderId?: string | null) {
     const accountId = options.accountId()
@@ -38,8 +38,7 @@ export function useDriveFolder(options: UseDriveFolderOptions) {
       folders.value = folderResult
       files.value = fileResult
     } catch (e) {
-      const appErr = AppError.from(e)
-      error.value = appErr.isAuth ? AUTH_ERROR_MESSAGE : appErr.message
+      error.value = AppError.from(e)
     } finally {
       loading.value = false
     }

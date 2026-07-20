@@ -14,6 +14,7 @@
     "core:window:allow-is-fullscreen",
     "core:window:allow-set-fullscreen",
     "core:window:allow-set-size",
+    "core:window:allow-set-title",
     "core:window:allow-inner-size",
     "core:window:allow-scale-factor",
     "core:window:allow-center",

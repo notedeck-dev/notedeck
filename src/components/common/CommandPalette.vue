@@ -796,6 +796,10 @@ function primaryShortcut(cmd: Command): string | null {
   opacity: 0.6;
   font-family: inherit;
   white-space: nowrap;
+  // .item の line-height: 22px を継承すると padding/border 込みで行高を超え、
+  // Alt+N ヒント出現時にアイテムが縦に膨らんでレイアウトシフトする
+  line-height: 1.5;
+  flex-shrink: 0;
 }
 
 .empty {

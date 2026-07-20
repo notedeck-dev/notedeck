@@ -1,5 +1,6 @@
 use std::collections::HashSet;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use notecli::models::NormalizedNotification;
 use notecli::streaming::FrontendEmitter;
@@ -35,6 +36,68 @@ const NOTIFICATION_CHANNEL_ID: &str = "notedeck_notifications";
 /// When exceeded, the set is cleared to prevent unbounded growth.
 const DEDUP_MAX_IDS: usize = 500;
 
+/// デスクトップ OS 通知のバースト集約窓 (#750)。直前の OS 通知からこの時間内に
+/// 届いた通知は個別に出さずバッファし、窓の終わりに要約 1 件へまとめる。
+/// Android は channel で OS 側がグルーピングするため対象外。
+const GROUP_WINDOW: Duration = Duration::from_secs(2);
+
+/// 要約 body に列挙する通知元 (title) の最大数。超過分は「ほか」に畳む。
+const GROUP_MAX_NAMES: usize = 3;
+
+/// バッファ中の OS 通知 1 件分。title はアクター系なら送信元ユーザー名。
+struct PendingOsNotification {
+    title: String,
+    body: Option<String>,
+}
+
+/// send_native_notification の判定結果。表示 (副作用) と分離してテスト可能にする。
+enum OsNotifPlan {
+    /// dedup 済み・未知 type・フォーカス中 → 何もしない
+    Suppress,
+    /// 個別に即時表示 (バースト外の 1 件目 / Android)
+    ShowNow { title: String, body: Option<String> },
+    /// バーストとしてバッファ済み。spawn_flusher が true なら flush タスクを起動する
+    #[cfg_attr(target_os = "android", allow(dead_code))]
+    Buffer { spawn_flusher: bool },
+}
+
+/// バッファを要約して表示内容にする。1 件ならそのまま、複数件なら
+/// 「新着通知 N 件」+ 通知元名の列挙 (dedup、GROUP_MAX_NAMES 超は「ほか」)。
+fn summarize_group(items: &[PendingOsNotification]) -> Option<(String, Option<String>)> {
+    match items {
+        [] => None,
+        [single] => Some((single.title.clone(), single.body.clone())),
+        _ => {
+            let mut names: Vec<&str> = Vec::new();
+            for item in items {
+                if !names.contains(&item.title.as_str()) {
+                    names.push(&item.title);
+                }
+            }
+            let body = if names.len() > GROUP_MAX_NAMES {
+                format!("{} ほか", names[..GROUP_MAX_NAMES].join("、"))
+            } else {
+                names.join("、")
+            };
+            Some((format!("新着通知 {} 件", items.len()), Some(body)))
+        }
+    }
+}
+
+fn show_os_notification<R: tauri::Runtime>(app: &AppHandle<R>, title: &str, body: Option<&str>) {
+    let mut builder = app.notification().builder().title(title);
+    if let Some(body) = body {
+        builder = builder.body(body);
+    }
+    #[cfg(target_os = "android")]
+    {
+        builder = builder.channel_id(NOTIFICATION_CHANNEL_ID);
+    }
+    if let Err(e) = builder.show() {
+        tracing::warn!("[notification] failed to send: {e}");
+    }
+}
+
 // Runtime generic は MockRuntime でのユニットテスト用。本番は default の Wry
 // のみで、挙動は非 generic 時と同一。
 pub struct TauriEmitter<R: tauri::Runtime = tauri::Wry> {
@@ -42,6 +105,12 @@ pub struct TauriEmitter<R: tauri::Runtime = tauri::Wry> {
     /// Tracks recently shown notification IDs to prevent duplicate OS notifications
     /// when multiple subscriptions exist for the same account.
     recent_notif_ids: Mutex<HashSet<String>>,
+    /// 直近に OS 通知を出した (またはバッファした) 時刻。バースト判定用。
+    #[cfg(not(target_os = "android"))]
+    last_os_notif: Mutex<Option<Instant>>,
+    /// バースト中の未表示通知。flusher タスクが GROUP_WINDOW 後に drain する。
+    #[cfg(not(target_os = "android"))]
+    pending_group: Arc<Mutex<Vec<PendingOsNotification>>>,
 }
 
 impl<R: tauri::Runtime> TauriEmitter<R> {
@@ -57,16 +126,46 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         Self {
             app,
             recent_notif_ids: Mutex::new(HashSet::new()),
+            #[cfg(not(target_os = "android"))]
+            last_os_notif: Mutex::new(None),
+            #[cfg(not(target_os = "android"))]
+            pending_group: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
     fn send_native_notification(&self, notification: &NormalizedNotification) {
+        match self.plan_os_notification(notification) {
+            OsNotifPlan::Suppress => {}
+            OsNotifPlan::ShowNow { title, body } => {
+                show_os_notification(&self.app, &title, body.as_deref());
+            }
+            OsNotifPlan::Buffer { spawn_flusher } => {
+                #[cfg(not(target_os = "android"))]
+                if spawn_flusher {
+                    let app = self.app.clone();
+                    let pending = Arc::clone(&self.pending_group);
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(GROUP_WINDOW).await;
+                        let items = std::mem::take(&mut *pending.lock().unwrap());
+                        if let Some((title, body)) = summarize_group(&items) {
+                            show_os_notification(&app, &title, body.as_deref());
+                        }
+                    });
+                }
+                #[cfg(target_os = "android")]
+                let _ = spawn_flusher;
+            }
+        }
+    }
+
+    /// OS 通知の表示可否・形態を判定する。表示副作用は持たない (テスト用に分離)。
+    fn plan_os_notification(&self, notification: &NormalizedNotification) -> OsNotifPlan {
         // Deduplicate by notification ID — multiple subscriptions for the same
         // account can trigger this function more than once for a single notification.
         {
             let mut seen = self.recent_notif_ids.lock().unwrap();
             if !seen.insert(notification.id.clone()) {
-                return;
+                return OsNotifPlan::Suppress;
             }
             if seen.len() > DEDUP_MAX_IDS {
                 seen.clear();
@@ -117,33 +216,50 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
             "app" => ("通知".to_string(), None),
             "test" => ("テスト通知".to_string(), Some("テスト通知".to_string())),
 
-            _ => return,
+            _ => return OsNotifPlan::Suppress,
         };
 
-        // フォーカス中はアプリ内表示 + 音で足りるため OS 通知は出さない (#704 K)。
-        // Android は webview が凍結されうるため常に出す
+        // Android は webview が凍結されうるため常に即時表示 (グルーピングは
+        // channel 経由で OS が行う)
+        #[cfg(target_os = "android")]
+        {
+            OsNotifPlan::ShowNow {
+                title,
+                body: body_opt,
+            }
+        }
+
         #[cfg(not(target_os = "android"))]
         {
+            // フォーカス中はアプリ内表示 + 音で足りるため OS 通知は出さない (#704 K)。
             let focused = self
                 .app
                 .get_webview_window("main")
                 .map(|w| w.is_focused().unwrap_or(false))
                 .unwrap_or(false);
             if focused {
-                return;
+                return OsNotifPlan::Suppress;
             }
-        }
 
-        let mut builder = self.app.notification().builder().title(&title);
-        if let Some(body) = body_opt.as_deref() {
-            builder = builder.body(body);
-        }
-        #[cfg(target_os = "android")]
-        {
-            builder = builder.channel_id(NOTIFICATION_CHANNEL_ID);
-        }
-        if let Err(e) = builder.show() {
-            tracing::warn!("[notification] failed to send: {e}");
+            // バースト集約 (#750): 直近の通知から GROUP_WINDOW 内ならバッファし、
+            // flusher が窓の終わりに要約 1 件へまとめる。窓外の 1 件目は即時表示。
+            let now = Instant::now();
+            let mut last = self.last_os_notif.lock().unwrap();
+            let in_burst = last.is_some_and(|t| now.duration_since(t) < GROUP_WINDOW);
+            *last = Some(now);
+            if !in_burst {
+                return OsNotifPlan::ShowNow {
+                    title,
+                    body: body_opt,
+                };
+            }
+            let mut pending = self.pending_group.lock().unwrap();
+            let spawn_flusher = pending.is_empty();
+            pending.push(PendingOsNotification {
+                title,
+                body: body_opt,
+            });
+            OsNotifPlan::Buffer { spawn_flusher }
         }
     }
 }
@@ -544,6 +660,115 @@ mod tests {
         // クリア後は既出 ID を再登録できる
         emitter.send_native_notification(&test_notification("id-0", "someFutureType"));
         assert_eq!(emitter.recent_notif_ids.lock().unwrap().len(), 1);
+    }
+
+    fn test_notification_with_user(
+        id: &str,
+        notif_type: &str,
+        username: &str,
+    ) -> NormalizedNotification {
+        serde_json::from_value(json!({
+            "id": id,
+            "_accountId": "acct-1",
+            "_serverHost": "misskey.example",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "type": notif_type,
+            "user": { "id": "u1", "username": username },
+        }))
+        .expect("test notification fixture should deserialize")
+    }
+
+    fn pending(title: &str, body: Option<&str>) -> PendingOsNotification {
+        PendingOsNotification {
+            title: title.to_string(),
+            body: body.map(str::to_string),
+        }
+    }
+
+    /// バースト外の 1 件目は即時表示、GROUP_WINDOW 内の後続はバッファされる。
+    /// flusher の起動指示はバッファが空→非空になる最初の 1 回だけ。
+    #[test]
+    fn burst_notifications_are_buffered_after_first() {
+        let app = mock_app();
+        let emitter = TauriEmitter::new(app.handle().clone());
+
+        let plan1 =
+            emitter.plan_os_notification(&test_notification_with_user("n1", "reaction", "alice"));
+        assert!(matches!(plan1, OsNotifPlan::ShowNow { .. }));
+
+        let plan2 =
+            emitter.plan_os_notification(&test_notification_with_user("n2", "reply", "bob"));
+        assert!(matches!(
+            plan2,
+            OsNotifPlan::Buffer {
+                spawn_flusher: true
+            }
+        ));
+
+        let plan3 =
+            emitter.plan_os_notification(&test_notification_with_user("n3", "renote", "carol"));
+        assert!(matches!(
+            plan3,
+            OsNotifPlan::Buffer {
+                spawn_flusher: false
+            }
+        ));
+
+        assert_eq!(emitter.pending_group.lock().unwrap().len(), 2);
+    }
+
+    /// GROUP_WINDOW を過ぎた通知はバーストとみなされず即時表示に戻る。
+    #[test]
+    fn notification_after_window_shows_immediately() {
+        let app = mock_app();
+        let emitter = TauriEmitter::new(app.handle().clone());
+
+        let _ = emitter.plan_os_notification(&test_notification_with_user("n1", "reaction", "alice"));
+        // 窓を跨いだ状態を再現
+        *emitter.last_os_notif.lock().unwrap() = Instant::now().checked_sub(GROUP_WINDOW * 2);
+
+        let plan =
+            emitter.plan_os_notification(&test_notification_with_user("n2", "reply", "bob"));
+        assert!(matches!(plan, OsNotifPlan::ShowNow { .. }));
+        assert!(emitter.pending_group.lock().unwrap().is_empty());
+    }
+
+    /// バッファ 1 件の flush は元の title/body をそのまま使う (要約しない)。
+    #[test]
+    fn summarize_group_single_keeps_original() {
+        let items = vec![pending("アリス", Some("リアクション 👍"))];
+        let (title, body) = summarize_group(&items).expect("single item should flush");
+        assert_eq!(title, "アリス");
+        assert_eq!(body.as_deref(), Some("リアクション 👍"));
+    }
+
+    /// 複数件は「新着通知 N 件」+ 通知元名の dedup 列挙に要約される。
+    #[test]
+    fn summarize_group_groups_and_dedups_actors() {
+        let items = vec![
+            pending("アリス", Some("リアクション 👍")),
+            pending("ボブ", Some("リプライ")),
+            pending("アリス", Some("リノート")),
+        ];
+        let (title, body) = summarize_group(&items).expect("items should flush");
+        assert_eq!(title, "新着通知 3 件");
+        assert_eq!(body.as_deref(), Some("アリス、ボブ"));
+    }
+
+    /// 通知元が GROUP_MAX_NAMES を超えたら「ほか」に畳む。空バッファは何も出さない。
+    #[test]
+    fn summarize_group_caps_names_and_skips_empty() {
+        let items = vec![
+            pending("アリス", None),
+            pending("ボブ", None),
+            pending("キャロル", None),
+            pending("デイブ", None),
+        ];
+        let (title, body) = summarize_group(&items).expect("items should flush");
+        assert_eq!(title, "新着通知 4 件");
+        assert_eq!(body.as_deref(), Some("アリス、ボブ、キャロル ほか"));
+
+        assert!(summarize_group(&[]).is_none());
     }
 
     #[test]

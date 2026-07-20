@@ -5,10 +5,12 @@ import { ref } from 'vue'
 import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
+  getStorageByPrefix,
   getStorageJson,
   removeStorageByPrefix,
   STORAGE_KEYS,
   setStorageJson,
+  setStorageString,
 } from '@/utils/storage'
 
 export interface WidgetMeta {
@@ -208,15 +210,21 @@ export const useWidgetsStore = defineStore('widgets', () => {
     persist(widget)
   }
 
-  function removeWidget(installId: string) {
+  /** widget を削除する。undo トースト用に復元関数を返す (ファイル再書込方式) */
+  function removeWidget(installId: string): (() => void) | undefined {
     ensureLoaded()
-    const removed = widgets.value.find((w) => w.installId === installId)
-    // AiScript の Mk:save 領域を一掃 (storagePrefix='app-${installId}')
-    removeStorageByPrefix(STORAGE_KEYS.aiscriptStorage(`app-${installId}`))
+    const idx = widgets.value.findIndex((w) => w.installId === installId)
+    const removed = widgets.value[idx]
+    // AiScript の Mk:save 領域を一掃 (storagePrefix='app-${installId}')。
+    // undo で戻せるよう消す前にスナップショットを取る
+    const storagePrefix = STORAGE_KEYS.aiscriptStorage(`app-${installId}`)
+    const savedStorage = getStorageByPrefix(storagePrefix)
+    removeStorageByPrefix(storagePrefix)
     widgets.value = widgets.value.filter((w) => w.installId !== installId)
     saveWidgetsToStorage(widgets.value)
     // sidebar 並びからも自動的に剥がす
-    if (sidebarWidgetIds.value.includes(installId)) {
+    const sidebarIdx = sidebarWidgetIds.value.indexOf(installId)
+    if (sidebarIdx >= 0) {
       sidebarWidgetIds.value = sidebarWidgetIds.value.filter(
         (id) => id !== installId,
       )
@@ -226,6 +234,34 @@ export const useWidgetsStore = defineStore('widgets', () => {
       deleteWidgetFiles(removed).catch((e) =>
         console.warn('[widgets] failed to delete widget files:', e),
       )
+    }
+    if (!removed) return undefined
+    return () => {
+      if (widgets.value.some((w) => w.installId === installId)) return
+      const at = Math.min(idx, widgets.value.length)
+      widgets.value = [
+        ...widgets.value.slice(0, at),
+        removed,
+        ...widgets.value.slice(at),
+      ]
+      saveWidgetsToStorage(widgets.value)
+      for (const [key, value] of Object.entries(savedStorage)) {
+        setStorageString(key, value)
+      }
+      if (sidebarIdx >= 0 && !sidebarWidgetIds.value.includes(installId)) {
+        const sidebarAt = Math.min(sidebarIdx, sidebarWidgetIds.value.length)
+        sidebarWidgetIds.value = [
+          ...sidebarWidgetIds.value.slice(0, sidebarAt),
+          installId,
+          ...sidebarWidgetIds.value.slice(sidebarAt),
+        ]
+        saveSidebarOrderToStorage(sidebarWidgetIds.value)
+      }
+      if (initialized.value) {
+        persistSingleWidget(removed).catch((e) =>
+          console.warn('[widgets] failed to restore widget files:', e),
+        )
+      }
     }
   }
 

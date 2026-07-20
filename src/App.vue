@@ -12,6 +12,8 @@ import { useHeartbeatDaemon } from '@/composables/useHeartbeatDaemon'
 import { useKeyboard } from '@/composables/useKeyboard'
 import { initKeyboardInset } from '@/composables/useKeyboardInset'
 import { useMuteSync } from '@/composables/useMuteSync'
+import { useOsUnreadBadge } from '@/composables/useOsUnreadBadge'
+import { useOsWindowTitle } from '@/composables/useOsWindowTitle'
 import { listenPipEvents } from '@/composables/usePipWindow'
 import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
 import { useTheme } from '@/composables/useTheme'
@@ -95,6 +97,13 @@ if (isTauri) {
 // PiP ウィンドウでは mount しない (= main window だけが daemon を持つ)。
 if (!isPipWindow.value) {
   useHeartbeatDaemon()
+}
+
+// OS 統合 (#748): ウィンドウタイトルは各デッキウィンドウが自分の内容を反映、
+// 未読バッジ (Dock/タスクバー/トレイ) は useOsUnreadBadge 内で main のみ有効化
+if (isTauri && !isPipWindow.value) {
+  useOsWindowTitle()
+  useOsUnreadBadge()
 }
 
 // Listen for PiP IPC events (main window only)

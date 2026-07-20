@@ -337,7 +337,16 @@ fetchDrive()
 
     <div ref="driveGridScrollRef" :class="$style.driveGridScroll">
       <div v-if="loading && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
-      <ColumnEmptyState v-else-if="error && !isLoggedOut" :message="error" is-error :image-url="serverErrorImageUrl" />
+      <ColumnEmptyState
+        v-else-if="error && !isLoggedOut"
+        :error="error"
+        :account-id="column.accountId"
+        is-error
+        :image-url="serverErrorImageUrl"
+        cta-label="再試行"
+        cta-icon="ti-refresh"
+        @cta="fetchDrive()"
+      />
       <template v-else-if="!isLoggedOut">
         <!-- フォルダ → ファイルを 1 つのグリッドに連続配置
              (flat = display: contents でセルを直接流し込む。奇数個でも空セルが出ない) -->

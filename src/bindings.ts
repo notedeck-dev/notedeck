@@ -1659,6 +1659,15 @@ async openDevtools() : Promise<void> {
     await TAURI_INVOKE("open_devtools");
 },
 /**
+ * 未読合計を OS へ反映する (#748):
+ * - macOS Dock / Linux ランチャー: バッジ件数
+ * - Windows: タスクバーのオーバーレイドット
+ * - トレイ: tooltip の件数表記 + アイコン右上の未読ドット
+ */
+async setUnreadBadge(count: number) : Promise<void> {
+    await TAURI_INVOKE("set_unread_badge", { count });
+},
+/**
  * Export notecli.db to a user-chosen location via save dialog.
  */
 async exportDb() : Promise<Result<boolean, { code: string; message: string }>> {

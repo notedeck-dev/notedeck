@@ -15,6 +15,7 @@ import {
   type SkillMeta,
   useSkillsStore,
 } from '@/stores/skills'
+import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
 import ColumnSection from './ColumnSection.vue'
@@ -148,12 +149,17 @@ async function uninstall(skill: SkillMeta) {
   if (skill.builtIn) return
   const ok = await confirm({
     title: 'スキルを削除',
-    message: `「${skill.name}」を削除しますか？スキルの本文も消えます。この操作は取り消せません。`,
+    message: `「${skill.name}」を削除しますか？スキルの本文も消えます。`,
     okLabel: '削除',
     type: 'danger',
   })
   if (!ok) return
-  skillsStore.remove(skill.id)
+  const undo = skillsStore.remove(skill.id)
+  if (undo) {
+    useToast().show('スキルを削除しました', 'info', {
+      action: { label: '元に戻す', onClick: undo },
+    })
+  }
 }
 
 const modeLabel: Record<string, string> = {

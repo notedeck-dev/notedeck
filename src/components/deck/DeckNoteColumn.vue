@@ -166,6 +166,7 @@ defineExpose({
     <ColumnEmptyState
       v-if="error"
       :error="error"
+      :account-id="column.accountId"
       :image-url="serverErrorImageUrl"
       is-error
       cta-label="再試行"

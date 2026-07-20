@@ -84,6 +84,8 @@
   --nd-statusActive: #e4bc48;
   --nd-statusOffline: #ea5353;
   --nd-statusUnknown: #888;
+  /* Navbar polling mode (Misskey テーマ標準キーに紫が無いため独自) */
+  --nd-modePolling: #9c27b0;
   /* Footer action hover */
   --nd-replyHover: #3b97c4;
   --nd-reactionHover: #e5a400;

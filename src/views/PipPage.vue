@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, provide, ref } from 'vue'
+import {
+  computed,
+  defineAsyncComponent,
+  onMounted,
+  provide,
+  ref,
+  watchEffect,
+} from 'vue'
 import { useRoute } from 'vue-router'
 import type { DriveFolder } from '@/adapters/types'
-import { COLUMN_COMPONENTS } from '@/columns/registry'
+import { COLUMN_COMPONENTS, COLUMN_LABELS } from '@/columns/registry'
 import AppToast from '@/components/common/AppToast.vue'
 import AppTooltip from '@/components/common/AppTooltip.vue'
 import AddColumnDialog from '@/components/deck/AddColumnDialog.vue'
@@ -10,6 +17,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { useThemeStore } from '@/stores/theme'
 import type { WindowType } from '@/stores/windows'
+import { catchIgnore } from '@/utils/logger'
 
 type WindowPayload = { type: WindowType; props: Record<string, unknown> }
 
@@ -174,6 +182,18 @@ const windowTitle = computed(() => {
   const t = windowPayload.value?.type
   if (!t) return ''
   return WINDOW_TITLES[t] ?? t
+})
+
+// OS ウィンドウタイトルに表示内容を反映し、複数 PiP を区別可能にする (#748)
+watchEffect(() => {
+  const col = selectedColumn.value
+  const label = col
+    ? (col.name ?? COLUMN_LABELS[col.type] ?? col.type)
+    : windowTitle.value || null
+  const title = label ? `${label} — NoteDeck PiP` : 'NoteDeck PiP'
+  import('@tauri-apps/api/window')
+    .then(({ getCurrentWindow }) => getCurrentWindow().setTitle(title))
+    .catch(catchIgnore('pip-window-title'))
 })
 
 function onColumnSelected(config: Omit<DeckColumn, 'id'>) {

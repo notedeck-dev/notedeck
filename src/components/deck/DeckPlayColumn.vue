@@ -54,7 +54,7 @@ interface FlashSummary {
 
 const listItems = ref<FlashSummary[]>([])
 const listLoading = ref(false)
-const listError = ref<string | null>(null)
+const listError = ref<AppError | null>(null)
 
 async function fetchList(tab?: Tab) {
   if (!props.column.accountId) return
@@ -82,7 +82,7 @@ async function fetchList(tab?: Tab) {
           )
         : (raw as FlashSummary[])
   } catch (e) {
-    listError.value = AppError.from(e).message
+    listError.value = AppError.from(e)
   } finally {
     listLoading.value = false
   }
@@ -136,7 +136,16 @@ function scrollToTop() {
 
       <div ref="playListRef" :class="$style.playList">
         <div v-if="listLoading" :class="$style.columnLoading"><LoadingSpinner /></div>
-        <ColumnEmptyState v-else-if="listError" :message="listError" is-error :image-url="serverErrorImageUrl" />
+        <ColumnEmptyState
+          v-else-if="listError"
+          :error="listError"
+          :account-id="column.accountId"
+          is-error
+          :image-url="serverErrorImageUrl"
+          cta-label="再試行"
+          cta-icon="ti-refresh"
+          @cta="fetchList()"
+        />
         <ColumnEmptyState v-else-if="listItems.length === 0" message="Playが見つかりません" :image-url="serverInfoImageUrl" />
         <button
           v-for="item in listItems"

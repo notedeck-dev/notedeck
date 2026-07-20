@@ -2,7 +2,7 @@
   "name": "notedeck",
   "description": "Misskey Pro — integrated deck environment (IDE) for Misskey power users",
   "private": true,
-  "version": "1.17.0",
+  "version": "1.18.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -494,17 +494,39 @@ export const useSkillsStore = defineStore('skills', () => {
     emitNoteDeckEvent('skill:edited', { id })
   }
 
-  function remove(id: string): void {
+  /** スキルを削除する。undo トースト用に復元関数を返す (ファイル再書込方式) */
+  function remove(id: string): (() => void) | undefined {
     ensureLoaded()
-    const target = skills.value.find((s) => s.id === id)
-    if (!target) return
+    const idx = skills.value.findIndex((s) => s.id === id)
+    const target = skills.value[idx]
+    if (!target) return undefined
     skills.value = skills.value.filter((s) => s.id !== id)
     if (initialized.value) deleteFile(target)
+    return () => {
+      if (skills.value.some((s) => s.id === id)) return
+      const at = Math.min(idx, skills.value.length)
+      skills.value = [
+        ...skills.value.slice(0, at),
+        target,
+        ...skills.value.slice(at),
+      ]
+      if (initialized.value) {
+        persist(target).catch((e) =>
+          console.warn('[skills] failed to restore skill file:', e),
+        )
+      }
+    }
   }
 
-  function removeWithMigration(id: string): void {
-    remove(id)
+  function removeWithMigration(id: string): (() => void) | undefined {
+    const wasActive = activeIds.value.includes(id)
+    const undoRemove = remove(id)
+    if (!undoRemove) return undefined
     setActive(id, false)
+    return () => {
+      undoRemove()
+      if (wasActive) setActive(id, true)
+    }
   }
 
   // --- built-in metadata sync ---

@@ -571,7 +571,15 @@ async function handlePosted(editedNoteId?: string) {
         <LoadingSpinner />
       </div>
 
-      <ColumnEmptyState v-else-if="lookupError" :message="lookupError" is-error :image-url="serverErrorImageUrl" />
+      <ColumnEmptyState
+        v-else-if="lookupError"
+        :message="lookupError"
+        is-error
+        :image-url="serverErrorImageUrl"
+        cta-label="再試行"
+        cta-icon="ti-refresh"
+        @cta="performLookup"
+      />
 
       <ColumnEmptyState v-else-if="!mergedThread" message="URLを入力して照会" :image-url="serverInfoImageUrl" />
 
@@ -613,7 +621,15 @@ async function handlePosted(editedNoteId?: string) {
         <LoadingSpinner />
       </div>
 
-      <ColumnEmptyState v-else-if="lookupError" :message="lookupError" is-error :image-url="serverErrorImageUrl" />
+      <ColumnEmptyState
+        v-else-if="lookupError"
+        :message="lookupError"
+        is-error
+        :image-url="serverErrorImageUrl"
+        cta-label="再試行"
+        cta-icon="ti-refresh"
+        @cta="performLookup"
+      />
 
       <ColumnEmptyState v-else-if="!result" message="URLまたは@ユーザー名を入力して照会" :image-url="serverInfoImageUrl" />
 

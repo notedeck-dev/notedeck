@@ -967,7 +967,7 @@ defineExpose({
 }
 
 .onlineActive {
-  color: #86b300;
+  color: var(--nd-accent, #86b300);
 
   :global(.ti) {
     opacity: 1;
@@ -975,7 +975,7 @@ defineExpose({
 }
 
 .offlineActive {
-  color: #d32f2f;
+  color: var(--nd-error, #ec4137);
 
   :global(.ti) {
     opacity: 1;
@@ -983,7 +983,7 @@ defineExpose({
 }
 
 .realtimeActive {
-  color: #e2a100;
+  color: var(--nd-warn, #ecb637);
 
   :global(.ti) {
     opacity: 1;
@@ -991,7 +991,7 @@ defineExpose({
 }
 
 .pollingActive {
-  color: #9c27b0;
+  color: var(--nd-modePolling, #9c27b0);
 
   :global(.ti) {
     opacity: 1;

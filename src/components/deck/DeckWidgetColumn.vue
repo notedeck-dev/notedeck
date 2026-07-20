@@ -13,6 +13,7 @@ import {
   type StoreWidgetEntry,
   useMisStoreStore,
 } from '@/stores/misstore'
+import { useToast } from '@/stores/toast'
 import {
   generateWidgetId,
   useWidgetsStore,
@@ -162,13 +163,18 @@ const { confirm } = useConfirm()
 async function deleteFromLibrary(widget: WidgetMeta) {
   const ok = await confirm({
     title: 'ウィジットを削除',
-    message: `「${widget.name}」をライブラリから削除しますか？ウィジットのコードも消えます。この操作は取り消せません。`,
+    message: `「${widget.name}」をライブラリから削除しますか？ウィジットのコードも消えます。`,
     okLabel: '削除',
     type: 'danger',
   })
   if (!ok) return
   deckStore.detachWidgetFromAllColumns(widget.installId)
-  widgetsStore.removeWidget(widget.installId)
+  const undo = widgetsStore.removeWidget(widget.installId)
+  if (undo) {
+    useToast().show('ウィジットを削除しました', 'info', {
+      action: { label: '元に戻す', onClick: undo },
+    })
+  }
 }
 
 // --- View tabs (installed / store) ---

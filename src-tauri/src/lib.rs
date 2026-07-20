@@ -403,7 +403,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 .ok_or("Default window icon not found")?
                 .clone();
 
-            match TrayIconBuilder::new()
+            match TrayIconBuilder::with_id("main")
                 .icon(icon)
                 .tooltip("NoteDeck")
                 .menu(&menu)
@@ -715,6 +715,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::get_rustc_version,
             commands::get_openapi_spec,
             commands::open_devtools,
+            commands::set_unread_badge,
             commands::export_db,
             commands::import_db,
             commands::save_image_to_file,

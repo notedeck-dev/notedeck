@@ -39,6 +39,19 @@ export function removeStorage(key: string): void {
   localStorage.removeItem(key)
 }
 
+/** Snapshot all localStorage entries matching a prefix (undo 復元用). */
+export function getStorageByPrefix(prefix: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key?.startsWith(prefix)) {
+      const value = localStorage.getItem(key)
+      if (value != null) out[key] = value
+    }
+  }
+  return out
+}
+
 /** Remove all localStorage keys matching a prefix. */
 export function removeStorageByPrefix(prefix: string): void {
   for (let i = localStorage.length - 1; i >= 0; i--) {

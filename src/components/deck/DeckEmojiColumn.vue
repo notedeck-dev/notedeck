@@ -200,7 +200,16 @@ function getRowItems(index: number): ServerEmoji[] {
       <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
-    <ColumnEmptyState v-if="error" :message="error.message" is-error :image-url="serverErrorImageUrl" />
+    <ColumnEmptyState
+      v-if="error"
+      :error="error"
+      :account-id="column.accountId"
+      is-error
+      :image-url="serverErrorImageUrl"
+      cta-label="再試行"
+      cta-icon="ti-refresh"
+      @cta="loadEmojis"
+    />
 
     <div v-else :class="$style.emojiBody">
       <!-- Search -->

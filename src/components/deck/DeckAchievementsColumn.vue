@@ -9,7 +9,7 @@ import { useServerImages } from '@/composables/useServerImages'
 import { getAccountAvatarUrl } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { ACHIEVEMENT_TOTAL, type Achievement } from '@/utils/achievements'
-import { AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
+import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
@@ -24,7 +24,7 @@ const isLoggedOut = computed(() => account.value?.hasToken === false)
 
 const achievements = ref<Achievement[]>([])
 const loading = ref(false)
-const error = ref<string | null>(null)
+const error = ref<AppError | null>(null)
 
 const unlockedCount = computed(() => achievements.value.length)
 
@@ -41,8 +41,7 @@ async function fetchAchievements() {
     ) as unknown as Achievement[]
     achievements.value = result
   } catch (e) {
-    const appErr = AppError.from(e)
-    error.value = appErr.isAuth ? AUTH_ERROR_MESSAGE : appErr.message
+    error.value = AppError.from(e)
   } finally {
     loading.value = false
   }
@@ -75,7 +74,16 @@ function scrollToTop() {
 
     <div ref="achievementsScrollRef" :class="$style.achievementsScroll">
       <div v-if="loading && achievements.length === 0 && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
-      <ColumnEmptyState v-else-if="error && !isLoggedOut" :message="error" is-error :image-url="serverErrorImageUrl" />
+      <ColumnEmptyState
+        v-else-if="error && !isLoggedOut"
+        :error="error"
+        :account-id="column.accountId"
+        is-error
+        :image-url="serverErrorImageUrl"
+        cta-label="再試行"
+        cta-icon="ti-refresh"
+        @cta="fetchAchievements"
+      />
       <ColumnEmptyState v-else-if="achievements.length === 0 && !loading" message="実績がありません" :image-url="serverInfoImageUrl" />
       <MkAchievementsGrid v-else :achievements="achievements" />
     </div>

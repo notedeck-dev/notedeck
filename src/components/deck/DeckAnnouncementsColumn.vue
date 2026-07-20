@@ -7,7 +7,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
-import { AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
+import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
@@ -128,9 +128,13 @@ onUnmounted(() => {
 
     <ColumnEmptyState
       v-if="error && !isLoggedOut"
-      :message="error.isAuth ? AUTH_ERROR_MESSAGE : error.message"
+      :error="error"
+      :account-id="column.accountId"
       :image-url="serverErrorImageUrl"
       is-error
+      cta-label="再試行"
+      cta-icon="ti-refresh"
+      @cta="fetchAnnouncements"
     />
 
     <div v-else :class="$style.announcementsBody">

@@ -737,6 +737,9 @@ watch(driveView, (v) => {
           :message="errorMessage"
           :image-url="serverErrorImageUrl"
           is-error
+          cta-label="再試行"
+          cta-icon="ti-refresh"
+          @cta="fetchAll"
         />
         <template v-else>
           <!-- Charts tab: 6 sections stacked -->

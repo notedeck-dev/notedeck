@@ -125,9 +125,13 @@ const {
 
     <ColumnEmptyState
       v-if="error"
-      :message="error.message"
+      :error="error"
+      :account-id="column.accountId"
       is-error
       :image-url="serverErrorImageUrl"
+      cta-label="再試行"
+      cta-icon="ti-refresh"
+      @cta="connectCrossAccount"
     />
 
     <div v-else :class="$style.tlBody">

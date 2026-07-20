@@ -143,13 +143,13 @@ interface RoleSummary {
 
 const roles = ref<RoleSummary[]>([])
 const rolesLoading = ref(false)
-const rolesError = ref<string | null>(null)
+const rolesError = ref<AppError | null>(null)
 const rolesFetched = ref(false)
 
 // Role users
 const roleUsers = ref<UserSummary[]>([])
 const roleUsersLoading = ref(false)
-const roleUsersError = ref<string | null>(null)
+const roleUsersError = ref<AppError | null>(null)
 const selectedRole = ref<RoleSummary | null>(null)
 
 async function fetchRoles() {
@@ -165,7 +165,7 @@ async function fetchRoles() {
       .sort((a, b) => b.displayOrder - a.displayOrder)
     rolesFetched.value = true
   } catch (e) {
-    rolesError.value = AppError.from(e).message
+    rolesError.value = AppError.from(e)
   } finally {
     rolesLoading.value = false
   }
@@ -183,7 +183,7 @@ async function openRole(role: RoleSummary) {
     ) as unknown as { id: string; user: UserSummary }[]
     roleUsers.value = result.map((entry) => entry.user)
   } catch (e) {
-    roleUsersError.value = AppError.from(e).message
+    roleUsersError.value = AppError.from(e)
   } finally {
     roleUsersLoading.value = false
   }
@@ -261,7 +261,16 @@ usePortal(postPortalRef)
 
       <!-- Notes tab -->
       <template v-if="activeTab === 'notes'">
-        <ColumnEmptyState v-if="error" :message="error.message" :image-url="serverErrorImageUrl" is-error />
+        <ColumnEmptyState
+          v-if="error"
+          :error="error"
+          :account-id="column.accountId"
+          :image-url="serverErrorImageUrl"
+          is-error
+          cta-label="再試行"
+          cta-icon="ti-refresh"
+          @cta="refreshNotes"
+        />
 
         <div v-else :class="$style.tlBody">
           <div
@@ -320,10 +329,14 @@ usePortal(postPortalRef)
         <ColumnEmptyState
           v-else-if="usersError"
           :error="usersError"
+          :account-id="column.accountId"
           subject="ユーザー情報"
           :has-token="!!account?.hasToken"
           :image-url="serverErrorImageUrl"
           :info-image-url="serverInfoImageUrl"
+          cta-label="再試行"
+          cta-icon="ti-refresh"
+          @cta="fetchUsers"
         />
         <ColumnEmptyState v-else-if="users.length === 0" message="ユーザーが見つかりません" :image-url="serverInfoImageUrl" />
         <div v-else :class="$style.exploreList">
@@ -362,7 +375,16 @@ usePortal(postPortalRef)
             <span>{{ selectedRole.name }}</span>
           </div>
           <div v-if="roleUsersLoading" :class="$style.columnLoading"><LoadingSpinner /></div>
-          <ColumnEmptyState v-else-if="roleUsersError" :message="roleUsersError" :image-url="serverErrorImageUrl" is-error />
+          <ColumnEmptyState
+            v-else-if="roleUsersError"
+            :error="roleUsersError"
+            :account-id="column.accountId"
+            :image-url="serverErrorImageUrl"
+            is-error
+            cta-label="再試行"
+            cta-icon="ti-refresh"
+            @cta="selectedRole && openRole(selectedRole)"
+          />
           <ColumnEmptyState v-else-if="roleUsers.length === 0" message="ユーザーがいません" :image-url="serverInfoImageUrl" />
           <div v-else :class="$style.exploreList">
             <MkUserListItem
@@ -378,7 +400,16 @@ usePortal(postPortalRef)
         <!-- Roles list -->
         <template v-else>
           <div v-if="rolesLoading" :class="$style.columnLoading"><LoadingSpinner /></div>
-          <ColumnEmptyState v-else-if="rolesError" :message="rolesError" :image-url="serverErrorImageUrl" is-error />
+          <ColumnEmptyState
+            v-else-if="rolesError"
+            :error="rolesError"
+            :account-id="column.accountId"
+            :image-url="serverErrorImageUrl"
+            is-error
+            cta-label="再試行"
+            cta-icon="ti-refresh"
+            @cta="fetchRoles"
+          />
           <ColumnEmptyState v-else-if="roles.length === 0" message="ロールが見つかりません" :image-url="serverInfoImageUrl" />
           <div v-else :class="$style.exploreList">
             <button

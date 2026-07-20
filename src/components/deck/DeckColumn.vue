@@ -418,12 +418,16 @@ function openAsPip() {
   }
 }
 
-.headerBtn {
+/* Nested for specificity 0,2,0 to beat ._button (0,1,0) regardless of
+   CSS chunk load order — ._button's inline-block + line-height: inherit
+   (38px from .columnHeader) pushes the ti-dots glyph below center. */
+.columnHeader .headerBtn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
+  line-height: 1;
   border-radius: var(--nd-radius-sm);
   flex-shrink: 0;
   opacity: 0.5;

@@ -259,6 +259,94 @@ pub async fn read_image_exif(url: String) -> Result<Vec<ExifField>> {
     parse_exif_fields(&buf)
 }
 
+/// 未読合計を OS へ反映する (#748):
+/// - macOS Dock / Linux ランチャー: バッジ件数
+/// - Windows: タスクバーのオーバーレイドット
+/// - トレイ: tooltip の件数表記 + アイコン右上の未読ドット
+#[tauri::command]
+#[specta::specta]
+pub fn set_unread_badge(app: tauri::AppHandle, count: u32) {
+    #[cfg(mobile)]
+    let _ = (&app, count);
+
+    #[cfg(not(mobile))]
+    {
+        use tauri::Manager;
+
+        if let Some(window) = app.get_webview_window("main") {
+            #[cfg(target_os = "windows")]
+            {
+                let overlay = (count > 0).then(overlay_dot_icon);
+                let _ = window.set_overlay_icon(overlay);
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                let _ = window.set_badge_count((count > 0).then_some(count as i64));
+            }
+        }
+
+        if let Some(tray) = app.tray_by_id("main") {
+            let tooltip = if count > 0 {
+                format!("NoteDeck — 未読 {count} 件")
+            } else {
+                "NoteDeck".to_string()
+            };
+            let _ = tray.set_tooltip(Some(tooltip));
+            if let Some(base) = app.default_window_icon() {
+                let icon = if count > 0 {
+                    icon_with_unread_dot(base)
+                } else {
+                    base.clone()
+                };
+                let _ = tray.set_icon(Some(icon));
+            }
+        }
+    }
+}
+
+/// ベースアイコンの右上に未読ドット (赤円) を焼き込む。
+/// image crate 等の依存を増やさないため RGBA バッファを直接操作する。
+#[cfg(not(mobile))]
+fn icon_with_unread_dot(base: &tauri::image::Image<'_>) -> tauri::image::Image<'static> {
+    let width = base.width() as usize;
+    let height = base.height() as usize;
+    let mut rgba = base.rgba().to_vec();
+    let radius = (width.min(height) as f64) * 0.24;
+    let cx = width as f64 - radius - 1.0;
+    let cy = radius + 1.0;
+    for y in 0..height {
+        for x in 0..width {
+            let dx = x as f64 - cx;
+            let dy = y as f64 - cy;
+            if dx * dx + dy * dy <= radius * radius {
+                let i = (y * width + x) * 4;
+                rgba[i..i + 4].copy_from_slice(&[0xE8, 0x11, 0x23, 0xFF]);
+            }
+        }
+    }
+    tauri::image::Image::new_owned(rgba, width as u32, height as u32)
+}
+
+/// Windows タスクバー用: 透明背景に赤円のみのオーバーレイアイコン。
+#[cfg(all(not(mobile), target_os = "windows"))]
+fn overlay_dot_icon() -> tauri::image::Image<'static> {
+    const SIZE: usize = 32;
+    let mut rgba = vec![0u8; SIZE * SIZE * 4];
+    let center = SIZE as f64 / 2.0 - 0.5;
+    let radius = SIZE as f64 * 0.42;
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let dx = x as f64 - center;
+            let dy = y as f64 - center;
+            if dx * dx + dy * dy <= radius * radius {
+                let i = (y * SIZE + x) * 4;
+                rgba[i..i + 4].copy_from_slice(&[0xE8, 0x11, 0x23, 0xFF]);
+            }
+        }
+    }
+    tauri::image::Image::new_owned(rgba, SIZE as u32, SIZE as u32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

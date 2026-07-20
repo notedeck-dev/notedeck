@@ -11,7 +11,7 @@ import { safeUrl } from '@/composables/useDriveFolder'
 import { useServerImages } from '@/composables/useServerImages'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
-import { AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
+import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
@@ -28,7 +28,7 @@ const windowsStore = useWindowsStore()
 
 const posts = ref<GalleryPost[]>([])
 const loading = ref(false)
-const error = ref<string | null>(null)
+const error = ref<AppError | null>(null)
 const hasMore = ref(true)
 
 async function fetchGallery(older = false) {
@@ -56,8 +56,7 @@ async function fetchGallery(older = false) {
     }
     hasMore.value = result.length >= 20
   } catch (e) {
-    const appErr = AppError.from(e)
-    error.value = appErr.isAuth ? AUTH_ERROR_MESSAGE : appErr.message
+    error.value = AppError.from(e)
   } finally {
     loading.value = false
   }
@@ -129,7 +128,16 @@ fetchGallery()
 
     <div ref="galleryGridScrollRef" :class="$style.galleryGridScroll" @scroll.passive="onScroll">
       <div v-if="loading && posts.length === 0 && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
-      <ColumnEmptyState v-else-if="error && !isLoggedOut" :message="error" is-error :image-url="serverErrorImageUrl" />
+      <ColumnEmptyState
+        v-else-if="error && !isLoggedOut"
+        :error="error"
+        :account-id="column.accountId"
+        is-error
+        :image-url="serverErrorImageUrl"
+        cta-label="再試行"
+        cta-icon="ti-refresh"
+        @cta="fetchGallery()"
+      />
       <ColumnEmptyState v-else-if="posts.length === 0" message="ギャラリーの投稿がありません" :image-url="serverInfoImageUrl" />
       <template v-else>
         <div :class="$style.galleryGrid">

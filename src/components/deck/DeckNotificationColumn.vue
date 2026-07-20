@@ -28,6 +28,7 @@ import MkMfm from '@/components/common/MkMfm.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import PopupMenu from '@/components/common/PopupMenu.vue'
+import ReadMarkerDivider from '@/components/common/ReadMarkerDivider.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
@@ -37,6 +38,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
+import { useReadMarker } from '@/composables/useReadMarker'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { getStreamHealth } from '@/core/streamHealth'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
@@ -246,6 +248,12 @@ function closeUserPopup() {
 const perfStore = usePerformanceStore()
 const deckStore = useDeckStore()
 const notifications = shallowRef<NormalizedNotification[]>([])
+
+// 前回読了位置マーカー (#750) — タイムラインと同じ localStorage 方式
+const { viewMarkerId } = useReadMarker(
+  props.column.id,
+  () => notifications.value[0]?.id ?? null,
+)
 
 // Report visible notifications to deckStore (汎用 visibleItems API)
 watch(
@@ -1014,6 +1022,7 @@ onUnmounted(() => {
     <ColumnEmptyState
       v-if="error && !isLoggedOut"
       :error="error"
+      :account-id="column.accountId"
       :image-url="serverErrorImageUrl"
       is-error
       cta-label="再試行"
@@ -1042,6 +1051,9 @@ onUnmounted(() => {
       >
         <template #default="{ item: notif, index }">
           <div>
+            <ReadMarkerDivider
+              v-if="viewMarkerId && index > 0 && notif.id === viewMarkerId"
+            />
             <!-- Grouped notification: reaction:grouped / renote:grouped -->
             <div
               v-if="notif.type === 'reaction:grouped' || notif.type === 'renote:grouped'"

@@ -7,7 +7,7 @@ import MkFolderGrid from '@/components/common/MkFolderGrid.vue'
 import { useDriveFolder } from '@/composables/useDriveFolder'
 import { useThemeStore } from '@/stores/theme'
 import { useUiStore } from '@/stores/ui'
-import { AppError } from '@/utils/errors'
+import { AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
@@ -145,7 +145,7 @@ fetchDrive()
     <!-- Content -->
     <div :class="$style.dpContent">
       <div v-if="loading" :class="$style.dpEmpty"><LoadingSpinner /></div>
-      <div v-else-if="error" :class="[$style.dpEmpty, $style.dpError]">{{ error }}</div>
+      <div v-else-if="error" :class="[$style.dpEmpty, $style.dpError]">{{ error.isAuth ? AUTH_ERROR_MESSAGE : error.message }}</div>
       <template v-else>
         <!-- ドライブカラムと同じ連続配置 (3 列固定)。アップロードはヘッダーに集約 -->
         <div :class="$style.dpItemsGrid">

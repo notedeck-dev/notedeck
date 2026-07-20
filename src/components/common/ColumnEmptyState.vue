@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
+import { showReloginPrompt } from '@/composables/useLoginPrompt'
 import { type AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
 import { proxyUrl } from '@/utils/imageProxy'
 import { restrictedAccessNotice } from '@/utils/restrictedAccess'
@@ -29,6 +30,8 @@ const props = withDefaults(
      * 該当しないエラーは message 同様そのまま表示する。
      */
     error?: AppError | null
+    /** error 表示元のアカウント。トークン失効時の再ログイントーストに使う。 */
+    accountId?: string | null
     /** error の案内で使う対象名詞（例: '連合情報' / 'ユーザー情報'）。 */
     subject?: string
     /** ログイン済みか。未ログイン時のみ「公開していません」案内にする。 */
@@ -85,6 +88,27 @@ const resolvedFallbackType = computed<'info' | 'question' | 'error'>(() => {
   if (props.fallbackKind) return props.fallbackKind
   return effectiveIsError.value ? 'error' : 'info'
 })
+
+// トークン失効エラーを表示したタイミングで再ログイン導線トーストを出す
+// (全カラム共通ハンドラ)。restrictedAccessNotice で「公開していません /
+// 閲覧権限がありません」案内になるケースは失効ではないので出さない。
+watch(
+  () => props.error,
+  (err) => {
+    if (!err?.isAuth) return
+    if (
+      restrictedAccessNotice(
+        err,
+        props.subject ?? '情報',
+        props.hasToken ?? false,
+      )
+    ) {
+      return
+    }
+    showReloginPrompt(props.accountId ?? undefined)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

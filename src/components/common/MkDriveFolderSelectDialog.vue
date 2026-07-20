@@ -9,6 +9,7 @@ import { useDriveFolder } from '@/composables/useDriveFolder'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { useThemeStore } from '@/stores/theme'
+import { AUTH_ERROR_MESSAGE } from '@/utils/errors'
 
 const props = defineProps<{
   accountId: string
@@ -122,7 +123,7 @@ fetchDrive()
       <!-- Body: フォルダ一覧（クリック = 潜る） -->
       <div :class="$style.body">
         <div v-if="loading" :class="$style.empty"><LoadingSpinner /></div>
-        <div v-else-if="error" :class="[$style.empty, $style.error]">{{ error }}</div>
+        <div v-else-if="error" :class="[$style.empty, $style.error]">{{ error.isAuth ? AUTH_ERROR_MESSAGE : error.message }}</div>
         <MkFolderGrid v-else :folders="folders" @folder-click="openFolder" />
       </div>
 
