@@ -17,7 +17,6 @@ import { useAutocomplete } from '@/composables/useAutocomplete'
 import type { StoredDraft } from '@/composables/useDrafts'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import type { StoredMemo } from '@/composables/useMemos'
-import { useMentionSearch } from '@/composables/useMentionSearch'
 import { useMfmInsert } from '@/composables/useMfmInsert'
 import { usePopupControl } from '@/composables/usePopupControl'
 import { usePostFormState } from '@/composables/usePostFormState'
@@ -270,25 +269,11 @@ function onPreviewClick(ev: Event) {
   })
 }
 
-// --- Mention popup ---
-const {
-  showMentionPopup,
-  mentionQuery,
-  mentionResults,
-  mentionSearching,
-  toggleMentionPopup: rawToggleMention,
-  onMentionInput,
-  pickMention: rawPickMention,
-} = useMentionSearch(activeAccountId)
-popups.track(showMentionPopup)
-
-function toggleMentionPopup() {
-  rawToggleMention()
-  popups.closeOthers(showMentionPopup)
-}
-
-function pickMention(user: Parameters<typeof rawPickMention>[0]) {
-  rawPickMention(user, insertAtCursor, textareaRef)
+// --- Mention ---
+// 専用の検索ポップアップは廃止 (#753): '@' を挿入してインライン補完
+// (useAutocomplete) に一本化。ハッシュタグボタンと同型
+function insertMention() {
+  insertAtCursor(textareaRef.value, '@')
 }
 
 // --- Emoji popup ---
@@ -362,6 +347,7 @@ const {
   autocompleteState,
   candidates: acCandidates,
   isSearching: acSearching,
+  popupPosition: acPopupPosition,
   onTextInput: acOnTextInput,
   onCompositionStart: acOnCompositionStart,
   onCompositionEnd: acOnCompositionEnd,
@@ -819,6 +805,7 @@ function onPaste(e: ClipboardEvent) {
           :candidates="acCandidates"
           :selected-index="autocompleteState.selectedIndex"
           :is-searching="acSearching"
+          :position="acPopupPosition"
           @select="acConfirmSelection"
         />
         <span
@@ -949,39 +936,15 @@ function onPaste(e: ClipboardEvent) {
             </button>
 
             <!-- Mention -->
-            <div v-else-if="btnId === 'mention'" :class="$style.footerPopupWrapper">
-              <button class="_button" :class="$style.footerBtn" title="メンション" @click.stop="toggleMentionPopup">
-                <i class="ti ti-at" />
-              </button>
-              <div v-if="showMentionPopup" :class="[$style.footerPopup, $style.mentionPopup]" @click.stop>
-                <input
-                  v-model="mentionQuery"
-                  :class="$style.mentionSearchInput"
-                  type="text"
-                  placeholder="ユーザーを検索..."
-                  @input="onMentionInput"
-                />
-                <div :class="$style.mentionResults">
-                  <button
-                    v-for="user in mentionResults"
-                    :key="user.id"
-                    class="_button"
-                    :class="$style.mentionResultItem"
-                    @click="pickMention(user)"
-                  >
-                    <img v-if="user.avatarUrl" :src="user.avatarUrl" :class="$style.mentionAvatar" />
-                    <div :class="$style.mentionInfo">
-                      <span :class="$style.mentionName">{{ user.username }}</span>
-                      <span v-if="user.host" :class="$style.mentionHost">@{{ user.host }}</span>
-                    </div>
-                  </button>
-                  <div v-if="mentionSearching" :class="$style.mentionStatus">検索中...</div>
-                  <div v-else-if="mentionQuery && mentionResults.length === 0" :class="$style.mentionStatus">
-                    ユーザーが見つかりません
-                  </div>
-                </div>
-              </div>
-            </div>
+            <button
+              v-else-if="btnId === 'mention'"
+              class="_button"
+              :class="$style.footerBtn"
+              title="メンション"
+              @click="insertMention"
+            >
+              <i class="ti ti-at" />
+            </button>
 
             <!-- MFM -->
             <div v-else-if="btnId === 'mfm'" :class="$style.footerPopupWrapper">
@@ -1871,84 +1834,6 @@ function onPaste(e: ClipboardEvent) {
   background: color-mix(in srgb, var(--nd-popup) 96%, transparent);
   border-radius: 12px;
   box-shadow: var(--nd-shadow-m);
-}
-
-/* ── Mention popup ── */
-.mentionPopup {
-  width: 260px;
-  max-height: 300px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.mentionSearchInput {
-  width: 100%;
-  padding: 8px 12px;
-  border: none;
-  border-bottom: 1px solid var(--nd-divider);
-  background: transparent;
-  color: var(--nd-fg);
-  font-size: 0.85em;
-  font-family: inherit;
-  outline: none;
-  box-sizing: border-box;
-}
-
-.mentionResults {
-  flex: 1;
-  overflow-y: auto;
-  padding: 4px;
-  scrollbar-width: none;
-}
-
-.mentionResultItem {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px;
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-fg);
-  transition: background var(--nd-duration-base);
-
-  &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
-  }
-}
-
-.mentionAvatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 100%;
-  object-fit: cover;
-  flex-shrink: 0;
-}
-
-.mentionInfo {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.mentionName {
-  font-size: 0.85em;
-  font-weight: bold;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mentionHost {
-  font-size: 0.75em;
-  opacity: 0.6;
-}
-
-.mentionStatus {
-  padding: 12px;
-  text-align: center;
-  font-size: 0.8em;
-  opacity: 0.5;
 }
 
 /* ── Emoji popup ── */

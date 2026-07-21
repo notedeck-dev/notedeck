@@ -1,16 +1,29 @@
 <script setup lang="ts">
+import { nextTick, ref, watch } from 'vue'
 import type { NormalizedUser, ServerEmoji } from '@/adapters/types'
 import type {
   AutocompleteCandidate,
   TriggerType,
 } from '@/composables/useAutocomplete'
 
-defineProps<{
+const props = defineProps<{
   type: TriggerType
   candidates: AutocompleteCandidate[]
   selectedIndex: number
   isSearching: boolean
+  /** caret 追従位置 (親要素座標系 px)。null なら従来のテキストエリア直下 */
+  position?: { left: number; top: number } | null
 }>()
+
+// キーボード選択が可視域外に出たら追従スクロール (#753)
+const listRef = ref<HTMLElement | null>(null)
+watch(
+  () => props.selectedIndex,
+  async (i) => {
+    await nextTick()
+    listRef.value?.children[i]?.scrollIntoView({ block: 'nearest' })
+  },
+)
 
 const emit = defineEmits<{
   select: [index: number]
@@ -32,8 +45,13 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 </script>
 
 <template>
-  <div :class="$style.autocompletePopup" class="_popup" @click.stop>
-    <div v-if="candidates.length > 0" :class="$style.autocompleteList">
+  <div
+    :class="[$style.autocompletePopup, { [$style.floating]: !!position }]"
+    :style="position ? { left: `${position.left}px`, top: `${position.top}px` } : undefined"
+    class="_popup"
+    @click.stop
+  >
+    <div v-if="candidates.length > 0" ref="listRef" :class="$style.autocompleteList">
       <button
         v-for="(candidate, i) in candidates"
         :key="candidateKey(candidate)"
@@ -91,6 +109,14 @@ function candidateKey(candidate: AutocompleteCandidate): string {
   padding: 4px;
   contain: paint;
   animation: acPopupIn 0.1s ease-out;
+
+  // caret 追従時 (#753): left/top は inline style、幅は固定
+  &.floating {
+    right: auto;
+    width: 280px;
+    max-width: 100%;
+    margin-top: 0;
+  }
 }
 
 @keyframes acPopupIn {

@@ -1,7 +1,11 @@
 import { nextTick, type Ref, ref } from 'vue'
 import type { NormalizedUser, ServerEmoji } from '@/adapters/types'
 import { useEmojisStore } from '@/stores/emojis'
+import { getCaretCoordinates } from '@/utils/caretPosition'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+
+/** ポップアップの想定幅 (px)。テキストエリア右端でのはみ出しクランプに使う */
+const POPUP_WIDTH = 280
 
 /** MFM function names supported by the renderer */
 const mfmFunctionNames = [
@@ -49,6 +53,8 @@ export function useAutocomplete(
   const autocompleteState = ref<AutocompleteState | null>(null)
   const candidates = ref<AutocompleteCandidate[]>([])
   const isSearching = ref(false)
+  // ポップアップの表示位置 (textarea の親要素座標系)。caret 追従 (#753)
+  const popupPosition = ref<{ left: number; top: number } | null>(null)
   let isComposing = false
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -175,6 +181,7 @@ export function useAutocomplete(
     if (!trigger || (trigger.type !== '$[' && trigger.query.length === 0)) {
       autocompleteState.value = null
       candidates.value = []
+      popupPosition.value = null
       return
     }
 
@@ -183,6 +190,21 @@ export function useAutocomplete(
       query: trigger.query,
       triggerStart: trigger.start,
       selectedIndex: 0,
+    }
+
+    // caret (トリガー文字) の直下にポップアップを出す。右端でははみ出さない
+    // よう左にクランプ。スクロール中の textarea では scrollTop を差し引く
+    const caret = getCaretCoordinates(textarea, trigger.start)
+    popupPosition.value = {
+      left: Math.max(
+        0,
+        Math.min(
+          textarea.offsetLeft + caret.left,
+          textarea.offsetLeft + textarea.clientWidth - POPUP_WIDTH,
+        ),
+      ),
+      top:
+        textarea.offsetTop + caret.top + caret.height - textarea.scrollTop + 2,
     }
 
     if (debounceTimer) clearTimeout(debounceTimer)
@@ -262,6 +284,7 @@ export function useAutocomplete(
     const newPos = state.triggerStart + replacement.length
     autocompleteState.value = null
     candidates.value = []
+    popupPosition.value = null
 
     nextTick(() => {
       textarea.setSelectionRange(newPos, newPos)
@@ -296,6 +319,7 @@ export function useAutocomplete(
         e.preventDefault()
         autocompleteState.value = null
         candidates.value = []
+        popupPosition.value = null
         return true
       default:
         return false
@@ -305,6 +329,7 @@ export function useAutocomplete(
   function dismiss() {
     autocompleteState.value = null
     candidates.value = []
+    popupPosition.value = null
     if (debounceTimer) {
       clearTimeout(debounceTimer)
       debounceTimer = null
@@ -315,6 +340,7 @@ export function useAutocomplete(
     autocompleteState,
     candidates,
     isSearching,
+    popupPosition,
     onTextInput,
     onCompositionStart,
     onCompositionEnd,
