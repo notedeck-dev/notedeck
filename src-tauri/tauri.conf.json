@@ -52,7 +52,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["notedeck"]
+        "schemes": ["notedeck", "notedeck-notification"]
       }
     },
     "opener": {},

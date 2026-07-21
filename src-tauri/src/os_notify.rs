@@ -14,6 +14,18 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri_specta::Event;
 
+/// Windows toast の protocol 起動 (#754) に使う専用 URI スキーム。
+/// notedeck:// と分けるのは、通知クリック URL (user-notify の encode 形式:
+/// `<scheme>://<notification_id>/__default__?<base64 user_info>`) が
+/// 通常の deep-link (notedeck://<host>/...) と構文が違うため。
+pub const NOTIFICATION_PROTOCOL: &str = "notedeck-notification";
+
+/// Windows の Action Center からの cold start (#754) で、フロントの
+/// リスナー登録前に届いた通知クリックを保持する。フロントがデッキ初期化時に
+/// `notification_take_pending_click` で取り出す (take で 1 回きり)。
+#[derive(Default)]
+pub struct PendingNotificationClick(pub std::sync::Mutex<Option<NotificationClicked>>);
+
 /// OS 通知クリック時にフロントへ渡す遷移コンテキスト。
 /// noteId があればノート詳細、なければ userId でユーザー詳細を開く。
 /// どちらもない (要約通知・システム通知) 場合はウィンドウのフォーカスのみ。
@@ -52,7 +64,15 @@ mod desktop {
     /// user-notify manager を初期化し、クリックコールバックを登録する。
     /// setup (Phase 1) から 1 回だけ呼ぶ。
     pub fn init<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
-        let manager = user_notify::get_notification_manager(app.config().identifier.clone(), None);
+        // notification_protocol は Windows のみ意味を持つ (#754): toast の
+        // activationType が protocol になり、クリックはコールバックではなく
+        // NOTIFICATION_PROTOCOL:// URL の起動として届く (lib.rs の deep-link
+        // ハンドラで decode)。アプリ終了後の Action Center クリックでも
+        // single-instance / deep-link 経由でアプリを起こせる。
+        let manager = user_notify::get_notification_manager(
+            app.config().identifier.clone(),
+            Some(super::NOTIFICATION_PROTOCOL.to_string()),
+        );
         let handle = app.clone();
         let register_result = manager.register(
             Box::new(move |response| {
@@ -176,3 +196,25 @@ mod desktop {
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 pub use desktop::{init, show};
+
+/// Windows: toast の protocol 起動 URL (NOTIFICATION_PROTOCOL://) を
+/// 遷移コンテキストに復元する (#754)。Default action 以外 (dismiss) や
+/// accountId なし (バースト要約通知) は None = フォーカスのみでよい。
+#[cfg(target_os = "windows")]
+pub fn decode_protocol_url(url: &str) -> Option<NotificationClicked> {
+    let resp = match user_notify::decode_deeplink(url) {
+        Ok(resp) => resp,
+        Err(e) => {
+            tracing::warn!("[notification] protocol url decode failed: {e:?}");
+            return None;
+        }
+    };
+    if !matches!(resp.action, user_notify::NotificationResponseAction::Default) {
+        return None;
+    }
+    Some(NotificationClicked {
+        account_id: resp.user_info.get("accountId")?.clone(),
+        note_id: resp.user_info.get("noteId").cloned(),
+        user_id: resp.user_info.get("userId").cloned(),
+    })
+}

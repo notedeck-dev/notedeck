@@ -177,6 +177,11 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         os_notify::init(&app.handle().clone());
 
+        // Windows cold start (#754) の通知クリックをフロントへ渡すバッファ。
+        // コマンド (notification_take_pending_click) は全プラットフォームに
+        // 生えるので state も無条件に用意する (Windows 以外は常に None)。
+        app.manage(os_notify::PendingNotificationClick::default());
+
         // ══════════════════════════════════════════════════════════
         // Phase 1: Lightweight init (< 50ms) — window shows immediately after this
         // ══════════════════════════════════════════════════════════
@@ -379,6 +384,12 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             if let Err(e) = app.deep_link().register("notedeck") {
                 tracing::warn!("[deep-link] scheme registration failed (non-fatal): {e}");
             }
+            // Windows toast の protocol 起動用スキーム (#754)。NSIS は conf の
+            // schemes から登録するが、dev ビルドでも動くよう runtime でも登録する
+            #[cfg(target_os = "windows")]
+            if let Err(e) = app.deep_link().register(os_notify::NOTIFICATION_PROTOCOL) {
+                tracing::warn!("[deep-link] notification scheme registration failed (non-fatal): {e}");
+            }
 
             let deep_link_handle = app.app_handle().clone();
             app.deep_link().on_open_url(move |event| {
@@ -393,9 +404,42 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                         let _ = w.show();
                         let _ = w.set_focus();
                     }
+                    // Windows の通知 toast クリック (#754): アプリ起動中は
+                    // 第 2 インスタンス → single-instance 転送でここに届く。
+                    // 復元して既存の NotificationClicked 経路に流す (他 OS で
+                    // このスキームが届くことはない — 届いても遷移させず無視)
+                    if url.scheme() == os_notify::NOTIFICATION_PROTOCOL {
+                        #[cfg(target_os = "windows")]
+                        if let Some(ctx) = os_notify::decode_protocol_url(&url_str) {
+                            use tauri_specta::Event;
+                            if let Err(e) = ctx.emit(&deep_link_handle) {
+                                tracing::warn!("[notification] click emit failed: {e}");
+                            }
+                        }
+                        return;
+                    }
                     let _ = tauri::Emitter::emit(&deep_link_handle, "nd:deep-link", &url_str);
                 }
             });
+
+            // Windows cold start (#754): アプリ終了後の Action Center クリックは
+            // protocol 起動になり、起動引数の URL は on_open_url には流れない
+            // (get_current でしか取れない)。ここで復元して pending に積み、
+            // フロントがデッキ初期化時に取り出して遷移する。
+            #[cfg(target_os = "windows")]
+            if let Ok(Some(urls)) = app.deep_link().get_current() {
+                for url in urls {
+                    if url.scheme() != os_notify::NOTIFICATION_PROTOCOL {
+                        continue;
+                    }
+                    if let Some(ctx) = os_notify::decode_protocol_url(url.as_str()) {
+                        let state = app.state::<os_notify::PendingNotificationClick>();
+                        if let Ok(mut pending) = state.0.lock() {
+                            pending.replace(ctx);
+                        }
+                    }
+                }
+            }
         }
 
         // Global shortcuts (desktop only)
@@ -764,6 +808,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::get_rustc_version,
             commands::get_openapi_spec,
             commands::open_devtools,
+            commands::notification_take_pending_click,
             commands::set_unread_badge,
             commands::export_db,
             commands::import_db,

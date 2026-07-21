@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 import { onMounted, onUnmounted, watch } from 'vue'
-import { events } from '@/bindings'
+import { commands, events } from '@/bindings'
 import { loadCliCommands } from '@/commands/cliParser'
 import {
   registerDefaultCommands,
@@ -140,6 +140,17 @@ export function useDeckInit(options: {
         .listen((e) => navigateFromNotification(e.payload))
         .then((fn) => {
           unlistenNotificationClick = fn
+        })
+        .catch(() => {
+          // Non-Tauri environment (vitest / ブラウザ)
+        })
+      // Windows cold start (#754): アプリ終了後の Action Center クリックは
+      // protocol 起動になり、リスナー登録前に Rust 側へ届いている。
+      // pending を取り出して遷移する (Windows 以外は常に null)
+      commands
+        .notificationTakePendingClick()
+        .then((ctx) => {
+          if (ctx) navigateFromNotification(ctx)
         })
         .catch(() => {
           // Non-Tauri environment (vitest / ブラウザ)

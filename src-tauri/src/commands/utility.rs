@@ -28,6 +28,18 @@ pub fn open_devtools(window: tauri::WebviewWindow) {
     window.open_devtools();
 }
 
+/// Windows の Action Center からの cold start (#754): 起動引数の
+/// notedeck-notification:// URL から復元した通知クリックの遷移コンテキストを
+/// 1 回だけ返す。フロントはデッキ初期化時に呼び、あればノート/ユーザーへ
+/// 遷移する。Windows 以外では常に None。
+#[tauri::command]
+#[specta::specta]
+pub fn notification_take_pending_click(
+    state: tauri::State<'_, crate::os_notify::PendingNotificationClick>,
+) -> Option<crate::os_notify::NotificationClicked> {
+    state.0.lock().ok().and_then(|mut pending| pending.take())
+}
+
 /// Android のステータスバー/ナビゲーションバーのアイコン色をアプリテーマに
 /// 追従させる (#755)。edge-to-edge (enableEdgeToEdge) 環境ではバー背景は
 /// WebView がそのまま透けるため、切り替えが必要なのはアイコンの明暗のみ。

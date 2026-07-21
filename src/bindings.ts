@@ -1669,6 +1669,15 @@ async openDevtools() : Promise<void> {
     await TAURI_INVOKE("open_devtools");
 },
 /**
+ * Windows の Action Center からの cold start (#754): 起動引数の
+ * notedeck-notification:// URL から復元した通知クリックの遷移コンテキストを
+ * 1 回だけ返す。フロントはデッキ初期化時に呼び、あればノート/ユーザーへ
+ * 遷移する。Windows 以外では常に None。
+ */
+async notificationTakePendingClick() : Promise<NotificationClicked | null> {
+    return await TAURI_INVOKE("notification_take_pending_click");
+},
+/**
  * 未読合計を OS へ反映する (#748):
  * - macOS Dock / Linux ランチャー: バッジ件数
  * - Windows: タスクバーのオーバーレイドット
