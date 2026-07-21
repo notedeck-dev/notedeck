@@ -202,7 +202,7 @@ pub use desktop::{init, show};
 /// accountId なし (バースト要約通知) は None = フォーカスのみでよい。
 #[cfg(target_os = "windows")]
 pub fn decode_protocol_url(url: &str) -> Option<NotificationClicked> {
-    let resp = match user_notify::decode_deeplink(url) {
+    let resp = match user_notify::windows::decode_deeplink(url) {
         Ok(resp) => resp,
         Err(e) => {
             tracing::warn!("[notification] protocol url decode failed: {e:?}");

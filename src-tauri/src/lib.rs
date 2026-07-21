@@ -434,9 +434,11 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     if let Some(ctx) = os_notify::decode_protocol_url(url.as_str()) {
                         let state = app.state::<os_notify::PendingNotificationClick>();
+                        // 末尾式だと scrutinee の一時値 (Result<MutexGuard>) が
+                        // state より長生きして E0597 になるため文にする
                         if let Ok(mut pending) = state.0.lock() {
                             pending.replace(ctx);
-                        }
+                        };
                     }
                 }
             }
