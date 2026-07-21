@@ -116,13 +116,14 @@ const {
   formThemeVars,
   currentVisibility,
   remainingChars,
+  maxTextLength,
   canPost,
-  MAX_TEXT_LENGTH,
   visibilityOptions,
   showPoll,
   pollChoices,
   pollMultiple,
   pollExpiresAt,
+  pollExpiredAfter,
   scheduledAt,
   supportsScheduledNotes,
   sessionSlotKey,
@@ -236,7 +237,9 @@ const previewNote = computed<NormalizedNote | null>(() => {
       expiresAt:
         pollExpiresAt.value != null
           ? new Date(pollExpiresAt.value).toISOString()
-          : null,
+          : pollExpiredAfter.value != null
+            ? new Date(Date.now() + pollExpiredAfter.value).toISOString()
+            : null,
       show: showPoll.value,
     },
     emojis: emojiDict,
@@ -766,7 +769,7 @@ function onKeydown(e: KeyboardEvent) {
           ref="textareaRef"
           v-model="text"
           :class="$style.textArea"
-          :maxlength="MAX_TEXT_LENGTH"
+          :maxlength="maxTextLength"
           :placeholder="replyTo ? '返信...' : renoteId ? '引用...' : '今どんな気分？'"
           autocomplete="off"
           autocorrect="off"
@@ -787,9 +790,11 @@ function onKeydown(e: KeyboardEvent) {
           @select="acConfirmSelection"
         />
         <span
-          v-if="remainingChars <= 100"
           class="_acrylic"
-          :class="[$style.textCount, { [$style.over]: remainingChars < 0 }]"
+          :class="[
+            $style.textCount,
+            { [$style.near]: remainingChars <= 100, [$style.over]: remainingChars < 0 },
+          ]"
         >{{ remainingChars }}</span>
         <span
           v-if="scheduledAt"
@@ -829,6 +834,8 @@ function onKeydown(e: KeyboardEvent) {
       <PostFormPollEditor
         v-if="showPoll"
         v-model:multiple="pollMultiple"
+        v-model:expires-at="pollExpiresAt"
+        v-model:expired-after="pollExpiredAfter"
         :choices="pollChoices"
         @add="addPollChoice"
         @remove="removePollChoice"
@@ -1739,10 +1746,16 @@ function onKeydown(e: KeyboardEvent) {
   right: 2px;
   padding: 4px 6px;
   font-size: 0.9em;
-  color: var(--nd-warn, #ecb637);
+  color: var(--nd-fg);
+  opacity: 0.4;
   border-radius: var(--nd-radius-sm);
   min-width: 1.6em;
   text-align: center;
+
+  &.near {
+    color: var(--nd-warn, #ecb637);
+    opacity: 1;
+  }
 
   &.over {
     color: var(--nd-error);

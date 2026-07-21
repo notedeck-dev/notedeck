@@ -11,11 +11,67 @@ const props = defineProps<{
 }>()
 
 const multiple = defineModel<boolean>('multiple', { required: true })
+// 期限 (#753): expiredAfter = 期間 (ms、送信時に絶対時刻へ変換)、
+// expiresAt = 日時指定 (epoch ms)。どちらか一方のみ非 null。
+const expiresAt = defineModel<number | null>('expiresAt', { required: true })
+const expiredAfter = defineModel<number | null>('expiredAfter', {
+  required: true,
+})
 
 const emit = defineEmits<{
   add: []
   remove: [index: number]
 }>()
+
+const MINUTE = 60_000
+const HOUR = 3_600_000
+const DAY = 86_400_000
+const expiryPresets = [
+  { label: '30分', ms: 30 * MINUTE },
+  { label: '1時間', ms: HOUR },
+  { label: '6時間', ms: 6 * HOUR },
+  { label: '1日', ms: DAY },
+  { label: '3日', ms: 3 * DAY },
+  { label: '7日', ms: 7 * DAY },
+]
+
+// '' = 無期限 / '<ms>' = 期間プリセット / 'at' = 日時指定
+const expiryMode = ref(
+  expiresAt.value != null
+    ? 'at'
+    : expiredAfter.value != null
+      ? String(expiredAfter.value)
+      : '',
+)
+
+function toDatetimeLocal(ms: number): string {
+  const d = new Date(ms - new Date(ms).getTimezoneOffset() * MINUTE)
+  return d.toISOString().slice(0, 16)
+}
+
+const expiresAtLocal = ref(
+  expiresAt.value != null ? toDatetimeLocal(expiresAt.value) : '',
+)
+const minDatetimeLocal = toDatetimeLocal(Date.now())
+
+function onExpiryModeChange() {
+  if (expiryMode.value === 'at') {
+    expiredAfter.value = null
+    // 日時未入力の間は無期限扱い (入力で expiresAt がセットされる)
+    expiresAt.value = expiresAtLocal.value
+      ? new Date(expiresAtLocal.value).getTime()
+      : null
+  } else {
+    expiresAt.value = null
+    expiredAfter.value = expiryMode.value ? Number(expiryMode.value) : null
+  }
+}
+
+function onExpiresAtInput() {
+  expiresAt.value = expiresAtLocal.value
+    ? new Date(expiresAtLocal.value).getTime()
+    : null
+}
 
 // Stable keys for poll choices (avoid index-based v-for key bugs on add/remove)
 let keyCounter = 0
@@ -72,6 +128,28 @@ watch(
         <input v-model="multiple" type="checkbox" />
         複数選択
       </label>
+      <label :class="$style.pollExpiryLabel">
+        期限
+        <select
+          v-model="expiryMode"
+          :class="$style.pollExpirySelect"
+          @change="onExpiryModeChange"
+        >
+          <option value="">無期限</option>
+          <option v-for="p in expiryPresets" :key="p.ms" :value="String(p.ms)">
+            {{ p.label }}
+          </option>
+          <option value="at">日時指定</option>
+        </select>
+      </label>
+      <input
+        v-if="expiryMode === 'at'"
+        v-model="expiresAtLocal"
+        type="datetime-local"
+        :min="minDatetimeLocal"
+        :class="$style.pollExpiryDatetime"
+        @input="onExpiresAtInput"
+      />
     </div>
   </div>
 </template>
@@ -127,7 +205,8 @@ watch(
 .pollActions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding-top: 2px;
 }
 
@@ -153,5 +232,30 @@ watch(
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
+}
+
+.pollExpiryLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8em;
+  color: var(--nd-fg);
+  opacity: 0.7;
+}
+
+.pollExpirySelect,
+.pollExpiryDatetime {
+  padding: 4px 6px;
+  font-size: inherit;
+  font-family: inherit;
+  color: var(--nd-fg);
+  background: var(--nd-buttonBg);
+  border: none;
+  border-radius: var(--nd-radius-sm);
+  outline: none;
+}
+
+.pollExpiryDatetime {
+  font-size: 0.8em;
 }
 </style>

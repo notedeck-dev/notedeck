@@ -95,6 +95,9 @@ export function usePostFormState(
   const pollChoices = ref<string[]>(['', ''])
   const pollMultiple = ref(false)
   const pollExpiresAt = ref<number | null>(null)
+  // 期間指定 (ms)。API の poll は expiresAt (絶対時刻) しか受けないため、
+  // ドリフトを避けて post() 時点で now + duration に変換する
+  const pollExpiredAfter = ref<number | null>(null)
   const scheduledAt = ref<string | null>(null)
   const supportsScheduledNotes = ref(false)
 
@@ -126,7 +129,11 @@ export function usePostFormState(
       defaultVisibility,
   )
 
-  const remainingChars = computed(() => MAX_TEXT_LENGTH - text.value.length)
+  // サーバー meta の maxNoteTextLength に initAdapter で同期する (取得失敗や
+  // memo モードではデフォルトの MAX_TEXT_LENGTH のまま)
+  const maxTextLength = ref(MAX_TEXT_LENGTH)
+
+  const remainingChars = computed(() => maxTextLength.value - text.value.length)
 
   const canPost = computed(() => {
     if (isPosting.value || isUploading.value) return false
@@ -160,7 +167,7 @@ export function usePostFormState(
     }
 
     // Fetch modes, policies, and user settings in parallel (all independent after adapter init)
-    const [availabilityResult, policiesResult, userInfoResult] =
+    const [availabilityResult, policiesResult, userInfoResult, metaResult] =
       await Promise.allSettled([
         detectAvailableTimelines(acc.id),
         commands.apiGetUserPolicies(acc.id).then(unwrap),
@@ -168,7 +175,18 @@ export function usePostFormState(
           defaultNoteVisibility?: string
           defaultNoteLocalOnly?: boolean
         }>,
+        commands.apiGetMetaDetail(acc.id).then(unwrap) as Promise<{
+          maxNoteTextLength?: unknown
+        }>,
       ])
+
+    // 文字数上限をサーバー設定に同期 (#753)
+    maxTextLength.value =
+      metaResult.status === 'fulfilled' &&
+      typeof metaResult.value?.maxNoteTextLength === 'number' &&
+      metaResult.value.maxNoteTextLength > 0
+        ? metaResult.value.maxNoteTextLength
+        : MAX_TEXT_LENGTH
 
     // Apply mode flags
     if (availabilityResult.status === 'fulfilled') {
@@ -369,7 +387,11 @@ export function usePostFormState(
         ? {
             choices: pollChoices.value.filter((c) => c.trim()),
             multiple: pollMultiple.value || undefined,
-            expiresAt: pollExpiresAt.value ?? undefined,
+            expiresAt:
+              pollExpiresAt.value ??
+              (pollExpiredAfter.value != null
+                ? Date.now() + pollExpiredAfter.value
+                : undefined),
           }
         : undefined
     const noteParams = applyNotePostInterruptors(
@@ -509,6 +531,7 @@ export function usePostFormState(
     pollChoices.value = ['', '']
     pollMultiple.value = false
     pollExpiresAt.value = null
+    pollExpiredAfter.value = null
     scheduledAt.value = null
     error.value = null
     posted.value = false
@@ -686,6 +709,7 @@ export function usePostFormState(
     pollChoices,
     pollMultiple,
     pollExpiresAt,
+    pollExpiredAfter,
     scheduledAt,
     supportsScheduledNotes,
     sessionSlotKey,
@@ -695,6 +719,7 @@ export function usePostFormState(
     formThemeVars,
     currentVisibility,
     remainingChars,
+    maxTextLength,
     canPost,
     // Constants
     MAX_TEXT_LENGTH,
