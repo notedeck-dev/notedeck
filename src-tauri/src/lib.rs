@@ -518,6 +518,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
+            commands::set_status_bar_style,
             commands::load_accounts,
             commands::delete_account,
             commands::logout_account,

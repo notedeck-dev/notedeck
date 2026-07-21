@@ -9,6 +9,7 @@ import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -46,6 +47,20 @@ class MainActivity : TauriActivity() {
       "window.dispatchEvent(new Event('nd-app-resumed'))",
       null,
     )
+  }
+
+  /**
+   * ステータスバー/ナビバーのアイコン明暗をアプリテーマに追従させる (#755)。
+   * Rust の set_status_bar_style コマンドから JNI (call_method) で呼ばれる。
+   * edge-to-edge のためバー背景は WebView が透ける — 切り替えるのはアイコンのみ。
+   * lightBackground = true (ライトテーマ) → 濃色アイコン。
+   */
+  fun setStatusBarStyle(lightBackground: Boolean) {
+    runOnUiThread {
+      val controller = WindowCompat.getInsetsController(window, window.decorView)
+      controller.isAppearanceLightStatusBars = lightBackground
+      controller.isAppearanceLightNavigationBars = lightBackground
+    }
   }
 
   private fun findWebView(group: ViewGroup): WebView? {

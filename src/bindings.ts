@@ -5,6 +5,16 @@
 
 
 export const commands = {
+/**
+ * Android のステータスバー/ナビゲーションバーのアイコン色をアプリテーマに
+ * 追従させる (#755)。edge-to-edge (enableEdgeToEdge) 環境ではバー背景は
+ * WebView がそのまま透けるため、切り替えが必要なのはアイコンの明暗のみ。
+ * light_background = true (ライトテーマ) なら濃色アイコンにする。
+ * Android 以外では no-op。
+ */
+async setStatusBarStyle(lightBackground: boolean) : Promise<void> {
+    await TAURI_INVOKE("set_status_bar_style", { lightBackground });
+},
 async loadAccounts() : Promise<Result<AccountPublic[], { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("load_accounts") };

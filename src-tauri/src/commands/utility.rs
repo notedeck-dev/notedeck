@@ -28,6 +28,40 @@ pub fn open_devtools(window: tauri::WebviewWindow) {
     window.open_devtools();
 }
 
+/// Android のステータスバー/ナビゲーションバーのアイコン色をアプリテーマに
+/// 追従させる (#755)。edge-to-edge (enableEdgeToEdge) 環境ではバー背景は
+/// WebView がそのまま透けるため、切り替えが必要なのはアイコンの明暗のみ。
+/// light_background = true (ライトテーマ) なら濃色アイコンにする。
+/// Android 以外では no-op。
+#[tauri::command]
+#[specta::specta]
+pub fn set_status_bar_style(light_background: bool) {
+    #[cfg(target_os = "android")]
+    {
+        // tauri コマンドは JVM main thread 外で走るため FindClass では
+        // アプリクラスを解決できない。ndk_context の Activity インスタンスに
+        // 直接 call_method する (Kotlin 側が runOnUiThread へ hop する)。
+        let result = (|| -> Result<(), jni::errors::Error> {
+            let ctx = ndk_context::android_context();
+            let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
+            let mut env = vm.attach_current_thread()?;
+            let activity = unsafe { jni::objects::JObject::from_raw(ctx.context().cast()) };
+            env.call_method(
+                &activity,
+                "setStatusBarStyle",
+                "(Z)V",
+                &[jni::objects::JValue::Bool(light_background as u8)],
+            )?;
+            Ok(())
+        })();
+        if let Err(e) = result {
+            tracing::warn!("[status-bar] JNI call failed: {e}");
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = light_background;
+}
+
 /// Validate that a file has a valid SQLite header.
 fn validate_sqlite_file(path: &std::path::Path) -> Result<()> {
     let header = std::fs::read(path)

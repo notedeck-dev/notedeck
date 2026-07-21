@@ -59,6 +59,11 @@ user-notify = "0.4.2"
 # Linux では user-notify が同 crate を使うため追加コストなし
 image = "0.25"
 
+# ステータスバーのテーマ追従 (#755): MainActivity.setStatusBarStyle を JNI で呼ぶ
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+ndk-context = "0.1"
+
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = [
     "Win32_Foundation",
