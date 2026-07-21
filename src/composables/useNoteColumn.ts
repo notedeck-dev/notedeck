@@ -297,6 +297,19 @@ export function useNoteColumn(config: NoteColumnConfig) {
     }
   }
 
+  /**
+   * 最新ページと表示中ノートの重なりで 1 ページ超の欠落を判定する (#791)。
+   * 重なりゼロ = 最新ページの最古ですら表示中の先頭より新しい。マージすると
+   * 間に隠れた穴が残るため、呼び出し側は最新ページで丸ごと置換する
+   * (古いノートはスクロールで再取得可能)。復帰 (onResume)・タブ切替
+   * (switchWithSnapshot)・手動リロード (refresh) 共通の catch-up 判定。
+   */
+  function hasGap(fetched: NormalizedNote[], hadNotes: boolean): boolean {
+    return (
+      hadNotes && fetched.length > 0 && !fetched.some((n) => noteIds.has(n.id))
+    )
+  }
+
   function getDedupKey(): string {
     const fetchKey = config.fetchKey ? `:${config.fetchKey()}` : ''
     return `${config.getColumn().accountId}:${config.cache?.getKey() ?? 'default'}${fetchKey}`
@@ -690,14 +703,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (!stillCurrent()) return
     isOffline.value = apiFailed
 
-    // Gap: none of the freshly-fetched latest notes are currently displayed, so
-    // even the oldest of the latest page is newer than our topmost — more than
-    // one page was missed. Replace with the fresh page (older notes stay
-    // reachable by scrolling) rather than merging a gappy partial range.
-    const gap =
-      hadNotes && fetched.length > 0 && !fetched.some((n) => noteIds.has(n.id))
-
-    if (gap) {
+    if (hasGap(fetched, hadNotes)) {
       mergeOrEnqueue(fetched, { replace: true })
       return
     }
@@ -824,12 +830,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
       const fetched = await fetchAndDedup(adapter, {})
       // Guard: discard if tab changed during async fetch
       if (!stillCurrent()) return
-      // Gap: 最新ページのどれも snapshot に無い = 1 ページ超の欠落。
-      // マージだと穴が残るので最新ページで丸ごと置換する
-      const gap =
-        snapshotNotes.length > 0 &&
-        fetched.length > 0 &&
-        !fetched.some((n) => noteIds.has(n.id))
+      const gap = hasGap(fetched, snapshotNotes.length > 0)
       mergeOrEnqueue(fetched, gap ? { replace: true } : undefined)
       isOffline.value = false
     } catch {

@@ -8,6 +8,7 @@ import {
 } from '@/commands/definitions'
 import { useCommandStore } from '@/commands/registry'
 import { startTaskCommandSync } from '@/commands/taskCommands'
+import { useDeckResume } from '@/composables/useDeckResume'
 import {
   listenDeckWindowEvents,
   saveCurrentWindowLayout,
@@ -27,7 +28,6 @@ import {
   initDesktopNotifications,
   onNotificationAction,
 } from '@/utils/desktopNotification'
-import { startSleepDetector } from '@/utils/sleepDetector'
 
 export function useDeckInit(options: {
   openCompose: () => void
@@ -48,27 +48,18 @@ export function useDeckInit(options: {
   const commandStore = useCommandStore()
   const uiStore = useUiStore()
 
+  // 復帰検知 (visibilitychange / OS スリープ / Android ネイティブ) は
+  // useDeckResume に一元化。ここは検知後の下流処理だけを持つ
+  useDeckResume()
+
   let handleResizeRef: (() => void) | null = null
   let unlistenQuickNote: (() => void) | null = null
   let unlistenDeepLink: (() => void) | null = null
   let unlistenWindowEvents: (() => void) | null = null
   let unlistenNotificationClick: (() => void) | null = null
-  let stopSleepDetector: (() => void) | null = null
 
   function onVisibilityChange() {
-    if (document.hidden) {
-      deckStore.flushSave()
-    } else {
-      uiStore.emitDeckResume()
-    }
-  }
-
-  // Android ネイティブ (MainActivity.onResume) からの復帰通知 (#506)。
-  // WebView が visibilitychange を発火しない復帰パターンの保険。
-  // emitDeckResume の下流 (reconnect / observer 張り直し / refetch) は
-  // すべて冪等なので visibilitychange との二重発火は無害。
-  function onNativeResume() {
-    uiStore.emitDeckResume()
+    if (document.hidden) deckStore.flushSave()
   }
 
   function onPageHide() {
@@ -93,16 +84,7 @@ export function useDeckInit(options: {
     handleResizeRef = () => options.navbarRef.value?.handleResize()
     window.addEventListener('resize', handleResizeRef)
     document.addEventListener('visibilitychange', onVisibilityChange)
-    window.addEventListener('nd-app-resumed', onNativeResume)
     window.addEventListener('pagehide', onPageHide)
-
-    // デスクトップの OS スリープ復帰検知 (#791)。ウィンドウが可視のまま
-    // 復帰すると visibilitychange が発火しないため、時刻ジャンプで補完する。
-    // hidden 中のジャンプ (背景タイマー間引き含む) は可視化時の
-    // visibilitychange に任せる。二重発火は下流が冪等なので無害。
-    stopSleepDetector = startSleepDetector(() => {
-      if (!document.hidden) uiStore.emitDeckResume()
-    })
 
     // Critical: start streaming immediately
     deckStore.startSync()
@@ -242,9 +224,7 @@ export function useDeckInit(options: {
     unregisterDefaultCommands()
     if (handleResizeRef) window.removeEventListener('resize', handleResizeRef)
     document.removeEventListener('visibilitychange', onVisibilityChange)
-    window.removeEventListener('nd-app-resumed', onNativeResume)
     window.removeEventListener('pagehide', onPageHide)
-    stopSleepDetector?.()
     unlistenQuickNote?.()
     unlistenDeepLink?.()
     updateCheckHandle?.cancel()
