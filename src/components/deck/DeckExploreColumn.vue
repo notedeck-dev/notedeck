@@ -13,6 +13,7 @@ const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
 )
 
+import type { UserRelation } from '@/adapters/types'
 import { useNoteColumn } from '@/composables/useNoteColumn'
 import { usePortal } from '@/composables/usePortal'
 import { useTabSlide } from '@/composables/useTabSlide'
@@ -105,6 +106,26 @@ const usersLoading = ref(false)
 const usersError = ref<AppError | null>(null)
 const usersFetched = ref(false)
 
+/** relation バッジ (#752)。ユーザータブとロール別ユーザーで共用 */
+const userRelations = ref<Map<string, UserRelation>>(new Map())
+
+async function fetchUserRelations(batch: { id: string }[]) {
+  if (!props.column.accountId || batch.length === 0) return
+  try {
+    const fetched = unwrap(
+      await commands.apiGetUserRelations(
+        props.column.accountId,
+        batch.map((u) => u.id),
+      ),
+    ) as unknown as UserRelation[]
+    const next = new Map(userRelations.value)
+    for (const r of fetched) next.set(r.id, r)
+    userRelations.value = next
+  } catch {
+    // バッジ用の付加情報なので取得失敗 (ゲスト等) は無視
+  }
+}
+
 async function fetchUsers() {
   if (!props.column.accountId) return
   usersLoading.value = true
@@ -122,6 +143,7 @@ async function fetchUsers() {
       ),
     ) as unknown as UserSummary[]
     usersFetched.value = true
+    fetchUserRelations(users.value)
   } catch (e) {
     usersError.value = AppError.from(e)
   } finally {
@@ -182,6 +204,7 @@ async function openRole(role: RoleSummary) {
       await commands.apiGetRoleUsers(props.column.accountId, role.id, 30, null),
     ) as unknown as { id: string; user: UserSummary }[]
     roleUsers.value = result.map((entry) => entry.user)
+    fetchUserRelations(roleUsers.value)
   } catch (e) {
     roleUsersError.value = AppError.from(e)
   } finally {
@@ -346,6 +369,7 @@ usePortal(postPortalRef)
             :user="user"
             :account-id="column.accountId ?? undefined"
             :server-host="account?.host"
+            :relation="userRelations.get(user.id) ?? null"
           >
             <template #meta>
               <div v-if="user.description" :class="$style.exploreUserDesc">
@@ -393,6 +417,7 @@ usePortal(postPortalRef)
               :user="user"
               :account-id="column.accountId ?? undefined"
               :server-host="account?.host"
+              :relation="userRelations.get(user.id) ?? null"
             />
           </div>
         </template>
