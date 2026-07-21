@@ -16,7 +16,7 @@ const dialogRef = ref<HTMLDialogElement | null>(null)
 const inputValue = ref('')
 
 useNativeDialog(dialogRef, visible, {
-  initialFocus: 'input',
+  initialFocus: 'input, textarea',
   onCancel: () => resolve(null),
   leaveDuration: 200,
 })
@@ -29,7 +29,7 @@ watch(show, (v) => {
 
 function submit() {
   const trimmed = inputValue.value.trim()
-  if (trimmed) resolve(trimmed)
+  if (trimmed || options.value.allowEmpty) resolve(trimmed)
 }
 </script>
 
@@ -50,7 +50,15 @@ function submit() {
         </div>
         <div :class="$style.body">
           <p v-if="options.message" :class="$style.message">{{ options.message }}</p>
+          <textarea
+            v-if="options.multiline"
+            v-model="inputValue"
+            :class="[$style.input, $style.textarea]"
+            rows="4"
+            :placeholder="options.placeholder"
+          />
           <input
+            v-else
             v-model="inputValue"
             :class="$style.input"
             type="text"
@@ -65,7 +73,7 @@ function submit() {
             type="submit"
             class="_button"
             :class="$style.btnOk"
-            :disabled="!inputValue.trim()"
+            :disabled="!options.allowEmpty && !inputValue.trim()"
           >
             {{ options.okLabel || 'OK' }}
           </button>
@@ -115,6 +123,12 @@ function submit() {
   &:focus {
     border-color: var(--nd-accent);
   }
+}
+
+.textarea {
+  font-family: inherit;
+  resize: vertical;
+  min-height: 5em;
 }
 
 .actions {

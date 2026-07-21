@@ -94,7 +94,7 @@ describe('ファイル別アップロード進捗 (#753)', () => {
 })
 
 describe('並べ替えとメタ更新 (#753)', () => {
-  it('moveFile で添付順を入れ替えられる (端では no-op)', () => {
+  it('reorderFiles でドラッグ位置へ移動できる (範囲外は no-op)', () => {
     const { attachment } = setup({})
     attachment.attachedFiles.value = [
       makeDriveFile('a'),
@@ -102,27 +102,38 @@ describe('並べ替えとメタ更新 (#753)', () => {
       makeDriveFile('c'),
     ]
 
-    attachment.moveFile('b', 1)
+    attachment.reorderFiles(0, 2)
     expect(attachment.attachedFiles.value.map((f) => f.id)).toEqual([
-      'a',
-      'c',
       'b',
+      'c',
+      'a',
     ])
-    attachment.moveFile('a', -1)
+    attachment.reorderFiles(2, 0)
     expect(attachment.attachedFiles.value.map((f) => f.id)).toEqual([
       'a',
-      'c',
       'b',
+      'c',
+    ])
+    attachment.reorderFiles(0, 5)
+    expect(attachment.attachedFiles.value.map((f) => f.id)).toEqual([
+      'a',
+      'b',
+      'c',
     ])
   })
 
-  it('applyFileMeta で alt / センシティブをローカル更新できる', () => {
+  it('applyFileMeta で alt / センシティブ / ファイル名をローカル更新できる', () => {
     const { attachment } = setup({})
     attachment.attachedFiles.value = [makeDriveFile('a')]
 
-    attachment.applyFileMeta('a', { comment: '説明', isSensitive: true })
+    attachment.applyFileMeta('a', {
+      comment: '説明',
+      isSensitive: true,
+      name: 'renamed.png',
+    })
 
     expect(attachment.attachedFiles.value[0]?.comment).toBe('説明')
     expect(attachment.attachedFiles.value[0]?.isSensitive).toBe(true)
+    expect(attachment.attachedFiles.value[0]?.name).toBe('renamed.png')
   })
 })

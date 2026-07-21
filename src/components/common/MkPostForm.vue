@@ -137,7 +137,7 @@ const {
   dismissUpload,
   attachDriveFiles,
   removeFile,
-  moveFile,
+  reorderFiles,
   updateAttachedFileMeta,
   selectVisibility,
   noteModeLabel,
@@ -865,10 +865,11 @@ function onPaste(e: ClipboardEvent) {
         v-if="attachedFiles.length > 0 || pendingUploads.length > 0"
         :files="attachedFiles"
         :pending="pendingUploads"
+        :account-id="activeAccountId"
         @remove="removeFile"
         @retry="retryUpload"
         @dismiss="dismissUpload"
-        @move="moveFile"
+        @reorder="reorderFiles"
         @update-meta="updateAttachedFileMeta"
       />
 

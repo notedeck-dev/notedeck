@@ -92,17 +92,17 @@ export function usePostFormState(
     dismissUpload,
     attachDriveFiles,
     removeFile,
-    moveFile,
+    reorderFiles,
     applyFileMeta,
   } = useFileAttachment(() => adapter, error)
 
   /**
-   * 添付ファイルの alt / センシティブを更新 (#753)。楽観的にローカル反映し、
-   * サーバー更新 (drive/files/update) が失敗したらロールバックする。
+   * 添付ファイルの alt / センシティブ / 名前を更新 (#753)。楽観的にローカル
+   * 反映し、サーバー更新 (drive/files/update) が失敗したらロールバックする。
    */
   async function updateAttachedFileMeta(
     fileId: string,
-    patch: { comment?: string | null; isSensitive?: boolean },
+    patch: { comment?: string | null; isSensitive?: boolean; name?: string },
   ) {
     const prev = attachedFiles.value.find((f) => f.id === fileId)
     if (!prev) return
@@ -112,7 +112,7 @@ export function usePostFormState(
         await commands.apiUpdateDriveFile(
           activeAccountId.value,
           fileId,
-          null,
+          patch.name ?? null,
           // Rust 側の契約: null = 変更なし、空文字 = alt クリア
           patch.comment === undefined ? null : (patch.comment ?? ''),
           patch.isSensitive ?? null,
@@ -122,6 +122,7 @@ export function usePostFormState(
       applyFileMeta(fileId, {
         comment: prev.comment,
         isSensitive: prev.isSensitive,
+        name: prev.name,
       })
       useToast().show(AppError.from(e).message, 'error')
     }
@@ -788,7 +789,7 @@ export function usePostFormState(
     dismissUpload,
     attachDriveFiles,
     removeFile,
-    moveFile,
+    reorderFiles,
     updateAttachedFileMeta,
     selectVisibility,
     noteModeLabel,

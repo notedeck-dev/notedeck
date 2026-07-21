@@ -116,22 +116,26 @@ export function useFileAttachment(
     attachedFiles.value = attachedFiles.value.filter((f) => f.id !== fileId)
   }
 
-  /** 添付順の入れ替え。fileIds の順序がそのまま投稿の表示順になる */
-  function moveFile(fileId: string, delta: -1 | 1) {
+  /** ドラッグ並び替え。fileIds の順序がそのまま投稿の表示順になる */
+  function reorderFiles(fromIndex: number, toIndex: number) {
     const files = [...attachedFiles.value]
-    const from = files.findIndex((f) => f.id === fileId)
-    const to = from + delta
-    if (from < 0 || to < 0 || to >= files.length) return
-    const [moved] = files.splice(from, 1)
+    if (
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= files.length ||
+      toIndex >= files.length
+    )
+      return
+    const [moved] = files.splice(fromIndex, 1)
     if (!moved) return
-    files.splice(to, 0, moved)
+    files.splice(toIndex, 0, moved)
     attachedFiles.value = files
   }
 
-  /** alt / センシティブのローカル反映 (サーバー更新は呼び出し側が行う) */
+  /** alt / センシティブ / 名前のローカル反映 (サーバー更新は呼び出し側が行う) */
   function applyFileMeta(
     fileId: string,
-    patch: { comment?: string | null; isSensitive?: boolean },
+    patch: { comment?: string | null; isSensitive?: boolean; name?: string },
   ) {
     attachedFiles.value = attachedFiles.value.map((f) =>
       f.id === fileId ? { ...f, ...patch } : f,
@@ -148,7 +152,7 @@ export function useFileAttachment(
     dismissUpload,
     attachDriveFiles,
     removeFile,
-    moveFile,
+    reorderFiles,
     applyFileMeta,
   }
 }

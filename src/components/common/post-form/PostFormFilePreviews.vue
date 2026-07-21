@@ -1,182 +1,258 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import type { NormalizedDriveFile } from '@/adapters/types'
+import MkMediaLightbox from '@/components/common/MkMediaLightbox.vue'
+import PopupMenu from '@/components/common/PopupMenu.vue'
+import { useDriveActions } from '@/composables/useDriveActions'
 import type { PendingUpload } from '@/composables/useFileAttachment'
+import { usePointerReorder } from '@/composables/usePointerReorder'
+import { usePrompt } from '@/stores/prompt'
 
 /**
  * 投稿フォームの添付ファイルプレビュー列 (#707 MkPostForm 分割)。
- * #753 で per-file 進捗・失敗リトライ・並べ替え・alt/センシティブ編集に対応。
+ * #753 で本家 Misskey の添付 UX に追従: ドラッグで並び替え、タイルクリックで
+ * メニュー (名前変更 / センシティブ / キャプション / プレビュー / 取り消し /
+ * 削除)。センシティブは半透明オーバーレイで表示。
  * 状態操作はすべて emit で親 (usePostFormState) に委ねる。
  */
 const props = defineProps<{
   files: NormalizedDriveFile[]
   pending: PendingUpload[]
+  /** ドライブからの完全削除に使用 */
+  accountId: string
 }>()
 
 const emit = defineEmits<{
   remove: [fileId: string]
   retry: [key: string]
   dismiss: [key: string]
-  move: [fileId: string, delta: -1 | 1]
+  reorder: [fromIndex: number, toIndex: number]
   updateMeta: [
     fileId: string,
-    patch: { comment?: string | null; isSensitive?: boolean },
+    patch: { comment?: string | null; isSensitive?: boolean; name?: string },
   ]
 }>()
 
-// タイルをクリックすると下に alt / センシティブの編集パネルを開く
-const selectedFileId = ref<string | null>(null)
-const selectedFile = computed(
-  () => props.files.find((f) => f.id === selectedFileId.value) ?? null,
-)
-const altDraft = ref('')
+const { prompt } = usePrompt()
+const driveActions = useDriveActions()
 
-function toggleSelect(file: NormalizedDriveFile) {
-  if (selectedFileId.value === file.id) {
-    selectedFileId.value = null
-    return
+// --- ドラッグ並び替え (本家はドラッグソート。ボタン式は廃止) ---
+const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
+  dataAttr: 'file-idx',
+  onReorder: (from, to) => emit('reorder', from, to),
+})
+
+// ドラッグ後に発火する click でメニューが開かないよう 1 回だけ抑制する
+let suppressClick = false
+watch(dragFromIndex, (v, old) => {
+  if (old != null && v == null) {
+    suppressClick = true
+    setTimeout(() => {
+      suppressClick = false
+    }, 0)
   }
-  selectedFileId.value = file.id
-  altDraft.value = file.comment ?? ''
+})
+
+// --- ファイルメニュー ---
+const popupMenuRef = ref<InstanceType<typeof PopupMenu>>()
+const menuFile = ref<NormalizedDriveFile | null>(null)
+
+function onTileClick(file: NormalizedDriveFile, e: MouseEvent) {
+  if (suppressClick) return
+  menuFile.value = file
+  popupMenuRef.value?.open(e)
 }
 
-// 削除などで選択中ファイルが消えたらパネルを閉じる
-watch(
-  () => selectedFile.value,
-  (file) => {
-    if (!file) selectedFileId.value = null
-  },
-)
+// キーボード操作 (Enter) はタイル下辺中央をメニュー位置にする
+// (PopupMenu.open は clientX/Y で位置決めするため)
+function onTileKeydown(file: NormalizedDriveFile, e: KeyboardEvent) {
+  const el = e.currentTarget as HTMLElement
+  const rect = el.getBoundingClientRect()
+  menuFile.value = file
+  popupMenuRef.value?.open({
+    currentTarget: el,
+    target: el,
+    clientX: rect.left + rect.width / 2,
+    clientY: rect.bottom - 10,
+  } as unknown as MouseEvent)
+}
 
-function commitAlt() {
-  const file = selectedFile.value
+function closeMenu() {
+  popupMenuRef.value?.close()
+}
+
+async function onRename() {
+  closeMenu()
+  const file = menuFile.value
   if (!file) return
-  const next = altDraft.value.trim()
-  if (next === (file.comment ?? '')) return
-  emit('updateMeta', file.id, { comment: next || null })
+  const name = (
+    await prompt({ title: 'ファイル名を変更', defaultValue: file.name })
+  )?.trim()
+  if (!name || name === file.name) return
+  emit('updateMeta', file.id, { name })
 }
 
-function toggleSensitive(file: NormalizedDriveFile) {
+function onToggleSensitive() {
+  closeMenu()
+  const file = menuFile.value
+  if (!file) return
   emit('updateMeta', file.id, { isSensitive: !file.isSensitive })
+}
+
+async function onEditCaption() {
+  closeMenu()
+  const file = menuFile.value
+  if (!file) return
+  const caption = await prompt({
+    title: 'キャプション',
+    message: '視覚に障害のあるユーザーなどに向けたファイルの説明を設定できます',
+    placeholder: 'ファイルの説明',
+    defaultValue: file.comment ?? '',
+    multiline: true,
+    allowEmpty: true,
+  })
+  if (caption === null || caption === (file.comment ?? '')) return
+  emit('updateMeta', file.id, { comment: caption || null })
+}
+
+// --- プレビュー (画像のみ、lightbox) ---
+const lightboxIndex = ref<number | null>(null)
+const imageFiles = ref<NormalizedDriveFile[]>([])
+
+function onPreview() {
+  closeMenu()
+  const file = menuFile.value
+  if (!file) return
+  const images = props.files.filter((f) => f.type.startsWith('image/'))
+  const idx = images.findIndex((f) => f.id === file.id)
+  if (idx < 0) return
+  imageFiles.value = images
+  lightboxIndex.value = idx
+}
+
+function onDetach() {
+  closeMenu()
+  const file = menuFile.value
+  if (!file) return
+  emit('remove', file.id)
+}
+
+async function onDelete() {
+  closeMenu()
+  const file = menuFile.value
+  if (!file) return
+  // 確認ダイアログは deleteFile 側が出す
+  if (await driveActions.deleteFile(props.accountId, file)) {
+    emit('remove', file.id)
+  }
 }
 </script>
 
 <template>
-  <div>
-    <div :class="$style.filePreviewArea">
-      <div
-        v-for="file in files"
-        :key="file.id"
-        :class="[$style.filePreview, { [$style.selected]: file.id === selectedFileId }]"
-        role="button"
-        tabindex="0"
-        :title="file.name"
-        @click="toggleSelect(file)"
-        @keydown.enter.prevent="toggleSelect(file)"
-      >
-        <img
-          v-if="file.thumbnailUrl || file.type.startsWith('image/')"
-          :src="file.thumbnailUrl || file.url"
-          :class="[$style.fileThumb, { [$style.thumbSensitive]: file.isSensitive }]"
-        />
-        <div v-else :class="$style.fileIcon">
-          <i class="ti ti-file-text" />
-        </div>
-        <button
-          class="_button"
-          :class="$style.fileRemove"
-          title="削除"
-          @click.stop="emit('remove', file.id)"
-        >
-          <i class="ti ti-x" />
-        </button>
-        <span
-          v-if="file.isSensitive"
-          :class="$style.sensitiveBadge"
-          title="センシティブ"
-        >
-          <i class="ti ti-eye-off" />
-        </span>
-        <span
-          v-if="file.comment"
-          :class="$style.altBadge"
-          :title="`ALT: ${file.comment}`"
-        >ALT</span>
-      </div>
-
-      <!-- アップロード中 / 失敗 (per-file #753) -->
-      <div
-        v-for="p in pending"
-        :key="p.key"
-        :class="[$style.fileUploading, { [$style.uploadError]: p.status === 'error' }]"
-        :title="p.status === 'error' ? (p.error ?? p.name) : p.name"
-      >
-        <template v-if="p.status === 'uploading'">
-          <i class="ti ti-loader-2" :class="$style.spin" />
-          <span :class="$style.pendingName">{{ p.name }}</span>
-        </template>
-        <template v-else>
-          <span :class="$style.pendingName">{{ p.name }}</span>
-          <div :class="$style.errorActions">
-            <button
-              class="_button"
-              :class="$style.errorBtn"
-              title="再試行"
-              @click="emit('retry', p.key)"
-            >
-              <i class="ti ti-refresh" />
-            </button>
-            <button
-              class="_button"
-              :class="$style.errorBtn"
-              title="破棄"
-              @click="emit('dismiss', p.key)"
-            >
-              <i class="ti ti-x" />
-            </button>
-          </div>
-        </template>
-      </div>
-    </div>
-
-    <!-- alt / センシティブ / 並べ替えの編集パネル -->
-    <div v-if="selectedFile" :class="$style.fileEditor">
-      <input
-        v-model="altDraft"
-        :class="$style.altInput"
-        placeholder="代替テキスト (ALT)"
-        @blur="commitAlt"
-        @keydown.enter.prevent="commitAlt"
+  <div :class="$style.filePreviewArea">
+    <div
+      v-for="(file, i) in files"
+      :key="file.id"
+      :data-file-idx="i"
+      :class="[
+        $style.filePreview,
+        {
+          [$style.dragging]: dragFromIndex === i,
+          [$style.dragOver]: dragOverIndex === i,
+        },
+      ]"
+      role="button"
+      tabindex="0"
+      :title="file.name"
+      @pointerdown="startDrag(i, $event)"
+      @click="onTileClick(file, $event)"
+      @keydown.enter.prevent="onTileKeydown(file, $event)"
+    >
+      <img
+        v-if="file.thumbnailUrl || file.type.startsWith('image/')"
+        :src="file.thumbnailUrl || file.url"
+        :class="$style.fileThumb"
+        draggable="false"
       />
-      <label :class="$style.sensitiveLabel">
-        <input
-          type="checkbox"
-          :checked="selectedFile.isSensitive"
-          @change="toggleSensitive(selectedFile)"
-        />
-        センシティブ
-      </label>
-      <div :class="$style.orderButtons">
-        <button
-          class="_button"
-          :class="$style.orderBtn"
-          title="左へ移動"
-          :disabled="files[0]?.id === selectedFile.id"
-          @click="emit('move', selectedFile.id, -1)"
-        >
-          <i class="ti ti-arrow-left" />
-        </button>
-        <button
-          class="_button"
-          :class="$style.orderBtn"
-          title="右へ移動"
-          :disabled="files[files.length - 1]?.id === selectedFile.id"
-          @click="emit('move', selectedFile.id, 1)"
-        >
-          <i class="ti ti-arrow-right" />
-        </button>
+      <div v-else :class="$style.fileIcon">
+        <i class="ti ti-file-text" />
+      </div>
+      <!-- 本家同様、センシティブは半透明オーバーレイ + アイコンを中央表示 -->
+      <div v-if="file.isSensitive" :class="$style.sensitiveOverlay">
+        <i class="ti ti-eye-off" />
       </div>
     </div>
+
+    <!-- アップロード中 / 失敗 (per-file #753) -->
+    <div
+      v-for="p in pending"
+      :key="p.key"
+      :class="[$style.fileUploading, { [$style.uploadError]: p.status === 'error' }]"
+      :title="p.status === 'error' ? (p.error ?? p.name) : p.name"
+    >
+      <template v-if="p.status === 'uploading'">
+        <i class="ti ti-loader-2 nd-spin" />
+      </template>
+      <template v-else>
+        <div :class="$style.errorActions">
+          <button
+            class="_button"
+            :class="$style.errorBtn"
+            title="再試行"
+            @click="emit('retry', p.key)"
+          >
+            <i class="ti ti-refresh" />
+          </button>
+          <button
+            class="_button"
+            :class="$style.errorBtn"
+            title="破棄"
+            @click="emit('dismiss', p.key)"
+          >
+            <i class="ti ti-x" />
+          </button>
+        </div>
+      </template>
+    </div>
+
+    <PopupMenu ref="popupMenuRef">
+      <button class="_popupItem" @click="onRename">
+        <i class="ti ti-pencil" />
+        ファイル名を変更
+      </button>
+      <button class="_popupItem" @click="onToggleSensitive">
+        <i :class="menuFile?.isSensitive ? 'ti ti-eye' : 'ti ti-eye-off'" />
+        {{ menuFile?.isSensitive ? 'センシティブを解除' : 'センシティブとして設定' }}
+      </button>
+      <button class="_popupItem" @click="onEditCaption">
+        <i class="ti ti-text-caption" />
+        {{ menuFile?.comment ? 'キャプションを編集' : 'キャプションを付ける' }}
+      </button>
+      <button
+        v-if="menuFile?.type.startsWith('image/')"
+        class="_popupItem"
+        @click="onPreview"
+      >
+        <i class="ti ti-photo" />
+        プレビュー
+      </button>
+      <div class="_popupDivider" />
+      <button class="_popupItem" @click="onDetach">
+        <i class="ti ti-x" />
+        添付を取り消す
+      </button>
+      <button class="_popupItem _popupItemDanger" @click="onDelete">
+        <i class="ti ti-trash" />
+        削除
+      </button>
+    </PopupMenu>
+
+    <MkMediaLightbox
+      v-if="lightboxIndex != null"
+      :files="imageFiles"
+      :initial-index="lightboxIndex"
+      @close="lightboxIndex = null"
+    />
   </div>
 </template>
 
@@ -190,14 +266,23 @@ function toggleSensitive(file: NormalizedDriveFile) {
 
 .filePreview {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 64px;
+  height: 64px;
   border-radius: var(--nd-radius-md);
   overflow: hidden;
   background: var(--nd-buttonBg);
   cursor: pointer;
 
-  &.selected {
+  &:focus-visible {
+    outline: 2px solid var(--nd-focus);
+    outline-offset: 2px;
+  }
+
+  &.dragging {
+    opacity: 0.4;
+  }
+
+  &.dragOver {
     outline: 2px solid var(--nd-accent);
   }
 }
@@ -206,10 +291,7 @@ function toggleSensitive(file: NormalizedDriveFile) {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.thumbSensitive {
-  filter: blur(6px);
+  pointer-events: none;
 }
 
 .fileIcon {
@@ -222,60 +304,27 @@ function toggleSensitive(file: NormalizedDriveFile) {
   opacity: 0.5;
 }
 
-.fileRemove {
+.sensitiveOverlay {
   position: absolute;
-  top: 0;
-  right: 0;
-  width: 32px;
-  height: 32px;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background: var(--nd-overlayDark);
+  background: rgba(0, 0, 0, 0.5);
   color: #fff;
-  cursor: pointer;
-}
-
-.sensitiveBadge {
-  position: absolute;
-  bottom: 2px;
-  left: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-overlayDark);
-  color: #fff;
-  font-size: 12px;
-}
-
-.altBadge {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  padding: 1px 4px;
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-overlayDark);
-  color: #fff;
-  font-size: 0.6em;
-  font-weight: bold;
+  font-size: 18px;
+  pointer-events: none;
 }
 
 .fileUploading {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  width: 80px;
-  height: 80px;
-  padding: 4px;
+  width: 64px;
+  height: 64px;
   border-radius: var(--nd-radius-md);
   background: var(--nd-buttonBg);
-  font-size: 0.7em;
+  font-size: 0.8em;
   opacity: 0.7;
 }
 
@@ -283,23 +332,6 @@ function toggleSensitive(file: NormalizedDriveFile) {
   opacity: 1;
   outline: 1px solid var(--nd-error);
   color: var(--nd-error);
-}
-
-.spin {
-  animation: file-upload-spin 1s linear infinite;
-}
-
-@keyframes file-upload-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.pendingName {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .errorActions {
@@ -318,68 +350,6 @@ function toggleSensitive(file: NormalizedDriveFile) {
 
   &:hover {
     background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
-  }
-}
-
-.fileEditor {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  padding: 0 24px 8px;
-}
-
-.altInput {
-  flex: 1;
-  min-width: 160px;
-  padding: 6px 10px;
-  font-size: 0.85em;
-  font-family: inherit;
-  color: var(--nd-fg);
-  background: var(--nd-buttonBg);
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  outline: none;
-
-  &::placeholder {
-    color: var(--nd-fg);
-    opacity: 0.35;
-  }
-}
-
-.sensitiveLabel {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.8em;
-  color: var(--nd-fg);
-  opacity: 0.7;
-  cursor: pointer;
-}
-
-.orderButtons {
-  display: flex;
-  gap: 2px;
-}
-
-.orderBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-fg);
-  opacity: 0.7;
-
-  &:hover:not(:disabled) {
-    opacity: 1;
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
-  }
-
-  &:disabled {
-    opacity: 0.25;
-    cursor: default;
   }
 }
 </style>

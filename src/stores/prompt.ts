@@ -7,6 +7,10 @@ export interface PromptOptions {
   defaultValue?: string
   okLabel?: string
   cancelLabel?: string
+  /** 複数行入力 (textarea)。キャプション編集など (#753) */
+  multiline?: boolean
+  /** 空文字での確定を許可 (既存値のクリア用途)。resolve は '' を返す */
+  allowEmpty?: boolean
 }
 
 const visible = ref(false)
