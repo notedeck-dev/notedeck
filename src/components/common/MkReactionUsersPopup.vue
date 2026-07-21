@@ -7,6 +7,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { useAccountsStore } from '@/stores/accounts'
 import { proxyUrl } from '@/utils/imageProxy'
 import { extractColumnThemeVars } from '@/utils/themeVars'
+import MkAvatar from './MkAvatar.vue'
 import MkEmoji from './MkEmoji.vue'
 import MkMfm from './MkMfm.vue'
 
@@ -154,16 +155,13 @@ onUnmounted(() => {
           @mouseenter="onUserMouseEnter($event, r.user.id)"
           @mouseleave="onUserMouseLeave"
         >
-          <img
-            v-if="r.user.avatarUrl"
-            :src="r.user.avatarUrl"
+          <MkAvatar
+            :avatar-url="r.user.avatarUrl"
+            :size="24"
+            :is-cat="r.user.isCat"
+            :alt="r.user.username"
             :class="$style.avatar"
-            width="24"
-            height="24"
-            loading="lazy"
-            decoding="async"
           />
-          <div v-else :class="[$style.avatar, $style.avatarPlaceholder]" />
           <div :class="$style.userInfo">
             <span :class="$style.userName">
               <MkMfm v-if="r.user.name" :text="r.user.name" :emojis="r.user.emojis" :server-host="serverHost" plain />
@@ -263,15 +261,7 @@ onUnmounted(() => {
 }
 
 .avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
   flex-shrink: 0;
-}
-
-.avatarPlaceholder {
-  background: var(--nd-buttonBg);
 }
 
 .userInfo {

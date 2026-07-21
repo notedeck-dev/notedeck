@@ -19,6 +19,13 @@ type UserForListItem = {
   emojis?: Record<string, string>
 }
 
+/** relation バッジ表示 (#752)。UserRelation のサブセット */
+type RelationForListItem = {
+  isFollowed?: boolean
+  isBlocking?: boolean
+  isMuted?: boolean
+}
+
 const props = withDefaults(
   defineProps<{
     user: UserForListItem
@@ -31,6 +38,8 @@ const props = withDefaults(
     descLines?: number
     clickToNavigate?: boolean
     hoverPopup?: boolean
+    /** ブロック中/ミュート中/フォローされています のバッジ表示 (#752) */
+    relation?: RelationForListItem | null
   }>(),
   {
     accountId: undefined,
@@ -40,6 +49,7 @@ const props = withDefaults(
     descLines: 2,
     clickToNavigate: true,
     hoverPopup: true,
+    relation: null,
   },
 )
 
@@ -124,7 +134,15 @@ function closePopup() {
             <template v-else>{{ user.username }}</template>
           </span>
           <slot name="badges" />
+          <span
+            v-if="relation?.isBlocking"
+            :class="[$style.relationBadge, $style.relationDanger]"
+          >ブロック中</span>
+          <span v-if="relation?.isMuted" :class="$style.relationBadge">ミュート中</span>
           <span :class="$style.acct">@{{ user.username }}<template v-if="user.host">@{{ user.host }}</template></span>
+        </div>
+        <div v-if="relation?.isFollowed" :class="$style.relationBadgeRow">
+          <span :class="$style.relationBadge">フォローされています</span>
         </div>
         <slot name="meta">
           <div v-if="description" :class="$style.desc" :style="descStyle">
@@ -213,5 +231,25 @@ function closePopup() {
   -webkit-line-clamp: var(--mk-uli-desc-lines, 2);
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.relationBadgeRow {
+  margin-top: 2px;
+}
+
+.relationBadge {
+  display: inline-block;
+  font-size: 0.65em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--nd-buttonBg);
+  color: var(--nd-fg);
+  opacity: 0.7;
+}
+
+.relationDanger {
+  background: color-mix(in srgb, var(--nd-error) 15%, var(--nd-buttonBg));
+  color: var(--nd-error);
+  opacity: 1;
 }
 </style>

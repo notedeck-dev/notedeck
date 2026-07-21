@@ -6,7 +6,7 @@ import {
   ref,
   useTemplateRef,
 } from 'vue'
-import type { NormalizedNote } from '@/adapters/types'
+import type { NormalizedNote, UserRelation } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
@@ -84,6 +84,8 @@ type LookupResult =
     }
 
 const result = ref<LookupResult | null>(null)
+/** User 結果行の relation バッジ (#752) */
+const userRelation = ref<UserRelation | null>(null)
 const ancestors = ref<NormalizedNote[]>([])
 const children = ref<NormalizedNote[]>([])
 
@@ -175,6 +177,7 @@ async function performLookup() {
   lookupLoading.value = true
   lookupError.value = null
   result.value = null
+  userRelation.value = null
   ancestors.value = []
   children.value = []
 
@@ -216,6 +219,16 @@ async function performLookup() {
             | undefined,
         },
       }
+      // relation バッジ (#752) は非ブロッキングで後追い取得
+      adapter.api
+        .getUserRelations([user.id])
+        .then(([rel]) => {
+          if (result.value?.type === 'User' && result.value.user.id === user.id)
+            userRelation.value = rel ?? null
+        })
+        .catch(() => {
+          // relation はバッジ用の付加情報なので取得失敗は無視
+        })
       lookupLoading.value = false
       return
     }
@@ -291,6 +304,7 @@ async function performLookupCrossAccount(q: string) {
   lookupLoading.value = true
   lookupError.value = null
   result.value = null
+  userRelation.value = null
   ancestors.value = []
   children.value = []
   mergedThread.value = null
@@ -674,6 +688,7 @@ async function handlePosted(editedNoteId?: string) {
           :user="result.user"
           :account-id="column.accountId ?? undefined"
           :server-host="account?.host"
+          :relation="userRelation"
         />
       </div>
     </template>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
 import type { NormalizedUser, ServerEmoji } from '@/adapters/types'
+import MkAvatar from '@/components/common/MkAvatar.vue'
 import type {
   AutocompleteCandidate,
   TriggerType,
@@ -68,10 +69,12 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 
         <!-- Mention -->
         <template v-else-if="type === '@' && isUser(candidate)">
-          <img
-            :src="candidate.avatarUrl || '/avatar-default.svg'"
+          <MkAvatar
+            :avatar-url="candidate.avatarUrl"
+            :size="28"
+            :is-cat="candidate.isCat"
+            :alt="candidate.username"
             :class="$style.acUserAvatar"
-            @error="(e: Event) => (e.target as HTMLImageElement).src = '/avatar-error.svg'"
           />
           <div :class="$style.acUserInfo">
             <span :class="$style.acUserName">{{ candidate.name || candidate.username }}</span>
@@ -152,10 +155,7 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 }
 
 .acUserAvatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 100%;
-  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .acUserInfo {

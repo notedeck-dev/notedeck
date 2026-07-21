@@ -1,13 +1,23 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  shallowRef,
+  watch,
+} from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
-import type { NormalizedUserDetail } from '@/adapters/types'
+import type { NormalizedUserDetail, ServerAdapter } from '@/adapters/types'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useAccountsStore } from '@/stores/accounts'
 import { useIsCompactLayout } from '@/stores/ui'
+import type { FollowState } from '@/utils/followAction'
 import { formatCount } from '@/utils/format'
 import { proxyUrl } from '@/utils/imageProxy'
 import MkAvatar from './MkAvatar.vue'
+import MkFollowButton from './MkFollowButton.vue'
 import MkMfm from './MkMfm.vue'
 
 const USER_DETAIL_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
@@ -38,12 +48,39 @@ const account = computed(() =>
 )
 const user = ref<NormalizedUserDetail | null>(null)
 const isLoading = ref(true)
+// フォローボタン (#752) 用。キャッシュヒット時も factory のキャッシュから解決する
+const adapterRef = shallowRef<ServerAdapter | null>(null)
 
 const isOwnUser = computed(() => account.value?.userId === user.value?.id)
+
+// フォローボタンの update: ポップアップ表示中の detail と共有キャッシュの
+// エントリは同一オブジェクトなので、ここで反映すれば次回表示にも効く
+function onFollowUpdate(next: FollowState) {
+  const u = user.value
+  if (!u) return
+  const wasFollowing = u.isFollowing
+  u.isFollowing = next.isFollowing
+  u.hasPendingFollowRequestFromYou = next.hasPendingFollowRequestFromYou
+  if (wasFollowing !== next.isFollowing) {
+    u.followersCount = Math.max(
+      0,
+      u.followersCount + (next.isFollowing ? 1 : -1),
+    )
+  }
+}
 
 onMounted(async () => {
   const cacheKey = `${props.accountId}:${props.userId}`
   try {
+    const acc = accountsStore.accounts.find((a) => a.id === props.accountId)
+    if (acc) {
+      const { adapter } = await initAdapterFor(acc.host, acc.id, {
+        pinnedReactions: false,
+        hasToken: acc.hasToken,
+      })
+      adapterRef.value = adapter
+    }
+
     const cached = userDetailCache.get(cacheKey)
     if (cached && Date.now() - cached.at < USER_DETAIL_CACHE_TTL) {
       user.value = cached.data
@@ -53,12 +90,8 @@ onMounted(async () => {
 
     let promise = pendingUserDetails.get(cacheKey)
     if (!promise) {
-      const acc = accountsStore.accounts.find((a) => a.id === props.accountId)
-      if (!acc) return
-      const { adapter } = await initAdapterFor(acc.host, acc.id, {
-        pinnedReactions: false,
-        hasToken: acc.hasToken,
-      })
+      const adapter = adapterRef.value
+      if (!adapter) return
       promise = adapter.api.getUserDetail(props.userId)
       pendingUserDetails.set(cacheKey, promise)
     }
@@ -163,6 +196,22 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
         <div v-if="user.isFollowed" :class="$style.popupBadge">フォローされています</div>
 
+        <!-- ネイティブ action としてのフォローボタン (#752)。プラグイン action は
+             引き続きメニュー面のみ (ポップアップ=プレビューの原則の例外判断) -->
+        <MkFollowButton
+          v-if="!isOwnUser && account?.hasToken"
+          :class="$style.popupFollowBtn"
+          :user-id="user.id"
+          :username="user.username"
+          :is-following="user.isFollowing"
+          :has-pending-request="user.hasPendingFollowRequestFromYou === true"
+          :is-followed="user.isFollowed"
+          :is-locked="user.isLocked ?? false"
+          :api="adapterRef?.api ?? null"
+          size="sm"
+          @update="onFollowUpdate"
+        />
+
         <div v-if="user.host" :class="$style.remoteBadge">
           <i class="ti ti-info-circle" />
           リモートユーザー
@@ -186,6 +235,14 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 @keyframes userPopupIn {
   from { opacity: 0; transform: scale(0.97) translateY(4px); }
+}
+
+/* バナー右上に重ねる (プロフィールヒーローと同じ配置感) */
+.popupFollowBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
 }
 
 .popupLoading {

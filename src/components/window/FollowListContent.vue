@@ -5,6 +5,7 @@ import type {
   FollowRelation,
   NormalizedUser,
   ServerAdapter,
+  UserRelation,
 } from '@/adapters/types'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkFollowButton from '@/components/common/MkFollowButton.vue'
@@ -32,8 +33,9 @@ const toast = useToast()
 type TabType = 'following' | 'followers'
 const activeTab = ref<TabType>(props.initialTab ?? 'following')
 const followingIds = ref<Set<string>>(new Set())
-const followedByIds = ref<Set<string>>(new Set())
 const pendingIds = ref<Set<string>>(new Set())
+/** relation バッジ (フォローされています/ブロック中/ミュート中 #752) 用 */
+const relations = ref<Map<string, UserRelation>>(new Map())
 
 const account = accountsStore.accounts.find((a) => a.id === props.accountId)
 const isOwnProfile = computed(() => account?.userId === props.userId)
@@ -105,8 +107,8 @@ onMounted(async () => {
 watch(activeTab, () => {
   resetUsers()
   followingIds.value = new Set()
-  followedByIds.value = new Set()
   pendingIds.value = new Set()
+  relations.value = new Map()
   loadUsers()
 })
 
@@ -114,18 +116,18 @@ async function fetchRelations(batch: NormalizedUser[]) {
   if (!adapter) return
   try {
     const ids = batch.map((u) => u.id)
-    const relations = await adapter.api.getUserRelations(ids)
+    const fetched = await adapter.api.getUserRelations(ids)
     const newFollowing = new Set(followingIds.value)
-    const newFollowed = new Set(followedByIds.value)
     const newPending = new Set(pendingIds.value)
-    for (const r of relations) {
+    const newRelations = new Map(relations.value)
+    for (const r of fetched) {
       if (r.isFollowing) newFollowing.add(r.id)
-      if (r.isFollowed) newFollowed.add(r.id)
       if (r.hasPendingFollowRequestFromYou) newPending.add(r.id)
+      newRelations.set(r.id, r)
     }
     followingIds.value = newFollowing
-    followedByIds.value = newFollowed
     pendingIds.value = newPending
+    relations.value = newRelations
   } catch {
     // Non-critical
   }
@@ -195,12 +197,10 @@ function resolvePendingFor(userId: string) {
         :account-id="accountId"
         :avatar-size="48"
         :server-host="account?.host"
+        :relation="relations.get(u.id) ?? null"
       >
         <template #badges>
           <span v-if="u.isBot" :class="$style.cardBadge">Bot</span>
-        </template>
-        <template #meta>
-          <span v-if="followedByIds.has(u.id)" :class="$style.followedBadge">フォローされています</span>
         </template>
         <template #actions>
           <MkFollowButton
@@ -278,17 +278,6 @@ function resolvePendingFor(userId: string) {
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
   opacity: 0.7;
-}
-
-.followedBadge {
-  display: inline-block;
-  font-size: 0.65em;
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: var(--nd-buttonBg);
-  color: var(--nd-fg);
-  opacity: 0.7;
-  margin-top: 2px;
 }
 
 .stateMsg {
