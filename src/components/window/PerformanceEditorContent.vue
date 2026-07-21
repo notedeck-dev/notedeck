@@ -83,6 +83,11 @@ function handleMasterSlider(event: Event) {
   perfStore.applySlider(t)
 }
 
+// スライダーの塗りつぶし率 (OS のボリュームバー式に左側をアクセント色で塗る)
+function sliderFill(value: number, min: number, max: number): string {
+  return `${((value - min) / (max - min)) * 100}%`
+}
+
 // --- Code tab ---
 
 const code = ref('')
@@ -184,6 +189,7 @@ function handleReset() {
             min="0"
             max="100"
             step="1"
+            :style="{ '--fill': sliderFill(sliderValue, 0, 100) }"
             @input="handleMasterSlider"
           />
           <span :class="$style.sliderEndLabel">高性能</span>
@@ -245,6 +251,13 @@ function handleReset() {
               :min="field.meta.min"
               :max="field.meta.max"
               :step="field.meta.step"
+              :style="{
+                '--fill': sliderFill(
+                  perfStore.get(field.key),
+                  field.meta.min,
+                  field.meta.max,
+                ),
+              }"
               @input="handleSlider(field.key, $event)"
             />
             <div :class="$style.fieldDesc">{{ field.meta.description }}</div>
@@ -383,7 +396,12 @@ function handleReset() {
   flex: 1;
   height: 4px;
   appearance: none;
-  background: var(--nd-divider);
+  /* thumb より左を塗りつぶす (--fill は template 側で算出) */
+  background: linear-gradient(
+    to right,
+    var(--nd-accent) var(--fill, 0%),
+    var(--nd-divider) var(--fill, 0%)
+  );
   border-radius: 2px;
   outline: none;
   cursor: pointer;
@@ -498,7 +516,12 @@ function handleReset() {
   width: 100%;
   height: 4px;
   appearance: none;
-  background: var(--nd-divider);
+  /* thumb より左を塗りつぶす (--fill は template 側で算出) */
+  background: linear-gradient(
+    to right,
+    var(--nd-accent) var(--fill, 0%),
+    var(--nd-divider) var(--fill, 0%)
+  );
   border-radius: 2px;
   outline: none;
   cursor: pointer;

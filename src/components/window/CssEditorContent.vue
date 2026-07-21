@@ -142,6 +142,11 @@ const FONT_SIZE_BASE = 15
 const FONT_SIZE_MIN = -3
 const FONT_SIZE_MAX = 5
 
+// スライダーの塗りつぶし率 (OS のボリュームバー式に左側をアクセント色で塗る)
+function sliderFill(value: number, min: number, max: number): string {
+  return `${((value - min) / (max - min)) * 100}%`
+}
+
 // 公開範囲ごとのノート背景色 (public はデフォルトのまま)
 const VISIBILITY_BG_COLORS: Record<string, { label: string; color: string }> = {
   home: { label: 'ホーム', color: 'rgba(51, 127, 255, 0.08)' },
@@ -567,6 +572,7 @@ watch(tab, (t) => {
               :max="FONT_SIZE_MAX"
               step="1"
               :class="$style.slider"
+              :style="{ '--fill': sliderFill(presets.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX) }"
             />
             <span :class="$style.sliderLabel">大</span>
           </div>
@@ -957,7 +963,12 @@ watch(tab, (t) => {
   flex: 1;
   height: 4px;
   appearance: none;
-  background: var(--nd-divider);
+  /* thumb より左を塗りつぶす (--fill は template 側で算出) */
+  background: linear-gradient(
+    to right,
+    var(--nd-accent) var(--fill, 0%),
+    var(--nd-divider) var(--fill, 0%)
+  );
   border-radius: 2px;
   outline: none;
   cursor: pointer;
