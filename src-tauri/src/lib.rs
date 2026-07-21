@@ -349,6 +349,9 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(url) = urls.first() {
                     let url_str = url.as_str().to_string();
                     tracing::info!("[deep-link] received: {url_str}");
+                    // show/set_focus はモバイルの WebviewWindow に存在しない
+                    // (Android は intent で既に前面化されている)
+                    #[cfg(desktop)]
                     if let Some(w) = deep_link_handle.get_webview_window("main") {
                         let _ = w.show();
                         let _ = w.set_focus();

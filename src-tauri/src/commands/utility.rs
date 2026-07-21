@@ -41,7 +41,8 @@ pub fn set_status_bar_style(light_background: bool) {
         // tauri コマンドは JVM main thread 外で走るため FindClass では
         // アプリクラスを解決できない。ndk_context の Activity インスタンスに
         // 直接 call_method する (Kotlin 側が runOnUiThread へ hop する)。
-        let result = (|| -> Result<(), jni::errors::Error> {
+        // (std::result を明示 — super::Result エイリアスと衝突するため)
+        let result = (|| -> std::result::Result<(), jni::errors::Error> {
             let ctx = ndk_context::android_context();
             let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
             let mut env = vm.attach_current_thread()?;
