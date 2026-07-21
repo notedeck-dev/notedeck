@@ -903,9 +903,13 @@ async apiDeleteDriveFolder(accountId: string, folderId: string) : Promise<Result
     else return { status: "error", error: e  as any };
 }
 },
-async apiUpdateDriveFile(accountId: string, fileId: string, name: string) : Promise<Result<null, { code: string; message: string }>> {
+/**
+ * drive/files/update。None のフィールドは送信されず変更されない。
+ * comment は空文字で null 送信 = alt テキストのクリア (#753)。
+ */
+async apiUpdateDriveFile(accountId: string, fileId: string, name: string | null, comment: string | null, isSensitive: boolean | null) : Promise<Result<null, { code: string; message: string }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("api_update_drive_file", { accountId, fileId, name }) };
+    return { status: "ok", data: await TAURI_INVOKE("api_update_drive_file", { accountId, fileId, name, comment, isSensitive }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

@@ -84,12 +84,48 @@ export function usePostFormState(
   let adapter: ServerAdapter | null = null
   const {
     attachedFiles,
+    pendingUploads,
     isUploading,
     uploadFilesFromPaths,
     uploadBrowserFiles,
+    retryUpload,
+    dismissUpload,
     attachDriveFiles,
     removeFile,
+    moveFile,
+    applyFileMeta,
   } = useFileAttachment(() => adapter, error)
+
+  /**
+   * 添付ファイルの alt / センシティブを更新 (#753)。楽観的にローカル反映し、
+   * サーバー更新 (drive/files/update) が失敗したらロールバックする。
+   */
+  async function updateAttachedFileMeta(
+    fileId: string,
+    patch: { comment?: string | null; isSensitive?: boolean },
+  ) {
+    const prev = attachedFiles.value.find((f) => f.id === fileId)
+    if (!prev) return
+    applyFileMeta(fileId, patch)
+    try {
+      unwrap(
+        await commands.apiUpdateDriveFile(
+          activeAccountId.value,
+          fileId,
+          null,
+          // Rust 側の契約: null = 変更なし、空文字 = alt クリア
+          patch.comment === undefined ? null : (patch.comment ?? ''),
+          patch.isSensitive ?? null,
+        ),
+      )
+    } catch (e) {
+      applyFileMeta(fileId, {
+        comment: prev.comment,
+        isSensitive: prev.isSensitive,
+      })
+      useToast().show(AppError.from(e).message, 'error')
+    }
+  }
   const noteModeFlags = ref<Record<string, boolean>>({})
   const disabledVisibilities = shallowRef(new Set<string>())
   // 引用元ノート (#753)。呼び出し元からは renoteId しか渡らないため、
@@ -717,6 +753,7 @@ export function usePostFormState(
     posted,
     error,
     attachedFiles,
+    pendingUploads,
     isUploading,
     noteModeFlags,
     disabledVisibilities,
@@ -747,8 +784,12 @@ export function usePostFormState(
     post,
     uploadFilesFromPaths,
     uploadBrowserFiles,
+    retryUpload,
+    dismissUpload,
     attachDriveFiles,
     removeFile,
+    moveFile,
+    updateAttachedFileMeta,
     selectVisibility,
     noteModeLabel,
     noteModeIcon,

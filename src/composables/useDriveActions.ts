@@ -106,7 +106,9 @@ export function useDriveActions() {
     )?.trim()
     if (!name || name === file.name) return
     try {
-      unwrap(await commands.apiUpdateDriveFile(accountId, file.id, name))
+      unwrap(
+        await commands.apiUpdateDriveFile(accountId, file.id, name, null, null),
+      )
       uiStore.emitDriveFilesChanged(accountId)
     } catch (e) {
       toast.show(errorMessage(e), 'error')

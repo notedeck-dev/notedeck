@@ -485,17 +485,36 @@ pub async fn api_delete_drive_folder(
     Ok(())
 }
 
+/// drive/files/update。None のフィールドは送信されず変更されない。
+/// comment は空文字で null 送信 = alt テキストのクリア (#753)。
 #[tauri::command]
 #[specta::specta]
 pub async fn api_update_drive_file(
     app_state: State<'_, AppState>,
     account_id: String,
     file_id: String,
-    name: String,
+    name: Option<String>,
+    comment: Option<String>,
+    is_sensitive: Option<bool>,
 ) -> Result<()> {
     let (db, client) = app_state.ready().await;
     let (host, token) = get_credentials(&db, &account_id)?;
-    let params = serde_json::json!({ "fileId": file_id, "name": name });
+    let mut params = serde_json::json!({ "fileId": file_id });
+    let obj = params.as_object_mut().expect("params is an object");
+    if let Some(name) = name {
+        obj.insert("name".into(), name.into());
+    }
+    if let Some(comment) = comment {
+        let value = if comment.is_empty() {
+            serde_json::Value::Null
+        } else {
+            comment.into()
+        };
+        obj.insert("comment".into(), value);
+    }
+    if let Some(is_sensitive) = is_sensitive {
+        obj.insert("isSensitive".into(), is_sensitive.into());
+    }
     client
         .request(&host, &token, "drive/files/update", params)
         .await?;

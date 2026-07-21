@@ -107,6 +107,7 @@ const {
   posted,
   error,
   attachedFiles,
+  pendingUploads,
   isUploading,
   noteModeFlags,
   disabledVisibilities,
@@ -133,8 +134,12 @@ const {
   post,
   uploadFilesFromPaths,
   uploadBrowserFiles,
+  retryUpload,
+  dismissUpload,
   attachDriveFiles,
   removeFile,
+  moveFile,
+  updateAttachedFileMeta,
   selectVisibility,
   noteModeLabel,
   noteModeIcon,
@@ -870,10 +875,14 @@ function onPaste(e: ClipboardEvent) {
 
       <!-- File previews -->
       <PostFormFilePreviews
-        v-if="attachedFiles.length > 0 || isUploading"
+        v-if="attachedFiles.length > 0 || pendingUploads.length > 0"
         :files="attachedFiles"
-        :uploading="isUploading"
+        :pending="pendingUploads"
         @remove="removeFile"
+        @retry="retryUpload"
+        @dismiss="dismissUpload"
+        @move="moveFile"
+        @update-meta="updateAttachedFileMeta"
       />
 
       <!-- Error -->
