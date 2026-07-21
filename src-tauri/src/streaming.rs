@@ -11,7 +11,7 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_notification::NotificationExt;
 use tauri_specta::Event;
 
-use crate::os_notify::NotificationClicked;
+use crate::os_notify::{NotificationClicked, NotifyMedia};
 
 // #781: specta 契約に載せる typed イベント。notecli の型を newtype で包む
 // (serde/specta とも透過なのでワイヤ形・TS 型は中身そのもの)。
@@ -53,6 +53,8 @@ struct PendingOsNotification {
     body: Option<String>,
     /// クリック時の遷移コンテキスト (#754)。要約通知になると失われる。
     context: Option<NotificationClicked>,
+    /// アバター/絵文字画像 (#754)。要約通知になると失われる。
+    media: Option<NotifyMedia>,
 }
 
 /// send_native_notification の判定結果。表示 (副作用) と分離してテスト可能にする。
@@ -64,6 +66,7 @@ enum OsNotifPlan {
         title: String,
         body: Option<String>,
         context: Option<NotificationClicked>,
+        media: Option<NotifyMedia>,
     },
     /// バーストとしてバッファ済み。spawn_flusher が true なら flush タスクを起動する
     #[cfg_attr(target_os = "android", allow(dead_code))]
@@ -81,6 +84,7 @@ fn summarize_group(items: &[PendingOsNotification]) -> Option<PendingOsNotificat
             title: single.title.clone(),
             body: single.body.clone(),
             context: single.context.clone(),
+            media: single.media.clone(),
         }),
         _ => {
             let mut names: Vec<&str> = Vec::new();
@@ -98,6 +102,7 @@ fn summarize_group(items: &[PendingOsNotification]) -> Option<PendingOsNotificat
                 title: format!("新着通知 {} 件", items.len()),
                 body: Some(body),
                 context: None,
+                media: None,
             })
         }
     }
@@ -108,19 +113,20 @@ fn show_os_notification<R: tauri::Runtime>(
     title: &str,
     body: Option<&str>,
     context: Option<&NotificationClicked>,
+    media: Option<&NotifyMedia>,
 ) {
-    // Linux / Windows: user-notify 経由 (クリック遷移対応, #754)
+    // Linux / Windows: user-notify 経由 (クリック遷移 + 画像添付, #754)
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     {
         let _ = app;
-        crate::os_notify::show(title, body, context);
+        crate::os_notify::show(title, body, context, media);
     }
 
     // macOS: user-notify は署名済み bundle 必須のため plugin 経路を維持
-    // (クリック遷移は署名導入までブロック, #754)
+    // (クリック遷移・画像は署名導入までブロック, #754)
     #[cfg(target_os = "macos")]
     {
-        let _ = context;
+        let _ = (context, media);
         let mut builder = app.notification().builder().title(title);
         if let Some(body) = body {
             builder = builder.body(body);
@@ -131,8 +137,10 @@ fn show_os_notification<R: tauri::Runtime>(
     }
 
     // Android: plugin の extra にコンテキストを積み、JS 側 onAction が拾って遷移する
+    // (plugin builder は動的画像を添付できないため media 未対応)
     #[cfg(target_os = "android")]
     {
+        let _ = media;
         let mut builder = app
             .notification()
             .builder()
@@ -198,8 +206,15 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                 title,
                 body,
                 context,
+                media,
             } => {
-                show_os_notification(&self.app, &title, body.as_deref(), context.as_ref());
+                show_os_notification(
+                    &self.app,
+                    &title,
+                    body.as_deref(),
+                    context.as_ref(),
+                    media.as_ref(),
+                );
             }
             OsNotifPlan::Buffer { spawn_flusher } => {
                 #[cfg(not(target_os = "android"))]
@@ -215,6 +230,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                                 &summary.title,
                                 summary.body.as_deref(),
                                 summary.context.as_ref(),
+                                summary.media.as_ref(),
                             );
                         }
                     });
@@ -294,6 +310,30 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
             user_id: notification.user.as_ref().map(|u| u.id.clone()),
         });
 
+        // 通知メディア: 本家 web push (icon=アバター, badge=絵文字) に倣い、
+        // icon = アクターのアバター、リアクションのカスタム絵文字 (":name:" /
+        // ":name@host:") はフルカラー画像として添付。Unicode 絵文字は本文に
+        // 出るので画像なし。絵文字 URL は本家 sw と同じ /emoji/<name>.webp
+        // (name は "@." の local マーカーごとサーバーが解決する)。
+        let media = {
+            let icon_url = notification
+                .user
+                .as_ref()
+                .and_then(|u| u.avatar_url.clone());
+            let image_url = (notif_type == "reaction")
+                .then(|| notification.reaction.as_deref())
+                .flatten()
+                .filter(|r| r.len() > 2 && r.starts_with(':') && r.ends_with(':'))
+                .map(|r| {
+                    let name = &r[1..r.len() - 1];
+                    format!("https://{}/emoji/{}.webp", notification.server_host, name)
+                });
+            (icon_url.is_some() || image_url.is_some()).then_some(NotifyMedia {
+                icon_url,
+                image_url,
+            })
+        };
+
         // Android は webview が凍結されうるため常に即時表示 (グルーピングは
         // channel 経由で OS が行う)
         #[cfg(target_os = "android")]
@@ -302,6 +342,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                 title,
                 body: body_opt,
                 context,
+                media,
             }
         }
 
@@ -328,6 +369,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                     title,
                     body: body_opt,
                     context,
+                    media,
                 };
             }
             let mut pending = self.pending_group.lock().unwrap();
@@ -336,6 +378,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                 title,
                 body: body_opt,
                 context,
+                media,
             });
             OsNotifPlan::Buffer { spawn_flusher }
         }
@@ -765,6 +808,10 @@ mod tests {
                 note_id: Some(format!("note-of-{title}")),
                 user_id: Some("u1".into()),
             }),
+            media: Some(NotifyMedia {
+                icon_url: Some(format!("https://misskey.example/avatar-of-{title}.webp")),
+                image_url: None,
+            }),
         }
     }
 
@@ -806,12 +853,12 @@ mod tests {
         let app = mock_app();
         let emitter = TauriEmitter::new(app.handle().clone());
 
-        let _ = emitter.plan_os_notification(&test_notification_with_user("n1", "reaction", "alice"));
+        let _ =
+            emitter.plan_os_notification(&test_notification_with_user("n1", "reaction", "alice"));
         // 窓を跨いだ状態を再現
         *emitter.last_os_notif.lock().unwrap() = Instant::now().checked_sub(GROUP_WINDOW * 2);
 
-        let plan =
-            emitter.plan_os_notification(&test_notification_with_user("n2", "reply", "bob"));
+        let plan = emitter.plan_os_notification(&test_notification_with_user("n2", "reply", "bob"));
         assert!(matches!(plan, OsNotifPlan::ShowNow { .. }));
         assert!(emitter.pending_group.lock().unwrap().is_empty());
     }
@@ -828,6 +875,10 @@ mod tests {
             Some("note-of-アリス"),
             "1 件のみの flush はクリック遷移先を維持するはず"
         );
+        assert!(
+            summary.media.is_some(),
+            "1 件のみの flush はアバター画像を維持するはず"
+        );
     }
 
     /// 複数件は「新着通知 N 件」+ 通知元名の dedup 列挙に要約される。
@@ -843,6 +894,7 @@ mod tests {
         assert_eq!(summary.title, "新着通知 3 件");
         assert_eq!(summary.body.as_deref(), Some("アリス、ボブ"));
         assert!(summary.context.is_none(), "要約通知は遷移先を持たないはず");
+        assert!(summary.media.is_none(), "要約通知は画像を持たないはず");
     }
 
     /// 通知元が GROUP_MAX_NAMES を超えたら「ほか」に畳む。空バッファは何も出さない。
@@ -898,6 +950,67 @@ mod tests {
             }
             _ => panic!("first notification should be ShowNow"),
         }
+    }
+
+    fn reaction_notification(id: &str, reaction: &str) -> NormalizedNotification {
+        serde_json::from_value(json!({
+            "id": id,
+            "_accountId": "acct-1",
+            "_serverHost": "misskey.example",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "type": "reaction",
+            "reaction": reaction,
+            "user": {
+                "id": "u1",
+                "username": "alice",
+                "avatarUrl": "https://misskey.example/avatar.webp",
+            },
+        }))
+        .expect("fixture should deserialize")
+    }
+
+    /// カスタム絵文字リアクションは本家 sw と同じ /emoji/<name>.webp の
+    /// フルカラー画像 + アバター icon を添付する。Unicode 絵文字は画像なし。
+    #[test]
+    fn plan_builds_media_for_custom_emoji_reaction() {
+        let app = mock_app();
+        let emitter = TauriEmitter::new(app.handle().clone());
+
+        let media = |n: &NormalizedNotification| match emitter.plan_os_notification(n) {
+            OsNotifPlan::ShowNow { media, .. } => media,
+            _ => panic!("should be ShowNow"),
+        };
+
+        // バースト集約を避けるため窓をリセットしながら 3 パターン検証
+        let custom = media(&reaction_notification("m1", ":igyo@.:"));
+        let custom = custom.expect("custom emoji reaction should carry media");
+        assert_eq!(
+            custom.image_url.as_deref(),
+            Some("https://misskey.example/emoji/igyo@..webp")
+        );
+        assert_eq!(
+            custom.icon_url.as_deref(),
+            Some("https://misskey.example/avatar.webp")
+        );
+
+        *emitter.last_os_notif.lock().unwrap() = None;
+        let remote = media(&reaction_notification("m2", ":neofox@fedi.example:"));
+        assert_eq!(
+            remote
+                .expect("remote emoji should carry media")
+                .image_url
+                .as_deref(),
+            Some("https://misskey.example/emoji/neofox@fedi.example.webp")
+        );
+
+        *emitter.last_os_notif.lock().unwrap() = None;
+        let unicode = media(&reaction_notification("m3", "👍"));
+        let unicode = unicode.expect("avatar keeps media present");
+        assert!(
+            unicode.image_url.is_none(),
+            "Unicode 絵文字は画像なしのはず"
+        );
+        assert!(unicode.icon_url.is_some());
     }
 
     #[test]

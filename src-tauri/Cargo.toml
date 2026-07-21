@@ -55,6 +55,9 @@ kamadak-exif = "0.6.1"
 # macOS は署名済み bundle 必須のため対象外 (plugin 経路を維持)。
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 user-notify = "0.4.2"
+# 通知画像の PNG 再エンコード用 (Windows toast は webp 非対応)。
+# Linux では user-notify が同 crate を使うため追加コストなし
+image = "0.25"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = [

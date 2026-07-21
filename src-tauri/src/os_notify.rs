@@ -25,6 +25,17 @@ pub struct NotificationClicked {
     pub user_id: Option<String>,
 }
 
+/// 通知に添付するメディア。Misskey 本家の web push (icon=アバター,
+/// badge=絵文字シルエット) を参考に、デスクトップでは icon = アクターの
+/// アバター、image = リアクションのカスタム絵文字 (フルカラー) を表示する。
+/// Linux/Windows (user-notify 経路) のみ使用。macOS/Android は未対応。
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(any(target_os = "macos", target_os = "android"), allow(dead_code))]
+pub struct NotifyMedia {
+    pub icon_url: Option<String>,
+    pub image_url: Option<String>,
+}
+
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 mod desktop {
     use std::collections::HashMap;
@@ -75,8 +86,13 @@ mod desktop {
     }
 
     /// OS 通知を表示する。context があればクリック時の遷移ペイロードとして
-    /// user_info に積む。
-    pub fn show(title: &str, body: Option<&str>, context: Option<&NotificationClicked>) {
+    /// user_info に積み、media があればアバター/絵文字画像を添付する。
+    pub fn show(
+        title: &str,
+        body: Option<&str>,
+        context: Option<&NotificationClicked>,
+        media: Option<&super::NotifyMedia>,
+    ) {
         // 未初期化 (ユニットテスト等) は no-op
         let Some(manager) = MANAGER.get() else {
             return;
@@ -99,13 +115,62 @@ mod desktop {
         // Linux の send_notification は内部でブロッキングの notify-rust
         // handle_action を呼び、通知が閉じられるまで返らない。tokio ワーカーを
         // 塞がないよう通知 1 件ごとに専用スレッドで送る (通知は数秒で expire
-        // するのでスレッドは短命)。
+        // するのでスレッドは短命)。画像フェッチも同スレッドで行い、失敗時は
+        // 画像なしで表示を続行する。
         let manager = Arc::clone(manager);
+        let media = media.cloned();
         std::thread::spawn(move || {
+            if let Some(media) = media {
+                if let Some(path) = media.icon_url.as_deref().and_then(fetch_to_cache) {
+                    builder = builder.set_icon(path).set_icon_round_crop(true);
+                }
+                if let Some(path) = media.image_url.as_deref().and_then(fetch_to_cache) {
+                    builder = builder.set_image(path);
+                }
+            }
             if let Err(e) = tauri::async_runtime::block_on(manager.send_notification(builder)) {
                 tracing::warn!("[notification] failed to send: {e:?}");
             }
         });
+    }
+
+    fn http_client() -> &'static reqwest::Client {
+        static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+        CLIENT.get_or_init(|| {
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(4))
+                .build()
+                .unwrap_or_default()
+        })
+    }
+
+    /// 画像 URL を fetch して PNG に再エンコードし、キャッシュパスを返す。
+    /// Misskey のアバター/絵文字は webp が多いが Windows toast は webp を
+    /// 表示できないため、常に PNG へ変換する。失敗はすべて None (画像なしで
+    /// 通知を出す)。
+    fn fetch_to_cache(url: &str) -> Option<std::path::PathBuf> {
+        let dir = std::env::temp_dir().join("notedeck-notif");
+        std::fs::create_dir_all(&dir).ok()?;
+        let path = dir.join(format!("{}.png", crate::image_cache::hex_hash(url)));
+        if path.exists() {
+            return Some(path);
+        }
+        let bytes = tauri::async_runtime::block_on(async {
+            let resp = http_client().get(url).send().await.ok()?;
+            if !resp.status().is_success() {
+                return None;
+            }
+            resp.bytes().await.ok()
+        })?;
+        let img = image::load_from_memory(&bytes).ok()?;
+        // 通知アイコンには十分な解像度に抑える (メモリ・ディスク節約)
+        let img = if img.width() > 512 || img.height() > 512 {
+            img.thumbnail(512, 512)
+        } else {
+            img
+        };
+        img.save_with_format(&path, image::ImageFormat::Png).ok()?;
+        Some(path)
     }
 }
 
