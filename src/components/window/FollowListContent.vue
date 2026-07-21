@@ -7,16 +7,14 @@ import type {
   ServerAdapter,
 } from '@/adapters/types'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import MkAvatar from '@/components/common/MkAvatar.vue'
-import MkMfm from '@/components/common/MkMfm.vue'
-import { showLoginPrompt } from '@/composables/useLoginPrompt'
-import { useNavigation } from '@/composables/useNavigation'
+import MkFollowButton from '@/components/common/MkFollowButton.vue'
+import MkUserListItem from '@/components/common/MkUserListItem.vue'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { isGuestAccount, useAccountsStore } from '@/stores/accounts'
-import { useConfirm } from '@/stores/confirm'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
+import type { FollowApi, FollowState } from '@/utils/followAction'
 import { webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
@@ -28,7 +26,6 @@ const props = defineProps<{
   initialTab?: 'following' | 'followers'
 }>()
 
-const { navigateToUser: navToUser } = useNavigation()
 const accountsStore = useAccountsStore()
 const toast = useToast()
 
@@ -37,9 +34,6 @@ const activeTab = ref<TabType>(props.initialTab ?? 'following')
 const followingIds = ref<Set<string>>(new Set())
 const followedByIds = ref<Set<string>>(new Set())
 const pendingIds = ref<Set<string>>(new Set())
-const followLoadingIds = ref<Set<string>>(new Set())
-/** hover 中の行のフォローボタンだけ「解除」表示に変える */
-const hoveredFollowId = ref<string | null>(null)
 
 const account = accountsStore.accounts.find((a) => a.id === props.accountId)
 const isOwnProfile = computed(() => account?.userId === props.userId)
@@ -144,66 +138,33 @@ function onScroll(e: Event) {
   }
 }
 
-const { confirm } = useConfirm()
-
-async function toggleFollow(targetUser: NormalizedUser) {
-  if (!adapter || followLoadingIds.value.has(targetUser.id)) return
-  // フォロー解除だけは誤タップに備えて確認を挟む
-  if (
-    followingIds.value.has(targetUser.id) &&
-    !pendingIds.value.has(targetUser.id)
-  ) {
-    const ok = await confirm({
-      title: 'フォロー解除',
-      message: `@${targetUser.username} のフォローを解除しますか？`,
-      okLabel: '解除',
-      type: 'danger',
-    })
-    if (!ok) return
-  }
-  followLoadingIds.value = new Set([...followLoadingIds.value, targetUser.id])
-  try {
-    if (pendingIds.value.has(targetUser.id)) {
-      // 鍵アカウントへの未承認リクエストはキャンセル
-      // (following/delete は notFollowing エラーになる)
-      await adapter.api.cancelFollowRequest(targetUser.id)
-      const next = new Set(pendingIds.value)
-      next.delete(targetUser.id)
-      pendingIds.value = next
-    } else if (followingIds.value.has(targetUser.id)) {
-      await adapter.api.unfollowUser(targetUser.id)
-      const next = new Set(followingIds.value)
-      next.delete(targetUser.id)
-      followingIds.value = next
-    } else {
-      await adapter.api.followUser(targetUser.id)
-      // 鍵アカウントは承認待ちになるだけなので、サーバーの relation で状態を確定する
-      let pending = false
-      try {
-        const [rel] = await adapter.api.getUserRelations([targetUser.id])
-        pending = rel?.hasPendingFollowRequestFromYou === true
-      } catch {
-        // relation 取得失敗時は従来どおりフォロー中扱い
-      }
-      if (pending) {
-        pendingIds.value = new Set([...pendingIds.value, targetUser.id])
-      } else {
-        followingIds.value = new Set([...followingIds.value, targetUser.id])
-      }
-    }
-  } catch (e) {
-    const err = AppError.from(e)
-    console.error('[follow:toggle]', err.code, err.message)
-    toast.show(`操作に失敗しました（${err.displayCode}）`, 'error')
-  } finally {
-    const next = new Set(followLoadingIds.value)
-    next.delete(targetUser.id)
-    followLoadingIds.value = next
-  }
+// フォロー操作は MkFollowButton (#752 で共通化)。成功時の遷移後状態を
+// Set へ反映する
+function onFollowUpdate(userId: string, next: FollowState) {
+  const nf = new Set(followingIds.value)
+  if (next.isFollowing) nf.add(userId)
+  else nf.delete(userId)
+  followingIds.value = nf
+  const np = new Set(pendingIds.value)
+  if (next.hasPendingFollowRequestFromYou) np.add(userId)
+  else np.delete(userId)
+  pendingIds.value = np
 }
 
-function navigateUser(userId: string) {
-  navToUser(props.accountId, userId)
+// adapter は非リアクティブな let のため template から直接参照できない
+// (TS が null に狭める)。行が描画されるのは load 後 = adapter 初期化後
+function followApiFor(): FollowApi | null {
+  return account?.hasToken ? (adapter?.api ?? null) : null
+}
+
+// 一覧は NormalizedUser のみで isLocked が不明なため、follow 後に relation で
+// 承認待ちかを確定する
+function resolvePendingFor(userId: string) {
+  return async () => {
+    if (!adapter) return false
+    const [rel] = await adapter.api.getUserRelations([userId])
+    return rel?.hasPendingFollowRequestFromYou === true
+  }
 }
 </script>
 
@@ -227,47 +188,35 @@ function navigateUser(userId: string) {
     </div>
 
     <div :class="$style.listBody" @scroll.passive="onScroll">
-      <div
+      <MkUserListItem
         v-for="u in users"
         :key="u.id"
-        :class="$style.userCard"
-        @click="navigateUser(u.id)"
+        :user="u"
+        :account-id="accountId"
+        :avatar-size="48"
+        :server-host="account?.host"
       >
-        <MkAvatar :avatar-url="u.avatarUrl" :decorations="u.avatarDecorations" :size="48" :is-cat="u.isCat" />
-        <div :class="$style.cardInfo">
-          <div :class="$style.cardNameRow">
-            <span :class="$style.cardName">
-              <MkMfm v-if="u.name" :text="u.name" :emojis="u.emojis" :server-host="account?.host" plain />
-              <template v-else>{{ u.username }}</template>
-            </span>
-            <span v-if="u.isBot" :class="$style.cardBadge">Bot</span>
-          </div>
-          <span :class="$style.cardAcct">@{{ u.username }}{{ u.host ? `@${u.host}` : '' }}</span>
+        <template #badges>
+          <span v-if="u.isBot" :class="$style.cardBadge">Bot</span>
+        </template>
+        <template #meta>
           <span v-if="followedByIds.has(u.id)" :class="$style.followedBadge">フォローされています</span>
-        </div>
-        <button
-          v-if="account?.userId !== u.id"
-          class="_button"
-          :class="[$style.followBtn, { [$style.followBtnFollowing]: followingIds.has(u.id) || pendingIds.has(u.id), [$style.followBtnDisabled]: !account?.hasToken }]"
-          :disabled="followLoadingIds.has(u.id) || isGuest"
-          @click.stop="account?.hasToken ? toggleFollow(u) : showLoginPrompt()"
-          @mouseenter="hoveredFollowId = u.id"
-          @mouseleave="hoveredFollowId = null"
-        >
-          <template v-if="followLoadingIds.has(u.id)">
-            <i class="ti ti-loader-2 nd-spin" />
-          </template>
-          <template v-else-if="pendingIds.has(u.id)">
-            {{ hoveredFollowId === u.id ? 'リクエスト取消' : 'フォロー許可待ち' }}
-          </template>
-          <template v-else-if="followingIds.has(u.id)">
-            {{ hoveredFollowId === u.id ? 'フォロー解除' : 'フォロー中' }}
-          </template>
-          <template v-else>
-            フォロー
-          </template>
-        </button>
-      </div>
+        </template>
+        <template #actions>
+          <MkFollowButton
+            v-if="account?.userId !== u.id"
+            data-mk-uli-action
+            :user-id="u.id"
+            :username="u.username"
+            :is-following="followingIds.has(u.id)"
+            :has-pending-request="pendingIds.has(u.id)"
+            :api="followApiFor()"
+            :resolve-pending="resolvePendingFor(u.id)"
+            :disabled="isGuest"
+            @update="onFollowUpdate(u.id, $event)"
+          />
+        </template>
+      </MkUserListItem>
 
       <div v-if="isLoading" :class="$style.stateMsg"><LoadingSpinner /></div>
       <div v-else-if="users.length === 0" :class="$style.stateMsg">
@@ -321,45 +270,6 @@ function navigateUser(userId: string) {
   scrollbar-color: var(--nd-scrollbarHandle) transparent;
 }
 
-.userCard {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--nd-divider);
-  cursor: pointer;
-  transition: background var(--nd-duration-base);
-
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-  }
-
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.cardInfo {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.cardNameRow {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.cardName {
-  font-size: 0.9em;
-  font-weight: bold;
-  color: var(--nd-fgHighlighted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .cardBadge {
   flex-shrink: 0;
   font-size: 0.65em;
@@ -368,15 +278,6 @@ function navigateUser(userId: string) {
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
   opacity: 0.7;
-}
-
-.cardAcct {
-  display: block;
-  font-size: 0.75em;
-  opacity: 0.6;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .followedBadge {
@@ -388,42 +289,6 @@ function navigateUser(userId: string) {
   color: var(--nd-fg);
   opacity: 0.7;
   margin-top: 2px;
-}
-
-.followBtn {
-  flex-shrink: 0;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 0.8em;
-  font-weight: bold;
-  color: var(--nd-fgOnAccent, #fff);
-  background: var(--nd-accent);
-  transition: opacity var(--nd-duration-base);
-
-  &:hover {
-    opacity: 0.85;
-  }
-
-  &:disabled {
-    opacity: 0.5;
-  }
-}
-
-.followBtnFollowing {
-  color: var(--nd-fg);
-  background: var(--nd-buttonBg);
-
-  /* hover 時はラベルが「解除」に変わるのに合わせ danger 色に寄せる */
-  &:hover {
-    background: color-mix(in srgb, var(--nd-love) 20%, var(--nd-buttonBg));
-    color: var(--nd-love);
-    opacity: 1;
-  }
-}
-
-.followBtnDisabled {
-  opacity: 0.3;
-  pointer-events: none;
 }
 
 .stateMsg {

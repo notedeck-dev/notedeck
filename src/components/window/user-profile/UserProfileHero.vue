@@ -2,11 +2,12 @@
 import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 import type { NormalizedUserDetail, ServerAdapter } from '@/adapters/types'
 import MkAvatar from '@/components/common/MkAvatar.vue'
+import MkFollowButton from '@/components/common/MkFollowButton.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
-import { useConfirm } from '@/stores/confirm'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
+import type { FollowState } from '@/utils/followAction'
 import {
   displayUrl,
   formatBirthday,
@@ -14,7 +15,6 @@ import {
   formatDate,
 } from '@/utils/format'
 import { proxyUrl } from '@/utils/imageProxy'
-import { toggleFollow } from '@/utils/toggleFollow'
 import { openSafeUrl, safeCssUrl } from '@/utils/url'
 
 // プロフィール overview の hero 面 (#707): バナー / アバター / フォロー操作 /
@@ -40,41 +40,18 @@ const emit = defineEmits<{
 const toast = useToast()
 const windowsStore = useWindowsStore()
 
-const followBtnHover = ref(false)
-
-const followButtonLabel = computed(() => {
+// フォローボタンは MkFollowButton (#752 で共通化)。成功時の遷移後状態を
+// props.user へ反映する (followersCount の楽観調整もここ)
+function onFollowUpdate(next: FollowState) {
   const u = props.user
-  if (u.isFollowing) {
-    if (followBtnHover.value) return 'フォロー解除'
-    return u.isFollowed ? '相互フォロー' : 'フォロー中'
-  }
-  if (u.hasPendingFollowRequestFromYou) {
-    return followBtnHover.value ? 'リクエスト取消' : 'フォロー許可待ち'
-  }
-  return 'フォロー'
-})
-
-const isFollowLoading = ref(false)
-const { confirm } = useConfirm()
-
-async function handleToggleFollow() {
-  if (!props.adapter || props.isOwnProfile) return
-  if (props.user.isFollowing) {
-    const ok = await confirm({
-      title: 'フォロー解除',
-      message: `@${props.user.username} のフォローを解除しますか？`,
-      okLabel: '解除',
-      type: 'danger',
-    })
-    if (!ok) return
-  }
-  isFollowLoading.value = true
-  try {
-    await toggleFollow(props.adapter.api, props.user)
-  } catch (e) {
-    emit('error', AppError.from(e))
-  } finally {
-    isFollowLoading.value = false
+  const wasFollowing = u.isFollowing
+  u.isFollowing = next.isFollowing
+  u.hasPendingFollowRequestFromYou = next.hasPendingFollowRequestFromYou
+  if (wasFollowing !== next.isFollowing) {
+    u.followersCount = Math.max(
+      0,
+      u.followersCount + (next.isFollowing ? 1 : -1),
+    )
   }
 }
 
@@ -199,23 +176,19 @@ onMounted(() => {
         >
           <i class="ti ti-dots" />
         </button>
-        <button
+        <MkFollowButton
           v-if="!isOwnProfile"
-          class="_button"
-          :class="[
-            $style.bannerFollowBtn,
-            {
-              [$style.following]:
-                user.isFollowing || user.hasPendingFollowRequestFromYou,
-            },
-          ]"
-          :disabled="isFollowLoading"
-          @click="handleToggleFollow"
-          @mouseenter="followBtnHover = true"
-          @mouseleave="followBtnHover = false"
-        >
-          {{ followButtonLabel }}
-        </button>
+          :class="$style.bannerFollowBtn"
+          :user-id="user.id"
+          :username="user.username"
+          :is-following="user.isFollowing"
+          :has-pending-request="user.hasPendingFollowRequestFromYou === true"
+          :is-followed="user.isFollowed"
+          :is-locked="user.isLocked ?? false"
+          :api="adapter?.api ?? null"
+          size="md"
+          @update="onFollowUpdate"
+        />
         <button class="_button" :class="$style.bannerActionBtn" title="QRコード" @click="emit('openQr')">
           <i class="ti ti-qrcode" />
         </button>
@@ -438,36 +411,9 @@ onMounted(() => {
   font-size: 16px;
 }
 
+/* 見た目は MkFollowButton (#752) が持つ。ここは配置のみ */
 .bannerFollowBtn {
-  padding: 0 8px 0 12px;
-  height: 31px;
-  border-radius: 32px;
-  font-size: 14px;
-  font-weight: bold;
-  color: #fff;
-  background: var(--nd-accent);
   margin-left: 4px;
-
-  &:hover {
-    opacity: 0.85;
-  }
-
-  &:disabled {
-    opacity: 0.5;
-  }
-
-  /* フォロー済みは塗りを外して未フォロー (accent 塗り) と区別。
-     hover でラベルが「フォロー解除」に変わるのに合わせ danger 色に寄せる */
-  &.following {
-    background: var(--nd-buttonBg);
-    color: var(--nd-fg);
-
-    &:hover {
-      background: color-mix(in srgb, var(--nd-love) 20%, var(--nd-buttonBg));
-      color: var(--nd-love);
-      opacity: 1;
-    }
-  }
 }
 
 .userAvatar {
