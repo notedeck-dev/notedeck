@@ -132,6 +132,7 @@ const {
   switchAccount,
   post,
   uploadFilesFromPaths,
+  uploadBrowserFiles,
   attachDriveFiles,
   removeFile,
   selectVisibility,
@@ -486,6 +487,15 @@ function onKeydown(e: KeyboardEvent) {
     requestClose()
   }
 }
+
+// クリップボードの画像等をそのまま添付 (#753)。ファイルが無い通常の
+// テキストペーストはデフォルト動作に任せる
+function onPaste(e: ClipboardEvent) {
+  const files = Array.from(e.clipboardData?.files ?? [])
+  if (files.length === 0) return
+  e.preventDefault()
+  void uploadBrowserFiles(files)
+}
 </script>
 
 <template>
@@ -793,6 +803,7 @@ function onKeydown(e: KeyboardEvent) {
           spellcheck="false"
           @keydown="onKeydown"
           @input="acOnTextInput"
+          @paste="onPaste"
           @compositionstart="acOnCompositionStart"
           @compositionend="acOnCompositionEnd"
           @click.stop

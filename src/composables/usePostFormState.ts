@@ -86,6 +86,7 @@ export function usePostFormState(
     attachedFiles,
     isUploading,
     uploadFilesFromPaths,
+    uploadBrowserFiles,
     attachDriveFiles,
     removeFile,
   } = useFileAttachment(() => adapter, error)
@@ -745,6 +746,7 @@ export function usePostFormState(
     switchAccount,
     post,
     uploadFilesFromPaths,
+    uploadBrowserFiles,
     attachDriveFiles,
     removeFile,
     selectVisibility,
