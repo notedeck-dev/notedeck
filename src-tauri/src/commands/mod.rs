@@ -1,5 +1,5 @@
 mod admin;
-mod ai;
+pub(crate) mod ai;
 mod ai_chat;
 mod api_tokens;
 mod auth;

@@ -11,6 +11,7 @@
 
 pub mod auth_inject;
 pub mod backend;
+pub mod connections_service;
 pub mod connections_store;
 pub mod error;
 pub mod fetch;

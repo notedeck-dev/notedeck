@@ -2044,9 +2044,6 @@ async vaultUpsertConnection(input: ConnectionUpsert) : Promise<Result<Connection
 },
 /**
  * 接続のメタデータと secret を 1 トランザクションで作成 / 更新する。
- * 
- * TOCTOU を避けるため、メタデータ保存 → keychain 書き込みを 1 コマンドにまとめる。
- * keychain 書き込みに失敗したらメタデータ側の slot 登録もロールバックする。
  */
 async vaultUpsertConnectionWithSecret(input: ConnectionUpsert, slot: string, secret: string) : Promise<Result<Connection, VaultError>> {
     try {
@@ -2129,7 +2126,6 @@ async vaultSetTrusted(id: string, principalClass: PrincipalClass, trusted: boole
  * 
  * plugin クラスの trust はクラス一括 (`trusted_for`) にせず個体単位で持つ —
  * 1 つのウィジェットの確認同意が全プラグイン / Play / Page に波及しない。
- * `name` は帰属表示用スナップショット (再信頼で最新の名前に更新される)。
  */
 async vaultSetTrustedPlugin(id: string, pluginId: string, name: string | null, trusted: boolean) : Promise<Result<null, VaultError>> {
     try {
@@ -2169,13 +2165,6 @@ async vaultTestConnection(id: string, testPath: string | null) : Promise<Result<
 },
 /**
  * AI プロバイダーの API キーを Vault 接続へ移行する (#564 後続)。
- * 
- * 旧来 `ai.<provider>` キーチェーンに保存していた AI API キーを、Vault の
- * 接続 (`origin = External`, `externalSource = "ai-provider"`) に移し替える。
- * 移行後、旧キーチェーンエントリーは削除する。
- * 
- * キーチェーンに該当 provider のエントリーが無い場合は `None` を返す
- * (移行対象なし)。フロント側は返り値の接続 id を `ai.json5` に記録する。
  */
 async aiMigrateProviderToVault(provider: string, name: string, baseUrl: string, protocol: ConnectionProtocol) : Promise<Result<Connection | null, VaultError>> {
     try {
