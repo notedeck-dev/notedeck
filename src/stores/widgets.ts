@@ -1,7 +1,7 @@
-import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+import { createSidecarCollection } from '@/services/sidecarFileCollection'
 import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
@@ -35,6 +35,39 @@ interface WidgetFileMeta {
   updatedAt: number
   iconUrl?: string
 }
+
+/** .is + .meta.json5 ペアのファイル永続化 (#782 Phase 2、plugins と共通) */
+const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
+  logTag: 'widgets',
+  // 直接参照ではなくアロー包みで遅延参照する (テストの部分モックと相性を保つ)
+  srcFilename: (base) => settingsFs.widgetSrcFilename(base),
+  metaFilename: (base) => settingsFs.widgetMetaFilename(base),
+  list: () => settingsFs.listWidgetFiles(),
+  read: (filename) => settingsFs.readWidgetFile(filename),
+  write: (filename, content) => settingsFs.writeWidgetFile(filename, content),
+  remove: (filename) => settingsFs.deleteWidgetFile(filename),
+  baseName: (w) => w.name || w.installId,
+  srcOf: (w) => w.src,
+  toFileMeta: (w) => ({
+    installId: w.installId,
+    name: w.name,
+    autoRun: w.autoRun,
+    ...(w.storeId ? { storeId: w.storeId } : {}),
+    ...(w.iconUrl ? { iconUrl: w.iconUrl } : {}),
+    createdAt: w.createdAt,
+    updatedAt: w.updatedAt,
+  }),
+  fromFile: (meta, src, metaFile) => ({
+    installId: meta.installId || metaFile,
+    name: meta.name || metaFile,
+    src,
+    autoRun: meta.autoRun ?? false,
+    storeId: meta.storeId,
+    iconUrl: meta.iconUrl,
+    createdAt: meta.createdAt ?? Date.now(),
+    updatedAt: meta.updatedAt ?? Date.now(),
+  }),
+})
 
 function loadWidgetsFromStorage(): WidgetMeta[] {
   return getStorageJson<WidgetMeta[]>(STORAGE_KEYS.widgets, [])
@@ -95,101 +128,35 @@ export const useWidgetsStore = defineStore('widgets', () => {
   function persist(widget?: WidgetMeta) {
     saveWidgetsToStorage(widgets.value)
     if (initialized.value) {
-      const task = widget ? persistSingleWidget(widget) : persistAllToFiles()
+      const task = widget
+        ? widgetFiles.persistItem(widget)
+        : widgetFiles.persistAll(widgets.value)
       task.catch((e) =>
         console.warn('[widgets] failed to persist to files:', e),
       )
     }
   }
 
-  async function persistSingleWidget(widget: WidgetMeta): Promise<void> {
-    const baseName = widget.name || widget.installId
-    const srcFilename = settingsFs.widgetSrcFilename(baseName)
-    const metaFilename = settingsFs.widgetMetaFilename(baseName)
-
-    const meta: WidgetFileMeta = {
-      installId: widget.installId,
-      name: widget.name,
-      autoRun: widget.autoRun,
-      ...(widget.storeId ? { storeId: widget.storeId } : {}),
-      ...(widget.iconUrl ? { iconUrl: widget.iconUrl } : {}),
-      createdAt: widget.createdAt,
-      updatedAt: widget.updatedAt,
-    }
-    await Promise.all([
-      settingsFs.writeWidgetFile(srcFilename, widget.src),
-      settingsFs.writeWidgetFile(metaFilename, JSON5.stringify(meta, null, 2)),
-    ])
-  }
-
-  async function persistAllToFiles(): Promise<void> {
-    await Promise.all(widgets.value.map((w) => persistSingleWidget(w)))
-  }
-
-  async function deleteWidgetFiles(widget: WidgetMeta): Promise<void> {
-    const baseName = widget.name || widget.installId
-    await Promise.all([
-      settingsFs.deleteWidgetFile(settingsFs.widgetSrcFilename(baseName)),
-      settingsFs.deleteWidgetFile(settingsFs.widgetMetaFilename(baseName)),
-    ])
-  }
-
   /** Load widgets from files. Files are source of truth. */
   async function initFileStorage(): Promise<void> {
-    const allFiles = await settingsFs.listWidgetFiles()
-    const metaFiles = allFiles.filter((f) => f.endsWith('.meta.json5'))
+    const { items: fileWidgets, entryFileCount } = await widgetFiles.loadAll()
 
-    if (metaFiles.length > 0) {
-      const results = await Promise.all(
-        metaFiles.map(async (metaFile) => {
-          try {
-            const srcFile = metaFile.replace(/\.meta\.json5$/, '.is')
-            const [metaContent, src] = await Promise.all([
-              settingsFs.readWidgetFile(metaFile),
-              allFiles.includes(srcFile)
-                ? settingsFs.readWidgetFile(srcFile)
-                : Promise.resolve(''),
-            ])
-            const meta = JSON5.parse(metaContent) as WidgetFileMeta
-            return {
-              installId: meta.installId || metaFile,
-              name: meta.name || metaFile,
-              src,
-              autoRun: meta.autoRun ?? false,
-              storeId: meta.storeId,
-              iconUrl: meta.iconUrl,
-              createdAt: meta.createdAt ?? Date.now(),
-              updatedAt: meta.updatedAt ?? Date.now(),
-            } as WidgetMeta
-          } catch (e) {
-            console.warn(`[widgets] failed to parse ${metaFile}:`, e)
-            return null
-          }
-        }),
-      )
-      const fileWidgets = results.filter((w): w is WidgetMeta => w !== null)
-
-      if (fileWidgets.length > 0) {
-        // 並び順を確定するため createdAt 昇順でソート (ファイル列挙順は OS 依存)
-        fileWidgets.sort((a, b) => a.createdAt - b.createdAt)
-        // 初期化 (この async 関数が走る間) にメモリ追加された widget は
-        // ファイルにはまだ無いのでマージしないと消える。installId で dedup。
-        const fileIds = new Set(fileWidgets.map((w) => w.installId))
-        const memoryOnly = widgets.value.filter(
-          (w) => !fileIds.has(w.installId),
-        )
-        widgets.value = [...fileWidgets, ...memoryOnly]
-        saveWidgetsToStorage(widgets.value)
-        // 在メモリだけだった widget をファイル化 (次回起動時に消えないように)
-        if (memoryOnly.length > 0) {
-          Promise.all(memoryOnly.map((w) => persistSingleWidget(w))).catch(
-            (e) =>
-              console.warn(
-                '[widgets] failed to persist memory-only widgets:',
-                e,
-              ),
+    if (fileWidgets.length > 0) {
+      // 並び順を確定するため createdAt 昇順でソート (ファイル列挙順は OS 依存)
+      fileWidgets.sort((a, b) => a.createdAt - b.createdAt)
+      // 初期化 (この async 関数が走る間) にメモリ追加された widget は
+      // ファイルにはまだ無いのでマージしないと消える。installId で dedup。
+      const fileIds = new Set(fileWidgets.map((w) => w.installId))
+      const memoryOnly = widgets.value.filter((w) => !fileIds.has(w.installId))
+      widgets.value = [...fileWidgets, ...memoryOnly]
+      saveWidgetsToStorage(widgets.value)
+      // 在メモリだけだった widget をファイル化 (次回起動時に消えないように)
+      if (memoryOnly.length > 0) {
+        widgetFiles
+          .persistAll(memoryOnly)
+          .catch((e) =>
+            console.warn('[widgets] failed to persist memory-only widgets:', e),
           )
-        }
       }
     }
 
@@ -197,10 +164,10 @@ export const useWidgetsStore = defineStore('widgets', () => {
     pruneSidebarOrder()
 
     // localStorage 由来のデータがあるが files が無い場合の片方向移行
-    if (metaFiles.length === 0 && widgets.value.length > 0) {
-      persistAllToFiles().catch((e) =>
-        console.warn('[widgets] migration to files failed:', e),
-      )
+    if (entryFileCount === 0 && widgets.value.length > 0) {
+      widgetFiles
+        .persistAll(widgets.value)
+        .catch((e) => console.warn('[widgets] migration to files failed:', e))
     }
   }
 
@@ -231,9 +198,11 @@ export const useWidgetsStore = defineStore('widgets', () => {
       saveSidebarOrderToStorage(sidebarWidgetIds.value)
     }
     if (initialized.value && removed) {
-      deleteWidgetFiles(removed).catch((e) =>
-        console.warn('[widgets] failed to delete widget files:', e),
-      )
+      widgetFiles
+        .deleteItemFiles(removed)
+        .catch((e) =>
+          console.warn('[widgets] failed to delete widget files:', e),
+        )
     }
     if (!removed) return undefined
     return () => {
@@ -258,9 +227,11 @@ export const useWidgetsStore = defineStore('widgets', () => {
         saveSidebarOrderToStorage(sidebarWidgetIds.value)
       }
       if (initialized.value) {
-        persistSingleWidget(removed).catch((e) =>
-          console.warn('[widgets] failed to restore widget files:', e),
-        )
+        widgetFiles
+          .persistItem(removed)
+          .catch((e) =>
+            console.warn('[widgets] failed to restore widget files:', e),
+          )
       }
     }
   }
@@ -376,9 +347,11 @@ export const useWidgetsStore = defineStore('widgets', () => {
     persist(widget)
 
     if (initialized.value && oldBaseName !== newName) {
-      deleteWidgetFiles({ ...widget, name: oldBaseName } as WidgetMeta).catch(
-        (e) => console.warn('[widgets] failed to delete old widget files:', e),
-      )
+      widgetFiles
+        .deleteItemFiles({ ...widget, name: oldBaseName })
+        .catch((e) =>
+          console.warn('[widgets] failed to delete old widget files:', e),
+        )
     }
   }
 

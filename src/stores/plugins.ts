@@ -2,6 +2,8 @@ import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
+import { planBuiltInSeed } from '@/services/builtInSeed'
+import { createSidecarCollection } from '@/services/sidecarFileCollection'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
@@ -152,6 +154,51 @@ interface PluginFileMeta {
   iconUrl?: string
 }
 
+/** .is + .meta.json5 ペアのファイル永続化 (#782 Phase 2、widgets と共通) */
+const pluginFiles = createSidecarCollection<PluginMeta, PluginFileMeta>({
+  logTag: 'plugins',
+  // 直接参照ではなくアロー包みで遅延参照する (テストの部分モックと相性を保つ)
+  srcFilename: (base) => settingsFs.pluginSrcFilename(base),
+  metaFilename: (base) => settingsFs.pluginMetaFilename(base),
+  list: () => settingsFs.listPluginFiles(),
+  read: (filename) => settingsFs.readPluginFile(filename),
+  write: (filename, content) => settingsFs.writePluginFile(filename, content),
+  remove: (filename) => settingsFs.deletePluginFile(filename),
+  baseName: (p) => p.name || p.installId,
+  srcOf: (p) => p.src,
+  toFileMeta: (p) => ({
+    installId: p.installId,
+    name: p.name,
+    version: p.version,
+    ...(p.author ? { author: p.author } : {}),
+    ...(p.description ? { description: p.description } : {}),
+    ...(p.permissions?.length ? { permissions: p.permissions } : {}),
+    ...(p.config ? { config: p.config } : {}),
+    configData: p.configData,
+    active: p.active,
+    ...(p.global ? { global: true } : {}),
+    ...(p.installedFor?.length ? { installedFor: p.installedFor } : {}),
+    ...(p.storeId ? { storeId: p.storeId } : {}),
+    ...(p.iconUrl ? { iconUrl: p.iconUrl } : {}),
+  }),
+  fromFile: (meta, src, metaFile) => ({
+    installId: meta.installId || metaFile,
+    name: meta.name || metaFile,
+    version: meta.version || '0.0.0',
+    author: meta.author,
+    description: meta.description,
+    permissions: meta.permissions,
+    config: meta.config,
+    configData: meta.configData || {},
+    src,
+    active: meta.active ?? false,
+    global: meta.global,
+    installedFor: meta.installedFor,
+    storeId: meta.storeId,
+    iconUrl: meta.iconUrl,
+  }),
+})
+
 function loadPluginsFromStorage(): PluginMeta[] {
   return getStorageJson<PluginMeta[]>(STORAGE_KEYS.plugins, [])
 }
@@ -193,112 +240,31 @@ export const usePluginsStore = defineStore('plugins', () => {
   function persist(plugin?: PluginMeta) {
     savePluginsToStorage(plugins.value)
     if (initialized.value) {
-      const task = plugin ? persistSinglePlugin(plugin) : persistAllToFiles()
+      const task = plugin
+        ? pluginFiles.persistItem(plugin)
+        : pluginFiles.persistAll(plugins.value)
       task.catch((e) =>
         console.warn('[plugins] failed to persist to files:', e),
       )
     }
   }
 
-  /** Write a single plugin to its .is and .meta.json5 files. */
-  async function persistSinglePlugin(plugin: PluginMeta): Promise<void> {
-    const baseName = plugin.name || plugin.installId
-    const srcFilename = settingsFs.pluginSrcFilename(baseName)
-    const metaFilename = settingsFs.pluginMetaFilename(baseName)
-
-    const meta: PluginFileMeta = {
-      installId: plugin.installId,
-      name: plugin.name,
-      version: plugin.version,
-      ...(plugin.author ? { author: plugin.author } : {}),
-      ...(plugin.description ? { description: plugin.description } : {}),
-      ...(plugin.permissions?.length
-        ? { permissions: plugin.permissions }
-        : {}),
-      ...(plugin.config ? { config: plugin.config } : {}),
-      configData: plugin.configData,
-      active: plugin.active,
-      ...(plugin.global ? { global: true } : {}),
-      ...(plugin.installedFor?.length
-        ? { installedFor: plugin.installedFor }
-        : {}),
-      ...(plugin.storeId ? { storeId: plugin.storeId } : {}),
-      ...(plugin.iconUrl ? { iconUrl: plugin.iconUrl } : {}),
-    }
-    await Promise.all([
-      settingsFs.writePluginFile(srcFilename, plugin.src),
-      settingsFs.writePluginFile(metaFilename, JSON5.stringify(meta, null, 2)),
-    ])
-  }
-
-  /** Write all plugins to files. */
-  async function persistAllToFiles(): Promise<void> {
-    await Promise.all(plugins.value.map((p) => persistSinglePlugin(p)))
-  }
-
-  /** Delete a plugin's files. */
-  async function deletePluginFiles(plugin: PluginMeta): Promise<void> {
-    const baseName = plugin.name || plugin.installId
-    await Promise.all([
-      settingsFs.deletePluginFile(settingsFs.pluginSrcFilename(baseName)),
-      settingsFs.deletePluginFile(settingsFs.pluginMetaFilename(baseName)),
-    ])
-  }
-
   /** Load plugins from files. Files are source of truth. */
   async function initFileStorage(): Promise<void> {
-    const allFiles = await settingsFs.listPluginFiles()
-    const metaFiles = allFiles.filter((f) => f.endsWith('.meta.json5'))
+    const { items: filePlugins, entryFileCount } = await pluginFiles.loadAll()
 
-    if (metaFiles.length > 0) {
-      const results = await Promise.all(
-        metaFiles.map(async (metaFile) => {
-          try {
-            const srcFile = metaFile.replace(/\.meta\.json5$/, '.is')
-            const [metaContent, src] = await Promise.all([
-              settingsFs.readPluginFile(metaFile),
-              allFiles.includes(srcFile)
-                ? settingsFs.readPluginFile(srcFile)
-                : Promise.resolve(''),
-            ])
-            const meta = JSON5.parse(metaContent) as PluginFileMeta
-            return {
-              installId: meta.installId || metaFile,
-              name: meta.name || metaFile,
-              version: meta.version || '0.0.0',
-              author: meta.author,
-              description: meta.description,
-              permissions: meta.permissions,
-              config: meta.config,
-              configData: meta.configData || {},
-              src,
-              active: meta.active ?? false,
-              global: meta.global,
-              installedFor: meta.installedFor,
-              storeId: meta.storeId,
-              iconUrl: meta.iconUrl,
-            } as PluginMeta
-          } catch (e) {
-            console.warn(`[plugins] failed to parse ${metaFile}:`, e)
-            return null
-          }
-        }),
-      )
-      const filePlugins = results.filter((p): p is PluginMeta => p !== null)
-
-      if (filePlugins.length > 0) {
-        plugins.value = filePlugins
-        savePluginsToStorage(filePlugins)
-      }
+    if (filePlugins.length > 0) {
+      plugins.value = filePlugins
+      savePluginsToStorage(filePlugins)
     }
 
     initialized.value = true
 
     // Migrate: localStorage has plugins but no files exist
-    if (metaFiles.length === 0 && plugins.value.length > 0) {
-      persistAllToFiles().catch((e) =>
-        console.warn('[plugins] migration to files failed:', e),
-      )
+    if (entryFileCount === 0 && plugins.value.length > 0) {
+      pluginFiles
+        .persistAll(plugins.value)
+        .catch((e) => console.warn('[plugins] migration to files failed:', e))
     }
 
     // Seed built-in plugins (初回起動 + 後追い追加に対応)。
@@ -322,41 +288,26 @@ export const usePluginsStore = defineStore('plugins', () => {
     const templates = loadBuiltInPluginTemplates()
     if (templates.length === 0) return
 
-    const seenIds = new Set(plugins.value.map((p) => p.installId))
-    const previouslySeeded = new Set(
-      getStorageJson<string[]>(STORAGE_KEYS.pluginsSeededBuiltins, []),
+    const { toAdd, seededIds } = planBuiltInSeed(
+      templates,
+      (tpl) => tpl.installId,
+      new Set(plugins.value.map((p) => p.installId)),
+      new Set(getStorageJson<string[]>(STORAGE_KEYS.pluginsSeededBuiltins, [])),
     )
 
-    const toAdd: PluginMeta[] = []
-    for (const tpl of templates) {
-      if (seenIds.has(tpl.installId)) {
-        previouslySeeded.add(tpl.installId)
-        continue
+    if (toAdd.length > 0) {
+      const added = toAdd.map(pluginMetaToFullMeta)
+      plugins.value = [...plugins.value, ...added]
+      savePluginsToStorage(plugins.value)
+      if (initialized.value) {
+        await pluginFiles
+          .persistAll(added)
+          .catch((e) =>
+            console.warn('[plugins] failed to seed built-in plugin files:', e),
+          )
       }
-      if (previouslySeeded.has(tpl.installId)) continue
-      toAdd.push(pluginMetaToFullMeta(tpl))
     }
-
-    if (toAdd.length === 0) {
-      setStorageJson(
-        STORAGE_KEYS.pluginsSeededBuiltins,
-        Array.from(previouslySeeded),
-      )
-      return
-    }
-
-    plugins.value = [...plugins.value, ...toAdd]
-    savePluginsToStorage(plugins.value)
-    if (initialized.value) {
-      await Promise.all(toAdd.map((p) => persistSinglePlugin(p))).catch((e) =>
-        console.warn('[plugins] failed to seed built-in plugin files:', e),
-      )
-    }
-    for (const p of toAdd) previouslySeeded.add(p.installId)
-    setStorageJson(
-      STORAGE_KEYS.pluginsSeededBuiltins,
-      Array.from(previouslySeeded),
-    )
+    setStorageJson(STORAGE_KEYS.pluginsSeededBuiltins, seededIds)
   }
 
   function addPlugin(plugin: PluginMeta) {
@@ -375,9 +326,11 @@ export const usePluginsStore = defineStore('plugins', () => {
     savePluginsToStorage(plugins.value)
     // Delete files
     if (initialized.value && removed) {
-      deletePluginFiles(removed).catch((e) =>
-        console.warn('[plugins] failed to delete plugin files:', e),
-      )
+      pluginFiles
+        .deleteItemFiles(removed)
+        .catch((e) =>
+          console.warn('[plugins] failed to delete plugin files:', e),
+        )
     }
   }
 
@@ -551,9 +504,11 @@ export const usePluginsStore = defineStore('plugins', () => {
 
     if (initialized.value && oldBaseName !== newName) {
       // Delete old files and write new ones (installId stays the same)
-      deletePluginFiles({ ...plugin, name: oldBaseName } as PluginMeta).catch(
-        (e) => console.warn('[plugins] failed to delete old plugin files:', e),
-      )
+      pluginFiles
+        .deleteItemFiles({ ...plugin, name: oldBaseName })
+        .catch((e) =>
+          console.warn('[plugins] failed to delete old plugin files:', e),
+        )
     }
   }
 
