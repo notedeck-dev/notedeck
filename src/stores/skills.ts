@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { emitNoteDeckEvent } from '@/aiscript/events'
+import { planBuiltInSeed } from '@/services/builtInSeed'
 import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import { parseSkillFile, serializeSkillFile } from '@/utils/skillFrontmatter'
@@ -377,43 +378,25 @@ export const useSkillsStore = defineStore('skills', () => {
    */
   async function seedMissingBuiltIns(): Promise<void> {
     const templates = await loadBuiltInTemplates()
-    const seenIds = new Set(skills.value.map((s) => s.id))
-    const previouslySeeded = new Set(
-      getStorageJson<string[]>(STORAGE_KEYS.skillsSeededBuiltins, []),
-    )
-
-    const toAdd: SkillMeta[] = []
-    for (const tpl of templates) {
+    const parsed = templates.map((tpl) => {
       const { meta, body } = parseSkillFile(tpl.raw)
-      const fm = meta as SkillFrontmatter
-      const skill = metaFromFrontmatter(fm, body, tpl.id)
+      const skill = metaFromFrontmatter(meta as SkillFrontmatter, body, tpl.id)
       skill.builtIn = true
-      // 既に同 id の skill ファイルがある: 何もしない (ユーザー編集を尊重)
-      if (seenIds.has(skill.id)) {
-        previouslySeeded.add(skill.id)
-        continue
-      }
-      // 過去に seed したことがある = ユーザーが削除した: 再生成しない
-      if (previouslySeeded.has(skill.id)) continue
-      toAdd.push(skill)
-    }
+      return skill
+    })
 
-    if (toAdd.length === 0) {
-      // seenIds 経由で既知の id を `previouslySeeded` に追加した分は永続化
-      setStorageJson(
-        STORAGE_KEYS.skillsSeededBuiltins,
-        Array.from(previouslySeeded),
-      )
-      return
-    }
-
-    skills.value = [...skills.value, ...toAdd]
-    await Promise.all(toAdd.map((s) => persist(s)))
-    for (const s of toAdd) previouslySeeded.add(s.id)
-    setStorageJson(
-      STORAGE_KEYS.skillsSeededBuiltins,
-      Array.from(previouslySeeded),
+    const { toAdd, seededIds } = planBuiltInSeed(
+      parsed,
+      (s) => s.id,
+      new Set(skills.value.map((s) => s.id)),
+      new Set(getStorageJson<string[]>(STORAGE_KEYS.skillsSeededBuiltins, [])),
     )
+
+    if (toAdd.length > 0) {
+      skills.value = [...skills.value, ...toAdd]
+      await Promise.all(toAdd.map((s) => persist(s)))
+    }
+    setStorageJson(STORAGE_KEYS.skillsSeededBuiltins, seededIds)
   }
 
   /**

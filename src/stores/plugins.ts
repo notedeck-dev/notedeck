@@ -2,6 +2,7 @@ import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
+import { planBuiltInSeed } from '@/services/builtInSeed'
 import { createSidecarCollection } from '@/services/sidecarFileCollection'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { pushSnapshot } from '@/utils/historyFs'
@@ -287,43 +288,26 @@ export const usePluginsStore = defineStore('plugins', () => {
     const templates = loadBuiltInPluginTemplates()
     if (templates.length === 0) return
 
-    const seenIds = new Set(plugins.value.map((p) => p.installId))
-    const previouslySeeded = new Set(
-      getStorageJson<string[]>(STORAGE_KEYS.pluginsSeededBuiltins, []),
+    const { toAdd, seededIds } = planBuiltInSeed(
+      templates,
+      (tpl) => tpl.installId,
+      new Set(plugins.value.map((p) => p.installId)),
+      new Set(getStorageJson<string[]>(STORAGE_KEYS.pluginsSeededBuiltins, [])),
     )
 
-    const toAdd: PluginMeta[] = []
-    for (const tpl of templates) {
-      if (seenIds.has(tpl.installId)) {
-        previouslySeeded.add(tpl.installId)
-        continue
+    if (toAdd.length > 0) {
+      const added = toAdd.map(pluginMetaToFullMeta)
+      plugins.value = [...plugins.value, ...added]
+      savePluginsToStorage(plugins.value)
+      if (initialized.value) {
+        await pluginFiles
+          .persistAll(added)
+          .catch((e) =>
+            console.warn('[plugins] failed to seed built-in plugin files:', e),
+          )
       }
-      if (previouslySeeded.has(tpl.installId)) continue
-      toAdd.push(pluginMetaToFullMeta(tpl))
     }
-
-    if (toAdd.length === 0) {
-      setStorageJson(
-        STORAGE_KEYS.pluginsSeededBuiltins,
-        Array.from(previouslySeeded),
-      )
-      return
-    }
-
-    plugins.value = [...plugins.value, ...toAdd]
-    savePluginsToStorage(plugins.value)
-    if (initialized.value) {
-      await pluginFiles
-        .persistAll(toAdd)
-        .catch((e) =>
-          console.warn('[plugins] failed to seed built-in plugin files:', e),
-        )
-    }
-    for (const p of toAdd) previouslySeeded.add(p.installId)
-    setStorageJson(
-      STORAGE_KEYS.pluginsSeededBuiltins,
-      Array.from(previouslySeeded),
-    )
+    setStorageJson(STORAGE_KEYS.pluginsSeededBuiltins, seededIds)
   }
 
   function addPlugin(plugin: PluginMeta) {
