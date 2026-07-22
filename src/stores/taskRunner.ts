@@ -8,6 +8,7 @@ import { usePrompt } from '@/stores/prompt'
 import { useTasksStore } from '@/stores/tasks'
 import { useToast } from '@/stores/toast'
 import { expandTemplate } from '@/tasks/expand'
+import { resolveTaskAccount } from '@/tasks/resolveAccount'
 import type { TaskInput, TaskRun } from '@/tasks/types'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -83,26 +84,21 @@ export const useTaskRunnerStore = defineStore('taskRunner', () => {
     host: string | null
   } | null {
     const accountsStore = useAccountsStore()
-    if (typeof defAccountId === 'string') {
-      const acc = accountsStore.accounts.find((a) => a.id === defAccountId)
-      if (!acc) {
-        useToast().show(
-          `タスク: アカウント "${defAccountId}" が見つかりません`,
-          'error',
-        )
-        return null
-      }
-      return { id: acc.id, host: acc.host }
-    }
-    const acc =
-      accountsStore.activeAccount ??
-      accountsStore.accounts.find((a) => a.hasToken) ??
-      null
-    if (!acc) {
-      useToast().show('タスク: 利用可能なアカウントがありません', 'error')
+    const resolved = resolveTaskAccount(
+      accountsStore.accounts,
+      accountsStore.activeAccount,
+      defAccountId,
+    )
+    if (!resolved.ok) {
+      useToast().show(
+        resolved.reason === 'not-found'
+          ? `タスク: アカウント "${resolved.requestedId}" が見つかりません`
+          : 'タスク: 利用可能なアカウントがありません',
+        'error',
+      )
       return null
     }
-    return { id: acc.id, host: acc.host }
+    return { id: resolved.id, host: resolved.host }
   }
 
   /**
