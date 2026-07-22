@@ -1,6 +1,14 @@
-import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
+import {
+  migrateWidgetColumns,
+  parseProfileFile,
+} from '@/services/deckProfileCodec'
+import {
+  loadProfileFileEntries,
+  persistAllProfileFiles,
+  persistProfileFile,
+} from '@/services/deckProfileFiles'
 import type { DeckColumn, DeckProfile, DeckWindowLayout } from '@/stores/deck'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
@@ -19,69 +27,6 @@ import { emitTauri, listenTauri } from '@/utils/tauriEvents'
  *  JSON serialization round-trips. */
 function deepClone<T>(value: T): T {
   return structuredClone(value)
-}
-
-/** Strip internal-only fields before writing to file. */
-function toFileFormat(profile: DeckProfile): Record<string, unknown> {
-  const { id: _id, ...rest } = profile
-  return rest
-}
-
-/**
- * Widget マイグレーション。
- * - 旧 `type: 'aiscriptConsole'` の widget 行は削除 (コードは失われる)。
- * - 旧 `widgets[]` は本体を抽出してストアに移送、カラムには `widgetIds[]` のみ残す。
- * - 既に `widgetIds[]` 化済みのカラムは触らない (idempotent)。
- * 削除件数と抽出した widget は呼び出し側でストアに登録するため返す。
- */
-function migrateWidgetColumns(columns: DeckColumn[]): {
-  columns: DeckColumn[]
-  droppedConsoleCount: number
-  extractedWidgets: WidgetMeta[]
-  sidebarSeed: string[]
-} {
-  let droppedConsoleCount = 0
-  const extractedWidgets: WidgetMeta[] = []
-  const sidebarSeed: string[] = []
-  const now = Date.now()
-  const migrated = columns.map((col) => {
-    if (col.type !== 'widget') return col
-    if (!col.widgets) return col
-
-    const newIds: string[] = []
-    for (const w of col.widgets) {
-      const legacyType = (w as { type?: string }).type
-      if (legacyType === 'aiscriptConsole') {
-        droppedConsoleCount++
-        continue
-      }
-      // 既存 widget.id をそのまま installId に再利用
-      // (AiScript の `Mk:save` localStorage キー prefix `nd-aiscript-app-${id}:` を保全する最重要不変条件)
-      const installId = w.id
-      newIds.push(installId)
-      extractedWidgets.push({
-        installId,
-        name: `Widget ${installId.slice(4, 12)}`,
-        src: w.data?.code ?? '',
-        autoRun: w.data?.autoRun ?? false,
-        storeId: w.data?.storeId,
-        createdAt: now,
-        updatedAt: now,
-      })
-    }
-
-    // sidebar widget カラムの並びはストア外 sidebarWidgetIds に引き継ぐ
-    if (col.sidebar) sidebarSeed.push(...newIds)
-
-    const { widgets: _w, ...rest } = col
-    return { ...rest, widgetIds: newIds } as DeckColumn
-  })
-  return {
-    columns: migrated,
-    droppedConsoleCount,
-    extractedWidgets,
-    sidebarSeed,
-  }
 }
 
 /** 起動時に累積する Console widget 削除件数。toast 表示後に 0 に戻す。 */
@@ -104,26 +49,6 @@ function pushExtractedWidgets(extracted: WidgetMeta[], sidebarSeed: string[]) {
   }
   for (const id of sidebarSeed) {
     store.addToSidebar(id)
-  }
-}
-
-/** Parse a profile file and assign an ID based on filename. */
-function fromFileFormat(
-  filename: string,
-  data: Record<string, unknown>,
-): DeckProfile {
-  const rawColumns = (data.columns as DeckColumn[]) || []
-  const { columns, droppedConsoleCount, extractedWidgets, sidebarSeed } =
-    migrateWidgetColumns(rawColumns)
-  pendingConsoleMigrationCount += droppedConsoleCount
-  pushExtractedWidgets(extractedWidgets, sidebarSeed)
-  return {
-    id: filename,
-    name: (data.name as string) || filename,
-    columns,
-    layout: (data.layout as string[][]) || [],
-    createdAt: (data.createdAt as number) || Date.now(),
-    windows: data.windows as DeckWindowLayout[] | undefined,
   }
 }
 
@@ -226,7 +151,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       const profile = currentProfile.value
       // Async: write changed profile to file
       if (initialized.value && profile) {
-        persistSingleProfile(profile).catch((e) =>
+        persistProfileFile(profile).catch((e) =>
           console.warn('[deckProfile] failed to persist profile:', e),
         )
       }
@@ -304,7 +229,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     setStorageJson(STORAGE_KEYS.deckProfiles, profiles)
     profileVersion.value++
     if (initialized.value) {
-      persistProfilesToFiles(profiles).catch((e) =>
+      persistAllProfileFiles(profiles).catch((e) =>
         console.warn('[deckProfile] failed to persist to files:', e),
       )
     }
@@ -312,20 +237,6 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     emitTauri('deck:profiles-changed').catch(() => {
       // Not running in Tauri (browser dev mode)
     })
-  }
-
-  /** Write only the given profile to its file. */
-  async function persistSingleProfile(profile: DeckProfile): Promise<void> {
-    const filename = settingsFs.profileFilename(profile.name)
-    const content = JSON5.stringify(toFileFormat(profile), null, 2)
-    await settingsFs.writeProfile(filename, content)
-  }
-
-  /** Write all profiles to files. */
-  async function persistProfilesToFiles(
-    profiles: DeckProfile[],
-  ): Promise<void> {
-    await Promise.all(profiles.map((p) => persistSingleProfile(p)))
   }
 
   function saveActiveProfileId(id: string | null) {
@@ -360,7 +271,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
     profileVersion.value++
     if (initialized.value) {
-      persistSingleProfile(profile).catch((e) =>
+      persistProfileFile(profile).catch((e) =>
         console.warn('[deckProfile] failed to persist profile:', e),
       )
     }
@@ -389,7 +300,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
         ? profiles.filter((p) => p.id === oldProfileId || p.id === newProfileId)
         : [newProfile]
       const unique = [...new Map(toWrite.map((p) => [p.id, p])).values()]
-      Promise.all(unique.map((p) => persistSingleProfile(p))).catch((e) =>
+      persistAllProfileFiles(unique).catch((e) =>
         console.warn('[deckProfile] failed to persist profiles:', e),
       )
     }
@@ -558,22 +469,14 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
   // --- File-based initialization ---
 
   async function loadProfilesFromFiles(): Promise<DeckProfile[]> {
-    const filenames = await settingsFs.listProfiles()
-    if (filenames.length === 0) return []
-
-    const results = await Promise.all(
-      filenames.map(async (filename) => {
-        try {
-          const content = await settingsFs.readProfile(filename)
-          const data = JSON5.parse(content)
-          return fromFileFormat(filename, data)
-        } catch (e) {
-          console.warn(`[deckProfile] failed to parse ${filename}:`, e)
-          return null
-        }
-      }),
-    )
-    return results.filter((p): p is DeckProfile => p !== null)
+    const entries = await loadProfileFileEntries()
+    return entries.map(({ filename, data }) => {
+      const { profile, droppedConsoleCount, extractedWidgets, sidebarSeed } =
+        parseProfileFile(filename, data)
+      pendingConsoleMigrationCount += droppedConsoleCount
+      pushExtractedWidgets(extractedWidgets, sidebarSeed)
+      return profile
+    })
   }
 
   /** Ensure profiles exist on first load. Discards legacy format profiles. */
@@ -645,7 +548,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     if (pendingConsoleMigrationFilesDirty || pendingWidgetExtractionDirty) {
       pendingConsoleMigrationFilesDirty = false
       pendingWidgetExtractionDirty = false
-      persistProfilesToFiles(profilesData.value).catch((e) =>
+      persistAllProfileFiles(profilesData.value).catch((e) =>
         console.warn('[deckProfile] migration rewrite failed:', e),
       )
     }
