@@ -1,53 +1,21 @@
 import { defineStore } from 'pinia'
 import { shallowRef } from 'vue'
-import type { ServerInfo, ServerSoftware } from '@/adapters/types'
-import type { StoredServer } from '@/bindings'
-import { detectServer } from '@/core/server'
+import type { ServerInfo } from '@/adapters/types'
+import { detectionToServerInfo } from '@/core/server'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000
-
+/**
+ * サーバー情報の表示用メモリキャッシュ (#782)。
+ *
+ * SWR (TTL 判定・in-flight dedup・stale 時の背景再検出) は
+ * notecli::server_info に集約済みで、ここは「購読 + 解決済み ServerInfo の
+ * メモリキャッシュ」のみを持つ。stale 行は Rust が返しつつ背景更新するため、
+ * 反映は次回アクセス (または次回起動) となるが、サーバーのアイコン/テーマは
+ * 変化が稀なので許容する。
+ */
 export const useServersStore = defineStore('servers', () => {
   // shallowRef + full Map replacement avoids deep reactivity on server info objects
   const servers = shallowRef(new Map<string, ServerInfo>())
-  const pending = new Map<string, Promise<ServerInfo>>()
-
-  const KNOWN_SOFTWARE = new Set<string>([
-    'misskey-dev/misskey',
-    'yamisskey-dev/yamisskey',
-    'lqvp/misskey-tepura',
-    'unknown',
-  ])
-
-  function toServerSoftware(value: string): ServerSoftware {
-    return KNOWN_SOFTWARE.has(value) ? (value as ServerSoftware) : 'unknown'
-  }
-
-  function parseStoredServer(stored: StoredServer): ServerInfo | null {
-    const parsed = JSON.parse(stored.featuresJson)
-    if (!parsed) return null
-    const {
-      _iconUrl,
-      _themeColor,
-      _infoImageUrl,
-      _notFoundImageUrl,
-      _serverErrorImageUrl,
-      ...features
-    } = parsed
-    const info: ServerInfo = {
-      host: stored.host,
-      software: toServerSoftware(stored.software),
-      version: stored.version,
-      features,
-    }
-    if ('_iconUrl' in parsed) info.iconUrl = _iconUrl
-    if ('_themeColor' in parsed) info.themeColor = _themeColor
-    if ('_infoImageUrl' in parsed) info.infoImageUrl = _infoImageUrl
-    if ('_notFoundImageUrl' in parsed) info.notFoundImageUrl = _notFoundImageUrl
-    if ('_serverErrorImageUrl' in parsed)
-      info.serverErrorImageUrl = _serverErrorImageUrl
-    return info
-  }
 
   function setServer(host: string, info: ServerInfo) {
     const next = new Map(servers.value)
@@ -55,90 +23,24 @@ export const useServersStore = defineStore('servers', () => {
     servers.value = next
   }
 
-  async function persistServer(info: ServerInfo): Promise<void> {
-    unwrap(
-      await commands.upsertServer({
-        host: info.host,
-        software: info.software,
-        version: info.version,
-        featuresJson: JSON.stringify({
-          ...info.features,
-          _iconUrl: info.iconUrl,
-          _themeColor: info.themeColor,
-          _infoImageUrl: info.infoImageUrl,
-          _notFoundImageUrl: info.notFoundImageUrl,
-          _serverErrorImageUrl: info.serverErrorImageUrl,
-        }),
-        updatedAt: Date.now(),
-      }),
-    )
-  }
-
-  function revalidateInBackground(host: string) {
-    detectServer(host)
-      .then((fresh) => {
-        setServer(host, fresh)
-        persistServer(fresh)
-      })
-      .catch(() => {
-        /* offline — keep stale cache */
-      })
-  }
-
+  /** 起動時に DB キャッシュ全件をメモリへ展開する。 */
   async function loadCachedServers(): Promise<void> {
-    const stored = unwrap(await commands.loadServers())
+    const dets = unwrap(await commands.loadServerDetections())
     const next = new Map(servers.value)
-    for (const s of stored) {
-      const info = parseStoredServer(s)
-      if (info) next.set(s.host, info)
+    for (const det of dets) {
+      next.set(det.host, detectionToServerInfo(det))
     }
     servers.value = next
   }
 
   async function getServerInfo(host: string): Promise<ServerInfo> {
     const cached = servers.value.get(host)
-    if (cached) {
-      // インメモリキャッシュに画像 URL がない場合はバックグラウンド更新
-      if (cached.infoImageUrl === undefined) {
-        revalidateInBackground(host)
-      }
-      return cached
-    }
-
-    const inflight = pending.get(host)
-    if (inflight) return inflight
-
-    const loadPromise = (async () => {
-      // Return DB cache immediately if available (SWR: stale-while-revalidate)
-      const stored = unwrap(await commands.getServer(host))
-      if (stored) {
-        const info = parseStoredServer(stored)
-        if (info) {
-          setServer(host, info)
-          // 古いキャッシュ or 画像 URL が未取得の場合はバックグラウンド更新
-          const needsRefresh =
-            Date.now() - stored.updatedAt >= CACHE_TTL_MS ||
-            info.infoImageUrl === undefined
-          if (needsRefresh) {
-            revalidateInBackground(host)
-          }
-          return info
-        }
-      }
-
-      // No DB cache (first login) — network required
-      const info = await detectServer(host)
-      setServer(host, info)
-      await persistServer(info)
-      return info
-    })()
-
-    pending.set(host, loadPromise)
-    try {
-      return await loadPromise
-    } finally {
-      pending.delete(host)
-    }
+    if (cached) return cached
+    const info = detectionToServerInfo(
+      unwrap(await commands.getServerDetection(host)),
+    )
+    setServer(host, info)
+    return info
   }
 
   function getServer(host: string): ServerInfo | undefined {
@@ -146,13 +48,12 @@ export const useServersStore = defineStore('servers', () => {
   }
 
   /**
-   * 外部で取得した最新 ServerInfo をインメモリ + DB キャッシュの双方に
-   * 即時反映する。ログイン完了直後など、古いキャッシュ (features の判定
-   * ロジックが古い版のもの) を確実に上書きしたい場面で使う。
+   * 外部で取得した最新 ServerInfo をメモリキャッシュへ即時反映する。
+   * DB キャッシュは取得元 (`detectServer` = Rust detect_and_store) が
+   * 更新済みなので、ここではメモリのみ更新する。
    */
-  async function refreshServer(info: ServerInfo): Promise<void> {
+  function refreshServer(info: ServerInfo): void {
     setServer(info.host, info)
-    await persistServer(info)
   }
 
   return {

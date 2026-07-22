@@ -2,7 +2,7 @@ use tauri::State;
 
 use notecli::db::{ChatEvictionConfig, EvictionConfig};
 use notecli::keychain;
-use notecli::models::{Account, AccountPublic, StoredServer};
+use notecli::models::{Account, AccountPublic, ServerDetection};
 
 use super::{export_account_list, invalidate_credentials, validate_host, AppState, Result};
 
@@ -218,25 +218,35 @@ pub async fn create_guest_account(
     Ok(AccountPublic::new(&account, false))
 }
 
-// --- DB: Servers ---
+// --- Server detections (SWR キャッシュは notecli::server_info、#782) ---
 
 #[tauri::command]
 #[specta::specta]
-pub async fn load_servers(app_state: State<'_, AppState>) -> Result<Vec<StoredServer>> {
+pub async fn load_server_detections(
+    app_state: State<'_, AppState>,
+) -> Result<Vec<ServerDetection>> {
     let db = app_state.db().await;
-    db.load_servers()
+    db.load_server_detections()
 }
 
+/// SWR 取得: fresh は即返し / stale は返しつつ背景再検出 / miss は検出して保存。
 #[tauri::command]
 #[specta::specta]
-pub async fn get_server(app_state: State<'_, AppState>, host: String) -> Result<Option<StoredServer>> {
-    let db = app_state.db().await;
-    db.get_server(&host)
+pub async fn get_server_detection(
+    app_state: State<'_, AppState>,
+    host: String,
+) -> Result<ServerDetection> {
+    let svc = app_state.server_info().await;
+    svc.get_or_fetch(&host).await
 }
 
+/// 強制ネットワーク検出 + 保存。ログイン直後などキャッシュを確実に上書きする用。
 #[tauri::command]
 #[specta::specta]
-pub async fn upsert_server(app_state: State<'_, AppState>, server: StoredServer) -> Result<()> {
-    let db = app_state.db().await;
-    db.upsert_server(&server)
+pub async fn detect_server(
+    app_state: State<'_, AppState>,
+    host: String,
+) -> Result<ServerDetection> {
+    let svc = app_state.server_info().await;
+    svc.detect_and_store(&host).await
 }

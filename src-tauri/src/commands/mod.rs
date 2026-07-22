@@ -62,6 +62,7 @@ use notecli::keychain;
 struct AppStateInner {
     db: Arc<Database>,
     client: Arc<MisskeyClient>,
+    server_info: Arc<notecli::server_info::ServerInfoService>,
 }
 
 /// Heavy state (DB, MisskeyClient) wrapped for two-stage deferred initialization.
@@ -96,7 +97,9 @@ impl AppState {
     pub fn initialize(&self, db: Arc<Database>, client: Arc<MisskeyClient>) {
         // Also signal DB channel in case initialize_db() wasn't called
         let _ = self.db_tx.send(Some(Arc::clone(&db)));
-        let _ = self.tx.send(Some(Arc::new(AppStateInner { db, client })));
+        let server_info =
+            notecli::server_info::ServerInfoService::new(Arc::clone(&db), Arc::clone(&client));
+        let _ = self.tx.send(Some(Arc::new(AppStateInner { db, client, server_info })));
     }
 
     /// Non-blocking check of full readiness (DB + MisskeyClient). Used by the
@@ -117,6 +120,13 @@ impl AppState {
         let mut rx = self.rx.clone();
         let r = rx.wait_for(|v| v.is_some()).await.unwrap();
         Arc::clone(&r.as_ref().unwrap().client)
+    }
+
+    /// Await until fully initialized, then return the server-info SWR service.
+    pub async fn server_info(&self) -> Arc<notecli::server_info::ServerInfoService> {
+        let mut rx = self.rx.clone();
+        let r = rx.wait_for(|v| v.is_some()).await.unwrap();
+        Arc::clone(&r.as_ref().unwrap().server_info)
     }
 
     /// Await until fully initialized, then return both.

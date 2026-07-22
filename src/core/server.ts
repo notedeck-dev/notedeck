@@ -4,53 +4,50 @@ import type {
   ServerInfo,
   ServerSoftware,
 } from '@/adapters/types'
+import type { ServerDetection } from '@/bindings'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
-interface NodeInfoSoftware {
-  name: string
-  version: string
-  /** nodeinfo 2.1 で追加。例: "https://github.com/misskey-dev/misskey" */
-  repository?: string
-}
-
-interface NodeInfo {
-  software: NodeInfoSoftware
-  metadata?: Record<string, unknown>
-}
-
-export async function detectServer(host: string): Promise<ServerInfo> {
-  const [nodeinfo, serverMeta] = await Promise.all([
-    fetchNodeInfo(host),
-    fetchServerMeta(host),
-  ])
-  const software = detectSoftware(
-    nodeinfo.software.name,
-    nodeinfo.software.repository,
+/**
+ * 生の検出結果 (notecli `server_detections`) を ServerInfo に解決する (#782)。
+ *
+ * フォーク解決 (`resolveSoftware`) と feature 判定はキャッシュに保存せず、
+ * 常に読取時に行う — 判定ロジックの更新が古いキャッシュに埋まらない。
+ */
+export function detectionToServerInfo(det: ServerDetection): ServerInfo {
+  const software = resolveSoftware(
+    det.softwareName,
+    det.softwareRepository ?? undefined,
   )
-
+  const meta = parseMetaJson(det.metaJson)
+  const url = (meta.iconUrl ?? meta.faviconUrl) as string | undefined
+  const iconUrl = url
+    ? url.startsWith('http')
+      ? url
+      : `https://${det.host}${url}`
+    : `https://${det.host}/favicon.ico`
   return {
-    host,
+    host: det.host,
     software,
-    version: nodeinfo.software.version,
+    version: det.softwareVersion,
     features: detectFeatures(software),
-    iconUrl: serverMeta.iconUrl,
-    themeColor: serverMeta.themeColor,
-    infoImageUrl: serverMeta.infoImageUrl,
-    notFoundImageUrl: serverMeta.notFoundImageUrl,
-    serverErrorImageUrl: serverMeta.serverErrorImageUrl,
+    iconUrl,
+    themeColor: typeof meta.themeColor === 'string' ? meta.themeColor : null,
+    infoImageUrl: resolveUrl(det.host, meta.infoImageUrl),
+    notFoundImageUrl: resolveUrl(det.host, meta.notFoundImageUrl),
+    serverErrorImageUrl: resolveUrl(det.host, meta.serverErrorImageUrl),
   }
 }
 
-async function fetchNodeInfo(host: string): Promise<NodeInfo> {
-  return unwrap(await commands.fetchNodeinfo(host)) as unknown as NodeInfo
-}
-
-interface ServerMetaResult {
-  iconUrl: string
-  themeColor: string | null
-  infoImageUrl?: string
-  notFoundImageUrl?: string
-  serverErrorImageUrl?: string
+/** meta 取得失敗時は "{}" が保存されている。壊れた JSON も空扱い。 */
+function parseMetaJson(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object'
+      ? (parsed as Record<string, unknown>)
+      : {}
+  } catch {
+    return {}
+  }
 }
 
 function resolveUrl(host: string, raw: unknown): string | undefined {
@@ -58,34 +55,13 @@ function resolveUrl(host: string, raw: unknown): string | undefined {
   return raw.startsWith('http') ? raw : `https://${host}${raw}`
 }
 
-async function fetchServerMeta(host: string): Promise<ServerMetaResult> {
-  try {
-    const data = unwrap(await commands.fetchServerMeta(host)) as Record<
-      string,
-      unknown
-    >
-    const url = (data.iconUrl ?? data.faviconUrl) as string | undefined
-    const iconUrl = url
-      ? url.startsWith('http')
-        ? url
-        : `https://${host}${url}`
-      : `https://${host}/favicon.ico`
-    const themeColor =
-      typeof data.themeColor === 'string' ? data.themeColor : null
-    return {
-      iconUrl,
-      themeColor,
-      infoImageUrl: resolveUrl(host, data.infoImageUrl),
-      notFoundImageUrl: resolveUrl(host, data.notFoundImageUrl),
-      serverErrorImageUrl: resolveUrl(host, data.serverErrorImageUrl),
-    }
-  } catch {
-    return { iconUrl: `https://${host}/favicon.ico`, themeColor: null }
-  }
-}
-
-function detectSoftware(name: string, repositoryUrl?: string): ServerSoftware {
-  return resolveSoftware(name, repositoryUrl)
+/**
+ * 強制ネットワーク検出。SWR キャッシュを経由せず常に nodeinfo + meta を
+ * 取りに行き、DB キャッシュも上書きする (Rust 側 detect_and_store)。
+ * ログイン直後・ログイン前のサーバープレビューで使う。
+ */
+export async function detectServer(host: string): Promise<ServerInfo> {
+  return detectionToServerInfo(unwrap(await commands.detectServer(host)))
 }
 
 /**

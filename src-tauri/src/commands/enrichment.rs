@@ -39,16 +39,6 @@ pub async fn fetch_ogp(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn fetch_nodeinfo(
-    app_state: State<'_, AppState>,
-    host: String,
-) -> Result<serde_json::Value> {
-    let client = app_state.client().await;
-    client.fetch_nodeinfo(&host).await
-}
-
-#[tauri::command]
-#[specta::specta]
 pub async fn fetch_server_meta(
     app_state: State<'_, AppState>,
     host: String,

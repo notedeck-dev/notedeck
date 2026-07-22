@@ -152,25 +152,31 @@ async defaultChatEvictionConfig() : Promise<Result<ChatEvictionConfig, { code: s
     else return { status: "error", error: e  as any };
 }
 },
-async loadServers() : Promise<Result<StoredServer[], { code: string; message: string }>> {
+async loadServerDetections() : Promise<Result<ServerDetection[], { code: string; message: string }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("load_servers") };
+    return { status: "ok", data: await TAURI_INVOKE("load_server_detections") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async getServer(host: string) : Promise<Result<StoredServer | null, { code: string; message: string }>> {
+/**
+ * SWR 取得: fresh は即返し / stale は返しつつ背景再検出 / miss は検出して保存。
+ */
+async getServerDetection(host: string) : Promise<Result<ServerDetection, { code: string; message: string }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_server", { host }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_server_detection", { host }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
-async upsertServer(server: StoredServer) : Promise<Result<null, { code: string; message: string }>> {
+/**
+ * 強制ネットワーク検出 + 保存。ログイン直後などキャッシュを確実に上書きする用。
+ */
+async detectServer(host: string) : Promise<Result<ServerDetection, { code: string; message: string }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("upsert_server", { server }) };
+    return { status: "ok", data: await TAURI_INVOKE("detect_server", { host }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -1636,14 +1642,6 @@ async fetchOgp(url: string, accountId: string | null) : Promise<Result<SummaryDa
     else return { status: "error", error: e  as any };
 }
 },
-async fetchNodeinfo(host: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("fetch_nodeinfo", { host }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async fetchServerMeta(host: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_server_meta", { host }) };
@@ -2874,6 +2872,30 @@ export type SecretSlotStatus = { name: string; present: boolean }
  */
 export type SecretStatus = { slots: SecretSlotStatus[] }
 /**
+ * サーバー検出結果の生キャッシュ (notedeck#782)。
+ * 
+ * nodeinfo の software 情報と /api/meta の生 JSON をそのまま保存する。
+ * フォーク解決 (software 名 → ServerSoftware) と feature 判定はアプリ側が
+ * 読取時に行う — 判定ロジックの更新が古いキャッシュに埋まらないようにする。
+ */
+export type ServerDetection = { host: string; 
+/**
+ * nodeinfo `software.name` (例: "misskey")
+ */
+softwareName: string; 
+/**
+ * nodeinfo `software.version`
+ */
+softwareVersion: string; 
+/**
+ * nodeinfo 2.1 `software.repository` (例: "https://github.com/misskey-dev/misskey")
+ */
+softwareRepository: string | null; 
+/**
+ * /api/meta (detail: true) の生 JSON。取得失敗時は "{}"
+ */
+metaJson: string; updatedAt: number }
+/**
  * `charts/drive` (Size は KB 単位)
  */
 export type ServerDriveChart = { local: ServerDriveChartSection; remote: ServerDriveChartSection }
@@ -2893,7 +2915,6 @@ export type ServerNotesChartSection = { total: number[]; inc: number[]; dec: num
 export type ServerUsersChart = { local: ServerUsersChartSection; remote: ServerUsersChartSection }
 export type ServerUsersChartSection = { total: number[]; inc: number[]; dec: number[] }
 export type Status = "ok" | "warn" | "fail"
-export type StoredServer = { host: string; software: string; version: string; featuresJson: string; updatedAt: number }
 export type StreamChatMessageDeletedEvent = { accountId: string; subscriptionId: string; messageId: string }
 export type StreamChatMessageEvent = { accountId: string; subscriptionId: string; message: ChatMessage }
 export type StreamChatMessageReacted = StreamChatMessageReactedEvent
