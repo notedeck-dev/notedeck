@@ -14,56 +14,28 @@ import { defineStore } from 'pinia'
 import { shallowRef, triggerRef } from 'vue'
 import type { ChatMessage } from '@/adapters/types'
 import { useFrameScheduler } from '@/composables/useFrameScheduler'
+import { evictByLiveness } from '@/services/mapEviction'
+import type { ChatMessageUpdateEvent } from '@/services/streamUpdateMerge'
+import {
+  chatUpdateSig,
+  createUpdateDeduper,
+  mergeChatUpdate,
+} from '@/services/streamUpdateMerge'
 import { usePerformanceStore } from '@/stores/performance'
 
-/**
- * `bindings.ChatReactionUser` (string | null) と `ChatMessageReaction['user']`
- * (string | undefined) の両方を受けるための広めの reactor 型。
- * 内部で null → undefined に正規化してから格納する。
- */
-type ReactorInput = {
-  id: string
-  username: string
-  name?: string | null
-  host?: string | null
-  avatarUrl?: string | null
-} | null
+// イベント型とマージ規則は services/streamUpdateMerge に分離 (#782)。
+// 既存の import 元を維持するため型は再 export する。
+export type { ChatMessageUpdateEvent } from '@/services/streamUpdateMerge'
 
 /** 同じ react/unreact event が複数経路から重複到達した時の dedup window。 */
 const CHAT_UPDATE_DEDUP_WINDOW_MS = 1500
-
-export type ChatMessageUpdateEvent =
-  | {
-      type: 'reacted'
-      messageId: string
-      userId?: string | null
-      reaction: string
-      reactor?: ReactorInput
-    }
-  | {
-      type: 'unreacted'
-      messageId: string
-      userId?: string | null
-      reaction: string
-      reactor?: ReactorInput
-    }
-  | {
-      type: 'deleted'
-      messageId: string
-    }
-
-function chatUpdateSig(event: ChatMessageUpdateEvent): string {
-  if (event.type === 'deleted') return 'deleted'
-  return `${event.type}${event.userId ?? ''}${event.reaction ?? ''}`
-}
 
 export const useChatMessageStore = defineStore('chatMessages', () => {
   const perfStore = usePerformanceStore()
   const { schedule } = useFrameScheduler()
   const messageMap = shallowRef(new Map<string, ChatMessage>())
   const deleteListeners = new Set<(id: string) => void>()
-  const recentUpdateSigs = new Map<string, string>()
-  const recentUpdateTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  const updateDeduper = createUpdateDeduper(CHAT_UPDATE_DEDUP_WINDOW_MS)
   /** カラムが現在表示している ID 集合の供給源。退避時に live を保護する。 */
   const roots = new Set<() => Iterable<string>>()
 
@@ -98,29 +70,13 @@ export const useChatMessageStore = defineStore('chatMessages', () => {
     const max = perfStore.get('chatMessageStoreMax')
     if (map.size <= max) return
 
-    const live = collectLiveIds()
-
-    // 1st pass: live でない (= どのカラムも参照していない) ものを古い順に削除
-    if (map.size > max && live.size < map.size) {
-      for (const key of map.keys()) {
-        if (map.size <= max) break
-        if (!live.has(key)) map.delete(key)
-      }
-    }
-
-    // 2nd pass: 全部 live の稀ケース。createdAt 降順で古い側を削除。
-    if (map.size > max) {
-      const excess = map.size - max
-      const byAge: ChatMessage[] = []
-      for (const m of map.values()) byAge.push(m)
-      byAge.sort((a, b) =>
-        a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0,
-      )
-      for (let i = 0; i < excess && i < byAge.length; i++) {
-        const m = byAge[i]
-        if (m) map.delete(m.id)
-      }
-    }
+    evictByLiveness(
+      map,
+      max,
+      collectLiveIds(),
+      (m) => m.createdAt,
+      (m) => m.id,
+    )
   }
 
   function put(messages: ChatMessage[], skipTrigger = false) {
@@ -181,54 +137,13 @@ export const useChatMessageStore = defineStore('chatMessages', () => {
     if (!msg) return
 
     // 同一 sig の重複 event は dedup
-    const sig = chatUpdateSig(event)
-    if (recentUpdateSigs.get(event.messageId) === sig) return
-    recentUpdateSigs.set(event.messageId, sig)
-    const existing = recentUpdateTimers.get(event.messageId)
-    if (existing != null) clearTimeout(existing)
-    const timer = setTimeout(() => {
-      recentUpdateSigs.delete(event.messageId)
-      recentUpdateTimers.delete(event.messageId)
-    }, CHAT_UPDATE_DEDUP_WINDOW_MS)
-    recentUpdateTimers.set(event.messageId, timer)
+    if (!updateDeduper.shouldApply(event.messageId, chatUpdateSig(event)))
+      return
 
-    switch (event.type) {
-      case 'reacted': {
-        const r = event.reactor
-        const user = r
-          ? {
-              id: r.id,
-              username: r.username,
-              name: r.name ?? undefined,
-              host: r.host ?? undefined,
-              avatarUrl: r.avatarUrl ?? undefined,
-            }
-          : null
-        const reactions = [
-          ...(msg.reactions ?? []),
-          { user, reaction: event.reaction },
-        ]
-        messageMap.value.set(event.messageId, { ...msg, reactions })
-        scheduleTrigger()
-        break
-      }
-      case 'unreacted': {
-        const userId = event.userId
-        if (!msg.reactions) return
-        // (userId, reaction) が一致する最初の 1 件を削除
-        const idx = msg.reactions.findIndex(
-          (r) =>
-            r.reaction === event.reaction &&
-            (r.user?.id ?? null) === (userId ?? null),
-        )
-        if (idx === -1) return
-        const reactions = [...msg.reactions]
-        reactions.splice(idx, 1)
-        messageMap.value.set(event.messageId, { ...msg, reactions })
-        scheduleTrigger()
-        break
-      }
-    }
+    const merged = mergeChatUpdate(msg, event)
+    if (!merged) return
+    messageMap.value.set(event.messageId, merged)
+    scheduleTrigger()
   }
 
   return {

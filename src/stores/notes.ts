@@ -2,17 +2,18 @@ import { defineStore } from 'pinia'
 import { shallowRef, triggerRef } from 'vue'
 import type { NormalizedNote, NoteUpdateEvent } from '@/adapters/types'
 import { useFrameScheduler } from '@/composables/useFrameScheduler'
+import { evictByLiveness } from '@/services/mapEviction'
+import {
+  createUpdateDeduper,
+  mergeNoteUpdate,
+  noteUpdateSig,
+} from '@/services/streamUpdateMerge'
 import { usePerformanceStore } from '@/stores/performance'
 
 /** Window for dropping duplicate noteUpdated events (channel + note capture から
  *  同一イベントが二重に来る場合の対策). 1.5s なら同じユーザの逐次操作 (react→unreact)
  *  は別 sig で別個に通る。 */
 const NOTE_UPDATE_DEDUP_WINDOW_MS = 1500
-
-function noteUpdateSig(event: NoteUpdateEvent): string {
-  const b = event.body
-  return `${event.type}${b.userId ?? ''}${b.reaction ?? ''}${b.choice ?? ''}`
-}
 
 export const useNoteStore = defineStore('notes', () => {
   const perfStore = usePerformanceStore()
@@ -25,9 +26,8 @@ export const useNoteStore = defineStore('notes', () => {
    * 素材その1で、将来 muted/archived と OR 合成する拡張点（合成は consumption 層）。
    */
   const deletedIds = new Set<string>()
-  /** Recently applied update signatures per noteId, for dedup across delivery paths. */
-  const recentUpdateSigs = new Map<string, string>()
-  const recentUpdateTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  /** Dedup of the same update arriving via multiple delivery paths. */
+  const updateDeduper = createUpdateDeduper(NOTE_UPDATE_DEDUP_WINDOW_MS)
   /**
    * 現在どのカラムからも参照されている ID 集合を供給する root 群。
    * 退避時に「どの root にも含まれない」ノートを優先削除し、アクティブカラムの
@@ -88,29 +88,13 @@ export const useNoteStore = defineStore('notes', () => {
       }
     }
 
-    // 1st pass: 参照されていないノートを古い順に削除
-    if (map.size > max && live.size < map.size) {
-      for (const key of map.keys()) {
-        if (map.size <= max) break
-        if (!live.has(key)) map.delete(key)
-      }
-    }
-
-    // 2nd pass: 全ノートが live 内の稀なケース。createdAt が古い順に削除することで、
-    // 新着（put 時の insertion order が保証されないパス）を確実に守る。
-    // map.size は noteStoreMax 前後（数百規模）なので sort コストは無視できる。
-    if (map.size > max) {
-      const excess = map.size - max
-      const byAge: NormalizedNote[] = []
-      for (const note of map.values()) byAge.push(note)
-      byAge.sort((a, b) =>
-        a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0,
-      )
-      for (let i = 0; i < excess && i < byAge.length; i++) {
-        const note = byAge[i]
-        if (note) map.delete(note.id)
-      }
-    }
+    evictByLiveness(
+      map,
+      max,
+      live,
+      (note) => note.createdAt,
+      (note) => note.id,
+    )
   }
 
   /**
@@ -207,76 +191,15 @@ export const useNoteStore = defineStore('notes', () => {
     // 来うるため (例: 共通 timeline 購読中の note を別途 subNote 中の場合)、
     // 短い窓で同一 sig の重複を弾く。userId / reaction / choice まで含める
     // ので「同ユーザの逐次 react→unreact」は別 sig として通る。
-    const sig = noteUpdateSig(event)
-    if (recentUpdateSigs.get(event.noteId) === sig) return
-    recentUpdateSigs.set(event.noteId, sig)
-    const existingTimer = recentUpdateTimers.get(event.noteId)
-    if (existingTimer != null) clearTimeout(existingTimer)
-    const timer = setTimeout(() => {
-      recentUpdateSigs.delete(event.noteId)
-      recentUpdateTimers.delete(event.noteId)
-    }, NOTE_UPDATE_DEDUP_WINDOW_MS)
-    recentUpdateTimers.set(event.noteId, timer)
+    if (!updateDeduper.shouldApply(event.noteId, noteUpdateSig(event))) return
 
     const note = noteMap.value.get(event.noteId)
     if (!note) return
 
-    switch (event.type) {
-      case 'reacted': {
-        const reaction = event.body.reaction
-        if (!reaction || event.body.userId === myUserId) return
-        let newReactionEmojis = note.reactionEmojis
-        if (event.body.emoji) {
-          // Strip colons to match API convention (reactionEmojis keys have no colons)
-          const shortcode =
-            reaction.startsWith(':') && reaction.endsWith(':')
-              ? reaction.slice(1, -1)
-              : reaction
-          const emojiUrl =
-            typeof event.body.emoji === 'string'
-              ? event.body.emoji
-              : event.body.emoji.url
-          newReactionEmojis = { ...note.reactionEmojis, [shortcode]: emojiUrl }
-        }
-        noteMap.value.set(event.noteId, {
-          ...note,
-          reactions: {
-            ...note.reactions,
-            [reaction]: (note.reactions[reaction] ?? 0) + 1,
-          },
-          reactionEmojis: newReactionEmojis,
-        })
-        scheduleTrigger()
-        break
-      }
-      case 'unreacted': {
-        const reaction = event.body.reaction
-        if (!reaction || event.body.userId === myUserId) return
-        const newReactions = { ...note.reactions }
-        const count = (newReactions[reaction] ?? 0) - 1
-        if (count <= 0) delete newReactions[reaction]
-        else newReactions[reaction] = count
-        noteMap.value.set(event.noteId, { ...note, reactions: newReactions })
-        scheduleTrigger()
-        break
-      }
-      case 'pollVoted': {
-        const choice = event.body.choice
-        if (choice == null || !note.poll) return
-        const isMine = !!myUserId && event.body.userId === myUserId
-        const newChoices = note.poll.choices.map((c, i) =>
-          i === choice
-            ? { ...c, votes: c.votes + 1, ...(isMine ? { isVoted: true } : {}) }
-            : c,
-        )
-        noteMap.value.set(event.noteId, {
-          ...note,
-          poll: { ...note.poll, choices: newChoices },
-        })
-        scheduleTrigger()
-        break
-      }
-    }
+    const merged = mergeNoteUpdate(note, event, myUserId)
+    if (!merged) return
+    noteMap.value.set(event.noteId, merged)
+    scheduleTrigger()
   }
 
   /** Update a single note in the store (batched trigger for streaming perf) */
