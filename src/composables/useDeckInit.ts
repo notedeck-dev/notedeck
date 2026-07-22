@@ -8,6 +8,7 @@ import {
 } from '@/commands/definitions'
 import { useCommandStore } from '@/commands/registry'
 import { startTaskCommandSync } from '@/commands/taskCommands'
+import { useDeckResume } from '@/composables/useDeckResume'
 import {
   listenDeckWindowEvents,
   saveCurrentWindowLayout,
@@ -47,6 +48,10 @@ export function useDeckInit(options: {
   const commandStore = useCommandStore()
   const uiStore = useUiStore()
 
+  // 復帰検知 (visibilitychange / OS スリープ / Android ネイティブ) は
+  // useDeckResume に一元化。ここは検知後の下流処理だけを持つ
+  useDeckResume()
+
   let handleResizeRef: (() => void) | null = null
   let unlistenQuickNote: (() => void) | null = null
   let unlistenDeepLink: (() => void) | null = null
@@ -54,19 +59,7 @@ export function useDeckInit(options: {
   let unlistenNotificationClick: (() => void) | null = null
 
   function onVisibilityChange() {
-    if (document.hidden) {
-      deckStore.flushSave()
-    } else {
-      uiStore.emitDeckResume()
-    }
-  }
-
-  // Android ネイティブ (MainActivity.onResume) からの復帰通知 (#506)。
-  // WebView が visibilitychange を発火しない復帰パターンの保険。
-  // emitDeckResume の下流 (reconnect / observer 張り直し / refetch) は
-  // すべて冪等なので visibilitychange との二重発火は無害。
-  function onNativeResume() {
-    uiStore.emitDeckResume()
+    if (document.hidden) deckStore.flushSave()
   }
 
   function onPageHide() {
@@ -91,7 +84,6 @@ export function useDeckInit(options: {
     handleResizeRef = () => options.navbarRef.value?.handleResize()
     window.addEventListener('resize', handleResizeRef)
     document.addEventListener('visibilitychange', onVisibilityChange)
-    window.addEventListener('nd-app-resumed', onNativeResume)
     window.addEventListener('pagehide', onPageHide)
 
     // Critical: start streaming immediately
@@ -232,7 +224,6 @@ export function useDeckInit(options: {
     unregisterDefaultCommands()
     if (handleResizeRef) window.removeEventListener('resize', handleResizeRef)
     document.removeEventListener('visibilitychange', onVisibilityChange)
-    window.removeEventListener('nd-app-resumed', onNativeResume)
     window.removeEventListener('pagehide', onPageHide)
     unlistenQuickNote?.()
     unlistenDeepLink?.()

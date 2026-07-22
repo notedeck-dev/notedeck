@@ -288,11 +288,26 @@ export function useNoteColumn(config: NoteColumnConfig) {
       if (existing.length > 0) mergeUpdate(existing)
       if (brandNew.length > 0) {
         streamingBatch.addQueued(brandNew)
-        scrollToTop()
+        // 最上部にいるときだけ即 flush する。スクロール中はバナー表示に
+        // 留め、勝手に最上部へ戻さない (#791)
+        if (streamingBatch.isAtTop.value) scrollToTop()
       }
     } else {
       mergeUpdate(incoming)
     }
+  }
+
+  /**
+   * 最新ページと表示中ノートの重なりで 1 ページ超の欠落を判定する (#791)。
+   * 重なりゼロ = 最新ページの最古ですら表示中の先頭より新しい。マージすると
+   * 間に隠れた穴が残るため、呼び出し側は最新ページで丸ごと置換する
+   * (古いノートはスクロールで再取得可能)。復帰 (onResume)・タブ切替
+   * (switchWithSnapshot)・手動リロード (refresh) 共通の catch-up 判定。
+   */
+  function hasGap(fetched: NormalizedNote[], hadNotes: boolean): boolean {
+    return (
+      hadNotes && fetched.length > 0 && !fetched.some((n) => noteIds.has(n.id))
+    )
   }
 
   function getDedupKey(): string {
@@ -583,7 +598,13 @@ export function useNoteColumn(config: NoteColumnConfig) {
   }
 
   async function refresh() {
-    if (isStreaming) return
+    if (isStreaming) {
+      // ストリーミングカラムのリロードボタン: 復帰 catch-up と同じ経路で
+      // 最新ページを取得し gap 判定する。手動操作なのでスロットルは無視 (#791)
+      lastResumeAt = 0
+      await onResume()
+      return
+    }
     const adapter = getAdapter()
     if (!adapter || isLoading.value) return
     if (config.validate && !config.validate()) return
@@ -682,14 +703,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (!stillCurrent()) return
     isOffline.value = apiFailed
 
-    // Gap: none of the freshly-fetched latest notes are currently displayed, so
-    // even the oldest of the latest page is newer than our topmost — more than
-    // one page was missed. Replace with the fresh page (older notes stay
-    // reachable by scrolling) rather than merging a gappy partial range.
-    const gap =
-      hadNotes && fetched.length > 0 && !fetched.some((n) => noteIds.has(n.id))
-
-    if (gap) {
+    if (hasGap(fetched, hadNotes)) {
       mergeOrEnqueue(fetched, { replace: true })
       return
     }
@@ -808,15 +822,16 @@ export function useNoteColumn(config: NoteColumnConfig) {
     // Sync isAtTop with restored scroll position (resetBatch forces it to true)
     streamingBatch.isAtTop.value = scrollTop <= 10
 
-    // Fetch diff from API to update snapshot with latest data
-    const sinceId = snapshotNotes[0]?.id
+    // Snapshot 更新は { sinceId } ではなく最新ページを取得する。sinceId だと
+    // 1 ページ分しか埋まらず、snapshot が古い (長期スリープ後など) と隠れた
+    // 穴が残る。onResume と同じく gap を検出して置換する (#791)
     const stillCurrent = tabGuard()
     try {
-      const fetched = await fetchAndDedup(adapter, sinceId ? { sinceId } : {})
+      const fetched = await fetchAndDedup(adapter, {})
       // Guard: discard if tab changed during async fetch
       if (!stillCurrent()) return
-      // Snapshot already has existing notes — only enqueue brand-new ones
-      mergeOrEnqueue(fetched)
+      const gap = hasGap(fetched, snapshotNotes.length > 0)
+      mergeOrEnqueue(fetched, gap ? { replace: true } : undefined)
       isOffline.value = false
     } catch {
       // API failure with snapshot displayed — mark offline
