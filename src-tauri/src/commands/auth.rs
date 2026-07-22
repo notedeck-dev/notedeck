@@ -1,11 +1,12 @@
-use tauri::State;
-use zeroize::Zeroize;
+//! MiAuth 認証コマンド。実体は `crate::auth_service` (#782 R3)。
+//! リプレイ防止のセッション追跡 (register/consume) のみここに残る。
 
-use notecli::error::NoteDeckError;
-use notecli::keychain;
-use notecli::models::{Account, AccountPublic, AuthSession};
+use tauri::State;
+
+use notecli::models::{AccountPublic, AuthSession};
 
 use super::{export_account_list, validate_host, AppState, AuthSessionTracker, Result};
+use crate::auth_service;
 
 #[tauri::command]
 #[specta::specta]
@@ -17,58 +18,13 @@ pub async fn auth_start(
     let host = validate_host(&host)?;
     let session_id = uuid::Uuid::new_v4().to_string();
     let perms = permissions.unwrap_or_else(|| {
-        vec![
-            "read:account",
-            "write:account",
-            "read:notifications",
-            "read:reactions",
-            "read:favorites",
-            "read:drive",
-            "write:drive",
-            "write:favorites",
-            "read:following",
-            "write:following",
-            "read:mutes",
-            "write:mutes",
-            "read:blocks",
-            "write:blocks",
-            "write:notes",
-            "write:reactions",
-            "write:votes",
-            "read:channels",
-            "write:channels",
-            "read:chat",
-            "write:chat",
-            "read:flash",
-            "read:flash-likes",
-            "write:flash-likes",
-            "read:pages",
-            "read:page-likes",
-            "write:page-likes",
-            "read:gallery",
-            "read:gallery-likes",
-            "write:gallery-likes",
-            "read:federation",
-        ]
-        .into_iter()
-        .map(String::from)
-        .collect()
+        auth_service::DEFAULT_MIAUTH_PERMISSIONS
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
     });
-    for perm in &perms {
-        if !perm
-            .chars()
-            .all(|c| c.is_alphanumeric() || c == ':' || c == '-')
-            || perm.len() > 50
-        {
-            return Err(NoteDeckError::InvalidInput(format!(
-                "Invalid permission: {perm}"
-            )));
-        }
-    }
-    let permission_str = perms.join(",");
-    let url = format!(
-        "https://{host}/miauth/{session_id}?name=notedeck&icon=https%3A%2F%2Fraw.githubusercontent.com%2Fnotedeck-dev%2Fnotedeck%2Fmain%2Fsrc-tauri%2Ficons%2F128x128.png&permission={permission_str}"
-    );
+    auth_service::validate_permissions(&perms)?;
+    let url = auth_service::build_miauth_url(&host, &session_id, &perms);
     tracker.register(&session_id, &host);
     Ok(AuthSession {
         session_id,
@@ -91,44 +47,11 @@ pub async fn auth_complete_and_save(
     // Validate this session was created by auth_start and hasn't been replayed
     tracker.consume(&session.session_id, &session.host)?;
 
-    let auth_result = client
-        .complete_auth(&session.host, &session.session_id)
-        .await?;
-
-    let mut token = auth_result.token;
-
-    // DB にはトークン込みで保存（キーチェーンのフォールバック）
-    let account = Account {
-        id: uuid::Uuid::new_v4().to_string(),
-        host: session.host.clone(),
-        token: token.clone(),
-        user_id: auth_result.user.id.clone(),
-        username: auth_result.user.username.clone(),
-        display_name: auth_result.user.name.clone(),
-        avatar_url: auth_result.user.avatar_url.clone(),
-        software,
-    };
-
-    db.upsert_account(&account)?;
-
-    // Re-auth の場合、DB 上の id は既存のものが維持されるので正しい id を返す
-    let saved = db
-        .get_account_by_host_user(&session.host, &auth_result.user.id)?
-        .ok_or_else(|| NoteDeckError::Auth("Failed to save account".to_string()))?;
-
-    // キーチェーンに保存し、読み戻せたら DB のトークンをクリア。
-    // 再起動非永続な store (Linux keyutils) では keychain はキャッシュ扱いとし、
-    // DB フォールバックを残す (#785)
-    if keychain::store_token(&saved.id, &token).is_ok()
-        && keychain::get_token(&saved.id).ok().flatten().is_some()
-        && keychain::is_persistent()
-    {
-        let _ = db.clear_token(&saved.id);
-    }
-    token.zeroize();
+    let saved =
+        auth_service::complete_and_save(&db, &client, &session.host, &session.session_id, software)
+            .await?;
 
     export_account_list(&app, &db);
 
-    Ok(AccountPublic::new(&saved, true))
-    // account, saved が drop → token が zeroize される
+    Ok(saved)
 }

@@ -421,11 +421,7 @@ pub fn emit_accounts_early(app: &tauri::AppHandle, db: &Database) {
     };
     let list: Vec<notecli::models::AccountPublic> = accounts
         .iter()
-        .map(|a| {
-            let has_token =
-                !a.token.is_empty() || keychain::get_token(&a.id).ok().flatten().is_some();
-            notecli::models::AccountPublic::new(a, has_token)
-        })
+        .map(crate::account_service::to_public)
         .collect();
     let _ = app.emit("nd:accounts-early", &list);
 }

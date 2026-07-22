@@ -14,8 +14,10 @@ use tauri_plugin_autostart::MacosLauncher;
 #[cfg(not(mobile))]
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
+mod account_service;
 mod api_tokens;
 mod app_dir;
+mod auth_service;
 mod commands;
 #[cfg(target_os = "windows")]
 mod hwheel_hook;
