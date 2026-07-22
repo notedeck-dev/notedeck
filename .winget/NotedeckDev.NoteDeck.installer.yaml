@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.9.0.schema.json
+PackageIdentifier: NotedeckDev.NoteDeck
+PackageVersion: 1.20.1
+InstallerType: nullsoft
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/notedeck-dev/notedeck/releases/download/v1.20.1/NoteDeck-1.20.1-windows-x64-setup.exe
+    InstallerSha256: 09821279a17f9da2e757a296655bbcc1a05295c70f107b3da9cac9ba72eae03e
+ManifestType: installer
+ManifestVersion: 1.9.0

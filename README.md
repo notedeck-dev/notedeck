@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/notedeck-dev/notedeck/actions/workflows/ci.yml/badge.svg)](https://github.com/notedeck-dev/notedeck/actions/workflows/ci.yml)
 [![GitHub Release](https://img.shields.io/github/v/release/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/releases/latest)
-[![winget](https://img.shields.io/badge/winget-Hitalin.NoteDeck-blue?style=flat-square&logo=windows)](https://github.com/microsoft/winget-pkgs/tree/master/manifests/h/Hitalin/NoteDeck)
+[![winget](https://img.shields.io/badge/winget-NotedeckDev.NoteDeck-blue?style=flat-square&logo=windows)](https://github.com/microsoft/winget-pkgs/tree/master/manifests/n/NotedeckDev/NoteDeck)
 [![AUR](https://img.shields.io/aur/version/misskey-notedeck-bin?style=flat-square&logo=archlinux&label=AUR)](https://aur.archlinux.org/packages/misskey-notedeck-bin)
 [![Nix Flake](https://img.shields.io/badge/nix-flake-blue?style=flat-square&logo=nixos)](https://github.com/notedeck-dev/notedeck)
 [![License](https://img.shields.io/github/license/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/blob/main/LICENSE)
@@ -46,7 +46,7 @@
 **Windows (winget)**
 
 ```
-winget install Hitalin.NoteDeck
+winget install NotedeckDev.NoteDeck
 ```
 
 **Arch Linux (AUR)**

@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.locale.1.9.0.schema.json
-PackageIdentifier: Hitalin.NoteDeck
-PackageVersion: 0.2.3
+PackageIdentifier: NotedeckDev.NoteDeck
+PackageVersion: 1.20.1
 PackageLocale: en-US
-Publisher: hitalin
-PublisherUrl: https://github.com/hitalin
+Publisher: notedeck-dev
+PublisherUrl: https://github.com/notedeck-dev
 PackageName: NoteDeck
 PackageUrl: https://github.com/notedeck-dev/notedeck
 License: AGPL-3.0
