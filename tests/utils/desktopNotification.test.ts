@@ -28,23 +28,20 @@ describe('desktopNotification onAction', () => {
     onNotificationAction((ctx) => received.push(ctx))
   })
 
-  it('Rust 経路 (Android) の extra からコンテキストを復元して遷移する (#754)', () => {
-    captured.onAction?.({
-      id: 999,
-      extra: { accountId: 'acct-1', noteId: 'note-1', userId: 'u1' },
-    })
-    expect(received).toEqual([
-      { accountId: 'acct-1', noteId: 'note-1', userId: 'u1' },
-    ])
-  })
-
-  it('extra に accountId が無い通知タップでは遷移しない', () => {
-    captured.onAction?.({ id: 999, extra: { noteId: 'note-1' } })
+  it('JS 経路で登録していない id の通知タップでは遷移しない', () => {
     captured.onAction?.({ id: 999 })
     expect(received).toEqual([])
   })
 
-  it('JS 経路 (sendDesktopNotification) の pendingContext が extra より優先される', () => {
+  it('Rust 経路 (Android) の extra は無視する — 遷移は deep link 経由', () => {
+    captured.onAction?.({
+      id: 999,
+      extra: { accountId: 'acct-1', noteId: 'note-1', userId: 'u1' },
+    })
+    expect(received).toEqual([])
+  })
+
+  it('JS 経路 (sendDesktopNotification) の pendingContext で遷移する', () => {
     // document.hasFocus() が true だと送信抑制されるため false を再現
     vi.spyOn(document, 'hasFocus').mockReturnValue(false)
     sendDesktopNotification('title', 'body', {
