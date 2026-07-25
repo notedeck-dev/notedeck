@@ -1,6 +1,7 @@
 import { onUnmounted, type Ref, watch } from 'vue'
 
 import { usePerformanceStore } from '@/stores/performance'
+import { isFromNestedOverlay } from '@/utils/gesture'
 import { hapticLight } from '@/utils/haptics'
 
 const DIRECTION_THRESHOLD = 8 // px — minimum move to determine swipe direction
@@ -112,6 +113,8 @@ export function useSwipeTab(
     // Skip swipe if touch is inside a horizontally scrollable child (e.g. CodeMirror)
     if (enableHScrollCheck && boundEl && hasHorizontalScroll(e.target, boundEl))
       return
+    // Skip swipe if touch comes from a nested overlay (e.g. emoji picker) (#811)
+    if (boundEl && isFromNestedOverlay(e.target, boundEl)) return
     startX = touch.clientX
     startY = touch.clientY
     startTime = Date.now()
