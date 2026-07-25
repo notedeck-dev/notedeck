@@ -108,17 +108,20 @@ fn summarize_group(items: &[PendingOsNotification]) -> Option<PendingOsNotificat
     }
 }
 
+/// `host` は Android の deep link 組み立て用 (通知元アカウントのサーバー)。
+/// バースト要約通知は複数サーバーにまたがりうるので None。
 fn show_os_notification<R: tauri::Runtime>(
     app: &AppHandle<R>,
     title: &str,
     body: Option<&str>,
     context: Option<&NotificationClicked>,
     media: Option<&NotifyMedia>,
+    host: Option<&str>,
 ) {
     // Linux / Windows: user-notify 経由 (クリック遷移 + 画像添付, #754)
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     {
-        let _ = app;
+        let _ = (app, host);
         crate::os_notify::show(title, body, context, media);
     }
 
@@ -126,7 +129,7 @@ fn show_os_notification<R: tauri::Runtime>(
     // (クリック遷移・画像は署名導入までブロック, #754)
     #[cfg(target_os = "macos")]
     {
-        let _ = (context, media);
+        let _ = (context, media, host);
         let mut builder = app.notification().builder().title(title);
         if let Some(body) = body {
             builder = builder.body(body);
@@ -136,32 +139,87 @@ fn show_os_notification<R: tauri::Runtime>(
         }
     }
 
-    // Android: plugin の extra にコンテキストを積み、JS 側 onAction が拾って遷移する
-    // (plugin builder は動的画像を添付できないため media 未対応)
+    // Android: MainActivity.showRichNotification を JNI で呼ぶ。
+    // tauri-plugin-notification の Android 実装は largeIcon に drawable リソース名
+    // しか渡せず (attachments は無視される)、アバターやリアクション絵文字のような
+    // 動的画像を添付できないため。配置はデスクトップと同じ (icon=アバター,
+    // image=絵文字)。クリック遷移は plugin の extra + JS onAction ではなく
+    // notedeck:// deep link で行う (NotificationWorker と同じ経路)。
     #[cfg(target_os = "android")]
     {
-        let _ = media;
-        let mut builder = app
-            .notification()
-            .builder()
-            .title(title)
-            .channel_id(NOTIFICATION_CHANNEL_ID);
-        if let Some(body) = body {
-            builder = builder.body(body);
-        }
-        if let Some(ctx) = context {
-            builder = builder.extra("accountId", ctx.account_id.clone());
-            if let Some(note_id) = &ctx.note_id {
-                builder = builder.extra("noteId", note_id.clone());
+        let _ = app;
+        let deep_link = host.and_then(|host| android_deep_link(host, context));
+        let result = (|| -> std::result::Result<(), jni::errors::Error> {
+            use jni::objects::{JObject, JValue};
+
+            let ctx = ndk_context::android_context();
+            let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
+            let mut env = vm.attach_current_thread()?;
+            let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
+
+            // Option<&str> → Java の String / null
+            fn jstr<'a>(
+                env: &mut jni::JNIEnv<'a>,
+                s: Option<&str>,
+            ) -> std::result::Result<JObject<'a>, jni::errors::Error> {
+                match s {
+                    Some(s) => Ok(env.new_string(s)?.into()),
+                    None => Ok(JObject::null()),
+                }
             }
-            if let Some(user_id) = &ctx.user_id {
-                builder = builder.extra("userId", user_id.clone());
-            }
-        }
-        if let Err(e) = builder.show() {
-            tracing::warn!("[notification] failed to send: {e}");
+
+            let j_title = jstr(&mut env, Some(title))?;
+            let j_body = jstr(&mut env, body)?;
+            let j_link = jstr(&mut env, deep_link.as_deref())?;
+            let j_avatar = jstr(&mut env, media.and_then(|m| m.icon_url.as_deref()))?;
+            let j_image = jstr(&mut env, media.and_then(|m| m.image_url.as_deref()))?;
+
+            env.call_method(
+                &activity,
+                "showRichNotification",
+                "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                &[
+                    JValue::Int(next_notification_id()),
+                    JValue::Object(&j_title),
+                    JValue::Object(&j_body),
+                    JValue::Object(&j_link),
+                    JValue::Object(&j_avatar),
+                    JValue::Object(&j_image),
+                ],
+            )?;
+            Ok(())
+        })();
+        if let Err(e) = result {
+            tracing::warn!("[notification] JNI call failed: {e}");
         }
     }
+}
+
+/// Android の通知タップで開く deep link。デスクトップの遷移仕様に合わせ、
+/// note があればノート詳細、なければ user でユーザー詳細、どちらもなければ
+/// None (アプリを前面に出すだけ)。
+#[cfg(target_os = "android")]
+fn android_deep_link(host: &str, context: Option<&NotificationClicked>) -> Option<String> {
+    let ctx = context?;
+    if let Some(note_id) = &ctx.note_id {
+        Some(format!("notedeck://{host}/note/{note_id}"))
+    } else {
+        ctx.user_id
+            .as_ref()
+            .map(|user_id| format!("notedeck://{host}/user/{user_id}"))
+    }
+}
+
+/// Android の通知 ID。同じ ID で notify すると上書きされるため通知ごとに進める。
+#[cfg(target_os = "android")]
+fn next_notification_id() -> i32 {
+    use std::sync::atomic::{AtomicI32, Ordering};
+    static NEXT: AtomicI32 = AtomicI32::new(1);
+    // NotificationWorker の GROUP_SUMMARY_ID (i32::MAX - 1) と衝突しない範囲で回す
+    NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
+        Some(if v >= 1_000_000 { 1 } else { v + 1 })
+    })
+    .unwrap_or(1)
 }
 
 // Runtime generic は MockRuntime でのユニットテスト用。本番は default の Wry
@@ -214,6 +272,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                     body.as_deref(),
                     context.as_ref(),
                     media.as_ref(),
+                    Some(&notification.server_host),
                 );
             }
             OsNotifPlan::Buffer { spawn_flusher } => {
@@ -231,6 +290,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                                 summary.body.as_deref(),
                                 summary.context.as_ref(),
                                 summary.media.as_ref(),
+                                None,
                             );
                         }
                     });

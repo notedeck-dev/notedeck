@@ -1,6 +1,7 @@
 import { onUnmounted, type Ref, ref, watch } from 'vue'
 
 import { usePerformanceStore } from '@/stores/performance'
+import { isFromNestedOverlay } from '@/utils/gesture'
 import { hapticMedium } from '@/utils/haptics'
 
 // Misskey 本家と同じパラメータ
@@ -91,6 +92,7 @@ export function usePullToRefresh(
     if (isRefreshing.value) return
     const el = getEl()
     if (!el || el.scrollTop > 0) return
+    if (isFromNestedOverlay(e.target, el)) return
 
     isPulling.value = true
     startScreenY = getScreenY(e)
