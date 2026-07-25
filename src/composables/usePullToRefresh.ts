@@ -11,6 +11,22 @@ const PULL_BRAKE_BASE = 1.5
 const PULL_BRAKE_FACTOR = 170
 const RELEASE_TRANSITION_DURATION = 200
 
+/**
+ * scroller 内に DOM ネストされたトップレイヤー要素 (dialog / popover) 由来の touch か。
+ * showModal() / showPopover() は要素の DOM 位置を変えないため、ノート内に置かれた
+ * 絵文字ピッカーなどのオーバーレイ内のドラッグが scroller まで bubble し、
+ * その裏の TL の pull-to-refresh を同時に発火させてしまう (#810)。
+ * scroller 自身を包む dialog（ウィンドウ表示のカラム）は対象外。
+ */
+function isFromNestedOverlay(
+  target: EventTarget | null,
+  scroller: HTMLElement,
+): boolean {
+  if (!(target instanceof Element)) return false
+  const overlay = target.closest('dialog, [popover]')
+  return overlay !== null && scroller.contains(overlay)
+}
+
 export function usePullToRefresh(
   scrollerRef: Ref<HTMLElement | null>,
   onRefresh: () => Promise<void>,
@@ -91,6 +107,7 @@ export function usePullToRefresh(
     if (isRefreshing.value) return
     const el = getEl()
     if (!el || el.scrollTop > 0) return
+    if (isFromNestedOverlay(e.target, el)) return
 
     isPulling.value = true
     startScreenY = getScreenY(e)
