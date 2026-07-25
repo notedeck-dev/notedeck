@@ -144,8 +144,16 @@ mod desktop {
                 if let Some(path) = media.icon_url.as_deref().and_then(fetch_to_cache) {
                     builder = builder.set_icon(path).set_icon_round_crop(true);
                 }
-                if let Some(path) = media.image_url.as_deref().and_then(fetch_to_cache) {
-                    builder = builder.set_image(path);
+                if let Some(url) = media.image_url.as_deref() {
+                    // Windows のみ高さを揃える (normalize_emoji_height 参照)。
+                    // Linux は ImageData ヒントで小さな枠に収まるので原寸のまま。
+                    #[cfg(target_os = "windows")]
+                    let path = cache_png(url, "-emoji", normalize_emoji_height);
+                    #[cfg(not(target_os = "windows"))]
+                    let path = fetch_to_cache(url);
+                    if let Some(path) = path {
+                        builder = builder.set_image(path);
+                    }
                 }
             }
             if let Err(e) = tauri::async_runtime::block_on(manager.send_notification(builder)) {
@@ -169,9 +177,26 @@ mod desktop {
     /// 表示できないため、常に PNG へ変換する。失敗はすべて None (画像なしで
     /// 通知を出す)。
     fn fetch_to_cache(url: &str) -> Option<std::path::PathBuf> {
+        cache_png(url, "", |img| {
+            // 通知アイコンには十分な解像度に抑える (メモリ・ディスク節約)
+            if img.width() > 512 || img.height() > 512 {
+                img.thumbnail(512, 512)
+            } else {
+                img
+            }
+        })
+    }
+
+    /// fetch → transform → PNG 保存。suffix はキャッシュキーの区別用
+    /// (同じ URL でも変換後の画像は別ファイルになる)。
+    fn cache_png(
+        url: &str,
+        suffix: &str,
+        transform: impl FnOnce(image::DynamicImage) -> image::DynamicImage,
+    ) -> Option<std::path::PathBuf> {
         let dir = std::env::temp_dir().join("notedeck-notif");
         std::fs::create_dir_all(&dir).ok()?;
-        let path = dir.join(format!("{}.png", crate::image_cache::hex_hash(url)));
+        let path = dir.join(format!("{}{suffix}.png", crate::image_cache::hex_hash(url)));
         if path.exists() {
             return Some(path);
         }
@@ -182,15 +207,61 @@ mod desktop {
             }
             resp.bytes().await.ok()
         })?;
-        let img = image::load_from_memory(&bytes).ok()?;
-        // 通知アイコンには十分な解像度に抑える (メモリ・ディスク節約)
-        let img = if img.width() > 512 || img.height() > 512 {
-            img.thumbnail(512, 512)
-        } else {
-            img
-        };
+        let img = transform(image::load_from_memory(&bytes).ok()?);
         img.save_with_format(&path, image::ImageFormat::Png).ok()?;
         Some(path)
+    }
+
+    /// Windows toast のインライン画像 (`<image id="1">`) はトーストの横幅に
+    /// 合わせて拡縮されるため、表示される高さは画像のアスペクト比だけで決まる。
+    /// カスタム絵文字は正方形・横長・縦長が混在するので、そのまま渡すと通知
+    /// ごとに高さがバラバラになる。固定サイズの透明カンバスに「高さを揃えて」
+    /// 中央配置し、アスペクト比を一定にすることで表示上の高さだけを統一する。
+    /// 横幅は絵文字ごとにカンバス内で変わる (揃えると横長絵文字が小さく潰れる)。
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+    fn normalize_emoji_height(img: image::DynamicImage) -> image::DynamicImage {
+        // 表示幅 364px / 高さ 64px (100% スケール) の 2 倍で持つ
+        const CANVAS_W: u32 = 728;
+        const CANVAS_H: u32 = 128;
+
+        // resize はアスペクト比を保って枠内に収めるので、CANVAS_W:CANVAS_H
+        // (5.7:1) より横長の絵文字だけは幅で頭打ちになり高さが縮む
+        let fitted = img
+            .resize(CANVAS_W, CANVAS_H, image::imageops::FilterType::Lanczos3)
+            .to_rgba8();
+        let mut canvas = image::RgbaImage::new(CANVAS_W, CANVAS_H);
+        let x = ((CANVAS_W - fitted.width()) / 2) as i64;
+        let y = ((CANVAS_H - fitted.height()) / 2) as i64;
+        image::imageops::overlay(&mut canvas, &fitted, x, y);
+        image::DynamicImage::ImageRgba8(canvas)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::normalize_emoji_height;
+        use image::{DynamicImage, GenericImageView, RgbaImage};
+
+        fn emoji(w: u32, h: u32) -> DynamicImage {
+            DynamicImage::ImageRgba8(RgbaImage::from_pixel(w, h, image::Rgba([1, 2, 3, 255])))
+        }
+
+        #[test]
+        fn normalized_emoji_has_fixed_canvas_regardless_of_source_size() {
+            for (w, h) in [(128, 128), (32, 32), (256, 64), (64, 256)] {
+                let out = normalize_emoji_height(emoji(w, h));
+                assert_eq!(out.dimensions(), (728, 128), "source {w}x{h}");
+            }
+        }
+
+        #[test]
+        fn wide_emoji_keeps_aspect_ratio_and_is_centered() {
+            // 256x64 (4:1) → 高さ 128 に合わせると 512x128
+            let out = normalize_emoji_height(emoji(256, 64));
+            let rgba = out.to_rgba8();
+            assert_eq!(rgba.get_pixel(0, 64)[3], 0, "左端は透明余白");
+            assert_eq!(rgba.get_pixel(364, 64)[3], 255, "中央に絵文字がある");
+            assert_eq!(rgba.get_pixel(727, 64)[3], 0, "右端は透明余白");
+        }
     }
 }
 
