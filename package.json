@@ -24,7 +24,7 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "changelog": "git log $(git describe --tags --abbrev=0 2>/dev/null || echo '')..HEAD --pretty=format:'- %s' --no-merges",
-    "icons": "tauri icon src-tauri/icons/icon.svg -o src-tauri/icons",
+    "icons": "tauri icon src-tauri/icons/icon.svg -o src-tauri/icons && node scripts/gen-android-foreground.mjs",
     "clean": "rm -rf dist src-tauri/target"
   },
   "dependencies": {
