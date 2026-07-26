@@ -61,6 +61,10 @@ export const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
   'drafts.read': { label: '下書きの読取', icon: 'ti-note' },
   'drafts.write': { label: '下書きの作成/編集/削除', icon: 'ti-edit' },
   'network.external': { label: '外部ネットワークアクセス', icon: 'ti-world' },
+  'files.export': {
+    label: 'ファイルのローカル保存 (ダウンロード)',
+    icon: 'ti-download',
+  },
   clipboard: { label: 'クリップボード', icon: 'ti-clipboard' },
   notifications: { label: 'デスクトップ通知', icon: 'ti-bell' },
   'tasks.run': {
@@ -173,6 +177,7 @@ export const PERMISSION_CATEGORIES: readonly {
       'skills.read',
       'widgets.read',
       'plugins.read',
+      'files.export',
     ],
   },
   {
@@ -205,7 +210,7 @@ export const PERMISSION_CATEGORIES: readonly {
  * preset chip の導出表示名 (#712 §8.1)。「custom」を無情報ラベルとして出さない:
  * - EXTERNAL_DEFAULT_PROFILE と一致する custom → 「標準 — Misskey read のみ」
  * - PLUGIN_DEFAULT_PROFILE と一致する custom → 「標準 — 安全 + 外部ネットワーク」
- * - その他の custom → 「カスタム — 許可 N / 34」 (付与量の一目把握)
+ * - その他の custom → 「カスタム — 許可 N / 総キー数」 (付与量の一目把握)
  * - preset は選択肢のラベルそのまま
  */
 export function presetChipLabel(profile: PermissionsConfig): string {

@@ -315,10 +315,18 @@ fn sanitize_component(name: &str) -> String {
         .collect();
     let trimmed = cleaned.trim().trim_end_matches(['.', ' ']);
     if trimmed.is_empty() || trimmed.chars().all(|c| c == '.') {
-        "_".to_string()
-    } else {
-        trimmed.to_string()
+        return "_".to_string();
     }
+    // Windows の予約デバイス名は拡張子付き ("CON.txt") でも無効なので退避する
+    const RESERVED: [&str; 22] = [
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
+        "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+    let stem = trimmed.split('.').next().unwrap_or("");
+    if RESERVED.iter().any(|r| stem.eq_ignore_ascii_case(r)) {
+        return format!("_{trimmed}");
+    }
+    trimmed.to_string()
 }
 
 /// "photo.jpg" → ("photo", ".jpg")。拡張子なし・dotfile は ext 空
@@ -381,6 +389,15 @@ mod tests {
     fn sanitize_component_strips_trailing_dots_and_spaces() {
         assert_eq!(sanitize_component("photo.jpg."), "photo.jpg");
         assert_eq!(sanitize_component("name. "), "name");
+    }
+
+    #[test]
+    fn sanitize_component_escapes_windows_reserved_names() {
+        assert_eq!(sanitize_component("CON"), "_CON");
+        assert_eq!(sanitize_component("con.txt"), "_con.txt");
+        assert_eq!(sanitize_component("COM3.jpg"), "_COM3.jpg");
+        assert_eq!(sanitize_component("console.txt"), "console.txt");
+        assert_eq!(sanitize_component("COM10.jpg"), "COM10.jpg");
     }
 
     #[test]
