@@ -273,7 +273,9 @@ fetchDrive()
 </script>
 
 <template>
-  <DeckColumn :column-id="column.id" :title="column.name ?? 'ドライブ'" :theme-vars="columnThemeVars" :pull-refresh="fetchDrive" @header-click="scrollToTop" @refresh="fetchDrive()">
+  <!-- data-drive-folder-id: OS ファイルドロップの投入先フォルダを DeckLayout が
+       elementFromPoint 経由で読むために公開する (#796)。空文字 = ルート -->
+  <DeckColumn :column-id="column.id" :title="column.name ?? 'ドライブ'" :theme-vars="columnThemeVars" :pull-refresh="fetchDrive" :data-drive-folder-id="currentFolderId ?? ''" @header-click="scrollToTop" @refresh="fetchDrive()">
     <template #header-icon>
       <i class="ti ti-cloud" :class="$style.tlHeaderIcon" />
     </template>
