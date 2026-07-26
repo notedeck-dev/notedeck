@@ -62,7 +62,11 @@ async function resolveItems(
   for (const noteId of noteIds) {
     try {
       const note = unwrap(await commands.apiGetNote(accountId, noteId))
-      for (const f of note.files ?? []) {
+      // 純粋なリノートは添付を内側のノートが持つ (MkNote の effectiveNote と同じ規則)
+      const inner = note.renote as { files?: typeof note.files } | null
+      const files =
+        note.text === null && inner?.files ? inner.files : note.files
+      for (const f of files ?? []) {
         if (f.url) {
           collected.set(f.id, {
             url: f.url,

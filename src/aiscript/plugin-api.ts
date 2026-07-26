@@ -19,6 +19,7 @@ import {
   type PluginMeta,
   usePluginsStore,
 } from '@/stores/plugins'
+import { useToast } from '@/stores/toast'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
 import { createAiScriptEnv } from './api'
@@ -506,6 +507,9 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
         name: plugin.name,
       },
       storagePrefix: `plugin:${plugin.installId}`,
+      // onToast 未指定だと Mk:toast が無言の no-op になり、プラグインからの
+      // 成否フィードバックが一切ユーザーに届かない (widget / Play は配線済み)
+      onToast: (text, type) => useToast().show(text, type),
     },
     { LOCALE: navigator.language },
   )
