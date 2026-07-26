@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { computed, ref, useTemplateRef, watch } from 'vue'
+import { normalizeDriveFile } from '@/adapters/misskey/api/drive'
 import type { DriveFolder, NormalizedDriveFile } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import DriveItemMenu from '@/components/common/DriveItemMenu.vue'
@@ -11,10 +13,12 @@ import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useDriveActions } from '@/composables/useDriveActions'
 import { useDriveFolder } from '@/composables/useDriveFolder'
+import { useFileExport } from '@/composables/useFileExport'
 import { useServerImages } from '@/composables/useServerImages'
 import { getAccountAvatarUrl } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
+import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
@@ -174,6 +178,87 @@ async function batchDelete() {
     uiStore.emitDriveFilesChanged(props.column.accountId)
   }
 }
+
+// --- Bulk export to local disk (#92) ---
+// ブラウザのダウンロード準拠: 確認ダイアログなしで
+// Downloads/notedeck/{host}/{user}/ へ即保存し、トーストで結果を返す
+const fileExport = useFileExport()
+const toast = useToast()
+
+async function resolveSelectedFiles(): Promise<{
+  targets: NormalizedDriveFile[]
+  missing: number
+}> {
+  const accountId = props.column.accountId
+  if (!accountId) return { targets: [], missing: 0 }
+  const inView = new Map(files.value.map((f) => [f.id, f]))
+  const targets: NormalizedDriveFile[] = []
+  let missing = 0
+  for (const id of selectedIds.value) {
+    const known = inView.get(id)
+    if (known) {
+      targets.push(known)
+      continue
+    }
+    // 他階層で選択したファイルは ID しか手元に無いため個別に取得する
+    try {
+      const raw = unwrap(
+        await commands.apiGetDriveFile(accountId, { fileId: id } as never),
+      )
+      targets.push(normalizeDriveFile(raw as never))
+    } catch {
+      missing++
+    }
+  }
+  return { targets, missing }
+}
+
+async function exportSelection() {
+  const acc = account.value
+  if (!acc || fileExport.running.value || selectedIds.value.size === 0) return
+  const { targets, missing } = await resolveSelectedFiles()
+  if (missing > 0) {
+    toast.show(
+      `${missing} 件は情報を取得できず保存対象から外れました`,
+      'warning',
+    )
+  }
+  if (targets.length === 0) return
+  await fileExport.start(
+    [acc.host, acc.username],
+    targets.map((f) => ({ fileId: f.id, url: f.url, name: f.name })),
+  )
+}
+
+watch(fileExport.finished, (fin) => {
+  if (!fin) return
+  if (fileExport.cancelled.value) {
+    toast.show('保存を中断しました', 'info')
+    return
+  }
+  const failed = fileExport.failedCount.value
+  if (failed > 0) {
+    toast.show(`${failed} 件の保存に失敗しました`, 'error', {
+      action: { label: '再試行', onClick: () => fileExport.retryFailed() },
+    })
+    return
+  }
+  const skipped = fileExport.skippedCount.value
+  const skippedNote = skipped > 0 ? `（${skipped} 件は保存済み）` : ''
+  toast.show(
+    `${fileExport.doneCount.value} 件を保存しました${skippedNote}`,
+    'success',
+    {
+      action: {
+        label: 'フォルダを開く',
+        onClick: () => {
+          const dir = fileExport.savedDir.value
+          if (dir) revealItemInDir(dir)
+        },
+      },
+    },
+  )
+})
 
 // --- Bulk / single move (#792) ---
 const moveDialogOpen = ref(false)
@@ -410,6 +495,16 @@ fetchDrive()
         @click="openMoveDialogForSelection"
       >
         <i :class="moving ? 'ti ti-loader-2 nd-spin' : 'ti ti-folder-symlink'" />
+      </button>
+      <button
+        class="_button"
+        :class="$style.driveActionBtn"
+        :disabled="selectedIds.size === 0 || fileExport.running.value"
+        aria-label="保存"
+        :title="fileExport.running.value ? `保存中 ${fileExport.completedCount.value}/${fileExport.total.value}` : '選択したファイルをローカルに保存'"
+        @click="exportSelection"
+      >
+        <i :class="fileExport.running.value ? 'ti ti-loader-2 nd-spin' : 'ti ti-download'" />
       </button>
       <div v-if="batchDeleteError" :class="$style.driveActionError">{{ batchDeleteError }}</div>
       <button

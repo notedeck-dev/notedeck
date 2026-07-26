@@ -1724,6 +1724,33 @@ async saveImageToFile(url: string) : Promise<Result<boolean, { code: string; mes
 }
 },
 /**
+ * エクスポートルートを (無ければ作って) 返す。… メニューの
+ * 「ダウンロードフォルダを開く」用
+ */
+async getExportDir() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_export_dir") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * エクスポートを開始し、解決済みの保存先ディレクトリを返す。
+ * 即座に返り、以後の進捗は `ExportProgress` に流れる
+ */
+async exportFilesStart(taskId: string, segments: string[], items: ExportFileItem[]) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("export_files_start", { taskId, segments, items }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async exportFilesCancel(taskId: string) : Promise<void> {
+    await TAURI_INVOKE("export_files_cancel", { taskId });
+},
+/**
  * 画像 URL から EXIF フィールド一覧を読み取る。EXIF が無い場合は空リスト。
  */
 async readImageExif(url: string) : Promise<Result<ExifField[], { code: string; message: string }>> {
@@ -2336,6 +2363,7 @@ async permissionsLockdown() : Promise<Result<null, string>> {
 
 
 export const events = __makeEvents__<{
+exportProgress: ExportProgress,
 noteCaptureBatch: NoteCaptureBatch,
 notificationClicked: NotificationClicked,
 queryDelta: QueryDelta,
@@ -2344,6 +2372,7 @@ streamChatMessageUnreacted: StreamChatMessageUnreacted,
 streamEnvelope: StreamEnvelope,
 streamStatus: StreamStatus
 }>({
+exportProgress: "export-progress",
 noteCaptureBatch: "note-capture-batch",
 notificationClicked: "notification-clicked",
 queryDelta: "query-delta",
@@ -2627,6 +2656,20 @@ export type ExifField = {
  * IFD 名 ("primary" / "thumbnail")
  */
 ifd: string; tag: string; value: string }
+export type ExportFileItem = { fileId: string; url: string; name: string }
+export type ExportProgress = { taskId: string; 
+/**
+ * 対象 fileId。タスク全体イベント (finished / cancelled) では空文字
+ */
+fileId: string; 
+/**
+ * "saving" | "done" | "skipped" | "failed" | "finished" | "cancelled"
+ */
+status: string; error: string | null; 
+/**
+ * 完了 (done + skipped + failed) 件数
+ */
+done: number; total: number }
 /**
  * `charts/federation`
  */

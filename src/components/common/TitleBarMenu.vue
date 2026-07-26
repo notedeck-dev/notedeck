@@ -7,6 +7,7 @@ import { onMounted, ref } from 'vue'
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { getLogDir, getSettingsDir } from '@/utils/settingsFs'
+import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const menuOpen = ref(false)
 const activeCategory = ref<string | null>(null)
@@ -119,6 +120,15 @@ async function openLogDir() {
   closeMenu()
 }
 
+async function openDownloadDir() {
+  try {
+    await revealItemInDir(unwrap(await commands.getExportDir()))
+  } catch {
+    // ダウンロードディレクトリが解決できない環境では何もしない
+  }
+  closeMenu()
+}
+
 // ── Actions ──
 const zoomLevel = ref(1)
 
@@ -162,6 +172,10 @@ defineExpose({ toggleMenu })
           <button class="_popupItem" @click="openLogDir">
             <i class="ti ti-folder-open" />
             <span>ログフォルダを開く</span>
+          </button>
+          <button class="_popupItem" @click="openDownloadDir">
+            <i class="ti ti-folder-down" />
+            <span>ダウンロードフォルダを開く</span>
           </button>
           <div class="_popupDivider" />
           <button class="_popupItem" @click="toggleAutostart">
