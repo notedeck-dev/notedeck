@@ -1,6 +1,5 @@
 import type { NormalizedNote } from '@/adapters/types'
 import { usePerformanceStore } from '@/stores/performance'
-import { proxyUrl } from '@/utils/imageProxy'
 import { isSafeUrl } from '@/utils/url'
 
 /**
@@ -47,9 +46,10 @@ export function prefetchNoteImages(notes: NormalizedNote[]): void {
     for (const file of effective.files) {
       if (!file.type.startsWith('image/')) continue
       if (file.isSensitive) continue
-      const rawUrl = file.thumbnailUrl || file.url
-      if (!rawUrl || !isSafeUrl(rawUrl)) continue
-      const url = proxyUrl(rawUrl) ?? rawUrl
+      // 実描画 (MkMediaGrid) と同じ生 URL を温める。プロキシ経由にすると
+      // URL が食い違い WebView キャッシュが再利用されない (#814)
+      const url = file.thumbnailUrl || file.url
+      if (!url || !isSafeUrl(url)) continue
       if (prefetchedUrls.has(url)) continue
       evictOldest()
       prefetchedUrls.add(url)

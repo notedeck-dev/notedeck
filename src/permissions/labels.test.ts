@@ -13,7 +13,7 @@ import {
 } from './schema'
 
 describe('PERMISSION_CATEGORIES', () => {
-  it('カテゴリ見出しが 34 キーを漏れなく重複なく網羅する', () => {
+  it('カテゴリ見出しが全キーを漏れなく重複なく網羅する', () => {
     const keys = PERMISSION_CATEGORIES.flatMap((c) => c.keys)
     expect(keys.length).toBe(PERMISSION_KEYS.length)
     expect(new Set(keys).size).toBe(PERMISSION_KEYS.length)
@@ -55,13 +55,15 @@ describe('presetChipLabel (#712 §8.1 — 「custom」を無情報ラベルに�
     expect(presetChipLabel(profile)).toBe('標準 — 安全 + 外部ネットワーク')
   })
 
-  it('その他の custom は許可数付き (「カスタム — 許可 N / 34」)', () => {
+  it('その他の custom は許可数付き (「カスタム — 許可 N / 総キー数」)', () => {
     const custom = resolvePermissions({
       preset: 'safe',
       custom: {} as never,
     })
     const label = presetChipLabel({ preset: 'custom', custom })
-    expect(label).toMatch(/^カスタム — 許可 \d+ \/ 34$/)
+    expect(label).toMatch(
+      new RegExp(`^カスタム — 許可 \\d+ / ${PERMISSION_KEYS.length}$`),
+    )
     // 1 つトグルすると一致が外れて件数が変わる
     custom['notes.write'] = true
     const label2 = presetChipLabel({ preset: 'custom', custom })

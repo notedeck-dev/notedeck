@@ -155,11 +155,17 @@ const fileDrop = useFileDrop((paths, position) => {
 
   if (col?.type === 'drive' && col.accountId) {
     const accountId = col.accountId
+    // カラムが開いている現在フォルダへ入れる (#796)。空文字 = ルート
+    const folderId =
+      (el?.closest('[data-drive-folder-id]') as HTMLElement | null)?.dataset
+        .driveFolderId || null
     for (const path of paths) {
-      commands.apiUploadFileFromPath(accountId, path, false, null).then((r) => {
-        unwrap(r)
-        uiStore.emitDriveFilesChanged(accountId)
-      })
+      commands
+        .apiUploadFileFromPath(accountId, path, false, folderId)
+        .then((r) => {
+          unwrap(r)
+          uiStore.emitDriveFilesChanged(accountId)
+        })
     }
     return
   }

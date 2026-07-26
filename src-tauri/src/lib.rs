@@ -818,6 +818,9 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::export_db,
             commands::import_db,
             commands::save_image_to_file,
+            commands::get_export_dir,
+            commands::export_files_start,
+            commands::export_files_cancel,
             commands::read_image_exif,
             commands::list_settings_files,
             commands::read_settings_file,
@@ -891,6 +894,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             streaming::StreamChatMessageReacted,
             streaming::StreamChatMessageUnreacted,
             os_notify::NotificationClicked,
+            commands::ExportProgress,
         ])
 }
 

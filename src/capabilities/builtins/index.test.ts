@@ -49,6 +49,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'federation.chart',
         'federation.instance',
         'federation.instances',
+        'files.export',
         'flash.list',
         'flash.show',
         'gallery.list',

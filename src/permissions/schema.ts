@@ -52,6 +52,10 @@ export const PERMISSION_KEYS = [
   'ai.sessions.read',
   'logs.read',
   'vault.use',
+  // ローカルディスクへのファイル書き出し (#813)。書き出し先は
+  // Downloads/notedeck 配下に固定され、保存元もアプリが知る fileId/noteId に
+  // 限られるが、ユーザーのディスクに成果物を作る操作なので write 系として扱う
+  'files.export',
   // デッキ構成 (カラム一覧 = 検索クエリ / アンテナ名 / アカウント紐付け等の
   // ローカル私的データ) の read (#712 §5.3 の第 5 の穴)。全 preset で true —
   // column 系 capability は従来 ungated (permissions: []) だったので、既存
@@ -77,6 +81,7 @@ export const HIGH_RISK_PERMISSION_KEYS: readonly PermissionKey[] = [
   'ai.persona.write',
   'memos.write',
   'tasks.run',
+  'files.export',
 ]
 
 /**
@@ -162,6 +167,7 @@ export const PERMISSION_PRESETS: Record<
     'ai.sessions.read': true,
     'logs.read': true,
     'vault.use': false,
+    'files.export': false,
     'deck.read': true,
   },
   safe: {
@@ -198,6 +204,7 @@ export const PERMISSION_PRESETS: Record<
     'ai.sessions.read': true,
     'logs.read': true,
     'vault.use': false,
+    'files.export': false,
     'deck.read': true,
   },
   full: {
@@ -234,6 +241,7 @@ export const PERMISSION_PRESETS: Record<
     'ai.sessions.read': true,
     'logs.read': true,
     'vault.use': true,
+    'files.export': true,
     'deck.read': true,
   },
 }

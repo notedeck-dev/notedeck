@@ -344,9 +344,10 @@ onMounted(async () => {
     const userDetail = await a.api.getUserDetail(props.userId)
     user.value = userDetail
 
-    // Prefetch banner image so it appears instantly when DOM renders
+    // Prefetch banner image so it appears instantly when DOM renders.
+    // 実描画 (UserProfileHero) と同じプロキシ URL を温める (#814)
     if (userDetail.bannerUrl) {
-      new Image().src = userDetail.bannerUrl
+      new Image().src = proxyUrl(userDetail.bannerUrl) ?? userDetail.bannerUrl
     }
 
     // ピン留めは users/show 応答に同梱されたものを notecli が normalize して
