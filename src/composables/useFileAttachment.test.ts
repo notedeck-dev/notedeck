@@ -137,3 +137,56 @@ describe('並べ替えとメタ更新 (#753)', () => {
     expect(attachment.attachedFiles.value[0]?.name).toBe('renamed.png')
   })
 })
+
+describe('ローカル source 保持 (#626 クロスポスト)', () => {
+  it('アップロード成功後もローカル source を保持する (別アカウントへの再アップロード用)', async () => {
+    const uploadFileFromPath = vi.fn().mockResolvedValue(makeDriveFile('f1'))
+    const { attachment } = setup({ uploadFileFromPath })
+
+    await attachment.uploadFilesFromPaths(['/tmp/a.png'])
+
+    expect(attachment.attachmentSources.value.f1).toEqual({
+      kind: 'path',
+      path: '/tmp/a.png',
+    })
+  })
+
+  it('ブラウザ File のアップロードも source を保持する', async () => {
+    const uploadFile = vi.fn().mockResolvedValue(makeDriveFile('f1'))
+    const { attachment } = setup({ uploadFile })
+    const file = makeFile('image.png')
+
+    await attachment.uploadBrowserFiles([file])
+
+    expect(attachment.attachmentSources.value.f1).toEqual({
+      kind: 'browser',
+      file,
+    })
+  })
+
+  it('ドライブ既存ファイルの添付は source を持たない', () => {
+    const { attachment } = setup({})
+    attachment.attachDriveFiles([makeDriveFile('drive1')])
+    expect(attachment.attachmentSources.value.drive1).toBeUndefined()
+  })
+
+  it('removeFile で source も破棄する', async () => {
+    const uploadFileFromPath = vi.fn().mockResolvedValue(makeDriveFile('f1'))
+    const { attachment } = setup({ uploadFileFromPath })
+
+    await attachment.uploadFilesFromPaths(['/tmp/a.png'])
+    attachment.removeFile('f1')
+
+    expect(attachment.attachedFiles.value).toEqual([])
+    expect(attachment.attachmentSources.value.f1).toBeUndefined()
+  })
+
+  it('アップロード失敗時は source マップに入らない', async () => {
+    const uploadFileFromPath = vi.fn().mockRejectedValue(new Error('boom'))
+    const { attachment } = setup({ uploadFileFromPath })
+
+    await attachment.uploadFilesFromPaths(['/tmp/a.png'])
+
+    expect(Object.keys(attachment.attachmentSources.value)).toEqual([])
+  })
+})

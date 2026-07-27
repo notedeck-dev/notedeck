@@ -1,6 +1,7 @@
 import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type {
+  CreateNoteParams,
   NormalizedNote,
   NoteVisibility,
   ServerAdapter,
@@ -28,6 +29,17 @@ import {
   type StoredMemo,
   saveMemo,
 } from '@/composables/useMemos'
+import {
+  accountSelectionIssue,
+  type ConstraintState,
+  type CrosspostAttachment,
+  type CrosspostDeps,
+  type CrosspostTarget,
+  disabledVisibilitiesFromPolicies,
+  minMaxTextLength,
+  runCrosspost,
+  type SelectionIssue,
+} from '@/services/crosspost'
 import { useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useSettingsStore } from '@/stores/settings'
@@ -84,6 +96,7 @@ export function usePostFormState(
   let adapter: ServerAdapter | null = null
   const {
     attachedFiles,
+    attachmentSources,
     pendingUploads,
     isUploading,
     uploadFilesFromPaths,
@@ -149,6 +162,119 @@ export function usePostFormState(
     accountsStore.accounts.find((a) => a.id === activeAccountId.value),
   )
 
+  // ── クロスポスト (#626) ──
+  // 選択順を保持する。先頭 = primary (= activeAccountId。絵文字補完・
+  // デフォルト公開範囲・modeFlags を駆動)。永続化せず送信後にリセットする。
+  const selectedAccountIds = ref<string[]>([props.accountId])
+  // アカウントごとの投稿制約 (maxNoteTextLength / disabledVisibilities)。
+  // 選択されたタイミングで取得。primary は initAdapter が seed する。
+  const accountConstraints = ref<Record<string, ConstraintState>>({})
+
+  const isCrosspost = computed(() => selectedAccountIds.value.length > 1)
+
+  // reply / renote(引用) / channel / 編集 / 予約投稿 / memo では複数選択不可
+  const crosspostAllowed = computed(
+    () =>
+      !memoMode &&
+      !props.replyTo &&
+      !props.renoteId &&
+      !props.editNote &&
+      !props.channelId &&
+      scheduledAt.value == null,
+  )
+
+  // 予約投稿の設定など、後から複数選択不可になったら primary のみへ戻す
+  watch(crosspostAllowed, (allowed) => {
+    if (!allowed && selectedAccountIds.value.length > 1) {
+      selectedAccountIds.value = [activeAccountId.value]
+    }
+  })
+
+  // ドライブ既存ファイル (ローカル source を持たない添付) は他アカウントへ
+  // 再アップロードできないため、含まれている間は複数選択をブロックする
+  const hasSourcelessAttachment = computed(() =>
+    attachedFiles.value.some((f) => !attachmentSources.value[f.id]),
+  )
+
+  /** 選択中アカウントの送信可否。null = 投稿可。単一選択時は常に空 */
+  const selectionIssues = computed<Record<string, SelectionIssue | null>>(
+    () => {
+      if (!isCrosspost.value) return {}
+      const issues: Record<string, SelectionIssue | null> = {}
+      for (const id of selectedAccountIds.value) {
+        issues[id] = accountSelectionIssue(
+          accountConstraints.value[id],
+          text.value.length,
+          visibility.value,
+        )
+      }
+      return issues
+    },
+  )
+
+  const crosspostBlocked = computed(() =>
+    Object.values(selectionIssues.value).some((issue) => issue != null),
+  )
+
+  async function ensureAccountConstraints(accountId: string) {
+    const current = accountConstraints.value[accountId]
+    if (current && current.status !== 'error') return
+    accountConstraints.value = {
+      ...accountConstraints.value,
+      [accountId]: { status: 'loading' },
+    }
+    try {
+      const [meta, policies] = await Promise.all([
+        commands.apiGetMetaDetail(accountId).then(unwrap) as Promise<{
+          maxNoteTextLength?: unknown
+        }>,
+        commands.apiGetUserPolicies(accountId).then(unwrap),
+      ])
+      accountConstraints.value = {
+        ...accountConstraints.value,
+        [accountId]: {
+          status: 'ready',
+          maxNoteTextLength:
+            typeof meta?.maxNoteTextLength === 'number' &&
+            meta.maxNoteTextLength > 0
+              ? meta.maxNoteTextLength
+              : MAX_TEXT_LENGTH,
+          disabledVisibilities: disabledVisibilitiesFromPolicies(policies),
+        },
+      }
+    } catch {
+      accountConstraints.value = {
+        ...accountConstraints.value,
+        [accountId]: { status: 'error' },
+      }
+    }
+  }
+
+  /**
+   * アカウント行のトグル (#626)。追加時は制約を取得し、primary を外したら
+   * 選択順で次のアカウントを primary に昇格して adapter を再初期化する。
+   */
+  async function toggleAccountSelection(id: string) {
+    if (!crosspostAllowed.value) return
+    const selected = selectedAccountIds.value
+    const index = selected.indexOf(id)
+    if (index >= 0) {
+      // 最後の 1 アカウントは外せない
+      if (selected.length === 1) return
+      const next = selected.filter((a) => a !== id)
+      selectedAccountIds.value = next
+      if (index === 0) {
+        activeAccountId.value = next[0] as string
+        error.value = null
+        await initAdapter()
+      }
+      return
+    }
+    if (hasSourcelessAttachment.value) return
+    selectedAccountIds.value = [...selected, id]
+    await ensureAccountConstraints(id)
+  }
+
   /**
    * このセッションが auto-save に使う slot key。
    * - memo モード: ローカル生成の memoKey (非 null)。
@@ -175,11 +301,25 @@ export function usePostFormState(
   // memo モードではデフォルトの MAX_TEXT_LENGTH のまま)
   const maxTextLength = ref(MAX_TEXT_LENGTH)
 
-  const remainingChars = computed(() => maxTextLength.value - text.value.length)
+  // 複数選択時は選択中アカウントの min(maxNoteTextLength) をカウンタ基準にする (#626)
+  const effectiveMaxTextLength = computed(() =>
+    isCrosspost.value
+      ? minMaxTextLength(
+          maxTextLength.value,
+          selectedAccountIds.value.map((id) => accountConstraints.value[id]),
+        )
+      : maxTextLength.value,
+  )
+
+  const remainingChars = computed(
+    () => effectiveMaxTextLength.value - text.value.length,
+  )
 
   const canPost = computed(() => {
     if (isPosting.value || isUploading.value) return false
     if (remainingChars.value < 0) return false
+    // 選択中アカウントに 1 つでも制約違反 (取得中含む) があれば送信不可 (#626)
+    if (crosspostBlocked.value) return false
     if (props.renoteId) return true
     if (attachedFiles.value.length > 0) return true
     if (showPoll.value && pollChoices.value.filter((c) => c.trim()).length >= 2)
@@ -257,18 +397,12 @@ export function usePostFormState(
     }
 
     // Apply visibility restrictions from role policies
-    const disabled = new Set<string>()
+    const disabled =
+      policiesResult.status === 'fulfilled'
+        ? disabledVisibilitiesFromPolicies(policiesResult.value)
+        : new Set<string>()
     if (policiesResult.status === 'fulfilled') {
       const policies = policiesResult.value
-      if (policies.canPublicNote === false) disabled.add('public')
-      for (const [key, value] of Object.entries(policies)) {
-        if (value !== false) continue
-        const match = key.match(/^can(.+)Note$/)
-        if (!match || key === 'canPublicNote') continue
-        const name =
-          (match[1]?.charAt(0).toLowerCase() ?? '') + (match[1]?.slice(1) ?? '')
-        disabled.add(name)
-      }
       // Filter mode flags by can*Note policies
       const filtered: Record<string, boolean> = {}
       for (const [flagKey, flagValue] of Object.entries(noteModeFlags.value)) {
@@ -286,6 +420,17 @@ export function usePostFormState(
       disabled.add('home')
     }
     disabledVisibilities.value = disabled
+
+    // primary の制約を seed (#626)。クロスポストの min 文字数・行判定は
+    // 選択アカウント全員分の accountConstraints を参照する
+    accountConstraints.value = {
+      ...accountConstraints.value,
+      [acc.id]: {
+        status: 'ready',
+        maxNoteTextLength: maxTextLength.value,
+        disabledVisibilities: disabled,
+      },
+    }
 
     // Apply default note settings
     if (userInfoResult.status === 'fulfilled') {
@@ -328,6 +473,7 @@ export function usePostFormState(
 
   async function switchAccount(id: string) {
     activeAccountId.value = id
+    selectedAccountIds.value = [id]
     showAccountMenu.value = false
     error.value = null
     await initAdapter()
@@ -488,20 +634,57 @@ export function usePostFormState(
       })
     }
 
+    // クロスポスト対象 (#626)。単一選択なら従来経路のまま
+    const crosspostIds = isCrosspost.value
+      ? [...selectedAccountIds.value]
+      : null
+
     // Close form optimistically before awaiting API
     posted.value = true
     isPosting.value = false
     callbacks.onPosted()
 
-    // Fire API call in background — on failure, save as draft and notify
-    const currentAdapter = adapter
-    const currentAccountId = activeAccountId.value
     const retryKey = sessionSlotKey.value
     const retryCtx: DraftContext = {
       replyId: props.replyTo?.id ?? null,
       renoteId: props.renoteId ?? null,
       channelId: props.channelId ?? null,
     }
+
+    if (crosspostIds) {
+      // 選択状態は送信後リセット (primary のみに戻す。永続化しない)
+      selectedAccountIds.value = [activeAccountId.value]
+      const attachments: CrosspostAttachment[] = attachedFiles.value.map(
+        (f) => ({
+          // source を持たない添付があると複数選択できないため、ここでは必ず存在する
+          source: attachmentSources.value[
+            f.id
+          ] as CrosspostAttachment['source'],
+          meta: {
+            name: f.name,
+            comment: f.comment ?? null,
+            isSensitive: f.isSensitive,
+          },
+        }),
+      )
+      const { fileIds: primaryFileIds, ...baseParams } = noteParams
+      void runCrosspostAndReport(
+        crosspostIds.map((id, i) => ({
+          accountId: id,
+          fileIds: i === 0 ? (primaryFileIds ?? []) : undefined,
+        })),
+        attachments,
+        baseParams,
+        retryCtx,
+        retryKey ? new Map([[activeAccountId.value, retryKey]]) : new Map(),
+        new Set(),
+      )
+      return
+    }
+
+    // Fire API call in background — on failure, save as draft and notify
+    const currentAdapter = adapter
+    const currentAccountId = activeAccountId.value
     currentAdapter.api.createNote(noteParams).catch(async (e) => {
       const { show } = useToast()
       show(AppError.from(e).message, 'error')
@@ -531,6 +714,154 @@ export function usePostFormState(
         )
       }
     })
+  }
+
+  /** クロスポストの adapter 依存部。純ロジック (runCrosspost) へ DI する (#782) */
+  const crosspostDeps: CrosspostDeps = {
+    uploadFile: async (accountId, attachment) => {
+      const acc = accountsStore.accounts.find((a) => a.id === accountId)
+      if (!acc) throw new Error('アカウントが見つかりません')
+      const { adapter: target } = await initAdapterFor(acc.host, acc.id)
+      const uploaded =
+        attachment.source.kind === 'path'
+          ? await target.api.uploadFileFromPath(
+              attachment.source.path,
+              attachment.meta.isSensitive,
+            )
+          : await target.api.uploadFile(
+              attachment.source.file.name,
+              [...new Uint8Array(await attachment.source.file.arrayBuffer())],
+              attachment.source.file.type || 'application/octet-stream',
+              attachment.meta.isSensitive,
+            )
+      if (attachment.meta.comment) {
+        // primary で設定した alt を再アップロード分にも反映 (#753 と同じ API)。
+        // alt の適用失敗は投稿自体を止めるほどではないので best-effort
+        try {
+          unwrap(
+            await commands.apiUpdateDriveFile(
+              accountId,
+              uploaded.id,
+              attachment.meta.name || null,
+              attachment.meta.comment,
+              null,
+            ),
+          )
+        } catch {
+          // 本体のアップロードは成功している
+        }
+      }
+      return uploaded.id
+    },
+    createNote: async (accountId, params) => {
+      const acc = accountsStore.accounts.find((a) => a.id === accountId)
+      if (!acc) throw new Error('アカウントが見つかりません')
+      const { adapter: target } = await initAdapterFor(acc.host, acc.id)
+      await target.api.createNote(params)
+    },
+  }
+
+  /**
+   * クロスポストを実行し、部分失敗を per-account の下書き退避 + 再試行
+   * アクション付き toast で報告する (#626)。成功分の取り消し・自動リトライは
+   * しない (二重投稿防止)。
+   *
+   * @param draftKeys account → 退避先 draft id (更新キー)。primary の
+   *   auto-save スロットを初期 seed し、失敗のたびに退避結果で更新する
+   * @param savedByFlow このフローで下書き退避したアカウント。再試行で
+   *   成功したら退避 draft を削除する (孤児化した下書きの二重投稿防止)
+   */
+  async function runCrosspostAndReport(
+    targets: CrosspostTarget[],
+    attachments: CrosspostAttachment[],
+    params: CreateNoteParams,
+    ctx: DraftContext,
+    draftKeys: Map<string, string>,
+    savedByFlow: Set<string>,
+  ): Promise<void> {
+    const { show } = useToast()
+    const isRetry = savedByFlow.size > 0
+    const results = await runCrosspost(
+      { targets, attachments, params },
+      crosspostDeps,
+    )
+
+    // 再試行で成功したアカウントの退避 draft を削除する
+    for (const result of results) {
+      if (!result.ok || !savedByFlow.has(result.accountId)) continue
+      const draftId = draftKeys.get(result.accountId)
+      if (draftId) {
+        deleteDraft(result.accountId, draftId).catch(() => {
+          // 削除失敗は下書きが残るだけ (致命的ではない)
+        })
+      }
+    }
+
+    const failed = results.filter((r) => !r.ok)
+    if (failed.length === 0) {
+      // 初回の全成功は従来 (単一投稿) と同じく無音。再試行の完了のみ通知
+      if (isRetry) show('すべてのアカウントに投稿しました', 'success')
+      return
+    }
+
+    // 失敗分を per-account で下書き退避。添付アップロードに失敗した
+    // アカウントには無効な fileIds を入れず本文のみ保存する
+    let attachmentLost = false
+    for (const f of failed) {
+      if (f.uploadFailed && attachments.length > 0) attachmentLost = true
+      try {
+        const stored = await saveDraft(
+          f.accountId,
+          draftKeys.get(f.accountId) ?? null,
+          {
+            text: params.text ?? '',
+            cw: params.cw ?? '',
+            showCw: !!params.cw,
+            visibility: params.visibility ?? 'public',
+            localOnly: params.localOnly ?? false,
+            fileIds: f.uploadFailed ? [] : (f.fileIds ?? []),
+            pollChoices: params.poll?.choices ?? [],
+            pollMultiple: params.poll?.multiple ?? false,
+            showPoll: !!params.poll,
+            scheduledAt: null,
+          },
+          ctx,
+        )
+        draftKeys.set(f.accountId, stored.id)
+        savedByFlow.add(f.accountId)
+      } catch (saveErr) {
+        show(
+          `下書き保存にも失敗しました: ${AppError.from(saveErr).message}`,
+          'error',
+        )
+      }
+    }
+
+    const okCount = results.length - failed.length
+    show(`${okCount}/${results.length} アカウントに投稿しました`, 'error', {
+      action: {
+        label: '再試行',
+        onClick: () =>
+          void runCrosspostAndReport(
+            failed.map((f) => ({
+              accountId: f.accountId,
+              // アップロード済みの添付は再利用し、失敗分だけ再アップロードする
+              fileIds: f.uploadFailed ? undefined : f.fileIds,
+            })),
+            attachments,
+            params,
+            ctx,
+            draftKeys,
+            savedByFlow,
+          ),
+      },
+    })
+    if (attachmentLost) {
+      show(
+        '添付のアップロードに失敗したアカウントの下書きには本文のみ保存しました',
+        'warning',
+      )
+    }
   }
 
   function selectVisibility(v: NoteVisibility) {
@@ -580,6 +911,7 @@ export function usePostFormState(
     cw.value = ''
     showCw.value = false
     attachedFiles.value = []
+    attachmentSources.value = {}
     showPoll.value = false
     pollChoices.value = ['', '']
     pollMultiple.value = false
@@ -759,6 +1091,8 @@ export function usePostFormState(
     noteModeFlags,
     disabledVisibilities,
     activeAccountId,
+    selectedAccountIds,
+    attachmentSources,
     quoteNote,
     showPoll,
     pollChoices,
@@ -775,13 +1109,19 @@ export function usePostFormState(
     currentVisibility,
     remainingChars,
     maxTextLength,
+    effectiveMaxTextLength,
     canPost,
+    isCrosspost,
+    crosspostAllowed,
+    selectionIssues,
+    hasSourcelessAttachment,
     // Constants
     MAX_TEXT_LENGTH,
     visibilityOptions,
     // Functions
     initAdapter,
     switchAccount,
+    toggleAccountSelection,
     post,
     uploadFilesFromPaths,
     uploadBrowserFiles,
