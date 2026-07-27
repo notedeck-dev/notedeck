@@ -6,7 +6,7 @@
  * テンプレ id は `builtin:<id>@<version>` 形式 — v2 で MisStore 配布の
  * `@<author>/<id>@<version>` 形式と名前空間を分離するための予約。
  *
- * v1 では AI プロバイダー 3 種のみ。GitHub / Linear / Slack 等の汎用 API
+ * v1 では AI プロバイダー 4 種のみ。GitHub / Linear / Slack 等の汎用 API
  * テンプレは需要を見て v1.x で追加する (手動追加 / URL ペーストは現状でも可)。
  */
 
@@ -71,6 +71,19 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     secretHelpUrl: 'https://console.anthropic.com/settings/keys',
     protocol: 'anthropic',
     defaultModel: 'claude-sonnet-5',
+  },
+  {
+    id: 'builtin:grok@1',
+    name: 'Grok',
+    icon: 'brand-x',
+    baseUrl: 'https://api.x.ai/v1',
+    authType: { kind: 'bearer' },
+    allowedHosts: ['api.x.ai'],
+    testPath: '/models',
+    secretLabel: 'API Key',
+    secretHelpUrl: 'https://console.x.ai/',
+    protocol: 'openai-compat',
+    defaultModel: 'grok-4.5',
   },
   {
     id: 'builtin:openrouter@1',
