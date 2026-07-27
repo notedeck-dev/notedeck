@@ -1,7 +1,5 @@
-import { initAdapterFor } from '@/adapters/factory'
-import type { ApiAdapter } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
-import { useAccountsStore } from '@/stores/accounts'
+import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
 
 /**
  * List (Misskey users/lists) 系 capability。自分のリスト編成を AI から
@@ -16,27 +14,11 @@ import { useAccountsStore } from '@/stores/accounts'
  * 相手に通知は飛ばないので慎重カテゴリではない。
  */
 
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<ApiAdapter> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('No active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`Account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return adapter.api
-}
-
 function pickString(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined
   const t = v.trim()
   return t.length > 0 ? t : undefined
 }
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントで実行するか。未指定なら active アカウント。' +
-  ' 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。'
 
 export const listListCapability: Command = {
   id: 'list.list',
@@ -64,15 +46,15 @@ export const listListCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+  execute: async (params, ctx) => {
+    const api = await getApiAdapter(params?.accountId, ctx)
     return await api.getUserLists()
   },
 }
 
 export const listAddUserCapability: Command = {
   id: 'list.addUser',
+  actsAsAccount: true,
   label: 'リストにユーザーを追加',
   icon: 'ti-user-plus',
   category: 'account',
@@ -99,13 +81,12 @@ export const listAddUserCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const listId = pickString(params?.listId)
     const userId = pickString(params?.userId)
     if (!listId) throw new Error('list.addUser: listId is required')
     if (!userId) throw new Error('list.addUser: userId is required')
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.addUserToList(listId, userId)
     return { added: true, listId, userId }
   },
@@ -113,6 +94,7 @@ export const listAddUserCapability: Command = {
 
 export const listRemoveUserCapability: Command = {
   id: 'list.removeUser',
+  actsAsAccount: true,
   label: 'リストからユーザーを削除',
   icon: 'ti-user-minus',
   category: 'account',
@@ -138,13 +120,12 @@ export const listRemoveUserCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const listId = pickString(params?.listId)
     const userId = pickString(params?.userId)
     if (!listId) throw new Error('list.removeUser: listId is required')
     if (!userId) throw new Error('list.removeUser: userId is required')
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.removeUserFromList(listId, userId)
     return { removed: true, listId, userId }
   },

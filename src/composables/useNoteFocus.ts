@@ -5,6 +5,7 @@ import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { usePinnedReactionsStore } from '@/stores/pinnedReactions'
 import { useToast } from '@/stores/toast'
+import { getNoteShareUrl } from '@/utils/noteUrl'
 
 export type NoteAction =
   | 'next'
@@ -180,10 +181,7 @@ export function useNoteFocus(
       case 'copy-link': {
         const note = getFocusedNote()
         if (note) {
-          const url =
-            note.url ??
-            note.uri ??
-            `https://${note._serverHost}/notes/${note.id}`
+          const url = getNoteShareUrl(note)
           navigator.clipboard.writeText(url).catch(() => undefined)
           useToast().show('リンクをコピーしました', 'info')
         }

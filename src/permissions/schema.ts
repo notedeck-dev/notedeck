@@ -24,6 +24,10 @@ export const PERMISSION_KEYS = [
   'notes.react',
   'account.read',
   'account.write',
+  // クロスアカウント実行 (#777): 呼び出し文脈と異なるアカウントを明示指定して
+  // capability を実行する権利。actsAsAccount 宣言付き capability に対して
+  // dispatcher が検査する。user principal は対象外 (本人の UI 選択が同意)
+  'account.actAs',
   'drive.read',
   'drive.write',
   'memos.read',
@@ -77,6 +81,7 @@ export type PermissionKey = (typeof PERMISSION_KEYS)[number]
 export const HIGH_RISK_PERMISSION_KEYS: readonly PermissionKey[] = [
   'notes.write',
   'account.write',
+  'account.actAs',
   'drive.write',
   'network.external',
   'vault.use',
@@ -146,6 +151,7 @@ export const PERMISSION_PRESETS: Record<
     'notes.react': false,
     'account.read': true,
     'account.write': false,
+    'account.actAs': false,
     'drive.read': true,
     'drive.write': false,
     'memos.read': true,
@@ -184,6 +190,7 @@ export const PERMISSION_PRESETS: Record<
     'notes.react': true,
     'account.read': true,
     'account.write': false,
+    'account.actAs': false,
     'drive.read': true,
     'drive.write': false,
     'memos.read': true,
@@ -222,6 +229,7 @@ export const PERMISSION_PRESETS: Record<
     'notes.react': true,
     'account.read': true,
     'account.write': true,
+    'account.actAs': true,
     'drive.read': true,
     'drive.write': true,
     'memos.read': true,

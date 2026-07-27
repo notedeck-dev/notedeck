@@ -31,6 +31,13 @@ export interface NoteDeckEnvContext {
   registeredCommandIds: string[]
   /** Active Nd:on subscriptions; auto-disposed by cleanupNoteDeckEnv */
   subscriptions: Unsubscribe[]
+  /**
+   * 呼び出し文脈のアカウントを返すアクセサ (#821)。プラグインは
+   * withPluginAccountContext が設定するミュータブル文脈を読むため関数。
+   * widget / Play / Page はホスト元アカウント固定のクロージャ。
+   * 未指定 = アカウント文脈なし (Nd:call は accountId を渡さない)。
+   */
+  getAccountId?: () => string | null
 }
 
 export function createNoteDeckEnv(
@@ -60,6 +67,7 @@ export function createNoteDeckEnv(
         : undefined
     const result = await dispatchCapability(idVal.value, params, {
       principal: ctx.principal,
+      accountId: ctx.getAccountId?.() ?? null,
     })
     if (!result.ok) {
       throw new Error(

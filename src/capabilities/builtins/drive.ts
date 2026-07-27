@@ -1,6 +1,6 @@
 import type { Command } from '@/commands/registry'
-import { useAccountsStore } from '@/stores/accounts'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { ACCOUNT_ID_PARAM_DESC, resolveAccountId } from '../accountContext'
 
 /**
  * Drive ファイルは ApiAdapter を介さず Rust 側の `api_get_drive_files` を直接
@@ -59,9 +59,7 @@ export const driveListCapability: Command = {
       },
       accountId: {
         type: 'string',
-        description:
-          'どのアカウントのドライブを叩くか。未指定なら active アカウント。' +
-          ' 別サーバーのカラムを読むときは `<currentColumn>.accountId` を渡す。',
+        description: ACCOUNT_ID_PARAM_DESC,
         optional: true,
       },
     },
@@ -71,14 +69,8 @@ export const driveListCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
-    const explicitAccountId =
-      typeof params?.accountId === 'string' &&
-      params.accountId.trim().length > 0
-        ? params.accountId.trim()
-        : null
-    const accountId = explicitAccountId ?? useAccountsStore().activeAccountId
-    if (!accountId) throw new Error('No active account')
+  execute: async (params, ctx) => {
+    const accountId = resolveAccountId(params?.accountId, ctx)
     const folderId = pickStringOrNull(params?.folderId)
     const fileType = pickStringOrNull(params?.fileType)
     const limit = clampLimit(params?.limit)

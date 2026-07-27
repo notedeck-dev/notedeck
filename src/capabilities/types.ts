@@ -79,4 +79,12 @@ export interface CapabilityContext {
   aiConfig?: import('@/composables/useAiConfig').AiConfig
   /** この実行を要求している主体 (#712)。dispatcher 経由なら必ず入る */
   principal?: Principal
+  /**
+   * 呼び出し文脈のアカウント (#821)。プラグインのノート/ユーザーアクション
+   * 経由ならそのエンティティの所属アカウントが入る。capability 側は
+   * 「明示的な params.accountId → ctx.accountId → activeAccountId」の順で
+   * 解決する (capabilities/accountContext.ts)。AI / HTTP / slash 経路では
+   * 未指定 (= 従来どおり activeAccountId フォールバック)。
+   */
+  accountId?: string
 }

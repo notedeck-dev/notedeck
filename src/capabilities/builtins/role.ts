@@ -1,8 +1,6 @@
-import { initAdapterFor } from '@/adapters/factory'
-import type { ApiAdapter } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { projectVisibleItems } from '@/composables/useAiSystemContext'
-import { useAccountsStore } from '@/stores/accounts'
+import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
 
 /**
  * Role (Misskey roles) 系 capability。指定 roleId の所属ユーザーが投稿した
@@ -15,18 +13,6 @@ import { useAccountsStore } from '@/stores/accounts'
  * permission: `notes.read`。
  */
 
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<ApiAdapter> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('No active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`Account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return adapter.api
-}
-
 function pickString(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined
   const t = v.trim()
@@ -37,10 +23,6 @@ function pickNumber(v: unknown): number | undefined {
   if (typeof v !== 'number' || !Number.isFinite(v)) return undefined
   return v
 }
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントで実行するか。未指定なら active アカウント。' +
-  ' 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。'
 
 export const roleNotesCapability: Command = {
   id: 'role.notes',
@@ -75,13 +57,12 @@ export const roleNotesCapability: Command = {
     returns: { type: 'array', description: 'projected note の配列' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const roleId = pickString(params?.roleId)
     if (!roleId) throw new Error('role.notes: roleId is required')
     const limit = pickNumber(params?.limit) ?? 20
     const untilId = pickString(params?.untilId)
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const notes = await api.getRoleNotes(roleId, { limit, untilId })
     return projectVisibleItems(notes, 'role', limit)
   },

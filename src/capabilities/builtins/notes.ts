@@ -1,8 +1,7 @@
-import { initAdapterFor } from '@/adapters/factory'
-import type { ApiAdapter, TimelineType } from '@/adapters/types'
+import type { TimelineType } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { projectVisibleItems } from '@/composables/useAiSystemContext'
-import { useAccountsStore } from '@/stores/accounts'
+import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
 
 /**
  * AI が 1 回の capability 呼び出しで取得できるノートの上限。
@@ -20,35 +19,12 @@ const VALID_TIMELINE_TYPES: readonly TimelineType[] = [
   'global',
 ] as const
 
-/**
- * 現在 active なアカウント (params.accountId 指定時はそれ) の API adapter を
- * 取得する。adapter は `initAdapterFor` のグローバル cache 経由なので、複数
- * 呼び出しでも同じインスタンスが返る。
- */
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<ApiAdapter> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('No active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`Account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return adapter.api
-}
-
 function clampLimit(input: unknown, fallback = DEFAULT_LIMIT): number {
   if (typeof input !== 'number' || !Number.isFinite(input)) return fallback
   return Math.max(1, Math.min(MAX_NOTES_PER_CALL, Math.floor(input)))
 }
 
 function pickUntilId(input: unknown): string | undefined {
-  if (typeof input !== 'string') return undefined
-  const trimmed = input.trim()
-  return trimmed.length > 0 ? trimmed : undefined
-}
-
-function pickAccountId(input: unknown): string | undefined {
   if (typeof input !== 'string') return undefined
   const trimmed = input.trim()
   return trimmed.length > 0 ? trimmed : undefined
@@ -62,10 +38,6 @@ function pickAccountId(input: unknown): string | undefined {
 const ACCOUNT_ID_HINT =
   '`accountId` 未指定なら active アカウントを使う。' +
   ' active と異なるサーバーのカラムを読みたいときは `<currentColumn>.accountId` を渡す。'
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントの adapter で叩くか。未指定なら active アカウント。' +
-  ' 別サーバーのカラムを読むときは `<currentColumn>.accountId` を渡す。'
 
 /** `notes.search` — Misskey の /notes/search 経由でキーワード検索 */
 export const notesSearchCapability: Command = {
@@ -110,13 +82,12 @@ export const notesSearchCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const query = typeof params?.query === 'string' ? params.query.trim() : ''
     if (!query) throw new Error('notes.search: query is required')
     const limit = clampLimit(params?.limit)
     const untilId = pickUntilId(params?.untilId)
-    const accountId = pickAccountId(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const notes = await api.searchNotes(query, { limit, untilId })
     return projectVisibleItems(notes, 'search', limit)
   },
@@ -167,7 +138,7 @@ export const notesTimelineCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const type = typeof params?.type === 'string' ? params.type : ''
     if (!VALID_TIMELINE_TYPES.includes(type as TimelineType)) {
       throw new Error(
@@ -176,8 +147,7 @@ export const notesTimelineCapability: Command = {
     }
     const limit = clampLimit(params?.limit)
     const untilId = pickUntilId(params?.untilId)
-    const accountId = pickAccountId(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const notes = await api.getTimeline(type as TimelineType, {
       limit,
       untilId,
@@ -229,14 +199,13 @@ export const notesUserCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const userId =
       typeof params?.userId === 'string' ? params.userId.trim() : ''
     if (!userId) throw new Error('notes.user: userId is required')
     const limit = clampLimit(params?.limit)
     const untilId = pickUntilId(params?.untilId)
-    const accountId = pickAccountId(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const notes = await api.getUserNotes(userId, { limit, untilId })
     return projectVisibleItems(notes, 'user', limit)
   },
@@ -274,12 +243,11 @@ export const notesShowCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const noteId =
       typeof params?.noteId === 'string' ? params.noteId.trim() : ''
     if (!noteId) throw new Error('notes.show: noteId is required')
-    const accountId = pickAccountId(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const note = await api.getNote(noteId)
     // 配列を経由するが結果は 1 件目を返す (projection を再利用するため)
     return projectVisibleItems([note], 'search', 1)[0] ?? null
@@ -329,14 +297,13 @@ export const notesChildrenCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const noteId =
       typeof params?.noteId === 'string' ? params.noteId.trim() : ''
     if (!noteId) throw new Error('notes.children: noteId is required')
     const limit = clampLimit(params?.limit)
     const untilId = pickUntilId(params?.untilId)
-    const accountId = pickAccountId(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const notes = await api.getNoteChildren(noteId, { limit, untilId })
     return projectVisibleItems(notes, 'search', limit)
   },

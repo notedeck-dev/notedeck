@@ -3,18 +3,25 @@ import { computed, ref, watch } from 'vue'
 import type { Clip, NormalizedNote } from '@/adapters/types'
 import {
   getPluginHandlers,
-  setPluginAccountContext,
+  withPluginAccountContext,
 } from '@/aiscript/plugin-api'
 import { useCommandStore } from '@/commands/registry'
 import { useAccountMode } from '@/composables/useAccountMode'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import {
+  getAccountAvatarUrl,
+  getAccountLabel,
+  useAccountsStore,
+} from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { usePrompt } from '@/stores/prompt'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
+import { proxyThumbUrl } from '@/utils/imageProxy'
+import { getNoteShareUrl } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import PopupMenu from './PopupMenu.vue'
 
@@ -31,6 +38,9 @@ const emit = defineEmits<{
   bookmark: [note: NormalizedNote]
   pin: [note: NormalizedNote]
   deleteAndEdit: [note: NormalizedNote]
+  reactAs: [accountId: string]
+  renoteAs: [accountId: string]
+  quoteAs: [accountId: string]
 }>()
 
 const toast = useToast()
@@ -75,10 +85,7 @@ const noteActions = computed(() =>
   getPluginHandlers('note_action', props.note._accountId),
 )
 
-const noteWebUrl = computed(() => {
-  const n = props.note
-  return n.url ?? n.uri ?? `https://${n._serverHost}/notes/${n.id}`
-})
+const noteWebUrl = computed(() => getNoteShareUrl(props.note))
 
 function open(e: MouseEvent) {
   popupMenuRef.value?.open(e)
@@ -193,6 +200,64 @@ async function createClipAndAdd() {
     console.error('[clip:create]', err.code, err.message)
     toast.show(`クリップの作成に失敗しました（${err.displayCode}）`, 'error')
   }
+}
+
+// 別のアカウントで… (#627)。ノートを表示しているアカウント以外の
+// ログイン済みアカウントが候補。0 件ならメニュー項目自体を出さない。
+// フロー: アカウント選択 → 操作選択 (リアクション / リノート / 引用) の
+// 2 段 quickPick (children で階層化)。
+const actAsCandidates = computed(() =>
+  useAccountsStore().accounts.filter(
+    (a) => a.hasToken && a.id !== props.note._accountId,
+  ),
+)
+
+function actAsOperations(accountId: string) {
+  return [
+    {
+      id: `${accountId}-react`,
+      label: 'リアクション',
+      icon: 'mood-plus',
+      action: () => {
+        commandStore.close()
+        emit('reactAs', accountId)
+      },
+    },
+    {
+      id: `${accountId}-renote`,
+      label: 'リノート',
+      icon: 'repeat',
+      action: () => {
+        commandStore.close()
+        emit('renoteAs', accountId)
+      },
+    },
+    {
+      id: `${accountId}-quote`,
+      label: '引用',
+      icon: 'quote',
+      action: () => {
+        commandStore.close()
+        emit('quoteAs', accountId)
+      },
+    },
+  ]
+}
+
+function openActAsQuickPick() {
+  close()
+  commandStore.pushQuickPick({
+    title: '別のアカウントで…',
+    placeholder: 'アカウントを選択…',
+    items: actAsCandidates.value.map((acc) => ({
+      id: acc.id,
+      label: getAccountLabel(acc),
+      icon: 'user',
+      avatarUrl: proxyThumbUrl(getAccountAvatarUrl(acc), 18),
+      children: () => actAsOperations(acc.id),
+    })),
+  })
+  commandStore.open()
 }
 
 async function openClipQuickPick() {
@@ -316,6 +381,10 @@ defineExpose({ open })
         <i class="ti ti-paperclip" />
         クリップに追加
       </button>
+      <button v-if="actAsCandidates.length > 0" class="_popupItem" @click="openActAsQuickPick">
+        <i class="ti ti-users" />
+        別のアカウントで…
+      </button>
       <button class="_popupItem" @click="openInspector">
         <i class="ti ti-code" />
         Raw JSON を表示
@@ -339,7 +408,7 @@ defineExpose({ open })
           v-for="action in noteActions"
           :key="action.pluginInstallId + action.title"
           class="_popupItem"
-          @click="setPluginAccountContext(action.pluginInstallId, note._accountId); action.handler(note); close()"
+          @click="withPluginAccountContext(action.pluginInstallId, note._accountId, () => action.handler(note)); close()"
         >
           <i class="ti ti-plug" />
           {{ action.title }}

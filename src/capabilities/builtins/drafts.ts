@@ -8,7 +8,7 @@ import {
   type StoredDraft,
   saveDraft,
 } from '@/composables/useDrafts'
-import { useAccountsStore } from '@/stores/accounts'
+import { ACCOUNT_ID_PARAM_DESC, resolveAccountId } from '../accountContext'
 
 /**
  * Drafts (Misskey notes/drafts/* — 2025.6+) 系 capability。
@@ -32,19 +32,6 @@ const VALID_VISIBILITIES: readonly NoteVisibility[] = [
   'followers',
   'specified',
 ] as const
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントの下書きを操作するか。未指定なら active アカウント。' +
-  ' 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。'
-
-function resolveAccountId(input: unknown): string {
-  const explicit = typeof input === 'string' ? input.trim() : ''
-  if (explicit) return explicit
-  const store = useAccountsStore()
-  const id = store.activeAccountId
-  if (!id) throw new Error('drafts: no active account')
-  return id
-}
 
 function pickString(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined
@@ -120,8 +107,8 @@ export const draftsListCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
-    const accountId = resolveAccountId(params?.accountId)
+  execute: async (params, ctx) => {
+    const accountId = resolveAccountId(params?.accountId, ctx)
     await refreshDrafts(accountId)
     const all = loadAllDrafts(accountId)
     return Object.values(all).map(projectDraft)
@@ -130,6 +117,7 @@ export const draftsListCapability: Command = {
 
 export const draftsCreateCapability: Command = {
   id: 'drafts.create',
+  actsAsAccount: true,
   label: '下書きを作成',
   icon: 'ti-edit',
   category: 'note',
@@ -192,10 +180,10 @@ export const draftsCreateCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const text = pickString(params?.text)
     if (!text) throw new Error('drafts.create: text is required')
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     const data = emptyDraftData()
     data.text = text
     const cw = pickString(params?.cw)
@@ -220,6 +208,7 @@ export const draftsCreateCapability: Command = {
 
 export const draftsUpdateCapability: Command = {
   id: 'drafts.update',
+  actsAsAccount: true,
   label: '下書きを更新',
   icon: 'ti-edit',
   category: 'note',
@@ -267,10 +256,10 @@ export const draftsUpdateCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const draftId = pickString(params?.draftId)
     if (!draftId) throw new Error('drafts.update: draftId is required')
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     // 現在値を取得 (cache miss なら fetch して埋める)
     let cached = loadAllDrafts(accountId)[draftId]
     if (!cached) {
@@ -307,6 +296,7 @@ export const draftsUpdateCapability: Command = {
 
 export const draftsDeleteCapability: Command = {
   id: 'drafts.delete',
+  actsAsAccount: true,
   label: '下書きを削除',
   icon: 'ti-trash',
   category: 'note',
@@ -339,10 +329,10 @@ export const draftsDeleteCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const draftId = pickString(params?.draftId)
     if (!draftId) throw new Error('drafts.delete: draftId is required')
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     await deleteDraft(accountId, draftId)
     return { deleted: true, draftId }
   },

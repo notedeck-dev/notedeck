@@ -8,10 +8,15 @@ import type {
 } from '@/adapters/types'
 import { applyNoteViewInterruptors } from '@/aiscript/plugin-api'
 import { useAccountMode } from '@/composables/useAccountMode'
+import {
+  type QuoteAsTarget,
+  useCrossAccountNoteActions,
+} from '@/composables/useCrossAccountNoteActions'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useLongPress } from '@/composables/useLongPress'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteAccountId } from '@/composables/useNoteContext'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
@@ -52,6 +57,7 @@ import RenoteMoreMenu from './RenoteMoreMenu.vue'
 
 const MkUserPopup = defineAsyncComponent(() => import('./MkUserPopup.vue'))
 const MkUrlPreview = defineAsyncComponent(() => import('./MkUrlPreview.vue'))
+const MkPostForm = defineAsyncComponent(() => import('./MkPostForm.vue'))
 const NoteReactionUsersModal = defineAsyncComponent(
   () => import('./NoteReactionUsersModal.vue'),
 )
@@ -472,7 +478,45 @@ function handleReactionClick(e: MouseEvent, reaction: string) {
   emit('react', reaction, effectiveNote.value)
 }
 
+// 別のアカウントで… (#627): リアクション / リノート / 引用。
+// リアクションはピッカーをそのアカウントのサーバー絵文字セットで開き、
+// pick を emit('react') ではなく reactAs へ流す。引用は選択アカウントの
+// MkPostForm を解決済み renoteId で開く。楽観更新はしない — 反映は
+// 連合ストリーミング任せ。
+const noteRootRef = ref<HTMLElement | null>(null)
+const pickerAccount = ref<{ serverHost: string; accountId: string } | null>(
+  null,
+)
+const crossQuoteTarget = ref<QuoteAsTarget | null>(null)
+const { getOrCreate: getAdapterFor } = useMultiAccountAdapters()
+const { reactAs, renoteAs, quoteAs } = useCrossAccountNoteActions()
+
+function openCrossAccountPicker(accountId: string) {
+  const account = accountsStore.accountMap.get(accountId)
+  if (!account) return
+  // 選択アカウントのサーバー絵文字 + ピン留めのロードを先行発火 (副作用のみ)
+  void getAdapterFor(accountId)
+  pickerAccount.value = { serverHost: account.host, accountId }
+  if (noteRootRef.value) reactionPickerRef.value?.open(noteRootRef.value)
+}
+
+function handleRenoteAs(accountId: string) {
+  void renoteAs(accountId, effectiveNote.value)
+}
+
+async function openCrossAccountQuote(accountId: string) {
+  crossQuoteTarget.value = await quoteAs(accountId, effectiveNote.value)
+}
+
+const crossQuotePortalRef = useTemplateRef<HTMLElement>('crossQuotePortalRef')
+usePortal(crossQuotePortalRef)
+
 function handlePickerReaction(reaction: string) {
+  const crossTarget = pickerAccount.value
+  if (crossTarget) {
+    void reactAs(crossTarget.accountId, effectiveNote.value, reaction)
+    return
+  }
   emit('react', reaction, effectiveNote.value)
   // Wait for optimistic update (RAF) + Vue render to complete,
   // then spawn floating effect on the newly created button.
@@ -489,6 +533,7 @@ function handlePickerReaction(reaction: string) {
 
 <template>
   <div
+    ref="noteRootRef"
     class="note-root"
     :class="[
       $style.noteRoot,
@@ -921,6 +966,9 @@ function handlePickerReaction(reaction: string) {
     @bookmark="emit('bookmark', $event)"
     @pin="emit('pin', $event)"
     @delete-and-edit="emit('deleteAndEdit', $event)"
+    @react-as="openCrossAccountPicker"
+    @renote-as="handleRenoteAs"
+    @quote-as="openCrossAccountQuote"
   />
 
   <RenoteMoreMenu
@@ -932,10 +980,21 @@ function handlePickerReaction(reaction: string) {
 
   <NoteReactionPickerPopup
     ref="reactionPickerRef"
-    :server-host="effectiveNote._serverHost"
-    :account-id="note._accountId"
+    :server-host="pickerAccount?.serverHost ?? effectiveNote._serverHost"
+    :account-id="pickerAccount?.accountId ?? note._accountId"
     @pick="handlePickerReaction"
+    @close="pickerAccount = null"
   />
+
+  <!-- 別のアカウントで引用 (#627): 選択アカウントの投稿フォーム -->
+  <div v-if="crossQuoteTarget" ref="crossQuotePortalRef">
+    <MkPostForm
+      :account-id="crossQuoteTarget.accountId"
+      :renote-id="crossQuoteTarget.renoteId"
+      @close="crossQuoteTarget = null"
+      @posted="crossQuoteTarget = null"
+    />
+  </div>
 </template>
 
 <style lang="scss" module>

@@ -238,7 +238,10 @@ function createPluginSpecificEnv(
         handler: (note: unknown) => {
           const interp = pluginContexts.get(id)
           if (!interp) return
-          interp.execFn(handlerVal as VFn, [utils.jsToVal(note)])
+          // execFn の Promise を返す (#821) — withPluginAccountContext が
+          // handler 本体の完了 (Mk:api 等の await 含む) を追跡できるようにする。
+          // interpreter に err callback が登録済みのため reject はしない。
+          return interp.execFn(handlerVal as VFn, [utils.jsToVal(note)])
         },
       })
     },
@@ -256,7 +259,7 @@ function createPluginSpecificEnv(
         handler: (user: unknown) => {
           const interp = pluginContexts.get(id)
           if (!interp) return
-          interp.execFn(handlerVal as VFn, [utils.jsToVal(user)])
+          return interp.execFn(handlerVal as VFn, [utils.jsToVal(user)])
         },
       })
     },
@@ -274,10 +277,10 @@ function createPluginSpecificEnv(
         handler: (
           form: unknown,
           update: (key: unknown, value: unknown) => void,
-        ): void => {
+        ) => {
           const interp = pluginContexts.get(id)
           if (!interp) return
-          interp.execFn(handlerVal as VFn, [
+          return interp.execFn(handlerVal as VFn, [
             utils.jsToVal(form),
             values.FN_NATIVE(([keyVal, valueVal]) => {
               if (!keyVal || !valueVal) return
@@ -527,6 +530,9 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
     },
     registeredCommandIds: [],
     subscriptions: [],
+    // Nd:call が Mk:api と同じアカウント文脈 (withPluginAccountContext) を
+    // 参照する (#821)
+    getAccountId: () => ctx.accountId,
   }
   const ndEnv = createNoteDeckEnv(ndCtx)
   pluginNdContexts.set(plugin.installId, ndCtx)
@@ -589,20 +595,58 @@ export function abortPlugin(installId: string): void {
     pluginNdContexts.delete(installId)
   }
   pluginAccountContext.delete(installId)
+  pluginContextQueues.delete(installId)
   pluginRunLoggers.delete(installId)
   removePluginHandlers(installId)
 }
 
+// installId ごとの実行キュー。エントリが存在する間 = handler 実行中。
+const pluginContextQueues = new Map<string, Promise<unknown>>()
+
 /**
- * Set the account context for a plugin before calling its handler.
- * This makes Mk:api use the correct account for API calls.
+ * プラグイン handler をアカウント文脈付きで実行する (#821)。
+ *
+ * installId 単位で直列化し、実行中だけ ctx.accountId を設定して完了時に
+ * 必ず null へ戻す。非同期 handler の実行中に別のノート/ユーザー操作が
+ * 文脈を上書きする race を構造的に防ぐ。Mk:api (クロージャ) と Nd:call
+ * (NoteDeckEnvContext.getAccountId) の両方がこの文脈を参照する。
+ *
+ * handler 起点で detach された非同期処理 (Async:timeout 等) は文脈保証外
+ * — 完了後の Mk:api は「no account context」で fail-closed になる。
  */
-export function setPluginAccountContext(
+export async function withPluginAccountContext<T>(
   installId: string,
   accountId: string,
-): void {
-  const ctx = pluginAccountContext.get(installId)
-  if (ctx) ctx.accountId = accountId
+  fn: () => T | Promise<T>,
+): Promise<T> {
+  const run = async (): Promise<T> => {
+    const ctx = pluginAccountContext.get(installId)
+    if (!ctx) return await fn()
+    ctx.accountId = accountId
+    try {
+      return await fn()
+    } finally {
+      ctx.accountId = null
+    }
+  }
+  const prev = pluginContextQueues.get(installId)
+  if (prev) {
+    console.warn(
+      `[plugin] ${installId}: handler queued behind a running handler`,
+    )
+  }
+  const next = prev ? prev.then(run) : run()
+  const settled = next.then(
+    () => undefined,
+    () => undefined,
+  )
+  pluginContextQueues.set(installId, settled)
+  void settled.then(() => {
+    if (pluginContextQueues.get(installId) === settled) {
+      pluginContextQueues.delete(installId)
+    }
+  })
+  return next
 }
 
 /**

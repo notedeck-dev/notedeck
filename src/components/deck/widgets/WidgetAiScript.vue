@@ -220,6 +220,7 @@ async function run() {
     },
     registeredCommandIds: [] as string[],
     subscriptions: [],
+    getAccountId: () => props.accountId,
   }
   const ndEnv = createNoteDeckEnv(ndCtx)
   currentNdCtx = ndCtx

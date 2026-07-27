@@ -1,7 +1,5 @@
-import { initAdapterFor } from '@/adapters/factory'
-import type { ApiAdapter } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
-import { useAccountsStore } from '@/stores/accounts'
+import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
 
 /**
  * Favorites — Misskey の「お気に入り」(自分だけが見える private bookmark)。
@@ -11,30 +9,15 @@ import { useAccountsStore } from '@/stores/accounts'
  * 確認 UI は標準 (danger だが内容は軽い、可逆)。
  */
 
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<ApiAdapter> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('No active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`Account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return adapter.api
-}
-
 function pickString(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined
   const t = v.trim()
   return t.length > 0 ? t : undefined
 }
 
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントで実行するか。未指定なら active アカウント。' +
-  ' 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。'
-
 export const favoritesAddCapability: Command = {
   id: 'favorites.add',
+  actsAsAccount: true,
   label: 'お気に入りに追加',
   icon: 'ti-star',
   category: 'note',
@@ -57,11 +40,10 @@ export const favoritesAddCapability: Command = {
     returns: { type: 'object', description: '{ favorited: true, noteId }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('favorites.add: noteId is required')
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.createFavorite(noteId)
     return { favorited: true, noteId }
   },
@@ -69,6 +51,7 @@ export const favoritesAddCapability: Command = {
 
 export const favoritesRemoveCapability: Command = {
   id: 'favorites.remove',
+  actsAsAccount: true,
   label: 'お気に入りから削除',
   icon: 'ti-star-off',
   category: 'note',
@@ -89,11 +72,10 @@ export const favoritesRemoveCapability: Command = {
     returns: { type: 'object', description: '{ unfavorited: true, noteId }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('favorites.remove: noteId is required')
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.deleteFavorite(noteId)
     return { unfavorited: true, noteId }
   },

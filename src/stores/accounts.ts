@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { destroyAdapter } from '@/adapters/factory'
 import type { ServerSoftware } from '@/adapters/types'
 import { deleteAllMemos } from '@/composables/useMemos'
+import { invalidateResolutionCache } from '@/services/entityResolution'
 import { removeStorage, STORAGE_KEYS } from '@/utils/storage'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -152,8 +153,10 @@ export const useAccountsStore = defineStore('accounts', () => {
   // 無効化が失敗した場合に adapter を壊さない (アカウントはまだ生きている)。
 
   async function removeAccount(id: string): Promise<void> {
+    const account = accounts.value.find((a) => a.id === id)
     unwrap(await commands.deleteAccount(id))
     accounts.value = accounts.value.filter((a) => a.id !== id)
+    if (account) invalidateResolutionCache(accountScopeKey(account))
     if (activeAccountId.value === id) {
       activeAccountId.value = accounts.value[0]?.id ?? null
     }

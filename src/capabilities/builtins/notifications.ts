@@ -1,9 +1,8 @@
-import { initAdapterFor } from '@/adapters/factory'
-import type { ApiAdapter } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { projectVisibleItems } from '@/composables/useAiSystemContext'
 import { useAccountsStore } from '@/stores/accounts'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
 
 /**
  * AI が 1 回の呼び出しで取得できる通知の上限 (Misskey API native 上限と一致)。
@@ -12,30 +11,12 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
 const MAX_NOTIFICATIONS_PER_CALL = 100
 const DEFAULT_LIMIT = 10
 
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<ApiAdapter> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('No active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`Account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return adapter.api
-}
-
 function clampLimit(input: unknown, fallback = DEFAULT_LIMIT): number {
   if (typeof input !== 'number' || !Number.isFinite(input)) return fallback
   return Math.max(1, Math.min(MAX_NOTIFICATIONS_PER_CALL, Math.floor(input)))
 }
 
 function pickUntilId(input: unknown): string | undefined {
-  if (typeof input !== 'string') return undefined
-  const trimmed = input.trim()
-  return trimmed.length > 0 ? trimmed : undefined
-}
-
-function pickAccountId(input: unknown): string | undefined {
   if (typeof input !== 'string') return undefined
   const trimmed = input.trim()
   return trimmed.length > 0 ? trimmed : undefined
@@ -74,9 +55,7 @@ export const notificationsListCapability: Command = {
       },
       accountId: {
         type: 'string',
-        description:
-          'どのアカウントの通知を取るか。未指定なら active アカウント。' +
-          ' 別サーバーのカラムを読むときは `<currentColumn>.accountId` を渡す。',
+        description: ACCOUNT_ID_PARAM_DESC,
         optional: true,
       },
     },
@@ -86,11 +65,10 @@ export const notificationsListCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const limit = clampLimit(params?.limit)
     const untilId = pickUntilId(params?.untilId)
-    const accountId = pickAccountId(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const notifications = await api.getNotifications({ limit, untilId })
     return projectVisibleItems(notifications, 'notifications', limit)
   },
@@ -103,6 +81,7 @@ export const notificationsListCapability: Command = {
  */
 export const notificationsMarkReadCapability: Command = {
   id: 'notifications.markRead',
+  actsAsAccount: true,
   label: '通知をすべて既読化',
   icon: 'ti-bell-check',
   category: 'general',

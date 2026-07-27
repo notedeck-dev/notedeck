@@ -9,7 +9,7 @@ import type {
 } from '@/adapters/types'
 import {
   getPluginHandlers,
-  setPluginAccountContext,
+  withPluginAccountContext,
 } from '@/aiscript/plugin-api'
 import PopupMenu from '@/components/common/PopupMenu.vue'
 import { useDeckStore } from '@/stores/deck'
@@ -491,7 +491,7 @@ async function addToAntenna(antenna: Antenna) {
           v-for="action in userActions"
           :key="action.pluginInstallId + action.title"
           class="_popupItem"
-          @click="setPluginAccountContext(action.pluginInstallId, accountId); action.handler(user); closeUserMenu()"
+          @click="withPluginAccountContext(action.pluginInstallId, accountId, () => action.handler(user)); closeUserMenu()"
         >
           <i class="ti ti-plug" />
           {{ action.title }}

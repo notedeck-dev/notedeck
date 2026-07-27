@@ -2,8 +2,8 @@ import { normalizeDriveFile } from '@/adapters/misskey/api/drive'
 import type { ExportFileItem, ExportProgress } from '@/bindings'
 import { events } from '@/bindings'
 import type { Command } from '@/commands/registry'
-import { useAccountsStore } from '@/stores/accounts'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { resolveAccountId } from '../accountContext'
 
 /**
  * `files.export` — アプリが知っているファイル (fileId / noteId 参照) を
@@ -133,6 +133,7 @@ async function runExportAndWait(
 
 export const filesExportCapability: Command = {
   id: 'files.export',
+  actsAsAccount: true,
   label: 'ファイルをローカルに保存',
   icon: 'ti-download',
   category: 'general',
@@ -229,16 +230,12 @@ export const filesExportCapability: Command = {
       okLabel: '保存',
     }
   },
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const fileIds = asStringArray(params?.fileIds)
     const noteIds = asStringArray(params?.noteIds)
     const includeSensitive = params?.includeSensitive !== false
     const subdir = typeof params?.subdir === 'string' ? params.subdir : 'export'
-    const accountId =
-      typeof params?.accountId === 'string'
-        ? params.accountId
-        : (useAccountsStore().activeAccountId ?? undefined)
-    if (!accountId) throw new Error('no active account')
+    const accountId = resolveAccountId(params?.accountId, ctx)
 
     const { items, excludedSensitive, unresolved } = await resolveItems(
       accountId,

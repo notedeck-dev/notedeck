@@ -49,6 +49,10 @@ export const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'フォロー/ブロック/ミュート',
     icon: 'ti-user-plus',
   },
+  'account.actAs': {
+    label: '別アカウントとしての実行 (クロスアカウント)',
+    icon: 'ti-users',
+  },
   'drive.read': { label: 'ドライブの読取', icon: 'ti-folder' },
   'drive.write': { label: 'ドライブの書込/削除', icon: 'ti-folder-plus' },
   'memos.read': { label: 'ローカルメモの読取/検索', icon: 'ti-eye' },
@@ -161,6 +165,7 @@ export const PERMISSION_CATEGORIES: readonly {
       'notes.react',
       'account.read',
       'account.write',
+      'account.actAs',
       'drive.read',
       'drive.write',
       'clips.read',

@@ -247,6 +247,7 @@ async function run() {
     principal: { kind: 'user' },
     registeredCommandIds: [] as string[],
     subscriptions: [],
+    getAccountId: () => props.column.accountId ?? null,
   }
   const ndEnv = createNoteDeckEnv(ndCtx)
 

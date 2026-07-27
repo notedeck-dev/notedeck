@@ -1,12 +1,7 @@
-import { initAdapterFor } from '@/adapters/factory'
-import type {
-  ApiAdapter,
-  CreateNoteParams,
-  NoteVisibility,
-} from '@/adapters/types'
+import type { CreateNoteParams, NoteVisibility } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { projectVisibleItems } from '@/composables/useAiSystemContext'
-import { useAccountsStore } from '@/stores/accounts'
+import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
 
 /**
  * Phase 5.0: write 系 capability。すべて `requiresConfirmation: true` を宣言し、
@@ -24,31 +19,16 @@ const VALID_VISIBILITIES: readonly NoteVisibility[] = [
   'specified',
 ] as const
 
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<ApiAdapter> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('No active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`Account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return adapter.api
-}
-
 function pickString(input: unknown): string | undefined {
   if (typeof input !== 'string') return undefined
   const t = input.trim()
   return t.length > 0 ? t : undefined
 }
 
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントで実行するか。未指定なら active アカウント。' +
-  ' 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。'
-
 /** `notes.create` — 新規ノートを投稿する */
 export const notesCreateCapability: Command = {
   id: 'notes.create',
+  actsAsAccount: true,
   label: 'ノートを投稿',
   icon: 'ti-pencil',
   category: 'note',
@@ -101,7 +81,7 @@ export const notesCreateCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const text = pickString(params?.text)
     const renoteId = pickString(params?.renoteId)
     // text 必須。ただし renoteId 指定 + text 空はピュアリノートとして許容
@@ -126,8 +106,7 @@ export const notesCreateCapability: Command = {
     if (replyId) create.replyId = replyId
     if (renoteId) create.renoteId = renoteId
 
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const note = await api.createNote(create)
     return projectVisibleItems([note], 'search', 1)[0] ?? null
   },
@@ -136,6 +115,7 @@ export const notesCreateCapability: Command = {
 /** `notes.react` — ノートにリアクションする */
 export const notesReactCapability: Command = {
   id: 'notes.react',
+  actsAsAccount: true,
   label: 'リアクションする',
   icon: 'ti-mood-smile',
   category: 'note',
@@ -169,13 +149,12 @@ export const notesReactCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     const reaction = pickString(params?.reaction)
     if (!noteId) throw new Error('notes.react: noteId is required')
     if (!reaction) throw new Error('notes.react: reaction is required')
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.createReaction(noteId, reaction)
     return { ok: true, noteId, reaction }
   },
@@ -189,6 +168,7 @@ export const notesReactCapability: Command = {
  */
 export const notesUnreactCapability: Command = {
   id: 'notes.unreact',
+  actsAsAccount: true,
   label: 'リアクションを解除',
   icon: 'ti-mood-x',
   category: 'note',
@@ -218,11 +198,10 @@ export const notesUnreactCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('notes.unreact: noteId is required')
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.deleteReaction(noteId)
     return { ok: true, noteId }
   },
@@ -238,6 +217,7 @@ export const notesUnreactCapability: Command = {
  */
 export const notesDeleteCapability: Command = {
   id: 'notes.delete',
+  actsAsAccount: true,
   label: 'ノートを削除',
   icon: 'ti-trash',
   category: 'note',
@@ -278,11 +258,10 @@ export const notesDeleteCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('notes.delete: noteId is required')
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.deleteNote(noteId)
     return { deleted: true, noteId }
   },
@@ -295,6 +274,7 @@ export const notesDeleteCapability: Command = {
  */
 export const notesPinCapability: Command = {
   id: 'notes.pin',
+  actsAsAccount: true,
   label: 'ノートをプロファイルに pin',
   icon: 'ti-pin',
   category: 'note',
@@ -320,11 +300,10 @@ export const notesPinCapability: Command = {
     returns: { type: 'object', description: '{ pinned: true, noteId }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('notes.pin: noteId is required')
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.pinNote(noteId)
     return { pinned: true, noteId }
   },
@@ -332,6 +311,7 @@ export const notesPinCapability: Command = {
 
 export const notesUnpinCapability: Command = {
   id: 'notes.unpin',
+  actsAsAccount: true,
   label: 'ノートの pin を解除',
   icon: 'ti-pinned-off',
   category: 'note',
@@ -352,11 +332,10 @@ export const notesUnpinCapability: Command = {
     returns: { type: 'object', description: '{ unpinned: true, noteId }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('notes.unpin: noteId is required')
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.unpinNote(noteId)
     return { unpinned: true, noteId }
   },

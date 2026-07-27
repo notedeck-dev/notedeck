@@ -1,8 +1,6 @@
-import { initAdapterFor } from '@/adapters/factory'
-import type { ApiAdapter } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { projectVisibleItems } from '@/composables/useAiSystemContext'
-import { useAccountsStore } from '@/stores/accounts'
+import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
 
 /**
  * Channel (Misskey channels) 系 capability。チャネル一覧の取得と
@@ -12,18 +10,6 @@ import { useAccountsStore } from '@/stores/accounts'
  * チャネルへの note 投稿は `notes.create` で channelId を渡せば既に可能。
  * follow / unfollow は adapter 未実装で本 PR では追加しない。
  */
-
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<ApiAdapter> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('No active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`Account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return adapter.api
-}
 
 function pickString(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined
@@ -35,10 +21,6 @@ function pickNumber(v: unknown): number | undefined {
   if (typeof v !== 'number' || !Number.isFinite(v)) return undefined
   return v
 }
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントで実行するか。未指定なら active アカウント。' +
-  ' 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。'
 
 export const channelListCapability: Command = {
   id: 'channel.list',
@@ -63,9 +45,8 @@ export const channelListCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+  execute: async (params, ctx) => {
+    const api = await getApiAdapter(params?.accountId, ctx)
     return await api.getChannels()
   },
 }
@@ -103,13 +84,12 @@ export const channelNotesCapability: Command = {
     returns: { type: 'array', description: 'projected note の配列' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const channelId = pickString(params?.channelId)
     if (!channelId) throw new Error('channel.notes: channelId is required')
     const limit = pickNumber(params?.limit) ?? 20
     const untilId = pickString(params?.untilId)
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const notes = await api.getChannelNotes(channelId, { limit, untilId })
     return projectVisibleItems(notes, 'channel', limit)
   },

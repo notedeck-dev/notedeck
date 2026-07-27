@@ -1,9 +1,11 @@
-import { initAdapterFor } from '@/adapters/factory'
-import type { ApiAdapter } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { projectVisibleItems } from '@/composables/useAiSystemContext'
-import { useAccountsStore } from '@/stores/accounts'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import {
+  ACCOUNT_ID_PARAM_DESC,
+  getApiAdapter,
+  resolveAccountId,
+} from '../accountContext'
 
 /**
  * Clips (Misskey クリップ) 系 capability。
@@ -20,22 +22,6 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
  *   既存コマンド `apiCreateClip`)
  * - notes (= クリップ内のノート) は `notes.read` も併せて要求 (= 中身は note)
  */
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントで実行するか。未指定なら active アカウント。' +
-  ' 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。'
-
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<{ api: ApiAdapter; resolvedId: string }> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('clips: no active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`clips: account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return { api: adapter.api, resolvedId: id }
-}
 
 function pickString(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined
@@ -69,9 +55,8 @@ export const clipsListCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
-    const accountId = pickString(params?.accountId)
-    const { api } = await getApiAdapter(accountId)
+  execute: async (params, ctx) => {
+    const api = await getApiAdapter(params?.accountId, ctx)
     const clips = await api.getClips()
     return clips.map((c) => ({
       id: c.id,
@@ -115,13 +100,12 @@ export const clipsNotesCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const clipId = pickString(params?.clipId)
     if (!clipId) throw new Error('clips.notes: clipId is required')
-    const accountId = pickString(params?.accountId)
     const limitRaw = typeof params?.limit === 'number' ? params.limit : 20
     const limit = Math.max(1, Math.min(100, Math.floor(limitRaw)))
-    const { api } = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const notes = await api.getClipNotes(clipId, { limit })
     return projectVisibleItems(notes, 'search', limit)
   },
@@ -129,6 +113,7 @@ export const clipsNotesCapability: Command = {
 
 export const clipsCreateCapability: Command = {
   id: 'clips.create',
+  actsAsAccount: true,
   label: 'クリップを作成',
   icon: 'ti-paperclip',
   category: 'note',
@@ -163,11 +148,10 @@ export const clipsCreateCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const name = pickString(params?.name)
     if (!name) throw new Error('clips.create: name is required')
-    const accountId = pickString(params?.accountId)
-    const { resolvedId } = await getApiAdapter(accountId)
+    const resolvedId = resolveAccountId(params?.accountId, ctx)
     const description = pickString(params?.description)
     const isPublic = params?.isPublic === true
     const clip = unwrap(
@@ -188,6 +172,7 @@ export const clipsCreateCapability: Command = {
 
 export const clipsAddNoteCapability: Command = {
   id: 'clips.addNote',
+  actsAsAccount: true,
   label: 'クリップにノートを追加',
   icon: 'ti-paperclip',
   category: 'note',
@@ -214,13 +199,12 @@ export const clipsAddNoteCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const clipId = pickString(params?.clipId)
     const noteId = pickString(params?.noteId)
     if (!clipId) throw new Error('clips.addNote: clipId is required')
     if (!noteId) throw new Error('clips.addNote: noteId is required')
-    const accountId = pickString(params?.accountId)
-    const { api } = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.addNoteToClip(clipId, noteId)
     return { ok: true, clipId, noteId }
   },
@@ -228,6 +212,7 @@ export const clipsAddNoteCapability: Command = {
 
 export const clipsRemoveNoteCapability: Command = {
   id: 'clips.removeNote',
+  actsAsAccount: true,
   label: 'クリップからノートを削除',
   icon: 'ti-paperclip',
   category: 'note',
@@ -252,13 +237,12 @@ export const clipsRemoveNoteCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const clipId = pickString(params?.clipId)
     const noteId = pickString(params?.noteId)
     if (!clipId) throw new Error('clips.removeNote: clipId is required')
     if (!noteId) throw new Error('clips.removeNote: noteId is required')
-    const accountId = pickString(params?.accountId)
-    const { api } = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.removeNoteFromClip(clipId, noteId)
     return { ok: true, clipId, noteId }
   },

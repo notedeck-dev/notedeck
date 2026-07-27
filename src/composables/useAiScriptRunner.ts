@@ -148,6 +148,7 @@ export function useAiScriptRunner() {
       principal: options.principal,
       registeredCommandIds: [],
       subscriptions: [],
+      getAccountId: () => options.accountId,
     }
     const ndEnv = createNoteDeckEnv(ndCtx)
     currentNdCtx = ndCtx

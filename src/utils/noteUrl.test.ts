@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { parseNoteUrl, parseUserQuery } from './noteUrl'
+import {
+  getNoteShareUrl,
+  getNoteUri,
+  parseNoteUrl,
+  parseUserQuery,
+} from './noteUrl'
 
 describe('parseNoteUrl', () => {
   describe('Misskey形式のURL', () => {
@@ -117,5 +122,58 @@ describe('parseUserQuery', () => {
     it('@のみはパースできない', () => {
       expect(parseUserQuery('@')).toBeNull()
     })
+  })
+})
+
+describe('getNoteUri', () => {
+  it('uri があればそれを返す（AP id 優先）', () => {
+    expect(
+      getNoteUri({
+        id: 'local1',
+        uri: 'https://remote.example/notes/remote1',
+        _serverHost: 'a.example',
+      }),
+    ).toBe('https://remote.example/notes/remote1')
+  })
+
+  it('uri がなければサーバーホストから推定する', () => {
+    expect(getNoteUri({ id: 'n1', _serverHost: 'a.example' })).toBe(
+      'https://a.example/notes/n1',
+    )
+  })
+
+  it('uri が null でも推定にフォールバックする', () => {
+    expect(getNoteUri({ id: 'n1', uri: null, _serverHost: 'a.example' })).toBe(
+      'https://a.example/notes/n1',
+    )
+  })
+})
+
+describe('getNoteShareUrl', () => {
+  it('url があればそれを返す（表示 URL 優先）', () => {
+    expect(
+      getNoteShareUrl({
+        id: 'local1',
+        url: 'https://remote.example/@alice/1',
+        uri: 'https://remote.example/notes/remote1',
+        _serverHost: 'a.example',
+      }),
+    ).toBe('https://remote.example/@alice/1')
+  })
+
+  it('url がなければ uri を返す', () => {
+    expect(
+      getNoteShareUrl({
+        id: 'local1',
+        uri: 'https://remote.example/notes/remote1',
+        _serverHost: 'a.example',
+      }),
+    ).toBe('https://remote.example/notes/remote1')
+  })
+
+  it('url も uri もなければサーバーホストから推定する', () => {
+    expect(getNoteShareUrl({ id: 'n1', _serverHost: 'a.example' })).toBe(
+      'https://a.example/notes/n1',
+    )
   })
 })
