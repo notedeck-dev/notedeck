@@ -22,12 +22,6 @@ export function useFileAttachment(
   error: { value: string | null },
 ) {
   const attachedFiles = ref<NormalizedDriveFile[]>([])
-  /**
-   * fileId → ローカル source (#626)。アップロード成功後も保持し、クロスポスト
-   * 時に他アカウントのドライブへ再アップロードできるようにする。ドライブ
-   * 既存ファイル (attachDriveFiles) はエントリを持たない。
-   */
-  const attachmentSources = ref<Record<string, PendingUpload['source']>>({})
   const pendingUploads = ref<PendingUpload[]>([])
   const isUploading = computed(() =>
     pendingUploads.value.some((p) => p.status === 'uploading'),
@@ -54,10 +48,6 @@ export function useFileAttachment(
         (p) => p.key !== entry.key,
       )
       attachedFiles.value = [...attachedFiles.value, uploaded]
-      attachmentSources.value = {
-        ...attachmentSources.value,
-        [uploaded.id]: entry.source,
-      }
     } catch (e) {
       // 失敗はエントリ単位で保持 (全体エラーにしない)。成功分は残り、
       // 失敗分だけ retry / dismiss できる
@@ -122,11 +112,6 @@ export function useFileAttachment(
 
   function removeFile(fileId: string) {
     attachedFiles.value = attachedFiles.value.filter((f) => f.id !== fileId)
-    if (fileId in attachmentSources.value) {
-      const next = { ...attachmentSources.value }
-      delete next[fileId]
-      attachmentSources.value = next
-    }
   }
 
   /** ドラッグ並び替え。fileIds の順序がそのまま投稿の表示順になる */
@@ -157,7 +142,6 @@ export function useFileAttachment(
 
   return {
     attachedFiles,
-    attachmentSources,
     pendingUploads,
     isUploading,
     uploadFilesFromPaths,

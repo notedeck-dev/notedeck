@@ -15,8 +15,6 @@ const detectAvailableTimelinesMock = vi.fn()
 const apiGetUserPoliciesMock = vi.fn()
 const apiGetSelfMock = vi.fn()
 const apiGetMetaDetailMock = vi.fn()
-const apiUpdateDriveFileMock = vi.fn()
-const uploadFileFromPathMock = vi.fn()
 const confirmWithActionMock = vi.fn()
 const toastShowMock = vi.fn()
 const showLoginPromptMock = vi.fn()
@@ -82,7 +80,6 @@ vi.mock('@/utils/tauriInvoke', async () => {
       apiGetUserPolicies: (...a: unknown[]) => apiGetUserPoliciesMock(...a),
       apiGetSelf: (...a: unknown[]) => apiGetSelfMock(...a),
       apiGetMetaDetail: (...a: unknown[]) => apiGetMetaDetailMock(...a),
-      apiUpdateDriveFile: (...a: unknown[]) => apiUpdateDriveFileMock(...a),
     },
   }
 })
@@ -190,21 +187,17 @@ beforeEach(() => {
   createNoteMock.mockResolvedValue({})
   updateNoteMock.mockResolvedValue({})
   getNoteMock.mockResolvedValue(makeNote({ id: 'q1', text: '引用元' }))
-  apiUpdateDriveFileMock.mockResolvedValue(ok({}))
-  uploadFileFromPathMock.mockResolvedValue(makeFile('up1'))
   initAdapterForMock.mockImplementation(async () => ({
     adapter: {
       api: {
         createNote: createNoteMock,
         updateNote: updateNoteMock,
         getNote: getNoteMock,
-        uploadFileFromPath: uploadFileFromPathMock,
       },
     },
     serverInfo: { features: { scheduledNotes: false } },
   }))
   saveDraftMock.mockResolvedValue(makeStoredDraft({ id: 'd1' }))
-  deleteDraftMock.mockResolvedValue(undefined)
   let memoSeq = 0
   generateMemoKeyMock.mockImplementation(() => {
     memoSeq += 1
@@ -914,263 +907,5 @@ describe('フォーム操作', () => {
     expect(form.activeAccountId.value).toBe('acc2')
     expect(form.account.value?.id).toBe('acc2')
     expect(initAdapterForMock).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('クロスポスト (#626)', () => {
-  beforeEach(() => {
-    accountsState.accounts = [
-      makeAccount(),
-      makeAccount({ id: 'acc2', host: 'other.test', username: 'sub' }),
-    ]
-  })
-
-  /** host ごとに createNote / uploadFileFromPath を追跡できる adapter を差し込む */
-  function trackAdaptersByHost() {
-    const createCalls: Array<{
-      host: string
-      params: Record<string, unknown>
-    }> = []
-    initAdapterForMock.mockImplementation(async (host: string) => ({
-      adapter: {
-        api: {
-          createNote: async (params: Record<string, unknown>) => {
-            createCalls.push({ host, params })
-            return createNoteMock(host, params)
-          },
-          getNote: getNoteMock,
-          uploadFileFromPath: (...a: unknown[]) => uploadFileFromPathMock(...a),
-        },
-      },
-      serverInfo: { features: { scheduledNotes: false } },
-    }))
-    return createCalls
-  }
-
-  it('アカウント追加で制約を取得し min(maxNoteTextLength) がカウンタ基準になる', async () => {
-    apiGetMetaDetailMock.mockImplementation(async (accountId: string) =>
-      ok(accountId === 'acc2' ? { maxNoteTextLength: 500 } : {}),
-    )
-    const form = mount()
-    await form.initAdapter()
-    await form.toggleAccountSelection('acc2')
-    expect(form.selectedAccountIds.value).toEqual(['acc1', 'acc2'])
-    expect(apiGetMetaDetailMock).toHaveBeenCalledWith('acc2')
-    expect(form.remainingChars.value).toBe(500)
-    form.text.value = 'a'.repeat(501)
-    expect(form.remainingChars.value).toBe(-1)
-    expect(form.selectionIssues.value.acc2).toEqual({
-      kind: 'blocked',
-      reason: '文字数超過',
-    })
-    expect(form.canPost.value).toBe(false)
-    // 本文を縮めれば投稿できる
-    form.text.value = 'a'.repeat(500)
-    expect(form.selectionIssues.value.acc2).toBeNull()
-    expect(form.canPost.value).toBe(true)
-  })
-
-  it('制約の取得中は保守側 (送信不可) に倒す', async () => {
-    apiGetMetaDetailMock.mockImplementation(async (accountId: string) => {
-      if (accountId === 'acc2') return new Promise(() => undefined)
-      return ok({})
-    })
-    const form = mount()
-    await form.initAdapter()
-    void form.toggleAccountSelection('acc2')
-    form.text.value = 'x'
-    expect(form.selectedAccountIds.value).toEqual(['acc1', 'acc2'])
-    expect(form.selectionIssues.value.acc2).toEqual({ kind: 'loading' })
-    expect(form.canPost.value).toBe(false)
-  })
-
-  it('現在の公開範囲が使えないアカウントは blocked になり、変更すれば解ける', async () => {
-    apiGetUserPoliciesMock.mockImplementation(async (accountId: string) =>
-      ok(accountId === 'acc2' ? { canPublicNote: false } : {}),
-    )
-    const form = mount()
-    await form.initAdapter()
-    await form.toggleAccountSelection('acc2')
-    form.text.value = 'x'
-    expect(form.selectionIssues.value.acc2).toEqual({
-      kind: 'blocked',
-      reason: 'この公開範囲は使えません',
-    })
-    expect(form.canPost.value).toBe(false)
-    form.visibility.value = 'home'
-    expect(form.selectionIssues.value.acc2).toBeNull()
-    expect(form.canPost.value).toBe(true)
-  })
-
-  it('選択済みアカウントの再タップで解除できるが、最後の 1 つは外せない', async () => {
-    const form = mount()
-    await form.initAdapter()
-    await form.toggleAccountSelection('acc1')
-    expect(form.selectedAccountIds.value).toEqual(['acc1'])
-    await form.toggleAccountSelection('acc2')
-    await form.toggleAccountSelection('acc2')
-    expect(form.selectedAccountIds.value).toEqual(['acc1'])
-  })
-
-  it('primary を解除すると次の選択アカウントが primary に昇格して再初期化する', async () => {
-    const form = mount()
-    await form.initAdapter()
-    await form.toggleAccountSelection('acc2')
-    initAdapterForMock.mockClear()
-    await form.toggleAccountSelection('acc1')
-    expect(form.selectedAccountIds.value).toEqual(['acc2'])
-    expect(form.activeAccountId.value).toBe('acc2')
-    expect(initAdapterForMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('reply / renote / channel / 編集では複数選択できない', async () => {
-    for (const props of [
-      { replyTo: makeNote({ id: 'r1' }) },
-      { renoteId: 'rn1' },
-      { channelId: 'ch1' },
-      { editNote: makeNote({ id: 'e1' }) },
-    ]) {
-      const form = mount(props)
-      await form.initAdapter()
-      expect(form.crosspostAllowed.value).toBe(false)
-      await form.toggleAccountSelection('acc2')
-      expect(form.selectedAccountIds.value).toEqual(['acc1'])
-      scope?.stop()
-    }
-  })
-
-  it('予約投稿を設定すると複数選択が primary のみへ戻る', async () => {
-    const form = mount()
-    await form.initAdapter()
-    await form.toggleAccountSelection('acc2')
-    expect(form.selectedAccountIds.value).toEqual(['acc1', 'acc2'])
-    form.scheduledAt.value = '2026-08-01T00:00:00Z'
-    await nextTick()
-    expect(form.selectedAccountIds.value).toEqual(['acc1'])
-  })
-
-  it('source を持たない添付 (ドライブ既存ファイル) があると追加できない', async () => {
-    const form = mount()
-    await form.initAdapter()
-    form.attachedFiles.value = [makeFile('drive1')]
-    expect(form.hasSourcelessAttachment.value).toBe(true)
-    await form.toggleAccountSelection('acc2')
-    expect(form.selectedAccountIds.value).toEqual(['acc1'])
-  })
-
-  it('複数選択で post すると各アカウントへ独立に createNote し、選択をリセットする', async () => {
-    const createCalls = trackAdaptersByHost()
-    const form = mount()
-    await form.initAdapter()
-    await form.toggleAccountSelection('acc2')
-    form.text.value = 'こんにちは'
-    await form.post()
-    expect(form.posted.value).toBe(true)
-    expect(form.selectedAccountIds.value).toEqual(['acc1'])
-    await vi.waitFor(() => expect(createCalls).toHaveLength(2))
-    expect(createCalls.map((c) => c.host).sort()).toEqual([
-      'misskey.test',
-      'other.test',
-    ])
-    for (const call of createCalls) {
-      expect(call.params).toMatchObject({ text: 'こんにちは' })
-    }
-    expect(saveDraftMock).not.toHaveBeenCalled()
-    expect(toastShowMock).not.toHaveBeenCalled()
-  })
-
-  it('添付は primary 以外へ source から再アップロードし、per-account fileIds で投稿する', async () => {
-    const createCalls = trackAdaptersByHost()
-    const form = mount()
-    await form.initAdapter()
-    await form.toggleAccountSelection('acc2')
-    form.text.value = 'x'
-    form.attachedFiles.value = [makeFile('f1')]
-    form.attachmentSources.value = {
-      f1: { kind: 'path', path: '/tmp/a.png' },
-    }
-    await form.post()
-    await vi.waitFor(() => expect(createCalls).toHaveLength(2))
-    // 再アップロードは 1 回 (primary は既存 fileIds を使う)
-    expect(uploadFileFromPathMock).toHaveBeenCalledTimes(1)
-    expect(uploadFileFromPathMock).toHaveBeenCalledWith('/tmp/a.png', false)
-    const primary = createCalls.find((c) => c.host === 'misskey.test')
-    const secondary = createCalls.find((c) => c.host === 'other.test')
-    expect(primary?.params.fileIds).toEqual(['f1'])
-    expect(secondary?.params.fileIds).toEqual(['up1'])
-  })
-
-  it('部分失敗は per-account 下書き退避 + 再試行アクション付き toast を出す', async () => {
-    const createCalls = trackAdaptersByHost()
-    createNoteMock.mockImplementation(async (host: string) => {
-      if (host === 'other.test') throw new Error('boom')
-    })
-    const form = mount()
-    await form.initAdapter()
-    await form.toggleAccountSelection('acc2')
-    form.text.value = '救出対象'
-    await form.post()
-    await vi.waitFor(() => expect(toastShowMock).toHaveBeenCalled())
-    expect(saveDraftMock).toHaveBeenCalledTimes(1)
-    expect(saveDraftMock).toHaveBeenCalledWith(
-      'acc2',
-      null,
-      expect.objectContaining({ text: '救出対象' }),
-      { replyId: null, renoteId: null, channelId: null },
-    )
-    const [message, type, options] = toastShowMock.mock.calls[0] ?? []
-    expect(message).toBe('1/2 アカウントに投稿しました')
-    expect(type).toBe('error')
-    const action = (
-      options as { action?: { label: string; onClick: () => void } }
-    )?.action
-    expect(action?.label).toBe('再試行')
-
-    // 再試行: 失敗アカウントのみ再送し、成功したら退避 draft を削除する
-    createNoteMock.mockImplementation(async () => undefined)
-    createCalls.length = 0
-    toastShowMock.mockClear()
-    action?.onClick()
-    await vi.waitFor(() => expect(createCalls).toHaveLength(1))
-    expect(createCalls[0]?.host).toBe('other.test')
-    await vi.waitFor(() =>
-      expect(deleteDraftMock).toHaveBeenCalledWith('acc2', 'd1'),
-    )
-  })
-
-  it('添付アップロードに失敗したアカウントの下書きには fileIds を入れない', async () => {
-    trackAdaptersByHost()
-    uploadFileFromPathMock.mockRejectedValue(new Error('upload boom'))
-    const form = mount()
-    await form.initAdapter()
-    await form.toggleAccountSelection('acc2')
-    form.text.value = 'x'
-    form.attachedFiles.value = [makeFile('f1')]
-    form.attachmentSources.value = {
-      f1: { kind: 'path', path: '/tmp/a.png' },
-    }
-    await form.post()
-    await vi.waitFor(() => expect(saveDraftMock).toHaveBeenCalled())
-    expect(saveDraftMock).toHaveBeenCalledWith(
-      'acc2',
-      null,
-      expect.objectContaining({ text: 'x', fileIds: [] }),
-      expect.anything(),
-    )
-    // 添付が失われた旨を明示する toast
-    await vi.waitFor(() =>
-      expect(
-        toastShowMock.mock.calls.some((c) => String(c[0]).includes('本文のみ')),
-      ).toBe(true),
-    )
-  })
-
-  it('単一選択のままなら従来の単一アカウント経路で投稿する', async () => {
-    const form = mount()
-    await form.initAdapter()
-    form.text.value = 'x'
-    await form.post()
-    expect(createNoteMock).toHaveBeenCalledTimes(1)
-    expect(form.selectedAccountIds.value).toEqual(['acc1'])
   })
 })

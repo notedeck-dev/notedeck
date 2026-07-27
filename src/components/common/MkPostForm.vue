@@ -22,7 +22,6 @@ import { usePopupControl } from '@/composables/usePopupControl'
 import { usePostFormState } from '@/composables/usePostFormState'
 import { useScheduleDialog } from '@/composables/useScheduleDialog'
 import {
-  type Account,
   getAccountAvatarUrl,
   getAccountLabel,
   isGuestAccount,
@@ -31,7 +30,6 @@ import { useConfirm } from '@/stores/confirm'
 import { useEmojisStore } from '@/stores/emojis'
 import { usePostFormStore } from '@/stores/postForm'
 import { useSettingsStore } from '@/stores/settings'
-import { useToast } from '@/stores/toast'
 import { useIsCompactLayout } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { buildPreviewNote } from '@/utils/buildPreviewNote'
@@ -40,7 +38,6 @@ import {
   formatScheduleAbsolute,
   formatScheduleRelative,
 } from '@/utils/scheduleFormat'
-import AvatarStack from './AvatarStack.vue'
 import MkAutocompletePopup from './MkAutocompletePopup.vue'
 import MkDraftsPicker from './MkDraftsPicker.vue'
 import MkDrivePicker from './MkDrivePicker.vue'
@@ -114,18 +111,13 @@ const {
   noteModeFlags,
   disabledVisibilities,
   activeAccountId,
-  selectedAccountIds,
   accounts,
   account,
   formThemeVars,
   currentVisibility,
   remainingChars,
-  effectiveMaxTextLength,
+  maxTextLength,
   canPost,
-  isCrosspost,
-  crosspostAllowed,
-  selectionIssues,
-  hasSourcelessAttachment,
   visibilityOptions,
   quoteNote,
   showPoll,
@@ -138,7 +130,6 @@ const {
   sessionSlotKey,
   initAdapter,
   switchAccount,
-  toggleAccountSelection,
   post,
   uploadFilesFromPaths,
   uploadBrowserFiles,
@@ -171,50 +162,6 @@ const {
   },
   { memoMode: props.memoMode },
 )
-
-// --- クロスポスト (#626) ---
-// ドライブ既存ファイル (source なし添付) がある間は複数選択できず、
-// ドロップダウンは従来の単一選択 (アカウント切替) として振る舞う
-const multiSelectEnabled = computed(
-  () => crosspostAllowed.value && !hasSourcelessAttachment.value,
-)
-
-const selectedAccountUsers = computed(() =>
-  selectedAccountIds.value
-    .map((id) => accounts.value.find((a) => a.id === id))
-    .filter((a): a is Account => !!a)
-    .map((a) => ({ avatarUrl: getAccountAvatarUrl(a), username: a.username })),
-)
-
-const accountBtnTitle = computed(() =>
-  isCrosspost.value
-    ? `${selectedAccountUsers.value.map((u) => `@${u.username}`).join(', ')} に投稿`
-    : account.value
-      ? getAccountLabel(account.value)
-      : '',
-)
-
-function onAccountRowClick(acc: Account) {
-  if (!acc.hasToken) {
-    showLoginPrompt()
-    return
-  }
-  if (multiSelectEnabled.value) {
-    void toggleAccountSelection(acc.id)
-    return
-  }
-  switchAccount(acc.id)
-}
-
-/** 選択中アカウントの制約違反理由 (「文字数超過」等)。null なら投稿可 */
-function accountIssueReason(accountId: string): string | null {
-  const issue = selectionIssues.value[accountId]
-  return issue?.kind === 'blocked' ? issue.reason : null
-}
-
-function accountIssueLoading(accountId: string): boolean {
-  return selectionIssues.value[accountId]?.kind === 'loading'
-}
 
 // --- Auto-save toggle (persisted in settings, like preview).
 // 非 memoMode は drafts に自動保存、memoMode は memos に自動保存。
@@ -422,15 +369,6 @@ function toggleDrivePicker() {
 }
 
 function onDriveFilesPicked(driveFiles: NormalizedDriveFile[]) {
-  // ドライブ既存ファイルはローカル source を持たず他アカウントへ再アップロード
-  // できないため、複数アカウント選択中は添付不可 (#626)
-  if (isCrosspost.value) {
-    useToast().show(
-      '複数アカウント選択中はドライブの既存ファイルを添付できません',
-      'warning',
-    )
-    return
-  }
   attachDriveFiles(driveFiles)
   showDrivePicker.value = false
 }
@@ -571,39 +509,22 @@ function onPaste(e: ClipboardEvent) {
             <button
               class="_button"
               :class="$style.accountBtn"
-              :title="accountBtnTitle"
+              :title="getAccountLabel(account)"
               @click="showAccountMenu = !showAccountMenu"
             >
-              <AvatarStack
-                v-if="isCrosspost"
-                :users="selectedAccountUsers"
-                :size="22"
-                :max="4"
-              />
               <img
-                v-else
                 :src="getAccountAvatarUrl(account)"
                 :class="$style.accountAvatar"
               />
             </button>
             <div v-if="showAccountMenu && accounts.length > 1" :class="$style.accountMenu">
-              <div
-                v-if="crosspostAllowed && hasSourcelessAttachment"
-                :class="$style.accountMenuHint"
-              >
-                ドライブの既存ファイル添付中は複数アカウントに投稿できません
-              </div>
               <button
                 v-for="acc in accounts"
                 :key="acc.id"
                 class="_button"
-                :class="[$style.accountOption, {
-                  [$style.active]: acc.id === activeAccountId,
-                  [$style.accountDisabled]: isGuestAccount(acc),
-                  [$style.accountBlocked]: !!accountIssueReason(acc.id),
-                }]"
+                :class="[$style.accountOption, { [$style.active]: acc.id === activeAccountId, [$style.accountDisabled]: isGuestAccount(acc) }]"
                 :disabled="isGuestAccount(acc)"
-                @click="onAccountRowClick(acc)"
+                @click="acc.hasToken ? switchAccount(acc.id) : showLoginPrompt()"
               >
                 <img
                   :src="getAccountAvatarUrl(acc)"
@@ -614,21 +535,7 @@ function onPaste(e: ClipboardEvent) {
                 <div :class="$style.accountOptionInfo">
                   <span :class="$style.accountOptionName">{{ isGuestAccount(acc) ? (acc.displayName || 'ゲスト') : acc.username }}</span>
                   <span :class="$style.accountOptionHost">@{{ acc.host }}</span>
-                  <span
-                    v-if="accountIssueReason(acc.id)"
-                    :class="$style.accountOptionIssue"
-                  >{{ accountIssueReason(acc.id) }}</span>
                 </div>
-                <i
-                  v-if="accountIssueLoading(acc.id)"
-                  class="ti ti-loader-2 nd-spin"
-                  :class="$style.accountOptionState"
-                />
-                <i
-                  v-else-if="isCrosspost && selectedAccountIds.includes(acc.id)"
-                  class="ti ti-check"
-                  :class="$style.accountOptionState"
-                />
               </button>
             </div>
           </div>
@@ -886,7 +793,7 @@ function onPaste(e: ClipboardEvent) {
           ref="textareaRef"
           v-model="text"
           :class="$style.textArea"
-          :maxlength="effectiveMaxTextLength"
+          :maxlength="maxTextLength"
           :placeholder="replyTo ? '返信...' : renoteId ? '引用...' : '今どんな気分？'"
           autocomplete="off"
           autocorrect="off"
@@ -1468,35 +1375,6 @@ function onPaste(e: ClipboardEvent) {
 .accountDisabled {
   opacity: 0.4;
   pointer-events: none;
-}
-
-/* ── クロスポスト (#626) ── */
-/* 制約違反 (文字数超過等) の選択行: グレーアウトするがタップで解除できる */
-.accountBlocked {
-  opacity: 0.55;
-}
-
-.accountMenuHint {
-  max-width: 220px;
-  padding: 6px 12px;
-  font-size: 0.72em;
-  line-height: 1.4;
-  color: var(--nd-fg);
-  opacity: 0.6;
-}
-
-.accountOptionIssue {
-  font-size: 0.72em;
-  color: var(--nd-error);
-  white-space: nowrap;
-}
-
-.accountOptionState {
-  flex-shrink: 0;
-  margin-left: auto;
-  padding-left: 8px;
-  font-size: 0.9em;
-  color: var(--nd-accent);
 }
 
 .accountOptionAvatar {
