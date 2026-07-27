@@ -8,6 +8,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
+import { getNoteShareUrl } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import PopupMenu from './PopupMenu.vue'
 
@@ -43,10 +44,7 @@ const isMyRenote = computed(() => {
   return account?.userId === props.note.user.id
 })
 
-const noteWebUrl = computed(() => {
-  const n = props.note
-  return n.url ?? n.uri ?? `https://${n._serverHost}/notes/${n.id}`
-})
+const noteWebUrl = computed(() => getNoteShareUrl(props.note))
 
 function open(e: MouseEvent) {
   popupMenuRef.value?.open(e)

@@ -15,6 +15,7 @@ import { usePrompt } from '@/stores/prompt'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
+import { getNoteShareUrl } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import PopupMenu from './PopupMenu.vue'
 
@@ -75,10 +76,7 @@ const noteActions = computed(() =>
   getPluginHandlers('note_action', props.note._accountId),
 )
 
-const noteWebUrl = computed(() => {
-  const n = props.note
-  return n.url ?? n.uri ?? `https://${n._serverHost}/notes/${n.id}`
-})
+const noteWebUrl = computed(() => getNoteShareUrl(props.note))
 
 function open(e: MouseEvent) {
   popupMenuRef.value?.open(e)

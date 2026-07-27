@@ -1,4 +1,5 @@
 import type { NormalizedNote } from '@/adapters/types'
+import { getNoteUri } from '@/utils/noteUrl'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,11 +41,6 @@ export interface MergedThread {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** ノートの正規 URI を返す。ローカルノート（uri なし）は推定 URL を生成 */
-export function getNoteUri(note: NormalizedNote): string {
-  return note.uri ?? `https://${note._serverHost}/notes/${note.id}`
-}
 
 /** リアクション辞書を合算する（キーごとに sum） */
 function mergeReactions(

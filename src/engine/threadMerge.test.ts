@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { NormalizedNote } from '@/adapters/types'
 import type { MergedThread } from './threadMerge'
-import {
-  getNoteUri,
-  mergeThreadFragments,
-  type ThreadFragment,
-} from './threadMerge'
+import { mergeThreadFragments, type ThreadFragment } from './threadMerge'
 
 /** テスト用の最小限 NormalizedNote を生成 */
 function makeNote(
@@ -46,27 +42,6 @@ function ensureNotNull(result: MergedThread | null): MergedThread {
   expect(result).not.toBeNull()
   return result as MergedThread
 }
-
-describe('getNoteUri', () => {
-  it('uri フィールドがあればそれを返す', () => {
-    const note = makeNote({
-      id: 'n1',
-      _accountId: 'a1',
-      _serverHost: 'a.example',
-      uri: 'https://b.example/notes/remote1',
-    })
-    expect(getNoteUri(note)).toBe('https://b.example/notes/remote1')
-  })
-
-  it('uri がなければサーバーホストから推定する', () => {
-    const note = makeNote({
-      id: 'n1',
-      _accountId: 'a1',
-      _serverHost: 'a.example',
-    })
-    expect(getNoteUri(note)).toBe('https://a.example/notes/n1')
-  })
-})
 
 describe('mergeThreadFragments', () => {
   it('空のフラグメントで null を返す', () => {

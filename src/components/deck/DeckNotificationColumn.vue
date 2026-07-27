@@ -53,6 +53,7 @@ import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
 import { proxyUrl } from '@/utils/imageProxy'
+import { getNoteUri } from '@/utils/noteUrl'
 import {
   CROSS_ACCOUNT_NOTIFICATION_KEY,
   loadNotificationCache,
@@ -150,7 +151,7 @@ function notifMenuOpenNoteInspector() {
   useWindowsStore().open('note-inspector', {
     accountId: notif._accountId,
     noteId: notif.note.id,
-    noteUri: notif.note.uri ?? notif.note.url ?? undefined,
+    noteUri: getNoteUri(notif.note),
     serverHost: notif._serverHost,
   })
   closeNotifMenu()

@@ -20,16 +20,16 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { usePortal } from '@/composables/usePortal'
 import {
-  getNoteUri,
   type MergedThread,
   mergeThreadFragments,
   type ThreadFragment,
 } from '@/engine/threadMerge'
+import { resolveNoteUriFor } from '@/services/entityResolution'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { mapWithConcurrency } from '@/utils/concurrency'
 import { isImeComposing } from '@/utils/ime'
-import { parseNoteUrl, parseUserQuery } from '@/utils/noteUrl'
+import { getNoteUri, parseUserQuery } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
@@ -233,48 +233,46 @@ async function performLookup() {
       return
     }
 
-    // Try parsing as a note URL for same-server direct fetch
-    const parsed = parseNoteUrl(q)
-    if (parsed && parsed.host === acc.host) {
-      const note = await api.getNote(parsed.noteId)
+    // ノート解決（同一ホスト高速パス + ap/show）はサービスに委譲
+    const resolved = await resolveNoteUriFor(accountId, q)
+    if (resolved.ok) {
+      const note = await api.getNote(resolved.noteId)
       result.value = { type: 'Note', note }
       loadThread(note.id)
-      lookupLoading.value = false
       return
     }
 
-    // Use ap/show for remote URLs or any URI
-    const res = unwrap(await commands.apiApShow(accountId, q)) as unknown as {
-      type: string
-      object?: {
-        id: string
-        username?: string
-        host?: string | null
-        name?: string | null
-        avatarUrl?: string | null
-        emojis?: Record<string, string>
+    // not_found は「ap/show が Note 以外を返した」可能性がある —
+    // ユーザー URL 等は User として照会し直す
+    if (resolved.code === 'not_found') {
+      const res = unwrap(await commands.apiApShow(accountId, q)) as unknown as {
+        type: string
+        object?: {
+          id: string
+          username?: string
+          host?: string | null
+          name?: string | null
+          avatarUrl?: string | null
+          emojis?: Record<string, string>
+        }
+      }
+      if (res.type === 'User' && res.object?.id) {
+        result.value = {
+          type: 'User',
+          user: {
+            id: res.object.id,
+            username: res.object.username ?? '',
+            host: res.object.host ?? null,
+            name: res.object.name ?? null,
+            avatarUrl: res.object.avatarUrl ?? null,
+            emojis: res.object.emojis,
+          },
+        }
+        return
       }
     }
 
-    if (res.type === 'Note' && res.object?.id) {
-      const note = await api.getNote(res.object.id)
-      result.value = { type: 'Note', note }
-      loadThread(note.id)
-    } else if (res.type === 'User' && res.object?.id) {
-      result.value = {
-        type: 'User',
-        user: {
-          id: res.object.id,
-          username: res.object.username ?? '',
-          host: res.object.host ?? null,
-          name: res.object.name ?? null,
-          avatarUrl: res.object.avatarUrl ?? null,
-          emojis: res.object.emojis,
-        },
-      }
-    } else {
-      lookupError.value = '照会できませんでした'
-    }
+    lookupError.value = '照会できませんでした'
   } catch {
     lookupError.value = '照会できませんでした'
   } finally {
@@ -356,26 +354,10 @@ async function performLookupCrossAccount(q: string) {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return fragments
 
-        // ap/show でノートを解決
-        let localNoteId: string | null = null
-
-        // 同一サーバーの URL ならパースして直接取得
-        const parsed = parseNoteUrl(q)
-        if (parsed && parsed.host === acc.host) {
-          localNoteId = parsed.noteId
-        } else {
-          const apResult = unwrap(
-            await commands.apiApShow(acc.id, focalUri),
-          ) as unknown as {
-            type: string
-            object?: { id: string }
-          }
-          if (apResult.type === 'Note' && apResult.object?.id) {
-            localNoteId = apResult.object.id
-          }
-        }
-
-        if (!localNoteId) return fragments
+        // このアカウントのサーバー上の noteId に解決（高速パス + ap/show）
+        const resolved = await resolveNoteUriFor(acc.id, focalUri)
+        if (!resolved.ok) return fragments
+        const localNoteId = resolved.noteId
 
         // ノート + スレッドを取得
         const [note, conv, replies] = await Promise.all([
