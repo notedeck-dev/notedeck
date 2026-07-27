@@ -1690,6 +1690,15 @@ async setUnreadBadge(count: number) : Promise<void> {
 },
 /**
  * Export notecli.db to a user-chosen location via save dialog.
+ * 
+ * DB は WAL モードのため単純なファイルコピーでは未反映のトランザクションが
+ * 取り残される。notecli の `backup_to` (VACUUM INTO) で整合したスナップ
+ * ショットを書き出す。
+ * 
+ * 認証情報は一切持ち出さない (トークン列は常に空にする)。通常トークンは
+ * OS キーチェーンにあり DB に入らないため、別マシンに復元すればどのみち
+ * 再ログインが必要になる。キーチェーンが永続しない環境では DB に平文で
+ * 残るので、そこだけ持ち出されるのを防ぐ。
  */
 async exportDb() : Promise<Result<boolean, { code: string; message: string }>> {
     try {

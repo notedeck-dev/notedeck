@@ -88,19 +88,22 @@ fn validate_sqlite_file(path: &std::path::Path) -> Result<()> {
 }
 
 /// Export notecli.db to a user-chosen location via save dialog.
+///
+/// DB は WAL モードのため単純なファイルコピーでは未反映のトランザクションが
+/// 取り残される。notecli の `backup_to` (VACUUM INTO) で整合したスナップ
+/// ショットを書き出す。
+///
+/// 認証情報は一切持ち出さない (トークン列は常に空にする)。通常トークンは
+/// OS キーチェーンにあり DB に入らないため、別マシンに復元すればどのみち
+/// 再ログインが必要になる。キーチェーンが永続しない環境では DB に平文で
+/// 残るので、そこだけ持ち出されるのを防ぐ。
 #[tauri::command]
 #[specta::specta]
-pub async fn export_db(app: tauri::AppHandle) -> Result<bool> {
+pub async fn export_db(
+    app: tauri::AppHandle,
+    app_state: tauri::State<'_, super::AppState>,
+) -> Result<bool> {
     use tauri_plugin_dialog::DialogExt;
-
-    let app_dir = crate::app_dir::resolve_app_dir(&app)
-        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-    let db_path = app_dir.join("notecli.db");
-    if !db_path.exists() {
-        return Err(NoteDeckError::InvalidInput(
-            "notecli.db not found".to_string(),
-        ));
-    }
 
     let dest = app
         .dialog()
@@ -115,9 +118,13 @@ pub async fn export_db(app: tauri::AppHandle) -> Result<bool> {
 
     let dest_path = dest
         .as_path()
-        .ok_or_else(|| NoteDeckError::InvalidInput("Invalid destination path".to_string()))?;
-    std::fs::copy(&db_path, dest_path)
-        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+        .ok_or_else(|| NoteDeckError::InvalidInput("Invalid destination path".to_string()))?
+        .to_path_buf();
+
+    let db = app_state.db().await;
+    tokio::task::spawn_blocking(move || db.backup_to(&dest_path, true))
+        .await
+        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))??;
     Ok(true)
 }
 
