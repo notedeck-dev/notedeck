@@ -1723,6 +1723,22 @@ async saveImageToFile(url: string) : Promise<Result<boolean, { code: string; mes
     else return { status: "error", error: e  as any };
 }
 },
+async imageCacheStats() : Promise<Result<ImageCacheStats, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("image_cache_stats") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async clearImageCache() : Promise<Result<null, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_image_cache") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
  * エクスポートルートを (無ければ作って) 返す。… メニューの
  * 「ダウンロードフォルダを開く」用
@@ -2715,6 +2731,10 @@ heartbeatIntervalMinutes: number | null;
 logDir: string | null }
 export type HttpFetchRequest = { url: string; method: string | null; headers: Partial<{ [key in string]: string }> | null; body: string | null; timeoutMs: number | null }
 export type HttpFetchResponse = { status: number; headers: Partial<{ [key in string]: string }>; body: string }
+/**
+ * 画像ディスクキャッシュの使用量 (#815)。設定のキャッシュ画面で表示する
+ */
+export type ImageCacheStats = { bytes: number; files: number }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 /**
  * Misskey の `mutedWords` / `hardMutedWords` の 1 要素。
@@ -2843,7 +2863,11 @@ content?: JsonValue | null; variables?: JsonValue | null; script?: string | null
  * Performance configuration shared across the application.
  * All fields are dynamically updatable at runtime via Tauri commands.
  */
-export type PerformanceConfig = { memory_cache_max_total: number; memory_cache_max_item: number; max_concurrent_fetches: number; rust_ogp_cache_max: number; max_requests_per_window: number; circuit_breaker_threshold: number; circuit_breaker_duration: number; image_cache_ttl_days: number }
+export type PerformanceConfig = { memory_cache_max_total: number; memory_cache_max_item: number; max_concurrent_fetches: number; rust_ogp_cache_max: number; max_requests_per_window: number; circuit_breaker_threshold: number; circuit_breaker_duration: number; image_cache_ttl_days: number; 
+/**
+ * ディスク画像キャッシュの上限バイト数。超過分は古い順に削除する
+ */
+image_cache_max_bytes: number }
 export type Player = { url: string; width: number | null; height: number | null; allow?: string[] }
 /**
  * 接続を開示する先の principal クラス (#712 §6.1)。

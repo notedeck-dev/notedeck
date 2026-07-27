@@ -337,6 +337,28 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             let image_cache = std::sync::Arc::new(
                 image_cache::ImageCache::with_client(&app_dir_bg, shared_http, shared_perf_bg.clone()),
             );
+            app_handle.manage(image_cache.clone());
+
+            // ディスク画像キャッシュの掃除 (#815)。TTL 超過分と上限超過分は
+            // read 側では消えないため、起動時と定期実行でここだけが削除口になる
+            {
+                let sweeper = image_cache.clone();
+                tauri::async_runtime::spawn(async move {
+                    let interval = std::time::Duration::from_secs(6 * 60 * 60);
+                    loop {
+                        let stats = sweeper.sweep_disk().await;
+                        if stats.expired_removed > 0 || stats.evicted_removed > 0 {
+                            tracing::info!(
+                                expired = stats.expired_removed,
+                                evicted = stats.evicted_removed,
+                                bytes_after = stats.bytes_after,
+                                "image cache swept"
+                            );
+                        }
+                        tokio::time::sleep(interval).await;
+                    }
+                });
+            }
 
             // Start HTTP API server (attach routes to pre-bound listener)
             // Wait for the server to be ready before signalling the frontend,
@@ -818,6 +840,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::export_db,
             commands::import_db,
             commands::save_image_to_file,
+            commands::image_cache_stats,
+            commands::clear_image_cache,
             commands::get_export_dir,
             commands::export_files_start,
             commands::export_files_cancel,

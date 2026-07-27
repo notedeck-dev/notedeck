@@ -394,6 +394,34 @@ fn overlay_dot_icon() -> tauri::image::Image<'static> {
     tauri::image::Image::new_owned(rgba, SIZE as u32, SIZE as u32)
 }
 
+/// 画像ディスクキャッシュの使用量 (#815)。設定のキャッシュ画面で表示する
+#[derive(Debug, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageCacheStats {
+    pub bytes: u64,
+    pub files: usize,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn image_cache_stats(
+    cache: tauri::State<'_, std::sync::Arc<crate::image_cache::ImageCache>>,
+) -> Result<ImageCacheStats> {
+    let (bytes, files) = cache.disk_stats().await;
+    Ok(ImageCacheStats { bytes, files })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_image_cache(
+    cache: tauri::State<'_, std::sync::Arc<crate::image_cache::ImageCache>>,
+) -> Result<()> {
+    cache
+        .clear_disk()
+        .await
+        .map_err(NoteDeckError::InvalidInput)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

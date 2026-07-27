@@ -14,6 +14,8 @@ pub struct PerformanceConfig {
     pub circuit_breaker_threshold: u32,
     pub circuit_breaker_duration: u64,
     pub image_cache_ttl_days: u64,
+    /// ディスク画像キャッシュの上限バイト数。超過分は古い順に削除する
+    pub image_cache_max_bytes: u64,
 }
 
 impl Default for PerformanceConfig {
@@ -27,6 +29,7 @@ impl Default for PerformanceConfig {
             circuit_breaker_threshold: 5,
             circuit_breaker_duration: 60,
             image_cache_ttl_days: 7,
+            image_cache_max_bytes: 512 * 1024 * 1024,
         }
     }
 }
