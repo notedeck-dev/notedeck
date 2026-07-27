@@ -1,4 +1,3 @@
-import { relaunch } from '@tauri-apps/plugin-process'
 import { reactive } from 'vue'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
@@ -148,46 +147,11 @@ export function getSettingsItems(): QuickPickItem[] {
       action: () => useWindowsStore().open('cacheEditor'),
     },
     {
-      id: 'export-db',
-      label: 'DBエクスポート',
-      icon: 'database-export',
+      id: 'backup',
+      label: 'バックアップ',
+      icon: 'database',
       group: 'バックアップ',
-      action: async () => {
-        unwrap(await commands.exportDb())
-      },
-    },
-    {
-      id: 'import-db',
-      label: 'DBインポート',
-      icon: 'database-import',
-      group: 'バックアップ',
-      action: () =>
-        backupWithConfirm(
-          'importDb',
-          'DBインポート',
-          '現在のDBが上書きされます。',
-        ),
-    },
-    {
-      id: 'export-settings',
-      label: '設定エクスポート',
-      icon: 'file-export',
-      group: 'バックアップ',
-      action: async () => {
-        unwrap(await commands.exportSettingsJson())
-      },
-    },
-    {
-      id: 'import-settings',
-      label: '設定インポート',
-      icon: 'file-import',
-      group: 'バックアップ',
-      action: () =>
-        backupWithConfirm(
-          'importSettingsJson',
-          '設定インポート',
-          '現在の設定が上書きされます。',
-        ),
+      action: () => useWindowsStore().open('backup'),
     },
   ]
 }
@@ -204,23 +168,6 @@ function pickWallpaperFile() {
     reader.readAsDataURL(file)
   }
   input.click()
-}
-
-async function backupWithConfirm(
-  command: 'importDb' | 'importSettingsJson',
-  title: string,
-  message: string,
-) {
-  const { confirm } = useConfirm()
-  const ok = await confirm({
-    title,
-    message,
-    okLabel: 'インポート',
-    type: 'danger',
-  })
-  if (!ok) return
-  const result = unwrap(await commands[command]())
-  if (result) await relaunch()
 }
 
 // ============================================================
