@@ -27,7 +27,6 @@ import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { usePrompt } from '@/stores/prompt'
-import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { proxyThumbUrl } from '@/utils/imageProxy'
@@ -41,45 +40,14 @@ import { useCommandStore } from './registry'
 
 export function getSettingsItems(): QuickPickItem[] {
   return [
-    // Appearance
+    // ダークモード切替や壁紙は個別項目を並べず、モバイルの設定メニューと
+    // 同じくアピアランスウィンドウに集約する
     {
-      id: 'toggle-dark-mode',
-      label: 'ダーク / ライトモード切替',
-      icon: 'moon',
+      id: 'appearance',
+      label: 'アピアランス',
+      icon: 'brush',
       group: 'アピアランス',
-      action: () => useThemeStore().toggleTheme(),
-    },
-    {
-      id: 'toggle-os-theme-sync',
-      label: 'デバイスのダークモードに同期',
-      icon: 'device-desktop',
-      group: 'アピアランス',
-      description: useThemeStore().manualMode == null ? 'オン' : 'オフ',
-      action: () => {
-        const themeStore = useThemeStore()
-        if (themeStore.manualMode == null) {
-          themeStore.pinCurrentMode()
-        } else {
-          themeStore.resetToOsTheme()
-        }
-      },
-    },
-    // テーマ選択 / 編集 / 削除はテーマカラム (themeManager) に集約済みのため
-    // アピアランス quickPick からは撤去。テーマカラムを開くには
-    // 「テーマを管理」コマンドを使う。
-    {
-      id: 'set-wallpaper',
-      label: '壁紙を設定',
-      icon: 'photo',
-      group: 'アピアランス',
-      action: () => pickWallpaperFile(),
-    },
-    {
-      id: 'remove-wallpaper',
-      label: '壁紙を削除',
-      icon: 'photo-off',
-      group: 'アピアランス',
-      action: () => useDeckStore().clearWallpaper(),
+      action: () => useWindowsStore().open('appearanceEditor'),
     },
     // Environment settings
     {
@@ -154,20 +122,6 @@ export function getSettingsItems(): QuickPickItem[] {
       action: () => useWindowsStore().open('backup'),
     },
   ]
-}
-
-function pickWallpaperFile() {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*'
-  input.onchange = () => {
-    const file = input.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => useDeckStore().setWallpaper(reader.result as string)
-    reader.readAsDataURL(file)
-  }
-  input.click()
 }
 
 // ============================================================

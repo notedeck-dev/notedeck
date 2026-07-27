@@ -98,31 +98,11 @@ describe('getSettingsItems', () => {
     }
   })
 
-  it('reflects OS theme sync state in the description', () => {
-    themeMock.manualMode = null
-    expect(
-      getSettingsItems().find((i) => i.id === 'toggle-os-theme-sync')
-        ?.description,
-    ).toBe('オン')
-    themeMock.manualMode = 'dark'
-    expect(
-      getSettingsItems().find((i) => i.id === 'toggle-os-theme-sync')
-        ?.description,
-    ).toBe('オフ')
-  })
-
-  it('toggle-dark-mode action toggles the theme', () => {
-    getSettingsItems()
-      .find((i) => i.id === 'toggle-dark-mode')
-      ?.action?.()
-    expect(themeMock.toggleTheme).toHaveBeenCalledOnce()
-  })
-
-  it('remove-wallpaper action clears the deck wallpaper', () => {
-    getSettingsItems()
-      .find((i) => i.id === 'remove-wallpaper')
-      ?.action?.()
-    expect(deckMock.clearWallpaper).toHaveBeenCalledOnce()
+  it('アピアランスは個別操作ではなくウィンドウを開く', () => {
+    const items = getSettingsItems()
+    expect(items.filter((i) => i.group === 'アピアランス')).toHaveLength(1)
+    items.find((i) => i.id === 'appearance')?.action?.()
+    expect(windowsMock.open).toHaveBeenCalledWith('appearanceEditor')
   })
 
   it('window-opening settings route to the windows store', () => {
