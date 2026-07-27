@@ -40,85 +40,71 @@ import { useCommandStore } from './registry'
 
 export function getSettingsItems(): QuickPickItem[] {
   return [
-    // ダークモード切替や壁紙は個別項目を並べず、モバイルの設定メニューと
-    // 同じくアピアランスウィンドウに集約する
+    // 個別操作は並べず、モバイルの設定メニューと同じくウィンドウに集約する
     {
       id: 'appearance',
       label: 'アピアランス',
       icon: 'brush',
-      group: 'アピアランス',
       action: () => useWindowsStore().open('appearanceEditor'),
     },
-    // Environment settings
     {
       id: 'ai-settings',
       label: 'エージェント',
       icon: 'robot',
-      group: '環境設定',
       action: () => useWindowsStore().open('aiSettings'),
     },
     {
       id: 'permissions',
       label: '権限',
       icon: 'shield-lock',
-      group: '環境設定',
       action: () => useWindowsStore().open('permissions'),
     },
     {
       id: 'connections',
       label: '接続',
       icon: 'plug-connected',
-      group: '環境設定',
       action: () => useWindowsStore().open('connections'),
     },
     {
       id: 'keybinds',
       label: 'キーバインド',
       icon: 'keyboard',
-      group: '環境設定',
       action: () => useWindowsStore().open('keybinds'),
     },
     {
       id: 'performance',
       label: 'パフォーマンス',
       icon: 'gauge',
-      group: '環境設定',
       action: () => useWindowsStore().open('performanceEditor'),
     },
     {
       id: 'css-editor',
       label: 'カスタムCSS',
       icon: 'code',
-      group: '環境設定',
       action: () => useWindowsStore().open('cssEditor'),
     },
     {
       id: 'tasks-editor',
       label: 'タスク',
       icon: 'player-play',
-      group: '環境設定',
       action: () => useWindowsStore().open('tasksEditor'),
     },
     {
       id: 'snippets-editor',
       label: 'スニペット',
       icon: 'code-plus',
-      group: '環境設定',
       action: () => useWindowsStore().open('snippetsEditor'),
     },
-    // Cache
     {
       id: 'cache-editor',
-      label: 'キャッシュ管理',
+      label: 'キャッシュ',
       icon: 'eraser',
-      group: 'キャッシュ',
       action: () => useWindowsStore().open('cacheEditor'),
     },
     {
       id: 'backup',
       label: 'バックアップ',
       icon: 'database',
-      group: 'バックアップ',
       action: () => useWindowsStore().open('backup'),
     },
   ]

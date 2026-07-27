@@ -98,9 +98,9 @@ describe('getSettingsItems', () => {
     }
   })
 
-  it('アピアランスは個別操作ではなくウィンドウを開く', () => {
+  it('全項目がウィンドウを開くだけのフラットな一覧', () => {
     const items = getSettingsItems()
-    expect(items.filter((i) => i.group === 'アピアランス')).toHaveLength(1)
+    expect(items.every((i) => i.group === undefined)).toBe(true)
     items.find((i) => i.id === 'appearance')?.action?.()
     expect(windowsMock.open).toHaveBeenCalledWith('appearanceEditor')
   })
