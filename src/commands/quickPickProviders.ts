@@ -1,4 +1,3 @@
-import { relaunch } from '@tauri-apps/plugin-process'
 import { reactive } from 'vue'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
@@ -28,7 +27,6 @@ import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { usePrompt } from '@/stores/prompt'
-import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { proxyThumbUrl } from '@/utils/imageProxy'
@@ -42,185 +40,74 @@ import { useCommandStore } from './registry'
 
 export function getSettingsItems(): QuickPickItem[] {
   return [
-    // Appearance
+    // 個別操作は並べず、モバイルの設定メニューと同じくウィンドウに集約する
     {
-      id: 'toggle-dark-mode',
-      label: 'ダーク / ライトモード切替',
-      icon: 'moon',
-      group: 'アピアランス',
-      action: () => useThemeStore().toggleTheme(),
+      id: 'appearance',
+      label: 'アピアランス',
+      icon: 'brush',
+      action: () => useWindowsStore().open('appearanceEditor'),
     },
-    {
-      id: 'toggle-os-theme-sync',
-      label: 'デバイスのダークモードに同期',
-      icon: 'device-desktop',
-      group: 'アピアランス',
-      description: useThemeStore().manualMode == null ? 'オン' : 'オフ',
-      action: () => {
-        const themeStore = useThemeStore()
-        if (themeStore.manualMode == null) {
-          themeStore.pinCurrentMode()
-        } else {
-          themeStore.resetToOsTheme()
-        }
-      },
-    },
-    // テーマ選択 / 編集 / 削除はテーマカラム (themeManager) に集約済みのため
-    // アピアランス quickPick からは撤去。テーマカラムを開くには
-    // 「テーマを管理」コマンドを使う。
-    {
-      id: 'set-wallpaper',
-      label: '壁紙を設定',
-      icon: 'photo',
-      group: 'アピアランス',
-      action: () => pickWallpaperFile(),
-    },
-    {
-      id: 'remove-wallpaper',
-      label: '壁紙を削除',
-      icon: 'photo-off',
-      group: 'アピアランス',
-      action: () => useDeckStore().clearWallpaper(),
-    },
-    // Environment settings
     {
       id: 'ai-settings',
       label: 'エージェント',
       icon: 'robot',
-      group: '環境設定',
       action: () => useWindowsStore().open('aiSettings'),
     },
     {
       id: 'permissions',
       label: '権限',
       icon: 'shield-lock',
-      group: '環境設定',
       action: () => useWindowsStore().open('permissions'),
     },
     {
       id: 'connections',
       label: '接続',
       icon: 'plug-connected',
-      group: '環境設定',
       action: () => useWindowsStore().open('connections'),
     },
     {
       id: 'keybinds',
       label: 'キーバインド',
       icon: 'keyboard',
-      group: '環境設定',
       action: () => useWindowsStore().open('keybinds'),
     },
     {
       id: 'performance',
       label: 'パフォーマンス',
       icon: 'gauge',
-      group: '環境設定',
       action: () => useWindowsStore().open('performanceEditor'),
     },
     {
       id: 'css-editor',
       label: 'カスタムCSS',
       icon: 'code',
-      group: '環境設定',
       action: () => useWindowsStore().open('cssEditor'),
     },
     {
       id: 'tasks-editor',
       label: 'タスク',
       icon: 'player-play',
-      group: '環境設定',
       action: () => useWindowsStore().open('tasksEditor'),
     },
     {
       id: 'snippets-editor',
       label: 'スニペット',
       icon: 'code-plus',
-      group: '環境設定',
       action: () => useWindowsStore().open('snippetsEditor'),
     },
-    // Cache
     {
       id: 'cache-editor',
-      label: 'キャッシュ管理',
+      label: 'キャッシュ',
       icon: 'eraser',
-      group: 'キャッシュ',
       action: () => useWindowsStore().open('cacheEditor'),
     },
     {
-      id: 'export-db',
-      label: 'DBエクスポート',
-      icon: 'database-export',
-      group: 'バックアップ',
-      action: async () => {
-        unwrap(await commands.exportDb())
-      },
-    },
-    {
-      id: 'import-db',
-      label: 'DBインポート',
-      icon: 'database-import',
-      group: 'バックアップ',
-      action: () =>
-        backupWithConfirm(
-          'importDb',
-          'DBインポート',
-          '現在のDBが上書きされます。',
-        ),
-    },
-    {
-      id: 'export-settings',
-      label: '設定エクスポート',
-      icon: 'file-export',
-      group: 'バックアップ',
-      action: async () => {
-        unwrap(await commands.exportSettingsJson())
-      },
-    },
-    {
-      id: 'import-settings',
-      label: '設定インポート',
-      icon: 'file-import',
-      group: 'バックアップ',
-      action: () =>
-        backupWithConfirm(
-          'importSettingsJson',
-          '設定インポート',
-          '現在の設定が上書きされます。',
-        ),
+      id: 'backup',
+      label: 'バックアップ',
+      icon: 'database',
+      action: () => useWindowsStore().open('backup'),
     },
   ]
-}
-
-function pickWallpaperFile() {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*'
-  input.onchange = () => {
-    const file = input.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => useDeckStore().setWallpaper(reader.result as string)
-    reader.readAsDataURL(file)
-  }
-  input.click()
-}
-
-async function backupWithConfirm(
-  command: 'importDb' | 'importSettingsJson',
-  title: string,
-  message: string,
-) {
-  const { confirm } = useConfirm()
-  const ok = await confirm({
-    title,
-    message,
-    okLabel: 'インポート',
-    type: 'danger',
-  })
-  if (!ok) return
-  const result = unwrap(await commands[command]())
-  if (result) await relaunch()
 }
 
 // ============================================================

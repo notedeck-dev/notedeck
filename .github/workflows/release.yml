@@ -403,6 +403,9 @@ jobs:
   winget:
     needs: publish
     runs-on: windows-latest
+    # 投稿先は winget-pkgs (WINGET_TOKEN) なので GITHUB_TOKEN は読み取りのみ
+    permissions:
+      contents: read
     steps:
       - name: Get version
         id: version
@@ -412,6 +415,8 @@ jobs:
       - name: Submit to winget
         uses: vedantmgoyal9/winget-releaser@v2
         with:
+          # org 名義に寄せる。winget-pkgs では ID 変更 = 新規パッケージ申請
+          # 扱いなので、旧 Hitalin.NoteDeck のユーザーは自動では移行しない
           identifier: NotedeckDev.NoteDeck
           installers-regex: '-windows-x64-setup\.exe$'
           version: ${{ steps.version.outputs.version }}

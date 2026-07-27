@@ -118,7 +118,7 @@ function openConnectionsWindow(): void {
       v-model="currentModel"
       :class="$style.input"
       type="text"
-      placeholder="claude-sonnet-5, gpt-5.4-mini, deepseek/deepseek-v4-pro など"
+      placeholder="claude-sonnet-5, gpt-5.4-mini, moonshotai/kimi-k3 など"
     />
   </AiSettingsSection>
 </template>

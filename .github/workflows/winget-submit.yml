@@ -1,0 +1,31 @@
+# 公開済みの GitHub Release を winget へ手動投稿する。
+# release.yml の winget ジョブが失敗した場合のリカバリ用
+# (v1.21.0〜v1.24.0 は winget へ届かず欠番のまま)。
+name: winget-submit
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '投稿するバージョン (例: 1.24.0、v プレフィックスなし)'
+        required: true
+        type: string
+
+jobs:
+  winget:
+    runs-on: windows-latest
+    # winget-pkgs への投稿は WINGET_TOKEN で行うので GITHUB_TOKEN は
+    # Release アセットの参照しか要らない
+    permissions:
+      contents: read
+    steps:
+      - name: Submit to winget
+        uses: vedantmgoyal9/winget-releaser@v2
+        with:
+          # release.yml の winget ジョブと同じ値にすること
+          identifier: NotedeckDev.NoteDeck
+          installers-regex: '-windows-x64-setup\.exe$'
+          version: ${{ inputs.version }}
+          release-tag: v${{ inputs.version }}
+          token: ${{ secrets.WINGET_TOKEN }}
+          fork-user: notedeck-dev

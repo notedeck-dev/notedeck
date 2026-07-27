@@ -6,6 +6,8 @@ const isUpToDate = ref(false)
 const updateAvailable = ref(false)
 const updateVersion = ref('')
 const isInstalling = ref(false)
+/** 差し替えが済み、再起動を待っている状態 (Windows は到達しない — 下記参照) */
+const updateReady = ref(false)
 /** ダウンロード進捗 (0-100)。contentLength 不明時は null のまま */
 const downloadProgress = ref<number | null>(null)
 const updateError = ref<string | null>(null)
@@ -62,8 +64,10 @@ async function installUpdate() {
         downloadProgress.value = 100
       }
     })
-    const { relaunch } = await import('@tauri-apps/plugin-process')
-    await relaunch()
+    // 差し替えが済んだら再起動はユーザーに委ねる (VSCode の "Restart to Update")。
+    // Windows は installer 起動時にアプリが終了するのでここには到達しない。
+    isInstalling.value = false
+    updateReady.value = true
   } catch (e) {
     console.error('[updater] install failed:', e)
     updateError.value =
@@ -73,6 +77,11 @@ async function installUpdate() {
   }
 }
 
+async function restartToUpdate() {
+  const { relaunch } = await import('@tauri-apps/plugin-process')
+  await relaunch()
+}
+
 export function useUpdater() {
   return {
     isChecking,
@@ -80,9 +89,11 @@ export function useUpdater() {
     updateAvailable,
     updateVersion,
     isInstalling,
+    updateReady,
     downloadProgress,
     updateError,
     checkForUpdate,
     installUpdate,
+    restartToUpdate,
   }
 }

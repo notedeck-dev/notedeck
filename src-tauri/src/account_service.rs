@@ -13,6 +13,13 @@ use crate::commands::invalidate_credentials;
 
 type Result<T> = std::result::Result<T, NoteDeckError>;
 
+/// ゲスト (未認証) アカウントを表す user_id マーカー。
+pub const GUEST_USER_ID: &str = "__guest__";
+
+pub fn is_guest(account: &Account) -> bool {
+    account.user_id == GUEST_USER_ID
+}
+
 /// keychain / DB フォールバックを見て has_token を判定し AccountPublic 化する。
 pub fn to_public(account: &Account) -> AccountPublic {
     let has_token =
@@ -43,7 +50,7 @@ pub fn logout(db: &Database, id: &str) -> Result<()> {
 
 /// 既存アカウント一覧からゲストの連番表示名 (「ゲスト N」) を決める。
 pub fn next_guest_display_name(accounts: &[Account]) -> String {
-    let guest_count = accounts.iter().filter(|a| a.user_id == "__guest__").count();
+    let guest_count = accounts.iter().filter(|a| is_guest(a)).count();
     format!("ゲスト{}", guest_count + 1)
 }
 
@@ -58,7 +65,7 @@ pub fn create_guest(db: &Database, host: String, software: String) -> Result<Acc
         id,
         host,
         token: String::new(),
-        user_id: "__guest__".to_string(),
+        user_id: GUEST_USER_ID.to_string(),
         username,
         display_name,
         avatar_url: None,
@@ -77,7 +84,7 @@ mod tests {
             id: format!("g{n}"),
             host: "misskey.io".into(),
             token: String::new(),
-            user_id: "__guest__".into(),
+            user_id: GUEST_USER_ID.into(),
             username: format!("guest_{n}"),
             display_name: None,
             avatar_url: None,

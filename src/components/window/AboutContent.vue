@@ -151,11 +151,22 @@ const {
   updateAvailable,
   updateVersion,
   isInstalling,
+  updateReady,
   downloadProgress,
   updateError,
   checkForUpdate,
   installUpdate,
+  restartToUpdate,
 } = useUpdater()
+
+const showUpdateSection = computed(
+  () => updateAvailable.value || isInstalling.value || updateReady.value,
+)
+const updateIcon = computed(() => {
+  if (updateReady.value) return 'ti ti-refresh'
+  if (isInstalling.value) return 'ti ti-download'
+  return 'ti ti-arrow-up-circle'
+})
 
 const buildDate = __BUILD_DATE__
 const gitCommit = __GIT_COMMIT__
@@ -247,44 +258,27 @@ function reportBug() {
       >
         NoteDeck
       </button>
-      <!-- バージョン表記自体がアップデート確認のタッチポイント (モバイルは表示のみ) -->
-      <template v-if="!uiStore.isMobilePlatform">
-        <button
-          type="button"
-          class="_button"
-          :class="[$style.aboutVersion, isUpToDate && $style.versionOk]"
-          title="アップデートを確認"
-          :disabled="isChecking"
-          @click="checkForUpdate(true)"
-        >
-          v{{ appVersion }}
-          <i
-            :class="[
-              isChecking ? 'ti ti-loader-2 nd-spin' : isUpToDate ? 'ti ti-check' : 'ti ti-refresh',
-              $style.versionIcon,
-            ]"
-          />
-          <span v-if="isUpToDate">最新</span>
-        </button>
-        <button
-          v-if="updateAvailable"
-          type="button"
-          class="_button"
-          :class="$style.updatePill"
-          :disabled="isInstalling"
-          @click="installUpdate"
-        >
-          <i :class="isInstalling ? 'ti ti-loader-2 nd-spin' : 'ti ti-download'" />
-          <template v-if="isInstalling && downloadProgress !== null">
-            ダウンロード中… {{ downloadProgress }}%
-          </template>
-          <template v-else-if="isInstalling">インストール中...</template>
-          <template v-else>v{{ updateVersion }} にアップデート</template>
-        </button>
-        <div v-if="updateError" :class="$style.updateError">
-          {{ updateError }}
-        </div>
-      </template>
+      <!-- バージョン表記自体がアップデート確認のタッチポイント。更新が待機中は
+           アクションを更新セクションに一本化するので、ここは表示だけに戻す
+           (モバイルも表示のみ) -->
+      <button
+        v-if="!uiStore.isMobilePlatform && !showUpdateSection"
+        type="button"
+        class="_button"
+        :class="[$style.aboutVersion, isUpToDate && $style.versionOk]"
+        title="アップデートを確認"
+        :disabled="isChecking"
+        @click="checkForUpdate(true)"
+      >
+        v{{ appVersion }}
+        <i
+          :class="[
+            isChecking ? 'ti ti-loader-2 nd-spin' : isUpToDate ? 'ti ti-check' : 'ti ti-refresh',
+            $style.versionIcon,
+          ]"
+        />
+        <span v-if="isUpToDate">最新</span>
+      </button>
       <div v-else :class="$style.aboutVersion">v{{ appVersion }}</div>
     </div>
 
@@ -293,6 +287,42 @@ function reportBug() {
         <i class="ti ti-presentation-analytics" />
         チュートリアルを見る
       </button>
+    </div>
+
+    <!-- アップデートは hero から切り離した独立セクション (VSCode の
+         「バッジで気づく → 明示的な行で実行」モデル)。hero にアクションを
+         置かないことでチュートリアルとの誤タップも防ぐ -->
+    <div v-if="showUpdateSection" :class="$style.formSection">
+      <div :class="$style.formSectionLabel">アップデート</div>
+      <div :class="$style.sectionBody">
+        <div :class="$style.updateRow">
+          <i :class="[updateIcon, $style.updateIcon]" />
+          <span :class="$style.updateText">
+            <template v-if="updateReady">更新の準備ができました</template>
+            <template v-else-if="isInstalling">v{{ updateVersion }} をダウンロード中</template>
+            <template v-else>{{ appVersion }} → {{ updateVersion }}</template>
+          </span>
+          <span v-if="isInstalling && downloadProgress !== null" :class="$style.updatePercent">
+            {{ downloadProgress }}%
+          </span>
+          <button
+            v-else-if="!isInstalling"
+            type="button"
+            class="_button"
+            :class="$style.updateAction"
+            @click="updateReady ? restartToUpdate() : installUpdate()"
+          >
+            {{ updateReady ? '再起動' : '更新' }}
+          </button>
+        </div>
+        <div v-if="isInstalling" :class="$style.progressTrack">
+          <div
+            :class="[$style.progressBar, downloadProgress === null && $style.progressIndeterminate]"
+            :style="downloadProgress !== null ? { width: `${downloadProgress}%` } : undefined"
+          />
+        </div>
+        <div v-if="updateError" :class="$style.updateError">{{ updateError }}</div>
+      </div>
     </div>
 
     <!-- 本家 about-misskey の projectMembers 踏襲 (行の型は formLink に統一)。
@@ -341,7 +371,7 @@ function reportBug() {
         <button type="button" class="_button" :class="$style.formLink" @click="reportBug">
           <i class="ti ti-bug" :class="$style.formLinkIcon" />
           <span>バグを報告</span>
-          <span :class="$style.formLinkSuffix">GitHub Issues<i class="ti ti-external-link" /></span>
+          <span :class="$style.formLinkSuffix">GitHub Issues <i class="ti ti-external-link" /></span>
         </button>
       </div>
     </div>
@@ -455,26 +485,70 @@ function reportBug() {
   font-size: 0.9em;
 }
 
-// 更新があるときだけバージョンの直下に出すアクセント色ピル (pillBtn と同型)
-.updatePill {
-  display: inline-flex;
+// 更新セクション: formLink と同じ「1 行」の型に揃え、hero には出さない
+.updateRow {
+  display: flex;
   align-items: center;
-  gap: 5px;
-  margin-top: 8px;
-  padding: 7px 14px;
-  border-radius: var(--nd-radius-full);
+  gap: 8px;
+  font-size: 0.9em;
+}
+
+.updateIcon {
+  color: var(--nd-accent);
+}
+
+.updateText {
+  flex: 1;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.updatePercent {
+  font-size: 0.85em;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.updateAction {
+  padding: 4px 12px;
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
   font-weight: bold;
   font-size: 0.85em;
   transition: background var(--nd-duration-base);
 
-  &:hover:not(:disabled) {
+  &:hover {
     background: hsl(from var(--nd-accent) h s calc(l + 5));
   }
+}
 
-  &:disabled {
-    opacity: 0.7;
+.progressTrack {
+  margin-top: 8px;
+  height: 2px;
+  border-radius: 1px;
+  overflow: hidden;
+  background: var(--nd-divider);
+}
+
+.progressBar {
+  height: 100%;
+  background: var(--nd-accent);
+  transition: width var(--nd-duration-base);
+}
+
+// contentLength 不明でパーセントが出せない間は流れるバーで生存を示す
+.progressIndeterminate {
+  width: 40%;
+  animation: about-progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes about-progress-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
   }
 }
 

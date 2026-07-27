@@ -217,33 +217,32 @@ onMounted(refreshStats)
         <i class="ti ti-photo" :class="$style.sectionIcon" />
         <span :class="$style.sectionTitle">画像キャッシュ</span>
       </div>
-      <p :class="$style.hint">
-        アバターや絵文字などの画像をディスクに保持します。上限を超えた分と期限切れは古いものから自動で削除されます。
-      </p>
-      <label :class="$style.field">
-        <span :class="$style.fieldLabel">上限</span>
-        <input
-          v-model.number="imageCacheMaxMB"
-          type="number"
-          min="64"
-          max="4096"
-          step="64"
-          :class="$style.numberInput"
-        />
-        <span :class="$style.fieldUnit">MB</span>
-      </label>
-      <label :class="$style.field">
-        <span :class="$style.fieldLabel">保持期間</span>
-        <input
-          v-model.number="imageCacheTTLDays"
-          type="number"
-          min="1"
-          max="30"
-          step="1"
-          :class="$style.numberInput"
-        />
-        <span :class="$style.fieldUnit">日</span>
-      </label>
+      <div :class="$style.fieldRow">
+        <label :class="$style.field">
+          <span :class="$style.fieldLabel">上限</span>
+          <input
+            v-model.number="imageCacheMaxMB"
+            type="number"
+            min="64"
+            max="4096"
+            step="64"
+            :class="$style.numberInput"
+          />
+          <span :class="$style.fieldUnit">MB</span>
+        </label>
+        <label :class="$style.field">
+          <span :class="$style.fieldLabel">保持期間</span>
+          <input
+            v-model.number="imageCacheTTLDays"
+            type="number"
+            min="1"
+            max="30"
+            step="1"
+            :class="$style.numberInput"
+          />
+          <span :class="$style.fieldUnit">日</span>
+        </label>
+      </div>
       <div :class="$style.btnRow">
         <button
           class="_button"
@@ -349,6 +348,9 @@ onMounted(refreshStats)
 .content {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 16px;
   gap: 0;
 }
@@ -385,7 +387,7 @@ onMounted(refreshStats)
 
 .statsRow {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 
@@ -464,21 +466,25 @@ onMounted(refreshStats)
   @include btn-action;
 }
 
+.fieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
 .field {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 8px;
 }
 
 .fieldLabel {
-  min-width: 72px;
   font-size: 13px;
   color: var(--fgTransparentWeak, #888);
 }
 
 .numberInput {
-  width: 96px;
+  width: 80px;
   padding: 4px 8px;
   border: 1px solid var(--divider, #ddd);
   border-radius: 6px;

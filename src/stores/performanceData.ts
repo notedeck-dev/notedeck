@@ -475,18 +475,25 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
   },
 }
 
-export const CATEGORY_LABELS: Record<string, { label: string; icon: string }> =
-  {
-    emoji: { label: '絵文字キャッシュ', icon: 'ti-mood-smile' },
-    note: { label: 'ノート', icon: 'ti-note' },
-    cache: { label: 'パースキャッシュ', icon: 'ti-database' },
-    realtime: { label: 'リアルタイム', icon: 'ti-bolt' },
-    backend: { label: 'バックエンド', icon: 'ti-server' },
-    css: { label: 'CSS描画', icon: 'ti-palette' },
-    polling: { label: 'ポーリング', icon: 'ti-refresh' },
-    telemetry: { label: 'テレメトリ', icon: 'ti-chart-line' },
-    interaction: { label: 'インタラクション', icon: 'ti-hand-finger' },
-  }
+/** `short` はミキサーのチャンネル名 (幅が狭いので 4 文字程度まで)。 */
+export const CATEGORY_LABELS: Record<
+  string,
+  { label: string; short: string; icon: string }
+> = {
+  emoji: { label: '絵文字キャッシュ', short: '絵文字', icon: 'ti-mood-smile' },
+  note: { label: 'ノート', short: 'ノート', icon: 'ti-note' },
+  cache: { label: 'パースキャッシュ', short: 'パース', icon: 'ti-database' },
+  realtime: { label: 'リアルタイム', short: 'リアル', icon: 'ti-bolt' },
+  backend: { label: 'バックエンド', short: 'バック', icon: 'ti-server' },
+  css: { label: 'CSS描画', short: 'CSS', icon: 'ti-palette' },
+  polling: { label: 'ポーリング', short: '取得', icon: 'ti-refresh' },
+  telemetry: { label: 'テレメトリ', short: '計測', icon: 'ti-chart-line' },
+  interaction: {
+    label: 'インタラクション',
+    short: '操作',
+    icon: 'ti-hand-finger',
+  },
+}
 
 /** Preset definitions. */
 /** Slider endpoint: t=0 (省メモリ) */
@@ -597,35 +604,109 @@ export const SLIDER_HIGH: PerformanceConfig = {
 
 export const DEFAULTS: PerformanceConfig = defaultsJson as PerformanceConfig
 
-/** Interpolate all config values linearly between SLIDER_LOW (t=0) and SLIDER_HIGH (t=1). */
+export const ALL_KEYS = Object.keys(DEFAULTS) as PerformanceKey[]
+
+/** カテゴリごとの key 一覧 (FIELD_META 由来)。 */
+export const CATEGORY_KEYS: Record<string, PerformanceKey[]> = (() => {
+  const map: Record<string, PerformanceKey[]> = {}
+  for (const key of ALL_KEYS) {
+    const cat = FIELD_META[key].category
+    const list = map[cat]
+    if (list) list.push(key)
+    else map[cat] = [key]
+  }
+  return map
+})()
+
+export function categoryKeys(category: string): PerformanceKey[] {
+  return CATEGORY_KEYS[category] ?? []
+}
+
+/**
+ * フェーダーで動かせるカテゴリ。LOW と HIGH が全て同値のカテゴリ
+ * (interaction 系の閾値など) は動かしても何も変わらないので除く。
+ */
+export const FADER_CATEGORIES = Object.keys(CATEGORY_KEYS).filter((cat) =>
+  categoryKeys(cat).some((key) => SLIDER_LOW[key] !== SLIDER_HIGH[key]),
+)
+
+/**
+ * SLIDER_LOW (t=0) と SLIDER_HIGH (t=1) の間を補間する。
+ *
+ * 件数・MB・ms は桁で効くパラメータなので対数 (幾何) 補間を使う —
+ * 線形だと 500〜10000 のようなレンジでスライダー前半の変化が体感できない。
+ * 値が下がる向きのキー (ポーリング間隔など) も同じ式でそのまま扱える。
+ * 端点に 0 を含むキーだけは対数が定義できないので線形にフォールバックする。
+ */
+export function interpolateKey(key: PerformanceKey, t: number): number {
+  const low = SLIDER_LOW[key]
+  const high = SLIDER_HIGH[key]
+  const meta = FIELD_META[key]
+  const clamp = (v: number) => Math.max(meta.min, Math.min(meta.max, v))
+  // 両端は step 丸めを通さない (プリセット値そのものに着地させる)
+  if (t <= 0) return clamp(low)
+  if (t >= 1) return clamp(high)
+  const raw =
+    low > 0 && high > 0 ? low * (high / low) ** t : low + (high - low) * t
+  return clamp(Math.round(raw / meta.step) * meta.step)
+}
+
+/** Interpolate all config values between SLIDER_LOW (t=0) and SLIDER_HIGH (t=1). */
 export function interpolateConfig(t: number): PerformanceConfig {
   const result = {} as Record<string, number>
-  for (const key of Object.keys(DEFAULTS) as PerformanceKey[]) {
-    const low = SLIDER_LOW[key]
-    const high = SLIDER_HIGH[key]
-    const meta = FIELD_META[key]
-    const raw = low + (high - low) * t
-    const snapped = Math.round(raw / meta.step) * meta.step
-    result[key] = Math.max(meta.min, Math.min(meta.max, snapped))
+  for (const key of ALL_KEYS) {
+    result[key] = interpolateKey(key, t)
   }
   return result as unknown as PerformanceConfig
 }
 
-/** Find slider position t ∈ [0,1] that matches config, or null if custom. */
-export function detectSliderPosition(cfg: PerformanceConfig): number | null {
+/** 1 カテゴリ分だけを補間した patch を返す。 */
+export function interpolateCategory(
+  category: string,
+  t: number,
+): Partial<PerformanceConfig> {
+  const patch: Record<string, number> = {}
+  for (const key of categoryKeys(category)) {
+    patch[key] = interpolateKey(key, t)
+  }
+  return patch as Partial<PerformanceConfig>
+}
+
+/**
+ * 与えられた key 群にとって現在値が最も近いフェーダー位置を返す。
+ * `exact` は補間結果と完全一致 (= フェーダーで作った値) かどうか。
+ * 一致しなくても位置を返すのは、マスターフェーダーが相対移動 (VCA) で
+ * 常に動かせるようにするため。
+ */
+export function detectPosition(
+  cfg: PerformanceConfig,
+  keys: PerformanceKey[],
+): { t: number; exact: boolean } {
+  let bestT = 0
+  let bestError = Number.POSITIVE_INFINITY
   for (let i = 0; i <= 100; i++) {
     const t = i / 100
-    const interp = interpolateConfig(t)
-    let match = true
-    for (const key of Object.keys(DEFAULTS) as PerformanceKey[]) {
-      if (cfg[key] !== interp[key]) {
-        match = false
-        break
-      }
+    let error = 0
+    let exact = true
+    for (const key of keys) {
+      const value = interpolateKey(key, t)
+      if (cfg[key] !== value) exact = false
+      const span = Math.abs(SLIDER_HIGH[key] - SLIDER_LOW[key]) || 1
+      error += Math.abs(cfg[key] - value) / span
     }
-    if (match) return t
+    if (exact) return { t, exact: true }
+    if (error < bestError) {
+      bestError = error
+      bestT = t
+    }
   }
-  return null
+  return { t: bestT, exact: false }
+}
+
+/** Find slider position t ∈ [0,1] that matches config, or null if custom. */
+export function detectSliderPosition(cfg: PerformanceConfig): number | null {
+  const { t, exact } = detectPosition(cfg, ALL_KEYS)
+  return exact ? t : null
 }
 
 /** Base durations (seconds) matching global.css :root values. */

@@ -9,7 +9,9 @@ import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import {
   CATEGORY_LABELS,
+  FADER_CATEGORIES,
   FIELD_META,
+  interpolateCategory,
   type PerformanceKey,
   usePerformanceStore,
 } from '@/stores/performance'
@@ -46,7 +48,7 @@ const categories = computed(() => {
   return cats
 })
 
-const expandedSections = ref<string[]>(['emoji'])
+const expandedSections = ref<string[]>([])
 
 function toggleSection(catKey: string) {
   const idx = expandedSections.value.indexOf(catKey)
@@ -70,20 +72,74 @@ function handleNumberInput(key: PerformanceKey, event: Event) {
   }
 }
 
-// --- Master slider ---
+// --- Mixer (master + category faders) ---
 
-const sliderPosition = computed(() => perfStore.sliderPosition)
-const isCustom = computed(() => sliderPosition.value === null)
-const sliderValue = computed(() =>
-  sliderPosition.value !== null ? Math.round(sliderPosition.value * 100) : 50,
-)
+// フェーダー位置は UI 側で保持する。config から毎回逆算すると、step 丸めで
+// 同じ値になる t のうち最も低い位置に吸われて、動かすたびに下へずれてしまう。
+const positions = ref<Record<string, number>>({})
+const masterValue = ref(0)
 
-function handleMasterSlider(event: Event) {
-  const t = Number((event.target as HTMLInputElement).value) / 100
-  perfStore.applySlider(t)
+/** そのカテゴリが「今の位置から作った値」のままかどうか。 */
+function matchesPosition(cat: string): boolean {
+  const patch = interpolateCategory(cat, positions.value[cat] ?? 0)
+  return Object.entries(patch).every(
+    ([key, value]) => perfStore.get(key as PerformanceKey) === value,
+  )
 }
 
-// スライダーの塗りつぶし率 (OS のボリュームバー式に左側をアクセント色で塗る)
+function syncPositions() {
+  const next: Record<string, number> = {}
+  for (const cat of FADER_CATEGORIES) {
+    next[cat] = perfStore.categoryPosition(cat).t
+  }
+  positions.value = next
+  masterValue.value = Math.round(average(Object.values(next)) * 100)
+}
+
+function average(values: number[]): number {
+  return values.reduce((a, b) => a + b, 0) / (values.length || 1)
+}
+
+syncPositions()
+
+// リセット・インポート・コードタブ・個別項目など、ミキサー以外で値が
+// 変わったときだけ位置を取り直す (フェーダー操作中は動かさない)
+watch(
+  () => perfStore.config,
+  () => {
+    if (!FADER_CATEGORIES.every(matchesPosition)) syncPositions()
+  },
+)
+
+const channels = computed(() =>
+  FADER_CATEGORIES.map((cat) => ({
+    cat,
+    meta: CATEGORY_LABELS[cat] ?? { label: cat, short: cat, icon: 'ti-dots' },
+    t: positions.value[cat] ?? 0,
+    exact: matchesPosition(cat),
+  })),
+)
+
+/** マスターは VCA 式: 各チャンネルの相対差を保ったまま全体を上下させる。 */
+function handleMasterFader(event: Event) {
+  const next = Number((event.target as HTMLInputElement).value)
+  const delta = (next - masterValue.value) / 100
+  masterValue.value = next
+  for (const cat of FADER_CATEGORIES) {
+    const t = Math.min(1, Math.max(0, (positions.value[cat] ?? 0) + delta))
+    positions.value[cat] = t
+    perfStore.applyCategorySlider(cat, t)
+  }
+}
+
+function handleCategoryFader(cat: string, event: Event) {
+  const t = Number((event.target as HTMLInputElement).value) / 100
+  positions.value[cat] = t
+  perfStore.applyCategorySlider(cat, t)
+  masterValue.value = Math.round(average(Object.values(positions.value)) * 100)
+}
+
+// フェーダーの塗りつぶし率 (つまみより下をアクセント色で塗る)
 function sliderFill(value: number, min: number, max: number): string {
   return `${((value - min) / (max - min)) * 100}%`
 }
@@ -179,24 +235,50 @@ function handleReset() {
 
     <!-- Visual Tab -->
     <div v-show="tab === 'visual'" :class="$style.panel">
+      <!-- マスターは横 1 本。各チャンネルの相対差を保ったまま全体を上下させる -->
       <div :class="$style.section">
         <div :class="$style.sliderRow">
           <span :class="$style.sliderEndLabel">省メモリ</span>
           <input
             type="range"
             :class="$style.masterSlider"
-            :value="sliderValue"
+            :value="masterValue"
             min="0"
             max="100"
             step="1"
-            :style="{ '--fill': sliderFill(sliderValue, 0, 100) }"
-            @input="handleMasterSlider"
+            title="全体のバランスを保ったまま上下させる"
+            :style="{ '--fill': sliderFill(masterValue, 0, 100) }"
+            @input="handleMasterFader"
           />
           <span :class="$style.sliderEndLabel">高性能</span>
         </div>
-        <div v-if="isCustom" :class="$style.customNotice">
-          <i class="ti ti-settings" />
-          カスタム — スライダーを動かすと線形補間に戻ります
+      </div>
+
+      <!-- 分野ごとの味付けは DAW のミキサー式に縦フェーダーで -->
+      <div :class="[$style.section, $style.mixer]">
+        <div :class="$style.scale">
+          <span>高性能</span>
+          <span>省メモリ</span>
+        </div>
+        <div :class="$style.channels">
+          <div v-for="ch in channels" :key="ch.cat" :class="$style.channel">
+            <span :class="$style.channelValue">
+              {{ Math.round(ch.t * 100) }}<span v-if="!ch.exact" :class="$style.customDot">*</span>
+            </span>
+            <input
+              type="range"
+              :class="$style.fader"
+              :value="Math.round(ch.t * 100)"
+              min="0"
+              max="100"
+              step="1"
+              :title="ch.meta.label"
+              :style="{ '--fill': sliderFill(ch.t * 100, 0, 100) }"
+              @input="handleCategoryFader(ch.cat, $event)"
+            />
+            <i :class="['ti', ch.meta.icon, $style.channelIcon]" />
+            <span :class="$style.channelLabel">{{ ch.meta.short }}</span>
+          </div>
         </div>
       </div>
 
@@ -377,8 +459,6 @@ function handleReset() {
   transform: rotate(0deg);
 }
 
-// --- Slider ---
-
 .sliderRow {
   display: flex;
   align-items: center;
@@ -430,12 +510,107 @@ function handleReset() {
   }
 }
 
-.customNotice {
+// --- Mixer (DAW 風の縦フェーダー) ---
+
+$fader-height: 132px;
+
+.mixer {
+  flex-direction: row;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.scale {
   display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  // 上の値表示・下のアイコンとラベルのぶんだけ詰めてフェーダーの両端に合わせる
+  padding: 18px 0 32px;
+  font-size: 0.65em;
+  opacity: 0.5;
+  white-space: nowrap;
+}
+
+.channels {
+  display: flex;
+  flex: 1;
+  justify-content: space-between;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.channel {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 4px;
+  min-width: 34px;
+}
+
+.channelValue {
   font-size: 0.7em;
-  opacity: 0.4;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+// 補間から外れた (個別に触った) チャンネルの目印
+.customDot {
+  color: var(--nd-accent);
+}
+
+.channelIcon {
+  font-size: 0.85em;
+  opacity: 0.5;
+}
+
+.channelLabel {
+  font-size: 0.65em;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+// 縦向き range。writing-mode が現行仕様で、古い WebKit 用に
+// slider-vertical も残す (効かない環境では横向きにフォールバックする)
+.fader {
+  appearance: none;
+  -webkit-appearance: slider-vertical;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 4px;
+  height: $fader-height;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  /* thumb より下を塗りつぶす (--fill は template 側で算出) */
+  background: linear-gradient(
+    to top,
+    var(--nd-accent) var(--fill, 0%),
+    var(--nd-divider) var(--fill, 0%)
+  );
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--nd-fg);
+    cursor: pointer;
+    transition: transform 0.1s;
+
+    &:hover {
+      transform: scale(1.15);
+    }
+  }
+
+  &::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: none;
+    border-radius: 50%;
+    background: var(--nd-fg);
+    cursor: pointer;
+  }
 }
 
 // --- Fields ---
@@ -555,8 +730,6 @@ function handleReset() {
   opacity: 0.4;
   line-height: 1.3;
 }
-
-// --- Code Tab ---
 
 .codePanel {
   display: flex;

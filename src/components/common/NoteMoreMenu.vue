@@ -18,6 +18,7 @@ import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { usePrompt } from '@/stores/prompt'
 import { useToast } from '@/stores/toast'
+import { useIsCompactLayout } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/imageProxy'
@@ -48,22 +49,34 @@ const { confirm } = useConfirm()
 const { prompt } = usePrompt()
 const { getOrCreate } = useMultiAccountAdapters()
 const commandStore = useCommandStore()
+const isCompact = useIsCompactLayout()
 const { canInteract, isGuest } = useAccountMode(() => props.note._accountId)
 
 const popupMenuRef = ref<InstanceType<typeof PopupMenu>>()
 const showDeleteConfirm = ref(false)
 const showDeleteAndEditConfirm = ref(false)
 const showReportForm = ref(false)
+// compact ではコマンドパレットが無いので、シート内で 2 段選択する (#627)
+const showActAs = ref(false)
+const actAsAccountId = ref<string | null>(null)
 const reportComment = ref('')
 const localIsFavorited = ref(props.isFavorited)
 const localIsPinned = ref(props.isPinned)
 
-type MenuView = 'main' | 'deleteConfirm' | 'deleteAndEditConfirm' | 'reportForm'
+type MenuView =
+  | 'main'
+  | 'deleteConfirm'
+  | 'deleteAndEditConfirm'
+  | 'reportForm'
+  | 'actAsAccounts'
+  | 'actAsOperations'
 
 const currentView = computed<MenuView>(() => {
   if (showDeleteConfirm.value) return 'deleteConfirm'
   if (showDeleteAndEditConfirm.value) return 'deleteAndEditConfirm'
   if (showReportForm.value) return 'reportForm'
+  if (showActAs.value)
+    return actAsAccountId.value ? 'actAsOperations' : 'actAsAccounts'
   return 'main'
 })
 
@@ -99,6 +112,8 @@ function resetSubViews() {
   showDeleteConfirm.value = false
   showDeleteAndEditConfirm.value = false
   showReportForm.value = false
+  showActAs.value = false
+  actAsAccountId.value = null
   reportComment.value = ''
 }
 
@@ -212,6 +227,11 @@ const actAsCandidates = computed(() =>
   ),
 )
 
+const actAsAccountLabel = computed(() => {
+  const acc = actAsCandidates.value.find((a) => a.id === actAsAccountId.value)
+  return acc ? getAccountLabel(acc) : ''
+})
+
 function actAsOperations(accountId: string) {
   return [
     {
@@ -244,7 +264,13 @@ function actAsOperations(accountId: string) {
   ]
 }
 
-function openActAsQuickPick() {
+function openActAs() {
+  // compact はコマンドパレットが無い (TitleBar ごと非表示) ので
+  // ボトムシートの中で同じ 2 段選択を再現する
+  if (isCompact.value) {
+    showActAs.value = true
+    return
+  }
   close()
   commandStore.pushQuickPick({
     title: '別のアカウントで…',
@@ -342,6 +368,45 @@ defineExpose({ open })
 
 
 
+    <!-- 別のアカウントで… (compact のみ): アカウント選択 -->
+    <template v-else-if="currentView === 'actAsAccounts'">
+      <div class="_popupConfirmText">別のアカウントで…</div>
+      <button
+        v-for="acc in actAsCandidates"
+        :key="acc.id"
+        class="_popupItem"
+        @click="actAsAccountId = acc.id"
+      >
+        <img :src="proxyThumbUrl(getAccountAvatarUrl(acc), 18)" :class="$style.actAsAvatar" alt="" />
+        {{ getAccountLabel(acc) }}
+      </button>
+      <button class="_popupItem" @click="backToMain">
+        <i class="ti ti-arrow-left" />
+        戻る
+      </button>
+    </template>
+
+    <!-- 別のアカウントで… (compact のみ): 操作選択 -->
+    <template v-else-if="currentView === 'actAsOperations'">
+      <div class="_popupConfirmText">{{ actAsAccountLabel }}</div>
+      <button class="_popupItem" @click="emit('reactAs', actAsAccountId!); close()">
+        <i class="ti ti-mood-plus" />
+        リアクション
+      </button>
+      <button class="_popupItem" @click="emit('renoteAs', actAsAccountId!); close()">
+        <i class="ti ti-repeat" />
+        リノート
+      </button>
+      <button class="_popupItem" @click="emit('quoteAs', actAsAccountId!); close()">
+        <i class="ti ti-quote" />
+        引用
+      </button>
+      <button class="_popupItem" @click="actAsAccountId = null">
+        <i class="ti ti-arrow-left" />
+        戻る
+      </button>
+    </template>
+
     <!-- Report form -->
     <template v-else-if="currentView === 'reportForm'">
       <div class="_popupConfirmText">@{{ note.user.username }} を通報</div>
@@ -381,7 +446,7 @@ defineExpose({ open })
         <i class="ti ti-paperclip" />
         クリップに追加
       </button>
-      <button v-if="actAsCandidates.length > 0" class="_popupItem" @click="openActAsQuickPick">
+      <button v-if="actAsCandidates.length > 0" class="_popupItem" @click="openActAs">
         <i class="ti ti-users" />
         別のアカウントで…
       </button>
@@ -446,3 +511,14 @@ defineExpose({ open })
     </template>
   </PopupMenu>
 </template>
+
+<style lang="scss" module>
+// 「別のアカウントで…」のアカウント行アバター (._popupItem .ti と同じ幅に揃える)
+.actAsAvatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+</style>
