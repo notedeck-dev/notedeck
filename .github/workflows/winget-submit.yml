@@ -14,6 +14,10 @@ on:
 jobs:
   winget:
     runs-on: windows-latest
+    # winget-pkgs への投稿は WINGET_TOKEN で行うので GITHUB_TOKEN は
+    # Release アセットの参照しか要らない
+    permissions:
+      contents: read
     steps:
       - name: Submit to winget
         uses: vedantmgoyal9/winget-releaser@v2

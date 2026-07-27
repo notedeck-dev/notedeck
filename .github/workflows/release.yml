@@ -403,6 +403,9 @@ jobs:
   winget:
     needs: publish
     runs-on: windows-latest
+    # 投稿先は winget-pkgs (WINGET_TOKEN) なので GITHUB_TOKEN は読み取りのみ
+    permissions:
+      contents: read
     steps:
       - name: Get version
         id: version
