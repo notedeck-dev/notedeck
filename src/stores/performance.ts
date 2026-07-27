@@ -80,12 +80,17 @@ export interface PerformanceConfig {
 export type PerformanceKey = keyof PerformanceConfig
 
 export {
+  CATEGORY_KEYS,
   CATEGORY_LABELS,
   CSS_BASE_DURATIONS,
+  categoryKeys,
   DEFAULTS,
+  detectPosition,
   detectSliderPosition,
+  FADER_CATEGORIES,
   FIELD_META,
   type FieldMeta,
+  interpolateCategory,
   interpolateConfig,
   SLIDER_HIGH,
   SLIDER_LOW,
@@ -93,9 +98,12 @@ export {
 
 import {
   CSS_BASE_DURATIONS,
+  categoryKeys,
   DEFAULTS,
+  detectPosition,
   detectSliderPosition,
   FIELD_META,
+  interpolateCategory,
   interpolateConfig,
 } from '@/stores/performanceData'
 
@@ -345,6 +353,30 @@ export const usePerformanceStore = defineStore('performance', () => {
     applySideEffects()
   }
 
+  /** Apply a per-category fader position — そのカテゴリの key だけを補間する。 */
+  function applyCategorySlider(category: string, t: number) {
+    const target = interpolateCategory(category, t)
+    const updated: Partial<PerformanceConfig> = { ...overrides.value }
+    for (const [key, value] of Object.entries(target) as [
+      PerformanceKey,
+      number,
+    ][]) {
+      if (value === DEFAULTS[key]) {
+        delete updated[key]
+      } else {
+        ;(updated as Record<string, number>)[key] = value
+      }
+    }
+    overrides.value = updated
+    schedulePersist()
+    applySideEffects()
+  }
+
+  /** Current fader position of a category (常に位置を返し、ズレは exact=false で示す)。 */
+  function categoryPosition(category: string): { t: number; exact: boolean } {
+    return detectPosition(config.value, categoryKeys(category))
+  }
+
   /** Current slider position (0–1), or null if config doesn't match any interpolation point. */
   const sliderPosition = computed<number | null>(() => {
     return detectSliderPosition(config.value)
@@ -365,6 +397,8 @@ export const usePerformanceStore = defineStore('performance', () => {
     resetKey,
     resetAll,
     applySlider,
+    applyCategorySlider,
+    categoryPosition,
     isCustomized,
   }
 })
