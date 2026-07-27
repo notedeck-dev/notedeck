@@ -96,7 +96,7 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     secretLabel: 'API Key',
     secretHelpUrl: 'https://openrouter.ai/keys',
     protocol: 'openai-compat',
-    defaultModel: 'deepseek/deepseek-v4-pro',
+    defaultModel: 'moonshotai/kimi-k3',
   },
 ]
 
