@@ -5,6 +5,7 @@ import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
+import { useToast } from '@/stores/toast'
 import { commands } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
 import {
@@ -506,5 +507,30 @@ describe('abort / launchAll', () => {
     abortAllPlugins()
     expect(getPluginHandlers('note_action')).toHaveLength(0)
     expect(getPluginHandlers('user_action')).toHaveLength(0)
+  })
+})
+
+describe('Mk:toast (プラグイン env の配線)', () => {
+  // onToast 未配線だと Mk:toast が無言の no-op になり、プラグインからの
+  // 成否フィードバックがユーザーに一切届かない (実機で「押しても無反応」)
+  it('プラグインの Mk:toast がトーストとして表示される', async () => {
+    const { toasts } = useToast()
+    toasts.value.splice(0)
+    await installAndLaunch('Mk:toast("saved", "success")')
+    expect(toasts.value.map((t) => [t.text, t.type])).toEqual([
+      ['saved', 'success'],
+    ])
+  })
+
+  it('note action ハンドラからの Mk:toast も表示される', async () => {
+    const { toasts } = useToast()
+    toasts.value.splice(0)
+    await installAndLaunch(
+      'Plugin:register_note_action("T", @(note) { Mk:toast("done", "info") })',
+    )
+    // handler は execFn の Promise を返さない (発火のみ) ため flush して待つ
+    await getPluginHandlers('note_action')[0]?.handler({ id: 'n1' })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(toasts.value.map((t) => t.text)).toEqual(['done'])
   })
 })
