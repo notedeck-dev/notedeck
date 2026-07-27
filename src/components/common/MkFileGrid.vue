@@ -6,6 +6,18 @@ import {
   isVideo,
   safeUrl,
 } from '@/composables/useDriveFolder'
+import { proxyUrl } from '@/utils/imageProxy'
+
+/**
+ * サムネイルはローカルプロキシ経由にしてディスクキャッシュに載せる (#815)。
+ * 動画本体は 20MB のプロキシ上限に掛かるため対象外 (ここで扱うのは
+ * サーバー生成のサムネイル画像のみ)
+ */
+function proxiedThumb(url: string | null | undefined): string | undefined {
+  const safe = safeUrl(url)
+  if (!safe) return undefined
+  return proxyUrl(safe) ?? safe
+}
 
 const props = withDefaults(
   defineProps<{
@@ -56,14 +68,14 @@ function onContextMenu(file: NormalizedDriveFile, e: MouseEvent) {
         <div :class="$style.driveGridThumb">
           <img
             v-if="isImage(file) && !file.isSensitive"
-            :src="safeUrl(file.thumbnailUrl) || safeUrl(file.url)"
+            :src="proxiedThumb(file.thumbnailUrl) || proxiedThumb(file.url)"
             :alt="file.name"
             :class="$style.driveGridImg"
             loading="lazy"
           />
           <img
             v-else-if="isVideo(file) && !file.isSensitive && file.thumbnailUrl"
-            :src="safeUrl(file.thumbnailUrl)"
+            :src="proxiedThumb(file.thumbnailUrl)"
             :alt="file.name"
             :class="$style.driveGridImg"
             loading="lazy"
