@@ -1749,6 +1749,34 @@ async clearImageCache() : Promise<Result<null, { code: string; message: string }
 }
 },
 /**
+ * バックアップ保存先を (無ければ作って) 返す。UI の「フォルダを開く」用
+ */
+async getBackupDir() : Promise<Result<string, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_backup_dir") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * バックアップを 1 世代作成する。
+ * 
+ * DB と設定は独立して選べる (手動バックアップが別ボタンなのに合わせる)。
+ * 既定は両方。どちらも false なら書くものが無いのでエラーにする。
+ * 
+ * `stamp` は呼び出し側 (フロント) が生成した Zettelkasten 形式の日時文字列。
+ * Rust 側で時刻を持たないのは、AI セッションの命名と規則を揃えるため。
+ */
+async backupCreate(stamp: string, keep: number | null, includeDb: boolean | null, includeSettings: boolean | null) : Promise<Result<BackupResult, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("backup_create", { stamp, keep, includeDb, includeSettings }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * エクスポートルートを (無ければ作って) 返す。… メニューの
  * 「ダウンロードフォルダを開く」用
  */
@@ -2496,6 +2524,23 @@ export type AuthType =
  */
 { kind: "basic"; username: string }
 export type AvatarDecoration = { id: string; url: string; angle?: number | null; flipH?: boolean | null; offsetX?: number | null; offsetY?: number | null }
+export type BackupResult = { 
+/**
+ * 書き出したディレクトリの絶対パス
+ */
+dir: string; 
+/**
+ * DB を含めなかった場合は None
+ */
+dbBytes: number | null; 
+/**
+ * 設定を含めなかった場合は None
+ */
+settingsFiles: number | null; 
+/**
+ * 世代上限を超えて削除した数
+ */
+rotatedRemoved: number }
 export type CacheStats = { noteCount: number; dbSizeBytes: number }
 export type Channel = { id: string; name: string; color?: string | null }
 export type ChatCacheStats = { messageCount: number; bytes: number }

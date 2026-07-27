@@ -193,6 +193,7 @@ builtin は **152 個 / 39 subject** (v0.26.0 時点、`src/capabilities/builtin
 | **クリップ** | `clips.list`, `clips.notes`, `clips.create`, `clips.addNote`, `clips.removeNote` | ノートクリップの編集 |
 | **通知** | `notifications.list`, `notifications.markRead` | 通知一覧 + 既読化 |
 | **ドライブ** | `drive.list` | ファイル一覧 |
+| **バックアップ** | `backup.create` | DB / 設定のスナップショットを Downloads/notedeck/backup/ に作成 (#816。認証情報は含まない、DB と設定は個別選択可、世代ローテーション。HEARTBEAT からの定期実行が主目的で heartbeat のみ確認なし) |
 | **ローカル保存** | `files.export` | fileId / noteId 参照で Downloads/notedeck/ 配下に保存 (#813。任意 URL 不可、100 件/回。センシティブも既定で保存 — 除外は includeSensitive: false) |
 | **ユーザー** | `user.lookup`, `user.search`, `user.follow`, `user.unfollow`, `user.followers`, `user.following`, `user.mute`, `user.unmute`, `user.renoteMute`, `user.unrenoteMute` | ユーザー検索 / フォロー操作 / フォロー一覧 / ミュート (block / report は塞ぐ) |
 | **リスト** | `list.list`, `list.addUser`, `list.removeUser` | ユーザーリスト編成 |

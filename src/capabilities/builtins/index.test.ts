@@ -44,6 +44,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'drafts.list',
         'drafts.update',
         'drive.list',
+        'backup.create',
         'favorites.add',
         'favorites.remove',
         'federation.chart',

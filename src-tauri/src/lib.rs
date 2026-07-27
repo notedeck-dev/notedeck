@@ -842,6 +842,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::save_image_to_file,
             commands::image_cache_stats,
             commands::clear_image_cache,
+            commands::get_backup_dir,
+            commands::backup_create,
             commands::get_export_dir,
             commands::export_files_start,
             commands::export_files_cancel,

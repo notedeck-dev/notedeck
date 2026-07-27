@@ -56,6 +56,9 @@ export const PERMISSION_KEYS = [
   // Downloads/notedeck 配下に固定され、保存元もアプリが知る fileId/noteId に
   // 限られるが、ユーザーのディスクに成果物を作る操作なので write 系として扱う
   'files.export',
+  // DB + 設定のバックアップ作成 (#816)。書き出す成果物にローカルの
+  // ノートキャッシュ全量が含まれるため write 系かつ高リスクとして扱う
+  'backup.create',
   // デッキ構成 (カラム一覧 = 検索クエリ / アンテナ名 / アカウント紐付け等の
   // ローカル私的データ) の read (#712 §5.3 の第 5 の穴)。全 preset で true —
   // column 系 capability は従来 ungated (permissions: []) だったので、既存
@@ -82,6 +85,7 @@ export const HIGH_RISK_PERMISSION_KEYS: readonly PermissionKey[] = [
   'memos.write',
   'tasks.run',
   'files.export',
+  'backup.create',
 ]
 
 /**
@@ -106,6 +110,9 @@ export const AI_INSTRUCTION_KEYS: readonly PermissionKey[] = [
 export const THIRD_PARTY_DENY_KEYS: readonly PermissionKey[] = [
   ...AI_INSTRUCTION_KEYS,
   'tasks.run',
+  // バックアップ成果物にはローカルのノートキャッシュ全量が入る。第三者
+  // (plugin / external) に作らせる筋の操作ではないので構造的に禁じる
+  'backup.create',
 ]
 
 /**
@@ -168,6 +175,7 @@ export const PERMISSION_PRESETS: Record<
     'logs.read': true,
     'vault.use': false,
     'files.export': false,
+    'backup.create': false,
     'deck.read': true,
   },
   safe: {
@@ -205,6 +213,7 @@ export const PERMISSION_PRESETS: Record<
     'logs.read': true,
     'vault.use': false,
     'files.export': false,
+    'backup.create': false,
     'deck.read': true,
   },
   full: {
@@ -242,6 +251,7 @@ export const PERMISSION_PRESETS: Record<
     'logs.read': true,
     'vault.use': true,
     'files.export': true,
+    'backup.create': true,
     'deck.read': true,
   },
 }
