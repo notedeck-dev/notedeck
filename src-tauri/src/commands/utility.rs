@@ -88,19 +88,22 @@ fn validate_sqlite_file(path: &std::path::Path) -> Result<()> {
 }
 
 /// Export notecli.db to a user-chosen location via save dialog.
+///
+/// DB は WAL モードのため単純なファイルコピーでは未反映のトランザクションが
+/// 取り残される。notecli の `backup_to` (VACUUM INTO) で整合したスナップ
+/// ショットを書き出す。
+///
+/// 認証情報は一切持ち出さない (トークン列は常に空にする)。通常トークンは
+/// OS キーチェーンにあり DB に入らないため、別マシンに復元すればどのみち
+/// 再ログインが必要になる。キーチェーンが永続しない環境では DB に平文で
+/// 残るので、そこだけ持ち出されるのを防ぐ。
 #[tauri::command]
 #[specta::specta]
-pub async fn export_db(app: tauri::AppHandle) -> Result<bool> {
+pub async fn export_db(
+    app: tauri::AppHandle,
+    app_state: tauri::State<'_, super::AppState>,
+) -> Result<bool> {
     use tauri_plugin_dialog::DialogExt;
-
-    let app_dir = crate::app_dir::resolve_app_dir(&app)
-        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-    let db_path = app_dir.join("notecli.db");
-    if !db_path.exists() {
-        return Err(NoteDeckError::InvalidInput(
-            "notecli.db not found".to_string(),
-        ));
-    }
 
     let dest = app
         .dialog()
@@ -115,9 +118,13 @@ pub async fn export_db(app: tauri::AppHandle) -> Result<bool> {
 
     let dest_path = dest
         .as_path()
-        .ok_or_else(|| NoteDeckError::InvalidInput("Invalid destination path".to_string()))?;
-    std::fs::copy(&db_path, dest_path)
-        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+        .ok_or_else(|| NoteDeckError::InvalidInput("Invalid destination path".to_string()))?
+        .to_path_buf();
+
+    let db = app_state.db().await;
+    tokio::task::spawn_blocking(move || db.backup_to(&dest_path, true))
+        .await
+        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))??;
     Ok(true)
 }
 
@@ -392,6 +399,34 @@ fn overlay_dot_icon() -> tauri::image::Image<'static> {
         }
     }
     tauri::image::Image::new_owned(rgba, SIZE as u32, SIZE as u32)
+}
+
+/// 画像ディスクキャッシュの使用量 (#815)。設定のキャッシュ画面で表示する
+#[derive(Debug, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageCacheStats {
+    pub bytes: u64,
+    pub files: usize,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn image_cache_stats(
+    cache: tauri::State<'_, std::sync::Arc<crate::image_cache::ImageCache>>,
+) -> Result<ImageCacheStats> {
+    let (bytes, files) = cache.disk_stats().await;
+    Ok(ImageCacheStats { bytes, files })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_image_cache(
+    cache: tauri::State<'_, std::sync::Arc<crate::image_cache::ImageCache>>,
+) -> Result<()> {
+    cache
+        .clear_disk()
+        .await
+        .map_err(NoteDeckError::InvalidInput)
 }
 
 #[cfg(test)]

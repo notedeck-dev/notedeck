@@ -65,6 +65,10 @@ export const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'ファイルのローカル保存 (ダウンロード)',
     icon: 'ti-download',
   },
+  'backup.create': {
+    label: 'バックアップの作成',
+    icon: 'ti-database-export',
+  },
   clipboard: { label: 'クリップボード', icon: 'ti-clipboard' },
   notifications: { label: 'デスクトップ通知', icon: 'ti-bell' },
   'tasks.run': {
@@ -178,6 +182,7 @@ export const PERMISSION_CATEGORIES: readonly {
       'widgets.read',
       'plugins.read',
       'files.export',
+      'backup.create',
     ],
   },
   {

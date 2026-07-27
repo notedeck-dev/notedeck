@@ -110,6 +110,7 @@ const importDb = () =>
       </div>
       <p :class="$style.hint">
         ノート・通知・フォロー情報などのローカルキャッシュDBをバックアップ / リストアします。
+        認証情報は含まれないため、リストア後は各アカウントで再ログインしてください。
       </p>
       <div :class="$style.btnRow">
         <button class="_button" :class="$style.actionBtn" :disabled="isExportingDb" @click="exportDb">

@@ -145,7 +145,8 @@ export const filesExportCapability: Command = {
       'ドライブファイル (fileIds) やノートの添付 (noteIds) をローカルの' +
       ' ダウンロードフォルダ (Downloads/notedeck/) に保存する。任意 URL の' +
       ' 取得はできない。同一ファイルの再保存はスキップされる (冪等)。' +
-      ' センシティブ設定のファイルは includeSensitive: true のときだけ含まれる。',
+      ' センシティブ設定のファイルも既定で保存する (本体のドライブ保存と同じ)。' +
+      ' 除外したい場合は includeSensitive: false を指定する。',
     params: {
       fileIds: {
         type: 'array',
@@ -166,7 +167,9 @@ export const filesExportCapability: Command = {
       },
       includeSensitive: {
         type: 'boolean',
-        description: 'センシティブ設定のファイルも含める (default: false)',
+        description:
+          'センシティブ設定のファイルを含めるか (default: true)。' +
+          ' false を指定した分は保存されず excludedSensitive に計上される',
         optional: true,
       },
       accountId: {
@@ -214,9 +217,11 @@ export const filesExportCapability: Command = {
     ]
       .filter(Boolean)
       .join('と')
+    // 既定でセンシティブも保存する (本体のドライブ保存と同じ) ため、除外する
+    // 場合のほうを明示する。含む側を毎回書くと定型文になり読まれなくなる
     const sensitiveNote =
-      params?.includeSensitive === true
-        ? '。センシティブ設定のファイルを含みます'
+      params?.includeSensitive === false
+        ? '。センシティブ設定のファイルは除きます'
         : ''
     return {
       title: 'ファイルをローカルに保存',
@@ -227,7 +232,7 @@ export const filesExportCapability: Command = {
   execute: async (params) => {
     const fileIds = asStringArray(params?.fileIds)
     const noteIds = asStringArray(params?.noteIds)
-    const includeSensitive = params?.includeSensitive === true
+    const includeSensitive = params?.includeSensitive !== false
     const subdir = typeof params?.subdir === 'string' ? params.subdir : 'export'
     const accountId =
       typeof params?.accountId === 'string'

@@ -1690,6 +1690,15 @@ async setUnreadBadge(count: number) : Promise<void> {
 },
 /**
  * Export notecli.db to a user-chosen location via save dialog.
+ * 
+ * DB は WAL モードのため単純なファイルコピーでは未反映のトランザクションが
+ * 取り残される。notecli の `backup_to` (VACUUM INTO) で整合したスナップ
+ * ショットを書き出す。
+ * 
+ * 認証情報は一切持ち出さない (トークン列は常に空にする)。通常トークンは
+ * OS キーチェーンにあり DB に入らないため、別マシンに復元すればどのみち
+ * 再ログインが必要になる。キーチェーンが永続しない環境では DB に平文で
+ * 残るので、そこだけ持ち出されるのを防ぐ。
  */
 async exportDb() : Promise<Result<boolean, { code: string; message: string }>> {
     try {
@@ -1718,6 +1727,50 @@ async importDb() : Promise<Result<boolean, { code: string; message: string }>> {
 async saveImageToFile(url: string) : Promise<Result<boolean, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("save_image_to_file", { url }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async imageCacheStats() : Promise<Result<ImageCacheStats, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("image_cache_stats") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async clearImageCache() : Promise<Result<null, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_image_cache") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * バックアップ保存先を (無ければ作って) 返す。UI の「フォルダを開く」用
+ */
+async getBackupDir() : Promise<Result<string, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_backup_dir") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * バックアップを 1 世代作成する。
+ * 
+ * DB と設定は独立して選べる (手動バックアップが別ボタンなのに合わせる)。
+ * 既定は両方。どちらも false なら書くものが無いのでエラーにする。
+ * 
+ * `stamp` は呼び出し側 (フロント) が生成した Zettelkasten 形式の日時文字列。
+ * Rust 側で時刻を持たないのは、AI セッションの命名と規則を揃えるため。
+ */
+async backupCreate(stamp: string, keep: number | null, includeDb: boolean | null, includeSettings: boolean | null) : Promise<Result<BackupResult, { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("backup_create", { stamp, keep, includeDb, includeSettings }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2471,6 +2524,23 @@ export type AuthType =
  */
 { kind: "basic"; username: string }
 export type AvatarDecoration = { id: string; url: string; angle?: number | null; flipH?: boolean | null; offsetX?: number | null; offsetY?: number | null }
+export type BackupResult = { 
+/**
+ * 書き出したディレクトリの絶対パス
+ */
+dir: string; 
+/**
+ * DB を含めなかった場合は None
+ */
+dbBytes: number | null; 
+/**
+ * 設定を含めなかった場合は None
+ */
+settingsFiles: number | null; 
+/**
+ * 世代上限を超えて削除した数
+ */
+rotatedRemoved: number }
 export type CacheStats = { noteCount: number; dbSizeBytes: number }
 export type Channel = { id: string; name: string; color?: string | null }
 export type ChatCacheStats = { messageCount: number; bytes: number }
@@ -2715,6 +2785,10 @@ heartbeatIntervalMinutes: number | null;
 logDir: string | null }
 export type HttpFetchRequest = { url: string; method: string | null; headers: Partial<{ [key in string]: string }> | null; body: string | null; timeoutMs: number | null }
 export type HttpFetchResponse = { status: number; headers: Partial<{ [key in string]: string }>; body: string }
+/**
+ * 画像ディスクキャッシュの使用量 (#815)。設定のキャッシュ画面で表示する
+ */
+export type ImageCacheStats = { bytes: number; files: number }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 /**
  * Misskey の `mutedWords` / `hardMutedWords` の 1 要素。
@@ -2843,7 +2917,11 @@ content?: JsonValue | null; variables?: JsonValue | null; script?: string | null
  * Performance configuration shared across the application.
  * All fields are dynamically updatable at runtime via Tauri commands.
  */
-export type PerformanceConfig = { memory_cache_max_total: number; memory_cache_max_item: number; max_concurrent_fetches: number; rust_ogp_cache_max: number; max_requests_per_window: number; circuit_breaker_threshold: number; circuit_breaker_duration: number; image_cache_ttl_days: number }
+export type PerformanceConfig = { memory_cache_max_total: number; memory_cache_max_item: number; max_concurrent_fetches: number; rust_ogp_cache_max: number; max_requests_per_window: number; circuit_breaker_threshold: number; circuit_breaker_duration: number; image_cache_ttl_days: number; 
+/**
+ * ディスク画像キャッシュの上限バイト数。超過分は古い順に削除する
+ */
+image_cache_max_bytes: number }
 export type Player = { url: string; width: number | null; height: number | null; allow?: string[] }
 /**
  * 接続を開示する先の principal クラス (#712 §6.1)。

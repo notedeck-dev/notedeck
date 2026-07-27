@@ -2,12 +2,24 @@
 import { computed, ref, shallowRef } from 'vue'
 import type { NormalizedDriveFile } from '@/adapters/types'
 import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
+import { proxyUrl } from '@/utils/imageProxy'
 import { isSafeUrl, openSafeUrl } from '@/utils/url'
 import MkMediaLightbox from './MkMediaLightbox.vue'
 
 function safeMediaSrc(url: string | null | undefined): string | undefined {
   if (!url) return undefined
   return isSafeUrl(url) ? url : undefined
+}
+
+/**
+ * 画像はローカルプロキシ経由にしてディスクキャッシュに載せる (#815)。
+ * 動画は 20MB のプロキシ上限に掛かるため生 URL のまま。
+ * 変換は掛けない — prefetch (useImagePrefetch) と URL を一致させる必要がある
+ */
+function proxiedImageSrc(url: string | null | undefined): string | undefined {
+  const safe = safeMediaSrc(url)
+  if (!safe) return undefined
+  return proxyUrl(safe) ?? safe
 }
 
 const props = defineProps<{
@@ -151,7 +163,7 @@ function closeLightbox() {
       <template v-if="isImage(file)">
         <img
           v-if="!erroredIds.has(file.id)"
-          :src="safeMediaSrc(file.thumbnailUrl) || safeMediaSrc(file.url)"
+          :src="proxiedImageSrc(file.thumbnailUrl) || proxiedImageSrc(file.url)"
           :alt="file.name"
           :class="[$style.mediaImage, { [$style.isLoaded]: loadedIds.has(file.id) }]"
           :loading="props.eager ? 'eager' : 'lazy'"

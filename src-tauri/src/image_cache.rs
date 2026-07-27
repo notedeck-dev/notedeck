@@ -510,6 +510,132 @@ impl ImageCache {
             }
         });
     }
+
+    /// ディスクキャッシュを掃除する。TTL 超過分を削除したうえで、なお上限を
+    /// 超えていれば古い順に削除する。
+    ///
+    /// TTL 超過分は従来 read 側で「無視」されるだけでファイルは残り続けて
+    /// いた。上限・削除処理がどこにも無く、際限なく溜まる状態だったため
+    /// 定期実行の掃除口をここに置く (#815)。
+    ///
+    /// 古さの基準は mtime (= 書き込み時刻)。read で更新しないので厳密な LRU
+    /// ではなく投入順に近いが、キャッシュミスは再取得で回復するため許容する。
+    pub async fn sweep_disk(&self) -> SweepStats {
+        let (ttl_days, max_bytes) = {
+            let perf = self.perf.read().await;
+            (perf.image_cache_ttl_days, perf.image_cache_max_bytes)
+        };
+        let dir = self.cache_dir.clone();
+        tokio::task::spawn_blocking(move || sweep_dir(&dir, ttl_days, max_bytes))
+            .await
+            .unwrap_or_default()
+    }
+
+    /// ディスクキャッシュの使用量 (設定 UI の表示用)
+    pub async fn disk_stats(&self) -> (u64, usize) {
+        let dir = self.cache_dir.clone();
+        tokio::task::spawn_blocking(move || {
+            let Ok(entries) = std::fs::read_dir(&dir) else {
+                return (0, 0);
+            };
+            let mut bytes = 0u64;
+            let mut files = 0usize;
+            for entry in entries.flatten() {
+                if entry.path().extension().and_then(|e| e.to_str()) != Some("dat") {
+                    continue;
+                }
+                if let Ok(meta) = entry.metadata() {
+                    bytes += meta.len();
+                    files += 1;
+                }
+            }
+            (bytes, files)
+        })
+        .await
+        .unwrap_or((0, 0))
+    }
+
+    /// ディスクキャッシュを全削除する。メモリキャッシュも合わせて捨てないと
+    /// 削除したはずの画像が返り続ける
+    pub async fn clear_disk(&self) -> Result<(), String> {
+        {
+            let mut mem = self.mem_cache.write().await;
+            mem.entries.clear();
+            mem.total_size = 0;
+        }
+        let dir = self.cache_dir.clone();
+        tokio::task::spawn_blocking(move || {
+            let entries = std::fs::read_dir(&dir).map_err(|e| e.to_string())?;
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let ext = path.extension().and_then(|e| e.to_str());
+                if ext == Some("dat") || ext == Some("meta") {
+                    let _ = std::fs::remove_file(&path);
+                }
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct SweepStats {
+    pub expired_removed: usize,
+    pub evicted_removed: usize,
+    pub bytes_after: u64,
+}
+
+/// `<hash>.dat` と対の `<hash>.meta` を 1 エントリとして扱い、まとめて消す
+fn remove_entry(dir: &Path, stem: &str) {
+    let _ = std::fs::remove_file(dir.join(format!("{stem}.dat")));
+    let _ = std::fs::remove_file(dir.join(format!("{stem}.meta")));
+}
+
+fn sweep_dir(dir: &Path, ttl_days: u64, max_bytes: u64) -> SweepStats {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return SweepStats::default();
+    };
+    let ttl = Duration::from_secs(ttl_days * 24 * 60 * 60);
+    let now = SystemTime::now();
+    let mut stats = SweepStats::default();
+    // (mtime, size, stem) — .dat のみを対象にし .meta は道連れで消す
+    let mut alive: Vec<(SystemTime, u64, String)> = Vec::new();
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("dat") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()).map(String::from) else {
+            continue;
+        };
+        let Ok(meta) = entry.metadata() else { continue };
+        let modified = meta.modified().unwrap_or(now);
+        if now.duration_since(modified).unwrap_or_default() > ttl {
+            remove_entry(dir, &stem);
+            stats.expired_removed += 1;
+            continue;
+        }
+        alive.push((modified, meta.len(), stem));
+    }
+
+    let mut total: u64 = alive.iter().map(|(_, size, _)| size).sum();
+    if total > max_bytes {
+        // 古い順に消して上限まで落とす
+        alive.sort_by_key(|(modified, _, _)| *modified);
+        for (_, size, stem) in &alive {
+            if total <= max_bytes {
+                break;
+            }
+            remove_entry(dir, stem);
+            total = total.saturating_sub(*size);
+            stats.evicted_removed += 1;
+        }
+    }
+    stats.bytes_after = total;
+    stats
 }
 
 pub fn hex_hash(input: &str) -> String {
@@ -592,6 +718,83 @@ mod tests {
         let mem = cache.mem_cache.read().await;
         assert!(mem.entries.peek("a").is_none(), "LRU entry 'a' should be evicted");
         assert!(mem.entries.peek("b").is_some() || mem.entries.peek("c").is_some());
+    }
+
+    /// `<stem>.dat` + `.meta` の対を作り、mtime を指定秒だけ過去にずらす
+    fn write_entry(dir: &Path, stem: &str, size: usize, age_secs: u64) {
+        std::fs::write(dir.join(format!("{stem}.dat")), vec![0u8; size]).unwrap();
+        std::fs::write(dir.join(format!("{stem}.meta")), "image/png").unwrap();
+        let mtime = SystemTime::now() - Duration::from_secs(age_secs);
+        let f = std::fs::File::options()
+            .write(true)
+            .open(dir.join(format!("{stem}.dat")))
+            .unwrap();
+        f.set_modified(mtime).unwrap();
+    }
+
+    #[test]
+    fn sweep_removes_entries_past_ttl_with_their_meta() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let day = 24 * 60 * 60;
+        write_entry(dir, "fresh", 10, 0);
+        write_entry(dir, "stale", 10, 8 * day);
+
+        let stats = sweep_dir(dir, 7, u64::MAX);
+
+        assert_eq!(stats.expired_removed, 1);
+        assert!(dir.join("fresh.dat").exists());
+        assert!(!dir.join("stale.dat").exists());
+        // .meta を残すと孤児になるので道連れで消える
+        assert!(!dir.join("stale.meta").exists());
+    }
+
+    #[test]
+    fn sweep_evicts_oldest_until_under_the_size_cap() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        write_entry(dir, "oldest", 100, 300);
+        write_entry(dir, "middle", 100, 200);
+        write_entry(dir, "newest", 100, 100);
+
+        let stats = sweep_dir(dir, 7, 250);
+
+        assert_eq!(stats.evicted_removed, 1);
+        assert!(stats.bytes_after <= 250);
+        assert!(!dir.join("oldest.dat").exists());
+        assert!(dir.join("middle.dat").exists());
+        assert!(dir.join("newest.dat").exists());
+    }
+
+    #[test]
+    fn sweep_keeps_everything_when_within_limits() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        write_entry(dir, "a", 100, 10);
+        write_entry(dir, "b", 100, 20);
+
+        let stats = sweep_dir(dir, 7, 10_000);
+
+        assert_eq!(stats, SweepStats {
+            expired_removed: 0,
+            evicted_removed: 0,
+            bytes_after: 200,
+        });
+    }
+
+    #[tokio::test]
+    async fn clear_disk_removes_all_entries() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(tmp.path());
+        let dir = tmp.path().join("image_cache");
+        write_entry(&dir, "a", 10, 0);
+        write_entry(&dir, "b", 10, 0);
+        assert_eq!(cache.disk_stats().await, (20, 2));
+
+        cache.clear_disk().await.unwrap();
+
+        assert_eq!(cache.disk_stats().await, (0, 0));
+        assert!(!dir.join("a.meta").exists());
     }
 
     #[tokio::test]

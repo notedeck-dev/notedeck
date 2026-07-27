@@ -120,6 +120,15 @@ async function openLogDir() {
   closeMenu()
 }
 
+async function openBackupDir() {
+  try {
+    await revealItemInDir(unwrap(await commands.getBackupDir()))
+  } catch {
+    // バックアップディレクトリが解決できない環境では何もしない
+  }
+  closeMenu()
+}
+
 async function openDownloadDir() {
   try {
     await revealItemInDir(unwrap(await commands.getExportDir()))
@@ -176,6 +185,10 @@ defineExpose({ toggleMenu })
           <button class="_popupItem" @click="openDownloadDir">
             <i class="ti ti-folder-down" />
             <span>ダウンロードフォルダを開く</span>
+          </button>
+          <button class="_popupItem" @click="openBackupDir">
+            <i class="ti ti-database-export" />
+            <span>バックアップフォルダを開く</span>
           </button>
           <div class="_popupDivider" />
           <button class="_popupItem" @click="toggleAutostart">

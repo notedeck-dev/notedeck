@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useConfirm } from '@/stores/confirm'
+import { usePerformanceStore } from '@/stores/performance'
 import { useSettingsStore } from '@/stores/settings'
 import {
   type EvictionPreset,
@@ -15,8 +16,22 @@ const settingsStore = useSettingsStore()
 // --- 統計表示 ---
 const noteCount = ref<number | null>(null)
 const dbBytes = ref<number | null>(null)
+const imageBytes = ref<number | null>(null)
+const imageFiles = ref<number | null>(null)
 const isClearing = ref(false)
+const isClearingImages = ref(false)
 const errorMessage = ref('')
+
+// 画像キャッシュの上限は performance 設定が正本 (Rust へ同期される)
+const performanceStore = usePerformanceStore()
+const imageCacheMaxMB = computed({
+  get: () => performanceStore.get('imageCacheMaxMB'),
+  set: (v: number) => performanceStore.set('imageCacheMaxMB', v),
+})
+const imageCacheTTLDays = computed({
+  get: () => performanceStore.get('imageCacheTTLDays'),
+  set: (v: number) => performanceStore.set('imageCacheTTLDays', v),
+})
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -31,6 +46,9 @@ async function refreshStats() {
     const stats = unwrap(await commands.cacheStats())
     noteCount.value = stats.noteCount
     dbBytes.value = stats.dbSizeBytes
+    const img = unwrap(await commands.imageCacheStats())
+    imageBytes.value = img.bytes
+    imageFiles.value = img.files
   } catch (e) {
     if (import.meta.env.DEV) console.debug('[cache-editor] fetch failed:', e)
   }
@@ -53,6 +71,27 @@ async function clearAll() {
     errorMessage.value = e instanceof Error ? e.message : String(e)
   } finally {
     isClearing.value = false
+  }
+}
+
+async function clearImages() {
+  const ok = await confirm({
+    title: '画像キャッシュ削除',
+    message:
+      'ディスク上の画像キャッシュをすべて削除しますか？表示のたびにサーバーから再取得されます。',
+    okLabel: '削除',
+    type: 'danger',
+  })
+  if (!ok) return
+  isClearingImages.value = true
+  errorMessage.value = ''
+  try {
+    unwrap(await commands.clearImageCache())
+    await refreshStats()
+  } catch (e) {
+    errorMessage.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    isClearingImages.value = false
   }
 }
 
@@ -161,6 +200,60 @@ onMounted(refreshStats)
             {{ dbBytes == null ? '—' : formatBytes(dbBytes) }}
           </span>
         </div>
+        <div :class="$style.statBox">
+          <span :class="$style.statLabel">画像キャッシュ</span>
+          <span :class="$style.statValue">
+            {{ imageBytes == null ? '—' : formatBytes(imageBytes) }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div :class="$style.divider" />
+
+    <!-- 画像キャッシュ (#815) -->
+    <div :class="$style.section">
+      <div :class="$style.sectionHeader">
+        <i class="ti ti-photo" :class="$style.sectionIcon" />
+        <span :class="$style.sectionTitle">画像キャッシュ</span>
+      </div>
+      <p :class="$style.hint">
+        アバターや絵文字などの画像をディスクに保持します。上限を超えた分と期限切れは古いものから自動で削除されます。
+      </p>
+      <label :class="$style.field">
+        <span :class="$style.fieldLabel">上限</span>
+        <input
+          v-model.number="imageCacheMaxMB"
+          type="number"
+          min="64"
+          max="4096"
+          step="64"
+          :class="$style.numberInput"
+        />
+        <span :class="$style.fieldUnit">MB</span>
+      </label>
+      <label :class="$style.field">
+        <span :class="$style.fieldLabel">保持期間</span>
+        <input
+          v-model.number="imageCacheTTLDays"
+          type="number"
+          min="1"
+          max="30"
+          step="1"
+          :class="$style.numberInput"
+        />
+        <span :class="$style.fieldUnit">日</span>
+      </label>
+      <div :class="$style.btnRow">
+        <button
+          class="_button"
+          :class="$style.actionBtn"
+          :disabled="isClearingImages"
+          @click="clearImages"
+        >
+          <i class="ti ti-trash" />
+          {{ isClearingImages ? '処理中...' : `画像キャッシュ削除${imageFiles ? ` (${imageFiles.toLocaleString()} 件)` : ''}` }}
+        </button>
       </div>
     </div>
 
@@ -369,6 +462,34 @@ onMounted(refreshStats)
 
 .actionBtn {
   @include btn-action;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.fieldLabel {
+  min-width: 72px;
+  font-size: 13px;
+  color: var(--fgTransparentWeak, #888);
+}
+
+.numberInput {
+  width: 96px;
+  padding: 4px 8px;
+  border: 1px solid var(--divider, #ddd);
+  border-radius: 6px;
+  background: var(--panel, #fff);
+  color: var(--fg, #000);
+  font-size: 13px;
+}
+
+.fieldUnit {
+  font-size: 13px;
+  color: var(--fgTransparentWeak, #888);
 }
 
 .divider {

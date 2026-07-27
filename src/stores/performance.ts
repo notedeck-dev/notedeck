@@ -51,6 +51,7 @@ export interface PerformanceConfig {
   circuitBreakerThreshold: number
   circuitBreakerDuration: number
   imageCacheTTLDays: number
+  imageCacheMaxMB: number
   // Polling
   streamPollingInterval: number
   notificationPollInterval: number
@@ -215,6 +216,7 @@ export const usePerformanceStore = defineStore('performance', () => {
         circuit_breaker_threshold: c.circuitBreakerThreshold,
         circuit_breaker_duration: c.circuitBreakerDuration,
         image_cache_ttl_days: c.imageCacheTTLDays,
+        image_cache_max_bytes: c.imageCacheMaxMB * 1024 * 1024,
       }),
     )
   }
