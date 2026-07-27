@@ -39,13 +39,21 @@ describe('files.export requiresConfirmation', () => {
     expect(opts?.message).toContain('notedeck/export/')
   })
 
-  it('includeSensitive 指定時はその旨を明示する', async () => {
+  // 既定はセンシティブも保存する (本体のドライブ保存と同じ)。除外は opt-out
+  it('既定ではセンシティブに触れない (含むのが既定のため)', async () => {
+    const fn = filesExportCapability.requiresConfirmation
+    if (typeof fn !== 'function') throw new Error('must be a function')
+    const opts = await fn({ fileIds: ['a'] }, {} as CapabilityContext)
+    expect(opts?.message).not.toContain('センシティブ')
+  })
+
+  it('includeSensitive: false のときは除外する旨を明示する', async () => {
     const fn = filesExportCapability.requiresConfirmation
     if (typeof fn !== 'function') throw new Error('must be a function')
     const opts = await fn(
-      { fileIds: ['a'], includeSensitive: true },
+      { fileIds: ['a'], includeSensitive: false },
       {} as CapabilityContext,
     )
-    expect(opts?.message).toContain('センシティブ')
+    expect(opts?.message).toContain('センシティブ設定のファイルは除きます')
   })
 })
