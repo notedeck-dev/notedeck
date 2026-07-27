@@ -18,6 +18,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   pick: [reaction: string]
+  close: []
 }>()
 
 const $style = useCssModule()
@@ -67,8 +68,11 @@ const contentClass = computed(() => [
       : $style.popupContentEnter,
 ])
 
-function open(e: MouseEvent) {
-  const btn = e.currentTarget as HTMLElement
+function open(anchor: MouseEvent | HTMLElement) {
+  const btn =
+    anchor instanceof HTMLElement
+      ? anchor
+      : (anchor.currentTarget as HTMLElement)
   triggerRef.value = btn
   const rect = btn.getBoundingClientRect()
   const column = btn.closest(COLUMN_SELECTOR) as HTMLElement | null
@@ -76,11 +80,16 @@ function open(e: MouseEvent) {
   const rightEdge = colRect ? colRect.right - 8 : rect.right
   pos.value = { x: rightEdge, y: rect.bottom + 4 }
   if (column) theme.value = extractThemeVars(column)
-  show.value = !show.value
+  if (show.value) {
+    close()
+  } else {
+    show.value = true
+  }
 }
 
 function close() {
   show.value = false
+  emit('close')
 }
 
 defineExpose({ open })
