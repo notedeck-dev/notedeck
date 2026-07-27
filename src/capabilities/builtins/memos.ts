@@ -7,8 +7,8 @@ import {
   type MemoData,
   saveMemo,
 } from '@/composables/useMemos'
-import { useAccountsStore } from '@/stores/accounts'
 import { resolveIdentity } from '@/utils/identity'
+import { ACCOUNT_ID_PARAM_DESC, resolveAccountId } from '../accountContext'
 
 /**
  * Phase 5+: AI がローカルメモ (Zettelkasten 形式 markdown) を作成 / 編集する
@@ -42,18 +42,6 @@ function pickStringArray(input: unknown): string[] | undefined {
     if (t.length > 0) out.push(t)
   }
   return out
-}
-
-function resolveAccountId(input: unknown): string {
-  const explicit = pickString(input)
-  if (explicit) return explicit
-  const active = useAccountsStore().activeAccountId
-  if (!active) {
-    throw new Error(
-      'memos: no active account (sign in first or supply accountId)',
-    )
-  }
-  return active
 }
 
 /**
@@ -97,10 +85,6 @@ function emptyMemoData(
     author,
   }
 }
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントのメモ空間に保存するか。未指定なら active アカウント。' +
-  ' 別アカウントに紐付けたいときだけ明示する。'
 
 /** `memos.create` — 新規メモを作成する */
 export const memosCreateCapability: Command = {
@@ -154,13 +138,13 @@ export const memosCreateCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const text = pickString(params?.text)
     if (!text) throw new Error('memos.create: text is required')
     const tags = pickStringArray(params?.tags) ?? []
     const authorIdInput = pickString(params?.authorId)
     const author = authorIdInput ? buildAuthorBlock(authorIdInput) : undefined
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     await ensureMemosLoaded()
     const memoKey = generateMemoKey()
     const stored = saveMemo(
@@ -232,7 +216,7 @@ export const memosUpdateCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const id = pickString(params?.id)
     if (!id) throw new Error('memos.update: id is required')
     const text = pickString(params?.text)
@@ -253,7 +237,7 @@ export const memosUpdateCapability: Command = {
         'memos.update: at least one of text / tags / authorId is required',
       )
     }
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     await ensureMemosLoaded()
     const existing = loadMemo(accountId, id)
     if (!existing) {
@@ -309,10 +293,10 @@ export const memosDeleteCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const id = pickString(params?.id)
     if (!id) throw new Error('memos.delete: id is required')
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     await ensureMemosLoaded()
     const existing = loadMemo(accountId, id)
     if (!existing) {

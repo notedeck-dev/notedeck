@@ -11,7 +11,7 @@ import type { NormalizedDriveFile, NormalizedNote } from '@/adapters/types'
 import {
   getPluginHandlers,
   type PluginHandler,
-  setPluginAccountContext,
+  withPluginAccountContext,
 } from '@/aiscript/plugin-api'
 import { useAutocomplete } from '@/composables/useAutocomplete'
 import type { StoredDraft } from '@/composables/useDrafts'
@@ -304,27 +304,34 @@ function togglePluginActionsMenu() {
 
 function runPostFormAction(action: PluginHandler) {
   showPluginActionsMenu.value = false
-  if (activeAccountId.value) {
-    setPluginAccountContext(action.pluginInstallId, activeAccountId.value)
-  }
   // handler は (form, update) の 2 引数 (plugin-api.ts の register_post_form_action)。
   // update は 'text' / 'cw' キーに対応し、cw: null は CW 解除。
-  action.handler(
-    { text: text.value, cw: showCw.value ? cw.value : null },
-    (key: unknown, value: unknown) => {
-      if (key === 'text' && typeof value === 'string') {
-        text.value = value
-      } else if (key === 'cw') {
-        if (value == null) {
-          showCw.value = false
-          cw.value = ''
-        } else if (typeof value === 'string') {
-          showCw.value = true
-          cw.value = value
+  const invoke = () =>
+    action.handler(
+      { text: text.value, cw: showCw.value ? cw.value : null },
+      (key: unknown, value: unknown) => {
+        if (key === 'text' && typeof value === 'string') {
+          text.value = value
+        } else if (key === 'cw') {
+          if (value == null) {
+            showCw.value = false
+            cw.value = ''
+          } else if (typeof value === 'string') {
+            showCw.value = true
+            cw.value = value
+          }
         }
-      }
-    },
-  )
+      },
+    )
+  if (activeAccountId.value) {
+    void withPluginAccountContext(
+      action.pluginInstallId,
+      activeAccountId.value,
+      invoke,
+    )
+  } else {
+    invoke()
+  }
 }
 
 // --- MFM menu ---

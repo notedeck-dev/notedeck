@@ -1,6 +1,6 @@
 import type { Command } from '@/commands/registry'
-import { useAccountsStore } from '@/stores/accounts'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { ACCOUNT_ID_PARAM_DESC, resolveAccountId } from '../accountContext'
 
 /**
  * Chat reaction 系 capability — Misskey 新 Chat API (v2025) のメッセージに
@@ -16,19 +16,6 @@ function pickString(v: unknown): string | undefined {
   const t = v.trim()
   return t.length > 0 ? t : undefined
 }
-
-function resolveAccountId(input: unknown): string {
-  const explicit = typeof input === 'string' ? input.trim() : ''
-  if (explicit) return explicit
-  const store = useAccountsStore()
-  const id = store.activeAccountId
-  if (!id) throw new Error('chat: no active account')
-  return id
-}
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントで実行するか。未指定なら active アカウント。' +
-  ' 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。'
 
 export const chatReactCapability: Command = {
   id: 'chat.react',
@@ -62,12 +49,12 @@ export const chatReactCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const messageId = pickString(params?.messageId)
     const reaction = pickString(params?.reaction)
     if (!messageId) throw new Error('chat.react: messageId is required')
     if (!reaction) throw new Error('chat.react: reaction is required')
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     unwrap(await commands.apiReactChatMessage(accountId, messageId, reaction))
     return { ok: true, messageId, reaction }
   },
@@ -102,12 +89,12 @@ export const chatUnreactCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const messageId = pickString(params?.messageId)
     const reaction = pickString(params?.reaction)
     if (!messageId) throw new Error('chat.unreact: messageId is required')
     if (!reaction) throw new Error('chat.unreact: reaction is required')
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     unwrap(await commands.apiUnreactChatMessage(accountId, messageId, reaction))
     return { ok: true, messageId, reaction }
   },

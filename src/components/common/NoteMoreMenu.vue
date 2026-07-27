@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import type { Clip, NormalizedNote } from '@/adapters/types'
 import {
   getPluginHandlers,
-  setPluginAccountContext,
+  withPluginAccountContext,
 } from '@/aiscript/plugin-api'
 import { useCommandStore } from '@/commands/registry'
 import { useAccountMode } from '@/composables/useAccountMode'
@@ -339,7 +339,7 @@ defineExpose({ open })
           v-for="action in noteActions"
           :key="action.pluginInstallId + action.title"
           class="_popupItem"
-          @click="setPluginAccountContext(action.pluginInstallId, note._accountId); action.handler(note); close()"
+          @click="withPluginAccountContext(action.pluginInstallId, note._accountId, () => action.handler(note)); close()"
         >
           <i class="ti ti-plug" />
           {{ action.title }}

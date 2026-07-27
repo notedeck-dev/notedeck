@@ -1,7 +1,7 @@
 import type { JsonValue } from '@/bindings'
 import type { Command } from '@/commands/registry'
-import { useAccountsStore } from '@/stores/accounts'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { ACCOUNT_ID_PARAM_DESC, resolveAccountId } from '../accountContext'
 
 /**
  * Registry (Misskey サーバー側 KV ストア) 系 capability。
@@ -35,18 +35,6 @@ function pickScope(input: unknown): string[] {
   }
   return out
 }
-
-function resolveAccountId(input: unknown): string {
-  const explicit = typeof input === 'string' ? input.trim() : ''
-  if (explicit) return explicit
-  const store = useAccountsStore()
-  const id = store.activeAccountId
-  if (!id) throw new Error('registry: no active account')
-  return id
-}
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントの registry を操作するか。未指定なら active アカウント。'
 
 const SCOPE_PARAM_DESC =
   'registry の scope 配列 (= path components)。例: `["client"]` / ' +
@@ -82,9 +70,9 @@ export const registryListKeysCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const scope = pickScope(params?.scope)
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     return unwrap(await commands.apiListRegistryKeys(accountId, scope))
   },
 }
@@ -117,11 +105,11 @@ export const registryGetCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const scope = pickScope(params?.scope)
     const key = pickString(params?.key)
     if (!key) throw new Error('registry.get: key is required')
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     return unwrap(await commands.apiGetRegistryValue(accountId, scope, key))
   },
 }
@@ -174,14 +162,14 @@ export const registrySetCapability: Command = {
     returns: { type: 'object', description: '{ ok: true, scope, key }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const scope = pickScope(params?.scope)
     const key = pickString(params?.key)
     if (!key) throw new Error('registry.set: key is required')
     if (params?.value === undefined) {
       throw new Error('registry.set: value is required (null も可、未指定不可)')
     }
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     unwrap(
       await commands.apiSetRegistryValue(
         accountId,
@@ -234,11 +222,11 @@ export const registryDeleteCapability: Command = {
     returns: { type: 'object', description: '{ deleted: true, scope, key }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const scope = pickScope(params?.scope)
     const key = pickString(params?.key)
     if (!key) throw new Error('registry.delete: key is required')
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     unwrap(await commands.apiDeleteRegistryValue(accountId, scope, key))
     return { deleted: true, scope, key }
   },

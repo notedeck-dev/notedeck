@@ -4,8 +4,8 @@ import {
   loadAllMemos,
   type StoredMemo,
 } from '@/composables/useMemos'
-import { useAccountsStore } from '@/stores/accounts'
 import { extractMemoRefs } from '@/utils/memoLinks'
+import { ACCOUNT_ID_PARAM_DESC, resolveAccountId } from '../accountContext'
 
 /**
  * memos.read 系 capability (#492) — AI がローカルメモを「列挙 / 検索」する
@@ -44,18 +44,6 @@ function pickPositiveNumber(input: unknown): number | undefined {
   return input
 }
 
-function resolveAccountId(input: unknown): string {
-  const explicit = pickString(input)
-  if (explicit) return explicit
-  const active = useAccountsStore().activeAccountId
-  if (!active) {
-    throw new Error(
-      'memos: no active account (sign in first or supply accountId)',
-    )
-  }
-  return active
-}
-
 function projectRow(memoKey: string, memo: StoredMemo): ProjectedMemoRow {
   const row: ProjectedMemoRow = {
     id: memoKey,
@@ -72,9 +60,6 @@ function compareUpdatedAtDesc(a: StoredMemo, b: StoredMemo): number {
   if (a.updatedAt > b.updatedAt) return -1
   return 0
 }
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントのメモ空間を参照するか。未指定なら active アカウント。'
 
 /** `memos.list` — tag / 日付 / キーワードで絞り込んでメモを列挙 */
 export const memosListCapability: Command = {
@@ -135,9 +120,9 @@ export const memosListCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     await ensureMemosLoaded()
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     const tag = pickString(params?.tag)
     const authorIdFilter = pickString(params?.authorId)
     const olderThanDays = pickPositiveNumber(params?.olderThanDays)
@@ -218,13 +203,13 @@ export const memosSearchCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     await ensureMemosLoaded()
     const query = pickString(params?.query)
     if (!query) throw new Error('memos.search: query is required')
     const authorIdFilter = pickString(params?.authorId)
     const limit = clampLimit(params?.limit)
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     const queryLower = query.toLowerCase()
 
     const all = loadAllMemos(accountId)
@@ -281,7 +266,7 @@ export const memosBacklinksCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const targetId = pickString(params?.id)
     if (!targetId) throw new Error('memos.backlinks: id is required')
     // 対象 memo 自体の存在は要求しない (= 削除済 id でも参照側は返す)。ただ
@@ -291,7 +276,7 @@ export const memosBacklinksCapability: Command = {
         'memos.backlinks: id must be a Zettelkasten key (14-digit number)',
       )
     }
-    const accountId = resolveAccountId(params?.accountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
     await ensureMemosLoaded()
     const all = loadAllMemos(accountId)
     const hits: [string, StoredMemo][] = []

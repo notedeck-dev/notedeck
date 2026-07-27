@@ -1,10 +1,8 @@
-import { initAdapterFor } from '@/adapters/factory'
-import type { ApiAdapter } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { stripCredentials } from '@/composables/useAiSystemContext'
-import { useAccountsStore } from '@/stores/accounts'
 import { useMutesStore } from '@/stores/mutes'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { getApiAdapter, resolveAccountId } from '../accountContext'
 
 /**
  * `user.lookup` — username (+ optional host) から Misskey ユーザー情報を引く。
@@ -15,18 +13,6 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
  * Misskey の `users/show` を使う。host は `@hitalin@yami.ski` の `yami.ski` 部分
  * (ローカル / 自インスタンスのときは省略可)。
  */
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<ApiAdapter> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('No active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`Account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return adapter.api
-}
-
 export const userLookupCapability: Command = {
   id: 'user.lookup',
   label: 'ユーザー検索',
@@ -67,7 +53,7 @@ export const userLookupCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const rawUsername =
       typeof params?.username === 'string' ? params.username.trim() : ''
     if (!rawUsername) throw new Error('user.lookup: username is required')
@@ -79,12 +65,7 @@ export const userLookupCapability: Command = {
       typeof params?.host === 'string' && params.host.trim().length > 0
         ? params.host.trim()
         : null
-    const accountId =
-      typeof params?.accountId === 'string' &&
-      params.accountId.trim().length > 0
-        ? params.accountId.trim()
-        : undefined
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const user = await api.lookupUser(username, host)
     return stripCredentials(user)
   },
@@ -136,18 +117,11 @@ export const userSearchCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const query = typeof params?.query === 'string' ? params.query : ''
     const limitRaw = typeof params?.limit === 'number' ? params.limit : 10
     const limit = Math.max(1, Math.min(100, Math.floor(limitRaw)))
-    const accountId =
-      typeof params?.accountId === 'string' &&
-      params.accountId.trim().length > 0
-        ? params.accountId.trim()
-        : null
-    const store = useAccountsStore()
-    const id = accountId ?? store.activeAccountId
-    if (!id) throw new Error('user.search: no active account')
+    const id = resolveAccountId(params?.accountId, ctx)
     const raw = unwrap(await commands.apiSearchUsersByQuery(id, query, limit))
     if (!Array.isArray(raw)) return []
     return raw.map((u) => stripCredentials(u as Record<string, unknown>))
@@ -184,14 +158,6 @@ function pickUserId(
   return userId
 }
 
-function pickAccountId(
-  params: Record<string, unknown> | undefined,
-): string | undefined {
-  if (typeof params?.accountId !== 'string') return undefined
-  const trimmed = params.accountId.trim()
-  return trimmed.length > 0 ? trimmed : undefined
-}
-
 const USER_ID_PARAM = {
   type: 'string' as const,
   description: '対象 userId (user.lookup / search で取得)',
@@ -219,14 +185,13 @@ export const userMuteCapability: Command = {
     returns: { type: 'object', description: '{ muted: true, userId }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.mute')
-    const rawAccountId = pickAccountId(params)
-    const api = await getApiAdapter(rawAccountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
+    const api = await getApiAdapter(accountId, ctx)
     await api.muteUser(userId)
     // 過去ノートを即時非表示に（#574）。UserProfileContent と同じ楽観反映。
-    const accountId = rawAccountId ?? useAccountsStore().activeAccountId
-    if (accountId) useMutesStore().muteUser(accountId, userId)
+    useMutesStore().muteUser(accountId, userId)
     return { muted: true, userId }
   },
 }
@@ -246,14 +211,13 @@ export const userUnmuteCapability: Command = {
     returns: { type: 'object', description: '{ unmuted: true, userId }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.unmute')
-    const rawAccountId = pickAccountId(params)
-    const api = await getApiAdapter(rawAccountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
+    const api = await getApiAdapter(accountId, ctx)
     await api.unmuteUser(userId)
     // 隠れていた過去ノートを即時復活（#574）。
-    const accountId = rawAccountId ?? useAccountsStore().activeAccountId
-    if (accountId) useMutesStore().unmuteUser(accountId, userId)
+    useMutesStore().unmuteUser(accountId, userId)
     return { unmuted: true, userId }
   },
 }
@@ -275,14 +239,13 @@ export const userRenoteMuteCapability: Command = {
     returns: { type: 'object', description: '{ renoteMuted: true, userId }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.renoteMute')
-    const rawAccountId = pickAccountId(params)
-    const api = await getApiAdapter(rawAccountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
+    const api = await getApiAdapter(accountId, ctx)
     await api.renoteMuteUser(userId)
     // 並んでいるリノートを即時非表示（#614）。
-    const accountId = rawAccountId ?? useAccountsStore().activeAccountId
-    if (accountId) useMutesStore().muteRenote(accountId, userId)
+    useMutesStore().muteRenote(accountId, userId)
     return { renoteMuted: true, userId }
   },
 }
@@ -302,14 +265,13 @@ export const userUnrenoteMuteCapability: Command = {
     returns: { type: 'object', description: '{ renoteUnmuted: true, userId }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.unrenoteMute')
-    const rawAccountId = pickAccountId(params)
-    const api = await getApiAdapter(rawAccountId)
+    const accountId = resolveAccountId(params?.accountId, ctx)
+    const api = await getApiAdapter(accountId, ctx)
     await api.unrenoteMuteUser(userId)
     // 隠れていたリノートを即時復活（#614）。
-    const accountId = rawAccountId ?? useAccountsStore().activeAccountId
-    if (accountId) useMutesStore().unmuteRenote(accountId, userId)
+    useMutesStore().unmuteRenote(accountId, userId)
     return { renoteUnmuted: true, userId }
   },
 }
@@ -354,9 +316,9 @@ export const userFollowCapability: Command = {
     returns: { type: 'object', description: '{ followed: true, userId }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.follow')
-    const api = await getApiAdapter(pickAccountId(params))
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.followUser(userId)
     return { followed: true, userId }
   },
@@ -378,9 +340,9 @@ export const userUnfollowCapability: Command = {
     returns: { type: 'object', description: '{ unfollowed: true, userId }' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.unfollow')
-    const api = await getApiAdapter(pickAccountId(params))
+    const api = await getApiAdapter(params?.accountId, ctx)
     await api.unfollowUser(userId)
     return { unfollowed: true, userId }
   },
@@ -439,9 +401,9 @@ export const userFollowersCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.followers')
-    const api = await getApiAdapter(pickAccountId(params))
+    const api = await getApiAdapter(params?.accountId, ctx)
     return await api.getFollowers(userId, {
       limit: pickLimit(params),
       untilId: pickUntilId(params),
@@ -471,9 +433,9 @@ export const userFollowingCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.following')
-    const api = await getApiAdapter(pickAccountId(params))
+    const api = await getApiAdapter(params?.accountId, ctx)
     return await api.getFollowing(userId, {
       limit: pickLimit(params),
       untilId: pickUntilId(params),

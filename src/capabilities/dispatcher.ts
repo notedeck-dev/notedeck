@@ -73,6 +73,12 @@ export interface DispatchOptions {
  */
 export interface DispatchContext {
   principal: Principal
+  /**
+   * 呼び出し文脈のアカウント (#821)。Nd:call (プラグインのアクション実行中)
+   * が埋める。未指定 = アカウント文脈なし (capability 側で activeAccountId
+   * にフォールバック)。
+   */
+  accountId?: string | null
 }
 
 /**
@@ -132,6 +138,7 @@ export async function dispatchCapability(
   const capCtx: CapabilityContext = {
     aiConfig: useAiConfig().config.value,
     principal: ctx.principal,
+    ...(ctx.accountId ? { accountId: ctx.accountId } : {}),
   }
   // 確認ダイアログ (write 系などで requiresConfirmation: true)
   const confirmOpts = await buildConfirmOptions(cap, params, capCtx)

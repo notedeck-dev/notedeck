@@ -1,7 +1,6 @@
-import { initAdapterFor } from '@/adapters/factory'
-import type { ApiAdapter, PagesEndpoint } from '@/adapters/types'
+import type { PagesEndpoint } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
-import { useAccountsStore } from '@/stores/accounts'
+import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
 
 /**
  * Pages (Misskey Pages) 系 capability。Misskey の長文記事 / wiki 機能。
@@ -19,18 +18,6 @@ const VALID_PAGES_ENDPOINTS: readonly PagesEndpoint[] = [
   'i/page-likes',
 ] as const
 
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<ApiAdapter> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('No active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`Account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return adapter.api
-}
-
 function pickString(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined
   const t = v.trim()
@@ -41,9 +28,6 @@ function pickNumber(v: unknown): number | undefined {
   if (typeof v !== 'number' || !Number.isFinite(v)) return undefined
   return v
 }
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントで取得するか。未指定なら active アカウント。'
 
 export const pagesListCapability: Command = {
   id: 'pages.list',
@@ -79,7 +63,7 @@ export const pagesListCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const endpoint = pickString(params?.endpoint)
     if (!endpoint) throw new Error('pages.list: endpoint is required')
     if (!(VALID_PAGES_ENDPOINTS as readonly string[]).includes(endpoint)) {
@@ -88,8 +72,7 @@ export const pagesListCapability: Command = {
       )
     }
     const limit = pickNumber(params?.limit)
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     return await api.getPages(endpoint as PagesEndpoint, limit)
   },
 }
@@ -117,11 +100,10 @@ export const pagesShowCapability: Command = {
     returns: { type: 'object', description: 'Page 詳細 (Misskey 生 JSON)' },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const pageId = pickString(params?.pageId)
     if (!pageId) throw new Error('pages.show: pageId is required')
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     return await api.getPage(pageId)
   },
 }

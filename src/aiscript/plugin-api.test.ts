@@ -18,7 +18,7 @@ import {
   launchAllPlugins,
   launchPlugin,
   parsePluginMeta,
-  setPluginAccountContext,
+  withPluginAccountContext,
 } from './plugin-api'
 
 vi.mock('@/utils/tauriInvoke', async () => {
@@ -458,17 +458,75 @@ describe('Mk:api account context bridging', () => {
   it('routes Mk:api through the gate and apiRequest with the set account', async () => {
     apiRequestMock.mockResolvedValue({ status: 'ok', data: { id: 'n1' } })
     const plugin = await installAndLaunch(SRC)
-    setPluginAccountContext(plugin.installId, 'acc-9')
-    getPluginHandlers('note_action')[0]?.handler({ id: 'n1' })
-    await vi.waitFor(() => {
-      expect(apiRequestMock).toHaveBeenCalledWith('acc-9', 'notes/show', {
-        noteId: 'n1',
-      })
+    await withPluginAccountContext(plugin.installId, 'acc-9', () =>
+      getPluginHandlers('note_action')[0]?.handler({ id: 'n1' }),
+    )
+    expect(apiRequestMock).toHaveBeenCalledWith('acc-9', 'notes/show', {
+      noteId: 'n1',
     })
     expect(gateMock).toHaveBeenCalledWith(
       { kind: 'plugin', pluginId: plugin.installId, name: plugin.name },
       'notes/show',
     )
+  })
+})
+
+describe('withPluginAccountContext (#821)', () => {
+  const SRC =
+    'Plugin:register_note_action("api", @(note) { Mk:api("notes/show", { noteId: note.id }) })'
+
+  it('handler 完了後に文脈が必ず null へ戻る (以後の Mk:api は fail-closed)', async () => {
+    const plugin = await installAndLaunch(SRC)
+    const handler = getPluginHandlers('note_action')[0]?.handler
+    await withPluginAccountContext(plugin.installId, 'acc-1', () =>
+      handler?.({ id: 'n1' }),
+    )
+    expect(apiRequestMock).toHaveBeenCalledWith('acc-1', 'notes/show', {
+      noteId: 'n1',
+    })
+    apiRequestMock.mockClear()
+    // 文脈外の発火は no account context エラー (既存挙動の維持)
+    await handler?.({ id: 'n2' })
+    expect(apiRequestMock).not.toHaveBeenCalled()
+    const entries = useAiScriptLogsStore().entriesFor(
+      'plugin',
+      plugin.installId,
+    )
+    expect(
+      entries.some(
+        (e) => e.level === 'error' && e.message.includes('no account context'),
+      ),
+    ).toBe(true)
+  })
+
+  it('同一プラグインの並行呼び出しを直列化し、各 handler が自分のアカウントを見る', async () => {
+    const calls: string[] = []
+    apiRequestMock.mockImplementation(async (accountId) => {
+      calls.push(accountId)
+      // handler A の実行を跨いで handler B が開始されうる時間差を作る
+      await new Promise((r) => setTimeout(r, 10))
+      return { status: 'ok', data: null }
+    })
+    const plugin = await installAndLaunch(SRC)
+    const handler = getPluginHandlers('note_action')[0]?.handler
+    await Promise.all([
+      withPluginAccountContext(plugin.installId, 'acc-1', () =>
+        handler?.({ id: 'n1' }),
+      ),
+      withPluginAccountContext(plugin.installId, 'acc-2', () =>
+        handler?.({ id: 'n2' }),
+      ),
+    ])
+    expect(calls).toEqual(['acc-1', 'acc-2'])
+  })
+
+  it('起動していないプラグイン (文脈なし) でも fn 自体は実行される', async () => {
+    const result = await withPluginAccountContext(
+      'nonexistent',
+      'acc-1',
+      () => 42,
+    )
+    expect(result).toBe(42)
   })
 })
 
@@ -528,9 +586,8 @@ describe('Mk:toast (プラグイン env の配線)', () => {
     await installAndLaunch(
       'Plugin:register_note_action("T", @(note) { Mk:toast("done", "info") })',
     )
-    // handler は execFn の Promise を返さない (発火のみ) ため flush して待つ
+    // handler は execFn の Promise を返す (#821) ので await だけで完了を追える
     await getPluginHandlers('note_action')[0]?.handler({ id: 'n1' })
-    await new Promise((r) => setTimeout(r, 20))
     expect(toasts.value.map((t) => t.text)).toEqual(['done'])
   })
 })

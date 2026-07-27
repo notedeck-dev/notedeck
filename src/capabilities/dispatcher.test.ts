@@ -77,6 +77,27 @@ describe('dispatchCapability', () => {
     expect(r).toEqual({ ok: true, result: 'hello' })
   })
 
+  it('DispatchContext.accountId が CapabilityContext へ伝播する (#821)', async () => {
+    const seen: (string | undefined)[] = []
+    registerCapability(
+      makeCapability({
+        id: 'a',
+        execute: (_params, ctx) => {
+          seen.push(ctx?.accountId)
+          return 'ok'
+        },
+      }),
+    )
+    const base = ctxWithPreset('readonly')
+    await dispatchCapability('a', undefined, {
+      ...base,
+      accountId: 'acc-ctx',
+    })
+    // 未指定 (AI / HTTP 経路) では undefined のまま = 挙動不変
+    await dispatchCapability('a', undefined, base)
+    expect(seen).toEqual(['acc-ctx', undefined])
+  })
+
   it('returns unknown_capability for an unregistered id', async () => {
     const r = await dispatchCapability('not-here', {}, ctxWithPreset('full'))
     expect(r.ok).toBe(false)

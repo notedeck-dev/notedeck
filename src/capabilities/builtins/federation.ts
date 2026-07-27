@@ -1,11 +1,9 @@
-import { initAdapterFor } from '@/adapters/factory'
 import type {
-  ApiAdapter,
   FederationInstanceSort,
   FederationInstancesParams,
 } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
-import { useAccountsStore } from '@/stores/accounts'
+import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
 
 /**
  * Federation (Misskey 連合) 系 capability。サーバー間連合の統計と
@@ -40,18 +38,6 @@ const VALID_SORTS: readonly FederationInstanceSort[] = [
   '-latestRequestSentAt',
 ] as const
 
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<ApiAdapter> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('No active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`Account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return adapter.api
-}
-
 function pickString(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined
   const t = v.trim()
@@ -76,10 +62,6 @@ function pickSpan(v: unknown): Span {
   }
   return s as Span
 }
-
-const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントで実行するか。未指定なら active アカウント。' +
-  ' 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。'
 
 export const federationChartCapability: Command = {
   id: 'federation.chart',
@@ -115,11 +97,10 @@ export const federationChartCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const span = pickSpan(params?.span)
     const limit = Math.min(pickNumber(params?.limit) ?? 30, 90)
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     return await api.getFederationChart(span, limit)
   },
 }
@@ -198,7 +179,7 @@ export const federationInstancesCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const sortRaw = pickString(params?.sort)
     if (
       sortRaw !== undefined &&
@@ -208,8 +189,7 @@ export const federationInstancesCapability: Command = {
         `federation.instances: invalid sort "${sortRaw}". Valid: ${VALID_SORTS.join(', ')}`,
       )
     }
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     const req: FederationInstancesParams = {
       limit: pickNumber(params?.limit),
       offset: pickNumber(params?.offset),
@@ -248,11 +228,10 @@ export const federationInstanceCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const host = pickString(params?.host)
     if (!host) throw new Error('federation.instance: host is required')
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     return await api.getFederationInstance(host)
   },
 }

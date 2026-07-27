@@ -1,7 +1,5 @@
-import { initAdapterFor } from '@/adapters/factory'
-import type { ApiAdapter } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
-import { useAccountsStore } from '@/stores/accounts'
+import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
 
 /**
  * Announcements (Misskey サーバーアナウンス) 系 capability。
@@ -15,24 +13,6 @@ import { useAccountsStore } from '@/stores/accounts'
  * AI が勝手に既読にして読み逃しを引き起こすリスクがあるので本 PR では
  * 提供しない (= read-only のみ)。
  */
-
-async function getApiAdapter(
-  accountId: string | undefined,
-): Promise<ApiAdapter> {
-  const store = useAccountsStore()
-  const id = accountId ?? store.activeAccountId
-  if (!id) throw new Error('No active account')
-  const acc = store.accounts.find((a) => a.id === id)
-  if (!acc) throw new Error(`Account "${id}" not found`)
-  const { adapter } = await initAdapterFor(acc.host, acc.id)
-  return adapter.api
-}
-
-function pickString(v: unknown): string | undefined {
-  if (typeof v !== 'string') return undefined
-  const t = v.trim()
-  return t.length > 0 ? t : undefined
-}
 
 function pickNumber(v: unknown): number | undefined {
   if (typeof v !== 'number' || !Number.isFinite(v)) return undefined
@@ -69,8 +49,7 @@ export const announcementsListCapability: Command = {
       },
       accountId: {
         type: 'string',
-        description:
-          'どのアカウントで取得するか。未指定なら active アカウント。',
+        description: ACCOUNT_ID_PARAM_DESC,
         optional: true,
       },
     },
@@ -78,11 +57,10 @@ export const announcementsListCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const limit = pickNumber(params?.limit)
     const isActive = pickBoolean(params?.isActive)
-    const accountId = pickString(params?.accountId)
-    const api = await getApiAdapter(accountId)
+    const api = await getApiAdapter(params?.accountId, ctx)
     return await api.getAnnouncements({ limit, isActive })
   },
 }
