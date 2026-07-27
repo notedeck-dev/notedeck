@@ -23,7 +23,10 @@ import {
   useSpotlightStore,
   windowTargetId,
 } from '@/composables/useSpotlight'
-import { recordPluginDenial } from '@/permissions/pluginDenials'
+import {
+  notifyPluginDenialInteraction,
+  recordPluginDenial,
+} from '@/permissions/pluginDenials'
 import { type Principal, principalActorLabel } from '@/permissions/principal'
 import type { PermissionKey } from '@/permissions/schema'
 import {
@@ -129,6 +132,9 @@ export async function dispatchCapability(
     if (actAsDenied.length > 0) {
       if (ctx.principal.kind === 'plugin') {
         recordPluginDenial(ctx.principal.pluginId, cap.id, actAsDenied)
+        if (ctx.accountId) {
+          notifyPluginDenialInteraction(ctx.principal.name, actAsDenied)
+        }
       }
       return {
         ok: false,
@@ -140,9 +146,15 @@ export async function dispatchCapability(
   const denied = checkPermissions(cap.permissions ?? [], ctx.principal)
   if (denied.length > 0) {
     // plugin の拒否はプラグインカラムの拒否バッジに流す (#712 §8.4 — 破壊的
-    // 変更をリリースノート依存にしない in-app 導線)
+    // 変更をリリースノート依存にしない in-app 導線)。UI 操作起点
+    // (note/user/post_form アクション = アカウント文脈付き) の拒否だけは
+    // その場で toast する — 「クリックしたのに無言」を防ぐ。自律実行の
+    // 高頻度拒否は従来どおりバッジのみ (spam 回避)
     if (ctx.principal.kind === 'plugin') {
       recordPluginDenial(ctx.principal.pluginId, cap.id, denied)
+      if (ctx.accountId) {
+        notifyPluginDenialInteraction(ctx.principal.name, denied)
+      }
     }
     return {
       ok: false,

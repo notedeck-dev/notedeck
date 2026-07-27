@@ -16,6 +16,7 @@ import {
   usePermissionsConfig,
 } from '@/permissions/store'
 import { useAccountsStore } from '@/stores/accounts'
+import { useToast } from '@/stores/toast'
 import { type DispatchContext, dispatchCapability } from './dispatcher'
 import { _clearCapabilitiesForTest, registerCapability } from './registry'
 
@@ -1829,5 +1830,78 @@ describe('account.actAs gate (#777)', () => {
     )
     expect(r.ok).toBe(true)
     expect(seenMessage).toContain('@bob@other.example')
+  })
+})
+
+describe('plugin 拒否の UI 操作起点 toast (#712 §8.4 補強)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  function deniedCap(): Command {
+    return makeCapability({
+      id: 'files.export',
+      permissions: ['files.export'],
+      execute: () => 'saved',
+    })
+  }
+
+  it('UI 操作起点 (ctx.accountId あり) の permission_denied は toast する', async () => {
+    registerCapability(deniedCap())
+    setPrincipalPreset('plugin', 'safe') // files.export は safe で deny
+    const { toasts } = useToast()
+    toasts.value.splice(0)
+    const r = await dispatchCapability(
+      'files.export',
+      { noteIds: ['n1'] },
+      {
+        principal: {
+          kind: 'plugin',
+          pluginId: 'p1',
+          name: '添付ファイルを保存',
+        },
+        accountId: 'acc-2',
+      },
+    )
+    expect(r.ok).toBe(false)
+    expect(toasts.value).toHaveLength(1)
+    expect(toasts.value[0]?.text).toContain('添付ファイルを保存')
+    expect(toasts.value[0]?.text).toContain('許可')
+  })
+
+  it('自律実行 (ctx.accountId なし) の拒否は従来どおり toast しない', async () => {
+    registerCapability(deniedCap())
+    setPrincipalPreset('plugin', 'safe')
+    const { toasts } = useToast()
+    toasts.value.splice(0)
+    await dispatchCapability('files.export', undefined, {
+      principal: { kind: 'plugin', pluginId: 'p1', name: 'X' },
+    })
+    expect(toasts.value).toHaveLength(0)
+  })
+
+  it('account.actAs の拒否も UI 操作起点なら toast する', async () => {
+    useAccountsStore().activeAccountId = 'acc-active'
+    registerCapability(
+      makeCapability({
+        id: 'notes.create',
+        actsAsAccount: true,
+        requiresConfirmation: true,
+        execute: () => 'posted',
+      }),
+    )
+    setPrincipalPreset('plugin', 'safe')
+    const { toasts } = useToast()
+    toasts.value.splice(0)
+    const r = await dispatchCapability(
+      'notes.create',
+      { accountId: 'acc-other' },
+      {
+        principal: { kind: 'plugin', pluginId: 'p1', name: 'X' },
+        accountId: 'acc-2',
+      },
+    )
+    expect(r.ok).toBe(false)
+    expect(toasts.value).toHaveLength(1)
   })
 })
