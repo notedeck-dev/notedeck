@@ -17,6 +17,7 @@ function pickString(v: unknown): string | undefined {
 
 export const favoritesAddCapability: Command = {
   id: 'favorites.add',
+  actsAsAccount: true,
   label: 'お気に入りに追加',
   icon: 'ti-star',
   category: 'note',
@@ -50,6 +51,7 @@ export const favoritesAddCapability: Command = {
 
 export const favoritesRemoveCapability: Command = {
   id: 'favorites.remove',
+  actsAsAccount: true,
   label: 'お気に入りから削除',
   icon: 'ti-star-off',
   category: 'note',

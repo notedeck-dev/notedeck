@@ -116,6 +116,7 @@ export const registryGetCapability: Command = {
 
 export const registrySetCapability: Command = {
   id: 'registry.set',
+  actsAsAccount: true,
   label: 'registry に値を書込',
   icon: 'ti-database-edit',
   category: 'account',
@@ -184,6 +185,7 @@ export const registrySetCapability: Command = {
 
 export const registryDeleteCapability: Command = {
   id: 'registry.delete',
+  actsAsAccount: true,
   label: 'registry の値を削除',
   icon: 'ti-database-x',
   category: 'account',

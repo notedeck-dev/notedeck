@@ -117,6 +117,7 @@ export const draftsListCapability: Command = {
 
 export const draftsCreateCapability: Command = {
   id: 'drafts.create',
+  actsAsAccount: true,
   label: '下書きを作成',
   icon: 'ti-edit',
   category: 'note',
@@ -207,6 +208,7 @@ export const draftsCreateCapability: Command = {
 
 export const draftsUpdateCapability: Command = {
   id: 'drafts.update',
+  actsAsAccount: true,
   label: '下書きを更新',
   icon: 'ti-edit',
   category: 'note',
@@ -294,6 +296,7 @@ export const draftsUpdateCapability: Command = {
 
 export const draftsDeleteCapability: Command = {
   id: 'drafts.delete',
+  actsAsAccount: true,
   label: '下書きを削除',
   icon: 'ti-trash',
   category: 'note',

@@ -170,6 +170,7 @@ const ACCOUNT_ID_PARAM = {
 
 export const userMuteCapability: Command = {
   id: 'user.mute',
+  actsAsAccount: true,
   label: 'ユーザーをミュート',
   icon: 'ti-volume-off',
   category: 'account',
@@ -198,6 +199,7 @@ export const userMuteCapability: Command = {
 
 export const userUnmuteCapability: Command = {
   id: 'user.unmute',
+  actsAsAccount: true,
   label: 'ユーザーのミュートを解除',
   icon: 'ti-volume',
   category: 'account',
@@ -224,6 +226,7 @@ export const userUnmuteCapability: Command = {
 
 export const userRenoteMuteCapability: Command = {
   id: 'user.renoteMute',
+  actsAsAccount: true,
   label: 'リノートだけミュート',
   icon: 'ti-volume-3',
   category: 'account',
@@ -252,6 +255,7 @@ export const userRenoteMuteCapability: Command = {
 
 export const userUnrenoteMuteCapability: Command = {
   id: 'user.unrenoteMute',
+  actsAsAccount: true,
   label: 'リノートミュートを解除',
   icon: 'ti-volume-2',
   category: 'account',
@@ -301,6 +305,7 @@ function followConfirm(action: '送る' | '解除') {
 
 export const userFollowCapability: Command = {
   id: 'user.follow',
+  actsAsAccount: true,
   label: 'ユーザーをフォロー',
   icon: 'ti-user-plus',
   category: 'account',
@@ -326,6 +331,7 @@ export const userFollowCapability: Command = {
 
 export const userUnfollowCapability: Command = {
   id: 'user.unfollow',
+  actsAsAccount: true,
   label: 'ユーザーのフォローを解除',
   icon: 'ti-user-minus',
   category: 'account',

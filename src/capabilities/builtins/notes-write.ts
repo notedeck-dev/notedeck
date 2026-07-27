@@ -28,6 +28,7 @@ function pickString(input: unknown): string | undefined {
 /** `notes.create` — 新規ノートを投稿する */
 export const notesCreateCapability: Command = {
   id: 'notes.create',
+  actsAsAccount: true,
   label: 'ノートを投稿',
   icon: 'ti-pencil',
   category: 'note',
@@ -114,6 +115,7 @@ export const notesCreateCapability: Command = {
 /** `notes.react` — ノートにリアクションする */
 export const notesReactCapability: Command = {
   id: 'notes.react',
+  actsAsAccount: true,
   label: 'リアクションする',
   icon: 'ti-mood-smile',
   category: 'note',
@@ -166,6 +168,7 @@ export const notesReactCapability: Command = {
  */
 export const notesUnreactCapability: Command = {
   id: 'notes.unreact',
+  actsAsAccount: true,
   label: 'リアクションを解除',
   icon: 'ti-mood-x',
   category: 'note',
@@ -214,6 +217,7 @@ export const notesUnreactCapability: Command = {
  */
 export const notesDeleteCapability: Command = {
   id: 'notes.delete',
+  actsAsAccount: true,
   label: 'ノートを削除',
   icon: 'ti-trash',
   category: 'note',
@@ -270,6 +274,7 @@ export const notesDeleteCapability: Command = {
  */
 export const notesPinCapability: Command = {
   id: 'notes.pin',
+  actsAsAccount: true,
   label: 'ノートをプロファイルに pin',
   icon: 'ti-pin',
   category: 'note',
@@ -306,6 +311,7 @@ export const notesPinCapability: Command = {
 
 export const notesUnpinCapability: Command = {
   id: 'notes.unpin',
+  actsAsAccount: true,
   label: 'ノートの pin を解除',
   icon: 'ti-pinned-off',
   category: 'note',

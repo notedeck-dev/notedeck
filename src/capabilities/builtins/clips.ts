@@ -113,6 +113,7 @@ export const clipsNotesCapability: Command = {
 
 export const clipsCreateCapability: Command = {
   id: 'clips.create',
+  actsAsAccount: true,
   label: 'クリップを作成',
   icon: 'ti-paperclip',
   category: 'note',
@@ -171,6 +172,7 @@ export const clipsCreateCapability: Command = {
 
 export const clipsAddNoteCapability: Command = {
   id: 'clips.addNote',
+  actsAsAccount: true,
   label: 'クリップにノートを追加',
   icon: 'ti-paperclip',
   category: 'note',
@@ -210,6 +212,7 @@ export const clipsAddNoteCapability: Command = {
 
 export const clipsRemoveNoteCapability: Command = {
   id: 'clips.removeNote',
+  actsAsAccount: true,
   label: 'クリップからノートを削除',
   icon: 'ti-paperclip',
   category: 'note',

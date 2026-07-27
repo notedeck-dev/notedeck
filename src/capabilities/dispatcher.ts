@@ -41,6 +41,7 @@ import {
 } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
+import { pickAccountId } from './accountContext'
 import { sanitizeToolName } from './identifier'
 import { getCapability, listCapabilities } from './registry'
 import type { CapabilityContext } from './types'
@@ -111,6 +112,31 @@ export async function dispatchCapability(
       error: `Capability "${capabilityId}" is not registered`,
     }
   }
+  // クロスアカウント実行の検査 (#777): actsAsAccount 宣言付き capability で、
+  // 非 user principal が呼び出し文脈 (ctx.accountId、無ければ active) と
+  // 異なるアカウントを明示指定したときだけ true。ctx.accountId 由来の実行
+  // (#821 — 本人がそのノートのメニューから起動した文脈) は対象外。
+  const crossAccountId =
+    cap.actsAsAccount && ctx.principal.kind !== 'user'
+      ? pickAccountId(params?.accountId)
+      : undefined
+  const crossAccount =
+    crossAccountId !== undefined &&
+    crossAccountId !==
+      (ctx.accountId ?? useAccountsStore().activeAccountId ?? null)
+  if (crossAccount) {
+    const actAsDenied = checkPermissions(['account.actAs'], ctx.principal)
+    if (actAsDenied.length > 0) {
+      if (ctx.principal.kind === 'plugin') {
+        recordPluginDenial(ctx.principal.pluginId, cap.id, actAsDenied)
+      }
+      return {
+        ok: false,
+        code: 'permission_denied',
+        error: `Permission denied for ${capabilityId}: cross-account execution (accountId "${crossAccountId}") requires [account.actAs] not allowed for principal "${ctx.principal.kind}" (permissions.json5)`,
+      }
+    }
+  }
   const denied = checkPermissions(cap.permissions ?? [], ctx.principal)
   if (denied.length > 0) {
     // plugin の拒否はプラグインカラムの拒否バッジに流す (#712 §8.4 — 破壊的
@@ -140,8 +166,11 @@ export async function dispatchCapability(
     principal: ctx.principal,
     ...(ctx.accountId ? { accountId: ctx.accountId } : {}),
   }
-  // 確認ダイアログ (write 系などで requiresConfirmation: true)
-  const confirmOpts = await buildConfirmOptions(cap, params, capCtx)
+  // 確認ダイアログ (write 系などで requiresConfirmation: true)。
+  // クロスアカウント実行は requiresConfirmation 未宣言でも必ず確認する。
+  const confirmOpts = await buildConfirmOptions(cap, params, capCtx, {
+    force: crossAccount,
+  })
   // 汎用「今後確認しない」(#714): capability 固有の remember (vault の接続
   // 単位の信頼) を持たない capability に、scope × capability 単位のスキップを
   // 適用する。scope は ai.chat / plugin 個体のみ — user (本人操作の confirm は
@@ -150,18 +179,32 @@ export async function dispatchCapability(
   const skipScope = cap.onConfirmRemember
     ? null
     : confirmSkipScope(ctx.principal)
+  // クロスアカウント実行 (#777) には「今後確認しない」記憶を適用しない —
+  // 同一アカウント操作への同意を別アカウントでの実行に波及させない。
   const skipConfirmed =
     confirmOpts !== null &&
+    !crossAccount &&
     skipScope !== null &&
     isConfirmSkipped(skipScope, cap.id)
   if (confirmOpts && !skipConfirmed) {
+    // クロスアカウント実行: どのアカウントとして実行するかを必ず明示する
+    if (crossAccount && crossAccountId) {
+      const acc = useAccountsStore().accounts.find(
+        (a) => a.id === crossAccountId,
+      )
+      const line = `実行アカウント: ${acc ? getAccountLabel(acc) : crossAccountId}`
+      confirmOpts.message = confirmOpts.message
+        ? `${line}\n${confirmOpts.message}`
+        : line
+    }
     // 信頼マーカー (#720): これは NoteDeck 本体の権限確認である。プラグインの
     // Mk:confirm はこのフラグを立てられないので、システム確認になりすませない。
     confirmOpts.trusted = true
     // 同一操作の dedup key (#720): 「今後確認しない」で許可したら、キューで
     // 待機している同じ scope×capability の確認も自動承認させる (#716 の
-    // 「一度の同意を同一操作の待機分へ波及」)。skip 不可 scope では付けない。
-    if (skipScope !== null) {
+    // 「一度の同意を同一操作の待機分へ波及」)。skip 不可 scope とクロス
+    // アカウント実行では付けない。
+    if (skipScope !== null && !crossAccount) {
       confirmOpts.dedupKey = `${skipScope}:${cap.id}`
     }
     // 帰属表示 (#712 §3.3): 誰の要求かをダイアログ冒頭に必須表示する。
@@ -172,7 +215,7 @@ export async function dispatchCapability(
     if (actor) {
       confirmOpts.attribution = actor
     }
-    if (skipScope !== null && !confirmOpts.rememberLabel) {
+    if (skipScope !== null && !crossAccount && !confirmOpts.rememberLabel) {
       confirmOpts.rememberLabel = '今後この操作を確認しない'
     }
     const confirmFn = options?.confirmFn ?? useConfirm().confirmWithDecision
@@ -187,7 +230,7 @@ export async function dispatchCapability(
     // 「次回から確認しない」が ON のまま許可されたら次回以降に効かせる。
     // capability 固有実装 (vault の接続信頼) があればそちらへ委ね、
     // 無ければ scope × capability 単位で permissions.json5 に記憶する。
-    if (decision.remember) {
+    if (decision.remember && !crossAccount) {
       if (cap.onConfirmRemember) {
         await cap.onConfirmRemember(params, capCtx)
       } else if (skipScope !== null) {
@@ -396,7 +439,8 @@ function emitSpotlightFromCapability(
 
 /**
  * cap.requiresConfirmation を見て confirm モーダル options を組み立てる。
- * - false / 未指定 → null (= 確認スキップ)
+ * - false / 未指定 → null (= 確認スキップ)。ただし opts.force (クロス
+ *   アカウント実行 #777) なら汎用モーダルへフォールバック
  * - true → label + 引数 JSON で汎用モーダル
  * - 関数 → 関数の戻り値をそのまま使う (null 戻りは個別スキップ)
  */
@@ -404,8 +448,9 @@ async function buildConfirmOptions(
   cap: Command,
   params: Record<string, unknown> | undefined,
   ctx: CapabilityContext,
+  opts?: { force?: boolean },
 ): Promise<ConfirmOptions | null> {
-  if (!cap.requiresConfirmation) return null
+  if (!cap.requiresConfirmation && !opts?.force) return null
   if (typeof cap.requiresConfirmation === 'function') {
     return await cap.requiresConfirmation(params, ctx)
   }

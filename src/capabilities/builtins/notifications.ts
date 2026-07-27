@@ -81,6 +81,7 @@ export const notificationsListCapability: Command = {
  */
 export const notificationsMarkReadCapability: Command = {
   id: 'notifications.markRead',
+  actsAsAccount: true,
   label: '通知をすべて既読化',
   icon: 'ti-bell-check',
   category: 'general',

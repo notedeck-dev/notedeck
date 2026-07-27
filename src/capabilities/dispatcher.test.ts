@@ -11,9 +11,11 @@ import type { ProfiledPrincipalId } from '@/permissions/principal'
 import { setPermissionPreset } from '@/permissions/schema'
 import {
   _resetPermissionsForTest,
+  addConfirmSkip,
   removeConfirmSkip,
   usePermissionsConfig,
 } from '@/permissions/store'
+import { useAccountsStore } from '@/stores/accounts'
 import { type DispatchContext, dispatchCapability } from './dispatcher'
 import { _clearCapabilitiesForTest, registerCapability } from './registry'
 
@@ -1660,5 +1662,172 @@ describe('dispatchCapability — 第三者 deny floor と external read floor (#
       principal: { kind: 'external' },
     })
     expect(getPluginDenial('my-plugin')?.count).toBe(2)
+  })
+})
+
+describe('account.actAs gate (#777)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    useAccountsStore().activeAccountId = 'acc-active'
+  })
+
+  /** actsAsAccount 宣言付きの write 系 capability (permissions は空で actAs だけを検査する) */
+  function actAsCap(overrides: Partial<Command> = {}): Command {
+    return makeCapability({
+      id: 'notes.create',
+      actsAsAccount: true,
+      requiresConfirmation: true,
+      execute: () => 'posted',
+      ...overrides,
+    })
+  }
+
+  function pluginCtx(preset: 'readonly' | 'safe' | 'full'): DispatchContext {
+    setPrincipalPreset('plugin', preset)
+    return { principal: { kind: 'plugin', pluginId: 'p1' } }
+  }
+
+  const accept = async () => ({ accepted: true, remember: false })
+
+  it('plugin (safe) が文脈と異なる accountId を明示すると permission_denied', async () => {
+    registerCapability(actAsCap())
+    const r = await dispatchCapability(
+      'notes.create',
+      { accountId: 'acc-other' },
+      pluginCtx('safe'),
+      { confirmFn: accept },
+    )
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.code).toBe('permission_denied')
+      expect(r.error).toContain('account.actAs')
+    }
+  })
+
+  it('plugin (full) はクロスアカウント実行できる (確認あり)', async () => {
+    registerCapability(actAsCap())
+    let confirmed = 0
+    const r = await dispatchCapability(
+      'notes.create',
+      { accountId: 'acc-other' },
+      pluginCtx('full'),
+      {
+        confirmFn: async () => {
+          confirmed++
+          return { accepted: true, remember: false }
+        },
+      },
+    )
+    expect(r).toEqual({ ok: true, result: 'posted' })
+    expect(confirmed).toBe(1)
+  })
+
+  it('明示指定が呼び出し文脈のアカウントと同じなら actAs 不要', async () => {
+    registerCapability(actAsCap())
+    const ctx = pluginCtx('safe')
+    const r = await dispatchCapability(
+      'notes.create',
+      { accountId: 'acc-ctx' },
+      { ...ctx, accountId: 'acc-ctx' },
+      { confirmFn: accept },
+    )
+    expect(r).toEqual({ ok: true, result: 'posted' })
+  })
+
+  it('明示指定なしなら ctx.accountId が active と違っても actAs 不要 (#821 文脈)', async () => {
+    registerCapability(actAsCap())
+    const ctx = pluginCtx('safe')
+    const r = await dispatchCapability(
+      'notes.create',
+      undefined,
+      { ...ctx, accountId: 'acc-other' },
+      { confirmFn: accept },
+    )
+    expect(r).toEqual({ ok: true, result: 'posted' })
+  })
+
+  it('user principal は対象外 (本人の UI 選択が同意)', async () => {
+    registerCapability(actAsCap())
+    const r = await dispatchCapability(
+      'notes.create',
+      { accountId: 'acc-other' },
+      { principal: { kind: 'user' } },
+      { confirmFn: accept },
+    )
+    expect(r).toEqual({ ok: true, result: 'posted' })
+  })
+
+  it('actsAsAccount 宣言の無い capability は検査されない (UI スコープの accountId)', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'column.add',
+        actsAsAccount: undefined,
+        execute: () => 'added',
+      }),
+    )
+    const r = await dispatchCapability(
+      'column.add',
+      { accountId: 'acc-other' },
+      pluginCtx('safe'),
+      { confirmFn: accept },
+    )
+    expect(r).toEqual({ ok: true, result: 'added' })
+  })
+
+  it('クロスアカウント実行には「今後確認しない」記憶が効かない', async () => {
+    registerCapability(actAsCap())
+    addConfirmSkip('plugin:p1', 'notes.create')
+    let confirmCalls = 0
+    const confirmFn = async () => {
+      confirmCalls++
+      return { accepted: true, remember: false }
+    }
+    // 同一アカウント (文脈 = 明示) は skip が効く
+    const ctx = pluginCtx('full')
+    const same = await dispatchCapability(
+      'notes.create',
+      { accountId: 'acc-active' },
+      ctx,
+      { confirmFn },
+    )
+    expect(same.ok).toBe(true)
+    expect(confirmCalls).toBe(0)
+    // クロスアカウントは skip を無視して必ず確認
+    const cross = await dispatchCapability(
+      'notes.create',
+      { accountId: 'acc-other' },
+      ctx,
+      { confirmFn },
+    )
+    expect(cross.ok).toBe(true)
+    expect(confirmCalls).toBe(1)
+  })
+
+  it('クロスアカウント確認には実行アカウントのラベルが表示される', async () => {
+    useAccountsStore().accounts.push({
+      id: 'acc-other',
+      host: 'other.example',
+      userId: 'u2',
+      username: 'bob',
+      displayName: null,
+      avatarUrl: null,
+      software: 'misskey-dev/misskey',
+      hasToken: true,
+    })
+    registerCapability(actAsCap())
+    let seenMessage = ''
+    const r = await dispatchCapability(
+      'notes.create',
+      { accountId: 'acc-other' },
+      pluginCtx('full'),
+      {
+        confirmFn: async (opts) => {
+          seenMessage = opts.message
+          return { accepted: true, remember: false }
+        },
+      },
+    )
+    expect(r.ok).toBe(true)
+    expect(seenMessage).toContain('@bob@other.example')
   })
 })

@@ -76,6 +76,15 @@ export interface Command {
    */
   signature?: CapabilitySignature
   /**
+   * `params.accountId` が「どのアカウントとして実行するか」(実行主体) を
+   * 意味する capability の宣言 (#777)。dispatcher は宣言付き capability で
+   * 非 user principal が呼び出し文脈と異なるアカウントを明示指定したとき、
+   * `account.actAs` permission を要求し、確認を「今後確認しない」の対象外に
+   * する。UI スコープの accountId (column.add 等) には付けない。
+   * write 系 (requiresConfirmation 宣言済み) のみが対象。
+   */
+  actsAsAccount?: boolean
+  /**
    * 実行前にユーザー確認モーダルを出すか。AI / slash 経由 (= dispatchCapability
    * から呼ばれる経路) でだけ enforce される。UI からの直接実行は対象外。
    *

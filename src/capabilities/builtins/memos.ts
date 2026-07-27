@@ -89,6 +89,7 @@ function emptyMemoData(
 /** `memos.create` — 新規メモを作成する */
 export const memosCreateCapability: Command = {
   id: 'memos.create',
+  actsAsAccount: true,
   label: 'メモを作成',
   icon: 'ti-notes',
   category: 'general',
@@ -167,6 +168,7 @@ export const memosCreateCapability: Command = {
 /** `memos.update` — 既存メモの text / tags を更新する */
 export const memosUpdateCapability: Command = {
   id: 'memos.update',
+  actsAsAccount: true,
   label: 'メモを更新',
   icon: 'ti-edit',
   category: 'general',
@@ -264,6 +266,7 @@ export const memosUpdateCapability: Command = {
 /** `memos.delete` — 既存メモを削除する */
 export const memosDeleteCapability: Command = {
   id: 'memos.delete',
+  actsAsAccount: true,
   label: 'メモを削除',
   icon: 'ti-trash',
   category: 'general',

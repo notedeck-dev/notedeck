@@ -54,6 +54,7 @@ export const listListCapability: Command = {
 
 export const listAddUserCapability: Command = {
   id: 'list.addUser',
+  actsAsAccount: true,
   label: 'リストにユーザーを追加',
   icon: 'ti-user-plus',
   category: 'account',
@@ -93,6 +94,7 @@ export const listAddUserCapability: Command = {
 
 export const listRemoveUserCapability: Command = {
   id: 'list.removeUser',
+  actsAsAccount: true,
   label: 'リストからユーザーを削除',
   icon: 'ti-user-minus',
   category: 'account',

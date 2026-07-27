@@ -133,6 +133,7 @@ async function runExportAndWait(
 
 export const filesExportCapability: Command = {
   id: 'files.export',
+  actsAsAccount: true,
   label: 'ファイルをローカルに保存',
   icon: 'ti-download',
   category: 'general',

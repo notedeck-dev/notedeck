@@ -19,6 +19,7 @@ function pickString(v: unknown): string | undefined {
 
 export const chatReactCapability: Command = {
   id: 'chat.react',
+  actsAsAccount: true,
   label: 'チャットメッセージにリアクション',
   icon: 'ti-mood-smile',
   category: 'note',
@@ -62,6 +63,7 @@ export const chatReactCapability: Command = {
 
 export const chatUnreactCapability: Command = {
   id: 'chat.unreact',
+  actsAsAccount: true,
   label: 'チャットメッセージのリアクションを解除',
   icon: 'ti-mood-x',
   category: 'note',
