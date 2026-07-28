@@ -81,14 +81,15 @@ usePortal(portalRef)
 const accountsStore = useAccountsStore()
 const serversStore = useServersStore()
 
-// Declared up-front because `topTabs` (below) reads `isOwnProfile` inside its
-// computed getter, and `useEditorTabs` triggers an immediate getter call via
-// its internal watch when wiring up tabIndex — accessing the const before its
-// declaration would throw a TDZ ReferenceError at mount time.
+// Declared up-front because `topTabs` (below) reads `isOwnProfile` / `user`
+// inside its computed getter, and `useEditorTabs` triggers an immediate getter
+// call via its internal watch when wiring up tabIndex — accessing the const
+// before its declaration would throw a TDZ ReferenceError at mount time.
 const account = computed(() =>
   accountsStore.accounts.find((a) => a.id === props.accountId),
 )
 const isOwnProfile = computed(() => account.value?.userId === props.userId)
+const user = ref<NormalizedUserDetail | null>(null)
 
 // Top-level editor-style tabs (overview / notes / files grid / reactions /
 // achievements / raw JSON). `reactions` is only surfaced when the user has
@@ -132,7 +133,11 @@ const topTabDefs = computed<TopTabDef[]>(() => {
   defs.push({ value: 'pages', icon: 'note', label: 'ページ' })
   defs.push({ value: 'play', icon: 'player-play', label: 'Play' })
   defs.push({ value: 'gallery', icon: 'icons', label: 'ギャラリー' })
-  defs.push({ value: 'lists', icon: 'list', label: 'リスト' })
+  // users/lists/list はリモートユーザーの userId を渡すと
+  // REMOTE_USER_NOT_ALLOWED を返すため、リモートユーザーではタブごと出さない。
+  if (!user.value?.host) {
+    defs.push({ value: 'lists', icon: 'list', label: 'リスト' })
+  }
   defs.push({ value: 'clips', icon: 'paperclip', label: 'クリップ' })
   defs.push({ value: 'achievements', icon: 'medal', label: '実績' })
   defs.push({ value: 'raw', icon: 'code', label: 'Raw' })
@@ -145,8 +150,6 @@ const { tab: topTab, containerRef: profileRef } = useEditorTabs<TopTab>(
   topTabs,
   'overview',
 )
-
-const user = ref<NormalizedUserDetail | null>(null)
 
 // User memo (#458) の編集 UI は UserProfileHero が所有する。ここでは表示可否と
 // 保存成功時の user への反映 (prop 直接変異を避ける) のみ持つ。
