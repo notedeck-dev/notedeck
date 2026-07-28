@@ -29,6 +29,7 @@ import {
 import { useConfirm } from '@/stores/confirm'
 import { useEmojisStore } from '@/stores/emojis'
 import { usePostFormStore } from '@/stores/postForm'
+import { useServersStore } from '@/stores/servers'
 import { useSettingsStore } from '@/stores/settings'
 import { useIsCompactLayout } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
@@ -86,6 +87,7 @@ const settingsStore = useSettingsStore()
 const postFormStore = usePostFormStore()
 const windowsStore = useWindowsStore()
 const emojisStore = useEmojisStore()
+const serversStore = useServersStore()
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const showPreview = computed<boolean>({
   get: () => settingsStore.get('postForm.preview') ?? false,
@@ -348,6 +350,16 @@ function toggleMfmMenu() {
   popups.closeOthers(showMfmMenu)
 }
 
+/** アカウントアバターに重ねるサーバー favicon URL を解決する。 */
+function resolveAccountServerIcon(host: string): string {
+  return (
+    serversStore.servers.get(host)?.iconUrl || `https://${host}/favicon.ico`
+  )
+}
+
+/** 2 アカウント以上ログイン中のときだけサーバーバッジを出す。 */
+const showServerBadge = computed(() => accounts.value.length >= 2)
+
 // --- Autocomplete ---
 const serverHost = computed(() => account.value?.host ?? '')
 const {
@@ -512,10 +524,18 @@ function onPaste(e: ClipboardEvent) {
               :title="getAccountLabel(account)"
               @click="showAccountMenu = !showAccountMenu"
             >
-              <img
-                :src="getAccountAvatarUrl(account)"
-                :class="$style.accountAvatar"
-              />
+              <span :class="$style.accountAvatarWrap">
+                <img
+                  :src="getAccountAvatarUrl(account)"
+                  :class="$style.accountAvatar"
+                />
+                <img
+                  v-if="showServerBadge"
+                  :src="resolveAccountServerIcon(account.host)"
+                  :class="$style.accountServerBadge"
+                  @error="($event.target as HTMLImageElement).src = '/server-icon-error.svg'"
+                />
+              </span>
             </button>
             <div v-if="showAccountMenu && accounts.length > 1" :class="$style.accountMenu">
               <button
@@ -526,12 +546,20 @@ function onPaste(e: ClipboardEvent) {
                 :disabled="isGuestAccount(acc)"
                 @click="acc.hasToken ? switchAccount(acc.id) : showLoginPrompt()"
               >
-                <img
-                  :src="getAccountAvatarUrl(acc)"
-                  :class="$style.accountOptionAvatar"
-                  width="24"
-                  height="24"
-                />
+                <span :class="$style.accountOptionAvatarWrap">
+                  <img
+                    :src="getAccountAvatarUrl(acc)"
+                    :class="$style.accountOptionAvatar"
+                    width="24"
+                    height="24"
+                  />
+                  <img
+                    v-if="showServerBadge"
+                    :src="resolveAccountServerIcon(acc.host)"
+                    :class="$style.accountOptionServerBadge"
+                    @error="($event.target as HTMLImageElement).src = '/server-icon-error.svg'"
+                  />
+                </span>
                 <div :class="$style.accountOptionInfo">
                   <span :class="$style.accountOptionName">{{ isGuestAccount(acc) ? (acc.displayName || 'ゲスト') : acc.username }}</span>
                   <span :class="$style.accountOptionHost">@{{ acc.host }}</span>
@@ -1333,11 +1361,30 @@ function onPaste(e: ClipboardEvent) {
   }
 }
 
+.accountAvatarWrap {
+  position: relative;
+  display: flex;
+}
+
 .accountAvatar {
   width: 28px;
   height: 28px;
   border-radius: 100%;
   object-fit: cover;
+}
+
+.accountServerBadge {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: var(--nd-panel);
+  box-shadow: 0 0 0 2px var(--nd-panel);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Account menu */
@@ -1377,12 +1424,31 @@ function onPaste(e: ClipboardEvent) {
   pointer-events: none;
 }
 
-.accountOptionAvatar {
+.accountOptionAvatarWrap {
+  position: relative;
+  display: flex;
   flex: 0 0 24px;
+}
+
+.accountOptionAvatar {
   width: 24px;
   height: 24px;
   border-radius: 100%;
   object-fit: cover;
+}
+
+.accountOptionServerBadge {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: var(--nd-popup);
+  box-shadow: 0 0 0 2px var(--nd-popup);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .accountOptionInfo {
