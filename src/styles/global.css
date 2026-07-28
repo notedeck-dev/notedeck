@@ -86,6 +86,11 @@
   --nd-statusUnknown: #888;
   /* Navbar polling mode (Misskey テーマ標準キーに紫が無いため独自) */
   --nd-modePolling: #9c27b0;
+  /* AI Spotlight — AI 由来の UI 操作を示す色。テーマの warning 色に連動する
+     (カスタムテーマを入れ替えるとハイライトも追従)。Alt は明度を上げた相方で、
+     2 色のデュオトーングラデにして単色べた塗りに見えないようにする。 */
+  --nd-spotlight: var(--nd-warn);
+  --nd-spotlightAlt: color-mix(in srgb, var(--nd-warn) 58%, #fff);
   /* Footer action hover */
   --nd-replyHover: #3b97c4;
   --nd-reactionHover: #e5a400;
@@ -768,6 +773,32 @@ dialog._nativeDialog[open] {
 @keyframes nd-note-highlight {
   from { background-color: var(--nd-accentedBg); }
   to   { background-color: transparent; }
+}
+
+/* AI Spotlight (#576) — 視覚仕様の実体は src/styles/_spotlight.scss。
+   keyframes だけグローバルに置いて全 CSS Module から参照する。 */
+
+/* 面ハイライト: わずかに縮んだ状態から吸着するように現れ、最後に消える */
+@keyframes nd-spotlight-in {
+  0%   { opacity: 0; scale: 0.97; }
+  6%   { opacity: 1; scale: 1; }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* スペキュラースイープ: 白い光の帯が 1 回だけ斜めに走り抜ける
+   (第 2 レイヤー = ティントは動かさないので 0 0 に固定) */
+@keyframes nd-spotlight-sweep {
+  from { background-position: 155% 0, 0 0; }
+  to   { background-position: -55% 0, 0 0; }
+}
+
+/* 外周リング: 外側からロックオンするように締まる */
+@keyframes nd-spotlight-ring-in {
+  0%   { opacity: 0; scale: 1.012; }
+  8%   { opacity: 1; scale: 1; }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* Error shake */

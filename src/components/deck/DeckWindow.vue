@@ -401,6 +401,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/spotlight' as *;
+
 .deckWindow {
   position: fixed;
   left: 0;
@@ -443,19 +445,10 @@ onBeforeUnmount(() => {
 
 // AI 操作の可視化 (Spotlight): dispatcher が windows.open / windows.focus
 // 成功時に光らせる。塗りつぶしだとウィンドウ内容が読めなくなるので、
-// 外周の朱色 glow で「この window が AI 由来で操作された」ことだけ示す。
+// 外周の glow で「この window が AI 由来で操作された」ことだけ示す。
+// 視覚仕様は @/styles/_spotlight.scss に集約。
 .spotlighted {
-  &::after {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    border-radius: inherit;
-    pointer-events: none;
-    box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--nd-warn) 70%, transparent),
-      0 0 24px 8px color-mix(in srgb, var(--nd-warn) 40%, transparent);
-    animation: spotlightWindowAppear 2.4s ease-out 1 forwards;
-  }
+  @include spotlight-ring;
 
   // モバイルはウィンドウが画面端に張り付くため、外側 (inset:-2px) の光が
   // viewport 外にはみ出て上辺しか見えない。内側に、かつ content
@@ -464,23 +457,9 @@ onBeforeUnmount(() => {
     inset: 0;
     z-index: 4;
     box-shadow:
-      inset 0 0 0 2px color-mix(in srgb, var(--nd-warn) 80%, transparent),
-      inset 0 0 24px 8px color-mix(in srgb, var(--nd-warn) 35%, transparent);
+      inset 0 0 0 1.5px color-mix(in srgb, var(--nd-spotlight) 85%, transparent),
+      inset 0 0 24px 4px color-mix(in srgb, var(--nd-spotlight) 30%, transparent);
   }
-
-  @media (prefers-reduced-motion: reduce) {
-    &::after {
-      animation: none;
-      opacity: 1;
-    }
-  }
-}
-
-@keyframes spotlightWindowAppear {
-  0%   { opacity: 0; }
-  10%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { opacity: 0; }
 }
 
 .resizing {

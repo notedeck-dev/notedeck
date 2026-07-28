@@ -903,11 +903,22 @@ fn redact_secrets(s: &str) -> String {
 
 fn format_http_error(status: u16, body: &str) -> String {
     let snippet: String = redact_secrets(body).chars().take(300).collect();
+    let detail = if snippet.trim().is_empty() {
+        String::new()
+    } else {
+        format!(": {snippet}")
+    };
     match status {
-        401 | 403 => format!("APIキーが無効です (HTTP {status})"),
+        // 401 はキーそのものが通っていない。403 はキーは通っていて権限・課金
+        // 状態が理由 (クレジット不足・キーの ACL・地域制限など) なので、対処が
+        // まったく別物になる。プロバイダーが返した理由もそのまま見せる。
+        401 => format!("APIキーが無効です (HTTP {status}){detail}"),
+        403 => format!(
+            "APIキーの権限または課金状態に問題があります (HTTP {status}){detail} — プロバイダーのコンソールで残高と API キーの権限を確認してください"
+        ),
         429 => "レート制限に達しました。少し待ってから再試行してください".into(),
-        500..=599 => format!("サーバーエラー (HTTP {status}): {snippet}"),
-        _ => format!("HTTP {status}: {snippet}"),
+        500..=599 => format!("サーバーエラー (HTTP {status}){detail}"),
+        _ => format!("HTTP {status}{detail}"),
     }
 }
 
@@ -1072,6 +1083,40 @@ mod tests {
         // floor (base/2) があるので 0 秒近傍の hot-retry バーストにならない。
         assert_eq!(backoff_bounds_ms(1), (250, 500));
         assert_eq!(backoff_bounds_ms(2), (500, 1000));
+    }
+
+    #[test]
+    fn format_http_error_separates_401_from_403() {
+        // 401 は「キーが違う」、403 は「キーは通っているが権限・課金が問題」。
+        // 対処が別物なので同じ文言に丸めない。
+        let unauthorized = format_http_error(401, r#"{"error":"Incorrect API key"}"#);
+        let forbidden = format_http_error(403, r#"{"error":"Your team has no credits"}"#);
+        assert!(unauthorized.contains("APIキーが無効"));
+        assert!(!forbidden.contains("APIキーが無効"));
+    }
+
+    #[test]
+    fn format_http_error_shows_provider_reason_for_auth_errors() {
+        // プロバイダーが返した理由を捨てない (クレジット不足を「キーが無効」と
+        // 誤読させない)。
+        let msg = format_http_error(403, r#"{"error":"Your team has no credits"}"#);
+        assert!(msg.contains("Your team has no credits"));
+    }
+
+    #[test]
+    fn format_http_error_redacts_secrets_echoed_in_body() {
+        let msg = format_http_error(
+            401,
+            r#"{"error":"bad key sk-ant-abcdefghijklmnopqrstuvwxyz0123"}"#,
+        );
+        assert!(msg.contains("[REDACTED]"));
+        assert!(!msg.contains("sk-ant-"));
+    }
+
+    #[test]
+    fn format_http_error_omits_empty_body() {
+        // ボディが空のときに ": " だけがぶら下がらない。
+        assert_eq!(format_http_error(401, ""), "APIキーが無効です (HTTP 401)");
     }
 
     #[test]

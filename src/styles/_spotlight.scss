@@ -1,0 +1,89 @@
+// AI Spotlight (#576) — AI / チュートリアルが操作した UI 要素を一時的に光らせる。
+// 見た目を全コンポーネントで揃えるため、視覚仕様の source of truth はここ 1 箇所。
+// 色 (--nd-spotlight / --nd-spotlightAlt = テーマの warning 色に連動) と
+// keyframes (nd-spotlight-*) は src/styles/global.css にある。
+// 持続時間 2.4s は useSpotlight.ts の DEFAULT_DURATION_MS と対応。
+//
+//   spotlight-fill : ナビボタン / タブ / リスト項目など、面ごと光らせてよい要素
+//   spotlight-ring : ウィンドウ / ノートなど、中身を邪魔せず外周だけ光らせる要素
+
+// 面ハイライト。ベタ塗りではなく「薄いティント + 1px の縁 + 白い光の帯が
+// 1 回走る」構成にして、下の文字やアイコンを潰さずに視線だけ引く。
+@mixin spotlight-fill {
+  position: relative;
+  isolation: isolate;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 0;
+    // レイヤー 1: 白のスペキュラースイープ / レイヤー 2: warning 色のティント
+    background:
+      linear-gradient(
+        100deg,
+        transparent 40%,
+        rgba(255, 255, 255, 0.32) 50%,
+        transparent 60%
+      ),
+      linear-gradient(
+        115deg,
+        color-mix(in srgb, var(--nd-spotlight) 22%, transparent),
+        color-mix(in srgb, var(--nd-spotlightAlt) 14%, transparent)
+      );
+    background-size: 260% 100%, auto;
+    background-position: 155% 0, 0 0;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--nd-spotlight) 55%, transparent),
+      0 0 14px -2px color-mix(in srgb, var(--nd-spotlight) 50%, transparent);
+    animation:
+      nd-spotlight-in 2.4s var(--nd-ease-decel) 1 forwards,
+      nd-spotlight-sweep 1.1s var(--nd-ease-decel) 0.05s 1 both;
+  }
+
+  // アイコン / ラベル / バッジを色レイヤーより前面に
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      animation: none;
+      opacity: 1;
+      // スイープの白帯を要素外へ逃がして静止ティントだけ残す
+      background-position: -60% 0, 0 0;
+    }
+  }
+}
+
+// 外周リング。中身を読ませたまま「この面が AI 由来で動いた」ことだけ示す。
+@mixin spotlight-ring($inset: -2px, $z: 2) {
+  &::after {
+    content: '';
+    position: absolute;
+    inset: $inset;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: $z;
+    background: linear-gradient(
+      115deg,
+      color-mix(in srgb, var(--nd-spotlight) 8%, transparent),
+      color-mix(in srgb, var(--nd-spotlightAlt) 4%, transparent)
+    );
+    box-shadow:
+      0 0 0 1.5px color-mix(in srgb, var(--nd-spotlight) 75%, transparent),
+      0 0 20px 2px color-mix(in srgb, var(--nd-spotlight) 30%, transparent),
+      inset 0 0 12px color-mix(in srgb, var(--nd-spotlightAlt) 18%, transparent);
+    animation: nd-spotlight-ring-in 2.4s var(--nd-ease-decel) 1 forwards;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      animation: none;
+      opacity: 1;
+    }
+  }
+}

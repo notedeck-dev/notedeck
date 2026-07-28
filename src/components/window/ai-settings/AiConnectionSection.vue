@@ -90,10 +90,7 @@ function openConnectionsWindow(): void {
         <i v-else class="ti ti-plug" :class="$style.connOptionIcon" />
         <div :class="$style.connOptionMain">
           <div :class="$style.connOptionName">{{ conn.name }}</div>
-          <div :class="$style.connOptionDesc">
-            {{ conn.protocol === 'anthropic' ? 'Anthropic' : 'OpenAI 互換' }}
-            · {{ conn.baseUrl }}
-          </div>
+          <div :class="$style.connOptionDesc">{{ conn.baseUrl }}</div>
         </div>
       </label>
       <div v-if="aiConnections.length === 0" :class="$style.connEmpty">
