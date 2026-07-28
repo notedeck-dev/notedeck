@@ -101,6 +101,7 @@ const {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/spotlight' as *;
 
 .root {
   display: flex;
@@ -183,51 +184,14 @@ const {
 .stackBadge { @include nav-stack-badge; }
 .badge { @include nav-badge; }
 
-// AI 操作の可視化 (Spotlight): Windows タスクバー風アンダーバー (朱色 + オレンジ枠)。
-// 既存 .active が ::after で短い緑バーを描くので、spotlight 中は隠して朱色バー優先。
+// AI 操作の可視化 (Spotlight): 視覚仕様は @/styles/_spotlight.scss に集約。
+// 既存 .active が ::after で短い緑バーを描くので、spotlight 中は隠す。
 .spotlighted {
-  position: relative;
-  isolation: isolate;
+  @include spotlight-fill;
 
   &.active::after {
     display: none;
   }
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--nd-warn) 55%, transparent) 0%,
-      color-mix(in srgb, var(--nd-warn) 30%, transparent) 50%,
-      color-mix(in srgb, var(--nd-warn) 5%, transparent) 100%
-    );
-    box-shadow: 0 -1px 8px color-mix(in srgb, var(--nd-warn) 25%, transparent);
-    pointer-events: none;
-    z-index: 0;
-    animation: spotlightFill 2.4s ease-out 1 forwards;
-  }
-
-  > * {
-    position: relative;
-    z-index: 1;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &::before {
-      animation: none;
-      opacity: 1;
-    }
-  }
-}
-
-@keyframes spotlightFill {
-  0%   { opacity: 0; }
-  10%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { opacity: 0; }
 }
 
 </style>

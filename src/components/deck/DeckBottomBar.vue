@@ -135,6 +135,7 @@ const {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/spotlight' as *;
 .root {
   --bar-item-size: 42px;
   flex: 0 0 auto;
@@ -251,60 +252,15 @@ const {
 .stackBadge { @include nav-stack-badge; }
 .badge { @include nav-badge; }
 
-// AI 操作の可視化 (Spotlight): Windows タスクバーの「新規起動」インジケーター風。
-// 朱色 #E34234 背景 + オレンジグラデーション枠線 + 上向き glow。
-// Misskey accent (#86b300, 黄緑) との warm/cool 対比で「AI 由来の出来事」を
-// 視覚的に分離しつつ、補色ではないので馴染む。
-//
+// AI 操作の可視化 (Spotlight): 視覚仕様は @/styles/_spotlight.scss に集約。
 // 既存 .tabActive が ::after で短い緑バーを描いているので、spotlight 中は
-// それを隠して朱色バー (より長い) だけ見せる。
+// それを隠して朱色のハイライトだけ見せる。
 .spotlighted {
-  position: relative;
-  isolation: isolate;
+  @include spotlight-fill;
 
-  // spotlight 中は既存アクティブバー (緑) と被らないよう隠す
   &.tabActive::after {
     display: none;
   }
-
-  // アイテム全体をクリーム→オレンジ→朱色のグラデで塗りつぶす
-  // 3 ストップで明度差を作ることでグラデが視認できる。alpha 0.85 で軽く透過。
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--nd-warn) 55%, transparent) 0%,
-      color-mix(in srgb, var(--nd-warn) 30%, transparent) 50%,
-      color-mix(in srgb, var(--nd-warn) 5%, transparent) 100%
-    );
-    box-shadow: 0 -1px 8px color-mix(in srgb, var(--nd-warn) 25%, transparent);
-    pointer-events: none;
-    z-index: 0;
-    animation: spotlightFill 2.4s ease-out 1 forwards;
-  }
-
-  // 子要素 (アイコン/バッジ) を色レイヤーより上に持ち上げる
-  > * {
-    position: relative;
-    z-index: 1;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &::before {
-      animation: none;
-      opacity: 1;
-    }
-  }
-}
-
-@keyframes spotlightFill {
-  0%   { opacity: 0; }
-  10%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { opacity: 0; }
 }
 
 .actionBtn {

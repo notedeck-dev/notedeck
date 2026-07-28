@@ -776,6 +776,7 @@ defineExpose({
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/spotlight' as *;
 @use '@/styles/navMenu';
 
 .wrapper {
@@ -921,49 +922,10 @@ defineExpose({
   }
 }
 
-// AI 操作の可視化 (Spotlight): Windows タスクバー風アンダーバー (朱色 + オレンジ枠)。
-// 現状 MVP では emit されないが、Phase 2 のサイドバー toggle 系 capability で
-// 自動的に光るよう infrastructure として常駐。.sidebarActive は背景色のみで
-// ::after/::before を使わないので隠す処理は不要。
+// AI 操作の可視化 (Spotlight): 視覚仕様は @/styles/_spotlight.scss に集約。
+// .sidebarActive は背景色のみで ::after/::before を使わないので隠す処理は不要。
 .spotlighted {
-  position: relative;
-  isolation: isolate;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    background: linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--nd-warn) 55%, transparent) 0%,
-      color-mix(in srgb, var(--nd-warn) 30%, transparent) 50%,
-      color-mix(in srgb, var(--nd-warn) 5%, transparent) 100%
-    );
-    box-shadow: 0 -1px 8px color-mix(in srgb, var(--nd-warn) 25%, transparent);
-    pointer-events: none;
-    z-index: 0;
-    animation: spotlightFill 2.4s ease-out 1 forwards;
-  }
-
-  > * {
-    position: relative;
-    z-index: 1;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &::before {
-      animation: none;
-      opacity: 1;
-    }
-  }
-}
-
-@keyframes spotlightFill {
-  0%   { opacity: 0; }
-  10%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { opacity: 0; }
+  @include spotlight-fill;
 }
 
 .onlineActive {
@@ -1032,30 +994,9 @@ defineExpose({
   position: relative;
 }
 
-/* AI Spotlight: account.switch でこの行を朱色 glow で囲む */
-.accountPopupItem.spotlighted::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--nd-warn) 70%, transparent),
-    0 0 24px 8px color-mix(in srgb, var(--nd-warn) 40%, transparent);
-  animation: spotlightAccountAppear 2.4s ease-out 1 forwards;
-  z-index: 2;
-}
-@media (prefers-reduced-motion: reduce) {
-  .accountPopupItem.spotlighted::after {
-    animation: none;
-    opacity: 1;
-  }
-}
-@keyframes spotlightAccountAppear {
-  0%   { opacity: 0; }
-  10%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { opacity: 0; }
+/* AI Spotlight: account.switch でこの行の外周を光らせる (中身は潰さない) */
+.accountPopupItem.spotlighted {
+  @include spotlight-ring;
 }
 
 .accountPopupBtn {

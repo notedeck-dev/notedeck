@@ -442,6 +442,8 @@ function close() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/spotlight' as *;
+
 .addOverlay {
   &::backdrop {
     background: var(--nd-modalBg);
@@ -599,46 +601,10 @@ function close() {
   }
 
   // AI / チュートリアルが指し示した項目を一時的に光らせる。視覚仕様は
-  // navbar / bottombar / コマンドパレットの spotlight と統一 (#576: 朱色縦グラデ 2.4s)。
+  // navbar / bottombar / コマンドパレットと共通 (@/styles/_spotlight.scss)。
   &.spotlighted {
-    position: relative;
-    isolation: isolate;
-
-    &::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--nd-warn) 55%, transparent) 0%,
-        color-mix(in srgb, var(--nd-warn) 30%, transparent) 50%,
-        color-mix(in srgb, var(--nd-warn) 5%, transparent) 100%
-      );
-      box-shadow: 0 -1px 8px color-mix(in srgb, var(--nd-warn) 25%, transparent);
-      pointer-events: none;
-      z-index: 0;
-      animation: spotlightFill 2.4s ease-out 1 forwards;
-    }
-
-    > * {
-      position: relative;
-      z-index: 1;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      &::before {
-        animation: none;
-        opacity: 1;
-      }
-    }
+    @include spotlight-fill;
   }
-}
-
-@keyframes spotlightFill {
-  0%   { opacity: 0; }
-  10%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { opacity: 0; }
 }
 
 .addCategorySection {

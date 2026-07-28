@@ -584,6 +584,8 @@ function primaryShortcut(cmd: Command): string | null {
 </template>
 
 <style module lang="scss">
+@use '@/styles/spotlight' as *;
+
 /* ========================================
    Background overlay
    ======================================== */
@@ -724,46 +726,13 @@ function primaryShortcut(cmd: Command): string | null {
   }
 
   // AI / チュートリアルが指し示した項目を一時的に光らせる。視覚仕様は
-  // navbar / bottombar の spotlight と統一 (#576: 朱色縦グラデ 2.4s)。
+  // navbar / bottombar と共通 (@/styles/_spotlight.scss)。
   &.spotlighted {
-    position: relative;
-    isolation: isolate;
+    @include spotlight-fill;
 
-    &::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--nd-warn) 55%, transparent) 0%,
-        color-mix(in srgb, var(--nd-warn) 30%, transparent) 50%,
-        color-mix(in srgb, var(--nd-warn) 5%, transparent) 100%
-      );
-      box-shadow: 0 -1px 8px color-mix(in srgb, var(--nd-warn) 25%, transparent);
-      pointer-events: none;
-      z-index: 0;
-      animation: spotlightFill 2.4s ease-out 1 forwards;
-    }
-
-    > * {
-      position: relative;
-      z-index: 1;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      &::before {
-        animation: none;
-        opacity: 1;
-      }
-    }
+    // 選択中の緑ラインと同じ位置を spotlight 色で置き換える
+    border-left-color: color-mix(in srgb, var(--nd-spotlight) 85%, transparent);
   }
-}
-
-@keyframes spotlightFill {
-  0%   { opacity: 0; }
-  10%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { opacity: 0; }
 }
 
 .itemIcon {
