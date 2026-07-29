@@ -29,6 +29,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { useVerticalResize } from '@/composables/useVerticalResize'
+import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -245,8 +246,11 @@ async function run() {
     // playground: 本人がその場で書いて実行するコードは本人の操作 (#712 §3.2 —
     // ターミナルにシェルスクリプトを貼るのと同じ local trust)
     principal: { kind: 'user' },
-    registeredCommandIds: [] as string[],
-    subscriptions: [],
+    // スクラッチパッドは本人のコードなので固定の local:user 名前空間。
+    // カラムを跨いで同じ名前を登録すると衝突する (先勝ち) が、本人の
+    // コード同士なので黙って上書きするより気付ける方がよい
+    provider: providerFromPrincipal({ kind: 'user' }),
+    disposers: [],
     getAccountId: () => props.column.accountId ?? null,
   }
   const ndEnv = createNoteDeckEnv(ndCtx)

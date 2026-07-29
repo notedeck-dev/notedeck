@@ -25,6 +25,7 @@ import type { JsonValue } from '@/bindings'
 import { useCommandStore } from '@/commands/registry'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import { usePortal } from '@/composables/usePortal'
+import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useToast } from '@/stores/toast'
 import { readSafeMode } from '@/utils/safeMode'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -226,8 +227,11 @@ async function run() {
       pluginId: `widget:${props.widget.installId}`,
       name: props.widget.name,
     },
-    registeredCommandIds: [] as string[],
-    subscriptions: [],
+    provider: providerFromPrincipal(
+      { kind: 'plugin', pluginId: `widget:${props.widget.installId}` },
+      props.widget.storeId,
+    ),
+    disposers: [],
     getAccountId: () => props.accountId,
   }
   const ndEnv = createNoteDeckEnv(ndCtx)

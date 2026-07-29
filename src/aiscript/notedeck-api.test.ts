@@ -32,11 +32,18 @@ function makeFakeStores(): {
   register: ReturnType<typeof vi.fn>
   unregister: ReturnType<typeof vi.fn>
 } {
-  const register = vi.fn()
-  const unregister = vi.fn()
+  // 衝突検出 (先勝ち) を検証するため、登録済み Map を持つ実体に寄せる
+  const registered = new Map<string, unknown>()
+  const register = vi.fn((cmd: { id: string }) => {
+    registered.set(cmd.id, cmd)
+  })
+  const unregister = vi.fn((id: string) => {
+    registered.delete(id)
+  })
   const commandStore = {
     register,
     unregister,
+    commands: registered,
   } as unknown as ReturnType<typeof useCommandStore>
   // dispatcher は useAiConfig() singleton から権限を解決する。既定は full で
   // permission gate を通し、拒否系テストだけ setPresetForTest で絞る。
@@ -45,8 +52,8 @@ function makeFakeStores(): {
     ctx: {
       commandStore,
       principal: { kind: 'plugin', pluginId: 'test-plugin' } as const,
-      registeredCommandIds: [],
-      subscriptions: [],
+      provider: 'acme.clock',
+      disposers: [],
     },
     register,
     unregister,
@@ -149,7 +156,7 @@ describe('Nd:register_command (4-arg legacy form)', () => {
     ])
     expect(register).toHaveBeenCalledTimes(1)
     const cmd = nthCommand(register, 0)
-    expect(cmd.id).toBe('nd-plugin:greet')
+    expect(cmd.id).toBe('acme.clock:greet')
     expect(cmd.label).toBe('Greet')
     expect(cmd.icon).toBe('ti-hand')
     expect(cmd.category).toBe('general')
@@ -419,7 +426,7 @@ describe('Nd:on', () => {
     await callNative(env, 'Nd:on', [values.STR('column:added'), dummyHandler])
     expect(subscribeMock).toHaveBeenCalledTimes(1)
     expect(subscribeMock.mock.calls[0]?.[0]).toBe('column:added')
-    expect(stores.ctx.subscriptions).toContain(unsub)
+    expect(stores.ctx.disposers).toHaveLength(1)
   })
 
   it('returns an AiScript fn that, when called, unsubscribes', async () => {
@@ -438,7 +445,7 @@ describe('Nd:on', () => {
     // biome-ignore lint/suspicious/noExplicitAny: AiScript の native opts は run-time に大量のコールバックを持つ
     await result.native([], nativeOpts as any)
     expect(unsub).toHaveBeenCalledTimes(1)
-    expect(stores.ctx.subscriptions).not.toContain(unsub)
+    expect(stores.ctx.disposers).toHaveLength(0)
   })
 })
 
@@ -458,15 +465,12 @@ describe('cleanupNoteDeckEnv', () => {
       values.STR('ti-b'),
       dummyHandler,
     ])
-    expect(stores.ctx.registeredCommandIds).toEqual([
-      'nd-plugin:a',
-      'nd-plugin:b',
-    ])
+    expect(stores.ctx.disposers).toHaveLength(2)
     cleanupNoteDeckEnv(stores.ctx)
     expect(stores.unregister).toHaveBeenCalledTimes(2)
-    expect(stores.unregister).toHaveBeenNthCalledWith(1, 'nd-plugin:a')
-    expect(stores.unregister).toHaveBeenNthCalledWith(2, 'nd-plugin:b')
-    expect(stores.ctx.registeredCommandIds).toEqual([])
+    expect(stores.unregister).toHaveBeenNthCalledWith(1, 'acme.clock:a')
+    expect(stores.unregister).toHaveBeenNthCalledWith(2, 'acme.clock:b')
+    expect(stores.ctx.disposers).toEqual([])
   })
 
   it('unsubscribes every active Nd:on subscription', async () => {
@@ -482,10 +486,98 @@ describe('cleanupNoteDeckEnv', () => {
       values.STR('streaming:status'),
       dummyHandler,
     ])
-    expect(stores.ctx.subscriptions).toHaveLength(2)
+    expect(stores.ctx.disposers).toHaveLength(2)
     cleanupNoteDeckEnv(stores.ctx)
     expect(unsubA).toHaveBeenCalledTimes(1)
     expect(unsubB).toHaveBeenCalledTimes(1)
-    expect(stores.ctx.subscriptions).toEqual([])
+    expect(stores.ctx.disposers).toEqual([])
+  })
+})
+
+describe('登録解除の規約 — disposers 一本化 (#794 原則 5)', () => {
+  it('登録種別に関係なく cleanupNoteDeckEnv が一括解除する', () => {
+    const stores = makeFakeStores()
+    const order: string[] = []
+    stores.ctx.disposers.push(() => order.push('a'))
+    stores.ctx.disposers.push(() => order.push('b'))
+
+    cleanupNoteDeckEnv(stores.ctx)
+
+    expect(order).toEqual(['a', 'b'])
+    expect(stores.ctx.disposers).toEqual([])
+  })
+
+  it('1 つの disposer が throw しても残りは解除される', () => {
+    const stores = makeFakeStores()
+    const after = vi.fn()
+    stores.ctx.disposers.push(() => {
+      throw new Error('boom')
+    })
+    stores.ctx.disposers.push(after)
+
+    expect(() => cleanupNoteDeckEnv(stores.ctx)).not.toThrow()
+    expect(after).toHaveBeenCalledTimes(1)
+    expect(stores.ctx.disposers).toEqual([])
+  })
+
+  it('二重 cleanup は安全 (プラグイン停止が二度走っても壊れない)', () => {
+    const stores = makeFakeStores()
+    const dispose = vi.fn()
+    stores.ctx.disposers.push(dispose)
+
+    cleanupNoteDeckEnv(stores.ctx)
+    cleanupNoteDeckEnv(stores.ctx)
+
+    expect(dispose).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('登録 ID は provider 名前空間 (#794 未決事項 2)', () => {
+  it('コマンド ID が <provider>:<localName> になる', async () => {
+    const stores = makeFakeStores()
+    const env = createNoteDeckEnv(stores.ctx)
+    await callRegisterCommand(env, [
+      values.STR('greet'),
+      values.STR('G'),
+      values.STR('ti-g'),
+      dummyHandler,
+    ])
+    expect(stores.register.mock.calls[0]?.[0]?.id).toBe('acme.clock:greet')
+  })
+
+  it('同一 ID の二重登録は先勝ちで拒否する', async () => {
+    const stores = makeFakeStores()
+    const env = createNoteDeckEnv(stores.ctx)
+    const args = [
+      values.STR('greet'),
+      values.STR('G'),
+      values.STR('ti-g'),
+      dummyHandler,
+    ]
+    await callRegisterCommand(env, args)
+    await expect(callRegisterCommand(env, args)).rejects.toThrow(
+      /already registered/,
+    )
+    expect(stores.register).toHaveBeenCalledTimes(1)
+  })
+
+  it('provider が違えば同じ名前でも衝突しない', async () => {
+    const a = makeFakeStores()
+    const b = makeFakeStores()
+    b.ctx.provider = 'other.plugin'
+    await callRegisterCommand(createNoteDeckEnv(a.ctx), [
+      values.STR('greet'),
+      values.STR('G'),
+      values.STR('ti-g'),
+      dummyHandler,
+    ])
+    await callRegisterCommand(createNoteDeckEnv(b.ctx), [
+      values.STR('greet'),
+      values.STR('G'),
+      values.STR('ti-g'),
+      dummyHandler,
+    ])
+    expect(a.register.mock.calls[0]?.[0]?.id).toBe('acme.clock:greet')
+    expect(b.register.mock.calls[0]?.[0]?.id).toBe('other.plugin:greet')
   })
 })
