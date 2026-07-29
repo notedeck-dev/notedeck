@@ -23,6 +23,7 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useToast } from '@/stores/toast'
+import { useWindowsStore } from '@/stores/windows'
 import { webUiUrl as buildWebUiUrl } from '@/utils/url'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
@@ -58,6 +59,9 @@ const {
   isLoggedOut,
   viewMarkerId,
   error,
+  columnQueryState,
+  columnQueryErrorCount,
+  columnQueryExcludedCount,
   notes,
   orderedIds,
   focusedNoteId,
@@ -119,6 +123,37 @@ const webUiUrl = computed(() => {
 const postFormPortalRef = useTemplateRef<HTMLElement>('postFormPortalRef')
 usePortal(postFormPortalRef)
 
+// --- カラムクエリ (#783): 全ノートカラム共通の入口・バッジ・診断 ---
+const windowsStore = useWindowsStore()
+function openQueryEditor(): void {
+  windowsStore.open('column-query-editor', { columnId: props.column.id })
+}
+
+const queryBadgeTitle = computed(() => {
+  if (columnQueryState.value.status === 'invalid') {
+    return 'クエリを解釈できません — クリックで編集'
+  }
+  const err =
+    columnQueryErrorCount.value > 0
+      ? ` (評価エラー ${columnQueryErrorCount.value} 件を除外)`
+      : ''
+  return `クエリ適用中${err} — クリックで編集`
+})
+
+/** 空状態: クエリによる全件除外と「TL が空」を区別する (仕様追補 E) */
+const effectiveEmptyMessage = computed(() => {
+  if (columnQueryState.value.status === 'invalid') {
+    return 'クエリを解釈できないため表示を停止中です'
+  }
+  if (
+    columnQueryState.value.status === 'active' &&
+    columnQueryExcludedCount.value > 0
+  ) {
+    return `クエリに合致するノートがありません (${columnQueryExcludedCount.value} 件を除外中)`
+  }
+  return props.emptyMessage
+})
+
 defineExpose({
   account,
   scroller,
@@ -156,10 +191,24 @@ defineExpose({
     </template>
 
     <template #header-extra>
+      <button
+        v-if="columnQueryState.status !== 'none'"
+        class="_button"
+        :class="[$style.queryBadge, columnQueryState.status === 'invalid' && $style.queryBadgeInvalid]"
+        :title="queryBadgeTitle"
+        @click.stop="openQueryEditor"
+      >
+        <i :class="columnQueryState.status === 'invalid' ? 'ti ti-alert-triangle' : 'ti ti-bolt'" />
+        <span v-if="columnQueryErrorCount > 0">{{ columnQueryErrorCount }}</span>
+      </button>
       <slot name="header-extra" />
     </template>
 
     <template #menu-items="{ closeMenu }">
+      <button class="_popupItem" @click="openQueryEditor(); closeMenu()">
+        <i class="ti ti-filter" />
+        <span>クエリ...</span>
+      </button>
       <slot name="menu-items" :close-menu="closeMenu" />
     </template>
 
@@ -204,6 +253,16 @@ defineExpose({
         <i class="ti ti-bolt-off" />ポーリング
       </div>
 
+      <!-- クエリ評価不能 = fail-closed 中 (#783 不変条件 (f)) -->
+      <div
+        v-if="columnQueryState.status === 'invalid'"
+        :class="$style.queryInvalidBanner"
+        role="button"
+        @click="openQueryEditor"
+      >
+        <i class="ti ti-alert-triangle" />クエリを解釈できないため新着を停止中 — クリックで編集
+      </div>
+
       <!-- Inline post form slot (e.g. channel column) -->
       <slot name="before-notes" :handle-posted="handlePosted" />
 
@@ -213,7 +272,7 @@ defineExpose({
 
       <ColumnEmptyState
         v-if="!isLoading && notes.length === 0"
-        :message="emptyMessage"
+        :message="effectiveEmptyMessage"
         :image-url="serverInfoImageUrl"
       />
 
@@ -293,4 +352,21 @@ defineExpose({
 
 <style lang="scss" module>
 @use './column-common.module.scss';
+
+/* カラムクエリバッジ (#783): 適用中 = ⚡、評価不能 = ⚠ */
+.queryBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 0.75em;
+  color: var(--nd-accent);
+  background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
+}
+
+.queryBadgeInvalid {
+  color: var(--nd-error);
+  background: color-mix(in srgb, var(--nd-error) 12%, transparent);
+}
 </style>

@@ -217,6 +217,13 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     maxHeight: 600,
     component: () => import('@/components/window/MemoEditorContent.vue'),
   },
+  'column-query-editor': {
+    label: 'カラムクエリ',
+    icon: 'ti ti-filter',
+    width: 560,
+    maxHeight: 720,
+    component: () => import('@/components/window/ColumnQueryEditorContent.vue'),
+  },
   'page-detail': {
     label: 'ページ',
     icon: 'ti ti-note',

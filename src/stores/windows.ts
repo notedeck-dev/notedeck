@@ -28,6 +28,7 @@ export type WindowType =
   | 'tasksEditor'
   | 'snippetsEditor'
   | 'memoEditor'
+  | 'column-query-editor'
   | 'page-detail'
   | 'play-detail'
   | 'gallery-detail'
@@ -83,6 +84,7 @@ export const useWindowsStore = defineStore('windows', () => {
     'federation-instance': ['host', 'accountId'],
     'follow-list': ['userId', 'accountId'],
     memoEditor: ['memoKey', 'accountId'],
+    'column-query-editor': ['columnId'],
     'page-detail': ['pageId', 'accountId'],
     'play-detail': ['flashId', 'accountId'],
     'gallery-detail': ['postId', 'accountId'],

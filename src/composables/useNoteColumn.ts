@@ -266,6 +266,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
   })
   /** per-note エラーの診断計上 (V14: エラー = 除外 + 計上) */
   const queryErrorCount = ref(0)
+  /** クエリで除外したノート数 (空状態の「TL が空」との区別表示用) */
+  const queryExcludedCount = ref(0)
   const columnQueryState = computed(() => {
     const compiled = compiledQuery.value
     if (!compiled) return { status: 'none' as const, diagnostics: [] }
@@ -281,12 +283,25 @@ export function useNoteColumn(config: NoteColumnConfig) {
     // コンパイル不能なソースが永続化されていた場合は fail-closed (不変条件 (f))
     if (!compiled.ok) return false
     const verdict = evaluateQirQuery(compiled.query, note)
-    if (verdict === 'error') {
-      queryErrorCount.value++
+    if (verdict === 'error') queryErrorCount.value++
+    if (verdict !== 'match') {
+      queryExcludedCount.value++
       return false
     }
-    return verdict === 'match'
+    return true
   }
+
+  // クエリ変更時: 診断をリセットし、表示中ノートへ即時適用 (絞り込み方向) +
+  // refetch (緩和方向の回収 = fetchKey 経由の再取得に相当)
+  watch(compiledQuery, (next, prev) => {
+    if (next === prev) return
+    queryErrorCount.value = 0
+    queryExcludedCount.value = 0
+    if (rawNotes.value.length > 0) {
+      setNotes(applyQueryFilter(rawNotes.value))
+    }
+    void refresh()
+  })
 
   function applyQueryFilter(incoming: NormalizedNote[]): NormalizedNote[] {
     if (!compiledQuery.value) return incoming
@@ -1065,6 +1080,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     // カラムクエリ (#783): UI 側のバッジ・診断表示用
     columnQueryState,
     columnQueryErrorCount: queryErrorCount,
+    columnQueryExcludedCount: queryExcludedCount,
     notes,
     orderedIds,
     focusedNoteId,
