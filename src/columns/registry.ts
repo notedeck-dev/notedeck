@@ -1,6 +1,6 @@
 import type { Component } from 'vue'
-import { defineAsyncComponent } from 'vue'
-import type { ColumnType, DeckColumn } from '@/stores/deck'
+import { defineAsyncComponent, reactive, shallowReactive } from 'vue'
+import type { BuiltinColumnType, ColumnType, DeckColumn } from '@/stores/deck'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 export type ColumnGroup = 'account' | 'server' | 'tool'
@@ -54,6 +54,12 @@ export interface ColumnSpec {
   component: () => Promise<{ default: Component }>
   /** list/antenna/channel/clip/user のような選択式タイプ */
   selectable?: SelectableSpec
+  /**
+   * 固有の生成フローを持つため汎用の追加経路 (`column.add` capability) からは
+   * 作れない。ウィジェット / AiScript / Play / ページのように「先に中身を
+   * 作る」種別が該当する。
+   */
+  customAddFlow?: boolean
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: bindings の Result<T, E> と SelectableItem の橋渡し
@@ -164,10 +170,13 @@ async function fetchListsWithFavorites(
 }
 
 /**
- * カラム種別の Single Source of Truth。
+ * 組込カラム種別の定義。`Record<BuiltinColumnType, _>` なので、種別を足して
+ * ここに書き忘れるとコンパイルエラーになる (開いた registry では検査できない
+ * 網羅性を、この 1 定数で維持する)。
+ *
  * UI 表示順はこのオブジェクトの宣言順を用いる (group ごとに抽出)。
  */
-export const COLUMN_REGISTRY: Record<ColumnType, ColumnSpec> = {
+const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
   // ============================================================
   // アカウント系
   // ============================================================
@@ -394,6 +403,7 @@ export const COLUMN_REGISTRY: Record<ColumnType, ColumnSpec> = {
     icon: 'player-play',
     group: 'server',
     guestAllowed: true,
+    customAddFlow: true,
     component: () => import('@/components/deck/DeckPlayColumn.vue'),
   },
   page: {
@@ -401,6 +411,7 @@ export const COLUMN_REGISTRY: Record<ColumnType, ColumnSpec> = {
     icon: 'note',
     group: 'server',
     guestAllowed: true,
+    customAddFlow: true,
     component: () => import('@/components/deck/DeckPageColumn.vue'),
   },
   user: {
@@ -468,6 +479,7 @@ export const COLUMN_REGISTRY: Record<ColumnType, ColumnSpec> = {
     // column.accountId を `Mk:api` に渡して使うため、null = 認証必須機能の
     // capability チェックで弾かれる仕様。
     crossAccount: true,
+    customAddFlow: true,
     defaultProps: { widgets: [] },
     component: () => import('@/components/deck/DeckWidgetColumn.vue'),
   },
@@ -486,6 +498,7 @@ export const COLUMN_REGISTRY: Record<ColumnType, ColumnSpec> = {
     group: 'tool',
     guestAllowed: true,
     accountOptional: true,
+    customAddFlow: true,
     defaultProps: { aiscriptCode: '<: "Hello, AiScript!"' },
     component: () => import('@/components/deck/DeckAiScriptColumn.vue'),
   },
@@ -545,47 +558,49 @@ export const COLUMN_REGISTRY: Record<ColumnType, ColumnSpec> = {
 }
 
 // ============================================================
-// 派生ヘルパー
+// レジストリ本体と派生 (#794 W2)
 // ============================================================
 
+/**
+ * カラム種別の Single Source of Truth。組込 + 実行時登録分。
+ *
+ * shallowReactive: プラグインの登録/解除が Vue の computed に伝播する必要が
+ * ある (プラグイン起動はデッキ復元より後なので、登録時点で UI は既に描画済み)。
+ * ColumnSpec 自体は不変なので深い追跡は不要。
+ */
+export const COLUMN_REGISTRY = shallowReactive<Record<string, ColumnSpec>>({
+  ...BUILTIN_COLUMN_REGISTRY,
+})
+
+const BUILTIN_TYPES: ReadonlySet<string> = new Set(
+  Object.keys(BUILTIN_COLUMN_REGISTRY),
+)
+
+// 派生は「登録のたびに全再構築」する。派生ごとに差分更新すると、派生が 1 つ
+// 増えるたびに更新漏れの面が増える (= #794 が解こうとしている、まだら化そのもの)。
+// 全再構築なら rebuildDerived が唯一の同期点になる。
+// いずれも reactive で、参照側の `.has()` / `[type]` / `.filter()` はそのまま
+// 追跡される — 呼び出し側の書き換えが不要。
+
 /** Registry 宣言順の全カラムタイプ */
-export const ALL_COLUMN_TYPES = Object.keys(
-  COLUMN_REGISTRY,
-) as readonly ColumnType[]
+export const ALL_COLUMN_TYPES: ColumnType[] = reactive([])
 
-export function isColumnType(value: unknown): value is ColumnType {
-  return typeof value === 'string' && value in COLUMN_REGISTRY
-}
+export const COLUMN_LABELS: Record<string, string> = reactive({})
 
-export const COLUMN_LABELS: Record<string, string> = Object.fromEntries(
-  ALL_COLUMN_TYPES.map((t) => [t, COLUMN_REGISTRY[t].label]),
-)
+export const COLUMN_ICONS: Record<string, string> = reactive({})
 
-export const COLUMN_ICONS: Record<string, string> = Object.fromEntries(
-  ALL_COLUMN_TYPES.map((t) => [t, COLUMN_REGISTRY[t].icon]),
-)
+export const GUEST_ALLOWED_TYPES: Set<ColumnType> = reactive(new Set())
+export const CROSS_ACCOUNT_TYPES: Set<ColumnType> = reactive(new Set())
+export const ACCOUNT_OPTIONAL_TYPES: Set<ColumnType> = reactive(new Set())
+export const ACCOUNT_INDEPENDENT_TYPES: Set<ColumnType> = reactive(new Set())
+export const WIDE_COLUMN_TYPES: Set<ColumnType> = reactive(new Set())
 
-function typesWithFlag(
-  flag:
-    | 'guestAllowed'
-    | 'crossAccount'
-    | 'accountOptional'
-    | 'accountIndependent'
-    | 'wide',
-): Set<ColumnType> {
-  return new Set(ALL_COLUMN_TYPES.filter((t) => COLUMN_REGISTRY[t][flag]))
-}
-
-export const GUEST_ALLOWED_TYPES = typesWithFlag('guestAllowed')
-export const CROSS_ACCOUNT_TYPES = typesWithFlag('crossAccount')
-export const ACCOUNT_OPTIONAL_TYPES = typesWithFlag('accountOptional')
-export const ACCOUNT_INDEPENDENT_TYPES = typesWithFlag('accountIndependent')
-export const WIDE_COLUMN_TYPES = typesWithFlag('wide')
-
-/** pipEnabled は既定 true。false を明示したカラムのみ除外する。 */
-export const PIP_ENABLED_TYPES: ReadonlySet<ColumnType> = new Set(
-  ALL_COLUMN_TYPES.filter((t) => COLUMN_REGISTRY[t].pipEnabled !== false),
-)
+/**
+ * pipEnabled は組込では既定 true (false を明示して opt-out)。
+ * 実行時登録されたカラムは既定 false — PiP は別 WebView で、プラグインの
+ * インタプリタをどちら側で動かすかが未定のため (#794 未決事項 5)。
+ */
+export const PIP_ENABLED_TYPES: Set<ColumnType> = reactive(new Set())
 
 export interface ColumnGroupInfo {
   group: ColumnGroup
@@ -595,31 +610,91 @@ export interface ColumnGroupInfo {
 }
 
 /** AddColumnDialog / コマンドパレット双方が使う UI グループ定義 */
-export const COLUMN_TYPE_GROUPS: ColumnGroupInfo[] = (() => {
-  const mk = (
-    group: ColumnGroup,
-    label: string,
-    icon: string,
-  ): ColumnGroupInfo => ({
-    group,
-    label,
-    icon,
-    types: ALL_COLUMN_TYPES.filter((t) => COLUMN_REGISTRY[t].group === group),
-  })
-  return [
-    mk('account', 'アカウント', 'user'),
-    mk('server', 'サーバー', 'server'),
-    mk('tool', 'ツール', 'tool'),
-  ]
-})()
+export const COLUMN_TYPE_GROUPS: ColumnGroupInfo[] = reactive([
+  { group: 'account', label: 'アカウント', icon: 'user', types: [] },
+  { group: 'server', label: 'サーバー', icon: 'server', types: [] },
+  { group: 'tool', label: 'ツール', icon: 'tool', types: [] },
+])
 
 /** Vue コンポーネントマップ (PipPage / DeckColumnsArea から参照) */
-export const COLUMN_COMPONENTS: Record<string, Component> = Object.fromEntries(
-  ALL_COLUMN_TYPES.map((t) => [
-    t,
-    defineAsyncComponent(COLUMN_REGISTRY[t].component),
-  ]),
-)
+export const COLUMN_COMPONENTS = shallowReactive<Record<string, Component>>({})
+
+const FLAG_SETS: ReadonlyArray<[keyof ColumnSpec, Set<ColumnType>]> = [
+  ['guestAllowed', GUEST_ALLOWED_TYPES],
+  ['crossAccount', CROSS_ACCOUNT_TYPES],
+  ['accountOptional', ACCOUNT_OPTIONAL_TYPES],
+  ['accountIndependent', ACCOUNT_INDEPENDENT_TYPES],
+  ['wide', WIDE_COLUMN_TYPES],
+]
+
+function rebuildDerived(): void {
+  const types = Object.keys(COLUMN_REGISTRY)
+
+  ALL_COLUMN_TYPES.length = 0
+  ALL_COLUMN_TYPES.push(...types)
+
+  for (const key of Object.keys(COLUMN_LABELS)) delete COLUMN_LABELS[key]
+  for (const key of Object.keys(COLUMN_ICONS)) delete COLUMN_ICONS[key]
+  for (const key of Object.keys(COLUMN_COMPONENTS))
+    delete COLUMN_COMPONENTS[key]
+  for (const [, set] of FLAG_SETS) set.clear()
+  PIP_ENABLED_TYPES.clear()
+  for (const g of COLUMN_TYPE_GROUPS) g.types.length = 0
+
+  for (const type of types) {
+    const spec = COLUMN_REGISTRY[type]
+    if (!spec) continue
+    COLUMN_LABELS[type] = spec.label
+    COLUMN_ICONS[type] = spec.icon
+    COLUMN_COMPONENTS[type] = defineAsyncComponent(spec.component)
+    for (const [flag, set] of FLAG_SETS) {
+      if (spec[flag]) set.add(type)
+    }
+    const pipDefault = BUILTIN_TYPES.has(type)
+    if (spec.pipEnabled ?? pipDefault) PIP_ENABLED_TYPES.add(type)
+    COLUMN_TYPE_GROUPS.find((g) => g.group === spec.group)?.types.push(type)
+  }
+}
+
+rebuildDerived()
+
+export function isColumnType(value: unknown): value is ColumnType {
+  return typeof value === 'string' && value in COLUMN_REGISTRY
+}
+
+/**
+ * カラム種別を実行時登録する (#794 W2)。
+ *
+ * 衝突は先勝ちで拒否する — 後勝ち上書きだと、あるプラグインが別のプラグインや
+ * 組込カラムを黙って乗っ取れてしまう (#794 未決事項 2)。組込 ID 空間は予約。
+ *
+ * @throws 組込 ID または登録済み ID を指定した場合
+ */
+export function registerColumnType(type: string, spec: ColumnSpec): void {
+  if (BUILTIN_TYPES.has(type)) {
+    throw new Error(`column type "${type}" is reserved by NoteDeck`)
+  }
+  if (type in COLUMN_REGISTRY) {
+    throw new Error(`column type "${type}" is already registered`)
+  }
+  COLUMN_REGISTRY[type] = spec
+  rebuildDerived()
+}
+
+/**
+ * 登録を解除する。未登録 ID は no-op — プラグイン停止時の一括解除が二重に
+ * 走っても安全にするため (原則 5)。
+ *
+ * @throws 組込 ID を指定した場合
+ */
+export function unregisterColumnType(type: string): void {
+  if (BUILTIN_TYPES.has(type)) {
+    throw new Error(`column type "${type}" is builtin and cannot be removed`)
+  }
+  if (!(type in COLUMN_REGISTRY)) return
+  delete COLUMN_REGISTRY[type]
+  rebuildDerived()
+}
 
 /**
  * カラム追加時の共通デフォルト。呼び出し側は type/accountId を指定するだけでよい。
@@ -629,12 +704,14 @@ export function buildColumnDefaults(
   type: ColumnType,
   accountId: string | null,
 ): Omit<DeckColumn, 'id' | 'type'> {
+  // 未登録種別でも追加自体は成立させる (種別名を仮のカラム名にして tombstone を
+  // 描画する)。ここで throw すると、プラグイン起動前のデッキ復元が壊れる
   const spec = COLUMN_REGISTRY[type]
   return {
-    name: spec.label,
-    width: spec.defaultWidth ?? 360,
+    name: spec?.label ?? type,
+    width: spec?.defaultWidth ?? 360,
     accountId,
     active: true,
-    ...spec.defaultProps,
+    ...spec?.defaultProps,
   }
 }

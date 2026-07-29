@@ -1,60 +1,27 @@
+import { ALL_COLUMN_TYPES, COLUMN_REGISTRY } from '@/columns/registry'
 import type { Command } from '@/commands/registry'
 import { useAccountsStore } from '@/stores/accounts'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 
 /**
- * `column.add` で受け付けるカラム種別。lookup ID 必須カラム (list / antenna /
- * channel / clip / user) は対応する `*Id` を `params` で渡せばここから追加できる。
- * `widget` / `aiscript` / `play` / `page` 等は固有の生成フローが必要なため
- * 引き続き専用 UI 経由で追加する。
+ * `column.add` で受け付けるカラム種別 (#794 W2)。
+ *
+ * 手書きの許可リストではなくカラムレジストリから導出する。手書きだと種別を
+ * 足すたびに更新漏れが起き (実際に role が抜けていた)、実行時登録された
+ * プラグイン定義カラムは原理的に載せられない。
+ *
+ * 除外するのは「先に中身を作る」固有フローを持つ種別 (customAddFlow) だけ。
  */
-const ADDABLE_COLUMN_TYPES: readonly ColumnType[] = [
-  // 引数なしで開けるシンプル系
-  'timeline',
-  'notifications',
-  'mentions',
-  'specified',
-  'search',
-  'favorites',
-  'drive',
-  'gallery',
-  'explore',
-  'memos',
-  'charts',
-  'federation',
-  'aboutMisskey',
-  'announcements',
-  'achievements',
-  'followRequests',
-  'apiConsole',
-  'apiDocs',
-  'lookup',
-  'serverInfo',
-  'streamInspector',
-  'pluginManager',
-  'themeManager',
-  'taskRunner',
-  'skill',
-  'ai',
-  'chat',
-  'emoji',
-  'ads',
-  // lookup ID 必須カラム
-  'list',
-  'antenna',
-  'channel',
-  'clip',
-  'user',
-] as const
+function addableColumnTypes(): readonly ColumnType[] {
+  return ALL_COLUMN_TYPES.filter((t) => !COLUMN_REGISTRY[t]?.customAddFlow)
+}
 
-/** type と必須 lookup ID の対応表 */
-const LOOKUP_ID_REQUIRED: Partial<Record<ColumnType, keyof DeckColumn>> = {
-  list: 'listId',
-  antenna: 'antennaId',
-  channel: 'channelId',
-  clip: 'clipId',
-  user: 'userId',
+/**
+ * type と必須 lookup ID の対応表。レジストリの `selectable.idKey` が正本。
+ */
+function lookupIdKey(type: ColumnType): keyof DeckColumn | undefined {
+  return COLUMN_REGISTRY[type]?.selectable?.idKey
 }
 
 /**
@@ -180,7 +147,11 @@ export const columnAddCapability: Command = {
       type: {
         type: 'string',
         description: '追加するカラムの種別',
-        enum: ADDABLE_COLUMN_TYPES,
+        // getter: tool schema は呼び出しのたびに組まれるので、実行時登録
+        // された種別もそのまま AI に見える
+        get enum() {
+          return addableColumnTypes()
+        },
       },
       name: {
         type: 'string',
@@ -242,13 +213,14 @@ export const columnAddCapability: Command = {
   visible: false,
   execute: (params) => {
     const type = typeof params?.type === 'string' ? params.type : ''
-    if (!ADDABLE_COLUMN_TYPES.includes(type as ColumnType)) {
+    const addable = addableColumnTypes()
+    if (!addable.includes(type as ColumnType)) {
       throw new Error(
         `Unsupported column type "${type}". ` +
-          `Supported: ${ADDABLE_COLUMN_TYPES.join(', ')}`,
+          `Supported: ${addable.join(', ')}`,
       )
     }
-    const requiredIdKey = LOOKUP_ID_REQUIRED[type as ColumnType]
+    const requiredIdKey = lookupIdKey(type as ColumnType)
     if (requiredIdKey && typeof params?.[requiredIdKey] !== 'string') {
       throw new Error(`${requiredIdKey} is required for column type "${type}"`)
     }
@@ -538,7 +510,11 @@ export const sidebarToggleCapability: Command = {
         type: 'string',
         description:
           'カラム種別 (notifications / chat / search / ai / memos など)',
-        enum: ADDABLE_COLUMN_TYPES,
+        // getter: tool schema は呼び出しのたびに組まれるので、実行時登録
+        // された種別もそのまま AI に見える
+        get enum() {
+          return addableColumnTypes()
+        },
       },
       accountId: {
         type: 'string',
@@ -554,10 +530,11 @@ export const sidebarToggleCapability: Command = {
   visible: false,
   execute: (params) => {
     const type = typeof params?.type === 'string' ? params.type : ''
-    if (!ADDABLE_COLUMN_TYPES.includes(type as ColumnType)) {
+    const addable = addableColumnTypes()
+    if (!addable.includes(type as ColumnType)) {
       throw new Error(
         `Unsupported column type "${type}". ` +
-          `Supported: ${ADDABLE_COLUMN_TYPES.join(', ')}`,
+          `Supported: ${addable.join(', ')}`,
       )
     }
     const accountId =

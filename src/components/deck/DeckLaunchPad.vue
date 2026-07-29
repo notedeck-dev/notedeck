@@ -4,6 +4,8 @@ import { computed, nextTick, ref, useCssModule, watch } from 'vue'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
   ALL_COLUMN_TYPES,
+  COLUMN_ICONS,
+  COLUMN_LABELS,
   COLUMN_REGISTRY,
   CROSS_ACCOUNT_TYPES,
 } from '@/columns/registry'
@@ -51,7 +53,7 @@ const items = computed<ColumnType[]>(() =>
   ALL_COLUMN_TYPES.filter((t) => {
     if (navTypes.value.has(t)) return false
     const spec = COLUMN_REGISTRY[t]
-    if (spec.selectable) return false
+    if (spec?.selectable) return false
     return CROSS_ACCOUNT_TYPES.has(t) || ACCOUNT_INDEPENDENT_TYPES.has(t)
   }),
 )
@@ -141,8 +143,8 @@ function close() {
           :class="$style.item"
           @click="selectItem(t)"
         >
-          <i class="ti" :class="[$style.icon, `ti-${COLUMN_REGISTRY[t].icon}`]" />
-          <span :class="$style.label">{{ COLUMN_REGISTRY[t].label }}</span>
+          <i class="ti" :class="[$style.icon, `ti-${COLUMN_ICONS[t]}`]" />
+          <span :class="$style.label">{{ COLUMN_LABELS[t] }}</span>
         </button>
       </div>
     </div>
