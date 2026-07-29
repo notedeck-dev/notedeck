@@ -8,6 +8,7 @@ import {
 import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
 import type { JsonValue } from '@/bindings'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
+import { pluginProviderKey } from '@/plugins/registrationId'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   type AiScriptRunLogger,
@@ -532,8 +533,8 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
       pluginId: plugin.installId,
       name: plugin.name,
     },
-    registeredCommandIds: [],
-    subscriptions: [],
+    provider: pluginProviderKey(plugin),
+    disposers: [],
     // Nd:call が Mk:api と同じアカウント文脈 (withPluginAccountContext) を
     // 参照する (#821)
     getAccountId: () => ctx.accountId,

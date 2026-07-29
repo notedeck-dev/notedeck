@@ -32,6 +32,7 @@ import AiScriptUiRenderer, {
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
+import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
@@ -208,8 +209,11 @@ async function run() {
       pluginId: `widget:${props.widgetId}`,
       name: widget.value.name,
     },
-    registeredCommandIds: [] as string[],
-    subscriptions: [],
+    provider: providerFromPrincipal(
+      { kind: 'plugin', pluginId: `widget:${props.widgetId}` },
+      widget.value.storeId,
+    ),
+    disposers: [],
     getAccountId: () => activeAccountId.value,
   }
   const ndEnv = createNoteDeckEnv(ndCtx)
