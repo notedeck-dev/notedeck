@@ -6,6 +6,7 @@ import type {
 } from '@/adapters/types'
 import { useNoteStore } from '@/stores/notes'
 import { usePerformanceStore } from '@/stores/performance'
+import { useSuspensionsStore } from '@/stores/suspensions'
 import { insertIntoSorted } from '@/utils/sortNotes'
 import { commands } from '@/utils/tauriInvoke'
 import { useNoteVisibility } from './useNoteVisibility'
@@ -26,6 +27,7 @@ export function useNoteList(options: UseNoteListOptions) {
   const noteStore = useNoteStore()
   const visibility = useNoteVisibility()
   const perfStore = usePerformanceStore()
+  const suspensionsStore = useSuspensionsStore()
   const maxNotes = options.maxNotes ?? perfStore.get('noteListMax')
   const orderedIds = shallowRef<string[]>([])
   const noteIds = new Set<string>()
@@ -59,14 +61,21 @@ export function useNoteList(options: UseNoteListOptions) {
       // A global triggerRef would redundantly invalidate ALL columns' notes computeds.
       noteStore.put(trimmed, true)
       const ids: string[] = new Array(trimmed.length)
-      noteIds.clear()
+      // 凍結 probe の供給点（#828）。全書込経路（connect / streaming /
+      // loadMore / キャッシュ復元 / snapshot / resume / refresh）はこの setter
+      // を通るため、ここで新規ノートを拾えば経路列挙が不要になる。
+      // setter を迂回する書込を増やさないことを規約とする。
+      const inserted: NormalizedNote[] = []
       for (let i = 0; i < trimmed.length; i++) {
         // biome-ignore lint/style/noNonNullAssertion: bounded loop
-        const id = trimmed[i]!.id
-        ids[i] = id
-        noteIds.add(id)
+        const note = trimmed[i]!
+        ids[i] = note.id
+        if (!noteIds.has(note.id)) inserted.push(note)
       }
+      noteIds.clear()
+      for (const id of ids) noteIds.add(id)
       orderedIds.value = ids
+      if (inserted.length > 0) suspensionsStore.probeNotes(inserted)
     },
   })
 

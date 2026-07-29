@@ -121,6 +121,9 @@ export const STORAGE_KEYS = {
   // { dateEpochDays, count }
   heartbeatDailyCounter: 'nd-heartbeat-daily-counter',
 
+  // サーバーで凍結/削除されたユーザー (#828)。account ごとの entry を 1 キーに集約
+  suspensions: 'nd-suspensions',
+
   // Custom timelines (per-host / per-account)
   customTimeline: (host: string) => `nd:custom_tl:${host}`,
   policies: (accountId: string) => `nd:policies:${accountId}`,

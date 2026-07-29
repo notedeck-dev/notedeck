@@ -46,6 +46,7 @@ import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
 import { usePerformanceStore } from '@/stores/performance'
 import { useServersStore } from '@/stores/servers'
+import { useSuspensionsStore } from '@/stores/suspensions'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
@@ -257,13 +258,37 @@ const { viewMarkerId } = useReadMarker(
 )
 
 // Report visible notifications to deckStore (汎用 visibleItems API)
+const suspensionsStore = useSuspensionsStore()
 watch(
   notifications,
   (items) => {
     deckStore.reportVisibleItems(props.column.id, items)
+    probeSuspensions(items)
   },
   { immediate: true },
 )
+
+/**
+ * 凍結 probe の供給点（#828）。通知リストへの全挿入（キャッシュ復元・fetch・
+ * merge・ストリーミング到着）はこの ref を通るので、ここ 1 点で notifier /
+ * grouped のユーザーを拾える（TTL・dedupe はストア側）。
+ */
+function probeSuspensions(items: NormalizedNotification[]) {
+  const byAccount = new Map<string, Set<string>>()
+  for (const n of items) {
+    let set = byAccount.get(n._accountId)
+    if (!set) {
+      set = new Set()
+      byAccount.set(n._accountId, set)
+    }
+    if (n.user?.id) set.add(n.user.id)
+    for (const r of n.reactions ?? []) if (r.user?.id) set.add(r.user.id)
+    for (const u of n.users ?? []) if (u?.id) set.add(u.id)
+  }
+  for (const [accountId, ids] of byAccount) {
+    suspensionsStore.probe(accountId, ids)
+  }
+}
 const followRequestStates = ref<Record<string, 'accepted' | 'rejected'>>({})
 
 // --- Notification cache helpers ---

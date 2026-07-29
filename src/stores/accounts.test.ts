@@ -35,7 +35,7 @@ vi.mock('@/utils/storage', async () => {
   const actual =
     await vi.importActual<typeof import('@/utils/storage')>('@/utils/storage')
   return {
-    STORAGE_KEYS: actual.STORAGE_KEYS,
+    ...actual,
     removeStorage: vi.fn(),
   }
 })
