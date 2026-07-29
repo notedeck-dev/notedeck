@@ -13,7 +13,6 @@
 import { nextTick } from 'vue'
 import { COLUMN_LABELS } from '@/columns/registry'
 import type { Command } from '@/commands/registry'
-import { WINDOW_LABELS } from '@/components/deck/windowLabels'
 import { useAiConfig } from '@/composables/useAiConfig'
 import {
   accountTargetId,
@@ -44,6 +43,7 @@ import {
 } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
+import { WINDOW_LABELS } from '@/windows/registry'
 import { pickAccountId } from './accountContext'
 import { sanitizeToolName } from './identifier'
 import { getCapability, listCapabilities } from './registry'

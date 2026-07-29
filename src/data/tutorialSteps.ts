@@ -13,7 +13,6 @@
  */
 
 import { useCommandStore } from '@/commands/registry'
-import { WINDOW_LABELS } from '@/components/deck/windowLabels'
 import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
 import {
   commandItemTargetId,
@@ -26,6 +25,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
+import { WINDOW_LABELS } from '@/windows/registry'
 
 /**
  * step の precheck 戻り値。

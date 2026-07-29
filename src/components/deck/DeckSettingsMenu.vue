@@ -3,9 +3,9 @@ import { computed, ref, toRef } from 'vue'
 
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
-import { usePerformanceStore } from '@/stores/performance'
-import { useThemeStore } from '@/stores/theme'
+import { SETTINGS_SECTIONS, type SettingsSection } from '@/settings/sections'
 import { useWindowsStore } from '@/stores/windows'
+import { WINDOW_ICONS, WINDOW_LABELS } from '@/windows/registry'
 
 const props = defineProps<{
   show: boolean
@@ -19,9 +19,6 @@ const { visible: menuVisible, leaving: menuLeaving } = useVaporTransition(
   toRef(props, 'show'),
   { enterDuration: 180, leaveDuration: 180 },
 )
-const perfStore = usePerformanceStore()
-const themeStore = useThemeStore()
-
 const dialogRef = ref<HTMLDialogElement | null>(null)
 
 useNativeDialog(
@@ -35,21 +32,8 @@ useNativeDialog(
 
 const windowsStore = useWindowsStore()
 
-function openToolWindow(
-  type:
-    | 'cssEditor'
-    | 'plugins'
-    | 'aiSettings'
-    | 'permissions'
-    | 'connections'
-    | 'performanceEditor'
-    | 'appearanceEditor'
-    | 'backup'
-    | 'cacheEditor'
-    | 'tasksEditor'
-    | 'snippetsEditor',
-) {
-  windowsStore.open(type, {})
+function openSection(section: SettingsSection) {
+  windowsStore.open(section.window, {})
   emit('close')
 }
 </script>
@@ -69,77 +53,15 @@ function openToolWindow(
       @pointerdown.stop
     >
       <div :class="$style.menuBody">
-        <div :class="$style.categorySection">
-          <button :class="$style.categoryHeader" @click="openToolWindow('appearanceEditor')">
-            <i class="ti ti-brush" />
-            <span>アピアランス</span>
-            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
-          </button>
-        </div>
-
-        <div :class="$style.categorySection">
-          <button :class="$style.categoryHeader" @click="openToolWindow('aiSettings')">
-            <i class="ti ti-robot" />
-            <span>エージェント</span>
-            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
-          </button>
-        </div>
-        <div :class="$style.categorySection">
-          <button :class="$style.categoryHeader" @click="openToolWindow('permissions')">
-            <i class="ti ti-shield-lock" />
-            <span>権限</span>
-            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
-          </button>
-        </div>
-        <div :class="$style.categorySection">
-          <button :class="$style.categoryHeader" @click="openToolWindow('connections')">
-            <i class="ti ti-plug-connected" />
-            <span>接続</span>
-            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
-          </button>
-        </div>
-        <div :class="$style.categorySection">
-          <button :class="$style.categoryHeader" @click="openToolWindow('performanceEditor')">
-            <i class="ti ti-gauge" />
-            <span>パフォーマンス</span>
-            <span v-if="Object.keys(perfStore.overrides).length > 0" :class="$style.activeDot" />
-            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
-          </button>
-        </div>
-        <div :class="$style.categorySection">
-          <button :class="$style.categoryHeader" @click="openToolWindow('cssEditor')">
-            <i class="ti ti-code" />
-            <span>カスタムCSS</span>
-            <span v-if="themeStore.customCss" :class="$style.activeDot" />
-            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
-          </button>
-        </div>
-        <div :class="$style.categorySection">
-          <button :class="$style.categoryHeader" @click="openToolWindow('tasksEditor')">
-            <i class="ti ti-player-play" />
-            <span>タスク</span>
-            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
-          </button>
-        </div>
-        <div :class="$style.categorySection">
-          <button :class="$style.categoryHeader" @click="openToolWindow('snippetsEditor')">
-            <i class="ti ti-code-plus" />
-            <span>スニペット</span>
-            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
-          </button>
-        </div>
-
-        <div :class="$style.categorySection">
-          <button :class="$style.categoryHeader" @click="openToolWindow('backup')">
-            <i class="ti ti-database" />
-            <span>バックアップ</span>
-            <i class="ti ti-chevron-right" :class="$style.chevronNav" />
-          </button>
-        </div>
-        <div :class="$style.categorySection">
-          <button :class="$style.categoryHeader" @click="openToolWindow('cacheEditor')">
-            <i class="ti ti-eraser" />
-            <span>キャッシュ</span>
+        <div
+          v-for="section in SETTINGS_SECTIONS"
+          :key="section.window"
+          :class="$style.categorySection"
+        >
+          <button :class="$style.categoryHeader" @click="openSection(section)">
+            <i :class="WINDOW_ICONS[section.window]" />
+            <span>{{ WINDOW_LABELS[section.window] }}</span>
+            <span v-if="section.hasOverride?.()" :class="$style.activeDot" />
             <i class="ti ti-chevron-right" :class="$style.chevronNav" />
           </button>
         </div>

@@ -9,11 +9,10 @@ import {
   type DeckWindow,
   useWindowsStore,
   WINDOW_MIN_SIZE,
-  WINDOW_SIZES,
 } from '@/stores/windows'
 import { isTauri, openSettingsFileInEditor } from '@/utils/settingsFs'
 import { openSafeUrl } from '@/utils/url'
-import { WINDOW_LABELS } from './windowLabels'
+import { WINDOW_ICONS, WINDOW_LABELS, WINDOW_SIZES } from '@/windows/registry'
 
 const props = defineProps<{
   window: DeckWindow
@@ -76,49 +75,6 @@ const windowTitle = computed(() => {
   }
   return base
 })
-
-const icons: Record<string, string> = {
-  'note-detail': 'ti ti-note',
-  'note-inspector': 'ti ti-code',
-  'notification-inspector': 'ti ti-code',
-  'user-profile': 'ti ti-user',
-  'federation-instance': 'ti ti-planet',
-  'follow-list': 'ti ti-users',
-  login: 'ti ti-login-2',
-  search: 'ti ti-search',
-  notifications: 'ti ti-bell',
-  plugins: 'ti ti-plug',
-  keybinds: 'ti ti-keyboard',
-  cssEditor: 'ti ti-code',
-  themeEditor: 'ti ti-palette',
-  profileEditor: 'ti ti-layout-columns',
-  ai: 'ti ti-brain',
-  aiSettings: 'ti ti-robot',
-  permissions: 'ti ti-shield-lock',
-  chat: 'ti ti-messages',
-  about: 'ti ti-info-circle',
-  navEditor: 'ti ti-layout-sidebar-left-collapse',
-  performanceEditor: 'ti ti-gauge',
-  appearanceEditor: 'ti ti-brush',
-  backup: 'ti ti-package-export',
-  cacheEditor: 'ti ti-eraser',
-  tasksEditor: 'ti ti-player-play',
-  snippetsEditor: 'ti ti-code-plus',
-  memoEditor: 'ti ti-notes',
-  'page-detail': 'ti ti-note',
-  'play-detail': 'ti ti-player-play',
-  'gallery-detail': 'ti ti-icons',
-  'list-detail': 'ti ti-list',
-  'clip-detail': 'ti ti-paperclip',
-  'drive-file-detail': 'ti ti-file',
-  'page-edit': 'ti ti-pencil',
-  'play-edit': 'ti ti-pencil',
-  'widget-edit': 'ti ti-layout-dashboard',
-  'skill-edit': 'ti ti-sparkles',
-  connections: 'ti ti-plug-connected',
-  connectionEdit: 'ti ti-plug-connected',
-  tutorial: 'ti ti-presentation-analytics',
-}
 
 const isMinimized = computed(() => props.window.minimized)
 const isMaximized = computed(() => props.window.maximized)
@@ -342,7 +298,7 @@ onBeforeUnmount(() => {
     @mousedown="onWindowMouseDown"
   >
     <div :class="$style.windowHeader" @pointerdown="onHeaderPointerDown">
-      <i :class="[icons[window.type], $style.windowIcon]" />
+      <i :class="[WINDOW_ICONS[window.type], $style.windowIcon]" />
       <span :class="$style.windowTitle">{{ windowTitle }}</span>
       <button
         v-if="editAction"
