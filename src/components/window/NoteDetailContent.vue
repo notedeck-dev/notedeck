@@ -32,10 +32,12 @@ const MkPostForm = defineAsyncComponent(
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNoteCapture } from '@/composables/useNoteCapture'
+import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
+import { useSuspensionsStore } from '@/stores/suspensions'
 import { useIsCompactLayout } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { proxyUrl } from '@/utils/imageProxy'
@@ -373,9 +375,21 @@ function buildTree(
   return roots
 }
 
+const { filterVisible } = useNoteVisibility()
+// 凍結 probe の供給点（#828）
+watch([ancestors, children], ([a, c]) =>
+  useSuspensionsStore().probeNotes([...a, ...c]),
+)
+
+// 明示的に開いた本体ノートは述語を通さない。祖先は文脈欠損を避けるため凍結の
+// み貫通（本家 notes/conversation も貫通）、返信ツリーは一覧面なので全適用（#606）
+const visibleAncestors = computed(() =>
+  filterVisible(ancestors.value, { ignoreSuspension: true }),
+)
+
 const childrenTree = computed<NoteTreeNode[]>(() => {
   if (!note.value) return []
-  return buildTree(children.value, note.value.id)
+  return buildTree(filterVisible(children.value), note.value.id)
 })
 
 const treeHandlers = computed<NoteTreeHandlers>(() => ({
@@ -427,9 +441,9 @@ async function handlePosted(editedNoteId?: string) {
     </div>
 
     <div v-else-if="note" :class="$style.noteDetail">
-      <div v-if="ancestors.length > 0" :class="$style.ancestors">
+      <div v-if="visibleAncestors.length > 0" :class="$style.ancestors">
         <MkNote
-          v-for="ancestor in ancestors"
+          v-for="ancestor in visibleAncestors"
           :key="ancestor.id"
           :note="ancestor"
           @react="handleReaction"

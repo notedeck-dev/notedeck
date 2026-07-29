@@ -9,7 +9,7 @@ import { usePerformanceStore } from '@/stores/performance'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { insertIntoSorted } from '@/utils/sortNotes'
 import { commands } from '@/utils/tauriInvoke'
-import { useNoteVisibility } from './useNoteVisibility'
+import { useNoteVisibility, type VisibilityOpts } from './useNoteVisibility'
 
 /** @deprecated Use usePerformanceStore().get('noteListMax') instead. Kept for test compatibility. */
 export const NOTE_LIST_MAX = 200
@@ -21,6 +21,8 @@ export interface UseNoteListOptions {
   closePostForm: () => void
   onNotesChanged?: (notes: NormalizedNote[]) => void
   maxNotes?: number
+  /** 面ごとの述語 opt-out（お気に入り・プロフィール等）。既定は全適用 */
+  visibility?: VisibilityOpts
 }
 
 export function useNoteList(options: UseNoteListOptions) {
@@ -85,7 +87,7 @@ export function useNoteList(options: UseNoteListOptions) {
    * muted/archived の合成もこの述語に集約。書込は rawNotes 側で行う。
    */
   const notes = computed(() =>
-    rawNotes.value.filter((n) => !visibility.isHidden(n)),
+    visibility.filterVisible(rawNotes.value, options.visibility),
   )
 
   function setOnNotesChanged(fn: (notes: NormalizedNote[]) => void) {

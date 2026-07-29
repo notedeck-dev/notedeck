@@ -257,16 +257,8 @@ const { viewMarkerId } = useReadMarker(
   () => notifications.value[0]?.id ?? null,
 )
 
-// Report visible notifications to deckStore (汎用 visibleItems API)
 const suspensionsStore = useSuspensionsStore()
-watch(
-  notifications,
-  (items) => {
-    deckStore.reportVisibleItems(props.column.id, items)
-    probeSuspensions(items)
-  },
-  { immediate: true },
-)
+watch(notifications, (items) => probeSuspensions(items), { immediate: true })
 
 /**
  * 凍結 probe の供給点（#828）。通知リストへの全挿入（キャッシュ復元・fetch・
@@ -371,6 +363,16 @@ const visibleNotifications = computed(() =>
       }
       return n
     }),
+)
+
+// 「見えているもの」の下流供給は述語適用後を渡す（AI / インスペクタ /
+// 監査ログが隠したはずの通知を読めてしまわないように）
+watch(
+  visibleNotifications,
+  (items) => {
+    deckStore.reportVisibleItems(props.column.id, items)
+  },
+  { immediate: true },
 )
 
 const filteredNotifications = computed(() => {

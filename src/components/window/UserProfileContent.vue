@@ -56,6 +56,7 @@ const UserActivityPvChart = defineAsyncComponent(
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
+import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { usePortal } from '@/composables/usePortal'
 import { useSensitiveMask } from '@/composables/useSensitiveMask'
@@ -209,10 +210,15 @@ const {
   maxItems: MAX_PROFILE_NOTES,
   onError: raiseWindowError,
 })
+// 明示的に開いた対象なので、対象由来の材料（ミュート・凍結）は貫通させる（#606）
+const { filterVisible } = useNoteVisibility()
+const visibleFilesNotes = computed(() =>
+  filterVisible(filesNotes.value, { ignoreSubject: true }),
+)
 // ゲスト時は withFiles フィルタが無視されて全ノートが返るため、
 // filesNotes.length === 0 ではなく実際のファイル有無で判定する
 const hasFilesContent = computed(() =>
-  filesNotes.value.some((n) => n.files.length > 0),
+  visibleFilesNotes.value.some((n) => n.files.length > 0),
 )
 
 // Reactions top-tab. Each entry pairs a reaction type with the note it was
@@ -706,7 +712,7 @@ async function handlePosted(editedNoteId?: string) {
         </div>
 
         <div v-show="topTab === 'files'" :class="$style.filesPane">
-          <UserProfileFileGrid :account-id="accountId" :notes="filesNotes" />
+          <UserProfileFileGrid :account-id="accountId" :notes="visibleFilesNotes" />
           <div v-if="isLoadingFiles" :class="$style.stateMessage">
             <LoadingSpinner />
           </div>
