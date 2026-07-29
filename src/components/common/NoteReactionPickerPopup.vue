@@ -145,7 +145,9 @@ defineExpose({ open })
 <style lang="scss" module>
 .reactionPickerPopup {
   position: fixed;
-  transform-origin: top right;
+  // 本家 (MkModal) はアンカーとの位置関係で起点を決める。ピッカーは常に
+  // トリガーの直下に出て水平方向はトリガーを跨ぐので center top 相当になる
+  transform-origin: center top;
   background: color-mix(in srgb, var(--nd-popup, var(--nd-panel)) 96%, transparent);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
