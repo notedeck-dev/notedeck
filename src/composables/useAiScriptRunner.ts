@@ -18,6 +18,7 @@ import type { JsonValue } from '@/bindings'
 import { useCommandStore } from '@/commands/registry'
 import type AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import type { Principal } from '@/permissions/principal'
+import { providerFromPrincipal } from '@/plugins/registrationId'
 import {
   logSourceOfPrincipal,
   useAiScriptLogsStore,
@@ -146,8 +147,8 @@ export function useAiScriptRunner() {
     const ndCtx: NoteDeckEnvContext = {
       commandStore,
       principal: options.principal,
-      registeredCommandIds: [],
-      subscriptions: [],
+      provider: providerFromPrincipal(options.principal),
+      disposers: [],
       getAccountId: () => options.accountId,
     }
     const ndEnv = createNoteDeckEnv(ndCtx)

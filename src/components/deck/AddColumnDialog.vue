@@ -4,6 +4,8 @@ import {
   ACCOUNT_INDEPENDENT_TYPES,
   ACCOUNT_OPTIONAL_TYPES,
   buildColumnDefaults,
+  COLUMN_ICONS,
+  COLUMN_LABELS,
   COLUMN_REGISTRY,
   COLUMN_TYPE_GROUPS,
   CROSS_ACCOUNT_TYPES,
@@ -112,7 +114,7 @@ interface ActiveSelectable {
 
 function getSelectable(type: ColumnType): ActiveSelectable | null {
   const spec = COLUMN_REGISTRY[type]
-  if (!spec.selectable) return null
+  if (!spec?.selectable) return null
   return { type, label: spec.label, spec: spec.selectable }
 }
 
@@ -335,8 +337,8 @@ function close() {
               :class="[$style.addTypeBtn, { [$style.spotlighted]: spotlightStore.spotlights.has(commandItemTargetId(`col-${t}`)) }]"
               @click="selectColumnType(t)"
             >
-              <i class="ti" :class="`ti-${COLUMN_REGISTRY[t].icon}`" />
-              <span>{{ COLUMN_REGISTRY[t].label }}</span>
+              <i class="ti" :class="`ti-${COLUMN_ICONS[t]}`" />
+              <span>{{ COLUMN_LABELS[t] }}</span>
             </button>
           </template>
         </div>
@@ -397,7 +399,7 @@ function close() {
           @click="addSelectableColumn(item)"
         >
           <img v-if="item.avatarUrl" :src="item.avatarUrl" :class="$style.selectItemAvatar" />
-          <i v-else class="ti" :class="`ti-${COLUMN_REGISTRY[selectConfig.type].icon}`" />
+          <i v-else class="ti" :class="`ti-${COLUMN_ICONS[selectConfig.type]}`" />
           <span>{{ item.name }}</span>
         </button>
       </template>

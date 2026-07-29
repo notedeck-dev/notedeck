@@ -6,13 +6,13 @@ import { listCapabilities } from '@/capabilities/registry'
 import type { CapabilitySignature, PermissionKey } from '@/capabilities/types'
 import type { Command, useCommandStore } from '@/commands/registry'
 import type { Principal } from '@/permissions/principal'
+import { makeRegistrationId } from '@/plugins/registrationId'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { version as appVersion } from '../../package.json'
 import {
   type NoteDeckEventName,
   SUPPORTED_EVENT_NAMES,
   subscribeNoteDeckEvent,
-  type Unsubscribe,
 } from './events'
 
 export interface NoteDeckEnvContext {
@@ -25,12 +25,24 @@ export interface NoteDeckEnvContext {
    * populate できない実行文脈は plugin principal を名乗れない (型で強制)。
    */
   principal: Principal
+  /**
+   * 登録アイテムの名前空間になるプラグイン安定キー (#794 未決事項 2)。
+   * `pluginProviderKey` の戻り値 — MisStore 配布物は storeId、ローカル自作は
+   * `local:<installId>`。全登録 ID がこの下に切られるので、プラグイン同士が
+   * 名前で衝突しない。
+   */
+  provider: string
   /** Set after interpreter is created, enables Nd:register_command handlers */
   interpreter?: Interpreter
-  /** Track registered command IDs for cleanup */
-  registeredCommandIds: string[]
-  /** Active Nd:on subscriptions; auto-disposed by cleanupNoteDeckEnv */
-  subscriptions: Unsubscribe[]
+  /**
+   * この env が行った全登録の解除関数 (#794 原則 5)。
+   *
+   * 「プラグインからの登録は必ずコンテキスト経由で行い、停止時に一括解除される」
+   * を単一の配列で表現する。登録面ごとに配列を増やす方式だと、開放面が 1 つ
+   * 増えるたび cleanup 側にも 1 行足す必要があり、#794 が解こうとしている
+   * まだら化を解除側で再発させる。
+   */
+  disposers: Array<() => void>
   /**
    * 呼び出し文脈のアカウントを返すアクセサ (#821)。プラグインは
    * withPluginAccountContext が設定するミュータブル文脈を読むため関数。
@@ -177,13 +189,13 @@ export function createNoteDeckEnv(
         console.warn('[Nd:on]', eventName, e)
       }
     })
-    ctx.subscriptions.push(unsubscribe)
+    ctx.disposers.push(unsubscribe)
 
     // AiScript 側に返す unsubscribe 関数
     return values.FN_NATIVE(() => {
       unsubscribe()
-      const idx = ctx.subscriptions.indexOf(unsubscribe)
-      if (idx >= 0) ctx.subscriptions.splice(idx, 1)
+      const idx = ctx.disposers.indexOf(unsubscribe)
+      if (idx >= 0) ctx.disposers.splice(idx, 1)
     })
   })
 
@@ -203,7 +215,14 @@ export function createNoteDeckEnv(
       utils.assertFunction(handlerVal)
 
       const parsed = parseRegisterCommandOptions(optionsVal)
-      const commandId = `nd-plugin:${idVal.value}`
+      // 旧実装は全プラグイン共通の `nd-plugin:` 名前空間だったため、別々の
+      // プラグインが同じ id を使うと無言で後勝ち上書きされていた
+      const commandId = makeRegistrationId(ctx.provider, idVal.value)
+      if (commandStore.commands.has(commandId)) {
+        throw new Error(
+          `Nd:register_command: "${commandId}" already registered`,
+        )
+      }
       const handler = handlerVal as VFn
       const command: Command = {
         id: commandId,
@@ -240,7 +259,7 @@ export function createNoteDeckEnv(
       if (parsed.signature) command.signature = parsed.signature
 
       commandStore.register(command)
-      ctx.registeredCommandIds.push(commandId)
+      ctx.disposers.push(() => commandStore.unregister(commandId))
     },
   )
 
@@ -252,18 +271,17 @@ export function createNoteDeckEnv(
  * プラグイン abort / カラム破棄 / interpreter 再起動時に呼ばれる。
  */
 export function cleanupNoteDeckEnv(ctx: NoteDeckEnvContext): void {
-  for (const id of ctx.registeredCommandIds) {
-    ctx.commandStore.unregister(id)
-  }
-  ctx.registeredCommandIds.length = 0
-  for (const unsub of ctx.subscriptions) {
+  // 配列を先に空にしてから回す。解除中に例外が出ても未解除分が残らないよう、
+  // また二重 cleanup で同じ disposer が二度走らないようにするため。
+  const disposers = ctx.disposers.splice(0, ctx.disposers.length)
+  for (const dispose of disposers) {
     try {
-      unsub()
+      dispose()
     } catch (e) {
-      console.warn('[cleanupNoteDeckEnv] unsubscribe failed:', e)
+      // 1 つの失敗で残りの解除を止めない (解除漏れの方が被害が大きい)
+      console.warn('[cleanupNoteDeckEnv] dispose failed:', e)
     }
   }
-  ctx.subscriptions.length = 0
 }
 
 function isSupportedEvent(name: string): name is NoteDeckEventName {

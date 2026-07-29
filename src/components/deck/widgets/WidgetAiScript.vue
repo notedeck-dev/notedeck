@@ -25,7 +25,9 @@ import type { JsonValue } from '@/bindings'
 import { useCommandStore } from '@/commands/registry'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import { usePortal } from '@/composables/usePortal'
+import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useToast } from '@/stores/toast'
+import { readSafeMode } from '@/utils/safeMode'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
@@ -131,6 +133,13 @@ watch(
 
 async function run() {
   if (running.value) return
+  // セーフモード (#794) — ウィジェットも AiScript なのでプラグインと同格に止める。
+  // 自動実行 / 再実行シグナル / 手動実行が全部ここを通る。
+  // 無言の空白にせず理由を出す (silent no-op はユーザーが原因を追えない)
+  if (readSafeMode()) {
+    error.value = 'セーフモードのため実行されません'
+    return
+  }
   running.value = true
   error.value = null
   uiComponents.value = []
@@ -218,8 +227,11 @@ async function run() {
       pluginId: `widget:${props.widget.installId}`,
       name: props.widget.name,
     },
-    registeredCommandIds: [] as string[],
-    subscriptions: [],
+    provider: providerFromPrincipal(
+      { kind: 'plugin', pluginId: `widget:${props.widget.installId}` },
+      props.widget.storeId,
+    ),
+    disposers: [],
     getAccountId: () => props.accountId,
   }
   const ndEnv = createNoteDeckEnv(ndCtx)

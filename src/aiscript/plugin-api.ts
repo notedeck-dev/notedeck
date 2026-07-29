@@ -8,6 +8,7 @@ import {
 import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
 import type { JsonValue } from '@/bindings'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
+import { pluginProviderKey } from '@/plugins/registrationId'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   type AiScriptRunLogger,
@@ -20,6 +21,7 @@ import {
   usePluginsStore,
 } from '@/stores/plugins'
 import { useToast } from '@/stores/toast'
+import { readSafeMode } from '@/utils/safeMode'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
 import { createAiScriptEnv } from './api'
@@ -486,6 +488,9 @@ export function applyNotePostInterruptors<T>(
 const pluginRunLoggers = new Map<string, AiScriptRunLogger>()
 
 export async function launchPlugin(plugin: PluginMeta): Promise<void> {
+  // セーフモード (#794) — 起動経路を 1 箇所で塞ぐ。プラグイン管理からの手動
+  // 再起動もここを通るので、追加の gate は要らない
+  if (readSafeMode()) return
   if (!plugin.src || !plugin.active) return
 
   // Abort existing instance if re-launching
@@ -528,8 +533,8 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
       pluginId: plugin.installId,
       name: plugin.name,
     },
-    registeredCommandIds: [],
-    subscriptions: [],
+    provider: pluginProviderKey(plugin),
+    disposers: [],
     // Nd:call が Mk:api と同じアカウント文脈 (withPluginAccountContext) を
     // 参照する (#821)
     getAccountId: () => ctx.accountId,

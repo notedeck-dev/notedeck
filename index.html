@@ -23,9 +23,23 @@
       // Linear-style instant display: restore cached UI shell, or show splash.
       (function () {
         var root = document.documentElement
+        // 0. Safe mode (#794). CLI 引数 (--safe-mode → Rust の initialization script)
+        //    と URL クエリを localStorage の 1 キーへ畳み込む。以降アプリ全体は
+        //    このキーだけを見る (src/utils/safeMode.ts と同じリテラル)。
+        var safeMode = false
+        try {
+          safeMode =
+            localStorage.getItem('nd-safe-mode') === 'true' ||
+            window.__ND_SAFE_MODE_ARG__ === true ||
+            new URLSearchParams(location.search).get('safemode') === 'true'
+          if (safeMode) localStorage.setItem('nd-safe-mode', 'true')
+        } catch (e) {
+          // localStorage 不可 — 通常起動として続行
+        }
         try {
           // 1. Restore theme CSS variables (same data themeStore.init reads later)
-          var compiled = localStorage.getItem('nd-theme-compiled')
+          //    セーフモードではユーザーテーマを一切当てない (既定テーマで描画する)
+          var compiled = safeMode ? null : localStorage.getItem('nd-theme-compiled')
           if (compiled) {
             var vars = JSON.parse(compiled)
             for (var k in vars) {

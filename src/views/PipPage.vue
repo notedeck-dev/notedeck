@@ -13,6 +13,7 @@ import { COLUMN_COMPONENTS, COLUMN_LABELS } from '@/columns/registry'
 import AppToast from '@/components/common/AppToast.vue'
 import AppTooltip from '@/components/common/AppTooltip.vue'
 import AddColumnDialog from '@/components/deck/AddColumnDialog.vue'
+import ColumnTombstone from '@/components/deck/ColumnTombstone.vue'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { useThemeStore } from '@/stores/theme'
@@ -437,8 +438,14 @@ onMounted(async () => {
     <!-- Render the selected column -->
     <template v-else>
       <component
+        v-if="COLUMN_COMPONENTS[selectedColumn.type]"
         :is="COLUMN_COMPONENTS[selectedColumn.type]"
         :column="selectedColumn"
+      />
+      <ColumnTombstone
+        v-else
+        :col-id="selectedColumn.id"
+        :type="selectedColumn.type"
       />
     </template>
 

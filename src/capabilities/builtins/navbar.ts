@@ -1,7 +1,9 @@
+import { isColumnType } from '@/columns/registry'
 import type { Command } from '@/commands/registry'
 import {
   type ColumnType,
   DEFAULT_NAV_ITEMS,
+  isNavDivider,
   type NavItem,
   useDeckStore,
 } from '@/stores/deck'
@@ -19,48 +21,6 @@ import {
  *   基本構造のみ AI 操作対象。複雑な columnProps が必要なら手で UI から触る
  *   (= AI 用 API はシンプルに保つ)
  */
-
-const VALID_COLUMN_TYPES: readonly ColumnType[] = [
-  'timeline',
-  'notifications',
-  'search',
-  'list',
-  'antenna',
-  'favorites',
-  'clip',
-  'user',
-  'mentions',
-  'channel',
-  'role',
-  'specified',
-  'chat',
-  'widget',
-  'aiscript',
-  'play',
-  'page',
-  'ai',
-  'announcements',
-  'drive',
-  'gallery',
-  'explore',
-  'followRequests',
-  'achievements',
-  'apiConsole',
-  'apiDocs',
-  'lookup',
-  'serverInfo',
-  'ads',
-  'aboutMisskey',
-  'emoji',
-  'streamInspector',
-  'pluginManager',
-  'themeManager',
-  'taskRunner',
-  'memos',
-  'charts',
-  'federation',
-  'skill',
-] as const
 
 /** AI 入力 (JSON) を NavItem[] に変換しつつ最小限の sanity check。 */
 function parseNavItems(input: unknown): NavItem[] {
@@ -81,7 +41,9 @@ function parseNavItems(input: unknown): NavItem[] {
     if (typeof obj.type !== 'string') {
       throw new Error(`navbar.set: item #${i} missing string "type"`)
     }
-    if (!VALID_COLUMN_TYPES.includes(obj.type as ColumnType)) {
+    // 手書きの許可リストではなくレジストリ照会 (#794 W2)。実行時登録された
+    // プラグイン定義カラムもナビバーに置ける
+    if (!isColumnType(obj.type)) {
       throw new Error(`navbar.set: item #${i} has unknown type "${obj.type}"`)
     }
     const item: NavItem = {
@@ -121,7 +83,7 @@ export const navbarListCapability: Command = {
   execute: () => {
     const store = useDeckStore()
     return store.navItems.map((item) => {
-      if (item.type === 'divider') return { type: 'divider' as const }
+      if (isNavDivider(item)) return { type: 'divider' as const }
       return {
         type: item.type,
         accountId: item.accountId,
@@ -196,7 +158,7 @@ export const navbarResetCapability: Command = {
     message: `現在のカスタム構成を破棄し、デフォルトの ${DEFAULT_NAV_ITEMS.length} 項目に戻します。`,
     code: JSON.stringify(
       DEFAULT_NAV_ITEMS.map((i) =>
-        i.type === 'divider'
+        isNavDivider(i)
           ? { type: 'divider' }
           : { type: i.type, accountId: i.accountId },
       ),

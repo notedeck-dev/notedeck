@@ -35,6 +35,7 @@ import { type SkillMeta, useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
 import { timestampTitle } from '@/utils/aiSessionTitle'
 import { sendDesktopNotification } from '@/utils/desktopNotification'
+import { readSafeMode } from '@/utils/safeMode'
 import { isTauri } from '@/utils/settingsFs'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
 import { listenTauri } from '@/utils/tauriEvents'
@@ -364,6 +365,11 @@ const HEARTBEAT_TITLE_SYSTEM_PROMPT =
   'あなたは HEARTBEAT 通知の要約タイトル生成アシスタントです。与えられた通知内容を端的に表す短い日本語のタイトルを 1 行で出力してください。20 文字程度 (最大 40 文字) に収めること。引用符、前置き、改行、絵文字、文末句点は付けないでください。タイトルのみを返してください。'
 
 export function useHeartbeatDaemon() {
+  // セーフモード (#794) — 常駐して AI 推論を回す global daemon なので、
+  // 第三者コードと同格に止める。App.vue の mount より手前で抜けるので
+  // Rust scheduler への configure も listen も一切行われない
+  if (readSafeMode()) return
+
   const { config } = useAiConfig()
   const sessionsStore = useAiSessionsStore()
   const accountsStore = useAccountsStore()

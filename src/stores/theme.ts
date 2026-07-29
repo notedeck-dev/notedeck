@@ -14,6 +14,7 @@ import { compileMisskeyTheme } from '@/theme/compiler'
 import { CustomCssManager } from '@/theme/cssApplier'
 import type { CompiledProps, MisskeyTheme, ThemeSource } from '@/theme/types'
 import { pushSnapshot } from '@/utils/historyFs'
+import { readSafeMode } from '@/utils/safeMode'
 import * as settingsFs from '@/utils/settingsFs'
 import {
   getStorageJson,
@@ -127,10 +128,11 @@ export const useThemeStore = defineStore('theme', () => {
     // This is NOT a source of truth — just a rendering cache to avoid a
     // white flash. The actual theme preference comes from settingsStore
     // (already loaded via await in main.ts).
-    const storedCompiled = getStorageJson<CompiledProps | null>(
-      STORAGE_KEYS.themeCompiled,
-      null,
-    )
+    // セーフモード (#794) では FOUC 防止のキャッシュ復元もしない
+    // (index.html の boot script も同じ理由で復元をスキップしている)
+    const storedCompiled = readSafeMode()
+      ? null
+      : getStorageJson<CompiledProps | null>(STORAGE_KEYS.themeCompiled, null)
     if (storedCompiled) {
       applyTheme(storedCompiled)
     }
@@ -200,9 +202,12 @@ export const useThemeStore = defineStore('theme', () => {
   function applyCurrentTheme(): void {
     const apply = () => {
       const dark = wantsDark()
-      const selectedId = dark
-        ? selectedDarkThemeId.value
-        : selectedLightThemeId.value
+      // セーフモード (#794) — ユーザーテーマは一切当てず組込テーマに固定する
+      const selectedId = readSafeMode()
+        ? null
+        : dark
+          ? selectedDarkThemeId.value
+          : selectedLightThemeId.value
       let custom = selectedId
         ? installedThemes.value.find((t) => t.id === selectedId)
         : null
@@ -479,6 +484,9 @@ export const useThemeStore = defineStore('theme', () => {
   const cssManager = new CustomCssManager()
 
   function applyCustomCss(css: string): void {
+    // セーフモード (#794) — 起動時復元だけでなく CSS エディタからの保存も
+    // 塞ぐ。「編集はできるが効かない」を一箇所で保証する
+    if (readSafeMode()) return
     cssManager.apply(css)
   }
 
@@ -664,6 +672,9 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   function getCompiledForAccount(accountId: string): CompiledProps | null {
+    // セーフモード (#794) — per-account のカラムテーマも当てない。
+    // getStyleVarsForAccount もここを通るので gate は 1 箇所でよい
+    if (readSafeMode()) return null
     void accountThemeCache.value // reactive 依存確立 (上記同様)
     const cacheKey = accountCacheKey(accountId)
 
