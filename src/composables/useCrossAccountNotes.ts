@@ -1,4 +1,4 @@
-import { computed, onMounted, type Ref, shallowRef } from 'vue'
+import { computed, onMounted, type Ref, shallowRef, watch } from 'vue'
 import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import {
@@ -9,6 +9,7 @@ import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
+import { useSuspensionsStore } from '@/stores/suspensions'
 import { mapWithConcurrency } from '@/utils/concurrency'
 import { AppError } from '@/utils/errors'
 import { createWorkerClient } from '@/utils/workerClient'
@@ -107,6 +108,10 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   // 取得した生データ。表示用 notes はミュート/削除を表示時に除外（#606 / #574）
   const rawNotes = shallowRef<NormalizedNote[]>([])
   const notes = computed(() => rawNotes.value.filter((n) => !isHidden(n)))
+
+  // 凍結 probe の供給点（#828）。per-account fetch 完了ごとに rawNotes が
+  // 差し替わるので、ここ 1 点で全経路を拾える（TTL・dedupe はストア側）
+  watch(rawNotes, (items) => useSuspensionsStore().probeNotes(items))
   const { noteScrollerRef } = useNoteScrollerRef(scroller)
 
   function scrollToTop() {

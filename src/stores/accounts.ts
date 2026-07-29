@@ -4,6 +4,7 @@ import { destroyAdapter } from '@/adapters/factory'
 import type { ServerSoftware } from '@/adapters/types'
 import { deleteAllMemos } from '@/composables/useMemos'
 import { invalidateResolutionCache } from '@/services/entityResolution'
+import { useSuspensionsStore } from '@/stores/suspensions'
 import { removeStorage, STORAGE_KEYS } from '@/utils/storage'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -164,6 +165,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     // Clean up localStorage caches associated with this account
     removeStorage(STORAGE_KEYS.notificationCache(id))
     removeStorage(STORAGE_KEYS.policies(id))
+    useSuspensionsStore().purgeAccount(id)
     deleteAllMemos(id)
   }
 

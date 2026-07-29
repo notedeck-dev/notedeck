@@ -17,6 +17,10 @@ const noteColumnConfig: NoteColumnConfig = {
   cache: {
     getKey: () => (props.column.clipId ? `clip:${props.column.clipId}` : null),
   },
+  // カラム化できるのは自分のクリップとお気に入りしたクリップ（picker 経由）
+  // = 自分が保存した面なので凍結は貫通させる。他人のクリップは
+  // ClipDetail ウィンドウで開かれ、そちらは全適用（#606）
+  visibility: { ignoreSuspension: true },
 }
 
 const { rename, deleteEntity, config } = useEntityCrud(

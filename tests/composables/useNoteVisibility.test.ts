@@ -4,6 +4,7 @@ import type { NormalizedNote, NormalizedNotification } from '@/adapters/types'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { useMutesStore } from '@/stores/mutes'
 import { useNoteStore } from '@/stores/notes'
+import { useSuspensionsStore } from '@/stores/suspensions'
 
 function makeNote(
   id: string,
@@ -332,5 +333,103 @@ describe('useNoteVisibility instance mute (#613)', () => {
     })
     instanceMuteStore.setMutedInstances('acc1', ['bad.example'])
     expect(isHidden(note)).toBe(true)
+  })
+})
+
+describe('useNoteVisibility 凍結と面別 opt-out (#828 / #606)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('凍結ユーザーのノートを隠す (投稿者 / reply 先 / renote 元)', () => {
+    const { isHidden } = useNoteVisibility()
+    useSuspensionsStore().applyProbeResult('acc1', { suspended: ['banned'] })
+
+    expect(isHidden(makeNote('1', 'banned'))).toBe(true)
+    expect(
+      isHidden(makeNote('2', 'ok', { reply: makeNote('3', 'banned') })),
+    ).toBe(true)
+    expect(
+      isHidden(makeNote('4', 'ok', { renote: makeNote('5', 'banned') })),
+    ).toBe(true)
+    expect(isHidden(makeNote('6', 'ok'))).toBe(false)
+  })
+
+  it('凍結解除でリロード無しに復活する', () => {
+    const { isHidden } = useNoteVisibility()
+    const suspensions = useSuspensionsStore()
+    const note = makeNote('1', 'banned')
+
+    suspensions.applyProbeResult('acc1', { suspended: ['banned'] })
+    expect(isHidden(note)).toBe(true)
+
+    suspensions.applyProbeResult('acc1', { cleared: ['banned'] })
+    expect(isHidden(note)).toBe(false)
+  })
+
+  it('ignoreSuspension は凍結だけを貫通し、ミュートは適用したままにする', () => {
+    const { isHidden } = useNoteVisibility()
+    useSuspensionsStore().applyProbeResult('acc1', { suspended: ['banned'] })
+    useMutesStore().muteUser('acc1', 'muted')
+
+    const opts = { ignoreSuspension: true }
+    expect(isHidden(makeNote('1', 'banned'), opts)).toBe(false)
+    // 自分の意思であるミュートは保存面でも効かせる
+    expect(isHidden(makeNote('2', 'muted'), opts)).toBe(true)
+  })
+
+  it('ignoreSubject は対象由来を全て貫通し、内容由来は適用したままにする', () => {
+    const { isHidden } = useNoteVisibility()
+    const mutes = useMutesStore()
+    const noteStore = useNoteStore()
+    useSuspensionsStore().applyProbeResult('acc1', { suspended: ['banned'] })
+    mutes.muteUser('acc1', 'muted')
+    mutes.setMutedInstances('acc1', ['bad.example'])
+    mutes.setMutedWords('acc1', [], [['ngword']])
+
+    const opts = { ignoreSubject: true }
+    // 対象由来: ユーザーミュート / インスタンスミュート / 凍結
+    expect(isHidden(makeNote('1', 'banned'), opts)).toBe(false)
+    expect(isHidden(makeNote('2', 'muted'), opts)).toBe(false)
+    expect(
+      isHidden(
+        makeNote('3', 'remote', {
+          user: {
+            id: 'remote',
+            username: 'remote',
+            host: 'bad.example',
+            avatarUrl: null,
+          },
+        }),
+        opts,
+      ),
+    ).toBe(false)
+
+    // 内容由来: ワードミュートと削除 tombstone は貫通させない
+    expect(isHidden(makeNote('4', 'ok', { text: 'a ngword b' }), opts)).toBe(
+      true,
+    )
+    const deleted = makeNote('5', 'ok')
+    noteStore.put([deleted])
+    noteStore.remove(deleted.id)
+    expect(isHidden(deleted, opts)).toBe(true)
+  })
+
+  it('凍結された notifier の通知を隠し、grouped からも除外する', () => {
+    const { isNotificationHidden, visibleReactions } = useNoteVisibility()
+    useSuspensionsStore().applyProbeResult('acc1', { suspended: ['banned'] })
+
+    expect(
+      isNotificationHidden(makeNotif('reaction', { user: makeUser('banned') })),
+    ).toBe(true)
+
+    const grouped = makeNotif('reaction:grouped', {
+      reactions: [
+        { reaction: '👍', user: makeUser('banned') },
+        { reaction: '👍', user: makeUser('ok') },
+      ],
+    } as Partial<NormalizedNotification>)
+    expect(visibleReactions(grouped).map((r) => r.user.id)).toEqual(['ok'])
+    expect(isNotificationHidden(grouped)).toBe(false)
   })
 })
