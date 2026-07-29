@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
 import { launchPlugin, parsePluginMeta } from '@/aiscript/plugin-api'
+import { useColumnQueriesStore } from '@/stores/columnQueries'
 import {
   type PluginMeta,
   type PluginScope,
@@ -32,6 +33,10 @@ export function getThemeDetailUrl(id: string): string {
 
 export function getSkillDetailUrl(id: string): string {
   return `${STORE_BASE_URL}/skills/${encodeURIComponent(id)}`
+}
+
+export function getQueryDetailUrl(id: string): string {
+  return `${STORE_BASE_URL}/queries/${encodeURIComponent(id)}`
 }
 
 // --- MisStore types (mirrors misstore registry schema) ---
@@ -134,6 +139,38 @@ export function skillCategoryLabel(category: string): string {
   return SKILL_CATEGORY_LABELS[category] ?? category
 }
 
+export type QueryCategory = 'hide' | 'focus' | 'watch' | 'other'
+
+const QUERY_CATEGORY_LABELS: Record<string, string> = {
+  hide: 'Hide',
+  focus: 'Focus',
+  watch: 'Watch',
+  other: 'Other',
+}
+
+export function queryCategoryLabel(category: string): string {
+  return QUERY_CATEGORY_LABELS[category] ?? category
+}
+
+/** カラムクエリ (#783)。registry スキーマは misstore 側 QueryEntry と同型 */
+export interface StoreQueryEntry {
+  id: string
+  name: string
+  version: string
+  author: string
+  description: string
+  category: QueryCategory
+  tags: string[]
+  sourceUrl: string
+  apiUrl: string
+  sha512: string
+  createdAt: string
+  updatedAt: string
+  authorUrl?: string
+  license?: string
+  iconUrl?: string
+}
+
 export interface StoreSkillEntry {
   id: string
   name: string
@@ -194,6 +231,12 @@ export const useMisStoreStore = defineStore('misstore', () => {
   const installingSkill = ref<string | null>(null)
   let skillsLastFetchedAt = 0
 
+  const queryEntries = shallowRef<StoreQueryEntry[]>([])
+  const queriesLoading = ref(false)
+  const queriesError = ref<string | null>(null)
+  const installingQuery = ref<string | null>(null)
+  let queriesLastFetchedAt = 0
+
   const isCacheValid = () => Date.now() - lastFetchedAt < CACHE_TTL_MS
   const isThemesCacheValid = () =>
     Date.now() - themesLastFetchedAt < CACHE_TTL_MS
@@ -201,6 +244,8 @@ export const useMisStoreStore = defineStore('misstore', () => {
     Date.now() - widgetsLastFetchedAt < CACHE_TTL_MS
   const isSkillsCacheValid = () =>
     Date.now() - skillsLastFetchedAt < CACHE_TTL_MS
+  const isQueriesCacheValid = () =>
+    Date.now() - queriesLastFetchedAt < CACHE_TTL_MS
 
   async function fetchPlugins(): Promise<void> {
     if (isCacheValid() && plugins.value.length > 0) return
@@ -375,6 +420,78 @@ export const useMisStoreStore = defineStore('misstore', () => {
     return skillsStore.skills.some(
       (s) => s.storeId === entry.id || s.id === entry.id,
     )
+  }
+
+  // --- Queries (#783 カラムクエリ) ---
+
+  async function fetchQueries(): Promise<void> {
+    if (isQueriesCacheValid() && queryEntries.value.length > 0) return
+    queriesLoading.value = true
+    queriesError.value = null
+    try {
+      const res = await fetch(`${STORE_BASE_URL}/registry/queries.json`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      queryEntries.value = data.queries ?? []
+      queriesLastFetchedAt = Date.now()
+    } catch (e) {
+      queriesError.value = e instanceof Error ? e.message : 'fetch failed'
+    } finally {
+      queriesLoading.value = false
+    }
+  }
+
+  function refreshQueries(): Promise<void> {
+    queriesLastFetchedAt = 0
+    return fetchQueries()
+  }
+
+  /**
+   * MisStore からカラムクエリのソースを取得して名前付きクエリプールへ保存する。
+   * 配布はソースのみ・ローカルで必ず再コンパイルされる (#783 不変条件 (e))。
+   * 導入してもカラムへの自動適用はしない (自動有効化なし、V18)。
+   * 既存の同 storeId は上書き更新 (再インストール = アップデート)。
+   */
+  async function installQuery(entry: StoreQueryEntry): Promise<void> {
+    installingQuery.value = entry.id
+    try {
+      const res = await fetch(entry.sourceUrl)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const source = await res.text()
+
+      const hash = await computeSha512(source)
+      if (hash !== entry.sha512) {
+        throw new Error(
+          'ハッシュ不一致: ソースが改ざんされている可能性があります',
+        )
+      }
+
+      const queriesStore = useColumnQueriesStore()
+      queriesStore.ensureLoaded()
+      const existing = queriesStore.queries.find((q) => q.storeId === entry.id)
+      if (existing) {
+        await queriesStore.updateQuery(existing.id, {
+          name: entry.name,
+          description: entry.description,
+          src: source,
+        })
+      } else {
+        await queriesStore.createQuery({
+          name: entry.name,
+          description: entry.description,
+          src: source,
+          storeId: entry.id,
+        })
+      }
+    } finally {
+      installingQuery.value = null
+    }
+  }
+
+  function isQueryInstalled(entry: StoreQueryEntry): boolean {
+    const queriesStore = useColumnQueriesStore()
+    queriesStore.ensureLoaded()
+    return queriesStore.queries.some((q) => q.storeId === entry.id)
   }
 
   // --- Install ---
@@ -598,6 +715,14 @@ export const useMisStoreStore = defineStore('misstore', () => {
     installTheme,
     installWidget,
     installSkill,
+    queries: queryEntries,
+    queriesLoading,
+    queriesError,
+    installingQuery,
+    fetchQueries,
+    refreshQueries,
+    installQuery,
+    isQueryInstalled,
     isInstalled,
     isThemeInstalled,
     isWidgetInstalled,
