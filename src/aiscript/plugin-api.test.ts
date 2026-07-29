@@ -568,6 +568,23 @@ describe('abort / launchAll', () => {
   })
 })
 
+describe('セーフモード (#794)', () => {
+  afterEach(() => {
+    localStorage.removeItem('nd-safe-mode')
+  })
+
+  it('セーフモード中は active なプラグインでも起動しない', async () => {
+    localStorage.setItem('nd-safe-mode', 'true')
+    await installAndLaunch('Plugin:register_note_action("A", @(note) { note })')
+    expect(getPluginHandlers('note_action')).toHaveLength(0)
+  })
+
+  it('セーフモード解除後は通常どおり起動する', async () => {
+    await installAndLaunch('Plugin:register_note_action("A", @(note) { note })')
+    expect(getPluginHandlers('note_action')).toHaveLength(1)
+  })
+})
+
 describe('Mk:toast (プラグイン env の配線)', () => {
   // onToast 未配線だと Mk:toast が無言の no-op になり、プラグインからの
   // 成否フィードバックがユーザーに一切届かない (実機で「押しても無反応」)
