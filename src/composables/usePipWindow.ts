@@ -1,7 +1,8 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { DeckColumn } from '@/stores/deck'
-import { WINDOW_SIZES, type WindowType } from '@/stores/windows'
+import type { WindowType } from '@/stores/windows'
 import { listenTauri } from '@/utils/tauriEvents'
+import { WINDOW_SIZES } from '@/windows/registry'
 
 const PIP_WIDTH = 360
 const PIP_HEIGHT = 640

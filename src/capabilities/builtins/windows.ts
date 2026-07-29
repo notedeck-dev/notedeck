@@ -1,9 +1,6 @@
 import type { Command } from '@/commands/registry'
-import {
-  useWindowsStore,
-  WINDOW_SIZES,
-  type WindowType,
-} from '@/stores/windows'
+import { useWindowsStore, type WindowType } from '@/stores/windows'
+import { WINDOW_SIZES } from '@/windows/registry'
 
 /**
  * Windows 系 capability — DeckWindow (= 一時 UI、設定エディタ / プロファイル
@@ -17,13 +14,13 @@ import {
  * - windows.close も確認 UI 無し (= 不要なウィンドウを片付けるための片手間)
  * - windows.closeAll は念のため warning 確認 (= 大量同時破棄が起きるので意図確認)
  * - WindowType の enum を embed して AI に valid な type を伝える
- *   (enum はレジストリ相当の WINDOW_SIZES から導出する)
+ *   (enum はウィンドウレジストリから導出する)
  */
 
 /**
  * AI から開ける DeckWindow 種別 (#794 W2)。
  *
- * 手書きの列挙をやめ WINDOW_SIZES から導出する。WINDOW_SIZES は
+ * 手書きの列挙をやめウィンドウレジストリ (#794 W6) から導出する。レジストリは
  * `Record<WindowType, _>` なので、ウィンドウ種別を足せば必ずここにも載る
  * (手書き時代は drive-file-detail / connections / connectionEdit / tutorial の
  * 4 種が漏れていた)。

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { WINDOW_SIZES } from '@/stores/windows'
+import { WINDOW_SIZES } from '@/windows/registry'
 import {
   WINDOWS_BUILTIN_CAPABILITIES,
   windowsCloseAllCapability,
