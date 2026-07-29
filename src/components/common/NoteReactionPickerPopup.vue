@@ -24,7 +24,10 @@ const emit = defineEmits<{
 const $style = useCssModule()
 const { isCompactLayout: isCompact } = storeToRefs(useUiStore())
 const show = ref(false)
-const pos = ref({ x: 0, y: 0 })
+// 右端揃え。left + translateX(-100%) だと中身 (async component) がロード
+// されるまで幅 0 で左端が右端に来てしまい、初回だけ隣のカラムにはみ出して
+// から本来の位置に飛ぶ。right 指定なら幅に依存せず最初から確定する。
+const pos = ref({ right: 0, y: 0 })
 const theme = ref<Record<string, string>>({})
 const pickerRef = ref<HTMLElement | null>(null)
 const dialogRef = ref<HTMLDialogElement | null>(null)
@@ -78,7 +81,10 @@ function open(anchor: MouseEvent | HTMLElement) {
   const column = btn.closest(COLUMN_SELECTOR) as HTMLElement | null
   const colRect = column?.getBoundingClientRect()
   const rightEdge = colRect ? colRect.right - 8 : rect.right
-  pos.value = { x: rightEdge, y: rect.bottom + 4 }
+  pos.value = {
+    right: document.documentElement.clientWidth - rightEdge,
+    y: rect.bottom + 4,
+  }
   if (column) theme.value = extractThemeVars(column)
   if (show.value) {
     close()
@@ -102,7 +108,7 @@ defineExpose({ open })
     ref="pickerRef"
     popover="manual"
     :class="contentClass"
-    :style="{ ...theme, top: pos.y + 'px', left: pos.x + 'px' }"
+    :style="{ ...theme, top: pos.y + 'px', right: pos.right + 'px' }"
   >
     <MkReactionPicker
       :server-host="serverHost"
@@ -139,7 +145,9 @@ defineExpose({ open })
 <style lang="scss" module>
 .reactionPickerPopup {
   position: fixed;
-  transform: translateX(-100%);
+  // 本家 (MkModal) はアンカーとの位置関係で起点を決める。ピッカーは常に
+  // トリガーの直下に出て水平方向はトリガーを跨ぐので center top 相当になる
+  transform-origin: center top;
   background: color-mix(in srgb, var(--nd-popup, var(--nd-panel)) 96%, transparent);
   border-radius: 12px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
@@ -148,7 +156,6 @@ defineExpose({ open })
 
   .mobileBackdrop & {
     position: static;
-    transform: none;
     width: 100%;
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
@@ -164,8 +171,8 @@ defineExpose({ open })
 /* Desktop popup content — scale + fade */
 .popupContentEnter { animation: reactionPickerIn 0.2s var(--nd-ease-spring); }
 .popupContentLeave { animation: reactionPickerOut var(--nd-duration-fast) var(--nd-ease-decel) forwards; }
-@keyframes reactionPickerIn { from { opacity: 0; transform: translateX(-100%) scale(0.85); } }
-@keyframes reactionPickerOut { to { opacity: 0; transform: translateX(-100%) scale(0.9); } }
+@keyframes reactionPickerIn { from { opacity: 0; transform: scale(0.85); } }
+@keyframes reactionPickerOut { to { opacity: 0; transform: scale(0.9); } }
 
 /* Mobile sheet backdrop */
 .sheetEnter { animation: sheetBdIn var(--nd-duration-base) var(--nd-ease-decel); }

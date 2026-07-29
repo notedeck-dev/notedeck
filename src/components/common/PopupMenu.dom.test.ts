@@ -22,6 +22,16 @@ describe('PopupMenu: compact レイアウトでボトムシート表示 (#764)',
       configurable: true,
       value: viewportWidth,
     })
+    // happy-dom はレイアウトを持たず clientWidth/Height が 0 になるため、
+    // はみ出し補正が常に発火しないよう明示する
+    Object.defineProperty(document.documentElement, 'clientWidth', {
+      configurable: true,
+      value: viewportWidth,
+    })
+    Object.defineProperty(document.documentElement, 'clientHeight', {
+      configurable: true,
+      value: 800,
+    })
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -49,6 +59,26 @@ describe('PopupMenu: compact レイアウトでボトムシート表示 (#764)',
     return new MouseEvent('click', { clientX: 100, clientY: 50 })
   }
 
+  // 位置確定は popover 表示後 (nextTick → rAF) なので両方待つ
+  async function flushPosition() {
+    await nextTick()
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+  }
+
+  /** カラム外に置いたトリガーボタン (rect をモック) から open させる */
+  function mountTrigger(
+    menuRef: ReturnType<typeof mountMenu>,
+    rect: Partial<DOMRect>,
+  ) {
+    const trigger = document.createElement('button')
+    trigger.getBoundingClientRect = () => rect as DOMRect
+    document.body.appendChild(trigger)
+    const handler = (e: Event) => menuRef.value?.open(e as MouseEvent)
+    trigger.addEventListener('click', handler)
+    trigger.addEventListener('contextmenu', handler)
+    return trigger
+  }
+
   it('狭いビューポートでは設定メニューと同じ dialog ホストのシートとして描画される', async () => {
     const menuRef = mountMenu(375)
     menuRef.value?.open(openEvent())
@@ -71,7 +101,7 @@ describe('PopupMenu: compact レイアウトでボトムシート表示 (#764)',
   it('広いビューポートでは従来どおり押下点にアンカーされる', async () => {
     const menuRef = mountMenu(1280)
     menuRef.value?.open(openEvent())
-    await nextTick()
+    await flushPosition()
 
     const root = container?.querySelector('[popover]') as HTMLElement
     expect(root).toBeTruthy()
@@ -80,6 +110,59 @@ describe('PopupMenu: compact レイアウトでボトムシート表示 (#764)',
     expect(root.style.left).toBe('104px')
     expect(root.style.top).toBe('60px')
     expect(container?.querySelector('dialog')).toBeNull()
+  })
+
+  it('ボタン押下時は本家と同じくボタンの水平中央揃え + 直下に開く', async () => {
+    const menuRef = mountMenu(1280)
+    const trigger = mountTrigger(menuRef, {
+      left: 400,
+      right: 424,
+      top: 100,
+      bottom: 124,
+      width: 24,
+      height: 24,
+    })
+
+    trigger.dispatchEvent(
+      new MouseEvent('click', { clientX: 410, clientY: 110, bubbles: true }),
+    )
+    await flushPosition()
+
+    const root = container?.querySelector('[popover]') as HTMLElement
+    // ボタン中央 (400 + 24/2 = 412) - メニュー幅/2 (テスト環境では 0)
+    expect(root.style.left).toBe('412px')
+    // ボタン直下
+    expect(root.style.top).toBe('124px')
+
+    trigger.remove()
+  })
+
+  it('右クリック時は本家と同じく押下点を左上頂点にする', async () => {
+    const menuRef = mountMenu(1280)
+    const trigger = mountTrigger(menuRef, {
+      left: 400,
+      right: 424,
+      top: 100,
+      bottom: 124,
+      width: 24,
+      height: 24,
+    })
+
+    trigger.dispatchEvent(
+      new MouseEvent('contextmenu', {
+        clientX: 100,
+        clientY: 50,
+        bubbles: true,
+      }),
+    )
+    await flushPosition()
+
+    const root = container?.querySelector('[popover]') as HTMLElement
+    // トリガー要素ではなく押下点が基準
+    expect(root.style.left).toBe('104px')
+    expect(root.style.top).toBe('60px')
+
+    trigger.remove()
   })
 
   it('シートの backdrop タップで閉じ、メニュー項目タップでは閉じない', async () => {

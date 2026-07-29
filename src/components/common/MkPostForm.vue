@@ -1076,6 +1076,7 @@ function onPaste(e: ClipboardEvent) {
     <!-- Post form buttons picker (below post form) -->
     <MkPostFormButtonsPicker
       v-if="showPostFormButtonsPicker"
+      :style="formThemeVars"
       @close="showPostFormButtonsPicker = false"
     />
 
