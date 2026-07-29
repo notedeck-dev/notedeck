@@ -416,6 +416,20 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 | `ignoreSuspension` | 凍結のみ | 自分が保存した面（お気に入り・自クリップ・詳細の祖先スレッド） |
 | `ignoreSubject` | 対象由来を全て | 明示的に開いた面（プロフィール） |
 
+面別マトリクス（本家の read-time フィルタ挙動に準拠）:
+
+| 面 | opts |
+|----|------|
+| TL 全種 / リスト / アンテナ / チャンネル / ロール / メンション / explore / 検索 / 通知 | なし（全適用） |
+| お気に入り / クリップカラム（自分 + お気に入りしたクリップ） | `ignoreSuspension` |
+| クリップ詳細ウィンドウ | 自分のクリップなら `ignoreSuspension`、他人なら なし |
+| ノート詳細・Lookup の本体ノート | 述語を通さない |
+| ノート詳細・Lookup の祖先スレッド | `ignoreSuspension` |
+| ノート詳細・Lookup の返信ツリー | なし |
+| プロフィール（ノート / ファイル / ユーザーカラム） | `ignoreSubject` |
+
+カラム系は `NoteColumnConfig.visibility` で指定し `useNoteList` へ透過する。独自 ref の面は `filterVisible(notes, opts)` を表示用 computed で使う（書込基底は unfiltered のまま）。「見えているもの」の下流供給（`reportVisibleItems`）には述語適用後を渡す。
+
 **凍結ストア（`stores/suspensions.ts`）:**
 
 サーバーで凍結（または削除）されたユーザーの per-account 集合。mutes は「自分の意思」、こちらは「サーバー側の事実」なので相乗りさせない。SQLite キャッシュは触らないので、凍結解除で自動的に表示が戻る。

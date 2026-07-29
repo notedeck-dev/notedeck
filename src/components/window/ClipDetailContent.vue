@@ -6,6 +6,7 @@ import type { Clip } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
+import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
@@ -53,6 +54,13 @@ const {
 
 const isOwnClip = computed(
   () => !!clip.value && clip.value.userId === account.value?.userId,
+)
+
+// 自分のクリップは「自分が保存した面」なので凍結を貫通させる。他人のクリップは
+// 一覧面と同じ全適用（本家 clips/notes も凍結を弾く）（#606）
+const { filterVisible } = useNoteVisibility()
+const visibleNotes = computed(() =>
+  filterVisible(notes.value, { ignoreSuspension: isOwnClip.value }),
 )
 
 const clipWebUrl = computed(() => {
@@ -175,7 +183,7 @@ onMounted(async () => {
 
       <div :class="$style.notes">
         <MkNote
-          v-for="note in notes"
+          v-for="note in visibleNotes"
           :key="note.id"
           :note="note"
           :account-id="accountId"
@@ -189,7 +197,7 @@ onMounted(async () => {
           is-error
         />
         <ColumnEmptyState
-          v-else-if="notes.length === 0"
+          v-else-if="visibleNotes.length === 0"
           message="クリップにノートがありません"
         />
       </div>

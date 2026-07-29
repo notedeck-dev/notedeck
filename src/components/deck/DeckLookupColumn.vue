@@ -5,6 +5,7 @@ import {
   onMounted,
   ref,
   useTemplateRef,
+  watch,
 } from 'vue'
 import type { NormalizedNote, UserRelation } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
@@ -18,6 +19,7 @@ import MkNoteTree from '@/components/common/MkNoteTree.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
 import {
   type MergedThread,
@@ -27,6 +29,7 @@ import {
 import { resolveNoteUriFor } from '@/services/entityResolution'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { useSuspensionsStore } from '@/stores/suspensions'
 import { mapWithConcurrency } from '@/utils/concurrency'
 import { isImeComposing } from '@/utils/ime'
 import { getNoteUri, parseUserQuery } from '@/utils/noteUrl'
@@ -111,9 +114,21 @@ function buildTree(
   return roots
 }
 
+const { filterVisible } = useNoteVisibility()
+// 凍結 probe の供給点（#828）
+watch([ancestors, children], ([a, c]) =>
+  useSuspensionsStore().probeNotes([...a, ...c]),
+)
+
+// 明示的に開いた本体ノート（result.note）は述語を通さない。祖先は文脈欠損を
+// 避けるため凍結のみ貫通、返信ツリーは一覧面なので全適用（#606）
+const visibleAncestors = computed(() =>
+  filterVisible(ancestors.value, { ignoreSuspension: true }),
+)
+
 const childrenTree = computed<NoteTreeNode[]>(() => {
   if (result.value?.type !== 'Note') return []
-  return buildTree(children.value, result.value.note.id)
+  return buildTree(filterVisible(children.value), result.value.note.id)
 })
 
 const treeHandlers = computed<NoteTreeHandlers>(() => ({
@@ -630,9 +645,9 @@ async function handlePosted(editedNoteId?: string) {
       <ColumnEmptyState v-else-if="!result" message="URLまたは@ユーザー名を入力して照会" :image-url="serverInfoImageUrl" />
 
       <div v-else-if="result.type === 'Note'" ref="lookupResultRef" :class="$style.lookupResult">
-        <div v-if="ancestors.length > 0" :class="$style.ancestors">
+        <div v-if="visibleAncestors.length > 0" :class="$style.ancestors">
           <MkNote
-            v-for="ancestor in ancestors"
+            v-for="ancestor in visibleAncestors"
             :key="ancestor.id"
             :note="ancestor"
             @react="handlers.reaction"

@@ -28,10 +28,12 @@ const MkPostForm = defineAsyncComponent(
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNoteFocus } from '@/composables/useNoteFocus'
+import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { useSearchFilters } from '@/composables/useSearchFilters'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import { useSuspensionsStore } from '@/stores/suspensions'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
 import {
@@ -75,7 +77,13 @@ const {
 } = useColumnSetup(() => props.column)
 
 const { navigateToNote } = useNavigation()
-const notes = shallowRef<NormalizedNote[]>([])
+// 取得した生データ。表示用 notes は述語で隠す（#606）。検索は一覧面なので
+// opt-out なし（全材料を適用）
+const rawNotes = shallowRef<NormalizedNote[]>([])
+const { filterVisible } = useNoteVisibility()
+const notes = computed(() => filterVisible(rawNotes.value))
+// 凍結 probe の供給点（#828）。独自 ref の面は fetch 完了時に自前で probe する
+watch(rawNotes, (items) => useSuspensionsStore().probeNotes(items))
 const noteScrollerRef = ref<{
   getElement: () => HTMLElement | null
   scrollToIndex: (
@@ -91,7 +99,7 @@ watch(
   { flush: 'post' },
 )
 setOnNotesMutated(() => {
-  notes.value = [...notes.value]
+  rawNotes.value = [...rawNotes.value]
 })
 const { focusedNoteId } = useNoteFocus(
   props.column.id,
@@ -245,7 +253,7 @@ async function searchLocalPerAccount(q: string, hint: string) {
       if (regexMode.value) {
         local = await filterNotesByRegexAsync(local, q)
       }
-      notes.value = local
+      rawNotes.value = local
       isPreview.value = true
       hasLocalResults.value = local.length > 0
     }
@@ -276,7 +284,7 @@ async function searchLocalCrossAccount(q: string, hint: string) {
       if (regexMode.value) {
         merged = await filterNotesByRegexAsync(merged, q)
       }
-      notes.value = mergeNotes([], merged)
+      rawNotes.value = mergeNotes([], merged)
       isPreview.value = true
       hasLocalResults.value = merged.length > 0
     }
@@ -290,7 +298,7 @@ watch(searchQuery, (val) => {
   if (debounceTimer) clearTimeout(debounceTimer)
   regexError.value = null
   if (!q) {
-    notes.value = []
+    rawNotes.value = []
     isPreview.value = false
     hasLocalResults.value = false
     return
@@ -312,7 +320,7 @@ watch(
     searchQuery.value = q
     // 手入力フローと違いプレビュー検索を経ないため、前クエリの結果に
     // server 結果が merge されないようリセットしてから検索する
-    notes.value = []
+    rawNotes.value = []
     hasLocalResults.value = false
     performSearch()
   },
@@ -375,7 +383,7 @@ async function performSearchPerAccount(q: string, hint: string) {
         local = await filterNotesByRegexAsync(local, q)
       }
       if (local.length > 0) {
-        notes.value = local
+        rawNotes.value = local
         hasLocalResults.value = true
       }
     } catch {
@@ -397,8 +405,8 @@ async function performSearchPerAccount(q: string, hint: string) {
         if (regexMode.value) {
           results = await filterNotesByRegexAsync(results, q)
         }
-        notes.value = mergeNotes(
-          hasLocalResults.value ? notes.value : [],
+        rawNotes.value = mergeNotes(
+          hasLocalResults.value ? rawNotes.value : [],
           results,
         )
       }
@@ -435,7 +443,7 @@ async function performSearchCrossAccount(q: string, hint: string) {
         merged = await filterNotesByRegexAsync(merged, q)
       }
       if (merged.length > 0) {
-        notes.value = mergeNotes([], merged)
+        rawNotes.value = mergeNotes([], merged)
         hasLocalResults.value = true
       }
     } catch {
@@ -460,7 +468,10 @@ async function performSearchCrossAccount(q: string, hint: string) {
       if (regexMode.value) {
         merged = await filterNotesByRegexAsync(merged, q)
       }
-      notes.value = mergeNotes(hasLocalResults.value ? notes.value : [], merged)
+      rawNotes.value = mergeNotes(
+        hasLocalResults.value ? rawNotes.value : [],
+        merged,
+      )
     } catch (e) {
       if (!hasLocalResults.value) {
         error.value = AppError.from(e)
@@ -479,8 +490,8 @@ async function loadMore() {
 
 async function loadMorePerAccount() {
   const adapter = getAdapter()
-  if (!adapter || isLoading.value || notes.value.length === 0) return
-  const lastNote = notes.value.at(-1)
+  if (!adapter || isLoading.value || rawNotes.value.length === 0) return
+  const lastNote = rawNotes.value.at(-1)
   if (!lastNote) return
 
   const q = confirmedQuery.value || searchQuery.value.trim()
@@ -499,7 +510,7 @@ async function loadMorePerAccount() {
     if (regexMode.value) {
       older = await filterNotesByRegexAsync(older, q)
     }
-    notes.value = mergeNotes(notes.value, older)
+    rawNotes.value = mergeNotes(rawNotes.value, older)
   } catch (e) {
     error.value = AppError.from(e)
   } finally {
@@ -508,7 +519,7 @@ async function loadMorePerAccount() {
 }
 
 async function loadMoreCrossAccount() {
-  if (isLoading.value || notes.value.length === 0) return
+  if (isLoading.value || rawNotes.value.length === 0) return
 
   const q = confirmedQuery.value || searchQuery.value.trim()
   const hint = getSearchHint(q)
@@ -523,7 +534,7 @@ async function loadMoreCrossAccount() {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return []
         // Find this account's oldest note for pagination
-        const lastForAccount = [...notes.value]
+        const lastForAccount = [...rawNotes.value]
           .reverse()
           .find((n) => n._accountId === acc.id)
         return adapter.api.searchNotes(hint, {
@@ -538,7 +549,7 @@ async function loadMoreCrossAccount() {
     if (regexMode.value) {
       older = await filterNotesByRegexAsync(older, q)
     }
-    notes.value = mergeNotes(notes.value, older)
+    rawNotes.value = mergeNotes(rawNotes.value, older)
   } catch (e) {
     error.value = AppError.from(e)
   } finally {
@@ -548,23 +559,25 @@ async function loadMoreCrossAccount() {
 
 async function removeNote(note: NormalizedNote) {
   const id = note.id
-  const prevNotes = notes.value
-  notes.value = notes.value.filter((n) => n.id !== id && n.renoteId !== id)
+  const prevNotes = rawNotes.value
+  rawNotes.value = rawNotes.value.filter(
+    (n) => n.id !== id && n.renoteId !== id,
+  )
 
   if (isCrossAccount.value) {
     const adapter = await multiAdapters.getOrCreate(note._accountId)
     if (!adapter) {
-      notes.value = prevNotes
+      rawNotes.value = prevNotes
       return
     }
     try {
       await adapter.api.deleteNote(note.id)
     } catch {
-      notes.value = prevNotes
+      rawNotes.value = prevNotes
     }
   } else {
     if (!(await handlers.delete(note))) {
-      notes.value = prevNotes
+      rawNotes.value = prevNotes
     }
   }
 }
@@ -574,7 +587,7 @@ async function handlePosted(editedNoteId?: string) {
   if (editedNoteId) {
     let adapter: Awaited<ReturnType<typeof multiAdapters.getOrCreate>> = null
     if (isCrossAccount.value) {
-      const note = notes.value.find((n) => n.id === editedNoteId)
+      const note = rawNotes.value.find((n) => n.id === editedNoteId)
       if (note) adapter = await multiAdapters.getOrCreate(note._accountId)
     } else {
       adapter = getAdapter()
@@ -582,7 +595,7 @@ async function handlePosted(editedNoteId?: string) {
     if (!adapter) return
     try {
       const updated = await adapter.api.getNote(editedNoteId)
-      notes.value = notes.value.map((n) =>
+      rawNotes.value = rawNotes.value.map((n) =>
         n.id === editedNoteId
           ? updated
           : n.renoteId === editedNoteId

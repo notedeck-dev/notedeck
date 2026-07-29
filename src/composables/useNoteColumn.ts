@@ -27,6 +27,7 @@ import { useNoteFocus } from '@/composables/useNoteFocus'
 import { useNoteList } from '@/composables/useNoteList'
 import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
 import { useNoteSound } from '@/composables/useNoteSound'
+import type { VisibilityOpts } from '@/composables/useNoteVisibility'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useReadMarker } from '@/composables/useReadMarker'
 import * as snapshotStore from '@/composables/useSnapshotStore'
@@ -80,6 +81,12 @@ export interface NoteColumnConfig {
    * Used by timeline columns to wait for policy detection before connecting.
    */
   connectReady?: Ref<boolean>
+  /**
+   * 表示述語の面別 opt-out（#606）。既定（未指定）は全適用。
+   * お気に入り・自分のクリップは `ignoreSuspension`、プロフィールは
+   * `ignoreSubject`（面別マトリクスは DEVELOPMENT.md 参照）。
+   */
+  visibility?: VisibilityOpts
 }
 
 export function useNoteColumn(config: NoteColumnConfig) {
@@ -127,6 +134,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     getAdapter,
     deleteHandler: handlers.delete,
     closePostForm: postForm.close,
+    visibility: config.visibility,
   })
 
   // Streaming (Group A) or NoteCapture (Group B)

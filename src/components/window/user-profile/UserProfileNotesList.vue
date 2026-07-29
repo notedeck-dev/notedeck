@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
+import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 
 // プロフィールの notes 面 (#707): 内タブ (ハイライト/ノート/全て/ファイル付き)
@@ -100,6 +101,13 @@ onMounted(() => {
   void loadTabNotes()
 })
 
+// 明示的に開いた対象なので、対象由来の材料（ミュート・凍結）は貫通させる。
+// ワードミュートと削除 tombstone は内容由来なので適用したまま（#606）
+const { filterVisible } = useNoteVisibility()
+const visibleNotes = computed(() =>
+  filterVisible(notes.value, { ignoreSubject: true }),
+)
+
 /** 親の削除 handler から呼ぶ (リノート元の削除も波及させる) */
 function removeNote(id: string) {
   notes.value = notes.value.filter((n) => n.id !== id && n.renoteId !== id)
@@ -131,7 +139,7 @@ defineExpose({ loadMore, removeNote, replaceNote })
     </div>
 
     <MkNote
-      v-for="note in notes"
+      v-for="note in visibleNotes"
       :key="note.id"
       :note="note"
       :pinned-note-ids="pinnedNoteIds"
@@ -150,7 +158,7 @@ defineExpose({ loadMore, removeNote, replaceNote })
       <LoadingSpinner />
     </div>
 
-    <div v-if="!isLoadingNotes && notes.length === 0" :class="$style.stateMessage">
+    <div v-if="!isLoadingNotes && visibleNotes.length === 0" :class="$style.stateMessage">
       ノートはありません
     </div>
   </div>

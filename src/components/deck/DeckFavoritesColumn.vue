@@ -13,6 +13,9 @@ const noteColumnConfig: NoteColumnConfig = {
   cache: {
     getKey: () => 'favorites',
   },
+  // 自分が保存した面。凍結は貫通させる（本家 i/favorites も貫通）。
+  // ミュートは自分の意思なので適用したまま（#606）
+  visibility: { ignoreSuspension: true },
 }
 </script>
 

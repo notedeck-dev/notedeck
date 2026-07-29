@@ -32,6 +32,9 @@ const noteColumnConfig: NoteColumnConfig = {
     const fetched = await adapter.api.getUserNotes(userId)
     return { notes: fetched, mode: 'replace' as const }
   },
+  // 明示的に開いた対象なので、対象由来の材料（ミュート・凍結）は貫通させる。
+  // ワードミュートと削除 tombstone は内容由来なので適用したまま（#606）
+  visibility: { ignoreSubject: true },
 }
 </script>
 
