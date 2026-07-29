@@ -112,6 +112,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
   const {
     notes,
+    rawNotes,
     orderedIds,
     noteIds,
     setNotes,
@@ -136,7 +137,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
   const toast = useToast()
   const streamingBatch = isStreaming
     ? useStreamingBatch({
-        notes,
+        // 書込基底は unfiltered 側。filtered を基底にすると隠れたノートが
+        // flush のたびに列から落ちて焼き込まれる（#831 §1.4）
+        notes: rawNotes,
         noteIds,
         scroller,
         onNewNotes: (batch) => {
@@ -244,6 +247,46 @@ export function useNoteColumn(config: NoteColumnConfig) {
   }
 
   /**
+   * フェッチカーソル（#831 §1.4）。取り込んだ「生ページ」（applyFilter 前）の
+   * 最古ノートを保持し、ページングの位置決めに使う。
+   *
+   * バッファ末尾を位置決めに使うと、ページが丸ごとフィルタで落ちたとき位置が
+   * 前進せず、loadMore が同じページを取り続ける無限ループになる。カーソルは
+   * 落ちたノートも含めて前進するため、この同型のループが構造的に消える。
+   */
+  const fetchCursor = shallowRef<{ id: string; createdAt: string } | null>(null)
+
+  function oldestOf(page: NormalizedNote[]): NormalizedNote | null {
+    let oldest: NormalizedNote | null = null
+    for (const n of page) {
+      if (!oldest || n.createdAt < oldest.createdAt) oldest = n
+    }
+    return oldest
+  }
+
+  /**
+   * 単調前進: 取り込んだページの最古が現カーソルより古いときだけ更新する。
+   * pullRefresh / resume の最新側ページでカーソルが新しい方向へ戻ることを禁止。
+   */
+  function advanceFetchCursor(page: NormalizedNote[]): void {
+    const oldest = oldestOf(page)
+    if (!oldest) return
+    const cur = fetchCursor.value
+    if (cur && oldest.createdAt >= cur.createdAt) return
+    fetchCursor.value = { id: oldest.id, createdAt: oldest.createdAt }
+  }
+
+  /**
+   * バッファを全置換する操作（reconnect / gap catch-up / タブ切替 / 非
+   * streaming の refresh）で呼ぶ。旧世代カーソルが残ると、新バッファと旧
+   * カーソルの間がページングでサイレントにスキップされる。
+   */
+  function resetFetchCursor(page: NormalizedNote[] = []): void {
+    fetchCursor.value = null
+    advanceFetchCursor(page)
+  }
+
+  /**
    * 非同期フェッチ中にタブ (cache key) が切り替わったら結果を破棄するための
    * ガード。フェッチ開始時に呼んで capture し、await 後に返り値で検査する (#651)。
    */
@@ -259,6 +302,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (!column.accountId || !cacheKey) return []
     try {
       const cached = await loadCachedTimeline(column.accountId, cacheKey)
+      advanceFetchCursor(cached)
       return applyFilter(cached)
     } catch (e) {
       logWarn(label, e)
@@ -280,6 +324,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (incoming.length === 0) return
     if (opts?.replace) {
       setNotes(incoming)
+      // 全置換なので旧世代カーソルは捨てる。置換ページ自体を新カーソルに
+      // 据える（フィルタ後の最古なので生ページより新しい側に寄りうるが、
+      // 取りこぼしは生まない）
+      resetFetchCursor(incoming)
       return
     }
     if (streamingBatch) {
@@ -322,6 +370,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     const fetched = await dedup(getDedupKey(), () =>
       config.fetch(adapter, opts),
     )
+    advanceFetchCursor(fetched)
     // REST 取得もキャッシュ・ストリーミングと同じ防御フィルタを通す (#651)
     return applyFilter(fetched)
   }
@@ -394,6 +443,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
       : null
     if (snapshot) {
       setNotes(snapshot.notes)
+      resetFetchCursor(snapshot.notes)
       const { scrollTop: savedScrollTop, anchor } = snapshot
       nextTick(() => {
         // アンカー (note id) 基準で復元し、仮想スクローラの再測定による
@@ -498,8 +548,11 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
       // Fetch fresh data from API (runs after cache is already displayed)
       const hasCached = cachedIds.length > 0
+      // 同期位置の決定は unfiltered 基底で読む（隠れた先頭ノートを飛ばさない）
       const sinceId =
-        !hasCached && notes.value.length > 0 ? notes.value[0]?.id : undefined
+        !hasCached && rawNotes.value.length > 0
+          ? rawNotes.value[0]?.id
+          : undefined
       const fetched = await fetchAndDedup(adapter, sinceId ? { sinceId } : {})
       // フェッチ中にタブが切り替わっていたら旧タブの結果を破棄 (#651)
       if (!stillCurrent()) return
@@ -527,20 +580,25 @@ export function useNoteColumn(config: NoteColumnConfig) {
     const column = config.getColumn()
     const cacheKey = config.cache?.getKey()
     if (!column.accountId || !cacheKey) return
-    const lastNote = notes.value.at(-1)
-    if (!lastNote) return
+    // createdAt ベースのページングなのでアンカーもカーソルの createdAt を使う。
+    // 全件フィルタ落ちのページでもアンカーが前進し、API 経路と同型のループが
+    // キャッシュ経路に残らない
+    const anchor =
+      fetchCursor.value?.createdAt ?? rawNotes.value.at(-1)?.createdAt
+    if (!anchor) return
     const stillCurrent = tabGuard()
     isLoading.value = true
     try {
       const older = await loadCachedTimelineBefore(
         column.accountId,
         cacheKey,
-        lastNote.createdAt,
+        anchor,
       )
       if (!stillCurrent()) return
+      advanceFetchCursor(older)
       const filtered = applyFilter(older)
       if (filtered.length > 0) {
-        setNotes(insertIntoSorted(notes.value, filtered))
+        setNotes(insertIntoSorted(rawNotes.value, filtered))
       }
     } catch (e) {
       logWarn('load-more-cache', e)
@@ -550,7 +608,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
   }
 
   async function loadMore() {
-    if (isLoading.value || notes.value.length === 0) return
+    // 空ガードは「まだ 1 ページも取っていない」の意。初回ページが全件フィルタ
+    // 落ちでもカーソルが立っていれば続きを取りに行ける
+    if (isLoading.value) return
+    if (fetchCursor.value == null && rawNotes.value.length === 0) return
     if (config.validate && !config.validate()) return
 
     // Offline: load from cache instead
@@ -561,14 +622,15 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
     const adapter = getAdapter()
     if (!adapter) return
-    const lastNote = notes.value.at(-1)
-    if (!lastNote) return
+    const untilId = fetchCursor.value?.id ?? rawNotes.value.at(-1)?.id
+    if (!untilId) return
     const stillCurrent = tabGuard()
     isLoading.value = true
     try {
-      const older = await config.fetch(adapter, { untilId: lastNote.id })
+      const older = await config.fetch(adapter, { untilId })
       if (!stillCurrent()) return
-      setNotes(insertIntoSorted(notes.value, applyFilter(older)))
+      advanceFetchCursor(older)
+      setNotes(insertIntoSorted(rawNotes.value, applyFilter(older)))
     } catch (e) {
       logWarn('load-more', e)
       isOffline.value = true
@@ -612,17 +674,19 @@ export function useNoteColumn(config: NoteColumnConfig) {
     error.value = null
     try {
       if (config.refreshFetch) {
-        const result = await config.refreshFetch(adapter, notes.value)
+        const result = await config.refreshFetch(adapter, rawNotes.value)
         if (result.mode === 'replace') {
           setNotes(result.notes)
+          resetFetchCursor(result.notes)
           scrollToTop()
         } else if (result.notes.length > 0) {
-          setNotes(insertIntoSorted(notes.value, result.notes))
+          setNotes(insertIntoSorted(rawNotes.value, result.notes))
           scrollToTop()
         }
       } else {
         const fetched = await config.fetch(adapter, {})
         setNotes(fetched)
+        resetFetchCursor(fetched)
         scrollToTop()
       }
       isOffline.value = false
@@ -641,7 +705,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     const adapter = getAdapter()
     if (!adapter) return
     if (config.validate && !config.validate()) return
-    const sinceId = notes.value[0]?.id
+    const sinceId = rawNotes.value[0]?.id
     const stillCurrent = tabGuard()
     try {
       const fetched = await fetchAndDedup(adapter, sinceId ? { sinceId } : {})
@@ -674,7 +738,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (now - lastResumeAt < 3000) return
     lastResumeAt = now
 
-    const hadNotes = notes.value.length > 0
+    const hadNotes = rawNotes.value.length > 0
     const stillCurrent = tabGuard()
 
     // Run cache fetch and API fetch in parallel. Fetch the LATEST page (not
@@ -748,6 +812,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (useOfflineModeStore().isOfflineMode) {
       // Offline mode: load cache only, skip API fetch and streaming
       setNotes([])
+      resetFetchCursor()
       isLoading.value = true
       if (useCache && config.cache) {
         const filtered = await loadFilteredCache('reconnect-cache')
@@ -760,6 +825,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
       streamingBatch.setPaused(true)
       resubscribe(adapter)
       setNotes([])
+      resetFetchCursor()
       error.value = null
       isLoading.value = true
       try {
@@ -786,6 +852,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
       disconnect()
       streamingBatch?.resetBatch()
       setNotes([])
+      resetFetchCursor()
       await connect(useCache)
     }
   }
@@ -809,6 +876,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     // Swap subscription (stream/WebSocket stays connected)
     resubscribe(adapter)
     setNotes(snapshotNotes)
+    resetFetchCursor(snapshotNotes)
     error.value = null
     await nextTick()
     const restored = anchor
