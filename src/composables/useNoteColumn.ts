@@ -583,6 +583,27 @@ export function useNoteColumn(config: NoteColumnConfig) {
     }
   }
 
+  /**
+   * 下方向ページングの書込 (#834)。
+   *
+   * 列は新しい順なので、保持上限に達した状態で古いノートを足すと、既定の
+   * 切り捨て (古い側を捨てる) が足したばかりのノートをそのまま捨ててしまい、
+   * それ以上遡れなくなる。ページング時は逆に新しい側を捨てる。
+   *
+   * 上端から要素が消えるとスクロール位置が飛ぶため、NoteScroller の id 基準
+   * アンカーで見た目の位置を維持する。ページング発火時点の先頭可視ノートは
+   * 捨てられる新しい側より下にあるので、アンカーは基本的に生き残る。
+   */
+  async function setNotesPaged(merged: NormalizedNote[]): Promise<void> {
+    const anchor = noteScrollerRef.value?.getScrollAnchor?.() ?? null
+    setNotes(merged, 'newest')
+    // 実際に上限で削られたときだけ補正する (削られていなければ位置は動かない)
+    const dropped = merged.length - rawNotes.value.length
+    if (!anchor || dropped <= 0) return
+    await nextTick()
+    noteScrollerRef.value?.restoreScrollAnchor?.(anchor.id, anchor.offset)
+  }
+
   /** Helper to load older notes from SQLite cache */
   async function loadMoreFromCache() {
     const column = config.getColumn()
@@ -606,7 +627,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
       advanceFetchCursor(older)
       const filtered = applyFilter(older)
       if (filtered.length > 0) {
-        setNotes(insertIntoSorted(rawNotes.value, filtered))
+        await setNotesPaged(insertIntoSorted(rawNotes.value, filtered))
       }
     } catch (e) {
       logWarn('load-more-cache', e)
@@ -638,7 +659,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
       const older = await config.fetch(adapter, { untilId })
       if (!stillCurrent()) return
       advanceFetchCursor(older)
-      setNotes(insertIntoSorted(rawNotes.value, applyFilter(older)))
+      await setNotesPaged(insertIntoSorted(rawNotes.value, applyFilter(older)))
     } catch (e) {
       logWarn('load-more', e)
       isOffline.value = true

@@ -94,8 +94,22 @@ export function useNoteList(options: UseNoteListOptions) {
     onNotesChangedFn = fn
   }
 
-  function setNotes(newNotes: NormalizedNote[]) {
-    rawNotes.value = newNotes
+  /**
+   * 保持上限を超えたときにどちら側を捨てるか (#834)。
+   *
+   * 列は新しい順なので、既定の 'oldest' は末尾 (古い側) を捨てる = 上から
+   * 新着が流れ込む経路に合う。下方向のページングは逆で、足したばかりの
+   * 古いノートが即座に捨てられて画面が変わらなくなるため 'newest' を使う。
+   */
+  type TrimSide = 'oldest' | 'newest'
+
+  function setNotes(newNotes: NormalizedNote[], trim: TrimSide = 'oldest') {
+    // rawNotes setter 側の切り捨ては 'oldest' 固定なので、'newest' のときは
+    // ここで先に上限まで削っておく (setter 側は結果的に no-op になる)
+    rawNotes.value =
+      trim === 'newest' && newNotes.length > maxNotes
+        ? newNotes.slice(newNotes.length - maxNotes)
+        : newNotes
     // 可視ノートのみを通知する（noteCapture の購読対象は表示中ノート）
     onNotesChangedFn?.(notes.value)
   }
