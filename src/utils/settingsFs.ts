@@ -533,3 +533,34 @@ export async function renameWidgetFile(
 ): Promise<void> {
   return renameSettingsFile(WIDGETS_DIR, oldFilename, newFilename)
 }
+
+// --- Column query helpers (#783 Phase 1.5) ---
+
+const QUERIES_DIR = 'queries'
+
+export function querySrcFilename(name: string): string {
+  return sanitizeFilename(name) + WIDGET_SRC_EXT
+}
+
+export function queryMetaFilename(name: string): string {
+  return sanitizeFilename(name) + WIDGET_META_EXT
+}
+
+export async function listQueryFiles(): Promise<string[]> {
+  return listSettingsFiles(QUERIES_DIR)
+}
+
+export async function readQueryFile(filename: string): Promise<string> {
+  return readSettingsFile(QUERIES_DIR, filename)
+}
+
+export async function writeQueryFile(
+  filename: string,
+  content: string,
+): Promise<void> {
+  return writeSettingsFile(QUERIES_DIR, filename, content)
+}
+
+export async function deleteQueryFile(filename: string): Promise<void> {
+  return deleteSettingsFile(QUERIES_DIR, filename)
+}

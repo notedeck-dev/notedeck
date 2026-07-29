@@ -33,11 +33,13 @@ import { useReadMarker } from '@/composables/useReadMarker'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
 import {
+  type CompileResult,
   compileColumnQuery,
   hashQirQuery,
 } from '@/services/columnQuery/compiler'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
 import { isGuestAccount } from '@/stores/accounts'
+import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
@@ -255,14 +257,32 @@ export function useNoteColumn(config: NoteColumnConfig) {
   )
 
   // --- カラムクエリ (#783 層 2) ---
-  // カラム設定の noteQuery (AiScript 式) を QIR にコンパイルし、全取り込み経路
-  // (キャッシュ復元 / REST / ページング / streaming / refresh) で同期評価する。
+  // カラム設定の noteQuery (インライン式) + noteQueryRefs (名前付きクエリ参照)
+  // を QIR にコンパイルし、全取り込み経路 (キャッシュ復元 / REST / ページング /
+  // streaming / refresh) で同期評価する。合成は And (仕様追補 B)。
   // 層 1 述語 (isHidden) は表示 computed 側で、合成は「!isHidden && query」
   // (#831 の縫い目)。組込 filterNotes とは AND 合成 (組込が先 = 最安)。
+  const columnQueriesStore = useColumnQueriesStore()
   const compiledQuery = computed(() => {
-    const source = config.getColumn().noteQuery
-    if (!source || source.trim() === '') return null
-    return compileColumnQuery(source)
+    const col = config.getColumn()
+    const inline = col.noteQuery?.trim() ? col.noteQuery : null
+    const refs = col.noteQueryRefs ?? []
+    if (!inline && refs.length === 0) return null
+    const parts: { label: string | null; result: CompileResult }[] = []
+    // 参照消失 (削除・未導入) は捨てず fail-closed (仕様追補 A)
+    const missing: string[] = []
+    if (inline) {
+      parts.push({ label: null, result: compileColumnQuery(inline) })
+    }
+    for (const id of refs) {
+      const named = columnQueriesStore.getQuery(id)
+      if (!named) {
+        missing.push(id)
+        continue
+      }
+      parts.push({ label: named.name, result: compileColumnQuery(named.src) })
+    }
+    return { parts, missing }
   })
   /** per-note エラーの診断計上 (V14: エラー = 除外 + 計上) */
   const queryErrorCount = ref(0)
@@ -271,8 +291,21 @@ export function useNoteColumn(config: NoteColumnConfig) {
   const columnQueryState = computed(() => {
     const compiled = compiledQuery.value
     if (!compiled) return { status: 'none' as const, diagnostics: [] }
-    if (!compiled.ok) {
-      return { status: 'invalid' as const, diagnostics: compiled.diagnostics }
+    const diagnostics: { message: string }[] = []
+    for (const id of compiled.missing) {
+      diagnostics.push({
+        message: `参照している名前付きクエリ (${id}) が見つかりません`,
+      })
+    }
+    for (const part of compiled.parts) {
+      if (part.result.ok) continue
+      const prefix = part.label ? `${part.label}: ` : ''
+      for (const d of part.result.diagnostics) {
+        diagnostics.push({ message: `${prefix}${d.message}` })
+      }
+    }
+    if (diagnostics.length > 0) {
+      return { status: 'invalid' as const, diagnostics }
     }
     return { status: 'active' as const, diagnostics: [] }
   })
@@ -280,20 +313,35 @@ export function useNoteColumn(config: NoteColumnConfig) {
   function queryAdmits(note: NormalizedNote): boolean {
     const compiled = compiledQuery.value
     if (!compiled) return true
-    // コンパイル不能なソースが永続化されていた場合は fail-closed (不変条件 (f))
-    if (!compiled.ok) return false
-    const verdict = evaluateQirQuery(compiled.query, note)
-    if (verdict === 'error') queryErrorCount.value++
-    if (verdict !== 'match') {
+    // 参照消失・コンパイル不能の残留は fail-closed (不変条件 (f))
+    if (columnQueryState.value.status === 'invalid') return false
+    // And 合成: 全部 match のときだけ表示 (短絡)。error = 除外 + 計上
+    for (const part of compiled.parts) {
+      if (!part.result.ok) return false // 到達しない (invalid で弾く) が防御
+      const verdict = evaluateQirQuery(part.result.query, note)
+      if (verdict === 'match') continue
+      if (verdict === 'error') queryErrorCount.value++
       queryExcludedCount.value++
       return false
     }
     return true
   }
 
-  // クエリ変更時: 診断をリセットし、表示中ノートへ即時適用 (絞り込み方向) +
-  // refetch (緩和方向の回収 = fetchKey 経由の再取得に相当)
-  watch(compiledQuery, (next, prev) => {
+  /** 合成クエリの実効シグネチャ (dedup キーと変更検知を兼ねる)。 */
+  const querySignature = computed(() => {
+    const compiled = compiledQuery.value
+    if (!compiled) return ''
+    if (columnQueryState.value.status === 'invalid') {
+      return `invalid:${compiled.missing.join(',')}`
+    }
+    return compiled.parts
+      .map((p) => (p.result.ok ? hashQirQuery(p.result.query) : 'x'))
+      .join('+')
+  })
+
+  // クエリ変更時 (インライン編集・トグル・named の編集伝播): 診断をリセットし、
+  // 表示中ノートへ即時適用 (絞り込み方向) + refetch (緩和方向の回収)
+  watch(querySignature, (next, prev) => {
     if (next === prev) return
     queryErrorCount.value = 0
     queryExcludedCount.value = 0
@@ -434,11 +482,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
   function getDedupKey(): string {
     const fetchKey = config.fetchKey ? `:${config.fetchKey()}` : ''
-    // クエリ違いのカラム間でレスポンスキャッシュを共有しない (#783 V13)
-    const compiled = compiledQuery.value
-    const queryKey = compiled
-      ? `:q=${compiled.ok ? hashQirQuery(compiled.query) : 'invalid'}`
-      : ''
+    // クエリ違いのカラム間でレスポンスキャッシュを共有しない (#783 V13)。
+    // 合成クエリは全構成要素のハッシュ連結 (named の編集も fetchKey を変える)
+    const queryKey = querySignature.value ? `:q=${querySignature.value}` : ''
     return `${config.getColumn().accountId}:${config.cache?.getKey() ?? 'default'}${fetchKey}${queryKey}`
   }
 

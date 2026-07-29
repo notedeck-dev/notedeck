@@ -59,6 +59,7 @@ export type BuiltinColumnType =
   | 'charts'
   | 'federation'
   | 'skill'
+  | 'queryManager'
 
 /**
  * カラム種別 (#794 W2)。プラグインが実行時に登録できるよう open にしてある。
@@ -151,6 +152,11 @@ export interface DeckColumn {
    * 検索カラム用の `query` とは別物 (仕様追補 A)。
    */
   noteQuery?: string
+  /**
+   * 有効化した名前付きクエリの id 列 (useColumnQueriesStore、#783 Phase 1.5)。
+   * インライン式・組込フィルタと AND 合成。参照消失は fail-closed で保持。
+   */
+  noteQueryRefs?: string[]
   listId?: string
   antennaId?: string
   clipId?: string
