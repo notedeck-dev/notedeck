@@ -15,7 +15,11 @@ import { hapticMedium } from '@/utils/haptics'
 import { isTauri, readNavbar, writeNavbar } from '@/utils/settingsFs'
 import { getStorageJson, removeStorage, STORAGE_KEYS } from '@/utils/storage'
 
-export type ColumnType =
+/**
+ * 組込カラム種別。COLUMN_REGISTRY はこの union で網羅性を検査するので、
+ * ここに足して registry に足し忘れるとコンパイルエラーになる。
+ */
+export type BuiltinColumnType =
   | 'timeline'
   | 'notifications'
   | 'search'
@@ -55,6 +59,16 @@ export type ColumnType =
   | 'charts'
   | 'federation'
   | 'skill'
+
+/**
+ * カラム種別 (#794 W2)。プラグインが実行時に登録できるよう open にしてある。
+ * `string & {}` は組込リテラルの補完を残したまま任意文字列を許すための定型。
+ *
+ * 開いた結果、永続化されたデッキ構成に「今このアプリが知らない種別」が入りうる。
+ * 未登録種別は捨てずに tombstone 描画する (#794 未決事項 1) — プラグイン起動は
+ * デッキ復元より後なので、正常起動でも必ず一度この状態を通るため。
+ */
+export type ColumnType = BuiltinColumnType | (string & {})
 
 /**
  * ノートを連続ストリーミング表示するカラム型 (= 「直近フォーカスしたタイムライン」

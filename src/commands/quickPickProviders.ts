@@ -289,7 +289,7 @@ interface QPSelectable {
 
 function getSelectable(type: ColumnType): QPSelectable | null {
   const spec = COLUMN_REGISTRY[type]
-  return spec.selectable ? { type, spec: spec.selectable } : null
+  return spec?.selectable ? { type, spec: spec.selectable } : null
 }
 
 async function buildDetailStep(

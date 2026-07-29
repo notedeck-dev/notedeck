@@ -1,4 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  ALL_COLUMN_TYPES,
+  COLUMN_REGISTRY,
+  registerColumnType,
+  unregisterColumnType,
+} from '@/columns/registry'
 import {
   COLUMN_BUILTIN_CAPABILITIES,
   columnAddCapability,
@@ -118,5 +124,51 @@ describe('COLUMN_BUILTIN_CAPABILITIES', () => {
     expect(COLUMN_BUILTIN_CAPABILITIES).toContain(columnListCapability)
     expect(COLUMN_BUILTIN_CAPABILITIES).toContain(columnAddCapability)
     expect(COLUMN_BUILTIN_CAPABILITIES).toContain(columnRemoveCapability)
+  })
+})
+
+describe('addable な種別はレジストリ由来 (#794 W2)', () => {
+  const enumTypes = () =>
+    (columnAddCapability.signature?.params?.type?.enum ??
+      []) as readonly string[]
+
+  afterEach(() => {
+    unregisterColumnType('x:demo')
+  })
+
+  it('固有の生成フローを持つ種別だけを除外する', () => {
+    for (const t of ['widget', 'aiscript', 'play', 'page']) {
+      expect(enumTypes()).not.toContain(t)
+    }
+    // 手書きリスト時代に取りこぼしていた role も lookup ID 付きで追加できる
+    expect(enumTypes()).toContain('role')
+  })
+
+  it('レジストリの全種別 (除外分を除く) が enum に載る', () => {
+    const expected = ALL_COLUMN_TYPES.filter(
+      (t) => !COLUMN_REGISTRY[t]?.customAddFlow,
+    )
+    expect([...enumTypes()].sort()).toEqual([...expected].sort())
+  })
+
+  it('実行時登録した種別が enum に載る', () => {
+    expect(enumTypes()).not.toContain('x:demo')
+    registerColumnType('x:demo', {
+      label: 'デモ',
+      icon: 'flask',
+      group: 'tool',
+      component: async () => ({ default: {} }),
+    })
+    expect(enumTypes()).toContain('x:demo')
+  })
+
+  it('lookup ID 必須の対応表もレジストリの selectable.idKey 由来', () => {
+    // role は registry で roleId を宣言しているので、ID 無しでは弾かれる
+    expect(() =>
+      columnAddCapability.execute?.(
+        { type: 'role' },
+        { principal: { kind: 'user' } },
+      ),
+    ).toThrow(/roleId/)
   })
 })

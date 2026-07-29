@@ -2,6 +2,7 @@
 import { computed, toRef, useCssModule, useTemplateRef } from 'vue'
 import { COLUMN_COMPONENTS } from '@/columns/registry'
 import ColumnErrorBoundary from '@/components/deck/ColumnErrorBoundary.vue'
+import ColumnTombstone from '@/components/deck/ColumnTombstone.vue'
 import { useColumnMount } from '@/composables/useColumnMount'
 import type { DeckColumn } from '@/stores/deck'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
@@ -36,6 +37,13 @@ const { shouldMount } = useColumnMount(props.colId, cellRef, {
 const columnComponent = computed(() =>
   props.column ? COLUMN_COMPONENTS[props.column.type] : null,
 )
+
+// 種別が registry に無い = 提供元プラグインが未起動 / 無効 / 削除 (#794)。
+// mount 判定 (shouldMount) とは独立に判断する — 画面外で mount されていない
+// だけの通常カラムを墓標にしてはいけない
+const isUnknownType = computed(
+  () => !!props.column && !COLUMN_COMPONENTS[props.column.type],
+)
 </script>
 
 <template>
@@ -55,6 +63,11 @@ const columnComponent = computed(() =>
         :column="column"
       />
     </ColumnErrorBoundary>
+    <ColumnTombstone
+      v-else-if="isUnknownType && column"
+      :col-id="colId"
+      :type="column.type"
+    />
     <div v-else :class="$style.columnShell" aria-hidden="true">
       <div :class="$style.columnShellHeader" />
       <div :class="$style.columnShellBody">

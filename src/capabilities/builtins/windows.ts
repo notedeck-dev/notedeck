@@ -1,5 +1,9 @@
 import type { Command } from '@/commands/registry'
-import { useWindowsStore, type WindowType } from '@/stores/windows'
+import {
+  useWindowsStore,
+  WINDOW_SIZES,
+  type WindowType,
+} from '@/stores/windows'
 
 /**
  * Windows 系 capability — DeckWindow (= 一時 UI、設定エディタ / プロファイル
@@ -13,42 +17,23 @@ import { useWindowsStore, type WindowType } from '@/stores/windows'
  * - windows.close も確認 UI 無し (= 不要なウィンドウを片付けるための片手間)
  * - windows.closeAll は念のため warning 確認 (= 大量同時破棄が起きるので意図確認)
  * - WindowType の enum を embed して AI に valid な type を伝える
+ *   (enum はレジストリ相当の WINDOW_SIZES から導出する)
  */
 
-const VALID_WINDOW_TYPES: readonly WindowType[] = [
-  'note-detail',
-  'note-inspector',
-  'notification-inspector',
-  'user-profile',
-  'federation-instance',
-  'follow-list',
-  'login',
-  'plugins',
-  'keybinds',
-  'cssEditor',
-  'themeEditor',
-  'profileEditor',
-  'aiSettings',
-  'permissions',
-  'about',
-  'navEditor',
-  'performanceEditor',
-  'appearanceEditor',
-  'backup',
-  'cacheEditor',
-  'tasksEditor',
-  'snippetsEditor',
-  'memoEditor',
-  'page-detail',
-  'play-detail',
-  'gallery-detail',
-  'list-detail',
-  'clip-detail',
-  'page-edit',
-  'play-edit',
-  'widget-edit',
-  'skill-edit',
-] as const
+/**
+ * AI から開ける DeckWindow 種別 (#794 W2)。
+ *
+ * 手書きの列挙をやめ WINDOW_SIZES から導出する。WINDOW_SIZES は
+ * `Record<WindowType, _>` なので、ウィンドウ種別を足せば必ずここにも載る
+ * (手書き時代は drive-file-detail / connections / connectionEdit / tutorial の
+ * 4 種が漏れていた)。
+ *
+ * 全種別を開けてよい理由は windows.open が ungated なのと同じ — 開くこと自体は
+ * 可逆で、中の操作は対応する capability で guard される。
+ */
+const VALID_WINDOW_TYPES: readonly WindowType[] = Object.keys(
+  WINDOW_SIZES,
+) as WindowType[]
 
 function isValidWindowType(t: string): t is WindowType {
   return VALID_WINDOW_TYPES.includes(t as WindowType)

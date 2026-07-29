@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { WINDOW_SIZES } from '@/stores/windows'
 import {
   WINDOWS_BUILTIN_CAPABILITIES,
   windowsCloseAllCapability,
@@ -83,6 +84,27 @@ describe('WINDOWS_BUILTIN_CAPABILITIES', () => {
   it('all capabilities are exposed to AI (aiTool: true)', () => {
     for (const cap of WINDOWS_BUILTIN_CAPABILITIES) {
       expect(cap.aiTool, `${cap.id} should be aiTool`).toBe(true)
+    }
+  })
+})
+
+describe('valid な WindowType はレジストリ相当 (WINDOW_SIZES) 由来 (#794 W2)', () => {
+  const enumTypes = () =>
+    (windowsOpenCapability.signature?.params?.type?.enum ??
+      []) as readonly string[]
+
+  it('全 WindowType が enum に載る', () => {
+    expect([...enumTypes()].sort()).toEqual(Object.keys(WINDOW_SIZES).sort())
+  })
+
+  it('手書き時代に漏れていた 4 種も開ける', () => {
+    for (const t of [
+      'drive-file-detail',
+      'connections',
+      'connectionEdit',
+      'tutorial',
+    ]) {
+      expect(enumTypes()).toContain(t)
     }
   })
 })
