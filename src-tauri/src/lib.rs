@@ -161,6 +161,19 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
     builder = builder.invoke_handler(specta_builder.invoke_handler());
 
+    // セーフモード (#794) — `notedeck --safe-mode` で起動したとき、ページ評価前に
+    // フラグを注入する。index.html の boot script がこれを localStorage へ畳み込み、
+    // 以降フロントは localStorage だけを見る (解除手順を 1 つに保つため)。
+    // 通常起動では何も注入しない。
+    if std::env::args().any(|a| a == "--safe-mode") {
+        tracing::warn!("[safe-mode] launched with --safe-mode");
+        builder = builder.plugin(
+            tauri::plugin::Builder::<tauri::Wry, ()>::new("nd-safe-mode")
+                .js_init_script("window.__ND_SAFE_MODE_ARG__ = true;")
+                .build(),
+        );
+    }
+
     #[cfg(not(mobile))]
     let has_tray = Arc::new(AtomicBool::new(false));
     #[cfg(not(mobile))]

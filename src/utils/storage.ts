@@ -70,6 +70,11 @@ export function removeStorageByPrefix(prefix: string): void {
 // ---------------------------------------------------------------------------
 
 export const STORAGE_KEYS = {
+  // Safe mode (#794) — 値の解決とキー名は index.html の inline boot script にも
+  // 同じリテラルで書かれている (テーマ復元をスキップするため boot 前に判定が要る)。
+  // 変更するときは両方直すこと。
+  safeMode: 'nd-safe-mode',
+
   // Deck
   // TODO: `deck` は pre-profile 時代 (<= v0.10.2) からの migration 読取専用。
   // 十分時間が経ったら読取ごと削除する。

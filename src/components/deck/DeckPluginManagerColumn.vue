@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { abortPlugin, launchPlugin } from '@/aiscript/plugin-api'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
@@ -360,6 +361,8 @@ async function deleteFromLibrary(plugin: PluginMeta) {
     </template>
 
     <div ref="columnContentRef" :class="$style.wrapper">
+      <SafeModeNotice subject="プラグイン" />
+
       <ColumnTabs
         :tabs="tabDefs"
         :model-value="viewTab"

@@ -3,6 +3,7 @@ import { css } from '@codemirror/lang-css'
 import { type Diagnostic, linter } from '@codemirror/lint'
 import { computed, reactive, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import CssPresetDropdown from '@/components/window/CssPresetDropdown.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
@@ -454,6 +455,8 @@ watch(tab, (t) => {
 
 <template>
   <div ref="editorRef" :class="$style.cssContent">
+    <SafeModeNotice subject="カスタム CSS" />
+
     <EditorTabs
       v-model="tab"
       :tabs="[

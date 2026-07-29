@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
@@ -393,6 +394,8 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
     </template>
 
     <div ref="columnContentRef" :class="$style.wrapper">
+      <SafeModeNotice subject="テーマ" />
+
       <ColumnTabs
         :tabs="tabDefs"
         :model-value="viewTab"

@@ -20,6 +20,7 @@ import { useTheme } from '@/composables/useTheme'
 import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { useLogsStore } from '@/stores/logs'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
+import { exitSafeMode, readSafeMode } from '@/utils/safeMode'
 import {
   getStorageString,
   removeStorage,
@@ -32,6 +33,9 @@ const { isTauri, isDesktop } = uiStore
 const isCompact = useIsCompactLayout()
 const route = useRoute()
 const isPipWindow = computed(() => route.meta.pip === true)
+
+// セーフモード (#794) は起動時に確定し、実行中に変わらない (解除はリロード)
+const isSafeMode = readSafeMode()
 
 const DevWelcome = isTauri
   ? null
@@ -217,6 +221,11 @@ onUnmounted(() => {
   <div :class="$style.root">
     <template v-if="isTauri">
       <TitleBar v-if="(isDesktop || !isCompact) && !isPipWindow" />
+      <div v-if="isSafeMode && !isPipWindow" :class="$style.safeModeBar">
+        <i class="ti ti-shield-half" />
+        <span :class="$style.safeModeText">セーフモードで起動中 — プラグイン・ウィジェット・カスタム CSS・テーマ・HEARTBEAT は無効です</span>
+        <button type="button" :class="$style.safeModeExit" @click="exitSafeMode">オフにする</button>
+      </div>
       <div :class="$style.content">
         <router-view />
       </div>
@@ -243,6 +252,41 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* セーフモード (#794)。テーマ変数は当たっていない前提なので配色は固定値で持つ */
+.safeModeBar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  background: #8a5a00;
+  color: #fff;
+}
+
+.safeModeText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.safeModeExit {
+  flex: none;
+  padding: 2px 10px;
+  border: 1px solid rgb(255 255 255 / 0.5);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  cursor: pointer;
+
+  &:hover {
+    background: rgb(255 255 255 / 0.15);
+  }
 }
 
 </style>
