@@ -8,15 +8,22 @@ import { useUiStore } from '@/stores/ui'
 import { matchesFilter } from '@/utils/timelineFilter'
 import { type NoteColumnConfig, useNoteColumn } from './useNoteColumn'
 
-// tauri-specta bindings: 全コマンドを空成功で応答（SQLite キャッシュは空扱い）
+// tauri-specta bindings: 全コマンドを空成功で応答（SQLite キャッシュは空扱い）。
+// 呼び出しは記録し、キャッシュ系アサーションで参照する
+const bindings = vi.hoisted(() => ({
+  calls: [] as { name: string; args: unknown[] }[],
+}))
+
 vi.mock('@/bindings', () => ({
   commands: new Proxy(
     {},
     {
       get:
-        () =>
-        (..._args: unknown[]) =>
-          Promise.resolve({ status: 'ok', data: [] }),
+        (_t, name: string) =>
+        (...args: unknown[]) => {
+          bindings.calls.push({ name, args })
+          return Promise.resolve({ status: 'ok', data: [] })
+        },
     },
   ),
 }))
@@ -69,6 +76,7 @@ let apps: App[] = []
 let pinia: ReturnType<typeof createPinia>
 
 beforeEach(() => {
+  bindings.calls.length = 0
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-07-01T12:00:00Z'))
   pinia = createPinia()
@@ -341,5 +349,82 @@ describe('useNoteColumn: スリープ復帰 catch-up とタブ切替の gap 検�
 
     // no-op ではなく最新ページを取得し、gap なら置換される
     expect(ids(api)).toEqual(['h11', 'h10'])
+  })
+})
+
+describe('useNoteColumn: フェッチカーソル (#831 Step 0)', () => {
+  it('生ページが全件フィルタ落ちでも loadMore が前進する (API 経路)', async () => {
+    addAccount('acc-cursor-api')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([note('h05'), note('h04')]) // 初回ページ (全件却下)
+      .mockResolvedValueOnce([])
+    const { api } = mountColumn({
+      accountId: 'acc-cursor-api',
+      fetch: (_a, opts) => fetchImpl(opts),
+      filterNotes: () => [],
+    })
+    await flush()
+    expect(ids(api)).toEqual([])
+
+    await api.loadMore()
+    await flush()
+
+    // バッファ末尾基準だと空ガードで止まり、同じページを取り続ける。
+    // カーソルは落ちたノートを含めて前進するので続きを取りに行ける
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(fetchImpl.mock.calls[1]?.[0]).toEqual({ untilId: 'h04' })
+  })
+
+  it('オフライン fallback のキャッシュ経路もカーソルの createdAt でアンカーする', async () => {
+    addAccount('acc-cursor-cache')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([note('h05'), note('h04')]) // 初回ページ (全件却下)
+      .mockRejectedValueOnce(new Error('offline'))
+    const { api } = mountColumn({
+      accountId: 'acc-cursor-cache',
+      fetch: () => fetchImpl(),
+      filterNotes: () => [],
+    })
+    await flush()
+
+    await api.loadMore()
+    await flush()
+
+    const before = bindings.calls.find(
+      (c) => c.name === 'apiGetCachedTimelineBefore',
+    )
+    expect(before?.args[2]).toBe(note('h04').createdAt)
+  })
+
+  it('reconnect でカーソルがリセットされ、旧世代の位置から取り直さない', async () => {
+    addAccount('acc-cursor-reset')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([note('h05'), note('h04')]) // mount 時 connect
+      .mockResolvedValueOnce([note('h03')]) // loadMore
+      .mockResolvedValueOnce([note('h09')]) // reconnect (gap → 置換)
+      .mockResolvedValueOnce([])
+    const { api } = mountColumn({
+      accountId: 'acc-cursor-reset',
+      fetch: (_a, opts) => fetchImpl(opts),
+    })
+    await flush()
+
+    await api.loadMore()
+    await flush()
+    expect(fetchImpl.mock.calls[1]?.[0]).toEqual({ untilId: 'h04' })
+
+    vi.advanceTimersByTime(6000) // dedup TTL 失効
+    await api.reconnect()
+    await flush()
+    expect(ids(api)).toEqual(['h09'])
+
+    await api.loadMore()
+    await flush()
+
+    // 旧カーソル (h03) が残っていると h09 と h03 の間がスキップされる
+    expect(fetchImpl.mock.calls[3]?.[0]).toEqual({ untilId: 'h09' })
   })
 })

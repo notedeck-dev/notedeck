@@ -44,13 +44,14 @@ export function useNoteList(options: UseNoteListOptions) {
   const unregisterRoot = noteStore.registerRoot(() => noteIds)
   onScopeDispose(unregisterRoot)
 
-  const notes = computed({
-    // 削除済みノートはキャッシュ再読込で noteMap/orderedIds に復活しうるため、
-    // 表示時の可視性述語で除外する（#602）。muted/archived の合成もこの述語に集約。
-    get: () =>
-      noteStore
-        .resolve(orderedIds.value)
-        .filter((n) => !visibility.isHidden(n)),
+  /**
+   * 書込基底となる unfiltered なノート列（#831 層 1 / Step 0）。
+   * 全ての read-modify-write（マージ・挿入・削除・truncate）はこちらを基底に
+   * する。filtered な `notes` を基底にすると、隠れているノートが書き戻しの
+   * たびに列から落ちて焼き込まれ、ミュート解除で復活しなくなる。
+   */
+  const rawNotes = computed({
+    get: () => noteStore.resolve(orderedIds.value),
     set: (newNotes: NormalizedNote[]) => {
       const trimmed =
         newNotes.length > maxNotes ? newNotes.slice(0, maxNotes) : newNotes
@@ -69,13 +70,22 @@ export function useNoteList(options: UseNoteListOptions) {
     },
   })
 
+  /**
+   * 表示専用の filtered な列（readonly）。削除済みノートはキャッシュ再読込で
+   * noteMap/orderedIds に復活しうるため、表示時の可視性述語で除外する（#602）。
+   * muted/archived の合成もこの述語に集約。書込は rawNotes 側で行う。
+   */
+  const notes = computed(() =>
+    rawNotes.value.filter((n) => !visibility.isHidden(n)),
+  )
+
   function setOnNotesChanged(fn: (notes: NormalizedNote[]) => void) {
     onNotesChangedFn = fn
   }
 
   function setNotes(newNotes: NormalizedNote[]) {
-    notes.value = newNotes
-    // Pass the trimmed result (setter may have truncated)
+    rawNotes.value = newNotes
+    // 可視ノートのみを通知する（noteCapture の購読対象は表示中ノート）
     onNotesChangedFn?.(notes.value)
   }
 
@@ -88,7 +98,8 @@ export function useNoteList(options: UseNoteListOptions) {
     const existing = newNotes.filter((n) => noteIds.has(n.id))
     const brandNew = newNotes.filter((n) => !noteIds.has(n.id))
     if (existing.length > 0) noteStore.put(existing)
-    if (brandNew.length > 0) setNotes(insertIntoSorted(notes.value, brandNew))
+    if (brandNew.length > 0)
+      setNotes(insertIntoSorted(rawNotes.value, brandNew))
   }
 
   function onNoteUpdate(event: NoteUpdateEvent) {
@@ -135,7 +146,9 @@ export function useNoteList(options: UseNoteListOptions) {
       removingIds.value = next
     }
     const prevIds = orderedIds.value
-    notes.value = notes.value.filter((n) => n.id !== id && n.renoteId !== id)
+    rawNotes.value = rawNotes.value.filter(
+      (n) => n.id !== id && n.renoteId !== id,
+    )
 
     if (await options.deleteHandler(note)) {
       noteStore.remove(id)
@@ -152,6 +165,9 @@ export function useNoteList(options: UseNoteListOptions) {
 
   return {
     notes,
+    // unfiltered な書込基底。同期位置の決定（sinceId / untilId / 空ガード等）は
+    // 隠れたノートを含むこちらを読む（#831 §1.4 の読取判別規則）
+    rawNotes,
     // 表示述語でフィルタされない「列のメンバーシップ」。snapshot 保存はこれを使う
     // ことで、ミュート等の可視性状態を焼き込まず、解除で復活できる（#574）。
     orderedIds,

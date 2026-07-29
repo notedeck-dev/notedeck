@@ -66,12 +66,23 @@ describe('useNoteList', () => {
     )
   })
 
-  it('trims on direct notes.value assignment', () => {
-    const { notes, noteIds } = createNoteList(5)
+  it('trims on direct rawNotes.value assignment', () => {
+    const { notes, rawNotes, noteIds } = createNoteList(5)
     const items = Array.from({ length: 10 }, (_, i) => makeNote(String(i)))
-    notes.value = items
+    rawNotes.value = items
     expect(notes.value).toHaveLength(5)
     expect(noteIds.size).toBe(5)
+  })
+
+  it('rawNotes は可視性述語でフィルタされず、notes だけが隠される (#831)', () => {
+    const { notes, rawNotes, setNotes } = createNoteList()
+    const muteStore = useMutesStore()
+    setNotes([makeNote('1'), makeNote('2'), makeNote('3')])
+
+    muteStore.muteUser('acc1', 'u1')
+    expect(notes.value).toHaveLength(0)
+    // 書込基底は隠れたノートを保持し続ける（同期位置の決定に使う）
+    expect(rawNotes.value.map((n) => n.id)).toEqual(['1', '2', '3'])
   })
 
   it('does not trim when under limit', () => {
@@ -111,9 +122,8 @@ describe('useNoteList', () => {
   })
 
   it('retains muted notes in orderedIds so a snapshot restores them on unmute (#574)', () => {
-    const { notes, setNotes, orderedIds } = createNoteList()
+    const { notes, rawNotes, setNotes, orderedIds } = createNoteList()
     const muteStore = useMutesStore()
-    const noteStore = useNoteStore()
     setNotes([makeNote('1'), makeNote('2'), makeNote('3')]) // all authored by 'u1'
 
     muteStore.muteUser('acc1', 'u1')
@@ -124,10 +134,26 @@ describe('useNoteList', () => {
     // bring them back.
     expect(orderedIds.value).toEqual(['1', '2', '3'])
 
-    // Simulate snapshot save (unfiltered ids) → restore.
-    setNotes(noteStore.resolve(orderedIds.value))
+    // Simulate snapshot save (unfiltered) → restore.
+    setNotes(rawNotes.value)
     muteStore.unmuteUser('acc1', 'u1')
     expect(notes.value.map((n) => n.id)).toEqual(['1', '2', '3'])
+  })
+
+  it('隠れている間にマージしても焼き込まれず、解除で復活する (#831)', () => {
+    const { notes, mergeUpdate, setNotes } = createNoteList()
+    const muteStore = useMutesStore()
+    setNotes([makeNote('2'), makeNote('1')]) // 新しい順
+
+    muteStore.muteUser('acc1', 'u1')
+    expect(notes.value).toHaveLength(0)
+
+    // 隠れている状態での read-modify-write。filtered を基底にすると
+    // ここで '1' '2' が列から落ちる
+    mergeUpdate([makeNote('3')])
+
+    muteStore.unmuteUser('acc1', 'u1')
+    expect(notes.value.map((n) => n.id)).toEqual(['3', '2', '1'])
   })
 
   it('passes trimmed notes to onNotesChanged callback', () => {
