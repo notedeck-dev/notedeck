@@ -146,6 +146,11 @@ export interface DeckColumn {
   query?: string
   active?: boolean
   filters?: TimelineFilter
+  /**
+   * カラムクエリ (#783 層 2)。AiScript 式のソース。空/未定義 = クエリなし。
+   * 検索カラム用の `query` とは別物 (仕様追補 A)。
+   */
+  noteQuery?: string
   listId?: string
   antennaId?: string
   clipId?: string
