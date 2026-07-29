@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { pushOverlay } from '@/composables/useBackButton'
 import { useUiStore } from '@/stores/ui'
+import { WINDOW_SIZES } from '@/windows/registry'
 
 export type WindowType =
   | 'note-detail'
@@ -48,81 +49,18 @@ export interface DeckWindow {
   x: number
   y: number
   // ユーザーが 8 方向ハンドルでリサイズした場合のみ値が入る。
-  // 未リサイズ時は WINDOW_SIZES[type] のデフォルトに従い、高さは max-height で内容に追従する。
+  // 未リサイズ時は WINDOW_REGISTRY のデフォルトに従い、高さは max-height で内容に追従する。
   width?: number
   height?: number
   zIndex: number
   minimized: boolean
   maximized: boolean
-  // 右上アンカー (WINDOW_SIZES[type].anchor 由来)。描画時に viewport 右端からの
+  // 右上アンカー (WINDOW_REGISTRY[type].anchor 由来)。描画時に viewport 右端からの
   // 相対配置にするための印。ユーザーがドラッグ/リサイズすると外れて x 配置に戻る。
   anchor?: 'top-right'
 }
 
 export const WINDOW_MIN_SIZE = { width: 240, height: 180 }
-
-export const WINDOW_SIZES: Record<
-  WindowType,
-  { width: number; maxHeight: number; anchor?: 'top-right' }
-> = {
-  // Content windows
-  'note-detail': { width: 500, maxHeight: 600 },
-  'note-inspector': { width: 620, maxHeight: 720 },
-  'notification-inspector': { width: 620, maxHeight: 720 },
-  'user-profile': { width: 620, maxHeight: 650 },
-  'federation-instance': { width: 500, maxHeight: 650 },
-  'follow-list': { width: 500, maxHeight: 650 },
-  aiSettings: { width: 400, maxHeight: 700 },
-  permissions: { width: 420, maxHeight: 700 },
-  // Tool windows
-  plugins: { width: 500, maxHeight: 720 },
-  // Editor windows
-  keybinds: { width: 400, maxHeight: 650 },
-  cssEditor: { width: 400, maxHeight: 650 },
-  themeEditor: { width: 400, maxHeight: 720 },
-  profileEditor: { width: 400, maxHeight: 700 },
-  // Login
-  login: { width: 380, maxHeight: 480 },
-  // About — hero (80px アイコン) + リンク行 + 技術情報。診断のコードブロックは内部スクロール
-  about: { width: 380, maxHeight: 640 },
-  // Nav editor
-  navEditor: { width: 400, maxHeight: 700 },
-  // Performance editor
-  performanceEditor: { width: 420, maxHeight: 750 },
-  // Settings JSON editor
-  appearanceEditor: { width: 400, maxHeight: 700 },
-  // Backup / Import / Export
-  backup: { width: 440, maxHeight: 550 },
-  // Cache editor (notes_cache の統計と削除)
-  cacheEditor: { width: 440, maxHeight: 550 },
-  // Tasks editor
-  tasksEditor: { width: 500, maxHeight: 700 },
-  // Snippets editor
-  snippetsEditor: { width: 500, maxHeight: 700 },
-  // Memo editor (Markdown body) — matches note-detail sizing
-  memoEditor: { width: 500, maxHeight: 600 },
-  // Misskey content detail windows
-  'page-detail': { width: 500, maxHeight: 720 },
-  'play-detail': { width: 500, maxHeight: 720 },
-  'gallery-detail': { width: 500, maxHeight: 720 },
-  'list-detail': { width: 500, maxHeight: 720 },
-  'clip-detail': { width: 500, maxHeight: 720 },
-  'drive-file-detail': { width: 500, maxHeight: 720 },
-  // Misskey content edit windows
-  'page-edit': { width: 500, maxHeight: 720 },
-  'play-edit': { width: 500, maxHeight: 720 },
-  // Widget edit window (= 「空のエディタで始める」相当の編集 UI)
-  'widget-edit': { width: 500, maxHeight: 720 },
-  // Skill edit window (markdown + frontmatter のフォーム編集)
-  'skill-edit': { width: 500, maxHeight: 720 },
-  // Secret Vault (#564): 外部サービス接続の一覧 / 編集
-  connections: { width: 440, maxHeight: 650 },
-  connectionEdit: { width: 440, maxHeight: 720 },
-  // Tutorial — 新規ユーザー向けセットアップ wizard。背景の他 window と並べて
-  // 進められるよう小さめサイズ。チュートリアル中に中央へ開くログイン/接続
-  // window と重ならないよう右上アンカーで出す。
-  tutorial: { width: 380, maxHeight: 420, anchor: 'top-right' },
-}
 
 export const useWindowsStore = defineStore('windows', () => {
   const windows = ref<DeckWindow[]>([])

@@ -15,7 +15,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
-import { buildWindowUri } from '@/utils/windowUri'
+import { buildWindowUri } from '@/windows/registry'
 
 const CommandPalette = defineAsyncComponent(
   () => import('@/components/common/CommandPalette.vue'),
