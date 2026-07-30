@@ -6,6 +6,7 @@ import MkMfm from '@/components/common/MkMfm.vue'
 import { safeUrl } from '@/composables/useDriveFolder'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { webUiUrl } from '@/utils/url'
 
@@ -179,7 +180,7 @@ function onKeydown(e: KeyboardEvent) {
           <div :class="$style.viewerImage">
             <template v-if="isImage(currentFile)">
               <img
-                :src="safeUrl(currentFile.url)"
+                :src="proxyUrl(safeUrl(currentFile.url))"
                 :alt="currentFile.name"
                 :class="[$style.viewerImg, { [$style.blurred]: isBlurred(currentFile), [$style.zoomable]: !isBlurred(currentFile) }]"
                 @click="openLightbox(currentFile)"

@@ -1,6 +1,6 @@
 import type { NormalizedNote } from '@/adapters/types'
 import { usePerformanceStore } from '@/stores/performance'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { isSafeUrl } from '@/utils/url'
 
 /**

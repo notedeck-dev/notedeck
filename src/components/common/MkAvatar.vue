@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { type CSSProperties, computed, ref, useCssModule, watch } from 'vue'
 import type { AvatarDecoration } from '@/adapters/types'
-import { proxyThumbUrl, proxyUrl } from '@/utils/imageProxy'
+import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 
 const props = withDefaults(
   defineProps<{

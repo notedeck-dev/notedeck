@@ -26,7 +26,7 @@ vi.mock('@/stores/toast', () => ({
   useToast: vi.fn(() => ({ show: vi.fn() })),
 }))
 vi.mock('@/stores/windows', () => ({ useWindowsStore: vi.fn() }))
-vi.mock('@/utils/imageProxy', () => ({ proxyThumbUrl: (u: unknown) => u }))
+vi.mock('@/utils/mediaProxy', () => ({ proxyThumbUrl: (u: unknown) => u }))
 vi.mock('@/utils/tauriInvoke', () => ({
   commands: {},
   unwrap: (r: { status: string; data?: unknown }) => r.data,

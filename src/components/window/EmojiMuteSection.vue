@@ -6,7 +6,7 @@ import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useAccountsStore } from '@/stores/accounts'
 import { useEmojisStore } from '@/stores/emojis'
 import { useSettingsStore } from '@/stores/settings'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyUrl } from '@/utils/mediaProxy'
 
 /**
  * アピアランス設定内のリアクション表示制御セクション。

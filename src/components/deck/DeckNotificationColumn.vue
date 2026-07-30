@@ -54,7 +54,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { getNoteUri } from '@/utils/noteUrl'
 import {
   CROSS_ACCOUNT_NOTIFICATION_KEY,

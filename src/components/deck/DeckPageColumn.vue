@@ -11,6 +11,7 @@ import { useTabSlide } from '@/composables/useTabSlide'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
@@ -137,7 +138,7 @@ function scrollToTop() {
           <div :class="$style.pageCardTitle">{{ item.title }}</div>
           <div v-if="item.summary" :class="$style.pageCardSummary">{{ item.summary }}</div>
           <div v-if="item.user" :class="$style.pageCardMeta">
-            <img v-if="item.user.avatarUrl" :src="item.user.avatarUrl" :class="$style.pageCardAvatar" />
+            <img v-if="item.user.avatarUrl" :src="proxyThumbUrl(item.user.avatarUrl, 28)" :class="$style.pageCardAvatar" />
             <span :class="$style.pageCardAuthor">
               <MkMfm v-if="item.user.name" :text="item.user.name" :emojis="(item.user.emojis ?? undefined) as Record<string, string> | undefined" :server-host="account?.host" plain />
               <template v-else>{{ item.user.username }}</template>

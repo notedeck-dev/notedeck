@@ -10,6 +10,7 @@ import { getAccountAvatarUrl } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { ACHIEVEMENT_TOTAL, type Achievement } from '@/utils/achievements'
 import { AppError } from '@/utils/errors'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
@@ -68,7 +69,7 @@ function scrollToTop() {
     <template #header-meta>
       <span v-if="unlockedCount > 0" :class="$style.headerCount">{{ unlockedCount }}/{{ ACHIEVEMENT_TOTAL }}</span>
       <div v-if="account" :class="$style.headerAccount">
-        <img :src="getAccountAvatarUrl(account)" :class="$style.headerAvatar" />
+        <img :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)" :class="$style.headerAvatar" />
       </div>
     </template>
 

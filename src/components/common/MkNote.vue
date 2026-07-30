@@ -32,7 +32,7 @@ import { useVisibleReactionCounts } from '@/composables/useVisibleReactionCounts
 import { useAccountsStore } from '@/stores/accounts'
 import { useSettingsStore } from '@/stores/settings'
 import { formatTime } from '@/utils/formatTime'
-import { proxyThumbUrl, proxyUrl } from '@/utils/imageProxy'
+import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import {
   buildReactionsData,
   canRenoteNote,

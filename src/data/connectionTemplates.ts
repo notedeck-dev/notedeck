@@ -11,7 +11,7 @@
  */
 
 import type { AuthType, ConnectionProtocol } from '@/bindings'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyUrl } from '@/utils/mediaProxy'
 
 export interface ConnectionTemplate {
   /** `builtin:<id>@<version>` 形式の識別子。 */
