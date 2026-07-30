@@ -17,6 +17,7 @@ import {
 } from '@/stores/misstore'
 import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
+import ColumnSection from './ColumnSection.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -80,6 +81,27 @@ const visibleQueries = computed(() => {
       item.name.toLowerCase().includes(q) ||
       (item.description ?? '').toLowerCase().includes(q),
   )
+})
+
+/** スキルカラムと同じ 3 分類のアコーディオン (ビルドイン/サイドロード/ストア配布) */
+interface QuerySection {
+  key: string
+  label: string
+  items: NamedQueryMeta[]
+}
+
+const installedSections = computed<QuerySection[]>(() => {
+  const builtin = visibleQueries.value.filter((q) => !q.storeId && q.builtIn)
+  const sideloaded = visibleQueries.value.filter(
+    (q) => !q.storeId && !q.builtIn,
+  )
+  const store = visibleQueries.value.filter((q) => !!q.storeId)
+  const sections: QuerySection[] = [
+    { key: 'builtin', label: 'ビルドイン', items: builtin },
+    { key: 'sideload', label: 'サイドロード', items: sideloaded },
+    { key: 'store', label: 'ストア配布', items: store },
+  ]
+  return sections.filter((s) => s.items.length > 0)
 })
 
 /** ⚡ = QIR コンパイル可 / false = 不能 (Phase 2 で逐次適用降格に対応予定) */
@@ -201,19 +223,26 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
             </template>
           </div>
 
-          <QueryCard
-            v-for="query in visibleQueries"
-            :key="query.id"
-            mode="library"
-            :name="query.name"
-            :description="query.description"
-            :icon-url="query.iconUrl"
-            :store-id="query.storeId"
-            :fast="isFast(query)"
-            :ref-count="refCount(query)"
-            @edit="openEditor(query)"
-            @delete="remove(query)"
-          />
+          <ColumnSection
+            v-for="section in installedSections"
+            :key="section.key"
+            :label="section.label"
+            :count="section.items.length"
+          >
+            <QueryCard
+              v-for="query in section.items"
+              :key="query.id"
+              mode="library"
+              :name="query.name"
+              :description="query.description"
+              :icon-url="query.iconUrl"
+              :store-id="query.storeId"
+              :fast="isFast(query)"
+              :ref-count="refCount(query)"
+              @edit="openEditor(query)"
+              @delete="remove(query)"
+            />
+          </ColumnSection>
         </div>
       </template>
 

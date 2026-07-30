@@ -23,7 +23,6 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useToast } from '@/stores/toast'
-import { useWindowsStore } from '@/stores/windows'
 import { webUiUrl as buildWebUiUrl } from '@/utils/url'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
@@ -123,21 +122,18 @@ const webUiUrl = computed(() => {
 const postFormPortalRef = useTemplateRef<HTMLElement>('postFormPortalRef')
 usePortal(postFormPortalRef)
 
-// --- カラムクエリ (#783): 全ノートカラム共通の入口・バッジ・診断 ---
-const windowsStore = useWindowsStore()
-function openQueryEditor(): void {
-  windowsStore.open('column-query-editor', { columnId: props.column.id })
-}
-
+// --- カラムクエリ (#783): 全ノートカラム共通のバッジ・診断表示 ---
+// 定義・編集はクエリ管理カラムに一元化。カラム側は適用状態の表示と
+// (タイムラインカラムでは) フィルタメニューのトグルだけを持つ
 const queryBadgeTitle = computed(() => {
   if (columnQueryState.value.status === 'invalid') {
-    return 'クエリを解釈できません — クリックで編集'
+    return 'クエリを解釈できません — クエリ管理カラムで修正するかフィルタメニューで無効化してください'
   }
   const err =
     columnQueryErrorCount.value > 0
       ? ` (評価エラー ${columnQueryErrorCount.value} 件を除外)`
       : ''
-  return `クエリ適用中${err} — クリックで編集`
+  return `クエリ適用中${err}`
 })
 
 /** 空状態: クエリによる全件除外と「TL が空」を区別する (仕様追補 E) */
@@ -191,24 +187,18 @@ defineExpose({
     </template>
 
     <template #header-extra>
-      <button
+      <span
         v-if="columnQueryState.status !== 'none'"
-        class="_button"
         :class="[$style.queryBadge, columnQueryState.status === 'invalid' && $style.queryBadgeInvalid]"
         :title="queryBadgeTitle"
-        @click.stop="openQueryEditor"
       >
         <i :class="columnQueryState.status === 'invalid' ? 'ti ti-alert-triangle' : 'ti ti-bolt'" />
         <span v-if="columnQueryErrorCount > 0">{{ columnQueryErrorCount }}</span>
-      </button>
+      </span>
       <slot name="header-extra" />
     </template>
 
     <template #menu-items="{ closeMenu }">
-      <button class="_popupItem" @click="openQueryEditor(); closeMenu()">
-        <i class="ti ti-filter" />
-        <span>クエリ...</span>
-      </button>
       <slot name="menu-items" :close-menu="closeMenu" />
     </template>
 
@@ -257,10 +247,9 @@ defineExpose({
       <div
         v-if="columnQueryState.status === 'invalid'"
         :class="$style.queryInvalidBanner"
-        role="button"
-        @click="openQueryEditor"
+        :title="queryBadgeTitle"
       >
-        <i class="ti ti-alert-triangle" />クエリを解釈できないため新着を停止中 — クリックで編集
+        <i class="ti ti-alert-triangle" />クエリを解釈できないため新着を停止中
       </div>
 
       <!-- Inline post form slot (e.g. channel column) -->

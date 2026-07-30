@@ -9,19 +9,20 @@ import { useDeckStore } from '@/stores/deck'
 import { useToast } from '@/stores/toast'
 
 /**
- * カラムクエリ編集ウィンドウ (#783)。2 形態を扱う:
+ * 名前付きクエリ編集ウィンドウ (#783)。
  *
- * - columnId 指定: カラムのクエリ設定。インライン式 + 名前付きクエリの
- *   トグル (仕様追補 B の And 合成)。dry-run はロード済みノートに適用
- * - queryId 指定: 名前付きクエリ本体の編集 (名前・説明・ソース)。
- *   保存すると参照している全カラムに伝播する (fetchKey 経由で refetch)
+ * クエリの定義・編集はクエリ管理カラムに一元化されており、ここはその
+ * 編集面 (名前・説明・AiScript ソース)。カラムへの適用はタイムライン
+ * カラムのフィルタメニューのトグルで行う (このウィンドウでは扱わない)。
  *
+ * 保存すると参照している全カラムに伝播する (シグネチャ変化 → refetch)。
  * 保存できるのは QIR コンパイルが通る式のみ (Phase 2 で降格対応予定)。
+ * dry-run は直近フォーカスしたタイムラインカラムのロード済みノートに
+ * 適用した通過数を出す (仕様追補 E)。
  */
 
 const props = defineProps<{
-  columnId?: string
-  queryId?: string
+  queryId: string
 }>()
 
 const emit = defineEmits<{
@@ -34,31 +35,10 @@ const toast = useToast()
 
 queriesStore.ensureLoaded()
 
-const isQueryMode = computed(() => props.queryId !== undefined)
-
-// --- カラム形態 ---
-const column = computed(() =>
-  props.columnId ? deckStore.getColumn(props.columnId) : undefined,
-)
-const enabledRefs = ref<string[]>([...(column.value?.noteQueryRefs ?? [])])
-
-function toggleRef(id: string): void {
-  enabledRefs.value = enabledRefs.value.includes(id)
-    ? enabledRefs.value.filter((x) => x !== id)
-    : [...enabledRefs.value, id]
-}
-
-// --- 名前付きクエリ形態 ---
-const namedQuery = computed(() =>
-  props.queryId ? queriesStore.getQuery(props.queryId) : undefined,
-)
+const namedQuery = computed(() => queriesStore.getQuery(props.queryId))
 const queryName = ref(namedQuery.value?.name ?? '')
 const queryDescription = ref(namedQuery.value?.description ?? '')
-
-// --- 共通: ソースとコンパイル ---
-const source = ref(
-  (isQueryMode.value ? namedQuery.value?.src : column.value?.noteQuery) ?? '',
-)
+const source = ref(namedQuery.value?.src ?? '')
 
 const compiled = computed(() => {
   const src = source.value
@@ -70,11 +50,13 @@ const diagnostics = computed(() =>
   compiled.value && !compiled.value.ok ? compiled.value.diagnostics : [],
 )
 
-/** ロード済みノートに対する dry-run (カラム形態のみ)。 */
+/** 直近フォーカスした TL カラムのロード済みノートに対する dry-run。 */
 const dryRun = computed(() => {
   const c = compiled.value
-  if (!c?.ok || !props.columnId) return null
-  const notes = (deckStore.visibleNotesByColumn[props.columnId] ??
+  if (!c?.ok) return null
+  const columnId = deckStore.lastFocusedTimelineColumnId
+  if (!columnId) return null
+  const notes = (deckStore.visibleNotesByColumn[columnId] ??
     []) as NormalizedNote[]
   if (notes.length === 0) return null
   let match = 0
@@ -87,93 +69,53 @@ const dryRun = computed(() => {
   return { total: notes.length, match, error }
 })
 
-const sourceValid = computed(
-  () => source.value.trim() === '' || compiled.value?.ok === true,
+const canSave = computed(
+  () =>
+    compiled.value?.ok === true &&
+    queryName.value.trim() !== '' &&
+    source.value.trim() !== '',
 )
-const canSave = computed(() => {
-  if (!sourceValid.value) return false
-  if (isQueryMode.value) {
-    // 名前付きクエリは空ソース・空名を許さない
-    return queryName.value.trim() !== '' && source.value.trim() !== ''
-  }
-  return true
-})
 
 const isDirty = computed(() => {
-  if (isQueryMode.value) {
-    const q = namedQuery.value
-    return (
-      source.value !== (q?.src ?? '') ||
-      queryName.value !== (q?.name ?? '') ||
-      queryDescription.value !== (q?.description ?? '')
-    )
-  }
-  const refsChanged =
-    JSON.stringify([...enabledRefs.value].sort()) !==
-    JSON.stringify([...(column.value?.noteQueryRefs ?? [])].sort())
-  return source.value !== (column.value?.noteQuery ?? '') || refsChanged
+  const q = namedQuery.value
+  return (
+    source.value !== (q?.src ?? '') ||
+    queryName.value !== (q?.name ?? '') ||
+    queryDescription.value !== (q?.description ?? '')
+  )
 })
 
 async function save(): Promise<void> {
   if (!canSave.value) return
-  if (isQueryMode.value && props.queryId) {
-    await queriesStore.updateQuery(props.queryId, {
-      name: queryName.value.trim(),
-      description: queryDescription.value.trim() || undefined,
-      src: source.value,
-    })
-    toast.show('クエリを保存しました', 'success')
-    emit('close')
-    return
-  }
-  if (!props.columnId) return
-  const trimmed = source.value.trim()
-  deckStore.updateColumn(props.columnId, {
-    noteQuery: trimmed === '' ? undefined : source.value,
-    noteQueryRefs:
-      enabledRefs.value.length > 0 ? [...enabledRefs.value] : undefined,
+  await queriesStore.updateQuery(props.queryId, {
+    name: queryName.value.trim(),
+    description: queryDescription.value.trim() || undefined,
+    src: source.value,
   })
-  toast.show(
-    trimmed === '' && enabledRefs.value.length === 0
-      ? 'クエリを解除しました'
-      : 'クエリを保存しました',
-    'success',
-  )
+  toast.show('クエリを保存しました', 'success')
   emit('close')
-}
-
-function clear(): void {
-  source.value = ''
 }
 </script>
 
 <template>
   <div :class="$style.root">
-    <!-- 名前付きクエリ形態: 名前・説明 -->
-    <template v-if="isQueryMode">
-      <input
-        v-model="queryName"
-        :class="$style.nameInput"
-        type="text"
-        placeholder="クエリ名"
-      />
-      <input
-        v-model="queryDescription"
-        :class="$style.descInput"
-        type="text"
-        placeholder="説明 (任意)"
-      />
-    </template>
-
-    <!-- カラム形態: 対象カラム名 -->
-    <div v-else :class="$style.columnName">
-      <i class="ti ti-layout-columns" />
-      <span>{{ column?.name || 'カラム' }}</span>
-    </div>
+    <input
+      v-model="queryName"
+      :class="$style.nameInput"
+      type="text"
+      placeholder="クエリ名"
+    />
+    <input
+      v-model="queryDescription"
+      :class="$style.descInput"
+      type="text"
+      placeholder="説明 (任意)"
+    />
 
     <div :class="$style.hint">
-      AiScript 式でこのカラムに流すノートを定義します (true = 表示)。
-      例: <code>note.text != null && note.text.incl("misskey")</code>
+      AiScript 式でカラムに流すノートを定義します (true = 表示)。
+      例: <code>note.text != null && note.text.incl("misskey")</code>。
+      カラムへの適用はタイムラインカラムのフィルタメニューで切り替えます。
     </div>
 
     <AiScriptEditor
@@ -190,7 +132,7 @@ function clear(): void {
           <i class="ti ti-bolt" />高速クエリ (QIR {{ compiled.nodeCount }} ノード)
         </span>
         <span v-if="dryRun" :class="$style.dryRun">
-          ロード済み {{ dryRun.total }} 件中 {{ dryRun.match }} 件通過<template
+          直近の TL カラム {{ dryRun.total }} 件中 {{ dryRun.match }} 件通過<template
             v-if="dryRun.error > 0"
           >・エラー {{ dryRun.error }} 件 (除外)</template>
         </span>
@@ -204,36 +146,7 @@ function clear(): void {
       </ul>
     </div>
 
-    <!-- カラム形態: 名前付きクエリのトグル (And 合成) -->
-    <div
-      v-if="!isQueryMode && queriesStore.queries.length > 0"
-      :class="$style.refsSection"
-    >
-      <div :class="$style.refsHeader">名前付きクエリ (AND 合成)</div>
-      <label
-        v-for="q in queriesStore.queries"
-        :key="q.id"
-        :class="$style.refItem"
-      >
-        <input
-          type="checkbox"
-          :checked="enabledRefs.includes(q.id)"
-          @change="toggleRef(q.id)"
-        />
-        <span :class="$style.refName">{{ q.name }}</span>
-        <span v-if="q.description" :class="$style.refDesc">{{ q.description }}</span>
-      </label>
-    </div>
-
     <div :class="$style.actions">
-      <button
-        v-if="!isQueryMode && source.trim() !== ''"
-        class="_button"
-        :class="$style.clearButton"
-        @click="clear"
-      >
-        クリア
-      </button>
       <button
         class="_button"
         :class="$style.saveButton"
@@ -252,14 +165,6 @@ function clear(): void {
   flex-direction: column;
   gap: 10px;
   padding: 12px;
-}
-
-.columnName {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-  font-size: 0.95em;
 }
 
 .nameInput,
@@ -331,55 +236,10 @@ function clear(): void {
   opacity: 0.7;
 }
 
-.refsSection {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  border-top: 1px solid var(--nd-divider, rgba(128, 128, 128, 0.2));
-  padding-top: 8px;
-}
-
-.refsHeader {
-  font-size: 0.78em;
-  font-weight: 600;
-  opacity: 0.7;
-}
-
-.refItem {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 2px;
-  cursor: pointer;
-  border-radius: 6px;
-
-  &:hover {
-    background: color-mix(in srgb, currentcolor 6%, transparent);
-  }
-}
-
-.refName {
-  font-size: 0.88em;
-}
-
-.refDesc {
-  font-size: 0.75em;
-  opacity: 0.6;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.clearButton {
-  padding: 6px 14px;
-  border-radius: 6px;
-  opacity: 0.8;
 }
 
 .saveButton {

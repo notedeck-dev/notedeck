@@ -24,6 +24,8 @@ export interface NamedQueryMeta {
   storeId?: string
   /** ストア配布物のアイコン (任意)。他の配布物カードと表示を揃える */
   iconUrl?: string
+  /** 組込シードのクエリ (スキルの builtIn と同じ分類軸) */
+  builtIn?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -34,6 +36,7 @@ interface QueryFileMeta {
   description?: string
   storeId?: string
   iconUrl?: string
+  builtIn?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -54,6 +57,7 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
     ...(q.description ? { description: q.description } : {}),
     ...(q.storeId ? { storeId: q.storeId } : {}),
     ...(q.iconUrl ? { iconUrl: q.iconUrl } : {}),
+    ...(q.builtIn ? { builtIn: true } : {}),
     createdAt: q.createdAt,
     updatedAt: q.updatedAt,
   }),
@@ -64,6 +68,7 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
     src,
     storeId: meta.storeId,
     iconUrl: meta.iconUrl,
+    builtIn: meta.builtIn,
     createdAt: meta.createdAt ?? Date.now(),
     updatedAt: meta.updatedAt ?? Date.now(),
   }),

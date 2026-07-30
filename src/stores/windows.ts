@@ -84,7 +84,7 @@ export const useWindowsStore = defineStore('windows', () => {
     'federation-instance': ['host', 'accountId'],
     'follow-list': ['userId', 'accountId'],
     memoEditor: ['memoKey', 'accountId'],
-    'column-query-editor': ['columnId', 'queryId'],
+    'column-query-editor': ['queryId'],
     'page-detail': ['pageId', 'accountId'],
     'play-detail': ['flashId', 'accountId'],
     'gallery-detail': ['postId', 'accountId'],
