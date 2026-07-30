@@ -2438,6 +2438,7 @@ async permissionsLockdown() : Promise<Result<null, string>> {
 
 export const events = __makeEvents__<{
 exportProgress: ExportProgress,
+mediaFetched: MediaFetched,
 noteCaptureBatch: NoteCaptureBatch,
 notificationClicked: NotificationClicked,
 queryDelta: QueryDelta,
@@ -2447,6 +2448,7 @@ streamEnvelope: StreamEnvelope,
 streamStatus: StreamStatus
 }>({
 exportProgress: "export-progress",
+mediaFetched: "media-fetched",
 noteCaptureBatch: "note-capture-batch",
 notificationClicked: "notification-clicked",
 queryDelta: "query-delta",
@@ -2816,6 +2818,13 @@ export type HttpFetchResponse = { status: number; headers: Partial<{ [key in str
  */
 export type ImageCacheStats = { bytes: number; files: number }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+/**
+ * 二段階配信 (フェーズ 2) の背景取得が終わったことをフロントへ知らせる。
+ * mediaProxy.ts がこれを受けて該当 URL の `<img>` に再要求させる
+ * (成否によらず emit する。失敗時の再要求は negative cache が 502 で
+ * 受け止め、`onerror` フォールバックに繋がる)。
+ */
+export type MediaFetched = { url: string; ok: boolean }
 /**
  * Misskey の `mutedWords` / `hardMutedWords` の 1 要素。
  * 文字列配列なら AND 語群（全語含むとマッチ）、文字列なら `/regex/flags` 形式の正規表現。

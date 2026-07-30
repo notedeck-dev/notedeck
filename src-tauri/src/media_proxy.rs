@@ -15,9 +15,31 @@
 use std::sync::Arc;
 
 use futures_util::StreamExt;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 use crate::image_cache::{hex_hash, CacheEntry, ImageCache, StreamingFetchResult};
+
+/// 二段階配信 (フェーズ 2) の背景取得が終わったことをフロントへ知らせる。
+/// mediaProxy.ts がこれを受けて該当 URL の `<img>` に再要求させる
+/// (成否によらず emit する。失敗時の再要求は negative cache が 502 で
+/// 受け止め、`onerror` フォールバックに繋がる)。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaFetched {
+    pub url: String,
+    pub ok: bool,
+}
+
+/// 1×1 透明 GIF。キャッシュミス時の仮応答 (フェーズ 1)。
+/// 404 を返すと `<img>` の onerror が発火して MkAvatar などのフォールバック
+/// (プロキシ迂回で原寸直読み) を誤爆させるため、成功扱いの透明画像で場を
+/// 持たせ、取得完了イベントで差し替えさせる。
+const PLACEHOLDER_GIF: &[u8] = &[
+    0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xFF, 0xFF, 0xFF, 0x21, 0xF9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00,
+    0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x01, 0x44, 0x00, 0x3B,
+];
 
 /// 変換パラメータ込みのメディアリクエスト。
 /// 変換は画像にしか効かないが、効果音は変換なしで同じ経路を通る。
@@ -173,18 +195,23 @@ async fn apply_transform(
     .unwrap_or_else(|_| (Vec::new(), "application/octet-stream".to_string()))
 }
 
-/// キャッシュエントリ (メモリ or ディスク) をバイト列にする。
+/// キャッシュエントリ (メモリ or ディスク) を変換なしでバイト列にする。
+async fn entry_bytes(entry: &CacheEntry) -> Result<Vec<u8>, String> {
+    match &entry.mem_bytes {
+        // メモリキャッシュ側も同じ Arc を保持しているので複製は避けられない
+        Some(mem) => Ok(mem.as_ref().clone()),
+        None => tokio::fs::read(&entry.path)
+            .await
+            .map_err(|e| e.to_string()),
+    }
+}
+
+/// キャッシュエントリをバイト列にし、要求されていれば変換を適用する。
 pub async fn bytes_from_entry(
     entry: CacheEntry,
     req: &MediaRequest,
 ) -> Result<(Vec<u8>, String), String> {
-    let data = match entry.mem_bytes {
-        // メモリキャッシュ側も同じ Arc を保持しているので複製は避けられない
-        Some(mem) => mem.as_ref().clone(),
-        None => tokio::fs::read(&entry.path)
-            .await
-            .map_err(|e| e.to_string())?,
-    };
+    let data = entry_bytes(&entry).await?;
     Ok(apply_transform(data, entry.content_type, req).await)
 }
 
@@ -264,6 +291,9 @@ async fn handle_uri_request_inner(
     let Some(req) = MediaRequest::from_query(query) else {
         return error_response(tauri::http::StatusCode::BAD_REQUEST, "invalid url param");
     };
+    // wait=1: 上流取得を待つブロッキング応答 (上限は RESPONSE_DEADLINE)。
+    // fetch()/Audio 要素のようにプレースホルダを飲み込めない消費者 (効果音) 用。
+    let wait = url::form_urlencoded::parse(query.as_bytes()).any(|(k, v)| k == "wait" && v == "1");
 
     let etag = req.etag();
     // 条件付きリクエスト: 同じ ETag を持っているなら本文を送らない
@@ -290,32 +320,140 @@ async fn handle_uri_request_inner(
             "media cache not ready",
         );
     };
+    let cache = cache.inner().clone();
 
-    match load_bytes(cache.inner(), &req).await {
-        Ok((bytes, content_type)) => {
-            tracing::debug!(
-                url = %req.url,
-                bytes = bytes.len(),
-                content_type = %content_type,
-                "ndmedia: served"
-            );
-            tauri::http::Response::builder()
-                .status(tauri::http::StatusCode::OK)
-                .header("Content-Type", content_type)
-                .header("Cache-Control", CACHE_CONTROL)
-                .header("ETag", &etag)
-                // 効果音は fetch() + decodeAudioData で読むため CORS が要る。
-                // img と違い ACAO が無いと access control で弾かれる。
-                // custom protocol は WebView 内からしか到達できないので * で安全
-                .header("Access-Control-Allow-Origin", "*")
-                .body(bytes)
-                .unwrap_or_else(|_| internal_error())
-        }
-        Err(msg) => {
-            tracing::warn!(url = %req.url, error = %msg, "ndmedia: upstream fetch failed");
-            error_response(tauri::http::StatusCode::BAD_GATEWAY, &msg)
-        }
+    // ── フェーズ 1: ローカル (メモリ/ディスク) だけで応答する ──
+    // variant (変換結果) は cache_key で保存済みなので、ヒットすれば
+    // 変換なしの読み出しだけで返せる。ここが応答時間の実質上限になる。
+    let key = req.cache_key();
+    if let Some(entry) = cache.check_cache_only(&key).await {
+        return match entry_bytes(&entry).await {
+            Ok(bytes) => ok_response(bytes, &entry.content_type, &etag),
+            Err(msg) => {
+                tracing::warn!(url = %req.url, error = %msg, "ndmedia: cache read failed");
+                error_response(tauri::http::StatusCode::INTERNAL_SERVER_ERROR, &msg)
+            }
+        };
     }
+
+    if wait {
+        // ブロッキング経路 (従来動作)。効果音は初回でも実データが要る
+        return match load_bytes(&cache, &req).await {
+            Ok((bytes, content_type)) => ok_response(bytes, &content_type, &etag),
+            Err(msg) => {
+                tracing::warn!(url = %req.url, error = %msg, "ndmedia: upstream fetch failed");
+                error_response(tauri::http::StatusCode::BAD_GATEWAY, &msg)
+            }
+        };
+    }
+
+    // 失敗直後 (negative cache) / 既知のダウンホスト (circuit breaker) は
+    // ensure を発行せず即エラー。ここで遮断しないと「失敗イベント → img
+    // 再要求 → ensure → 失敗イベント」が空回りし続ける
+    if cache.is_fast_fail(&req.url).await {
+        return error_response(
+            tauri::http::StatusCode::BAD_GATEWAY,
+            "upstream recently failed",
+        );
+    }
+
+    // ── フェーズ 2: 取得+変換は背景で行い、即プレースホルダを返す ──
+    // wry Android は custom protocol を単一 Mutex で直列処理するため、
+    // ここで上流を待つと他の全メディア + 8KB 超の IPC 応答まで道連れになる。
+    // 完了は MediaFetched イベントで通知し、フロントが再要求してくる。
+    if cache.begin_ensure(&key).await {
+        tokio::spawn(ensure_media(app, cache, req));
+    }
+    placeholder_response()
+}
+
+/// 背景取得: オリジナルを (キャッシュ or 上流から) 用意し、変換を適用して
+/// cache_key で保存し、完了イベントを emit する。
+///
+/// 変換が不要・不能でも必ず cache_key で保存する。保存しないとフェーズ 1 が
+/// 永遠にミスして ensure と完了イベントを打ち続ける。
+async fn ensure_media(app: AppHandle, cache: Arc<ImageCache>, req: MediaRequest) {
+    let key = req.cache_key();
+    let result = ensure_media_inner(&cache, &req).await;
+    cache.finish_ensure(&key).await;
+    if let Err(ref msg) = result {
+        tracing::warn!(url = %req.url, error = %msg, "ndmedia: background fetch failed");
+    }
+    use tauri_specta::Event;
+    MediaFetched {
+        url: req.url.clone(),
+        ok: result.is_ok(),
+    }
+    .emit(&app)
+    .ok();
+}
+
+async fn ensure_media_inner(cache: &ImageCache, req: &MediaRequest) -> Result<(), String> {
+    // オリジナルを取得 (キャッシュ or 上流)
+    let (data, content_type) = match cache.check_cache_only(&req.url).await {
+        Some(entry) => {
+            let content_type = entry.content_type.clone();
+            (entry_bytes(&entry).await?, content_type)
+        }
+        None => match cache.fetch_streaming(&req.url).await {
+            Ok(StreamingFetchResult::Cached(entry)) => {
+                let content_type = entry.content_type.clone();
+                (entry_bytes(&entry).await?, content_type)
+            }
+            Ok(StreamingFetchResult::Streaming {
+                byte_stream,
+                content_type,
+            }) => {
+                let mut all = Vec::with_capacity(65_536);
+                let mut stream = byte_stream;
+                while let Some(chunk) = stream.next().await {
+                    all.extend_from_slice(&chunk?);
+                }
+                (all, content_type)
+            }
+            Err(msg) => return Err(msg),
+        },
+    };
+
+    let (bytes, content_type) = if req.wants_transform() {
+        apply_transform(data, content_type, req).await
+    } else {
+        (data, content_type)
+    };
+    // fetch_streaming の背景タスクもオリジナルを書くが、それを待たずに emit
+    // すると再要求がミスする競合があるため、ここで確実に書き切ってから返す
+    cache.store_variant(&req.cache_key(), bytes, &content_type).await;
+    Ok(())
+}
+
+fn ok_response(
+    bytes: Vec<u8>,
+    content_type: &str,
+    etag: &str,
+) -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(tauri::http::StatusCode::OK)
+        .header("Content-Type", content_type)
+        .header("Cache-Control", CACHE_CONTROL)
+        .header("ETag", etag)
+        // 効果音は fetch() + decodeAudioData で読むため CORS が要る。
+        // img と違い ACAO が無いと access control で弾かれる。
+        // custom protocol は WebView 内からしか到達できないので * で安全
+        .header("Access-Control-Allow-Origin", "*")
+        .body(bytes)
+        .unwrap_or_else(|_| internal_error())
+}
+
+fn placeholder_response() -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(tauri::http::StatusCode::OK)
+        .header("Content-Type", "image/gif")
+        // 仮応答をどの層にもキャッシュさせない (本物はイベント後の再要求で返す)
+        .header("Cache-Control", "no-store")
+        .header("Access-Control-Allow-Origin", "*")
+        .header("X-ND-Pending", "1")
+        .body(PLACEHOLDER_GIF.to_vec())
+        .unwrap_or_else(|_| internal_error())
 }
 
 const CACHE_CONTROL: &str = "public, max-age=86400, immutable";
@@ -399,6 +537,14 @@ mod tests {
             .expect("should transform");
         assert_eq!(ct, "image/webp");
         assert!(!out.is_empty());
+    }
+
+    /// フェーズ 1 の仮応答が本物の画像としてデコードできること
+    /// (壊れたバイト列だと WebView が broken image を描いてしまう)
+    #[test]
+    fn placeholder_gif_is_valid_1x1() {
+        let img = image::load_from_memory(PLACEHOLDER_GIF).expect("must decode");
+        assert_eq!((img.width(), img.height()), (1, 1));
     }
 
     /// 寸法が大きすぎる画像はデコードを拒否して原本のまま返す (None)。
