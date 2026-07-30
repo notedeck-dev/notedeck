@@ -96,6 +96,14 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
         undefined,
         RECOUNT_MAX_TOTAL,
       )
+      if (import.meta.env.DEV) {
+        console.debug('[reaction-recount] listed', {
+          noteId,
+          serverTotal: total,
+          listed: reactions.length,
+          reactors: reactions.map((r) => `${r.type} by ${r.user.id}`),
+        })
+      }
       if (cache.value.size >= CACHE_CAP) {
         const oldest = cache.value.keys().next().value
         if (oldest !== undefined) cache.value.delete(oldest)
@@ -111,8 +119,9 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
         accountId,
         reactions.map((r) => r.user.id),
       )
-    } catch {
-      // 非クリティカル: 取得失敗時はサーバー集計のまま
+    } catch (e) {
+      // 非クリティカル: 取得失敗時はサーバー集計のまま (原因は診断できるよう残す)
+      console.warn('[reaction-recount] fetch failed:', noteId, e)
     } finally {
       inflight.delete(noteId)
     }
