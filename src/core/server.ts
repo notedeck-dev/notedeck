@@ -83,6 +83,13 @@ function detectFeatures(software: ServerSoftware): ServerFeatures {
     features.notesShowPartialBulk = true
   }
 
+  // リモート絵文字でのリアクション (#630)。本家は `@ホスト名` 付きを ❤ に
+  // フォールバックするため、連合キャッシュまで絵文字を探索するフォークのみ。
+  // API から判定する手段はないので静的宣言 — 漏れても「押せない」側に落ちる
+  if (software === 'lqvp/misskey-tempura') {
+    features.remoteEmojiReactions = true
+  }
+
   return features
 }
 
@@ -97,5 +104,6 @@ function defaultFeatures(): ServerFeatures {
     quotes: true,
     scheduledNotes: false,
     groupedNotifications: false,
+    remoteEmojiReactions: false,
   }
 }

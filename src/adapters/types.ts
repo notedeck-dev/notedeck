@@ -37,6 +37,8 @@ export interface ServerFeatures {
   antennas: boolean
   quotes: boolean
   groupedNotifications: boolean
+  /** リモート絵文字 (`:name@host:`) でリアクションできるか (#630) */
+  remoteEmojiReactions: boolean
   [key: string]: boolean
 }
 
