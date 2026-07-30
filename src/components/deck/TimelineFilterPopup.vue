@@ -62,7 +62,8 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
     :style="{ ...themeVars, top: position.top + 'px', left: position.left + 'px' }"
     @click.stop
   >
-    <div :class="$style.filterPopupHeader">フィルター</div>
+    <!-- 組込トグルが無いカラム (クエリトグルのみ) では見出しごと隠す (#841) -->
+    <div v-if="filterKeys.length > 0" :class="$style.filterPopupHeader">フィルター</div>
     <div
       v-for="key in filterKeys"
       :key="key"

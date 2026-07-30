@@ -1,7 +1,18 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { type App, createApp, defineComponent, nextTick, ref } from 'vue'
-import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
+import {
+  type App,
+  createApp,
+  defineComponent,
+  nextTick,
+  type Ref,
+  ref,
+} from 'vue'
+import type {
+  NormalizedNote,
+  ServerAdapter,
+  TimelineFilter,
+} from '@/adapters/types'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
@@ -108,6 +119,7 @@ function mountColumn(opts: {
   fetch: NoteColumnConfig['fetch']
   filterNotes?: NoteColumnConfig['filterNotes']
   fetchKey?: NoteColumnConfig['fetchKey']
+  filters?: Ref<TimelineFilter | undefined>
   streaming?: boolean
 }) {
   const tlKey = ref('home')
@@ -120,6 +132,7 @@ function mountColumn(opts: {
             id: opts.columnId ?? `col-${opts.accountId}`,
             type: 'timeline',
             accountId: opts.accountId,
+            filters: opts.filters?.value,
           }) as DeckColumn,
         fetch: opts.fetch,
         cache: { getKey: () => tlKey.value },
@@ -278,6 +291,60 @@ describe('useNoteColumn: 放置復帰の stale-tab ガードと REST 可視性�
 
     expect(fetchB).toHaveBeenCalled()
     expect(ids(colB.api)).toEqual(['b01'])
+  })
+})
+
+describe('useNoteColumn: 組込フィルタ (column.filters) の共通適用 (#841)', () => {
+  /** renote のみ (引用でない) のノート */
+  function renoteOnly(id: string): NormalizedNote {
+    return {
+      ...note(id),
+      text: null,
+      renote: note(`${id}-orig`),
+    } as unknown as NormalizedNote
+  }
+
+  it('REST 取得結果に column.filters が適用される (withRenotes=false でリノート除外)', async () => {
+    addAccount('acc-builtin')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue([note('n01'), renoteOnly('r02')])
+    const { api } = mountColumn({
+      accountId: 'acc-builtin',
+      fetch: () => fetchImpl(),
+      filters: ref<TimelineFilter | undefined>({ withRenotes: false }),
+    })
+    await flush()
+
+    expect(ids(api)).toEqual(['n01'])
+  })
+
+  it('filters の変更で表示中ノートに即時適用され、refetch も走る', async () => {
+    addAccount('acc-builtin-toggle')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue([note('n01'), renoteOnly('r02')])
+    const filters = ref<TimelineFilter | undefined>(undefined)
+    const { api } = mountColumn({
+      accountId: 'acc-builtin-toggle',
+      fetch: () => fetchImpl(),
+      filters,
+    })
+    await flush()
+    expect(ids(api)).toEqual(['n01', 'r02'])
+    const fetchCountBefore = fetchImpl.mock.calls.length
+
+    // 絞り込み方向: 表示中ノートから即時に落ちる + 緩和方向の回収用 refetch
+    filters.value = { withRenotes: false }
+    await flush()
+    expect(ids(api)).toEqual(['n01'])
+    expect(fetchImpl.mock.calls.length).toBeGreaterThan(fetchCountBefore)
+
+    // 緩和方向: フィルタ解除で refetch により復元される
+    vi.advanceTimersByTime(6000) // dedup TTL を失効させる
+    filters.value = undefined
+    await flush()
+    expect(ids(api)).toEqual(['n01', 'r02'])
   })
 })
 

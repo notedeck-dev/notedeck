@@ -16,7 +16,6 @@ import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { useAccountsStore } from '@/stores/accounts'
-import { useColumnQueriesStore } from '@/stores/columnQueries'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import type { CustomTimelineInfo } from '@/utils/customTimelines'
@@ -31,11 +30,9 @@ import {
   markTimelineDenied,
 } from '@/utils/customTimelines'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { matchesFilter } from '@/utils/timelineFilter'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
-import TimelineFilterPopup from './TimelineFilterPopup.vue'
 
 const props = defineProps<{
   column: DeckColumnType
@@ -127,15 +124,19 @@ const noteColumnConfig: NoteColumnConfig = {
     subscribe: (_adapter, enqueue, callbacks) => {
       // biome-ignore lint/style/noNonNullAssertion: column.accountId は connect ガードで保証
       const accountId = props.column.accountId!
-      const type = tlType.value
       return createQuerySubscription({
         open: async () =>
-          unwrap(await commands.querySubscribeTimeline(accountId, type, null)),
+          unwrap(
+            await commands.querySubscribeTimeline(
+              accountId,
+              tlType.value,
+              null,
+            ),
+          ),
         onInsert: (item) => {
+          // 組込フィルタ・可視性防御は useNoteColumn の enqueue 前段が担う (#841)
           const note = queryItemAsNote(item)
-          if (!note) return
-          if (!matchesFilter(note, columnFilters.value, type)) return
-          enqueue(note)
+          if (note) enqueue(note)
         },
         onDelete: (id) =>
           callbacks.onNoteUpdated?.({
@@ -147,8 +148,9 @@ const noteColumnConfig: NoteColumnConfig = {
       })
     },
   },
-  filterNotes: (incoming) =>
-    incoming.filter((n) => matchesFilter(n, columnFilters.value, tlType.value)),
+  // 組込フィルタ + local/global の public 限定 (可視性防御) は
+  // useNoteColumn 側で matchesFilter に一元適用される (#841)
+  timelineType: () => tlType.value,
 }
 
 // --- DeckNoteColumn ref (expose: account, scroller, reconnect, switchWithSnapshot, notes, columnThemeVars) ---
@@ -249,10 +251,9 @@ function getTlIcon(type: string): string {
   return ct?.icon ?? TL_ICONS.home ?? ''
 }
 
-// --- Filter UI ---
-const showFilterMenu = ref(false)
-const filterBtnRef = ref<HTMLButtonElement | null>(null)
-const filterPopupPos = ref({ top: 0, left: 0 })
+// --- Filter keys (組込トグルの出し分け) ---
+// メニュー UI 本体は DeckNoteColumn に共通実装 (#841)。TL 種別ごとの
+// 利用可能キーだけをここで検出して渡す
 const availableFilterKeys = ref<(keyof TimelineFilter)[]>([])
 
 async function refreshFilterKeys() {
@@ -262,65 +263,6 @@ async function refreshFilterKeys() {
     return
   }
   availableFilterKeys.value = await detectFilterKeys(host, tlType.value)
-}
-
-const hasActiveFilter = computed(() => {
-  const f = columnFilters.value
-  return Object.values(f).some((v) => v !== undefined)
-})
-
-function toggleFilterMenu() {
-  showFilterMenu.value = !showFilterMenu.value
-  if (showFilterMenu.value) {
-    nextTick(() => {
-      const btn = filterBtnRef.value
-      if (btn) {
-        const rect = btn.getBoundingClientRect()
-        filterPopupPos.value = {
-          top: rect.bottom + 4,
-          left: Math.max(8, rect.right - 220),
-        }
-      }
-    })
-  }
-}
-
-function toggleFilter(key: keyof TimelineFilter) {
-  const current = columnFilters.value[key]
-  const next = { ...columnFilters.value }
-  if (key === 'withFiles') {
-    next[key] = current === true ? undefined : true
-  } else {
-    next[key] = current === false ? undefined : false
-  }
-  for (const k of Object.keys(next) as (keyof TimelineFilter)[]) {
-    if (next[k] === undefined) delete next[k]
-  }
-  deckStore.updateColumn(props.column.id, {
-    filters: Object.keys(next).length > 0 ? next : undefined,
-  })
-  reconnect()
-}
-
-// --- 名前付きクエリのカスタムフィルタトグル (#783) ---
-// インストール済みクエリをフィルタメニューにトグル露出する (仕様追補)。
-// 反映は useNoteColumn のクエリシグネチャ watch (即時再適用 + refetch) が担う
-const columnQueriesStore = useColumnQueriesStore()
-columnQueriesStore.ensureLoaded()
-const namedQueryToggles = computed(() =>
-  columnQueriesStore.queries.map((q) => ({ id: q.id, name: q.name })),
-)
-
-function toggleNamedQuery(id: string) {
-  const refs = new Set(props.column.noteQueryRefs ?? [])
-  if (refs.has(id)) {
-    refs.delete(id)
-  } else {
-    refs.add(id)
-  }
-  deckStore.updateColumn(props.column.id, {
-    noteQueryRefs: refs.size > 0 ? [...refs] : undefined,
-  })
 }
 
 // --- Tab defs for ColumnTabs ---
@@ -472,6 +414,7 @@ onMounted(async () => {
     icon="ti-home"
     sound-enabled
     :note-column-config="noteColumnConfig"
+    :filter-keys="availableFilterKeys"
   >
     <template #header-icon>
       <span :class="$style.tlHeaderIconWrap">
@@ -489,66 +432,17 @@ onMounted(async () => {
         :swipe-target="swipeTarget"
         compact
         @update:model-value="onTabChange"
-      >
-        <template v-if="availableFilterKeys.length > 0" #trailing>
-          <button
-            ref="filterBtnRef"
-            class="_button"
-            :class="[$style.tlFilterBtn, { [$style.active]: hasActiveFilter }]"
-            title="フィルター"
-            @click.stop="toggleFilterMenu"
-          >
-            <i class="ti ti-filter" />
-          </button>
-        </template>
-      </ColumnTabs>
+      />
     </template>
 
     <template #note-item="{ index }">
       <MkAd v-if="shouldShowAd(index)" :ad="pickAd(index)!" :server-host="serverHost" @mute="muteAd" />
     </template>
   </DeckNoteColumn>
-
-  <TimelineFilterPopup
-    :show="showFilterMenu"
-    :filter-keys="availableFilterKeys"
-    :filters="columnFilters"
-    :position="filterPopupPos"
-    :theme-vars="columnThemeVars"
-    :named-queries="namedQueryToggles"
-    :enabled-query-ids="column.noteQueryRefs ?? []"
-    @close="showFilterMenu = false"
-    @toggle="toggleFilter"
-    @toggle-query="toggleNamedQuery"
-  />
 </template>
 
 <style lang="scss" module>
 @use './column-common.module.scss';
-
-.tlFilterBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: auto;
-  padding: 8px 12px;
-  opacity: 0.5;
-  color: var(--nd-fg);
-  transition:
-    opacity var(--nd-duration-base),
-    background var(--nd-duration-base),
-    color var(--nd-duration-base);
-
-  &:hover {
-    opacity: 0.8;
-    background: var(--nd-buttonHoverBg);
-  }
-
-  &.active {
-    opacity: 1;
-    color: var(--nd-accent);
-  }
-}
 
 .tlHeaderIconWrap {
   display: inline-flex;

@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, useTemplateRef } from 'vue'
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  ref,
+  useTemplateRef,
+} from 'vue'
+import type { TimelineFilter } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
@@ -19,13 +26,16 @@ import {
 import { usePortal } from '@/composables/usePortal'
 import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
 import { isGuestAccount } from '@/stores/accounts'
+import { useColumnQueriesStore } from '@/stores/columnQueries'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useToast } from '@/stores/toast'
 import { webUiUrl as buildWebUiUrl } from '@/utils/url'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
+import TimelineFilterPopup from './TimelineFilterPopup.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -40,6 +50,11 @@ const props = withDefaults(
     emptyMessage?: string
     /** チャンネルカラム等、自明な文脈ではノートのチャンネルバッジを非表示にする */
     hideChannelBadge?: boolean
+    /**
+     * フィルタメニューに出す組込トグル (#841)。未指定はクエリトグルのみ。
+     * 適用は useNoteColumn の組込フィルタ (クライアント側) が担う
+     */
+    filterKeys?: (keyof TimelineFilter)[]
   }>(),
   {
     emptyMessage: 'まだノートがありません',
@@ -136,6 +151,74 @@ const queryBadgeTitle = computed(() => {
   return `クエリ適用中${err}`
 })
 
+// --- フィルタメニュー (#841): 組込トグル + クエリトグルを全ノートカラム共通で提供 ---
+const deckStore = useDeckStore()
+const columnQueriesStore = useColumnQueriesStore()
+columnQueriesStore.ensureLoaded()
+
+const namedQueryToggles = computed(() =>
+  columnQueriesStore.queries.map((q) => ({ id: q.id, name: q.name })),
+)
+const effectiveFilterKeys = computed(() => props.filterKeys ?? [])
+const showFilterBtn = computed(
+  () =>
+    effectiveFilterKeys.value.length > 0 || namedQueryToggles.value.length > 0,
+)
+const columnFilters = computed<TimelineFilter>(() => props.column.filters ?? {})
+const hasActiveFilter = computed(() =>
+  Object.values(columnFilters.value).some((v) => v !== undefined),
+)
+
+const showFilterMenu = ref(false)
+const filterBtnRef = ref<HTMLButtonElement | null>(null)
+const filterPopupPos = ref({ top: 0, left: 0 })
+
+function toggleFilterMenu() {
+  showFilterMenu.value = !showFilterMenu.value
+  if (showFilterMenu.value) {
+    nextTick(() => {
+      const btn = filterBtnRef.value
+      if (btn) {
+        const rect = btn.getBoundingClientRect()
+        filterPopupPos.value = {
+          top: rect.bottom + 4,
+          left: Math.max(8, rect.right - 220),
+        }
+      }
+    })
+  }
+}
+
+// 反映は useNoteColumn のフィルタシグネチャ watch (即時再適用 + refetch) が担う
+function toggleFilter(key: keyof TimelineFilter) {
+  const current = columnFilters.value[key]
+  const next = { ...columnFilters.value }
+  if (key === 'withFiles') {
+    next[key] = current === true ? undefined : true
+  } else {
+    next[key] = current === false ? undefined : false
+  }
+  for (const k of Object.keys(next) as (keyof TimelineFilter)[]) {
+    if (next[k] === undefined) delete next[k]
+  }
+  deckStore.updateColumn(props.column.id, {
+    filters: Object.keys(next).length > 0 ? next : undefined,
+  })
+}
+
+// 名前付きクエリのトグル (#783): 反映は useNoteColumn のクエリシグネチャ watch が担う
+function toggleNamedQuery(id: string) {
+  const refs = new Set(props.column.noteQueryRefs ?? [])
+  if (refs.has(id)) {
+    refs.delete(id)
+  } else {
+    refs.add(id)
+  }
+  deckStore.updateColumn(props.column.id, {
+    noteQueryRefs: refs.size > 0 ? [...refs] : undefined,
+  })
+}
+
 /** 空状態: クエリによる全件除外と「TL が空」を区別する (仕様追補 E) */
 const effectiveEmptyMessage = computed(() => {
   if (columnQueryState.value.status === 'invalid') {
@@ -187,15 +270,29 @@ defineExpose({
     </template>
 
     <template #header-extra>
-      <span
-        v-if="columnQueryState.status !== 'none'"
-        :class="[$style.queryBadge, columnQueryState.status === 'invalid' && $style.queryBadgeInvalid]"
-        :title="queryBadgeTitle"
-      >
-        <i :class="columnQueryState.status === 'invalid' ? 'ti ti-alert-triangle' : 'ti ti-bolt'" />
-        <span v-if="columnQueryErrorCount > 0">{{ columnQueryErrorCount }}</span>
-      </span>
-      <slot name="header-extra" />
+      <div :class="$style.subHeaderRow">
+        <span
+          v-if="columnQueryState.status !== 'none'"
+          :class="[$style.queryBadge, columnQueryState.status === 'invalid' && $style.queryBadgeInvalid]"
+          :title="queryBadgeTitle"
+        >
+          <i :class="columnQueryState.status === 'invalid' ? 'ti ti-alert-triangle' : 'ti ti-bolt'" />
+          <span v-if="columnQueryErrorCount > 0">{{ columnQueryErrorCount }}</span>
+        </span>
+        <div :class="$style.subHeaderMain">
+          <slot name="header-extra" />
+        </div>
+        <button
+          v-if="showFilterBtn"
+          ref="filterBtnRef"
+          class="_button"
+          :class="[$style.filterBtn, { [$style.filterBtnActive]: hasActiveFilter }]"
+          title="フィルター"
+          @click.stop="toggleFilterMenu"
+        >
+          <i class="ti ti-filter" />
+        </button>
+      </div>
     </template>
 
     <template #menu-items="{ closeMenu }">
@@ -323,6 +420,19 @@ defineExpose({
     </div>
   </DeckColumn>
 
+  <TimelineFilterPopup
+    :show="showFilterMenu"
+    :filter-keys="effectiveFilterKeys"
+    :filters="columnFilters"
+    :position="filterPopupPos"
+    :theme-vars="columnThemeVars"
+    :named-queries="namedQueryToggles"
+    :enabled-query-ids="column.noteQueryRefs ?? []"
+    @close="showFilterMenu = false"
+    @toggle="toggleFilter"
+    @toggle-query="toggleNamedQuery"
+  />
+
   <div v-if="postForm.show.value && column.accountId && account?.hasToken" ref="postFormPortalRef">
     <MkPostForm
       :account-id="column.accountId"
@@ -357,5 +467,39 @@ defineExpose({
 .queryBadgeInvalid {
   color: var(--nd-error);
   background: color-mix(in srgb, var(--nd-error) 12%, transparent);
+}
+
+/* フィルタメニュー (#841): サブヘッダ右端の共通トグルボタン */
+.subHeaderRow {
+  display: flex;
+  align-items: center;
+}
+
+.subHeaderMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.filterBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  opacity: 0.5;
+  color: var(--nd-fg);
+  transition:
+    opacity var(--nd-duration-base),
+    background var(--nd-duration-base),
+    color var(--nd-duration-base);
+
+  &:hover {
+    opacity: 0.8;
+    background: var(--nd-buttonHoverBg);
+  }
+
+  &.filterBtnActive {
+    opacity: 1;
+    color: var(--nd-accent);
+  }
 }
 </style>

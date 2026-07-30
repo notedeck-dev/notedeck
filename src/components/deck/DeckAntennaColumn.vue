@@ -63,6 +63,7 @@ const { rename, deleteEntity, config } = useEntityCrud(
     :web-ui-path="column.antennaId ? `/my/antennas/${column.antennaId}` : undefined"
     sound-enabled
     :note-column-config="noteColumnConfig"
+    :filter-keys="['withRenotes', 'withReplies', 'withFiles', 'withBots']"
   >
     <template #menu-items="{ closeMenu }">
       <button class="_popupItem" @click="rename(closeMenu)">

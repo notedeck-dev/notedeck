@@ -13,6 +13,7 @@ import type {
   NormalizedNote,
   NoteUpdateEvent,
   ServerAdapter,
+  TimelineType,
 } from '@/adapters/types'
 import { useColumnLive } from '@/composables/useColumnMount'
 import { useColumnSetup } from '@/composables/useColumnSetup'
@@ -49,6 +50,7 @@ import { dedup } from '@/utils/dedup'
 import { AppError } from '@/utils/errors'
 import { logWarn } from '@/utils/logger'
 import { insertIntoSorted } from '@/utils/sortNotes'
+import { matchesFilter } from '@/utils/timelineFilter'
 
 export interface NoteColumnConfig {
   getColumn: () => DeckColumnType
@@ -83,6 +85,11 @@ export interface NoteColumnConfig {
    * 共有しないようにする (#651)。
    */
   fetchKey?: () => string
+  /**
+   * 組込フィルタ (column.filters) の可視性防御層に渡す TL 種別 (#841)。
+   * local/global の public 限定はタイムラインカラムのみ意味を持つ
+   */
+  timelineType?: () => TimelineType | undefined
   /**
    * When provided, delays `connect()` until this ref becomes `true`.
    * Used by timeline columns to wait for policy detection before connecting.
@@ -356,8 +363,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
     return incoming.filter((n) => queryAdmits(n))
   }
 
-  /** streaming 挿入にもクエリを適用する (enqueue 前段、V13/V22) */
+  /** streaming 挿入にも組込フィルタ + クエリを適用する (enqueue 前段、V13/V22) */
   function enqueueWithQuery(n: NormalizedNote): void {
+    if (!builtinAdmits(n)) return
     if (!queryAdmits(n)) return
     streamingBatch?.enqueueNote(n)
   }
@@ -380,9 +388,36 @@ export function useNoteColumn(config: NoteColumnConfig) {
     })
   }
 
-  /** Apply filterNotes if configured */
+  // --- 組込フィルタ (#841) ---
+  // カラム設定の filters (リノート/リプライ/ファイル付き/Bot) を全ノートカラム
+  // 共通でクライアント側適用する。タイムラインは API パラメータでも絞るが、
+  // antenna/channel/user 等の REST は filters を受けないためここが唯一の適用点
+  function builtinAdmits(note: NormalizedNote): boolean {
+    return matchesFilter(
+      note,
+      config.getColumn().filters,
+      config.timelineType?.(),
+    )
+  }
+
+  const filtersSignature = computed(() =>
+    JSON.stringify(config.getColumn().filters ?? null),
+  )
+
+  // フィルタ変更時: 絞り込み方向は表示中ノートへ即時適用、緩和方向は refetch で回収
+  // (クエリシグネチャ watch と同じパターン)
+  watch(filtersSignature, (next, prev) => {
+    if (next === prev) return
+    if (rawNotes.value.length > 0) {
+      setNotes(rawNotes.value.filter((n) => builtinAdmits(n)))
+    }
+    void refresh()
+  })
+
+  /** Apply builtin filters + filterNotes if configured (組込が先 = 最安) */
   function applyFilter(incoming: NormalizedNote[]): NormalizedNote[] {
-    const base = config.filterNotes ? config.filterNotes(incoming) : incoming
+    const builtin = incoming.filter((n) => builtinAdmits(n))
+    const base = config.filterNotes ? config.filterNotes(builtin) : builtin
     return applyQueryFilter(base)
   }
 
@@ -839,8 +874,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
     try {
       if (config.refreshFetch) {
         const result = await config.refreshFetch(adapter, rawNotes.value)
-        // refreshFetch 経路にもカラムクエリを適用する (#783 全取り込み経路)
-        const refreshed = applyQueryFilter(result.notes)
+        // refreshFetch 経路にも組込フィルタ + カラムクエリを適用する
+        // (#783 全取り込み経路 / #841)
+        const refreshed = applyFilter(result.notes)
         if (result.mode === 'replace') {
           setNotes(refreshed)
           resetFetchCursor(refreshed)
@@ -851,7 +887,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
         }
       } else {
         const fetched = await config.fetch(adapter, {})
-        setNotes(fetched)
+        setNotes(applyFilter(fetched))
         resetFetchCursor(fetched)
         scrollToTop()
       }
