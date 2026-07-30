@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   createAdapter,
   getRegisteredSoftware,
+  isSupportedSoftware,
   resolveSoftware,
+  softwareDisplayName,
 } from '@/adapters/registry'
 import type { ServerInfo } from '@/adapters/types'
 
@@ -63,5 +65,55 @@ describe('resolveSoftware', () => {
 
   it('returns unknown for non-misskey software', () => {
     expect(resolveSoftware('mastodon')).toBe('unknown')
+  })
+
+  it('identifies the misskey.io fork by repository URL', () => {
+    // software.name は "misskey" のままなので repository でしか分からない
+    expect(
+      resolveSoftware('misskey', 'https://github.com/MisskeyIO/misskey'),
+    ).toBe('misskeyio/misskey')
+  })
+
+  it('identifies known but unsupported forks by software name (#853)', () => {
+    expect(resolveSoftware('sharkey')).toBe('sharkey/sharkey')
+    expect(resolveSoftware('cherrypick')).toBe('kokonect-link/cherrypick')
+    expect(resolveSoftware('iceshrimp')).toBe('iceshrimp/iceshrimp')
+    expect(resolveSoftware('iceshrimp.net')).toBe('iceshrimp/iceshrimp')
+  })
+
+  it('identifies unsupported forks by repository URL', () => {
+    expect(
+      resolveSoftware(
+        'cherrypick',
+        'https://github.com/kokonect-link/cherrypick',
+      ),
+    ).toBe('kokonect-link/cherrypick')
+  })
+})
+
+describe('isSupportedSoftware', () => {
+  it('accepts misskey and forks that keep the misskey name', () => {
+    expect(isSupportedSoftware('misskey-dev/misskey')).toBe(true)
+    expect(isSupportedSoftware('yamisskey-dev/yamisskey')).toBe(true)
+    expect(isSupportedSoftware('lqvp/misskey-tempura')).toBe(true)
+    expect(isSupportedSoftware('misskeyio/misskey')).toBe(true)
+  })
+
+  it('rejects identified but unsupported forks and unknown software', () => {
+    expect(isSupportedSoftware('sharkey/sharkey')).toBe(false)
+    expect(isSupportedSoftware('kokonect-link/cherrypick')).toBe(false)
+    expect(isSupportedSoftware('iceshrimp/iceshrimp')).toBe(false)
+    expect(isSupportedSoftware('unknown')).toBe(false)
+  })
+})
+
+describe('softwareDisplayName', () => {
+  it('returns the display name of identified software', () => {
+    expect(softwareDisplayName('sharkey/sharkey')).toBe('Sharkey')
+    expect(softwareDisplayName('misskey-dev/misskey')).toBe('Misskey')
+  })
+
+  it('returns null for unidentified software', () => {
+    expect(softwareDisplayName('unknown')).toBe(null)
   })
 })

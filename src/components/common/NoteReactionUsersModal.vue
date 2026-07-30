@@ -177,11 +177,11 @@ defineExpose({ open })
 </template>
 
 <style lang="scss" module>
-.backdrop {
-  &.mobile {
-    align-items: flex-end;
-    justify-content: stretch;
-  }
+// `dialog._nativeDialog[open]` (global.css) が align-items: center を指定しており
+// クラスだけでは特異度で負けるため、ホストごと指定してシートを下端に寄せる
+:global(dialog._nativeDialog[open]).backdrop.mobile {
+  align-items: flex-end;
+  justify-content: stretch;
 }
 
 .modal {

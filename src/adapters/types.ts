@@ -4,15 +4,24 @@
  * "misskey" と名乗りつつ独自改変しているフォークは自動検出できないため、
  * デフォルトは 'misskey-dev/misskey' にフォールバックする。
  *
+ * 未対応のフォーク (#853) も識別だけはして、UI で「未対応」と名指しできる
+ * ようにする。対応可否は registry.ts の isSupportedSoftware() が持つ。
+ *
  * 新しいフォークを追加する場合:
  * 1. ここにリテラルを追加
- * 2. registry.ts の resolveSoftware() に検出ルールを追加
+ * 2. registry.ts の FORKS テーブルに検出ルールと表示名を追加
  * 3. server.ts の detectFeatures() にフォーク固有の capability を設定
  */
 export type ServerSoftware =
   | 'misskey-dev/misskey'
+  // Misskey を名乗り続けるフォーク
+  | 'misskeyio/misskey'
   | 'yamisskey-dev/yamisskey'
   | 'lqvp/misskey-tempura'
+  // 名前が Misskey から乖離したフォーク。識別のみで未対応 (STRATEGY.md)
+  | 'iceshrimp/iceshrimp'
+  | 'kokonect-link/cherrypick'
+  | 'sharkey/sharkey'
   | 'unknown'
 
 export interface ServerInfo {

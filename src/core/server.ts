@@ -1,4 +1,4 @@
-import { resolveSoftware } from '@/adapters/registry'
+import { isSupportedSoftware, resolveSoftware } from '@/adapters/registry'
 import type {
   ServerFeatures,
   ServerInfo,
@@ -77,7 +77,8 @@ export async function detectServer(host: string): Promise<ServerInfo> {
 function detectFeatures(software: ServerSoftware): ServerFeatures {
   const features = defaultFeatures()
 
-  if (software !== 'unknown') {
+  // 識別できても未対応のフォーク (#853) は本家由来の capability を宣言しない
+  if (isSupportedSoftware(software)) {
     features.scheduledNotes = true
     features.groupedNotifications = true
     features.notesShowPartialBulk = true

@@ -71,6 +71,17 @@ describe('server detection', () => {
     expect(info.software).toBe('unknown')
   })
 
+  it('identifies unsupported forks without enabling capabilities (#853)', async () => {
+    mockDetect('sharkey')
+    const info = await detectServer('shark.example.com')
+
+    expect(info.software).toBe('sharkey/sharkey')
+    expect(info.features.scheduledNotes).toBe(false)
+    expect(info.features.groupedNotifications).toBe(false)
+    // 未対応でもファビコンは出す（ログイン画面のプレビュー用）
+    expect(info.iconUrl).toBe('https://example.com/favicon.ico')
+  })
+
   it('throws when detection fails (nodeinfo unreachable)', async () => {
     vi.mocked(commands.detectServer).mockResolvedValue({
       status: 'error',
