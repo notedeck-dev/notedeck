@@ -1,7 +1,14 @@
 import type { CreateNoteParams, NoteVisibility } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { projectVisibleItems } from '@/composables/useAiSystemContext'
-import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
+import { reactionJoinability } from '@/services/remoteReaction'
+import { useAccountsStore } from '@/stores/accounts'
+import { useServersStore } from '@/stores/servers'
+import {
+  ACCOUNT_ID_PARAM_DESC,
+  getApiAdapter,
+  resolveAccountId,
+} from '../accountContext'
 
 /**
  * Phase 5.0: write 系 capability。すべて `requiresConfirmation: true` を宣言し、
@@ -154,7 +161,26 @@ export const notesReactCapability: Command = {
     const reaction = pickString(params?.reaction)
     if (!noteId) throw new Error('notes.react: noteId is required')
     if (!reaction) throw new Error('notes.react: reaction is required')
-    const api = await getApiAdapter(params?.accountId, ctx)
+    const accountId = resolveAccountId(params?.accountId, ctx)
+    // #630: 非対応サーバーはリモート絵文字を ❤ に落とすので、黙って別の
+    // リアクションを付けずに弾く。ノートを持たないため絵文字の解決可否は
+    // 見ず、サーバーの対応だけ確認する
+    const account = useAccountsStore().accountMap.get(accountId)
+    if (
+      account &&
+      reactionJoinability(reaction, {
+        serverHost: account.host,
+        remoteEmojiReactions:
+          useServersStore().getServer(account.host)?.features
+            .remoteEmojiReactions === true,
+        hasEmojiUrl: true,
+      }) !== 'ok'
+    ) {
+      throw new Error(
+        `notes.react: ${account.host} はリモートの絵文字でリアクションできません`,
+      )
+    }
+    const api = await getApiAdapter(accountId, ctx)
     await api.createReaction(noteId, reaction)
     return { ok: true, noteId, reaction }
   },

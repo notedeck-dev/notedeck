@@ -29,8 +29,14 @@ import {
   useVaporTransitionGroup,
 } from '@/composables/useVaporTransition'
 import { useVisibleReactionCounts } from '@/composables/useVisibleReactionCounts'
+import {
+  type ReactionJoinability,
+  reactionJoinability,
+} from '@/services/remoteReaction'
 import { useAccountsStore } from '@/stores/accounts'
+import { useServersStore } from '@/stores/servers'
 import { useSettingsStore } from '@/stores/settings'
+import { useToast } from '@/stores/toast'
 import { formatTime } from '@/utils/formatTime'
 import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import {
@@ -349,13 +355,31 @@ const { counts: recountedCounts } = useVisibleReactionCounts(
   reactionsVisible,
 )
 
+// #630: リモート絵文字リアクションに相乗りできるサーバーか
+const serversStore = useServersStore()
+const supportsRemoteEmojiReactions = computed(
+  () =>
+    serversStore.getServer(effectiveNote.value._serverHost)?.features
+      .remoteEmojiReactions === true,
+)
+
 const sortedReactions = computed(() => {
   const sorted = reactionsData.value.sorted
   const counts = recountedCounts.value
-  if (!counts) return sorted
-  return sorted
-    .map((r) => ({ ...r, count: counts[r.reaction] ?? 0 }))
-    .filter((r) => r.count > 0)
+  const visible = counts
+    ? sorted
+        .map((r) => ({ ...r, count: counts[r.reaction] ?? 0 }))
+        .filter((r) => r.count > 0)
+    : sorted
+  const urls = reactionsData.value.urls
+  return visible.map((r) => ({
+    ...r,
+    joinability: reactionJoinability(r.reaction, {
+      serverHost: effectiveNote.value._serverHost,
+      remoteEmojiReactions: supportsRemoteEmojiReactions.value,
+      hasEmojiUrl: urls[r.reaction] != null,
+    }),
+  }))
 })
 const reactionUrls = computed(() => reactionsData.value.urls)
 
@@ -479,10 +503,31 @@ const renoteUserPopupPortalRef = useTemplateRef<HTMLElement>(
 )
 usePortal(renoteUserPopupPortalRef)
 
-function handleReactionClick(e: MouseEvent, reaction: string) {
+/**
+ * 相乗りできないリアクションを押したときの理由 (#630)。押しても無反応だと
+ * 不親切なので、押したときだけ理由を出す (常時バッジは過剰)。
+ */
+const JOIN_BLOCKED_MESSAGE: Record<
+  Exclude<ReactionJoinability, 'ok'>,
+  string
+> = {
+  'unsupported-server':
+    'このサーバーではリモートの絵文字でリアクションできません',
+  'emoji-unavailable': 'この絵文字はサーバーにないためリアクションできません',
+}
+
+function handleReactionClick(
+  e: MouseEvent,
+  reaction: string,
+  joinability: ReactionJoinability,
+) {
   if (longPressed.value) return
   if (!canInteract.value) {
     showLoginPrompt()
+    return
+  }
+  if (joinability !== 'ok') {
+    useToast().show(JOIN_BLOCKED_MESSAGE[joinability], 'info')
     return
   }
   const btn = e.currentTarget as HTMLElement
@@ -819,16 +864,17 @@ function handlePickerReaction(reaction: string) {
             <button
               v-for="r in renderedReactions"
               :key="r.reaction"
-              v-memo="[r.reaction, r.count, effectiveNote.myReaction === r.reaction, reactionUrls[r.reaction], reactionEnteringIds.has(r.id), reactionLeavingIds.has(r.id), isEmojiMuted(r.reaction)]"
+              v-memo="[r.reaction, r.count, effectiveNote.myReaction === r.reaction, reactionUrls[r.reaction], reactionEnteringIds.has(r.id), reactionLeavingIds.has(r.id), isEmojiMuted(r.reaction), r.joinability]"
               :class="[
                 $style.reaction,
                 { [$style.reacted]: effectiveNote.myReaction === r.reaction },
+                r.joinability !== 'ok' && $style.notJoinable,
                 reactionEnteringIds.has(r.id) && $style.reactionEnter,
                 reactionLeavingIds.has(r.id) && $style.reactionLeave,
               ]"
               :data-reaction="r.reaction"
               :disabled="isGuest"
-              @click.stop="handleReactionClick($event, r.reaction)"
+              @click.stop="handleReactionClick($event, r.reaction, r.joinability)"
               @contextmenu.prevent.stop="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, effectiveNote.reactions[r.reaction] ?? 0)"
               @pointerdown="lpHandlers.onPointerdown"
               @pointermove="lpHandlers.onPointermove"
@@ -1504,6 +1550,19 @@ function handlePickerReaction(reaction: string) {
     background: var(--nd-accentedBg);
     color: var(--nd-accent);
     box-shadow: 0 0 0 1px var(--nd-accent) inset;
+  }
+
+  /* #630: 相乗りできないリモート絵文字。押せる見た目をやめる (絵文字自体は出す) */
+  &.notJoinable {
+    cursor: default;
+
+    &:hover {
+      background: var(--nd-buttonBg);
+    }
+
+    &:active {
+      animation: none;
+    }
   }
 
   /* Misskey: drop-shadow on custom emoji when reacted */

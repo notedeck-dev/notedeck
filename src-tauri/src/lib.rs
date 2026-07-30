@@ -25,6 +25,7 @@ mod hwheel_hook;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
 /// [`http_server::build_openapi`].
 pub mod http_server;
+mod crash_report;
 mod image_cache;
 mod media_proxy;
 mod migrations;
@@ -202,6 +203,12 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // Initialized here (not earlier) because the log dir needs the app handle;
         // if it can't be resolved we fall back to stdout-only so startup never blocks.
         init_logging(app);
+
+        // panic をログディレクトリに残す。Android は adb を繋げない環境が普通なので、
+        // 次回起動時に UI へ出すのが実質唯一のクラッシュ調査手段になる。
+        if let Ok(dir) = app.path().app_log_dir() {
+            crash_report::install_panic_hook(dir);
+        }
 
         // tauri-specta typed events (e.g. QueryDelta) require the registry to be mounted.
         specta_builder.mount_events(app);

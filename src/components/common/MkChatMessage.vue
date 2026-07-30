@@ -142,6 +142,9 @@ function onReactionAvatarError(e: Event) {
 }
 
 function handleReactionClick(reaction: string, reacted: boolean) {
+  // 自分のメッセージに付いたリアクションは必ず他人のもの。本家 ChatService.react
+  // が fromUserId === userId で throw するため、押しても付け外しはできない。
+  if (isMine.value) return
   if (reacted) {
     emit('unreact', props.message.id, reaction)
   } else {
@@ -240,6 +243,7 @@ usePortal(lightboxPortalRef)
           :key="r.reaction"
           :class="[$style.chatReactionPill, { [$style.reacted]: r.reacted }]"
           :title="r.users.join(', ')"
+          :disabled="!!isMine"
           @click="handleReactionClick(r.reaction, r.reacted)"
         >
           <span v-if="r.avatarUrls.length > 0" :class="$style.reactionAvatars">
@@ -430,8 +434,13 @@ usePortal(lightboxPortalRef)
   cursor: pointer;
   line-height: 1.4;
 
-  &:hover {
+  &:not(:disabled):hover {
     background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.1));
+  }
+
+  /* 自分のメッセージのリアクションは付け外しできないので押せる見た目にしない */
+  &:disabled {
+    cursor: default;
   }
 
   &.reacted {

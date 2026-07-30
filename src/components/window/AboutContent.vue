@@ -103,10 +103,32 @@ const streamChecks = computed<Check[]>(() => {
   return checks
 })
 
+/**
+ * 記録されている Rust panic (#644)。adb を繋げない Android でも
+ * 「前回落ちた理由」をここから読めるようにするのが主目的。
+ * 次の panic が来るまで残るので、いつのものかを日時で示す。
+ */
+const crashChecks = computed<Check[]>(() => {
+  const panic = health.value?.lastPanic
+  if (!panic) return []
+  // 1 行目に "panicked at <file>:<line>: <msg>" が入る。詳細は診断ログ側で見る
+  const headline = panic.message.split('\n')[0]?.trim() ?? 'panic'
+  const when = panic.at > 0 ? new Date(panic.at).toLocaleString() : '時刻不明'
+  return [
+    {
+      name: 'crash',
+      status: 'warn',
+      message: `${when} に異常終了しました: ${headline}`,
+      fix: '下の診断ログをコピーして報告',
+    },
+  ]
+})
+
 // 正常な項目は畳んで、注意・問題だけ出す (健康なら "正常" の一行で済む)。
 const problemChecks = computed(() => [
   ...(health.value?.doctor.checks ?? []).filter((c) => c.status !== 'ok'),
   ...streamChecks.value,
+  ...crashChecks.value,
 ])
 
 const overallStatus = computed<Status>(() => {
@@ -140,11 +162,34 @@ async function runHealthcheck() {
   }
 }
 
-// 問題のある行だけをデバッグログ体裁に整形 (UI 表示・コピー・バグ報告で共用)。
-// 正常時は空文字なのでブロックも本文の診断セクションも出ない。
-const diagnosticsLog = computed<string>(() =>
+// 問題のある行だけをデバッグログ体裁に整形。正常時は空文字なので
+// ブロックも本文の診断セクションも出ない。
+const checkLines = computed<string>(() =>
   problemChecks.value.map(formatCheck).join('\n'),
 )
+
+/**
+ * UI 表示とクリップボードコピー用。panic は 1 行に畳むと file:line しか
+ * 残らないので backtrace ごと付ける (Android は adb が使えず、これがスタックを
+ * 持ち出す唯一の経路になる)。どちらもローカルに留まる用途。
+ */
+const diagnosticsLog = computed<string>(() => {
+  const panic = health.value?.lastPanic
+  if (!panic) return checkLines.value
+  const parts = [
+    checkLines.value,
+    '--- last panic ---',
+    panic.message.trimEnd(),
+  ]
+  return parts.filter((p) => p).join('\n\n')
+})
+
+/**
+ * GitHub issue の URL に載せる分。backtrace は入れない — URL 長を食い潰すうえ、
+ * ローカルのパスやユーザー名が外部へ出る。本人が「情報をコピー」から
+ * 貼り付けるかどうかを選べる形にする。
+ */
+const reportDiagnostics = computed<string>(() => checkLines.value)
 const {
   isChecking,
   isUpToDate,
@@ -229,9 +274,13 @@ async function copyInfo() {
 
 function reportBug() {
   const env = infoRows.map((r) => `- **${r.label}**: ${r.get()}`).join('\n')
-  const diag = diagnosticsLog.value
+  const diag = reportDiagnostics.value
   const diagSection = diag ? `\n\n## 診断\n\n\`\`\`\n${diag}\n\`\`\`` : ''
-  const body = `## 現象\n\n<!-- 何が起きたか -->\n\n## 再現手順\n\n1.\n2.\n3.\n\n## 期待する動作\n\n<!-- 本来どうなるべきか -->\n\n## 環境\n\n${env}${diagSection}\n\n## スクリーンショット\n\n<!-- あれば添付 -->`
+  // backtrace は URL に載せない。貼るかどうかは本人に委ねる
+  const panicNote = health.value?.lastPanic
+    ? '\n\n<!-- 異常終了の backtrace は「情報をコピー」で取得して貼り付けてください -->'
+    : ''
+  const body = `## 現象\n\n<!-- 何が起きたか -->\n\n## 再現手順\n\n1.\n2.\n3.\n\n## 期待する動作\n\n<!-- 本来どうなるべきか -->\n\n## 環境\n\n${env}${diagSection}${panicNote}\n\n## スクリーンショット\n\n<!-- あれば添付 -->`
   const url = `${REPO_URL}/issues/new?labels=bug&body=${encodeURIComponent(body)}`
   openSafeUrl(url)
 }

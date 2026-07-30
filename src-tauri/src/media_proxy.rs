@@ -74,6 +74,15 @@ impl MediaRequest {
     }
 }
 
+/// ヘッダだけ読んで寸法を得る。判定できない形式は None。
+fn image_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    image::ImageReader::new(std::io::Cursor::new(data))
+        .with_guessed_format()
+        .ok()?
+        .into_dimensions()
+        .ok()
+}
+
 /// Apply resize and/or format conversion to raw image bytes.
 /// Returns (transformed_bytes, content_type) or None if no transform needed / failed.
 pub fn transform_image(
@@ -85,6 +94,23 @@ pub fn transform_image(
     let needs_webp = target_format == Some("webp");
     if !needs_resize && !needs_webp {
         return None;
+    }
+
+    // リサイズだけを求められていて既に上限以下なら何もしない。縮まないのに
+    // decode + 再エンコードするのは純粋な無駄で、Misskey のアバターはサーバー側で
+    // 縮小済みのことが多いためこの経路が大半を占める。
+    // 寸法はヘッダだけ読む (フルデコードを避ける)。
+    //
+    // format が明示されている場合はスキップしない。HTTP API (`/proxy/image`) は
+    // 外部 principal にも開いており、webp を要求されたのに元形式を返すと契約違反。
+    if target_format.is_none() {
+        if let Some(w) = max_width {
+            if let Some((width, _)) = image_dimensions(data) {
+                if width <= w {
+                    return None;
+                }
+            }
+        }
     }
 
     let img = image::load_from_memory(data).ok()?;
@@ -272,6 +298,41 @@ mod tests {
         assert_ne!(sized.cache_key(), bigger.cache_key());
         assert_ne!(sized.etag(), bigger.etag());
         assert!(!plain.wants_transform());
+    }
+
+    fn png_bytes(w: u32, h: u32) -> Vec<u8> {
+        let img = image::RgbaImage::from_pixel(w, h, image::Rgba([10, 20, 30, 255]));
+        let mut buf = Vec::new();
+        image::DynamicImage::ImageRgba8(img)
+            .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+            .expect("encode png");
+        buf
+    }
+
+    /// 上限以下の画像を decode + 再エンコードするのは純粋な無駄。
+    /// Misskey のアバターはサーバー側で縮小済みなので、この経路が大半を占める。
+    #[test]
+    fn skips_transform_when_already_within_limit() {
+        assert!(transform_image(&png_bytes(32, 32), Some(56), None).is_none());
+        // ちょうど上限も変換しない
+        assert!(transform_image(&png_bytes(56, 56), Some(56), None).is_none());
+    }
+
+    /// format を明示されたら縮まなくても変換する。HTTP API は外部にも開いて
+    /// いるので、webp を要求されたのに元形式を返すのは契約違反。
+    #[test]
+    fn honors_explicit_format_even_when_small() {
+        let (_, ct) = transform_image(&png_bytes(32, 32), Some(56), Some("webp"))
+            .expect("explicit format must be honored");
+        assert_eq!(ct, "image/webp");
+    }
+
+    #[test]
+    fn transforms_when_wider_than_limit() {
+        let (out, ct) = transform_image(&png_bytes(200, 200), Some(56), Some("webp"))
+            .expect("should transform");
+        assert_eq!(ct, "image/webp");
+        assert!(!out.is_empty());
     }
 
     /// 効果音は変換パラメータを持たないので素通しになる
