@@ -212,6 +212,16 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     label: '画像キャッシュ上限',
     description: '超過した分は古いものから削除される',
   },
+  imageCacheMaxFileMB: {
+    min: 1,
+    max: 128,
+    step: 1,
+    unit: 'MB',
+    category: 'backend',
+    label: '1 ファイルの取得上限',
+    description:
+      'これを超える画像はプロキシを通さない。上げるとピークメモリも増える',
+  },
   prefetchAhead: {
     min: 0,
     max: 60,
@@ -519,6 +529,7 @@ export const SLIDER_LOW: PerformanceConfig = {
   circuitBreakerDuration: 90,
   imageCacheTTLDays: 3,
   imageCacheMaxMB: 128,
+  imageCacheMaxFileMB: 8,
   prefetchAhead: 15,
   prefetchBehind: 5,
   prefetchTrackedMax: 150,
@@ -572,6 +583,7 @@ export const SLIDER_HIGH: PerformanceConfig = {
   circuitBreakerDuration: 30,
   imageCacheTTLDays: 14,
   imageCacheMaxMB: 2048,
+  imageCacheMaxFileMB: 40,
   prefetchAhead: 40,
   prefetchBehind: 15,
   prefetchTrackedMax: 1000,

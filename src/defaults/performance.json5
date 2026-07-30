@@ -22,6 +22,7 @@
   "circuitBreakerDuration": 60,
   "imageCacheTTLDays": 7,
   "imageCacheMaxMB": 512,
+  "imageCacheMaxFileMB": 20,
   "prefetchAhead": 30,
   "prefetchBehind": 10,
   "prefetchTrackedMax": 300,

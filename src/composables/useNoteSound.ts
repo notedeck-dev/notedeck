@@ -1,6 +1,6 @@
 import { usePerformanceStore } from '@/stores/performance'
+import { proxyUrl } from '@/utils/mediaProxy'
 
-const PROXY_BASE = 'http://127.0.0.1:19820/proxy/image'
 const RETRY_AFTER_MS = 5 * 60 * 1000
 const IS_ANDROID = /Android/i.test(navigator.userAgent)
 const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
@@ -37,9 +37,8 @@ if (IS_MOBILE && !IS_ANDROID) {
 
 function getSoundUrl(host: string, soundType: string): string {
   const remoteUrl = `https://${host}/client-assets/sounds/${soundType}.mp3`
-  return IS_MOBILE
-    ? remoteUrl
-    : `${PROXY_BASE}?url=${encodeURIComponent(remoteUrl)}`
+  // 画像と同じプロキシに寄せる (モバイルのバイパスも同じ理由で不要になった)
+  return proxyUrl(remoteUrl) ?? remoteUrl
 }
 
 async function ensureBuffer(

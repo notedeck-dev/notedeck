@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { char2twemojiUrl } from '@/utils/twemoji'
 
 const props = defineProps<{ emoji: string; ignoreMuted?: boolean }>()

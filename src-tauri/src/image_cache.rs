@@ -12,7 +12,6 @@ use tokio::sync::{watch, Mutex, RwLock, Semaphore};
 
 use crate::perf_config::SharedPerfConfig;
 
-const MAX_FILE_SIZE: u64 = 20 * 1024 * 1024; // 20MB
 // Negative cache TTLs by error class
 const NEGATIVE_TTL_CLIENT: Duration = Duration::from_secs(24 * 60 * 60); // 4xx: 24h
 const NEGATIVE_TTL_SERVER: Duration = Duration::from_secs(2 * 60); // 5xx: 2min
@@ -311,8 +310,10 @@ impl ImageCache {
             return Err(msg);
         }
 
+        let max_file_bytes = self.perf.read().await.image_cache_max_file_bytes;
+
         if let Some(cl) = resp.content_length() {
-            if cl > MAX_FILE_SIZE {
+            if cl > max_file_bytes {
                 let msg = "File too large".to_string();
                 self.record_negative_and_notify(url, &hash, &tx, &msg, NEGATIVE_TTL_CLIENT);
                 return Err(msg);
@@ -350,7 +351,7 @@ impl ImageCache {
                 match chunk_result {
                     Ok(chunk) => {
                         all_bytes.extend_from_slice(&chunk);
-                        if all_bytes.len() as u64 > MAX_FILE_SIZE {
+                        if all_bytes.len() as u64 > max_file_bytes {
                             let _ = chunk_tx.send(Err("File too large".to_string())).await;
                             error = true;
                             break;

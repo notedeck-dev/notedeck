@@ -2,7 +2,7 @@
 import { computed, watch } from 'vue'
 import { showReloginPrompt } from '@/composables/useLoginPrompt'
 import { type AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { restrictedAccessNotice } from '@/utils/restrictedAccess'
 import SystemIcon from './SystemIcon.vue'
 

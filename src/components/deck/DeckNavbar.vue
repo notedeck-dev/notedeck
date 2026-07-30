@@ -41,7 +41,7 @@ import {
 } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
 import { hapticLight, hapticMedium } from '@/utils/haptics'
-import { proxyThumbUrl } from '@/utils/imageProxy'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckLaunchPad from './DeckLaunchPad.vue'
 import DeckProfileMenu from './DeckProfileMenu.vue'

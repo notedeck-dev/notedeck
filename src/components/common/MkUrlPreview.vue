@@ -12,7 +12,7 @@ import {
 import { useNoteAccountId } from '@/composables/useNoteContext'
 import { useOgpPreview } from '@/composables/useOgpPreview'
 import { usePerformanceStore } from '@/stores/performance'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import { parseNoteUrl } from '@/utils/noteUrl'
 import { isSafeUrl, openSafeUrl } from '@/utils/url'
 
@@ -246,7 +246,7 @@ function hostname(url: string): string {
         <div :class="$style.urlPreviewHost">
           <img
             v-if="data.icon"
-            :src="data.icon"
+            :src="proxyThumbUrl(data.icon, 28)"
             :class="$style.urlPreviewFavicon"
             @error="($event.target as HTMLImageElement).style.display = 'none'"
           />

@@ -9,6 +9,7 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
@@ -160,7 +161,7 @@ onUnmounted(() => {
           </div>
 
           <div v-if="item.imageUrl" :class="$style.announcementImage">
-            <img :src="item.imageUrl" loading="lazy" />
+            <img :src="proxyUrl(item.imageUrl)" loading="lazy" />
           </div>
 
           <div :class="$style.announcementText">

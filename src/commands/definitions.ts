@@ -21,7 +21,7 @@ import {
   modeLabel,
 } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
-import { proxyThumbUrl } from '@/utils/imageProxy'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 
 export interface CommandHandlers {
   openCompose: () => void

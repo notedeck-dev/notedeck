@@ -19,6 +19,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useTabSlide } from '@/composables/useTabSlide'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -394,7 +395,7 @@ usePortal(postPortalRef)
         <template v-if="selectedRole">
           <div :class="$style.exploreRoleHeader">
             <span v-if="selectedRole.iconUrl" :class="$style.exploreRoleIcon">
-              <img :src="selectedRole.iconUrl" />
+              <img :src="proxyThumbUrl(selectedRole.iconUrl, 28)" />
             </span>
             <span>{{ selectedRole.name }}</span>
           </div>
@@ -445,7 +446,7 @@ usePortal(postPortalRef)
               @click="openRole(role)"
             >
               <span v-if="role.iconUrl" :class="$style.exploreRoleIcon">
-                <img :src="role.iconUrl" />
+                <img :src="proxyThumbUrl(role.iconUrl, 28)" />
               </span>
               <div :class="$style.exploreRoleInfo">
                 <div :class="$style.exploreRoleName" :style="role.color ? { color: role.color } : undefined">{{ role.name }}</div>

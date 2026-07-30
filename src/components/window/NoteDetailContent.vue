@@ -42,7 +42,7 @@ import { useNoteStore } from '@/stores/notes'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { useIsCompactLayout } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { toggleReaction } from '@/utils/toggleReaction'
 import { webUiUrl } from '@/utils/url'
 

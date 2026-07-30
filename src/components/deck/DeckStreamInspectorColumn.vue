@@ -25,6 +25,7 @@ import {
   type StreamEventEntry,
   useStreamInspectorStore,
 } from '@/stores/streamInspector'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import DeckColumn from './DeckColumn.vue'
 
 const CodeEditor = defineAsyncComponent(
@@ -47,9 +48,10 @@ const isScopedToAccount = computed(() => props.column.accountId != null)
 const serverIconUrl = computed(() => {
   const acc = account.value
   if (!acc) return undefined
-  return (
+  return proxyThumbUrl(
     serversStore.getServer(acc.host)?.iconUrl ??
-    `https://${acc.host}/favicon.ico`
+      `https://${acc.host}/favicon.ico`,
+    28,
   )
 })
 
@@ -305,7 +307,7 @@ function onDetailWheel(e: WheelEvent) {
         <i class="ti ti-trash" />
       </button>
       <div v-if="isScopedToAccount && account" :class="$style.headerAccount">
-        <img :src="getAccountAvatarUrl(account)" :class="$style.headerAvatar" />
+        <img :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)" :class="$style.headerAvatar" />
         <img :class="$style.headerFavicon" :src="serverIconUrl" :title="account.host" />
       </div>
     </template>
