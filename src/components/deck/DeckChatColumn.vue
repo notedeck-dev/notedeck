@@ -53,6 +53,7 @@ import {
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
 import { isImeComposing } from '@/utils/ime'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
@@ -88,9 +89,9 @@ const { prefetch: prefetchThreads } = useChatThreadPrefetch()
 
 /** cross-account history entry のサーバー favicon URL を解決する。 */
 function resolveEntryServerIcon(host: string): string {
-  return (
+  const url =
     serversStore.servers.get(host)?.iconUrl || `https://${host}/favicon.ico`
-  )
+  return proxyThumbUrl(url, 28) ?? url
 }
 
 /** 2 アカウント以上ログイン中の cross-account view でのみサーバーバッジを出す。 */
@@ -1027,7 +1028,7 @@ onBeforeUnmount(() => {
         <img :src="getAccountAvatarUrl(account)" :class="$style.headerAvatar" />
         <img
           :class="$style.headerFavicon"
-          :src="serverIconUrl || `https://${account.host}/favicon.ico`"
+          :src="serverIconUrl || proxyThumbUrl(`https://${account.host}/favicon.ico`, 28)"
           :title="account.host"
         />
       </div>
