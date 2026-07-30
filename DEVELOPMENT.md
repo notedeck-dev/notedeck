@@ -961,6 +961,11 @@ session 一覧では `AiSessionKind` 別の icon 統一 (`chat` → `ti-message-
 NoteDeck の対応範囲は **Misskey 本家および「Misskey を名乗り続けるフォーク」** です（yamisskey, misskey-tempura 等）。
 **Misskey から名前が別物になったフォーク（Sharkey, CherryPick, Firefish, Iceshrimp 等）は対応していません。**
 
+対応可否は `src/adapters/registry.ts` の `FORKS` テーブル（`supported` フラグ）が単一の source of truth です。
+未対応でも有名フォーク（Sharkey / CherryPick / Iceshrimp）は識別し、ログイン画面で「Sharkey は未対応です」と
+名指しで表示します（`unknown` 扱いにしない）。識別できないサーバーのみ「Misskey サーバーではないため未対応です」に落とします。
+未対応サーバーでもファビコンのプレビューは行います (#853)。
+
 #### 自動検出で動くもの（コード変更不要）
 
 Misskey を名乗るフォークは追加の設定なしで自動的に認識されます。以下の機能は動的に検出されるため、コード変更なしで動作します:
@@ -986,18 +991,18 @@ export type ServerSoftware =
   | 'unknown'
 ```
 
-2. `src/adapters/registry.ts` — `resolveSoftware()` に検出ルールを追加
+2. `src/adapters/registry.ts` — `FORKS` テーブルにエントリを追加
 
 ```typescript
-// repository URL による検出（nodeinfo 2.1）
-if (ownerRepo === 'your-org/your-fork') return 'your-org/your-fork'
-// software.name によるフォールバック（nodeinfo 2.0）
-if (n === 'your-fork-name') return 'your-org/your-fork'
+{
+  id: 'your-org/your-fork',
+  displayName: 'Your Fork',
+  supported: true,          // 未対応フォークを識別だけしたい場合は false
+  names: ['your-fork-name'], // nodeinfo software.name (lowercase)
+}
 ```
 
-3. `src/stores/servers.ts` — `KNOWN_SOFTWARE` セットに追加
-
-4. `src/core/server.ts` — `detectFeatures()` にフォーク固有の capability を設定
+3. `src/core/server.ts` — `detectFeatures()` にフォーク固有の capability を設定
 
 ```typescript
 if (software === 'your-org/your-fork') {
@@ -1005,7 +1010,7 @@ if (software === 'your-org/your-fork') {
 }
 ```
 
-5. カスタムタイムラインのアイコンを追加する場合は `src/utils/customTimelines.ts` の `CUSTOM_TL_ICONS` に SVG パスを追加
+4. カスタムタイムラインのアイコンを追加する場合は `src/utils/customTimelines.ts` の `CUSTOM_TL_ICONS` に SVG パスを追加
 
 **PR を出す前に:**
 - `pnpm lint && pnpm typecheck && pnpm test` を通す

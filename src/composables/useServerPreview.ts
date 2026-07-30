@@ -1,5 +1,5 @@
 import { type Ref, ref, watch } from 'vue'
-import { getRegisteredSoftware } from '@/adapters/registry'
+import { isSupportedSoftware, softwareDisplayName } from '@/adapters/registry'
 import type { ServerInfo } from '@/adapters/types'
 import { detectServer } from '@/core/server'
 
@@ -44,13 +44,17 @@ export function useServerPreview(host: Ref<string>, debounceMs = 350) {
       const info = await detectServer(trimmedHost)
       if (generation !== abortGeneration) return
 
-      if (getRegisteredSoftware().includes(info.software)) {
+      if (isSupportedSoftware(info.software)) {
         status.value = 'ok'
         serverInfo.value = info
       } else {
+        // 未対応でも serverInfo は保持する（ファビコン表示に使う #853）
         status.value = 'unsupported'
         serverInfo.value = info
-        errorMessage.value = `${info.software} は現在サポートされていません`
+        const name = softwareDisplayName(info.software)
+        errorMessage.value = name
+          ? `${name} は未対応です`
+          : 'Misskey サーバーではないため未対応です'
       }
     } catch {
       if (generation !== abortGeneration) return

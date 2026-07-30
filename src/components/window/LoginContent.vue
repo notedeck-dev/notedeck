@@ -41,11 +41,8 @@ let currentSession: AuthSession | null = null
 // Vapor-compatible transition switches (replaces <Transition mode="out-in">)
 const stepSwitch = useVaporTransitionSwitch(step, { leaveDuration: 0 })
 
-const logoSrc = computed(() =>
-  serverStatus.value === 'ok' && serverInfo.value?.iconUrl
-    ? serverInfo.value.iconUrl
-    : 'default',
-)
+// 未対応のフォークでもサーバーのファビコンは表示する (#853)
+const logoSrc = computed(() => serverInfo.value?.iconUrl ?? 'default')
 const logoSwitch = useVaporTransitionSwitch(logoSrc, { leaveDuration: 200 })
 
 const subtitleSwitch = useVaporTransitionSwitch(serverStatus, {
