@@ -180,7 +180,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
   // dedup (noteId × event sig × 1.5s) で吸収される。
   const { sync: syncNoteCapture } = useNoteCapture(
     () => getAdapter()?.stream,
-    onNoteUpdate,
+    (event) => onNoteUpdateWithQuery(event),
   )
   setOnNotesChanged(syncNoteCapture)
 
@@ -360,6 +360,24 @@ export function useNoteColumn(config: NoteColumnConfig) {
   function enqueueWithQuery(n: NormalizedNote): void {
     if (!queryAdmits(n)) return
     streamingBatch?.enqueueNote(n)
+  }
+
+  /**
+   * ノート更新イベント後の再評価 (V24)。表示中ノートが更新でクエリ条件を
+   * 外れたら即除去する (例: reactions を見るクエリ)。逆方向 (外 → 内) は
+   * 挿入しない — 取得経路を通っていないノートは位置が定まらない (追補 C-7)。
+   * 本文編集はライブイベントが無く、refetch 経路の applyFilter が担う。
+   */
+  function onNoteUpdateWithQuery(event: NoteUpdateEvent): void {
+    onNoteUpdate(event)
+    if (!compiledQuery.value || event.type === 'deleted') return
+    void nextTick(() => {
+      const note = rawNotes.value.find((n) => n.id === event.noteId)
+      if (!note) return
+      if (!queryAdmits(note)) {
+        setNotes(rawNotes.value.filter((n) => n.id !== event.noteId))
+      }
+    })
   }
 
   /** Apply filterNotes if configured */
@@ -664,7 +682,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
             onNoteUpdated: (event) => {
               if (event.type === 'deleted')
                 streamingBatch.removePending(event.noteId)
-              onNoteUpdate(event)
+              onNoteUpdateWithQuery(event)
             },
           }),
         )
@@ -947,7 +965,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
         onNoteUpdated: (event) => {
           if (event.type === 'deleted')
             streamingBatch.removePending(event.noteId)
-          onNoteUpdate(event)
+          onNoteUpdateWithQuery(event)
         },
       }),
     )

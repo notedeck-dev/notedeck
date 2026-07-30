@@ -438,6 +438,16 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 
 probe の供給は**挿入 1 点フック**にまとめてある（`useNoteList` の `rawNotes` setter / `DeckNotificationColumn` の `notifications` watch / `useCrossAccountNotes` の `rawNotes` watch）。経路を列挙しないので、ストリーミングやページングの取りこぼしが構造的に起きない。解除の検知はストア自身の周期タイマー（15 分・aging 付き）が担当し、カラム構成にも probe 発火にも依存しない。
 
+### Column Query（[#783](https://github.com/notedeck-dev/notedeck/issues/783)）
+
+Krile 型「カラムごとのクエリフィルタ」。ユーザーは AiScript 1.2.1 の式（v1 サブセット）でカラムの視界を定義し、コンパイラが **QIR**（型付きクエリ IR、Rust が source of truth で specta 経由 bindings.ts に載る）へ落として全取り込み経路（キャッシュ復元 / REST / ページング / streaming / refresh）で同期評価する。表示制御 3 層モデル（#831）の層 2。
+
+- **意味論の正本は AiScript 1.2.1**（不変条件 (a)）。全評価器（JS QIR eval / 将来の Rust QIR eval / fallback Interpreter）は共有 golden vector（`src/services/columnQuery/golden/vectors.json`）で一致を CI 検証する
+- 実装: `src/services/columnQuery/`（compiler / evaluator / referenceEvaluator / AST 表面契約テスト）。QIR 型は `src-tauri/src/commands/column_query.rs`
+- **UX**: 定義・サイドロード・MisStore 導入はクエリ管理カラム（`queryManager`、ツール系）に一元化。適用はタイムラインカラムのフィルタメニューの「クエリ」トグル（`DeckColumn.noteQueryRefs` に id 参照、And 合成）。カラムヘッダの ⚡ バッジが適用状態と per-note エラー件数を示す
+- 名前付きクエリはウィジェットと同じ sidecar 形式（`queries/<name>.is` + `.meta.json5`、`useColumnQueriesStore`）。参照消失・コンパイル不能は **fail-closed**（構成は捨てず、カラムを保留 + 診断表示）
+- 逐次適用 fallback（Worker 隔離）・ローカルキャッシュ検索は Phase 2/3（仕様は #783 参照）
+
 ### Vue Vapor モード（[#52](https://github.com/notedeck-dev/notedeck/issues/52)）— 移行準備完了
 
 Vue 3.6 の Vapor モード（仮想DOMレス・コンパイル時DOM操作）への移行準備が**完了**。
