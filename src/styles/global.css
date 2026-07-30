@@ -419,7 +419,7 @@ summary,
   height: 1.25em;
   aspect-ratio: 1;
   vertical-align: -0.25em;
-  background: currentColor;
+  background: currentcolor;
   opacity: 0.5;
   -webkit-mask: url('/emoji-muted.svg') center / contain no-repeat;
   mask: url('/emoji-muted.svg') center / contain no-repeat;

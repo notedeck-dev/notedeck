@@ -40,8 +40,12 @@ const accountsStore = useAccountsStore()
 // プレビュー内の軽量アクション (#612)。hover popup と右クリックメニューが
 // 重なるため、メニューは廃止してここに統合した
 const copiedCode = ref(false)
-function copyReactionCode() {
-  navigator.clipboard.writeText(normalizeEmojiMuteKey(props.reaction))
+async function copyReactionCode() {
+  try {
+    await navigator.clipboard.writeText(normalizeEmojiMuteKey(props.reaction))
+  } catch {
+    return // 権限拒否時に「コピーしました」と偽らない
+  }
   copiedCode.value = true
   setTimeout(() => {
     copiedCode.value = false
@@ -175,6 +179,7 @@ onUnmounted(() => {
             class="_button"
             :class="$style.actionBtn"
             :data-tooltip="copiedCode ? 'コピーしました' : 'コードをコピー'"
+            :aria-label="copiedCode ? 'コピーしました' : 'コードをコピー'"
             @click.stop="copyReactionCode"
           >
             <i :class="copiedCode ? 'ti ti-check' : 'ti ti-copy'" />
@@ -183,6 +188,7 @@ onUnmounted(() => {
             class="_button"
             :class="$style.actionBtn"
             :data-tooltip="isEmojiMuted(reaction) ? 'ミュートを解除' : 'この絵文字をミュート'"
+            :aria-label="isEmojiMuted(reaction) ? 'ミュートを解除' : 'この絵文字をミュート'"
             @click.stop="toggleMute"
           >
             <i :class="isEmojiMuted(reaction) ? 'ti ti-mood-smile' : 'ti ti-mood-off'" />

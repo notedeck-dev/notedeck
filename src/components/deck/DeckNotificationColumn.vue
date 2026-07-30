@@ -1115,7 +1115,7 @@ onUnmounted(() => {
                       @mouseleave="onNotifAvatarMouseLeave"
                     />
                     <template v-if="entry.reaction">
-                      <span v-if="isEmojiMuted(entry.reaction)" class="_emojiMuted" :class="$style.notifSubIconEmoji" role="img" :aria-label="entry.reaction" :title="`${entry.reaction} (ミュート中)`" />
+                      <span v-if="isEmojiMuted(entry.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="entry.reaction" :title="`${entry.reaction} (ミュート中)`" />
                       <img v-else-if="getCachedReactionUrl(entry.reaction, notif)" :src="getCachedReactionUrl(entry.reaction, notif)!" :alt="entry.reaction" :title="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
                       <img v-else-if="getCachedTwemojiUrl(entry.reaction)" :src="getCachedTwemojiUrl(entry.reaction)!" :alt="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" />
                       <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
@@ -1203,7 +1203,7 @@ onUnmounted(() => {
                     :title="resolveNotifBadgeTitle(notif)"
                   />
                   <template v-if="notif.type === 'reaction' && notif.reaction">
-                    <span v-if="isEmojiMuted(notif.reaction)" class="_emojiMuted" :class="$style.notifSubIconEmoji" role="img" :aria-label="notif.reaction" :title="`${notif.reaction} (ミュート中)`" />
+                    <span v-if="isEmojiMuted(notif.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="notif.reaction" :title="`${notif.reaction} (ミュート中)`" />
                     <img v-else-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
                     <img v-else-if="getCachedTwemojiUrl(notif.reaction)" :src="getCachedTwemojiUrl(notif.reaction)!" :alt="notif.reaction" :class="$style.notifSubIconEmoji" loading="lazy" />
                     <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
@@ -1449,6 +1449,25 @@ onUnmounted(() => {
   object-fit: contain;
   background: var(--nd-panel);
   box-shadow: 0 0 0 3px var(--nd-panel);
+}
+
+/*
+ * ミュート絵文字のサブアイコン (#612)。_emojiMuted は background を mask の
+ * 塗りに使うため、バッジの台紙 (background: panel) と両立できない。台紙は
+ * 残したまま glyph を疑似要素で描く。
+ */
+.notifSubIconMuted {
+  composes: notifSubIconEmoji;
+}
+
+.notifSubIconMuted::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  background: currentcolor;
+  opacity: 0.6;
+  -webkit-mask: url('/emoji-muted.svg') center / contain no-repeat;
+  mask: url('/emoji-muted.svg') center / contain no-repeat;
 }
 
 .notifTail {
