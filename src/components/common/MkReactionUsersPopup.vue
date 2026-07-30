@@ -2,6 +2,7 @@
 import { defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type { NoteReaction } from '@/adapters/types'
+import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useNavigation } from '@/composables/useNavigation'
 import { useAccountsStore } from '@/stores/accounts'
@@ -32,6 +33,7 @@ const emit = defineEmits<{
 }>()
 
 const { navigateToUser } = useNavigation()
+const { isEmojiMuted } = useEmojiMute()
 const accountsStore = useAccountsStore()
 
 const reactions = ref<NoteReaction[]>([])
@@ -135,7 +137,14 @@ onUnmounted(() => {
       <!-- Left: reaction icon -->
       <div :class="$style.reaction">
         <img
-          v-if="reactionUrl"
+          v-if="isEmojiMuted(reaction)"
+          src="/emoji-muted.svg"
+          :alt="reaction"
+          :title="`${reaction} (ミュート中)`"
+          :class="$style.reactionIcon"
+        />
+        <img
+          v-else-if="reactionUrl"
           :src="proxyUrl(reactionUrl)"
           :alt="reaction"
           :class="$style.reactionIcon"

@@ -1,16 +1,25 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { type App, createApp } from 'vue'
+import { useSettingsStore } from '@/stores/settings'
 import MkEmoji from './MkEmoji.vue'
 
 let app: App | null = null
 let container: HTMLElement | null = null
+let pinia: ReturnType<typeof createPinia>
 
-function mountEmoji(emoji: string) {
+function mountEmoji(emoji: string, ignoreMuted?: boolean) {
   container = document.createElement('div')
   document.body.appendChild(container)
-  app = createApp(MkEmoji, { emoji })
+  app = createApp(MkEmoji, { emoji, ignoreMuted })
+  app.use(pinia)
   app.mount(container)
 }
+
+beforeEach(() => {
+  pinia = createPinia()
+  setActivePinia(pinia)
+})
 
 afterEach(() => {
   app?.unmount()
@@ -44,5 +53,23 @@ describe('MkEmoji', () => {
     mountEmoji(':petthex:')
     const img = container?.querySelector('img')
     expect(img?.getAttribute('src')).toMatch(unknownSvg)
+  })
+
+  // ビルド環境によって "/emoji-muted.svg" のままか data URI にインライン化されるかが変わる
+  const mutedSvg = /^(\/emoji-muted\.svg$|data:image\/svg\+xml)/
+
+  it('ミュートした絵文字はプレースホルダー表示になる (#612)', () => {
+    useSettingsStore().set('mute.emojis', ['❤'])
+    mountEmoji('❤')
+    const img = container?.querySelector('img')
+    expect(img?.getAttribute('src')).toMatch(mutedSvg)
+    expect(img?.getAttribute('title')).toContain('ミュート中')
+  })
+
+  it('ignoreMuted 指定時はミュートを無視して実体を表示する (#612)', () => {
+    useSettingsStore().set('mute.emojis', ['❤'])
+    mountEmoji('❤', true)
+    const img = container?.querySelector('img')
+    expect(img?.getAttribute('src')).toContain('2764.svg')
   })
 })

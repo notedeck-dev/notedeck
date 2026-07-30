@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, useCssModule } from 'vue'
+import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
 import { highlightCode, highlighterLoaded } from '@/utils/highlight'
@@ -39,6 +40,7 @@ const emit = defineEmits<{
 }>()
 
 const { resolveEmoji: resolveEmojiRaw } = useEmojiResolver()
+const { isEmojiMuted } = useEmojiMute()
 const { navigateToHashtag } = useNavigation()
 const style = useCssModule()
 
@@ -435,6 +437,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
     --><!-- Strike --><s v-else-if="token.type === 'strike'"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></s><!--
     --><!-- Code Block --><div v-else-if="token.type === 'codeBlock'" :key="`cb-${i}-${highlighterLoaded}`" :class="$style.mfmCodeBlock" v-html="highlightCode(token.value, token.lang)"></div><!--
     --><!-- Inline Code --><code v-else-if="token.type === 'inlineCode'" :class="$style.mfmCode">{{ token.value }}</code><!--
+    --><!-- Custom Emoji (muted #612) --><img v-else-if="token.type === 'customEmoji' && isEmojiMuted(token.shortcode)" src="/emoji-muted.svg" :alt="`:${token.shortcode}:`" :title="`:${token.shortcode}: (ミュート中)`" class="custom-emoji" :class="plain ? $style.customEmojiPlain : $style.customEmoji" /><!--
     --><!-- Custom Emoji (resolved) --><img v-else-if="token.type === 'customEmoji' && emojiUrls[token.shortcode]" :src="proxyUrl(emojiUrls[token.shortcode]!)" :alt="`:${token.shortcode}:`" class="custom-emoji" :class="plain ? $style.customEmojiPlain : $style.customEmoji" decoding="async" loading="lazy" @error="(e: Event) => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/emoji-unknown.svg')) img.src = '/emoji-unknown.svg' }" /><!--
     --><!-- Custom Emoji (unresolved — show fallback icon) --><img v-else-if="token.type === 'customEmoji'" src="/emoji-unknown.svg" :alt="`:${token.shortcode}:`" :title="`:${token.shortcode}:`" class="custom-emoji" :class="plain ? $style.customEmojiPlain : $style.customEmoji" /><!--
     --><!-- Unicode Emoji --><MkEmoji v-else-if="token.type === 'unicodeEmoji'" :emoji="token.value" class="twemoji" :class="$style.twemoji" /><!--

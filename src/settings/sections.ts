@@ -1,4 +1,5 @@
 import { usePerformanceStore } from '@/stores/performance'
+import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import type { WindowType } from '@/stores/windows'
 
@@ -38,6 +39,10 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   {
     window: 'cssEditor',
     hasOverride: () => !!useThemeStore().customCss,
+  },
+  {
+    window: 'emojiMute',
+    hasOverride: () => (useSettingsStore().get('mute.emojis') ?? []).length > 0,
   },
   { window: 'tasksEditor' },
   { window: 'snippetsEditor' },

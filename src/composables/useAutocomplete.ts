@@ -1,5 +1,6 @@
 import { nextTick, type Ref, ref } from 'vue'
 import type { NormalizedUser, ServerEmoji } from '@/adapters/types'
+import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojisStore } from '@/stores/emojis'
 import { getCaretCoordinates } from '@/utils/caretPosition'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -50,6 +51,7 @@ export function useAutocomplete(
   serverHost: Ref<string>,
 ) {
   const emojisStore = useEmojisStore()
+  const { isEmojiMuted } = useEmojiMute()
   const autocompleteState = ref<AutocompleteState | null>(null)
   const candidates = ref<AutocompleteCandidate[]>([])
   const isSearching = ref(false)
@@ -104,7 +106,10 @@ export function useAutocomplete(
 
   function searchEmoji(query: string) {
     const q = query.toLowerCase()
-    const allEmojis = emojisStore.getEmojiList(serverHost.value)
+    // ミュート絵文字は補完候補から除外する (#612)
+    const allEmojis = emojisStore
+      .getEmojiList(serverHost.value)
+      .filter((e) => !isEmojiMuted(e.name))
     const results: ServerEmoji[] = []
     const seen = new Set<string>()
 

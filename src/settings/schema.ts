@@ -33,6 +33,15 @@ export interface NotedeckSettings {
    */
   'note.nyaize'?: boolean
 
+  // --- Mute (#612) ---
+  /**
+   * ミュートする絵文字のリスト (本家 `mutingEmojis` 互換のキー形式)。
+   * ローカルカスタム絵文字 `:name:` / リモート `:name@host:` / Unicode は生文字。
+   * 本家同様アカウントに紐づかないグローバル設定。表示は非表示ではなく
+   * プレースホルダー置換 (tooltip で正体確認可)。
+   */
+  'mute.emojis'?: string[]
+
   // --- Post form ---
   'postForm.preview'?: boolean
   'postForm.autoSaveDraft'?: boolean

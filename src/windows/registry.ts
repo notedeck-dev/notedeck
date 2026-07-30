@@ -196,6 +196,13 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     maxHeight: 550,
     component: () => import('@/components/window/CacheEditorContent.vue'),
   },
+  emojiMute: {
+    label: '絵文字ミュート',
+    icon: 'ti ti-mood-off',
+    width: 440,
+    maxHeight: 550,
+    component: () => import('@/components/window/EmojiMuteContent.vue'),
+  },
   tasksEditor: {
     label: 'タスク設定',
     icon: 'ti ti-player-play',

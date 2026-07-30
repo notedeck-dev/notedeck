@@ -29,6 +29,7 @@ const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
 )
 
+import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNoteCapture } from '@/composables/useNoteCapture'
@@ -56,6 +57,7 @@ const accountsStore = useAccountsStore()
 const isCompact = useIsCompactLayout()
 const { navigateToUser: navToUser } = useNavigation()
 const { reactionUrl: reactionUrlRaw } = useEmojiResolver()
+const { isEmojiMuted } = useEmojiMute()
 
 const note = ref<NormalizedNote | null>(null)
 const ancestors = ref<NormalizedNote[]>([])
@@ -549,7 +551,14 @@ async function handlePosted(editedNoteId?: string) {
               @click="reactionTab = rt"
             >
               <img
-                v-if="reactionTypeUrl(rt)"
+                v-if="isEmojiMuted(rt)"
+                src="/emoji-muted.svg"
+                :alt="rt"
+                :title="`${rt} (ミュート中)`"
+                :class="$style.reactionChipEmoji"
+              />
+              <img
+                v-else-if="reactionTypeUrl(rt)"
                 :src="proxyUrl(reactionTypeUrl(rt)!)"
                 :alt="rt"
                 :class="$style.reactionChipEmoji"
