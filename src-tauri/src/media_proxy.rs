@@ -185,6 +185,7 @@ pub async fn handle_uri_request(
                 .status(tauri::http::StatusCode::NOT_MODIFIED)
                 .header("ETag", &etag)
                 .header("Cache-Control", CACHE_CONTROL)
+                .header("Access-Control-Allow-Origin", "*")
                 .body(Vec::new())
                 .unwrap_or_else(|_| internal_error());
         }
@@ -211,6 +212,10 @@ pub async fn handle_uri_request(
                 .header("Content-Type", content_type)
                 .header("Cache-Control", CACHE_CONTROL)
                 .header("ETag", &etag)
+                // 効果音は fetch() + decodeAudioData で読むため CORS が要る。
+                // img と違い ACAO が無いと access control で弾かれる。
+                // custom protocol は WebView 内からしか到達できないので * で安全
+                .header("Access-Control-Allow-Origin", "*")
                 .body(bytes)
                 .unwrap_or_else(|_| internal_error())
         }
@@ -226,6 +231,8 @@ const CACHE_CONTROL: &str = "public, max-age=86400, immutable";
 fn error_response(status: tauri::http::StatusCode, message: &str) -> tauri::http::Response<Vec<u8>> {
     tauri::http::Response::builder()
         .status(status)
+        // 失敗も fetch 側で読めるようにする (CORS で潰れると原因が見えない)
+        .header("Access-Control-Allow-Origin", "*")
         .header("Content-Type", "text/plain; charset=utf-8")
         .body(message.as_bytes().to_vec())
         .unwrap_or_else(|_| internal_error())
