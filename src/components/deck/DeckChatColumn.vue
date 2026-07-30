@@ -816,26 +816,35 @@ function updateMessageReaction(
     : account.value
   if (!acc) return
 
-  const reactor: ChatReactionUser = {
-    id: acc.userId ?? '',
-    username: acc.username ?? '',
-    name: acc.displayName ?? null,
-    host: acc.host ?? null,
-    avatarUrl: acc.avatarUrl ?? null,
-  }
+  // 1on1 の WS react/unreact は本家仕様で reactor を含まない (ChatService の
+  // publishChatUserStream 分岐。room 側だけ pack(userId) を載せる)。ここで自分を
+  // reactor に入れると dedup sig (type × userId × reaction) が WS 側と食い違い、
+  // 同じリアクションが二重に載る。1on1 は reactor を伏せて sig を揃える
+  // (表示は MkChatMessage がメッセージ送信者から逆算する)。
+  const reactor: ChatReactionUser | null =
+    currentRoomId.value === null
+      ? null
+      : {
+          id: acc.userId ?? '',
+          username: acc.username ?? '',
+          name: acc.displayName ?? null,
+          host: acc.host ?? null,
+          avatarUrl: acc.avatarUrl ?? null,
+        }
+  const userId = reactor?.id ?? null
   chatMessageStore.applyUpdate(
     add
       ? {
           type: 'reacted',
           messageId,
-          userId: reactor.id,
+          userId,
           reaction,
           reactor,
         }
       : {
           type: 'unreacted',
           messageId,
-          userId: reactor.id,
+          userId,
           reaction,
           reactor,
         },
