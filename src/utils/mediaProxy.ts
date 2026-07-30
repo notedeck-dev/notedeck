@@ -41,6 +41,13 @@ const proxyUrlCache = new Map<string, string>()
 const mediaVersions = reactive(new Map<string, number>())
 
 export function handleMediaFetched(url: string) {
+  // proxyUrlCache と同じ上限で古い順に捨てる (無限成長させない)。
+  // 追い出された URL は素の URL に戻るだけで、実体はキャッシュ済みなので
+  // 表示は壊れない
+  if (!mediaVersions.has(url) && mediaVersions.size >= getProxyCacheMax()) {
+    const oldest = mediaVersions.keys().next().value
+    if (oldest !== undefined) mediaVersions.delete(oldest)
+  }
   mediaVersions.set(url, (mediaVersions.get(url) ?? 0) + 1)
 }
 

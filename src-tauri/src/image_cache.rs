@@ -290,18 +290,14 @@ impl ImageCache {
             return Err("Only HTTPS URLs are allowed".to_string());
         }
 
-        // SSRF protection: block private/loopback IPs
-        if let Ok(parsed) = url::Url::parse(url) {
-            if let Some(host) = parsed.host_str() {
-                if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-                    if ip.is_loopback()
-                        || matches!(ip, std::net::IpAddr::V4(v4) if v4.is_private()
-                            || v4.is_link_local())
-                    {
-                        return Err("Private/loopback addresses are not allowed".to_string());
-                    }
-                }
-            }
+        // SSRF 防御は commands::http の validate_external_host に一元化
+        // (IP literal に加えて localhost / .local / .internal 等の hostname も
+        // 弾く)。DNS 解決結果の検証 + pinning は vault::ssrf の per-fetch
+        // resolver が要るため未適用 — 共有 client の経路では別途検討
+        {
+            let parsed = url::Url::parse(url).map_err(|e| format!("invalid url: {e}"))?;
+            let host = parsed.host_str().ok_or("url has no host")?;
+            crate::commands::validate_external_host(host)?;
         }
 
         // Circuit breaker: reject early if host is known-down
@@ -834,6 +830,30 @@ mod tests {
             (Instant::now() - Duration::from_secs(10), Duration::from_secs(5)),
         );
         assert!(!cache.is_negative_cached(url).await);
+    }
+
+    /// SSRF 防御は commands::http の validate_external_host に一元化。
+    /// IP literal だけでなく localhost / 予約 TLD などの hostname も
+    /// ネットワークに出る前に弾く (ローカル HTTP API からも叩ける面のため)
+    #[tokio::test]
+    async fn fetch_rejects_unsafe_hosts_before_network() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(dir.path());
+        for url in [
+            "https://localhost/a.png",
+            "https://127.0.0.1/a.png",
+            "https://[::1]/a.png",
+            "https://foo.internal/a.png",
+            "https://printer.local/a.png",
+        ] {
+            let err = cache
+                .fetch_streaming(url)
+                .await
+                .err()
+                .unwrap_or_else(|| panic!("should reject {url}"));
+            // 接続失敗 (ネットワークに出た) ではなく検証で弾いたことを確かめる
+            assert!(err.contains("not allowed"), "{url}: {err}");
+        }
     }
 
     /// circuit breaker で塞がれたホストもフェーズ 1 の即時失敗対象になること。

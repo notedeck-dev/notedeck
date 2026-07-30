@@ -155,6 +155,19 @@ describe('背景取得完了による再読込 (二段階配信)', () => {
     handleMediaFetched(REMOTE)
     expect(proxyUrl(other)).not.toContain('&r=')
   })
+
+  it('世代マップは上限で古い順に捨てる (無限成長しない)', async () => {
+    const { proxyUrl, handleMediaFetched } = await loadModule()
+    // 上限 (テスト環境の既定 256) を超えて完了イベントを流す
+    handleMediaFetched(REMOTE)
+    for (let i = 0; i < 300; i++) {
+      handleMediaFetched(`https://example.com/e${i}.png`)
+    }
+    // 最古の REMOTE は追い出され、素の URL に戻る (キャッシュ済みなので実害なし)
+    expect(proxyUrl(REMOTE)).not.toContain('&r=')
+    // 直近のものは世代付きのまま
+    expect(proxyUrl('https://example.com/e299.png')).toContain('&r=1')
+  })
 })
 
 describe('proxyThumbUrl', () => {

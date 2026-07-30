@@ -125,7 +125,9 @@ fn may_be_animated(data: &[u8]) -> bool {
             if ctype == b"IDAT" {
                 return false;
             }
-            pos = pos.saturating_add(12 + len); // len(4) + type(4) + data + crc(4)
+            // len(4) + type(4) + data + crc(4)。len は untrusted なので
+            // 32bit ターゲットでの加算オーバーフローも飽和させる
+            pos = pos.saturating_add(len.saturating_add(12));
         }
         return false;
     }
@@ -218,9 +220,9 @@ async fn apply_transform(
     data: Vec<u8>,
     content_type: String,
     req: &MediaRequest,
-) -> (Vec<u8>, String) {
+) -> Result<(Vec<u8>, String), String> {
     if !req.wants_transform() {
-        return (data, content_type);
+        return Ok((data, content_type));
     }
     let w = req.w;
     let format = req.format.clone();
@@ -231,8 +233,10 @@ async fn apply_transform(
         }
     })
     .await
-    // JoinError は closure の panic のみ (release は panic = "abort" が先に効く)
-    .unwrap_or_else(|_| (Vec::new(), "application/octet-stream".to_string()))
+    // JoinError は closure の panic のみ (release は panic = "abort" が先に
+    // 効く)。空バイト列を成功として返すと variant に永続化されて TTL の間
+    // 空画像を配り続けるため、エラーとして伝播する
+    .map_err(|e| format!("transform task failed: {e}"))
 }
 
 /// キャッシュエントリ (メモリ or ディスク) を変換なしでバイト列にする。
@@ -429,11 +433,7 @@ async fn ensure_media_inner(
         },
     };
 
-    let (bytes, content_type) = if req.wants_transform() {
-        apply_transform(data, content_type, req).await
-    } else {
-        (data, content_type)
-    };
+    let (bytes, content_type) = apply_transform(data, content_type, req).await?;
     // fetch_streaming の背景タスクもオリジナルを書くが、それを待たずに emit
     // すると再要求がミスする競合があるため、ここで確実に書き切ってから返す
     cache
@@ -612,6 +612,18 @@ mod tests {
     #[test]
     fn static_png_is_not_animated() {
         assert!(!may_be_animated(&png_bytes(10, 10)));
+    }
+
+    /// チャンク長は untrusted な入力。u32::MAX を仕込んだ PNG でも
+    /// 32bit ターゲット (armv7 Android) の加算オーバーフローで panic しない
+    #[test]
+    fn png_scan_survives_huge_chunk_length() {
+        let mut evil = Vec::new();
+        evil.extend_from_slice(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
+        evil.extend_from_slice(&u32::MAX.to_be_bytes());
+        evil.extend_from_slice(b"IHDR");
+        evil.extend_from_slice(&[0u8; 32]);
+        assert!(!may_be_animated(&evil));
     }
 
     /// wait (ブロッキング) 経路もキャッシュ済みオリジナルから変換して
