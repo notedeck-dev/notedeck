@@ -702,40 +702,6 @@ struct ProxyImageParams {
     format: Option<String>,
 }
 
-/// Apply resize and/or format conversion to raw image bytes.
-/// Returns (transformed_bytes, content_type) or None if no transform needed / failed.
-fn transform_image(
-    data: &[u8],
-    max_width: Option<u32>,
-    target_format: Option<&str>,
-) -> Option<(Vec<u8>, String)> {
-    let needs_resize = max_width.is_some();
-    let needs_webp = target_format == Some("webp");
-    if !needs_resize && !needs_webp {
-        return None;
-    }
-
-    let img = image::load_from_memory(data).ok()?;
-
-    let img = if let Some(w) = max_width {
-        if img.width() > w {
-            img.resize(w, u32::MAX, image::imageops::FilterType::Triangle)
-        } else {
-            img
-        }
-    } else {
-        img
-    };
-
-    // Always encode as WebP (lossless) — smaller than PNG and avoids
-    // format-mismatch issues (e.g. resized JPEG re-encoded as PNG).
-    let mut buf = Vec::with_capacity((data.len() / 4).max(4096));
-    let encoder = image::codecs::webp::WebPEncoder::new_lossless(&mut buf);
-    img.write_with_encoder(encoder).ok()?;
-
-    Some((buf, "image/webp".to_string()))
-}
-
 #[utoipa::path(get, path = "/proxy/image", tag = "proxy",
     params(ProxyImageParams),
     responses(
@@ -749,19 +715,16 @@ async fn proxy_image(
     headers: axum::http::HeaderMap,
     Query(params): Query<ProxyImageParams>,
 ) -> Response {
-    use crate::image_cache::{hex_hash, StreamingFetchResult};
+    use crate::image_cache::StreamingFetchResult;
+    use crate::media_proxy::{transform_image, MediaRequest};
 
-    // Include transform params in cache key so different sizes are cached separately
-    let cache_key = match (&params.w, &params.format) {
-        (None, None) => params.url.clone(),
-        _ => format!(
-            "{}|w={}|f={}",
-            params.url,
-            params.w.unwrap_or(0),
-            params.format.as_deref().unwrap_or("")
-        ),
+    // 変換パラメータ込みのキー / ETag は custom protocol 側と同じ規則を使う
+    let req = MediaRequest {
+        url: params.url.clone(),
+        w: params.w,
+        format: params.format.clone(),
     };
-    let etag = format!("\"{}\"", hex_hash(&cache_key));
+    let etag = req.etag();
 
     // ETag conditional: return 304 if client already has this image
     if let Some(if_none_match) = headers.get("if-none-match").and_then(|v| v.to_str().ok()) {

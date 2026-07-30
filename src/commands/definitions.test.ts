@@ -41,7 +41,7 @@ vi.mock('@/utils/customTimelines', () => ({
   modeIcon: vi.fn(() => 'moon'),
   modeLabel: vi.fn(() => 'モード'),
 }))
-vi.mock('@/utils/imageProxy', () => ({ proxyThumbUrl: (u: unknown) => u }))
+vi.mock('@/utils/mediaProxy', () => ({ proxyThumbUrl: (u: unknown) => u }))
 
 import { useDeckStore } from '@/stores/deck'
 import { useThemeStore } from '@/stores/theme'

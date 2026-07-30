@@ -22,6 +22,7 @@ import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useServersStore } from '@/stores/servers'
 import { useIsCompactLayout } from '@/stores/ui'
 import { createJson5Linter } from '@/utils/json5Linter'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { profileFilename } from '@/utils/settingsFs'
 
 const AddColumnDialog = defineAsyncComponent(
@@ -148,7 +149,8 @@ function columnServerIconUrl(col: DeckColumn): string | null {
   const account = accountsStore.accounts.find((a) => a.id === col.accountId)
   if (!account) return null
   const server = serversStore.servers.get(account.host)
-  return server?.iconUrl ?? `https://${account.host}/favicon.ico`
+  const url = server?.iconUrl ?? `https://${account.host}/favicon.ico`
+  return proxyThumbUrl(url, 28) ?? url
 }
 
 // --- Group helpers (1 group = 1 button) ---

@@ -5,7 +5,7 @@ import type { RawStreamEvent, StreamConnectionState } from '@/adapters/types'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
-import { proxyThumbUrl } from '@/utils/imageProxy'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 
 interface BadgePair {
   avatar: string | null
@@ -110,8 +110,11 @@ export const useStreamInspectorStore = defineStore('streamInspector', () => {
     return {
       avatar: avatarUrl ? (proxyThumbUrl(avatarUrl, 28) ?? avatarUrl) : null,
       serverIcon: host
-        ? (serversStore.getServer(host)?.iconUrl ??
-          `https://${host}/favicon.ico`)
+        ? (proxyThumbUrl(
+            serversStore.getServer(host)?.iconUrl ??
+              `https://${host}/favicon.ico`,
+            28,
+          ) ?? null)
         : null,
     }
   }
@@ -165,8 +168,11 @@ export const useStreamInspectorStore = defineStore('streamInspector', () => {
           proxyThumbUrl(getAccountAvatarUrl(acc), 28) ??
           getAccountAvatarUrl(acc),
         serverIcon:
-          serversStore.getServer(acc.host)?.iconUrl ??
-          `https://${acc.host}/favicon.ico`,
+          proxyThumbUrl(
+            serversStore.getServer(acc.host)?.iconUrl ??
+              `https://${acc.host}/favicon.ico`,
+            28,
+          ) ?? null,
       }
       const handler = makeRawHandler(observerBadge, acc.id)
       adapter.stream.onRawEvent(handler)

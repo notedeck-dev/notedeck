@@ -20,11 +20,24 @@ export const RECOUNT_MAX_TOTAL = 100
 /** キャッシュ肥大の上限 (ノート数)。超えたら古いものから捨てる。 */
 const CACHE_CAP = 500
 
+/**
+ * 同じノートの列挙を取り直すまでの最短間隔。
+ *
+ * リアクションが 1 個増えるだけで signature は変わるので、これが無いと
+ * 流速の速い TL で可視ノートぶんの `notes/reactions` を連射し、さらにその
+ * リアクター全員が凍結検知 (`users/show`) へ流れて増幅する。
+ * stale-while-revalidate なので、待っている間も `get` は手元の列挙で
+ * 数え直した値を返し続ける (表示が壊れない)。
+ */
+const REFETCH_COOLDOWN_MS = 5000
+
 interface RecountEntry {
   /** serverCounts の JSON。リアクション増減の検知に使う */
   signature: string
   /** 取得時点の可視リアクション列挙 (縮約)。カウントは get 時に照合込みで数える */
   records: VisibleReactionRecord[]
+  /** 取得時刻 (epoch ms)。連射抑制の判定に使う */
+  fetchedAt: number
 }
 
 /**
@@ -85,7 +98,8 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
   const fetchQueue: (() => void)[] = []
 
   async function withFetchSlot<T>(fn: () => Promise<T>): Promise<T> {
-    if (activeFetches >= MAX_CONCURRENT_FETCH) {
+    // 起こされた時点で別の呼び出しがスロットを取っていることがあるので再確認する
+    while (activeFetches >= MAX_CONCURRENT_FETCH) {
       await new Promise<void>((resolve) => fetchQueue.push(resolve))
     }
     activeFetches++
@@ -97,6 +111,34 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     }
   }
 
+  /**
+   * クールダウン中に届いた更新。ノートごとに最新の serverCounts だけ残す
+   * (途中のカウントは取りに行っても無駄になる)。
+   */
+  const deferred = new Map<
+    string,
+    { accountId: string; serverCounts: Record<string, number> }
+  >()
+  let deferredTimer: ReturnType<typeof setTimeout> | null = null
+
+  function scheduleDeferred(
+    accountId: string,
+    noteId: string,
+    serverCounts: Record<string, number>,
+  ): void {
+    deferred.set(noteId, { accountId, serverCounts })
+    if (deferredTimer) return
+    deferredTimer = setTimeout(() => {
+      deferredTimer = null
+      const batch = [...deferred]
+      deferred.clear()
+      // ensure を通し直す: まだクールダウン中のノートは再び deferred に戻る
+      for (const [id, { accountId: acc, serverCounts: counts }] of batch) {
+        void ensure(acc, id, counts)
+      }
+    }, REFETCH_COOLDOWN_MS)
+  }
+
   /** 必要なら列挙を取得する。失敗は無視 (サーバー集計のまま表示)。 */
   async function ensure(
     accountId: string,
@@ -104,10 +146,16 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     serverCounts: Record<string, number>,
   ): Promise<void> {
     const signature = signatureOf(serverCounts)
-    if (cache.value.get(noteId)?.signature === signature) return
+    const entry = cache.value.get(noteId)
+    if (entry?.signature === signature) return
     const total = totalReactionCount(serverCounts)
     if (total === 0 || total > RECOUNT_MAX_TOTAL) return
     if (inflight.has(noteId)) return
+    // 取得済みのノートは連射を避けてクールダウン明けにまとめて取り直す
+    if (entry && Date.now() - entry.fetchedAt < REFETCH_COOLDOWN_MS) {
+      scheduleDeferred(accountId, noteId, serverCounts)
+      return
+    }
     inflight.add(noteId)
     try {
       await withFetchSlot(() => fetchAndStore(accountId, noteId, signature))
@@ -142,6 +190,7 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
       cache.value.set(noteId, {
         signature,
         records: reactions.map((r) => ({ type: r.type, userId: r.user.id })),
+        fetchedAt: Date.now(),
       })
       triggerRef(cache)
       // サーバーは凍結ユーザーを列挙から除外しないため、リアクターを

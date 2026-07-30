@@ -5,16 +5,16 @@ import type { NormalizedNote } from '@/adapters/types'
 import { useNoteList } from '@/composables/useNoteList'
 import { useSuspensionsStore } from '@/stores/suspensions'
 
-const api = vi.hoisted(() => ({ getUserRaw: vi.fn() }))
+const api = vi.hoisted(() => ({ probeSuspended: vi.fn() }))
 
 vi.mock('@/bindings', () => ({
   commands: new Proxy(
     {},
     {
       get: (_t, name: string) => {
-        if (name === 'apiGetUserRaw') {
-          return (accountId: string, params: unknown) =>
-            api.getUserRaw(accountId, params)
+        if (name === 'apiProbeUsersSuspended') {
+          return (accountId: string, userIds: string[]) =>
+            api.probeSuspended(accountId, userIds)
         }
         return () => Promise.resolve({ status: 'ok', data: [] })
       },
@@ -52,7 +52,7 @@ let store: ReturnType<typeof useSuspensionsStore>
 beforeEach(() => {
   vi.useFakeTimers()
   setActivePinia(createPinia())
-  api.getUserRaw.mockReset()
+  api.probeSuspended.mockReset()
   store = useSuspensionsStore()
   // 周期タイマーは止め、再検証は reverifyTick を直接呼んで検証する
   store.stopReverifyCycle()
@@ -65,7 +65,7 @@ afterEach(() => {
 
 describe('useSuspensionsStore: probe の 3 値判定 (#828)', () => {
   it('欠落 = 凍結 / isSuspended:true = 凍結 / 返却され false = 解除', async () => {
-    api.getUserRaw.mockResolvedValue(
+    api.probeSuspended.mockResolvedValue(
       ok([{ id: 'u2' }, { id: 'u3', isSuspended: true }]),
     )
 
@@ -79,7 +79,7 @@ describe('useSuspensionsStore: probe の 3 値判定 (#828)', () => {
 
   it('chunk の取得に失敗したら無更新にする (fail-open)', async () => {
     store.applyProbeResult('acc1', { suspended: ['u1'] })
-    api.getUserRaw.mockRejectedValue(new Error('network'))
+    api.probeSuspended.mockRejectedValue(new Error('network'))
 
     store.probe('acc1', ['u1'])
     await settle()
@@ -89,32 +89,32 @@ describe('useSuspensionsStore: probe の 3 値判定 (#828)', () => {
   })
 
   it('50 件ずつに分割して問い合わせる', async () => {
-    api.getUserRaw.mockResolvedValue(ok([]))
+    api.probeSuspended.mockResolvedValue(ok([]))
     const ids = Array.from({ length: 120 }, (_, i) => `u${i}`)
 
     store.probe('acc1', ids)
     await settle()
 
-    expect(api.getUserRaw).toHaveBeenCalledTimes(3)
-    const first = api.getUserRaw.mock.calls[0]?.[1] as { userIds: string[] }
-    expect(first.userIds).toHaveLength(50)
+    expect(api.probeSuspended).toHaveBeenCalledTimes(3)
+    const first = api.probeSuspended.mock.calls[0]?.[1] as string[]
+    expect(first).toHaveLength(50)
   })
 
   it('同一 id は 15 分間、再問い合わせしない', async () => {
-    api.getUserRaw.mockResolvedValue(ok([{ id: 'u1' }]))
+    api.probeSuspended.mockResolvedValue(ok([{ id: 'u1' }]))
 
     store.probe('acc1', ['u1'])
     await settle()
-    expect(api.getUserRaw).toHaveBeenCalledTimes(1)
+    expect(api.probeSuspended).toHaveBeenCalledTimes(1)
 
     store.probe('acc1', ['u1'])
     await settle()
-    expect(api.getUserRaw).toHaveBeenCalledTimes(1)
+    expect(api.probeSuspended).toHaveBeenCalledTimes(1)
 
     vi.setSystemTime(Date.now() + 16 * 60_000)
     store.probe('acc1', ['u1'])
     await settle()
-    expect(api.getUserRaw).toHaveBeenCalledTimes(2)
+    expect(api.probeSuspended).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -137,13 +137,13 @@ describe('useSuspensionsStore: 差分 trigger と再検証サイクル (#828)', 
   })
 
   it('再検証は TTL 抑制を貫通し、解除を検知する', async () => {
-    api.getUserRaw.mockResolvedValue(ok([]))
+    api.probeSuspended.mockResolvedValue(ok([]))
     store.probe('acc1', ['u1'])
     await settle()
     expect(store.isSuspended('acc1', 'u1')).toBe(true)
 
     // TTL 内でも再検証サイクルは問い合わせる
-    api.getUserRaw.mockResolvedValue(ok([{ id: 'u1' }]))
+    api.probeSuspended.mockResolvedValue(ok([{ id: 'u1' }]))
     store.reverifyTick()
     await settle()
 
@@ -151,29 +151,29 @@ describe('useSuspensionsStore: 差分 trigger と再検証サイクル (#828)', 
   })
 
   it('検知から 24h を過ぎた entry は再検証済みなら due にしない (aging)', async () => {
-    api.getUserRaw.mockResolvedValue(ok([]))
+    api.probeSuspended.mockResolvedValue(ok([]))
     store.probe('acc1', ['u1'])
     await settle()
 
     // 25h 後: fresh 期間を抜けている → due
     vi.setSystemTime(Date.now() + 25 * HOUR)
-    api.getUserRaw.mockClear()
+    api.probeSuspended.mockClear()
     store.reverifyTick()
     await settle()
-    expect(api.getUserRaw).toHaveBeenCalledTimes(1)
+    expect(api.probeSuspended).toHaveBeenCalledTimes(1)
 
     // 直後は lastVerified が新しいので due にならない
     vi.setSystemTime(Date.now() + HOUR)
-    api.getUserRaw.mockClear()
+    api.probeSuspended.mockClear()
     store.reverifyTick()
     await settle()
-    expect(api.getUserRaw).not.toHaveBeenCalled()
+    expect(api.probeSuspended).not.toHaveBeenCalled()
   })
 })
 
 describe('useSuspensionsStore: probe 供給の 1 点フック (#828)', () => {
   it('useNoteList への新規挿入で当事者が probe される', async () => {
-    api.getUserRaw.mockResolvedValue(ok([]))
+    api.probeSuspended.mockResolvedValue(ok([]))
     const { setNotes } = useNoteList({
       getMyUserId: () => 'me',
       getAdapter: () => null,
@@ -186,7 +186,7 @@ describe('useSuspensionsStore: probe 供給の 1 点フック (#828)', () => {
     setNotes([makeNote('n1', 'author-1'), makeNote('n2', 'author-2')])
     await settle()
 
-    const params = api.getUserRaw.mock.calls[0]?.[1] as { userIds: string[] }
-    expect(params.userIds.sort()).toEqual(['author-1', 'author-2'])
+    const userIds = api.probeSuspended.mock.calls[0]?.[1] as string[]
+    expect([...userIds].sort()).toEqual(['author-1', 'author-2'])
   })
 })

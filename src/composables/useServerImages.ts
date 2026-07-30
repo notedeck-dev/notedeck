@@ -3,6 +3,7 @@ import type { ServerInfo } from '@/adapters/types'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
+import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 
 /** "user@host" のような portable account ID から host 部分を取り出す */
 function hostFromPortableAccount(portable: string | undefined): string | null {
@@ -32,13 +33,19 @@ export function useServerImages(getColumn: () => DeckColumn) {
     return serversStore.getServer(host)
   })
 
-  const serverIconUrl = computed(() => serverInfo.value?.iconUrl)
-  const serverInfoImageUrl = computed(() => serverInfo.value?.infoImageUrl)
-  const serverNotFoundImageUrl = computed(
-    () => serverInfo.value?.notFoundImageUrl,
+  // プロキシ経由にしてディスクキャッシュとサーキットブレーカーに載せる。
+  // アイコンはバッジ表示なのでリサイズも掛ける
+  const serverIconUrl = computed(() =>
+    proxyThumbUrl(serverInfo.value?.iconUrl, 28),
   )
-  const serverErrorImageUrl = computed(
-    () => serverInfo.value?.serverErrorImageUrl,
+  const serverInfoImageUrl = computed(() =>
+    proxyUrl(serverInfo.value?.infoImageUrl),
+  )
+  const serverNotFoundImageUrl = computed(() =>
+    proxyUrl(serverInfo.value?.notFoundImageUrl),
+  )
+  const serverErrorImageUrl = computed(() =>
+    proxyUrl(serverInfo.value?.serverErrorImageUrl),
   )
 
   return {

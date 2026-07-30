@@ -6,7 +6,7 @@ import {
   isVideo,
   safeUrl,
 } from '@/composables/useDriveFolder'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyUrl } from '@/utils/mediaProxy'
 
 /**
  * サムネイルはローカルプロキシ経由にしてディスクキャッシュに載せる (#815)。

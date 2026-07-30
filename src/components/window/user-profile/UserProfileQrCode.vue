@@ -3,7 +3,7 @@ import { nextTick, ref } from 'vue'
 import type { NormalizedUserDetail } from '@/adapters/types'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useServersStore } from '@/stores/servers'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{

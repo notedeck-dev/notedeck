@@ -10,7 +10,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { useAccountsStore } from '@/stores/accounts'
 import { useUiStore } from '@/stores/ui'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyUrl } from '@/utils/mediaProxy'
 import MkEmoji from './MkEmoji.vue'
 import MkMfm from './MkMfm.vue'
 

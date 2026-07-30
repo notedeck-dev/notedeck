@@ -54,7 +54,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import { getNoteUri } from '@/utils/noteUrl'
 import {
   CROSS_ACCOUNT_NOTIFICATION_KEY,
@@ -226,7 +226,8 @@ function resolveNotifServerIcon(notif: NormalizedNotification): string | null {
   const acc = resolveNotifAccount(notif)
   if (!acc) return null
   const info = serversStore.servers.get(acc.host)
-  return info?.iconUrl || `https://${acc.host}/favicon.ico`
+  const url = info?.iconUrl || `https://${acc.host}/favicon.ico`
+  return proxyThumbUrl(url, 28) ?? url
 }
 
 /** Whether to show the server badge on a notification (cross-account columns with 2+ accounts) */
@@ -1040,7 +1041,7 @@ onUnmounted(() => {
     <template #header-meta>
       <div v-if="!isCrossAccount && account" :class="$style.headerAccount">
         <img :src="getAccountAvatarUrl(account)" :class="$style.headerAvatar" />
-        <img :class="$style.headerFavicon" :src="serverIconUrl || `https://${account.host}/favicon.ico`" :title="account.host" @error="($event.target as HTMLImageElement).src = '/server-icon-error.svg'" />
+        <img :class="$style.headerFavicon" :src="serverIconUrl || proxyThumbUrl(`https://${account.host}/favicon.ico`, 28)" :title="account.host" @error="($event.target as HTMLImageElement).src = '/server-icon-error.svg'" />
       </div>
     </template>
 

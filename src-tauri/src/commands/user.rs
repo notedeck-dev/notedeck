@@ -551,6 +551,39 @@ pub async fn api_get_user_raw(
     client.request(&host, &token, "users/show", params).await
 }
 
+/// 凍結検知 (#828) の判定に必要な 2 フィールドだけ。
+///
+/// `users/show` の応答は UserDetailed pack (pinnedNotes の packMany・ロール
+/// ポリシー解決込み) で 1 人あたり数十 KB になる。判定に使うのは id と
+/// isSuspended だけなので、生 JSON をフロントへ運ばずここで畳む。
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct UserSuspensionStatus {
+    pub id: String,
+    #[serde(default)]
+    pub is_suspended: bool,
+}
+
+/// 凍結検知専用の `users/show`。応答から欠落した id は呼び出し側が凍結と
+/// みなすため、ここでは返ってきたものをそのまま畳んで返す。
+#[tauri::command]
+#[specta::specta]
+pub async fn api_probe_users_suspended(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    user_ids: Vec<String>,
+) -> Result<Vec<UserSuspensionStatus>> {
+    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+    typed_request(
+        &client,
+        &host,
+        &token,
+        "users/show",
+        serde_json::json!({ "userIds": user_ids }),
+    )
+    .await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_reactions(

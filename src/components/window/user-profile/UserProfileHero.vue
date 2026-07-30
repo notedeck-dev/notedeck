@@ -14,7 +14,7 @@ import {
   formatCount,
   formatDate,
 } from '@/utils/format'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import { openSafeUrl, safeCssUrl } from '@/utils/url'
 
 // プロフィール overview の hero 面 (#707): バナー / アバター / フォロー操作 /
@@ -235,7 +235,7 @@ onMounted(() => {
         :title="role.description || role.name"
         @click="openSafeUrl(`https://${user.host || accountHost}/roles/${role.id}`)"
       >
-        <img v-if="role.iconUrl" :src="role.iconUrl" :class="$style.roleIcon" />
+        <img v-if="role.iconUrl" :src="proxyThumbUrl(role.iconUrl, 28)" :class="$style.roleIcon" />
         {{ role.name }}
       </span>
     </div>

@@ -11,7 +11,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
@@ -203,7 +203,7 @@ onMounted(() => {
       >
         <div :class="$style.bannerInner">
           <img
-            :src="meta.iconUrl || serverIconUrl || `https://${account.host}/favicon.ico`"
+            :src="proxyThumbUrl(meta.iconUrl, 28) || serverIconUrl || proxyThumbUrl(`https://${account.host}/favicon.ico`, 28)"
             alt=""
             :class="$style.bannerIcon"
           />

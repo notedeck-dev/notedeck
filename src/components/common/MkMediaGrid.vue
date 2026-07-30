@@ -2,7 +2,7 @@
 import { computed, ref, shallowRef } from 'vue'
 import type { NormalizedDriveFile } from '@/adapters/types'
 import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
-import { proxyUrl } from '@/utils/imageProxy'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { isSafeUrl, openSafeUrl } from '@/utils/url'
 import MkMediaLightbox from './MkMediaLightbox.vue'
 

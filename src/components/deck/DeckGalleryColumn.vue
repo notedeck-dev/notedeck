@@ -12,6 +12,7 @@ import { useServerImages } from '@/composables/useServerImages'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
@@ -151,7 +152,7 @@ fetchGallery()
             <div :class="$style.galleryGridThumb">
               <img
                 v-if="post.files.length > 0 && isImage(post.files[0]!) && !post.isSensitive"
-                :src="safeUrl(post.files[0]!.thumbnailUrl) || safeUrl(post.files[0]!.url)"
+                :src="proxyUrl(safeUrl(post.files[0]!.thumbnailUrl) || safeUrl(post.files[0]!.url))"
                 :alt="post.title"
                 :class="$style.galleryGridImg"
                 loading="lazy"

@@ -17,6 +17,8 @@ type Result<T> = std::result::Result<T, NoteDeckError>;
 /// Allowed subdirectory names for settings files. Also the set included in settings backup.
 pub const ALLOWED_SUBDIRS: &[&str] = &[
     "profiles", "themes", "plugins", "snippets", "memos", "widgets", "skills", "sessions",
+    // カラムクエリ (#783 Phase 1.5)。settingsFs の QUERIES_DIR に対応
+    "queries",
 ];
 
 /// Allowed root-level filenames (no subdirectory).
@@ -393,6 +395,10 @@ mod tests {
         assert!(validate_subdir("widgets").is_ok());
         assert!(validate_subdir("skills").is_ok());
         assert!(validate_subdir("sessions").is_ok());
+        // カラムクエリ (#783 Phase 1.5)。settingsFs 側が使うので許可が必要
+        assert!(validate_subdir("queries").is_ok());
+        // memos は settingsFs にラッパーがあるので漏れを防ぐ
+        assert!(validate_subdir("memos").is_ok());
     }
 
     #[test]

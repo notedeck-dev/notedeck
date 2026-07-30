@@ -27,6 +27,7 @@ import {
   usePluginsStore,
 } from '@/stores/plugins'
 import { useWindowsStore } from '@/stores/windows'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
 import ColumnSection from './ColumnSection.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
@@ -341,10 +342,10 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 
     <template #header-meta>
       <div v-if="!isCrossAccount && account" :class="$style.headerAccount">
-        <img :src="getAccountAvatarUrl(account)" :class="$style.headerAvatar" />
+        <img :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)" :class="$style.headerAvatar" />
         <img
           :class="$style.headerFavicon"
-          :src="serverIconUrl || `https://${account.host}/favicon.ico`"
+          :src="serverIconUrl || proxyThumbUrl(`https://${account.host}/favicon.ico`, 28)"
           :title="account.host"
           @error="($event.target as HTMLImageElement).src = '/server-icon-error.svg'"
         />

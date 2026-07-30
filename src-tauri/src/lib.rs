@@ -26,6 +26,7 @@ mod hwheel_hook;
 /// [`http_server::build_openapi`].
 pub mod http_server;
 mod image_cache;
+mod media_proxy;
 mod migrations;
 mod ogp;
 mod os_notify;
@@ -160,6 +161,21 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     builder = builder.invoke_handler(specta_builder.invoke_handler());
+
+    // 画像プロキシの WebView 側の口。モバイルの WebView は http://127.0.0.1 への
+    // 接続が制限される (Android: cleartext policy / iOS: ATS) ため、HTTP API を
+    // 直接叩けない。custom protocol は WebView 自身が intercept するのでその
+    // 制限を受けず、リサイズ・ディスクキャッシュ・サーキットブレーカーを全
+    // プラットフォームで同じ経路に乗せられる。
+    builder = builder.register_asynchronous_uri_scheme_protocol(
+        "ndmedia",
+        |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                responder.respond(media_proxy::handle_uri_request(&app, request).await);
+            });
+        },
+    );
 
     // セーフモード (#794) — `notedeck --safe-mode` で起動したとき、ページ評価前に
     // フラグを注入する。index.html の boot script がこれを localStorage へ畳み込み、
@@ -814,6 +830,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::api_get_drive_file,
             // Users (raw)
             commands::api_get_user_raw,
+            commands::api_probe_users_suspended,
             commands::api_get_user_reactions,
             commands::api_get_user_pages_by,
             commands::api_get_user_flashs,

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useAccountsStore } from '@/stores/accounts'
 import { useServersStore } from '@/stores/servers'
-import { proxyThumbUrl } from '@/utils/imageProxy'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 
 const props = withDefaults(
   defineProps<{

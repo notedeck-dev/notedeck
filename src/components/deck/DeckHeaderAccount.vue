@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { type Account, getAccountAvatarUrl } from '@/stores/accounts'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 
 defineProps<{
   account: Account | null | undefined
@@ -12,7 +13,7 @@ defineProps<{
     <img :src="getAccountAvatarUrl(account)" :class="$style.headerAvatar" />
     <img
       :class="$style.headerFavicon"
-      :src="serverIconUrl || `https://${account.host}/favicon.ico`"
+      :src="serverIconUrl || proxyThumbUrl(`https://${account.host}/favicon.ico`, 28)"
       :title="account.host"
     />
   </div>

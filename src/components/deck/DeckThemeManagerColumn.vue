@@ -15,6 +15,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
 import { MI_DARK, MI_LIGHT } from '@/theme/builtinThemes'
 import type { MisskeyTheme } from '@/theme/types'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
 import ColumnSection from './ColumnSection.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
@@ -377,7 +378,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
         <img :src="getAccountAvatarUrl(account)" :class="$style.headerAvatar" />
         <img
           :class="$style.headerFavicon"
-          :src="serverIconUrl || `https://${account.host}/favicon.ico`"
+          :src="serverIconUrl || proxyThumbUrl(`https://${account.host}/favicon.ico`, 28)"
           :title="account.host"
           @error="($event.target as HTMLImageElement).src = '/server-icon-error.svg'"
         />
