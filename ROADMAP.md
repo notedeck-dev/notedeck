@@ -822,7 +822,7 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
 
 **実施済み:**
 - [x] useNoteColumn.ts の merge パターン重複を `mergeOrEnqueue` ヘルパーに統合
-- [x] adapter を Misskey 系フォーク単位（yamisskey, misskey-tepura 等）の capability ベースに再定義
+- [x] adapter を Misskey 系フォーク単位（yamisskey, misskey-tempura 等）の capability ベースに再定義
 
 **実施済み（追加）:**
 - [x] invoke の型付き契約 — specta/tauri-specta で Rust → TypeScript 型自動生成。

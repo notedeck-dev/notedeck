@@ -71,6 +71,7 @@ const noteColumnConfig: NoteColumnConfig = {
     sound-enabled
     hide-channel-badge
     :note-column-config="noteColumnConfig"
+    :filter-keys="['withRenotes', 'withReplies', 'withFiles', 'withBots']"
   >
     <template #before-notes="{ handlePosted }">
       <MkPostForm

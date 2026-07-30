@@ -39,10 +39,12 @@ const noteColumnConfig: NoteColumnConfig = {
 </script>
 
 <template>
+  <!-- 単一ユーザーのカラムに Bot 除外は不要 (#841) -->
   <DeckNoteColumn
     :column="column"
     :title="column.name || 'ユーザー'"
     icon="ti-user"
     :note-column-config="noteColumnConfig"
+    :filter-keys="['withRenotes', 'withReplies', 'withFiles']"
   />
 </template>

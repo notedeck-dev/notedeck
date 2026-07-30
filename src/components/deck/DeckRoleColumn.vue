@@ -56,5 +56,6 @@ const noteColumnConfig: NoteColumnConfig = {
     :web-ui-path="column.roleId ? `/roles/${column.roleId}` : undefined"
     sound-enabled
     :note-column-config="noteColumnConfig"
+    :filter-keys="['withRenotes', 'withReplies', 'withFiles', 'withBots']"
   />
 </template>

@@ -12,7 +12,7 @@
 export type ServerSoftware =
   | 'misskey-dev/misskey'
   | 'yamisskey-dev/yamisskey'
-  | 'lqvp/misskey-tepura'
+  | 'lqvp/misskey-tempura'
   | 'unknown'
 
 export interface ServerInfo {

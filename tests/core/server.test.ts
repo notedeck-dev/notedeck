@@ -57,11 +57,11 @@ describe('server detection', () => {
     expect(info.software).toBe('yamisskey-dev/yamisskey')
   })
 
-  it('detects misskey-tepura server', async () => {
-    mockDetect('misskey-tepura')
+  it('detects misskey-tempura server', async () => {
+    mockDetect('misskey-tempura')
     const info = await detectServer('misskey.vip')
 
-    expect(info.software).toBe('lqvp/misskey-tepura')
+    expect(info.software).toBe('lqvp/misskey-tempura')
   })
 
   it('returns unknown for non-misskey software', async () => {

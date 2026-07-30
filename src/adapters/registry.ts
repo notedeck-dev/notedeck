@@ -42,7 +42,7 @@ export function resolveSoftware(
       if (ownerRepo === 'misskey-dev/misskey') return 'misskey-dev/misskey'
       if (ownerRepo === 'yamisskey-dev/yamisskey')
         return 'yamisskey-dev/yamisskey'
-      if (ownerRepo === 'lqvp/misskey-tepura') return 'lqvp/misskey-tepura'
+      if (ownerRepo === 'lqvp/misskey-tempura') return 'lqvp/misskey-tempura'
       // 未知だが Misskey 系なら本家扱い
     }
   }
@@ -50,7 +50,7 @@ export function resolveSoftware(
   // 2. software.name によるフォールバック
   const n = name.toLowerCase()
   if (n === 'yamisskey') return 'yamisskey-dev/yamisskey'
-  if (n === 'misskey-tepura' || n === 'tepura') return 'lqvp/misskey-tepura'
+  if (n === 'misskey-tempura' || n === 'tempura') return 'lqvp/misskey-tempura'
   if (n === 'misskey' || n.includes('misskey')) return 'misskey-dev/misskey'
   return 'unknown'
 }
