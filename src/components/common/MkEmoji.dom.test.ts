@@ -55,15 +55,13 @@ describe('MkEmoji', () => {
     expect(img?.getAttribute('src')).toMatch(unknownSvg)
   })
 
-  // ビルド環境によって "/emoji-muted.svg" のままか data URI にインライン化されるかが変わる
-  const mutedSvg = /^(\/emoji-muted\.svg$|data:image\/svg\+xml)/
-
   it('ミュートした絵文字はプレースホルダー表示になる (#612)', () => {
     useSettingsStore().set('mute.emojis', ['❤'])
     mountEmoji('❤')
-    const img = container?.querySelector('img')
-    expect(img?.getAttribute('src')).toMatch(mutedSvg)
-    expect(img?.getAttribute('title')).toContain('ミュート中')
+    const placeholder = container?.querySelector('span._emojiMuted')
+    expect(placeholder).toBeTruthy()
+    expect(placeholder?.getAttribute('title')).toContain('ミュート中')
+    expect(container?.querySelector('img')).toBeNull()
   })
 
   it('ignoreMuted 指定時はミュートを無視して実体を表示する (#612)', () => {

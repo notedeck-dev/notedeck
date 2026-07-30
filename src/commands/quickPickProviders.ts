@@ -84,6 +84,12 @@ export function getSettingsItems(): QuickPickItem[] {
       action: () => useWindowsStore().open('cssEditor'),
     },
     {
+      id: 'emoji-mute',
+      label: '絵文字ミュート',
+      icon: 'mood-off',
+      action: () => useWindowsStore().open('emojiMute'),
+    },
+    {
       id: 'tasks-editor',
       label: 'タスク',
       icon: 'player-play',

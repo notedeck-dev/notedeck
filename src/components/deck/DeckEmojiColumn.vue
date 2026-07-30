@@ -148,7 +148,7 @@ function emojiMenuCopy() {
 function emojiMenuToggleMute() {
   const emoji = emojiMenuTarget.value
   emojiMenuRef.value?.close()
-  if (emoji) toggleEmojiMuteWithConfirm(`:${emoji.name}:`)
+  if (emoji) toggleEmojiMuteWithConfirm(`:${emoji.name}:`, emoji.url)
 }
 
 function copyEmojiCode(emoji: ServerEmoji) {
@@ -307,14 +307,24 @@ function getRowItems(index: number): ServerEmoji[] {
     </div>
 
     <PopupMenu ref="emojiMenuRef">
-      <button class="_popupItem" @click="emojiMenuCopy">
-        <i class="ti ti-copy" />
-        コードをコピー
-      </button>
-      <button class="_popupItem" @click="emojiMenuToggleMute">
-        <i :class="emojiMenuTarget && isEmojiMuted(`:${emojiMenuTarget.name}:`) ? 'ti ti-mood-smile' : 'ti ti-mood-off'" />
-        {{ emojiMenuTarget && isEmojiMuted(`:${emojiMenuTarget.name}:`) ? '絵文字ミュートを解除' : '絵文字をミュート' }}
-      </button>
+      <template v-if="emojiMenuTarget">
+        <div class="_popupHeader">
+          <img :src="emojiMenuTarget.url" :alt="emojiMenuTarget.name" decoding="async" />
+          <div class="_popupHeaderText">
+            <div class="_popupHeaderTitle">:{{ emojiMenuTarget.name }}:</div>
+            <div class="_popupHeaderSub">{{ emojiMenuTarget.category ?? '未分類' }}{{ isEmojiMuted(`:${emojiMenuTarget.name}:`) ? ' · ミュート中' : '' }}</div>
+          </div>
+        </div>
+        <div class="_popupDivider" />
+        <button class="_popupItem" @click="emojiMenuCopy">
+          <i class="ti ti-copy" />
+          コードをコピー
+        </button>
+        <button class="_popupItem" @click="emojiMenuToggleMute">
+          <i :class="isEmojiMuted(`:${emojiMenuTarget.name}:`) ? 'ti ti-mood-smile' : 'ti ti-mood-off'" />
+          {{ isEmojiMuted(`:${emojiMenuTarget.name}:`) ? 'ミュートを解除' : 'この絵文字をミュート' }}
+        </button>
+      </template>
     </PopupMenu>
   </DeckColumn>
 </template>

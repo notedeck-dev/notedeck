@@ -5,7 +5,8 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useEmojisStore } from '@/stores/emojis'
 import { proxyUrl } from '@/utils/imageProxy'
 
-const { mutedEmojis, toggleEmojiMuteWithConfirm } = useEmojiMute()
+const { mutedEmojis, getMutedEmojiUrl, toggleEmojiMuteWithConfirm } =
+  useEmojiMute()
 const emojisStore = useEmojisStore()
 const accountsStore = useAccountsStore()
 
@@ -14,11 +15,13 @@ function isCustomKey(key: string): boolean {
 }
 
 /**
- * 一覧では実体を見せる (本家の ignoreMuted 相当)。ローカルカスタム絵文字は
- * 各アカウントの絵文字キャッシュから解決を試みる。リモート (`:name@host:`) は
- * 手元に URL が無いことが多く、その場合は unknown 表示に落ちる。
+ * 一覧では実体を見せる (本家の ignoreMuted 相当)。ミュート時にスナップ
+ * ショットした URL を最優先し、無ければ各アカウントの絵文字キャッシュから
+ * 解決を試みる。どちらも無い場合のみ unknown 表示に落ちる。
  */
 function resolveCustomUrl(key: string): string | null {
+  const snapshot = getMutedEmojiUrl(key)
+  if (snapshot) return snapshot
   const shortcode = key.slice(1, -1)
   for (const account of accountsStore.accounts) {
     const url = emojisStore.resolve(account.host, shortcode)
@@ -29,43 +32,51 @@ function resolveCustomUrl(key: string): string | null {
 </script>
 
 <template>
+  <!--
+    リアクション表示制御の設定面。現状は絵文字の種類ミュート (#612) のみ。
+    将来 #575 (ミュートユーザーのリアクションを集計ごと抹消) のトグルを
+    別セクションとしてここに追加する予定。
+  -->
   <div :class="$style.root">
-    <p :class="$style.hint">
-      ミュートした絵文字は本文とリアクションでプレースホルダー表示になり、ピッカーと補完の候補からも外れます。リアクションや絵文字カラムの右クリックメニューから追加できます。
-    </p>
+    <section>
+      <h3 :class="$style.sectionTitle">ミュートする絵文字</h3>
+      <p :class="$style.hint">
+        ミュートした絵文字は本文とリアクションでプレースホルダー表示になり、ピッカーと補完の候補からも外れます。リアクションや絵文字カラムの右クリックメニューから追加できます。
+      </p>
 
-    <div v-if="mutedEmojis.length === 0" :class="$style.empty">
-      ミュート中の絵文字はありません
-    </div>
+      <div v-if="mutedEmojis.length === 0" :class="$style.empty">
+        ミュート中の絵文字はありません
+      </div>
 
-    <div v-else :class="$style.list">
-      <button
-        v-for="key in mutedEmojis"
-        :key="key"
-        class="_button"
-        :class="$style.item"
-        :title="`${key} — クリックで解除`"
-        @click="toggleEmojiMuteWithConfirm(key)"
-      >
-        <img
-          v-if="isCustomKey(key) && resolveCustomUrl(key)"
-          :src="proxyUrl(resolveCustomUrl(key)!)"
-          :alt="key"
-          :class="$style.itemEmoji"
-          decoding="async"
-          loading="lazy"
-        />
-        <img
-          v-else-if="isCustomKey(key)"
-          src="/emoji-unknown.svg"
-          :alt="key"
-          :class="$style.itemEmoji"
-        />
-        <MkEmoji v-else :emoji="key" ignore-muted :class="$style.itemEmoji" />
-        <span :class="$style.itemKey">{{ key }}</span>
-        <i class="ti ti-x" :class="$style.itemRemove" />
-      </button>
-    </div>
+      <div v-else :class="$style.list">
+        <button
+          v-for="key in mutedEmojis"
+          :key="key"
+          class="_button"
+          :class="$style.item"
+          :title="`${key} — クリックで解除`"
+          @click="toggleEmojiMuteWithConfirm(key)"
+        >
+          <img
+            v-if="isCustomKey(key) && resolveCustomUrl(key)"
+            :src="proxyUrl(resolveCustomUrl(key)!)"
+            :alt="key"
+            :class="$style.itemEmoji"
+            decoding="async"
+            loading="lazy"
+          />
+          <img
+            v-else-if="isCustomKey(key)"
+            src="/emoji-unknown.svg"
+            :alt="key"
+            :class="$style.itemEmoji"
+          />
+          <MkEmoji v-else :emoji="key" ignore-muted :class="$style.itemEmoji" />
+          <span :class="$style.itemKey">{{ key }}</span>
+          <i class="ti ti-x" :class="$style.itemRemove" />
+        </button>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -73,8 +84,20 @@ function resolveCustomUrl(key: string): string | null {
 .root {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 20px;
   padding: 16px;
+}
+
+.root section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 0.9em;
+  font-weight: bold;
 }
 
 .hint {

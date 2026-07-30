@@ -47,4 +47,14 @@ describe('useEmojiMute (#612)', () => {
     muteEmoji(':blobcat:')
     expect(settings.get('mute.emojis')).toEqual([':blobcat:'])
   })
+
+  it('snapshots url on mute and clears it on unmute', () => {
+    const { muteEmoji, unmuteEmoji, getMutedEmojiUrl } = useEmojiMute()
+    muteEmoji(':petthex@mk.puzzlesskey.com:', 'https://example.com/petthex.gif')
+    expect(getMutedEmojiUrl(':petthex@mk.puzzlesskey.com:')).toBe(
+      'https://example.com/petthex.gif',
+    )
+    unmuteEmoji(':petthex@mk.puzzlesskey.com:')
+    expect(getMutedEmojiUrl(':petthex@mk.puzzlesskey.com:')).toBeNull()
+  })
 })

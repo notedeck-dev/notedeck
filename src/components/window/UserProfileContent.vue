@@ -750,10 +750,11 @@ async function handlePosted(editedNoteId?: string) {
                 :class="$style.reactionItemAvatar"
               />
               <span :class="$style.reactionItemEmoji">
-                <img
+                <span
                   v-if="isEmojiMuted(entry.type)"
-                  src="/emoji-muted.svg"
-                  :alt="entry.type"
+                  class="_emojiMuted"
+                  role="img"
+                  :aria-label="entry.type"
                   :title="`${entry.type} (ミュート中)`"
                 />
                 <img

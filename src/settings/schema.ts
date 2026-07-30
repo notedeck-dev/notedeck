@@ -41,6 +41,12 @@ export interface NotedeckSettings {
    * プレースホルダー置換 (tooltip で正体確認可)。
    */
   'mute.emojis'?: string[]
+  /**
+   * ミュート時点で判明していた絵文字 URL のスナップショット (キー → URL)。
+   * リモート絵文字 (`:name@host:`) は絵文字キャッシュから解決できないため、
+   * 設定ウィンドウの一覧で実体を見せる用途に限って保持する。
+   */
+  'mute.emojiUrls'?: Record<string, string>
 
   // --- Post form ---
   'postForm.preview'?: boolean

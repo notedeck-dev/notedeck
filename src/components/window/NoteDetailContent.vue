@@ -550,12 +550,13 @@ async function handlePosted(editedNoteId?: string) {
               :class="[$style.reactionChip, { [$style.reactionChipActive]: reactionTab === rt }]"
               @click="reactionTab = rt"
             >
-              <img
+              <span
                 v-if="isEmojiMuted(rt)"
-                src="/emoji-muted.svg"
-                :alt="rt"
-                :title="`${rt} (ミュート中)`"
+                class="_emojiMuted"
                 :class="$style.reactionChipEmoji"
+                role="img"
+                :aria-label="rt"
+                :title="`${rt} (ミュート中)`"
               />
               <img
                 v-else-if="reactionTypeUrl(rt)"

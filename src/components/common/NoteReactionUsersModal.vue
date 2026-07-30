@@ -133,7 +133,7 @@ defineExpose({ open })
             :class="[$style.tab, { [$style.tabActive]: selectedReaction === r.reaction }]"
             @click="selectedReaction = r.reaction"
           >
-            <img v-if="isEmojiMuted(r.reaction)" src="/emoji-muted.svg" :alt="r.reaction" :title="`${r.reaction} (ミュート中)`" :class="$style.tabEmoji" />
+            <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.tabEmoji" role="img" :aria-label="r.reaction" :title="`${r.reaction} (ミュート中)`" />
             <img v-else-if="reactionUrls[r.reaction]" :src="proxyUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.tabEmoji" decoding="async" loading="lazy" />
             <MkEmoji v-else :emoji="r.reaction" :class="$style.tabEmoji" />
             <span :class="$style.tabCount">{{ r.count }}</span>

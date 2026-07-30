@@ -20,10 +20,21 @@ export function useEmojiMute() {
     return mutedSet.value.has(normalizeEmojiMuteKey(emoji))
   }
 
-  function muteEmoji(emoji: string): void {
+  /**
+   * `url` はミュート操作時点で判明している絵文字 URL (リアクションバー等)。
+   * リモート絵文字はローカルの絵文字キャッシュから解決できないため、
+   * 設定ウィンドウの一覧表示用にスナップショットしておく。
+   */
+  function muteEmoji(emoji: string, url?: string | null): void {
     const key = normalizeEmojiMuteKey(emoji)
     if (mutedSet.value.has(key)) return
     settings.set('mute.emojis', [...mutedEmojis.value, key])
+    if (url) {
+      settings.set('mute.emojiUrls', {
+        ...settings.get('mute.emojiUrls'),
+        [key]: url,
+      })
+    }
   }
 
   function unmuteEmoji(emoji: string): void {
@@ -33,13 +44,28 @@ export function useEmojiMute() {
       'mute.emojis',
       mutedEmojis.value.filter((k) => k !== key),
     )
+    const urls = settings.get('mute.emojiUrls')
+    if (urls && key in urls) {
+      const { [key]: _removed, ...rest } = urls
+      settings.set('mute.emojiUrls', rest)
+    }
+  }
+
+  /** ミュート時にスナップショットした URL (設定ウィンドウの一覧表示用) */
+  function getMutedEmojiUrl(emoji: string): string | null {
+    return (
+      settings.get('mute.emojiUrls')?.[normalizeEmojiMuteKey(emoji)] ?? null
+    )
   }
 
   /**
    * 確認ダイアログ付きでミュート状態をトグルする (本家準拠)。
    * メニュー項目から共通で使う。キャンセル時は何もしない。
    */
-  async function toggleEmojiMuteWithConfirm(emoji: string): Promise<void> {
+  async function toggleEmojiMuteWithConfirm(
+    emoji: string,
+    url?: string | null,
+  ): Promise<void> {
     const { confirm } = useConfirm()
     const key = normalizeEmojiMuteKey(emoji)
     if (isEmojiMuted(emoji)) {
@@ -53,7 +79,7 @@ export function useEmojiMute() {
         title: '絵文字をミュート',
         message: `${key} をミュートしますか？本文とリアクションでプレースホルダー表示になります。`,
       })
-      if (ok) muteEmoji(emoji)
+      if (ok) muteEmoji(emoji, url)
     }
   }
 
@@ -62,6 +88,7 @@ export function useEmojiMute() {
     isEmojiMuted,
     muteEmoji,
     unmuteEmoji,
+    getMutedEmojiUrl,
     toggleEmojiMuteWithConfirm,
   }
 }

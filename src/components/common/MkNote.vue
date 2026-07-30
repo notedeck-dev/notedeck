@@ -54,7 +54,6 @@ import MkPoll from './MkPoll.vue'
 import NoteMoreMenu from './NoteMoreMenu.vue'
 import NoteReactionPickerPopup from './NoteReactionPickerPopup.vue'
 import NoteReactionUsersPopup from './NoteReactionUsersPopup.vue'
-import PopupMenu from './PopupMenu.vue'
 import RenoteMoreMenu from './RenoteMoreMenu.vue'
 
 const MkUserPopup = defineAsyncComponent(() => import('./MkUserPopup.vue'))
@@ -140,19 +139,6 @@ const reactionModalRef = ref<InstanceType<
   typeof NoteReactionUsersModal
 > | null>(null)
 
-// リアクション右クリックの絵文字ミュートメニュー (#612)
-const reactionMenuRef = ref<InstanceType<typeof PopupMenu>>()
-const reactionMenuTarget = ref<string | null>(null)
-function openReactionMenu(reaction: string, e: MouseEvent) {
-  reactionMenuTarget.value = reaction
-  reactionMenuRef.value?.open(e)
-}
-function reactionMenuToggleMute() {
-  const reaction = reactionMenuTarget.value
-  reactionMenuRef.value?.close()
-  if (reaction) toggleEmojiMuteWithConfirm(reaction)
-}
-
 const { longPressed, handlers: lpHandlers } = useLongPress((e) => {
   const btn = (e.target as HTMLElement).closest('button') as HTMLElement | null
   const reaction = btn?.dataset.reaction
@@ -209,7 +195,7 @@ const myAccount = computed(() =>
   accountsStore.accountMap.get(props.note._accountId),
 )
 const { reactionUrl: reactionUrlRaw } = useEmojiResolver()
-const { isEmojiMuted, toggleEmojiMuteWithConfirm } = useEmojiMute()
+const { isEmojiMuted } = useEmojiMute()
 const instanceIconUrl = computed(() => {
   const inst = effectiveNote.value.user.instance
   if (!inst) return null
@@ -818,7 +804,7 @@ function handlePickerReaction(reaction: string) {
             <button
               v-for="r in renderedReactions"
               :key="r.reaction"
-              v-memo="[r.reaction, r.count, effectiveNote.myReaction === r.reaction, reactionUrls[r.reaction], reactionEnteringIds.has(r.id), reactionLeavingIds.has(r.id)]"
+              v-memo="[r.reaction, r.count, effectiveNote.myReaction === r.reaction, reactionUrls[r.reaction], reactionEnteringIds.has(r.id), reactionLeavingIds.has(r.id), isEmojiMuted(r.reaction)]"
               :class="[
                 $style.reaction,
                 { [$style.reacted]: effectiveNote.myReaction === r.reaction },
@@ -828,7 +814,7 @@ function handlePickerReaction(reaction: string) {
               :data-reaction="r.reaction"
               :disabled="isGuest"
               @click.stop="handleReactionClick($event, r.reaction)"
-              @contextmenu.prevent.stop="openReactionMenu(r.reaction, $event)"
+              @contextmenu.prevent.stop="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, effectiveNote.reactions[r.reaction] ?? 0)"
               @pointerdown="lpHandlers.onPointerdown"
               @pointermove="lpHandlers.onPointermove"
               @pointerup="lpHandlers.onPointerup"
@@ -836,7 +822,7 @@ function handlePickerReaction(reaction: string) {
               @mouseenter="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, effectiveNote.reactions[r.reaction] ?? 0)"
               @mouseleave="reactionUsersRef?.hide()"
             >
-              <img v-if="isEmojiMuted(r.reaction)" src="/emoji-muted.svg" :alt="r.reaction" :title="`${r.reaction} (ミュート中)`" :class="$style.customEmoji" />
+              <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.customEmoji" role="img" :aria-label="r.reaction" :title="`${r.reaction} (ミュート中)`" />
               <img v-else-if="reactionUrls[r.reaction]" :src="proxyUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.customEmoji" decoding="async" loading="lazy" @error="(e: Event) => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/emoji-unknown.svg')) img.src = '/emoji-unknown.svg' }" />
               <img v-else-if="r.reaction.startsWith(':')" src="/emoji-unknown.svg" :alt="r.reaction" :title="r.reaction" :class="$style.customEmoji" />
               <MkEmoji v-else :emoji="r.reaction" :class="$style.reactionEmoji" />
@@ -972,13 +958,6 @@ function handlePickerReaction(reaction: string) {
     :reactions="sortedReactions"
     :reaction-urls="reactionUrls"
   />
-
-  <PopupMenu ref="reactionMenuRef">
-    <button class="_popupItem" @click="reactionMenuToggleMute">
-      <i :class="reactionMenuTarget && isEmojiMuted(reactionMenuTarget) ? 'ti ti-mood-smile' : 'ti ti-mood-off'" />
-      {{ reactionMenuTarget && isEmojiMuted(reactionMenuTarget) ? '絵文字ミュートを解除' : '絵文字をミュート' }}
-    </button>
-  </PopupMenu>
 
   <NoteMoreMenu
     ref="moreMenuRef"
