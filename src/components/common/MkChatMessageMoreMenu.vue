@@ -124,7 +124,9 @@ defineExpose({ open })
 
     <!-- Main menu -->
     <template v-else>
-      <button class="_popupItem" @click.stop="reactAndClose">
+      <!-- 自分のメッセージにはリアクションできない (本家 ChatService.react が
+           fromUserId === userId で throw する) ので導線ごと出さない -->
+      <button v-if="!isMine" class="_popupItem" @click.stop="reactAndClose">
         <i class="ti ti-mood-plus" />
         リアクション
       </button>
