@@ -53,14 +53,23 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     return JSON.stringify(counts)
   }
 
-  /** 数え直し済みカウント。未取得・リアクション増減後・対象外は null。 */
+  /**
+   * 数え直し済みカウント。未取得・対象外 (総数超過) は null。
+   *
+   * stale-while-revalidate: リアクションが増減して signature が変わっても、
+   * 手元の列挙で数え直した値を返し続ける (ensure が裏で取り直す)。
+   * ここで null に落とすと、WS でリアクションが増えるたびにサーバー集計へ
+   * フォールバックしてミュート済み絵文字が一瞬復活してしまう。
+   */
   function get(
     accountId: string,
     noteId: string,
     serverCounts: Record<string, number>,
   ): Record<string, number> | null {
     const entry = cache.value.get(noteId)
-    if (!entry || entry.signature !== signatureOf(serverCounts)) return null
+    if (!entry) return null
+    // 総数が取得上限を超えたら stale を使い続けず、サーバー集計に戻す
+    if (totalReactionCount(serverCounts) > RECOUNT_MAX_TOTAL) return null
     return recountVisibleReactions(
       serverCounts,
       entry.records,
@@ -68,6 +77,24 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
         mutesStore.isUserMuted(accountId, userId) ||
         suspensionsStore.isSuspended(accountId, userId),
     )
+  }
+
+  /** 同時フェッチ上限。トグル ON 直後の TL 表示で一斉に飛ぶのを抑える */
+  const MAX_CONCURRENT_FETCH = 4
+  let activeFetches = 0
+  const fetchQueue: (() => void)[] = []
+
+  async function withFetchSlot<T>(fn: () => Promise<T>): Promise<T> {
+    if (activeFetches >= MAX_CONCURRENT_FETCH) {
+      await new Promise<void>((resolve) => fetchQueue.push(resolve))
+    }
+    activeFetches++
+    try {
+      return await fn()
+    } finally {
+      activeFetches--
+      fetchQueue.shift()?.()
+    }
   }
 
   /** 必要なら列挙を取得する。失敗は無視 (サーバー集計のまま表示)。 */
@@ -82,6 +109,18 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     if (total === 0 || total > RECOUNT_MAX_TOTAL) return
     if (inflight.has(noteId)) return
     inflight.add(noteId)
+    try {
+      await withFetchSlot(() => fetchAndStore(accountId, noteId, signature))
+    } finally {
+      inflight.delete(noteId)
+    }
+  }
+
+  async function fetchAndStore(
+    accountId: string,
+    noteId: string,
+    signature: string,
+  ): Promise<void> {
     try {
       const account = useAccountsStore().accounts.find(
         (a) => a.id === accountId,
@@ -99,7 +138,6 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
       if (import.meta.env.DEV) {
         console.debug('[reaction-recount] listed', {
           noteId,
-          serverTotal: total,
           listed: reactions.length,
           reactors: reactions.map((r) => `${r.type} by ${r.user.id}`),
         })
@@ -122,8 +160,6 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     } catch (e) {
       // 非クリティカル: 取得失敗時はサーバー集計のまま (原因は診断できるよう残す)
       console.warn('[reaction-recount] fetch failed:', noteId, e)
-    } finally {
-      inflight.delete(noteId)
     }
   }
 

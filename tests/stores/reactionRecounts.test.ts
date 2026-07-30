@@ -51,11 +51,30 @@ describe('useReactionRecountsStore (#575)', () => {
     expect(store.get('acc1', 'note1', serverCounts)).toEqual({ '❤': 1 })
   })
 
-  it('invalidates when server counts change (signature mismatch)', async () => {
+  it('serves stale recount while server counts change (no flicker), refetches on ensure', async () => {
     getNoteReactionsMock.mockResolvedValue([record('❤', 'u1')])
     const store = useReactionRecountsStore()
     await store.ensure('acc1', 'note1', { '❤': 2 })
-    expect(store.get('acc1', 'note1', { '❤': 3 })).toBeNull()
+    // signature が変わっても null に落とさず stale を返す (ミュート絵文字の一瞬復活を防ぐ)
+    expect(store.get('acc1', 'note1', { '❤': 3 })).toEqual({ '❤': 1 })
+
+    // ensure は新しい signature で取り直す
+    getNoteReactionsMock.mockResolvedValue([
+      record('❤', 'u1'),
+      record('❤', 'u2'),
+    ])
+    await store.ensure('acc1', 'note1', { '❤': 3 })
+    expect(getNoteReactionsMock).toHaveBeenCalledTimes(2)
+    expect(store.get('acc1', 'note1', { '❤': 3 })).toEqual({ '❤': 2 })
+  })
+
+  it('falls back to server counts when total grows beyond the limit', async () => {
+    getNoteReactionsMock.mockResolvedValue([record('❤', 'u1')])
+    const store = useReactionRecountsStore()
+    await store.ensure('acc1', 'note1', { '❤': 2 })
+    expect(
+      store.get('acc1', 'note1', { '❤': RECOUNT_MAX_TOTAL + 1 }),
+    ).toBeNull()
   })
 
   it('skips fetching when total exceeds the cost limit', async () => {
