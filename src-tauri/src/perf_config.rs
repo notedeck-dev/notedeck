@@ -16,6 +16,10 @@ pub struct PerformanceConfig {
     pub image_cache_ttl_days: u64,
     /// ディスク画像キャッシュの上限バイト数。超過分は古い順に削除する
     pub image_cache_max_bytes: u64,
+    /// 1 ファイルあたりの取得上限バイト数。超えるものは取得も配信もしない。
+    /// 上げるほど大きな画像を扱えるが、プロキシは全バイトをメモリに載せるので
+    /// そのぶんピークメモリが増える (モバイルでは特に効く)
+    pub image_cache_max_file_bytes: u64,
 }
 
 impl Default for PerformanceConfig {
@@ -30,6 +34,7 @@ impl Default for PerformanceConfig {
             circuit_breaker_duration: 60,
             image_cache_ttl_days: 7,
             image_cache_max_bytes: 512 * 1024 * 1024,
+            image_cache_max_file_bytes: 20 * 1024 * 1024,
         }
     }
 }

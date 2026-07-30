@@ -2930,7 +2930,13 @@ export type PerformanceConfig = { memory_cache_max_total: number; memory_cache_m
 /**
  * ディスク画像キャッシュの上限バイト数。超過分は古い順に削除する
  */
-image_cache_max_bytes: number }
+image_cache_max_bytes: number; 
+/**
+ * 1 ファイルあたりの取得上限バイト数。超えるものは取得も配信もしない。
+ * 上げるほど大きな画像を扱えるが、プロキシは全バイトをメモリに載せるので
+ * そのぶんピークメモリが増える (モバイルでは特に効く)
+ */
+image_cache_max_file_bytes: number }
 export type Player = { url: string; width: number | null; height: number | null; allow?: string[] }
 /**
  * 接続を開示する先の principal クラス (#712 §6.1)。
