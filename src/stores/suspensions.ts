@@ -1,13 +1,15 @@
 import { defineStore } from 'pinia'
 import { shallowRef, triggerRef } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
+import type { UserSuspensionStatus } from '@/bindings'
 import { logWarn } from '@/utils/logger'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /** 1 リクエストで問い合わせる userId 数。users/show の userIds に上限は無いが
  *  応答が UserDetailed pack（pinnedNotes の packMany・ロールポリシー解決込み）
- *  でサーバー側コストが重いため、リクエスト数ではなく pack コストで律速する。 */
+ *  でサーバー側コストが重いため、リクエスト数ではなく pack コストで律速する。
+ *  応答は Rust 側で id/isSuspended に畳んでから受け取る（api_probe_users_suspended）。 */
 const PROBE_CHUNK = 50
 /** 同一 id を再度問い合わせるまでの抑制時間 */
 const PROBE_TTL_MS = 15 * 60_000
@@ -235,27 +237,19 @@ export const useSuspensionsStore = defineStore('suspensions', () => {
     const now = Date.now()
     for (const userId of chunk) probedAt.set(`${accountId}:${userId}`, now)
 
-    let raw: unknown
+    let statuses: UserSuspensionStatus[]
     try {
-      raw = unwrap(
-        await commands.apiGetUserRaw(accountId, { userIds: chunk }),
-      ) as unknown
+      statuses = unwrap(await commands.apiProbeUsersSuspended(accountId, chunk))
     } catch (e) {
       // I-4: 材料取得失敗は無更新（fail-open）
       logWarn('suspension-probe', e)
       return
     }
-    if (!Array.isArray(raw)) return
+    if (!Array.isArray(statuses)) return
 
-    const returned = new Map<string, Record<string, unknown>>()
-    for (const u of raw) {
-      if (
-        u &&
-        typeof u === 'object' &&
-        typeof (u as { id?: unknown }).id === 'string'
-      ) {
-        returned.set((u as { id: string }).id, u as Record<string, unknown>)
-      }
+    const returned = new Map<string, UserSuspensionStatus>()
+    for (const u of statuses) {
+      if (typeof u?.id === 'string') returned.set(u.id, u)
     }
 
     const suspended: string[] = []
