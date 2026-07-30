@@ -36,15 +36,22 @@ beforeEach(() => {
   stubTauri((path, protocol) => `http://${protocol}.localhost/${path}`)
 })
 
+// defineProperty で書き換えた UA は unstubAllGlobals では戻らないため明示復元
+const ORIGINAL_UA = navigator.userAgent
+
 afterEach(() => {
+  stubUserAgent(ORIGINAL_UA)
   vi.unstubAllGlobals()
 })
 
 describe('proxyUrl', () => {
-  it('custom protocol の口に載せる', async () => {
+  // 非 Android の wait=1: Android の custom protocol だけが直列 + 10 秒フューズ
+  // (wry) なので二段階配信が必須。それ以外はブロッキングが安全なので、初回
+  // 表示から往復 1 回で本物を返す
+  it('custom protocol の口に載せる (非 Android は単一トリップ)', async () => {
     const { proxyUrl } = await loadModule()
     expect(proxyUrl(REMOTE)).toBe(
-      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}`,
+      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&wait=1`,
     )
   })
 
@@ -52,8 +59,15 @@ describe('proxyUrl', () => {
     stubTauri((path, protocol) => `${protocol}://localhost/${path}`)
     const { proxyUrl } = await loadModule()
     expect(proxyUrl(REMOTE)).toBe(
-      `ndmedia://localhost/m?url=${encodeURIComponent(REMOTE)}`,
+      `ndmedia://localhost/m?url=${encodeURIComponent(REMOTE)}&wait=1`,
     )
+  })
+
+  it('Android は二段階配信 (wait を付けない)', async () => {
+    stubUserAgent(ANDROID_UA)
+    const { proxyUrl } = await loadModule()
+    expect(proxyUrl(REMOTE)).toContain('ndmedia')
+    expect(proxyUrl(REMOTE)).not.toContain('wait=1')
   })
 
   it.each([
@@ -70,7 +84,7 @@ describe('proxyUrl', () => {
     vi.stubGlobal('__TAURI_INTERNALS__', undefined)
     const { proxyUrl } = await loadModule()
     expect(proxyUrl(REMOTE)).toBe(
-      `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent(REMOTE)}`,
+      `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent(REMOTE)}&wait=1`,
     )
   })
 
@@ -85,18 +99,28 @@ describe('proxyUrl', () => {
 })
 
 describe('wait オプション (効果音などブロッキング消費者用)', () => {
-  it('wait=1 を付ける', async () => {
+  // 二段階配信の Android でも、fetch/Audio 要素はプレースホルダを飲み込め
+  // ないので明示 wait で従来のブロッキングに乗せる
+  it('Android でも明示 wait は wait=1 を付ける', async () => {
+    stubUserAgent(ANDROID_UA)
     const { proxyUrl } = await loadModule()
-    expect(proxyUrl(REMOTE, { wait: true })).toBe(
-      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&wait=1`,
-    )
+    expect(proxyUrl(REMOTE, { wait: true })).toContain('wait=1')
+    const normal = proxyUrl(REMOTE)
+    expect(normal).not.toContain('wait=1')
+  })
+})
+
+describe('proxyEmojiUrl (カスタム絵文字の共通サムネイル口)', () => {
+  it('全文脈で同じ幅バケット (64px) に丸めてキャッシュを共有する', async () => {
+    const { proxyEmojiUrl, proxyThumbUrl } = await loadModule()
+    expect(proxyEmojiUrl(REMOTE)).toBe(proxyThumbUrl(REMOTE, 64))
+    expect(proxyEmojiUrl(REMOTE)).toContain('w=64')
   })
 
-  it('通常の URL とはキャッシュが混ざらない', async () => {
-    const { proxyUrl } = await loadModule()
-    const normal = proxyUrl(REMOTE)
-    expect(proxyUrl(REMOTE, { wait: true })).not.toBe(normal)
-    expect(proxyUrl(REMOTE)).toBe(normal)
+  it('https 以外は素通し (同梱 twemoji のローカルパス等)', async () => {
+    const { proxyEmojiUrl } = await loadModule()
+    expect(proxyEmojiUrl('/twemoji/1f600.svg')).toBe('/twemoji/1f600.svg')
+    expect(proxyEmojiUrl(null)).toBeUndefined()
   })
 })
 
@@ -135,10 +159,10 @@ describe('背景取得完了による再読込 (二段階配信)', () => {
 
 describe('proxyThumbUrl', () => {
   // format は付けない: 明示すると「上限以下なら変換不要」の素通しが効かなくなる
-  it('幅だけを付ける', async () => {
+  it('幅だけを付ける (非 Android は wait も付く)', async () => {
     const { proxyThumbUrl } = await loadModule()
     expect(proxyThumbUrl(REMOTE, 56)).toBe(
-      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&w=56`,
+      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&w=56&wait=1`,
     )
   })
 

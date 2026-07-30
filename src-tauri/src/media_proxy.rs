@@ -102,6 +102,40 @@ impl MediaRequest {
 /// これを超える原本は変換せずそのまま返す (WebView 側に委ねる)。
 const MAX_DECODE_DIMENSION: u32 = 8192;
 
+/// アニメーションの可能性があるか (ヘッダ走査のみ、デコードしない)。
+/// 変換 (リサイズ/再エンコード) はアニメーションを 1 フレーム目に潰すため、
+/// 真なら変換せず原本を素通しする。
+/// - GIF: 静的判定にはブロック走査が要るため一律アニメ扱い (Misskey の
+///   GIF 絵文字はほぼアニメーション)
+/// - APNG: IDAT より前に現れる acTL チャンク (CRC は検証しない)
+/// - WebP: ヘッダ近傍の ANIM チャンク
+fn may_be_animated(data: &[u8]) -> bool {
+    if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+        return true;
+    }
+    if data.starts_with(&[0x89, b'P', b'N', b'G']) {
+        let mut pos = 8;
+        while pos + 8 <= data.len() {
+            let len = u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            let ctype = &data[pos + 4..pos + 8];
+            if ctype == b"acTL" {
+                return true;
+            }
+            if ctype == b"IDAT" {
+                return false;
+            }
+            pos = pos.saturating_add(12 + len); // len(4) + type(4) + data + crc(4)
+        }
+        return false;
+    }
+    if data.len() >= 16 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
+        // ANIM チャンクは VP8X 直後に来るのでヘッダ近傍だけ見れば足りる
+        return data[12..data.len().min(64)].windows(4).any(|w| w == b"ANIM");
+    }
+    false
+}
+
 /// ヘッダだけ読んで寸法を得る。判定できない形式は None。
 fn image_dimensions(data: &[u8]) -> Option<(u32, u32)> {
     image::ImageReader::new(std::io::Cursor::new(data))
@@ -121,6 +155,12 @@ pub fn transform_image(
     let needs_resize = max_width.is_some();
     let needs_webp = target_format == Some("webp");
     if !needs_resize && !needs_webp {
+        return None;
+    }
+
+    // アニメーションは変換で潰れるため、明示 format があっても素通し
+    // (壊れた静止画を返すより原本を返す方が正しい)
+    if may_be_animated(data) {
         return None;
     }
 
@@ -206,39 +246,6 @@ async fn entry_bytes(entry: &CacheEntry) -> Result<Vec<u8>, String> {
     }
 }
 
-/// キャッシュエントリをバイト列にし、要求されていれば変換を適用する。
-pub async fn bytes_from_entry(
-    entry: CacheEntry,
-    req: &MediaRequest,
-) -> Result<(Vec<u8>, String), String> {
-    let data = entry_bytes(&entry).await?;
-    Ok(apply_transform(data, entry.content_type, req).await)
-}
-
-/// キャッシュ → 上流の順に解決し、変換適用済みのバイト列を返す。
-pub async fn load_bytes(
-    cache: &ImageCache,
-    req: &MediaRequest,
-) -> Result<(Vec<u8>, String), String> {
-    if let Some(entry) = cache.check_cache_only(&req.url).await {
-        return bytes_from_entry(entry, req).await;
-    }
-    match cache.fetch_streaming(&req.url).await {
-        Ok(StreamingFetchResult::Cached(entry)) => bytes_from_entry(entry, req).await,
-        Ok(StreamingFetchResult::Streaming {
-            byte_stream,
-            content_type,
-        }) => {
-            let mut all = Vec::with_capacity(65_536);
-            let mut stream = byte_stream;
-            while let Some(chunk) = stream.next().await {
-                all.extend_from_slice(&chunk?);
-            }
-            Ok(apply_transform(all, content_type, req).await)
-        }
-        Err(msg) => Err(msg),
-    }
-}
 
 /// custom protocol の応答締切。
 ///
@@ -337,8 +344,10 @@ async fn handle_uri_request_inner(
     }
 
     if wait {
-        // ブロッキング経路 (従来動作)。効果音は初回でも実データが要る
-        return match load_bytes(&cache, &req).await {
+        // ブロッキング経路: プレースホルダを飲み込めない消費者 (効果音の
+        // fetch/Audio 要素) と、直列パイプ制約のない非 Android の単一トリップ
+        // 配信用。ensure と同じ経路なので変換結果 (variant) も永続化される
+        return match ensure_media_inner(&cache, &req).await {
             Ok((bytes, content_type)) => ok_response(bytes, &content_type, &etag),
             Err(msg) => {
                 tracing::warn!(url = %req.url, error = %msg, "ndmedia: upstream fetch failed");
@@ -388,7 +397,12 @@ async fn ensure_media(app: AppHandle, cache: Arc<ImageCache>, req: MediaRequest)
     .ok();
 }
 
-async fn ensure_media_inner(cache: &ImageCache, req: &MediaRequest) -> Result<(), String> {
+/// オリジナルを (キャッシュ or 上流から) 用意し、変換を適用して cache_key で
+/// 永続化し、配信可能なバイト列と content-type を返す。
+async fn ensure_media_inner(
+    cache: &ImageCache,
+    req: &MediaRequest,
+) -> Result<(Vec<u8>, String), String> {
     // オリジナルを取得 (キャッシュ or 上流)
     let (data, content_type) = match cache.check_cache_only(&req.url).await {
         Some(entry) => {
@@ -422,8 +436,10 @@ async fn ensure_media_inner(cache: &ImageCache, req: &MediaRequest) -> Result<()
     };
     // fetch_streaming の背景タスクもオリジナルを書くが、それを待たずに emit
     // すると再要求がミスする競合があるため、ここで確実に書き切ってから返す
-    cache.store_variant(&req.cache_key(), bytes, &content_type).await;
-    Ok(())
+    cache
+        .store_variant(&req.cache_key(), bytes.clone(), &content_type)
+        .await;
+    Ok((bytes, content_type))
 }
 
 fn ok_response(
@@ -555,6 +571,71 @@ mod tests {
         // 高さ 2px なのでテスト自体のメモリは軽い
         let wide = png_bytes(MAX_DECODE_DIMENSION + 1, 2);
         assert!(transform_image(&wide, Some(56), Some("webp")).is_none());
+    }
+
+    /// アニメーションの可能性がある形式は変換で 1 フレーム目に潰れるため、
+    /// 明示 format があっても素通しする (壊れた静止画を返すより原本が正しい)
+    #[test]
+    fn animated_formats_pass_through_untouched() {
+        // GIF は静的判定にブロック走査が要るため一律素通し
+        let gif = {
+            let img = image::RgbaImage::from_pixel(100, 100, image::Rgba([1, 2, 3, 255]));
+            let mut buf = std::io::Cursor::new(Vec::new());
+            let mut enc = image::codecs::gif::GifEncoder::new(&mut buf);
+            enc.encode_frame(image::Frame::new(img)).expect("encode gif");
+            drop(enc);
+            buf.into_inner()
+        };
+        assert!(transform_image(&gif, Some(56), Some("webp")).is_none());
+
+        // APNG: IDAT より前の acTL チャンクで判定 (CRC は見ない)
+        let mut apng = png_bytes(100, 100);
+        let mut actl = Vec::new();
+        actl.extend_from_slice(&8u32.to_be_bytes());
+        actl.extend_from_slice(b"acTL");
+        actl.extend_from_slice(&[0u8; 12]); // frames(4) + plays(4) + crc(4)
+        apng.splice(33..33, actl); // IHDR 直後 (8 sig + 25 IHDR chunk)
+        assert!(may_be_animated(&apng));
+        assert!(transform_image(&apng, Some(56), Some("webp")).is_none());
+
+        // Animated WebP: ヘッダ近傍の ANIM チャンク
+        let mut awebp = Vec::new();
+        awebp.extend_from_slice(b"RIFF");
+        awebp.extend_from_slice(&[0u8; 4]);
+        awebp.extend_from_slice(b"WEBPVP8X");
+        awebp.extend_from_slice(&[0u8; 14]);
+        awebp.extend_from_slice(b"ANIM");
+        assert!(may_be_animated(&awebp));
+    }
+
+    /// 静止 PNG はアニメ扱いされない (変換が生き続けること)
+    #[test]
+    fn static_png_is_not_animated() {
+        assert!(!may_be_animated(&png_bytes(10, 10)));
+    }
+
+    /// wait (ブロッキング) 経路もキャッシュ済みオリジナルから変換して
+    /// variant を永続化し、バイト列を直接返すこと。これが無いと非 Android の
+    /// 単一トリップ配信が表示のたびに再変換で CPU を払い続ける
+    #[tokio::test]
+    async fn ensure_media_inner_transforms_cached_original_and_persists_variant() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = crate::image_cache::ImageCache::new(dir.path());
+        let url = "https://e.com/a.png";
+        // オリジナルをキャッシュ済みにしておく (key == url)
+        cache
+            .store_variant(url, png_bytes(200, 200), "image/png")
+            .await;
+
+        let req = MediaRequest::from_query("url=https%3A%2F%2Fe.com%2Fa.png&w=56")
+            .expect("should parse");
+        let (bytes, content_type) = ensure_media_inner(&cache, &req)
+            .await
+            .expect("cached original should transform without network");
+        assert_eq!(content_type, "image/webp");
+        assert!(!bytes.is_empty());
+        // variant がフェーズ 1 (check_cache_only) で引ける
+        assert!(cache.check_cache_only(&req.cache_key()).await.is_some());
     }
 
     /// 効果音は変換パラメータを持たないので素通しになる

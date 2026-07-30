@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
-import { proxyUrl } from '@/utils/mediaProxy'
 import { char2twemojiUrl } from '@/utils/twemoji'
 
 const props = defineProps<{ emoji: string; ignoreMuted?: boolean }>()
@@ -12,8 +11,9 @@ const isMuted = computed(() => !props.ignoreMuted && isEmojiMuted(props.emoji))
 // 未解決のカスタム絵文字 (":name:" / ":name@host:") を twemoji URL に変換すると
 // 存在しない CDN パスへの 404 を量産するため、unknown 表示に落とす (#844)
 const isUnresolvedCustom = computed(() => props.emoji.startsWith(':'))
+// 同梱アセットのローカルパスなのでプロキシ不要
 const url = computed(() =>
-  isUnresolvedCustom.value ? undefined : proxyUrl(char2twemojiUrl(props.emoji)),
+  isUnresolvedCustom.value ? undefined : char2twemojiUrl(props.emoji),
 )
 const failed = ref(false)
 </script>

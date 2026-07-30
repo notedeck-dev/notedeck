@@ -9,7 +9,7 @@ import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
 import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteAccountId } from '@/composables/useNoteContext'
 import { usePortal } from '@/composables/usePortal'
-import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
+import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkUserPopup = defineAsyncComponent(() => import('./MkUserPopup.vue'))
@@ -264,7 +264,7 @@ usePortal(lightboxPortalRef)
           </span>
           <img
             v-if="getReactionImageUrl(r.reaction)"
-            :src="proxyUrl(getReactionImageUrl(r.reaction)!)"
+            :src="proxyEmojiUrl(getReactionImageUrl(r.reaction)!)"
             :alt="r.reaction"
             :class="$style.reactionEmojiImg"
             decoding="async"

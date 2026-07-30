@@ -16,6 +16,7 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useEmojisStore } from '@/stores/emojis'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
+import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
@@ -296,7 +297,7 @@ function getRowItems(index: number): ServerEmoji[] {
                   @click="copyEmojiCode(emoji)"
                   @contextmenu.prevent="openEmojiMenu(emoji, $event)"
                 >
-                  <img :src="emoji.url" :alt="emoji.name" :class="[$style.emojiImg, { [$style.emojiImgMuted]: isEmojiMuted(`:${emoji.name}:`) }]" loading="lazy" />
+                  <img :src="proxyEmojiUrl(emoji.url)" :alt="emoji.name" :class="[$style.emojiImg, { [$style.emojiImgMuted]: isEmojiMuted(`:${emoji.name}:`) }]" decoding="async" loading="lazy" />
                   <span v-if="copiedName === emoji.name" :class="$style.emojiCopiedBadge">Copied!</span>
                 </button>
               </div>

@@ -19,6 +19,14 @@ import { usePerformanceStore } from '@/stores/performance'
  */
 const HTTP_FALLBACK_BASE = 'http://127.0.0.1:19820/proxy/image'
 
+/**
+ * Android の custom protocol だけは直列 + 10 秒フューズ (wry) のため、ミス時
+ * に上流を待てない → 二段階配信 (プレースホルダ + media-fetched 再要求)。
+ * それ以外のプラットフォームはブロッキングでも安全なので wait=1 を既定にし、
+ * 初回表示から往復 1 回で本物を返す (単一トリップ)。
+ */
+const IS_ANDROID = /Android/i.test(navigator.userAgent)
+
 let proxyBase: string | null = null
 const proxyUrlCache = new Map<string, string>()
 
@@ -96,11 +104,12 @@ export function proxyUrl(
 ): string | undefined {
   if (!url?.startsWith('https://')) return url ?? undefined
   ensureFetchedListener()
-  const cacheKey = opts?.wait ? `${url}|wait` : url
+  const wait = opts?.wait || !IS_ANDROID
+  const cacheKey = wait ? `${url}|wait` : url
   let cached = proxyUrlCache.get(cacheKey)
   if (!cached) {
     evictIfFull()
-    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}${opts?.wait ? '&wait=1' : ''}`
+    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}${wait ? '&wait=1' : ''}`
     proxyUrlCache.set(cacheKey, cached)
   }
   return withVersion(cached, url)
@@ -121,12 +130,26 @@ export function proxyThumbUrl(
 ): string | undefined {
   if (!url?.startsWith('https://')) return url ?? undefined
   ensureFetchedListener()
+  const wait = !IS_ANDROID
   const key = `${url}|w=${width}`
   let cached = proxyUrlCache.get(key)
   if (!cached) {
     evictIfFull()
-    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&w=${width}`
+    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&w=${width}${wait ? '&wait=1' : ''}`
     proxyUrlCache.set(key, cached)
   }
   return withVersion(cached, url)
+}
+
+/**
+ * カスタム絵文字の共通サムネイル口。
+ *
+ * 表示は ~20px なので retina 込みで 64px に丸め、全文脈 (ノート本文/
+ * ピッカー/リアクション面) で同じ variant キャッシュを共有する。
+ * アニメ絵文字はプロキシ側が変換を素通しするので壊れない。
+ */
+export function proxyEmojiUrl(
+  url: string | null | undefined,
+): string | undefined {
+  return proxyThumbUrl(url, 64)
 }

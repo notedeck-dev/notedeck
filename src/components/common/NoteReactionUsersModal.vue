@@ -10,7 +10,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { useAccountsStore } from '@/stores/accounts'
 import { useUiStore } from '@/stores/ui'
-import { proxyUrl } from '@/utils/mediaProxy'
+import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import MkEmoji from './MkEmoji.vue'
 import MkMfm from './MkMfm.vue'
 
@@ -134,7 +134,7 @@ defineExpose({ open })
             @click="selectedReaction = r.reaction"
           >
             <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.tabEmoji" role="img" :aria-label="r.reaction" :title="`${r.reaction} (ミュート中)`" />
-            <img v-else-if="reactionUrls[r.reaction]" :src="proxyUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.tabEmoji" decoding="async" loading="lazy" />
+            <img v-else-if="reactionUrls[r.reaction]" :src="proxyEmojiUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.tabEmoji" decoding="async" loading="lazy" />
             <MkEmoji v-else :emoji="r.reaction" :class="$style.tabEmoji" />
             <span :class="$style.tabCount">{{ r.count }}</span>
           </button>
