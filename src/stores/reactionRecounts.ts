@@ -105,6 +105,12 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
         records: reactions.map((r) => ({ type: r.type, userId: r.user.id })),
       })
       triggerRef(cache)
+      // サーバーは凍結ユーザーを列挙から除外しないため、リアクターを
+      // 凍結検知 (#828) に回す。検知されれば get の照合で reactive に消える
+      suspensionsStore.probe(
+        accountId,
+        reactions.map((r) => r.user.id),
+      )
     } catch {
       // 非クリティカル: 取得失敗時はサーバー集計のまま
     } finally {
