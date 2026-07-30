@@ -12,6 +12,13 @@ use tokio::sync::{watch, Mutex, RwLock, Semaphore};
 
 use crate::perf_config::SharedPerfConfig;
 
+/// メディア 1 件の取得予算 (接続〜ボディ読み切りまで)。共有 client の全体
+/// timeout (10s) より優先される。wry Android の custom protocol は応答を
+/// 10 秒で打ち切って panic するため (media_proxy::RESPONSE_DEADLINE 参照)、
+/// その内側で確実にエラーへ落とし、negative cache / circuit breaker に
+/// 学習させる。上流のストールを 10 秒付き合う価値のあるメディアは無い。
+const MEDIA_FETCH_TIMEOUT: Duration = Duration::from_secs(6);
+
 // Negative cache TTLs by error class
 const NEGATIVE_TTL_CLIENT: Duration = Duration::from_secs(24 * 60 * 60); // 4xx: 24h
 const NEGATIVE_TTL_SERVER: Duration = Duration::from_secs(2 * 60); // 5xx: 2min
@@ -288,7 +295,7 @@ impl ImageCache {
             .ok()
             .map(|u| format!("{}://{}/", u.scheme(), u.host_str().unwrap_or_default()));
 
-        let mut req = self.http_client.get(url);
+        let mut req = self.http_client.get(url).timeout(MEDIA_FETCH_TIMEOUT);
         if let Some(ref referer) = referer {
             req = req.header(reqwest::header::REFERER, referer);
         }

@@ -74,6 +74,12 @@ impl MediaRequest {
     }
 }
 
+/// デコードを許す寸法の上限 (px/辺)。ファイルサイズ上限 (20MB) 内でも
+/// 20000×20000 の PNG は RGBA 展開で 1.6GB に膨らみ、Android では malloc
+/// abort がログを残さずプロセスを殺す。変換対象はサムネイル用途なので
+/// これを超える原本は変換せずそのまま返す (WebView 側に委ねる)。
+const MAX_DECODE_DIMENSION: u32 = 8192;
+
 /// ヘッダだけ読んで寸法を得る。判定できない形式は None。
 fn image_dimensions(data: &[u8]) -> Option<(u32, u32)> {
     image::ImageReader::new(std::io::Cursor::new(data))
@@ -113,7 +119,14 @@ pub fn transform_image(
         }
     }
 
-    let img = image::load_from_memory(data).ok()?;
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(data))
+        .with_guessed_format()
+        .ok()?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_DECODE_DIMENSION);
+    limits.max_image_height = Some(MAX_DECODE_DIMENSION);
+    reader.limits(limits);
+    let img = reader.decode().ok()?;
 
     let img = if let Some(w) = max_width {
         if img.width() > w {
@@ -135,13 +148,29 @@ pub fn transform_image(
 }
 
 /// 要求されていれば変換を適用する。変換不要・失敗時 (効果音など) は元のまま返す。
-fn apply_transform(data: Vec<u8>, content_type: String, req: &MediaRequest) -> (Vec<u8>, String) {
-    if req.wants_transform() {
-        if let Some(transformed) = transform_image(&data, req.w, req.format.as_deref()) {
-            return transformed;
-        }
+///
+/// decode + WebP エンコードは端末によって CPU を数秒占有するため blocking pool
+/// へ逃がす。async ワーカー上で回すと他の応答 (IPC の channel-fetch を含む) まで
+/// 詰まり、Android では応答締切 (RESPONSE_DEADLINE) の超過に直結する。
+async fn apply_transform(
+    data: Vec<u8>,
+    content_type: String,
+    req: &MediaRequest,
+) -> (Vec<u8>, String) {
+    if !req.wants_transform() {
+        return (data, content_type);
     }
-    (data, content_type)
+    let w = req.w;
+    let format = req.format.clone();
+    tokio::task::spawn_blocking(move || {
+        match transform_image(&data, w, format.as_deref()) {
+            Some(transformed) => transformed,
+            None => (data, content_type),
+        }
+    })
+    .await
+    // JoinError は closure の panic のみ (release は panic = "abort" が先に効く)
+    .unwrap_or_else(|_| (Vec::new(), "application/octet-stream".to_string()))
 }
 
 /// キャッシュエントリ (メモリ or ディスク) をバイト列にする。
@@ -156,7 +185,7 @@ pub async fn bytes_from_entry(
             .await
             .map_err(|e| e.to_string())?,
     };
-    Ok(apply_transform(data, entry.content_type, req))
+    Ok(apply_transform(data, entry.content_type, req).await)
 }
 
 /// キャッシュ → 上流の順に解決し、変換適用済みのバイト列を返す。
@@ -178,11 +207,20 @@ pub async fn load_bytes(
             while let Some(chunk) = stream.next().await {
                 all.extend_from_slice(&chunk?);
             }
-            Ok(apply_transform(all, content_type, req))
+            Ok(apply_transform(all, content_type, req).await)
         }
         Err(msg) => Err(msg),
     }
 }
+
+/// custom protocol の応答締切。
+///
+/// wry の Android 実装は全 custom protocol を単一の Mutex で直列処理し、
+/// 各リクエストの応答を 10 秒で打ち切って `unwrap()` で panic する
+/// (wry-0.54.4 src/android/mod.rs:247 の `rx.recv_timeout(MAIN_PIPE_TIMEOUT)`)。
+/// `panic = "abort"` のためそのままプロセス即死になる。応答さえ返れば panic
+/// しないので、どの経路でもこの締切までに必ず何かを応答する。
+const RESPONSE_DEADLINE: std::time::Duration = std::time::Duration::from_secs(7);
 
 /// custom protocol (`ndmedia:`) のハンドラ。
 ///
@@ -190,8 +228,36 @@ pub async fn load_bytes(
 /// `ndmedia://localhost/m?...`、Windows/Android は
 /// `http://ndmedia.localhost/m?...`) が、クエリの読み方は同じ。
 /// フロントは `convertFileSrc('m', 'ndmedia')` で組み立てる。
+///
+/// 実作業は detach したタスクに任せて RESPONSE_DEADLINE で応答だけ打ち切る。
+/// 途中キャンセルすると inflight 登録が宙に浮くため、作業自体は完走させる
+/// (キャッシュも温まるので、フロントの再要求はヒットで返せる)。
 pub async fn handle_uri_request(
     app: &AppHandle,
+    request: tauri::http::Request<Vec<u8>>,
+) -> tauri::http::Response<Vec<u8>> {
+    let query_for_log = request.uri().query().unwrap_or_default().to_string();
+    let app = app.clone();
+    let work = tokio::spawn(async move { handle_uri_request_inner(app, request).await });
+    match tokio::time::timeout(RESPONSE_DEADLINE, work).await {
+        Ok(Ok(response)) => response,
+        // JoinError: 実作業タスクの panic (release では panic = "abort" が先に効く)
+        Ok(Err(_)) => error_response(
+            tauri::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "media task failed",
+        ),
+        Err(_) => {
+            tracing::warn!(query = %query_for_log, "ndmedia: response deadline exceeded");
+            error_response(
+                tauri::http::StatusCode::GATEWAY_TIMEOUT,
+                "media fetch deadline exceeded",
+            )
+        }
+    }
+}
+
+async fn handle_uri_request_inner(
+    app: AppHandle,
     request: tauri::http::Request<Vec<u8>>,
 ) -> tauri::http::Response<Vec<u8>> {
     let query = request.uri().query().unwrap_or_default();
@@ -333,6 +399,16 @@ mod tests {
             .expect("should transform");
         assert_eq!(ct, "image/webp");
         assert!(!out.is_empty());
+    }
+
+    /// 寸法が大きすぎる画像はデコードを拒否して原本のまま返す (None)。
+    /// ファイルサイズ上限 (20MB) 内でも巨大寸法 PNG は RGBA 展開でギガ単位に
+    /// 膨らみ、Android では malloc abort がログを残さずプロセスを殺す。
+    #[test]
+    fn refuses_decode_of_oversized_dimensions() {
+        // 高さ 2px なのでテスト自体のメモリは軽い
+        let wide = png_bytes(MAX_DECODE_DIMENSION + 1, 2);
+        assert!(transform_image(&wide, Some(56), Some("webp")).is_none());
     }
 
     /// 効果音は変換パラメータを持たないので素通しになる
