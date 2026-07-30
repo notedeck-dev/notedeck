@@ -22,6 +22,8 @@ export interface NamedQueryMeta {
   description?: string
   src: string
   storeId?: string
+  /** ストア配布物のアイコン (任意)。他の配布物カードと表示を揃える */
+  iconUrl?: string
   createdAt: number
   updatedAt: number
 }
@@ -31,6 +33,7 @@ interface QueryFileMeta {
   name: string
   description?: string
   storeId?: string
+  iconUrl?: string
   createdAt: number
   updatedAt: number
 }
@@ -50,6 +53,7 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
     name: q.name,
     ...(q.description ? { description: q.description } : {}),
     ...(q.storeId ? { storeId: q.storeId } : {}),
+    ...(q.iconUrl ? { iconUrl: q.iconUrl } : {}),
     createdAt: q.createdAt,
     updatedAt: q.updatedAt,
   }),
@@ -59,6 +63,7 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
     description: meta.description,
     src,
     storeId: meta.storeId,
+    iconUrl: meta.iconUrl,
     createdAt: meta.createdAt ?? Date.now(),
     updatedAt: meta.updatedAt ?? Date.now(),
   }),
@@ -124,7 +129,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
 
   async function createQuery(
     input: Pick<NamedQueryMeta, 'name' | 'src'> &
-      Partial<Pick<NamedQueryMeta, 'description' | 'storeId'>>,
+      Partial<Pick<NamedQueryMeta, 'description' | 'storeId' | 'iconUrl'>>,
   ): Promise<NamedQueryMeta> {
     ensureLoaded()
     const now = Date.now()

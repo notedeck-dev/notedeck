@@ -481,6 +481,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
           description: entry.description,
           src: source,
           storeId: entry.id,
+          iconUrl: entry.iconUrl,
         })
       }
     } finally {

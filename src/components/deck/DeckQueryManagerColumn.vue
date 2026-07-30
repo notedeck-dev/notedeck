@@ -20,6 +20,7 @@ import { openSafeUrl } from '@/utils/url'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
+import QueryCard from './QueryCard.vue'
 
 /**
  * クエリ管理カラム (#783 Phase 1.5、仕様追補 E)。
@@ -48,7 +49,10 @@ const viewTab = ref<ViewTab>('installed')
 const columnContentRef = ref<HTMLElement | null>(null)
 
 const tabDefs = computed<ColumnTabDef[]>(() => [
-  { value: 'installed', label: `導入済み ${queriesStore.queries.length}` },
+  {
+    value: 'installed',
+    label: `インストール済み ${queriesStore.queries.length}`,
+  },
   { value: 'store', label: 'ストア' },
 ])
 
@@ -78,7 +82,7 @@ const visibleQueries = computed(() => {
   )
 })
 
-/** ⚡ = QIR コンパイル可 / ⚠ = 不能 (Phase 2 で逐次適用降格に対応予定) */
+/** ⚡ = QIR コンパイル可 / false = 不能 (Phase 2 で逐次適用降格に対応予定) */
 function isFast(query: NamedQueryMeta): boolean {
   return compileColumnQuery(query.src).ok
 }
@@ -197,44 +201,19 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
             </template>
           </div>
 
-          <div
+          <QueryCard
             v-for="query in visibleQueries"
             :key="query.id"
-            :class="$style.card"
-            role="button"
-            @click="openEditor(query)"
-          >
-            <div :class="$style.cardHead">
-              <i
-                :class="[
-                  isFast(query) ? 'ti ti-bolt' : 'ti ti-alert-triangle',
-                  isFast(query) ? $style.fastIcon : $style.brokenIcon,
-                ]"
-                :title="isFast(query) ? '高速クエリ (QIR)' : 'コンパイル不能'"
-              />
-              <span :class="$style.cardName">{{ query.name }}</span>
-              <span v-if="query.storeId" :class="$style.storeBadge" title="MisStore 由来">
-                <i class="ti ti-building-store" />
-              </span>
-              <span v-if="refCount(query) > 0" :class="$style.refCount">
-                {{ refCount(query) }} カラム
-              </span>
-            </div>
-            <div v-if="query.description" :class="$style.cardDesc">
-              {{ query.description }}
-            </div>
-            <code :class="$style.cardSrc">{{ query.src }}</code>
-            <div :class="$style.cardActions">
-              <button
-                class="_button"
-                :class="$style.deleteBtn"
-                title="削除"
-                @click.stop="remove(query)"
-              >
-                <i class="ti ti-trash" />
-              </button>
-            </div>
-          </div>
+            mode="library"
+            :name="query.name"
+            :description="query.description"
+            :icon-url="query.iconUrl"
+            :store-id="query.storeId"
+            :fast="isFast(query)"
+            :ref-count="refCount(query)"
+            @edit="openEditor(query)"
+            @delete="remove(query)"
+          />
         </div>
       </template>
 
@@ -270,57 +249,21 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
         </div>
 
         <div v-else :class="$style.list">
-          <div
+          <QueryCard
             v-for="entry in filteredStoreQueries"
             :key="entry.id"
-            :class="$style.card"
-          >
-            <div :class="$style.cardHead">
-              <span
-                v-if="entry.iconUrl"
-                :class="$style.storeIcon"
-                :style="{ '--icon-url': `url('${entry.iconUrl}')` }"
-                aria-hidden="true"
-              />
-              <i v-else class="ti ti-filter" />
-              <span :class="$style.cardName">{{ entry.name }}</span>
-              <i
-                v-if="misStore.isQueryInstalled(entry)"
-                class="ti ti-circle-check-filled"
-                :class="$style.installedMark"
-                title="導入済み"
-              />
-              <span :class="$style.version">v{{ entry.version }}</span>
-            </div>
-            <div :class="$style.cardDesc">{{ entry.description }}</div>
-            <div :class="$style.cardFoot">
-              <span :class="$style.author">{{ entry.author }}</span>
-              <span :class="$style.category">{{ queryCategoryLabel(entry.category) }}</span>
-              <span :class="$style.spacer" />
-              <button
-                class="_button"
-                :class="$style.iconBtn"
-                title="MisStore で詳細を開く"
-                @click.stop="handleOpenStoreDetail(entry)"
-              >
-                <i class="ti ti-external-link" />
-              </button>
-              <button
-                class="_button"
-                :class="$style.installBtn"
-                :disabled="misStore.installingQuery === entry.id"
-                @click.stop="handleInstall(entry)"
-              >
-                <i
-                  v-if="misStore.installingQuery === entry.id"
-                  class="ti ti-loader-2 nd-spin"
-                />
-                <template v-else>
-                  {{ misStore.isQueryInstalled(entry) ? '更新' : 'インストール' }}
-                </template>
-              </button>
-            </div>
-          </div>
+            mode="store"
+            :name="entry.name"
+            :description="entry.description"
+            :author="entry.author"
+            :version="entry.version"
+            :icon-url="entry.iconUrl"
+            :category-label="queryCategoryLabel(entry.category)"
+            :installing="misStore.installingQuery === entry.id"
+            :already-installed="misStore.isQueryInstalled(entry)"
+            @install="handleInstall(entry)"
+            @open-detail="handleOpenStoreDetail(entry)"
+          />
 
           <div
             v-if="filteredStoreQueries.length === 0 && !misStore.queriesLoading"
@@ -370,8 +313,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 .list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
+  padding: 6px 0;
   overflow-y: auto;
   min-height: 0;
 }
@@ -405,132 +347,6 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
   color: var(--nd-fgOnAccent, #fff);
 }
 
-.card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--nd-panel);
-  text-align: left;
-}
-
-.cardHead {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.fastIcon {
-  color: var(--nd-accent);
-}
-
-.brokenIcon {
-  color: var(--nd-error);
-}
-
-.cardName {
-  font-weight: 600;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.storeBadge {
-  opacity: 0.55;
-  font-size: 0.85em;
-}
-
-.installedMark {
-  color: var(--nd-accent);
-}
-
-.version {
-  font-size: 0.75em;
-  opacity: 0.6;
-  white-space: nowrap;
-}
-
-.refCount {
-  font-size: 0.72em;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accent);
-  white-space: nowrap;
-}
-
-.cardDesc {
-  font-size: 0.8em;
-  opacity: 0.75;
-}
-
-.cardSrc {
-  font-size: 0.72em;
-  opacity: 0.6;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
-}
-
-.cardFoot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 2px;
-}
-
-.author {
-  font-size: 0.75em;
-  opacity: 0.7;
-}
-
-.category {
-  font-size: 0.7em;
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: color-mix(in srgb, currentcolor 10%, transparent);
-  opacity: 0.8;
-}
-
-.spacer {
-  flex: 1;
-}
-
-.iconBtn {
-  padding: 4px 6px;
-  border-radius: 6px;
-  opacity: 0.7;
-
-  &:hover {
-    opacity: 1;
-  }
-}
-
-.installBtn {
-  padding: 4px 12px;
-  border-radius: 6px;
-  background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
-  font-size: 0.82em;
-  font-weight: 600;
-
-  &:disabled {
-    opacity: 0.6;
-  }
-}
-
-.storeIcon {
-  width: 18px;
-  height: 18px;
-  background-color: currentcolor;
-  mask: var(--icon-url) no-repeat center / contain;
-}
-
 .storeError {
   display: flex;
   align-items: center;
@@ -546,22 +362,5 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 .storeErrorClose {
   margin-left: auto;
   padding: 2px 4px;
-}
-
-.cardActions {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-}
-
-.deleteBtn {
-  padding: 4px 6px;
-  border-radius: 6px;
-  opacity: 0.5;
-
-  &:hover {
-    opacity: 1;
-    color: var(--nd-error);
-  }
 }
 </style>
