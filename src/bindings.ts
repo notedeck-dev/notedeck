@@ -1395,6 +1395,18 @@ async apiGetUserRaw(accountId: string, params: JsonValue) : Promise<Result<JsonV
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * 凍結検知専用の `users/show`。応答から欠落した id は呼び出し側が凍結と
+ * みなすため、ここでは返ってきたものをそのまま畳んで返す。
+ */
+async apiProbeUsersSuspended(accountId: string, userIds: string[]) : Promise<Result<UserSuspensionStatus[], { code: string; message: string }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_probe_users_suspended", { accountId, userIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async apiGetUserReactions(accountId: string, params: JsonValue) : Promise<Result<UserReaction[], { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_reactions", { accountId, params }) };
@@ -3249,6 +3261,14 @@ type: string; note: UserReactionNoteRef }
  */
 export type UserReactionNoteRef = { id: string }
 export type UserRole = { id: string; name: string; color: string | null; iconUrl: string | null; description: string | null; displayOrder?: number }
+/**
+ * 凍結検知 (#828) の判定に必要な 2 フィールドだけ。
+ * 
+ * `users/show` の応答は UserDetailed pack (pinnedNotes の packMany・ロール
+ * ポリシー解決込み) で 1 人あたり数十 KB になる。判定に使うのは id と
+ * isSuspended だけなので、生 JSON をフロントへ運ばずここで畳む。
+ */
+export type UserSuspensionStatus = { id: string; isSuspended?: boolean }
 /**
  * Vault 操作のエラー。
  * 

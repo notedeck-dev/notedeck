@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useMutesStore } from '@/stores/mutes'
 import {
@@ -51,21 +51,12 @@ describe('useReactionRecountsStore (#575)', () => {
     expect(store.get('acc1', 'note1', serverCounts)).toEqual({ '❤': 1 })
   })
 
-  it('serves stale recount while server counts change (no flicker), refetches on ensure', async () => {
+  it('serves stale recount while server counts change (no flicker)', async () => {
     getNoteReactionsMock.mockResolvedValue([record('❤', 'u1')])
     const store = useReactionRecountsStore()
     await store.ensure('acc1', 'note1', { '❤': 2 })
     // signature が変わっても null に落とさず stale を返す (ミュート絵文字の一瞬復活を防ぐ)
     expect(store.get('acc1', 'note1', { '❤': 3 })).toEqual({ '❤': 1 })
-
-    // ensure は新しい signature で取り直す
-    getNoteReactionsMock.mockResolvedValue([
-      record('❤', 'u1'),
-      record('❤', 'u2'),
-    ])
-    await store.ensure('acc1', 'note1', { '❤': 3 })
-    expect(getNoteReactionsMock).toHaveBeenCalledTimes(2)
-    expect(store.get('acc1', 'note1', { '❤': 3 })).toEqual({ '❤': 2 })
   })
 
   it('falls back to server counts when total grows beyond the limit', async () => {
@@ -130,5 +121,65 @@ describe('useReactionRecountsStore (#575)', () => {
     mutes.unmuteUser('acc1', 'u9')
     await nextTick()
     expect(store.get('acc1', 'note1', serverCounts)).toBeNull()
+  })
+})
+
+/**
+ * リアクションが 1 個増えるだけで signature は変わる。抑制が無いと流速の速い
+ * TL で可視ノートぶんの `notes/reactions` を連射し、そのリアクター全員が
+ * 凍結検知の `users/show` へ流れて増幅する (Android で強制終了する経路)。
+ */
+describe('useReactionRecountsStore: refetch cooldown (#575)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    setActivePinia(createPinia())
+    getNoteReactionsMock.mockReset()
+    probeMock.mockReset()
+    suspendedIds.clear()
+    getNoteReactionsMock.mockResolvedValue([record('❤', 'u1')])
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not refetch while reactions keep arriving within the cooldown', async () => {
+    const store = useReactionRecountsStore()
+    await store.ensure('acc1', 'note1', { '❤': 1 })
+    expect(getNoteReactionsMock).toHaveBeenCalledTimes(1)
+
+    for (const n of [2, 3, 4, 5]) {
+      await vi.advanceTimersByTimeAsync(250)
+      await store.ensure('acc1', 'note1', { '❤': n })
+    }
+
+    expect(getNoteReactionsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('refetches once with the latest counts after the cooldown', async () => {
+    const store = useReactionRecountsStore()
+    await store.ensure('acc1', 'note1', { '❤': 1 })
+    for (const n of [2, 3, 4, 5]) {
+      await store.ensure('acc1', 'note1', { '❤': n })
+    }
+    expect(getNoteReactionsMock).toHaveBeenCalledTimes(1)
+
+    getNoteReactionsMock.mockResolvedValue([
+      record('❤', 'u1'),
+      record('❤', 'u2'),
+    ])
+    await vi.advanceTimersByTimeAsync(6000)
+
+    // 途中のカウントは捨てられ、最新の 1 回だけが飛ぶ
+    expect(getNoteReactionsMock).toHaveBeenCalledTimes(2)
+    expect(store.get('acc1', 'note1', { '❤': 5 })).toEqual({ '❤': 2 })
+  })
+
+  it('does not share the cooldown across notes', async () => {
+    const store = useReactionRecountsStore()
+    await store.ensure('acc1', 'note1', { '❤': 1 })
+    await store.ensure('acc1', 'note2', { '❤': 1 })
+
+    expect(getNoteReactionsMock).toHaveBeenCalledTimes(2)
   })
 })

@@ -814,6 +814,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::api_get_drive_file,
             // Users (raw)
             commands::api_get_user_raw,
+            commands::api_probe_users_suspended,
             commands::api_get_user_reactions,
             commands::api_get_user_pages_by,
             commands::api_get_user_flashs,
