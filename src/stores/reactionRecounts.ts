@@ -135,13 +135,6 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
         undefined,
         RECOUNT_MAX_TOTAL,
       )
-      if (import.meta.env.DEV) {
-        console.debug('[reaction-recount] listed', {
-          noteId,
-          listed: reactions.length,
-          reactors: reactions.map((r) => `${r.type} by ${r.user.id}`),
-        })
-      }
       if (cache.value.size >= CACHE_CAP) {
         const oldest = cache.value.keys().next().value
         if (oldest !== undefined) cache.value.delete(oldest)
