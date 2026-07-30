@@ -42,9 +42,15 @@ pub fn install_panic_hook(dir: PathBuf) {
         // Display は "panicked at <location>: <payload>" を含む
         let backtrace = std::backtrace::Backtrace::force_capture();
         let body = format!("{info}\n\nbacktrace:\n{backtrace}");
-        // tracing の writer スレッドが巻き添えで死んでいることがあるので直接書く
+        // tracing の writer スレッドが巻き添えで死んでいることがあるので直接書く。
+        // 複数スレッドが同時に panic しても唯一の手がかりを壊さないよう atomic に
+        // 置き換える (fs::write は truncate 後に書くので混ざりうる)。
         let _ = std::fs::create_dir_all(&dir);
-        let _ = std::fs::write(dir.join(PANIC_FILE), format!("{}\n{body}", now_ms()));
+        let _ = crate::settings_store::atomic_write(
+            &dir.join(PANIC_FILE),
+            &format!("{}\n{body}", now_ms()),
+            None,
+        );
         tracing::error!("{body}");
         default_hook(info);
     }));

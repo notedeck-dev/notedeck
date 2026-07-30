@@ -96,13 +96,19 @@ pub fn transform_image(
         return None;
     }
 
-    // 既に上限以下なら何もしない。縮まないのに decode + 再エンコードするのは
-    // 純粋な無駄で、Misskey のアバターはサーバー側で縮小済みのことが多いため
-    // この経路が大半を占める。寸法はヘッダだけ読む (フルデコードを避ける)。
-    if let Some(w) = max_width {
-        if let Some((width, _)) = image_dimensions(data) {
-            if width <= w {
-                return None;
+    // リサイズだけを求められていて既に上限以下なら何もしない。縮まないのに
+    // decode + 再エンコードするのは純粋な無駄で、Misskey のアバターはサーバー側で
+    // 縮小済みのことが多いためこの経路が大半を占める。
+    // 寸法はヘッダだけ読む (フルデコードを避ける)。
+    //
+    // format が明示されている場合はスキップしない。HTTP API (`/proxy/image`) は
+    // 外部 principal にも開いており、webp を要求されたのに元形式を返すと契約違反。
+    if target_format.is_none() {
+        if let Some(w) = max_width {
+            if let Some((width, _)) = image_dimensions(data) {
+                if width <= w {
+                    return None;
+                }
             }
         }
     }
@@ -307,9 +313,18 @@ mod tests {
     /// Misskey のアバターはサーバー側で縮小済みなので、この経路が大半を占める。
     #[test]
     fn skips_transform_when_already_within_limit() {
-        assert!(transform_image(&png_bytes(32, 32), Some(56), Some("webp")).is_none());
+        assert!(transform_image(&png_bytes(32, 32), Some(56), None).is_none());
         // ちょうど上限も変換しない
-        assert!(transform_image(&png_bytes(56, 56), Some(56), Some("webp")).is_none());
+        assert!(transform_image(&png_bytes(56, 56), Some(56), None).is_none());
+    }
+
+    /// format を明示されたら縮まなくても変換する。HTTP API は外部にも開いて
+    /// いるので、webp を要求されたのに元形式を返すのは契約違反。
+    #[test]
+    fn honors_explicit_format_even_when_small() {
+        let (_, ct) = transform_image(&png_bytes(32, 32), Some(56), Some("webp"))
+            .expect("explicit format must be honored");
+        assert_eq!(ct, "image/webp");
     }
 
     #[test]

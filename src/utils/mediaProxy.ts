@@ -58,8 +58,13 @@ export function proxyUrl(url: string | null | undefined): string | undefined {
 }
 
 /**
- * Generate a proxy URL with thumbnail resize and optional WebP conversion.
- * Used for timeline images where the display size is much smaller than the original.
+ * 表示サイズが元画像よりずっと小さい面 (アバター・アイコン) 用のリサイズ付き URL。
+ *
+ * `format` は付けない。リサイズが必要な画像はプロキシ側が WebP で返すし、
+ * format を明示すると「既に上限以下なので変換不要」の判定が使えなくなる
+ * (明示された形式は尊重しなければならないため)。Misskey のアバターは
+ * サーバー側で縮小済みのことが多く、その素通しが効くかどうかで
+ * モバイルの初回表示が変わる。
  */
 export function proxyThumbUrl(
   url: string | null | undefined,
@@ -70,7 +75,7 @@ export function proxyThumbUrl(
   let cached = proxyUrlCache.get(key)
   if (!cached) {
     evictIfFull()
-    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&w=${width}&format=webp`
+    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&w=${width}`
     proxyUrlCache.set(key, cached)
   }
   return cached

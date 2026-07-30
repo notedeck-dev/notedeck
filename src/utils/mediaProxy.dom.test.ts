@@ -85,10 +85,11 @@ describe('proxyUrl', () => {
 })
 
 describe('proxyThumbUrl', () => {
-  it('幅と webp 変換を付ける', async () => {
+  // format は付けない: 明示すると「上限以下なら変換不要」の素通しが効かなくなる
+  it('幅だけを付ける', async () => {
     const { proxyThumbUrl } = await loadModule()
     expect(proxyThumbUrl(REMOTE, 56)).toBe(
-      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&w=56&format=webp`,
+      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&w=56`,
     )
   })
 
