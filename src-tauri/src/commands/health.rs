@@ -25,6 +25,9 @@ pub struct HealthReport {
     pub heartbeat_interval_minutes: Option<u32>,
     /// notedeck.log を含むログディレクトリ (#644)。解決できなければ null。
     pub log_dir: Option<String>,
+    /// 記録されている直近の Rust panic。adb を繋げない Android でも
+    /// ここから内容を読めるようにするのが主目的。無ければ null。
+    pub last_panic: Option<crate::crash_report::PanicReport>,
 }
 
 #[tauri::command]
@@ -53,11 +56,11 @@ pub async fn build_health_report(
     let mut doctor = notecli::commands::doctor::diagnose(db.as_ref(), &db_path, None).await?;
     strip_guest_credential_checks(&mut doctor, &db.load_accounts().unwrap_or_default());
     let (note_cache_count, db_size_bytes) = db.cache_stats()?;
-    let log_dir = app
-        .path()
-        .app_log_dir()
-        .ok()
-        .map(|p| p.to_string_lossy().into_owned());
+    let log_dir_path = app.path().app_log_dir().ok();
+    let last_panic = log_dir_path
+        .as_deref()
+        .and_then(crate::crash_report::read_last_panic);
+    let log_dir = log_dir_path.map(|p| p.to_string_lossy().into_owned());
 
     Ok(HealthReport {
         doctor,
@@ -66,6 +69,7 @@ pub async fn build_health_report(
         db_size_bytes,
         heartbeat_interval_minutes: scheduler.current_interval(),
         log_dir,
+        last_panic,
     })
 }
 

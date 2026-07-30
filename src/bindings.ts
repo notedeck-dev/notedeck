@@ -2803,7 +2803,12 @@ heartbeatIntervalMinutes: number | null;
 /**
  * notedeck.log を含むログディレクトリ (#644)。解決できなければ null。
  */
-logDir: string | null }
+logDir: string | null; 
+/**
+ * 記録されている直近の Rust panic。adb を繋げない Android でも
+ * ここから内容を読めるようにするのが主目的。無ければ null。
+ */
+lastPanic: PanicReport | null }
 export type HttpFetchRequest = { url: string; method: string | null; headers: Partial<{ [key in string]: string }> | null; body: string | null; timeoutMs: number | null }
 export type HttpFetchResponse = { status: number; headers: Partial<{ [key in string]: string }>; body: string }
 /**
@@ -2934,6 +2939,18 @@ export type Page = { id: string; createdAt: string; updatedAt: string; title: st
  * `content` / `variables` はブロック構造で複雑。生 JSON で運ぶ。
  */
 content?: JsonValue | null; variables?: JsonValue | null; script?: string | null; alignCenter?: boolean; hideTitleWhenPinned?: boolean; font?: string | null; eyeCatchingImageId?: string | null; eyeCatchingImage?: NormalizedDriveFile | null; likedCount?: number | null; isLiked?: boolean | null }
+/**
+ * 記録された panic。診断レポートに載せてコピーできる形で渡す。
+ */
+export type PanicReport = { 
+/**
+ * panic した時刻 (epoch ms)。0 は時刻を復元できなかったことを示す
+ */
+at: number; 
+/**
+ * panic メッセージ + backtrace
+ */
+message: string }
 /**
  * Performance configuration shared across the application.
  * All fields are dynamically updatable at runtime via Tauri commands.

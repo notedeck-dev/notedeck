@@ -103,10 +103,32 @@ const streamChecks = computed<Check[]>(() => {
   return checks
 })
 
+/**
+ * 記録されている Rust panic (#644)。adb を繋げない Android でも
+ * 「前回落ちた理由」をここから読めるようにするのが主目的。
+ * 次の panic が来るまで残るので、いつのものかを日時で示す。
+ */
+const crashChecks = computed<Check[]>(() => {
+  const panic = health.value?.lastPanic
+  if (!panic) return []
+  // 1 行目に "panicked at <file>:<line>: <msg>" が入る。詳細は診断ログ側で見る
+  const headline = panic.message.split('\n')[0]?.trim() ?? 'panic'
+  const when = panic.at > 0 ? new Date(panic.at).toLocaleString() : '時刻不明'
+  return [
+    {
+      name: 'crash',
+      status: 'warn',
+      message: `${when} に異常終了しました: ${headline}`,
+      fix: '下の診断ログをコピーして報告',
+    },
+  ]
+})
+
 // 正常な項目は畳んで、注意・問題だけ出す (健康なら "正常" の一行で済む)。
 const problemChecks = computed(() => [
   ...(health.value?.doctor.checks ?? []).filter((c) => c.status !== 'ok'),
   ...streamChecks.value,
+  ...crashChecks.value,
 ])
 
 const overallStatus = computed<Status>(() => {
@@ -142,9 +164,16 @@ async function runHealthcheck() {
 
 // 問題のある行だけをデバッグログ体裁に整形 (UI 表示・コピー・バグ報告で共用)。
 // 正常時は空文字なのでブロックも本文の診断セクションも出ない。
-const diagnosticsLog = computed<string>(() =>
-  problemChecks.value.map(formatCheck).join('\n'),
-)
+// panic は 1 行に畳むと file:line しか残らないので、backtrace ごと末尾に付ける
+// (Android は adb が使えず、これがスタックを持ち出す唯一の経路になる)。
+const diagnosticsLog = computed<string>(() => {
+  const lines = problemChecks.value.map(formatCheck)
+  const panic = health.value?.lastPanic
+  if (panic) {
+    lines.push('', '--- last panic ---', panic.message.trimEnd())
+  }
+  return lines.join('\n')
+})
 const {
   isChecking,
   isUpToDate,
