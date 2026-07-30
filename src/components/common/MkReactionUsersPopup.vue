@@ -7,7 +7,7 @@ import { useNativePopover } from '@/composables/useNativePopover'
 import { useNavigation } from '@/composables/useNavigation'
 import { useAccountsStore } from '@/stores/accounts'
 import { normalizeEmojiMuteKey } from '@/utils/emojiMute'
-import { proxyUrl } from '@/utils/mediaProxy'
+import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import { extractColumnThemeVars } from '@/utils/themeVars'
 import MkAvatar from './MkAvatar.vue'
 import MkEmoji from './MkEmoji.vue'
@@ -167,7 +167,7 @@ onUnmounted(() => {
         />
         <img
           v-else-if="reactionUrl"
-          :src="proxyUrl(reactionUrl)"
+          :src="proxyEmojiUrl(reactionUrl)"
           :alt="reaction"
           :class="$style.reactionIcon"
           decoding="async"

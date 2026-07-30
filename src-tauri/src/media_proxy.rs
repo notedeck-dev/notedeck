@@ -15,9 +15,31 @@
 use std::sync::Arc;
 
 use futures_util::StreamExt;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 use crate::image_cache::{hex_hash, CacheEntry, ImageCache, StreamingFetchResult};
+
+/// 二段階配信 (フェーズ 2) の背景取得が終わったことをフロントへ知らせる。
+/// mediaProxy.ts がこれを受けて該当 URL の `<img>` に再要求させる
+/// (成否によらず emit する。失敗時の再要求は negative cache が 502 で
+/// 受け止め、`onerror` フォールバックに繋がる)。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaFetched {
+    pub url: String,
+    pub ok: bool,
+}
+
+/// 1×1 透明 GIF。キャッシュミス時の仮応答 (フェーズ 1)。
+/// 404 を返すと `<img>` の onerror が発火して MkAvatar などのフォールバック
+/// (プロキシ迂回で原寸直読み) を誤爆させるため、成功扱いの透明画像で場を
+/// 持たせ、取得完了イベントで差し替えさせる。
+const PLACEHOLDER_GIF: &[u8] = &[
+    0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xFF, 0xFF, 0xFF, 0x21, 0xF9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00,
+    0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x01, 0x44, 0x00, 0x3B,
+];
 
 /// 変換パラメータ込みのメディアリクエスト。
 /// 変換は画像にしか効かないが、効果音は変換なしで同じ経路を通る。
@@ -74,6 +96,48 @@ impl MediaRequest {
     }
 }
 
+/// デコードを許す寸法の上限 (px/辺)。ファイルサイズ上限 (20MB) 内でも
+/// 20000×20000 の PNG は RGBA 展開で 1.6GB に膨らみ、Android では malloc
+/// abort がログを残さずプロセスを殺す。変換対象はサムネイル用途なので
+/// これを超える原本は変換せずそのまま返す (WebView 側に委ねる)。
+const MAX_DECODE_DIMENSION: u32 = 8192;
+
+/// アニメーションの可能性があるか (ヘッダ走査のみ、デコードしない)。
+/// 変換 (リサイズ/再エンコード) はアニメーションを 1 フレーム目に潰すため、
+/// 真なら変換せず原本を素通しする。
+/// - GIF: 静的判定にはブロック走査が要るため一律アニメ扱い (Misskey の
+///   GIF 絵文字はほぼアニメーション)
+/// - APNG: IDAT より前に現れる acTL チャンク (CRC は検証しない)
+/// - WebP: ヘッダ近傍の ANIM チャンク
+fn may_be_animated(data: &[u8]) -> bool {
+    if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+        return true;
+    }
+    if data.starts_with(&[0x89, b'P', b'N', b'G']) {
+        let mut pos = 8;
+        while pos + 8 <= data.len() {
+            let len = u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            let ctype = &data[pos + 4..pos + 8];
+            if ctype == b"acTL" {
+                return true;
+            }
+            if ctype == b"IDAT" {
+                return false;
+            }
+            // len(4) + type(4) + data + crc(4)。len は untrusted なので
+            // 32bit ターゲットでの加算オーバーフローも飽和させる
+            pos = pos.saturating_add(len.saturating_add(12));
+        }
+        return false;
+    }
+    if data.len() >= 16 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
+        // ANIM チャンクは VP8X 直後に来るのでヘッダ近傍だけ見れば足りる
+        return data[12..data.len().min(64)].windows(4).any(|w| w == b"ANIM");
+    }
+    false
+}
+
 /// ヘッダだけ読んで寸法を得る。判定できない形式は None。
 fn image_dimensions(data: &[u8]) -> Option<(u32, u32)> {
     image::ImageReader::new(std::io::Cursor::new(data))
@@ -96,6 +160,12 @@ pub fn transform_image(
         return None;
     }
 
+    // アニメーションは変換で潰れるため、明示 format があっても素通し
+    // (壊れた静止画を返すより原本を返す方が正しい)
+    if may_be_animated(data) {
+        return None;
+    }
+
     // リサイズだけを求められていて既に上限以下なら何もしない。縮まないのに
     // decode + 再エンコードするのは純粋な無駄で、Misskey のアバターはサーバー側で
     // 縮小済みのことが多いためこの経路が大半を占める。
@@ -113,7 +183,14 @@ pub fn transform_image(
         }
     }
 
-    let img = image::load_from_memory(data).ok()?;
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(data))
+        .with_guessed_format()
+        .ok()?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_DECODE_DIMENSION);
+    limits.max_image_height = Some(MAX_DECODE_DIMENSION);
+    reader.limits(limits);
+    let img = reader.decode().ok()?;
 
     let img = if let Some(w) = max_width {
         if img.width() > w {
@@ -135,54 +212,53 @@ pub fn transform_image(
 }
 
 /// 要求されていれば変換を適用する。変換不要・失敗時 (効果音など) は元のまま返す。
-fn apply_transform(data: Vec<u8>, content_type: String, req: &MediaRequest) -> (Vec<u8>, String) {
-    if req.wants_transform() {
-        if let Some(transformed) = transform_image(&data, req.w, req.format.as_deref()) {
-            return transformed;
-        }
-    }
-    (data, content_type)
-}
-
-/// キャッシュエントリ (メモリ or ディスク) をバイト列にする。
-pub async fn bytes_from_entry(
-    entry: CacheEntry,
+///
+/// decode + WebP エンコードは端末によって CPU を数秒占有するため blocking pool
+/// へ逃がす。async ワーカー上で回すと他の応答 (IPC の channel-fetch を含む) まで
+/// 詰まり、Android では応答締切 (RESPONSE_DEADLINE) の超過に直結する。
+async fn apply_transform(
+    data: Vec<u8>,
+    content_type: String,
     req: &MediaRequest,
 ) -> Result<(Vec<u8>, String), String> {
-    let data = match entry.mem_bytes {
+    if !req.wants_transform() {
+        return Ok((data, content_type));
+    }
+    let w = req.w;
+    let format = req.format.clone();
+    tokio::task::spawn_blocking(move || {
+        match transform_image(&data, w, format.as_deref()) {
+            Some(transformed) => transformed,
+            None => (data, content_type),
+        }
+    })
+    .await
+    // JoinError は closure の panic のみ (release は panic = "abort" が先に
+    // 効く)。空バイト列を成功として返すと variant に永続化されて TTL の間
+    // 空画像を配り続けるため、エラーとして伝播する
+    .map_err(|e| format!("transform task failed: {e}"))
+}
+
+/// キャッシュエントリ (メモリ or ディスク) を変換なしでバイト列にする。
+async fn entry_bytes(entry: &CacheEntry) -> Result<Vec<u8>, String> {
+    match &entry.mem_bytes {
         // メモリキャッシュ側も同じ Arc を保持しているので複製は避けられない
-        Some(mem) => mem.as_ref().clone(),
+        Some(mem) => Ok(mem.as_ref().clone()),
         None => tokio::fs::read(&entry.path)
             .await
-            .map_err(|e| e.to_string())?,
-    };
-    Ok(apply_transform(data, entry.content_type, req))
+            .map_err(|e| e.to_string()),
+    }
 }
 
-/// キャッシュ → 上流の順に解決し、変換適用済みのバイト列を返す。
-pub async fn load_bytes(
-    cache: &ImageCache,
-    req: &MediaRequest,
-) -> Result<(Vec<u8>, String), String> {
-    if let Some(entry) = cache.check_cache_only(&req.url).await {
-        return bytes_from_entry(entry, req).await;
-    }
-    match cache.fetch_streaming(&req.url).await {
-        Ok(StreamingFetchResult::Cached(entry)) => bytes_from_entry(entry, req).await,
-        Ok(StreamingFetchResult::Streaming {
-            byte_stream,
-            content_type,
-        }) => {
-            let mut all = Vec::with_capacity(65_536);
-            let mut stream = byte_stream;
-            while let Some(chunk) = stream.next().await {
-                all.extend_from_slice(&chunk?);
-            }
-            Ok(apply_transform(all, content_type, req))
-        }
-        Err(msg) => Err(msg),
-    }
-}
+
+/// custom protocol の応答締切。
+///
+/// wry の Android 実装は全 custom protocol を単一の Mutex で直列処理し、
+/// 各リクエストの応答を 10 秒で打ち切って `unwrap()` で panic する
+/// (wry-0.54.4 src/android/mod.rs:247 の `rx.recv_timeout(MAIN_PIPE_TIMEOUT)`)。
+/// `panic = "abort"` のためそのままプロセス即死になる。応答さえ返れば panic
+/// しないので、どの経路でもこの締切までに必ず何かを応答する。
+const RESPONSE_DEADLINE: std::time::Duration = std::time::Duration::from_secs(7);
 
 /// custom protocol (`ndmedia:`) のハンドラ。
 ///
@@ -190,14 +266,45 @@ pub async fn load_bytes(
 /// `ndmedia://localhost/m?...`、Windows/Android は
 /// `http://ndmedia.localhost/m?...`) が、クエリの読み方は同じ。
 /// フロントは `convertFileSrc('m', 'ndmedia')` で組み立てる。
+///
+/// 実作業は detach したタスクに任せて RESPONSE_DEADLINE で応答だけ打ち切る。
+/// 途中キャンセルすると inflight 登録が宙に浮くため、作業自体は完走させる
+/// (キャッシュも温まるので、フロントの再要求はヒットで返せる)。
 pub async fn handle_uri_request(
     app: &AppHandle,
+    request: tauri::http::Request<Vec<u8>>,
+) -> tauri::http::Response<Vec<u8>> {
+    let query_for_log = request.uri().query().unwrap_or_default().to_string();
+    let app = app.clone();
+    let work = tokio::spawn(async move { handle_uri_request_inner(app, request).await });
+    match tokio::time::timeout(RESPONSE_DEADLINE, work).await {
+        Ok(Ok(response)) => response,
+        // JoinError: 実作業タスクの panic (release では panic = "abort" が先に効く)
+        Ok(Err(_)) => error_response(
+            tauri::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "media task failed",
+        ),
+        Err(_) => {
+            tracing::warn!(query = %query_for_log, "ndmedia: response deadline exceeded");
+            error_response(
+                tauri::http::StatusCode::GATEWAY_TIMEOUT,
+                "media fetch deadline exceeded",
+            )
+        }
+    }
+}
+
+async fn handle_uri_request_inner(
+    app: AppHandle,
     request: tauri::http::Request<Vec<u8>>,
 ) -> tauri::http::Response<Vec<u8>> {
     let query = request.uri().query().unwrap_or_default();
     let Some(req) = MediaRequest::from_query(query) else {
         return error_response(tauri::http::StatusCode::BAD_REQUEST, "invalid url param");
     };
+    // wait=1: 上流取得を待つブロッキング応答 (上限は RESPONSE_DEADLINE)。
+    // fetch()/Audio 要素のようにプレースホルダを飲み込めない消費者 (効果音) 用。
+    let wait = url::form_urlencoded::parse(query.as_bytes()).any(|(k, v)| k == "wait" && v == "1");
 
     let etag = req.etag();
     // 条件付きリクエスト: 同じ ETag を持っているなら本文を送らない
@@ -224,32 +331,145 @@ pub async fn handle_uri_request(
             "media cache not ready",
         );
     };
+    let cache = cache.inner().clone();
 
-    match load_bytes(cache.inner(), &req).await {
-        Ok((bytes, content_type)) => {
-            tracing::debug!(
-                url = %req.url,
-                bytes = bytes.len(),
-                content_type = %content_type,
-                "ndmedia: served"
-            );
-            tauri::http::Response::builder()
-                .status(tauri::http::StatusCode::OK)
-                .header("Content-Type", content_type)
-                .header("Cache-Control", CACHE_CONTROL)
-                .header("ETag", &etag)
-                // 効果音は fetch() + decodeAudioData で読むため CORS が要る。
-                // img と違い ACAO が無いと access control で弾かれる。
-                // custom protocol は WebView 内からしか到達できないので * で安全
-                .header("Access-Control-Allow-Origin", "*")
-                .body(bytes)
-                .unwrap_or_else(|_| internal_error())
-        }
-        Err(msg) => {
-            tracing::warn!(url = %req.url, error = %msg, "ndmedia: upstream fetch failed");
-            error_response(tauri::http::StatusCode::BAD_GATEWAY, &msg)
-        }
+    // ── フェーズ 1: ローカル (メモリ/ディスク) だけで応答する ──
+    // variant (変換結果) は cache_key で保存済みなので、ヒットすれば
+    // 変換なしの読み出しだけで返せる。ここが応答時間の実質上限になる。
+    let key = req.cache_key();
+    if let Some(entry) = cache.check_cache_only(&key).await {
+        return match entry_bytes(&entry).await {
+            Ok(bytes) => ok_response(bytes, &entry.content_type, &etag),
+            Err(msg) => {
+                tracing::warn!(url = %req.url, error = %msg, "ndmedia: cache read failed");
+                error_response(tauri::http::StatusCode::INTERNAL_SERVER_ERROR, &msg)
+            }
+        };
     }
+
+    if wait {
+        // ブロッキング経路: プレースホルダを飲み込めない消費者 (効果音の
+        // fetch/Audio 要素) と、直列パイプ制約のない非 Android の単一トリップ
+        // 配信用。ensure と同じ経路なので変換結果 (variant) も永続化される
+        return match ensure_media_inner(&cache, &req).await {
+            Ok((bytes, content_type)) => ok_response(bytes, &content_type, &etag),
+            Err(msg) => {
+                tracing::warn!(url = %req.url, error = %msg, "ndmedia: upstream fetch failed");
+                error_response(tauri::http::StatusCode::BAD_GATEWAY, &msg)
+            }
+        };
+    }
+
+    // 失敗直後 (negative cache) / 既知のダウンホスト (circuit breaker) は
+    // ensure を発行せず即エラー。ここで遮断しないと「失敗イベント → img
+    // 再要求 → ensure → 失敗イベント」が空回りし続ける
+    if cache.is_fast_fail(&req.url).await {
+        return error_response(
+            tauri::http::StatusCode::BAD_GATEWAY,
+            "upstream recently failed",
+        );
+    }
+
+    // ── フェーズ 2: 取得+変換は背景で行い、即プレースホルダを返す ──
+    // wry Android は custom protocol を単一 Mutex で直列処理するため、
+    // ここで上流を待つと他の全メディア + 8KB 超の IPC 応答まで道連れになる。
+    // 完了は MediaFetched イベントで通知し、フロントが再要求してくる。
+    if cache.begin_ensure(&key).await {
+        tokio::spawn(ensure_media(app, cache, req));
+    }
+    placeholder_response()
+}
+
+/// 背景取得: オリジナルを (キャッシュ or 上流から) 用意し、変換を適用して
+/// cache_key で保存し、完了イベントを emit する。
+///
+/// 変換が不要・不能でも必ず cache_key で保存する。保存しないとフェーズ 1 が
+/// 永遠にミスして ensure と完了イベントを打ち続ける。
+async fn ensure_media(app: AppHandle, cache: Arc<ImageCache>, req: MediaRequest) {
+    let key = req.cache_key();
+    let result = ensure_media_inner(&cache, &req).await;
+    cache.finish_ensure(&key).await;
+    if let Err(ref msg) = result {
+        tracing::warn!(url = %req.url, error = %msg, "ndmedia: background fetch failed");
+    }
+    use tauri_specta::Event;
+    MediaFetched {
+        url: req.url.clone(),
+        ok: result.is_ok(),
+    }
+    .emit(&app)
+    .ok();
+}
+
+/// オリジナルを (キャッシュ or 上流から) 用意し、変換を適用して cache_key で
+/// 永続化し、配信可能なバイト列と content-type を返す。
+async fn ensure_media_inner(
+    cache: &ImageCache,
+    req: &MediaRequest,
+) -> Result<(Vec<u8>, String), String> {
+    // オリジナルを取得 (キャッシュ or 上流)
+    let (data, content_type) = match cache.check_cache_only(&req.url).await {
+        Some(entry) => {
+            let content_type = entry.content_type.clone();
+            (entry_bytes(&entry).await?, content_type)
+        }
+        None => match cache.fetch_streaming(&req.url).await {
+            Ok(StreamingFetchResult::Cached(entry)) => {
+                let content_type = entry.content_type.clone();
+                (entry_bytes(&entry).await?, content_type)
+            }
+            Ok(StreamingFetchResult::Streaming {
+                byte_stream,
+                content_type,
+            }) => {
+                let mut all = Vec::with_capacity(65_536);
+                let mut stream = byte_stream;
+                while let Some(chunk) = stream.next().await {
+                    all.extend_from_slice(&chunk?);
+                }
+                (all, content_type)
+            }
+            Err(msg) => return Err(msg),
+        },
+    };
+
+    let (bytes, content_type) = apply_transform(data, content_type, req).await?;
+    // fetch_streaming の背景タスクもオリジナルを書くが、それを待たずに emit
+    // すると再要求がミスする競合があるため、ここで確実に書き切ってから返す
+    cache
+        .store_variant(&req.cache_key(), bytes.clone(), &content_type)
+        .await;
+    Ok((bytes, content_type))
+}
+
+fn ok_response(
+    bytes: Vec<u8>,
+    content_type: &str,
+    etag: &str,
+) -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(tauri::http::StatusCode::OK)
+        .header("Content-Type", content_type)
+        .header("Cache-Control", CACHE_CONTROL)
+        .header("ETag", etag)
+        // 効果音は fetch() + decodeAudioData で読むため CORS が要る。
+        // img と違い ACAO が無いと access control で弾かれる。
+        // custom protocol は WebView 内からしか到達できないので * で安全
+        .header("Access-Control-Allow-Origin", "*")
+        .body(bytes)
+        .unwrap_or_else(|_| internal_error())
+}
+
+fn placeholder_response() -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(tauri::http::StatusCode::OK)
+        .header("Content-Type", "image/gif")
+        // 仮応答をどの層にもキャッシュさせない (本物はイベント後の再要求で返す)
+        .header("Cache-Control", "no-store")
+        .header("Access-Control-Allow-Origin", "*")
+        .header("X-ND-Pending", "1")
+        .body(PLACEHOLDER_GIF.to_vec())
+        .unwrap_or_else(|_| internal_error())
 }
 
 const CACHE_CONTROL: &str = "public, max-age=86400, immutable";
@@ -333,6 +553,101 @@ mod tests {
             .expect("should transform");
         assert_eq!(ct, "image/webp");
         assert!(!out.is_empty());
+    }
+
+    /// フェーズ 1 の仮応答が本物の画像としてデコードできること
+    /// (壊れたバイト列だと WebView が broken image を描いてしまう)
+    #[test]
+    fn placeholder_gif_is_valid_1x1() {
+        let img = image::load_from_memory(PLACEHOLDER_GIF).expect("must decode");
+        assert_eq!((img.width(), img.height()), (1, 1));
+    }
+
+    /// 寸法が大きすぎる画像はデコードを拒否して原本のまま返す (None)。
+    /// ファイルサイズ上限 (20MB) 内でも巨大寸法 PNG は RGBA 展開でギガ単位に
+    /// 膨らみ、Android では malloc abort がログを残さずプロセスを殺す。
+    #[test]
+    fn refuses_decode_of_oversized_dimensions() {
+        // 高さ 2px なのでテスト自体のメモリは軽い
+        let wide = png_bytes(MAX_DECODE_DIMENSION + 1, 2);
+        assert!(transform_image(&wide, Some(56), Some("webp")).is_none());
+    }
+
+    /// アニメーションの可能性がある形式は変換で 1 フレーム目に潰れるため、
+    /// 明示 format があっても素通しする (壊れた静止画を返すより原本が正しい)
+    #[test]
+    fn animated_formats_pass_through_untouched() {
+        // GIF は静的判定にブロック走査が要るため一律素通し
+        let gif = {
+            let img = image::RgbaImage::from_pixel(100, 100, image::Rgba([1, 2, 3, 255]));
+            let mut buf = std::io::Cursor::new(Vec::new());
+            let mut enc = image::codecs::gif::GifEncoder::new(&mut buf);
+            enc.encode_frame(image::Frame::new(img)).expect("encode gif");
+            drop(enc);
+            buf.into_inner()
+        };
+        assert!(transform_image(&gif, Some(56), Some("webp")).is_none());
+
+        // APNG: IDAT より前の acTL チャンクで判定 (CRC は見ない)
+        let mut apng = png_bytes(100, 100);
+        let mut actl = Vec::new();
+        actl.extend_from_slice(&8u32.to_be_bytes());
+        actl.extend_from_slice(b"acTL");
+        actl.extend_from_slice(&[0u8; 12]); // frames(4) + plays(4) + crc(4)
+        apng.splice(33..33, actl); // IHDR 直後 (8 sig + 25 IHDR chunk)
+        assert!(may_be_animated(&apng));
+        assert!(transform_image(&apng, Some(56), Some("webp")).is_none());
+
+        // Animated WebP: ヘッダ近傍の ANIM チャンク
+        let mut awebp = Vec::new();
+        awebp.extend_from_slice(b"RIFF");
+        awebp.extend_from_slice(&[0u8; 4]);
+        awebp.extend_from_slice(b"WEBPVP8X");
+        awebp.extend_from_slice(&[0u8; 14]);
+        awebp.extend_from_slice(b"ANIM");
+        assert!(may_be_animated(&awebp));
+    }
+
+    /// 静止 PNG はアニメ扱いされない (変換が生き続けること)
+    #[test]
+    fn static_png_is_not_animated() {
+        assert!(!may_be_animated(&png_bytes(10, 10)));
+    }
+
+    /// チャンク長は untrusted な入力。u32::MAX を仕込んだ PNG でも
+    /// 32bit ターゲット (armv7 Android) の加算オーバーフローで panic しない
+    #[test]
+    fn png_scan_survives_huge_chunk_length() {
+        let mut evil = Vec::new();
+        evil.extend_from_slice(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
+        evil.extend_from_slice(&u32::MAX.to_be_bytes());
+        evil.extend_from_slice(b"IHDR");
+        evil.extend_from_slice(&[0u8; 32]);
+        assert!(!may_be_animated(&evil));
+    }
+
+    /// wait (ブロッキング) 経路もキャッシュ済みオリジナルから変換して
+    /// variant を永続化し、バイト列を直接返すこと。これが無いと非 Android の
+    /// 単一トリップ配信が表示のたびに再変換で CPU を払い続ける
+    #[tokio::test]
+    async fn ensure_media_inner_transforms_cached_original_and_persists_variant() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = crate::image_cache::ImageCache::new(dir.path());
+        let url = "https://e.com/a.png";
+        // オリジナルをキャッシュ済みにしておく (key == url)
+        cache
+            .store_variant(url, png_bytes(200, 200), "image/png")
+            .await;
+
+        let req = MediaRequest::from_query("url=https%3A%2F%2Fe.com%2Fa.png&w=56")
+            .expect("should parse");
+        let (bytes, content_type) = ensure_media_inner(&cache, &req)
+            .await
+            .expect("cached original should transform without network");
+        assert_eq!(content_type, "image/webp");
+        assert!(!bytes.is_empty());
+        // variant がフェーズ 1 (check_cache_only) で引ける
+        assert!(cache.check_cache_only(&req.cache_key()).await.is_some());
     }
 
     /// 効果音は変換パラメータを持たないので素通しになる

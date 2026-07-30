@@ -9,7 +9,7 @@ import { useRecentEmojisStore } from '@/stores/recentEmojis'
 import { useIsCompactLayout } from '@/stores/ui'
 import { hapticLight } from '@/utils/haptics'
 import { isImeComposing } from '@/utils/ime'
-import { proxyUrl } from '@/utils/mediaProxy'
+import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import { char2twemojiUrl } from '@/utils/twemoji'
 import MkReactionPickerSection from './MkReactionPickerSection.vue'
 
@@ -140,7 +140,8 @@ function isCustomEmoji(reaction: string): boolean {
 }
 
 function twemojiSrc(char: string): string {
-  return proxyUrl(char2twemojiUrl(char)) ?? char2twemojiUrl(char)
+  // 同梱アセットのローカルパスなのでプロキシ不要
+  return char2twemojiUrl(char)
 }
 
 function pickEmoji(emoji: string) {
@@ -245,7 +246,7 @@ onMounted(() => {
               :title="`:${emoji.name}:`"
               @click="pickCustom(emoji.name)"
             >
-              <img :src="emoji.url" :alt="emoji.name" :class="$style.pickerCustomImg" loading="lazy" />
+              <img :src="proxyEmojiUrl(emoji.url)" :alt="emoji.name" :class="$style.pickerCustomImg" decoding="async" loading="lazy" />
             </button>
           </div>
           <div v-if="searchResults.unicode.length > 0" :class="$style.pickerGrid">
@@ -275,9 +276,10 @@ onMounted(() => {
             >
               <img
                 v-if="isCustomEmoji(reaction)"
-                :src="resolveEmojiUrl(reaction) ?? ''"
+                :src="proxyEmojiUrl(resolveEmojiUrl(reaction)) ?? ''"
                 :alt="reaction"
                 :class="$style.pickerCustomImg"
+                decoding="async"
                 loading="lazy"
               />
               <img
@@ -308,9 +310,10 @@ onMounted(() => {
             >
               <img
                 v-if="isCustomEmoji(reaction)"
-                :src="resolveEmojiUrl(reaction) ?? ''"
+                :src="proxyEmojiUrl(resolveEmojiUrl(reaction)) ?? ''"
                 :alt="reaction"
                 :class="$style.pickerCustomImg"
+                decoding="async"
                 loading="lazy"
               />
               <img
@@ -342,7 +345,7 @@ onMounted(() => {
                 :title="`:${emoji.name}:`"
                 @click="pickCustom(emoji.name)"
               >
-                <img :src="emoji.url" :alt="emoji.name" :class="$style.pickerCustomImg" loading="lazy" />
+                <img :src="proxyEmojiUrl(emoji.url)" :alt="emoji.name" :class="$style.pickerCustomImg" decoding="async" loading="lazy" />
               </button>
             </div>
           </MkReactionPickerSection>

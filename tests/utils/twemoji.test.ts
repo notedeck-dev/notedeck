@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { char2twemojiUrl, splitTextWithEmoji } from '@/utils/twemoji'
 
-const BASE = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@v15.1.0/assets/svg'
+// 同梱 Twemoji (@discordapp/twemoji) のパス。CDN 個別取得はピッカー初回表示で
+// 数千リクエストをメディアプロキシに浴びせる要因だった (#855)。ここで固定する
+// ファイル名規約 (fe0f の扱い) は同梱アセットの実ファイル名と一致している
+const BASE = '/twemoji'
 
 describe('char2twemojiUrl', () => {
   it('converts simple emoji', () => {
     // 😀 = U+1F600
     expect(char2twemojiUrl('😀')).toBe(`${BASE}/1f600.svg`)
+  })
+
+  it('CDN を参照しない (ローカル同梱)', () => {
+    expect(char2twemojiUrl('😀')).not.toContain('https://')
   })
 
   it('strips variation selector when no ZWJ', () => {

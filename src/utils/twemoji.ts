@@ -1,7 +1,12 @@
-const TWEMOJI_BASE =
-  'https://cdn.jsdelivr.net/gh/jdecked/twemoji@v15.1.0/assets/svg'
+/**
+ * 同梱 Twemoji (@discordapp/twemoji、vite.config.ts の twemojiAssets が配る)。
+ * CDN 個別取得はピッカー初回表示で数千リクエストをメディアプロキシに浴びせる
+ * 要因だった (#855)。相対パスなので proxyUrl は素通しし、Tauri ではアプリ
+ * アセットとして即応答される。
+ */
+const TWEMOJI_BASE = '/twemoji'
 
-/** Convert a Unicode emoji character to a Twemoji CDN SVG URL */
+/** Convert a Unicode emoji character to a bundled Twemoji SVG URL */
 export function char2twemojiUrl(char: string): string {
   let codes = Array.from(char, (x) => x.codePointAt(0)?.toString(16))
   if (!codes.includes('200d')) codes = codes.filter((x) => x !== 'fe0f')

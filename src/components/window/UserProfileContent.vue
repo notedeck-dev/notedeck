@@ -67,7 +67,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
 import { formatDate } from '@/utils/format'
-import { proxyUrl } from '@/utils/mediaProxy'
+import { proxyEmojiUrl, proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { toggleReaction } from '@/utils/toggleReaction'
 import { openSafeUrl, webUiUrl } from '@/utils/url'
@@ -759,7 +759,7 @@ async function handlePosted(editedNoteId?: string) {
                 />
                 <img
                   v-else-if="getReactionEntryUrl(entry)"
-                  :src="proxyUrl(getReactionEntryUrl(entry)!)"
+                  :src="proxyEmojiUrl(getReactionEntryUrl(entry)!)"
                   :alt="entry.type"
                   :title="entry.type"
                   decoding="async"

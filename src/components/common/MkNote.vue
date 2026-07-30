@@ -38,7 +38,7 @@ import { useServersStore } from '@/stores/servers'
 import { useSettingsStore } from '@/stores/settings'
 import { useToast } from '@/stores/toast'
 import { formatTime } from '@/utils/formatTime'
-import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
+import { proxyEmojiUrl, proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import {
   buildReactionsData,
   canRenoteNote,
@@ -884,7 +884,7 @@ function handlePickerReaction(reaction: string) {
               @mouseleave="reactionUsersRef?.hide()"
             >
               <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.customEmoji" role="img" :aria-label="r.reaction" :title="`${r.reaction} (ミュート中)`" />
-              <img v-else-if="reactionUrls[r.reaction]" :src="proxyUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.customEmoji" decoding="async" loading="lazy" @error="(e: Event) => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/emoji-unknown.svg')) img.src = '/emoji-unknown.svg' }" />
+              <img v-else-if="reactionUrls[r.reaction]" :src="proxyEmojiUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.customEmoji" decoding="async" loading="lazy" @error="(e: Event) => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/emoji-unknown.svg')) img.src = '/emoji-unknown.svg' }" />
               <img v-else-if="r.reaction.startsWith(':')" src="/emoji-unknown.svg" :alt="r.reaction" :title="r.reaction" :class="$style.customEmoji" />
               <MkEmoji v-else :emoji="r.reaction" :class="$style.reactionEmoji" />
               <span class="note-reaction-count" :class="$style.count">{{ r.count }}</span>

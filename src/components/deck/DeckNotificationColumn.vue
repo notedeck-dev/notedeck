@@ -54,7 +54,7 @@ import { useWindowsStore } from '@/stores/windows'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
-import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
+import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
 import { getNoteUri } from '@/utils/noteUrl'
 import {
   CROSS_ACCOUNT_NOTIFICATION_KEY,
@@ -441,7 +441,9 @@ function getCachedReactionUrl(
 ): string | null {
   const key = `${notification.id}:${reaction}`
   const cached = reactionUrlLookup.get(key)
-  if (cached) return cached
+  // 返却時にプロキシへ通す (キャッシュには生 URL を保持 — proxyEmojiUrl を
+  // render 中に呼ぶことで二段階配信の再読込世代がリアクティブに効く)
+  if (cached) return proxyEmojiUrl(cached) ?? cached
   const note = notification.note
   const url = reactionUrlRaw(
     reaction,
@@ -450,7 +452,7 @@ function getCachedReactionUrl(
     notification._serverHost,
   )
   if (url) reactionUrlLookup.set(key, url)
-  return url
+  return url ? (proxyEmojiUrl(url) ?? url) : null
 }
 
 function getCachedTwemojiUrl(reaction: string): string | null {
@@ -459,7 +461,7 @@ function getCachedTwemojiUrl(reaction: string): string | null {
   const url =
     reaction.startsWith(':') && reaction.endsWith(':')
       ? null
-      : (proxyUrl(char2twemojiUrl(reaction)) ?? null)
+      : char2twemojiUrl(reaction)
   twemojiUrlLookup.set(reaction, url)
   return url
 }
@@ -1145,7 +1147,7 @@ onUnmounted(() => {
                       <template v-if="notif.type === 'reaction:grouped' && notif.reactions?.length">
                         <span v-for="reaction in uniqueReactions(notif.reactions)" :key="reaction" :class="$style.notifReaction">
                           <span v-if="isEmojiMuted(reaction)" class="_emojiMuted" :class="$style.notifReactionEmoji" role="img" :aria-label="reaction" :title="`${reaction} (ミュート中)`" />
-                          <img v-else-if="getCachedReactionUrl(reaction, notif)" :src="getCachedReactionUrl(reaction, notif)!" :alt="reaction" :title="reaction" :class="$style.notifReactionEmoji" loading="lazy" @error="onReactionImgError" />
+                          <img v-else-if="getCachedReactionUrl(reaction, notif)" :src="getCachedReactionUrl(reaction, notif)!" :alt="reaction" :title="reaction" :class="$style.notifReactionEmoji" decoding="async" loading="lazy" @error="onReactionImgError" />
                           <MkEmoji v-else :emoji="reaction" :class="$style.notifReactionEmoji" />
                         </span>
                       </template>
@@ -1222,7 +1224,7 @@ onUnmounted(() => {
                       <span :class="$style.notifLabel">{{ notificationLabel(notif.type) }}</span>
                       <span v-if="notif.type === 'reaction' && notif.reaction" :class="$style.notifReaction">
                         <span v-if="isEmojiMuted(notif.reaction)" class="_emojiMuted" :class="$style.notifReactionEmoji" role="img" :aria-label="notif.reaction" :title="`${notif.reaction} (ミュート中)`" />
-                        <img v-else-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifReactionEmoji" loading="lazy" @error="onReactionImgError" />
+                        <img v-else-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifReactionEmoji" decoding="async" loading="lazy" @error="onReactionImgError" />
                         <MkEmoji v-else :emoji="notif.reaction" :class="$style.notifReactionEmoji" />
                       </span>
                     </div>

@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { cpSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import vue from '@vitejs/plugin-vue'
 import JSON5 from 'json5'
@@ -218,6 +218,47 @@ function injectAppVersion(): Plugin {
   }
 }
 
+/**
+ * Unicode 絵文字の Twemoji SVG を同梱して `/twemoji/` で配る (#855)。
+ * CDN (jsdelivr) から 1 絵文字 1 リクエストで取る方式は、ピッカー初回表示で
+ * 数千リクエストがメディアプロキシに殺到する要因だった。アセットは Misskey
+ * 本家と同系の Discord fork (@discordapp/twemoji)。
+ */
+function twemojiAssets(): Plugin {
+  const src = resolve(
+    import.meta.dirname,
+    'node_modules/@discordapp/twemoji/dist/svg',
+  )
+  let outDir = 'dist'
+  return {
+    name: 'nd-twemoji-assets',
+    configResolved(config) {
+      outDir = config.build.outDir
+    },
+    configureServer(server) {
+      server.middlewares.use('/twemoji', (req, res, next) => {
+        const name = (req.url ?? '').split('?')[0]?.replace(/^\//, '') ?? ''
+        // コードポイント列のファイル名のみ許可 (パストラバーサル防止)
+        if (!/^[0-9a-f-]+\.svg$/.test(name)) return next()
+        try {
+          const data = readFileSync(resolve(src, name))
+          res.setHeader('Content-Type', 'image/svg+xml')
+          res.setHeader('Cache-Control', 'public, max-age=3600')
+          res.end(data)
+        } catch {
+          res.statusCode = 404
+          res.end()
+        }
+      })
+    },
+    writeBundle() {
+      cpSync(src, resolve(import.meta.dirname, outDir, 'twemoji'), {
+        recursive: true,
+      })
+    },
+  }
+}
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -226,6 +267,7 @@ export default defineConfig({
     subsetTablerIcons(),
     preloadTablerFont(),
     injectAppVersion(),
+    twemojiAssets(),
   ],
   resolve: {
     alias: {

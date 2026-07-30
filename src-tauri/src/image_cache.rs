@@ -12,6 +12,13 @@ use tokio::sync::{watch, Mutex, RwLock, Semaphore};
 
 use crate::perf_config::SharedPerfConfig;
 
+/// メディア 1 件の取得予算 (接続〜ボディ読み切りまで)。共有 client の全体
+/// timeout (10s) より優先される。wry Android の custom protocol は応答を
+/// 10 秒で打ち切って panic するため (media_proxy::RESPONSE_DEADLINE 参照)、
+/// その内側で確実にエラーへ落とし、negative cache / circuit breaker に
+/// 学習させる。上流のストールを 10 秒付き合う価値のあるメディアは無い。
+const MEDIA_FETCH_TIMEOUT: Duration = Duration::from_secs(6);
+
 // Negative cache TTLs by error class
 const NEGATIVE_TTL_CLIENT: Duration = Duration::from_secs(24 * 60 * 60); // 4xx: 24h
 const NEGATIVE_TTL_SERVER: Duration = Duration::from_secs(2 * 60); // 5xx: 2min
@@ -66,6 +73,8 @@ pub struct ImageCache {
     negative_cache: Arc<RwLock<HashMap<String, (Instant, Duration)>>>,
     mem_cache: Arc<RwLock<MemCacheState>>,
     host_circuits: Arc<RwLock<HashMap<String, HostCircuitState>>>,
+    /// 二段階配信の背景 ensure (取得+変換) の重複防止 (cache_key 単位)
+    ensure_pending: Arc<Mutex<std::collections::HashSet<String>>>,
     perf: SharedPerfConfig,
 }
 
@@ -95,8 +104,66 @@ impl ImageCache {
                 total_size: 0,
             })),
             host_circuits: Arc::new(RwLock::new(HashMap::new())),
+            ensure_pending: Arc::new(Mutex::new(std::collections::HashSet::new())),
             perf,
         }
+    }
+
+    /// 変換結果 (variant) を cache_key 単位で保存する。オリジナルと同じ
+    /// .dat/.meta 形式なので sweep / clear / メモリ昇格がそのまま効く。
+    pub async fn store_variant(&self, key: &str, bytes: Vec<u8>, content_type: &str) {
+        let hash = hex_hash(key);
+        let data_path = self.cache_dir.join(format!("{hash}.dat"));
+        let meta_path = self.cache_dir.join(format!("{hash}.meta"));
+        let bytes_arc = Arc::new(bytes);
+
+        let bytes_for_disk = bytes_arc.clone();
+        let ct_for_disk = content_type.to_string();
+        tokio::task::spawn_blocking(move || {
+            std::fs::write(&data_path, &*bytes_for_disk).ok();
+            std::fs::write(&meta_path, &ct_for_disk).ok();
+        })
+        .await
+        .ok();
+
+        let max_item = self.perf.read().await.memory_cache_max_item;
+        if bytes_arc.len() <= max_item {
+            self.insert_mem_cache(&hash, &bytes_arc, content_type).await;
+        }
+    }
+
+    /// URL (または cache_key) が negative cache 中か。二段階配信のフェーズ 1 が
+    /// これを見ずに ensure を再発行すると、失敗イベント → img 再試行 → 失敗
+    /// イベントの無限ループになる。
+    pub async fn is_negative_cached(&self, url: &str) -> bool {
+        let neg = self.negative_cache.read().await;
+        match neg.get(&hex_hash(url)) {
+            Some((failed_at, ttl)) => failed_at.elapsed() < *ttl,
+            None => false,
+        }
+    }
+
+    /// 直近失敗 (negative cache) か既知のダウンホスト (circuit breaker) か。
+    /// 二段階配信のフェーズ 1 はこれが真なら ensure を発行せず即エラーを返す。
+    pub async fn is_fast_fail(&self, url: &str) -> bool {
+        if self.is_negative_cached(url).await {
+            return true;
+        }
+        if let Some(host) = Self::extract_host(url) {
+            if self.is_host_blocked(&host).await {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// ensure (背景取得+変換) の開始を予約する。既に進行中なら false。
+    pub async fn begin_ensure(&self, key: &str) -> bool {
+        self.ensure_pending.lock().await.insert(key.to_string())
+    }
+
+    pub async fn finish_ensure(&self, key: &str) {
+        self.ensure_pending.lock().await.remove(key);
     }
 
     async fn check_cache(
@@ -223,18 +290,14 @@ impl ImageCache {
             return Err("Only HTTPS URLs are allowed".to_string());
         }
 
-        // SSRF protection: block private/loopback IPs
-        if let Ok(parsed) = url::Url::parse(url) {
-            if let Some(host) = parsed.host_str() {
-                if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-                    if ip.is_loopback()
-                        || matches!(ip, std::net::IpAddr::V4(v4) if v4.is_private()
-                            || v4.is_link_local())
-                    {
-                        return Err("Private/loopback addresses are not allowed".to_string());
-                    }
-                }
-            }
+        // SSRF 防御は commands::http の validate_external_host に一元化
+        // (IP literal に加えて localhost / .local / .internal 等の hostname も
+        // 弾く)。DNS 解決結果の検証 + pinning は vault::ssrf の per-fetch
+        // resolver が要るため未適用 — 共有 client の経路では別途検討
+        {
+            let parsed = url::Url::parse(url).map_err(|e| format!("invalid url: {e}"))?;
+            let host = parsed.host_str().ok_or("url has no host")?;
+            crate::commands::validate_external_host(host)?;
         }
 
         // Circuit breaker: reject early if host is known-down
@@ -283,12 +346,14 @@ impl ImageCache {
             .map_err(|_| "Semaphore closed".to_string())?;
 
         // Start HTTP request (headers only, don't consume body yet)
-        // Some hosts (e.g. i.pximg.net) require a valid Referer header
+        // Some hosts (e.g. i.pximg.net) require a valid Referer header.
+        // scheme は入口で https 限定済みなので、元 URL から引き写さずに
+        // 固定する (http が混じる余地を型ではなくコードで断つ)
         let referer = url::Url::parse(url)
             .ok()
-            .map(|u| format!("{}://{}/", u.scheme(), u.host_str().unwrap_or_default()));
+            .and_then(|u| u.host_str().map(|h| format!("https://{h}/")));
 
-        let mut req = self.http_client.get(url);
+        let mut req = self.http_client.get(url).timeout(MEDIA_FETCH_TIMEOUT);
         if let Some(ref referer) = referer {
             req = req.header(reqwest::header::REFERER, referer);
         }
@@ -719,6 +784,109 @@ mod tests {
         let mem = cache.mem_cache.read().await;
         assert!(mem.entries.peek("a").is_none(), "LRU entry 'a' should be evicted");
         assert!(mem.entries.peek("b").is_some() || mem.entries.peek("c").is_some());
+    }
+
+    /// 変換結果 (variant) はオリジナルと同じ .dat/.meta 形式で cache_key の
+    /// ハッシュに保存し、check_cache_only で引けること。変換を毎回やり直すと
+    /// モバイルの CPU を秒単位で食い続ける (#855 の根本対策の一部)。
+    #[tokio::test]
+    async fn store_variant_roundtrips_via_check_cache_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(dir.path());
+        let key = "https://e.com/a.png|w=56|f=";
+        cache.store_variant(key, vec![9u8; 128], "image/webp").await;
+
+        let entry = cache
+            .check_cache_only(key)
+            .await
+            .expect("variant should be served from cache");
+        assert_eq!(entry.content_type, "image/webp");
+        // ディスクにも書かれている (プロセス再起動後も変換不要)
+        let dat = dir
+            .path()
+            .join("image_cache")
+            .join(format!("{}.dat", hex_hash(key)));
+        assert!(dat.exists());
+    }
+
+    /// 二段階配信のフェーズ 1 が「失敗直後の URL」へ ensure を再発行すると
+    /// 失敗イベント → 再試行 → 失敗イベントの無限ループになる。
+    /// negative cache を外から照会できることが再試行ループの遮断条件。
+    #[tokio::test]
+    async fn negative_cache_is_queryable_with_ttl() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(dir.path());
+        let url = "https://down.example/a.png";
+        assert!(!cache.is_negative_cached(url).await);
+
+        cache
+            .negative_cache
+            .write()
+            .await
+            .insert(hex_hash(url), (Instant::now(), Duration::from_secs(60)));
+        assert!(cache.is_negative_cached(url).await);
+
+        // TTL 切れは negative 扱いしない (自然回復)
+        cache.negative_cache.write().await.insert(
+            hex_hash(url),
+            (Instant::now() - Duration::from_secs(10), Duration::from_secs(5)),
+        );
+        assert!(!cache.is_negative_cached(url).await);
+    }
+
+    /// SSRF 防御は commands::http の validate_external_host に一元化。
+    /// IP literal だけでなく localhost / 予約 TLD などの hostname も
+    /// ネットワークに出る前に弾く (ローカル HTTP API からも叩ける面のため)
+    #[tokio::test]
+    async fn fetch_rejects_unsafe_hosts_before_network() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(dir.path());
+        for url in [
+            "https://localhost/a.png",
+            "https://127.0.0.1/a.png",
+            "https://[::1]/a.png",
+            "https://foo.internal/a.png",
+            "https://printer.local/a.png",
+        ] {
+            let err = cache
+                .fetch_streaming(url)
+                .await
+                .err()
+                .unwrap_or_else(|| panic!("should reject {url}"));
+            // 接続失敗 (ネットワークに出た) ではなく検証で弾いたことを確かめる
+            assert!(err.contains("not allowed"), "{url}: {err}");
+        }
+    }
+
+    /// circuit breaker で塞がれたホストもフェーズ 1 の即時失敗対象になること。
+    /// (negative cache に入らない失敗経路なので、これを見落とすと ensure が
+    /// 高速に空振りし続ける)
+    #[tokio::test]
+    async fn fast_fail_covers_circuit_breaker() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(dir.path());
+        let url = "https://down.example/a.png";
+        assert!(!cache.is_fast_fail(url).await);
+
+        cache.host_circuits.write().await.insert(
+            "down.example".to_string(),
+            HostCircuitState {
+                consecutive_failures: 9,
+                tripped_at: Some(Instant::now()),
+            },
+        );
+        assert!(cache.is_fast_fail(url).await);
+    }
+
+    /// 同じ variant への ensure が並走しないこと (変換 CPU の二重払い防止)
+    #[tokio::test]
+    async fn ensure_dedup_via_begin_finish() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(dir.path());
+        assert!(cache.begin_ensure("k").await);
+        assert!(!cache.begin_ensure("k").await, "must not start twice");
+        cache.finish_ensure("k").await;
+        assert!(cache.begin_ensure("k").await, "finished key can start again");
     }
 
     /// `<stem>.dat` + `.meta` の対を作り、mtime を指定秒だけ過去にずらす
