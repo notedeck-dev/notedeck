@@ -124,40 +124,6 @@ jobs:
 
           rm /tmp/release.keystore
 
-      - name: Get version
-        if: startsWith(github.ref, 'refs/tags/v')
-        id: version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
-
-      # 配布名は ABI を明示する。取り違えても Android が
-      # 「このアプリは端末に対応していません」で弾くので事故にはならない。
-      # 実機はほぼ arm64 なので、リリースノートでそれを案内する。
-      - name: Rename APKs
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          set -euo pipefail
-          VERSION=${{ steps.version.outputs.version }}
-          OUT=src-tauri/gen/android/app/build/outputs/apk
-          shopt -s nullglob
-
-          for FLAVOR_DIR in "$OUT"/*/release; do
-            FLAVOR=$(basename "$(dirname "$FLAVOR_DIR")")
-            # 署名済みを優先し、無ければ未署名を配る (既存の挙動を踏襲)
-            APK=("$FLAVOR_DIR"/*-release-signed.apk)
-            [ ${#APK[@]} -eq 0 ] && APK=("$FLAVOR_DIR"/*-release-unsigned.apk)
-            [ ${#APK[@]} -eq 0 ] && continue
-            cp "${APK[0]}" "NoteDeck-${VERSION}-android-${FLAVOR}.apk"
-          done
-
-          ls -lh NoteDeck-*-android-*.apk
-
-      - name: Upload to release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true
-          files: NoteDeck-*-android-*.apk
-
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
         with:
@@ -216,3 +182,50 @@ jobs:
               exit 1
             fi
             echo "アプリは 20 秒間生存した"
+
+  # 起動確認を通った APK だけをリリースに載せる。build ジョブから直接
+  # アップロードすると、smoke-test が落ちても壊れた APK が添付されてしまい
+  # 安全網にならない (#858 はまさにそれで公開まで到達した)。
+  publish:
+    needs: smoke-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download APKs
+        uses: actions/download-artifact@v6
+        with:
+          name: android-apk
+          path: apk
+
+      # 配布名は ABI を明示する。取り違えても Android が
+      # 「このアプリは端末に対応していません」で弾くので事故にはならない。
+      # 実機はほぼ arm64 なので、リリースノートでそれを案内する。
+      - name: Rename APKs
+        run: |
+          set -euo pipefail
+          VERSION=${GITHUB_REF#refs/tags/v}
+          shopt -s nullglob
+
+          for FLAVOR_DIR in apk/*/release; do
+            FLAVOR=$(basename "$(dirname "$FLAVOR_DIR")")
+            # 署名済みを優先し、無ければ未署名を配る (既存の挙動を踏襲)
+            APKS=("$FLAVOR_DIR"/*-release-signed.apk)
+            [ ${#APKS[@]} -eq 0 ] && APKS=("$FLAVOR_DIR"/*-release-unsigned.apk)
+            [ ${#APKS[@]} -eq 0 ] && continue
+            cp "${APKS[0]}" "NoteDeck-${VERSION}-android-${FLAVOR}.apk"
+          done
+
+          if ! ls NoteDeck-*-android-*.apk > /dev/null 2>&1; then
+            echo "ERROR: no APK to publish" >&2
+            find apk -name '*.apk' >&2 || true
+            exit 1
+          fi
+          ls -lh NoteDeck-*-android-*.apk
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: NoteDeck-*-android-*.apk
