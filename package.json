@@ -74,6 +74,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",
+    "@discordapp/twemoji": "16.0.1",
     "@tauri-apps/api": "~2.10.1",
     "@tauri-apps/cli": "^2.11.2",
     "@types/js-yaml": "^4.0.9",
