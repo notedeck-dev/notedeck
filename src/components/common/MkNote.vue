@@ -29,6 +29,8 @@ import {
   useVaporTransitionGroup,
 } from '@/composables/useVaporTransition'
 import { useAccountsStore } from '@/stores/accounts'
+import { useMutesStore } from '@/stores/mutes'
+import { useReactionRecountsStore } from '@/stores/reactionRecounts'
 import { useSettingsStore } from '@/stores/settings'
 import { formatTime } from '@/utils/formatTime'
 import { proxyThumbUrl, proxyUrl } from '@/utils/imageProxy'
@@ -341,8 +343,49 @@ const reactionsData = computed(() =>
   buildReactionsData(effectiveNote.value, reactionUrlRaw),
 )
 
-const sortedReactions = computed(() => reactionsData.value.sorted)
+// #575: ミュートユーザーのリアクション抹消。数え直し済みカウントがあれば
+// count を差し替え、0 になった絵文字は行ごと消す (取得は下の watch)
+const recountsStore = useReactionRecountsStore()
+const mutesStore = useMutesStore()
+const hideMutedReactions = computed(
+  () => settingsStore.get('mute.hideMutedUserReactions') === true,
+)
+
+const sortedReactions = computed(() => {
+  const sorted = reactionsData.value.sorted
+  if (!hideMutedReactions.value) return sorted
+  const counts = recountsStore.get(
+    props.note._accountId,
+    effectiveNote.value.id,
+    effectiveNote.value.reactions,
+  )
+  if (!counts) return sorted
+  return sorted
+    .map((r) => ({ ...r, count: counts[r.reaction] ?? 0 }))
+    .filter((r) => r.count > 0)
+})
 const reactionUrls = computed(() => reactionsData.value.urls)
+
+watch(
+  [
+    reactionsVisible,
+    hideMutedReactions,
+    () => effectiveNote.value.id,
+    () => effectiveNote.value.reactions,
+    () => mutesStore.mutedUsersVersion,
+  ],
+  () => {
+    if (!reactionsVisible.value || !hideMutedReactions.value) return
+    const accountId = props.note._accountId
+    if (!mutesStore.hasMutedUsers(accountId)) return
+    recountsStore.ensure(
+      accountId,
+      effectiveNote.value.id,
+      effectiveNote.value.reactions,
+    )
+  },
+  { immediate: true },
+)
 
 const reactionsWithId = computed(() =>
   sortedReactions.value.map((r) => ({ ...r, id: r.reaction })),

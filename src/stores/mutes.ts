@@ -10,10 +10,22 @@ import { matchMutedWords } from '@/utils/wordMuteMatch'
  */
 function createAccountSet() {
   const byAccount = shallowRef(new Map<string, Set<string>>())
+  /** 集合の変更ごとに増えるバージョン。派生キャッシュの無効化トリガに使う (#575)。 */
+  const version = shallowRef(0)
+  /**
+   * 集合が縮みうる変更 (remove / replace) だけで増えるバージョン。
+   * 追加はクライアント照合で即時反映できるが、解除は「除外済みの列挙から
+   * 欠落したまま」になるため取り直しが要る — その判定用 (#575)。
+   */
+  const removalVersion = shallowRef(0)
 
   function has(accountId: string, value: string | null | undefined): boolean {
     if (!value) return false
     return byAccount.value.get(accountId)?.has(value) ?? false
+  }
+
+  function hasAny(accountId: string): boolean {
+    return (byAccount.value.get(accountId)?.size ?? 0) > 0
   }
 
   function add(accountId: string, value: string) {
@@ -23,21 +35,26 @@ function createAccountSet() {
       byAccount.value.set(accountId, set)
     }
     set.add(value)
+    version.value++
     triggerRef(byAccount)
   }
 
   function remove(accountId: string, value: string) {
     byAccount.value.get(accountId)?.delete(value)
+    version.value++
+    removalVersion.value++
     triggerRef(byAccount)
   }
 
   /** サーバ同期。アカウントの集合を丸ごと置き換える。 */
   function replace(accountId: string, values: string[]) {
     byAccount.value.set(accountId, new Set(values))
+    version.value++
+    removalVersion.value++
     triggerRef(byAccount)
   }
 
-  return { has, add, remove, replace }
+  return { has, hasAny, add, remove, replace, version, removalVersion }
 }
 
 interface AccountWordMutes {
@@ -90,9 +107,14 @@ export const useMutesStore = defineStore('mutes', () => {
   return {
     // user mute
     isUserMuted: users.has,
+    hasMutedUsers: users.hasAny,
     muteUser: users.add,
     unmuteUser: users.remove,
     setMutedUsers: users.replace,
+    /** ミュートユーザー集合の変更バージョン (派生キャッシュの再取得トリガ、#575) */
+    mutedUsersVersion: users.version,
+    /** 集合が縮んだときだけ増えるバージョン (派生キャッシュの purge 用、#575) */
+    mutedUsersRemovalVersion: users.removalVersion,
     // renote mute
     isRenoteMuted: renoters.has,
     muteRenote: renoters.add,

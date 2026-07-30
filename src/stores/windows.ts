@@ -25,7 +25,6 @@ export type WindowType =
   | 'appearanceEditor'
   | 'backup'
   | 'cacheEditor'
-  | 'emojiMute'
   | 'tasksEditor'
   | 'snippetsEditor'
   | 'memoEditor'
@@ -116,7 +115,6 @@ export const useWindowsStore = defineStore('windows', () => {
     'appearanceEditor',
     'backup',
     'cacheEditor',
-    'emojiMute',
     'tasksEditor',
     'snippetsEditor',
     'connections',

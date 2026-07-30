@@ -47,6 +47,14 @@ export interface NotedeckSettings {
    * 設定ウィンドウの一覧で実体を見せる用途に限って保持する。
    */
   'mute.emojiUrls'?: Record<string, string>
+  /**
+   * ミュートしたユーザーのリアクションをノートの集計 (絵文字＋数字) から
+   * 抹消する (#575)。本家はカウントに含めたままだが、NoteDeck は「存在ごと
+   * 隠す」を選べるようにする。判定はサーバーの `notes/reactions` がミュート
+   * ユーザーを除外して返す性質を利用した数え直しで、リアクション総数が
+   * 多いノートは取得コストの都合で対象外 (サーバー集計のまま)。
+   */
+  'mute.hideMutedUserReactions'?: boolean
 
   // --- Post form ---
   'postForm.preview'?: boolean

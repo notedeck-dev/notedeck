@@ -679,15 +679,6 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   })
 
   commandStore.register({
-    id: 'emoji-mute',
-    label: '絵文字ミュート',
-    icon: 'mood-off',
-    category: 'general',
-    shortcuts: keybindsStore.getShortcuts('emoji-mute'),
-    execute: () => useWindowsStore().open('emojiMute'),
-  })
-
-  commandStore.register({
     id: 'tasks.run-default',
     label: 'デフォルトタスクを実行',
     icon: 'player-play-filled',
@@ -980,7 +971,6 @@ export function unregisterDefaultCommands() {
     'move-column-right',
     'clear-all-cache',
     'snippets-editor',
-    'emoji-mute',
     'tasks.run-default',
     'plugins-global',
     'theme-manager',
