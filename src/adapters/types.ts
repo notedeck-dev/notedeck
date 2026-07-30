@@ -14,6 +14,8 @@
  */
 export type ServerSoftware =
   | 'misskey-dev/misskey'
+  // Misskey を名乗り続けるフォーク
+  | 'misskeyio/misskey'
   | 'yamisskey-dev/yamisskey'
   | 'lqvp/misskey-tempura'
   // 名前が Misskey から乖離したフォーク。識別のみで未対応 (STRATEGY.md)

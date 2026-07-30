@@ -25,13 +25,18 @@ interface ForkDefinition {
   displayName: string
   /** NoteDeck が対応しているか。未対応フォークは識別のみ行う (#853) */
   supported: boolean
-  /** nodeinfo software.name (lowercase) の一致候補 */
+  /**
+   * nodeinfo software.name (lowercase) の一致候補。Misskey 系フォークの多くは
+   * name を "misskey" のままにしているため、その場合は空にして repository で
+   * 識別する (nodeinfo 2.0 しか返さないサーバーでは本家扱いにフォールバック)。
+   */
   names: string[]
 }
 
 /**
  * 既知の Misskey 系ソフトウェア。対応するのは「Misskey を名乗り続けるフォーク」
  * のみ (STRATEGY.md)。名前が乖離したフォークも識別して「未対応」と名指しする。
+ * 個人サーバーの小規模フォークは本家扱いのままにする。
  */
 const FORKS: ForkDefinition[] = [
   {
@@ -39,6 +44,12 @@ const FORKS: ForkDefinition[] = [
     displayName: 'Misskey',
     supported: true,
     names: ['misskey'],
+  },
+  {
+    id: 'misskeyio/misskey',
+    displayName: 'Misskey.io',
+    supported: true,
+    names: [],
   },
   {
     id: 'yamisskey-dev/yamisskey',

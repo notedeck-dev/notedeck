@@ -67,6 +67,13 @@ describe('resolveSoftware', () => {
     expect(resolveSoftware('mastodon')).toBe('unknown')
   })
 
+  it('identifies the misskey.io fork by repository URL', () => {
+    // software.name は "misskey" のままなので repository でしか分からない
+    expect(
+      resolveSoftware('misskey', 'https://github.com/MisskeyIO/misskey'),
+    ).toBe('misskeyio/misskey')
+  })
+
   it('identifies known but unsupported forks by software name (#853)', () => {
     expect(resolveSoftware('sharkey')).toBe('sharkey/sharkey')
     expect(resolveSoftware('cherrypick')).toBe('kokonect-link/cherrypick')
@@ -89,6 +96,7 @@ describe('isSupportedSoftware', () => {
     expect(isSupportedSoftware('misskey-dev/misskey')).toBe(true)
     expect(isSupportedSoftware('yamisskey-dev/yamisskey')).toBe(true)
     expect(isSupportedSoftware('lqvp/misskey-tempura')).toBe(true)
+    expect(isSupportedSoftware('misskeyio/misskey')).toBe(true)
   })
 
   it('rejects identified but unsupported forks and unknown software', () => {
