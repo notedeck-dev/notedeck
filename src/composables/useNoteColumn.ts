@@ -32,7 +32,14 @@ import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useReadMarker } from '@/composables/useReadMarker'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
+import {
+  type CompileResult,
+  compileColumnQuery,
+  hashQirQuery,
+} from '@/services/columnQuery/compiler'
+import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
 import { isGuestAccount } from '@/stores/accounts'
+import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
@@ -173,7 +180,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
   // dedup (noteId × event sig × 1.5s) で吸収される。
   const { sync: syncNoteCapture } = useNoteCapture(
     () => getAdapter()?.stream,
-    onNoteUpdate,
+    (event) => onNoteUpdateWithQuery(event),
   )
   setOnNotesChanged(syncNoteCapture)
 
@@ -249,9 +256,134 @@ export function useNoteColumn(config: NoteColumnConfig) {
     () => notes.value[0]?.id ?? null,
   )
 
+  // --- カラムクエリ (#783 層 2) ---
+  // カラム設定の noteQuery (インライン式) + noteQueryRefs (名前付きクエリ参照)
+  // を QIR にコンパイルし、全取り込み経路 (キャッシュ復元 / REST / ページング /
+  // streaming / refresh) で同期評価する。合成は And (仕様追補 B)。
+  // 層 1 述語 (isHidden) は表示 computed 側で、合成は「!isHidden && query」
+  // (#831 の縫い目)。組込 filterNotes とは AND 合成 (組込が先 = 最安)。
+  const columnQueriesStore = useColumnQueriesStore()
+  const compiledQuery = computed(() => {
+    const col = config.getColumn()
+    const inline = col.noteQuery?.trim() ? col.noteQuery : null
+    const refs = col.noteQueryRefs ?? []
+    if (!inline && refs.length === 0) return null
+    const parts: { label: string | null; result: CompileResult }[] = []
+    // 参照消失 (削除・未導入) は捨てず fail-closed (仕様追補 A)
+    const missing: string[] = []
+    if (inline) {
+      parts.push({ label: null, result: compileColumnQuery(inline) })
+    }
+    for (const id of refs) {
+      const named = columnQueriesStore.getQuery(id)
+      if (!named) {
+        missing.push(id)
+        continue
+      }
+      parts.push({ label: named.name, result: compileColumnQuery(named.src) })
+    }
+    return { parts, missing }
+  })
+  /** per-note エラーの診断計上 (V14: エラー = 除外 + 計上) */
+  const queryErrorCount = ref(0)
+  /** クエリで除外したノート数 (空状態の「TL が空」との区別表示用) */
+  const queryExcludedCount = ref(0)
+  const columnQueryState = computed(() => {
+    const compiled = compiledQuery.value
+    if (!compiled) return { status: 'none' as const, diagnostics: [] }
+    const diagnostics: { message: string }[] = []
+    for (const id of compiled.missing) {
+      diagnostics.push({
+        message: `参照している名前付きクエリ (${id}) が見つかりません`,
+      })
+    }
+    for (const part of compiled.parts) {
+      if (part.result.ok) continue
+      const prefix = part.label ? `${part.label}: ` : ''
+      for (const d of part.result.diagnostics) {
+        diagnostics.push({ message: `${prefix}${d.message}` })
+      }
+    }
+    if (diagnostics.length > 0) {
+      return { status: 'invalid' as const, diagnostics }
+    }
+    return { status: 'active' as const, diagnostics: [] }
+  })
+
+  function queryAdmits(note: NormalizedNote): boolean {
+    const compiled = compiledQuery.value
+    if (!compiled) return true
+    // 参照消失・コンパイル不能の残留は fail-closed (不変条件 (f))
+    if (columnQueryState.value.status === 'invalid') return false
+    // And 合成: 全部 match のときだけ表示 (短絡)。error = 除外 + 計上
+    for (const part of compiled.parts) {
+      if (!part.result.ok) return false // 到達しない (invalid で弾く) が防御
+      const verdict = evaluateQirQuery(part.result.query, note)
+      if (verdict === 'match') continue
+      if (verdict === 'error') queryErrorCount.value++
+      queryExcludedCount.value++
+      return false
+    }
+    return true
+  }
+
+  /** 合成クエリの実効シグネチャ (dedup キーと変更検知を兼ねる)。 */
+  const querySignature = computed(() => {
+    const compiled = compiledQuery.value
+    if (!compiled) return ''
+    if (columnQueryState.value.status === 'invalid') {
+      return `invalid:${compiled.missing.join(',')}`
+    }
+    return compiled.parts
+      .map((p) => (p.result.ok ? hashQirQuery(p.result.query) : 'x'))
+      .join('+')
+  })
+
+  // クエリ変更時 (インライン編集・トグル・named の編集伝播): 診断をリセットし、
+  // 表示中ノートへ即時適用 (絞り込み方向) + refetch (緩和方向の回収)
+  watch(querySignature, (next, prev) => {
+    if (next === prev) return
+    queryErrorCount.value = 0
+    queryExcludedCount.value = 0
+    if (rawNotes.value.length > 0) {
+      setNotes(applyQueryFilter(rawNotes.value))
+    }
+    void refresh()
+  })
+
+  function applyQueryFilter(incoming: NormalizedNote[]): NormalizedNote[] {
+    if (!compiledQuery.value) return incoming
+    return incoming.filter((n) => queryAdmits(n))
+  }
+
+  /** streaming 挿入にもクエリを適用する (enqueue 前段、V13/V22) */
+  function enqueueWithQuery(n: NormalizedNote): void {
+    if (!queryAdmits(n)) return
+    streamingBatch?.enqueueNote(n)
+  }
+
+  /**
+   * ノート更新イベント後の再評価 (V24)。表示中ノートが更新でクエリ条件を
+   * 外れたら即除去する (例: reactions を見るクエリ)。逆方向 (外 → 内) は
+   * 挿入しない — 取得経路を通っていないノートは位置が定まらない (追補 C-7)。
+   * 本文編集はライブイベントが無く、refetch 経路の applyFilter が担う。
+   */
+  function onNoteUpdateWithQuery(event: NoteUpdateEvent): void {
+    onNoteUpdate(event)
+    if (!compiledQuery.value || event.type === 'deleted') return
+    void nextTick(() => {
+      const note = rawNotes.value.find((n) => n.id === event.noteId)
+      if (!note) return
+      if (!queryAdmits(note)) {
+        setNotes(rawNotes.value.filter((n) => n.id !== event.noteId))
+      }
+    })
+  }
+
   /** Apply filterNotes if configured */
   function applyFilter(incoming: NormalizedNote[]): NormalizedNote[] {
-    return config.filterNotes ? config.filterNotes(incoming) : incoming
+    const base = config.filterNotes ? config.filterNotes(incoming) : incoming
+    return applyQueryFilter(base)
   }
 
   /**
@@ -368,7 +500,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
   function getDedupKey(): string {
     const fetchKey = config.fetchKey ? `:${config.fetchKey()}` : ''
-    return `${config.getColumn().accountId}:${config.cache?.getKey() ?? 'default'}${fetchKey}`
+    // クエリ違いのカラム間でレスポンスキャッシュを共有しない (#783 V13)。
+    // 合成クエリは全構成要素のハッシュ連結 (named の編集も fetchKey を変える)
+    const queryKey = querySignature.value ? `:q=${querySignature.value}` : ''
+    return `${config.getColumn().accountId}:${config.cache?.getKey() ?? 'default'}${fetchKey}${queryKey}`
   }
 
   async function fetchAndDedup(
@@ -543,11 +678,11 @@ export function useNoteColumn(config: NoteColumnConfig) {
           }
         })
         setSubscription(
-          config.streaming.subscribe(adapter, streamingBatch.enqueueNote, {
+          config.streaming.subscribe(adapter, enqueueWithQuery, {
             onNoteUpdated: (event) => {
               if (event.type === 'deleted')
                 streamingBatch.removePending(event.noteId)
-              onNoteUpdate(event)
+              onNoteUpdateWithQuery(event)
             },
           }),
         )
@@ -704,12 +839,14 @@ export function useNoteColumn(config: NoteColumnConfig) {
     try {
       if (config.refreshFetch) {
         const result = await config.refreshFetch(adapter, rawNotes.value)
+        // refreshFetch 経路にもカラムクエリを適用する (#783 全取り込み経路)
+        const refreshed = applyQueryFilter(result.notes)
         if (result.mode === 'replace') {
-          setNotes(result.notes)
-          resetFetchCursor(result.notes)
+          setNotes(refreshed)
+          resetFetchCursor(refreshed)
           scrollToTop()
-        } else if (result.notes.length > 0) {
-          setNotes(insertIntoSorted(rawNotes.value, result.notes))
+        } else if (refreshed.length > 0) {
+          setNotes(insertIntoSorted(rawNotes.value, refreshed))
           scrollToTop()
         }
       } else {
@@ -824,11 +961,11 @@ export function useNoteColumn(config: NoteColumnConfig) {
     disposeSubscription()
     streamingBatch.resetBatch()
     setSubscription(
-      config.streaming.subscribe(adapter, streamingBatch.enqueueNote, {
+      config.streaming.subscribe(adapter, enqueueWithQuery, {
         onNoteUpdated: (event) => {
           if (event.type === 'deleted')
             streamingBatch.removePending(event.noteId)
-          onNoteUpdate(event)
+          onNoteUpdateWithQuery(event)
         },
       }),
     )
@@ -1004,6 +1141,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
     isLoggedOut,
     viewMarkerId,
     error,
+    // カラムクエリ (#783): UI 側のバッジ・診断表示用
+    columnQueryState,
+    columnQueryErrorCount: queryErrorCount,
+    columnQueryExcludedCount: queryExcludedCount,
     notes,
     orderedIds,
     focusedNoteId,

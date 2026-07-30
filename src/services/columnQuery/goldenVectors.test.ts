@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { compileColumnQuery } from '@/services/columnQuery/compiler'
+import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
 import {
   createReferenceFilter,
   type FilterVerdict,
@@ -37,6 +39,34 @@ describe('golden vectors × 参照評価器 (AiScript 1.2.1)', () => {
   it('ケース名が一意である', () => {
     const names = cases.map((c) => c.name)
     expect(new Set(names).size).toBe(names.length)
+  })
+
+  /**
+   * QIR は静的型検査を持つため、fallback では実行時 per-note エラーになる
+   * 「常に型エラー」の式はそもそもコンパイルされない (V20)。
+   * ここに列挙されたケースは QIR 経路では保存時拒否 = fallback 専用ベクタ。
+   */
+  const QIR_STATIC_REJECT = new Set([
+    'non-bool-result-error',
+    'lt-on-string-error',
+    'and-non-bool-error',
+    'not-non-bool-error',
+  ])
+
+  describe('QIR 経路 (compiler → JS evaluator) が参照評価器と一致する', () => {
+    it.each(cases.map((c) => [c.name, c] as const))('%s', (_name, c) => {
+      const compiled = compileColumnQuery(c.source)
+      if (QIR_STATIC_REJECT.has(c.name)) {
+        expect(compiled.ok, '静的型エラーとして拒否されるべき').toBe(false)
+        return
+      }
+      expect(
+        compiled.ok,
+        compiled.ok ? '' : JSON.stringify(compiled.diagnostics),
+      ).toBe(true)
+      if (!compiled.ok) return
+      expect(evaluateQirQuery(compiled.query, c.note)).toBe(c.expected)
+    })
   })
 
   it('構文エラーのソースは保存時エラー (per-note エラーと区別)', () => {

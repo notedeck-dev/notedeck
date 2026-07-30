@@ -61,6 +61,15 @@ async cacheStats() : Promise<Result<CacheStats, { code: string; message: string 
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * QIR の構造検証 (スキーマ世代 + ノード数/深さ上限)。
+ * 
+ * IPC 受領時の Rust 側検証 (V18/V21)。Phase 1 では評価はフロントで完結する
+ * ため副作用はないが、bindings.ts に QIR 型契約を載せる役割を兼ねる。
+ */
+async qirValidate(query: QirQuery) : Promise<QirValidation> {
+    return await TAURI_INVOKE("qir_validate", { query });
+},
 async accountCacheCount(accountId: string) : Promise<Result<number, { code: string; message: string }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("account_cache_count", { accountId }) };
@@ -2943,6 +2952,120 @@ export type PrincipalClass =
  */
 "external"
 export type PvChartGroup = { user: number[]; visitor: number[] }
+/**
+ * let 束縛。slot はコンパイラが式全体で一意に割り当てる
+ * (関数脱糖後もシャドーイングが発生しないよう名前でなく番号で参照する)。
+ */
+export type QirBinding = { slot: number; expr: QirNode }
+/**
+ * 数値比較演算子 (AiScript の `< <= > >=`、数値専用)。
+ */
+export type QirCmpOp = "lt" | "lteq" | "gt" | "gteq"
+/**
+ * QIR ノード。意味論は AiScript 1.2.1 と同一:
+ * - 欠落キーへのアクセスは null
+ * - null レシーバへの演算は per-note エラー (= ノート除外 + 診断計上)
+ * - `&&`/`||`/`!` は boolean 必須、比較は数値専用、`==`/`!=` はスカラーのみ
+ * - Let は eager 評価でエラー伝播 (未使用束縛のエラーも観測される、V19)
+ */
+export type QirNode = 
+/**
+ * 文字列リテラル
+ */
+{ kind: "str"; value: string } | 
+/**
+ * 数値リテラル
+ */
+{ kind: "num"; value: number } | 
+/**
+ * 真偽リテラル
+ */
+{ kind: "bool"; value: boolean } | 
+/**
+ * null リテラル
+ */
+{ kind: "null" } | 
+/**
+ * note ルートからのフィールドアクセス列 (例: ["user","host"])。
+ * 各ステップ: 現在値が obj → キー取得 (欠落は null)、null → エラー、他 → エラー
+ */
+{ kind: "field"; path: string[] } | 
+/**
+ * obj への文字列リテラル index (例: note.reactions["👍"])。欠落キーは null
+ */
+{ kind: "objIndex"; target: QirNode; key: string } | 
+/**
+ * 配列の .len (prop 参照)。str.len は独自計数のため QIR 対象外 (V20)
+ */
+{ kind: "arrLen"; target: QirNode } | 
+/**
+ * let 束縛列 + 本体。束縛は宣言順に eager 評価しエラー伝播する
+ */
+{ kind: "let"; bindings: QirBinding[]; body: QirNode } | 
+/**
+ * 束縛スロットの参照
+ */
+{ kind: "ref"; slot: number } | 
+/**
+ * 論理否定 (boolean 必須)
+ */
+{ kind: "not"; expr: QirNode } | 
+/**
+ * 短絡 AND (両辺 boolean 必須)
+ */
+{ kind: "and"; left: QirNode; right: QirNode } | 
+/**
+ * 短絡 OR (両辺 boolean 必須)
+ */
+{ kind: "or"; left: QirNode; right: QirNode } | 
+/**
+ * 数値比較 (両辺 num 必須、他型はエラー)
+ */
+{ kind: "cmp"; op: QirCmpOp; left: QirNode; right: QirNode } | 
+/**
+ * スカラー等値 (negated=true で !=)。null==null は true、型不一致は false
+ */
+{ kind: "eq"; negated: boolean; left: QirNode; right: QirNode } | 
+/**
+ * str.incl / str.starts_with / str.ends_with (1 引数形)
+ */
+{ kind: "strTest"; op: QirStrTestOp; target: QirNode; needle: QirNode } | 
+/**
+ * str.lower / str.upper
+ */
+{ kind: "strMap"; op: QirStrMapOp; target: QirNode } | 
+/**
+ * arr.incl (要素とのスカラー等値判定)
+ */
+{ kind: "arrIncl"; target: QirNode; needle: QirNode }
+/**
+ * コンパイル済みカラムクエリ。
+ */
+export type QirQuery = { 
+/**
+ * QIR_SCHEMA_VERSION。評価器は未知世代を必ず拒否する。
+ */
+schemaVersion: number; 
+/**
+ * トップレベル式。コンパイラが静的に bool 型であることを保証する (V20)。
+ */
+root: QirNode }
+/**
+ * 文字列変換演算 (レシーバ str・返り値 str)。
+ */
+export type QirStrMapOp = "lower" | "upper"
+/**
+ * 文字列判定演算 (レシーバ str・引数 str・返り値 bool。1 引数形のみ)。
+ */
+export type QirStrTestOp = "incl" | "startsWith" | "endsWith"
+/**
+ * qir_validate の結果。
+ */
+export type QirValidation = { ok: boolean; nodeCount: number; maxDepth: number; 
+/**
+ * ok=false のときの理由 (人間可読)。
+ */
+errors: string[] }
 export type QueryDelta = { queryId: string; revision: number; inserts: QueryItem[]; deletes: string[]; 
 /**
  * Partial note updates (reaction add/remove, poll vote, etc.) routed

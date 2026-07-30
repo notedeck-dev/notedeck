@@ -58,6 +58,9 @@ const {
   isLoggedOut,
   viewMarkerId,
   error,
+  columnQueryState,
+  columnQueryErrorCount,
+  columnQueryExcludedCount,
   notes,
   orderedIds,
   focusedNoteId,
@@ -119,6 +122,34 @@ const webUiUrl = computed(() => {
 const postFormPortalRef = useTemplateRef<HTMLElement>('postFormPortalRef')
 usePortal(postFormPortalRef)
 
+// --- カラムクエリ (#783): 全ノートカラム共通のバッジ・診断表示 ---
+// 定義・編集はクエリ管理カラムに一元化。カラム側は適用状態の表示と
+// (タイムラインカラムでは) フィルタメニューのトグルだけを持つ
+const queryBadgeTitle = computed(() => {
+  if (columnQueryState.value.status === 'invalid') {
+    return 'クエリを解釈できません — クエリ管理カラムで修正するかフィルタメニューで無効化してください'
+  }
+  const err =
+    columnQueryErrorCount.value > 0
+      ? ` (評価エラー ${columnQueryErrorCount.value} 件を除外)`
+      : ''
+  return `クエリ適用中${err}`
+})
+
+/** 空状態: クエリによる全件除外と「TL が空」を区別する (仕様追補 E) */
+const effectiveEmptyMessage = computed(() => {
+  if (columnQueryState.value.status === 'invalid') {
+    return 'クエリを解釈できないため表示を停止中です'
+  }
+  if (
+    columnQueryState.value.status === 'active' &&
+    columnQueryExcludedCount.value > 0
+  ) {
+    return `クエリに合致するノートがありません (${columnQueryExcludedCount.value} 件を除外中)`
+  }
+  return props.emptyMessage
+})
+
 defineExpose({
   account,
   scroller,
@@ -156,6 +187,14 @@ defineExpose({
     </template>
 
     <template #header-extra>
+      <span
+        v-if="columnQueryState.status !== 'none'"
+        :class="[$style.queryBadge, columnQueryState.status === 'invalid' && $style.queryBadgeInvalid]"
+        :title="queryBadgeTitle"
+      >
+        <i :class="columnQueryState.status === 'invalid' ? 'ti ti-alert-triangle' : 'ti ti-bolt'" />
+        <span v-if="columnQueryErrorCount > 0">{{ columnQueryErrorCount }}</span>
+      </span>
       <slot name="header-extra" />
     </template>
 
@@ -204,6 +243,15 @@ defineExpose({
         <i class="ti ti-bolt-off" />ポーリング
       </div>
 
+      <!-- クエリ評価不能 = fail-closed 中 (#783 不変条件 (f)) -->
+      <div
+        v-if="columnQueryState.status === 'invalid'"
+        :class="$style.queryInvalidBanner"
+        :title="queryBadgeTitle"
+      >
+        <i class="ti ti-alert-triangle" />クエリを解釈できないため新着を停止中
+      </div>
+
       <!-- Inline post form slot (e.g. channel column) -->
       <slot name="before-notes" :handle-posted="handlePosted" />
 
@@ -213,7 +261,7 @@ defineExpose({
 
       <ColumnEmptyState
         v-if="!isLoading && notes.length === 0"
-        :message="emptyMessage"
+        :message="effectiveEmptyMessage"
         :image-url="serverInfoImageUrl"
       />
 
@@ -293,4 +341,21 @@ defineExpose({
 
 <style lang="scss" module>
 @use './column-common.module.scss';
+
+/* カラムクエリバッジ (#783): 適用中 = ⚡、評価不能 = ⚠ */
+.queryBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 0.75em;
+  color: var(--nd-accent);
+  background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
+}
+
+.queryBadgeInvalid {
+  color: var(--nd-error);
+  background: color-mix(in srgb, var(--nd-error) 12%, transparent);
+}
 </style>

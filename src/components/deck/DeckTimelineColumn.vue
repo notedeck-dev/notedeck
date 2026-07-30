@@ -16,6 +16,7 @@ import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { useAccountsStore } from '@/stores/accounts'
+import { useColumnQueriesStore } from '@/stores/columnQueries'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import type { CustomTimelineInfo } from '@/utils/customTimelines'
@@ -301,6 +302,27 @@ function toggleFilter(key: keyof TimelineFilter) {
   reconnect()
 }
 
+// --- 名前付きクエリのカスタムフィルタトグル (#783) ---
+// インストール済みクエリをフィルタメニューにトグル露出する (仕様追補)。
+// 反映は useNoteColumn のクエリシグネチャ watch (即時再適用 + refetch) が担う
+const columnQueriesStore = useColumnQueriesStore()
+columnQueriesStore.ensureLoaded()
+const namedQueryToggles = computed(() =>
+  columnQueriesStore.queries.map((q) => ({ id: q.id, name: q.name })),
+)
+
+function toggleNamedQuery(id: string) {
+  const refs = new Set(props.column.noteQueryRefs ?? [])
+  if (refs.has(id)) {
+    refs.delete(id)
+  } else {
+    refs.add(id)
+  }
+  deckStore.updateColumn(props.column.id, {
+    noteQueryRefs: refs.size > 0 ? [...refs] : undefined,
+  })
+}
+
 // --- Tab defs for ColumnTabs ---
 const tabDefs = computed<ColumnTabDef[]>(() =>
   allTlTypes.value.map((opt) => {
@@ -493,8 +515,11 @@ onMounted(async () => {
     :filters="columnFilters"
     :position="filterPopupPos"
     :theme-vars="columnThemeVars"
+    :named-queries="namedQueryToggles"
+    :enabled-query-ids="column.noteQueryRefs ?? []"
     @close="showFilterMenu = false"
     @toggle="toggleFilter"
+    @toggle-query="toggleNamedQuery"
   />
 </template>
 
