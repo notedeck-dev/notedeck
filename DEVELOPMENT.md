@@ -958,7 +958,7 @@ session 一覧では `AiSessionKind` 別の icon 統一 (`chat` → `ti-message-
 
 ### Fork support
 
-NoteDeck の対応範囲は **Misskey 本家および「Misskey を名乗り続けるフォーク」** です（yamisskey, misskey-tepura 等）。
+NoteDeck の対応範囲は **Misskey 本家および「Misskey を名乗り続けるフォーク」** です（yamisskey, misskey-tempura 等）。
 **Misskey から名前が別物になったフォーク（Sharkey, CherryPick, Firefish, Iceshrimp 等）は対応していません。**
 
 #### 自動検出で動くもの（コード変更不要）
