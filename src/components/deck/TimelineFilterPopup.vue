@@ -10,6 +10,10 @@ const props = defineProps<{
   filters: TimelineFilter
   position: { top: number; left: number }
   themeVars?: Record<string, string>
+  /** インストール済みの名前付きクエリ (#783 カスタムフィルタトグル) */
+  namedQueries?: { id: string; name: string }[]
+  /** このカラムで有効化中のクエリ id 列 */
+  enabledQueryIds?: string[]
 }>()
 
 const { visible, leaving } = useVaporTransition(toRef(props, 'show'), {
@@ -20,7 +24,12 @@ const { visible, leaving } = useVaporTransition(toRef(props, 'show'), {
 const emit = defineEmits<{
   close: []
   toggle: [key: keyof TimelineFilter]
+  toggleQuery: [id: string]
 }>()
+
+function isQueryEnabled(id: string): boolean {
+  return props.enabledQueryIds?.includes(id) ?? false
+}
 
 const popoverRef = ref<HTMLElement | null>(null)
 
@@ -70,6 +79,27 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
         <span class="nd-toggle-switch-knob" />
       </button>
     </div>
+
+    <!-- 名前付きクエリのカスタムフィルタトグル (#783、AND 合成) -->
+    <template v-if="namedQueries && namedQueries.length > 0">
+      <div :class="$style.filterPopupHeader">クエリ</div>
+      <div
+        v-for="q in namedQueries"
+        :key="q.id"
+        :class="$style.filterItem"
+        @click="emit('toggleQuery', q.id)"
+      >
+        <span :class="$style.filterLabel">{{ q.name }}</span>
+        <button
+          class="nd-toggle-switch"
+          :class="{ on: isQueryEnabled(q.id) }"
+          :aria-checked="isQueryEnabled(q.id)"
+          role="switch"
+        >
+          <span class="nd-toggle-switch-knob" />
+        </button>
+      </div>
+    </template>
   </div>
 </template>
 

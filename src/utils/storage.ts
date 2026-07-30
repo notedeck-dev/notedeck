@@ -100,6 +100,7 @@ export const STORAGE_KEYS = {
   // 追加された built-in だけを補填する。
   pluginsSeededBuiltins: 'nd-plugins-seeded-builtins',
   widgets: 'nd-widgets',
+  columnQueries: 'nd-column-queries',
   widgetsSidebarOrder: 'nd-widgets-sidebar-order',
   recentEmojis: 'nd-recent-emojis',
   emojisCache: 'emojis_cache',

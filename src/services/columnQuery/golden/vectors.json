@@ -1,0 +1,192 @@
+{
+  "schemaVersion": 1,
+  "description": "QIR golden vectors (#783 不変条件 (a))。全評価器 (JS QIR eval / Rust QIR eval / fallback Interpreter) はこの期待値に一致しなければならない。期待値の正本は AiScript 1.2.1 の実挙動 (referenceEvaluator で採取)。note は NormalizedNote の serde 形 (camelCase) の部分集合。lone surrogate は serde_json が表現できないため共有ベクタに含めない (V24 の既知乖離、JS 側単体テストで担保)。",
+  "cases": [
+    {
+      "name": "text-incl-match",
+      "source": "note.text != null && note.text.incl(\"misskey\")",
+      "note": { "text": "misskey 最高" },
+      "expected": "match"
+    },
+    {
+      "name": "text-incl-unmatch",
+      "source": "note.text != null && note.text.incl(\"misskey\")",
+      "note": { "text": "hello" },
+      "expected": "unmatch"
+    },
+    {
+      "name": "text-null-guarded-unmatch",
+      "source": "note.text != null && note.text.incl(\"misskey\")",
+      "note": { "text": null },
+      "expected": "unmatch"
+    },
+    {
+      "name": "null-receiver-error",
+      "source": "note.text.incl(\"x\")",
+      "note": { "text": null },
+      "expected": "error"
+    },
+    {
+      "name": "let-unused-binding-error",
+      "source": "let t = note.text.lower()\ntrue",
+      "note": { "text": null },
+      "expected": "error"
+    },
+    {
+      "name": "let-short-circuit-branch-error",
+      "source": "let t = note.text.lower()\nfalse && t.incl(\"x\")",
+      "note": { "text": null },
+      "expected": "error"
+    },
+    {
+      "name": "non-bool-result-error",
+      "source": "note.visibility",
+      "note": { "visibility": "public" },
+      "expected": "error"
+    },
+    {
+      "name": "null-eq-null-match",
+      "source": "note.renoteId == null",
+      "note": { "renoteId": null },
+      "expected": "match"
+    },
+    {
+      "name": "renote-id-present-unmatch",
+      "source": "note.renoteId == null",
+      "note": { "renoteId": "abc123" },
+      "expected": "unmatch"
+    },
+    {
+      "name": "missing-key-is-null-match",
+      "source": "note.cw == null",
+      "note": {},
+      "expected": "match"
+    },
+    {
+      "name": "reactions-literal-index-missing-match",
+      "source": "note.reactions[\"👍\"] == null",
+      "note": { "reactions": {} },
+      "expected": "match"
+    },
+    {
+      "name": "reactions-literal-index-present-match",
+      "source": "note.reactions[\":igyo@.:\"] != null",
+      "note": { "reactions": { ":igyo@.:": 3 } },
+      "expected": "match"
+    },
+    {
+      "name": "turkish-dotted-i-lower-match",
+      "source": "note.text != null && note.text.lower().incl(\"i̇stanbul\")",
+      "note": { "text": "İstanbul" },
+      "expected": "match"
+    },
+    {
+      "name": "final-sigma-lower-final-form",
+      "source": "note.text != null && note.text.lower() == \"οδος\"",
+      "note": { "text": "ΟΔΟΣ" },
+      "expected": "match"
+    },
+    {
+      "name": "final-sigma-lower-medial-form",
+      "source": "note.text != null && note.text.lower() == \"οδοσ\"",
+      "note": { "text": "ΟΔΟΣ" },
+      "expected": "unmatch"
+    },
+    {
+      "name": "eszett-upper-match",
+      "source": "note.text != null && note.text.upper() == \"STRASSE\"",
+      "note": { "text": "straße" },
+      "expected": "match"
+    },
+    {
+      "name": "emoji-astral-incl-match",
+      "source": "note.text != null && note.text.incl(\"👍\")",
+      "note": { "text": "👍ok" },
+      "expected": "match"
+    },
+    {
+      "name": "files-len-gt-match",
+      "source": "note.files != null && note.files.len > 0",
+      "note": { "files": [{ "id": "f1" }] },
+      "expected": "match"
+    },
+    {
+      "name": "files-missing-guarded-unmatch",
+      "source": "note.files != null && note.files.len > 0",
+      "note": {},
+      "expected": "unmatch"
+    },
+    {
+      "name": "files-empty-eq-zero-match",
+      "source": "note.files == null || note.files.len == 0",
+      "note": { "files": [] },
+      "expected": "match"
+    },
+    {
+      "name": "localonly-true-match",
+      "source": "note.localOnly == true",
+      "note": { "localOnly": true },
+      "expected": "match"
+    },
+    {
+      "name": "localonly-missing-scalar-eq-unmatch",
+      "source": "note.localOnly == true",
+      "note": {},
+      "expected": "unmatch"
+    },
+    {
+      "name": "visibility-eq-match",
+      "source": "note.visibility == \"specified\"",
+      "note": { "visibility": "specified" },
+      "expected": "match"
+    },
+    {
+      "name": "lt-on-string-error",
+      "source": "note.text < \"b\"",
+      "note": { "text": "a" },
+      "expected": "error"
+    },
+    {
+      "name": "and-non-bool-error",
+      "source": "note.text && true",
+      "note": { "text": "x" },
+      "expected": "error"
+    },
+    {
+      "name": "not-non-bool-error",
+      "source": "!note.text",
+      "note": { "text": "x" },
+      "expected": "error"
+    },
+    {
+      "name": "fn-desugar-match",
+      "source": "@hit(t) { t.incl(\"x\") }\nnote.text != null && hit(note.text)",
+      "note": { "text": "axb" },
+      "expected": "match"
+    },
+    {
+      "name": "fn-arg-eager-inside-guard-match",
+      "source": "@hit(lowered) { lowered.incl(\"ng\") }\n!(note.text != null && hit(note.text.lower()))",
+      "note": { "text": null },
+      "expected": "match"
+    },
+    {
+      "name": "short-literal-2char-incl-match",
+      "source": "note.text != null && note.text.incl(\"ab\")",
+      "note": { "text": "xaby" },
+      "expected": "match"
+    },
+    {
+      "name": "user-host-null-match",
+      "source": "note.user.host == null",
+      "note": { "user": { "username": "alice", "host": null } },
+      "expected": "match"
+    },
+    {
+      "name": "user-host-remote-unmatch",
+      "source": "note.user.host == null",
+      "note": { "user": { "username": "bob", "host": "example.com" } },
+      "expected": "unmatch"
+    }
+  ]
+}

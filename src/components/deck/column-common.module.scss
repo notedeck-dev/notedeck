@@ -217,6 +217,13 @@
   background: color-mix(in srgb, var(--nd-accent) 50%, transparent);
 }
 
+/* カラムクエリが評価不能 = fail-closed 中 (#783) */
+.queryInvalidBanner {
+  composes: statusBanner;
+  background: color-mix(in srgb, var(--nd-error) 70%, transparent);
+  cursor: pointer;
+}
+
 /* Loading */
 .columnLoading {
   display: flex;

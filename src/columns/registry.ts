@@ -483,6 +483,16 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     defaultProps: { widgets: [] },
     component: () => import('@/components/deck/DeckWidgetColumn.vue'),
   },
+  queryManager: {
+    label: 'クエリ',
+    icon: 'filter',
+    group: 'tool',
+    guestAllowed: true,
+    // クエリは純粋 (アカウント状態を参照しない) な全体プール (#783 追補 A)
+    accountIndependent: true,
+    defaultProps: { accountId: null },
+    component: () => import('@/components/deck/DeckQueryManagerColumn.vue'),
+  },
   skill: {
     label: 'スキル',
     icon: 'sparkles',
