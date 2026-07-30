@@ -514,16 +514,7 @@ export const useThemeStore = defineStore('theme', () => {
     force = false,
   ): Promise<void> {
     const cached = accountThemeCache.value.get(accountId)
-    if (!force && cached?._v === ACCOUNT_THEME_CACHE_VERSION) {
-      if (import.meta.env.DEV) {
-        console.debug(
-          '[theme] fetchAccountTheme cache hit',
-          accountId,
-          JSON.stringify(cached, null, 2),
-        )
-      }
-      return
-    }
+    if (!force && cached?._v === ACCOUNT_THEME_CACHE_VERSION) return
     if (fetchingAccounts.has(accountId)) return
     fetchingAccounts.add(accountId)
 
@@ -531,14 +522,6 @@ export const useThemeStore = defineStore('theme', () => {
       const data = unwrap(
         await commands.apiFetchAccountTheme(accountId),
       ) as ThemeResponse
-      if (import.meta.env.DEV) {
-        // props の中身まで展開 (registry sync の theme.props が空かどうか確認用)
-        console.debug(
-          '[theme] fetchAccountTheme raw data',
-          accountId,
-          JSON.stringify(data, null, 2),
-        )
-      }
       const entry: {
         _v: number
         dark?: MisskeyTheme

@@ -31,6 +31,7 @@ import PopupMenu from '@/components/common/PopupMenu.vue'
 import ReadMarkerDivider from '@/components/common/ReadMarkerDivider.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnSetup } from '@/composables/useColumnSetup'
+import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
@@ -91,6 +92,7 @@ const serversStore = useServersStore()
 const multiAdapters = useMultiAccountAdapters()
 
 const { reactionUrl: reactionUrlRaw } = useEmojiResolver()
+const { isEmojiMuted } = useEmojiMute()
 const {
   account,
   columnThemeVars,
@@ -459,6 +461,12 @@ function getCachedTwemojiUrl(reaction: string): string | null {
       : (proxyUrl(char2twemojiUrl(reaction)) ?? null)
   twemojiUrlLookup.set(reaction, url)
   return url
+}
+
+// 解決済み URL のロード失敗 (リモート鯖ダウン・プロキシ 502 等) は unknown 表示に落とす (#844)
+function onReactionImgError(e: Event) {
+  const img = e.target as HTMLImageElement
+  if (!img.src.endsWith('/emoji-unknown.svg')) img.src = '/emoji-unknown.svg'
 }
 
 const NOTIFICATION_ICONS: Record<string, string> = {
@@ -1107,8 +1115,9 @@ onUnmounted(() => {
                       @mouseleave="onNotifAvatarMouseLeave"
                     />
                     <template v-if="entry.reaction">
-                      <img v-if="getCachedReactionUrl(entry.reaction, notif)" :src="getCachedReactionUrl(entry.reaction, notif)!" :alt="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" />
-                      <img v-else-if="getCachedTwemojiUrl(entry.reaction)" :src="getCachedTwemojiUrl(entry.reaction)!" :alt="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" />
+                      <span v-if="isEmojiMuted(entry.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="entry.reaction" :title="`${entry.reaction} (ミュート中)`" />
+                      <img v-else-if="getCachedReactionUrl(entry.reaction, notif)" :src="getCachedReactionUrl(entry.reaction, notif)!" :alt="entry.reaction" :title="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
+                      <img v-else-if="getCachedTwemojiUrl(entry.reaction)" :src="getCachedTwemojiUrl(entry.reaction)!" :alt="entry.reaction" :title="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
                       <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
                     </template>
                     <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
@@ -1134,8 +1143,8 @@ onUnmounted(() => {
                       <span :class="$style.notifLabel">{{ notificationLabel(notif.type) }}</span>
                       <template v-if="notif.type === 'reaction:grouped' && notif.reactions?.length">
                         <span v-for="reaction in uniqueReactions(notif.reactions)" :key="reaction" :class="$style.notifReaction">
-                          <img v-if="getCachedReactionUrl(reaction, notif)" :src="getCachedReactionUrl(reaction, notif)!" :alt="reaction" :class="$style.notifReactionEmoji" loading="lazy" />
-                          <img v-else-if="getCachedTwemojiUrl(reaction)" :src="getCachedTwemojiUrl(reaction)!" :alt="reaction" :class="$style.notifReactionEmoji" loading="lazy" />
+                          <span v-if="isEmojiMuted(reaction)" class="_emojiMuted" :class="$style.notifReactionEmoji" role="img" :aria-label="reaction" :title="`${reaction} (ミュート中)`" />
+                          <img v-else-if="getCachedReactionUrl(reaction, notif)" :src="getCachedReactionUrl(reaction, notif)!" :alt="reaction" :title="reaction" :class="$style.notifReactionEmoji" loading="lazy" @error="onReactionImgError" />
                           <MkEmoji v-else :emoji="reaction" :class="$style.notifReactionEmoji" />
                         </span>
                       </template>
@@ -1193,8 +1202,9 @@ onUnmounted(() => {
                     :title="resolveNotifBadgeTitle(notif)"
                   />
                   <template v-if="notif.type === 'reaction' && notif.reaction">
-                    <img v-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :class="$style.notifSubIconEmoji" loading="lazy" />
-                    <img v-else-if="getCachedTwemojiUrl(notif.reaction)" :src="getCachedTwemojiUrl(notif.reaction)!" :alt="notif.reaction" :class="$style.notifSubIconEmoji" loading="lazy" />
+                    <span v-if="isEmojiMuted(notif.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="notif.reaction" :title="`${notif.reaction} (ミュート中)`" />
+                    <img v-else-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
+                    <img v-else-if="getCachedTwemojiUrl(notif.reaction)" :src="getCachedTwemojiUrl(notif.reaction)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
                     <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
                   </template>
                   <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
@@ -1210,9 +1220,8 @@ onUnmounted(() => {
                       </span>
                       <span :class="$style.notifLabel">{{ notificationLabel(notif.type) }}</span>
                       <span v-if="notif.type === 'reaction' && notif.reaction" :class="$style.notifReaction">
-                        <img v-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :class="$style.notifReactionEmoji" loading="lazy" />
-                        <img v-else-if="getCachedTwemojiUrl(notif.reaction)" :src="getCachedTwemojiUrl(notif.reaction)!" :alt="notif.reaction" :class="$style.notifReactionEmoji" loading="lazy" />
-                        <span v-else-if="notif.reaction.startsWith(':')" :class="$style.notifReactionFallback">{{ notif.reaction }}</span>
+                        <span v-if="isEmojiMuted(notif.reaction)" class="_emojiMuted" :class="$style.notifReactionEmoji" role="img" :aria-label="notif.reaction" :title="`${notif.reaction} (ミュート中)`" />
+                        <img v-else-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifReactionEmoji" loading="lazy" @error="onReactionImgError" />
                         <MkEmoji v-else :emoji="notif.reaction" :class="$style.notifReactionEmoji" />
                       </span>
                     </div>
@@ -1440,6 +1449,25 @@ onUnmounted(() => {
   box-shadow: 0 0 0 3px var(--nd-panel);
 }
 
+/*
+ * ミュート絵文字のサブアイコン (#612)。_emojiMuted は background を mask の
+ * 塗りに使うため、バッジの台紙 (background: panel) と両立できない。台紙は
+ * 残したまま glyph を疑似要素で描く。
+ */
+.notifSubIconMuted {
+  composes: notifSubIconEmoji;
+}
+
+.notifSubIconMuted::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  background: currentcolor;
+  opacity: 0.6;
+  -webkit-mask: url('/emoji-muted.svg') center / contain no-repeat;
+  mask: url('/emoji-muted.svg') center / contain no-repeat;
+}
+
 .notifTail {
   flex: 1;
   min-width: 0;
@@ -1512,10 +1540,6 @@ onUnmounted(() => {
   :deep(.twemoji) {
     height: 1.8em;
   }
-}
-
-.notifReactionFallback {
-  /* fallback text for custom emoji codes */
 }
 
 .notifTime {

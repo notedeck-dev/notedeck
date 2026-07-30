@@ -2,9 +2,11 @@
 import { defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type { NoteReaction } from '@/adapters/types'
+import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useNavigation } from '@/composables/useNavigation'
 import { useAccountsStore } from '@/stores/accounts'
+import { normalizeEmojiMuteKey } from '@/utils/emojiMute'
 import { proxyUrl } from '@/utils/imageProxy'
 import { extractColumnThemeVars } from '@/utils/themeVars'
 import MkAvatar from './MkAvatar.vue'
@@ -32,7 +34,28 @@ const emit = defineEmits<{
 }>()
 
 const { navigateToUser } = useNavigation()
+const { isEmojiMuted, toggleEmojiMuteWithConfirm } = useEmojiMute()
 const accountsStore = useAccountsStore()
+
+// プレビュー内の軽量アクション (#612)。hover popup と右クリックメニューが
+// 重なるため、メニューは廃止してここに統合した
+const copiedCode = ref(false)
+async function copyReactionCode() {
+  try {
+    await navigator.clipboard.writeText(normalizeEmojiMuteKey(props.reaction))
+  } catch {
+    return // 権限拒否時に「コピーしました」と偽らない
+  }
+  copiedCode.value = true
+  setTimeout(() => {
+    copiedCode.value = false
+  }, 1500)
+}
+
+function toggleMute() {
+  emit('close')
+  toggleEmojiMuteWithConfirm(props.reaction, props.reactionUrl)
+}
 
 const reactions = ref<NoteReaction[]>([])
 const isLoading = ref(true)
@@ -134,8 +157,16 @@ onUnmounted(() => {
     <template v-if="!isLoading || reactions.length > 0">
       <!-- Left: reaction icon -->
       <div :class="$style.reaction">
+        <span
+          v-if="isEmojiMuted(reaction)"
+          class="_emojiMuted"
+          :class="$style.reactionIcon"
+          role="img"
+          :aria-label="reaction"
+          :title="`${reaction} (ミュート中)`"
+        />
         <img
-          v-if="reactionUrl"
+          v-else-if="reactionUrl"
           :src="proxyUrl(reactionUrl)"
           :alt="reaction"
           :class="$style.reactionIcon"
@@ -143,6 +174,26 @@ onUnmounted(() => {
           loading="lazy"
         />
         <MkEmoji v-else :emoji="reaction" :class="$style.reactionIcon" />
+        <div :class="$style.reactionActions">
+          <button
+            class="_button"
+            :class="$style.actionBtn"
+            :data-tooltip="copiedCode ? 'コピーしました' : 'コードをコピー'"
+            :aria-label="copiedCode ? 'コピーしました' : 'コードをコピー'"
+            @click.stop="copyReactionCode"
+          >
+            <i :class="copiedCode ? 'ti ti-check' : 'ti ti-copy'" />
+          </button>
+          <button
+            class="_button"
+            :class="$style.actionBtn"
+            :data-tooltip="isEmojiMuted(reaction) ? 'ミュートを解除' : 'この絵文字をミュート'"
+            :aria-label="isEmojiMuted(reaction) ? 'ミュートを解除' : 'この絵文字をミュート'"
+            @click.stop="toggleMute"
+          >
+            <i :class="isEmojiMuted(reaction) ? 'ti ti-mood-smile' : 'ti ti-mood-off'" />
+          </button>
+        </div>
       </div>
 
       <!-- Right: user list (original style) -->
@@ -217,12 +268,56 @@ onUnmounted(() => {
 
 .reaction {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   padding-right: 10px;
   margin-right: 2px;
   border-right: 1px solid var(--nd-divider);
   flex-shrink: 0;
+}
+
+.reactionActions {
+  display: flex;
+  gap: 2px;
+}
+
+.actionBtn {
+  position: relative;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  opacity: 0.55;
+  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
+
+  &:hover {
+    opacity: 1;
+    background: var(--nd-buttonHoverBg);
+  }
+
+  /* ネイティブ title は popover の top-layer に潜るため、popup 内で描く */
+  &::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--nd-bg);
+    box-shadow: var(--nd-shadow-m);
+    color: var(--nd-fg);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--nd-duration-base);
+  }
+
+  &:hover::after {
+    opacity: 1;
+  }
 }
 
 .reactionIcon {

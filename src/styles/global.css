@@ -412,6 +412,58 @@ summary,
   background: var(--nd-divider);
 }
 
+/* ミュート絵文字プレースホルダー (#612)。SVG を mask にして currentColor で
+   塗るため、カラーテーマの文字色に追従する */
+._emojiMuted {
+  display: inline-block;
+  height: 1.25em;
+  aspect-ratio: 1;
+  vertical-align: -0.25em;
+  background: currentcolor;
+  opacity: 0.5;
+  -webkit-mask: url('/emoji-muted.svg') center / contain no-repeat;
+  mask: url('/emoji-muted.svg') center / contain no-repeat;
+  flex-shrink: 0;
+}
+
+/* 非クリックのメニューヘッダー (対象のプレビュー表示、#612 絵文字メニュー等) */
+._popupHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 22px 6px;
+  max-width: 260px;
+}
+
+._popupHeader img,
+._popupHeader .twemoji {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+._popupHeaderText {
+  min-width: 0;
+}
+
+._popupHeaderTitle {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: var(--nd-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._popupHeaderSub {
+  font-size: 0.75em;
+  opacity: 0.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 ._popupConfirmText {
   padding: 7px 22px;
   font-size: 0.85em;

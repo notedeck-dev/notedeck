@@ -289,8 +289,6 @@ function emitSpotlightFromCapability(
 ): void {
   const actor = principalActorLabel(principal)
   if (!actor) return
-  // === DEBUG: spotlight 発火を必ず追える console.log ===
-  console.debug('[spotlight] capability succeeded:', { capId, params, result })
   if (capId === 'column.add') {
     // 新規追加されたカラム本体 (= bottombar / mobile nav のタブが反応する)
     // を spotlight する。ナビバー (= サイドバースロット) は AI による
@@ -301,7 +299,6 @@ function emitSpotlightFromCapability(
     if (newColumnId && type) {
       const label = COLUMN_LABELS[type] ?? type
       const targetId = columnTargetId(newColumnId)
-      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
       useSpotlightStore().highlight(targetId, {
         label: `${actor}が${label}カラムを追加しました`,
       })
@@ -320,7 +317,6 @@ function emitSpotlightFromCapability(
     if (r?.opened && type) {
       const label = COLUMN_LABELS[type] ?? type
       const targetId = navbarTargetId(type, accountId)
-      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
       useSpotlightStore().highlight(targetId, {
         label: `${actor}が${label}カラムをサイドバーに開きました`,
       })
@@ -336,7 +332,6 @@ function emitSpotlightFromCapability(
       const col = useDeckStore().getColumn(r.columnId)
       const label = col?.type ? (COLUMN_LABELS[col.type] ?? col.type) : 'カラム'
       const targetId = columnTargetId(r.columnId)
-      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
       useSpotlightStore().highlight(targetId, {
         label: `${actor}が${label}カラムを移動しました`,
       })
@@ -348,7 +343,6 @@ function emitSpotlightFromCapability(
       const label = col?.type ? (COLUMN_LABELS[col.type] ?? col.type) : 'カラム'
       const fields = r.applied?.join(', ') ?? '設定'
       const targetId = columnTargetId(r.columnId)
-      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
       useSpotlightStore().highlight(targetId, {
         label: `${actor}が${label}カラムの${fields}を更新しました`,
       })
@@ -358,7 +352,6 @@ function emitSpotlightFromCapability(
     const accountId =
       typeof params?.accountId === 'string' ? params.accountId : null
     const targetId = navbarTargetId('notifications', accountId)
-    console.debug('[spotlight] highlight target:', targetId)
     useSpotlightStore().highlight(targetId, {
       label: `${actor}が通知を既読化しました`,
     })
@@ -369,7 +362,6 @@ function emitSpotlightFromCapability(
     if (r?.id) {
       const label = type ? (WINDOW_LABELS[type] ?? type) : 'ウィンドウ'
       const targetId = windowTargetId(r.id)
-      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
       useSpotlightStore().highlight(targetId, {
         label: `${actor}が${label}ウィンドウを開きました`,
       })
@@ -381,7 +373,6 @@ function emitSpotlightFromCapability(
       const win = useWindowsStore().windows.find((w) => w.id === r.id)
       const label = win ? (WINDOW_LABELS[win.type] ?? win.type) : 'ウィンドウ'
       const targetId = windowTargetId(r.id)
-      console.debug('[spotlight] highlight target:', targetId, 'label:', label)
       useSpotlightStore().highlight(targetId, {
         label: `${actor}が${label}ウィンドウを前面に出しました`,
       })

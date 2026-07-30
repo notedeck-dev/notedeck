@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import type { ServerEmoji } from '@/adapters/types'
+import { useEmojiMute } from '@/composables/useEmojiMute'
 import { emojiCharByCategory, unicodeEmojiCategories } from '@/data/emojilist'
 import { useEmojisStore } from '@/stores/emojis'
 import { usePinnedReactionsStore } from '@/stores/pinnedReactions'
@@ -27,12 +28,32 @@ const emojisStore = useEmojisStore()
 const pinnedReactionsStore = usePinnedReactionsStore()
 const recentEmojisStore = useRecentEmojisStore()
 
-const pinnedEmojis = computed(() => pinnedReactionsStore.get(props.accountId))
+// ミュート絵文字はピッカー候補から除外する (#612)
+const { isEmojiMuted } = useEmojiMute()
+
+const pinnedEmojis = computed(() =>
+  pinnedReactionsStore.get(props.accountId).filter((r) => !isEmojiMuted(r)),
+)
 const searchQuery = ref('')
 const searchInput = ref<HTMLInputElement | null>(null)
 
 // Custom emojis organized by category
-const customEmojis = computed(() => emojisStore.getEmojiList(props.serverHost))
+const customEmojis = computed(() =>
+  emojisStore
+    .getEmojiList(props.serverHost)
+    .filter((e) => !isEmojiMuted(e.name)),
+)
+
+const unicodeEmojisByCategory = computed(() => {
+  const map = new Map<string, string[]>()
+  for (const [cat, chars] of emojiCharByCategory) {
+    map.set(
+      cat,
+      chars.filter((c) => !isEmojiMuted(c)),
+    )
+  }
+  return map
+})
 
 const customEmojisByCategory = computed(() => {
   const groups = new Map<string, ServerEmoji[]>()
@@ -88,7 +109,7 @@ const searchResults = computed(() => {
   }
 
   // Unicode emoji: 名前データがないため文字一致のみ
-  for (const [, emojis] of emojiCharByCategory) {
+  for (const [, emojis] of unicodeEmojisByCategory.value) {
     for (const char of emojis) {
       if (char.includes(q)) {
         unicodeResults.push(char)
@@ -102,7 +123,9 @@ const searchResults = computed(() => {
 })
 
 // Recently used emojis (per server)
-const recentEmojis = computed(() => recentEmojisStore.get(props.serverHost))
+const recentEmojis = computed(() =>
+  recentEmojisStore.get(props.serverHost).filter((r) => !isEmojiMuted(r)),
+)
 
 function resolveEmojiUrl(reaction: string): string | null {
   if (reaction.startsWith(':') && reaction.endsWith(':')) {
@@ -330,12 +353,12 @@ onMounted(() => {
           v-for="category in unicodeEmojiCategories"
           :key="category"
           :label="category"
-          :count="emojiCharByCategory.get(category)?.length"
+          :count="unicodeEmojisByCategory.get(category)?.length"
           :initial-open="false"
         >
           <div :class="$style.pickerGrid">
             <button
-              v-for="emoji in emojiCharByCategory.get(category)"
+              v-for="emoji in unicodeEmojisByCategory.get(category)"
               :key="emoji"
               :class="$style.pickerEmojiBtn"
               @click="pickEmoji(emoji)"

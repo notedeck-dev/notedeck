@@ -54,6 +54,7 @@ const UserActivityPvChart = defineAsyncComponent(
 )
 
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
@@ -244,6 +245,7 @@ const {
 })
 const REACTIONS_PAGE_SIZE = 20
 const { reactionUrl: reactionUrlRaw } = useEmojiResolver()
+const { isEmojiMuted } = useEmojiMute()
 
 function getReactionEntryUrl(entry: UserReactionEntry): string | null {
   return reactionUrlRaw(
@@ -748,8 +750,15 @@ async function handlePosted(editedNoteId?: string) {
                 :class="$style.reactionItemAvatar"
               />
               <span :class="$style.reactionItemEmoji">
+                <span
+                  v-if="isEmojiMuted(entry.type)"
+                  class="_emojiMuted"
+                  role="img"
+                  :aria-label="entry.type"
+                  :title="`${entry.type} (ミュート中)`"
+                />
                 <img
-                  v-if="getReactionEntryUrl(entry)"
+                  v-else-if="getReactionEntryUrl(entry)"
                   :src="proxyUrl(getReactionEntryUrl(entry)!)"
                   :alt="entry.type"
                   :title="entry.type"

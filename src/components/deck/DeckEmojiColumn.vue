@@ -2,8 +2,10 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { ServerEmoji } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import PopupMenu from '@/components/common/PopupMenu.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useEmojiMute } from '@/composables/useEmojiMute'
 import {
   type GridGroup,
   useGridVirtualizer,
@@ -129,6 +131,24 @@ const { rows, virtualItems, totalSize } = useGridVirtualizer({
 
 function scrollToTop() {
   scrollContainer.value?.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+// 絵文字ミュート (#612): 右クリックメニューでトグル
+const { isEmojiMuted, toggleEmojiMuteWithConfirm } = useEmojiMute()
+const emojiMenuRef = ref<InstanceType<typeof PopupMenu>>()
+const emojiMenuTarget = ref<ServerEmoji | null>(null)
+function openEmojiMenu(emoji: ServerEmoji, e: MouseEvent) {
+  emojiMenuTarget.value = emoji
+  emojiMenuRef.value?.open(e)
+}
+function emojiMenuCopy() {
+  emojiMenuRef.value?.close()
+  if (emojiMenuTarget.value) copyEmojiCode(emojiMenuTarget.value)
+}
+function emojiMenuToggleMute() {
+  const emoji = emojiMenuTarget.value
+  emojiMenuRef.value?.close()
+  if (emoji) toggleEmojiMuteWithConfirm(`:${emoji.name}:`, emoji.url)
 }
 
 function copyEmojiCode(emoji: ServerEmoji) {
@@ -272,10 +292,11 @@ function getRowItems(index: number): ServerEmoji[] {
                   :key="emoji.name"
                   class="_button"
                   :class="[$style.emojiCell, { [$style.copied]: copiedName === emoji.name }]"
-                  :title="`:${emoji.name}:`"
+                  :title="`:${emoji.name}:${isEmojiMuted(`:${emoji.name}:`) ? ' (ミュート中)' : ''}`"
                   @click="copyEmojiCode(emoji)"
+                  @contextmenu.prevent="openEmojiMenu(emoji, $event)"
                 >
-                  <img :src="emoji.url" :alt="emoji.name" :class="$style.emojiImg" loading="lazy" />
+                  <img :src="emoji.url" :alt="emoji.name" :class="[$style.emojiImg, { [$style.emojiImgMuted]: isEmojiMuted(`:${emoji.name}:`) }]" loading="lazy" />
                   <span v-if="copiedName === emoji.name" :class="$style.emojiCopiedBadge">Copied!</span>
                 </button>
               </div>
@@ -284,6 +305,27 @@ function getRowItems(index: number): ServerEmoji[] {
         </div>
       </div>
     </div>
+
+    <PopupMenu ref="emojiMenuRef">
+      <template v-if="emojiMenuTarget">
+        <div class="_popupHeader">
+          <img :src="emojiMenuTarget.url" :alt="emojiMenuTarget.name" decoding="async" />
+          <div class="_popupHeaderText">
+            <div class="_popupHeaderTitle">:{{ emojiMenuTarget.name }}:</div>
+            <div class="_popupHeaderSub">{{ emojiMenuTarget.category ?? '未分類' }}{{ isEmojiMuted(`:${emojiMenuTarget.name}:`) ? ' · ミュート中' : '' }}</div>
+          </div>
+        </div>
+        <div class="_popupDivider" />
+        <button class="_popupItem" @click="emojiMenuCopy">
+          <i class="ti ti-copy" />
+          コードをコピー
+        </button>
+        <button class="_popupItem" @click="emojiMenuToggleMute">
+          <i :class="isEmojiMuted(`:${emojiMenuTarget.name}:`) ? 'ti ti-mood-smile' : 'ti ti-mood-off'" />
+          {{ isEmojiMuted(`:${emojiMenuTarget.name}:`) ? 'ミュートを解除' : 'この絵文字をミュート' }}
+        </button>
+      </template>
+    </PopupMenu>
   </DeckColumn>
 </template>
 
@@ -422,6 +464,12 @@ function getRowItems(index: number): ServerEmoji[] {
   width: 32px;
   height: 32px;
   object-fit: contain;
+}
+
+/* ミュート中 (#612) は一覧では実体を薄く見せる (ブラウズ面なので置換はしない) */
+.emojiImgMuted {
+  opacity: 0.25;
+  filter: grayscale(1);
 }
 
 .emojiCopiedBadge {

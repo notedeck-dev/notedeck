@@ -5,6 +5,7 @@ import EditorTabs from '@/components/common/EditorTabs.vue'
 import DayNightToggle from '@/components/deck/DayNightToggle.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
+import EmojiMuteSection from '@/components/window/EmojiMuteSection.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { CURRENT_SCHEMA_VERSION, parseSettings } from '@/settings/schema'
@@ -204,6 +205,11 @@ const statusClass = computed(() => {
           :on="nyaizeEnabled"
           @toggle="toggleNyaize"
         />
+      </div>
+
+      <!-- Reaction visibility (#612 / #575) -->
+      <div :class="$style.section">
+        <EmojiMuteSection />
       </div>
 
       <input

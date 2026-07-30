@@ -4,6 +4,7 @@ import { ref, watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type { NoteReaction } from '@/adapters/types'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
 import { useVaporTransition } from '@/composables/useVaporTransition'
@@ -23,6 +24,7 @@ const props = defineProps<{
 
 const { isCompactLayout: isCompact } = storeToRefs(useUiStore())
 const { navigateToUser } = useNavigation()
+const { isEmojiMuted } = useEmojiMute()
 const accountsStore = useAccountsStore()
 
 const show = ref(false)
@@ -131,7 +133,8 @@ defineExpose({ open })
             :class="[$style.tab, { [$style.tabActive]: selectedReaction === r.reaction }]"
             @click="selectedReaction = r.reaction"
           >
-            <img v-if="reactionUrls[r.reaction]" :src="proxyUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.tabEmoji" decoding="async" loading="lazy" />
+            <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.tabEmoji" role="img" :aria-label="r.reaction" :title="`${r.reaction} (ミュート中)`" />
+            <img v-else-if="reactionUrls[r.reaction]" :src="proxyUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.tabEmoji" decoding="async" loading="lazy" />
             <MkEmoji v-else :emoji="r.reaction" :class="$style.tabEmoji" />
             <span :class="$style.tabCount">{{ r.count }}</span>
           </button>

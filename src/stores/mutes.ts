@@ -10,6 +10,12 @@ import { matchMutedWords } from '@/utils/wordMuteMatch'
  */
 function createAccountSet() {
   const byAccount = shallowRef(new Map<string, Set<string>>())
+  /**
+   * 集合が縮みうる変更 (remove / replace) だけで増えるバージョン。
+   * 追加はクライアント照合で即時反映できるが、解除は「除外済みの列挙から
+   * 欠落したまま」になるため取り直しが要る — その判定用 (#575)。
+   */
+  const removalVersion = shallowRef(0)
 
   function has(accountId: string, value: string | null | undefined): boolean {
     if (!value) return false
@@ -28,16 +34,18 @@ function createAccountSet() {
 
   function remove(accountId: string, value: string) {
     byAccount.value.get(accountId)?.delete(value)
+    removalVersion.value++
     triggerRef(byAccount)
   }
 
   /** サーバ同期。アカウントの集合を丸ごと置き換える。 */
   function replace(accountId: string, values: string[]) {
     byAccount.value.set(accountId, new Set(values))
+    removalVersion.value++
     triggerRef(byAccount)
   }
 
-  return { has, add, remove, replace }
+  return { has, add, remove, replace, removalVersion }
 }
 
 interface AccountWordMutes {
@@ -93,6 +101,8 @@ export const useMutesStore = defineStore('mutes', () => {
     muteUser: users.add,
     unmuteUser: users.remove,
     setMutedUsers: users.replace,
+    /** 集合が縮んだときだけ増えるバージョン (派生キャッシュの purge 用、#575) */
+    mutedUsersRemovalVersion: users.removalVersion,
     // renote mute
     isRenoteMuted: renoters.has,
     muteRenote: renoters.add,

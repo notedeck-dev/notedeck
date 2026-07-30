@@ -29,11 +29,13 @@ const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
 )
 
+import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNoteCapture } from '@/composables/useNoteCapture'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
+import { useVisibleReactionCounts } from '@/composables/useVisibleReactionCounts'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
@@ -56,6 +58,7 @@ const accountsStore = useAccountsStore()
 const isCompact = useIsCompactLayout()
 const { navigateToUser: navToUser } = useNavigation()
 const { reactionUrl: reactionUrlRaw } = useEmojiResolver()
+const { isEmojiMuted } = useEmojiMute()
 
 const note = ref<NormalizedNote | null>(null)
 const ancestors = ref<NormalizedNote[]>([])
@@ -64,9 +67,19 @@ const renotes = ref<NormalizedNote[]>([])
 const reactionUsers = ref<NoteReaction[]>([])
 // 本家準拠: リアクション種別チップで絞り込んでユーザー一覧を表示する
 const reactionTab = ref<string | null>(null)
-const reactionTypes = computed(() =>
-  note.value ? Object.keys(note.value.reactions) : [],
-)
+// #575: ミュート・凍結ユーザーのリアクションを抹消した表示用カウント
+const { counts: recountedCounts } = useVisibleReactionCounts(() => note.value)
+const visibleReactionCounts = computed<Record<string, number>>(() => {
+  if (!note.value) return {}
+  return recountedCounts.value ?? note.value.reactions
+})
+const reactionTypes = computed(() => Object.keys(visibleReactionCounts.value))
+// 抹消でチップが消えたら選択タブを追従させる
+watch(reactionTypes, (types) => {
+  if (reactionTab.value && !types.includes(reactionTab.value)) {
+    reactionTab.value = types[0] ?? null
+  }
+})
 const isLoading = ref(true)
 const error = ref<AppError | null>(null)
 const myUserId = ref<string | undefined>()
@@ -548,15 +561,23 @@ async function handlePosted(editedNoteId?: string) {
               :class="[$style.reactionChip, { [$style.reactionChipActive]: reactionTab === rt }]"
               @click="reactionTab = rt"
             >
+              <span
+                v-if="isEmojiMuted(rt)"
+                class="_emojiMuted"
+                :class="$style.reactionChipEmoji"
+                role="img"
+                :aria-label="rt"
+                :title="`${rt} (ミュート中)`"
+              />
               <img
-                v-if="reactionTypeUrl(rt)"
+                v-else-if="reactionTypeUrl(rt)"
                 :src="proxyUrl(reactionTypeUrl(rt)!)"
                 :alt="rt"
                 :class="$style.reactionChipEmoji"
                 decoding="async"
               />
               <MkEmoji v-else :emoji="rt" :class="$style.reactionChipEmoji" />
-              <span :class="$style.reactionChipCount">{{ note.reactions[rt] }}</span>
+              <span :class="$style.reactionChipCount">{{ visibleReactionCounts[rt] }}</span>
             </button>
           </div>
           <div v-if="reactionUsers.length > 0" :class="$style.userCards">

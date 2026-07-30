@@ -33,6 +33,29 @@ export interface NotedeckSettings {
    */
   'note.nyaize'?: boolean
 
+  // --- Mute (#612) ---
+  /**
+   * ミュートする絵文字のリスト (本家 `mutingEmojis` 互換のキー形式)。
+   * ローカルカスタム絵文字 `:name:` / リモート `:name@host:` / Unicode は生文字。
+   * 本家同様アカウントに紐づかないグローバル設定。表示は非表示ではなく
+   * プレースホルダー置換 (tooltip で正体確認可)。
+   */
+  'mute.emojis'?: string[]
+  /**
+   * ミュート時点で判明していた絵文字 URL のスナップショット (キー → URL)。
+   * リモート絵文字 (`:name@host:`) は絵文字キャッシュから解決できないため、
+   * 設定ウィンドウの一覧で実体を見せる用途に限って保持する。
+   */
+  'mute.emojiUrls'?: Record<string, string>
+  /**
+   * ミュートしたユーザーのリアクションをノートの集計 (絵文字＋数字) から
+   * 抹消する (#575)。本家はカウントに含めたままだが、NoteDeck は「存在ごと
+   * 隠す」を選べるようにする。判定はサーバーの `notes/reactions` がミュート
+   * ユーザーを除外して返す性質を利用した数え直しで、リアクション総数が
+   * 多いノートは取得コストの都合で対象外 (サーバー集計のまま)。
+   */
+  'mute.hideMutedUserReactions'?: boolean
+
   // --- Post form ---
   'postForm.preview'?: boolean
   'postForm.autoSaveDraft'?: boolean
