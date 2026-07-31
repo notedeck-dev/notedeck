@@ -10,6 +10,21 @@ import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import {
+  buildPresetCss,
+  type CssPresets,
+  EMPTY_PRESETS,
+  extractUserCss,
+  FONT_OPTIONS,
+  FONT_SIZE_BASE,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
+  HIDE_COUNT_OPTIONS,
+  MONO_FONT_OPTIONS,
+  parsePresetsFromCss,
+  VISIBILITY_BG_COLORS,
+  VISIBILITY_BG_OPTIONS,
+} from '@/services/cssPresets'
 import { useThemeStore } from '@/stores/theme'
 
 const cssLang = css()
@@ -62,29 +77,8 @@ useWindowExternalFile(() =>
 // Local CSS mirror (synced from store on mount)
 const cssCode = ref(themeStore.customCss)
 
-// Preset toggles
-const presets = ref({
-  customFont: '',
-  fontSize: 0,
-  visibilityBg: '',
-  hideNoteCounts: '',
-  hideUserStats: '',
-})
-
-// Parse existing CSS to restore preset states
-function parsePresetsFromCss(cssStr: string) {
-  const fontMatch = cssStr.match(/\/\* nd-font: (.+?) \*\//)
-  presets.value.customFont = fontMatch?.[1] ?? ''
-  const sizeMatch = cssStr.match(/\/\* nd-fontsize: (.+?) \*\//)
-  presets.value.fontSize = sizeMatch ? Number(sizeMatch[1]) : 0
-  const visibilityBgMatch = cssStr.match(/\/\* nd-visibility-bg: (.+?) \*\//)
-  presets.value.visibilityBg = visibilityBgMatch?.[1] ?? ''
-  const noteCountsMatch = cssStr.match(/\/\* nd-hide-note-counts: (.+?) \*\//)
-  presets.value.hideNoteCounts = noteCountsMatch?.[1] ?? ''
-  const userStatsMatch = cssStr.match(/\/\* nd-hide-user-stats: (.+?) \*\//)
-  presets.value.hideUserStats = userStatsMatch?.[1] ?? ''
-}
-parsePresetsFromCss(cssCode.value)
+// Preset toggles (定義・CSS 変換は src/services/cssPresets.ts)
+const presets = ref<CssPresets>(parsePresetsFromCss(cssCode.value))
 
 const expandedSections = reactive<Record<string, boolean>>({ font: true })
 
@@ -92,99 +86,9 @@ function toggleSection(key: string) {
   expandedSections[key] = !expandedSections[key]
 }
 
-interface FontOption {
-  value: string
-  label: string
-  importUrl?: string
-  customCss?: string
-}
-
-const FONT_OPTIONS: FontOption[] = [
-  { value: '', label: 'デフォルト' },
-  { value: 'Noto Sans JP', label: 'Noto Sans JP' },
-  { value: 'Noto Serif JP', label: 'Noto Serif JP' },
-  { value: 'Sawarabi Gothic', label: 'Sawarabi Gothic' },
-  { value: 'Sawarabi Mincho', label: 'Sawarabi Mincho' },
-  { value: 'M PLUS 1p', label: 'M PLUS' },
-  { value: 'M PLUS Rounded 1c', label: 'M PLUS Rounded' },
-  { value: 'M PLUS 2', label: 'M PLUS 2' },
-  { value: 'Murecho', label: 'Murecho' },
-  { value: 'RocknRoll One', label: 'RocknRoll One' },
-  { value: 'Klee One', label: 'Klee One' },
-  { value: 'Zen Maru Gothic', label: 'Zen Maru Gothic' },
-  { value: 'Kaisei Decol', label: 'Kaisei Decol' },
-  { value: 'Yomogi', label: 'Yomogi' },
-  { value: 'Kosugi', label: 'Kosugi' },
-  { value: 'Kosugi Maru', label: 'Kosugi Maru' },
-  {
-    value: 'Kiwi Maru',
-    label: 'Kiwi Maru',
-    importUrl:
-      'https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@300&display=swap',
-  },
-  { value: 'Hachi Maru Pop', label: 'Hachi Maru Pop' },
-  { value: 'Mochiy Pop One', label: 'Mochiy Pop One' },
-  { value: 'Mochiy Pop P One', label: 'Mochiy Pop P One' },
-  { value: 'Yusei Magic', label: 'Yusei Magic' },
-  { value: 'DotGothic16', label: 'Dot Gothic 16' },
-  {
-    value: '手書き雑フォント',
-    label: '手書き雑フォント',
-    customCss: `@font-face { font-family: '手書き雑フォント'; src: url('https://cdn.leafscape.be/tegaki_zatsu/851tegaki_zatsu_web.woff2') format("woff2"); font-display: swap; }`,
-  },
-  {
-    value: '瀬戸フォント',
-    label: '瀬戸フォント',
-    customCss: `@font-face { font-family: '瀬戸フォント'; src: url('https://cdn.leafscape.be/setofont/setofont_web.woff2') format("woff2"); font-display: swap; }`,
-  },
-]
-
-const FONT_SIZE_BASE = 15
-const FONT_SIZE_MIN = -3
-const FONT_SIZE_MAX = 5
-
 // スライダーの塗りつぶし率 (OS のボリュームバー式に左側をアクセント色で塗る)
 function sliderFill(value: number, min: number, max: number): string {
   return `${((value - min) / (max - min)) * 100}%`
-}
-
-// 公開範囲ごとのノート背景色 (public はデフォルトのまま)
-const VISIBILITY_BG_COLORS: Record<string, { label: string; color: string }> = {
-  home: { label: 'ホーム', color: 'rgba(51, 127, 255, 0.08)' },
-  followers: { label: 'フォロワー', color: 'rgba(0, 170, 100, 0.08)' },
-  specified: { label: 'ダイレクト', color: 'rgba(255, 90, 120, 0.1)' },
-}
-
-interface VisibilityBgOption {
-  key: string
-  label: string
-}
-
-const VISIBILITY_BG_OPTIONS: VisibilityBgOption[] = [
-  { key: '', label: 'デフォルト' },
-  { key: 'tint', label: '背景色で色分け' },
-]
-
-// 数字の非表示 (#593/#594)。yamisskey の hideReactionCount / hide*Count と
-// 同じ self/others/all の 3 段階。導線 (クリックで一覧を開く等) は残し数字だけ消す。
-// ノート側はリアクション数 + リノート数 (評価シグナル)。返信数は会話の量なので対象外
-interface HideCountOption {
-  key: string
-  label: string
-}
-
-const HIDE_COUNT_OPTIONS: HideCountOption[] = [
-  { key: '', label: 'デフォルト' },
-  { key: 'self', label: '自分のみ隠す' },
-  { key: 'others', label: '他人のみ隠す' },
-  { key: 'all', label: 'すべて隠す' },
-]
-
-function hideCountTargets(key: string): string[] {
-  if (key === 'self') return ['true']
-  if (key === 'others') return ['false']
-  if (key === 'all') return ['true', 'false']
-  return []
 }
 
 const fontSizeLabel = computed(() => {
@@ -210,92 +114,6 @@ function validateCss(cssStr: string): string | null {
   }
 }
 
-function buildPresetCss(): string {
-  const parts: string[] = []
-
-  if (presets.value.customFont) {
-    const font = presets.value.customFont
-    const opt = FONT_OPTIONS.find((o) => o.value === font)
-    parts.push(`/* nd-font: ${font} */`)
-    if (opt?.customCss) {
-      parts.push(opt.customCss)
-    } else {
-      const url =
-        opt?.importUrl ??
-        `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font)}&display=swap`
-      parts.push(`@import url('${url}');`)
-    }
-    parts.push(`html { font-family: '${font}', sans-serif; }`)
-  }
-
-  if (presets.value.fontSize !== 0) {
-    const px = FONT_SIZE_BASE + presets.value.fontSize
-    parts.push(`/* nd-fontsize: ${presets.value.fontSize} */`)
-    parts.push(`html { font-size: ${px}px; }`)
-  }
-
-  if (presets.value.visibilityBg === 'tint') {
-    parts.push('/* nd-visibility-bg: tint */')
-    for (const [visibility, { color }] of Object.entries(
-      VISIBILITY_BG_COLORS,
-    )) {
-      parts.push(
-        `.note-root[data-visibility="${visibility}"] { background-color: ${color}; }`,
-      )
-    }
-  }
-
-  const noteCountTargets = hideCountTargets(presets.value.hideNoteCounts)
-  if (noteCountTargets.length > 0) {
-    parts.push(`/* nd-hide-note-counts: ${presets.value.hideNoteCounts} */`)
-    for (const own of noteCountTargets) {
-      parts.push(
-        `.note-root[data-own="${own}"] :is(.note-reaction-count, .note-renote-count) { display: none; }`,
-      )
-    }
-  }
-
-  const statsTargets = hideCountTargets(presets.value.hideUserStats)
-  if (statsTargets.length > 0) {
-    parts.push(`/* nd-hide-user-stats: ${presets.value.hideUserStats} */`)
-    for (const own of statsTargets) {
-      parts.push(
-        `.user-stats[data-own="${own}"] .user-stat-count { font-size: 0; }`,
-      )
-      parts.push(
-        `.user-stats[data-own="${own}"] .user-stat-count::before { content: '-'; font-size: 1rem; }`,
-      )
-    }
-  }
-
-  return parts.join('\n')
-}
-
-function extractUserCss(fullCss: string): string {
-  return fullCss
-    .split('\n')
-    .filter((line) => {
-      const t = line.trim()
-      if (!t) return false
-      if (t.startsWith('/* nd-font:')) return false
-      if (t.startsWith('/* nd-fontsize:')) return false
-      if (t.startsWith('/* nd-visibility-bg:')) return false
-      if (t.startsWith('/* nd-hide-note-counts:')) return false
-      if (t.startsWith('/* nd-hide-user-stats:')) return false
-      // 生成行 (1 行完結) のみ除去。ユーザーが複数行で書いた同セレクタは残す
-      if (t.match(/^\.note-root\[data-visibility=.+\{.*\}$/)) return false
-      if (t.match(/^\.note-root\[data-own=.+\{.*\}$/)) return false
-      if (t.match(/^\.user-stats\[data-own=.+\{.*\}$/)) return false
-      if (t.startsWith('@import url(')) return false
-      if (t.startsWith('@font-face')) return false
-      if (t.match(/^html\s*\{\s*font-family:/)) return false
-      if (t.match(/^html\s*\{\s*font-size:/)) return false
-      return true
-    })
-    .join('\n')
-    .trim()
-}
-
 const userFreeformCss = ref(extractUserCss(cssCode.value))
 const cssError = ref<string | null>(null)
 
@@ -308,7 +126,7 @@ watch(userFreeformCss, (cssStr) => {
 })
 
 const fullCss = computed(() => {
-  const preset = buildPresetCss()
+  const preset = buildPresetCss(presets.value)
   const user = cssError.value ? '' : userFreeformCss.value.trim()
   if (preset && user) return `${preset}\n\n${user}`
   return preset || user
@@ -326,6 +144,7 @@ watch(fullCss, (cssStr) => {
 watch(
   () => [
     presets.value.customFont,
+    presets.value.monoFont,
     presets.value.fontSize,
     presets.value.visibilityBg,
     presets.value.hideNoteCounts,
@@ -362,7 +181,7 @@ function applyFromCode() {
     return
   }
   codeError.value = null
-  parsePresetsFromCss(cssStr)
+  presets.value = parsePresetsFromCss(cssStr)
   userFreeformCss.value = extractUserCss(cssStr)
   cssError.value = null
   themeStore.setCustomCss(cssStr)
@@ -391,7 +210,7 @@ async function importCss() {
       return
     }
     cssCode.value = text
-    parsePresetsFromCss(text)
+    presets.value = parsePresetsFromCss(text)
     userFreeformCss.value = extractUserCss(text)
     themeStore.setCustomCss(text)
     showImported()
@@ -405,13 +224,7 @@ const { confirming: confirmingClear, trigger: triggerClear } =
 
 function handleClear() {
   triggerClear(() => {
-    presets.value = {
-      customFont: '',
-      fontSize: 0,
-      visibilityBg: '',
-      hideNoteCounts: '',
-      hideUserStats: '',
-    }
+    presets.value = { ...EMPTY_PRESETS }
     userFreeformCss.value = ''
     cssCode.value = ''
     cssError.value = null
@@ -422,32 +235,28 @@ function handleClear() {
 
 // プリセット用ドロップダウンは CssPresetDropdown (#778) に共通化。
 // セクションヘッダの選択中ラベル表示にだけ label 解決を残す
-const selectedVisibilityBgLabel = computed(() => {
-  const opt = VISIBILITY_BG_OPTIONS.find(
-    (o) => o.key === presets.value.visibilityBg,
-  )
-  return opt?.label ?? 'デフォルト'
-})
+const selectedVisibilityBgLabel = computed(
+  () =>
+    VISIBILITY_BG_OPTIONS.find((o) => o.value === presets.value.visibilityBg)
+      ?.label ?? 'デフォルト',
+)
+
+const selectedMonoFontLabel = computed(
+  () =>
+    MONO_FONT_OPTIONS.find((o) => o.value === presets.value.monoFont)?.label ??
+    'デフォルト',
+)
 
 function hideCountLabel(key: string): string {
-  return HIDE_COUNT_OPTIONS.find((o) => o.key === key)?.label ?? 'デフォルト'
+  return HIDE_COUNT_OPTIONS.find((o) => o.value === key)?.label ?? 'デフォルト'
 }
-
-const VISIBILITY_BG_DD_OPTIONS = VISIBILITY_BG_OPTIONS.map((o) => ({
-  value: o.key,
-  label: o.label,
-}))
-const HIDE_COUNT_DD_OPTIONS = HIDE_COUNT_OPTIONS.map((o) => ({
-  value: o.key,
-  label: o.label,
-}))
 
 watch(tab, (t) => {
   if (t === 'code') {
     cssCode.value = fullCss.value
     codeError.value = null
   } else {
-    parsePresetsFromCss(cssCode.value)
+    presets.value = parsePresetsFromCss(cssCode.value)
     userFreeformCss.value = extractUserCss(cssCode.value)
   }
 })
@@ -482,6 +291,30 @@ watch(tab, (t) => {
           />
           <div v-if="presets.customFont" :class="$style.preview" :style="{ fontFamily: `'${presets.customFont}', sans-serif` }">
             あいうえお ABCabc 123
+          </div>
+        </template>
+      </div>
+
+      <!-- Mono font (#901) -->
+      <div :class="$style.section">
+        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('monoFont')">
+          <i class="ti ti-code" />
+          等幅フォント
+          <span :class="$style.sectionValue">{{ selectedMonoFontLabel }}</span>
+          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.monoFont }]" />
+        </button>
+        <template v-if="expandedSections.monoFont">
+          <CssPresetDropdown
+            v-model="presets.monoFont"
+            :options="MONO_FONT_OPTIONS"
+            font-preview
+            font-fallback="monospace"
+          />
+          <div v-if="presets.monoFont" :class="[$style.preview, $style.monoPreview]" :style="{ fontFamily: `'${presets.monoFont}', monospace` }">
+            const 変数 = 0; // Il1 O0
+          </div>
+          <div :class="$style.hideCountNote">
+            コードブロック・JSON ビューア・エディタ系に反映されます
           </div>
         </template>
       </div>
@@ -530,7 +363,7 @@ watch(tab, (t) => {
         <template v-if="expandedSections.visibilityBg">
           <CssPresetDropdown
             v-model="presets.visibilityBg"
-            :options="VISIBILITY_BG_DD_OPTIONS"
+            :options="VISIBILITY_BG_OPTIONS"
           />
           <div v-if="presets.visibilityBg === 'tint'" :class="$style.visibilityBgPreview">
             <div
@@ -556,7 +389,7 @@ watch(tab, (t) => {
         <template v-if="expandedSections.noteCounts">
           <CssPresetDropdown
             v-model="presets.hideNoteCounts"
-            :options="HIDE_COUNT_DD_OPTIONS"
+            :options="HIDE_COUNT_OPTIONS"
           />
           <div :class="$style.hideCountNote">
             リアクション数とリノート数が消えます (返信数は会話の量なので残ります)
@@ -575,7 +408,7 @@ watch(tab, (t) => {
         <template v-if="expandedSections.userStats">
           <CssPresetDropdown
             v-model="presets.hideUserStats"
-            :options="HIDE_COUNT_DD_OPTIONS"
+            :options="HIDE_COUNT_OPTIONS"
           />
           <div :class="$style.hideCountNote">
             ノート数・フォロー数・フォロワー数が「-」になります (クリック導線は残ります)
@@ -746,6 +579,12 @@ watch(tab, (t) => {
 }
 
 /* ドロップダウンの見た目は CssPresetDropdown (#778) が持つ */
+
+.monoPreview {
+  text-align: left;
+  white-space: nowrap;
+  overflow-x: auto;
+}
 
 .preview {
   padding: 8px 10px;
