@@ -153,11 +153,15 @@ export function proxyUrl(
   if (!url?.startsWith('https://')) return url ?? undefined
   ensureFetchedListener()
   const wait = opts?.wait || !IS_ANDROID
-  const cacheKey = wait ? `${url}|wait` : url
+  // 画像の wait は最適化にすぎないので soft を付け、プロキシ側が予算超過時に
+  // プレースホルダ + MediaFetched の二段階配信へ降格できるようにする。
+  // 明示 wait (効果音の fetch/Audio) はプレースホルダを飲み込めないので hard
+  const soft = wait && !opts?.wait
+  const cacheKey = soft ? `${url}|soft` : wait ? `${url}|wait` : url
   let cached = proxyUrlCache.get(cacheKey)
   if (!cached) {
     evictIfFull()
-    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}${wait ? '&wait=1' : ''}`
+    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}${wait ? '&wait=1' : ''}${soft ? '&soft=1' : ''}`
     proxyUrlCache.set(cacheKey, cached)
   }
   return withVersion(cached, url)
@@ -178,12 +182,13 @@ export function proxyThumbUrl(
 ): string | undefined {
   if (!url?.startsWith('https://')) return url ?? undefined
   ensureFetchedListener()
+  // 画像は常に soft (予算超過でプレースホルダ降格可 — proxyUrl 参照)
   const wait = !IS_ANDROID
   const key = `${url}|w=${width}`
   let cached = proxyUrlCache.get(key)
   if (!cached) {
     evictIfFull()
-    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&w=${width}${wait ? '&wait=1' : ''}`
+    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&w=${width}${wait ? '&wait=1&soft=1' : ''}`
     proxyUrlCache.set(key, cached)
   }
   return withVersion(cached, url)

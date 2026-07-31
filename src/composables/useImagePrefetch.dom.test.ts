@@ -1,0 +1,77 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { NormalizedNote } from '@/adapters/types'
+
+vi.mock('@/stores/performance', () => ({
+  usePerformanceStore: () => ({
+    get: (key: string) => (key === 'cssBlurLevel' ? 5 : 500),
+  }),
+}))
+
+/** new Image() を記録するスタブ。onload/onerror を後から発火できる */
+class FakeImage {
+  static instances: FakeImage[] = []
+  onload: (() => void) | null = null
+  onerror: (() => void) | null = null
+  private _src = ''
+  constructor() {
+    FakeImage.instances.push(this)
+  }
+  set src(v: string) {
+    this._src = v
+  }
+  get src() {
+    return this._src
+  }
+}
+
+function note(id: string, fileCount: number): NormalizedNote {
+  return {
+    renote: null,
+    text: id,
+    files: Array.from({ length: fileCount }, (_, i) => ({
+      type: 'image/png',
+      isSensitive: false,
+      thumbnailUrl: `https://media.example/${id}-${i}.png`,
+      url: `https://media.example/${id}-${i}-orig.png`,
+    })),
+  } as unknown as NormalizedNote
+}
+
+async function loadModule() {
+  vi.resetModules()
+  return await import('@/composables/useImagePrefetch')
+}
+
+describe('prefetchNoteImages の同時実行絞り', () => {
+  beforeEach(() => {
+    FakeImage.instances = []
+    vi.stubGlobal('Image', FakeImage)
+  })
+
+  it('同時に発火する Image は上限までに絞られる', async () => {
+    const { prefetchNoteImages } = await loadModule()
+    prefetchNoteImages([note('a', 4), note('b', 4), note('c', 4)])
+    // 12 件エンキューされるが、同時に走るのは 4 件まで
+    expect(FakeImage.instances.length).toBe(4)
+  })
+
+  it('完了 (load/error) するたびに次をキューから流す', async () => {
+    const { prefetchNoteImages } = await loadModule()
+    prefetchNoteImages([note('a', 4), note('b', 4)])
+    expect(FakeImage.instances.length).toBe(4)
+
+    FakeImage.instances[0]?.onload?.()
+    expect(FakeImage.instances.length).toBe(5)
+
+    FakeImage.instances[1]?.onerror?.()
+    expect(FakeImage.instances.length).toBe(6)
+  })
+
+  it('同じ URL は一度しかプリフェッチしない', async () => {
+    const { prefetchNoteImages } = await loadModule()
+    prefetchNoteImages([note('a', 2)])
+    prefetchNoteImages([note('a', 2)])
+    // 2 回呼んでも Image は 2 件 (dedup)
+    expect(FakeImage.instances.length).toBe(2)
+  })
+})

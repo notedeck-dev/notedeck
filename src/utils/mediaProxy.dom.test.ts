@@ -48,10 +48,12 @@ describe('proxyUrl', () => {
   // 非 Android の wait=1: Android の custom protocol だけが直列 + 10 秒フューズ
   // (wry) なので二段階配信が必須。それ以外はブロッキングが安全なので、初回
   // 表示から往復 1 回で本物を返す
-  it('custom protocol の口に載せる (非 Android は単一トリップ)', async () => {
+  // soft=1: 画像の wait は最適化にすぎないので、プロキシ側は予算超過時に
+  // プレースホルダへ降格してよい (効果音の hard wait と区別する)
+  it('custom protocol の口に載せる (非 Android は単一トリップ + soft 降格可)', async () => {
     const { proxyUrl } = await loadModule()
     expect(proxyUrl(REMOTE)).toBe(
-      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&wait=1`,
+      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&wait=1&soft=1`,
     )
   })
 
@@ -59,7 +61,7 @@ describe('proxyUrl', () => {
     stubTauri((path, protocol) => `${protocol}://localhost/${path}`)
     const { proxyUrl } = await loadModule()
     expect(proxyUrl(REMOTE)).toBe(
-      `ndmedia://localhost/m?url=${encodeURIComponent(REMOTE)}&wait=1`,
+      `ndmedia://localhost/m?url=${encodeURIComponent(REMOTE)}&wait=1&soft=1`,
     )
   })
 
@@ -84,7 +86,7 @@ describe('proxyUrl', () => {
     vi.stubGlobal('__TAURI_INTERNALS__', undefined)
     const { proxyUrl } = await loadModule()
     expect(proxyUrl(REMOTE)).toBe(
-      `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent(REMOTE)}&wait=1`,
+      `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent(REMOTE)}&wait=1&soft=1`,
     )
   })
 
@@ -107,6 +109,12 @@ describe('wait オプション (効果音などブロッキング消費者用)',
     expect(proxyUrl(REMOTE, { wait: true })).toContain('wait=1')
     const normal = proxyUrl(REMOTE)
     expect(normal).not.toContain('wait=1')
+  })
+
+  it('明示 wait (効果音) には soft を付けない — プレースホルダを飲み込めない', async () => {
+    const { proxyUrl } = await loadModule()
+    expect(proxyUrl(REMOTE, { wait: true })).not.toContain('soft=1')
+    expect(proxyUrl(REMOTE, { wait: true })).toContain('wait=1')
   })
 })
 
@@ -242,10 +250,10 @@ describe('失敗申告によるバックオフ再試行 (markMediaFailed)', () =
 
 describe('proxyThumbUrl', () => {
   // format は付けない: 明示すると「上限以下なら変換不要」の素通しが効かなくなる
-  it('幅だけを付ける (非 Android は wait も付く)', async () => {
+  it('幅だけを付ける (非 Android は wait + soft も付く)', async () => {
     const { proxyThumbUrl } = await loadModule()
     expect(proxyThumbUrl(REMOTE, 56)).toBe(
-      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&w=56&wait=1`,
+      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&w=56&wait=1&soft=1`,
     )
   })
 

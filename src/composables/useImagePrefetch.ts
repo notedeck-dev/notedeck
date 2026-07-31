@@ -11,6 +11,45 @@ import { isSafeUrl } from '@/utils/url'
 
 const prefetchedUrls = new Set<string>()
 
+/**
+ * プリフェッチの同時実行上限。バックエンドの取得セマフォ (30 並列) は
+ * 絵文字・アバターと共有なので、先読みの添付画像で埋めると、いま見えて
+ * いる面の画像がソフト予算 (media_proxy::SOFT_WAIT_BUDGET) 超過に
+ * 押し出される。先読みは急がないので細く流す。
+ */
+const MAX_CONCURRENT_PREFETCH = 4
+
+/** 高速スクロールで陳腐化した先読みを溜め込まない上限 (古い順に捨てる) */
+const MAX_QUEUE = 100
+
+let activePrefetches = 0
+const prefetchQueue: string[] = []
+
+function pumpPrefetchQueue() {
+  while (
+    activePrefetches < MAX_CONCURRENT_PREFETCH &&
+    prefetchQueue.length > 0
+  ) {
+    const url = prefetchQueue.shift()
+    if (url === undefined) break
+    activePrefetches++
+    const img = new Image()
+    const done = () => {
+      activePrefetches--
+      pumpPrefetchQueue()
+    }
+    img.onload = done
+    img.onerror = done
+    img.src = url
+  }
+}
+
+function enqueuePrefetch(url: string) {
+  if (prefetchQueue.length >= MAX_QUEUE) prefetchQueue.shift()
+  prefetchQueue.push(url)
+  pumpPrefetchQueue()
+}
+
 function getTrackedMax(): number {
   try {
     return usePerformanceStore().get('prefetchTrackedMax')
@@ -56,8 +95,7 @@ export function prefetchNoteImages(notes: NormalizedNote[]): void {
       if (prefetchedUrls.has(url)) continue
       evictOldest()
       prefetchedUrls.add(url)
-      const img = new Image()
-      img.src = url
+      enqueuePrefetch(url)
     }
   }
 }
