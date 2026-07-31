@@ -160,8 +160,10 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
+          # このスクリプトは sh (dash) で実行される。bash 固有の構文
+          # (set -o pipefail など) を書くと構文エラーで即死する
           script: |
-            set -euo pipefail
+            set -eu
             APK=$(find apk -name '*x86_64*-release-*.apk' | head -1)
             if [ -z "$APK" ]; then
               echo "ERROR: x86_64 APK not found" >&2
@@ -174,14 +176,17 @@ jobs:
             adb logcat -c
             adb shell monkey -p com.notedeck.desktop -c android.intent.category.LAUNCHER 1
 
-            # 起動直後の native crash は数秒以内に出る。生存を確認する
+            # 起動直後の native crash は数秒以内に出る。生存を確認する。
+            # pidof はプロセスが無いと非 0 で終わるので set -e に巻き込まれ
+            # ないよう || true で受ける
             sleep 20
-            if ! adb shell pidof com.notedeck.desktop > /dev/null; then
+            PID=$(adb shell pidof com.notedeck.desktop 2>/dev/null | tr -d '\r\n' || true)
+            if [ -z "$PID" ]; then
               echo "::error::アプリが起動後 20 秒以内に終了した (起動クラッシュ)"
-              adb logcat -d -t 300 | grep -iE 'notedeck|FATAL|AndroidRuntime|libc|DEBUG' | tail -80
+              adb logcat -d -t 300 | grep -iE 'notedeck|FATAL|AndroidRuntime|libc|DEBUG' | tail -80 || true
               exit 1
             fi
-            echo "アプリは 20 秒間生存した"
+            echo "アプリは 20 秒間生存した (pid $PID)"
 
   # 起動確認を通った APK だけをリリースに載せる。build ジョブから直接
   # アップロードすると、smoke-test が落ちても壊れた APK が添付されてしまい
