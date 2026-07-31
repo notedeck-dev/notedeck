@@ -1,0 +1,91 @@
+# 外部アプリ向け API 面 (openapi.json / bindings.ts) を変更する PR に
+# その diff を sticky コメントで貼り、レビューで API の変化を見えるようにする。
+# スナップショットはコミット済みなのでビルド不要、git diff を貼るだけ。
+name: API Diff
+
+on:
+  pull_request:
+    paths:
+      - 'src-tauri/openapi.json'
+      - 'src/bindings.ts'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Generate diff
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          git diff "origin/$BASE_REF" HEAD -- src-tauri/openapi.json src/bindings.ts > /tmp/api.diff
+          git diff --stat "origin/$BASE_REF" HEAD -- src-tauri/openapi.json src/bindings.ts > /tmp/api.stat
+
+      - name: Report
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs')
+            const marker = '<!-- notedeck-api-diff -->'
+            const stat = fs.readFileSync('/tmp/api.stat', 'utf8').trim()
+            let diff = fs.readFileSync('/tmp/api.diff', 'utf8')
+
+            // PR コメントは 64KB 上限。超えたら切り詰めて Files changed へ誘導する
+            const limit = 60000
+            const truncated = diff.length > limit
+            if (truncated) diff = `${diff.slice(0, limit)}\n... (truncated)`
+
+            const body = [
+              marker,
+              '## API surface diff',
+              '',
+              '外部アプリ向け API 面 (`src-tauri/openapi.json` / `src/bindings.ts`) が変更されています。',
+              '互換性への影響 (#709) をレビューしてください。',
+              '',
+              '```',
+              stat || '(no diff)',
+              '```',
+              '',
+              '<details><summary>Full diff</summary>',
+              '',
+              '````diff',
+              diff,
+              '````',
+              '',
+              '</details>',
+              truncated ? '\n> [!NOTE]\n> サイズ上限のため省略あり。全文は Files changed を参照。' : '',
+            ].join('\n')
+
+            await core.summary.addRaw(body).write()
+
+            // fork からの PR では GITHUB_TOKEN に書き込み権限が無いため、
+            // コメント投稿に失敗しても job は落とさない (summary には常に出る)
+            try {
+              const { owner, repo } = context.repo
+              const issue_number = context.issue.number
+              const { data: comments } = await github.rest.issues.listComments({
+                owner,
+                repo,
+                issue_number,
+                per_page: 100,
+              })
+              const existing = comments.find((c) => c.body.includes(marker))
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existing.id,
+                  body,
+                })
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number, body })
+              }
+            } catch (e) {
+              core.warning(`PR コメントを投稿できなかった (fork PR では想定内): ${e.message}`)
+            }
