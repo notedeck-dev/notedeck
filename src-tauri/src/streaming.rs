@@ -118,11 +118,15 @@ fn show_os_notification<R: tauri::Runtime>(
     media: Option<&NotifyMedia>,
     host: Option<&str>,
 ) {
-    // Linux / Windows: user-notify 経由 (クリック遷移 + 画像添付, #754)
+    // Linux / Windows: user-notify 経由 (クリック遷移 + 画像添付, #754)。
+    // 画像取得は ImageCache を通す (setup 前の呼び出しでは None = 画像なし)
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     {
-        let _ = (app, host);
-        crate::os_notify::show(title, body, context, media);
+        let _ = host;
+        let cache = app
+            .try_state::<std::sync::Arc<crate::image_cache::ImageCache>>()
+            .map(|s| s.inner().clone());
+        crate::os_notify::show(title, body, context, media, cache);
     }
 
     // macOS: user-notify は署名済み bundle 必須のため plugin 経路を維持
@@ -145,53 +149,137 @@ fn show_os_notification<R: tauri::Runtime>(
     // 動的画像を添付できないため。配置はデスクトップと同じ (icon=アバター,
     // image=絵文字)。クリック遷移は plugin の extra + JS onAction ではなく
     // notedeck:// deep link で行う (NotificationWorker と同じ経路)。
+    //
+    // 画像は ImageCache 経由でローカルファイル化してから Kotlin にパスを渡す。
+    // 以前は Kotlin 側が生 URL を HttpURLConnection で fetch + 原寸デコード
+    // していたが、キャッシュ・サイズ上限・失敗学習が一切効かず、巨大画像の
+    // OutOfMemoryError (Kotlin の catch (Exception) では捕まえられない) で
+    // プロセスごと落ちる経路だった。取得は emitter (WS 読みループ) を
+    // 塞がないよう spawn したタスクで行う。
     #[cfg(target_os = "android")]
     {
-        let _ = app;
-        let deep_link = host.and_then(|host| android_deep_link(host, context));
-        let result = (|| -> std::result::Result<(), jni::errors::Error> {
-            use jni::objects::{JObject, JValue};
+        // 通知の large icon の表示上限は 64dp 程度。3x 密度でも足りる幅の
+        // variant を要求する (静止画のみ縮小、アニメーションは原本素通し)
+        const AVATAR_MAX_WIDTH: u32 = 256;
 
-            let ctx = ndk_context::android_context();
-            let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
-            let mut env = vm.attach_current_thread()?;
-            let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
-
-            // Option<&str> → Java の String / null
-            fn jstr<'a>(
-                env: &mut jni::JNIEnv<'a>,
-                s: Option<&str>,
-            ) -> std::result::Result<JObject<'a>, jni::errors::Error> {
-                match s {
-                    Some(s) => Ok(env.new_string(s)?.into()),
-                    None => Ok(JObject::null()),
+        let deep_link = host.and_then(|h| android_deep_link(h, context));
+        let app = app.clone();
+        let title = title.to_string();
+        let body = body.map(str::to_string);
+        let icon_url = media.and_then(|m| m.icon_url.clone());
+        let image_url = media.and_then(|m| m.image_url.clone());
+        tauri::async_runtime::spawn(async move {
+            // ImageCache は setup で manage される。未登録 (起動直後) なら
+            // 画像なしで通知だけ出す
+            let cache = app
+                .try_state::<std::sync::Arc<crate::image_cache::ImageCache>>()
+                .map(|s| s.inner().clone());
+            let (icon_path, image_path) = match cache {
+                Some(cache) => {
+                    let icon = match icon_url {
+                        Some(u) => {
+                            crate::notify_media::ensure_local_file(
+                                &cache,
+                                &u,
+                                Some(AVATAR_MAX_WIDTH),
+                            )
+                            .await
+                        }
+                        None => None,
+                    };
+                    // 絵文字はアニメーション保持のため変換なし (原本)。decode の
+                    // メモリ安全は Kotlin 側の inSampleSize が担保する
+                    let image = match image_url {
+                        Some(u) => crate::notify_media::ensure_local_file(&cache, &u, None).await,
+                        None => None,
+                    };
+                    (icon, image)
                 }
-            }
+                None => (None, None),
+            };
+            show_android_notification(
+                &title,
+                body.as_deref(),
+                deep_link.as_deref(),
+                icon_path.as_deref().and_then(|p| p.to_str()),
+                image_path.as_deref().and_then(|p| p.to_str()),
+            );
+        });
+    }
+}
 
-            let j_title = jstr(&mut env, Some(title))?;
-            let j_body = jstr(&mut env, body)?;
-            let j_link = jstr(&mut env, deep_link.as_deref())?;
-            let j_avatar = jstr(&mut env, media.and_then(|m| m.icon_url.as_deref()))?;
-            let j_image = jstr(&mut env, media.and_then(|m| m.image_url.as_deref()))?;
+/// MainActivity.showRichNotification を JNI で呼ぶ。avatar_path / image_path
+/// は ImageCache のローカルファイル (URL ではない)。
+#[cfg(target_os = "android")]
+fn show_android_notification(
+    title: &str,
+    body: Option<&str>,
+    deep_link: Option<&str>,
+    avatar_path: Option<&str>,
+    image_path: Option<&str>,
+) {
+    use jni::objects::{JObject, JValue};
 
-            env.call_method(
-                &activity,
-                "showRichNotification",
-                "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-                &[
-                    JValue::Int(next_notification_id()),
-                    JValue::Object(&j_title),
-                    JValue::Object(&j_body),
-                    JValue::Object(&j_link),
-                    JValue::Object(&j_avatar),
-                    JValue::Object(&j_image),
-                ],
-            )?;
-            Ok(())
-        })();
-        if let Err(e) = result {
-            tracing::warn!("[notification] JNI call failed: {e}");
+    let ctx = ndk_context::android_context();
+    let vm = match unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) } {
+        Ok(vm) => vm,
+        Err(e) => {
+            tracing::warn!("[notification] JavaVM unavailable: {e}");
+            return;
         }
+    };
+    let mut env = match vm.attach_current_thread() {
+        Ok(env) => env,
+        Err(e) => {
+            tracing::warn!("[notification] attach_current_thread failed: {e}");
+            return;
+        }
+    };
+    let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
+
+    // Option<&str> → Java の String / null
+    fn jstr<'a>(
+        env: &mut jni::JNIEnv<'a>,
+        s: Option<&str>,
+    ) -> std::result::Result<JObject<'a>, jni::errors::Error> {
+        match s {
+            Some(s) => Ok(env.new_string(s)?.into()),
+            None => Ok(JObject::null()),
+        }
+    }
+
+    let result = (|| -> std::result::Result<(), jni::errors::Error> {
+        let j_title = jstr(&mut env, Some(title))?;
+        let j_body = jstr(&mut env, body)?;
+        let j_link = jstr(&mut env, deep_link)?;
+        let j_avatar = jstr(&mut env, avatar_path)?;
+        let j_image = jstr(&mut env, image_path)?;
+
+        env.call_method(
+            &activity,
+            "showRichNotification",
+            "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+            &[
+                JValue::Int(next_notification_id()),
+                JValue::Object(&j_title),
+                JValue::Object(&j_body),
+                JValue::Object(&j_link),
+                JValue::Object(&j_avatar),
+                JValue::Object(&j_image),
+            ],
+        )?;
+        Ok(())
+    })();
+    if let Err(e) = result {
+        // Err を warn するだけで済ませると JVM 側の pending exception が残り、
+        // 同一スレッドの次の JNI 呼び出しで ART が "called with pending
+        // exception" として abort する (プロセス即死)。必ずクリアする
+        // (describe で logcat に原因を残す)
+        if env.exception_check().unwrap_or(false) {
+            let _ = env.exception_describe();
+            let _ = env.exception_clear();
+        }
+        tracing::warn!("[notification] JNI call failed: {e}");
     }
 }
 
@@ -373,8 +461,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         // 通知メディア: 本家 web push (icon=アバター, badge=絵文字) に倣い、
         // icon = アクターのアバター、リアクションのカスタム絵文字 (":name:" /
         // ":name@host:") はフルカラー画像として添付。Unicode 絵文字は本文に
-        // 出るので画像なし。絵文字 URL は本家 sw と同じ /emoji/<name>.webp
-        // (name は "@." の local マーカーごとサーバーが解決する)。
+        // 出るので画像なし。URL の形式は notify_media::emoji_image_url 参照。
         let media = {
             let icon_url = notification
                 .user
@@ -383,11 +470,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
             let image_url = (notif_type == "reaction")
                 .then_some(notification.reaction.as_deref())
                 .flatten()
-                .filter(|r| r.len() > 2 && r.starts_with(':') && r.ends_with(':'))
-                .map(|r| {
-                    let name = &r[1..r.len() - 1];
-                    format!("https://{}/emoji/{}.webp", notification.server_host, name)
-                });
+                .and_then(|r| crate::notify_media::emoji_image_url(&notification.server_host, r));
             (icon_url.is_some() || image_url.is_some()).then_some(NotifyMedia {
                 icon_url,
                 image_url,

@@ -29,6 +29,7 @@ mod crash_report;
 mod image_cache;
 mod media_proxy;
 mod migrations;
+mod notify_media;
 mod ogp;
 mod os_notify;
 mod perf_config;
