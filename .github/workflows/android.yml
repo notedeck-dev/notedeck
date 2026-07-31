@@ -192,9 +192,10 @@ jobs:
 
           for FLAVOR_DIR in apk/*/release; do
             FLAVOR=$(basename "$(dirname "$FLAVOR_DIR")")
-            # 署名済みを優先し、無ければ未署名を配る (既存の挙動を踏襲)
+            # 署名済みのみを配る。未署名 APK は Android が
+            # INSTALL_PARSE_FAILED_NO_CERTIFICATES で install を拒否するため、
+            # フォールバックで配っても利用者はインストールできない
             APKS=("$FLAVOR_DIR"/*-release-signed.apk)
-            [ ${#APKS[@]} -eq 0 ] && APKS=("$FLAVOR_DIR"/*-release-unsigned.apk)
             [ ${#APKS[@]} -eq 0 ] && continue
             cp "${APKS[0]}" "NoteDeck-${VERSION}-android-${FLAVOR}.apk"
           done

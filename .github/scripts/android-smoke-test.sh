@@ -15,9 +15,13 @@ APK_DIR=${1:-apk}
 # 起動直後の native crash は数秒以内に出る
 SURVIVE_SECONDS=${2:-20}
 
-APK=$(find "$APK_DIR" -name '*x86_64*-release-*.apk' | head -1)
+# 署名済みだけを対象にする。Android は未署名 APK の install を
+# INSTALL_PARSE_FAILED_NO_CERTIFICATES で拒否するため、`-release-*.apk` の
+# ような緩い glob で unsigned / aligned を掴むとテストが成立しない
+APK=$(find "$APK_DIR" -name '*x86_64*-release-signed.apk' | head -1)
 if [ -z "$APK" ]; then
-  echo "ERROR: x86_64 の APK が見つからない ($APK_DIR)" >&2
+  echo "ERROR: 署名済みの x86_64 APK が見つからない ($APK_DIR)" >&2
+  echo "配布物は署名が必須。keystore の設定を確認すること" >&2
   find "$APK_DIR" -name '*.apk' >&2 || true
   exit 1
 fi
