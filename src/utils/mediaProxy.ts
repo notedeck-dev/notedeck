@@ -92,6 +92,36 @@ export function markMediaFailed(url: string): void {
   mediaFailures.set(url, entry)
 }
 
+/**
+ * プレースホルダ滞留の自己修復 (`<img>` の @load からの申告)。
+ *
+ * 二段階配信は「透明プレースホルダ → MediaFetched → 再要求」で完結するが、
+ * イベントを取りこぼす (Android の WebView フリーズ復帰等) と透明 GIF の
+ * まま固まる。プレースホルダは正常な 200 応答なので onerror が発火せず、
+ * markMediaFailed の再試行にも乗らない。@load で 1×1 を掴んだことを申告し、
+ * 一定時間内に世代が進まなければ自力で進めて再要求させる。再要求がまた
+ * プレースホルダなら @load が再申告するので、取得完了まで自然に収束する
+ * (取得失敗は 502 → onerror → markMediaFailed 側が引き継ぐ)。
+ */
+const PLACEHOLDER_RECHECK_MS = 4_000
+
+const placeholderTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+export function ensurePlaceholderRecovery(url: string): void {
+  if (placeholderTimers.has(url)) return
+  const versionAtSchedule = mediaVersions.get(url) ?? 0
+  placeholderTimers.set(
+    url,
+    setTimeout(() => {
+      placeholderTimers.delete(url)
+      // MediaFetched が正常に届いて世代が進んでいれば何もしない
+      if ((mediaVersions.get(url) ?? 0) === versionAtSchedule) {
+        bumpMediaVersion(url)
+      }
+    }, PLACEHOLDER_RECHECK_MS),
+  )
+}
+
 let listenerStarted = false
 function ensureFetchedListener() {
   if (listenerStarted) return

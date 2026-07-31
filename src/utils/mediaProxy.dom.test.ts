@@ -248,6 +248,61 @@ describe('失敗申告によるバックオフ再試行 (markMediaFailed)', () =
   })
 })
 
+describe('プレースホルダ滞留の自己修復 (ensurePlaceholderRecovery)', () => {
+  // 二段階配信は「透明プレースホルダ → MediaFetched → 再要求」で完結するが、
+  // イベントを取りこぼすと透明 GIF のまま固まり、onerror も発火しないため
+  // 再試行機構 (markMediaFailed) の対象外になる。<img> の @load で
+  // プレースホルダ (1×1) を掴んだことを申告し、一定時間内に世代が進まなければ
+  // 自力で再要求させる
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('世代が進まないまま滞留したら自力で世代を進める', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    const base = proxyUrl(REMOTE)
+    ensurePlaceholderRecovery(REMOTE)
+    expect(proxyUrl(REMOTE)).toBe(base)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toBe(`${base}&r=1`)
+  })
+
+  it('MediaFetched で世代が進んでいれば何もしない (正常経路に譲る)', async () => {
+    const { proxyUrl, handleMediaFetched, ensurePlaceholderRecovery } =
+      await loadModule()
+    ensurePlaceholderRecovery(REMOTE)
+    handleMediaFetched(REMOTE)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+    vi.advanceTimersByTime(10 * 60_000)
+    // watchdog による余計な bump (&r=2) は起きない
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+
+  it('タイマー待ち中の重複申告は 1 本にまとまる', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    ensurePlaceholderRecovery(REMOTE)
+    ensurePlaceholderRecovery(REMOTE)
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+
+  it('再要求でまたプレースホルダを掴んだら再申告できる (取得完了まで収束)', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+    // 再要求後もまだ取得中 → @load が再度申告 → もう一周
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=2')
+  })
+})
+
 describe('proxyThumbUrl', () => {
   // format は付けない: 明示すると「上限以下なら変換不要」の素通しが効かなくなる
   it('幅だけを付ける (非 Android は wait + soft も付く)', async () => {
