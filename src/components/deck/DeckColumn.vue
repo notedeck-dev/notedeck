@@ -190,7 +190,6 @@ const isMuted = computed(
 )
 
 function toggleMute() {
-  closeMenu()
   deckStore.updateColumn(props.columnId, { soundMuted: !isMuted.value })
 }
 
@@ -245,6 +244,18 @@ function openAsPip() {
       <template v-if="!isPipMode">
         <slot name="header-meta" />
       </template>
+
+      <!-- Mute toggle (resident: sound settings are used far more often than the other menu items) -->
+      <button
+        v-if="soundEnabled && !isPipMode"
+        :class="[$style.headerBtn, isMuted && $style.headerBtnActive]"
+        class="_button"
+        :title="isMuted ? 'ミュート解除' : 'ミュート'"
+        @pointerdown.stop
+        @click.stop="toggleMute"
+      >
+        <i :class="isMuted ? 'ti ti-volume-off' : 'ti ti-volume'" />
+      </button>
 
       <!-- Grabber (Misskey 6-dot pattern, hidden in PiP, mobile, and compact layout) -->
       <i v-if="!isPipMode && !isMobilePlatform && !isCompact" :class="$style.grabber" class="column-grabber ti ti-grip-vertical" />
@@ -322,10 +333,6 @@ function openAsPip() {
         <button v-if="canRecall" class="_popupItem" @click="recallToMain">
           <i class="ti ti-arrow-back-up" />
           <span>メインウィンドウに戻す</span>
-        </button>
-        <button v-if="soundEnabled" class="_popupItem" @click="toggleMute">
-          <i :class="isMuted ? 'ti ti-volume' : 'ti ti-volume-off'" />
-          <span>{{ isMuted ? 'ミュート解除' : 'ミュート' }}</span>
         </button>
         <slot name="menu-items" :close-menu="closeMenu" />
         <div :class="$style.columnMenuDivider" />
@@ -436,6 +443,12 @@ function openAsPip() {
     background: var(--nd-buttonHoverBg);
     opacity: 0.8;
   }
+}
+
+/* Muted state must stay readable at a glance (same specificity as .headerBtn) */
+.columnHeader .headerBtnActive {
+  opacity: 1;
+  color: var(--nd-accent);
 }
 
 /* Column action menu — nested for specificity 0,2,0 to beat
