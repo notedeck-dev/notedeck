@@ -404,6 +404,43 @@ describe('プレースホルダ滞留の全画像監視 (installPlaceholderWatch
     expect(proxyUrl(REMOTE)).toContain('&r=4')
   })
 
+  it('プロキシ経由の IMG の error は失敗申告され、バックオフ後に再試行する', async () => {
+    // 以前は絵文字の onerror (onCustomEmojiImgError) だけが失敗を申告して
+    // いた。アバター・添付・OGP も同じ二段階配信を通るので、error も load と
+    // 同じ document capture で一括して拾う
+    const { proxyUrl } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    const img = document.createElement('img')
+    img.src = proxied
+    document.body.appendChild(img)
+    img.dispatchEvent(new Event('error'))
+    vi.advanceTimersByTime(8_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+
+  it('プロキシ経由でない IMG の error は申告しない', async () => {
+    const { proxyUrl } = await loadModule()
+    proxyUrl(REMOTE) // 監視を起動させる
+    const direct = 'https://example.com/broken.png'
+    const img = document.createElement('img')
+    img.src = direct
+    document.body.appendChild(img)
+    img.dispatchEvent(new Event('error'))
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(direct)).not.toContain('&r=')
+  })
+
+  it('IMG 以外の要素の error は申告しない', async () => {
+    const { proxyUrl } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    const video = document.createElement('video')
+    ;(video as unknown as { src: string }).src = proxied
+    document.body.appendChild(video)
+    video.dispatchEvent(new Event('error'))
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(REMOTE)).not.toContain('&r=')
+  })
+
   it('IMG 以外の要素の load では試行回数をリセットしない', async () => {
     const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
     const proxied = proxyUrl(REMOTE) ?? ''
