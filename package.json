@@ -21,6 +21,7 @@
     "android:sync": "./src-tauri/android/sync.sh",
     "android:dev": "pnpm android:sync && tauri android dev",
     "android:build": "pnpm android:sync && tauri android build",
+    "doctor": "bash scripts/doctor.sh",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "changelog": "git log $(git describe --tags --abbrev=0 2>/dev/null || echo '')..HEAD --pretty=format:'- %s' --no-merges",

@@ -10,10 +10,20 @@
   "[json]": {
     "editor.defaultFormatter": "biomejs.biome"
   },
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
   "editor.codeActionsOnSave": {
     "quickfix.biome": "explicit",
     "source.organizeImports.biome": "explicit"
   },
   "js/ts.tsdk.path": "node_modules/typescript/lib",
-  "js/ts.tsdk.promptToUseWorkspaceVersion": true
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true,
+
+  // リポジトリ直下に Cargo.toml が無いため、rust-analyzer に
+  // プロジェクト位置を明示しないと Rust コードが認識されない (#896)
+  "rust-analyzer.linkedProjects": ["src-tauri/Cargo.toml"],
+
+  "nix.enableLanguageServer": true,
+  "nix.serverPath": "nil"
 }

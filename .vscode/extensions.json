@@ -3,6 +3,10 @@
     "vue.volar",
     "biomejs.biome",
     "tauri-apps.tauri-vscode",
-    "vitest.explorer"
+    "vitest.explorer",
+    "rust-lang.rust-analyzer",
+    "vadimcn.vscode-lldb",
+    "tamasfe.even-better-toml",
+    "jnoortheen.nix-ide"
   ]
 }
