@@ -20,12 +20,18 @@ import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { toggleFavorite } from '@/utils/toggleFavorite'
-import { toggleReaction } from '@/utils/toggleReaction'
+import { type ReactionPatch, toggleReaction } from '@/utils/toggleReaction'
 import { votePoll } from '@/utils/votePoll'
 
 export interface ColumnSetupOptions {
   /** Reactive offline flag — when true, write operations are blocked */
   isOffline?: () => boolean
+  /**
+   * 楽観的更新の差分の適用先。既定は noteStore への差し替えだが、ノートを
+   * noteStore に置かない面 (照会カラムのローカル deep ref 等) は自分の
+   * 保持形態に合わせて差し替える。
+   */
+  applyNotePatch?: (note: NormalizedNote, patch: ReactionPatch) => void
 }
 
 export function useColumnSetup(
@@ -170,8 +176,12 @@ export function useColumnSetup(
     if (!adapter || checkOffline()) return
     try {
       await toggleReaction(adapter.api, note, reaction, (patch) => {
-        // 新オブジェクトへの差し替えで store に反映する (reactive に届く)
-        noteStore.update(note.id, { ...note, ...patch })
+        if (options?.applyNotePatch) {
+          options.applyNotePatch(note, patch)
+        } else {
+          // 新オブジェクトへの差し替えで store に反映する (reactive に届く)
+          noteStore.update(note.id, { ...note, ...patch })
+        }
         customMutatedFn?.()
       })
       if (!getColumn().soundMuted) actionSound.play()

@@ -58,7 +58,12 @@ const {
   getAdapter,
   postForm,
   handlers,
-} = useColumnSetup(() => props.column)
+} = useColumnSetup(() => props.column, {
+  // 照会結果は noteStore ではなくローカルの deep ref (result / ancestors /
+  // children) に保持しているため、差分は対象オブジェクトへ直接代入して
+  // 反映する (cross-account 側の handleReactionCrossAccount と同じ規則)
+  applyNotePatch: (note, patch) => Object.assign(note, patch),
+})
 
 const accountsStore = useAccountsStore()
 
