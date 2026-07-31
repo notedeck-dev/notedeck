@@ -12,7 +12,7 @@ export function useEmojiResolver() {
   ): string | null {
     const base = shortcode.replace(/@\.$/, '')
     const withDot = `${base}@.`
-    return (
+    const url =
       emojis[shortcode] ||
       emojis[base] ||
       emojis[withDot] ||
@@ -20,7 +20,10 @@ export function useEmojiResolver() {
       reactionEmojis[base] ||
       reactionEmojis[withDot] ||
       emojisStore.resolve(serverHost, base)
-    )
+    // どの層でも解決できない = 辞書が古い可能性 (起動後に追加された絵文字)。
+    // store に報告してデバウンス付きの取り直しをトリガーする
+    if (!url) emojisStore.reportMiss(serverHost, base)
+    return url
   }
 
   /** Resolve reaction key (e.g. ":emoji:") to URL, or null for Unicode emoji */

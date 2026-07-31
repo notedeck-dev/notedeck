@@ -24,6 +24,19 @@ const NEGATIVE_TTL_CLIENT: Duration = Duration::from_secs(24 * 60 * 60); // 4xx:
 const NEGATIVE_TTL_SERVER: Duration = Duration::from_secs(2 * 60); // 5xx: 2min
 const NEGATIVE_TTL_NETWORK: Duration = Duration::from_secs(5); // timeout/conn: 5s
 
+/// HTTP エラー status ごとの (negative cache TTL, host circuit breaker に
+/// 数えるか)。4xx はその URL 固有の問題 (辞書落ち絵文字の 404 等) なので
+/// host には数えない — 数えると 404 が数件連なるだけでそのサーバーの全
+/// メディアが circuit breaker で死ぬ。429 はホスト側の圧力なので、24h では
+/// なく短い TTL で引きつつ host にも数える。
+fn classify_http_failure(status: u16) -> (Duration, bool) {
+    match status {
+        429 => (NEGATIVE_TTL_SERVER, true),
+        400..=499 => (NEGATIVE_TTL_CLIENT, false),
+        _ => (NEGATIVE_TTL_SERVER, true),
+    }
+}
+
 // Fallback defaults (used when perf_config is not available, e.g. in tests)
 const DEFAULT_MEMORY_CACHE_MAX_ITEM: usize = 256 * 1024;
 const DEFAULT_MEMORY_CACHE_MAX_TOTAL: usize = 32 * 1024 * 1024;
@@ -359,19 +372,15 @@ impl ImageCache {
         }
         let resp = req.send().await.map_err(|e| {
             let msg = format!("Fetch failed: {e:#}");
-            self.record_negative_and_notify(url, &hash, &tx, &msg, NEGATIVE_TTL_NETWORK);
+            self.record_negative_and_notify(url, &hash, &tx, &msg, NEGATIVE_TTL_NETWORK, true);
             msg
         })?;
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
-            let ttl = if (400..500).contains(&status) {
-                NEGATIVE_TTL_CLIENT
-            } else {
-                NEGATIVE_TTL_SERVER
-            };
+            let (ttl, count_toward_circuit) = classify_http_failure(status);
             let msg = format!("HTTP {status}");
-            self.record_negative_and_notify(url, &hash, &tx, &msg, ttl);
+            self.record_negative_and_notify(url, &hash, &tx, &msg, ttl, count_toward_circuit);
             return Err(msg);
         }
 
@@ -379,8 +388,9 @@ impl ImageCache {
 
         if let Some(cl) = resp.content_length() {
             if cl > max_file_bytes {
+                // その URL 固有の問題なので host には数えない
                 let msg = "File too large".to_string();
-                self.record_negative_and_notify(url, &hash, &tx, &msg, NEGATIVE_TTL_CLIENT);
+                self.record_negative_and_notify(url, &hash, &tx, &msg, NEGATIVE_TTL_CLIENT, false);
                 return Err(msg);
             }
         }
@@ -546,6 +556,7 @@ impl ImageCache {
         tx: &watch::Sender<Option<Result<CacheEntry, String>>>,
         msg: &str,
         ttl: Duration,
+        count_toward_circuit: bool,
     ) {
         let neg = self.negative_cache.clone();
         let inflight = self.inflight.clone();
@@ -561,8 +572,9 @@ impl ImageCache {
                 .await
                 .insert(hash.clone(), (Instant::now(), ttl));
             inflight.lock().await.remove(&hash);
-            // Update host circuit breaker
-            if !host.is_empty() {
+            // Update host circuit breaker (network/5xx/429 のみ — 分類は
+            // classify_http_failure 参照)
+            if count_toward_circuit && !host.is_empty() {
                 let mut circuits = host_circuits.write().await;
                 let state = circuits.entry(host).or_insert(HostCircuitState {
                     consecutive_failures: 0,
@@ -713,6 +725,19 @@ pub fn hex_hash(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 4xx (404 等) は URL 固有の問題なので host circuit breaker に数えない。
+    /// 数えると辞書落ち絵文字の 404 が数件連なるだけでサーバーの全メディアが
+    /// 60 秒死ぬ。429 はホスト圧力なので短 TTL + circuit 加算。
+    #[test]
+    fn http_failure_classification() {
+        assert_eq!(classify_http_failure(404), (NEGATIVE_TTL_CLIENT, false));
+        assert_eq!(classify_http_failure(403), (NEGATIVE_TTL_CLIENT, false));
+        // 429 を 24h 封印すると一時的なレート制限で絵文字が丸 1 日消える
+        assert_eq!(classify_http_failure(429), (NEGATIVE_TTL_SERVER, true));
+        assert_eq!(classify_http_failure(500), (NEGATIVE_TTL_SERVER, true));
+        assert_eq!(classify_http_failure(502), (NEGATIVE_TTL_SERVER, true));
+    }
 
     #[test]
     fn hex_hash_deterministic() {

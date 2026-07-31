@@ -52,6 +52,7 @@ import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
+import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
@@ -466,11 +467,9 @@ function getCachedTwemojiUrl(reaction: string): string | null {
   return url
 }
 
-// 解決済み URL のロード失敗 (リモート鯖ダウン・プロキシ 502 等) は unknown 表示に落とす (#844)
-function onReactionImgError(e: Event) {
-  const img = e.target as HTMLImageElement
-  if (!img.src.endsWith('/emoji-unknown.svg')) img.src = '/emoji-unknown.svg'
-}
+// 解決済み URL のロード失敗 (リモート鯖ダウン・プロキシ 502 等) は unknown 表示に
+// 落とし、バックオフ再試行を申告する (#844)
+const onReactionImgError = onCustomEmojiImgError
 
 const NOTIFICATION_ICONS: Record<string, string> = {
   reaction: 'mood-plus',
