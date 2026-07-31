@@ -548,11 +548,11 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
   個別 API を網羅的に並べる代わりに、`Nd:call` で capability registry に
   接続することで `notes.*` / `column.*` / `account.*` / `memos.*` / `theme.*` /
   `skills.*` / `widgets.*` / `plugins.*` / `ai.*` / `meta.*` / `clipboard.*` /
-  `drive.*` / `http.fetch` / `ui.notify` / `misstore.search` / `logs.recent` 等
-  **69 個の builtin capability** を AiScript からも即時利用可能にしている
+  `drive.*` / `http.fetch` / `ui.notify` / `misstore.search` / `logs.recent` 等の
+  builtin capability を AiScript からも即時利用可能にしている
   （AI tool calling / HTTP API / CLI / コマンドパレット / AiScript の 5 経路統一）。
-  skill / widget / plugin / theme の **write 系は `aiTool:false` でデフォルト
-  非露出**、編集履歴 + revert (`*.history` / `*.revert`) を全カテゴリで完備。
+  skill / widget / plugin / theme の write 系は権限・確認ダイアログ・個別ガードの
+  3 層で守り、編集履歴 + revert (`*.history` / `*.revert`) を全カテゴリで完備。
   - `NOTEDECK` — bool 定数。`exists("NOTEDECK")` でフィーチャーゲート可能
   - `Nd:version` — NoteDeck のバージョン文字列
   - `Nd:register_command` — コマンドパレットにカスタムコマンドを登録。
@@ -740,8 +740,8 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
   `search.fts5(query)` capability に AI が自然言語からパラメータを生成する形
 
 **AI × AiScript:**
-- [ ] **自然言語 → AiScript** (#107) — 「○○するプラグイン作って」で AI がコード生成・インストールまで完結
-- [ ] **プラグイン生成 API** (#108) — AI がプラグインコードを生成し、HTTP API 経由でインストール。
+- [x] **自然言語 → AiScript** (#107) — 「○○するプラグイン作って」で AI がコード生成・インストールまで完結
+- [x] **プラグイン生成 API** (#108) — AI がプラグインコードを生成し、HTTP API 経由でインストール。
   `Nd:register_command` で動的に新 capability が登録され、**次の会話ターンで AI tool として自動公開**される
   (= AI が自分のツールセットを成長させる)
 
@@ -778,7 +778,7 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
 ### 未完了: プラグイン開発支援 — v1.0.0 以降
 
 > プラグイン作者を増やすための開発体験の整備。
-> ストアやレジストリはエコシステムが育ってから検討する。まずは作者を増やすことに集中。
+> 配布は MisStore が担っているので、残るのは「書き始めやすさ」の整備。
 > Nd:* API 拡充と合わせて v1.0.0 以降に着手する。
 
 - [ ] **テンプレートギャラリー** — 「TL フィルター」「外部 API 連携」「カスタムカラム」
@@ -856,7 +856,7 @@ notecli に DB テスト 18件、notedeck に 239件のユニットテストを�
 
 #### AiScript プラグインシステム [重要度: 低]
 
-Web Worker で LSP 搭載のコードエディタ、プラグイン実行エンジン、UI レンダラーまで実装済み。プラグインマーケットプレイス（共有・インストールの仕組み）がない。
+Web Worker で LSP 搭載のコードエディタ、プラグイン実行エンジン、UI レンダラー、MisStore からの配布・インストールまで実装済み。残るのはプラグイン作者向けの開発体験（テンプレート・ドキュメント・ホットリロード）。
 
 ---
 
@@ -868,7 +868,6 @@ Web Worker で LSP 搭載のコードエディタ、プラグイン実行エン�
 |---|---|
 | ソーシャルアナリティクス | L1 蓄積データ + L4 AI で投稿傾向分析・TL 活性度グラフ。需要次第 |
 | Digital Wellbeing | Misskey 依存を防ぐ使用時間の可視化・利用制限・休憩リマインダー。ソーシャルアナリティクスの延長として、自分のセッション時間・投稿頻度・リアクション頻度を本人向けに可視化し、閾値超過で「そろそろインターネットやめろ」通知。L1 蓄積データ（自分の投稿・リアクションのタイムスタンプ）と Boss Key / オフラインモード基盤を再利用可能（#359） |
-| プラグインストア | エコシステム成熟後。GitHub curated list から開始 |
 | ffmpeg 連携 | 動画トランスコード。サーバーのサイズ制限に合わせて圧縮 |
 | アプリロック（モバイル限定） | Android / iOS の指紋認証・PIN 連携。デスクトップは OS ロック画面で代替可能なため対象外 |
 | 多言語対応（i18n） | 海外ユーザー需要が明確になってから |

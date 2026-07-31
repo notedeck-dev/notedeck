@@ -473,7 +473,7 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 ```
 [AI / プラグイン]
    ↓ tool calling (Anthropic / OpenAI / Custom)
-[capability sanitizer]     — `aiTool: false` を schema から除外
+[capability sanitizer]     — `aiTool: false` の capability を schema から除外
    ↓
 [permission gate]          — principal 別プロファイル (#712) と capability 宣言を AND 照合
    ↓
@@ -499,9 +499,15 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 
 権限キーの一覧と capability との対応は [SKILLS.md](SKILLS.md) §5 を参照。
 
-### `aiTool: false` ガード (自己改変系の安全弁)
+### 自己改変系 capability の安全弁
 
-skill / widget / plugin / theme の **write 系 capability** (`skills.replaceSection` / `widgets.create` / `plugins.update` / `theme.create` 等) は属性 `aiTool: false` を持ち、`toolSchema.ts` が AI 用ツール schema を生成する際に **schema から除外** される。AI からは存在自体が見えないため、tool calling での自己改変を構造的に防ぐ。明示的に有効化するには capability 定義側で `aiTool: true` に変える必要がある。
+skill / widget / plugin / theme の write 系 capability は、かつて `aiTool: false` で AI の tool schema から除外していたが、このガードは AI へのプラグイン生成開放 ([#107](https://github.com/notedeck-dev/notedeck/issues/107) / [#108](https://github.com/notedeck-dev/notedeck/issues/108)) に伴い廃止された。現在の安全弁は 3 層:
+
+1. **permission**: `skills.write` / `widgets.write` / `plugins.write` / `theme.write` が許可されたときだけ通る。plugin / external principal に対しては `skills.write` / `ai.persona.write` が恒久 deny
+2. **確認ダイアログ**: `requiresConfirmation` で dispatch 直前にユーザー承認
+3. **capability 個別ガード**: builtIn skill の削除拒否、`skills.create` の frontmatter 遮断 + id 内部生成、`aiscript.validate` の preflight 等
+
+`aiTool: false` が残るのは `ai.chat` (AI 自身の再帰呼び出しを防ぐためプラグイン専用) のみ。詳細は [SKILLS.md](SKILLS.md) §5.2。
 
 ### Credential Proxy 実行モデル
 
@@ -541,12 +547,14 @@ skill / widget / plugin / theme の **write 系 capability** (`skills.replaceSec
 
 ---
 
-## 11. 受容している制限
+## 11. 既知の制限
+
+多くは意図して受容しているもの。対応方針が立っているものは issue を併記する。
 
 | 項目 | 備考 |
 |------|------|
 | 同一 OS ユーザーの他プロセス | OS キーチェーンは別ユーザー・リモートからの窃取を防ぐが、同一ユーザー権限のプロセス (同一アカウント上のマルウェア等) からの読み取りは OS の責務。高い脅威環境ではフルディスク暗号化・信頼できるソフトウェアのみの実行を併用する |
 | CSP `unsafe-eval` | AiScript エンジンが必要とするため除去不可 |
-| SSRF DNS TOCTOU | デスクトップアプリでは脅威が限定的。DNS 解決後の IP 再検証は VPN / 社内 Misskey ユーザーをブロックするため実装しない (Secret Vault の `vault.fetch` のみ DNS pinning + hop ごとの再検証を行う) |
+| SSRF DNS TOCTOU (メディアプロキシ) | Secret Vault の `vault.fetch` は DNS pinning + hop ごとの再検証を行うが、メディアプロキシは解決前のホスト名でしか検証していない。DNS 解決結果まで防御を広げる方針は [#857](https://github.com/notedeck-dev/notedeck/issues/857) で立てている。VPN / 社内 Misskey ユーザーを巻き込まない形にする必要があるため、単純な private IP 拒否は採らない |
 | Tor (.onion) 非対応 | HTTPS 強制の緩和はセキュリティ劣化を招き、SOCKS5 対応も VPN には不要。`.onion` Misskey インスタンスの需要もないため対応しない |
 | HEARTBEAT 暴走時の rate limit | Cheap Check First + 連続失敗 disable で防御。capability 単位の rate limit は設けていない |
