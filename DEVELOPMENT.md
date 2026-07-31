@@ -48,6 +48,36 @@ pnpm install       # パッケージインストール
 sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 ```
 
+### 環境診断
+
+セットアップしたのに動かないときは、原因を自力特定せず診断コマンドを実行してください:
+
+```bash
+pnpm doctor
+```
+
+必要なツールチェーン・システム依存・モバイル SDK の有無を検査し、欠落ごとに具体的な対処コマンドを提示します（[#896](https://github.com/notedeck-dev/notedeck/issues/896)）。
+
+### エディタ / 言語サーバー
+
+言語サーバーは開発環境に同梱されており、`nix develop` に入った時点でエディタを問わず補完・定義ジャンプが動きます:
+
+| 対象 | 言語サーバー | 導入経路 |
+|------|-------------|---------|
+| Rust | rust-analyzer + rust-src | `rust-toolchain.toml` の components |
+| TOML | taplo | `flake.nix` |
+| Nix | nil | `flake.nix` |
+| Vue SFC | vue-language-server | `flake.nix` |
+| TypeScript | tsserver | `node_modules` の typescript（ワークスペース版） |
+
+VS Code 向けの表示層は `.vscode/` に同梱（推奨拡張・ワークスペース設定・デバッグ構成）:
+
+- リポジトリ直下に Cargo マニフェストが無いため、`rust-analyzer.linkedProjects` で
+  `src-tauri/Cargo.toml` を明示している。他エディタでも同等の設定が必要
+- デバッグ構成「Tauri desktop (debug)」で Rust 側にブレークポイントを張れる
+  （CodeLLDB 使用。vite dev server は preLaunchTask で自動起動）
+- WSL2 では `nix develop` したシェルから VS Code を起動すること（EGL 対策の環境変数を継承するため）
+
 ## Getting Started
 
 ```bash
