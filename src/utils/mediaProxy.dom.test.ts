@@ -301,6 +301,31 @@ describe('プレースホルダ滞留の自己修復 (ensurePlaceholderRecovery)
     vi.advanceTimersByTime(4_000)
     expect(proxyUrl(REMOTE)).toContain('&r=2')
   })
+
+  it('自己修復は上限で打ち切る (本当に 1×1 の画像で無限ループしない)', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    // 本物が 1×1 の画像は再要求してもずっと 1×1 → 毎回 @load から申告される
+    for (let i = 0; i < 10; i++) {
+      ensurePlaceholderRecovery(REMOTE)
+      vi.advanceTimersByTime(4_000)
+    }
+    const r = Number(/&r=(\d+)/.exec(proxyUrl(REMOTE) ?? '')?.[1])
+    expect(r).toBe(3)
+  })
+
+  it('取得成功 (MediaFetched ok) で自己修復の試行回数がリセットされる', async () => {
+    const { proxyUrl, handleMediaFetched, ensurePlaceholderRecovery } =
+      await loadModule()
+    for (let i = 0; i < 10; i++) {
+      ensurePlaceholderRecovery(REMOTE)
+      vi.advanceTimersByTime(4_000)
+    }
+    handleMediaFetched(REMOTE, true) // r=4
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    const r = Number(/&r=(\d+)/.exec(proxyUrl(REMOTE) ?? '')?.[1])
+    expect(r).toBe(5)
+  })
 })
 
 describe('proxyThumbUrl', () => {

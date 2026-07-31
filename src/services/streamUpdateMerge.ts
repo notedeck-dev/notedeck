@@ -98,7 +98,9 @@ export function mergeNoteUpdate(
     case 'reacted': {
       const reaction = event.body.reaction
       if (!reaction) return null
-      const isMine = event.body.userId === myUserId
+      // myUserId != null: guest (undefined) × userId 欠落イベントの undefined
+      // 同士一致を「自分」と誤判定しない (pollVoted と同じ規約)
+      const isMine = myUserId != null && event.body.userId === myUserId
       if (isMine) {
         // 楽観反映済みの echo → 二重加算しない
         if (
@@ -137,7 +139,7 @@ export function mergeNoteUpdate(
     case 'unreacted': {
       const reaction = event.body.reaction
       if (!reaction) return null
-      if (event.body.userId === myUserId) {
+      if (myUserId != null && event.body.userId === myUserId) {
         // 自分の取消: myReaction が一致するなら自己修復として取り消す。
         // カウントは「楽観減算済みの echo」と「別デバイス操作」を区別できない
         // ため触らない (二重減算の方が害が大きい)。既に null なら echo

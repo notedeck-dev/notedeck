@@ -156,6 +156,20 @@ describe('mergeNoteUpdate', () => {
     expect(merged).toBeNull()
   })
 
+  it('guest (myUserId なし) では userId 欠落イベントを自分扱いしない', () => {
+    // userId を載せないサーバー実装がある。myUserId undefined × userId
+    // undefined の一致を「自分」と誤判定すると、ゲスト閲覧で myReaction が
+    // 立ってしまう。他人のリアクションとしてカウントだけ増やす
+    const note = makeNote()
+    const merged = mergeNoteUpdate(
+      note,
+      { type: 'reacted', noteId: 'n1', body: { reaction: '👍' } },
+      undefined,
+    )
+    expect(merged?.reactions['👍']).toBe(1)
+    expect(merged?.myReaction).toBeNull()
+  })
+
   it('自ユーザの unreacted: myReaction 一致なら取消を自己修復する (カウントは触らない)', () => {
     // カウントは「楽観減算済みの echo」と「別デバイス操作」を区別できない
     // ため触らず、myReaction だけ取り消す (二重減算の回帰を防ぐ)
