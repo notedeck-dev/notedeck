@@ -26,6 +26,10 @@ Misskey から名前が別物になったフォーク（Sharkey, CherryPick, Fir
 3. `pnpm lint` と `pnpm test` を通す
 4. Pull Request を作成
 
+環境がうまく動かないときは `pnpm doctor` を実行してください。
+ツールチェーン・システム依存の欠落を検査し、対処コマンドを提示します。
+エディタの補完・デバッグ構成は [DEVELOPMENT.md — エディタ / 言語サーバー](DEVELOPMENT.md#エディタ--言語サーバー) を参照してください。
+
 開発コマンド (`pnpm dev` / `pnpm tauri:dev` / `pnpm test` / `pnpm lint` / `pnpm typecheck`) とリリース手順 (バージョン同期・タグ push) は [CLAUDE.md](CLAUDE.md#開発コマンド) を参照してください。
 
 ## 開発方針

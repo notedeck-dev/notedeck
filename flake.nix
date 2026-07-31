@@ -45,7 +45,14 @@
             jdk17
 
             # Rust
+            # (rust-analyzer / rust-src は rust-toolchain.toml の components で入る)
             rustup
+
+            # Language servers — devShell に入った時点で
+            # どのエディタでも補完・定義ジャンプが動く状態にする (#896)
+            taplo # TOML (Cargo.toml, rust-toolchain.toml)
+            nil # Nix (flake.nix)
+            vue-language-server # Vue SFC (TypeScript は node_modules の版を使う)
 
             # Tauri desktop dependencies (Linux)
             pkg-config

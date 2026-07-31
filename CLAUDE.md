@@ -15,6 +15,7 @@ pnpm test         # vitest run
 pnpm lint         # biome check
 pnpm lint:fix     # biome check --write
 pnpm typecheck    # vue-tsc -b --noEmit
+pnpm doctor       # 開発環境の診断（ツールチェーン・システム依存の欠落検査）
 ```
 
 ## Git ワークフロー
@@ -22,7 +23,7 @@ pnpm typecheck    # vue-tsc -b --noEmit
 - **main への直接 push 禁止** — 必ずブランチを切って PR 経由でマージする
 - ブランチ命名: `feat/*`, `fix/*`, `refactor/*`, `chore/*`, `docs/*`
 - コミット: Conventional Commits 形式
-- pre-commit hook (lefthook): biome check + vue-tsc -b --noEmit
+- pre-commit hook (lefthook): biome check + vue-tsc -b --noEmit（typecheck は ts/vue が staged のときのみ）
 
 ## ドキュメントの書き方
 

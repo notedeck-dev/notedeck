@@ -1,0 +1,22 @@
+{
+  // Rust 側にブレークポイントを張ってデバッグ起動する構成 (#896)。
+  // CodeLLDB (vadimcn.vscode-lldb) が必要。
+  // デバッグビルドは devUrl (vite :5173) から frontend を読むため、
+  // preLaunchTask で vite dev server を起動してからバイナリを立ち上げる。
+  // WSL2 では nix develop シェルから VS Code を起動すること (EGL 対策の env を継承するため)。
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Tauri desktop (debug)",
+      "cargo": {
+        "args": [
+          "build",
+          "--manifest-path=${workspaceFolder}/src-tauri/Cargo.toml"
+        ]
+      },
+      "preLaunchTask": "vite:dev"
+    }
+  ]
+}
