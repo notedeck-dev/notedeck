@@ -16,6 +16,7 @@ graph TB
 
             subgraph "Rust コア"
                 CMD[Tauri Commands<br/>IPC ブリッジ]
+                NDM["custom protocol<br/>ndmedia:"]
                 HTTP[HTTP Server<br/>127.0.0.1:19820]
                 AUTH[Bearer Auth<br/>Middleware]
                 HV[Host 検証<br/>validate_host]
@@ -35,12 +36,15 @@ graph TB
         MK[Misskey サーバー群]
         IMG[画像 CDN]
         WEB[OGP 対象サイト]
+        EXT[外部ツール]
     end
 
     FE -->|"IPC (型安全)"| CMD
-    FE -->|"localhost only"| HTTP
+    FE -->|"WebView が intercept"| NDM
+    NDM --> IC
+    EXT -->|"localhost only"| HTTP
     HTTP --> AUTH
-    AUTH -->|"401 if invalid"| FE
+    AUTH -->|"401 if invalid"| EXT
     AUTH --> IC
     AUTH --> OGP
     CMD --> HV
@@ -62,19 +66,7 @@ graph TB
 
 1. **Tauri のプロセス分離**: WebView (フロントエンド) と Rust コアは別プロセス。IPC ブリッジ経由でのみ通信し、フロントエンドから直接ネットワークやファイルシステムにアクセスできない
 2. **Rust による境界防御**: ネットワーク通信・トークン管理・ホスト検証はすべて Rust 側で実行。メモリ安全性が保証された言語で機密処理を行う
-3. **localhost 限定 HTTP サーバー**: 画像プロキシ・OGP は内部 HTTP サーバー経由。外部からアクセス不可、Bearer Token で保護
-
-## 総合評価
-
-| 領域 | 評価 | 備考 |
-|------|------|------|
-| XSS 対策 | **A** | DOMPurify + ホワイトリストで全 v-html を保護 |
-| SSRF 対策 | **A** | プライベート IP / ループバック完全ブロック |
-| 認証・トークン管理 | **A+** | OS キーチェーン + メモリ zeroize + 定数時間比較 + CSPRNG 256-bit トークン |
-| 入力検証 | **A** | URL・ホスト・CSS パラメータを厳密に検証 + ホスト単位レート制限 |
-| ネットワーク | **A+** | HTTPS 強制 + localhost 限定サーバー + DNS Rebinding 防御 |
-| 耐障害性 | **A** | サーキットブレーカー + ネガティブキャッシュ + ホスト単位レート制限 |
-| 可観測性 | **A** | tracing による構造化セキュリティイベントログ |
+3. **メディア取得の単一経路**: 画像・効果音は WebView からは custom protocol `ndmedia:`、外部ツールからは localhost 限定 HTTP サーバー (`127.0.0.1:19820`、Bearer Token 保護) 経由。どちらも同じ Rust 側キャッシュ層に入り、HTTPS 強制・ホスト検証・サーキットブレーカーを迂回できない
 
 ---
 
@@ -165,8 +157,8 @@ flowchart LR
 - **制限**:
   - timeout: **1〜120 秒** (デフォルト 30 秒、user configurable)
   - response size: **10 MB 上限**
-  - 必要 permission: `network.external` (preset `full` でのみ ON)
-- **UI 確認**: `requiresConfirmation: true` で **dispatch 直前に URL を確認ダイアログ**で表示。AI からの呼び出しでもユーザー承認なしには通らない
+  - 必要 permission: `network.external` (高リスク指定。preset では `full` のみ ON。plugin principal は外部 API 連携がウィジェットの主要用途のためデフォルトで ON)
+- **UI 確認**: `requiresConfirmation: true` で **dispatch 直前に URL を確認ダイアログ**で表示。AI からの呼び出しでもユーザー承認なしには通らない。plugin は「今後確認しない」を**プラグイン個体単位**で記憶する (1 ウィジェットへの同意が他へ波及しない)
 
 ---
 
@@ -234,28 +226,31 @@ flowchart TB
 
 | 層 | 実装 | ファイル |
 |----|------|----------|
-| 永続化 | OS キーチェーン (primary) | `src-tauri/src/commands/auth.rs` |
+| 永続化 | OS キーチェーン (primary) | `src-tauri/src/commands/mod.rs` — `get_credentials()` |
 | フォールバック | DB 保存 → キーチェーンへ自動移行 | 同上 |
 | メモリ | TTL 60秒キャッシュ + `Zeroize` trait | 同上 |
 | 破棄 | `Drop` 実装でメモリを即時ゼロ化 | 同上 |
 
-- DB にトークンが残っている場合、キーチェーン保存成功後に DB から削除
+- DB にトークンが残っている場合、キーチェーン保存成功後に DB から削除する。ただし **再起動をまたいで永続しないキーチェーン実装 (Linux の keyutils 等) では DB フォールバックを消さない** — 消すと再起動のたびに再ログインが必要になるため (`keychain::is_persistent()` で判定)
 - アカウントエクスポート JSON にはトークンを含めない（`id`, `host`, `username` のみ）
 
-### AI プロバイダー API キー
+### 外部サービスのシークレット (Secret Vault #564)
+
+AI プロバイダーの API キーを含む外部サービスのシークレットは **Secret Vault** に統合されている。
 
 | 項目 | 内容 |
 |----|------|
-| 格納先 | OS キーチェーン (`notecli::keychain`、Misskey トークンと同一機構) |
-| 対象 | Anthropic / OpenAI / Custom (OpenAI 互換) の 3 プロバイダー |
-| Tauri command | `ai_set_api_key` / `ai_get_api_key_status` / `ai_delete_api_key` (`src-tauri/src/commands/ai.rs`) |
-| フロント側 | キー本体には触れず、`status` (bool) のみ取得 |
-| 旧データ | localStorage に残っていた場合は初回起動時に keychain 移行 → クリア |
+| 格納先 | OS キーチェーン (`service = notedeck`, `account = vault/v1/<conn_id>/<slot>`) |
+| メタデータ | `<configDir>/notedeck/connections.json` (Rust が source of truth、atomic write)。secret は含まない |
+| フロント側 | キー本体には触れず、接続 ID と `status` (bool) のみ扱う |
+| 実行モデル | `vault_fetch` が Rust 側で認証情報を注入し、レスポンスから secret を redaction して返す |
+| 開示制御 | `exposedTo` で principal クラス (ai / plugin / external) 別に開示。default は非開示 |
+
+AI チャットは `connection_id` から endpoint / キー / protocol を Rust 側で解決するため、キー本体はフロントにも AI にも渡らない。SSRF・redaction の詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault"。
 
 ### MiAuth スコープ
 
 - Misskey 認証時の必須スコープには **read/write 系の chat / mutes / blocks** が含まれる (`src-tauri/src/commands/auth.rs`)
-- v0.20 系で legacy `messaging` API → 新 `chat` API への置換に追従し、chat scope も再定義された
 - スコープ追加・削除はサーバ側の `i` トークン無効化と等価な扱いになるため、変更時はリリースノートに明記する
 
 ### 認証セッション管理
@@ -312,16 +307,14 @@ flowchart TB
     PROTO -->|Yes| HOST{"Host 検証<br/>validate_host"}
     HOST -->|"Private IP<br/>Loopback<br/>Link-local"| REJECT2[拒否: SSRF]
     HOST -->|OK| CB{"Circuit Breaker<br/>状態確認"}
-    CB -->|Open: 連続5失敗| REJECT3["拒否: 60s ブロック"]
+    CB -->|Open| REJECT3["拒否: 一定時間ブロック"]
     CB -->|Closed| SEM{"Semaphore<br/>空きあり?"}
-    SEM -->|"30並列 超過"| QUEUE[待機]
+    SEM -->|"同時取得数 超過"| QUEUE[待機]
     SEM -->|OK| CACHE{"キャッシュ確認"}
     CACHE -->|Hit| RETURN["キャッシュ返却"]
-    CACHE -->|Miss| FETCH["HTTPS Fetch<br/>Timeout 10s"]
+    CACHE -->|Miss| FETCH["HTTPS Fetch<br/>タイムアウトあり"]
     FETCH -->|成功| STORE["2層キャッシュ保存<br/>Memory LRU + Disk"]
-    FETCH -->|"4xx"| NEG4["Negative Cache 24h"]
-    FETCH -->|"5xx"| NEG5["Negative Cache 2min"]
-    FETCH -->|Timeout| NEGT["Negative Cache 1min"]
+    FETCH -->|"4xx / 5xx / Timeout"| NEG["Negative Cache<br/>エラー種別ごとの TTL"]
     STORE --> RETURN
 
     style REJECT1 fill:#e63946,color:#fff
@@ -331,25 +324,29 @@ flowchart TB
     style HOST fill:#457b9d,stroke:#1d3557,color:#fff
 ```
 
-### 画像プロキシ
+### メディアプロキシ (画像・効果音)
 
-| 制御 | 値 | ファイル |
+WebView 内からは custom protocol `ndmedia:` (`src-tauri/src/media_proxy.rs`)、外部ツールからは HTTP API `/proxy/image` の 2 経路。どちらも同じ `image_cache.rs` を通るため、以下の制御を迂回できない。モバイルの WebView は `http://127.0.0.1` への接続が制限される (Android の cleartext policy / iOS の ATS) が、custom protocol は WebView 自身が intercept するためこの制限を受けない。
+
+| 制御 | 内容 | ファイル |
 |------|-----|----------|
 | プロトコル | HTTPS のみ | `src-tauri/src/image_cache.rs` |
-| 最大サイズ | 20 MB | 同上 |
-| 同時取得数 | 30 (semaphore、設定可能) | 同上 |
-| タイムアウト | 10 秒 (共通 HTTP クライアント) | `src-tauri/src/lib.rs` |
-| サーキットブレーカー | 5 連続失敗 → 60 秒ブロック (設定可能) | `src-tauri/src/perf_config.rs` |
-| ネガティブキャッシュ | 4xx: 24h / 5xx: 2min / timeout: 1min | `src-tauri/src/image_cache.rs` |
-| メモリキャッシュ | LRU, 64KB/item, 32MB 上限 | 同上 |
-| ディスクキャッシュ | 7 日 TTL | 同上 |
+| ファイルサイズ上限 | あり | `src-tauri/src/perf_config.rs` |
+| 同時取得数 | semaphore で制限 | 同上 |
+| タイムアウト | あり | `src-tauri/src/image_cache.rs` |
+| サーキットブレーカー | 連続失敗で一定時間ブロック | `src-tauri/src/perf_config.rs` |
+| ネガティブキャッシュ | 4xx / 5xx / ネットワークエラーで別 TTL | `src-tauri/src/image_cache.rs` |
+| メモリキャッシュ | LRU (item / 総量とも上限あり) | 同上 |
+| ディスクキャッシュ | TTL + 総量上限で掃除 | 同上 |
+
+閾値の既定値は `PerformanceConfig` (`src-tauri/src/perf_config.rs`) が正本で、ユーザー設定から実行時に変更できる。
 
 ### OGP フェッチ
 
 - **ファイル**: `src-tauri/src/ogp/mod.rs`
 - HTTPS 限定
-- リダイレクト: 最大 5 回
-- タイムアウト: 10 秒 (共通 HTTP クライアント注入)
+- リダイレクト回数の上限あり
+- タイムアウトあり (共通 HTTP クライアント注入)
 - Player URL: 既知の壊れたドメインをブロック (`embed.pixiv.net` 等)
 - OGP 画像: HTTPS URL のみ抽出
 
@@ -382,6 +379,7 @@ graph LR
         N["通知"]
         D["ダイアログ"]
         O["URL オープン"]
+        OS["OS 情報 / ハプティクス"]
         GS["グローバルショートカット<br/>(desktop)"]
         UP["アップデーター<br/>(desktop)"]
     end
@@ -477,7 +475,7 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
    ↓ tool calling (Anthropic / OpenAI / Custom)
 [capability sanitizer]     — `aiTool: false` を schema から除外
    ↓
-[permission gate]          — preset (readonly/safe/full/custom) + AI 設定で AND 照合
+[permission gate]          — principal 別プロファイル (#712) と capability 宣言を AND 照合
    ↓
 [confirmation dialog]      — write 系は dispatch 直前にユーザー承認 (Shiki 引数表示)
    ↓
@@ -488,18 +486,18 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 
 実装: `src/capabilities/dispatcher.ts`, `src/capabilities/toolSchema.ts`, `src/composables/useAiConfig.ts`, `src/composables/useAiSystemContext.ts`
 
-### Permission モデル
+### Permission モデル (#712)
 
-| preset | 許可される操作 |
-|---|---|
-| `readonly` (default) | `notes.read` / `account.read` / `drive.read` (10 項目中 3 つ) |
-| `safe` | + `notes.react` / `clipboard` / `notifications` (6 項目) |
-| `full` | + `notes.write` / `account.write` / `drive.write` / `network.external` (10 項目すべて) |
-| `custom` | 個別 toggle |
+権限は **principal ごとに独立したプロファイル**として `<configDir>/notedeck/permissions.json5` に保存される。principal は `ai.chat` / `ai.heartbeat` / `plugin` / `external` の 4 つ。ファイルは capability 層から書き換えられない場所に隔離されている (settingsFs の固定名ラッパー経由でのみ到達)。
 
-- capability の `permissions: PermissionKey[]` と AI 設定を **AND 照合**で評価
-- 不一致なら `permission_denied` を tool_result に返す (AI には実行されない)
-- `useAiConfig` を module-scope singleton 化し、`dispatchCapability` 直前に `reloadAiConfig()` を呼ぶため、外部エディタや設定 UI からの変更が **再起動なしで即反映**される
+- 各プロファイルは preset (`readonly` / `safe` / `full` / `custom`) + 個別 toggle。権限キーの語彙は capability の `permissions[]` 宣言が Single Source of Truth (`src/permissions/schema.ts`)
+- capability の `permissions: PermissionKey[]` と principal のプロファイルを **AND 照合**で評価。不一致なら `permission_denied` を tool_result に返す (AI には実行されない)
+- **恒久 deny floor**: 第三者 principal (plugin / external) には保存値に関わらず OFF に clamp されるキーがある。skill / persona の書込は AI の system prompt への注入経路 (confused deputy) 、`tasks.run` は per-key gate の迂回路、`backup.create` はローカルキャッシュ全量の書き出しになるため、`full` preset を選んでも通らない
+- **external の read 下限**: HTTP API トークンの発行自体を Misskey コンテンツ read への同意とみなし、その範囲は常時 ON に clamp。逆に PKM メモ・下書き・AI 会話履歴などローカル私的データの read は external のデフォルトから外してある
+- 権限キー追加時は `backfillValue()` で principal ごとの既定値を宣言する。欠損キーは拒否扱い
+- 設定変更は dispatch 直前に再読込されるため、外部エディタや設定 UI からの変更が **再起動なしで即反映**される
+
+権限キーの一覧と capability との対応は [SKILLS.md](SKILLS.md) §5 を参照。
 
 ### `aiTool: false` ガード (自己改変系の安全弁)
 
@@ -530,7 +528,7 @@ skill / widget / plugin / theme の **write 系 capability** (`skills.replaceSec
 ### HEARTBEAT Daemon セキュリティ
 
 - アプリ起動中ずっと走る global daemon (`useHeartbeatDaemon` を `App.vue` で 1 mount)
-- `notes.write` 等の通常許可されている権限を、**HEARTBEAT 中だけ deny** にできる (`heartbeat.permissions: PermissionsConfig`)。デフォルトは readonly
+- `notes.write` 等の通常許可されている権限を、**HEARTBEAT 中だけ deny** にできる (`permissions.json5` の `ai.heartbeat` principal が `ai.chat` とは独立)。デフォルトは readonly
 - **Cheap Check First**: AI を呼ぶ前にローカルで低コスト判定 (未読数等)。閾値以下なら即 `HEARTBEAT_OK` で終了 → トークン消費爆発と暴走を抑制
 - **連続 3 回失敗で daemon 自動 disable + warning toast** (silent fail 防止)
 - 詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の "HEARTBEAT Daemon"
@@ -539,17 +537,16 @@ skill / widget / plugin / theme の **write 系 capability** (`skills.replaceSec
 
 - `memos.create` / `memos.update` の `authorId` は persona skill ID または account ID のみ。任意の skill ID を resolve できる構造ではない (`buildAuthorBlock`)
 - skill は `isPersona: true` フラグで persona かどうかを宣言。AI が任意の identity を装うことはできない
-- 編集履歴 (`memos.history` 等は将来追加予定、現状 skill / widget / plugin / theme で `*.history` / `*.revert` を提供) で巻き戻し可能
+- skill / widget / plugin / theme は `*.history` / `*.revert` で巻き戻し可能
 
 ---
 
-## 11. 既知の制限と今後の検討
+## 11. 受容している制限
 
-| 項目 | 状態 | 備考 |
-|------|------|------|
-| 同一 OS ユーザーの他プロセス | 受容 | OS キーチェーンは別ユーザー・リモートからの窃取を防ぐが、同一ユーザー権限のプロセス (同一アカウント上のマルウェア等) からの読み取りは OS の責務。高い脅威環境ではフルディスク暗号化・信頼できるソフトウェアのみの実行を併用する |
-| CSP `unsafe-eval` | 受容 | AiScript エンジンが必要とするため除去不可 |
-| SSRF DNS TOCTOU | 受容 | デスクトップアプリでは脅威が限定的。DNS 解決後の IP 再検証は VPN / 社内 Misskey ユーザーをブロックするため実装しない |
-| Tor (.onion) 非対応 | 受容 | HTTPS 強制の緩和はセキュリティ劣化を招き、SOCKS5 対応も VPN には不要。`.onion` Misskey インスタンスの需要もないため対応しない |
-| AI tool schema からの `aiTool:false` 除外漏れ | 監視 | 自動テストで全 capability の AI schema 露出を検査する仕組みを今後追加 |
-| HEARTBEAT 暴走時の rate limit | 受容 | Cheap Check First + 連続失敗 disable で防御。capability 単位の rate limit は実需要が出てから検討 |
+| 項目 | 備考 |
+|------|------|
+| 同一 OS ユーザーの他プロセス | OS キーチェーンは別ユーザー・リモートからの窃取を防ぐが、同一ユーザー権限のプロセス (同一アカウント上のマルウェア等) からの読み取りは OS の責務。高い脅威環境ではフルディスク暗号化・信頼できるソフトウェアのみの実行を併用する |
+| CSP `unsafe-eval` | AiScript エンジンが必要とするため除去不可 |
+| SSRF DNS TOCTOU | デスクトップアプリでは脅威が限定的。DNS 解決後の IP 再検証は VPN / 社内 Misskey ユーザーをブロックするため実装しない (Secret Vault の `vault.fetch` のみ DNS pinning + hop ごとの再検証を行う) |
+| Tor (.onion) 非対応 | HTTPS 強制の緩和はセキュリティ劣化を招き、SOCKS5 対応も VPN には不要。`.onion` Misskey インスタンスの需要もないため対応しない |
+| HEARTBEAT 暴走時の rate limit | Cheap Check First + 連続失敗 disable で防御。capability 単位の rate limit は設けていない |
