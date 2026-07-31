@@ -447,7 +447,10 @@ async function handleVoteCrossAccount(choice: number, target: NormalizedNote) {
   if (!adapter) return
   const { votePoll } = await import('@/utils/votePoll')
   try {
-    await votePoll(adapter.api, target, choice)
+    // スレッドは deep reactive (ref) なので、差分の代入で反映される
+    await votePoll(adapter.api, target, choice, (patch) => {
+      Object.assign(target, patch)
+    })
   } catch {
     // ignore
   }

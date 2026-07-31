@@ -64,22 +64,42 @@ const visibleNotes = computed(() =>
   filterVisible(notes.value, { ignoreSuspension: isOwnClip.value }),
 )
 
+/** 楽観的更新の差分を反映する。shallowRef 保持なので新オブジェクトへ差し替える */
+function applyNotePatch(
+  target: NormalizedNote,
+  patch: Partial<NormalizedNote>,
+) {
+  notes.value = notes.value.map((n) =>
+    n.id === target.id
+      ? { ...n, ...patch }
+      : n.renote?.id === target.id
+        ? { ...n, renote: { ...n.renote, ...patch } }
+        : n,
+  )
+}
+
 async function handleReaction(reaction: string, target: NormalizedNote) {
   if (!adapter) return
   try {
-    await toggleReaction(adapter.api, target, reaction, (patch) => {
-      // shallowRef 保持なので新オブジェクトへの差し替えで反映する
-      notes.value = notes.value.map((n) =>
-        n.id === target.id
-          ? { ...n, ...patch }
-          : n.renote?.id === target.id
-            ? { ...n, renote: { ...n.renote, ...patch } }
-            : n,
-      )
-    })
+    await toggleReaction(adapter.api, target, reaction, (patch) =>
+      applyNotePatch(target, patch),
+    )
   } catch (e) {
     const err = AppError.from(e)
     toast.show(`リアクションに失敗しました（${err.displayCode}）`, 'error')
+  }
+}
+
+async function handleVote(choice: number, target: NormalizedNote) {
+  if (!adapter) return
+  const { votePoll } = await import('@/utils/votePoll')
+  try {
+    await votePoll(adapter.api, target, choice, (patch) =>
+      applyNotePatch(target, patch),
+    )
+  } catch (e) {
+    const err = AppError.from(e)
+    toast.show(`投票に失敗しました（${err.displayCode}）`, 'error')
   }
 }
 
@@ -208,6 +228,7 @@ onMounted(async () => {
           :note="note"
           :account-id="accountId"
           @react="handleReaction"
+          @vote="handleVote"
         />
         <div v-if="notesLoading" :class="$style.notesLoading">
           <LoadingSpinner />
