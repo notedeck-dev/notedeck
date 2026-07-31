@@ -74,4 +74,40 @@ describe('prefetchNoteImages の同時実行絞り', () => {
     // 2 回呼んでも Image は 2 件 (dedup)
     expect(FakeImage.instances.length).toBe(2)
   })
+
+  it('キュー溢れで捨てた URL は「先読み済み」からも外れ、後で再度先読みできる (#893)', async () => {
+    const { prefetchNoteImages } = await loadModule()
+    // 105 件: 先頭 4 件が即実行、100 件でキューが埋まり、105 件目の投入で
+    // 最古のキュー項目 (x-4) が捨てられる
+    prefetchNoteImages([note('x', 105)])
+    expect(FakeImage.instances.length).toBe(4)
+
+    // 全件完了させてキューを流し切る (捨てられた x-4 は一度も取得されない)
+    for (let i = 0; i < FakeImage.instances.length; i++) {
+      FakeImage.instances[i]?.onload?.()
+    }
+    expect(FakeImage.instances.length).toBe(104)
+    const droppedUrl = encodeURIComponent('https://media.example/x-4.png')
+    expect(
+      FakeImage.instances.some((img) => img.src.includes(droppedUrl)),
+    ).toBe(false)
+
+    // 捨てられた URL を含むノートが再び近づいたら、先読みし直せる
+    prefetchNoteImages([
+      {
+        renote: null,
+        text: 'y',
+        files: [
+          {
+            type: 'image/png',
+            isSensitive: false,
+            thumbnailUrl: 'https://media.example/x-4.png',
+            url: 'https://media.example/x-4-orig.png',
+          },
+        ],
+      } as unknown as NormalizedNote,
+    ])
+    expect(FakeImage.instances.length).toBe(105)
+    expect(FakeImage.instances.at(-1)?.src).toContain(droppedUrl)
+  })
 })
