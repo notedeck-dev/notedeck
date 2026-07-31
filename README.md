@@ -68,3 +68,5 @@ PR を歓迎します。詳しくは [CONTRIBUTING.md](CONTRIBUTING.md) を参�
 ## ライセンス
 
 [AGPL-3.0](LICENSE)
+
+<!-- dx-verify: labeler/api-diff 動作確認用の一時変更 (この PR はマージしない) -->

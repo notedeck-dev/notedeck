@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "NoteDeck API",
-    "description": "NoteDeck localhost API — Misskey desktop client control interface",
+    "description": "NoteDeck localhost API — Misskey desktop client control interface [dx-verify]",
     "license": {
       "name": "MIT"
     },
