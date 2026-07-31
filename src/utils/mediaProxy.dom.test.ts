@@ -328,6 +328,99 @@ describe('プレースホルダ滞留の自己修復 (ensurePlaceholderRecovery)
   })
 })
 
+describe('プレースホルダ滞留の全画像監視 (installPlaceholderWatchdog) #892', () => {
+  // 自己修復の関数を直接呼ぶのではなく、document capture の load 監視の
+  // 判断そのものを検証する: 全画像の読み込みを通る位置にあるため、ここが
+  // 壊れると「一部の画像がまれに空白のまま」という気づきにくい形で出る
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    document.body.innerHTML = ''
+  })
+
+  /** 寸法を差し替えた要素を document に繋ぎ、load を capture へ流す */
+  function dispatchLoad(
+    tag: string,
+    src: string | undefined,
+    width?: number,
+    height?: number,
+  ) {
+    const el = document.createElement(tag)
+    if (width !== undefined) {
+      Object.defineProperty(el, 'naturalWidth', { value: width })
+      Object.defineProperty(el, 'naturalHeight', { value: height })
+    }
+    if (src !== undefined) (el as HTMLImageElement).src = src
+    document.body.appendChild(el)
+    el.dispatchEvent(new Event('load'))
+    return el
+  }
+
+  it('1×1 (プレースホルダ) を掴んだ IMG は自己修復に乗る', async () => {
+    const { proxyUrl } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    dispatchLoad('img', proxied, 1, 1)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+
+  it('実画像 (非 1×1) を掴んだら自己修復に乗せない', async () => {
+    const { proxyUrl } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    dispatchLoad('img', proxied, 200, 100)
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(REMOTE)).not.toContain('&r=')
+  })
+
+  it('プロキシ経由でない画像は 1×1 でも対象外', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    proxyUrl(REMOTE) // 監視を起動させる
+    const direct = 'https://example.com/tracker.png'
+    dispatchLoad('img', direct, 1, 1)
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(direct)).not.toContain('&r=')
+    // ensurePlaceholderRecovery が生きていることの対照 (テスト自体の空振り防止)
+    ensurePlaceholderRecovery(direct)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(direct)).toContain('&r=1')
+  })
+
+  it('実画像が載ったら試行回数をリセットし、再度の滞留から修復できる', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    // 上限まで自己修復を使い切る (count=3 で打ち切り状態)
+    for (let i = 0; i < 10; i++) {
+      ensurePlaceholderRecovery(REMOTE)
+      vi.advanceTimersByTime(4_000)
+    }
+    expect(proxyUrl(REMOTE)).toContain('&r=3')
+    // 実画像の load が届いたら試行回数がリセットされる
+    dispatchLoad('img', proxied, 200, 100)
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=4')
+  })
+
+  it('IMG 以外の要素の load では試行回数をリセットしない', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    for (let i = 0; i < 10; i++) {
+      ensurePlaceholderRecovery(REMOTE)
+      vi.advanceTimersByTime(4_000)
+    }
+    expect(proxyUrl(REMOTE)).toContain('&r=3')
+    // video 要素は src と寸法を持つが、監視の対象は IMG だけ
+    dispatchLoad('video', proxied, 200, 100)
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    // リセットされていないので打ち切り状態のまま (世代は進まない)
+    expect(proxyUrl(REMOTE)).toContain('&r=3')
+  })
+})
+
 describe('URL 単位の状態の追い出し (#893)', () => {
   // 失敗回数と自己修復の試行回数は「取得成功」でしか消えないため、恒久的に
   // 壊れた URL・本当に 1×1 の画像が長時間セッションで無限に積もっていた。
