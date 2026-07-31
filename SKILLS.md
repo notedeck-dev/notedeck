@@ -172,7 +172,7 @@ system prompt 末尾に注入される `<notedeck-context>` ブロックの構�
 
 ## 4. AI が呼べる capability (= tool calling)
 
-builtin は **152 個 / 39 subject** (v0.26.0 時点、`src/capabilities/builtins/` 配下の unique id)。subject 別にグループ化:
+builtin capability の実体は `src/capabilities/builtins/` 配下にあり、そこの unique id が正本。subject 別にグループ化すると以下:
 
 ### 4.0 capability 一覧
 
@@ -280,18 +280,18 @@ AI には `tool_result` の `content` として文字列化された結果が返
 | 軽い書き込み (`notes.react` / `clips.write` / `drafts.write` / `clipboard` / `notifications` / `tasks.run` / `ai.invoke`) | | ✓ | ✓ | 個別 |
 | 自己編集系 (`memos.write` / `skills.write` / `widgets.write` / `plugins.write`) | | ✓ | ✓ | 個別 |
 | UI 設定 write (`theme.write` / `styles.write` / `navbar.write` / `keybinds.write` / `performance.write`) | | | ✓ | 個別 |
-| 高リスク write (`notes.write` / `account.write` / `drive.write` / `network.external` / `vault.use` / `ai.persona.write`) | | | ✓ | 個別 |
+| 高リスク write (`notes.write` / `account.write` / `account.actAs` / `drive.write` / `network.external` / `vault.use` / `ai.persona.write` / `files.export` / `backup.create`) | | | ✓ | 個別 |
 
-- 全 **34 キー** (`src/permissions/schema.ts` の `PERMISSION_KEYS`)
+- キーの一覧は `src/permissions/schema.ts` の `PERMISSION_KEYS` が正本 (capability の `permissions[]` 宣言が語彙を定義する)
 - capability の `permissions: PermissionKey[]` 宣言と principal の解決値 (`resolveFor(principal)`) を **AND 照合** で評価。不許可なら `permission_denied`
 - principal 別デフォルト: `ai.chat` = safe / `ai.heartbeat` = readonly (無人実行は安全側) / `plugin` = safe + `network.external` / `external` = readonly からローカル私的データ read (`memos.read` / `drafts.read` / `skills.read` 等) を落とした縮小 custom
-- resolve 時の恒久 clamp (保存値より優先): `skills.write` / `ai.persona.write` / `tasks.run` は plugin / external に恒久 deny (full preset でも拒否)。plugin は `vault.use` も deny。external は Misskey コンテンツ read 4 キー (`notes.read` / `account.read` / `drive.read` / `clips.read`) が常時 ON (トークン発行 = read への同意)
+- resolve 時の恒久 clamp (保存値より優先): `skills.write` / `ai.persona.write` / `tasks.run` / `backup.create` は plugin / external に恒久 deny (full preset でも拒否)。plugin は `vault.use` も deny。external は Misskey コンテンツ read 4 キー (`notes.read` / `account.read` / `drive.read` / `clips.read`) が常時 ON (トークン発行 = read への同意)
 - `custom` プリセットでは個別に on/off
 - 自己編集系は `safe` 以上で許可。write 系 capability は全て dispatch 直前の確認ダイアログで enforce される (§5.2)
 
 ### 5.1 高リスク権限
 
-`notes.write` / `account.write` / `drive.write` / `network.external` / `vault.use` / `skills.write` / `ai.persona.write` / `memos.write` / `tasks.run` (`HIGH_RISK_PERMISSION_KEYS`) は UI に warning アイコンで表示。dispatch 直前に **確認ダイアログ** で enforce される (引数 JSON は code block + Shiki シンタックスハイライトで表示)。permission 変更は再起動なしで反映 (dispatch 直前に `reloadPermissionsConfig()` で permissions.json5 を再読込 — 外部エディタでの編集も次回 dispatch から効く)。
+`HIGH_RISK_PERMISSION_KEYS` (`notes.write` / `account.write` / `account.actAs` / `drive.write` / `network.external` / `vault.use` / `skills.write` / `ai.persona.write` / `memos.write` / `tasks.run` / `files.export` / `backup.create`) は UI に warning アイコンで表示。dispatch 直前に **確認ダイアログ** で enforce される (引数 JSON は code block + Shiki シンタックスハイライトで表示)。permission 変更は再起動なしで反映 (dispatch 直前に `reloadPermissionsConfig()` で permissions.json5 を再読込 — 外部エディタでの編集も次回 dispatch から効く)。
 
 ### 5.2 自己改変系 capability の安全弁
 
