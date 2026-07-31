@@ -40,14 +40,27 @@ const proxyUrlCache = new Map<string, string>()
  */
 const mediaVersions = reactive(new Map<string, number>())
 
+/**
+ * URL 単位の状態表の共通追い出し規則: 新規キーの挿入前に、上限に達していたら
+ * 最古の 1 件を捨てる (#893)。取得成功でしか消えない表 (失敗回数・自己修復の
+ * 試行回数) も、この規則で長時間セッションの無限成長を防ぐ。
+ */
+function evictOldestIfFull(
+  map: Map<string, unknown>,
+  key: string,
+  onEvict?: (evicted: string) => void,
+) {
+  if (map.has(key) || map.size < getProxyCacheMax()) return
+  const oldest = map.keys().next().value
+  if (oldest === undefined) return
+  onEvict?.(oldest)
+  map.delete(oldest)
+}
+
 function bumpMediaVersion(url: string) {
-  // proxyUrlCache と同じ上限で古い順に捨てる (無限成長させない)。
   // 追い出された URL は素の URL に戻るだけで、実体はキャッシュ済みなので
   // 表示は壊れない
-  if (!mediaVersions.has(url) && mediaVersions.size >= getProxyCacheMax()) {
-    const oldest = mediaVersions.keys().next().value
-    if (oldest !== undefined) mediaVersions.delete(oldest)
-  }
+  evictOldestIfFull(mediaVersions, url)
   mediaVersions.set(url, (mediaVersions.get(url) ?? 0) + 1)
 }
 
@@ -90,6 +103,12 @@ export function markMediaFailed(url: string): void {
     entry.retries += 1
     bumpMediaVersion(url)
   }, delay)
+  // リトライ上限に達した URL は取得成功が来ない限り残り続けるため、
+  // 上限で追い出す。待機中のタイマーごと破棄する
+  evictOldestIfFull(mediaFailures, url, (evicted) => {
+    const old = mediaFailures.get(evicted)
+    if (old?.timer != null) clearTimeout(old.timer)
+  })
   mediaFailures.set(url, entry)
 }
 
@@ -125,6 +144,8 @@ export function ensurePlaceholderRecovery(url: string): void {
       placeholderTimers.delete(url)
       // MediaFetched が正常に届いて世代が進んでいれば何もしない
       if ((mediaVersions.get(url) ?? 0) === versionAtSchedule) {
+        // 本当に 1×1 の画像は取得成功でリセットされないため、上限で追い出す
+        evictOldestIfFull(placeholderRecoveryCounts, url)
         placeholderRecoveryCounts.set(
           url,
           (placeholderRecoveryCounts.get(url) ?? 0) + 1,
@@ -220,13 +241,6 @@ function getProxyCacheMax(): number {
   }
 }
 
-function evictIfFull() {
-  if (proxyUrlCache.size >= getProxyCacheMax()) {
-    const oldest = proxyUrlCache.keys().next().value
-    if (oldest !== undefined) proxyUrlCache.delete(oldest)
-  }
-}
-
 export function proxyUrl(
   url: string | null | undefined,
   opts?: {
@@ -247,7 +261,7 @@ export function proxyUrl(
   const cacheKey = soft ? `${url}|soft` : wait ? `${url}|wait` : url
   let cached = proxyUrlCache.get(cacheKey)
   if (!cached) {
-    evictIfFull()
+    evictOldestIfFull(proxyUrlCache, cacheKey)
     cached = `${getProxyBase()}?url=${encodeURIComponent(url)}${wait ? '&wait=1' : ''}${soft ? '&soft=1' : ''}`
     proxyUrlCache.set(cacheKey, cached)
   }
@@ -274,7 +288,7 @@ export function proxyThumbUrl(
   const key = `${url}|w=${width}`
   let cached = proxyUrlCache.get(key)
   if (!cached) {
-    evictIfFull()
+    evictOldestIfFull(proxyUrlCache, key)
     cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&w=${width}${wait ? '&wait=1&soft=1' : ''}`
     proxyUrlCache.set(key, cached)
   }

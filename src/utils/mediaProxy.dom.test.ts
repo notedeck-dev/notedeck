@@ -328,6 +328,54 @@ describe('プレースホルダ滞留の自己修復 (ensurePlaceholderRecovery)
   })
 })
 
+describe('URL 単位の状態の追い出し (#893)', () => {
+  // 失敗回数と自己修復の試行回数は「取得成功」でしか消えないため、恒久的に
+  // 壊れた URL・本当に 1×1 の画像が長時間セッションで無限に積もっていた。
+  // 世代番号の表 (mediaVersions) と同じ「上限で古い順に捨てる」規則を適用する
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('失敗記録は上限で古い順に捨てられ、追い出された URL は再試行できる', async () => {
+    const { proxyUrl, markMediaFailed } = await loadModule()
+    // リトライ上限まで失敗を積む (retries=3 で打ち切り状態)
+    for (let i = 0; i < 10; i++) {
+      markMediaFailed(REMOTE)
+      vi.advanceTimersByTime(10 * 60_000)
+    }
+    // 上限 (テスト環境の既定 256) を超える数の別 URL が失敗を申告する
+    for (let i = 0; i < 300; i++) {
+      markMediaFailed(`https://example.com/f${i}.png`)
+    }
+    // 最古の REMOTE は追い出されているので、打ち切り状態が解けて再試行できる
+    markMediaFailed(REMOTE)
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=4')
+  })
+
+  it('自己修復の試行回数は上限で古い順に捨てられる', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    // 自己修復上限まで積む (count=3 で打ち切り状態)
+    for (let i = 0; i < 10; i++) {
+      ensurePlaceholderRecovery(REMOTE)
+      vi.advanceTimersByTime(4_000)
+    }
+    // 上限を超える数の別 URL が自己修復に乗る
+    for (let i = 0; i < 300; i++) {
+      ensurePlaceholderRecovery(`https://example.com/p${i}.png`)
+    }
+    vi.advanceTimersByTime(4_000)
+    // 最古の REMOTE は追い出されているので、打ち切り状態が解けて再修復できる
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+})
+
 describe('proxyThumbUrl', () => {
   // format は付けない: 明示すると「上限以下なら変換不要」の素通しが効かなくなる
   it('幅だけを付ける (非 Android は wait + soft も付く)', async () => {
