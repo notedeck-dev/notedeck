@@ -24,6 +24,15 @@ pnpm typecheck    # vue-tsc -b --noEmit
 - コミット: Conventional Commits 形式
 - pre-commit hook (lefthook): biome check + vue-tsc -b --noEmit
 
+## ドキュメントの書き方
+
+リポジトリ直下の `.md` は新規参加者と AI の判断材料になるため、古い記述はそのまま誤った実装判断につながる (#883)。
+
+- **書いた瞬間から古くなる数値を書かない** — capability 数・カラム種別数・キャッシュの閾値・行数などは、正本のファイル (`src/permissions/schema.ts`, `BuiltinColumnType`, `perf_config.rs` 等) を指す。マーケティング文脈で数を出すときは「40 種類以上」のように下限で書く
+- **未確定のものを断定形で書かない** — 検討中の案は issue に置き、ドキュメントには確定した設計判断だけを残す
+- **不採用の判断は理由ごと残す** — 同じ提案の再検討を防ぐため、消さずに「採用しない」として書く
+- 方針が変わったら、その方針を書いたすべてのドキュメントを直す (同じ話が SECURITY / STRATEGY / ROADMAP に分散していることがある)
+
 ## スタイリング
 
 - `<style module lang="scss">` + `$style.xxx` で参照（CSS Modules）

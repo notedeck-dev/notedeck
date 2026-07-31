@@ -50,7 +50,7 @@ Misskey コンテンツの描画と OS 統合の両方をカバーする統合�
 | **プラットフォーム** | | | |
 | デスクトップ (Win/Mac/Linux) | ✅ | ✅ | ✅ ブラウザ |
 | Android | ✅ 未署名 | ✅ | ✅ ブラウザ |
-| iOS | ❌ 対応しない | ✅ | ✅ ブラウザ |
+| iOS | 🚧 App Store 配布を計画 (#869) | ✅ | ✅ ブラウザ |
 | **Misskey 機能** | | | |
 | MFM レンダリング | ✅ | ✅ | ✅ |
 | 数式レンダリング（KaTeX） | ✅ | ❌ | ❌（本家で削除済み） |
@@ -181,7 +181,7 @@ NoteDeck の AI 統合は「AI とチャットする SNS クライアント」�
 - `readonly` (default) / `safe` / `full` / `custom` の 4 段階プリセット
 - AI に渡すデータソース (`<currentAccount>` / `<currentColumn>` / `<visibleNotes>` / `<recentConversation>` / `<memos>` / `<persona>`) を個別 on/off
 - 書き込み系は確認ダイアログで dispatch 直前に enforce
-- skill / widget / plugin / theme の自己改変系は **`aiTool:false` でデフォルト非露出** (構造的な安全弁)
+- skill / widget / plugin / theme の自己改変系は、権限・確認ダイアログ・capability 個別ガードの 3 層で守る (詳細は [SECURITY.md](SECURITY.md) §10)
 
 ### 自律エージェント: HEARTBEAT Daemon
 
