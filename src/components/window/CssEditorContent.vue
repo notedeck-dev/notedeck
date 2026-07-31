@@ -290,7 +290,7 @@ watch(tab, (t) => {
             font-preview
           />
           <div v-if="presets.customFont" :class="$style.preview" :style="{ fontFamily: `'${presets.customFont}', sans-serif` }">
-            あいうえお ABCabc 123
+            あいうえお 漢字 ABCabc 123 Il1 O0
           </div>
         </template>
       </div>
@@ -310,7 +310,7 @@ watch(tab, (t) => {
             font-preview
             font-fallback="monospace"
           />
-          <div v-if="presets.monoFont" :class="[$style.preview, $style.monoPreview]" :style="{ fontFamily: `'${presets.monoFont}', monospace` }">
+          <div v-if="presets.monoFont" :class="$style.preview" :style="{ fontFamily: `'${presets.monoFont}', monospace` }">
             const 変数 = 0; // Il1 O0
           </div>
           <div :class="$style.hideCountNote">
@@ -580,18 +580,14 @@ watch(tab, (t) => {
 
 /* ドロップダウンの見た目は CssPresetDropdown (#778) が持つ */
 
-.monoPreview {
-  text-align: left;
-  white-space: nowrap;
-  overflow-x: auto;
-}
-
+/* 本文 / 等幅で同じ見た目。字形の差 (Il1 O0) が読めるよう左揃え + 横スクロール */
 .preview {
   padding: 8px 10px;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   font-size: 0.9em;
-  text-align: center;
+  white-space: nowrap;
+  overflow-x: auto;
 }
 
 .visibilityBgPreview {
