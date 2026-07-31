@@ -13,6 +13,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { toggleReaction } from '@/utils/toggleReaction'
 import { webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
@@ -62,6 +63,25 @@ const { filterVisible } = useNoteVisibility()
 const visibleNotes = computed(() =>
   filterVisible(notes.value, { ignoreSuspension: isOwnClip.value }),
 )
+
+async function handleReaction(reaction: string, target: NormalizedNote) {
+  if (!adapter) return
+  try {
+    await toggleReaction(adapter.api, target, reaction, (patch) => {
+      // shallowRef 保持なので新オブジェクトへの差し替えで反映する
+      notes.value = notes.value.map((n) =>
+        n.id === target.id
+          ? { ...n, ...patch }
+          : n.renote?.id === target.id
+            ? { ...n, renote: { ...n.renote, ...patch } }
+            : n,
+      )
+    })
+  } catch (e) {
+    const err = AppError.from(e)
+    toast.show(`リアクションに失敗しました（${err.displayCode}）`, 'error')
+  }
+}
 
 const clipWebUrl = computed(() => {
   if (!clip.value || !account.value?.host) return undefined
@@ -187,6 +207,7 @@ onMounted(async () => {
           :key="note.id"
           :note="note"
           :account-id="accountId"
+          @react="handleReaction"
         />
         <div v-if="notesLoading" :class="$style.notesLoading">
           <LoadingSpinner />

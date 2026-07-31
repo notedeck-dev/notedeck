@@ -61,8 +61,33 @@ export function chatUpdateSig(event: ChatMessageUpdateEvent): string {
 }
 
 /**
- * noteUpdated イベントをノートへ適用した新オブジェクトを返す。
- * 適用不要 (自ユーザの reaction = 楽観的更新と二重になる / 対象なし) は null。
+ * reactions キーの正規化: ローカルマーカー (`:name@.:` → `:name:`) を剥がす。
+ * 楽観的更新はピッカー形式 (`:name:`)、サーバーイベントは正規形で届くことが
+ * あるため、素の一致比較では自己イベントの echo 判定とキー合流に失敗する。
+ */
+function normalizeReactionKey(key: string): string {
+  return key.replace(/@\.:$/, ':')
+}
+
+/** reaction と (形式差を含めて) 同一視できる既存キーを探す。無ければそのまま */
+function findReactionKey(
+  reactions: Record<string, number>,
+  reaction: string,
+): string {
+  if (reaction in reactions) return reaction
+  const norm = normalizeReactionKey(reaction)
+  for (const key of Object.keys(reactions)) {
+    if (normalizeReactionKey(key) === norm) return key
+  }
+  return reaction
+}
+
+/**
+ * noteUpdated イベントをノートへ適用した新オブジェクトを返す。適用不要は null。
+ *
+ * 自ユーザのイベントは楽観的更新 (toggleReaction) の echo なら無視し、
+ * 楽観が反映されていない場合 (別ウィンドウ・別デバイスからの操作、楽観の
+ * 効かない面) は自己修復として適用する。
  */
 export function mergeNoteUpdate(
   note: NormalizedNote,
@@ -72,7 +97,18 @@ export function mergeNoteUpdate(
   switch (event.type) {
     case 'reacted': {
       const reaction = event.body.reaction
-      if (!reaction || event.body.userId === myUserId) return null
+      if (!reaction) return null
+      const isMine = event.body.userId === myUserId
+      if (isMine) {
+        // 楽観反映済みの echo → 二重加算しない
+        if (
+          note.myReaction &&
+          normalizeReactionKey(note.myReaction) ===
+            normalizeReactionKey(reaction)
+        ) {
+          return null
+        }
+      }
       let newReactionEmojis = note.reactionEmojis
       if (event.body.emoji) {
         // Strip colons to match API convention (reactionEmojis keys have no colons)
@@ -86,22 +122,39 @@ export function mergeNoteUpdate(
             : event.body.emoji.url
         newReactionEmojis = { ...note.reactionEmojis, [shortcode]: emojiUrl }
       }
+      // 形式違いの既存キー (:name: と :name@.:) は合流させ、別チップを作らない
+      const key = findReactionKey(note.reactions, reaction)
       return {
         ...note,
         reactions: {
           ...note.reactions,
-          [reaction]: (note.reactions[reaction] ?? 0) + 1,
+          [key]: (note.reactions[key] ?? 0) + 1,
         },
         reactionEmojis: newReactionEmojis,
+        ...(isMine ? { myReaction: reaction } : {}),
       }
     }
     case 'unreacted': {
       const reaction = event.body.reaction
-      if (!reaction || event.body.userId === myUserId) return null
+      if (!reaction) return null
+      if (event.body.userId === myUserId) {
+        // 自分の取消: myReaction が一致するなら自己修復として取り消す。
+        // カウントは「楽観減算済みの echo」と「別デバイス操作」を区別できない
+        // ため触らない (二重減算の方が害が大きい)。既に null なら echo
+        if (
+          note.myReaction &&
+          normalizeReactionKey(note.myReaction) ===
+            normalizeReactionKey(reaction)
+        ) {
+          return { ...note, myReaction: null }
+        }
+        return null
+      }
+      const key = findReactionKey(note.reactions, reaction)
       const newReactions = { ...note.reactions }
-      const count = (newReactions[reaction] ?? 0) - 1
-      if (count <= 0) delete newReactions[reaction]
-      else newReactions[reaction] = count
+      const count = (newReactions[key] ?? 0) - 1
+      if (count <= 0) delete newReactions[key]
+      else newReactions[key] = count
       return { ...note, reactions: newReactions }
     }
     case 'pollVoted': {

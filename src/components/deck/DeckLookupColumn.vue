@@ -428,7 +428,10 @@ async function handleReactionCrossAccount(
   if (!adapter) return
   const { toggleReaction } = await import('@/utils/toggleReaction')
   try {
-    await toggleReaction(adapter.api, target, reaction)
+    // スレッドは deep reactive (ref) なので、差分の代入で反映される
+    await toggleReaction(adapter.api, target, reaction, (patch) => {
+      Object.assign(target, patch)
+    })
   } catch {
     // ignore
   }

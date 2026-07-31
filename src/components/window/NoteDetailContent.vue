@@ -239,7 +239,10 @@ function reactionTypeUrl(type: string): string | null {
 async function handleReaction(reaction: string, target: NormalizedNote) {
   if (!adapter) return
   try {
-    await toggleReaction(adapter.api, target, reaction)
+    // note は deep reactive (ref) なので、差分の代入で反映される
+    await toggleReaction(adapter.api, target, reaction, (patch) => {
+      Object.assign(target, patch)
+    })
   } catch (e) {
     error.value = AppError.from(e)
   }
