@@ -189,30 +189,30 @@ NoteDeck はユーザーのデータ主権を尊重する。ユーザーが意�
 
 ```
 appDataDir/
-├── notecli.db # SQLite（アカウント/サーバー情報）
-└── notedeck/　#エクスポート時は圧縮せず単一テキスト`nodeck.json`
-    ├── keybinds.json5 #キーバインド編集ウィンドウで編集可能
-    ├── navbar.json5 #ナブバー編集ウィンドウで編集可能
-    ├── performance.json5 #パフォーマンス編集ウィンドウで編集可能
-    ├── settings.json5
-    ├── profiles/ #プロファイル編集ウィンドウで編集可能
-    │   └── Main.json5
-    ├── themes/ #テーマ編集ウィンドウで編集可能
-    │   └── AME.ndtheme.json5
-    ├── plugins/ #プラグイン編集ウィンドウで編集可能
-    │   ├── *.is
-    │   └── *.meta.json5
-    ├── custom.css #カスタムCSS編集ウィンドウで編集可能
-    └── accounts.json5 #アカウント編集ウィンドウで編集可能
+├── notecli.db          # SQLite（アカウント/サーバー情報・ノートキャッシュ）
+└── notedeck/
+    ├── settings.json5      # スカラー preferences（後述）
+    ├── keybinds.json5      # キーバインド
+    ├── navbar.json5        # ナビバー構成（プロファイルから独立）
+    ├── performance.json5   # パフォーマンス
+    ├── postform.json5      # 投稿フォーム構成
+    ├── ai.json5            # AI 設定（使用する Vault 接続とモデル名。キー本体は持たない）
+    ├── tasks.json5         # タスク定義
+    ├── permissions.json5   # principal 別の認可（#712）
+    ├── custom.css          # カスタム CSS
+    ├── connections.json    # Secret Vault の接続メタデータ（Rust が source of truth）
+    ├── profiles/           # *.ndprofile.json5
+    ├── themes/             # *.ndtheme.json5
+    ├── plugins/            # *.is + *.meta.json5
+    ├── widgets/            # *.is + *.meta.json5
+    ├── skills/             # *.md
+    ├── snippets/           # *.json5
+    ├── memos/              # *.md
+    ├── queries/            # カラムクエリ
+    └── sessions/           # AI セッション
 ```
 
-**dual-write 統合済みファイル**（`settings.json5` に統合済み、旧ファイルは移行読込のみ）:
-
-- `ai.json5` → `ai.*` キーに統合済み
-- `keybinds.json5` → `keybinds.*` キーに統合済み
-- `performance.json5` → `performance.*` キーに統合済み
-
-これらはいずれも NoteDeck 独自フォーマットで Misskey 互換性要件がないため、フラット dot-notation キーとして `settings.json5` に取り込んだ。新しい書き込みは `settings.json5` のみに反映され、旧ファイルは初回起動時の移行読込専用。
+いずれもテキストエディタで直接編集でき、アプリ内の対応する編集ウィンドウからも編集できる。許可されるサブディレクトリ名とルートファイル名は `src-tauri/src/settings_store.rs` の allowlist が正本で、この一覧がそのまま設定バックアップの対象になる。
 
 **appDataDir の場所:**
 
@@ -236,36 +236,37 @@ appDataDir/
 
 NoteDeck のスカラー設定 (選択・トグル・ユーザー preferences) は単一ファイル `settings.json5` に集約する。VSCode の `settings.json` と同じ立ち位置:
 
-- **フラット dot-notation キー空間**: `theme.manual`, `modes.realtime`, `performance.maxFps` 等
+- **フラット dot-notation キー空間**: `theme.manual`, `modes.realtime`, `mute.emojis` 等
 - **GUI 設定エディタ ↔ raw JSON エディタの 2-way binding**: どちらから編集しても反映
 - **不正値は schema のデフォルトにフォールバック**: 安全性
-- **`$schema` プロパティ** (将来) でエディタの補完・検証サポート
 
-**settings.json5 に含まれるもの**:
+**settings.json5 に含まれるもの** (キー空間の正本は `src/settings/schema.ts`):
 
 | カテゴリ | キー例 | 備考 |
 |---|---|---|
-| テーマ選択状態 | `theme.manual`, `theme.selectedDarkThemeId` | テーマ **定義** は `themes/*.json5` に別置き |
+| テーマ選択状態 | `theme.manual`, `theme.selectedDarkThemeId` | テーマ **定義** は `themes/*.ndtheme.json5` に別置き |
 | モード | `modes.realtime`, `modes.offline` | |
 | デック | `deck.activeProfileId`, `deck.wallpaper` | プロファイル **定義** は `profiles/*.ndprofile.json5` に別置き |
-| パフォーマンス | `performance.maxFps` 等 | `performance.json` と dual-write 統合済み |
-| AI | `ai.provider`, `ai.model` 等 | `ai.json` と dual-write 統合済み (API キーは除外) |
-| キーバインド | `keybinds.commandPalette` 等 | `keybinds.json5` と dual-write 統合済み |
+| ミュート | `mute.emojis` 等 | ワード / インスタンスミュートはサーバー側設定 |
+| 投稿フォームの挙動 | `postForm.preview`, `postForm.rememberVisibility` 等 | ボタン構成そのものは `postform.json5` |
+| キャッシュ | `cache.evictionPreset`, `chat.cacheEnabled` 等 | |
 
-**settings.json5 に含まれないもの** (恒久的に別ファイル):
+**settings.json5 に含まれないもの** (別ファイル):
 
 | 対象 | 理由 |
 |---|---|
-| `themes/*.json5` | Misskey 互換フォーマット維持 — コミュニティテーマを `themes/` に drop するだけで使えるようにするため |
+| `themes/*.ndtheme.json5` | Misskey 互換フォーマット維持 — コミュニティテーマを `themes/` に drop するだけで使えるようにするため |
 | `plugins/*.is` + `*.meta.json5` | Misskey AiScript プラグインフォーマット維持 |
 | `snippets/*.json5` | VSCode スニペット互換フォーマット |
 | `profiles/*.ndprofile.json5` | NoteDeck 独自だが複数存在するコレクション。肥大化回避 + 個別エクスポート導線 |
 | `memos/*.md` | PKM 連携のため Markdown + YAML frontmatter で外部 vault (Obsidian/Logseq) として直接開ける形式 |
+| `keybinds.json5` / `performance.json5` / `navbar.json5` / `postform.json5` / `tasks.json5` / `ai.json5` | スカラーではなく構造を持つ定義。それぞれ専用の編集ウィンドウがあり、単体でエクスポート・共有できる |
+| `permissions.json5` | principal 別の認可 (#712)。capability から書き換えられない場所に隔離する必要がある |
 | `custom.css` | CSS は JSON ではない。テキストエディタで直接編集 |
-| `accounts.json5` | 環境依存順序。ポータビリティ対象外 |
-| アカウントトークン | Rust DB (secure storage) |
+| `connections.json` | Secret Vault のメタデータ。Rust が source of truth |
+| アカウント情報・トークン | `notecli.db` と OS キーチェーン |
 
-**設計原則の背景**: VSCode の `settings.json` は「設定全体」ではなく**スカラー preferences/toggles/selections** の集合。テーマ本体は extension フォルダに、keybindings は `keybindings.json` に、snippets は `.vscode/snippets/` に別置き。NoteDeck もこの構造に倣い、Misskey 互換性が要件となる部分 (themes/plugins) は native format のまま残す。
+**設計原則の背景**: VSCode の `settings.json` は「設定全体」ではなく**スカラー preferences/toggles/selections** の集合。テーマ本体は extension フォルダに、keybindings は `keybindings.json` に、snippets は `.vscode/snippets/` に別置き。NoteDeck もこの構造に倣い、構造を持つ定義と Misskey 互換性が要件となる部分 (themes/plugins) は別ファイルのまま残す。
 
 ## プロファイル仕様（.ndprofile.json5）
 
@@ -273,6 +274,7 @@ NoteDeck のスカラー設定 (選択・トグル・ユーザー preferences) �
 
 ```json5
 {
+  id: "profile-1711100000000",
   name: "メイン作業用",
   createdAt: 1711100000000,
   columns: [
@@ -304,7 +306,7 @@ NoteDeck のスカラー設定 (選択・トグル・ユーザー preferences) �
 - **Misskey → NoteDeck**: `accountId` なし → デフォルトアカウントを割り当て
 - **NoteDeck → Misskey**: 独自フィールド（`accountId`, `account`, `windowId` 等）は無視される
 
-NoteDeck 独自の拡張フィールド:
+NoteDeck 独自の拡張フィールド (主なもの。正本は `src/stores/deck.ts` の `DeckColumn`):
 
 | フィールド | 型 | 用途 |
 |-----------|-----|------|
@@ -336,13 +338,13 @@ NoteDeck のデータは大きく2種類に分かれる:
 | 種別 | 内容 | ファイル |
 |------|------|----------|
 | **DB** | アカウント・サーバー情報・キャッシュ | `notecli.db` |
-| **設定** | settings.json5（スカラー preferences + AI・キーバインド・パフォーマンス統合済み）+ プロファイル・テーマ・CSS・プラグイン | テキストファイル群 |
+| **設定** | `notedeck/` 以下のテキストファイル群 | 前掲のファイル構造を参照 |
 
 ### バックアップ対象の網羅原則
 
 **原則**: 「バックアップされるもの = 設定」。localStorage のみにしかない設定が存在してはならない。
 
-過去には `modes.realtime` / `theme.manual` / `deck.wallpaper` 等の一部設定が localStorage のみに存在しバックアップから漏れていたが、`settings.json5` 統合によりこの漏れを解消する。環境依存データ (アカウントトークン / `accounts.json5`) のみが明示的に除外される (他環境での復元時に整合性を壊すため)。
+環境依存データ (アカウント情報・トークン) のみが明示的に除外される — 他環境での復元時に整合性を壊すため。アカウントは DB エクスポート側で扱う。
 
 ### アプリ内バックアップ（設定メニュー）
 
@@ -352,14 +354,14 @@ NoteDeck のデータは大きく2種類に分かれる:
 |------|------|------|------|
 | **DB エクスポート** | `notecli.db` | SQLite | アカウント・サーバー情報の完全バックアップ |
 | **DB インポート** | `notecli.db` | SQLite | SQLiteヘッダ検証付き。インポート後アプリ再起動 |
-| **設定エクスポート** | `settings.json5` + テキストファイル群 | JSON | `settings.json5` (スカラー preferences) + `profiles/` `themes/` `plugins/` `custom.css` をキー→値の JSON バンドルとして出力 |
+| **設定エクスポート** | `notedeck/` 以下のテキストファイル群 | JSON | allowlist されたルートファイルとサブディレクトリを、キー→値の JSON バンドルとして出力 |
 | **設定インポート** | 同上 | JSON | パストラバーサル防止・ホワイトリスト検証付き。インポート後アプリ再起動 |
 
 **セキュリティ:**
 - DB インポート: SQLite マジックバイト（`SQLite format 3\0`）を検証。WAL/SHM ファイルも自動クリーンアップ
 - 設定インポート: `..` や絶対パスを含むエントリを拒否。許可されたディレクトリ/ファイル名のみ展開
 
-**統合済み**: `ai.json5` / `keybinds.json5` / `performance.json5` は `settings.json5` に統合済み。`export_settings_json` は旧ファイルも含めてバンドルしているが、`settings.json5` に統合された値が source of truth となる。
+バックアップ対象は `settings_store.rs` の `ALLOWED_SUBDIRS` / `ALLOWED_ROOT_FILES` と同一。設定ファイルを追加するときは、この allowlist に載せないとバックアップから漏れる。
 
 ### 手動バックアップ
 
@@ -383,44 +385,13 @@ ln -s ~/Dropbox/notedeck/profiles ~/.local/share/com.notedeck.desktop/profiles
 
 ### マイグレーション
 
-NoteDeck の設定永続化は**複数段階の移行**を経てきている:
+設定の保存先が変わったときは、旧レイアウトを起動時に自動で引き継ぐ。
 
-**Phase 1: localStorage → 個別ファイル** (実装済み)
+- **localStorage → ファイル**: 起動時にファイルが 0 件かつ localStorage にデータがあれば、テキストファイルとして書き出す。以降はファイルが source of truth (localStorage はキャッシュとして残す)
+- **ファイル配置・拡張子の変更**: `run_fs()` (`src-tauri/src/migrations.rs`) が DB を開く前に実行する。設定ファイルの `notedeck/` サブディレクトリへの移動、`.json` → `.json5` へのリネーム等
+- **DB トークン → OS キーチェーン**: `run_db()` が DB 初期化後に実行する
 
-1. 起動時に各設定ディレクトリのファイル存在を確認
-2. ファイルが 0 件かつ localStorage にデータあり → テキストファイルとして書き出し
-3. マイグレーション完了後、localStorage はキャッシュとして維持（削除しない）
-4. 以降はファイルが source of truth
-
-対象: プロファイル（`.ndprofile.json5`）、テーマ（`.ndtheme.json5`）、カスタムCSS（`custom.css`）、キーバインド（`keybinds.json5`）、プラグイン（`.is` + `.meta.json5`）、AI設定（`ai.json5`）、パフォーマンス（`performance.json5`）
-
-**Phase 2: localStorage-only scalar → settings.json5** (実装済み)
-
-Phase 1 でファイル化されなかった localStorage-only 設定 (`theme.manual`, `modes.realtime`, `modes.offline`, `deck.wallpaper` 等) を `settings.json5` に集約。
-
-1. 起動時に `settings.json5` が存在しなければデフォルト値で開始
-2. ユーザーが設定を変更するたびに `settings.json5` に debounce persist
-3. 各ストアは `useSettingsStore` 経由で値を取得
-
-**Phase 3: 個別 JSON ファイル → settings.json5** (dual-write 統合済み)
-
-`ai.json5` / `keybinds.json5` / `performance.json5` の内容を `settings.json5` の namespace 付きキーに統合済み:
-
-- `ai.json5` → `ai.*` キー
-- `keybinds.json5` → `keybinds.*` キー
-- `performance.json5` → `performance.*` キー
-
-旧ファイルは初回起動時の移行読込専用。新しい書き込みは `settings.json5` のみに反映される。
-
-**Phase 4: 恒久的に別ファイルとして残るもの** (統合しない)
-
-以下は Misskey 互換性・コレクション性・特殊フォーマットの理由で恒久的に別ファイル:
-
-- `themes/*.json5` (Misskey 互換)
-- `plugins/*.is` + `*.meta.json5` (Misskey 互換)
-- `profiles/*.ndprofile.json5` (NoteDeck 独自だが複数存在するコレクション)
-- `custom.css` (CSS ファイル)
-- `accounts.json5` (環境依存)
+各マイグレーションは前提条件を自分で確認する冪等な関数として書き、`run_all()` の末尾に追加する。再実行しても壊れないことが要件。
 
 ## ブラウザ・エディタパターンの導入方針
 
@@ -430,7 +401,6 @@ NoteDeck は Tauri（WebView）ベースのデスクトップアプリであり�
 
 | ブラウザ / エディタ | NoteDeck | 状態 |
 |-------------------|----------|------|
-| タブ | プロファイル（カラム配置のワークスペース） | 計画中 |
 | タブタイリング (Vivaldi) | カラム横並び表示 | ✅ アプリの本質 |
 | Web パネル (Vivaldi) | ナビバー（左サイドバー） | ✅ 実装済み |
 | アドレスバー / オムニボックス | コマンドパレット (Ctrl+K) | ✅ 実装済み |
@@ -469,53 +439,6 @@ NoteDeck の UI は以下の階層で整理される。ブラウザ / エディ�
     = Vivaldi タブスタック内のタブ一覧 / VS Code エディタグループ内タブ
     アクティブプロファイル内のカラム一覧
 ```
-
-### A. ブレッドクラム（検討中）
-
-**出典**: VS Code ブレッドクラム
-
-既存の検索バーの URI 表示（`activeColumnUri`）をクリッカブルなブレッドクラムに発展:
-
-```
-[🔍 misskey.io > @taka > ホームTL          Ctrl+K]
-     ↑クリック    ↑クリック   ↑クリック
-```
-
-各セグメントがクリッカブルで、サーバー一覧→アカウント切替→カラム種別切替と階層的にナビゲーション可能。
-
-### B. Peek プレビュー（検討中）
-
-**出典**: VS Code Peek Definition (Alt+F12)
-
-ユーザー名やノートリンクのホバー/クリックで、カラム内にインラインプレビューを浮遊表示。スクロール位置を失わずにコンテキストを確認できる。
-
-- ユーザー名ホバー → プロフィールカード + 最近のノート
-- ノートリンク → ノート内容 + リプライツリーのプレビュー
-- リノート元 → 元ノートのインライン表示
-
-VS Code で最も評価される機能の一つ。SNS クライアントでは「スクロール位置を守る」価値が特に高い。
-
-### C. Sticky Scroll（検討中）
-
-**出典**: VS Code Sticky Scroll
-
-スレッド表示で親ノートをカラム上部にスティッキーヘッダーとして固定。長い会話スレッドをスクロールしても、「何の話題か」を見失わない。
-
-### D. リーディングリスト（検討中）
-
-**出典**: Safari リーディングリスト
-
-「後で読む」キューをローカル DB でサーバー横断管理。Misskey のお気に入り/クリップがサーバー単位なのに対し、全アカウントを横断して一元管理。ローカルにキャッシュすることでオフライン閲覧も可能。
-
-### E. クロスサーバー統合検索（検討中）
-
-**出典**: VS Code ワークスペース横断検索
-
-全接続サーバーに並列クエリを送り、結果を統合表示。既存のコマンドパレット/検索バーを拡張する形で、「あのノート、どのサーバーで見たっけ？」を解決。ローカル FTS5 インデックスとの組み合わせで高速化。
-
-### H. 統合通知センター（検討中）
-
-全アカウントの通知を1箇所に集約するカラムタイプ。既存の cross-account 通知カラム（`accountId: null`）を発展させ、サーバー横断での未読管理・フィルタリングを実現。
 
 ### 導入しないパターン
 

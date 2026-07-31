@@ -223,16 +223,14 @@ OSSアプリは署名なしだと「危険なアプリ」警告が表示され�
 
 ### 配布チャネル
 
-| チャネル | プラットフォーム | コスト | 状態 |
-|---|---|---|---|
-| GitHub Releases | 全プラットフォーム | 無料 | ✅ 実施中 |
-| AUR | Arch Linux | 無料 | ✅ 実施中 |
-| NixOS | NixOS | 無料 | ✅ 実施中 |
-| winget | Windows | 無料 | ✅ 対応済み |
-| F-Droid | Android | 無料 | 検討中 |
-| SignPath Foundation | Windows（署名） | 無料 | 検討中 |
+| チャネル | プラットフォーム | コスト |
+|---|---|---|
+| GitHub Releases | 全プラットフォーム | 無料 |
+| AUR | Arch Linux | 無料 |
+| NixOS | NixOS | 無料 |
+| winget | Windows | 無料 |
 
-**対応しないもの:** Homebrew — メンテナンスコストに対してユーザー数が見合わない。
+各 OS のストア・パッケージマネージャへの展開は、チャネルごとに issue を立てて管理する (Microsoft Store / Homebrew Cask / Flathub / F-Droid)。判断材料はメンテナンスコストと、そのチャネルでしか届かないユーザーの多さ。
 
 ---
 
