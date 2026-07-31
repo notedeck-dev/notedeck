@@ -100,7 +100,8 @@ impl MediaRequest {
 /// 20000×20000 の PNG は RGBA 展開で 1.6GB に膨らみ、Android では malloc
 /// abort がログを残さずプロセスを殺す。変換対象はサムネイル用途なので
 /// これを超える原本は変換せずそのまま返す (WebView 側に委ねる)。
-const MAX_DECODE_DIMENSION: u32 = 8192;
+/// os_notify (デスクトップ通知画像の PNG 変換) も同じ上限を使う。
+pub(crate) const MAX_DECODE_DIMENSION: u32 = 8192;
 
 /// アニメーションの可能性があるか (ヘッダ走査のみ、デコードしない)。
 /// 変換 (リサイズ/再エンコード) はアニメーションを 1 フレーム目に潰すため、
@@ -403,7 +404,8 @@ async fn ensure_media(app: AppHandle, cache: Arc<ImageCache>, req: MediaRequest)
 
 /// オリジナルを (キャッシュ or 上流から) 用意し、変換を適用して cache_key で
 /// 永続化し、配信可能なバイト列と content-type を返す。
-async fn ensure_media_inner(
+/// notify_media (OS 通知の画像取得) も同じ口を使う。
+pub(crate) async fn ensure_media_inner(
     cache: &ImageCache,
     req: &MediaRequest,
 ) -> Result<(Vec<u8>, String), String> {

@@ -59,13 +59,19 @@ pub fn set_status_bar_style(light_background: bool) {
             let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
             let mut env = vm.attach_current_thread()?;
             let activity = unsafe { jni::objects::JObject::from_raw(ctx.context().cast()) };
-            env.call_method(
+            let call = env.call_method(
                 &activity,
                 "setStatusBarStyle",
                 "(Z)V",
                 &[jni::objects::JValue::Bool(light_background as u8)],
-            )?;
-            Ok(())
+            );
+            // 失敗時に JVM 側の pending exception を残すと、同一スレッドの
+            // 次の JNI 呼び出しで ART が abort する (プロセス即死)。必ずクリア
+            if call.is_err() && env.exception_check().unwrap_or(false) {
+                let _ = env.exception_describe();
+                let _ = env.exception_clear();
+            }
+            call.map(|_| ())
         })();
         if let Err(e) = result {
             tracing::warn!("[status-bar] JNI call failed: {e}");
