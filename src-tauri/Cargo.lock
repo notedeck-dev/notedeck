@@ -3158,7 +3158,7 @@ checksum = "0676bb32a98c1a483ce53e500a81ad9c3d5b3f7c920c28c24e9cb0980d0b5bc8"
 [[package]]
 name = "notecli"
 version = "0.6.0"
-source = "git+https://github.com/notedeck-dev/notecli?rev=8a9b9969c239620f571f31a972cdecd6944f88fb#8a9b9969c239620f571f31a972cdecd6944f88fb"
+source = "git+https://github.com/notedeck-dev/notecli?rev=77fd53104fc73d797c04da2c04897ede5be4886b#77fd53104fc73d797c04da2c04897ede5be4886b"
 dependencies = [
  "android-native-keyring-store",
  "apple-native-keyring-store",
@@ -3194,7 +3194,7 @@ dependencies = [
 
 [[package]]
 name = "notedeck"
-version = "1.33.4"
+version = "1.34.0"
 dependencies = [
  "async-trait",
  "axum",
