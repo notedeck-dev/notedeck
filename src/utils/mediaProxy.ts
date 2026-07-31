@@ -40,7 +40,7 @@ const proxyUrlCache = new Map<string, string>()
  */
 const mediaVersions = reactive(new Map<string, number>())
 
-export function handleMediaFetched(url: string) {
+function bumpMediaVersion(url: string) {
   // proxyUrlCache と同じ上限で古い順に捨てる (無限成長させない)。
   // 追い出された URL は素の URL に戻るだけで、実体はキャッシュ済みなので
   // 表示は壊れない
@@ -51,13 +51,54 @@ export function handleMediaFetched(url: string) {
   mediaVersions.set(url, (mediaVersions.get(url) ?? 0) + 1)
 }
 
+export function handleMediaFetched(url: string, ok = true) {
+  if (ok) {
+    // 取得成功 → 失敗カウントをリセット (以後の失敗からまた再試行できる)
+    const entry = mediaFailures.get(url)
+    if (entry?.timer != null) clearTimeout(entry.timer)
+    mediaFailures.delete(url)
+  }
+  bumpMediaVersion(url)
+}
+
+/**
+ * `<img>` の onerror 側からの失敗申告。
+ *
+ * @error ハンドラは src を unknown アイコンへ DOM 書き換えするが、それだけ
+ * だと :src バインドが変わる契機がなく、一過性の 502/504 がセッション中
+ * 固定化する。ここでバックオフ後に世代番号を進めるとバインドが再評価され、
+ * `<img>` が再要求して自然復帰する。負のキャッシュが生きている間の再試行は
+ * プロキシが即 502 で受けるので安価に失敗し、次のバックオフに進む。
+ * 上限に達したら諦める (回復は取得成功イベントのリセット任せ)。
+ */
+const MEDIA_RETRY_BACKOFF_MS = [8_000, 40_000, 180_000] as const
+
+const mediaFailures = new Map<
+  string,
+  { retries: number; timer: ReturnType<typeof setTimeout> | null }
+>()
+
+export function markMediaFailed(url: string): void {
+  const entry = mediaFailures.get(url) ?? { retries: 0, timer: null }
+  if (entry.timer !== null || entry.retries >= MEDIA_RETRY_BACKOFF_MS.length) {
+    return
+  }
+  const delay = MEDIA_RETRY_BACKOFF_MS[entry.retries] ?? 0
+  entry.timer = setTimeout(() => {
+    entry.timer = null
+    entry.retries += 1
+    bumpMediaVersion(url)
+  }, delay)
+  mediaFailures.set(url, entry)
+}
+
 let listenerStarted = false
 function ensureFetchedListener() {
   if (listenerStarted) return
   listenerStarted = true
   try {
     events.mediaFetched
-      .listen(({ payload }) => handleMediaFetched(payload.url))
+      .listen(({ payload }) => handleMediaFetched(payload.url, payload.ok))
       .catch(() => {
         // Tauri 外 (pnpm dev のブラウザ確認) ではイベント購読できない
       })

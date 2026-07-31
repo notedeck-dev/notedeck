@@ -170,6 +170,76 @@ describe('背景取得完了による再読込 (二段階配信)', () => {
   })
 })
 
+describe('失敗申告によるバックオフ再試行 (markMediaFailed)', () => {
+  // @error の DOM 書き換え (unknown アイコンへの差し替え) は :src バインドが
+  // 変わらない限り戻らず、一過性の 502/504 がセッション中固定化していた。
+  // 失敗を申告するとバックオフ後に世代番号が進み、バインド再評価で自然復帰する
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('バックオフ後に世代番号を進めて <img> に再要求させる', async () => {
+    const { proxyUrl, markMediaFailed } = await loadModule()
+    const base = proxyUrl(REMOTE)
+    markMediaFailed(REMOTE)
+    // バックオフ前は変わらない (失敗直後の連打再要求を避ける)
+    expect(proxyUrl(REMOTE)).toBe(base)
+    vi.advanceTimersByTime(8_000)
+    expect(proxyUrl(REMOTE)).toBe(`${base}&r=1`)
+  })
+
+  it('タイマー待ち中の重複申告は 1 回の再試行にまとまる', async () => {
+    const { proxyUrl, markMediaFailed } = await loadModule()
+    markMediaFailed(REMOTE)
+    markMediaFailed(REMOTE)
+    markMediaFailed(REMOTE)
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+
+  it('再試行は上限で打ち切る (無限リトライしない)', async () => {
+    const { proxyUrl, markMediaFailed } = await loadModule()
+    for (let i = 0; i < 10; i++) {
+      markMediaFailed(REMOTE)
+      vi.advanceTimersByTime(10 * 60_000)
+    }
+    const r = Number(/&r=(\d+)/.exec(proxyUrl(REMOTE) ?? '')?.[1])
+    expect(r).toBe(3)
+  })
+
+  it('取得成功で失敗カウントがリセットされ、次の失敗からまた再試行できる', async () => {
+    const { proxyUrl, markMediaFailed, handleMediaFetched } = await loadModule()
+    for (let i = 0; i < 10; i++) {
+      markMediaFailed(REMOTE)
+      vi.advanceTimersByTime(10 * 60_000)
+    }
+    // 成功イベント → リセット (世代も 1 進む: 3 + 1 = 4)
+    handleMediaFetched(REMOTE, true)
+    markMediaFailed(REMOTE)
+    vi.advanceTimersByTime(10 * 60_000)
+    const r = Number(/&r=(\d+)/.exec(proxyUrl(REMOTE) ?? '')?.[1])
+    expect(r).toBe(5)
+  })
+
+  it('失敗の完了イベント (ok=false) ではリセットしない', async () => {
+    const { proxyUrl, markMediaFailed, handleMediaFetched } = await loadModule()
+    for (let i = 0; i < 10; i++) {
+      markMediaFailed(REMOTE)
+      vi.advanceTimersByTime(10 * 60_000)
+    }
+    handleMediaFetched(REMOTE, false)
+    markMediaFailed(REMOTE)
+    vi.advanceTimersByTime(10 * 60_000)
+    // ok=false の世代 bump (+1) だけで、リトライは復活しない
+    const r = Number(/&r=(\d+)/.exec(proxyUrl(REMOTE) ?? '')?.[1])
+    expect(r).toBe(4)
+  })
+})
+
 describe('proxyThumbUrl', () => {
   // format は付けない: 明示すると「上限以下なら変換不要」の素通しが効かなくなる
   it('幅だけを付ける (非 Android は wait も付く)', async () => {
