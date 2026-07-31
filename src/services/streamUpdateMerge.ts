@@ -101,16 +101,9 @@ export function mergeNoteUpdate(
       // myUserId != null: guest (undefined) × userId 欠落イベントの undefined
       // 同士一致を「自分」と誤判定しない (pollVoted と同じ規約)
       const isMine = myUserId != null && event.body.userId === myUserId
-      if (isMine) {
-        // 楽観反映済みの echo → 二重加算しない
-        if (
-          note.myReaction &&
-          normalizeReactionKey(note.myReaction) ===
-            normalizeReactionKey(reaction)
-        ) {
-          return null
-        }
-      }
+      // echo 抑止の判断より先に同梱の絵文字 URL を取り込む (#891)。リモート
+      // 絵文字 (相乗り #630) は reactionEmojis が唯一の解決源なので、抑止と
+      // 同時に捨てると自分が押した絵文字が不明アイコンになる
       let newReactionEmojis = note.reactionEmojis
       if (event.body.emoji) {
         // Strip colons to match API convention (reactionEmojis keys have no colons)
@@ -122,7 +115,21 @@ export function mergeNoteUpdate(
           typeof event.body.emoji === 'string'
             ? event.body.emoji
             : event.body.emoji.url
-        newReactionEmojis = { ...note.reactionEmojis, [shortcode]: emojiUrl }
+        if (note.reactionEmojis?.[shortcode] !== emojiUrl) {
+          newReactionEmojis = { ...note.reactionEmojis, [shortcode]: emojiUrl }
+        }
+      }
+      if (isMine) {
+        // 楽観反映済みの echo → 二重加算しない。絵文字 URL だけ新しければ
+        // カウントを進めずに反映する
+        if (
+          note.myReaction &&
+          normalizeReactionKey(note.myReaction) ===
+            normalizeReactionKey(reaction)
+        ) {
+          if (newReactionEmojis === note.reactionEmojis) return null
+          return { ...note, reactionEmojis: newReactionEmojis }
+        }
       }
       // 形式違いの既存キー (:name: と :name@.:) は合流させ、別チップを作らない
       const key = findReactionKey(note.reactions, reaction)

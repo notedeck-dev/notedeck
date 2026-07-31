@@ -148,9 +148,9 @@ describe('toggleReaction', () => {
     expect(state.reactions['👍']).toBeUndefined()
   })
 
-  it('rolls back switch on API failure', async () => {
+  it('切替の取消 (delete) 自体が失敗したら丸ごと元に巻き戻す', async () => {
     const api = makeApi()
-    api.createReaction.mockRejectedValue(new Error('fail'))
+    api.deleteReaction.mockRejectedValue(new Error('fail'))
     const note = makeNote({
       reactions: { '👍': 1 },
       myReaction: '👍',
@@ -160,6 +160,25 @@ describe('toggleReaction', () => {
     await expect(toggleReaction(api, note, '❤️', apply)).rejects.toThrow('fail')
 
     expect(state.myReaction).toBe('👍')
+    expect(state.reactions['👍']).toBe(1)
+    expect(state.reactions['❤️']).toBeUndefined()
+    expect(api.createReaction).not.toHaveBeenCalled()
+  })
+
+  it('切替の取消成功後に付与が失敗したら「リアクション無し」へ倒す (#891)', async () => {
+    // サーバー上は取消だけが成立している。元のリアクションに巻き戻すと
+    // 旧絵文字のカウントが 1 多いまま残り、次の取得まで直らない
+    const api = makeApi()
+    api.createReaction.mockRejectedValue(new Error('fail'))
+    const note = makeNote({
+      reactions: { '👍': 2 },
+      myReaction: '👍',
+    })
+    const { state, apply } = track(note)
+
+    await expect(toggleReaction(api, note, '❤️', apply)).rejects.toThrow('fail')
+
+    expect(state.myReaction).toBeNull()
     expect(state.reactions['👍']).toBe(1)
     expect(state.reactions['❤️']).toBeUndefined()
   })

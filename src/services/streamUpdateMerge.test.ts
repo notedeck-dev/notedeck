@@ -96,6 +96,56 @@ describe('mergeNoteUpdate', () => {
     expect(merged?.reactions[':meow@.:']).toBeUndefined()
   })
 
+  it('自ユーザの echo でも同梱の絵文字 URL は取り込む (カウントは進めない) (#891)', () => {
+    // リモート絵文字 (相乗り #630) は note.reactionEmojis が唯一の解決源。
+    // echo の抑止と同時に URL まで捨てると、自分が押した絵文字が
+    // 不明アイコンになる
+    const note = makeNote({
+      reactions: { ':wave@remote.example:': 1 },
+      myReaction: ':wave@remote.example:',
+    })
+    const merged = mergeNoteUpdate(
+      note,
+      {
+        type: 'reacted',
+        noteId: 'n1',
+        body: {
+          userId: 'me',
+          reaction: ':wave@remote.example:',
+          emoji: { name: 'wave@remote.example', url: 'https://r/wave.png' },
+        },
+      },
+      'me',
+    )
+    expect(merged?.reactions[':wave@remote.example:']).toBe(1)
+    expect(merged?.myReaction).toBe(':wave@remote.example:')
+    expect(merged?.reactionEmojis['wave@remote.example']).toBe(
+      'https://r/wave.png',
+    )
+  })
+
+  it('自ユーザの echo: 絵文字 URL に新情報が無ければ従来どおり無視する', () => {
+    const note = makeNote({
+      reactions: { ':wave@remote.example:': 1 },
+      myReaction: ':wave@remote.example:',
+      reactionEmojis: { 'wave@remote.example': 'https://r/wave.png' },
+    })
+    const merged = mergeNoteUpdate(
+      note,
+      {
+        type: 'reacted',
+        noteId: 'n1',
+        body: {
+          userId: 'me',
+          reaction: ':wave@remote.example:',
+          emoji: { name: 'wave@remote.example', url: 'https://r/wave.png' },
+        },
+      },
+      'me',
+    )
+    expect(merged).toBeNull()
+  })
+
   it('カスタム絵文字はコロンを剥がして reactionEmojis に記録する', () => {
     const note = makeNote()
     const merged = mergeNoteUpdate(
