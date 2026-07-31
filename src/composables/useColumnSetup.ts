@@ -20,18 +20,21 @@ import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { toggleFavorite } from '@/utils/toggleFavorite'
-import { type ReactionPatch, toggleReaction } from '@/utils/toggleReaction'
+import { toggleReaction } from '@/utils/toggleReaction'
 import { votePoll } from '@/utils/votePoll'
 
 export interface ColumnSetupOptions {
   /** Reactive offline flag — when true, write operations are blocked */
   isOffline?: () => boolean
   /**
-   * 楽観的更新の差分の適用先。既定は noteStore への差し替えだが、ノートを
-   * noteStore に置かない面 (照会カラムのローカル deep ref 等) は自分の
-   * 保持形態に合わせて差し替える。
+   * 楽観的更新の差分 (リアクション・投票) の適用先。既定は noteStore への
+   * 差し替えだが、ノートを noteStore に置かない面 (照会カラムのローカル
+   * deep ref 等) は自分の保持形態に合わせて差し替える。
    */
-  applyNotePatch?: (note: NormalizedNote, patch: ReactionPatch) => void
+  applyNotePatch?: (
+    note: NormalizedNote,
+    patch: Partial<NormalizedNote>,
+  ) => void
 }
 
 export function useColumnSetup(
@@ -172,18 +175,23 @@ export function useColumnSetup(
     return false
   }
 
+  /** 楽観的更新の差分を面の保持形態に反映する (既定は noteStore への差し替え) */
+  function applyPatch(note: NormalizedNote, patch: Partial<NormalizedNote>) {
+    if (options?.applyNotePatch) {
+      options.applyNotePatch(note, patch)
+    } else {
+      // 新オブジェクトへの差し替えで store に反映する (reactive に届く)
+      noteStore.update(note.id, { ...note, ...patch })
+    }
+    customMutatedFn?.()
+  }
+
   async function handleReaction(reaction: string, note: NormalizedNote) {
     if (!adapter || checkOffline()) return
     try {
-      await toggleReaction(adapter.api, note, reaction, (patch) => {
-        if (options?.applyNotePatch) {
-          options.applyNotePatch(note, patch)
-        } else {
-          // 新オブジェクトへの差し替えで store に反映する (reactive に届く)
-          noteStore.update(note.id, { ...note, ...patch })
-        }
-        customMutatedFn?.()
-      })
+      await toggleReaction(adapter.api, note, reaction, (patch) =>
+        applyPatch(note, patch),
+      )
       if (!getColumn().soundMuted) actionSound.play()
     } catch (e) {
       const err = AppError.from(e)
@@ -195,7 +203,9 @@ export function useColumnSetup(
   async function handlePollVote(choice: number, note: NormalizedNote) {
     if (!adapter || checkOffline()) return
     try {
-      await votePoll(adapter.api, note, choice, notifyMutationFor(note))
+      await votePoll(adapter.api, note, choice, (patch) =>
+        applyPatch(note, patch),
+      )
     } catch (e) {
       const err = AppError.from(e)
       console.error('[vote]', err.code, err.message)
