@@ -169,15 +169,20 @@ export function proxiedRawUrl(src: string): string | null {
 }
 
 /**
- * プレースホルダ滞留の全画像監視。
+ * 全画像の読み込み結果の一括監視。
  *
  * 二段階配信 (Android 全画像 / デスクトップの soft 降格) はアバター・添付・
- * ピッカーなどあらゆる `<img>` を通るため、個別コンポーネントに @load を
- * 配線するのではなく document の capture で一括して拾う (load イベントは
- * バブルしないが capture では捕捉できる)。1×1 = プレースホルダを掴んだ
- * `<img>` を自己修復に乗せ、実画像が載ったら試行回数をリセットする。
+ * ピッカーなどあらゆる `<img>` を通るため、個別コンポーネントに @load /
+ * @error を配線するのではなく document の capture で一括して拾う (load /
+ * error イベントはバブルしないが capture では捕捉できる)。
+ *
+ * - load: 1×1 = プレースホルダを掴んだ `<img>` を自己修復に乗せ、実画像が
+ *   載ったら試行回数をリセットする
+ * - error: 失敗を申告してバックオフ再試行に乗せる (一過性の 502/504 の
+ *   セッション中固定化を防ぐ)。unknown アイコン等への DOM フォールバックは
+ *   各コンポーネントの @error に残る
  */
-function installPlaceholderWatchdog() {
+function installMediaWatchdog() {
   try {
     document.addEventListener(
       'load',
@@ -194,6 +199,16 @@ function installPlaceholderWatchdog() {
       },
       true,
     )
+    document.addEventListener(
+      'error',
+      (e) => {
+        const img = e.target as HTMLImageElement | null
+        if (img?.tagName !== 'IMG') return
+        const raw = proxiedRawUrl(img.currentSrc || img.src)
+        if (raw) markMediaFailed(raw)
+      },
+      true,
+    )
   } catch {
     // document の無い環境 (ユニットテストの node 側等) では何もしない
   }
@@ -203,7 +218,7 @@ let listenerStarted = false
 function ensureFetchedListener() {
   if (listenerStarted) return
   listenerStarted = true
-  installPlaceholderWatchdog()
+  installMediaWatchdog()
   try {
     events.mediaFetched
       .listen(({ payload }) => handleMediaFetched(payload.url, payload.ok))
