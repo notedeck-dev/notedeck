@@ -2876,7 +2876,19 @@ users?: NormalizedUser[] | null;
 /**
  * Assigned role (for roleAssigned type)
  */
-role?: UserRole | null }
+role?: UserRole | null; 
+/**
+ * App notification header (for app type; notifications/create の header)
+ */
+header?: string | null; 
+/**
+ * App notification body (for app type; notifications/create の body)
+ */
+body?: string | null; 
+/**
+ * App notification icon URL (for app type; notifications/create の icon)
+ */
+icon?: string | null }
 export type NormalizedPoll = { choices: NormalizedPollChoice[]; multiple?: boolean; expiresAt: string | null }
 export type NormalizedPollChoice = { text: string; votes?: number; isVoted?: boolean }
 export type NormalizedUser = { id: string; username: string; host: string | null; name: string | null; avatarUrl: string | null; isBot?: boolean; isCat?: boolean; avatarDecorations?: AvatarDecoration[]; emojis?: Partial<{ [key in string]: string }>; instance?: UserInstance | null }

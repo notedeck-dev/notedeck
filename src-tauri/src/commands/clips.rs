@@ -2,7 +2,7 @@ use tauri::State;
 
 use notecli::models::Clip;
 
-use super::{AppState, Result, typed_request};
+use super::{typed_request, AppState, Result};
 
 // 既存 `api_get_clips` (timeline.rs, clips/list 自分用) は notecli が直接
 // 型化メソッド `client.get_clips()` を提供している。ここでは clips/show・

@@ -99,7 +99,11 @@ impl ImageCache {
         Self::with_client(app_dir, reqwest::Client::default(), perf)
     }
 
-    pub fn with_client(app_dir: &Path, http_client: reqwest::Client, perf: SharedPerfConfig) -> Self {
+    pub fn with_client(
+        app_dir: &Path,
+        http_client: reqwest::Client,
+        perf: SharedPerfConfig,
+    ) -> Self {
         let cache_dir = app_dir.join("image_cache");
         std::fs::create_dir_all(&cache_dir).ok();
         let max_total = DEFAULT_MEMORY_CACHE_MAX_TOTAL;
@@ -279,7 +283,9 @@ impl ImageCache {
 
     /// Extract host from a URL for circuit breaker keying.
     fn extract_host(url: &str) -> Option<String> {
-        url::Url::parse(url).ok().and_then(|u| u.host_str().map(|h| h.to_string()))
+        url::Url::parse(url)
+            .ok()
+            .and_then(|u| u.host_str().map(|h| h.to_string()))
     }
 
     /// Check if a host's circuit breaker is tripped.
@@ -465,10 +471,12 @@ impl ImageCache {
                 // Update host circuit breaker on stream failure
                 if !url_host.is_empty() {
                     let mut circuits = host_circuits.write().await;
-                    let state = circuits.entry(url_host.clone()).or_insert(HostCircuitState {
-                        consecutive_failures: 0,
-                        tripped_at: None,
-                    });
+                    let state = circuits
+                        .entry(url_host.clone())
+                        .or_insert(HostCircuitState {
+                            consecutive_failures: 0,
+                            tripped_at: None,
+                        });
                     state.consecutive_failures += 1;
                     let threshold = perf.read().await.circuit_breaker_threshold;
                     if state.consecutive_failures >= threshold {
@@ -770,14 +778,20 @@ mod tests {
     async fn check_cache_only_returns_none_for_http() {
         let dir = tempfile::tempdir().unwrap();
         let cache = ImageCache::new(dir.path());
-        assert!(cache.check_cache_only("http://insecure.com/img.png").await.is_none());
+        assert!(cache
+            .check_cache_only("http://insecure.com/img.png")
+            .await
+            .is_none());
     }
 
     #[tokio::test]
     async fn check_cache_only_miss() {
         let dir = tempfile::tempdir().unwrap();
         let cache = ImageCache::new(dir.path());
-        assert!(cache.check_cache_only("https://example.com/missing.png").await.is_none());
+        assert!(cache
+            .check_cache_only("https://example.com/missing.png")
+            .await
+            .is_none());
     }
 
     #[tokio::test]
@@ -785,7 +799,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let cache = ImageCache::new(dir.path());
         let data = Arc::new(vec![1u8, 2, 3]);
-        cache.insert_mem_cache("test-hash", &data, "image/png").await;
+        cache
+            .insert_mem_cache("test-hash", &data, "image/png")
+            .await;
 
         let mut mem = cache.mem_cache.write().await;
         let entry = mem.entries.get("test-hash").unwrap();
@@ -807,7 +823,10 @@ mod tests {
         cache.insert_mem_cache("c", &big, "image/png").await;
 
         let mem = cache.mem_cache.read().await;
-        assert!(mem.entries.peek("a").is_none(), "LRU entry 'a' should be evicted");
+        assert!(
+            mem.entries.peek("a").is_none(),
+            "LRU entry 'a' should be evicted"
+        );
         assert!(mem.entries.peek("b").is_some() || mem.entries.peek("c").is_some());
     }
 
@@ -854,7 +873,10 @@ mod tests {
         // TTL 切れは negative 扱いしない (自然回復)
         cache.negative_cache.write().await.insert(
             hex_hash(url),
-            (Instant::now() - Duration::from_secs(10), Duration::from_secs(5)),
+            (
+                Instant::now() - Duration::from_secs(10),
+                Duration::from_secs(5),
+            ),
         );
         assert!(!cache.is_negative_cached(url).await);
     }
@@ -911,7 +933,10 @@ mod tests {
         assert!(cache.begin_ensure("k").await);
         assert!(!cache.begin_ensure("k").await, "must not start twice");
         cache.finish_ensure("k").await;
-        assert!(cache.begin_ensure("k").await, "finished key can start again");
+        assert!(
+            cache.begin_ensure("k").await,
+            "finished key can start again"
+        );
     }
 
     /// `<stem>.dat` + `.meta` の対を作り、mtime を指定秒だけ過去にずらす
@@ -969,11 +994,14 @@ mod tests {
 
         let stats = sweep_dir(dir, 7, 10_000);
 
-        assert_eq!(stats, SweepStats {
-            expired_removed: 0,
-            evicted_removed: 0,
-            bytes_after: 200,
-        });
+        assert_eq!(
+            stats,
+            SweepStats {
+                expired_removed: 0,
+                evicted_removed: 0,
+                bytes_after: 200,
+            }
+        );
     }
 
     #[tokio::test]

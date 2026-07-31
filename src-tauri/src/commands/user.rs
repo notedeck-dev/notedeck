@@ -7,7 +7,7 @@ use notecli::models::{
     Page, TimelineOptions, UserReaction,
 };
 
-use super::{AppState, get_credentials_or_anon, Result, typed_request, validate_host};
+use super::{get_credentials_or_anon, typed_request, validate_host, AppState, Result};
 
 // --- User profile ---
 
@@ -68,9 +68,7 @@ pub async fn api_get_user_notes_filtered(
     params: serde_json::Value,
 ) -> Result<serde_json::Value> {
     let (client, host, token) = app_state.authed(&account_id).await?;
-    client
-        .get_user_notes_filtered(&host, &token, params)
-        .await
+    client.get_user_notes_filtered(&host, &token, params).await
 }
 
 #[tauri::command]
@@ -102,9 +100,7 @@ pub async fn api_get_user_achievements(
     user_id: String,
 ) -> Result<serde_json::Value> {
     let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
-    client
-        .get_user_achievements(&host, &token, &user_id)
-        .await
+    client.get_user_achievements(&host, &token, &user_id).await
 }
 
 #[tauri::command]
@@ -198,7 +194,9 @@ pub async fn api_update_user_memo(
     memo: String,
 ) -> Result<()> {
     let (client, host, token) = app_state.authed(&account_id).await?;
-    client.update_user_memo(&host, &token, &user_id, &memo).await
+    client
+        .update_user_memo(&host, &token, &user_id, &memo)
+        .await
 }
 
 #[tauri::command]
@@ -627,4 +625,3 @@ pub async fn api_get_user_gallery_by(
     let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
     typed_request(&client, &host, &token, "users/gallery/posts", params).await
 }
-

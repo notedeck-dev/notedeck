@@ -396,6 +396,12 @@ export interface NormalizedNotification {
   users?: NormalizedUser[]
   /** Assigned role (for roleAssigned type) */
   role?: UserRole
+  /** App notification header (for app type) */
+  header?: string | null
+  /** App notification body (for app type) */
+  body?: string | null
+  /** App notification icon URL (for app type) */
+  icon?: string | null
 }
 
 export interface CreateNoteParams {

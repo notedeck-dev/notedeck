@@ -545,9 +545,7 @@ impl<'a> StreamChange<'a> {
             ),
             StreamEvent::Notification(e) => (
                 e.subscription_id.as_str(),
-                StreamChangeKind::Insert(QueryItem::Notification(Box::new(
-                    e.notification.clone(),
-                ))),
+                StreamChangeKind::Insert(QueryItem::Notification(Box::new(e.notification.clone()))),
             ),
             StreamEvent::ChatMessage(e) => (
                 e.subscription_id.as_str(),
@@ -810,7 +808,9 @@ pub async fn query_subscribe_chat_user(
         return Ok(opened);
     }
 
-    let subscription_id = streaming.subscribe_chat_user(&account_id, &other_id).await?;
+    let subscription_id = streaming
+        .subscribe_chat_user(&account_id, &other_id)
+        .await?;
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
@@ -902,8 +902,8 @@ pub async fn query_set_runtime_state(
                     if snap.runtime_state != QueryRuntimeState::Warm {
                         return;
                     }
-                    let _ = runtime
-                        .set_runtime_state(&query_id_owned, QueryRuntimeState::Suspended);
+                    let _ =
+                        runtime.set_runtime_state(&query_id_owned, QueryRuntimeState::Suspended);
                     if let Ok(Some((account_id, subscription_id))) =
                         runtime.stream_subscription_for(&query_id_owned)
                     {
@@ -1150,7 +1150,11 @@ mod tests {
         assert!(rt.ingest_stream_event(&reaction_event("sub-A", "n1")));
 
         let snap = rt.read_model_snapshot(&s.query_id, None).unwrap().unwrap();
-        assert_eq!(snap.item_ids.len(), 1, "reaction で recent_ids は変わらない");
+        assert_eq!(
+            snap.item_ids.len(),
+            1,
+            "reaction で recent_ids は変わらない"
+        );
 
         let drained = rt.drain_pending();
         assert_eq!(drained.len(), 1);
@@ -1217,7 +1221,10 @@ mod tests {
             rt.ingest_stream_event(&note_event("sub-A", &id));
         }
 
-        let limited = rt.read_model_snapshot(&s.query_id, Some(10)).unwrap().unwrap();
+        let limited = rt
+            .read_model_snapshot(&s.query_id, Some(10))
+            .unwrap()
+            .unwrap();
         assert_eq!(limited.item_ids.len(), 10);
 
         let unlimited = rt.read_model_snapshot(&s.query_id, None).unwrap().unwrap();

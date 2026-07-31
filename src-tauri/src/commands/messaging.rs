@@ -73,9 +73,7 @@ pub async fn api_get_unread_notification_count(
     account_id: String,
 ) -> Result<i64> {
     let (client, host, token) = app_state.authed(&account_id).await?;
-    client
-        .get_unread_notification_count(&host, &token)
-        .await
+    client.get_unread_notification_count(&host, &token).await
 }
 
 #[tauri::command]
@@ -85,9 +83,7 @@ pub async fn api_mark_all_notifications_as_read(
     account_id: String,
 ) -> Result<()> {
     let (client, host, token) = app_state.authed(&account_id).await?;
-    client
-        .mark_all_notifications_as_read(&host, &token)
-        .await
+    client.mark_all_notifications_as_read(&host, &token).await
 }
 
 // --- Unread chat ---
@@ -312,8 +308,5 @@ pub async fn api_delete_chat_message(
     message_id: String,
 ) -> Result<()> {
     let (client, host, token) = app_state.authed(&account_id).await?;
-    client
-        .delete_chat_message(&host, &token, &message_id)
-        .await
+    client.delete_chat_message(&host, &token, &message_id).await
 }
-

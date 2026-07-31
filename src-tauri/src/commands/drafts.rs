@@ -3,7 +3,7 @@ use tauri::State;
 
 use notecli::models::NoteDraft;
 
-use super::{AppState, Result, typed_request};
+use super::{typed_request, AppState, Result};
 
 // Misskey の create / update は `{ createdDraft: ... }` / `{ updatedDraft: ... }`
 // とラップして返すので、ここで剥がして直接 NoteDraft を返す。

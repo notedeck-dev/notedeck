@@ -495,6 +495,7 @@ const NOTIFICATION_ICONS: Record<string, string> = {
   pollEnded: 'chart-arrows',
   achievementEarned: 'medal',
   roleAssigned: 'badges',
+  app: 'apps',
   login: 'login-2',
   createToken: 'key',
 }
@@ -589,6 +590,13 @@ function notificationColor(type: string): string {
 
 function notificationLabel(type: string): string {
   return NOTIFICATION_LABELS[baseType(type)] || type
+}
+
+// 外部アプリが notifications/create で飛ばす app 通知は user を持たず、
+// header / body / icon で内容を伝える (#900)。header はアプリ名を含むので
+// ユーザー名の位置に出し、汎用ラベル「通知」は抑える。
+function appHeader(notif: NormalizedNotification): string | null {
+  return notif.type === 'app' ? (notif.header ?? null) : null
 }
 
 function cacheAccountKey() {
@@ -1207,7 +1215,8 @@ onUnmounted(() => {
                     @mouseleave="onNotifAvatarMouseLeave"
                   />
                   <template v-else>
-                    <img v-if="resolveNotifAccount(notif)?.avatarUrl" :src="resolveNotifAccount(notif)!.avatarUrl!" :class="$style.notifFallbackAvatar" />
+                    <img v-if="notif.type === 'app' && notif.icon" :src="notif.icon" :class="[$style.notifFallbackAvatar, $style.notifAppIcon]" alt="" />
+                    <img v-else-if="resolveNotifAccount(notif)?.avatarUrl" :src="resolveNotifAccount(notif)!.avatarUrl!" :class="$style.notifFallbackAvatar" />
                   </template>
                   <img
                     v-if="shouldShowServerBadge(notif) && resolveNotifServerIcon(notif)"
@@ -1232,7 +1241,8 @@ onUnmounted(() => {
                         <MkMfm v-if="notif.user.name" :text="notif.user.name" :emojis="notif.user.emojis" :server-host="notif._serverHost" plain />
                         <template v-else>{{ notif.user.username }}</template>
                       </span>
-                      <span :class="$style.notifLabel">{{ notificationLabel(notif.type) }}</span>
+                      <span v-if="appHeader(notif)" :class="$style.notifUserName">{{ appHeader(notif) }}</span>
+                      <span v-else :class="$style.notifLabel">{{ notificationLabel(notif.type) }}</span>
                       <span v-if="notif.type === 'reaction' && notif.reaction" :class="$style.notifReaction">
                         <span v-if="isEmojiMuted(notif.reaction)" class="_emojiMuted" :class="$style.notifReactionEmoji" role="img" :aria-label="notif.reaction" :title="`${notif.reaction} (ミュート中)`" />
                         <img v-else-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifReactionEmoji" decoding="async" loading="lazy" @error="onReactionImgError" />
@@ -1245,6 +1255,11 @@ onUnmounted(() => {
                   <!-- Achievement name -->
                   <div v-if="notif.type === 'achievementEarned' && notif.achievement" :class="$style.notifAchievement">
                     {{ ACHIEVEMENT_LABELS[notif.achievement] ?? notif.achievement }}
+                  </div>
+
+                  <!-- App notification body (外部アプリの notifications/create) -->
+                  <div v-if="notif.type === 'app' && notif.body" :class="$style.notifAppBody">
+                    <MkMfm :text="notif.body" :server-host="notif._serverHost" />
                   </div>
 
                   <!-- Assigned role -->
@@ -1412,6 +1427,12 @@ onUnmounted(() => {
   -webkit-user-select: none;
 }
 
+/* アプリのロゴは円形トリミングだと欠けるので角丸 + contain で収める */
+.notifAppIcon {
+  border-radius: 8px;
+  object-fit: contain;
+}
+
 .notifServerBadge {
   position: absolute;
   top: -2px;
@@ -1521,6 +1542,13 @@ onUnmounted(() => {
   color: var(--nd-fg);
   opacity: 0.7;
   margin-top: 2px;
+}
+
+.notifAppBody {
+  margin-top: 2px;
+  font-size: 0.9em;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .notifRole {

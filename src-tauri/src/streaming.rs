@@ -448,7 +448,13 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
             }
             "login" => ("ログイン検知".to_string(), None),
             "pollEnded" => ("投票終了".to_string(), None),
-            "app" => ("通知".to_string(), None),
+            // 外部アプリ (notifications/create) 由来。本家 sw に合わせ header が
+            // あれば title=header / body=body、無ければ body を title に繰り上げる
+            "app" => match (notification.header.as_deref(), notification.body.as_deref()) {
+                (Some(header), body) => (header.to_string(), body.map(str::to_string)),
+                (None, Some(body)) => (body.to_string(), None),
+                (None, None) => ("通知".to_string(), None),
+            },
             "test" => ("テスト通知".to_string(), Some("テスト通知".to_string())),
 
             _ => return OsNotifPlan::Suppress,
@@ -467,10 +473,12 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         // ":name@host:") はフルカラー画像として添付。Unicode 絵文字は本文に
         // 出るので画像なし。URL の形式は notify_media::emoji_image_url 参照。
         let media = {
+            // app 通知はアクターが居ないので、送信元アプリの icon を代わりに使う
             let icon_url = notification
                 .user
                 .as_ref()
-                .and_then(|u| u.avatar_url.clone());
+                .and_then(|u| u.avatar_url.clone())
+                .or_else(|| notification.icon.clone());
             let image_url = (notif_type == "reaction")
                 .then_some(notification.reaction.as_deref())
                 .flatten()
@@ -1097,6 +1105,62 @@ mod tests {
                 assert_eq!(ctx.user_id.as_deref(), Some("u1"));
             }
             _ => panic!("first notification should be ShowNow"),
+        }
+    }
+
+    fn app_notification(
+        id: &str,
+        header: Option<&str>,
+        icon: Option<&str>,
+    ) -> NormalizedNotification {
+        serde_json::from_value(json!({
+            "id": id,
+            "_accountId": "acct-1",
+            "_serverHost": "misskey.example",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "type": "app",
+            "header": header,
+            "body": "Mewkで実績を獲得しました！",
+            "icon": icon,
+        }))
+        .expect("fixture should deserialize")
+    }
+
+    /// 外部アプリの app 通知は header/body/icon を OS 通知に載せる (#900)。
+    /// header が無ければ本家 sw と同じく body を title に繰り上げる。
+    #[test]
+    fn plan_uses_app_notification_header_body_icon() {
+        let app = mock_app();
+        let emitter = TauriEmitter::new(app.handle().clone());
+
+        match emitter.plan_os_notification(&app_notification(
+            "a1",
+            Some("Mewk | 実績解除"),
+            Some("https://mewk.app/icon.png"),
+        )) {
+            OsNotifPlan::ShowNow {
+                title, body, media, ..
+            } => {
+                assert_eq!(title, "Mewk | 実績解除");
+                assert_eq!(body.as_deref(), Some("Mewkで実績を獲得しました！"));
+                assert_eq!(
+                    media
+                        .expect("app icon should be attached")
+                        .icon_url
+                        .as_deref(),
+                    Some("https://mewk.app/icon.png")
+                );
+            }
+            _ => panic!("should be ShowNow"),
+        }
+
+        *emitter.last_os_notif.lock().unwrap() = None;
+        match emitter.plan_os_notification(&app_notification("a2", None, None)) {
+            OsNotifPlan::ShowNow { title, body, .. } => {
+                assert_eq!(title, "Mewkで実績を獲得しました！");
+                assert!(body.is_none());
+            }
+            _ => panic!("should be ShowNow"),
         }
     }
 

@@ -2,7 +2,7 @@ use tauri::State;
 
 use notecli::models::UserList;
 
-use super::{AppState, Result, typed_request};
+use super::{typed_request, AppState, Result};
 
 // 既存 `api_get_user_lists` (timeline.rs, users/lists/list 自分用) は notecli の
 // `client.get_user_lists()` を経由する型化済みコマンド。ここでは

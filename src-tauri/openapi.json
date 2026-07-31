@@ -2136,8 +2136,29 @@
               "null"
             ]
           },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "App notification body (for app type; notifications/create の body)"
+          },
           "createdAt": {
             "type": "string"
+          },
+          "header": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "App notification header (for app type; notifications/create の header)"
+          },
+          "icon": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "App notification icon URL (for app type; notifications/create の icon)"
           },
           "id": {
             "type": "string"
