@@ -53,10 +53,11 @@ function bumpMediaVersion(url: string) {
 
 export function handleMediaFetched(url: string, ok = true) {
   if (ok) {
-    // 取得成功 → 失敗カウントをリセット (以後の失敗からまた再試行できる)
+    // 取得成功 → 失敗カウント・自己修復の試行回数をリセット
     const entry = mediaFailures.get(url)
     if (entry?.timer != null) clearTimeout(entry.timer)
     mediaFailures.delete(url)
+    placeholderRecoveryCounts.delete(url)
   }
   bumpMediaVersion(url)
 }
@@ -105,9 +106,17 @@ export function markMediaFailed(url: string): void {
  */
 const PLACEHOLDER_RECHECK_MS = 4_000
 
+/** 自力再要求の上限。本当に 1×1 の画像 (再要求しても 1×1 のまま) で
+ * 無限ループしないための打ち切り。取得成功でリセットされる */
+const PLACEHOLDER_RECOVERY_MAX = 3
+
 const placeholderTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const placeholderRecoveryCounts = new Map<string, number>()
 
 export function ensurePlaceholderRecovery(url: string): void {
+  if ((placeholderRecoveryCounts.get(url) ?? 0) >= PLACEHOLDER_RECOVERY_MAX) {
+    return
+  }
   if (placeholderTimers.has(url)) return
   const versionAtSchedule = mediaVersions.get(url) ?? 0
   placeholderTimers.set(
@@ -116,16 +125,64 @@ export function ensurePlaceholderRecovery(url: string): void {
       placeholderTimers.delete(url)
       // MediaFetched が正常に届いて世代が進んでいれば何もしない
       if ((mediaVersions.get(url) ?? 0) === versionAtSchedule) {
+        placeholderRecoveryCounts.set(
+          url,
+          (placeholderRecoveryCounts.get(url) ?? 0) + 1,
+        )
         bumpMediaVersion(url)
       }
     }, PLACEHOLDER_RECHECK_MS),
   )
 }
 
+/**
+ * プロキシ URL (`...?url=<encoded>`) から元 URL を取り出す。
+ * プロキシ経由でない (ローカルアセット等) は null。
+ */
+export function proxiedRawUrl(src: string): string | null {
+  try {
+    return new URL(src).searchParams.get('url')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * プレースホルダ滞留の全画像監視。
+ *
+ * 二段階配信 (Android 全画像 / デスクトップの soft 降格) はアバター・添付・
+ * ピッカーなどあらゆる `<img>` を通るため、個別コンポーネントに @load を
+ * 配線するのではなく document の capture で一括して拾う (load イベントは
+ * バブルしないが capture では捕捉できる)。1×1 = プレースホルダを掴んだ
+ * `<img>` を自己修復に乗せ、実画像が載ったら試行回数をリセットする。
+ */
+function installPlaceholderWatchdog() {
+  try {
+    document.addEventListener(
+      'load',
+      (e) => {
+        const img = e.target as HTMLImageElement | null
+        if (img?.tagName !== 'IMG') return
+        const raw = proxiedRawUrl(img.currentSrc || img.src)
+        if (!raw) return
+        if (img.naturalWidth === 1 && img.naturalHeight === 1) {
+          ensurePlaceholderRecovery(raw)
+        } else {
+          placeholderRecoveryCounts.delete(raw)
+        }
+      },
+      true,
+    )
+  } catch {
+    // document の無い環境 (ユニットテストの node 側等) では何もしない
+  }
+}
+
 let listenerStarted = false
 function ensureFetchedListener() {
   if (listenerStarted) return
   listenerStarted = true
+  installPlaceholderWatchdog()
   try {
     events.mediaFetched
       .listen(({ payload }) => handleMediaFetched(payload.url, payload.ok))
