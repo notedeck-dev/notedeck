@@ -6,6 +6,7 @@ pre-commit:
       run: npx biome check --no-errors-on-unmatched {staged_files}
 
     - name: typecheck
+      glob: "*.{ts,vue}"
       run: npx vue-tsc -b --noEmit
 
     - name: openapi-snapshot
