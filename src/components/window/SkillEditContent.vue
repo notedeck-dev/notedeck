@@ -364,7 +364,7 @@ const statusText = computed(() => {
   height: auto;
   min-height: 60px;
   padding: 6px 8px;
-  font-family: var(--nd-monoFont, monospace);
+  font-family: var(--nd-font-mono);
   line-height: 1.4;
   resize: vertical;
 }

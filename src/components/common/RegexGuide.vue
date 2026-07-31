@@ -229,7 +229,7 @@ function apply() {
   scrollbar-width: none;
 
   code {
-    font-family: monospace;
+    font-family: var(--nd-font-mono);
     font-size: 0.75em;
     color: var(--nd-accent);
     word-break: break-all;

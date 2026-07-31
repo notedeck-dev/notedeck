@@ -129,7 +129,7 @@ onUnmounted(() => {
   }
 
   :deep(.cm-scroller) {
-    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    font-family: var(--nd-font-mono);
     overflow: auto;
   }
 

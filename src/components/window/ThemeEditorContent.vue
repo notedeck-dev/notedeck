@@ -1091,7 +1091,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 }
 
 .propKey {
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.7em;
   opacity: 0.4;
 }
@@ -1145,7 +1145,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.75em;
   outline: none;
   transition: border-color var(--nd-duration-base);
@@ -1160,7 +1160,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 }
 
 .resolvedHex {
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.65em;
   opacity: 0.4;
   flex-shrink: 0;

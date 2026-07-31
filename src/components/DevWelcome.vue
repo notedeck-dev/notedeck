@@ -159,7 +159,7 @@ const appVersion = __APP_VERSION__
   padding: 0.5rem 1rem;
 
   code {
-    font-family: 'SF Mono', Monaco, Consolas, 'Liberation Mono', monospace;
+    font-family: var(--nd-font-mono);
     font-size: 0.9rem;
     color: var(--accent);
     font-weight: 600;

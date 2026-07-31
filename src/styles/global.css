@@ -111,6 +111,10 @@
   --nd-shadow-l:
     0 4px 8px var(--nd-shadow-contact),
     0 12px 28px color-mix(in srgb, var(--nd-shadow-ambient) 120%, transparent);
+  /* 等幅フォント (#872) — コード/JSON/エディタ系はすべてこの 1 変数を参照する。
+     カスタム CSS の「等幅フォント」プリセットが :root ごと上書きする */
+  --nd-font-mono: 'Fira Code', 'Cascadia Code', Consolas, ui-monospace,
+    'SF Mono', Menlo, monospace;
   /* Non-theme layout constants */
   --nd-radius: 12px;
   --nd-radius-sm: 6px;

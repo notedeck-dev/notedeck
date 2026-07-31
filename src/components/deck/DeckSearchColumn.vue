@@ -911,7 +911,7 @@ onUnmounted(() => {
 }
 
 .regexIconText {
-  font-family: monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.8em;
   font-weight: 700;
 }
@@ -939,7 +939,7 @@ onUnmounted(() => {
 }
 
 .regexInput {
-  font-family: monospace;
+  font-family: var(--nd-font-mono);
 }
 
 .regexInvalid {

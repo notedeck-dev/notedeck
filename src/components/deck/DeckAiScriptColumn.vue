@@ -620,7 +620,7 @@ onUnmounted(() => {
 
 .inspectorId {
   opacity: 0.5;
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.85em;
 }
 
@@ -632,7 +632,7 @@ onUnmounted(() => {
     padding: 6px 8px;
     border-radius: var(--nd-radius-sm);
     background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
-    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    font-family: var(--nd-font-mono);
     font-size: 0.75em;
     line-height: 1.4;
     white-space: pre-wrap;
@@ -657,7 +657,7 @@ onUnmounted(() => {
 }
 
 .outputLine {
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.8em;
   line-height: 1.5;
   white-space: pre-wrap;

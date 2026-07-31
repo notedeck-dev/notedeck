@@ -291,7 +291,7 @@ async function onDelete() {
   width: 64px;
   flex-shrink: 0;
   opacity: 0.55;
-  font-family: var(--nd-font-mono, monospace);
+  font-family: var(--nd-font-mono);
 }
 
 .metaValue {
@@ -300,7 +300,7 @@ async function onDelete() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--nd-font-mono, monospace);
+  font-family: var(--nd-font-mono);
 }
 
 .visualPanel {

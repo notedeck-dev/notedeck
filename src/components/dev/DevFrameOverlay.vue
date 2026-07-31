@@ -82,7 +82,7 @@ onUnmounted(() => {
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.8);
   color: #0f0;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: var(--nd-font-mono);
   font-size: 11px;
   line-height: 1.4;
   pointer-events: none;

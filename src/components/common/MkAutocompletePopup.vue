@@ -194,7 +194,7 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 }
 
 .acMfmName {
-  font-family: monospace;
+  font-family: var(--nd-font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

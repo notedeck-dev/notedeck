@@ -742,7 +742,7 @@ function reportBug() {
   gap: 4px;
   padding: 0 16px 12px;
   font-size: 0.85em;
-  font-family: monospace;
+  font-family: var(--nd-font-mono);
 }
 
 .aboutRow {
@@ -827,7 +827,7 @@ function reportBug() {
   }
 
   :global(code) {
-    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    font-family: var(--nd-font-mono);
     white-space: pre-wrap;
     word-break: break-word;
     user-select: all;
