@@ -169,7 +169,11 @@ export function useColumnSetup(
   async function handleReaction(reaction: string, note: NormalizedNote) {
     if (!adapter || checkOffline()) return
     try {
-      await toggleReaction(adapter.api, note, reaction, notifyMutationFor(note))
+      await toggleReaction(adapter.api, note, reaction, (patch) => {
+        // 新オブジェクトへの差し替えで store に反映する (reactive に届く)
+        noteStore.update(note.id, { ...note, ...patch })
+        customMutatedFn?.()
+      })
       if (!getColumn().soundMuted) actionSound.play()
     } catch (e) {
       const err = AppError.from(e)

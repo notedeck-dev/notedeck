@@ -28,8 +28,6 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.TimeUnit
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -50,6 +48,12 @@ class MainActivity : TauriActivity() {
      */
     private const val EMOJI_CANVAS_W = 728
     private const val EMOJI_CANVAS_H = 128
+
+    /** decode 後の長辺の上限。large icon の表示サイズには十分 */
+    private const val AVATAR_MAX_DIM = 512
+
+    /** 絵文字 (big picture) の decode 上限。カンバス幅の 728px を賄える値 */
+    private const val EMOJI_MAX_DIM = 1024
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,8 +104,13 @@ class MainActivity : TauriActivity() {
    * しか渡せず (attachments は Android 側で無視される)、サーバーから取ってくる
    * 動的画像を添付できないため自前で組む。配置はデスクトップ (user-notify) と
    * 揃える:
-   *   avatarUrl -> large icon   (アクターのアバター。Windows の appLogoOverride)
-   *   imageUrl  -> big picture  (リアクションのカスタム絵文字。Windows のインライン画像)
+   *   avatarPath -> large icon   (アクターのアバター。Windows の appLogoOverride)
+   *   imagePath  -> big picture  (リアクションのカスタム絵文字。Windows のインライン画像)
+   *
+   * 画像は Rust 側が ImageCache (ディスクキャッシュ・サイズ上限・negative
+   * cache) を通してローカルファイル化済み。ここではネットワークに触れず
+   * decode するだけ。decode は inSampleSize で寸法を抑える — 上限なしの
+   * 原寸デコードは OutOfMemoryError でプロセスごと落ちる。
    *
    * クリック遷移は plugin の extra + JS onAction ではなく notedeck:// deep link
    * で行う (NotificationWorker と同じ経路。アプリ終了中のタップでも遷移できる)。
@@ -111,10 +120,10 @@ class MainActivity : TauriActivity() {
     title: String,
     body: String?,
     deepLink: String?,
-    avatarUrl: String?,
-    imageUrl: String?,
+    avatarPath: String?,
+    imagePath: String?,
   ) {
-    // 画像フェッチがあるので UI スレッドを塞がない
+    // Bitmap decode があるので UI スレッドを塞がない
     Thread {
       try {
         val builder = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
@@ -125,8 +134,10 @@ class MainActivity : TauriActivity() {
           .setContentIntent(buildContentIntent(id, deepLink))
         if (body != null) builder.setContentText(body)
 
-        avatarUrl?.let { fetchBitmap(it) }?.let { builder.setLargeIcon(circleCrop(it)) }
-        imageUrl?.let { fetchBitmap(it) }?.let {
+        avatarPath?.let { decodeBounded(it, AVATAR_MAX_DIM) }?.let {
+          builder.setLargeIcon(circleCrop(it))
+        }
+        imagePath?.let { decodeBounded(it, EMOJI_MAX_DIM) }?.let {
           builder.setStyle(
             NotificationCompat.BigPictureStyle().bigPicture(normalizeEmojiHeight(it))
           )
@@ -135,7 +146,9 @@ class MainActivity : TauriActivity() {
         val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE)
           as NotificationManager
         manager.notify(id, builder.build())
-      } catch (e: Exception) {
+      } catch (e: Throwable) {
+        // OutOfMemoryError 等の Error も含めて握る。生 Thread の未捕捉
+        // Throwable は uncaughtExceptionHandler がプロセスを殺す
         Log.w(TAG, "Failed to show notification", e)
       }
     }.start()
@@ -157,19 +170,24 @@ class MainActivity : TauriActivity() {
     )
   }
 
-  private fun fetchBitmap(url: String): Bitmap? {
+  /**
+   * 寸法を抑えてローカルファイルを decode する。まず bounds だけ読み、
+   * 長辺が maxDim に収まる inSampleSize を選んでから本体を decode する
+   * (Android 標準のサブサンプリングパターン)。任意の巨大寸法でもメモリを
+   * 確保しない。壊れた画像・寸法 0 は null (画像なしで通知を出す)。
+   */
+  private fun decodeBounded(path: String, maxDim: Int): Bitmap? {
     return try {
-      val conn = URL(url).openConnection() as HttpURLConnection
-      try {
-        conn.connectTimeout = 5_000
-        conn.readTimeout = 5_000
-        if (conn.responseCode != 200) return null
-        conn.inputStream.use { BitmapFactory.decodeStream(it) }
-      } finally {
-        conn.disconnect()
+      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+      BitmapFactory.decodeFile(path, bounds)
+      if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+      var sample = 1
+      while (bounds.outWidth / (sample * 2) >= maxDim || bounds.outHeight / (sample * 2) >= maxDim) {
+        sample *= 2
       }
-    } catch (e: Exception) {
-      Log.w(TAG, "Failed to fetch image: $url", e)
+      BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
+    } catch (e: Throwable) {
+      Log.w(TAG, "Failed to decode image: $path", e)
       null
     }
   }

@@ -107,11 +107,15 @@ mod desktop {
 
     /// OS 通知を表示する。context があればクリック時の遷移ペイロードとして
     /// user_info に積み、media があればアバター/絵文字画像を添付する。
+    /// 画像の取得は ImageCache (ディスク/メモリキャッシュ・negative cache・
+    /// circuit breaker・サイズ上限) を通す。cache が None (未初期化) なら
+    /// 画像なしで表示する。
     pub fn show(
         title: &str,
         body: Option<&str>,
         context: Option<&NotificationClicked>,
         media: Option<&super::NotifyMedia>,
+        cache: Option<Arc<crate::image_cache::ImageCache>>,
     ) {
         // 未初期化 (ユニットテスト等) は no-op
         let Some(manager) = MANAGER.get() else {
@@ -140,17 +144,21 @@ mod desktop {
         let manager = Arc::clone(manager);
         let media = media.cloned();
         std::thread::spawn(move || {
-            if let Some(media) = media {
-                if let Some(path) = media.icon_url.as_deref().and_then(fetch_to_cache) {
+            if let (Some(media), Some(cache)) = (media, cache) {
+                if let Some(path) = media
+                    .icon_url
+                    .as_deref()
+                    .and_then(|url| fetch_to_cache(&cache, url))
+                {
                     builder = builder.set_icon(path).set_icon_round_crop(true);
                 }
                 if let Some(url) = media.image_url.as_deref() {
                     // Windows のみ高さを揃える (normalize_emoji_height 参照)。
                     // Linux は ImageData ヒントで小さな枠に収まるので原寸のまま。
                     #[cfg(target_os = "windows")]
-                    let path = cache_png(url, "-emoji", normalize_emoji_height);
+                    let path = cache_png(&cache, url, "-emoji", normalize_emoji_height);
                     #[cfg(not(target_os = "windows"))]
-                    let path = fetch_to_cache(url);
+                    let path = fetch_to_cache(&cache, url);
                     if let Some(path) = path {
                         builder = builder.set_image(path);
                     }
@@ -162,22 +170,15 @@ mod desktop {
         });
     }
 
-    fn http_client() -> &'static reqwest::Client {
-        static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-        CLIENT.get_or_init(|| {
-            reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(4))
-                .build()
-                .unwrap_or_default()
-        })
-    }
-
-    /// 画像 URL を fetch して PNG に再エンコードし、キャッシュパスを返す。
+    /// 画像 URL を PNG に再エンコードし、キャッシュパスを返す。
     /// Misskey のアバター/絵文字は webp が多いが Windows toast は webp を
     /// 表示できないため、常に PNG へ変換する。失敗はすべて None (画像なしで
     /// 通知を出す)。
-    fn fetch_to_cache(url: &str) -> Option<std::path::PathBuf> {
-        cache_png(url, "", |img| {
+    fn fetch_to_cache(
+        cache: &crate::image_cache::ImageCache,
+        url: &str,
+    ) -> Option<std::path::PathBuf> {
+        cache_png(cache, url, "", |img| {
             // 通知アイコンには十分な解像度に抑える (メモリ・ディスク節約)
             if img.width() > 512 || img.height() > 512 {
                 img.thumbnail(512, 512)
@@ -187,9 +188,11 @@ mod desktop {
         })
     }
 
-    /// fetch → transform → PNG 保存。suffix はキャッシュキーの区別用
-    /// (同じ URL でも変換後の画像は別ファイルになる)。
+    /// ImageCache 経由で取得 → decode (寸法上限あり) → transform → PNG 保存。
+    /// suffix はキャッシュキーの区別用 (同じ URL でも変換後の画像は別ファイル
+    /// になる)。専用スレッド上なので block_on してよい。
     fn cache_png(
+        cache: &crate::image_cache::ImageCache,
         url: &str,
         suffix: &str,
         transform: impl FnOnce(image::DynamicImage) -> image::DynamicImage,
@@ -200,14 +203,17 @@ mod desktop {
         if path.exists() {
             return Some(path);
         }
-        let bytes = tauri::async_runtime::block_on(async {
-            let resp = http_client().get(url).send().await.ok()?;
-            if !resp.status().is_success() {
-                return None;
-            }
-            resp.bytes().await.ok()
-        })?;
-        let img = transform(image::load_from_memory(&bytes).ok()?);
+        let bytes = tauri::async_runtime::block_on(crate::notify_media::ensure_bytes(cache, url))?;
+        // 寸法上限なしの decode は巨大 PNG の RGBA 展開でメモリを食い潰す。
+        // ndmedia の変換 (media_proxy::transform_image) と同じ上限を掛ける
+        let mut reader = image::ImageReader::new(std::io::Cursor::new(&bytes))
+            .with_guessed_format()
+            .ok()?;
+        let mut limits = image::Limits::default();
+        limits.max_image_width = Some(crate::media_proxy::MAX_DECODE_DIMENSION);
+        limits.max_image_height = Some(crate::media_proxy::MAX_DECODE_DIMENSION);
+        reader.limits(limits);
+        let img = transform(reader.decode().ok()?);
         img.save_with_format(&path, image::ImageFormat::Png).ok()?;
         Some(path)
     }
@@ -280,7 +286,10 @@ pub fn decode_protocol_url(url: &str) -> Option<NotificationClicked> {
             return None;
         }
     };
-    if !matches!(resp.action, user_notify::NotificationResponseAction::Default) {
+    if !matches!(
+        resp.action,
+        user_notify::NotificationResponseAction::Default
+    ) {
         return None;
     }
     Some(NotificationClicked {

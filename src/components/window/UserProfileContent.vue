@@ -520,7 +520,24 @@ function handleComposeToUser(acct: string) {
 async function handleReaction(reaction: string, note: NormalizedNote) {
   if (!adapter.value) return
   try {
-    await toggleReaction(adapter.value.api, note, reaction)
+    await toggleReaction(adapter.value.api, note, reaction, (patch) => {
+      // 各面とも shallowRef 保持 (非 reactive オブジェクト) なので、
+      // 新オブジェクトへの差し替えで反映する。note がどの面から来たかは
+      // 追わず、全面を id で差し替える (リノートに包まれた表示も含む)
+      const updated = { ...note, ...patch }
+      const swap = (n: NormalizedNote) =>
+        n.id === note.id
+          ? updated
+          : n.renote?.id === note.id
+            ? { ...n, renote: updated }
+            : n
+      pinnedNotes.value = pinnedNotes.value.map(swap)
+      filesNotes.value = filesNotes.value.map(swap)
+      reactionEntries.value = reactionEntries.value.map((e) =>
+        e.note.id === note.id ? { ...e, note: updated } : e,
+      )
+      notesListRef.value?.replaceNote(note.id, updated)
+    })
   } catch (e) {
     error.value = AppError.from(e)
   }

@@ -48,10 +48,12 @@ describe('proxyUrl', () => {
   // 非 Android の wait=1: Android の custom protocol だけが直列 + 10 秒フューズ
   // (wry) なので二段階配信が必須。それ以外はブロッキングが安全なので、初回
   // 表示から往復 1 回で本物を返す
-  it('custom protocol の口に載せる (非 Android は単一トリップ)', async () => {
+  // soft=1: 画像の wait は最適化にすぎないので、プロキシ側は予算超過時に
+  // プレースホルダへ降格してよい (効果音の hard wait と区別する)
+  it('custom protocol の口に載せる (非 Android は単一トリップ + soft 降格可)', async () => {
     const { proxyUrl } = await loadModule()
     expect(proxyUrl(REMOTE)).toBe(
-      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&wait=1`,
+      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&wait=1&soft=1`,
     )
   })
 
@@ -59,7 +61,7 @@ describe('proxyUrl', () => {
     stubTauri((path, protocol) => `${protocol}://localhost/${path}`)
     const { proxyUrl } = await loadModule()
     expect(proxyUrl(REMOTE)).toBe(
-      `ndmedia://localhost/m?url=${encodeURIComponent(REMOTE)}&wait=1`,
+      `ndmedia://localhost/m?url=${encodeURIComponent(REMOTE)}&wait=1&soft=1`,
     )
   })
 
@@ -84,7 +86,7 @@ describe('proxyUrl', () => {
     vi.stubGlobal('__TAURI_INTERNALS__', undefined)
     const { proxyUrl } = await loadModule()
     expect(proxyUrl(REMOTE)).toBe(
-      `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent(REMOTE)}&wait=1`,
+      `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent(REMOTE)}&wait=1&soft=1`,
     )
   })
 
@@ -107,6 +109,12 @@ describe('wait オプション (効果音などブロッキング消費者用)',
     expect(proxyUrl(REMOTE, { wait: true })).toContain('wait=1')
     const normal = proxyUrl(REMOTE)
     expect(normal).not.toContain('wait=1')
+  })
+
+  it('明示 wait (効果音) には soft を付けない — プレースホルダを飲み込めない', async () => {
+    const { proxyUrl } = await loadModule()
+    expect(proxyUrl(REMOTE, { wait: true })).not.toContain('soft=1')
+    expect(proxyUrl(REMOTE, { wait: true })).toContain('wait=1')
   })
 })
 
@@ -170,12 +178,162 @@ describe('背景取得完了による再読込 (二段階配信)', () => {
   })
 })
 
+describe('失敗申告によるバックオフ再試行 (markMediaFailed)', () => {
+  // @error の DOM 書き換え (unknown アイコンへの差し替え) は :src バインドが
+  // 変わらない限り戻らず、一過性の 502/504 がセッション中固定化していた。
+  // 失敗を申告するとバックオフ後に世代番号が進み、バインド再評価で自然復帰する
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('バックオフ後に世代番号を進めて <img> に再要求させる', async () => {
+    const { proxyUrl, markMediaFailed } = await loadModule()
+    const base = proxyUrl(REMOTE)
+    markMediaFailed(REMOTE)
+    // バックオフ前は変わらない (失敗直後の連打再要求を避ける)
+    expect(proxyUrl(REMOTE)).toBe(base)
+    vi.advanceTimersByTime(8_000)
+    expect(proxyUrl(REMOTE)).toBe(`${base}&r=1`)
+  })
+
+  it('タイマー待ち中の重複申告は 1 回の再試行にまとまる', async () => {
+    const { proxyUrl, markMediaFailed } = await loadModule()
+    markMediaFailed(REMOTE)
+    markMediaFailed(REMOTE)
+    markMediaFailed(REMOTE)
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+
+  it('再試行は上限で打ち切る (無限リトライしない)', async () => {
+    const { proxyUrl, markMediaFailed } = await loadModule()
+    for (let i = 0; i < 10; i++) {
+      markMediaFailed(REMOTE)
+      vi.advanceTimersByTime(10 * 60_000)
+    }
+    const r = Number(/&r=(\d+)/.exec(proxyUrl(REMOTE) ?? '')?.[1])
+    expect(r).toBe(3)
+  })
+
+  it('取得成功で失敗カウントがリセットされ、次の失敗からまた再試行できる', async () => {
+    const { proxyUrl, markMediaFailed, handleMediaFetched } = await loadModule()
+    for (let i = 0; i < 10; i++) {
+      markMediaFailed(REMOTE)
+      vi.advanceTimersByTime(10 * 60_000)
+    }
+    // 成功イベント → リセット (世代も 1 進む: 3 + 1 = 4)
+    handleMediaFetched(REMOTE, true)
+    markMediaFailed(REMOTE)
+    vi.advanceTimersByTime(10 * 60_000)
+    const r = Number(/&r=(\d+)/.exec(proxyUrl(REMOTE) ?? '')?.[1])
+    expect(r).toBe(5)
+  })
+
+  it('失敗の完了イベント (ok=false) ではリセットしない', async () => {
+    const { proxyUrl, markMediaFailed, handleMediaFetched } = await loadModule()
+    for (let i = 0; i < 10; i++) {
+      markMediaFailed(REMOTE)
+      vi.advanceTimersByTime(10 * 60_000)
+    }
+    handleMediaFetched(REMOTE, false)
+    markMediaFailed(REMOTE)
+    vi.advanceTimersByTime(10 * 60_000)
+    // ok=false の世代 bump (+1) だけで、リトライは復活しない
+    const r = Number(/&r=(\d+)/.exec(proxyUrl(REMOTE) ?? '')?.[1])
+    expect(r).toBe(4)
+  })
+})
+
+describe('プレースホルダ滞留の自己修復 (ensurePlaceholderRecovery)', () => {
+  // 二段階配信は「透明プレースホルダ → MediaFetched → 再要求」で完結するが、
+  // イベントを取りこぼすと透明 GIF のまま固まり、onerror も発火しないため
+  // 再試行機構 (markMediaFailed) の対象外になる。<img> の @load で
+  // プレースホルダ (1×1) を掴んだことを申告し、一定時間内に世代が進まなければ
+  // 自力で再要求させる
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('世代が進まないまま滞留したら自力で世代を進める', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    const base = proxyUrl(REMOTE)
+    ensurePlaceholderRecovery(REMOTE)
+    expect(proxyUrl(REMOTE)).toBe(base)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toBe(`${base}&r=1`)
+  })
+
+  it('MediaFetched で世代が進んでいれば何もしない (正常経路に譲る)', async () => {
+    const { proxyUrl, handleMediaFetched, ensurePlaceholderRecovery } =
+      await loadModule()
+    ensurePlaceholderRecovery(REMOTE)
+    handleMediaFetched(REMOTE)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+    vi.advanceTimersByTime(10 * 60_000)
+    // watchdog による余計な bump (&r=2) は起きない
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+
+  it('タイマー待ち中の重複申告は 1 本にまとまる', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    ensurePlaceholderRecovery(REMOTE)
+    ensurePlaceholderRecovery(REMOTE)
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+
+  it('再要求でまたプレースホルダを掴んだら再申告できる (取得完了まで収束)', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+    // 再要求後もまだ取得中 → @load が再度申告 → もう一周
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=2')
+  })
+
+  it('自己修復は上限で打ち切る (本当に 1×1 の画像で無限ループしない)', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    // 本物が 1×1 の画像は再要求してもずっと 1×1 → 毎回 @load から申告される
+    for (let i = 0; i < 10; i++) {
+      ensurePlaceholderRecovery(REMOTE)
+      vi.advanceTimersByTime(4_000)
+    }
+    const r = Number(/&r=(\d+)/.exec(proxyUrl(REMOTE) ?? '')?.[1])
+    expect(r).toBe(3)
+  })
+
+  it('取得成功 (MediaFetched ok) で自己修復の試行回数がリセットされる', async () => {
+    const { proxyUrl, handleMediaFetched, ensurePlaceholderRecovery } =
+      await loadModule()
+    for (let i = 0; i < 10; i++) {
+      ensurePlaceholderRecovery(REMOTE)
+      vi.advanceTimersByTime(4_000)
+    }
+    handleMediaFetched(REMOTE, true) // r=4
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    const r = Number(/&r=(\d+)/.exec(proxyUrl(REMOTE) ?? '')?.[1])
+    expect(r).toBe(5)
+  })
+})
+
 describe('proxyThumbUrl', () => {
   // format は付けない: 明示すると「上限以下なら変換不要」の素通しが効かなくなる
-  it('幅だけを付ける (非 Android は wait も付く)', async () => {
+  it('幅だけを付ける (非 Android は wait + soft も付く)', async () => {
     const { proxyThumbUrl } = await loadModule()
     expect(proxyThumbUrl(REMOTE, 56)).toBe(
-      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&w=56&wait=1`,
+      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&w=56&wait=1&soft=1`,
     )
   })
 

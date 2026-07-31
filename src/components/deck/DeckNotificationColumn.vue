@@ -42,6 +42,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useReadMarker } from '@/composables/useReadMarker'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { getStreamHealth } from '@/core/streamHealth'
+import { syncNotificationNotes } from '@/services/notificationNoteSync'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
@@ -52,6 +53,7 @@ import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
+import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
@@ -110,6 +112,7 @@ const {
   handlers,
   scroller,
   onScroll,
+  setOnNotesMutated,
 } = useColumnSetup(() => props.column)
 
 const isLoggedOut = computed(() => account.value?.hasToken === false)
@@ -253,6 +256,16 @@ function closeUserPopup() {
 const perfStore = usePerformanceStore()
 const deckStore = useDeckStore()
 const notifications = shallowRef<NormalizedNotification[]>([])
+
+// リアクション等の楽観的更新 (handlers.reaction) は noteStore に入るが、
+// このカラムは notification.note を独自保持しているため store の変更が
+// 表示に届かない。mutation のたびに store 側の最新オブジェクトへ差し替えて
+// 反映する (shallowRef なので配列ごと新しくする)
+setOnNotesMutated(() => {
+  notifications.value = syncNotificationNotes(notifications.value, (id) =>
+    noteStore.get(id),
+  )
+})
 
 // 前回読了位置マーカー (#750) — タイムラインと同じ localStorage 方式
 const { viewMarkerId } = useReadMarker(
@@ -466,11 +479,9 @@ function getCachedTwemojiUrl(reaction: string): string | null {
   return url
 }
 
-// 解決済み URL のロード失敗 (リモート鯖ダウン・プロキシ 502 等) は unknown 表示に落とす (#844)
-function onReactionImgError(e: Event) {
-  const img = e.target as HTMLImageElement
-  if (!img.src.endsWith('/emoji-unknown.svg')) img.src = '/emoji-unknown.svg'
-}
+// 解決済み URL のロード失敗 (リモート鯖ダウン・プロキシ 502 等) は unknown 表示に
+// 落とし、バックオフ再試行を申告する (#844)
+const onReactionImgError = onCustomEmojiImgError
 
 const NOTIFICATION_ICONS: Record<string, string> = {
   reaction: 'mood-plus',

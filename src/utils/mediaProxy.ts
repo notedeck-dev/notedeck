@@ -40,7 +40,7 @@ const proxyUrlCache = new Map<string, string>()
  */
 const mediaVersions = reactive(new Map<string, number>())
 
-export function handleMediaFetched(url: string) {
+function bumpMediaVersion(url: string) {
   // proxyUrlCache と同じ上限で古い順に捨てる (無限成長させない)。
   // 追い出された URL は素の URL に戻るだけで、実体はキャッシュ済みなので
   // 表示は壊れない
@@ -51,13 +51,141 @@ export function handleMediaFetched(url: string) {
   mediaVersions.set(url, (mediaVersions.get(url) ?? 0) + 1)
 }
 
+export function handleMediaFetched(url: string, ok = true) {
+  if (ok) {
+    // 取得成功 → 失敗カウント・自己修復の試行回数をリセット
+    const entry = mediaFailures.get(url)
+    if (entry?.timer != null) clearTimeout(entry.timer)
+    mediaFailures.delete(url)
+    placeholderRecoveryCounts.delete(url)
+  }
+  bumpMediaVersion(url)
+}
+
+/**
+ * `<img>` の onerror 側からの失敗申告。
+ *
+ * @error ハンドラは src を unknown アイコンへ DOM 書き換えするが、それだけ
+ * だと :src バインドが変わる契機がなく、一過性の 502/504 がセッション中
+ * 固定化する。ここでバックオフ後に世代番号を進めるとバインドが再評価され、
+ * `<img>` が再要求して自然復帰する。負のキャッシュが生きている間の再試行は
+ * プロキシが即 502 で受けるので安価に失敗し、次のバックオフに進む。
+ * 上限に達したら諦める (回復は取得成功イベントのリセット任せ)。
+ */
+const MEDIA_RETRY_BACKOFF_MS = [8_000, 40_000, 180_000] as const
+
+const mediaFailures = new Map<
+  string,
+  { retries: number; timer: ReturnType<typeof setTimeout> | null }
+>()
+
+export function markMediaFailed(url: string): void {
+  const entry = mediaFailures.get(url) ?? { retries: 0, timer: null }
+  if (entry.timer !== null || entry.retries >= MEDIA_RETRY_BACKOFF_MS.length) {
+    return
+  }
+  const delay = MEDIA_RETRY_BACKOFF_MS[entry.retries] ?? 0
+  entry.timer = setTimeout(() => {
+    entry.timer = null
+    entry.retries += 1
+    bumpMediaVersion(url)
+  }, delay)
+  mediaFailures.set(url, entry)
+}
+
+/**
+ * プレースホルダ滞留の自己修復 (`<img>` の @load からの申告)。
+ *
+ * 二段階配信は「透明プレースホルダ → MediaFetched → 再要求」で完結するが、
+ * イベントを取りこぼす (Android の WebView フリーズ復帰等) と透明 GIF の
+ * まま固まる。プレースホルダは正常な 200 応答なので onerror が発火せず、
+ * markMediaFailed の再試行にも乗らない。@load で 1×1 を掴んだことを申告し、
+ * 一定時間内に世代が進まなければ自力で進めて再要求させる。再要求がまた
+ * プレースホルダなら @load が再申告するので、取得完了まで自然に収束する
+ * (取得失敗は 502 → onerror → markMediaFailed 側が引き継ぐ)。
+ */
+const PLACEHOLDER_RECHECK_MS = 4_000
+
+/** 自力再要求の上限。本当に 1×1 の画像 (再要求しても 1×1 のまま) で
+ * 無限ループしないための打ち切り。取得成功でリセットされる */
+const PLACEHOLDER_RECOVERY_MAX = 3
+
+const placeholderTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const placeholderRecoveryCounts = new Map<string, number>()
+
+export function ensurePlaceholderRecovery(url: string): void {
+  if ((placeholderRecoveryCounts.get(url) ?? 0) >= PLACEHOLDER_RECOVERY_MAX) {
+    return
+  }
+  if (placeholderTimers.has(url)) return
+  const versionAtSchedule = mediaVersions.get(url) ?? 0
+  placeholderTimers.set(
+    url,
+    setTimeout(() => {
+      placeholderTimers.delete(url)
+      // MediaFetched が正常に届いて世代が進んでいれば何もしない
+      if ((mediaVersions.get(url) ?? 0) === versionAtSchedule) {
+        placeholderRecoveryCounts.set(
+          url,
+          (placeholderRecoveryCounts.get(url) ?? 0) + 1,
+        )
+        bumpMediaVersion(url)
+      }
+    }, PLACEHOLDER_RECHECK_MS),
+  )
+}
+
+/**
+ * プロキシ URL (`...?url=<encoded>`) から元 URL を取り出す。
+ * プロキシ経由でない (ローカルアセット等) は null。
+ */
+export function proxiedRawUrl(src: string): string | null {
+  try {
+    return new URL(src).searchParams.get('url')
+  } catch {
+    return null
+  }
+}
+
+/**
+ * プレースホルダ滞留の全画像監視。
+ *
+ * 二段階配信 (Android 全画像 / デスクトップの soft 降格) はアバター・添付・
+ * ピッカーなどあらゆる `<img>` を通るため、個別コンポーネントに @load を
+ * 配線するのではなく document の capture で一括して拾う (load イベントは
+ * バブルしないが capture では捕捉できる)。1×1 = プレースホルダを掴んだ
+ * `<img>` を自己修復に乗せ、実画像が載ったら試行回数をリセットする。
+ */
+function installPlaceholderWatchdog() {
+  try {
+    document.addEventListener(
+      'load',
+      (e) => {
+        const img = e.target as HTMLImageElement | null
+        if (img?.tagName !== 'IMG') return
+        const raw = proxiedRawUrl(img.currentSrc || img.src)
+        if (!raw) return
+        if (img.naturalWidth === 1 && img.naturalHeight === 1) {
+          ensurePlaceholderRecovery(raw)
+        } else {
+          placeholderRecoveryCounts.delete(raw)
+        }
+      },
+      true,
+    )
+  } catch {
+    // document の無い環境 (ユニットテストの node 側等) では何もしない
+  }
+}
+
 let listenerStarted = false
 function ensureFetchedListener() {
   if (listenerStarted) return
   listenerStarted = true
+  installPlaceholderWatchdog()
   try {
     events.mediaFetched
-      .listen(({ payload }) => handleMediaFetched(payload.url))
+      .listen(({ payload }) => handleMediaFetched(payload.url, payload.ok))
       .catch(() => {
         // Tauri 外 (pnpm dev のブラウザ確認) ではイベント購読できない
       })
@@ -112,11 +240,15 @@ export function proxyUrl(
   if (!url?.startsWith('https://')) return url ?? undefined
   ensureFetchedListener()
   const wait = opts?.wait || !IS_ANDROID
-  const cacheKey = wait ? `${url}|wait` : url
+  // 画像の wait は最適化にすぎないので soft を付け、プロキシ側が予算超過時に
+  // プレースホルダ + MediaFetched の二段階配信へ降格できるようにする。
+  // 明示 wait (効果音の fetch/Audio) はプレースホルダを飲み込めないので hard
+  const soft = wait && !opts?.wait
+  const cacheKey = soft ? `${url}|soft` : wait ? `${url}|wait` : url
   let cached = proxyUrlCache.get(cacheKey)
   if (!cached) {
     evictIfFull()
-    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}${wait ? '&wait=1' : ''}`
+    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}${wait ? '&wait=1' : ''}${soft ? '&soft=1' : ''}`
     proxyUrlCache.set(cacheKey, cached)
   }
   return withVersion(cached, url)
@@ -137,12 +269,13 @@ export function proxyThumbUrl(
 ): string | undefined {
   if (!url?.startsWith('https://')) return url ?? undefined
   ensureFetchedListener()
+  // 画像は常に soft (予算超過でプレースホルダ降格可 — proxyUrl 参照)
   const wait = !IS_ANDROID
   const key = `${url}|w=${width}`
   let cached = proxyUrlCache.get(key)
   if (!cached) {
     evictIfFull()
-    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&w=${width}${wait ? '&wait=1' : ''}`
+    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&w=${width}${wait ? '&wait=1&soft=1' : ''}`
     proxyUrlCache.set(key, cached)
   }
   return withVersion(cached, url)

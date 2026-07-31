@@ -36,9 +36,9 @@ pub struct MediaFetched {
 /// (プロキシ迂回で原寸直読み) を誤爆させるため、成功扱いの透明画像で場を
 /// 持たせ、取得完了イベントで差し替えさせる。
 const PLACEHOLDER_GIF: &[u8] = &[
-    0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0xFF, 0xFF, 0xFF, 0x21, 0xF9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00,
-    0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x01, 0x44, 0x00, 0x3B,
+    0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0xFF, 0xFF, 0xFF, 0x21, 0xF9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x01, 0x44, 0x00, 0x3B,
 ];
 
 /// 変換パラメータ込みのメディアリクエスト。
@@ -100,7 +100,8 @@ impl MediaRequest {
 /// 20000×20000 の PNG は RGBA 展開で 1.6GB に膨らみ、Android では malloc
 /// abort がログを残さずプロセスを殺す。変換対象はサムネイル用途なので
 /// これを超える原本は変換せずそのまま返す (WebView 側に委ねる)。
-const MAX_DECODE_DIMENSION: u32 = 8192;
+/// os_notify (デスクトップ通知画像の PNG 変換) も同じ上限を使う。
+pub(crate) const MAX_DECODE_DIMENSION: u32 = 8192;
 
 /// アニメーションの可能性があるか (ヘッダ走査のみ、デコードしない)。
 /// 変換 (リサイズ/再エンコード) はアニメーションを 1 フレーム目に潰すため、
@@ -133,7 +134,9 @@ fn may_be_animated(data: &[u8]) -> bool {
     }
     if data.len() >= 16 && &data[0..4] == b"RIFF" && &data[8..12] == b"WEBP" {
         // ANIM チャンクは VP8X 直後に来るのでヘッダ近傍だけ見れば足りる
-        return data[12..data.len().min(64)].windows(4).any(|w| w == b"ANIM");
+        return data[12..data.len().min(64)]
+            .windows(4)
+            .any(|w| w == b"ANIM");
     }
     false
 }
@@ -226,11 +229,9 @@ async fn apply_transform(
     }
     let w = req.w;
     let format = req.format.clone();
-    tokio::task::spawn_blocking(move || {
-        match transform_image(&data, w, format.as_deref()) {
-            Some(transformed) => transformed,
-            None => (data, content_type),
-        }
+    tokio::task::spawn_blocking(move || match transform_image(&data, w, format.as_deref()) {
+        Some(transformed) => transformed,
+        None => (data, content_type),
     })
     .await
     // JoinError は closure の panic のみ (release は panic = "abort" が先に
@@ -249,7 +250,6 @@ async fn entry_bytes(entry: &CacheEntry) -> Result<Vec<u8>, String> {
             .map_err(|e| e.to_string()),
     }
 }
-
 
 /// custom protocol の応答締切。
 ///
@@ -304,7 +304,10 @@ async fn handle_uri_request_inner(
     };
     // wait=1: 上流取得を待つブロッキング応答 (上限は RESPONSE_DEADLINE)。
     // fetch()/Audio 要素のようにプレースホルダを飲み込めない消費者 (効果音) 用。
+    // soft=1 (wait と併用): 待ちはソフト予算までで、超過したらプレースホルダ +
+    // MediaFetched の二段階配信へ降格してよい (非 Android の画像用)。
     let wait = url::form_urlencoded::parse(query.as_bytes()).any(|(k, v)| k == "wait" && v == "1");
+    let soft = url::form_urlencoded::parse(query.as_bytes()).any(|(k, v)| k == "soft" && v == "1");
 
     let etag = req.etag();
     // 条件付きリクエスト: 同じ ETag を持っているなら本文を送らない
@@ -347,10 +350,14 @@ async fn handle_uri_request_inner(
         };
     }
 
+    if wait && soft {
+        return soft_wait_response(app, cache, req, &etag).await;
+    }
+
     if wait {
         // ブロッキング経路: プレースホルダを飲み込めない消費者 (効果音の
-        // fetch/Audio 要素) と、直列パイプ制約のない非 Android の単一トリップ
-        // 配信用。ensure と同じ経路なので変換結果 (variant) も永続化される
+        // fetch/Audio 要素) 用。ensure と同じ経路なので変換結果 (variant) も
+        // 永続化される
         return match ensure_media_inner(&cache, &req).await {
             Ok((bytes, content_type)) => ok_response(bytes, &content_type, &etag),
             Err(msg) => {
@@ -380,6 +387,67 @@ async fn handle_uri_request_inner(
     placeholder_response()
 }
 
+/// ソフト予算付きブロッキング (非 Android の画像) の待ち時間上限。
+///
+/// キャッシュ済み・軽い取得はこの予算内に収まり単一トリップで返る。
+/// セマフォ枯渇 (大量絵文字バースト・プリフェッチ競合) や遅い上流では
+/// 予算超過でプレースホルダに降格し、二段階配信 (MediaFetched → 再要求)
+/// が引き継ぐ。以前はここが RESPONSE_DEADLINE (7s) までのフルブロッキング
+/// だったため、バースト時に `<img>` が 7 秒空白のまま → 504 → onerror の
+/// unknown 固定化、という経路になっていた。
+const SOFT_WAIT_BUDGET: std::time::Duration = std::time::Duration::from_millis(1500);
+
+/// wait=1&soft=1 の応答。予算内に取得できれば本物を返し、超過したら
+/// プレースホルダへ降格する。取得タスクは応答後も完走し、降格した場合
+/// (受信側 drop) のみ MediaFetched を emit して `<img>` に再要求させる
+/// (予算内に返せた場合の emit は余計な世代 bump = 再読込になるので送らない)。
+///
+/// begin_ensure の重複排除は使わない: 同一 key の同時要求は fetch_streaming
+/// の inflight dedup が上流アクセスを 1 本にまとめるので、重複するのは
+/// 軽い変換だけ。ここで dedup すると「後着がプレースホルダを受け取ったのに
+/// 完了イベントが来ない」競合を生む。
+async fn soft_wait_response(
+    app: AppHandle,
+    cache: Arc<ImageCache>,
+    req: MediaRequest,
+    etag: &str,
+) -> tauri::http::Response<Vec<u8>> {
+    // 失敗直後 (negative cache) / 既知のダウンホストは即エラー。hard wait と
+    // 違い、ここで遮断しないと「プレースホルダ → 失敗イベント → 再要求」の
+    // 空回りに合流する
+    if cache.is_fast_fail(&req.url).await {
+        return error_response(
+            tauri::http::StatusCode::BAD_GATEWAY,
+            "upstream recently failed",
+        );
+    }
+    let (done_tx, done_rx) = tokio::sync::oneshot::channel::<Result<(Vec<u8>, String), String>>();
+    tokio::spawn(async move {
+        let result = ensure_media_inner(&cache, &req).await;
+        if let Err(ref msg) = result {
+            tracing::warn!(url = %req.url, error = %msg, "ndmedia: soft-wait fetch failed");
+        }
+        if let Err(result) = done_tx.send(result) {
+            // 受信側が予算超過でプレースホルダに降格済み → 完了イベントで
+            // 再要求させる (成否によらず emit — 失敗は negative cache が
+            // 502 で受け止め、onerror → バックオフ再試行に繋がる)
+            use tauri_specta::Event;
+            MediaFetched {
+                url: req.url.clone(),
+                ok: result.is_ok(),
+            }
+            .emit(&app)
+            .ok();
+        }
+    });
+    match tokio::time::timeout(SOFT_WAIT_BUDGET, done_rx).await {
+        Ok(Ok(Ok((bytes, content_type)))) => ok_response(bytes, &content_type, etag),
+        Ok(Ok(Err(msg))) => error_response(tauri::http::StatusCode::BAD_GATEWAY, &msg),
+        // 予算超過 (or 取得タスクの panic — release では abort が先に効く)
+        _ => placeholder_response(),
+    }
+}
+
 /// 背景取得: オリジナルを (キャッシュ or 上流から) 用意し、変換を適用して
 /// cache_key で保存し、完了イベントを emit する。
 ///
@@ -403,7 +471,8 @@ async fn ensure_media(app: AppHandle, cache: Arc<ImageCache>, req: MediaRequest)
 
 /// オリジナルを (キャッシュ or 上流から) 用意し、変換を適用して cache_key で
 /// 永続化し、配信可能なバイト列と content-type を返す。
-async fn ensure_media_inner(
+/// notify_media (OS 通知の画像取得) も同じ口を使う。
+pub(crate) async fn ensure_media_inner(
     cache: &ImageCache,
     req: &MediaRequest,
 ) -> Result<(Vec<u8>, String), String> {
@@ -442,11 +511,7 @@ async fn ensure_media_inner(
     Ok((bytes, content_type))
 }
 
-fn ok_response(
-    bytes: Vec<u8>,
-    content_type: &str,
-    etag: &str,
-) -> tauri::http::Response<Vec<u8>> {
+fn ok_response(bytes: Vec<u8>, content_type: &str, etag: &str) -> tauri::http::Response<Vec<u8>> {
     tauri::http::Response::builder()
         .status(tauri::http::StatusCode::OK)
         .header("Content-Type", content_type)
@@ -474,7 +539,10 @@ fn placeholder_response() -> tauri::http::Response<Vec<u8>> {
 
 const CACHE_CONTROL: &str = "public, max-age=86400, immutable";
 
-fn error_response(status: tauri::http::StatusCode, message: &str) -> tauri::http::Response<Vec<u8>> {
+fn error_response(
+    status: tauri::http::StatusCode,
+    message: &str,
+) -> tauri::http::Response<Vec<u8>> {
     tauri::http::Response::builder()
         .status(status)
         // 失敗も fetch 側で読めるようにする (CORS で潰れると原因が見えない)
@@ -494,8 +562,9 @@ mod tests {
 
     #[test]
     fn parses_url_with_transform_params() {
-        let req = MediaRequest::from_query("url=https%3A%2F%2Fexample.com%2Fa.png&w=56&format=webp")
-            .expect("should parse");
+        let req =
+            MediaRequest::from_query("url=https%3A%2F%2Fexample.com%2Fa.png&w=56&format=webp")
+                .expect("should parse");
         assert_eq!(req.url, "https://example.com/a.png");
         assert_eq!(req.w, Some(56));
         assert_eq!(req.format.as_deref(), Some("webp"));
@@ -582,7 +651,8 @@ mod tests {
             let img = image::RgbaImage::from_pixel(100, 100, image::Rgba([1, 2, 3, 255]));
             let mut buf = std::io::Cursor::new(Vec::new());
             let mut enc = image::codecs::gif::GifEncoder::new(&mut buf);
-            enc.encode_frame(image::Frame::new(img)).expect("encode gif");
+            enc.encode_frame(image::Frame::new(img))
+                .expect("encode gif");
             drop(enc);
             buf.into_inner()
         };
@@ -639,8 +709,8 @@ mod tests {
             .store_variant(url, png_bytes(200, 200), "image/png")
             .await;
 
-        let req = MediaRequest::from_query("url=https%3A%2F%2Fe.com%2Fa.png&w=56")
-            .expect("should parse");
+        let req =
+            MediaRequest::from_query("url=https%3A%2F%2Fe.com%2Fa.png&w=56").expect("should parse");
         let (bytes, content_type) = ensure_media_inner(&cache, &req)
             .await
             .expect("cached original should transform without network");
