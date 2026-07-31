@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { shallowRef } from 'vue'
 import type { ServerEmoji } from '@/adapters/types'
+import { events } from '@/bindings'
 import { usePerformanceStore } from '@/stores/performance'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
@@ -231,6 +232,82 @@ export const useEmojisStore = defineStore('emojis', () => {
     }
   }
 
+  /**
+   * ストリーミング broadcast (emojiAdded / emojiUpdated / emojiDeleted) の
+   * push 反映 (#889)。pull 型 (reportMiss + 経年リフレッシュ) はフォール
+   * バックとして残る。辞書が未取得の host には適用しない — 部分適用で
+   * 「取得済み」に見せると、次の ensureLoaded が全量取得を skip してしまう。
+   */
+  function applyServerChange(
+    host: string,
+    change: 'added' | 'updated' | 'deleted',
+    emojis: ServerEmoji[],
+  ): void {
+    const lookup = cache.value.get(host)
+    if (!lookup) return
+
+    const nextLookup = { ...lookup }
+    const unknown = unknownNames.get(host)
+    if (change === 'deleted') {
+      for (const e of emojis) {
+        delete nextLookup[e.name]
+        delete nextLookup[`${e.name}@.`]
+      }
+    } else {
+      for (const e of emojis) {
+        nextLookup[e.name] = e.url
+        // 再登録された絵文字を拾えるよう unknown から解放する
+        unknown?.delete(e.name)
+      }
+    }
+    const nextCache = new Map(cache.value)
+    nextCache.set(host, nextLookup)
+    cache.value = nextCache
+
+    if (change === 'deleted') {
+      // 削除済みと分かっている名前は隔離し、miss 駆動の空振り refetch を
+      // 起こさない (added が来たら上で解放される)
+      let u = unknownNames.get(host)
+      if (!u) {
+        u = new Set()
+        unknownNames.set(host, u)
+      }
+      for (const e of emojis) u.add(e.name)
+    }
+
+    // ピッカー/補完用リストも保持している host なら同期する
+    const list = emojiList.value.get(host)
+    if (list) {
+      let nextEntries: ServerEmoji[]
+      if (change === 'deleted') {
+        const gone = new Set(emojis.map((e) => e.name))
+        nextEntries = list.filter((e) => !gone.has(e.name))
+      } else {
+        const byName = new Map(list.map((e) => [e.name, e]))
+        for (const e of emojis) byName.set(e.name, e)
+        nextEntries = [...byName.values()]
+      }
+      const nextList = new Map(emojiList.value)
+      nextList.set(host, nextEntries)
+      emojiList.value = nextList
+    }
+
+    schedulePersist()
+  }
+
+  // push 反映の購読
+  try {
+    events.streamEmojiChanged
+      .listen(({ payload }) =>
+        applyServerChange(payload.host, payload.change, payload.emojis),
+      )
+      .catch(() => {
+        // Tauri 外 (pnpm dev のブラウザ確認・テスト) では購読できない
+      })
+  } catch {
+    // 同上
+  }
+
   function resolve(host: string, shortcode: string): string | null {
     const map = cache.value.get(host)
     if (!map) return null
@@ -252,6 +329,7 @@ export const useEmojisStore = defineStore('emojis', () => {
     set,
     ensureLoaded,
     reportMiss,
+    applyServerChange,
     resolve,
     getEmojiList,
     has,
