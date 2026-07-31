@@ -250,7 +250,9 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // Shared HTTP client (struct construction — fast, no I/O)。
         // ValidatingResolver (#857): メディア・OGP の全 egress で名前解決の
         // 結果を接続前に検証し、private / loopback へ解決される公開ホスト名
-        // (DNS rebinding) を弾く。接続プール・並列取得はそのまま
+        // (DNS rebinding) を弾く。接続プール・並列取得はそのまま。
+        // build 失敗時は起動を止める — Client::default() は resolver も timeout も
+        // redirect 制限も持たないので、黙って防御なしで動き続けることになる
         let shared_http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(10))
             .pool_max_idle_per_host(8)
@@ -258,8 +260,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
             .redirect(reqwest::redirect::Policy::limited(5))
             .dns_resolver(std::sync::Arc::new(vault::ssrf::ValidatingResolver))
-            .build()
-            .unwrap_or_default();
+            .build()?;
         app.manage(shared_http.clone());
 
         // HEARTBEAT scheduler (#411): per-AI-column tokio interval task。
