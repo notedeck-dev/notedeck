@@ -369,7 +369,16 @@ const sortedReactions = computed(() => {
   const counts = recountedCounts.value
   const visible = counts
     ? sorted
-        .map((r) => ({ ...r, count: counts[r.reaction] ?? 0 }))
+        .map((r) => ({
+          ...r,
+          // 自分のリアクションはミュート除外 (数え直し) の対象外。楽観的
+          // 更新の直後は古い列挙に自分がまだ居らず count 0 → チップごと
+          // 消えるため、最低 1 を保証する
+          count:
+            r.reaction === effectiveNote.value.myReaction
+              ? Math.max(counts[r.reaction] ?? 0, 1)
+              : (counts[r.reaction] ?? 0),
+        }))
         .filter((r) => r.count > 0)
     : sorted
   const urls = reactionsData.value.urls
@@ -538,6 +547,8 @@ function handleReactionClick(
     spawnRipple(rect.left + rect.width / 2, rect.top + rect.height / 2)
     spawnReactionEffect(btn)
   }
+  // 自分の操作による変化は IntersectionObserver の発火を待たず即描画する
+  reactionsVisible.value = true
   emit('react', reaction, effectiveNote.value)
 }
 
@@ -580,6 +591,9 @@ function handlePickerReaction(reaction: string) {
     void reactAs(crossTarget.accountId, effectiveNote.value, reaction)
     return
   }
+  // 0 → 1 個目のリアクションは reactionsArea 自体が今から生まれるため、
+  // IntersectionObserver の発火を待つと空箱が見える。自分の操作は即描画
+  reactionsVisible.value = true
   emit('react', reaction, effectiveNote.value)
   // Wait for optimistic update (RAF) + Vue render to complete,
   // then spawn floating effect on the newly created button.

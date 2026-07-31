@@ -42,14 +42,58 @@ describe('mergeNoteUpdate', () => {
     expect(note.reactions['👍']).toBe(1)
   })
 
-  it('自ユーザの reacted は無視する (楽観的更新と二重加算しない)', () => {
-    const note = makeNote()
+  it('自ユーザの reacted: 楽観反映済み (myReaction 一致) の echo は無視する', () => {
+    const note = makeNote({ reactions: { '👍': 1 }, myReaction: '👍' })
     const merged = mergeNoteUpdate(
       note,
       { type: 'reacted', noteId: 'n1', body: { userId: 'me', reaction: '👍' } },
       'me',
     )
     expect(merged).toBeNull()
+  })
+
+  it('自ユーザの reacted: ローカルマーカー (@.) の形式差でも echo と判定する', () => {
+    // 楽観更新はピッカー形式 (:meow:)、サーバーイベントは :meow@.: で
+    // 届くことがある。素の一致比較だと二重加算になる
+    const note = makeNote({ reactions: { ':meow:': 1 }, myReaction: ':meow:' })
+    const merged = mergeNoteUpdate(
+      note,
+      {
+        type: 'reacted',
+        noteId: 'n1',
+        body: { userId: 'me', reaction: ':meow@.:' },
+      },
+      'me',
+    )
+    expect(merged).toBeNull()
+  })
+
+  it('自ユーザの reacted: 楽観未反映なら自己修復する (加算 + myReaction 設定)', () => {
+    // 楽観的更新が効かない面 (別ウィンドウ・別デバイス操作の反映) では、
+    // 自分のイベントが唯一の反映経路になる
+    const note = makeNote({ reactions: { '👍': 1 } })
+    const merged = mergeNoteUpdate(
+      note,
+      { type: 'reacted', noteId: 'n1', body: { userId: 'me', reaction: '🎉' } },
+      'me',
+    )
+    expect(merged?.reactions['🎉']).toBe(1)
+    expect(merged?.myReaction).toBe('🎉')
+  })
+
+  it('自ユーザの reacted: 形式違いの既存キーがあれば合流する (別チップを作らない)', () => {
+    const note = makeNote({ reactions: { ':meow:': 2 } })
+    const merged = mergeNoteUpdate(
+      note,
+      {
+        type: 'reacted',
+        noteId: 'n1',
+        body: { userId: 'me', reaction: ':meow@.:' },
+      },
+      'me',
+    )
+    expect(merged?.reactions[':meow:']).toBe(3)
+    expect(merged?.reactions[':meow@.:']).toBeUndefined()
   })
 
   it('カスタム絵文字はコロンを剥がして reactionEmojis に記録する', () => {
@@ -99,7 +143,7 @@ describe('mergeNoteUpdate', () => {
     expect(merged?.reactions['🎉']).toBe(2)
   })
 
-  it('自ユーザの unreacted は無視する', () => {
+  it('自ユーザの unreacted: 楽観反映済み (myReaction null) の echo は無視する', () => {
     const merged = mergeNoteUpdate(
       makeNote({ reactions: { '👍': 1 } }),
       {
@@ -110,6 +154,23 @@ describe('mergeNoteUpdate', () => {
       'me',
     )
     expect(merged).toBeNull()
+  })
+
+  it('自ユーザの unreacted: myReaction 一致なら取消を自己修復する (カウントは触らない)', () => {
+    // カウントは「楽観減算済みの echo」と「別デバイス操作」を区別できない
+    // ため触らず、myReaction だけ取り消す (二重減算の回帰を防ぐ)
+    const note = makeNote({ reactions: { '👍': 2 }, myReaction: '👍' })
+    const merged = mergeNoteUpdate(
+      note,
+      {
+        type: 'unreacted',
+        noteId: 'n1',
+        body: { userId: 'me', reaction: '👍' },
+      },
+      'me',
+    )
+    expect(merged?.myReaction).toBeNull()
+    expect(merged?.reactions['👍']).toBe(2)
   })
 
   it('pollVoted は該当 choice の票を増やし、自分の投票なら isVoted を立てる', () => {

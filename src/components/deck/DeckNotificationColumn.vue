@@ -111,6 +111,7 @@ const {
   handlers,
   scroller,
   onScroll,
+  setOnNotesMutated,
 } = useColumnSetup(() => props.column)
 
 const isLoggedOut = computed(() => account.value?.hasToken === false)
@@ -254,6 +255,18 @@ function closeUserPopup() {
 const perfStore = usePerformanceStore()
 const deckStore = useDeckStore()
 const notifications = shallowRef<NormalizedNotification[]>([])
+
+// リアクション等の楽観的更新 (handlers.reaction) は noteStore に入るが、
+// このカラムは notification.note を独自保持しているため store の変更が
+// 表示に届かない。mutation のたびに store 側の最新オブジェクトへ差し替えて
+// 反映する (shallowRef なので配列ごと新しくする)
+setOnNotesMutated(() => {
+  notifications.value = notifications.value.map((n) => {
+    if (!n.note) return n
+    const latest = noteStore.get(n.note.id)
+    return latest && latest !== n.note ? { ...n, note: latest } : n
+  })
+})
 
 // 前回読了位置マーカー (#750) — タイムラインと同じ localStorage 方式
 const { viewMarkerId } = useReadMarker(
