@@ -32,6 +32,10 @@ pub struct StreamChatMessageReacted(pub notecli::streaming::StreamChatMessageRea
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct StreamChatMessageUnreacted(pub notecli::streaming::StreamChatMessageUnreactedEvent);
 
+/// broadcast の絵文字辞書変更 (#889)。絵文字ストアが購読して push 反映する。
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct StreamEmojiChanged(pub notecli::streaming::StreamEmojiChangedEvent);
+
 #[cfg(target_os = "android")]
 const NOTIFICATION_CHANNEL_ID: &str = "notedeck_notifications";
 
@@ -644,6 +648,7 @@ impl<R: tauri::Runtime> FrontendEmitter for TauriEmitter<R> {
             E::ChatMessageUnreacted(e) => StreamChatMessageUnreacted((**e).clone())
                 .emit(&self.app)
                 .err(),
+            E::EmojiChanged(e) => StreamEmojiChanged((**e).clone()).emit(&self.app).err(),
             _ => None,
         };
         if let Some(e) = dedicated {

@@ -295,7 +295,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Server-sent event stream (`text/event-stream`). Each event carries an `event:` type and a JSON `data:` payload typed as `SseEventPayload` — the `event:` name selects the variant (`note` / `mention` / `note-updated` / `note-capture-updated` / `notification` / `main-{eventType}` / `chat` / `chat-deleted` / `chat-reacted` / `chat-unreacted` / `status`). The `type` query param filters by event-name prefix.",
+            "description": "Server-sent event stream (`text/event-stream`). Each event carries an `event:` type and a JSON `data:` payload typed as `SseEventPayload` — the `event:` name selects the variant (`note` / `mention` / `note-updated` / `note-capture-updated` / `notification` / `main-{eventType}` / `chat` / `chat-deleted` / `chat-reacted` / `chat-unreacted` / `status` / `emoji-changed`). The `type` query param filters by event-name prefix.",
             "content": {
               "text/event-stream": {
                 "schema": {
@@ -1826,6 +1826,15 @@
           }
         }
       },
+      "EmojiChangeKind": {
+        "type": "string",
+        "description": "broadcast チャネルの絵文字辞書変更の種別。",
+        "enum": [
+          "added",
+          "updated",
+          "deleted"
+        ]
+      },
       "NormalizedDriveFile": {
         "type": "object",
         "required": [
@@ -2690,6 +2699,35 @@
           }
         }
       },
+      "ServerEmoji": {
+        "type": "object",
+        "description": "Emoji info exposed to the frontend via Tauri commands.",
+        "required": [
+          "name",
+          "url",
+          "aliases"
+        ],
+        "properties": {
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
       "SseEventPayload": {
         "oneOf": [
           {
@@ -2724,9 +2762,12 @@
           },
           {
             "$ref": "#/components/schemas/StreamStatusEvent"
+          },
+          {
+            "$ref": "#/components/schemas/StreamEmojiChangedEvent"
           }
         ],
-        "description": "SSE `data:` payload の union (#781 Phase 4)。discriminator は SSE の\n`event:` フィールド (out-of-band) なので untagged oneOf として文書化する。\n`event:` 名と variant の対応:\nnote/mention → StreamNote/StreamMentionEvent、note-updated →\nStreamNoteUpdatedEvent、note-capture-updated → StreamNoteCaptureEvent、\nnotification → StreamNotificationEvent、main-{eventType} → StreamMainEvent、\nchat → StreamChatMessageEvent、chat-deleted / chat-reacted / chat-unreacted →\nStreamChatMessage{Deleted,Reacted,Unreacted}Event、status → StreamStatusEvent"
+        "description": "SSE `data:` payload の union (#781 Phase 4)。discriminator は SSE の\n`event:` フィールド (out-of-band) なので untagged oneOf として文書化する。\n`event:` 名と variant の対応:\nnote/mention → StreamNote/StreamMentionEvent、note-updated →\nStreamNoteUpdatedEvent、note-capture-updated → StreamNoteCaptureEvent、\nnotification → StreamNotificationEvent、main-{eventType} → StreamMainEvent、\nchat → StreamChatMessageEvent、chat-deleted / chat-reacted / chat-unreacted →\nStreamChatMessage{Deleted,Reacted,Unreacted}Event、status → StreamStatusEvent、\nemoji-changed → StreamEmojiChangedEvent"
       },
       "StreamChatMessageDeletedEvent": {
         "type": "object",
@@ -2840,6 +2881,34 @@
           "reconnecting",
           "disconnected"
         ]
+      },
+      "StreamEmojiChangedEvent": {
+        "type": "object",
+        "description": "サーバー全体配信 (broadcast) の絵文字辞書変更 (#889)。\n本家は emojiAdded / emojiUpdated / emojiDeleted を channel ラップなしの\nトップレベル type で全接続に配る。",
+        "required": [
+          "accountId",
+          "host",
+          "change",
+          "emojis"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "change": {
+            "$ref": "#/components/schemas/EmojiChangeKind"
+          },
+          "emojis": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerEmoji"
+            }
+          },
+          "host": {
+            "type": "string",
+            "description": "絵文字辞書のキーになるサーバー host"
+          }
+        }
       },
       "StreamMainEvent": {
         "type": "object",

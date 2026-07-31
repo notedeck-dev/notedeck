@@ -2444,6 +2444,7 @@ notificationClicked: NotificationClicked,
 queryDelta: QueryDelta,
 streamChatMessageReacted: StreamChatMessageReacted,
 streamChatMessageUnreacted: StreamChatMessageUnreacted,
+streamEmojiChanged: StreamEmojiChanged,
 streamEnvelope: StreamEnvelope,
 streamStatus: StreamStatus
 }>({
@@ -2454,6 +2455,7 @@ notificationClicked: "notification-clicked",
 queryDelta: "query-delta",
 streamChatMessageReacted: "stream-chat-message-reacted",
 streamChatMessageUnreacted: "stream-chat-message-unreacted",
+streamEmojiChanged: "stream-emoji-changed",
 streamEnvelope: "stream-envelope",
 streamStatus: "stream-status"
 })
@@ -2727,6 +2729,10 @@ export type CreatedApiToken = { meta: ApiTokenMeta;
  */
 token: string }
 export type CreatedDriveFolder = { id: string; name: string; parentId?: string | null }
+/**
+ * broadcast チャネルの絵文字辞書変更の種別。
+ */
+export type EmojiChangeKind = "added" | "updated" | "deleted"
 /**
  * `notes_cache` の eviction policy。 デフォルトは「ほぼ永続保存」 — notedeck の
  * 「過去ノートを一瞬でローカル検索」という UX を尊重し、 暴走防止の hard cap
@@ -3203,6 +3209,20 @@ export type StreamChatMessageUnreactedEvent = { accountId: string; subscriptionI
  */
 export type StreamConnectionState = "connected" | "reconnecting" | "disconnected"
 /**
+ * broadcast の絵文字辞書変更 (#889)。絵文字ストアが購読して push 反映する。
+ */
+export type StreamEmojiChanged = StreamEmojiChangedEvent
+/**
+ * サーバー全体配信 (broadcast) の絵文字辞書変更 (#889)。
+ * 本家は emojiAdded / emojiUpdated / emojiDeleted を channel ラップなしの
+ * トップレベル type で全接続に配る。
+ */
+export type StreamEmojiChangedEvent = { accountId: string; 
+/**
+ * 絵文字辞書のキーになるサーバー host
+ */
+host: string; change: EmojiChangeKind; emojis: ServerEmoji[] }
+/**
  * 統合チャネル (イベント名 "stream-envelope")。全イベントを { kind, payload }
  * の tagged union で流す。Inspector の raw tap と未読カウンタが購読する。
  * 名前が notecli::streaming::StreamEvent と衝突すると specta の TS 出力が
@@ -3215,7 +3235,7 @@ export type StreamEnvelope = StreamEvent
  * 歴史的ワイヤ形 `{ kind, payload }` と一致する。Box は serde/specta とも
  * 透過 (variant 間サイズ差の抑制、clippy::large_enum_variant)。
  */
-export type StreamEvent = { kind: "stream-note"; payload: StreamNoteEvent } | { kind: "stream-notification"; payload: StreamNotificationEvent } | { kind: "stream-mention"; payload: StreamMentionEvent } | { kind: "stream-main-event"; payload: StreamMainEvent } | { kind: "stream-note-updated"; payload: StreamNoteUpdatedEvent } | { kind: "stream-note-capture-updated"; payload: StreamNoteCaptureEvent } | { kind: "stream-chat-message"; payload: StreamChatMessageEvent } | { kind: "stream-chat-message-deleted"; payload: StreamChatMessageDeletedEvent } | { kind: "stream-chat-message-reacted"; payload: StreamChatMessageReactedEvent } | { kind: "stream-chat-message-unreacted"; payload: StreamChatMessageUnreactedEvent } | { kind: "stream-status"; payload: StreamStatusEvent }
+export type StreamEvent = { kind: "stream-note"; payload: StreamNoteEvent } | { kind: "stream-notification"; payload: StreamNotificationEvent } | { kind: "stream-mention"; payload: StreamMentionEvent } | { kind: "stream-main-event"; payload: StreamMainEvent } | { kind: "stream-note-updated"; payload: StreamNoteUpdatedEvent } | { kind: "stream-note-capture-updated"; payload: StreamNoteCaptureEvent } | { kind: "stream-chat-message"; payload: StreamChatMessageEvent } | { kind: "stream-chat-message-deleted"; payload: StreamChatMessageDeletedEvent } | { kind: "stream-chat-message-reacted"; payload: StreamChatMessageReactedEvent } | { kind: "stream-chat-message-unreacted"; payload: StreamChatMessageUnreactedEvent } | { kind: "stream-status"; payload: StreamStatusEvent } | { kind: "stream-emoji-changed"; payload: StreamEmojiChangedEvent }
 export type StreamMainEvent = { accountId: string; subscriptionId: string; eventType: string; body: JsonValue }
 export type StreamMentionEvent = { accountId: string; subscriptionId: string; note: NormalizedNote }
 export type StreamNoteCaptureEvent = ({ updateType: "reacted"; body: NoteReactedBody } | { updateType: "unreacted"; body: NoteUnreactedBody } | { updateType: "pollVoted"; body: NotePollVotedBody } | { updateType: "deleted"; body: NoteDeletedBody }) & { accountId: string; noteId: string }

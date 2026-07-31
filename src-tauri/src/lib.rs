@@ -958,6 +958,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             streaming::StreamStatus,
             streaming::StreamChatMessageReacted,
             streaming::StreamChatMessageUnreacted,
+            streaming::StreamEmojiChanged,
             os_notify::NotificationClicked,
             commands::ExportProgress,
             media_proxy::MediaFetched,
