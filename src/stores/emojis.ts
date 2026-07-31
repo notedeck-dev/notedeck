@@ -57,10 +57,17 @@ export const useEmojisStore = defineStore('emojis', () => {
       null,
     )
     if (obj?.version !== 2) return
+    // localStorage は外から壊せる (手編集・書き込み途中の切断)。ここは store
+    // setup 内なので throw するとストアごと初期化に失敗する。version が
+    // 合っていても形は信用しない。壊れた host は飛ばして再取得に任せる
+    // (undefined を混ぜると has() が true を返し、以後取得を skip してしまう)
+    if (typeof obj.hosts !== 'object' || obj.hosts === null) return
     const map = new Map<string, Record<string, string>>()
     for (const [host, entry] of Object.entries(obj.hosts)) {
+      if (typeof entry?.emojis !== 'object' || entry.emojis === null) continue
       map.set(host, entry.emojis)
-      fetchedAt.set(host, entry.fetchedAt)
+      if (typeof entry.fetchedAt === 'number')
+        fetchedAt.set(host, entry.fetchedAt)
     }
     cache.value = map
   }

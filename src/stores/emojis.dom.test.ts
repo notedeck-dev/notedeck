@@ -180,4 +180,29 @@ describe('useEmojisStore', () => {
     const store = useEmojisStore()
     expect(store.resolve(HOST, 'meow')).toBeNull()
   })
+
+  it('hosts を欠く v2 の localStorage でもストアが初期化できる', () => {
+    localStorage.setItem('emojis_cache', JSON.stringify({ version: 2 }))
+    const store = useEmojisStore()
+    expect(store.resolve(HOST, 'meow')).toBeNull()
+  })
+
+  it('壊れた host エントリは飛ばし、正常な分だけ復元する', () => {
+    localStorage.setItem(
+      'emojis_cache',
+      JSON.stringify({
+        version: 2,
+        hosts: {
+          'broken.example': { fetchedAt: 0 },
+          [HOST]: {
+            fetchedAt: 1,
+            emojis: { meow: `https://${HOST}/files/meow.webp` },
+          },
+        },
+      }),
+    )
+    const store = useEmojisStore()
+    expect(store.resolve('broken.example', 'meow')).toBeNull()
+    expect(store.resolve(HOST, 'meow')).toBe(`https://${HOST}/files/meow.webp`)
+  })
 })

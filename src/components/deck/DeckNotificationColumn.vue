@@ -42,6 +42,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useReadMarker } from '@/composables/useReadMarker'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { getStreamHealth } from '@/core/streamHealth'
+import { syncNotificationNotes } from '@/services/notificationNoteSync'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
@@ -261,11 +262,9 @@ const notifications = shallowRef<NormalizedNotification[]>([])
 // 表示に届かない。mutation のたびに store 側の最新オブジェクトへ差し替えて
 // 反映する (shallowRef なので配列ごと新しくする)
 setOnNotesMutated(() => {
-  notifications.value = notifications.value.map((n) => {
-    if (!n.note) return n
-    const latest = noteStore.get(n.note.id)
-    return latest && latest !== n.note ? { ...n, note: latest } : n
-  })
+  notifications.value = syncNotificationNotes(notifications.value, (id) =>
+    noteStore.get(id),
+  )
 })
 
 // 前回読了位置マーカー (#750) — タイムラインと同じ localStorage 方式
