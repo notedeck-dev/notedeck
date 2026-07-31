@@ -49,6 +49,11 @@ export async function toggleReaction(
     myReaction: prevReaction ?? null,
   }
 
+  // 切替 (取消 → 付与) の途中経過。取消だけ成功して付与に失敗した場合、
+  // サーバーは「リアクション無し」なので、元へ巻き戻すと旧絵文字のカウントが
+  // 1 多いまま次の取得まで残る (#891)
+  let removedOnServer = false
+
   try {
     if (prevReaction === reaction) {
       // 取消
@@ -67,12 +72,20 @@ export async function toggleReaction(
 
       if (prevReaction) {
         await api.deleteReaction(note.id)
+        removedOnServer = true
       }
       await api.createReaction(note.id, reaction)
     }
   } catch (e) {
-    // Rollback to previous state on failure
-    apply(prevPatch)
+    if (removedOnServer && prevReaction) {
+      // サーバーの実状態 (取消のみ成立) に合わせてリアクション無しへ倒す
+      apply({
+        reactions: decremented(note.reactions, prevReaction),
+        myReaction: null,
+      })
+    } else {
+      apply(prevPatch)
+    }
     throw e
   }
 }

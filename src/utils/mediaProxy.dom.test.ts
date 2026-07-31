@@ -328,6 +328,184 @@ describe('プレースホルダ滞留の自己修復 (ensurePlaceholderRecovery)
   })
 })
 
+describe('プレースホルダ滞留の全画像監視 (installPlaceholderWatchdog) #892', () => {
+  // 自己修復の関数を直接呼ぶのではなく、document capture の load 監視の
+  // 判断そのものを検証する: 全画像の読み込みを通る位置にあるため、ここが
+  // 壊れると「一部の画像がまれに空白のまま」という気づきにくい形で出る
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    document.body.innerHTML = ''
+  })
+
+  /** 寸法を差し替えた要素を document に繋ぎ、load を capture へ流す */
+  function dispatchLoad(
+    tag: string,
+    src: string | undefined,
+    width?: number,
+    height?: number,
+  ) {
+    const el = document.createElement(tag)
+    if (width !== undefined) {
+      Object.defineProperty(el, 'naturalWidth', { value: width })
+      Object.defineProperty(el, 'naturalHeight', { value: height })
+    }
+    if (src !== undefined) (el as HTMLImageElement).src = src
+    document.body.appendChild(el)
+    el.dispatchEvent(new Event('load'))
+    return el
+  }
+
+  it('1×1 (プレースホルダ) を掴んだ IMG は自己修復に乗る', async () => {
+    const { proxyUrl } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    dispatchLoad('img', proxied, 1, 1)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+
+  it('実画像 (非 1×1) を掴んだら自己修復に乗せない', async () => {
+    const { proxyUrl } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    dispatchLoad('img', proxied, 200, 100)
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(REMOTE)).not.toContain('&r=')
+  })
+
+  it('プロキシ経由でない画像は 1×1 でも対象外', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    proxyUrl(REMOTE) // 監視を起動させる
+    const direct = 'https://example.com/tracker.png'
+    dispatchLoad('img', direct, 1, 1)
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(direct)).not.toContain('&r=')
+    // ensurePlaceholderRecovery が生きていることの対照 (テスト自体の空振り防止)
+    ensurePlaceholderRecovery(direct)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(direct)).toContain('&r=1')
+  })
+
+  it('実画像が載ったら試行回数をリセットし、再度の滞留から修復できる', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    // 上限まで自己修復を使い切る (count=3 で打ち切り状態)
+    for (let i = 0; i < 10; i++) {
+      ensurePlaceholderRecovery(REMOTE)
+      vi.advanceTimersByTime(4_000)
+    }
+    expect(proxyUrl(REMOTE)).toContain('&r=3')
+    // 実画像の load が届いたら試行回数がリセットされる
+    dispatchLoad('img', proxied, 200, 100)
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=4')
+  })
+
+  it('プロキシ経由の IMG の error は失敗申告され、バックオフ後に再試行する', async () => {
+    // 以前は絵文字の onerror (onCustomEmojiImgError) だけが失敗を申告して
+    // いた。アバター・添付・OGP も同じ二段階配信を通るので、error も load と
+    // 同じ document capture で一括して拾う
+    const { proxyUrl } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    const img = document.createElement('img')
+    img.src = proxied
+    document.body.appendChild(img)
+    img.dispatchEvent(new Event('error'))
+    vi.advanceTimersByTime(8_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+
+  it('プロキシ経由でない IMG の error は申告しない', async () => {
+    const { proxyUrl } = await loadModule()
+    proxyUrl(REMOTE) // 監視を起動させる
+    const direct = 'https://example.com/broken.png'
+    const img = document.createElement('img')
+    img.src = direct
+    document.body.appendChild(img)
+    img.dispatchEvent(new Event('error'))
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(direct)).not.toContain('&r=')
+  })
+
+  it('IMG 以外の要素の error は申告しない', async () => {
+    const { proxyUrl } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    const video = document.createElement('video')
+    ;(video as unknown as { src: string }).src = proxied
+    document.body.appendChild(video)
+    video.dispatchEvent(new Event('error'))
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(REMOTE)).not.toContain('&r=')
+  })
+
+  it('IMG 以外の要素の load では試行回数をリセットしない', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    const proxied = proxyUrl(REMOTE) ?? ''
+    for (let i = 0; i < 10; i++) {
+      ensurePlaceholderRecovery(REMOTE)
+      vi.advanceTimersByTime(4_000)
+    }
+    expect(proxyUrl(REMOTE)).toContain('&r=3')
+    // video 要素は src と寸法を持つが、監視の対象は IMG だけ
+    dispatchLoad('video', proxied, 200, 100)
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    // リセットされていないので打ち切り状態のまま (世代は進まない)
+    expect(proxyUrl(REMOTE)).toContain('&r=3')
+  })
+})
+
+describe('URL 単位の状態の追い出し (#893)', () => {
+  // 失敗回数と自己修復の試行回数は「取得成功」でしか消えないため、恒久的に
+  // 壊れた URL・本当に 1×1 の画像が長時間セッションで無限に積もっていた。
+  // 世代番号の表 (mediaVersions) と同じ「上限で古い順に捨てる」規則を適用する
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('失敗記録は上限で古い順に捨てられ、追い出された URL は再試行できる', async () => {
+    const { proxyUrl, markMediaFailed } = await loadModule()
+    // リトライ上限まで失敗を積む (retries=3 で打ち切り状態)
+    for (let i = 0; i < 10; i++) {
+      markMediaFailed(REMOTE)
+      vi.advanceTimersByTime(10 * 60_000)
+    }
+    // 上限 (テスト環境の既定 256) を超える数の別 URL が失敗を申告する
+    for (let i = 0; i < 300; i++) {
+      markMediaFailed(`https://example.com/f${i}.png`)
+    }
+    // 最古の REMOTE は追い出されているので、打ち切り状態が解けて再試行できる
+    markMediaFailed(REMOTE)
+    vi.advanceTimersByTime(10 * 60_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=4')
+  })
+
+  it('自己修復の試行回数は上限で古い順に捨てられる', async () => {
+    const { proxyUrl, ensurePlaceholderRecovery } = await loadModule()
+    // 自己修復上限まで積む (count=3 で打ち切り状態)
+    for (let i = 0; i < 10; i++) {
+      ensurePlaceholderRecovery(REMOTE)
+      vi.advanceTimersByTime(4_000)
+    }
+    // 上限を超える数の別 URL が自己修復に乗る
+    for (let i = 0; i < 300; i++) {
+      ensurePlaceholderRecovery(`https://example.com/p${i}.png`)
+    }
+    vi.advanceTimersByTime(4_000)
+    // 最古の REMOTE は追い出されているので、打ち切り状態が解けて再修復できる
+    ensurePlaceholderRecovery(REMOTE)
+    vi.advanceTimersByTime(4_000)
+    expect(proxyUrl(REMOTE)).toContain('&r=1')
+  })
+})
+
 describe('proxyThumbUrl', () => {
   // format は付けない: 明示すると「上限以下なら変換不要」の素通しが効かなくなる
   it('幅だけを付ける (非 Android は wait + soft も付く)', async () => {

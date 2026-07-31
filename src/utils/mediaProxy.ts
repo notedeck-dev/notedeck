@@ -40,14 +40,27 @@ const proxyUrlCache = new Map<string, string>()
  */
 const mediaVersions = reactive(new Map<string, number>())
 
+/**
+ * URL 単位の状態表の共通追い出し規則: 新規キーの挿入前に、上限に達していたら
+ * 最古の 1 件を捨てる (#893)。取得成功でしか消えない表 (失敗回数・自己修復の
+ * 試行回数) も、この規則で長時間セッションの無限成長を防ぐ。
+ */
+function evictOldestIfFull(
+  map: Map<string, unknown>,
+  key: string,
+  onEvict?: (evicted: string) => void,
+) {
+  if (map.has(key) || map.size < getProxyCacheMax()) return
+  const oldest = map.keys().next().value
+  if (oldest === undefined) return
+  onEvict?.(oldest)
+  map.delete(oldest)
+}
+
 function bumpMediaVersion(url: string) {
-  // proxyUrlCache と同じ上限で古い順に捨てる (無限成長させない)。
   // 追い出された URL は素の URL に戻るだけで、実体はキャッシュ済みなので
   // 表示は壊れない
-  if (!mediaVersions.has(url) && mediaVersions.size >= getProxyCacheMax()) {
-    const oldest = mediaVersions.keys().next().value
-    if (oldest !== undefined) mediaVersions.delete(oldest)
-  }
+  evictOldestIfFull(mediaVersions, url)
   mediaVersions.set(url, (mediaVersions.get(url) ?? 0) + 1)
 }
 
@@ -90,6 +103,12 @@ export function markMediaFailed(url: string): void {
     entry.retries += 1
     bumpMediaVersion(url)
   }, delay)
+  // リトライ上限に達した URL は取得成功が来ない限り残り続けるため、
+  // 上限で追い出す。待機中のタイマーごと破棄する
+  evictOldestIfFull(mediaFailures, url, (evicted) => {
+    const old = mediaFailures.get(evicted)
+    if (old?.timer != null) clearTimeout(old.timer)
+  })
   mediaFailures.set(url, entry)
 }
 
@@ -125,6 +144,8 @@ export function ensurePlaceholderRecovery(url: string): void {
       placeholderTimers.delete(url)
       // MediaFetched が正常に届いて世代が進んでいれば何もしない
       if ((mediaVersions.get(url) ?? 0) === versionAtSchedule) {
+        // 本当に 1×1 の画像は取得成功でリセットされないため、上限で追い出す
+        evictOldestIfFull(placeholderRecoveryCounts, url)
         placeholderRecoveryCounts.set(
           url,
           (placeholderRecoveryCounts.get(url) ?? 0) + 1,
@@ -148,15 +169,20 @@ export function proxiedRawUrl(src: string): string | null {
 }
 
 /**
- * プレースホルダ滞留の全画像監視。
+ * 全画像の読み込み結果の一括監視。
  *
  * 二段階配信 (Android 全画像 / デスクトップの soft 降格) はアバター・添付・
- * ピッカーなどあらゆる `<img>` を通るため、個別コンポーネントに @load を
- * 配線するのではなく document の capture で一括して拾う (load イベントは
- * バブルしないが capture では捕捉できる)。1×1 = プレースホルダを掴んだ
- * `<img>` を自己修復に乗せ、実画像が載ったら試行回数をリセットする。
+ * ピッカーなどあらゆる `<img>` を通るため、個別コンポーネントに @load /
+ * @error を配線するのではなく document の capture で一括して拾う (load /
+ * error イベントはバブルしないが capture では捕捉できる)。
+ *
+ * - load: 1×1 = プレースホルダを掴んだ `<img>` を自己修復に乗せ、実画像が
+ *   載ったら試行回数をリセットする
+ * - error: 失敗を申告してバックオフ再試行に乗せる (一過性の 502/504 の
+ *   セッション中固定化を防ぐ)。unknown アイコン等への DOM フォールバックは
+ *   各コンポーネントの @error に残る
  */
-function installPlaceholderWatchdog() {
+function installMediaWatchdog() {
   try {
     document.addEventListener(
       'load',
@@ -173,6 +199,16 @@ function installPlaceholderWatchdog() {
       },
       true,
     )
+    document.addEventListener(
+      'error',
+      (e) => {
+        const img = e.target as HTMLImageElement | null
+        if (img?.tagName !== 'IMG') return
+        const raw = proxiedRawUrl(img.currentSrc || img.src)
+        if (raw) markMediaFailed(raw)
+      },
+      true,
+    )
   } catch {
     // document の無い環境 (ユニットテストの node 側等) では何もしない
   }
@@ -182,7 +218,7 @@ let listenerStarted = false
 function ensureFetchedListener() {
   if (listenerStarted) return
   listenerStarted = true
-  installPlaceholderWatchdog()
+  installMediaWatchdog()
   try {
     events.mediaFetched
       .listen(({ payload }) => handleMediaFetched(payload.url, payload.ok))
@@ -220,13 +256,6 @@ function getProxyCacheMax(): number {
   }
 }
 
-function evictIfFull() {
-  if (proxyUrlCache.size >= getProxyCacheMax()) {
-    const oldest = proxyUrlCache.keys().next().value
-    if (oldest !== undefined) proxyUrlCache.delete(oldest)
-  }
-}
-
 export function proxyUrl(
   url: string | null | undefined,
   opts?: {
@@ -247,7 +276,7 @@ export function proxyUrl(
   const cacheKey = soft ? `${url}|soft` : wait ? `${url}|wait` : url
   let cached = proxyUrlCache.get(cacheKey)
   if (!cached) {
-    evictIfFull()
+    evictOldestIfFull(proxyUrlCache, cacheKey)
     cached = `${getProxyBase()}?url=${encodeURIComponent(url)}${wait ? '&wait=1' : ''}${soft ? '&soft=1' : ''}`
     proxyUrlCache.set(cacheKey, cached)
   }
@@ -274,7 +303,7 @@ export function proxyThumbUrl(
   const key = `${url}|w=${width}`
   let cached = proxyUrlCache.get(key)
   if (!cached) {
-    evictIfFull()
+    evictOldestIfFull(proxyUrlCache, key)
     cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&w=${width}${wait ? '&wait=1&soft=1' : ''}`
     proxyUrlCache.set(key, cached)
   }

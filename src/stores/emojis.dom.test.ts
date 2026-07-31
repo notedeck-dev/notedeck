@@ -187,6 +187,79 @@ describe('useEmojisStore', () => {
     expect(store.resolve(HOST, 'meow')).toBeNull()
   })
 
+  describe('push 反映 (applyServerChange #889)', () => {
+    it('added: 取得済み host の辞書とピッカーリストへ即反映する', async () => {
+      const store = useEmojisStore()
+      store.ensureLoaded(HOST, vi.fn().mockResolvedValue([emoji('old')]))
+      await flush()
+
+      store.applyServerChange(HOST, 'added', [emoji('brand_new')])
+
+      expect(store.resolve(HOST, 'brand_new')).toBe(
+        `https://${HOST}/files/brand_new.webp`,
+      )
+      expect(store.getEmojiList(HOST).map((e) => e.name)).toEqual([
+        'old',
+        'brand_new',
+      ])
+    })
+
+    it('updated: 画像 URL の差し替えが miss を経ずに反映される', async () => {
+      // 名前は解決できるため miss にならず、pull 型では経年リフレッシュまで
+      // 最大 24 時間古い画像が表示され続けていたケース
+      const store = useEmojisStore()
+      store.ensureLoaded(HOST, vi.fn().mockResolvedValue([emoji('meow')]))
+      await flush()
+
+      const v2 = `https://${HOST}/files/meow-v2.webp`
+      store.applyServerChange(HOST, 'updated', [
+        { name: 'meow', url: v2, category: null, aliases: [] },
+      ])
+
+      expect(store.resolve(HOST, 'meow')).toBe(v2)
+      expect(store.getEmojiList(HOST).find((e) => e.name === 'meow')?.url).toBe(
+        v2,
+      )
+    })
+
+    it('deleted: 辞書から消え、以後の reportMiss は refetch を起こさない', async () => {
+      const store = useEmojisStore()
+      const fetcher = vi.fn().mockResolvedValue([emoji('meow')])
+      store.ensureLoaded(HOST, fetcher)
+      await flush()
+
+      store.applyServerChange(HOST, 'deleted', [emoji('meow')])
+
+      expect(store.resolve(HOST, 'meow')).toBeNull()
+      expect(store.getEmojiList(HOST)).toEqual([])
+      // 削除済みと分かっているので miss 駆動の空振り refetch を起こさない
+      store.reportMiss(HOST, 'meow')
+      await vi.advanceTimersByTimeAsync(10 * 60_000)
+      expect(fetcher).toHaveBeenCalledTimes(1)
+    })
+
+    it('deleted 後に added が来たら復活する (unknown の解放)', async () => {
+      const store = useEmojisStore()
+      store.ensureLoaded(HOST, vi.fn().mockResolvedValue([emoji('meow')]))
+      await flush()
+
+      store.applyServerChange(HOST, 'deleted', [emoji('meow')])
+      expect(store.resolve(HOST, 'meow')).toBeNull()
+
+      store.applyServerChange(HOST, 'added', [emoji('meow')])
+      expect(store.resolve(HOST, 'meow')).toBe(
+        `https://${HOST}/files/meow.webp`,
+      )
+    })
+
+    it('未取得の host には適用しない (次の ensureLoaded が全量を取る)', () => {
+      const store = useEmojisStore()
+      store.applyServerChange(HOST, 'added', [emoji('meow')])
+      expect(store.has(HOST)).toBe(false)
+      expect(store.resolve(HOST, 'meow')).toBeNull()
+    })
+  })
+
   it('壊れた host エントリは飛ばし、正常な分だけ復元する', () => {
     localStorage.setItem(
       'emojis_cache',

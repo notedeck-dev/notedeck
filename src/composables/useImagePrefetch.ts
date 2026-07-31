@@ -45,7 +45,12 @@ function pumpPrefetchQueue() {
 }
 
 function enqueuePrefetch(url: string) {
-  if (prefetchQueue.length >= MAX_QUEUE) prefetchQueue.shift()
+  if (prefetchQueue.length >= MAX_QUEUE) {
+    const dropped = prefetchQueue.shift()
+    // 捨てた分は一度も取得していないので「先読み済み」からも外す (#893)。
+    // 残したままだと、スクロールで戻ったときに永久にスキップされる
+    if (dropped !== undefined) prefetchedUrls.delete(dropped)
+  }
   prefetchQueue.push(url)
   pumpPrefetchQueue()
 }

@@ -305,8 +305,8 @@ impl ImageCache {
 
         // SSRF 防御は commands::http の validate_external_host に一元化
         // (IP literal に加えて localhost / .local / .internal 等の hostname も
-        // 弾く)。DNS 解決結果の検証 + pinning は vault::ssrf の per-fetch
-        // resolver が要るため未適用 — 共有 client の経路では別途検討
+        // 弾く)。DNS 解決結果の検証 (rebinding 対策) は共有 client に装着した
+        // vault::ssrf::ValidatingResolver が接続前に行う (#857)
         {
             let parsed = url::Url::parse(url).map_err(|e| format!("invalid url: {e}"))?;
             let host = parsed.host_str().ok_or("url has no host")?;

@@ -252,7 +252,10 @@ async function handleVote(choice: number, target: NormalizedNote) {
   if (!adapter) return
   const { votePoll } = await import('@/utils/votePoll')
   try {
-    await votePoll(adapter.api, target, choice)
+    // note は deep reactive (ref) なので、差分の代入で反映される
+    await votePoll(adapter.api, target, choice, (patch) => {
+      Object.assign(target, patch)
+    })
   } catch (e) {
     error.value = AppError.from(e)
   }
