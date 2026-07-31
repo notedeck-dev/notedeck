@@ -1,0 +1,40 @@
+# PR の変更ファイルからラベルを自動付与する (actions/labeler)
+# ラベル名はリポジトリの既存ラベルに合わせること (存在しないラベルは付与に失敗する)
+
+rust:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src-tauri/**'
+
+javascript:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**'
+          - 'tests/**'
+          - 'index.html'
+          - 'vite.config.ts'
+          - 'vitest.config.ts'
+          - 'vitest.e2e.config.ts'
+
+github_actions:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**'
+
+'📖Doc':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'site/**'
+
+'🛠️Dev':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - '.vscode/**'
+          - 'scripts/**'
+          - 'flake.nix'
+          - 'flake.lock'
+          - 'lefthook.yml'
+          - 'biome.json'
+          - 'rust-toolchain.toml'

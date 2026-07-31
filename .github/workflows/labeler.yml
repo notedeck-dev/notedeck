@@ -1,0 +1,20 @@
+# 変更ファイルのパスからラベルを自動付与する (.github/labeler.yml が対応表)
+# fork からの PR にもラベルを付けるため pull_request_target を使う。
+# コードの checkout は行わないので untrusted なコードが実行されることはない。
+name: Labeler
+
+on:
+  pull_request_target:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/labeler@v7
+        with:
+          # 手動で付けたラベルを剥がさない
+          sync-labels: false
