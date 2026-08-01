@@ -33,6 +33,12 @@ pnpm install       # パッケージインストール
 
 [direnv](https://direnv.net/) を使うと `cd` するだけで自動的に環境が有効になります（`.envrc` 同梱）。
 
+Android SDK / NDK は nix store を数 GB 占めるため、既定のシェルには入っていません。Android をビルドするときだけ専用シェルに入ってください:
+
+```bash
+nix develop .#android    # 上記に加えて JDK + Android SDK/NDK が揃う（内訳は flake.nix）
+```
+
 ### 手動セットアップ
 
 | ツール | インストール |
@@ -721,6 +727,39 @@ Vite 8 (Rolldown + OXC ベース) を使用。`vite.config.ts` で以下のカ�
 
 - **stripUnusedFonts** — 未使用フォント形式（woff, ttf）をビルドから除外
 - **subsetTablerIcons** — ソースコードから使用中のアイコンを検出し、CSS ルールとフォントをサブセット化
+
+#### Rust ビルド成果物の肥大
+
+`src-tauri/target` は放置すると際限なく膨らむ。cargo は古い成果物を自動 GC しないため、開発期間に比例して単調増加する。要因は 3 つ:
+
+- `[lib] crate-type` — モバイル対応のため同じコードを複数形態で出力する（`staticlib`/`cdylib` は依存ツリー全体を抱え込む）
+- 重量級の依存ツリー（tauri, axum, reqwest, image, specta, utoipa 等）にデバッグ情報が付き、上記の形態数と掛け算になる
+- `debug/incremental` はビルドのたびにセッションが積まれ、cargo が消さない
+
+2 つ目が支配的で、`src-tauri/Cargo.toml` の `[profile.dev]` でデバッグ情報を削っている（自分のコードは `line-tables-only`、依存クレートと build script / proc-macro は `false`）。デバッグ情報を full にしたフルビルドと比べると 5 倍以上の差が出る。依存クレート内部をデバッガでステップ実行したいときだけ一時的に外すこと。自分のコードのブレークポイントとバックトレースはこの設定のままで効く。
+
+1 つ目は `staticlib`（iOS 専用）を外して 2 形態に減らしてある。iOS プロジェクト（`src-tauri/gen/apple`）を生成するときに戻す。
+
+3 つ目は定期的な手動削除で対処する:
+
+```bash
+pnpm clean:incremental   # incremental のみ削除（再ビルドは差分から）
+pnpm clean               # dist と target を全消し（フルビルドになる）
+```
+
+#### 開発環境全体のディスク使用量
+
+`src-tauri/target` 以外にも、開発を続けると単調増加する置き場がある。容量が逼迫したらこの順で確認する:
+
+```bash
+du -sh /nix/store ~/.rustup ~/.cargo src-tauri/target node_modules
+```
+
+- **`/nix/store`** — flake の入力が更新されるたび旧世代が残る。`nix-collect-garbage -d` で、どの GC root からも参照されていない分が消える。**direnv 利用時は `.direnv/flake-profile-*` が旧 devShell を GC root として掴んだままなので、flake.nix を変えたら先に `direnv reload` すること**（これを忘れると GC しても何も減らない）。Android SDK/NDK は既定シェルから外してあるので、`nix develop .#android` に入らない限り GC 後に戻ってこない
+- **`~/.rustup`** — ツールチェーンは 1 つで数百 MB〜GB 規模。`rustup toolchain list` に `rust-toolchain.toml` が指す版以外が並んでいたら `rustup toolchain uninstall <name>`。`rust-docs` は単体で大きく、かつ `rust-toolchain.toml` の components に無いので、オフラインで `rustup doc` を引かないなら `rustup component remove rust-docs`。`rustup set profile minimal` にしておくと以後のインストールに docs が付いてこない
+- **`~/.cargo/registry`** — 依存のソースと `.crate` アーカイブ。消しても次のビルドで再取得されるだけなので、オフラインでないなら消してよい
+
+WSL2 では、以上を削除しても Windows 側の `.vhdx` は自動では縮まない（一度膨らんだサイズを保持する）。Windows のディスクを空けたい場合は PowerShell で `wsl --manage <distro> --set-sparse true` を実行する。
 
 ### Guest Mode & Logout Fallback
 
