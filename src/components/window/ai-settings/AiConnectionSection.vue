@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
 import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES, faviconUrl } from '@/data/connectionTemplates'
@@ -13,6 +13,9 @@ const windowsStore = useWindowsStore()
 onMounted(() => {
   void vault.refresh()
 })
+
+// favicon の取得に失敗した接続 id。tabler icon に fallback する。
+const failedIcons = ref(new Set<string>())
 
 // AI プロバイダーとして使える接続 = protocol が設定済みの接続。
 const aiConnections = computed(() =>
@@ -69,36 +72,38 @@ function openConnectionsWindow(): void {
       <i class="ti ti-info-circle" />
       API キーは Secret Vault (OS キーチェーン) に保管され、フロントエンドや AI には渡りません。接続の追加・編集は「接続」ウィンドウで行います。
     </div>
-    <div :class="$style.connList">
-      <label
+    <div v-if="aiConnections.length > 0" :class="$style.grid">
+      <button
         v-for="conn in aiConnections"
         :key="conn.id"
-        :class="[$style.connOption, { [$style.connOptionActive]: config.activeConnectionId === conn.id }]"
+        class="_button"
+        :class="[$style.card, { [$style.cardActive]: config.activeConnectionId === conn.id }]"
+        :aria-pressed="config.activeConnectionId === conn.id"
+        :title="conn.baseUrl"
+        @click="selectConnection(conn.id)"
       >
-        <input
-          type="radio"
-          :checked="config.activeConnectionId === conn.id"
-          @change="selectConnection(conn.id)"
-        />
-        <img
-          v-if="faviconUrl(conn.baseUrl)"
-          :src="faviconUrl(conn.baseUrl) ?? ''"
-          :class="$style.connOptionAvatar"
-          alt=""
-          aria-hidden="true"
-        />
-        <i v-else class="ti ti-plug" :class="$style.connOptionIcon" />
-        <div :class="$style.connOptionMain">
-          <div :class="$style.connOptionName">{{ conn.name }}</div>
-          <div :class="$style.connOptionDesc">{{ conn.baseUrl }}</div>
-        </div>
-      </label>
-      <div v-if="aiConnections.length === 0" :class="$style.connEmpty">
-        <i class="ti ti-info-circle" />
-        <span>
-          AI プロバイダー接続がありません。「接続」ウィンドウで OpenAI / Anthropic / OpenRouter のテンプレートから接続を追加してください。
+        <span
+          v-if="config.activeConnectionId === conn.id"
+          :class="$style.activeBadge"
+        >
+          <i class="ti ti-circle-check-filled" />
         </span>
-      </div>
+        <img
+          v-if="faviconUrl(conn.baseUrl) && !failedIcons.has(conn.id)"
+          :src="faviconUrl(conn.baseUrl)!"
+          :class="$style.logo"
+          alt=""
+          @error="failedIcons.add(conn.id)"
+        />
+        <i v-else class="ti ti-plug-connected" :class="$style.logoFallback" />
+        <span>{{ conn.name }}</span>
+      </button>
+    </div>
+    <div v-else :class="$style.connEmpty">
+      <i class="ti ti-info-circle" />
+      <span>
+        AI プロバイダー接続がありません。「接続」ウィンドウで OpenAI / Anthropic / OpenRouter のテンプレートから接続を追加してください。
+      </span>
     </div>
     <button
       class="_button"
@@ -157,82 +162,65 @@ function openConnectionsWindow(): void {
   }
 }
 
-// AiPersonaSection の personaOption と同型の radio 選択リスト
-.connList {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.connOption {
-  display: flex;
-  align-items: center;
+// 「接続」ウィンドウ (ConnectionsContent) のカードグリッドと同じ見た目に揃える
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  padding: 8px 10px;
-  border-radius: var(--nd-radius-sm);
-  cursor: pointer;
-  transition: background var(--nd-duration-base);
-
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-  }
-
-  input[type='radio'] {
-    flex-shrink: 0;
-    margin: 0;
-  }
 }
 
-.connOptionActive {
-  background: color-mix(in srgb, var(--nd-accent) 10%, transparent);
-
-  &:hover {
-    background: color-mix(in srgb, var(--nd-accent) 14%, transparent);
-  }
-}
-
-.connOptionIcon {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  color: var(--nd-fg);
-  opacity: 0.6;
-  flex-shrink: 0;
-}
-
-// 接続 favicon (ラスタ画像)。persona icon と違い SVG mask は使わずそのまま表示。
-.connOptionAvatar {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  border-radius: var(--nd-radius-sm);
-  object-fit: contain;
-}
-
-.connOptionMain {
-  flex: 1;
-  min-width: 0;
+// `_button` と特異度が同点だと WebView2 で display: inline-block に負けるため (0,2,0) に上げる
+.card.card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 8px;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-buttonBg);
+  color: var(--nd-fg);
+  font-size: 0.8em;
+  cursor: pointer;
+  text-align: center;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
 }
 
-.connOptionName {
-  font-size: 0.85em;
-  font-weight: 500;
-  color: var(--nd-fg);
+// 選択中の接続。ConnectionsContent には無い状態なのでアクセントで示す
+.cardActive.cardActive {
+  background: color-mix(in srgb, var(--nd-accent) 12%, var(--nd-buttonBg));
+  box-shadow: inset 0 0 0 1px var(--nd-accent);
 }
 
-.connOptionDesc {
-  font-size: 0.7em;
-  color: var(--nd-fg);
-  opacity: 0.6;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.activeBadge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  color: var(--nd-accent);
+
+  i {
+    font-size: 12px;
+  }
+}
+
+.logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.logoFallback {
+  font-size: 22px;
+  color: var(--nd-fgMuted);
 }
 
 .connEmpty {
