@@ -194,7 +194,10 @@ mod tests {
     #[test]
     fn youtube_plugin_matches() {
         let plugins = all();
-        let yt = plugins.iter().find(|p| p.test(&url("https://www.youtube.com/watch?v=abc"))).unwrap();
+        let yt = plugins
+            .iter()
+            .find(|p| p.test(&url("https://www.youtube.com/watch?v=abc")))
+            .unwrap();
         assert!(yt.test(&url("https://youtube.com/watch?v=abc")));
         assert!(yt.test(&url("https://youtu.be/abc")));
         assert!(yt.test(&url("https://m.youtube.com/watch?v=abc")));
@@ -203,14 +206,20 @@ mod tests {
     #[test]
     fn youtube_does_not_match_other() {
         let plugins = all();
-        let yt = plugins.iter().find(|p| p.test(&url("https://www.youtube.com/watch?v=abc"))).unwrap();
+        let yt = plugins
+            .iter()
+            .find(|p| p.test(&url("https://www.youtube.com/watch?v=abc")))
+            .unwrap();
         assert!(!yt.test(&url("https://example.com")));
     }
 
     #[test]
     fn twitter_plugin_matches() {
         let plugins = all();
-        let tw = plugins.iter().find(|p| p.test(&url("https://x.com/user/status/123"))).unwrap();
+        let tw = plugins
+            .iter()
+            .find(|p| p.test(&url("https://x.com/user/status/123")))
+            .unwrap();
         assert!(tw.test(&url("https://twitter.com/user/status/123")));
         assert!(tw.test(&url("https://x.com/user/status/123")));
         // fxtwitter/vxtwitter are third-party services, not handled by the Twitter plugin
@@ -219,23 +228,31 @@ mod tests {
     #[test]
     fn spotify_plugin_matches() {
         let plugins = all();
-        let sp = plugins.iter().find(|p| p.test(&url("https://open.spotify.com/track/abc")));
+        let sp = plugins
+            .iter()
+            .find(|p| p.test(&url("https://open.spotify.com/track/abc")));
         assert!(sp.is_some());
     }
 
     #[test]
     fn niconico_plugin_matches() {
         let plugins = all();
-        let nico = plugins.iter().find(|p| p.test(&url("https://www.nicovideo.jp/watch/sm123")));
+        let nico = plugins
+            .iter()
+            .find(|p| p.test(&url("https://www.nicovideo.jp/watch/sm123")));
         assert!(nico.is_some());
-        let nico2 = plugins.iter().find(|p| p.test(&url("https://nico.ms/sm123")));
+        let nico2 = plugins
+            .iter()
+            .find(|p| p.test(&url("https://nico.ms/sm123")));
         assert!(nico2.is_some());
     }
 
     #[test]
     fn no_plugin_matches_random_url() {
         let plugins = all();
-        assert!(!plugins.iter().any(|p| p.test(&url("https://example.com/page"))));
+        assert!(!plugins
+            .iter()
+            .any(|p| p.test(&url("https://example.com/page"))));
     }
 
     // --- flexible_u32 deserialization ---

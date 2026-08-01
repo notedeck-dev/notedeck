@@ -133,10 +133,7 @@ pub async fn chat_cache_stats(app_state: State<'_, AppState>) -> Result<ChatCach
 
 #[tauri::command]
 #[specta::specta]
-pub async fn chat_cache_count(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<i64> {
+pub async fn chat_cache_count(app_state: State<'_, AppState>, account_id: String) -> Result<i64> {
     let db = app_state.db().await;
     db.chat_cache_count(&account_id)
 }

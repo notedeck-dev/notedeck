@@ -70,17 +70,13 @@ impl Resolve for PinningResolver {
         Box::pin(async move {
             // キャッシュ済みならそれを使う (rebinding 防御の要)。
             if let Some(ips) = cache.lock().unwrap().get(&host).cloned() {
-                let addrs: Addrs =
-                    Box::new(ips.into_iter().map(|ip| SocketAddr::new(ip, 0)));
+                let addrs: Addrs = Box::new(ips.into_iter().map(|ip| SocketAddr::new(ip, 0)));
                 return Ok(addrs);
             }
 
             let resolved = resolve_and_validate(&host).await?;
 
-            cache
-                .lock()
-                .unwrap()
-                .insert(host.clone(), resolved.clone());
+            cache.lock().unwrap().insert(host.clone(), resolved.clone());
             let addrs: Addrs = Box::new(resolved.into_iter().map(|ip| SocketAddr::new(ip, 0)));
             Ok(addrs)
         })

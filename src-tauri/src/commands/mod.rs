@@ -14,8 +14,8 @@ mod export;
 mod federation;
 mod health;
 mod heartbeat;
-mod lists;
 mod http;
+mod lists;
 mod messaging;
 mod settings;
 mod streaming;
@@ -42,8 +42,8 @@ pub use export::*;
 pub use federation::*;
 pub use health::*;
 pub use heartbeat::*;
-pub use lists::*;
 pub use http::*;
+pub use lists::*;
 pub use messaging::*;
 pub use settings::*;
 pub use streaming::*;
@@ -90,7 +90,12 @@ impl AppState {
     pub fn new() -> Self {
         let (tx, rx) = tokio::sync::watch::channel(None);
         let (db_tx, db_rx) = tokio::sync::watch::channel(None);
-        Self { rx, tx, db_rx, db_tx }
+        Self {
+            rx,
+            tx,
+            db_rx,
+            db_tx,
+        }
     }
 
     /// Called as soon as DB is ready (after migrations, before client).
@@ -105,7 +110,11 @@ impl AppState {
         let _ = self.db_tx.send(Some(Arc::clone(&db)));
         let server_info =
             notecli::server_info::ServerInfoService::new(Arc::clone(&db), Arc::clone(&client));
-        let _ = self.tx.send(Some(Arc::new(AppStateInner { db, client, server_info })));
+        let _ = self.tx.send(Some(Arc::new(AppStateInner {
+            db,
+            client,
+            server_info,
+        })));
     }
 
     /// Non-blocking check of full readiness (DB + MisskeyClient). Used by the
@@ -137,10 +146,7 @@ impl AppState {
 
     /// `ready()` + `get_credentials` の定型を 1 行に畳む (#782 R2)。
     /// db を後続で使わないコマンド用 — 使う場合は従来どおり `ready()` を使う。
-    pub async fn authed(
-        &self,
-        account_id: &str,
-    ) -> Result<(Arc<MisskeyClient>, String, String)> {
+    pub async fn authed(&self, account_id: &str) -> Result<(Arc<MisskeyClient>, String, String)> {
         let (db, client) = self.ready().await;
         let (host, token) = get_credentials(&db, account_id)?;
         Ok((client, host, token))
@@ -382,10 +388,7 @@ fn get_host(db: &Database, account_id: &str) -> Result<String> {
 /// Get credentials with anonymous fallback.
 /// Returns (host, token) where token is empty if not authenticated.
 /// Public Misskey endpoints work with empty token (skipped by notecli).
-pub(crate) fn get_credentials_or_anon(
-    db: &Database,
-    account_id: &str,
-) -> Result<(String, String)> {
+pub(crate) fn get_credentials_or_anon(db: &Database, account_id: &str) -> Result<(String, String)> {
     match get_credentials(db, account_id) {
         Ok(creds) => Ok(creds),
         Err(_) => Ok((get_host(db, account_id)?, String::new())),
@@ -588,10 +591,7 @@ mod tests {
         // 他テストと衝突しない値を使う (env はプロセス全体で共有されるため)
         // SAFETY: テスト専用。並行テストは別の値を検証しており影響しない。
         unsafe { std::env::set_var("NOTEDECK_E2E_ALLOW_HOSTS", "127.0.0.1:39821") };
-        assert_eq!(
-            validate_host("127.0.0.1:39821").unwrap(),
-            "127.0.0.1:39821"
-        );
+        assert_eq!(validate_host("127.0.0.1:39821").unwrap(), "127.0.0.1:39821");
         // 列挙外の loopback は引き続き拒否
         assert!(validate_host("127.0.0.1:39999").is_err());
         unsafe { std::env::remove_var("NOTEDECK_E2E_ALLOW_HOSTS") };

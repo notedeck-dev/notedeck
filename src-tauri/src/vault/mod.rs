@@ -23,6 +23,4 @@ pub mod ssrf;
 pub use backend::SecretBackend;
 pub use error::{VaultError, VaultResult};
 pub use keychain_backend::KeychainBackend;
-pub use model::{
-    AuthType, Connection, ConnectionKind, ConnectionOrigin, ConnectionProtocol,
-};
+pub use model::{AuthType, Connection, ConnectionKind, ConnectionOrigin, ConnectionProtocol};

@@ -5,7 +5,7 @@ use notecli::models::{
     ServerUsersChart, UserFollowingChart, UserNotesChart, UserPvChart,
 };
 
-use super::{AppState, Result, typed_request};
+use super::{typed_request, AppState, Result};
 
 // チャート系エンドポイントは public (未ログインでも閲覧可)。
 

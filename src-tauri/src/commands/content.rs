@@ -5,7 +5,9 @@ use tauri::State;
 use notecli::error::NoteDeckError;
 use notecli::models::{GalleryPost, Page, ServerEmoji};
 
-use super::{AppState, get_credentials, get_credentials_or_anon, Result, typed_request, validate_host};
+use super::{
+    get_credentials, get_credentials_or_anon, typed_request, validate_host, AppState, Result,
+};
 
 // --- Server metadata ---
 

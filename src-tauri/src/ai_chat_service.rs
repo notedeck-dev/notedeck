@@ -147,10 +147,16 @@ struct AttemptError {
 
 impl AttemptError {
     fn terminal(message: String) -> Self {
-        Self { message, retryable: false }
+        Self {
+            message,
+            retryable: false,
+        }
     }
     fn retryable(message: String) -> Self {
-        Self { message, retryable: true }
+        Self {
+            message,
+            retryable: true,
+        }
     }
 }
 
@@ -207,8 +213,7 @@ fn streaming_client() -> &'static reqwest::Client {
 fn describe_stream_error(e: &reqwest::Error) -> String {
     use std::fmt::Write as _;
     let mut details = format!("stream error: {e}");
-    let mut source: Option<&(dyn std::error::Error + 'static)> =
-        std::error::Error::source(e);
+    let mut source: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(e);
     while let Some(s) = source {
         let _ = write!(details, " ⇐ {s}");
         source = s.source();
@@ -246,14 +251,10 @@ pub async fn start_stream(
         .connections
         .iter()
         .find(|c| c.id == req.connection_id)
-        .ok_or_else(|| {
-            NoteDeckError::InvalidInput("AI 接続が見つかりません".into())
-        })?
+        .ok_or_else(|| NoteDeckError::InvalidInput("AI 接続が見つかりません".into()))?
         .clone();
     let protocol = connection.protocol.ok_or_else(|| {
-        NoteDeckError::InvalidInput(
-            "選択された接続は AI プロバイダーではありません".into(),
-        )
+        NoteDeckError::InvalidInput("選択された接続は AI プロバイダーではありません".into())
     })?;
     let endpoint = connection.base_url.clone();
     let api_key = {
@@ -427,10 +428,8 @@ fn openai_message(m: &AiChatMessage) -> serde_json::Value {
     use serde_json::json;
 
     if let Some(tool_use_id) = m.tool_use_id.as_deref() {
-        let arguments = serde_json::to_string(
-            m.tool_use_input.as_ref().unwrap_or(&json!({})),
-        )
-        .unwrap_or_else(|_| "{}".to_string());
+        let arguments = serde_json::to_string(m.tool_use_input.as_ref().unwrap_or(&json!({})))
+            .unwrap_or_else(|_| "{}".to_string());
         let content_value = if m.content.is_empty() {
             serde_json::Value::Null
         } else {
@@ -554,17 +553,10 @@ async fn run_anthropic_attempt(
     // fresh な builder で始まる) ので、incomplete な tool_use_id が確定することはない。
     let mut tool_builder: Option<AnthropicToolUseBuilder> = None;
     while let Some(chunk) = stream.next().await {
-        let bytes =
-            chunk.map_err(|e| AttemptError::retryable(describe_stream_error(&e)))?;
+        let bytes = chunk.map_err(|e| AttemptError::retryable(describe_stream_error(&e)))?;
         buf.push_str(&String::from_utf8_lossy(&bytes));
         for block in parse_sse_blocks(&mut buf) {
-            handle_anthropic_block(
-                &block,
-                app,
-                &req.stream_id,
-                &mut tool_builder,
-                has_emitted,
-            );
+            handle_anthropic_block(&block, app, &req.stream_id, &mut tool_builder, has_emitted);
         }
     }
     Ok(())
@@ -652,10 +644,7 @@ fn handle_anthropic_block(
             }
         }
         "error" => {
-            if let Some(msg) = value
-                .pointer("/error/message")
-                .and_then(|v| v.as_str())
-            {
+            if let Some(msg) = value.pointer("/error/message").and_then(|v| v.as_str()) {
                 // SSE error イベントも UI に届く = このターンは透過リトライ不可
                 *has_emitted = true;
                 emit_error(app, stream_id, format!("Anthropic: {msg}"));
@@ -683,9 +672,7 @@ async fn run_openai_compat(
     let mut has_emitted = false;
     let mut attempt: u32 = 0;
     loop {
-        match run_openai_compat_attempt(req, endpoint, api_key, app, &mut has_emitted)
-            .await
-        {
+        match run_openai_compat_attempt(req, endpoint, api_key, app, &mut has_emitted).await {
             Ok(()) => return Ok(()),
             Err(e) => {
                 if has_emitted || !e.retryable || attempt >= MAX_TRANSPARENT_RETRIES {
@@ -759,8 +746,7 @@ async fn run_openai_compat_attempt(
     // Vec のままにしておくと将来複数対応への拡張が容易。
     let mut tool_builders: Vec<OpenAiToolCallBuilder> = Vec::new();
     'outer: while let Some(chunk) = stream.next().await {
-        let bytes =
-            chunk.map_err(|e| AttemptError::retryable(describe_stream_error(&e)))?;
+        let bytes = chunk.map_err(|e| AttemptError::retryable(describe_stream_error(&e)))?;
         buf.push_str(&String::from_utf8_lossy(&bytes));
         for block in parse_sse_blocks(&mut buf) {
             for line in block.lines() {
@@ -839,18 +825,12 @@ fn accumulate_openai_tool_calls(
                 b.id = id.to_string();
             }
         }
-        if let Some(name) = tc
-            .pointer("/function/name")
-            .and_then(|v| v.as_str())
-        {
+        if let Some(name) = tc.pointer("/function/name").and_then(|v| v.as_str()) {
             if !name.is_empty() {
                 b.name = name.to_string();
             }
         }
-        if let Some(args) = tc
-            .pointer("/function/arguments")
-            .and_then(|v| v.as_str())
-        {
+        if let Some(args) = tc.pointer("/function/arguments").and_then(|v| v.as_str()) {
             b.args_json_buf.push_str(args);
         }
     }

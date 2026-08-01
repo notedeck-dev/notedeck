@@ -556,8 +556,7 @@ async fn get_health(
     // 永続トークン由来 (external principal) で deck.read が無い場合、streams
     // 詳細 (接続先 host 等のローカルデータ) は応答から間引く (#712 §5.3)。
     // self-diagnosis の summary 部 (backendReady / frontendReady 等) は返す
-    let may_read_streams = external.is_none()
-        || crate::permissions_gate::external_may_read_deck();
+    let may_read_streams = external.is_none() || crate::permissions_gate::external_may_read_deck();
 
     if let Value::Object(map) = &mut body {
         match query_bridge::query_frontend(app, "health/streams", json!({})).await {
@@ -565,7 +564,11 @@ async fn get_health(
                 map.insert("frontendReady".into(), Value::Bool(true));
                 map.insert(
                     "streams".into(),
-                    if may_read_streams { streams } else { Value::Null },
+                    if may_read_streams {
+                        streams
+                    } else {
+                        Value::Null
+                    },
                 );
             }
             Err(e) => {
