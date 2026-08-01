@@ -1605,7 +1605,7 @@ function onKeydown(e: KeyboardEvent) {
 
 .toolEventName {
   flex-shrink: 0;
-  font-family: var(--nd-monoFont, 'Fira Code', monospace);
+  font-family: var(--nd-font-mono);
   font-size: 0.92em;
   padding: 1px 6px;
   border-radius: var(--nd-radius-sm);
@@ -1620,7 +1620,7 @@ function onKeydown(e: KeyboardEvent) {
   overflow: hidden;
   text-overflow: ellipsis;
   opacity: 0.6;
-  font-family: var(--nd-monoFont, 'Fira Code', monospace);
+  font-family: var(--nd-font-mono);
   font-size: 0.92em;
 }
 
@@ -1642,7 +1642,7 @@ function onKeydown(e: KeyboardEvent) {
   padding: 8px;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
-  font-family: var(--nd-monoFont, 'Fira Code', monospace);
+  font-family: var(--nd-font-mono);
   font-size: 0.9em;
   line-height: 1.45;
   white-space: pre-wrap;
@@ -1686,7 +1686,7 @@ function onKeydown(e: KeyboardEvent) {
     font-size: 0.85em;
   }
   :global(pre code) {
-    font-family: var(--nd-font-mono, monospace);
+    font-family: var(--nd-font-mono);
   }
   :global(pre button[data-md-copy]) {
     position: absolute;
@@ -1710,7 +1710,7 @@ function onKeydown(e: KeyboardEvent) {
     background: var(--nd-buttonHoverBg);
   }
   :global(code) {
-    font-family: var(--nd-font-mono, monospace);
+    font-family: var(--nd-font-mono);
     background: var(--nd-base);
     padding: 1px 4px;
     border-radius: 3px;

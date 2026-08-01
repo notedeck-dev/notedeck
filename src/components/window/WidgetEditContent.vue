@@ -607,7 +607,7 @@ function toggleAutoRun() {
 }
 
 .outputLine {
-  font-family: var(--nd-font-mono, monospace);
+  font-family: var(--nd-font-mono);
   white-space: pre-wrap;
   padding: 2px 4px;
 }

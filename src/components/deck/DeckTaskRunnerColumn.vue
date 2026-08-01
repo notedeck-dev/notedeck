@@ -609,7 +609,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 .defaultBarShortcut {
   flex-shrink: 0;
   font-size: 0.7em;
-  font-family: var(--nd-font-mono, monospace);
+  font-family: var(--nd-font-mono);
   padding: 1px 6px;
   border-radius: 4px;
   background: var(--nd-bg);
@@ -916,7 +916,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 }
 
 .method {
-  font-family: var(--nd-font-mono, monospace);
+  font-family: var(--nd-font-mono);
   font-size: 0.95em;
 }
 

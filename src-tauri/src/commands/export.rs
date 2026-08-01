@@ -36,8 +36,7 @@ const MAX_SEGMENTS: usize = 4;
 const INDEX_FILE: &str = ".notedeck-export.json";
 
 /// キャンセル要求済みの taskId。タスク終了時に掃除する
-static CANCELLED: LazyLock<Mutex<HashSet<String>>> =
-    LazyLock::new(|| Mutex::new(HashSet::new()));
+static CANCELLED: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -319,8 +318,8 @@ fn sanitize_component(name: &str) -> String {
     }
     // Windows の予約デバイス名は拡張子付き ("CON.txt") でも無効なので退避する
     const RESERVED: [&str; 22] = [
-        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
-        "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+        "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
     ];
     let stem = trimmed.split('.').next().unwrap_or("");
     if RESERVED.iter().any(|r| stem.eq_ignore_ascii_case(r)) {
@@ -415,7 +414,10 @@ mod tests {
         assert_eq!(resolve_collision(dir, "a.jpg", &HashSet::new()), "a.jpg");
 
         std::fs::write(dir.join("a.jpg"), b"x").unwrap();
-        assert_eq!(resolve_collision(dir, "a.jpg", &HashSet::new()), "a (1).jpg");
+        assert_eq!(
+            resolve_collision(dir, "a.jpg", &HashSet::new()),
+            "a (1).jpg"
+        );
 
         let mut claimed = HashSet::new();
         claimed.insert("a (1).jpg".to_string());

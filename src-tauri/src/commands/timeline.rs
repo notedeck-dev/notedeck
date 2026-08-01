@@ -11,8 +11,7 @@ use notecli::models::{
 };
 
 use super::{
-    extract_ogp_urls, get_credentials, get_credentials_or_anon, AppState, Result,
-    MAX_UPLOAD_BYTES,
+    extract_ogp_urls, get_credentials, get_credentials_or_anon, AppState, Result, MAX_UPLOAD_BYTES,
 };
 
 /// Maximum number of concurrent OGP prefetch requests per timeline load
@@ -96,9 +95,11 @@ fn spawn_ogp_prefetch(
                 }
             })
             .buffer_unordered(MAX_OGP_CONCURRENT)
-            .filter_map(|(url, data): (String, Option<crate::ogp::OgpData>)| async move {
-                data.map(|d| (url, d))
-            })
+            .filter_map(
+                |(url, data): (String, Option<crate::ogp::OgpData>)| async move {
+                    data.map(|d| (url, d))
+                },
+            )
             .collect()
             .await;
 
@@ -882,10 +883,7 @@ pub async fn api_search_notes_local(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn api_delete_cached_note(
-    app_state: State<'_, AppState>,
-    note_id: String,
-) -> Result<()> {
+pub async fn api_delete_cached_note(app_state: State<'_, AppState>, note_id: String) -> Result<()> {
     let db = app_state.db().await;
     db.delete_cached_note(&note_id)
 }
@@ -904,9 +902,7 @@ pub async fn api_verify_notes(
     note_ids: Vec<String>,
 ) -> Result<HashMap<String, NormalizedNote>> {
     if note_ids.len() > 200 {
-        return Err(NoteDeckError::InvalidInput(
-            "Too many note IDs".to_string(),
-        ));
+        return Err(NoteDeckError::InvalidInput("Too many note IDs".to_string()));
     }
     let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
 
@@ -923,9 +919,7 @@ pub async fn api_verify_notes(
         })
         .buffer_unordered(MAX_VERIFY_CONCURRENT)
         .filter_map(
-            |(id, note): (String, Option<NormalizedNote>)| async move {
-                note.map(|n| (id, n))
-            },
+            |(id, note): (String, Option<NormalizedNote>)| async move { note.map(|n| (id, n)) },
         )
         .collect()
         .await;

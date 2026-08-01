@@ -328,7 +328,7 @@ function fnStyle(
       break
     case 'font':
       if (args.serif) s.fontFamily = 'serif'
-      else if (args.monospace) s.fontFamily = 'monospace'
+      else if (args.monospace) s.fontFamily = 'var(--nd-font-mono)'
       else if (args.cursive) s.fontFamily = 'cursive'
       else if (args.fantasy) s.fontFamily = 'fantasy'
       break
@@ -511,7 +511,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 }
 
 .mfmCode {
-  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.9em;
   padding: 2px 6px;
   border-radius: 4px;
@@ -525,7 +525,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   overflow: hidden;
 
   :deep(pre) {
-    font-family: 'Fira Code', 'Cascadia Code', monospace;
+    font-family: var(--nd-font-mono);
     font-size: 0.85em;
     padding: 12px 16px;
     border-radius: var(--nd-radius-md);

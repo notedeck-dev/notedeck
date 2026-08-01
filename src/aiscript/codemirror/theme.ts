@@ -9,7 +9,7 @@ const editorTheme = EditorView.theme(
       backgroundColor: '#1e1e1e',
       color: '#d4d4d4',
       fontSize: '0.8em',
-      fontFamily: "'Fira Code', 'Cascadia Code', 'Consolas', monospace",
+      fontFamily: 'var(--nd-font-mono)',
     },
     '.cm-content': {
       caretColor: '#aeafad',

@@ -1,8 +1,8 @@
 #[cfg(not(mobile))]
+use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(not(mobile))]
 use std::sync::Arc;
 use tauri::Manager;
-#[cfg(not(mobile))]
-use std::sync::atomic::{AtomicBool, Ordering};
 #[cfg(not(mobile))]
 use tauri::{
     menu::{Menu, MenuItem},
@@ -20,12 +20,12 @@ mod api_tokens;
 mod app_dir;
 mod auth_service;
 mod commands;
-#[cfg(target_os = "windows")]
-mod hwheel_hook;
+mod crash_report;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
 /// [`http_server::build_openapi`].
 pub mod http_server;
-mod crash_report;
+#[cfg(target_os = "windows")]
+mod hwheel_hook;
 mod image_cache;
 mod media_proxy;
 mod migrations;
@@ -36,8 +36,8 @@ mod perf_config;
 mod permissions_gate;
 mod query_bridge;
 mod query_runtime;
-mod settings_store;
 mod rate_limit;
+mod settings_store;
 mod streaming;
 mod vault;
 mod win_chrome;
@@ -58,8 +58,11 @@ pub fn run() {
 fn init_logging(app: &tauri::App) {
     use tracing_subscriber::prelude::*;
 
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| "notedeck=info,notecli=info,warn".parse().expect("default tracing filter must parse"));
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        "notedeck=info,notecli=info,warn"
+            .parse()
+            .expect("default tracing filter must parse")
+    });
 
     // File layer is optional: skipped if the log dir can't be created.
     let file_layer = app
@@ -73,7 +76,9 @@ fn init_logging(app: &tauri::App) {
             // Keep the writer thread alive for the whole process (flushes on drop),
             // mirroring how the tokio runtime handle is leaked above.
             Box::leak(Box::new(guard));
-            tracing_subscriber::fmt::layer().with_ansi(false).with_writer(non_blocking)
+            tracing_subscriber::fmt::layer()
+                .with_ansi(false)
+                .with_writer(non_blocking)
         });
 
     tracing_subscriber::registry()
@@ -169,15 +174,13 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
     // 直接叩けない。custom protocol は WebView 自身が intercept するのでその
     // 制限を受けず、リサイズ・ディスクキャッシュ・サーキットブレーカーを全
     // プラットフォームで同じ経路に乗せられる。
-    builder = builder.register_asynchronous_uri_scheme_protocol(
-        "ndmedia",
-        |ctx, request, responder| {
+    builder =
+        builder.register_asynchronous_uri_scheme_protocol("ndmedia", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             tauri::async_runtime::spawn(async move {
                 responder.respond(media_proxy::handle_uri_request(&app, request).await);
             });
-        },
-    );
+        });
 
     // セーフモード (#794) — `notedeck --safe-mode` で起動したとき、ページ評価前に
     // フラグを注入する。index.html の boot script がこれを localStorage へ畳み込み、

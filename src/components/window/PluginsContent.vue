@@ -761,7 +761,7 @@ async function importPlugin() {
 
 .logsList {
   background: var(--nd-codeEditorBg, #1e1e1e);
-  font-family: monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.8em;
   min-height: 100%;
 }

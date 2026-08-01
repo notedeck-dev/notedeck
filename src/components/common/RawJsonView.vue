@@ -103,7 +103,7 @@ const lang = jsonLang()
   min-width: 0;
 
   :deep(code) {
-    font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    font-family: var(--nd-font-mono);
     background: rgba(127, 127, 127, 0.15);
     padding: 1px 5px;
     border-radius: 3px;

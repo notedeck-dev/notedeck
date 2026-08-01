@@ -568,7 +568,7 @@ async function onDeleteAll() {
 }
 
 .metaRef {
-  font-family: var(--nd-font-mono, monospace);
+  font-family: var(--nd-font-mono);
   opacity: 0.7;
 }
 

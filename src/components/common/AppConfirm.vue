@@ -346,14 +346,7 @@ useNativeDialog(dialogRef, visible, {
   }
 
   :global(code) {
-    font-family: var(
-      --nd-mono,
-      ui-monospace,
-      "SF Mono",
-      Menlo,
-      Consolas,
-      monospace
-    );
+    font-family: var(--nd-font-mono);
     white-space: pre;
     word-break: normal;
   }

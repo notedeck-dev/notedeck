@@ -61,9 +61,7 @@ pub struct HttpFetchResponse {
 /// 検証 → reqwest 構築 → 送信 → response 整形 の単線。
 #[tauri::command]
 #[specta::specta]
-pub async fn http_fetch(
-    request: HttpFetchRequest,
-) -> Result<HttpFetchResponse, String> {
+pub async fn http_fetch(request: HttpFetchRequest) -> Result<HttpFetchResponse, String> {
     validate_external_url(&request.url)?;
 
     let method = parse_method(request.method.as_deref())?;
@@ -109,7 +107,10 @@ pub async fn http_fetch(
         req = req.body(body);
     }
 
-    let response = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    let response = req
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
     let status = response.status().as_u16();
     let mut headers = HashMap::new();
     for (name, value) in response.headers() {
@@ -153,11 +154,12 @@ fn parse_method(method: Option<&str>) -> Result<reqwest::Method, String> {
 /// hostname なら reserved TLD を弾く (= 一次防御)。DNS 解決後の IP 検証は
 /// http_fetch が注入する PinningResolver が担う (二次防御・rebinding 対策)。
 pub fn validate_external_url(url_str: &str) -> Result<(), String> {
-    let url =
-        reqwest::Url::parse(url_str).map_err(|e| format!("invalid URL: {e}"))?;
+    let url = reqwest::Url::parse(url_str).map_err(|e| format!("invalid URL: {e}"))?;
     let scheme = url.scheme();
     if scheme != "http" && scheme != "https" {
-        return Err(format!("only http / https schemes are allowed (got {scheme})"));
+        return Err(format!(
+            "only http / https schemes are allowed (got {scheme})"
+        ));
     }
     let host = url
         .host_str()

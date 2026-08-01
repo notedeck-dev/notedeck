@@ -39,8 +39,7 @@ pub struct ExternalTokenMarker;
 /// フロント側 `EXTERNAL_READ_FLOOR` と同じ意味論的選択 — 「トークンを発行して
 /// 渡す行為そのものが Misskey コンテンツ read への同意」。sync 前でもこの
 /// キーにマップされる GET は許可する。
-const EXTERNAL_READ_FLOOR: [&str; 4] =
-    ["notes.read", "account.read", "drive.read", "clips.read"];
+const EXTERNAL_READ_FLOOR: [&str; 4] = ["notes.read", "account.read", "drive.read", "clips.read"];
 
 /// フロントから同期された external の実効 granted map。
 /// None = 初回 sync 前 (deny-by-default で動く)。
@@ -116,7 +115,9 @@ pub fn route_rule(method: &Method, path: &str) -> RouteRule {
 
     // --- 公開 meta / proxy (認証自体が無いルート) ---
     match (method, path) {
-        (&Method::GET, "/api") | (&Method::GET, "/api/docs") | (&Method::GET, "/api/openapi.json") => {
+        (&Method::GET, "/api")
+        | (&Method::GET, "/api/docs")
+        | (&Method::GET, "/api/openapi.json") => {
             return RouteRule::Exempt;
         }
         _ => {}
@@ -181,9 +182,7 @@ pub fn route_rule(method: &Method, path: &str) -> RouteRule {
                 RouteRule::Keys(&["notes.read"])
             }
             (&Method::POST, ["notes", _, "reactions"])
-            | (&Method::DELETE, ["notes", _, "reactions"]) => {
-                RouteRule::Keys(&["notes.react"])
-            }
+            | (&Method::DELETE, ["notes", _, "reactions"]) => RouteRule::Keys(&["notes.react"]),
             (&Method::GET, ["users", _]) => RouteRule::Keys(&["account.read"]),
             (&Method::GET, ["users", _, "notes"]) => RouteRule::Keys(&["notes.read"]),
             _ => RouteRule::Deny,
@@ -219,11 +218,7 @@ pub async fn external_gate_middleware(req: Request, next: Next) -> Response {
     match route_rule(req.method(), req.uri().path()) {
         RouteRule::Exempt => next.run(req).await,
         RouteRule::Keys(keys) => {
-            let denied: Vec<&str> = keys
-                .iter()
-                .filter(|k| !is_granted(k))
-                .copied()
-                .collect();
+            let denied: Vec<&str> = keys.iter().filter(|k| !is_granted(k)).copied().collect();
             if denied.is_empty() {
                 next.run(req).await
             } else {
@@ -256,10 +251,8 @@ mod tests {
     }
 
     fn sync(pairs: &[(&str, bool)]) {
-        let map: HashMap<String, bool> = pairs
-            .iter()
-            .map(|(k, v)| ((*k).to_string(), *v))
-            .collect();
+        let map: HashMap<String, bool> =
+            pairs.iter().map(|(k, v)| ((*k).to_string(), *v)).collect();
         *EXTERNAL_GRANTED.write().unwrap() = Some(map);
     }
 

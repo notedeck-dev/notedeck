@@ -17,8 +17,10 @@ const props = withDefaults(
     options: PresetDropdownOption[]
     /** ラベルと選択肢をその value のフォントで描画する (フォントプリセット用) */
     fontPreview?: boolean
+    /** fontPreview 時のフォールバック総称ファミリ (等幅なら monospace) */
+    fontFallback?: string
   }>(),
-  { fontPreview: false },
+  { fontPreview: false, fontFallback: 'sans-serif' },
 )
 
 const model = defineModel<string>({ required: true })
@@ -33,7 +35,7 @@ const selectedLabel = computed(
 
 function fontStyle(value: string) {
   if (!props.fontPreview || !value) return undefined
-  return { fontFamily: `'${value}', sans-serif` }
+  return { fontFamily: `'${value}', ${props.fontFallback}` }
 }
 
 function select(value: string) {

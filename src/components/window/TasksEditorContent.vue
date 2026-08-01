@@ -938,7 +938,7 @@ function handleReset() {
 }
 
 .method {
-  font-family: var(--nd-font-mono, monospace);
+  font-family: var(--nd-font-mono);
 }
 
 .inputsBadge {
@@ -1038,7 +1038,7 @@ function handleReset() {
 }
 
 .mono {
-  font-family: var(--nd-font-mono, monospace);
+  font-family: var(--nd-font-mono);
 }
 
 .fieldset {
@@ -1189,7 +1189,7 @@ function handleReset() {
   opacity: 0.5;
 
   code {
-    font-family: var(--nd-font-mono, monospace);
+    font-family: var(--nd-font-mono);
     background: var(--nd-buttonBg);
     padding: 1px 4px;
     margin: 0 2px;

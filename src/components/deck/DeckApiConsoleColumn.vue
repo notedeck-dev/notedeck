@@ -213,7 +213,7 @@ function onKeydown(e: KeyboardEvent) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.85em;
   outline: none;
   transition: border-color var(--nd-duration-base);
@@ -241,7 +241,7 @@ function onKeydown(e: KeyboardEvent) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.8em;
   line-height: 1.5;
   resize: vertical;
@@ -271,7 +271,7 @@ function onKeydown(e: KeyboardEvent) {
 
 .responseBody pre {
   margin: 0;
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.75em;
   line-height: 1.5;
   white-space: pre-wrap;

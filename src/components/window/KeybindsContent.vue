@@ -605,7 +605,7 @@ function handleReset() {
   border: 1px solid var(--nd-divider);
   border-radius: 4px;
   font-size: 0.75em;
-  font-family: monospace;
+  font-family: var(--nd-font-mono);
   color: var(--nd-fg);
   cursor: pointer;
   transition: border-color var(--nd-duration-base), background var(--nd-duration-base);

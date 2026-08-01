@@ -603,7 +603,7 @@ function onDetailWheel(e: WheelEvent) {
   gap: 8px;
   padding: 3px 8px;
   font-size: 0.72em;
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--nd-font-mono);
   cursor: pointer;
   border-bottom: 1px solid transparent;
   white-space: nowrap;

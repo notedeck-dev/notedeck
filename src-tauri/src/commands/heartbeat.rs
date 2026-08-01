@@ -152,9 +152,7 @@ pub async fn heartbeat_configure(
 /// global heartbeat を停止する。未登録なら no-op。
 #[tauri::command]
 #[specta::specta]
-pub async fn heartbeat_unconfigure(
-    scheduler: State<'_, Arc<HeartbeatScheduler>>,
-) -> Result<()> {
+pub async fn heartbeat_unconfigure(scheduler: State<'_, Arc<HeartbeatScheduler>>) -> Result<()> {
     scheduler.unregister();
     Ok(())
 }

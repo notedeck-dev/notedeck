@@ -488,7 +488,7 @@ onMounted(() => {
   padding: 6px 10px;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
-  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-family: var(--nd-font-mono);
   font-size: 0.8em;
   line-height: 1.6;
   max-height: 200px;

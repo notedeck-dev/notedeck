@@ -850,7 +850,7 @@ function primaryShortcut(cmd: Command): string | null {
 
 .cliHint {
   opacity: 0.5;
-  font-family: monospace;
+  font-family: var(--nd-font-mono);
 }
 
 .cliAction strong {

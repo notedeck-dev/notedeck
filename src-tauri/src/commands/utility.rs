@@ -188,11 +188,7 @@ pub async fn save_image_to_file(app: tauri::AppHandle, url: String) -> Result<bo
         .unwrap_or("image")
         .to_string();
 
-    let ext = file_name
-        .rsplit('.')
-        .next()
-        .unwrap_or("png")
-        .to_lowercase();
+    let ext = file_name.rsplit('.').next().unwrap_or("png").to_lowercase();
 
     let filter_label = match ext.as_str() {
         "jpg" | "jpeg" => "JPEG Image",

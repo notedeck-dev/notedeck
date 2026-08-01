@@ -45,7 +45,10 @@ impl RateLimiter {
         let window = windows.entry(host.to_string()).or_default();
 
         // Evict expired entries
-        while window.front().is_some_and(|&t| now.duration_since(t) > WINDOW_DURATION) {
+        while window
+            .front()
+            .is_some_and(|&t| now.duration_since(t) > WINDOW_DURATION)
+        {
             window.pop_front();
         }
 
@@ -61,7 +64,10 @@ impl RateLimiter {
     pub async fn cleanup(&self) {
         let now = Instant::now();
         let mut windows = self.windows.write().await;
-        windows.retain(|_, w| w.back().is_some_and(|&t| now.duration_since(t) <= WINDOW_DURATION));
+        windows.retain(|_, w| {
+            w.back()
+                .is_some_and(|&t| now.duration_since(t) <= WINDOW_DURATION)
+        });
     }
 }
 
@@ -132,7 +138,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_rate_limiter_allows_within_limit() {
-        let limiter = RateLimiter::new(std::sync::Arc::new(tokio::sync::RwLock::new(crate::perf_config::PerformanceConfig::default())));
+        let limiter = RateLimiter::new(std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::perf_config::PerformanceConfig::default(),
+        )));
         for _ in 0..DEFAULT_MAX_REQUESTS_PER_WINDOW {
             assert!(limiter.check("test.host").await);
         }
@@ -142,7 +150,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_rate_limiter_independent_hosts() {
-        let limiter = RateLimiter::new(std::sync::Arc::new(tokio::sync::RwLock::new(crate::perf_config::PerformanceConfig::default())));
+        let limiter = RateLimiter::new(std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::perf_config::PerformanceConfig::default(),
+        )));
         for _ in 0..DEFAULT_MAX_REQUESTS_PER_WINDOW {
             limiter.check("host-a.example").await;
         }
@@ -152,7 +162,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_removes_stale_entries() {
-        let limiter = RateLimiter::new(std::sync::Arc::new(tokio::sync::RwLock::new(crate::perf_config::PerformanceConfig::default())));
+        let limiter = RateLimiter::new(std::sync::Arc::new(tokio::sync::RwLock::new(
+            crate::perf_config::PerformanceConfig::default(),
+        )));
         limiter.check("stale.host").await;
 
         // Manually inject an old timestamp

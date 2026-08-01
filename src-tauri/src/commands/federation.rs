@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::State;
 
-use super::{AppState, Result, typed_request};
+use super::{typed_request, AppState, Result};
 
 /// Misskey `federation/instances` / `federation/show-instance` の 1 件分。
 /// 本家 schema (packages/backend/src/models/Instance.ts) に準拠。

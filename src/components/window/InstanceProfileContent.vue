@@ -540,7 +540,7 @@ const statusBadges = computed(() => {
 
 .bannerUsername {
   font-weight: bold;
-  font-family: var(--nd-font-mono, monospace);
+  font-family: var(--nd-font-mono);
   font-size: 0.95em;
 }
 
@@ -729,7 +729,7 @@ const statusBadges = computed(() => {
 }
 
 .linkPath {
-  font-family: var(--nd-font-mono, monospace);
+  font-family: var(--nd-font-mono);
 }
 
 .rawPane {

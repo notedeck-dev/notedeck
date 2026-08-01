@@ -132,11 +132,17 @@ impl OgpCache {
     /// Create with a default HTTP client (used in tests).
     #[allow(dead_code)]
     pub fn new(db: Arc<notecli::db::Database>) -> Self {
-        let perf = Arc::new(tokio::sync::RwLock::new(crate::perf_config::PerformanceConfig::default()));
+        let perf = Arc::new(tokio::sync::RwLock::new(
+            crate::perf_config::PerformanceConfig::default(),
+        ));
         Self::with_client(db, reqwest::Client::default(), perf)
     }
 
-    pub fn with_client(db: Arc<notecli::db::Database>, http_client: reqwest::Client, perf: SharedPerfConfig) -> Self {
+    pub fn with_client(
+        db: Arc<notecli::db::Database>,
+        http_client: reqwest::Client,
+        perf: SharedPerfConfig,
+    ) -> Self {
         Self {
             cache: Arc::new(Mutex::new(LruCache::new(
                 NonZeroUsize::new(DEFAULT_MAX_ENTRIES).unwrap(),
@@ -407,10 +413,7 @@ impl OgpCache {
         if let Some(ref referer) = referer {
             req = req.header(reqwest::header::REFERER, referer);
         }
-        let resp = req
-            .send()
-            .await
-            .map_err(|e| format!("Fetch failed: {e}"))?;
+        let resp = req.send().await.map_err(|e| format!("Fetch failed: {e}"))?;
 
         if !resp.status().is_success() {
             return Err(format!("HTTP {}", resp.status()));
@@ -500,16 +503,19 @@ fn decode_html_bytes(bytes: &[u8], content_type: &str) -> String {
 }
 
 fn extract_charset_from_content_type(content_type: &str) -> Option<String> {
-    content_type
-        .split(';')
-        .find_map(|part| {
-            let part = part.trim();
-            if part.to_ascii_lowercase().starts_with("charset=") {
-                Some(part["charset=".len()..].trim_matches('"').trim().to_string())
-            } else {
-                None
-            }
-        })
+    content_type.split(';').find_map(|part| {
+        let part = part.trim();
+        if part.to_ascii_lowercase().starts_with("charset=") {
+            Some(
+                part["charset=".len()..]
+                    .trim_matches('"')
+                    .trim()
+                    .to_string(),
+            )
+        } else {
+            None
+        }
+    })
 }
 
 /// Scan the first 1024 bytes for <meta charset="..."> or
@@ -524,8 +530,7 @@ fn detect_charset_from_html(bytes: &[u8]) -> Option<&'static encoding_rs::Encodi
     if let Some(pos) = lower.find("charset=") {
         let rest = &lower[pos + "charset=".len()..];
         let rest = rest.trim_start_matches(['"', '\'', ' ']);
-        let end = rest.find(['"', '\'', ' ', ';', '>'])
-            .unwrap_or(rest.len());
+        let end = rest.find(['"', '\'', ' ', ';', '>']).unwrap_or(rest.len());
         let name = &rest[..end];
         if !name.is_empty() {
             return encoding_rs::Encoding::for_label(name.as_bytes());
@@ -553,7 +558,9 @@ mod tests {
             player_allow: Some(r#"["autoplay","fullscreen"]"#.to_string()),
             final_url: Some("https://example.com/final".to_string()),
             sensitive: false,
-            medias_json: Some(r#"["https://example.com/1.png","https://example.com/2.png"]"#.to_string()),
+            medias_json: Some(
+                r#"["https://example.com/1.png","https://example.com/2.png"]"#.to_string(),
+            ),
         }
     }
 

@@ -26,7 +26,7 @@ impl Default for PerformanceConfig {
     fn default() -> Self {
         Self {
             memory_cache_max_total: 32 * 1024 * 1024, // 32MB
-            memory_cache_max_item: 256 * 1024,         // 256KB
+            memory_cache_max_item: 256 * 1024,        // 256KB
             max_concurrent_fetches: 30,
             rust_ogp_cache_max: 256,
             max_requests_per_window: 200,
