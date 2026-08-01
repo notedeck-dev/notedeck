@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useCssModule } from 'vue'
+import { computed, shallowRef, useCssModule } from 'vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
@@ -99,6 +99,8 @@ function escapeHtml(text: string): string {
 let katexModule: typeof import('katex') | null = null
 let domPurifyModule: typeof import('dompurify') | null = null
 let mathLoadPromise: Promise<void> | null = null
+/** 読み込み完了で数式ノードを再レンダリングさせるための reactive flag (shiki と同じ方式) */
+const mathLoaded = shallowRef(false)
 
 function ensureMathLoaded(): Promise<void> {
   if (katexModule && domPurifyModule) return Promise.resolve()
@@ -107,6 +109,7 @@ function ensureMathLoaded(): Promise<void> {
       ([k, d]) => {
         katexModule = k
         domPurifyModule = d
+        mathLoaded.value = true
       },
     )
   }
@@ -163,8 +166,8 @@ const KATEX_ALLOWED_ATTR = [
 ]
 
 function renderKatex(formula: string, displayMode: boolean): string {
-  if (!katexModule || !domPurifyModule) {
-    // Trigger load (will re-render on next update)
+  // mathLoaded を render 中に読むことで、読み込み完了時の再レンダリングを購読する
+  if (!mathLoaded.value || !katexModule || !domPurifyModule) {
     ensureMathLoaded()
     return escapeHtml(formula)
   }
