@@ -12,15 +12,29 @@ export interface ReactionPatch {
   myReaction: string | null
 }
 
-/** reactions から 1 減算した新オブジェクト (0 でキーごと削除) */
-function decremented(
+/**
+ * 差分を「呼び出し元が持つ最新のノート」から計算する関数 (#904)。
+ * 呼び出し元は自分の保持形態から現在のノートを取り出して渡し、返った差分を
+ * そこへマージする。await をまたいで届いたストリーミング更新を巻き込まない。
+ */
+export type ReactionPatchFn = (current: NormalizedNote) => ReactionPatch
+
+/** reactions に増減を適用した新オブジェクト (0 以下でキーごと削除) */
+function withDelta(
   reactions: Record<string, number>,
-  key: string,
+  delta: Record<string, number>,
 ): Record<string, number> {
   const next = { ...reactions }
-  if ((next[key] ?? 0) > 1) next[key] = (next[key] ?? 0) - 1
-  else delete next[key]
+  for (const [key, d] of Object.entries(delta)) {
+    const count = (next[key] ?? 0) + d
+    if (count > 0) next[key] = count
+    else delete next[key]
+  }
   return next
+}
+
+function negated(delta: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(delta).map(([k, d]) => [k, -d]))
 }
 
 /**
@@ -34,20 +48,20 @@ function decremented(
  * `patch.reactions` は常に新オブジェクトなので、reactions の参照を watch
  * する購読 (#575 の数え直し等) も確実に発火する。
  *
- * 失敗時は元の状態を apply し直してから throw する。
+ * 適用もロールバックも「自分が動かした絵文字の増減」だけを最新状態へ足し引き
+ * する。開始時のスナップショットで丸ごと置き換えると、API を待つ間に届いた
+ * 他人のリアクションまで巻き戻してしまう (#904)。
  */
 export async function toggleReaction(
   api: ReactionApi,
   note: NormalizedNote,
   reaction: string,
-  apply: (patch: ReactionPatch) => void,
+  apply: (compute: ReactionPatchFn) => void,
 ): Promise<void> {
   hapticLight()
-  const prevReaction = note.myReaction
-  const prevPatch: ReactionPatch = {
-    reactions: { ...note.reactions },
-    myReaction: prevReaction ?? null,
-  }
+  const prevReaction = note.myReaction ?? null
+  /** 楽観的更新で加えた増減。ロールバックはこれを最新状態から引く */
+  const delta: Record<string, number> = {}
 
   // 切替 (取消 → 付与) の途中経過。取消だけ成功して付与に失敗した場合、
   // サーバーは「リアクション無し」なので、元へ巻き戻すと旧絵文字のカウントが
@@ -57,18 +71,20 @@ export async function toggleReaction(
   try {
     if (prevReaction === reaction) {
       // 取消
-      apply({
-        reactions: decremented(note.reactions, reaction),
+      delta[reaction] = -1
+      apply((cur) => ({
+        reactions: withDelta(cur.reactions, delta),
         myReaction: null,
-      })
+      }))
       await api.deleteReaction(note.id)
     } else {
       // 追加 / 切替
-      const next = prevReaction
-        ? decremented(note.reactions, prevReaction)
-        : { ...note.reactions }
-      next[reaction] = (next[reaction] ?? 0) + 1
-      apply({ reactions: next, myReaction: reaction })
+      if (prevReaction) delta[prevReaction] = -1
+      delta[reaction] = (delta[reaction] ?? 0) + 1
+      apply((cur) => ({
+        reactions: withDelta(cur.reactions, delta),
+        myReaction: reaction,
+      }))
 
       if (prevReaction) {
         await api.deleteReaction(note.id)
@@ -77,15 +93,12 @@ export async function toggleReaction(
       await api.createReaction(note.id, reaction)
     }
   } catch (e) {
-    if (removedOnServer && prevReaction) {
-      // サーバーの実状態 (取消のみ成立) に合わせてリアクション無しへ倒す
-      apply({
-        reactions: decremented(note.reactions, prevReaction),
-        myReaction: null,
-      })
-    } else {
-      apply(prevPatch)
-    }
+    // 取消だけ成立しているなら、旧絵文字の減算は戻さず付与分だけ取り消す
+    const undo = removedOnServer ? { [reaction]: -1 } : negated(delta)
+    apply((cur) => ({
+      reactions: withDelta(cur.reactions, undo),
+      myReaction: removedOnServer ? null : prevReaction,
+    }))
     throw e
   }
 }

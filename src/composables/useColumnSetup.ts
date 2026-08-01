@@ -30,10 +30,12 @@ export interface ColumnSetupOptions {
    * 楽観的更新の差分 (リアクション・投票) の適用先。既定は noteStore への
    * 差し替えだが、ノートを noteStore に置かない面 (照会カラムのローカル
    * deep ref 等) は自分の保持形態に合わせて差し替える。
+   * `compute` には自分が持つ最新のノートを渡し、返った差分をそこへマージする
+   * (#904)。
    */
   applyNotePatch?: (
     note: NormalizedNote,
-    patch: Partial<NormalizedNote>,
+    compute: (current: NormalizedNote) => Partial<NormalizedNote>,
   ) => void
 }
 
@@ -176,12 +178,18 @@ export function useColumnSetup(
   }
 
   /** 楽観的更新の差分を面の保持形態に反映する (既定は noteStore への差し替え) */
-  function applyPatch(note: NormalizedNote, patch: Partial<NormalizedNote>) {
+  function applyPatch(
+    note: NormalizedNote,
+    compute: (current: NormalizedNote) => Partial<NormalizedNote>,
+  ) {
     if (options?.applyNotePatch) {
-      options.applyNotePatch(note, patch)
+      options.applyNotePatch(note, compute)
     } else {
+      // 手元の note は API を待つ間にストリーミングで差し替わっていることが
+      // あるので、常に store の最新から差分を計算する (#904)
+      const current = noteStore.get(note.id) ?? note
       // 新オブジェクトへの差し替えで store に反映する (reactive に届く)
-      noteStore.update(note.id, { ...note, ...patch })
+      noteStore.update(note.id, { ...current, ...compute(current) })
     }
     customMutatedFn?.()
   }
@@ -189,8 +197,8 @@ export function useColumnSetup(
   async function handleReaction(reaction: string, note: NormalizedNote) {
     if (!adapter || checkOffline()) return
     try {
-      await toggleReaction(adapter.api, note, reaction, (patch) =>
-        applyPatch(note, patch),
+      await toggleReaction(adapter.api, note, reaction, (compute) =>
+        applyPatch(note, compute),
       )
       if (!getColumn().soundMuted) actionSound.play()
     } catch (e) {
@@ -203,8 +211,8 @@ export function useColumnSetup(
   async function handlePollVote(choice: number, note: NormalizedNote) {
     if (!adapter || checkOffline()) return
     try {
-      await votePoll(adapter.api, note, choice, (patch) =>
-        applyPatch(note, patch),
+      await votePoll(adapter.api, note, choice, (compute) =>
+        applyPatch(note, compute),
       )
     } catch (e) {
       const err = AppError.from(e)
