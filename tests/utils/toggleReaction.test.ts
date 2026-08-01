@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { NormalizedNote } from '@/adapters/types'
-import { type ReactionPatch, toggleReaction } from '@/utils/toggleReaction'
+import {
+  type ReactionPatch,
+  type ReactionPatchFn,
+  toggleReaction,
+} from '@/utils/toggleReaction'
 
 function makeNote(overrides: Partial<NormalizedNote> = {}): NormalizedNote {
   return {
@@ -40,17 +44,22 @@ function makeApi() {
 
 /** apply された差分を状態として追跡する (呼び出し元の反映を模す) */
 function track(note: NormalizedNote) {
-  const state: ReactionPatch = {
-    reactions: note.reactions,
-    myReaction: note.myReaction ?? null,
-  }
+  // 呼び出し元が持つ「最新のノート」。差分はここから計算される
+  const state = { ...note, myReaction: note.myReaction ?? null }
   const patches: ReactionPatch[] = []
-  const apply = (p: ReactionPatch) => {
+  const apply = (compute: ReactionPatchFn) => {
+    const p = compute(state)
     patches.push(p)
-    state.reactions = p.reactions
-    state.myReaction = p.myReaction
+    Object.assign(state, p)
   }
-  return { state, patches, apply }
+  /** API を待つ間にストリーミングで他人のリアクションが届いた状況 */
+  const streamReaction = (reaction: string) => {
+    state.reactions = {
+      ...state.reactions,
+      [reaction]: (state.reactions[reaction] ?? 0) + 1,
+    }
+  }
+  return { state, patches, apply, streamReaction }
 }
 
 describe('toggleReaction', () => {
@@ -181,5 +190,57 @@ describe('toggleReaction', () => {
     expect(state.myReaction).toBeNull()
     expect(state.reactions['👍']).toBe(1)
     expect(state.reactions['❤️']).toBeUndefined()
+  })
+
+  it('付与の巻き戻しは待つ間に届いた他人のリアクションを残す (#904)', async () => {
+    const api = makeApi()
+    const note = makeNote({ reactions: { '👍': 1 } })
+    const t = track(note)
+    api.createReaction.mockImplementation(async () => {
+      t.streamReaction('👍')
+      throw new Error('fail')
+    })
+
+    await expect(toggleReaction(api, note, '❤️', t.apply)).rejects.toThrow(
+      'fail',
+    )
+
+    expect(t.state.reactions).toEqual({ '👍': 2 })
+    expect(t.state.myReaction).toBeNull()
+  })
+
+  it('取消の巻き戻しは待つ間に届いた他人のリアクションを残す (#904)', async () => {
+    const api = makeApi()
+    const note = makeNote({ reactions: { '👍': 2 }, myReaction: '👍' })
+    const t = track(note)
+    api.deleteReaction.mockImplementation(async () => {
+      t.streamReaction('❤️')
+      throw new Error('fail')
+    })
+
+    await expect(toggleReaction(api, note, '👍', t.apply)).rejects.toThrow(
+      'fail',
+    )
+
+    expect(t.state.reactions).toEqual({ '👍': 2, '❤️': 1 })
+    expect(t.state.myReaction).toBe('👍')
+  })
+
+  it('切替の巻き戻しは同じ絵文字への他人のリアクションを残す (#904)', async () => {
+    const api = makeApi()
+    const note = makeNote({ reactions: { '👍': 1 }, myReaction: '👍' })
+    const t = track(note)
+    api.createReaction.mockImplementation(async () => {
+      t.streamReaction('❤️')
+      throw new Error('fail')
+    })
+
+    await expect(toggleReaction(api, note, '❤️', t.apply)).rejects.toThrow(
+      'fail',
+    )
+
+    // 自分が足した ❤️ (+1) だけ取り消し、他人の ❤️ は残る
+    expect(t.state.reactions).toEqual({ '❤️': 1 })
+    expect(t.state.myReaction).toBeNull()
   })
 })

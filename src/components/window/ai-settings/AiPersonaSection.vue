@@ -30,51 +30,50 @@ const currentPersonaSkill = computed(() => {
   >
     <div :class="$style.keyHint">
       <i class="ti ti-info-circle" />
-      **新規セッション**のデフォルトペルソナです。新しいチャット / heartbeat / task を開始したときに、ここで選んだペルソナが session に snapshot されます。**過去のセッション**は作成時のペルソナを保持し続けるため (Git commit の Author と同じ immutable semantic)、ここを変更しても遡って書き換わりません。
+      新規セッションのデフォルトです。過去のセッションは作成時のペルソナを保持します。
     </div>
-    <div :class="$style.personaList">
-      <label :class="[$style.personaOption, { [$style.personaOptionActive]: !config.personaSkillId }]">
-        <input
-          type="radio"
-          :checked="!config.personaSkillId"
-          @change="config.personaSkillId = ''"
-        />
-        <i class="ti ti-user-off" :class="$style.personaOptionIcon" />
-        <span :class="$style.personaOptionName">ペルソナなし (汎用 AI)</span>
-      </label>
-      <label
+    <div :class="$style.grid">
+      <button
+        class="_button"
+        :class="[$style.card, { [$style.cardActive]: !config.personaSkillId }]"
+        :aria-pressed="!config.personaSkillId"
+        @click="config.personaSkillId = ''"
+      >
+        <span v-if="!config.personaSkillId" :class="$style.activeBadge">
+          <i class="ti ti-circle-check-filled" />
+        </span>
+        <i class="ti ti-user-off" :class="$style.logoFallback" />
+        <span>なし</span>
+      </button>
+      <button
         v-for="s in personaCandidates"
         :key="s.id"
-        :class="[$style.personaOption, { [$style.personaOptionActive]: config.personaSkillId === s.id }]"
+        class="_button"
+        :class="[$style.card, { [$style.cardActive]: config.personaSkillId === s.id }]"
+        :aria-pressed="config.personaSkillId === s.id"
+        :title="s.description || s.name"
+        @click="config.personaSkillId = s.id"
       >
-        <input
-          type="radio"
-          :checked="config.personaSkillId === s.id"
-          @change="config.personaSkillId = s.id"
-        />
+        <span v-if="config.personaSkillId === s.id" :class="$style.activeBadge">
+          <i class="ti ti-circle-check-filled" />
+        </span>
         <!-- SVG icon を accent 色で render (DeckAiColumn.personaIndicator と同じ
              mask + currentColor パターン) -->
         <span
           v-if="s.iconUrl"
-          :class="$style.personaOptionAvatar"
+          :class="$style.logo"
           :style="{ '--icon-url': `url('${s.iconUrl}')` }"
-          :title="s.name"
           aria-hidden="true"
         />
-        <i v-else class="ti ti-user-circle" :class="$style.personaOptionIcon" />
-        <div :class="$style.personaOptionMain">
-          <div :class="$style.personaOptionName">{{ s.name }}</div>
-          <div v-if="s.description" :class="$style.personaOptionDesc">
-            {{ s.description }}
-          </div>
-        </div>
-      </label>
-      <div v-if="personaCandidates.length === 0" :class="$style.personaEmpty">
-        <i class="ti ti-info-circle" />
-        <span>
-          ペルソナ候補がありません。Skill 編集ウィンドウで「Persona」を ON にしたスキルがここに表示されます。
-        </span>
-      </div>
+        <i v-else class="ti ti-user-circle" :class="$style.logoFallback" />
+        <span>{{ s.name }}</span>
+      </button>
+    </div>
+    <div v-if="personaCandidates.length === 0" :class="$style.personaEmpty">
+      <i class="ti ti-info-circle" />
+      <span>
+        ペルソナ候補がありません。Skill 編集ウィンドウで「Persona」を ON にしたスキルがここに表示されます。
+      </span>
     </div>
   </AiSettingsSection>
 </template>
@@ -89,57 +88,61 @@ const currentPersonaSkill = computed(() => {
 }
 
 // --- Persona selector (#491) ---
+// 「接続」ウィンドウ (ConnectionsContent) のカードグリッドと同じ見た目に揃える
 
-.personaList {
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+// `_button` と特異度が同点だと WebView2 で display: inline-block に負けるため (0,2,0) に上げる
+.card.card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.personaOption {
-  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 14px 8px;
   border-radius: var(--nd-radius-sm);
+  background: var(--nd-buttonBg);
+  color: var(--nd-fg);
+  font-size: 0.8em;
   cursor: pointer;
-  transition: background var(--nd-duration-base);
+  text-align: center;
 
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-  }
-
-  input[type='radio'] {
-    flex-shrink: 0;
-    margin: 0;
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
   }
 }
 
-.personaOptionActive {
-  background: color-mix(in srgb, var(--nd-accent) 10%, transparent);
-
-  &:hover {
-    background: color-mix(in srgb, var(--nd-accent) 14%, transparent);
-  }
+// 選択中のペルソナ。ConnectionsContent には無い状態なのでアクセントで示す
+.cardActive.cardActive {
+  background: color-mix(in srgb, var(--nd-accent) 12%, var(--nd-buttonBg));
+  box-shadow: inset 0 0 0 1px var(--nd-accent);
 }
 
-.personaOptionIcon {
-  width: 24px;
-  height: 24px;
+.activeBadge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  color: var(--nd-fg);
-  opacity: 0.6;
-  flex-shrink: 0;
+  color: var(--nd-accent);
+
+  i {
+    font-size: 12px;
+  }
 }
 
 // SVG mask + currentColor でテーマアクセント色化 (DeckAiColumn.personaIndicator
 // と同じパターン)。ラスタ画像は表示できないが、persona icon は SVG 前提。
-.personaOptionAvatar {
-  width: 24px;
-  height: 24px;
+.logo {
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
   background-color: currentColor;
   color: var(--nd-accent);
@@ -147,27 +150,9 @@ const currentPersonaSkill = computed(() => {
   mask: var(--icon-url) center / contain no-repeat;
 }
 
-.personaOptionMain {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.personaOptionName {
-  font-size: 0.85em;
-  font-weight: 500;
-  color: var(--nd-fg);
-}
-
-.personaOptionDesc {
-  font-size: 0.7em;
-  color: var(--nd-fg);
-  opacity: 0.6;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.logoFallback {
+  font-size: 22px;
+  color: var(--nd-fgMuted);
 }
 
 .personaEmpty {

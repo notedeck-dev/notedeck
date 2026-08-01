@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { NormalizedNote, NormalizedPoll } from '@/adapters/types'
-import { type PollPatch, votePoll } from '@/utils/votePoll'
+import { type PollPatch, type PollPatchFn, votePoll } from '@/utils/votePoll'
 
 function makePoll(overrides: Partial<NormalizedPoll> = {}): NormalizedPoll {
   return {
@@ -29,13 +29,26 @@ function makeApi() {
 
 /** apply された差分を状態として追跡する (呼び出し元の反映を模す) */
 function track(note: NormalizedNote) {
-  const state = { poll: note.poll }
+  // 呼び出し元が持つ「最新のノート」。差分はここから計算される
+  const state = { ...note }
   const patches: PollPatch[] = []
-  const apply = (p: PollPatch) => {
+  const apply = (compute: PollPatchFn) => {
+    const p = compute(state)
     patches.push(p)
-    state.poll = p.poll
+    Object.assign(state, p)
   }
-  return { state, patches, apply }
+  /** API を待つ間にストリーミングで他人の票 (pollVoted) が届いた状況 */
+  const streamVote = (choice: number) => {
+    const poll = state.poll
+    if (!poll) return
+    state.poll = {
+      ...poll,
+      choices: poll.choices.map((c, i) =>
+        i === choice ? { ...c, votes: c.votes + 1 } : c,
+      ),
+    }
+  }
+  return { state, patches, apply, streamVote }
 }
 
 describe('votePoll (差分適用方式 #888)', () => {
@@ -68,17 +81,32 @@ describe('votePoll (差分適用方式 #888)', () => {
     expect(state.poll?.choices[0]?.isVoted).toBe(true)
   })
 
-  it('失敗時は元の poll を apply し直してから throw する', async () => {
+  it('失敗時は押した choice の isVoted を戻してから throw する', async () => {
     const api = makeApi()
     api.votePoll.mockRejectedValue(new Error('fail'))
     const note = makeNote()
-    const originalPoll = note.poll
     const { state, apply } = track(note)
 
     await expect(votePoll(api, note, 0, apply)).rejects.toThrow('fail')
 
-    expect(state.poll).toBe(originalPoll)
-    expect(state.poll?.choices[0]?.isVoted).toBe(false)
+    expect(state.poll?.choices).toEqual(makePoll().choices)
+  })
+
+  it('失敗の巻き戻しは待つ間に届いた他人の票を残す (#904)', async () => {
+    const api = makeApi()
+    const note = makeNote()
+    const t = track(note)
+    api.votePoll.mockImplementation(async () => {
+      t.streamVote(1)
+      throw new Error('fail')
+    })
+
+    await expect(votePoll(api, note, 0, t.apply)).rejects.toThrow('fail')
+
+    expect(t.state.poll?.choices).toEqual([
+      { text: 'A', votes: 3, isVoted: false },
+      { text: 'B', votes: 2, isVoted: false },
+    ])
   })
 
   it.each([

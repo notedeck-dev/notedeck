@@ -6,6 +6,7 @@ import {
   requestMoveColumn,
 } from '@/composables/useDeckWindow'
 import { useNativePopover } from '@/composables/useNativePopover'
+import { usePipAlwaysOnTop } from '@/composables/usePipAlwaysOnTop'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useServerImages } from '@/composables/useServerImages'
 import { useVaporTransition } from '@/composables/useVaporTransition'
@@ -153,6 +154,9 @@ async function close() {
   }
 }
 
+const { alwaysOnTop: pipAlwaysOnTop, toggle: togglePipAlwaysOnTop } =
+  usePipAlwaysOnTop()
+
 /** Return this PiP column back to the main deck window */
 async function returnToDeck() {
   closeMenu()
@@ -185,12 +189,22 @@ watch(
   },
 )
 
+// PiP ではデッキストアを読み込まないため、PiP ローカルのカラム設定を直接読み書きする。
+// この設定は「デッキに戻す」でそのままメインウィンドウへ引き継がれる。
 const isMuted = computed(
-  () => deckStore.getColumn(props.columnId)?.soundMuted ?? false,
+  () =>
+    (isPipMode ? pipColumnConfig?.() : deckStore.getColumn(props.columnId))
+      ?.soundMuted ?? false,
 )
 
 function toggleMute() {
-  deckStore.updateColumn(props.columnId, { soundMuted: !isMuted.value })
+  const soundMuted = !isMuted.value
+  if (isPipMode) {
+    const config = pipColumnConfig?.()
+    if (config) config.soundMuted = soundMuted
+    return
+  }
+  deckStore.updateColumn(props.columnId, { soundMuted })
 }
 
 function onOpenWebUi() {
@@ -247,7 +261,7 @@ function openAsPip() {
 
       <!-- Mute toggle (resident: sound settings are used far more often than the other menu items) -->
       <button
-        v-if="soundEnabled && !isPipMode"
+        v-if="soundEnabled"
         :class="[$style.headerBtn, isMuted && $style.headerBtnActive]"
         class="_button"
         :title="isMuted ? 'ミュート解除' : 'ミュート'"
@@ -306,6 +320,10 @@ function openAsPip() {
     <div v-if="menuVisible" ref="menuEl" popover="manual" :class="[$style.columnMenu, menuLeaving ? $style.menuLeave : $style.menuEnter]" class="_popupMenu" :style="{ ...themeVars, position: 'fixed', top: menuPos.top, right: menuPos.right }" @pointerdown.stop>
       <!-- PiP menu -->
       <template v-if="isPipMode">
+        <button class="_popupItem" @click="togglePipAlwaysOnTop">
+          <i :class="pipAlwaysOnTop ? 'ti ti-pinned-off' : 'ti ti-pin'" />
+          <span>{{ pipAlwaysOnTop ? '最前面固定を解除' : '最前面に固定' }}</span>
+        </button>
         <button class="_popupItem" @click="returnToDeck">
           <i class="ti ti-arrow-back-up" />
           <span>デッキに戻す</span>

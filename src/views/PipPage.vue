@@ -14,6 +14,7 @@ import AppToast from '@/components/common/AppToast.vue'
 import AppTooltip from '@/components/common/AppTooltip.vue'
 import AddColumnDialog from '@/components/deck/AddColumnDialog.vue'
 import ColumnTombstone from '@/components/deck/ColumnTombstone.vue'
+import { usePipAlwaysOnTop } from '@/composables/usePipAlwaysOnTop'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { useThemeStore } from '@/stores/theme'
@@ -171,6 +172,8 @@ function genPipColumnId(): string {
 const selectedColumn = ref<DeckColumn | null>(null)
 const windowPayload = ref<WindowPayload | null>(null)
 
+const { alwaysOnTop, toggle: toggleAlwaysOnTop } = usePipAlwaysOnTop()
+
 const themeVars = computed(() => {
   const accountId =
     selectedColumn.value?.accountId ??
@@ -256,7 +259,14 @@ onMounted(async () => {
     <template v-if="windowPayload">
       <div :class="$style.pipDragBar" data-tauri-drag-region>
         <span :class="$style.pipDragTitle" data-tauri-drag-region>{{ windowTitle }}</span>
-        <button :class="$style.pipDragClose" @click="closeWindow">
+        <button
+          :class="[$style.pipDragBtn, alwaysOnTop && $style.pipDragBtnActive]"
+          :title="alwaysOnTop ? '最前面固定を解除' : '最前面に固定'"
+          @click="toggleAlwaysOnTop"
+        >
+          <i :class="alwaysOnTop ? 'ti ti-pin-filled' : 'ti ti-pin'" />
+        </button>
+        <button :class="$style.pipDragBtn" title="閉じる" @click="closeWindow">
           <i class="ti ti-x" />
         </button>
       </div>
@@ -422,7 +432,14 @@ onMounted(async () => {
       <!-- Drag bar for selector state -->
       <div :class="$style.pipDragBar" data-tauri-drag-region>
         <span :class="$style.pipDragTitle" data-tauri-drag-region>カラムを追加</span>
-        <button :class="$style.pipDragClose" @click="closeWindow">
+        <button
+          :class="[$style.pipDragBtn, alwaysOnTop && $style.pipDragBtnActive]"
+          :title="alwaysOnTop ? '最前面固定を解除' : '最前面に固定'"
+          @click="toggleAlwaysOnTop"
+        >
+          <i :class="alwaysOnTop ? 'ti ti-pin-filled' : 'ti ti-pin'" />
+        </button>
+        <button :class="$style.pipDragBtn" title="閉じる" @click="closeWindow">
           <i class="ti ti-x" />
         </button>
       </div>
@@ -486,7 +503,7 @@ onMounted(async () => {
   font-weight: bold;
 }
 
-.pipDragClose {
+.pipDragBtn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -503,6 +520,11 @@ onMounted(async () => {
     background: var(--nd-buttonHoverBg);
     opacity: 0.8;
   }
+}
+
+.pipDragBtnActive {
+  color: var(--nd-accent);
+  opacity: 1;
 }
 
 .pipSelectorBody {

@@ -240,8 +240,8 @@ async function handleReaction(reaction: string, target: NormalizedNote) {
   if (!adapter) return
   try {
     // note は deep reactive (ref) なので、差分の代入で反映される
-    await toggleReaction(adapter.api, target, reaction, (patch) => {
-      Object.assign(target, patch)
+    await toggleReaction(adapter.api, target, reaction, (compute) => {
+      Object.assign(target, compute(target))
     })
   } catch (e) {
     error.value = AppError.from(e)
@@ -253,8 +253,8 @@ async function handleVote(choice: number, target: NormalizedNote) {
   const { votePoll } = await import('@/utils/votePoll')
   try {
     // note は deep reactive (ref) なので、差分の代入で反映される
-    await votePoll(adapter.api, target, choice, (patch) => {
-      Object.assign(target, patch)
+    await votePoll(adapter.api, target, choice, (compute) => {
+      Object.assign(target, compute(target))
     })
   } catch (e) {
     error.value = AppError.from(e)
