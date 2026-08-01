@@ -1,6 +1,9 @@
 import { computed, onUnmounted, shallowRef } from 'vue'
 
-const IS_TOUCH = navigator.maxTouchPoints > 0
+// maxTouchPoints はタッチスクリーン付き PC でも > 0 になり、マウス操作なのに
+// ホバーポップアップが一切出なくなる (#914)。AppTooltip と同じく主ポインタが
+// coarse かどうかで判定し、後からマウスを挿しても効くよう参照時に評価する
+const coarsePointer = window.matchMedia('(pointer: coarse)')
 
 // Global singleton state — only one hover popup is active at a time
 let activeSlotId: number | null = null
@@ -66,7 +69,7 @@ export function useHoverPopup(options?: {
   )
 
   function show(pos: { x: number; y: number }) {
-    if (IS_TOUCH || Date.now() < scrollingUntil) return
+    if (coarsePointer.matches || Date.now() < scrollingUntil) return
     // Preempt any pending hide/show from a different slot
     if (activeSlotId !== slotId) {
       clearShowTimer()
