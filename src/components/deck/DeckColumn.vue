@@ -185,12 +185,22 @@ watch(
   },
 )
 
+// PiP ではデッキストアを読み込まないため、PiP ローカルのカラム設定を直接読み書きする。
+// この設定は「デッキに戻す」でそのままメインウィンドウへ引き継がれる。
 const isMuted = computed(
-  () => deckStore.getColumn(props.columnId)?.soundMuted ?? false,
+  () =>
+    (isPipMode ? pipColumnConfig?.() : deckStore.getColumn(props.columnId))
+      ?.soundMuted ?? false,
 )
 
 function toggleMute() {
-  deckStore.updateColumn(props.columnId, { soundMuted: !isMuted.value })
+  const soundMuted = !isMuted.value
+  if (isPipMode) {
+    const config = pipColumnConfig?.()
+    if (config) config.soundMuted = soundMuted
+    return
+  }
+  deckStore.updateColumn(props.columnId, { soundMuted })
 }
 
 function onOpenWebUi() {
@@ -247,7 +257,7 @@ function openAsPip() {
 
       <!-- Mute toggle (resident: sound settings are used far more often than the other menu items) -->
       <button
-        v-if="soundEnabled && !isPipMode"
+        v-if="soundEnabled"
         :class="[$style.headerBtn, isMuted && $style.headerBtnActive]"
         class="_button"
         :title="isMuted ? 'ミュート解除' : 'ミュート'"
