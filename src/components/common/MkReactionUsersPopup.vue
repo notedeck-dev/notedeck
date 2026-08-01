@@ -157,23 +157,7 @@ onUnmounted(() => {
     <template v-if="!isLoading || reactions.length > 0">
       <!-- Left: reaction icon -->
       <div :class="$style.reaction">
-        <span
-          v-if="isEmojiMuted(reaction)"
-          class="_emojiMuted"
-          :class="$style.reactionIcon"
-          role="img"
-          :aria-label="reaction"
-          :title="`${reaction} (ミュート中)`"
-        />
-        <img
-          v-else-if="reactionUrl"
-          :src="proxyEmojiUrl(reactionUrl)"
-          :alt="reaction"
-          :class="$style.reactionIcon"
-          decoding="async"
-          loading="lazy"
-        />
-        <MkEmoji v-else :emoji="reaction" :class="$style.reactionIcon" />
+        <!-- バッジ側から入ったマウスの導線を短くするため絵文字より左に置く -->
         <div :class="$style.reactionActions">
           <button
             class="_button"
@@ -194,6 +178,23 @@ onUnmounted(() => {
             <i :class="isEmojiMuted(reaction) ? 'ti ti-mood-smile' : 'ti ti-mood-off'" />
           </button>
         </div>
+        <span
+          v-if="isEmojiMuted(reaction)"
+          class="_emojiMuted"
+          :class="$style.reactionIcon"
+          role="img"
+          :aria-label="reaction"
+          :title="`${reaction} (ミュート中)`"
+        />
+        <img
+          v-else-if="reactionUrl"
+          :src="proxyEmojiUrl(reactionUrl)"
+          :alt="reaction"
+          :class="$style.reactionIcon"
+          decoding="async"
+          loading="lazy"
+        />
+        <MkEmoji v-else :emoji="reaction" :class="$style.reactionIcon" />
       </div>
 
       <!-- Right: user list (original style) -->
@@ -254,6 +255,10 @@ onUnmounted(() => {
   padding: 8px 0 8px 12px;
   pointer-events: auto;
   animation: reactionPopupIn 0.2s var(--nd-ease-spring);
+  /* _popup の contain: paint は要素境界外の paint と pointer hit を切るため、
+     アクションボタンのツールチップが popup 内で途切れ、下の ::before ブリッジも
+     効かなくなる。DeckWindow と同じく layout のみに留める (#914) */
+  contain: layout style;
 
   /* Bridge to catch the mouse in the gap between badge and tooltip */
   &::before {
@@ -268,7 +273,6 @@ onUnmounted(() => {
 
 .reaction {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -280,6 +284,7 @@ onUnmounted(() => {
 
 .reactionActions {
   display: flex;
+  flex-direction: column;
   gap: 2px;
 }
 
@@ -296,13 +301,15 @@ onUnmounted(() => {
     background: var(--nd-buttonHoverBg);
   }
 
-  /* ネイティブ title は popover の top-layer に潜るため、popup 内で描く */
+  /* ネイティブ title は popover の top-layer に潜るため、popup 内で描く。
+     中央揃えだと最左カラムで画面外にはみ出すのでボタン左端に寄せ、
+     右隣のユーザー一覧の上に重ねる */
   &::after {
     content: attr(data-tooltip);
     position: absolute;
+    z-index: 1;
     bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
+    left: 0;
     padding: 3px 8px;
     border-radius: 6px;
     background: var(--nd-bg);
