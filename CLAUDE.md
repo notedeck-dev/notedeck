@@ -4,7 +4,7 @@ Misskey 統合デッキ環境 (IDE: Integrated Deck Environment)。対外ブラ�
 
 ## 環境セットアップ
 
-開発環境は Nix flake で管理。`nix develop`（または direnv）で Node.js, pnpm, Rust 等が揃う。
+開発環境は Nix flake で管理。`nix develop`（または direnv）で Node.js, pnpm, Rust 等が揃う。Android SDK/NDK は容量が大きいため別シェル（`nix develop .#android`）に分離している。
 
 ## 開発コマンド
 

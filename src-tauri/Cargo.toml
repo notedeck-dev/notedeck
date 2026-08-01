@@ -89,11 +89,21 @@ tauri = { version = "2", features = ["test"] }
 tauri-build = { version = "2", features = [] }
 
 # dev: 自分のコードは最速コンパイル、依存クレートだけ軽く最適化（実行速度とコンパイル速度のバランス）
+# debug 情報は target/ 肥大の主因（[lib] の 3 crate-type × 重量級依存ツリーで掛け算になる）。
+# 自分のコードは行番号のみ（パニック時のバックトレースは読める）、依存クレートは捨てる。
+# 依存クレート内部をデバッガでステップ実行したいときだけ一時的にこの 2 行を外す。
 [profile.dev]
 opt-level = 0
+debug = "line-tables-only"
 
 [profile.dev.package."*"]
 opt-level = 1
+debug = false
+
+# build script / proc-macro（デバッグ対象ではない）は debug 情報だけ落とす。
+# opt-level は cargo のデフォルト（0）のままにして、コンパイル時間は変えない。
+[profile.dev.build-override]
+debug = false
 
 [profile.release]
 lto = "fat"
@@ -103,4 +113,7 @@ panic = "abort"
 
 [lib]
 name = "notedeck_lib"
-crate-type = ["lib", "cdylib", "staticlib"]
+# staticlib は iOS 専用。iOS プロジェクト (gen/apple) を生成するまでは
+# どのビルドでも使われず、debug ビルドごとに .a を 300MB 超積むだけなので外している。
+# iOS に着手する (#865) ときに "staticlib" を戻すこと。
+crate-type = ["lib", "cdylib"]
