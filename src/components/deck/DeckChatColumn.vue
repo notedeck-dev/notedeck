@@ -1009,6 +1009,7 @@ onBeforeUnmount(() => {
     :column-id="column.id"
     :title="viewMode === 'conversation' ? conversationTitle : (column.name || 'チャット')"
     :theme-vars="columnThemeVars"
+    sound-enabled
     require-account
     @header-click="scrollToTop(true)"
   >
