@@ -64,16 +64,19 @@ const visibleNotes = computed(() =>
   filterVisible(notes.value, { ignoreSuspension: isOwnClip.value }),
 )
 
-/** 楽観的更新の差分を反映する。shallowRef 保持なので新オブジェクトへ差し替える */
+/**
+ * 楽観的更新の差分を反映する。shallowRef 保持なので新オブジェクトへ差し替える。
+ * 差分は手元の最新のノートから計算する (#904)
+ */
 function applyNotePatch(
   target: NormalizedNote,
-  patch: Partial<NormalizedNote>,
+  compute: (current: NormalizedNote) => Partial<NormalizedNote>,
 ) {
   notes.value = notes.value.map((n) =>
     n.id === target.id
-      ? { ...n, ...patch }
+      ? { ...n, ...compute(n) }
       : n.renote?.id === target.id
-        ? { ...n, renote: { ...n.renote, ...patch } }
+        ? { ...n, renote: { ...n.renote, ...compute(n.renote) } }
         : n,
   )
 }
@@ -81,8 +84,8 @@ function applyNotePatch(
 async function handleReaction(reaction: string, target: NormalizedNote) {
   if (!adapter) return
   try {
-    await toggleReaction(adapter.api, target, reaction, (patch) =>
-      applyNotePatch(target, patch),
+    await toggleReaction(adapter.api, target, reaction, (compute) =>
+      applyNotePatch(target, compute),
     )
   } catch (e) {
     const err = AppError.from(e)
@@ -94,8 +97,8 @@ async function handleVote(choice: number, target: NormalizedNote) {
   if (!adapter) return
   const { votePoll } = await import('@/utils/votePoll')
   try {
-    await votePoll(adapter.api, target, choice, (patch) =>
-      applyNotePatch(target, patch),
+    await votePoll(adapter.api, target, choice, (compute) =>
+      applyNotePatch(target, compute),
     )
   } catch (e) {
     const err = AppError.from(e)

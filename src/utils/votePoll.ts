@@ -11,6 +11,24 @@ export interface PollPatch {
 }
 
 /**
+ * 差分を「呼び出し元が持つ最新のノート」から計算する関数 (#904)。
+ * 呼び出し元は自分の保持形態から現在のノートを取り出して渡し、返った差分を
+ * そこへマージする。
+ */
+export type PollPatchFn = (current: NormalizedNote) => PollPatch
+
+function withVoted(
+  poll: NormalizedPoll,
+  choice: number,
+  isVoted: boolean,
+): NormalizedPoll {
+  return {
+    ...poll,
+    choices: poll.choices.map((c, i) => (i === choice ? { ...c, isVoted } : c)),
+  }
+}
+
+/**
  * 投票を楽観的更新つきで行う (toggleReaction と同じ差分適用方式 #888)。
  *
  * note は読み取り専用 — mutate せず、差分を `apply` に渡す。呼び出し元は
@@ -20,13 +38,14 @@ export interface PollPatch {
  * isVoted のみ楽観更新し、votes の +1 はストリーミングの pollVoted
  * イベントに任せる (二重カウントを避けるため)。未接続時は次回取得で整合する。
  *
- * 失敗時は元の状態を apply し直してから throw する。
+ * 失敗時は「押した選択肢の isVoted」だけを最新状態の上で戻す。開始時の poll で
+ * 丸ごと置き換えると、API を待つ間に届いた他人の票まで巻き戻る (#904)。
  */
 export async function votePoll(
   api: PollApi,
   note: NormalizedNote,
   choice: number,
-  apply: (patch: PollPatch) => void,
+  apply: (compute: PollPatchFn) => void,
 ): Promise<void> {
   const poll = note.poll
   if (!poll) return
@@ -37,22 +56,12 @@ export async function votePoll(
   if (!poll.multiple && poll.choices.some((c) => c.isVoted)) return
 
   hapticLight()
-  // note を mutate していないので、ロールバックは元の poll をそのまま返せる
-  const prevPatch: PollPatch = { poll }
-
-  apply({
-    poll: {
-      ...poll,
-      choices: poll.choices.map((c, i) =>
-        i === choice ? { ...c, isVoted: true } : c,
-      ),
-    },
-  })
+  apply((cur) => ({ poll: withVoted(cur.poll ?? poll, choice, true) }))
 
   try {
     await api.votePoll(note.id, choice)
   } catch (e) {
-    apply(prevPatch)
+    apply((cur) => ({ poll: withVoted(cur.poll ?? poll, choice, false) }))
     throw e
   }
 }

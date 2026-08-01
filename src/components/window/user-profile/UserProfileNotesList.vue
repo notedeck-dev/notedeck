@@ -120,7 +120,24 @@ function replaceNote(id: string, updated: NormalizedNote) {
   )
 }
 
-defineExpose({ loadMore, removeNote, replaceNote })
+/**
+ * 親の楽観的更新 handler から呼ぶ。差分はこのリストが持つ最新のノートから
+ * 計算する (親の持つ参照は API を待つ間に古くなりうる — #904)
+ */
+function patchNote(
+  id: string,
+  compute: (current: NormalizedNote) => Partial<NormalizedNote>,
+) {
+  notes.value = notes.value.map((n) =>
+    n.id === id
+      ? { ...n, ...compute(n) }
+      : n.renote?.id === id
+        ? { ...n, renote: { ...n.renote, ...compute(n.renote) } }
+        : n,
+  )
+}
+
+defineExpose({ loadMore, removeNote, replaceNote, patchNote })
 </script>
 
 <template>
