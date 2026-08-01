@@ -138,15 +138,15 @@ if [ -n "${ANDROID_HOME:-}" ] && [ -d "${ANDROID_HOME}" ]; then
   if [ -n "${NDK_HOME:-}" ] && [ -d "${NDK_HOME}" ]; then
     ok "NDK_HOME: ${NDK_HOME}"
   else
-    warn "NDK_HOME が無効 (${NDK_HOME:-未設定})" "nix develop に入ると設定される"
+    warn "NDK_HOME が無効 (${NDK_HOME:-未設定})" "nix develop .#android に入ると設定される"
   fi
   if command -v java >/dev/null 2>&1; then
     ok "Java $(java -version 2>&1 | head -1 | sed 's/.*"\(.*\)".*/\1/')"
   else
-    warn "java が見つからない" "nix develop に入ると JDK 17 が入る"
+    warn "java が見つからない" "nix develop .#android に入ると JDK 17 が入る"
   fi
 else
-  warn "ANDROID_HOME が未設定 (Android ビルドはできない)" "nix develop に入ると SDK/NDK ごと揃う"
+  warn "ANDROID_HOME が未設定 (Android ビルドはできない)" "nix develop .#android に入ると SDK/NDK ごと揃う"
 fi
 
 # ---------------------------------------------------------------- サマリ
