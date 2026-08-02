@@ -1947,7 +1947,7 @@ function onPaste(e: ClipboardEvent) {
   align-items: center;
   gap: 6px;
   padding: 3px 6px 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);
   font-size: 0.82em;

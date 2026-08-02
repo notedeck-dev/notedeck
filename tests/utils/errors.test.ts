@@ -8,9 +8,29 @@ describe('AppError.from()', () => {
   })
 
   it('parses Tauri-style {code, message} object', () => {
-    const err = AppError.from({ code: 'AUTH', message: 'Unauthorized' })
-    expect(err.code).toBe('AUTH')
+    const err = AppError.from({
+      code: 'AUTH_NO_TOKEN',
+      message: 'Unauthorized',
+    })
+    expect(err.code).toBe('AUTH_NO_TOKEN')
     expect(err.message).toBe('Unauthorized')
+    expect(err.apiCode).toBeNull()
+  })
+
+  it('keeps the server-supplied apiCode', () => {
+    const err = AppError.from({
+      code: 'API',
+      message: 'notes/show: NO_SUCH_NOTE: gone',
+      apiCode: 'NO_SUCH_NOTE',
+    })
+    expect(err.apiCode).toBe('NO_SUCH_NOTE')
+    expect(err.displayCode).toBe('NO_SUCH_NOTE')
+  })
+
+  it('displayCode falls back to code when the server gave none', () => {
+    expect(new AppError('CONNECTION_CLOSED', 'closed').displayCode).toBe(
+      'CONNECTION_CLOSED',
+    )
   })
 
   it('wraps plain string as UNKNOWN', () => {
@@ -46,27 +66,41 @@ describe('AppError.from()', () => {
   it('isNetwork returns true for NETWORK and CONNECTION_CLOSED', () => {
     expect(new AppError('NETWORK', 'err').isNetwork).toBe(true)
     expect(new AppError('CONNECTION_CLOSED', 'err').isNetwork).toBe(true)
-    expect(new AppError('AUTH', 'err').isNetwork).toBe(false)
+    expect(new AppError('AUTH_NO_TOKEN', 'err').isNetwork).toBe(false)
   })
 
-  it('isAuth returns true for AUTH and ACCOUNT_NOT_FOUND', () => {
-    expect(new AppError('AUTH', 'err').isAuth).toBe(true)
+  it('isAuth returns true for every AUTH_ kind and ACCOUNT_NOT_FOUND', () => {
+    expect(new AppError('AUTH_NO_TOKEN', 'err').isAuth).toBe(true)
+    expect(new AppError('AUTH_MIAUTH_PENDING', 'err').isAuth).toBe(true)
+    expect(new AppError('AUTH_SESSION_INVALID', 'err').isAuth).toBe(true)
+    expect(new AppError('AUTH_CREDENTIAL_MISSING', 'err').isAuth).toBe(true)
     expect(new AppError('ACCOUNT_NOT_FOUND', 'err').isAuth).toBe(true)
     expect(new AppError('NETWORK', 'err').isAuth).toBe(false)
   })
 
   it('isAuth detects token expiry inside API errors', () => {
-    // notecli は HTTP 401 を code='API' に潰すため Misskey エラーコードで判定する
+    // notecli は HTTP 401 を code='API' に潰すため、サーバー由来の apiCode で判定する。
+    // message の文言には依存しない
     expect(
-      new AppError('API', 'i: AUTHENTICATION_FAILED: invalid token').isAuth,
+      AppError.from({
+        code: 'API',
+        message: 'サーバーからのメッセージ',
+        apiCode: 'AUTHENTICATION_FAILED',
+      }).isAuth,
     ).toBe(true)
     expect(
-      new AppError('API', 'notes/timeline: CREDENTIAL_REQUIRED: login required')
-        .isAuth,
+      AppError.from({
+        code: 'API',
+        message: 'サーバーからのメッセージ',
+        apiCode: 'CREDENTIAL_REQUIRED',
+      }).isAuth,
     ).toBe(true)
     expect(
-      new AppError('API', 'notes/timeline: RATE_LIMIT_EXCEEDED: slow down')
-        .isAuth,
+      AppError.from({
+        code: 'API',
+        message: 'notes/timeline: RATE_LIMIT_EXCEEDED: slow down',
+        apiCode: 'RATE_LIMIT_EXCEEDED',
+      }).isAuth,
     ).toBe(false)
   })
 })

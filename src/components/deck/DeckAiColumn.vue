@@ -3,6 +3,7 @@ import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { dispatchCapability } from '@/capabilities/dispatcher'
 import { listCapabilities } from '@/capabilities/registry'
 import { toAnthropicTool, toOpenAiTool } from '@/capabilities/toolSchema'
+import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import { type ChatMessage, useAiChat } from '@/composables/useAiChat'
 import {
@@ -194,18 +195,6 @@ const hasNoSearchHits = computed(
     searchQuery.value.trim().length > 0 &&
     filteredGroupedSessions.value.length === 0,
 )
-
-function relativeTime(epoch: number): string {
-  const diff = Date.now() - epoch
-  const sec = Math.floor(diff / 1000)
-  if (sec < 60) return 'たった今'
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min} 分前`
-  const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr} 時間前`
-  const d = new Date(epoch)
-  return `${d.getMonth() + 1}/${d.getDate()}`
-}
 
 const currentSessionTitle = computed(() => {
   const id = currentSessionId.value
@@ -955,9 +944,7 @@ function onKeydown(e: KeyboardEvent) {
               </div>
             </div>
             <div :class="$style.rowRight">
-              <div :class="$style.rowTime">
-                {{ relativeTime(session.updatedAt) }}
-              </div>
+              <AppTime :class="$style.rowTime" :at="session.updatedAt" />
               <div :class="$style.rowActions">
                 <button
                   class="_button"
@@ -1787,7 +1774,7 @@ function onKeydown(e: KeyboardEvent) {
     align-items: center;
     gap: 6px;
     padding: 6px 14px;
-    border-radius: 999px;
+    border-radius: var(--nd-radius-full);
     font-size: 0.85em;
     color: var(--nd-fg);
     background: var(--nd-panel);

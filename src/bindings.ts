@@ -18,7 +18,7 @@ async setStatusBarStyle(lightBackground: boolean) : Promise<void> {
     await TAURI_INVOKE("set_status_bar_style", { lightBackground });
 },
 /** @see src-tauri/src/commands/admin.rs */
-async loadAccounts() : Promise<Result<AccountPublic[], { code: string; message: string }>> {
+async loadAccounts() : Promise<Result<AccountPublic[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("load_accounts") };
 } catch (e) {
@@ -27,7 +27,7 @@ async loadAccounts() : Promise<Result<AccountPublic[], { code: string; message: 
 }
 },
 /** @see src-tauri/src/commands/admin.rs */
-async deleteAccount(id: string) : Promise<Result<null, { code: string; message: string }>> {
+async deleteAccount(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_account", { id }) };
 } catch (e) {
@@ -40,7 +40,7 @@ async deleteAccount(id: string) : Promise<Result<null, { code: string; message: 
  *
  * @see src-tauri/src/commands/admin.rs
  */
-async logoutAccount(id: string) : Promise<Result<null, { code: string; message: string }>> {
+async logoutAccount(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("logout_account", { id }) };
 } catch (e) {
@@ -53,7 +53,7 @@ async logoutAccount(id: string) : Promise<Result<null, { code: string; message: 
  *
  * @see src-tauri/src/commands/admin.rs
  */
-async createGuestAccount(host: string, software: string) : Promise<Result<AccountPublic, { code: string; message: string }>> {
+async createGuestAccount(host: string, software: string) : Promise<Result<AccountPublic, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_guest_account", { host, software }) };
 } catch (e) {
@@ -62,7 +62,7 @@ async createGuestAccount(host: string, software: string) : Promise<Result<Accoun
 }
 },
 /** @see src-tauri/src/commands/admin.rs */
-async cacheStats() : Promise<Result<CacheStats, { code: string; message: string }>> {
+async cacheStats() : Promise<Result<CacheStats, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cache_stats") };
 } catch (e) {
@@ -82,7 +82,7 @@ async qirValidate(query: QirQuery) : Promise<QirValidation> {
     return await TAURI_INVOKE("qir_validate", { query });
 },
 /** @see src-tauri/src/commands/admin.rs */
-async accountCacheCount(accountId: string) : Promise<Result<number, { code: string; message: string }>> {
+async accountCacheCount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("account_cache_count", { accountId }) };
 } catch (e) {
@@ -91,7 +91,7 @@ async accountCacheCount(accountId: string) : Promise<Result<number, { code: stri
 }
 },
 /** @see src-tauri/src/commands/admin.rs */
-async clearAccountCache(accountId: string) : Promise<Result<number, { code: string; message: string }>> {
+async clearAccountCache(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("clear_account_cache", { accountId }) };
 } catch (e) {
@@ -100,7 +100,7 @@ async clearAccountCache(accountId: string) : Promise<Result<number, { code: stri
 }
 },
 /** @see src-tauri/src/commands/admin.rs */
-async clearAllCache() : Promise<Result<number, { code: string; message: string }>> {
+async clearAllCache() : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("clear_all_cache") };
 } catch (e) {
@@ -114,7 +114,7 @@ async clearAllCache() : Promise<Result<number, { code: string; message: string }
  *
  * @see src-tauri/src/commands/admin.rs
  */
-async applyEvictionConfig(config: EvictionConfig) : Promise<Result<number, { code: string; message: string }>> {
+async applyEvictionConfig(config: EvictionConfig) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("apply_eviction_config", { config }) };
 } catch (e) {
@@ -128,7 +128,7 @@ async applyEvictionConfig(config: EvictionConfig) : Promise<Result<number, { cod
  *
  * @see src-tauri/src/commands/admin.rs
  */
-async defaultEvictionConfig() : Promise<Result<EvictionConfig, { code: string; message: string }>> {
+async defaultEvictionConfig() : Promise<Result<EvictionConfig, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("default_eviction_config") };
 } catch (e) {
@@ -137,7 +137,7 @@ async defaultEvictionConfig() : Promise<Result<EvictionConfig, { code: string; m
 }
 },
 /** @see src-tauri/src/commands/admin.rs */
-async chatCacheStats() : Promise<Result<ChatCacheStats, { code: string; message: string }>> {
+async chatCacheStats() : Promise<Result<ChatCacheStats, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("chat_cache_stats") };
 } catch (e) {
@@ -146,7 +146,7 @@ async chatCacheStats() : Promise<Result<ChatCacheStats, { code: string; message:
 }
 },
 /** @see src-tauri/src/commands/admin.rs */
-async chatCacheCount(accountId: string) : Promise<Result<number, { code: string; message: string }>> {
+async chatCacheCount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("chat_cache_count", { accountId }) };
 } catch (e) {
@@ -155,7 +155,7 @@ async chatCacheCount(accountId: string) : Promise<Result<number, { code: string;
 }
 },
 /** @see src-tauri/src/commands/admin.rs */
-async clearChatCacheForAccount(accountId: string) : Promise<Result<number, { code: string; message: string }>> {
+async clearChatCacheForAccount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("clear_chat_cache_for_account", { accountId }) };
 } catch (e) {
@@ -168,7 +168,7 @@ async clearChatCacheForAccount(accountId: string) : Promise<Result<number, { cod
  *
  * @see src-tauri/src/commands/admin.rs
  */
-async applyChatEvictionConfig(config: ChatEvictionConfig) : Promise<Result<number, { code: string; message: string }>> {
+async applyChatEvictionConfig(config: ChatEvictionConfig) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("apply_chat_eviction_config", { config }) };
 } catch (e) {
@@ -177,7 +177,7 @@ async applyChatEvictionConfig(config: ChatEvictionConfig) : Promise<Result<numbe
 }
 },
 /** @see src-tauri/src/commands/admin.rs */
-async defaultChatEvictionConfig() : Promise<Result<ChatEvictionConfig, { code: string; message: string }>> {
+async defaultChatEvictionConfig() : Promise<Result<ChatEvictionConfig, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("default_chat_eviction_config") };
 } catch (e) {
@@ -186,7 +186,7 @@ async defaultChatEvictionConfig() : Promise<Result<ChatEvictionConfig, { code: s
 }
 },
 /** @see src-tauri/src/commands/admin.rs */
-async loadServerDetections() : Promise<Result<ServerDetection[], { code: string; message: string }>> {
+async loadServerDetections() : Promise<Result<ServerDetection[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("load_server_detections") };
 } catch (e) {
@@ -199,7 +199,7 @@ async loadServerDetections() : Promise<Result<ServerDetection[], { code: string;
  *
  * @see src-tauri/src/commands/admin.rs
  */
-async getServerDetection(host: string) : Promise<Result<ServerDetection, { code: string; message: string }>> {
+async getServerDetection(host: string) : Promise<Result<ServerDetection, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_server_detection", { host }) };
 } catch (e) {
@@ -212,7 +212,7 @@ async getServerDetection(host: string) : Promise<Result<ServerDetection, { code:
  *
  * @see src-tauri/src/commands/admin.rs
  */
-async detectServer(host: string) : Promise<Result<ServerDetection, { code: string; message: string }>> {
+async detectServer(host: string) : Promise<Result<ServerDetection, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("detect_server", { host }) };
 } catch (e) {
@@ -221,7 +221,7 @@ async detectServer(host: string) : Promise<Result<ServerDetection, { code: strin
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetEndpoints(host: string) : Promise<Result<string[], { code: string; message: string }>> {
+async apiGetEndpoints(host: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_endpoints", { host }) };
 } catch (e) {
@@ -230,7 +230,7 @@ async apiGetEndpoints(host: string) : Promise<Result<string[], { code: string; m
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetEndpointParams(host: string, endpoint: string) : Promise<Result<string[], { code: string; message: string }>> {
+async apiGetEndpointParams(host: string, endpoint: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_endpoint_params", { host, endpoint }) };
 } catch (e) {
@@ -239,7 +239,7 @@ async apiGetEndpointParams(host: string, endpoint: string) : Promise<Result<stri
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetUserPolicies(accountId: string) : Promise<Result<Partial<{ [key in string]: boolean }>, { code: string; message: string }>> {
+async apiGetUserPolicies(accountId: string) : Promise<Result<Partial<{ [key in string]: boolean }>, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_policies", { accountId }) };
 } catch (e) {
@@ -248,7 +248,7 @@ async apiGetUserPolicies(accountId: string) : Promise<Result<Partial<{ [key in s
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiUpdateUserSetting(accountId: string, key: string, value: boolean) : Promise<Result<null, { code: string; message: string }>> {
+async apiUpdateUserSetting(accountId: string, key: string, value: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_user_setting", { accountId, key, value }) };
 } catch (e) {
@@ -257,7 +257,7 @@ async apiUpdateUserSetting(accountId: string, key: string, value: boolean) : Pro
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetTimeline(accountId: string, timelineType: TimelineType, options: TimelineOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetTimeline(accountId: string, timelineType: TimelineType, options: TimelineOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_timeline", { accountId, timelineType, options }) };
 } catch (e) {
@@ -266,7 +266,7 @@ async apiGetTimeline(accountId: string, timelineType: TimelineType, options: Tim
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetUserLists(accountId: string) : Promise<Result<UserList[], { code: string; message: string }>> {
+async apiGetUserLists(accountId: string) : Promise<Result<UserList[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_lists", { accountId }) };
 } catch (e) {
@@ -275,7 +275,7 @@ async apiGetUserLists(accountId: string) : Promise<Result<UserList[], { code: st
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetAntennas(accountId: string) : Promise<Result<Antenna[], { code: string; message: string }>> {
+async apiGetAntennas(accountId: string) : Promise<Result<Antenna[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_antennas", { accountId }) };
 } catch (e) {
@@ -288,7 +288,7 @@ async apiGetAntennas(accountId: string) : Promise<Result<Antenna[], { code: stri
  *
  * @see src-tauri/src/commands/timeline.rs
  */
-async apiGetAntenna(accountId: string, antennaId: string) : Promise<Result<Antenna, { code: string; message: string }>> {
+async apiGetAntenna(accountId: string, antennaId: string) : Promise<Result<Antenna, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_antenna", { accountId, antennaId }) };
 } catch (e) {
@@ -301,7 +301,7 @@ async apiGetAntenna(accountId: string, antennaId: string) : Promise<Result<Anten
  *
  * @see src-tauri/src/commands/timeline.rs
  */
-async apiUpdateAntenna(accountId: string, antenna: Antenna) : Promise<Result<Antenna, { code: string; message: string }>> {
+async apiUpdateAntenna(accountId: string, antenna: Antenna) : Promise<Result<Antenna, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_antenna", { accountId, antenna }) };
 } catch (e) {
@@ -310,7 +310,7 @@ async apiUpdateAntenna(accountId: string, antenna: Antenna) : Promise<Result<Ant
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetAntennaNotes(accountId: string, antennaId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetAntennaNotes(accountId: string, antennaId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_antenna_notes", { accountId, antennaId, limit, sinceId, untilId }) };
 } catch (e) {
@@ -319,7 +319,7 @@ async apiGetAntennaNotes(accountId: string, antennaId: string, limit: number | n
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetFavorites(accountId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetFavorites(accountId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_favorites", { accountId, limit, sinceId, untilId }) };
 } catch (e) {
@@ -328,7 +328,7 @@ async apiGetFavorites(accountId: string, limit: number | null, sinceId: string |
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetFeaturedNotes(accountId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetFeaturedNotes(accountId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_featured_notes", { accountId, limit }) };
 } catch (e) {
@@ -337,7 +337,7 @@ async apiGetFeaturedNotes(accountId: string, limit: number | null) : Promise<Res
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetMentions(accountId: string, limit: number | null, sinceId: string | null, untilId: string | null, visibility: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetMentions(accountId: string, limit: number | null, sinceId: string | null, untilId: string | null, visibility: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_mentions", { accountId, limit, sinceId, untilId, visibility }) };
 } catch (e) {
@@ -346,7 +346,7 @@ async apiGetMentions(accountId: string, limit: number | null, sinceId: string | 
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetClips(accountId: string) : Promise<Result<Clip[], { code: string; message: string }>> {
+async apiGetClips(accountId: string) : Promise<Result<Clip[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_clips", { accountId }) };
 } catch (e) {
@@ -355,7 +355,7 @@ async apiGetClips(accountId: string) : Promise<Result<Clip[], { code: string; me
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetClipNotes(accountId: string, clipId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetClipNotes(accountId: string, clipId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_clip_notes", { accountId, clipId, limit, sinceId, untilId }) };
 } catch (e) {
@@ -364,7 +364,7 @@ async apiGetClipNotes(accountId: string, clipId: string, limit: number | null, s
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetChannels(accountId: string) : Promise<Result<Channel[], { code: string; message: string }>> {
+async apiGetChannels(accountId: string) : Promise<Result<Channel[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_channels", { accountId }) };
 } catch (e) {
@@ -373,7 +373,7 @@ async apiGetChannels(accountId: string) : Promise<Result<Channel[], { code: stri
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiSearchChannels(accountId: string, query: string) : Promise<Result<Channel[], { code: string; message: string }>> {
+async apiSearchChannels(accountId: string, query: string) : Promise<Result<Channel[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_channels", { accountId, query }) };
 } catch (e) {
@@ -382,7 +382,7 @@ async apiSearchChannels(accountId: string, query: string) : Promise<Result<Chann
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetChannelNotes(accountId: string, channelId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetChannelNotes(accountId: string, channelId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_channel_notes", { accountId, channelId, limit, sinceId, untilId }) };
 } catch (e) {
@@ -391,7 +391,7 @@ async apiGetChannelNotes(accountId: string, channelId: string, limit: number | n
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetRoleNotes(accountId: string, roleId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetRoleNotes(accountId: string, roleId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_role_notes", { accountId, roleId, limit, sinceId, untilId }) };
 } catch (e) {
@@ -400,7 +400,7 @@ async apiGetRoleNotes(accountId: string, roleId: string, limit: number | null, s
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetNote(accountId: string, noteId: string) : Promise<Result<NormalizedNote, { code: string; message: string }>> {
+async apiGetNote(accountId: string, noteId: string) : Promise<Result<NormalizedNote, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note", { accountId, noteId }) };
 } catch (e) {
@@ -409,7 +409,7 @@ async apiGetNote(accountId: string, noteId: string) : Promise<Result<NormalizedN
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiCreateNote(accountId: string, params: CreateNoteParams, channelId: string | null) : Promise<Result<NormalizedNote, { code: string; message: string }>> {
+async apiCreateNote(accountId: string, params: CreateNoteParams, channelId: string | null) : Promise<Result<NormalizedNote, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_note", { accountId, params, channelId }) };
 } catch (e) {
@@ -418,7 +418,7 @@ async apiCreateNote(accountId: string, params: CreateNoteParams, channelId: stri
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiCreateReaction(accountId: string, noteId: string, reaction: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiCreateReaction(accountId: string, noteId: string, reaction: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_reaction", { accountId, noteId, reaction }) };
 } catch (e) {
@@ -427,7 +427,7 @@ async apiCreateReaction(accountId: string, noteId: string, reaction: string) : P
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiDeleteReaction(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiDeleteReaction(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_reaction", { accountId, noteId }) };
 } catch (e) {
@@ -436,7 +436,7 @@ async apiDeleteReaction(accountId: string, noteId: string) : Promise<Result<null
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiVotePoll(accountId: string, noteId: string, choice: number) : Promise<Result<null, { code: string; message: string }>> {
+async apiVotePoll(accountId: string, noteId: string, choice: number) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_vote_poll", { accountId, noteId, choice }) };
 } catch (e) {
@@ -445,7 +445,7 @@ async apiVotePoll(accountId: string, noteId: string, choice: number) : Promise<R
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetNoteReactions(accountId: string, noteId: string, reactionType: string | null, limit: number | null, untilId: string | null) : Promise<Result<NormalizedNoteReaction[], { code: string; message: string }>> {
+async apiGetNoteReactions(accountId: string, noteId: string, reactionType: string | null, limit: number | null, untilId: string | null) : Promise<Result<NormalizedNoteReaction[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_reactions", { accountId, noteId, reactionType, limit, untilId }) };
 } catch (e) {
@@ -454,7 +454,7 @@ async apiGetNoteReactions(accountId: string, noteId: string, reactionType: strin
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiUpdateNote(accountId: string, noteId: string, params: CreateNoteParams) : Promise<Result<null, { code: string; message: string }>> {
+async apiUpdateNote(accountId: string, noteId: string, params: CreateNoteParams) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_note", { accountId, noteId, params }) };
 } catch (e) {
@@ -463,7 +463,7 @@ async apiUpdateNote(accountId: string, noteId: string, params: CreateNoteParams)
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiUploadFile(accountId: string, fileName: string, fileData: number[], contentType: string, isSensitive: boolean, folderId: string | null) : Promise<Result<NormalizedDriveFile, { code: string; message: string }>> {
+async apiUploadFile(accountId: string, fileName: string, fileData: number[], contentType: string, isSensitive: boolean, folderId: string | null) : Promise<Result<NormalizedDriveFile, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_upload_file", { accountId, fileName, fileData, contentType, isSensitive, folderId }) };
 } catch (e) {
@@ -472,7 +472,7 @@ async apiUploadFile(accountId: string, fileName: string, fileData: number[], con
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiUploadFileFromPath(accountId: string, filePath: string, isSensitive: boolean, folderId: string | null) : Promise<Result<NormalizedDriveFile, { code: string; message: string }>> {
+async apiUploadFileFromPath(accountId: string, filePath: string, isSensitive: boolean, folderId: string | null) : Promise<Result<NormalizedDriveFile, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_upload_file_from_path", { accountId, filePath, isSensitive, folderId }) };
 } catch (e) {
@@ -481,7 +481,7 @@ async apiUploadFileFromPath(accountId: string, filePath: string, isSensitive: bo
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiCreateFavorite(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiCreateFavorite(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_favorite", { accountId, noteId }) };
 } catch (e) {
@@ -490,7 +490,7 @@ async apiCreateFavorite(accountId: string, noteId: string) : Promise<Result<null
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiDeleteFavorite(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiDeleteFavorite(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_favorite", { accountId, noteId }) };
 } catch (e) {
@@ -499,7 +499,7 @@ async apiDeleteFavorite(accountId: string, noteId: string) : Promise<Result<null
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiDeleteNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiDeleteNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_note", { accountId, noteId }) };
 } catch (e) {
@@ -508,7 +508,7 @@ async apiDeleteNote(accountId: string, noteId: string) : Promise<Result<null, { 
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiFollowUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiFollowUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_follow_user", { accountId, userId }) };
 } catch (e) {
@@ -517,7 +517,7 @@ async apiFollowUser(accountId: string, userId: string) : Promise<Result<null, { 
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiUnfollowUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiUnfollowUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unfollow_user", { accountId, userId }) };
 } catch (e) {
@@ -526,7 +526,7 @@ async apiUnfollowUser(accountId: string, userId: string) : Promise<Result<null, 
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiInvalidateFollower(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiInvalidateFollower(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_invalidate_follower", { accountId, userId }) };
 } catch (e) {
@@ -540,7 +540,7 @@ async apiInvalidateFollower(accountId: string, userId: string) : Promise<Result<
  *
  * @see src-tauri/src/commands/user.rs
  */
-async apiUpdateFollowing(accountId: string, userId: string, notify: string | null, withReplies: boolean | null) : Promise<Result<null, { code: string; message: string }>> {
+async apiUpdateFollowing(accountId: string, userId: string, notify: string | null, withReplies: boolean | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_following", { accountId, userId, notify, withReplies }) };
 } catch (e) {
@@ -553,7 +553,7 @@ async apiUpdateFollowing(accountId: string, userId: string, notify: string | nul
  *
  * @see src-tauri/src/commands/user.rs
  */
-async apiUpdateUserMemo(accountId: string, userId: string, memo: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiUpdateUserMemo(accountId: string, userId: string, memo: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_user_memo", { accountId, userId, memo }) };
 } catch (e) {
@@ -562,7 +562,7 @@ async apiUpdateUserMemo(accountId: string, userId: string, memo: string) : Promi
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiAcceptFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiAcceptFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_accept_follow_request", { accountId, userId }) };
 } catch (e) {
@@ -571,7 +571,7 @@ async apiAcceptFollowRequest(accountId: string, userId: string) : Promise<Result
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiRejectFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiRejectFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_reject_follow_request", { accountId, userId }) };
 } catch (e) {
@@ -584,7 +584,7 @@ async apiRejectFollowRequest(accountId: string, userId: string) : Promise<Result
  *
  * @see src-tauri/src/commands/user.rs
  */
-async apiCancelFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiCancelFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_cancel_follow_request", { accountId, userId }) };
 } catch (e) {
@@ -593,7 +593,7 @@ async apiCancelFollowRequest(accountId: string, userId: string) : Promise<Result
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUser(accountId: string, userId: string) : Promise<Result<NormalizedUser, { code: string; message: string }>> {
+async apiGetUser(accountId: string, userId: string) : Promise<Result<NormalizedUser, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user", { accountId, userId }) };
 } catch (e) {
@@ -602,7 +602,7 @@ async apiGetUser(accountId: string, userId: string) : Promise<Result<NormalizedU
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUserDetail(accountId: string, userId: string) : Promise<Result<NormalizedUserDetail, { code: string; message: string }>> {
+async apiGetUserDetail(accountId: string, userId: string) : Promise<Result<NormalizedUserDetail, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_detail", { accountId, userId }) };
 } catch (e) {
@@ -611,7 +611,7 @@ async apiGetUserDetail(accountId: string, userId: string) : Promise<Result<Norma
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUserNotes(accountId: string, userId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetUserNotes(accountId: string, userId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_notes", { accountId, userId, options }) };
 } catch (e) {
@@ -620,7 +620,7 @@ async apiGetUserNotes(accountId: string, userId: string, options: TimelineOption
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetServerEmojis(accountId: string) : Promise<Result<ServerEmoji[], { code: string; message: string }>> {
+async apiGetServerEmojis(accountId: string) : Promise<Result<ServerEmoji[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_server_emojis", { accountId }) };
 } catch (e) {
@@ -629,7 +629,7 @@ async apiGetServerEmojis(accountId: string) : Promise<Result<ServerEmoji[], { co
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetPinnedReactions(accountId: string) : Promise<Result<string[], { code: string; message: string }>> {
+async apiGetPinnedReactions(accountId: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_pinned_reactions", { accountId }) };
 } catch (e) {
@@ -638,7 +638,7 @@ async apiGetPinnedReactions(accountId: string) : Promise<Result<string[], { code
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiGetNotifications(accountId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNotification[], { code: string; message: string }>> {
+async apiGetNotifications(accountId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNotification[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_notifications", { accountId, options }) };
 } catch (e) {
@@ -647,7 +647,7 @@ async apiGetNotifications(accountId: string, options: TimelineOptions | null) : 
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiGetNotificationsGrouped(accountId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNotification[], { code: string; message: string }>> {
+async apiGetNotificationsGrouped(accountId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNotification[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_notifications_grouped", { accountId, options }) };
 } catch (e) {
@@ -656,7 +656,7 @@ async apiGetNotificationsGrouped(accountId: string, options: TimelineOptions | n
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiSearchNotes(accountId: string, query: string, options: SearchOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiSearchNotes(accountId: string, query: string, options: SearchOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_notes", { accountId, query, options }) };
 } catch (e) {
@@ -665,7 +665,7 @@ async apiSearchNotes(accountId: string, query: string, options: SearchOptions | 
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetNoteChildren(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetNoteChildren(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_children", { accountId, noteId, limit }) };
 } catch (e) {
@@ -674,7 +674,7 @@ async apiGetNoteChildren(accountId: string, noteId: string, limit: number | null
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetNoteRenotes(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetNoteRenotes(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_renotes", { accountId, noteId, limit }) };
 } catch (e) {
@@ -683,7 +683,7 @@ async apiGetNoteRenotes(accountId: string, noteId: string, limit: number | null)
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetNoteConversation(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetNoteConversation(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_conversation", { accountId, noteId, limit }) };
 } catch (e) {
@@ -692,7 +692,7 @@ async apiGetNoteConversation(accountId: string, noteId: string, limit: number | 
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiLookupUser(accountId: string, username: string, host: string | null) : Promise<Result<NormalizedUser, { code: string; message: string }>> {
+async apiLookupUser(accountId: string, username: string, host: string | null) : Promise<Result<NormalizedUser, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_lookup_user", { accountId, username, host }) };
 } catch (e) {
@@ -701,7 +701,7 @@ async apiLookupUser(accountId: string, username: string, host: string | null) : 
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetCachedTimeline(accountId: string, timelineType: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetCachedTimeline(accountId: string, timelineType: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_timeline", { accountId, timelineType, limit }) };
 } catch (e) {
@@ -710,7 +710,7 @@ async apiGetCachedTimeline(accountId: string, timelineType: string, limit: numbe
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiDeleteCachedNote(noteId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiDeleteCachedNote(noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_cached_note", { noteId }) };
 } catch (e) {
@@ -725,7 +725,7 @@ async apiDeleteCachedNote(noteId: string) : Promise<Result<null, { code: string;
  *
  * @see src-tauri/src/commands/timeline.rs
  */
-async apiVerifyNotes(accountId: string, noteIds: string[]) : Promise<Result<Partial<{ [key in string]: NormalizedNote }>, { code: string; message: string }>> {
+async apiVerifyNotes(accountId: string, noteIds: string[]) : Promise<Result<Partial<{ [key in string]: NormalizedNote }>, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_verify_notes", { accountId, noteIds }) };
 } catch (e) {
@@ -734,7 +734,7 @@ async apiVerifyNotes(accountId: string, noteIds: string[]) : Promise<Result<Part
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetCachedTimelineBefore(accountId: string, timelineType: string, before: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiGetCachedTimelineBefore(accountId: string, timelineType: string, before: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_timeline_before", { accountId, timelineType, before, limit }) };
 } catch (e) {
@@ -743,7 +743,7 @@ async apiGetCachedTimelineBefore(accountId: string, timelineType: string, before
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetCacheDateRange(accountId: string, timelineType: string) : Promise<Result<[string, string] | null, { code: string; message: string }>> {
+async apiGetCacheDateRange(accountId: string, timelineType: string) : Promise<Result<[string, string] | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cache_date_range", { accountId, timelineType }) };
 } catch (e) {
@@ -752,7 +752,7 @@ async apiGetCacheDateRange(accountId: string, timelineType: string) : Promise<Re
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiSearchNotesLocal(accountId: string, query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiSearchNotesLocal(accountId: string, query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_notes_local", { accountId, query, limit, sinceDate, untilDate, ascending }) };
 } catch (e) {
@@ -761,7 +761,7 @@ async apiSearchNotesLocal(accountId: string, query: string, limit: number | null
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiFindNotesByUri(uri: string) : Promise<Result<NormalizedNote[], { code: string; message: string }>> {
+async apiFindNotesByUri(uri: string) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_find_notes_by_uri", { uri }) };
 } catch (e) {
@@ -770,7 +770,7 @@ async apiFindNotesByUri(uri: string) : Promise<Result<NormalizedNote[], { code: 
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiPinNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiPinNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_pin_note", { accountId, noteId }) };
 } catch (e) {
@@ -779,7 +779,7 @@ async apiPinNote(accountId: string, noteId: string) : Promise<Result<null, { cod
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiUnpinNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiUnpinNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unpin_note", { accountId, noteId }) };
 } catch (e) {
@@ -788,7 +788,7 @@ async apiUnpinNote(accountId: string, noteId: string) : Promise<Result<null, { c
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiMuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiMuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_mute_user", { accountId, userId }) };
 } catch (e) {
@@ -797,7 +797,7 @@ async apiMuteUser(accountId: string, userId: string) : Promise<Result<null, { co
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiUnmuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiUnmuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unmute_user", { accountId, userId }) };
 } catch (e) {
@@ -806,7 +806,7 @@ async apiUnmuteUser(accountId: string, userId: string) : Promise<Result<null, { 
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiRenoteMuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiRenoteMuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_renote_mute_user", { accountId, userId }) };
 } catch (e) {
@@ -815,7 +815,7 @@ async apiRenoteMuteUser(accountId: string, userId: string) : Promise<Result<null
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiUnrenoteMuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiUnrenoteMuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unrenote_mute_user", { accountId, userId }) };
 } catch (e) {
@@ -828,7 +828,7 @@ async apiUnrenoteMuteUser(accountId: string, userId: string) : Promise<Result<nu
  *
  * @see src-tauri/src/commands/user.rs
  */
-async apiGetMutedUsers(accountId: string) : Promise<Result<string[], { code: string; message: string }>> {
+async apiGetMutedUsers(accountId: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_muted_users", { accountId }) };
 } catch (e) {
@@ -842,7 +842,7 @@ async apiGetMutedUsers(accountId: string) : Promise<Result<string[], { code: str
  *
  * @see src-tauri/src/commands/user.rs
  */
-async apiGetMutedWords(accountId: string) : Promise<Result<MutedWordsResult, { code: string; message: string }>> {
+async apiGetMutedWords(accountId: string) : Promise<Result<MutedWordsResult, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_muted_words", { accountId }) };
 } catch (e) {
@@ -855,7 +855,7 @@ async apiGetMutedWords(accountId: string) : Promise<Result<MutedWordsResult, { c
  *
  * @see src-tauri/src/commands/user.rs
  */
-async apiGetRenoteMutedUsers(accountId: string) : Promise<Result<string[], { code: string; message: string }>> {
+async apiGetRenoteMutedUsers(accountId: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_renote_muted_users", { accountId }) };
 } catch (e) {
@@ -864,7 +864,7 @@ async apiGetRenoteMutedUsers(accountId: string) : Promise<Result<string[], { cod
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiBlockUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiBlockUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_block_user", { accountId, userId }) };
 } catch (e) {
@@ -873,7 +873,7 @@ async apiBlockUser(accountId: string, userId: string) : Promise<Result<null, { c
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiUnblockUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiUnblockUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unblock_user", { accountId, userId }) };
 } catch (e) {
@@ -882,7 +882,7 @@ async apiUnblockUser(accountId: string, userId: string) : Promise<Result<null, {
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiReportUser(accountId: string, userId: string, comment: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiReportUser(accountId: string, userId: string, comment: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_report_user", { accountId, userId, comment }) };
 } catch (e) {
@@ -891,7 +891,7 @@ async apiReportUser(accountId: string, userId: string, comment: string) : Promis
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiAddNoteToClip(accountId: string, clipId: string, noteId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiAddNoteToClip(accountId: string, clipId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_add_note_to_clip", { accountId, clipId, noteId }) };
 } catch (e) {
@@ -900,7 +900,7 @@ async apiAddNoteToClip(accountId: string, clipId: string, noteId: string) : Prom
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiRemoveNoteFromClip(accountId: string, clipId: string, noteId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiRemoveNoteFromClip(accountId: string, clipId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_remove_note_from_clip", { accountId, clipId, noteId }) };
 } catch (e) {
@@ -909,7 +909,7 @@ async apiRemoveNoteFromClip(accountId: string, clipId: string, noteId: string) :
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiAddUserToList(accountId: string, listId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiAddUserToList(accountId: string, listId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_add_user_to_list", { accountId, listId, userId }) };
 } catch (e) {
@@ -918,7 +918,7 @@ async apiAddUserToList(accountId: string, listId: string, userId: string) : Prom
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiRemoveUserFromList(accountId: string, listId: string, userId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiRemoveUserFromList(accountId: string, listId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_remove_user_from_list", { accountId, listId, userId }) };
 } catch (e) {
@@ -927,7 +927,7 @@ async apiRemoveUserFromList(accountId: string, listId: string, userId: string) :
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetFollowing(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetFollowing(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_following", { accountId, userId, limit, untilId }) };
 } catch (e) {
@@ -936,7 +936,7 @@ async apiGetFollowing(accountId: string, userId: string, limit: number | null, u
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetFollowers(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetFollowers(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_followers", { accountId, userId, limit, untilId }) };
 } catch (e) {
@@ -945,7 +945,7 @@ async apiGetFollowers(accountId: string, userId: string, limit: number | null, u
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUserRelations(accountId: string, userIds: string[]) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetUserRelations(accountId: string, userIds: string[]) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_relations", { accountId, userIds }) };
 } catch (e) {
@@ -954,7 +954,7 @@ async apiGetUserRelations(accountId: string, userIds: string[]) : Promise<Result
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiGetUnreadNotificationCount(accountId: string) : Promise<Result<number, { code: string; message: string }>> {
+async apiGetUnreadNotificationCount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_unread_notification_count", { accountId }) };
 } catch (e) {
@@ -963,7 +963,7 @@ async apiGetUnreadNotificationCount(accountId: string) : Promise<Result<number, 
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiMarkAllNotificationsAsRead(accountId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiMarkAllNotificationsAsRead(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_mark_all_notifications_as_read", { accountId }) };
 } catch (e) {
@@ -972,7 +972,7 @@ async apiMarkAllNotificationsAsRead(accountId: string) : Promise<Result<null, { 
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiGetUnreadChat(accountId: string) : Promise<Result<boolean, { code: string; message: string }>> {
+async apiGetUnreadChat(accountId: string) : Promise<Result<boolean, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_unread_chat", { accountId }) };
 } catch (e) {
@@ -981,7 +981,7 @@ async apiGetUnreadChat(accountId: string) : Promise<Result<boolean, { code: stri
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetSelf(accountId: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetSelf(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_self", { accountId }) };
 } catch (e) {
@@ -990,7 +990,7 @@ async apiGetSelf(accountId: string) : Promise<Result<JsonValue, { code: string; 
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetDriveFolders(accountId: string, folderId: string | null, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetDriveFolders(accountId: string, folderId: string | null, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_drive_folders", { accountId, folderId, limit }) };
 } catch (e) {
@@ -999,7 +999,7 @@ async apiGetDriveFolders(accountId: string, folderId: string | null, limit: numb
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetDriveFiles(accountId: string, folderId: string | null, limit: number | null, fileType: string | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetDriveFiles(accountId: string, folderId: string | null, limit: number | null, fileType: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_drive_files", { accountId, folderId, limit, fileType }) };
 } catch (e) {
@@ -1008,7 +1008,7 @@ async apiGetDriveFiles(accountId: string, folderId: string | null, limit: number
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiDeleteDriveFile(accountId: string, fileId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiDeleteDriveFile(accountId: string, fileId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_drive_file", { accountId, fileId }) };
 } catch (e) {
@@ -1017,7 +1017,7 @@ async apiDeleteDriveFile(accountId: string, fileId: string) : Promise<Result<nul
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiCreateDriveFolder(accountId: string, name: string, parentId: string | null) : Promise<Result<CreatedDriveFolder, { code: string; message: string }>> {
+async apiCreateDriveFolder(accountId: string, name: string, parentId: string | null) : Promise<Result<CreatedDriveFolder, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_drive_folder", { accountId, name, parentId }) };
 } catch (e) {
@@ -1026,7 +1026,7 @@ async apiCreateDriveFolder(accountId: string, name: string, parentId: string | n
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiUpdateDriveFolder(accountId: string, folderId: string, name: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiUpdateDriveFolder(accountId: string, folderId: string, name: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_drive_folder", { accountId, folderId, name }) };
 } catch (e) {
@@ -1035,7 +1035,7 @@ async apiUpdateDriveFolder(accountId: string, folderId: string, name: string) : 
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiDeleteDriveFolder(accountId: string, folderId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiDeleteDriveFolder(accountId: string, folderId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_drive_folder", { accountId, folderId }) };
 } catch (e) {
@@ -1049,7 +1049,7 @@ async apiDeleteDriveFolder(accountId: string, folderId: string) : Promise<Result
  *
  * @see src-tauri/src/commands/content.rs
  */
-async apiUpdateDriveFile(accountId: string, fileId: string, name: string | null, comment: string | null, isSensitive: boolean | null) : Promise<Result<null, { code: string; message: string }>> {
+async apiUpdateDriveFile(accountId: string, fileId: string, name: string | null, comment: string | null, isSensitive: boolean | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_drive_file", { accountId, fileId, name, comment, isSensitive }) };
 } catch (e) {
@@ -1058,7 +1058,7 @@ async apiUpdateDriveFile(accountId: string, fileId: string, name: string | null,
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiMoveDriveFiles(accountId: string, fileIds: string[], folderId: string | null) : Promise<Result<null, { code: string; message: string }>> {
+async apiMoveDriveFiles(accountId: string, fileIds: string[], folderId: string | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_move_drive_files", { accountId, fileIds, folderId }) };
 } catch (e) {
@@ -1067,7 +1067,7 @@ async apiMoveDriveFiles(accountId: string, fileIds: string[], folderId: string |
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetFollowRequests(accountId: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetFollowRequests(accountId: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_follow_requests", { accountId, limit }) };
 } catch (e) {
@@ -1076,7 +1076,7 @@ async apiGetFollowRequests(accountId: string, limit: number | null) : Promise<Re
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetSentFollowRequests(accountId: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetSentFollowRequests(accountId: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_sent_follow_requests", { accountId, limit }) };
 } catch (e) {
@@ -1085,7 +1085,7 @@ async apiGetSentFollowRequests(accountId: string, limit: number | null) : Promis
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiSearchUsers(accountId: string, query: string | null, origin: string | null, sort: string | null, state: string | null, limit: number | null, offset: number | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiSearchUsers(accountId: string, query: string | null, origin: string | null, sort: string | null, state: string | null, limit: number | null, offset: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_users", { accountId, query, origin, sort, state, limit, offset }) };
 } catch (e) {
@@ -1094,7 +1094,7 @@ async apiSearchUsers(accountId: string, query: string | null, origin: string | n
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetRoles(accountId: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetRoles(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_roles", { accountId }) };
 } catch (e) {
@@ -1103,7 +1103,7 @@ async apiGetRoles(accountId: string) : Promise<Result<JsonValue, { code: string;
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetRoleUsers(accountId: string, roleId: string, limit: number | null, offset: number | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetRoleUsers(accountId: string, roleId: string, limit: number | null, offset: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_role_users", { accountId, roleId, limit, offset }) };
 } catch (e) {
@@ -1112,7 +1112,7 @@ async apiGetRoleUsers(accountId: string, roleId: string, limit: number | null, o
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetAnnouncements(accountId: string, limit: number | null, isActive: boolean | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetAnnouncements(accountId: string, limit: number | null, isActive: boolean | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_announcements", { accountId, limit, isActive }) };
 } catch (e) {
@@ -1121,7 +1121,7 @@ async apiGetAnnouncements(accountId: string, limit: number | null, isActive: boo
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiReadAnnouncement(accountId: string, announcementId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiReadAnnouncement(accountId: string, announcementId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_read_announcement", { accountId, announcementId }) };
 } catch (e) {
@@ -1130,7 +1130,7 @@ async apiReadAnnouncement(accountId: string, announcementId: string) : Promise<R
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiReactChatMessage(accountId: string, messageId: string, reaction: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiReactChatMessage(accountId: string, messageId: string, reaction: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_react_chat_message", { accountId, messageId, reaction }) };
 } catch (e) {
@@ -1139,7 +1139,7 @@ async apiReactChatMessage(accountId: string, messageId: string, reaction: string
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiUnreactChatMessage(accountId: string, messageId: string, reaction: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiUnreactChatMessage(accountId: string, messageId: string, reaction: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unreact_chat_message", { accountId, messageId, reaction }) };
 } catch (e) {
@@ -1158,7 +1158,7 @@ async apiUnreactChatMessage(accountId: string, messageId: string, reaction: stri
  *
  * @see src-tauri/src/commands/messaging.rs
  */
-async apiDeleteChatMessage(accountId: string, messageId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiDeleteChatMessage(accountId: string, messageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_chat_message", { accountId, messageId }) };
 } catch (e) {
@@ -1167,7 +1167,7 @@ async apiDeleteChatMessage(accountId: string, messageId: string) : Promise<Resul
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiSearchUsersByQuery(accountId: string, query: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiSearchUsersByQuery(accountId: string, query: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_users_by_query", { accountId, query, limit }) };
 } catch (e) {
@@ -1176,7 +1176,7 @@ async apiSearchUsersByQuery(accountId: string, query: string, limit: number | nu
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiSearchHashtags(accountId: string, query: string, limit: number | null) : Promise<Result<string[], { code: string; message: string }>> {
+async apiSearchHashtags(accountId: string, query: string, limit: number | null) : Promise<Result<string[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_hashtags", { accountId, query, limit }) };
 } catch (e) {
@@ -1185,7 +1185,7 @@ async apiSearchHashtags(accountId: string, query: string, limit: number | null) 
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiApShow(accountId: string, uri: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiApShow(accountId: string, uri: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_ap_show", { accountId, uri }) };
 } catch (e) {
@@ -1194,7 +1194,7 @@ async apiApShow(accountId: string, uri: string) : Promise<Result<JsonValue, { co
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetServerStats(accountId: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetServerStats(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_server_stats", { accountId }) };
 } catch (e) {
@@ -1203,7 +1203,7 @@ async apiGetServerStats(accountId: string) : Promise<Result<JsonValue, { code: s
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetMetaDetail(accountId: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetMetaDetail(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_meta_detail", { accountId }) };
 } catch (e) {
@@ -1212,7 +1212,7 @@ async apiGetMetaDetail(accountId: string) : Promise<Result<JsonValue, { code: st
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUserAchievements(accountId: string, userId: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetUserAchievements(accountId: string, userId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_achievements", { accountId, userId }) };
 } catch (e) {
@@ -1221,7 +1221,7 @@ async apiGetUserAchievements(accountId: string, userId: string) : Promise<Result
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUserNotesFiltered(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetUserNotesFiltered(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_notes_filtered", { accountId, params }) };
 } catch (e) {
@@ -1230,7 +1230,7 @@ async apiGetUserNotesFiltered(accountId: string, params: JsonValue) : Promise<Re
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUserFeaturedNotes(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetUserFeaturedNotes(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_featured_notes", { accountId, userId, limit, untilId }) };
 } catch (e) {
@@ -1239,7 +1239,7 @@ async apiGetUserFeaturedNotes(accountId: string, userId: string, limit: number |
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetPages(accountId: string, endpoint: string, limit: number | null) : Promise<Result<Page[], { code: string; message: string }>> {
+async apiGetPages(accountId: string, endpoint: string, limit: number | null) : Promise<Result<Page[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_pages", { accountId, endpoint, limit }) };
 } catch (e) {
@@ -1248,7 +1248,7 @@ async apiGetPages(accountId: string, endpoint: string, limit: number | null) : P
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetPage(accountId: string, pageId: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetPage(accountId: string, pageId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_page", { accountId, pageId }) };
 } catch (e) {
@@ -1257,7 +1257,7 @@ async apiGetPage(accountId: string, pageId: string) : Promise<Result<JsonValue, 
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiLikePage(accountId: string, pageId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiLikePage(accountId: string, pageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_like_page", { accountId, pageId }) };
 } catch (e) {
@@ -1266,7 +1266,7 @@ async apiLikePage(accountId: string, pageId: string) : Promise<Result<null, { co
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiUnlikePage(accountId: string, pageId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiUnlikePage(accountId: string, pageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unlike_page", { accountId, pageId }) };
 } catch (e) {
@@ -1275,7 +1275,7 @@ async apiUnlikePage(accountId: string, pageId: string) : Promise<Result<null, { 
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetGalleryPosts(accountId: string, limit: number | null, untilId: string | null) : Promise<Result<GalleryPost[], { code: string; message: string }>> {
+async apiGetGalleryPosts(accountId: string, limit: number | null, untilId: string | null) : Promise<Result<GalleryPost[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_gallery_posts", { accountId, limit, untilId }) };
 } catch (e) {
@@ -1284,7 +1284,7 @@ async apiGetGalleryPosts(accountId: string, limit: number | null, untilId: strin
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiLikeGalleryPost(accountId: string, postId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiLikeGalleryPost(accountId: string, postId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_like_gallery_post", { accountId, postId }) };
 } catch (e) {
@@ -1293,7 +1293,7 @@ async apiLikeGalleryPost(accountId: string, postId: string) : Promise<Result<nul
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiUnlikeGalleryPost(accountId: string, postId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiUnlikeGalleryPost(accountId: string, postId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unlike_gallery_post", { accountId, postId }) };
 } catch (e) {
@@ -1302,7 +1302,7 @@ async apiUnlikeGalleryPost(accountId: string, postId: string) : Promise<Result<n
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetFlashes(accountId: string, endpoint: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetFlashes(accountId: string, endpoint: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_flashes", { accountId, endpoint, limit }) };
 } catch (e) {
@@ -1311,7 +1311,7 @@ async apiGetFlashes(accountId: string, endpoint: string, limit: number | null) :
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetFlash(accountId: string, flashId: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetFlash(accountId: string, flashId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_flash", { accountId, flashId }) };
 } catch (e) {
@@ -1320,7 +1320,7 @@ async apiGetFlash(accountId: string, flashId: string) : Promise<Result<JsonValue
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiLikeFlash(accountId: string, flashId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiLikeFlash(accountId: string, flashId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_like_flash", { accountId, flashId }) };
 } catch (e) {
@@ -1329,7 +1329,7 @@ async apiLikeFlash(accountId: string, flashId: string) : Promise<Result<null, { 
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiUnlikeFlash(accountId: string, flashId: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiUnlikeFlash(accountId: string, flashId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unlike_flash", { accountId, flashId }) };
 } catch (e) {
@@ -1338,7 +1338,7 @@ async apiUnlikeFlash(accountId: string, flashId: string) : Promise<Result<null, 
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiRequest(accountId: string, endpoint: string, params: JsonValue | null) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiRequest(accountId: string, endpoint: string, params: JsonValue | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_request", { accountId, endpoint, params }) };
 } catch (e) {
@@ -1347,7 +1347,7 @@ async apiRequest(accountId: string, endpoint: string, params: JsonValue | null) 
 }
 },
 /** @see src-tauri/src/commands/charts.rs */
-async apiChartsUserNotes(accountId: string, params: JsonValue) : Promise<Result<UserNotesChart, { code: string; message: string }>> {
+async apiChartsUserNotes(accountId: string, params: JsonValue) : Promise<Result<UserNotesChart, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_user_notes", { accountId, params }) };
 } catch (e) {
@@ -1356,7 +1356,7 @@ async apiChartsUserNotes(accountId: string, params: JsonValue) : Promise<Result<
 }
 },
 /** @see src-tauri/src/commands/charts.rs */
-async apiChartsUserFollowing(accountId: string, params: JsonValue) : Promise<Result<UserFollowingChart, { code: string; message: string }>> {
+async apiChartsUserFollowing(accountId: string, params: JsonValue) : Promise<Result<UserFollowingChart, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_user_following", { accountId, params }) };
 } catch (e) {
@@ -1365,7 +1365,7 @@ async apiChartsUserFollowing(accountId: string, params: JsonValue) : Promise<Res
 }
 },
 /** @see src-tauri/src/commands/charts.rs */
-async apiChartsUserPv(accountId: string, params: JsonValue) : Promise<Result<UserPvChart, { code: string; message: string }>> {
+async apiChartsUserPv(accountId: string, params: JsonValue) : Promise<Result<UserPvChart, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_user_pv", { accountId, params }) };
 } catch (e) {
@@ -1374,7 +1374,7 @@ async apiChartsUserPv(accountId: string, params: JsonValue) : Promise<Result<Use
 }
 },
 /** @see src-tauri/src/commands/charts.rs */
-async apiChartsActiveUsers(accountId: string, params: JsonValue) : Promise<Result<ActiveUsersChart, { code: string; message: string }>> {
+async apiChartsActiveUsers(accountId: string, params: JsonValue) : Promise<Result<ActiveUsersChart, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_active_users", { accountId, params }) };
 } catch (e) {
@@ -1383,7 +1383,7 @@ async apiChartsActiveUsers(accountId: string, params: JsonValue) : Promise<Resul
 }
 },
 /** @see src-tauri/src/commands/charts.rs */
-async apiChartsNotes(accountId: string, params: JsonValue) : Promise<Result<ServerNotesChart, { code: string; message: string }>> {
+async apiChartsNotes(accountId: string, params: JsonValue) : Promise<Result<ServerNotesChart, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_notes", { accountId, params }) };
 } catch (e) {
@@ -1392,7 +1392,7 @@ async apiChartsNotes(accountId: string, params: JsonValue) : Promise<Result<Serv
 }
 },
 /** @see src-tauri/src/commands/charts.rs */
-async apiChartsUsers(accountId: string, params: JsonValue) : Promise<Result<ServerUsersChart, { code: string; message: string }>> {
+async apiChartsUsers(accountId: string, params: JsonValue) : Promise<Result<ServerUsersChart, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_users", { accountId, params }) };
 } catch (e) {
@@ -1401,7 +1401,7 @@ async apiChartsUsers(accountId: string, params: JsonValue) : Promise<Result<Serv
 }
 },
 /** @see src-tauri/src/commands/charts.rs */
-async apiChartsFederation(accountId: string, params: JsonValue) : Promise<Result<FederationChart, { code: string; message: string }>> {
+async apiChartsFederation(accountId: string, params: JsonValue) : Promise<Result<FederationChart, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_federation", { accountId, params }) };
 } catch (e) {
@@ -1410,7 +1410,7 @@ async apiChartsFederation(accountId: string, params: JsonValue) : Promise<Result
 }
 },
 /** @see src-tauri/src/commands/charts.rs */
-async apiChartsApRequest(accountId: string, params: JsonValue) : Promise<Result<ApRequestChart, { code: string; message: string }>> {
+async apiChartsApRequest(accountId: string, params: JsonValue) : Promise<Result<ApRequestChart, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_ap_request", { accountId, params }) };
 } catch (e) {
@@ -1419,7 +1419,7 @@ async apiChartsApRequest(accountId: string, params: JsonValue) : Promise<Result<
 }
 },
 /** @see src-tauri/src/commands/charts.rs */
-async apiChartsDrive(accountId: string, params: JsonValue) : Promise<Result<ServerDriveChart, { code: string; message: string }>> {
+async apiChartsDrive(accountId: string, params: JsonValue) : Promise<Result<ServerDriveChart, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_drive", { accountId, params }) };
 } catch (e) {
@@ -1428,7 +1428,7 @@ async apiChartsDrive(accountId: string, params: JsonValue) : Promise<Result<Serv
 }
 },
 /** @see src-tauri/src/commands/federation.rs */
-async apiGetFederationInstances(accountId: string, params: JsonValue) : Promise<Result<FederationInstance[], { code: string; message: string }>> {
+async apiGetFederationInstances(accountId: string, params: JsonValue) : Promise<Result<FederationInstance[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_federation_instances", { accountId, params }) };
 } catch (e) {
@@ -1437,7 +1437,7 @@ async apiGetFederationInstances(accountId: string, params: JsonValue) : Promise<
 }
 },
 /** @see src-tauri/src/commands/federation.rs */
-async apiGetFederationInstance(accountId: string, params: JsonValue) : Promise<Result<FederationInstance, { code: string; message: string }>> {
+async apiGetFederationInstance(accountId: string, params: JsonValue) : Promise<Result<FederationInstance, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_federation_instance", { accountId, params }) };
 } catch (e) {
@@ -1446,7 +1446,7 @@ async apiGetFederationInstance(accountId: string, params: JsonValue) : Promise<R
 }
 },
 /** @see src-tauri/src/commands/drafts.rs */
-async apiGetDrafts(accountId: string, params: JsonValue) : Promise<Result<NoteDraft[], { code: string; message: string }>> {
+async apiGetDrafts(accountId: string, params: JsonValue) : Promise<Result<NoteDraft[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_drafts", { accountId, params }) };
 } catch (e) {
@@ -1455,7 +1455,7 @@ async apiGetDrafts(accountId: string, params: JsonValue) : Promise<Result<NoteDr
 }
 },
 /** @see src-tauri/src/commands/drafts.rs */
-async apiCreateDraft(accountId: string, params: JsonValue) : Promise<Result<NoteDraft, { code: string; message: string }>> {
+async apiCreateDraft(accountId: string, params: JsonValue) : Promise<Result<NoteDraft, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_draft", { accountId, params }) };
 } catch (e) {
@@ -1464,7 +1464,7 @@ async apiCreateDraft(accountId: string, params: JsonValue) : Promise<Result<Note
 }
 },
 /** @see src-tauri/src/commands/drafts.rs */
-async apiUpdateDraft(accountId: string, params: JsonValue) : Promise<Result<NoteDraft, { code: string; message: string }>> {
+async apiUpdateDraft(accountId: string, params: JsonValue) : Promise<Result<NoteDraft, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_draft", { accountId, params }) };
 } catch (e) {
@@ -1473,7 +1473,7 @@ async apiUpdateDraft(accountId: string, params: JsonValue) : Promise<Result<Note
 }
 },
 /** @see src-tauri/src/commands/drafts.rs */
-async apiDeleteDraft(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string }>> {
+async apiDeleteDraft(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_draft", { accountId, params }) };
 } catch (e) {
@@ -1482,7 +1482,7 @@ async apiDeleteDraft(accountId: string, params: JsonValue) : Promise<Result<null
 }
 },
 /** @see src-tauri/src/commands/clips.rs */
-async apiGetClip(accountId: string, params: JsonValue) : Promise<Result<Clip, { code: string; message: string }>> {
+async apiGetClip(accountId: string, params: JsonValue) : Promise<Result<Clip, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_clip", { accountId, params }) };
 } catch (e) {
@@ -1491,7 +1491,7 @@ async apiGetClip(accountId: string, params: JsonValue) : Promise<Result<Clip, { 
 }
 },
 /** @see src-tauri/src/commands/clips.rs */
-async apiGetMyFavoriteClips(accountId: string, params: JsonValue) : Promise<Result<Clip[], { code: string; message: string }>> {
+async apiGetMyFavoriteClips(accountId: string, params: JsonValue) : Promise<Result<Clip[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_my_favorite_clips", { accountId, params }) };
 } catch (e) {
@@ -1500,7 +1500,7 @@ async apiGetMyFavoriteClips(accountId: string, params: JsonValue) : Promise<Resu
 }
 },
 /** @see src-tauri/src/commands/clips.rs */
-async apiCreateClip(accountId: string, params: JsonValue) : Promise<Result<Clip, { code: string; message: string }>> {
+async apiCreateClip(accountId: string, params: JsonValue) : Promise<Result<Clip, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_clip", { accountId, params }) };
 } catch (e) {
@@ -1509,7 +1509,7 @@ async apiCreateClip(accountId: string, params: JsonValue) : Promise<Result<Clip,
 }
 },
 /** @see src-tauri/src/commands/clips.rs */
-async apiFavoriteClip(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string }>> {
+async apiFavoriteClip(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_favorite_clip", { accountId, params }) };
 } catch (e) {
@@ -1518,7 +1518,7 @@ async apiFavoriteClip(accountId: string, params: JsonValue) : Promise<Result<nul
 }
 },
 /** @see src-tauri/src/commands/clips.rs */
-async apiUnfavoriteClip(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string }>> {
+async apiUnfavoriteClip(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unfavorite_clip", { accountId, params }) };
 } catch (e) {
@@ -1527,7 +1527,7 @@ async apiUnfavoriteClip(accountId: string, params: JsonValue) : Promise<Result<n
 }
 },
 /** @see src-tauri/src/commands/clips.rs */
-async apiGetUserClips(accountId: string, params: JsonValue) : Promise<Result<Clip[], { code: string; message: string }>> {
+async apiGetUserClips(accountId: string, params: JsonValue) : Promise<Result<Clip[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_clips", { accountId, params }) };
 } catch (e) {
@@ -1536,7 +1536,7 @@ async apiGetUserClips(accountId: string, params: JsonValue) : Promise<Result<Cli
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiUpdatePage(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiUpdatePage(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_page", { accountId, params }) };
 } catch (e) {
@@ -1545,7 +1545,7 @@ async apiUpdatePage(accountId: string, params: JsonValue) : Promise<Result<JsonV
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiUpdateFlash(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiUpdateFlash(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_flash", { accountId, params }) };
 } catch (e) {
@@ -1554,7 +1554,7 @@ async apiUpdateFlash(accountId: string, params: JsonValue) : Promise<Result<Json
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetNoteRaw(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetNoteRaw(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_raw", { accountId, params }) };
 } catch (e) {
@@ -1563,7 +1563,7 @@ async apiGetNoteRaw(accountId: string, params: JsonValue) : Promise<Result<JsonV
 }
 },
 /** @see src-tauri/src/commands/content.rs */
-async apiGetDriveFile(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetDriveFile(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_drive_file", { accountId, params }) };
 } catch (e) {
@@ -1572,7 +1572,7 @@ async apiGetDriveFile(accountId: string, params: JsonValue) : Promise<Result<Jso
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUserRaw(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiGetUserRaw(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_raw", { accountId, params }) };
 } catch (e) {
@@ -1586,7 +1586,7 @@ async apiGetUserRaw(accountId: string, params: JsonValue) : Promise<Result<JsonV
  *
  * @see src-tauri/src/commands/user.rs
  */
-async apiProbeUsersSuspended(accountId: string, userIds: string[]) : Promise<Result<UserSuspensionStatus[], { code: string; message: string }>> {
+async apiProbeUsersSuspended(accountId: string, userIds: string[]) : Promise<Result<UserSuspensionStatus[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_probe_users_suspended", { accountId, userIds }) };
 } catch (e) {
@@ -1595,7 +1595,7 @@ async apiProbeUsersSuspended(accountId: string, userIds: string[]) : Promise<Res
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUserReactions(accountId: string, params: JsonValue) : Promise<Result<UserReaction[], { code: string; message: string }>> {
+async apiGetUserReactions(accountId: string, params: JsonValue) : Promise<Result<UserReaction[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_reactions", { accountId, params }) };
 } catch (e) {
@@ -1604,7 +1604,7 @@ async apiGetUserReactions(accountId: string, params: JsonValue) : Promise<Result
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUserPagesBy(accountId: string, params: JsonValue) : Promise<Result<Page[], { code: string; message: string }>> {
+async apiGetUserPagesBy(accountId: string, params: JsonValue) : Promise<Result<Page[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_pages_by", { accountId, params }) };
 } catch (e) {
@@ -1613,7 +1613,7 @@ async apiGetUserPagesBy(accountId: string, params: JsonValue) : Promise<Result<P
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUserFlashs(accountId: string, params: JsonValue) : Promise<Result<Flash[], { code: string; message: string }>> {
+async apiGetUserFlashs(accountId: string, params: JsonValue) : Promise<Result<Flash[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_flashs", { accountId, params }) };
 } catch (e) {
@@ -1622,7 +1622,7 @@ async apiGetUserFlashs(accountId: string, params: JsonValue) : Promise<Result<Fl
 }
 },
 /** @see src-tauri/src/commands/user.rs */
-async apiGetUserGalleryBy(accountId: string, params: JsonValue) : Promise<Result<GalleryPost[], { code: string; message: string }>> {
+async apiGetUserGalleryBy(accountId: string, params: JsonValue) : Promise<Result<GalleryPost[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_gallery_by", { accountId, params }) };
 } catch (e) {
@@ -1631,7 +1631,7 @@ async apiGetUserGalleryBy(accountId: string, params: JsonValue) : Promise<Result
 }
 },
 /** @see src-tauri/src/commands/lists.rs */
-async apiGetList(accountId: string, params: JsonValue) : Promise<Result<UserList, { code: string; message: string }>> {
+async apiGetList(accountId: string, params: JsonValue) : Promise<Result<UserList, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_list", { accountId, params }) };
 } catch (e) {
@@ -1640,7 +1640,7 @@ async apiGetList(accountId: string, params: JsonValue) : Promise<Result<UserList
 }
 },
 /** @see src-tauri/src/commands/lists.rs */
-async apiGetUserListsBy(accountId: string, params: JsonValue) : Promise<Result<UserList[], { code: string; message: string }>> {
+async apiGetUserListsBy(accountId: string, params: JsonValue) : Promise<Result<UserList[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_lists_by", { accountId, params }) };
 } catch (e) {
@@ -1649,7 +1649,7 @@ async apiGetUserListsBy(accountId: string, params: JsonValue) : Promise<Result<U
 }
 },
 /** @see src-tauri/src/commands/lists.rs */
-async apiFavoriteList(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string }>> {
+async apiFavoriteList(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_favorite_list", { accountId, params }) };
 } catch (e) {
@@ -1658,7 +1658,7 @@ async apiFavoriteList(accountId: string, params: JsonValue) : Promise<Result<nul
 }
 },
 /** @see src-tauri/src/commands/lists.rs */
-async apiUnfavoriteList(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string }>> {
+async apiUnfavoriteList(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unfavorite_list", { accountId, params }) };
 } catch (e) {
@@ -1676,7 +1676,7 @@ async apiUnfavoriteList(accountId: string, params: JsonValue) : Promise<Result<n
  *
  * @see src-tauri/src/commands/content.rs
  */
-async apiFetchAccountTheme(accountId: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async apiFetchAccountTheme(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_fetch_account_theme", { accountId }) };
 } catch (e) {
@@ -1690,7 +1690,7 @@ async apiFetchAccountTheme(accountId: string) : Promise<Result<JsonValue, { code
  *
  * @see src-tauri/src/commands/content.rs
  */
-async apiGetRegistryValue(accountId: string, scope: string[], key: string) : Promise<Result<JsonValue | null, { code: string; message: string }>> {
+async apiGetRegistryValue(accountId: string, scope: string[], key: string) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_registry_value", { accountId, scope, key }) };
 } catch (e) {
@@ -1703,7 +1703,7 @@ async apiGetRegistryValue(accountId: string, scope: string[], key: string) : Pro
  *
  * @see src-tauri/src/commands/content.rs
  */
-async apiSetRegistryValue(accountId: string, scope: string[], key: string, value: JsonValue) : Promise<Result<null, { code: string; message: string }>> {
+async apiSetRegistryValue(accountId: string, scope: string[], key: string, value: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_set_registry_value", { accountId, scope, key, value }) };
 } catch (e) {
@@ -1717,7 +1717,7 @@ async apiSetRegistryValue(accountId: string, scope: string[], key: string, value
  *
  * @see src-tauri/src/commands/content.rs
  */
-async apiDeleteRegistryValue(accountId: string, scope: string[], key: string) : Promise<Result<null, { code: string; message: string }>> {
+async apiDeleteRegistryValue(accountId: string, scope: string[], key: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_registry_value", { accountId, scope, key }) };
 } catch (e) {
@@ -1730,7 +1730,7 @@ async apiDeleteRegistryValue(accountId: string, scope: string[], key: string) : 
  *
  * @see src-tauri/src/commands/content.rs
  */
-async apiListRegistryKeys(accountId: string, scope: string[]) : Promise<Result<Partial<{ [key in string]: string }>, { code: string; message: string }>> {
+async apiListRegistryKeys(accountId: string, scope: string[]) : Promise<Result<Partial<{ [key in string]: string }>, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_list_registry_keys", { accountId, scope }) };
 } catch (e) {
@@ -1739,7 +1739,7 @@ async apiListRegistryKeys(accountId: string, scope: string[]) : Promise<Result<P
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiGetChatHistory(accountId: string, limit: number | null, room: boolean | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
+async apiGetChatHistory(accountId: string, limit: number | null, room: boolean | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_chat_history", { accountId, limit, room, cache }) };
 } catch (e) {
@@ -1748,7 +1748,7 @@ async apiGetChatHistory(accountId: string, limit: number | null, room: boolean |
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiGetChatUserMessages(accountId: string, userId: string, limit: number | null, sinceId: string | null, untilId: string | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
+async apiGetChatUserMessages(accountId: string, userId: string, limit: number | null, sinceId: string | null, untilId: string | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_chat_user_messages", { accountId, userId, limit, sinceId, untilId, cache }) };
 } catch (e) {
@@ -1757,7 +1757,7 @@ async apiGetChatUserMessages(accountId: string, userId: string, limit: number | 
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiGetChatRoomMessages(accountId: string, roomId: string, limit: number | null, sinceId: string | null, untilId: string | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
+async apiGetChatRoomMessages(accountId: string, roomId: string, limit: number | null, sinceId: string | null, untilId: string | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_chat_room_messages", { accountId, roomId, limit, sinceId, untilId, cache }) };
 } catch (e) {
@@ -1773,7 +1773,7 @@ async apiGetChatRoomMessages(accountId: string, roomId: string, limit: number | 
  *
  * @see src-tauri/src/commands/messaging.rs
  */
-async apiCreateChatMessage(accountId: string, userId: string | null, roomId: string | null, text: string | null, fileId: string | null) : Promise<Result<ChatMessage, { code: string; message: string }>> {
+async apiCreateChatMessage(accountId: string, userId: string | null, roomId: string | null, text: string | null, fileId: string | null) : Promise<Result<ChatMessage, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_chat_message", { accountId, userId, roomId, text, fileId }) };
 } catch (e) {
@@ -1782,7 +1782,7 @@ async apiCreateChatMessage(accountId: string, userId: string | null, roomId: str
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiGetCachedChatHistory(accountId: string, limit: number | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
+async apiGetCachedChatHistory(accountId: string, limit: number | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_chat_history", { accountId, limit }) };
 } catch (e) {
@@ -1791,7 +1791,7 @@ async apiGetCachedChatHistory(accountId: string, limit: number | null) : Promise
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiGetCachedChatThreadMessages(accountId: string, threadId: string, untilId: string | null, limit: number | null) : Promise<Result<ChatMessage[], { code: string; message: string }>> {
+async apiGetCachedChatThreadMessages(accountId: string, threadId: string, untilId: string | null, limit: number | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_chat_thread_messages", { accountId, threadId, untilId, limit }) };
 } catch (e) {
@@ -1800,7 +1800,7 @@ async apiGetCachedChatThreadMessages(accountId: string, threadId: string, untilI
 }
 },
 /** @see src-tauri/src/commands/messaging.rs */
-async apiGetCachedChatLatestMessageId(accountId: string, threadId: string) : Promise<Result<string | null, { code: string; message: string }>> {
+async apiGetCachedChatLatestMessageId(accountId: string, threadId: string) : Promise<Result<string | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_chat_latest_message_id", { accountId, threadId }) };
 } catch (e) {
@@ -1809,7 +1809,7 @@ async apiGetCachedChatLatestMessageId(accountId: string, threadId: string) : Pro
 }
 },
 /** @see src-tauri/src/commands/auth.rs */
-async authStart(host: string, permissions: string[] | null) : Promise<Result<AuthSession, { code: string; message: string }>> {
+async authStart(host: string, permissions: string[] | null) : Promise<Result<AuthSession, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("auth_start", { host, permissions }) };
 } catch (e) {
@@ -1818,7 +1818,7 @@ async authStart(host: string, permissions: string[] | null) : Promise<Result<Aut
 }
 },
 /** @see src-tauri/src/commands/auth.rs */
-async authCompleteAndSave(session: AuthSession, software: string) : Promise<Result<AccountPublic, { code: string; message: string }>> {
+async authCompleteAndSave(session: AuthSession, software: string) : Promise<Result<AccountPublic, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("auth_complete_and_save", { session, software }) };
 } catch (e) {
@@ -1827,7 +1827,7 @@ async authCompleteAndSave(session: AuthSession, software: string) : Promise<Resu
 }
 },
 /** @see src-tauri/src/commands/streaming.rs */
-async streamConnect(accountId: string) : Promise<Result<null, { code: string; message: string }>> {
+async streamConnect(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_connect", { accountId }) };
 } catch (e) {
@@ -1836,7 +1836,7 @@ async streamConnect(accountId: string) : Promise<Result<null, { code: string; me
 }
 },
 /** @see src-tauri/src/commands/streaming.rs */
-async streamDisconnect(accountId: string) : Promise<Result<null, { code: string; message: string }>> {
+async streamDisconnect(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_disconnect", { accountId }) };
 } catch (e) {
@@ -1850,7 +1850,7 @@ async streamDisconnect(accountId: string) : Promise<Result<null, { code: string;
  *
  * @see src-tauri/src/commands/streaming.rs
  */
-async streamSetMode(accountId: string, mode: string, intervalMs: number | null) : Promise<Result<null, { code: string; message: string }>> {
+async streamSetMode(accountId: string, mode: string, intervalMs: number | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_set_mode", { accountId, mode, intervalMs }) };
 } catch (e) {
@@ -1859,7 +1859,7 @@ async streamSetMode(accountId: string, mode: string, intervalMs: number | null) 
 }
 },
 /** @see src-tauri/src/commands/streaming.rs */
-async streamSubNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string }>> {
+async streamSubNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_sub_note", { accountId, noteId }) };
 } catch (e) {
@@ -1868,7 +1868,7 @@ async streamSubNote(accountId: string, noteId: string) : Promise<Result<null, { 
 }
 },
 /** @see src-tauri/src/commands/streaming.rs */
-async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string }>> {
+async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_unsub_note", { accountId, noteId }) };
 } catch (e) {
@@ -1877,7 +1877,7 @@ async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, 
 }
 },
 /** @see src-tauri/src/commands/enrichment.rs */
-async fetchOgp(url: string, accountId: string | null) : Promise<Result<SummaryData, { code: string; message: string }>> {
+async fetchOgp(url: string, accountId: string | null) : Promise<Result<SummaryData, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_ogp", { url, accountId }) };
 } catch (e) {
@@ -1886,7 +1886,7 @@ async fetchOgp(url: string, accountId: string | null) : Promise<Result<SummaryDa
 }
 },
 /** @see src-tauri/src/commands/enrichment.rs */
-async fetchServerMeta(host: string) : Promise<Result<JsonValue, { code: string; message: string }>> {
+async fetchServerMeta(host: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_server_meta", { host }) };
 } catch (e) {
@@ -1895,7 +1895,7 @@ async fetchServerMeta(host: string) : Promise<Result<JsonValue, { code: string; 
 }
 },
 /** @see src-tauri/src/commands/enrichment.rs */
-async fetchImageBase64(url: string) : Promise<Result<string | null, { code: string; message: string }>> {
+async fetchImageBase64(url: string) : Promise<Result<string | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_image_base64", { url }) };
 } catch (e) {
@@ -1955,7 +1955,7 @@ async setUnreadBadge(count: number) : Promise<void> {
  *
  * @see src-tauri/src/commands/utility.rs
  */
-async exportDb() : Promise<Result<boolean, { code: string; message: string }>> {
+async exportDb() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("export_db") };
 } catch (e) {
@@ -1970,7 +1970,7 @@ async exportDb() : Promise<Result<boolean, { code: string; message: string }>> {
  *
  * @see src-tauri/src/commands/utility.rs
  */
-async importDb() : Promise<Result<boolean, { code: string; message: string }>> {
+async importDb() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("import_db") };
 } catch (e) {
@@ -1983,7 +1983,7 @@ async importDb() : Promise<Result<boolean, { code: string; message: string }>> {
  *
  * @see src-tauri/src/commands/utility.rs
  */
-async saveImageToFile(url: string) : Promise<Result<boolean, { code: string; message: string }>> {
+async saveImageToFile(url: string) : Promise<Result<boolean, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("save_image_to_file", { url }) };
 } catch (e) {
@@ -1992,7 +1992,7 @@ async saveImageToFile(url: string) : Promise<Result<boolean, { code: string; mes
 }
 },
 /** @see src-tauri/src/commands/utility.rs */
-async imageCacheStats() : Promise<Result<ImageCacheStats, { code: string; message: string }>> {
+async imageCacheStats() : Promise<Result<ImageCacheStats, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("image_cache_stats") };
 } catch (e) {
@@ -2001,7 +2001,7 @@ async imageCacheStats() : Promise<Result<ImageCacheStats, { code: string; messag
 }
 },
 /** @see src-tauri/src/commands/utility.rs */
-async clearImageCache() : Promise<Result<null, { code: string; message: string }>> {
+async clearImageCache() : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("clear_image_cache") };
 } catch (e) {
@@ -2014,7 +2014,7 @@ async clearImageCache() : Promise<Result<null, { code: string; message: string }
  *
  * @see src-tauri/src/commands/backup.rs
  */
-async getBackupDir() : Promise<Result<string, { code: string; message: string }>> {
+async getBackupDir() : Promise<Result<string, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_backup_dir") };
 } catch (e) {
@@ -2033,7 +2033,7 @@ async getBackupDir() : Promise<Result<string, { code: string; message: string }>
  *
  * @see src-tauri/src/commands/backup.rs
  */
-async backupCreate(stamp: string, keep: number | null, includeDb: boolean | null, includeSettings: boolean | null) : Promise<Result<BackupResult, { code: string; message: string }>> {
+async backupCreate(stamp: string, keep: number | null, includeDb: boolean | null, includeSettings: boolean | null) : Promise<Result<BackupResult, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("backup_create", { stamp, keep, includeDb, includeSettings }) };
 } catch (e) {
@@ -2078,7 +2078,7 @@ async exportFilesCancel(taskId: string) : Promise<void> {
  *
  * @see src-tauri/src/commands/utility.rs
  */
-async readImageExif(url: string) : Promise<Result<ExifField[], { code: string; message: string }>> {
+async readImageExif(url: string) : Promise<Result<ExifField[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_image_exif", { url }) };
 } catch (e) {
@@ -2091,7 +2091,7 @@ async readImageExif(url: string) : Promise<Result<ExifField[], { code: string; m
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async listSettingsFiles(subdir: string) : Promise<Result<string[], { code: string; message: string }>> {
+async listSettingsFiles(subdir: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_settings_files", { subdir }) };
 } catch (e) {
@@ -2104,7 +2104,7 @@ async listSettingsFiles(subdir: string) : Promise<Result<string[], { code: strin
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async readSettingsFile(subdir: string, name: string) : Promise<Result<string, { code: string; message: string }>> {
+async readSettingsFile(subdir: string, name: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_settings_file", { subdir, name }) };
 } catch (e) {
@@ -2117,7 +2117,7 @@ async readSettingsFile(subdir: string, name: string) : Promise<Result<string, { 
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async writeSettingsFile(subdir: string, name: string, content: string) : Promise<Result<null, { code: string; message: string }>> {
+async writeSettingsFile(subdir: string, name: string, content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("write_settings_file", { subdir, name, content }) };
 } catch (e) {
@@ -2130,7 +2130,7 @@ async writeSettingsFile(subdir: string, name: string, content: string) : Promise
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async deleteSettingsFile(subdir: string, name: string) : Promise<Result<null, { code: string; message: string }>> {
+async deleteSettingsFile(subdir: string, name: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_settings_file", { subdir, name }) };
 } catch (e) {
@@ -2143,7 +2143,7 @@ async deleteSettingsFile(subdir: string, name: string) : Promise<Result<null, { 
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async renameSettingsFile(subdir: string, oldName: string, newName: string) : Promise<Result<null, { code: string; message: string }>> {
+async renameSettingsFile(subdir: string, oldName: string, newName: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("rename_settings_file", { subdir, oldName, newName }) };
 } catch (e) {
@@ -2156,7 +2156,7 @@ async renameSettingsFile(subdir: string, oldName: string, newName: string) : Pro
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async getSettingsDir() : Promise<Result<string, { code: string; message: string }>> {
+async getSettingsDir() : Promise<Result<string, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_settings_dir") };
 } catch (e) {
@@ -2171,7 +2171,7 @@ async getSettingsDir() : Promise<Result<string, { code: string; message: string 
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async getLogDir() : Promise<Result<string, { code: string; message: string }>> {
+async getLogDir() : Promise<Result<string, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_log_dir") };
 } catch (e) {
@@ -2186,7 +2186,7 @@ async getLogDir() : Promise<Result<string, { code: string; message: string }>> {
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async openSettingsFileInEditor(subdir: string | null, name: string) : Promise<Result<null, { code: string; message: string }>> {
+async openSettingsFileInEditor(subdir: string | null, name: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_settings_file_in_editor", { subdir, name }) };
 } catch (e) {
@@ -2199,7 +2199,7 @@ async openSettingsFileInEditor(subdir: string | null, name: string) : Promise<Re
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async readRootSettingsFile(name: string) : Promise<Result<string, { code: string; message: string }>> {
+async readRootSettingsFile(name: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_root_settings_file", { name }) };
 } catch (e) {
@@ -2212,7 +2212,7 @@ async readRootSettingsFile(name: string) : Promise<Result<string, { code: string
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async writeRootSettingsFile(name: string, content: string) : Promise<Result<null, { code: string; message: string }>> {
+async writeRootSettingsFile(name: string, content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("write_root_settings_file", { name, content }) };
 } catch (e) {
@@ -2230,7 +2230,7 @@ async writeRootSettingsFile(name: string, content: string) : Promise<Result<null
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async readNotedeckJson() : Promise<Result<string, { code: string; message: string }>> {
+async readNotedeckJson() : Promise<Result<string, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_notedeck_json") };
 } catch (e) {
@@ -2243,7 +2243,7 @@ async readNotedeckJson() : Promise<Result<string, { code: string; message: strin
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async writeNotedeckJson(content: string) : Promise<Result<null, { code: string; message: string }>> {
+async writeNotedeckJson(content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("write_notedeck_json", { content }) };
 } catch (e) {
@@ -2256,7 +2256,7 @@ async writeNotedeckJson(content: string) : Promise<Result<null, { code: string; 
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async exportSettingsJson() : Promise<Result<boolean, { code: string; message: string }>> {
+async exportSettingsJson() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("export_settings_json") };
 } catch (e) {
@@ -2269,7 +2269,7 @@ async exportSettingsJson() : Promise<Result<boolean, { code: string; message: st
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async importSettingsJson() : Promise<Result<boolean, { code: string; message: string }>> {
+async importSettingsJson() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("import_settings_json") };
 } catch (e) {
@@ -2284,7 +2284,7 @@ async importSettingsJson() : Promise<Result<boolean, { code: string; message: st
  *
  * @see src-tauri/src/commands/ai_chat.rs
  */
-async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; message: string }>> {
+async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_chat_send", { req }) };
 } catch (e) {
@@ -2298,7 +2298,7 @@ async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; mess
  *
  * @see src-tauri/src/commands/ai_chat.rs
  */
-async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; message: string }>> {
+async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_chat_cancel", { streamId }) };
 } catch (e) {
@@ -2328,7 +2328,7 @@ async httpFetch(request: HttpFetchRequest) : Promise<Result<HttpFetchResponse, s
  *
  * @see src-tauri/src/commands/heartbeat.rs
  */
-async heartbeatConfigure(intervalMinutes: number) : Promise<Result<null, { code: string; message: string }>> {
+async heartbeatConfigure(intervalMinutes: number) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_configure", { intervalMinutes }) };
 } catch (e) {
@@ -2341,7 +2341,7 @@ async heartbeatConfigure(intervalMinutes: number) : Promise<Result<null, { code:
  *
  * @see src-tauri/src/commands/heartbeat.rs
  */
-async heartbeatUnconfigure() : Promise<Result<null, { code: string; message: string }>> {
+async heartbeatUnconfigure() : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_unconfigure") };
 } catch (e) {
@@ -2355,7 +2355,7 @@ async heartbeatUnconfigure() : Promise<Result<null, { code: string; message: str
  *
  * @see src-tauri/src/commands/heartbeat.rs
  */
-async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: string }>> {
+async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_trigger_now") };
 } catch (e) {
@@ -2368,7 +2368,7 @@ async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: stri
  *
  * @see src-tauri/src/commands/heartbeat.rs
  */
-async heartbeatStatus() : Promise<Result<number | null, { code: string; message: string }>> {
+async heartbeatStatus() : Promise<Result<number | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_status") };
 } catch (e) {
@@ -2377,7 +2377,7 @@ async heartbeatStatus() : Promise<Result<number | null, { code: string; message:
 }
 },
 /** @see src-tauri/src/commands/health.rs */
-async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: string }>> {
+async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("run_healthcheck") };
 } catch (e) {
@@ -2390,7 +2390,7 @@ async listApiTokens() : Promise<ApiTokenMeta[]> {
     return await TAURI_INVOKE("list_api_tokens");
 },
 /** @see src-tauri/src/commands/api_tokens.rs */
-async createApiToken(name: string) : Promise<Result<CreatedApiToken, { code: string; message: string }>> {
+async createApiToken(name: string) : Promise<Result<CreatedApiToken, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_api_token", { name }) };
 } catch (e) {
@@ -2399,7 +2399,7 @@ async createApiToken(name: string) : Promise<Result<CreatedApiToken, { code: str
 }
 },
 /** @see src-tauri/src/commands/api_tokens.rs */
-async revokeApiToken(id: string) : Promise<Result<boolean, { code: string; message: string }>> {
+async revokeApiToken(id: string) : Promise<Result<boolean, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("revoke_api_token", { id }) };
 } catch (e) {
@@ -2601,7 +2601,7 @@ async aiMigrateProviderToVault(provider: string, name: string, baseUrl: string, 
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async querySubscribeTimeline(accountId: string, timelineType: TimelineType, listId: string | null) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
+async querySubscribeTimeline(accountId: string, timelineType: TimelineType, listId: string | null) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_timeline", { accountId, timelineType, listId }) };
 } catch (e) {
@@ -2610,7 +2610,7 @@ async querySubscribeTimeline(accountId: string, timelineType: TimelineType, list
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async querySubscribeAntenna(accountId: string, antennaId: string) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
+async querySubscribeAntenna(accountId: string, antennaId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_antenna", { accountId, antennaId }) };
 } catch (e) {
@@ -2619,7 +2619,7 @@ async querySubscribeAntenna(accountId: string, antennaId: string) : Promise<Resu
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async querySubscribeChannel(accountId: string, channelId: string) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
+async querySubscribeChannel(accountId: string, channelId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_channel", { accountId, channelId }) };
 } catch (e) {
@@ -2628,7 +2628,7 @@ async querySubscribeChannel(accountId: string, channelId: string) : Promise<Resu
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async querySubscribeRole(accountId: string, roleId: string) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
+async querySubscribeRole(accountId: string, roleId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_role", { accountId, roleId }) };
 } catch (e) {
@@ -2637,7 +2637,7 @@ async querySubscribeRole(accountId: string, roleId: string) : Promise<Result<Que
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async querySubscribeMentions(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
+async querySubscribeMentions(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_mentions", { accountId }) };
 } catch (e) {
@@ -2646,7 +2646,7 @@ async querySubscribeMentions(accountId: string) : Promise<Result<QuerySnapshot, 
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async querySubscribeNotifications(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
+async querySubscribeNotifications(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_notifications", { accountId }) };
 } catch (e) {
@@ -2655,7 +2655,7 @@ async querySubscribeNotifications(accountId: string) : Promise<Result<QuerySnaps
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async querySubscribeChatUser(accountId: string, otherId: string) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
+async querySubscribeChatUser(accountId: string, otherId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_chat_user", { accountId, otherId }) };
 } catch (e) {
@@ -2664,7 +2664,7 @@ async querySubscribeChatUser(accountId: string, otherId: string) : Promise<Resul
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async querySubscribeChatRoom(accountId: string, roomId: string) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
+async querySubscribeChatRoom(accountId: string, roomId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_chat_room", { accountId, roomId }) };
 } catch (e) {
@@ -2673,7 +2673,7 @@ async querySubscribeChatRoom(accountId: string, roomId: string) : Promise<Result
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async queryOpen(key: QueryKey) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
+async queryOpen(key: QueryKey) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_open", { key }) };
 } catch (e) {
@@ -2682,7 +2682,7 @@ async queryOpen(key: QueryKey) : Promise<Result<QuerySnapshot, { code: string; m
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async querySetRuntimeState(queryId: string, state: QueryRuntimeState) : Promise<Result<QuerySnapshot, { code: string; message: string }>> {
+async querySetRuntimeState(queryId: string, state: QueryRuntimeState) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_set_runtime_state", { queryId, state }) };
 } catch (e) {
@@ -2691,7 +2691,7 @@ async querySetRuntimeState(queryId: string, state: QueryRuntimeState) : Promise<
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async queryClose(queryId: string) : Promise<Result<null, { code: string; message: string }>> {
+async queryClose(queryId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_close", { queryId }) };
 } catch (e) {
@@ -2700,7 +2700,7 @@ async queryClose(queryId: string) : Promise<Result<null, { code: string; message
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async queryGetSnapshot(queryId: string) : Promise<Result<QuerySnapshot | null, { code: string; message: string }>> {
+async queryGetSnapshot(queryId: string) : Promise<Result<QuerySnapshot | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_get_snapshot", { queryId }) };
 } catch (e) {
@@ -2709,7 +2709,7 @@ async queryGetSnapshot(queryId: string) : Promise<Result<QuerySnapshot | null, {
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async queryGetReadModelSnapshot(queryId: string, limit: number | null) : Promise<Result<QueryReadModelSnapshot | null, { code: string; message: string }>> {
+async queryGetReadModelSnapshot(queryId: string, limit: number | null) : Promise<Result<QueryReadModelSnapshot | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_get_read_model_snapshot", { queryId, limit }) };
 } catch (e) {

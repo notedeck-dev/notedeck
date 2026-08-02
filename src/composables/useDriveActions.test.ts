@@ -66,7 +66,7 @@ function makeFile(id: string): NormalizedDriveFile {
 const ok = (data: unknown = null) => ({ status: 'ok', data })
 const apiError = (code: string) => ({
   status: 'error',
-  error: { code: 'API', message: `endpoint: ${code}: detail` },
+  error: { code: 'API', message: `endpoint: ${code}: detail`, apiCode: code },
 })
 
 beforeEach(() => {

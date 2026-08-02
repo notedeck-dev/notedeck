@@ -217,6 +217,102 @@ describe('MisskeyStream (IPC boundary)', () => {
     })
   })
 
+  describe('reconnect', () => {
+    it('再登録しても listener が二重にならない', async () => {
+      const calls = interceptCommands()
+      const stream = new MisskeyStream('acc-1')
+      const onConnected = vi.fn()
+      stream.on('connected', onConnected)
+
+      stream.connect()
+      await flush()
+      stream.reconnect()
+      await flush()
+
+      expect(calls.filter((c) => c.cmd === 'stream_connect')).toHaveLength(2)
+
+      await emit('stream-status', statusEvent('acc-1', 'connected'))
+
+      expect(onConnected).toHaveBeenCalledTimes(1)
+      expect(stream.state).toBe('connected')
+    })
+
+    it('subNote のハンドラは再接続をまたいで保持される', async () => {
+      interceptCommands()
+      const stream = new MisskeyStream('acc-1')
+      const handler = vi.fn<(event: NoteUpdateEvent) => void>()
+
+      stream.connect()
+      await flush()
+      stream.subNote('note-1', handler)
+      await flush()
+      stream.reconnect()
+      await flush()
+
+      await emit('note-capture-batch', {
+        captures: [
+          {
+            accountId: 'acc-1',
+            noteId: 'note-1',
+            updateType: 'reacted',
+            body: { reaction: '👍', emoji: null, userId: 'user-1' },
+          },
+        ],
+      } satisfies NoteCaptureBatch)
+
+      expect(handler).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('cleanup', () => {
+    it('購読ハンドラを落とすが Rust 側の接続は切らない', async () => {
+      const calls = interceptCommands()
+      const stream = new MisskeyStream('acc-1')
+      const handler = vi.fn()
+
+      stream.connect()
+      await flush()
+      stream.subNote('note-1', handler)
+      await flush()
+      stream.cleanup()
+      await flush()
+
+      expect(calls.some((c) => c.cmd === 'stream_disconnect')).toBe(false)
+      expect(stream.state).toBe('disconnected')
+
+      await emit('note-capture-batch', {
+        captures: [
+          {
+            accountId: 'acc-1',
+            noteId: 'note-1',
+            updateType: 'deleted',
+            body: { deletedAt: '2025-01-01T00:00:00Z' },
+          },
+        ],
+      } satisfies NoteCaptureBatch)
+
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('listen 登録の解決前に切断しても、その listener は配送しない', async () => {
+      // ログアウトと購読リトライが競合する経路 (#700)。listen() の Promise が
+      // 解決する前に切断されると、解除しようのない listener が残りうる
+      interceptCommands()
+      const stream = new MisskeyStream('acc-1')
+      const onConnected = vi.fn()
+      stream.on('connected', onConnected)
+
+      stream.connect()
+      stream.cleanup() // listen() の解決を待たずに切断
+      await flush()
+
+      await emit('stream-status', statusEvent('acc-1', 'connected'))
+
+      expect(onConnected).not.toHaveBeenCalled()
+      expect(stream.state).toBe('disconnected')
+    })
+  })
+
   describe('disconnect', () => {
     it('invokes stream_disconnect and detaches all listeners', async () => {
       const calls = interceptCommands()

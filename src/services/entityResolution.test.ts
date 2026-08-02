@@ -82,8 +82,11 @@ function apShowOk(type: string, object: unknown) {
   apiApShow.mockResolvedValue({ status: 'ok', data: { type, object } })
 }
 
-function apShowError(code: string, message: string) {
-  apiApShow.mockResolvedValue({ status: 'error', error: { code, message } })
+function apShowError(code: string, message: string, apiCode?: string) {
+  apiApShow.mockResolvedValue({
+    status: 'error',
+    error: { code, message, apiCode: apiCode ?? null },
+  })
 }
 
 describe('resolveNoteUriFor', () => {
@@ -168,7 +171,11 @@ describe('resolveNoteUriFor', () => {
   it('NO_SUCH 系 API エラーは not_found にマップする', async () => {
     const store = useAccountsStore()
     store.accounts.push(makeAccount({ id: 'acc-1' }))
-    apShowError('API', 'misskey api error: NO_SUCH_OBJECT: object not found')
+    apShowError(
+      'API',
+      'misskey api error: NO_SUCH_OBJECT: object not found',
+      'NO_SUCH_OBJECT',
+    )
 
     const result = await resolveNoteUriFor('acc-1', REMOTE_URI)
 

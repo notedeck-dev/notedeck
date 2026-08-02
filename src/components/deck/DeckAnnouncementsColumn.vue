@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
@@ -8,7 +9,6 @@ import { useServerImages } from '@/composables/useServerImages'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
-import { formatTime } from '@/utils/formatTime'
 import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
@@ -157,7 +157,7 @@ onUnmounted(() => {
               :style="{ color: ICON_COLOR_MAP[item.icon] || 'var(--nd-accent)' }"
             />
             <span :class="$style.announcementTitle">{{ item.title }}</span>
-            <span :class="$style.announcementTime">{{ formatTime(item.createdAt) }}</span>
+            <AppTime :class="$style.announcementTime" :at="item.createdAt" />
           </div>
 
           <div v-if="item.imageUrl" :class="$style.announcementImage">

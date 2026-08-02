@@ -7,6 +7,7 @@ import type {
   NoteVisibility,
 } from '@/adapters/types'
 import { applyNoteViewInterruptors } from '@/aiscript/plugin-api'
+import AppTime from '@/components/common/AppTime.vue'
 import { useAccountMode } from '@/composables/useAccountMode'
 import {
   type QuoteAsTarget,
@@ -665,7 +666,7 @@ function handlePickerReaction(reaction: string) {
       <button :class="$style.renoteMoreButton" @click.stop="renoteMoreMenuRef?.open($event)">
         <i class="ti ti-dots" />
       </button>
-      <span :class="$style.renoteTime">{{ formatTime(note.createdAt) }}</span>
+      <AppTime :class="$style.renoteTime" :at="note.createdAt" />
     </div>
 
     <!-- Reply-to preview (Misskey style) -->
@@ -734,7 +735,7 @@ function handlePickerReaction(reaction: string) {
           <span :class="$style.username">@{{ effectiveNote.user.username }}{{ effectiveNote.user.host ? `@${effectiveNote.user.host}` : '' }}</span>
           <span v-if="effectiveNote.user.isBot" :class="$style.isBot">Bot</span>
           <span :class="$style.info">
-            <span :class="$style.time">{{ formatTime(effectiveNote.createdAt) }}</span>
+            <AppTime :class="$style.time" :at="effectiveNote.createdAt" />
             <span
               v-if="effectiveNote.updatedAt"
               :class="$style.edited"
@@ -1126,7 +1127,7 @@ function handlePickerReaction(reaction: string) {
   padding: 2px 10px 2px 8px;
   background: transparent;
   border: 1px solid var(--nd-divider);
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   color: var(--nd-fg);
   opacity: 0.75;
   font: inherit;
@@ -1821,11 +1822,11 @@ function handlePickerReaction(reaction: string) {
 }
 
 .reactionEnter {
-  animation: reaction-enter 0.2s cubic-bezier(0, .5, .5, 1) both;
+  animation: reaction-enter 0.2s var(--nd-ease-spring) both;
 }
 
 .reactionLeave {
-  animation: reaction-leave 0.2s cubic-bezier(0, .5, .5, 1) both;
+  animation: reaction-leave 0.2s var(--nd-ease-spring) both;
   position: absolute;
 }
 

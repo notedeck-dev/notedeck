@@ -16,6 +16,7 @@ import {
 } from '@/adapters/misskey/query'
 import type { ChatMessage, NormalizedDriveFile } from '@/adapters/types'
 import { type ChatReactionUser, events } from '@/bindings'
+import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAvatar from '@/components/common/MkAvatar.vue'
@@ -51,7 +52,6 @@ import {
   type PerAccountChatHistoryEntry as PerAccountHistoryEntry,
 } from '@/utils/chatHistoryEntries'
 import { AppError } from '@/utils/errors'
-import { formatTime } from '@/utils/formatTime'
 import { isImeComposing } from '@/utils/ime'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -1116,7 +1116,7 @@ onBeforeUnmount(() => {
             <div :class="$style.historyPreview">{{ entry.message.text || '(ファイル)' }}</div>
           </div>
           <div :class="$style.historyMeta">
-            <span :class="$style.historyTime">{{ formatTime(entry.message.createdAt) }}</span>
+            <AppTime :class="$style.historyTime" :at="entry.message.createdAt" />
           </div>
         </button>
       </div>

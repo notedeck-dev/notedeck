@@ -1036,13 +1036,13 @@ watch(driveView, (v) => {
   padding: 2px;
   background: var(--nd-panel);
   border: 1px solid var(--nd-divider);
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
 }
 
 .pill {
   font-size: 11px;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: transparent;
   color: var(--nd-fg);
   opacity: 0.55;

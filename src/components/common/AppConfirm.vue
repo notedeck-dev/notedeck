@@ -180,7 +180,7 @@ useNativeDialog(dialogRef, visible, {
   gap: 4px;
   margin-bottom: 10px;
   padding: 2px 10px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   font-size: 0.72em;
   font-weight: bold;
   color: var(--nd-accent);

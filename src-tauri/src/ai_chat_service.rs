@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{async_runtime::JoinHandle, Emitter};
 
-use notecli::error::NoteDeckError;
+use notecli::error::{AuthErrorKind, NoteDeckError};
 
 type Result<T> = std::result::Result<T, NoteDeckError>;
 
@@ -269,9 +269,8 @@ pub async fn start_stream(
             .unwrap_or_default()
     };
     if api_key.is_empty() {
-        return Err(NoteDeckError::Auth(format!(
-            "接続「{}」の API キーが設定されていません",
-            connection.name
+        return Err(NoteDeckError::Auth(AuthErrorKind::CredentialMissing(
+            format!("接続「{}」の API キーが設定されていません", connection.name),
         )));
     }
 

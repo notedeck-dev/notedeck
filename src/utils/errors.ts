@@ -1,25 +1,42 @@
+/** 認証エラーの内訳。正本は notecli の `AuthErrorKind`。 */
+export type AuthErrorCode =
+  | 'AUTH_NO_TOKEN'
+  | 'AUTH_MIAUTH_FAILED'
+  | 'AUTH_MIAUTH_PENDING'
+  | 'AUTH_MIAUTH_MALFORMED'
+  | 'AUTH_SESSION_INVALID'
+  | 'AUTH_CREDENTIAL_MISSING'
+
+/** 正本は notecli の `NoteDeckError::code()`。 */
 export type ErrorCode =
   | 'DATABASE'
   | 'NETWORK'
   | 'JSON'
   | 'ACCOUNT_NOT_FOUND'
   | 'API'
-  | 'AUTH'
-  | 'WEBSOCKET'
+  | AuthErrorCode
   | 'NO_CONNECTION'
   | 'CONNECTION_CLOSED'
   | 'INVALID_INPUT'
+  | 'KEYCHAIN'
+  | 'INTERNAL'
   | 'UNKNOWN'
 
 export const AUTH_ERROR_MESSAGE =
   'ログインが必要です。アカウントメニューから再ログインしてください。'
 
+/** サーバーが「この資格情報では通せない」と返すときの Misskey エラーコード */
+const AUTH_API_CODES = new Set(['AUTHENTICATION_FAILED', 'CREDENTIAL_REQUIRED'])
+
 export class AppError extends Error {
   readonly code: ErrorCode
+  /** Misskey が返した `error.code`。API エラー以外では null */
+  readonly apiCode: string | null
 
-  constructor(code: ErrorCode, message: string) {
+  constructor(code: ErrorCode, message: string, apiCode: string | null = null) {
     super(message)
     this.code = code
+    this.apiCode = apiCode
     this.name = 'AppError'
   }
 
@@ -28,32 +45,28 @@ export class AppError extends Error {
   }
 
   get isAuth(): boolean {
-    if (this.code === 'AUTH' || this.code === 'ACCOUNT_NOT_FOUND') return true
-    // サーバー側のトークン失効はコア層で code='API' に潰れて届くため、
-    // message 中の Misskey エラーコードで判定する
-    if (this.code === 'API') {
-      const c = this.displayCode
-      return c === 'AUTHENTICATION_FAILED' || c === 'CREDENTIAL_REQUIRED'
+    if (this.code.startsWith('AUTH_') || this.code === 'ACCOUNT_NOT_FOUND') {
+      return true
     }
-    return false
+    // サーバー側のトークン失効はコア層で code='API' に潰れて届くため、
+    // サーバー由来の error.code で判定する
+    return this.apiCode !== null && AUTH_API_CODES.has(this.apiCode)
   }
 
-  /** toast 用のエラーコード。API エラーなら Misskey コードを抽出 */
+  /** toast 用のエラーコード。API エラーならサーバー由来の Misskey コード */
   get displayCode(): string {
-    if (this.code === 'API') {
-      const match = this.message.match(/^[^:]+:\s*([A-Z_]+)/)
-      if (match?.[1]) return match[1]
-    }
-    return this.code
+    return this.apiCode ?? this.code
   }
 
   /** Parse an error from Tauri invoke rejection or any thrown value */
   static from(e: unknown): AppError {
     if (e instanceof AppError) return e
     if (typeof e === 'object' && e !== null && 'code' in e && 'message' in e) {
+      const apiCode = (e as { apiCode?: unknown }).apiCode
       return new AppError(
         (e as { code: string }).code as ErrorCode,
         extractErrorMessage((e as { message: unknown }).message),
+        typeof apiCode === 'string' ? apiCode : null,
       )
     }
     if (typeof e === 'string') return new AppError('UNKNOWN', e)

@@ -29,6 +29,7 @@ import {
   getRelatedTimelineTypes,
   markTimelineDenied,
 } from '@/utils/customTimelines'
+import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
@@ -79,26 +80,28 @@ const noteColumnConfig: NoteColumnConfig = {
       })
     } catch (e) {
       // Promote server errors that mean "this tab is unreachable" into
-      // runtime-denied state. Both code-form (LTL_DISABLED, GTL_DISABLED,
-      // CREDENTIAL_REQUIRED) and the legacy "disabled" substring are honored.
-      const errStr = String(e)
-      const explicitTarget: TimelineType | null = errStr.includes(
-        'LTL_DISABLED',
-      )
-        ? 'local'
-        : errStr.includes('GTL_DISABLED')
-          ? 'global'
-          : null
+      // runtime-denied state. Server error codes (LTL_DISABLED, GTL_DISABLED,
+      // CREDENTIAL_REQUIRED) arrive structured; the legacy "disabled" substring
+      // is still honored for servers that only put it in the message.
+      const err = AppError.from(e)
+      const apiCode = err.displayCode
+      const credentialRequired = apiCode === 'CREDENTIAL_REQUIRED'
+      const explicitTarget: TimelineType | null =
+        apiCode === 'LTL_DISABLED'
+          ? 'local'
+          : apiCode === 'GTL_DISABLED'
+            ? 'global'
+            : null
       const isUnreachable =
         explicitTarget !== null ||
-        errStr.includes('disabled') ||
-        errStr.includes('CREDENTIAL_REQUIRED')
+        credentialRequired ||
+        err.message.includes('disabled')
       if (isUnreachable) {
         const target = explicitTarget ?? tlType.value
         const aid = props.column.accountId
         // CREDENTIAL_REQUIRED only kills the failing tab; *_DISABLED takes the
         // whole policy group (e.g. local + social share ltlAvailable).
-        const related = errStr.includes('CREDENTIAL_REQUIRED')
+        const related = credentialRequired
           ? new Set<string>([target])
           : new Set(getRelatedTimelineTypes(target))
         if (aid) {

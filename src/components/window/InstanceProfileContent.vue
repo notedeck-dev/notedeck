@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify'
 import { computed, onMounted, reactive, ref, shallowRef } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type { FederationInstance } from '@/adapters/types'
+import AppTime from '@/components/common/AppTime.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
@@ -150,23 +151,6 @@ function formatAbsolute(iso: string | null | undefined): string {
     minute: '2-digit',
     hour12: false,
   })
-}
-
-function formatRelative(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const diff = Date.now() - new Date(iso).getTime()
-  const sec = Math.floor(diff / 1000)
-  if (sec < 60) return 'たった今'
-  const min = Math.floor(sec / 60)
-  if (min < 60) return `${min}分前`
-  const hour = Math.floor(min / 60)
-  if (hour < 24) return `${hour}時間前`
-  const day = Math.floor(hour / 24)
-  if (day < 30) return `${day}日前`
-  const month = Math.floor(day / 30)
-  if (month < 12) return `${month}ヶ月前`
-  const year = Math.floor(day / 365)
-  return `${year}年前`
 }
 
 /**
@@ -318,22 +302,22 @@ const statusBadges = computed(() => {
                 <i class="ti ti-calendar-plus" />
                 <span>
                   初観測 {{ formatDate(instance.firstRetrievedAt) }}
-                  <span :class="$style.dim">({{ formatRelative(instance.firstRetrievedAt) }})</span>
+                  <span :class="$style.dim">(<AppTime :at="instance.firstRetrievedAt" />)</span>
                 </span>
               </div>
               <div v-if="instance.infoUpdatedAt" :class="$style.profileInfoItem" :title="formatAbsolute(instance.infoUpdatedAt)">
                 <i class="ti ti-refresh" />
                 <span>
-                  更新 {{ formatRelative(instance.infoUpdatedAt) }}
+                  更新 <AppTime :at="instance.infoUpdatedAt" />
                 </span>
               </div>
               <div v-if="instance.latestRequestReceivedAt" :class="$style.profileInfoItem" :title="formatAbsolute(instance.latestRequestReceivedAt)">
                 <i class="ti ti-arrow-down-to-arc" />
-                <span>直近リクエスト受信 {{ formatRelative(instance.latestRequestReceivedAt) }}</span>
+                <span>直近リクエスト受信 <AppTime :at="instance.latestRequestReceivedAt" /></span>
               </div>
               <div v-if="instance.latestRequestSentAt" :class="$style.profileInfoItem" :title="formatAbsolute(instance.latestRequestSentAt)">
                 <i class="ti ti-arrow-up-from-arc" />
-                <span>直近リクエスト送信 {{ formatRelative(instance.latestRequestSentAt) }}</span>
+                <span>直近リクエスト送信 <AppTime :at="instance.latestRequestSentAt" /></span>
               </div>
               <div v-if="instance.openRegistrations !== null" :class="$style.profileInfoItem">
                 <i :class="instance.openRegistrations ? 'ti ti-door-enter' : 'ti ti-lock'" />

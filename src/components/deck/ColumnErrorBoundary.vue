@@ -65,7 +65,7 @@ function retry() {
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   font-size: 0.85em;
   font-weight: bold;
   color: var(--nd-fgOnAccent, #fff);

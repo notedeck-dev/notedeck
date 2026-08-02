@@ -8,7 +8,7 @@ import { unwrap } from '@/utils/tauriInvoke'
 export interface MisskeyApiContext {
   accountId: string
   hasToken: boolean
-  /** 認証必須 API の入口ガード。ゲスト/ログアウト時は AppError('AUTH') を投げる */
+  /** 認証必須 API の入口ガード。ゲスト/ログアウト時は AppError('AUTH_NO_TOKEN') を投げる */
   requireAuth(): void
 }
 
@@ -20,7 +20,7 @@ export function createContext(
     accountId,
     hasToken,
     requireAuth() {
-      if (!hasToken) throw new AppError('AUTH', 'ログインが必要です')
+      if (!hasToken) throw new AppError('AUTH_NO_TOKEN', 'ログインが必要です')
     },
   }
 }

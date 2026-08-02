@@ -931,7 +931,7 @@ function handleReset() {
 
 .groupBadge {
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);
   opacity: 0.9;
@@ -946,7 +946,7 @@ function handleReset() {
   align-items: center;
   gap: 2px;
   padding: 0 4px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
 }
 
