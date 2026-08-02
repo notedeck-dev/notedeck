@@ -168,6 +168,9 @@ importers:
       '@vue/tsconfig':
         specifier: ^0.8.1
         version: 0.8.1(typescript@5.9.3)(vue@3.5.38(typescript@5.9.3))
+      github-slugger:
+        specifier: ^2.0.0
+        version: 2.0.0
       happy-dom:
         specifier: ^20.10.6
         version: 20.10.6
@@ -2109,6 +2112,9 @@ packages:
   get-own-enumerable-keys@1.0.0:
     resolution: {integrity: sha512-PKsK2FSrQCyxcGHsGrLDcK0lx+0Ke+6e8KFFozA9/fIQLhQzPaRvJFdcz7+Axg3jUH/Mq+NI4xa5u/UT2tQskA==}
     engines: {node: '>=14.16'}
+
+  github-slugger@2.0.0:
+    resolution: {integrity: sha512-IaOQ9puYtjrkq7Y0Ygl9KDZnrf/aiUJYUpVf89y8kyaxbRG7Y1SrX/jaumrv81vc61+kiMempujsM3Yw7w5qcw==}
 
   glob@10.5.0:
     resolution: {integrity: sha512-DfXN8DfhJ7NH3Oe7cFmu3NCu1wKbkReJ8TorzSAFbSKrlNaQSKfIzqYqVY8zlbs2NLBbWpRiU52GX2PbaBVNkg==}
@@ -5774,6 +5780,8 @@ snapshots:
   get-caller-file@2.0.5: {}
 
   get-own-enumerable-keys@1.0.0: {}
+
+  github-slugger@2.0.0: {}
 
   glob@10.5.0:
     dependencies:

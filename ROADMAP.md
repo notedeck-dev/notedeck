@@ -673,7 +673,7 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
   `permissions` (必要な権限) と `requiresConfirmation` を追加。
   コマンドパレット / HTTP API / CLI / AiScript / AI Tool calling の 5 経路が
   **全て同じ registry を共有**する。AiScript からは `Nd:call(id, params)` で
-  builtin 69 個 (notes / column / account / memos / theme / skills / widgets /
+  builtin capability (notes / column / account / memos / theme / skills / widgets /
   plugins / ai / meta / clipboard / drive / http / time / user / notifications /
   tasks / ui / misstore / logs) を呼び、`Nd:register_command(..., options)`
   で新規 capability を登録すると即 5 経路に公開される。

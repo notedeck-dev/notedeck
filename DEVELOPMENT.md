@@ -84,6 +84,20 @@ VS Code 向けの表示層は `.vscode/` に同梱（推奨拡張・ワークス
   （CodeLLDB 使用。vite dev server は preLaunchTask で自動起動）
 - WSL2 では `nix develop` したシェルから VS Code を起動すること（EGL 対策の環境変数を継承するため）
 
+#### IPC 境界を跨ぐジャンプ
+
+[#897](https://github.com/notedeck-dev/notedeck/issues/897) —
+言語サーバーはフロントと Rust の境界を越えられないため、`commands.xxx()` から実装へは飛べません。
+生成物である `src/bindings.ts` の各コマンドに、実装ファイルへの `@see` が埋め込んであります（生成のたびに実測から作り直されるので腐りません）。
+
+| 知りたいこと | 手順 |
+|---|---|
+| このコマンドの実装はどこか | `commands.xxx()` の定義へ飛び、JSDoc の `@see` のパスを開く |
+| この Rust 実装を誰が呼んでいるか | `bindings.ts` を関数名（snake_case のまま）で検索して TS 側の名前を得る → その名前で `src/` を検索 |
+
+逆方向が 2 手になるのは、呼び出し元の情報を手書きの Rust ソースへ書き戻すことになり、生成物ではなくなるためです。
+どちらの手順も snake_case と camelCase の変換を人間がやる必要はありません。
+
 ## Getting Started
 
 ```bash
@@ -145,8 +159,12 @@ nix develop -c pnpm test:e2e           # WSL2 では nix develop 必須 (EGL 対
   切断/再接続/購読 replay を決定論的にテストする。接続には
   `NOTECLI_INSECURE_HOSTS` / `NOTEDECK_E2E_ALLOW_HOSTS`（デバッグビルド限定の
   http/ws 許可）を使う
-- CI では `xvfb-run` で実行し、視覚スモーク 1 本（`NOTEDECK_E2E_SCREENSHOT=1`
-  でスクリーンショットをアーティファクト保存）を含む
+- CI では `xvfb-run` で実行する。視覚スモーク（`NOTEDECK_E2E_SCREENSHOT=1`
+  でスクリーンショットをアーティファクト保存）は develop / main への push の
+  ときだけ有効にしている。GPU なしランナーではソフトウェアレンダリングを
+  強制するため実機の描画崩れは再現できず、検証も「単色ではない」ことに
+  留まる（崩れの判断はアーティファクトを見る人間に委ねている）。実接続を
+  伴い所要時間も大きいので、PR では回さない
 
 #### Android 実機 / エミュレータで同一スイートを実行
 
@@ -606,7 +624,7 @@ const { activate, deactivate } = useMenuKeyboard({
 
 `Capability` は `Command` を拡張した構造 (`signature` / `permissions` / `requiresConfirmation` / `aiTool`) で、**コマンドパレット / HTTP API / CLI / AiScript (`Nd:call`) / AI tool calling** の 5 経路が同じ registry を共有する。
 
-**builtin は v0.24.0 時点で 144 個 / 39 subject** (`src/capabilities/builtins/` 配下の unique id 集計)。subject 別のグループは [SKILLS.md §4.0](SKILLS.md#40-capability-一覧) を参照。実装は `src/capabilities/builtins/<subject>.ts`。
+**builtin capability の正本は `src/capabilities/builtins/` 配下**（subject ごとに `<subject>.ts`）。subject 別のグループは [SKILLS.md §4.0](SKILLS.md#40-capability-一覧) を参照。
 
 **API capability の実装方針**: 原則 `ApiAdapter` (`src/adapters/types.ts`) 経由で実装する (フォーク対応の抽象化を維持するため)。Tauri commands 直呼びは `registry.*` / `chat.*` のように Misskey 専用機能で他フォーク対応想定が無い場合のみ許容。詳細は [SKILLS.md §4.0.2](SKILLS.md#402-adapter-経由--tauri-直呼び-の使い分け) 参照。
 

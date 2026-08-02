@@ -1,0 +1,73 @@
+# cargo-deny: Rust 依存のライセンスと既知の脆弱性を検査する。
+# NoteDeck は AGPL-3.0 なので、コピーレフト非互換のライセンスが依存に
+# 混入すると配布できなくなる。人間のレビューでは追えないので機械で止める。
+
+[graph]
+# 依存を評価するターゲット。ここに無いプラットフォーム専用の依存は無視される
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+  "aarch64-apple-darwin",
+  "aarch64-linux-android",
+]
+
+[advisories]
+version = 2
+# 取り下げられた版を使い続けない
+yanked = "deny"
+# unmaintained は脆弱性ではなく情報。GTK3 バインディングや fxhash のように
+# WebKitGTK / Tauri 経由で入る推移的依存は上流が動かない限り解決できず、
+# CI を常時赤にしても行動につながらない。自分で選んだ直接依存だけを見る
+unmaintained = "workspace"
+
+ignore = [
+  # quick-xml のパーサ DoS 2 件 (0.41.0 で修正)。tauri → plist と
+  # notify-rust → tauri-winrt-notification 経由の推移的依存で、上流が上げるまで
+  # こちらからは動かせない。NoteDeck 自身は quick-xml を直接使っておらず、
+  # 経路はバンドル情報の plist 読み取りと Windows toast XML の組み立てに限られる。
+  # 上流が対応したら cargo-deny が unmatched ignore を警告するので、そこで外す
+  { id = "RUSTSEC-2026-0194", reason = "推移的依存 (tauri/plist, notify-rust)。上流の quick-xml 0.41 待ち" },
+  { id = "RUSTSEC-2026-0195", reason = "推移的依存 (tauri/plist, notify-rust)。上流の quick-xml 0.41 待ち" },
+]
+
+[licenses]
+version = 2
+# AGPL-3.0 のバイナリに同梱してよいライセンス。
+# 新しいライセンスの依存が入ったら CI が落ちるので、そこで同梱可否を判断する
+allow = [
+  # NoteDeck 自身
+  "AGPL-3.0-only",
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Unlicense",
+  "CC0-1.0",
+  "BSL-1.0",
+  # user-notify (OS 通知 #754)。LGPL-3.0 のコードは AGPL-3.0 の著作物に
+  # 取り込める (GPLv3 系との上位互換)
+  "LGPL-3.0-or-later",
+  # webpki-roots が同梱する Mozilla の CA 証明書バンドル。permissive
+  "CDLA-Permissive-2.0",
+]
+
+[bans]
+# Tauri の依存ツリーは同一クレートの複数版を大量に含む。ここを deny にすると
+# 上流の更新を待つだけの赤信号が常時点灯するので許容する
+multiple-versions = "allow"
+# notecli は git の rev pin で、バージョン要件を持たない = wildcard と判定される。
+# rev 固定はバージョン範囲より強い固定なので、この検査は本プロジェクトに合わない
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = [
+  # notecli は Misskey API クライアント本体 (自組織のリポジトリ)
+  "https://github.com/notedeck-dev/notecli",
+]

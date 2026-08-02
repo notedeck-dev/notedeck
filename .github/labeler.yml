@@ -38,3 +38,7 @@ github_actions:
           - 'lefthook.yml'
           - 'biome.json'
           - 'rust-toolchain.toml'
+          - 'deny.toml'
+          - 'renovate.json5'
+          - '.npmrc'
+          - '.node-version'

@@ -3,6 +3,7 @@ name = "notedeck"
 version = "1.36.1"
 description = "Misskey Pro — integrated deck environment (IDE) for Misskey power users"
 edition = "2021"
+license = "AGPL-3.0-only"
 [dependencies]
 notecli = { git = "https://github.com/notedeck-dev/notecli", rev = "e235701690ae1e6c5a9bb0fd6fe89611eccdb4d1", features = ["specta"] }
 tauri = { version = "2", features = ["devtools"] }
@@ -36,7 +37,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "stream", "json"] }
 url = "2"
 sha2 = "0.10"
-lru = "0.12"
+lru = "0.16"
 regex = "1"
 async-trait = "0.1"
 mime_guess = "2"

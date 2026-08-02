@@ -23,7 +23,7 @@ Misskey から名前が別物になったフォーク（Sharkey, CherryPick, Fir
 
 1. リポジトリをフォーク
 2. ブランチを作成（`git checkout -b feat/your-feature`）
-3. `pnpm lint` と `pnpm test` を通す
+3. `pnpm lint` と `pnpm test` を通す（`src-tauri/` を触ったら `pnpm fmt` と `pnpm lint:rust` も）
 4. Pull Request を作成
 
 環境がうまく動かないときは `pnpm doctor` を実行してください。

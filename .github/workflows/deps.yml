@@ -1,0 +1,35 @@
+# Rust 依存のライセンスと既知の脆弱性を検査する (設定の正本は deny.toml)。
+# AGPL-3.0 のバイナリにコピーレフト非互換のライセンスが混入すると配布できなくなるが、
+# 依存ツリーは人間のレビューでは追えないので機械で止める。
+name: Dependencies
+
+on:
+  pull_request:
+    paths:
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - 'deny.toml'
+      - '.github/workflows/deps.yml'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src-tauri/Cargo.toml'
+      - 'src-tauri/Cargo.lock'
+      - 'deny.toml'
+      - '.github/workflows/deps.yml'
+  # advisory DB は日々更新される。コードが変わらなくても新しい脆弱性は増えるので
+  # 週次でも回す
+  schedule:
+    - cron: '0 0 * * 1'
+
+jobs:
+  cargo-deny:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      # ビルド済みバイナリを取得する (cargo install は数分かかる)
+      - uses: taiki-e/install-action@cargo-deny
+
+      - name: Check licenses and advisories
+        run: cargo deny --manifest-path src-tauri/Cargo.toml --config deny.toml check

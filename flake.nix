@@ -49,6 +49,10 @@
           nil # Nix (flake.nix)
           vue-language-server # Vue SFC (TypeScript は node_modules の版を使う)
 
+          # GitHub Actions ワークフローの静的検査。
+          # CI を壊したことを push して 10 分待ってから知る、を避ける
+          actionlint
+
           # Tauri desktop dependencies (Linux)
           pkg-config
         ] ++ desktopDeps;

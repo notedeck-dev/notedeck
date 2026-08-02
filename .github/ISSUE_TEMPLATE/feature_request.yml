@@ -1,0 +1,25 @@
+name: 機能の提案
+description: ほしい機能の提案
+labels: ["✨Feature"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: やりたいこと
+      description: どんな機能がほしいか
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: なぜ必要か
+      description: どんな場面で困っているか。機能そのものより、困りごとのほうが設計の判断材料になります
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: 案
+      description: 実現方法のアイデアがあれば

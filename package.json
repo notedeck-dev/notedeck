@@ -4,6 +4,11 @@
   "private": true,
   "version": "1.36.1",
   "type": "module",
+  "packageManager": "pnpm@11.18.0",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=11"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
@@ -24,6 +29,9 @@
     "doctor": "bash scripts/doctor.sh",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
+    "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
+    "lint:docs": "node scripts/docs-lint.mjs",
+    "fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "changelog": "git log $(git describe --tags --abbrev=0 2>/dev/null || echo '')..HEAD --pretty=format:'- %s' --no-merges",
     "icons": "tauri icon src-tauri/icons/icon.svg -o src-tauri/icons && node scripts/gen-android-foreground.mjs",
     "clean": "rm -rf dist src-tauri/target",
@@ -85,6 +93,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/tsconfig": "^0.8.1",
+    "github-slugger": "^2.0.0",
     "happy-dom": "^20.10.6",
     "lefthook": "^2.1.9",
     "lightningcss": "^1.32.0",
