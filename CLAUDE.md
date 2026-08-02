@@ -80,19 +80,11 @@ pnpm doctor       # 開発環境の診断（ツールチェーン・システム
 
 ### 1. バージョンバンプ（develop ブランチ上）
 
-以下の3ファイルのバージョンを更新：
-- `package.json` — `"version": "X.Y.Z"`
-- `src-tauri/Cargo.toml` — `version = "X.Y.Z"`
-- `src-tauri/tauri.conf.json` — `"version": "X.Y.Z"`
-
 ```bash
-# Cargo.lock も同期
-cd src-tauri && cargo check && cd ..
-
-# openapi.json もバージョン番号を埋め込んでいるため再生成
-# (忘れると CI の openapi_snapshot_is_current テストが落ちる)
-cd src-tauri && cargo run --example gen_openapi && cd ..
+bash scripts/bump-version.sh X.Y.Z
 ```
+
+`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json` の同期、`Cargo.lock` の更新、`openapi.json` の再生成（バージョン番号を埋め込んでいるため。忘れると CI の `openapi_snapshot_is_current` が落ちる）をまとめて行う。
 
 コミット例: `chore: bump version to X.Y.Z` + `chore: regenerate openapi.json for X.Y.Z`
 (1 コミットにまとめても 2 コミットに分けても可。過去ログは分けるパターンが多い)

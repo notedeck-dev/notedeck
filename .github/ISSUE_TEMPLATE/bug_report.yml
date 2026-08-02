@@ -1,0 +1,73 @@
+name: バグ報告
+description: 不具合の報告
+labels: ["🐛Bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 現象
+      description: 何が起きたか
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待する動作
+      description: 本来どうなるべきか
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      description: 再現した環境。複数で再現するなら複数選択してください
+      multiple: true
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Android
+        - iOS
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: NoteDeck のバージョン
+      description: 「設定 → NoteDeck について」で確認できます
+      placeholder: "例: v1.36.1"
+    validations:
+      required: true
+
+  - type: input
+    id: server
+    attributes:
+      label: 接続しているサーバー
+      placeholder: "例: misskey.io"
+
+  - type: input
+    id: server_software
+    attributes:
+      label: サーバーソフトウェアと版
+      description: フォークによって API の挙動が異なるため、対応可否の判断に必要です
+      placeholder: "例: Misskey v2025.3.0 / yamisskey / misskey-tempura"
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: スクリーンショット・ログ
+      description: あれば添付してください
