@@ -47,8 +47,7 @@ jobs:
               - 'scripts/docs-lint.mjs'
               - '.github/workflows/ci.yml'
 
-  # ドキュメントが実装とずれて腐るのを止める (#895)。
-  # 依存を入れない素の Node スクリプトなので数秒で終わる
+  # ドキュメントが実装とずれて腐るのを止める (#895)
   docs:
     needs: changes
     if: needs.changes.outputs.docs == 'true'
@@ -56,9 +55,18 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install pnpm
+        # バージョンは package.json の packageManager に従う
+        uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
+          cache: pnpm
+
+      # 見出し id の生成規則は GitHub 自身の実装 (github-slugger) に従わせる
+      - name: Install dependencies
+        run: pnpm install
 
       - name: Lint docs
         run: node scripts/docs-lint.mjs

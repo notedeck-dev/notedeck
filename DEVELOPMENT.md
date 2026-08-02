@@ -84,8 +84,9 @@ VS Code 向けの表示層は `.vscode/` に同梱（推奨拡張・ワークス
   （CodeLLDB 使用。vite dev server は preLaunchTask で自動起動）
 - WSL2 では `nix develop` したシェルから VS Code を起動すること（EGL 対策の環境変数を継承するため）
 
-#### IPC 境界を跨ぐジャンプ（[#897](https://github.com/notedeck-dev/notedeck/issues/897)）
+#### IPC 境界を跨ぐジャンプ
 
+[#897](https://github.com/notedeck-dev/notedeck/issues/897) —
 言語サーバーはフロントと Rust の境界を越えられないため、`commands.xxx()` から実装へは飛べません。
 生成物である `src/bindings.ts` の各コマンドに、実装ファイルへの `@see` が埋め込んであります（生成のたびに実測から作り直されるので腐りません）。
 

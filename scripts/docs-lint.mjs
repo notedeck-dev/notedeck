@@ -12,6 +12,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import GithubSlugger from 'github-slugger'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -81,16 +82,49 @@ function checkCounts(line) {
   return problems
 }
 
-function checkLinks(file, text) {
+function collectAnchors(text) {
+  const anchors = new Set()
+  // GitHub 自身が使う実装をそのまま使う。どの記号が落ちるか (全角括弧も
+  // 中黒も落ちる) を手で再現しようとすると必ずずれる。同じ見出しの 2 回目に
+  // -1, -2 と連番を振るのもこの中でやってくれる
+  const slugger = new GithubSlugger()
+  for (const line of text.split('\n')) {
+    const m = line.match(/^(#{1,6})\s+(.*)$/)
+    if (!m) continue
+    // markdown 記法はレンダリング後のテキストに残らない
+    const plain = m[2]
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/[`*]/g, '')
+      .trim()
+    anchors.add(slugger.slug(plain))
+  }
+  return anchors
+}
+
+function checkLinks(file, text, anchorsByFile) {
   const problems = []
-  // [表示](./path.md#anchor) の相対リンクのみ。http(s) と絶対 URL は対象外
-  for (const m of text.matchAll(/\[[^\]]*\]\((?!https?:|#|mailto:)([^)\s]+)\)/g)) {
-    const target = m[1].split('#')[0]
-    if (!target) continue
-    const abs = resolve(dirname(join(ROOT, file)), target)
-    if (!existsSync(abs)) {
-      const line = text.slice(0, m.index).split('\n').length
-      problems.push({ line, message: `リンク先が存在しない: ${target}` })
+  // [表示](./path.md#anchor) と [表示](#anchor)。http(s) と mailto は対象外
+  for (const m of text.matchAll(/\[[^\]]*\]\((?!https?:|mailto:)([^)\s]+)\)/g)) {
+    const [target, anchor] = m[1].split('#')
+    const line = () => text.slice(0, m.index).split('\n').length
+
+    if (target) {
+      const abs = resolve(dirname(join(ROOT, file)), target)
+      if (!existsSync(abs)) {
+        problems.push({ line: line(), message: `リンク先が存在しない: ${target}` })
+        continue
+      }
+    }
+    if (!anchor) continue
+
+    // 同一ディレクトリの .md だけ照合できる (画像や外部ファイルは対象外)
+    const key = target ? target.replace(/^\.\//, '') : file
+    const anchors = anchorsByFile.get(key)
+    if (anchors && !anchors.has(decodeURIComponent(anchor))) {
+      problems.push({
+        line: line(),
+        message: `見出しが存在しない: ${target || file}#${anchor}`,
+      })
     }
   }
   return problems
@@ -99,9 +133,17 @@ function checkLinks(file, text) {
 const files = readdirSync(ROOT).filter((f) => f.endsWith('.md'))
 let failed = 0
 
+// リンク先の見出しを照合するので、先に全ファイルの id を集めておく
+const sources = new Map(
+  files.map((f) => [f, stripCode(readFileSync(join(ROOT, f), 'utf8'))]),
+)
+const anchorsByFile = new Map(
+  [...sources].map(([f, text]) => [f, collectAnchors(text)]),
+)
+
 for (const file of files) {
   const raw = readFileSync(join(ROOT, file), 'utf8')
-  const stripped = stripCode(raw)
+  const stripped = sources.get(file)
   const lines = stripped.split('\n')
   const rawLines = raw.split('\n')
 
@@ -113,7 +155,7 @@ for (const file of files) {
       found.push({ line: i + 1, message })
     }
   })
-  found.push(...checkLinks(file, stripped))
+  found.push(...checkLinks(file, stripped, anchorsByFile))
 
   for (const p of found.sort((a, b) => a.line - b.line)) {
     console.error(`${file}:${p.line}  ${p.message}`)

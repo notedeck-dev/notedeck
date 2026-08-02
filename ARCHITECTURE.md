@@ -6,6 +6,7 @@ NoteDeck — マルチサーバー対応 Misskey デッキクライアントの�
 
 ## 目次
 
+- [縦の経路: 1 つのノートが画面に出るまで](#縦の経路-1-つのノートが画面に出るまで)
 - [アーキテクチャ概要](#アーキテクチャ概要)
   - [全体像](#全体像)
   - [notedeck（GUI アプリ）](#notedeckgui-アプリ)
@@ -13,9 +14,49 @@ NoteDeck — マルチサーバー対応 Misskey デッキクライアントの�
 - [Session-centric + Viewport-centric Architecture](#session-centric--viewport-centric-architecture)
 - [Rust Query Runtime + Read Model](#rust-query-runtime--read-model)
 - [ノートキャッシュ・キューアーキテクチャ](#ノートキャッシュキューアーキテクチャ)
-- [チャットキャッシュ・アーキテクチャ（検討中）](#チャットキャッシュアーキテクチャ検討中)
+- [チャットキャッシュ・アーキテクチャ](#チャットキャッシュアーキテクチャ)
 - [レンダリングパフォーマンス](#レンダリングパフォーマンス)
 - [採用状況マトリクス](#採用状況マトリクス)
+
+---
+
+## 縦の経路: 1 つのノートが画面に出るまで
+
+このドキュメントの他の節は、層ごとの説明（横方向）で書かれている。全体像を知るには向くが、新しく入った人が最初に詰まるのは全体像ではなく**入口**——「で、実際に何がどう繋がっているのか」。
+
+そこでここでは、**フォローしている誰かがノートを投稿してから、それが自分のタイムラインカラムに現れるまで**を、1 本の線として端から端まで追う。各段の詳しい仕様は後続の節にある。
+
+| # | 場所 | 何が起きるか |
+|---|------|-------------|
+| 1 | notecli（Rust） | Misskey サーバーとの WebSocket からイベントを受け取る |
+| 2 | `streaming.rs` の `TauriEmitter` | 受信を OS 通知 / WebView / SSE / Query Runtime の 4 つの出力先へ同時に配る |
+| 3 | `query_runtime.rs` の `ingest_stream_event` | Read Model に反映し、フラッシュ待ちに積む |
+| 4 | `query_runtime.rs` の `drain_pending`（`lib.rs` の flusher が駆動） | 溜まった分を 1 フレームぶんまとめ、`query-delta` を typed event として emit |
+| 5 | `core/queryDeltaBus.ts` | `query-delta` をアプリ全体で 1 本だけ listen し、登録済みの購読へ配る |
+| 6 | `adapters/misskey/query.ts` の `createQuerySubscription` | 自分の `queryId` 宛だけを拾い、insert / delete / update に振り分ける |
+| 7 | `components/deck/Deck*Column.vue` | `streaming.subscribe` の `onInsert` でノートに変換して enqueue する |
+| 8 | `composables/useNoteColumn.ts` の `enqueueWithQuery` | 組込フィルタとカラムクエリを通す。通らなければ**ここで消える** |
+| 9 | `composables/useStreamingBatch.ts` の `enqueueNote` | rAF でまとめ、スクロール位置に応じて即挿入かバナー待ちかを決める |
+| 10 | noteStore + 仮想リスト | 実体は noteStore に 1 つだけ置き、カラムは ID 配列を持って描画する |
+
+### なぜこの形なのか
+
+線を追うだけでは「なぜ途中にこれがあるのか」が分からないので、各段の存在理由を挙げる。ここが変わらない限り、この経路も変わらない。
+
+- **2 で分岐する** — 同じ 1 つの受信を、通知・画面・外部 API・Read Model が別々に取りに行くと、購読が増えるほど WebSocket 側の負荷と取りこぼしのリスクが増える。受け口は 1 つにして、そこから配る
+- **4 でまとめる** — ストリーミングイベントは 1 件ずつ来るが、1 件ごとに IPC を渡すと流速の速いカラムで WebView 側が溢れる。フレーム単位に畳んで IPC 回数を落とす
+- **5 で 1 本だけ listen する** — 購読ごとに listen すると、スリープ復帰やウィンドウ再生成のときに何を再登録すべきかを追えなくなる。listen は 1 本に固定し、配布は JS 側で行う
+- **8 でフィルタする** — 取得（何が届くか）と表示（何を見せるか）を同じ場所で決めると、フィルタを足すたびに取得側を触ることになる。届いたものを落とす判断はここに閉じる
+- **10 で ID だけ持つ** — 同じノートが複数のカラムに出るとき実体を複製すると、リアクションが付いたときに全カラムを更新して回る必要がある。実体を 1 つにすれば更新は 1 回で済む
+
+### 逆から辿るとき
+
+画面に出ているノートが「なぜこう表示されているのか」を調べるときは、この表を下から上に読む。よくある分岐は次の 2 つ。
+
+- **届いているのに出ない** → 8 のフィルタか、9 のバナー待ち（スクロール位置）で止まっている
+- **そもそも届かない** → 2 より前。WebSocket の購読状態を見る。Stream Inspector カラムが raw イベントをそのまま表示するので、Rust 側まで来ているかはそこで判別できる
+
+フロントの `commands.xxx()` から Rust 実装へ飛ぶ方法は [DEVELOPMENT.md — IPC 境界を跨ぐジャンプ](DEVELOPMENT.md#ipc-境界を跨ぐジャンプ) を参照。
 
 ---
 
@@ -659,7 +700,7 @@ graph TB
 
 **単位**: `QueryKey`
 
-`QueryKey` は「同じ stream を共有できる query」を表す正規化キー（[A-11](#a-11-rust-query-runtime--read-model実装済み段階移行中) 参照）。
+`QueryKey` は「同じ stream を共有できる query」を表す正規化キー（[A-11](#a-11-rust-query-runtime--read-modelインフラ整備済み段階移行中) 参照）。
 
 **現状の実装**:
 

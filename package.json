@@ -93,6 +93,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/tsconfig": "^0.8.1",
+    "github-slugger": "^2.0.0",
     "happy-dom": "^20.10.6",
     "lefthook": "^2.1.9",
     "lightningcss": "^1.32.0",
