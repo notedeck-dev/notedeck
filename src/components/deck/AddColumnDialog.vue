@@ -79,9 +79,6 @@ function resolveAccountServerIcon(host: string): string {
   return proxyThumbUrl(url, 28) ?? url
 }
 
-/** favicon を持たないサーバーは壊れた画像を出さずバッジごと省く。 */
-const badgeFailedHosts = reactive(new Set<string>())
-
 function toggleCategory(key: string) {
   expandedCategories[key] = !expandedCategories[key]
 }
@@ -374,10 +371,9 @@ function close() {
               <span :class="$style.chipAvatarWrap">
                 <img :src="getAccountAvatarUrl(account)" :class="$style.chipAvatar" />
                 <img
-                  v-if="!badgeFailedHosts.has(account.host)"
                   :src="resolveAccountServerIcon(account.host)"
                   :class="$style.chipServerBadge"
-                  @error="badgeFailedHosts.add(account.host)"
+                  @error="($event.target as HTMLImageElement).src = '/server-icon-error.svg'"
                 />
               </span>
             </button>
