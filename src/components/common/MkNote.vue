@@ -1126,7 +1126,7 @@ function handlePickerReaction(reaction: string) {
   padding: 2px 10px 2px 8px;
   background: transparent;
   border: 1px solid var(--nd-divider);
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   color: var(--nd-fg);
   opacity: 0.75;
   font: inherit;
@@ -1821,11 +1821,11 @@ function handlePickerReaction(reaction: string) {
 }
 
 .reactionEnter {
-  animation: reaction-enter 0.2s cubic-bezier(0, .5, .5, 1) both;
+  animation: reaction-enter 0.2s var(--nd-ease-spring) both;
 }
 
 .reactionLeave {
-  animation: reaction-leave 0.2s cubic-bezier(0, .5, .5, 1) both;
+  animation: reaction-leave 0.2s var(--nd-ease-spring) both;
   position: absolute;
 }
 

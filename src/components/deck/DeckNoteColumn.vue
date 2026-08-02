@@ -458,7 +458,7 @@ defineExpose({
   align-items: center;
   gap: 2px;
   padding: 2px 6px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   font-size: 0.75em;
   color: var(--nd-accent);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);

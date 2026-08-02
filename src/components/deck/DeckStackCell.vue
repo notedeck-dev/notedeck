@@ -182,7 +182,7 @@ const isUnknownType = computed(
 
 .columnShellLine {
   height: 10px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   width: 58%;
 }
 

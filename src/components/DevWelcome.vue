@@ -35,7 +35,7 @@ const appVersion = __APP_VERSION__
   --muted: #888;
   --surface: rgba(255, 255, 255, 0.05);
   --border: rgba(255, 255, 255, 0.08);
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease: var(--nd-ease-decel);
 
   position: relative;
   height: 100%;

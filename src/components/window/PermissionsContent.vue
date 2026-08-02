@@ -663,7 +663,7 @@ function handleReset() {
 
 .chip {
   padding: 1px 8px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: var(--nd-accentedBg);
   color: var(--nd-accent);
   font-size: 0.8em;

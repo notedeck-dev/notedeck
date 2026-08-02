@@ -75,7 +75,7 @@ function remove() {
   margin-top: 8px;
   padding: 4px 14px;
   border: 1px solid color-mix(in srgb, var(--nd-divider, currentColor) 45%, transparent);
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: transparent;
   color: inherit;
   font-size: 0.8rem;

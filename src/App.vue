@@ -278,7 +278,7 @@ onUnmounted(() => {
   flex: none;
   padding: 2px 10px;
   border: 1px solid rgb(255 255 255 / 0.5);
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: transparent;
   color: inherit;
   font-size: inherit;

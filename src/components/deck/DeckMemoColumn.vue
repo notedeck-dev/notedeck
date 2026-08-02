@@ -493,7 +493,7 @@ function closeMenu() {
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.06));
 }
 
@@ -502,7 +502,7 @@ function closeMenu() {
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);
 }

@@ -634,7 +634,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   gap: 6px;
   padding: 4px 8px;
   border: 1px solid var(--nd-divider);
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: var(--nd-bg);
   transition: border-color var(--nd-duration-base);
 
@@ -707,7 +707,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   padding: 1px 6px;
   font-size: 0.75em;
   font-weight: normal;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 18%, transparent);
   color: var(--nd-accent);
   text-transform: none;
@@ -806,7 +806,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   gap: 2px;
   padding: 1px 6px;
   font-size: 0.7em;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
   opacity: 0.65;
@@ -848,7 +848,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   gap: 3px;
   padding: 1px 6px;
   font-size: 0.7em;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   font-variant-numeric: tabular-nums;
   background: color-mix(in srgb, var(--nd-fg) 8%, transparent);
   color: var(--nd-fg);
@@ -928,7 +928,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 
 .statusTag {
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   font-size: 0.85em;
 
   &.statusRunning { background: color-mix(in srgb, var(--nd-accent) 18%, transparent); color: var(--nd-accent); }

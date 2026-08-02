@@ -1787,7 +1787,7 @@ function onKeydown(e: KeyboardEvent) {
     align-items: center;
     gap: 6px;
     padding: 6px 14px;
-    border-radius: 999px;
+    border-radius: var(--nd-radius-full);
     font-size: 0.85em;
     color: var(--nd-fg);
     background: var(--nd-panel);
