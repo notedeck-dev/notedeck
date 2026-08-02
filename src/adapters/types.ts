@@ -18,6 +18,7 @@ export type ServerSoftware =
   | 'misskeyio/misskey'
   | 'yamisskey-dev/yamisskey'
   | 'lqvp/misskey-tempura'
+  | 'hanamisskey/misskey'
   // 名前が Misskey から乖離したフォーク。識別のみで未対応 (STRATEGY.md)
   | 'iceshrimp/iceshrimp'
   | 'kokonect-link/cherrypick'

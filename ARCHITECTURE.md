@@ -1428,7 +1428,7 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 
 ### 課題 3: Adapter Layer の抽象軸のずれ
 
-`src/adapters/types.ts` の `ServerSoftware` は `'misskey-dev/misskey' | 'yamisskey-dev/yamisskey' | 'lqvp/misskey-tempura' | 'unknown'` で owner/repo 形式のフォーク単位に再定義済み。`registry.ts` の `resolveSoftware()` で nodeinfo から検出し、未知のフォークは `'misskey-dev/misskey'` にフォールバックする。
+`src/adapters/types.ts` の `ServerSoftware` は owner/repo 形式のフォーク単位に再定義済み（対応フォークの正本は `registry.ts` の `FORKS` テーブル）。`registry.ts` の `resolveSoftware()` で nodeinfo から検出し、未知のフォークは `'misskey-dev/misskey'` にフォールバックする。
 
 **現状の評価**: フォーク単位の分類は既に実装されている。残る課題は各フォーク adapter が capability フラグ（`hasAntenna`, `hasClip` 等）で機能差分を宣言する仕組みの拡充。
 

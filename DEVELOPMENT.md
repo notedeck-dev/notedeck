@@ -1092,15 +1092,34 @@ export type ServerSoftware =
 }
 ```
 
-3. `src/core/server.ts` — `detectFeatures()` にフォーク固有の capability を設定
+3. `src/adapters/<fork>/index.ts` — フォーク固有の capability を宣言し、`registerAdapter()` の第 3 引数で渡す
 
 ```typescript
-if (software === 'your-org/your-fork') {
-  features.yourFeature = true
-}
+export const YOUR_FORK_FEATURES: Partial<ServerFeatures> = { yourFeature: true }
 ```
 
-4. カスタムタイムラインのアイコンを追加する場合は `src/utils/customTimelines.ts` の `CUSTOM_TL_ICONS` に SVG パスを追加
+`src/core/server.ts` の `detectFeatures()` が `forkFeatures()` 経由でこれを重ねます
+（フォークの知識をフォークのディレクトリから外に漏らさないため、`server.ts` 側に
+`if (software === ...)` を足さないこと）。
+
+4. 叩くエンドポイント自体が違う場合は、フォーク固有アダプターを作って `registerAdapter()` で登録する
+
+```typescript
+// src/adapters/<fork>/index.ts — 本家アダプターを土台に差分だけ上書きする
+const base = createMisskeyAdapter(serverInfo, accountId, hasToken)
+return { ...base, api: { ...base.api, searchNotes } }
+```
+
+API の実体は notecli 側にあるため、**エンドポイントの差し替えは TS だけでは完結しません**。
+`notecli` に typed メソッドを足す → `#[specta::specta]` な Tauri コマンドとして出す →
+アダプターがそれを呼ぶ、という経路になります（`src/adapters/hanamisskey/` が実例。
+はなみすきーはロールポリシーで `notes/search` が無効なため `notes/hanamisearch-v1` に差し替えている）。
+
+どちらを呼ぶかの判定に DB の `accounts.software` 列を使わないこと。ログイン時の値のまま固定されるため、
+フォーク定義を後から追加しても既存アカウントが本家扱いのままになります。判定は nodeinfo 由来の
+`ServerInfo.software`（= アダプター選択）に一本化します。
+
+5. カスタムタイムラインのアイコンを追加する場合は `src/utils/customTimelines.ts` の `CUSTOM_TL_ICONS` に SVG パスを追加
 
 **PR を出す前に:**
 - `pnpm lint && pnpm typecheck && pnpm test` を通す

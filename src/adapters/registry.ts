@@ -1,5 +1,16 @@
+import { createHanamisskeyAdapter } from './hanamisskey'
 import { createMisskeyAdapter } from './misskey'
-import type { ServerAdapter, ServerInfo, ServerSoftware } from './types'
+import {
+  createMisskeyTempuraAdapter,
+  MISSKEY_TEMPURA_FEATURES,
+} from './misskey-tempura'
+import type {
+  ServerAdapter,
+  ServerFeatures,
+  ServerInfo,
+  ServerSoftware,
+} from './types'
+import { createYamisskeyAdapter } from './yamisskey'
 
 type AdapterFactory = (
   info: ServerInfo,
@@ -7,13 +18,27 @@ type AdapterFactory = (
   hasToken?: boolean,
 ) => ServerAdapter
 
-const registry = new Map<ServerSoftware, AdapterFactory>()
+interface AdapterRegistration {
+  factory: AdapterFactory
+  /** そのフォークが静的に宣言する capability (動的検出できないものだけ) */
+  features: Partial<ServerFeatures>
+}
+
+const registry = new Map<ServerSoftware, AdapterRegistration>()
 
 export function registerAdapter(
   software: ServerSoftware,
   factory: AdapterFactory,
+  features: Partial<ServerFeatures> = {},
 ): void {
-  registry.set(software, factory)
+  registry.set(software, { factory, features })
+}
+
+/** 登録済みアダプターが宣言するフォーク固有 capability。未登録なら空。 */
+export function forkFeatures(
+  software: ServerSoftware,
+): Partial<ServerFeatures> {
+  return registry.get(software)?.features ?? {}
 }
 
 /** GitHub URL から owner/repo を抽出 */
@@ -62,6 +87,12 @@ const FORKS: ForkDefinition[] = [
     displayName: 'Misskey tempura',
     supported: true,
     names: ['misskey-tempura', 'tempura'],
+  },
+  {
+    id: 'hanamisskey/misskey',
+    displayName: 'はなみすきー',
+    supported: true,
+    names: [],
   },
   {
     id: 'iceshrimp/iceshrimp',
@@ -130,14 +161,14 @@ export function createAdapter(
   accountId: string,
   hasToken = true,
 ): ServerAdapter {
-  const factory =
+  const registration =
     registry.get(info.software) ?? registry.get('misskey-dev/misskey')
-  if (!factory) {
+  if (!registration) {
     throw new Error(
       `No adapter registered for "${info.software}" and no fallback adapter found`,
     )
   }
-  return factory(info, accountId, hasToken)
+  return registration.factory(info, accountId, hasToken)
 }
 
 export function getRegisteredSoftware(): ServerSoftware[] {
@@ -145,5 +176,13 @@ export function getRegisteredSoftware(): ServerSoftware[] {
 }
 
 // Misskey 本家アダプターをデフォルトとして登録。
-// フォーク固有アダプターが必要な場合、ここに追加登録する。
+// フォーク固有アダプターは src/adapters/<fork>/ に置いてここで登録する。
+// 未登録のフォーク (misskey.io 等) は本家アダプターにフォールバックする。
 registerAdapter('misskey-dev/misskey', createMisskeyAdapter)
+registerAdapter('hanamisskey/misskey', createHanamisskeyAdapter)
+registerAdapter('yamisskey-dev/yamisskey', createYamisskeyAdapter)
+registerAdapter(
+  'lqvp/misskey-tempura',
+  createMisskeyTempuraAdapter,
+  MISSKEY_TEMPURA_FEATURES,
+)

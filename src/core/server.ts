@@ -1,4 +1,8 @@
-import { isSupportedSoftware, resolveSoftware } from '@/adapters/registry'
+import {
+  forkFeatures,
+  isSupportedSoftware,
+  resolveSoftware,
+} from '@/adapters/registry'
 import type {
   ServerFeatures,
   ServerInfo,
@@ -70,9 +74,10 @@ export async function detectServer(host: string): Promise<ServerInfo> {
  * Misskey 互換と判定したすべてで capability を有効化する。未対応サーバーでは
  * 実際の API 呼び出しがエラーで返るので fail-fast する。
  *
- * フォーク固有の capability はここに追加。カスタム TL や modeFlags は
+ * フォーク固有の capability はここではなく `src/adapters/<fork>/` が宣言し、
+ * registry の `forkFeatures()` 経由で重ねる。カスタム TL や modeFlags は
  * customTimelines.ts のポリシー検出で動的に対応済み。静的に宣言が必要な
- * capability のみここで設定する。手順: DEVELOPMENT.md の "Fork support" を参照。
+ * capability のみ扱う。手順: DEVELOPMENT.md の "Fork support" を参照。
  */
 function detectFeatures(software: ServerSoftware): ServerFeatures {
   const features = defaultFeatures()
@@ -84,14 +89,8 @@ function detectFeatures(software: ServerSoftware): ServerFeatures {
     features.notesShowPartialBulk = true
   }
 
-  // リモート絵文字でのリアクション (#630)。本家は `@ホスト名` 付きを ❤ に
-  // フォールバックするため、連合キャッシュまで絵文字を探索するフォークのみ。
-  // API から判定する手段はないので静的宣言 — 漏れても「押せない」側に落ちる
-  if (software === 'lqvp/misskey-tempura') {
-    features.remoteEmojiReactions = true
-  }
-
-  return features
+  // ServerFeatures は index signature を持つため spread だと optional が混ざる
+  return Object.assign(features, forkFeatures(software))
 }
 
 function defaultFeatures(): ServerFeatures {

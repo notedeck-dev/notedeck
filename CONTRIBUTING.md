@@ -19,6 +19,28 @@ Misskey から名前が別物になったフォーク（Sharkey, CherryPick, Fir
 多くのフォーク固有機能（カスタム TL、モードフラグ等）はコード変更なしで動的に検出されます。
 静的な capability 宣言が必要な場合の具体的な手順は [DEVELOPMENT.md — Fork support](DEVELOPMENT.md#fork-support) を参照してください。
 
+#### フォーク開発者へのお願い
+
+NoteDeck 側にコードを書かなくても、フォーク側の設定次第で自動的に対応できる範囲が広がります。
+
+- **nodeinfo 2.1 の `software.repository` に自分のリポジトリ URL を入れてください。** NoteDeck はこれでフォークを識別します。`software.name` を `misskey` のままにしているフォークが多く、名前だけでは本家と区別できません。repository を返さないサーバーは本家扱いにフォールバックします
+- **独自エンドポイントは `/api/endpoints` に載せてください。** カスタムタイムラインはこのスキャンで自動検出します
+- **機能の有効/無効はロールポリシー (`/api/meta` の `policies`) に出してください。** クライアント側はこれを見て UI を出し分けられます。ポリシーに出ていない機能は「叩いてエラー」でしか判定できず、静的宣言をコードに焼き込むことになります
+
+#### フォーク対応の 3 パターン
+
+| パターン | 必要な作業 | 例 |
+|---|---|---|
+| 動的検出で動く | なし | カスタム TL、モードフラグ、タイムラインフィルター |
+| 静的な capability 宣言が要る | `src/adapters/<fork>/` で宣言 | リモート絵文字リアクション (misskey-tempura) |
+| 叩くエンドポイント自体が違う | notecli にメソッド追加 → Tauri コマンド → アダプターで差し替え | はなみすきーのノート検索 (`notes/hanamisearch-v1`) |
+
+API クライアントの実体は別リポジトリ [notecli](https://github.com/notedeck-dev/notecli) にあるため、
+3 番目のパターンは 2 リポジトリにまたがります。手順は [DEVELOPMENT.md — Fork support](DEVELOPMENT.md#fork-support) にあります。
+
+**PR に書いてほしいこと:** 対象サーバーのホスト名、`/api/meta` と nodeinfo の実測値（該当部分の抜粋）、
+なぜ動的検出では足りないか。実測値があると再現・検証がすぐできます。
+
 ### コードの貢献
 
 1. リポジトリをフォーク

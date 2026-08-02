@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createAdapter,
+  forkFeatures,
   getRegisteredSoftware,
   isSupportedSoftware,
   resolveSoftware,
@@ -43,6 +44,29 @@ describe('adapter registry', () => {
     const registered = getRegisteredSoftware()
     expect(registered).toContain('misskey-dev/misskey')
   })
+
+  it('registers fork-specific adapters', () => {
+    expect(getRegisteredSoftware()).toEqual(
+      expect.arrayContaining([
+        'hanamisskey/misskey',
+        'yamisskey-dev/yamisskey',
+        'lqvp/misskey-tempura',
+      ]),
+    )
+  })
+})
+
+describe('forkFeatures', () => {
+  it('returns the capabilities declared by the fork adapter (#630)', () => {
+    expect(forkFeatures('lqvp/misskey-tempura')).toEqual({
+      remoteEmojiReactions: true,
+    })
+  })
+
+  it('returns an empty patch for forks without static capabilities', () => {
+    expect(forkFeatures('misskey-dev/misskey')).toEqual({})
+    expect(forkFeatures('sharkey/sharkey')).toEqual({})
+  })
 })
 
 describe('resolveSoftware', () => {
@@ -74,6 +98,13 @@ describe('resolveSoftware', () => {
     ).toBe('misskeyio/misskey')
   })
 
+  it('identifies はなみすきー by repository URL (#916)', () => {
+    // nodeinfo 2.1 の software.name は "misskey" のままで repository だけが違う
+    expect(
+      resolveSoftware('misskey', 'https://github.com/hanamisskey/misskey'),
+    ).toBe('hanamisskey/misskey')
+  })
+
   it('identifies known but unsupported forks by software name (#853)', () => {
     expect(resolveSoftware('sharkey')).toBe('sharkey/sharkey')
     expect(resolveSoftware('cherrypick')).toBe('kokonect-link/cherrypick')
@@ -97,6 +128,7 @@ describe('isSupportedSoftware', () => {
     expect(isSupportedSoftware('yamisskey-dev/yamisskey')).toBe(true)
     expect(isSupportedSoftware('lqvp/misskey-tempura')).toBe(true)
     expect(isSupportedSoftware('misskeyio/misskey')).toBe(true)
+    expect(isSupportedSoftware('hanamisskey/misskey')).toBe(true)
   })
 
   it('rejects identified but unsupported forks and unknown software', () => {
