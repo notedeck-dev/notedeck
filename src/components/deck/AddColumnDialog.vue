@@ -56,9 +56,18 @@ function finalizeColumn(config: Omit<DeckColumn, 'id'>) {
   }
 }
 
-const expandedCategories = reactive<Record<string, boolean>>({
-  account: true,
-})
+const expandedCategories = reactive<Record<string, boolean>>({})
+
+/**
+ * 型を選ぶ前に対象アカウントを決めておくチップ行。
+ * 1 件以下では selectColumnType 側の自動選択が働くので出さない。
+ */
+const showAccountChips = computed(() => accountsStore.accounts.length >= 2)
+const pickedAccountId = ref<string | null>(accountsStore.activeAccountId)
+const pickedAccount = computed(
+  () =>
+    accountsStore.accounts.find((a) => a.id === pickedAccountId.value) ?? null,
+)
 
 function toggleCategory(key: string) {
   expandedCategories[key] = !expandedCategories[key]
@@ -84,6 +93,26 @@ function selectColumnType(type: ColumnType) {
   // Account-optional types: always show selection screen so user can choose "no account"
   if (ACCOUNT_OPTIONAL_TYPES.has(type)) return
   const authRequired = !GUEST_ALLOWED_TYPES.has(type)
+  // チップで対象を決めてある場合は選択画面を挟まず確定する
+  if (showAccountChips.value) {
+    const picked = pickedAccount.value
+    if (!picked) {
+      // 「全アカウント」— per-account 専用型は対象を選べないので選択画面へ
+      if (CROSS_ACCOUNT_TYPES.has(type)) addColumnForAccount(null)
+      return
+    }
+    if (isGuestAccount(picked) && authRequired) {
+      addColumnType.value = null
+      useToast().show('ゲストアカウントではこのカラムを使えません', 'info')
+      return
+    }
+    if (!picked.hasToken && authRequired) {
+      showLoginPrompt()
+      return
+    }
+    addColumnForAccount(picked.id)
+    return
+  }
   const accounts = accountsStore.accounts.filter(
     (a) => !(authRequired && isGuestAccount(a)),
   )
@@ -319,6 +348,31 @@ function close() {
 
       <!-- Step 1: Column type selection -->
       <template v-if="!addColumnType">
+        <div v-if="showAccountChips" :class="$style.chipBar">
+          <div :class="$style.chipRow">
+            <button
+              v-for="account in accountsStore.accounts"
+              :key="account.id"
+              class="_button"
+              :class="[$style.chip, { [$style.chipActive]: pickedAccountId === account.id }]"
+              :title="getAccountLabel(account)"
+              @click="pickedAccountId = account.id"
+            >
+              <img :src="getAccountAvatarUrl(account)" :class="$style.chipAvatar" />
+            </button>
+            <button
+              class="_button"
+              :class="[$style.chip, { [$style.chipActive]: pickedAccountId === null }]"
+              title="全アカウント"
+              @click="pickedAccountId = null"
+            >
+              <AvatarStack :size="28" />
+            </button>
+          </div>
+          <div :class="$style.chipLabel">
+            {{ pickedAccount ? getAccountLabel(pickedAccount) : '全アカウント' }}
+          </div>
+        </div>
         <div
           v-for="g in COLUMN_TYPE_GROUPS"
           :key="g.group"
@@ -521,6 +575,62 @@ function close() {
   align-items: center;
   justify-content: center;
   padding: 2rem;
+}
+
+.chipBar {
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--nd-divider);
+}
+
+.chipRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.chip {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border: 2px solid transparent;
+  // 「全アカウント」は AvatarStack が横長になるため pill 型で受ける
+  border-radius: 999px;
+  opacity: 0.5;
+  transition:
+    opacity var(--nd-duration-base),
+    border-color var(--nd-duration-base);
+
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.chipActive {
+  border-color: var(--nd-accent);
+  opacity: 1;
+}
+
+.chipAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.chipLabel {
+  margin-top: 8px;
+  font-size: 0.8em;
+  color: var(--nd-fg);
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .addAccountBtn {
