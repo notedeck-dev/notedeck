@@ -267,6 +267,40 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .build()?;
         app.manage(shared_http.clone());
 
+        // Image cache — 必ず Phase 1 で manage する (#921)。フロントは
+        // nd:accounts-early を受けた瞬間にカラムを mount して絵文字を要求する
+        // ため、Phase 2 (背景スレッド) に置くと起動直後の要求が 503
+        // (media cache not ready) になり、onerror の unknown アイコンが
+        // カラム再 mount まで DOM に焼き付く。依存はディレクトリと
+        // perf/http client だけなので前倒しできる。
+        let image_cache = std::sync::Arc::new(image_cache::ImageCache::with_client(
+            &app_dir,
+            shared_http.clone(),
+            shared_perf_bg.clone(),
+        ));
+        app.manage(image_cache.clone());
+
+        // ディスク画像キャッシュの掃除 (#815)。TTL 超過分と上限超過分は
+        // read 側では消えないため、起動時と定期実行でここだけが削除口になる
+        {
+            let sweeper = image_cache.clone();
+            tauri::async_runtime::spawn(async move {
+                let interval = std::time::Duration::from_secs(6 * 60 * 60);
+                loop {
+                    let stats = sweeper.sweep_disk().await;
+                    if stats.expired_removed > 0 || stats.evicted_removed > 0 {
+                        tracing::info!(
+                            expired = stats.expired_removed,
+                            evicted = stats.evicted_removed,
+                            bytes_after = stats.bytes_after,
+                            "image cache swept"
+                        );
+                    }
+                    tokio::time::sleep(interval).await;
+                }
+            });
+        }
+
         // HEARTBEAT scheduler (#411): per-AI-column tokio interval task。
         // フロントの useHeartbeatScheduler から configure / trigger される。
         app.manage(std::sync::Arc::new(commands::HeartbeatScheduler::new()));
@@ -322,6 +356,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
         let app_handle = app.app_handle().clone();
         let app_dir_bg = app_dir.clone();
+        let image_cache_bg = image_cache.clone();
         std::thread::spawn(move || {
             // Parallel: DB open + MisskeyClient init + HTTP bind (all independent)
             let db_path = app_dir_bg.join("notecli.db");
@@ -377,34 +412,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             app_state.initialize(db.clone(), client.clone());
 
             // OGP cache (lazy-loaded on first access via ensure_loaded())
-            app_handle.manage(ogp::OgpCache::with_client(db.clone(), shared_http.clone(), shared_perf_bg.clone()));
-
-            // Image cache
-            let image_cache = std::sync::Arc::new(
-                image_cache::ImageCache::with_client(&app_dir_bg, shared_http, shared_perf_bg.clone()),
-            );
-            app_handle.manage(image_cache.clone());
-
-            // ディスク画像キャッシュの掃除 (#815)。TTL 超過分と上限超過分は
-            // read 側では消えないため、起動時と定期実行でここだけが削除口になる
-            {
-                let sweeper = image_cache.clone();
-                tauri::async_runtime::spawn(async move {
-                    let interval = std::time::Duration::from_secs(6 * 60 * 60);
-                    loop {
-                        let stats = sweeper.sweep_disk().await;
-                        if stats.expired_removed > 0 || stats.evicted_removed > 0 {
-                            tracing::info!(
-                                expired = stats.expired_removed,
-                                evicted = stats.evicted_removed,
-                                bytes_after = stats.bytes_after,
-                                "image cache swept"
-                            );
-                        }
-                        tokio::time::sleep(interval).await;
-                    }
-                });
-            }
+            app_handle.manage(ogp::OgpCache::with_client(db.clone(), shared_http, shared_perf_bg.clone()));
 
             // Start HTTP API server (attach routes to pre-bound listener)
             // Wait for the server to be ready before signalling the frontend,
@@ -422,7 +430,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                         api_token,
                         api_token_store,
                         token_path: token_path_str,
-                        image_cache,
+                        image_cache: image_cache_bg,
                         perf: shared_perf_bg,
                     }, ready_tx)
                     .await;
