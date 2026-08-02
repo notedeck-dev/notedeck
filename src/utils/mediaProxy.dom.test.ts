@@ -65,20 +65,27 @@ describe('proxyUrl', () => {
     )
   })
 
-  it('Android は二段階配信 (wait を付けない)', async () => {
+  // Android は wry custom protocol の直列ロックを避け、ループバック HTTP
+  // (#921) に載せる。HTTP ルートは常にブロッキングで本物を返すため
+  // wait/soft パラメータも二段階配信も不要
+  it('Android はループバック HTTP に載せる (直列 custom protocol を通らない)', async () => {
     stubUserAgent(ANDROID_UA)
     const { proxyUrl } = await loadModule()
-    expect(proxyUrl(REMOTE)).toContain('ndmedia')
-    expect(proxyUrl(REMOTE)).not.toContain('wait=1')
+    expect(proxyUrl(REMOTE)).toBe(
+      `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent(REMOTE)}`,
+    )
   })
 
-  it.each([
-    ['Android', ANDROID_UA],
-    ['iOS', IOS_UA],
-  ])('%s でもプロキシをバイパスしない', async (_name, ua) => {
-    stubUserAgent(ua)
+  it('iOS は ndmedia のままバイパスしない (ATS で 127.0.0.1 に繋げない)', async () => {
+    stubUserAgent(IOS_UA)
     const { proxyUrl } = await loadModule()
     expect(proxyUrl(REMOTE)).toContain('ndmedia')
+    expect(proxyUrl(REMOTE)).not.toBe(REMOTE)
+  })
+
+  it('Android でもプロキシをバイパスしない (元 URL 直読みに戻さない)', async () => {
+    stubUserAgent(ANDROID_UA)
+    const { proxyUrl } = await loadModule()
     expect(proxyUrl(REMOTE)).not.toBe(REMOTE)
   })
 
@@ -101,14 +108,14 @@ describe('proxyUrl', () => {
 })
 
 describe('wait オプション (効果音などブロッキング消費者用)', () => {
-  // 二段階配信の Android でも、fetch/Audio 要素はプレースホルダを飲み込め
-  // ないので明示 wait で従来のブロッキングに乗せる
-  it('Android でも明示 wait は wait=1 を付ける', async () => {
+  // Android の HTTP ルートは常にブロッキングで本物を返すため、効果音の
+  // 明示 wait でもパラメータは不要 (プレースホルダがそもそも存在しない)
+  it('Android は明示 wait でもパラメータなしの HTTP URL になる', async () => {
     stubUserAgent(ANDROID_UA)
     const { proxyUrl } = await loadModule()
-    expect(proxyUrl(REMOTE, { wait: true })).toContain('wait=1')
-    const normal = proxyUrl(REMOTE)
-    expect(normal).not.toContain('wait=1')
+    expect(proxyUrl(REMOTE, { wait: true })).toBe(
+      `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent(REMOTE)}`,
+    )
   })
 
   it('明示 wait (効果音) には soft を付けない — プレースホルダを飲み込めない', async () => {

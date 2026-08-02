@@ -4,26 +4,31 @@ import { events } from '@/bindings'
 import { usePerformanceStore } from '@/stores/performance'
 
 /**
- * 画像プロキシの WebView 側の口。
+ * 画像プロキシの WebView 側の口。プラットフォームで配信経路が割れる:
  *
- * 以前はローカル HTTP サーバー (127.0.0.1:19820) を直接叩き、そこへ繋げない
- * モバイルだけプロキシをバイパスして元 URL を直読みしていた
- * (Android: cleartext policy / iOS: ATS)。その結果、リサイズ・ディスク
- * キャッシュ・サーキットブレーカーがモバイルでだけ効かず、アバターは
- * `proxyThumbUrl(url, 56)` を指定しても原寸が読まれていた。
+ * - **Android**: ループバック HTTP (`127.0.0.1:19820/proxy/image`) を使う
+ *   (#921)。wry Android の custom protocol は全リクエスト (アセット・大きい
+ *   IPC 応答・メディア) が単一ロックで直列化されるため、メディアを載せると
+ *   構造的に遅い。HTTP なら WebView の並列ネットワークスタックとブラウザ
+ *   キャッシュが使え、プロキシ側は本物が用意できるまでブロックして返せる
+ *   (二段階配信もプレースホルダも不要)。cleartext-to-localhost は
+ *   networkSecurityConfig で許可済み (src-tauri/android/)。
+ * - **それ以外 (デスクトップ / iOS)**: custom protocol `ndmedia:`。WebView が
+ *   intercept するのでネットワークスタックを通らず、iOS の ATS 制限も受け
+ *   ない。URL 形式のプラットフォーム差 (macOS/iOS/Linux は
+ *   `ndmedia://localhost/m`、Windows は `http://ndmedia.localhost/m`) は
+ *   convertFileSrc が吸収する。
  *
- * custom protocol は WebView 自身が intercept するのでネットワークスタックを
- * 通らず、この制限を受けない。URL 形式のプラットフォーム差
- * (macOS/iOS/Linux は `ndmedia://localhost/m`、Windows/Android は
- * `http://ndmedia.localhost/m`) は convertFileSrc が吸収する。
+ * どちらもバックエンドは同じ ImageCache なので、リサイズ・ディスク
+ * キャッシュ・サーキットブレーカー・オフライン動作は共通。
  */
-const HTTP_FALLBACK_BASE = 'http://127.0.0.1:19820/proxy/image'
+const HTTP_MEDIA_BASE = 'http://127.0.0.1:19820/proxy/image'
 
 /**
- * Android の custom protocol だけは直列 + 10 秒フューズ (wry) のため、ミス時
- * に上流を待てない → 二段階配信 (プレースホルダ + media-fetched 再要求)。
- * それ以外のプラットフォームはブロッキングでも安全なので wait=1 を既定にし、
- * 初回表示から往復 1 回で本物を返す (単一トリップ)。
+ * Android はループバック HTTP に載せるため wait/soft パラメータ自体が不要
+ * (HTTP ルートは常にブロッキングで本物を返す)。ndmedia を使う残りの
+ * プラットフォームはブロッキングが安全なので wait=1 を既定にし、初回表示
+ * から往復 1 回で本物を返す (単一トリップ)。
  */
 const IS_ANDROID = /Android/i.test(navigator.userAgent)
 
@@ -239,11 +244,16 @@ function withVersion(base: string, url: string): string {
 
 function getProxyBase(): string {
   if (proxyBase !== null) return proxyBase
+  if (IS_ANDROID) {
+    // 直列 custom protocol を避けてループバック HTTP に載せる (#921)
+    proxyBase = HTTP_MEDIA_BASE
+    return proxyBase
+  }
   try {
     proxyBase = convertFileSrc('m', 'ndmedia')
   } catch {
     // Tauri 外 (pnpm dev のブラウザ確認) では custom protocol を解決できない
-    proxyBase = HTTP_FALLBACK_BASE
+    proxyBase = HTTP_MEDIA_BASE
   }
   return proxyBase
 }
@@ -268,7 +278,9 @@ export function proxyUrl(
 ): string | undefined {
   if (!url?.startsWith('https://')) return url ?? undefined
   ensureFetchedListener()
-  const wait = opts?.wait || !IS_ANDROID
+  // Android はループバック HTTP (常にブロッキングで本物を返す) なので
+  // wait/soft パラメータ自体が不要
+  const wait = !IS_ANDROID
   // 画像の wait は最適化にすぎないので soft を付け、プロキシ側が予算超過時に
   // プレースホルダ + MediaFetched の二段階配信へ降格できるようにする。
   // 明示 wait (効果音の fetch/Audio) はプレースホルダを飲み込めないので hard

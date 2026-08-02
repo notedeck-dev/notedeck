@@ -1,16 +1,17 @@
 //! リモートメディア (画像・効果音) を取り込むプロキシの共通ロジック。
 //!
 //! 経路が 2 つある:
-//!   - HTTP API `/proxy/image` (port 19820) — 外部 principal にも開いている口
-//!   - custom protocol `ndmedia:` — WebView 内から使う口
+//!   - HTTP API `/proxy/image` (port 19820) — 外部 principal に加え、
+//!     **Android の WebView の主経路** (#921)。wry Android の custom protocol
+//!     は全リクエストが単一ロックで直列化されるため、メディアはループバック
+//!     HTTP に載せて WebView の並列スタックとブラウザキャッシュを使う。
+//!     cleartext-to-localhost は networkSecurityConfig で許可 (src-tauri/android/)
+//!   - custom protocol `ndmedia:` — デスクトップ / iOS の WebView が使う口。
+//!     WebView 自身が intercept するのでネットワークスタックを通らず、
+//!     iOS の ATS 制限も受けない
 //!
-//! モバイルの WebView は `http://127.0.0.1` への接続が制限される
-//! (Android: cleartext policy / iOS: ATS) ため、以前はモバイルだけ
-//! プロキシをバイパスして元 URL を直読みしていた。その結果リサイズ・
-//! ディスクキャッシュ・サーキットブレーカーがモバイルでだけ効かず、
-//! アバターは `proxyThumbUrl(url, 56)` を指定しても原寸が読まれていた。
-//! custom protocol は WebView 自身が intercept するのでネットワーク
-//! スタックを通らず、この制限を受けない。
+//! どちらもバックエンドは同じ ImageCache なので、リサイズ・ディスク
+//! キャッシュ・サーキットブレーカー・オフライン動作は共通。
 
 use std::sync::Arc;
 
