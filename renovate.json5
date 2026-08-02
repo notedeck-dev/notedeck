@@ -1,0 +1,79 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+
+  extends: [
+    'config:recommended',
+    // commit-msg フック (lefthook.yml) が Conventional Commits を強制するので
+    // Renovate の生成するコミットも同じ規約に揃える
+    ':semanticCommits',
+  ],
+
+  // 開発は develop に集まり、main はリリースタグ用。基点を間違えると
+  // リリース済みブランチに依存更新が積まれる
+  baseBranches: ['develop'],
+
+  // 検出しても即 PR にはせず、Dependency Dashboard で承認したものだけ作る。
+  // 依存更新で CI 枠を食い潰さないため
+  dependencyDashboardApproval: true,
+
+  // 公開直後に取り下げられる版を踏まない
+  minimumReleaseAge: '7 days',
+
+  semanticCommitType: 'chore',
+  labels: ['dependencies'],
+  prConcurrentLimit: 5,
+  prHourlyLimit: 2,
+
+  // Cargo.lock を丸ごと更新すると、下の tauri ルールで止めている windowing 層
+  // (tao / wry / tauri-runtime-wry) が間接依存として浮いてしまう。
+  // 依存の更新は manifest 経由に限る
+  lockFileMaintenance: {
+    enabled: false,
+  },
+
+  packageRules: [
+    {
+      matchManagers: ['npm'],
+      groupName: 'Frontend dependencies',
+      addLabels: ['javascript'],
+    },
+    {
+      matchManagers: ['cargo'],
+      groupName: 'Rust dependencies',
+      addLabels: ['rust'],
+    },
+    {
+      matchManagers: ['github-actions'],
+      groupName: 'GitHub Actions',
+      addLabels: ['github_actions'],
+    },
+    {
+      matchManagers: ['nix'],
+      groupName: 'Nix flake',
+      addLabels: ['🛠️Dev'],
+    },
+
+    {
+      description: 'tauri 2.11 系は Android で WebView 初期化直後に ndk_context::android_context() が初期化前に呼ばれ SIGABRT する (PR #678 で 2.10 系へ差し戻し)。@tauri-apps/api は crate と minor を揃えないと tauri dev が version mismatch で止まるので同時に止める。上流修正を実機で確認できたら allowedVersions を外す',
+      matchPackageNames: ['tauri', '@tauri-apps/api'],
+      allowedVersions: '<2.11',
+    },
+    {
+      description: 'specta / tauri-specta は rc 版を = で厳密ピンしている。rc 間の更新は予告なく破壊的変更を含むので、bindings.ts の再生成とセットで手動追従する',
+      matchPackageNames: ['specta', 'tauri-specta', 'specta-typescript'],
+      enabled: false,
+    },
+    {
+      description: 'notecli の rev 更新は bindings.ts と openapi.json の再生成をセットで行う必要がある (cross-repo 手順 #458)。単独の rev 差し替えはスナップショットテストを落とす',
+      matchPackageNames: ['notecli'],
+      enabled: false,
+    },
+
+    {
+      // メジャー更新は移行作業を伴うので、領域グループから外して単独 PR にする
+      matchUpdateTypes: ['major'],
+      groupName: null,
+      addLabels: ['☢️Breaking'],
+    },
+  ],
+}
