@@ -205,7 +205,7 @@ mod desktop {
         }
         let bytes = tauri::async_runtime::block_on(crate::notify_media::ensure_bytes(cache, url))?;
         // 寸法上限なしの decode は巨大 PNG の RGBA 展開でメモリを食い潰す。
-        // ndmedia の変換 (media_proxy::transform_image) と同じ上限を掛ける
+        // 画像プロキシの変換 (media_proxy::transform_image) と同じ上限を掛ける
         let mut reader = image::ImageReader::new(std::io::Cursor::new(&bytes))
             .with_guessed_format()
             .ok()?;

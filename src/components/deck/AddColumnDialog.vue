@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch, watchEffect } from 'vue'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
   ACCOUNT_OPTIONAL_TYPES,
@@ -56,13 +56,24 @@ function finalizeColumn(config: Omit<DeckColumn, 'id'>) {
   }
 }
 
-const expandedCategories = reactive<Record<string, boolean>>({
-  account: true,
-})
+const expandedCategories = reactive<Record<string, boolean>>({})
 
 function toggleCategory(key: string) {
   expandedCategories[key] = !expandedCategories[key]
 }
+
+// spotlight (チュートリアル) が特定のカラム種別を指しているときは、その種別を
+// 含むカテゴリを開いておく。閉じたままだと種別ボタンが DOM に存在せず、
+// 光らせる対象が無いまま手順が進まなくなる。開くだけで閉じないので、
+// spotlight が無いときの既定 (全て閉じる) は変わらない
+watchEffect(() => {
+  for (const g of COLUMN_TYPE_GROUPS) {
+    const spotlighted = g.types.some((t) =>
+      spotlightStore.spotlights.has(commandItemTargetId(`col-${t}`)),
+    )
+    if (spotlighted) expandedCategories[g.group] = true
+  }
+})
 
 const addColumnType = ref<ColumnType | null>(null)
 
@@ -414,7 +425,9 @@ function close() {
           :class="$style.addAccountBtn"
           @click="addColumnForAccount(null)"
         >
-          <AvatarStack :size="28" />
+          <!-- 「全アカウント」は文字どおり全件重ねる (既定の 3 件打ち切りだと
+               4 件目以降が含まれないように見える) -->
+          <AvatarStack :size="28" :max="accountsStore.accounts.length" />
           <span>全アカウント</span>
         </button>
         <button

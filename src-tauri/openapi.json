@@ -6,7 +6,7 @@
     "license": {
       "name": "MIT"
     },
-    "version": "1.37.0"
+    "version": "1.38.0"
   },
   "paths": {
     "/api": {
@@ -1378,6 +1378,20 @@
             "name": "w",
             "in": "query",
             "description": "Optional max width for thumbnail generation (e.g. 300)",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "h",
+            "in": "query",
+            "description": "Optional max height (aspect-preserving fit; emoji-style sizing)",
             "required": false,
             "schema": {
               "type": [

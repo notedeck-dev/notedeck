@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Tauri が生成する Info.plist にマージされる。メディア配信は内蔵 HTTP
+     サーバー (ループバック) に一本化しているため (#921)、ATS の例外を
+     ループバック宛だけに絞って開ける。リモートへの http は許可しない
+     (NSAllowsArbitraryLoads は付けない)。
+
+     例外を 2 つ書くのは OS 世代で IP 宛の扱いが違うため:
+       - macOS 14 / iOS 17 より前: NSAllowsLocalNetworking が IP 宛を許可する
+       - macOS 14 / iOS 17 以降: IP 宛は既定で不許可になり、
+         NSExceptionDomains に明示した宛先だけが通る。ドメイン名の例外は
+         IP 宛の接続には効かない (逆も同じ) ため、IP を直接書く -->
+<plist version="1.0">
+<dict>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+        <key>NSExceptionDomains</key>
+        <dict>
+            <key>127.0.0.1</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+            </dict>
+        </dict>
+    </dict>
+</dict>
+</plist>

@@ -366,7 +366,7 @@ function deleteInstalledTheme(theme: MisskeyTheme, e: Event) {
 }
 
 // Section expand states (default: all collapsed)
-const expandedSections = reactive<Record<string, boolean>>({ info: true })
+const expandedSections = reactive<Record<string, boolean>>({})
 
 function toggleSection(section: string) {
   expandedSections[section] = !expandedSections[section]

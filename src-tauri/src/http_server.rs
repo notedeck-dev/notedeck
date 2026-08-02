@@ -701,6 +701,8 @@ struct ProxyImageParams {
     url: String,
     /// Optional max width for thumbnail generation (e.g. 300)
     w: Option<u32>,
+    /// Optional max height (aspect-preserving fit; emoji-style sizing)
+    h: Option<u32>,
     /// Optional output format ("webp" to convert)
     format: Option<String>,
 }
@@ -719,12 +721,13 @@ async fn proxy_image(
     Query(params): Query<ProxyImageParams>,
 ) -> Response {
     use crate::image_cache::StreamingFetchResult;
-    use crate::media_proxy::{transform_image, MediaRequest};
+    use crate::media_proxy::MediaRequest;
 
     // 変換パラメータ込みのキー / ETag は custom protocol 側と同じ規則を使う
     let req = MediaRequest {
         url: params.url.clone(),
         w: params.w,
+        h: params.h,
         format: params.format.clone(),
     };
     let etag = req.etag();
@@ -741,30 +744,14 @@ async fn proxy_image(
         }
     }
 
-    let wants_transform = params.w.is_some() || params.format.is_some();
-
-    // Helper: build a cached-image response, applying transform if requested.
-    // Accepts &[u8] to avoid cloning Arc<Vec<u8>> when no transform is needed.
-    let make_response = |data: &[u8], ct: &str, etag: &str| -> Response {
-        if wants_transform {
-            if let Some((transformed, new_ct)) =
-                transform_image(data, params.w, params.format.as_deref())
-            {
-                return Response::builder()
-                    .status(StatusCode::OK)
-                    .header("Content-Type", new_ct)
-                    .header("Cache-Control", "public, max-age=86400, immutable")
-                    .header("ETag", etag)
-                    .body(Body::from(transformed))
-                    .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response());
-            }
-        }
+    // Helper: build a plain 200 response from ready bytes
+    let ok_response = |data: Vec<u8>, ct: &str, etag: &str| -> Response {
         Response::builder()
             .status(StatusCode::OK)
             .header("Content-Type", ct)
             .header("Cache-Control", "public, max-age=86400, immutable")
             .header("ETag", etag)
-            .body(Body::from(data.to_vec()))
+            .body(Body::from(data))
             .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
     };
 
@@ -773,51 +760,55 @@ async fn proxy_image(
         ($entry:expr, $etag:expr) => {{
             let entry = $entry;
             if let Some(ref mem) = entry.mem_bytes {
-                make_response(mem, &entry.content_type, $etag)
+                ok_response(mem.as_ref().clone(), &entry.content_type, $etag)
             } else {
                 match tokio::fs::read(&entry.path).await {
-                    Ok(b) => make_response(&b, &entry.content_type, $etag),
+                    Ok(b) => ok_response(b, &entry.content_type, $etag),
                     Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
                 }
             }
         }};
     }
 
+    // 変換要求 (絵文字・アバターのサムネイル): variant キャッシュ経路に
+    // 載せる。この route は WebView 全プラットフォームのメディア主経路
+    // (#921) なので、リクエスト毎に再変換すると初回表示のたびに decode +
+    // WebP エンコードの CPU を払い続けることになる。ensure_media_inner が
+    // cache_key で variant を永続化し、2 回目以降はヒットで返る。
+    if req.wants_transform() {
+        if let Some(entry) = state.image_cache.check_cache_only(&req.cache_key()).await {
+            return respond_from_cache!(entry, &etag);
+        }
+        return match crate::media_proxy::ensure_media_inner(&state.image_cache, &req).await {
+            Ok((bytes, content_type)) => ok_response(bytes, &content_type, &etag),
+            Err(msg) => {
+                tracing::warn!(url = %params.url, error = %msg, "proxy_image: fetch failed");
+                (StatusCode::BAD_GATEWAY, msg).into_response()
+            }
+        };
+    }
+
+    // 無変換 (効果音・原寸画像): オリジナルをそのまま配信
     // Phase 1: Check cache (instant response)
     if let Some(entry) = state.image_cache.check_cache_only(&params.url).await {
         return respond_from_cache!(entry, &etag);
     }
 
-    // Phase 2: Fetch from upstream
+    // Phase 2: Fetch from upstream — stream directly for low TTFB
     match state.image_cache.fetch_streaming(&params.url).await {
         Ok(StreamingFetchResult::Cached(entry)) => respond_from_cache!(entry, &etag),
         Ok(StreamingFetchResult::Streaming {
             byte_stream,
             content_type,
         }) => {
-            if wants_transform {
-                // Need full bytes for transform — collect stream first
-                use futures_util::StreamExt;
-                let mut all_bytes = Vec::with_capacity(65_536);
-                let mut stream = byte_stream;
-                while let Some(chunk) = stream.next().await {
-                    match chunk {
-                        Ok(b) => all_bytes.extend_from_slice(&b),
-                        Err(_) => return StatusCode::BAD_GATEWAY.into_response(),
-                    }
-                }
-                make_response(&all_bytes, &content_type, &etag)
-            } else {
-                // No transform needed — stream directly for low TTFB
-                let body = Body::from_stream(byte_stream);
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header("Content-Type", &content_type)
-                    .header("Cache-Control", "public, max-age=86400, immutable")
-                    .header("ETag", &etag)
-                    .body(body)
-                    .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
-            }
+            let body = Body::from_stream(byte_stream);
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", &content_type)
+                .header("Cache-Control", "public, max-age=86400, immutable")
+                .header("ETag", &etag)
+                .body(body)
+                .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
         }
         Err(msg) => {
             tracing::warn!(url = %params.url, error = %msg, "proxy_image: upstream fetch failed");

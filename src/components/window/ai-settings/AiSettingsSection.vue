@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     icon: string
     title: string
@@ -9,17 +9,15 @@ const props = withDefaults(
     badge?: string
     badgeIcon?: string
     badgeOk?: boolean
-    defaultExpanded?: boolean
   }>(),
   {
     badge: undefined,
     badgeIcon: 'ti-info-circle',
     badgeOk: false,
-    defaultExpanded: false,
   },
 )
 
-const expanded = ref(props.defaultExpanded)
+const expanded = ref(false)
 </script>
 
 <template>

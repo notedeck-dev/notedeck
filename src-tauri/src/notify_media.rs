@@ -1,7 +1,7 @@
 //! OS 通知に添付するメディアの取得口。
 //!
 //! 通知画像 (アバター・リアクション絵文字) は WebView の外 (OS の通知
-//! システム) で描画されるため custom protocol (`ndmedia`) を通せない。
+//! システム) で描画されるため WebView の画像プロキシを通せない。
 //! かつては各プラットフォームが独自に fetch していた (Android は Kotlin の
 //! HttpURLConnection で原寸 DL、デスクトップは os_notify 専用の reqwest) が、
 //! ImageCache の防御 (ディスク/メモリキャッシュ・in-flight dedup・negative
@@ -39,6 +39,7 @@ pub async fn ensure_local_file(cache: &ImageCache, url: &str, w: Option<u32>) ->
     let req = MediaRequest {
         url: url.to_string(),
         w,
+        h: None,
         format: None,
     };
     let key = req.cache_key();
@@ -60,6 +61,7 @@ pub async fn ensure_bytes(cache: &ImageCache, url: &str) -> Option<Vec<u8>> {
     let req = MediaRequest {
         url: url.to_string(),
         w: None,
+        h: None,
         format: None,
     };
     crate::media_proxy::ensure_media_inner(cache, &req)

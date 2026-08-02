@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
   "productName": "NoteDeck",
-  "version": "1.37.0",
+  "version": "1.38.0",
   "identifier": "com.notedeck.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -27,7 +27,7 @@
     "enableGTKAppId": false,
     "macOSPrivateApi": false,
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-eval'; worker-src 'self' blob: data:; style-src 'self' 'unsafe-inline' https://*; img-src 'self' asset: http://asset.localhost ndmedia: http://ndmedia.localhost data: blob: https://* http://127.0.0.1:19820; media-src 'self' ndmedia: http://ndmedia.localhost https://*; font-src 'self' data: https://*; connect-src ipc: http://ipc.localhost http://tauri.localhost ndmedia: http://ndmedia.localhost http://127.0.0.1:19820 http://localhost:* https://* data: blob:; frame-src http://127.0.0.1:19820 https://*",
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-eval'; worker-src 'self' blob: data:; style-src 'self' 'unsafe-inline' https://*; img-src 'self' asset: http://asset.localhost data: blob: https://* http://127.0.0.1:19820; media-src 'self' http://127.0.0.1:19820 https://*; font-src 'self' data: https://*; connect-src ipc: http://ipc.localhost http://tauri.localhost http://127.0.0.1:19820 http://localhost:* https://* data: blob:; frame-src http://127.0.0.1:19820 https://*",
       "dangerousDisableAssetCspModification": true
     }
   },

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- debug 用 (#921): tauri android dev は LAN IP の vite dev サーバーへ
+     http で繋ぐため、debug ビルドでは cleartext を全面許可する。
+     sync.sh が app/src/debug/res/xml/network_security_config.xml として
+     配置し、release 側の同名リソースを buildType で上書きする。 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

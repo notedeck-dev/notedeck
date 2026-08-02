@@ -49,6 +49,14 @@ struct HostCircuitState {
     tripped_at: Option<Instant>,
 }
 
+/// 取得並列度の制限。perf_config.max_concurrent_fetches に追従するため、
+/// 固定サイズの Semaphore ではなく「現在の上限 + 差し替え可能なセマフォ」で
+/// 持つ (Semaphore は後からサイズを縮められない)。
+struct FetchLimiter {
+    limit: usize,
+    semaphore: Arc<Semaphore>,
+}
+
 type InflightMap = HashMap<String, watch::Receiver<Option<Result<CacheEntry, String>>>>;
 
 #[derive(Clone)]
@@ -82,12 +90,10 @@ pub struct ImageCache {
     cache_dir: PathBuf,
     inflight: Arc<Mutex<InflightMap>>,
     http_client: reqwest::Client,
-    fetch_semaphore: Arc<Semaphore>,
+    fetch_limiter: Arc<Mutex<FetchLimiter>>,
     negative_cache: Arc<RwLock<HashMap<String, (Instant, Duration)>>>,
     mem_cache: Arc<RwLock<MemCacheState>>,
     host_circuits: Arc<RwLock<HashMap<String, HostCircuitState>>>,
-    /// 二段階配信の背景 ensure (取得+変換) の重複防止 (cache_key 単位)
-    ensure_pending: Arc<Mutex<std::collections::HashSet<String>>>,
     perf: SharedPerfConfig,
 }
 
@@ -114,16 +120,41 @@ impl ImageCache {
             cache_dir,
             inflight: Arc::new(Mutex::new(HashMap::new())),
             http_client,
-            fetch_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_FETCHES)),
+            fetch_limiter: Arc::new(Mutex::new(FetchLimiter {
+                limit: DEFAULT_MAX_CONCURRENT_FETCHES,
+                semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_FETCHES)),
+            })),
             negative_cache: Arc::new(RwLock::new(HashMap::new())),
             mem_cache: Arc::new(RwLock::new(MemCacheState {
                 entries: LruCache::new(NonZeroUsize::new(capacity).unwrap()),
                 total_size: 0,
             })),
             host_circuits: Arc::new(RwLock::new(HashMap::new())),
-            ensure_pending: Arc::new(Mutex::new(std::collections::HashSet::new())),
             perf,
         }
+    }
+
+    /// 上流取得の permit を取る。perf_config.max_concurrent_fetches を毎回
+    /// 読み、値が変わっていればセマフォごと差し替える (#921 — 以前は生成時の
+    /// 定数 30 で固定され、perf config は起動後にフロントから push されるため
+    /// 設定が一生効かない死にノブだった)。差し替え時、旧セマフォの permit を
+    /// 持つ取得が残る間だけ一時的に旧上限ぶん超過しうるが、取得は
+    /// MEDIA_FETCH_TIMEOUT (6s) 以内に収束する。
+    async fn acquire_fetch_permit(&self) -> Result<tokio::sync::OwnedSemaphorePermit, String> {
+        // 0 は「取得不能」ではなく最低 1 に丸める (設定ミスで全画像が詰まる)
+        let desired = self.perf.read().await.max_concurrent_fetches.max(1);
+        let semaphore = {
+            let mut limiter = self.fetch_limiter.lock().await;
+            if limiter.limit != desired {
+                limiter.limit = desired;
+                limiter.semaphore = Arc::new(Semaphore::new(desired));
+            }
+            limiter.semaphore.clone()
+        };
+        semaphore
+            .acquire_owned()
+            .await
+            .map_err(|_| "Semaphore closed".to_string())
     }
 
     /// 変換結果 (variant) を cache_key 単位で保存する。オリジナルと同じ
@@ -149,38 +180,14 @@ impl ImageCache {
         }
     }
 
-    /// URL (または cache_key) が negative cache 中か。二段階配信のフェーズ 1 が
-    /// これを見ずに ensure を再発行すると、失敗イベント → img 再試行 → 失敗
-    /// イベントの無限ループになる。
+    /// URL (または cache_key) が negative cache 中か (テストの観測口。
+    /// 本番経路では fetch_streaming が内部で同じ表を照会する)。
     pub async fn is_negative_cached(&self, url: &str) -> bool {
         let neg = self.negative_cache.read().await;
         match neg.get(&hex_hash(url)) {
             Some((failed_at, ttl)) => failed_at.elapsed() < *ttl,
             None => false,
         }
-    }
-
-    /// 直近失敗 (negative cache) か既知のダウンホスト (circuit breaker) か。
-    /// 二段階配信のフェーズ 1 はこれが真なら ensure を発行せず即エラーを返す。
-    pub async fn is_fast_fail(&self, url: &str) -> bool {
-        if self.is_negative_cached(url).await {
-            return true;
-        }
-        if let Some(host) = Self::extract_host(url) {
-            if self.is_host_blocked(&host).await {
-                return true;
-            }
-        }
-        false
-    }
-
-    /// ensure (背景取得+変換) の開始を予約する。既に進行中なら false。
-    pub async fn begin_ensure(&self, key: &str) -> bool {
-        self.ensure_pending.lock().await.insert(key.to_string())
-    }
-
-    pub async fn finish_ensure(&self, key: &str) {
-        self.ensure_pending.lock().await.remove(key);
     }
 
     async fn check_cache(
@@ -357,12 +364,7 @@ impl ImageCache {
         drop(inflight);
 
         // Acquire semaphore
-        let _permit = self
-            .fetch_semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(|_| "Semaphore closed".to_string())?;
+        let _permit = self.acquire_fetch_permit().await?;
 
         // Start HTTP request (headers only, don't consume body yet)
         // Some hosts (e.g. i.pximg.net) require a valid Referer header.
@@ -774,6 +776,47 @@ mod tests {
         assert!(dir.path().join("image_cache").exists());
     }
 
+    /// 取得並列度は perf_config.max_concurrent_fetches に追従する (#921)。
+    /// 以前は生成時の定数 30 で固定され、performance.json5 の値が一生
+    /// 効かない死にノブだった (perf config は起動後にフロントから push
+    /// されるため、生成時に読むだけでも足りない)
+    #[tokio::test]
+    async fn fetch_limit_follows_perf_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(dir.path());
+
+        // 既定 (30) では複数同時に取れる
+        let p1 = cache.acquire_fetch_permit().await.unwrap();
+        let p2 = cache.acquire_fetch_permit().await.unwrap();
+        drop(p2);
+
+        // 実行中に 1 へ下げると、以降の取得は同時 1 に絞られる
+        cache.perf.write().await.max_concurrent_fetches = 1;
+        let p3 = cache.acquire_fetch_permit().await.unwrap();
+        let blocked =
+            tokio::time::timeout(Duration::from_millis(50), cache.acquire_fetch_permit()).await;
+        assert!(blocked.is_err(), "limit=1 なので 2 本目は待たされる");
+
+        // permit を返せば次が通る
+        drop(p3);
+        let p4 =
+            tokio::time::timeout(Duration::from_millis(50), cache.acquire_fetch_permit()).await;
+        assert!(p4.is_ok(), "枠が空いたら取得できる");
+        drop(p1);
+    }
+
+    /// 0 は「取得不能」ではなく最低 1 に丸める (設定ミスで全画像が
+    /// 永久に詰まるのを防ぐ)
+    #[tokio::test]
+    async fn fetch_limit_zero_is_clamped_to_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(dir.path());
+        cache.perf.write().await.max_concurrent_fetches = 0;
+        let permit =
+            tokio::time::timeout(Duration::from_millis(50), cache.acquire_fetch_permit()).await;
+        assert!(permit.is_ok(), "0 指定でも 1 本は通る");
+    }
+
     #[tokio::test]
     async fn check_cache_only_returns_none_for_http() {
         let dir = tempfile::tempdir().unwrap();
@@ -905,15 +948,14 @@ mod tests {
         }
     }
 
-    /// circuit breaker で塞がれたホストもフェーズ 1 の即時失敗対象になること。
-    /// (negative cache に入らない失敗経路なので、これを見落とすと ensure が
-    /// 高速に空振りし続ける)
+    /// circuit breaker で塞がれたホストは fetch_streaming が上流アクセス前に
+    /// 即エラーで弾くこと
     #[tokio::test]
-    async fn fast_fail_covers_circuit_breaker() {
+    async fn circuit_breaker_blocks_fetch_before_network() {
         let dir = tempfile::tempdir().unwrap();
         let cache = ImageCache::new(dir.path());
         let url = "https://down.example/a.png";
-        assert!(!cache.is_fast_fail(url).await);
+        assert!(!cache.is_host_blocked("down.example").await);
 
         cache.host_circuits.write().await.insert(
             "down.example".to_string(),
@@ -922,21 +964,8 @@ mod tests {
                 tripped_at: Some(Instant::now()),
             },
         );
-        assert!(cache.is_fast_fail(url).await);
-    }
-
-    /// 同じ variant への ensure が並走しないこと (変換 CPU の二重払い防止)
-    #[tokio::test]
-    async fn ensure_dedup_via_begin_finish() {
-        let dir = tempfile::tempdir().unwrap();
-        let cache = ImageCache::new(dir.path());
-        assert!(cache.begin_ensure("k").await);
-        assert!(!cache.begin_ensure("k").await, "must not start twice");
-        cache.finish_ensure("k").await;
-        assert!(
-            cache.begin_ensure("k").await,
-            "finished key can start again"
-        );
+        let err = cache.fetch_streaming(url).await.err().expect("must fail");
+        assert!(err.contains("circuit breaker"), "got: {err}");
     }
 
     /// `<stem>.dat` + `.meta` の対を作り、mtime を指定秒だけ過去にずらす

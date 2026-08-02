@@ -66,7 +66,6 @@ function openConnectionsWindow(): void {
     :badge="currentConnection ? currentConnection.name : '未選択'"
     :badge-icon="currentConnection ? 'ti-shield-check' : 'ti-shield-off'"
     :badge-ok="!!currentConnection"
-    default-expanded
   >
     <div :class="$style.keyHint">
       <i class="ti ti-info-circle" />
