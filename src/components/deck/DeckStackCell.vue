@@ -17,7 +17,7 @@ const props = defineProps<{
   shellPreview: string[]
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   mousedown: [event: MouseEvent]
   pointerdown: [event: PointerEvent]
 }>()
@@ -53,8 +53,8 @@ const isUnknownType = computed(
     :class="[$style.stackCell, { [$style.dragSource]: isDragSource }]"
     :data-column-id="colId"
     :data-drop-zone="dropZone"
-    @mousedown="$emit('mousedown', $event)"
-    @pointerdown="$emit('pointerdown', $event)"
+    @mousedown="emit('mousedown', $event)"
+    @pointerdown="emit('pointerdown', $event)"
   >
     <ColumnErrorBoundary v-if="shouldMount && column && columnComponent">
       <component
