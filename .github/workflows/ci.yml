@@ -177,7 +177,13 @@ jobs:
       - name: Run E2E tests (xvfb)
         run: xvfb-run -a --server-args="-screen 0 1280x800x24" pnpm test:e2e
         env:
-          NOTEDECK_E2E_SCREENSHOT: '1'
+          # 視覚スモークは PR では回さない。GPU なしランナーではソフトウェア
+          # レンダリングを強制するので実機の描画崩れは原理的に再現できず、
+          # 検証内容も「単色ではない」ことだけ (レンダリング崩れの判断は
+          # アーティファクトを見る人間に委ねている)。さらに misskey.io への
+          # 実接続を伴い、E2E の所要時間の 4 割を占める。
+          # 人間が見るための 1 枚は develop / main への push で撮れば足りる
+          NOTEDECK_E2E_SCREENSHOT: ${{ github.event_name == 'push' && '1' || '' }}
           NOTEDECK_E2E_VERBOSE: '1'
           # GPU なしランナーでは WebKitGTK が DMABUF/EGL 初期化に失敗して
           # WebView 生成前にクラッシュし、HTTP API (19820) が一度も開かない。
@@ -186,7 +192,7 @@ jobs:
           WEBKIT_DISABLE_COMPOSITING_MODE: '1'
 
       - name: Upload screenshot artifact
-        if: always()
+        if: always() && github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: e2e-screenshot

@@ -158,8 +158,12 @@ nix develop -c pnpm test:e2e           # WSL2 では nix develop 必須 (EGL 対
   切断/再接続/購読 replay を決定論的にテストする。接続には
   `NOTECLI_INSECURE_HOSTS` / `NOTEDECK_E2E_ALLOW_HOSTS`（デバッグビルド限定の
   http/ws 許可）を使う
-- CI では `xvfb-run` で実行し、視覚スモーク 1 本（`NOTEDECK_E2E_SCREENSHOT=1`
-  でスクリーンショットをアーティファクト保存）を含む
+- CI では `xvfb-run` で実行する。視覚スモーク（`NOTEDECK_E2E_SCREENSHOT=1`
+  でスクリーンショットをアーティファクト保存）は develop / main への push の
+  ときだけ有効にしている。GPU なしランナーではソフトウェアレンダリングを
+  強制するため実機の描画崩れは再現できず、検証も「単色ではない」ことに
+  留まる（崩れの判断はアーティファクトを見る人間に委ねている）。実接続を
+  伴い所要時間も大きいので、PR では回さない
 
 #### Android 実機 / エミュレータで同一スイートを実行
 
