@@ -80,7 +80,7 @@ const cssCode = ref(themeStore.customCss)
 // Preset toggles (定義・CSS 変換は src/services/cssPresets.ts)
 const presets = ref<CssPresets>(parsePresetsFromCss(cssCode.value))
 
-const expandedSections = reactive<Record<string, boolean>>({ font: true })
+const expandedSections = reactive<Record<string, boolean>>({})
 
 function toggleSection(key: string) {
   expandedSections[key] = !expandedSections[key]

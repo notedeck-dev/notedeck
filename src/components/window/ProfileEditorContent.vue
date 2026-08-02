@@ -41,7 +41,7 @@ const deckStore = useDeckStore()
 const profileStore = useDeckProfileStore()
 const isCompact = useIsCompactLayout()
 
-const expandedSections = reactive<Record<string, boolean>>({ name: true })
+const expandedSections = reactive<Record<string, boolean>>({})
 
 function toggleSection(key: string) {
   expandedSections[key] = !expandedSections[key]
