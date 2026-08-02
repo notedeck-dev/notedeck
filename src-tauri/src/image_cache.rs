@@ -94,8 +94,6 @@ pub struct ImageCache {
     negative_cache: Arc<RwLock<HashMap<String, (Instant, Duration)>>>,
     mem_cache: Arc<RwLock<MemCacheState>>,
     host_circuits: Arc<RwLock<HashMap<String, HostCircuitState>>>,
-    /// 二段階配信の背景 ensure (取得+変換) の重複防止 (cache_key 単位)
-    ensure_pending: Arc<Mutex<std::collections::HashSet<String>>>,
     perf: SharedPerfConfig,
 }
 
@@ -132,7 +130,6 @@ impl ImageCache {
                 total_size: 0,
             })),
             host_circuits: Arc::new(RwLock::new(HashMap::new())),
-            ensure_pending: Arc::new(Mutex::new(std::collections::HashSet::new())),
             perf,
         }
     }
@@ -183,38 +180,14 @@ impl ImageCache {
         }
     }
 
-    /// URL (または cache_key) が negative cache 中か。二段階配信のフェーズ 1 が
-    /// これを見ずに ensure を再発行すると、失敗イベント → img 再試行 → 失敗
-    /// イベントの無限ループになる。
+    /// URL (または cache_key) が negative cache 中か (テストの観測口。
+    /// 本番経路では fetch_streaming が内部で同じ表を照会する)。
     pub async fn is_negative_cached(&self, url: &str) -> bool {
         let neg = self.negative_cache.read().await;
         match neg.get(&hex_hash(url)) {
             Some((failed_at, ttl)) => failed_at.elapsed() < *ttl,
             None => false,
         }
-    }
-
-    /// 直近失敗 (negative cache) か既知のダウンホスト (circuit breaker) か。
-    /// 二段階配信のフェーズ 1 はこれが真なら ensure を発行せず即エラーを返す。
-    pub async fn is_fast_fail(&self, url: &str) -> bool {
-        if self.is_negative_cached(url).await {
-            return true;
-        }
-        if let Some(host) = Self::extract_host(url) {
-            if self.is_host_blocked(&host).await {
-                return true;
-            }
-        }
-        false
-    }
-
-    /// ensure (背景取得+変換) の開始を予約する。既に進行中なら false。
-    pub async fn begin_ensure(&self, key: &str) -> bool {
-        self.ensure_pending.lock().await.insert(key.to_string())
-    }
-
-    pub async fn finish_ensure(&self, key: &str) {
-        self.ensure_pending.lock().await.remove(key);
     }
 
     async fn check_cache(
@@ -975,15 +948,14 @@ mod tests {
         }
     }
 
-    /// circuit breaker で塞がれたホストもフェーズ 1 の即時失敗対象になること。
-    /// (negative cache に入らない失敗経路なので、これを見落とすと ensure が
-    /// 高速に空振りし続ける)
+    /// circuit breaker で塞がれたホストは fetch_streaming が上流アクセス前に
+    /// 即エラーで弾くこと
     #[tokio::test]
-    async fn fast_fail_covers_circuit_breaker() {
+    async fn circuit_breaker_blocks_fetch_before_network() {
         let dir = tempfile::tempdir().unwrap();
         let cache = ImageCache::new(dir.path());
         let url = "https://down.example/a.png";
-        assert!(!cache.is_fast_fail(url).await);
+        assert!(!cache.is_host_blocked("down.example").await);
 
         cache.host_circuits.write().await.insert(
             "down.example".to_string(),
@@ -992,21 +964,8 @@ mod tests {
                 tripped_at: Some(Instant::now()),
             },
         );
-        assert!(cache.is_fast_fail(url).await);
-    }
-
-    /// 同じ variant への ensure が並走しないこと (変換 CPU の二重払い防止)
-    #[tokio::test]
-    async fn ensure_dedup_via_begin_finish() {
-        let dir = tempfile::tempdir().unwrap();
-        let cache = ImageCache::new(dir.path());
-        assert!(cache.begin_ensure("k").await);
-        assert!(!cache.begin_ensure("k").await, "must not start twice");
-        cache.finish_ensure("k").await;
-        assert!(
-            cache.begin_ensure("k").await,
-            "finished key can start again"
-        );
+        let err = cache.fetch_streaming(url).await.err().expect("must fail");
+        assert!(err.contains("circuit breaker"), "got: {err}");
     }
 
     /// `<stem>.dat` + `.meta` の対を作り、mtime を指定秒だけ過去にずらす

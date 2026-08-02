@@ -37,9 +37,9 @@ if (IS_MOBILE && !IS_ANDROID) {
 
 function getSoundUrl(host: string, soundType: string): string {
   const remoteUrl = `https://${host}/client-assets/sounds/${soundType}.mp3`
-  // 画像と同じプロキシに寄せる (モバイルのバイパスも同じ理由で不要になった)。
-  // fetch/Audio 要素は二段階配信のプレースホルダを飲み込めないので wait 指定
-  return proxyUrl(remoteUrl, { wait: true }) ?? remoteUrl
+  // 画像と同じプロキシ (ループバック HTTP) に寄せる。常にブロッキングで
+  // 本物が返るので fetch/Audio 要素でもそのまま使える
+  return proxyUrl(remoteUrl) ?? remoteUrl
 }
 
 async function ensureBuffer(

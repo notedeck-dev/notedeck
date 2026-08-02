@@ -770,8 +770,8 @@ async fn proxy_image(
         }};
     }
 
-    // 変換要求 (絵文字・アバターのサムネイル): ndmedia と同じ variant
-    // キャッシュ経路に載せる。この route は Android の WebView の主経路
+    // 変換要求 (絵文字・アバターのサムネイル): variant キャッシュ経路に
+    // 載せる。この route は WebView 全プラットフォームのメディア主経路
     // (#921) なので、リクエスト毎に再変換すると初回表示のたびに decode +
     // WebP エンコードの CPU を払い続けることになる。ensure_media_inner が
     // cache_key で variant を永続化し、2 回目以降はヒットで返る。
