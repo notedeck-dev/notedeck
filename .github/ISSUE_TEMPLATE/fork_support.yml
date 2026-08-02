@@ -1,0 +1,92 @@
+name: Misskey フォーク対応
+description: フォーク固有の機能を NoteDeck で使えるようにする
+labels: ["✨Feature", "🍴Fork"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        対応範囲は **Misskey 本家および「Misskey を名乗り続けるフォーク」** です。
+        Misskey から名前が別物になったフォーク (Sharkey, CherryPick, Firefish, Iceshrimp 等) は対応していません。
+
+        カスタムタイムライン・モードフラグ・タイムラインフィルターは **コード変更なしで動的に検出** されます。
+        まずそのまま試して、動かないものだけをここに書いてください。
+        背景と手順: [CONTRIBUTING — フォーク対応の追加](https://github.com/notedeck-dev/notedeck/blob/main/CONTRIBUTING.md#フォーク対応の追加)
+
+  - type: input
+    id: host
+    attributes:
+      label: サーバーのホスト名
+      placeholder: "例: misskey.flowers"
+    validations:
+      required: true
+
+  - type: input
+    id: repository
+    attributes:
+      label: フォークのリポジトリ URL
+      placeholder: "例: https://github.com/hanamisskey/misskey"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 動かない / 対応してほしいこと
+      description: NoteDeck 上でどうなるか (エラーメッセージ、何も出ない、等) も書いてください
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: 本家との差分の種類
+      description: 分かる範囲で。複数選択できます
+      multiple: true
+      options:
+        - 独自エンドポイントがある
+        - 本家エンドポイントがロールポリシーで無効化されている
+        - パラメータやレスポンスの形が違う
+        - 分からない
+    validations:
+      required: true
+
+  - type: textarea
+    id: nodeinfo
+    attributes:
+      label: nodeinfo の software
+      description: |
+        フォークの識別に使います。`curl -s https://<ホスト名>/nodeinfo/2.1 | jq .software` の出力を貼ってください。
+        `repository` が空だと本家と区別できません
+      render: json
+    validations:
+      required: true
+
+  - type: textarea
+    id: policies
+    attributes:
+      label: /api/meta の policies (該当部分)
+      description: |
+        ロールポリシーで機能が出し分けられている場合に必要です。
+        `curl -s https://<ホスト名>/api/meta -X POST -H 'Content-Type: application/json' -d '{"detail":true}' | jq .policies`
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: endpoint
+    attributes:
+      label: 該当エンドポイントの定義
+      description: フォークのソースコードへのリンク、または受け付けるパラメータ一覧。本家との差分が分かる形だと助かります
+    validations:
+      required: false
+
+  - type: dropdown
+    id: pr
+    attributes:
+      label: PR を出せますか
+      options:
+        - 出せる
+        - 相談しながらなら出せる
+        - 情報提供のみ
+    validations:
+      required: true
