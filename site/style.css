@@ -191,7 +191,7 @@ html[style*="color-scheme: light"] .nav-right-button:hover{background:rgba(0,0,0
 .guest-cta-text h3{font-size:1rem;font-weight:800;margin:0 0 .25rem}
 .guest-cta-text p{color:var(--text-muted);font-size:.9rem;line-height:1.6;margin:0}
 .guest-cta .btn{flex-shrink:0;white-space:nowrap}
-.fork-cta{margin-top:3rem}
+.fork-cta-block{margin-top:3rem;padding-top:2.5rem;border-top:1px dashed var(--border)}
 @media(max-width:640px){.guest-cta{flex-direction:column;text-align:center}.guest-cta .btn{align-self:center}}
 
 /* ===== Store CTA (mobile distribution) ===== */
