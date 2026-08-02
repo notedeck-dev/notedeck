@@ -9,6 +9,10 @@ pre-commit:
       glob: "*.{ts,vue}"
       run: npx vue-tsc -b --noEmit
 
+    - name: docs-lint
+      glob: "*.md"
+      run: node scripts/docs-lint.mjs
+
     - name: rustfmt
       glob: "src-tauri/**/*.rs"
       run: cargo fmt --manifest-path src-tauri/Cargo.toml --check

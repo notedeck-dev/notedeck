@@ -15,6 +15,7 @@ pnpm test         # vitest run
 pnpm lint         # biome check
 pnpm lint:fix     # biome check --write
 pnpm lint:rust    # cargo clippy (CI と同じ -D warnings)
+pnpm lint:docs    # ルート .md の腐り検査 (#895)
 pnpm fmt          # cargo fmt (CI の Format check が落ちたらこれ)
 pnpm typecheck    # vue-tsc -b --noEmit
 pnpm doctor       # 開発環境の診断（ツールチェーン・システム依存の欠落検査）
@@ -30,6 +31,8 @@ pnpm doctor       # 開発環境の診断（ツールチェーン・システム
 ## ドキュメントの書き方
 
 リポジトリ直下の `.md` は新規参加者と AI の判断材料になるため、古い記述はそのまま誤った実装判断につながる (#883)。
+
+以下のうち「数値を書かない」「行番号を書かない」は `pnpm lint:docs` が機械的に検査する (pre-commit と CI で自動実行, #895)。守るかどうかを人間の注意力に委ねない。どうしても数値が必要な箇所は直前の行に `<!-- docs-lint-disable-next-line 理由 -->` を置く。
 
 - **書いた瞬間から古くなる数値を書かない** — capability 数・カラム種別数・キャッシュの閾値・行数などは、正本のファイル (`src/permissions/schema.ts`, `BuiltinColumnType`, `perf_config.rs` 等) を指す。マーケティング文脈で数を出すときは「40 種類以上」のように下限で書く
 - **未確定のものを断定形で書かない** — 検討中の案は issue に置き、ドキュメントには確定した設計判断だけを残す

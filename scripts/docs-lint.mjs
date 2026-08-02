@@ -1,0 +1,130 @@
+#!/usr/bin/env node
+// リポジトリ直下の .md が実装とずれて腐るのを機械的に止める (#895)。
+//
+// CLAUDE.md には #883 として「書いた瞬間に古くなる数値を書かず正本を指せ」という
+// ルールがあるが、ARCHITECTURE.md 自身がそれを破っていた。真因はルールの不在では
+// なく、ルールが人間の注意力にしか依存していなかったこと。ここで機械に移す。
+//
+// どうしても数値を書く必要がある箇所は、直前の行に
+//   <!-- docs-lint-disable-next-line 理由 -->
+// を置く。理由は必須 (何も書けないなら、それは書くべきでない数値)。
+
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+// 実装から数えられる実体。これらの近くにある数値は、書いた瞬間から腐る。
+// 「3 層モデル」「2 種類のプロトコル」のような設計上の固定値とは区別する
+const COUNTABLE = [
+  'ストア',
+  'Pinia',
+  'composable',
+  'コンポーザブル',
+  'capability',
+  'builtin',
+  'コマンド',
+  'カラム種別',
+  'ウィンドウ種別',
+  'スキル',
+  'プロパティ',
+  '責務',
+]
+
+const DISABLE = /<!--\s*docs-lint-disable-next-line\s+\S/
+
+/**
+ * コードブロックと inline code を空白に潰す (中の行番号やリンクは検査対象外)。
+ * ただし mermaid は「図として読まれる本文」なので、中の数値は本文と同じく腐る。
+ * 実際 ARCHITECTURE.md の図はストア数を古いまま抱えていた
+ */
+function stripCode(text) {
+  return text
+    .replace(/```(\w*)\n[\s\S]*?```/g, (m, lang) =>
+      lang === 'mermaid' ? m : m.replace(/[^\n]/g, ' '),
+    )
+    .replace(/`[^`\n]*`/g, (m) => ' '.repeat(m.length))
+}
+
+function checkLineRefs(line) {
+  const problems = []
+  // L342 / L53–70 / L53-70 — 行番号は 1 コミットでずれる。
+  // 2 桁以上に限るのは、ROADMAP の開放レベル (L0〜L4) と衝突するため
+  const lRef = line.match(/\bL\d{2,}(?:\s*[–—-]\s*\d+)?\b/g)
+  if (lRef) problems.push(`行番号参照 ${lRef.join(', ')}`)
+  // src/foo.ts:123 形式
+  const pathRef = line.match(/[\w./-]+\.(?:ts|vue|rs|mjs|js|json5?):\d+/g)
+  if (pathRef) problems.push(`行番号付きパス ${pathRef.join(', ')}`)
+  return problems
+}
+
+function checkCounts(line) {
+  const problems = []
+  // 「以上」「超」で下限を示すのは CLAUDE.md が明示的に許可している書き方。
+  // 「80+個」のような表記は下限のつもりでも実数と乖離した時に嘘に見えるので、
+  // 日本語で「以上」と書くか正本を指すかのどちらかに寄せる
+  const numbers = [...line.matchAll(/(\d+)\+?\s*(?:個|本|種類|件|ファイル|回)(?!以上|超)/g)]
+  if (numbers.length === 0) return problems
+  const lower = line.toLowerCase()
+  for (const term of COUNTABLE) {
+    const idx = lower.indexOf(term.toLowerCase())
+    if (idx === -1) continue
+    for (const n of numbers) {
+      // 同じ文の中で実体と数値が隣接しているか (前後 30 文字)
+      if (Math.abs(n.index - idx) <= 30) {
+        problems.push(`実体数の直書き "${n[0]}" (${term})`)
+        break
+      }
+    }
+  }
+  return problems
+}
+
+function checkLinks(file, text) {
+  const problems = []
+  // [表示](./path.md#anchor) の相対リンクのみ。http(s) と絶対 URL は対象外
+  for (const m of text.matchAll(/\[[^\]]*\]\((?!https?:|#|mailto:)([^)\s]+)\)/g)) {
+    const target = m[1].split('#')[0]
+    if (!target) continue
+    const abs = resolve(dirname(join(ROOT, file)), target)
+    if (!existsSync(abs)) {
+      const line = text.slice(0, m.index).split('\n').length
+      problems.push({ line, message: `リンク先が存在しない: ${target}` })
+    }
+  }
+  return problems
+}
+
+const files = readdirSync(ROOT).filter((f) => f.endsWith('.md'))
+let failed = 0
+
+for (const file of files) {
+  const raw = readFileSync(join(ROOT, file), 'utf8')
+  const stripped = stripCode(raw)
+  const lines = stripped.split('\n')
+  const rawLines = raw.split('\n')
+
+  const found = []
+
+  lines.forEach((line, i) => {
+    if (i > 0 && DISABLE.test(rawLines[i - 1])) return
+    for (const message of [...checkLineRefs(line), ...checkCounts(line)]) {
+      found.push({ line: i + 1, message })
+    }
+  })
+  found.push(...checkLinks(file, stripped))
+
+  for (const p of found.sort((a, b) => a.line - b.line)) {
+    console.error(`${file}:${p.line}  ${p.message}`)
+    failed++
+  }
+}
+
+if (failed > 0) {
+  console.error(`\n${failed} 件。数値と行番号は正本のファイルを指す形に書き換えてください (#883 / #895)。`)
+  console.error('どうしても必要なら直前の行に <!-- docs-lint-disable-next-line 理由 --> を置きます。')
+  process.exit(1)
+}
+
+console.log(`docs-lint: ${files.length} ファイル、問題なし`)

@@ -17,6 +17,7 @@ jobs:
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       rust: ${{ steps.filter.outputs.rust }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       - uses: actions/checkout@v6
 
@@ -41,6 +42,26 @@ jobs:
               - 'src-tauri/**'
               - 'rust-toolchain.toml'
               - '.github/workflows/ci.yml'
+            docs:
+              - '*.md'
+              - 'scripts/docs-lint.mjs'
+              - '.github/workflows/ci.yml'
+
+  # ドキュメントが実装とずれて腐るのを止める (#895)。
+  # 依存を入れない素の Node スクリプトなので数秒で終わる
+  docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+
+      - name: Lint docs
+        run: node scripts/docs-lint.mjs
 
   frontend:
     needs: changes

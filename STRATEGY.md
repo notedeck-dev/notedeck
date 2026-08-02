@@ -168,7 +168,7 @@ NoteDeck の AI 統合は「AI とチャットする SNS クライアント」�
 
 ### 設計の中核: Capability Registry
 
-`Command` / HTTP API / CLI / AiScript / AI Tool calling の **5 経路が同一の Capability Registry を共有** する設計。コマンドパレットに追加したものが即 AI ツールにも公開される。69 個の builtin (notes / column / account / memos / theme / skills / widgets / plugins / ai / meta / clipboard / drive / http / time / user / notifications / tasks / ui / misstore / logs) を備える。
+`Command` / HTTP API / CLI / AiScript / AI Tool calling の **5 経路が同一の Capability Registry を共有** する設計。コマンドパレットに追加したものが即 AI ツールにも公開される。builtin は notes / column / account / memos / theme / skills / widgets / plugins / ai / meta / clipboard / drive / http / time / user / notifications / tasks / ui / misstore / logs の各 subject を備える。
 
 これにより以下の戦略的優位が生まれる:
 

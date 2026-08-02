@@ -27,9 +27,9 @@ NoteDeck — マルチサーバー対応 Misskey デッキクライアントの�
 graph TB
     subgraph App["NoteDeck Application"]
         subgraph Frontend["Frontend (WebView)<br/>Vue 3 + TypeScript + Vite"]
-            Pinia["Pinia Stores (35個)"]
+            Pinia["Pinia Stores"]
             Router["Vue Router"]
-            Composables["Composables (80+個)<br/>useNoteList, useColumnSetup,<br/>useStreamingBatch, useDeckWindow,<br/>useEmojiResolver, ..."]
+            Composables["Composables<br/>useNoteList, useColumnSetup,<br/>useStreamingBatch, useDeckWindow,<br/>useEmojiResolver, ..."]
             Adapter["Server Adapter Layer<br/>(Misskey + フォーク)"]
             Pinia --> Composables
         end
@@ -256,7 +256,7 @@ graph LR
 
 #### A-9. フロントエンド層
 
-**Pinia Stores (21個):**
+**Pinia Stores**（正本: `src/stores/`。下表は主要なもの）:
 
 | Store | 役割 |
 |-------|------|
@@ -1365,9 +1365,9 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 
 | ファイル | 責務 | 遅延戦略 |
 |----------|------|----------|
-| `main.ts` (L53–70) | テーマ・キーバインド・パフォーマンス・アカウント/サーバー読み込み | mount 前に同期実行 |
-| `App.vue` (L84–149) | ウィンドウ表示・テーマ（ネットワーク I/O）・スプラッシュ・PiP | onMounted |
-| `useDeckInit.ts` (L62–140) | ストリーミング・コマンド登録・通知・プラグイン・Tauri イベント | onMounted + rAF / rIC / setTimeout |
+| `main.ts` | テーマ・キーバインド・パフォーマンス・アカウント/サーバー読み込み | mount 前に同期実行 |
+| `App.vue` | ウィンドウ表示・テーマ（ネットワーク I/O）・スプラッシュ・PiP | onMounted |
+| `useDeckInit.ts` | ストリーミング・コマンド登録・通知・プラグイン・Tauri イベント | onMounted + rAF / rIC / setTimeout |
 
 **意図的な設計**: FOUC 防止のためテーマは mount 前、ウィンドウ表示は DOM 準備後、ストリーミングは DeckLayout mount 後。各段階に理由がある。
 
@@ -1377,7 +1377,7 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 
 ### 課題 2: IPC 境界の粒度
 
-`src-tauri/src/lib.rs` の `invoke_handler`（L342、`specta_builder.invoke_handler()` 経由）に **212 個**のコマンドが登録されており、フロント側からは **specta 生成の `commands.<name>()`** 経由で 97 ファイル / 326 回呼ばれている。
+`src-tauri/src/lib.rs` の `invoke_handler`（`specta_builder.invoke_handler()` 経由）に全コマンドが登録されており、フロント側からは **specta 生成の `commands.<name>()`** 経由で広範に呼ばれている（登録の正本は `lib.rs`、型の正本は生成物の `src/bindings.ts`）。
 
 - `src/adapters/misskey/api.ts` が呼び出しの集中点 (78 回 = 全体の 24%)
 - コマンドの追加・変更時は Rust 側で `#[specta::specta]` を付けるだけでフロント側 `src/bindings.ts` が自動再生成される (`pnpm tauri:dev` 起動時)
@@ -1395,15 +1395,15 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 
 ### 課題 4: Store がアプリケーションサービス層を兼務
 
-`stores/deckProfile.ts`（L91 `mutateProfile` → L135 `flushPersist`）は、1 つの関数フロー内で reactive state 変更 → localStorage 同期 → ファイル永続化 → クロスウィンドウ同期イベント発行を実行している。
+`stores/deckProfile.ts`（`mutateProfile` → `flushPersist`）は、1 つの関数フロー内で reactive state 変更 → localStorage 同期 → ファイル永続化 → クロスウィンドウ同期イベント発行を実行している。
 
-`composables/useNoteColumn.ts` は fetch / cache / streaming / offline fallback / sound / navigation の 6+ 責務を 1 composable に統合し、31 個のプロパティを返却。
+`composables/useNoteColumn.ts` は fetch / cache / streaming / offline fallback / sound / navigation を 1 composable に統合し、返り値のプロパティも肥大している（現状は戻り値の型定義を参照）。
 
 **改善方針**: 状態変更（command）と読み取り（query）を分離し、副作用（永続化・イベント発行）を明示的なレイヤーに分ける。CQRS-lite の発想が合う — 特にこのアプリは「書き込み」と「表示」が非対称なため。
 
 ### 課題 5: プラグイン境界
 
-`aiscript/plugin-api.ts`（L450–461 `launchPlugin`）でプラグインが `deckStore` / `commandStore` への直接参照を取得し、`notedeck-api.ts` の `Nd:addColumn` / `Nd:removeColumn` / `Nd:register_command` で store に直接作用する。
+`aiscript/plugin-api.ts` の `launchPlugin` でプラグインが `deckStore` / `commandStore` への直接参照を取得し、`notedeck-api.ts` の `Nd:addColumn` / `Nd:removeColumn` / `Nd:register_command` で store に直接作用する。
 
 **現状の評価**: 拡張性は高いが、第三者プラグインを増やす場合、store への直接アクセスは保守負債になる。
 
