@@ -701,6 +701,8 @@ struct ProxyImageParams {
     url: String,
     /// Optional max width for thumbnail generation (e.g. 300)
     w: Option<u32>,
+    /// Optional max height (aspect-preserving fit; emoji-style sizing)
+    h: Option<u32>,
     /// Optional output format ("webp" to convert)
     format: Option<String>,
 }
@@ -725,6 +727,7 @@ async fn proxy_image(
     let req = MediaRequest {
         url: params.url.clone(),
         w: params.w,
+        h: params.h,
         format: params.format.clone(),
     };
     let etag = req.etag();
@@ -741,14 +744,14 @@ async fn proxy_image(
         }
     }
 
-    let wants_transform = params.w.is_some() || params.format.is_some();
+    let wants_transform = params.w.is_some() || params.h.is_some() || params.format.is_some();
 
     // Helper: build a cached-image response, applying transform if requested.
     // Accepts &[u8] to avoid cloning Arc<Vec<u8>> when no transform is needed.
     let make_response = |data: &[u8], ct: &str, etag: &str| -> Response {
         if wants_transform {
             if let Some((transformed, new_ct)) =
-                transform_image(data, params.w, params.format.as_deref())
+                transform_image(data, params.w, params.h, params.format.as_deref())
             {
                 return Response::builder()
                     .status(StatusCode::OK)

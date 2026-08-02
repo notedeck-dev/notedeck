@@ -296,29 +296,39 @@ export function proxyThumbUrl(
   url: string | null | undefined,
   width: number,
 ): string | undefined {
-  if (!url?.startsWith('https://')) return url ?? undefined
-  ensureFetchedListener()
-  // 画像は常に soft (予算超過でプレースホルダ降格可 — proxyUrl 参照)
-  const wait = !IS_ANDROID
-  const key = `${url}|w=${width}`
-  let cached = proxyUrlCache.get(key)
-  if (!cached) {
-    evictOldestIfFull(proxyUrlCache, key)
-    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&w=${width}${wait ? '&wait=1&soft=1' : ''}`
-    proxyUrlCache.set(key, cached)
-  }
-  return withVersion(cached, url)
+  return proxySizedUrl(url, `w=${width}`)
 }
 
 /**
  * カスタム絵文字の共通サムネイル口。
  *
- * 表示は ~20px なので retina 込みで 64px に丸め、全文脈 (ノート本文/
- * ピッカー/リアクション面) で同じ variant キャッシュを共有する。
+ * 本家 media-proxy の `emoji=1` と同じ「最大高さ 128px」基準 (#921)。
+ * 絵文字は横長が普通に存在する資産なので、幅で丸めると高さが潰れて
+ * 表示 (2em × DPR、MFM の $[x2] 等) の引き伸ばしで荒れる。128px は
+ * 2em × DPR3 を賄い、全文脈 (ノート本文/ピッカー/リアクション面) で
+ * 同じ variant キャッシュを共有する。
  * アニメ絵文字はプロキシ側が変換を素通しするので壊れない。
  */
 export function proxyEmojiUrl(
   url: string | null | undefined,
 ): string | undefined {
-  return proxyThumbUrl(url, 64)
+  return proxySizedUrl(url, 'h=128')
+}
+
+function proxySizedUrl(
+  url: string | null | undefined,
+  sizeQuery: string,
+): string | undefined {
+  if (!url?.startsWith('https://')) return url ?? undefined
+  ensureFetchedListener()
+  // 画像は常に soft (予算超過でプレースホルダ降格可 — proxyUrl 参照)
+  const wait = !IS_ANDROID
+  const key = `${url}|${sizeQuery}`
+  let cached = proxyUrlCache.get(key)
+  if (!cached) {
+    evictOldestIfFull(proxyUrlCache, key)
+    cached = `${getProxyBase()}?url=${encodeURIComponent(url)}&${sizeQuery}${wait ? '&wait=1&soft=1' : ''}`
+    proxyUrlCache.set(key, cached)
+  }
+  return withVersion(cached, url)
 }

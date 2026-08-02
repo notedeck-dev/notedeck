@@ -119,10 +119,26 @@ describe('wait オプション (効果音などブロッキング消費者用)',
 })
 
 describe('proxyEmojiUrl (カスタム絵文字の共通サムネイル口)', () => {
-  it('全文脈で同じ幅バケット (64px) に丸めてキャッシュを共有する', async () => {
-    const { proxyEmojiUrl, proxyThumbUrl } = await loadModule()
-    expect(proxyEmojiUrl(REMOTE)).toBe(proxyThumbUrl(REMOTE, 64))
-    expect(proxyEmojiUrl(REMOTE)).toContain('w=64')
+  // 本家 media-proxy の emoji=1 と同じ「最大高さ 128px」基準 (#921)。
+  // 幅基準 (旧 w=64) だと横長絵文字の高さが潰れ、表示 (2em × DPR) の
+  // 引き伸ばしで荒れていた
+  it('全文脈で同じ高さバケット (128px) に丸めてキャッシュを共有する', async () => {
+    const { proxyEmojiUrl } = await loadModule()
+    expect(proxyEmojiUrl(REMOTE)).toBe(
+      `http://ndmedia.localhost/m?url=${encodeURIComponent(REMOTE)}&h=128&wait=1&soft=1`,
+    )
+  })
+
+  it('幅は制限しない (横長絵文字の解像度を潰さない)', async () => {
+    const { proxyEmojiUrl } = await loadModule()
+    expect(proxyEmojiUrl(REMOTE)).not.toContain('w=')
+  })
+
+  it('世代番号は絵文字 URL にも波及する', async () => {
+    const { proxyEmojiUrl, handleMediaFetched } = await loadModule()
+    const base = proxyEmojiUrl(REMOTE) ?? ''
+    handleMediaFetched(REMOTE)
+    expect(proxyEmojiUrl(REMOTE)).toBe(`${base}&r=1`)
   })
 
   it('https 以外は素通し (同梱 twemoji のローカルパス等)', async () => {

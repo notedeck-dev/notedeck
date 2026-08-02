@@ -1389,6 +1389,20 @@
             }
           },
           {
+            "name": "h",
+            "in": "query",
+            "description": "Optional max height (aspect-preserving fit; emoji-style sizing)",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          },
+          {
             "name": "format",
             "in": "query",
             "description": "Optional output format (\"webp\" to convert)",

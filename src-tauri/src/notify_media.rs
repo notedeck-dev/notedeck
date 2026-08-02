@@ -39,6 +39,7 @@ pub async fn ensure_local_file(cache: &ImageCache, url: &str, w: Option<u32>) ->
     let req = MediaRequest {
         url: url.to_string(),
         w,
+        h: None,
         format: None,
     };
     let key = req.cache_key();
@@ -60,6 +61,7 @@ pub async fn ensure_bytes(cache: &ImageCache, url: &str) -> Option<Vec<u8>> {
     let req = MediaRequest {
         url: url.to_string(),
         w: None,
+        h: None,
         format: None,
     };
     crate::media_proxy::ensure_media_inner(cache, &req)

@@ -47,6 +47,11 @@ pub struct MediaRequest {
     pub url: String,
     /// サムネイル生成時の最大幅
     pub w: Option<u32>,
+    /// サムネイル生成時の最大高さ。絵文字は横長が普通に存在する資産なので、
+    /// 絵文字経路は幅ではなく高さで丸める (本家 media-proxy の `emoji=1` =
+    /// 最大高さ 128px と同じ意味論、#921)。幅基準だと横長絵文字の高さが
+    /// 潰れ、表示側の引き伸ばしで荒れる
+    pub h: Option<u32>,
     /// 出力形式 ("webp" で変換)
     pub format: Option<String>,
 }
@@ -57,11 +62,13 @@ impl MediaRequest {
     pub fn from_query(query: &str) -> Option<Self> {
         let mut url = None;
         let mut w = None;
+        let mut h = None;
         let mut format = None;
         for (key, value) in url::form_urlencoded::parse(query.as_bytes()) {
             match key.as_ref() {
                 "url" => url = Some(value.into_owned()),
                 "w" => w = value.parse::<u32>().ok(),
+                "h" => h = value.parse::<u32>().ok(),
                 "format" => format = Some(value.into_owned()),
                 _ => {}
             }
@@ -71,19 +78,27 @@ impl MediaRequest {
         if !url.starts_with("https://") {
             return None;
         }
-        Some(Self { url, w, format })
+        Some(Self { url, w, h, format })
     }
 
-    /// 変換パラメータもキーに含める (サイズ違いを別エントリとして扱う)
+    /// 変換パラメータもキーに含める (サイズ違いを別エントリとして扱う)。
+    /// `h` は指定時のみ付ける — h 導入前からある variant (アバター等の w 指定)
+    /// のキーを変えると、更新直後に全端末で再変換とディスクの二重保存が走る
     pub fn cache_key(&self) -> String {
-        match (&self.w, &self.format) {
-            (None, None) => self.url.clone(),
-            _ => format!(
-                "{}|w={}|f={}",
-                self.url,
-                self.w.unwrap_or(0),
-                self.format.as_deref().unwrap_or("")
-            ),
+        match (&self.w, &self.h, &self.format) {
+            (None, None, None) => self.url.clone(),
+            _ => {
+                let mut key = format!(
+                    "{}|w={}|f={}",
+                    self.url,
+                    self.w.unwrap_or(0),
+                    self.format.as_deref().unwrap_or("")
+                );
+                if let Some(h) = self.h {
+                    key.push_str(&format!("|h={h}"));
+                }
+                key
+            }
         }
     }
 
@@ -92,7 +107,7 @@ impl MediaRequest {
     }
 
     pub fn wants_transform(&self) -> bool {
-        self.w.is_some() || self.format.is_some()
+        self.w.is_some() || self.h.is_some() || self.format.is_some()
     }
 }
 
@@ -152,12 +167,17 @@ fn image_dimensions(data: &[u8]) -> Option<(u32, u32)> {
 
 /// Apply resize and/or format conversion to raw image bytes.
 /// Returns (transformed_bytes, content_type) or None if no transform needed / failed.
+///
+/// `max_width` / `max_height` は「収まる箱」の指定 (アスペクト維持・拡大しない)。
+/// 片方だけなら他方は無制限 — 絵文字は `max_height` のみ指定し、横長でも
+/// 高さが潰れないようにする (本家 media-proxy と同じ意味論、#921)。
 pub fn transform_image(
     data: &[u8],
     max_width: Option<u32>,
+    max_height: Option<u32>,
     target_format: Option<&str>,
 ) -> Option<(Vec<u8>, String)> {
-    let needs_resize = max_width.is_some();
+    let needs_resize = max_width.is_some() || max_height.is_some();
     let needs_webp = target_format == Some("webp");
     if !needs_resize && !needs_webp {
         return None;
@@ -177,11 +197,11 @@ pub fn transform_image(
     // format が明示されている場合はスキップしない。HTTP API (`/proxy/image`) は
     // 外部 principal にも開いており、webp を要求されたのに元形式を返すと契約違反。
     if target_format.is_none() {
-        if let Some(w) = max_width {
-            if let Some((width, _)) = image_dimensions(data) {
-                if width <= w {
-                    return None;
-                }
+        if let Some((width, height)) = image_dimensions(data) {
+            let fits_w = max_width.is_none_or(|w| width <= w);
+            let fits_h = max_height.is_none_or(|h| height <= h);
+            if fits_w && fits_h {
+                return None;
             }
         }
     }
@@ -195,9 +215,11 @@ pub fn transform_image(
     reader.limits(limits);
     let img = reader.decode().ok()?;
 
-    let img = if let Some(w) = max_width {
-        if img.width() > w {
-            img.resize(w, u32::MAX, image::imageops::FilterType::Triangle)
+    let img = if needs_resize {
+        let box_w = max_width.unwrap_or(u32::MAX);
+        let box_h = max_height.unwrap_or(u32::MAX);
+        if img.width() > box_w || img.height() > box_h {
+            img.resize(box_w, box_h, image::imageops::FilterType::Triangle)
         } else {
             img
         }
@@ -228,11 +250,14 @@ async fn apply_transform(
         return Ok((data, content_type));
     }
     let w = req.w;
+    let h = req.h;
     let format = req.format.clone();
-    tokio::task::spawn_blocking(move || match transform_image(&data, w, format.as_deref()) {
-        Some(transformed) => transformed,
-        None => (data, content_type),
-    })
+    tokio::task::spawn_blocking(
+        move || match transform_image(&data, w, h, format.as_deref()) {
+            Some(transformed) => transformed,
+            None => (data, content_type),
+        },
+    )
     .await
     // JoinError は closure の panic のみ (release は panic = "abort" が先に
     // 効く)。空バイト列を成功として返すと variant に永続化されて TTL の間
@@ -327,7 +352,10 @@ async fn handle_uri_request_inner(
         }
     }
 
-    // ImageCache は setup で manage されるため、起動直後は未登録でありうる
+    // ImageCache は Phase 1 (ウィンドウ表示前) で manage されるため通常は
+    // 必ず居るが、setup 失敗系の防御として残す (#921 で Phase 2 から前倒し —
+    // 以前は起動直後の絵文字要求がここで 503 になり、unknown アイコンが
+    // カラム再 mount まで焼き付いていた)
     let Some(cache) = app.try_state::<Arc<ImageCache>>() else {
         return error_response(
             tauri::http::StatusCode::SERVICE_UNAVAILABLE,
@@ -567,7 +595,18 @@ mod tests {
                 .expect("should parse");
         assert_eq!(req.url, "https://example.com/a.png");
         assert_eq!(req.w, Some(56));
+        assert_eq!(req.h, None);
         assert_eq!(req.format.as_deref(), Some("webp"));
+        assert!(req.wants_transform());
+    }
+
+    /// 絵文字経路は h (最大高さ) だけを指定する (#921)
+    #[test]
+    fn parses_height_param() {
+        let req = MediaRequest::from_query("url=https%3A%2F%2Fexample.com%2Fa.png&h=128")
+            .expect("should parse");
+        assert_eq!(req.w, None);
+        assert_eq!(req.h, Some(128));
         assert!(req.wants_transform());
     }
 
@@ -583,10 +622,21 @@ mod tests {
         let plain = MediaRequest::from_query("url=https%3A%2F%2Fe.com%2Fa.png").unwrap();
         let sized = MediaRequest::from_query("url=https%3A%2F%2Fe.com%2Fa.png&w=56").unwrap();
         let bigger = MediaRequest::from_query("url=https%3A%2F%2Fe.com%2Fa.png&w=112").unwrap();
+        let tall = MediaRequest::from_query("url=https%3A%2F%2Fe.com%2Fa.png&h=128").unwrap();
         assert_ne!(plain.cache_key(), sized.cache_key());
         assert_ne!(sized.cache_key(), bigger.cache_key());
         assert_ne!(sized.etag(), bigger.etag());
+        assert_ne!(tall.cache_key(), plain.cache_key());
+        assert_ne!(tall.cache_key(), sized.cache_key());
         assert!(!plain.wants_transform());
+    }
+
+    /// h 導入前からある variant (アバター等の w 指定) のキーは変えない。
+    /// 変わると更新直後に全端末で再変換 + ディスクの二重保存が走る
+    #[test]
+    fn cache_key_is_stable_for_width_only_requests() {
+        let sized = MediaRequest::from_query("url=https%3A%2F%2Fe.com%2Fa.png&w=56").unwrap();
+        assert_eq!(sized.cache_key(), "https://e.com/a.png|w=56|f=");
     }
 
     fn png_bytes(w: u32, h: u32) -> Vec<u8> {
@@ -602,26 +652,63 @@ mod tests {
     /// Misskey のアバターはサーバー側で縮小済みなので、この経路が大半を占める。
     #[test]
     fn skips_transform_when_already_within_limit() {
-        assert!(transform_image(&png_bytes(32, 32), Some(56), None).is_none());
+        assert!(transform_image(&png_bytes(32, 32), Some(56), None, None).is_none());
         // ちょうど上限も変換しない
-        assert!(transform_image(&png_bytes(56, 56), Some(56), None).is_none());
+        assert!(transform_image(&png_bytes(56, 56), Some(56), None, None).is_none());
     }
 
     /// format を明示されたら縮まなくても変換する。HTTP API は外部にも開いて
     /// いるので、webp を要求されたのに元形式を返すのは契約違反。
     #[test]
     fn honors_explicit_format_even_when_small() {
-        let (_, ct) = transform_image(&png_bytes(32, 32), Some(56), Some("webp"))
+        let (_, ct) = transform_image(&png_bytes(32, 32), Some(56), None, Some("webp"))
             .expect("explicit format must be honored");
         assert_eq!(ct, "image/webp");
     }
 
     #[test]
     fn transforms_when_wider_than_limit() {
-        let (out, ct) = transform_image(&png_bytes(200, 200), Some(56), Some("webp"))
+        let (out, ct) = transform_image(&png_bytes(200, 200), Some(56), None, Some("webp"))
             .expect("should transform");
         assert_eq!(ct, "image/webp");
         assert!(!out.is_empty());
+    }
+
+    /// 横長絵文字の核心 (#921): h だけ指定すると幅は制限されず、アスペクト
+    /// 維持で高さが h に丸まる。旧実装 (w=64 固定) は 512×128 を 64×16 に
+    /// 潰していた
+    #[test]
+    fn height_only_resize_preserves_wide_aspect() {
+        let (out, ct) =
+            transform_image(&png_bytes(400, 100), None, Some(50), None).expect("should transform");
+        assert_eq!(ct, "image/webp");
+        let img = image::load_from_memory(&out).expect("must decode");
+        assert_eq!((img.width(), img.height()), (200, 50));
+    }
+
+    /// 高さが収まっている横長画像は、幅がどれだけ大きくても素通し
+    /// (h 基準では幅を理由に再エンコードしない)
+    #[test]
+    fn skips_wide_image_when_height_within_limit() {
+        assert!(transform_image(&png_bytes(400, 100), None, Some(128), None).is_none());
+    }
+
+    /// w と h の両指定は「収まる箱」: きつい方の辺が効く
+    #[test]
+    fn width_and_height_fit_within_box() {
+        let (out, _) = transform_image(&png_bytes(400, 100), Some(100), Some(50), None)
+            .expect("should transform");
+        let img = image::load_from_memory(&out).expect("must decode");
+        assert_eq!((img.width(), img.height()), (100, 25));
+    }
+
+    /// format 明示で変換は走っても拡大はしない (小さい原本はそのままの寸法)
+    #[test]
+    fn never_upscales_small_images() {
+        let (out, _) = transform_image(&png_bytes(40, 10), None, Some(50), Some("webp"))
+            .expect("explicit format must be honored");
+        let img = image::load_from_memory(&out).expect("must decode");
+        assert_eq!((img.width(), img.height()), (40, 10));
     }
 
     /// フェーズ 1 の仮応答が本物の画像としてデコードできること
@@ -639,7 +726,7 @@ mod tests {
     fn refuses_decode_of_oversized_dimensions() {
         // 高さ 2px なのでテスト自体のメモリは軽い
         let wide = png_bytes(MAX_DECODE_DIMENSION + 1, 2);
-        assert!(transform_image(&wide, Some(56), Some("webp")).is_none());
+        assert!(transform_image(&wide, Some(56), None, Some("webp")).is_none());
     }
 
     /// アニメーションの可能性がある形式は変換で 1 フレーム目に潰れるため、
@@ -656,7 +743,7 @@ mod tests {
             drop(enc);
             buf.into_inner()
         };
-        assert!(transform_image(&gif, Some(56), Some("webp")).is_none());
+        assert!(transform_image(&gif, Some(56), None, Some("webp")).is_none());
 
         // APNG: IDAT より前の acTL チャンクで判定 (CRC は見ない)
         let mut apng = png_bytes(100, 100);
@@ -666,7 +753,7 @@ mod tests {
         actl.extend_from_slice(&[0u8; 12]); // frames(4) + plays(4) + crc(4)
         apng.splice(33..33, actl); // IHDR 直後 (8 sig + 25 IHDR chunk)
         assert!(may_be_animated(&apng));
-        assert!(transform_image(&apng, Some(56), Some("webp")).is_none());
+        assert!(transform_image(&apng, Some(56), None, Some("webp")).is_none());
 
         // Animated WebP: ヘッダ近傍の ANIM チャンク
         let mut awebp = Vec::new();
