@@ -84,6 +84,19 @@ VS Code 向けの表示層は `.vscode/` に同梱（推奨拡張・ワークス
   （CodeLLDB 使用。vite dev server は preLaunchTask で自動起動）
 - WSL2 では `nix develop` したシェルから VS Code を起動すること（EGL 対策の環境変数を継承するため）
 
+#### IPC 境界を跨ぐジャンプ（[#897](https://github.com/notedeck-dev/notedeck/issues/897)）
+
+言語サーバーはフロントと Rust の境界を越えられないため、`commands.xxx()` から実装へは飛べません。
+生成物である `src/bindings.ts` の各コマンドに、実装ファイルへの `@see` が埋め込んであります（生成のたびに実測から作り直されるので腐りません）。
+
+| 知りたいこと | 手順 |
+|---|---|
+| このコマンドの実装はどこか | `commands.xxx()` の定義へ飛び、JSDoc の `@see` のパスを開く |
+| この Rust 実装を誰が呼んでいるか | `bindings.ts` を関数名（snake_case のまま）で検索して TS 側の名前を得る → その名前で `src/` を検索 |
+
+逆方向が 2 手になるのは、呼び出し元の情報を手書きの Rust ソースへ書き戻すことになり、生成物ではなくなるためです。
+どちらの手順も snake_case と camelCase の変換を人間がやる必要はありません。
+
 ## Getting Started
 
 ```bash

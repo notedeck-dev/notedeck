@@ -27,6 +27,7 @@ pub mod http_server;
 #[cfg(target_os = "windows")]
 mod hwheel_hook;
 mod image_cache;
+mod ipc_index;
 mod media_proxy;
 mod migrations;
 mod notify_media;
@@ -980,21 +981,41 @@ pub fn export_typescript_bindings(
     target: impl AsRef<std::path::Path>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let target = target.as_ref().to_path_buf();
+    // export はスレッドへ move するので、注釈処理用に手元にも残す
+    let export_target = target.clone();
     let join_result = std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
         .spawn(move || {
             build_specta_builder().export(
                 specta_typescript::Typescript::default()
                     .bigint(specta_typescript::BigIntExportBehavior::Number),
-                &target,
+                &export_target,
             )
         })
         .map_err(Box::<dyn std::error::Error + Send + Sync>::from)?
         .join();
 
     match join_result {
-        Ok(Ok(())) => Ok(()),
+        Ok(Ok(())) => annotate_bindings_with_impl_paths(&target),
         Ok(Err(e)) => Err(format!("specta export error: {e:?}").into()),
         Err(_) => Err("export thread panicked".into()),
     }
+}
+
+/// 生成した bindings.ts に Rust 実装の位置を書き加える (#897)。
+///
+/// tauri-specta はコマンド名の文字列しか出力しないため、フロントから実装へ
+/// 飛ぶ手段が無い。ここで `@see` を足して IPC 境界を跨げるようにする。
+/// ソースの無い環境 (配布バイナリ) では何もしない。
+fn annotate_bindings_with_impl_paths(
+    target: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let src_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    if !src_root.is_dir() {
+        return Ok(());
+    }
+    let generated = std::fs::read_to_string(target)?;
+    let locations = ipc_index::collect_command_locations(&src_root);
+    std::fs::write(target, ipc_index::annotate(&generated, &locations))?;
+    Ok(())
 }
