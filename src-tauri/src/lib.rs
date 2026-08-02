@@ -170,18 +170,10 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
     builder = builder.invoke_handler(specta_builder.invoke_handler());
 
-    // 画像プロキシの WebView 側の口。モバイルの WebView は http://127.0.0.1 への
-    // 接続が制限される (Android: cleartext policy / iOS: ATS) ため、HTTP API を
-    // 直接叩けない。custom protocol は WebView 自身が intercept するのでその
-    // 制限を受けず、リサイズ・ディスクキャッシュ・サーキットブレーカーを全
-    // プラットフォームで同じ経路に乗せられる。
-    builder =
-        builder.register_asynchronous_uri_scheme_protocol("ndmedia", |ctx, request, responder| {
-            let app = ctx.app_handle().clone();
-            tauri::async_runtime::spawn(async move {
-                responder.respond(media_proxy::handle_uri_request(&app, request).await);
-            });
-        });
+    // メディア配信は custom protocol を持たない (#921 Phase 3)。全プラット
+    // フォームでループバック HTTP (http_server の /proxy/image) に一本化した。
+    // cleartext/ATS の localhost 例外は src-tauri/android/ の
+    // networkSecurityConfig と src-tauri/Info.plist で許可する。
 
     // セーフモード (#794) — `notedeck --safe-mode` で起動したとき、ページ評価前に
     // フラグを注入する。index.html の boot script がこれを localStorage へ畳み込み、
@@ -979,7 +971,6 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             streaming::StreamEmojiChanged,
             os_notify::NotificationClicked,
             commands::ExportProgress,
-            media_proxy::MediaFetched,
         ])
 }
 

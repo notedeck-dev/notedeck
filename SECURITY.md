@@ -16,7 +16,6 @@ graph TB
 
             subgraph "Rust コア"
                 CMD[Tauri Commands<br/>IPC ブリッジ]
-                NDM["custom protocol<br/>ndmedia:"]
                 HTTP[HTTP Server<br/>127.0.0.1:19820]
                 AUTH[Bearer Auth<br/>Middleware]
                 HV[Host 検証<br/>validate_host]
@@ -40,8 +39,7 @@ graph TB
     end
 
     FE -->|"IPC (型安全)"| CMD
-    FE -->|"WebView が intercept"| NDM
-    NDM --> IC
+    FE -->|"loopback HTTP (画像プロキシ)"| HTTP
     EXT -->|"localhost only"| HTTP
     HTTP --> AUTH
     AUTH -->|"401 if invalid"| EXT
@@ -66,7 +64,7 @@ graph TB
 
 1. **Tauri のプロセス分離**: WebView (フロントエンド) と Rust コアは別プロセス。IPC ブリッジ経由でのみ通信し、フロントエンドから直接ネットワークやファイルシステムにアクセスできない
 2. **Rust による境界防御**: ネットワーク通信・トークン管理・ホスト検証はすべて Rust 側で実行。メモリ安全性が保証された言語で機密処理を行う
-3. **メディア取得の単一経路**: 画像・効果音は WebView からは custom protocol `ndmedia:`、外部ツールからは localhost 限定 HTTP サーバー (`127.0.0.1:19820`、Bearer Token 保護) 経由。どちらも同じ Rust 側キャッシュ層に入り、HTTPS 強制・ホスト検証・サーキットブレーカーを迂回できない
+3. **メディア取得の単一経路**: 画像・効果音は WebView・外部ツールとも localhost 限定 HTTP サーバー (`127.0.0.1:19820`) の画像プロキシ経由 (画像プロキシは認証なし、外部 principal 向け API は Bearer Token 保護)。すべて同じ Rust 側キャッシュ層に入り、HTTPS 強制・ホスト検証・サーキットブレーカーを迂回できない
 
 ---
 
@@ -326,7 +324,7 @@ flowchart TB
 
 ### メディアプロキシ (画像・効果音)
 
-WebView 内からは custom protocol `ndmedia:` (`src-tauri/src/media_proxy.rs`)、外部ツールからは HTTP API `/proxy/image` の 2 経路。どちらも同じ `image_cache.rs` を通るため、以下の制御を迂回できない。モバイルの WebView は `http://127.0.0.1` への接続が制限される (Android の cleartext policy / iOS の ATS) が、custom protocol は WebView 自身が intercept するためこの制限を受けない。
+WebView 内・外部ツールとも HTTP API `/proxy/image` の一経路 (`src-tauri/src/media_proxy.rs` が共通ロジック)。すべて `image_cache.rs` を通るため、以下の制御を迂回できない。localhost への接続制限は Android は networkSecurityConfig (`src-tauri/android/`、cleartext は 127.0.0.1 のみ)、macOS/iOS は ATS の `NSAllowsLocalNetworking` (`src-tauri/Info.plist`) で loopback に限って許可している。
 
 | 制御 | 内容 | ファイル |
 |------|-----|----------|

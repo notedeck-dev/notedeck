@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Tauri が生成する Info.plist にマージされる (macOS / iOS 共通)。
+     メディア配信は内蔵 HTTP サーバー (http://127.0.0.1:19820) に一本化して
+     いるため (#921 Phase 3)、ATS のループバック例外を明示する。
+     リモートへの http は許可しない (NSAllowsArbitraryLoads は付けない)。 -->
+<plist version="1.0">
+<dict>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+</dict>
+</plist>
