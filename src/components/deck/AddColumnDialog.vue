@@ -30,8 +30,10 @@ import {
 } from '@/stores/accounts'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import { useServersStore } from '@/stores/servers'
 import { useToast } from '@/stores/toast'
 import { logWarn } from '@/utils/logger'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
@@ -45,6 +47,7 @@ const emit = defineEmits<{
 
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
+const serversStore = useServersStore()
 const spotlightStore = useSpotlightStore()
 
 function finalizeColumn(config: Omit<DeckColumn, 'id'>) {
@@ -68,6 +71,16 @@ const pickedAccount = computed(
   () =>
     accountsStore.accounts.find((a) => a.id === pickedAccountId.value) ?? null,
 )
+
+/** チップのアバターに重ねるサーバー favicon URL を解決する。 */
+function resolveAccountServerIcon(host: string): string {
+  const url =
+    serversStore.servers.get(host)?.iconUrl || `https://${host}/favicon.ico`
+  return proxyThumbUrl(url, 28) ?? url
+}
+
+/** favicon を持たないサーバーは壊れた画像を出さずバッジごと省く。 */
+const badgeFailedHosts = reactive(new Set<string>())
 
 function toggleCategory(key: string) {
   expandedCategories[key] = !expandedCategories[key]
@@ -358,7 +371,15 @@ function close() {
               :title="getAccountLabel(account)"
               @click="pickedAccountId = account.id"
             >
-              <img :src="getAccountAvatarUrl(account)" :class="$style.chipAvatar" />
+              <span :class="$style.chipAvatarWrap">
+                <img :src="getAccountAvatarUrl(account)" :class="$style.chipAvatar" />
+                <img
+                  v-if="!badgeFailedHosts.has(account.host)"
+                  :src="resolveAccountServerIcon(account.host)"
+                  :class="$style.chipServerBadge"
+                  @error="badgeFailedHosts.add(account.host)"
+                />
+              </span>
             </button>
             <button
               class="_button"
@@ -586,6 +607,9 @@ function close() {
   display: flex;
   align-items: center;
   gap: 10px;
+  // overflow-x: auto は overflow-y も auto にするため、バッジの影が
+  // 切れないよう上下に余白を確保する
+  padding: 2px 0;
   overflow-x: auto;
   scrollbar-width: none;
 
@@ -617,10 +641,30 @@ function close() {
   opacity: 1;
 }
 
+.chipAvatarWrap {
+  position: relative;
+  display: flex;
+}
+
 .chipAvatar {
   width: 28px;
   height: 28px;
   border-radius: 50%;
+  object-fit: cover;
+}
+
+.chipServerBadge {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: var(--nd-panel);
+  box-shadow: 0 0 0 2px var(--nd-panel);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .chipLabel {
