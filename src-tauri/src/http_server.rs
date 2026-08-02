@@ -825,3 +825,74 @@ async fn proxy_image(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::routing::get;
+    use tower::ServiceExt;
+
+    /// DNS rebinding ガード (#877)。外部公開 API の入口で唯一 state を持たない
+    /// middleware なので、ここだけは Router を組んで直接叩ける。
+    async fn status_for_host(host: Option<&str>) -> StatusCode {
+        let app = Router::new()
+            .route("/ping", get(|| async { "pong" }))
+            .layer(middleware::from_fn(host_guard_middleware));
+
+        let mut req = Request::builder().uri("/ping");
+        if let Some(h) = host {
+            req = req.header(axum::http::header::HOST, h);
+        }
+        app.oneshot(req.body(Body::empty()).unwrap())
+            .await
+            .expect("router should respond")
+            .status()
+    }
+
+    #[tokio::test]
+    async fn allows_localhost_hosts() {
+        for host in [
+            "127.0.0.1",
+            "127.0.0.1:19820",
+            "localhost",
+            "localhost:19820",
+        ] {
+            assert_eq!(status_for_host(Some(host)).await, StatusCode::OK, "{host}");
+        }
+    }
+
+    #[tokio::test]
+    async fn allows_missing_host_header() {
+        // HTTP/2 は Host を送らない (:authority を使う)
+        assert_eq!(status_for_host(None).await, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn rejects_foreign_hosts() {
+        for host in [
+            "evil.example.com",
+            "evil.example.com:19820",
+            "192.168.1.10:19820",
+        ] {
+            assert_eq!(
+                status_for_host(Some(host)).await,
+                StatusCode::FORBIDDEN,
+                "{host}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_bracketed_ipv6() {
+        // 現状の記録: ポート除去が最初の ':' で切るので `[::1]` は `[` になり、
+        // 許可リストの "[::1]" には到達しない。bind 先は 127.0.0.1 だけなので
+        // IPv6 で届くリクエスト自体が無く、安全側に倒れている
+        for host in ["[::1]", "[::1]:19820"] {
+            assert_eq!(
+                status_for_host(Some(host)).await,
+                StatusCode::FORBIDDEN,
+                "{host}"
+            );
+        }
+    }
+}

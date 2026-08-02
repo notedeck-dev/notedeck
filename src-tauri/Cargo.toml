@@ -85,6 +85,8 @@ desktop = ["tauri/tray-icon", "dep:tauri-plugin-global-shortcut", "dep:tauri-plu
 tempfile = "3"
 # MockRuntime (tauri::test) でイベントルーティングをユニットテストするため
 tauri = { version = "2", features = ["test"] }
+# axum Router に直接リクエストを流して middleware を検査するため (oneshot)
+tower = { version = "0.5", features = ["util"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
