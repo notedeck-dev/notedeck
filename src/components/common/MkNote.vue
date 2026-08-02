@@ -7,6 +7,7 @@ import type {
   NoteVisibility,
 } from '@/adapters/types'
 import { applyNoteViewInterruptors } from '@/aiscript/plugin-api'
+import AppTime from '@/components/common/AppTime.vue'
 import { useAccountMode } from '@/composables/useAccountMode'
 import {
   type QuoteAsTarget,
@@ -665,7 +666,7 @@ function handlePickerReaction(reaction: string) {
       <button :class="$style.renoteMoreButton" @click.stop="renoteMoreMenuRef?.open($event)">
         <i class="ti ti-dots" />
       </button>
-      <span :class="$style.renoteTime">{{ formatTime(note.createdAt) }}</span>
+      <AppTime :class="$style.renoteTime" :at="note.createdAt" />
     </div>
 
     <!-- Reply-to preview (Misskey style) -->
@@ -734,7 +735,7 @@ function handlePickerReaction(reaction: string) {
           <span :class="$style.username">@{{ effectiveNote.user.username }}{{ effectiveNote.user.host ? `@${effectiveNote.user.host}` : '' }}</span>
           <span v-if="effectiveNote.user.isBot" :class="$style.isBot">Bot</span>
           <span :class="$style.info">
-            <span :class="$style.time">{{ formatTime(effectiveNote.createdAt) }}</span>
+            <AppTime :class="$style.time" :at="effectiveNote.createdAt" />
             <span
               v-if="effectiveNote.updatedAt"
               :class="$style.edited"

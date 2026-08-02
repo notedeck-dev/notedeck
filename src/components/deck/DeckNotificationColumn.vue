@@ -20,6 +20,7 @@ import type {
   NormalizedNotification,
   NormalizedUser,
 } from '@/adapters/types'
+import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAvatar from '@/components/common/MkAvatar.vue'
@@ -55,7 +56,6 @@ import { useWindowsStore } from '@/stores/windows'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { AppError } from '@/utils/errors'
-import { formatTime } from '@/utils/formatTime'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
 import { getNoteUri } from '@/utils/noteUrl'
 import {
@@ -1171,7 +1171,7 @@ onUnmounted(() => {
                         </span>
                       </template>
                     </div>
-                    <span :class="$style.notifTime">{{ formatTime(notif.createdAt) }}</span>
+                    <AppTime :class="$style.notifTime" :at="notif.createdAt" />
                   </div>
 
                   <div v-if="notif.note" :class="$style.notifNoteWrap">
@@ -1249,7 +1249,7 @@ onUnmounted(() => {
                         <MkEmoji v-else :emoji="notif.reaction" :class="$style.notifReactionEmoji" />
                       </span>
                     </div>
-                    <span :class="$style.notifTime">{{ formatTime(notif.createdAt) }}</span>
+                    <AppTime :class="$style.notifTime" :at="notif.createdAt" />
                   </div>
 
                   <!-- Achievement name -->

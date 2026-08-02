@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { NoteVisibility } from '@/adapters/types'
+import AppTime from '@/components/common/AppTime.vue'
 import type { StoredMemo } from '@/composables/useMemos'
 import { useNavigation } from '@/composables/useNavigation'
 import { type Account, getAccountAvatarUrl } from '@/stores/accounts'
 import { useEmojisStore } from '@/stores/emojis'
 import { useWindowsStore } from '@/stores/windows'
-import { formatTime } from '@/utils/formatTime'
 import MkAvatar from './MkAvatar.vue'
 import MkMfm from './MkMfm.vue'
 
@@ -76,11 +76,6 @@ const cw = computed(() => {
 
 const visibility = computed(() => props.memo.data.visibility as NoteVisibility)
 const localOnly = computed(() => props.memo.data.localOnly)
-
-const updatedAtRelative = computed(() => formatTime(props.memo.updatedAt))
-const updatedAtAbsolute = computed(() =>
-  new Date(props.memo.updatedAt).toLocaleString(),
-)
 
 const emojiDict = computed(
   () => emojisStore.cache.get(props.account.host) ?? {},
@@ -182,7 +177,7 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
         </span>
         <span :class="$style.handle">{{ handle }}</span>
         <span :class="$style.info">
-          <span :class="$style.time" :title="updatedAtAbsolute">{{ updatedAtRelative }}</span>
+          <AppTime :class="$style.time" :at="memo.updatedAt" />
           <i
             v-if="localOnly"
             class="ti ti-rocket-off"

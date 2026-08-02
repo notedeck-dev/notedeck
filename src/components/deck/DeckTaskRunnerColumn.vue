@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { dispatchCapability } from '@/capabilities/dispatcher'
+import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import type { ChatMessage } from '@/composables/useAiChat'
@@ -167,14 +168,6 @@ function formatElapsed(ms: number): string {
   if (ms < 1000) return `${ms}ms`
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
   return `${Math.floor(ms / 60_000)}m${Math.floor((ms % 60_000) / 1000)}s`
-}
-
-function formatAgo(ts: number): string {
-  const diff = Math.max(0, now.value - ts)
-  if (diff < 60_000) return 'さっき'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}分前`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}時間前`
-  return `${Math.floor(diff / 86_400_000)}日前`
 }
 
 function runDuration(run: { startedAt: number; finishedAt?: number }): string {
@@ -431,7 +424,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
                   :title="`最終実行: ${latestRunByTaskId.get(def.id)!.status} · ${runDuration(latestRunByTaskId.get(def.id)!)}`"
                 >
                   <i :class="['ti', statusIcon(latestRunByTaskId.get(def.id)!.status)]" />
-                  <span>{{ formatAgo(latestRunByTaskId.get(def.id)!.startedAt) }}</span>
+                  <AppTime :at="latestRunByTaskId.get(def.id)!.startedAt" :now="now" />
                 </span>
                 <span v-if="def.inputs?.length" :class="$style.runBadge" title="入力を求める">
                   <i class="ti ti-keyboard" />{{ def.inputs.length }}
@@ -481,7 +474,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
                   <span>{{ runDuration(run) }}</span>
                 </span>
               </div>
-              <span :class="$style.runItemTime">{{ formatAgo(run.startedAt) }}</span>
+              <AppTime :class="$style.runItemTime" :at="run.startedAt" :now="now" />
             </button>
           </section>
         </template>
