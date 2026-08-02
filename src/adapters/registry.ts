@@ -1,3 +1,4 @@
+import { createHanamisskeyAdapter } from './hanamisskey'
 import { createMisskeyAdapter } from './misskey'
 import type { ServerAdapter, ServerInfo, ServerSoftware } from './types'
 
@@ -62,6 +63,12 @@ const FORKS: ForkDefinition[] = [
     displayName: 'Misskey tempura',
     supported: true,
     names: ['misskey-tempura', 'tempura'],
+  },
+  {
+    id: 'hanamisskey/misskey',
+    displayName: 'はなみすきー',
+    supported: true,
+    names: [],
   },
   {
     id: 'iceshrimp/iceshrimp',
@@ -147,3 +154,4 @@ export function getRegisteredSoftware(): ServerSoftware[] {
 // Misskey 本家アダプターをデフォルトとして登録。
 // フォーク固有アダプターが必要な場合、ここに追加登録する。
 registerAdapter('misskey-dev/misskey', createMisskeyAdapter)
+registerAdapter('hanamisskey/misskey', createHanamisskeyAdapter)

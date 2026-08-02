@@ -664,6 +664,23 @@ async apiSearchNotes(accountId: string, query: string, options: SearchOptions | 
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * はなみすきー専用のノート検索 (`notes/hanamisearch-v1`)。
+ * 
+ * 本家 `notes/search` はロールポリシーで無効化されているため、フォーク別
+ * アダプター (`src/adapters/hanamisskey/`) がこちらを呼ぶ。エンドポイントは
+ * 匿名アクセスでサーバー側が 500 になるので、認証必須として扱う。
+ *
+ * @see src-tauri/src/commands/timeline.rs
+ */
+async apiSearchNotesHanami(accountId: string, query: string, options: SearchOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_search_notes_hanami", { accountId, query, options }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see src-tauri/src/commands/timeline.rs */
 async apiGetNoteChildren(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {

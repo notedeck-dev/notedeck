@@ -743,6 +743,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::api_get_notifications,
             commands::api_get_notifications_grouped,
             commands::api_search_notes,
+            commands::api_search_notes_hanami,
             commands::api_get_note_children,
             commands::api_get_note_renotes,
             commands::api_get_note_conversation,

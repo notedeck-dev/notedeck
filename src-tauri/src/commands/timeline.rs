@@ -727,6 +727,36 @@ pub async fn api_search_notes(
         .await
 }
 
+/// はなみすきー専用のノート検索 (`notes/hanamisearch-v1`)。
+///
+/// 本家 `notes/search` はロールポリシーで無効化されているため、フォーク別
+/// アダプター (`src/adapters/hanamisskey/`) がこちらを呼ぶ。エンドポイントは
+/// 匿名アクセスでサーバー側が 500 になるので、認証必須として扱う。
+#[tauri::command]
+#[specta::specta]
+pub async fn api_search_notes_hanami(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    query: String,
+    options: Option<SearchOptions>,
+) -> Result<Vec<NormalizedNote>> {
+    if query.len() > 1000 {
+        return Err(NoteDeckError::InvalidInput(
+            "Search query too long".to_string(),
+        ));
+    }
+    let (client, host, token) = app_state.authed(&account_id).await?;
+    client
+        .search_notes_hanami(
+            &host,
+            &token,
+            &account_id,
+            &query,
+            options.unwrap_or_default(),
+        )
+        .await
+}
+
 // --- Upload ---
 
 #[tauri::command]

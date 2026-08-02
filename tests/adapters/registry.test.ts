@@ -74,6 +74,13 @@ describe('resolveSoftware', () => {
     ).toBe('misskeyio/misskey')
   })
 
+  it('identifies はなみすきー by repository URL (#916)', () => {
+    // nodeinfo 2.1 の software.name は "misskey" のままで repository だけが違う
+    expect(
+      resolveSoftware('misskey', 'https://github.com/hanamisskey/misskey'),
+    ).toBe('hanamisskey/misskey')
+  })
+
   it('identifies known but unsupported forks by software name (#853)', () => {
     expect(resolveSoftware('sharkey')).toBe('sharkey/sharkey')
     expect(resolveSoftware('cherrypick')).toBe('kokonect-link/cherrypick')
@@ -97,6 +104,7 @@ describe('isSupportedSoftware', () => {
     expect(isSupportedSoftware('yamisskey-dev/yamisskey')).toBe(true)
     expect(isSupportedSoftware('lqvp/misskey-tempura')).toBe(true)
     expect(isSupportedSoftware('misskeyio/misskey')).toBe(true)
+    expect(isSupportedSoftware('hanamisskey/misskey')).toBe(true)
   })
 
   it('rejects identified but unsupported forks and unknown software', () => {
