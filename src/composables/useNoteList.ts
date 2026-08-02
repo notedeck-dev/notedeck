@@ -78,6 +78,12 @@ export function useNoteList(options: UseNoteListOptions) {
       for (const id of ids) noteIds.add(id)
       orderedIds.value = ids
       if (inserted.length > 0) suspensionsStore.probeNotes(inserted)
+      // noteCapture の購読同期 (#939)。ストリーミングの新着 flush
+      // (useStreamingBatch) は setNotes を通らず setter へ直接書くため、
+      // setNotes 側で通知すると WS 由来の新着が一度も subNote されず、
+      // 他者リアクションの noteUpdated が届かない。書込経路の合流点である
+      // ここで、可視ノートのみ (= capture の購読対象) を通知する
+      onNotesChangedFn?.(notes.value)
     },
   })
 
@@ -110,8 +116,6 @@ export function useNoteList(options: UseNoteListOptions) {
       trim === 'newest' && newNotes.length > maxNotes
         ? newNotes.slice(newNotes.length - maxNotes)
         : newNotes
-    // 可視ノートのみを通知する（noteCapture の購読対象は表示中ノート）
-    onNotesChangedFn?.(notes.value)
   }
 
   /**

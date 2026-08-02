@@ -70,3 +70,44 @@ describe('useNoteList: 保持上限の切り捨て方向 (#834)', () => {
     expect(list.rawNotes.value).toHaveLength(4)
   })
 })
+
+describe('useNoteList: noteCapture 同期の通知経路 (#939)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  function setup(maxNotes: number) {
+    return useNoteList({
+      getMyUserId: () => 'me',
+      getAdapter: () => null,
+      deleteHandler: async () => false,
+      closePostForm: () => {},
+      maxNotes,
+    })
+  }
+
+  // ストリーミングの新着 flush (useStreamingBatch) は setNotes を通らず
+  // rawNotes setter へ直接書く。通知が setNotes だけにあると、WS で流れ込んだ
+  // ノートが一度も subNote されず、他者リアクションの noteUpdated が届かない
+  it('setter 直書き (ストリーミング flush 相当) でも onNotesChanged が呼ばれる', () => {
+    const list = setup(10)
+    const seen: string[][] = []
+    list.setOnNotesChanged((notes) => seen.push(notes.map((n) => n.id)))
+    list.setNotes(descNotes(2))
+    expect(seen.at(-1)).toEqual(['n0', 'n1'])
+
+    const fresh = makeNote('fresh', new Date(2026, 0, 2).toISOString())
+    list.rawNotes.value = [fresh, ...list.rawNotes.value]
+    expect(seen.at(-1)).toEqual(['fresh', 'n0', 'n1'])
+  })
+
+  it('setNotes の通知は 1 回だけ (setter 経由と二重にならない)', () => {
+    const list = setup(10)
+    let calls = 0
+    list.setOnNotesChanged(() => {
+      calls++
+    })
+    list.setNotes(descNotes(2))
+    expect(calls).toBe(1)
+  })
+})
