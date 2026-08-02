@@ -132,9 +132,12 @@ describe('useNoteList: noteCapture 同期の通知経路 (#939)', () => {
     if (!target) throw new Error('fixture broken')
     await list.removeNote(target)
 
-    // 楽観削除の通知 → 巻き戻しの通知、の順で来る
-    expect(seen.at(-2)).toEqual(['n0', 'n2'])
-    expect(seen.at(-1)).toEqual(['n0', 'n1', 'n2'])
+    // 楽観削除の通知 → 巻き戻しの通知の 2 回ちょうど。全体を突き合わせる
+    // ことで、余分な通知 (購読の無駄な張り直し) の再発も検出する
+    expect(seen).toEqual([
+      ['n0', 'n2'],
+      ['n0', 'n1', 'n2'],
+    ])
     expect(list.rawNotes.value.map((n) => n.id)).toEqual(['n0', 'n1', 'n2'])
   })
 })
