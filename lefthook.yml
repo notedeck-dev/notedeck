@@ -9,13 +9,15 @@ pre-commit:
       glob: "*.{ts,vue}"
       run: npx vue-tsc -b --noEmit
 
-    - name: openapi-snapshot
-      glob: "src-tauri/**/*.{rs,toml,lock,json}"
-      run: cd src-tauri && cargo test --test openapi_snapshot --quiet
+    - name: rustfmt
+      glob: "src-tauri/**/*.rs"
+      run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
 
-    - name: bindings-snapshot
-      glob: "src-tauri/**/*.{rs,toml,lock}"
-      run: cd src-tauri && cargo test --test bindings_snapshot --quiet
+    # 2 つの snapshot テストは同じビルドを共有するので 1 回の cargo test にまとめる。
+    # 別ジョブに分けると target ディレクトリのロックで直列待ちが二重に発生する
+    - name: rust-snapshots
+      glob: "src-tauri/**/*.{rs,toml,lock,json}"
+      run: cd src-tauri && cargo test --test openapi_snapshot --test bindings_snapshot --quiet
 
 commit-msg:
   jobs:

@@ -10,37 +10,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  # 変更されたパスから、どのジョブを回す必要があるかを判定する。
+  # docs のみのコミットで Rust ビルドと E2E (合わせて 20 分相当) が走るのを避ける。
+  changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'src/**'
+              - 'tests/**'
+              - 'index.html'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'biome.json'
+              - 'tsconfig*.json'
+              - 'vite.config.ts'
+              - 'vitest*.config.ts'
+              - 'subset-font.d.ts'
+              - '.github/workflows/ci.yml'
+            rust:
+              - 'src-tauri/**'
+              - 'rust-toolchain.toml'
+              - '.github/workflows/ci.yml'
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
 
       - name: Install pnpm
+        # バージョンは package.json の packageManager に従う
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          node-version-file: .node-version
           cache: pnpm
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: './src-tauri -> target'
-          prefix-key: ci-v1
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Install frontend dependencies
         run: pnpm install
@@ -48,14 +65,47 @@ jobs:
       - name: Lint (Biome)
         run: pnpm biome check
 
-      - name: Lint (Clippy)
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-
       - name: Type check
         run: pnpm vue-tsc --noEmit
 
       - name: Test
         run: pnpm vitest run
+
+  rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      # ビルド前に済ませる。フォーマット崩れを 10 分待たずに知らせる
+      - name: Format check
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+          # e2e ジョブと同一キーを共有する。以前は check/e2e が別キーで同じ
+          # ビルドを二重に保存し、リポジトリの 10GB 上限に張り付いて LRU で
+          # evict され、毎回 cache miss していた
+          shared-key: rust
+          # PR ごとに 2.5GB のキャッシュを作らない。保存は develop/main の
+          # push だけに任せ、PR は常にそれを restore する
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Lint (Clippy)
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
       - name: Rust tests (incl. OpenAPI snapshot)
         run: cargo test --manifest-path src-tauri/Cargo.toml
@@ -63,29 +113,33 @@ jobs:
   # E2E (#702): 実アプリを xvfb 上の隔離プロファイルで起動し、
   # 外部アプリと同じ HTTP API 面 (#709) で駆動する
   e2e:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
 
       - name: Install pnpm
+        # バージョンは package.json の packageManager に従う
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: lts/*
+          node-version-file: .node-version
           cache: pnpm
 
-      - name: Install Rust stable
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
-          prefix-key: e2e-v1
+          # rust ジョブと同じ依存クレートを使うので restore を共有する。
+          # 保存側は rust ジョブに一本化し、ここでは書き込まない
+          shared-key: rust
+          save-if: false
 
       - name: Install system dependencies
         run: |

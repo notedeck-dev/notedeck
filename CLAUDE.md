@@ -14,6 +14,8 @@ pnpm tauri:dev    # Tauri デスクトップ開発
 pnpm test         # vitest run
 pnpm lint         # biome check
 pnpm lint:fix     # biome check --write
+pnpm lint:rust    # cargo clippy (CI と同じ -D warnings)
+pnpm fmt          # cargo fmt (CI の Format check が落ちたらこれ)
 pnpm typecheck    # vue-tsc -b --noEmit
 pnpm doctor       # 開発環境の診断（ツールチェーン・システム依存の欠落検査）
 ```
