@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch, watchEffect } from 'vue'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
   ACCOUNT_OPTIONAL_TYPES,
@@ -61,6 +61,19 @@ const expandedCategories = reactive<Record<string, boolean>>({})
 function toggleCategory(key: string) {
   expandedCategories[key] = !expandedCategories[key]
 }
+
+// spotlight (チュートリアル) が特定のカラム種別を指しているときは、その種別を
+// 含むカテゴリを開いておく。閉じたままだと種別ボタンが DOM に存在せず、
+// 光らせる対象が無いまま手順が進まなくなる。開くだけで閉じないので、
+// spotlight が無いときの既定 (全て閉じる) は変わらない
+watchEffect(() => {
+  for (const g of COLUMN_TYPE_GROUPS) {
+    const spotlighted = g.types.some((t) =>
+      spotlightStore.spotlights.has(commandItemTargetId(`col-${t}`)),
+    )
+    if (spotlighted) expandedCategories[g.group] = true
+  }
+})
 
 const addColumnType = ref<ColumnType | null>(null)
 

@@ -278,6 +278,10 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             let sweeper = image_cache.clone();
             tauri::async_runtime::spawn(async move {
                 let interval = std::time::Duration::from_secs(6 * 60 * 60);
+                // 初回だけ遅らせる: 起動直後はフロントがカラムを mount して
+                // 同じディレクトリから絵文字・アバターを読むため、全走査を
+                // 被せると本来支えるはずの読み出しと I/O を奪い合う
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
                 loop {
                     let stats = sweeper.sweep_disk().await;
                     if stats.expired_removed > 0 || stats.evicted_removed > 0 {

@@ -186,9 +186,10 @@ export function useNoteList(options: UseNoteListOptions) {
           console.debug('[delete-cached-note] ignored:', e)
       })
     } else {
-      orderedIds.value = prevIds
-      noteIds.clear()
-      for (const nid of prevIds) noteIds.add(nid)
+      // 楽観削除の巻き戻し。orderedIds を直接書かずに setter を通す — 直接
+      // 書くと noteCapture の購読同期が走らず、ノートは表示に戻るのに購読は
+      // 外れたままになり、そのノートへの他者リアクションが以後届かなくなる
+      rawNotes.value = noteStore.resolve(prevIds)
     }
   }
 

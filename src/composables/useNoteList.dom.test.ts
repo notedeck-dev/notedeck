@@ -110,4 +110,31 @@ describe('useNoteList: noteCapture 同期の通知経路 (#939)', () => {
     list.setNotes(descNotes(2))
     expect(calls).toBe(1)
   })
+
+  // 削除に失敗したら楽観削除を巻き戻すが、そこで購読同期を呼ばないと
+  // 「表示は戻っているのに subNote は外れたまま」になり、そのノートへの
+  // 他者リアクションが以後届かなくなる
+  it('削除失敗で巻き戻したとき、購読同期にノートが戻って通知される', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const list = useNoteList({
+      getMyUserId: () => 'me',
+      getAdapter: () => null,
+      deleteHandler: async () => false, // 削除失敗
+      closePostForm: () => {},
+      maxNotes: 10,
+    })
+    const seen: string[][] = []
+    list.setNotes(descNotes(3))
+    list.setOnNotesChanged((notes) => seen.push(notes.map((n) => n.id)))
+
+    const target = list.rawNotes.value[1]
+    if (!target) throw new Error('fixture broken')
+    await list.removeNote(target)
+
+    // 楽観削除の通知 → 巻き戻しの通知、の順で来る
+    expect(seen.at(-2)).toEqual(['n0', 'n2'])
+    expect(seen.at(-1)).toEqual(['n0', 'n1', 'n2'])
+    expect(list.rawNotes.value.map((n) => n.id)).toEqual(['n0', 'n1', 'n2'])
+  })
 })
