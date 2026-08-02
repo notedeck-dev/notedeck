@@ -5,7 +5,7 @@ description = "Misskey Pro — integrated deck environment (IDE) for Misskey pow
 edition = "2021"
 license = "AGPL-3.0-only"
 [dependencies]
-notecli = { git = "https://github.com/notedeck-dev/notecli", rev = "e235701690ae1e6c5a9bb0fd6fe89611eccdb4d1", features = ["specta"] }
+notecli = { git = "https://github.com/notedeck-dev/notecli", rev = "fb6386be8dc544caf0d994a12ad7d9f5c80565a2", features = ["specta"] }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"

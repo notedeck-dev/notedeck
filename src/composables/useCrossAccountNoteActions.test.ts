@@ -65,7 +65,7 @@ function note(partial: Partial<NormalizedNote> = {}): NormalizedNote {
 
 /** unwrap が投げる Rust 側エラーの shape（AppError.from で解釈される） */
 const apiError = (code: string) =>
-  new AppError('API', `notes/reactions/create: ${code}: detail`)
+  new AppError('API', `notes/reactions/create: ${code}: detail`, code)
 
 beforeEach(() => {
   setActivePinia(createPinia())

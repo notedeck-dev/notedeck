@@ -840,10 +840,6 @@ notecli に DB テスト 18件、notedeck に 239件のユニットテストを�
 
 **未カバー**: `normalize()` モデル変換、HTTP API 統合テスト、`StreamingManager` 接続管理
 
-### エラー型の粒度不足 [重要度: 低]
-
-`Auth(String)` や `WebSocket(String)` は文字列ベースで、パターンマッチによるプログラム的な回復処理が困難。認証エラーを `TokenExpired` / `TokenRevoked` / `NoToken` 等に細分化し、自動回復を可能にする余地がある。
-
 ### 部分採用で完成していない機能
 
 #### カスタム URI スキーム（`notedeck://`）

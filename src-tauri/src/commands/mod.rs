@@ -60,7 +60,7 @@ use zeroize::Zeroize;
 
 use notecli::api::MisskeyClient;
 use notecli::db::Database;
-use notecli::error::NoteDeckError;
+use notecli::error::{AuthErrorKind, NoteDeckError};
 use notecli::keychain;
 
 // ── AppState: deferred initialization wrapper ──
@@ -287,22 +287,27 @@ impl AuthSessionTracker {
         session_id: &str,
         host: &str,
     ) -> std::result::Result<(), NoteDeckError> {
-        let mut sessions = self.sessions.lock().map_err(|_| {
-            NoteDeckError::Auth("Internal error: session lock poisoned".to_string())
-        })?;
+        let mut sessions = self
+            .sessions
+            .lock()
+            .map_err(|_| NoteDeckError::Internal("session lock poisoned".to_string()))?;
         match sessions.remove(session_id) {
             Some((stored_host, created)) => {
                 if created.elapsed().as_secs() >= AUTH_SESSION_TTL_SECS {
-                    return Err(NoteDeckError::Auth("Auth session expired".to_string()));
+                    return Err(NoteDeckError::Auth(AuthErrorKind::SessionInvalid(
+                        "Auth session expired".to_string(),
+                    )));
                 }
                 if stored_host != host {
-                    return Err(NoteDeckError::Auth("Host mismatch".to_string()));
+                    return Err(NoteDeckError::Auth(AuthErrorKind::SessionInvalid(
+                        "Host mismatch".to_string(),
+                    )));
                 }
                 Ok(())
             }
-            None => Err(NoteDeckError::Auth(
+            None => Err(NoteDeckError::Auth(AuthErrorKind::SessionInvalid(
                 "Invalid or already consumed auth session".to_string(),
-            )),
+            ))),
         }
     }
 }
@@ -362,8 +367,8 @@ pub fn get_credentials(db: &Database, account_id: &str) -> Result<(String, Strin
         return Ok((host, token));
     }
 
-    Err(NoteDeckError::Auth(format!(
-        "No token found for account {account_id}"
+    Err(NoteDeckError::Auth(AuthErrorKind::NoToken(
+        account_id.to_string(),
     )))
 }
 

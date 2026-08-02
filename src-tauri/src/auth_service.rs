@@ -109,7 +109,7 @@ pub async fn complete_and_save(
 
     let saved = db
         .get_account_by_host_user(host, &auth_result.user.id)?
-        .ok_or_else(|| NoteDeckError::Auth("Failed to save account".to_string()))?;
+        .ok_or_else(|| NoteDeckError::Internal("account missing right after upsert".to_string()))?;
 
     if keychain::store_token(&saved.id, &token).is_ok()
         && keychain::get_token(&saved.id).ok().flatten().is_some()
