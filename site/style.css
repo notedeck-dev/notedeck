@@ -191,6 +191,7 @@ html[style*="color-scheme: light"] .nav-right-button:hover{background:rgba(0,0,0
 .guest-cta-text h3{font-size:1rem;font-weight:800;margin:0 0 .25rem}
 .guest-cta-text p{color:var(--text-muted);font-size:.9rem;line-height:1.6;margin:0}
 .guest-cta .btn{flex-shrink:0;white-space:nowrap}
+.fork-cta{margin-top:3rem}
 @media(max-width:640px){.guest-cta{flex-direction:column;text-align:center}.guest-cta .btn{align-self:center}}
 
 /* ===== Store CTA (mobile distribution) ===== */
@@ -241,7 +242,7 @@ html[style*="color-scheme: light"] .nav-right-button:hover{background:rgba(0,0,0
 .arch-tags span{font-size:.7rem;font-weight:700;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);padding:.15em .6em;border-radius:var(--radius-pill)}
 .arch-tags a{font-size:.8rem;font-weight:700;color:var(--accent);background:var(--surface);background-image:none;border:1px solid var(--border);padding:.25em .9em;border-radius:var(--radius-pill);transition:all .2s var(--ease)}
 .arch-tags a:hover{border-color:var(--accent);background:var(--accent-soft)}
-.arch-doc-links{margin-top:2.5rem}
+.arch-doc-links{margin-top:1.25rem}
 .arch-arrow{display:flex;justify-content:center;padding:.25rem 0}
 
 /* ===== Download ===== */
