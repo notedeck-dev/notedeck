@@ -241,7 +241,7 @@ html[style*="color-scheme: light"] .nav-right-button:hover{background:rgba(0,0,0
 .arch-tags span{font-size:.7rem;font-weight:700;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);padding:.15em .6em;border-radius:var(--radius-pill)}
 .arch-tags a{font-size:.8rem;font-weight:700;color:var(--accent);background:var(--surface);background-image:none;border:1px solid var(--border);padding:.25em .9em;border-radius:var(--radius-pill);transition:all .2s var(--ease)}
 .arch-tags a:hover{border-color:var(--accent);background:var(--accent-soft)}
-.arch-doc-links{margin-top:1.25rem}
+.arch-doc-links{margin-top:2.5rem}
 .arch-arrow{display:flex;justify-content:center;padding:.25rem 0}
 
 /* ===== Download ===== */

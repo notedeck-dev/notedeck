@@ -220,7 +220,7 @@
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
           </div>
           <h4>フォークにも対応</h4>
-          <p>Misskey 本家だけでなく、Misskey 系フォークのサーバーでも使えます。サーバー種別は自動判別、細かな違いはアプリが吸収。</p>
+          <p>Misskey 本家だけでなく、Misskey 系フォークのサーバーでも使えます。サーバー種別は自動判別、独自タイムラインなどフォーク固有の機能もそのまま。未対応の独自機能はリクエストできます。</p>
         </div>
         <div class="feature-card glass fade-in" data-direction="up">
           <div class="feature-card-icon">
@@ -348,6 +348,17 @@
           </div>
         </div>
       </div>
+      <h3 class="pillars-subtitle fade-in" data-direction="up">あなたの鯖の独自機能を、NoteDeck に</h3>
+      <p class="pillars-sublead fade-in" data-direction="up">
+        フォークごとの違いは<strong>アダプター</strong>という層が引き受けます。独自タイムラインやモードフラグの多くはサーバーに聞いて自動で認識するのでコードは要らず、
+        叩くエンドポイントごと違う機能でも、フォーク 1 つ分をディレクトリ 1 つに閉じ込めて足せる形にしてあります。<br />
+        「この機能が NoteDeck で使えない」があれば、サーバーの実測値を添えて投げてください。フォーク開発者からの情報提供も歓迎します。
+      </p>
+      <div class="arch-tags fade-in" data-direction="up">
+        <a href="https://github.com/notedeck-dev/notedeck/issues/new?template=fork_support.yml">独自機能の対応を依頼する</a>
+        <a href="https://github.com/notedeck-dev/notedeck/blob/main/CONTRIBUTING.md#フォーク対応の追加">自分で対応を書く</a>
+      </div>
+
       <div class="arch-tags arch-doc-links fade-in" data-direction="up">
         <a href="https://github.com/notedeck-dev/notedeck/blob/main/ARCHITECTURE.md">Architecture</a>
         <a href="https://github.com/notedeck-dev/notedeck/blob/main/DEVELOPMENT.md">Development</a>
