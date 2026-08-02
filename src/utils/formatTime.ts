@@ -16,8 +16,10 @@ const ABSOLUTE = new Intl.DateTimeFormat('ja-JP', {
   timeStyle: 'short',
 })
 
-// Cache keyed on "iso:currentMinute" to avoid repeated Date allocations
-const timeCache = new Map<string, string>()
+// ISO 文字列の parse 結果だけを持つ。ラベルは「今との差」で変わるので
+// キャッシュすると 11:59:30 の「たった今」が 12:00:30 まで居座る。
+// エントリは分ごとに捨てて、長時間動かしたときに無制限に育つのを防ぐ。
+const parsedCache = new Map<string, number>()
 let lastMinute = -1
 
 /**
@@ -34,22 +36,25 @@ export function formatTime(
   if (at === null || at === undefined || at === '') return ''
   const currentMinute = Math.floor(nowMs / 60000)
 
-  // Invalidate cache every minute
   if (currentMinute !== lastMinute) {
-    timeCache.clear()
+    parsedCache.clear()
     lastMinute = currentMinute
   }
 
-  const key = String(at)
-  const cached = timeCache.get(key)
-  if (cached) return cached
-
-  const atMs = typeof at === 'number' ? at : new Date(at).getTime()
+  let atMs: number
+  if (typeof at === 'number') {
+    atMs = at
+  } else {
+    const cached = parsedCache.get(at)
+    if (cached !== undefined) {
+      atMs = cached
+    } else {
+      atMs = new Date(at).getTime()
+      parsedCache.set(at, atMs)
+    }
+  }
   if (Number.isNaN(atMs)) return ''
-  const result = relative(nowMs - atMs)
-
-  timeCache.set(key, result)
-  return result
+  return relative(nowMs - atMs)
 }
 
 function relative(diffMs: number): string {

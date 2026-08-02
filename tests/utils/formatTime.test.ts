@@ -55,6 +55,15 @@ describe('formatTime', () => {
     expect(formatTime('2025-06-15T12:00:00Z', now)).toBe('1 時間前')
   })
 
+  it('同じ分の中でも 60 秒境界を越えたら表記が変わる', () => {
+    // parse 結果ではなくラベルをキャッシュすると、11:59:30 の「たった今」が
+    // 12:01 まで居座る
+    vi.setSystemTime(new Date('2025-06-15T12:00:00Z'))
+    expect(formatTime('2025-06-15T11:59:30Z')).toBe('たった今')
+    vi.setSystemTime(new Date('2025-06-15T12:00:30Z'))
+    expect(formatTime('2025-06-15T11:59:30Z')).toBe('1 分前')
+  })
+
   it('日時として読めない値は空文字', () => {
     expect(formatTime('')).toBe('')
     expect(formatTime('not a date')).toBe('')
