@@ -1092,13 +1092,15 @@ export type ServerSoftware =
 }
 ```
 
-3. `src/core/server.ts` — `detectFeatures()` にフォーク固有の capability を設定
+3. `src/adapters/<fork>/index.ts` — フォーク固有の capability を宣言し、`registerAdapter()` の第 3 引数で渡す
 
 ```typescript
-if (software === 'your-org/your-fork') {
-  features.yourFeature = true
-}
+export const YOUR_FORK_FEATURES: Partial<ServerFeatures> = { yourFeature: true }
 ```
+
+`src/core/server.ts` の `detectFeatures()` が `forkFeatures()` 経由でこれを重ねます
+（フォークの知識をフォークのディレクトリから外に漏らさないため、`server.ts` 側に
+`if (software === ...)` を足さないこと）。
 
 4. 叩くエンドポイント自体が違う場合は、フォーク固有アダプターを作って `registerAdapter()` で登録する
 

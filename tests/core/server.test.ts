@@ -64,6 +64,16 @@ describe('server detection', () => {
     expect(info.software).toBe('lqvp/misskey-tempura')
   })
 
+  it('applies fork-specific capabilities declared by the adapter (#630)', async () => {
+    mockDetect('misskey-tempura')
+    const tempura = await detectServer('misskey.vip')
+    expect(tempura.features.remoteEmojiReactions).toBe(true)
+
+    mockDetect('misskey')
+    const upstream = await detectServer('example.com')
+    expect(upstream.features.remoteEmojiReactions).toBe(false)
+  })
+
   it('returns unknown for non-misskey software', async () => {
     mockDetect('mastodon')
     const info = await detectServer('masto.example.com')

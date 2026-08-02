@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createAdapter,
+  forkFeatures,
   getRegisteredSoftware,
   isSupportedSoftware,
   resolveSoftware,
@@ -42,6 +43,29 @@ describe('adapter registry', () => {
   it('lists registered software', () => {
     const registered = getRegisteredSoftware()
     expect(registered).toContain('misskey-dev/misskey')
+  })
+
+  it('registers fork-specific adapters', () => {
+    expect(getRegisteredSoftware()).toEqual(
+      expect.arrayContaining([
+        'hanamisskey/misskey',
+        'yamisskey-dev/yamisskey',
+        'lqvp/misskey-tempura',
+      ]),
+    )
+  })
+})
+
+describe('forkFeatures', () => {
+  it('returns the capabilities declared by the fork adapter (#630)', () => {
+    expect(forkFeatures('lqvp/misskey-tempura')).toEqual({
+      remoteEmojiReactions: true,
+    })
+  })
+
+  it('returns an empty patch for forks without static capabilities', () => {
+    expect(forkFeatures('misskey-dev/misskey')).toEqual({})
+    expect(forkFeatures('sharkey/sharkey')).toEqual({})
   })
 })
 
