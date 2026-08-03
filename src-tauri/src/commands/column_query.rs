@@ -598,3 +598,308 @@ mod golden_tests {
         );
     }
 }
+
+// --- FTS5 プリフィルタ (Phase 3b) --------------------------------------------
+
+/// FTS5 の trigram トークナイザが成立する最小文字数。これ未満は 0 件になるので
+/// 押し込むと偽陰性になる (notecli 側も同じ閾値で FTS/LIKE を分岐している)。
+const FTS_MIN_CHARS: usize = 3;
+
+/// FTS5 プリフィルタに押し込めるリテラルを抽出する (V16 の健全性規則)。
+///
+/// 不変条件 (b) は「偽陰性を出さない」こと。つまり返すリテラルは
+/// **eval が真になるノートなら必ず note.text に含まれている**ものに限る。
+/// そのために辿ってよい位置を次に絞る:
+///
+///   - トップレベルからの連言 (`And`) と `Let` の body のみ
+///   - `Or` の枝には入らない (片側が偽でも全体が真になりうる)
+///   - `Not` の下 (負極性) には入らない (真 = 含まないなので逆になる)
+///   - レシーバは `note.text` そのもの。`lower()` 等を挟んだものは押し込まない
+///   - `cw` や `user.username` は対象外 (FTS インデックスは text のみ)
+///
+/// 返り値は AND 結合で使う想定。MATCH 文字列の組み立てとエスケープは
+/// クエリを発行する側 (notecli) の責務。
+#[allow(dead_code)]
+pub fn extract_fts_literals(query: &QirQuery) -> Vec<String> {
+    let mut out = Vec::new();
+    if query.schema_version != QIR_SCHEMA_VERSION {
+        return out;
+    }
+    collect_conjunctive_literals(&query.root, &mut out);
+    out
+}
+
+/// note.text へのフィールド参照そのものか (変換を挟んでいないか)
+fn is_note_text(node: &QirNode) -> bool {
+    matches!(node, QirNode::Field { path } if path.as_slice() == ["text"])
+}
+
+fn collect_conjunctive_literals(node: &QirNode, out: &mut Vec<String>) {
+    match node {
+        QirNode::And { left, right } => {
+            collect_conjunctive_literals(left, out);
+            collect_conjunctive_literals(right, out);
+        }
+        // 束縛は eager 評価されるだけで、真偽を決めるのは body
+        QirNode::Let { body, .. } => collect_conjunctive_literals(body, out),
+        QirNode::StrTest {
+            op: QirStrTestOp::Incl,
+            target,
+            needle,
+        } => {
+            if !is_note_text(target) {
+                return;
+            }
+            if let QirNode::Str { value } = needle.as_ref() {
+                if value.chars().count() >= FTS_MIN_CHARS {
+                    out.push(value.clone());
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+mod fts_tests {
+    use super::*;
+
+    fn field(path: &[&str]) -> QirNode {
+        QirNode::Field {
+            path: path.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    fn incl(target: QirNode, needle: &str) -> QirNode {
+        QirNode::StrTest {
+            op: QirStrTestOp::Incl,
+            target: Box::new(target),
+            needle: Box::new(QirNode::Str {
+                value: needle.to_string(),
+            }),
+        }
+    }
+
+    fn not_null(target: QirNode) -> QirNode {
+        QirNode::Eq {
+            negated: true,
+            left: Box::new(target),
+            right: Box::new(QirNode::Null),
+        }
+    }
+
+    fn and(l: QirNode, r: QirNode) -> QirNode {
+        QirNode::And {
+            left: Box::new(l),
+            right: Box::new(r),
+        }
+    }
+
+    fn or(l: QirNode, r: QirNode) -> QirNode {
+        QirNode::Or {
+            left: Box::new(l),
+            right: Box::new(r),
+        }
+    }
+
+    fn not(e: QirNode) -> QirNode {
+        QirNode::Not { expr: Box::new(e) }
+    }
+
+    fn query(root: QirNode) -> QirQuery {
+        QirQuery {
+            schema_version: QIR_SCHEMA_VERSION,
+            root,
+        }
+    }
+
+    #[test]
+    fn extracts_conjunctive_text_literal() {
+        let q = query(and(
+            not_null(field(&["text"])),
+            incl(field(&["text"]), "misskey"),
+        ));
+        assert_eq!(extract_fts_literals(&q), vec!["misskey".to_string()]);
+    }
+
+    #[test]
+    fn extracts_every_literal_in_a_conjunction() {
+        let q = query(and(
+            incl(field(&["text"]), "alpha"),
+            incl(field(&["text"]), "bravo"),
+        ));
+        assert_eq!(
+            extract_fts_literals(&q),
+            vec!["alpha".to_string(), "bravo".to_string()]
+        );
+    }
+
+    #[test]
+    fn skips_disjunction() {
+        // どちらか片方でも真なら通るので、片方のリテラルを押し込むと偽陰性になる
+        let q = query(or(
+            incl(field(&["text"]), "alpha"),
+            incl(field(&["text"]), "bravo"),
+        ));
+        assert!(extract_fts_literals(&q).is_empty());
+    }
+
+    #[test]
+    fn skips_negation() {
+        // 真 = 含まない、なので押し込むと意味が逆になる
+        let q = query(not(incl(field(&["text"]), "alpha")));
+        assert!(extract_fts_literals(&q).is_empty());
+    }
+
+    #[test]
+    fn skips_short_literal() {
+        // trigram は 3 文字未満で 0 件を返す
+        let q = query(incl(field(&["text"]), "ab"));
+        assert!(extract_fts_literals(&q).is_empty());
+        let q = query(incl(field(&["text"]), "abc"));
+        assert_eq!(extract_fts_literals(&q), vec!["abc".to_string()]);
+    }
+
+    #[test]
+    fn skips_transformed_receiver() {
+        // lower() を挟むとケース保存でなくなるので押し込めない
+        let lowered = QirNode::StrMap {
+            op: QirStrMapOp::Lower,
+            target: Box::new(field(&["text"])),
+        };
+        let q = query(incl(lowered, "misskey"));
+        assert!(extract_fts_literals(&q).is_empty());
+    }
+
+    #[test]
+    fn skips_other_fields() {
+        // FTS インデックスが張られているのは text のみ
+        let q = query(incl(field(&["cw"]), "misskey"));
+        assert!(extract_fts_literals(&q).is_empty());
+        let q = query(incl(field(&["user", "username"]), "misskey"));
+        assert!(extract_fts_literals(&q).is_empty());
+    }
+
+    #[test]
+    fn looks_through_let_body() {
+        let q = query(QirNode::Let {
+            bindings: vec![QirBinding {
+                slot: 0,
+                expr: field(&["text"]),
+            }],
+            body: Box::new(incl(field(&["text"]), "misskey")),
+        });
+        assert_eq!(extract_fts_literals(&q), vec!["misskey".to_string()]);
+    }
+
+    #[test]
+    fn counts_unicode_chars_not_bytes() {
+        // 日本語 3 文字は 9 バイトだが trigram としては成立する
+        let q = query(incl(field(&["text"]), "技術書"));
+        assert_eq!(extract_fts_literals(&q), vec!["技術書".to_string()]);
+    }
+
+    #[test]
+    fn rejects_unknown_schema_version() {
+        let q = QirQuery {
+            schema_version: QIR_SCHEMA_VERSION + 1,
+            root: incl(field(&["text"]), "misskey"),
+        };
+        assert!(extract_fts_literals(&q).is_empty());
+    }
+
+    /// 不変条件 (b) の直接検証: eval が真になるノートは、抽出した全リテラルを
+    /// note.text に含んでいなければならない (含んでいなければ FTS プリフィルタが
+    /// そのノートを落とし、偽陰性になる)。
+    ///
+    /// proptest は入れず、QIR の形とノートの全組み合わせを回して確かめる。
+    #[test]
+    fn prefilter_never_produces_false_negatives() {
+        let shapes: Vec<(&str, QirNode)> = vec![
+            ("plain-incl", incl(field(&["text"]), "alpha")),
+            (
+                "guarded-incl",
+                and(not_null(field(&["text"])), incl(field(&["text"]), "alpha")),
+            ),
+            (
+                "conjunction",
+                and(
+                    incl(field(&["text"]), "alpha"),
+                    incl(field(&["text"]), "bravo"),
+                ),
+            ),
+            (
+                "disjunction",
+                or(
+                    incl(field(&["text"]), "alpha"),
+                    incl(field(&["text"]), "bravo"),
+                ),
+            ),
+            ("negation", not(incl(field(&["text"]), "alpha"))),
+            (
+                "mixed",
+                and(
+                    incl(field(&["text"]), "alpha"),
+                    or(
+                        incl(field(&["text"]), "bravo"),
+                        incl(field(&["text"]), "charlie"),
+                    ),
+                ),
+            ),
+            (
+                "negated-conjunction",
+                not(and(
+                    incl(field(&["text"]), "alpha"),
+                    incl(field(&["text"]), "bravo"),
+                )),
+            ),
+            (
+                "let-body",
+                QirNode::Let {
+                    bindings: vec![QirBinding {
+                        slot: 0,
+                        expr: QirNode::Bool { value: true },
+                    }],
+                    body: Box::new(incl(field(&["text"]), "alpha")),
+                },
+            ),
+            (
+                "cw-only",
+                and(not_null(field(&["cw"])), incl(field(&["cw"]), "alpha")),
+            ),
+        ];
+
+        let texts: Vec<JsonValue> = vec![
+            JsonValue::Null,
+            JsonValue::String(String::new()),
+            JsonValue::String("alpha".into()),
+            JsonValue::String("bravo".into()),
+            JsonValue::String("alpha bravo".into()),
+            JsonValue::String("alpha charlie".into()),
+            JsonValue::String("nothing here".into()),
+            JsonValue::String("ALPHA".into()),
+        ];
+        let cws: Vec<JsonValue> = vec![JsonValue::Null, JsonValue::String("alpha".into())];
+
+        for (name, root) in &shapes {
+            let q = query(root.clone());
+            let literals = extract_fts_literals(&q);
+            for text in &texts {
+                for cw in &cws {
+                    let note = serde_json::json!({ "text": text, "cw": cw });
+                    if evaluate_qir(&q, &note) != QirVerdict::Match {
+                        continue;
+                    }
+                    let haystack = text.as_str().unwrap_or("");
+                    for lit in &literals {
+                        assert!(
+                            haystack.contains(lit.as_str()),
+                            "偽陰性: shape={name} literal={lit:?} text={haystack:?} が \
+                             eval では match なのに FTS プリフィルタで落ちる"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
