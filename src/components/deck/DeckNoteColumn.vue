@@ -143,18 +143,24 @@ usePortal(postFormPortalRef)
 // --- カラムクエリ (#783): 全ノートカラム共通のバッジ・診断表示 ---
 // 定義・編集はクエリ管理カラムに一元化。カラム側は適用状態の表示と
 // (タイムラインカラムでは) フィルタメニューのトグルだけを持つ
+/** バッジから 1 クリックでクエリ管理カラムへ (#783 V25 の調査導線) */
+function openQueryManager(): void {
+  useDeckStore().toggleSidebarColumn('queryManager', null)
+}
+
 const queryBadgeTitle = computed(() => {
   if (columnQueryState.value.status === 'invalid') {
-    return 'クエリを解釈できません — クエリ管理カラムで修正するかフィルタメニューで無効化してください'
+    return 'クエリを解釈できません — 押すとクエリ管理カラムを開きます'
   }
   const err =
     columnQueryErrorCount.value > 0
       ? ` (評価エラー ${columnQueryErrorCount.value} 件を除外)`
       : ''
+  const hint = ' — 押すとクエリ管理カラムを開きます'
   if (columnQueryState.value.status === 'degraded') {
-    return `クエリ適用中 — 1 件ずつ判定するため検索では使えません${err}`
+    return `クエリ適用中 — 1 件ずつ判定するため検索では使えません${err}${hint}`
   }
-  return `クエリ適用中${err}`
+  return `クエリ適用中${err}${hint}`
 })
 
 /** バッジのアイコン: ⚡ 高速 / 逐次適用 / 評価不能 */
@@ -289,18 +295,20 @@ defineExpose({
 
     <template #header-extra>
       <div :class="$style.subHeaderRow">
-        <span
+        <button
           v-if="columnQueryState.status !== 'none'"
+          class="_button"
           :class="[
             $style.queryBadge,
             columnQueryState.status === 'invalid' && $style.queryBadgeInvalid,
             columnQueryState.status === 'degraded' && $style.queryBadgeDegraded,
           ]"
           :title="queryBadgeTitle"
+          @click.stop="openQueryManager"
         >
           <i :class="queryBadgeIcon" />
           <span v-if="columnQueryErrorCount > 0">{{ columnQueryErrorCount }}</span>
-        </span>
+        </button>
         <div :class="$style.subHeaderMain">
           <slot name="header-extra" />
         </div>

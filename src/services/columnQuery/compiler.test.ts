@@ -184,3 +184,73 @@ describe('compileColumnQuery: 診断', () => {
     expect(result.diagnostics[0]?.line).toBe(2)
   })
 })
+
+describe('compileColumnQuery: nullable ガード診断 (V25)', () => {
+  /** 警告が指しているフィールドパス */
+  const warned = (source: string): string[] => {
+    const result = compileColumnQuery(source)
+    if (!result.ok) throw new Error(`compile failed: ${source}`)
+    return result.warnings.map((w) => w.field)
+  }
+
+  it('unguarded な nullable フィールドの操作を警告する', () => {
+    // 画像のみ・純リノートは text=null なので、このままだと全件エラー除外になる
+    expect(warned('note.text.incl("a")')).toEqual(['note.text'])
+  })
+
+  it('ガードしてあれば警告しない', () => {
+    expect(warned('note.text != null && note.text.incl("a")')).toEqual([])
+  })
+
+  it('別フィールドのガードでは解除されない', () => {
+    expect(warned('note.cw != null && note.text.incl("a")')).toEqual([
+      'note.text',
+    ])
+  })
+
+  it('null 比較の左右が逆でもガードとして認める', () => {
+    expect(warned('null != note.text && note.text.incl("a")')).toEqual([])
+  })
+
+  it('関数呼び出しの引数に渡す場合もガードが効く', () => {
+    // MisStore 配布クエリと同じ形
+    const src =
+      '@hit(lowered) {\n\tlowered.incl("a")\n}\n\nnote.text != null && hit(note.text.lower())'
+    expect(warned(src)).toEqual([])
+  })
+
+  it('nullable な配列の .len も警告する', () => {
+    expect(warned('note.files.len > 0')).toEqual(['note.files'])
+  })
+
+  it('nullable でないフィールドは警告しない', () => {
+    expect(warned('note.visibility == "public"')).toEqual([])
+    expect(warned('note.user.username.incl("a")')).toEqual([])
+  })
+
+  it('同じフィールドを何度使っても警告は 1 件にまとめる', () => {
+    expect(warned('note.text.incl("a") || note.text.incl("b")')).toEqual([
+      'note.text',
+    ])
+  })
+
+  it('ガードのスコープは and の右辺に限る', () => {
+    // 左辺のガードは or をまたいだ先には効かない
+    expect(
+      warned(
+        '(note.text != null && note.text.incl("a")) || note.text.incl("b")',
+      ),
+    ).toEqual(['note.text'])
+  })
+
+  it('警告にはガード式と位置が付く (quick-fix 用)', () => {
+    const result = compileColumnQuery('note.text.incl("a")')
+    if (!result.ok) throw new Error('compile failed')
+    expect(result.warnings[0]?.guard).toBe('note.text != null')
+    expect(result.warnings[0]?.line).toBe(1)
+  })
+
+  it('コンパイル自体は成功する (ブロッキングは UI 側の判断)', () => {
+    expect(compileColumnQuery('note.text.incl("a")').ok).toBe(true)
+  })
+})

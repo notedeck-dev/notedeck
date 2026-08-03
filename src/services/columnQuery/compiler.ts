@@ -29,8 +29,27 @@ export interface QueryDiagnostic {
   column?: number
 }
 
+/**
+ * null になりうるフィールドを guard なしで操作している警告 (V25)。
+ *
+ * `note.text.incl("x")` は text=null のノート (画像のみ・純リノート) で
+ * per-note エラーになり、そのノートが丸ごと除外される。書いた本人からは
+ * 「リノートが全部消えるフィルタ」に見えるので、保存前に気づかせる。
+ */
+export interface QueryWarning extends QueryDiagnostic {
+  /** 対象フィールド (例: `note.text`) */
+  field: string
+  /** 挿入すべきガード式 (例: `note.text != null`) */
+  guard: string
+}
+
 export type CompileResult =
-  | { ok: true; query: QirQuery; nodeCount: number }
+  | {
+      ok: true
+      query: QirQuery
+      nodeCount: number
+      warnings: QueryWarning[]
+    }
   | {
       ok: false
       /**
@@ -115,6 +134,13 @@ interface Typed {
 class Compiler {
   private nodeCount = 0
   private nextSlot = 0
+  /**
+   * `X != null &&` の右辺を評価している間だけ X を non-null 扱いにする (V25)。
+   * and の右辺コンパイル中だけ積まれるので、or をまたいだ先には効かない。
+   */
+  private guardedPaths = new Set<string>()
+  /** unguarded な nullable 操作。フィールドごとに最初の 1 件だけ残す */
+  private warnings = new Map<string, QueryWarning>()
   private inlineStack: Ast.Fn[] = []
 
   /** QIR ノードを 1 つ数える。脱糖の指数爆発をここで止める (V19)。 */
@@ -150,6 +176,7 @@ class Compiler {
         ok: true,
         query: { schemaVersion: QIR_SCHEMA_VERSION, root },
         nodeCount: this.nodeCount,
+        warnings: [...this.warnings.values()],
       }
     } catch (e) {
       if (e instanceof CompileFail) {
@@ -294,6 +321,25 @@ class Compiler {
     return this.nextSlot++
   }
 
+  /**
+   * null になりうるレシーバを guard なしで操作していたら警告に積む (V25)。
+   * コンパイル自体は通す — 止めるかどうかは保存側の判断 (「このまま保存」可)。
+   */
+  private checkNullableReceiver(recv: Typed, loc: Ast.Loc): void {
+    if ((recv.type & T_NULL) === 0) return
+    if (recv.notePath === undefined) return
+    const field = `note.${recv.notePath.join('.')}`
+    if (this.guardedPaths.has(field)) return
+    if (this.warnings.has(field)) return
+    this.warnings.set(field, {
+      field,
+      guard: `${field} != null`,
+      message: `${field} は null のことがあります。ガードしないと、そのノートが丸ごと除外されます`,
+      line: loc.start.line,
+      column: loc.start.column,
+    })
+  }
+
   private compileExpr(node: Ast.Expression, scope: Scope): Typed {
     switch (node.type) {
       case 'str':
@@ -331,10 +377,23 @@ class Compiler {
       case 'and':
       case 'or': {
         const left = this.requireBoolish(node.left, scope, node.type)
-        const right = this.requireBoolish(node.right, scope, node.type)
-        return {
-          qir: this.emit({ kind: node.type, left: left.qir, right: right.qir }),
-          type: T_BOOL,
+        // `X != null && ...` の右辺では X を non-null として扱う (V25)
+        const guard =
+          node.type === 'and' ? nullGuardTarget(node.left) : undefined
+        const added = guard !== undefined && !this.guardedPaths.has(guard)
+        if (added && guard !== undefined) this.guardedPaths.add(guard)
+        try {
+          const right = this.requireBoolish(node.right, scope, node.type)
+          return {
+            qir: this.emit({
+              kind: node.type,
+              left: left.qir,
+              right: right.qir,
+            }),
+            type: T_BOOL,
+          }
+        } finally {
+          if (added && guard !== undefined) this.guardedPaths.delete(guard)
         }
       }
       case 'lt':
@@ -436,6 +495,7 @@ class Compiler {
     if (node.name === 'len') {
       const target = this.compileExpr(node.target, scope)
       if ((target.type & ~T_NULL) === T_ARR) {
+        this.checkNullableReceiver(target, node.loc)
         return {
           qir: this.emit({ kind: 'arrLen', target: target.qir }),
           type: T_NUM,
@@ -516,6 +576,7 @@ class Compiler {
     const recv = this.compileExpr(prop.target, scope)
     const recvBase = recv.type & ~T_NULL
     const name = prop.name
+    this.checkNullableReceiver(recv, prop.loc)
     if (name === 'lower' || name === 'upper') {
       if (call.args.length !== 0) {
         throw new CompileFail(`${name}() は引数を取りません`, call.loc)
@@ -676,6 +737,33 @@ class Compiler {
     }
     throw new CompileFail('末尾に式がありません', loc)
   }
+}
+
+/**
+ * `X != null` / `null != X` の形なら X のフィールドパスを返す (V25)。
+ * `==` は「null のときだけ通す」判定なので、右辺で non-null にはならない。
+ */
+function nullGuardTarget(node: Ast.Expression): string | undefined {
+  if (node.type !== 'neq') return undefined
+  const path =
+    node.right.type === 'null'
+      ? notePathOf(node.left)
+      : node.left.type === 'null'
+        ? notePathOf(node.right)
+        : undefined
+  return path
+}
+
+/** 式が note のフィールド参照そのものなら `note.a.b` 形式で返す */
+function notePathOf(node: Ast.Expression): string | undefined {
+  const segments: string[] = []
+  let cur: Ast.Expression = node
+  while (cur.type === 'prop') {
+    segments.unshift(cur.name)
+    cur = cur.target
+  }
+  if (cur.type !== 'identifier' || segments.length === 0) return undefined
+  return [cur.name, ...segments].join('.')
 }
 
 function identifierName(dest: Ast.Expression, loc: Ast.Loc): string {

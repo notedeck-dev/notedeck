@@ -50,6 +50,28 @@ const diagnostics = computed(() =>
   compiled.value && !compiled.value.ok ? compiled.value.diagnostics : [],
 )
 
+/**
+ * null ガード漏れの警告 (V25)。コンパイルは通るが、そのまま保存すると
+ * 画像のみのノートや純リノートが丸ごと消えるので保存前に気づかせる。
+ */
+const warnings = computed(() =>
+  compiled.value?.ok ? compiled.value.warnings : [],
+)
+
+/**
+ * ガードを式に差し込む。末尾式 (最後の非空行) の先頭に前置する形なので、
+ * let 列や関数定義を持つソースでも定義側を壊さない。
+ */
+function applyGuard(guard: string): void {
+  const lines = source.value.split('\n')
+  let i = lines.length - 1
+  while (i >= 0 && lines[i]?.trim() === '') i--
+  const target = lines[i]
+  if (i < 0 || target === undefined) return
+  lines[i] = `${guard} && ${target}`
+  source.value = lines.join('\n')
+}
+
 /** 直近フォーカスした TL カラムのロード済みノートに対する dry-run。 */
 const dryRun = computed(() => {
   const c = compiled.value
@@ -136,6 +158,22 @@ async function save(): Promise<void> {
             v-if="dryRun.error > 0"
           >・エラー {{ dryRun.error }} 件 (除外)</template>
         </span>
+        <!-- null ガード漏れ (V25): 保存はできるが、まず直す導線を出す -->
+        <ul v-if="warnings.length > 0" :class="$style.warnings">
+          <li v-for="w in warnings" :key="w.field">
+            <i class="ti ti-alert-triangle" />
+            <span v-if="w.line != null" :class="$style.diagLoc">{{ w.line }}行:</span>
+            {{ w.message }}
+            <button
+              class="_button"
+              :class="$style.fixButton"
+              :title="`${w.guard} を先頭に入れます`"
+              @click="applyGuard(w.guard)"
+            >
+              ガードを入れる
+            </button>
+          </li>
+        </ul>
       </template>
       <ul v-else :class="$style.diagnostics">
         <li v-for="(d, i) in diagnostics" :key="i">
@@ -153,7 +191,7 @@ async function save(): Promise<void> {
         :disabled="!canSave || !isDirty"
         @click="save"
       >
-        保存
+        {{ warnings.length > 0 ? 'このまま保存' : '保存' }}
       </button>
     </div>
   </div>
@@ -234,6 +272,28 @@ async function save(): Promise<void> {
 
 .diagLoc {
   opacity: 0.7;
+}
+
+/* null ガード漏れ (V25)。エラーではないので warn 色 + quick-fix を並べる */
+.warnings {
+  composes: diagnostics;
+  color: var(--nd-warn);
+
+  li {
+    flex-wrap: wrap;
+  }
+}
+
+.fixButton {
+  padding: 2px 8px;
+  border-radius: var(--nd-radius-full);
+  font-size: 0.9em;
+  color: var(--nd-warn);
+  background: color-mix(in srgb, var(--nd-warn) 14%, transparent);
+
+  &:hover {
+    background: color-mix(in srgb, var(--nd-warn) 24%, transparent);
+  }
 }
 
 .actions {
