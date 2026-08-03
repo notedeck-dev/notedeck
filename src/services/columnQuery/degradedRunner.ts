@@ -56,6 +56,26 @@ const defaultWorkerFactory = (): Worker =>
     type: 'module',
   })
 
+/**
+ * アプリ全体で共有する runner。Worker は 1 台に固定する (V23)。
+ *
+ * サスペンドはフィルタ key 単位なので、同じ名前付きクエリを複数カラムに
+ * 適用していれば 1 度の暴走で全カラムが同時に fail-closed になる。これは
+ * 意図した挙動で、暴走するクエリを 1 つのカラムだけで走らせ続けない。
+ */
+let sharedRunner: DegradedRunner | null = null
+
+export function getSharedDegradedRunner(): DegradedRunner {
+  sharedRunner ??= createDegradedRunner()
+  return sharedRunner
+}
+
+/** テスト用: 共有 runner を破棄する */
+export function resetSharedDegradedRunner(): void {
+  sharedRunner?.dispose()
+  sharedRunner = null
+}
+
 export function createDegradedRunner(
   options: DegradedRunnerOptions = {},
 ): DegradedRunner {

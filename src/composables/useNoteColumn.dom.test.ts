@@ -39,6 +39,52 @@ vi.mock('@/bindings', () => ({
   ),
 }))
 
+/**
+ * 🐢 降格の runner を Worker 抜きで差し替える (#783 Phase 2c)。
+ * 評価ロジックは本物 (degradedBatch) をそのまま同期実行するので、
+ * カラム側の接続だけを検証できる。Worker 境界は degradedRunner.test.ts の担当。
+ */
+const degraded = vi.hoisted(() => ({
+  suspended: new Set<string>(),
+  runCalls: [] as { keys: string[]; noteCount: number }[],
+}))
+
+vi.mock('@/services/columnQuery/degradedRunner', async () => {
+  const { createDegradedBatchRunner } = await vi.importActual<
+    typeof import('@/services/columnQuery/degradedBatch')
+  >('@/services/columnQuery/degradedBatch')
+  return {
+    getSharedDegradedRunner: () => ({
+      run: async (
+        filters: { key: string; source: string }[],
+        notes: unknown[],
+      ) => {
+        degraded.runCalls.push({
+          keys: filters.map((f) => f.key),
+          noteCount: notes.length,
+        })
+        if (filters.some((f) => degraded.suspended.has(f.key))) {
+          return {
+            verdicts: notes.map(() => 'error' as const),
+            invalidFilters: [],
+            suspended: [],
+          }
+        }
+        const batch = createDegradedBatchRunner()
+        const out = batch.run(filters, notes)
+        batch.dispose()
+        return { ...out, suspended: [] }
+      },
+      isSuspended: (key: string) => degraded.suspended.has(key),
+      suspendedKeys: () => [...degraded.suspended],
+      resume: (key: string) => degraded.suspended.delete(key),
+      dispose: () => {
+        // Worker を持たないので解放するものがない
+      },
+    }),
+  }
+})
+
 const fakeStream = {
   connect: vi.fn(),
   reconnect: vi.fn(),
@@ -75,8 +121,12 @@ function note(id: string, visibility = 'public'): NormalizedNote {
   } as unknown as NormalizedNote
 }
 
-/** マイクロタスクと nextTick を数周流して非同期チェーンを収束させる */
-async function flush(rounds = 6) {
+/**
+ * マイクロタスクと nextTick を数周流して非同期チェーンを収束させる。
+ * 取り込み経路が 🐢 降格 (#783 Phase 2) に対応して async になった分、
+ * 収束に必要な周回が増えている (6 周では足りない)。
+ */
+async function flush(rounds = 10) {
   for (let i = 0; i < rounds; i++) {
     await Promise.resolve()
     await nextTick()
@@ -121,6 +171,7 @@ function mountColumn(opts: {
   fetchKey?: NoteColumnConfig['fetchKey']
   filters?: Ref<TimelineFilter | undefined>
   streaming?: boolean
+  noteQuery?: string
 }) {
   const tlKey = ref('home')
   let api: ReturnType<typeof useNoteColumn> | null = null
@@ -133,6 +184,7 @@ function mountColumn(opts: {
             type: 'timeline',
             accountId: opts.accountId,
             filters: opts.filters?.value,
+            noteQuery: opts.noteQuery,
           }) as DeckColumn,
         fetch: opts.fetch,
         cache: { getKey: () => tlKey.value },
@@ -493,5 +545,102 @@ describe('useNoteColumn: フェッチカーソル (#831 Step 0)', () => {
 
     // 旧カーソル (h03) が残っていると h09 と h03 の間がスキップされる
     expect(fetchImpl.mock.calls[3]?.[0]).toEqual({ untilId: 'h09' })
+  })
+})
+
+describe('useNoteColumn: 🐢 逐次適用への降格 (#783 Phase 2c)', () => {
+  // str.len は QIR サブセット外だが純粋なので Worker 逐次適用に降格する
+  const SLOW_QUERY = 'note.text != null && note.text.len > 3'
+
+  beforeEach(() => {
+    degraded.suspended.clear()
+    degraded.runCalls.length = 0
+  })
+
+  it('降格クエリを持つカラムは status が degraded になる', async () => {
+    addAccount('acc-slow')
+    const { api } = mountColumn({
+      accountId: 'acc-slow',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [],
+    })
+    await flush()
+    expect(api.columnQueryState.value.status).toBe('degraded')
+  })
+
+  it('REST 取得結果に降格クエリが適用される', async () => {
+    addAccount('acc-slow-rest')
+    const { api } = mountColumn({
+      accountId: 'acc-slow-rest',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [
+        { ...note('long'), text: 'hello world' } as NormalizedNote,
+        { ...note('short'), text: 'hi' } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(ids(api)).toEqual(['long'])
+    expect(degraded.runCalls.length).toBeGreaterThan(0)
+  })
+
+  it('除外したノートを診断に計上する', async () => {
+    addAccount('acc-slow-count')
+    const { api } = mountColumn({
+      accountId: 'acc-slow-count',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [
+        { ...note('long'), text: 'hello world' } as NormalizedNote,
+        { ...note('short'), text: 'hi' } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(api.columnQueryExcludedCount.value).toBeGreaterThan(0)
+  })
+
+  it('サスペンド中のクエリは fail-closed (全件除外)', async () => {
+    addAccount('acc-slow-susp')
+    degraded.suspended.add('col-acc-slow-susp:inline')
+    const { api } = mountColumn({
+      accountId: 'acc-slow-susp',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [
+        { ...note('long'), text: 'hello world' } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(ids(api)).toEqual([])
+    expect(api.columnQuerySuspendedKeys.value).toEqual([
+      'col-acc-slow-susp:inline',
+    ])
+  })
+
+  it('⚡ だけのカラムでは Worker 経路を通らない', async () => {
+    addAccount('acc-fast')
+    const { api } = mountColumn({
+      accountId: 'acc-fast',
+      // QIR にコンパイルできる = ⚡
+      noteQuery: 'note.text != null',
+      fetch: async () => [
+        { ...note('a'), text: 'x' } as NormalizedNote,
+        { ...note('b'), text: null } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a'])
+    expect(api.columnQueryState.value.status).toBe('active')
+    expect(degraded.runCalls).toEqual([])
+  })
+
+  it('拒否されたクエリ (非純粋) は降格せず fail-closed のまま', async () => {
+    addAccount('acc-reject')
+    const { api } = mountColumn({
+      accountId: 'acc-reject',
+      noteQuery: 'Date:now() > 0',
+      fetch: async () => [{ ...note('a'), text: 'x' } as NormalizedNote],
+    })
+    await flush()
+    expect(api.columnQueryState.value.status).toBe('invalid')
+    expect(ids(api)).toEqual([])
+    expect(degraded.runCalls).toEqual([])
   })
 })
