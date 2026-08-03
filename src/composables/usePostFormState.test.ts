@@ -795,6 +795,63 @@ describe('restoreSlot / removeCurrentSlot', () => {
   })
 })
 
+describe('restoreFromNote (削除して編集)', () => {
+  it('本文・CW・公開範囲・localOnly を復元する', () => {
+    const form = mount()
+    form.restoreFromNote(
+      makeNote({
+        text: '元の本文',
+        cw: '注意',
+        visibility: 'followers',
+        localOnly: true,
+        files: [],
+      }),
+    )
+    expect(form.text.value).toBe('元の本文')
+    expect(form.cw.value).toBe('注意')
+    expect(form.showCw.value).toBe(true)
+    expect(form.visibility.value).toBe('followers')
+    expect(form.localOnly.value).toBe(true)
+  })
+
+  it('添付ファイルを復元する', () => {
+    const form = mount()
+    form.restoreFromNote(makeNote({ files: [makeFile('f1'), makeFile('f2')] }))
+    expect(form.attachedFiles.value.map((f) => f.id)).toEqual(['f1', 'f2'])
+  })
+
+  it('アンケートを復元する', () => {
+    const form = mount()
+    form.restoreFromNote(
+      makeNote({
+        files: [],
+        poll: {
+          choices: [
+            { text: 'きのこ', votes: 3, isVoted: false },
+            { text: 'たけのこ', votes: 1, isVoted: true },
+          ],
+          multiple: true,
+          expiresAt: '2026-08-10T00:00:00.000Z',
+        },
+      }),
+    )
+    expect(form.showPoll.value).toBe(true)
+    expect(form.pollChoices.value).toEqual(['きのこ', 'たけのこ'])
+    expect(form.pollMultiple.value).toBe(true)
+    expect(form.pollExpiresAt.value).toBe(
+      new Date('2026-08-10T00:00:00.000Z').getTime(),
+    )
+  })
+
+  it('CW もアンケートも無いノートでは入力欄を開かない', () => {
+    const form = mount()
+    form.restoreFromNote(makeNote({ text: 'ただの本文', cw: null, files: [] }))
+    expect(form.showCw.value).toBe(false)
+    expect(form.showPoll.value).toBe(false)
+    expect(form.pollExpiresAt.value).toBeNull()
+  })
+})
+
 describe('auto-save watch', () => {
   beforeEach(() => {
     vi.useFakeTimers()

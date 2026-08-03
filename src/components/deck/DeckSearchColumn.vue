@@ -834,6 +834,7 @@ onUnmounted(() => {
       :reply-to="postForm.replyTo.value"
       :renote-id="postForm.renoteId.value"
       :edit-note="postForm.editNote.value"
+      :initial-note="postForm.initialNote.value"
       :initial-text="postForm.initialText.value"
       :initial-cw="postForm.initialCw.value"
       :initial-visibility="postForm.initialVisibility.value"
