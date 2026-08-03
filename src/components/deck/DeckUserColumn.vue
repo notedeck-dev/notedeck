@@ -2,6 +2,7 @@
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
 const props = defineProps<{
@@ -9,6 +10,7 @@ const props = defineProps<{
 }>()
 
 const accountsStore = useAccountsStore()
+const cacheKeyDeps = accountsCacheKeyDeps()
 
 const noteColumnConfig: NoteColumnConfig = {
   getColumn: () => props.column,
@@ -17,7 +19,7 @@ const noteColumnConfig: NoteColumnConfig = {
     adapter.api.getUserNotes(props.column.userId!, opts),
   validate: () => !!props.column.userId,
   cache: {
-    getKey: () => (props.column.userId ? `user:${props.column.userId}` : null),
+    getKey: () => columnCacheKey(props.column, cacheKeyDeps),
   },
   refreshFetch: async (adapter, currentNotes) => {
     // biome-ignore lint/style/noNonNullAssertion: guarded by validate

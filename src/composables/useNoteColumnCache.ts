@@ -22,11 +22,18 @@ export async function loadCachedTimeline(
   ) as unknown as NormalizedNote[]
 }
 
-/** Load older cached notes before a given timestamp. */
+/**
+ * Load older cached notes before a given cursor.
+ *
+ * `beforeNoteId` は keyset cursor の tie-break。`before` と同一ノート由来の
+ * ペアで渡すこと — 同一 createdAt が limit 以上並ぶバケットでも前進できる
+ * (notecli#30 v5 §6-14)。null なら現行互換の createdAt 包含比較。
+ */
 export async function loadCachedTimelineBefore(
   accountId: string,
   timelineType: string,
   before: string,
+  beforeNoteId: string | null,
   limit?: number,
 ): Promise<NormalizedNote[]> {
   const effectiveLimit =
@@ -36,6 +43,7 @@ export async function loadCachedTimelineBefore(
       accountId,
       timelineType,
       before,
+      beforeNoteId,
       effectiveLimit,
     ),
   ) as unknown as NormalizedNote[]
@@ -56,27 +64,25 @@ export async function purgeStaleCachedNotes(
 
   const noteStore = useNoteStore()
   try {
-    const verified = unwrap(
-      await commands.apiVerifyNotes(accountId, idsToVerify),
-    ) as Record<string, NormalizedNote>
+    const result = unwrap(await commands.apiVerifyNotes(accountId, idsToVerify))
 
     if (!isStillMounted()) return
 
-    const verifiedIds = new Set(Object.keys(verified))
-
     // Update confirmed notes with fresh data
-    for (const [id, fresh] of Object.entries(verified)) {
-      noteStore.update(id, fresh)
+    for (const [id, fresh] of Object.entries(result.verified)) {
+      if (fresh) noteStore.update(id, fresh as unknown as NormalizedNote)
     }
 
-    // Purge notes that no longer exist on the server.
-    // verify-miss は heuristic（一時的 false-negative）なので tombstone しない。
-    // 生きたノートをセッション中ずっと永久非表示にしてしまう false-positive を避ける。
-    for (const id of idsToVerify) {
-      if (!verifiedIds.has(id)) {
-        noteStore.remove(id, false)
-        commands.apiDeleteCachedNote(id).catch(catchLog('delete-cached-note'))
-      }
+    // 削除するのは `missing` (サーバーが NO_SUCH_NOTE を返した = 削除確認済み)
+    // のみ。verified にも missing にも無い id は通信エラー・レート制限等の
+    // 「生存扱い」なので触らない — 復帰直後の不安定なネットワークでキャッシュを
+    // 誤って恒久削除しない (notecli#30 v5 §6-8)。
+    // verify-miss を tombstone しないのは従来どおり (false-positive 回避)。
+    for (const id of result.missing) {
+      noteStore.remove(id, false)
+      commands
+        .apiDeleteCachedNote(accountId, id)
+        .catch(catchLog('delete-cached-note'))
     }
   } catch {
     // Bulk verify failed — silently ignore (notes stay cached)
@@ -89,10 +95,11 @@ export async function purgeStaleCachedNotes(
  * FTS5 で粗く絞ってから Rust の QIR 評価器で判定するので、条件に合うノートを
  * 見つけるまで遡れる。`before` より古い側を、走査上限まで読んで探す。
  *
- * タイムライン種別では絞らない。キャッシュの所属は 1 ノート 1 種別で後勝ち
- * 上書きなので、種別で絞ると本来あるはずのノートを取りこぼす (notecli#30 で
- * 実体と所属を分離する再設計が計画されている)。取りこぼしより、別種別の
- * ノートが混ざる方が気づけるため、絞らない側に倒している。
+ * タイムライン種別では絞らない。notecli#30 で実体 (notes_cache) と所属
+ * (note_timelines) は分離済みだが、この scan は今も全所属横断で走査する。
+ * カラムの所属バケットで絞る bucket スコープ検索は follow-up
+ * (notecli#30 v5 §12-9)。取りこぼしより、別種別のノートが混ざる方が
+ * 気づけるため、それまでは絞らない側に倒している。
  */
 export async function searchCachedNotesByQuery(
   accountId: string,

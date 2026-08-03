@@ -10,8 +10,7 @@ import {
 const timelineKey = (accountId: string): QueryKey => ({
   kind: 'timeline',
   account_id: accountId,
-  timeline_type: 'home',
-  list_id: null,
+  key: 'home',
 })
 
 describe('queryRegistry', () => {

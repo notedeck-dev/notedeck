@@ -18,6 +18,7 @@ import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
+import { FAVORITES_CACHE_KEY } from '@/utils/columnCacheKey'
 import { AppError } from '@/utils/errors'
 import { toggleFavorite } from '@/utils/toggleFavorite'
 import { toggleReaction } from '@/utils/toggleReaction'
@@ -306,7 +307,7 @@ export function useColumnSetup(
     if (!adapter || checkOffline()) return
     try {
       await toggleFavorite(adapter.api, note, notifyMutationFor(note))
-      useDeckStore().invalidateColumnByKey('favorites')
+      useDeckStore().invalidateColumnByKey(FAVORITES_CACHE_KEY)
     } catch (e) {
       const err = AppError.from(e)
       if (err.displayCode === 'ALREADY_FAVORITED') {
@@ -325,7 +326,7 @@ export function useColumnSetup(
             await adapter.api.deleteFavorite(note.id)
             note.isFavorited = false
             notifyMutationFor(note)()
-            useDeckStore().invalidateColumnByKey('favorites')
+            useDeckStore().invalidateColumnByKey(FAVORITES_CACHE_KEY)
           } catch (e2) {
             const err2 = AppError.from(e2)
             console.error('[bookmark:unfavorite]', err2.code, err2.message)

@@ -7,9 +7,9 @@ import { useColumnResize } from '@/composables/useColumnResize'
 import { useColumnScroll } from '@/composables/useColumnScroll'
 import { useHorizontalWheel } from '@/composables/useHorizontalWheel'
 import * as snapshotStore from '@/composables/useSnapshotStore'
-import type { DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useIsCompactLayout } from '@/stores/ui'
+import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { COLUMN_SELECTOR } from '@/utils/themeVars'
 import DeckStackCell from './DeckStackCell.vue'
 
@@ -67,38 +67,15 @@ const horizontalWheel = useHorizontalWheel({
   columnSelector: COLUMN_SELECTOR,
 })
 
-// Derive a snapshot cache key from column config (mirrors each column's cache.getKey())
-function getColumnCacheKey(col: DeckColumn): string | null {
-  switch (col.type) {
-    case 'timeline':
-      return col.tl ?? null
-    case 'antenna':
-      return col.antennaId ? `antenna:${col.antennaId}` : null
-    case 'channel':
-      return col.channelId ? `channel:${col.channelId}` : null
-    case 'clip':
-      return col.clipId ? `clip:${col.clipId}` : null
-    case 'user':
-      return col.userId ? `user:${col.userId}` : null
-    case 'list':
-      return col.listId ? `list:${col.listId}` : null
-    case 'favorites':
-      return 'favorites'
-    case 'mentions':
-    case 'specified':
-      return 'mentions'
-    case 'explore':
-      return 'explore'
-    default:
-      return null
-  }
-}
+// Snapshot cache key: 各カラムの cache.getKey() と同一の共有導出
+// (columnCacheKey) を使う。手組みミラーの表記ゆれバグを構造的に防ぐ。
+const cacheKeyDeps = accountsCacheKeyDeps()
 
 /** Get snapshot preview lines for an unmounted column shell */
 function getShellPreview(colId: string): string[] {
   const col = columnMap.value.get(colId)
   if (!col) return []
-  const cacheKey = getColumnCacheKey(col)
+  const cacheKey = columnCacheKey(col, cacheKeyDeps)
   if (!cacheKey) return []
   const snap = snapshotStore.restore(colId, cacheKey)
   if (!snap) return []

@@ -52,11 +52,10 @@ export function getQueryInfo(queryId: string): QueryInfo | undefined {
 
 function queryKeyToInfo(key: QueryKey): QueryInfo | null {
   switch (key.kind) {
+    // notes 系購読は 'timeline' に折り畳まれた (notecli#30 v5 §6-5)。
+    // antenna/channel/role/mentions は key.key の canonical 文字列
+    // (antenna:{id} 等) で区別される
     case 'timeline':
-    case 'antenna':
-    case 'channel':
-    case 'role':
-    case 'mentions':
       return { flavor: 'note', accountId: key.account_id }
     case 'notifications':
       return { flavor: 'notification', accountId: key.account_id }

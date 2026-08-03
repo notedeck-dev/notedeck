@@ -13,6 +13,7 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
@@ -23,19 +24,19 @@ const props = defineProps<{
 
 const isSpecified = computed(() => props.column.type === 'specified')
 
+const cacheKeyDeps = accountsCacheKeyDeps()
+
 const config = computed(() =>
   isSpecified.value
     ? {
         title: 'ダイレクト',
         icon: 'ti-mail',
         emptyText: 'ダイレクトメッセージはありません',
-        cacheKey: 'specified' as const,
       }
     : {
         title: 'あなた宛て',
         icon: 'ti-at',
         emptyText: 'メンションはありません',
-        cacheKey: 'mentions' as const,
       },
 )
 
@@ -48,7 +49,7 @@ const noteColumnConfig: NoteColumnConfig = {
     isSpecified.value
       ? adapter.api.getMentions({ ...opts, visibility: 'specified' })
       : adapter.api.getMentions(opts),
-  cache: { getKey: () => config.value.cacheKey },
+  cache: { getKey: () => columnCacheKey(props.column, cacheKeyDeps) },
   streaming: {
     subscribe: (_adapter, enqueue, callbacks) => {
       // useNoteColumn.connect が account.value.hasToken をガードしているので、
@@ -101,7 +102,7 @@ const {
       ? adapter.api.getMentions({ ...opts, visibility: 'specified' })
       : adapter.api.getMentions(opts),
   isCrossAccount: () => isCrossAccount.value,
-  cacheKey: () => config.value.cacheKey,
+  cacheKey: () => columnCacheKey(props.column, cacheKeyDeps),
   isLoading,
   error,
   scroller,

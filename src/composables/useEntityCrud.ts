@@ -3,6 +3,11 @@ import type { DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { usePrompt } from '@/stores/prompt'
 import { useToast } from '@/stores/toast'
+import {
+  antennaCacheKey,
+  clipCacheKey,
+  userListCacheKey,
+} from '@/utils/columnCacheKey'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -21,6 +26,8 @@ export const ENTITY_CONFIGS: Record<
     idKey: EntityIdKey
     updateEndpoint: string
     deleteEndpoint: string
+    /** エンティティ削除後に掃除する timeline キャッシュの canonical キー */
+    cacheKey: (entityId: string) => string
   }
 > = {
   clip: {
@@ -28,18 +35,21 @@ export const ENTITY_CONFIGS: Record<
     idKey: 'clipId',
     updateEndpoint: 'clips/update',
     deleteEndpoint: 'clips/delete',
+    cacheKey: clipCacheKey,
   },
   list: {
     label: 'リスト',
     idKey: 'listId',
     updateEndpoint: 'users/lists/update',
     deleteEndpoint: 'users/lists/delete',
+    cacheKey: userListCacheKey,
   },
   antenna: {
     label: 'アンテナ',
     idKey: 'antennaId',
     updateEndpoint: 'antennas/update',
     deleteEndpoint: 'antennas/delete',
+    cacheKey: antennaCacheKey,
   },
 }
 
@@ -101,6 +111,15 @@ export function useEntityCrud(type: EntityType, getColumn: () => DeckColumn) {
           [config.idKey]: entityId,
         }),
       )
+      // サーバー削除成功後、死にバケットの membership を掃除 (notecli#30 v5
+      // §6-7 / R11-1)。fire-and-forget — 失敗しても stale キャッシュが残る
+      // だけなので warn + 続行
+      commands
+        .apiClearTimelineCache(col.accountId, config.cacheKey(entityId))
+        .then((r) => unwrap(r))
+        .catch((e) => {
+          console.warn('[entity:delete] clear-timeline-cache failed:', e)
+        })
       deckStore.removeColumn(col.id)
       toast.show(`${config.label}を削除しました`)
     } catch (e) {

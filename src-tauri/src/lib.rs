@@ -365,7 +365,14 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             let db = match db_handle.join().expect("db open thread panicked") {
                 Ok(d) => std::sync::Arc::new(d),
                 Err(e) => {
+                    // watch channel が埋まらず db()/ready() 系コマンドは無限待機に
+                    // なるため、フロントへ明示的に致命エラーを通知する
+                    // (V6 級 migration の正常 1 分ブロックとの区別に必要)
                     tracing::error!("Fatal: DB open failed: {e}");
+                    let _ = app_handle.emit(
+                        "nd:backend-fatal",
+                        format!("database open failed: {}", e.safe_message()),
+                    );
                     return;
                 }
             };
@@ -755,6 +762,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::api_lookup_user,
             commands::api_get_cached_timeline,
             commands::api_delete_cached_note,
+            commands::api_clear_timeline_cache,
             commands::api_verify_notes,
             commands::api_get_cached_timeline_before,
             commands::api_get_cache_date_range,
@@ -956,7 +964,6 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             query_runtime::query_subscribe_notifications,
             query_runtime::query_subscribe_chat_user,
             query_runtime::query_subscribe_chat_room,
-            query_runtime::query_open,
             query_runtime::query_set_runtime_state,
             query_runtime::query_close,
             query_runtime::query_get_snapshot,

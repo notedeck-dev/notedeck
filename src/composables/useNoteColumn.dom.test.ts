@@ -142,6 +142,8 @@ let pinia: ReturnType<typeof createPinia>
 beforeEach(() => {
   bindings.calls.length = 0
   for (const k of Object.keys(bindings.responses)) delete bindings.responses[k]
+  // VerifyNotesResult 形 (空配列既定では missing の for-of が throw する)
+  bindings.responses.apiVerifyNotes = { verified: {}, missing: [] }
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-07-01T12:00:00Z'))
   pinia = createPinia()
@@ -521,6 +523,8 @@ describe('useNoteColumn: フェッチカーソル (#831 Step 0)', () => {
       (c) => c.name === 'apiGetCachedTimelineBefore',
     )
     expect(before?.args[2]).toBe(note('h04').createdAt)
+    // keyset cursor は createdAt と同一ノート由来の note_id をペアで渡す (§6-14)
+    expect(before?.args[3]).toBe('h04')
   })
 
   it('reconnect でカーソルがリセットされ、旧世代の位置から取り直さない', async () => {

@@ -18,6 +18,7 @@ import { useTabSlide } from '@/composables/useTabSlide'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import type { CustomTimelineInfo } from '@/utils/customTimelines'
 import {
   clearAvailableTlCache,
@@ -41,6 +42,7 @@ const props = defineProps<{
 
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
+const cacheKeyDeps = accountsCacheKeyDeps()
 
 // Guest accounts can only access public timelines (local/global), not home/social
 const accountData = accountsStore.accountMap.get(props.column.accountId ?? '')
@@ -52,6 +54,12 @@ const initialTl: TimelineType =
     ? defaultTl
     : savedTl || defaultTl
 const tlType = ref<TimelineType>(initialTl)
+// guest の TL 強制変換 (home/social → local、未設定 → local) はメモリ上だけ
+// でなく永続化する。静的キー導出 (columnCacheKey) と getKey の恒久不一致を
+// 防ぐ (notecli#30 v5 §6-13)
+if (isGuestAccountForTl && savedTl !== initialTl) {
+  deckStore.updateColumn(props.column.id, { tl: initialTl })
+}
 
 // --- Filter ---
 const columnFilters = computed<TimelineFilter>(() => props.column.filters ?? {})
@@ -119,7 +127,7 @@ const noteColumnConfig: NoteColumnConfig = {
     }
   },
   cache: {
-    getKey: () => tlType.value,
+    getKey: () => columnCacheKey(props.column, cacheKeyDeps),
   },
   // フィルタ違いのカラム間で dedup レスポンスを共有しない (#651)
   fetchKey: () => JSON.stringify(columnFilters.value),

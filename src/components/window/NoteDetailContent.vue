@@ -308,7 +308,7 @@ async function handleDelete(target: NormalizedNote) {
     const id = target.id
     noteStore.remove(id)
     commands
-      .apiDeleteCachedNote(id)
+      .apiDeleteCachedNote(target._accountId, id)
       .then((r) => unwrap(r))
       .catch((e) => {
         if (import.meta.env.DEV)
@@ -336,7 +336,7 @@ async function handleDeleteAndEdit(target: NormalizedNote) {
     const id = target.id
     noteStore.remove(id)
     commands
-      .apiDeleteCachedNote(id)
+      .apiDeleteCachedNote(target._accountId, id)
       .then((r) => unwrap(r))
       .catch((e) => {
         if (import.meta.env.DEV)

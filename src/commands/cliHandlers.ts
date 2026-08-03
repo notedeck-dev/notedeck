@@ -1,6 +1,7 @@
 import type { NoteVisibility } from '@/adapters/types'
 import type { useAccountsStore } from '@/stores/accounts'
 import type { useDeckStore } from '@/stores/deck'
+import { FAVORITES_CACHE_KEY } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 export interface CliHandlerDeps {
@@ -324,14 +325,14 @@ export function createCliHandlers(
       const accountId = activeAccountId()
       if (!accountId || !args.trim()) return
       unwrap(await commands.apiCreateFavorite(accountId, args.trim()))
-      deps.deckStore.invalidateColumnByKey('favorites')
+      deps.deckStore.invalidateColumnByKey(FAVORITES_CACHE_KEY)
     },
 
     unfavorite: async (args) => {
       const accountId = activeAccountId()
       if (!accountId || !args.trim()) return
       unwrap(await commands.apiDeleteFavorite(accountId, args.trim()))
-      deps.deckStore.invalidateColumnByKey('favorites')
+      deps.deckStore.invalidateColumnByKey(FAVORITES_CACHE_KEY)
     },
 
     emojis: () => {

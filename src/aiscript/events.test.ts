@@ -105,8 +105,7 @@ describe('subscribeNoteDeckEvent (Phase 2: note:new / notification:new)', () => 
     return {
       kind: 'timeline',
       account_id: accountId,
-      timeline_type: 'home',
-      list_id: null,
+      key: 'home',
     }
   }
 
