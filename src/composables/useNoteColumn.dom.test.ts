@@ -14,7 +14,7 @@ import type {
   TimelineFilter,
 } from '@/adapters/types'
 import { type Account, useAccountsStore } from '@/stores/accounts'
-import type { DeckColumn } from '@/stores/deck'
+import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
 import { matchesFilter } from '@/utils/timelineFilter'
 import { type NoteColumnConfig, useNoteColumn } from './useNoteColumn'
@@ -176,6 +176,7 @@ function mountColumn(opts: {
   filters?: Ref<TimelineFilter | undefined>
   streaming?: boolean
   noteQuery?: string
+  noteQueryRefs?: string[]
 }) {
   const tlKey = ref('home')
   let api: ReturnType<typeof useNoteColumn> | null = null
@@ -189,6 +190,7 @@ function mountColumn(opts: {
             accountId: opts.accountId,
             filters: opts.filters?.value,
             noteQuery: opts.noteQuery,
+            noteQueryRefs: opts.noteQueryRefs,
           }) as DeckColumn,
         fetch: opts.fetch,
         cache: { getKey: () => tlKey.value },
@@ -762,5 +764,41 @@ describe('useNoteColumn: QIR キャッシュ検索 (#783 Phase 3)', () => {
       createdAt: '2026-06-30T00:00:00.000Z',
       noteId: 'h00',
     })
+  })
+})
+
+describe('useNoteColumn: 消えたクエリ参照からの復旧 (#783 追補 A)', () => {
+  it('参照先が無いクエリは fail-closed のまま id を露出する', async () => {
+    addAccount('acc-missing-ref')
+    const { api } = mountColumn({
+      accountId: 'acc-missing-ref',
+      columnId: 'col-missing',
+      noteQueryRefs: ['deleted-query'],
+      fetch: async () => [{ ...note('a'), text: 'x' } as NormalizedNote],
+    })
+    await flush()
+    // 参照が消えても勝手に外さない (再導入で戻せるように)
+    expect(api.columnQueryMissingIds.value).toEqual(['deleted-query'])
+    expect(api.columnQueryState.value.status).toBe('invalid')
+    expect(ids(api)).toEqual([])
+  })
+
+  it('参照を外すとカラム設定から取り除かれる', async () => {
+    addAccount('acc-drop-ref')
+    const deck = useDeckStore()
+    const updates: unknown[] = []
+    vi.spyOn(deck, 'updateColumn').mockImplementation((_id, patch) => {
+      updates.push(patch)
+    })
+    const { api } = mountColumn({
+      accountId: 'acc-drop-ref',
+      columnId: 'col-drop',
+      noteQueryRefs: ['deleted-query', 'another-deleted'],
+      fetch: async () => [],
+    })
+    await flush()
+
+    api.dropMissingQueryRefs()
+    expect(updates).toEqual([{ noteQueryRefs: undefined }])
   })
 })

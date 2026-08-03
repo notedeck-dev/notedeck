@@ -79,6 +79,8 @@ const {
   columnQuerySuspendedKeys,
   columnQuerySuspendedCount,
   resumeSuspendedQueries,
+  columnQueryMissingIds,
+  dropMissingQueryRefs,
   notes,
   orderedIds,
   focusedNoteId,
@@ -380,9 +382,22 @@ defineExpose({
         <i class="ti ti-bolt-off" />ポーリング
       </div>
 
+      <!-- 参照先が消えたクエリ: ここでしか外せないので導線を出す -->
+      <button
+        v-if="columnQueryMissingIds.length > 0"
+        class="_button"
+        :class="$style.queryInvalidBanner"
+        title="このカラムが参照しているクエリは削除されています。外すと新着の取り込みが戻ります"
+        @click="dropMissingQueryRefs"
+      >
+        <i class="ti ti-unlink" />
+        参照しているクエリが見つかりません
+        <span :class="$style.querySuspendedAction">参照を外す</span>
+      </button>
+
       <!-- クエリ評価不能 = fail-closed 中 (#783 不変条件 (f)) -->
       <div
-        v-if="columnQueryState.status === 'invalid'"
+        v-else-if="columnQueryState.status === 'invalid'"
         :class="$style.queryInvalidBanner"
         :title="queryBadgeTitle"
       >

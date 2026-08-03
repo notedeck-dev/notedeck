@@ -433,6 +433,25 @@ export function useNoteColumn(config: NoteColumnConfig) {
     return compiled.fast[0]?.query ?? null
   }
 
+  /** 参照先が消えた名前付きクエリの id (削除・未導入)。fail-closed の原因 */
+  const missingQueryIds = computed(() => compiledQuery.value?.missing ?? [])
+
+  /**
+   * 消えたクエリへの参照をこのカラムから外す。
+   *
+   * 参照は自動では掃除しない (再導入で復帰させたい・黙ってフィルタが外れるのを
+   * 避けたい、仕様追補 A) が、外す手段が無いと fail-closed から抜け出せない。
+   * フィルタメニューは存在するクエリしか列挙しないので、ここが唯一の導線になる。
+   */
+  function dropMissingQueryRefs(): void {
+    const col = config.getColumn()
+    const missing = new Set(missingQueryIds.value)
+    const refs = (col.noteQueryRefs ?? []).filter((id) => !missing.has(id))
+    useDeckStore().updateColumn(col.id, {
+      noteQueryRefs: refs.length > 0 ? refs : undefined,
+    })
+  }
+
   /**
    * サスペンドを解除して取り込みを再開する (V15 の明示再開)。
    * 自動では戻さない — 暴走したクエリを黙って走らせ直さないため。
@@ -1393,6 +1412,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
     columnQuerySuspendedKeys: suspendedQueryKeys,
     columnQuerySuspendedCount: querySuspendedCount,
     resumeSuspendedQueries,
+    columnQueryMissingIds: missingQueryIds,
+    dropMissingQueryRefs,
     notes,
     orderedIds,
     focusedNoteId,
