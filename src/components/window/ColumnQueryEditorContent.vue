@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Parser } from '@syuilo/aiscript'
 import { computed, ref } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
@@ -67,17 +68,37 @@ const warnings = computed(() =>
 )
 
 /**
- * ガードを式に差し込む。末尾式 (最後の非空行) の先頭に前置する形なので、
- * let 列や関数定義を持つソースでも定義側を壊さない。
+ * ガードを差し込んだソースを組み立てる。適用できない形なら null。
+ *
+ * 末尾式 (最後の非空行) を括弧で包んでから前置する。括弧が要るのは
+ * `A || B` のような式で、括弧なしだと && が || より強く結合してガードが
+ * 左辺にしか掛からないため。
+ *
+ * 末尾行が式として閉じていない形 (`@(note) { ... }` の `}` など) では
+ * 壊れた式になるので、組み立て結果をパースして通ったときだけ返す。
+ * AST の位置情報は式全体の範囲ではなく演算子や引数の位置を指すので、
+ * 位置ベースで囲む方法は採れない。
  */
-function applyGuard(guard: string): void {
+function buildGuarded(guard: string): string | null {
   const lines = source.value.split('\n')
   let i = lines.length - 1
   while (i >= 0 && lines[i]?.trim() === '') i--
   const target = lines[i]
-  if (i < 0 || target === undefined) return
-  lines[i] = `${guard} && ${target}`
-  source.value = lines.join('\n')
+  if (i < 0 || target === undefined) return null
+  const next = [...lines]
+  next[i] = `${guard} && (${target.trim()})`
+  const candidate = next.join('\n')
+  try {
+    new Parser().parse(candidate)
+  } catch {
+    return null
+  }
+  return candidate
+}
+
+function applyGuard(guard: string): void {
+  const next = buildGuarded(guard)
+  if (next !== null) source.value = next
 }
 
 /** 直近フォーカスした TL カラムのロード済みノートに対する dry-run。 */
@@ -173,9 +194,10 @@ async function save(): Promise<void> {
             <span v-if="w.line != null" :class="$style.diagLoc">{{ w.line }}行:</span>
             {{ w.message }}
             <button
+              v-if="buildGuarded(w.guard) !== null"
               class="_button"
               :class="$style.fixButton"
-              :title="`${w.guard} を先頭に入れます`"
+              :title="`末尾の式を ${w.guard} で守ります`"
               @click="applyGuard(w.guard)"
             >
               ガードを入れる

@@ -139,6 +139,12 @@ class Compiler {
    * and の右辺コンパイル中だけ積まれるので、or をまたいだ先には効かない。
    */
   private guardedPaths = new Set<string>()
+  /**
+   * note ルートの識別子名。`@(n) { ... }` 形式では `n` になる。
+   * ガード検出はソース上の名前で行うので、警告キーも同じ名前で作らないと
+   * 「ガードしてあるのに警告が出る」ことになる。
+   */
+  private noteRootName = 'note'
   /** unguarded な nullable 操作。フィールドごとに最初の 1 件だけ残す */
   private warnings = new Map<string, QueryWarning>()
   private inlineStack: Ast.Fn[] = []
@@ -233,6 +239,8 @@ class Compiler {
         )
       }
       const paramName = identifierName(param.dest, fn.loc)
+      // 警告・ガード検出はソース上の名前で行う (V25)
+      this.noteRootName = paramName
       const scope: Scope = new Map([[paramName, { kind: 'note' as const }]])
       return this.compileBody(fn.children, scope, fn.loc)
     }
@@ -328,7 +336,7 @@ class Compiler {
   private checkNullableReceiver(recv: Typed, loc: Ast.Loc): void {
     if ((recv.type & T_NULL) === 0) return
     if (recv.notePath === undefined) return
-    const field = `note.${recv.notePath.join('.')}`
+    const field = [this.noteRootName, ...recv.notePath].join('.')
     if (this.guardedPaths.has(field)) return
     if (this.warnings.has(field)) return
     this.warnings.set(field, {

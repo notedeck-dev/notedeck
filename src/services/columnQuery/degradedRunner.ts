@@ -95,6 +95,8 @@ export function createDegradedRunner(
     lastBegunKey: string | null
     timer: ReturnType<typeof setTimeout>
     onTimeout: () => void
+    /** 他バッチの巻き添えで打ち切るとき (犯人を出さずに終わらせる) */
+    abort: () => void
   }
   const pending = new Map<number, Pending>()
 
@@ -117,19 +119,32 @@ export function createDegradedRunner(
       })
     }
     w.onerror = () => {
-      // ロード失敗等。保留中は全部タイムアウトと同じ扱いにする
-      for (const [, entry] of [...pending]) {
-        clearTimeout(entry.timer)
-        entry.onTimeout()
-      }
+      // ロード失敗等。誰も暴走していないので犯人は出さず、全部中断扱いにする
+      killWorker()
     }
     worker = w
     return w
   }
 
-  function killWorker(): void {
+  /**
+   * Worker を捨てる。runner はカラム間で共有なので、terminate すると同時に
+   * 走っていた他バッチの応答も永久に来なくなる。放置すると各自のタイムアウトを
+   * 待たされたうえ、無実のフィルタが「最後に開始したもの」として犯人扱いされて
+   * サスペンドされる。捨てた時点で全部まとめて中断扱いにする。
+   *
+   * `except` はこの kill を引き起こした本人。犯人特定は呼び出し側で行うため
+   * ここでは解決しない。
+   */
+  function killWorker(except?: number): void {
     worker?.terminate()
     worker = null
+    for (const [id, entry] of [...pending]) {
+      if (id === except) continue
+      clearTimeout(entry.timer)
+      pending.delete(id)
+      // 巻き添えなので犯人を出さない (culprit=null = サスペンドせず fail-closed)
+      entry.abort()
+    }
   }
 
   /** Worker に 1 バッチ投げる。タイムアウトしたら犯人 key を返す */
@@ -149,8 +164,9 @@ export function createDegradedRunner(
       const onTimeout = () => {
         const entry = pending.get(id)
         pending.delete(id)
-        // 止められない評価を止める唯一の手段
-        killWorker()
+        // 止められない評価を止める唯一の手段。自分は犯人を返して解決するので
+        // 巻き添え処理の対象から外す
+        killWorker(id)
         resolve({ ok: false, culprit: entry?.lastBegunKey ?? null })
       }
       const timer = setTimeout(onTimeout, timeoutMs)
@@ -159,6 +175,7 @@ export function createDegradedRunner(
         lastBegunKey: null,
         timer,
         onTimeout,
+        abort: () => resolve({ ok: false, culprit: null }),
       })
       const request: ColumnQueryWorkerRequest = {
         id,

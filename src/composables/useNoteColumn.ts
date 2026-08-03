@@ -405,14 +405,16 @@ export function useNoteColumn(config: NoteColumnConfig) {
         admitted.push(note)
         return
       }
+      // サスペンド中は全件が error で返る。評価できていないだけなので
+      // 「保留」に数え、評価エラー・除外には積まない (積むとバッジの
+      // エラー件数が停止している間ずっと増え続ける)
+      if (isSuspended) {
+        querySuspendedCount.value++
+        return
+      }
       if (verdict === 'error') queryErrorCount.value++
       queryExcludedCount.value++
     })
-    // サスペンド中の取りこぼしは「保留」として別に数える。評価できていない
-    // だけで、条件に合わないと判定したわけではない
-    if (isSuspended) {
-      querySuspendedCount.value += notes.length - admitted.length
-    }
     return admitted
   }
 

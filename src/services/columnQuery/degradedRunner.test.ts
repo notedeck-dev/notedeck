@@ -178,6 +178,25 @@ describe('createDegradedRunner: 暴走の打ち切り (V15/V23)', () => {
   })
 })
 
+describe('createDegradedRunner: 巻き添えの防止', () => {
+  it('他バッチの terminate に巻き込まれても犯人扱いしない', async () => {
+    FakeWorker.hangOn = 'runaway'
+    const runner = makeRunner()
+    // 先に暴走バッチ、後から無関係なバッチ (同じ Worker を共有する)
+    const runaway = runner.run([{ key: 'runaway', source: 'loop {}' }], notes)
+    const bystander = runner.run([{ key: 'innocent', source: 'true' }], notes)
+    await vi.runAllTimersAsync()
+    await runaway
+    const out = await bystander
+
+    // 巻き添え側は fail-closed で返るが、フィルタはサスペンドしない
+    expect(out.suspended).toEqual([])
+    expect(runner.isSuspended('innocent')).toBe(false)
+    expect(runner.isSuspended('runaway')).toBe(true)
+    runner.dispose()
+  })
+})
+
 describe('createDegradedRunner: 空入力', () => {
   it('フィルタが無ければ Worker を起こさず全件 match', async () => {
     const runner = makeRunner()

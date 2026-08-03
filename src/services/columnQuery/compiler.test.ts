@@ -254,3 +254,23 @@ describe('compileColumnQuery: nullable ガード診断 (V25)', () => {
     expect(compileColumnQuery('note.text.incl("a")').ok).toBe(true)
   })
 })
+
+describe('compileColumnQuery: 名前付きクエリ形の nullable ガード (V25)', () => {
+  it('引数名が note 以外でもガードを認識する', () => {
+    // ガード検出はソース上の識別子で行うので、警告キーも同じ名前で作る必要がある
+    const result = compileColumnQuery(
+      '@(n) { n.text != null && n.text.incl("a") }',
+    )
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.warnings).toEqual([])
+  })
+
+  it('引数名が note 以外のときも unguarded は警告する', () => {
+    const result = compileColumnQuery('@(n) { n.text.incl("a") }')
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.warnings.map((w) => w.field)).toEqual(['n.text'])
+    expect(result.warnings[0]?.guard).toBe('n.text != null')
+  })
+})
