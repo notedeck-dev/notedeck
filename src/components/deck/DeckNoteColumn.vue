@@ -163,10 +163,12 @@ const queryBadgeTitle = computed(() => {
   return `クエリ適用中${err}${hint}`
 })
 
-/** バッジのアイコン: ⚡ 高速 / 逐次適用 / 評価不能 */
+/**
+ * バッジのアイコン。逐次適用だけはアイコンフォントを使わず 🐢 を出す
+ * (bolt と bolt-off は形が似ていて、色だけでは見分けがつかないため)
+ */
 const queryBadgeIcon = computed(() => {
   if (columnQueryState.value.status === 'invalid') return 'ti ti-alert-triangle'
-  if (columnQueryState.value.status === 'degraded') return 'ti ti-bolt-off'
   return 'ti ti-bolt'
 })
 
@@ -310,7 +312,11 @@ defineExpose({
           :title="queryBadgeTitle"
           @click.stop="openQueryManager"
         >
-          <i :class="queryBadgeIcon" />
+          <span
+            v-if="columnQueryState.status === 'degraded'"
+            :class="$style.queryBadgeTurtle"
+          >🐢</span>
+          <i v-else :class="queryBadgeIcon" />
           <span v-if="columnQueryErrorCount > 0">{{ columnQueryErrorCount }}</span>
         </button>
         <button
@@ -516,10 +522,16 @@ defineExpose({
   background: color-mix(in srgb, var(--nd-error) 12%, transparent);
 }
 
-/* 逐次適用に降格 = 効くが検索には使えない。ポーリングバナーと同じ扱い */
+/* 逐次適用に降格 = 効くが検索には使えない */
 .queryBadgeDegraded {
   color: var(--nd-warn);
   background: color-mix(in srgb, var(--nd-warn) 12%, transparent);
+}
+
+/* 絵文字はアイコンフォントより字面が大きいので少し詰める */
+.queryBadgeTurtle {
+  font-size: 0.9em;
+  line-height: 1;
 }
 
 /* フィルタメニュー (#841): サブヘッダ右端の共通トグルボタン */

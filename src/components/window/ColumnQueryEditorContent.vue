@@ -185,7 +185,7 @@ async function save(): Promise<void> {
       </template>
       <template v-else-if="isDegraded">
         <span :class="$style.statusSlow">
-          <i class="ti ti-bolt-off" />逐次適用 (1 件ずつ判定するため検索では使えません)
+          <span :class="$style.turtle">🐢</span>逐次適用 (1 件ずつ判定するため検索では使えません)
         </span>
         <ul :class="$style.degradedReasons">
           <li v-for="(d, i) in diagnostics" :key="i">
@@ -279,6 +279,11 @@ async function save(): Promise<void> {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.turtle {
+  font-size: 1.1em;
+  line-height: 1;
 }
 
 .degradedReasons {
