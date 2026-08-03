@@ -8,11 +8,15 @@
 //! 意味論は AiScript 1.2.1 と同一 (不変条件 (a))。全評価器は共有 golden vector
 //! (src/services/columnQuery/golden/vectors.json) で一致を検証する。
 
+use super::{AppState, Result};
+use notecli::db::CachedNoteCursor;
+use notecli::error::NoteDeckError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use specta::Type;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use tauri::State;
 
 /// QIR スキーマ世代。互換性のない構造変更で上げる。
 pub const QIR_SCHEMA_VERSION: u32 = 1;
@@ -234,6 +238,87 @@ pub fn qir_validate(query: QirQuery) -> QirValidation {
     }
 }
 
+/// キャッシュ検索の結果 (Phase 3)。
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct QirSearchResult {
+    pub notes: Vec<notecli::models::NormalizedNote>,
+    /// 実際に読んだ行数 (走査上限に対する進み具合)
+    pub scanned: u32,
+    /// per-note エラーで除外した件数 (V14 の診断計上)
+    pub errors: u32,
+    /// 走査上限で打ち切ったときの継続位置。読み切った場合は null
+    pub cursor: Option<QirSearchCursor>,
+}
+
+/// 継続カーソル。次の呼び出しにそのまま渡す。
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct QirSearchCursor {
+    pub created_at: String,
+    pub note_id: String,
+}
+
+/// ローカルキャッシュをクエリで検索する (#783 Phase 3)。
+///
+/// FTS5 で粗く絞ってから QIR 評価器で判定する。押し込むリテラルの抽出は
+/// 偽陰性を出さない規則に従うので (不変条件 (b))、FTS で落ちたノートが
+/// 本来マッチするということはない。
+///
+/// 走査上限に達したら打ち切って継続カーソルを返す。呼び出し側は必要なだけ
+/// 繰り返す (一度の呼び出しで巨大キャッシュを読み切らせない)。
+#[tauri::command]
+#[specta::specta]
+pub async fn qir_search_cache(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    query: QirQuery,
+    limit: Option<u32>,
+    max_scanned_rows: Option<u32>,
+    cursor: Option<QirSearchCursor>,
+) -> Result<QirSearchResult> {
+    let validation = qir_validate(query.clone());
+    if !validation.ok {
+        return Err(NoteDeckError::InvalidInput(validation.errors.join(", ")));
+    }
+    let literals = extract_fts_literals(&query);
+    let limit = limit.unwrap_or(40).clamp(1, 200) as usize;
+    let max_scanned = max_scanned_rows.unwrap_or(2000).clamp(1, 20_000) as usize;
+    let after = cursor.map(|c| CachedNoteCursor {
+        created_at: c.created_at,
+        note_id: c.note_id,
+    });
+
+    let db = app_state.db().await;
+    let scan = db.scan_cached_notes(
+        &account_id,
+        &literals,
+        limit,
+        max_scanned,
+        after.as_ref(),
+        |note| match serde_json::to_value(note) {
+            Ok(value) => match evaluate_qir(&query, &value) {
+                QirVerdict::Match => Some(true),
+                QirVerdict::Unmatch => Some(false),
+                QirVerdict::Error => None,
+            },
+            // 手元の値を JSON に戻せない = 評価対象の形にできない。
+            // None を返せば scan 側が per-note エラーとして数える
+            Err(_) => None,
+        },
+    )?;
+
+    Ok(QirSearchResult {
+        notes: scan.notes,
+        scanned: scan.scanned as u32,
+        errors: scan.errors as u32,
+        cursor: scan.cursor.map(|c| QirSearchCursor {
+            created_at: c.created_at,
+            note_id: c.note_id,
+        }),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -320,7 +405,7 @@ pub enum QirVerdict {
 struct EvalError;
 
 #[allow(dead_code)]
-type EvalResult<'a> = Result<Cow<'a, JsonValue>, EvalError>;
+type EvalResult<'a> = std::result::Result<Cow<'a, JsonValue>, EvalError>;
 
 #[allow(dead_code)]
 struct Evaluator<'a> {

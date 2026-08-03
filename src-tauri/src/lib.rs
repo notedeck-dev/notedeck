@@ -687,6 +687,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::create_guest_account,
             commands::cache_stats,
             commands::qir_validate,
+            commands::qir_search_cache,
             commands::account_cache_count,
             commands::clear_account_cache,
             commands::clear_all_cache,
