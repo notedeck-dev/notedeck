@@ -23,6 +23,8 @@ import { type NoteColumnConfig, useNoteColumn } from './useNoteColumn'
 // 呼び出しは記録し、キャッシュ系アサーションで参照する
 const bindings = vi.hoisted(() => ({
   calls: [] as { name: string; args: unknown[] }[],
+  /** コマンド名ごとの応答。未設定なら空配列 (既存テストの既定) */
+  responses: {} as Record<string, unknown>,
 }))
 
 vi.mock('@/bindings', () => ({
@@ -33,7 +35,8 @@ vi.mock('@/bindings', () => ({
         (_t, name: string) =>
         (...args: unknown[]) => {
           bindings.calls.push({ name, args })
-          return Promise.resolve({ status: 'ok', data: [] })
+          const data = bindings.responses[name] ?? []
+          return Promise.resolve({ status: 'ok', data })
         },
     },
   ),
@@ -138,6 +141,7 @@ let pinia: ReturnType<typeof createPinia>
 
 beforeEach(() => {
   bindings.calls.length = 0
+  for (const k of Object.keys(bindings.responses)) delete bindings.responses[k]
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-07-01T12:00:00Z'))
   pinia = createPinia()
@@ -677,5 +681,86 @@ describe('useNoteColumn: 🐢 逐次適用への降格 (#783 Phase 2c)', () => {
     expect(api.columnQueryState.value.status).toBe('invalid')
     expect(ids(api)).toEqual([])
     expect(degraded.runCalls).toEqual([])
+  })
+})
+
+describe('useNoteColumn: QIR キャッシュ検索 (#783 Phase 3)', () => {
+  const FAST_QUERY = 'note.text != null'
+  const SLOW_QUERY = 'note.text != null && note.text.len > 3'
+
+  const searchCalls = () =>
+    bindings.calls.filter((c) => c.name === 'qirSearchCache')
+  const legacyCalls = () =>
+    bindings.calls.filter((c) => c.name === 'apiGetCachedTimelineBefore')
+
+  /**
+   * オフライン fallback でキャッシュ経路に入らせる。
+   * dedup レスポンスキャッシュ (TTL 5s) を跨がないよう accountId は毎回変える
+   */
+  async function mountOfflineColumn(
+    accountId: string,
+    noteQuery: string | undefined,
+  ) {
+    addAccount(accountId)
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([{ ...note('h05'), text: 'hello' }])
+      .mockRejectedValueOnce(new Error('offline'))
+    const { api } = mountColumn({
+      accountId,
+      noteQuery,
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+    await api.loadMore()
+    await flush()
+    return api
+  }
+
+  it('⚡ クエリのカラムはキャッシュ検索コマンドを使う', async () => {
+    bindings.responses.qirSearchCache = {
+      notes: [],
+      scanned: 0,
+      errors: 0,
+      cursor: null,
+    }
+    await mountOfflineColumn('acc-search-fast', FAST_QUERY)
+    expect(searchCalls()).toHaveLength(1)
+    expect(legacyCalls()).toHaveLength(0)
+  })
+
+  it('クエリが無いカラムは従来のキャッシュ経路のまま', async () => {
+    await mountOfflineColumn('acc-search-none', undefined)
+    expect(searchCalls()).toHaveLength(0)
+    expect(legacyCalls()).toHaveLength(1)
+  })
+
+  it('🐢 降格クエリは QIR を持たないので従来経路', async () => {
+    await mountOfflineColumn('acc-search-slow', SLOW_QUERY)
+    expect(searchCalls()).toHaveLength(0)
+    expect(legacyCalls()).toHaveLength(1)
+  })
+
+  it('見つかったノートを取り込み、打ち切りカーソルから次を続ける', async () => {
+    bindings.responses.qirSearchCache = {
+      notes: [{ ...note('h01'), text: 'hit' }],
+      scanned: 2000,
+      errors: 3,
+      // 走査上限で打ち切り
+      cursor: { createdAt: '2026-06-30T00:00:00.000Z', noteId: 'h00' },
+    }
+    const api = await mountOfflineColumn('acc-search-cursor', FAST_QUERY)
+    expect(ids(api)).toContain('h01')
+    // per-note エラーは診断に積まれる
+    expect(api.columnQueryErrorCount.value).toBeGreaterThanOrEqual(3)
+
+    // 次の loadMore は打ち切り位置から続ける
+    await api.loadMore()
+    await flush()
+    const second = searchCalls()[1]
+    expect(second?.args[4]).toEqual({
+      createdAt: '2026-06-30T00:00:00.000Z',
+      noteId: 'h00',
+    })
   })
 })

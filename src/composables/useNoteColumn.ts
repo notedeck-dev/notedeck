@@ -24,6 +24,7 @@ import {
   loadCachedTimeline,
   loadCachedTimelineBefore,
   purgeStaleCachedNotes,
+  searchCachedNotesByQuery,
 } from '@/composables/useNoteColumnCache'
 import { useNoteFocus } from '@/composables/useNoteFocus'
 import { useNoteList } from '@/composables/useNoteList'
@@ -53,6 +54,11 @@ import { AppError } from '@/utils/errors'
 import { logWarn } from '@/utils/logger'
 import { insertIntoSorted } from '@/utils/sortNotes'
 import { matchesFilter } from '@/utils/timelineFilter'
+
+/** QIR キャッシュ検索が 1 度に返すノート数 (#783 Phase 3) */
+const CACHE_SEARCH_LIMIT = 40
+/** 1 度の呼び出しで読む行数の上限。超えたら打ち切ってカーソルを返す */
+const CACHE_SEARCH_MAX_SCANNED_ROWS = 2000
 
 /** 🐢 逐次適用へ降格したクエリパーツ (Phase 2)。key はサスペンドの単位 */
 interface DegradedPart {
@@ -408,6 +414,23 @@ export function useNoteColumn(config: NoteColumnConfig) {
       querySuspendedCount.value += notes.length - admitted.length
     }
     return admitted
+  }
+
+  /**
+   * QIR キャッシュ検索に使えるクエリ (#783 Phase 3)。
+   *
+   * ⚡ の単一パーツに限る。複数パーツを And で束ねると let のスロット番号が
+   * パーツ間で衝突しうるし、🐢 パーツは QIR を持たない。該当しないカラムは
+   * 従来どおり「キャッシュから読んでフロントで絞る」経路を通る。
+   */
+  function cacheSearchableQuery(): QirQuery | null {
+    const compiled = compiledQuery.value
+    if (!compiled) return null
+    if (compiled.degraded.length > 0 || compiled.rejected.length > 0)
+      return null
+    if (compiled.missing.length > 0) return null
+    if (compiled.fast.length !== 1) return null
+    return compiled.fast[0]?.query ?? null
   }
 
   /**
@@ -938,6 +961,39 @@ export function useNoteColumn(config: NoteColumnConfig) {
     const stillCurrent = tabGuard()
     isLoading.value = true
     try {
+      const searchable = cacheSearchableQuery()
+      if (searchable) {
+        // 条件に合うノートが見つかるまでキャッシュを遡る (Phase 3)。
+        // 「40 件読んで全部フィルタで落ちる」空振りをここで吸収する
+        const cursor = fetchCursor.value
+          ? {
+              createdAt: fetchCursor.value.createdAt,
+              noteId: fetchCursor.value.id,
+            }
+          : null
+        const found = await searchCachedNotesByQuery(
+          column.accountId,
+          searchable,
+          cursor,
+          CACHE_SEARCH_LIMIT,
+          CACHE_SEARCH_MAX_SCANNED_ROWS,
+        )
+        if (!stillCurrent()) return
+        queryErrorCount.value += found.errors
+        if (found.cursor) {
+          // 走査上限で打ち切った位置から次回続ける
+          fetchCursor.value = {
+            id: found.cursor.noteId,
+            createdAt: found.cursor.createdAt,
+          }
+        } else {
+          advanceFetchCursor(found.notes)
+        }
+        if (found.notes.length > 0) {
+          await setNotesPaged(insertIntoSorted(rawNotes.value, found.notes))
+        }
+        return
+      }
       const older = await loadCachedTimelineBefore(
         column.accountId,
         cacheKey,
