@@ -51,6 +51,14 @@ const diagnostics = computed(() =>
 )
 
 /**
+ * QIR にできないが純粋な式は 🐢 逐次適用として保存できる (#783 Phase 2)。
+ * 診断は「なぜ降格したか」の説明であって、保存を止める理由ではない。
+ */
+const isDegraded = computed(
+  () => compiled.value?.ok === false && compiled.value.degradable,
+)
+
+/**
  * null ガード漏れの警告 (V25)。コンパイルは通るが、そのまま保存すると
  * 画像のみのノートや純リノートが丸ごと消えるので保存前に気づかせる。
  */
@@ -93,7 +101,7 @@ const dryRun = computed(() => {
 
 const canSave = computed(
   () =>
-    compiled.value?.ok === true &&
+    (compiled.value?.ok === true || isDegraded.value) &&
     queryName.value.trim() !== '' &&
     source.value.trim() !== '',
 )
@@ -175,6 +183,17 @@ async function save(): Promise<void> {
           </li>
         </ul>
       </template>
+      <template v-else-if="isDegraded">
+        <span :class="$style.statusSlow">
+          <i class="ti ti-bolt-off" />逐次適用 (1 件ずつ判定するため検索では使えません)
+        </span>
+        <ul :class="$style.degradedReasons">
+          <li v-for="(d, i) in diagnostics" :key="i">
+            <span v-if="d.line != null" :class="$style.diagLoc">{{ d.line }}行:</span>
+            {{ d.message }}
+          </li>
+        </ul>
+      </template>
       <ul v-else :class="$style.diagnostics">
         <li v-for="(d, i) in diagnostics" :key="i">
           <i class="ti ti-alert-triangle" />
@@ -252,6 +271,22 @@ async function save(): Promise<void> {
 
 .dryRun {
   opacity: 0.75;
+}
+
+/* 🐢 逐次適用 (#783 Phase 2)。エラーではないので警告色で出す */
+.statusSlow {
+  color: var(--nd-warn);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.degradedReasons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  opacity: 0.75;
+  font-size: 0.9em;
 }
 
 .diagnostics {

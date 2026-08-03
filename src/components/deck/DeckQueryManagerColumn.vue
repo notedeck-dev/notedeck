@@ -104,9 +104,14 @@ const installedSections = computed<QuerySection[]>(() => {
   return sections.filter((s) => s.items.length > 0)
 })
 
-/** ⚡ = QIR コンパイル可 / false = 不能 (Phase 2 で逐次適用降格に対応予定) */
-function isFast(query: NamedQueryMeta): boolean {
-  return compileColumnQuery(query.src).ok
+/**
+ * クエリの実行形態 (#783)。
+ * fast = QIR で高速評価 / degraded = 純粋なので逐次適用へ降格 / invalid = 評価不能
+ */
+function executionOf(query: NamedQueryMeta): 'fast' | 'degraded' | 'invalid' {
+  const result = compileColumnQuery(query.src)
+  if (result.ok) return 'fast'
+  return result.degradable ? 'degraded' : 'invalid'
 }
 
 function refCount(query: NamedQueryMeta): number {
@@ -237,7 +242,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
               :description="query.description"
               :icon-url="query.iconUrl"
               :store-id="query.storeId"
-              :fast="isFast(query)"
+              :execution="executionOf(query)"
               :ref-count="refCount(query)"
               @edit="openEditor(query)"
               @delete="remove(query)"
