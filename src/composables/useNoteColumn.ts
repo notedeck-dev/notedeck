@@ -320,8 +320,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
   const queryErrorCount = ref(0)
   /** クエリで除外したノート数 (空状態の「TL が空」との区別表示用) */
   const queryExcludedCount = ref(0)
-  /** 暴走で打ち切られサスペンド中のフィルタ (2d の「N 件保留中」表示用) */
+  /** 暴走で打ち切られサスペンド中のフィルタ (「N 件保留中」表示用) */
   const suspendedQueryKeys = shallowRef<readonly string[]>([])
+  /** サスペンド中に判定できず取り込めなかった件数 */
+  const querySuspendedCount = ref(0)
 
   const columnQueryState = computed(() => {
     const compiled = compiledQuery.value
@@ -388,6 +390,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     suspendedQueryKeys.value = compiled.degraded
       .map((d) => d.key)
       .filter((key) => runner.isSuspended(key))
+    const isSuspended = suspendedQueryKeys.value.length > 0
     const admitted: NormalizedNote[] = []
     outcome.verdicts.forEach((verdict, i) => {
       const note = notes[i]
@@ -399,7 +402,24 @@ export function useNoteColumn(config: NoteColumnConfig) {
       if (verdict === 'error') queryErrorCount.value++
       queryExcludedCount.value++
     })
+    // サスペンド中の取りこぼしは「保留」として別に数える。評価できていない
+    // だけで、条件に合わないと判定したわけではない
+    if (isSuspended) {
+      querySuspendedCount.value += notes.length - admitted.length
+    }
     return admitted
+  }
+
+  /**
+   * サスペンドを解除して取り込みを再開する (V15 の明示再開)。
+   * 自動では戻さない — 暴走したクエリを黙って走らせ直さないため。
+   */
+  function resumeSuspendedQueries(): void {
+    const runner = getSharedDegradedRunner()
+    for (const key of suspendedQueryKeys.value) runner.resume(key)
+    suspendedQueryKeys.value = []
+    querySuspendedCount.value = 0
+    void refresh()
   }
 
   /** 合成クエリの実効シグネチャ (dedup キーと変更検知を兼ねる)。 */
@@ -1315,6 +1335,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
     columnQueryExcludedCount: queryExcludedCount,
     /** 暴走で打ち切られサスペンド中のクエリ (fail-closed 中のカラムを示す) */
     columnQuerySuspendedKeys: suspendedQueryKeys,
+    columnQuerySuspendedCount: querySuspendedCount,
+    resumeSuspendedQueries,
     notes,
     orderedIds,
     focusedNoteId,

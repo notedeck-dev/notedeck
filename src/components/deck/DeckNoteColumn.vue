@@ -76,6 +76,9 @@ const {
   columnQueryState,
   columnQueryErrorCount,
   columnQueryExcludedCount,
+  columnQuerySuspendedKeys,
+  columnQuerySuspendedCount,
+  resumeSuspendedQueries,
   notes,
   orderedIds,
   focusedNoteId,
@@ -148,8 +151,23 @@ const queryBadgeTitle = computed(() => {
     columnQueryErrorCount.value > 0
       ? ` (評価エラー ${columnQueryErrorCount.value} 件を除外)`
       : ''
+  if (columnQueryState.value.status === 'degraded') {
+    return `クエリ適用中 — 1 件ずつ判定するため検索では使えません${err}`
+  }
   return `クエリ適用中${err}`
 })
+
+/** バッジのアイコン: ⚡ 高速 / 逐次適用 / 評価不能 */
+const queryBadgeIcon = computed(() => {
+  if (columnQueryState.value.status === 'invalid') return 'ti ti-alert-triangle'
+  if (columnQueryState.value.status === 'degraded') return 'ti ti-bolt-off'
+  return 'ti ti-bolt'
+})
+
+// 暴走で打ち切られたクエリ (#783 V15)。自動では戻さず、明示操作で再開する
+const isQuerySuspended = computed(
+  () => columnQuerySuspendedKeys.value.length > 0,
+)
 
 // --- フィルタメニュー (#841): 組込トグル + クエリトグルを全ノートカラム共通で提供 ---
 const deckStore = useDeckStore()
@@ -273,10 +291,14 @@ defineExpose({
       <div :class="$style.subHeaderRow">
         <span
           v-if="columnQueryState.status !== 'none'"
-          :class="[$style.queryBadge, columnQueryState.status === 'invalid' && $style.queryBadgeInvalid]"
+          :class="[
+            $style.queryBadge,
+            columnQueryState.status === 'invalid' && $style.queryBadgeInvalid,
+            columnQueryState.status === 'degraded' && $style.queryBadgeDegraded,
+          ]"
           :title="queryBadgeTitle"
         >
-          <i :class="columnQueryState.status === 'invalid' ? 'ti ti-alert-triangle' : 'ti ti-bolt'" />
+          <i :class="queryBadgeIcon" />
           <span v-if="columnQueryErrorCount > 0">{{ columnQueryErrorCount }}</span>
         </span>
         <div :class="$style.subHeaderMain">
@@ -348,6 +370,20 @@ defineExpose({
       >
         <i class="ti ti-alert-triangle" />クエリを解釈できないため新着を停止中
       </div>
+
+      <!-- 暴走で打ち切ったクエリ: 明示操作でのみ再開する (#783 V15) -->
+      <button
+        v-else-if="isQuerySuspended"
+        class="_button"
+        :class="$style.querySuspendedBanner"
+        title="クエリの処理が終わらなかったため停止しました。再開すると取得し直します"
+        @click="resumeSuspendedQueries"
+      >
+        <i class="ti ti-player-pause" />
+        <span v-if="columnQuerySuspendedCount > 0">{{ columnQuerySuspendedCount }} 件保留中</span>
+        <span v-else>クエリを停止中</span>
+        <span :class="$style.querySuspendedAction">再開</span>
+      </button>
 
       <!-- Inline post form slot (e.g. channel column) -->
       <slot name="before-notes" :handle-posted="handlePosted" />
@@ -468,6 +504,12 @@ defineExpose({
 .queryBadgeInvalid {
   color: var(--nd-error);
   background: color-mix(in srgb, var(--nd-error) 12%, transparent);
+}
+
+/* 逐次適用に降格 = 効くが検索には使えない。ポーリングバナーと同じ扱い */
+.queryBadgeDegraded {
+  color: var(--nd-warn);
+  background: color-mix(in srgb, var(--nd-warn) 12%, transparent);
 }
 
 /* フィルタメニュー (#841): サブヘッダ右端の共通トグルボタン */

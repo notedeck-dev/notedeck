@@ -631,6 +631,41 @@ describe('useNoteColumn: 🐢 逐次適用への降格 (#783 Phase 2c)', () => {
     expect(degraded.runCalls).toEqual([])
   })
 
+  it('サスペンド中に取りこぼした件数を保留として数える', async () => {
+    addAccount('acc-slow-hold')
+    degraded.suspended.add('col-acc-slow-hold:inline')
+    const { api } = mountColumn({
+      accountId: 'acc-slow-hold',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [
+        { ...note('a'), text: 'hello world' } as NormalizedNote,
+        { ...note('b'), text: 'hello there' } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(api.columnQuerySuspendedCount.value).toBe(2)
+  })
+
+  it('明示再開でサスペンドを解除し、取り込みが戻る', async () => {
+    addAccount('acc-slow-resume')
+    degraded.suspended.add('col-acc-slow-resume:inline')
+    const { api } = mountColumn({
+      accountId: 'acc-slow-resume',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [
+        { ...note('long'), text: 'hello world' } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(ids(api)).toEqual([])
+
+    api.resumeSuspendedQueries()
+    await flush()
+    expect(api.columnQuerySuspendedKeys.value).toEqual([])
+    expect(api.columnQuerySuspendedCount.value).toBe(0)
+    expect(ids(api)).toEqual(['long'])
+  })
+
   it('拒否されたクエリ (非純粋) は降格せず fail-closed のまま', async () => {
     addAccount('acc-reject')
     const { api } = mountColumn({
