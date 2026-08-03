@@ -165,6 +165,7 @@ export function useColumnSetup(
   const postFormInitialText = ref<string | undefined>()
   const postFormInitialCw = ref<string | undefined>()
   const postFormInitialVisibility = ref<string | undefined>()
+  const postFormInitialNote = ref<NormalizedNote | undefined>()
 
   const toast = useToast()
   const actionSound = useNoteSound(() => account.value?.host, 'syuilo/bubble2')
@@ -241,6 +242,7 @@ export function useColumnSetup(
     if (checkOffline()) return
     postFormReplyTo.value = note
     postFormRenoteId.value = undefined
+    postFormInitialNote.value = undefined
     showPostForm.value = true
   }
 
@@ -248,6 +250,7 @@ export function useColumnSetup(
     if (checkOffline()) return
     postFormReplyTo.value = undefined
     postFormRenoteId.value = note.id
+    postFormInitialNote.value = undefined
     showPostForm.value = true
   }
 
@@ -269,6 +272,7 @@ export function useColumnSetup(
     postFormReplyTo.value = undefined
     postFormRenoteId.value = undefined
     postFormEditNote.value = note
+    postFormInitialNote.value = undefined
     postFormInitialText.value = undefined
     postFormInitialCw.value = undefined
     postFormInitialVisibility.value = undefined
@@ -282,11 +286,14 @@ export function useColumnSetup(
       postFormReplyTo.value = note.replyId
         ? await adapter.api.getNote(note.replyId).catch(() => undefined)
         : undefined
-      postFormRenoteId.value = undefined
+      // 引用・添付・アンケート等を引き継ぐ (#944)。本家も削除して編集では
+      // renote / reply / channel と initialNote を引き渡している
+      postFormRenoteId.value = note.renoteId ?? undefined
       postFormEditNote.value = undefined
-      postFormInitialText.value = note.text ?? undefined
-      postFormInitialCw.value = note.cw ?? undefined
-      postFormInitialVisibility.value = note.visibility
+      postFormInitialNote.value = note
+      postFormInitialText.value = undefined
+      postFormInitialCw.value = undefined
+      postFormInitialVisibility.value = undefined
       showPostForm.value = true
     } catch (e) {
       const err = AppError.from(e)
@@ -344,6 +351,7 @@ export function useColumnSetup(
     postFormReplyTo.value = undefined
     postFormRenoteId.value = undefined
     postFormEditNote.value = undefined
+    postFormInitialNote.value = undefined
     postFormInitialText.value = undefined
     postFormInitialCw.value = undefined
     postFormInitialVisibility.value = undefined
@@ -401,6 +409,7 @@ export function useColumnSetup(
       replyTo: postFormReplyTo,
       renoteId: postFormRenoteId,
       editNote: postFormEditNote,
+      initialNote: postFormInitialNote,
       initialText: postFormInitialText,
       initialCw: postFormInitialCw,
       initialVisibility: postFormInitialVisibility,

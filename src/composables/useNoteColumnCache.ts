@@ -1,4 +1,5 @@
 import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
+import type { QirQuery } from '@/bindings'
 import { useNoteStore } from '@/stores/notes'
 import { usePerformanceStore } from '@/stores/performance'
 import { catchLog } from '@/utils/logger'
@@ -79,5 +80,44 @@ export async function purgeStaleCachedNotes(
     }
   } catch {
     // Bulk verify failed — silently ignore (notes stay cached)
+  }
+}
+
+/**
+ * カラムクエリでローカルキャッシュを検索する (#783 Phase 3)。
+ *
+ * FTS5 で粗く絞ってから Rust の QIR 評価器で判定するので、条件に合うノートを
+ * 見つけるまで遡れる。`before` より古い側を、走査上限まで読んで探す。
+ *
+ * タイムライン種別では絞らない。キャッシュの所属は 1 ノート 1 種別で後勝ち
+ * 上書きなので、種別で絞ると本来あるはずのノートを取りこぼす (notecli#30 で
+ * 実体と所属を分離する再設計が計画されている)。取りこぼしより、別種別の
+ * ノートが混ざる方が気づけるため、絞らない側に倒している。
+ */
+export async function searchCachedNotesByQuery(
+  accountId: string,
+  query: QirQuery,
+  before: { createdAt: string; noteId: string } | null,
+  limit: number,
+  maxScannedRows: number,
+): Promise<{
+  notes: NormalizedNote[]
+  errors: number
+  /** 走査上限で打ち切った位置。null なら読み切っている */
+  cursor: { createdAt: string; noteId: string } | null
+}> {
+  const result = unwrap(
+    await commands.qirSearchCache(
+      accountId,
+      query,
+      limit,
+      maxScannedRows,
+      before,
+    ),
+  )
+  return {
+    notes: result.notes as unknown as NormalizedNote[],
+    errors: result.errors,
+    cursor: result.cursor,
   }
 }

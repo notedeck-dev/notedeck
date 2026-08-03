@@ -14,7 +14,7 @@ import type {
   TimelineFilter,
 } from '@/adapters/types'
 import { type Account, useAccountsStore } from '@/stores/accounts'
-import type { DeckColumn } from '@/stores/deck'
+import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
 import { matchesFilter } from '@/utils/timelineFilter'
 import { type NoteColumnConfig, useNoteColumn } from './useNoteColumn'
@@ -23,6 +23,8 @@ import { type NoteColumnConfig, useNoteColumn } from './useNoteColumn'
 // 呼び出しは記録し、キャッシュ系アサーションで参照する
 const bindings = vi.hoisted(() => ({
   calls: [] as { name: string; args: unknown[] }[],
+  /** コマンド名ごとの応答。未設定なら空配列 (既存テストの既定) */
+  responses: {} as Record<string, unknown>,
 }))
 
 vi.mock('@/bindings', () => ({
@@ -33,11 +35,58 @@ vi.mock('@/bindings', () => ({
         (_t, name: string) =>
         (...args: unknown[]) => {
           bindings.calls.push({ name, args })
-          return Promise.resolve({ status: 'ok', data: [] })
+          const data = bindings.responses[name] ?? []
+          return Promise.resolve({ status: 'ok', data })
         },
     },
   ),
 }))
+
+/**
+ * 🐢 降格の runner を Worker 抜きで差し替える (#783 Phase 2c)。
+ * 評価ロジックは本物 (degradedBatch) をそのまま同期実行するので、
+ * カラム側の接続だけを検証できる。Worker 境界は degradedRunner.test.ts の担当。
+ */
+const degraded = vi.hoisted(() => ({
+  suspended: new Set<string>(),
+  runCalls: [] as { keys: string[]; noteCount: number }[],
+}))
+
+vi.mock('@/services/columnQuery/degradedRunner', async () => {
+  const { createDegradedBatchRunner } = await vi.importActual<
+    typeof import('@/services/columnQuery/degradedBatch')
+  >('@/services/columnQuery/degradedBatch')
+  return {
+    getSharedDegradedRunner: () => ({
+      run: async (
+        filters: { key: string; source: string }[],
+        notes: unknown[],
+      ) => {
+        degraded.runCalls.push({
+          keys: filters.map((f) => f.key),
+          noteCount: notes.length,
+        })
+        if (filters.some((f) => degraded.suspended.has(f.key))) {
+          return {
+            verdicts: notes.map(() => 'error' as const),
+            invalidFilters: [],
+            suspended: [],
+          }
+        }
+        const batch = createDegradedBatchRunner()
+        const out = batch.run(filters, notes)
+        batch.dispose()
+        return { ...out, suspended: [] }
+      },
+      isSuspended: (key: string) => degraded.suspended.has(key),
+      suspendedKeys: () => [...degraded.suspended],
+      resume: (key: string) => degraded.suspended.delete(key),
+      dispose: () => {
+        // Worker を持たないので解放するものがない
+      },
+    }),
+  }
+})
 
 const fakeStream = {
   connect: vi.fn(),
@@ -75,8 +124,12 @@ function note(id: string, visibility = 'public'): NormalizedNote {
   } as unknown as NormalizedNote
 }
 
-/** マイクロタスクと nextTick を数周流して非同期チェーンを収束させる */
-async function flush(rounds = 6) {
+/**
+ * マイクロタスクと nextTick を数周流して非同期チェーンを収束させる。
+ * 取り込み経路が 🐢 降格 (#783 Phase 2) に対応して async になった分、
+ * 収束に必要な周回が増えている (6 周では足りない)。
+ */
+async function flush(rounds = 10) {
   for (let i = 0; i < rounds; i++) {
     await Promise.resolve()
     await nextTick()
@@ -88,6 +141,7 @@ let pinia: ReturnType<typeof createPinia>
 
 beforeEach(() => {
   bindings.calls.length = 0
+  for (const k of Object.keys(bindings.responses)) delete bindings.responses[k]
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-07-01T12:00:00Z'))
   pinia = createPinia()
@@ -121,6 +175,8 @@ function mountColumn(opts: {
   fetchKey?: NoteColumnConfig['fetchKey']
   filters?: Ref<TimelineFilter | undefined>
   streaming?: boolean
+  noteQuery?: string
+  noteQueryRefs?: string[]
 }) {
   const tlKey = ref('home')
   let api: ReturnType<typeof useNoteColumn> | null = null
@@ -133,6 +189,8 @@ function mountColumn(opts: {
             type: 'timeline',
             accountId: opts.accountId,
             filters: opts.filters?.value,
+            noteQuery: opts.noteQuery,
+            noteQueryRefs: opts.noteQueryRefs,
           }) as DeckColumn,
         fetch: opts.fetch,
         cache: { getKey: () => tlKey.value },
@@ -493,5 +551,348 @@ describe('useNoteColumn: フェッチカーソル (#831 Step 0)', () => {
 
     // 旧カーソル (h03) が残っていると h09 と h03 の間がスキップされる
     expect(fetchImpl.mock.calls[3]?.[0]).toEqual({ untilId: 'h09' })
+  })
+})
+
+describe('useNoteColumn: 🐢 逐次適用への降格 (#783 Phase 2c)', () => {
+  // str.len は QIR サブセット外だが純粋なので Worker 逐次適用に降格する
+  const SLOW_QUERY = 'note.text != null && note.text.len > 3'
+
+  beforeEach(() => {
+    degraded.suspended.clear()
+    degraded.runCalls.length = 0
+  })
+
+  it('降格クエリを持つカラムは status が degraded になる', async () => {
+    addAccount('acc-slow')
+    const { api } = mountColumn({
+      accountId: 'acc-slow',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [],
+    })
+    await flush()
+    expect(api.columnQueryState.value.status).toBe('degraded')
+  })
+
+  it('REST 取得結果に降格クエリが適用される', async () => {
+    addAccount('acc-slow-rest')
+    const { api } = mountColumn({
+      accountId: 'acc-slow-rest',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [
+        { ...note('long'), text: 'hello world' } as NormalizedNote,
+        { ...note('short'), text: 'hi' } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(ids(api)).toEqual(['long'])
+    expect(degraded.runCalls.length).toBeGreaterThan(0)
+  })
+
+  it('除外したノートを診断に計上する', async () => {
+    addAccount('acc-slow-count')
+    const { api } = mountColumn({
+      accountId: 'acc-slow-count',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [
+        { ...note('long'), text: 'hello world' } as NormalizedNote,
+        { ...note('short'), text: 'hi' } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(api.columnQueryExcludedCount.value).toBeGreaterThan(0)
+  })
+
+  it('サスペンド中のクエリは fail-closed (全件除外)', async () => {
+    addAccount('acc-slow-susp')
+    degraded.suspended.add('col-acc-slow-susp:inline')
+    const { api } = mountColumn({
+      accountId: 'acc-slow-susp',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [
+        { ...note('long'), text: 'hello world' } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(ids(api)).toEqual([])
+    expect(api.columnQuerySuspendedKeys.value).toEqual([
+      'col-acc-slow-susp:inline',
+    ])
+  })
+
+  it('⚡ だけのカラムでは Worker 経路を通らない', async () => {
+    addAccount('acc-fast')
+    const { api } = mountColumn({
+      accountId: 'acc-fast',
+      // QIR にコンパイルできる = ⚡
+      noteQuery: 'note.text != null',
+      fetch: async () => [
+        { ...note('a'), text: 'x' } as NormalizedNote,
+        { ...note('b'), text: null } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a'])
+    expect(api.columnQueryState.value.status).toBe('active')
+    expect(degraded.runCalls).toEqual([])
+  })
+
+  it('サスペンド中に取りこぼした件数を保留として数える', async () => {
+    addAccount('acc-slow-hold')
+    degraded.suspended.add('col-acc-slow-hold:inline')
+    const { api } = mountColumn({
+      accountId: 'acc-slow-hold',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [
+        { ...note('a'), text: 'hello world' } as NormalizedNote,
+        { ...note('b'), text: 'hello there' } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(api.columnQuerySuspendedCount.value).toBe(2)
+  })
+
+  it('明示再開でサスペンドを解除し、取り込みが戻る', async () => {
+    addAccount('acc-slow-resume')
+    degraded.suspended.add('col-acc-slow-resume:inline')
+    const { api } = mountColumn({
+      accountId: 'acc-slow-resume',
+      noteQuery: SLOW_QUERY,
+      fetch: async () => [
+        { ...note('long'), text: 'hello world' } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(ids(api)).toEqual([])
+
+    api.resumeSuspendedQueries()
+    await flush()
+    expect(api.columnQuerySuspendedKeys.value).toEqual([])
+    expect(api.columnQuerySuspendedCount.value).toBe(0)
+    expect(ids(api)).toEqual(['long'])
+  })
+
+  it('拒否されたクエリ (非純粋) は降格せず fail-closed のまま', async () => {
+    addAccount('acc-reject')
+    const { api } = mountColumn({
+      accountId: 'acc-reject',
+      noteQuery: 'Date:now() > 0',
+      fetch: async () => [{ ...note('a'), text: 'x' } as NormalizedNote],
+    })
+    await flush()
+    expect(api.columnQueryState.value.status).toBe('invalid')
+    expect(ids(api)).toEqual([])
+    expect(degraded.runCalls).toEqual([])
+  })
+})
+
+describe('useNoteColumn: QIR キャッシュ検索 (#783 Phase 3)', () => {
+  const FAST_QUERY = 'note.text != null'
+  const SLOW_QUERY = 'note.text != null && note.text.len > 3'
+
+  const searchCalls = () =>
+    bindings.calls.filter((c) => c.name === 'qirSearchCache')
+  const legacyCalls = () =>
+    bindings.calls.filter((c) => c.name === 'apiGetCachedTimelineBefore')
+
+  /**
+   * オフライン fallback でキャッシュ経路に入らせる。
+   * dedup レスポンスキャッシュ (TTL 5s) を跨がないよう accountId は毎回変える
+   */
+  async function mountOfflineColumn(
+    accountId: string,
+    noteQuery: string | undefined,
+  ) {
+    addAccount(accountId)
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([{ ...note('h05'), text: 'hello' }])
+      .mockRejectedValueOnce(new Error('offline'))
+    const { api } = mountColumn({
+      accountId,
+      noteQuery,
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+    await api.loadMore()
+    await flush()
+    return api
+  }
+
+  it('⚡ クエリのカラムはキャッシュ検索コマンドを使う', async () => {
+    bindings.responses.qirSearchCache = {
+      notes: [],
+      scanned: 0,
+      errors: 0,
+      cursor: null,
+    }
+    await mountOfflineColumn('acc-search-fast', FAST_QUERY)
+    expect(searchCalls()).toHaveLength(1)
+    expect(legacyCalls()).toHaveLength(0)
+  })
+
+  it('クエリが無いカラムは従来のキャッシュ経路のまま', async () => {
+    await mountOfflineColumn('acc-search-none', undefined)
+    expect(searchCalls()).toHaveLength(0)
+    expect(legacyCalls()).toHaveLength(1)
+  })
+
+  it('🐢 降格クエリは QIR を持たないので従来経路', async () => {
+    await mountOfflineColumn('acc-search-slow', SLOW_QUERY)
+    expect(searchCalls()).toHaveLength(0)
+    expect(legacyCalls()).toHaveLength(1)
+  })
+
+  it('見つかったノートを取り込み、打ち切りカーソルから次を続ける', async () => {
+    bindings.responses.qirSearchCache = {
+      notes: [{ ...note('h01'), text: 'hit' }],
+      scanned: 2000,
+      errors: 3,
+      // 走査上限で打ち切り
+      cursor: { createdAt: '2026-06-30T00:00:00.000Z', noteId: 'h00' },
+    }
+    const api = await mountOfflineColumn('acc-search-cursor', FAST_QUERY)
+    expect(ids(api)).toContain('h01')
+    // per-note エラーは診断に積まれる
+    expect(api.columnQueryErrorCount.value).toBeGreaterThanOrEqual(3)
+
+    // 次の loadMore は打ち切り位置から続ける
+    await api.loadMore()
+    await flush()
+    const second = searchCalls()[1]
+    expect(second?.args[4]).toEqual({
+      createdAt: '2026-06-30T00:00:00.000Z',
+      noteId: 'h00',
+    })
+  })
+})
+
+describe('useNoteColumn: 消えたクエリ参照からの復旧 (#783 追補 A)', () => {
+  it('参照先が無いクエリは fail-closed のまま id を露出する', async () => {
+    addAccount('acc-missing-ref')
+    const { api } = mountColumn({
+      accountId: 'acc-missing-ref',
+      columnId: 'col-missing',
+      noteQueryRefs: ['deleted-query'],
+      fetch: async () => [{ ...note('a'), text: 'x' } as NormalizedNote],
+    })
+    await flush()
+    // 参照が消えても勝手に外さない (再導入で戻せるように)
+    expect(api.columnQueryMissingIds.value).toEqual(['deleted-query'])
+    expect(api.columnQueryState.value.status).toBe('invalid')
+    expect(ids(api)).toEqual([])
+  })
+
+  it('参照を外すとカラム設定から取り除かれる', async () => {
+    addAccount('acc-drop-ref')
+    const deck = useDeckStore()
+    const updates: unknown[] = []
+    vi.spyOn(deck, 'updateColumn').mockImplementation((_id, patch) => {
+      updates.push(patch)
+    })
+    const { api } = mountColumn({
+      accountId: 'acc-drop-ref',
+      columnId: 'col-drop',
+      noteQueryRefs: ['deleted-query', 'another-deleted'],
+      fetch: async () => [],
+    })
+    await flush()
+
+    api.dropMissingQueryRefs()
+    expect(updates).toEqual([{ noteQueryRefs: undefined }])
+  })
+})
+
+describe('useNoteColumn: クエリ変更時の再適用と refetch の順序 (#783)', () => {
+  it('クエリを外したら refetch の結果が残る (再適用に上書きされない)', async () => {
+    addAccount('acc-query-toggle')
+    const column = ref<Partial<DeckColumn>>({
+      noteQuery: 'note.text == "none"',
+    })
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue([
+        { ...note('h01'), text: 'hello' } as NormalizedNote,
+        { ...note('h02'), text: 'world' } as NormalizedNote,
+      ])
+    let api: ReturnType<typeof useNoteColumn> | null = null
+    const Host = defineComponent({
+      setup() {
+        api = useNoteColumn({
+          getColumn: () =>
+            ({
+              id: 'col-query-toggle',
+              type: 'timeline',
+              accountId: 'acc-query-toggle',
+              ...column.value,
+            }) as DeckColumn,
+          fetch: () => fetchImpl(),
+          cache: { getKey: () => 'home' },
+        })
+        return () => null
+      },
+    })
+    const app = createApp(Host)
+    app.use(pinia)
+    app.mount(document.createElement('div'))
+    apps.push(app)
+    await flush()
+    // 全件フィルタ落ちで空
+    expect(ids(api as never)).toEqual([])
+
+    // クエリを外す → 再適用 (空のまま) と refetch が走る
+    column.value = {}
+    await flush(20)
+
+    // refetch の結果が残っていること (空で上書きされない)。
+    // 並びは fetch の返却順そのまま (既存挙動)
+    expect(ids(api as never)).toEqual(['h01', 'h02'])
+  })
+})
+
+describe('useNoteColumn: fail-closed から解除したときの再取得 (#957)', () => {
+  it('ストリーミングカラムが空でもクエリ変更で取り直す', async () => {
+    addAccount('acc-refetch-empty')
+    const column = ref<Partial<DeckColumn>>({
+      noteQuery: 'note.text == "none"',
+    })
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue([
+        { ...note('h01'), text: 'hello' } as NormalizedNote,
+        { ...note('h02'), text: 'world' } as NormalizedNote,
+      ])
+    let api: ReturnType<typeof useNoteColumn> | null = null
+    const Host = defineComponent({
+      setup() {
+        api = useNoteColumn({
+          getColumn: () =>
+            ({
+              id: 'col-refetch-empty',
+              type: 'timeline',
+              accountId: 'acc-refetch-empty',
+              ...column.value,
+            }) as DeckColumn,
+          fetch: () => fetchImpl(),
+          cache: { getKey: () => 'home' },
+          // 復帰 catch-up 経路に入るのはストリーミングカラムだけ
+          streaming: { subscribe: () => ({ dispose: vi.fn() }) },
+        })
+        return () => null
+      },
+    })
+    const app = createApp(Host)
+    app.use(pinia)
+    app.mount(document.createElement('div'))
+    apps.push(app)
+    await flush()
+    // 全件フィルタ落ちで空 (fail-closed 相当)
+    expect(ids(api as never)).toEqual([])
+
+    column.value = {}
+    await flush(20)
+
+    // 空のままにせず取り直していること
+    expect(ids(api as never).length).toBeGreaterThan(0)
   })
 })

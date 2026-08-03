@@ -268,6 +268,7 @@ const showPostForm = ref(false)
 const postFormReplyTo = ref<NormalizedNote | undefined>()
 const postFormRenoteId = ref<string | undefined>()
 const postFormEditNote = ref<NormalizedNote | undefined>()
+const postFormInitialNote = ref<NormalizedNote | undefined>()
 
 async function handleRenote(target: NormalizedNote) {
   if (!adapter) return
@@ -281,12 +282,14 @@ async function handleRenote(target: NormalizedNote) {
 function handleReply(target: NormalizedNote) {
   postFormReplyTo.value = target
   postFormRenoteId.value = undefined
+  postFormInitialNote.value = undefined
   showPostForm.value = true
 }
 
 function handleQuote(target: NormalizedNote) {
   postFormReplyTo.value = undefined
   postFormRenoteId.value = target.id
+  postFormInitialNote.value = undefined
   showPostForm.value = true
 }
 
@@ -294,6 +297,7 @@ function handleEdit(target: NormalizedNote) {
   postFormReplyTo.value = undefined
   postFormRenoteId.value = undefined
   postFormEditNote.value = target
+  postFormInitialNote.value = undefined
   showPostForm.value = true
 }
 
@@ -338,28 +342,22 @@ async function handleDeleteAndEdit(target: NormalizedNote) {
         if (import.meta.env.DEV)
           console.debug('[delete-cached-note] ignored:', e)
       })
-    if (id === note.value?.id) {
-      // Reopen post form for the focal note
-      postFormReplyTo.value = target.replyId
-        ? await adapter.api.getNote(target.replyId).catch(() => undefined)
-        : undefined
-      postFormRenoteId.value = undefined
-      postFormEditNote.value = undefined
-      showPostForm.value = true
-    } else {
+    if (id !== note.value?.id) {
       children.value = children.value.filter(
         (n) => n.id !== id && n.renoteId !== id,
       )
       ancestors.value = ancestors.value.filter(
         (n) => n.id !== id && n.renoteId !== id,
       )
-      postFormReplyTo.value = target.replyId
-        ? await adapter.api.getNote(target.replyId).catch(() => undefined)
-        : undefined
-      postFormRenoteId.value = undefined
-      postFormEditNote.value = undefined
-      showPostForm.value = true
     }
+    // Reopen post form with the deleted note's content (#944)
+    postFormReplyTo.value = target.replyId
+      ? await adapter.api.getNote(target.replyId).catch(() => undefined)
+      : undefined
+    postFormRenoteId.value = target.renoteId ?? undefined
+    postFormEditNote.value = undefined
+    postFormInitialNote.value = target
+    showPostForm.value = true
   } catch (e) {
     error.value = AppError.from(e)
   }
@@ -370,6 +368,7 @@ function closePostForm() {
   postFormReplyTo.value = undefined
   postFormRenoteId.value = undefined
   postFormEditNote.value = undefined
+  postFormInitialNote.value = undefined
 }
 
 function buildTree(
@@ -628,6 +627,7 @@ async function handlePosted(editedNoteId?: string) {
         :reply-to="postFormReplyTo"
         :renote-id="postFormRenoteId"
         :edit-note="postFormEditNote"
+        :initial-note="postFormInitialNote"
         @close="closePostForm"
         @posted="handlePosted"
       />

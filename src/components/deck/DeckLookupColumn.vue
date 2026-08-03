@@ -515,11 +515,13 @@ async function handleDeleteAndEdit(target: NormalizedNote) {
     postForm.replyTo.value = target.replyId
       ? await adapter.api.getNote(target.replyId).catch(() => undefined)
       : undefined
-    postForm.renoteId.value = undefined
+    // 引用・添付・アンケート等を引き継ぐ (#944)
+    postForm.renoteId.value = target.renoteId ?? undefined
     postForm.editNote.value = undefined
-    postForm.initialText.value = target.text ?? undefined
-    postForm.initialCw.value = target.cw ?? undefined
-    postForm.initialVisibility.value = target.visibility
+    postForm.initialNote.value = target
+    postForm.initialText.value = undefined
+    postForm.initialCw.value = undefined
+    postForm.initialVisibility.value = undefined
     postForm.show.value = true
   } catch {
     // ignore
@@ -709,6 +711,7 @@ async function handlePosted(editedNoteId?: string) {
       :reply-to="postForm.replyTo.value"
       :renote-id="postForm.renoteId.value"
       :edit-note="postForm.editNote.value"
+      :initial-note="postForm.initialNote.value"
       :initial-text="postForm.initialText.value"
       :initial-cw="postForm.initialCw.value"
       :initial-visibility="postForm.initialVisibility.value"

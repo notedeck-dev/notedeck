@@ -57,6 +57,12 @@ const props = defineProps<{
   replyTo?: NormalizedNote
   renoteId?: string
   editNote?: NormalizedNote
+  /**
+   * 「削除して編集」で元ノートの内容 (本文・CW・添付・アンケート等) を
+   * フォームへ展開する (#944)。引用・返信・チャンネルは renoteId / replyTo /
+   * channelId 側で引き継ぐ。
+   */
+  initialNote?: NormalizedNote
   channelId?: string
   inline?: boolean
   initialText?: string
@@ -149,6 +155,7 @@ const {
   removePollChoice,
   resetForm,
   restoreSlot,
+  restoreFromNote,
   saveCurrentSlot,
   hasAnyContent,
 } = usePostFormState(
@@ -412,6 +419,7 @@ onMounted(async () => {
       text.value = `${mentions.join(' ')} `
     }
   }
+  if (props.initialNote) restoreFromNote(props.initialNote)
   if (props.initialText) text.value = props.initialText
   if (props.initialCw) {
     cw.value = props.initialCw

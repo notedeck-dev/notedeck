@@ -224,6 +224,19 @@
   cursor: pointer;
 }
 
+/* クエリが暴走で打ち切られ保留中。押すと再開する (#783 V15) */
+.querySuspendedBanner {
+  composes: statusBanner;
+  background: color-mix(in srgb, var(--nd-warn) 70%, transparent);
+  cursor: pointer;
+}
+
+.querySuspendedAction {
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--nd-fgOnAccent) 40%, transparent);
+  text-decoration: underline;
+}
+
 /* Loading */
 .columnLoading {
   display: flex;

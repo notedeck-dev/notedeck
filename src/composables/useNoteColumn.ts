@@ -15,6 +15,7 @@ import type {
   ServerAdapter,
   TimelineType,
 } from '@/adapters/types'
+import type { QirQuery } from '@/bindings'
 import { useColumnLive } from '@/composables/useColumnMount'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useNavigation } from '@/composables/useNavigation'
@@ -23,6 +24,7 @@ import {
   loadCachedTimeline,
   loadCachedTimelineBefore,
   purgeStaleCachedNotes,
+  searchCachedNotesByQuery,
 } from '@/composables/useNoteColumnCache'
 import { useNoteFocus } from '@/composables/useNoteFocus'
 import { useNoteList } from '@/composables/useNoteList'
@@ -38,6 +40,7 @@ import {
   compileColumnQuery,
   hashQirQuery,
 } from '@/services/columnQuery/compiler'
+import { getSharedDegradedRunner } from '@/services/columnQuery/degradedRunner'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
 import { isGuestAccount } from '@/stores/accounts'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
@@ -51,6 +54,18 @@ import { AppError } from '@/utils/errors'
 import { logWarn } from '@/utils/logger'
 import { insertIntoSorted } from '@/utils/sortNotes'
 import { matchesFilter } from '@/utils/timelineFilter'
+
+/** QIR キャッシュ検索が 1 度に返すノート数 (#783 Phase 3) */
+const CACHE_SEARCH_LIMIT = 40
+/** 1 度の呼び出しで読む行数の上限。超えたら打ち切ってカーソルを返す */
+const CACHE_SEARCH_MAX_SCANNED_ROWS = 2000
+
+/** 🐢 逐次適用へ降格したクエリパーツ (Phase 2)。key はサスペンドの単位 */
+interface DegradedPart {
+  label: string | null
+  key: string
+  source: string
+}
 
 export interface NoteColumnConfig {
   getColumn: () => DeckColumnType
@@ -78,7 +93,9 @@ export interface NoteColumnConfig {
    * 両方に適用される (ストリーミング挿入はカラム側 subscribe 内で適用)。
    * local/global の public 限定などサーバー応答に依存しない可視性保証 (#651)。
    */
-  filterNotes?: (notes: NormalizedNote[]) => NormalizedNote[]
+  filterNotes?: (
+    notes: NormalizedNote[],
+  ) => NormalizedNote[] | Promise<NormalizedNote[]>
   /**
    * dedup レスポンスキャッシュの追加識別子 (例: カラムフィルタの JSON)。
    * 同一アカウント・同一 TL 種別でフィルタ違いのカラムがレスポンスを
@@ -275,26 +292,45 @@ export function useNoteColumn(config: NoteColumnConfig) {
     const inline = col.noteQuery?.trim() ? col.noteQuery : null
     const refs = col.noteQueryRefs ?? []
     if (!inline && refs.length === 0) return null
-    const parts: { label: string | null; result: CompileResult }[] = []
+    // ⚡ = QIR で同期評価、🐢 = Worker で逐次適用 (Phase 2)、拒否 = fail-closed
+    const fast: { label: string | null; query: QirQuery }[] = []
+    const degraded: DegradedPart[] = []
+    const rejected: { label: string | null; result: CompileResult }[] = []
     // 参照消失 (削除・未導入) は捨てず fail-closed (仕様追補 A)
     const missing: string[] = []
-    if (inline) {
-      parts.push({ label: null, result: compileColumnQuery(inline) })
+
+    function classify(label: string | null, key: string, src: string): void {
+      const result = compileColumnQuery(src)
+      if (result.ok) {
+        fast.push({ label, query: result.query })
+      } else if (result.degradable) {
+        degraded.push({ label, key, source: src })
+      } else {
+        rejected.push({ label, result })
+      }
     }
+
+    if (inline) classify(null, `${col.id}:inline`, inline)
     for (const id of refs) {
       const named = columnQueriesStore.getQuery(id)
       if (!named) {
         missing.push(id)
         continue
       }
-      parts.push({ label: named.name, result: compileColumnQuery(named.src) })
+      // key は名前付きクエリ id。同じクエリを使う全カラムでサスペンドを共有する
+      classify(named.name, id, named.src)
     }
-    return { parts, missing }
+    return { fast, degraded, rejected, missing }
   })
   /** per-note エラーの診断計上 (V14: エラー = 除外 + 計上) */
   const queryErrorCount = ref(0)
   /** クエリで除外したノート数 (空状態の「TL が空」との区別表示用) */
   const queryExcludedCount = ref(0)
+  /** 暴走で打ち切られサスペンド中のフィルタ (「N 件保留中」表示用) */
+  const suspendedQueryKeys = shallowRef<readonly string[]>([])
+  /** サスペンド中に判定できず取り込めなかった件数 */
+  const querySuspendedCount = ref(0)
+
   const columnQueryState = computed(() => {
     const compiled = compiledQuery.value
     if (!compiled) return { status: 'none' as const, diagnostics: [] }
@@ -304,34 +340,130 @@ export function useNoteColumn(config: NoteColumnConfig) {
         message: `参照している名前付きクエリ (${id}) が見つかりません`,
       })
     }
-    for (const part of compiled.parts) {
-      if (part.result.ok) continue
+    for (const part of compiled.rejected) {
       const prefix = part.label ? `${part.label}: ` : ''
-      for (const d of part.result.diagnostics) {
+      for (const d of part.result.ok ? [] : part.result.diagnostics) {
         diagnostics.push({ message: `${prefix}${d.message}` })
       }
     }
     if (diagnostics.length > 0) {
       return { status: 'invalid' as const, diagnostics }
     }
+    // 🐢: 逐次適用に降格しているカラム (インデックス検索は使えない)
+    if (compiled.degraded.length > 0) {
+      return { status: 'degraded' as const, diagnostics: [] }
+    }
     return { status: 'active' as const, diagnostics: [] }
   })
 
-  function queryAdmits(note: NormalizedNote): boolean {
+  /**
+   * ⚡ パーツ (QIR) だけの同期判定。🐢 パーツは Worker が要るのでここでは見ない。
+   * 取り込み経路はまずこれで短絡し、生き残りだけを Worker に回す。
+   */
+  function queryAdmitsFast(note: NormalizedNote): boolean {
     const compiled = compiledQuery.value
     if (!compiled) return true
-    // 参照消失・コンパイル不能の残留は fail-closed (不変条件 (f))
+    // 参照消失・拒否されたクエリの残留は fail-closed (不変条件 (f))
     if (columnQueryState.value.status === 'invalid') return false
     // And 合成: 全部 match のときだけ表示 (短絡)。error = 除外 + 計上
-    for (const part of compiled.parts) {
-      if (!part.result.ok) return false // 到達しない (invalid で弾く) が防御
-      const verdict = evaluateQirQuery(part.result.query, note)
+    for (const part of compiled.fast) {
+      const verdict = evaluateQirQuery(part.query, note)
       if (verdict === 'match') continue
       if (verdict === 'error') queryErrorCount.value++
       queryExcludedCount.value++
       return false
     }
     return true
+  }
+
+  /**
+   * 🐢 パーツを Worker で評価する (Phase 2c)。⚡ で生き残ったノートだけが対象。
+   * 評価不能 (サスペンド・タイムアウト) は error = 除外 + 計上で、カラムは
+   * fail-closed のまま新着が積まれない状態になる (不変条件 (f))。
+   */
+  async function admitDegraded(
+    notes: NormalizedNote[],
+  ): Promise<NormalizedNote[]> {
+    const compiled = compiledQuery.value
+    if (!compiled || compiled.degraded.length === 0 || notes.length === 0) {
+      return notes
+    }
+    const runner = getSharedDegradedRunner()
+    const outcome = await runner.run(
+      compiled.degraded.map((d) => ({ key: d.key, source: d.source })),
+      notes,
+    )
+    suspendedQueryKeys.value = compiled.degraded
+      .map((d) => d.key)
+      .filter((key) => runner.isSuspended(key))
+    const isSuspended = suspendedQueryKeys.value.length > 0
+    const admitted: NormalizedNote[] = []
+    outcome.verdicts.forEach((verdict, i) => {
+      const note = notes[i]
+      if (note === undefined) return
+      if (verdict === 'match') {
+        admitted.push(note)
+        return
+      }
+      // サスペンド中は全件が error で返る。評価できていないだけなので
+      // 「保留」に数え、評価エラー・除外には積まない (積むとバッジの
+      // エラー件数が停止している間ずっと増え続ける)
+      if (isSuspended) {
+        querySuspendedCount.value++
+        return
+      }
+      if (verdict === 'error') queryErrorCount.value++
+      queryExcludedCount.value++
+    })
+    return admitted
+  }
+
+  /**
+   * QIR キャッシュ検索に使えるクエリ (#783 Phase 3)。
+   *
+   * ⚡ の単一パーツに限る。複数パーツを And で束ねると let のスロット番号が
+   * パーツ間で衝突しうるし、🐢 パーツは QIR を持たない。該当しないカラムは
+   * 従来どおり「キャッシュから読んでフロントで絞る」経路を通る。
+   */
+  function cacheSearchableQuery(): QirQuery | null {
+    const compiled = compiledQuery.value
+    if (!compiled) return null
+    if (compiled.degraded.length > 0 || compiled.rejected.length > 0)
+      return null
+    if (compiled.missing.length > 0) return null
+    if (compiled.fast.length !== 1) return null
+    return compiled.fast[0]?.query ?? null
+  }
+
+  /** 参照先が消えた名前付きクエリの id (削除・未導入)。fail-closed の原因 */
+  const missingQueryIds = computed(() => compiledQuery.value?.missing ?? [])
+
+  /**
+   * 消えたクエリへの参照をこのカラムから外す。
+   *
+   * 参照は自動では掃除しない (再導入で復帰させたい・黙ってフィルタが外れるのを
+   * 避けたい、仕様追補 A) が、外す手段が無いと fail-closed から抜け出せない。
+   * フィルタメニューは存在するクエリしか列挙しないので、ここが唯一の導線になる。
+   */
+  function dropMissingQueryRefs(): void {
+    const col = config.getColumn()
+    const missing = new Set(missingQueryIds.value)
+    const refs = (col.noteQueryRefs ?? []).filter((id) => !missing.has(id))
+    useDeckStore().updateColumn(col.id, {
+      noteQueryRefs: refs.length > 0 ? refs : undefined,
+    })
+  }
+
+  /**
+   * サスペンドを解除して取り込みを再開する (V15 の明示再開)。
+   * 自動では戻さない — 暴走したクエリを黙って走らせ直さないため。
+   */
+  function resumeSuspendedQueries(): void {
+    const runner = getSharedDegradedRunner()
+    for (const key of suspendedQueryKeys.value) runner.resume(key)
+    suspendedQueryKeys.value = []
+    querySuspendedCount.value = 0
+    void refresh()
   }
 
   /** 合成クエリの実効シグネチャ (dedup キーと変更検知を兼ねる)。 */
@@ -341,10 +473,15 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (columnQueryState.value.status === 'invalid') {
       return `invalid:${compiled.missing.join(',')}`
     }
-    return compiled.parts
-      .map((p) => (p.result.ok ? hashQirQuery(p.result.query) : 'x'))
-      .join('+')
+    return [
+      ...compiled.fast.map((p) => hashQirQuery(p.query)),
+      // 🐢 パーツは QIR を持たないのでソースそのものを署名に混ぜる
+      ...compiled.degraded.map((d) => `slow:${d.key}:${d.source.length}`),
+    ].join('+')
   })
+
+  /** クエリ変更の世代。遅れて返った再適用が新しい状態を壊さないためのガード */
+  let querySignatureGeneration = 0
 
   // クエリ変更時 (インライン編集・トグル・named の編集伝播): 診断をリセットし、
   // 表示中ノートへ即時適用 (絞り込み方向) + refetch (緩和方向の回収)
@@ -352,22 +489,74 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (next === prev) return
     queryErrorCount.value = 0
     queryExcludedCount.value = 0
-    if (rawNotes.value.length > 0) {
-      setNotes(applyQueryFilter(rawNotes.value))
-    }
-    void refresh()
+    const generation = ++querySignatureGeneration
+    // 再適用と refetch は直列に流す。並行にすると、🐢 の Worker 待ちで遅れた
+    // 再適用が refetch の結果を「変更前のクエリで絞った列」で上書きしてしまう
+    // (fail-closed 中は空列なので、解除した瞬間に一覧が消える)
+    void (async () => {
+      if (rawNotes.value.length > 0) {
+        const filtered = await applyQueryFilter(rawNotes.value)
+        if (generation !== querySignatureGeneration) return
+        setNotes(filtered)
+      }
+      if (generation !== querySignatureGeneration) return
+      // 再適用で列が空になっていても取り直す。ストリーミングカラムの
+      // catch-up は「ノートが 1 件も無ければ API を叩かない」ので、
+      // force なしだと空のまま次のストリームイベントまで埋まらない (#957)
+      await refresh({ force: true })
+    })()
   })
 
-  function applyQueryFilter(incoming: NormalizedNote[]): NormalizedNote[] {
+  async function applyQueryFilter(
+    incoming: NormalizedNote[],
+  ): Promise<NormalizedNote[]> {
     if (!compiledQuery.value) return incoming
-    return incoming.filter((n) => queryAdmits(n))
+    return admitDegraded(incoming.filter((n) => queryAdmitsFast(n)))
   }
 
-  /** streaming 挿入にも組込フィルタ + クエリを適用する (enqueue 前段、V13/V22) */
+  /**
+   * streaming 挿入にも組込フィルタ + クエリを適用する (enqueue 前段、V13/V22)。
+   *
+   * ⚡ だけのカラムは同期のまま即 enqueue する。🐢 パーツがあるカラムは
+   * 判定が非同期になるので、判定待ちバッファへ積んで hold-and-release する。
+   */
   function enqueueWithQuery(n: NormalizedNote): void {
     if (!builtinAdmits(n)) return
-    if (!queryAdmits(n)) return
-    streamingBatch?.enqueueNote(n)
+    if (!queryAdmitsFast(n)) return
+    if ((compiledQuery.value?.degraded.length ?? 0) === 0) {
+      streamingBatch?.enqueueNote(n)
+      return
+    }
+    holdForDegraded(n)
+  }
+
+  // --- 判定待ちバッファ (hold-and-release, V22) ---
+  // 到着順を保つため、バッチは 1 本ずつ直列に流す。判定が終わったものから
+  // 順に enqueue するので、Worker の応答が前後しても表示順は入れ替わらない。
+  let heldNotes: NormalizedNote[] = []
+  let holdFlush: Promise<void> | null = null
+
+  function holdForDegraded(n: NormalizedNote): void {
+    heldNotes.push(n)
+    // 実行中なら積むだけ。flush 側のループが同じバッファを拾って続ける
+    if (holdFlush !== null) return
+    holdFlush = flushHeldNotes().finally(() => {
+      holdFlush = null
+    })
+  }
+
+  async function flushHeldNotes(): Promise<void> {
+    while (heldNotes.length > 0) {
+      const batch = heldNotes
+      heldNotes = []
+      const admitted = await admitDegraded(batch)
+      for (const note of admitted) streamingBatch?.enqueueNote(note)
+    }
+  }
+
+  /** 判定待ちのまま削除されたノートを捨てる (removePending と同じ役割) */
+  function dropHeldNote(noteId: string): void {
+    heldNotes = heldNotes.filter((n) => n.id !== noteId)
   }
 
   /**
@@ -379,10 +568,15 @@ export function useNoteColumn(config: NoteColumnConfig) {
   function onNoteUpdateWithQuery(event: NoteUpdateEvent): void {
     onNoteUpdate(event)
     if (!compiledQuery.value || event.type === 'deleted') return
-    void nextTick(() => {
+    void nextTick(async () => {
       const note = rawNotes.value.find((n) => n.id === event.noteId)
       if (!note) return
-      if (!queryAdmits(note)) {
+      if (!queryAdmitsFast(note)) {
+        setNotes(rawNotes.value.filter((n) => n.id !== event.noteId))
+        return
+      }
+      const admitted = await admitDegraded([note])
+      if (admitted.length === 0) {
         setNotes(rawNotes.value.filter((n) => n.id !== event.noteId))
       }
     })
@@ -414,10 +608,22 @@ export function useNoteColumn(config: NoteColumnConfig) {
     void refresh()
   })
 
-  /** Apply builtin filters + filterNotes if configured (組込が先 = 最安) */
-  function applyFilter(incoming: NormalizedNote[]): NormalizedNote[] {
+  /**
+   * Apply builtin filters + filterNotes if configured (組込が先 = 最安)。
+   * 🐢 カラムでは Worker 判定を挟むので非同期になる (V22)。
+   *
+   * 仕様 (V22) は「同期フック契約は ⚡ 専用」としているが、実装では ⚡ 側も
+   * 含めて経路を async に統一した。同期/非同期を呼び出し元 6 箇所で分岐させる
+   * 複雑さに対して、⚡ カラムで増えるのがマイクロタスク数周分でしかないため。
+   * ⚡ の判定そのものは同期のまま (queryAdmitsFast) で Worker は起きない。
+   */
+  async function applyFilter(
+    incoming: NormalizedNote[],
+  ): Promise<NormalizedNote[]> {
     const builtin = incoming.filter((n) => builtinAdmits(n))
-    const base = config.filterNotes ? config.filterNotes(builtin) : builtin
+    const base = config.filterNotes
+      ? await config.filterNotes(builtin)
+      : builtin
     return applyQueryFilter(base)
   }
 
@@ -478,7 +684,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     try {
       const cached = await loadCachedTimeline(column.accountId, cacheKey)
       advanceFetchCursor(cached)
-      return applyFilter(cached)
+      return await applyFilter(cached)
     } catch (e) {
       logWarn(label, e)
       return []
@@ -715,8 +921,11 @@ export function useNoteColumn(config: NoteColumnConfig) {
         setSubscription(
           config.streaming.subscribe(adapter, enqueueWithQuery, {
             onNoteUpdated: (event) => {
-              if (event.type === 'deleted')
+              if (event.type === 'deleted') {
                 streamingBatch.removePending(event.noteId)
+                // 判定待ちのまま消えたノートを取り込まない
+                dropHeldNote(event.noteId)
+              }
               onNoteUpdateWithQuery(event)
             },
           }),
@@ -788,6 +997,39 @@ export function useNoteColumn(config: NoteColumnConfig) {
     const stillCurrent = tabGuard()
     isLoading.value = true
     try {
+      const searchable = cacheSearchableQuery()
+      if (searchable) {
+        // 条件に合うノートが見つかるまでキャッシュを遡る (Phase 3)。
+        // 「40 件読んで全部フィルタで落ちる」空振りをここで吸収する
+        const cursor = fetchCursor.value
+          ? {
+              createdAt: fetchCursor.value.createdAt,
+              noteId: fetchCursor.value.id,
+            }
+          : null
+        const found = await searchCachedNotesByQuery(
+          column.accountId,
+          searchable,
+          cursor,
+          CACHE_SEARCH_LIMIT,
+          CACHE_SEARCH_MAX_SCANNED_ROWS,
+        )
+        if (!stillCurrent()) return
+        queryErrorCount.value += found.errors
+        if (found.cursor) {
+          // 走査上限で打ち切った位置から次回続ける
+          fetchCursor.value = {
+            id: found.cursor.noteId,
+            createdAt: found.cursor.createdAt,
+          }
+        } else {
+          advanceFetchCursor(found.notes)
+        }
+        if (found.notes.length > 0) {
+          await setNotesPaged(insertIntoSorted(rawNotes.value, found.notes))
+        }
+        return
+      }
       const older = await loadCachedTimelineBefore(
         column.accountId,
         cacheKey,
@@ -795,7 +1037,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
       )
       if (!stillCurrent()) return
       advanceFetchCursor(older)
-      const filtered = applyFilter(older)
+      const filtered = await applyFilter(older)
       if (filtered.length > 0) {
         await setNotesPaged(insertIntoSorted(rawNotes.value, filtered))
       }
@@ -829,7 +1071,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
       const older = await config.fetch(adapter, { untilId })
       if (!stillCurrent()) return
       advanceFetchCursor(older)
-      await setNotesPaged(insertIntoSorted(rawNotes.value, applyFilter(older)))
+      await setNotesPaged(
+        insertIntoSorted(rawNotes.value, await applyFilter(older)),
+      )
     } catch (e) {
       logWarn('load-more', e)
       isOffline.value = true
@@ -858,12 +1102,12 @@ export function useNoteColumn(config: NoteColumnConfig) {
     })
   }
 
-  async function refresh() {
+  async function refresh(opts?: { force?: boolean }) {
     if (isStreaming) {
       // ストリーミングカラムのリロードボタン: 復帰 catch-up と同じ経路で
       // 最新ページを取得し gap 判定する。手動操作なのでスロットルは無視 (#791)
       lastResumeAt = 0
-      await onResume()
+      await onResume(opts)
       return
     }
     const adapter = getAdapter()
@@ -876,7 +1120,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
         const result = await config.refreshFetch(adapter, rawNotes.value)
         // refreshFetch 経路にも組込フィルタ + カラムクエリを適用する
         // (#783 全取り込み経路 / #841)
-        const refreshed = applyFilter(result.notes)
+        const refreshed = await applyFilter(result.notes)
         if (result.mode === 'replace') {
           setNotes(refreshed)
           resetFetchCursor(refreshed)
@@ -887,7 +1131,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
         }
       } else {
         const fetched = await config.fetch(adapter, {})
-        setNotes(applyFilter(fetched))
+        setNotes(await applyFilter(fetched))
         resetFetchCursor(fetched)
         scrollToTop()
       }
@@ -931,7 +1175,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
   let lastResumeAt = 0
 
-  async function onResume() {
+  async function onResume(opts?: { force?: boolean }) {
     const adapter = getAdapter()
     if (!adapter || !account.value) return
     if (config.validate && !config.validate()) return
@@ -941,6 +1185,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
     lastResumeAt = now
 
     const hadNotes = rawNotes.value.length > 0
+    // クエリ変更のように「今は空だが取り直したい」場合に判定を迂回する。
+    // hadNotes は本来「まだ 1 ページも取っていない = 初回接続が担うので
+    // catch-up 不要」を見るためのもので、一時的に空になった列には当たらない
+    const shouldFetch = hadNotes || opts?.force === true
     const stillCurrent = tabGuard()
 
     // Run cache fetch and API fetch in parallel. Fetch the LATEST page (not
@@ -954,7 +1202,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
         : Promise.resolve([] as NormalizedNote[])
 
     let apiFailed = false
-    const apiPromise = hadNotes
+    const apiPromise = shouldFetch
       ? fetchAndDedup(adapter, {}).catch((e) => {
           logWarn('resume-api', e)
           apiFailed = true
@@ -1181,6 +1429,12 @@ export function useNoteColumn(config: NoteColumnConfig) {
     columnQueryState,
     columnQueryErrorCount: queryErrorCount,
     columnQueryExcludedCount: queryExcludedCount,
+    /** 暴走で打ち切られサスペンド中のクエリ (fail-closed 中のカラムを示す) */
+    columnQuerySuspendedKeys: suspendedQueryKeys,
+    columnQuerySuspendedCount: querySuspendedCount,
+    resumeSuspendedQueries,
+    columnQueryMissingIds: missingQueryIds,
+    dropMissingQueryRefs,
     notes,
     orderedIds,
     focusedNoteId,

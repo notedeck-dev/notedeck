@@ -81,6 +81,26 @@ async cacheStats() : Promise<Result<CacheStats, { code: string; message: string;
 async qirValidate(query: QirQuery) : Promise<QirValidation> {
     return await TAURI_INVOKE("qir_validate", { query });
 },
+/**
+ * ローカルキャッシュをクエリで検索する (#783 Phase 3)。
+ * 
+ * FTS5 で粗く絞ってから QIR 評価器で判定する。押し込むリテラルの抽出は
+ * 偽陰性を出さない規則に従うので (不変条件 (b))、FTS で落ちたノートが
+ * 本来マッチするということはない。
+ * 
+ * 走査上限に達したら打ち切って継続カーソルを返す。呼び出し側は必要なだけ
+ * 繰り返す (一度の呼び出しで巨大キャッシュを読み切らせない)。
+ *
+ * @see src-tauri/src/commands/column_query.rs
+ */
+async qirSearchCache(accountId: string, query: QirQuery, limit: number | null, maxScannedRows: number | null, cursor: QirSearchCursor | null) : Promise<Result<QirSearchResult, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("qir_search_cache", { accountId, query, limit, maxScannedRows, cursor }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see src-tauri/src/commands/admin.rs */
 async accountCacheCount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
     try {
@@ -3466,6 +3486,26 @@ schemaVersion: number;
  * トップレベル式。コンパイラが静的に bool 型であることを保証する (V20)。
  */
 root: QirNode }
+/**
+ * 継続カーソル。次の呼び出しにそのまま渡す。
+ */
+export type QirSearchCursor = { createdAt: string; noteId: string }
+/**
+ * キャッシュ検索の結果 (Phase 3)。
+ */
+export type QirSearchResult = { notes: NormalizedNote[]; 
+/**
+ * 実際に読んだ行数 (走査上限に対する進み具合)
+ */
+scanned: number; 
+/**
+ * per-note エラーで除外した件数 (V14 の診断計上)
+ */
+errors: number; 
+/**
+ * 走査上限で打ち切ったときの継続位置。読み切った場合は null
+ */
+cursor: QirSearchCursor | null }
 /**
  * 文字列変換演算 (レシーバ str・返り値 str)。
  */

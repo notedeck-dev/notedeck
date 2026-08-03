@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Parser } from '@syuilo/aiscript'
 import { computed, ref } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
@@ -50,6 +51,56 @@ const diagnostics = computed(() =>
   compiled.value && !compiled.value.ok ? compiled.value.diagnostics : [],
 )
 
+/**
+ * QIR にできないが純粋な式は 🐢 逐次適用として保存できる (#783 Phase 2)。
+ * 診断は「なぜ降格したか」の説明であって、保存を止める理由ではない。
+ */
+const isDegraded = computed(
+  () => compiled.value?.ok === false && compiled.value.degradable,
+)
+
+/**
+ * null ガード漏れの警告 (V25)。コンパイルは通るが、そのまま保存すると
+ * 画像のみのノートや純リノートが丸ごと消えるので保存前に気づかせる。
+ */
+const warnings = computed(() =>
+  compiled.value?.ok ? compiled.value.warnings : [],
+)
+
+/**
+ * ガードを差し込んだソースを組み立てる。適用できない形なら null。
+ *
+ * 末尾式 (最後の非空行) を括弧で包んでから前置する。括弧が要るのは
+ * `A || B` のような式で、括弧なしだと && が || より強く結合してガードが
+ * 左辺にしか掛からないため。
+ *
+ * 末尾行が式として閉じていない形 (`@(note) { ... }` の `}` など) では
+ * 壊れた式になるので、組み立て結果をパースして通ったときだけ返す。
+ * AST の位置情報は式全体の範囲ではなく演算子や引数の位置を指すので、
+ * 位置ベースで囲む方法は採れない。
+ */
+function buildGuarded(guard: string): string | null {
+  const lines = source.value.split('\n')
+  let i = lines.length - 1
+  while (i >= 0 && lines[i]?.trim() === '') i--
+  const target = lines[i]
+  if (i < 0 || target === undefined) return null
+  const next = [...lines]
+  next[i] = `${guard} && (${target.trim()})`
+  const candidate = next.join('\n')
+  try {
+    new Parser().parse(candidate)
+  } catch {
+    return null
+  }
+  return candidate
+}
+
+function applyGuard(guard: string): void {
+  const next = buildGuarded(guard)
+  if (next !== null) source.value = next
+}
+
 /** 直近フォーカスした TL カラムのロード済みノートに対する dry-run。 */
 const dryRun = computed(() => {
   const c = compiled.value
@@ -71,7 +122,7 @@ const dryRun = computed(() => {
 
 const canSave = computed(
   () =>
-    compiled.value?.ok === true &&
+    (compiled.value?.ok === true || isDegraded.value) &&
     queryName.value.trim() !== '' &&
     source.value.trim() !== '',
 )
@@ -129,13 +180,41 @@ async function save(): Promise<void> {
     <div v-if="source.trim() !== ''" :class="$style.status">
       <template v-if="compiled?.ok">
         <span :class="$style.statusFast">
-          <i class="ti ti-bolt" />高速クエリ (QIR {{ compiled.nodeCount }} ノード)
+          <i class="ti ti-filter-check" />高速クエリ (QIR {{ compiled.nodeCount }} ノード)
         </span>
         <span v-if="dryRun" :class="$style.dryRun">
           直近の TL カラム {{ dryRun.total }} 件中 {{ dryRun.match }} 件通過<template
             v-if="dryRun.error > 0"
           >・エラー {{ dryRun.error }} 件 (除外)</template>
         </span>
+        <!-- null ガード漏れ (V25): 保存はできるが、まず直す導線を出す -->
+        <ul v-if="warnings.length > 0" :class="$style.warnings">
+          <li v-for="w in warnings" :key="w.field">
+            <i class="ti ti-alert-triangle" />
+            <span v-if="w.line != null" :class="$style.diagLoc">{{ w.line }}行:</span>
+            {{ w.message }}
+            <button
+              v-if="buildGuarded(w.guard) !== null"
+              class="_button"
+              :class="$style.fixButton"
+              :title="`末尾の式を ${w.guard} で守ります`"
+              @click="applyGuard(w.guard)"
+            >
+              ガードを入れる
+            </button>
+          </li>
+        </ul>
+      </template>
+      <template v-else-if="isDegraded">
+        <span :class="$style.statusSlow">
+          <i class="ti ti-hourglass" />逐次適用 (1 件ずつ判定するため検索では使えません)
+        </span>
+        <ul :class="$style.degradedReasons">
+          <li v-for="(d, i) in diagnostics" :key="i">
+            <span v-if="d.line != null" :class="$style.diagLoc">{{ d.line }}行:</span>
+            {{ d.message }}
+          </li>
+        </ul>
       </template>
       <ul v-else :class="$style.diagnostics">
         <li v-for="(d, i) in diagnostics" :key="i">
@@ -153,7 +232,7 @@ async function save(): Promise<void> {
         :disabled="!canSave || !isDirty"
         @click="save"
       >
-        保存
+        {{ warnings.length > 0 ? 'このまま保存' : '保存' }}
       </button>
     </div>
   </div>
@@ -216,6 +295,23 @@ async function save(): Promise<void> {
   opacity: 0.75;
 }
 
+/* 🐢 逐次適用 (#783 Phase 2)。エラーではないので警告色で出す */
+.statusSlow {
+  color: var(--nd-warn);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+
+.degradedReasons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  opacity: 0.75;
+  font-size: 0.9em;
+}
+
 .diagnostics {
   margin: 0;
   padding: 0;
@@ -234,6 +330,28 @@ async function save(): Promise<void> {
 
 .diagLoc {
   opacity: 0.7;
+}
+
+/* null ガード漏れ (V25)。エラーではないので warn 色 + quick-fix を並べる */
+.warnings {
+  composes: diagnostics;
+  color: var(--nd-warn);
+
+  li {
+    flex-wrap: wrap;
+  }
+}
+
+.fixButton {
+  padding: 2px 8px;
+  border-radius: var(--nd-radius-full);
+  font-size: 0.9em;
+  color: var(--nd-warn);
+  background: color-mix(in srgb, var(--nd-warn) 14%, transparent);
+
+  &:hover {
+    background: color-mix(in srgb, var(--nd-warn) 24%, transparent);
+  }
 }
 
 .actions {

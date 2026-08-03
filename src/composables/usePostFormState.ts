@@ -725,6 +725,30 @@ export function usePostFormState(
     // Note: file attachments are not restored (IDs may be expired)
   }
 
+  /**
+   * 既存ノートの内容をフォームへ展開する (「削除して編集」#944)。
+   * 引用・返信・チャンネルはフォーム状態ではなく投稿時のコンテキストなので、
+   * ここではなく props (renoteId / replyTo / channelId) 側で引き継ぐ。
+   * restoreSlot と違い添付を復元するのは、直前まで自分のノートに紐づいていた
+   * ファイルなので ID が失効していないため。
+   */
+  function restoreFromNote(note: NormalizedNote) {
+    text.value = note.text ?? ''
+    cw.value = note.cw ?? ''
+    showCw.value = note.cw != null
+    visibility.value = note.visibility
+    localOnly.value = note.localOnly ?? false
+    if (note.files.length > 0) attachDriveFiles(note.files)
+    if (note.poll) {
+      showPoll.value = true
+      pollChoices.value = note.poll.choices.map((c) => c.text)
+      pollMultiple.value = note.poll.multiple
+      pollExpiresAt.value = note.poll.expiresAt
+        ? new Date(note.poll.expiresAt).getTime()
+        : null
+    }
+  }
+
   async function removeCurrentSlot() {
     const acc = account.value
     if (!acc) return
@@ -800,6 +824,7 @@ export function usePostFormState(
     resetForm,
     saveCurrentSlot,
     restoreSlot,
+    restoreFromNote,
     removeCurrentSlot,
     hasAnyContent,
   }

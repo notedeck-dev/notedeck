@@ -1,0 +1,778 @@
+{
+  "note": "Generated from vectors.json by `pnpm gen:golden-qir`. Do not edit by hand.",
+  "cases": {
+    "text-incl-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "strTest",
+          "op": "incl",
+          "target": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "needle": {
+            "kind": "str",
+            "value": "misskey"
+          }
+        }
+      }
+    },
+    "text-incl-unmatch": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "strTest",
+          "op": "incl",
+          "target": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "needle": {
+            "kind": "str",
+            "value": "misskey"
+          }
+        }
+      }
+    },
+    "text-null-guarded-unmatch": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "strTest",
+          "op": "incl",
+          "target": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "needle": {
+            "kind": "str",
+            "value": "misskey"
+          }
+        }
+      }
+    },
+    "null-receiver-error": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "strTest",
+        "op": "incl",
+        "target": {
+          "kind": "field",
+          "path": [
+            "text"
+          ]
+        },
+        "needle": {
+          "kind": "str",
+          "value": "x"
+        }
+      }
+    },
+    "let-unused-binding-error": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "let",
+        "bindings": [
+          {
+            "slot": 0,
+            "expr": {
+              "kind": "strMap",
+              "op": "lower",
+              "target": {
+                "kind": "field",
+                "path": [
+                  "text"
+                ]
+              }
+            }
+          }
+        ],
+        "body": {
+          "kind": "bool",
+          "value": true
+        }
+      }
+    },
+    "let-short-circuit-branch-error": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "let",
+        "bindings": [
+          {
+            "slot": 0,
+            "expr": {
+              "kind": "strMap",
+              "op": "lower",
+              "target": {
+                "kind": "field",
+                "path": [
+                  "text"
+                ]
+              }
+            }
+          }
+        ],
+        "body": {
+          "kind": "and",
+          "left": {
+            "kind": "bool",
+            "value": false
+          },
+          "right": {
+            "kind": "strTest",
+            "op": "incl",
+            "target": {
+              "kind": "ref",
+              "slot": 0
+            },
+            "needle": {
+              "kind": "str",
+              "value": "x"
+            }
+          }
+        }
+      }
+    },
+    "null-eq-null-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "eq",
+        "negated": false,
+        "left": {
+          "kind": "field",
+          "path": [
+            "renoteId"
+          ]
+        },
+        "right": {
+          "kind": "null"
+        }
+      }
+    },
+    "renote-id-present-unmatch": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "eq",
+        "negated": false,
+        "left": {
+          "kind": "field",
+          "path": [
+            "renoteId"
+          ]
+        },
+        "right": {
+          "kind": "null"
+        }
+      }
+    },
+    "missing-key-is-null-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "eq",
+        "negated": false,
+        "left": {
+          "kind": "field",
+          "path": [
+            "cw"
+          ]
+        },
+        "right": {
+          "kind": "null"
+        }
+      }
+    },
+    "reactions-literal-index-missing-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "eq",
+        "negated": false,
+        "left": {
+          "kind": "objIndex",
+          "target": {
+            "kind": "field",
+            "path": [
+              "reactions"
+            ]
+          },
+          "key": "👍"
+        },
+        "right": {
+          "kind": "null"
+        }
+      }
+    },
+    "reactions-literal-index-present-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "eq",
+        "negated": true,
+        "left": {
+          "kind": "objIndex",
+          "target": {
+            "kind": "field",
+            "path": [
+              "reactions"
+            ]
+          },
+          "key": ":igyo@.:"
+        },
+        "right": {
+          "kind": "null"
+        }
+      }
+    },
+    "turkish-dotted-i-lower-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "strTest",
+          "op": "incl",
+          "target": {
+            "kind": "strMap",
+            "op": "lower",
+            "target": {
+              "kind": "field",
+              "path": [
+                "text"
+              ]
+            }
+          },
+          "needle": {
+            "kind": "str",
+            "value": "i̇stanbul"
+          }
+        }
+      }
+    },
+    "final-sigma-lower-final-form": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "eq",
+          "negated": false,
+          "left": {
+            "kind": "strMap",
+            "op": "lower",
+            "target": {
+              "kind": "field",
+              "path": [
+                "text"
+              ]
+            }
+          },
+          "right": {
+            "kind": "str",
+            "value": "οδος"
+          }
+        }
+      }
+    },
+    "final-sigma-lower-medial-form": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "eq",
+          "negated": false,
+          "left": {
+            "kind": "strMap",
+            "op": "lower",
+            "target": {
+              "kind": "field",
+              "path": [
+                "text"
+              ]
+            }
+          },
+          "right": {
+            "kind": "str",
+            "value": "οδοσ"
+          }
+        }
+      }
+    },
+    "eszett-upper-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "eq",
+          "negated": false,
+          "left": {
+            "kind": "strMap",
+            "op": "upper",
+            "target": {
+              "kind": "field",
+              "path": [
+                "text"
+              ]
+            }
+          },
+          "right": {
+            "kind": "str",
+            "value": "STRASSE"
+          }
+        }
+      }
+    },
+    "emoji-astral-incl-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "strTest",
+          "op": "incl",
+          "target": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "needle": {
+            "kind": "str",
+            "value": "👍"
+          }
+        }
+      }
+    },
+    "files-len-gt-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "files"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "cmp",
+          "op": "gt",
+          "left": {
+            "kind": "arrLen",
+            "target": {
+              "kind": "field",
+              "path": [
+                "files"
+              ]
+            }
+          },
+          "right": {
+            "kind": "num",
+            "value": 0
+          }
+        }
+      }
+    },
+    "files-missing-guarded-unmatch": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "files"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "cmp",
+          "op": "gt",
+          "left": {
+            "kind": "arrLen",
+            "target": {
+              "kind": "field",
+              "path": [
+                "files"
+              ]
+            }
+          },
+          "right": {
+            "kind": "num",
+            "value": 0
+          }
+        }
+      }
+    },
+    "files-empty-eq-zero-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "or",
+        "left": {
+          "kind": "eq",
+          "negated": false,
+          "left": {
+            "kind": "field",
+            "path": [
+              "files"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "eq",
+          "negated": false,
+          "left": {
+            "kind": "arrLen",
+            "target": {
+              "kind": "field",
+              "path": [
+                "files"
+              ]
+            }
+          },
+          "right": {
+            "kind": "num",
+            "value": 0
+          }
+        }
+      }
+    },
+    "localonly-true-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "eq",
+        "negated": false,
+        "left": {
+          "kind": "field",
+          "path": [
+            "localOnly"
+          ]
+        },
+        "right": {
+          "kind": "bool",
+          "value": true
+        }
+      }
+    },
+    "localonly-missing-scalar-eq-unmatch": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "eq",
+        "negated": false,
+        "left": {
+          "kind": "field",
+          "path": [
+            "localOnly"
+          ]
+        },
+        "right": {
+          "kind": "bool",
+          "value": true
+        }
+      }
+    },
+    "visibility-eq-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "eq",
+        "negated": false,
+        "left": {
+          "kind": "field",
+          "path": [
+            "visibility"
+          ]
+        },
+        "right": {
+          "kind": "str",
+          "value": "specified"
+        }
+      }
+    },
+    "fn-desugar-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "let",
+          "bindings": [
+            {
+              "slot": 0,
+              "expr": {
+                "kind": "field",
+                "path": [
+                  "text"
+                ]
+              }
+            }
+          ],
+          "body": {
+            "kind": "strTest",
+            "op": "incl",
+            "target": {
+              "kind": "ref",
+              "slot": 0
+            },
+            "needle": {
+              "kind": "str",
+              "value": "x"
+            }
+          }
+        }
+      }
+    },
+    "fn-arg-eager-inside-guard-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "not",
+        "expr": {
+          "kind": "and",
+          "left": {
+            "kind": "eq",
+            "negated": true,
+            "left": {
+              "kind": "field",
+              "path": [
+                "text"
+              ]
+            },
+            "right": {
+              "kind": "null"
+            }
+          },
+          "right": {
+            "kind": "let",
+            "bindings": [
+              {
+                "slot": 0,
+                "expr": {
+                  "kind": "strMap",
+                  "op": "lower",
+                  "target": {
+                    "kind": "field",
+                    "path": [
+                      "text"
+                    ]
+                  }
+                }
+              }
+            ],
+            "body": {
+              "kind": "strTest",
+              "op": "incl",
+              "target": {
+                "kind": "ref",
+                "slot": 0
+              },
+              "needle": {
+                "kind": "str",
+                "value": "ng"
+              }
+            }
+          }
+        }
+      }
+    },
+    "short-literal-2char-incl-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "and",
+        "left": {
+          "kind": "eq",
+          "negated": true,
+          "left": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "right": {
+            "kind": "null"
+          }
+        },
+        "right": {
+          "kind": "strTest",
+          "op": "incl",
+          "target": {
+            "kind": "field",
+            "path": [
+              "text"
+            ]
+          },
+          "needle": {
+            "kind": "str",
+            "value": "ab"
+          }
+        }
+      }
+    },
+    "user-host-null-match": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "eq",
+        "negated": false,
+        "left": {
+          "kind": "field",
+          "path": [
+            "user",
+            "host"
+          ]
+        },
+        "right": {
+          "kind": "null"
+        }
+      }
+    },
+    "user-host-remote-unmatch": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "eq",
+        "negated": false,
+        "left": {
+          "kind": "field",
+          "path": [
+            "user",
+            "host"
+          ]
+        },
+        "right": {
+          "kind": "null"
+        }
+      }
+    }
+  }
+}

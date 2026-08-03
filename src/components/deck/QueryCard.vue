@@ -25,14 +25,17 @@ const props = withDefaults(
     alreadyInstalled?: boolean
     /** library mode: storeId 有無で「ストア由来」/「ローカル保存」バッジ表示 */
     storeId?: string
-    /** library mode: QIR コンパイル可 (⚡)。false = コンパイル不能 */
-    fast?: boolean
+    /**
+     * library mode: クエリの実行形態 (#783)。
+     * fast = QIR で高速評価 / degraded = 逐次適用 (🐢) / invalid = 保存されているが評価不能
+     */
+    execution?: 'fast' | 'degraded' | 'invalid'
     /** library mode: 適用中のカラム数 */
     refCount?: number
   }>(),
   {
     mode: 'store',
-    fast: true,
+    execution: 'fast',
     refCount: 0,
   },
 )
@@ -74,10 +77,15 @@ function handlePrimaryClick() {
       <div :class="$style.row1">
         <span :class="$style.name">{{ name }}</span>
         <span
-          v-if="!isStore && !fast"
+          v-if="!isStore && execution === 'degraded'"
+          :class="$style.degradedBadge"
+          title="1 件ずつ判定します。絞り込みは効きますが、キャッシュ検索には使えません"
+        >逐次適用</span>
+        <span
+          v-else-if="!isStore && execution === 'invalid'"
           :class="$style.incompatBadge"
-          title="QIR コンパイル不能 (編集して修正してください)"
-        >コンパイル不能</span>
+          title="解釈できないため適用中のカラムは新着を停止します (編集して修正してください)"
+        >評価不能</span>
         <span :class="$style.spacer" />
         <span v-if="version" :class="$style.version">v{{ version }}</span>
       </div>
@@ -310,6 +318,13 @@ function handlePrimaryClick() {
   background: color-mix(in srgb, var(--nd-love) 15%, transparent);
   color: var(--nd-love);
   letter-spacing: 0.02em;
+}
+
+/* 逐次適用 (#783 Phase 2)。効いてはいるので警告色にとどめる */
+.degradedBadge {
+  composes: incompatBadge;
+  background: color-mix(in srgb, var(--nd-warn) 15%, transparent);
+  color: var(--nd-warn);
 }
 
 .spacer {

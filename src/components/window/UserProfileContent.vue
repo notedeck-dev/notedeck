@@ -502,6 +502,7 @@ const postFormReplyTo = ref<NormalizedNote | undefined>()
 const postFormRenoteId = ref<string | undefined>()
 const postFormEditNote = ref<NormalizedNote | undefined>()
 const postFormInitialText = ref<string | undefined>()
+const postFormInitialNote = ref<NormalizedNote | undefined>()
 
 // User action menu (mute/block/report/list/antenna 等) は
 // UserProfileMenu.vue に分離した。ここでは開閉の ref と compose 連携のみ持つ。
@@ -581,6 +582,7 @@ function handleReply(target: NormalizedNote) {
   postFormReplyTo.value = target
   postFormRenoteId.value = undefined
   postFormInitialText.value = undefined
+  postFormInitialNote.value = undefined
   showPostForm.value = true
 }
 
@@ -588,6 +590,7 @@ function handleQuote(target: NormalizedNote) {
   postFormReplyTo.value = undefined
   postFormRenoteId.value = target.id
   postFormInitialText.value = undefined
+  postFormInitialNote.value = undefined
   showPostForm.value = true
 }
 
@@ -596,6 +599,7 @@ function handleEdit(target: NormalizedNote) {
   postFormRenoteId.value = undefined
   postFormEditNote.value = target
   postFormInitialText.value = undefined
+  postFormInitialNote.value = undefined
   showPostForm.value = true
 }
 
@@ -635,9 +639,11 @@ async function handleDeleteAndEdit(target: NormalizedNote) {
     postFormReplyTo.value = target.replyId
       ? await adapter.value.api.getNote(target.replyId).catch(() => undefined)
       : undefined
-    postFormRenoteId.value = undefined
+    // 引用・添付・アンケート等を引き継ぐ (#944)
+    postFormRenoteId.value = target.renoteId ?? undefined
     postFormEditNote.value = undefined
     postFormInitialText.value = undefined
+    postFormInitialNote.value = target
     showPostForm.value = true
   } catch (e) {
     error.value = AppError.from(e)
@@ -649,6 +655,7 @@ function closePostForm() {
   postFormReplyTo.value = undefined
   postFormRenoteId.value = undefined
   postFormEditNote.value = undefined
+  postFormInitialNote.value = undefined
 }
 
 async function handlePosted(editedNoteId?: string) {
@@ -905,6 +912,7 @@ async function handlePosted(editedNoteId?: string) {
         :reply-to="postFormReplyTo"
         :renote-id="postFormRenoteId"
         :edit-note="postFormEditNote"
+        :initial-note="postFormInitialNote"
         :initial-text="postFormInitialText"
         @close="closePostForm"
         @posted="handlePosted"
