@@ -500,7 +500,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
         setNotes(filtered)
       }
       if (generation !== querySignatureGeneration) return
-      await refresh()
+      // 再適用で列が空になっていても取り直す。ストリーミングカラムの
+      // catch-up は「ノートが 1 件も無ければ API を叩かない」ので、
+      // force なしだと空のまま次のストリームイベントまで埋まらない (#957)
+      await refresh({ force: true })
     })()
   })
 
@@ -1099,12 +1102,12 @@ export function useNoteColumn(config: NoteColumnConfig) {
     })
   }
 
-  async function refresh() {
+  async function refresh(opts?: { force?: boolean }) {
     if (isStreaming) {
       // ストリーミングカラムのリロードボタン: 復帰 catch-up と同じ経路で
       // 最新ページを取得し gap 判定する。手動操作なのでスロットルは無視 (#791)
       lastResumeAt = 0
-      await onResume()
+      await onResume(opts)
       return
     }
     const adapter = getAdapter()
@@ -1172,7 +1175,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
   let lastResumeAt = 0
 
-  async function onResume() {
+  async function onResume(opts?: { force?: boolean }) {
     const adapter = getAdapter()
     if (!adapter || !account.value) return
     if (config.validate && !config.validate()) return
@@ -1182,6 +1185,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
     lastResumeAt = now
 
     const hadNotes = rawNotes.value.length > 0
+    // クエリ変更のように「今は空だが取り直したい」場合に判定を迂回する。
+    // hadNotes は本来「まだ 1 ページも取っていない = 初回接続が担うので
+    // catch-up 不要」を見るためのもので、一時的に空になった列には当たらない
+    const shouldFetch = hadNotes || opts?.force === true
     const stillCurrent = tabGuard()
 
     // Run cache fetch and API fetch in parallel. Fetch the LATEST page (not
@@ -1195,7 +1202,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
         : Promise.resolve([] as NormalizedNote[])
 
     let apiFailed = false
-    const apiPromise = hadNotes
+    const apiPromise = shouldFetch
       ? fetchAndDedup(adapter, {}).catch((e) => {
           logWarn('resume-api', e)
           apiFailed = true

@@ -849,3 +849,50 @@ describe('useNoteColumn: クエリ変更時の再適用と refetch の順序 (#7
     expect(ids(api as never)).toEqual(['h01', 'h02'])
   })
 })
+
+describe('useNoteColumn: fail-closed から解除したときの再取得 (#957)', () => {
+  it('ストリーミングカラムが空でもクエリ変更で取り直す', async () => {
+    addAccount('acc-refetch-empty')
+    const column = ref<Partial<DeckColumn>>({
+      noteQuery: 'note.text == "none"',
+    })
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue([
+        { ...note('h01'), text: 'hello' } as NormalizedNote,
+        { ...note('h02'), text: 'world' } as NormalizedNote,
+      ])
+    let api: ReturnType<typeof useNoteColumn> | null = null
+    const Host = defineComponent({
+      setup() {
+        api = useNoteColumn({
+          getColumn: () =>
+            ({
+              id: 'col-refetch-empty',
+              type: 'timeline',
+              accountId: 'acc-refetch-empty',
+              ...column.value,
+            }) as DeckColumn,
+          fetch: () => fetchImpl(),
+          cache: { getKey: () => 'home' },
+          // 復帰 catch-up 経路に入るのはストリーミングカラムだけ
+          streaming: { subscribe: () => ({ dispose: vi.fn() }) },
+        })
+        return () => null
+      },
+    })
+    const app = createApp(Host)
+    app.use(pinia)
+    app.mount(document.createElement('div'))
+    apps.push(app)
+    await flush()
+    // 全件フィルタ落ちで空 (fail-closed 相当)
+    expect(ids(api as never)).toEqual([])
+
+    column.value = {}
+    await flush(20)
+
+    // 空のままにせず取り直していること
+    expect(ids(api as never).length).toBeGreaterThan(0)
+  })
+})
