@@ -159,7 +159,7 @@ async function save(): Promise<void> {
     <div v-if="source.trim() !== ''" :class="$style.status">
       <template v-if="compiled?.ok">
         <span :class="$style.statusFast">
-          <i class="ti ti-bolt" />高速クエリ (QIR {{ compiled.nodeCount }} ノード)
+          <i class="ti ti-filter-check" />高速クエリ (QIR {{ compiled.nodeCount }} ノード)
         </span>
         <span v-if="dryRun" :class="$style.dryRun">
           直近の TL カラム {{ dryRun.total }} 件中 {{ dryRun.match }} 件通過<template
@@ -185,7 +185,7 @@ async function save(): Promise<void> {
       </template>
       <template v-else-if="isDegraded">
         <span :class="$style.statusSlow">
-          <span :class="$style.turtle">🐢</span>逐次適用 (1 件ずつ判定するため検索では使えません)
+          <i class="ti ti-hourglass" />逐次適用 (1 件ずつ判定するため検索では使えません)
         </span>
         <ul :class="$style.degradedReasons">
           <li v-for="(d, i) in diagnostics" :key="i">
@@ -281,10 +281,6 @@ async function save(): Promise<void> {
   gap: 4px;
 }
 
-.turtle {
-  font-size: 1.1em;
-  line-height: 1;
-}
 
 .degradedReasons {
   margin: 0;

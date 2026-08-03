@@ -164,12 +164,19 @@ const queryBadgeTitle = computed(() => {
 })
 
 /**
- * バッジのアイコン。逐次適用だけはアイコンフォントを使わず 🐢 を出す
- * (bolt と bolt-off は形が似ていて、色だけでは見分けがつかないため)
+ * バッジのアイコン。稲妻はストリーミングモードの表示で使っているので避け、
+ * 隣のフィルタボタンと文脈が揃うフィルタ軸で示す。
+ * 逐次適用は「遅い」ではなく「1 件ずつ時間をかけて判定する」なので砂時計。
  */
 const queryBadgeIcon = computed(() => {
-  if (columnQueryState.value.status === 'invalid') return 'ti ti-alert-triangle'
-  return 'ti ti-bolt'
+  switch (columnQueryState.value.status) {
+    case 'invalid':
+      return 'ti ti-alert-triangle'
+    case 'degraded':
+      return 'ti ti-hourglass'
+    default:
+      return 'ti ti-filter-check'
+  }
 })
 
 // 暴走で打ち切られたクエリ (#783 V15)。自動では戻さず、明示操作で再開する
@@ -312,11 +319,7 @@ defineExpose({
           :title="queryBadgeTitle"
           @click.stop="openQueryManager"
         >
-          <span
-            v-if="columnQueryState.status === 'degraded'"
-            :class="$style.queryBadgeTurtle"
-          >🐢</span>
-          <i v-else :class="queryBadgeIcon" />
+          <i :class="queryBadgeIcon" />
           <span v-if="columnQueryErrorCount > 0">{{ columnQueryErrorCount }}</span>
         </button>
         <button
@@ -528,11 +531,6 @@ defineExpose({
   background: color-mix(in srgb, var(--nd-warn) 12%, transparent);
 }
 
-/* 絵文字はアイコンフォントより字面が大きいので少し詰める */
-.queryBadgeTurtle {
-  font-size: 0.9em;
-  line-height: 1;
-}
 
 /* フィルタメニュー (#841): サブヘッダ右端の共通トグルボタン */
 .subHeaderRow {
