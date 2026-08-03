@@ -1,6 +1,7 @@
 import { type Ast, Parser } from '@syuilo/aiscript'
 
 import type { QirBinding, QirNode, QirQuery } from '@/bindings'
+import { collectImpureIdentifiers } from '@/services/columnQuery/purity'
 
 /**
  * カラムクエリコンパイラ: AiScript 1.2.1 AST → QIR (#783)。
@@ -30,7 +31,16 @@ export interface QueryDiagnostic {
 
 export type CompileResult =
   | { ok: true; query: QirQuery; nodeCount: number }
-  | { ok: false; diagnostics: QueryDiagnostic[] }
+  | {
+      ok: false
+      /**
+       * サブセット外だが純粋なので Worker で逐次適用できる (🐢 降格, Phase 2)。
+       * false は「副作用・非決定 API に到達しうる」か「そもそも式として
+       * 成立していない」ことを意味し、保存時に拒否する (不変条件 (c))。
+       */
+      degradable: boolean
+      diagnostics: QueryDiagnostic[]
+    }
 
 // --- 静的型 (成功時型)。エラーになりうる null 可能性も集合に含める ---
 
@@ -123,8 +133,10 @@ class Compiler {
     try {
       statements = new Parser().parse(source)
     } catch (e) {
+      // パースできない = AST が無いので Worker にも渡せない
       return {
         ok: false,
+        degradable: false,
         diagnostics: [{ message: `構文エラー: ${String(e)}` }],
       }
     }
@@ -141,9 +153,40 @@ class Compiler {
       }
     } catch (e) {
       if (e instanceof CompileFail) {
-        return { ok: false, diagnostics: [e.diagnostic] }
+        return this.failure(statements, e.diagnostic)
       }
       throw e
+    }
+  }
+
+  /**
+   * コンパイル不能を「🐢 降格できる」と「保存時に拒否する」に振り分ける
+   * (Phase 2 / V15)。降格先の Worker は AiScript Interpreter をそのまま
+   * 動かすので、サブセット境界ではなく到達可能性で判断する。
+   */
+  private failure(
+    statements: Ast.Node[],
+    diagnostic: QueryDiagnostic,
+  ): CompileResult {
+    // 空ソースは降格しても評価する式が無い
+    if (statements.length === 0) {
+      return { ok: false, degradable: false, diagnostics: [diagnostic] }
+    }
+    const impure = collectImpureIdentifiers(statements)
+    if (impure.length === 0) {
+      return { ok: false, degradable: true, diagnostics: [diagnostic] }
+    }
+    return {
+      ok: false,
+      degradable: false,
+      diagnostics: [
+        diagnostic,
+        ...impure.map((v) => ({
+          message: `${v.name} はフィルタから参照できません`,
+          line: v.line,
+          column: v.column,
+        })),
+      ],
     }
   }
 

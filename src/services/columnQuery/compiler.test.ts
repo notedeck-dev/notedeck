@@ -100,6 +100,57 @@ describe('compileColumnQuery: 拒否 (サブセット外)', () => {
   })
 })
 
+describe('compileColumnQuery: 降格可否 (Phase 2 / V15)', () => {
+  /** サブセット外だが純粋 = Worker で逐次適用する (🐢 降格) */
+  const DEGRADABLE: Record<string, string> = {
+    'if 式': 'if note.text == null { false } else { true }',
+    'match 式':
+      'match note.visibility { case "public" => true, default => false }',
+    再帰関数: '@f(t) { f(t) }\nf(true)',
+    'var (mut)': 'var x = true\nx',
+    'str.len': 'note.text != null && note.text.len > 3',
+    'allowlist 外フィールド': 'note.tags != null',
+    '2 引数 starts_with': 'note.text != null && note.text.starts_with("a", 1)',
+    'arr リテラル': '["a", "b"].incl(note.visibility)',
+    テンプレート文字列: 'note.text == `a{1}`',
+    算術演算: 'note.files != null && note.files.len + 1 > 2',
+    関数の第一級使用: '@f(t) { true }\nlet g = f\ng(1)',
+  }
+
+  it.each(Object.entries(DEGRADABLE))('降格できる: %s', (_name, source) => {
+    const result = compileColumnQuery(source)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.degradable).toBe(true)
+  })
+
+  /** 副作用・非決定 API に到達しうる = 降格させず保存時に拒否する */
+  const REJECTED: Record<string, string> = {
+    '名前空間関数 (Math:)': 'Math:abs(1) > 0',
+    '副作用 API (Mk:)': 'Mk:api("notes/show") != null',
+    '非決定 API (Date:)': 'Date:now() > 0',
+    第一級で束縛しただけの非純粋関数: 'let f = Date:now\nf() > 0',
+    構文エラー: 'note.text !=',
+    空ソース: '',
+  }
+
+  it.each(Object.entries(REJECTED))('降格させない: %s', (_name, source) => {
+    const result = compileColumnQuery(source)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.degradable).toBe(false)
+  })
+
+  it('非純粋な識別子は診断に名前と位置が出る', () => {
+    const result = compileColumnQuery('note.text != null && Date:now() > 0')
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    const found = result.diagnostics.find((d) => d.message.includes('Date:now'))
+    expect(found).toBeDefined()
+    expect(found?.line).toBe(1)
+  })
+})
+
 describe('compileColumnQuery: 上限', () => {
   it('関数脱糖の指数爆発をノード数上限で打ち切る', () => {
     // f0 → f1 が f0 を 2 回 → ... 展開で 2^n 成長するチェーン
