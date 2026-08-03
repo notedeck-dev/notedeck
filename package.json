@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "gen:golden-qir": "UPDATE_GOLDEN_QIR=1 vitest run src/services/columnQuery/goldenVectors.test.ts",
     "typecheck": "vue-tsc -b --noEmit",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

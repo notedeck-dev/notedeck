@@ -9,7 +9,10 @@
 //! (src/services/columnQuery/golden/vectors.json) で一致を検証する。
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use specta::Type;
+use std::borrow::Cow;
+use std::collections::HashMap;
 
 /// QIR スキーマ世代。互換性のない構造変更で上げる。
 pub const QIR_SCHEMA_VERSION: u32 = 1;
@@ -293,5 +296,305 @@ mod tests {
         assert_eq!(json["op"], "startsWith");
         assert_eq!(json["target"]["kind"], "field");
         assert_eq!(json["target"]["path"][0], "text");
+    }
+}
+
+// --- QIR 評価器 (Phase 3) ---------------------------------------------------
+
+// 評価器は Phase 3 の結線 (notecli の predicate 注入 API へ述語として渡す) で
+// 初めて呼ばれる。それまでは golden differential test からのみ参照されるため、
+// 非テストビルドでは未使用になる。
+
+/// per-note の判定結果 (V14 の 3 値)。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum QirVerdict {
+    Match,
+    Unmatch,
+    /// 型エラー・null レシーバ・非 bool 結果。ノートを除外して診断に計上する
+    Error,
+}
+
+/// 評価中の per-note エラー。呼び出し側では Verdict::Error に畳まれる。
+#[allow(dead_code)]
+struct EvalError;
+
+#[allow(dead_code)]
+type EvalResult<'a> = Result<Cow<'a, JsonValue>, EvalError>;
+
+#[allow(dead_code)]
+struct Evaluator<'a> {
+    note: &'a JsonValue,
+    slots: HashMap<u32, JsonValue>,
+}
+
+#[allow(dead_code)]
+impl<'a> Evaluator<'a> {
+    fn new(note: &'a JsonValue) -> Self {
+        Self {
+            note,
+            slots: HashMap::new(),
+        }
+    }
+
+    /// AiScript の `==`: null==null は true、スカラーは値比較、型不一致は false。
+    /// 非スカラー同士はコンパイラが静的に禁止しているため false に倒す
+    /// (JS 側の参照等価分岐に相当する到達不能ケース)。
+    fn ai_eq(l: &JsonValue, r: &JsonValue) -> bool {
+        match (l, r) {
+            (JsonValue::Null, JsonValue::Null) => true,
+            (JsonValue::Null, _) | (_, JsonValue::Null) => false,
+            (JsonValue::String(a), JsonValue::String(b)) => a == b,
+            (JsonValue::Number(a), JsonValue::Number(b)) => a.as_f64() == b.as_f64(),
+            (JsonValue::Bool(a), JsonValue::Bool(b)) => a == b,
+            _ => false,
+        }
+    }
+
+    fn eval(&mut self, node: &QirNode, depth: u32) -> EvalResult<'a> {
+        if depth > QIR_MAX_DEPTH {
+            return Err(EvalError);
+        }
+        let d = depth + 1;
+        match node {
+            QirNode::Str { value } => Ok(Cow::Owned(JsonValue::String(value.clone()))),
+            QirNode::Num { value } => Ok(Cow::Owned(
+                serde_json::Number::from_f64(*value)
+                    .map(JsonValue::Number)
+                    .unwrap_or(JsonValue::Null),
+            )),
+            QirNode::Bool { value } => Ok(Cow::Owned(JsonValue::Bool(*value))),
+            QirNode::Null => Ok(Cow::Owned(JsonValue::Null)),
+            QirNode::Field { path } => {
+                let mut cur = self.note;
+                for key in path {
+                    match cur {
+                        // null へのプロパティ参照はエラー、欠落キーは null
+                        JsonValue::Null => return Err(EvalError),
+                        JsonValue::Object(map) => {
+                            cur = map.get(key).unwrap_or(&JsonValue::Null);
+                        }
+                        _ => return Err(EvalError),
+                    }
+                }
+                Ok(Cow::Borrowed(cur))
+            }
+            QirNode::ObjIndex { target, key } => {
+                let target = self.eval(target, d)?;
+                match target.as_ref() {
+                    JsonValue::Object(map) => {
+                        Ok(Cow::Owned(map.get(key).cloned().unwrap_or(JsonValue::Null)))
+                    }
+                    _ => Err(EvalError),
+                }
+            }
+            QirNode::ArrLen { target } => {
+                let target = self.eval(target, d)?;
+                match target.as_ref() {
+                    JsonValue::Array(items) => {
+                        Ok(Cow::Owned(JsonValue::Number(items.len().into())))
+                    }
+                    _ => Err(EvalError),
+                }
+            }
+            QirNode::Let { bindings, body } => {
+                for b in bindings {
+                    // eager 評価 + エラー伝播 (V19)。使われない束縛でもここで落ちる
+                    let v = self.eval(&b.expr, d)?.into_owned();
+                    self.slots.insert(b.slot, v);
+                }
+                self.eval(body, d)
+            }
+            QirNode::Ref { slot } => match self.slots.get(slot) {
+                Some(v) => Ok(Cow::Owned(v.clone())),
+                // コンパイラは割当済みスロットしか参照を出さない (QIR 破損)
+                None => Err(EvalError),
+            },
+            QirNode::Not { expr } => {
+                let v = self.eval(expr, d)?;
+                match v.as_bool() {
+                    Some(b) => Ok(Cow::Owned(JsonValue::Bool(!b))),
+                    None => Err(EvalError),
+                }
+            }
+            QirNode::And { left, right } => {
+                let l = self.eval(left, d)?.as_bool().ok_or(EvalError)?;
+                if !l {
+                    return Ok(Cow::Owned(JsonValue::Bool(false)));
+                }
+                let r = self.eval(right, d)?.as_bool().ok_or(EvalError)?;
+                Ok(Cow::Owned(JsonValue::Bool(r)))
+            }
+            QirNode::Or { left, right } => {
+                let l = self.eval(left, d)?.as_bool().ok_or(EvalError)?;
+                if l {
+                    return Ok(Cow::Owned(JsonValue::Bool(true)));
+                }
+                let r = self.eval(right, d)?.as_bool().ok_or(EvalError)?;
+                Ok(Cow::Owned(JsonValue::Bool(r)))
+            }
+            QirNode::Cmp { op, left, right } => {
+                let l = self.eval(left, d)?.as_f64().ok_or(EvalError)?;
+                let r = self.eval(right, d)?.as_f64().ok_or(EvalError)?;
+                let out = match op {
+                    QirCmpOp::Lt => l < r,
+                    QirCmpOp::Lteq => l <= r,
+                    QirCmpOp::Gt => l > r,
+                    QirCmpOp::Gteq => l >= r,
+                };
+                Ok(Cow::Owned(JsonValue::Bool(out)))
+            }
+            QirNode::Eq {
+                negated,
+                left,
+                right,
+            } => {
+                let l = self.eval(left, d)?.into_owned();
+                let r = self.eval(right, d)?;
+                let eq = Self::ai_eq(&l, r.as_ref());
+                Ok(Cow::Owned(JsonValue::Bool(if *negated { !eq } else { eq })))
+            }
+            QirNode::StrTest { op, target, needle } => {
+                let target = self.eval(target, d)?;
+                let target = target.as_str().ok_or(EvalError)?;
+                let needle = self.eval(needle, d)?;
+                let needle = needle.as_str().ok_or(EvalError)?;
+                let out = match op {
+                    QirStrTestOp::Incl => target.contains(needle),
+                    QirStrTestOp::StartsWith => target.starts_with(needle),
+                    QirStrTestOp::EndsWith => target.ends_with(needle),
+                };
+                Ok(Cow::Owned(JsonValue::Bool(out)))
+            }
+            QirNode::StrMap { op, target } => {
+                let target = self.eval(target, d)?;
+                let target = target.as_str().ok_or(EvalError)?;
+                let out = match op {
+                    QirStrMapOp::Lower => target.to_lowercase(),
+                    QirStrMapOp::Upper => target.to_uppercase(),
+                };
+                Ok(Cow::Owned(JsonValue::String(out)))
+            }
+            QirNode::ArrIncl { target, needle } => {
+                let target = self.eval(target, d)?.into_owned();
+                let items = match &target {
+                    JsonValue::Array(items) => items,
+                    _ => return Err(EvalError),
+                };
+                let needle = self.eval(needle, d)?;
+                let hit = items.iter().any(|el| Self::ai_eq(el, needle.as_ref()));
+                Ok(Cow::Owned(JsonValue::Bool(hit)))
+            }
+        }
+    }
+}
+
+/// コンパイル済みクエリを 1 ノート (NormalizedNote の serde 形) に対して評価する。
+///
+/// 意味論は JS 評価器・AiScript 1.2.1 と同一で、共有 golden vector で
+/// 一致を検証する (不変条件 (a))。
+#[allow(dead_code)]
+pub fn evaluate_qir(query: &QirQuery, note: &JsonValue) -> QirVerdict {
+    if query.schema_version != QIR_SCHEMA_VERSION {
+        return QirVerdict::Error;
+    }
+    match Evaluator::new(note).eval(&query.root, 1) {
+        Ok(v) => match v.as_bool() {
+            Some(true) => QirVerdict::Match,
+            Some(false) => QirVerdict::Unmatch,
+            // トップレベルが bool でないのは per-note エラー (V20)
+            None => QirVerdict::Error,
+        },
+        Err(EvalError) => QirVerdict::Error,
+    }
+}
+
+#[cfg(test)]
+mod golden_tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    /// 共有 golden vector (不変条件 (a) の Rust 面)。
+    ///
+    /// 期待値の正本は AiScript 1.2.1 の実挙動で、JS 側は同じ vectors.json を
+    /// 参照評価器と JS QIR eval の 2 面で検証している。ここは 3 面目。
+    /// QIR は JS のコンパイラが生成したスナップショット (`pnpm gen:golden-qir`)。
+    #[derive(serde::Deserialize)]
+    struct GoldenFile {
+        cases: Vec<GoldenCase>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct GoldenCase {
+        name: String,
+        note: JsonValue,
+        expected: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct QirSnapshot {
+        cases: BTreeMap<String, QirQuery>,
+    }
+
+    fn read(rel: &str) -> String {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
+    }
+
+    #[test]
+    fn rust_eval_matches_golden_vectors() {
+        let golden: GoldenFile =
+            serde_json::from_str(&read("../src/services/columnQuery/golden/vectors.json"))
+                .expect("parse vectors.json");
+        let snapshot: QirSnapshot = serde_json::from_str(&read(
+            "../src/services/columnQuery/golden/qir.generated.json",
+        ))
+        .expect("parse qir.generated.json — run `pnpm gen:golden-qir`");
+
+        let mut checked = 0;
+        for case in &golden.cases {
+            // 静的型エラーで QIR にコンパイルされないケースは fallback 専用ベクタ
+            let Some(query) = snapshot.cases.get(&case.name) else {
+                continue;
+            };
+            let verdict = evaluate_qir(query, &case.note);
+            let expected = match case.expected.as_str() {
+                "match" => QirVerdict::Match,
+                "unmatch" => QirVerdict::Unmatch,
+                "error" => QirVerdict::Error,
+                other => panic!("unknown expected verdict: {other}"),
+            };
+            assert_eq!(verdict, expected, "golden case `{}`", case.name);
+            checked += 1;
+        }
+        assert!(checked > 0, "no golden case was evaluated");
+    }
+
+    /// スナップショットが古いと「評価されないケース」が黙って増える。
+    /// 静的拒否ケース以外はすべて QIR を持っているはず。
+    #[test]
+    fn qir_snapshot_covers_every_compilable_case() {
+        const STATIC_REJECT: &[&str] = &[
+            "non-bool-result-error",
+            "lt-on-string-error",
+            "and-non-bool-error",
+            "not-non-bool-error",
+        ];
+        let golden: GoldenFile =
+            serde_json::from_str(&read("../src/services/columnQuery/golden/vectors.json")).unwrap();
+        let snapshot: QirSnapshot = serde_json::from_str(&read(
+            "../src/services/columnQuery/golden/qir.generated.json",
+        ))
+        .unwrap();
+        let missing: Vec<&str> = golden
+            .cases
+            .iter()
+            .map(|c| c.name.as_str())
+            .filter(|n| !STATIC_REJECT.contains(n) && !snapshot.cases.contains_key(*n))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "QIR スナップショットが古いです。`pnpm gen:golden-qir` を実行してください: {missing:?}"
+        );
     }
 }
