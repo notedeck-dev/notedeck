@@ -295,6 +295,10 @@ defineExpose({
 
     <template #header-extra>
       <div :class="$style.subHeaderRow">
+        <div :class="$style.subHeaderMain">
+          <slot name="header-extra" />
+        </div>
+        <!-- クエリバッジはフィルタボタンの隣に置く (どちらも絞り込みの状態) -->
         <button
           v-if="columnQueryState.status !== 'none'"
           class="_button"
@@ -309,9 +313,6 @@ defineExpose({
           <i :class="queryBadgeIcon" />
           <span v-if="columnQueryErrorCount > 0">{{ columnQueryErrorCount }}</span>
         </button>
-        <div :class="$style.subHeaderMain">
-          <slot name="header-extra" />
-        </div>
         <button
           v-if="showFilterBtn"
           ref="filterBtnRef"
@@ -501,6 +502,7 @@ defineExpose({
 .queryBadge {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 2px;
   padding: 2px 6px;
   border-radius: var(--nd-radius-full);
