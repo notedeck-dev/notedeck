@@ -166,6 +166,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     deleteHandler: handlers.delete,
     closePostForm: postForm.close,
     visibility: config.visibility,
+    accountId: () => config.getColumn().accountId,
   })
 
   // Streaming (Group A) or NoteCapture (Group B)
@@ -990,10 +991,12 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (!column.accountId || !cacheKey) return
     // createdAt ベースのページングなのでアンカーもカーソルの createdAt を使う。
     // 全件フィルタ落ちのページでもアンカーが前進し、API 経路と同型のループが
-    // キャッシュ経路に残らない
-    const anchor =
-      fetchCursor.value?.createdAt ?? rawNotes.value.at(-1)?.createdAt
-    if (!anchor) return
+    // キャッシュ経路に残らない。
+    // createdAt と id は必ず同一ソースからペアで取る — 食い違うと keyset
+    // cursor (sort_key, note_id) が別ノート由来になり遡りが破綻する (§6-14)
+    const cursorSource = fetchCursor.value ?? rawNotes.value.at(-1)
+    const anchor = cursorSource?.createdAt
+    if (!cursorSource || !anchor) return
     const stillCurrent = tabGuard()
     isLoading.value = true
     try {
@@ -1034,6 +1037,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
         column.accountId,
         cacheKey,
         anchor,
+        cursorSource.id,
       )
       if (!stillCurrent()) return
       advanceFetchCursor(older)

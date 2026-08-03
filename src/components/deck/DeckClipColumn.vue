@@ -2,11 +2,14 @@
 import { useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
 const props = defineProps<{
   column: DeckColumnType
 }>()
+
+const cacheKeyDeps = accountsCacheKeyDeps()
 
 const noteColumnConfig: NoteColumnConfig = {
   getColumn: () => props.column,
@@ -15,7 +18,7 @@ const noteColumnConfig: NoteColumnConfig = {
     adapter.api.getClipNotes(props.column.clipId!, opts),
   validate: () => !!props.column.clipId,
   cache: {
-    getKey: () => (props.column.clipId ? `clip:${props.column.clipId}` : null),
+    getKey: () => columnCacheKey(props.column, cacheKeyDeps),
   },
   // カラム化できるのは自分のクリップとお気に入りしたクリップ（picker 経由）
   // = 自分が保存した面なので凍結は貫通させる。他人のクリップは

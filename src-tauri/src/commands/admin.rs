@@ -1,6 +1,7 @@
 use tauri::State;
 
 use notecli::db::{ChatEvictionConfig, EvictionConfig};
+use notecli::error::NoteDeckError;
 use notecli::models::{AccountPublic, ServerDetection};
 
 use super::{export_account_list, validate_host, AppState, Result};
@@ -72,6 +73,10 @@ pub async fn account_cache_count(
     db.account_cache_count(&account_id)
 }
 
+// 以下の cache 系コマンドは writer lock を長時間 (秒〜分オーダー) 保持し得るため
+// spawn_blocking で退避する。writer は std::sync::Mutex のため async runtime 直呼びは
+// tokio worker の連鎖枯渇を招く (前例: messaging.rs)。
+
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_account_cache(
@@ -79,16 +84,19 @@ pub async fn clear_account_cache(
     account_id: String,
 ) -> Result<u64> {
     let db = app_state.db().await;
-    db.clear_account_cache(&account_id)
+    run_blocking(move || db.clear_account_cache(&account_id)).await
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_all_cache(app_state: State<'_, AppState>) -> Result<u64> {
     let db = app_state.db().await;
-    let notes = db.clear_all_notes_cache()?;
-    let _ogp = db.clear_ogp_cache()?;
-    Ok(notes)
+    run_blocking(move || {
+        let notes = db.clear_all_notes_cache()?;
+        let _ogp = db.clear_ogp_cache()?;
+        Ok(notes)
+    })
+    .await
 }
 
 /// ユーザーが UI で選んだ eviction config を即時適用する。 戻り値は削除件数。
@@ -100,7 +108,16 @@ pub async fn apply_eviction_config(
     config: EvictionConfig,
 ) -> Result<u64> {
     let db = app_state.db().await;
-    db.cleanup_with_eviction(&config)
+    run_blocking(move || db.cleanup_with_eviction(&config)).await
+}
+
+/// writer lock を長時間保持する DB 操作を blocking スレッドで実行する。
+async fn run_blocking<T: Send + 'static>(
+    f: impl FnOnce() -> std::result::Result<T, NoteDeckError> + Send + 'static,
+) -> Result<T> {
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|e| NoteDeckError::Internal(format!("blocking task failed: {e}")))?
 }
 
 /// notecli の `EvictionConfig::default()` を取得する。 アプリの「バランス」
@@ -156,7 +173,7 @@ pub async fn apply_chat_eviction_config(
     config: ChatEvictionConfig,
 ) -> Result<u64> {
     let db = app_state.db().await;
-    db.cleanup_chat_with_eviction(&config)
+    run_blocking(move || db.cleanup_chat_with_eviction(&config)).await
 }
 
 #[tauri::command]

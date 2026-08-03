@@ -6,8 +6,8 @@ use tauri::{Emitter, Manager, State};
 use notecli::error::NoteDeckError;
 use notecli::models::{
     Antenna, Channel, Clip, CreateNoteParams, NormalizedDriveFile, NormalizedNote,
-    NormalizedNoteReaction, RawCreateNoteResponse, RawNote, SearchOptions, TimelineOptions,
-    TimelineType, UserList,
+    NormalizedNoteReaction, RawCreateNoteResponse, RawNote, SearchOptions, TimelineKey,
+    TimelineOptions, UserList,
 };
 
 use super::{
@@ -25,25 +25,32 @@ pub async fn api_get_timeline(
     app: tauri::AppHandle,
     app_state: State<'_, AppState>,
     account_id: String,
-    timeline_type: TimelineType,
+    timeline_type: String,
     options: Option<TimelineOptions>,
 ) -> Result<Vec<NormalizedNote>> {
     let (db, client) = app_state.ready().await;
     let (host, token) = get_credentials_or_anon(&db, &account_id)?;
     let opts = options.unwrap_or_default();
-    let cache_key = if timeline_type.as_str() == "user-list" {
-        if let Some(ref list_id) = opts.list_id {
-            format!("user-list:{list_id}")
-        } else {
-            timeline_type.as_str().to_string()
+    // 境界アダプタ: フロントの呼び出し規約 getTimeline('user-list', {listId}) を
+    // canonical キーへ合成する (parse の前段。api 層は options.list_id を読まない)
+    let key = if timeline_type == "user-list" {
+        match opts.list_id {
+            Some(ref list_id) => TimelineKey::UserList {
+                list_id: list_id.clone(),
+            },
+            None => {
+                return Err(NoteDeckError::InvalidInput(
+                    "user-list timeline requires listId".to_string(),
+                ))
+            }
         }
     } else {
-        timeline_type.as_str().to_string()
+        TimelineKey::parse(&timeline_type)?
     };
     let notes = client
-        .get_timeline(&host, &token, &account_id, timeline_type, opts)
+        .get_timeline(&host, &token, &account_id, &key, opts)
         .await?;
-    if let Err(e) = db.cache_notes(&notes, &cache_key) {
+    if let Err(e) = db.ingest_notes(&notes, &key) {
         tracing::warn!("[cache] failed to cache timeline notes: {e}");
     }
 
@@ -152,7 +159,41 @@ pub async fn api_update_antenna(
     antenna: Antenna,
 ) -> Result<Antenna> {
     let (client, host, token) = app_state.authed(&account_id).await?;
-    client.update_antenna(&host, &token, &antenna).await
+    let updated = client.update_antenna(&host, &token, &antenna).await?;
+    // 設定変更後の旧マッチ分は個別ノートへ逆引きできないためバケット破棄 →
+    // 次回フェッチで再構築 (失敗は warn + Ok)。大バケットは writer lock を
+    // 秒単位で保持し得るため spawn_blocking で退避
+    let db = app_state.db().await;
+    let account_id_owned = account_id.clone();
+    let key = TimelineKey::Antenna {
+        antenna_id: updated.id.clone(),
+    };
+    tokio::task::spawn_blocking(move || {
+        if let Err(e) = db.clear_timeline(&account_id_owned, &key) {
+            tracing::warn!("[cache] failed to clear antenna bucket: {e}");
+        }
+    });
+    Ok(updated)
+}
+
+/// エンティティ削除 (antenna / clip / list — フロントは汎用 api_request で
+/// サーバー削除する) の後始末: 死にバケットの membership を破棄する。
+/// これが無いと削除済みエンティティの membership が sweep 対象外のまま
+/// per-account cap まで残留する (issue notecli#30 仕様 v5 §6-7)。
+#[tauri::command]
+#[specta::specta]
+pub async fn api_clear_timeline_cache(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    timeline_key: String,
+) -> Result<u32> {
+    // parse Err は Err 返却 (フロントのキー組み間違いを顕在化)
+    let key = TimelineKey::parse(&timeline_key)?;
+    let db = app_state.db().await;
+    let removed = tokio::task::spawn_blocking(move || db.clear_timeline(&account_id, &key))
+        .await
+        .map_err(|e| NoteDeckError::Internal(format!("clear_timeline task failed: {e}")))??;
+    Ok(removed.min(u32::MAX as u64) as u32)
 }
 
 #[tauri::command]
@@ -178,7 +219,12 @@ pub async fn api_get_antenna_notes(
             until_id.as_deref(),
         )
         .await?;
-    if let Err(e) = db.cache_notes(&notes, &format!("antenna:{antenna_id}")) {
+    if let Err(e) = db.ingest_notes(
+        &notes,
+        &TimelineKey::Antenna {
+            antenna_id: antenna_id.clone(),
+        },
+    ) {
         tracing::warn!("[cache] failed to cache antenna notes: {e}");
     }
     Ok(notes)
@@ -205,7 +251,7 @@ pub async fn api_get_favorites(
             until_id.as_deref(),
         )
         .await?;
-    if let Err(e) = db.cache_notes(&notes, "favorites") {
+    if let Err(e) = db.ingest_notes(&notes, &TimelineKey::Favorites) {
         tracing::warn!("[cache] failed to cache favorites: {e}");
     }
     Ok(notes)
@@ -251,11 +297,11 @@ pub async fn api_get_mentions(
     // ダイレクト（specified）と通常メンションは別カラム・別キャッシュキー。
     // 同じキーに混ぜると read 側（cacheKey='specified' / 'mentions'）と不整合になる。
     let cache_key = if visibility.as_deref() == Some("specified") {
-        "specified"
+        TimelineKey::Specified
     } else {
-        "mentions"
+        TimelineKey::Mentions
     };
-    if let Err(e) = db.cache_notes(&notes, cache_key) {
+    if let Err(e) = db.ingest_notes(&notes, &cache_key) {
         tracing::warn!("[cache] failed to cache mentions: {e}");
     }
     Ok(notes)
@@ -296,7 +342,12 @@ pub async fn api_get_clip_notes(
             until_id.as_deref(),
         )
         .await?;
-    if let Err(e) = db.cache_notes(&notes, &format!("clip:{clip_id}")) {
+    if let Err(e) = db.ingest_notes(
+        &notes,
+        &TimelineKey::Clip {
+            clip_id: clip_id.clone(),
+        },
+    ) {
         tracing::warn!("[cache] failed to cache clip notes: {e}");
     }
     Ok(notes)
@@ -348,7 +399,12 @@ pub async fn api_get_channel_notes(
             until_id.as_deref(),
         )
         .await?;
-    if let Err(e) = db.cache_notes(&notes, &format!("channel:{channel_id}")) {
+    if let Err(e) = db.ingest_notes(
+        &notes,
+        &TimelineKey::Channel {
+            channel_id: channel_id.clone(),
+        },
+    ) {
         tracing::warn!("[cache] failed to cache channel notes: {e}");
     }
     Ok(notes)
@@ -379,7 +435,12 @@ pub async fn api_get_role_notes(
             until_id.as_deref(),
         )
         .await?;
-    if let Err(e) = db.cache_notes(&notes, &format!("role:{role_id}")) {
+    if let Err(e) = db.ingest_notes(
+        &notes,
+        &TimelineKey::Role {
+            role_id: role_id.clone(),
+        },
+    ) {
         tracing::warn!("[cache] failed to cache role notes: {e}");
     }
     Ok(notes)
@@ -577,7 +638,14 @@ pub async fn api_delete_favorite(
     note_id: String,
 ) -> Result<()> {
     let (client, host, token) = app_state.authed(&account_id).await?;
-    client.delete_favorite(&host, &token, &note_id).await
+    client.delete_favorite(&host, &token, &note_id).await?;
+    // サーバー成功後に favorites バケットの所属を外す (失敗は warn + Ok —
+    // サーバー状態は成功済みのため。stale は TTL/cap で最終解消)
+    let db = app_state.db().await;
+    if let Err(e) = db.remove_membership(&account_id, &TimelineKey::Favorites, &note_id) {
+        tracing::warn!("[cache] failed to remove favorites membership: {e}");
+    }
+    Ok(())
 }
 
 // --- Pin/Unpin ---
@@ -631,7 +699,18 @@ pub async fn api_remove_note_from_clip(
     let (client, host, token) = app_state.authed(&account_id).await?;
     client
         .remove_note_from_clip(&host, &token, &clip_id, &note_id)
-        .await
+        .await?;
+    let db = app_state.db().await;
+    if let Err(e) = db.remove_membership(
+        &account_id,
+        &TimelineKey::Clip {
+            clip_id: clip_id.clone(),
+        },
+        &note_id,
+    ) {
+        tracing::warn!("[cache] failed to remove clip membership: {e}");
+    }
+    Ok(())
 }
 
 // --- Note thread ---
@@ -834,12 +913,10 @@ pub async fn api_get_cached_timeline(
     timeline_type: String,
     limit: Option<i64>,
 ) -> Result<Vec<NormalizedNote>> {
+    // 不正キーは黙殺せず Err で顕在化させる (フロントは catch → [] で安全)
+    let key = TimelineKey::parse(&timeline_type)?;
     let db = app_state.db().await;
-    db.get_cached_timeline(
-        &account_id,
-        &timeline_type,
-        limit.unwrap_or(40).clamp(1, 200),
-    )
+    db.get_cached_timeline(&account_id, &key, limit.unwrap_or(40).clamp(1, 200))
 }
 
 #[tauri::command]
@@ -849,16 +926,19 @@ pub async fn api_get_cached_timeline_before(
     account_id: String,
     timeline_type: String,
     before: String,
+    before_note_id: Option<String>,
     limit: Option<i64>,
 ) -> Result<Vec<NormalizedNote>> {
     if before.len() > 30 {
         return Err(NoteDeckError::InvalidInput("Invalid date".to_string()));
     }
+    let key = TimelineKey::parse(&timeline_type)?;
     let db = app_state.db().await;
     db.get_cached_timeline_before(
         &account_id,
-        &timeline_type,
+        &key,
         &before,
+        before_note_id.as_deref(),
         limit.unwrap_or(40).clamp(1, 200),
     )
 }
@@ -870,8 +950,9 @@ pub async fn api_get_cache_date_range(
     account_id: String,
     timeline_type: String,
 ) -> Result<Option<(String, String)>> {
+    let key = TimelineKey::parse(&timeline_type)?;
     let db = app_state.db().await;
-    db.get_cache_date_range(&account_id, &timeline_type)
+    db.get_cache_date_range(&account_id, &key)
 }
 
 #[tauri::command]
@@ -913,46 +994,80 @@ pub async fn api_search_notes_local(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn api_delete_cached_note(app_state: State<'_, AppState>, note_id: String) -> Result<()> {
+pub async fn api_delete_cached_note(
+    app_state: State<'_, AppState>,
+    account_id: String,
+    note_id: String,
+) -> Result<()> {
     let db = app_state.db().await;
-    db.delete_cached_note(&note_id)
+    db.delete_cached_note(&account_id, &note_id)?;
+    Ok(())
 }
 
 /// Maximum number of concurrent note verification requests
 const MAX_VERIFY_CONCURRENT: usize = 20;
 
+/// `api_verify_notes` の結果。
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct VerifyNotesResult {
+    /// サーバー上に現存が確認できたノート (note_id → 最新の NormalizedNote)
+    pub verified: HashMap<String, NormalizedNote>,
+    /// サーバーが NO_SUCH_NOTE を返した = 削除が確認できたノート id。
+    /// 通信エラー・レート制限・タイムアウトはどちらにも含まれない (生存扱い) —
+    /// 復帰直後の不安定なネットワークでキャッシュを誤って恒久削除しないため
+    /// (issue notecli#30 仕様 v5 §6-8)。
+    pub missing: Vec<String>,
+}
+
 /// Bulk-verify cached notes against the server.
-/// Returns a map of note_id → fresh NormalizedNote for notes that still exist.
-/// Missing notes (404) are omitted from the result.
 #[tauri::command]
 #[specta::specta]
 pub async fn api_verify_notes(
     app_state: State<'_, AppState>,
     account_id: String,
     note_ids: Vec<String>,
-) -> Result<HashMap<String, NormalizedNote>> {
+) -> Result<VerifyNotesResult> {
     if note_ids.len() > 200 {
         return Err(NoteDeckError::InvalidInput("Too many note IDs".to_string()));
     }
     let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
 
-    let verified: HashMap<String, NormalizedNote> = stream::iter(note_ids)
-        .map(|id| {
-            let host = host.clone();
-            let token = token.clone();
-            let account_id = account_id.clone();
-            let client = client.clone();
-            async move {
-                let result = client.get_note(&host, &token, &account_id, &id).await;
-                (id, result.ok())
-            }
-        })
-        .buffer_unordered(MAX_VERIFY_CONCURRENT)
-        .filter_map(
-            |(id, note): (String, Option<NormalizedNote>)| async move { note.map(|n| (id, n)) },
-        )
-        .collect()
-        .await;
+    let results: Vec<(String, std::result::Result<NormalizedNote, NoteDeckError>)> =
+        stream::iter(note_ids)
+            .map(|id| {
+                let host = host.clone();
+                let token = token.clone();
+                let account_id = account_id.clone();
+                let client = client.clone();
+                async move {
+                    let result = client.get_note(&host, &token, &account_id, &id).await;
+                    (id, result)
+                }
+            })
+            .buffer_unordered(MAX_VERIFY_CONCURRENT)
+            .collect()
+            .await;
 
-    Ok(verified)
+    let mut verified = HashMap::new();
+    let mut missing = Vec::new();
+    for (id, result) in results {
+        match result {
+            Ok(note) => {
+                verified.insert(id, note);
+            }
+            // 削除確認は NO_SUCH_NOTE のみ。それ以外のエラーは生存扱いでスキップ
+            Err(NoteDeckError::Api {
+                api_code: Some(code),
+                ..
+            }) if code == "NO_SUCH_NOTE" => {
+                missing.push(id);
+            }
+            Err(e) => {
+                tracing::debug!(note_id = %id, error = %e, "note verification inconclusive; treating as alive");
+            }
+        }
+    }
+
+    Ok(VerifyNotesResult { verified, missing })
 }

@@ -203,13 +203,15 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
             return fetchNotes(adapter, { untilId: lastForAccount.id })
           }
 
-          // ログアウト中: hasToken 不要でキャッシュを遡る
+          // ログアウト中: hasToken 不要でキャッシュを遡る。
+          // createdAt / id は同一ノート (lastForAccount) からペアで渡す (§6-14)
           if (!key || !lastForAccount) return []
           try {
             return await loadCachedTimelineBefore(
               acc.id,
               key,
               lastForAccount.createdAt,
+              lastForAccount.id,
             )
           } catch {
             return []

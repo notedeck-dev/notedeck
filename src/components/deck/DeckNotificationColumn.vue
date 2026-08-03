@@ -889,7 +889,7 @@ async function removeNote(note: NormalizedNote) {
   saveCache()
   noteStore.remove(id)
   commands
-    .apiDeleteCachedNote(id)
+    .apiDeleteCachedNote(note._accountId, id)
     .then((r) => unwrap(r))
     .catch((e) => {
       if (import.meta.env.DEV) console.debug('[delete-cached-note] ignored:', e)

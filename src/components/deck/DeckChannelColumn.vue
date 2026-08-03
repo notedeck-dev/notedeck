@@ -8,6 +8,7 @@ import type { NormalizedNote } from '@/adapters/types'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
@@ -20,6 +21,7 @@ const props = defineProps<{
 }>()
 
 const accountsStore = useAccountsStore()
+const cacheKeyDeps = accountsCacheKeyDeps()
 const account = computed(() =>
   props.column.accountId
     ? accountsStore.accountMap.get(props.column.accountId)
@@ -33,8 +35,7 @@ const noteColumnConfig: NoteColumnConfig = {
     adapter.api.getChannelNotes(props.column.channelId!, opts),
   validate: () => !!props.column.channelId,
   cache: {
-    getKey: () =>
-      props.column.channelId ? `channel:${props.column.channelId}` : null,
+    getKey: () => columnCacheKey(props.column, cacheKeyDeps),
   },
   streaming: {
     subscribe: (_adapter, enqueue, callbacks) => {

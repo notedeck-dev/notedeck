@@ -7,12 +7,15 @@ import type { NormalizedNote } from '@/adapters/types'
 import { useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
 const props = defineProps<{
   column: DeckColumnType
 }>()
+
+const cacheKeyDeps = accountsCacheKeyDeps()
 
 const noteColumnConfig: NoteColumnConfig = {
   getColumn: () => props.column,
@@ -21,8 +24,7 @@ const noteColumnConfig: NoteColumnConfig = {
     adapter.api.getAntennaNotes(props.column.antennaId!, opts),
   validate: () => !!props.column.antennaId,
   cache: {
-    getKey: () =>
-      props.column.antennaId ? `antenna:${props.column.antennaId}` : null,
+    getKey: () => columnCacheKey(props.column, cacheKeyDeps),
   },
   streaming: {
     subscribe: (_adapter, enqueue, callbacks) => {

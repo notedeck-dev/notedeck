@@ -137,6 +137,9 @@ pub async fn export_db(
 /// Import notecli.db from a user-chosen file via open dialog.
 /// Replaces the current database file. Caller should relaunch the app afterwards
 /// so that Rust re-opens the new DB with a fresh connection.
+///
+/// 注意: V6 (note_timelines) 適用済みの DB は旧バージョンのアプリへ持ち込めない
+/// (refinery の missing migration で open 不能。DB 自体は無傷)。
 #[tauri::command]
 #[specta::specta]
 pub async fn import_db(app: tauri::AppHandle) -> Result<bool> {
