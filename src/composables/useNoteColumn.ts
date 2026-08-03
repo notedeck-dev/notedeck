@@ -478,16 +478,28 @@ export function useNoteColumn(config: NoteColumnConfig) {
     ].join('+')
   })
 
+  /** クエリ変更の世代。遅れて返った再適用が新しい状態を壊さないためのガード */
+  let querySignatureGeneration = 0
+
   // クエリ変更時 (インライン編集・トグル・named の編集伝播): 診断をリセットし、
   // 表示中ノートへ即時適用 (絞り込み方向) + refetch (緩和方向の回収)
   watch(querySignature, (next, prev) => {
     if (next === prev) return
     queryErrorCount.value = 0
     queryExcludedCount.value = 0
-    if (rawNotes.value.length > 0) {
-      void applyQueryFilter(rawNotes.value).then(setNotes)
-    }
-    void refresh()
+    const generation = ++querySignatureGeneration
+    // 再適用と refetch は直列に流す。並行にすると、🐢 の Worker 待ちで遅れた
+    // 再適用が refetch の結果を「変更前のクエリで絞った列」で上書きしてしまう
+    // (fail-closed 中は空列なので、解除した瞬間に一覧が消える)
+    void (async () => {
+      if (rawNotes.value.length > 0) {
+        const filtered = await applyQueryFilter(rawNotes.value)
+        if (generation !== querySignatureGeneration) return
+        setNotes(filtered)
+      }
+      if (generation !== querySignatureGeneration) return
+      await refresh()
+    })()
   })
 
   async function applyQueryFilter(

@@ -802,3 +802,50 @@ describe('useNoteColumn: 消えたクエリ参照からの復旧 (#783 追補 A)
     expect(updates).toEqual([{ noteQueryRefs: undefined }])
   })
 })
+
+describe('useNoteColumn: クエリ変更時の再適用と refetch の順序 (#783)', () => {
+  it('クエリを外したら refetch の結果が残る (再適用に上書きされない)', async () => {
+    addAccount('acc-query-toggle')
+    const column = ref<Partial<DeckColumn>>({
+      noteQuery: 'note.text == "none"',
+    })
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue([
+        { ...note('h01'), text: 'hello' } as NormalizedNote,
+        { ...note('h02'), text: 'world' } as NormalizedNote,
+      ])
+    let api: ReturnType<typeof useNoteColumn> | null = null
+    const Host = defineComponent({
+      setup() {
+        api = useNoteColumn({
+          getColumn: () =>
+            ({
+              id: 'col-query-toggle',
+              type: 'timeline',
+              accountId: 'acc-query-toggle',
+              ...column.value,
+            }) as DeckColumn,
+          fetch: () => fetchImpl(),
+          cache: { getKey: () => 'home' },
+        })
+        return () => null
+      },
+    })
+    const app = createApp(Host)
+    app.use(pinia)
+    app.mount(document.createElement('div'))
+    apps.push(app)
+    await flush()
+    // 全件フィルタ落ちで空
+    expect(ids(api as never)).toEqual([])
+
+    // クエリを外す → 再適用 (空のまま) と refetch が走る
+    column.value = {}
+    await flush(20)
+
+    // refetch の結果が残っていること (空で上書きされない)。
+    // 並びは fetch の返却順そのまま (既存挙動)
+    expect(ids(api as never)).toEqual(['h01', 'h02'])
+  })
+})
