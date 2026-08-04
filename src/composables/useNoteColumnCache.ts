@@ -95,15 +95,16 @@ export async function purgeStaleCachedNotes(
  * FTS5 で粗く絞ってから Rust の QIR 評価器で判定するので、条件に合うノートを
  * 見つけるまで遡れる。`before` より古い側を、走査上限まで読んで探す。
  *
- * タイムライン種別では絞らない。notecli#30 で実体 (notes_cache) と所属
- * (note_timelines) は分離済みだが、この scan は今も全所属横断で走査する。
- * カラムの所属バケットで絞る bucket スコープ検索は follow-up
- * (notecli#30 v5 §12-9)。取りこぼしより、別種別のノートが混ざる方が
- * 気づけるため、それまでは絞らない側に倒している。
+ * `timelineKey` (canonical 形式 — columnCacheKey が導出する) を渡すと、
+ * カラムの所属バケットのみを母集合にする。実体/所属分離 (notecli#30) 以前は
+ * 所属が後勝ち上書きで種別絞りが取りこぼしになるため全体走査に倒していたが、
+ * その妥協は解消済み (notecli#30 v5 §12-9)。null は全所属横断で走査する。
+ * カーソルは同じ timelineKey の続き読みにのみ使うこと。
  */
 export async function searchCachedNotesByQuery(
   accountId: string,
   query: QirQuery,
+  timelineKey: string | null,
   before: { createdAt: string; noteId: string } | null,
   limit: number,
   maxScannedRows: number,
@@ -117,6 +118,7 @@ export async function searchCachedNotesByQuery(
     await commands.qirSearchCache(
       accountId,
       query,
+      timelineKey,
       limit,
       maxScannedRows,
       before,

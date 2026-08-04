@@ -88,14 +88,20 @@ async qirValidate(query: QirQuery) : Promise<QirValidation> {
  * 偽陰性を出さない規則に従うので (不変条件 (b))、FTS で落ちたノートが
  * 本来マッチするということはない。
  * 
+ * `timeline_key` (canonical 文字列) を渡すと当該バケット所属のみを母集合に
+ * する。実体/所属分離 (notecli#30) 以前は所属が後勝ち上書きで種別絞りが
+ * 取りこぼしになるため全体走査しかなかったが、その妥協は解消済み。
+ * null は従来どおりアカウントの全キャッシュを走査する。
+ * 
  * 走査上限に達したら打ち切って継続カーソルを返す。呼び出し側は必要なだけ
- * 繰り返す (一度の呼び出しで巨大キャッシュを読み切らせない)。
+ * 繰り返す (一度の呼び出しで巨大キャッシュを読み切らせない)。カーソルは
+ * 同じ timeline_key の続き読みにのみ使うこと。
  *
  * @see src-tauri/src/commands/column_query.rs
  */
-async qirSearchCache(accountId: string, query: QirQuery, limit: number | null, maxScannedRows: number | null, cursor: QirSearchCursor | null) : Promise<Result<QirSearchResult, { code: string; message: string; apiCode: string | null }>> {
+async qirSearchCache(accountId: string, query: QirQuery, timelineKey: string | null, limit: number | null, maxScannedRows: number | null, cursor: QirSearchCursor | null) : Promise<Result<QirSearchResult, { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("qir_search_cache", { accountId, query, limit, maxScannedRows, cursor }) };
+    return { status: "ok", data: await TAURI_INVOKE("qir_search_cache", { accountId, query, timelineKey, limit, maxScannedRows, cursor }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

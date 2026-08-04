@@ -1010,9 +1010,11 @@ export function useNoteColumn(config: NoteColumnConfig) {
               noteId: fetchCursor.value.id,
             }
           : null
+        // カラムの所属バケットで母集合を絞る (notecli#30 §12-9 で妥協解消)
         const found = await searchCachedNotesByQuery(
           column.accountId,
           searchable,
+          cacheKey,
           cursor,
           CACHE_SEARCH_LIMIT,
           CACHE_SEARCH_MAX_SCANNED_ROWS,
