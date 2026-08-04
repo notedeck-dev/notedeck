@@ -452,7 +452,7 @@ LLM は曖昧な指示で長文を返しがちなので、形式制約が効き�
 | 高リスク capability の enforcement | 確認ダイアログで enforce | code block + Shiki ハイライト表示 |
 | 自己改変系 capability (skill/widget/plugin/theme write) | permission + 確認ダイアログで enforce | 詳細は §5.2 (旧 `aiTool:false` ガードは #107 で廃止) |
 | AiScript プラグインからの capability 呼び出し | 実装済み | `Nd:call` / `Nd:capabilities` / `Nd:on` / `Nd:register_command` options |
-| MisStore からのスキルインストール | mode は `always` / `trigger` 以外 `manual` に正規化 | `mode: heartbeat` は手動で戻す必要がある。`isPersona` も未取込 (#967) |
+| MisStore からのスキルインストール | frontmatter の `mode` (`always` / `trigger` / `heartbeat`) と `isPersona` をそのまま取り込む | `mode: heartbeat` でも daemon 全体が無効なら回らない (#967) |
 | heartbeat skill の cheapCheck | `cheapCheckCapabilities` 宣言時のみ発動 | 未宣言だと毎 tick AI 呼び出し (§1.2) |
 
 ## 11. Built-in skill

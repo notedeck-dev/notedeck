@@ -282,6 +282,32 @@ describe('installSkill', () => {
     )
   })
 
+  it('keeps mode: heartbeat instead of falling back to manual (#967)', async () => {
+    const store = useMisStoreStore()
+    const hb = '---\nname: Pulse\nmode: heartbeat\n---\nreport'
+    fetchMock.mockResolvedValue(okText(hb))
+    await store.installSkill(skillEntry({ sha512: sha512Hex(hb) }))
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
+    expect(added.mode).toBe('heartbeat')
+  })
+
+  it('takes isPersona from frontmatter (#967)', async () => {
+    const store = useMisStoreStore()
+    const persona = '---\nname: Aizu\nisPersona: true\n---\npersona body'
+    fetchMock.mockResolvedValue(okText(persona))
+    await store.installSkill(skillEntry({ sha512: sha512Hex(persona) }))
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
+    expect(added.isPersona).toBe(true)
+  })
+
+  it('defaults isPersona to false when frontmatter omits it (#967)', async () => {
+    const store = useMisStoreStore()
+    fetchMock.mockResolvedValue(okText(source))
+    await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
+    expect(added.isPersona).toBe(false)
+  })
+
   it('rejects on hash mismatch and resets installingSkill', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okText(source))
