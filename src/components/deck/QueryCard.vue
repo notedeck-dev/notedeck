@@ -62,8 +62,10 @@ function handlePrimaryClick() {
 </script>
 
 <template>
-  <div :class="$style.card" @click="handlePrimaryClick">
-    <div :class="$style.accentBar" />
+  <div
+    :class="$style.card"
+    @click="handlePrimaryClick"
+  >
     <div :class="$style.icon">
       <span
         v-if="iconUrl"
@@ -75,7 +77,7 @@ function handlePrimaryClick() {
     </div>
     <div :class="$style.body">
       <div :class="$style.row1">
-        <span :class="$style.name">{{ name }}</span>
+        <button type="button" :class="$style.name" @click.stop="handlePrimaryClick">{{ name }}</button>
         <span
           v-if="!isStore && execution === 'degraded'"
           :class="$style.degradedBadge"
@@ -167,31 +169,17 @@ function handlePrimaryClick() {
   gap: 12px;
   padding: 12px 14px 12px 16px;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background var(--nd-duration-fast);
 
-  &:hover {
+  // ホバーの signal は背景ティント 1 つ (PluginCard と同型)
+  &:hover,
+  &:focus-within {
     background: var(--nd-buttonHoverBg);
-
-    .accentBar {
-      opacity: 1;
-    }
   }
 
   & + & {
     border-top: 1px solid color-mix(in srgb, var(--nd-divider) 50%, transparent);
   }
-}
-
-.accentBar {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 0;
-  width: 2px;
-  background: var(--nd-accent);
-  border-radius: 0 2px 2px 0;
-  opacity: 0;
-  transition: opacity 0.1s;
 }
 
 .icon {
@@ -228,7 +216,15 @@ function handlePrimaryClick() {
   min-width: 0;
 }
 
+// 行の主アクションはこの button が入口 (PluginCard と同型)
 .name {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   font-size: 13px;
   font-weight: 600;
   color: var(--nd-fgHighlighted);
@@ -237,6 +233,12 @@ function handlePrimaryClick() {
   white-space: nowrap;
   min-width: 0;
   flex-shrink: 1;
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
 }
 
 .version {
@@ -338,9 +340,10 @@ function handlePrimaryClick() {
   gap: 2px;
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--nd-duration-base);
 
-  .card:hover & {
+  .card:hover &,
+  .card:focus-within & {
     opacity: 1;
   }
 
@@ -361,9 +364,9 @@ function handlePrimaryClick() {
   font-size: 13px;
   opacity: 0.7;
   transition:
-    background 0.1s,
-    color 0.1s,
-    opacity 0.1s;
+    background var(--nd-duration-fast),
+    color var(--nd-duration-fast),
+    opacity var(--nd-duration-fast);
 
   &:hover {
     opacity: 1;
@@ -391,8 +394,8 @@ function handlePrimaryClick() {
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
   transition:
-    filter 0.1s,
-    opacity 0.1s;
+    filter var(--nd-duration-fast),
+    opacity var(--nd-duration-fast);
 
   &:hover:not(:disabled) {
     filter: brightness(1.1);

@@ -93,7 +93,7 @@ function onSyncChange(e: Event) {
 .labelAfter {
   position: absolute;
   top: 15px;
-  transition: color 1s ease;
+  transition: color var(--nd-duration-slow) var(--nd-ease-decel);
   font-size: 0.85em;
   user-select: none;
   white-space: nowrap;
@@ -128,7 +128,7 @@ function onSyncChange(e: Event) {
   background-color: #ffcf96;
   border-radius: 50px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  transition: background-color 400ms cubic-bezier(0.68, -0.55, 0.265, 1.55), transform 400ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  transition: background-color var(--nd-duration-slow) var(--nd-ease-decel), transform var(--nd-duration-slow) var(--nd-ease-decel);
   transform: rotate(-45deg);
 
   .checked & {

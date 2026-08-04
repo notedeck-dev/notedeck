@@ -139,8 +139,15 @@ function handleClick() {
   min-width: 0;
   transition: border-color var(--nd-duration-base);
 
-  &:hover {
+  &:hover,
+  &:focus-within {
     border-color: color-mix(in srgb, var(--nd-accent) 50%, var(--nd-divider));
+  }
+
+  // overflow: hidden があるので外側リングは欠ける。内側に引く
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: -2px;
   }
 }
 
@@ -174,7 +181,8 @@ function handleClick() {
   opacity: 0;
   transition: opacity var(--nd-duration-fast);
 
-  .item:hover & {
+  .item:hover &,
+  .item:focus-within & {
     opacity: 1;
   }
 
@@ -203,11 +211,11 @@ function handleClick() {
 }
 
 .editBtn {
-  background: var(--nd-accent, #86b300);
+  background: var(--nd-accent);
 }
 
 .removeBtn {
-  background: var(--nd-error, #ec4137);
+  background: var(--nd-error);
 }
 
 .clearBtn {

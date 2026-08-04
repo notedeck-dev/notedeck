@@ -447,13 +447,13 @@ function acceptCrossWindowDrop() {
   );
   color: var(--nd-fgOnAccent, #fff);
   font-size: 20px;
-  box-shadow: 0 4px 12px var(--nd-shadow);
-  transition: transform var(--nd-duration-slower) ease, box-shadow var(--nd-duration-slow) ease;
+  box-shadow: var(--nd-shadow-m);
+  transition: box-shadow var(--nd-duration-base) var(--nd-ease-decel);
 
+  // signal は影の深さ 1 つ。以前は scale(1.05) と accent 40% の色付き影を
+  // 同時に出していたが、暗い面の上の色付きグローは装飾でしかない
   &:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 20px
-      color-mix(in srgb, var(--nd-accent) 40%, rgba(0, 0, 0, 0.3));
+    box-shadow: var(--nd-shadow-l);
   }
 
   &:active {

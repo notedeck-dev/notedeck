@@ -1,0 +1,179 @@
+/* NoteDeck site tokens — Misskey Hub (misskey-hub-next) の設計言語を踏襲
+ *
+ * 正本: misskey-dev/misskey-hub-next
+ *   - 地は #eee / #1a1a1a のフラット。帯の交互ではなく「角丸 16px のカード面」で組む
+ *   - accent #86b300 → gradient(90deg, #86b300, #4ab300, #4ab300)
+ *   - チップは #9ad11b / 黒文字の pill
+ *   - acrylic: #fff6 + blur(12px) (dark: #3336)
+ *   - 面カード: #f7f7f7 (dark: #222) / 色付き面: #f3f5da (dark: #383c00)
+ *
+ * ダークの切り替えは VitePress の appearance に委ねる (html.dark)。
+ */
+
+:root {
+  /* ===== Accent — Misskey green ===== */
+  --accent:        #86b300;
+  --accent-strong: #4ab300;
+  --accent-grad:   linear-gradient(90deg, #86b300, #4ab300, #4ab300);
+  --accent-text:   #497900;   /* accent AS text on light paper (4.5:1 on --bg) */
+  --chip:          #9ad11b;
+  --chip-ink:      #000;
+
+  /* ===== Paper + ink ===== */
+  --bg:            #eee;
+  --text:          #222;
+  --text-sub:      #444;
+  --text-muted:    #666;
+  --panel:         #f7f7f7;   /* Hub の section bg カード */
+  --hero-bg:       #ddd;      /* Hub の section_top_bg */
+  --acrylic:       rgba(255, 255, 255, 0.4);
+  --acrylic-ink:   rgba(0, 0, 0, 0.73);
+  --tint:          #f3f5da;   /* Hub の donation カード */
+  --tint-ink:      #3b3d20;
+  --surface:       #fff;      /* plain ボタン / コード行 */
+  --surface-hover: #f4f4f4;
+  --border:        rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --nav-bg:        rgba(238, 238, 238, 0.86);
+  --code-bg:       #fff;
+  --dots:          rgba(0, 0, 0, 0.13);
+  --focus:         #4a7a00;
+
+  /* Shell syntax */
+  --sh-dim:        #666;
+  --sh-cmd:        #497900;
+  --sh-arg:        #444;
+
+  /* ===== Depth — Hub のボタン影 ===== */
+  --shadow-btn:    0 8px 20px -5px rgba(0, 0, 0, 0.2);
+  --shadow-accent: 0 8px 20px -5px rgba(134, 179, 0, 0.4);
+
+  /* ===== Type ===== */
+  --font-body: Nunito, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'BIZ UDGothic', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Monaco, Consolas, 'Roboto Mono', monospace;
+
+  --text-2xs: 0.75rem;
+  --text-xs:  0.8125rem;
+  --text-sm:  0.875rem;
+  --text-md:  0.9375rem;
+  --text-lg:  1.0625rem;
+  --text-xl:  1.25rem;
+  --text-2xl: 1.5rem;      /* Hub 150% 相当のセクションタイトル */
+  --text-3xl: 1.875rem;
+  --text-display: clamp(2.25rem, 5vw, 3.2rem);   /* Hub tagline 320% 相当 */
+
+  --lh-tight: 1.2;
+  --lh-body:  1.75;
+
+  /* ===== Space ===== */
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs:  0.5rem;
+  --space-sm:  0.75rem;
+  --space-md:  1rem;       /* Hub の 16px グリッドギャップ */
+  --space-lg:  1.5rem;
+  --space-2lg: 2rem;       /* Hub のカード padding 32px */
+  --space-xl:  2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
+
+  /* ===== Shape — Hub は radius 16 と pill の 2 種のみ ===== */
+  --radius:      16px;
+  --radius-sm:   8px;
+  --radius-2xs:  6px;
+  --radius-pill: 999px;
+  --blur:        blur(12px);
+
+  /* Hub の 2 段組み幅 */
+  --primary-width:   1800px;
+  --secondary-width: 1150px;
+  --content-width:   1150px;
+  --nav-height:      65px;     /* sticky nav の実高。scroll-padding-top も参照 */
+
+  /* ===== Motion — Hub: fade 0.5s ease / blob spin 60-80s linear ===== */
+  --ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 0.1s;
+  --duration-base: 0.16s;
+  --fade-duration: 0.5s;
+
+  /* ===== Elevation ===== */
+  --z-base:     1;
+  --z-raised:   10;
+  --z-dropdown: 100;
+  --z-sticky:   200;
+}
+
+@media (max-width: 1200px) {
+  :root { --nav-height: 58px; }
+}
+
+/* ===== Dark — VitePress は html.dark を立てる ===== */
+.dark {
+  --bg:            #1a1a1a;
+  --text:          #eee;
+  --text-sub:      #ccc;
+  --text-muted:    #9e9e9e;
+  --panel:         #222;
+  --hero-bg:       #222;
+  --acrylic:       rgba(51, 51, 51, 0.4);
+  --acrylic-ink:   rgba(255, 255, 255, 0.87);
+  --tint:          #383c00;
+  --tint-ink:      #fff;
+  --surface:       #333;
+  --surface-hover: #3d3d3d;
+  --border:        rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  --nav-bg:        rgba(26, 26, 26, 0.86);
+  --code-bg:       #111;
+  --dots:          rgba(255, 255, 255, 0.13);
+  --accent-text:   #a8d824;
+  --focus:         #c9f526;
+  --sh-dim:        #9e9e9e;
+  --sh-cmd:        #a8d824;
+  --sh-arg:        #ccc;
+}
+
+/* ===== VitePress default theme へのブリッジ =====
+ * Hub のトークンを VitePress の --vp-* に流し込む。ここを通すことで
+ * ドキュメント本文・サイドバー・ナビが同じ設計言語に乗る。 */
+:root {
+  --vp-c-brand-1: var(--accent-text);
+  --vp-c-brand-2: var(--accent);
+  --vp-c-brand-3: var(--accent);
+  --vp-c-brand-soft: rgba(134, 179, 0, 0.14);
+
+  --vp-c-bg: var(--bg);
+  --vp-c-bg-alt: var(--panel);
+  --vp-c-bg-soft: var(--panel);
+  --vp-c-bg-elv: var(--surface);
+
+  --vp-c-text-1: var(--text);
+  --vp-c-text-2: var(--text-sub);
+  --vp-c-text-3: var(--text-muted);
+
+  --vp-c-divider: var(--border);
+  --vp-c-border: var(--border);
+  --vp-c-gutter: var(--border);
+
+  --vp-font-family-base: var(--font-body);
+  --vp-font-family-mono: var(--font-mono);
+
+  --vp-nav-bg-color: var(--nav-bg);
+  --vp-sidebar-bg-color: var(--bg);
+  --vp-local-nav-bg-color: var(--nav-bg);
+
+  --vp-button-brand-bg: var(--accent);
+  --vp-button-brand-hover-bg: var(--accent-strong);
+  --vp-button-brand-active-bg: var(--accent-strong);
+  --vp-button-brand-border: transparent;
+  --vp-button-brand-text: #fff;
+
+  --vp-code-block-bg: var(--code-bg);
+  --vp-code-bg: var(--surface-hover);
+
+  --vp-layout-max-width: var(--primary-width);
+  --vp-nav-height: var(--nav-height);
+
+  --vp-custom-block-tip-border: var(--accent);
+  --vp-custom-block-tip-bg: rgba(134, 179, 0, 0.08);
+}

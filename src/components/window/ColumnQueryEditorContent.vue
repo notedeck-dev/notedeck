@@ -3,6 +3,8 @@ import { Parser } from '@syuilo/aiscript'
 import { computed, ref } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
+import EditorActionBar from '@/components/window/EditorActionBar.vue'
+import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
@@ -150,6 +152,21 @@ async function save(): Promise<void> {
 
 <template>
   <div :class="$style.root">
+    <!-- カラムのカードと同じアイコン表示でアイテムを識別できるようにする (#955) -->
+    <EditorItemHeader
+      v-if="namedQuery"
+      :class="$style.headerBleed"
+      :icon-url="namedQuery.iconUrl"
+      fallback-icon="filter"
+      :name="queryName || namedQuery.name"
+    >
+      <template #sub>
+        <span v-if="namedQuery.storeId" :class="$style.headerBadge">ストア</span>
+        <span v-else-if="namedQuery.builtIn" :class="$style.headerBadge">ビルドイン</span>
+        <span v-else :class="$style.headerBadge">ローカル</span>
+      </template>
+    </EditorItemHeader>
+
     <input
       v-model="queryName"
       :class="$style.nameInput"
@@ -225,16 +242,16 @@ async function save(): Promise<void> {
       </ul>
     </div>
 
-    <div :class="$style.actions">
-      <button
-        class="_button"
-        :class="$style.saveButton"
-        :disabled="!canSave || !isDirty"
-        @click="save"
-      >
-        {{ warnings.length > 0 ? 'このまま保存' : '保存' }}
-      </button>
-    </div>
+    <EditorActionBar
+      :class="$style.barBleed"
+      :primary="{
+        key: 'save',
+        label: warnings.length > 0 ? 'このまま保存' : '保存',
+        icon: 'device-floppy',
+        disabled: !canSave || !isDirty,
+      }"
+      @action="save"
+    />
   </div>
 </template>
 
@@ -244,6 +261,25 @@ async function save(): Promise<void> {
   flex-direction: column;
   gap: 10px;
   padding: 12px;
+}
+
+/* root が padding を持つので、ヘッダとアクションバーだけ
+   他の編集ウィンドウと同じ全幅に戻す */
+.headerBleed {
+  margin: -12px -12px 0;
+}
+
+.barBleed {
+  margin: 0 -12px -12px;
+}
+
+.headerBadge {
+  font-size: 0.85em;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
+  line-height: 1.6;
+  flex-shrink: 0;
 }
 
 .nameInput,
@@ -354,22 +390,4 @@ async function save(): Promise<void> {
   }
 }
 
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.saveButton {
-  padding: 6px 16px;
-  border-radius: 6px;
-  background: var(--nd-accent, #86b300);
-  color: #fff;
-  font-weight: 600;
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-}
 </style>

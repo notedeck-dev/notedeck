@@ -167,13 +167,13 @@ const statusClass = computed(() =>
   height: var(--avatar-size, 58px);
   border-radius: 50%;
   background: var(--nd-buttonBg);
-  transition: transform var(--nd-duration-slow) ease;
   user-select: none;
   -webkit-user-select: none;
 
+  // ホバーの affordance はカーソルとユーザーポップアップが担う。
+  // 以前はここで scale(1.05) も出していたが、同じ意味の 3 重掛けだった
+  // (猫耳は Misskey 文化としての意図的な装飾なので残す)
   &:hover {
-    transform: scale(1.05);
-
     > .catEarLeft {
       animation: earWiggleLeft 1s ease-in-out infinite;
     }

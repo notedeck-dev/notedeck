@@ -2,6 +2,9 @@
 import { markdown } from '@codemirror/lang-markdown'
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import type { EditorActionStatus } from '@/components/window/EditorActionBar.vue'
+import EditorActionBar from '@/components/window/EditorActionBar.vue'
+import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { type SkillMode, useSkillsStore } from '@/stores/skills'
@@ -42,6 +45,17 @@ const body = ref('')
 // triggers は textarea で 1 行 1 trigger として編集する。store には string[]
 // で保存されるので join/split で相互変換する。
 const triggersText = ref('')
+
+// ヘッダのモード表記はカラム側 (DeckSkillColumn) の modeLabel と同じ語彙
+const headerModeLabel = computed(
+  () =>
+    ({
+      always: '常時',
+      manual: '手動',
+      trigger: '自動',
+      heartbeat: 'HEARTBEAT',
+    })[mode.value] ?? mode.value,
+)
 
 const dirty = ref(false)
 const saved = ref(false)
@@ -84,6 +98,11 @@ watch(
 )
 
 function save() {
+  // 明示保存が来たらデバウンス待ちは用済み。残すと同じ内容でもう一度走る
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
   if (!skill.value) return
   const triggers = triggersText.value
     .split('\n')
@@ -109,10 +128,14 @@ function save() {
 const isBuiltIn = computed(() => skill.value?.builtIn ?? false)
 const isFromStore = computed(() => !!skill.value?.storeId)
 
-const statusText = computed(() => {
-  if (saved.value) return '保存しました'
-  if (dirty.value) return '編集中...'
-  return ''
+/**
+ * 自動保存の状態。デバウンス保存なので「いま保存されているか」が
+ * 見えないと不安になる。明示保存ボタンは同じバーの右端に置く。
+ */
+const barStatus = computed<EditorActionStatus | null>(() => {
+  if (saved.value) return { text: '保存しました', icon: 'check', tone: 'ok' }
+  if (dirty.value) return { text: '未保存の変更', icon: 'pencil' }
+  return null
 })
 </script>
 
@@ -123,6 +146,20 @@ const statusText = computed(() => {
       <span>スキルが見つかりません</span>
     </div>
     <template v-else>
+      <EditorItemHeader
+        :icon-url="skill.iconUrl"
+        fallback-icon="sparkles"
+        :name="name || skill.name"
+      >
+        <template #sub>
+          <span :class="$style.headerVersion">v{{ version || skill.version }}</span>
+          <template v-if="author"> · {{ author }}</template>
+          <span :class="$style.headerBadge">{{ headerModeLabel }}</span>
+          <span v-if="skill.storeId" :class="$style.headerBadge">ストア</span>
+          <span v-else-if="skill.builtIn" :class="$style.headerBadge">ビルドイン</span>
+        </template>
+      </EditorItemHeader>
+
       <EditorTabs
         v-model="tab"
         :tabs="[
@@ -236,10 +273,16 @@ const statusText = computed(() => {
         />
       </div>
 
-      <div v-if="statusText" :class="[$style.status, saved && $style.statusSaved]">
-        <i :class="['ti', saved ? 'ti-check' : 'ti-loader-2']" />
-        {{ statusText }}
-      </div>
+      <EditorActionBar
+        :status="barStatus"
+        :primary="{
+          key: 'save',
+          label: '保存',
+          icon: 'device-floppy',
+          disabled: !dirty,
+        }"
+        @action="save"
+      />
     </template>
   </div>
 </template>
@@ -264,6 +307,19 @@ const statusText = computed(() => {
   color: var(--nd-fg);
   opacity: 0.5;
   font-size: 13px;
+}
+
+.headerVersion {
+  font-variant-numeric: tabular-nums;
+}
+
+.headerBadge {
+  font-size: 0.85em;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
+  line-height: 1.6;
+  flex-shrink: 0;
 }
 
 .metaForm {
@@ -395,19 +451,4 @@ const statusText = computed(() => {
   min-width: 0;
 }
 
-.status {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 14px 8px;
-  font-size: 11px;
-  color: var(--nd-fg);
-  opacity: 0.7;
-  flex-shrink: 0;
-}
-
-.statusSaved {
-  color: var(--nd-accent);
-  opacity: 1;
-}
 </style>

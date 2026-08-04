@@ -13,6 +13,10 @@ import {
 } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
+import ThemePreview from '@/components/ThemePreview.vue'
+import type { EditorAction } from '@/components/window/EditorActionBar.vue'
+import EditorActionBar from '@/components/window/EditorActionBar.vue'
+import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
@@ -309,6 +313,47 @@ const {
   showImportError,
 } = useClipboardFeedback()
 
+// --- 下部アクションバー (全編集ウィンドウ共通の並び) ---
+const barActions = computed<EditorAction[]>(() => {
+  const list: EditorAction[] = [
+    {
+      key: 'import',
+      label: importError.value
+        ? '無効'
+        : importedMessage.value
+          ? '読込済み'
+          : 'インポート',
+      icon: importError.value ? 'alert-circle' : 'clipboard-text',
+    },
+    {
+      key: 'export',
+      label: copiedMessage.value ? 'コピー済み' : 'エクスポート',
+      icon: 'clipboard-copy',
+    },
+  ]
+  if (hasChangesFromSnapshot.value) {
+    list.push({ key: 'reset', icon: 'arrow-back-up', title: '元に戻す' })
+  }
+  return list
+})
+
+const barPrimary = computed<EditorAction>(() => ({
+  key: 'install',
+  label: installedMessage.value
+    ? '保存しました'
+    : editingThemeId.value
+      ? '上書き保存'
+      : 'インストール',
+  icon: installedMessage.value ? 'check' : 'device-floppy',
+}))
+
+function onBarAction(key: string) {
+  if (key === 'install') installTheme()
+  else if (key === 'import') importTheme()
+  else if (key === 'export') exportTheme()
+  else if (key === 'reset') resetToSnapshot()
+}
+
 function exportTheme() {
   if (tab.value === 'code') syncVisualFromCode()
   const theme: MisskeyTheme = {
@@ -459,6 +504,21 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 
 <template>
   <div ref="editorRef" :class="$style.editor">
+      <!-- カラムのカードと同じ位置・同じ枠でアイテムを識別できるようにする (#955)。
+           テーマの識別子はアイコンではなく配色そのものなので、アイコン枠には
+           ThemeCard と同じ ThemePreview を入れる -->
+      <EditorItemHeader
+        fallback-icon="palette"
+        :name="themeName || 'Untitled'"
+      >
+        <template #icon>
+          <ThemePreview :theme="previewTheme" :class="$style.headerPreview" />
+        </template>
+        <template #sub>
+          <span :class="$style.headerBadge">{{ baseMode === 'light' ? 'ライト' : 'ダーク' }}</span>
+        </template>
+      </EditorItemHeader>
+
       <EditorTabs
         v-model="tab"
         :tabs="[
@@ -736,44 +796,11 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
         </button>
       </div>
 
-      <!-- Actions -->
-      <div :class="$style.actions">
-        <button
-          class="_button"
-          :class="[$style.actionBtn, $style.primary]"
-          @click="installTheme"
-        >
-          <i class="ti ti-check" />
-          {{ installedMessage ? '保存しました!' : editingThemeId ? '上書き保存' : 'インストール' }}
-        </button>
-        <div :class="$style.actionGroup">
-          <button
-            class="_button"
-            :class="[$style.actionBtn, $style.secondary, { [$style.feedback]: importedMessage || importError }]"
-            @click="importTheme"
-          >
-            <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-            {{ importError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
-          </button>
-          <button
-            class="_button"
-            :class="[$style.actionBtn, $style.secondary, { [$style.feedback]: copiedMessage }]"
-            @click="exportTheme"
-          >
-            <i class="ti ti-clipboard-copy" />
-            {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
-          </button>
-          <button
-            v-if="hasChangesFromSnapshot"
-            class="_button"
-            :class="[$style.actionBtn, $style.iconOnly]"
-            title="元に戻す"
-            @click="resetToSnapshot"
-          >
-            <i class="ti ti-arrow-back-up" />
-          </button>
-        </div>
-      </div>
+      <EditorActionBar
+        :actions="barActions"
+        :primary="barPrimary"
+        @action="onBarAction"
+      />
   </div>
 </template>
 
@@ -788,15 +815,27 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
   overflow: hidden;
 }
 
+/* アイコン枠 (48px) をそのまま配色プレビューで埋める */
+.headerPreview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.headerBadge {
+  font-size: 0.85em;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
+  line-height: 1.6;
+  flex-shrink: 0;
+}
+
 .active {
   /* modifier */
 }
 
 .expression {
-  /* modifier */
-}
-
-.secondary {
   /* modifier */
 }
 
@@ -1213,22 +1252,4 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 
 .codeApplyBtn { @include btn-secondary; }
 
-.actions { @include action-bar; }
-.actionGroup { @include action-group; }
-
-.actionBtn {
-  &.primary { @include btn-primary; width: 100%; }
-  &.secondary { @include btn-action; }
-
-  &.iconOnly {
-    @include btn-secondary;
-    flex: 0;
-    padding: 8px;
-  }
-}
-
-.primary { /* modifier */ }
-.secondary { /* modifier */ }
-.feedback { /* modifier */ }
-.iconOnly { /* modifier */ }
 </style>

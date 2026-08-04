@@ -44,6 +44,16 @@ function positionFor(el: HTMLElement) {
   }
 }
 
+/** native tooltip 抑止: title → data-nd-tip 退避。退避後の本文を返す */
+function stashTip(el: HTMLElement): string | undefined {
+  const title = el.getAttribute('title')
+  if (title !== null) {
+    el.setAttribute('data-nd-tip', title)
+    el.removeAttribute('title')
+  }
+  return el.getAttribute('data-nd-tip')?.trim() || undefined
+}
+
 function onMouseOver(e: MouseEvent) {
   const el = findTipEl(e.target)
   if (!el) return
@@ -51,13 +61,7 @@ function onMouseOver(e: MouseEvent) {
   hide()
   currentEl = el
 
-  // native tooltip 抑止: title → data-nd-tip 退避
-  const title = el.getAttribute('title')
-  if (title !== null) {
-    el.setAttribute('data-nd-tip', title)
-    el.removeAttribute('title')
-  }
-  const tip = el.getAttribute('data-nd-tip')?.trim()
+  const tip = stashTip(el)
   if (!tip) {
     currentEl = null
     return
@@ -78,12 +82,43 @@ function onMouseOut(e: MouseEvent) {
   if (from instanceof Node && currentEl.contains(from)) hide()
 }
 
+/**
+ * キーボードでフォーカスが載ったときも同じ tooltip を出す。
+ * これが無いと `title` 依存の説明 (アプリ全体で 300 箇所超) が
+ * キーボード利用者にだけ届かない。
+ *
+ * 遅延はホバーと分ける: ホバーは「たまたま通過した」可能性があるので待つが、
+ * フォーカスは明示的な到達なので 0ms で出す。
+ */
+function onFocusIn(e: FocusEvent) {
+  const target = e.target
+  // ポインタ由来のフォーカスはホバー側が担当するので :focus-visible に限る
+  if (!(target instanceof HTMLElement) || !target.matches(':focus-visible'))
+    return
+  const el = findTipEl(target)
+  if (!el) return
+  hide()
+  const tip = stashTip(el)
+  if (!tip) return
+  currentEl = el
+  positionFor(el)
+  text.value = tip
+  visible.value = true
+}
+
+function onFocusOut() {
+  if (visible.value || showTimer) hide()
+}
+
 // クリック (状態が変わる) / スクロール / キー操作では即座に消す
 function onDocEvent() {
   if (visible.value || showTimer) hide()
 }
 
 onMounted(() => {
+  // フォーカス経路はポインタの有無と無関係なので touch 環境でも張る
+  document.addEventListener('focusin', onFocusIn, { passive: true })
+  document.addEventListener('focusout', onFocusOut, { passive: true })
   if (IS_TOUCH) return
   document.addEventListener('mouseover', onMouseOver, { passive: true })
   document.addEventListener('mouseout', onMouseOut, { passive: true })
@@ -96,6 +131,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('focusin', onFocusIn)
+  document.removeEventListener('focusout', onFocusOut)
   if (IS_TOUCH) return
   document.removeEventListener('mouseover', onMouseOver)
   document.removeEventListener('mouseout', onMouseOut)

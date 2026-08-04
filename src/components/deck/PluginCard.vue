@@ -67,7 +67,6 @@ const incompatTitle = computed(() => {
     :title="incompatTitle"
     @click="emit('click')"
   >
-    <div :class="$style.accentBar" />
     <div :class="$style.icon">
       <span
         v-if="iconUrl"
@@ -79,7 +78,7 @@ const incompatTitle = computed(() => {
     </div>
     <div :class="$style.body">
       <div :class="$style.row1">
-        <span :class="$style.name">{{ name }}</span>
+        <button type="button" :class="$style.name" @click.stop="emit('click')">{{ name }}</button>
         <span v-if="incompatible" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
         <span v-else-if="disabled" :class="$style.disabledBadge">無効</span>
         <button
@@ -194,14 +193,13 @@ const incompatTitle = computed(() => {
   gap: 12px;
   padding: 12px 14px 12px 16px;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background var(--nd-duration-fast);
 
-  &:hover {
+  // ホバーの signal は背景ティント 1 つ。以前は 2px の左アクセントバーと
+  // 同時発火していたが、同じ意味を 2 つの手段で伝えていた
+  &:hover,
+  &:focus-within {
     background: var(--nd-buttonHoverBg);
-
-    .accentBar {
-      opacity: 1;
-    }
   }
 
   & + & {
@@ -211,18 +209,6 @@ const incompatTitle = computed(() => {
 
 .cardDisabled {
   opacity: 0.6;
-}
-
-.accentBar {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 0;
-  width: 2px;
-  background: var(--nd-accent);
-  border-radius: 0 2px 2px 0;
-  opacity: 0;
-  transition: opacity 0.1s;
 }
 
 .icon {
@@ -259,7 +245,17 @@ const incompatTitle = computed(() => {
   min-width: 0;
 }
 
+// 行の主アクションはこの button が入口。カード自体を role="button" にすると
+// 中のアクションボタンが子孫として presentational 扱いになり、支援技術から
+// 個別のアクションとして読めなくなる
 .name {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   font-size: 13px;
   font-weight: 600;
   color: var(--nd-fgHighlighted);
@@ -268,6 +264,12 @@ const incompatTitle = computed(() => {
   white-space: nowrap;
   min-width: 0;
   flex-shrink: 1;
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
 }
 
 .disabledBadge {
@@ -376,9 +378,11 @@ const incompatTitle = computed(() => {
   gap: 2px;
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--nd-duration-base);
 
-  .card:hover & {
+  // focus-within を外すとキーボードでは「見えないボタン」に Tab することになる
+  .card:hover &,
+  .card:focus-within & {
     opacity: 1;
   }
 
@@ -399,9 +403,9 @@ const incompatTitle = computed(() => {
   font-size: 13px;
   opacity: 0.7;
   transition:
-    background 0.1s,
-    color 0.1s,
-    opacity 0.1s;
+    background var(--nd-duration-fast),
+    color var(--nd-duration-fast),
+    opacity var(--nd-duration-fast);
 
   &:hover {
     opacity: 1;
@@ -432,8 +436,8 @@ const incompatTitle = computed(() => {
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
   transition:
-    filter 0.1s,
-    opacity 0.1s;
+    filter var(--nd-duration-fast),
+    opacity var(--nd-duration-fast);
 
   &:hover:not(:disabled) {
     filter: brightness(1.1);

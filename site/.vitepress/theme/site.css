@@ -1,0 +1,266 @@
+/* VitePress default theme を Hub の設計言語に載せ替える層。
+ *
+ * 方針: ナビとフッターは Hub 由来の自前コンポーネント (HubNav / HubFooter) を使い、
+ * VitePress の VPNav / VPFooter は隠す。VitePress に任せるのは
+ * ドキュメントの本文・サイドバー・目次・検索だけ。
+ */
+
+/* ===== VitePress の base リセットを Hub の前提に戻す =====
+ * base.css が h1-h6 を 16px / line-height 24px に潰し、body を 16px / 24px にする。
+ * ランディングの CSS は「body から font-size と line-height を継承する」前提で
+ * 書かれているので、その前提をここで復元する。 */
+
+html {
+  overflow-x: clip;
+}
+
+/* sticky nav ぶんだけアンカー着地をずらす。nav 実高と同じ変数を使う */
+html {
+  scroll-padding-top: var(--nav-height);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  overflow-x: clip;
+}
+
+.landing {
+  font-size: var(--text-md);
+  line-height: var(--lh-body);
+}
+
+/* :where() で特異度 0 にして、個別指定 (.section-title 等) を必ず勝たせる */
+.landing :where(h1, h2, h3, h4, h5, h6) {
+  line-height: inherit;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ===== VitePress のナビ・フッターを退場させる ===== */
+.VPNav,
+.VPFooter {
+  display: none;
+}
+
+/* nav は HubNav が sticky で高さを占めるので、VitePress 側の nav ぶんの
+ * padding は不要 (960px 以上で VPContent に付く) */
+.VPContent {
+  padding-top: 0 !important;
+}
+
+/* ===== Nav — Misskey Hub の GNav（元のランディングから移設） ===== */
+.nav-root {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--vp-z-index-nav, 20);
+}
+.nav-main {
+  position: relative;
+  height: var(--nav-height);
+  color: var(--text);
+}
+
+.nav-bg {
+  position: absolute; top: 0; left: 0; right: 0; height: var(--nav-height);
+  background: var(--nav-bg);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  pointer-events: none;
+  border-bottom: 1px solid var(--border);
+  --shapeShift: 550px;
+  --mask-r: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 100'%3E%3Cpath d='M0,100L0,70L28.834,70C42.386,70 55.384,64.616 64.967,55.033C65.773,54.227 66.579,53.421 67.376,52.624C75.459,44.541 86.422,40 97.853,40L1000,40L1000,100L0,100Z'/%3E%3C/svg%3E");
+  --mask-l: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 100'%3E%3Cg transform='matrix(-1,0,0,1,1000,0)'%3E%3Cpath d='M0,100L0,70L28.834,70C42.386,70 55.384,64.616 64.967,55.033C65.773,54.227 66.579,53.421 67.376,52.624C75.459,44.541 86.422,40 97.853,40L1000,40L1000,100L0,100Z'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-image: linear-gradient(#000, #000), var(--mask-r), var(--mask-l);
+  mask-image: linear-gradient(#000, #000), var(--mask-r), var(--mask-l);
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center center, calc(50dvw + var(--shapeShift)) -5px, calc(50dvw - (1000px + var(--shapeShift))) -5px;
+  mask-position: center center, calc(50dvw + var(--shapeShift)) -5px, calc(50dvw - (1000px + var(--shapeShift))) -5px;
+  -webkit-mask-size: 100% 100%, 1000px 100px, 1000px 100px;
+  mask-size: 100% 100%, 1000px 100px, 1000px 100px;
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+@media (max-width: 1500px) { .nav-bg { -webkit-mask-image: none; mask-image: none; } }
+
+.nav-container {
+  position: relative; z-index: var(--z-base);
+  width: 100%; max-width: var(--content-width);
+  padding-inline: var(--space-lg);
+  margin: 0 auto; height: 100%;
+  display: flex; align-items: center; gap: var(--space-2lg);
+}
+@media (max-width: 1200px) { .nav-container { padding-inline: 0; gap: var(--space-md); } }
+
+.nav-menu-button {
+  display: none; background: none; border: none; cursor: pointer; color: var(--text);
+  height: var(--nav-height); width: var(--nav-height); place-content: center;
+}
+@media (max-width: 1200px) { .nav-menu-button { display: grid; } }
+
+.nav-sp-spacer { display: none; }
+@media (max-width: 1200px) {
+  .nav-sp-spacer { display: block; width: var(--nav-height); height: var(--nav-height); flex-shrink: 0; }
+}
+
+.nav-brand {
+  display: flex; align-items: center; gap: var(--space-xs);
+  white-space: nowrap; font-size: var(--text-lg);
+  padding-right: var(--space-2lg);
+  border-right: 1px solid var(--border);
+  background: none; color: var(--text); text-decoration: none;
+}
+.nav-brand:hover { color: var(--text); text-decoration: none; }
+.nav-brand img { width: 24px; height: 24px; border-radius: var(--radius-2xs); }
+.nav-brand b { font-weight: 800; }
+@media (max-width: 1200px) { .nav-brand { margin: 0 auto; padding-right: 0; border-right: none; } }
+
+.nav-items { display: flex; gap: var(--space-2lg); font-size: var(--text-sm); }
+.nav-items a {
+  color: var(--text); font-weight: 600; text-decoration: none;
+  padding-block: var(--space-xs);
+  transition: color var(--duration-base) var(--ease-out);
+}
+.nav-items a:hover { color: var(--accent-text); text-decoration: none; }
+@media (max-width: 1200px) { .nav-items { display: none; } }
+
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: var(--space-sm); }
+@media (max-width: 1200px) { .nav-right { display: none; } }
+
+.nav-right-button {
+  display: grid; place-content: center;
+  width: 40px; height: 40px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-pill); color: var(--text);
+  cursor: pointer; text-decoration: none;
+  transition: background var(--duration-base) var(--ease-out);
+}
+.nav-right-button:hover { background: var(--surface-hover); color: var(--text); text-decoration: none; }
+.nav-right-button:active { transform: translateY(1px); }
+
+/* カラーモードは VitePress の appearance (html.dark) に委ねる。
+ * SSR とズレないよう、アイコンの出し分けは JS ではなく CSS で行う */
+html:not(.dark) .icon-moon { display: none; }
+html.dark .icon-sun { display: none; }
+
+.nav-mobile-drawer {
+  display: none; position: fixed; top: var(--nav-height); left: 0; width: 100%;
+  z-index: var(--z-dropdown);
+  background: var(--nav-bg);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  border-bottom: 1px solid var(--border);
+}
+.nav-root.nav-open .nav-mobile-drawer { display: block; }
+@media (min-width: 1201px) { .nav-mobile-drawer { display: none !important; } }
+
+.nav-mobile-item {
+  display: flex; align-items: center; gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--text); font-size: var(--text-sm); font-weight: 600;
+  text-decoration: none; background: none;
+  transition: background var(--duration-base) var(--ease-out);
+}
+.nav-mobile-item:not(:last-child) { border-bottom: 1px solid var(--border); }
+.nav-mobile-item:hover { background: var(--surface-hover); color: var(--text); text-decoration: none; }
+
+/* ナビに載せた VitePress の検索ボタンを Hub の pill に合わせる */
+.nav-search {
+  flex-grow: 0;
+  padding-left: 0;
+}
+.nav-search .DocSearch-Button {
+  margin: 0;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: background var(--duration-base) var(--ease-out);
+}
+.nav-search .DocSearch-Button:hover {
+  background: var(--surface-hover);
+  box-shadow: none;
+}
+.nav-search .DocSearch-Button-Key {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ===== Footer — Hub GFooter ===== */
+.hub-footer { padding: var(--space-2lg) var(--space-md) var(--space-lg); }
+.footer-links {
+  display: flex; justify-content: center; flex-wrap: wrap;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-md);
+  font-size: var(--text-xs);
+}
+.footer-links a {
+  color: var(--text-sub); font-weight: 700; white-space: nowrap;
+  text-decoration: none;
+}
+.footer-links a:hover { color: var(--accent-text); }
+.footer-copyright {
+  text-align: center;
+  font-size: var(--text-xs);
+  opacity: 0.7;
+  margin: 0;
+}
+.footer-copyright a { color: inherit; font-weight: 700; text-decoration: none; }
+.footer-copyright a:hover { text-decoration: underline; }
+
+/* ===== ドキュメント本文 ===== */
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3 {
+  font-weight: 700;
+  letter-spacing: normal;
+}
+.vp-doc h2 {
+  border-top: 1px solid var(--border);
+}
+.vp-doc a {
+  font-weight: 600;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+}
+.vp-doc table {
+  display: table;
+  width: 100%;
+}
+.vp-doc tr:nth-child(2n) {
+  background: transparent;
+}
+.vp-doc th,
+.vp-doc td {
+  border-color: var(--border);
+}
+.vp-doc th {
+  background: var(--panel);
+}
+
+/* サイドバー・目次は Hub の細い書体に寄せる */
+.VPSidebarItem .text {
+  font-size: var(--text-sm);
+}
+.VPSidebarItem.level-0 > .item > .text {
+  font-weight: 800;
+}
+.VPDocAsideOutline .outline-link {
+  font-size: var(--text-xs);
+}
+
+/* ===== 印刷・強制配色 ===== */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}

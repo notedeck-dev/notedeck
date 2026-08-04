@@ -12,6 +12,12 @@
   --nd-accentedBg: rgba(134, 179, 0, 0.15);
   --nd-love: #dd2e44;
   --nd-focus: rgba(134, 179, 0, 0.3);
+  /* フォーカスリング本体。Misskey テーマの `focus` は :alpha<0.3<@accent の
+     ソフトグロー用で、単体だと紙面とのコントラストが 3:1 を満たさない
+     (dark 既定で約 1.8:1)。リングは accent を fg 側に寄せて不透明にし、
+     light/dark どちらのテーマでも 3:1 を割らないようにする。
+     --nd-focus はグロー用として残す (テーマ互換) */
+  --nd-focusRing: color-mix(in srgb, var(--nd-accent) 55%, var(--nd-fg));
   --nd-bg: #232323;
   --nd-fg: rgb(199, 209, 216);
   --nd-fgHighlighted: #fff;
@@ -579,10 +585,13 @@ dialog._nativeDialog[open] {
   cursor: not-allowed;
 }
 
+/* フォーカスリングは transition を持たない。キーボード操作でフォーカスが
+   移った瞬間に見えている必要があるため (フェードインするリングは
+   移動中インジケータが無い状態を作る) */
 ._button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--nd-focus);
-  transition: box-shadow var(--nd-duration-fast) var(--nd-ease-spring);
+  outline: 2px solid var(--nd-focusRing);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px var(--nd-focus);
 }
 
 ._buttonPrimary {
@@ -615,9 +624,9 @@ dialog._nativeDialog[open] {
 }
 
 ._buttonPrimary:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--nd-focus);
-  transition: box-shadow var(--nd-duration-fast) var(--nd-ease-spring);
+  outline: 2px solid var(--nd-focusRing);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--nd-focus);
 }
 
 ._buttonPrimary:disabled {
@@ -630,12 +639,12 @@ dialog._nativeDialog[open] {
   -webkit-user-select: none;
 }
 
-/* Badge pop-in animation (used by nav-badge mixin) */
+/* Badge pop-in animation (used by nav-badge mixin).
+   DESIGN.md「過剰なバッジ煽り」「bounce 禁止」に従い、overshoot 無しの
+   ease-out で 1 回だけ立ち上げる。通知数は演出せず、出たことだけ伝える */
 @keyframes nd-badge-in {
-  0%   { transform: scale(0); opacity: 0; }
-  19%  { transform: scale(1.15); opacity: 1; }
-  48%  { transform: scale(0.95); }
-  100% { transform: scale(1); }
+  from { transform: scale(0.6); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
 }
 
 .nd-dragging {

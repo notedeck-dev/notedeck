@@ -1326,7 +1326,7 @@ defineExpose({
   padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
   padding-left: env(safe-area-inset-left, 0px);
   translate: -100% 0;
-  transition: translate 0.15s ease;
+  transition: translate 0.15s var(--nd-ease-decel);
   box-shadow: none;
   background: var(--nd-navBg);
   backdrop-filter: none;
