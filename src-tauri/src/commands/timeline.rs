@@ -161,18 +161,22 @@ pub async fn api_update_antenna(
     let (client, host, token) = app_state.authed(&account_id).await?;
     let updated = client.update_antenna(&host, &token, &antenna).await?;
     // 設定変更後の旧マッチ分は個別ノートへ逆引きできないためバケット破棄 →
-    // 次回フェッチで再構築 (失敗は warn + Ok)。大バケットは writer lock を
-    // 秒単位で保持し得るため spawn_blocking で退避
+    // 次回フェッチで再構築 (失敗は warn + Ok)。writer lock を秒単位で保持し得る
+    // ため spawn_blocking で退避しつつ、完了は待ってから返す — detach すると
+    // フロントの再フェッチが ingest した直後に破棄が走り、再構築したばかりの
+    // バケットを消すレースになる
     let db = app_state.db().await;
     let account_id_owned = account_id.clone();
     let key = TimelineKey::Antenna {
         antenna_id: updated.id.clone(),
     };
-    tokio::task::spawn_blocking(move || {
-        if let Err(e) = db.clear_timeline(&account_id_owned, &key) {
-            tracing::warn!("[cache] failed to clear antenna bucket: {e}");
-        }
-    });
+    let cleared =
+        tokio::task::spawn_blocking(move || db.clear_timeline(&account_id_owned, &key)).await;
+    match cleared {
+        Ok(Err(e)) => tracing::warn!("[cache] failed to clear antenna bucket: {e}"),
+        Err(e) => tracing::warn!("[cache] clear antenna bucket task failed: {e}"),
+        Ok(Ok(_)) => {}
+    }
     Ok(updated)
 }
 
