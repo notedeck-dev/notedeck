@@ -6,12 +6,15 @@ import {
 import type { NormalizedNote } from '@/adapters/types'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
 const props = defineProps<{
   column: DeckColumnType
 }>()
+
+const cacheKeyDeps = accountsCacheKeyDeps()
 
 const noteColumnConfig: NoteColumnConfig = {
   getColumn: () => props.column,
@@ -20,7 +23,7 @@ const noteColumnConfig: NoteColumnConfig = {
     adapter.api.getRoleNotes(props.column.roleId!, opts),
   validate: () => !!props.column.roleId,
   cache: {
-    getKey: () => (props.column.roleId ? `role:${props.column.roleId}` : null),
+    getKey: () => columnCacheKey(props.column, cacheKeyDeps),
   },
   streaming: {
     subscribe: (_adapter, enqueue, callbacks) => {

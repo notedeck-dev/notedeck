@@ -17,18 +17,21 @@ export type EvictionPreset = NonNullable<
 export const SEARCH_PRIORITY: EvictionConfig = {
   perAccountLimit: null,
   ttlDays: null,
+  perTimelineLimit: null,
 }
 
 /** 「バランス」: notecli の `EvictionConfig::default()` 相当。暴走防止のみ。 */
 export const BALANCED: EvictionConfig = {
   perAccountLimit: 1_000_000,
   ttlDays: null,
+  perTimelineLimit: null,
 }
 
 /** 「ストレージ優先」: 旧デフォルト (notecli #3) と同等のヘビー掃除。 */
 export const STORAGE_PRIORITY: EvictionConfig = {
   perAccountLimit: 50_000,
   ttlDays: 90,
+  perTimelineLimit: null,
 }
 
 /**
@@ -49,6 +52,8 @@ export function resolveEvictionConfig(
       return {
         perAccountLimit: settings['cache.perAccountLimit'] ?? null,
         ttlDays: settings['cache.ttlDays'] ?? null,
+        // バケット毎 membership 上限 (notecli#30 v5 §5)。UI 未公開・既定 null
+        perTimelineLimit: null,
       }
     default:
       return BALANCED

@@ -265,14 +265,21 @@ pub struct QirSearchCursor {
 /// 偽陰性を出さない規則に従うので (不変条件 (b))、FTS で落ちたノートが
 /// 本来マッチするということはない。
 ///
+/// `timeline_key` (canonical 文字列) を渡すと当該バケット所属のみを母集合に
+/// する。実体/所属分離 (notecli#30) 以前は所属が後勝ち上書きで種別絞りが
+/// 取りこぼしになるため全体走査しかなかったが、その妥協は解消済み。
+/// null は従来どおりアカウントの全キャッシュを走査する。
+///
 /// 走査上限に達したら打ち切って継続カーソルを返す。呼び出し側は必要なだけ
-/// 繰り返す (一度の呼び出しで巨大キャッシュを読み切らせない)。
+/// 繰り返す (一度の呼び出しで巨大キャッシュを読み切らせない)。カーソルは
+/// 同じ timeline_key の続き読みにのみ使うこと。
 #[tauri::command]
 #[specta::specta]
 pub async fn qir_search_cache(
     app_state: State<'_, AppState>,
     account_id: String,
     query: QirQuery,
+    timeline_key: Option<String>,
     limit: Option<u32>,
     max_scanned_rows: Option<u32>,
     cursor: Option<QirSearchCursor>,
@@ -281,6 +288,11 @@ pub async fn qir_search_cache(
     if !validation.ok {
         return Err(NoteDeckError::InvalidInput(validation.errors.join(", ")));
     }
+    // 不正キーは黙殺せず Err で顕在化 (キャッシュ読み出し系と同方針)
+    let scope = timeline_key
+        .as_deref()
+        .map(notecli::models::TimelineKey::parse)
+        .transpose()?;
     let literals = extract_fts_literals(&query);
     let limit = limit.unwrap_or(40).clamp(1, 200) as usize;
     let max_scanned = max_scanned_rows.unwrap_or(2000).clamp(1, 20_000) as usize;
@@ -292,6 +304,7 @@ pub async fn qir_search_cache(
     let db = app_state.db().await;
     let scan = db.scan_cached_notes(
         &account_id,
+        scope.as_ref(),
         &literals,
         limit,
         max_scanned,

@@ -679,7 +679,6 @@ mod tests {
     use std::time::Duration;
 
     use notecli::models::NormalizedNote;
-    use notecli::models::TimelineType;
     use notecli::streaming::{
         StreamConnectionState, StreamEvent, StreamNoteCaptureEvent, StreamNoteEvent,
         StreamNotificationEvent, StreamStatusEvent,
@@ -772,8 +771,7 @@ mod tests {
     fn home_key(account: &str) -> QueryKey {
         QueryKey::Timeline {
             account_id: account.into(),
-            timeline_type: TimelineType::new("home"),
-            list_id: None,
+            key: "home".into(),
         }
     }
 

@@ -14,6 +14,7 @@ import type {
   TimelineFilter,
 } from '@/adapters/types'
 import { type Account, useAccountsStore } from '@/stores/accounts'
+import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
 import { matchesFilter } from '@/utils/timelineFilter'
@@ -142,6 +143,8 @@ let pinia: ReturnType<typeof createPinia>
 beforeEach(() => {
   bindings.calls.length = 0
   for (const k of Object.keys(bindings.responses)) delete bindings.responses[k]
+  // VerifyNotesResult 形 (空配列既定では missing の for-of が throw する)
+  bindings.responses.apiVerifyNotes = { verified: {}, missing: [] }
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-07-01T12:00:00Z'))
   pinia = createPinia()
@@ -521,6 +524,8 @@ describe('useNoteColumn: フェッチカーソル (#831 Step 0)', () => {
       (c) => c.name === 'apiGetCachedTimelineBefore',
     )
     expect(before?.args[2]).toBe(note('h04').createdAt)
+    // keyset cursor は createdAt と同一ノート由来の note_id をペアで渡す (§6-14)
+    expect(before?.args[3]).toBe('h04')
   })
 
   it('reconnect でカーソルがリセットされ、旧世代の位置から取り直さない', async () => {
@@ -729,6 +734,8 @@ describe('useNoteColumn: QIR キャッシュ検索 (#783 Phase 3)', () => {
     await mountOfflineColumn('acc-search-fast', FAST_QUERY)
     expect(searchCalls()).toHaveLength(1)
     expect(legacyCalls()).toHaveLength(0)
+    // カラムの所属バケットで母集合を絞る (notecli#30 §12-9)
+    expect(searchCalls()[0]?.args[2]).toBe('home')
   })
 
   it('クエリが無いカラムは従来のキャッシュ経路のまま', async () => {
@@ -741,6 +748,43 @@ describe('useNoteColumn: QIR キャッシュ検索 (#783 Phase 3)', () => {
     await mountOfflineColumn('acc-search-slow', SLOW_QUERY)
     expect(searchCalls()).toHaveLength(0)
     expect(legacyCalls()).toHaveLength(1)
+  })
+
+  it('⚡ 2 個 (インライン + 名前付き) でもキャッシュ検索コマンドを使う (#965)', async () => {
+    bindings.responses.qirSearchCache = {
+      notes: [],
+      scanned: 0,
+      errors: 0,
+      cursor: null,
+    }
+    // 名前付きクエリをプールに登録 (ensureLoaded 後でないと push が上書きされる)
+    const queriesStore = useColumnQueriesStore()
+    queriesStore.ensureLoaded()
+    queriesStore.queries.push({
+      id: 'q-vis-965',
+      name: 'public only',
+      src: 'note.visibility == "public"',
+      createdAt: 0,
+      updatedAt: 0,
+    })
+    addAccount('acc-search-multi')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([{ ...note('h05'), text: 'hello' }])
+      .mockRejectedValueOnce(new Error('offline'))
+    const { api } = mountColumn({
+      accountId: 'acc-search-multi',
+      noteQuery: FAST_QUERY,
+      noteQueryRefs: ['q-vis-965'],
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+    await api.loadMore()
+    await flush()
+
+    // 従来は複数パーツで黙って従来経路に落ちていた (#965 で And 合成)
+    expect(searchCalls()).toHaveLength(1)
+    expect(legacyCalls()).toHaveLength(0)
   })
 
   it('見つかったノートを取り込み、打ち切りカーソルから次を続ける', async () => {
@@ -760,10 +804,109 @@ describe('useNoteColumn: QIR キャッシュ検索 (#783 Phase 3)', () => {
     await api.loadMore()
     await flush()
     const second = searchCalls()[1]
-    expect(second?.args[4]).toEqual({
+    expect(second?.args[5]).toEqual({
       createdAt: '2026-06-30T00:00:00.000Z',
       noteId: 'h00',
     })
+  })
+})
+
+describe('useNoteColumn: オンライン loadMore のキャッシュ検索チェーン (#964)', () => {
+  const FAST_QUERY = 'note.text != null'
+
+  const searchCalls = () =>
+    bindings.calls.filter((c) => c.name === 'qirSearchCache')
+
+  it('API ページが全件フィルタ落ちならキャッシュ検索を 1 パスだけチェーンする', async () => {
+    bindings.responses.qirSearchCache = {
+      notes: [{ ...note('c01'), text: 'cached hit' }],
+      scanned: 100,
+      errors: 0,
+      cursor: null,
+    }
+    addAccount('acc-chain-empty')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([{ ...note('h05'), text: 'hello' }]) // connect
+      .mockResolvedValueOnce([
+        { ...note('h04'), text: null },
+        { ...note('h03'), text: null },
+      ]) // loadMore: 全件クエリ落ち
+    const { api } = mountColumn({
+      accountId: 'acc-chain-empty',
+      noteQuery: FAST_QUERY,
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+    expect(ids(api)).toEqual(['h05'])
+
+    await api.loadMore()
+    await flush()
+
+    // オンラインのままキャッシュ検索が 1 回だけ走り、ヒットがカラムに載る
+    expect(searchCalls()).toHaveLength(1)
+    expect(ids(api)).toContain('c01')
+    expect(api.isOffline.value).toBe(false)
+    // 検索は API が前進させたカーソル (生ページの最古 h03) より古い側を走査
+    expect(searchCalls()[0]?.args[5]).toEqual({
+      createdAt: note('h03').createdAt,
+      noteId: 'h03',
+    })
+  })
+
+  it('フィルタ通過ノートが 1 件でもあればチェーンしない', async () => {
+    addAccount('acc-chain-skip')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([{ ...note('h05'), text: 'hello' }]) // connect
+      .mockResolvedValueOnce([
+        { ...note('h04'), text: 'world' },
+        { ...note('h03'), text: null },
+      ]) // loadMore: 1 件は通過
+    const { api } = mountColumn({
+      accountId: 'acc-chain-skip',
+      noteQuery: FAST_QUERY,
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+
+    await api.loadMore()
+    await flush()
+
+    expect(searchCalls()).toHaveLength(0)
+    expect(ids(api)).toEqual(['h05', 'h04'])
+  })
+
+  it('チェーンで得た打ち切りカーソルが次回 loadMore に引き継がれる', async () => {
+    bindings.responses.qirSearchCache = {
+      notes: [{ ...note('c02'), text: 'cached hit' }],
+      scanned: 2000,
+      errors: 0,
+      // 走査上限で打ち切り
+      cursor: { createdAt: '2026-06-30T00:00:00.000Z', noteId: 'c00' },
+    }
+    addAccount('acc-chain-cursor')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([{ ...note('h05'), text: 'hello' }]) // connect
+      .mockResolvedValueOnce([{ ...note('h04'), text: null }]) // loadMore: 全落ち → チェーン
+      .mockResolvedValueOnce([]) // 次の loadMore
+    const { api } = mountColumn({
+      accountId: 'acc-chain-cursor',
+      noteQuery: FAST_QUERY,
+      fetch: (_a, opts) => fetchImpl(opts),
+    })
+    await flush()
+
+    await api.loadMore()
+    await flush()
+    expect(searchCalls()).toHaveLength(1)
+
+    await api.loadMore()
+    await flush()
+
+    // チェーンが前進させたカーソル (c00) から続きを取りに行く
+    expect(fetchImpl.mock.calls[2]?.[0]).toEqual({ untilId: 'c00' })
   })
 })
 
@@ -894,5 +1037,57 @@ describe('useNoteColumn: fail-closed から解除したときの再取得 (#957)
 
     // 空のままにせず取り直していること
     expect(ids(api as never).length).toBeGreaterThan(0)
+  })
+})
+
+describe('useNoteColumn: セーフモードでカラムクエリを停止する (#838 条件 3)', () => {
+  const FAST_QUERY = 'note.text != null'
+
+  beforeEach(() => {
+    localStorage.setItem('nd-safe-mode', 'true')
+  })
+
+  afterEach(() => {
+    localStorage.removeItem('nd-safe-mode')
+  })
+
+  it('クエリ付きカラムがフィルタなしで全ノート表示になる (fail-open)', async () => {
+    addAccount('acc-safe-open')
+    const { api } = mountColumn({
+      accountId: 'acc-safe-open',
+      noteQuery: FAST_QUERY,
+      fetch: async () => [
+        { ...note('a'), text: 'x' } as NormalizedNote,
+        // 通常ならクエリで除外されるノート
+        { ...note('b'), text: null } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a', 'b'])
+    // クエリは無いものとして扱う (コンパイルしない)
+    expect(api.columnQueryState.value.status).toBe('none')
+  })
+
+  it('qirSearchCache を呼ばず従来のキャッシュ経路を使う', async () => {
+    addAccount('acc-safe-cache')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([{ ...note('h05'), text: 'hello' }])
+      .mockRejectedValueOnce(new Error('offline'))
+    const { api } = mountColumn({
+      accountId: 'acc-safe-cache',
+      noteQuery: FAST_QUERY,
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+    await api.loadMore()
+    await flush()
+
+    expect(
+      bindings.calls.filter((c) => c.name === 'qirSearchCache'),
+    ).toHaveLength(0)
+    expect(
+      bindings.calls.filter((c) => c.name === 'apiGetCachedTimelineBefore'),
+    ).toHaveLength(1)
   })
 })

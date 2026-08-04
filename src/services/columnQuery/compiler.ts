@@ -81,11 +81,14 @@ const NOTE_FIELD_TYPES: Record<string, TypeMask> = {
   text: T_STR | T_NULL,
   cw: T_STR | T_NULL,
   visibility: T_STR,
-  localOnly: T_BOOL | T_NULL,
+  // localOnly / files / reactions は Rust 側 NormalizedNote で serde default
+  // 付き非 Option (local_only: bool / files: Vec / reactions: HashMap) のため
+  // JSON に常に存在し null にならない (#783 レビュー修正 2)
+  localOnly: T_BOOL,
   renoteId: T_STR | T_NULL,
   replyId: T_STR | T_NULL,
-  files: T_ARR | T_NULL,
-  reactions: T_OBJ | T_NULL,
+  files: T_ARR,
+  reactions: T_OBJ,
   user: T_OBJ,
   'user.username': T_STR,
   'user.host': T_STR | T_NULL,

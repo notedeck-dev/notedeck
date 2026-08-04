@@ -23,6 +23,13 @@ export interface UseNoteListOptions {
   maxNotes?: number
   /** 面ごとの述語 opt-out（お気に入り・プロフィール等）。既定は全適用 */
   visibility?: VisibilityOpts
+  /**
+   * DB キャッシュ削除 (apiDeleteCachedNote) の account スコープ。streaming の
+   * deleted イベントは note 本体を持たず _accountId を参照できないため、
+   * カラム所有者の accountId を注入する。未指定なら DB 削除はスキップ
+   * (メモリ上の除去のみ)。
+   */
+  accountId?: () => string | null
 }
 
 export function useNoteList(options: UseNoteListOptions) {
@@ -136,10 +143,13 @@ export function useNoteList(options: UseNoteListOptions) {
       // noteStore.remove() triggers global onDelete listeners,
       // which clean up orderedIds/noteIds in ALL columns
       noteStore.remove(event.noteId)
-      commands.apiDeleteCachedNote(event.noteId).catch((e) => {
-        if (import.meta.env.DEV)
-          console.debug('[delete-cached-note] ignored:', e)
-      })
+      const accountId = options.accountId?.() ?? null
+      if (accountId) {
+        commands.apiDeleteCachedNote(accountId, event.noteId).catch((e) => {
+          if (import.meta.env.DEV)
+            console.debug('[delete-cached-note] ignored:', e)
+        })
+      }
       return
     }
     noteStore.applyUpdate(event, options.getMyUserId())
@@ -181,7 +191,7 @@ export function useNoteList(options: UseNoteListOptions) {
 
     if (await options.deleteHandler(note)) {
       noteStore.remove(id)
-      commands.apiDeleteCachedNote(id).catch((e) => {
+      commands.apiDeleteCachedNote(note._accountId, id).catch((e) => {
         if (import.meta.env.DEV)
           console.debug('[delete-cached-note] ignored:', e)
       })

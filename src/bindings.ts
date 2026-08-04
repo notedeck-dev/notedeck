@@ -88,14 +88,20 @@ async qirValidate(query: QirQuery) : Promise<QirValidation> {
  * 偽陰性を出さない規則に従うので (不変条件 (b))、FTS で落ちたノートが
  * 本来マッチするということはない。
  * 
+ * `timeline_key` (canonical 文字列) を渡すと当該バケット所属のみを母集合に
+ * する。実体/所属分離 (notecli#30) 以前は所属が後勝ち上書きで種別絞りが
+ * 取りこぼしになるため全体走査しかなかったが、その妥協は解消済み。
+ * null は従来どおりアカウントの全キャッシュを走査する。
+ * 
  * 走査上限に達したら打ち切って継続カーソルを返す。呼び出し側は必要なだけ
- * 繰り返す (一度の呼び出しで巨大キャッシュを読み切らせない)。
+ * 繰り返す (一度の呼び出しで巨大キャッシュを読み切らせない)。カーソルは
+ * 同じ timeline_key の続き読みにのみ使うこと。
  *
  * @see src-tauri/src/commands/column_query.rs
  */
-async qirSearchCache(accountId: string, query: QirQuery, limit: number | null, maxScannedRows: number | null, cursor: QirSearchCursor | null) : Promise<Result<QirSearchResult, { code: string; message: string; apiCode: string | null }>> {
+async qirSearchCache(accountId: string, query: QirQuery, timelineKey: string | null, limit: number | null, maxScannedRows: number | null, cursor: QirSearchCursor | null) : Promise<Result<QirSearchResult, { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("qir_search_cache", { accountId, query, limit, maxScannedRows, cursor }) };
+    return { status: "ok", data: await TAURI_INVOKE("qir_search_cache", { accountId, query, timelineKey, limit, maxScannedRows, cursor }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -277,7 +283,7 @@ async apiUpdateUserSetting(accountId: string, key: string, value: boolean) : Pro
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetTimeline(accountId: string, timelineType: TimelineType, options: TimelineOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
+async apiGetTimeline(accountId: string, timelineType: string, options: TimelineOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_timeline", { accountId, timelineType, options }) };
 } catch (e) {
@@ -747,9 +753,25 @@ async apiGetCachedTimeline(accountId: string, timelineType: string, limit: numbe
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiDeleteCachedNote(noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
+async apiDeleteCachedNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("api_delete_cached_note", { noteId }) };
+    return { status: "ok", data: await TAURI_INVOKE("api_delete_cached_note", { accountId, noteId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * エンティティ削除 (antenna / clip / list — フロントは汎用 api_request で
+ * サーバー削除する) の後始末: 死にバケットの membership を破棄する。
+ * これが無いと削除済みエンティティの membership が sweep 対象外のまま
+ * per-account cap まで残留する (issue notecli#30 仕様 v5 §6-7)。
+ *
+ * @see src-tauri/src/commands/timeline.rs
+ */
+async apiClearTimelineCache(accountId: string, timelineKey: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_clear_timeline_cache", { accountId, timelineKey }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -757,12 +779,10 @@ async apiDeleteCachedNote(noteId: string) : Promise<Result<null, { code: string;
 },
 /**
  * Bulk-verify cached notes against the server.
- * Returns a map of note_id → fresh NormalizedNote for notes that still exist.
- * Missing notes (404) are omitted from the result.
  *
  * @see src-tauri/src/commands/timeline.rs
  */
-async apiVerifyNotes(accountId: string, noteIds: string[]) : Promise<Result<Partial<{ [key in string]: NormalizedNote }>, { code: string; message: string; apiCode: string | null }>> {
+async apiVerifyNotes(accountId: string, noteIds: string[]) : Promise<Result<VerifyNotesResult, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_verify_notes", { accountId, noteIds }) };
 } catch (e) {
@@ -771,9 +791,9 @@ async apiVerifyNotes(accountId: string, noteIds: string[]) : Promise<Result<Part
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiGetCachedTimelineBefore(accountId: string, timelineType: string, before: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
+async apiGetCachedTimelineBefore(accountId: string, timelineType: string, before: string, beforeNoteId: string | null, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("api_get_cached_timeline_before", { accountId, timelineType, before, limit }) };
+    return { status: "ok", data: await TAURI_INVOKE("api_get_cached_timeline_before", { accountId, timelineType, before, beforeNoteId, limit }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2004,6 +2024,9 @@ async exportDb() : Promise<Result<boolean, { code: string; message: string; apiC
  * Import notecli.db from a user-chosen file via open dialog.
  * Replaces the current database file. Caller should relaunch the app afterwards
  * so that Rust re-opens the new DB with a fresh connection.
+ * 
+ * 注意: V6 (note_timelines) 適用済みの DB は旧バージョンのアプリへ持ち込めない
+ * (refinery の missing migration で open 不能。DB 自体は無傷)。
  *
  * @see src-tauri/src/commands/utility.rs
  */
@@ -2638,7 +2661,7 @@ async aiMigrateProviderToVault(provider: string, name: string, baseUrl: string, 
 }
 },
 /** @see src-tauri/src/query_runtime.rs */
-async querySubscribeTimeline(accountId: string, timelineType: TimelineType, listId: string | null) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
+async querySubscribeTimeline(accountId: string, timelineType: string, listId: string | null) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_timeline", { accountId, timelineType, listId }) };
 } catch (e) {
@@ -2704,15 +2727,6 @@ async querySubscribeChatUser(accountId: string, otherId: string) : Promise<Resul
 async querySubscribeChatRoom(accountId: string, roomId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_chat_room", { accountId, roomId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/** @see src-tauri/src/query_runtime.rs */
-async queryOpen(key: QueryKey) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("query_open", { key }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -3121,13 +3135,18 @@ export type EmojiChangeKind = "added" | "updated" | "deleted"
  */
 export type EvictionConfig = { 
 /**
- * 各アカウントごとの note 上限。`None` なら無制限。
+ * 各アカウントごとの note (entity) 上限。`None` なら無制限。
  */
 perAccountLimit: number | null; 
 /**
  * `cached_at` の TTL (日)。`None` なら無期限保持。
  */
-ttlDays: number | null }
+ttlDays: number | null; 
+/**
+ * バケット (account_id × timeline_key) ごとの所属行上限。`None` なら無制限。
+ * トリムは membership とその対象限定の orphan entity のみを消す。
+ */
+perTimelineLimit: number | null }
 /**
  * EXIF 1 フィールド。tag はタグ名 (例: "DateTimeOriginal", "GPSLatitude")。
  */
@@ -3534,7 +3553,14 @@ updates: NoteUpdate[] }
  * the frontend receives a discriminated union; every variant carries `id`.
  */
 export type QueryItem = ({ kind: "note" } & NormalizedNote) | ({ kind: "notification" } & NormalizedNotification) | ({ kind: "chatMessage" } & ChatMessage)
-export type QueryKey = { kind: "timeline"; account_id: string; timeline_type: TimelineType; list_id: string | null } | { kind: "antenna"; account_id: string; antenna_id: string } | { kind: "channel"; account_id: string; channel_id: string } | { kind: "role"; account_id: string; role_id: string } | { kind: "mentions"; account_id: string } | { kind: "notifications"; account_id: string } | { kind: "chatUser"; account_id: string; other_id: string } | { kind: "chatRoom"; account_id: string; room_id: string }
+export type QueryKey = 
+/**
+ * notes 系購読の統一キー。`key` は `TimelineKey` の canonical 文字列
+ * (home / antenna:{id} / channel:{id} / role:{id} / user-list:{id} / mentions)。
+ * 折り畳まないと同一購読が 2 通りのキー表現を持ち dedup が破れる。
+ * mentions は識別子としてのみここに属し、購読自体は main チャンネル経由。
+ */
+{ kind: "timeline"; account_id: string; key: string } | { kind: "notifications"; account_id: string } | { kind: "chatUser"; account_id: string; other_id: string } | { kind: "chatRoom"; account_id: string; room_id: string }
 export type QueryReadModelSnapshot = { queryId: string; revision: number; 
 /**
  * Note ids in display order (newest first). 消費側は JS noteStore から
@@ -3657,7 +3683,6 @@ export type StreamStatusEvent = { accountId: string; state: StreamConnectionStat
 export type SummaryData = { title: string | null; description: string | null; icon: string | null; sitename: string | null; thumbnail: string | null; medias: string[]; player: Player | null; url: string; sensitive: boolean }
 export type TimelineFilter = { withRenotes: boolean | null; withReplies: boolean | null; withFiles: boolean | null; withBots: boolean | null; withSensitive: boolean | null }
 export type TimelineOptions = { limit?: number; sinceId: string | null; untilId: string | null; filters?: TimelineFilter | null; listId: string | null }
-export type TimelineType = string
 /**
  * 「確認なしで使う」のプラグイン個体単位の記憶。
  * 
@@ -3850,6 +3875,21 @@ ok: boolean;
  * 失敗時の理由 (SSRF / timeout / DNS など)。secret は含まない。
  */
 error: string | null }
+/**
+ * `api_verify_notes` の結果。
+ */
+export type VerifyNotesResult = { 
+/**
+ * サーバー上に現存が確認できたノート (note_id → 最新の NormalizedNote)
+ */
+verified: Partial<{ [key in string]: NormalizedNote }>; 
+/**
+ * サーバーが NO_SUCH_NOTE を返した = 削除が確認できたノート id。
+ * 通信エラー・レート制限・タイムアウトはどちらにも含まれない (生存扱い) —
+ * 復帰直後の不安定なネットワークでキャッシュを誤って恒久削除しないため
+ * (issue notecli#30 仕様 v5 §6-8)。
+ */
+missing: string[] }
 
 /** tauri-specta globals **/
 

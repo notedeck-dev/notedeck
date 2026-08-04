@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use notecli::error::NoteDeckError;
 use notecli::models::{
-    ChatMessage, NormalizedNote, NormalizedNotification, NoteUpdateBody, TimelineType,
+    ChatMessage, NormalizedNote, NormalizedNotification, NoteUpdateBody, TimelineKey,
 };
 use notecli::streaming::{StreamEvent, StreamingManager};
 use serde::{Deserialize, Serialize};
@@ -27,25 +27,13 @@ const DELTA_FLUSH_WINDOW: Duration = Duration::from_millis(16);
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum QueryKey {
+    /// notes 系購読の統一キー。`key` は `TimelineKey` の canonical 文字列
+    /// (home / antenna:{id} / channel:{id} / role:{id} / user-list:{id} / mentions)。
+    /// 折り畳まないと同一購読が 2 通りのキー表現を持ち dedup が破れる。
+    /// mentions は識別子としてのみここに属し、購読自体は main チャンネル経由。
     Timeline {
         account_id: String,
-        timeline_type: TimelineType,
-        list_id: Option<String>,
-    },
-    Antenna {
-        account_id: String,
-        antenna_id: String,
-    },
-    Channel {
-        account_id: String,
-        channel_id: String,
-    },
-    Role {
-        account_id: String,
-        role_id: String,
-    },
-    Mentions {
-        account_id: String,
+        key: String,
     },
     Notifications {
         account_id: String,
@@ -639,26 +627,38 @@ pub async fn query_subscribe_timeline(
     streaming: State<'_, StreamingManager>,
     runtime: State<'_, QueryRuntime>,
     account_id: String,
-    timeline_type: TimelineType,
+    timeline_type: String,
     list_id: Option<String>,
 ) -> Result<QuerySnapshot, NoteDeckError> {
     let db = app_state.db().await;
     let (host, token) = get_credentials(&db, &account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
+    // 境界アダプタ: ('user-list', listId) → canonical キー合成 (api_get_timeline と同規約)
+    let tl_key = if timeline_type == "user-list" {
+        match list_id {
+            Some(ref list_id) => TimelineKey::UserList {
+                list_id: list_id.clone(),
+            },
+            None => {
+                return Err(NoteDeckError::InvalidInput(
+                    "user-list timeline requires listId".to_string(),
+                ))
+            }
+        }
+    } else {
+        TimelineKey::parse(&timeline_type)?
+    };
     let key = QueryKey::Timeline {
         account_id: account_id.clone(),
-        timeline_type: timeline_type.clone(),
-        list_id: list_id.clone(),
+        key: tl_key.as_canonical(),
     };
     let opened = runtime.open(key)?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
 
-    let subscription_id = streaming
-        .subscribe_timeline(&account_id, timeline_type, list_id)
-        .await?;
+    let subscription_id = streaming.subscribe_notes(&account_id, tl_key, None).await?;
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
@@ -675,17 +675,18 @@ pub async fn query_subscribe_antenna(
     let (host, token) = get_credentials(&db, &account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
-    let opened = runtime.open(QueryKey::Antenna {
-        account_id: account_id.clone(),
+    let tl_key = TimelineKey::Antenna {
         antenna_id: antenna_id.clone(),
+    };
+    let opened = runtime.open(QueryKey::Timeline {
+        account_id: account_id.clone(),
+        key: tl_key.as_canonical(),
     })?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
 
-    let subscription_id = streaming
-        .subscribe_antenna(&account_id, &antenna_id)
-        .await?;
+    let subscription_id = streaming.subscribe_notes(&account_id, tl_key, None).await?;
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
@@ -702,17 +703,18 @@ pub async fn query_subscribe_channel(
     let (host, token) = get_credentials(&db, &account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
-    let opened = runtime.open(QueryKey::Channel {
-        account_id: account_id.clone(),
+    let tl_key = TimelineKey::Channel {
         channel_id: channel_id.clone(),
+    };
+    let opened = runtime.open(QueryKey::Timeline {
+        account_id: account_id.clone(),
+        key: tl_key.as_canonical(),
     })?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
 
-    let subscription_id = streaming
-        .subscribe_channel(&account_id, &channel_id)
-        .await?;
+    let subscription_id = streaming.subscribe_notes(&account_id, tl_key, None).await?;
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
@@ -729,15 +731,18 @@ pub async fn query_subscribe_role(
     let (host, token) = get_credentials(&db, &account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
-    let opened = runtime.open(QueryKey::Role {
-        account_id: account_id.clone(),
+    let tl_key = TimelineKey::Role {
         role_id: role_id.clone(),
+    };
+    let opened = runtime.open(QueryKey::Timeline {
+        account_id: account_id.clone(),
+        key: tl_key.as_canonical(),
     })?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
 
-    let subscription_id = streaming.subscribe_role(&account_id, &role_id).await?;
+    let subscription_id = streaming.subscribe_notes(&account_id, tl_key, None).await?;
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
@@ -753,8 +758,11 @@ pub async fn query_subscribe_mentions(
     let (host, token) = get_credentials(&db, &account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
-    let opened = runtime.open(QueryKey::Mentions {
+    // mentions は QueryKey 識別子としてのみ Timeline に折り畳む。
+    // 購読は従来どおり main チャンネル経由 (ws_channel を持たない種別)。
+    let opened = runtime.open(QueryKey::Timeline {
         account_id: account_id.clone(),
+        key: TimelineKey::Mentions.as_canonical(),
     })?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
@@ -839,14 +847,10 @@ pub async fn query_subscribe_chat_room(
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
-#[tauri::command]
-#[specta::specta]
-pub async fn query_open(
-    runtime: State<'_, QueryRuntime>,
-    key: QueryKey,
-) -> Result<QuerySnapshot, NoteDeckError> {
-    runtime.open(key)
-}
+// query_open (QueryKey を invoke 引数に取る汎用オープン) は削除した。
+// 折り畳み後は key 文字列が無検証で entry 化され TimelineKey の構築規約の
+// 裏口になる上、フロント呼び出しもゼロだった。復活させる場合は
+// TimelineKey::parse による検証を必須とすること (issue notecli#30 仕様 v5 §6-5)。
 
 #[tauri::command]
 #[specta::specta]
@@ -974,10 +978,6 @@ fn runtime_error(message: impl Into<String>) -> NoteDeckError {
 fn account_id(key: &QueryKey) -> &str {
     match key {
         QueryKey::Timeline { account_id, .. }
-        | QueryKey::Antenna { account_id, .. }
-        | QueryKey::Channel { account_id, .. }
-        | QueryKey::Role { account_id, .. }
-        | QueryKey::Mentions { account_id }
         | QueryKey::Notifications { account_id }
         | QueryKey::ChatUser { account_id, .. }
         | QueryKey::ChatRoom { account_id, .. } => account_id,
@@ -994,8 +994,7 @@ mod tests {
     fn home_key(account: &str) -> QueryKey {
         QueryKey::Timeline {
             account_id: account.into(),
-            timeline_type: TimelineType::new("home"),
-            list_id: None,
+            key: "home".into(),
         }
     }
 

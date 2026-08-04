@@ -6,7 +6,7 @@
     "license": {
       "name": "MIT"
     },
-    "version": "1.39.0"
+    "version": "1.40.0"
   },
   "paths": {
     "/api": {
@@ -1121,7 +1121,7 @@
           {
             "name": "tl_type",
             "in": "path",
-            "description": "Timeline type: home | local | social | global",
+            "description": "Timeline type: home | local | social | global (or fork-specific basic timelines like bubble)",
             "required": true,
             "schema": {
               "type": "string"
@@ -1166,6 +1166,16 @@
                   "items": {
                     "$ref": "#/components/schemas/NormalizedNote"
                   }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid or non-basic timeline key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             }

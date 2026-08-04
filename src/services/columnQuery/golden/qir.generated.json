@@ -773,6 +773,22 @@
           "kind": "null"
         }
       }
+    },
+    "serde-shape-files-null-compare-unmatch": {
+      "schemaVersion": 1,
+      "root": {
+        "kind": "eq",
+        "negated": false,
+        "left": {
+          "kind": "field",
+          "path": [
+            "files"
+          ]
+        },
+        "right": {
+          "kind": "null"
+        }
+      }
     }
   }
 }

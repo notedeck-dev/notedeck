@@ -4,7 +4,7 @@ use notecli::api::SearchUsersOptions;
 use notecli::error::NoteDeckError;
 use notecli::models::{
     Flash, GalleryPost, MutedWordsResult, NormalizedNote, NormalizedUser, NormalizedUserDetail,
-    Page, TimelineOptions, UserReaction,
+    Page, TimelineKey, TimelineOptions, UserReaction,
 };
 
 use super::{get_credentials_or_anon, typed_request, validate_host, AppState, Result};
@@ -54,7 +54,12 @@ pub async fn api_get_user_notes(
             options.unwrap_or_default(),
         )
         .await?;
-    if let Err(e) = db.cache_notes(&notes, &format!("user:{user_id}")) {
+    if let Err(e) = db.ingest_notes(
+        &notes,
+        &TimelineKey::UserNotes {
+            user_id: user_id.clone(),
+        },
+    ) {
         tracing::warn!("[cache] failed to cache user notes: {e}");
     }
     Ok(notes)
@@ -457,7 +462,23 @@ pub async fn api_remove_user_from_list(
     let (client, host, token) = app_state.authed(&account_id).await?;
     client
         .remove_user_from_list(&host, &token, &list_id, &user_id)
-        .await
+        .await?;
+    // 除外ユーザーの既存ノートは個別逆引き不能のためバケット破棄 →
+    // 次回フェッチで再構築 (失敗は warn + Ok)。破棄の完了は待ってから返す —
+    // detach するとフロントの再フェッチ ingest 後に破棄が走るレースになる
+    let db = app_state.db().await;
+    let account_id_owned = account_id.clone();
+    let key = TimelineKey::UserList {
+        list_id: list_id.clone(),
+    };
+    let cleared =
+        tokio::task::spawn_blocking(move || db.clear_timeline(&account_id_owned, &key)).await;
+    match cleared {
+        Ok(Err(e)) => tracing::warn!("[cache] failed to clear user-list bucket: {e}"),
+        Err(e) => tracing::warn!("[cache] clear user-list bucket task failed: {e}"),
+        Ok(Ok(_)) => {}
+    }
+    Ok(())
 }
 
 // --- Search ---

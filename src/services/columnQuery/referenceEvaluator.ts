@@ -38,7 +38,24 @@ export interface ReferenceFilter {
  *     Obj:set による前ノート値の破壊がベクタ間に波及しないように)
  */
 export function createReferenceFilter(source: string): ReferenceFilter {
-  const wrapped = `let __filter = @(note) {\n${source}\n}`
+  // 名前付きクエリ形 `@(note) { ... }` (単一の 1 引数 fn 式) は、そのまま
+  // ラップすると本体が「fn 値を返す式」になり全ノート error になる。
+  // ⚡ コンパイラ (compileTopLevel) と表層構文の受理を揃え、fn 式自体を
+  // フィルタ関数として束縛する (#783 レビュー修正 1)。execFnSync は位置渡し
+  // なので引数名は問わない。引数が 1 個でない fn は従来ラップに落とす
+  // (本体が fn 値 = 非 bool で実行時 error verdict、fail-closed で安全側)
+  let isSingleUnaryFn = false
+  try {
+    const probe = new Parser().parse(source)
+    const only = probe[0]
+    isSingleUnaryFn =
+      probe.length === 1 && only?.type === 'fn' && only.params.length === 1
+  } catch {
+    // parse 不能はラップ後の parse で保存時エラーとして throw させる
+  }
+  const wrapped = isSingleUnaryFn
+    ? `let __filter = ${source}`
+    : `let __filter = @(note) {\n${source}\n}`
   const parser = new Parser()
   const ast = parser.parse(wrapped)
 

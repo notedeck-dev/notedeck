@@ -20,6 +20,7 @@ import { usePrompt } from '@/stores/prompt'
 import { useToast } from '@/stores/toast'
 import { useIsCompactLayout } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
+import { clipCacheKey } from '@/utils/columnCacheKey'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { getNoteShareUrl } from '@/utils/noteUrl'
@@ -163,7 +164,7 @@ async function addToClip(clipId: string, clipName: string) {
   if (!adapter) return
   try {
     await adapter.api.addNoteToClip(clipId, props.note.id)
-    useDeckStore().invalidateColumnByKey(`clip:${clipId}`)
+    useDeckStore().invalidateColumnByKey(clipCacheKey(clipId))
     toast.show('クリップに追加しました')
   } catch (e) {
     const err = AppError.from(e)
@@ -177,7 +178,7 @@ async function addToClip(clipId: string, clipName: string) {
       if (ok) {
         try {
           await adapter.api.removeNoteFromClip(clipId, props.note.id)
-          useDeckStore().invalidateColumnByKey(`clip:${clipId}`)
+          useDeckStore().invalidateColumnByKey(clipCacheKey(clipId))
           toast.show('クリップから解除しました')
         } catch (e2) {
           const err2 = AppError.from(e2)

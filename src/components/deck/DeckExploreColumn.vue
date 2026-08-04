@@ -18,6 +18,7 @@ import { useNoteColumn } from '@/composables/useNoteColumn'
 import { usePortal } from '@/composables/usePortal'
 import { useTabSlide } from '@/composables/useTabSlide'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import type { ColumnTabDef } from './ColumnTabs.vue'
@@ -28,6 +29,8 @@ import DeckHeaderAccount from './DeckHeaderAccount.vue'
 const props = defineProps<{
   column: DeckColumnType
 }>()
+
+const cacheKeyDeps = accountsCacheKeyDeps()
 
 // --- Tab ---
 type Tab = 'notes' | 'users' | 'roles'
@@ -73,7 +76,7 @@ const {
     return adapter.api.getFeaturedNotes({ limit: 30 })
   },
   cache: {
-    getKey: () => 'explore',
+    getKey: () => columnCacheKey(props.column, cacheKeyDeps),
   },
 })
 

@@ -59,6 +59,7 @@ function note(partial: Partial<NormalizedNote> = {}): NormalizedNote {
     renoteCount: 0,
     repliesCount: 0,
     files: [],
+    localOnly: false,
     ...partial,
   }
 }

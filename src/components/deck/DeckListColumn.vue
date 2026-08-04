@@ -9,6 +9,7 @@ import { useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
@@ -17,6 +18,7 @@ const props = defineProps<{
 }>()
 
 const deckStore = useDeckStore()
+const cacheKeyDeps = accountsCacheKeyDeps()
 const noteColumnRef = ref<InstanceType<typeof DeckNoteColumn> | null>(null)
 
 watch(
@@ -36,8 +38,7 @@ const noteColumnConfig: NoteColumnConfig = {
     }),
   validate: () => !!props.column.listId,
   cache: {
-    getKey: () =>
-      props.column.listId ? `user-list:${props.column.listId}` : null,
+    getKey: () => columnCacheKey(props.column, cacheKeyDeps),
   },
   streaming: {
     subscribe: (_adapter, enqueue, callbacks) => {

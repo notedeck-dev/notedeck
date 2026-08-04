@@ -219,13 +219,31 @@ describe('compileColumnQuery: nullable ガード診断 (V25)', () => {
     expect(warned(src)).toEqual([])
   })
 
-  it('nullable な配列の .len も警告する', () => {
-    expect(warned('note.files.len > 0')).toEqual(['note.files'])
-  })
-
   it('nullable でないフィールドは警告しない', () => {
     expect(warned('note.visibility == "public"')).toEqual([])
     expect(warned('note.user.username.incl("a")')).toEqual([])
+  })
+
+  // files / reactions / localOnly は Rust 側で serde default 付き非 Option の
+  // ため null にならない (#783 レビュー修正 2)。ガード警告を出すと
+  // 「ガード不要なのに警告される」誤報になる
+  it('serde 形で非 null のフィールド (files/reactions/localOnly) は警告しない', () => {
+    expect(warned('note.files.len > 0')).toEqual([])
+    expect(warned('note.reactions["👍"] != null')).toEqual([])
+    expect(warned('note.localOnly == true')).toEqual([])
+  })
+
+  it('非 null 化した files でも null リテラル比較はコンパイルできる (MisStore text-only 互換)', () => {
+    // 配布済みクエリ `note.files == null || note.files.len == 0` は
+    // eq の「null リテラルとの比較は常に許可」で引き続き受理される
+    const result = compileColumnQuery(
+      'note.files == null || note.files.len == 0',
+    )
+    expect(result.ok, result.ok ? '' : JSON.stringify(result.diagnostics)).toBe(
+      true,
+    )
+    if (!result.ok) return
+    expect(result.warnings.filter((w) => w.field === 'note.files')).toEqual([])
   })
 
   it('同じフィールドを何度使っても警告は 1 件にまとめる', () => {
