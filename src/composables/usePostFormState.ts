@@ -72,21 +72,13 @@ export function usePostFormState(
   const settingsStore = useSettingsStore()
   const themeStore = useThemeStore()
 
-  /**
-   * 投稿先チャンネル。「削除して編集」では元ノートのチャンネルを引き継ぐ (#953)。
-   * カラムは :channel-id を渡すが、ノート詳細・プロフィールのウィンドウには
-   * 渡す経路が無く、そこから操作するとチャンネル外に出てしまっていた。
-   * 明示指定 (チャンネルカラムの埋め込みフォーム等) が常に優先。
-   */
-  const channelId = computed(
-    () => props.channelId ?? props.initialNote?.channelId ?? undefined,
-  )
-
   const text = ref('')
   const cw = ref('')
   const showCw = ref(false)
   const visibility = ref<NoteVisibility>('public')
-  const localOnly = ref(!!channelId.value)
+  const localOnly = ref(
+    !!(props.channelId ?? props.initialNote?.channelId ?? undefined),
+  )
   const showVisibilityMenu = ref(false)
   const showAccountMenu = ref(false)
   const isPosting = ref(false)
@@ -159,6 +151,24 @@ export function usePostFormState(
   const account = computed(() =>
     accountsStore.accounts.find((a) => a.id === activeAccountId.value),
   )
+
+  /**
+   * 投稿先チャンネル。「削除して編集」では元ノートのチャンネルを引き継ぐ (#953)。
+   * カラムは :channel-id を渡すが、ノート詳細・プロフィールのウィンドウには
+   * 渡す経路が無く、そこから操作するとチャンネル外に出てしまっていた。
+   * 明示指定 (チャンネルカラムの埋め込みフォーム等) が常に優先。
+   *
+   * 引き継ぎはアカウントが一致するときだけ。フォーム上でアカウントを切り替え
+   * たら、元アカウントのチャンネル ID を別サーバーへ送ることになるため落とす。
+   */
+  const channelId = computed(() => {
+    if (props.channelId) return props.channelId
+    const note = props.initialNote
+    if (!note?.channelId) return undefined
+    return note._accountId === activeAccountId.value
+      ? note.channelId
+      : undefined
+  })
 
   /**
    * このセッションが auto-save に使う slot key。

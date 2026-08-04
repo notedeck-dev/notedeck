@@ -463,6 +463,37 @@ describe('useNoteColumn: スリープ復帰 catch-up とタブ切替の gap 検�
     expect(ids(api)).toEqual(['keep'])
   })
 
+  it('switchWithSnapshot: snapshot のフィルタが落ちても列を出さず、取得は続ける', async () => {
+    addAccount('acc-tab-filter-fail')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([note('h01')])
+      .mockResolvedValueOnce([note('h02')])
+    const { api } = mountColumn({
+      accountId: 'acc-tab-filter-fail',
+      fetch: () => fetchImpl(),
+      // snapshot にだけ含まれるノートで落ちるフィルタ
+      filterNotes: async (ns) => {
+        if (ns.some((n) => n.id === 'poison')) throw new Error('filter boom')
+        return ns
+      },
+      streaming: true,
+    })
+    await flush()
+
+    vi.advanceTimersByTime(6000)
+    // 呼び出し元 (onTabChange) は await していないので reject させない
+    await expect(
+      api.switchWithSnapshot([note('poison')], 0),
+    ).resolves.toBeUndefined()
+    await flush()
+
+    // フィルタを通せない列は出さない (出すと隠したはずのノートが見える)
+    expect(ids(api)).not.toContain('poison')
+    // 取得自体は続き、最新ページは反映される
+    expect(ids(api)).toContain('h02')
+  })
+
   it('switchWithSnapshot: スクロール中の小差分はバナーに留め、自動で最上部へ戻さない', async () => {
     addAccount('acc-tab-merge')
     const fetchImpl = vi
