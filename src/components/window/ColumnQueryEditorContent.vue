@@ -3,6 +3,7 @@ import { Parser } from '@syuilo/aiscript'
 import { computed, ref } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
+import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
@@ -241,16 +242,16 @@ async function save(): Promise<void> {
       </ul>
     </div>
 
-    <div :class="$style.actions">
-      <button
-        class="_button"
-        :class="$style.saveButton"
-        :disabled="!canSave || !isDirty"
-        @click="save"
-      >
-        {{ warnings.length > 0 ? 'このまま保存' : '保存' }}
-      </button>
-    </div>
+    <EditorActionBar
+      :class="$style.barBleed"
+      :primary="{
+        key: 'save',
+        label: warnings.length > 0 ? 'このまま保存' : '保存',
+        icon: 'device-floppy',
+        disabled: !canSave || !isDirty,
+      }"
+      @action="save"
+    />
   </div>
 </template>
 
@@ -262,9 +263,14 @@ async function save(): Promise<void> {
   padding: 12px;
 }
 
-/* root が padding を持つので、ヘッダだけ他の編集ウィンドウと同じ全幅に戻す */
+/* root が padding を持つので、ヘッダとアクションバーだけ
+   他の編集ウィンドウと同じ全幅に戻す */
 .headerBleed {
   margin: -12px -12px 0;
+}
+
+.barBleed {
+  margin: 0 -12px -12px;
 }
 
 .headerBadge {
@@ -384,22 +390,4 @@ async function save(): Promise<void> {
   }
 }
 
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.saveButton {
-  padding: 6px 16px;
-  border-radius: 6px;
-  background: var(--nd-accent, #86b300);
-  color: #fff;
-  font-weight: 600;
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-}
 </style>

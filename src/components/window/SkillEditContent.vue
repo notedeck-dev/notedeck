@@ -2,6 +2,8 @@
 import { markdown } from '@codemirror/lang-markdown'
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import type { EditorActionStatus } from '@/components/window/EditorActionBar.vue'
+import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
@@ -121,10 +123,14 @@ function save() {
 const isBuiltIn = computed(() => skill.value?.builtIn ?? false)
 const isFromStore = computed(() => !!skill.value?.storeId)
 
-const statusText = computed(() => {
-  if (saved.value) return '保存しました'
-  if (dirty.value) return '編集中...'
-  return ''
+/**
+ * 自動保存の状態。デバウンス保存なので「いま保存されているか」が
+ * 見えないと不安になる。明示保存ボタンは同じバーの右端に置く。
+ */
+const barStatus = computed<EditorActionStatus | null>(() => {
+  if (saved.value) return { text: '保存しました', icon: 'check', tone: 'ok' }
+  if (dirty.value) return { text: '未保存の変更', icon: 'pencil' }
+  return null
 })
 </script>
 
@@ -262,10 +268,16 @@ const statusText = computed(() => {
         />
       </div>
 
-      <div v-if="statusText" :class="[$style.status, saved && $style.statusSaved]">
-        <i :class="['ti', saved ? 'ti-check' : 'ti-loader-2']" />
-        {{ statusText }}
-      </div>
+      <EditorActionBar
+        :status="barStatus"
+        :primary="{
+          key: 'save',
+          label: '保存',
+          icon: 'device-floppy',
+          disabled: !dirty,
+        }"
+        @action="save"
+      />
     </template>
   </div>
 </template>
@@ -434,19 +446,4 @@ const statusText = computed(() => {
   min-width: 0;
 }
 
-.status {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 14px 8px;
-  font-size: 11px;
-  color: var(--nd-fg);
-  opacity: 0.7;
-  flex-shrink: 0;
-}
-
-.statusSaved {
-  color: var(--nd-accent);
-  opacity: 1;
-}
 </style>

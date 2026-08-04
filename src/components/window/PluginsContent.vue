@@ -7,6 +7,8 @@ import {
 } from '@/aiscript/plugin-api'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
+import type { EditorAction } from '@/components/window/EditorActionBar.vue'
+import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
@@ -270,6 +272,47 @@ async function exportPlugin() {
   await copyToClipboard(plugin.value.src)
 }
 
+// --- 下部アクションバー (全編集ウィンドウ共通の並び) ---
+const barActions = computed<EditorAction[]>(() => {
+  // 新規インストール中はまだ export するものが無い
+  if (!plugin.value) return []
+  return [
+    {
+      key: 'import',
+      label: importClipError.value
+        ? '無効'
+        : importedMessage.value
+          ? '読込済み'
+          : 'インポート',
+      icon: importClipError.value ? 'alert-circle' : 'clipboard-text',
+    },
+    {
+      key: 'export',
+      label: copiedMessage.value ? 'コピー済み' : 'エクスポート',
+      icon: 'clipboard-copy',
+    },
+  ]
+})
+
+const barPrimary = computed<EditorAction | null>(() => {
+  if (!plugin.value) {
+    return { key: 'install', label: 'インストール', icon: 'download' }
+  }
+  return {
+    key: 'save',
+    label: '保存して再起動',
+    icon: 'device-floppy',
+    disabled: !codeModified.value,
+  }
+})
+
+function onBarAction(key: string) {
+  if (key === 'save') saveCode()
+  else if (key === 'install') doInstall()
+  else if (key === 'import') importPlugin()
+  else if (key === 'export') exportPlugin()
+}
+
 async function importPlugin() {
   const text = await readFromClipboard()
   if (!text?.trim()) {
@@ -435,48 +478,11 @@ async function importPlugin() {
       </div>
     </div>
 
-    <!-- Actions -->
-    <div :class="$style.actions">
-      <template v-if="plugin">
-        <div :class="$style.actionGroup">
-          <button
-            class="_button"
-            :class="[$style.actionBtn, $style.secondary, { [$style.feedback]: importedMessage || importClipError }]"
-            @click="importPlugin"
-          >
-            <i class="ti" :class="importClipError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-            {{ importClipError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
-          </button>
-          <button
-            class="_button"
-            :class="[$style.actionBtn, $style.secondary, { [$style.feedback]: copiedMessage }]"
-            @click="exportPlugin"
-          >
-            <i class="ti ti-clipboard-copy" />
-            {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
-          </button>
-        </div>
-        <button
-          v-if="codeModified"
-          class="_button"
-          :class="[$style.actionBtn, $style.primary]"
-          @click="saveCode"
-        >
-          <i class="ti ti-device-floppy" />
-          保存して再起動
-        </button>
-      </template>
-      <template v-else>
-        <button
-          class="_button"
-          :class="[$style.actionBtn, $style.primary, $style.full]"
-          @click="doInstall"
-        >
-          <i class="ti ti-download" />
-          インストール
-        </button>
-      </template>
-    </div>
+    <EditorActionBar
+      :actions="barActions"
+      :primary="barPrimary"
+      @action="onBarAction"
+    />
   </div>
 </template>
 
@@ -810,20 +816,6 @@ async function importPlugin() {
   font-size: 0.85em;
 }
 
-// --- Actions ---
-.actions { @include action-bar; }
-.actionGroup { @include action-group; }
-
-.actionBtn {
-  &.secondary { @include btn-action; }
-  &.primary { @include btn-primary; }
-  &.full { width: 100%; }
-}
-
-/* Empty placeholder classes for dynamic binding */
-.secondary {}
-.feedback {}
+/* Empty placeholder class for dynamic binding */
 .confirming {}
-.primary {}
-.full {}
 </style>

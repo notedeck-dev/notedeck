@@ -29,6 +29,8 @@ import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
 import AiScriptUiRenderer, {
   type PostFormRequest,
 } from '@/components/deck/widgets/AiScriptUiRenderer.vue'
+import type { EditorActionStatus } from '@/components/window/EditorActionBar.vue'
+import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
@@ -72,22 +74,47 @@ const code = ref(widget.value?.src ?? '')
 
 // debounce save (= WidgetAiScript と同じ仕組み)
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+const dirty = ref(false)
+const saved = ref(false)
+
+function commitSave(src: string) {
+  if (!widget.value) return
+  widgetsStore.updateSrc(widget.value.installId, src)
+  dirty.value = false
+  saved.value = true
+  setTimeout(() => {
+    saved.value = false
+  }, 1500)
+}
+
 function flushPendingSave() {
   if (saveTimer && widget.value) {
     clearTimeout(saveTimer)
     saveTimer = null
-    widgetsStore.updateSrc(widget.value.installId, code.value)
+    commitSave(code.value)
   }
 }
 watch(code, (val) => {
   if (!widget.value) return
+  dirty.value = true
+  saved.value = false
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     saveTimer = null
-    if (widget.value) widgetsStore.updateSrc(widget.value.installId, val)
+    commitSave(val)
   }, 500)
 })
 onBeforeUnmount(flushPendingSave)
+
+/**
+ * 自動保存の状態。デバウンス保存なので「いま保存されているか」が
+ * 見えないと不安になる。明示保存ボタンは同じバーの右端に置く。
+ */
+const barStatus = computed<EditorActionStatus | null>(() => {
+  if (saved.value) return { text: '保存しました', icon: 'check', tone: 'ok' }
+  if (dirty.value) return { text: '未保存の変更', icon: 'pencil' }
+  return null
+})
 
 // --- Tabs ---
 const tabs = ['code', 'visual'] as const
@@ -367,6 +394,18 @@ function toggleAutoRun() {
         </details>
       </template>
     </div>
+
+    <EditorActionBar
+      v-if="widget"
+      :status="barStatus"
+      :primary="{
+        key: 'save',
+        label: '保存',
+        icon: 'device-floppy',
+        disabled: !dirty,
+      }"
+      @action="flushPendingSave"
+    />
 
     <div v-if="showPostForm && activeAccountId" ref="postFormPortalRef">
       <MkPostForm
