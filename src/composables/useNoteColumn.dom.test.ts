@@ -733,6 +733,8 @@ describe('useNoteColumn: QIR キャッシュ検索 (#783 Phase 3)', () => {
     await mountOfflineColumn('acc-search-fast', FAST_QUERY)
     expect(searchCalls()).toHaveLength(1)
     expect(legacyCalls()).toHaveLength(0)
+    // カラムの所属バケットで母集合を絞る (notecli#30 §12-9)
+    expect(searchCalls()[0]?.args[2]).toBe('home')
   })
 
   it('クエリが無いカラムは従来のキャッシュ経路のまま', async () => {
@@ -764,7 +766,7 @@ describe('useNoteColumn: QIR キャッシュ検索 (#783 Phase 3)', () => {
     await api.loadMore()
     await flush()
     const second = searchCalls()[1]
-    expect(second?.args[4]).toEqual({
+    expect(second?.args[5]).toEqual({
       createdAt: '2026-06-30T00:00:00.000Z',
       noteId: 'h00',
     })
