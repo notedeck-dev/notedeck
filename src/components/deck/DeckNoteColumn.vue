@@ -151,6 +151,9 @@ function openQueryManager(): void {
 }
 
 const queryBadgeTitle = computed(() => {
+  if (columnQueryState.value.status === 'safeMode') {
+    return 'セーフモード中はクエリを停止しています — 絞り込まずに全件表示中。押すとクエリ管理カラムを開きます'
+  }
   if (columnQueryState.value.status === 'invalid') {
     return 'クエリを解釈できません — 押すとクエリ管理カラムを開きます'
   }
@@ -176,6 +179,9 @@ const queryBadgeIcon = computed(() => {
       return 'ti ti-alert-triangle'
     case 'degraded':
       return 'ti ti-hourglass'
+    // セーフモードで停止中 (#971): フィルタ軸のまま「効いていない」を示す
+    case 'safeMode':
+      return 'ti ti-filter-off'
     default:
       return 'ti ti-filter-check'
   }
@@ -317,6 +323,7 @@ defineExpose({
             $style.queryBadge,
             columnQueryState.status === 'invalid' && $style.queryBadgeInvalid,
             columnQueryState.status === 'degraded' && $style.queryBadgeDegraded,
+            columnQueryState.status === 'safeMode' && $style.queryBadgeStopped,
           ]"
           :title="queryBadgeTitle"
           @click.stop="openQueryManager"
@@ -544,6 +551,16 @@ defineExpose({
 .queryBadgeDegraded {
   color: var(--nd-warn);
   background: color-mix(in srgb, var(--nd-warn) 12%, transparent);
+}
+
+/*
+ * セーフモードで停止中 (#971)。エラーではない (fail-open で全件表示している
+ * だけ) が、適用中と同じ強調では「効いている」と誤読されるので彩度を落とす
+ */
+.queryBadgeStopped {
+  color: var(--nd-fg);
+  background: color-mix(in srgb, var(--nd-fg) 12%, transparent);
+  opacity: 0.75;
 }
 
 

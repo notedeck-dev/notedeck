@@ -476,14 +476,8 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     execute: () => dispatchNoteAction('delete'),
   })
 
-  commandStore.register({
-    id: 'note-edit',
-    label: 'ノートを編集',
-    icon: 'edit',
-    category: 'note',
-    shortcuts: keybindsStore.getShortcuts('note-edit'),
-    execute: () => dispatchNoteAction('edit'),
-  })
+  // note-edit は登録しない (#954)。本家 Misskey にノート更新 API が無く、
+  // 呼んでも必ず失敗するため。詳細は NoteMoreMenu.vue の同 issue コメント。
 
   commandStore.register({
     id: 'note-copy-link',
@@ -964,7 +958,6 @@ export function unregisterDefaultCommands() {
     'close-all-floating-windows',
     'toggle-column-mute',
     'note-delete',
-    'note-edit',
     'note-copy-link',
     'note-copy-content',
     'move-column-left',

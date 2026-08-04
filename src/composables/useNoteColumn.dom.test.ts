@@ -433,6 +433,67 @@ describe('useNoteColumn: スリープ復帰 catch-up とタブ切替の gap 検�
     expect(ids(api)).toEqual(['h11', 'h10'])
   })
 
+  it('switchWithSnapshot: snapshot にもカラムクエリを適用する', async () => {
+    addAccount('acc-tab-query')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([{ ...note('keep'), text: 'x' }])
+      // タブ切替の差分取得: snapshot と重なるので merge 経路 (置換されない)
+      .mockResolvedValueOnce([{ ...note('keep'), text: 'x' }])
+    const { api } = mountColumn({
+      accountId: 'acc-tab-query',
+      noteQuery: 'note.text != null',
+      fetch: () => fetchImpl(),
+      streaming: true,
+    })
+    await flush()
+    expect(ids(api)).toEqual(['keep'])
+
+    vi.advanceTimersByTime(6000)
+    // snapshot に「クエリで除外されるべきノート」が混ざっている状態から復帰する
+    await api.switchWithSnapshot(
+      [
+        { ...note('keep'), text: 'x' } as NormalizedNote,
+        { ...note('drop'), text: null } as NormalizedNote,
+      ],
+      0,
+    )
+    await flush()
+
+    expect(ids(api)).toEqual(['keep'])
+  })
+
+  it('switchWithSnapshot: snapshot のフィルタが落ちても列を出さず、取得は続ける', async () => {
+    addAccount('acc-tab-filter-fail')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([note('h01')])
+      .mockResolvedValueOnce([note('h02')])
+    const { api } = mountColumn({
+      accountId: 'acc-tab-filter-fail',
+      fetch: () => fetchImpl(),
+      // snapshot にだけ含まれるノートで落ちるフィルタ
+      filterNotes: async (ns) => {
+        if (ns.some((n) => n.id === 'poison')) throw new Error('filter boom')
+        return ns
+      },
+      streaming: true,
+    })
+    await flush()
+
+    vi.advanceTimersByTime(6000)
+    // 呼び出し元 (onTabChange) は await していないので reject させない
+    await expect(
+      api.switchWithSnapshot([note('poison')], 0),
+    ).resolves.toBeUndefined()
+    await flush()
+
+    // フィルタを通せない列は出さない (出すと隠したはずのノートが見える)
+    expect(ids(api)).not.toContain('poison')
+    // 取得自体は続き、最新ページは反映される
+    expect(ids(api)).toContain('h02')
+  })
+
   it('switchWithSnapshot: スクロール中の小差分はバナーに留め、自動で最上部へ戻さない', async () => {
     addAccount('acc-tab-merge')
     const fetchImpl = vi
@@ -1064,8 +1125,29 @@ describe('useNoteColumn: セーフモードでカラムクエリを停止する 
     })
     await flush()
     expect(ids(api)).toEqual(['a', 'b'])
-    // クエリは無いものとして扱う (コンパイルしない)
+    // 評価はしない (コンパイルしない) が、止まっていることは見える (#971)
+    expect(api.columnQueryState.value.status).toBe('safeMode')
+  })
+
+  it('クエリ未設定のカラムは safeMode 状態にならない (#971)', async () => {
+    addAccount('acc-safe-noquery')
+    const { api } = mountColumn({
+      accountId: 'acc-safe-noquery',
+      fetch: async () => [note('a') as NormalizedNote],
+    })
+    await flush()
     expect(api.columnQueryState.value.status).toBe('none')
+  })
+
+  it('参照だけのカラムでも停止が見える (#971)', async () => {
+    addAccount('acc-safe-ref')
+    const { api } = mountColumn({
+      accountId: 'acc-safe-ref',
+      noteQueryRefs: ['some-query-id'],
+      fetch: async () => [note('a') as NormalizedNote],
+    })
+    await flush()
+    expect(api.columnQueryState.value.status).toBe('safeMode')
   })
 
   it('qirSearchCache を呼ばず従来のキャッシュ経路を使う', async () => {

@@ -494,6 +494,54 @@ describe('post: 新規ノート', () => {
     )
   })
 
+  it('削除して編集では元ノートのチャンネルを引き継ぐ (#953)', async () => {
+    const form = mount({
+      initialNote: makeNote({
+        id: 'orig',
+        channelId: 'ch-src',
+        _accountId: 'acc1',
+      }),
+    })
+    await form.initAdapter()
+    form.text.value = 'x'
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channelId: 'ch-src' }),
+    )
+  })
+
+  it('アカウントを切り替えたら元ノートのチャンネルは引き継がない (#953)', async () => {
+    accountsState.accounts = [makeAccount(), makeAccount({ id: 'acc2' })]
+    const form = mount({
+      initialNote: makeNote({
+        id: 'orig',
+        channelId: 'ch-src',
+        _accountId: 'acc1',
+      }),
+    })
+    await form.initAdapter()
+    form.text.value = 'x'
+    // 別アカウントのチャンネル ID を送ってしまわないこと
+    await form.switchAccount('acc2')
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channelId: undefined }),
+    )
+  })
+
+  it('明示的な channelId は initialNote のチャンネルより優先する (#953)', async () => {
+    const form = mount({
+      channelId: 'ch-explicit',
+      initialNote: makeNote({ id: 'orig', channelId: 'ch-src' }),
+    })
+    await form.initAdapter()
+    form.text.value = 'x'
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channelId: 'ch-explicit' }),
+    )
+  })
+
   it('返信/リノート/チャネル/添付ファイル ID を送信する', async () => {
     const form = mount({
       replyTo: makeNote({ id: 'r1' }),

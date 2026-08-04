@@ -341,7 +341,19 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
   const columnQueryState = computed(() => {
     const compiled = compiledQuery.value
-    if (!compiled) return { status: 'none' as const, diagnostics: [] }
+    if (!compiled) {
+      // セーフモードでクエリを止めているカラムは、止まっていることが見えないと
+      // 「もともとクエリを設定していないカラム」と区別がつかない (#971)。
+      // クエリの主用途は「見たくないものを隠す」ことなので、停止が黙って
+      // 起きると隠していたものが予告なく表示に戻る。fail-open は維持する。
+      const col = config.getColumn()
+      const hasQuery =
+        !!col.noteQuery?.trim() || (col.noteQueryRefs ?? []).length > 0
+      if (hasQuery && readSafeMode()) {
+        return { status: 'safeMode' as const, diagnostics: [] }
+      }
+      return { status: 'none' as const, diagnostics: [] }
+    }
     const diagnostics: { message: string }[] = []
     for (const id of compiled.missing) {
       diagnostics.push({
@@ -1364,38 +1376,53 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
     // Pause streaming to prevent auto-flush flicker during snapshot transition
     streamingBatch.setPaused(true)
-
-    // Swap subscription (stream/WebSocket stays connected)
-    resubscribe(adapter)
-    setNotes(snapshotNotes)
-    resetFetchCursor(snapshotNotes)
-    error.value = null
-    await nextTick()
-    const restored = anchor
-      ? (noteScrollerRef.value?.restoreScrollAnchor?.(
-          anchor.id,
-          anchor.offset,
-        ) ?? false)
-      : false
-    if (!restored && scroller.value) scroller.value.scrollTop = scrollTop
-
-    // Sync isAtTop with restored scroll position (resetBatch forces it to true)
-    streamingBatch.isAtTop.value = scrollTop <= 10
-
-    // Snapshot 更新は { sinceId } ではなく最新ページを取得する。sinceId だと
-    // 1 ページ分しか埋まらず、snapshot が古い (長期スリープ後など) と隠れた
-    // 穴が残る。onResume と同じく gap を検出して置換する (#791)
     const stillCurrent = tabGuard()
+    // 以降は必ず paused を解除して抜ける。await を finally の外に置くと、
+    // フィルタ評価 (Worker / filterNotes) の失敗でストリームが止まったままになる
     try {
-      const fetched = await fetchAndDedup(adapter, {})
-      // Guard: discard if tab changed during async fetch
-      if (!stillCurrent()) return
-      const gap = hasGap(fetched, snapshotNotes.length > 0)
-      mergeOrEnqueue(fetched, gap ? { replace: true } : undefined)
-      isOffline.value = false
-    } catch {
-      // API failure with snapshot displayed — mark offline
-      isOffline.value = true
+      // Swap subscription (stream/WebSocket stays connected)
+      resubscribe(adapter)
+      // snapshot は可視性を焼き込まない unfiltered な ID 列 (#574) なので、
+      // 取り込み時フィルタ (組込フィルタ + カラムクエリ) は復元側で通す。
+      // 通さないと、タブを離れている間にクエリを厳しくしても切替先には旧列が
+      // 残り、隠したはずのノートが見えてしまう
+      try {
+        setNotes(await applyFilter(snapshotNotes))
+      } catch (e) {
+        // フィルタを通せない列は出さない (fail-closed)。呼び出し元の
+        // onTabChange は await していないので、ここで throw させない
+        logWarn('snapshot-filter', e)
+        setNotes([])
+      }
+      // カーソルは生ページ基準 (フィルタで落ちた分も含めて前進させる)
+      resetFetchCursor(snapshotNotes)
+      error.value = null
+      await nextTick()
+      const restored = anchor
+        ? (noteScrollerRef.value?.restoreScrollAnchor?.(
+            anchor.id,
+            anchor.offset,
+          ) ?? false)
+        : false
+      if (!restored && scroller.value) scroller.value.scrollTop = scrollTop
+
+      // Sync isAtTop with restored scroll position (resetBatch forces it to true)
+      streamingBatch.isAtTop.value = scrollTop <= 10
+
+      // Snapshot 更新は { sinceId } ではなく最新ページを取得する。sinceId だと
+      // 1 ページ分しか埋まらず、snapshot が古い (長期スリープ後など) と隠れた
+      // 穴が残る。onResume と同じく gap を検出して置換する (#791)
+      try {
+        const fetched = await fetchAndDedup(adapter, {})
+        // Guard: discard if tab changed during async fetch
+        if (!stillCurrent()) return
+        const gap = hasGap(fetched, snapshotNotes.length > 0)
+        mergeOrEnqueue(fetched, gap ? { replace: true } : undefined)
+        isOffline.value = false
+      } catch {
+        // API failure with snapshot displayed — mark offline
+        isOffline.value = true
+      }
     } finally {
       // Resume streaming after transition is complete
       streamingBatch.setPaused(false)

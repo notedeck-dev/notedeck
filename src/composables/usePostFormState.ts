@@ -56,6 +56,7 @@ export function usePostFormState(
     replyTo?: NormalizedNote
     renoteId?: string
     editNote?: NormalizedNote
+    initialNote?: NormalizedNote
     channelId?: string
   },
   callbacks: {
@@ -75,7 +76,9 @@ export function usePostFormState(
   const cw = ref('')
   const showCw = ref(false)
   const visibility = ref<NoteVisibility>('public')
-  const localOnly = ref(!!props.channelId)
+  const localOnly = ref(
+    !!(props.channelId ?? props.initialNote?.channelId ?? undefined),
+  )
   const showVisibilityMenu = ref(false)
   const showAccountMenu = ref(false)
   const isPosting = ref(false)
@@ -148,6 +151,24 @@ export function usePostFormState(
   const account = computed(() =>
     accountsStore.accounts.find((a) => a.id === activeAccountId.value),
   )
+
+  /**
+   * 投稿先チャンネル。「削除して編集」では元ノートのチャンネルを引き継ぐ (#953)。
+   * カラムは :channel-id を渡すが、ノート詳細・プロフィールのウィンドウには
+   * 渡す経路が無く、そこから操作するとチャンネル外に出てしまっていた。
+   * 明示指定 (チャンネルカラムの埋め込みフォーム等) が常に優先。
+   *
+   * 引き継ぎはアカウントが一致するときだけ。フォーム上でアカウントを切り替え
+   * たら、元アカウントのチャンネル ID を別サーバーへ送ることになるため落とす。
+   */
+  const channelId = computed(() => {
+    if (props.channelId) return props.channelId
+    const note = props.initialNote
+    if (!note?.channelId) return undefined
+    return note._accountId === activeAccountId.value
+      ? note.channelId
+      : undefined
+  })
 
   /**
    * このセッションが auto-save に使う slot key。
@@ -294,7 +315,7 @@ export function usePostFormState(
       if (v && visibilityOptions.some((o) => o.value === v)) {
         visibility.value = v as NoteVisibility
       }
-      if (!props.channelId) {
+      if (!channelId.value) {
         localOnly.value = userInfo.defaultNoteLocalOnly === true
       }
     }
@@ -303,7 +324,7 @@ export function usePostFormState(
     // 返信・編集・メモ・チャネルは visibility が文脈で決まるため対象外。
     // 記憶値はアカウントごとに保持。
     const isContextual =
-      props.replyTo || props.editNote || memoMode || props.channelId
+      props.replyTo || props.editNote || memoMode || channelId.value
     if (!isContextual && settingsStore.get('postForm.rememberVisibility')) {
       const lastMap = settingsStore.get('postForm.lastUsedVisibilityByAccount')
       const last = lastMap?.[activeAccountId.value]
@@ -413,7 +434,7 @@ export function usePostFormState(
           {
             replyId: props.replyTo?.id ?? null,
             renoteId: props.renoteId ?? null,
-            channelId: props.channelId ?? null,
+            channelId: channelId.value ?? null,
           },
         )
         posted.value = true
@@ -459,7 +480,7 @@ export function usePostFormState(
         modeFlags,
         replyId: props.replyTo?.id,
         renoteId: props.renoteId,
-        channelId: props.channelId,
+        channelId: channelId.value,
         fileIds,
         poll: pollParam,
         scheduledAt: scheduledAt.value ?? undefined,
@@ -470,7 +491,7 @@ export function usePostFormState(
     // rememberVisibility ON のときは送信した visibility を記憶 (per-account)
     if (
       !props.replyTo &&
-      !props.channelId &&
+      !channelId.value &&
       settingsStore.get('postForm.rememberVisibility')
     ) {
       const accId = activeAccountId.value
@@ -500,7 +521,7 @@ export function usePostFormState(
     const retryCtx: DraftContext = {
       replyId: props.replyTo?.id ?? null,
       renoteId: props.renoteId ?? null,
-      channelId: props.channelId ?? null,
+      channelId: channelId.value ?? null,
     }
     currentAdapter.api.createNote(noteParams).catch(async (e) => {
       const { show } = useToast()
@@ -614,7 +635,7 @@ export function usePostFormState(
     return {
       replyId: props.replyTo?.id ?? null,
       renoteId: props.renoteId ?? null,
-      channelId: props.channelId ?? null,
+      channelId: channelId.value ?? null,
     }
   }
 
@@ -793,6 +814,7 @@ export function usePostFormState(
     supportsScheduledNotes,
     sessionSlotKey,
     // Computed
+    channelId,
     accounts,
     account,
     formThemeVars,

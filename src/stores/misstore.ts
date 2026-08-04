@@ -383,7 +383,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
           (meta.description as string | undefined) || entry.description,
         author: (meta.author as string | undefined) || entry.author,
         mode:
-          meta.mode === 'always' || meta.mode === 'trigger'
+          meta.mode === 'always' ||
+          meta.mode === 'trigger' ||
+          meta.mode === 'heartbeat'
             ? meta.mode
             : 'manual',
         triggers: Array.isArray(meta.triggers)
@@ -403,6 +405,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
         cheapCheckCapabilities: Array.isArray(meta.cheapCheckCapabilities)
           ? (meta.cheapCheckCapabilities as string[])
           : [],
+        isPersona: meta.isPersona === true,
       }
 
       if (existing) {
