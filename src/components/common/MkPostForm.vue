@@ -59,10 +59,12 @@ const props = defineProps<{
   editNote?: NormalizedNote
   /**
    * 「削除して編集」で元ノートの内容 (本文・CW・添付・アンケート等) を
-   * フォームへ展開する (#944)。引用・返信・チャンネルは renoteId / replyTo /
-   * channelId 側で引き継ぐ。
+   * フォームへ展開する (#944)。引用・返信は renoteId / replyTo 側で引き継ぐ。
+   * チャンネルは initialNote から引き継ぐ (#953) — カラムは channelId を渡すが
+   * ノート詳細・プロフィールのウィンドウには渡す経路が無いため。
    */
   initialNote?: NormalizedNote
+  /** 明示的な投稿先チャンネル。initialNote 由来のチャンネルより優先される。 */
   channelId?: string
   inline?: boolean
   initialText?: string
@@ -119,6 +121,7 @@ const {
   noteModeFlags,
   disabledVisibilities,
   activeAccountId,
+  channelId: effectiveChannelId,
   accounts,
   account,
   formThemeVars,
@@ -245,7 +248,7 @@ const previewNote = computed<NormalizedNote | null>(() => {
     localOnly: localOnly.value,
     replyId: props.replyTo?.id ?? null,
     renoteId: props.renoteId ?? null,
-    channelId: props.channelId ?? null,
+    channelId: effectiveChannelId.value ?? null,
     poll: {
       choices: pollChoices.value,
       multiple: pollMultiple.value,
