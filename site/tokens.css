@@ -1,167 +1,179 @@
-/* Hallmark · NoteDeck site tokens
- * genre: playful surface × modern-minimal restraint (BRANDING.md · DESIGN.md)
- * paper: light oklch(97.6%) default / dark oklch(21.8%) · accent hue: leaf-green 125.6°
+/* NoteDeck site tokens — Misskey Hub (misskey-hub-next) の設計言語を踏襲
  *
- * Every colour, size, space, easing and z-level on the site resolves through a
- * name declared here. No rule in style.css may inline a raw value.
- *
- * Motion budget is DESIGN.md's: functional animation only, 150–250 ms, ease-out.
- * Nothing on this page loops, reveals, or moves without being asked to.
+ * 正本: misskey-dev/misskey-hub-next
+ *   - 地は #eee / #1a1a1a のフラット。帯の交互ではなく「角丸 16px のカード面」で組む
+ *   - accent #86b300 → gradient(90deg, #86b300, #4ab300, #4ab300)
+ *   - チップは #9ad11b / 黒文字の pill
+ *   - acrylic: #fff6 + blur(12px) (dark: #3336)
+ *   - 面カード: #f7f7f7 (dark: #222) / 色付き面: #f3f5da (dark: #383c00)
  */
 
 :root {
-  /* ===== Accent — NoteDeck leaf-green ===== */
-  --accent:        oklch(70.8% 0.179 125.6);  /* fills, borders, rules — never small text */
-  --accent-strong: oklch(62.0% 0.163 125.6);  /* hover / pressed */
-  --accent-ink:    oklch(22.0% 0.030 125.6);  /* text ON accent — 6.9:1 (white was 2.5:1) */
-  --accent-text:   oklch(50.0% 0.115 125.6);  /* accent AS text — 5.3:1 on light paper */
-  --accent-soft:   oklch(70.8% 0.179 125.6 / 0.12);
+  /* ===== Accent — Misskey green ===== */
+  --accent:        #86b300;
+  --accent-strong: #4ab300;
+  --accent-grad:   linear-gradient(90deg, #86b300, #4ab300, #4ab300);
+  --accent-text:   #6d9300;   /* accent AS text on light paper */
+  --chip:          #9ad11b;
+  --chip-ink:      #000;
 
-  /* ===== Paper + ink — light is the default ===== */
-  --bg:            oklch(96.4% 0.003 125.6);
-  --bg-alt:        oklch(93.6% 0.004 125.6);
-  --panel:         oklch(99.4% 0.002 125.6);
-  --panel-head:    oklch(97.4% 0.004 125.6);
-  --panel-hover:   oklch(98.2% 0.003 125.6);
-  --surface:       oklch(100% 0 0 / 0.62);
-  --surface-hover: oklch(100% 0 0 / 0.86);
-  --text:          oklch(25.2% 0.004 125.6);
-  --text-sub:      oklch(35.6% 0.004 125.6);
-  --text-muted:    oklch(48.0% 0.004 125.6);  /* darkened from #666 → 6.4:1 on --bg */
-  --border:        oklch(0% 0 0 / 0.10);
-  --border-strong: oklch(0% 0 0 / 0.18);
-  --nav-bg:        oklch(98.8% 0.003 125.6 / 0.86);
-  --code-bg:       oklch(96.4% 0.003 125.6);
-  --focus:         oklch(52.0% 0.150 125.6);
+  /* ===== Paper + ink ===== */
+  --bg:            #eee;
+  --text:          #222;
+  --text-sub:      #444;
+  --text-muted:    #666;
+  --panel:         #f7f7f7;   /* Hub の section bg カード */
+  --hero-bg:       #ddd;      /* Hub の section_top_bg */
+  --acrylic:       rgba(255, 255, 255, 0.4);
+  --acrylic-ink:   rgba(0, 0, 0, 0.73);
+  --tint:          #f3f5da;   /* Hub の donation カード */
+  --tint-ink:      #3b3d20;
+  --surface:       #fff;      /* plain ボタン / コード行 */
+  --surface-hover: #f4f4f4;
+  --border:        rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --nav-bg:        rgba(238, 238, 238, 0.86);
+  --code-bg:       #fff;
+  --dots:          rgba(0, 0, 0, 0.13);
+  --focus:         #4a7a00;
 
-  /* Shell syntax — one muted ink plus the accent, not a four-hue code theme */
-  --sh-dim:        oklch(48.0% 0.004 125.6);
-  --sh-cmd:        oklch(50.0% 0.115 125.6);
-  --sh-arg:        oklch(35.6% 0.004 125.6);
+  /* Shell syntax */
+  --sh-dim:        #666;
+  --sh-cmd:        #6d9300;
+  --sh-arg:        #444;
 
-  /* ===== Depth — one shadow, never stacked, never a coloured glow ===== */
-  --shadow-whisper: 0 1px 2px oklch(0% 0 0 / 0.07);
+  /* ===== Depth — Hub のボタン影 ===== */
+  --shadow-btn:    0 8px 20px -5px rgba(0, 0, 0, 0.2);
+  --shadow-accent: 0 8px 20px -5px rgba(134, 179, 0, 0.4);
 
   /* ===== Type ===== */
   --font-body: Nunito, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'BIZ UDGothic', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Monaco, Consolas, 'Roboto Mono', monospace;
 
-  --text-2xs: 0.75rem;    /* 12 */
-  --text-xs:  0.8125rem;  /* 13 */
-  --text-sm:  0.875rem;   /* 14 */
-  --text-md:  0.9375rem;  /* 15 — body */
-  --text-lg:  1.0625rem;  /* 17 */
-  --text-xl:  1.25rem;    /* 20 */
-  --text-2xl: 1.5rem;     /* 24 */
-  --text-3xl: 1.875rem;   /* 30 */
-  --text-display: clamp(2.25rem, 5.5vw, 3.5rem);
+  --text-2xs: 0.75rem;
+  --text-xs:  0.8125rem;
+  --text-sm:  0.875rem;
+  --text-md:  0.9375rem;
+  --text-lg:  1.0625rem;
+  --text-xl:  1.25rem;
+  --text-2xl: 1.5rem;      /* Hub 150% 相当のセクションタイトル */
+  --text-3xl: 1.875rem;
+  --text-display: clamp(2.25rem, 5vw, 3.2rem);   /* Hub tagline 320% 相当 */
 
   --lh-tight: 1.2;
-  --lh-body:  1.7;
-  --lh-panel: 1.65;
+  --lh-body:  1.75;
 
-  /* ===== Space — 4pt scale, named by role ===== */
-  --space-3xs: 0.125rem;  /*  2 */
-  --space-2xs: 0.25rem;   /*  4 */
-  --space-xs:  0.5rem;    /*  8 */
-  --space-sm:  0.75rem;   /* 12 */
-  --space-md:  1rem;      /* 16 */
-  --space-lg:  1.5rem;    /* 24 */
-  --space-2lg: 2rem;      /* 32 */
-  --space-xl:  2.5rem;    /* 40 */
-  --space-2xl: 4rem;      /* 64 */
-  --space-3xl: 6rem;      /* 96 */
+  /* ===== Space ===== */
+  --space-3xs: 0.125rem;
+  --space-2xs: 0.25rem;
+  --space-xs:  0.5rem;
+  --space-sm:  0.75rem;
+  --space-md:  1rem;       /* Hub の 16px グリッドギャップ */
+  --space-lg:  1.5rem;
+  --space-2lg: 2rem;       /* Hub のカード padding 32px */
+  --space-xl:  2.5rem;
+  --space-2xl: 4rem;
+  --space-3xl: 6rem;
 
-  /* ===== Shape ===== */
+  /* ===== Shape — Hub は radius 16 と pill の 2 種のみ ===== */
   --radius:      16px;
-  --radius-sm:   12px;
-  --radius-xs:   8px;
+  --radius-sm:   8px;
   --radius-2xs:  6px;
   --radius-pill: 999px;
   --blur:        blur(12px);
-  --content-width: 1120px;
 
-  /* ===== Motion — DESIGN.md: functional only, 150–250 ms, ease-out, no bounce ===== */
+  /* Hub の 2 段組み幅 */
+  --primary-width:   1800px;
+  --secondary-width: 1150px;
+  --content-width:   1150px;   /* nav が参照 */
+
+  /* ===== Motion — Hub: fade 0.5s ease / blob spin 60-80s linear ===== */
   --ease-out:      cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in:       cubic-bezier(0.7, 0, 0.84, 0);
-  --duration-fast: 0.1s;   /* press tick */
-  --duration-base: 0.16s;  /* hover, focus, colour */
+  --duration-fast: 0.1s;
+  --duration-base: 0.16s;
+  --fade-duration: 0.5s;
 
-  /* ===== Elevation — named levels, no freestyle numbers ===== */
+  /* ===== Elevation ===== */
   --z-base:     1;
   --z-raised:   10;
   --z-dropdown: 100;
   --z-sticky:   200;
 }
 
-/* ===== Dark paper ===== */
+/* ===== Dark — Hub: html.dark 相当 ===== */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg:            oklch(19.5% 0.004 125.6);
-    --bg-alt:        oklch(23.0% 0.004 125.6);
-    --panel:         oklch(25.0% 0.004 125.6);
-    --panel-head:    oklch(28.5% 0.005 125.6);
-    --panel-hover:   oklch(28.0% 0.005 125.6);
-    --surface:       oklch(100% 0 0 / 0.07);
-    --surface-hover: oklch(100% 0 0 / 0.12);
-    --text:          oklch(94.9% 0.002 125.6);
-    --text-sub:      oklch(88.0% 0.002 125.6);
-    --text-muted:    oklch(70.0% 0.002 125.6);
-    --border:        oklch(100% 0 0 / 0.11);
-    --border-strong: oklch(100% 0 0 / 0.20);
-    --nav-bg:        oklch(23.5% 0.004 125.6 / 0.86);
-    --code-bg:       oklch(19.5% 0.004 125.6);
-    --accent-text:   oklch(70.8% 0.179 125.6);  /* 7.0:1 on dark paper */
-    --focus:         oklch(78.0% 0.170 125.6);
-    --sh-dim:        oklch(70.0% 0.002 125.6);
-    --sh-cmd:        oklch(70.8% 0.179 125.6);
-    --sh-arg:        oklch(88.0% 0.002 125.6);
-    --shadow-whisper: 0 1px 2px oklch(0% 0 0 / 0.28);
+    --bg:            #1a1a1a;
+    --text:          #eee;
+    --text-sub:      #ccc;
+    --text-muted:    #9e9e9e;
+    --panel:         #222;
+    --hero-bg:       #222;
+    --acrylic:       rgba(51, 51, 51, 0.4);
+    --acrylic-ink:   rgba(255, 255, 255, 0.87);
+    --tint:          #383c00;
+    --tint-ink:      #fff;
+    --surface:       #333;
+    --surface-hover: #3d3d3d;
+    --border:        rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.2);
+    --nav-bg:        rgba(26, 26, 26, 0.86);
+    --code-bg:       #111;
+    --dots:          rgba(255, 255, 255, 0.13);
+    --accent-text:   #a8d824;
+    --focus:         #c9f526;
+    --sh-dim:        #9e9e9e;
+    --sh-cmd:        #a8d824;
+    --sh-arg:        #ccc;
   }
 }
 
 html[style*="color-scheme: dark"] {
-  --bg:            oklch(19.5% 0.004 125.6);
-  --bg-alt:        oklch(23.0% 0.004 125.6);
-  --panel:         oklch(25.0% 0.004 125.6);
-  --panel-head:    oklch(28.5% 0.005 125.6);
-  --panel-hover:   oklch(28.0% 0.005 125.6);
-  --surface:       oklch(100% 0 0 / 0.07);
-  --surface-hover: oklch(100% 0 0 / 0.12);
-  --text:          oklch(94.9% 0.002 125.6);
-  --text-sub:      oklch(88.0% 0.002 125.6);
-  --text-muted:    oklch(70.0% 0.002 125.6);
-  --border:        oklch(100% 0 0 / 0.11);
-  --border-strong: oklch(100% 0 0 / 0.20);
-  --nav-bg:        oklch(23.5% 0.004 125.6 / 0.86);
-  --code-bg:       oklch(19.5% 0.004 125.6);
-  --accent-text:   oklch(70.8% 0.179 125.6);
-  --focus:         oklch(78.0% 0.170 125.6);
-  --sh-dim:        oklch(70.0% 0.002 125.6);
-  --sh-cmd:        oklch(70.8% 0.179 125.6);
-  --sh-arg:        oklch(88.0% 0.002 125.6);
-  --shadow-whisper: 0 1px 2px oklch(0% 0 0 / 0.28);
+  --bg:            #1a1a1a;
+  --text:          #eee;
+  --text-sub:      #ccc;
+  --text-muted:    #9e9e9e;
+  --panel:         #222;
+  --hero-bg:       #222;
+  --acrylic:       rgba(51, 51, 51, 0.4);
+  --acrylic-ink:   rgba(255, 255, 255, 0.87);
+  --tint:          #383c00;
+  --tint-ink:      #fff;
+  --surface:       #333;
+  --surface-hover: #3d3d3d;
+  --border:        rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  --nav-bg:        rgba(26, 26, 26, 0.86);
+  --code-bg:       #111;
+  --dots:          rgba(255, 255, 255, 0.13);
+  --accent-text:   #a8d824;
+  --focus:         #c9f526;
+  --sh-dim:        #9e9e9e;
+  --sh-cmd:        #a8d824;
+  --sh-arg:        #ccc;
 }
 
 html[style*="color-scheme: light"] {
-  --bg:            oklch(96.4% 0.003 125.6);
-  --bg-alt:        oklch(93.6% 0.004 125.6);
-  --panel:         oklch(99.4% 0.002 125.6);
-  --panel-head:    oklch(97.4% 0.004 125.6);
-  --panel-hover:   oklch(98.2% 0.003 125.6);
-  --surface:       oklch(100% 0 0 / 0.62);
-  --surface-hover: oklch(100% 0 0 / 0.86);
-  --text:          oklch(25.2% 0.004 125.6);
-  --text-sub:      oklch(35.6% 0.004 125.6);
-  --text-muted:    oklch(48.0% 0.004 125.6);
-  --border:        oklch(0% 0 0 / 0.10);
-  --border-strong: oklch(0% 0 0 / 0.18);
-  --nav-bg:        oklch(98.8% 0.003 125.6 / 0.86);
-  --code-bg:       oklch(96.4% 0.003 125.6);
-  --accent-text:   oklch(50.0% 0.115 125.6);
-  --focus:         oklch(52.0% 0.150 125.6);
-  --sh-dim:        oklch(48.0% 0.004 125.6);
-  --sh-cmd:        oklch(50.0% 0.115 125.6);
-  --sh-arg:        oklch(35.6% 0.004 125.6);
-  --shadow-whisper: 0 1px 2px oklch(0% 0 0 / 0.07);
+  --bg:            #eee;
+  --text:          #222;
+  --text-sub:      #444;
+  --text-muted:    #666;
+  --panel:         #f7f7f7;
+  --hero-bg:       #ddd;
+  --acrylic:       rgba(255, 255, 255, 0.4);
+  --acrylic-ink:   rgba(0, 0, 0, 0.73);
+  --tint:          #f3f5da;
+  --tint-ink:      #3b3d20;
+  --surface:       #fff;
+  --surface-hover: #f4f4f4;
+  --border:        rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --nav-bg:        rgba(238, 238, 238, 0.86);
+  --code-bg:       #fff;
+  --dots:          rgba(0, 0, 0, 0.13);
+  --accent-text:   #6d9300;
+  --focus:         #4a7a00;
+  --sh-dim:        #666;
+  --sh-cmd:        #6d9300;
+  --sh-arg:        #444;
 }
