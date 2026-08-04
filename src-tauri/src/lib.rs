@@ -369,7 +369,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     // なるため、フロントへ明示的に致命エラーを通知する
                     // (V6 級 migration の正常 1 分ブロックとの区別に必要)
                     tracing::error!("Fatal: DB open failed: {e}");
-                    let _ = app_handle.emit(
+                    let _ = tauri::Emitter::emit(
+                        &app_handle,
                         "nd:backend-fatal",
                         format!("database open failed: {}", e.safe_message()),
                     );
