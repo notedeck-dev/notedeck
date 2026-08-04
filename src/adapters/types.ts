@@ -233,7 +233,12 @@ export interface NormalizedNote {
   uri?: string
   url?: string
   updatedAt?: string
-  localOnly?: boolean
+  /**
+   * Rust 側 NormalizedNote は `local_only: bool` (serde default 付き非 Option)
+   * のため JSON に常に存在する。optional にすると `?? null` 経由で null に
+   * 化けて Rust 面 (常に bool) と食い違う (#783 レビュー修正 2)
+   */
+  localOnly: boolean
   visibleUserIds?: string[]
   isFavorited?: boolean
   /** Fork-specific mode flags (e.g., isNoteInYamiMode) */

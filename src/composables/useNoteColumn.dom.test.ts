@@ -902,3 +902,55 @@ describe('useNoteColumn: fail-closed から解除したときの再取得 (#957)
     expect(ids(api as never).length).toBeGreaterThan(0)
   })
 })
+
+describe('useNoteColumn: セーフモードでカラムクエリを停止する (#838 条件 3)', () => {
+  const FAST_QUERY = 'note.text != null'
+
+  beforeEach(() => {
+    localStorage.setItem('nd-safe-mode', 'true')
+  })
+
+  afterEach(() => {
+    localStorage.removeItem('nd-safe-mode')
+  })
+
+  it('クエリ付きカラムがフィルタなしで全ノート表示になる (fail-open)', async () => {
+    addAccount('acc-safe-open')
+    const { api } = mountColumn({
+      accountId: 'acc-safe-open',
+      noteQuery: FAST_QUERY,
+      fetch: async () => [
+        { ...note('a'), text: 'x' } as NormalizedNote,
+        // 通常ならクエリで除外されるノート
+        { ...note('b'), text: null } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a', 'b'])
+    // クエリは無いものとして扱う (コンパイルしない)
+    expect(api.columnQueryState.value.status).toBe('none')
+  })
+
+  it('qirSearchCache を呼ばず従来のキャッシュ経路を使う', async () => {
+    addAccount('acc-safe-cache')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([{ ...note('h05'), text: 'hello' }])
+      .mockRejectedValueOnce(new Error('offline'))
+    const { api } = mountColumn({
+      accountId: 'acc-safe-cache',
+      noteQuery: FAST_QUERY,
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+    await api.loadMore()
+    await flush()
+
+    expect(
+      bindings.calls.filter((c) => c.name === 'qirSearchCache'),
+    ).toHaveLength(0)
+    expect(
+      bindings.calls.filter((c) => c.name === 'apiGetCachedTimelineBefore'),
+    ).toHaveLength(1)
+  })
+})

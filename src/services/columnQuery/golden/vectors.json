@@ -187,6 +187,12 @@
       "source": "note.user.host == null",
       "note": { "user": { "username": "bob", "host": "example.com" } },
       "expected": "unmatch"
+    },
+    {
+      "name": "serde-shape-files-null-compare-unmatch",
+      "source": "note.files == null",
+      "note": { "text": "hello", "files": [], "reactions": {}, "localOnly": false },
+      "expected": "unmatch"
     }
   ]
 }

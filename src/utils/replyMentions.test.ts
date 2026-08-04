@@ -21,6 +21,7 @@ function replyTarget(
     renoteCount: 0,
     repliesCount: 0,
     files: [],
+    localOnly: false,
     ...partial,
     user: {
       id: 'u-alice',
