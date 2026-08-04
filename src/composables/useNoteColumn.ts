@@ -40,6 +40,7 @@ import {
   compileColumnQuery,
   hashQirQuery,
 } from '@/services/columnQuery/compiler'
+import { composeQir } from '@/services/columnQuery/composeQir'
 import { getSharedDegradedRunner } from '@/services/columnQuery/degradedRunner'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
 import { isGuestAccount } from '@/stores/accounts'
@@ -428,9 +429,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
   /**
    * QIR キャッシュ検索に使えるクエリ (#783 Phase 3)。
    *
-   * ⚡ の単一パーツに限る。複数パーツを And で束ねると let のスロット番号が
-   * パーツ間で衝突しうるし、🐢 パーツは QIR を持たない。該当しないカラムは
-   * 従来どおり「キャッシュから読んでフロントで絞る」経路を通る。
+   * ⚡ パーツのみで構成されるカラムに限る (🐢 パーツは QIR を持たない)。
+   * 複数 ⚡ は let スロットを renumber したうえで And 合成する (#965)。
+   * 該当しないカラムは従来どおり「キャッシュから読んでフロントで絞る」
+   * 経路を通る。
    */
   function cacheSearchableQuery(): QirQuery | null {
     const compiled = compiledQuery.value
@@ -438,8 +440,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (compiled.degraded.length > 0 || compiled.rejected.length > 0)
       return null
     if (compiled.missing.length > 0) return null
-    if (compiled.fast.length !== 1) return null
-    return compiled.fast[0]?.query ?? null
+    if (compiled.fast.length === 0) return null
+    return composeQir(compiled.fast.map((f) => f.query))
   }
 
   /** 参照先が消えた名前付きクエリの id (削除・未導入)。fail-closed の原因 */
@@ -990,6 +992,52 @@ export function useNoteColumn(config: NoteColumnConfig) {
     noteScrollerRef.value?.restoreScrollAnchor?.(anchor.id, anchor.offset)
   }
 
+  /**
+   * QIR キャッシュ検索の 1 パス (#783 Phase 3)。
+   *
+   * fetchCursor より古い側を走査上限まで遡り、条件に合うノートを見つけて
+   * カラムへ取り込む。「40 件読んで全部フィルタで落ちる」空振りをここで
+   * 吸収する。オフラインの loadMoreFromCache と、オンライン loadMore の
+   * 空振りチェーン (#964) が共用する。
+   */
+  async function runCacheSearchPass(
+    searchable: QirQuery,
+    stillCurrent: () => boolean,
+  ): Promise<void> {
+    const column = config.getColumn()
+    const cacheKey = config.cache?.getKey()
+    if (!column.accountId || !cacheKey) return
+    const cursor = fetchCursor.value
+      ? {
+          createdAt: fetchCursor.value.createdAt,
+          noteId: fetchCursor.value.id,
+        }
+      : null
+    // カラムの所属バケットで母集合を絞る (notecli#30 §12-9 で妥協解消)
+    const found = await searchCachedNotesByQuery(
+      column.accountId,
+      searchable,
+      cacheKey,
+      cursor,
+      CACHE_SEARCH_LIMIT,
+      CACHE_SEARCH_MAX_SCANNED_ROWS,
+    )
+    if (!stillCurrent()) return
+    queryErrorCount.value += found.errors
+    if (found.cursor) {
+      // 走査上限で打ち切った位置から次回続ける
+      fetchCursor.value = {
+        id: found.cursor.noteId,
+        createdAt: found.cursor.createdAt,
+      }
+    } else {
+      advanceFetchCursor(found.notes)
+    }
+    if (found.notes.length > 0) {
+      await setNotesPaged(insertIntoSorted(rawNotes.value, found.notes))
+    }
+  }
+
   /** Helper to load older notes from SQLite cache */
   async function loadMoreFromCache() {
     const column = config.getColumn()
@@ -1008,37 +1056,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     try {
       const searchable = cacheSearchableQuery()
       if (searchable) {
-        // 条件に合うノートが見つかるまでキャッシュを遡る (Phase 3)。
-        // 「40 件読んで全部フィルタで落ちる」空振りをここで吸収する
-        const cursor = fetchCursor.value
-          ? {
-              createdAt: fetchCursor.value.createdAt,
-              noteId: fetchCursor.value.id,
-            }
-          : null
-        // カラムの所属バケットで母集合を絞る (notecli#30 §12-9 で妥協解消)
-        const found = await searchCachedNotesByQuery(
-          column.accountId,
-          searchable,
-          cacheKey,
-          cursor,
-          CACHE_SEARCH_LIMIT,
-          CACHE_SEARCH_MAX_SCANNED_ROWS,
-        )
-        if (!stillCurrent()) return
-        queryErrorCount.value += found.errors
-        if (found.cursor) {
-          // 走査上限で打ち切った位置から次回続ける
-          fetchCursor.value = {
-            id: found.cursor.noteId,
-            createdAt: found.cursor.createdAt,
-          }
-        } else {
-          advanceFetchCursor(found.notes)
-        }
-        if (found.notes.length > 0) {
-          await setNotesPaged(insertIntoSorted(rawNotes.value, found.notes))
-        }
+        await runCacheSearchPass(searchable, stillCurrent)
         return
       }
       const older = await loadCachedTimelineBefore(
@@ -1083,9 +1101,21 @@ export function useNoteColumn(config: NoteColumnConfig) {
       const older = await config.fetch(adapter, { untilId })
       if (!stillCurrent()) return
       advanceFetchCursor(older)
-      await setNotesPaged(
-        insertIntoSorted(rawNotes.value, await applyFilter(older)),
-      )
+      const filtered = await applyFilter(older)
+      await setNotesPaged(insertIntoSorted(rawNotes.value, filtered))
+      if (filtered.length === 0) {
+        // API ページは取れたがフィルタ後の獲得が 0 (ページ自体が空も含む)。
+        // オンラインでもキャッシュ検索を 1 パスだけチェーンしてカラムを
+        // 埋める (#964)。1 回の loadMore につきチェーンは 1 回まで。
+        // 二重読みにならない理由: この API ページは api_get_timeline 経由で
+        // ingest 済みで、キャッシュ検索は fetchCursor (直前の
+        // advanceFetchCursor で API ページの最古まで前進済み) より古い側
+        // だけを走査するため。
+        const searchable = cacheSearchableQuery()
+        if (searchable && stillCurrent()) {
+          await runCacheSearchPass(searchable, stillCurrent)
+        }
+      }
     } catch (e) {
       logWarn('load-more', e)
       isOffline.value = true
