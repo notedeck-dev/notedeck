@@ -67,11 +67,7 @@ function handlePrimaryClick() {
   <div
     :class="[$style.card, cardDisabled && $style.cardDisabled]"
     :title="incompatTitle"
-    role="button"
-    tabindex="0"
     @click="handlePrimaryClick"
-    @keydown.enter.self="handlePrimaryClick"
-    @keydown.space.self.prevent="handlePrimaryClick"
   >
     <div :class="$style.icon">
       <span
@@ -84,7 +80,12 @@ function handlePrimaryClick() {
     </div>
     <div :class="$style.body">
       <div :class="$style.row1">
-        <span :class="$style.name">{{ name }}</span>
+        <button
+          type="button"
+          :class="$style.name"
+          :aria-disabled="cardDisabled || (isStore && (alreadyInstalled || installing))"
+          @click.stop="handlePrimaryClick"
+        >{{ name }}</button>
         <span v-if="cardDisabled" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
         <span :class="$style.spacer" />
         <span v-if="version" :class="$style.version">v{{ version }}</span>
@@ -179,11 +180,6 @@ function handlePrimaryClick() {
     background: var(--nd-buttonHoverBg);
   }
 
-  &:focus-visible {
-    outline: 2px solid var(--nd-focusRing);
-    outline-offset: -2px;
-  }
-
   & + & {
     border-top: 1px solid color-mix(in srgb, var(--nd-divider) 50%, transparent);
   }
@@ -232,7 +228,15 @@ function handlePrimaryClick() {
   min-width: 0;
 }
 
+// 行の主アクションはこの button が入口 (PluginCard と同型)
 .name {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   font-size: 13px;
   font-weight: 600;
   color: var(--nd-fgHighlighted);
@@ -241,6 +245,12 @@ function handlePrimaryClick() {
   white-space: nowrap;
   min-width: 0;
   flex-shrink: 1;
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
 }
 
 .version {

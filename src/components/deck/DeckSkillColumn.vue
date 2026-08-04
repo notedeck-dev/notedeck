@@ -259,11 +259,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
               v-for="skill in section.items"
               :key="skill.id"
               :class="[$style.card, !isActive(skill) && $style.cardDisabled]"
-              role="button"
-              tabindex="0"
               @click="openInEditor(skill)"
-              @keydown.enter.self="openInEditor(skill)"
-              @keydown.space.self.prevent="openInEditor(skill)"
             >
               <div :class="$style.icon">
                 <span
@@ -276,7 +272,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
               </div>
               <div :class="$style.body">
                 <div :class="$style.row1">
-                  <span :class="$style.name">{{ skill.name }}</span>
+                  <button type="button" :class="$style.name" @click.stop="openInEditor(skill)">{{ skill.name }}</button>
                   <span :class="$style.modeBadge" :data-mode="skill.mode">
                     <i v-if="skill.mode === 'heartbeat'" class="ti ti-activity-heartbeat" />
                     {{ modeLabel[skill.mode] }}
@@ -534,11 +530,6 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
     background: var(--nd-buttonHoverBg);
   }
 
-  &:focus-visible {
-    outline: 2px solid var(--nd-focusRing);
-    outline-offset: -2px;
-  }
-
   & + & {
     border-top: 1px solid color-mix(in srgb, var(--nd-divider) 50%, transparent);
   }
@@ -582,7 +573,15 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   min-width: 0;
 }
 
+// 行の主アクションはこの button が入口 (PluginCard と同型)
 .name {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   font-size: 13px;
   font-weight: 600;
   color: var(--nd-fgHighlighted);
@@ -591,6 +590,12 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   white-space: nowrap;
   min-width: 0;
   flex-shrink: 1;
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
 }
 
 .modeBadge {

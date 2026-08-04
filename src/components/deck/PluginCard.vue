@@ -65,11 +65,7 @@ const incompatTitle = computed(() => {
   <div
     :class="[$style.card, disabled && $style.cardDisabled]"
     :title="incompatTitle"
-    role="button"
-    tabindex="0"
     @click="emit('click')"
-    @keydown.enter.self="emit('click')"
-    @keydown.space.self.prevent="emit('click')"
   >
     <div :class="$style.icon">
       <span
@@ -82,7 +78,7 @@ const incompatTitle = computed(() => {
     </div>
     <div :class="$style.body">
       <div :class="$style.row1">
-        <span :class="$style.name">{{ name }}</span>
+        <button type="button" :class="$style.name" @click.stop="emit('click')">{{ name }}</button>
         <span v-if="incompatible" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
         <span v-else-if="disabled" :class="$style.disabledBadge">無効</span>
         <button
@@ -206,12 +202,6 @@ const incompatTitle = computed(() => {
     background: var(--nd-buttonHoverBg);
   }
 
-  // 行は全幅なので外側リングはリストの端で欠ける。内側に引く
-  &:focus-visible {
-    outline: 2px solid var(--nd-focusRing);
-    outline-offset: -2px;
-  }
-
   & + & {
     border-top: 1px solid color-mix(in srgb, var(--nd-divider) 50%, transparent);
   }
@@ -255,7 +245,17 @@ const incompatTitle = computed(() => {
   min-width: 0;
 }
 
+// 行の主アクションはこの button が入口。カード自体を role="button" にすると
+// 中のアクションボタンが子孫として presentational 扱いになり、支援技術から
+// 個別のアクションとして読めなくなる
 .name {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   font-size: 13px;
   font-weight: 600;
   color: var(--nd-fgHighlighted);
@@ -264,6 +264,12 @@ const incompatTitle = computed(() => {
   white-space: nowrap;
   min-width: 0;
   flex-shrink: 1;
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
 }
 
 .disabledBadge {
