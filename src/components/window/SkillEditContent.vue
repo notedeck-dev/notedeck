@@ -98,6 +98,11 @@ watch(
 )
 
 function save() {
+  // 明示保存が来たらデバウンス待ちは用済み。残すと同じ内容でもう一度走る
+  if (saveTimer) {
+    clearTimeout(saveTimer)
+    saveTimer = null
+  }
   if (!skill.value) return
   const triggers = triggersText.value
     .split('\n')

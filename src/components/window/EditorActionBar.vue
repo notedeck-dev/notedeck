@@ -74,14 +74,13 @@ const emit = defineEmits<(e: 'action', key: string) => void>()
       <span>{{ status.text }}</span>
     </div>
 
-    <span :class="$style.spacer" />
-
     <button
       v-if="primary"
       type="button"
       class="_button"
       :class="[
         $style.btn,
+        $style.primarySlot,
         primary.variant === 'danger' ? $style.danger : $style.primary,
       ]"
       :disabled="primary.disabled"
@@ -107,10 +106,10 @@ const emit = defineEmits<(e: 'action', key: string) => void>()
   flex-shrink: 0;
 }
 
-/* 折返しが起きるまでは主アクションを右端に押し出す */
-.spacer {
-  flex: 1 1 0;
-  min-width: 0;
+/* 主アクションは右端に押し出す。spacer で埋めると折返し時に spacer だけが
+   前の行に残って主アクションが次行の左端に来るので、auto margin で寄せる */
+.primarySlot {
+  margin-left: auto;
 }
 
 .btn {
