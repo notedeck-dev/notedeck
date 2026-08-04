@@ -474,7 +474,9 @@ function toggleAutoRun() {
     opacity: 0.5;
   }
 
-  &:hover {
+  // hover だけだとキーボードでは「見えないボタン」に Tab することになる
+  &:hover,
+  &:focus-visible {
     opacity: 1 !important;
     background: var(--nd-buttonHoverBg);
   }

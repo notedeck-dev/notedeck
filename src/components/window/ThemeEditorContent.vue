@@ -13,6 +13,8 @@ import {
 } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
+import ThemePreview from '@/components/ThemePreview.vue'
+import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
@@ -459,6 +461,21 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 
 <template>
   <div ref="editorRef" :class="$style.editor">
+      <!-- カラムのカードと同じ位置・同じ枠でアイテムを識別できるようにする (#955)。
+           テーマの識別子はアイコンではなく配色そのものなので、アイコン枠には
+           ThemeCard と同じ ThemePreview を入れる -->
+      <EditorItemHeader
+        fallback-icon="palette"
+        :name="themeName || 'Untitled'"
+      >
+        <template #icon>
+          <ThemePreview :theme="previewTheme" :class="$style.headerPreview" />
+        </template>
+        <template #sub>
+          <span :class="$style.headerBadge">{{ baseMode === 'light' ? 'ライト' : 'ダーク' }}</span>
+        </template>
+      </EditorItemHeader>
+
       <EditorTabs
         v-model="tab"
         :tabs="[
@@ -786,6 +803,22 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+/* アイコン枠 (48px) をそのまま配色プレビューで埋める */
+.headerPreview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.headerBadge {
+  font-size: 0.85em;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
+  line-height: 1.6;
+  flex-shrink: 0;
 }
 
 .active {

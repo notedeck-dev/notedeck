@@ -65,9 +65,12 @@ const incompatTitle = computed(() => {
   <div
     :class="[$style.card, disabled && $style.cardDisabled]"
     :title="incompatTitle"
+    role="button"
+    tabindex="0"
     @click="emit('click')"
+    @keydown.enter.self="emit('click')"
+    @keydown.space.self.prevent="emit('click')"
   >
-    <div :class="$style.accentBar" />
     <div :class="$style.icon">
       <span
         v-if="iconUrl"
@@ -194,14 +197,19 @@ const incompatTitle = computed(() => {
   gap: 12px;
   padding: 12px 14px 12px 16px;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background var(--nd-duration-fast);
 
-  &:hover {
+  // ホバーの signal は背景ティント 1 つ。以前は 2px の左アクセントバーと
+  // 同時発火していたが、同じ意味を 2 つの手段で伝えていた
+  &:hover,
+  &:focus-within {
     background: var(--nd-buttonHoverBg);
+  }
 
-    .accentBar {
-      opacity: 1;
-    }
+  // 行は全幅なので外側リングはリストの端で欠ける。内側に引く
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: -2px;
   }
 
   & + & {
@@ -211,18 +219,6 @@ const incompatTitle = computed(() => {
 
 .cardDisabled {
   opacity: 0.6;
-}
-
-.accentBar {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 0;
-  width: 2px;
-  background: var(--nd-accent);
-  border-radius: 0 2px 2px 0;
-  opacity: 0;
-  transition: opacity 0.1s;
 }
 
 .icon {
@@ -376,9 +372,11 @@ const incompatTitle = computed(() => {
   gap: 2px;
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--nd-duration-base);
 
-  .card:hover & {
+  // focus-within を外すとキーボードでは「見えないボタン」に Tab することになる
+  .card:hover &,
+  .card:focus-within & {
     opacity: 1;
   }
 
@@ -399,9 +397,9 @@ const incompatTitle = computed(() => {
   font-size: 13px;
   opacity: 0.7;
   transition:
-    background 0.1s,
-    color 0.1s,
-    opacity 0.1s;
+    background var(--nd-duration-fast),
+    color var(--nd-duration-fast),
+    opacity var(--nd-duration-fast);
 
   &:hover {
     opacity: 1;
@@ -432,8 +430,8 @@ const incompatTitle = computed(() => {
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
   transition:
-    filter 0.1s,
-    opacity 0.1s;
+    filter var(--nd-duration-fast),
+    opacity var(--nd-duration-fast);
 
   &:hover:not(:disabled) {
     filter: brightness(1.1);

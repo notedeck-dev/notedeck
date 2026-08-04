@@ -259,9 +259,12 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
               v-for="skill in section.items"
               :key="skill.id"
               :class="[$style.card, !isActive(skill) && $style.cardDisabled]"
+              role="button"
+              tabindex="0"
               @click="openInEditor(skill)"
+              @keydown.enter.self="openInEditor(skill)"
+              @keydown.space.self.prevent="openInEditor(skill)"
             >
-              <div :class="$style.accentBar" />
               <div :class="$style.icon">
                 <span
                   v-if="skill.iconUrl"
@@ -379,7 +382,6 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
             :key="entry.id"
             :class="$style.card"
           >
-            <div :class="$style.accentBar" />
             <div :class="$style.icon">
               <span
                 v-if="entry.iconUrl"
@@ -468,7 +470,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0.6;
-  transition: background 0.1s, opacity 0.1s;
+  transition: background var(--nd-duration-fast), opacity var(--nd-duration-fast);
 
   &:hover {
     background: var(--nd-buttonHoverBg);
@@ -524,14 +526,17 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   gap: 12px;
   padding: 12px 14px 12px 16px;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background var(--nd-duration-fast);
 
-  &:hover {
+  // ホバーの signal は背景ティント 1 つ (PluginCard と同型)
+  &:hover,
+  &:focus-within {
     background: var(--nd-buttonHoverBg);
+  }
 
-    .accentBar {
-      opacity: 1;
-    }
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: -2px;
   }
 
   & + & {
@@ -541,18 +546,6 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 
 .cardDisabled {
   opacity: 0.6;
-}
-
-.accentBar {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 0;
-  width: 2px;
-  background: var(--nd-accent);
-  border-radius: 0 2px 2px 0;
-  opacity: 0;
-  transition: opacity 0.1s;
 }
 
 .icon {
@@ -719,9 +712,10 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   gap: 2px;
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--nd-duration-base);
 
-  .card:hover & {
+  .card:hover &,
+  .card:focus-within & {
     opacity: 1;
   }
 
@@ -741,7 +735,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   color: var(--nd-fg);
   font-size: 13px;
   opacity: 0.7;
-  transition: background 0.1s, opacity 0.1s;
+  transition: background var(--nd-duration-fast), opacity var(--nd-duration-fast);
 
   &:hover {
     opacity: 1;
@@ -769,7 +763,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   border-radius: var(--nd-radius-full);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
-  transition: filter 0.1s, opacity 0.1s;
+  transition: filter var(--nd-duration-fast), opacity var(--nd-duration-fast);
 
   &:hover:not(:disabled) {
     filter: brightness(1.1);

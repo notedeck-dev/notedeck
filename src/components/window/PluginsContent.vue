@@ -286,8 +286,16 @@ async function importPlugin() {
   <div ref="editorRef" :class="$style.pluginsContent">
     <!-- Header: plugin meta (existing plugin only) -->
     <div v-if="plugin" :class="$style.header">
+      <!-- カラムのカードと同じ iconUrl マスク + フォールバックにする (#955)。
+           以前は配布アイコンを持つプラグインでも常に puzzle を出していた -->
       <div :class="$style.headerIcon">
-        <i class="ti ti-puzzle" />
+        <span
+          v-if="plugin.iconUrl"
+          :class="$style.headerIconImg"
+          :style="{ '--icon-url': `url('${plugin.iconUrl}')` }"
+          aria-hidden="true"
+        />
+        <i v-else class="ti ti-puzzle" />
       </div>
       <div :class="$style.headerMeta">
         <div v-if="isRenaming" :class="$style.renameRow">
@@ -505,6 +513,14 @@ async function importPlugin() {
   font-size: 24px;
 }
 
+.headerIconImg {
+  width: 1em;
+  height: 1em;
+  background-color: currentColor;
+  -webkit-mask: var(--icon-url) center / contain no-repeat;
+  mask: var(--icon-url) center / contain no-repeat;
+}
+
 .headerMeta {
   flex: 1;
   min-width: 0;
@@ -546,7 +562,9 @@ async function importPlugin() {
     opacity: 0.5;
   }
 
-  &:hover {
+  // hover だけだとキーボードでは「見えないボタン」に Tab することになる
+  &:hover,
+  &:focus-visible {
     opacity: 1 !important;
     background: var(--nd-buttonHoverBg);
   }
