@@ -433,6 +433,36 @@ describe('useNoteColumn: スリープ復帰 catch-up とタブ切替の gap 検�
     expect(ids(api)).toEqual(['h11', 'h10'])
   })
 
+  it('switchWithSnapshot: snapshot にもカラムクエリを適用する', async () => {
+    addAccount('acc-tab-query')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([{ ...note('keep'), text: 'x' }])
+      // タブ切替の差分取得: snapshot と重なるので merge 経路 (置換されない)
+      .mockResolvedValueOnce([{ ...note('keep'), text: 'x' }])
+    const { api } = mountColumn({
+      accountId: 'acc-tab-query',
+      noteQuery: 'note.text != null',
+      fetch: () => fetchImpl(),
+      streaming: true,
+    })
+    await flush()
+    expect(ids(api)).toEqual(['keep'])
+
+    vi.advanceTimersByTime(6000)
+    // snapshot に「クエリで除外されるべきノート」が混ざっている状態から復帰する
+    await api.switchWithSnapshot(
+      [
+        { ...note('keep'), text: 'x' } as NormalizedNote,
+        { ...note('drop'), text: null } as NormalizedNote,
+      ],
+      0,
+    )
+    await flush()
+
+    expect(ids(api)).toEqual(['keep'])
+  })
+
   it('switchWithSnapshot: スクロール中の小差分はバナーに留め、自動で最上部へ戻さない', async () => {
     addAccount('acc-tab-merge')
     const fetchImpl = vi

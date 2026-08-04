@@ -1379,7 +1379,12 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
     // Swap subscription (stream/WebSocket stays connected)
     resubscribe(adapter)
-    setNotes(snapshotNotes)
+    // snapshot は可視性を焼き込まない unfiltered な ID 列 (#574) なので、
+    // 取り込み時フィルタ (組込フィルタ + カラムクエリ) は復元側で通す。
+    // 通さないと、タブを離れている間にクエリを厳しくしても切替先には旧列が
+    // 残り、隠したはずのノートが見えてしまう
+    setNotes(await applyFilter(snapshotNotes))
+    // カーソルは生ページ基準 (フィルタで落ちた分も含めて前進させる)
     resetFetchCursor(snapshotNotes)
     error.value = null
     await nextTick()
