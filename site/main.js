@@ -23,18 +23,15 @@
   });
 })();
 
-/* Scroll fade-in */
-const obs = new IntersectionObserver((entries) => {
-  entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('visible'); obs.unobserve(e.target); } });
-}, { threshold: 0.1 });
-document.querySelectorAll('.fade-in').forEach((el) => obs.observe(el));
-
-/* Fetch screenshot URL from README */
+/* Keep the hero screenshot in sync with the README.
+   index.html already carries the current URL so the LCP paints without waiting
+   on this request; we only swap when the README has actually moved on. */
 fetch('https://raw.githubusercontent.com/notedeck-dev/notedeck/main/README.md')
   .then(r => r.text())
   .then(md => {
     const m = md.match(/<img[^>]+src="(https:\/\/github\.com\/user-attachments\/assets\/[^"]+)"/);
-    if (m) document.getElementById('hero-screenshot').src = m[1];
+    const img = document.getElementById('hero-screenshot');
+    if (m && img && img.src !== m[1]) img.src = m[1];
   })
   .catch(() => {});
 
