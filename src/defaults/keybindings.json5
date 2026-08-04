@@ -164,10 +164,6 @@
     shortcuts: [{ key: "Delete", scope: "body" }],
   },
   {
-    commandId: "note-edit",
-    shortcuts: [{ key: "e", shift: true, scope: "body" }],
-  },
-  {
     commandId: "note-copy-link",
     shortcuts: [{ key: "y", scope: "body" }],
   },

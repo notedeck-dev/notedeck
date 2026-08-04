@@ -489,10 +489,14 @@ defineExpose({ open })
           <i :class="localIsPinned ? 'ti ti-pinned-off' : 'ti ti-pin'" />
           {{ localIsPinned ? 'ピン留め解除' : 'ピン留め' }}
         </button>
-        <button class="_popupItem" @click="emit('edit', note); close()">
-          <i class="ti ti-edit" />
-          編集
-        </button>
+        <!--
+          「編集」は出さない (#954)。本家 Misskey にノートを更新する API は無く、
+          NoteDeck が呼んでいるのはフォークが独自に生やしたエンドポイントのため、
+          本家サーバーでは押すと必ず失敗する。対応可否の判定方法とフォークの実地
+          確認が済むまでは項目自体を出さない。下の「削除して編集」は全サーバーで
+          機能するので、投稿を直す手段は残る。emit('edit') の配線は判定を入れて
+          復活させるときのために残してある。
+        -->
         <button class="_popupItem" @click="showDeleteAndEditConfirm = true">
           <i class="ti ti-eraser" />
           削除して編集
