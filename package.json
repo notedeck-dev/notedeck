@@ -27,6 +27,10 @@
     "android:sync": "./src-tauri/android/sync.sh",
     "android:dev": "pnpm android:sync && tauri android dev",
     "android:build": "pnpm android:sync && tauri android build",
+    "docs:dev": "vitepress dev site",
+    "docs:build": "vitepress build site",
+    "docs:preview": "vitepress preview site",
+    "docs:deploy": "pnpm docs:build && wrangler pages deploy",
     "doctor": "bash scripts/doctor.sh",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
@@ -103,8 +107,10 @@
     "subset-font": "^2.5.0",
     "typescript": "~5.9.3",
     "vite": "^8.0.16",
+    "vitepress": "^1.6.4",
     "vitest": "^3.2.6",
     "vue-tsc": "^3.3.5",
+    "wrangler": "^4.118.0",
     "ws": "^8.21.0"
   }
 }

@@ -1,0 +1,20 @@
+{
+  // notedeck.io — VitePress で組んだランディング + ドキュメントを
+  // Cloudflare Pages に配信するための設定。
+  //
+  // ビルドコマンド (pnpm docs:build) は Pages 側の設定なのでここには書けない。
+  // ダッシュボードの「ビルド構成」で設定すること。
+  // Node のバージョンはリポジトリ直下の .node-version (24) が使われる。
+  "$schema": "./node_modules/wrangler/config-schema.json",
+
+  // Cloudflare ダッシュボードの Pages プロジェクト名と一致させる。
+  // 違う名前で deploy すると別プロジェクトが新規作成される
+  "name": "notedeck",
+
+  // ダッシュボードの既存値 (Mar 25, 2026) に合わせている。
+  // Pages Functions を使っていないので実挙動には影響しない
+  "compatibility_date": "2026-03-25",
+
+  // pnpm docs:build の出力先
+  "pages_build_output_dir": "./site/.vitepress/dist"
+}

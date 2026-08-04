@@ -4,3 +4,5 @@ allowBuilds:
   lefthook: true
   ttf2woff2: true
   vue-demi: true
+  # wrangler (Cloudflare Pages へのデプロイ) が持つローカルランタイム
+  workerd: true

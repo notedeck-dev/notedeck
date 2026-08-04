@@ -54,3 +54,7 @@ CLAUDE.local.md
 # Codex
 .codex
 e2e-artifacts/
+
+# VitePress (site/)
+site/.vitepress/cache
+site/.vitepress/dist

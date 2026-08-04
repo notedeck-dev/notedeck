@@ -1,4 +1,4 @@
-/* NoteDeck landing page — Misskey Hub (misskey-hub-next) の設計言語を踏襲
+/* NoteDeck landing — Misskey Hub (misskey-hub-next) の設計言語を踏襲
  *
  * 構成の対応:
  *   hero カード (blobs 内蔵・角丸 16) ← Hub .section_top / IndexHeroBg
@@ -10,41 +10,28 @@
  *   #f7f7f7 面カード ← Hub .section_decentralized_content
  *   tint カード (#f3f5da) ← Hub .section_donationAndSponsors_donation
  *   dots 背景 ← Hub GDots
+ *
+ * ナビとフッターは VitePress のテーマ側 (site.css) が持つ。ここはランディング本体のみ。
+ * リセットは .landing 配下に閉じる — ドキュメント本文 (.vp-doc) を壊さないため。
  */
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body { overflow-x: clip; }
-
-html { scroll-padding-top: 100px; }
-@media (prefers-reduced-motion: no-preference) {
-  html { scroll-behavior: smooth; }
+.landing *,
+.landing *::before,
+.landing *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-body {
-  font-family: var(--font-body);
-  background: var(--bg);
-  color: var(--text);
-  font-size: var(--text-md);
-  line-height: var(--lh-body);
-  -webkit-font-smoothing: antialiased;
-}
-
-/* ===== Focus ===== */
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-/* Hub: ::selection は白 on accent */
-::selection { background: var(--accent); color: #fff; }
-
-a {
+/* :where() で特異度を素の `a` と同じに保つ。ここを .landing a と書くと
+ * .btn-accent などクラス 1 個ぶんの色指定に勝ってしまい、
+ * ボタンの白文字がリンク色に化ける。 */
+:where(.landing) a {
   color: var(--accent-text);
   text-decoration: none;
   transition: color var(--duration-base) var(--ease-out);
 }
-a:hover {
+:where(.landing) a:hover {
   text-decoration: underline;
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
@@ -72,6 +59,10 @@ a:hover {
   color: transparent;
   -webkit-background-clip: text;
   background-clip: text;
+}
+/* 強制配色では背景画像が落ちるので、透明のままだと字が消える */
+@media (forced-colors: active) {
+  .text-gradient { color: CanvasText; -webkit-text-fill-color: CanvasText; }
 }
 
 /* ===== Hub シグネチャ: グラデ 6px 下線 (スクロールで伸びる) ===== */
@@ -128,263 +119,158 @@ a:hover {
   line-height: 1.5;
 }
 
-/* ===== Nav (Misskey Hub style — 既存のまま) ===== */
-.nav-root { position: sticky; top: 0; left: 0; right: 0; z-index: var(--z-sticky); }
-.nav-main { --nav-height: 65px; position: relative; height: var(--nav-height); color: var(--text); }
-@media (max-width: 1200px) { .nav-main { --nav-height: 58px; } }
-
-.nav-bg {
-  position: absolute; top: 0; left: 0; right: 0; height: var(--nav-height);
-  background: var(--nav-bg);
-  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
-  pointer-events: none;
-  border-bottom: 1px solid var(--border);
-  --shapeShift: 550px;
-  --mask-r: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 100'%3E%3Cpath d='M0,100L0,70L28.834,70C42.386,70 55.384,64.616 64.967,55.033C65.773,54.227 66.579,53.421 67.376,52.624C75.459,44.541 86.422,40 97.853,40L1000,40L1000,100L0,100Z'/%3E%3C/svg%3E");
-  --mask-l: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 100'%3E%3Cg transform='matrix(-1,0,0,1,1000,0)'%3E%3Cpath d='M0,100L0,70L28.834,70C42.386,70 55.384,64.616 64.967,55.033C65.773,54.227 66.579,53.421 67.376,52.624C75.459,44.541 86.422,40 97.853,40L1000,40L1000,100L0,100Z'/%3E%3C/g%3E%3C/svg%3E");
-  -webkit-mask-image: linear-gradient(#000, #000), var(--mask-r), var(--mask-l);
-  mask-image: linear-gradient(#000, #000), var(--mask-r), var(--mask-l);
-  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-  -webkit-mask-position: center center, calc(50dvw + var(--shapeShift)) -5px, calc(50dvw - (1000px + var(--shapeShift))) -5px;
-  mask-position: center center, calc(50dvw + var(--shapeShift)) -5px, calc(50dvw - (1000px + var(--shapeShift))) -5px;
-  -webkit-mask-size: 100% 100%, 1000px 100px, 1000px 100px;
-  mask-size: 100% 100%, 1000px 100px, 1000px 100px;
-  -webkit-mask-composite: xor; mask-composite: exclude;
-}
-@media (max-width: 1500px) { .nav-bg { -webkit-mask-image: none; mask-image: none; } }
-
-.nav-container {
-  position: relative; z-index: var(--z-base);
-  width: 100%; max-width: var(--content-width);
-  padding-inline: var(--space-lg);
-  margin: 0 auto; height: 100%;
-  display: flex; align-items: center; gap: var(--space-2lg);
-}
-@media (max-width: 1200px) { .nav-container { padding-inline: 0; } }
-
-.nav-menu-button {
-  display: none; background: none; border: none; cursor: pointer; color: var(--text);
-  height: var(--nav-height); width: var(--nav-height); place-content: center;
-}
-.nav-icon-close { display: none; }
-.nav-root.nav-open .nav-icon-menu { display: none; }
-.nav-root.nav-open .nav-icon-close { display: block; }
-@media (max-width: 1200px) { .nav-menu-button { display: grid; } }
-
-.nav-sp-spacer { display: none; }
-@media (max-width: 1200px) {
-  .nav-sp-spacer { display: block; width: var(--nav-height); height: var(--nav-height); flex-shrink: 0; }
-}
-
-.nav-brand {
-  display: flex; align-items: center; gap: var(--space-xs);
-  white-space: nowrap; font-size: var(--text-lg);
-  padding-right: var(--space-2lg);
-  border-right: 1px solid var(--border);
-  background: none; color: var(--text); text-decoration: none;
-}
-.nav-brand:hover { color: var(--text); text-decoration: none; }
-.nav-brand img { width: 24px; height: 24px; border-radius: var(--radius-2xs); }
-.nav-brand b { font-weight: 800; }
-.nav-brand span {
-  background: var(--accent-grad);
-  color: transparent;
-  -webkit-background-clip: text;
-  background-clip: text;
-}
-@media (max-width: 1200px) { .nav-brand { margin: 0 auto; padding-right: 0; border-right: none; } }
-
-.nav-items { display: flex; gap: var(--space-2lg); font-size: var(--text-sm); }
-.nav-items a {
-  color: var(--text); font-weight: 600; text-decoration: none;
-  padding-block: var(--space-xs);
-  transition: color var(--duration-base) var(--ease-out);
-}
-.nav-items a:hover { color: var(--accent-text); text-decoration: none; }
-@media (max-width: 1200px) { .nav-items { display: none; } }
-
-.nav-right { margin-left: auto; display: flex; align-items: center; gap: var(--space-sm); }
-@media (max-width: 1200px) { .nav-right { display: none; } }
-
-.nav-right-button {
-  display: grid; place-content: center;
-  width: 40px; height: 40px;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius-pill); color: var(--text);
-  cursor: pointer; text-decoration: none;
-  transition: background var(--duration-base) var(--ease-out);
-}
-.nav-right-button:hover { background: var(--surface-hover); color: var(--text); text-decoration: none; }
-.nav-right-button:active { transform: translateY(1px); }
-
-[data-color-mode="system"] .icon-sun,
-[data-color-mode="system"] .icon-moon { display: none; }
-[data-color-mode="light"] .icon-moon,
-[data-color-mode="light"] .icon-system { display: none; }
-[data-color-mode="dark"] .icon-sun,
-[data-color-mode="dark"] .icon-system { display: none; }
-
-.nav-mobile-drawer {
-  display: none; position: fixed; top: 58px; left: 0; width: 100%;
-  z-index: var(--z-dropdown);
-  background: var(--nav-bg);
-  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
-  border-bottom: 1px solid var(--border);
-}
-.nav-root.nav-open .nav-mobile-drawer { display: block; }
-@media (min-width: 1201px) { .nav-mobile-drawer { display: none !important; } }
-
-.nav-mobile-item {
-  display: flex; align-items: center; gap: var(--space-xs);
-  padding: var(--space-sm) var(--space-md);
-  color: var(--text); font-size: var(--text-sm); font-weight: 600;
-  text-decoration: none; background: none;
-  transition: background var(--duration-base) var(--ease-out);
-}
-.nav-mobile-item:not(:last-child) { border-bottom: 1px solid var(--border); }
-.nav-mobile-item:hover { background: var(--surface-hover); color: var(--text); text-decoration: none; }
-
 /* ===== Hero — Hub .section_top =====
- * 角丸 16 の巨大カードにブロブと本文とスクショを内蔵し、
- * 下端 140px に次セクションの acrylic カードがオーバーラップする。
- */
-.hero { position: relative; margin-top: var(--space-md); }
-
-.hero-card {
+ * 下端に 140px の余白を持たせ、負マージンで次セクション (keyfeatures) を
+ * 食い込ませる。Hub の section_top と同じ組み方。 */
+.hero {
   position: relative;
-  background: var(--hero-bg);
-  border-radius: var(--radius);
-  overflow: clip;
-  contain: content;
-  padding: var(--space-md) 0 140px;
+  margin-top: var(--space-md);
   margin-bottom: -150px;
 }
 
-/* Hub IndexHeroBg — 緑グラデのブロブ 2 枚、60s/80s でゆっくり回転 */
-.blob {
+.hero-card {
+  position: relative;
+  overflow: clip;
+  contain: content;
+  background: var(--hero-bg);
+  border-radius: var(--radius);
+  padding-top: var(--space-md);
+  padding-bottom: 140px;
+}
+
+/* Hub IndexHeroBg — 緑グラデのブロブ 2 枚が 60s/80s で回り、
+ * スクロールに合わせて上下にパララックスする。
+ * view-timeline 未対応のブラウザではパララックスが止まるだけで、
+ * 回転と配置はそのまま効く。 */
+.hero-bg {
   position: absolute;
-  width: 1000px;
-  aspect-ratio: 1;
-  opacity: 0.5;
+  inset: 0;
   pointer-events: none;
+  view-timeline-name: --parallax;
+  view-timeline-axis: block;
 }
-.blob-1 {
-  right: -300px; top: -500px;
-  background: linear-gradient(90deg, #2bb400, #71b400);
-  border-radius: 46% 54% 58% 42% / 48% 43% 57% 52%;
-  animation: blob-spin 60s linear infinite;
+
+.hero-blob {
+  position: absolute;
+  width: 640px;
+  opacity: 0.5;
+  animation: hero-parallax linear both;
+  animation-timeline: --parallax;
+  animation-range: cover;
 }
-.blob-2 {
-  left: -250px; top: 300px;
-  background: linear-gradient(90deg, rgba(113, 180, 0, 0.5), rgba(37, 180, 0, 0.5));
-  border-radius: 54% 46% 42% 58% / 43% 52% 48% 57%;
-  animation: blob-spin 80s linear infinite reverse;
+@keyframes hero-parallax {
+  from { transform: translateY(-260px); }
+  to   { transform: translateY(260px); }
 }
-@keyframes blob-spin {
+
+.hero-blob svg { display: block; width: 100%; height: auto; }
+
+.hero-blob-1 { right: -170px; top: -260px; }
+.hero-blob-1 svg { animation: hero-blob-spin 60s linear infinite; }
+
+.hero-blob-2 { left: -150px; top: 240px; }
+.hero-blob-2 svg { animation: hero-blob-spin 80s linear infinite reverse; }
+
+@keyframes hero-blob-spin {
   from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-@media (max-width: 800px) {
-  .blob { width: 600px; }
-  .blob-1 { right: -250px; top: -350px; }
-  .blob-2 { left: -220px; top: 340px; }
+  to   { transform: rotate(360deg); }
 }
 
 .hero-inner {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: var(--space-2xl);
   align-items: center;
-  gap: var(--space-2lg);
-  padding-block: var(--space-2lg);
+  /* 下端の 140px は次セクションが食い込む領域。本文が短くても
+     カードが潰れないよう、コンテンツ側の高さを確保する */
+  min-height: 460px;
 }
-@media (max-width: 1000px) {
-  .hero-inner { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 900px) {
+  .hero-inner { min-height: 0; }
 }
+@media (max-width: 900px) {
+  .hero-inner { grid-template-columns: minmax(0, 1fr); gap: var(--space-xl); }
+}
+
+/* Hub .section_top_left と同じ内側余白 */
+.hero-copy { padding: 45px 0 var(--space-2lg); }
 
 .hero-copy h1 {
   display: flex; align-items: center; gap: var(--space-sm);
   font-size: var(--text-display);
   font-weight: 800;
   line-height: var(--lh-tight);
-  letter-spacing: -0.02em;
   min-width: 0; overflow-wrap: anywhere;
 }
 .hero-copy h1 .hero-logo { width: 1em; height: 1em; border-radius: 22%; flex-shrink: 0; }
 .hero-copy .chip { margin-top: var(--space-sm); }
 .hero-desc {
   margin-top: var(--space-md);
+  font-size: var(--text-lg);
   color: var(--text-sub);
 }
 
-/* Hub .notice — グラデ縁取りの pill お知らせ */
+/* Hub .notice — グラデ縁取りの pill お知らせ。
+ * 中身の文字ぶんだけの幅にする (Hub と同じ width: max-content) */
 .notice {
   display: block;
   width: max-content;
   max-width: 100%;
-  margin-top: var(--space-md);
+  margin-top: var(--space-lg);
+  padding: 2px;
   background: var(--accent-grad);
   border-radius: var(--radius-pill);
-  padding: 2px;
-  color: inherit;
-  text-decoration: none;
+  box-shadow: var(--shadow-accent);
 }
 .notice:hover { text-decoration: none; }
 .notice-inner {
   display: flex; align-items: center;
-  background: var(--surface);
+  gap: var(--space-xs);
+  background: var(--bg);
   border-radius: var(--radius-pill);
-  padding: 4px 16px 4px 4px;
-  font-size: var(--text-xs);
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-sm);
   font-weight: 700;
-  min-width: 0;
+  color: var(--text);
 }
 .notice-inner > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notice-icon {
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  width: 32px; height: 32px;
-  margin-right: var(--space-xs);
-  background: var(--accent-grad);
-  border-radius: var(--radius-pill);
-  color: #fff;
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  color: var(--accent-text);
 }
 .notice-arrow { margin-left: 0.5em; flex-shrink: 0; }
 
 .hero-buttons {
   display: flex; flex-wrap: wrap;
-  gap: var(--space-md);
+  gap: var(--space-sm);
   margin-top: var(--space-lg);
 }
-
 .hero-shot img {
-  display: block; width: 100%; height: auto;
+  width: 100%; height: auto;
   border-radius: var(--radius);
-  aspect-ratio: 1194 / 793;
-  object-fit: cover; object-position: top center;
-  background: var(--panel);
+  box-shadow: var(--shadow-btn);
 }
 
 /* ===== Buttons — Hub GButton ===== */
 .btn {
-  display: inline-flex; align-items: center; gap: var(--space-xs);
-  padding: 0.5em 1.5em;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px;
+  padding: var(--space-xs) var(--space-2lg);
   border-radius: var(--radius-pill);
-  font-size: var(--text-md); font-weight: 700;
-  font-family: inherit; text-decoration: none;
-  white-space: nowrap;
-  border: none;
-  cursor: pointer;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  transition: background-position var(--duration-base) var(--ease-out),
+              background-color var(--duration-base) var(--ease-out);
 }
 .btn:hover { text-decoration: none; }
 .btn:active { transform: translateY(1px); }
 
 /* Hub .buttonAccent — グラデを 200% に敷いて hover で滑らせる */
 .btn-accent {
-  background-image: var(--accent-grad);
+  background: var(--accent-grad);
   background-size: 200% 100%;
-  background-position-x: 0%;
   color: #fff;
-  transition: background-position-x var(--duration-base) var(--ease-out);
 }
 .btn-accent:hover { background-position-x: 100%; color: #fff; }
 .btn-accent.shadow { box-shadow: var(--shadow-accent); }
@@ -400,6 +286,8 @@ a:hover {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-md);
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-md);
 }
 @media (max-width: 900px) { .keyfeatures { grid-template-columns: minmax(0, 1fr); } }
 
@@ -415,20 +303,6 @@ a:hover {
 }
 .keyfeature p { font-size: var(--text-sm); }
 .keyfeature .lead { font-weight: 700; margin-bottom: var(--space-2xs); }
-
-/* ===== Stats — Hub .section_stats ===== */
-.stats {
-  margin-top: var(--space-md);
-  border-radius: var(--radius-pill);
-  padding: var(--space-xs) var(--space-2lg);
-}
-.stats-inner {
-  display: flex; flex-wrap: wrap;
-  align-items: center; justify-content: center;
-  gap: var(--space-sm) var(--space-2xl);
-  font-size: var(--text-sm);
-}
-.stats-inner .chip { margin-right: var(--space-xs); }
 
 /* ===== Scroll label — Hub .scrollLabel ===== */
 .scroll-label {
@@ -669,6 +543,9 @@ a:hover {
   margin-bottom: var(--space-sm);
 }
 .install-cmd {
+  appearance: none;
+  display: block; width: 100%; text-align: left;
+  color: inherit;
   background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -735,29 +612,14 @@ a:hover {
 .store-cta p { font-size: var(--text-sm); flex: 1; }
 .store-cta .btn { margin-top: var(--space-md); }
 
-/* ===== Footer — Hub GFooter ===== */
-footer { padding: var(--space-2lg) var(--space-md) var(--space-lg); }
-.footer-links {
-  display: flex; justify-content: center; flex-wrap: wrap;
-  gap: var(--space-lg);
-  margin-bottom: var(--space-md);
-  font-size: var(--text-xs);
-}
-.footer-links a { color: var(--text-sub); font-weight: 700; white-space: nowrap; }
-.footer-copyright {
-  text-align: center;
-  font-size: var(--text-xs);
-  opacity: 0.7;
-}
-.footer-copyright a { color: inherit; font-weight: 700; }
-
 /* ===== Reduced motion ===== */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  .landing *,
+  .landing *::before,
+  .landing *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
   .fade { opacity: 1; transform: none; }
   .u-line { background-size: 100% 6px; }
