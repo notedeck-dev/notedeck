@@ -341,7 +341,19 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
   const columnQueryState = computed(() => {
     const compiled = compiledQuery.value
-    if (!compiled) return { status: 'none' as const, diagnostics: [] }
+    if (!compiled) {
+      // セーフモードでクエリを止めているカラムは、止まっていることが見えないと
+      // 「もともとクエリを設定していないカラム」と区別がつかない (#971)。
+      // クエリの主用途は「見たくないものを隠す」ことなので、停止が黙って
+      // 起きると隠していたものが予告なく表示に戻る。fail-open は維持する。
+      const col = config.getColumn()
+      const hasQuery =
+        !!col.noteQuery?.trim() || (col.noteQueryRefs ?? []).length > 0
+      if (hasQuery && readSafeMode()) {
+        return { status: 'safeMode' as const, diagnostics: [] }
+      }
+      return { status: 'none' as const, diagnostics: [] }
+    }
     const diagnostics: { message: string }[] = []
     for (const id of compiled.missing) {
       diagnostics.push({

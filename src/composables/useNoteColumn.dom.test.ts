@@ -1064,8 +1064,29 @@ describe('useNoteColumn: セーフモードでカラムクエリを停止する 
     })
     await flush()
     expect(ids(api)).toEqual(['a', 'b'])
-    // クエリは無いものとして扱う (コンパイルしない)
+    // 評価はしない (コンパイルしない) が、止まっていることは見える (#971)
+    expect(api.columnQueryState.value.status).toBe('safeMode')
+  })
+
+  it('クエリ未設定のカラムは safeMode 状態にならない (#971)', async () => {
+    addAccount('acc-safe-noquery')
+    const { api } = mountColumn({
+      accountId: 'acc-safe-noquery',
+      fetch: async () => [note('a') as NormalizedNote],
+    })
+    await flush()
     expect(api.columnQueryState.value.status).toBe('none')
+  })
+
+  it('参照だけのカラムでも停止が見える (#971)', async () => {
+    addAccount('acc-safe-ref')
+    const { api } = mountColumn({
+      accountId: 'acc-safe-ref',
+      noteQueryRefs: ['some-query-id'],
+      fetch: async () => [note('a') as NormalizedNote],
+    })
+    await flush()
+    expect(api.columnQueryState.value.status).toBe('safeMode')
   })
 
   it('qirSearchCache を呼ばず従来のキャッシュ経路を使う', async () => {
