@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 import { emitNoteDeckEvent } from '@/aiscript/events'
 import { planBuiltInSeed } from '@/services/builtInSeed'
+import { planStoreMovedMigration } from '@/services/storeMovedSkills'
 import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import { parseSkillFile, serializeSkillFile } from '@/utils/skillFrontmatter'
@@ -340,6 +341,7 @@ export const useSkillsStore = defineStore('skills', () => {
     } else {
       skills.value = fileSkills
       await migrateLegacyAizu()
+      await migrateStoreMovedBuiltIns()
       await seedMissingBuiltIns()
       // initialized=true を立てた **後** に sync する。update() 内の persist は
       // `if (initialized.value)` ガード越しなので、立てる前に呼ぶと in-memory
@@ -425,6 +427,20 @@ export const useSkillsStore = defineStore('skills', () => {
       ...skills.value.slice(idx + 1),
     ]
     await persist(migrated)
+  }
+
+  /**
+   * 同梱をやめた作者系 built-in (#969) を MisStore 配布版相当に変換する。
+   * 判定は `@/services/storeMovedSkills` 側の純関数が持つ。
+   */
+  async function migrateStoreMovedBuiltIns(): Promise<void> {
+    const { migrated, changed, changedSkills } = planStoreMovedMigration(
+      skills.value,
+      Date.now(),
+    )
+    if (!changed) return
+    skills.value = migrated
+    await Promise.all(changedSkills.map((s) => persist(s)))
   }
 
   function get(id: string): SkillMeta | undefined {

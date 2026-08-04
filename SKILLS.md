@@ -463,7 +463,17 @@ NoteDeck 同梱で初回起動時に seed される skill:
 |---|---|
 | `notedeck-memo` | `<memos>` ブロックを永続記憶として扱う指示書 (#489) |
 | `self-profile` | `skills.replaceSection` で AI が自分のプロフィールを継続更新する自己編集デモ |
-| `skill-author` | 会話で見つけたノウハウを `skills.create` でスキル化する作法 (#726) |
+| `notedeck-guide` | 「○○ はどこ?」「使い方は?」に答え、その場で開く提案までする |
+
+正本は `src/defaults/skills/`。ここに置いたものが初回起動時に seed される。
+
+### 11.1 MisStore へ移した skill (#969)
+
+自己拡張の作者系 (`plugin-author` / `widget-author` / `theme-author` / `skill-author`) と、その依存先のリファレンス (`aiscript-author` / `theme-reference`) は同梱をやめ、MisStore 配布に移した。使う人だけが入れる形にして、初回起動時に読み込む本文を減らすため。
+
+作者系スキルはリファレンスと同じ triggers でセット起動される設計なので、**作者系を入れるときは対応するリファレンスも入れる**（`plugin-author` / `widget-author` → `aiscript-author`、`theme-author` → `theme-reference`）。欠けると生成品質が落ちる。
+
+既に seed 済みのユーザーの手元では、`builtIn: false` + `storeId` 付きのストア配布版相当に変換され、以降はストアから更新できる（削除ではなく変換なのは、本文を書き換えている可能性があるため）。判定は `src/services/storeMovedSkills.ts`。
 
 ---
 
