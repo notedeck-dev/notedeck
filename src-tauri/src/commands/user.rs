@@ -464,17 +464,20 @@ pub async fn api_remove_user_from_list(
         .remove_user_from_list(&host, &token, &list_id, &user_id)
         .await?;
     // 除外ユーザーの既存ノートは個別逆引き不能のためバケット破棄 →
-    // 次回フェッチで再構築 (失敗は warn + Ok)
+    // 次回フェッチで再構築 (失敗は warn + Ok)。破棄の完了は待ってから返す —
+    // detach するとフロントの再フェッチ ingest 後に破棄が走るレースになる
     let db = app_state.db().await;
     let account_id_owned = account_id.clone();
     let key = TimelineKey::UserList {
         list_id: list_id.clone(),
     };
-    tokio::task::spawn_blocking(move || {
-        if let Err(e) = db.clear_timeline(&account_id_owned, &key) {
-            tracing::warn!("[cache] failed to clear user-list bucket: {e}");
-        }
-    });
+    let cleared =
+        tokio::task::spawn_blocking(move || db.clear_timeline(&account_id_owned, &key)).await;
+    match cleared {
+        Ok(Err(e)) => tracing::warn!("[cache] failed to clear user-list bucket: {e}"),
+        Err(e) => tracing::warn!("[cache] clear user-list bucket task failed: {e}"),
+        Ok(Ok(_)) => {}
+    }
     Ok(())
 }
 
