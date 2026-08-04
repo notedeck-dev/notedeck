@@ -2,11 +2,11 @@
 // Usage: @use '@/styles/navMenu';
 
 .menuEnter {
-  animation: menuIn 0.18s ease;
+  animation: menuIn 0.18s var(--nd-ease-menu);
 }
 
 .menuLeave {
-  animation: menuOut 0.18s ease forwards;
+  animation: menuOut 0.18s var(--nd-ease-menu) forwards;
 }
 
 @keyframes menuIn {

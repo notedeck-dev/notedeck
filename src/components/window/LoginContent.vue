@@ -491,8 +491,8 @@ onMounted(() => {
 }
 
 /* Logo / subtitle transition animations */
-.logoEnter { animation: logoIn 0.2s ease; }
-.logoLeave { animation: logoOut 0.2s ease forwards; }
+.logoEnter { animation: logoIn 0.2s var(--nd-ease-decel); }
+.logoLeave { animation: logoOut 0.2s var(--nd-ease-decel) forwards; }
 @keyframes logoIn { from { opacity: 0; transform: scale(0.9); } }
 @keyframes logoOut { to { opacity: 0; transform: scale(0.9); } }
 </style>

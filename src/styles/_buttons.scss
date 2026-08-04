@@ -112,7 +112,7 @@
   text-align: center;
   pointer-events: none;
   box-sizing: border-box;
-  animation: nd-badge-in 0.7s ease both;
+  animation: nd-badge-in var(--nd-duration-slow) var(--nd-ease-decel) both;
 }
 
 // Stack count badge (TL quadrant) — number of stacked columns.

@@ -796,7 +796,7 @@ async function handlePosted(editedNoteId?: string) {
 .probeBar {
   height: 100%;
   background: var(--nd-accent);
-  transition: width 0.3s ease;
+  transition: width 0.3s var(--nd-ease-decel);
 }
 
 .headerCrossIcon {

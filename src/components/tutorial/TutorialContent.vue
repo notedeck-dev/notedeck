@@ -114,7 +114,7 @@ const stepIndex = computed(() => tutorial.currentNumber)
   background: transparent;
   // 内側の丸: ::after で描画。クリック領域 (14px) を確保しつつ、見た目は小さく。
   position: relative;
-  transition: transform 0.15s ease;
+  transition: transform 0.15s var(--nd-ease-decel);
 
   &::after {
     content: '';
@@ -123,7 +123,7 @@ const stepIndex = computed(() => tutorial.currentNumber)
     border-radius: 50%;
     background: var(--nd-fg);
     opacity: 0.18;
-    transition: opacity 0.2s ease, background 0.2s ease;
+    transition: opacity 0.2s var(--nd-ease-decel), background 0.2s var(--nd-ease-decel);
   }
 
   &:hover {
@@ -190,7 +190,7 @@ const stepIndex = computed(() => tutorial.currentNumber)
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
-  transition: opacity 0.15s ease, background 0.15s ease;
+  transition: opacity 0.15s var(--nd-ease-decel), background 0.15s var(--nd-ease-decel);
 
   &:hover {
     opacity: 1;
@@ -206,7 +206,7 @@ const stepIndex = computed(() => tutorial.currentNumber)
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent, #fff);
   cursor: pointer;
-  transition: filter 0.15s ease;
+  transition: filter 0.15s var(--nd-ease-decel);
 
   &:hover {
     filter: brightness(1.08);
