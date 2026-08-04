@@ -204,7 +204,10 @@ a:hover {
   margin-top: var(--space-2xs);
   font-size: var(--text-md); color: var(--text-muted);
 }
-.fold-copy .btn { margin-top: var(--space-md); }
+.fold-actions {
+  display: flex; flex-wrap: wrap; gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
 
 /* The deck itself — full width of the column, tight under the copy. */
 .fold-shot {
@@ -306,7 +309,8 @@ a:hover {
   max-width: 60ch; margin-bottom: var(--space-xl);
 }
 .section-title + .pillars-grid,
-.section-title + .features-grid { margin-top: var(--space-xl); }
+.section-title + .features-grid,
+.section-title + .highlights { margin-top: var(--space-xl); }
 
 /* ===== Pillars — headed panels =====
  * The <h3> IS the panel header strip; the paragraphs are the panel body. Three
@@ -488,36 +492,48 @@ a:hover {
 .store-distribution-title { min-width: 0; overflow-wrap: anywhere; font-size: var(--text-2xl); font-weight: 800; line-height: var(--lh-tight); margin-bottom: var(--space-2xs); }
 .store-distribution-lead { color: var(--text-muted); font-size: var(--text-sm); max-width: 62ch; }
 
-/* ===== Highlight rows ===== */
-.highlight-row { margin-bottom: var(--space-lg); }
-.highlight-row:last-child { margin-bottom: 0; }
-.highlight-text { max-width: 780px; padding: var(--space-lg); }
-.highlight-row:nth-child(even) .highlight-text { margin-left: auto; }
+/* ===== Highlights — headed panels, one per row =====
+ * Same unit as the stacked pillars: a header strip (badge + title) over a
+ * body split lead | detail. No alternating offsets — the empty half-column
+ * they carved out read as unfinished, not as rhythm.
+ */
+.highlights { display: grid; gap: var(--space-xs); }
 
 .highlight-badge {
-  display: inline-block; font-size: var(--text-2xs); font-weight: 700;
+  flex-shrink: 0;
+  font-size: var(--text-2xs); font-weight: 700;
   color: var(--accent-ink); background: var(--accent);
   padding: 0.2em 0.7em; border-radius: var(--radius-pill);
-  margin-bottom: var(--space-sm); letter-spacing: 0.03em;
+  letter-spacing: 0.03em;
 }
-.highlight-text h3 {
-  font-size: var(--text-xl); font-weight: 800;
-  line-height: var(--lh-tight); margin-bottom: var(--space-xs);
+.highlight .panel-head h3 {
+  font-size: var(--text-lg); font-weight: 800;
+  line-height: 1.4;
   min-width: 0; overflow-wrap: anywhere;
 }
-.highlight-text p { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--lh-panel); margin-bottom: var(--space-sm); }
+.highlight-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr);
+  gap: var(--space-md) var(--space-lg);
+  padding: var(--space-md);
+}
+.highlight-body > p { color: var(--text-muted); font-size: var(--text-sm); line-height: var(--lh-panel); }
 .highlight-list {
-  list-style: none; margin-top: var(--space-sm);
+  list-style: none; align-content: start;
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: var(--space-2xs) var(--space-md);
 }
 .highlight-list li {
   font-size: var(--text-xs); color: var(--text-sub);
+  line-height: var(--lh-panel);
   padding-left: 1.3em; position: relative;
 }
 .highlight-list li::before {
   content: ""; position: absolute; left: 0; top: 0.72em;
   width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+@media (max-width: 900px) {
+  .highlight-body { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ===== Capability index =====
@@ -601,8 +617,10 @@ a:hover {
   min-height: 44px; min-width: 0;
   background: var(--panel);
 }
-.platform:hover { background: var(--panel-hover); }
-.platform:hover { color: var(--text); text-decoration: none; border-color: var(--accent); }
+.platform:hover {
+  background: var(--panel-hover); border-color: var(--accent);
+  color: var(--text); text-decoration: none;
+}
 .platform:active { transform: translateY(1px); }
 .platform svg {
   width: 28px; height: 28px; margin-bottom: var(--space-xs);

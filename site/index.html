@@ -8,7 +8,8 @@
   <meta property="og:title" content="NoteDeck — Misskey Pro" />
   <meta property="og:description" content="Misskey Pro — Misskey廃人のための Misskey IDE。" />
   <meta property="og:type" content="website" />
-  <meta property="og:image" content="https://raw.githubusercontent.com/notedeck-dev/notedeck/main/src-tauri/icons/128x128%402x.png" />
+  <meta property="og:image" content="https://github.com/user-attachments/assets/a9bca10d-a59d-4c35-9284-fb0534ccf886" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="https://raw.githubusercontent.com/notedeck-dev/notedeck/main/src-tauri/icons/32x32.png" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -68,6 +69,10 @@
       </h1>
       <p class="tagline">Misskey Pro</p>
       <p class="hero-lead">Misskey廃人のための 非公式クライアント。</p>
+      <div class="fold-actions">
+        <a href="#download" class="btn btn-primary">ダウンロード</a>
+        <a href="#guest" class="btn btn-secondary">ログインせずに試す</a>
+      </div>
     </div>
     <div class="fold-shot">
       <img id="hero-screenshot"
@@ -86,7 +91,7 @@
         <div class="pillar">
           <h3><span class="pillar-icon" aria-hidden="true"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>全部のサーバーが、ひとつの画面に</h3>
           <p class="pillar-lead">通知・タイムライン・検索を<strong>アカウント横断でまとめて一覧。</strong></p>
-          <p>misskey.io、にじみす、すしすきー — 何鯖使っていても、ひとつのデッキにまとめて把握。アカウントごとにブラウザのタブを開く時代は終わり。</p>
+          <p>misskey.io、にじみす、すしすきー — 何鯖使っていても、ひとつのデッキにまとめて把握。カラムごとに別のアカウントを割り当てる使い方は、本家 Web のデッキにはできません。</p>
         </div>
         <div class="pillar">
           <h3><span class="pillar-icon" aria-hidden="true"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span>見たノートは、手元に残る</h3>
@@ -102,68 +107,103 @@
     </div>
   </section>
 
+  <!-- Guest account — a can / cannot pair, not a CTA -->
+  <section class="section-default" id="guest">
+    <div class="section-inner section-narrow">
+      <h2 class="section-title">ログインせずに、試せます</h2>
+      <p class="section-sub">ゲストアカウントを追加すれば、アカウント登録なしで公開コンテンツを閲覧できます。</p>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="guest-panel-icon" aria-hidden="true"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+          ゲストアカウント
+        </div>
+        <div class="guest-panel-body">
+          <div class="guest-col">
+            <div class="guest-col-title">できること</div>
+            <ul class="guest-list">
+              <li>公開タイムライン（ローカル・グローバルなど）の閲覧</li>
+              <li>チャンネル・ギャラリー・ページなど公開コンテンツの閲覧</li>
+              <li>サーバー情報・カスタム絵文字・連合チャートの観察</li>
+              <li>テーマやウィジェットなどローカルツールの利用</li>
+            </ul>
+          </div>
+          <div class="guest-col">
+            <div class="guest-col-title">できないこと</div>
+            <ul class="guest-list guest-list-no">
+              <li>投稿・リアクション・フォロー</li>
+              <li>通知の受信</li>
+              <li>ドライブ・リスト・アンテナ・クリップの操作</li>
+            </ul>
+          </div>
+        </div>
+        <div class="guest-panel-foot">閲覧できる範囲は各サーバーの公開設定に従います。やめるときは「ゲストを削除」するだけ — アカウント登録もメールアドレスも要りません。</div>
+      </div>
+    </div>
+  </section>
+
   <!-- Features: Highlights -->
-  <section class="section-default" id="features">
+  <section class="section-alt" id="features">
     <div class="section-inner">
       <h2 class="section-title">機能</h2>
+      <div class="highlights">
 
-      <!-- Highlight: Deck UI -->
-      <div class="highlight-row">
-        <div class="highlight-text panel">
-          <span class="highlight-badge">デッキ UI</span>
-          <h3>自由に並べる、自分だけのレイアウト</h3>
-          <p>ホーム・ローカル・通知・検索・リスト・アンテナ・チャンネル・チャット — あらゆるカラムを横に並べて一覧。幅はドラッグで自由に調整、並びは「プロファイル」として保存してワンクリックで切り替え。</p>
-          <ul class="highlight-list">
-            <li>16 種類以上のカラムタイプ</li>
-            <li>複数アカウントの通知・検索を統合表示</li>
-            <li>カラムをポップアウトして別ウィンドウ化</li>
-            <li>PiP（常に手前の小窓）でマルチモニター活用</li>
-          </ul>
+        <div class="highlight panel">
+          <div class="panel-head">
+            <span class="highlight-badge">デッキ UI</span>
+            <h3>自由に並べる、自分だけのレイアウト</h3>
+          </div>
+          <div class="highlight-body">
+            <p>ホーム・ローカル・通知・検索・リスト・アンテナ・チャンネル・チャット — あらゆるカラムを横に並べて一覧。幅はドラッグで自由に調整、並びは「プロファイル」として保存してワンクリックで切り替え。</p>
+            <ul class="highlight-list">
+              <li>16 種類以上のカラムタイプ</li>
+              <li>複数アカウントの通知・検索を統合表示</li>
+              <li>カラムをポップアウトして別ウィンドウ化</li>
+              <li>PiP（常に手前の小窓）でマルチモニター活用</li>
+            </ul>
+          </div>
         </div>
-      </div>
 
-      <!-- Highlight: Offline -->
-      <div class="highlight-row">
-        <div class="highlight-text panel">
-          <span class="highlight-badge">オフラインでも</span>
-          <h3>流れたノートも、ここに残る</h3>
-          <p>タイムラインに流れてきたノートは自動でローカル SQLite に蓄積。サーバーからノートが消えても、連合が切れても、手元のデータは残り続けます。</p>
-          <ul class="highlight-list">
-            <li>全文検索で過去のノートを一瞬で発見</li>
-            <li>オフラインモード切り替えでバッテリー節約</li>
-            <li>DB ファイルのコピーで丸ごとバックアップ</li>
-            <li>サーバーが消えても投稿は手元に残る</li>
-          </ul>
+        <div class="highlight panel">
+          <div class="panel-head">
+            <span class="highlight-badge">オフラインでも</span>
+            <h3>流れたノートも、ここに残る</h3>
+          </div>
+          <div class="highlight-body">
+            <p>タイムラインに流れてきたノートは自動でローカル SQLite に蓄積。サーバーからノートが消えても、連合が切れても、手元のデータは残り続けます。</p>
+            <ul class="highlight-list">
+              <li>全文検索で過去のノートを一瞬で発見</li>
+              <li>オフラインモード切り替えでバッテリー節約</li>
+              <li>DB ファイルのコピーで丸ごとバックアップ</li>
+              <li>サーバーが消えても投稿は手元に残る</li>
+            </ul>
+          </div>
         </div>
-      </div>
 
-      <!-- Highlight: Security -->
-      <div class="highlight-row">
-        <div class="highlight-text panel">
-          <span class="highlight-badge">あんしん</span>
-          <h3>ログイン情報は、OS が守る</h3>
-          <p>アカウントの鍵になるトークンは、ブラウザ内保存ではなく OS のキーチェーン（macOS Keychain / Windows 資格情報マネージャーなど）に暗号化して保管。アプリの中に平文で置かない設計です。</p>
-          <ul class="highlight-list">
-            <li>OS のキーチェーンで暗号化保管</li>
-            <li>使い終わったトークンはメモリからも消去</li>
-            <li>ローカル API は外部サイトからのアクセスを遮断</li>
-            <li>対策の詳細は <a href="https://github.com/notedeck-dev/notedeck/blob/main/SECURITY.md">SECURITY</a> で公開</li>
-          </ul>
+        <div class="highlight panel">
+          <div class="panel-head">
+            <span class="highlight-badge">あんしん</span>
+            <h3>ログイン情報は、OS が守る</h3>
+          </div>
+          <div class="highlight-body">
+            <p>アカウントの鍵になるトークンは、ブラウザ内保存ではなく OS のキーチェーン（macOS Keychain / Windows 資格情報マネージャーなど）に暗号化して保管。アプリの中に平文で置かない設計です。</p>
+            <ul class="highlight-list">
+              <li>OS のキーチェーンで暗号化保管</li>
+              <li>使い終わったトークンはメモリからも消去</li>
+              <li>ローカル API は外部サイトからのアクセスを遮断</li>
+              <li>対策の詳細は <a href="https://github.com/notedeck-dev/notedeck/blob/main/SECURITY.md">SECURITY</a> で公開</li>
+            </ul>
+          </div>
         </div>
-      </div>
 
+      </div>
     </div>
   </section>
 
   <!-- Features: Grid -->
-  <section class="section-alt">
+  <section class="section-default">
     <div class="section-inner">
       <h2 class="section-title">さらに</h2>
       <div class="features-grid">
-        <div class="feature-card">
-          <h4><span class="feature-card-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>ログインしなくても</h4>
-          <p>ゲストアカウントでログインせずに、公開タイムラインを閲覧できます。 やめるときは「ゲストを削除」するだけ。</p>
-        </div>
         <div class="feature-card">
           <h4><span class="feature-card-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></span>キーボードで完結</h4>
           <p>コマンドパレット（Ctrl+K）で 30 以上のコマンドを検索・実行。キーバインドは全部カスタマイズ可能。</p>
@@ -205,7 +245,7 @@
   </section>
 
   <!-- IDE reveal -->
-  <section class="section-default" id="ide">
+  <section class="section-alt" id="ide">
     <div class="section-inner">
       <h2 class="section-title">実は、これ「IDE」なんです</h2>
       <p class="section-sub">NoteDeck の正体は <strong>Misskey 統合デッキ環境</strong> (Integrated Deck Environment)</p>
@@ -218,7 +258,7 @@
         <div class="pillar">
           <h3><span class="pillar-icon" aria-hidden="true"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/></svg></span>AI が、デッキに棲む</h3>
           <p class="pillar-lead">要約も投稿もリアクションも、<strong>頼める相棒。</strong></p>
-          <p>AI チャット専用カラムに加え、ノートメニューから直接 AI アクション。書き込む前には必ず確認してくれるので勝手には動きません。留守の間の定期チェックも。Anthropic / OpenAI / OpenRouter から自由に選べます。</p>
+          <p>AI チャット専用カラムに加え、ノートメニューから直接 AI アクション。書き込む前には必ず確認してくれるので勝手には動きません。留守の間の定期チェックも。Anthropic / OpenAI / OpenRouter から自由に選べます。使うかどうかは任意 — 自分の API キーを繋いだときだけ有効になり、無くても他の機能はすべて使えます。</p>
         </div>
         <div class="pillar">
           <h3><span class="pillar-icon" aria-hidden="true"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="11" y1="8" x2="11" y2="14"/></svg></span>中身が、ぜんぶ見える</h3>
