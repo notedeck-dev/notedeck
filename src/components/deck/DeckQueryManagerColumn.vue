@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
@@ -194,6 +195,8 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
     </template>
 
     <div ref="columnContentRef" :class="$style.wrapper">
+      <SafeModeNotice subject="カラムのクエリフィルタ" />
+
       <ColumnTabs
         :tabs="tabDefs"
         :model-value="viewTab"

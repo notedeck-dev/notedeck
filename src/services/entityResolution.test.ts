@@ -72,6 +72,7 @@ function makeNote(
     renoteCount: 0,
     repliesCount: 0,
     files: [],
+    localOnly: false,
     ...overrides,
   }
 }

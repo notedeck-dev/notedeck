@@ -52,6 +52,7 @@ import { useUiStore } from '@/stores/ui'
 import { dedup } from '@/utils/dedup'
 import { AppError } from '@/utils/errors'
 import { logWarn } from '@/utils/logger'
+import { readSafeMode } from '@/utils/safeMode'
 import { insertIntoSorted } from '@/utils/sortNotes'
 import { matchesFilter } from '@/utils/timelineFilter'
 
@@ -289,6 +290,11 @@ export function useNoteColumn(config: NoteColumnConfig) {
   // (#831 の縫い目)。組込 filterNotes とは AND 合成 (組込が先 = 最安)。
   const columnQueriesStore = useColumnQueriesStore()
   const compiledQuery = computed(() => {
+    // セーフモード時はカラムクエリを無いものとして扱う (#838 条件 3)。
+    // コンパイルしない・Worker を起動しない・QIR キャッシュ検索に入らない・
+    // フィルタなしで表示 (fail-open)。プラグインと同じ「自動実行される
+    // ユーザーコードを止める」意味論。評価時に読むのはテスト容易性のため
+    if (readSafeMode()) return null
     const col = config.getColumn()
     const inline = col.noteQuery?.trim() ? col.noteQuery : null
     const refs = col.noteQueryRefs ?? []
