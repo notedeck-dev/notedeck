@@ -9,6 +9,10 @@
  * Rust プロセス起動からの端到端は、js_init_script で注入される
  * `__ND_PROCESS_START__` (epoch ms) と performance.timeOrigin の差で
  * WebView 起動固定費として補完する (#985 で issue が見落としていた支配項)。
+ *
+ * 表示面は 2 つ: dev コンソールの 1 行サマリ (logStartupSummary) と、
+ * About ウィンドウの起動パフォーマンスセクション (getStartupEntries /
+ * getWebviewFixedCost)。prod では console が落ちるため後者が唯一の面。
  */
 
 declare global {
@@ -26,23 +30,33 @@ export function markStartup(name: string): void {
   performance.mark(`nd:startup:${name}`)
 }
 
-/** deck 表示到達時に 1 回だけ呼ぶ。dev ではコンソールにサマリを出す */
-export function logStartupSummary(): void {
-  if (!import.meta.env.DEV) return
-  // WebView 起動固定費が意味を持つのは初回ナビゲーションだけ。リロードでは
-  // timeOrigin だけが更新され、注入されたプロセス起動時刻との差が
-  // 「プロセス起動からの経過時間」になってしまうので出さない
+/** 記録済みの計測点 (navigation 起点 ms) を時刻順で返す */
+export function getStartupEntries(): { name: string; at: number }[] {
+  return [...marks.entries()]
+    .map(([name, at]) => ({ name, at }))
+    .sort((a, b) => a.at - b.at)
+}
+
+/**
+ * WebView 起動固定費 (プロセス起動 → navigation 開始) の ms。
+ * リロードでは timeOrigin だけが更新され、注入されたプロセス起動時刻との
+ * 差が「プロセス起動からの経過時間」という無意味な値になるため、
+ * 初回ナビゲーション以外は null。
+ */
+export function getWebviewFixedCost(): number | null {
   const nav = performance.getEntriesByType('navigation')[0] as
     | PerformanceNavigationTiming
     | undefined
-  const isFirstNavigation = nav?.type === 'navigate'
-  const webviewFixedCost =
-    isFirstNavigation && window.__ND_PROCESS_START__
-      ? Math.round(performance.timeOrigin - window.__ND_PROCESS_START__)
-      : null
-  const points = [...marks.entries()]
-    .sort((a, b) => a[1] - b[1])
-    .map(([name, t]) => `${name}=${Math.round(t)}ms`)
+  if (nav?.type !== 'navigate' || !window.__ND_PROCESS_START__) return null
+  return Math.round(performance.timeOrigin - window.__ND_PROCESS_START__)
+}
+
+/** deck 表示到達時に 1 回だけ呼ぶ。dev ではコンソールにサマリを出す */
+export function logStartupSummary(): void {
+  if (!import.meta.env.DEV) return
+  const webviewFixedCost = getWebviewFixedCost()
+  const points = getStartupEntries()
+    .map(({ name, at }) => `${name}=${Math.round(at)}ms`)
     .join(' ')
   console.info(
     `[startup] ${points}${webviewFixedCost !== null ? ` (webview 起動固定費 ~${webviewFixedCost}ms)` : ''}`,

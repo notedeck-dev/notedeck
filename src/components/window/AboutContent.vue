@@ -10,6 +10,7 @@ import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { highlightCode, highlighterLoaded } from '@/utils/highlight'
+import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
 import { version as appVersion } from '../../../package.json'
@@ -216,6 +217,33 @@ const updateIcon = computed(() => {
 const buildDate = __BUILD_DATE__
 const gitCommit = __GIT_COMMIT__
 
+// 起動パフォーマンス (#985、#732 の一部)。VS Code の Startup Performance
+// 踏襲: 起動クリティカルパスの計測点をミリ秒表で出す。prod ビルドでは
+// コンソールが落ちるため、実機の起動実測はここが唯一の面になる。
+// 値はセッション固有の静的データ (About を開いた時点の記録を表示)。
+const STARTUP_LABELS: Record<string, string> = {
+  'main-eval': 'スクリプト評価開始',
+  'settings-await': '設定読み込み開始',
+  'settings-loaded': '設定読み込み完了',
+  mounted: 'Vue マウント',
+  'window-shown': 'ウィンドウ表示',
+  'deck-mounted': 'デッキ表示',
+}
+const webviewFixedCost = getWebviewFixedCost()
+const startupRows = getStartupEntries().map((e, i, all) => ({
+  label: STARTUP_LABELS[e.name] ?? e.name,
+  at: Math.round(e.at),
+  delta: Math.round(e.at - (i === 0 ? 0 : (all[i - 1]?.at ?? 0))),
+}))
+
+function getStartupText(): string {
+  const lines = [
+    `WebView 起動: ${webviewFixedCost !== null ? `${webviewFixedCost}ms` : 'N/A (リロード後)'}`,
+    ...startupRows.map((r) => `${r.label}: ${r.at}ms (+${r.delta}ms)`),
+  ]
+  return lines.join('\n')
+}
+
 function parseWebView(ua: string): string {
   const webkit = ua.match(/AppleWebKit\/([\d.]+)/)
   return webkit ? `WebKit ${webkit[1]}` : 'N/A'
@@ -261,7 +289,10 @@ const infoRows = [
 function getInfoText() {
   const info = infoRows.map((r) => `${r.label}: ${r.get()}`).join('\n')
   const diag = diagnosticsLog.value
-  return diag ? `${info}\n\n# 診断\n\`\`\`\n${diag}\n\`\`\`` : info
+  const parts = [info]
+  if (startupRows.length > 0) parts.push(`# 起動\n${getStartupText()}`)
+  if (diag) parts.push(`# 診断\n\`\`\`\n${diag}\n\`\`\``)
+  return parts.join('\n\n')
 }
 
 async function copyInfo() {
@@ -450,6 +481,28 @@ function reportBug() {
           :class="$style.logBlock"
           v-html="highlightCode(diagnosticsLog, 'log')"
         />
+      </div>
+    </div>
+
+    <!-- VS Code の Startup Performance 踏襲 (#985/#732)。表示のみ・設定なし。
+         「情報をコピー」の本文にも同梱されるので、実機確認 issue やバグ報告に
+         そのまま貼れる -->
+    <div v-if="startupRows.length > 0" :class="$style.formSection">
+      <div :class="$style.formSectionLabel">起動パフォーマンス</div>
+      <div :class="$style.startupTable">
+        <div :class="$style.startupRow">
+          <span :class="$style.startupLabel">WebView 起動</span>
+          <span :class="$style.startupDelta" />
+          <span :class="$style.startupAt">{{ webviewFixedCost !== null ? `${webviewFixedCost}ms` : '—' }}</span>
+        </div>
+        <div v-for="row in startupRows" :key="row.label" :class="$style.startupRow">
+          <span :class="$style.startupLabel">{{ row.label }}</span>
+          <span :class="$style.startupDelta">+{{ row.delta }}ms</span>
+          <span :class="$style.startupAt">{{ row.at }}ms</span>
+        </div>
+        <div v-if="webviewFixedCost === null" :class="$style.startupNote">
+          WebView 起動はプロセス初回のナビゲーションでのみ計測されます
+        </div>
       </div>
     </div>
   </div>
@@ -807,6 +860,54 @@ function reportBug() {
 .diagError {
   color: var(--nd-error);
   font-size: 0.9em;
+}
+
+// 起動パフォーマンス表 (VS Code Startup Performance の表体裁):
+// mono + tabular-nums、右列が累計 (navigation 起点)、中列が前区間との差
+.startupTable {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 16px 14px;
+  font-size: 0.85em;
+  font-family: var(--nd-font-mono);
+}
+
+.startupRow {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.startupLabel {
+  flex: 1;
+  min-width: 0;
+  color: var(--nd-fg);
+  opacity: 0.75;
+}
+
+.startupDelta {
+  min-width: 76px;
+  text-align: right;
+  color: var(--nd-fg);
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.startupAt {
+  min-width: 64px;
+  text-align: right;
+  color: var(--nd-fg);
+  font-variant-numeric: tabular-nums;
+  user-select: all;
+}
+
+.startupNote {
+  margin-top: 4px;
+  font-size: 0.85em;
+  color: var(--nd-fg);
+  opacity: 0.5;
+  font-family: inherit;
 }
 
 .logBlock {
