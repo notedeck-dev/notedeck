@@ -225,10 +225,13 @@ const gitCommit = __GIT_COMMIT__
 // 踏襲: 起動クリティカルパスの計測点をウォーターフォール付きの表で出す。
 // prod ビルドではコンソールが落ちるため、実機の起動実測はここが唯一の面。
 // 値はセッション固有の静的データ (About を開いた時点の記録を表示)。
+// 行名は「計測点」ではなく「その行の区間で何をしていたか」で付ける。
+// 例: main-eval の mark は評価開始点なので、区間の実体は「そこに到達する
+// までのモジュール読み込み + 依存の評価」(dev では vite の変換時間が乗る)
 const STARTUP_LABELS: Record<string, string> = {
-  'main-eval': 'スクリプト評価開始',
-  'settings-await': '設定読み込み開始',
-  'settings-loaded': '設定読み込み完了',
+  'main-eval': 'スクリプト読み込み',
+  'settings-await': '初期化処理',
+  'settings-loaded': '設定読み込み',
   mounted: 'Vue マウント',
   'window-shown': 'ウィンドウ表示',
   'deck-mounted': 'デッキ表示',
@@ -572,7 +575,7 @@ function reportBug() {
       </div>
       <div v-if="startupOpen" :class="$style.startupTable">
         <div :class="[$style.startupRow, $style.startupHeader]" aria-hidden="true">
-          <span :class="$style.startupLabel">計測点</span>
+          <span :class="$style.startupLabel">フェーズ</span>
           <span :class="$style.startupTrack" />
           <span :class="$style.startupDelta">区間</span>
           <span :class="$style.startupAt">累計</span>
