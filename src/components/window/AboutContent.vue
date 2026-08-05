@@ -250,7 +250,10 @@ interface StartupRow {
 }
 
 const webviewFixedCost = getWebviewFixedCost()
-const startupRows: StartupRow[] = (() => {
+// セクションを開くたびに最新の計測点を読み直す (deck-mounted のように
+// About を開いた後に記録されるマークを取りこぼさないため)
+const startupRows = computed<StartupRow[]>(() => {
+  void startupOpen.value
   const entries = getStartupEntries()
   if (entries.length === 0) return []
   const base = webviewFixedCost ?? 0
@@ -283,21 +286,22 @@ const startupRows: StartupRow[] = (() => {
     prev = e.at
   }
   return rows
-})()
+})
 
-const startupTotalMs = (() => {
-  const last = startupRows[startupRows.length - 1]
+const startupTotalMs = computed(() => {
+  const last = startupRows.value[startupRows.value.length - 1]
   return last?.cum ?? null
-})()
+})
 
 const fmtMs = (ms: number) => `${ms.toLocaleString()}ms`
 
 function getStartupText(): string {
-  const lines = startupRows.map(
+  const lines = startupRows.value.map(
     (r) =>
       `${r.label}: ${r.cum !== null ? fmtMs(r.cum) : 'N/A (リロード後)'}${r.delta !== null ? ` (+${fmtMs(r.delta)})` : ''}`,
   )
-  if (startupTotalMs !== null) lines.push(`合計: ${fmtMs(startupTotalMs)}`)
+  if (startupTotalMs.value !== null)
+    lines.push(`合計: ${fmtMs(startupTotalMs.value)}`)
   return lines.join('\n')
 }
 
@@ -347,7 +351,7 @@ function getInfoText() {
   const info = infoRows.map((r) => `${r.label}: ${r.get()}`).join('\n')
   const diag = diagnosticsLog.value
   const parts = [info]
-  if (startupRows.length > 0) parts.push(`# 起動\n${getStartupText()}`)
+  if (startupRows.value.length > 0) parts.push(`# 起動\n${getStartupText()}`)
   if (diag) parts.push(`# 診断\n\`\`\`\n${diag}\n\`\`\``)
   return parts.join('\n\n')
 }

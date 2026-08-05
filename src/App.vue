@@ -141,23 +141,32 @@ onMounted(async () => {
   }
 
   // Dismiss splash when deck is mounted.
-  // `immediate: true` なので deck が既にマウント済みなら即 dismiss。
   // 200ms は deckMounted が立たない異常系向けのフォールバック（通常は watch が先行）。
+  // 注意: `immediate: true` の watch でここを書くと、登録時点で deckMounted が
+  // true の場合にコールバックが `const stopWatch` の代入前に同期実行され、
+  // stopWatch() が TDZ で throw する (チャンク分割修正で prod のデッキマウントが
+  // onMounted より速くなり顕在化した)。既マウントは分岐で処理する
   if (document.getElementById('nd-splash')) {
     const splashTimeout = setTimeout(dismissSplash, 200)
-    const stopWatch = watch(
-      () => uiStore.deckMounted,
-      (mounted) => {
-        if (mounted) {
-          clearTimeout(splashTimeout)
-          dismissSplash()
-          stopWatch()
-          markStartup('deck-mounted')
-          logStartupSummary()
-        }
-      },
-      { immediate: true },
-    )
+    const onDeckMounted = () => {
+      clearTimeout(splashTimeout)
+      dismissSplash()
+      markStartup('deck-mounted')
+      logStartupSummary()
+    }
+    if (uiStore.deckMounted) {
+      onDeckMounted()
+    } else {
+      const stopWatch = watch(
+        () => uiStore.deckMounted,
+        (mounted) => {
+          if (mounted) {
+            stopWatch()
+            onDeckMounted()
+          }
+        },
+      )
+    }
   }
 
   // Defer theme account fetching (network I/O) to after first paint
