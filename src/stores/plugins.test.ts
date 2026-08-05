@@ -24,7 +24,22 @@ vi.mock('@/utils/storage', () => {
     setStorageJson: (key: string, value: unknown) => {
       mem.set(key, value)
     },
-    removeStorageByPrefix: vi.fn(),
+    getStorageByPrefix: (prefix: string) => {
+      const out: Record<string, string> = {}
+      for (const [key, value] of mem) {
+        if (key.startsWith(prefix) && typeof value === 'string')
+          out[key] = value
+      }
+      return out
+    },
+    setStorageString: (key: string, value: string) => {
+      mem.set(key, value)
+    },
+    removeStorageByPrefix: (prefix: string) => {
+      for (const key of [...mem.keys()]) {
+        if (key.startsWith(prefix)) mem.delete(key)
+      }
+    },
     __mem: mem,
   }
 })
@@ -39,7 +54,12 @@ import {
   type PluginMeta,
   usePluginsStore,
 } from '@/stores/plugins'
-import { STORAGE_KEYS, setStorageJson } from '@/utils/storage'
+import {
+  getStorageByPrefix,
+  STORAGE_KEYS,
+  setStorageJson,
+  setStorageString,
+} from '@/utils/storage'
 
 function makePlugin(partial: Partial<PluginMeta>): PluginMeta {
   return {
@@ -255,5 +275,59 @@ describe('レガシーデータ移行 (#771)', () => {
     const p = store.getPlugin('p1')
     expect(p?.global).toBeUndefined()
     expect(p?.installedFor).toEqual(['yami.ski:u1', 'misskey.cloud:u2'])
+  })
+})
+
+describe('removePlugin (undo) — #988', () => {
+  it('元の位置に戻す undo を返す', () => {
+    setStorageJson(STORAGE_KEYS.plugins, [
+      makePlugin({ installId: 'p1' }),
+      makePlugin({ installId: 'p2', src: '### { name: "p2" }' }),
+      makePlugin({ installId: 'p3' }),
+    ])
+    const store = usePluginsStore()
+    store.ensureLoaded()
+
+    const undo = store.removePlugin('p2')
+    expect(store.getPlugin('p2')).toBeUndefined()
+    expect(undo).toBeTypeOf('function')
+
+    undo?.()
+    expect(store.plugins.map((p) => p.installId)).toEqual(['p1', 'p2', 'p3'])
+    expect(store.getPlugin('p2')?.src).toBe('### { name: "p2" }')
+  })
+
+  it('未知の installId には undefined を返す', () => {
+    const store = usePluginsStore()
+    store.ensureLoaded()
+    expect(store.removePlugin('nope')).toBeUndefined()
+  })
+
+  it('undo で AiScript の保存領域も復元する', () => {
+    setStorageJson(STORAGE_KEYS.plugins, [makePlugin({ installId: 'p1' })])
+    const store = usePluginsStore()
+    store.ensureLoaded()
+    setStorageString(`${STORAGE_KEYS.aiscriptPlugin('p1')}:counter`, '42')
+
+    const undo = store.removePlugin('p1')
+    expect(getStorageByPrefix(STORAGE_KEYS.aiscriptPlugin('p1'))).toEqual({})
+
+    undo?.()
+    expect(getStorageByPrefix(STORAGE_KEYS.aiscriptPlugin('p1'))).toEqual({
+      [`${STORAGE_KEYS.aiscriptPlugin('p1')}:counter`]: '42',
+    })
+  })
+
+  it('undo までに同じ installId が再追加されていたら二重化しない', () => {
+    setStorageJson(STORAGE_KEYS.plugins, [makePlugin({ installId: 'p1' })])
+    const store = usePluginsStore()
+    store.ensureLoaded()
+
+    const undo = store.removePlugin('p1')
+    store.plugins = [makePlugin({ installId: 'p1', name: 'readded' })]
+    undo?.()
+
+    expect(store.plugins.filter((p) => p.installId === 'p1')).toHaveLength(1)
+    expect(store.getPlugin('p1')?.name).toBe('readded')
   })
 })

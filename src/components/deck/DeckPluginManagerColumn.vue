@@ -26,6 +26,7 @@ import {
   type PluginScope,
   usePluginsStore,
 } from '@/stores/plugins'
+import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
@@ -319,13 +320,18 @@ const { confirm } = useConfirm()
 async function deleteFromLibrary(plugin: PluginMeta) {
   const ok = await confirm({
     title: 'プラグインを削除',
-    message: `「${plugin.name}」をライブラリから削除しますか？プラグインのコードも消えます。この操作は取り消せません。`,
+    message: `「${plugin.name}」をライブラリから削除しますか？プラグインのコードも消えます。`,
     okLabel: '削除',
     type: 'danger',
   })
   if (!ok) return
   abortPlugin(plugin.installId)
-  pluginsStore.removePlugin(plugin.installId)
+  const undo = pluginsStore.removePlugin(plugin.installId)
+  if (undo) {
+    useToast().show('プラグインを削除しました', 'info', {
+      action: { label: '元に戻す', onClick: undo },
+    })
+  }
 }
 </script>
 
