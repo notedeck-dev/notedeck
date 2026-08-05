@@ -5,6 +5,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
+import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import {
   getThemeDetailUrl,
@@ -12,6 +13,7 @@ import {
   useMisStoreStore,
 } from '@/stores/misstore'
 import { useThemeStore } from '@/stores/theme'
+import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { MI_DARK, MI_LIGHT } from '@/theme/builtinThemes'
 import type { MisskeyTheme } from '@/theme/types'
@@ -306,18 +308,60 @@ function editTheme(entry: ThemeEntry) {
   })
 }
 
-function removeTheme(entry: ThemeEntry) {
+const { confirm } = useConfirm()
+
+/** このカラムのアカウントを外すとテーマ本体ごと消えるか (installedFor が空になる)。 */
+function isLastAccountForTheme(theme: MisskeyTheme): boolean {
+  const installedFor = theme.$notedeck?.installedFor
+  if (!installedFor) return false
+  return installedFor.every((id) => id === accountId.value)
+}
+
+async function removeTheme(entry: ThemeEntry) {
   if (!isCrossAccount.value && accountId.value) {
     // per-account カラムからの除去は「このアカウントから外す」のみ
     // (installedFor から accountId を抜き、空になれば完全削除)。同時に
     // accountThemeCache の per-column 適用も解除して meta default にフォール
     // バックさせる (ユーザーが × したテーマがそのカラムに当たり続けると混乱)。
+    //
+    // ただし紐付けが自分だけのときは本体ごと消える。無言で消さず、完全削除と
+    // 同じ confirm → 元に戻せるトーストを通す (#988)。
     const mode = entry.theme.base ?? 'dark'
-    themeStore.unlinkAccountFromTheme(entry.theme.id, accountId.value)
+    if (isLastAccountForTheme(entry.theme)) {
+      const ok = await confirm({
+        title: 'テーマを削除',
+        message: `「${entry.theme.name}」はこのアカウントにのみ紐付いています。外すとテーマ自体が削除されます。削除しますか？`,
+        okLabel: '削除',
+        type: 'danger',
+      })
+      if (!ok) return
+    }
+    const undo = themeStore.unlinkAccountFromTheme(
+      entry.theme.id,
+      accountId.value,
+    )
     themeStore.clearAccountTheme(mode, accountId.value)
+    if (undo) {
+      useToast().show('テーマを削除しました', 'info', {
+        action: { label: '元に戻す', onClick: undo },
+      })
+    }
   } else {
-    // cross-account (Global) からは完全削除
-    themeStore.removeTheme(entry.theme.id)
+    // cross-account (Global) からは完全削除。他の配布物 (skill / widget /
+    // plugin / query) と同じく confirm → 元に戻せるトースト (#988)
+    const ok = await confirm({
+      title: 'テーマを削除',
+      message: `「${entry.theme.name}」を削除しますか？テーマの設定も消えます。`,
+      okLabel: '削除',
+      type: 'danger',
+    })
+    if (!ok) return
+    const undo = themeStore.removeTheme(entry.theme.id)
+    if (undo) {
+      useToast().show('テーマを削除しました', 'info', {
+        action: { label: '元に戻す', onClick: undo },
+      })
+    }
   }
 }
 

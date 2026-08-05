@@ -20,7 +20,9 @@ import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { useConfirm } from '@/stores/confirm'
 import { useThemeStore } from '@/stores/theme'
+import { useToast } from '@/stores/toast'
 import { DARK_BASE, LIGHT_BASE } from '@/theme/builtinThemes'
 import { parseColor } from '@/theme/colorUtils'
 import { compileMisskeyTheme } from '@/theme/compiler'
@@ -42,6 +44,7 @@ const props = defineProps<{
 }>()
 
 const themeStore = useThemeStore()
+const { confirm } = useConfirm()
 
 const { tab, containerRef: editorRef } = useEditorTabs(
   ['visual', 'code'] as const,
@@ -405,9 +408,23 @@ function loadFromInstalled(theme: MisskeyTheme) {
 }
 
 // Delete installed theme
-function deleteInstalledTheme(theme: MisskeyTheme, e: Event) {
+// 他の配布物 (skill / widget / plugin / query) と同じく confirm → 元に戻せる
+// トースト (#988)
+async function deleteInstalledTheme(theme: MisskeyTheme, e: Event) {
   e.stopPropagation()
-  themeStore.removeTheme(theme.id)
+  const ok = await confirm({
+    title: 'テーマを削除',
+    message: `「${theme.name}」を削除しますか？テーマの設定も消えます。`,
+    okLabel: '削除',
+    type: 'danger',
+  })
+  if (!ok) return
+  const undo = themeStore.removeTheme(theme.id)
+  if (undo) {
+    useToast().show('テーマを削除しました', 'info', {
+      action: { label: '元に戻す', onClick: undo },
+    })
+  }
 }
 
 // Section expand states (default: all collapsed)

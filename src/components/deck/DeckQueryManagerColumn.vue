@@ -16,6 +16,7 @@ import {
   type StoreQueryEntry,
   useMisStoreStore,
 } from '@/stores/misstore'
+import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
 import ColumnSection from './ColumnSection.vue'
@@ -138,11 +139,17 @@ async function remove(query: NamedQueryMeta): Promise<void> {
     message:
       used > 0
         ? `「${query.name}」は ${used} 個のカラムで使用中です。削除するとそれらのカラムは評価不能 (fail-closed) になります。削除しますか？`
-        : `「${query.name}」を削除しますか？`,
+        : `「${query.name}」を削除しますか？クエリの本文も消えます。`,
+    okLabel: '削除',
     type: 'danger',
   })
   if (!ok) return
-  await queriesStore.removeQuery(query.id)
+  const undo = await queriesStore.removeQuery(query.id)
+  if (undo) {
+    useToast().show('クエリを削除しました', 'info', {
+      action: { label: '元に戻す', onClick: undo },
+    })
+  }
 }
 
 // --- Store tab ---
