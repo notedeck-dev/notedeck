@@ -20,7 +20,7 @@
   <body>
     <div id="app"></div>
     <script>
-      // Linear-style instant display: restore cached UI shell, or show splash.
+      // Boot script: restore theme CSS variables, then show splash until Vue mounts.
       (function () {
         var root = document.documentElement
         // 0. Safe mode (#794). CLI 引数 (--safe-mode → Rust の initialization script)
@@ -59,28 +59,18 @@
               }
             }
           }
-          // 2. Restore cached HTML shell — or fall back to splash screen
-          var shellVersion = localStorage.getItem('nd-shell-cache-version')
-          var shell = shellVersion === '__ND_APP_VERSION__'
-            ? localStorage.getItem('nd-shell-cache')
-            : null
-          if (shell) {
-            document.getElementById('app').innerHTML = shell
-            root.dataset.shellCached = ''
-          } else if (shellVersion) {
-            localStorage.removeItem('nd-shell-cache')
-            localStorage.removeItem('nd-shell-cache-version')
-          }
+          // 2. シェルキャッシュ (#985 で廃止) の残骸を消す。前回表示ノートの
+          //    本文が平文で残っており、プライバシー面からも積極削除する
+          localStorage.removeItem('nd-shell-cache')
+          localStorage.removeItem('nd-shell-cache-version')
         } catch (e) {
-          // Corrupt cache — fall through to splash
+          // localStorage 不可 — 通常起動として続行
         }
-        // 3. Show splash only when no cache is available (first launch)
-        if (!root.dataset.shellCached) {
-          var splash = document.createElement('div')
-          splash.id = 'nd-splash'
-          splash.innerHTML = '<svg width="48" height="48" viewBox="0 0 512 512"><defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#aad635"/><stop offset="100%" stop-color="#7ab800"/></linearGradient></defs><g fill="url(#fg)"><rect x="72" y="136" width="100" height="280" rx="36"/><rect x="206" y="136" width="100" height="280" rx="36"/><rect x="340" y="136" width="100" height="280" rx="36"/><polygon points="136,136 189,224 242,136"/><polygon points="270,136 323,224 376,136"/></g></svg>'
-          document.body.prepend(splash)
-        }
+        // 3. Show splash until the Vue app mounts and dismisses it
+        var splash = document.createElement('div')
+        splash.id = 'nd-splash'
+        splash.innerHTML = '<svg width="48" height="48" viewBox="0 0 512 512"><defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#aad635"/><stop offset="100%" stop-color="#7ab800"/></linearGradient></defs><g fill="url(#fg)"><rect x="72" y="136" width="100" height="280" rx="36"/><rect x="206" y="136" width="100" height="280" rx="36"/><rect x="340" y="136" width="100" height="280" rx="36"/><polygon points="136,136 189,224 242,136"/><polygon points="270,136 323,224 376,136"/></g></svg>'
+        document.body.prepend(splash)
       })()
     </script>
     <script type="module" src="/src/main.ts"></script>

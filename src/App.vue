@@ -21,12 +21,6 @@ import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { useLogsStore } from '@/stores/logs'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { exitSafeMode, readSafeMode } from '@/utils/safeMode'
-import {
-  getStorageString,
-  removeStorage,
-  STORAGE_KEYS,
-  setStorageString,
-} from '@/utils/storage'
 
 const uiStore = useUiStore()
 const { isTauri, isDesktop } = uiStore
@@ -113,23 +107,7 @@ if (isTauri && !isPipWindow.value) {
 // Listen for PiP IPC events (main window only)
 let cleanupPipListener: (() => void) | null = null
 
-// Cache UI shell on unload for instant display on next launch (Linear-style).
-function saveShellCache() {
-  if (isPipWindow.value) return
-  try {
-    const app = document.getElementById('app')
-    if (!app) return
-    const html = app.innerHTML
-    if (html.length > 2_000_000) return // Skip if too large for localStorage
-    setStorageString(STORAGE_KEYS.shellCache, html)
-    setStorageString(STORAGE_KEYS.shellCacheVersion, __APP_VERSION__)
-  } catch {
-    // Storage full or other error — skip silently
-  }
-}
-window.addEventListener('beforeunload', saveShellCache)
-
-// Dismiss splash screen (shown only when no shell cache exists).
+// Dismiss splash screen (inserted by the index.html boot script).
 function dismissSplash() {
   const el = document.getElementById('nd-splash')
   if (!el) return
@@ -139,14 +117,6 @@ function dismissSplash() {
 }
 
 onMounted(async () => {
-  // Invalidate shell cache if app version changed (CSS Modules hashes may differ)
-  const cachedVersion = getStorageString(STORAGE_KEYS.shellCacheVersion)
-  if (cachedVersion && cachedVersion !== __APP_VERSION__) {
-    removeStorage(STORAGE_KEYS.shellCache)
-    removeStorage(STORAGE_KEYS.shellCacheVersion)
-  }
-  // Clear shell-cached flag so entrance animations are re-enabled
-  delete document.documentElement.dataset.shellCached
   // Set platform attributes on html element for CSS targeting (independent of viewport width)
   const { platformName } = uiStore
   if (platformName) {
@@ -168,7 +138,7 @@ onMounted(async () => {
     await getCurrentWindow().show().catch(catchIgnore('window.show'))
   }
 
-  // Dismiss splash when deck is mounted (only exists on first launch without cache).
+  // Dismiss splash when deck is mounted.
   // `immediate: true` なので deck が既にマウント済みなら即 dismiss。
   // 200ms は deckMounted が立たない異常系向けのフォールバック（通常は watch が先行）。
   if (document.getElementById('nd-splash')) {

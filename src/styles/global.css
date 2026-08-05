@@ -234,15 +234,6 @@ body {
 #app {
   height: 100%;
 }
-/* Shell cache: hide #app until CSS bundle loads (FOUC prevention).
-   index.html sets visibility:hidden; this rule overrides it once CSS is ready. */
-html[data-shell-cached] #app {
-  visibility: visible;
-}
-/* Skip entrance animations when restoring from UI shell cache. */
-html[data-shell-cached] * {
-  animation: none !important;
-}
 a {
   color: var(--nd-link);
   text-decoration: none;

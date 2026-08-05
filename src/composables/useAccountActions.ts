@@ -10,7 +10,6 @@ import { useStreamingStore } from '@/stores/streaming'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { purgeNotificationCacheForAccount } from '@/utils/notificationCache'
-import { removeStorage, STORAGE_KEYS } from '@/utils/storage'
 import { openSafeUrl, webUiUrl } from '@/utils/url'
 
 export function useAccountActions() {
@@ -38,8 +37,6 @@ export function useAccountActions() {
   function logoutKeepData(acc: Account) {
     streamingStore.disconnect(acc.id)
     accountsStore.logoutAccount(acc.id)
-    removeStorage(STORAGE_KEYS.shellCache)
-    removeStorage(STORAGE_KEYS.shellCacheVersion)
   }
 
   /** アカウントとカラムをすべて削除する */
@@ -60,8 +57,6 @@ export function useAccountActions() {
       )
       return
     }
-    removeStorage(STORAGE_KEYS.shellCache)
-    removeStorage(STORAGE_KEYS.shellCacheVersion)
     // 通知キャッシュは notecli DB ではなく localStorage なので個別に消す。
     // cross-account 通知カラムの分は該当アカウント entry のみ除去する
     purgeNotificationCacheForAccount(acc.id)

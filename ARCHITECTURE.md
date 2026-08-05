@@ -811,41 +811,23 @@ viewport layer は同時 live 数に上限を持つ。
 
 ### 起動フロー仕様
 
-#### UI シェルキャッシュ（Linear 式）
+#### UI シェルキャッシュは廃止（#985）
 
-`beforeunload` 時に `#app` の innerHTML + テーマ CSS 変数を localStorage に保存し、次回起動時に Vue より先に復元する。キャッシュがあれば前回の画面が即表示され、スプラッシュは表示されない。
+かつて `beforeunload` 時に `#app` の innerHTML を localStorage に保存し次回起動時に復元する「UI シェルキャッシュ（Linear 式）」が存在したが、#985 の調査で以下が確定し**廃止した**。再導入は採用しない:
 
-`index.html` のインラインスクリプト（同期実行）:
-1. localStorage から `nd-theme-compiled` を読み、`<html>` に CSS 変数を適用
-2. localStorage から `nd-shell-cache` を読み、`#app.innerHTML` に注入
-3. キャッシュがなければ HEARTBEAT スプラッシュを DOM に挿入
+- 復元されたシェルは `visible: false` の不可視期間内に `app.mount()`（createApp = hydration なし）が全破棄するため、原理的に一度も画面に出ない
+- 保存トリガーが `beforeunload` 単独で、トレイ運用（close → hide）でもトレイ Quit（`app.exit(0)`）でも発火せず、実際にはほぼ保存されていなかった
+- 前回表示ノートの本文が localStorage に平文で残るプライバシー面の欠陥
+- 「本物にする」には mount 前のウィンドウ表示前倒し（WebView2 白フラッシュ対策と衝突）+ hydration（Vapor 制約 #52 と衝突）が必要で、得られるのは操作不能な静止画のみ
 
-FOUC 防止: `index.html` で `html[data-shell-cached] #app { visibility: hidden }` を設定し、Vite の CSS バンドル（`global.css`）がロードされた時点で `visibility: visible` に上書き。CSS Modules と同時に表示される。
+#### Cold Start
 
-#### Cold Start（キャッシュあり）
-
-1. `index.html` がキャッシュ HTML + テーマ CSS 変数を即復元（上記）
-2. Vite が JS/CSS をロード → CSS 適用と同時にキャッシュ HTML が visible に
-3. `app.mount('#app')` がキャッシュ HTML を Vue の live DOM に置き換え
-4. viewport manager が active / neighbor を判定
-5. 各対象カラムは snapshot を同期表示
+1. `index.html` のインラインスクリプト（同期実行）が localStorage の `nd-theme-compiled` から CSS 変数を `<html>` に適用し、HEARTBEAT スプラッシュを挿入
+2. Vite が JS/CSS をロード → `app.mount('#app')`
+3. `App.vue` の `onMounted` がウィンドウを `show()`（`visible: false` 起動のため）
+4. `DeckLayout` が全カラムの shell を即描画し、`deckMounted = true` でスプラッシュをフェードアウト
+5. viewport manager が active / neighbor を判定、各カラムは SQLite キャッシュを表示
 6. `AccountSession` を attach → stream 購読 → `live` に移行
-
-ユーザーから見ると、step 1 で前回の画面が即表示され、step 3 の置き換えはシームレス。
-
-#### Cold Start（キャッシュなし / 初回起動）
-
-1. HEARTBEAT スプラッシュを表示
-2. `DeckLayout` が全カラムの shell を即描画
-3. `deckMounted = true` でスプラッシュをフェードアウト
-4. 以降はキャッシュありと同じ（step 4-6）
-
-#### キャッシュの無効化
-
-- バージョン不一致: `onMounted` で `__APP_VERSION__` と比較し、異なればキャッシュ削除（次回起動でスプラッシュに）
-- ログアウト / アカウント削除: `useAccountActions` でキャッシュクリア（プライバシー保護）
-- PiP ウィンドウ: キャッシュ保存をスキップ（メインウィンドウのキャッシュを上書きしない）
-- 容量ガード: innerHTML が 2MB を超える場合は保存をスキップ
 
 #### Resume / Foreground 復帰
 
@@ -1003,7 +985,7 @@ column は `createSubscription()` で subscription を登録し、handler maps�
 | 同一 account の adapter / MisskeyStream が 1 インスタンス | Phase 1 | **達成済み**（adapter cache 導入） |
 | カラム数が増えても同時 live 数が一定 | Phase 2 | **達成済み**（`maxLiveColumns` budget） |
 | off-screen column が CPU と stream listener をほぼ消費しない | Phase 2 | **達成済み**（pause + unsub + live budget） |
-| 2回目以降の起動で前回の画面が即表示される | — | **達成済み**（UI シェルキャッシュ） |
+| 2回目以降の起動で前回の画面が即表示される | — | **未達**（UI シェルキャッシュは #985 で「原理的に画面に出ない」ことが確定し廃止。SQLite ノートキャッシュの即表示が実効経路） |
 
 ### 現行構成との対応
 
@@ -1017,7 +999,7 @@ column は `createSubscription()` で subscription を登録し、handler maps�
 | 同時 live 数制限 | `useColumnMount` の `maxLiveColumns` budget | **実装済み** | active からの距離順に budget 配分 |
 | 可視性制御 | `useColumnMount` + `maxLiveColumns` | **実装済み** | — |
 | off-screen pause | `useNoteColumn` で streaming batch 処理を pause | **実装済み** | 変更不要 |
-| snapshot 復元 | `useSnapshotStore`（ID-only, TTL） + shell preview | **実装済み** | — |
+| snapshot 復元 | `useSnapshotStore`（ID-only, TTL、インメモリ = 再起動を跨がない） + shell preview | **実装済み** | — |
 | note invalidation | `noteStore`（RAF batch + skipTrigger） | **実装済み** | 変更不要（計測の結果、コスト無視できる） |
 
 ---

@@ -209,15 +209,6 @@ function preloadTablerFont(): Plugin {
   }
 }
 
-function injectAppVersion(): Plugin {
-  return {
-    name: 'inject-app-version',
-    transformIndexHtml(html) {
-      return html.replaceAll('__ND_APP_VERSION__', appVersion)
-    },
-  }
-}
-
 /**
  * Unicode 絵文字の Twemoji SVG を同梱して `/twemoji/` で配る (#855)。
  * CDN (jsdelivr) から 1 絵文字 1 リクエストで取る方式は、ピッカー初回表示で
@@ -266,7 +257,6 @@ export default defineConfig({
     stripUnusedFonts(),
     subsetTablerIcons(),
     preloadTablerFont(),
-    injectAppVersion(),
     twemojiAssets(),
   ],
   resolve: {
