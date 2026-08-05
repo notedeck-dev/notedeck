@@ -41,6 +41,10 @@ function openTutorial(): void {
 // バージョン情報テーブルは普段は畳んでおく (必要なのはバグ報告・コピー時で、
 // その2つは表示に依存せず infoRows から本文を生成する)
 const infoOpen = ref(false)
+// 自己診断 / 起動パフォーマンスも同じ方針で畳む。閉じたままでも要点
+// (ステータス / 合計) はヘッダ右端のバッジで分かる
+const diagOpen = ref(false)
+const startupOpen = ref(false)
 
 // ロゴのイースターエッグ: クリックすると HEARTBEAT にちなんだ鼓動を打つ。
 // 一度 class を外してから付け直すことで、連打や中断後も確実に再発火させる
@@ -506,19 +510,35 @@ function reportBug() {
       </div>
     </div>
 
+    <!-- 自己診断 / 起動パフォーマンスは畳んでおく (バージョン情報と同じ
+         infoToggle パターン)。閉じたまま要点が分かるよう、ヘッダ右端に
+         ステータス / 合計をバッジ的に出す -->
     <div :class="$style.formSection">
-      <div :class="$style.formSectionLabel">自己診断</div>
-      <div :class="$style.diag">
-        <div :class="$style.diagHead">
+      <div :class="$style.infoHead">
+        <button
+          type="button"
+          class="_button"
+          :class="[$style.formSectionLabel, $style.infoToggle, diagOpen && $style.infoOpen]"
+          @click="diagOpen = !diagOpen"
+        >
+          自己診断
+          <i class="ti ti-chevron-down" :class="$style.infoChevron" />
+        </button>
+        <span :class="$style.headBadge">
           <i
             :class="[
-              healthLoading ? 'ti ti-loader-2' : healthError ? STATUS_ICON.fail : STATUS_ICON[overallStatus],
+              healthLoading ? 'ti ti-loader-2 nd-spin' : healthError ? STATUS_ICON.fail : STATUS_ICON[overallStatus],
               $style.diagIcon,
               !healthLoading && !healthError && $style[overallStatus],
               healthError && $style.fail,
             ]"
           />
-          <span :class="$style.diagSummary">{{ healthSummary }}</span>
+          {{ healthSummary }}
+        </span>
+      </div>
+      <div v-if="diagOpen" :class="$style.diag">
+        <div :class="$style.diagHead">
+          <span :class="$style.diagSummary">{{ problemChecks.length === 0 && !healthError ? '問題は見つかりませんでした' : healthSummary }}</span>
           <button class="_button" :class="$style.diagRefresh" :disabled="healthLoading" title="再診断" @click="runHealthcheck">
             <i class="ti ti-refresh" />
           </button>
@@ -538,11 +558,19 @@ function reportBug() {
          「情報をコピー」の本文にも同梱されるので、実機確認 issue やバグ報告に
          そのまま貼れる -->
     <div v-if="startupRows.length > 0" :class="$style.formSection">
-      <div :class="$style.startupHead">
-        <span :class="$style.formSectionLabel">起動パフォーマンス</span>
-        <span v-if="startupTotalMs !== null" :class="$style.startupTotal">{{ fmtMs(startupTotalMs) }}</span>
+      <div :class="$style.infoHead">
+        <button
+          type="button"
+          class="_button"
+          :class="[$style.formSectionLabel, $style.infoToggle, startupOpen && $style.infoOpen]"
+          @click="startupOpen = !startupOpen"
+        >
+          起動パフォーマンス
+          <i class="ti ti-chevron-down" :class="$style.infoChevron" />
+        </button>
+        <span v-if="startupTotalMs !== null" :class="[$style.headBadge, $style.startupTotal]">{{ fmtMs(startupTotalMs) }}</span>
       </div>
-      <div :class="$style.startupTable">
+      <div v-if="startupOpen" :class="$style.startupTable">
         <div :class="[$style.startupRow, $style.startupHeader]" aria-hidden="true">
           <span :class="$style.startupLabel">計測点</span>
           <span :class="$style.startupTrack" />
@@ -934,25 +962,34 @@ function reportBug() {
   font-size: 0.9em;
 }
 
-// 起動パフォーマンス (VS Code Startup Performance の表体裁):
-// ヘッダ行 + 薄い行区切り + 行ホバー + ウォーターフォールバー。
-// 数値は mono + tabular-nums の右揃え
-.startupHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding-right: 16px;
+// 折りたたみヘッダ右端のバッジ (診断ステータス / 起動合計)。
+// infoCopy と同じ絶対配置で、トグルのクリック領域を妨げない
+.headBadge {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  font-size: 0.8em;
+  color: var(--nd-fg);
+  opacity: 0.75;
 }
 
-// 見出し右端の合計 (プロセス起動 → デッキ表示)。これが「起動は一瞬」の実測値
+// 起動合計 (プロセス起動 → デッキ表示)。これが「起動は一瞬」の実測値
 .startupTotal {
-  font-size: 0.85em;
   font-weight: bold;
   color: var(--nd-accent);
+  opacity: 1;
   font-family: var(--nd-font-mono);
   font-variant-numeric: tabular-nums;
 }
 
+// 起動パフォーマンス (VS Code Startup Performance の表体裁):
+// ヘッダ行 + 薄い行区切り + 行ホバー + ウォーターフォールバー。
+// 数値は mono + tabular-nums の右揃え
 .startupTable {
   display: flex;
   flex-direction: column;
