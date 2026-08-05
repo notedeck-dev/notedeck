@@ -29,9 +29,17 @@ export function markStartup(name: string): void {
 /** deck 表示到達時に 1 回だけ呼ぶ。dev ではコンソールにサマリを出す */
 export function logStartupSummary(): void {
   if (!import.meta.env.DEV) return
-  const webviewFixedCost = window.__ND_PROCESS_START__
-    ? Math.round(performance.timeOrigin - window.__ND_PROCESS_START__)
-    : null
+  // WebView 起動固定費が意味を持つのは初回ナビゲーションだけ。リロードでは
+  // timeOrigin だけが更新され、注入されたプロセス起動時刻との差が
+  // 「プロセス起動からの経過時間」になってしまうので出さない
+  const nav = performance.getEntriesByType('navigation')[0] as
+    | PerformanceNavigationTiming
+    | undefined
+  const isFirstNavigation = nav?.type === 'navigate'
+  const webviewFixedCost =
+    isFirstNavigation && window.__ND_PROCESS_START__
+      ? Math.round(performance.timeOrigin - window.__ND_PROCESS_START__)
+      : null
   const points = [...marks.entries()]
     .sort((a, b) => a[1] - b[1])
     .map(([name, t]) => `${name}=${Math.round(t)}ms`)
