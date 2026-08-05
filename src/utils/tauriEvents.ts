@@ -15,6 +15,8 @@ import type { OgpData } from '@/utils/ogp'
 export interface TauriEventPayloads {
   // Rust → JS
   'nd:accounts-early': Account[]
+  /** バックエンド初期化の致命エラー (DB open 失敗など)。payload はメッセージ */
+  'nd:backend-fatal': string
   'nd:hwheel': number
   'nd:quick-note': undefined
   'nd:toggle-offline-mode': undefined

@@ -445,6 +445,37 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             let _ = tauri::Emitter::emit(&app_handle, "nd:backend-ready", ());
         });
 
+        // ウィンドウ表示の最後の砦 (#985)。初回表示は App.vue onMounted の
+        // getCurrentWindow().show() が唯一の経路で、フロントが mount に到達
+        // できない異常時 (JS 例外・チャンク読込失敗・await hang) はウィンドウが
+        // 永久に不可視のままになる。可視性をポーリングし、一度でも visible を
+        // 観測したら正常起動として解除。期限まで一度も可視にならなかった場合
+        // のみ show() する。単発チェックにしないのは、正常起動直後に Boss Key
+        // やトレイで隠したウィンドウを誤って再表示しないため。
+        // 期限は通常起動の最悪値より十分外側の保険。チューニング禁止。
+        // autostart の --minimized (未実装の予約語) を実装する際は要再検討。
+        {
+            let fuse_handle = app.app_handle().clone();
+            std::thread::spawn(move || {
+                let poll = std::time::Duration::from_millis(500);
+                for _ in 0..20 {
+                    std::thread::sleep(poll);
+                    let Some(w) = fuse_handle.get_webview_window("main") else {
+                        return;
+                    };
+                    if w.is_visible().unwrap_or(true) {
+                        return;
+                    }
+                }
+                if let Some(w) = fuse_handle.get_webview_window("main") {
+                    tracing::warn!(
+                        "main window never became visible; forcing show (frontend may have failed to mount)"
+                    );
+                    let _ = w.show();
+                }
+            });
+        }
+
         // Periodic credential cache cleanup (every 5 minutes)
         tauri::async_runtime::spawn(async {
             let interval = std::time::Duration::from_secs(5 * 60);
