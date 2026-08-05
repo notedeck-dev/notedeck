@@ -218,8 +218,8 @@ const buildDate = __BUILD_DATE__
 const gitCommit = __GIT_COMMIT__
 
 // 起動パフォーマンス (#985、#732 の一部)。VS Code の Startup Performance
-// 踏襲: 起動クリティカルパスの計測点をミリ秒表で出す。prod ビルドでは
-// コンソールが落ちるため、実機の起動実測はここが唯一の面になる。
+// 踏襲: 起動クリティカルパスの計測点をウォーターフォール付きの表で出す。
+// prod ビルドではコンソールが落ちるため、実機の起動実測はここが唯一の面。
 // 値はセッション固有の静的データ (About を開いた時点の記録を表示)。
 const STARTUP_LABELS: Record<string, string> = {
   'main-eval': 'スクリプト評価開始',
@@ -229,18 +229,68 @@ const STARTUP_LABELS: Record<string, string> = {
   'window-shown': 'ウィンドウ表示',
   'deck-mounted': 'デッキ表示',
 }
+
+interface StartupRow {
+  label: string
+  /** 前区間との差 (ms)。計測不能 (リロード後の WebView 起動) は null */
+  delta: number | null
+  /** プロセス起動からの累計 (ms)。WebView 起動が取れない場合は navigation 起点 */
+  cum: number | null
+  /** ウォーターフォールバーの位置 (全体比 %) */
+  left: string
+  width: string
+  emphasis: boolean
+}
+
 const webviewFixedCost = getWebviewFixedCost()
-const startupRows = getStartupEntries().map((e, i, all) => ({
-  label: STARTUP_LABELS[e.name] ?? e.name,
-  at: Math.round(e.at),
-  delta: Math.round(e.at - (i === 0 ? 0 : (all[i - 1]?.at ?? 0))),
-}))
+const startupRows: StartupRow[] = (() => {
+  const entries = getStartupEntries()
+  if (entries.length === 0) return []
+  const base = webviewFixedCost ?? 0
+  const total = base + (entries[entries.length - 1]?.at ?? 0)
+  const seg = (start: number, end: number) => ({
+    left: `${(start / total) * 100}%`,
+    // 数 ms の区間も見えるよう最小幅を確保する
+    width: `${Math.max(((end - start) / total) * 100, 0.75)}%`,
+  })
+  const rows: StartupRow[] = [
+    {
+      label: 'WebView 起動',
+      delta: webviewFixedCost,
+      cum: webviewFixedCost,
+      ...(webviewFixedCost !== null
+        ? seg(0, webviewFixedCost)
+        : { left: '0%', width: '0%' }),
+      emphasis: false,
+    },
+  ]
+  let prev = 0
+  for (const e of entries) {
+    rows.push({
+      label: STARTUP_LABELS[e.name] ?? e.name,
+      delta: Math.round(e.at - prev),
+      cum: Math.round(base + e.at),
+      ...seg(base + prev, base + e.at),
+      emphasis: e.name === 'deck-mounted',
+    })
+    prev = e.at
+  }
+  return rows
+})()
+
+const startupTotalMs = (() => {
+  const last = startupRows[startupRows.length - 1]
+  return last?.cum ?? null
+})()
+
+const fmtMs = (ms: number) => `${ms.toLocaleString()}ms`
 
 function getStartupText(): string {
-  const lines = [
-    `WebView 起動: ${webviewFixedCost !== null ? `${webviewFixedCost}ms` : 'N/A (リロード後)'}`,
-    ...startupRows.map((r) => `${r.label}: ${r.at}ms (+${r.delta}ms)`),
-  ]
+  const lines = startupRows.map(
+    (r) =>
+      `${r.label}: ${r.cum !== null ? fmtMs(r.cum) : 'N/A (リロード後)'}${r.delta !== null ? ` (+${fmtMs(r.delta)})` : ''}`,
+  )
+  if (startupTotalMs !== null) lines.push(`合計: ${fmtMs(startupTotalMs)}`)
   return lines.join('\n')
 }
 
@@ -488,20 +538,35 @@ function reportBug() {
          「情報をコピー」の本文にも同梱されるので、実機確認 issue やバグ報告に
          そのまま貼れる -->
     <div v-if="startupRows.length > 0" :class="$style.formSection">
-      <div :class="$style.formSectionLabel">起動パフォーマンス</div>
+      <div :class="$style.startupHead">
+        <span :class="$style.formSectionLabel">起動パフォーマンス</span>
+        <span v-if="startupTotalMs !== null" :class="$style.startupTotal">{{ fmtMs(startupTotalMs) }}</span>
+      </div>
       <div :class="$style.startupTable">
-        <div :class="$style.startupRow">
-          <span :class="$style.startupLabel">WebView 起動</span>
-          <span :class="$style.startupDelta" />
-          <span :class="$style.startupAt">{{ webviewFixedCost !== null ? `${webviewFixedCost}ms` : '—' }}</span>
+        <div :class="[$style.startupRow, $style.startupHeader]" aria-hidden="true">
+          <span :class="$style.startupLabel">計測点</span>
+          <span :class="$style.startupTrack" />
+          <span :class="$style.startupDelta">区間</span>
+          <span :class="$style.startupAt">累計</span>
         </div>
-        <div v-for="row in startupRows" :key="row.label" :class="$style.startupRow">
+        <div
+          v-for="row in startupRows"
+          :key="row.label"
+          :class="[$style.startupRow, row.emphasis && $style.startupEmphasis]"
+        >
           <span :class="$style.startupLabel">{{ row.label }}</span>
-          <span :class="$style.startupDelta">+{{ row.delta }}ms</span>
-          <span :class="$style.startupAt">{{ row.at }}ms</span>
+          <span :class="$style.startupTrack">
+            <span
+              v-if="row.delta !== null"
+              :class="$style.startupSeg"
+              :style="{ left: row.left, width: row.width }"
+            />
+          </span>
+          <span :class="$style.startupDelta">{{ row.delta !== null ? `+${fmtMs(row.delta)}` : '—' }}</span>
+          <span :class="$style.startupAt">{{ row.cum !== null ? fmtMs(row.cum) : '—' }}</span>
         </div>
         <div v-if="webviewFixedCost === null" :class="$style.startupNote">
-          WebView 起動はプロセス初回のナビゲーションでのみ計測されます
+          WebView 起動はプロセス初回のナビゲーションでのみ計測されます (累計は画面読み込み起点)
         </div>
       </div>
     </div>
@@ -509,9 +574,16 @@ function reportBug() {
 </template>
 
 <style lang="scss" module>
+// ウィンドウ chrome (DeckWindow) の windowBody は overflow: hidden で、
+// スクロールは content 側の責務 (NavEditorContent 等と同じ)。
+// maxHeight を超えたときに見切れず縦スクロールできるようにする
 .aboutContent {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 // 本家 about-misskey の hero (container) 踏襲: 中央寄せ、アイコンの下に
@@ -862,52 +934,124 @@ function reportBug() {
   font-size: 0.9em;
 }
 
-// 起動パフォーマンス表 (VS Code Startup Performance の表体裁):
-// mono + tabular-nums、右列が累計 (navigation 起点)、中列が前区間との差
+// 起動パフォーマンス (VS Code Startup Performance の表体裁):
+// ヘッダ行 + 薄い行区切り + 行ホバー + ウォーターフォールバー。
+// 数値は mono + tabular-nums の右揃え
+.startupHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-right: 16px;
+}
+
+// 見出し右端の合計 (プロセス起動 → デッキ表示)。これが「起動は一瞬」の実測値
+.startupTotal {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: var(--nd-accent);
+  font-family: var(--nd-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 .startupTable {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 10px 16px 14px;
-  font-size: 0.85em;
-  font-family: var(--nd-font-mono);
+  margin: 8px 16px 14px;
+  font-size: 0.8em;
+  border: 1px solid var(--nd-panelBorder);
+  border-radius: var(--nd-radius-sm);
+  overflow: hidden;
 }
 
 .startupRow {
   display: flex;
-  gap: 8px;
-  align-items: baseline;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 10px;
+  font-family: var(--nd-font-mono);
+
+  & + & {
+    border-top: solid 0.5px var(--nd-divider);
+  }
+
+  &:not(.startupHeader):hover {
+    background: var(--nd-panelHighlight);
+  }
+}
+
+.startupHeader {
+  font-size: 0.9em;
+  color: var(--nd-fg);
+  opacity: 0.5;
+  background: var(--nd-panelHighlight);
 }
 
 .startupLabel {
-  flex: 1;
+  flex: 0 0 8.5em;
   min-width: 0;
   color: var(--nd-fg);
-  opacity: 0.75;
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ウォーターフォールのトラック。セグメント位置は全体 (プロセス起動 →
+// デッキ表示) に対する割合
+.startupTrack {
+  position: relative;
+  flex: 1;
+  min-width: 40px;
+  height: 5px;
+  border-radius: 2.5px;
+  background: var(--nd-divider);
+  opacity: 0.9;
+}
+
+.startupSeg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 2.5px;
+  background: var(--nd-accent);
 }
 
 .startupDelta {
-  min-width: 76px;
+  flex: 0 0 68px;
   text-align: right;
   color: var(--nd-fg);
-  opacity: 0.5;
+  opacity: 0.55;
   font-variant-numeric: tabular-nums;
 }
 
 .startupAt {
-  min-width: 64px;
+  flex: 0 0 62px;
   text-align: right;
   color: var(--nd-fg);
   font-variant-numeric: tabular-nums;
   user-select: all;
 }
 
+// 最終行 (デッキ表示) = ユーザーが操作可能になる点を強調する
+.startupEmphasis {
+  .startupLabel {
+    opacity: 1;
+    font-weight: 600;
+  }
+
+  .startupAt {
+    color: var(--nd-accent);
+    font-weight: 600;
+  }
+}
+
+// 注記は本文フォントのまま (mono は行側にだけ効かせている)
 .startupNote {
-  margin-top: 4px;
-  font-size: 0.85em;
+  padding: 5px 10px 6px;
+  border-top: solid 0.5px var(--nd-divider);
+  font-size: 0.9em;
   color: var(--nd-fg);
   opacity: 0.5;
-  font-family: inherit;
 }
 
 .logBlock {
