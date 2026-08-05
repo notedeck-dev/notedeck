@@ -974,7 +974,7 @@ column は `createSubscription()` で subscription を登録し、handler maps�
 | ~~4~~ | ~~Read Model / fine-grained invalidation~~ | **不採用** | 計測の結果、コスト対効果が合わない |
 | 4 | lightweight first paint の拡張 | 未着手 | ボトルネックが IPC/API から移った場合のみ |
 
-起動時のボトルネックは Rust IPC + API fetch のレイテンシ（500-1200ms）が支配的であり、MkNote/MkMfm のレンダリングコストではない。Phase 2 の `maxLiveColumns` で同時 live 数を制限すれば、IPC/API の並列度も自然に制御される。
+起動の実測は About ウィンドウの「起動パフォーマンス」（`src/utils/startupTrace.ts` が計測点の正本）で採る。#985 の実測で、支配項は WebView プロセス起動の固定費（フロント側では縮まない床）で、Rust IPC（設定読み込み）や API fetch は初期表示をブロックしていないことが確定した — かつてここに書かれていた「IPC + API レイテンシが支配的（500-1200ms）」という見積もりは過大で、チャンク再編後のフロント側はコールドスタート全体でも 1 秒未満に収まっている。MkNote/MkMfm のレンダリングコストが支配的でない点は変わらず、Phase 2 の `maxLiveColumns` で同時 live 数を制限すれば IPC/API の並列度も自然に制御される。
 
 ### 採用判断基準
 

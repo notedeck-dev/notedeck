@@ -47,6 +47,7 @@ NoteDeck に入っている最適化と、検討したうえで採用しない�
 | OGP プリフェッチ | 並列 | `buffer_unordered` |
 | 画像キャッシュ取得 | 並列 | `Semaphore` で同時数を制御 |
 | 起動時初期化 | 並列 | DB / Client / HTTP を別スレッドで同時起動 |
+| 起動計測 | performance.mark + About「起動パフォーマンス」(prod 唯一の計測面, #985) | `src/utils/startupTrace.ts` |
 | WebSocket 接続 | 並行 | アカウントごとに独立管理 |
 | API リクエスト | **直列** | 個々のコマンドは直列実行 |
 | CPU 並列 (rayon 等) | **未使用** | — |
