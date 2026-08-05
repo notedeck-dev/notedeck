@@ -3203,7 +3203,7 @@ dependencies = [
 
 [[package]]
 name = "notedeck"
-version = "1.42.0"
+version = "1.42.1"
 dependencies = [
  "async-trait",
  "axum",
