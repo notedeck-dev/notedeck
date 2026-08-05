@@ -100,6 +100,15 @@ jobs:
       - name: Test
         run: pnpm vitest run
 
+      # チャンク構成の腐りは無症状 (#985: config に書いたルールが出力に存在
+      # しない状態で 3.9MB の render-blocking チャンクができていた) なので、
+      # 設定ではなくビルド出力を検査する
+      - name: Build
+        run: pnpm vite build
+
+      - name: Check dist budget
+        run: pnpm check:dist
+
   rust:
     needs: changes
     if: needs.changes.outputs.rust == 'true'

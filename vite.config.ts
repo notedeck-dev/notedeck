@@ -209,15 +209,6 @@ function preloadTablerFont(): Plugin {
   }
 }
 
-function injectAppVersion(): Plugin {
-  return {
-    name: 'inject-app-version',
-    transformIndexHtml(html) {
-      return html.replaceAll('__ND_APP_VERSION__', appVersion)
-    },
-  }
-}
-
 /**
  * Unicode 絵文字の Twemoji SVG を同梱して `/twemoji/` で配る (#855)。
  * CDN (jsdelivr) から 1 絵文字 1 リクエストで取る方式は、ピッカー初回表示で
@@ -266,7 +257,6 @@ export default defineConfig({
     stripUnusedFonts(),
     subsetTablerIcons(),
     preloadTablerFont(),
-    injectAppVersion(),
     twemojiAssets(),
   ],
   resolve: {
@@ -295,36 +285,13 @@ export default defineConfig({
     reportCompressedSize: false,
     rolldownOptions: {
       output: {
-        manualChunks(id) {
-          if (
-            id.includes('node_modules/vue/') ||
-            id.includes('node_modules/vue-router/') ||
-            id.includes('node_modules/pinia/')
-          ) {
-            return 'vendor-vue'
-          }
-          if (id.includes('node_modules/@syuilo/aiscript')) {
-            return 'vendor-aiscript'
-          }
-          if (
-            id.includes('node_modules/@codemirror/') ||
-            id.includes('node_modules/@lezer/')
-          ) {
-            return 'vendor-codemirror'
-          }
-          if (id.includes('node_modules/@scalar/')) {
-            return 'vendor-api-docs'
-          }
-          // Bundle rarely-used column types into a single shared chunk
-          if (
-            id.includes('src/components/deck/Deck') &&
-            /(?:AboutMisskey|Ads|Achievements|ApiConsole|ApiDocs|ServerInfo|Emoji|Gallery|Explore|FollowRequests|Lookup|Announcements|Play|AiScript)Column\.vue/.test(
-              id,
-            )
-          ) {
-            return 'columns-rare'
-          }
-        },
+        // manualChunks は書かない (#985)。rolldown-vite の manualChunks は
+        // 名前付きグループを共有モジュールの受け皿にしてしまい、Vue ランタイム
+        // ごと entry の静的閉包へ吸収されて render-blocking な巨大チャンクを
+        // 作っていた（グループが 1 つでも残ると吸収先が移るだけ）。素の
+        // per-component 分割で entry 静的閉包 4.2MB→0.97MB を実測確認済み。
+        // Tauri 同梱配布では vendor 分割の HTTP キャッシュ利得も無い。
+        // 逸脱を検知する検査は scripts/check-dist-budget.mjs
         minify: {
           compress: {
             dropConsole: true,

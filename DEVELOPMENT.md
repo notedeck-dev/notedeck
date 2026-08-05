@@ -343,9 +343,10 @@ stateDiagram-v2
 `index.html` にインラインで定義された `#nd-splash`（ハートビートアニメーション付きロゴ）。
 
 - **表示**: WebView ロード直後（Vue マウント前から表示済み）
-- **解除**: `nd:deck-mounted` イベント受信時（DeckLayout の DOM 構築完了時点）
-- **フォールバック**: 500ms タイムアウトで強制解除
+- **解除**: `uiStore.deckMounted`（DeckLayout のマウント完了）を `App.vue` が watch して解除
+- **フォールバック**: タイムアウトで強制解除（時間は `App.vue` の splashTimeout が正本）
 - **アニメーション**: `opacity: 0` トランジション → `transitionend` で DOM 削除
+- **計測**: 起動フェーズは `src/utils/startupTrace.ts` の performance.mark で記録し、About ウィンドウの「起動パフォーマンス」に表示（#985）
 
 データ（ノート等）のロード完了は待たず、カラムフレームの描画が完了した時点でスプラッシュを解除する。
 

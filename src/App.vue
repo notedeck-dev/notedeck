@@ -21,12 +21,7 @@ import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { useLogsStore } from '@/stores/logs'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { exitSafeMode, readSafeMode } from '@/utils/safeMode'
-import {
-  getStorageString,
-  removeStorage,
-  STORAGE_KEYS,
-  setStorageString,
-} from '@/utils/storage'
+import { markStartup } from '@/utils/startupTrace'
 
 const uiStore = useUiStore()
 const { isTauri, isDesktop } = uiStore
@@ -113,23 +108,7 @@ if (isTauri && !isPipWindow.value) {
 // Listen for PiP IPC events (main window only)
 let cleanupPipListener: (() => void) | null = null
 
-// Cache UI shell on unload for instant display on next launch (Linear-style).
-function saveShellCache() {
-  if (isPipWindow.value) return
-  try {
-    const app = document.getElementById('app')
-    if (!app) return
-    const html = app.innerHTML
-    if (html.length > 2_000_000) return // Skip if too large for localStorage
-    setStorageString(STORAGE_KEYS.shellCache, html)
-    setStorageString(STORAGE_KEYS.shellCacheVersion, __APP_VERSION__)
-  } catch {
-    // Storage full or other error — skip silently
-  }
-}
-window.addEventListener('beforeunload', saveShellCache)
-
-// Dismiss splash screen (shown only when no shell cache exists).
+// Dismiss splash screen (inserted by the index.html boot script).
 function dismissSplash() {
   const el = document.getElementById('nd-splash')
   if (!el) return
@@ -139,14 +118,6 @@ function dismissSplash() {
 }
 
 onMounted(async () => {
-  // Invalidate shell cache if app version changed (CSS Modules hashes may differ)
-  const cachedVersion = getStorageString(STORAGE_KEYS.shellCacheVersion)
-  if (cachedVersion && cachedVersion !== __APP_VERSION__) {
-    removeStorage(STORAGE_KEYS.shellCache)
-    removeStorage(STORAGE_KEYS.shellCacheVersion)
-  }
-  // Clear shell-cached flag so entrance animations are re-enabled
-  delete document.documentElement.dataset.shellCached
   // Set platform attributes on html element for CSS targeting (independent of viewport width)
   const { platformName } = uiStore
   if (platformName) {
@@ -166,24 +137,33 @@ onMounted(async () => {
       import('@/utils/logger'),
     ])
     await getCurrentWindow().show().catch(catchIgnore('window.show'))
+    markStartup('window-shown')
   }
 
-  // Dismiss splash when deck is mounted (only exists on first launch without cache).
-  // `immediate: true` なので deck が既にマウント済みなら即 dismiss。
+  // Dismiss splash when deck is mounted.
   // 200ms は deckMounted が立たない異常系向けのフォールバック（通常は watch が先行）。
+  // 注意: `immediate: true` の watch でここを書くと、登録時点で deckMounted が
+  // true の場合にコールバックが `const stopWatch` の代入前に同期実行され、
+  // stopWatch() が TDZ で throw する (チャンク分割修正で prod のデッキマウントが
+  // onMounted より速くなり顕在化した)。既マウントは分岐で処理する。
+  // deck-mounted の計測はここではなく発生源 (useDeckInit) で打つ
   if (document.getElementById('nd-splash')) {
     const splashTimeout = setTimeout(dismissSplash, 200)
-    const stopWatch = watch(
-      () => uiStore.deckMounted,
-      (mounted) => {
-        if (mounted) {
-          clearTimeout(splashTimeout)
-          dismissSplash()
-          stopWatch()
-        }
-      },
-      { immediate: true },
-    )
+    if (uiStore.deckMounted) {
+      clearTimeout(splashTimeout)
+      dismissSplash()
+    } else {
+      const stopWatch = watch(
+        () => uiStore.deckMounted,
+        (mounted) => {
+          if (mounted) {
+            stopWatch()
+            clearTimeout(splashTimeout)
+            dismissSplash()
+          }
+        },
+      )
+    }
   }
 
   // Defer theme account fetching (network I/O) to after first paint

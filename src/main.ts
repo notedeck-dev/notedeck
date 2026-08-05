@@ -12,9 +12,13 @@ import { useSettingsStore } from './stores/settings'
 import { useThemeStore } from './stores/theme'
 import { resolveEvictionConfig } from './utils/cacheEviction'
 import { isTauri } from './utils/settingsFs'
+import { logStartupSummary, markStartup } from './utils/startupTrace'
+import { listenTauri } from './utils/tauriEvents'
 import { commands, unwrap } from './utils/tauriInvoke'
 import '@tabler/icons-webfont/dist/tabler-icons.min.css'
 import './styles/global.css'
+
+markStartup('main-eval')
 
 // Register builtin AI capabilities (time / account / column / theme) at
 // module load. Capability registry は module-scoped で Pinia 非依存だが、
@@ -30,6 +34,15 @@ if (isTauri) {
   // backend's pre-init emit (src-tauri/src/lib.rs:376) is never missed.
   // Done synchronously at module load — before Pinia, before mount.
   initEarlyAccountListener()
+
+  // バックエンド初期化の致命エラー (DB open 失敗など) を可視化する (#985)。
+  // 従来 nd:backend-fatal は購読者ゼロのデッドイベントで、DB が開けなくても
+  // ユーザーには何も表示されなかった。toast store は module-scope なので
+  // Pinia 初期化前に届いても安全
+  void listenTauri('nd:backend-fatal', async (message) => {
+    const { useToast } = await import('./stores/toast')
+    useToast().show(`バックエンドの初期化に失敗しました: ${message}`, 'error')
+  })
 
   // Pre-warm Tauri API module (critical path in App.vue onMounted)
   import('@tauri-apps/api/window')
@@ -97,7 +110,9 @@ if (isTauri) {
   // 並列ロード。両者は独立ファイルなので往復遅延を重ねない。
   // 初回 Vue paint 前に完了させて FOUC を防ぐ。
   const settingsStore = useSettingsStore()
+  markStartup('settings-await')
   await Promise.all([settingsStore.load(), usePerformanceStore().init()])
+  markStartup('settings-loaded')
 
   // ユーザー設定の eviction policy を Rust 側に反映 (fire-and-forget)。
   // Database::open はデフォルト (balanced) で既に開かれているので、 設定が
@@ -133,3 +148,8 @@ if (isTauri) {
 }
 
 app.mount('#app')
+markStartup('mounted')
+
+// web (ブラウザ) では deck-mounted 系のマークが揃わないことがあるため、
+// Tauri のみサマリを deckMounted 経由 (App.vue) で出す。web は mount 時点まで
+if (!isTauri) logStartupSummary()

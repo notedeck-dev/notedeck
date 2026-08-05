@@ -2,7 +2,7 @@
   "name": "notedeck",
   "description": "Misskey Pro — integrated deck environment (IDE) for Misskey power users",
   "private": true,
-  "version": "1.41.0",
+  "version": "1.42.0",
   "type": "module",
   "packageManager": "pnpm@11.18.0",
   "engines": {
@@ -36,6 +36,7 @@
     "lint:fix": "biome check --write .",
     "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
     "lint:docs": "node scripts/docs-lint.mjs",
+    "check:dist": "node scripts/check-dist-budget.mjs",
     "fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml",
     "changelog": "git log $(git describe --tags --abbrev=0 2>/dev/null || echo '')..HEAD --pretty=format:'- %s' --no-merges",
     "icons": "tauri icon src-tauri/icons/icon.svg -o src-tauri/icons && node scripts/gen-android-foreground.mjs",

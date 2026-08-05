@@ -10,6 +10,7 @@ import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { highlightCode, highlighterLoaded } from '@/utils/highlight'
+import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
 import { version as appVersion } from '../../../package.json'
@@ -40,6 +41,10 @@ function openTutorial(): void {
 // バージョン情報テーブルは普段は畳んでおく (必要なのはバグ報告・コピー時で、
 // その2つは表示に依存せず infoRows から本文を生成する)
 const infoOpen = ref(false)
+// 自己診断 / 起動パフォーマンスも同じ方針で畳む。閉じたままでも要点
+// (ステータス / 合計) はヘッダ右端のバッジで分かる
+const diagOpen = ref(false)
+const startupOpen = ref(false)
 
 // ロゴのイースターエッグ: クリックすると HEARTBEAT にちなんだ鼓動を打つ。
 // 一度 class を外してから付け直すことで、連打や中断後も確実に再発火させる
@@ -216,6 +221,90 @@ const updateIcon = computed(() => {
 const buildDate = __BUILD_DATE__
 const gitCommit = __GIT_COMMIT__
 
+// 起動パフォーマンス (#985、#732 の一部)。VS Code の Startup Performance
+// 踏襲: 起動クリティカルパスの計測点をウォーターフォール付きの表で出す。
+// prod ビルドではコンソールが落ちるため、実機の起動実測はここが唯一の面。
+// 値はセッション固有の静的データ (About を開いた時点の記録を表示)。
+// 行名は「計測点」ではなく「その行の区間で何をしていたか」で付ける。
+// 例: main-eval の mark は評価開始点なので、区間の実体は「そこに到達する
+// までのモジュール読み込み + 依存の評価」(dev では vite の変換時間が乗る)
+const STARTUP_LABELS: Record<string, string> = {
+  'main-eval': 'スクリプト読み込み',
+  'settings-await': '初期化処理',
+  'settings-loaded': '設定読み込み',
+  mounted: 'Vue マウント',
+  'window-shown': 'ウィンドウ表示',
+  'deck-mounted': 'デッキ表示',
+}
+
+interface StartupRow {
+  label: string
+  /** 前区間との差 (ms)。計測不能 (リロード後の WebView 起動) は null */
+  delta: number | null
+  /** プロセス起動からの累計 (ms)。WebView 起動が取れない場合は navigation 起点 */
+  cum: number | null
+  /** ウォーターフォールバーの位置 (全体比 %) */
+  left: string
+  width: string
+  emphasis: boolean
+}
+
+const webviewFixedCost = getWebviewFixedCost()
+// セクションを開くたびに最新の計測点を読み直す (deck-mounted のように
+// About を開いた後に記録されるマークを取りこぼさないため)
+const startupRows = computed<StartupRow[]>(() => {
+  void startupOpen.value
+  const entries = getStartupEntries()
+  if (entries.length === 0) return []
+  const base = webviewFixedCost ?? 0
+  const total = base + (entries[entries.length - 1]?.at ?? 0)
+  const seg = (start: number, end: number) => ({
+    left: `${(start / total) * 100}%`,
+    // 数 ms の区間も見えるよう最小幅を確保する
+    width: `${Math.max(((end - start) / total) * 100, 0.75)}%`,
+  })
+  const rows: StartupRow[] = [
+    {
+      label: 'WebView 起動',
+      delta: webviewFixedCost,
+      cum: webviewFixedCost,
+      ...(webviewFixedCost !== null
+        ? seg(0, webviewFixedCost)
+        : { left: '0%', width: '0%' }),
+      emphasis: false,
+    },
+  ]
+  let prev = 0
+  for (const e of entries) {
+    rows.push({
+      label: STARTUP_LABELS[e.name] ?? e.name,
+      delta: Math.round(e.at - prev),
+      cum: Math.round(base + e.at),
+      ...seg(base + prev, base + e.at),
+      emphasis: e.name === 'deck-mounted',
+    })
+    prev = e.at
+  }
+  return rows
+})
+
+const startupTotalMs = computed(() => {
+  const last = startupRows.value[startupRows.value.length - 1]
+  return last?.cum ?? null
+})
+
+const fmtMs = (ms: number) => `${ms.toLocaleString()}ms`
+
+function getStartupText(): string {
+  const lines = startupRows.value.map(
+    (r) =>
+      `${r.label}: ${r.cum !== null ? fmtMs(r.cum) : 'N/A (リロード後)'}${r.delta !== null ? ` (+${fmtMs(r.delta)})` : ''}`,
+  )
+  if (startupTotalMs.value !== null)
+    lines.push(`合計: ${fmtMs(startupTotalMs.value)}`)
+  return lines.join('\n')
+}
+
 function parseWebView(ua: string): string {
   const webkit = ua.match(/AppleWebKit\/([\d.]+)/)
   return webkit ? `WebKit ${webkit[1]}` : 'N/A'
@@ -261,7 +350,10 @@ const infoRows = [
 function getInfoText() {
   const info = infoRows.map((r) => `${r.label}: ${r.get()}`).join('\n')
   const diag = diagnosticsLog.value
-  return diag ? `${info}\n\n# 診断\n\`\`\`\n${diag}\n\`\`\`` : info
+  const parts = [info]
+  if (startupRows.value.length > 0) parts.push(`# 起動\n${getStartupText()}`)
+  if (diag) parts.push(`# 診断\n\`\`\`\n${diag}\n\`\`\``)
+  return parts.join('\n\n')
 }
 
 async function copyInfo() {
@@ -425,19 +517,35 @@ function reportBug() {
       </div>
     </div>
 
+    <!-- 自己診断 / 起動パフォーマンスは畳んでおく (バージョン情報と同じ
+         infoToggle パターン)。閉じたまま要点が分かるよう、ヘッダ右端に
+         ステータス / 合計をバッジ的に出す -->
     <div :class="$style.formSection">
-      <div :class="$style.formSectionLabel">自己診断</div>
-      <div :class="$style.diag">
-        <div :class="$style.diagHead">
+      <div :class="$style.infoHead">
+        <button
+          type="button"
+          class="_button"
+          :class="[$style.formSectionLabel, $style.infoToggle, diagOpen && $style.infoOpen]"
+          @click="diagOpen = !diagOpen"
+        >
+          自己診断
+          <i class="ti ti-chevron-down" :class="$style.infoChevron" />
+        </button>
+        <span :class="$style.headBadge">
           <i
             :class="[
-              healthLoading ? 'ti ti-loader-2' : healthError ? STATUS_ICON.fail : STATUS_ICON[overallStatus],
+              healthLoading ? 'ti ti-loader-2 nd-spin' : healthError ? STATUS_ICON.fail : STATUS_ICON[overallStatus],
               $style.diagIcon,
               !healthLoading && !healthError && $style[overallStatus],
               healthError && $style.fail,
             ]"
           />
-          <span :class="$style.diagSummary">{{ healthSummary }}</span>
+          {{ healthSummary }}
+        </span>
+      </div>
+      <div v-if="diagOpen" :class="$style.diag">
+        <div :class="$style.diagHead">
+          <span :class="$style.diagSummary">{{ problemChecks.length === 0 && !healthError ? '問題は見つかりませんでした' : healthSummary }}</span>
           <button class="_button" :class="$style.diagRefresh" :disabled="healthLoading" title="再診断" @click="runHealthcheck">
             <i class="ti ti-refresh" />
           </button>
@@ -452,13 +560,65 @@ function reportBug() {
         />
       </div>
     </div>
+
+    <!-- VS Code の Startup Performance 踏襲 (#985/#732)。表示のみ・設定なし。
+         「情報をコピー」の本文にも同梱されるので、実機確認 issue やバグ報告に
+         そのまま貼れる -->
+    <div v-if="startupRows.length > 0" :class="$style.formSection">
+      <div :class="$style.infoHead">
+        <button
+          type="button"
+          class="_button"
+          :class="[$style.formSectionLabel, $style.infoToggle, startupOpen && $style.infoOpen]"
+          @click="startupOpen = !startupOpen"
+        >
+          起動パフォーマンス
+          <i class="ti ti-chevron-down" :class="$style.infoChevron" />
+        </button>
+        <span v-if="startupTotalMs !== null" :class="[$style.headBadge, $style.startupTotal]">{{ fmtMs(startupTotalMs) }}</span>
+      </div>
+      <div v-if="startupOpen" :class="$style.startupTable">
+        <div :class="[$style.startupRow, $style.startupHeader]" aria-hidden="true">
+          <span :class="$style.startupLabel">フェーズ</span>
+          <span :class="$style.startupTrack" />
+          <span :class="$style.startupDelta">区間</span>
+          <span :class="$style.startupAt">累計</span>
+        </div>
+        <div
+          v-for="row in startupRows"
+          :key="row.label"
+          :class="[$style.startupRow, row.emphasis && $style.startupEmphasis]"
+        >
+          <span :class="$style.startupLabel">{{ row.label }}</span>
+          <span :class="$style.startupTrack">
+            <span
+              v-if="row.delta !== null"
+              :class="$style.startupSeg"
+              :style="{ left: row.left, width: row.width }"
+            />
+          </span>
+          <span :class="$style.startupDelta">{{ row.delta !== null ? `+${fmtMs(row.delta)}` : '—' }}</span>
+          <span :class="$style.startupAt">{{ row.cum !== null ? fmtMs(row.cum) : '—' }}</span>
+        </div>
+        <div v-if="webviewFixedCost === null" :class="$style.startupNote">
+          WebView 起動はプロセス初回のナビゲーションでのみ計測されます (累計は画面読み込み起点)
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style lang="scss" module>
+// ウィンドウ chrome (DeckWindow) の windowBody は overflow: hidden で、
+// スクロールは content 側の責務 (NavEditorContent 等と同じ)。
+// maxHeight を超えたときに見切れず縦スクロールできるようにする
 .aboutContent {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 // 本家 about-misskey の hero (container) 踏襲: 中央寄せ、アイコンの下に
@@ -807,6 +967,135 @@ function reportBug() {
 .diagError {
   color: var(--nd-error);
   font-size: 0.9em;
+}
+
+// 折りたたみヘッダ右端のバッジ (診断ステータス / 起動合計)。
+// infoCopy と同じ絶対配置で、トグルのクリック領域を妨げない
+.headBadge {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  font-size: 0.8em;
+  color: var(--nd-fg);
+  opacity: 0.75;
+}
+
+// 起動合計 (プロセス起動 → デッキ表示)。これが「起動は一瞬」の実測値
+.startupTotal {
+  font-weight: bold;
+  color: var(--nd-accent);
+  opacity: 1;
+  font-family: var(--nd-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+// 起動パフォーマンス (VS Code Startup Performance の表体裁):
+// ヘッダ行 + 薄い行区切り + 行ホバー + ウォーターフォールバー。
+// 数値は mono + tabular-nums の右揃え
+.startupTable {
+  display: flex;
+  flex-direction: column;
+  margin: 8px 16px 14px;
+  font-size: 0.8em;
+  border: 1px solid var(--nd-panelBorder);
+  border-radius: var(--nd-radius-sm);
+  overflow: hidden;
+}
+
+.startupRow {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 10px;
+  font-family: var(--nd-font-mono);
+
+  & + & {
+    border-top: solid 0.5px var(--nd-divider);
+  }
+
+  &:not(.startupHeader):hover {
+    background: var(--nd-panelHighlight);
+  }
+}
+
+.startupHeader {
+  font-size: 0.9em;
+  color: var(--nd-fg);
+  opacity: 0.5;
+  background: var(--nd-panelHighlight);
+}
+
+.startupLabel {
+  flex: 0 0 8.5em;
+  min-width: 0;
+  color: var(--nd-fg);
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// ウォーターフォールのトラック。セグメント位置は全体 (プロセス起動 →
+// デッキ表示) に対する割合
+.startupTrack {
+  position: relative;
+  flex: 1;
+  min-width: 40px;
+  height: 5px;
+  border-radius: 2.5px;
+  background: var(--nd-divider);
+  opacity: 0.9;
+}
+
+.startupSeg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 2.5px;
+  background: var(--nd-accent);
+}
+
+.startupDelta {
+  flex: 0 0 68px;
+  text-align: right;
+  color: var(--nd-fg);
+  opacity: 0.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.startupAt {
+  flex: 0 0 62px;
+  text-align: right;
+  color: var(--nd-fg);
+  font-variant-numeric: tabular-nums;
+  user-select: all;
+}
+
+// 最終行 (デッキ表示) = ユーザーが操作可能になる点を強調する
+.startupEmphasis {
+  .startupLabel {
+    opacity: 1;
+    font-weight: 600;
+  }
+
+  .startupAt {
+    color: var(--nd-accent);
+    font-weight: 600;
+  }
+}
+
+// 注記は本文フォントのまま (mono は行側にだけ効かせている)
+.startupNote {
+  padding: 5px 10px 6px;
+  border-top: solid 0.5px var(--nd-divider);
+  font-size: 0.9em;
+  color: var(--nd-fg);
+  opacity: 0.5;
 }
 
 .logBlock {

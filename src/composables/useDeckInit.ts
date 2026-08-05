@@ -28,6 +28,7 @@ import {
   initDesktopNotifications,
   onNotificationAction,
 } from '@/utils/desktopNotification'
+import { logStartupSummary, markStartup } from '@/utils/startupTrace'
 
 export function useDeckInit(options: {
   openCompose: () => void
@@ -80,6 +81,10 @@ export function useDeckInit(options: {
 
   onMounted(() => {
     uiStore.deckMounted = true
+    // 計測はマークの発生源で直接打つ (#985)。App.vue の splash watch 経由に
+    // すると、watch 側の都合 (登録タイミング・splash の有無) で欠落しうる
+    markStartup('deck-mounted')
+    logStartupSummary()
 
     handleResizeRef = () => options.navbarRef.value?.handleResize()
     window.addEventListener('resize', handleResizeRef)
