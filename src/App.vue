@@ -21,7 +21,7 @@ import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { useLogsStore } from '@/stores/logs'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { exitSafeMode, readSafeMode } from '@/utils/safeMode'
-import { logStartupSummary, markStartup } from '@/utils/startupTrace'
+import { markStartup } from '@/utils/startupTrace'
 
 const uiStore = useUiStore()
 const { isTauri, isDesktop } = uiStore
@@ -145,24 +145,21 @@ onMounted(async () => {
   // 注意: `immediate: true` の watch でここを書くと、登録時点で deckMounted が
   // true の場合にコールバックが `const stopWatch` の代入前に同期実行され、
   // stopWatch() が TDZ で throw する (チャンク分割修正で prod のデッキマウントが
-  // onMounted より速くなり顕在化した)。既マウントは分岐で処理する
+  // onMounted より速くなり顕在化した)。既マウントは分岐で処理する。
+  // deck-mounted の計測はここではなく発生源 (useDeckInit) で打つ
   if (document.getElementById('nd-splash')) {
     const splashTimeout = setTimeout(dismissSplash, 200)
-    const onDeckMounted = () => {
+    if (uiStore.deckMounted) {
       clearTimeout(splashTimeout)
       dismissSplash()
-      markStartup('deck-mounted')
-      logStartupSummary()
-    }
-    if (uiStore.deckMounted) {
-      onDeckMounted()
     } else {
       const stopWatch = watch(
         () => uiStore.deckMounted,
         (mounted) => {
           if (mounted) {
             stopWatch()
-            onDeckMounted()
+            clearTimeout(splashTimeout)
+            dismissSplash()
           }
         },
       )
