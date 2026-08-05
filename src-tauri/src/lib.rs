@@ -175,6 +175,22 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
     // cleartext/ATS の localhost 例外は src-tauri/android/ の
     // networkSecurityConfig と src-tauri/Info.plist で許可する。
 
+    // 起動計測 (#985、#732 の最小形) — プロセス起動時刻をページ評価前に注入する。
+    // フロントの performance.timeOrigin との差が WebView 起動固定費になり、
+    // performance.mark では原理的に観測できない区間を端到端で繋ぐ
+    // (読み手は src/utils/startupTrace.ts)。
+    {
+        let process_start_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        builder = builder.plugin(
+            tauri::plugin::Builder::<tauri::Wry, ()>::new("nd-startup-trace")
+                .js_init_script(format!("window.__ND_PROCESS_START__ = {process_start_ms};"))
+                .build(),
+        );
+    }
+
     // セーフモード (#794) — `notedeck --safe-mode` で起動したとき、ページ評価前に
     // フラグを注入する。index.html の boot script がこれを localStorage へ畳み込み、
     // 以降フロントは localStorage だけを見る (解除手順を 1 つに保つため)。

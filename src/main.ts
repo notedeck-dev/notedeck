@@ -12,10 +12,13 @@ import { useSettingsStore } from './stores/settings'
 import { useThemeStore } from './stores/theme'
 import { resolveEvictionConfig } from './utils/cacheEviction'
 import { isTauri } from './utils/settingsFs'
+import { logStartupSummary, markStartup } from './utils/startupTrace'
 import { listenTauri } from './utils/tauriEvents'
 import { commands, unwrap } from './utils/tauriInvoke'
 import '@tabler/icons-webfont/dist/tabler-icons.min.css'
 import './styles/global.css'
+
+markStartup('main-eval')
 
 // Register builtin AI capabilities (time / account / column / theme) at
 // module load. Capability registry は module-scoped で Pinia 非依存だが、
@@ -107,7 +110,9 @@ if (isTauri) {
   // 並列ロード。両者は独立ファイルなので往復遅延を重ねない。
   // 初回 Vue paint 前に完了させて FOUC を防ぐ。
   const settingsStore = useSettingsStore()
+  markStartup('settings-await')
   await Promise.all([settingsStore.load(), usePerformanceStore().init()])
+  markStartup('settings-loaded')
 
   // ユーザー設定の eviction policy を Rust 側に反映 (fire-and-forget)。
   // Database::open はデフォルト (balanced) で既に開かれているので、 設定が
@@ -143,3 +148,8 @@ if (isTauri) {
 }
 
 app.mount('#app')
+markStartup('mounted')
+
+// web (ブラウザ) では deck-mounted 系のマークが揃わないことがあるため、
+// Tauri のみサマリを deckMounted 経由 (App.vue) で出す。web は mount 時点まで
+if (!isTauri) logStartupSummary()

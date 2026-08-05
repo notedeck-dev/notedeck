@@ -21,6 +21,7 @@ import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { useLogsStore } from '@/stores/logs'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { exitSafeMode, readSafeMode } from '@/utils/safeMode'
+import { logStartupSummary, markStartup } from '@/utils/startupTrace'
 
 const uiStore = useUiStore()
 const { isTauri, isDesktop } = uiStore
@@ -136,6 +137,7 @@ onMounted(async () => {
       import('@/utils/logger'),
     ])
     await getCurrentWindow().show().catch(catchIgnore('window.show'))
+    markStartup('window-shown')
   }
 
   // Dismiss splash when deck is mounted.
@@ -150,6 +152,8 @@ onMounted(async () => {
           clearTimeout(splashTimeout)
           dismissSplash()
           stopWatch()
+          markStartup('deck-mounted')
+          logStartupSummary()
         }
       },
       { immediate: true },
