@@ -19,7 +19,7 @@ NoteDeck に入っている最適化と、検討したうえで採用しない�
 | 画像プリフェッチ | 先読み | `src/composables/useImagePrefetch.ts` |
 | OGP キャッシュ | LRU | `src/composables/useOgpPreview.ts` |
 | OGP inflight dedup | 同時リクエストの重複排除 | `src-tauri/src/ogp/mod.rs` |
-| コード分割 | `defineAsyncComponent` + `manualChunks` | `vite.config.ts` |
+| コード分割 | `defineAsyncComponent` による per-component 分割。`manualChunks` は書かない (#985: rolldown-vite では名前付きグループが共有モジュールを吸収して entry を肥大化させる)。出力は CI の `check:dist` で予算検査 | `vite.config.ts`, `scripts/check-dist-budget.mjs` |
 | Multi-tier cache | メモリ LRU → ディスクキャッシュ → ネットワーク | `src-tauri/src/image_cache.rs` |
 | 適応的品質 | CPU / メモリから low / balanced / high を自動判定 | `src/composables/useAdaptiveQuality.ts` |
 | WebSocket 共有 | accountId 毎に 1 接続、subscriptionId で多重化 | `src/adapters/misskey/streaming.ts` |
