@@ -10,7 +10,7 @@
  *
  * icon スロットを使うとアイコン枠の中身を差し替えられる (テーマの配色プレビュー等)。
  */
-import { proxyCssUrl } from '@/utils/mediaProxy'
+import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 
 defineProps<{
   /** MisStore registry の iconUrl。カードと同じく mask で currentColor 塗り */
@@ -26,7 +26,7 @@ defineProps<{
     <div :class="$style.icon">
       <slot name="icon">
         <span
-          v-if="iconUrl"
+          v-if="isProxiable(iconUrl)"
           :class="$style.iconImg"
           :style="{ '--icon-url': proxyCssUrl(iconUrl, 48) }"
           aria-hidden="true"

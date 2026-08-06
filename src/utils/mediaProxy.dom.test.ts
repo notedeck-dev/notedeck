@@ -161,3 +161,41 @@ describe('proxyCssUrl', () => {
     expect(css.endsWith('")')).toBe(true)
   })
 })
+
+/**
+ * アイコンを描くかフォールバックの Tabler アイコンに倒すかの述語 (#979)。
+ *
+ * これらのアイコンは mask で描いているため、url() が none になると
+ * 「マスクなし = 要素全体がベタ塗り」になる。URL があるかどうかで v-if を
+ * 切ると、プロキシに載らない URL のときに四角が出てしまう。
+ */
+describe('isProxiable', () => {
+  it('https だけがプロキシに載る', async () => {
+    const { isProxiable } = await loadModule()
+    expect(isProxiable(REMOTE)).toBe(true)
+    expect(isProxiable('http://example.com/x.png')).toBe(false)
+    expect(isProxiable('data:image/png;base64,AAAA')).toBe(false)
+    expect(isProxiable('/local/icon.svg')).toBe(false)
+    expect(isProxiable(null)).toBe(false)
+    expect(isProxiable(undefined)).toBe(false)
+    expect(isProxiable('')).toBe(false)
+  })
+
+  // ここがずれると v-if は真なのに mask が none になり、ベタ塗りが復活する
+  it('proxyCssUrl が none を返す条件と完全に一致する', async () => {
+    const { isProxiable, proxyCssUrl } = await loadModule()
+    const urls = [
+      REMOTE,
+      'https://example.com/a.png',
+      'http://example.com/x.png',
+      'data:image/png;base64,AAAA',
+      '/local/icon.svg',
+      '',
+      null,
+      undefined,
+    ]
+    for (const u of urls) {
+      expect(isProxiable(u)).toBe(proxyCssUrl(u, 48) !== 'none')
+    }
+  })
+})

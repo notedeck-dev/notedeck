@@ -43,7 +43,7 @@ import {
 import { highlightCode, highlighterLoaded } from '@/utils/highlight'
 import { resolveIdentity } from '@/utils/identity'
 import { isImeComposing } from '@/utils/ime'
-import { proxyCssUrl } from '@/utils/mediaProxy'
+import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { renderSimpleMarkdown } from '@/utils/simpleMarkdown'
 import DeckColumnComponent from './DeckColumn.vue'
 
@@ -867,7 +867,7 @@ function onKeydown(e: KeyboardEvent) {
         :title="`Persona: ${currentPersona.displayName} (エージェント設定で変更)`"
       >
         <span
-          v-if="currentPersona.avatarUrl"
+          v-if="isProxiable(currentPersona.avatarUrl)"
           :class="$style.personaIndicatorAvatar"
           :style="{ '--icon-url': proxyCssUrl(currentPersona.avatarUrl, 48) }"
           aria-hidden="true"

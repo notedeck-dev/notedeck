@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useAiConfig } from '@/composables/useAiConfig'
 import { useSkillsStore } from '@/stores/skills'
-import { proxyCssUrl } from '@/utils/mediaProxy'
+import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import AiSettingsSection from './AiSettingsSection.vue'
 
 const { config } = useAiConfig()
@@ -61,7 +61,7 @@ const currentPersonaSkill = computed(() => {
         <!-- SVG icon を accent 色で render (DeckAiColumn.personaIndicator と同じ
              mask + currentColor パターン) -->
         <span
-          v-if="s.iconUrl"
+          v-if="isProxiable(s.iconUrl)"
           :class="$style.logo"
           :style="{ '--icon-url': proxyCssUrl(s.iconUrl, 48) }"
           aria-hidden="true"

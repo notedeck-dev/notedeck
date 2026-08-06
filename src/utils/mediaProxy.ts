@@ -39,11 +39,24 @@ function evictOldestIfFull(map: Map<string, unknown>, key: string) {
   if (oldest !== undefined) map.delete(oldest)
 }
 
+/**
+ * プロキシに載せられる URL か。
+ *
+ * アイコンを描くか、フォールバックの Tabler アイコンに倒すかの判定に使う
+ * (#979)。配布物アイコンは `mask` で描いているため、`proxyCssUrl` が
+ * `none` を返す URL に対して要素を出すと、**マスクなし = 要素全体が
+ * ベタ塗り**になる。「URL があるか」ではなく「プロキシに載るか」で
+ * v-if を切ること。
+ */
+export function isProxiable(url: string | null | undefined): url is string {
+  return !!url?.startsWith('https://')
+}
+
 function buildProxyUrl(
   url: string | null | undefined,
   sizeQuery?: string,
 ): string | undefined {
-  if (!url?.startsWith('https://')) return url ?? undefined
+  if (!isProxiable(url)) return url ?? undefined
   const key = sizeQuery ? `${url}|${sizeQuery}` : url
   let cached = proxyUrlCache.get(key)
   if (!cached) {

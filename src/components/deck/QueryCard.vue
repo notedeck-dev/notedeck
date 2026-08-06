@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { proxyCssUrl } from '@/utils/mediaProxy'
+import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 
 /**
  * カラムクエリのアイテムカード (#783)。
@@ -69,7 +69,7 @@ function handlePrimaryClick() {
   >
     <div :class="$style.icon">
       <span
-        v-if="iconUrl"
+        v-if="isProxiable(iconUrl)"
         :class="$style.iconImg"
         :style="{ '--icon-url': proxyCssUrl(iconUrl, 48) }"
         aria-hidden="true"
