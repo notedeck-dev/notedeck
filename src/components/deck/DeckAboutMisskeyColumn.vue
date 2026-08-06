@@ -19,6 +19,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
@@ -266,7 +267,7 @@ onMounted(() => {
             :class="$style.memberCard"
             @click="openLink(m.github)"
           >
-            <img :src="m.avatar" :alt="m.username" :class="$style.memberAvatar" loading="lazy" />
+            <img :src="proxyThumbUrl(m.avatar, 56)" :alt="m.username" :class="$style.memberAvatar" loading="lazy" />
             <span :class="$style.memberName">@{{ m.username }}</span>
           </button>
         </div>

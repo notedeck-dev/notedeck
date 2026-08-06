@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { usePointerReorder } from '@/composables/usePointerReorder'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 
 export interface ReorderableItem {
   icon: string
@@ -44,7 +45,7 @@ const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
       <span :class="$style.label">{{ item.label }}</span>
       <span v-if="item.stackCount && item.stackCount > 1" :class="$style.stackBadge">{{ item.stackCount }}</span>
       <span v-if="item.serverIconUrl || item.avatarUrl" :class="$style.badges">
-        <img v-if="item.avatarUrl" :src="item.avatarUrl" :class="$style.badgeImg" />
+        <img v-if="item.avatarUrl" :src="proxyThumbUrl(item.avatarUrl, 56)" :class="$style.badgeImg" />
         <img v-if="item.serverIconUrl" :src="item.serverIconUrl" :class="$style.badgeImg" />
       </span>
       <button class="_button" :class="$style.removeBtn" @click="emit('remove', i)">

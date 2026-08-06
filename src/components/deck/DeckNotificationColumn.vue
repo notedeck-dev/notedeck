@@ -1216,7 +1216,7 @@ onUnmounted(() => {
                   />
                   <template v-else>
                     <img v-if="notif.type === 'app' && notif.icon" :src="notif.icon" :class="[$style.notifFallbackAvatar, $style.notifAppIcon]" alt="" />
-                    <img v-else-if="resolveNotifAccount(notif)?.avatarUrl" :src="resolveNotifAccount(notif)!.avatarUrl!" :class="$style.notifFallbackAvatar" />
+                    <img v-else-if="resolveNotifAccount(notif)?.avatarUrl" :src="proxyThumbUrl(resolveNotifAccount(notif)!.avatarUrl!, 56)" :class="$style.notifFallbackAvatar" />
                   </template>
                   <img
                     v-if="shouldShowServerBadge(notif) && resolveNotifServerIcon(notif)"

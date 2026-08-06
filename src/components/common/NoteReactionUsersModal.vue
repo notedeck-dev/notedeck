@@ -10,7 +10,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { useAccountsStore } from '@/stores/accounts'
 import { useUiStore } from '@/stores/ui'
-import { proxyEmojiUrl } from '@/utils/mediaProxy'
+import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
 import MkEmoji from './MkEmoji.vue'
 import MkMfm from './MkMfm.vue'
 
@@ -153,7 +153,7 @@ defineExpose({ open })
             >
               <img
                 v-if="u.user.avatarUrl"
-                :src="u.user.avatarUrl"
+                :src="proxyThumbUrl(u.user.avatarUrl, 56)"
                 :class="$style.avatar"
                 width="32"
                 height="32"

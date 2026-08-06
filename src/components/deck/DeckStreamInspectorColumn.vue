@@ -368,7 +368,7 @@ function onDetailWheel(e: WheelEvent) {
           <span :class="$style.rowKind">{{ kindLabel(entry.kind) }}</span>
           <span :class="$style.rowBadges">
             <template v-if="!isScopedToAccount">
-              <img v-if="entry.observer.avatar" :src="entry.observer.avatar" :class="$style.badge" />
+              <img v-if="entry.observer.avatar" :src="proxyThumbUrl(entry.observer.avatar, 56)" :class="$style.badge" />
               <img
                 v-if="entry.observer.serverIcon"
                 :src="entry.observer.serverIcon"
@@ -380,7 +380,7 @@ function onDetailWheel(e: WheelEvent) {
               </template>
             </template>
             <template v-if="entry.subject">
-              <img v-if="entry.subject.avatar" :src="entry.subject.avatar" :class="$style.badge" />
+              <img v-if="entry.subject.avatar" :src="proxyThumbUrl(entry.subject.avatar, 56)" :class="$style.badge" />
               <img
                 v-if="entry.subject.serverIcon"
                 :src="entry.subject.serverIcon"

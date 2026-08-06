@@ -6,7 +6,7 @@ import MkMfm from '@/components/common/MkMfm.vue'
 import { safeUrl } from '@/composables/useDriveFolder'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
-import { proxyUrl } from '@/utils/mediaProxy'
+import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { webUiUrl } from '@/utils/url'
 
@@ -238,7 +238,7 @@ function onKeydown(e: KeyboardEvent) {
         <div :class="$style.meta">
           <div :class="$style.user">
             <img
-              :src="detailPost.user.avatarUrl || '/avatar-default.svg'"
+              :src="proxyThumbUrl(detailPost.user.avatarUrl || '/avatar-default.svg', 56)"
               :class="$style.userAvatar"
               @error="(e: Event) => (e.target as HTMLImageElement).src = '/avatar-error.svg'"
             />
