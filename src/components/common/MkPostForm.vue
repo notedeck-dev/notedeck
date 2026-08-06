@@ -591,16 +591,7 @@ function onPaste(e: ClipboardEvent) {
             :title="noteModeLabel(key as string)"
             @click="noteModeFlags[key as string] = !noteModeFlags[key as string]"
           >
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <path
-                :d="noteModeIcon(key as string)"
-                stroke="currentColor"
-                stroke-width="1.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                fill="none"
-              />
-            </svg>
+            <i class="ti" :class="`ti-${noteModeIcon(key as string, val)}`" />
           </button>
 
           <!-- Visibility (hidden in inline channel mode: always public) -->

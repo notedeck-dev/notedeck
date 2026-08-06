@@ -2,7 +2,7 @@
 
 NoteDeck の AI チャット機能で使う **SKILL (= Markdown 形式の指示書)** を書くための技術リファレンス。
 
-> **入門ガイド・ベストプラクティス例集・配布手順** は misstore 側のドキュメント (近日公開予定) を参照してください。本書は NoteDeck コア仕様に対応する **API リファレンス** に近い性格です。
+> **入門ガイド・ベストプラクティス例集・配布手順** は misstore 側のドキュメント ([CONTRIBUTING](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md) / [レジストリ形式](https://github.com/notedeck-dev/misstore/blob/main/docs/registry-format.md)) を参照してください。本書は NoteDeck コア仕様に対応する **API リファレンス** に近い性格です。
 
 ---
 
@@ -12,7 +12,7 @@ NoteDeck の AI チャット機能で使う **SKILL (= Markdown 形式の指示�
 - AI の振る舞い・キャラ性・応答ガイドラインを Markdown で記述
 - Tauri の `app_data_dir/notedeck/skills/*.md` に置かれる (Linux: `~/.local/share/com.notedeck.desktop/notedeck/skills/`、macOS: `~/Library/Application Support/com.notedeck.desktop/notedeck/skills/`、Windows: `%APPDATA%\com.notedeck.desktop\notedeck\skills\`)
 - 複数の SKILL は順に連結されて 1 つの system prompt になる
-- misstore で配布可能 (Markdown 1 ファイル単位)
+- [misstore](https://store.notedeck.io) で配布可能 (Markdown 1 ファイル単位、[配布手順](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md))
 
 スキルは **AI に "読ませる"** 指示書であり、AI が "実行できる" 機能 (= **capability**) とは別物です。
 

@@ -72,8 +72,19 @@ if (jsTotal > BUDGET_ENTRY_STATIC_JS) {
   )
 }
 
+// self-XSS 警告 (#994) が出力に残っているか。minify の dropConsole は
+// `console.log(...)` と静的に判定できる呼び出しを丸ごと消すため、素直に書くと
+// 本番ビルドでだけ警告が無言で消える (実際に消えていた)。dev では出るので
+// 気づけない。文言が entry 静的閉包に含まれることを検査して止める
+if (![...seen].some((f) => readFileSync(join(DIST, f), 'utf8').includes('はすべて詐欺です'))) {
+  problems.push(
+    'self-XSS 警告 (#994) が entry 静的閉包に無い。minify の dropConsole に\n' +
+      '    消されている可能性が高い (src/utils/selfXssWarning.ts)',
+  )
+}
+
 if (problems.length > 0) {
-  console.error('check-dist-budget: 起動クリティカルパスの予算超過\n')
+  console.error('check-dist-budget: dist 出力の検査に失敗\n')
   for (const p of problems) console.error(`  ${p}\n`)
   process.exit(1)
 }

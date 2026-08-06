@@ -54,6 +54,6 @@ AI に渡されるデータからは、トークンやパスワードにあた�
 
 ## 作る・配る
 
-AI カラムで「〇〇するスキルを作って」と頼めます。手で書く場合は設定フォルダに Markdown を 1 ファイル置くだけです。作ったものは [MisStore](https://store.notedeck.io) で配布できます。
+AI カラムで「〇〇するスキルを作って」と頼めます。手で書く場合は設定フォルダに Markdown を 1 ファイル置くだけです。作ったものは [MisStore](https://store.notedeck.io) で配布できます（[提出のしかた](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md) / [書式](https://github.com/notedeck-dev/misstore/blob/main/docs/registry-format.md#スキル)）。
 
 capability の一覧と権限の詳細は、リポジトリの [SKILLS.md](https://github.com/notedeck-dev/notedeck/blob/main/SKILLS.md) を参照してください。

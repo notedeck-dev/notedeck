@@ -26,4 +26,4 @@ NoteDeck は入れた機能を使うだけでなく、自分で機能を足せ�
 
 ## 配る
 
-作ったものは [MisStore](https://store.notedeck.io) で配布できます。提出の手順とキュレーションの基準は MisStore 側のドキュメントを参照してください。テーマは NoteDeck 固有の形式ではないため、素の Misskey にもそのまま配れます。
+作ったものは [MisStore](https://store.notedeck.io) で配布できます。提出の手順とキュレーションの基準は MisStore 側のドキュメント（[提出のしかた](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md) / [書式リファレンス](https://github.com/notedeck-dev/misstore/blob/main/docs/registry-format.md)）を参照してください。テーマは NoteDeck 固有の形式ではないため、素の Misskey にもそのまま配れます。

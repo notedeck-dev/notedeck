@@ -17,6 +17,8 @@ export interface CustomTimelineInfo {
 // Regex patterns for policy/mode scanning (module-level to avoid recompilation in loops)
 const TL_AVAILABLE_RE = /^(.+)TlAvailable$/
 const MODE_RE = /^isIn(.+)Mode$/
+// アカウント単位 (isIn*Mode) とノート単位 (isNoteIn*Mode) の両方からモード名を取る
+const MODE_NAME_RE = /^is(?:Note)?In(.+)Mode$/
 
 // Standard timeline endpoints — excluded from custom detection
 const STANDARD_TL_ENDPOINTS = new Set([
@@ -403,11 +405,37 @@ export function modeLabel(key: string): string {
   return `${match[1]}モード`
 }
 
-/** モードの Tabler アイコン名 (`ti-` プレフィックスなし) */
+/**
+ * モード名 → Tabler アイコン名 (`ti-` プレフィックスなし) の on/off 対。
+ * フォーク本家の実装に合わせる:
+ * - yamisskey: やみノート切り替えが `ti-moon` / `ti-moon-off`、ノートのバッジも `ti-moon`
+ * - はなみすきー: はなモードが独自グリフ `ti-hanamisskey-hanamode` (花)、通常モードが
+ *   `ti-users-group`。独自グリフは Tabler の配布フォントに無いので `flower` で代替し、
+ *   off 側は yami と同じく `-off` 対で揃える (トグルとして読めることを優先)
+ */
+const MODE_ICONS: Record<string, { on: string; off: string }> = {
+  yami: { on: 'moon', off: 'moon-off' },
+  hana: { on: 'flower', off: 'flower-off' },
+}
+
+/** `isInYamiMode` / `isNoteInYamiMode` → `yami`。パターン外は null */
+function modeName(key: string): string | null {
+  return key.match(MODE_NAME_RE)?.[1]?.toLowerCase() ?? null
+}
+
+/** モードトグルの Tabler アイコン名 (`ti-` プレフィックスなし) */
 export function modeIcon(key: string, active: boolean): string {
-  // Known mode icons — fall back to generic toggle icon
-  if (key === 'isInYamiMode') return active ? 'moon' : 'moon-off'
-  return active ? 'toggle-right' : 'toggle-left'
+  const icons = MODE_ICONS[modeName(key) ?? '']
+  if (!icons) return active ? 'toggle-right' : 'toggle-left'
+  return active ? icons.on : icons.off
+}
+
+/**
+ * ノートに付けるモードバッジの Tabler アイコン名。トグルではないので、
+ * 未知のモードはトグルアイコンではなく中立な印にフォールバックする。
+ */
+export function noteModeBadgeIcon(key: string): string {
+  return MODE_ICONS[modeName(key) ?? '']?.on ?? 'circle-dot'
 }
 
 /**

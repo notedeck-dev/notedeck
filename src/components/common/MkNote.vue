@@ -741,17 +741,13 @@ function handlePickerReaction(reaction: string) {
               :class="$style.edited"
               :title="formatTime(effectiveNote.updatedAt)"
             >(edited)</span>
-            <svg
+            <i
               v-for="mode in activeModeFlags"
               :key="mode.key"
-              :class="$style.visibilityIcon"
-              viewBox="0 0 24 24"
-              width="14"
-              height="14"
+              class="ti"
+              :class="[`ti-${mode.icon}`, $style.visibilityIcon]"
               :title="mode.label + 'モード'"
-            >
-              <path :d="mode.icon" fill="currentColor" />
-            </svg>
+            />
             <i
               v-if="effectiveNote.localOnly"
               class="ti ti-rocket-off"
