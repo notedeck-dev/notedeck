@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { type CSSProperties, computed, ref, useCssModule, watch } from 'vue'
 import type { AvatarDecoration } from '@/adapters/types'
-import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 
 const props = withDefaults(
   defineProps<{
@@ -67,6 +67,16 @@ function onAvatarError(e: Event) {
   }
 }
 
+/**
+ * デコレーションはアバターの 200% 幅で描画される (.avatarDecoration)。
+ * その 2 倍 = size * 4 を要求して DPR 2 まで賄う。原寸を読むと配布素材が
+ * 1500x1500 のこともあり、164px 表示に対して面積比 84 倍のビットマップを
+ * デコードすることになる (#991)。アニメ素材はプロキシ側が変換を素通しする。
+ */
+function decorationSrc(d: AvatarDecoration): string | undefined {
+  return proxyThumbUrl(d.url, props.size * 4)
+}
+
 function computeDecorationStyle(d: AvatarDecoration): CSSProperties {
   const style: CSSProperties = {}
   const angle = d.angle ?? 0
@@ -129,7 +139,7 @@ const statusClass = computed(() =>
     <img
       v-for="(d, i) in props.decorations"
       :key="d.id"
-      :src="proxyUrl(d.url)"
+      :src="decorationSrc(d)"
       :class="$style.avatarDecoration"
       :style="decorationStyles[i]"
       loading="lazy"
