@@ -11,6 +11,7 @@ import { useServersStore } from './stores/servers'
 import { useSettingsStore } from './stores/settings'
 import { useThemeStore } from './stores/theme'
 import { resolveEvictionConfig } from './utils/cacheEviction'
+import { printSelfXssWarning } from './utils/selfXssWarning'
 import { isTauri } from './utils/settingsFs'
 import { logStartupSummary, markStartup } from './utils/startupTrace'
 import { listenTauri } from './utils/tauriEvents'
@@ -149,6 +150,9 @@ if (isTauri) {
 
 app.mount('#app')
 markStartup('mounted')
+
+// Self-XSS 対策 (#994)。開発中はコンソールを汚すだけなので本家同様 PROD のみ
+if (import.meta.env.PROD) printSelfXssWarning()
 
 // web (ブラウザ) では deck-mounted 系のマークが揃わないことがあるため、
 // Tauri のみサマリを deckMounted 経由 (App.vue) で出す。web は mount 時点まで
