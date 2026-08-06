@@ -7,6 +7,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { type Account, getAccountAvatarUrl } from '@/stores/accounts'
 import { useEmojisStore } from '@/stores/emojis'
 import { useWindowsStore } from '@/stores/windows'
+import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import MkAvatar from './MkAvatar.vue'
 import MkMfm from './MkMfm.vue'
 
@@ -142,7 +143,7 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
          (DeckAiColumn の personaIndicator と同じパターン)。
          通常 memo: 普通の MkAvatar (img) 表示。 -->
     <button
-      v-if="isPersona && avatarUrl"
+      v-if="isPersona && isProxiable(avatarUrl)"
       type="button"
       :class="$style.personaAvatar"
       :title="displayName"
@@ -150,7 +151,7 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
     >
       <span
         :class="$style.personaAvatarInner"
-        :style="{ '--icon-url': `url('${avatarUrl}')` }"
+        :style="{ '--icon-url': proxyCssUrl(avatarUrl, 48) }"
         aria-hidden="true"
       />
     </button>

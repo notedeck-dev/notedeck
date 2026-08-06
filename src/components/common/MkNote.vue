@@ -40,7 +40,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useToast } from '@/stores/toast'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { formatTime } from '@/utils/formatTime'
-import { proxyEmojiUrl, proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
+import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
 import {
   buildReactionsData,
   canRenoteNote,
@@ -677,7 +677,7 @@ function handlePickerReaction(reaction: string) {
     >
       <img
         v-if="effectiveNote.reply!.user.avatarUrl"
-        :src="proxyUrl(effectiveNote.reply!.user.avatarUrl)"
+        :src="proxyThumbUrl(effectiveNote.reply!.user.avatarUrl, 56)"
         :class="$style.replyToAvatar"
         width="20"
         height="20"

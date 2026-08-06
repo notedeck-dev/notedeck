@@ -34,6 +34,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useIsCompactLayout } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { buildPreviewNote } from '@/utils/buildPreviewNote'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { buildReplyMentions } from '@/utils/replyMentions'
 import {
   formatScheduleAbsolute,
@@ -537,7 +538,7 @@ function onPaste(e: ClipboardEvent) {
             >
               <span :class="$style.accountAvatarWrap">
                 <img
-                  :src="getAccountAvatarUrl(account)"
+                  :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)"
                   :class="$style.accountAvatar"
                 />
                 <img

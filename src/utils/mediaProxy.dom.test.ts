@@ -111,3 +111,91 @@ describe('URL 文字列キャッシュの追い出し (#893)', () => {
     expect(proxyUrl(REMOTE)).toBe(first)
   })
 })
+
+/**
+ * CSS の url() 値としてプロキシ URL を組み立てる口 (#979)。
+ *
+ * ストア配布物のアイコンは第三者がメタデータで URL を指定できるため、
+ * 文字列補間で url('...') を組み立てると、クォートを含む値で url() を
+ * 閉じて別のプロパティを注入できてしまう。プロキシを通った URL だけを
+ * CSS に入れ、素通し (https 以外) は none に倒すことで塞ぐ。
+ */
+describe('proxyCssUrl', () => {
+  it('https の URL はプロキシ経由の url() 値になる', async () => {
+    const { proxyCssUrl } = await loadModule()
+    const css = proxyCssUrl(REMOTE, 48)
+    expect(css).toBe(`url("${BASE}?url=${encodeURIComponent(REMOTE)}&w=48")`)
+  })
+
+  it('https 以外は none に倒す (素通し URL を CSS に入れない)', async () => {
+    const { proxyCssUrl } = await loadModule()
+    expect(proxyCssUrl('http://example.com/x.png', 48)).toBe('none')
+    expect(proxyCssUrl('data:image/png;base64,AAAA', 48)).toBe('none')
+    expect(proxyCssUrl('/local/icon.svg', 48)).toBe('none')
+  })
+
+  it('null / undefined / 空文字は none', async () => {
+    const { proxyCssUrl } = await loadModule()
+    expect(proxyCssUrl(null, 48)).toBe('none')
+    expect(proxyCssUrl(undefined, 48)).toBe('none')
+    expect(proxyCssUrl('', 48)).toBe('none')
+  })
+
+  // encodeURIComponent は ' と ) をエンコードしないので、url() は
+  // ダブルクォートで囲む必要がある。" は %22 になるため閉じられない。
+  it.each([
+    [
+      'ダブルクォート',
+      `https://e.example/x.png"); background: url("https://evil.example/y.png`,
+    ],
+    [
+      'シングルクォート',
+      `https://e.example/x.png'); background: url('https://evil.example/y.png`,
+    ],
+  ])('%s を含む URL でも url() を閉じられない', async (_name, evil) => {
+    const { proxyCssUrl } = await loadModule()
+    const css = proxyCssUrl(evil, 48)
+    // 開始と終了の 2 つだけ = 途中で文字列を閉じられていない
+    expect((css.match(/"/g) ?? []).length).toBe(2)
+    expect(css.startsWith('url("')).toBe(true)
+    expect(css.endsWith('")')).toBe(true)
+  })
+})
+
+/**
+ * アイコンを描くかフォールバックの Tabler アイコンに倒すかの述語 (#979)。
+ *
+ * これらのアイコンは mask で描いているため、url() が none になると
+ * 「マスクなし = 要素全体がベタ塗り」になる。URL があるかどうかで v-if を
+ * 切ると、プロキシに載らない URL のときに四角が出てしまう。
+ */
+describe('isProxiable', () => {
+  it('https だけがプロキシに載る', async () => {
+    const { isProxiable } = await loadModule()
+    expect(isProxiable(REMOTE)).toBe(true)
+    expect(isProxiable('http://example.com/x.png')).toBe(false)
+    expect(isProxiable('data:image/png;base64,AAAA')).toBe(false)
+    expect(isProxiable('/local/icon.svg')).toBe(false)
+    expect(isProxiable(null)).toBe(false)
+    expect(isProxiable(undefined)).toBe(false)
+    expect(isProxiable('')).toBe(false)
+  })
+
+  // ここがずれると v-if は真なのに mask が none になり、ベタ塗りが復活する
+  it('proxyCssUrl が none を返す条件と完全に一致する', async () => {
+    const { isProxiable, proxyCssUrl } = await loadModule()
+    const urls = [
+      REMOTE,
+      'https://example.com/a.png',
+      'http://example.com/x.png',
+      'data:image/png;base64,AAAA',
+      '/local/icon.svg',
+      '',
+      null,
+      undefined,
+    ]
+    for (const u of urls) {
+      expect(isProxiable(u)).toBe(proxyCssUrl(u, 48) !== 'none')
+    }
+  })
+})

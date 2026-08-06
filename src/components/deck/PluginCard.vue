@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 
 type Mode = 'installed' | 'store' | 'library'
 
@@ -69,9 +70,9 @@ const incompatTitle = computed(() => {
   >
     <div :class="$style.icon">
       <span
-        v-if="iconUrl"
+        v-if="isProxiable(iconUrl)"
         :class="$style.iconImg"
-        :style="{ '--icon-url': `url('${iconUrl}')` }"
+        :style="{ '--icon-url': proxyCssUrl(iconUrl, 48) }"
         aria-hidden="true"
       />
       <i v-else class="ti ti-puzzle" />

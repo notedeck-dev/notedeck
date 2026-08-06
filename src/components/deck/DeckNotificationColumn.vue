@@ -1061,7 +1061,7 @@ onUnmounted(() => {
 
     <template #header-meta>
       <div v-if="!isCrossAccount && account" :class="$style.headerAccount">
-        <img :src="getAccountAvatarUrl(account)" :class="$style.headerAvatar" />
+        <img :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)" :class="$style.headerAvatar" />
         <img :class="$style.headerFavicon" :src="serverIconUrl || proxyThumbUrl(`https://${account.host}/favicon.ico`, 28)" :title="account.host" @error="($event.target as HTMLImageElement).src = '/server-icon-error.svg'" />
       </div>
     </template>

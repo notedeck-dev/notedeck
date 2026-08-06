@@ -39,11 +39,24 @@ function evictOldestIfFull(map: Map<string, unknown>, key: string) {
   if (oldest !== undefined) map.delete(oldest)
 }
 
+/**
+ * プロキシに載せられる URL か。
+ *
+ * アイコンを描くか、フォールバックの Tabler アイコンに倒すかの判定に使う
+ * (#979)。配布物アイコンは `mask` で描いているため、`proxyCssUrl` が
+ * `none` を返す URL に対して要素を出すと、**マスクなし = 要素全体が
+ * ベタ塗り**になる。「URL があるか」ではなく「プロキシに載るか」で
+ * v-if を切ること。
+ */
+export function isProxiable(url: string | null | undefined): url is string {
+  return !!url?.startsWith('https://')
+}
+
 function buildProxyUrl(
   url: string | null | undefined,
   sizeQuery?: string,
 ): string | undefined {
-  if (!url?.startsWith('https://')) return url ?? undefined
+  if (!isProxiable(url)) return url ?? undefined
   const key = sizeQuery ? `${url}|${sizeQuery}` : url
   let cached = proxyUrlCache.get(key)
   if (!cached) {
@@ -73,6 +86,28 @@ export function proxyThumbUrl(
   width: number,
 ): string | undefined {
   return buildProxyUrl(url, `w=${width}`)
+}
+
+/**
+ * CSS の `url()` 値としてプロキシ URL を返す (#979)。
+ *
+ * ストア配布物 (プラグイン・ウィジェット・クエリ・スキル) のアイコンは
+ * 第三者がメタデータで URL を指定できる。文字列補間で `url('...')` を
+ * 組み立てると、クォートを含む値で url() を閉じて別のプロパティを
+ * 注入できてしまうため、**プロキシを通った URL だけ**を CSS に入れる。
+ *
+ * `buildProxyUrl` は https 以外を素通しするが、素通し URL は CSS に
+ * 渡さず `none` に倒す。配布元ホストへ直接リクエストが飛ぶのを防ぐ
+ * (相手に「いつ誰が開いたか」と IP が見える) のが本来の目的なので、
+ * プロキシに乗らない URL は表示しないのが正しい。
+ */
+export function proxyCssUrl(
+  url: string | null | undefined,
+  width: number,
+): string {
+  const proxied = proxyThumbUrl(url, width)
+  if (!proxied?.startsWith(HTTP_MEDIA_BASE)) return 'none'
+  return `url("${proxied}")`
 }
 
 /**
