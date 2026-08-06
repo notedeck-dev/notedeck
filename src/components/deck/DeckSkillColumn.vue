@@ -17,6 +17,7 @@ import {
 } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
+import { proxyCssUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
 import ColumnSection from './ColumnSection.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
@@ -265,7 +266,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                 <span
                   v-if="skill.iconUrl"
                   :class="$style.iconImg"
-                  :style="{ '--icon-url': `url('${skill.iconUrl}')` }"
+                  :style="{ '--icon-url': proxyCssUrl(skill.iconUrl, 48) }"
                   aria-hidden="true"
                 />
                 <i v-else class="ti ti-sparkles" />
@@ -382,7 +383,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
               <span
                 v-if="entry.iconUrl"
                 :class="$style.iconImg"
-                :style="{ '--icon-url': `url('${entry.iconUrl}')` }"
+                :style="{ '--icon-url': proxyCssUrl(entry.iconUrl, 48) }"
                 aria-hidden="true"
               />
               <i v-else class="ti ti-sparkles" />

@@ -39,6 +39,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
 import { useWidgetsStore } from '@/stores/widgets'
+import { proxyCssUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
@@ -319,7 +320,7 @@ function toggleAutoRun() {
         <span
           v-if="widget.iconUrl"
           :class="$style.headerIconImg"
-          :style="{ '--icon-url': `url('${widget.iconUrl}')` }"
+          :style="{ '--icon-url': proxyCssUrl(widget.iconUrl, 48) }"
           aria-hidden="true"
         />
         <i v-else class="ti ti-layout-dashboard" />

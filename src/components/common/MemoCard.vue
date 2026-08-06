@@ -7,6 +7,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { type Account, getAccountAvatarUrl } from '@/stores/accounts'
 import { useEmojisStore } from '@/stores/emojis'
 import { useWindowsStore } from '@/stores/windows'
+import { proxyCssUrl } from '@/utils/mediaProxy'
 import MkAvatar from './MkAvatar.vue'
 import MkMfm from './MkMfm.vue'
 
@@ -150,7 +151,7 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
     >
       <span
         :class="$style.personaAvatarInner"
-        :style="{ '--icon-url': `url('${avatarUrl}')` }"
+        :style="{ '--icon-url': proxyCssUrl(avatarUrl, 48) }"
         aria-hidden="true"
       />
     </button>

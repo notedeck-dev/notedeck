@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useAiConfig } from '@/composables/useAiConfig'
 import { useSkillsStore } from '@/stores/skills'
+import { proxyCssUrl } from '@/utils/mediaProxy'
 import AiSettingsSection from './AiSettingsSection.vue'
 
 const { config } = useAiConfig()
@@ -62,7 +63,7 @@ const currentPersonaSkill = computed(() => {
         <span
           v-if="s.iconUrl"
           :class="$style.logo"
-          :style="{ '--icon-url': `url('${s.iconUrl}')` }"
+          :style="{ '--icon-url': proxyCssUrl(s.iconUrl, 48) }"
           aria-hidden="true"
         />
         <i v-else class="ti ti-user-circle" :class="$style.logoFallback" />

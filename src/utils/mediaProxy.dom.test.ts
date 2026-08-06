@@ -111,3 +111,53 @@ describe('URL 文字列キャッシュの追い出し (#893)', () => {
     expect(proxyUrl(REMOTE)).toBe(first)
   })
 })
+
+/**
+ * CSS の url() 値としてプロキシ URL を組み立てる口 (#979)。
+ *
+ * ストア配布物のアイコンは第三者がメタデータで URL を指定できるため、
+ * 文字列補間で url('...') を組み立てると、クォートを含む値で url() を
+ * 閉じて別のプロパティを注入できてしまう。プロキシを通った URL だけを
+ * CSS に入れ、素通し (https 以外) は none に倒すことで塞ぐ。
+ */
+describe('proxyCssUrl', () => {
+  it('https の URL はプロキシ経由の url() 値になる', async () => {
+    const { proxyCssUrl } = await loadModule()
+    const css = proxyCssUrl(REMOTE, 48)
+    expect(css).toBe(`url("${BASE}?url=${encodeURIComponent(REMOTE)}&w=48")`)
+  })
+
+  it('https 以外は none に倒す (素通し URL を CSS に入れない)', async () => {
+    const { proxyCssUrl } = await loadModule()
+    expect(proxyCssUrl('http://example.com/x.png', 48)).toBe('none')
+    expect(proxyCssUrl('data:image/png;base64,AAAA', 48)).toBe('none')
+    expect(proxyCssUrl('/local/icon.svg', 48)).toBe('none')
+  })
+
+  it('null / undefined / 空文字は none', async () => {
+    const { proxyCssUrl } = await loadModule()
+    expect(proxyCssUrl(null, 48)).toBe('none')
+    expect(proxyCssUrl(undefined, 48)).toBe('none')
+    expect(proxyCssUrl('', 48)).toBe('none')
+  })
+
+  // encodeURIComponent は ' と ) をエンコードしないので、url() は
+  // ダブルクォートで囲む必要がある。" は %22 になるため閉じられない。
+  it.each([
+    [
+      'ダブルクォート',
+      `https://e.example/x.png"); background: url("https://evil.example/y.png`,
+    ],
+    [
+      'シングルクォート',
+      `https://e.example/x.png'); background: url('https://evil.example/y.png`,
+    ],
+  ])('%s を含む URL でも url() を閉じられない', async (_name, evil) => {
+    const { proxyCssUrl } = await loadModule()
+    const css = proxyCssUrl(evil, 48)
+    // 開始と終了の 2 つだけ = 途中で文字列を閉じられていない
+    expect((css.match(/"/g) ?? []).length).toBe(2)
+    expect(css.startsWith('url("')).toBe(true)
+    expect(css.endsWith('")')).toBe(true)
+  })
+})

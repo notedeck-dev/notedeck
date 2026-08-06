@@ -19,6 +19,7 @@ import {
   type PluginScope,
   usePluginsStore,
 } from '@/stores/plugins'
+import { proxyCssUrl } from '@/utils/mediaProxy'
 import { pluginSrcFilename } from '@/utils/settingsFs'
 
 const props = defineProps<{
@@ -335,7 +336,7 @@ async function importPlugin() {
         <span
           v-if="plugin.iconUrl"
           :class="$style.headerIconImg"
-          :style="{ '--icon-url': `url('${plugin.iconUrl}')` }"
+          :style="{ '--icon-url': proxyCssUrl(plugin.iconUrl, 48) }"
           aria-hidden="true"
         />
         <i v-else class="ti ti-puzzle" />

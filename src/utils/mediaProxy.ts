@@ -76,6 +76,28 @@ export function proxyThumbUrl(
 }
 
 /**
+ * CSS の `url()` 値としてプロキシ URL を返す (#979)。
+ *
+ * ストア配布物 (プラグイン・ウィジェット・クエリ・スキル) のアイコンは
+ * 第三者がメタデータで URL を指定できる。文字列補間で `url('...')` を
+ * 組み立てると、クォートを含む値で url() を閉じて別のプロパティを
+ * 注入できてしまうため、**プロキシを通った URL だけ**を CSS に入れる。
+ *
+ * `buildProxyUrl` は https 以外を素通しするが、素通し URL は CSS に
+ * 渡さず `none` に倒す。配布元ホストへ直接リクエストが飛ぶのを防ぐ
+ * (相手に「いつ誰が開いたか」と IP が見える) のが本来の目的なので、
+ * プロキシに乗らない URL は表示しないのが正しい。
+ */
+export function proxyCssUrl(
+  url: string | null | undefined,
+  width: number,
+): string {
+  const proxied = proxyThumbUrl(url, width)
+  if (!proxied?.startsWith(HTTP_MEDIA_BASE)) return 'none'
+  return `url("${proxied}")`
+}
+
+/**
  * カスタム絵文字の共通サムネイル口。
  *
  * 本家 media-proxy の `emoji=1` と同じ「最大高さ 128px」基準 (#921)。
