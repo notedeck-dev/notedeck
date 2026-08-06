@@ -22,6 +22,7 @@ import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
@@ -382,7 +383,7 @@ fetchDrive()
         <i :class="uploading ? 'ti ti-loader-2 nd-spin' : 'ti ti-upload'" />
       </button>
       <div v-if="account" :class="$style.headerAccount">
-        <img :src="getAccountAvatarUrl(account)" :class="$style.headerAvatar" />
+        <img :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)" :class="$style.headerAvatar" />
       </div>
     </template>
 

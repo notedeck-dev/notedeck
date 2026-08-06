@@ -32,6 +32,7 @@ import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useToast } from '@/stores/toast'
 import { logWarn } from '@/utils/logger'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
@@ -448,7 +449,7 @@ function close() {
           :title="isGuestAccount(account) && requiresAuth ? 'ゲストアカウントではこのカラムを使えません' : ''"
           @click="(!account.hasToken && requiresAuth) ? showLoginPrompt() : addColumnForAccount(account.id)"
         >
-          <img :src="getAccountAvatarUrl(account)" :class="$style.addAccountAvatar" />
+          <img :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)" :class="$style.addAccountAvatar" />
           <span>{{ getAccountLabel(account) }}</span>
         </button>
       </template>
