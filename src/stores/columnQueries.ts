@@ -171,10 +171,17 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     await persist(next)
   }
 
-  async function removeQuery(id: string): Promise<void> {
+  /**
+   * クエリを削除する。削除を取り消す undo を返す (#988 — skill / widget と同じ
+   * 「confirm → 削除 → 元に戻すトースト」に揃えるため)。未知の id なら undefined。
+   * カラム側の参照 (noteQueryRefs) は削除時に剥がしていないので、undo で復活
+   * すれば fail-closed だったカラムがそのまま元に戻る。
+   */
+  async function removeQuery(id: string): Promise<(() => void) | undefined> {
     ensureLoaded()
-    const target = queries.value.find((q) => q.id === id)
-    if (!target) return
+    const idx = queries.value.findIndex((q) => q.id === id)
+    const target = queries.value[idx]
+    if (!target) return undefined
     queries.value = queries.value.filter((q) => q.id !== id)
     persistMirror()
     if (settingsFs.isTauri) {
@@ -183,6 +190,16 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
       } catch (e) {
         console.warn('[columnQueries] delete failed', e)
       }
+    }
+    return () => {
+      if (queries.value.some((q) => q.id === id)) return
+      const at = Math.min(idx, queries.value.length)
+      queries.value = [
+        ...queries.value.slice(0, at),
+        target,
+        ...queries.value.slice(at),
+      ]
+      void persist(target)
     }
   }
 

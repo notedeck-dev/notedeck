@@ -8,10 +8,12 @@ import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
+  getStorageByPrefix,
   getStorageJson,
   removeStorageByPrefix,
   STORAGE_KEYS,
   setStorageJson,
+  setStorageString,
 } from '@/utils/storage'
 
 interface BuiltInPluginTemplate {
@@ -316,11 +318,20 @@ export const usePluginsStore = defineStore('plugins', () => {
     persist(plugin)
   }
 
-  function removePlugin(installId: string) {
+  /**
+   * プラグインをライブラリから削除する。削除を取り消す undo を返す (#988 —
+   * skill / widget と同じ「confirm → 削除 → 元に戻すトースト」に揃えるため)。
+   * 未知の installId なら undefined。
+   */
+  function removePlugin(installId: string): (() => void) | undefined {
     ensureLoaded()
-    const removed = plugins.value.find((p) => p.installId === installId)
+    const idx = plugins.value.findIndex((p) => p.installId === installId)
+    const removed = plugins.value[idx]
     // Clean up plugin localStorage entries
-    removeStorageByPrefix(STORAGE_KEYS.aiscriptPlugin(installId))
+    // undo で戻せるよう消す前にスナップショットを取る (widgets と同型)
+    const storagePrefix = STORAGE_KEYS.aiscriptPlugin(installId)
+    const savedStorage = getStorageByPrefix(storagePrefix)
+    removeStorageByPrefix(storagePrefix)
     plugins.value = plugins.value.filter((p) => p.installId !== installId)
     // Sync: localStorage only (file deletion handles the rest)
     savePluginsToStorage(plugins.value)
@@ -331,6 +342,27 @@ export const usePluginsStore = defineStore('plugins', () => {
         .catch((e) =>
           console.warn('[plugins] failed to delete plugin files:', e),
         )
+    }
+    if (!removed) return undefined
+    return () => {
+      if (plugins.value.some((p) => p.installId === installId)) return
+      const at = Math.min(idx, plugins.value.length)
+      plugins.value = [
+        ...plugins.value.slice(0, at),
+        removed,
+        ...plugins.value.slice(at),
+      ]
+      savePluginsToStorage(plugins.value)
+      for (const [key, value] of Object.entries(savedStorage)) {
+        setStorageString(key, value)
+      }
+      if (initialized.value) {
+        pluginFiles
+          .persistItem(removed)
+          .catch((e) =>
+            console.warn('[plugins] failed to restore plugin files:', e),
+          )
+      }
     }
   }
 

@@ -322,14 +322,22 @@ export const useThemeStore = defineStore('theme', () => {
     }
   }
 
-  function removeTheme(id: string): void {
-    const removed = installedThemes.value.find((t) => t.id === id)
+  /**
+   * インストール済みテーマを削除する。削除を取り消す undo を返す (#988 —
+   * skill / widget と同じ「confirm → 削除 → 元に戻すトースト」に揃えるため)。
+   * 未知の id なら undefined。
+   */
+  function removeTheme(id: string): (() => void) | undefined {
+    const idx = installedThemes.value.findIndex((t) => t.id === id)
+    const removed = installedThemes.value[idx]
     installedThemes.value = installedThemes.value.filter((t) => t.id !== id)
     // Clear selection if removed (computed setter → settingsStore)
-    if (selectedDarkThemeId.value === id) {
+    const wasDark = selectedDarkThemeId.value === id
+    const wasLight = selectedLightThemeId.value === id
+    if (wasDark) {
       selectedDarkThemeId.value = null
     }
-    if (selectedLightThemeId.value === id) {
+    if (wasLight) {
       selectedLightThemeId.value = null
     }
     // Sync: update localStorage cache only (no need to rewrite remaining theme files)
@@ -341,26 +349,52 @@ export const useThemeStore = defineStore('theme', () => {
         .deleteThemeFile(removed)
         .catch((e) => console.warn('[theme] failed to delete theme file:', e))
     }
+    if (!removed) return undefined
+    return () => {
+      if (installedThemes.value.some((t) => t.id === id)) return
+      const at = Math.min(idx, installedThemes.value.length)
+      installedThemes.value = [
+        ...installedThemes.value.slice(0, at),
+        removed,
+        ...installedThemes.value.slice(at),
+      ]
+      if (wasDark) selectedDarkThemeId.value = id
+      if (wasLight) selectedLightThemeId.value = id
+      setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+      applyCurrentTheme()
+      if (initialized.value) {
+        themeFileSync
+          .persistSingleTheme(removed)
+          .catch((e) =>
+            console.warn('[theme] failed to restore theme file:', e),
+          )
+      }
+    }
   }
 
   /**
    * テーマの per-account 紐付け (`$notedeck.installedFor`) から accountId を外す。
    * installedFor が空になれば installedThemes 自体からも削除する。
    * per-account テーマカラムでの「× ボタン」=「このアカウントから外す」用。
+   *
+   * 本体ごと消えた場合のみ、削除を取り消す undo を返す (#988)。紐付けが残る
+   * ケースは可逆な「外す」なので undo は返さない (widget の detach と同じ)。
    */
-  function unlinkAccountFromTheme(themeId: string, accountId: string): void {
+  function unlinkAccountFromTheme(
+    themeId: string,
+    accountId: string,
+  ): (() => void) | undefined {
     const theme = installedThemes.value.find((t) => t.id === themeId)
     if (!theme || !theme.$notedeck?.installedFor) {
       // 紐付けが無いテーマ (Global ローカル / 古い installedFor 無し) の場合は
       // per-account からの除去はそもそも責務外 → no-op
-      return
+      return undefined
     }
     const remaining = theme.$notedeck.installedFor.filter(
       (id) => id !== accountId,
     )
     if (remaining.length === 0) {
-      removeTheme(themeId)
-      return
+      return removeTheme(themeId)
     }
     const updated: MisskeyTheme = {
       ...theme,
@@ -377,6 +411,7 @@ export const useThemeStore = defineStore('theme', () => {
           console.warn('[theme] failed to persist installedFor update:', e),
         )
     }
+    return undefined
   }
 
   function renameTheme(themeId: string, newName: string): void {

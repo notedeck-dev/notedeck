@@ -470,6 +470,9 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // やトレイで隠したウィンドウを誤って再表示しないため。
         // 期限は通常起動の最悪値より十分外側の保険。チューニング禁止。
         // autostart の --minimized (未実装の予約語) を実装する際は要再検討。
+        // モバイルは対象外 — is_visible/show が WebviewWindow に存在せず、
+        // そもそも可視性を OS が握るので不可視のまま残る状態が起きない。
+        #[cfg(desktop)]
         {
             let fuse_handle = app.app_handle().clone();
             std::thread::spawn(move || {
