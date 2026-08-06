@@ -58,4 +58,4 @@
 
 ## 作る・配る
 
-AI カラムで「〇〇するプラグインを作って」と頼むのが最短です。手で書く場合は設定フォルダに置きます。作ったものは [MisStore](https://store.notedeck.io) で配布できます。
+AI カラムで「〇〇するプラグインを作って」と頼むのが最短です。手で書く場合は設定フォルダに置きます。作ったものは [MisStore](https://store.notedeck.io) で配布できます（[提出のしかた](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md) / [書式](https://github.com/notedeck-dev/misstore/blob/main/docs/registry-format.md#プラグイン)）。

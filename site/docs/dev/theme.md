@@ -53,4 +53,4 @@ Misskey 本体のテーマ形式には `props` の中で `$名前` として定�
 
 ## 作る・配る
 
-AI カラムで「〇〇なイメージのテーマを作って」と頼めます。手で書く場合は設定フォルダに置きます。作ったものは [MisStore](https://store.notedeck.io) で配布できます。
+AI カラムで「〇〇なイメージのテーマを作って」と頼めます。手で書く場合は設定フォルダに置きます。作ったものは [MisStore](https://store.notedeck.io) で配布できます（[提出のしかた](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md) / [書式](https://github.com/notedeck-dev/misstore/blob/main/docs/registry-format.md#テーマ)）。

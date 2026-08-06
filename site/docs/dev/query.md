@@ -35,4 +35,4 @@ note.files.len  note.reactions["絵文字名"]
 
 ## 入れる・配る
 
-[ストア](/docs/guide/store)から入れたクエリをそのまま使うことも、編集して自分用に直すこともできます。作ったものは [MisStore](https://store.notedeck.io) で配布できます。
+[ストア](/docs/guide/store)から入れたクエリをそのまま使うことも、編集して自分用に直すこともできます。作ったものは [MisStore](https://store.notedeck.io) で配布できます（[提出のしかた](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md) / [書式](https://github.com/notedeck-dev/misstore/blob/main/docs/registry-format.md#クエリ)）。

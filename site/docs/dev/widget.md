@@ -41,4 +41,4 @@ Ui:render([
 
 ## 作る・配る
 
-AI カラムで「〇〇を表示するウィジェットを作って」と頼めます。手で書く場合は設定フォルダにコード本体とメタ情報の 2 ファイルを置きます。作ったものは [MisStore](https://store.notedeck.io) で配布できます。
+AI カラムで「〇〇を表示するウィジェットを作って」と頼めます。手で書く場合は設定フォルダにコード本体とメタ情報の 2 ファイルを置きます。作ったものは [MisStore](https://store.notedeck.io) で配布できます（[提出のしかた](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md) / [書式](https://github.com/notedeck-dev/misstore/blob/main/docs/registry-format.md#ウィジェット)）。
