@@ -86,6 +86,18 @@ export default defineConfig({
           ],
         },
         {
+          text: '拡張をつくる',
+          collapsed: false,
+          items: [
+            { text: '拡張の全体像', link: '/docs/dev/' },
+            { text: 'プラグイン', link: '/docs/dev/plugin' },
+            { text: 'ウィジェット', link: '/docs/dev/widget' },
+            { text: 'テーマ', link: '/docs/dev/theme' },
+            { text: 'カラムクエリ', link: '/docs/dev/query' },
+            { text: 'スキル', link: '/docs/dev/skill' },
+          ],
+        },
+        {
           text: '設定とデータ',
           collapsed: false,
           items: [
@@ -145,6 +157,8 @@ export default defineConfig({
   },
 
   markdown: {
+    // AiScript (.is) を shiki は知らない。JS として色付けする
+    languageAlias: { is: 'js' },
     container: {
       tipLabel: 'ヒント',
       warningLabel: '注意',
