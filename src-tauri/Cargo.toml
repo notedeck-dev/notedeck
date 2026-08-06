@@ -1,6 +1,6 @@
 [package]
 name = "notedeck"
-version = "1.42.3"
+version = "1.42.4"
 description = "Misskey Pro — integrated deck environment (IDE) for Misskey power users"
 edition = "2021"
 license = "AGPL-3.0-only"

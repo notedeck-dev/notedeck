@@ -2,8 +2,10 @@ import { defineConfig } from 'vitepress'
 
 const BASE_URL = 'https://notedeck.io'
 const REPO = 'https://github.com/notedeck-dev/notedeck'
-const OGP_IMAGE =
-  'https://github.com/user-attachments/assets/a9bca10d-a59d-4c35-9284-fb0534ccf886'
+// 共有カードは自前で配信する (#978)。外部の添付 URL はリダイレクト先が失効し、
+// 最初の応答も画像ではないので、リダイレクトを追わないクローラーで出ない。
+// 版下は site/assets/ogp.svg。
+const OGP_IMAGE = `${BASE_URL}/ogp.png`
 
 export default defineConfig({
   lang: 'ja',
@@ -20,6 +22,16 @@ export default defineConfig({
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'NoteDeck' }],
     ['meta', { property: 'og:image', content: OGP_IMAGE }],
+    ['meta', { property: 'og:image:type', content: 'image/png' }],
+    ['meta', { property: 'og:image:width', content: '1200' }],
+    ['meta', { property: 'og:image:height', content: '630' }],
+    [
+      'meta',
+      {
+        property: 'og:image:alt',
+        content: 'NoteDeck — Misskey廃人のための 非公式クライアント。',
+      },
+    ],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     [
@@ -71,6 +83,19 @@ export default defineConfig({
             { text: '見た目を変える', link: '/docs/guide/appearance' },
             { text: 'ストアで拡張する', link: '/docs/guide/store' },
             { text: 'AI と使う', link: '/docs/guide/ai' },
+            { text: '環境を育てる', link: '/docs/guide/grow' },
+          ],
+        },
+        {
+          text: '拡張をつくる',
+          collapsed: false,
+          items: [
+            { text: '拡張の全体像', link: '/docs/dev/' },
+            { text: 'プラグイン', link: '/docs/dev/plugin' },
+            { text: 'ウィジェット', link: '/docs/dev/widget' },
+            { text: 'テーマ', link: '/docs/dev/theme' },
+            { text: 'カラムクエリ', link: '/docs/dev/query' },
+            { text: 'スキル', link: '/docs/dev/skill' },
           ],
         },
         {
@@ -133,6 +158,8 @@ export default defineConfig({
   },
 
   markdown: {
+    // AiScript (.is) を shiki は知らない。JS として色付けする
+    languageAlias: { is: 'js' },
     container: {
       tipLabel: 'ヒント',
       warningLabel: '注意',

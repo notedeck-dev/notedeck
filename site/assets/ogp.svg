@@ -1,0 +1,93 @@
+<!-- 共有カード (og:image) の版下。書き出し先は site/public/ogp.png (#978)
+     SVG は主要サービスが og:image として読まないので、必ず PNG を配信する。
+
+     書き出し:
+       resvg [use-fonts-dir オプションで Nunito の ttf を置いたディレクトリを渡す] \
+         site/assets/ogp.svg site/public/ogp.png
+     Nunito は https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800
+     を古い UA (Mozilla/4.0) で叩くと ttf の URL が得られる。
+
+     色・角丸・グラデはランディングと同じ語彙。正本は
+     site/.vitepress/theme/tokens.css / landing.css。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <!-- accent-grad: linear-gradient(90deg, #86b300, #4ab300, #4ab300) -->
+    <linearGradient id="wordmark" gradientUnits="userSpaceOnUse" x1="600" y1="0" x2="880" y2="0">
+      <stop offset="0" stop-color="#86b300"/>
+      <stop offset="0.5" stop-color="#4ab300"/>
+      <stop offset="1" stop-color="#4ab300"/>
+    </linearGradient>
+
+    <!-- hero-blob-1 / -2。live のランディングでは回っているので角度は任意 -->
+    <linearGradient id="blob1" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4ab300"/>
+      <stop offset="1" stop-color="#86b300"/>
+    </linearGradient>
+    <linearGradient id="blob2" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#86b300" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#4ab300" stop-opacity="0.6"/>
+    </linearGradient>
+
+    <!-- アプリアイコンと同じ 3 カラムのグラデ。正本は src-tauri/icons/icon.svg -->
+    <linearGradient id="col1" gradientUnits="userSpaceOnUse" x1="122" y1="136" x2="122" y2="416">
+      <stop offset="0%" stop-color="#c6f430"/>
+      <stop offset="100%" stop-color="#8bc34a"/>
+    </linearGradient>
+    <linearGradient id="col2" gradientUnits="userSpaceOnUse" x1="256" y1="136" x2="256" y2="416">
+      <stop offset="0%" stop-color="#96cc00"/>
+      <stop offset="100%" stop-color="#5d9e1b"/>
+    </linearGradient>
+    <linearGradient id="col3" gradientUnits="userSpaceOnUse" x1="390" y1="136" x2="390" y2="416">
+      <stop offset="0%" stop-color="#6b9b00"/>
+      <stop offset="100%" stop-color="#3d7a0a"/>
+    </linearGradient>
+    <linearGradient id="br1" gradientUnits="userSpaceOnUse" x1="136" y1="136" x2="242" y2="136">
+      <stop offset="0%" stop-color="#c6f430"/>
+      <stop offset="100%" stop-color="#96cc00"/>
+    </linearGradient>
+    <linearGradient id="br2" gradientUnits="userSpaceOnUse" x1="270" y1="136" x2="376" y2="136">
+      <stop offset="0%" stop-color="#96cc00"/>
+      <stop offset="100%" stop-color="#6b9b00"/>
+    </linearGradient>
+
+    <clipPath id="card">
+      <rect x="36" y="36" width="1128" height="558" rx="32"/>
+    </clipPath>
+  </defs>
+
+  <!-- 地 (bg) の上に hero カード (hero-bg, radius 16 相当を大判に) -->
+  <rect width="1200" height="630" fill="#eee"/>
+  <g clip-path="url(#card)">
+    <rect x="36" y="36" width="1128" height="558" fill="#ddd"/>
+    <g opacity="0.45">
+      <g transform="translate(1010,-215) rotate(24,225,225) scale(0.45)">
+        <path d="M500,70 C737.5,70 930,262.5 930,500 C930,737.5 737.5,930 500,930 C262.5,930 40,760 40,522 C40,284 262.5,70 500,70 Z" fill="url(#blob1)"/>
+      </g>
+      <g transform="translate(-190,455) rotate(-18,190,190) scale(0.38)">
+        <path d="M500,70 C737.5,70 960,240 960,478 C960,716 737.5,930 500,930 C262.5,930 70,737.5 70,500 C70,262.5 262.5,70 500,70 Z" fill="url(#blob2)"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- ロゴマーク: icon.svg の中身から、アプリタイル用の余白取りだけ外したもの -->
+  <g transform="translate(600,92) scale(0.4167) translate(-256,-56)">
+    <rect x="72" y="136" width="100" height="280" rx="36" fill="url(#col1)"/>
+    <rect x="206" y="136" width="100" height="280" rx="36" fill="url(#col2)"/>
+    <rect x="340" y="136" width="100" height="280" rx="36" fill="url(#col3)"/>
+    <path d="M136,136 L168,200 Q189,236 210,200 L242,136 Z" fill="url(#br1)"/>
+    <path d="M270,136 L302,200 Q323,236 344,200 L376,136 Z" fill="url(#br2)"/>
+    <path d="M122,140 L120,118" fill="none" stroke="#4a8b1a" stroke-width="7" stroke-linecap="round"/>
+    <path d="M120,118 Q 148,60 44,56 Q 80,118 120,118 Z" fill="#7cb342"/>
+  </g>
+
+  <g font-family="Nunito, Noto Sans CJK JP, sans-serif" text-anchor="middle">
+    <text x="600" y="358" font-size="104" font-weight="800" fill="#222">Note<tspan fill="url(#wordmark)">Deck</tspan></text>
+
+    <!-- .chip: chip / chip-ink / radius-pill -->
+    <rect x="505" y="392" width="190" height="44" rx="22" fill="#9ad11b"/>
+    <text x="600" y="422" font-size="24" font-weight="700" fill="#000">Misskey Pro</text>
+
+    <text x="600" y="508" font-size="34" font-weight="400" fill="#444">Misskey廃人のための 非公式クライアント。</text>
+    <text x="600" y="562" font-size="24" font-weight="700" fill="#666">notedeck.io</text>
+  </g>
+</svg>

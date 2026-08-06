@@ -572,6 +572,8 @@ NoteDeck は Misskey クライアントであり、PKM ツールではない。
 
 **思想: NoteDeck を閉じた箱にせず、外部ツール・AI・プラグインがデータにアクセスするプラットフォームにする。**
 
+このレイヤーの各項目は個別の連携機能ではなく、AI が自分の環境を作り替えてその結果を次の判断に使う **自己拡張ループ** を閉じるための部品である。到達点とループが閉じたと言える条件は [STRATEGY.md](STRATEGY.md) の「AI 統合」を参照。どこまで開放するかの上限は [#838](https://github.com/notedeck-dev/notedeck/issues/838) が正本。
+
 ### HTTP API（localhost:19820）
 
 - [x] **HTTP サーバー基盤** — localhost で起動
