@@ -7,7 +7,6 @@ import type {
 } from '@/adapters/types'
 import { applyNotePostInterruptors } from '@/aiscript/plugin-api'
 import {
-  DEFAULT_MODE_ICON,
   defaultVisibility,
   MAX_TEXT_LENGTH,
   type VisibilityOption,
@@ -33,10 +32,7 @@ import { useConfirm } from '@/stores/confirm'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
-import {
-  CUSTOM_TL_ICONS,
-  detectAvailableTimelines,
-} from '@/utils/customTimelines'
+import { detectAvailableTimelines, modeIcon } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -564,9 +560,9 @@ export function usePostFormState(
     return match?.[1] ?? noteKey
   }
 
-  function noteModeIcon(noteKey: string): string {
-    const label = noteModeLabel(noteKey).toLowerCase()
-    return CUSTOM_TL_ICONS[label] ?? DEFAULT_MODE_ICON
+  /** Tabler アイコン名 (`ti-` プレフィックスなし)。オフ側もフォーク本家に合わせる */
+  function noteModeIcon(noteKey: string, active: boolean): string {
+    return modeIcon(noteKey, active)
   }
 
   function insertAtCursor(

@@ -1,5 +1,5 @@
 import type { NormalizedNote, NoteVisibility } from '@/adapters/types'
-import { CUSTOM_TL_ICONS } from '@/utils/customTimelines'
+import { noteModeBadgeIcon } from '@/utils/customTimelines'
 import { extractUrlFromMfm } from '@/utils/extractUrlFromMfm'
 import { parseMfm } from '@/utils/mfm'
 
@@ -83,11 +83,10 @@ export function canRenoteNote(
   return v === 'public' || v === 'home' || (v === 'followers' && isOwnNote)
 }
 
-const DEFAULT_MODE_ICON = 'M12 2a10 10 0 100 20 10 10 0 000-20z'
-
 export interface ActiveModeFlag {
   key: string
   label: string
+  /** Tabler アイコン名 (`ti-` プレフィックスなし) */
   icon: string
 }
 
@@ -101,11 +100,7 @@ export function deriveActiveModeFlags(
     .map(([key]) => {
       const match = key.match(/^isNoteIn(.+)Mode$/)
       const label = match?.[1] ?? key
-      return {
-        key,
-        label,
-        icon: CUSTOM_TL_ICONS[label.toLowerCase()] ?? DEFAULT_MODE_ICON,
-      }
+      return { key, label, icon: noteModeBadgeIcon(key) }
     })
 }
 

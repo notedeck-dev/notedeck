@@ -32,5 +32,3 @@ export const visibilityOptions: VisibilityOption[] = [
 ]
 
 export const defaultVisibility = visibilityOptions[0] as VisibilityOption
-
-export const DEFAULT_MODE_ICON = 'M12 2a10 10 0 100 20 10 10 0 000-20z'

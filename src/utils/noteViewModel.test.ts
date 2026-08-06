@@ -158,7 +158,16 @@ describe('deriveActiveModeFlags', () => {
     })
     expect(flags).toHaveLength(1)
     expect(flags[0]).toMatchObject({ key: 'isNoteInYamiMode', label: 'Yami' })
-    expect(flags[0]?.icon).toBeTruthy()
+    expect(flags[0]?.icon).toBe('moon')
+  })
+
+  it('フォークごとのモードに対応するアイコンを付ける', () => {
+    expect(deriveActiveModeFlags({ isNoteInHanaMode: true })[0]?.icon).toBe(
+      'flower',
+    )
+    expect(deriveActiveModeFlags({ isNoteInFooMode: true })[0]?.icon).toBe(
+      'circle-dot',
+    )
   })
 
   it('パターン外のキーはキー名をそのままラベルにする', () => {
