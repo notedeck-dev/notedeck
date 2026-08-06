@@ -410,7 +410,7 @@ function close() {
           :class="$style.addTypeBtn"
           @click="addSelectableColumn(item)"
         >
-          <img v-if="item.avatarUrl" :src="item.avatarUrl" :class="$style.selectItemAvatar" />
+          <img v-if="item.avatarUrl" :src="proxyThumbUrl(item.avatarUrl, 56)" :class="$style.selectItemAvatar" />
           <i v-else class="ti" :class="`ti-${COLUMN_ICONS[selectConfig.type]}`" />
           <span>{{ item.name }}</span>
         </button>

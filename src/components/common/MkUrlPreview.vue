@@ -197,7 +197,7 @@ function hostname(url: string): string {
         ]"
       >
         <img
-          :src="data.thumbnail ? (proxyUrl(data.thumbnail) ?? data.thumbnail) : data.icon!"
+          :src="data.thumbnail ? (proxyThumbUrl(data.thumbnail, 256) ?? data.thumbnail) : data.icon!"
           :class="[$style.urlPreviewImage, { [$style.isIcon]: !data.thumbnail }]"
           loading="lazy"
           decoding="async"

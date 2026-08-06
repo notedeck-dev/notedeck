@@ -12,7 +12,7 @@ import { useServerImages } from '@/composables/useServerImages'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
-import { proxyUrl } from '@/utils/mediaProxy'
+import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 import DeckHeaderAccount from './DeckHeaderAccount.vue'
@@ -173,7 +173,7 @@ fetchGallery()
               <div :class="$style.galleryGridFooter">
                 <span v-if="post.user" :class="$style.galleryGridUser">
                   <img
-                    :src="post.user.avatarUrl || '/avatar-default.svg'"
+                    :src="proxyThumbUrl(post.user.avatarUrl || '/avatar-default.svg', 56)"
                     :class="$style.galleryGridAvatar"
                     @error="(e: Event) => (e.target as HTMLImageElement).src = '/avatar-error.svg'"
                   />

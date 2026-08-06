@@ -21,6 +21,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import { isImeComposing } from '@/utils/ime'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { shortcutLabel } from '@/utils/shortcutLabel'
 
 const commandStore = useCommandStore()
@@ -508,7 +509,7 @@ function primaryShortcut(cmd: Command): string | null {
             @click="selectQuickPickItem(item)"
             @mouseenter="selectedIndex = flatQuickPickList.indexOf(item)"
           >
-            <img v-if="item.avatarUrl" :src="item.avatarUrl" :class="$style.itemAvatar" />
+            <img v-if="item.avatarUrl" :src="proxyThumbUrl(item.avatarUrl, 56)" :class="$style.itemAvatar" />
             <i v-else :class="['ti ti-' + item.icon, $style.itemIcon]" />
             <div :class="$style.itemContent">
               <span :class="$style.itemLabel">{{ item.label }}</span>

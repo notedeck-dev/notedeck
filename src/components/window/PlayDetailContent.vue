@@ -20,6 +20,7 @@ import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { webUiUrl } from '@/utils/url'
 
@@ -242,7 +243,7 @@ onMounted(loadFlash)
 
           <div :class="$style.footer">
             <div :class="$style.author">
-              <img :src="flash.user.avatarUrl || '/avatar-default.svg'" :class="$style.authorAvatar" @error="(e: Event) => (e.target as HTMLImageElement).src = '/avatar-error.svg'" />
+              <img :src="proxyThumbUrl(flash.user.avatarUrl || '/avatar-default.svg', 56)" :class="$style.authorAvatar" @error="(e: Event) => (e.target as HTMLImageElement).src = '/avatar-error.svg'" />
               By @{{ flash.user.username }}
             </div>
             <div :class="$style.dates">

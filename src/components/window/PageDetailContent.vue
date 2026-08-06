@@ -22,6 +22,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { extractUrlFromMfm } from '@/utils/extractUrlFromMfm'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { parseMfm } from '@/utils/mfm'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { webUiUrl } from '@/utils/url'
@@ -294,7 +295,7 @@ onMounted(loadPage)
 
       <div :class="$style.footer">
         <div :class="$style.author">
-          <img :src="page.user.avatarUrl || '/avatar-default.svg'" :class="$style.authorAvatar" @error="(e: Event) => (e.target as HTMLImageElement).src = '/avatar-error.svg'" />
+          <img :src="proxyThumbUrl(page.user.avatarUrl || '/avatar-default.svg', 56)" :class="$style.authorAvatar" @error="(e: Event) => (e.target as HTMLImageElement).src = '/avatar-error.svg'" />
           By @{{ page.user.username }}
         </div>
         <div :class="$style.dates">

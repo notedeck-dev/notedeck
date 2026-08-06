@@ -560,7 +560,7 @@ function onPaste(e: ClipboardEvent) {
               >
                 <span :class="$style.accountOptionAvatarWrap">
                   <img
-                    :src="getAccountAvatarUrl(acc)"
+                    :src="proxyThumbUrl(getAccountAvatarUrl(acc), 56)"
                     :class="$style.accountOptionAvatar"
                     width="24"
                     height="24"
@@ -781,7 +781,7 @@ function onPaste(e: ClipboardEvent) {
       <div v-if="replyTo" :class="$style.replyPreview">
         <img
           v-if="replyTo.user.avatarUrl"
-          :src="replyTo.user.avatarUrl"
+          :src="proxyThumbUrl(replyTo.user.avatarUrl, 56)"
           :class="$style.replyAvatar"
         />
         <div :class="$style.replyContent">
@@ -798,7 +798,7 @@ function onPaste(e: ClipboardEvent) {
       <div v-if="quoteNote && !replyTo" :class="[$style.replyPreview, $style.quotePreview]">
         <img
           v-if="quoteNote.user.avatarUrl"
-          :src="quoteNote.user.avatarUrl"
+          :src="proxyThumbUrl(quoteNote.user.avatarUrl, 56)"
           :class="$style.replyAvatar"
         />
         <div :class="$style.replyContent">
