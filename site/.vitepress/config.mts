@@ -83,6 +83,7 @@ export default defineConfig({
             { text: '見た目を変える', link: '/docs/guide/appearance' },
             { text: 'ストアで拡張する', link: '/docs/guide/store' },
             { text: 'AI と使う', link: '/docs/guide/ai' },
+            { text: 'AI と環境を育てる', link: '/docs/guide/grow' },
           ],
         },
         {
