@@ -348,6 +348,13 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         }
         let token_path_str = token_path.to_string_lossy().to_string();
 
+        // dev ダッシュボード (#977) のログ tail 用に /api インデックスで開示する
+        let log_dir = app
+            .path()
+            .app_log_dir()
+            .ok()
+            .map(|p| p.to_string_lossy().to_string());
+
         // 永続 API トークン (#709): ephemeral と併存する名前付きトークン。
         // ハッシュのみ保存なので読み込みは軽量 (Phase 1 で可)。
         let api_token_store = std::sync::Arc::new(api_tokens::ApiTokenStore::load(&app_dir));
@@ -450,6 +457,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                         api_token,
                         api_token_store,
                         token_path: token_path_str,
+                        log_dir,
                         image_cache: image_cache_bg,
                         perf: shared_perf_bg,
                     }, ready_tx)

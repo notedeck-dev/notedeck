@@ -1,5 +1,13 @@
 import { execSync } from 'node:child_process'
-import { cpSync, readFileSync } from 'node:fs'
+import {
+  closeSync,
+  cpSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  statSync,
+} from 'node:fs'
 import { resolve } from 'node:path'
 import vue from '@vitejs/plugin-vue'
 import JSON5 from 'json5'
@@ -11,7 +19,7 @@ import type {
   Plugin as PostcssPlugin,
   Rule,
 } from 'postcss'
-import type { Plugin } from 'vite'
+import type { Plugin, ProxyOptions } from 'vite'
 import { defineConfig } from 'vite'
 
 const appVersion = JSON.parse(
@@ -250,6 +258,140 @@ function twemojiAssets(): Plugin {
   }
 }
 
+// --- 内蔵 HTTP サーバー (127.0.0.1:19820, #940) への dev 橋渡し (#977) ---
+// ブラウザ (5173) のダッシュボード面から external API を叩けるよう、無認証の
+// /api インデックスが開示する tokenPath を Node 側で読み、Bearer を注入する。
+// トークンはアプリ起動ごとに再生成される ephemeral なので毎リクエスト読む
+// (Vite 常駐中のアプリ再起動に追従するため)。
+
+const ND_APP_ORIGIN = 'http://127.0.0.1:19820'
+let ndTokenPath: string | null = null
+let ndLogDir: string | null = null
+let ndTokenPathResolving: Promise<void> | null = null
+
+function resolveNdTokenPath(): Promise<void> {
+  ndTokenPathResolving ??= fetch(`${ND_APP_ORIGIN}/api`)
+    .then(async (r) => {
+      const index = (await r.json()) as { tokenPath?: string; logDir?: string }
+      ndTokenPath = index.tokenPath ?? null
+      ndLogDir = index.logDir ?? null
+    })
+    .catch(() => {
+      // アプリ未起動 — 次のリクエストで再解決する
+    })
+    .finally(() => {
+      ndTokenPathResolving = null
+    })
+  return ndTokenPathResolving
+}
+
+/** proxy より先に走る middleware で tokenPath 解決を待ち、初回リクエストの注入漏れを防ぐ */
+function ndApiBridge(): Plugin {
+  return {
+    name: 'nd-api-bridge',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/api', async (_req, _res, next) => {
+        if (!ndTokenPath) await resolveNdTokenPath()
+        next()
+      })
+
+      // Rust ログ tail (#977)。アプリの tracing 日次ローテートログ
+      // (notedeck.log.YYYY-MM-DD) を SSE で流す。ログの所在は /api インデックス
+      // の logDir から解決する。dev server 自身の面なので認証は挟まない
+      server.middlewares.use('/dev/logs', async (req, res) => {
+        if (!ndLogDir) await resolveNdTokenPath()
+        const logDir = ndLogDir
+        if (!logDir) {
+          res.statusCode = 503
+          res.end('log dir unknown (app not running?)')
+          return
+        }
+        // 日付サフィックスは辞書順 = 時系列順なので末尾が最新
+        const pickLatest = (): string | null => {
+          try {
+            const files = readdirSync(logDir)
+              .filter((f) => f.startsWith('notedeck.log'))
+              .sort()
+            const last = files[files.length - 1]
+            return last ? resolve(logDir, last) : null
+          } catch {
+            return null
+          }
+        }
+        let file = pickLatest()
+        if (!file) {
+          res.statusCode = 404
+          res.end('no log file yet')
+          return
+        }
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        })
+        let offset = 0
+        const sendNew = () => {
+          try {
+            const latest = pickLatest()
+            if (latest && latest !== file) {
+              // 日次ローテート追従
+              file = latest
+              offset = 0
+            }
+            if (!file) return
+            const size = statSync(file).size
+            if (size < offset) offset = 0 // truncate 対応
+            if (size === offset) return
+            const fd = openSync(file, 'r')
+            const buf = Buffer.alloc(size - offset)
+            readSync(fd, buf, 0, buf.length, offset)
+            closeSync(fd)
+            offset = size
+            for (const line of buf.toString('utf-8').split('\n')) {
+              if (line) res.write(`data: ${line}\n\n`)
+            }
+          } catch {
+            // ファイル消失等 — 次周期の pickLatest で回復する
+          }
+        }
+        // 初期表示は末尾 32KB のみ (先頭行は途中からの可能性あり)
+        try {
+          offset = Math.max(0, statSync(file).size - 32 * 1024)
+        } catch {
+          offset = 0
+        }
+        sendNew()
+        const timer = setInterval(sendNew, 1000)
+        req.on('close', () => clearInterval(timer))
+      })
+    },
+  }
+}
+
+function ndApiProxy(): Record<string, ProxyOptions> {
+  return {
+    '/api': {
+      target: ND_APP_ORIGIN,
+      changeOrigin: true,
+      configure(proxy) {
+        proxy.on('proxyReq', (proxyReq) => {
+          if (!ndTokenPath) return
+          if (proxyReq.getHeader('authorization')) return
+          try {
+            const token = readFileSync(ndTokenPath, 'utf-8').trim()
+            proxyReq.setHeader('Authorization', `Bearer ${token}`)
+          } catch {
+            // トークンファイル不在 (アプリ起動直後など) は無認証で通す
+          }
+        })
+      },
+    },
+    // 画像プロキシは無認証なので素通し
+    '/proxy': { target: ND_APP_ORIGIN, changeOrigin: true },
+  }
+}
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -258,6 +400,7 @@ export default defineConfig({
     subsetTablerIcons(),
     preloadTablerFont(),
     twemojiAssets(),
+    ndApiBridge(),
   ],
   resolve: {
     alias: {
@@ -332,6 +475,7 @@ export default defineConfig({
   },
   server: {
     strictPort: true,
+    proxy: ndApiProxy(),
     warmup: {
       clientFiles: [
         'src/App.vue',

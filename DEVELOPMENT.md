@@ -107,7 +107,7 @@ pnpm install
 # Start dev server (Tauri desktop)
 pnpm tauri:dev
 
-# Start dev server (browser, for development only)
+# Start dev server (browser) — tauri:dev 起動中に開くと Dev Dashboard になる（下記参照）
 pnpm dev
 ```
 
@@ -183,6 +183,44 @@ NOTEDECK_E2E_ATTACH=1 NOTEDECK_E2E_TOKEN=$TOKEN pnpm test:e2e
 
 attach モードはデバイス側アプリを終了させず、デッキ操作系テストは実際に
 カラムを追加/削除する（テスト用プロファイルのデバイスで実行すること）。
+
+## Dev Dashboard（[#977](https://github.com/notedeck-dev/notedeck/issues/977)）
+
+`pnpm tauri:dev` 中にブラウザで http://localhost:5173/ を開くと、実行中の
+アプリを外から覗く **開発者ダッシュボード** になる（アプリ未起動時は起動案内が
+出て、起動を検知すると自動で切り替わる）。デッキとは独立した画面なので、
+アプリの UI 状態を汚さずに観測できる。
+
+できること:
+
+- **デッキ状態** — カラム一覧、`/api/health` と `/api/openapi.json` の
+  シンタックスハイライト付き表示
+- **SSE ライブビューア** — `/api/events` を購読して Rust 側イベントバスの
+  流れをリアルタイム表示。type prefix フィルタ（`note,notification,main-` の
+  ようにカンマ区切り）、切断時自動再接続。行クリックでペイロードを展開
+- **Capabilities 実行盤** — 登録済み capability の一覧からパラメータを
+  JSON で組んで実行。external principal として dispatcher を通るので、
+  権限ゲート（[#712](https://github.com/notedeck-dev/notedeck/issues/712)）の deny・確認ダイアログ・DispatchResult → HTTP status の
+  写像をそのまま目視テストできる
+- **Rust ログ tail** — アプリの tracing ログ（`notedeck.log` 日次ローテート）
+  を Vite dev server の `/dev/logs` が SSE で流す。レベル別色分けと部分一致
+  フィルタ付き。ログの所在は `/api` インデックスが開示する `logDir` から解決
+- **Scalar API ドキュメント** — `/api/docs` へのリンク
+
+仕組み: Vite の dev proxy（`vite.config.ts`）が `/api` と `/proxy` を
+内蔵 HTTP サーバー（127.0.0.1:19820、[#940](https://github.com/notedeck-dev/notedeck/issues/940)）へ転送し、無認証の `/api`
+インデックスが開示する tokenPath から Bearer トークンを読んで注入する。
+ブラウザ側は相対パスの fetch だけで認証込みの external API を叩ける。
+dev マシン上でしか成立しない橋渡しなので、本番の攻撃面は増えない。
+
+Stream Inspector カラムとの違い: Stream Inspector は**フロントのアダプタ層**
+（Misskey WebSocket の raw イベント）を見るのに対し、ダッシュボードの SSE
+ビューアは **Rust 側イベントバス → `/api/events`** を見る。別系統なので、
+両方を並べると「どの層までイベントが届いているか」の切り分けに使える。
+
+位置づけ（#940 との関係）: このダッシュボードは external API の最初の
+本格クライアント（dogfooding）を兼ねる。19820 に新しい面を足すときの
+テストベンチとして育てる。
 
 ## Architecture
 
