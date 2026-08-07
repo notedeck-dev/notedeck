@@ -546,6 +546,29 @@ async function refreshFrontLogs() {
   }
 }
 
+// SSE 行の開閉状態 (unifiedRows は computed で作り直されるため外に持つ)。
+// バッファ落ちした行のキーが残るが、上限で丸ごと捨てて有界にする
+const expandedUnified = ref<Set<string>>(new Set())
+
+function toggleUnifiedRow(row: UnifiedRow) {
+  if (row.source !== 'sse') return
+  const next = new Set(expandedUnified.value)
+  if (next.has(row.key)) next.delete(row.key)
+  else {
+    if (next.size > 50) next.clear()
+    next.add(row.key)
+  }
+  expandedUnified.value = next
+}
+
+function prettyText(text: string): string {
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2)
+  } catch {
+    return text
+  }
+}
+
 const unifiedRows = computed<UnifiedRow[]>(() => {
   const q = logFilter.value.trim().toLowerCase()
   const warnOnly = logWarnOnly.value
@@ -1216,16 +1239,35 @@ onUnmounted(() => {
                   ? $style.logWarn
                   : '',
             ]"
-          ><span
-            :class="[
-              $style.sourceBadge,
-              row.source === 'sse'
-                ? $style.sourceSse
-                : row.source === 'front'
-                  ? $style.sourceFront
-                  : $style.sourceRust,
-            ]"
-          >{{ row.source }}</span> <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span> <span :class="$style.sseType" :style="row.source === 'sse' ? { color: typeColor(row.label) } : undefined">{{ row.label }}</span> {{ row.text }}</div>
+          >
+            <!-- SSE 行はペイロードが長いのでデフォルト 1 行、クリックで展開 -->
+            <button
+              v-if="row.source === 'sse'"
+              type="button"
+              :class="$style.unifiedRowHead"
+              @click="toggleUnifiedRow(row)"
+            >
+              <span :class="[$style.sourceBadge, $style.sourceSse]">{{ row.source }}</span>
+              <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span>
+              <span :class="$style.sseType" :style="{ color: typeColor(row.label) }">{{ row.label }}</span>
+              <span :class="$style.unifiedSseText">{{ row.text }}</span>
+            </button>
+            <template v-else>
+              <span
+                :class="[
+                  $style.sourceBadge,
+                  row.source === 'front' ? $style.sourceFront : $style.sourceRust,
+                ]"
+              >{{ row.source }}</span> <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span> <span :class="$style.sseType">{{ row.label }}</span> {{ row.text }}
+            </template>
+            <CodeEditor
+              v-if="row.source === 'sse' && expandedUnified.has(row.key)"
+              :model-value="prettyText(row.text)"
+              :language="lang"
+              read-only
+              auto-height
+            />
+          </div>
           <p v-if="!unifiedRows.length" :class="$style.sseEmpty">
             待機中 — Rust ログ / SSE イベント / フロントログがここに時系列で流れます
           </p>
@@ -1234,31 +1276,62 @@ onUnmounted(() => {
     </div>
 
     <footer :class="$style.statusBar">
-      <span :class="[$style.statusSeg, $style.statusRemote]">
-        <i :class="sseState === 'open' ? 'ti ti-bolt' : 'ti ti-plug-x'" />
-        {{ sseState === 'open' ? 'LIVE' : sseState.toUpperCase() }}
-      </span>
       <button
         type="button"
-        :class="[$style.statusSeg, $style.statusSegBtn]"
+        :class="[$style.statusSeg, $style.statusSegBtn, $style.statusRemote]"
+        :title="sseState === 'stopped' ? 'クリックで SSE 接続' : 'クリックで SSE 停止'"
+        @click="sseState === 'stopped' ? connectSse() : stopSse()"
+      >
+        <i :class="sseState === 'open' ? 'ti ti-bolt' : 'ti ti-plug-x'" />
+        {{ sseState === 'open' ? 'LIVE' : sseState.toUpperCase() }}
+      </button>
+      <button
+        type="button"
+        :class="[
+          $style.statusSeg,
+          $style.statusSegBtn,
+          logWarnOnly && $style.statusSegActive,
+        ]"
         title="クリックで WARN+ フィルタを切り替え"
         @click="logWarnOnly = !logWarnOnly"
       >
-        <i class="ti ti-circle-x" /> {{ timelineErrorCount }}
-        <i class="ti ti-alert-triangle" /> {{ timelineWarnCount }}
+        <i class="ti ti-circle-x" :class="timelineErrorCount > 0 && $style.statusErrIcon" /> {{ timelineErrorCount }}
+        <i class="ti ti-alert-triangle" :class="timelineWarnCount > 0 && $style.statusWarnIcon" /> {{ timelineWarnCount }}
       </button>
-      <span :class="$style.statusSeg">
+      <button
+        type="button"
+        :class="[$style.statusSeg, $style.statusSegBtn]"
+        title="クリックで SSE バッファを JSON Lines エクスポート"
+        @click="exportSse"
+      >
         <i class="ti ti-broadcast" /> {{ sseRatePerMin }}/min · {{ sseCount }} events
-      </span>
-      <span :class="$style.statusSeg">
+      </button>
+      <button
+        type="button"
+        :class="[$style.statusSeg, $style.statusSegBtn]"
+        title="クリックで状態を今すぐ更新"
+        @click="refreshStatus"
+      >
         <i class="ti ti-layout-columns" /> {{ columns.length }} columns
-      </span>
+      </button>
       <span :class="$style.statusSpacer" />
-      <span v-if="heartbeat?.config.enabled" :class="$style.statusSeg" title="HEARTBEAT 有効">
+      <button
+        v-if="heartbeat?.config.enabled"
+        type="button"
+        :class="[$style.statusSeg, $style.statusSegBtn]"
+        title="クリックで HEARTBEAT 状態を開閉"
+        @click="toggleHeartbeat"
+      >
         <i class="ti ti-heartbeat" :class="$style.beat" />
         {{ heartbeat.dailyCount }}/{{ heartbeat.config.dailyMaxAiRuns }}
-      </span>
-      <span :class="$style.statusSeg">127.0.0.1:19820<template v-if="app?.version"> · v{{ app.version }}</template></span>
+      </button>
+      <a
+        :class="[$style.statusSeg, $style.statusSegBtn]"
+        href="/api/docs"
+        target="_blank"
+        rel="noopener"
+        title="API ドキュメント (Scalar) を開く"
+      >127.0.0.1:19820<template v-if="app?.version"> · v{{ app.version }}</template></a>
     </footer>
   </div>
 </template>
@@ -1275,15 +1348,17 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* VSCode 風ステータスバー。左端の LIVE ブロックは remote インジケータの意匠 */
+/* VSCode 風ステータスバー。地はパネル色に抑え、左端の LIVE ブロック
+   (remote インジケータの意匠) だけアクセントで差す */
 .statusBar {
   flex: none;
   display: flex;
   align-items: stretch;
   margin: 0 -24px;
   height: 26px;
-  background: var(--nd-accentDarken);
-  color: #fff;
+  background: var(--nd-panel);
+  border-top: 1px solid var(--nd-divider);
+  color: var(--nd-fg);
   font-family: var(--nd-font-mono);
   font-size: 0.72rem;
   user-select: none;
@@ -1295,6 +1370,7 @@ onUnmounted(() => {
   gap: 5px;
   padding: 0 10px;
   white-space: nowrap;
+  opacity: 0.85;
 
   i {
     font-size: 0.85rem;
@@ -1302,8 +1378,14 @@ onUnmounted(() => {
 }
 
 .statusRemote {
-  background: var(--nd-accent);
+  background: var(--nd-accentDarken);
+  color: #fff;
   font-weight: 700;
+  opacity: 1;
+
+  &:hover {
+    background: var(--nd-accent);
+  }
 }
 
 .statusSegBtn {
@@ -1311,17 +1393,32 @@ onUnmounted(() => {
   background: none;
   color: inherit;
   font: inherit;
+  text-decoration: none;
   cursor: pointer;
   transition: background 150ms ease-out;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.08));
+    opacity: 1;
   }
 
   &:focus-visible {
     outline: 2px solid var(--nd-focusRing);
     outline-offset: -2px;
   }
+}
+
+.statusSegActive {
+  background: var(--nd-accentedBg);
+  opacity: 1;
+}
+
+.statusErrIcon {
+  color: var(--nd-error);
+}
+
+.statusWarnIcon {
+  color: var(--nd-warn);
 }
 
 .statusSpacer {
@@ -1827,6 +1924,29 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.unifiedRowHead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.unifiedSseText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.75;
 }
 
 .sourceToggle {
