@@ -37,6 +37,34 @@ fn classify_http_failure(status: u16) -> (Duration, bool) {
     }
 }
 
+/// 失敗した URL の記録。TTL つき。
+type NegativeCache = HashMap<String, (Instant, Duration)>;
+
+/// negative cache の上限。4xx は 24h 保持するので、期限切れの掃除だけでは
+/// 頭打ちにならない (壊れた絵文字を大量に持つサーバーを踏み続けたときなど)
+const NEGATIVE_CACHE_MAX: usize = 1024;
+
+/// negative cache への記録。以前は期限判定が読み取り時にしか無く、期限切れ
+/// エントリを消す経路が存在しなかったため、失敗した URL の数だけ単調増加
+/// していた (#987)。記録のたびに期限切れを掃き、それでも収まらなければ
+/// 古い順に落として上限で頭を打たせる。
+fn record_negative(neg: &mut NegativeCache, hash: String, ttl: Duration) {
+    neg.insert(hash, (Instant::now(), ttl));
+    neg.retain(|_, (failed_at, ttl)| failed_at.elapsed() < *ttl);
+    if neg.len() <= NEGATIVE_CACHE_MAX {
+        return;
+    }
+    let excess = neg.len() - NEGATIVE_CACHE_MAX;
+    let mut by_age: Vec<(String, Instant)> = neg
+        .iter()
+        .map(|(key, (failed_at, _))| (key.clone(), *failed_at))
+        .collect();
+    by_age.sort_by_key(|(_, failed_at)| *failed_at);
+    for (key, _) in by_age.into_iter().take(excess) {
+        neg.remove(&key);
+    }
+}
+
 // Fallback defaults (used when perf_config is not available, e.g. in tests)
 const DEFAULT_MEMORY_CACHE_MAX_ITEM: usize = 256 * 1024;
 const DEFAULT_MEMORY_CACHE_MAX_TOTAL: usize = 32 * 1024 * 1024;
@@ -91,7 +119,7 @@ pub struct ImageCache {
     inflight: Arc<Mutex<InflightMap>>,
     http_client: reqwest::Client,
     fetch_limiter: Arc<Mutex<FetchLimiter>>,
-    negative_cache: Arc<RwLock<HashMap<String, (Instant, Duration)>>>,
+    negative_cache: Arc<RwLock<NegativeCache>>,
     mem_cache: Arc<RwLock<MemCacheState>>,
     host_circuits: Arc<RwLock<HashMap<String, HostCircuitState>>>,
     perf: SharedPerfConfig,
@@ -468,7 +496,7 @@ impl ImageCache {
 
             if error {
                 let mut neg = negative_cache.write().await;
-                neg.insert(hash_clone.clone(), (Instant::now(), NEGATIVE_TTL_NETWORK));
+                record_negative(&mut neg, hash_clone.clone(), NEGATIVE_TTL_NETWORK);
                 tx.send(Some(Err("Stream failed".to_string()))).ok();
                 // Update host circuit breaker on stream failure
                 if !url_host.is_empty() {
@@ -578,9 +606,7 @@ impl ImageCache {
         let tx_msg = msg.clone();
         tx.send(Some(Err(tx_msg))).ok();
         tokio::spawn(async move {
-            neg.write()
-                .await
-                .insert(hash.clone(), (Instant::now(), ttl));
+            record_negative(&mut *neg.write().await, hash.clone(), ttl);
             inflight.lock().await.remove(&hash);
             // Update host circuit breaker (network/5xx/429 のみ — 分類は
             // classify_http_failure 参照)
@@ -922,6 +948,46 @@ mod tests {
             ),
         );
         assert!(!cache.is_negative_cached(url).await);
+    }
+
+    /// 記録のたびに期限切れを掃く。以前は消す経路が無く、失敗した URL の数
+    /// だけ単調増加していた (#987)
+    #[tokio::test]
+    async fn record_negative_drops_expired_entries() {
+        let mut neg = NegativeCache::new();
+        neg.insert(
+            "expired".to_string(),
+            (
+                Instant::now() - Duration::from_secs(10),
+                Duration::from_secs(5),
+            ),
+        );
+        neg.insert(
+            "alive".to_string(),
+            (Instant::now(), Duration::from_secs(600)),
+        );
+
+        record_negative(&mut neg, "new".to_string(), Duration::from_secs(60));
+
+        assert!(!neg.contains_key("expired"));
+        assert!(neg.contains_key("alive"));
+        assert!(neg.contains_key("new"));
+    }
+
+    /// 期限切れが一つも無くても上限で頭打ちにする (4xx は 24h 保持するので
+    /// 掃除だけでは止まらない)
+    #[tokio::test]
+    async fn record_negative_is_capped() {
+        let mut neg = NegativeCache::new();
+        for i in 0..(NEGATIVE_CACHE_MAX + 50) {
+            record_negative(&mut neg, format!("url-{i}"), NEGATIVE_TTL_CLIENT);
+        }
+
+        assert_eq!(neg.len(), NEGATIVE_CACHE_MAX);
+        // 落とすのは古い順。最後に入れたものは残っている
+        let newest = format!("url-{}", NEGATIVE_CACHE_MAX + 49);
+        assert!(neg.contains_key(&newest));
+        assert!(!neg.contains_key("url-0"));
     }
 
     /// SSRF 防御は commands::http の validate_external_host に一元化。
