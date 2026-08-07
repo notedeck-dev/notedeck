@@ -173,6 +173,7 @@ pub struct ServeConfig {
     pub api_token: String,
     pub api_token_store: Arc<crate::api_tokens::ApiTokenStore>,
     pub token_path: String,
+    pub log_dir: Option<String>,
     pub image_cache: Arc<ImageCache>,
     pub perf: crate::perf_config::SharedPerfConfig,
 }
@@ -266,6 +267,7 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
         .with_state(MetaState {
             openapi: openapi.clone(),
             token_path: config.token_path.clone(),
+            log_dir: config.log_dir.clone(),
         });
 
     // Merge every annotated route into one OpenApiRouter and serve the Router
@@ -632,6 +634,7 @@ pub fn openapi_spec() -> utoipa::openapi::OpenApi {
 struct MetaState {
     openapi: Arc<utoipa::openapi::OpenApi>,
     token_path: String,
+    log_dir: Option<String>,
 }
 
 /// Public meta routes (no auth): API discovery, raw spec, Scalar UI.
@@ -653,6 +656,9 @@ async fn api_index(State(state): State<MetaState>) -> Json<Value> {
         "version": env!("CARGO_PKG_VERSION"),
         "auth": "Bearer token required. Read token from the file at tokenPath.",
         "tokenPath": state.token_path,
+        // tracing の日次ローテートログ (notedeck.log.YYYY-MM-DD) の置き場。
+        // dev ダッシュボード (#977) のログ tail が参照する
+        "logDir": state.log_dir,
         "docs": "/api/docs",
         "openapi": "/api/openapi.json",
         "endpoints": notecli::http_server::endpoints_from_spec(&state.openapi),
