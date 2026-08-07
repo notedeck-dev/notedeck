@@ -45,6 +45,81 @@ const CodeEditor = defineAsyncComponent(
 )
 const lang = jsonLang()
 
+// --- OpenClaw Control UI 流のビュー切替 (サイドバー + 単一ペイン) ---
+
+type ViewId =
+  | 'overview'
+  | 'sse'
+  | 'timeline'
+  | 'inspector'
+  | 'caps'
+  | 'perms'
+  | 'startup'
+  | 'heartbeat'
+  | 'caches'
+  | 'qbtrace'
+
+const activeView = ref<ViewId>('overview')
+
+const NAV_GROUPS: {
+  label: string
+  items: { id: ViewId; icon: string; label: string }[]
+}[] = [
+  {
+    label: '観測',
+    items: [
+      { id: 'overview', icon: 'ti ti-layout-columns', label: '概要' },
+      { id: 'sse', icon: 'ti ti-broadcast', label: 'SSE イベント' },
+      { id: 'timeline', icon: 'ti ti-terminal-2', label: '統合タイムライン' },
+      { id: 'inspector', icon: 'ti ti-search', label: 'Inspector 照合' },
+    ],
+  },
+  {
+    label: '実行',
+    items: [
+      { id: 'caps', icon: 'ti ti-bolt', label: 'Capabilities' },
+      { id: 'perms', icon: 'ti ti-shield-lock', label: '実効権限' },
+    ],
+  },
+  {
+    label: '診断',
+    items: [
+      { id: 'startup', icon: 'ti ti-rocket', label: '起動計測' },
+      { id: 'heartbeat', icon: 'ti ti-heartbeat', label: 'HEARTBEAT' },
+      { id: 'caches', icon: 'ti ti-database', label: 'キャッシュ' },
+      { id: 'qbtrace', icon: 'ti ti-arrows-left-right', label: 'Query Bridge' },
+    ],
+  },
+]
+
+function selectView(id: ViewId) {
+  activeView.value = id
+  // 開いたときに取得する遅延ロード系ビュー
+  if (id === 'startup') fetchStartup()
+  if (id === 'perms') fetchPerms()
+  if (id === 'caches') fetchCaches()
+  if (id === 'qbtrace') fetchQbTrace()
+  if (id === 'inspector') fetchInspector()
+}
+
+/** アプリ (19820) への到達性。切断時は OpenClaw 流のアンバーピルを出す */
+const appReachable = ref(true)
+
+// ナビの開閉 (Misskey ナビバー式)。folded は幅 56px のアイコン列になる
+const navCollapsed = ref(localStorage.getItem('nd-control-nav') === 'collapsed')
+
+function toggleNav() {
+  navCollapsed.value = !navCollapsed.value
+  try {
+    localStorage.setItem(
+      'nd-control-nav',
+      navCollapsed.value ? 'collapsed' : 'open',
+    )
+  } catch {
+    // localStorage 不可なら永続化だけ諦める
+  }
+}
+
 const app = ref<ApiIndex | null>(null)
 const columns = ref<DeckColumn[]>([])
 const health = ref('')
@@ -73,7 +148,6 @@ interface StartupTrace {
   webviewFixedCost: number | null
 }
 
-const showStartup = ref(false)
 const startup = ref<StartupTrace | null>(null)
 
 const startupRows = computed(() => {
@@ -89,9 +163,7 @@ const startupMaxDelta = computed(() =>
   Math.max(1, ...startupRows.value.map((r) => r.delta)),
 )
 
-async function toggleStartup() {
-  showStartup.value = !showStartup.value
-  if (!showStartup.value) return
+async function fetchStartup() {
   try {
     const res = await fetch('/api/startup/trace')
     if (res.ok) startup.value = await res.json()
@@ -119,14 +191,9 @@ interface HeartbeatStatusView {
   }
 }
 
-const showHeartbeat = ref(false)
 // heartbeat の中身は refreshStatus の 5 秒ポーリングが埋める
-// (ステータスバーにも常時出すため折りたたみ開閉と独立に取得する)
+// (ステータスバーにも常時出すためビュー表示と独立に取得する)
 const heartbeat = ref<HeartbeatStatusView | null>(null)
-
-function toggleHeartbeat() {
-  showHeartbeat.value = !showHeartbeat.value
-}
 
 function relativeTime(epochMs: number | null): string {
   if (epochMs === null) return '—'
@@ -172,6 +239,7 @@ async function refreshStatus() {
       fetch('/api/health'),
       fetch('/api/heartbeat/status'),
     ])
+    appReachable.value = indexRes.ok
     if (indexRes.ok) app.value = await indexRes.json()
     if (colsRes.ok) {
       const data: unknown = await colsRes.json()
@@ -182,6 +250,7 @@ async function refreshStatus() {
     if (hbRes.ok) heartbeat.value = await hbRes.json()
   } catch {
     // アプリ再起動中など — 次の周期更新で回復する
+    appReachable.value = false
   }
 }
 
@@ -431,12 +500,9 @@ interface ResolvedPermissions {
 
 const PERM_PRINCIPALS = ['ai.chat', 'ai.heartbeat', 'plugin', 'external']
 
-const showPerms = ref(false)
 const perms = ref<ResolvedPermissions | null>(null)
 
-async function togglePerms() {
-  showPerms.value = !showPerms.value
-  if (!showPerms.value) return
+async function fetchPerms() {
   try {
     const res = await fetch('/api/permissions/resolved')
     if (res.ok) perms.value = await res.json()
@@ -670,12 +736,9 @@ interface CacheStat {
   limit: number
 }
 
-const showCaches = ref(false)
 const caches = ref<CacheStat[]>([])
 
-async function toggleCaches() {
-  showCaches.value = !showCaches.value
-  if (!showCaches.value) return
+async function fetchCaches() {
   try {
     const res = await fetch('/api/perf/caches')
     if (res.ok) {
@@ -694,12 +757,9 @@ interface QbTraceRow {
   error: boolean
 }
 
-const showQbTrace = ref(false)
 const qbTrace = ref<QbTraceRow[]>([])
 
-async function toggleQbTrace() {
-  showQbTrace.value = !showQbTrace.value
-  if (!showQbTrace.value) return
+async function fetchQbTrace() {
   try {
     const res = await fetch('/api/querybridge/trace')
     if (res.ok) {
@@ -717,12 +777,9 @@ interface InspectorRecent {
   oldestTs: number | null
 }
 
-const showInspector = ref(false)
 const inspector = ref<InspectorRecent | null>(null)
 
-async function toggleInspector() {
-  showInspector.value = !showInspector.value
-  if (!showInspector.value) return
+async function fetchInspector() {
   try {
     const res = await fetch('/api/inspector/recent')
     if (res.ok) inspector.value = await res.json()
@@ -732,6 +789,7 @@ async function toggleInspector() {
 }
 
 onMounted(() => {
+  document.title = 'NoteDeck Control'
   refreshStatus()
   statusTimer = setInterval(refreshStatus, 5000)
   connectSse()
@@ -752,6 +810,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  document.title = 'NoteDeck'
   if (statusTimer) clearInterval(statusTimer)
   if (frontTimer) clearInterval(frontTimer)
   if (tickTimer) clearInterval(tickTimer)
@@ -761,195 +820,319 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div :class="$style.dashboard">
-    <header :class="$style.header">
-      <img
-        src="/favicon.svg"
-        alt=""
-        :class="[$style.logo, sseState === 'open' && $style.logoLive]"
-      />
-      <div :class="$style.headText">
-        <h1 :class="$style.title">
-          NoteDeck <span :class="$style.titleAccent">Dev Dashboard</span>
-        </h1>
-        <p :class="$style.subtitle">
-          <span :class="[$style.led, sseState === 'open' && $style.ledOpen]" />
-          <span :class="$style.mono">{{ sseState === 'open' ? 'LIVE' : sseState.toUpperCase() }}</span>
-          · 127.0.0.1:19820<template v-if="app?.version"> · v{{ app.version }}</template>
-        </p>
-      </div>
-      <nav :class="$style.links">
-        <a href="/api/docs" target="_blank" rel="noopener">
-          <i class="ti ti-book-2" /> API ドキュメント
-        </a>
-      </nav>
-    </header>
+  <div :class="$style.control">
+    <div v-if="!appReachable" :class="$style.reconnectPill">
+      <i class="ti ti-plug-x" /> アプリ接続なし — 再接続待ち…
+    </div>
 
-    <div :class="$style.grid">
-      <section :class="[$style.panel, $style.gridDeck]">
-        <h2 :class="$style.panelTitle">
-          <i class="ti ti-layout-columns" :class="$style.panelIcon" />
-          デッキ状態 — カラム {{ columns.length }} 本
-        </h2>
-        <div :class="$style.tableWrap">
-          <table :class="$style.table">
-            <thead>
-              <tr><th>type</th><th>id</th><th>account</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="col in columns" :key="col.id">
-                <td>{{ col.type }}</td>
-                <td :class="$style.mono">{{ col.id }}</td>
-                <td :class="$style.mono">{{ col.accountId ?? '(cross-account)' }}</td>
-              </tr>
-            </tbody>
-          </table>
+    <div :class="$style.body">
+      <aside :class="[$style.sidebar, navCollapsed && $style.sidebarCollapsed]">
+        <div :class="$style.sidebarHead">
+          <img
+            src="/favicon.svg"
+            alt=""
+            :class="[$style.brandLogo, sseState === 'open' && $style.logoLive]"
+            :title="sseState === 'open' ? 'LIVE' : sseState"
+          />
+          <span v-if="!navCollapsed" :class="$style.brandName">NoteDeck</span>
+          <button
+            type="button"
+            :class="$style.navToggle"
+            :title="navCollapsed ? 'ナビゲーションを開く' : 'ナビゲーションを畳む'"
+            @click="toggleNav"
+          >
+            <i :class="navCollapsed ? 'ti ti-chevrons-right' : 'ti ti-chevrons-left'" />
+          </button>
         </div>
-        <button
-          type="button"
-          :class="$style.summary"
-          @click="showHealth = !showHealth"
-        >
-          <i :class="showHealth ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-          /api/health raw
-        </button>
-        <CodeEditor
-          v-if="showHealth && health"
-          :model-value="health"
-          :language="lang"
-          read-only
-          auto-height
-        />
-        <button type="button" :class="$style.summary" @click="toggleSpec">
-          <i :class="showSpec ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-          /api/openapi.json
-        </button>
-        <CodeEditor
-          v-if="showSpec && spec"
-          :model-value="spec"
-          :language="lang"
-          read-only
-          max-height="48vh"
-        />
-        <button type="button" :class="$style.summary" @click="toggleStartup">
-          <i :class="showStartup ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-          起動計測 (#985)
-        </button>
-        <template v-if="showStartup && startup">
-          <p v-if="startup.webviewFixedCost !== null" :class="$style.capDesc">
-            WebView 起動固定費 ~{{ startup.webviewFixedCost }}ms
-          </p>
+        <nav :class="$style.nav">
+          <div
+            v-for="group in NAV_GROUPS"
+            :key="group.label"
+            :class="$style.navGroup"
+          >
+            <p v-if="!navCollapsed" :class="$style.navGroupLabel">{{ group.label }}</p>
+            <button
+              v-for="item in group.items"
+              :key="item.id"
+              type="button"
+              :class="[
+                $style.navItem,
+                activeView === item.id && $style.navItemActive,
+              ]"
+              :title="item.label"
+              @click="selectView(item.id)"
+            >
+              <i :class="item.icon" />
+              <span v-if="!navCollapsed" :class="$style.navLabel">{{ item.label }}</span>
+              <i
+                v-if="
+                  item.id === 'heartbeat' &&
+                  heartbeat?.config.enabled &&
+                  !navCollapsed
+                "
+                class="ti ti-heartbeat"
+                :class="[$style.beat, $style.navItemSuffix]"
+              />
+            </button>
+          </div>
+          <div :class="$style.navGroup">
+            <p v-if="!navCollapsed" :class="$style.navGroupLabel">リソース</p>
+            <a
+              :class="$style.navItem"
+              href="/api/docs"
+              target="_blank"
+              rel="noopener"
+              title="API ドキュメント"
+            >
+              <i class="ti ti-book-2" />
+              <span v-if="!navCollapsed" :class="$style.navLabel">API ドキュメント</span>
+            </a>
+          </div>
+        </nav>
+      </aside>
+
+      <main :class="$style.content">
+        <section v-if="activeView === 'overview'" :class="$style.view">
+          <div :class="$style.statCards">
+            <div :class="$style.statCard">
+              <span :class="$style.statValue">{{ sseCount }}</span>
+              <span :class="$style.statLabel">events</span>
+            </div>
+            <div :class="$style.statCard">
+              <span :class="$style.statValue">{{ sseRatePerMin }}</span>
+              <span :class="$style.statLabel">events/min</span>
+            </div>
+            <div :class="$style.statCard">
+              <span :class="[$style.statValue, timelineErrorCount > 0 && $style.statusErr]">{{ timelineErrorCount }}</span>
+              <span :class="$style.statLabel">errors</span>
+            </div>
+            <div :class="$style.statCard">
+              <span :class="[$style.statValue, timelineWarnCount > 0 && $style.statusWarn]">{{ timelineWarnCount }}</span>
+              <span :class="$style.statLabel">warnings</span>
+            </div>
+            <div :class="$style.statCard">
+              <span :class="$style.statValue">{{ columns.length }}</span>
+              <span :class="$style.statLabel">columns</span>
+            </div>
+            <div :class="$style.statCard">
+              <span :class="$style.statValue">{{ capabilities.length }}</span>
+              <span :class="$style.statLabel">capabilities</span>
+            </div>
+          </div>
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-layout-columns" :class="$style.panelIcon" />
+            デッキ状態 — カラム {{ columns.length }} 本
+          </h2>
           <div :class="$style.tableWrap">
             <table :class="$style.table">
               <thead>
-                <tr><th>mark</th><th>at</th><th>+Δ</th><th /></tr>
+                <tr><th>type</th><th>id</th><th>account</th></tr>
               </thead>
               <tbody>
-                <tr v-for="row in startupRows" :key="row.name">
-                  <td :class="$style.mono">{{ row.name }}</td>
-                  <td :class="$style.mono">{{ Math.round(row.at) }}ms</td>
-                  <td :class="$style.mono">+{{ Math.round(row.delta) }}ms</td>
+                <tr v-for="col in columns" :key="col.id">
+                  <td>{{ col.type }}</td>
+                  <td :class="$style.mono">{{ col.id }}</td>
+                  <td :class="$style.mono">{{ col.accountId ?? '(cross-account)' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <button
+            type="button"
+            :class="$style.summary"
+            @click="showHealth = !showHealth"
+          >
+            <i :class="showHealth ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+            /api/health raw
+          </button>
+          <CodeEditor
+            v-if="showHealth && health"
+            :model-value="health"
+            :language="lang"
+            read-only
+            auto-height
+          />
+          <button type="button" :class="$style.summary" @click="toggleSpec">
+            <i :class="showSpec ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+            /api/openapi.json
+          </button>
+          <CodeEditor
+            v-if="showSpec && spec"
+            :model-value="spec"
+            :language="lang"
+            read-only
+            max-height="48vh"
+          />
+        </section>
+
+        <section v-if="activeView === 'startup'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-rocket" :class="$style.panelIcon" />
+            起動計測 (#985)
+            <button type="button" :class="$style.btn" @click="fetchStartup">更新</button>
+          </h2>
+          <template v-if="startup">
+            <p v-if="startup.webviewFixedCost !== null" :class="$style.capDesc">
+              WebView 起動固定費 ~{{ startup.webviewFixedCost }}ms
+            </p>
+            <div :class="$style.tableWrap">
+              <table :class="$style.table">
+                <thead>
+                  <tr><th>mark</th><th>at</th><th>+Δ</th><th /></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in startupRows" :key="row.name">
+                    <td :class="$style.mono">{{ row.name }}</td>
+                    <td :class="$style.mono">{{ Math.round(row.at) }}ms</td>
+                    <td :class="$style.mono">+{{ Math.round(row.delta) }}ms</td>
+                    <td :class="$style.barCell">
+                      <span
+                        :class="$style.bar"
+                        :style="{ width: `${(row.delta / startupMaxDelta) * 100}%` }"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </section>
+
+        <section v-if="activeView === 'heartbeat'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-heartbeat" :class="$style.panelIcon" />
+            HEARTBEAT 状態 (#411)
+            <i
+              v-if="heartbeat?.config.enabled"
+              class="ti ti-heartbeat"
+              :class="$style.beat"
+            />
+          </h2>
+          <div v-if="heartbeat" :class="$style.tableWrap">
+            <table :class="$style.table">
+              <tbody>
+                <tr>
+                  <td>daemon</td>
+                  <td :class="$style.mono">
+                    {{ heartbeat.mounted ? (heartbeat.config.enabled ? 'enabled' : 'disabled') : 'not mounted' }}{{ heartbeat.running ? ' (tick 実行中)' : '' }}
+                  </td>
+                </tr>
+                <tr>
+                  <td>interval / target</td>
+                  <td :class="$style.mono">{{ heartbeat.config.intervalMinutes }} 分 / {{ heartbeat.config.target }}</td>
+                </tr>
+                <tr>
+                  <td>最終 tick</td>
+                  <td :class="$style.mono">
+                    {{ relativeTime(heartbeat.lastTickAt) }}<template v-if="heartbeat.lastTickSource"> ({{ heartbeat.lastTickSource }})</template>
+                  </td>
+                </tr>
+                <tr>
+                  <td>直近の結末</td>
+                  <td :class="$style.mono">{{ heartbeat.lastOutcome ?? '—' }}</td>
+                </tr>
+                <tr>
+                  <td>連続失敗</td>
+                  <td :class="$style.mono">{{ heartbeat.consecutiveFailures }}</td>
+                </tr>
+                <tr>
+                  <td>本日の AI 起動</td>
+                  <td :class="$style.mono">{{ heartbeat.dailyCount }} / {{ heartbeat.config.dailyMaxAiRuns }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section v-if="activeView === 'caches'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-database" :class="$style.panelIcon" />
+            キャッシュ観測 (#987)
+            <button type="button" :class="$style.btn" @click="fetchCaches">更新</button>
+          </h2>
+          <div :class="$style.tableWrap">
+            <table v-if="caches.length" :class="$style.table">
+              <thead>
+                <tr><th>name</th><th>size</th><th>limit</th><th /></tr>
+              </thead>
+              <tbody>
+                <tr v-for="(c, i) in caches" :key="`${c.name}-${i}`">
+                  <td :class="$style.mono">{{ c.name }}</td>
+                  <td :class="$style.mono">{{ c.size }}</td>
+                  <td :class="$style.mono">{{ c.limit }}</td>
                   <td :class="$style.barCell">
                     <span
-                      :class="$style.bar"
-                      :style="{ width: `${(row.delta / startupMaxDelta) * 100}%` }"
+                      :class="[$style.bar, c.size / c.limit > 0.9 && $style.barHot]"
+                      :style="{ width: `${Math.min(100, (c.size / Math.max(1, c.limit)) * 100)}%` }"
                     />
                   </td>
                 </tr>
               </tbody>
             </table>
+            <p v-else :class="$style.capDesc">登録済みキャッシュなし</p>
           </div>
-        </template>
-        <button type="button" :class="$style.summary" @click="toggleHeartbeat">
-          <i :class="showHeartbeat ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-          HEARTBEAT 状態 (#411)
-          <i
-            v-if="heartbeat?.config.enabled"
-            class="ti ti-heartbeat"
-            :class="$style.beat"
-          />
-        </button>
-        <div v-if="showHeartbeat && heartbeat" :class="$style.tableWrap">
-          <table :class="$style.table">
-            <tbody>
-              <tr>
-                <td>daemon</td>
-                <td :class="$style.mono">
-                  {{ heartbeat.mounted ? (heartbeat.config.enabled ? 'enabled' : 'disabled') : 'not mounted' }}{{ heartbeat.running ? ' (tick 実行中)' : '' }}
-                </td>
-              </tr>
-              <tr>
-                <td>interval / target</td>
-                <td :class="$style.mono">{{ heartbeat.config.intervalMinutes }} 分 / {{ heartbeat.config.target }}</td>
-              </tr>
-              <tr>
-                <td>最終 tick</td>
-                <td :class="$style.mono">
-                  {{ relativeTime(heartbeat.lastTickAt) }}<template v-if="heartbeat.lastTickSource"> ({{ heartbeat.lastTickSource }})</template>
-                </td>
-              </tr>
-              <tr>
-                <td>直近の結末</td>
-                <td :class="$style.mono">{{ heartbeat.lastOutcome ?? '—' }}</td>
-              </tr>
-              <tr>
-                <td>連続失敗</td>
-                <td :class="$style.mono">{{ heartbeat.consecutiveFailures }}</td>
-              </tr>
-              <tr>
-                <td>本日の AI 起動</td>
-                <td :class="$style.mono">{{ heartbeat.dailyCount }} / {{ heartbeat.config.dailyMaxAiRuns }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <button type="button" :class="$style.summary" @click="toggleCaches">
-          <i :class="showCaches ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-          キャッシュ観測 (#987)
-        </button>
-        <div v-if="showCaches" :class="$style.tableWrap">
-          <table v-if="caches.length" :class="$style.table">
-            <thead>
-              <tr><th>name</th><th>size</th><th>limit</th><th /></tr>
-            </thead>
-            <tbody>
-              <tr v-for="(c, i) in caches" :key="`${c.name}-${i}`">
-                <td :class="$style.mono">{{ c.name }}</td>
-                <td :class="$style.mono">{{ c.size }}</td>
-                <td :class="$style.mono">{{ c.limit }}</td>
-                <td :class="$style.barCell">
-                  <span
-                    :class="[$style.bar, c.size / c.limit > 0.9 && $style.barHot]"
-                    :style="{ width: `${Math.min(100, (c.size / Math.max(1, c.limit)) * 100)}%` }"
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <p v-else :class="$style.capDesc">登録済みキャッシュなし</p>
-        </div>
-        <button type="button" :class="$style.summary" @click="toggleQbTrace">
-          <i :class="showQbTrace ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-          Query Bridge トレース
-        </button>
-        <div v-if="showQbTrace" :class="$style.tableWrap">
-          <table v-if="qbTrace.length" :class="$style.table">
-            <thead>
-              <tr><th>time</th><th>type</th><th>ms</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="(t, i) in qbTrace" :key="`${t.at}-${i}`">
-                <td :class="$style.mono">{{ new Date(t.at).toLocaleTimeString('ja-JP', { hour12: false }) }}</td>
-                <td :class="[$style.mono, t.error && $style.logError]">{{ t.type }}</td>
-                <td :class="$style.mono">{{ t.ms }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <p v-else :class="$style.capDesc">まだ記録なし</p>
-        </div>
-      </section>
+        </section>
 
-      <section :class="[$style.panel, $style.ssePanel, $style.gridSse]">
+        <section v-if="activeView === 'qbtrace'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-arrows-left-right" :class="$style.panelIcon" />
+            Query Bridge トレース
+            <button type="button" :class="$style.btn" @click="fetchQbTrace">更新</button>
+          </h2>
+          <div :class="$style.tableWrap">
+            <table v-if="qbTrace.length" :class="$style.table">
+              <thead>
+                <tr><th>time</th><th>type</th><th>ms</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="(t, i) in qbTrace" :key="`${t.at}-${i}`">
+                  <td :class="$style.mono">{{ new Date(t.at).toLocaleTimeString('ja-JP', { hour12: false }) }}</td>
+                  <td :class="[$style.mono, t.error && $style.logError]">{{ t.type }}</td>
+                  <td :class="$style.mono">{{ t.ms }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else :class="$style.capDesc">まだ記録なし</p>
+          </div>
+        </section>
+
+        <section v-if="activeView === 'inspector'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-search" :class="$style.panelIcon" />
+            Inspector 突き合わせ (アダプタ層 vs SSE)
+            <button type="button" :class="$style.btn" @click="fetchInspector">更新</button>
+          </h2>
+          <div :class="$style.inspectorCompare">
+            <div :class="$style.tableWrap">
+              <p :class="$style.capDesc">アダプタ層 (Misskey WS raw)</p>
+              <table v-if="inspector?.total" :class="$style.table">
+                <tbody>
+                  <tr v-for="(n, kind) in inspector.counts" :key="kind">
+                    <td :class="$style.mono">{{ kind }}</td>
+                    <td :class="$style.mono">{{ n }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p v-else :class="$style.capDesc">
+                バッファ空 — Stream Inspector カラムを開くと流入します
+              </p>
+            </div>
+            <div :class="$style.tableWrap">
+              <p :class="$style.capDesc">SSE (Rust イベントバス)</p>
+              <table v-if="sseTopTypes.length" :class="$style.table">
+                <tbody>
+                  <tr v-for="[t, n] in sseTopTypes" :key="t">
+                    <td :class="$style.mono">{{ t }}</td>
+                    <td :class="$style.mono">{{ n }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p v-else :class="$style.capDesc">受信なし</p>
+            </div>
+          </div>
+        </section>
+
+        <section v-if="activeView === 'sse'" :class="[$style.view, $style.viewStream]">
         <h2 :class="$style.panelTitle">
           <i class="ti ti-broadcast" :class="$style.panelIcon" />
           SSE ライブビューア (/api/events)
@@ -998,38 +1181,6 @@ onUnmounted(() => {
             {{ t }} ×{{ n }}
           </button>
         </div>
-        <button type="button" :class="$style.summary" @click="toggleInspector">
-          <i :class="showInspector ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-          Inspector 突き合わせ (アダプタ層 vs SSE)
-        </button>
-        <div v-if="showInspector" :class="$style.inspectorCompare">
-          <div :class="$style.tableWrap">
-            <p :class="$style.capDesc">アダプタ層 (Misskey WS raw)</p>
-            <table v-if="inspector?.total" :class="$style.table">
-              <tbody>
-                <tr v-for="(n, kind) in inspector.counts" :key="kind">
-                  <td :class="$style.mono">{{ kind }}</td>
-                  <td :class="$style.mono">{{ n }}</td>
-                </tr>
-              </tbody>
-            </table>
-            <p v-else :class="$style.capDesc">
-              バッファ空 — Stream Inspector カラムを開くと流入します
-            </p>
-          </div>
-          <div :class="$style.tableWrap">
-            <p :class="$style.capDesc">SSE (Rust イベントバス)</p>
-            <table v-if="sseTopTypes.length" :class="$style.table">
-              <tbody>
-                <tr v-for="[t, n] in sseTopTypes" :key="t">
-                  <td :class="$style.mono">{{ t }}</td>
-                  <td :class="$style.mono">{{ n }}</td>
-                </tr>
-              </tbody>
-            </table>
-            <p v-else :class="$style.capDesc">受信なし</p>
-          </div>
-        </div>
         <div :class="$style.sseList">
           <div
             v-for="row in sseRows"
@@ -1059,7 +1210,7 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <section :class="[$style.panel, $style.gridCaps]">
+        <section v-if="activeView === 'caps'" :class="$style.view">
         <h2 :class="$style.panelTitle">
           <i class="ti ti-bolt" :class="$style.panelIcon" />
           Capabilities 実行盤
@@ -1160,39 +1311,46 @@ onUnmounted(() => {
             >{{ h.status ?? 'ERR' }}</span>
           </button>
         </div>
-        <button type="button" :class="$style.summary" @click="togglePerms">
-          <i :class="showPerms ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-          principal 別実効権限 (#712)
-        </button>
-        <div v-if="showPerms && perms" :class="$style.tableWrap">
-          <table :class="$style.table">
-            <thead>
-              <tr>
-                <th>permission</th>
-                <th v-for="p in PERM_PRINCIPALS" :key="p">{{ p }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="key in perms.keys"
-                :key="key"
-                :class="selectedCap?.permissions.includes(key) && $style.permRowRelevant"
-              >
-                <td :class="$style.mono">{{ key }}</td>
-                <td
-                  v-for="p in PERM_PRINCIPALS"
-                  :key="p"
-                  :class="perms.principals[p]?.[key] ? $style.permOk : $style.permNo"
-                >
-                  {{ perms.principals[p]?.[key] ? '✓' : '–' }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
       </section>
 
-      <section :class="[$style.panel, $style.ssePanel, $style.gridLogs]">
+        <section v-if="activeView === 'perms'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-shield-lock" :class="$style.panelIcon" />
+            principal 別実効権限 (#712)
+            <button type="button" :class="$style.btn" @click="fetchPerms">更新</button>
+          </h2>
+          <p v-if="selectedCap" :class="$style.capDesc">
+            選択中の capability ({{ selectedCap.id }}) の要求キー行をハイライト表示
+          </p>
+          <div v-if="perms" :class="$style.tableWrap">
+            <table :class="$style.table">
+              <thead>
+                <tr>
+                  <th>permission</th>
+                  <th v-for="p in PERM_PRINCIPALS" :key="p">{{ p }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="key in perms.keys"
+                  :key="key"
+                  :class="selectedCap?.permissions.includes(key) && $style.permRowRelevant"
+                >
+                  <td :class="$style.mono">{{ key }}</td>
+                  <td
+                    v-for="p in PERM_PRINCIPALS"
+                    :key="p"
+                    :class="perms.principals[p]?.[key] ? $style.permOk : $style.permNo"
+                  >
+                    {{ perms.principals[p]?.[key] ? '✓' : '–' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section v-if="activeView === 'timeline'" :class="[$style.view, $style.viewStream]">
         <h2 :class="$style.panelTitle">
           <i class="ti ti-terminal-2" :class="$style.panelIcon" />
           統合タイムライン
@@ -1273,132 +1431,118 @@ onUnmounted(() => {
           </p>
         </div>
       </section>
+      </main>
     </div>
 
-    <footer :class="$style.statusBar">
-      <button
-        type="button"
-        :class="[$style.statusSeg, $style.statusSegBtn, $style.statusRemote]"
-        :title="sseState === 'stopped' ? 'クリックで SSE 接続' : 'クリックで SSE 停止'"
-        @click="sseState === 'stopped' ? connectSse() : stopSse()"
-      >
-        <i :class="sseState === 'open' ? 'ti ti-bolt' : 'ti ti-plug-x'" />
-        {{ sseState === 'open' ? 'LIVE' : sseState.toUpperCase() }}
-      </button>
-      <button
-        type="button"
-        :class="[
-          $style.statusSeg,
-          $style.statusSegBtn,
-          logWarnOnly && $style.statusSegActive,
-        ]"
-        title="クリックで WARN+ フィルタを切り替え"
-        @click="logWarnOnly = !logWarnOnly"
-      >
-        <i class="ti ti-circle-x" :class="timelineErrorCount > 0 && $style.statusErrIcon" /> {{ timelineErrorCount }}
-        <i class="ti ti-alert-triangle" :class="timelineWarnCount > 0 && $style.statusWarnIcon" /> {{ timelineWarnCount }}
-      </button>
-      <button
-        type="button"
-        :class="[$style.statusSeg, $style.statusSegBtn]"
-        title="クリックで SSE バッファを JSON Lines エクスポート"
-        @click="exportSse"
-      >
-        <i class="ti ti-broadcast" /> {{ sseRatePerMin }}/min · {{ sseCount }} events
-      </button>
-      <button
-        type="button"
-        :class="[$style.statusSeg, $style.statusSegBtn]"
-        title="クリックで状態を今すぐ更新"
-        @click="refreshStatus"
-      >
-        <i class="ti ti-layout-columns" /> {{ columns.length }} columns
-      </button>
-      <span :class="$style.statusSpacer" />
-      <button
-        v-if="heartbeat?.config.enabled"
-        type="button"
-        :class="[$style.statusSeg, $style.statusSegBtn]"
-        title="クリックで HEARTBEAT 状態を開閉"
-        @click="toggleHeartbeat"
-      >
-        <i class="ti ti-heartbeat" :class="$style.beat" />
-        {{ heartbeat.dailyCount }}/{{ heartbeat.config.dailyMaxAiRuns }}
-      </button>
-      <a
-        :class="[$style.statusSeg, $style.statusSegBtn]"
-        href="/api/docs"
-        target="_blank"
-        rel="noopener"
-        title="API ドキュメント (Scalar) を開く"
-      >127.0.0.1:19820<template v-if="app?.version"> · v{{ app.version }}</template></a>
-    </footer>
   </div>
 </template>
 
 <style lang="scss" module>
-.dashboard {
+.control {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 24px 0;
   background: var(--nd-bg);
   color: var(--nd-fg);
   overflow: hidden;
 }
 
-/* VSCode 風ステータスバー。地はパネル色に抑え、左端の LIVE ブロック
-   (remote インジケータの意匠) だけアクセントで差す */
-.statusBar {
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* OpenClaw Control UI 流のサイドバー: グループ分けナビ + 下部 identity カード */
+.sidebar {
+  flex: none;
+  width: 248px;
+  display: flex;
+  flex-direction: column;
+  background: var(--nd-panel);
+  border-right: 1px solid var(--nd-divider);
+}
+
+/* アイコンのみの折りたたみ。寸法は本体ナビバーの折りたたみ (44px 円形 +
+   margin 2px auto) を踏襲 */
+.sidebarCollapsed {
+  width: 56px;
+
+  .sidebarHead {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 0 10px;
+  }
+
+  .navItem {
+    justify-content: center;
+    padding: 0;
+    width: 44px;
+    height: 44px;
+    margin: 2px auto;
+    border-radius: 50%;
+    line-height: 1;
+
+    i {
+      width: auto;
+    }
+  }
+
+  .navGroup {
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--nd-divider);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+
+/* identity はサイドバー上部 (OpenClaw Control UI の配置) */
+.sidebarHead {
   flex: none;
   display: flex;
-  align-items: stretch;
-  margin: 0 -24px;
-  height: 26px;
-  background: var(--nd-panel);
-  border-top: 1px solid var(--nd-divider);
-  color: var(--nd-fg);
-  font-family: var(--nd-font-mono);
-  font-size: 0.72rem;
-  user-select: none;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--nd-divider);
 }
 
-.statusSeg {
+.brandLogo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  transition: filter 250ms ease-out;
+}
+
+.brandName {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--nd-fgHighlighted);
+}
+
+.navToggle {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 0 10px;
-  white-space: nowrap;
-  opacity: 0.85;
-
-  i {
-    font-size: 0.85rem;
-  }
-}
-
-.statusRemote {
-  background: var(--nd-accentDarken);
-  color: #fff;
-  font-weight: 700;
-  opacity: 1;
-
-  &:hover {
-    background: var(--nd-accent);
-  }
-}
-
-.statusSegBtn {
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border: none;
+  border-radius: var(--nd-radius-sm, 6px);
   background: none;
-  color: inherit;
-  font: inherit;
-  text-decoration: none;
+  color: var(--nd-fg);
+  opacity: 0.6;
   cursor: pointer;
   transition: background 150ms ease-out;
 
   &:hover {
-    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.08));
+    background: var(--nd-buttonBg);
     opacity: 1;
   }
 
@@ -1408,63 +1552,194 @@ onUnmounted(() => {
   }
 }
 
-.statusSegActive {
-  background: var(--nd-accentedBg);
-  opacity: 1;
-}
-
-.statusErrIcon {
-  color: var(--nd-error);
-}
-
-.statusWarnIcon {
-  color: var(--nd-warn);
-}
-
-.statusSpacer {
+.navLabel {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.header {
+.nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nd-divider) transparent;
+}
+
+.navGroup {
+  margin-bottom: 14px;
+}
+
+.navGroupLabel {
+  padding: 0 10px 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.45;
+  user-select: none;
+}
+
+/* 寸法は本体ナビバー (DeckNavbar) を踏襲 */
+.navItem {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 8px;
+  width: 100%;
+  padding: 0 14px;
+  line-height: 2.85rem;
+  border: none;
+  border-radius: var(--nd-radius-full);
+  background: none;
+  color: var(--nd-fg);
+  font-size: 0.95em;
+  white-space: nowrap;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 150ms ease-out, color 150ms ease-out;
+
+  i {
+    flex-shrink: 0;
+    width: 32px;
+    font-size: 22px;
+    text-align: center;
+    opacity: 0.7;
+  }
+
+  &:hover {
+    background: var(--nd-buttonHoverBg);
+    color: var(--nd-fgHighlighted);
+
+    i {
+      opacity: 1;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: -2px;
+  }
+}
+
+.navItemActive {
+  background: var(--nd-buttonHoverBg);
+  color: var(--nd-fgHighlighted);
+
+  i {
+    opacity: 1;
+  }
+}
+
+.navItemSuffix {
+  margin-left: auto;
+  width: auto;
+}
+
+.footText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.footName {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--nd-fgHighlighted);
+}
+
+.footMeta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--nd-font-mono);
+  font-size: 0.65rem;
+  opacity: 0.6;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* 全角はアプリ既定スタックのうち最も一般的なもの (mac=Hiragino Sans /
+     Win=BIZ UDGothic) を明示。等幅データは --nd-font-mono のまま */
+  font-family: 'Hiragino Sans', 'BIZ UDGothic', 'Segoe UI', sans-serif;
+  font-size: 14px;
+}
+
+.view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nd-divider) transparent;
+}
+
+/* ストリーム系ビューは内側のリストが唯一のスクロール面 */
+.viewStream {
+  overflow: hidden;
+}
+
+/* 切断時のアンバーピル (OpenClaw の "Gateway connection lost" の意匠) */
+.reconnectPill {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--nd-warn);
+  color: #1a1a1a;
+  font-size: 0.78rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.statCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   flex: none;
 }
 
-.logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  transition: filter 250ms ease-out;
+.statCard {
+  display: flex;
+  flex-direction: column;
+  min-width: 92px;
+  padding: 8px 14px;
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius-md);
+  background: var(--nd-panel);
+}
+
+.statValue {
+  font-family: var(--nd-font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--nd-fgHighlighted);
+}
+
+.statLabel {
+  font-size: 0.66rem;
+  opacity: 0.55;
 }
 
 .logoLive {
   filter: drop-shadow(0 0 8px color-mix(in srgb, var(--nd-accent) 55%, transparent));
-}
-
-.headText {
-  flex: 1;
-  min-width: 0;
-}
-
-.title {
-  font-size: 1.25rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--nd-fgHighlighted);
-}
-
-.titleAccent {
-  color: var(--nd-accent);
-}
-
-.subtitle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  opacity: 0.7;
 }
 
 .led {
@@ -1490,69 +1765,6 @@ onUnmounted(() => {
   }
   50% {
     box-shadow: 0 0 8px var(--nd-success);
-  }
-}
-
-.links {
-  display: flex;
-  gap: 16px;
-
-  a {
-    color: var(--nd-accent);
-    font-size: 0.85rem;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-}
-
-.grid {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(0, 1.6fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-areas:
-    'deck sse'
-    'caps logs';
-  gap: 16px;
-}
-
-.gridDeck {
-  grid-area: deck;
-}
-
-.gridSse {
-  grid-area: sse;
-}
-
-.gridCaps {
-  grid-area: caps;
-}
-
-.gridLogs {
-  grid-area: logs;
-}
-
-.panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 0;
-  padding: 14px 16px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius);
-  background:
-    linear-gradient(var(--nd-panelHighlight), transparent 48px),
-    var(--nd-panel);
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--nd-divider) transparent;
-  transition: border-color 150ms ease-out;
-
-  &:hover {
-    border-color: color-mix(in srgb, var(--nd-accent) 25%, var(--nd-divider));
   }
 }
 
@@ -1593,7 +1805,7 @@ onUnmounted(() => {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.86rem;
 
   th,
   td {
@@ -1623,16 +1835,12 @@ onUnmounted(() => {
   background: none;
   color: var(--nd-fg);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.86rem;
   opacity: 0.7;
 
   &:hover {
     opacity: 1;
   }
-}
-
-.ssePanel {
-  overflow: hidden;
 }
 
 .sseBadge {
@@ -1792,7 +2000,7 @@ onUnmounted(() => {
 }
 
 .capDesc {
-  font-size: 0.8rem;
+  font-size: 0.86rem;
   opacity: 0.75;
 }
 
@@ -2072,8 +2280,8 @@ onUnmounted(() => {
 
   .sparkBar,
   .bar,
-  .logo,
-  .panel,
+  .brandLogo,
+  .navItem,
   .btn,
   .filterInput {
     transition: none;
