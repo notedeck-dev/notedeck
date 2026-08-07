@@ -9,7 +9,7 @@ Misskey 統合デッキ環境 (IDE: Integrated Deck Environment)。対外ブラ�
 ## 開発コマンド
 
 ```bash
-pnpm dev          # Vite dev server（ブラウザ確認用）
+pnpm dev          # Vite dev server（tauri:dev 起動中にブラウザで開くと Dev Dashboard #977 — DEVELOPMENT.md 参照）
 pnpm tauri:dev    # Tauri デスクトップ開発
 pnpm test         # vitest run
 pnpm lint         # biome check
