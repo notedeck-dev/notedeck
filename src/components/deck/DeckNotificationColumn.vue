@@ -464,8 +464,9 @@ function flushRafBuffer() {
 // キーは通知 ID を含むので、流れてきた通知の数だけ増える。通知カラムは
 // 開きっぱなしにされる面なので上限を持たせる (#987)。保持している通知の
 // 数を超えて覚えていても引かれることはない
-const reactionUrlLookup = createBoundedCache<string, string | null>(() =>
-  perfStore.get('maxNotifications'),
+const reactionUrlLookup = createBoundedCache<string, string | null>(
+  () => perfStore.get('maxNotifications'),
+  'notification:reaction-url',
 )
 // 絵文字そのものがキー (Unicode 絵文字の種類ぶん) なので通知数では増えない
 const twemojiUrlLookup = new Map<string, string | null>()

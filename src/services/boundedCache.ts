@@ -26,8 +26,46 @@ export interface BoundedCache<K, V> {
   readonly size: number
 }
 
+export interface BoundedCacheStat {
+  name: string
+  size: number
+  limit: number
+}
+
+/**
+ * 観測レジストリ (#977 / #987)。名前付きで生成されたキャッシュを WeakRef で
+ * 保持し、dev ダッシュボードが size / limit を一覧する。「必ず上限」の
+ * 不変条件が実測で見える面。WeakRef なのでコンポーネント寿命のキャッシュ
+ * (カラム単位等) は GC されれば自動で一覧から消える (レジストリが寿命を
+ * 延ばさない)。
+ */
+const registry = new Map<
+  number,
+  {
+    name: string
+    ref: WeakRef<BoundedCache<unknown, unknown>>
+    maxOf: () => number
+  }
+>()
+let registrySeq = 0
+
+export function listBoundedCacheStats(): BoundedCacheStat[] {
+  const stats: BoundedCacheStat[] = []
+  for (const [id, entry] of registry) {
+    const cache = entry.ref.deref()
+    if (!cache) {
+      registry.delete(id)
+      continue
+    }
+    stats.push({ name: entry.name, size: cache.size, limit: entry.maxOf() })
+  }
+  return stats
+}
+
 export function createBoundedCache<K, V>(
   max: number | (() => number),
+  /** 観測レジストリに載せる名前。省略時は非登録 */
+  name?: string,
 ): BoundedCache<K, V> {
   const map = new Map<K, V>()
   // 0 以下は「キャッシュ無効」ではなく 1 に丸める。設定ミスで毎回の
@@ -40,7 +78,7 @@ export function createBoundedCache<K, V>(
     return Number.isFinite(value) ? Math.max(1, value) : 1
   }
 
-  return {
+  const cache: BoundedCache<K, V> = {
     get(key) {
       if (!map.has(key)) return undefined
       const value = map.get(key) as V
@@ -68,4 +106,19 @@ export function createBoundedCache<K, V>(
       return map.size
     },
   }
+
+  if (name) {
+    // 死んだ WeakRef は登録時にも掃除する — 一覧が読まれなくても
+    // エントリ数が「生きているキャッシュの数」を超えて育たない (#987)
+    for (const [id, entry] of registry) {
+      if (!entry.ref.deref()) registry.delete(id)
+    }
+    registry.set(++registrySeq, {
+      name,
+      ref: new WeakRef(cache as BoundedCache<unknown, unknown>),
+      maxOf,
+    })
+  }
+
+  return cache
 }

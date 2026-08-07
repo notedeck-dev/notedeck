@@ -10,7 +10,7 @@ const cache = createBoundedCache<string, string | null>(() => {
   } catch {
     return 256
   }
-})
+}, 'blurhash-data-url')
 
 /**
  * blurhash を data URL (32x32 PNG) にデコードする。
