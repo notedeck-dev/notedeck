@@ -300,6 +300,27 @@ impl QueryRuntime {
         Ok(snapshot(entry))
     }
 
+    /// main のような共有 subscription を query に紐付ける。snapshot の
+    /// source_subscription_id (JS 側の Stream Inspector フィルタ等) は設定するが、
+    /// イベント配送用の query_ids_by_subscription には登録しない — main 由来
+    /// イベントは ingest_stream_event が (account, 種別) で解決する (#984)。
+    pub fn attach_shared_stream_subscription(
+        &self,
+        query_id: &str,
+        subscription_id: String,
+    ) -> Result<QuerySnapshot, NoteDeckError> {
+        let mut inner = self.lock()?;
+        let entry = inner
+            .entries
+            .get_mut(query_id)
+            .ok_or_else(|| runtime_error(format!("unknown query id: {query_id}")))?;
+        if entry.source_subscription_id.as_ref() != Some(&subscription_id) {
+            entry.source_subscription_id = Some(subscription_id);
+            entry.revision = entry.revision.saturating_add(1);
+        }
+        Ok(snapshot(entry))
+    }
+
     pub fn stream_subscription_for(
         &self,
         query_id: &str,
@@ -440,6 +461,49 @@ impl QueryRuntime {
             return true;
         }
 
+        // main チャンネル由来 (notification / mention) は subscription_id で引かない。
+        // main はアカウント単位 1 本の共有チャンネル (notecli 側で dedup, #984) で、
+        // mentions と notifications の両 query がぶら下がるため、1:1 の
+        // query_ids_by_subscription では配れない。NoteCaptureUpdated と同様に
+        // (account_id, 種別) から対象 query を直接解決する。
+        let main_route = match event {
+            StreamEvent::Notification(e) => Some((
+                QueryKey::Notifications {
+                    account_id: e.account_id.clone(),
+                },
+                StreamChangeKind::Insert(QueryItem::Notification(Box::new(e.notification.clone()))),
+            )),
+            StreamEvent::Mention(e) => Some((
+                QueryKey::Timeline {
+                    account_id: e.account_id.clone(),
+                    key: TimelineKey::Mentions.as_canonical(),
+                },
+                StreamChangeKind::Insert(QueryItem::Note(e.note.clone())),
+            )),
+            _ => None,
+        };
+        if let Some((key, kind)) = main_route {
+            let Ok(canonical_key) = canonicalize_key(&key) else {
+                return false;
+            };
+            let Ok(mut inner) = self.inner.lock() else {
+                return false;
+            };
+            let Some(query_id) = inner.ids_by_key.get(&canonical_key).cloned() else {
+                // 対象 query が開いていなければ捨てる (OS 通知・未読バッジは
+                // subscription 非依存の別経路なので影響しない)。
+                return false;
+            };
+            let Some(entry) = inner.entries.get_mut(&query_id) else {
+                return false;
+            };
+            if kind.apply(entry) {
+                inner.pending_query_ids.insert(query_id);
+                return true;
+            }
+            return false;
+        }
+
         let Some(change) = StreamChange::from_event(event) else {
             return false;
         };
@@ -456,7 +520,7 @@ impl QueryRuntime {
         let Some(entry) = inner.entries.get_mut(&query_id) else {
             return false;
         };
-        if change.apply(entry) {
+        if change.kind.apply(entry) {
             inner.pending_query_ids.insert(query_id);
             true
         } else {
@@ -521,19 +585,13 @@ enum StreamChangeKind {
 impl<'a> StreamChange<'a> {
     /// typed StreamEvent から read model への変更を取り出す (#781 Phase 3)。
     /// 生 JSON の再 parse はもう存在しない — 型は WS 境界で確定済み。
+    /// Notification / Mention は main 由来のため ingest_stream_event の
+    /// (account, 種別) ルーティングが先に処理し、ここには来ない。
     fn from_event(event: &'a StreamEvent) -> Option<Self> {
         let (subscription_id, kind) = match event {
             StreamEvent::Note(e) => (
                 e.subscription_id.as_str(),
                 StreamChangeKind::Insert(QueryItem::Note(e.note.clone())),
-            ),
-            StreamEvent::Mention(e) => (
-                e.subscription_id.as_str(),
-                StreamChangeKind::Insert(QueryItem::Note(e.note.clone())),
-            ),
-            StreamEvent::Notification(e) => (
-                e.subscription_id.as_str(),
-                StreamChangeKind::Insert(QueryItem::Notification(Box::new(e.notification.clone()))),
             ),
             StreamEvent::ChatMessage(e) => (
                 e.subscription_id.as_str(),
@@ -560,7 +618,9 @@ impl<'a> StreamChange<'a> {
             kind,
         })
     }
+}
 
+impl StreamChangeKind {
     /// recent_ids / id_set / revision を即時更新しつつ、emit するための変更を
     /// `entry.pending` に積む。返り値は「flusher を起こすべきか」のフラグ
     /// (= 何かが pending に入ったか)。
@@ -571,7 +631,7 @@ impl<'a> StreamChange<'a> {
         if entry.runtime_state == QueryRuntimeState::Suspended {
             return false;
         }
-        match self.kind {
+        match self {
             StreamChangeKind::Insert(item) => {
                 let id = item.id().to_string();
                 if entry.id_set.contains(&id) {
@@ -768,8 +828,10 @@ pub async fn query_subscribe_mentions(
         return Ok(opened);
     }
 
+    // main はアカウント単位 1 本の共有チャンネル (notecli 側で dedup)。
+    // イベントは (account, 種別) で解決するため shared attach を使う (#984)。
     let subscription_id = streaming.subscribe_main(&account_id).await?;
-    runtime.attach_stream_subscription(&opened.query_id, subscription_id)
+    runtime.attach_shared_stream_subscription(&opened.query_id, subscription_id)
 }
 
 #[tauri::command]
@@ -791,8 +853,10 @@ pub async fn query_subscribe_notifications(
         return Ok(opened);
     }
 
+    // main はアカウント単位 1 本の共有チャンネル (notecli 側で dedup)。
+    // イベントは (account, 種別) で解決するため shared attach を使う (#984)。
     let subscription_id = streaming.subscribe_main(&account_id).await?;
-    runtime.attach_stream_subscription(&opened.query_id, subscription_id)
+    runtime.attach_shared_stream_subscription(&opened.query_id, subscription_id)
 }
 
 #[tauri::command]
@@ -988,7 +1052,9 @@ fn account_id(key: &QueryKey) -> &str {
 mod tests {
     use super::*;
     use notecli::models::{NoteDeletedBody, NoteReactedBody};
-    use notecli::streaming::{StreamNoteEvent, StreamNoteUpdatedEvent};
+    use notecli::streaming::{
+        StreamMentionEvent, StreamNoteEvent, StreamNoteUpdatedEvent, StreamNotificationEvent,
+    };
     use serde_json::json;
 
     fn home_key(account: &str) -> QueryKey {
@@ -1049,6 +1115,122 @@ mod tests {
                 user_id: Some("u1".into()),
             }),
         }))
+    }
+
+    fn mentions_key(account: &str) -> QueryKey {
+        QueryKey::Timeline {
+            account_id: account.into(),
+            key: "mentions".into(),
+        }
+    }
+
+    fn notifications_key(account: &str) -> QueryKey {
+        QueryKey::Notifications {
+            account_id: account.into(),
+        }
+    }
+
+    fn notification_event(sub_id: &str, account: &str, notification_id: &str) -> StreamEvent {
+        StreamEvent::Notification(Box::new(StreamNotificationEvent {
+            account_id: account.into(),
+            subscription_id: sub_id.into(),
+            notification: serde_json::from_value(json!({
+                "id": notification_id,
+                "_accountId": account,
+                "_serverHost": "misskey.example",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "type": "reaction"
+            }))
+            .expect("test notification fixture should deserialize"),
+        }))
+    }
+
+    fn mention_event(sub_id: &str, account: &str, note_id: &str) -> StreamEvent {
+        StreamEvent::Mention(Box::new(StreamMentionEvent {
+            account_id: account.into(),
+            subscription_id: sub_id.into(),
+            note: test_note(note_id),
+        }))
+    }
+
+    /// main 由来イベントは subscription_id ではなく (account, 種別) で解決する。
+    /// main はアカウント単位 1 本の共有チャンネルで、mentions / notifications の
+    /// 両 query がぶら下がるため、1:1 の subscription マップでは配れない (#984)。
+    #[test]
+    fn main_events_route_by_account_and_kind() {
+        let rt = QueryRuntime::default();
+        let mentions = rt.open(mentions_key("acct-1")).unwrap();
+        let notifications = rt.open(notifications_key("acct-1")).unwrap();
+
+        // どちらの query にも attach していない状態で main イベントが届く
+        // (subscription_id はどの query とも紐付いていない共有 main の id)。
+        assert!(rt.ingest_stream_event(&notification_event("sub-main", "acct-1", "notif-1")));
+        assert!(rt.ingest_stream_event(&mention_event("sub-main", "acct-1", "note-1")));
+
+        let notif_snap = rt
+            .read_model_snapshot(&notifications.query_id, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            notif_snap.item_ids,
+            vec!["notif-1"],
+            "通知は通知 query だけに入る"
+        );
+
+        let mention_snap = rt
+            .read_model_snapshot(&mentions.query_id, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            mention_snap.item_ids,
+            vec!["note-1"],
+            "メンションはメンション query だけに入る"
+        );
+    }
+
+    /// 別アカウントの main イベントは別アカウントの query に入らない。
+    #[test]
+    fn main_events_do_not_cross_accounts() {
+        let rt = QueryRuntime::default();
+        let n1 = rt.open(notifications_key("acct-1")).unwrap();
+        let n2 = rt.open(notifications_key("acct-2")).unwrap();
+
+        assert!(rt.ingest_stream_event(&notification_event("sub-main", "acct-2", "notif-x")));
+
+        let snap1 = rt.read_model_snapshot(&n1.query_id, None).unwrap().unwrap();
+        assert!(snap1.item_ids.is_empty());
+        let snap2 = rt.read_model_snapshot(&n2.query_id, None).unwrap().unwrap();
+        assert_eq!(snap2.item_ids, vec!["notif-x"]);
+    }
+
+    /// メンション query を suspend / close しても通知の配送は止まらない (#984 の
+    /// 巻き添えパターンの回帰テスト)。
+    #[test]
+    fn notification_delivery_survives_mentions_suspend_and_close() {
+        let rt = QueryRuntime::default();
+        let mentions = rt.open(mentions_key("acct-1")).unwrap();
+        let notifications = rt.open(notifications_key("acct-1")).unwrap();
+
+        rt.set_runtime_state(&mentions.query_id, QueryRuntimeState::Suspended)
+            .unwrap();
+        assert!(rt.ingest_stream_event(&notification_event("sub-main", "acct-1", "notif-1")));
+
+        rt.close(&mentions.query_id).unwrap();
+        assert!(rt.ingest_stream_event(&notification_event("sub-main", "acct-1", "notif-2")));
+
+        let snap = rt
+            .read_model_snapshot(&notifications.query_id, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(snap.item_ids, vec!["notif-2", "notif-1"]);
+    }
+
+    /// 開いていない種別の main イベントは黙って捨てる (OS 通知・未読バッジは
+    /// 別経路なので影響しない)。
+    #[test]
+    fn main_events_without_open_query_are_dropped() {
+        let rt = QueryRuntime::default();
+        assert!(!rt.ingest_stream_event(&notification_event("sub-main", "acct-1", "notif-1")));
     }
 
     /// T1: 同一 key で 2 回 open すると subscriber=2、query_id は同一、
