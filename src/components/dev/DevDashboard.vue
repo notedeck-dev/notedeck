@@ -84,6 +84,11 @@ const startupRows = computed(() => {
   }))
 })
 
+/** ウォーターフォールバーの正規化基準 (最長区間 = 100%) */
+const startupMaxDelta = computed(() =>
+  Math.max(1, ...startupRows.value.map((r) => r.delta)),
+)
+
 async function toggleStartup() {
   showStartup.value = !showStartup.value
   if (!showStartup.value) return
@@ -489,6 +494,34 @@ const timelineSources = ref({ rust: true, sse: true, front: true })
 const frontRows = ref<FrontLogEntry[]>([])
 let frontTimer: ReturnType<typeof setInterval> | null = null
 
+// --- 見た目まわり (#977 UI 磨き) ---
+
+/** SSE 流量スパークライン用の 1 秒 tick (バケット再計算の駆動) */
+const nowTick = ref(Date.now())
+let tickTimer: ReturnType<typeof setInterval> | null = null
+
+const SPARK_BUCKETS = 30
+const SPARK_BUCKET_MS = 2000
+
+/** 直近 60 秒の到着数を 2 秒バケットに畳んだ正規化列 (0..1) */
+const sparkBars = computed(() => {
+  const now = nowTick.value
+  const buckets = new Array(SPARK_BUCKETS).fill(0) as number[]
+  for (const t of sseRecentTimes) {
+    const idx = SPARK_BUCKETS - 1 - Math.floor((now - t) / SPARK_BUCKET_MS)
+    if (idx >= 0 && idx < SPARK_BUCKETS) buckets[idx] = (buckets[idx] ?? 0) + 1
+  }
+  const max = Math.max(1, ...buckets)
+  return buckets.map((n) => n / max)
+})
+
+/** イベント種別 → 安定した色相 (同じ種別は常に同じ色で追える) */
+function typeColor(type: string): string {
+  let h = 0
+  for (let i = 0; i < type.length; i++) h = (h * 31 + type.charCodeAt(i)) % 360
+  return `hsl(${h} 65% 62%)`
+}
+
 async function refreshFrontLogs() {
   try {
     const res = await fetch('/api/logs/recent')
@@ -671,11 +704,22 @@ onMounted(() => {
   connectLogs()
   refreshFrontLogs()
   frontTimer = setInterval(refreshFrontLogs, 3000)
+  // スパークラインの時間窓を進め、静かな期間も流量表示を減衰させる
+  tickTimer = setInterval(() => {
+    nowTick.value = Date.now()
+    while (
+      sseRecentTimes.length &&
+      nowTick.value - (sseRecentTimes[0] ?? 0) > 60_000
+    )
+      sseRecentTimes.shift()
+    sseRatePerMin.value = sseRecentTimes.length
+  }, 1000)
 })
 
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer)
   if (frontTimer) clearInterval(frontTimer)
+  if (tickTimer) clearInterval(tickTimer)
   stopSse()
   stopLogs()
 })
@@ -684,21 +728,34 @@ onUnmounted(() => {
 <template>
   <div :class="$style.dashboard">
     <header :class="$style.header">
-      <img src="/favicon.svg" alt="" :class="$style.logo" />
+      <img
+        src="/favicon.svg"
+        alt=""
+        :class="[$style.logo, sseState === 'open' && $style.logoLive]"
+      />
       <div :class="$style.headText">
-        <h1 :class="$style.title">NoteDeck Dev Dashboard</h1>
+        <h1 :class="$style.title">
+          NoteDeck <span :class="$style.titleAccent">Dev Dashboard</span>
+        </h1>
         <p :class="$style.subtitle">
-          実行中のアプリ (127.0.0.1:19820) に接続中<template v-if="app?.version"> — v{{ app.version }}</template>
+          <span :class="[$style.led, sseState === 'open' && $style.ledOpen]" />
+          <span :class="$style.mono">{{ sseState === 'open' ? 'LIVE' : sseState.toUpperCase() }}</span>
+          · 127.0.0.1:19820<template v-if="app?.version"> · v{{ app.version }}</template>
         </p>
       </div>
       <nav :class="$style.links">
-        <a href="/api/docs" target="_blank" rel="noopener">API ドキュメント</a>
+        <a href="/api/docs" target="_blank" rel="noopener">
+          <i class="ti ti-book-2" /> API ドキュメント
+        </a>
       </nav>
     </header>
 
     <div :class="$style.grid">
       <section :class="[$style.panel, $style.gridDeck]">
-        <h2 :class="$style.panelTitle">デッキ状態 — カラム {{ columns.length }} 本</h2>
+        <h2 :class="$style.panelTitle">
+          <i class="ti ti-layout-columns" :class="$style.panelIcon" />
+          デッキ状態 — カラム {{ columns.length }} 本
+        </h2>
         <div :class="$style.tableWrap">
           <table :class="$style.table">
             <thead>
@@ -750,13 +807,19 @@ onUnmounted(() => {
           <div :class="$style.tableWrap">
             <table :class="$style.table">
               <thead>
-                <tr><th>mark</th><th>at</th><th>+Δ</th></tr>
+                <tr><th>mark</th><th>at</th><th>+Δ</th><th /></tr>
               </thead>
               <tbody>
                 <tr v-for="row in startupRows" :key="row.name">
                   <td :class="$style.mono">{{ row.name }}</td>
                   <td :class="$style.mono">{{ Math.round(row.at) }}ms</td>
                   <td :class="$style.mono">+{{ Math.round(row.delta) }}ms</td>
+                  <td :class="$style.barCell">
+                    <span
+                      :class="$style.bar"
+                      :style="{ width: `${(row.delta / startupMaxDelta) * 100}%` }"
+                    />
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -765,6 +828,11 @@ onUnmounted(() => {
         <button type="button" :class="$style.summary" @click="toggleHeartbeat">
           <i :class="showHeartbeat ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
           HEARTBEAT 状態 (#411)
+          <i
+            v-if="heartbeat?.config.enabled"
+            class="ti ti-heartbeat"
+            :class="$style.beat"
+          />
         </button>
         <div v-if="showHeartbeat && heartbeat" :class="$style.tableWrap">
           <table :class="$style.table">
@@ -807,13 +875,19 @@ onUnmounted(() => {
         <div v-if="showCaches" :class="$style.tableWrap">
           <table v-if="caches.length" :class="$style.table">
             <thead>
-              <tr><th>name</th><th>size</th><th>limit</th></tr>
+              <tr><th>name</th><th>size</th><th>limit</th><th /></tr>
             </thead>
             <tbody>
               <tr v-for="(c, i) in caches" :key="`${c.name}-${i}`">
                 <td :class="$style.mono">{{ c.name }}</td>
                 <td :class="$style.mono">{{ c.size }}</td>
                 <td :class="$style.mono">{{ c.limit }}</td>
+                <td :class="$style.barCell">
+                  <span
+                    :class="[$style.bar, c.size / c.limit > 0.9 && $style.barHot]"
+                    :style="{ width: `${Math.min(100, (c.size / Math.max(1, c.limit)) * 100)}%` }"
+                  />
+                </td>
               </tr>
             </tbody>
           </table>
@@ -842,9 +916,18 @@ onUnmounted(() => {
 
       <section :class="[$style.panel, $style.ssePanel, $style.gridSse]">
         <h2 :class="$style.panelTitle">
+          <i class="ti ti-broadcast" :class="$style.panelIcon" />
           SSE ライブビューア (/api/events)
           <span :class="[$style.sseBadge, sseState === 'open' && $style.sseOpen]">{{ sseState }}</span>
           <span :class="$style.sseCount">{{ sseCount }} events</span>
+          <span :class="$style.spark" title="直近 60 秒の流量">
+            <span
+              v-for="(h, i) in sparkBars"
+              :key="i"
+              :class="$style.sparkBar"
+              :style="{ height: `${Math.max(8, h * 100)}%`, opacity: h > 0 ? 1 : 0.25 }"
+            />
+          </span>
         </h2>
         <div :class="$style.sseControls">
           <input
@@ -863,7 +946,7 @@ onUnmounted(() => {
             title="バッファを JSON Lines でダウンロード"
             @click="exportSse"
           >
-            <i class="ti ti-download" />
+            <i class="ti ti-download" /> JSONL
           </button>
         </div>
         <div v-if="sseTopTypes.length" :class="$style.chipRow">
@@ -873,6 +956,7 @@ onUnmounted(() => {
             :key="t"
             type="button"
             :class="$style.typeChip"
+            :style="{ color: typeColor(t) }"
             title="クリックでこの種別に絞る"
             @click="filterByType(t)"
           >
@@ -912,14 +996,18 @@ onUnmounted(() => {
           </div>
         </div>
         <div :class="$style.sseList">
-          <div v-for="row in sseRows" :key="row.seq" :class="$style.sseRow">
+          <div
+            v-for="row in sseRows"
+            :key="row.seq"
+            :class="[$style.sseRow, nowTick - row.ts < 1200 && $style.rowNew]"
+          >
             <button
               type="button"
               :class="$style.sseRowHead"
               @click="toggleRow(row)"
             >
               <span :class="$style.sseTime">{{ row.time }}</span>
-              <span :class="$style.sseType">{{ row.type }}</span>
+              <span :class="$style.sseType" :style="{ color: typeColor(row.type) }">{{ row.type }}</span>
               <code :class="$style.sseData">{{ row.data }}</code>
             </button>
             <CodeEditor
@@ -938,6 +1026,7 @@ onUnmounted(() => {
 
       <section :class="[$style.panel, $style.gridCaps]">
         <h2 :class="$style.panelTitle">
+          <i class="ti ti-bolt" :class="$style.panelIcon" />
           Capabilities 実行盤
           <span :class="$style.sseCount">{{ capabilities.length }} 件</span>
         </h2>
@@ -991,7 +1080,17 @@ onUnmounted(() => {
             >
               {{ capRunning ? '実行中…' : '実行' }}
             </button>
-            <span v-if="capStatus !== null" :class="$style.capStatus">
+            <span
+              v-if="capStatus !== null"
+              :class="[
+                $style.capStatus,
+                capStatus < 300
+                  ? $style.statusOk
+                  : capStatus < 500
+                    ? $style.statusWarn
+                    : $style.statusErr,
+              ]"
+            >
               HTTP {{ capStatus }}
             </span>
           </div>
@@ -1014,7 +1113,16 @@ onUnmounted(() => {
           >
             <span :class="$style.sseTime">{{ h.time }}</span>
             <span :class="[$style.mono, $style.capHistoryId]">{{ h.capId }}</span>
-            <span :class="$style.capStatus">{{ h.status ?? 'ERR' }}</span>
+            <span
+              :class="[
+                $style.capStatus,
+                h.status !== null && h.status < 300
+                  ? $style.statusOk
+                  : h.status !== null && h.status < 500
+                    ? $style.statusWarn
+                    : $style.statusErr,
+              ]"
+            >{{ h.status ?? 'ERR' }}</span>
           </button>
         </div>
         <button type="button" :class="$style.summary" @click="togglePerms">
@@ -1051,6 +1159,7 @@ onUnmounted(() => {
 
       <section :class="[$style.panel, $style.ssePanel, $style.gridLogs]">
         <h2 :class="$style.panelTitle">
+          <i class="ti ti-terminal-2" :class="$style.panelIcon" />
           統合タイムライン
           <span :class="[$style.sseBadge, logState === 'open' && $style.sseOpen]">rust: {{ logState }}</span>
         </h2>
@@ -1088,6 +1197,7 @@ onUnmounted(() => {
             :key="row.key"
             :class="[
               $style.logLine,
+              nowTick - row.ts < 1200 && $style.rowNew,
               row.level === 'error'
                 ? $style.logError
                 : row.level === 'warn'
@@ -1103,7 +1213,7 @@ onUnmounted(() => {
                   ? $style.sourceFront
                   : $style.sourceRust,
             ]"
-          >{{ row.source }}</span> <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span> <span :class="$style.sseType">{{ row.label }}</span> {{ row.text }}</div>
+          >{{ row.source }}</span> <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span> <span :class="$style.sseType" :style="row.source === 'sse' ? { color: typeColor(row.label) } : undefined">{{ row.label }}</span> {{ row.text }}</div>
           <p v-if="!unifiedRows.length" :class="$style.sseEmpty">
             待機中 — Rust ログ / SSE イベント / フロントログがここに時系列で流れます
           </p>
@@ -1136,6 +1246,11 @@ onUnmounted(() => {
   width: 40px;
   height: 40px;
   border-radius: 10px;
+  transition: filter 250ms ease-out;
+}
+
+.logoLive {
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--nd-accent) 55%, transparent));
 }
 
 .headText {
@@ -1150,9 +1265,42 @@ onUnmounted(() => {
   color: var(--nd-fgHighlighted);
 }
 
+.titleAccent {
+  color: var(--nd-accent);
+}
+
 .subtitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.8rem;
-  opacity: 0.6;
+  opacity: 0.7;
+}
+
+.led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nd-fg);
+  opacity: 0.3;
+  flex: none;
+  transition: background 150ms ease-out;
+}
+
+.ledOpen {
+  background: var(--nd-success);
+  opacity: 1;
+  animation: ledPulse 2s ease-out infinite;
+}
+
+@keyframes ledPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 2px var(--nd-success);
+  }
+  50% {
+    box-shadow: 0 0 8px var(--nd-success);
+  }
 }
 
 .links {
@@ -1205,8 +1353,17 @@ onUnmounted(() => {
   padding: 14px 16px;
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius);
-  background: var(--nd-panel);
+  background:
+    linear-gradient(var(--nd-panelHighlight), transparent 48px),
+    var(--nd-panel);
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nd-divider) transparent;
+  transition: border-color 150ms ease-out;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--nd-accent) 25%, var(--nd-divider));
+  }
 }
 
 .panelTitle {
@@ -1216,6 +1373,27 @@ onUnmounted(() => {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--nd-fgHighlighted);
+}
+
+.panelIcon {
+  color: var(--nd-accent);
+  font-size: 1rem;
+}
+
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 16px;
+  margin-left: auto;
+  flex: none;
+}
+
+.sparkBar {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--nd-accent);
+  transition: height 250ms ease-out;
 }
 
 .tableWrap {
@@ -1305,6 +1483,12 @@ onUnmounted(() => {
   color: var(--nd-fg);
   font-family: var(--nd-font-mono);
   font-size: 0.8rem;
+  transition: border-color 150ms ease-out;
+
+  &:focus-visible {
+    outline: none;
+    border-color: var(--nd-focusRing);
+  }
 }
 
 .btn {
@@ -1315,9 +1499,23 @@ onUnmounted(() => {
   color: var(--nd-fg);
   font-size: 0.8rem;
   cursor: pointer;
+  transition:
+    background 150ms ease-out,
+    border-color 150ms ease-out;
 
   &:hover {
     background: var(--nd-buttonHoverBg, var(--nd-buttonBg));
+    border-color: color-mix(in srgb, var(--nd-accent) 35%, var(--nd-divider));
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 }
 
@@ -1327,10 +1525,20 @@ onUnmounted(() => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nd-divider) transparent;
+}
+
+/* 新着ハイライト: 到着 1 秒間だけ着色し transition で退色する。
+   CSS animation だと行挿入のたびに既存行でも再始動してしまうため、
+   recency クラス + transition で表現する */
+.rowNew {
+  background: var(--nd-accentedBg);
 }
 
 .sseRow {
   border-bottom: 1px solid var(--nd-divider);
+  transition: background 250ms ease-out;
 }
 
 .sseRowHead {
@@ -1435,6 +1643,7 @@ onUnmounted(() => {
   white-space: pre-wrap;
   word-break: break-all;
   border-bottom: 1px solid var(--nd-divider);
+  transition: background 250ms ease-out;
 }
 
 .logError {
@@ -1569,5 +1778,92 @@ onUnmounted(() => {
   flex: none;
   max-height: 40%;
   overflow-y: auto;
+}
+
+.barCell {
+  width: 30%;
+  min-width: 60px;
+}
+
+.bar {
+  display: block;
+  height: 6px;
+  min-width: 2px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--nd-accent) 55%, transparent),
+    var(--nd-accent)
+  );
+  transition: width 250ms ease-out;
+}
+
+.barHot {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--nd-warn) 55%, transparent),
+    var(--nd-warn)
+  );
+}
+
+.statusOk {
+  color: var(--nd-success);
+}
+
+.statusWarn {
+  color: var(--nd-warn);
+}
+
+.statusErr {
+  color: var(--nd-error);
+}
+
+/* HEARTBEAT 有効時の鼓動 (スプラッシュの nd-heartbeat と同じリズム) */
+.beat {
+  display: inline-block;
+  color: var(--nd-accent);
+  animation: beat 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  transform-origin: center;
+}
+
+@keyframes beat {
+  0%,
+  55%,
+  100% {
+    transform: scale(1);
+  }
+  10% {
+    transform: scale(1.25);
+  }
+  22% {
+    transform: scale(1);
+  }
+  32% {
+    transform: scale(1.12);
+  }
+  44% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ledOpen,
+  .beat {
+    animation: none;
+  }
+
+  .sseRow,
+  .logLine {
+    transition: none;
+  }
+
+  .sparkBar,
+  .bar,
+  .logo,
+  .panel,
+  .btn,
+  .filterInput {
+    transition: none;
+  }
 }
 </style>
