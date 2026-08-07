@@ -373,6 +373,62 @@
         }
       }
     },
+    "/api/permissions/resolved": {
+      "get": {
+        "tags": [
+          "dev"
+        ],
+        "operationId": "get_permissions_resolved",
+        "responses": {
+          "200": {
+            "description": "Effective permission grants per profiled principal (#712)"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/startup/trace": {
+      "get": {
+        "tags": [
+          "dev"
+        ],
+        "operationId": "get_startup_trace",
+        "responses": {
+          "200": {
+            "description": "Frontend startup trace marks (navigation-origin ms) and WebView fixed cost"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/{host}/note": {
       "post": {
         "tags": [

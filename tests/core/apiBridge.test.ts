@@ -9,11 +9,16 @@ import type { Command } from '@/commands/registry'
 import { handleQuery } from '@/core/apiBridge'
 import { recordStreamHealth } from '@/core/streamHealth'
 import type { ProfiledPrincipalId } from '@/permissions/principal'
-import { setPermissionPreset } from '@/permissions/schema'
+import {
+  EXTERNAL_READ_FLOOR,
+  PERMISSION_KEYS,
+  setPermissionPreset,
+} from '@/permissions/schema'
 import {
   _resetPermissionsForTest,
   usePermissionsConfig,
 } from '@/permissions/store'
+import { markStartup } from '@/utils/startupTrace'
 
 function makeCapability(overrides: Partial<Command> = {}): Command {
   return {
@@ -156,6 +161,59 @@ describe('handleQuery: health/streams', () => {
     const acc1 = result.find((r) => r.accountId === 'acc1')
     expect(acc1?.state).toBe('connected')
     expect(acc1?.since).toBeGreaterThan(0)
+  })
+})
+
+describe('handleQuery: startup/trace (#977)', () => {
+  it('記録済みの起動マークを entries として返す', async () => {
+    markStartup('test-mark')
+    const result = (await handleQuery('startup/trace', {})) as {
+      entries: { name: string; at: number }[]
+      webviewFixedCost: number | null
+    }
+    const mark = result.entries.find((e) => e.name === 'test-mark')
+    expect(mark?.at).toBeGreaterThan(0)
+    // happy-dom には navigation entry が無いので null (実機では数値)
+    expect(
+      result.webviewFixedCost === null ||
+        typeof result.webviewFixedCost === 'number',
+    ).toBe(true)
+  })
+})
+
+describe('handleQuery: permissions/resolved (#977)', () => {
+  it('4 principal の granted map と全 permission キーを返す', async () => {
+    const result = (await handleQuery('permissions/resolved', {})) as {
+      keys: string[]
+      principals: Record<string, Record<string, boolean>>
+    }
+    expect(result.keys).toEqual([...PERMISSION_KEYS])
+    for (const id of ['ai.chat', 'ai.heartbeat', 'plugin', 'external']) {
+      const map = result.principals[id]
+      expect(map, id).toBeDefined()
+      for (const key of PERMISSION_KEYS) {
+        expect(typeof map?.[key], `${id}.${key}`).toBe('boolean')
+      }
+    }
+  })
+
+  it('external の既定は READ_FLOOR のみ true で write 系は false', async () => {
+    const result = (await handleQuery('permissions/resolved', {})) as {
+      principals: Record<string, Record<string, boolean>>
+    }
+    const external = result.principals.external
+    for (const key of EXTERNAL_READ_FLOOR) {
+      expect(external?.[key], key).toBe(true)
+    }
+    expect(external?.['notes.write']).toBe(false)
+  })
+
+  it('preset 変更が解決結果に反映される', async () => {
+    setPrincipalPreset('external', 'full')
+    const result = (await handleQuery('permissions/resolved', {})) as {
+      principals: Record<string, Record<string, boolean>>
+    }
+    expect(result.principals.external?.['notes.write']).toBe(true)
   })
 })
 

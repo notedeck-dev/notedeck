@@ -4,7 +4,11 @@ import { sanitizeToolName } from '@/capabilities/identifier'
 import { listCapabilities } from '@/capabilities/registry'
 import { useCommandStore } from '@/commands/registry'
 import { listStreamHealth } from '@/core/streamHealth'
+import type { ProfiledPrincipalId } from '@/permissions/principal'
+import { PERMISSION_KEYS } from '@/permissions/schema'
+import { resolveForProfiled } from '@/permissions/store'
 import { useDeckStore } from '@/stores/deck'
+import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
 import { listenTauri } from '@/utils/tauriEvents'
 
 export interface QueryRequest {
@@ -43,6 +47,30 @@ const handlers: Record<string, QueryHandler> = {
 
   // /api/health のフロント側パート: WebView 死活の証明 + ストリーム接続状態
   'health/streams': () => listStreamHealth(),
+
+  // --- dev ダッシュボード向け読み取り診断 (#977) ---
+  // ephemeral トークン (dev) 前提。永続トークン (external principal) には
+  // permissions_gate の route_rule が既定 Deny を返すので開かない
+
+  'startup/trace': () => ({
+    entries: getStartupEntries(),
+    webviewFixedCost: getWebviewFixedCost(),
+  }),
+
+  'permissions/resolved': () => {
+    const principals: ProfiledPrincipalId[] = [
+      'ai.chat',
+      'ai.heartbeat',
+      'plugin',
+      'external',
+    ]
+    return {
+      keys: PERMISSION_KEYS,
+      principals: Object.fromEntries(
+        principals.map((id) => [id, resolveForProfiled(id)]),
+      ),
+    }
+  },
 
   // --- 外部アプリ向け capability 面 (#709) ---
   // 権限は external principal のプロファイルで gate される (dispatcher が照合)。

@@ -63,6 +63,37 @@ async function toggleSpec() {
   }
 }
 
+// --- 起動計測 (#985) ---
+// About ウィンドウにしか出ていなかった startupTrace の露出面。
+// 開くたびに取り直す (アプリ再起動をまたいでも古い値を見せない)
+
+interface StartupTrace {
+  entries: { name: string; at: number }[]
+  webviewFixedCost: number | null
+}
+
+const showStartup = ref(false)
+const startup = ref<StartupTrace | null>(null)
+
+const startupRows = computed(() => {
+  const entries = startup.value?.entries ?? []
+  return entries.map((m, i) => ({
+    ...m,
+    delta: i > 0 ? m.at - (entries[i - 1]?.at ?? 0) : 0,
+  }))
+})
+
+async function toggleStartup() {
+  showStartup.value = !showStartup.value
+  if (!showStartup.value) return
+  try {
+    const res = await fetch('/api/startup/trace')
+    if (res.ok) startup.value = await res.json()
+  } catch {
+    // アプリ未起動
+  }
+}
+
 // SSE ビューア。EventSource は event: 名ごとの addEventListener が必要で
 // 動的な main-{eventType} を受けられないため、fetch + ReadableStream で
 // SSE をパースする (Authorization は proxy が注入するので相対 fetch でよい)
@@ -260,6 +291,31 @@ async function executeCap() {
   }
 }
 
+// --- principal 別実効権限 (#712) ---
+// 実行盤で 403 が返ったとき「なぜ deny か」をその場で照合するための
+// 読み取りマトリクス。選択中 capability の要求キー行をハイライトする
+
+interface ResolvedPermissions {
+  keys: string[]
+  principals: Record<string, Record<string, boolean>>
+}
+
+const PERM_PRINCIPALS = ['ai.chat', 'ai.heartbeat', 'plugin', 'external']
+
+const showPerms = ref(false)
+const perms = ref<ResolvedPermissions | null>(null)
+
+async function togglePerms() {
+  showPerms.value = !showPerms.value
+  if (!showPerms.value) return
+  try {
+    const res = await fetch('/api/permissions/resolved')
+    if (res.ok) perms.value = await res.json()
+  } catch {
+    // アプリ未起動
+  }
+}
+
 // --- Rust ログ tail ---
 // /dev/logs は Vite dev server の面 (vite.config.ts)。tracing の
 // 日次ローテートログを SSE で流してくる。イベント名なしなので EventSource でよい
@@ -396,6 +452,29 @@ onUnmounted(() => {
           read-only
           max-height="48vh"
         />
+        <button type="button" :class="$style.summary" @click="toggleStartup">
+          <i :class="showStartup ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+          起動計測 (#985)
+        </button>
+        <template v-if="showStartup && startup">
+          <p v-if="startup.webviewFixedCost !== null" :class="$style.capDesc">
+            WebView 起動固定費 ~{{ startup.webviewFixedCost }}ms
+          </p>
+          <div :class="$style.tableWrap">
+            <table :class="$style.table">
+              <thead>
+                <tr><th>mark</th><th>at</th><th>+Δ</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in startupRows" :key="row.name">
+                  <td :class="$style.mono">{{ row.name }}</td>
+                  <td :class="$style.mono">{{ Math.round(row.at) }}ms</td>
+                  <td :class="$style.mono">+{{ Math.round(row.delta) }}ms</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
       </section>
 
       <section :class="[$style.panel, $style.ssePanel, $style.gridSse]">
@@ -507,6 +586,36 @@ onUnmounted(() => {
             auto-height
           />
         </template>
+        <button type="button" :class="$style.summary" @click="togglePerms">
+          <i :class="showPerms ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+          principal 別実効権限 (#712)
+        </button>
+        <div v-if="showPerms && perms" :class="$style.tableWrap">
+          <table :class="$style.table">
+            <thead>
+              <tr>
+                <th>permission</th>
+                <th v-for="p in PERM_PRINCIPALS" :key="p">{{ p }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="key in perms.keys"
+                :key="key"
+                :class="selectedCap?.permissions.includes(key) && $style.permRowRelevant"
+              >
+                <td :class="$style.mono">{{ key }}</td>
+                <td
+                  v-for="p in PERM_PRINCIPALS"
+                  :key="p"
+                  :class="perms.principals[p]?.[key] ? $style.permOk : $style.permNo"
+                >
+                  {{ perms.principals[p]?.[key] ? '✓' : '–' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section :class="[$style.panel, $style.ssePanel, $style.gridLogs]">
@@ -876,5 +985,17 @@ onUnmounted(() => {
 
 .logWarn {
   color: #da3;
+}
+
+.permOk {
+  color: var(--nd-success, #6c6);
+}
+
+.permNo {
+  opacity: 0.35;
+}
+
+.permRowRelevant {
+  background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
 }
 </style>

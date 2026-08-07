@@ -430,6 +430,46 @@ async fn list_commands(State(state): State<DeckState>) -> Result<Json<Value>, Ap
     Ok(Json(data))
 }
 
+// --- dev ダッシュボード向け読み取り診断 (#977) ---
+// ephemeral トークンで読む前提の面。永続トークン (external principal) には
+// permissions_gate::route_rule が既定 Deny を返す (マッピング未登録 = 閉)。
+
+#[utoipa::path(get, path = "/api/startup/trace", tag = "dev",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Frontend startup trace marks (navigation-origin ms) and WebView fixed cost"),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+    )
+)]
+async fn get_startup_trace(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
+    let data = query_bridge::query_frontend(&state.app_handle, "startup/trace", json!({}))
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "QUERY_FAILED".to_string(),
+            message: e,
+        })?;
+    Ok(Json(data))
+}
+
+#[utoipa::path(get, path = "/api/permissions/resolved", tag = "dev",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Effective permission grants per profiled principal (#712)"),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+    )
+)]
+async fn get_permissions_resolved(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
+    let data = query_bridge::query_frontend(&state.app_handle, "permissions/resolved", json!({}))
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "QUERY_FAILED".to_string(),
+            message: e,
+        })?;
+    Ok(Json(data))
+}
+
 // --- Capability API (#709: 外部アプリ向け操作面) ---
 // カラム追加/削除・コマンド実行の旧ルートは #711 で削除した。外部からの操作は
 // すべて POST /api/capabilities/{id}/execute (= 権限判定を通る dispatcher) を使う。
@@ -596,6 +636,8 @@ fn deck_openapi_router() -> OpenApiRouter<DeckState> {
         .routes(routes!(list_capabilities))
         .routes(routes!(execute_capability))
         .routes(routes!(get_health))
+        .routes(routes!(get_startup_trace))
+        .routes(routes!(get_permissions_resolved))
 }
 
 /// Public image-proxy route, as an [`OpenApiRouter`].
