@@ -3,6 +3,8 @@ import { dispatchCapability } from '@/capabilities/dispatcher'
 import { sanitizeToolName } from '@/capabilities/identifier'
 import { listCapabilities } from '@/capabilities/registry'
 import { useCommandStore } from '@/commands/registry'
+import { useAiConfig } from '@/composables/useAiConfig'
+import { heartbeatStatus } from '@/composables/useHeartbeatDaemon'
 import { listStreamHealth } from '@/core/streamHealth'
 import type { ProfiledPrincipalId } from '@/permissions/principal'
 import { PERMISSION_KEYS } from '@/permissions/schema'
@@ -56,6 +58,20 @@ const handlers: Record<string, QueryHandler> = {
     entries: getStartupEntries(),
     webviewFixedCost: getWebviewFixedCost(),
   }),
+
+  'heartbeat/status': () => {
+    const { config } = useAiConfig()
+    const hb = config.value.heartbeat
+    return {
+      ...heartbeatStatus,
+      config: {
+        enabled: hb.enabled,
+        intervalMinutes: hb.intervalMinutes,
+        target: hb.target,
+        dailyMaxAiRuns: hb.dailyMaxAiRuns,
+      },
+    }
+  },
 
   'permissions/resolved': () => {
     const principals: ProfiledPrincipalId[] = [

@@ -360,6 +360,34 @@
         ]
       }
     },
+    "/api/heartbeat/status": {
+      "get": {
+        "tags": [
+          "dev"
+        ],
+        "operationId": "get_heartbeat_status",
+        "responses": {
+          "200": {
+            "description": "HEARTBEAT daemon snapshot (last tick, outcome, failure counter) and config"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/openapi.json": {
       "get": {
         "tags": [

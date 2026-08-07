@@ -94,6 +94,47 @@ async function toggleStartup() {
   }
 }
 
+// --- HEARTBEAT 状態 (#411) ---
+// daemon の silent fail 防止機構 (連続失敗 auto-disable) の観測面
+
+interface HeartbeatStatusView {
+  mounted: boolean
+  running: boolean
+  lastTickAt: number | null
+  lastTickSource: string | null
+  lastOutcome: string | null
+  consecutiveFailures: number
+  dailyCount: number
+  config: {
+    enabled: boolean
+    intervalMinutes: number
+    target: string
+    dailyMaxAiRuns: number
+  }
+}
+
+const showHeartbeat = ref(false)
+const heartbeat = ref<HeartbeatStatusView | null>(null)
+
+async function toggleHeartbeat() {
+  showHeartbeat.value = !showHeartbeat.value
+  if (!showHeartbeat.value) return
+  try {
+    const res = await fetch('/api/heartbeat/status')
+    if (res.ok) heartbeat.value = await res.json()
+  } catch {
+    // アプリ未起動
+  }
+}
+
+function relativeTime(epochMs: number | null): string {
+  if (epochMs === null) return '—'
+  const mins = Math.floor((Date.now() - epochMs) / 60_000)
+  if (mins >= 60) return `${Math.floor(mins / 60)} 時間前`
+  if (mins >= 1) return `${mins} 分前`
+  return 'たった今'
+}
+
 // SSE ビューア。EventSource は event: 名ごとの addEventListener が必要で
 // 動的な main-{eventType} を受けられないため、fetch + ReadableStream で
 // SSE をパースする (Authorization は proxy が注入するので相対 fetch でよい)
@@ -102,10 +143,25 @@ const sseRows = ref<SseRow[]>([])
 const sseState = ref<'stopped' | 'connecting' | 'open'>('stopped')
 const sseFilter = ref('')
 const sseCount = ref(0)
+const sseTypeCounts = ref<Record<string, number>>({})
+const sseRatePerMin = ref(0)
+let sseRecentTimes: number[] = []
 let sseAbort: AbortController | null = null
 let sseSeq = 0
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let statusTimer: ReturnType<typeof setInterval> | null = null
+
+/** 到着数の多い順の種別チップ (クリックでフィルタ適用) */
+const sseTopTypes = computed(() =>
+  Object.entries(sseTypeCounts.value)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6),
+)
+
+function filterByType(type: string) {
+  sseFilter.value = type
+  connectSse()
+}
 
 async function refreshStatus() {
   try {
@@ -128,6 +184,12 @@ async function refreshStatus() {
 
 function pushRow(type: string, data: string) {
   sseCount.value++
+  sseTypeCounts.value[type] = (sseTypeCounts.value[type] ?? 0) + 1
+  const now = Date.now()
+  sseRecentTimes.push(now)
+  while (sseRecentTimes.length && now - (sseRecentTimes[0] ?? now) > 60_000)
+    sseRecentTimes.shift()
+  sseRatePerMin.value = sseRecentTimes.length
   sseRows.value.unshift({
     seq: ++sseSeq,
     time: new Date().toLocaleTimeString('ja-JP', { hour12: false }),
@@ -197,6 +259,40 @@ function stopSse() {
 function clearSse() {
   sseRows.value = []
   sseCount.value = 0
+  sseTypeCounts.value = {}
+  sseRecentTimes = []
+  sseRatePerMin.value = 0
+}
+
+/** バッファを古い順の JSON Lines でダウンロード (バグ報告への添付用) */
+function exportSse() {
+  const lines = [...sseRows.value].reverse().map((r) =>
+    JSON.stringify({
+      time: r.time,
+      type: r.type,
+      data: tryParseJson(r.data),
+    }),
+  )
+  downloadText(`sse-events-${Date.now()}.jsonl`, lines.join('\n'))
+}
+
+function tryParseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
+}
+
+function downloadText(filename: string, text: string) {
+  const url = URL.createObjectURL(
+    new Blob([text], { type: 'application/x-ndjson' }),
+  )
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function toggleRow(row: SseRow) {
@@ -264,6 +360,26 @@ function onSelectCap() {
   capParams.value = '{}'
 }
 
+// 実行履歴 (直近 20 件)。クリックで結果を呼び戻せる
+interface CapHistoryEntry {
+  seq: number
+  time: string
+  capId: string
+  status: number | null
+  result: string
+}
+
+const CAP_HISTORY_MAX = 20
+const capHistory = ref<CapHistoryEntry[]>([])
+let capHistSeq = 0
+
+function restoreCapHistory(entry: CapHistoryEntry) {
+  if (capabilities.value.some((c) => c.id === entry.capId))
+    selectedCapId.value = entry.capId
+  capStatus.value = entry.status
+  capResult.value = entry.result
+}
+
 async function executeCap() {
   const cap = selectedCap.value
   if (!cap || capRunning.value) return
@@ -288,6 +404,15 @@ async function executeCap() {
     capResult.value = String(e)
   } finally {
     capRunning.value = false
+    capHistory.value.unshift({
+      seq: ++capHistSeq,
+      time: new Date().toLocaleTimeString('ja-JP', { hour12: false }),
+      capId: cap.id,
+      status: capStatus.value,
+      result: capResult.value,
+    })
+    if (capHistory.value.length > CAP_HISTORY_MAX)
+      capHistory.value.length = CAP_HISTORY_MAX
   }
 }
 
@@ -330,13 +455,17 @@ const LOG_BUFFER_MAX = 500
 const logRows = ref<LogRow[]>([])
 const logState = ref<'stopped' | 'connecting' | 'open'>('stopped')
 const logFilter = ref('')
+const logWarnOnly = ref(false)
 let logEs: EventSource | null = null
 let logSeq = 0
 
 const filteredLogRows = computed(() => {
   const q = logFilter.value.trim().toLowerCase()
-  if (!q) return logRows.value
-  return logRows.value.filter((r) => r.line.toLowerCase().includes(q))
+  return logRows.value.filter((r) => {
+    if (logWarnOnly.value && r.level !== 'error' && r.level !== 'warn')
+      return false
+    return !q || r.line.toLowerCase().includes(q)
+  })
 })
 
 function detectLevel(line: string): LogRow['level'] {
@@ -475,6 +604,44 @@ onUnmounted(() => {
             </table>
           </div>
         </template>
+        <button type="button" :class="$style.summary" @click="toggleHeartbeat">
+          <i :class="showHeartbeat ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+          HEARTBEAT 状態 (#411)
+        </button>
+        <div v-if="showHeartbeat && heartbeat" :class="$style.tableWrap">
+          <table :class="$style.table">
+            <tbody>
+              <tr>
+                <td>daemon</td>
+                <td :class="$style.mono">
+                  {{ heartbeat.mounted ? (heartbeat.config.enabled ? 'enabled' : 'disabled') : 'not mounted' }}{{ heartbeat.running ? ' (tick 実行中)' : '' }}
+                </td>
+              </tr>
+              <tr>
+                <td>interval / target</td>
+                <td :class="$style.mono">{{ heartbeat.config.intervalMinutes }} 分 / {{ heartbeat.config.target }}</td>
+              </tr>
+              <tr>
+                <td>最終 tick</td>
+                <td :class="$style.mono">
+                  {{ relativeTime(heartbeat.lastTickAt) }}<template v-if="heartbeat.lastTickSource"> ({{ heartbeat.lastTickSource }})</template>
+                </td>
+              </tr>
+              <tr>
+                <td>直近の結末</td>
+                <td :class="$style.mono">{{ heartbeat.lastOutcome ?? '—' }}</td>
+              </tr>
+              <tr>
+                <td>連続失敗</td>
+                <td :class="$style.mono">{{ heartbeat.consecutiveFailures }}</td>
+              </tr>
+              <tr>
+                <td>本日の AI 起動</td>
+                <td :class="$style.mono">{{ heartbeat.dailyCount }} / {{ heartbeat.config.dailyMaxAiRuns }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section :class="[$style.panel, $style.ssePanel, $style.gridSse]">
@@ -493,6 +660,28 @@ onUnmounted(() => {
           <button type="button" :class="$style.btn" @click="connectSse">適用 / 再接続</button>
           <button type="button" :class="$style.btn" @click="stopSse">停止</button>
           <button type="button" :class="$style.btn" @click="clearSse">クリア</button>
+          <button
+            type="button"
+            :class="$style.btn"
+            :disabled="!sseRows.length"
+            title="バッファを JSON Lines でダウンロード"
+            @click="exportSse"
+          >
+            <i class="ti ti-download" />
+          </button>
+        </div>
+        <div v-if="sseTopTypes.length" :class="$style.chipRow">
+          <span :class="$style.rateChip">{{ sseRatePerMin }}/min</span>
+          <button
+            v-for="[t, n] in sseTopTypes"
+            :key="t"
+            type="button"
+            :class="$style.typeChip"
+            title="クリックでこの種別に絞る"
+            @click="filterByType(t)"
+          >
+            {{ t }} ×{{ n }}
+          </button>
         </div>
         <div :class="$style.sseList">
           <div v-for="row in sseRows" :key="row.seq" :class="$style.sseRow">
@@ -586,6 +775,20 @@ onUnmounted(() => {
             auto-height
           />
         </template>
+        <div v-if="capHistory.length" :class="$style.capHistory">
+          <button
+            v-for="h in capHistory"
+            :key="h.seq"
+            type="button"
+            :class="$style.capHistoryRow"
+            title="クリックで結果を呼び戻す"
+            @click="restoreCapHistory(h)"
+          >
+            <span :class="$style.sseTime">{{ h.time }}</span>
+            <span :class="[$style.mono, $style.capHistoryId]">{{ h.capId }}</span>
+            <span :class="$style.capStatus">{{ h.status ?? 'ERR' }}</span>
+          </button>
+        </div>
         <button type="button" :class="$style.summary" @click="togglePerms">
           <i :class="showPerms ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
           principal 別実効権限 (#712)
@@ -629,6 +832,14 @@ onUnmounted(() => {
             :class="$style.filterInput"
             placeholder="絞り込み (部分一致)"
           />
+          <button
+            type="button"
+            :class="[$style.btn, logWarnOnly && $style.btnActive]"
+            title="WARN 以上のみ表示"
+            @click="logWarnOnly = !logWarnOnly"
+          >
+            WARN+
+          </button>
           <button type="button" :class="$style.btn" @click="connectLogs">再接続</button>
           <button type="button" :class="$style.btn" @click="stopLogs">停止</button>
           <button type="button" :class="$style.btn" @click="clearLogs">クリア</button>
@@ -997,5 +1208,75 @@ onUnmounted(() => {
 
 .permRowRelevant {
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
+}
+
+.btnActive {
+  background: var(--nd-accent);
+  color: #fff;
+  border-color: var(--nd-accent);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.rateChip {
+  font-family: var(--nd-font-mono);
+  font-size: 0.7rem;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.typeChip {
+  padding: 2px 8px;
+  border: none;
+  border-radius: 999px;
+  background: var(--nd-buttonBg);
+  color: var(--nd-accent);
+  font-family: var(--nd-font-mono);
+  font-size: 0.7rem;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--nd-buttonHoverBg, var(--nd-buttonBg));
+  }
+}
+
+.capHistory {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  max-height: 130px;
+  overflow-y: auto;
+  border-top: 1px solid var(--nd-divider);
+}
+
+.capHistoryRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 2px 6px;
+  border: none;
+  background: none;
+  color: var(--nd-fg);
+  text-align: left;
+  font-size: 0.75rem;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--nd-buttonBg);
+  }
+}
+
+.capHistoryId {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

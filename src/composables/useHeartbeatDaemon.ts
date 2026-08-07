@@ -358,6 +358,26 @@ async function resolveTargetSession(
 }
 
 /**
+ * dev ダッシュボード (#977) 向けの読み取りスナップショット。daemon は
+ * App.vue で 1 mount の global singleton なので module スコープに置き、
+ * apiBridge の query handler ('heartbeat/status') がここを読む。
+ * silent fail 防止機構 (連続失敗 auto-disable) の観測面。
+ */
+export const heartbeatStatus = {
+  /** daemon が mount 済みか (セーフモード・非 Tauri では false のまま) */
+  mounted: false,
+  /** tick 本処理が実行中か */
+  running: false,
+  lastTickAt: null as number | null,
+  lastTickSource: null as string | null,
+  /** 直近 tick の結末 (skip:<理由> / suppressed / reported / error) */
+  lastOutcome: null as string | null,
+  consecutiveFailures: 0,
+  /** 本日の AI 起動回数 (日次上限のカウンタ) */
+  dailyCount: 0,
+}
+
+/**
  * HEARTBEAT session 専用 AI タイトル生成 system prompt。
  * (DeckAiColumn.vue の chat session 用 prompt と同じ shape、文脈だけ heartbeat 向け)
  */
@@ -369,6 +389,7 @@ export function useHeartbeatDaemon() {
   // 第三者コードと同格に止める。App.vue の mount より手前で抜けるので
   // Rust scheduler への configure も listen も一切行われない
   if (readSafeMode()) return
+  heartbeatStatus.mounted = true
 
   const { config } = useAiConfig()
   const sessionsStore = useAiSessionsStore()
@@ -534,19 +555,26 @@ export function useHeartbeatDaemon() {
   // --- tick listener (App lifecycle で 1 度だけ) ---
   ;(async () => {
     unlisten = await listenTauri('nd:ai-heartbeat-tick', (tick) => {
+      heartbeatStatus.lastTickAt = Date.now()
+      heartbeatStatus.lastTickSource = tick.source
       if (isRunning.value) {
         console.debug(
           `[heartbeat] skip (already running) source=${tick.source}`,
         )
+        heartbeatStatus.lastOutcome = 'skip:already-running'
         return
       }
       isRunning.value = true
+      heartbeatStatus.running = true
       runOnce(tick)
         .catch((e) => {
           console.warn('[heartbeat] daemon error:', e)
+          heartbeatStatus.lastOutcome = 'error'
         })
         .finally(() => {
           isRunning.value = false
+          heartbeatStatus.running = false
+          heartbeatStatus.consecutiveFailures = consecutiveFailures
         })
     })
   })()
@@ -560,12 +588,16 @@ export function useHeartbeatDaemon() {
 
   async function runOnce(payload: HeartbeatTickPayload): Promise<void> {
     const cfg = config.value.heartbeat
-    if (!cfg.enabled) return
+    if (!cfg.enabled) {
+      heartbeatStatus.lastOutcome = 'skip:disabled'
+      return
+    }
 
     // active account がいない (= 未ログイン) なら skip。アカウント context
     // 自体は capability 側で必要なものだけ参照する。
     if (!accountsStore.activeAccountId) {
       console.debug('[heartbeat] no active account, skip')
+      heartbeatStatus.lastOutcome = 'skip:no-account'
       return
     }
 
@@ -574,6 +606,7 @@ export function useHeartbeatDaemon() {
     const heartbeatSkills = skillsStore.heartbeatSkills
     if (heartbeatSkills.length === 0) {
       console.debug('[heartbeat] no skills tagged as heartbeat, skip')
+      heartbeatStatus.lastOutcome = 'skip:no-skills'
       return
     }
     const skillBodies: string[] = []
@@ -584,6 +617,7 @@ export function useHeartbeatDaemon() {
     }
     if (skillBodies.length === 0) {
       console.debug('[heartbeat] heartbeat-tagged skills have empty body, skip')
+      heartbeatStatus.lastOutcome = 'skip:no-skills'
       return
     }
 
@@ -599,6 +633,7 @@ export function useHeartbeatDaemon() {
       console.debug(
         `[heartbeat] cheap-check skip AI (reason=${decision.reason}, source=${payload.source})`,
       )
+      heartbeatStatus.lastOutcome = `skip:cheap-check:${decision.reason}`
       // skip 時も hash は最新化 (= 次 tick で「変化あり」を検知できるように)。
       // lastAiRunAt は更新しない (= maxSkipHours は AI 起動時のみ更新)。
       saveCheapCheckState({
@@ -616,8 +651,10 @@ export function useHeartbeatDaemon() {
     //   'warn'    = toast 出して継続 (= AI 呼んで進める)
     //   'disable' = toast + heartbeat.enabled=false で daemon 停止
     const counter = tickDailyCounter(now)
+    heartbeatStatus.dailyCount = counter.count
     if (counter.count > cfg.dailyMaxAiRuns) {
       if (cfg.onDailyLimit === 'disable') {
+        heartbeatStatus.lastOutcome = 'skip:daily-limit-disable'
         config.value.heartbeat.enabled = false
         toast.show(
           `HEARTBEAT を停止しました (本日 ${cfg.dailyMaxAiRuns} 回の AI 起動上限に到達)`,
@@ -655,6 +692,7 @@ export function useHeartbeatDaemon() {
       })
     } catch (e) {
       consecutiveFailures += 1
+      heartbeatStatus.lastOutcome = 'error'
       const errMsg = e instanceof Error ? e.message : String(e)
       console.warn(
         `[heartbeat] inference failed (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES}):`,
@@ -671,15 +709,20 @@ export function useHeartbeatDaemon() {
       }
       return
     }
-    if (responseText === null) return
+    if (responseText === null) {
+      heartbeatStatus.lastOutcome = 'skip:no-response'
+      return
+    }
 
     const visible = applyHeartbeatSuppression(responseText)
     if (visible === null) {
       console.debug(
         `[heartbeat] AI returned OK / short-ack, suppress (source=${payload.source})`,
       )
+      heartbeatStatus.lastOutcome = 'suppressed'
       return
     }
+    heartbeatStatus.lastOutcome = 'reported'
 
     // target session に append (target='none' なら log のみ)
     const resolvedConn = resolveAiConnection(

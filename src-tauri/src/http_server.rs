@@ -452,6 +452,24 @@ async fn get_startup_trace(State(state): State<DeckState>) -> Result<Json<Value>
     Ok(Json(data))
 }
 
+#[utoipa::path(get, path = "/api/heartbeat/status", tag = "dev",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "HEARTBEAT daemon snapshot (last tick, outcome, failure counter) and config"),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+    )
+)]
+async fn get_heartbeat_status(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
+    let data = query_bridge::query_frontend(&state.app_handle, "heartbeat/status", json!({}))
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "QUERY_FAILED".to_string(),
+            message: e,
+        })?;
+    Ok(Json(data))
+}
+
 #[utoipa::path(get, path = "/api/permissions/resolved", tag = "dev",
     security(("bearer_auth" = [])),
     responses(
@@ -638,6 +656,7 @@ fn deck_openapi_router() -> OpenApiRouter<DeckState> {
         .routes(routes!(get_health))
         .routes(routes!(get_startup_trace))
         .routes(routes!(get_permissions_resolved))
+        .routes(routes!(get_heartbeat_status))
 }
 
 /// Public image-proxy route, as an [`OpenApiRouter`].
