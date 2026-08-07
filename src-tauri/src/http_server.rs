@@ -678,7 +678,10 @@ async fn openapi_docs() -> axum::response::Html<&'static str> {
 <html><head>
 <title>NoteDeck API</title>
 <meta charset="utf-8">
+</head><body>
 <script>
+// Scalar の自動マウントは #api-reference の直前に mount 先 div を挿入する。
+// head に置くと div ごと head 内に入り描画されない (display:none) ため body に置く。
 (function() {
   var dark = location.hash !== '#light';
   var el = document.createElement('script');
@@ -688,7 +691,6 @@ async fn openapi_docs() -> axum::response::Html<&'static str> {
   document.currentScript.after(el);
 })();
 </script>
-</head><body>
 <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
 </body></html>"#,
     )
