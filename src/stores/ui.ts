@@ -1,10 +1,7 @@
 import { type Platform, platform } from '@tauri-apps/plugin-os'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, onScopeDispose, ref } from 'vue'
-
-const isTauri =
-  typeof window !== 'undefined' &&
-  ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+import { isTauri } from '@/utils/settingsFs'
 
 export function detectPlatformFromUserAgent(
   userAgent: string,
