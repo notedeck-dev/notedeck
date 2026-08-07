@@ -388,6 +388,62 @@
         ]
       }
     },
+    "/api/inspector/recent": {
+      "get": {
+        "tags": [
+          "dev"
+        ],
+        "operationId": "get_inspector_recent",
+        "responses": {
+          "200": {
+            "description": "Stream Inspector (adapter-layer raw WS) event counts by kind, for cross-checking against the SSE stream"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/logs/recent": {
+      "get": {
+        "tags": [
+          "dev"
+        ],
+        "operationId": "get_logs_recent",
+        "responses": {
+          "200": {
+            "description": "Frontend in-app log ring (console.warn/error wrap)"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/openapi.json": {
       "get": {
         "tags": [
@@ -401,6 +457,34 @@
         }
       }
     },
+    "/api/perf/caches": {
+      "get": {
+        "tags": [
+          "dev"
+        ],
+        "operationId": "get_perf_caches",
+        "responses": {
+          "200": {
+            "description": "Bounded cache registry stats (name / size / limit, #987)"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/permissions/resolved": {
       "get": {
         "tags": [
@@ -410,6 +494,34 @@
         "responses": {
           "200": {
             "description": "Effective permission grants per profiled principal (#712)"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/querybridge/trace": {
+      "get": {
+        "tags": [
+          "dev"
+        ],
+        "operationId": "get_querybridge_trace",
+        "responses": {
+          "200": {
+            "description": "Recent query-bridge round trips with duration (IPC visibility)"
           },
           "401": {
             "description": "Unauthorized",

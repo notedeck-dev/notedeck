@@ -193,18 +193,24 @@ attach モードはデバイス側アプリを終了させず、デッキ操作�
 
 できること:
 
-- **デッキ状態** — カラム一覧、`/api/health` と `/api/openapi.json` の
-  シンタックスハイライト付き表示
+- **デッキ状態** — カラム一覧と、折りたたみで `/api/health` raw・
+  `/api/openapi.json`・起動計測（起動マーク + WebView 固定費、[#985](https://github.com/notedeck-dev/notedeck/issues/985)）・
+  HEARTBEAT 状態（最終 tick / 結末 / 連続失敗、[#411](https://github.com/notedeck-dev/notedeck/issues/411)）・キャッシュ観測
+  （上限つきキャッシュの size / limit 実測、[#987](https://github.com/notedeck-dev/notedeck/issues/987)）・Query Bridge トレース
+  （query 往復の所要時間）。JSON はシンタックスハイライト付き
 - **SSE ライブビューア** — `/api/events` を購読して Rust 側イベントバスの
-  流れをリアルタイム表示。type prefix フィルタ（`note,notification,main-` の
-  ようにカンマ区切り）、切断時自動再接続。行クリックでペイロードを展開
+  流れをリアルタイム表示。type prefix フィルタ・種別チップ（クリックで
+  絞り込み）・流量表示・JSON Lines エクスポート・切断時自動再接続。
+  折りたたみで Inspector 突き合わせ（アダプタ層 vs SSE の種別別カウント）
 - **Capabilities 実行盤** — 登録済み capability の一覧からパラメータを
   JSON で組んで実行。external principal として dispatcher を通るので、
   権限ゲート（[#712](https://github.com/notedeck-dev/notedeck/issues/712)）の deny・確認ダイアログ・DispatchResult → HTTP status の
-  写像をそのまま目視テストできる
-- **Rust ログ tail** — アプリの tracing ログ（`notedeck.log` 日次ローテート）
-  を Vite dev server の `/dev/logs` が SSE で流す。レベル別色分けと部分一致
-  フィルタ付き。ログの所在は `/api` インデックスが開示する `logDir` から解決
+  写像をそのまま目視テストできる。principal 別実効権限マトリクスと
+  実行履歴つき
+- **統合タイムライン** — Rust の tracing ログ（Vite dev server の
+  `/dev/logs` が SSE 配信、所在は `/api` インデックスの `logDir` から解決）
+  + SSE イベント + フロント in-app ログを単一時系列にマージ。
+  「どの層でイベントが消えたか」をソース切替しながら 1 画面で追える
 - **Scalar API ドキュメント** — `/api/docs` へのリンク
 
 仕組み: Vite の dev proxy（`vite.config.ts`）が `/api` と `/proxy` を

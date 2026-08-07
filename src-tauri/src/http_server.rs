@@ -452,6 +452,78 @@ async fn get_startup_trace(State(state): State<DeckState>) -> Result<Json<Value>
     Ok(Json(data))
 }
 
+#[utoipa::path(get, path = "/api/perf/caches", tag = "dev",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Bounded cache registry stats (name / size / limit, #987)"),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+    )
+)]
+async fn get_perf_caches(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
+    let data = query_bridge::query_frontend(&state.app_handle, "perf/caches", json!({}))
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "QUERY_FAILED".to_string(),
+            message: e,
+        })?;
+    Ok(Json(data))
+}
+
+#[utoipa::path(get, path = "/api/logs/recent", tag = "dev",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Frontend in-app log ring (console.warn/error wrap)"),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+    )
+)]
+async fn get_logs_recent(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
+    let data = query_bridge::query_frontend(&state.app_handle, "logs/recent", json!({}))
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "QUERY_FAILED".to_string(),
+            message: e,
+        })?;
+    Ok(Json(data))
+}
+
+#[utoipa::path(get, path = "/api/querybridge/trace", tag = "dev",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Recent query-bridge round trips with duration (IPC visibility)"),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+    )
+)]
+async fn get_querybridge_trace(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
+    let data = query_bridge::query_frontend(&state.app_handle, "querybridge/trace", json!({}))
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "QUERY_FAILED".to_string(),
+            message: e,
+        })?;
+    Ok(Json(data))
+}
+
+#[utoipa::path(get, path = "/api/inspector/recent", tag = "dev",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Stream Inspector (adapter-layer raw WS) event counts by kind, for cross-checking against the SSE stream"),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+    )
+)]
+async fn get_inspector_recent(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
+    let data = query_bridge::query_frontend(&state.app_handle, "inspector/recent", json!({}))
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "QUERY_FAILED".to_string(),
+            message: e,
+        })?;
+    Ok(Json(data))
+}
+
 #[utoipa::path(get, path = "/api/heartbeat/status", tag = "dev",
     security(("bearer_auth" = [])),
     responses(
@@ -657,6 +729,10 @@ fn deck_openapi_router() -> OpenApiRouter<DeckState> {
         .routes(routes!(get_startup_trace))
         .routes(routes!(get_permissions_resolved))
         .routes(routes!(get_heartbeat_status))
+        .routes(routes!(get_perf_caches))
+        .routes(routes!(get_logs_recent))
+        .routes(routes!(get_querybridge_trace))
+        .routes(routes!(get_inspector_recent))
 }
 
 /// Public image-proxy route, as an [`OpenApiRouter`].

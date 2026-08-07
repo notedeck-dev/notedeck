@@ -32,6 +32,7 @@ interface DeckColumn {
 
 interface SseRow {
   seq: number
+  ts: number
   time: string
   type: string
   data: string
@@ -192,7 +193,8 @@ function pushRow(type: string, data: string) {
   sseRatePerMin.value = sseRecentTimes.length
   sseRows.value.unshift({
     seq: ++sseSeq,
-    time: new Date().toLocaleTimeString('ja-JP', { hour12: false }),
+    ts: now,
+    time: new Date(now).toLocaleTimeString('ja-JP', { hour12: false }),
     type,
     data,
     expanded: false,
@@ -447,6 +449,7 @@ async function togglePerms() {
 
 interface LogRow {
   seq: number
+  ts: number
   line: string
   level: 'error' | 'warn' | 'info' | 'debug'
 }
@@ -459,13 +462,94 @@ const logWarnOnly = ref(false)
 let logEs: EventSource | null = null
 let logSeq = 0
 
-const filteredLogRows = computed(() => {
+// tracing 行頭の ISO タイムスタンプ (統合タイムラインのソート基準)
+const LOG_ISO_RE = /^(\d{4}-\d{2}-\d{2}T[0-9:.]+Z)/
+
+// --- 統合タイムライン ---
+// Rust ログ (SSE tail) + Rust イベントバス (SSE) + フロント in-app ログを
+// 単一時系列にマージし、「どの層でイベントが消えたか」を 1 画面で追う
+
+interface FrontLogEntry {
+  at: number
+  level: 'warn' | 'error'
+  scope?: string
+  message: string
+}
+
+interface UnifiedRow {
+  key: string
+  ts: number
+  source: 'rust' | 'sse' | 'front'
+  label: string
+  text: string
+  level: 'error' | 'warn' | 'info' | 'debug'
+}
+
+const timelineSources = ref({ rust: true, sse: true, front: true })
+const frontRows = ref<FrontLogEntry[]>([])
+let frontTimer: ReturnType<typeof setInterval> | null = null
+
+async function refreshFrontLogs() {
+  try {
+    const res = await fetch('/api/logs/recent')
+    if (res.ok) {
+      const data: unknown = await res.json()
+      if (Array.isArray(data)) frontRows.value = data as FrontLogEntry[]
+    }
+  } catch {
+    // アプリ再起動中など — 次の周期更新で回復する
+  }
+}
+
+const unifiedRows = computed<UnifiedRow[]>(() => {
   const q = logFilter.value.trim().toLowerCase()
-  return logRows.value.filter((r) => {
-    if (logWarnOnly.value && r.level !== 'error' && r.level !== 'warn')
-      return false
-    return !q || r.line.toLowerCase().includes(q)
+  const warnOnly = logWarnOnly.value
+  const src = timelineSources.value
+  const rows: UnifiedRow[] = []
+  if (src.rust) {
+    for (const r of logRows.value)
+      rows.push({
+        key: `r${r.seq}`,
+        ts: r.ts,
+        source: 'rust',
+        label: r.level.toUpperCase(),
+        text: r.line,
+        level: r.level,
+      })
+  }
+  if (src.sse) {
+    for (const r of sseRows.value)
+      rows.push({
+        key: `s${r.seq}`,
+        ts: r.ts,
+        source: 'sse',
+        label: r.type,
+        text: r.data,
+        level: 'info',
+      })
+  }
+  if (src.front) {
+    for (const [i, e] of frontRows.value.entries()) {
+      rows.push({
+        key: `f${e.at}-${i}`,
+        ts: e.at,
+        source: 'front',
+        label: e.level.toUpperCase(),
+        text: (e.scope ? `[${e.scope}] ` : '') + e.message,
+        level: e.level,
+      })
+    }
+  }
+  const filtered = rows.filter((r) => {
+    if (warnOnly && r.level !== 'error' && r.level !== 'warn') return false
+    return (
+      !q ||
+      r.text.toLowerCase().includes(q) ||
+      r.label.toLowerCase().includes(q)
+    )
   })
+  filtered.sort((a, b) => b.ts - a.ts)
+  return filtered.slice(0, LOG_BUFFER_MAX)
 })
 
 function detectLevel(line: string): LogRow['level'] {
@@ -484,8 +568,10 @@ function connectLogs() {
     logState.value = 'open'
   }
   es.onmessage = (e) => {
+    const iso = e.data.match(LOG_ISO_RE)?.[1]
     logRows.value.unshift({
       seq: ++logSeq,
+      ts: iso ? Date.parse(iso) : Date.now(),
       line: e.data,
       level: detectLevel(e.data),
     })
@@ -508,16 +594,88 @@ function clearLogs() {
   logRows.value = []
 }
 
+// --- キャッシュ観測 (#987) / Query Bridge トレース / Inspector 突き合わせ ---
+
+interface CacheStat {
+  name: string
+  size: number
+  limit: number
+}
+
+const showCaches = ref(false)
+const caches = ref<CacheStat[]>([])
+
+async function toggleCaches() {
+  showCaches.value = !showCaches.value
+  if (!showCaches.value) return
+  try {
+    const res = await fetch('/api/perf/caches')
+    if (res.ok) {
+      const data: unknown = await res.json()
+      if (Array.isArray(data)) caches.value = data as CacheStat[]
+    }
+  } catch {
+    // アプリ未起動
+  }
+}
+
+interface QbTraceRow {
+  at: number
+  type: string
+  ms: number
+  error: boolean
+}
+
+const showQbTrace = ref(false)
+const qbTrace = ref<QbTraceRow[]>([])
+
+async function toggleQbTrace() {
+  showQbTrace.value = !showQbTrace.value
+  if (!showQbTrace.value) return
+  try {
+    const res = await fetch('/api/querybridge/trace')
+    if (res.ok) {
+      const data: unknown = await res.json()
+      if (Array.isArray(data)) qbTrace.value = data as QbTraceRow[]
+    }
+  } catch {
+    // アプリ未起動
+  }
+}
+
+interface InspectorRecent {
+  total: number
+  counts: Record<string, number>
+  oldestTs: number | null
+}
+
+const showInspector = ref(false)
+const inspector = ref<InspectorRecent | null>(null)
+
+async function toggleInspector() {
+  showInspector.value = !showInspector.value
+  if (!showInspector.value) return
+  try {
+    const res = await fetch('/api/inspector/recent')
+    if (res.ok) inspector.value = await res.json()
+  } catch {
+    // アプリ未起動
+  }
+}
+
 onMounted(() => {
   refreshStatus()
   statusTimer = setInterval(refreshStatus, 5000)
   connectSse()
   loadCapabilities()
   connectLogs()
+  refreshFrontLogs()
+  frontTimer = setInterval(refreshFrontLogs, 3000)
 })
 
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer)
+  if (frontTimer) clearInterval(frontTimer)
   stopSse()
   stopLogs()
 })
@@ -642,6 +800,44 @@ onUnmounted(() => {
             </tbody>
           </table>
         </div>
+        <button type="button" :class="$style.summary" @click="toggleCaches">
+          <i :class="showCaches ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+          キャッシュ観測 (#987)
+        </button>
+        <div v-if="showCaches" :class="$style.tableWrap">
+          <table v-if="caches.length" :class="$style.table">
+            <thead>
+              <tr><th>name</th><th>size</th><th>limit</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="(c, i) in caches" :key="`${c.name}-${i}`">
+                <td :class="$style.mono">{{ c.name }}</td>
+                <td :class="$style.mono">{{ c.size }}</td>
+                <td :class="$style.mono">{{ c.limit }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else :class="$style.capDesc">登録済みキャッシュなし</p>
+        </div>
+        <button type="button" :class="$style.summary" @click="toggleQbTrace">
+          <i :class="showQbTrace ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+          Query Bridge トレース
+        </button>
+        <div v-if="showQbTrace" :class="$style.tableWrap">
+          <table v-if="qbTrace.length" :class="$style.table">
+            <thead>
+              <tr><th>time</th><th>type</th><th>ms</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="(t, i) in qbTrace" :key="`${t.at}-${i}`">
+                <td :class="$style.mono">{{ new Date(t.at).toLocaleTimeString('ja-JP', { hour12: false }) }}</td>
+                <td :class="[$style.mono, t.error && $style.logError]">{{ t.type }}</td>
+                <td :class="$style.mono">{{ t.ms }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else :class="$style.capDesc">まだ記録なし</p>
+        </div>
       </section>
 
       <section :class="[$style.panel, $style.ssePanel, $style.gridSse]">
@@ -682,6 +878,38 @@ onUnmounted(() => {
           >
             {{ t }} ×{{ n }}
           </button>
+        </div>
+        <button type="button" :class="$style.summary" @click="toggleInspector">
+          <i :class="showInspector ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+          Inspector 突き合わせ (アダプタ層 vs SSE)
+        </button>
+        <div v-if="showInspector" :class="$style.inspectorCompare">
+          <div :class="$style.tableWrap">
+            <p :class="$style.capDesc">アダプタ層 (Misskey WS raw)</p>
+            <table v-if="inspector?.total" :class="$style.table">
+              <tbody>
+                <tr v-for="(n, kind) in inspector.counts" :key="kind">
+                  <td :class="$style.mono">{{ kind }}</td>
+                  <td :class="$style.mono">{{ n }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else :class="$style.capDesc">
+              バッファ空 — Stream Inspector カラムを開くと流入します
+            </p>
+          </div>
+          <div :class="$style.tableWrap">
+            <p :class="$style.capDesc">SSE (Rust イベントバス)</p>
+            <table v-if="sseTopTypes.length" :class="$style.table">
+              <tbody>
+                <tr v-for="[t, n] in sseTopTypes" :key="t">
+                  <td :class="$style.mono">{{ t }}</td>
+                  <td :class="$style.mono">{{ n }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else :class="$style.capDesc">受信なし</p>
+          </div>
         </div>
         <div :class="$style.sseList">
           <div v-for="row in sseRows" :key="row.seq" :class="$style.sseRow">
@@ -823,8 +1051,8 @@ onUnmounted(() => {
 
       <section :class="[$style.panel, $style.ssePanel, $style.gridLogs]">
         <h2 :class="$style.panelTitle">
-          Rust ログ tail (notedeck.log)
-          <span :class="[$style.sseBadge, logState === 'open' && $style.sseOpen]">{{ logState }}</span>
+          統合タイムライン
+          <span :class="[$style.sseBadge, logState === 'open' && $style.sseOpen]">rust: {{ logState }}</span>
         </h2>
         <div :class="$style.sseControls">
           <input
@@ -835,7 +1063,7 @@ onUnmounted(() => {
           <button
             type="button"
             :class="[$style.btn, logWarnOnly && $style.btnActive]"
-            title="WARN 以上のみ表示"
+            title="WARN 以上のみ表示 (SSE イベントも隠れる)"
             @click="logWarnOnly = !logWarnOnly"
           >
             WARN+
@@ -844,10 +1072,20 @@ onUnmounted(() => {
           <button type="button" :class="$style.btn" @click="stopLogs">停止</button>
           <button type="button" :class="$style.btn" @click="clearLogs">クリア</button>
         </div>
+        <div :class="$style.chipRow">
+          <label
+            v-for="(label, key) in { rust: 'Rust ログ', sse: 'SSE', front: 'フロント' }"
+            :key="key"
+            :class="$style.sourceToggle"
+          >
+            <input v-model="timelineSources[key]" type="checkbox" />
+            {{ label }}
+          </label>
+        </div>
         <div :class="$style.sseList">
           <div
-            v-for="row in filteredLogRows"
-            :key="row.seq"
+            v-for="row in unifiedRows"
+            :key="row.key"
             :class="[
               $style.logLine,
               row.level === 'error'
@@ -856,9 +1094,18 @@ onUnmounted(() => {
                   ? $style.logWarn
                   : '',
             ]"
-          >{{ row.line }}</div>
-          <p v-if="!filteredLogRows.length" :class="$style.sseEmpty">
-            ログ待機中 — アプリ側の tracing 出力がここに流れます
+          ><span
+            :class="[
+              $style.sourceBadge,
+              row.source === 'sse'
+                ? $style.sourceSse
+                : row.source === 'front'
+                  ? $style.sourceFront
+                  : $style.sourceRust,
+            ]"
+          >{{ row.source }}</span> <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span> <span :class="$style.sseType">{{ row.label }}</span> {{ row.text }}</div>
+          <p v-if="!unifiedRows.length" :class="$style.sseEmpty">
+            待機中 — Rust ログ / SSE イベント / フロントログがここに時系列で流れます
           </p>
         </div>
       </section>
@@ -1278,5 +1525,49 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.sourceToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  opacity: 0.8;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sourceBadge {
+  display: inline-block;
+  min-width: 40px;
+  text-align: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.sourceRust {
+  background: var(--nd-buttonBg);
+  opacity: 0.8;
+}
+
+.sourceSse {
+  background: color-mix(in srgb, var(--nd-accent) 25%, transparent);
+  color: var(--nd-accent);
+}
+
+.sourceFront {
+  background: color-mix(in srgb, #4a9eda 25%, transparent);
+  color: #4a9eda;
+}
+
+.inspectorCompare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  flex: none;
+  max-height: 40%;
+  overflow-y: auto;
 }
 </style>

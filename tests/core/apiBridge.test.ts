@@ -18,6 +18,8 @@ import {
   _resetPermissionsForTest,
   usePermissionsConfig,
 } from '@/permissions/store'
+import { createBoundedCache } from '@/services/boundedCache'
+import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { markStartup } from '@/utils/startupTrace'
 
 function makeCapability(overrides: Partial<Command> = {}): Command {
@@ -231,6 +233,67 @@ describe('handleQuery: heartbeat/status (#977)', () => {
     expect(typeof result.config.enabled).toBe('boolean')
     expect(typeof result.config.intervalMinutes).toBe('number')
     expect(typeof result.config.target).toBe('string')
+  })
+})
+
+describe('handleQuery: perf/caches (#977/#987)', () => {
+  it('名前付き boundedCache の size/limit を返す', async () => {
+    const cache = createBoundedCache<string, number>(7, 'test:api-bridge')
+    cache.set('x', 1)
+    const result = (await handleQuery('perf/caches', {})) as Array<{
+      name: string
+      size: number
+      limit: number
+    }>
+    const stat = result.find((s) => s.name === 'test:api-bridge')
+    expect(stat).toEqual({ name: 'test:api-bridge', size: 1, limit: 7 })
+  })
+})
+
+describe('handleQuery: inspector/recent (#977)', () => {
+  it('アダプタ層バッファを kind 別カウントに集計する', async () => {
+    const inspector = useStreamInspectorStore()
+    const badge = { avatar: null, serverIcon: null }
+    inspector.buffer = [
+      {
+        id: 1,
+        ts: 100,
+        kind: 'stream-note',
+        accountId: 'a',
+        observer: badge,
+        subject: null,
+        payload: {},
+      },
+      {
+        id: 2,
+        ts: 50,
+        kind: 'stream-note',
+        accountId: 'a',
+        observer: badge,
+        subject: null,
+        payload: {},
+      },
+      {
+        id: 3,
+        ts: 10,
+        kind: 'stream-notification',
+        accountId: 'a',
+        observer: badge,
+        subject: null,
+        payload: {},
+      },
+    ]
+    const result = (await handleQuery('inspector/recent', {})) as {
+      total: number
+      counts: Record<string, number>
+      oldestTs: number | null
+    }
+    expect(result.total).toBe(3)
+    expect(result.counts).toEqual({
+      'stream-note': 2,
+      'stream-notification': 1,
+    })
+    expect(result.oldestTs).toBe(10)
   })
 })
 
