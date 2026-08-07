@@ -163,6 +163,13 @@ const startupMaxDelta = computed(() =>
   Math.max(1, ...startupRows.value.map((r) => r.delta)),
 )
 
+/** 最終マーク (通常 deck-mounted) までの合計 ms */
+const startupTotal = computed(() => {
+  const entries = startup.value?.entries ?? []
+  const last = entries[entries.length - 1]
+  return last ? Math.round(last.at) : null
+})
+
 async function fetchStartup() {
   try {
     const res = await fetch('/api/startup/trace')
@@ -893,6 +900,21 @@ onUnmounted(() => {
 
       <main :class="$style.content">
         <section v-if="activeView === 'overview'" :class="$style.view">
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-layout-columns" /> 概要
+              </h2>
+              <p :class="$style.viewDesc">
+                実行中アプリのヘルスチェック — 127.0.0.1:19820<template v-if="app?.version"> · v{{ app.version }}</template>
+              </p>
+            </div>
+            <div :class="$style.viewActions">
+              <button type="button" :class="$style.btn" @click="refreshStatus">
+                <i class="ti ti-refresh" /> 更新
+              </button>
+            </div>
+          </header>
           <div :class="$style.statCards">
             <div :class="$style.statCard">
               <span :class="$style.statValue">{{ sseCount }}</span>
@@ -919,234 +941,340 @@ onUnmounted(() => {
               <span :class="$style.statLabel">capabilities</span>
             </div>
           </div>
-          <h2 :class="$style.panelTitle">
-            <i class="ti ti-layout-columns" :class="$style.panelIcon" />
-            デッキ状態 — カラム {{ columns.length }} 本
-          </h2>
-          <div :class="$style.tableWrap">
-            <table :class="$style.table">
-              <thead>
-                <tr><th>type</th><th>id</th><th>account</th></tr>
-              </thead>
-              <tbody>
-                <tr v-for="col in columns" :key="col.id">
-                  <td>{{ col.type }}</td>
-                  <td :class="$style.mono">{{ col.id }}</td>
-                  <td :class="$style.mono">{{ col.accountId ?? '(cross-account)' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <button
-            type="button"
-            :class="$style.summary"
-            @click="showHealth = !showHealth"
-          >
-            <i :class="showHealth ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-            /api/health raw
-          </button>
-          <CodeEditor
-            v-if="showHealth && health"
-            :model-value="health"
-            :language="lang"
-            read-only
-            auto-height
-          />
-          <button type="button" :class="$style.summary" @click="toggleSpec">
-            <i :class="showSpec ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-            /api/openapi.json
-          </button>
-          <CodeEditor
-            v-if="showSpec && spec"
-            :model-value="spec"
-            :language="lang"
-            read-only
-            max-height="48vh"
-          />
-        </section>
-
-        <section v-if="activeView === 'startup'" :class="$style.view">
-          <h2 :class="$style.panelTitle">
-            <i class="ti ti-rocket" :class="$style.panelIcon" />
-            起動計測 (#985)
-            <button type="button" :class="$style.btn" @click="fetchStartup">更新</button>
-          </h2>
-          <template v-if="startup">
-            <p v-if="startup.webviewFixedCost !== null" :class="$style.capDesc">
-              WebView 起動固定費 ~{{ startup.webviewFixedCost }}ms
-            </p>
+          <div :class="$style.card">
+            <p :class="$style.cardTitle">デッキ — カラム {{ columns.length }} 本</p>
             <div :class="$style.tableWrap">
               <table :class="$style.table">
                 <thead>
-                  <tr><th>mark</th><th>at</th><th>+Δ</th><th /></tr>
+                  <tr><th>type</th><th>id</th><th>account</th></tr>
                 </thead>
                 <tbody>
-                  <tr v-for="row in startupRows" :key="row.name">
-                    <td :class="$style.mono">{{ row.name }}</td>
-                    <td :class="$style.mono">{{ Math.round(row.at) }}ms</td>
-                    <td :class="$style.mono">+{{ Math.round(row.delta) }}ms</td>
+                  <tr v-for="col in columns" :key="col.id">
+                    <td>{{ col.type }}</td>
+                    <td :class="$style.mono">{{ col.id }}</td>
+                    <td :class="$style.mono">{{ col.accountId ?? '(cross-account)' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div :class="$style.card">
+            <p :class="$style.cardTitle">Raw データ</p>
+            <button
+              type="button"
+              :class="$style.summary"
+              @click="showHealth = !showHealth"
+            >
+              <i :class="showHealth ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+              /api/health
+            </button>
+            <CodeEditor
+              v-if="showHealth && health"
+              :model-value="health"
+              :language="lang"
+              read-only
+              auto-height
+            />
+            <button type="button" :class="$style.summary" @click="toggleSpec">
+              <i :class="showSpec ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+              /api/openapi.json
+            </button>
+            <CodeEditor
+              v-if="showSpec && spec"
+              :model-value="spec"
+              :language="lang"
+              read-only
+              max-height="48vh"
+            />
+          </div>
+        </section>
+
+        <section v-if="activeView === 'startup'" :class="$style.view">
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-rocket" /> 起動計測
+              </h2>
+              <p :class="$style.viewDesc">
+                フロントの起動マークと WebView 起動固定費 (#985)。固定費は初回ナビゲーションのみ計測される
+              </p>
+            </div>
+            <div :class="$style.viewActions">
+              <button type="button" :class="$style.btn" @click="fetchStartup">
+                <i class="ti ti-refresh" /> 更新
+              </button>
+            </div>
+          </header>
+          <template v-if="startup">
+            <div :class="$style.statCards">
+              <div :class="$style.statCard">
+                <span :class="$style.statValue">{{ startupTotal ?? '—' }}<small>ms</small></span>
+                <span :class="$style.statLabel">deck-mounted まで</span>
+              </div>
+              <div :class="$style.statCard">
+                <span :class="$style.statValue">{{ startup.webviewFixedCost ?? '—' }}<small>ms</small></span>
+                <span :class="$style.statLabel">WebView 起動固定費</span>
+              </div>
+            </div>
+            <div :class="$style.card">
+              <p :class="$style.cardTitle">ウォーターフォール</p>
+              <div :class="$style.tableWrap">
+                <table :class="$style.table">
+                  <thead>
+                    <tr><th>mark</th><th>at</th><th>+Δ</th><th /></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in startupRows" :key="row.name">
+                      <td :class="$style.mono">{{ row.name }}</td>
+                      <td :class="$style.mono">{{ Math.round(row.at) }}ms</td>
+                      <td :class="$style.mono">+{{ Math.round(row.delta) }}ms</td>
+                      <td :class="$style.barCell">
+                        <span
+                          :class="$style.bar"
+                          :style="{ width: `${(row.delta / startupMaxDelta) * 100}%` }"
+                        />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+          <div v-else :class="$style.emptyBox">
+            <i class="ti ti-rocket" />
+            計測データなし — アプリ起動後に「更新」で取得します
+          </div>
+        </section>
+
+        <section v-if="activeView === 'heartbeat'" :class="$style.view">
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-heartbeat" :class="heartbeat?.config.enabled && $style.beat" />
+                HEARTBEAT
+              </h2>
+              <p :class="$style.viewDesc">
+                global daemon の観測面 (#411)。連続 3 回失敗で自動 disable する silent fail 防止機構つき
+              </p>
+            </div>
+          </header>
+          <template v-if="heartbeat">
+            <div :class="$style.statCards">
+              <div :class="$style.statCard">
+                <span
+                  :class="[
+                    $style.statValue,
+                    heartbeat.mounted && heartbeat.config.enabled && $style.statusOk,
+                  ]"
+                >{{ heartbeat.mounted ? (heartbeat.config.enabled ? 'ON' : 'OFF') : '—' }}</span>
+                <span :class="$style.statLabel">daemon{{ heartbeat.running ? ' (tick 実行中)' : '' }}</span>
+              </div>
+              <div :class="$style.statCard">
+                <span :class="$style.statValue">{{ relativeTime(heartbeat.lastTickAt) }}</span>
+                <span :class="$style.statLabel">最終 tick{{ heartbeat.lastTickSource ? ` (${heartbeat.lastTickSource})` : '' }}</span>
+              </div>
+              <div :class="$style.statCard">
+                <span
+                  :class="[
+                    $style.statValue,
+                    heartbeat.consecutiveFailures > 0 && $style.statusWarn,
+                  ]"
+                >{{ heartbeat.consecutiveFailures }}</span>
+                <span :class="$style.statLabel">連続失敗</span>
+              </div>
+              <div :class="$style.statCard">
+                <span :class="$style.statValue">{{ heartbeat.dailyCount }}<small>/{{ heartbeat.config.dailyMaxAiRuns }}</small></span>
+                <span :class="$style.statLabel">本日の AI 起動</span>
+              </div>
+            </div>
+            <div :class="$style.card">
+              <p :class="$style.cardTitle">設定と直近の結末</p>
+              <div :class="$style.tableWrap">
+                <table :class="$style.table">
+                  <tbody>
+                    <tr>
+                      <td>interval / target</td>
+                      <td :class="$style.mono">{{ heartbeat.config.intervalMinutes }} 分 / {{ heartbeat.config.target }}</td>
+                    </tr>
+                    <tr>
+                      <td>直近の結末</td>
+                      <td :class="$style.mono">{{ heartbeat.lastOutcome ?? '—' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+          <div v-else :class="$style.emptyBox">
+            <i class="ti ti-heartbeat" />
+            状態未取得 — アプリ接続後に自動で埋まります
+          </div>
+        </section>
+
+        <section v-if="activeView === 'caches'" :class="$style.view">
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-database" /> キャッシュ観測
+              </h2>
+              <p :class="$style.viewDesc">
+                上限つきキャッシュの実測 (#987)。「必ず上限」の不変条件が守られているかをここで確かめる
+              </p>
+            </div>
+            <div :class="$style.viewActions">
+              <button type="button" :class="$style.btn" @click="fetchCaches">
+                <i class="ti ti-refresh" /> 更新
+              </button>
+            </div>
+          </header>
+          <div v-if="caches.length" :class="$style.card">
+            <div :class="$style.tableWrap">
+              <table :class="$style.table">
+                <thead>
+                  <tr><th>name</th><th>size</th><th>limit</th><th>usage</th><th /></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(c, i) in caches" :key="`${c.name}-${i}`">
+                    <td :class="$style.mono">{{ c.name }}</td>
+                    <td :class="$style.mono">{{ c.size }}</td>
+                    <td :class="$style.mono">{{ c.limit }}</td>
+                    <td :class="$style.mono">{{ Math.round((c.size / Math.max(1, c.limit)) * 100) }}%</td>
                     <td :class="$style.barCell">
                       <span
-                        :class="$style.bar"
-                        :style="{ width: `${(row.delta / startupMaxDelta) * 100}%` }"
+                        :class="[$style.bar, c.size / c.limit > 0.9 && $style.barHot]"
+                        :style="{ width: `${Math.min(100, (c.size / Math.max(1, c.limit)) * 100)}%` }"
                       />
                     </td>
                   </tr>
                 </tbody>
               </table>
             </div>
-          </template>
-        </section>
-
-        <section v-if="activeView === 'heartbeat'" :class="$style.view">
-          <h2 :class="$style.panelTitle">
-            <i class="ti ti-heartbeat" :class="$style.panelIcon" />
-            HEARTBEAT 状態 (#411)
-            <i
-              v-if="heartbeat?.config.enabled"
-              class="ti ti-heartbeat"
-              :class="$style.beat"
-            />
-          </h2>
-          <div v-if="heartbeat" :class="$style.tableWrap">
-            <table :class="$style.table">
-              <tbody>
-                <tr>
-                  <td>daemon</td>
-                  <td :class="$style.mono">
-                    {{ heartbeat.mounted ? (heartbeat.config.enabled ? 'enabled' : 'disabled') : 'not mounted' }}{{ heartbeat.running ? ' (tick 実行中)' : '' }}
-                  </td>
-                </tr>
-                <tr>
-                  <td>interval / target</td>
-                  <td :class="$style.mono">{{ heartbeat.config.intervalMinutes }} 分 / {{ heartbeat.config.target }}</td>
-                </tr>
-                <tr>
-                  <td>最終 tick</td>
-                  <td :class="$style.mono">
-                    {{ relativeTime(heartbeat.lastTickAt) }}<template v-if="heartbeat.lastTickSource"> ({{ heartbeat.lastTickSource }})</template>
-                  </td>
-                </tr>
-                <tr>
-                  <td>直近の結末</td>
-                  <td :class="$style.mono">{{ heartbeat.lastOutcome ?? '—' }}</td>
-                </tr>
-                <tr>
-                  <td>連続失敗</td>
-                  <td :class="$style.mono">{{ heartbeat.consecutiveFailures }}</td>
-                </tr>
-                <tr>
-                  <td>本日の AI 起動</td>
-                  <td :class="$style.mono">{{ heartbeat.dailyCount }} / {{ heartbeat.config.dailyMaxAiRuns }}</td>
-                </tr>
-              </tbody>
-            </table>
           </div>
-        </section>
-
-        <section v-if="activeView === 'caches'" :class="$style.view">
-          <h2 :class="$style.panelTitle">
-            <i class="ti ti-database" :class="$style.panelIcon" />
-            キャッシュ観測 (#987)
-            <button type="button" :class="$style.btn" @click="fetchCaches">更新</button>
-          </h2>
-          <div :class="$style.tableWrap">
-            <table v-if="caches.length" :class="$style.table">
-              <thead>
-                <tr><th>name</th><th>size</th><th>limit</th><th /></tr>
-              </thead>
-              <tbody>
-                <tr v-for="(c, i) in caches" :key="`${c.name}-${i}`">
-                  <td :class="$style.mono">{{ c.name }}</td>
-                  <td :class="$style.mono">{{ c.size }}</td>
-                  <td :class="$style.mono">{{ c.limit }}</td>
-                  <td :class="$style.barCell">
-                    <span
-                      :class="[$style.bar, c.size / c.limit > 0.9 && $style.barHot]"
-                      :style="{ width: `${Math.min(100, (c.size / Math.max(1, c.limit)) * 100)}%` }"
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p v-else :class="$style.capDesc">登録済みキャッシュなし</p>
+          <div v-else :class="$style.emptyBox">
+            <i class="ti ti-database" />
+            登録済みキャッシュなし — 名前付きキャッシュが生成されると現れます
           </div>
         </section>
 
         <section v-if="activeView === 'qbtrace'" :class="$style.view">
-          <h2 :class="$style.panelTitle">
-            <i class="ti ti-arrows-left-right" :class="$style.panelIcon" />
-            Query Bridge トレース
-            <button type="button" :class="$style.btn" @click="fetchQbTrace">更新</button>
-          </h2>
-          <div :class="$style.tableWrap">
-            <table v-if="qbTrace.length" :class="$style.table">
-              <thead>
-                <tr><th>time</th><th>type</th><th>ms</th></tr>
-              </thead>
-              <tbody>
-                <tr v-for="(t, i) in qbTrace" :key="`${t.at}-${i}`">
-                  <td :class="$style.mono">{{ new Date(t.at).toLocaleTimeString('ja-JP', { hour12: false }) }}</td>
-                  <td :class="[$style.mono, t.error && $style.logError]">{{ t.type }}</td>
-                  <td :class="$style.mono">{{ t.ms }}</td>
-                </tr>
-              </tbody>
-            </table>
-            <p v-else :class="$style.capDesc">まだ記録なし</p>
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-arrows-left-right" /> Query Bridge トレース
+              </h2>
+              <p :class="$style.viewDesc">
+                HTTP → WebView の query 往復と所要時間 (#897 の IPC 可視化)。エラー応答は赤、遅い往復は色付き
+              </p>
+            </div>
+            <div :class="$style.viewActions">
+              <button type="button" :class="$style.btn" @click="fetchQbTrace">
+                <i class="ti ti-refresh" /> 更新
+              </button>
+            </div>
+          </header>
+          <div v-if="qbTrace.length" :class="$style.card">
+            <div :class="$style.tableWrap">
+              <table :class="$style.table">
+                <thead>
+                  <tr><th>time</th><th>type</th><th>ms</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(t, i) in qbTrace" :key="`${t.at}-${i}`">
+                    <td :class="$style.mono">{{ new Date(t.at).toLocaleTimeString('ja-JP', { hour12: false }) }}</td>
+                    <td :class="[$style.mono, t.error && $style.logError]">{{ t.type }}</td>
+                    <td
+                      :class="[
+                        $style.mono,
+                        t.ms >= 50 ? $style.logError : t.ms >= 10 ? $style.logWarn : '',
+                      ]"
+                    >{{ t.ms }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div v-else :class="$style.emptyBox">
+            <i class="ti ti-arrows-left-right" />
+            まだ記録なし — external API 経由の query が走ると溜まります
           </div>
         </section>
 
         <section v-if="activeView === 'inspector'" :class="$style.view">
-          <h2 :class="$style.panelTitle">
-            <i class="ti ti-search" :class="$style.panelIcon" />
-            Inspector 突き合わせ (アダプタ層 vs SSE)
-            <button type="button" :class="$style.btn" @click="fetchInspector">更新</button>
-          </h2>
-          <div :class="$style.inspectorCompare">
-            <div :class="$style.tableWrap">
-              <p :class="$style.capDesc">アダプタ層 (Misskey WS raw)</p>
-              <table v-if="inspector?.total" :class="$style.table">
-                <tbody>
-                  <tr v-for="(n, kind) in inspector.counts" :key="kind">
-                    <td :class="$style.mono">{{ kind }}</td>
-                    <td :class="$style.mono">{{ n }}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <p v-else :class="$style.capDesc">
-                バッファ空 — Stream Inspector カラムを開くと流入します
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-search" /> Inspector 照合
+              </h2>
+              <p :class="$style.viewDesc">
+                アダプタ層 (Misskey WS raw) と SSE (Rust イベントバス) の種別別カウントを突き合わせ、どの層までイベントが届いているかを切り分ける
               </p>
             </div>
-            <div :class="$style.tableWrap">
-              <p :class="$style.capDesc">SSE (Rust イベントバス)</p>
-              <table v-if="sseTopTypes.length" :class="$style.table">
-                <tbody>
-                  <tr v-for="[t, n] in sseTopTypes" :key="t">
-                    <td :class="$style.mono">{{ t }}</td>
-                    <td :class="$style.mono">{{ n }}</td>
-                  </tr>
-                </tbody>
-              </table>
-              <p v-else :class="$style.capDesc">受信なし</p>
+            <div :class="$style.viewActions">
+              <button type="button" :class="$style.btn" @click="fetchInspector">
+                <i class="ti ti-refresh" /> 更新
+              </button>
+            </div>
+          </header>
+          <div :class="$style.inspectorCompare">
+            <div :class="$style.card">
+              <p :class="$style.cardTitle">アダプタ層 (WS raw){{ inspector?.total ? ` — ${inspector.total} 件` : '' }}</p>
+              <div v-if="inspector?.total" :class="$style.tableWrap">
+                <table :class="$style.table">
+                  <tbody>
+                    <tr v-for="(n, kind) in inspector.counts" :key="kind">
+                      <td :class="$style.mono">{{ kind }}</td>
+                      <td :class="$style.mono">{{ n }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div v-else :class="$style.emptyBox">
+                <i class="ti ti-plug" />
+                バッファ空 — Stream Inspector カラムを開くと流入します
+              </div>
+            </div>
+            <div :class="$style.card">
+              <p :class="$style.cardTitle">SSE (イベントバス) — {{ sseCount }} 件</p>
+              <div v-if="sseTopTypes.length" :class="$style.tableWrap">
+                <table :class="$style.table">
+                  <tbody>
+                    <tr v-for="[t, n] in sseTopTypes" :key="t">
+                      <td :class="$style.mono" :style="{ color: typeColor(t) }">{{ t }}</td>
+                      <td :class="$style.mono">{{ n }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div v-else :class="$style.emptyBox">
+                <i class="ti ti-broadcast" />
+                受信なし
+              </div>
             </div>
           </div>
         </section>
 
         <section v-if="activeView === 'sse'" :class="[$style.view, $style.viewStream]">
-        <h2 :class="$style.panelTitle">
-          <i class="ti ti-broadcast" :class="$style.panelIcon" />
-          SSE ライブビューア (/api/events)
-          <span :class="[$style.sseBadge, sseState === 'open' && $style.sseOpen]">{{ sseState }}</span>
-          <span :class="$style.sseCount">{{ sseCount }} events</span>
-          <span :class="$style.spark" title="直近 60 秒の流量">
-            <span
-              v-for="(h, i) in sparkBars"
-              :key="i"
-              :class="$style.sparkBar"
-              :style="{ height: `${Math.max(8, h * 100)}%`, opacity: h > 0 ? 1 : 0.25 }"
-            />
-          </span>
-        </h2>
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-broadcast" /> SSE イベント
+                <span :class="[$style.sseBadge, sseState === 'open' && $style.sseOpen]">{{ sseState }}</span>
+              </h2>
+              <p :class="$style.viewDesc">
+                /api/events — Rust イベントバスのライブストリーム · {{ sseCount }} events · {{ sseRatePerMin }}/min
+              </p>
+            </div>
+            <div :class="$style.viewActions">
+              <span :class="$style.spark" title="直近 60 秒の流量">
+                <span
+                  v-for="(h, i) in sparkBars"
+                  :key="i"
+                  :class="$style.sparkBar"
+                  :style="{ height: `${Math.max(8, h * 100)}%`, opacity: h > 0 ? 1 : 0.25 }"
+                />
+              </span>
+            </div>
+          </header>
         <div :class="$style.sseControls">
           <input
             v-model="sseFilter"
@@ -1181,6 +1309,7 @@ onUnmounted(() => {
             {{ t }} ×{{ n }}
           </button>
         </div>
+        <div :class="[$style.card, $style.cardStream]">
         <div :class="$style.sseList">
           <div
             v-for="row in sseRows"
@@ -1204,125 +1333,148 @@ onUnmounted(() => {
               auto-height
             />
           </div>
-          <p v-if="!sseRows.length" :class="$style.sseEmpty">
+          <div v-if="!sseRows.length" :class="$style.emptyBox">
+            <i class="ti ti-broadcast" />
             イベント待機中 — デッキにノートや通知が流れると表示されます
-          </p>
+          </div>
+        </div>
         </div>
       </section>
 
         <section v-if="activeView === 'caps'" :class="$style.view">
-        <h2 :class="$style.panelTitle">
-          <i class="ti ti-bolt" :class="$style.panelIcon" />
-          Capabilities 実行盤
-          <span :class="$style.sseCount">{{ capabilities.length }} 件</span>
-        </h2>
-        <select
-          v-model="selectedCapId"
-          :class="$style.capSelect"
-          @change="onSelectCap"
-        >
-          <option value="" disabled>capability を選択…</option>
-          <optgroup
-            v-for="[cat, caps] in capCategories"
-            :key="cat"
-            :label="cat"
-          >
-            <option v-for="c in caps" :key="c.id" :value="c.id">
-              {{ c.id }} — {{ c.label }}
-            </option>
-          </optgroup>
-        </select>
-        <template v-if="selectedCap">
-          <p :class="$style.capDesc">
-            {{ selectedCap.description || selectedCap.label }}
-          </p>
-          <p :class="$style.capMeta">
-            <span
-              v-for="p in selectedCap.permissions"
-              :key="p"
-              :class="$style.permChip"
-            >{{ p }}</span>
-            <span
-              v-if="selectedCap.requiresConfirmation"
-              :class="$style.confirmChip"
-            >確認ダイアログあり (アプリ側に表示)</span>
-          </p>
-          <details v-if="Object.keys(selectedCap.params).length">
-            <summary :class="$style.summary">params スキーマ</summary>
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-bolt" /> Capabilities
+              </h2>
+              <p :class="$style.viewDesc">
+                external principal として dispatcher を通す手動実行盤 — 権限ゲート (#712) の deny / 確認ダイアログを目視テストできる · {{ capabilities.length }} 件
+              </p>
+            </div>
+          </header>
+          <div :class="$style.card">
+            <p :class="$style.cardTitle">Capability</p>
+            <select
+              v-model="selectedCapId"
+              :class="$style.capSelect"
+              @change="onSelectCap"
+            >
+              <option value="" disabled>capability を選択…</option>
+              <optgroup
+                v-for="[cat, caps] in capCategories"
+                :key="cat"
+                :label="cat"
+              >
+                <option v-for="c in caps" :key="c.id" :value="c.id">
+                  {{ c.id }} — {{ c.label }}
+                </option>
+              </optgroup>
+            </select>
+            <template v-if="selectedCap">
+              <p :class="$style.capDesc">
+                {{ selectedCap.description || selectedCap.label }}
+              </p>
+              <p :class="$style.capMeta">
+                <span
+                  v-for="p in selectedCap.permissions"
+                  :key="p"
+                  :class="$style.permChip"
+                >{{ p }}</span>
+                <span
+                  v-if="selectedCap.requiresConfirmation"
+                  :class="$style.confirmChip"
+                >確認ダイアログあり (アプリ側に表示)</span>
+              </p>
+              <details v-if="Object.keys(selectedCap.params).length">
+                <summary :class="$style.summary">params スキーマ</summary>
+                <CodeEditor
+                  :model-value="JSON.stringify(selectedCap.params, null, 2)"
+                  :language="lang"
+                  read-only
+                  auto-height
+                />
+              </details>
+            </template>
+          </div>
+          <div v-if="selectedCap" :class="$style.card">
+            <p :class="$style.cardTitle">パラメータと実行</p>
+            <CodeEditor v-model="capParams" :language="lang" auto-height />
+            <div :class="$style.sseControls">
+              <button
+                type="button"
+                :class="$style.btn"
+                :disabled="capRunning"
+                @click="executeCap"
+              >
+                <i class="ti ti-player-play" /> {{ capRunning ? '実行中…' : '実行' }}
+              </button>
+              <span
+                v-if="capStatus !== null"
+                :class="[
+                  $style.capStatus,
+                  capStatus < 300
+                    ? $style.statusOk
+                    : capStatus < 500
+                      ? $style.statusWarn
+                      : $style.statusErr,
+                ]"
+              >
+                HTTP {{ capStatus }}
+              </span>
+            </div>
             <CodeEditor
-              :model-value="JSON.stringify(selectedCap.params, null, 2)"
+              v-if="capResult"
+              :model-value="capResult"
               :language="lang"
               read-only
               auto-height
             />
-          </details>
-          <CodeEditor v-model="capParams" :language="lang" auto-height />
-          <div :class="$style.sseControls">
-            <button
-              type="button"
-              :class="$style.btn"
-              :disabled="capRunning"
-              @click="executeCap"
-            >
-              {{ capRunning ? '実行中…' : '実行' }}
-            </button>
-            <span
-              v-if="capStatus !== null"
-              :class="[
-                $style.capStatus,
-                capStatus < 300
-                  ? $style.statusOk
-                  : capStatus < 500
-                    ? $style.statusWarn
-                    : $style.statusErr,
-              ]"
-            >
-              HTTP {{ capStatus }}
-            </span>
           </div>
-          <CodeEditor
-            v-if="capResult"
-            :model-value="capResult"
-            :language="lang"
-            read-only
-            auto-height
-          />
-        </template>
-        <div v-if="capHistory.length" :class="$style.capHistory">
-          <button
-            v-for="h in capHistory"
-            :key="h.seq"
-            type="button"
-            :class="$style.capHistoryRow"
-            title="クリックで結果を呼び戻す"
-            @click="restoreCapHistory(h)"
-          >
-            <span :class="$style.sseTime">{{ h.time }}</span>
-            <span :class="[$style.mono, $style.capHistoryId]">{{ h.capId }}</span>
-            <span
-              :class="[
-                $style.capStatus,
-                h.status !== null && h.status < 300
-                  ? $style.statusOk
-                  : h.status !== null && h.status < 500
-                    ? $style.statusWarn
-                    : $style.statusErr,
-              ]"
-            >{{ h.status ?? 'ERR' }}</span>
-          </button>
-        </div>
-      </section>
+          <div v-if="capHistory.length" :class="$style.card">
+            <p :class="$style.cardTitle">実行履歴</p>
+            <div :class="$style.capHistory">
+              <button
+                v-for="h in capHistory"
+                :key="h.seq"
+                type="button"
+                :class="$style.capHistoryRow"
+                title="クリックで結果を呼び戻す"
+                @click="restoreCapHistory(h)"
+              >
+                <span :class="$style.sseTime">{{ h.time }}</span>
+                <span :class="[$style.mono, $style.capHistoryId]">{{ h.capId }}</span>
+                <span
+                  :class="[
+                    $style.capStatus,
+                    h.status !== null && h.status < 300
+                      ? $style.statusOk
+                      : h.status !== null && h.status < 500
+                        ? $style.statusWarn
+                        : $style.statusErr,
+                  ]"
+                >{{ h.status ?? 'ERR' }}</span>
+              </button>
+            </div>
+          </div>
+        </section>
 
         <section v-if="activeView === 'perms'" :class="$style.view">
-          <h2 :class="$style.panelTitle">
-            <i class="ti ti-shield-lock" :class="$style.panelIcon" />
-            principal 別実効権限 (#712)
-            <button type="button" :class="$style.btn" @click="fetchPerms">更新</button>
-          </h2>
-          <p v-if="selectedCap" :class="$style.capDesc">
-            選択中の capability ({{ selectedCap.id }}) の要求キー行をハイライト表示
-          </p>
-          <div v-if="perms" :class="$style.tableWrap">
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-shield-lock" /> 実効権限
+              </h2>
+              <p :class="$style.viewDesc">
+                principal 別の granted マトリクス (#712)。{{ selectedCap ? `選択中の capability (${selectedCap.id}) の要求キー行をハイライト` : 'Capabilities で選択すると要求キー行がハイライトされる' }}
+              </p>
+            </div>
+            <div :class="$style.viewActions">
+              <button type="button" :class="$style.btn" @click="fetchPerms">
+                <i class="ti ti-refresh" /> 更新
+              </button>
+            </div>
+          </header>
+          <div v-if="perms" :class="[$style.card, $style.tableWrap]">
             <table :class="$style.table">
               <thead>
                 <tr>
@@ -1351,11 +1503,17 @@ onUnmounted(() => {
         </section>
 
         <section v-if="activeView === 'timeline'" :class="[$style.view, $style.viewStream]">
-        <h2 :class="$style.panelTitle">
-          <i class="ti ti-terminal-2" :class="$style.panelIcon" />
-          統合タイムライン
-          <span :class="[$style.sseBadge, logState === 'open' && $style.sseOpen]">rust: {{ logState }}</span>
-        </h2>
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-terminal-2" /> 統合タイムライン
+                <span :class="[$style.sseBadge, logState === 'open' && $style.sseOpen]">rust: {{ logState }}</span>
+              </h2>
+              <p :class="$style.viewDesc">
+                Rust ログ + SSE イベント + フロントログを単一時系列にマージ — どの層でイベントが消えたかを 1 画面で追う
+              </p>
+            </div>
+          </header>
         <div :class="$style.sseControls">
           <input
             v-model="logFilter"
@@ -1384,6 +1542,7 @@ onUnmounted(() => {
             {{ label }}
           </label>
         </div>
+        <div :class="[$style.card, $style.cardStream]">
         <div :class="$style.sseList">
           <div
             v-for="row in unifiedRows"
@@ -1429,6 +1588,7 @@ onUnmounted(() => {
           <p v-if="!unifiedRows.length" :class="$style.sseEmpty">
             待機中 — Rust ログ / SSE イベント / フロントログがここに時系列で流れます
           </p>
+        </div>
         </div>
       </section>
       </main>
@@ -1677,16 +1837,117 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 20px;
+  gap: 12px;
+  padding: 18px 22px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--nd-divider) transparent;
+  animation: viewIn 150ms ease-out;
+}
+
+/* ビュー切替の合図 (機能的アニメ: 「切り替わった」を伝える) */
+@keyframes viewIn {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ストリーム系ビューは内側のリストが唯一のスクロール面 */
 .viewStream {
   overflow: hidden;
+}
+
+/* --- ビュー共通プリミティブ --- */
+
+.viewHead {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.viewTitle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--nd-fgHighlighted);
+
+  i {
+    color: var(--nd-accent);
+    font-size: 1.15rem;
+  }
+}
+
+.viewDesc {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  opacity: 0.6;
+}
+
+.viewActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.card {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius);
+  background:
+    linear-gradient(var(--nd-panelHighlight), transparent 42px),
+    var(--nd-panel);
+  transition: border-color 150ms ease-out;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--nd-accent) 20%, var(--nd-divider));
+  }
+}
+
+/* ストリームリストをカードとして包む版 (flex で残り高さを占有) */
+.cardStream {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.cardTitle {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  user-select: none;
+}
+
+.emptyBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 36px 16px;
+  opacity: 0.5;
+  font-size: 0.85rem;
+
+  i {
+    font-size: 1.8rem;
+    opacity: 0.7;
+  }
 }
 
 /* 切断時のアンバーピル (OpenClaw の "Gateway connection lost" の意匠) */
@@ -1731,6 +1992,13 @@ onUnmounted(() => {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--nd-fgHighlighted);
+
+  small {
+    font-size: 0.72rem;
+    font-weight: 400;
+    opacity: 0.6;
+    margin-left: 1px;
+  }
 }
 
 .statLabel {
@@ -1809,15 +2077,34 @@ onUnmounted(() => {
 
   th,
   td {
-    padding: 4px 8px;
+    padding: 6px 10px;
     text-align: left;
     border-bottom: 1px solid var(--nd-divider);
     white-space: nowrap;
   }
 
   th {
-    opacity: 0.6;
-    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--nd-panel);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.55;
+  }
+
+  tbody tr {
+    transition: background 150ms ease-out;
+
+    &:last-child td {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: var(--nd-panelHighlight);
+    }
   }
 }
 
