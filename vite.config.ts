@@ -11,7 +11,7 @@ import type {
   Plugin as PostcssPlugin,
   Rule,
 } from 'postcss'
-import type { Plugin } from 'vite'
+import type { Plugin, ProxyOptions } from 'vite'
 import { defineConfig } from 'vite'
 
 const appVersion = JSON.parse(
@@ -250,6 +250,68 @@ function twemojiAssets(): Plugin {
   }
 }
 
+// --- 内蔵 HTTP サーバー (127.0.0.1:19820, #940) への dev 橋渡し (#977) ---
+// ブラウザ (5173) のダッシュボード面から external API を叩けるよう、無認証の
+// /api インデックスが開示する tokenPath を Node 側で読み、Bearer を注入する。
+// トークンはアプリ起動ごとに再生成される ephemeral なので毎リクエスト読む
+// (Vite 常駐中のアプリ再起動に追従するため)。
+
+const ND_APP_ORIGIN = 'http://127.0.0.1:19820'
+let ndTokenPath: string | null = null
+let ndTokenPathResolving: Promise<void> | null = null
+
+function resolveNdTokenPath(): Promise<void> {
+  ndTokenPathResolving ??= fetch(`${ND_APP_ORIGIN}/api`)
+    .then(async (r) => {
+      const index = (await r.json()) as { tokenPath?: string }
+      ndTokenPath = index.tokenPath ?? null
+    })
+    .catch(() => {
+      // アプリ未起動 — 次のリクエストで再解決する
+    })
+    .finally(() => {
+      ndTokenPathResolving = null
+    })
+  return ndTokenPathResolving
+}
+
+/** proxy より先に走る middleware で tokenPath 解決を待ち、初回リクエストの注入漏れを防ぐ */
+function ndApiBridge(): Plugin {
+  return {
+    name: 'nd-api-bridge',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use('/api', async (_req, _res, next) => {
+        if (!ndTokenPath) await resolveNdTokenPath()
+        next()
+      })
+    },
+  }
+}
+
+function ndApiProxy(): Record<string, ProxyOptions> {
+  return {
+    '/api': {
+      target: ND_APP_ORIGIN,
+      changeOrigin: true,
+      configure(proxy) {
+        proxy.on('proxyReq', (proxyReq) => {
+          if (!ndTokenPath) return
+          if (proxyReq.getHeader('authorization')) return
+          try {
+            const token = readFileSync(ndTokenPath, 'utf-8').trim()
+            proxyReq.setHeader('Authorization', `Bearer ${token}`)
+          } catch {
+            // トークンファイル不在 (アプリ起動直後など) は無認証で通す
+          }
+        })
+      },
+    },
+    // 画像プロキシは無認証なので素通し
+    '/proxy': { target: ND_APP_ORIGIN, changeOrigin: true },
+  }
+}
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -258,6 +320,7 @@ export default defineConfig({
     subsetTablerIcons(),
     preloadTablerFont(),
     twemojiAssets(),
+    ndApiBridge(),
   ],
   resolve: {
     alias: {
@@ -332,6 +395,7 @@ export default defineConfig({
   },
   server: {
     strictPort: true,
+    proxy: ndApiProxy(),
     warmup: {
       clientFiles: [
         'src/App.vue',
