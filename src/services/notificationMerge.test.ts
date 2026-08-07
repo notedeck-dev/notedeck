@@ -74,6 +74,10 @@ describe('mergeNotifications', () => {
     expect(merged.map((n) => n.id)).toEqual(['y', 'x', 'old'])
   })
 
+  // 同一性は通知 ID のみで判定する。表示側 (仮想スクローラのキー・フォロー
+  // リクエスト状態・既読マーカー) も ID を一意キーにしているため、ここだけ
+  // accountId 複合キーにすると描画キーが重複する。サーバー間の ID 衝突は
+  // #1010 で表示側ごと揃えて扱う
   it('バッチ内の重複も 1 件になる', () => {
     const merged = mergeNotifications(
       [

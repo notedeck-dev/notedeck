@@ -102,6 +102,11 @@ export function useDeckInit(options: {
     void useAccountsStore()
       .loadAccounts()
       .then(() => useRealtimeModeStore().applyPersistedMode())
+      .catch((e) => {
+        // モード適用に失敗してもアプリ起動は続行する (次回起動で矯正される)。
+        // ここで握らないと unhandled rejection になる
+        console.warn('[realtime-mode] failed to apply persisted mode:', e)
+      })
 
     // Load navbar from file (async, non-blocking)
     deckStore.initNavbar()

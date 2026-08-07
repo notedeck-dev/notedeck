@@ -129,8 +129,17 @@ const offlineModeStore = useOfflineModeStore()
 const isPollingMode = computed(
   () => !realtimeModeStore.isRealtime && !offlineModeStore.isOfflineMode,
 )
+// そもそも取得しに行く先があるか。cross-account は account が常に undefined
+// なので isLoggedOut では判定できない (全アカウントがログアウトでも false)
+const hasAuthenticatedAccount = computed(() =>
+  isCrossAccount.value
+    ? accountsStore.accounts.some((a) => a.hasToken)
+    : account.value?.hasToken === true,
+)
 
 const crossSubscriptions: ChannelSubscription[] = []
+/** connectCrossAccount の並行実行を識別する世代番号 (#1005) */
+let crossReconnectGeneration = 0
 
 const { navigateToUser: navToUser, navigateToNote: navToNote } = useNavigation()
 const noteSound = useNoteSound(() => account.value?.host, 'syuilo/n-ea')
@@ -737,11 +746,22 @@ async function connectPerAccount(useCache = false) {
 }
 
 async function connectCrossAccount(useCache = false) {
+  // この呼び出しの世代。#1005 でアカウント集合の変化と復帰補完の両方から
+  // 呼ばれるようになり、並行実行が現実的になった。古い呼び出しが新しい
+  // 呼び出しの購読を dispose して旧アカウント集合で張り直すのを防ぐため、
+  // await をまたいだあとは自分が最新でなければ何も書かずに降りる
+  const generation = ++crossReconnectGeneration
+  const isStale = () => generation !== crossReconnectGeneration
+
   error.value = null
   isLoading.value = true
   noMoreData.value = false
   const accounts = accountsStore.accounts.filter((a) => a.hasToken)
-  const cached = loadCache()
+  // 削除済みアカウントの通知を永続キャッシュから復活させない。
+  // 表示中リストの filter (下の watch) だけでは localStorage に残った分が
+  // ここでマージされて戻ってしまう
+  const aliveAccountIds = new Set(accountsStore.accounts.map((a) => a.id))
+  const cached = loadCache().filter((n) => aliveAccountIds.has(n._accountId))
 
   if (useCache && cached.length > 0) {
     notifications.value = cached
@@ -755,6 +775,7 @@ async function connectCrossAccount(useCache = false) {
         return fetchNotifications(adapter.api, acc.host)
       }),
     )
+    if (isStale()) return
 
     const allNotifs: NormalizedNotification[] = []
     for (const r of results) {
@@ -775,6 +796,7 @@ async function connectCrossAccount(useCache = false) {
     // Set up streaming for each account
     for (const acc of accounts) {
       const adapter = await multiAdapters.getOrCreate(acc.id)
+      if (isStale()) return
       if (!adapter) continue
       adapter.stream.connect()
       crossSubscriptions.push(
@@ -794,13 +816,15 @@ async function connectCrossAccount(useCache = false) {
       )
     }
   } catch (e) {
+    if (isStale()) return
     if (cached.length > 0) {
       notifications.value = cached
     } else {
       error.value = AppError.from(e)
     }
   } finally {
-    isLoading.value = false
+    // 新しい呼び出しがロード中なら、その表示状態を奪わない
+    if (!isStale()) isLoading.value = false
   }
 }
 
@@ -1122,7 +1146,7 @@ onUnmounted(() => {
     />
 
     <div v-else :class="$style.notifBody">
-      <div v-if="isPollingMode && !isLoggedOut" :class="$style.pollingBanner">
+      <div v-if="isPollingMode && hasAuthenticatedAccount" :class="$style.pollingBanner">
         <i class="ti ti-bolt-off" />ポーリング
       </div>
 
