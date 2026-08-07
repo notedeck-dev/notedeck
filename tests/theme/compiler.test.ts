@@ -23,6 +23,17 @@ describe('compileMisskeyTheme', () => {
     expect(compiled.fg).toBe('#dadada')
   })
 
+  it('normalizes bare hex literals to # form', () => {
+    const theme: MisskeyTheme = {
+      id: 't',
+      name: 't',
+      props: { bg: 'e2deda', panel: ':darken<2<@bg' },
+    }
+    const compiled = compileMisskeyTheme(theme, EMPTY_BASE)
+    expect(compiled.bg).toBe('#e2deda')
+    expect(parseColor(compiled.panel)).not.toBeNull()
+  })
+
   it('resolves @ref property references', () => {
     const theme: MisskeyTheme = {
       id: 't',
