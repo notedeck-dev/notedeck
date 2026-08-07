@@ -120,17 +120,12 @@ interface HeartbeatStatusView {
 }
 
 const showHeartbeat = ref(false)
+// heartbeat の中身は refreshStatus の 5 秒ポーリングが埋める
+// (ステータスバーにも常時出すため折りたたみ開閉と独立に取得する)
 const heartbeat = ref<HeartbeatStatusView | null>(null)
 
-async function toggleHeartbeat() {
+function toggleHeartbeat() {
   showHeartbeat.value = !showHeartbeat.value
-  if (!showHeartbeat.value) return
-  try {
-    const res = await fetch('/api/heartbeat/status')
-    if (res.ok) heartbeat.value = await res.json()
-  } catch {
-    // アプリ未起動
-  }
 }
 
 function relativeTime(epochMs: number | null): string {
@@ -171,10 +166,11 @@ function filterByType(type: string) {
 
 async function refreshStatus() {
   try {
-    const [indexRes, colsRes, healthRes] = await Promise.all([
+    const [indexRes, colsRes, healthRes, hbRes] = await Promise.all([
       fetch('/api'),
       fetch('/api/deck/columns'),
       fetch('/api/health'),
+      fetch('/api/heartbeat/status'),
     ])
     if (indexRes.ok) app.value = await indexRes.json()
     if (colsRes.ok) {
@@ -183,6 +179,7 @@ async function refreshStatus() {
     }
     if (healthRes.ok)
       health.value = JSON.stringify(await healthRes.json(), null, 2)
+    if (hbRes.ok) heartbeat.value = await hbRes.json()
   } catch {
     // アプリ再起動中など — 次の周期更新で回復する
   }
@@ -521,6 +518,21 @@ function typeColor(type: string): string {
   for (let i = 0; i < type.length; i++) h = (h * 31 + type.charCodeAt(i)) % 360
   return `hsl(${h} 65% 62%)`
 }
+
+// VSCode 風ステータスバーのカウント (統合タイムラインの Rust + フロント分)
+const timelineErrorCount = computed(() => {
+  let n = 0
+  for (const r of logRows.value) if (r.level === 'error') n++
+  for (const e of frontRows.value) if (e.level === 'error') n++
+  return n
+})
+
+const timelineWarnCount = computed(() => {
+  let n = 0
+  for (const r of logRows.value) if (r.level === 'warn') n++
+  for (const e of frontRows.value) if (e.level === 'warn') n++
+  return n
+})
 
 async function refreshFrontLogs() {
   try {
@@ -1220,6 +1232,34 @@ onUnmounted(() => {
         </div>
       </section>
     </div>
+
+    <footer :class="$style.statusBar">
+      <span :class="[$style.statusSeg, $style.statusRemote]">
+        <i :class="sseState === 'open' ? 'ti ti-bolt' : 'ti ti-plug-x'" />
+        {{ sseState === 'open' ? 'LIVE' : sseState.toUpperCase() }}
+      </span>
+      <button
+        type="button"
+        :class="[$style.statusSeg, $style.statusSegBtn]"
+        title="クリックで WARN+ フィルタを切り替え"
+        @click="logWarnOnly = !logWarnOnly"
+      >
+        <i class="ti ti-circle-x" /> {{ timelineErrorCount }}
+        <i class="ti ti-alert-triangle" /> {{ timelineWarnCount }}
+      </button>
+      <span :class="$style.statusSeg">
+        <i class="ti ti-broadcast" /> {{ sseRatePerMin }}/min · {{ sseCount }} events
+      </span>
+      <span :class="$style.statusSeg">
+        <i class="ti ti-layout-columns" /> {{ columns.length }} columns
+      </span>
+      <span :class="$style.statusSpacer" />
+      <span v-if="heartbeat?.config.enabled" :class="$style.statusSeg" title="HEARTBEAT 有効">
+        <i class="ti ti-heartbeat" :class="$style.beat" />
+        {{ heartbeat.dailyCount }}/{{ heartbeat.config.dailyMaxAiRuns }}
+      </span>
+      <span :class="$style.statusSeg">127.0.0.1:19820<template v-if="app?.version"> · v{{ app.version }}</template></span>
+    </footer>
   </div>
 </template>
 
@@ -1229,10 +1269,63 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px 24px;
+  padding: 20px 24px 0;
   background: var(--nd-bg);
   color: var(--nd-fg);
   overflow: hidden;
+}
+
+/* VSCode 風ステータスバー。左端の LIVE ブロックは remote インジケータの意匠 */
+.statusBar {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  margin: 0 -24px;
+  height: 26px;
+  background: var(--nd-accentDarken);
+  color: #fff;
+  font-family: var(--nd-font-mono);
+  font-size: 0.72rem;
+  user-select: none;
+}
+
+.statusSeg {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  white-space: nowrap;
+
+  i {
+    font-size: 0.85rem;
+  }
+}
+
+.statusRemote {
+  background: var(--nd-accent);
+  font-weight: 700;
+}
+
+.statusSegBtn {
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background 150ms ease-out;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: -2px;
+  }
+}
+
+.statusSpacer {
+  flex: 1;
 }
 
 .header {
