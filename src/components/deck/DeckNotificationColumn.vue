@@ -636,6 +636,22 @@ watch(
   },
 )
 
+// cross-account: アカウントの追加/削除で購読を張り直す (#1005)。
+// 追加分は購読が無く、カラムを開き直すまでストリームされなかった。
+// connectCrossAccount は全購読を dispose して作り直すので、削除で残る
+// 死に購読の掃除も兼ねる
+watch(
+  () =>
+    accountsStore.accounts
+      .filter((a) => a.hasToken)
+      .map((a) => a.id)
+      .join(','),
+  () => {
+    if (!isCrossAccount.value) return
+    void connectCrossAccount(true)
+  },
+)
+
 // When account loses token (logout with keep-data), switch to cache display
 watch(
   () => account.value?.hasToken,
@@ -1019,19 +1035,23 @@ watch(
   () => void resumeBackfill(),
 )
 
-// WS 瞬断からの再接続でも切断中に欠けた通知を埋める (#704 K)
+// WS 瞬断からの再接続でも切断中に欠けた通知を埋める (#704 K)。
+// cross-account は全アカウントの health を見て、どれか 1 つでも
+// 切断→復帰したら補完する (#1005)
 watch(
-  () =>
-    props.column.accountId
-      ? getStreamHealth(props.column.accountId)?.state
-      : undefined,
-  (state, prev) => {
-    if (
-      state === 'connected' &&
-      (prev === 'reconnecting' || prev === 'disconnected')
-    ) {
-      void resumeBackfill()
-    }
+  () => {
+    const ids = props.column.accountId
+      ? [props.column.accountId]
+      : accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.id)
+    return Object.fromEntries(ids.map((id) => [id, getStreamHealth(id)?.state]))
+  },
+  (states, prev) => {
+    const recovered = Object.entries(states).some(
+      ([id, state]) =>
+        state === 'connected' &&
+        (prev?.[id] === 'reconnecting' || prev?.[id] === 'disconnected'),
+    )
+    if (recovered) void resumeBackfill()
   },
 )
 
