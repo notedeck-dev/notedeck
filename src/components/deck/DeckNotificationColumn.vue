@@ -44,6 +44,7 @@ import { useReadMarker } from '@/composables/useReadMarker'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { getStreamHealth } from '@/core/streamHealth'
 import { createBoundedCache } from '@/services/boundedCache'
+import { mergeNotifications as mergeNotificationLists } from '@/services/notificationMerge'
 import { syncNotificationNotes } from '@/services/notificationNoteSync'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
@@ -317,17 +318,12 @@ const followRequestStates = ref<Record<string, 'accepted' | 'rejected'>>({})
 function mergeNotifications(
   fresh: NormalizedNotification[],
   cached: NormalizedNotification[],
-  limit = perfStore.get('maxNotifications'),
 ): NormalizedNotification[] {
-  const map = new Map<string, NormalizedNotification>()
-  for (const n of cached) map.set(n.id, n)
-  for (const n of fresh) map.set(n.id, n) // fresh overwrites cached
-  // ISO 8601 strings are lexicographically sortable — avoid Date object allocation
-  return [...map.values()]
-    .sort((a, b) =>
-      b.createdAt > a.createdAt ? 1 : b.createdAt < a.createdAt ? -1 : 0,
-    )
-    .slice(0, limit)
+  return mergeNotificationLists(
+    fresh,
+    cached,
+    perfStore.get('maxNotifications'),
+  )
 }
 
 /** Debounced cache save — flushes on unmount */
@@ -448,11 +444,10 @@ function flushRafBuffer() {
   if (rafBuffer.length === 0) return
   const batch = rafBuffer
   rafBuffer = []
-  const updated = [...batch, ...notifications.value]
-  notifications.value =
-    updated.length > perfStore.get('maxNotifications')
-      ? updated.slice(0, perfStore.get('maxNotifications'))
-      : updated
+  // 単純 prepend だと、復帰時に resumeBackfill の REST 補完で取り込み済みの
+  // 通知がストリーム再配信からも届いたとき重複表示になる (#1006)。
+  // REST 経路と同じマージ規則 (ID 一意) を通す
+  notifications.value = mergeNotifications(batch, notifications.value)
   saveCache()
 }
 
