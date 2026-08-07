@@ -24,6 +24,22 @@ interface PersistedCacheV2 {
   hosts: Record<string, { fetchedAt: number; emojis: Record<string, string> }>
 }
 
+/**
+ * host キーの Map を max 件に収める。挿入順に古いものから落とし、落とした
+ * host を返す。付随する非 reactive な状態も呼び出し側で一緒に捨てるため。
+ */
+function capHosts(map: Map<string, unknown>, max: number): string[] {
+  const dropped: string[] = []
+  const limit = Math.max(1, max)
+  while (map.size > limit) {
+    const oldest = map.keys().next()
+    if (oldest.done) break
+    map.delete(oldest.value)
+    dropped.push(oldest.value)
+  }
+  return dropped
+}
+
 export const useEmojisStore = defineStore('emojis', () => {
   const perfStore = usePerformanceStore()
 
@@ -70,16 +86,27 @@ export const useEmojisStore = defineStore('emojis', () => {
       if (typeof entry.fetchedAt === 'number')
         fetchedAt.set(host, entry.fetchedAt)
     }
+    // 上限を下げたあとの起動で、保存済みの host を丸ごと読み戻さない
+    for (const gone of capHosts(map, perfStore.get('emojiCacheHosts'))) {
+      fetchedAt.delete(gone)
+    }
     cache.value = map
   }
 
   function persistToStorage() {
     try {
+      const perHost = Math.max(1, perfStore.get('emojiPersistPerHost'))
       const hosts: PersistedCacheV2['hosts'] = {}
       for (const [host, lookup] of cache.value) {
+        // localStorage は数 MB で頭打ちになり、超えると書き込みごと失敗して
+        // オフライン解決が丸ごと効かなくなる。全量ではなく先頭 N 件だけ運ぶ
+        const entries = Object.entries(lookup)
         hosts[host] = {
           fetchedAt: fetchedAt.get(host) ?? Date.now(),
-          emojis: lookup,
+          emojis:
+            entries.length > perHost
+              ? Object.fromEntries(entries.slice(0, perHost))
+              : lookup,
         }
       }
       setStorageJson(STORAGE_KEYS.emojisCache, {
@@ -91,30 +118,54 @@ export const useEmojisStore = defineStore('emojis', () => {
     }
   }
 
+  /**
+   * 辞書から落ちた host の付随状態を捨てる。これらはすべて host をキーに
+   * 持つので、辞書だけ上限で刈っても付随状態が残れば同じ速度で増える
+   */
+  function forgetHost(host: string): void {
+    const timer = refreshTimers.get(host)
+    if (timer !== undefined) clearTimeout(timer)
+    refreshTimers.delete(host)
+    fetchedAt.delete(host)
+    fetchers.delete(host)
+    failedHosts.delete(host)
+    missedNames.delete(host)
+    unknownNames.delete(host)
+    lastRefreshAt.delete(host)
+  }
+
   const { schedule: schedulePersist } = createDebouncedPersist(persistToStorage)
 
   // Initialize from localStorage
   loadFromStorage()
 
   function set(host: string, emojis: ServerEmoji[]) {
-    // Build shortcode→url lookup for resolution (no cap — lightweight Record<string, string>)
+    // shortcode→url lookup。ホストあたりの件数は emojiCachePerHost で頭打ちに
+    // する (#987 — 以前は無制限で、大規模サーバーでは数万エントリになった)。
+    // 切り捨てられた絵文字は解決できないが、reportMiss → refresh でも現れない
+    // ため unknownNames に隔離され、空振りの再取得ループにはならない
+    const perHost = Math.max(1, perfStore.get('emojiCachePerHost'))
     const lookup: Record<string, string> = {}
+    let count = 0
     for (const e of emojis) {
+      if (count >= perHost) break
       lookup[e.name] = e.url
+      count++
     }
 
     const nextCache = new Map(cache.value)
     nextCache.set(host, lookup)
+    // 辞書は連合先の数だけ増える。落とした host の付随状態も一緒に捨てる
+    for (const gone of capHosts(nextCache, perfStore.get('emojiCacheHosts'))) {
+      forgetHost(gone)
+    }
     cache.value = nextCache
     fetchedAt.set(host, Date.now())
 
     // emojiList: only keep the most recent hosts to bound memory
     const nextList = new Map(emojiList.value)
     nextList.set(host, emojis)
-    if (nextList.size > perfStore.get('emojiListHosts')) {
-      const oldest = nextList.keys().next().value
-      if (oldest !== undefined) nextList.delete(oldest)
-    }
+    capHosts(nextList, perfStore.get('emojiListHosts'))
     emojiList.value = nextList
 
     // 辞書に現れた unknown は解放する (再登録された絵文字を拾えるように)

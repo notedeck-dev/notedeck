@@ -43,6 +43,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useReadMarker } from '@/composables/useReadMarker'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { getStreamHealth } from '@/core/streamHealth'
+import { createBoundedCache } from '@/services/boundedCache'
 import { syncNotificationNotes } from '@/services/notificationNoteSync'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
@@ -445,7 +446,13 @@ function flushRafBuffer() {
 }
 
 // Cache reaction URLs per notification to avoid double-call in template (v-if + :src)
-const reactionUrlLookup = new Map<string, string | null>()
+// キーは通知 ID を含むので、流れてきた通知の数だけ増える。通知カラムは
+// 開きっぱなしにされる面なので上限を持たせる (#987)。保持している通知の
+// 数を超えて覚えていても引かれることはない
+const reactionUrlLookup = createBoundedCache<string, string | null>(() =>
+  perfStore.get('maxNotifications'),
+)
+// 絵文字そのものがキー (Unicode 絵文字の種類ぶん) なので通知数では増えない
 const twemojiUrlLookup = new Map<string, string | null>()
 
 function getCachedReactionUrl(

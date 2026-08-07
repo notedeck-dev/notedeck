@@ -3,8 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ServerEmoji } from '@/adapters/types'
 import { useEmojisStore } from '@/stores/emojis'
 
+/** テストごとに上書きするノブ。指定しないキーは 10 */
+const perf: Record<string, number> = {}
+
 vi.mock('@/stores/performance', () => ({
-  usePerformanceStore: () => ({ get: () => 10 }),
+  usePerformanceStore: () => ({
+    get: (key: string) => perf[key] ?? 10,
+  }),
 }))
 
 const HOST = 'misskey.example'
@@ -26,6 +31,7 @@ async function flush() {
 describe('useEmojisStore', () => {
   beforeEach(() => {
     localStorage.clear()
+    for (const key of Object.keys(perf)) delete perf[key]
     vi.useFakeTimers()
     setActivePinia(createPinia())
   })
@@ -257,6 +263,88 @@ describe('useEmojisStore', () => {
       store.applyServerChange(HOST, 'added', [emoji('meow')])
       expect(store.has(HOST)).toBe(false)
       expect(store.resolve(HOST, 'meow')).toBeNull()
+    })
+  })
+
+  describe('メモリ上限 (#987)', () => {
+    it('emojiCachePerHost を超えた絵文字は辞書に載せない', async () => {
+      perf.emojiCachePerHost = 2
+      const store = useEmojisStore()
+      store.ensureLoaded(
+        HOST,
+        vi.fn().mockResolvedValue([emoji('a'), emoji('b'), emoji('c')]),
+      )
+      await flush()
+
+      expect(store.resolve(HOST, 'a')).not.toBeNull()
+      expect(store.resolve(HOST, 'b')).not.toBeNull()
+      expect(store.resolve(HOST, 'c')).toBeNull()
+    })
+
+    it('emojiCacheHosts を超えたら古い host の辞書から捨てる', async () => {
+      perf.emojiCacheHosts = 2
+      const store = useEmojisStore()
+      for (const host of ['a.example', 'b.example', 'c.example']) {
+        store.ensureLoaded(host, vi.fn().mockResolvedValue([emoji('meow')]))
+        await flush()
+      }
+
+      expect(store.has('a.example')).toBe(false)
+      expect(store.has('b.example')).toBe(true)
+      expect(store.has('c.example')).toBe(true)
+    })
+
+    it('落とした host は再び ensureLoaded で取り直せる', async () => {
+      perf.emojiCacheHosts = 1
+      const store = useEmojisStore()
+      store.ensureLoaded('a.example', vi.fn().mockResolvedValue([emoji('a')]))
+      await flush()
+      store.ensureLoaded('b.example', vi.fn().mockResolvedValue([emoji('b')]))
+      await flush()
+      expect(store.has('a.example')).toBe(false)
+
+      const refetch = vi.fn().mockResolvedValue([emoji('a')])
+      store.ensureLoaded('a.example', refetch)
+      await flush()
+      expect(refetch).toHaveBeenCalledTimes(1)
+      expect(store.resolve('a.example', 'a')).not.toBeNull()
+    })
+
+    it('localStorage には emojiPersistPerHost 件までしか保存しない', async () => {
+      perf.emojiPersistPerHost = 1
+      const store = useEmojisStore()
+      store.ensureLoaded(
+        HOST,
+        vi.fn().mockResolvedValue([emoji('a'), emoji('b')]),
+      )
+      await flush()
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      const raw = localStorage.getItem('emojis_cache') ?? '{}'
+      const saved = JSON.parse(raw) as {
+        hosts: Record<string, { emojis: Record<string, string> }>
+      }
+      expect(Object.keys(saved.hosts[HOST]?.emojis ?? {})).toEqual(['a'])
+      // メモリ側は絞らない (永続化は解決の一部を運ぶだけ)
+      expect(store.resolve(HOST, 'b')).not.toBeNull()
+    })
+
+    it('保存済み host が上限を超えていても、復元は上限までで止める', () => {
+      perf.emojiCacheHosts = 1
+      localStorage.setItem(
+        'emojis_cache',
+        JSON.stringify({
+          version: 2,
+          hosts: {
+            'a.example': { fetchedAt: 1, emojis: { meow: 'https://a/1.webp' } },
+            'b.example': { fetchedAt: 2, emojis: { meow: 'https://b/1.webp' } },
+          },
+        }),
+      )
+      const store = useEmojisStore()
+
+      expect(store.has('a.example')).toBe(false)
+      expect(store.has('b.example')).toBe(true)
     })
   })
 
