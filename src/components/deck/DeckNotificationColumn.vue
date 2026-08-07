@@ -48,7 +48,9 @@ import { syncNotificationNotes } from '@/services/notificationNoteSync'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePerformanceStore } from '@/stores/performance'
+import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useServersStore } from '@/stores/servers'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { useToast } from '@/stores/toast'
@@ -117,6 +119,15 @@ const {
 } = useColumnSetup(() => props.column)
 
 const isLoggedOut = computed(() => account.value?.hasToken === false)
+
+// ポーリング中はライブ更新の供給元が定期取得であることを示す (#1003)。
+// オフラインモード中も isRealtime は false になるが、それはポーリング
+// ではないので出さない
+const realtimeModeStore = useRealtimeModeStore()
+const offlineModeStore = useOfflineModeStore()
+const isPollingMode = computed(
+  () => !realtimeModeStore.isRealtime && !offlineModeStore.isOfflineMode,
+)
 
 const crossSubscriptions: ChannelSubscription[] = []
 
@@ -1096,6 +1107,10 @@ onUnmounted(() => {
     />
 
     <div v-else :class="$style.notifBody">
+      <div v-if="isPollingMode && !isLoggedOut" :class="$style.pollingBanner">
+        <i class="ti ti-bolt-off" />ポーリング
+      </div>
+
       <div v-if="isLoading && notifications.length === 0" :class="$style.columnLoading">
         <LoadingSpinner />
       </div>
