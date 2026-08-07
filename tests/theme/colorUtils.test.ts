@@ -4,6 +4,7 @@ import {
   darken,
   hue,
   lighten,
+  normalizeColor,
   parseColor,
   saturate,
   toRgba,
@@ -32,8 +33,27 @@ describe('parseColor', () => {
     expect(parseColor('rgba(255, 255, 255, 0.5)')).toEqual([255, 255, 255, 0.5])
   })
 
+  it('parses bare hex without #', () => {
+    expect(parseColor('e2deda')).toEqual([226, 222, 218, 1])
+    expect(parseColor('fff')).toEqual([255, 255, 255, 1])
+  })
+
   it('returns null for invalid input', () => {
     expect(parseColor('not-a-color')).toBeNull()
+  })
+})
+
+describe('normalizeColor', () => {
+  it('prefixes bare hex with #', () => {
+    expect(normalizeColor('e2deda')).toBe('#e2deda')
+    expect(normalizeColor('fff')).toBe('#fff')
+    expect(normalizeColor('e2dedaCC')).toBe('#e2dedaCC')
+  })
+
+  it('leaves already-valid values untouched', () => {
+    expect(normalizeColor('#e2deda')).toBe('#e2deda')
+    expect(normalizeColor('rgb(1, 2, 3)')).toBe('rgb(1, 2, 3)')
+    expect(normalizeColor('transparent')).toBe('transparent')
   })
 })
 

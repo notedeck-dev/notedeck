@@ -1,11 +1,23 @@
 type RGBA = [r: number, g: number, b: number, a: number]
 
+// Misskey は tinycolor に値を渡すため `#` の無いベア hex (`e2deda`) も色として通る。
+// 実際に l-botanical.json5 の bg がこの書き方をしているので同じ表記を受け入れる。
+const HEX_RE = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+
+// ベア hex を `#` 付きに揃える。CSS / SVG の fill にそのまま入れられる形にするため。
+export function normalizeColor(value: string): string {
+  const trimmed = value.trim()
+  return HEX_RE.test(trimmed) && !trimmed.startsWith('#')
+    ? `#${trimmed}`
+    : trimmed
+}
+
 export function parseColor(value: string): RGBA | null {
   value = value.trim()
 
-  // #RGB or #RRGGBB or #RRGGBBAA
-  if (value.startsWith('#')) {
-    const hex = value.slice(1)
+  // #RGB or #RRGGBB or #RRGGBBAA (先頭の `#` は省略可)
+  if (HEX_RE.test(value)) {
+    const hex = value.startsWith('#') ? value.slice(1) : value
     if (hex.length === 3) {
       return [
         parseInt(hex.charAt(0) + hex.charAt(0), 16),

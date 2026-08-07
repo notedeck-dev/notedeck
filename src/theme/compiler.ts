@@ -65,7 +65,7 @@ export function compileMisskeyTheme(
     }
 
     // Literal color value
-    return expr
+    return color.normalizeColor(expr)
   }
 
   // Compile all props
