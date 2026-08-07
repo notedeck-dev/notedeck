@@ -44,6 +44,11 @@ const DeckWindowLayer = defineAsyncComponent(
   () => import('@/components/deck/DeckWindowLayer.vue'),
 )
 
+// 開発時のみ: フレーム統計オーバーレイ (Ctrl+Shift+F でトグル)
+const DevFrameOverlay = import.meta.env.DEV
+  ? defineAsyncComponent(() => import('@/components/dev/DevFrameOverlay.vue'))
+  : null
+
 // console.warn / console.error を logs store にラップ。AI が `logs.recent`
 // capability で自己診断できるようにする。`[ai-credentials]` のような
 // 明示的に機密扱いの scope は捨てる (push しない)。
@@ -215,6 +220,7 @@ onUnmounted(() => {
     <template v-if="!isPipWindow">
       <DeckWindowLayer />
     </template>
+    <DevFrameOverlay v-if="DevFrameOverlay" />
   </div>
 </template>
 
