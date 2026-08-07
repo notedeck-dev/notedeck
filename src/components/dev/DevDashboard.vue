@@ -32,6 +32,7 @@ interface DeckColumn {
 
 interface SseRow {
   seq: number
+  ts: number
   time: string
   type: string
   data: string
@@ -43,6 +44,81 @@ const CodeEditor = defineAsyncComponent(
   () => import('@/components/deck/widgets/CodeEditor.vue'),
 )
 const lang = jsonLang()
+
+// --- OpenClaw Control UI 流のビュー切替 (サイドバー + 単一ペイン) ---
+
+type ViewId =
+  | 'overview'
+  | 'sse'
+  | 'timeline'
+  | 'inspector'
+  | 'caps'
+  | 'perms'
+  | 'startup'
+  | 'heartbeat'
+  | 'caches'
+  | 'qbtrace'
+
+const activeView = ref<ViewId>('overview')
+
+const NAV_GROUPS: {
+  label: string
+  items: { id: ViewId; icon: string; label: string }[]
+}[] = [
+  {
+    label: '観測',
+    items: [
+      { id: 'overview', icon: 'ti ti-layout-columns', label: '概要' },
+      { id: 'sse', icon: 'ti ti-broadcast', label: 'SSE イベント' },
+      { id: 'timeline', icon: 'ti ti-terminal-2', label: '統合タイムライン' },
+      { id: 'inspector', icon: 'ti ti-search', label: 'Inspector 照合' },
+    ],
+  },
+  {
+    label: '実行',
+    items: [
+      { id: 'caps', icon: 'ti ti-bolt', label: 'Capabilities' },
+      { id: 'perms', icon: 'ti ti-shield-lock', label: '実効権限' },
+    ],
+  },
+  {
+    label: '診断',
+    items: [
+      { id: 'startup', icon: 'ti ti-rocket', label: '起動計測' },
+      { id: 'heartbeat', icon: 'ti ti-heartbeat', label: 'HEARTBEAT' },
+      { id: 'caches', icon: 'ti ti-database', label: 'キャッシュ' },
+      { id: 'qbtrace', icon: 'ti ti-arrows-left-right', label: 'Query Bridge' },
+    ],
+  },
+]
+
+function selectView(id: ViewId) {
+  activeView.value = id
+  // 開いたときに取得する遅延ロード系ビュー
+  if (id === 'startup') fetchStartup()
+  if (id === 'perms') fetchPerms()
+  if (id === 'caches') fetchCaches()
+  if (id === 'qbtrace') fetchQbTrace()
+  if (id === 'inspector') fetchInspector()
+}
+
+/** アプリ (19820) への到達性。切断時は OpenClaw 流のアンバーピルを出す */
+const appReachable = ref(true)
+
+// ナビの開閉 (Misskey ナビバー式)。folded は幅 56px のアイコン列になる
+const navCollapsed = ref(localStorage.getItem('nd-control-nav') === 'collapsed')
+
+function toggleNav() {
+  navCollapsed.value = !navCollapsed.value
+  try {
+    localStorage.setItem(
+      'nd-control-nav',
+      navCollapsed.value ? 'collapsed' : 'open',
+    )
+  } catch {
+    // localStorage 不可なら永続化だけ諦める
+  }
+}
 
 const app = ref<ApiIndex | null>(null)
 const columns = ref<DeckColumn[]>([])
@@ -63,6 +139,70 @@ async function toggleSpec() {
   }
 }
 
+// --- 起動計測 (#985) ---
+// About ウィンドウにしか出ていなかった startupTrace の露出面。
+// 開くたびに取り直す (アプリ再起動をまたいでも古い値を見せない)
+
+interface StartupTrace {
+  entries: { name: string; at: number }[]
+  webviewFixedCost: number | null
+}
+
+const startup = ref<StartupTrace | null>(null)
+
+const startupRows = computed(() => {
+  const entries = startup.value?.entries ?? []
+  return entries.map((m, i) => ({
+    ...m,
+    delta: i > 0 ? m.at - (entries[i - 1]?.at ?? 0) : 0,
+  }))
+})
+
+/** ウォーターフォールバーの正規化基準 (最長区間 = 100%) */
+const startupMaxDelta = computed(() =>
+  Math.max(1, ...startupRows.value.map((r) => r.delta)),
+)
+
+async function fetchStartup() {
+  try {
+    const res = await fetch('/api/startup/trace')
+    if (res.ok) startup.value = await res.json()
+  } catch {
+    // アプリ未起動
+  }
+}
+
+// --- HEARTBEAT 状態 (#411) ---
+// daemon の silent fail 防止機構 (連続失敗 auto-disable) の観測面
+
+interface HeartbeatStatusView {
+  mounted: boolean
+  running: boolean
+  lastTickAt: number | null
+  lastTickSource: string | null
+  lastOutcome: string | null
+  consecutiveFailures: number
+  dailyCount: number
+  config: {
+    enabled: boolean
+    intervalMinutes: number
+    target: string
+    dailyMaxAiRuns: number
+  }
+}
+
+// heartbeat の中身は refreshStatus の 5 秒ポーリングが埋める
+// (ステータスバーにも常時出すためビュー表示と独立に取得する)
+const heartbeat = ref<HeartbeatStatusView | null>(null)
+
+function relativeTime(epochMs: number | null): string {
+  if (epochMs === null) return '—'
+  const mins = Math.floor((Date.now() - epochMs) / 60_000)
+  if (mins >= 60) return `${Math.floor(mins / 60)} 時間前`
+  if (mins >= 1) return `${mins} 分前`
+  return 'たった今'
+}
+
 // SSE ビューア。EventSource は event: 名ごとの addEventListener が必要で
 // 動的な main-{eventType} を受けられないため、fetch + ReadableStream で
 // SSE をパースする (Authorization は proxy が注入するので相対 fetch でよい)
@@ -71,18 +211,35 @@ const sseRows = ref<SseRow[]>([])
 const sseState = ref<'stopped' | 'connecting' | 'open'>('stopped')
 const sseFilter = ref('')
 const sseCount = ref(0)
+const sseTypeCounts = ref<Record<string, number>>({})
+const sseRatePerMin = ref(0)
+let sseRecentTimes: number[] = []
 let sseAbort: AbortController | null = null
 let sseSeq = 0
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let statusTimer: ReturnType<typeof setInterval> | null = null
 
+/** 到着数の多い順の種別チップ (クリックでフィルタ適用) */
+const sseTopTypes = computed(() =>
+  Object.entries(sseTypeCounts.value)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6),
+)
+
+function filterByType(type: string) {
+  sseFilter.value = type
+  connectSse()
+}
+
 async function refreshStatus() {
   try {
-    const [indexRes, colsRes, healthRes] = await Promise.all([
+    const [indexRes, colsRes, healthRes, hbRes] = await Promise.all([
       fetch('/api'),
       fetch('/api/deck/columns'),
       fetch('/api/health'),
+      fetch('/api/heartbeat/status'),
     ])
+    appReachable.value = indexRes.ok
     if (indexRes.ok) app.value = await indexRes.json()
     if (colsRes.ok) {
       const data: unknown = await colsRes.json()
@@ -90,16 +247,25 @@ async function refreshStatus() {
     }
     if (healthRes.ok)
       health.value = JSON.stringify(await healthRes.json(), null, 2)
+    if (hbRes.ok) heartbeat.value = await hbRes.json()
   } catch {
     // アプリ再起動中など — 次の周期更新で回復する
+    appReachable.value = false
   }
 }
 
 function pushRow(type: string, data: string) {
   sseCount.value++
+  sseTypeCounts.value[type] = (sseTypeCounts.value[type] ?? 0) + 1
+  const now = Date.now()
+  sseRecentTimes.push(now)
+  while (sseRecentTimes.length && now - (sseRecentTimes[0] ?? now) > 60_000)
+    sseRecentTimes.shift()
+  sseRatePerMin.value = sseRecentTimes.length
   sseRows.value.unshift({
     seq: ++sseSeq,
-    time: new Date().toLocaleTimeString('ja-JP', { hour12: false }),
+    ts: now,
+    time: new Date(now).toLocaleTimeString('ja-JP', { hour12: false }),
     type,
     data,
     expanded: false,
@@ -166,6 +332,40 @@ function stopSse() {
 function clearSse() {
   sseRows.value = []
   sseCount.value = 0
+  sseTypeCounts.value = {}
+  sseRecentTimes = []
+  sseRatePerMin.value = 0
+}
+
+/** バッファを古い順の JSON Lines でダウンロード (バグ報告への添付用) */
+function exportSse() {
+  const lines = [...sseRows.value].reverse().map((r) =>
+    JSON.stringify({
+      time: r.time,
+      type: r.type,
+      data: tryParseJson(r.data),
+    }),
+  )
+  downloadText(`sse-events-${Date.now()}.jsonl`, lines.join('\n'))
+}
+
+function tryParseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
+}
+
+function downloadText(filename: string, text: string) {
+  const url = URL.createObjectURL(
+    new Blob([text], { type: 'application/x-ndjson' }),
+  )
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function toggleRow(row: SseRow) {
@@ -233,6 +433,26 @@ function onSelectCap() {
   capParams.value = '{}'
 }
 
+// 実行履歴 (直近 20 件)。クリックで結果を呼び戻せる
+interface CapHistoryEntry {
+  seq: number
+  time: string
+  capId: string
+  status: number | null
+  result: string
+}
+
+const CAP_HISTORY_MAX = 20
+const capHistory = ref<CapHistoryEntry[]>([])
+let capHistSeq = 0
+
+function restoreCapHistory(entry: CapHistoryEntry) {
+  if (capabilities.value.some((c) => c.id === entry.capId))
+    selectedCapId.value = entry.capId
+  capStatus.value = entry.status
+  capResult.value = entry.result
+}
+
 async function executeCap() {
   const cap = selectedCap.value
   if (!cap || capRunning.value) return
@@ -257,6 +477,37 @@ async function executeCap() {
     capResult.value = String(e)
   } finally {
     capRunning.value = false
+    capHistory.value.unshift({
+      seq: ++capHistSeq,
+      time: new Date().toLocaleTimeString('ja-JP', { hour12: false }),
+      capId: cap.id,
+      status: capStatus.value,
+      result: capResult.value,
+    })
+    if (capHistory.value.length > CAP_HISTORY_MAX)
+      capHistory.value.length = CAP_HISTORY_MAX
+  }
+}
+
+// --- principal 別実効権限 (#712) ---
+// 実行盤で 403 が返ったとき「なぜ deny か」をその場で照合するための
+// 読み取りマトリクス。選択中 capability の要求キー行をハイライトする
+
+interface ResolvedPermissions {
+  keys: string[]
+  principals: Record<string, Record<string, boolean>>
+}
+
+const PERM_PRINCIPALS = ['ai.chat', 'ai.heartbeat', 'plugin', 'external']
+
+const perms = ref<ResolvedPermissions | null>(null)
+
+async function fetchPerms() {
+  try {
+    const res = await fetch('/api/permissions/resolved')
+    if (res.ok) perms.value = await res.json()
+  } catch {
+    // アプリ未起動
   }
 }
 
@@ -266,6 +517,7 @@ async function executeCap() {
 
 interface LogRow {
   seq: number
+  ts: number
   line: string
   level: 'error' | 'warn' | 'info' | 'debug'
 }
@@ -274,13 +526,164 @@ const LOG_BUFFER_MAX = 500
 const logRows = ref<LogRow[]>([])
 const logState = ref<'stopped' | 'connecting' | 'open'>('stopped')
 const logFilter = ref('')
+const logWarnOnly = ref(false)
 let logEs: EventSource | null = null
 let logSeq = 0
 
-const filteredLogRows = computed(() => {
+// tracing 行頭の ISO タイムスタンプ (統合タイムラインのソート基準)
+const LOG_ISO_RE = /^(\d{4}-\d{2}-\d{2}T[0-9:.]+Z)/
+
+// --- 統合タイムライン ---
+// Rust ログ (SSE tail) + Rust イベントバス (SSE) + フロント in-app ログを
+// 単一時系列にマージし、「どの層でイベントが消えたか」を 1 画面で追う
+
+interface FrontLogEntry {
+  at: number
+  level: 'warn' | 'error'
+  scope?: string
+  message: string
+}
+
+interface UnifiedRow {
+  key: string
+  ts: number
+  source: 'rust' | 'sse' | 'front'
+  label: string
+  text: string
+  level: 'error' | 'warn' | 'info' | 'debug'
+}
+
+const timelineSources = ref({ rust: true, sse: true, front: true })
+const frontRows = ref<FrontLogEntry[]>([])
+let frontTimer: ReturnType<typeof setInterval> | null = null
+
+// --- 見た目まわり (#977 UI 磨き) ---
+
+/** SSE 流量スパークライン用の 1 秒 tick (バケット再計算の駆動) */
+const nowTick = ref(Date.now())
+let tickTimer: ReturnType<typeof setInterval> | null = null
+
+const SPARK_BUCKETS = 30
+const SPARK_BUCKET_MS = 2000
+
+/** 直近 60 秒の到着数を 2 秒バケットに畳んだ正規化列 (0..1) */
+const sparkBars = computed(() => {
+  const now = nowTick.value
+  const buckets = new Array(SPARK_BUCKETS).fill(0) as number[]
+  for (const t of sseRecentTimes) {
+    const idx = SPARK_BUCKETS - 1 - Math.floor((now - t) / SPARK_BUCKET_MS)
+    if (idx >= 0 && idx < SPARK_BUCKETS) buckets[idx] = (buckets[idx] ?? 0) + 1
+  }
+  const max = Math.max(1, ...buckets)
+  return buckets.map((n) => n / max)
+})
+
+/** イベント種別 → 安定した色相 (同じ種別は常に同じ色で追える) */
+function typeColor(type: string): string {
+  let h = 0
+  for (let i = 0; i < type.length; i++) h = (h * 31 + type.charCodeAt(i)) % 360
+  return `hsl(${h} 65% 62%)`
+}
+
+// VSCode 風ステータスバーのカウント (統合タイムラインの Rust + フロント分)
+const timelineErrorCount = computed(() => {
+  let n = 0
+  for (const r of logRows.value) if (r.level === 'error') n++
+  for (const e of frontRows.value) if (e.level === 'error') n++
+  return n
+})
+
+const timelineWarnCount = computed(() => {
+  let n = 0
+  for (const r of logRows.value) if (r.level === 'warn') n++
+  for (const e of frontRows.value) if (e.level === 'warn') n++
+  return n
+})
+
+async function refreshFrontLogs() {
+  try {
+    const res = await fetch('/api/logs/recent')
+    if (res.ok) {
+      const data: unknown = await res.json()
+      if (Array.isArray(data)) frontRows.value = data as FrontLogEntry[]
+    }
+  } catch {
+    // アプリ再起動中など — 次の周期更新で回復する
+  }
+}
+
+// SSE 行の開閉状態 (unifiedRows は computed で作り直されるため外に持つ)。
+// バッファ落ちした行のキーが残るが、上限で丸ごと捨てて有界にする
+const expandedUnified = ref<Set<string>>(new Set())
+
+function toggleUnifiedRow(row: UnifiedRow) {
+  if (row.source !== 'sse') return
+  const next = new Set(expandedUnified.value)
+  if (next.has(row.key)) next.delete(row.key)
+  else {
+    if (next.size > 50) next.clear()
+    next.add(row.key)
+  }
+  expandedUnified.value = next
+}
+
+function prettyText(text: string): string {
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2)
+  } catch {
+    return text
+  }
+}
+
+const unifiedRows = computed<UnifiedRow[]>(() => {
   const q = logFilter.value.trim().toLowerCase()
-  if (!q) return logRows.value
-  return logRows.value.filter((r) => r.line.toLowerCase().includes(q))
+  const warnOnly = logWarnOnly.value
+  const src = timelineSources.value
+  const rows: UnifiedRow[] = []
+  if (src.rust) {
+    for (const r of logRows.value)
+      rows.push({
+        key: `r${r.seq}`,
+        ts: r.ts,
+        source: 'rust',
+        label: r.level.toUpperCase(),
+        text: r.line,
+        level: r.level,
+      })
+  }
+  if (src.sse) {
+    for (const r of sseRows.value)
+      rows.push({
+        key: `s${r.seq}`,
+        ts: r.ts,
+        source: 'sse',
+        label: r.type,
+        text: r.data,
+        level: 'info',
+      })
+  }
+  if (src.front) {
+    for (const [i, e] of frontRows.value.entries()) {
+      rows.push({
+        key: `f${e.at}-${i}`,
+        ts: e.at,
+        source: 'front',
+        label: e.level.toUpperCase(),
+        text: (e.scope ? `[${e.scope}] ` : '') + e.message,
+        level: e.level,
+      })
+    }
+  }
+  const filtered = rows.filter((r) => {
+    if (warnOnly && r.level !== 'error' && r.level !== 'warn') return false
+    return (
+      !q ||
+      r.text.toLowerCase().includes(q) ||
+      r.label.toLowerCase().includes(q)
+    )
+  })
+  filtered.sort((a, b) => b.ts - a.ts)
+  return filtered.slice(0, LOG_BUFFER_MAX)
 })
 
 function detectLevel(line: string): LogRow['level'] {
@@ -299,8 +702,10 @@ function connectLogs() {
     logState.value = 'open'
   }
   es.onmessage = (e) => {
+    const iso = e.data.match(LOG_ISO_RE)?.[1]
     logRows.value.unshift({
       seq: ++logSeq,
+      ts: iso ? Date.parse(iso) : Date.now(),
       line: e.data,
       level: detectLevel(e.data),
     })
@@ -323,86 +728,424 @@ function clearLogs() {
   logRows.value = []
 }
 
+// --- キャッシュ観測 (#987) / Query Bridge トレース / Inspector 突き合わせ ---
+
+interface CacheStat {
+  name: string
+  size: number
+  limit: number
+}
+
+const caches = ref<CacheStat[]>([])
+
+async function fetchCaches() {
+  try {
+    const res = await fetch('/api/perf/caches')
+    if (res.ok) {
+      const data: unknown = await res.json()
+      if (Array.isArray(data)) caches.value = data as CacheStat[]
+    }
+  } catch {
+    // アプリ未起動
+  }
+}
+
+interface QbTraceRow {
+  at: number
+  type: string
+  ms: number
+  error: boolean
+}
+
+const qbTrace = ref<QbTraceRow[]>([])
+
+async function fetchQbTrace() {
+  try {
+    const res = await fetch('/api/querybridge/trace')
+    if (res.ok) {
+      const data: unknown = await res.json()
+      if (Array.isArray(data)) qbTrace.value = data as QbTraceRow[]
+    }
+  } catch {
+    // アプリ未起動
+  }
+}
+
+interface InspectorRecent {
+  total: number
+  counts: Record<string, number>
+  oldestTs: number | null
+}
+
+const inspector = ref<InspectorRecent | null>(null)
+
+async function fetchInspector() {
+  try {
+    const res = await fetch('/api/inspector/recent')
+    if (res.ok) inspector.value = await res.json()
+  } catch {
+    // アプリ未起動
+  }
+}
+
 onMounted(() => {
+  document.title = 'NoteDeck Control'
   refreshStatus()
   statusTimer = setInterval(refreshStatus, 5000)
   connectSse()
   loadCapabilities()
   connectLogs()
+  refreshFrontLogs()
+  frontTimer = setInterval(refreshFrontLogs, 3000)
+  // スパークラインの時間窓を進め、静かな期間も流量表示を減衰させる
+  tickTimer = setInterval(() => {
+    nowTick.value = Date.now()
+    while (
+      sseRecentTimes.length &&
+      nowTick.value - (sseRecentTimes[0] ?? 0) > 60_000
+    )
+      sseRecentTimes.shift()
+    sseRatePerMin.value = sseRecentTimes.length
+  }, 1000)
 })
 
 onUnmounted(() => {
+  document.title = 'NoteDeck'
   if (statusTimer) clearInterval(statusTimer)
+  if (frontTimer) clearInterval(frontTimer)
+  if (tickTimer) clearInterval(tickTimer)
   stopSse()
   stopLogs()
 })
 </script>
 
 <template>
-  <div :class="$style.dashboard">
-    <header :class="$style.header">
-      <img src="/favicon.svg" alt="" :class="$style.logo" />
-      <div :class="$style.headText">
-        <h1 :class="$style.title">NoteDeck Dev Dashboard</h1>
-        <p :class="$style.subtitle">
-          実行中のアプリ (127.0.0.1:19820) に接続中<template v-if="app?.version"> — v{{ app.version }}</template>
-        </p>
-      </div>
-      <nav :class="$style.links">
-        <a href="/api/docs" target="_blank" rel="noopener">API ドキュメント</a>
-      </nav>
-    </header>
+  <div :class="$style.control">
+    <div v-if="!appReachable" :class="$style.reconnectPill">
+      <i class="ti ti-plug-x" /> アプリ接続なし — 再接続待ち…
+    </div>
 
-    <div :class="$style.grid">
-      <section :class="[$style.panel, $style.gridDeck]">
-        <h2 :class="$style.panelTitle">デッキ状態 — カラム {{ columns.length }} 本</h2>
-        <div :class="$style.tableWrap">
-          <table :class="$style.table">
-            <thead>
-              <tr><th>type</th><th>id</th><th>account</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="col in columns" :key="col.id">
-                <td>{{ col.type }}</td>
-                <td :class="$style.mono">{{ col.id }}</td>
-                <td :class="$style.mono">{{ col.accountId ?? '(cross-account)' }}</td>
-              </tr>
-            </tbody>
-          </table>
+    <div :class="$style.body">
+      <aside :class="[$style.sidebar, navCollapsed && $style.sidebarCollapsed]">
+        <div :class="$style.sidebarHead">
+          <img
+            src="/favicon.svg"
+            alt=""
+            :class="[$style.brandLogo, sseState === 'open' && $style.logoLive]"
+            :title="sseState === 'open' ? 'LIVE' : sseState"
+          />
+          <span v-if="!navCollapsed" :class="$style.brandName">NoteDeck</span>
+          <button
+            type="button"
+            :class="$style.navToggle"
+            :title="navCollapsed ? 'ナビゲーションを開く' : 'ナビゲーションを畳む'"
+            @click="toggleNav"
+          >
+            <i :class="navCollapsed ? 'ti ti-chevrons-right' : 'ti ti-chevrons-left'" />
+          </button>
         </div>
-        <button
-          type="button"
-          :class="$style.summary"
-          @click="showHealth = !showHealth"
-        >
-          <i :class="showHealth ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-          /api/health raw
-        </button>
-        <CodeEditor
-          v-if="showHealth && health"
-          :model-value="health"
-          :language="lang"
-          read-only
-          auto-height
-        />
-        <button type="button" :class="$style.summary" @click="toggleSpec">
-          <i :class="showSpec ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
-          /api/openapi.json
-        </button>
-        <CodeEditor
-          v-if="showSpec && spec"
-          :model-value="spec"
-          :language="lang"
-          read-only
-          max-height="48vh"
-        />
-      </section>
+        <nav :class="$style.nav">
+          <div
+            v-for="group in NAV_GROUPS"
+            :key="group.label"
+            :class="$style.navGroup"
+          >
+            <p v-if="!navCollapsed" :class="$style.navGroupLabel">{{ group.label }}</p>
+            <button
+              v-for="item in group.items"
+              :key="item.id"
+              type="button"
+              :class="[
+                $style.navItem,
+                activeView === item.id && $style.navItemActive,
+              ]"
+              :title="item.label"
+              @click="selectView(item.id)"
+            >
+              <i :class="item.icon" />
+              <span v-if="!navCollapsed" :class="$style.navLabel">{{ item.label }}</span>
+              <i
+                v-if="
+                  item.id === 'heartbeat' &&
+                  heartbeat?.config.enabled &&
+                  !navCollapsed
+                "
+                class="ti ti-heartbeat"
+                :class="[$style.beat, $style.navItemSuffix]"
+              />
+            </button>
+          </div>
+          <div :class="$style.navGroup">
+            <p v-if="!navCollapsed" :class="$style.navGroupLabel">リソース</p>
+            <a
+              :class="$style.navItem"
+              href="/api/docs"
+              target="_blank"
+              rel="noopener"
+              title="API ドキュメント"
+            >
+              <i class="ti ti-book-2" />
+              <span v-if="!navCollapsed" :class="$style.navLabel">API ドキュメント</span>
+            </a>
+          </div>
+        </nav>
+      </aside>
 
-      <section :class="[$style.panel, $style.ssePanel, $style.gridSse]">
+      <main :class="$style.content">
+        <section v-if="activeView === 'overview'" :class="$style.view">
+          <div :class="$style.statCards">
+            <div :class="$style.statCard">
+              <span :class="$style.statValue">{{ sseCount }}</span>
+              <span :class="$style.statLabel">events</span>
+            </div>
+            <div :class="$style.statCard">
+              <span :class="$style.statValue">{{ sseRatePerMin }}</span>
+              <span :class="$style.statLabel">events/min</span>
+            </div>
+            <div :class="$style.statCard">
+              <span :class="[$style.statValue, timelineErrorCount > 0 && $style.statusErr]">{{ timelineErrorCount }}</span>
+              <span :class="$style.statLabel">errors</span>
+            </div>
+            <div :class="$style.statCard">
+              <span :class="[$style.statValue, timelineWarnCount > 0 && $style.statusWarn]">{{ timelineWarnCount }}</span>
+              <span :class="$style.statLabel">warnings</span>
+            </div>
+            <div :class="$style.statCard">
+              <span :class="$style.statValue">{{ columns.length }}</span>
+              <span :class="$style.statLabel">columns</span>
+            </div>
+            <div :class="$style.statCard">
+              <span :class="$style.statValue">{{ capabilities.length }}</span>
+              <span :class="$style.statLabel">capabilities</span>
+            </div>
+          </div>
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-layout-columns" :class="$style.panelIcon" />
+            デッキ状態 — カラム {{ columns.length }} 本
+          </h2>
+          <div :class="$style.tableWrap">
+            <table :class="$style.table">
+              <thead>
+                <tr><th>type</th><th>id</th><th>account</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="col in columns" :key="col.id">
+                  <td>{{ col.type }}</td>
+                  <td :class="$style.mono">{{ col.id }}</td>
+                  <td :class="$style.mono">{{ col.accountId ?? '(cross-account)' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <button
+            type="button"
+            :class="$style.summary"
+            @click="showHealth = !showHealth"
+          >
+            <i :class="showHealth ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+            /api/health raw
+          </button>
+          <CodeEditor
+            v-if="showHealth && health"
+            :model-value="health"
+            :language="lang"
+            read-only
+            auto-height
+          />
+          <button type="button" :class="$style.summary" @click="toggleSpec">
+            <i :class="showSpec ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
+            /api/openapi.json
+          </button>
+          <CodeEditor
+            v-if="showSpec && spec"
+            :model-value="spec"
+            :language="lang"
+            read-only
+            max-height="48vh"
+          />
+        </section>
+
+        <section v-if="activeView === 'startup'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-rocket" :class="$style.panelIcon" />
+            起動計測 (#985)
+            <button type="button" :class="$style.btn" @click="fetchStartup">更新</button>
+          </h2>
+          <template v-if="startup">
+            <p v-if="startup.webviewFixedCost !== null" :class="$style.capDesc">
+              WebView 起動固定費 ~{{ startup.webviewFixedCost }}ms
+            </p>
+            <div :class="$style.tableWrap">
+              <table :class="$style.table">
+                <thead>
+                  <tr><th>mark</th><th>at</th><th>+Δ</th><th /></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in startupRows" :key="row.name">
+                    <td :class="$style.mono">{{ row.name }}</td>
+                    <td :class="$style.mono">{{ Math.round(row.at) }}ms</td>
+                    <td :class="$style.mono">+{{ Math.round(row.delta) }}ms</td>
+                    <td :class="$style.barCell">
+                      <span
+                        :class="$style.bar"
+                        :style="{ width: `${(row.delta / startupMaxDelta) * 100}%` }"
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </section>
+
+        <section v-if="activeView === 'heartbeat'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-heartbeat" :class="$style.panelIcon" />
+            HEARTBEAT 状態 (#411)
+            <i
+              v-if="heartbeat?.config.enabled"
+              class="ti ti-heartbeat"
+              :class="$style.beat"
+            />
+          </h2>
+          <div v-if="heartbeat" :class="$style.tableWrap">
+            <table :class="$style.table">
+              <tbody>
+                <tr>
+                  <td>daemon</td>
+                  <td :class="$style.mono">
+                    {{ heartbeat.mounted ? (heartbeat.config.enabled ? 'enabled' : 'disabled') : 'not mounted' }}{{ heartbeat.running ? ' (tick 実行中)' : '' }}
+                  </td>
+                </tr>
+                <tr>
+                  <td>interval / target</td>
+                  <td :class="$style.mono">{{ heartbeat.config.intervalMinutes }} 分 / {{ heartbeat.config.target }}</td>
+                </tr>
+                <tr>
+                  <td>最終 tick</td>
+                  <td :class="$style.mono">
+                    {{ relativeTime(heartbeat.lastTickAt) }}<template v-if="heartbeat.lastTickSource"> ({{ heartbeat.lastTickSource }})</template>
+                  </td>
+                </tr>
+                <tr>
+                  <td>直近の結末</td>
+                  <td :class="$style.mono">{{ heartbeat.lastOutcome ?? '—' }}</td>
+                </tr>
+                <tr>
+                  <td>連続失敗</td>
+                  <td :class="$style.mono">{{ heartbeat.consecutiveFailures }}</td>
+                </tr>
+                <tr>
+                  <td>本日の AI 起動</td>
+                  <td :class="$style.mono">{{ heartbeat.dailyCount }} / {{ heartbeat.config.dailyMaxAiRuns }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section v-if="activeView === 'caches'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-database" :class="$style.panelIcon" />
+            キャッシュ観測 (#987)
+            <button type="button" :class="$style.btn" @click="fetchCaches">更新</button>
+          </h2>
+          <div :class="$style.tableWrap">
+            <table v-if="caches.length" :class="$style.table">
+              <thead>
+                <tr><th>name</th><th>size</th><th>limit</th><th /></tr>
+              </thead>
+              <tbody>
+                <tr v-for="(c, i) in caches" :key="`${c.name}-${i}`">
+                  <td :class="$style.mono">{{ c.name }}</td>
+                  <td :class="$style.mono">{{ c.size }}</td>
+                  <td :class="$style.mono">{{ c.limit }}</td>
+                  <td :class="$style.barCell">
+                    <span
+                      :class="[$style.bar, c.size / c.limit > 0.9 && $style.barHot]"
+                      :style="{ width: `${Math.min(100, (c.size / Math.max(1, c.limit)) * 100)}%` }"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else :class="$style.capDesc">登録済みキャッシュなし</p>
+          </div>
+        </section>
+
+        <section v-if="activeView === 'qbtrace'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-arrows-left-right" :class="$style.panelIcon" />
+            Query Bridge トレース
+            <button type="button" :class="$style.btn" @click="fetchQbTrace">更新</button>
+          </h2>
+          <div :class="$style.tableWrap">
+            <table v-if="qbTrace.length" :class="$style.table">
+              <thead>
+                <tr><th>time</th><th>type</th><th>ms</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="(t, i) in qbTrace" :key="`${t.at}-${i}`">
+                  <td :class="$style.mono">{{ new Date(t.at).toLocaleTimeString('ja-JP', { hour12: false }) }}</td>
+                  <td :class="[$style.mono, t.error && $style.logError]">{{ t.type }}</td>
+                  <td :class="$style.mono">{{ t.ms }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-else :class="$style.capDesc">まだ記録なし</p>
+          </div>
+        </section>
+
+        <section v-if="activeView === 'inspector'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-search" :class="$style.panelIcon" />
+            Inspector 突き合わせ (アダプタ層 vs SSE)
+            <button type="button" :class="$style.btn" @click="fetchInspector">更新</button>
+          </h2>
+          <div :class="$style.inspectorCompare">
+            <div :class="$style.tableWrap">
+              <p :class="$style.capDesc">アダプタ層 (Misskey WS raw)</p>
+              <table v-if="inspector?.total" :class="$style.table">
+                <tbody>
+                  <tr v-for="(n, kind) in inspector.counts" :key="kind">
+                    <td :class="$style.mono">{{ kind }}</td>
+                    <td :class="$style.mono">{{ n }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p v-else :class="$style.capDesc">
+                バッファ空 — Stream Inspector カラムを開くと流入します
+              </p>
+            </div>
+            <div :class="$style.tableWrap">
+              <p :class="$style.capDesc">SSE (Rust イベントバス)</p>
+              <table v-if="sseTopTypes.length" :class="$style.table">
+                <tbody>
+                  <tr v-for="[t, n] in sseTopTypes" :key="t">
+                    <td :class="$style.mono">{{ t }}</td>
+                    <td :class="$style.mono">{{ n }}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p v-else :class="$style.capDesc">受信なし</p>
+            </div>
+          </div>
+        </section>
+
+        <section v-if="activeView === 'sse'" :class="[$style.view, $style.viewStream]">
         <h2 :class="$style.panelTitle">
+          <i class="ti ti-broadcast" :class="$style.panelIcon" />
           SSE ライブビューア (/api/events)
           <span :class="[$style.sseBadge, sseState === 'open' && $style.sseOpen]">{{ sseState }}</span>
           <span :class="$style.sseCount">{{ sseCount }} events</span>
+          <span :class="$style.spark" title="直近 60 秒の流量">
+            <span
+              v-for="(h, i) in sparkBars"
+              :key="i"
+              :class="$style.sparkBar"
+              :style="{ height: `${Math.max(8, h * 100)}%`, opacity: h > 0 ? 1 : 0.25 }"
+            />
+          </span>
         </h2>
         <div :class="$style.sseControls">
           <input
@@ -414,16 +1157,43 @@ onUnmounted(() => {
           <button type="button" :class="$style.btn" @click="connectSse">適用 / 再接続</button>
           <button type="button" :class="$style.btn" @click="stopSse">停止</button>
           <button type="button" :class="$style.btn" @click="clearSse">クリア</button>
+          <button
+            type="button"
+            :class="$style.btn"
+            :disabled="!sseRows.length"
+            title="バッファを JSON Lines でダウンロード"
+            @click="exportSse"
+          >
+            <i class="ti ti-download" /> JSONL
+          </button>
+        </div>
+        <div v-if="sseTopTypes.length" :class="$style.chipRow">
+          <span :class="$style.rateChip">{{ sseRatePerMin }}/min</span>
+          <button
+            v-for="[t, n] in sseTopTypes"
+            :key="t"
+            type="button"
+            :class="$style.typeChip"
+            :style="{ color: typeColor(t) }"
+            title="クリックでこの種別に絞る"
+            @click="filterByType(t)"
+          >
+            {{ t }} ×{{ n }}
+          </button>
         </div>
         <div :class="$style.sseList">
-          <div v-for="row in sseRows" :key="row.seq" :class="$style.sseRow">
+          <div
+            v-for="row in sseRows"
+            :key="row.seq"
+            :class="[$style.sseRow, nowTick - row.ts < 1200 && $style.rowNew]"
+          >
             <button
               type="button"
               :class="$style.sseRowHead"
               @click="toggleRow(row)"
             >
               <span :class="$style.sseTime">{{ row.time }}</span>
-              <span :class="$style.sseType">{{ row.type }}</span>
+              <span :class="$style.sseType" :style="{ color: typeColor(row.type) }">{{ row.type }}</span>
               <code :class="$style.sseData">{{ row.data }}</code>
             </button>
             <CodeEditor
@@ -440,8 +1210,9 @@ onUnmounted(() => {
         </div>
       </section>
 
-      <section :class="[$style.panel, $style.gridCaps]">
+        <section v-if="activeView === 'caps'" :class="$style.view">
         <h2 :class="$style.panelTitle">
+          <i class="ti ti-bolt" :class="$style.panelIcon" />
           Capabilities 実行盤
           <span :class="$style.sseCount">{{ capabilities.length }} 件</span>
         </h2>
@@ -495,7 +1266,17 @@ onUnmounted(() => {
             >
               {{ capRunning ? '実行中…' : '実行' }}
             </button>
-            <span v-if="capStatus !== null" :class="$style.capStatus">
+            <span
+              v-if="capStatus !== null"
+              :class="[
+                $style.capStatus,
+                capStatus < 300
+                  ? $style.statusOk
+                  : capStatus < 500
+                    ? $style.statusWarn
+                    : $style.statusErr,
+              ]"
+            >
               HTTP {{ capStatus }}
             </span>
           </div>
@@ -507,12 +1288,73 @@ onUnmounted(() => {
             auto-height
           />
         </template>
+        <div v-if="capHistory.length" :class="$style.capHistory">
+          <button
+            v-for="h in capHistory"
+            :key="h.seq"
+            type="button"
+            :class="$style.capHistoryRow"
+            title="クリックで結果を呼び戻す"
+            @click="restoreCapHistory(h)"
+          >
+            <span :class="$style.sseTime">{{ h.time }}</span>
+            <span :class="[$style.mono, $style.capHistoryId]">{{ h.capId }}</span>
+            <span
+              :class="[
+                $style.capStatus,
+                h.status !== null && h.status < 300
+                  ? $style.statusOk
+                  : h.status !== null && h.status < 500
+                    ? $style.statusWarn
+                    : $style.statusErr,
+              ]"
+            >{{ h.status ?? 'ERR' }}</span>
+          </button>
+        </div>
       </section>
 
-      <section :class="[$style.panel, $style.ssePanel, $style.gridLogs]">
+        <section v-if="activeView === 'perms'" :class="$style.view">
+          <h2 :class="$style.panelTitle">
+            <i class="ti ti-shield-lock" :class="$style.panelIcon" />
+            principal 別実効権限 (#712)
+            <button type="button" :class="$style.btn" @click="fetchPerms">更新</button>
+          </h2>
+          <p v-if="selectedCap" :class="$style.capDesc">
+            選択中の capability ({{ selectedCap.id }}) の要求キー行をハイライト表示
+          </p>
+          <div v-if="perms" :class="$style.tableWrap">
+            <table :class="$style.table">
+              <thead>
+                <tr>
+                  <th>permission</th>
+                  <th v-for="p in PERM_PRINCIPALS" :key="p">{{ p }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="key in perms.keys"
+                  :key="key"
+                  :class="selectedCap?.permissions.includes(key) && $style.permRowRelevant"
+                >
+                  <td :class="$style.mono">{{ key }}</td>
+                  <td
+                    v-for="p in PERM_PRINCIPALS"
+                    :key="p"
+                    :class="perms.principals[p]?.[key] ? $style.permOk : $style.permNo"
+                  >
+                    {{ perms.principals[p]?.[key] ? '✓' : '–' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section v-if="activeView === 'timeline'" :class="[$style.view, $style.viewStream]">
         <h2 :class="$style.panelTitle">
-          Rust ログ tail (notedeck.log)
-          <span :class="[$style.sseBadge, logState === 'open' && $style.sseOpen]">{{ logState }}</span>
+          <i class="ti ti-terminal-2" :class="$style.panelIcon" />
+          統合タイムライン
+          <span :class="[$style.sseBadge, logState === 'open' && $style.sseOpen]">rust: {{ logState }}</span>
         </h2>
         <div :class="$style.sseControls">
           <input
@@ -520,126 +1362,410 @@ onUnmounted(() => {
             :class="$style.filterInput"
             placeholder="絞り込み (部分一致)"
           />
+          <button
+            type="button"
+            :class="[$style.btn, logWarnOnly && $style.btnActive]"
+            title="WARN 以上のみ表示 (SSE イベントも隠れる)"
+            @click="logWarnOnly = !logWarnOnly"
+          >
+            WARN+
+          </button>
           <button type="button" :class="$style.btn" @click="connectLogs">再接続</button>
           <button type="button" :class="$style.btn" @click="stopLogs">停止</button>
           <button type="button" :class="$style.btn" @click="clearLogs">クリア</button>
         </div>
+        <div :class="$style.chipRow">
+          <label
+            v-for="(label, key) in { rust: 'Rust ログ', sse: 'SSE', front: 'フロント' }"
+            :key="key"
+            :class="$style.sourceToggle"
+          >
+            <input v-model="timelineSources[key]" type="checkbox" />
+            {{ label }}
+          </label>
+        </div>
         <div :class="$style.sseList">
           <div
-            v-for="row in filteredLogRows"
-            :key="row.seq"
+            v-for="row in unifiedRows"
+            :key="row.key"
             :class="[
               $style.logLine,
+              nowTick - row.ts < 1200 && $style.rowNew,
               row.level === 'error'
                 ? $style.logError
                 : row.level === 'warn'
                   ? $style.logWarn
                   : '',
             ]"
-          >{{ row.line }}</div>
-          <p v-if="!filteredLogRows.length" :class="$style.sseEmpty">
-            ログ待機中 — アプリ側の tracing 出力がここに流れます
+          >
+            <!-- SSE 行はペイロードが長いのでデフォルト 1 行、クリックで展開 -->
+            <button
+              v-if="row.source === 'sse'"
+              type="button"
+              :class="$style.unifiedRowHead"
+              @click="toggleUnifiedRow(row)"
+            >
+              <span :class="[$style.sourceBadge, $style.sourceSse]">{{ row.source }}</span>
+              <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span>
+              <span :class="$style.sseType" :style="{ color: typeColor(row.label) }">{{ row.label }}</span>
+              <span :class="$style.unifiedSseText">{{ row.text }}</span>
+            </button>
+            <template v-else>
+              <span
+                :class="[
+                  $style.sourceBadge,
+                  row.source === 'front' ? $style.sourceFront : $style.sourceRust,
+                ]"
+              >{{ row.source }}</span> <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span> <span :class="$style.sseType">{{ row.label }}</span> {{ row.text }}
+            </template>
+            <CodeEditor
+              v-if="row.source === 'sse' && expandedUnified.has(row.key)"
+              :model-value="prettyText(row.text)"
+              :language="lang"
+              read-only
+              auto-height
+            />
+          </div>
+          <p v-if="!unifiedRows.length" :class="$style.sseEmpty">
+            待機中 — Rust ログ / SSE イベント / フロントログがここに時系列で流れます
           </p>
         </div>
       </section>
+      </main>
     </div>
+
   </div>
 </template>
 
 <style lang="scss" module>
-.dashboard {
+.control {
+  position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 24px;
   background: var(--nd-bg);
   color: var(--nd-fg);
   overflow: hidden;
 }
 
-.header {
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* OpenClaw Control UI 流のサイドバー: グループ分けナビ + 下部 identity カード */
+.sidebar {
+  flex: none;
+  width: 248px;
+  display: flex;
+  flex-direction: column;
+  background: var(--nd-panel);
+  border-right: 1px solid var(--nd-divider);
+}
+
+/* アイコンのみの折りたたみ。寸法は本体ナビバーの折りたたみ (44px 円形 +
+   margin 2px auto) を踏襲 */
+.sidebarCollapsed {
+  width: 56px;
+
+  .sidebarHead {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 0 10px;
+  }
+
+  .navItem {
+    justify-content: center;
+    padding: 0;
+    width: 44px;
+    height: 44px;
+    margin: 2px auto;
+    border-radius: 50%;
+    line-height: 1;
+
+    i {
+      width: auto;
+    }
+  }
+
+  .navGroup {
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--nd-divider);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+
+/* identity はサイドバー上部 (OpenClaw Control UI の配置) */
+.sidebarHead {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 14px;
-  flex: none;
+  gap: 10px;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--nd-divider);
 }
 
-.logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+.brandLogo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  transition: filter 250ms ease-out;
 }
 
-.headText {
+.brandName {
   flex: 1;
   min-width: 0;
-}
-
-.title {
-  font-size: 1.25rem;
+  font-size: 0.92rem;
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--nd-fgHighlighted);
 }
 
-.subtitle {
-  font-size: 0.8rem;
-  opacity: 0.6;
-}
-
-.links {
+.navToggle {
+  flex: none;
   display: flex;
-  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--nd-radius-sm, 6px);
+  background: none;
+  color: var(--nd-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: background 150ms ease-out;
 
-  a {
-    color: var(--nd-accent);
-    font-size: 0.85rem;
+  &:hover {
+    background: var(--nd-buttonBg);
+    opacity: 1;
+  }
 
-    &:hover {
-      text-decoration: underline;
-    }
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: -2px;
   }
 }
 
-.grid {
+.navLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(0, 1.6fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-areas:
-    'deck sse'
-    'caps logs';
-  gap: 16px;
+  overflow-y: auto;
+  padding: 12px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nd-divider) transparent;
 }
 
-.gridDeck {
-  grid-area: deck;
+.navGroup {
+  margin-bottom: 14px;
 }
 
-.gridSse {
-  grid-area: sse;
+.navGroupLabel {
+  padding: 0 10px 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.45;
+  user-select: none;
 }
 
-.gridCaps {
-  grid-area: caps;
+/* 寸法は本体ナビバー (DeckNavbar) を踏襲 */
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 14px;
+  line-height: 2.85rem;
+  border: none;
+  border-radius: var(--nd-radius-full);
+  background: none;
+  color: var(--nd-fg);
+  font-size: 0.95em;
+  white-space: nowrap;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 150ms ease-out, color 150ms ease-out;
+
+  i {
+    flex-shrink: 0;
+    width: 32px;
+    font-size: 22px;
+    text-align: center;
+    opacity: 0.7;
+  }
+
+  &:hover {
+    background: var(--nd-buttonHoverBg);
+    color: var(--nd-fgHighlighted);
+
+    i {
+      opacity: 1;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: -2px;
+  }
 }
 
-.gridLogs {
-  grid-area: logs;
+.navItemActive {
+  background: var(--nd-buttonHoverBg);
+  color: var(--nd-fgHighlighted);
+
+  i {
+    opacity: 1;
+  }
 }
 
-.panel {
+.navItemSuffix {
+  margin-left: auto;
+  width: auto;
+}
+
+.footText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.footName {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--nd-fgHighlighted);
+}
+
+.footMeta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--nd-font-mono);
+  font-size: 0.65rem;
+  opacity: 0.6;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* 全角はアプリ既定スタックのうち最も一般的なもの (mac=Hiragino Sans /
+     Win=BIZ UDGothic) を明示。等幅データは --nd-font-mono のまま */
+  font-family: 'Hiragino Sans', 'BIZ UDGothic', 'Segoe UI', sans-serif;
+  font-size: 14px;
+}
+
+.view {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 0;
-  padding: 14px 16px;
+  padding: 16px 20px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nd-divider) transparent;
+}
+
+/* ストリーム系ビューは内側のリストが唯一のスクロール面 */
+.viewStream {
+  overflow: hidden;
+}
+
+/* 切断時のアンバーピル (OpenClaw の "Gateway connection lost" の意匠) */
+.reconnectPill {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: var(--nd-warn);
+  color: #1a1a1a;
+  font-size: 0.78rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.statCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: none;
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  min-width: 92px;
+  padding: 8px 14px;
   border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius);
+  border-radius: var(--nd-radius-md);
   background: var(--nd-panel);
-  overflow: auto;
+}
+
+.statValue {
+  font-family: var(--nd-font-mono);
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--nd-fgHighlighted);
+}
+
+.statLabel {
+  font-size: 0.66rem;
+  opacity: 0.55;
+}
+
+.logoLive {
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--nd-accent) 55%, transparent));
+}
+
+.led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nd-fg);
+  opacity: 0.3;
+  flex: none;
+  transition: background 150ms ease-out;
+}
+
+.ledOpen {
+  background: var(--nd-success);
+  opacity: 1;
+  animation: ledPulse 2s ease-out infinite;
+}
+
+@keyframes ledPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 2px var(--nd-success);
+  }
+  50% {
+    box-shadow: 0 0 8px var(--nd-success);
+  }
 }
 
 .panelTitle {
@@ -651,6 +1777,27 @@ onUnmounted(() => {
   color: var(--nd-fgHighlighted);
 }
 
+.panelIcon {
+  color: var(--nd-accent);
+  font-size: 1rem;
+}
+
+.spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 16px;
+  margin-left: auto;
+  flex: none;
+}
+
+.sparkBar {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--nd-accent);
+  transition: height 250ms ease-out;
+}
+
 .tableWrap {
   overflow-x: auto;
 }
@@ -658,7 +1805,7 @@ onUnmounted(() => {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.86rem;
 
   th,
   td {
@@ -688,16 +1835,12 @@ onUnmounted(() => {
   background: none;
   color: var(--nd-fg);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.86rem;
   opacity: 0.7;
 
   &:hover {
     opacity: 1;
   }
-}
-
-.ssePanel {
-  overflow: hidden;
 }
 
 .sseBadge {
@@ -738,6 +1881,12 @@ onUnmounted(() => {
   color: var(--nd-fg);
   font-family: var(--nd-font-mono);
   font-size: 0.8rem;
+  transition: border-color 150ms ease-out;
+
+  &:focus-visible {
+    outline: none;
+    border-color: var(--nd-focusRing);
+  }
 }
 
 .btn {
@@ -748,9 +1897,23 @@ onUnmounted(() => {
   color: var(--nd-fg);
   font-size: 0.8rem;
   cursor: pointer;
+  transition:
+    background 150ms ease-out,
+    border-color 150ms ease-out;
 
   &:hover {
     background: var(--nd-buttonHoverBg, var(--nd-buttonBg));
+    border-color: color-mix(in srgb, var(--nd-accent) 35%, var(--nd-divider));
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
   }
 }
 
@@ -760,10 +1923,20 @@ onUnmounted(() => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nd-divider) transparent;
+}
+
+/* 新着ハイライト: 到着 1 秒間だけ着色し transition で退色する。
+   CSS animation だと行挿入のたびに既存行でも再始動してしまうため、
+   recency クラス + transition で表現する */
+.rowNew {
+  background: var(--nd-accentedBg);
 }
 
 .sseRow {
   border-bottom: 1px solid var(--nd-divider);
+  transition: background 250ms ease-out;
 }
 
 .sseRowHead {
@@ -827,7 +2000,7 @@ onUnmounted(() => {
 }
 
 .capDesc {
-  font-size: 0.8rem;
+  font-size: 0.86rem;
   opacity: 0.75;
 }
 
@@ -868,6 +2041,7 @@ onUnmounted(() => {
   white-space: pre-wrap;
   word-break: break-all;
   border-bottom: 1px solid var(--nd-divider);
+  transition: background 250ms ease-out;
 }
 
 .logError {
@@ -876,5 +2050,241 @@ onUnmounted(() => {
 
 .logWarn {
   color: #da3;
+}
+
+.permOk {
+  color: var(--nd-success, #6c6);
+}
+
+.permNo {
+  opacity: 0.35;
+}
+
+.permRowRelevant {
+  background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
+}
+
+.btnActive {
+  background: var(--nd-accent);
+  color: #fff;
+  border-color: var(--nd-accent);
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.rateChip {
+  font-family: var(--nd-font-mono);
+  font-size: 0.7rem;
+  opacity: 0.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.typeChip {
+  padding: 2px 8px;
+  border: none;
+  border-radius: 999px;
+  background: var(--nd-buttonBg);
+  color: var(--nd-accent);
+  font-family: var(--nd-font-mono);
+  font-size: 0.7rem;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--nd-buttonHoverBg, var(--nd-buttonBg));
+  }
+}
+
+.capHistory {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  max-height: 130px;
+  overflow-y: auto;
+  border-top: 1px solid var(--nd-divider);
+}
+
+.capHistoryRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 2px 6px;
+  border: none;
+  background: none;
+  color: var(--nd-fg);
+  text-align: left;
+  font-size: 0.75rem;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--nd-buttonBg);
+  }
+}
+
+.capHistoryId {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unifiedRowHead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.unifiedSseText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.75;
+}
+
+.sourceToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  opacity: 0.8;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sourceBadge {
+  display: inline-block;
+  min-width: 40px;
+  text-align: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.sourceRust {
+  background: var(--nd-buttonBg);
+  opacity: 0.8;
+}
+
+.sourceSse {
+  background: color-mix(in srgb, var(--nd-accent) 25%, transparent);
+  color: var(--nd-accent);
+}
+
+.sourceFront {
+  background: color-mix(in srgb, #4a9eda 25%, transparent);
+  color: #4a9eda;
+}
+
+.inspectorCompare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  flex: none;
+  max-height: 40%;
+  overflow-y: auto;
+}
+
+.barCell {
+  width: 30%;
+  min-width: 60px;
+}
+
+.bar {
+  display: block;
+  height: 6px;
+  min-width: 2px;
+  border-radius: 3px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--nd-accent) 55%, transparent),
+    var(--nd-accent)
+  );
+  transition: width 250ms ease-out;
+}
+
+.barHot {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--nd-warn) 55%, transparent),
+    var(--nd-warn)
+  );
+}
+
+.statusOk {
+  color: var(--nd-success);
+}
+
+.statusWarn {
+  color: var(--nd-warn);
+}
+
+.statusErr {
+  color: var(--nd-error);
+}
+
+/* HEARTBEAT 有効時の鼓動 (スプラッシュの nd-heartbeat と同じリズム) */
+.beat {
+  display: inline-block;
+  color: var(--nd-accent);
+  animation: beat 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  transform-origin: center;
+}
+
+@keyframes beat {
+  0%,
+  55%,
+  100% {
+    transform: scale(1);
+  }
+  10% {
+    transform: scale(1.25);
+  }
+  22% {
+    transform: scale(1);
+  }
+  32% {
+    transform: scale(1.12);
+  }
+  44% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ledOpen,
+  .beat {
+    animation: none;
+  }
+
+  .sseRow,
+  .logLine {
+    transition: none;
+  }
+
+  .sparkBar,
+  .bar,
+  .brandLogo,
+  .navItem,
+  .btn,
+  .filterInput {
+    transition: none;
+  }
 }
 </style>

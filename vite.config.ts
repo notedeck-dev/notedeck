@@ -269,20 +269,34 @@ let ndTokenPath: string | null = null
 let ndLogDir: string | null = null
 let ndTokenPathResolving: Promise<void> | null = null
 
+// アプリ停止検知 (null = 稼働中とみなす)。停止中はミドルウェアが proxy に
+// 渡さず即 503 を返す — ダッシュボードの自動再接続が Rust ビルド中ずっと
+// 「http proxy error: ECONNREFUSED」をターミナルに撒くのを防ぐ
+let ndAppDownSince: number | null = null
+const ND_DOWN_RECHECK_MS = 2000
+
 function resolveNdTokenPath(): Promise<void> {
   ndTokenPathResolving ??= fetch(`${ND_APP_ORIGIN}/api`)
     .then(async (r) => {
       const index = (await r.json()) as { tokenPath?: string; logDir?: string }
       ndTokenPath = index.tokenPath ?? null
       ndLogDir = index.logDir ?? null
+      ndAppDownSince = null
     })
     .catch(() => {
-      // アプリ未起動 — 次のリクエストで再解決する
+      // アプリ未起動 (ビルド中など) — 次のリクエストで再解決する
+      ndAppDownSince = Date.now()
     })
     .finally(() => {
       ndTokenPathResolving = null
     })
   return ndTokenPathResolving
+}
+
+function ndRespondAppDown(res: import('node:http').ServerResponse): void {
+  res.statusCode = 503
+  res.setHeader('Content-Type', 'application/json')
+  res.end('{"error":"NoteDeck app is not running (building or stopped)"}')
 }
 
 /** proxy より先に走る middleware で tokenPath 解決を待ち、初回リクエストの注入漏れを防ぐ */
@@ -291,8 +305,20 @@ function ndApiBridge(): Plugin {
     name: 'nd-api-bridge',
     apply: 'serve',
     configureServer(server) {
-      server.middlewares.use('/api', async (_req, _res, next) => {
-        if (!ndTokenPath) await resolveNdTokenPath()
+      server.middlewares.use('/api', async (_req, res, next) => {
+        // 停止直後の再確認は 2 秒に 1 回まで — その間は proxy に渡さず 503
+        if (
+          ndAppDownSince &&
+          Date.now() - ndAppDownSince < ND_DOWN_RECHECK_MS
+        ) {
+          ndRespondAppDown(res)
+          return
+        }
+        if (!ndTokenPath || ndAppDownSince) await resolveNdTokenPath()
+        if (ndAppDownSince) {
+          ndRespondAppDown(res)
+          return
+        }
         next()
       })
 
@@ -375,6 +401,11 @@ function ndApiProxy(): Record<string, ProxyOptions> {
       target: ND_APP_ORIGIN,
       changeOrigin: true,
       configure(proxy) {
+        // 稼働中に落ちた場合の検知 (Vite のエラーログはこの 1 回だけ出る —
+        // 以降はミドルウェアが 503 で止める)
+        proxy.on('error', () => {
+          ndAppDownSince = Date.now()
+        })
         proxy.on('proxyReq', (proxyReq) => {
           if (!ndTokenPath) return
           if (proxyReq.getHeader('authorization')) return

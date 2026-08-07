@@ -9,11 +9,18 @@ import type { Command } from '@/commands/registry'
 import { handleQuery } from '@/core/apiBridge'
 import { recordStreamHealth } from '@/core/streamHealth'
 import type { ProfiledPrincipalId } from '@/permissions/principal'
-import { setPermissionPreset } from '@/permissions/schema'
+import {
+  EXTERNAL_READ_FLOOR,
+  PERMISSION_KEYS,
+  setPermissionPreset,
+} from '@/permissions/schema'
 import {
   _resetPermissionsForTest,
   usePermissionsConfig,
 } from '@/permissions/store'
+import { createBoundedCache } from '@/services/boundedCache'
+import { useStreamInspectorStore } from '@/stores/streamInspector'
+import { markStartup } from '@/utils/startupTrace'
 
 function makeCapability(overrides: Partial<Command> = {}): Command {
   return {
@@ -156,6 +163,137 @@ describe('handleQuery: health/streams', () => {
     const acc1 = result.find((r) => r.accountId === 'acc1')
     expect(acc1?.state).toBe('connected')
     expect(acc1?.since).toBeGreaterThan(0)
+  })
+})
+
+describe('handleQuery: startup/trace (#977)', () => {
+  it('記録済みの起動マークを entries として返す', async () => {
+    markStartup('test-mark')
+    const result = (await handleQuery('startup/trace', {})) as {
+      entries: { name: string; at: number }[]
+      webviewFixedCost: number | null
+    }
+    const mark = result.entries.find((e) => e.name === 'test-mark')
+    expect(mark?.at).toBeGreaterThan(0)
+    // happy-dom には navigation entry が無いので null (実機では数値)
+    expect(
+      result.webviewFixedCost === null ||
+        typeof result.webviewFixedCost === 'number',
+    ).toBe(true)
+  })
+})
+
+describe('handleQuery: permissions/resolved (#977)', () => {
+  it('4 principal の granted map と全 permission キーを返す', async () => {
+    const result = (await handleQuery('permissions/resolved', {})) as {
+      keys: string[]
+      principals: Record<string, Record<string, boolean>>
+    }
+    expect(result.keys).toEqual([...PERMISSION_KEYS])
+    for (const id of ['ai.chat', 'ai.heartbeat', 'plugin', 'external']) {
+      const map = result.principals[id]
+      expect(map, id).toBeDefined()
+      for (const key of PERMISSION_KEYS) {
+        expect(typeof map?.[key], `${id}.${key}`).toBe('boolean')
+      }
+    }
+  })
+
+  it('external の既定は READ_FLOOR のみ true で write 系は false', async () => {
+    const result = (await handleQuery('permissions/resolved', {})) as {
+      principals: Record<string, Record<string, boolean>>
+    }
+    const external = result.principals.external
+    for (const key of EXTERNAL_READ_FLOOR) {
+      expect(external?.[key], key).toBe(true)
+    }
+    expect(external?.['notes.write']).toBe(false)
+  })
+
+  it('preset 変更が解決結果に反映される', async () => {
+    setPrincipalPreset('external', 'full')
+    const result = (await handleQuery('permissions/resolved', {})) as {
+      principals: Record<string, Record<string, boolean>>
+    }
+    expect(result.principals.external?.['notes.write']).toBe(true)
+  })
+})
+
+describe('handleQuery: heartbeat/status (#977)', () => {
+  it('daemon スナップショットと config を返す (テスト環境では未 mount)', async () => {
+    const result = (await handleQuery('heartbeat/status', {})) as {
+      mounted: boolean
+      running: boolean
+      consecutiveFailures: number
+      config: { enabled: boolean; intervalMinutes: number; target: string }
+    }
+    expect(result.mounted).toBe(false)
+    expect(result.running).toBe(false)
+    expect(typeof result.consecutiveFailures).toBe('number')
+    expect(typeof result.config.enabled).toBe('boolean')
+    expect(typeof result.config.intervalMinutes).toBe('number')
+    expect(typeof result.config.target).toBe('string')
+  })
+})
+
+describe('handleQuery: perf/caches (#977/#987)', () => {
+  it('名前付き boundedCache の size/limit を返す', async () => {
+    const cache = createBoundedCache<string, number>(7, 'test:api-bridge')
+    cache.set('x', 1)
+    const result = (await handleQuery('perf/caches', {})) as Array<{
+      name: string
+      size: number
+      limit: number
+    }>
+    const stat = result.find((s) => s.name === 'test:api-bridge')
+    expect(stat).toEqual({ name: 'test:api-bridge', size: 1, limit: 7 })
+  })
+})
+
+describe('handleQuery: inspector/recent (#977)', () => {
+  it('アダプタ層バッファを kind 別カウントに集計する', async () => {
+    const inspector = useStreamInspectorStore()
+    const badge = { avatar: null, serverIcon: null }
+    inspector.buffer = [
+      {
+        id: 1,
+        ts: 100,
+        kind: 'stream-note',
+        accountId: 'a',
+        observer: badge,
+        subject: null,
+        payload: {},
+      },
+      {
+        id: 2,
+        ts: 50,
+        kind: 'stream-note',
+        accountId: 'a',
+        observer: badge,
+        subject: null,
+        payload: {},
+      },
+      {
+        id: 3,
+        ts: 10,
+        kind: 'stream-notification',
+        accountId: 'a',
+        observer: badge,
+        subject: null,
+        payload: {},
+      },
+    ]
+    const result = (await handleQuery('inspector/recent', {})) as {
+      total: number
+      counts: Record<string, number>
+      oldestTs: number | null
+    }
+    expect(result.total).toBe(3)
+    expect(result.counts).toEqual({
+      'stream-note': 2,
+      'stream-notification': 1,
+    })
+    expect(result.oldestTs).toBe(10)
   })
 })
 

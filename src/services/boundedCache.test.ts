@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createBoundedCache } from '@/services/boundedCache'
+import {
+  createBoundedCache,
+  listBoundedCacheStats,
+} from '@/services/boundedCache'
 
 describe('createBoundedCache', () => {
   it('上限を超えたら最も古いエントリから捨てる', () => {
@@ -108,5 +111,22 @@ describe('createBoundedCache', () => {
       ['c', 3],
       ['a', 1],
     ])
+  })
+
+  it('名前付きで生成すると観測レジストリに size/limit が載る (#977)', () => {
+    const cache = createBoundedCache<string, number>(5, 'test:stats-cache')
+    cache.set('a', 1)
+    cache.set('b', 2)
+
+    const stat = listBoundedCacheStats().find(
+      (s) => s.name === 'test:stats-cache',
+    )
+    expect(stat).toEqual({ name: 'test:stats-cache', size: 2, limit: 5 })
+  })
+
+  it('名前なしで生成するとレジストリに載らない', () => {
+    const before = listBoundedCacheStats().length
+    createBoundedCache<string, number>(5)
+    expect(listBoundedCacheStats().length).toBe(before)
   })
 })

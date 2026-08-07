@@ -3,8 +3,17 @@ import { dispatchCapability } from '@/capabilities/dispatcher'
 import { sanitizeToolName } from '@/capabilities/identifier'
 import { listCapabilities } from '@/capabilities/registry'
 import { useCommandStore } from '@/commands/registry'
+import { useAiConfig } from '@/composables/useAiConfig'
+import { heartbeatStatus } from '@/composables/useHeartbeatDaemon'
 import { listStreamHealth } from '@/core/streamHealth'
+import type { ProfiledPrincipalId } from '@/permissions/principal'
+import { PERMISSION_KEYS } from '@/permissions/schema'
+import { resolveForProfiled } from '@/permissions/store'
+import { listBoundedCacheStats } from '@/services/boundedCache'
 import { useDeckStore } from '@/stores/deck'
+import { useLogsStore } from '@/stores/logs'
+import { useStreamInspectorStore } from '@/stores/streamInspector'
+import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
 import { listenTauri } from '@/utils/tauriEvents'
 
 export interface QueryRequest {
@@ -14,6 +23,30 @@ export interface QueryRequest {
 }
 
 type QueryHandler = (params: Record<string, unknown>) => unknown
+
+/**
+ * Query Bridge トレース (#977 / #897 の IPC 可視化)。往復ごとに種別と
+ * 所要時間を記録するリングバッファ。'querybridge/trace' 自身は記録しない
+ * (自己汚染防止)。
+ */
+const QUERY_TRACE_MAX = 100
+const queryTrace: { at: number; type: string; ms: number; error: boolean }[] =
+  []
+
+function recordQueryTrace(type: string, ms: number, result: unknown) {
+  if (type === 'querybridge/trace') return
+  queryTrace.unshift({
+    at: Date.now(),
+    type,
+    ms: Math.round(ms * 10) / 10,
+    error:
+      typeof result === 'object' &&
+      result !== null &&
+      !Array.isArray(result) &&
+      'error' in result,
+  })
+  if (queryTrace.length > QUERY_TRACE_MAX) queryTrace.length = QUERY_TRACE_MAX
+}
 
 const handlers: Record<string, QueryHandler> = {
   'deck/columns': () => {
@@ -43,6 +76,69 @@ const handlers: Record<string, QueryHandler> = {
 
   // /api/health のフロント側パート: WebView 死活の証明 + ストリーム接続状態
   'health/streams': () => listStreamHealth(),
+
+  // --- dev ダッシュボード向け読み取り診断 (#977) ---
+  // ephemeral トークン (dev) 前提。永続トークン (external principal) には
+  // permissions_gate の route_rule が既定 Deny を返すので開かない
+
+  'startup/trace': () => ({
+    entries: getStartupEntries(),
+    webviewFixedCost: getWebviewFixedCost(),
+  }),
+
+  'heartbeat/status': () => {
+    const { config } = useAiConfig()
+    const hb = config.value.heartbeat
+    return {
+      ...heartbeatStatus,
+      config: {
+        enabled: hb.enabled,
+        intervalMinutes: hb.intervalMinutes,
+        target: hb.target,
+        dailyMaxAiRuns: hb.dailyMaxAiRuns,
+      },
+    }
+  },
+
+  'permissions/resolved': () => {
+    const principals: ProfiledPrincipalId[] = [
+      'ai.chat',
+      'ai.heartbeat',
+      'plugin',
+      'external',
+    ]
+    return {
+      keys: PERMISSION_KEYS,
+      principals: Object.fromEntries(
+        principals.map((id) => [id, resolveForProfiled(id)]),
+      ),
+    }
+  },
+
+  // 上限つきキャッシュ (#987) の実測一覧 — 「必ず上限」不変条件の観測面
+  'perf/caches': () => listBoundedCacheStats(),
+
+  // フロント in-app ログ (console.warn/error のリング)。統合タイムラインが
+  // Rust ログ・SSE とマージして表示する
+  'logs/recent': () => useLogsStore().entries,
+
+  'querybridge/trace': () => queryTrace,
+
+  // Stream Inspector (アダプタ層の raw WS イベント) の種別別カウント。
+  // SSE 側 (Rust イベントバス) との突き合わせ用。Inspector カラムが
+  // 開いているときだけ流入する
+  'inspector/recent': () => {
+    const buffer = useStreamInspectorStore().buffer
+    const counts: Record<string, number> = {}
+    for (const entry of buffer) {
+      counts[entry.kind] = (counts[entry.kind] ?? 0) + 1
+    }
+    return {
+      total: buffer.length,
+      counts,
+      oldestTs: buffer.length ? (buffer[buffer.length - 1]?.ts ?? null) : null,
+    }
+  },
 
   // --- 外部アプリ向け capability 面 (#709) ---
   // 権限は external principal のプロファイルで gate される (dispatcher が照合)。
@@ -99,7 +195,9 @@ export async function initApiBridge() {
   const unlistenFn = await listenTauri(
     'nd:query-request',
     async ({ id, type, params }) => {
+      const started = performance.now()
       const result = await handleQuery(type, params)
+      recordQueryTrace(type, performance.now() - started, result)
 
       // 動的イベント名なので TauriEventPayloads の対象外 (型付け不可)
       await emit(`nd:query-response-${id}`, result)
