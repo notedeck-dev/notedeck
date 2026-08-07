@@ -1,14 +1,23 @@
 import { decode } from 'blurhash'
+import { createBoundedCache } from '@/services/boundedCache'
+import { usePerformanceStore } from '@/stores/performance'
 
-const cache = new Map<string, string | null>()
+// 長時間スクロールで見た blurhash がすべて残り続けていた (#987)。
+// data URL は 1 件あたり数 KB あるので、素の Map では単調増加する
+const cache = createBoundedCache<string, string | null>(() => {
+  try {
+    return usePerformanceStore().get('blurhashCacheMax')
+  } catch {
+    return 256
+  }
+})
 
 /**
  * blurhash を data URL (32x32 PNG) にデコードする。
  * 画像ロード完了までのプレースホルダ用。結果はプロセス内でキャッシュする。
  */
 export function blurhashToDataUrl(hash: string): string | null {
-  const cached = cache.get(hash)
-  if (cached !== undefined) return cached
+  if (cache.has(hash)) return cache.get(hash) ?? null
 
   let result: string | null = null
   try {

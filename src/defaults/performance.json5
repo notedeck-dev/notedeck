@@ -1,5 +1,6 @@
 {
   "emojiCachePerHost": 4000,
+  "emojiCacheHosts": 32,
   "emojiListHosts": 4,
   "emojiPersistPerHost": 500,
   "noteStoreMax": 1500,
@@ -9,6 +10,7 @@
   "chatMessageStoreMax": 5000,
   "maxNotifications": 300,
   "mfmCacheMax": 256,
+  "blurhashCacheMax": 256,
   "imageProxyCacheMax": 128,
   "ogpCacheMax": 256,
   "noteCaptureMax": 80,

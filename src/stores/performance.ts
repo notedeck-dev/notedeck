@@ -15,6 +15,7 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
 export interface PerformanceConfig {
   // Emoji cache
   emojiCachePerHost: number
+  emojiCacheHosts: number
   emojiListHosts: number
   emojiPersistPerHost: number
   // Notes
@@ -25,6 +26,7 @@ export interface PerformanceConfig {
   chatMessageStoreMax: number
   // Parse cache
   mfmCacheMax: number
+  blurhashCacheMax: number
   imageProxyCacheMax: number
   ogpCacheMax: number
   // Realtime

@@ -64,6 +64,10 @@ const clearedBefore = ref(0)
  * 無効化(OFF)したカラムの subscriptionId 集合。デフォルトは全カラム有効＝空集合。
  * kind ピルと同じファセット型: 有効(色付き)=そのカラムのイベントを流す。
  * クリックで OFF にしたカラムだけ除外する。
+ * 注: main チャンネル (通知/メンション) はアカウント単位で 1 本の共有購読
+ * (#984) のため、通知カラムとメンションカラムは同じ subscriptionId を持つ。
+ * どちらかを OFF にすると main 由来イベント全体が非表示になる — 種別で
+ * 絞りたいときは kind ピルを使う。
  */
 const disabledSubIds = ref(new Set<string>())
 

@@ -206,6 +206,8 @@ WebSocket 接続は維持したまま、subscription 単位で channel から **
 
 **重要**: 「可視・予算外」だけでは suspend しない。これをやると見えているのに reaction が永続的に取り逃される（Misskey は再送しない）。
 
+**main チャンネルは suspend / unsubscribe の対象外** (#984): Misskey の `main` は `shouldShare` チャンネルで **1 WS 接続に 1 本しか張れない**（2 本目の connect はサーバーが黙って無視する）。通知・メンション・OS 通知・未読バッジがすべてこの 1 本にぶら下がるため、main の寿命はカラム（query）ではなく**アカウントセッション**に属する。`StreamingManager` は main をアカウント単位で dedup し、main への `unsubscribe` / `suspend_subscription` を no-op にする。解放経路は `disconnect` のみ。
+
 #### A-4c. Reaction freshness guarantees
 
 **場所**: `useNoteCapture` + `noteStore.applyUpdate`
@@ -390,7 +392,7 @@ canonical key（serde JSON）で同一 query を dedup し、`subscriber_count` 
 
 **コマンド:**
 
-- `query_subscribe_{timeline,antenna,channel,role,mentions,notifications,chat_user,chat_room}` — `connect → open → attach_stream_subscription` を 1 IPC で行い `QuerySnapshot` を返す
+- `query_subscribe_{timeline,antenna,channel,role,mentions,notifications,chat_user,chat_room}` — `connect → open → attach_stream_subscription` を 1 IPC で行い `QuerySnapshot` を返す。ただし mentions / notifications は main 共有のため `attach_shared_stream_subscription`（snapshot にだけ subscription id を載せ、配送マップには登録しない）を使う
 - `query_open(key)` — stream は張らず query レコードだけ作る（read-only 用途）
 - `query_set_runtime_state(queryId, state)` — `live | warm | suspended`。live ↔ suspended 遷移時は対応する subscription も resume / suspend
 - `query_close(queryId)` — refcount-- し 0 になったら stream も unsubscribe
@@ -419,11 +421,12 @@ note 本体は保持せず、id 列だけを順序付きで持つ。理由:
 
 `StreamChange::from_event` が以下の stream-* を `Insert(item)` / `Delete(id)` に正規化し `apply()` で entry に反映:
 
-- `stream-note` / `stream-mention` → `payload.note`
-- `stream-notification` → `payload.notification`
+- `stream-note` → `payload.note`
 - `stream-chat-message` → `payload.message`
 - `stream-note-updated` (updateType = `deleted`) → `payload.noteId` を削除
 - `stream-chat-message-deleted` → `payload.messageId` を削除
+
+**main 由来イベントは subscription_id で引かない** (#984): `stream-notification` / `stream-mention` は `ingest_stream_event` の冒頭で **(account_id, 種別) → QueryKey** に解決する（`NoteCaptureUpdated` と同じ「アカウント単位イベント」の型）。main はアカウント単位 1 本の共有購読で、mentions / notifications の複数 query がぶら下がるため、`query_ids_by_subscription` の 1:1 マップでは配れない。この経路は attach 不要 — query が開いてさえいれば届く。
 
 **Delta emit:**
 
@@ -714,7 +717,7 @@ graph TB
 
 - Rust / Tauri 側の subscription を `QueryKey` 単位で 1 本だけ持つ
 - 複数 column observer に配信する
-- observer 数が 0 になったとき即 unsubscribe（refcount-- が 0 で `query_close` → `stream_unsubscribe`）
+- observer 数が 0 になったとき即 unsubscribe（refcount-- が 0 で `query_close` → `stream_unsubscribe`）。ただし main（mentions / notifications の購読元）は共有チャンネルのため unsubscribe は no-op で、アカウントの `disconnect` まで生きる (#984)
 - 再表示時に `sinceId` 差分 fetch + 既存 query の resume を行う
 
 ### ViewModel Layer

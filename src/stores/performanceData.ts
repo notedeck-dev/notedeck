@@ -28,6 +28,16 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     description:
       'ホストあたりのカスタム絵文字キャッシュ数。大規模サーバーは5000+の絵文字を持つ',
   },
+  emojiCacheHosts: {
+    min: 4,
+    max: 200,
+    step: 4,
+    unit: 'ホスト',
+    category: 'emoji',
+    label: '辞書保持ホスト数',
+    description:
+      '絵文字を解決するための辞書を保持するホスト数。連合先が増えるほど育つので上限で頭を打たせる',
+  },
   emojiListHosts: {
     min: 1,
     max: 10,
@@ -92,6 +102,16 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     category: 'cache',
     label: 'MFMキャッシュ',
     description: 'MFMパース結果のLRUキャッシュ上限',
+  },
+  blurhashCacheMax: {
+    min: 64,
+    max: 2048,
+    step: 64,
+    unit: '件',
+    category: 'cache',
+    label: 'blurhashキャッシュ',
+    description:
+      '画像ロード前のプレースホルダ (blurhash → data URL) のLRUキャッシュ上限',
   },
   imageProxyCacheMax: {
     min: 32,
@@ -509,6 +529,7 @@ export const CATEGORY_LABELS: Record<
 /** Slider endpoint: t=0 (省メモリ) */
 export const SLIDER_LOW: PerformanceConfig = {
   emojiCachePerHost: 2000,
+  emojiCacheHosts: 8,
   emojiListHosts: 2,
   emojiPersistPerHost: 200,
   noteStoreMax: 800,
@@ -516,6 +537,7 @@ export const SLIDER_LOW: PerformanceConfig = {
   maxNotifications: 100,
   chatMessageStoreMax: 2000,
   mfmCacheMax: 128,
+  blurhashCacheMax: 128,
   imageProxyCacheMax: 64,
   ogpCacheMax: 128,
   noteCaptureMax: 40,
@@ -563,6 +585,7 @@ export const SLIDER_LOW: PerformanceConfig = {
 /** Slider endpoint: t=1 (高パフォーマンス) */
 export const SLIDER_HIGH: PerformanceConfig = {
   emojiCachePerHost: 7000,
+  emojiCacheHosts: 64,
   emojiListHosts: 6,
   emojiPersistPerHost: 700,
   noteStoreMax: 3000,
@@ -570,6 +593,7 @@ export const SLIDER_HIGH: PerformanceConfig = {
   maxNotifications: 500,
   chatMessageStoreMax: 10000,
   mfmCacheMax: 512,
+  blurhashCacheMax: 512,
   imageProxyCacheMax: 512,
   ogpCacheMax: 512,
   noteCaptureMax: 150,
