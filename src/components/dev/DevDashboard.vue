@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { json as jsonLang } from '@codemirror/lang-json'
-import { defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
+import {
+  computed,
+  defineAsyncComponent,
+  onMounted,
+  onUnmounted,
+  ref,
+} from 'vue'
 
 /**
  * Dev Dashboard (#977) — ブラウザ (5173) から実行中アプリの内蔵 HTTP サーバー
@@ -174,15 +180,161 @@ function prettyData(row: SseRow): string {
   }
 }
 
+// --- Capabilities 実行盤 ---
+// external principal として dispatcher を通る = 権限ゲート (#712) と
+// 確認ダイアログの実挙動をそのまま目視テストできる
+
+interface Capability {
+  id: string
+  name: string
+  label: string
+  category: string
+  description: string
+  params: Record<string, unknown>
+  returns: unknown
+  permissions: string[]
+  requiresConfirmation: boolean
+}
+
+const capabilities = ref<Capability[]>([])
+const selectedCapId = ref('')
+const selectedCap = computed(
+  () => capabilities.value.find((c) => c.id === selectedCapId.value) ?? null,
+)
+const capParams = ref('{}')
+const capResult = ref('')
+const capStatus = ref<number | null>(null)
+const capRunning = ref(false)
+const capCategories = computed(() => {
+  const map = new Map<string, Capability[]>()
+  for (const c of capabilities.value) {
+    const list = map.get(c.category) ?? []
+    list.push(c)
+    map.set(c.category, list)
+  }
+  return [...map.entries()]
+})
+
+async function loadCapabilities() {
+  try {
+    const res = await fetch('/api/capabilities')
+    if (res.ok) {
+      const data: unknown = await res.json()
+      if (Array.isArray(data)) capabilities.value = data as Capability[]
+    }
+  } catch {
+    // アプリ未起動
+  }
+}
+
+function onSelectCap() {
+  capResult.value = ''
+  capStatus.value = null
+  capParams.value = '{}'
+}
+
+async function executeCap() {
+  const cap = selectedCap.value
+  if (!cap || capRunning.value) return
+  capRunning.value = true
+  capResult.value = ''
+  capStatus.value = null
+  try {
+    const parsed: unknown = capParams.value.trim()
+      ? JSON.parse(capParams.value)
+      : null
+    const res = await fetch(
+      `/api/capabilities/${encodeURIComponent(cap.id)}/execute`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed),
+      },
+    )
+    capStatus.value = res.status
+    capResult.value = JSON.stringify(await res.json(), null, 2)
+  } catch (e) {
+    capResult.value = String(e)
+  } finally {
+    capRunning.value = false
+  }
+}
+
+// --- Rust ログ tail ---
+// /dev/logs は Vite dev server の面 (vite.config.ts)。tracing の
+// 日次ローテートログを SSE で流してくる。イベント名なしなので EventSource でよい
+
+interface LogRow {
+  seq: number
+  line: string
+  level: 'error' | 'warn' | 'info' | 'debug'
+}
+
+const LOG_BUFFER_MAX = 500
+const logRows = ref<LogRow[]>([])
+const logState = ref<'stopped' | 'connecting' | 'open'>('stopped')
+const logFilter = ref('')
+let logEs: EventSource | null = null
+let logSeq = 0
+
+const filteredLogRows = computed(() => {
+  const q = logFilter.value.trim().toLowerCase()
+  if (!q) return logRows.value
+  return logRows.value.filter((r) => r.line.toLowerCase().includes(q))
+})
+
+function detectLevel(line: string): LogRow['level'] {
+  const m = line.match(/\b(ERROR|WARN|INFO|DEBUG|TRACE)\b/)
+  const level = m?.[1]?.toLowerCase()
+  if (level === 'error' || level === 'warn' || level === 'debug') return level
+  return 'info'
+}
+
+function connectLogs() {
+  stopLogs()
+  logState.value = 'connecting'
+  const es = new EventSource('/dev/logs')
+  logEs = es
+  es.onopen = () => {
+    logState.value = 'open'
+  }
+  es.onmessage = (e) => {
+    logRows.value.unshift({
+      seq: ++logSeq,
+      line: e.data,
+      level: detectLevel(e.data),
+    })
+    if (logRows.value.length > LOG_BUFFER_MAX)
+      logRows.value.length = LOG_BUFFER_MAX
+  }
+  es.onerror = () => {
+    // EventSource は自動再接続する
+    logState.value = 'connecting'
+  }
+}
+
+function stopLogs() {
+  logEs?.close()
+  logEs = null
+  logState.value = 'stopped'
+}
+
+function clearLogs() {
+  logRows.value = []
+}
+
 onMounted(() => {
   refreshStatus()
   statusTimer = setInterval(refreshStatus, 5000)
   connectSse()
+  loadCapabilities()
+  connectLogs()
 })
 
 onUnmounted(() => {
   if (statusTimer) clearInterval(statusTimer)
   stopSse()
+  stopLogs()
 })
 </script>
 
@@ -202,7 +354,7 @@ onUnmounted(() => {
     </header>
 
     <div :class="$style.grid">
-      <section :class="$style.panel">
+      <section :class="[$style.panel, $style.gridDeck]">
         <h2 :class="$style.panelTitle">デッキ状態 — カラム {{ columns.length }} 本</h2>
         <div :class="$style.tableWrap">
           <table :class="$style.table">
@@ -246,7 +398,7 @@ onUnmounted(() => {
         />
       </section>
 
-      <section :class="[$style.panel, $style.ssePanel]">
+      <section :class="[$style.panel, $style.ssePanel, $style.gridSse]">
         <h2 :class="$style.panelTitle">
           SSE ライブビューア (/api/events)
           <span :class="[$style.sseBadge, sseState === 'open' && $style.sseOpen]">{{ sseState }}</span>
@@ -284,6 +436,109 @@ onUnmounted(() => {
           </div>
           <p v-if="!sseRows.length" :class="$style.sseEmpty">
             イベント待機中 — デッキにノートや通知が流れると表示されます
+          </p>
+        </div>
+      </section>
+
+      <section :class="[$style.panel, $style.gridCaps]">
+        <h2 :class="$style.panelTitle">
+          Capabilities 実行盤
+          <span :class="$style.sseCount">{{ capabilities.length }} 件</span>
+        </h2>
+        <select
+          v-model="selectedCapId"
+          :class="$style.capSelect"
+          @change="onSelectCap"
+        >
+          <option value="" disabled>capability を選択…</option>
+          <optgroup
+            v-for="[cat, caps] in capCategories"
+            :key="cat"
+            :label="cat"
+          >
+            <option v-for="c in caps" :key="c.id" :value="c.id">
+              {{ c.id }} — {{ c.label }}
+            </option>
+          </optgroup>
+        </select>
+        <template v-if="selectedCap">
+          <p :class="$style.capDesc">
+            {{ selectedCap.description || selectedCap.label }}
+          </p>
+          <p :class="$style.capMeta">
+            <span
+              v-for="p in selectedCap.permissions"
+              :key="p"
+              :class="$style.permChip"
+            >{{ p }}</span>
+            <span
+              v-if="selectedCap.requiresConfirmation"
+              :class="$style.confirmChip"
+            >確認ダイアログあり (アプリ側に表示)</span>
+          </p>
+          <details v-if="Object.keys(selectedCap.params).length">
+            <summary :class="$style.summary">params スキーマ</summary>
+            <CodeEditor
+              :model-value="JSON.stringify(selectedCap.params, null, 2)"
+              :language="lang"
+              read-only
+              auto-height
+            />
+          </details>
+          <CodeEditor v-model="capParams" :language="lang" auto-height />
+          <div :class="$style.sseControls">
+            <button
+              type="button"
+              :class="$style.btn"
+              :disabled="capRunning"
+              @click="executeCap"
+            >
+              {{ capRunning ? '実行中…' : '実行' }}
+            </button>
+            <span v-if="capStatus !== null" :class="$style.capStatus">
+              HTTP {{ capStatus }}
+            </span>
+          </div>
+          <CodeEditor
+            v-if="capResult"
+            :model-value="capResult"
+            :language="lang"
+            read-only
+            auto-height
+          />
+        </template>
+      </section>
+
+      <section :class="[$style.panel, $style.ssePanel, $style.gridLogs]">
+        <h2 :class="$style.panelTitle">
+          Rust ログ tail (notedeck.log)
+          <span :class="[$style.sseBadge, logState === 'open' && $style.sseOpen]">{{ logState }}</span>
+        </h2>
+        <div :class="$style.sseControls">
+          <input
+            v-model="logFilter"
+            :class="$style.filterInput"
+            placeholder="絞り込み (部分一致)"
+          />
+          <button type="button" :class="$style.btn" @click="connectLogs">再接続</button>
+          <button type="button" :class="$style.btn" @click="stopLogs">停止</button>
+          <button type="button" :class="$style.btn" @click="clearLogs">クリア</button>
+        </div>
+        <div :class="$style.sseList">
+          <div
+            v-for="row in filteredLogRows"
+            :key="row.seq"
+            :class="[
+              $style.logLine,
+              row.level === 'error'
+                ? $style.logError
+                : row.level === 'warn'
+                  ? $style.logWarn
+                  : '',
+            ]"
+          >{{ row.line }}</div>
+          <p v-if="!filteredLogRows.length" :class="$style.sseEmpty">
+            ログ待機中 — アプリ側の tracing 出力がここに流れます
           </p>
         </div>
       </section>
@@ -351,8 +606,28 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr);
+  grid-template-columns: minmax(300px, 1fr) minmax(0, 1.6fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    'deck sse'
+    'caps logs';
   gap: 16px;
+}
+
+.gridDeck {
+  grid-area: deck;
+}
+
+.gridSse {
+  grid-area: sse;
+}
+
+.gridCaps {
+  grid-area: caps;
+}
+
+.gridLogs {
+  grid-area: logs;
 }
 
 .panel {
@@ -539,5 +814,67 @@ onUnmounted(() => {
   text-align: center;
   font-size: 0.85rem;
   opacity: 0.5;
+}
+
+.capSelect {
+  padding: 6px 10px;
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius-md);
+  background: var(--nd-bg);
+  color: var(--nd-fg);
+  font-family: var(--nd-font-mono);
+  font-size: 0.8rem;
+}
+
+.capDesc {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.capMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.permChip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--nd-buttonBg);
+  font-family: var(--nd-font-mono);
+  font-size: 0.7rem;
+}
+
+.confirmChip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--nd-warn, #c90);
+  color: #fff;
+  font-size: 0.7rem;
+}
+
+.capStatus {
+  align-self: center;
+  font-family: var(--nd-font-mono);
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.logLine {
+  padding: 1px 6px;
+  font-family: var(--nd-font-mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border-bottom: 1px solid var(--nd-divider);
+}
+
+.logError {
+  color: #f66;
+}
+
+.logWarn {
+  color: #da3;
 }
 </style>

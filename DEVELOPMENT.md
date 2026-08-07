@@ -198,6 +198,13 @@ attach モードはデバイス側アプリを終了させず、デッキ操作�
 - **SSE ライブビューア** — `/api/events` を購読して Rust 側イベントバスの
   流れをリアルタイム表示。type prefix フィルタ（`note,notification,main-` の
   ようにカンマ区切り）、切断時自動再接続。行クリックでペイロードを展開
+- **Capabilities 実行盤** — 登録済み capability の一覧からパラメータを
+  JSON で組んで実行。external principal として dispatcher を通るので、
+  権限ゲート（[#712](https://github.com/notedeck-dev/notedeck/issues/712)）の deny・確認ダイアログ・DispatchResult → HTTP status の
+  写像をそのまま目視テストできる
+- **Rust ログ tail** — アプリの tracing ログ（`notedeck.log` 日次ローテート）
+  を Vite dev server の `/dev/logs` が SSE で流す。レベル別色分けと部分一致
+  フィルタ付き。ログの所在は `/api` インデックスが開示する `logDir` から解決
 - **Scalar API ドキュメント** — `/api/docs` へのリンク
 
 仕組み: Vite の dev proxy（`vite.config.ts`）が `/api` と `/proxy` を
