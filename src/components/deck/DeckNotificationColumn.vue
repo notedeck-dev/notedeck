@@ -44,11 +44,14 @@ import { useReadMarker } from '@/composables/useReadMarker'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { getStreamHealth } from '@/core/streamHealth'
 import { createBoundedCache } from '@/services/boundedCache'
+import { mergeNotifications as mergeNotificationLists } from '@/services/notificationMerge'
 import { syncNotificationNotes } from '@/services/notificationNoteSync'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePerformanceStore } from '@/stores/performance'
+import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useServersStore } from '@/stores/servers'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { useToast } from '@/stores/toast'
@@ -118,7 +121,25 @@ const {
 
 const isLoggedOut = computed(() => account.value?.hasToken === false)
 
+// ポーリング中はライブ更新の供給元が定期取得であることを示す (#1003)。
+// オフラインモード中も isRealtime は false になるが、それはポーリング
+// ではないので出さない
+const realtimeModeStore = useRealtimeModeStore()
+const offlineModeStore = useOfflineModeStore()
+const isPollingMode = computed(
+  () => !realtimeModeStore.isRealtime && !offlineModeStore.isOfflineMode,
+)
+// そもそも取得しに行く先があるか。cross-account は account が常に undefined
+// なので isLoggedOut では判定できない (全アカウントがログアウトでも false)
+const hasAuthenticatedAccount = computed(() =>
+  isCrossAccount.value
+    ? accountsStore.accounts.some((a) => a.hasToken)
+    : account.value?.hasToken === true,
+)
+
 const crossSubscriptions: ChannelSubscription[] = []
+/** connectCrossAccount の並行実行を識別する世代番号 (#1005) */
+let crossReconnectGeneration = 0
 
 const { navigateToUser: navToUser, navigateToNote: navToNote } = useNavigation()
 const noteSound = useNoteSound(() => account.value?.host, 'syuilo/n-ea')
@@ -306,17 +327,12 @@ const followRequestStates = ref<Record<string, 'accepted' | 'rejected'>>({})
 function mergeNotifications(
   fresh: NormalizedNotification[],
   cached: NormalizedNotification[],
-  limit = perfStore.get('maxNotifications'),
 ): NormalizedNotification[] {
-  const map = new Map<string, NormalizedNotification>()
-  for (const n of cached) map.set(n.id, n)
-  for (const n of fresh) map.set(n.id, n) // fresh overwrites cached
-  // ISO 8601 strings are lexicographically sortable — avoid Date object allocation
-  return [...map.values()]
-    .sort((a, b) =>
-      b.createdAt > a.createdAt ? 1 : b.createdAt < a.createdAt ? -1 : 0,
-    )
-    .slice(0, limit)
+  return mergeNotificationLists(
+    fresh,
+    cached,
+    perfStore.get('maxNotifications'),
+  )
 }
 
 /** Debounced cache save — flushes on unmount */
@@ -437,11 +453,10 @@ function flushRafBuffer() {
   if (rafBuffer.length === 0) return
   const batch = rafBuffer
   rafBuffer = []
-  const updated = [...batch, ...notifications.value]
-  notifications.value =
-    updated.length > perfStore.get('maxNotifications')
-      ? updated.slice(0, perfStore.get('maxNotifications'))
-      : updated
+  // 単純 prepend だと、復帰時に resumeBackfill の REST 補完で取り込み済みの
+  // 通知がストリーム再配信からも届いたとき重複表示になる (#1006)。
+  // REST 経路と同じマージ規則 (ID 一意) を通す
+  notifications.value = mergeNotifications(batch, notifications.value)
   saveCache()
 }
 
@@ -625,6 +640,22 @@ watch(
   },
 )
 
+// cross-account: アカウントの追加/削除で購読を張り直す (#1005)。
+// 追加分は購読が無く、カラムを開き直すまでストリームされなかった。
+// connectCrossAccount は全購読を dispose して作り直すので、削除で残る
+// 死に購読の掃除も兼ねる
+watch(
+  () =>
+    accountsStore.accounts
+      .filter((a) => a.hasToken)
+      .map((a) => a.id)
+      .join(','),
+  () => {
+    if (!isCrossAccount.value) return
+    void connectCrossAccount(true)
+  },
+)
+
 // When account loses token (logout with keep-data), switch to cache display
 watch(
   () => account.value?.hasToken,
@@ -715,11 +746,22 @@ async function connectPerAccount(useCache = false) {
 }
 
 async function connectCrossAccount(useCache = false) {
+  // この呼び出しの世代。#1005 でアカウント集合の変化と復帰補完の両方から
+  // 呼ばれるようになり、並行実行が現実的になった。古い呼び出しが新しい
+  // 呼び出しの購読を dispose して旧アカウント集合で張り直すのを防ぐため、
+  // await をまたいだあとは自分が最新でなければ何も書かずに降りる
+  const generation = ++crossReconnectGeneration
+  const isStale = () => generation !== crossReconnectGeneration
+
   error.value = null
   isLoading.value = true
   noMoreData.value = false
   const accounts = accountsStore.accounts.filter((a) => a.hasToken)
-  const cached = loadCache()
+  // 削除済みアカウントの通知を永続キャッシュから復活させない。
+  // 表示中リストの filter (下の watch) だけでは localStorage に残った分が
+  // ここでマージされて戻ってしまう
+  const aliveAccountIds = new Set(accountsStore.accounts.map((a) => a.id))
+  const cached = loadCache().filter((n) => aliveAccountIds.has(n._accountId))
 
   if (useCache && cached.length > 0) {
     notifications.value = cached
@@ -733,6 +775,7 @@ async function connectCrossAccount(useCache = false) {
         return fetchNotifications(adapter.api, acc.host)
       }),
     )
+    if (isStale()) return
 
     const allNotifs: NormalizedNotification[] = []
     for (const r of results) {
@@ -753,6 +796,7 @@ async function connectCrossAccount(useCache = false) {
     // Set up streaming for each account
     for (const acc of accounts) {
       const adapter = await multiAdapters.getOrCreate(acc.id)
+      if (isStale()) return
       if (!adapter) continue
       adapter.stream.connect()
       crossSubscriptions.push(
@@ -772,13 +816,15 @@ async function connectCrossAccount(useCache = false) {
       )
     }
   } catch (e) {
+    if (isStale()) return
     if (cached.length > 0) {
       notifications.value = cached
     } else {
       error.value = AppError.from(e)
     }
   } finally {
-    isLoading.value = false
+    // 新しい呼び出しがロード中なら、その表示状態を奪わない
+    if (!isStale()) isLoading.value = false
   }
 }
 
@@ -1008,19 +1054,23 @@ watch(
   () => void resumeBackfill(),
 )
 
-// WS 瞬断からの再接続でも切断中に欠けた通知を埋める (#704 K)
+// WS 瞬断からの再接続でも切断中に欠けた通知を埋める (#704 K)。
+// cross-account は全アカウントの health を見て、どれか 1 つでも
+// 切断→復帰したら補完する (#1005)
 watch(
-  () =>
-    props.column.accountId
-      ? getStreamHealth(props.column.accountId)?.state
-      : undefined,
-  (state, prev) => {
-    if (
-      state === 'connected' &&
-      (prev === 'reconnecting' || prev === 'disconnected')
-    ) {
-      void resumeBackfill()
-    }
+  () => {
+    const ids = props.column.accountId
+      ? [props.column.accountId]
+      : accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.id)
+    return Object.fromEntries(ids.map((id) => [id, getStreamHealth(id)?.state]))
+  },
+  (states, prev) => {
+    const recovered = Object.entries(states).some(
+      ([id, state]) =>
+        state === 'connected' &&
+        (prev?.[id] === 'reconnecting' || prev?.[id] === 'disconnected'),
+    )
+    if (recovered) void resumeBackfill()
   },
 )
 
@@ -1096,6 +1146,10 @@ onUnmounted(() => {
     />
 
     <div v-else :class="$style.notifBody">
+      <div v-if="isPollingMode && hasAuthenticatedAccount" :class="$style.pollingBanner">
+        <i class="ti ti-bolt-off" />ポーリング
+      </div>
+
       <div v-if="isLoading && notifications.length === 0" :class="$style.columnLoading">
         <LoadingSpinner />
       </div>

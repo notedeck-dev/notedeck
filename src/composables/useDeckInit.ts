@@ -17,6 +17,7 @@ import { handleDeepLink } from '@/composables/useDeepLink'
 import { initOgpListener } from '@/composables/useOgpPreview'
 import { destroyApiBridge, initApiBridge } from '@/core/apiBridge'
 import { reattachQueryDeltaListener } from '@/core/queryDeltaBus'
+import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePluginsStore } from '@/stores/plugins'
@@ -93,6 +94,19 @@ export function useDeckInit(options: {
 
     // Critical: start streaming immediately
     deckStore.startSync()
+
+    // 永続化されたリアルタイムモードをバックエンドへ適用する (#1004)。
+    // UI 表示は settings から復元されるが、バックエンドは適用を受けるまで
+    // 常に realtime で動く。アカウント一覧が要るのでロード完了後に呼ぶ
+    // (loadAccounts は冪等で、main.ts が開始済みの Promise を返すだけ)
+    void useAccountsStore()
+      .loadAccounts()
+      .then(() => useRealtimeModeStore().applyPersistedMode())
+      .catch((e) => {
+        // モード適用に失敗してもアプリ起動は続行する (次回起動で矯正される)。
+        // ここで握らないと unhandled rejection になる
+        console.warn('[realtime-mode] failed to apply persisted mode:', e)
+      })
 
     // Load navbar from file (async, non-blocking)
     deckStore.initNavbar()
