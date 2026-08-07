@@ -25,6 +25,23 @@ describe('createBoundedCache', () => {
     expect(cache.has('b')).toBe(false)
   })
 
+  it('非有限の上限 (NaN / Infinity) は 1 に丸めて無制限化を防ぐ', () => {
+    // performance.json5 は手編集可能で、JSON5 は NaN / Infinity をリテラルと
+    // して許す。Math.max(1, NaN) は NaN になり eviction 比較が常に false に
+    // なる (= 無制限キャッシュ復活) ため、非有限は最小値に落とす
+    const nan = createBoundedCache<string, number>(() => Number.NaN)
+    nan.set('a', 1)
+    nan.set('b', 2)
+    expect(nan.size).toBe(1)
+
+    const inf = createBoundedCache<string, number>(
+      () => Number.POSITIVE_INFINITY,
+    )
+    inf.set('a', 1)
+    inf.set('b', 2)
+    expect(inf.size).toBe(1)
+  })
+
   it('同じキーの上書きはサイズを増やさない', () => {
     const cache = createBoundedCache<string, number>(2)
     cache.set('a', 1)

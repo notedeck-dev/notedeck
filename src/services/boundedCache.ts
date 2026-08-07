@@ -31,8 +31,14 @@ export function createBoundedCache<K, V>(
 ): BoundedCache<K, V> {
   const map = new Map<K, V>()
   // 0 以下は「キャッシュ無効」ではなく 1 に丸める。設定ミスで毎回の
-  // 再計算に落ちるより、最小限でも効いているほうが害が小さい
-  const maxOf = () => Math.max(1, typeof max === 'function' ? max() : max)
+  // 再計算に落ちるより、最小限でも効いているほうが害が小さい。
+  // 非有限 (NaN / Infinity — JSON5 の手編集で到達可能) も 1 に落とす:
+  // Math.max(1, NaN) は NaN で eviction 比較が常に false になり、
+  // 「必ず上限」の不変条件 (#987) が静かに破れる
+  const maxOf = () => {
+    const value = typeof max === 'function' ? max() : max
+    return Number.isFinite(value) ? Math.max(1, value) : 1
+  }
 
   return {
     get(key) {

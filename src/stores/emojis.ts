@@ -80,9 +80,18 @@ export const useEmojisStore = defineStore('emojis', () => {
     // (undefined を混ぜると has() が true を返し、以後取得を skip してしまう)
     if (typeof obj.hosts !== 'object' || obj.hosts === null) return
     const map = new Map<string, Record<string, string>>()
+    const perHost = Math.max(1, perfStore.get('emojiCachePerHost'))
     for (const [host, entry] of Object.entries(obj.hosts)) {
       if (typeof entry?.emojis !== 'object' || entry.emojis === null) continue
-      map.set(host, entry.emojis)
+      // 保存側の上限 (emojiPersistPerHost) と読み側の上限は独立に変えられる。
+      // 上限を下げたあとの起動や旧形式の大きな保存物をそのまま抱えない
+      const entries = Object.entries(entry.emojis)
+      map.set(
+        host,
+        entries.length > perHost
+          ? Object.fromEntries(entries.slice(0, perHost))
+          : entry.emojis,
+      )
       if (typeof entry.fetchedAt === 'number')
         fetchedAt.set(host, entry.fetchedAt)
     }
@@ -262,6 +271,10 @@ export const useEmojisStore = defineStore('emojis', () => {
     missedNames.delete(host)
     try {
       const emojis = await fetcher()
+      // フェッチ中に host が上限で追い出されていたら結果を捨てる。
+      // ここで set() すると追い出し済み host が復活し、より新しい host を
+      // 逆に押し出してしまう (forgetHost は fetchers も消すのでそれで判る)
+      if (!fetchers.has(host)) return
       set(host, emojis)
       // 取り直しても存在しなかった名前は隔離する
       if (missed) {
@@ -309,6 +322,15 @@ export const useEmojisStore = defineStore('emojis', () => {
         nextLookup[e.name] = e.url
         // 再登録された絵文字を拾えるよう unknown から解放する
         unknown?.delete(e.name)
+      }
+      // emojiAdded の積み重ねで set() の上限 (emojiCachePerHost) を素通り
+      // させない。追加分 (末尾) を残し、古いキー (先頭) から削る
+      const perHost = Math.max(1, perfStore.get('emojiCachePerHost'))
+      const names = Object.keys(nextLookup)
+      if (names.length > perHost) {
+        for (const name of names.slice(0, names.length - perHost)) {
+          delete nextLookup[name]
+        }
       }
     }
     const nextCache = new Map(cache.value)
