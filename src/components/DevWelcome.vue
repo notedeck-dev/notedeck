@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
+import DevDashboard from '@/components/dev/DevDashboard.vue'
 
 /**
  * ブラウザ (`pnpm dev`) で開いたときのフォールバック画面 兼
@@ -7,7 +8,7 @@ import { onMounted, ref } from 'vue'
  *
  * Vite の dev proxy (vite.config.ts) が内蔵 HTTP サーバー (19820, #940) へ
  * Bearer 注入付きで橋渡しするので、ここからは相対パスの fetch で external API
- * を叩ける。実行中のアプリが見つかれば疎通状態を表示する。
+ * を叩ける。実行中のアプリが見つかればダッシュボードに切り替える。
  *
  * ここは製品画面ではないが、アプリのトークン (`--nd-*`) をそのまま使う。
  * 独自のカラーパレットを持たせると、テーマを変えたときにここだけ取り残される。
@@ -16,44 +17,41 @@ declare const __APP_VERSION__: string
 const appVersion = __APP_VERSION__
 
 const connected = ref(false)
-const columnCount = ref<number | null>(null)
+let probeTimer: ReturnType<typeof setTimeout> | null = null
 
-onMounted(async () => {
+// アプリ起動待ちポーリング: tauri:dev の起動を検知したら自動でダッシュボードへ
+async function probe() {
   try {
     const index = await fetch('/api')
-    if (!index.ok) return
-    connected.value = true
-    const cols = await fetch('/api/deck/columns')
-    if (cols.ok) {
-      const data: unknown = await cols.json()
-      if (Array.isArray(data)) columnCount.value = data.length
+    if (index.ok) {
+      connected.value = true
+      return
     }
   } catch {
-    // アプリ未起動 (proxy 先が居ない) — 起動案内の表示を維持する
+    // アプリ未起動 (proxy 先が居ない)
   }
+  probeTimer = setTimeout(probe, 3000)
+}
+
+onMounted(probe)
+onUnmounted(() => {
+  if (probeTimer) clearTimeout(probeTimer)
 })
 </script>
 
 <template>
   <div :class="$style.page">
-    <div :class="$style.center">
+    <DevDashboard v-if="connected" />
+    <div v-else :class="$style.center">
       <img src="/favicon.svg" alt="" :class="$style.icon" />
       <h1 :class="$style.title">NoteDeck</h1>
       <p :class="$style.tagline">Misskey Pro — Misskey廃人のための Misskey IDE</p>
-      <div v-if="connected" :class="$style.notice">
-        <p :class="$style.connectedRow">
-          <span :class="$style.dot" />
-          実行中のアプリに接続しています<template v-if="columnCount !== null"> — カラム {{ columnCount }} 本</template>
-        </p>
-        <a :class="$style.docsLink" href="/api/docs" target="_blank" rel="noopener">
-          API ドキュメント (Scalar) を開く
-        </a>
-      </div>
-      <div v-else :class="$style.notice">
+      <div :class="$style.notice">
         <p>デスクトップアプリとして起動してください</p>
         <div :class="$style.cmd">
           <code><span :class="$style.prompt">$</span> pnpm tauri:dev</code>
         </div>
+        <p :class="$style.hint">起動を検知すると自動で Dev Dashboard に切り替わります</p>
       </div>
       <p :class="$style.version">v{{ appVersion }}</p>
     </div>
@@ -134,28 +132,9 @@ onMounted(async () => {
   margin-right: 0.5rem;
 }
 
-.connectedRow {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--nd-success, #6c6);
-  flex: none;
-}
-
-.docsLink {
-  color: var(--nd-accent);
-  font-size: 0.9rem;
-
-  &:hover {
-    text-decoration: underline;
-  }
+.hint {
+  font-size: 0.75rem;
+  opacity: 0.45;
 }
 
 .version {
