@@ -82,6 +82,24 @@ export function swapInGroup(
   return result
 }
 
+/**
+ * Whether moving a column to `targetIndex` would leave the layout unchanged.
+ *
+ * スタック中のカラムは、自分のグループのすぐ隣に挿入してもグループから
+ * 抜けるという変化が起きるので no-op ではない (#1026)。
+ */
+export function isInsertNoop(
+  layout: string[][],
+  id: string,
+  targetIndex: number,
+): boolean {
+  const groupIdx = groupIndexOf(layout, id)
+  if (groupIdx < 0) return false
+  const group = layout[groupIdx]
+  if (!group || group.length > 1) return false
+  return targetIndex === groupIdx || targetIndex === groupIdx + 1
+}
+
 /** Move a column to a new group at the target index. Returns null on failure. */
 export function insertColumnAt(
   layout: string[][],
@@ -93,7 +111,7 @@ export function insertColumnAt(
   const group = layout[groupIdx]
   if (!group) return null
 
-  if (group.length === 1 && groupIdx === targetIndex) return null
+  if (isInsertNoop(layout, id, targetIndex)) return null
 
   const newGroup = group.filter((colId) => colId !== id)
   const newLayout = [...layout]

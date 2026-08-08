@@ -10,6 +10,7 @@ import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useDeckStore } from '@/stores/deck'
 import { useIsCompactLayout } from '@/stores/ui'
 import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
+import { isInsertNoop } from '@/utils/deckLayout'
 import { COLUMN_SELECTOR } from '@/utils/themeVars'
 import DeckStackCell from './DeckStackCell.vue'
 
@@ -155,16 +156,8 @@ const dropInsertIndex = computed(() => {
   const dt = columnDrag.dropTarget.value
   if (!dt || !('insertIndex' in dt)) return -1
   const dragId = columnDrag.dragColumnId.value
-  if (dragId) {
-    const fromIdx = deckStore.windowLayout.findIndex((ids) =>
-      ids.includes(dragId),
-    )
-    if (
-      fromIdx >= 0 &&
-      (dt.insertIndex === fromIdx || dt.insertIndex === fromIdx + 1)
-    )
-      return -1
-  }
+  if (dragId && isInsertNoop(deckStore.windowLayout, dragId, dt.insertIndex))
+    return -1
   return dt.insertIndex
 })
 
