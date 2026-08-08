@@ -698,6 +698,46 @@ describe('deck store', () => {
     })
   })
 
+  describe('multi-window layout', () => {
+    /** 2 本のカラムを 1 グループに縦分割して返す */
+    function stackedPair() {
+      const deck = useDeckStore()
+      const col1 = deck.addColumn({
+        type: 'timeline',
+        name: 'A',
+        width: 400,
+        accountId: null,
+      })
+      const col2 = deck.addColumn({
+        type: 'notifications',
+        name: 'B',
+        width: 400,
+        accountId: null,
+      })
+      deck.stackColumn(col2.id, col1.id, 'below')
+      return { deck, col1, col2 }
+    }
+
+    it('moveColumnToWindow は分割を解除してから移す', () => {
+      const { deck, col1, col2 } = stackedPair()
+
+      deck.moveColumnToWindow(col2.id, 'w1')
+
+      expect(deck.layout).toEqual([[col1.id], [col2.id]])
+    })
+
+    it('windowLayout は同じグループ内の他ウィンドウのカラムを含めない', () => {
+      const { deck, col1, col2 } = stackedPair()
+      // 分割したまま移された旧データ相当の状態を直接作る
+      deck.updateColumn(col2.id, { windowId: 'w1' })
+
+      expect(deck.windowLayout).toEqual([[col1.id]])
+
+      deck.currentWindowId = 'w1'
+      expect(deck.windowLayout).toEqual([[col2.id]])
+    })
+  })
+
   describe('deck wallpaper', () => {
     it('setWallpaper sets wallpaper URL', () => {
       const deck = useDeckStore()

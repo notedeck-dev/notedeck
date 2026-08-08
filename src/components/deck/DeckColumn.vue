@@ -169,6 +169,18 @@ async function returnToDeck() {
   await getCurrentWindow().close()
 }
 
+/** 縦分割グループの一員かどうか (分割を解除できるのはこのときだけ) */
+const isStacked = computed(() => {
+  const group = deckStore.layout.find((ids) => ids.includes(props.columnId))
+  return (group?.length ?? 0) > 1
+})
+
+/** 縦分割から抜けて独立した 1 本のカラムに戻す */
+function unstack() {
+  closeMenu()
+  deckStore.unstackColumn(props.columnId)
+}
+
 function popOut() {
   closeMenu()
   popOutColumnToWindow(props.columnId)
@@ -339,6 +351,10 @@ function openAsPip() {
         <button v-if="webUiUrl" class="_popupItem" @click="onOpenWebUi">
           <i class="ti ti-external-link" />
           <span>Web UIで開く</span>
+        </button>
+        <button v-if="isStacked" class="_popupItem" @click="unstack">
+          <i class="ti ti-layout-columns" />
+          <span>分割を解除</span>
         </button>
         <button v-if="canPopOut" class="_popupItem" @click="popOut">
           <i class="ti ti-app-window" />

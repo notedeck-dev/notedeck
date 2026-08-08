@@ -1,5 +1,6 @@
 import { nextTick, ref } from 'vue'
 import type { useDeckStore } from '@/stores/deck'
+import { isInsertNoop, toGlobalInsertIndex } from '@/utils/deckLayout'
 import { hapticLight, hapticMedium } from '@/utils/haptics'
 import { emitTauri } from '@/utils/tauriEvents'
 
@@ -195,14 +196,13 @@ export function useColumnDrag(
       return
     }
 
-    // Helper: inserting at fromIdx or fromIdx+1 is a no-op (same position)
-    function isInsertNoop(insertIndex: number): boolean {
+    // Helper: dropping back at the same position changes nothing.
+    // 挿入位置は画面に並んでいるカラムを数えて決まるので、判定も現ウィンドウの
+    // 並びで行う (デッキ全体の並びとは index がずれる — #1027)
+    function isNoop(insertIndex: number): boolean {
       const dragId = dragColumnId.value
-      if (!dragId || !groupIndexMap) return false
-      const fromIdx = groupIndexMap.get(dragId) ?? -1
-      return (
-        fromIdx >= 0 && (insertIndex === fromIdx || insertIndex === fromIdx + 1)
-      )
+      if (!dragId) return false
+      return isInsertNoop(deckStore.windowLayout, dragId, insertIndex)
     }
 
     // Check if hovering over a resize handle or gap between columns
@@ -226,7 +226,7 @@ export function useColumnDrag(
         }
       }
 
-      dropTarget.value = isInsertNoop(insertIndex)
+      dropTarget.value = isNoop(insertIndex)
         ? null
         : { insertIndex, position: 'insert' }
       return
@@ -253,7 +253,7 @@ export function useColumnDrag(
         }
       }
 
-      dropTarget.value = isInsertNoop(insertIndex)
+      dropTarget.value = isNoop(insertIndex)
         ? null
         : { insertIndex, position: 'insert' }
       return
@@ -319,7 +319,14 @@ export function useColumnDrag(
       void animateColumnFlip(() => {
         if (target.position === 'insert') {
           // Drop between columns — unstack / move to position
-          deckStore.insertColumnAt(dragId, target.insertIndex)
+          deckStore.insertColumnAt(
+            dragId,
+            toGlobalInsertIndex(
+              deckStore.layout,
+              deckStore.windowLayout,
+              target.insertIndex,
+            ),
+          )
         } else {
           const { columnId: targetId, position } = target
           const fromIdx = deckStore.layout.findIndex((ids) =>

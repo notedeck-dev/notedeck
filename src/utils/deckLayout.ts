@@ -82,6 +82,24 @@ export function swapInGroup(
   return result
 }
 
+/**
+ * Whether moving a column to `targetIndex` would leave the layout unchanged.
+ *
+ * スタック中のカラムは、自分のグループのすぐ隣に挿入してもグループから
+ * 抜けるという変化が起きるので no-op ではない (#1026)。
+ */
+export function isInsertNoop(
+  layout: string[][],
+  id: string,
+  targetIndex: number,
+): boolean {
+  const groupIdx = groupIndexOf(layout, id)
+  if (groupIdx < 0) return false
+  const group = layout[groupIdx]
+  if (!group || group.length > 1) return false
+  return targetIndex === groupIdx || targetIndex === groupIdx + 1
+}
+
 /** Move a column to a new group at the target index. Returns null on failure. */
 export function insertColumnAt(
   layout: string[][],
@@ -93,7 +111,7 @@ export function insertColumnAt(
   const group = layout[groupIdx]
   if (!group) return null
 
-  if (group.length === 1 && groupIdx === targetIndex) return null
+  if (isInsertNoop(layout, id, targetIndex)) return null
 
   const newGroup = group.filter((colId) => colId !== id)
   const newLayout = [...layout]
@@ -110,6 +128,31 @@ export function insertColumnAt(
   const clampedIndex = Math.max(0, Math.min(adjustedIndex, newLayout.length))
   newLayout.splice(clampedIndex, 0, [id])
   return newLayout
+}
+
+/**
+ * Convert an insert index counted on a per-window layout into an index on the
+ * full deck layout.
+ *
+ * ドラッグの挿入位置は画面に並んでいるカラム (= 現ウィンドウ分) を数えて
+ * 決まるが、レイアウトの書き換えはデッキ全体に対して行う。別ウィンドウへ
+ * 切り出したカラムがあると 2 つの並びは長さが違うので、そのまま渡すと
+ * 位置がずれる (#1027)。
+ */
+export function toGlobalInsertIndex(
+  layout: string[][],
+  windowLayout: string[][],
+  windowIndex: number,
+): number {
+  if (windowLayout.length === 0) return layout.length
+  const clamped = Math.max(0, Math.min(windowIndex, windowLayout.length))
+
+  // 末尾に落としたときは「このウィンドウの最後のカラムの直後」
+  const atEnd = clamped === windowLayout.length
+  const anchor = windowLayout[atEnd ? windowLayout.length - 1 : clamped]?.[0]
+  const anchorIdx = anchor ? groupIndexOf(layout, anchor) : -1
+  if (anchorIdx < 0) return layout.length
+  return atEnd ? anchorIdx + 1 : anchorIdx
 }
 
 /** Remove a column from its group into its own new group. Returns null on failure. */

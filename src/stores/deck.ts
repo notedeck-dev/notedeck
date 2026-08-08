@@ -750,18 +750,25 @@ export const useDeckStore = defineStore('deck', () => {
 
   // --- Multi-window column management ---
 
-  /** Layout groups visible in the current window */
+  /**
+   * Layout groups visible in the current window.
+   *
+   * 所属ウィンドウはカラム 1 枚ごとに持つので、絞り込みもカラム単位で行う。
+   * グループ単位で絞ると、分割グループの 1 枚だけが別ウィンドウにある場合に
+   * 同じグループが両方のウィンドウに現れる (#1027)。
+   */
   const windowLayout = computed(() => {
     const wid = currentWindowId.value
     const colMap = columnMap.value
-    return layout.value.filter((group) =>
-      group.some((colId) => {
-        const col = colMap.get(colId)
-        if (!col) return false
-        if (!wid) return !col.windowId
-        return col.windowId === wid
-      }),
-    )
+    const belongsHere = (colId: string) => {
+      const col = colMap.get(colId)
+      if (!col) return false
+      if (!wid) return !col.windowId
+      return col.windowId === wid
+    }
+    return layout.value
+      .map((group) => group.filter(belongsHere))
+      .filter((group) => group.length > 0)
   })
 
   function popOutColumn(columnId: string, windowId: string) {
@@ -795,6 +802,8 @@ export const useDeckStore = defineStore('deck', () => {
   function moveColumnToWindow(columnId: string, targetWindowId: string | null) {
     const col = getColumn(columnId)
     if (!col) return
+    // 分割したまま移すとグループがウィンドウをまたいでしまう (#1027)
+    unstackColumn(columnId)
     col.windowId = targetWindowId || undefined
     save()
   }
