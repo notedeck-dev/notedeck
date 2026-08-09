@@ -61,17 +61,20 @@ export default defineConfig({
           items: [
             { text: 'NoteDeck とは', link: '/docs/' },
             { text: 'インストール', link: '/docs/install' },
-            { text: '最初のセットアップ', link: '/docs/first-run' },
             { text: 'ログインせずに試す', link: '/docs/guest' },
           ],
         },
         {
+          // アプリ内チュートリアルの「デッキを組む」と 1 対 1。
+          // 最初のセットアップ (ログイン) はデッキを組む最初の一歩なので
+          // ここに置く
           text: 'デッキを組む',
           collapsed: false,
           items: [
+            { text: '最初のセットアップ', link: '/docs/first-run' },
             { text: 'カラムとウィンドウ', link: '/docs/deck/columns' },
-            { text: 'プロファイル', link: '/docs/deck/profiles' },
             { text: 'ナビバー', link: '/docs/deck/navbar' },
+            { text: 'プロファイル', link: '/docs/deck/profiles' },
           ],
         },
         {

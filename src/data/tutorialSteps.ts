@@ -22,8 +22,14 @@ import {
 } from '@/composables/useSpotlight'
 import { useVault } from '@/composables/useVault'
 import { useAccountsStore } from '@/stores/accounts'
+import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { type ColumnType, useDeckStore } from '@/stores/deck'
+import { useDeckProfileStore } from '@/stores/deckProfile'
+import { usePluginsStore } from '@/stores/plugins'
+import { useSkillsStore } from '@/stores/skills'
+import { useThemeStore } from '@/stores/theme'
 import { useUiStore } from '@/stores/ui'
+import { useWidgetsStore } from '@/stores/widgets'
 import { useWindowsStore } from '@/stores/windows'
 import { WINDOW_LABELS } from '@/windows/registry'
 
@@ -59,7 +65,7 @@ export interface TutorialCompletionWatcher {
  * になるようにするため。カテゴリと step はそれぞれ対応するページを持ち、
  * チュートリアルから直接開ける。
  */
-export type TutorialCategoryId = 'getting-started' | 'mastery' | 'extend'
+export type TutorialCategoryId = 'deck' | 'mastery' | 'extend'
 
 export interface TutorialCategory {
   id: TutorialCategoryId
@@ -169,38 +175,53 @@ function hasResolvedAiProvider(): boolean {
   return resolveAiConnection(config.value, useVault().connections.value) != null
 }
 
+/** プロファイルを 2 つ以上持っているか (= 使い分けを作った) */
+function hasExtraProfile(): boolean {
+  return useDeckProfileStore().getProfiles().length > 1
+}
+
+/** 既定から見た目を変えたか (テーマ選択またはカスタム CSS) */
+function hasAppearanceChange(): boolean {
+  const theme = useThemeStore()
+  return theme.customCss.trim().length > 0 || theme.installedThemes.length > 0
+}
+
 /** AI チャットカラム (sidebar スロット) が今開いているか */
 function isAiColumnOpen(): boolean {
   return useDeckStore().columns.some((c) => c.sidebar && c.type === 'ai')
 }
 
 /**
- * カテゴリ定義。表示順がそのまま学習の順序になる。
- * ドキュメントのサイドバー (はじめに → 使いこなす → 拡張をつくる) と
- * 同じ区切り・同じ並び。デッキを組む工程は初回に必ず通るので「はじめに」に
- * まとめている。
+ * カテゴリ定義。ドキュメント (site/) のサイドバーと 1 対 1 に対応させる。
+ *
+ * 「はじめに」(NoteDeck とは / インストール / ログインせずに試す) と
+ * 「設定とデータ」「こまったとき」は読み物なので、対応するカテゴリを持たない。
+ * 操作を教える 3 セクションだけがカテゴリになる。
+ *
+ * 対応は tutorialSteps.test.ts が両方向で検証する — step 側にページが無い
+ * のも、操作を伴うページに step が無いのも落とす。
  */
 export const TUTORIAL_CATEGORIES: TutorialCategory[] = [
   {
-    id: 'getting-started',
-    title: 'はじめに',
-    description: 'アカウントをつなぎ、カラムを並べて使い始める',
-    achievementName: 'はじめの一歩',
+    id: 'deck',
+    title: 'デッキを組む',
+    description: 'アカウントをつなぎ、カラムを並べて自分の配置にする',
+    achievementName: 'デッキ開設',
     achievementEmoji: '🎴',
     docsPath: '/docs/first-run',
   },
   {
     id: 'mastery',
     title: '使いこなす',
-    description: '外部の AI をつないで自分の環境を動かす',
+    description: '探す・見た目を変える・拡張を入れる・AI をつなぐ',
     achievementName: '使い手',
     achievementEmoji: '⌨️',
-    docsPath: '/docs/guide/ai',
+    docsPath: '/docs/guide/search',
   },
   {
     id: 'extend',
     title: '拡張をつくる',
-    description: 'プロトコルを覗き、自分だけのカラムを組み立てる',
+    description: '自分だけのプラグイン・テーマ・クエリを組み立てる',
     achievementName: '拡張の作者',
     achievementEmoji: '🔧',
     docsPath: '/docs/dev/',
@@ -238,7 +259,7 @@ export function buildTutorialSteps(): TutorialStep[] {
 
     {
       id: 'account-login',
-      category: 'getting-started',
+      category: 'deck',
       docsPath: '/docs/first-run',
       title: 'Misskey アカウントを追加',
       description:
@@ -261,7 +282,7 @@ export function buildTutorialSteps(): TutorialStep[] {
 
     {
       id: 'add-first-column',
-      category: 'getting-started',
+      category: 'deck',
       docsPath: '/docs/deck/columns',
       title: '最初のカラムを追加',
       description:
@@ -278,7 +299,7 @@ export function buildTutorialSteps(): TutorialStep[] {
 
     {
       id: 'open-notifications',
-      category: 'getting-started',
+      category: 'deck',
       docsPath: '/docs/deck/navbar',
       title: '通知をサイドバーに開く',
       description:
@@ -306,63 +327,173 @@ export function buildTutorialSteps(): TutorialStep[] {
       },
     },
 
+    {
+      id: 'create-profile',
+      category: 'deck',
+      wizard: false,
+      docsPath: '/docs/deck/profiles',
+      title: 'プロファイルを作る',
+      description:
+        'カラムの並びをまるごと切り替えられます。用途ごとに作っておくと' +
+        '行き来が速くなります。',
+      precheck: () => (hasExtraProfile() ? 'skip' : 'show'),
+      onEnter: () => {
+        const id = useWindowsStore().open('profileEditor', {})
+        useSpotlightStore().highlight(windowTargetId(id), {
+          label: `チュートリアルが${WINDOW_LABELS.profileEditor}を開きました`,
+          durationMs: SPOTLIGHT_MS,
+        })
+      },
+      completion: {
+        watch: () => useDeckProfileStore().getProfiles().length,
+        isComplete: () => hasExtraProfile(),
+      },
+    },
+
     // --- 拡張をつくる (任意線) ---
-    // API キー不要で効く差別化。AI と並列に最初から見えるようにする (#1012)。
+    // ドキュメントの「拡張をつくる」と 1 対 1。AiScript で自分の道具を
+    // 作る流れを、作るものの単位で並べる。
 
     {
-      id: 'open-stream-inspector',
+      id: 'create-plugin',
       category: 'extend',
-      docsPath: '/docs/dev/',
       wizard: false,
-      title: 'Stream Inspector を開く',
+      docsPath: '/docs/dev/plugin',
+      title: 'プラグインを作る',
       description:
-        'カラム追加から「Stream Inspector」を開くと、Misskey との' +
-        'WebSocket イベントが流れるまま見えます。',
-      precheck: () => (isColumnOpen('streamInspector') ? 'skip' : 'show'),
-      onEnter: () =>
-        openAddColumnAndPoint('streamInspector', 'Stream Inspector'),
+        'プラグイン管理を開いて 1 つ追加してみましょう。AiScript で' +
+        'ノートの表示やアクションに手を入れられます。',
+      precheck: () => (usePluginsStore().plugins.length > 0 ? 'skip' : 'show'),
+      onEnter: () => openAddColumnAndPoint('pluginManager', 'プラグイン'),
       completion: {
-        watch: () => isColumnOpen('streamInspector'),
-        isComplete: () => isColumnOpen('streamInspector'),
+        watch: () => usePluginsStore().plugins.length,
+        isComplete: () => usePluginsStore().plugins.length > 0,
       },
     },
 
     {
-      id: 'open-api-console',
+      id: 'create-widget',
       category: 'extend',
-      docsPath: '/docs/dev/',
       wizard: false,
-      title: 'API コンソールを開く',
+      docsPath: '/docs/dev/widget',
+      title: 'ウィジェットを作る',
       description:
-        'カラム追加から「API コンソール」を開くと、Misskey の API を' +
-        '直接叩いて応答を確かめられます。',
-      precheck: () => (isColumnOpen('apiConsole') ? 'skip' : 'show'),
-      onEnter: () => openAddColumnAndPoint('apiConsole', 'API コンソール'),
+        'ウィジェットカラムを開いて 1 つ追加してみましょう。小さな' +
+        'AiScript を常に走らせておけます。',
+      precheck: () => (useWidgetsStore().widgets.length > 0 ? 'skip' : 'show'),
+      onEnter: () => openAddColumnAndPoint('widget', 'ウィジェット'),
       completion: {
-        watch: () => isColumnOpen('apiConsole'),
-        isComplete: () => isColumnOpen('apiConsole'),
+        watch: () => useWidgetsStore().widgets.length,
+        isComplete: () => useWidgetsStore().widgets.length > 0,
       },
     },
 
     {
-      id: 'open-query-manager',
+      id: 'create-theme',
       category: 'extend',
+      wizard: false,
+      docsPath: '/docs/dev/theme',
+      title: 'テーマを作る',
+      description:
+        'テーマ管理を開いて 1 つ作ってみましょう。配色は変数の集まりで' +
+        '定義します。',
+      precheck: () =>
+        useThemeStore().installedThemes.length > 0 ? 'skip' : 'show',
+      onEnter: () => openAddColumnAndPoint('themeManager', 'テーマ'),
+      completion: {
+        watch: () => useThemeStore().installedThemes.length,
+        isComplete: () => useThemeStore().installedThemes.length > 0,
+      },
+    },
+
+    {
+      id: 'create-query',
+      category: 'extend',
+      wizard: false,
       docsPath: '/docs/dev/query',
-      wizard: false,
-      title: 'カラムクエリを開く',
+      title: 'カラムクエリを作る',
       description:
-        'カラム追加から「カラムクエリ」を開くと、AiScript で' +
+        'カラムクエリを開いて 1 つ作ってみましょう。AiScript で' +
         '自分だけのタイムラインを組み立てられます。',
-      precheck: () => (isColumnOpen('queryManager') ? 'skip' : 'show'),
+      precheck: () =>
+        useColumnQueriesStore().queries.length > 0 ? 'skip' : 'show',
       onEnter: () => openAddColumnAndPoint('queryManager', 'カラムクエリ'),
       completion: {
-        watch: () => isColumnOpen('queryManager'),
-        isComplete: () => isColumnOpen('queryManager'),
+        watch: () => useColumnQueriesStore().queries.length,
+        isComplete: () => useColumnQueriesStore().queries.length > 0,
+      },
+    },
+
+    {
+      id: 'create-skill',
+      category: 'extend',
+      wizard: false,
+      docsPath: '/docs/dev/skill',
+      title: 'スキルを作る',
+      description:
+        'スキル管理を開いて 1 つ作ってみましょう。AI に渡す指示を' +
+        'まとめておけます。',
+      precheck: () => (useSkillsStore().skills.length > 0 ? 'skip' : 'show'),
+      onEnter: () => openAddColumnAndPoint('skill', 'スキル'),
+      completion: {
+        watch: () => useSkillsStore().skills.length,
+        isComplete: () => useSkillsStore().skills.length > 0,
       },
     },
 
     // --- 使いこなす (任意線) ---
-    // 外部 LLM の API キーを要するため、初回ウィザードには置かない (#1012)。
+    // ドキュメントの「使いこなす」と対応。キーボード操作と「環境を育てる」は
+    // 操作が状態に残らない / 読み物なので、対応する step を持たない。
+
+    {
+      id: 'open-search',
+      category: 'mastery',
+      wizard: false,
+      docsPath: '/docs/guide/search',
+      title: 'ノートを探す',
+      description: '検索カラムを開いてみましょう。サーバーをまたいで探せます。',
+      precheck: () => (isColumnOpen('search') ? 'skip' : 'show'),
+      onEnter: () => openAddColumnAndPoint('search', '検索'),
+      completion: {
+        watch: () => isColumnOpen('search'),
+        isComplete: () => isColumnOpen('search'),
+      },
+    },
+
+    {
+      id: 'change-appearance',
+      category: 'mastery',
+      wizard: false,
+      docsPath: '/docs/guide/appearance',
+      title: '見た目を変える',
+      description:
+        'テーマ管理からテーマを入れるか、カスタム CSS を書いてみましょう。' +
+        'デッキの見た目は自分で決められます。',
+      precheck: () => (hasAppearanceChange() ? 'skip' : 'show'),
+      onEnter: () => openAddColumnAndPoint('themeManager', 'テーマ'),
+      completion: {
+        watch: () => hasAppearanceChange(),
+        isComplete: () => hasAppearanceChange(),
+      },
+    },
+
+    {
+      id: 'install-from-store',
+      category: 'mastery',
+      wizard: false,
+      docsPath: '/docs/guide/store',
+      title: 'ストアで拡張する',
+      description:
+        'プラグイン管理を開くと、ストアから配布されているものを入れられます。',
+      precheck: () => (isColumnOpen('pluginManager') ? 'skip' : 'show'),
+      onEnter: () => openAddColumnAndPoint('pluginManager', 'プラグイン'),
+      completion: {
+        watch: () => isColumnOpen('pluginManager'),
+        isComplete: () => isColumnOpen('pluginManager'),
+      },
+    },
+
+    // AI は外部 LLM の API キーを要するため、初回ウィザードには置かない (#1012)。
 
     {
       id: 'ai-setup',

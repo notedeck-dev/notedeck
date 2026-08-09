@@ -20,13 +20,13 @@ describe('mergeTutorialNotifications', () => {
   it('解除した実績を achievementEarned として差し込む', () => {
     const progress = unlockAchievement(
       emptyProgress(),
-      'getting-started',
+      'deck',
       Date.parse('2026-08-05T00:00:00Z'),
     )
     const merged = mergeTutorialNotifications([], progress)
     expect(merged).toHaveLength(1)
     expect(merged[0]?.type).toBe('achievementEarned')
-    expect(merged[0]?.achievement).toBe('notedeck:getting-started')
+    expect(merged[0]?.achievement).toBe('notedeck:deck')
   })
 
   it('未解除の実績は出さない', () => {
@@ -36,7 +36,7 @@ describe('mergeTutorialNotifications', () => {
   it('解除時刻の順にサーバー通知と混ぜる (新しい順)', () => {
     const progress = unlockAchievement(
       emptyProgress(),
-      'getting-started',
+      'deck',
       Date.parse('2026-08-05T12:00:00Z'),
     )
     const merged = mergeTutorialNotifications(
@@ -45,7 +45,7 @@ describe('mergeTutorialNotifications', () => {
     )
     expect(merged.map((n) => n.id)).toEqual([
       'a',
-      'notedeck-achievement:getting-started',
+      'notedeck-achievement:deck',
       'b',
     ])
   })

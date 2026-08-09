@@ -35,14 +35,16 @@ describe('buildTutorialSteps', () => {
     ])
   })
 
-  it('AI の step は任意線 (「使いこなす」カテゴリのみ) に置かれる', () => {
-    const ai = buildTutorialSteps().filter((s) => s.category === 'mastery')
+  it('AI の step は任意線 (「使いこなす」カテゴリ) に置かれる', () => {
+    const mastery = buildTutorialSteps().filter((s) => s.category === 'mastery')
+    const ai = mastery.filter((s) => s.id.startsWith('ai-'))
     expect(ai.map((s) => s.id)).toEqual([
       'ai-setup',
       'ai-select-provider',
       'ai-column',
     ])
-    expect(ai.every((s) => s.wizard === false)).toBe(true)
+    // 任意線なので初回ウィザードには出ない
+    expect(mastery.every((s) => s.wizard === false)).toBe(true)
   })
 
   it('最終 step だけが isFinal を持つ', () => {
