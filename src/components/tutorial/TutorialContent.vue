@@ -13,9 +13,20 @@
 import { computed } from 'vue'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { tutorialDocsUrl } from '@/data/tutorialSteps'
+import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
 
 const tutorial = useTutorialStore()
+
+/**
+ * このカードは store が走らせている前提の中身なので、外から直接開かれると
+ * (capability の windows.open など) 空になる。その場合は一覧へ促す。
+ */
+const idle = computed(() => !tutorial.currentStep && !tutorial.runCompleted)
+
+function openChecklist(): void {
+  useWindowsStore().open('tutorialEditor', {})
+}
 
 const stepCount = computed(() => tutorial.totalSteps)
 // 走り切ったら終端に寄せる。途中の index のままだと "1 / 3" と出て
@@ -33,10 +44,31 @@ function openDocs(path: string): void {
 
 <template>
   <div :class="$style.root" aria-live="polite">
+    <!-- 走っていない状態で開かれた: 一覧へ送る -->
+    <template v-if="idle">
+      <div :class="$style.body">
+        <div :class="$style.title">チュートリアル</div>
+        <p :class="$style.description">
+          カテゴリを選んで始められます。一覧から進めてください。
+        </p>
+      </div>
+      <div :class="$style.actions">
+        <button
+          type="button"
+          class="_button"
+          :class="$style.primaryBtn"
+          @click="openChecklist()"
+        >
+          一覧を開く
+        </button>
+      </div>
+    </template>
+
     <!-- Progress dots (上部) — チュートリアルの chapter 構造を可視化。
          ドットをクリックで該当 step に移動できる (= 既設定済みでも前後 step
          を見直し可能。precheck=skip も手動ジャンプは許可) -->
     <div
+      v-if="!idle"
       :class="$style.progress"
       role="tablist"
       :aria-label="`チュートリアル ${stepIndex} / ${stepCount}`"
@@ -63,7 +95,7 @@ function openDocs(path: string): void {
     </div>
 
     <!-- 走り切ったカテゴリの結果。黙って閉じずに、ここで手を止める -->
-    <div v-if="tutorial.runCompleted" :class="$style.body">
+    <div v-if="!idle && tutorial.runCompleted" :class="$style.body">
       <div :class="$style.title">ここまで完了しました</div>
       <p :class="$style.description">
         チュートリアルの一覧から、続きのカテゴリを選べます。
@@ -87,7 +119,7 @@ function openDocs(path: string): void {
     </div>
 
     <!-- Footer actions -->
-    <div :class="$style.actions">
+    <div v-if="!idle" :class="$style.actions">
       <template v-if="tutorial.runCompleted">
         <button
           type="button"

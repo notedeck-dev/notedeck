@@ -297,6 +297,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     label: '実績',
     icon: 'medal',
     group: 'account',
+    // NoteDeck 独自実績 (#1029) はアカウントに紐づかないので、ログイン前でも
+    // 見られる必要がある。サーバー実績タブはログアウト時の表示に従う
+    guestAllowed: true,
     component: () => import('@/components/deck/DeckAchievementsColumn.vue'),
   },
 

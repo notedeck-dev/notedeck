@@ -45,7 +45,12 @@ const SOURCE_TABS: ColumnTabDef[] = [
   { value: 'server', label: 'サーバー', icon: 'server' },
   { value: 'notedeck', label: 'NoteDeck', icon: 'checkbox' },
 ]
-const source = ref<'server' | 'notedeck'>('server')
+// ログイン前はサーバー実績を取れないので、見られる方を既定にする
+const source = ref<'server' | 'notedeck'>(
+  account.value?.hasToken === false || !props.column.accountId
+    ? 'notedeck'
+    : 'server',
+)
 
 const tutorial = useTutorialStore()
 const ownAchievements = computed(() => tutorialAchievements(tutorial.progress))
@@ -58,6 +63,15 @@ const unlockedCount = computed(() => shownAchievements.value.length)
 const totalCount = computed(() =>
   isOwn.value ? TUTORIAL_ACHIEVEMENT_TOTAL : ACHIEVEMENT_TOTAL,
 )
+
+/** 引いて更新。NoteDeck タブは達成記録を読み直す (サーバーは叩かない) */
+async function refresh() {
+  if (isOwn.value) {
+    await tutorial.loadProgress()
+    return
+  }
+  await fetchAchievements()
+}
 
 async function fetchAchievements() {
   if (!props.column.accountId) return
@@ -92,7 +106,7 @@ function scrollToTop() {
 </script>
 
 <template>
-  <DeckColumn :column-id="column.id" :title="column.name ?? '実績'" :theme-vars="columnThemeVars" :pull-refresh="fetchAchievements" @refresh="fetchAchievements()" @header-click="scrollToTop">
+  <DeckColumn :column-id="column.id" :title="column.name ?? '実績'" :theme-vars="columnThemeVars" :pull-refresh="refresh" @refresh="refresh()" @header-click="scrollToTop">
     <template #header-icon>
       <i class="ti ti-medal" :class="$style.tlHeaderIcon" />
     </template>
@@ -105,7 +119,13 @@ function scrollToTop() {
     </template>
 
     <template #header-extra>
-      <ColumnTabs :tabs="SOURCE_TABS" :model-value="source" compact @update:model-value="source = $event as 'server' | 'notedeck'" />
+      <ColumnTabs
+        :tabs="SOURCE_TABS"
+        :model-value="source"
+        :swipe-target="achievementsScrollRef"
+        compact
+        @update:model-value="source = $event as 'server' | 'notedeck'"
+      />
     </template>
 
     <div ref="achievementsScrollRef" :class="$style.achievementsScroll">

@@ -301,6 +301,20 @@ const { viewMarkerId } = useReadMarker(
   () => notifications.value[0]?.id ?? null,
 )
 
+/**
+ * 前回読了位置より上に「実際の通知」があるか。合成した実績 (#1029) は
+ * 数えない — 実績が marker より新しいだけで、新着ゼロでも「ここから未読」の
+ * 線が出てしまう。
+ */
+const hasUnreadAboveMarker = computed(() => {
+  const id = viewMarkerId.value
+  if (!id) return false
+  const list = filteredNotifications.value
+  const idx = list.findIndex((n) => n.id === id)
+  if (idx <= 0) return false
+  return list.slice(0, idx).some((n) => !isTutorialNotificationId(n.id))
+})
+
 const suspensionsStore = useSuspensionsStore()
 watch(notifications, (items) => probeSuspensions(items), { immediate: true })
 
@@ -1198,7 +1212,7 @@ onUnmounted(() => {
         <template #default="{ item: notif, index }">
           <div>
             <ReadMarkerDivider
-              v-if="viewMarkerId && index > 0 && notif.id === viewMarkerId"
+              v-if="viewMarkerId && hasUnreadAboveMarker && notif.id === viewMarkerId"
             />
             <!-- Grouped notification: reaction:grouped / renote:grouped -->
             <div
