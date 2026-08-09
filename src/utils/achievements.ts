@@ -3,6 +3,17 @@ export interface Achievement {
   unlockedAt: number
 }
 
+/**
+ * バッジの見た目。Misskey サーバー実績と NoteDeck 独自実績 (#1029) で
+ * 同じ描画を共有するため、グリッド側ではなくここに置く。
+ */
+export interface AchievementBadge {
+  emoji: string
+  frame: 'bronze' | 'silver' | 'gold' | 'platinum'
+  /** 解除済みのときの内側の背景。null なら frame の既定色 */
+  bg: string | null
+}
+
 export const ACHIEVEMENT_TYPES = [
   'notes1',
   'notes10',

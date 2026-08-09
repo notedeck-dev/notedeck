@@ -336,6 +336,13 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     anchor: 'top-right',
     component: () => import('@/components/tutorial/TutorialContent.vue'),
   },
+  tutorialEditor: {
+    label: 'チュートリアル',
+    icon: 'ti ti-checkbox',
+    width: 500,
+    maxHeight: 700,
+    component: () => import('@/components/window/TutorialEditorContent.vue'),
+  },
 }
 
 // ============================================================

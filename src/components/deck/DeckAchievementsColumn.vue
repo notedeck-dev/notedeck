@@ -6,12 +6,22 @@ import MkAchievementsGrid from '@/components/common/MkAchievementsGrid.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
+import { useTutorialStore } from '@/composables/useTutorial'
+import {
+  TUTORIAL_ACHIEVEMENT_BADGES,
+  TUTORIAL_ACHIEVEMENT_LABELS,
+  TUTORIAL_ACHIEVEMENT_TOTAL,
+  TUTORIAL_ACHIEVEMENT_TYPES,
+  tutorialAchievements,
+} from '@/services/tutorialAchievements'
 import { getAccountAvatarUrl } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { ACHIEVEMENT_TOTAL, type Achievement } from '@/utils/achievements'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import type { ColumnTabDef } from './ColumnTabs.vue'
+import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
 
 const props = defineProps<{
@@ -27,7 +37,27 @@ const achievements = ref<Achievement[]>([])
 const loading = ref(false)
 const error = ref<AppError | null>(null)
 
-const unlockedCount = computed(() => achievements.value.length)
+/**
+ * サーバー実績 (Misskey) と NoteDeck 独自実績 (#1029) の切替。
+ * カラムを増やさず、同じグリッドで出し分ける。
+ */
+const SOURCE_TABS: ColumnTabDef[] = [
+  { value: 'server', label: 'サーバー', icon: 'server' },
+  { value: 'notedeck', label: 'NoteDeck', icon: 'checkbox' },
+]
+const source = ref<'server' | 'notedeck'>('server')
+
+const tutorial = useTutorialStore()
+const ownAchievements = computed(() => tutorialAchievements(tutorial.progress))
+
+const isOwn = computed(() => source.value === 'notedeck')
+const shownAchievements = computed(() =>
+  isOwn.value ? ownAchievements.value : achievements.value,
+)
+const unlockedCount = computed(() => shownAchievements.value.length)
+const totalCount = computed(() =>
+  isOwn.value ? TUTORIAL_ACHIEVEMENT_TOTAL : ACHIEVEMENT_TOTAL,
+)
 
 async function fetchAchievements() {
   if (!props.column.accountId) return
@@ -49,6 +79,7 @@ async function fetchAchievements() {
 }
 
 fetchAchievements()
+void tutorial.loadProgress()
 
 const achievementsScrollRef = useTemplateRef<HTMLElement>(
   'achievementsScrollRef',
@@ -67,14 +98,25 @@ function scrollToTop() {
     </template>
 
     <template #header-meta>
-      <span v-if="unlockedCount > 0" :class="$style.headerCount">{{ unlockedCount }}/{{ ACHIEVEMENT_TOTAL }}</span>
+      <span v-if="unlockedCount > 0" :class="$style.headerCount">{{ unlockedCount }}/{{ totalCount }}</span>
       <div v-if="account" :class="$style.headerAccount">
         <img :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)" :class="$style.headerAvatar" />
       </div>
     </template>
 
+    <template #header-extra>
+      <ColumnTabs :tabs="SOURCE_TABS" :model-value="source" compact @update:model-value="source = $event as 'server' | 'notedeck'" />
+    </template>
+
     <div ref="achievementsScrollRef" :class="$style.achievementsScroll">
-      <div v-if="loading && achievements.length === 0 && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
+      <MkAchievementsGrid
+        v-if="isOwn"
+        :achievements="ownAchievements"
+        :types="TUTORIAL_ACHIEVEMENT_TYPES"
+        :badges="TUTORIAL_ACHIEVEMENT_BADGES"
+        :labels="TUTORIAL_ACHIEVEMENT_LABELS"
+      />
+      <div v-else-if="loading && achievements.length === 0 && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
       <ColumnEmptyState
         v-else-if="error && !isLoggedOut"
         :error="error"

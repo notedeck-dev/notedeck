@@ -2,7 +2,6 @@
 import { getTauriVersion } from '@tauri-apps/api/app'
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import type { Check, HealthReport, Status } from '@/bindings'
-import { useTutorialStore } from '@/composables/useTutorial'
 import { useUpdater } from '@/composables/useUpdater'
 import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
@@ -23,20 +22,11 @@ const tauriVersion = ref('')
 const rustVersion = ref('')
 const copied = ref(false)
 const uiStore = useUiStore()
-const tutorialStore = useTutorialStore()
 const accountsStore = useAccountsStore()
 
 const REPO_URL = 'https://github.com/notedeck-dev/notedeck'
 const SITE_URL = 'https://notedeck.io'
 const SPONSOR_URL = 'https://github.com/sponsors/hitalin'
-
-// チュートリアル (= ヘルプ/案内) の再実行はここから。設定メニューではなく
-// About に置く (チュートリアルは設定項目ではないため)。ほぼ一度しか使われない
-// 機能なので CTA にはせず、リンク行 (formLink) の1つに置く。起動時に About は閉じる。
-function openTutorial(): void {
-  tutorialStore.start()
-  emit('close')
-}
 
 // バージョン情報テーブルは普段は畳んでおく (必要なのはバグ報告・コピー時で、
 // その2つは表示に依存せず infoRows から本文を生成する)
@@ -421,13 +411,6 @@ function reportBug() {
         <span v-if="isUpToDate">最新</span>
       </button>
       <div v-else :class="$style.aboutVersion">v{{ appVersion }}</div>
-    </div>
-
-    <div :class="$style.aboutLinks">
-      <button type="button" class="_button" :class="$style.pillBtn" @click="openTutorial">
-        <i class="ti ti-presentation-analytics" />
-        チュートリアルを見る
-      </button>
     </div>
 
     <!-- アップデートは hero から切り離した独立セクション (VSCode の

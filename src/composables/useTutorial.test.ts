@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { nextTick } from 'vue'
+import { nextTick, ref } from 'vue'
 import { useWindowsStore } from '@/stores/windows'
 import { useTutorialStore } from './useTutorial'
 
@@ -14,14 +14,21 @@ const mockSteps: Array<{
   id: string
   title: string
   description: string
+  category?: string
+  wizard?: boolean
   onEnter?: () => void
   precheck?: () => 'skip' | 'show'
   completion?: { watch: () => unknown; isComplete: (v: unknown) => boolean }
   isFinal?: boolean
 }> = []
 
+const mockCategories: Array<{ id: string; title: string }> = []
+
 vi.mock('@/data/tutorialSteps', () => ({
   buildTutorialSteps: () => mockSteps.map((s) => ({ ...s })),
+  get TUTORIAL_CATEGORIES() {
+    return mockCategories
+  },
 }))
 
 const settingsSetSpy = vi.fn()
@@ -33,6 +40,7 @@ describe('useTutorialStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     mockSteps.length = 0
+    mockCategories.length = 0
     settingsSetSpy.mockReset()
   })
 
@@ -234,5 +242,140 @@ describe('useTutorialStore', () => {
     store.start() // 既に active なので二重 open しない
     expect(store.currentStep?.id).toBe('b')
     expect(windowsStore.windows.length).toBe(beforeCount)
+  })
+})
+
+describe('カテゴリ実行と実績 (#1029)', () => {
+  const done = ref(false)
+
+  beforeEach(() => {
+    done.value = false
+    setActivePinia(createPinia())
+    mockSteps.length = 0
+    mockCategories.length = 0
+    settingsSetSpy.mockReset()
+    mockCategories.push({ id: 'getting-started', title: 'はじめに' })
+    mockSteps.push(
+      { id: 'welcome', title: 'W', description: '' },
+      {
+        id: 'a',
+        title: 'A',
+        description: '',
+        category: 'getting-started',
+        wizard: false,
+        precheck: () => 'show',
+      },
+      {
+        id: 'b',
+        title: 'B',
+        description: '',
+        category: 'getting-started',
+        wizard: false,
+        precheck: () => 'show',
+      },
+      { id: 'complete', title: 'C', description: '', isFinal: true },
+    )
+  })
+
+  it('初回ウィザードは wizard: false の step を含まない', () => {
+    const store = useTutorialStore()
+    store.start()
+    expect(store.totalSteps).toBe(2) // welcome + complete
+  })
+
+  it('startCategory はそのカテゴリの step だけを積む', () => {
+    const store = useTutorialStore()
+    store.startCategory('getting-started')
+    expect(store.active).toBe(true)
+    expect(store.totalSteps).toBe(2)
+    expect(store.currentStep?.id).toBe('a')
+  })
+
+  it('カテゴリを走り切っても完走フラグは立たない (ウィザードのものなので)', () => {
+    const store = useTutorialStore()
+    store.startCategory('getting-started')
+    store.next()
+    store.next() // 終端
+    expect(store.active).toBe(false)
+    expect(settingsSetSpy).not.toHaveBeenCalled()
+  })
+
+  it('カテゴリの全項目を満たすと実績が解除される', () => {
+    const store = useTutorialStore()
+    // 2 項目とも達成済みの状態にする
+    for (const s of mockSteps) {
+      if (s.category) s.precheck = () => 'skip'
+    }
+    store.syncProgress()
+    expect(store.progress.achievements['getting-started']).toBeDefined()
+  })
+
+  it('一部しか満たしていなければ実績は解除されない', () => {
+    const store = useTutorialStore()
+    const a = mockSteps.find((s) => s.id === 'a')
+    if (a) a.precheck = () => 'skip'
+    store.syncProgress()
+    expect(store.progress.items['a']).toBeDefined()
+    expect(store.progress.achievements['getting-started']).toBeUndefined()
+  })
+
+  it('達成済みの項目は状態が戻っても未達成にならない (latch)', () => {
+    const store = useTutorialStore()
+    const a = mockSteps.find((s) => s.id === 'a')
+    if (a) a.precheck = () => 'skip'
+    store.syncProgress()
+    // カラムを閉じた相当: 状態が false に戻る
+    if (a) a.precheck = () => 'show'
+    expect(store.isStepDone({ id: 'a', title: 'A', description: '' })).toBe(
+      true,
+    )
+  })
+
+  it('完了済みのカテゴリも先頭から見直せる', () => {
+    const store = useTutorialStore()
+    for (const s of mockSteps) {
+      if (s.category) s.precheck = () => 'skip'
+    }
+    store.startCategory('getting-started')
+    expect(store.active).toBe(true)
+    expect(store.currentStep?.id).toBe('a')
+  })
+
+  it('category では達成しても自動で次に進まない (次 step が勝手に開かない)', async () => {
+    let opened = false
+    const a = mockSteps.find((s) => s.id === 'a')
+    const b = mockSteps.find((s) => s.id === 'b')
+    if (a) {
+      a.completion = { watch: () => done.value, isComplete: (v) => v === true }
+    }
+    if (b) {
+      b.onEnter = () => {
+        opened = true
+      }
+    }
+    const store = useTutorialStore()
+    store.startCategory('getting-started')
+    expect(store.currentStep?.id).toBe('a')
+    done.value = true
+    await nextTick()
+    // 達成は記録されるが step は動かない
+    expect(store.stepCompleted).toBe(true)
+    expect(store.currentStep?.id).toBe('a')
+    expect(opened).toBe(false)
+    // ユーザーが [次へ] を押して初めて次の onEnter が走る
+    store.next()
+    expect(store.currentStep?.id).toBe('b')
+    expect(opened).toBe(true)
+  })
+
+  it('resetProgress で達成記録が消える', () => {
+    const store = useTutorialStore()
+    for (const s of mockSteps) {
+      if (s.category) s.precheck = () => 'skip'
+    }
+    store.syncProgress()
+    store.resetProgress()
+    expect(store.progress.items).toEqual({})
+    expect(store.progress.achievements).toEqual({})
   })
 })

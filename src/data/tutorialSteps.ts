@@ -22,7 +22,7 @@ import {
 } from '@/composables/useSpotlight'
 import { useVault } from '@/composables/useVault'
 import { useAccountsStore } from '@/stores/accounts'
-import { useDeckStore } from '@/stores/deck'
+import { type ColumnType, useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { WINDOW_LABELS } from '@/windows/registry'
@@ -44,6 +44,31 @@ export interface TutorialCompletionWatcher {
   isComplete: (value: unknown) => boolean
 }
 
+/**
+ * チュートリアルのカテゴリ。チェックリストの見出し単位であり、
+ * 完走すると NoteDeck 独自実績が 1 つ解除される単位でもある (#1029)。
+ *
+ * 並びと区切りは公式ドキュメント (site/ の VitePress) のサイドバーに合わせて
+ * ある。ドキュメントを読み進める順序と、アプリを触って覚える順序が同じもの
+ * になるようにするため。カテゴリと step はそれぞれ対応するページを持ち、
+ * チュートリアルから直接開ける。
+ */
+export type TutorialCategoryId = 'getting-started' | 'mastery' | 'extend'
+
+export interface TutorialCategory {
+  id: TutorialCategoryId
+  /** チェックリストの見出し。ドキュメントのセクション名に揃える */
+  title: string
+  /** 見出し下の 1 行説明 */
+  description: string
+  /** カテゴリ完走で解除される実績の表示名 */
+  achievementName: string
+  /** 実績バッジの絵文字 */
+  achievementEmoji: string
+  /** 対応するドキュメントのパス */
+  docsPath: string
+}
+
 export interface TutorialStep {
   /** step id (kebab-case)。テスト・デバッグ用 */
   id: string
@@ -51,6 +76,18 @@ export interface TutorialStep {
   title: string
   /** カード本文。改行を含んでよい */
   description: string
+  /**
+   * 所属カテゴリ。未指定 = チェックリストに出さない (welcome / complete like
+   * な、完了検知を持たない wizard 専用カード)。
+   */
+  category?: TutorialCategoryId
+  /** この step を詳しく説明しているドキュメントのパス */
+  docsPath?: string
+  /**
+   * 初回ウィザードの必須線に含めるか。既定 true。
+   * API キーを要する AI などは false にして任意線 (カテゴリ) に置く (#1012)。
+   */
+  wizard?: boolean
   /** step に入った時に一度だけ呼ばれるアクション (windows.open など) */
   onEnter?: () => void
   /** 既に満たされていれば skip するかを返す。未指定 = 常に show */
@@ -67,15 +104,6 @@ export interface TutorialStep {
   isFinal?: boolean
 }
 
-/**
- * 接続のうち、AI プロバイダ (protocol 付き) のものが 1 件以上あるか判定。
- * Vault は AI 用接続 / 一般 fetch 用接続を同居させているので、protocol 有無で
- * AI 用かどうかを判別する。
- */
-function hasAnyAiConnection(): boolean {
-  return useVault().connections.value.some((c) => c.protocol != null)
-}
-
 /** hasToken (= 実認証) 済みの実アカウントが 1 件以上あるか */
 function hasAuthenticatedAccount(): boolean {
   return useAccountsStore().accounts.some((a) => a.hasToken)
@@ -86,9 +114,39 @@ function hasAnyColumn(): boolean {
   return useDeckStore().columns.length > 0
 }
 
-/** AI チャットカラム (sidebar スロット) が今開いているか */
-function isAiColumnOpen(): boolean {
-  return useDeckStore().columns.some((c) => c.sidebar && c.type === 'ai')
+/** 通知カラム (sidebar スロット) が今開いているか */
+function isNotificationsColumnOpen(): boolean {
+  return useDeckStore().columns.some(
+    (c) => c.sidebar && c.type === 'notifications',
+  )
+}
+
+/** 指定種別のカラムが今開いているか */
+function isColumnOpen(type: ColumnType): boolean {
+  return useDeckStore().columns.some((c) => c.type === type)
+}
+
+/**
+ * カラム追加 UI を開き、指定種別の項目を spotlight で指し示す。
+ * desktop はコマンドパレット (+ モード)、compact は AddColumnDialog。どちらも
+ * add-column コマンド (toggleAddMenu) 経由で開く。dialog は遅延ロードなので
+ * duration を長めに取る。
+ */
+function openAddColumnAndPoint(type: ColumnType, label: string): void {
+  useCommandStore().execute('add-column')
+  useSpotlightStore().highlight(commandItemTargetId(`col-${type}`), {
+    label: `チュートリアルが${label}の項目を示しています`,
+    durationMs: 6000,
+  })
+}
+
+/**
+ * 接続のうち、AI プロバイダ (protocol 付き) のものが 1 件以上あるか判定。
+ * Vault は AI 用接続 / 一般 fetch 用接続を同居させているので、protocol 有無で
+ * AI 用かどうかを判別する。
+ */
+function hasAnyAiConnection(): boolean {
+  return useVault().connections.value.some((c) => c.protocol != null)
 }
 
 /** AI プロバイダ (アクティブ接続) が選択・解決済みか */
@@ -97,17 +155,61 @@ function hasResolvedAiProvider(): boolean {
   return resolveAiConnection(config.value, useVault().connections.value) != null
 }
 
+/** AI チャットカラム (sidebar スロット) が今開いているか */
+function isAiColumnOpen(): boolean {
+  return useDeckStore().columns.some((c) => c.sidebar && c.type === 'ai')
+}
+
+/**
+ * カテゴリ定義。表示順がそのまま学習の順序になる。
+ * ドキュメントのサイドバー (はじめに → 使いこなす → 拡張をつくる) と
+ * 同じ区切り・同じ並び。デッキを組む工程は初回に必ず通るので「はじめに」に
+ * まとめている。
+ */
+export const TUTORIAL_CATEGORIES: TutorialCategory[] = [
+  {
+    id: 'getting-started',
+    title: 'はじめに',
+    description: 'アカウントをつなぎ、カラムを並べて使い始める',
+    achievementName: 'はじめの一歩',
+    achievementEmoji: '🎴',
+    docsPath: '/docs/first-run',
+  },
+  {
+    id: 'mastery',
+    title: '使いこなす',
+    description: '外部の AI をつないで自分の環境を動かす',
+    achievementName: '使い手',
+    achievementEmoji: '⌨️',
+    docsPath: '/docs/guide/ai',
+  },
+  {
+    id: 'extend',
+    title: '拡張をつくる',
+    description: 'プロトコルを覗き、自分だけのカラムを組み立てる',
+    achievementName: '拡張の作者',
+    achievementEmoji: '🔧',
+    docsPath: '/docs/dev/',
+  },
+]
+
+/** ドキュメントのパスから公開 URL を作る */
+export function tutorialDocsUrl(docsPath: string): string {
+  return `https://notedeck.io${docsPath}`
+}
+
 /**
  * チュートリアル step リスト。順序がそのままユーザー体験の順序になる。
- * 最小限で「ログイン → カラム → AI 接続/プロバイダ選択 → AIカラム」まで通す。
  *
- * 1. welcome          — NoteDeck の趣旨を一言
- * 2. account-login    — Misskey にログイン
- * 3. add-first-column — 最初のカラム (ホーム TL) を追加 = デッキを体得
- * 4. ai-setup         — AI プロバイダの API キーを Vault に登録
- * 5. ai-select-provider — AI 設定で接続をプロバイダとして選択
- * 6. ai-column        — サイドバーの AI ボタン (spotlight) から AI カラムを開く
- * 7. complete         — 完了カード
+ * AI の設定は初回ウィザードの必須線に置かない (#1012)。API キーを持たない
+ * 利用者がここで止まるため、ウィザードは API キー不要の範囲 (wizard: true)
+ * だけで完走できるようにする。AI は任意線として「使いこなす」に置き、
+ * チェックリストから後で出会う。
+ *
+ * 初回ウィザード (wizard: true):
+ *   welcome → account-login → add-first-column → open-notifications → complete
+ *
+ * チェックリスト (category 付き): はじめに → 使いこなす → 拡張をつくる
  */
 export function buildTutorialSteps(): TutorialStep[] {
   return [
@@ -115,13 +217,15 @@ export function buildTutorialSteps(): TutorialStep[] {
       id: 'welcome',
       title: 'NoteDeck へようこそ',
       description:
-        'NoteDeck は Misskey を、カラムを並べたデッキ・コマンドパレット・AI で' +
+        'NoteDeck は Misskey を、カラムを並べたデッキとコマンドパレットで' +
         '統合した環境です。基本を数ステップで案内します。' +
         '途中でやめても、設定済みの内容は保たれます。',
     },
 
     {
       id: 'account-login',
+      category: 'getting-started',
+      docsPath: '/docs/first-run',
       title: 'Misskey アカウントを追加',
       description:
         'ログインウィンドウで Misskey サーバーのホスト名' +
@@ -143,23 +247,15 @@ export function buildTutorialSteps(): TutorialStep[] {
 
     {
       id: 'add-first-column',
+      category: 'getting-started',
+      docsPath: '/docs/deck/columns',
       title: '最初のカラムを追加',
       description:
         'NoteDeck はカラムを並べて使います。カラム追加 (＋) から' +
         '「タイムライン」を選ぶとホームタイムラインが表示されます。' +
         '追加すると自動で次へ進みます。',
       precheck: () => (hasAnyColumn() ? 'skip' : 'show'),
-      onEnter: () => {
-        // カラム追加 UI を開く: desktop はコマンドパレット (+ モード)、compact は
-        // AddColumnDialog。どちらも add-column コマンド (toggleAddMenu) 経由で開く。
-        // 開いた UI の「タイムライン」項目を spotlight で指し示す (palette/dialog
-        // 共通ターゲット)。dialog は遅延ロードなので duration を長めに取る。
-        useCommandStore().execute('add-column')
-        useSpotlightStore().highlight(commandItemTargetId('col-timeline'), {
-          label: 'チュートリアルがタイムラインの項目を示しています',
-          durationMs: 6000,
-        })
-      },
+      onEnter: () => openAddColumnAndPoint('timeline', 'タイムライン'),
       completion: {
         watch: () => useDeckStore().columns.length,
         isComplete: () => hasAnyColumn(),
@@ -167,7 +263,96 @@ export function buildTutorialSteps(): TutorialStep[] {
     },
 
     {
+      id: 'open-notifications',
+      category: 'getting-started',
+      docsPath: '/docs/deck/navbar',
+      title: '通知をサイドバーに開く',
+      description:
+        'ナビバーの通知ボタン (光っています) を押してみましょう。' +
+        'ナビバーのボタンは、カラムをサイドバーに開いたり閉じたりします。' +
+        '開くと自動で次へ進みます。',
+      precheck: () => (isNotificationsColumnOpen() ? 'skip' : 'show'),
+      onEnter: () => {
+        // compact (スマホ) は navbar がドロワーなので、まず開いて通知ボタンを
+        // 画面にかぶせて見せる (desktop は navbar 常時表示なので不要)。
+        if (useUiStore().isCompactLayout) {
+          useUiStore().mobileDrawerOpen = true
+        }
+        // ナビバーの通知ボタンを spotlight で指し示す (クリックで自動 clear)。
+        // 開く動作はユーザーに任せ、completion で開いたことを検知する。
+        useSpotlightStore().highlight(navbarTargetId('notifications', null), {
+          label: 'チュートリアルが通知カラムのボタンを示しています',
+        })
+      },
+      completion: {
+        watch: () => isNotificationsColumnOpen(),
+        isComplete: () => isNotificationsColumnOpen(),
+      },
+    },
+
+    // --- 拡張をつくる (任意線) ---
+    // API キー不要で効く差別化。AI と並列に最初から見えるようにする (#1012)。
+
+    {
+      id: 'open-stream-inspector',
+      category: 'extend',
+      docsPath: '/docs/dev/',
+      wizard: false,
+      title: 'Stream Inspector を開く',
+      description:
+        'カラム追加から「Stream Inspector」を開くと、Misskey との' +
+        'WebSocket イベントが流れるまま見えます。',
+      precheck: () => (isColumnOpen('streamInspector') ? 'skip' : 'show'),
+      onEnter: () =>
+        openAddColumnAndPoint('streamInspector', 'Stream Inspector'),
+      completion: {
+        watch: () => isColumnOpen('streamInspector'),
+        isComplete: () => isColumnOpen('streamInspector'),
+      },
+    },
+
+    {
+      id: 'open-api-console',
+      category: 'extend',
+      docsPath: '/docs/dev/',
+      wizard: false,
+      title: 'API コンソールを開く',
+      description:
+        'カラム追加から「API コンソール」を開くと、Misskey の API を' +
+        '直接叩いて応答を確かめられます。',
+      precheck: () => (isColumnOpen('apiConsole') ? 'skip' : 'show'),
+      onEnter: () => openAddColumnAndPoint('apiConsole', 'API コンソール'),
+      completion: {
+        watch: () => isColumnOpen('apiConsole'),
+        isComplete: () => isColumnOpen('apiConsole'),
+      },
+    },
+
+    {
+      id: 'open-query-manager',
+      category: 'extend',
+      docsPath: '/docs/dev/query',
+      wizard: false,
+      title: 'カラムクエリを開く',
+      description:
+        'カラム追加から「カラムクエリ」を開くと、AiScript で' +
+        '自分だけのタイムラインを組み立てられます。',
+      precheck: () => (isColumnOpen('queryManager') ? 'skip' : 'show'),
+      onEnter: () => openAddColumnAndPoint('queryManager', 'カラムクエリ'),
+      completion: {
+        watch: () => isColumnOpen('queryManager'),
+        isComplete: () => isColumnOpen('queryManager'),
+      },
+    },
+
+    // --- 使いこなす (任意線) ---
+    // 外部 LLM の API キーを要するため、初回ウィザードには置かない (#1012)。
+
+    {
       id: 'ai-setup',
+      category: 'mastery',
+      docsPath: '/docs/guide/ai',
+      wizard: false,
       title: 'AI 接続を追加',
       description:
         '接続管理ウィンドウで、Anthropic / OpenAI など' +
@@ -193,6 +378,9 @@ export function buildTutorialSteps(): TutorialStep[] {
 
     {
       id: 'ai-select-provider',
+      category: 'mastery',
+      docsPath: '/docs/guide/ai',
+      wizard: false,
       title: 'AI プロバイダを選択',
       description:
         'エージェント設定を開きました。登録した接続を AI プロバイダとして選んでください。' +
@@ -212,9 +400,12 @@ export function buildTutorialSteps(): TutorialStep[] {
 
     {
       id: 'ai-column',
+      category: 'mastery',
+      docsPath: '/docs/guide/ai',
+      wizard: false,
       title: 'AI カラムを開く',
       description:
-        'サイドバーの AI ボタン (光っています) から AI カラムを開いて' +
+        'ナビバーの AI ボタン (光っています) から AI カラムを開いて' +
         'みましょう。ここで AI と対話できます。',
       precheck: () => (isAiColumnOpen() ? 'skip' : 'show'),
       onEnter: () => {

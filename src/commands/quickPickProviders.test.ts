@@ -34,6 +34,7 @@ vi.mock('@/utils/tauriInvoke', () => ({
 
 import { refreshProfileCommands } from '@/commands/definitions'
 import { switchProfileWithWindows } from '@/composables/useDeckWindow'
+import { SETTINGS_SECTIONS } from '@/settings/sections'
 import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useThemeStore } from '@/stores/theme'
@@ -95,6 +96,23 @@ describe('getSettingsItems', () => {
       expect(item.label, item.id).toBeTruthy()
       expect(item.icon, item.id).toBeTruthy()
       expect(typeof item.action, item.id).toBe('function')
+    }
+  })
+
+  it('設定メニュー (SETTINGS_SECTIONS) と同じウィンドウを網羅する', () => {
+    // パレット側とメニュー側で一覧が二重管理になっている。片方に足して
+    // もう片方を忘れると、デスクトップとモバイルで開ける設定がずれる
+    // (実際に tutorialEditor がパレット側から漏れていた)
+    const opened = new Set<string>()
+    windowsMock.open.mockImplementation((w: string) => {
+      opened.add(w)
+    })
+    for (const item of getSettingsItems()) item.action?.()
+    for (const section of SETTINGS_SECTIONS) {
+      expect(
+        opened.has(section.window),
+        `${section.window} がパレットに無い`,
+      ).toBe(true)
     }
   })
 

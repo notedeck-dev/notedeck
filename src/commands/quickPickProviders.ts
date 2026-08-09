@@ -42,6 +42,12 @@ export function getSettingsItems(): QuickPickItem[] {
   return [
     // 個別操作は並べず、モバイルの設定メニューと同じくウィンドウに集約する
     {
+      id: 'tutorial',
+      label: 'チュートリアル',
+      icon: 'checkbox',
+      action: () => useWindowsStore().open('tutorialEditor'),
+    },
+    {
       id: 'appearance',
       label: 'アピアランス',
       icon: 'brush',

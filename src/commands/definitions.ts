@@ -2,7 +2,6 @@ import { useCommandStore } from '@/commands/registry'
 import { useAccountActions } from '@/composables/useAccountActions'
 import { isEntityType, useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteAction } from '@/composables/useNoteFocus'
-import { useTutorialStore } from '@/composables/useTutorial'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
@@ -343,7 +342,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     icon: 'presentation-analytics',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('tutorial'),
-    execute: () => useTutorialStore().start(),
+    // 初回ウィザードではなくチェックリストを開く。ウィザードを最後まで
+    // やらなかった人 (完走フラグが立たない) もここから続きに入れる (#1029)
+    execute: () => useWindowsStore().open('tutorialEditor', {}),
   })
 
   commandStore.register({

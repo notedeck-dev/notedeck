@@ -33,6 +33,9 @@ pub const ALLOWED_ROOT_FILES: &[&str] = &[
     "postform.json5",
     "settings.json5",
     "tasks.json5",
+    // チュートリアルの達成記録 + NoteDeck 独自実績 (#1029)。プロファイル・
+    // アカウントから独立 (アプリ操作の習熟はアカウントに紐づかない)
+    "tutorial.json5",
     // principal 別権限 + 確認スキップ (#712 / #714)。capability 層に write を
     // 公開しない制約はここではなく capability registry 側で担保している
     // (settingsFs の固定名ラッパーのみが本コマンドに到達する)
@@ -413,6 +416,34 @@ mod tests {
         // #714: 権限プロファイル + 確認スキップの保存先。allowlist から漏れると
         // 読み書きもバックアップも黙って失敗する (#712〜v1.5.0 で実際に発生)
         assert!(ALLOWED_ROOT_FILES.contains(&"permissions.json5"));
+    }
+
+    #[test]
+    fn tutorial_json5_is_allowed_root_file() {
+        // #1029: チュートリアルの達成記録と実績の保存先。allowlist から漏れると
+        // 読み書きもバックアップも黙って失敗する
+        assert!(ALLOWED_ROOT_FILES.contains(&"tutorial.json5"));
+    }
+
+    #[test]
+    fn tutorial_json5_is_backed_up() {
+        // #1029: 達成記録はユーザーの習熟の記録なので、設定のバックアップに含める
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        write_root_file(base, "tutorial.json5", r#"{ version: 1 }"#).unwrap();
+
+        let bundle = export_bundle(base).unwrap();
+        assert_eq!(
+            bundle.get("tutorial.json5").map(String::as_str),
+            Some(r#"{ version: 1 }"#)
+        );
+
+        fs::remove_file(base.join("tutorial.json5")).unwrap();
+        import_bundle(base, &bundle).unwrap();
+        assert_eq!(
+            read_root_file(base, "tutorial.json5").unwrap(),
+            r#"{ version: 1 }"#
+        );
     }
 
     #[test]

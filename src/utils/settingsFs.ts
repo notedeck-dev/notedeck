@@ -218,6 +218,16 @@ export async function writeTasks(content: string): Promise<void> {
   return writeRootSettingsFile('tasks.json5', content)
 }
 
+// --- Tutorial helpers (#1029) ---
+
+export async function readTutorialProgress(): Promise<string> {
+  return readRootSettingsFile('tutorial.json5')
+}
+
+export async function writeTutorialProgress(content: string): Promise<void> {
+  return writeRootSettingsFile('tutorial.json5', content)
+}
+
 // --- Navbar helpers ---
 
 export async function readNavbar(): Promise<string> {
