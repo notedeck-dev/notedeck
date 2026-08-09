@@ -308,7 +308,6 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     }
     store.syncProgress()
     expect(store.progress.achievements['getting-started']).toBeDefined()
-    expect(store.justUnlocked).toBe('getting-started')
   })
 
   it('一部しか満たしていなければ実績は解除されない', () => {

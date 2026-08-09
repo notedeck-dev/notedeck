@@ -42,10 +42,16 @@ import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
 import { useReadMarker } from '@/composables/useReadMarker'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { useTutorialStore } from '@/composables/useTutorial'
 import { getStreamHealth } from '@/core/streamHealth'
 import { createBoundedCache } from '@/services/boundedCache'
 import { mergeNotifications as mergeNotificationLists } from '@/services/notificationMerge'
 import { syncNotificationNotes } from '@/services/notificationNoteSync'
+import { TUTORIAL_ACHIEVEMENT_LABELS } from '@/services/tutorialAchievements'
+import {
+  isTutorialNotificationId,
+  mergeTutorialNotifications,
+} from '@/services/tutorialNotifications'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
@@ -384,6 +390,14 @@ function onFilterChange(value: string) {
 // 通知ごと隠す（#575）。一部のみなら当該ユーザーを除いて表示する。
 const { isNotificationHidden, visibleReactions, visibleGroupedUsers } =
   useNoteVisibility()
+
+const tutorial = useTutorialStore()
+void tutorial.loadProgress()
+
+/** サーバー実績と NoteDeck 独自実績のどちらのラベルも引く */
+function achievementLabel(name: string): string {
+  return TUTORIAL_ACHIEVEMENT_LABELS[name] ?? ACHIEVEMENT_LABELS[name] ?? name
+}
 const visibleNotifications = computed(() =>
   notifications.value
     .filter((n) => !isNotificationHidden(n))
@@ -409,10 +423,22 @@ watch(
 )
 
 const filteredNotifications = computed(() => {
-  if (activeFilter.value === 'all') return visibleNotifications.value
-  return visibleNotifications.value.filter(
-    (n) => baseType(n.type) === activeFilter.value,
-  )
+  const base =
+    activeFilter.value === 'all'
+      ? visibleNotifications.value
+      : visibleNotifications.value.filter(
+          (n) => baseType(n.type) === activeFilter.value,
+        )
+  // NoteDeck 独自実績 (#1029) は達成記録から表示時に合成する。notifications
+  // 本体には入れない — 続き読み込みの cursor (untilId) にこの id が渡ると
+  // サーバーが解釈できないため
+  if (
+    activeFilter.value !== 'all' &&
+    activeFilter.value !== 'achievementEarned'
+  ) {
+    return base
+  }
+  return mergeTutorialNotifications(base, tutorial.progress)
 })
 
 const noteScrollerRef = ref<{
@@ -1278,6 +1304,7 @@ onUnmounted(() => {
                   />
                   <template v-else>
                     <img v-if="notif.type === 'app' && notif.icon" :src="notif.icon" :class="[$style.notifFallbackAvatar, $style.notifAppIcon]" alt="" />
+                    <img v-else-if="isTutorialNotificationId(notif.id)" src="/favicon.svg" :class="[$style.notifFallbackAvatar, $style.notifAppIcon]" alt="NoteDeck" />
                     <img v-else-if="resolveNotifAccount(notif)?.avatarUrl" :src="proxyThumbUrl(resolveNotifAccount(notif)!.avatarUrl!, 56)" :class="$style.notifFallbackAvatar" />
                   </template>
                   <img
@@ -1316,7 +1343,7 @@ onUnmounted(() => {
 
                   <!-- Achievement name -->
                   <div v-if="notif.type === 'achievementEarned' && notif.achievement" :class="$style.notifAchievement">
-                    {{ ACHIEVEMENT_LABELS[notif.achievement] ?? notif.achievement }}
+                    {{ achievementLabel(notif.achievement) }}
                   </div>
 
                   <!-- App notification body (外部アプリの notifications/create) -->

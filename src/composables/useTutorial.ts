@@ -53,11 +53,6 @@ export const useTutorialStore = defineStore('tutorial', () => {
   const runMode = ref<TutorialRunMode>('wizard')
   const progress = ref<TutorialProgress>(emptyProgress())
   /**
-   * 直近に解除された実績のカテゴリ id。UI が拾って知らせるための一時値で、
-   * 永続化はしない (正本は progress.achievements)。
-   */
-  const justUnlocked = ref<TutorialCategoryId | null>(null)
-  /**
    * category 実行で、今の step の達成条件が満たされたか。カードに達成を出して
    * [次へ] を待つために使う (wizard は自動で進むので常に false)。
    */
@@ -196,18 +191,13 @@ export const useTutorialStore = defineStore('tutorial', () => {
       const members = all.filter((s) => s.category === category.id)
       if (members.length === 0) continue
       if (members.every((s) => next.items[s.id] != null)) {
+        // 解除の知らせは通知欄が達成記録から合成する (#1029)
         next = unlockAchievement(next, category.id, now)
-        justUnlocked.value = category.id
       }
     }
     if (next === progress.value) return
     progress.value = next
     void saveProgress()
-  }
-
-  /** 実績の解除を UI が知らせ終えたら呼ぶ */
-  function clearJustUnlocked(): void {
-    justUnlocked.value = null
   }
 
   /**
@@ -217,7 +207,6 @@ export const useTutorialStore = defineStore('tutorial', () => {
   function resetProgress(): void {
     const cleared = emptyProgress()
     progress.value = cleared
-    justUnlocked.value = null
     if (!isTauri) return
     // saveProgress は保存済みの記録と統合するので、消す時は使えない
     void writeTutorialProgress(serializeTutorialProgress(cleared)).catch(
@@ -388,7 +377,6 @@ export const useTutorialStore = defineStore('tutorial', () => {
     runMode,
     progress,
     stepCompleted,
-    justUnlocked,
     // actions
     start,
     startCategory,
@@ -401,6 +389,5 @@ export const useTutorialStore = defineStore('tutorial', () => {
     syncProgress,
     loadProgress,
     resetProgress,
-    clearJustUnlocked,
   }
 })

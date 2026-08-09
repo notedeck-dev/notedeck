@@ -46,7 +46,6 @@ const groups = computed(() => {
       items,
       doneCount,
       complete: doneCount === items.length,
-      unlockedAt: tutorial.progress.achievements[category.id] ?? null,
     }
   })
 })
@@ -55,17 +54,6 @@ const groups = computed(() => {
 const nextCategoryId = computed(
   () => groups.value.find((g) => !g.complete)?.category.id ?? null,
 )
-
-const unlockedCount = computed(
-  () => groups.value.filter((g) => g.unlockedAt != null).length,
-)
-
-/** 解除の知らせに出すカテゴリ */
-const unlockedNotice = computed(() => {
-  const id = tutorial.justUnlocked
-  if (!id) return null
-  return TUTORIAL_CATEGORIES.find((c) => c.id === id) ?? null
-})
 
 /**
  * 開いているカテゴリ。既定は「次にやる 1 つ」だけ。
@@ -101,46 +89,13 @@ function runCategory(id: TutorialCategoryId): void {
 function openDocs(path: string): void {
   openSafeUrl(tutorialDocsUrl(path))
 }
-
-function formatDate(at: number): string {
-  return new Date(at).toLocaleDateString()
-}
 </script>
 
 <template>
   <div :class="$style.root">
-    <!-- 実績の解除。トーストは数秒で消えて「習熟の記録」に合わないので、
-         開いている間は残る行として出す -->
-    <div v-if="unlockedNotice" :class="$style.notice">
-      <span :class="$style.noticeEmoji">{{ unlockedNotice.achievementEmoji }}</span>
-      <span :class="$style.noticeText">
-        <strong>{{ unlockedNotice.achievementName }}</strong> を達成しました
-      </span>
-      <button
-        type="button"
-        class="_button"
-        :class="$style.iconBtn"
-        title="閉じる"
-        @click="tutorial.clearJustUnlocked()"
-      >
-        <i class="ti ti-x" />
-      </button>
-    </div>
-
     <header :class="$style.head">
-      <div :class="$style.trophies">
-        <span
-          v-for="group in groups"
-          :key="group.category.id"
-          :class="[$style.trophy, { [$style.trophyOn]: group.unlockedAt != null }]"
-          :title="group.unlockedAt != null
-            ? `${group.category.achievementName} — ${formatDate(group.unlockedAt)}`
-            : `${group.category.achievementName} (未達成)`"
-        >{{ group.category.achievementEmoji }}</span>
-        <span :class="$style.trophyCount">{{ unlockedCount }} / {{ groups.length }}</span>
-      </div>
       <p :class="$style.lead">
-        操作するとチェックが付きます。カテゴリを終えると実績になります。
+        操作するとチェックが付きます。カテゴリを終えると実績になり、通知に届きます。
       </p>
       <button type="button" class="_button" :class="$style.docsBtn" @click="openDocs('/docs/')">
         <i class="ti ti-book" />
@@ -211,11 +166,6 @@ function formatDate(at: number): string {
         </ul>
 
         <div v-if="openedId === group.category.id" :class="$style.groupFoot">
-          <span v-if="group.unlockedAt != null" :class="$style.award">
-            <span :class="$style.awardEmoji">{{ group.category.achievementEmoji }}</span>
-            {{ group.category.achievementName }}
-            <span :class="$style.awardDate">{{ formatDate(group.unlockedAt) }}</span>
-          </span>
           <button
             type="button"
             class="_button"
@@ -263,29 +213,10 @@ function formatDate(at: number): string {
   font-size: 0.92em;
 }
 
-/* 実績解除の知らせ */
-.notice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--nd-accentedBg);
-  color: var(--nd-accent);
-}
 
-.noticeEmoji {
-  font-size: 1.2em;
-  line-height: 1;
-}
 
-.noticeText {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.9em;
-}
 
-/* ヘッダ: 実績の並び + 導入 */
+/* ヘッダ */
 .head {
   display: flex;
   flex-direction: column;
@@ -294,41 +225,9 @@ function formatDate(at: number): string {
   border-bottom: 1px solid var(--nd-divider);
 }
 
-.trophies {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
 
-.trophy {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--nd-buttonBg);
-  font-size: 0.95em;
-  line-height: 1;
-  filter: grayscale(1);
-  opacity: 0.4;
-  transition:
-    filter var(--nd-duration, 0.2s) var(--nd-ease-decel),
-    opacity var(--nd-duration, 0.2s) var(--nd-ease-decel);
-}
 
-.trophyOn {
-  filter: none;
-  opacity: 1;
-  background: var(--nd-eventAchievement, var(--nd-accentedBg));
-}
 
-.trophyCount {
-  margin-left: auto;
-  font-size: 0.85em;
-  opacity: 0.6;
-  letter-spacing: 0.04em;
-}
 
 .lead {
   margin: 0;
@@ -522,23 +421,8 @@ function formatDate(at: number): string {
   padding-left: 32px;
 }
 
-.award {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.82em;
-  color: var(--nd-accent);
-}
 
-.awardEmoji {
-  font-size: 1.05em;
-  line-height: 1;
-}
 
-.awardDate {
-  opacity: 0.6;
-  color: var(--nd-fg);
-}
 
 .linkBtn {
   margin-left: auto;

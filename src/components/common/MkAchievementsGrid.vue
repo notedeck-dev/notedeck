@@ -1,17 +1,27 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
-import { ACHIEVEMENT_TYPES, type Achievement } from '@/utils/achievements'
+import {
+  ACHIEVEMENT_TYPES,
+  type Achievement,
+  type AchievementBadge,
+} from '@/utils/achievements'
 
+/**
+ * 種別・バッジ・ラベルは差し替えられる。既定は Misskey サーバーの実績だが、
+ * NoteDeck 独自実績 (#1029) も同じ見た目で出すため (グリッドを 2 つ作らない)。
+ */
 const props = defineProps<{
   achievements: Achievement[]
+  /** 表示する種別と並び。未指定ならサーバー実績の全種別 */
+  types?: readonly string[]
+  /** 種別 → バッジ。未指定ならサーバー実績のバッジ */
+  badges?: Record<string, AchievementBadge>
+  /** 種別 → 表示名。未指定ならサーバー実績のラベル */
+  labels?: Record<string, string>
 }>()
 
-interface BadgeInfo {
-  emoji: string
-  frame: 'bronze' | 'silver' | 'gold' | 'platinum'
-  bg: string | null
-}
+type BadgeInfo = AchievementBadge
 
 const BADGES: Record<string, BadgeInfo> = {
   notes1: {
@@ -386,7 +396,7 @@ const FRAME_COLORS = {
 const sortedAchievements = computed(() => {
   const unlocked: Array<{ name: string; unlockedAt: number | null }> = []
   const locked: Array<{ name: string; unlockedAt: number | null }> = []
-  for (const name of ACHIEVEMENT_TYPES) {
+  for (const name of props.types ?? ACHIEVEMENT_TYPES) {
     const a = props.achievements.find((x) => x.name === name)
     if (a) {
       unlocked.push(a)
@@ -398,7 +408,13 @@ const sortedAchievements = computed(() => {
 })
 
 function getBadge(name: string): BadgeInfo {
-  return BADGES[name] ?? { emoji: '\u{1F3C5}', frame: 'bronze', bg: null }
+  const table = props.badges ?? BADGES
+  return table[name] ?? { emoji: '\u{1F3C5}', frame: 'bronze', bg: null }
+}
+
+function getLabel(name: string): string {
+  const table = props.labels ?? ACHIEVEMENT_LABELS
+  return table[name] ?? name
 }
 
 function formatDate(ts: number): string {
@@ -431,7 +447,7 @@ function formatDate(ts: number): string {
         </div>
       </div>
       <div :class="$style.achievementInfo">
-        <div :class="$style.achievementName">{{ item.unlockedAt ? (ACHIEVEMENT_LABELS[item.name] ?? item.name) : '???' }}</div>
+        <div :class="$style.achievementName">{{ item.unlockedAt ? getLabel(item.name) : '???' }}</div>
         <div v-if="item.unlockedAt" :class="$style.achievementDate">{{ formatDate(item.unlockedAt) }}</div>
       </div>
     </div>
