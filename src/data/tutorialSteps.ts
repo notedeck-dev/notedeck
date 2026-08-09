@@ -175,6 +175,11 @@ function hasResolvedAiProvider(): boolean {
   return resolveAiConnection(config.value, useVault().connections.value) != null
 }
 
+/** コマンドパレットが今開いているか */
+function isCommandPaletteOpen(): boolean {
+  return useCommandStore().isOpen
+}
+
 /** プロファイルを 2 つ以上持っているか (= 使い分けを作った) */
 function hasExtraProfile(): boolean {
   return useDeckProfileStore().getProfiles().length > 1
@@ -444,6 +449,25 @@ export function buildTutorialSteps(): TutorialStep[] {
     // --- 使いこなす (任意線) ---
     // ドキュメントの「使いこなす」と対応。キーボード操作と「環境を育てる」は
     // 操作が状態に残らない / 読み物なので、対応する step を持たない。
+
+    {
+      id: 'open-command-palette',
+      category: 'mastery',
+      wizard: false,
+      docsPath: '/docs/guide/keyboard',
+      title: 'コマンドパレットを開く',
+      description:
+        'Ctrl+K を押してみましょう (入力中でなければ / でも開きます)。' +
+        'カラムの追加もアカウントの切り替えも、名前で探して実行できます。' +
+        '迷ったらここに戻ってこられます。',
+      // 案内側では開かない。ユーザーがキーを押すのを待つ step なので、
+      // こちらで開くと押す前に達成になってしまう
+      precheck: () => (isCommandPaletteOpen() ? 'skip' : 'show'),
+      completion: {
+        watch: () => isCommandPaletteOpen(),
+        isComplete: () => isCommandPaletteOpen(),
+      },
+    },
 
     {
       id: 'open-search',

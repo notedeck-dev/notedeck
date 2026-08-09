@@ -23,8 +23,6 @@ const DOCS_WITHOUT_STEP: Record<string, string> = {
   '/docs/': 'NoteDeck とは — 読み物',
   '/docs/install': 'インストール — アプリの外の作業',
   '/docs/guest': 'ログインせずに試す — ログイン済みなら通らない代替経路',
-  '/docs/guide/keyboard':
-    'キーボード操作 — 操作が状態に残らない (イベント記録型の完了検知が要る)',
   '/docs/guide/grow': '環境を育てる — 他ページの総まとめ',
   '/docs/dev/': '拡張の全体像 — 読み物',
   '/docs/config/files': '設定ファイル — 読み物',
@@ -96,6 +94,27 @@ describe('ドキュメントとの対応 (#1029)', () => {
         section?.links,
         `${step.id} の ${step.docsPath} が ${category?.title} の外にある`,
       ).toContain(step.docsPath)
+    }
+  })
+
+  it('step の並びはドキュメントのページ順に従う', () => {
+    const steps = buildTutorialSteps()
+    for (const category of TUTORIAL_CATEGORIES) {
+      const section = sections.find((s) => s.text === category.title)
+      const paths = steps
+        .filter((s) => s.category === category.id)
+        .map((s) => s.docsPath)
+      // 1 ページに複数 step があるもの (AI) は畳んでから比べる。
+      // 畳めない = 同じページの step が離れて並んでいるので、それも落とす
+      const collapsed = paths.filter((p, i) => p !== paths[i - 1])
+      expect(
+        new Set(collapsed).size,
+        `${category.id} で同じページの step が離れている`,
+      ).toBe(collapsed.length)
+      const expected = (section?.links ?? []).filter((l) => paths.includes(l))
+      expect(collapsed, `${category.id} の並びがページ順と違う`).toEqual(
+        expected,
+      )
     }
   })
 
