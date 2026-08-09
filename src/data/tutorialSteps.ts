@@ -139,9 +139,15 @@ function isColumnOpen(type: ColumnType): boolean {
  * duration を長めに取る。
  */
 function openAddColumnAndPoint(type: ColumnType, label: string): void {
-  // カラム追加 UI は compact ではトグルなので、開いていない時だけ開く。
-  // 連続する step で素通しに呼ぶと、次の step で閉じてしまう
-  if (!useUiStore().addMenuOpen) useCommandStore().execute('add-column')
+  // 既に開いているなら開き直さない。compact のダイアログはトグルなので
+  // 素通しに呼ぶと次の step で閉じてしまい、desktop のパレットは開き直すと
+  // 入力途中の内容が消える。開閉の持ち主がレイアウトで違うので両方見る
+  const ui = useUiStore()
+  const commands = useCommandStore()
+  const alreadyOpen = ui.isCompactLayout
+    ? ui.compactAddMenuOpen
+    : commands.isOpen
+  if (!alreadyOpen) commands.execute('add-column')
   useSpotlightStore().highlight(commandItemTargetId(`col-${type}`), {
     label: `チュートリアルが${label}の項目を示しています`,
     durationMs: SPOTLIGHT_MS,

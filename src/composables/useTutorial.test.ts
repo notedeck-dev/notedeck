@@ -36,6 +36,22 @@ vi.mock('@/stores/settings', () => ({
   useSettingsStore: () => ({ set: settingsSetSpy }),
 }))
 
+/** tutorial.json5 の読み書き。書き込み順とレースを検証するために差し替える */
+let storedFile = ''
+let deferredRead: { promise: Promise<string>; resolve: () => void } | null =
+  null
+const writeSpy = vi.fn()
+vi.mock('@/utils/settingsFs', () => ({
+  isTauri: true,
+  readTutorialProgress: () =>
+    deferredRead?.promise ?? Promise.resolve(storedFile),
+  writeTutorialProgress: (content: string) => {
+    writeSpy(content)
+    storedFile = content
+    return Promise.resolve()
+  },
+}))
+
 describe('useTutorialStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -254,6 +270,9 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     mockSteps.length = 0
     mockCategories.length = 0
     settingsSetSpy.mockReset()
+    writeSpy.mockReset()
+    storedFile = ''
+    deferredRead = null
     mockCategories.push({ id: 'getting-started', title: 'はじめに' })
     mockSteps.push(
       { id: 'welcome', title: 'W', description: '' },
@@ -473,6 +492,32 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     store.startCategory('getting-started')
     expect(store.runMode).toBe('wizard')
     expect(store.currentStep?.id).toBe(before)
+  })
+
+  it('読み込み中に走り始めたら、古いファイルで記録を上書きしない', async () => {
+    const store = useTutorialStore()
+    storedFile = '{ version: 1, items: {} }'
+    let release: () => void = () => {
+      // Promise を作るまでの仮置き
+    }
+    deferredRead = {
+      promise: new Promise<string>((r) => {
+        release = () => r(storedFile)
+      }),
+      resolve: () => release(),
+    }
+    // start() は loadProgress を待たずにウィンドウを開く
+    const loading = store.loadProgress()
+    for (const s of mockSteps) {
+      if (s.category) s.precheck = () => 'skip'
+    }
+    store.startCategory('getting-started')
+    expect(store.progress.items['a']).toBeDefined()
+    // 読み込みが後から完了しても、走行中に記録した分は消えない
+    deferredRead.resolve()
+    await loading
+    deferredRead = null
+    expect(store.progress.items['a']).toBeDefined()
   })
 
   it('resetProgress で達成記録が消える', () => {
