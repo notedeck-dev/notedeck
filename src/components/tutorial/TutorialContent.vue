@@ -13,12 +13,27 @@
 import { computed } from 'vue'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { tutorialDocsUrl } from '@/data/tutorialSteps'
+import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
 
 const tutorial = useTutorialStore()
 
+/**
+ * このカードは store が走らせている前提の中身なので、外から直接開かれると
+ * (capability の windows.open など) 空になる。その場合は一覧へ促す。
+ */
+const idle = computed(() => !tutorial.currentStep && !tutorial.runCompleted)
+
+function openChecklist(): void {
+  useWindowsStore().open('tutorialEditor', {})
+}
+
 const stepCount = computed(() => tutorial.totalSteps)
-const stepIndex = computed(() => tutorial.currentNumber)
+// 走り切ったら終端に寄せる。途中の index のままだと "1 / 3" と出て
+// 「完了しました」と食い違う
+const stepIndex = computed(() =>
+  tutorial.runCompleted ? stepCount.value : tutorial.currentNumber,
+)
 // step ごとの詳しい説明は公式ドキュメントにある。読みたい人はここから開く
 const docsPath = computed(() => tutorial.currentStep?.docsPath ?? null)
 
@@ -29,10 +44,31 @@ function openDocs(path: string): void {
 
 <template>
   <div :class="$style.root" aria-live="polite">
+    <!-- 走っていない状態で開かれた: 一覧へ送る -->
+    <template v-if="idle">
+      <div :class="$style.body">
+        <div :class="$style.title">チュートリアル</div>
+        <p :class="$style.description">
+          カテゴリを選んで始められます。一覧から進めてください。
+        </p>
+      </div>
+      <div :class="$style.actions">
+        <button
+          type="button"
+          class="_button"
+          :class="$style.primaryBtn"
+          @click="openChecklist()"
+        >
+          一覧を開く
+        </button>
+      </div>
+    </template>
+
     <!-- Progress dots (上部) — チュートリアルの chapter 構造を可視化。
          ドットをクリックで該当 step に移動できる (= 既設定済みでも前後 step
          を見直し可能。precheck=skip も手動ジャンプは許可) -->
     <div
+      v-if="!idle"
       :class="$style.progress"
       role="tablist"
       :aria-label="`チュートリアル ${stepIndex} / ${stepCount}`"
@@ -44,18 +80,30 @@ function openDocs(path: string): void {
         class="_button"
         :class="[
           $style.dot,
-          { [$style.dotActive]: i === stepIndex, [$style.dotDone]: i < stepIndex },
+          {
+            [$style.dotActive]: !tutorial.runCompleted && i === stepIndex,
+            [$style.dotDone]: tutorial.runCompleted || i < stepIndex,
+          },
         ]"
         role="tab"
         :aria-selected="i === stepIndex"
         :aria-label="`Step ${i}`"
         @click="tutorial.goToStep(i - 1)"
       />
+      <span v-if="tutorial.replaying" :class="$style.replayLabel">見直し</span>
       <span :class="$style.progressLabel">{{ stepIndex }} / {{ stepCount }}</span>
     </div>
 
+    <!-- 走り切ったカテゴリの結果。黙って閉じずに、ここで手を止める -->
+    <div v-if="!idle && tutorial.runCompleted" :class="$style.body">
+      <div :class="$style.title">ここまで完了しました</div>
+      <p :class="$style.description">
+        チュートリアルの一覧から、続きのカテゴリを選べます。
+      </p>
+    </div>
+
     <!-- Body (step タイトル + 説明) -->
-    <div v-if="tutorial.currentStep" :class="$style.body">
+    <div v-else-if="tutorial.currentStep" :class="$style.body">
       <div :class="$style.title">{{ tutorial.currentStep.title }}</div>
       <p :class="$style.description">{{ tutorial.currentStep.description }}</p>
       <button
@@ -71,8 +119,18 @@ function openDocs(path: string): void {
     </div>
 
     <!-- Footer actions -->
-    <div :class="$style.actions">
-      <template v-if="tutorial.currentStep?.isFinal">
+    <div v-if="!idle" :class="$style.actions">
+      <template v-if="tutorial.runCompleted">
+        <button
+          type="button"
+          class="_button"
+          :class="$style.primaryBtn"
+          @click="tutorial.cancel()"
+        >
+          閉じる
+        </button>
+      </template>
+      <template v-else-if="tutorial.currentStep?.isFinal">
         <button
           type="button"
           class="_button"
@@ -167,6 +225,19 @@ function openDocs(path: string): void {
     opacity: 1;
   }
   transform: scale(1.2);
+}
+
+.replayLabel {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72em;
+  background: var(--nd-buttonBg);
+  opacity: 0.7;
+}
+
+.replayLabel + .progressLabel {
+  margin-left: 6px;
 }
 
 .progressLabel {

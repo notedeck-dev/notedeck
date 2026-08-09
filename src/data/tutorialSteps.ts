@@ -35,6 +35,12 @@ import { WINDOW_LABELS } from '@/windows/registry'
 export type TutorialPrecheck = 'skip' | 'show'
 
 /**
+ * spotlight を出す時間。既定 (2.4 秒) は AI 操作の一時的な可視化に合わせた
+ * 値で、カードの説明文を読み終える前に消える。step の案内はもっと長く要る。
+ */
+const SPOTLIGHT_MS = 12000
+
+/**
  * 自動進行を仕掛けるための watch ターゲット。
  * `watch()` の戻り値を Vue `watch` で監視し、`isComplete()` が true を返した
  * 瞬間に store が次の step に進める。
@@ -133,10 +139,12 @@ function isColumnOpen(type: ColumnType): boolean {
  * duration を長めに取る。
  */
 function openAddColumnAndPoint(type: ColumnType, label: string): void {
-  useCommandStore().execute('add-column')
+  // カラム追加 UI は compact ではトグルなので、開いていない時だけ開く。
+  // 連続する step で素通しに呼ぶと、次の step で閉じてしまう
+  if (!useUiStore().addMenuOpen) useCommandStore().execute('add-column')
   useSpotlightStore().highlight(commandItemTargetId(`col-${type}`), {
     label: `チュートリアルが${label}の項目を示しています`,
-    durationMs: 6000,
+    durationMs: SPOTLIGHT_MS,
   })
 }
 
@@ -282,6 +290,8 @@ export function buildTutorialSteps(): TutorialStep[] {
         // 開く動作はユーザーに任せ、completion で開いたことを検知する。
         useSpotlightStore().highlight(navbarTargetId('notifications', null), {
           label: 'チュートリアルが通知カラムのボタンを示しています',
+          // 説明文に「光っています」と書く以上、読み終える前に消さない
+          durationMs: SPOTLIGHT_MS,
         })
       },
       completion: {
@@ -418,6 +428,7 @@ export function buildTutorialSteps(): TutorialStep[] {
         // 開く動作はユーザーに任せ、completion で開いたことを検知する。
         useSpotlightStore().highlight(navbarTargetId('ai', null), {
           label: 'チュートリアルが AI カラムのボタンを示しています',
+          durationMs: SPOTLIGHT_MS,
         })
       },
       completion: {

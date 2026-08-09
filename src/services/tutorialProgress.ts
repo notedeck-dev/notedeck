@@ -20,10 +20,26 @@ export interface TutorialProgress {
   items: Unlocks
   /** カテゴリ完走で解除される実績 */
   achievements: Unlocks
+  /**
+   * 状態からの自動記録を再開する時刻 (epoch ms)。
+   *
+   * 達成の多くは「ログイン済み」「カラムがある」のように状態が続くので、
+   * 記録を消しても次の評価で全部書き戻ってしまう (実績が復活し、通知が
+   * 再送される)。消したことを覚えるためにこの時刻を置き、これ以降に
+   * 明示的に走らせた分だけを拾う。
+   */
+  resetAt?: number
 }
 
 export function emptyProgress(): TutorialProgress {
   return { version: 1, items: {}, achievements: {} }
+}
+
+/**
+ * 記録を消す。状態から導出できる項目が書き戻らないよう、消した時刻を残す。
+ */
+export function clearProgress(at: number): TutorialProgress {
+  return { version: 1, items: {}, achievements: {}, resetAt: at }
 }
 
 /** 達成時刻の map として妥当なエントリだけを拾う */
@@ -53,10 +69,14 @@ export function parseTutorialProgress(content: string): TutorialProgress {
     return emptyProgress()
   }
   const obj = raw as Record<string, unknown>
+  const resetAt = obj.resetAt
   return {
     version: 1,
     items: sanitizeUnlocks(obj.items),
     achievements: sanitizeUnlocks(obj.achievements),
+    ...(typeof resetAt === 'number' && Number.isFinite(resetAt)
+      ? { resetAt }
+      : {}),
   }
 }
 
@@ -89,6 +109,16 @@ export function unlockAchievement(
   }
 }
 
+/** 消した時刻より前の記録を落とす (別ウィンドウの古い内容で復活させない) */
+function dropBefore(unlocks: Unlocks, at: number | undefined): Unlocks {
+  if (at == null) return unlocks
+  const out: Unlocks = {}
+  for (const [key, unlockedAt] of Object.entries(unlocks)) {
+    if (unlockedAt >= at) out[key] = unlockedAt
+  }
+  return out
+}
+
 /** 衝突したキーは早い達成時刻を残す */
 function mergeUnlocks(a: Unlocks, b: Unlocks): Unlocks {
   const out: Unlocks = { ...a }
@@ -107,9 +137,24 @@ export function mergeProgress(
   a: TutorialProgress,
   b: TutorialProgress,
 ): TutorialProgress {
+  // resetAt は新しい方を残す。片方が「消した」と言っているなら、その後の
+  // 記録だけが有効
+  const resetAt =
+    a.resetAt == null || b.resetAt == null
+      ? (a.resetAt ?? b.resetAt)
+      : Math.max(a.resetAt, b.resetAt)
+  // 落としてから統合する。先に統合すると、消す前の古い達成時刻が min として
+  // 勝ってしまい、消した後にやり直した分まで巻き添えで落ちる
   return {
     version: 1,
-    items: mergeUnlocks(a.items, b.items),
-    achievements: mergeUnlocks(a.achievements, b.achievements),
+    items: mergeUnlocks(
+      dropBefore(a.items, resetAt),
+      dropBefore(b.items, resetAt),
+    ),
+    achievements: mergeUnlocks(
+      dropBefore(a.achievements, resetAt),
+      dropBefore(b.achievements, resetAt),
+    ),
+    ...(resetAt == null ? {} : { resetAt }),
   }
 }
