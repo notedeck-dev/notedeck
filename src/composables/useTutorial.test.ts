@@ -296,25 +296,35 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     store.startCategory('getting-started')
     store.next()
     store.next() // 終端
-    expect(store.active).toBe(false)
     expect(settingsSetSpy).not.toHaveBeenCalled()
   })
 
   it('カテゴリの全項目を満たすと実績が解除される', () => {
     const store = useTutorialStore()
-    // 2 項目とも達成済みの状態にする
+    // 2 項目とも達成済みの状態で走らせる
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'skip'
     }
-    store.syncProgress()
+    store.startCategory('getting-started')
     expect(store.progress.achievements['getting-started']).toBeDefined()
+  })
+
+  it('走らせていないカテゴリは、条件を満たしていても記録しない', () => {
+    const store = useTutorialStore()
+    for (const s of mockSteps) {
+      if (s.category) s.precheck = () => 'skip'
+    }
+    // 一覧を開いただけ (run していない)
+    store.syncProgress()
+    expect(store.progress.items).toEqual({})
+    expect(store.progress.achievements).toEqual({})
   })
 
   it('一部しか満たしていなければ実績は解除されない', () => {
     const store = useTutorialStore()
     const a = mockSteps.find((s) => s.id === 'a')
     if (a) a.precheck = () => 'skip'
-    store.syncProgress()
+    store.startCategory('getting-started')
     expect(store.progress.items['a']).toBeDefined()
     expect(store.progress.achievements['getting-started']).toBeUndefined()
   })
@@ -323,7 +333,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     const store = useTutorialStore()
     const a = mockSteps.find((s) => s.id === 'a')
     if (a) a.precheck = () => 'skip'
-    store.syncProgress()
+    store.startCategory('getting-started')
     // カラムを閉じた相当: 状態が false に戻る
     if (a) a.precheck = () => 'show'
     expect(store.isStepDone({ id: 'a', title: 'A', description: '' })).toBe(
@@ -336,8 +346,11 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'skip'
     }
-    store.startCategory('getting-started')
+    store.startCategory('getting-started') // 1 度目で記録が付く
+    store.cancel()
+    store.startCategory('getting-started') // もう一度
     expect(store.active).toBe(true)
+    expect(store.replaying).toBe(true)
     expect(store.currentStep?.id).toBe('a')
   })
 
@@ -368,12 +381,96 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     expect(opened).toBe(true)
   })
 
+  it('完了済みを見直すとき step を飛ばさない (達成済みでも順に見せる)', () => {
+    const store = useTutorialStore()
+    for (const s of mockSteps) {
+      if (s.category) s.precheck = () => 'skip'
+    }
+    store.startCategory('getting-started')
+    store.cancel()
+    store.startCategory('getting-started')
+    expect(store.currentStep?.id).toBe('a')
+    store.next()
+    // precheck が満たされていても、見直し中は次の step を見せる
+    expect(store.currentStep?.id).toBe('b')
+    expect(store.active).toBe(true)
+  })
+
+  it('カテゴリを走り切ったら黙って閉じずに完了を示す', () => {
+    const store = useTutorialStore()
+    store.startCategory('getting-started')
+    store.next()
+    store.next() // 終端
+    expect(store.runCompleted).toBe(true)
+    // カードは残る。ユーザーが閉じるまで結果が見える
+    expect(store.active).toBe(true)
+  })
+
+  it('完了を閉じるとカードだけが閉じる (完走フラグは立てない)', () => {
+    const store = useTutorialStore()
+    store.startCategory('getting-started')
+    store.next()
+    store.next()
+    store.cancel()
+    expect(store.active).toBe(false)
+    expect(store.runCompleted).toBe(false)
+    expect(settingsSetSpy).not.toHaveBeenCalled()
+  })
+
+  it('リセットした達成は、条件を満たしたままでも復活しない', () => {
+    const store = useTutorialStore()
+    // 全項目が「今も満たされている」状態 (ログイン済み・カラムがある等)
+    for (const s of mockSteps) {
+      if (s.category) s.precheck = () => 'skip'
+    }
+    store.startCategory('getting-started')
+    expect(store.progress.achievements['getting-started']).toBeDefined()
+    store.cancel()
+
+    store.resetProgress()
+    // 開き直した相当。条件は満たされたままだが、消したものは戻らない
+    store.syncProgress()
+    expect(store.progress.items).toEqual({})
+    expect(store.progress.achievements).toEqual({})
+  })
+
+  it('リセット後に新しく達成すれば、また記録される', () => {
+    const store = useTutorialStore()
+    for (const s of mockSteps) {
+      if (s.category) s.precheck = () => 'skip'
+    }
+    store.startCategory('getting-started')
+    store.cancel()
+    store.resetProgress()
+    // 走らせ直す = 明示的な再スタート
+    store.startCategory('getting-started')
+    expect(store.progress.items['a']).toBeDefined()
+  })
+
+  it('完走したカテゴリは、条件が戻っても完走のまま (latch 基準)', () => {
+    const store = useTutorialStore()
+    for (const s of mockSteps) {
+      if (s.category) s.precheck = () => 'skip'
+    }
+    store.startCategory('getting-started')
+    store.cancel()
+    // カラムを閉じた相当: 状態は false に戻る
+    for (const s of mockSteps) {
+      if (s.category) s.precheck = () => 'show'
+    }
+    // 一覧の ✓ と同じ基準で見直しに入る
+    store.startCategory('getting-started')
+    expect(store.replaying).toBe(true)
+    store.next()
+    expect(store.currentStep?.id).toBe('b')
+  })
+
   it('resetProgress で達成記録が消える', () => {
     const store = useTutorialStore()
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'skip'
     }
-    store.syncProgress()
+    store.startCategory('getting-started')
     store.resetProgress()
     expect(store.progress.items).toEqual({})
     expect(store.progress.achievements).toEqual({})

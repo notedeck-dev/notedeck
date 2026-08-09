@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  clearProgress,
   emptyProgress,
   markItemDone,
   mergeProgress,
@@ -79,5 +80,34 @@ describe('mergeProgress', () => {
     const b = unlockAchievement(emptyProgress(), 'ai', 100)
     const merged = mergeProgress(a, b)
     expect(merged.achievements).toEqual({ ide: 200, ai: 100 })
+  })
+})
+
+describe('clearProgress', () => {
+  it('記録を消し、消した時刻を残す', () => {
+    const cleared = clearProgress(500)
+    expect(cleared.items).toEqual({})
+    expect(cleared.achievements).toEqual({})
+    expect(cleared.resetAt).toBe(500)
+  })
+
+  it('消した時刻より前の記録はマージで復活しない', () => {
+    const old = markItemDone(emptyProgress(), 'a', 100)
+    const merged = mergeProgress(old, clearProgress(500))
+    expect(merged.items).toEqual({})
+  })
+
+  it('消した後の達成はマージで残る', () => {
+    const fresh = markItemDone(clearProgress(500), 'a', 600)
+    expect(
+      mergeProgress(markItemDone(emptyProgress(), 'a', 100), fresh).items,
+    ).toEqual({ a: 600 })
+  })
+
+  it('消した時刻は serialize / parse を往復する', () => {
+    const cleared = clearProgress(500)
+    expect(
+      parseTutorialProgress(serializeTutorialProgress(cleared)).resetAt,
+    ).toBe(500)
   })
 })

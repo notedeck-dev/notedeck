@@ -51,11 +51,20 @@ function openDocs(path: string): void {
         :aria-label="`Step ${i}`"
         @click="tutorial.goToStep(i - 1)"
       />
+      <span v-if="tutorial.replaying" :class="$style.replayLabel">見直し</span>
       <span :class="$style.progressLabel">{{ stepIndex }} / {{ stepCount }}</span>
     </div>
 
+    <!-- 走り切ったカテゴリの結果。黙って閉じずに、ここで手を止める -->
+    <div v-if="tutorial.runCompleted" :class="$style.body">
+      <div :class="$style.title">ここまで完了しました</div>
+      <p :class="$style.description">
+        チュートリアルの一覧から、続きのカテゴリを選べます。
+      </p>
+    </div>
+
     <!-- Body (step タイトル + 説明) -->
-    <div v-if="tutorial.currentStep" :class="$style.body">
+    <div v-else-if="tutorial.currentStep" :class="$style.body">
       <div :class="$style.title">{{ tutorial.currentStep.title }}</div>
       <p :class="$style.description">{{ tutorial.currentStep.description }}</p>
       <button
@@ -72,7 +81,17 @@ function openDocs(path: string): void {
 
     <!-- Footer actions -->
     <div :class="$style.actions">
-      <template v-if="tutorial.currentStep?.isFinal">
+      <template v-if="tutorial.runCompleted">
+        <button
+          type="button"
+          class="_button"
+          :class="$style.primaryBtn"
+          @click="tutorial.cancel()"
+        >
+          閉じる
+        </button>
+      </template>
+      <template v-else-if="tutorial.currentStep?.isFinal">
         <button
           type="button"
           class="_button"
@@ -167,6 +186,19 @@ function openDocs(path: string): void {
     opacity: 1;
   }
   transform: scale(1.2);
+}
+
+.replayLabel {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72em;
+  background: var(--nd-buttonBg);
+  opacity: 0.7;
+}
+
+.replayLabel + .progressLabel {
+  margin-left: 6px;
 }
 
 .progressLabel {

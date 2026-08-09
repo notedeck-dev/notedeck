@@ -28,6 +28,7 @@ import {
   type TutorialStep,
 } from '@/data/tutorialSteps'
 import {
+  clearProgress,
   emptyProgress,
   markItemDone,
   mergeProgress,
@@ -57,6 +58,14 @@ export const useTutorialStore = defineStore('tutorial', () => {
    * [次へ] を待つために使う (wizard は自動で進むので常に false)。
    */
   const stepCompleted = ref(false)
+  /**
+   * 見直しモード。完了済みのカテゴリをもう一度走らせているとき true。
+   * 達成済みでも step を飛ばさずに順に見せる (precheck による自動 skip は
+   * 「まだやっていないところまで進める」ためのもので、見直しでは邪魔になる)。
+   */
+  const replaying = ref(false)
+  /** カテゴリを走り切った。カードに完了を出し、閉じるのはユーザーに任せる */
+  const runCompleted = ref(false)
   const active = computed(() => windowId.value !== null)
   const currentStep = computed<TutorialStep | null>(() => {
     if (currentIndex.value < 0 || currentIndex.value >= steps.value.length) {
@@ -136,14 +145,38 @@ export const useTutorialStore = defineStore('tutorial', () => {
     steps.value = []
     windowId.value = null
     stepCompleted.value = false
+    replaying.value = false
+    runCompleted.value = false
   }
 
   // --- 達成記録 (tutorial.json5) ---
 
+  /**
+   * 進行中の書き込み。読む前にこれを待つ (書き込み途中のファイルを読んで、
+   * 消したはずの記録を復元してしまうのを防ぐ / #716 と同じ直列化)。
+   */
+  let pendingWrite: Promise<unknown> = Promise.resolve()
+
+  function queueWrite(next: TutorialProgress): void {
+    pendingWrite = pendingWrite
+      .catch(() => {
+        // 直前の書き込みが失敗していても、次の書き込みは試す
+      })
+      .then(() => writeTutorialProgress(serializeTutorialProgress(next)))
+      .catch((e) => {
+        console.warn('[tutorial] failed to write tutorial.json5 (ignored):', e)
+      })
+  }
+
   /** 保存済みの達成記録を読む。ブラウザ (非 Tauri) では何もしない */
   async function loadProgress(): Promise<void> {
     if (!isTauri) return
+    // 走行中に読み直すと、まだ保存し切っていない達成が巻き戻る
+    if (active.value) return
     try {
+      await pendingWrite.catch(() => {
+        // 書き込みの成否は問わない。読む前に完了していればよい
+      })
       progress.value = parseTutorialProgress(await readTutorialProgress())
     } catch (e) {
       console.warn('[tutorial] failed to read tutorial.json5 (ignored):', e)
@@ -157,35 +190,57 @@ export const useTutorialStore = defineStore('tutorial', () => {
   async function saveProgress(): Promise<void> {
     if (!isTauri) return
     try {
+      await pendingWrite.catch(() => {
+        // 書き込みの成否は問わない。読む前に完了していればよい
+      })
       const stored = parseTutorialProgress(await readTutorialProgress())
       const merged = mergeProgress(stored, progress.value)
       progress.value = merged
-      await writeTutorialProgress(serializeTutorialProgress(merged))
+      queueWrite(merged)
+      await pendingWrite
     } catch (e) {
       console.warn('[tutorial] failed to write tutorial.json5 (ignored):', e)
     }
   }
 
-  /** step が達成済みか。記録済み (latch) か、今の状態で満たされていれば true */
+  /**
+   * step が達成済みか。記録 (latch) だけで判定する。
+   *
+   * 「今の状態が条件を満たしているか」(precheck) は混ぜない。状態は戻る
+   * ものなので混ぜると判定がその都度変わり、一覧の ✓ と走行時の分岐が
+   * ずれる (完走済みなのに「もう一度」が途中で終わる、等)。precheck は
+   * 走行中に「もう済んでいる step を飛ばす」ためだけに使う。
+   */
   function isStepDone(step: TutorialStep): boolean {
-    if (progress.value.items[step.id] != null) return true
-    return step.precheck?.() === 'skip'
+    return progress.value.items[step.id] != null
+  }
+
+  /** カテゴリの全項目が記録済みか */
+  function isCategoryDone(categoryId: TutorialCategoryId): boolean {
+    const members = buildTutorialSteps().filter(
+      (s) => s.category === categoryId,
+    )
+    return members.length > 0 && members.every((s) => isStepDone(s))
   }
 
   /**
-   * 全 step の達成状況を評価して記録に反映し、カテゴリを完走していれば
-   * 実績を解除する。チェックリスト表示時と step 完了時に呼ぶ。
+   * 走行中の step の達成を記録し、カテゴリを完走していれば実績を解除する。
+   *
+   * 状態から拾うのは「今走らせているカテゴリの step」だけに限る。全 step を
+   * 毎回評価すると、チュートリアルを使わずに条件を満たしていた分まで窓を
+   * 開いた瞬間にまとめて解除され、通知が数件同時に飛ぶ。実績は
+   * 「チュートリアルを走らせて満たしたもの」に揃える。
    */
   function syncProgress(): void {
-    const all = buildTutorialSteps()
     const now = Date.now()
     let next = progress.value
-    for (const step of all) {
+    for (const step of steps.value) {
       if (!step.category) continue
       if (next.items[step.id] == null && step.precheck?.() === 'skip') {
         next = markItemDone(next, step.id, now)
       }
     }
+    const all = buildTutorialSteps()
     for (const category of TUTORIAL_CATEGORIES) {
       if (next.achievements[category.id] != null) continue
       const members = all.filter((s) => s.category === category.id)
@@ -205,7 +260,9 @@ export const useTutorialStore = defineStore('tutorial', () => {
    * 次の評価で戻るが、latch していた項目 (カラムを開いた) は未達成に戻る。
    */
   function resetProgress(): void {
-    const cleared = emptyProgress()
+    // 消した時刻を残す。状態が続いている項目 (ログイン済み・カラムがある)
+    // は、これが無いと次の評価で全部書き戻り、実績が復活して通知まで再送される
+    const cleared = clearProgress(Date.now())
     progress.value = cleared
     if (!isTauri) return
     // saveProgress は保存済みの記録と統合するので、消す時は使えない
@@ -214,6 +271,13 @@ export const useTutorialStore = defineStore('tutorial', () => {
         console.warn('[tutorial] failed to reset tutorial.json5 (ignored):', e)
       },
     )
+  }
+
+  /**
+   * 次に見せる step の index。見直し中は precheck を無視して素直に進める。
+   */
+  function advanceFrom(i: number): number {
+    return replaying.value ? i : findNextShowable(i)
   }
 
   /** index `i` から始めて、precheck=skip を満たさない最初の step の index を返す */
@@ -230,6 +294,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
   function enterStep(i: number): void {
     teardownStepWatcher()
     stepCompleted.value = false
+    runCompleted.value = false
     currentIndex.value = i
     const step = currentStep.value
     if (!step) return
@@ -265,6 +330,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
     void loadProgress()
     steps.value = buildTutorialSteps().filter((s) => s.wizard !== false)
     runMode.value = 'wizard'
+    replaying.value = false
     windowId.value = useWindowsStore().open('tutorial', {})
     installWindowWatcher()
     const startIdx = findNextShowable(0)
@@ -291,14 +357,23 @@ export const useTutorialStore = defineStore('tutorial', () => {
     teardownStepWatcher()
     steps.value = members
     runMode.value = 'category'
-    // 全て達成済みなら先頭から見直す (完了したカテゴリをもう一度やれる)
+    // 記録済みで完走しているなら見直し。一覧の ✓ と同じ基準にする
+    // (precheck 基準にすると、カラムを閉じただけで判定がずれる)。
+    // 以降の遷移でも step を飛ばさない — 入口だけ強制すると、次へを押した
+    // 瞬間に残りが全部 skip されて黙って終わる
+    replaying.value = isCategoryDone(categoryId)
     const found = findNextShowable(0)
-    const startIdx = found >= steps.value.length ? 0 : found
+    const startIdx = replaying.value
+      ? 0
+      : Math.min(found, steps.value.length - 1)
     if (!active.value) {
       windowId.value = useWindowsStore().open('tutorial', {})
       installWindowWatcher()
     }
     enterStep(startIdx)
+    // 入った時点で既に満たされている step を拾う。watcher は値の変化しか
+    // 見ないので、ここで記録しないと「済んでいるのに未達成」が残る
+    syncProgress()
   }
 
   /**
@@ -312,7 +387,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
       endRun()
       return
     }
-    const nextIdx = findNextShowable(currentIndex.value + 1)
+    const nextIdx = advanceFrom(currentIndex.value + 1)
     if (nextIdx >= steps.value.length) {
       endRun()
       return
@@ -330,7 +405,10 @@ export const useTutorialStore = defineStore('tutorial', () => {
       return
     }
     syncProgress()
-    cancel()
+    // 黙って閉じない。走り切ったことを見せて、閉じるのはユーザーに任せる
+    teardownStepWatcher()
+    stepCompleted.value = false
+    runCompleted.value = true
   }
 
   /**
@@ -340,16 +418,17 @@ export const useTutorialStore = defineStore('tutorial', () => {
   function skip(): void {
     const step = currentStep.value
     if (!step) return
-    const isLast =
-      step.isFinal ||
-      findNextShowable(currentIndex.value + 1) >= steps.value.length
-    if (isLast) {
-      // wizard / category いずれも完走扱いにはせずカードを閉じる
-      if (runMode.value === 'category') syncProgress()
+    const nextIdx = advanceFrom(currentIndex.value + 1)
+    if (step.isFinal || nextIdx >= steps.value.length) {
+      // wizard は完走扱いにせず閉じる。category は完了を見せる
+      if (runMode.value === 'category') {
+        endRun()
+        return
+      }
       cancel()
       return
     }
-    enterStep(findNextShowable(currentIndex.value + 1))
+    enterStep(nextIdx)
   }
 
   /** チュートリアルを途中で閉じる。completed flag は立てない */
@@ -377,6 +456,8 @@ export const useTutorialStore = defineStore('tutorial', () => {
     runMode,
     progress,
     stepCompleted,
+    replaying,
+    runCompleted,
     // actions
     start,
     startCategory,
@@ -386,6 +467,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
     finish,
     goToStep,
     isStepDone,
+    isCategoryDone,
     syncProgress,
     loadProgress,
     resetProgress,
