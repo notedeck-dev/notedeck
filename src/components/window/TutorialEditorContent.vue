@@ -46,6 +46,7 @@ const groups = computed(() => {
       items,
       doneCount,
       complete: doneCount === items.length,
+      running: tutorial.active && tutorial.runningCategoryId === category.id,
     }
   })
 })
@@ -83,6 +84,10 @@ onMounted(async () => {
 })
 
 function runCategory(id: TutorialCategoryId): void {
+  // 走らせたカテゴリは開いたままにする。既定の追従に任せると、最後の項目を
+  // 達成した瞬間に畳まれ、押していたボタンごとレイアウトが動く
+  userToggled.value = true
+  openedId.value = id
   tutorial.startCategory(id)
 }
 
@@ -175,6 +180,16 @@ function openDocs(path: string): void {
             読む
           </button>
           <button
+            v-if="group.running"
+            type="button"
+            class="_button"
+            :class="$style.runBtn"
+            @click="tutorial.focusCard()"
+          >
+            案内を表示
+          </button>
+          <button
+            v-else
             type="button"
             class="_button"
             :class="$style.runBtn"

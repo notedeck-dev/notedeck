@@ -465,6 +465,16 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     expect(store.currentStep?.id).toBe('b')
   })
 
+  it('初回ウィザード中は一覧からの実行で割り込まない', () => {
+    const store = useTutorialStore()
+    store.start()
+    expect(store.runMode).toBe('wizard')
+    const before = store.currentStep?.id
+    store.startCategory('getting-started')
+    expect(store.runMode).toBe('wizard')
+    expect(store.currentStep?.id).toBe(before)
+  })
+
   it('resetProgress で達成記録が消える', () => {
     const store = useTutorialStore()
     for (const s of mockSteps) {

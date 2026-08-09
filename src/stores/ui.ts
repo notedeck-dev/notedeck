@@ -37,6 +37,12 @@ export const useUiStore = defineStore('ui', () => {
   // モバイル (compact) のナビバードロワー開閉。DeckLayout が所有していたが、
   // チュートリアル等が programmatic に開けるよう store に移管 (横断 UI 状態)。
   const mobileDrawerOpen = ref(false)
+  /**
+   * カラム追加 UI (desktop: コマンドパレット / compact: ダイアログ) が
+   * 開いているか。チュートリアルが「開いていなければ開く」を判定するため、
+   * DeckLayout のローカル状態ではなくここに置く (#1029)
+   */
+  const addMenuOpen = ref(false)
 
   const hasWindow = typeof window !== 'undefined'
   const isNarrowViewport = ref(
@@ -93,6 +99,7 @@ export const useUiStore = defineStore('ui', () => {
     platformName,
     sidebarOpen,
     mobileDrawerOpen,
+    addMenuOpen,
     toggleSidebar,
     deckResumeSignal,
     emitDeckResume,

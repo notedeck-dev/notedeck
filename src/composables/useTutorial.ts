@@ -66,6 +66,8 @@ export const useTutorialStore = defineStore('tutorial', () => {
   const replaying = ref(false)
   /** カテゴリを走り切った。カードに完了を出し、閉じるのはユーザーに任せる */
   const runCompleted = ref(false)
+  /** 今走らせているカテゴリ。一覧側で「案内を表示」に切り替えるのに使う */
+  const runningCategoryId = ref<TutorialCategoryId | null>(null)
   const active = computed(() => windowId.value !== null)
   const currentStep = computed<TutorialStep | null>(() => {
     if (currentIndex.value < 0 || currentIndex.value >= steps.value.length) {
@@ -89,6 +91,11 @@ export const useTutorialStore = defineStore('tutorial', () => {
     const step = currentStep.value
     if (!step?.completion) return
     const { watch: getValue, isComplete } = step.completion
+    // 入った時点で既に満たされているなら、その場で達成を出す。watch は値の
+    // 変化しか見ないので、これが無いと見直し中は一度も達成が出ない
+    if (runMode.value === 'category' && isComplete(getValue())) {
+      stepCompleted.value = true
+    }
     stopStepWatcher = watch(getValue, (value) => {
       if (!isComplete(value)) return
       // 達成の瞬間に記録する。カラムを閉じると状態は false に戻るので、
@@ -147,6 +154,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
     stepCompleted.value = false
     replaying.value = false
     runCompleted.value = false
+    runningCategoryId.value = null
   }
 
   // --- 達成記録 (tutorial.json5) ---
@@ -331,6 +339,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
     steps.value = buildTutorialSteps().filter((s) => s.wizard !== false)
     runMode.value = 'wizard'
     replaying.value = false
+    runningCategoryId.value = null
     windowId.value = useWindowsStore().open('tutorial', {})
     installWindowWatcher()
     const startIdx = findNextShowable(0)
@@ -349,6 +358,12 @@ export const useTutorialStore = defineStore('tutorial', () => {
    * チュートリアル設定ウィンドウは開いたまま残る。
    */
   function startCategory(categoryId: TutorialCategoryId): void {
+    // 初回ウィザードの最中は割り込まない。差し替えるとウィザードが黙って
+    // 消え、完走フラグが永久に立たなくなる (再開の導線は初回起動時のみ)
+    if (active.value && runMode.value === 'wizard') {
+      focusCard()
+      return
+    }
     const members = buildTutorialSteps().filter(
       (s) => s.category === categoryId,
     )
@@ -357,6 +372,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
     teardownStepWatcher()
     steps.value = members
     runMode.value = 'category'
+    runningCategoryId.value = categoryId
     // 記録済みで完走しているなら見直し。一覧の ✓ と同じ基準にする
     // (precheck 基準にすると、カラムを閉じただけで判定がずれる)。
     // 以降の遷移でも step を飛ばさない — 入口だけ強制すると、次へを押した
@@ -431,6 +447,12 @@ export const useTutorialStore = defineStore('tutorial', () => {
     enterStep(nextIdx)
   }
 
+  /** 走行中の案内カードを最前面に出す */
+  function focusCard(): void {
+    const id = windowId.value
+    if (id) useWindowsStore().bringToFront(id)
+  }
+
   /** チュートリアルを途中で閉じる。completed flag は立てない */
   function cancel(): void {
     const id = windowId.value
@@ -458,9 +480,11 @@ export const useTutorialStore = defineStore('tutorial', () => {
     stepCompleted,
     replaying,
     runCompleted,
+    runningCategoryId,
     // actions
     start,
     startCategory,
+    focusCard,
     next,
     skip,
     cancel,

@@ -18,7 +18,11 @@ import { openSafeUrl } from '@/utils/url'
 const tutorial = useTutorialStore()
 
 const stepCount = computed(() => tutorial.totalSteps)
-const stepIndex = computed(() => tutorial.currentNumber)
+// 走り切ったら終端に寄せる。途中の index のままだと "1 / 3" と出て
+// 「完了しました」と食い違う
+const stepIndex = computed(() =>
+  tutorial.runCompleted ? stepCount.value : tutorial.currentNumber,
+)
 // step ごとの詳しい説明は公式ドキュメントにある。読みたい人はここから開く
 const docsPath = computed(() => tutorial.currentStep?.docsPath ?? null)
 
@@ -44,7 +48,10 @@ function openDocs(path: string): void {
         class="_button"
         :class="[
           $style.dot,
-          { [$style.dotActive]: i === stepIndex, [$style.dotDone]: i < stepIndex },
+          {
+            [$style.dotActive]: !tutorial.runCompleted && i === stepIndex,
+            [$style.dotDone]: tutorial.runCompleted || i < stepIndex,
+          },
         ]"
         role="tab"
         :aria-selected="i === stepIndex"
