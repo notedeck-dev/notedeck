@@ -27,6 +27,9 @@ export interface SettingsSection {
 
 /** 表示順はこの配列の順 */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
+  // チュートリアルは達成記録を tutorial.json5 に永続化する常設のチェックリスト
+  // (#1029)。他のファイル永続化される設定と同じくここから開く
+  { window: 'tutorialEditor' },
   { window: 'appearanceEditor' },
   { window: 'aiSettings' },
   { window: 'permissions' },

@@ -42,6 +42,7 @@ export type WindowType =
   | 'connections'
   | 'connectionEdit'
   | 'tutorial'
+  | 'tutorialEditor'
 
 export interface DeckWindow {
   id: string
@@ -119,6 +120,7 @@ export const useWindowsStore = defineStore('windows', () => {
     'snippetsEditor',
     'connections',
     'tutorial',
+    'tutorialEditor',
   ])
 
   // PiP WebView (別 OS ウィンドウ) 内では DeckWindow オーバーレイが存在しないため、

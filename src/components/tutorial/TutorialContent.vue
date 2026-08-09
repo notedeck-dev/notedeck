@@ -12,11 +12,19 @@
 
 import { computed } from 'vue'
 import { useTutorialStore } from '@/composables/useTutorial'
+import { tutorialDocsUrl } from '@/data/tutorialSteps'
+import { openSafeUrl } from '@/utils/url'
 
 const tutorial = useTutorialStore()
 
 const stepCount = computed(() => tutorial.totalSteps)
 const stepIndex = computed(() => tutorial.currentNumber)
+// step ごとの詳しい説明は公式ドキュメントにある。読みたい人はここから開く
+const docsPath = computed(() => tutorial.currentStep?.docsPath ?? null)
+
+function openDocs(path: string): void {
+  openSafeUrl(tutorialDocsUrl(path))
+}
 </script>
 
 <template>
@@ -50,6 +58,16 @@ const stepIndex = computed(() => tutorial.currentNumber)
     <div v-if="tutorial.currentStep" :class="$style.body">
       <div :class="$style.title">{{ tutorial.currentStep.title }}</div>
       <p :class="$style.description">{{ tutorial.currentStep.description }}</p>
+      <button
+        v-if="docsPath"
+        type="button"
+        class="_button"
+        :class="$style.docsLink"
+        @click="openDocs(docsPath)"
+      >
+        <i class="ti ti-book" />
+        詳しく読む
+      </button>
     </div>
 
     <!-- Footer actions -->
@@ -65,6 +83,10 @@ const stepIndex = computed(() => tutorial.currentNumber)
         </button>
       </template>
       <template v-else>
+        <span v-if="tutorial.stepCompleted" :class="$style.doneMark">
+          <i class="ti ti-circle-check-filled" />
+          達成しました
+        </span>
         <button
           type="button"
           class="_button"
@@ -175,12 +197,43 @@ const stepIndex = computed(() => tutorial.currentNumber)
   white-space: pre-line;
 }
 
+.docsLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.88em;
+  color: var(--nd-fg);
+  opacity: 0.7;
+  cursor: pointer;
+  transition: opacity 0.15s var(--nd-ease-decel), background 0.15s var(--nd-ease-decel);
+
+  &:hover {
+    opacity: 1;
+    background: var(--nd-buttonHoverBg);
+  }
+}
+
 .actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--nd-divider);
+}
+
+/* 達成しても自動では進めない (次 step が勝手にウィンドウを開かないように)。
+   代わりに達成をここに出して [次へ] を待つ */
+.doneMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: auto;
+  font-size: 0.85em;
+  color: var(--nd-accent);
 }
 
 .linkBtn {

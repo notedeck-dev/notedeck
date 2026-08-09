@@ -8,9 +8,6 @@ vi.mock('@/composables/useEntityCrud', () => ({
   isEntityType: vi.fn(() => false),
   useEntityCrud: vi.fn(),
 }))
-vi.mock('@/composables/useTutorial', () => ({
-  useTutorialStore: vi.fn(() => ({ start: vi.fn() })),
-}))
 vi.mock('@/composables/useDeckWindow', () => ({
   switchProfileWithWindows: vi.fn(),
   popOutColumnToWindow: vi.fn(),
@@ -46,6 +43,7 @@ vi.mock('@/utils/mediaProxy', () => ({ proxyThumbUrl: (u: unknown) => u }))
 import { useDeckStore } from '@/stores/deck'
 import { useThemeStore } from '@/stores/theme'
 import { useUiStore } from '@/stores/ui'
+import { useWindowsStore } from '@/stores/windows'
 import {
   type CommandHandlers,
   refreshProfileCommands,
@@ -233,5 +231,25 @@ describe('refreshProfileCommands', () => {
     refreshProfileCommands()
     expect(store.commands.get('profile-1')).toBeDefined()
     expect(store.commands.get('profile-2')).toBeUndefined()
+  })
+})
+
+describe('チュートリアルコマンド (#1029)', () => {
+  it('コマンドパレットに出る', () => {
+    const store = useCommandStore()
+    registerDefaultCommands(makeHandlers())
+    const cmd = store.commands.get('tutorial')
+    expect(cmd?.label).toBe('チュートリアル')
+    // visible 未指定 = パレットに出る (ショートカット専用にしない)
+    expect(cmd?.visible).not.toBe(false)
+  })
+
+  it('初回ウィザードではなくチェックリストを開く', () => {
+    const open = vi.fn()
+    vi.mocked(useWindowsStore).mockReturnValue({ open } as never)
+    const store = useCommandStore()
+    registerDefaultCommands(makeHandlers())
+    store.commands.get('tutorial')?.execute()
+    expect(open).toHaveBeenCalledWith('tutorialEditor', {})
   })
 })
