@@ -45,6 +45,7 @@ import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
+import { WINDOW_ICONS, WINDOW_LABELS } from '@/windows/registry'
 import {
   getColumnTypeItems,
   getProfileItems,
@@ -105,22 +106,19 @@ describe('getSettingsItems', () => {
     }
   })
 
-  it('設定メニュー (SETTINGS_SECTIONS) と同じウィンドウを網羅する', () => {
-    // パレット側とメニュー側で一覧が二重管理になっている。片方に足して
-    // もう片方を忘れると、デスクトップとモバイルで開ける設定がずれる
-    // (実際に tutorialEditor がパレット側から漏れていた)。
-    // 両者は同じ露出判定で絞られるので、比較は開発者モード on で行う
+  it('設定メニューと同じウィンドウ・同じ表示名になる (#1035)', () => {
+    // 定義元は SETTINGS_SECTIONS 1 本。表示名とアイコンはウィンドウレジストリ
+    // から引くので、メニューとパレットで名前がずれない。両者は同じ露出判定で
+    // 絞られるため比較は開発者モード on で行う
     devMode = true
-    const opened = new Set<string>()
-    windowsMock.open.mockImplementation((w: string) => {
-      opened.add(w)
-    })
-    for (const item of getSettingsItems()) item.action?.()
-    for (const section of SETTINGS_SECTIONS) {
-      expect(
-        opened.has(section.window),
-        `${section.window} がパレットに無い`,
-      ).toBe(true)
+    const items = getSettingsItems()
+
+    expect(items.map((i) => i.id)).toEqual(
+      SETTINGS_SECTIONS.map((s) => s.window),
+    )
+    for (const item of items) {
+      expect(item.label, item.id).toBe(WINDOW_LABELS[item.id])
+      expect(`ti ti-${item.icon}`, item.id).toBe(WINDOW_ICONS[item.id])
     }
     devMode = false
   })
@@ -128,19 +126,19 @@ describe('getSettingsItems', () => {
   it('開発者モード off では開発者向けの設定が並ばない (#1034)', () => {
     devMode = false
     const ids = getSettingsItems().map((i) => i.id)
-    expect(ids).not.toContain('ai-settings')
-    expect(ids).not.toContain('tasks-editor')
-    expect(ids).not.toContain('snippets-editor')
+    expect(ids).not.toContain('aiSettings')
+    expect(ids).not.toContain('tasksEditor')
+    expect(ids).not.toContain('snippetsEditor')
     // 一般側は残る
-    expect(ids).toContain('appearance')
+    expect(ids).toContain('appearanceEditor')
     expect(ids).toContain('permissions')
-    expect(ids).toContain('css-editor')
+    expect(ids).toContain('cssEditor')
   })
 
   it('全項目がウィンドウを開くだけのフラットな一覧', () => {
     const items = getSettingsItems()
     expect(items.every((i) => i.group === undefined)).toBe(true)
-    items.find((i) => i.id === 'appearance')?.action?.()
+    items.find((i) => i.id === 'appearanceEditor')?.action?.()
     expect(windowsMock.open).toHaveBeenCalledWith('appearanceEditor')
   })
 

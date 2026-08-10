@@ -16,6 +16,7 @@ import { refreshProfileCommands } from '@/commands/definitions'
 import { switchProfileWithWindows } from '@/composables/useDeckWindow'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { formatUserHandle, searchUsers } from '@/composables/useUserSearch'
+import { SETTINGS_SECTIONS } from '@/settings/sections'
 import {
   getAccountAvatarUrl,
   getAccountLabel,
@@ -28,10 +29,11 @@ import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { usePrompt } from '@/stores/prompt'
 import { useToast } from '@/stores/toast'
-import { useWindowsStore, type WindowType } from '@/stores/windows'
+import { useWindowsStore } from '@/stores/windows'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { isWindowExposed } from '@/windows/exposure'
+import { WINDOW_ICONS, WINDOW_LABELS } from '@/windows/registry'
 import type { QuickPickItem } from './quickPick'
 import { useCommandStore } from './registry'
 
@@ -40,102 +42,19 @@ import { useCommandStore } from './registry'
 // ============================================================
 
 export function getSettingsItems(): QuickPickItem[] {
-  // 開くウィンドウの帰属タグで絞る (#1034)。設定メニュー側と同じ判定。
-  return settingsItems().filter((i) => isWindowExposed(i.window))
-}
-
-interface SettingsQuickPickItem extends QuickPickItem {
-  window: WindowType
-}
-
-function settingsItems(): SettingsQuickPickItem[] {
-  return [
-    // 個別操作は並べず、モバイルの設定メニューと同じくウィンドウに集約する
-    {
-      id: 'tutorial',
-      window: 'tutorialEditor',
-      label: 'チュートリアル',
-      icon: 'checkbox',
-      action: () => useWindowsStore().open('tutorialEditor'),
-    },
-    {
-      id: 'appearance',
-      window: 'appearanceEditor',
-      label: 'アピアランス',
-      icon: 'brush',
-      action: () => useWindowsStore().open('appearanceEditor'),
-    },
-    {
-      id: 'ai-settings',
-      window: 'aiSettings',
-      label: 'エージェント',
-      icon: 'robot',
-      action: () => useWindowsStore().open('aiSettings'),
-    },
-    {
-      id: 'permissions',
-      window: 'permissions',
-      label: '権限',
-      icon: 'shield-lock',
-      action: () => useWindowsStore().open('permissions'),
-    },
-    {
-      id: 'connections',
-      window: 'connections',
-      label: '接続',
-      icon: 'plug-connected',
-      action: () => useWindowsStore().open('connections'),
-    },
-    {
-      id: 'keybinds',
-      window: 'keybinds',
-      label: 'キーバインド',
-      icon: 'keyboard',
-      action: () => useWindowsStore().open('keybinds'),
-    },
-    {
-      id: 'performance',
-      window: 'performanceEditor',
-      label: 'パフォーマンス',
-      icon: 'gauge',
-      action: () => useWindowsStore().open('performanceEditor'),
-    },
-    {
-      id: 'css-editor',
-      window: 'cssEditor',
-      label: 'カスタムCSS',
-      icon: 'code',
-      action: () => useWindowsStore().open('cssEditor'),
-    },
-    {
-      id: 'tasks-editor',
-      window: 'tasksEditor',
-      label: 'タスク',
-      icon: 'player-play',
-      action: () => useWindowsStore().open('tasksEditor'),
-    },
-    {
-      id: 'snippets-editor',
-      window: 'snippetsEditor',
-      label: 'スニペット',
-      icon: 'code-plus',
-      action: () => useWindowsStore().open('snippetsEditor'),
-    },
-    {
-      id: 'cache-editor',
-      window: 'cacheEditor',
-      label: 'キャッシュ',
-      icon: 'eraser',
-      action: () => useWindowsStore().open('cacheEditor'),
-    },
-    {
-      id: 'backup',
-      window: 'backup',
-      label: 'バックアップ',
-      icon: 'database',
-      action: () => useWindowsStore().open('backup'),
-    },
-  ]
+  // 定義元は SETTINGS_SECTIONS 1 本 (#1035)。表示名とアイコンはウィンドウ
+  // レジストリから引くので、メニューとパレットで名前がずれない
+  return SETTINGS_SECTIONS.filter((section) =>
+    isWindowExposed(section.window),
+  ).map((section) => ({
+    id: section.window,
+    label: WINDOW_LABELS[section.window] ?? section.window,
+    icon: (WINDOW_ICONS[section.window] ?? 'ti ti-settings').replace(
+      /^ti ti-/,
+      '',
+    ),
+    action: () => useWindowsStore().open(section.window),
+  }))
 }
 
 // ============================================================

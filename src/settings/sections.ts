@@ -14,6 +14,10 @@ import type { WindowType } from '@/stores/windows'
  *
  * ウィンドウレジストリと同じく実行時登録は開けない。組み込みが自分自身を
  * ここに列挙する形に揃えるところまでが範囲。
+ *
+ * 設定メニューとコマンドパレットの設定クイックピックは、どちらもこの配列を
+ * 読む (#1035)。以前はパレット側が別のリストをラベル・アイコンごと手書きで
+ * 持っていて、項目・表示名・並び順がずれていた。
  */
 export interface SettingsSection {
   /** 開くウィンドウ種別 */
@@ -34,6 +38,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { window: 'aiSettings' },
   { window: 'permissions' },
   { window: 'connections' },
+  { window: 'keybinds' },
   {
     window: 'performanceEditor',
     hasOverride: () => Object.keys(usePerformanceStore().overrides).length > 0,
