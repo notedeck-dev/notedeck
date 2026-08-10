@@ -5,6 +5,7 @@ import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { SETTINGS_SECTIONS, type SettingsSection } from '@/settings/sections'
 import { useWindowsStore } from '@/stores/windows'
+import { isWindowExposed } from '@/windows/exposure'
 import { WINDOW_ICONS, WINDOW_LABELS } from '@/windows/registry'
 
 const props = defineProps<{
@@ -14,6 +15,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
 }>()
+
+/** 開発者モードが off なら開発者向けのセクションは出さない (#1034) */
+const sections = computed(() =>
+  SETTINGS_SECTIONS.filter((s) => isWindowExposed(s.window)),
+)
 
 const { visible: menuVisible, leaving: menuLeaving } = useVaporTransition(
   toRef(props, 'show'),
@@ -54,7 +60,7 @@ function openSection(section: SettingsSection) {
     >
       <div :class="$style.menuBody">
         <div
-          v-for="section in SETTINGS_SECTIONS"
+          v-for="section in sections"
           :key="section.window"
           :class="$style.categorySection"
         >

@@ -1,5 +1,6 @@
 import { createPinia } from 'pinia'
 import { createApp } from 'vue'
+import { initDeveloperMode } from '@/composables/useDeveloperMode'
 import App from './App.vue'
 import { ALL_BUILTIN_CAPABILITIES } from './capabilities/builtins'
 import { registerCapability } from './capabilities/registry'
@@ -136,6 +137,10 @@ if (isTauri) {
   // DeckColumn's `requireAccount` guard, which renders a static blank while
   // `accountsStore.isLoaded` is false so no "アカウントが見つかりません" flashes.
   useAccountsStore().loadAccounts()
+
+  // 開発者モードの初期値を一度だけ確定させる (#1034)。アカウントのロードを
+  // 待つので fire-and-forget。既存インストールは on、新規は off。
+  void initDeveloperMode()
 
   // Pre-load server info from DB so ColumnBadges can show icons immediately
   useServersStore().loadCachedServers()

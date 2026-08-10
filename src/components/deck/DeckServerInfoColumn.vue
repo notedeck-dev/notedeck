@@ -7,6 +7,7 @@ import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
+import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
@@ -69,11 +70,18 @@ useColumnPullScroller(scrollContainer)
 const rulesOpen = ref(false)
 
 type ServerTab = 'info' | 'meta' | 'stats'
-const TAB_DEFS: { value: ServerTab; icon: string; label: string }[] = [
-  { value: 'info', icon: 'info-circle', label: '情報' },
-  { value: 'meta', icon: 'code', label: 'meta' },
-  { value: 'stats', icon: 'chart-bar', label: 'stats' },
-]
+// meta / stats は API の生レスポンスを見る面 (#1034)
+const TAB_DEFS = computed<{ value: ServerTab; icon: string; label: string }[]>(
+  () => [
+    { value: 'info', icon: 'info-circle', label: '情報' },
+    ...(isExposed('developer')
+      ? [
+          { value: 'meta' as const, icon: 'code', label: 'meta' },
+          { value: 'stats' as const, icon: 'chart-bar', label: 'stats' },
+        ]
+      : []),
+  ],
+)
 const tab = ref<ServerTab>('info')
 
 const metaJson = computed(() =>

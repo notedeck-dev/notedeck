@@ -9,6 +9,7 @@ import type {
   CapabilitySignature,
   PermissionKey,
 } from '@/capabilities/types'
+import type { ExposureTag } from '@/settings/exposure'
 import type { ConfirmOptions } from '@/stores/confirm'
 import type { QuickPickStep } from './quickPick'
 
@@ -58,6 +59,12 @@ export interface Command {
   enabled?: () => boolean
   /** false にするとパレットに非表示 (ショートカットのみ) */
   visible?: boolean
+  /**
+   * 露出条件 (#1034)。省略時は 'general'。'developer' を付けた command は
+   * 開発者モードが無効なときパレットに並ばない。実行そのものは塞がない
+   * (キーバインド・AI・プラグインからの呼び出しは通る)。
+   */
+  exposure?: ExposureTag
   /**
    * この command を実行するのに必要な権限 (Phase 1 の `ai.json5` permissions と
    * 同じスキーマ)。AI tool / HTTP API / プラグインから呼ぶときに照合される。

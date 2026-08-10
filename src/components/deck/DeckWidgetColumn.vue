@@ -21,6 +21,7 @@ import {
 } from '@/stores/widgets'
 import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
+import { isWindowExposed } from '@/windows/exposure'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -275,7 +276,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
     <template #header-meta>
       <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
       <button
-        v-if="viewTab === 'installed'"
+        v-if="viewTab === 'installed' && isWindowExposed('widget-edit')"
         class="_button"
         :class="$style.headerBtn"
         title="新規ローカルウィジットを作成"

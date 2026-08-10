@@ -75,6 +75,7 @@ import {
 } from '@/utils/notificationCache'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { char2twemojiUrl } from '@/utils/twemoji'
+import { isWindowExposed } from '@/windows/exposure'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -1467,11 +1468,11 @@ onUnmounted(() => {
       <i class="ti ti-message" />
       ノートを表示
     </button>
-    <button v-if="notifMenuTarget?.note" class="_popupItem" @click="notifMenuOpenNoteInspector">
+    <button v-if="notifMenuTarget?.note && isWindowExposed('note-inspector')" class="_popupItem" @click="notifMenuOpenNoteInspector">
       <i class="ti ti-code" />
       ノートの Raw JSON
     </button>
-    <button class="_popupItem" @click="notifMenuOpenNotifInspector">
+    <button v-if="isWindowExposed('notification-inspector')" class="_popupItem" @click="notifMenuOpenNotifInspector">
       <i class="ti ti-code" />
       通知の Raw JSON
     </button>

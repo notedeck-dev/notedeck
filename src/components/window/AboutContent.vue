@@ -2,6 +2,8 @@
 import { getTauriVersion } from '@tauri-apps/api/app'
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import type { Check, HealthReport, Status } from '@/bindings'
+import { useAiConfig } from '@/composables/useAiConfig'
+import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useUpdater } from '@/composables/useUpdater'
 import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
@@ -22,6 +24,21 @@ const tauriVersion = ref('')
 const rustVersion = ref('')
 const copied = ref(false)
 const uiStore = useUiStore()
+
+const { enabled: developerMode, toggle: toggleDeveloperMode } =
+  useDeveloperMode()
+
+const aiConfig = useAiConfig()
+
+/** 開発者モードが off で、かつ HEARTBEAT が動いている状態 */
+const heartbeatRunningHidden = computed(
+  () => !developerMode.value && aiConfig.config.value.heartbeat.enabled,
+)
+
+function stopHeartbeat(): void {
+  aiConfig.config.value.heartbeat.enabled = false
+  aiConfig.save()
+}
 const accountsStore = useAccountsStore()
 
 const REPO_URL = 'https://github.com/notedeck-dev/notedeck'
@@ -458,6 +475,41 @@ function reportBug() {
           <img src="https://github.com/hitalin.png?size=48" :class="$style.devAvatar" alt="" />
           <span>@hitalin</span>
           <span :class="$style.formLinkSuffix">GitHub Sponsors <i class="ti ti-external-link" /></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 開発者モード (#1034)。パレットのトグルコマンドと並ぶ唯一の入口なので、
+         off の状態からも見つかる場所に置く -->
+    <div :class="$style.formSection">
+      <div :class="$style.formSectionLabel">開発者モード</div>
+      <div :class="$style.sectionBody">
+        <button
+          type="button"
+          class="_button"
+          :class="$style.formLink"
+          :title="developerMode ? '無効にする' : '有効にする'"
+          @click="toggleDeveloperMode"
+        >
+          <i class="ti ti-code" :class="$style.formLinkIcon" />
+          <span>API コンソール・ストリーム・AI などを表示</span>
+          <span :class="$style.formLinkSuffix">
+            <i :class="developerMode ? 'ti ti-toggle-right' : 'ti ti-toggle-left'" />
+          </span>
+        </button>
+        <!-- off でも HEARTBEAT は走り続ける。制御面が隠れている間の唯一の
+             稼働表示と停止導線 (#1034) -->
+        <button
+          v-if="heartbeatRunningHidden"
+          type="button"
+          class="_button"
+          :class="$style.formLink"
+          title="HEARTBEAT を停止する"
+          @click="stopHeartbeat"
+        >
+          <i class="ti ti-activity-heartbeat" :class="$style.formLinkIcon" />
+          <span>HEARTBEAT が動作中</span>
+          <span :class="$style.formLinkSuffix">停止</span>
         </button>
       </div>
     </div>

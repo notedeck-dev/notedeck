@@ -120,6 +120,15 @@ export interface NotedeckSettings {
    */
   'tutorial.completed'?: boolean
 
+  // --- UI の露出 (#1034) ---
+  /**
+   * 開発者モード。有効にすると API コンソール・ストリーム・スクラッチパッド・
+   * AI などの面が追加導線に現れる。既定値を持たないのは、未定義を「まだ決めて
+   * いない」として初回に既存インストールかどうかで解決するため
+   * (`services/developerMode.ts`)。
+   */
+  'ui.developerMode'?: boolean
+
   // keybinds は keybinds.json5 に分離済み（独立ファイル）
   // AI は ai.json5 に分離済み。システムプロンプトは skills/ に統合済み
 }

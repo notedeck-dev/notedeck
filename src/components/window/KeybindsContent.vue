@@ -3,12 +3,14 @@ import { json } from '@codemirror/lang-json'
 import { type Diagnostic, linter } from '@codemirror/lint'
 import { computed, reactive, ref, watch } from 'vue'
 import type { Shortcut } from '@/commands/registry'
+import { useCommandStore } from '@/commands/registry'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { isExposed } from '@/settings/exposure'
 import { useKeybindsStore } from '@/stores/keybinds'
 import { STORAGE_KEYS, setStorageJson } from '@/utils/storage'
 
@@ -43,9 +45,20 @@ const props = defineProps<{
 }>()
 
 // ── Tab management ──
-const { tab, containerRef: contentRef } = useEditorTabs(
-  ['visual', 'code'] as const,
-  (props.initialTab as 'visual' | 'code') ?? 'visual',
+// 生ファイルを直接編集する code タブは開発者向けの面 (#1034)。この窓が
+// 自分で opt-in する — タブ機構側で一律に外すと、カスタム CSS や Play 編集の
+// ように code タブが唯一の編集面になっている窓を巻き添えで壊す
+const editorTabs = computed(() =>
+  isExposed('developer')
+    ? (['visual', 'code'] as const)
+    : (['visual'] as const),
+)
+
+const { tab, containerRef: contentRef } = useEditorTabs<'visual' | 'code'>(
+  editorTabs,
+  props.initialTab === 'code' && !isExposed('developer')
+    ? 'visual'
+    : ((props.initialTab as 'visual' | 'code') ?? 'visual'),
 )
 
 useWindowExternalFile(() =>
@@ -53,7 +66,14 @@ useWindowExternalFile(() =>
 )
 
 // ── Visual tab: category-based GUI ──
-const commandIds = keybindsStore.getAllCommandIds()
+// 開発者向けの command は開発者モードが off なら割り当て一覧にも出さない
+// (#1034)。既定ファイルにしか無い id は登録前でも一般側として扱う
+const commandStore = useCommandStore()
+const commandIds = computed(() =>
+  keybindsStore
+    .getAllCommandIds()
+    .filter((id) => isExposed(commandStore.commands.get(id)?.exposure)),
+)
 
 const COMMAND_LABELS: Record<string, string> = {
   'command-palette': 'コマンドパレット',
@@ -168,7 +188,7 @@ const groupedCommands = computed(() => {
     commands: string[]
   }[] = []
   for (const cat of CATEGORY_ORDER) {
-    const cmds = commandIds.filter((id) => COMMAND_CATEGORIES[id] === cat)
+    const cmds = commandIds.value.filter((id) => COMMAND_CATEGORIES[id] === cat)
     if (cmds.length > 0) {
       const meta = CATEGORY_LABELS[cat]
       groups.push({
@@ -359,7 +379,9 @@ function handleReset() {
       v-model="tab"
       :tabs="[
         { value: 'visual', icon: 'adjustments', label: 'ビジュアル' },
-        { value: 'code', icon: 'code', label: 'コード' },
+        ...(isExposed('developer')
+          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          : []),
       ]"
     />
 

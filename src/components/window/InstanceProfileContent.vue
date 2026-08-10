@@ -9,6 +9,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { AppError } from '@/utils/errors'
 import { formatCount, formatDate } from '@/utils/format'
@@ -25,14 +26,19 @@ const props = defineProps<{
 const accountsStore = useAccountsStore()
 
 type Tab = 'overview' | 'raw'
-const TAB_DEFS = [
+// Raw はプロトコルが見える面 (#1034)
+const TAB_DEFS = computed(() => [
   { value: 'overview', icon: 'home', label: '概要' },
-  { value: 'raw', icon: 'code', label: 'Raw' },
-]
-const { tab, containerRef } = useEditorTabs<Tab>(
-  ['overview', 'raw'] as const,
-  'overview',
+  ...(isExposed('developer')
+    ? [{ value: 'raw', icon: 'code', label: 'Raw' }]
+    : []),
+])
+const tabValues = computed<readonly Tab[]>(() =>
+  isExposed('developer')
+    ? (['overview', 'raw'] as const)
+    : (['overview'] as const),
 )
+const { tab, containerRef } = useEditorTabs<Tab>(tabValues, 'overview')
 
 const instance = shallowRef<FederationInstance | null>(
   props.initialInstance ?? null,

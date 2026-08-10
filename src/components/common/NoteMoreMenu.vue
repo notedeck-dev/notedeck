@@ -25,6 +25,7 @@ import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { getNoteShareUrl } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { isWindowExposed } from '@/windows/exposure'
 import PopupMenu from './PopupMenu.vue'
 
 const props = defineProps<{
@@ -451,7 +452,7 @@ defineExpose({ open })
         <i class="ti ti-users" />
         別のアカウントで…
       </button>
-      <button class="_popupItem" @click="openInspector">
+      <button v-if="isWindowExposed('note-inspector')" class="_popupItem" @click="openInspector">
         <i class="ti ti-code" />
         Raw JSON を表示
       </button>

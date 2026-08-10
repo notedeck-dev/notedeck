@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { exposedColumnGroups } from '@/columns/exposure'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
   ACCOUNT_OPTIONAL_TYPES,
@@ -6,7 +7,6 @@ import {
   COLUMN_ICONS,
   COLUMN_LABELS,
   COLUMN_REGISTRY,
-  COLUMN_TYPE_GROUPS,
   CROSS_ACCOUNT_TYPES,
   GUEST_ALLOWED_TYPES,
   type SelectableItem,
@@ -28,9 +28,10 @@ import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { usePrompt } from '@/stores/prompt'
 import { useToast } from '@/stores/toast'
-import { useWindowsStore } from '@/stores/windows'
+import { useWindowsStore, type WindowType } from '@/stores/windows'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { isWindowExposed } from '@/windows/exposure'
 import type { QuickPickItem } from './quickPick'
 import { useCommandStore } from './registry'
 
@@ -39,76 +40,97 @@ import { useCommandStore } from './registry'
 // ============================================================
 
 export function getSettingsItems(): QuickPickItem[] {
+  // 開くウィンドウの帰属タグで絞る (#1034)。設定メニュー側と同じ判定。
+  return settingsItems().filter((i) => isWindowExposed(i.window))
+}
+
+interface SettingsQuickPickItem extends QuickPickItem {
+  window: WindowType
+}
+
+function settingsItems(): SettingsQuickPickItem[] {
   return [
     // 個別操作は並べず、モバイルの設定メニューと同じくウィンドウに集約する
     {
       id: 'tutorial',
+      window: 'tutorialEditor',
       label: 'チュートリアル',
       icon: 'checkbox',
       action: () => useWindowsStore().open('tutorialEditor'),
     },
     {
       id: 'appearance',
+      window: 'appearanceEditor',
       label: 'アピアランス',
       icon: 'brush',
       action: () => useWindowsStore().open('appearanceEditor'),
     },
     {
       id: 'ai-settings',
+      window: 'aiSettings',
       label: 'エージェント',
       icon: 'robot',
       action: () => useWindowsStore().open('aiSettings'),
     },
     {
       id: 'permissions',
+      window: 'permissions',
       label: '権限',
       icon: 'shield-lock',
       action: () => useWindowsStore().open('permissions'),
     },
     {
       id: 'connections',
+      window: 'connections',
       label: '接続',
       icon: 'plug-connected',
       action: () => useWindowsStore().open('connections'),
     },
     {
       id: 'keybinds',
+      window: 'keybinds',
       label: 'キーバインド',
       icon: 'keyboard',
       action: () => useWindowsStore().open('keybinds'),
     },
     {
       id: 'performance',
+      window: 'performanceEditor',
       label: 'パフォーマンス',
       icon: 'gauge',
       action: () => useWindowsStore().open('performanceEditor'),
     },
     {
       id: 'css-editor',
+      window: 'cssEditor',
       label: 'カスタムCSS',
       icon: 'code',
       action: () => useWindowsStore().open('cssEditor'),
     },
     {
       id: 'tasks-editor',
+      window: 'tasksEditor',
       label: 'タスク',
       icon: 'player-play',
       action: () => useWindowsStore().open('tasksEditor'),
     },
     {
       id: 'snippets-editor',
+      window: 'snippetsEditor',
       label: 'スニペット',
       icon: 'code-plus',
       action: () => useWindowsStore().open('snippetsEditor'),
     },
     {
       id: 'cache-editor',
+      window: 'cacheEditor',
       label: 'キャッシュ',
       icon: 'eraser',
       action: () => useWindowsStore().open('cacheEditor'),
     },
     {
       id: 'backup',
+      window: 'backup',
       label: 'バックアップ',
       icon: 'database',
       action: () => useWindowsStore().open('backup'),
@@ -197,7 +219,7 @@ function getProfileActions(
 // ============================================================
 
 export function getColumnTypeItems(): QuickPickItem[] {
-  return COLUMN_TYPE_GROUPS.flatMap(({ label: group, types }) =>
+  return exposedColumnGroups().flatMap(({ label: group, types }) =>
     types.map((type) => ({
       id: `col-${type}`,
       label: COLUMN_LABELS[type] ?? type,

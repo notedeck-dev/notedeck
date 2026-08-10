@@ -1,5 +1,6 @@
 import { useCommandStore } from '@/commands/registry'
 import { useAccountActions } from '@/composables/useAccountActions'
+import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { isEntityType, useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteAction } from '@/composables/useNoteFocus'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
@@ -655,11 +656,32 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     execute: () => useWindowsStore().open('cssEditor'),
   })
 
+  // 開発者モード自体のトグルは常にパレットに出る (#1034)。ここと About が
+  // 唯一の入口なので、off の状態からも必ず見つかる必要がある
+  commandStore.register({
+    id: 'developer-mode',
+    label: '開発者モードを切り替え',
+    icon: 'code',
+    category: 'general',
+    shortcuts: keybindsStore.getShortcuts('developer-mode'),
+    execute: () => {
+      const { enabled, toggle } = useDeveloperMode()
+      toggle()
+      useToast().show(
+        enabled.value
+          ? '開発者モードを有効にしました'
+          : '開発者モードを無効にしました',
+        'success',
+      )
+    },
+  })
+
   commandStore.register({
     id: 'tasks-editor',
     label: 'タスク設定',
     icon: 'player-play',
     category: 'general',
+    exposure: 'developer',
     shortcuts: keybindsStore.getShortcuts('tasks-editor'),
     execute: () => useWindowsStore().open('tasksEditor'),
   })
@@ -669,6 +691,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     label: 'スニペット',
     icon: 'code-plus',
     category: 'general',
+    exposure: 'developer',
     shortcuts: keybindsStore.getShortcuts('snippets-editor'),
     execute: () => useWindowsStore().open('snippetsEditor'),
   })
@@ -678,6 +701,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     label: 'デフォルトタスクを実行',
     icon: 'player-play-filled',
     category: 'general',
+    exposure: 'developer',
     shortcuts: keybindsStore.getShortcuts('tasks.run-default'),
     execute: () => {
       void useTaskRunnerStore().runDefault()
@@ -760,6 +784,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     label: 'AIアシスタント',
     icon: 'robot',
     category: 'navigation',
+    exposure: 'developer',
     shortcuts: keybindsStore.getShortcuts('ai'),
     execute: () => useDeckStore().toggleSidebarColumn('ai', null),
   })
@@ -951,6 +976,7 @@ export function unregisterDefaultCommands() {
     'delete-entity',
     'keybinds',
     'css-editor',
+    'developer-mode',
     'tasks-editor',
     'plugins',
     'login',
