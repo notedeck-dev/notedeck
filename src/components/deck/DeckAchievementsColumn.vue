@@ -5,15 +5,16 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAchievementsGrid from '@/components/common/MkAchievementsGrid.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTutorialStore } from '@/composables/useTutorial'
 import {
   TUTORIAL_ACHIEVEMENT_BADGES,
   TUTORIAL_ACHIEVEMENT_LABELS,
-  TUTORIAL_ACHIEVEMENT_TOTAL,
-  TUTORIAL_ACHIEVEMENT_TYPES,
   tutorialAchievements,
+  tutorialAchievementView,
 } from '@/services/tutorialAchievements'
+import { isExposed } from '@/settings/exposure'
 import { getAccountAvatarUrl } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { ACHIEVEMENT_TOTAL, type Achievement } from '@/utils/achievements'
@@ -55,13 +56,25 @@ const source = ref<'server' | 'notedeck'>(
 const tutorial = useTutorialStore()
 const ownAchievements = computed(() => tutorialAchievements(tutorial.progress))
 
+/**
+ * 開発者モードで開放されるカテゴリは達成できないので、分母から外して
+ * 鍵として見せる (#1036)。解除済みのものは隠れる側に回っても達成済みのまま
+ */
+const ownView = computed(() =>
+  tutorialAchievementView(tutorial.progress, (category) =>
+    isExposed(category.exposure),
+  ),
+)
+
+const { setEnabled: setDeveloperMode } = useDeveloperMode()
+
 const isOwn = computed(() => source.value === 'notedeck')
 const shownAchievements = computed(() =>
   isOwn.value ? ownAchievements.value : achievements.value,
 )
 const unlockedCount = computed(() => shownAchievements.value.length)
 const totalCount = computed(() =>
-  isOwn.value ? TUTORIAL_ACHIEVEMENT_TOTAL : ACHIEVEMENT_TOTAL,
+  isOwn.value ? ownView.value.total : ACHIEVEMENT_TOTAL,
 )
 
 /** 引いて更新。NoteDeck タブは達成記録を読み直す (サーバーは叩かない) */
@@ -132,9 +145,12 @@ function scrollToTop() {
       <MkAchievementsGrid
         v-if="isOwn"
         :achievements="ownAchievements"
-        :types="TUTORIAL_ACHIEVEMENT_TYPES"
+        :types="ownView.types"
         :badges="TUTORIAL_ACHIEVEMENT_BADGES"
         :labels="TUTORIAL_ACHIEVEMENT_LABELS"
+        :pending="ownView.pending"
+        pending-hint="開発者モードを有効にすると挑戦できます"
+        @unlock="setDeveloperMode(true)"
       />
       <div v-else-if="loading && achievements.length === 0 && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
       <ColumnEmptyState

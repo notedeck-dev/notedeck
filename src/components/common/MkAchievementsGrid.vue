@@ -19,7 +19,20 @@ const props = defineProps<{
   badges?: Record<string, AchievementBadge>
   /** 種別 → 表示名。未指定ならサーバー実績のラベル */
   labels?: Record<string, string>
+  /**
+   * 開放待ちの種別 (#1036)。まだ達成できない状態なので未達成とは区別し、
+   * 鍵として見せて開放を促す。押すと unlock を emit する
+   */
+  pending?: readonly string[]
+  /** 開放待ちカードの説明。押したときに何が起きるかを書く */
+  pendingHint?: string
 }>()
+
+const emit = defineEmits<{
+  unlock: []
+}>()
+
+const pendingSet = computed(() => new Set(props.pending ?? []))
 
 type BadgeInfo = AchievementBadge
 
@@ -425,10 +438,16 @@ function formatDate(ts: number): string {
 
 <template>
   <div :class="$style.achievementsGrid">
-    <div
+    <component
+      :is="pendingSet.has(item.name) ? 'button' : 'div'"
       v-for="item in sortedAchievements"
       :key="item.name"
-      :class="[$style.achievementCard, { [$style.locked]: !item.unlockedAt }]"
+      :class="[
+        $style.achievementCard,
+        { [$style.locked]: !item.unlockedAt, [$style.pending]: pendingSet.has(item.name) },
+      ]"
+      :title="pendingSet.has(item.name) ? pendingHint : undefined"
+      @click="pendingSet.has(item.name) && emit('unlock')"
     >
       <div :class="$style.achievementBadge">
         <div
@@ -442,6 +461,10 @@ function formatDate(ts: number): string {
             }"
           >
             <span v-if="item.unlockedAt" :class="$style.badgeEmoji">{{ getBadge(item.name).emoji }}</span>
+            <i
+              v-else-if="pendingSet.has(item.name)"
+              :class="['ti ti-lock', $style.badgeEmoji, $style.lockedEmoji]"
+            />
             <span v-else :class="[$style.badgeEmoji, $style.lockedEmoji]">?</span>
           </div>
         </div>
@@ -449,8 +472,9 @@ function formatDate(ts: number): string {
       <div :class="$style.achievementInfo">
         <div :class="$style.achievementName">{{ item.unlockedAt ? getLabel(item.name) : '???' }}</div>
         <div v-if="item.unlockedAt" :class="$style.achievementDate">{{ formatDate(item.unlockedAt) }}</div>
+        <div v-else-if="pendingSet.has(item.name)" :class="$style.achievementDate">開放する</div>
       </div>
-    </div>
+    </component>
   </div>
 </template>
 
@@ -480,6 +504,21 @@ function formatDate(ts: number): string {
 
   &.locked {
     opacity: 0.35;
+  }
+
+  /* 開放待ちは押せる。未達成 (0.35) より濃くして、諦めの対象でないと分かる形にする */
+  &.pending {
+    opacity: 0.6;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font: inherit;
+    color: inherit;
+
+    &:hover {
+      opacity: 1;
+      background: var(--nd-buttonHoverBg);
+    }
   }
 }
 
