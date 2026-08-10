@@ -3,6 +3,7 @@ import { json } from '@codemirror/lang-json'
 import { type Diagnostic, linter } from '@codemirror/lint'
 import { computed, reactive, ref, watch } from 'vue'
 import type { Shortcut } from '@/commands/registry'
+import { useCommandStore } from '@/commands/registry'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
@@ -65,7 +66,14 @@ useWindowExternalFile(() =>
 )
 
 // ── Visual tab: category-based GUI ──
-const commandIds = keybindsStore.getAllCommandIds()
+// 開発者向けの command は開発者モードが off なら割り当て一覧にも出さない
+// (#1034)。既定ファイルにしか無い id は登録前でも一般側として扱う
+const commandStore = useCommandStore()
+const commandIds = computed(() =>
+  keybindsStore
+    .getAllCommandIds()
+    .filter((id) => isExposed(commandStore.commands.get(id)?.exposure)),
+)
 
 const COMMAND_LABELS: Record<string, string> = {
   'command-palette': 'コマンドパレット',
@@ -180,7 +188,7 @@ const groupedCommands = computed(() => {
     commands: string[]
   }[] = []
   for (const cat of CATEGORY_ORDER) {
-    const cmds = commandIds.filter((id) => COMMAND_CATEGORIES[id] === cat)
+    const cmds = commandIds.value.filter((id) => COMMAND_CATEGORIES[id] === cat)
     if (cmds.length > 0) {
       const meta = CATEGORY_LABELS[cat]
       groups.push({
