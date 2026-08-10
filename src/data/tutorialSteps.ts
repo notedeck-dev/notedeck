@@ -65,7 +65,7 @@ export interface TutorialCompletionWatcher {
  * になるようにするため。カテゴリと step はそれぞれ対応するページを持ち、
  * チュートリアルから直接開ける。
  */
-export type TutorialCategoryId = 'deck' | 'mastery' | 'extend'
+export type TutorialCategoryId = 'getting-started' | 'mastery' | 'extend'
 
 export interface TutorialCategory {
   id: TutorialCategoryId
@@ -133,11 +133,6 @@ function isNotificationsColumnOpen(): boolean {
   )
 }
 
-/** 指定種別のカラムが今開いているか */
-function isColumnOpen(type: ColumnType): boolean {
-  return useDeckStore().columns.some((c) => c.type === type)
-}
-
 /**
  * カラム追加 UI を開き、指定種別の項目を spotlight で指し示す。
  * desktop はコマンドパレット (+ モード)、compact は AddColumnDialog。どちらも
@@ -175,20 +170,9 @@ function hasResolvedAiProvider(): boolean {
   return resolveAiConnection(config.value, useVault().connections.value) != null
 }
 
-/** コマンドパレットが今開いているか */
-function isCommandPaletteOpen(): boolean {
-  return useCommandStore().isOpen
-}
-
 /** プロファイルを 2 つ以上持っているか (= 使い分けを作った) */
 function hasExtraProfile(): boolean {
   return useDeckProfileStore().getProfiles().length > 1
-}
-
-/** 既定から見た目を変えたか (テーマ選択またはカスタム CSS) */
-function hasAppearanceChange(): boolean {
-  const theme = useThemeStore()
-  return theme.customCss.trim().length > 0 || theme.installedThemes.length > 0
 }
 
 /** AI チャットカラム (sidebar スロット) が今開いているか */
@@ -197,31 +181,29 @@ function isAiColumnOpen(): boolean {
 }
 
 /**
- * カテゴリ定義。ドキュメント (site/) のサイドバーと 1 対 1 に対応させる。
+ * カテゴリ定義。表示順がそのまま学習の順序になる。
  *
- * 「はじめに」(NoteDeck とは / インストール / ログインせずに試す) と
- * 「設定とデータ」「こまったとき」は読み物なので、対応するカテゴリを持たない。
- * 操作を教える 3 セクションだけがカテゴリになる。
- *
- * 対応は tutorialSteps.test.ts が両方向で検証する — step 側にページが無い
- * のも、操作を伴うページに step が無いのも落とす。
+ * ドキュメント (site/) の章立てを参考にしているが、1 対 1 には縛らない。
+ * 教える価値のある操作とドキュメントの構成は別物で、揃えようとすると
+ * 「ページがあるから step を足す」side に引っぱられる。各 step が対応
+ * ページを持つことだけを保証する (リンク切れはテストで落とす)。
  */
 export const TUTORIAL_CATEGORIES: TutorialCategory[] = [
   {
-    id: 'deck',
-    title: 'デッキを組む',
-    description: 'アカウントをつなぎ、カラムを並べて自分の配置にする',
-    achievementName: 'デッキ開設',
+    id: 'getting-started',
+    title: 'はじめに',
+    description: 'アカウントをつなぎ、カラムを並べて使い始める',
+    achievementName: 'はじめの一歩',
     achievementEmoji: '🎴',
     docsPath: '/docs/first-run',
   },
   {
     id: 'mastery',
     title: '使いこなす',
-    description: '探す・見た目を変える・拡張を入れる・AI をつなぐ',
+    description: '外部の AI をつないで自分の環境を動かす',
     achievementName: '使い手',
     achievementEmoji: '⌨️',
-    docsPath: '/docs/guide/search',
+    docsPath: '/docs/guide/ai',
   },
   {
     id: 'extend',
@@ -264,7 +246,7 @@ export function buildTutorialSteps(): TutorialStep[] {
 
     {
       id: 'account-login',
-      category: 'deck',
+      category: 'getting-started',
       docsPath: '/docs/first-run',
       title: 'Misskey アカウントを追加',
       description:
@@ -287,7 +269,7 @@ export function buildTutorialSteps(): TutorialStep[] {
 
     {
       id: 'add-first-column',
-      category: 'deck',
+      category: 'getting-started',
       docsPath: '/docs/deck/columns',
       title: '最初のカラムを追加',
       description:
@@ -304,7 +286,7 @@ export function buildTutorialSteps(): TutorialStep[] {
 
     {
       id: 'open-notifications',
-      category: 'deck',
+      category: 'getting-started',
       docsPath: '/docs/deck/navbar',
       title: '通知をサイドバーに開く',
       description:
@@ -334,7 +316,7 @@ export function buildTutorialSteps(): TutorialStep[] {
 
     {
       id: 'create-profile',
-      category: 'deck',
+      category: 'getting-started',
       wizard: false,
       docsPath: '/docs/deck/profiles',
       title: 'プロファイルを作る',
@@ -356,8 +338,7 @@ export function buildTutorialSteps(): TutorialStep[] {
     },
 
     // --- 拡張をつくる (任意線) ---
-    // ドキュメントの「拡張をつくる」と 1 対 1。AiScript で自分の道具を
-    // 作る流れを、作るものの単位で並べる。
+    // AiScript で自分の道具を作る流れを、作るものの単位で並べる。
 
     {
       id: 'create-plugin',
@@ -447,77 +428,6 @@ export function buildTutorialSteps(): TutorialStep[] {
     },
 
     // --- 使いこなす (任意線) ---
-    // ドキュメントの「使いこなす」と対応。キーボード操作と「環境を育てる」は
-    // 操作が状態に残らない / 読み物なので、対応する step を持たない。
-
-    {
-      id: 'open-command-palette',
-      category: 'mastery',
-      wizard: false,
-      docsPath: '/docs/guide/keyboard',
-      title: 'コマンドパレットを開く',
-      description:
-        'Ctrl+K を押してみましょう (入力中でなければ / でも開きます)。' +
-        'カラムの追加もアカウントの切り替えも、名前で探して実行できます。' +
-        '迷ったらここに戻ってこられます。',
-      // 案内側では開かない。ユーザーがキーを押すのを待つ step なので、
-      // こちらで開くと押す前に達成になってしまう
-      precheck: () => (isCommandPaletteOpen() ? 'skip' : 'show'),
-      completion: {
-        watch: () => isCommandPaletteOpen(),
-        isComplete: () => isCommandPaletteOpen(),
-      },
-    },
-
-    {
-      id: 'open-search',
-      category: 'mastery',
-      wizard: false,
-      docsPath: '/docs/guide/search',
-      title: 'ノートを探す',
-      description: '検索カラムを開いてみましょう。サーバーをまたいで探せます。',
-      precheck: () => (isColumnOpen('search') ? 'skip' : 'show'),
-      onEnter: () => openAddColumnAndPoint('search', '検索'),
-      completion: {
-        watch: () => isColumnOpen('search'),
-        isComplete: () => isColumnOpen('search'),
-      },
-    },
-
-    {
-      id: 'change-appearance',
-      category: 'mastery',
-      wizard: false,
-      docsPath: '/docs/guide/appearance',
-      title: '見た目を変える',
-      description:
-        'テーマ管理からテーマを入れるか、カスタム CSS を書いてみましょう。' +
-        'デッキの見た目は自分で決められます。',
-      precheck: () => (hasAppearanceChange() ? 'skip' : 'show'),
-      onEnter: () => openAddColumnAndPoint('themeManager', 'テーマ'),
-      completion: {
-        watch: () => hasAppearanceChange(),
-        isComplete: () => hasAppearanceChange(),
-      },
-    },
-
-    {
-      id: 'install-from-store',
-      category: 'mastery',
-      wizard: false,
-      docsPath: '/docs/guide/store',
-      title: 'ストアで拡張する',
-      description:
-        'プラグイン管理を開くと、ストアから配布されているものを入れられます。',
-      precheck: () => (isColumnOpen('pluginManager') ? 'skip' : 'show'),
-      onEnter: () => openAddColumnAndPoint('pluginManager', 'プラグイン'),
-      completion: {
-        watch: () => isColumnOpen('pluginManager'),
-        isComplete: () => isColumnOpen('pluginManager'),
-      },
-    },
-
-    // AI は外部 LLM の API キーを要するため、初回ウィザードには置かない (#1012)。
 
     {
       id: 'ai-setup',

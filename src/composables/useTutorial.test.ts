@@ -273,14 +273,14 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     writeSpy.mockReset()
     storedFile = ''
     deferredRead = null
-    mockCategories.push({ id: 'deck', title: 'デッキを組む' })
+    mockCategories.push({ id: 'getting-started', title: 'はじめに' })
     mockSteps.push(
       { id: 'welcome', title: 'W', description: '' },
       {
         id: 'a',
         title: 'A',
         description: '',
-        category: 'deck',
+        category: 'getting-started',
         wizard: false,
         precheck: () => 'show',
       },
@@ -288,7 +288,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
         id: 'b',
         title: 'B',
         description: '',
-        category: 'deck',
+        category: 'getting-started',
         wizard: false,
         precheck: () => 'show',
       },
@@ -304,7 +304,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
 
   it('startCategory はそのカテゴリの step だけを積む', () => {
     const store = useTutorialStore()
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     expect(store.active).toBe(true)
     expect(store.totalSteps).toBe(2)
     expect(store.currentStep?.id).toBe('a')
@@ -312,7 +312,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
 
   it('カテゴリを走り切っても完走フラグは立たない (ウィザードのものなので)', () => {
     const store = useTutorialStore()
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     store.next()
     store.next() // 終端
     expect(settingsSetSpy).not.toHaveBeenCalled()
@@ -324,8 +324,8 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'skip'
     }
-    store.startCategory('deck')
-    expect(store.progress.achievements['deck']).toBeDefined()
+    store.startCategory('getting-started')
+    expect(store.progress.achievements['getting-started']).toBeDefined()
   })
 
   it('走らせていないカテゴリは、条件を満たしていても記録しない', () => {
@@ -343,16 +343,16 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     const store = useTutorialStore()
     const a = mockSteps.find((s) => s.id === 'a')
     if (a) a.precheck = () => 'skip'
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     expect(store.progress.items['a']).toBeDefined()
-    expect(store.progress.achievements['deck']).toBeUndefined()
+    expect(store.progress.achievements['getting-started']).toBeUndefined()
   })
 
   it('達成済みの項目は状態が戻っても未達成にならない (latch)', () => {
     const store = useTutorialStore()
     const a = mockSteps.find((s) => s.id === 'a')
     if (a) a.precheck = () => 'skip'
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     // カラムを閉じた相当: 状態が false に戻る
     if (a) a.precheck = () => 'show'
     expect(store.isStepDone({ id: 'a', title: 'A', description: '' })).toBe(
@@ -365,9 +365,9 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'skip'
     }
-    store.startCategory('deck') // 1 度目で記録が付く
+    store.startCategory('getting-started') // 1 度目で記録が付く
     store.cancel()
-    store.startCategory('deck') // もう一度
+    store.startCategory('getting-started') // もう一度
     expect(store.active).toBe(true)
     expect(store.replaying).toBe(true)
     expect(store.currentStep?.id).toBe('a')
@@ -386,7 +386,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
       }
     }
     const store = useTutorialStore()
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     expect(store.currentStep?.id).toBe('a')
     done.value = true
     await nextTick()
@@ -405,9 +405,9 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'skip'
     }
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     store.cancel()
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     expect(store.currentStep?.id).toBe('a')
     store.next()
     // precheck が満たされていても、見直し中は次の step を見せる
@@ -417,7 +417,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
 
   it('カテゴリを走り切ったら黙って閉じずに完了を示す', () => {
     const store = useTutorialStore()
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     store.next()
     store.next() // 終端
     expect(store.runCompleted).toBe(true)
@@ -427,7 +427,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
 
   it('完了を閉じるとカードだけが閉じる (完走フラグは立てない)', () => {
     const store = useTutorialStore()
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     store.next()
     store.next()
     store.cancel()
@@ -442,8 +442,8 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'skip'
     }
-    store.startCategory('deck')
-    expect(store.progress.achievements['deck']).toBeDefined()
+    store.startCategory('getting-started')
+    expect(store.progress.achievements['getting-started']).toBeDefined()
     store.cancel()
 
     store.resetProgress()
@@ -458,11 +458,11 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'skip'
     }
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     store.cancel()
     store.resetProgress()
     // 走らせ直す = 明示的な再スタート
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     expect(store.progress.items['a']).toBeDefined()
   })
 
@@ -471,14 +471,14 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'skip'
     }
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     store.cancel()
     // カラムを閉じた相当: 状態は false に戻る
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'show'
     }
     // 一覧の ✓ と同じ基準で見直しに入る
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     expect(store.replaying).toBe(true)
     store.next()
     expect(store.currentStep?.id).toBe('b')
@@ -489,7 +489,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     store.start()
     expect(store.runMode).toBe('wizard')
     const before = store.currentStep?.id
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     expect(store.runMode).toBe('wizard')
     expect(store.currentStep?.id).toBe(before)
   })
@@ -511,7 +511,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'skip'
     }
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     expect(store.progress.items['a']).toBeDefined()
     // 読み込みが後から完了しても、走行中に記録した分は消えない
     deferredRead.resolve()
@@ -525,7 +525,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     for (const s of mockSteps) {
       if (s.category) s.precheck = () => 'skip'
     }
-    store.startCategory('deck')
+    store.startCategory('getting-started')
     store.resetProgress()
     expect(store.progress.items).toEqual({})
     expect(store.progress.achievements).toEqual({})
