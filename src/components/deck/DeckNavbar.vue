@@ -8,6 +8,7 @@ import {
   useCssModule,
   watch,
 } from 'vue'
+import { isColumnExposed } from '@/columns/exposure'
 import { useCommandStore } from '@/commands/registry'
 import ColumnBadges from '@/components/common/ColumnBadges.vue'
 import { useAccountActions } from '@/composables/useAccountActions'
@@ -69,6 +70,16 @@ const accountActions = useAccountActions()
 const { confirm } = useConfirm()
 const commandStore = useCommandStore()
 const deckStore = useDeckStore()
+
+/**
+ * 表示するナビ項目。開発者向けカラムのボタンは開発者モードが off なら出さない
+ * (#1034)。navbar.json5 からは消さないので、on に戻せばそのまま戻る
+ */
+const navItems = computed(() =>
+  deckStore.navItems.filter(
+    (item) => isNavDivider(item) || isColumnExposed(item.type),
+  ),
+)
 const offlineModeStore = useOfflineModeStore()
 const realtimeModeStore = useRealtimeModeStore()
 const windowsStore = useWindowsStore()
@@ -505,7 +516,7 @@ defineExpose({
         <!-- Nav items (scrollable) -->
         <div :class="$style.topScroll">
           <div :class="$style.section">
-            <template v-for="(navItem, navIdx) in deckStore.navItems" :key="navIdx">
+            <template v-for="(navItem, navIdx) in navItems" :key="navIdx">
               <div v-if="isNavDivider(navItem)" :class="$style.divider" />
               <button
                 v-else

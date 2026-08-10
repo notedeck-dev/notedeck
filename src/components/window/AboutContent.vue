@@ -2,6 +2,7 @@
 import { getTauriVersion } from '@tauri-apps/api/app'
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import type { Check, HealthReport, Status } from '@/bindings'
+import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useUpdater } from '@/composables/useUpdater'
 import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
@@ -22,6 +23,9 @@ const tauriVersion = ref('')
 const rustVersion = ref('')
 const copied = ref(false)
 const uiStore = useUiStore()
+
+const { enabled: developerMode, toggle: toggleDeveloperMode } =
+  useDeveloperMode()
 const accountsStore = useAccountsStore()
 
 const REPO_URL = 'https://github.com/notedeck-dev/notedeck'
@@ -458,6 +462,27 @@ function reportBug() {
           <img src="https://github.com/hitalin.png?size=48" :class="$style.devAvatar" alt="" />
           <span>@hitalin</span>
           <span :class="$style.formLinkSuffix">GitHub Sponsors <i class="ti ti-external-link" /></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 開発者モード (#1034)。パレットのトグルコマンドと並ぶ唯一の入口なので、
+         off の状態からも見つかる場所に置く -->
+    <div :class="$style.formSection">
+      <div :class="$style.formSectionLabel">開発者モード</div>
+      <div :class="$style.sectionBody">
+        <button
+          type="button"
+          class="_button"
+          :class="$style.formLink"
+          :title="developerMode ? '無効にする' : '有効にする'"
+          @click="toggleDeveloperMode"
+        >
+          <i class="ti ti-code" :class="$style.formLinkIcon" />
+          <span>API コンソール・ストリーム・AI などを表示</span>
+          <span :class="$style.formLinkSuffix">
+            <i :class="developerMode ? 'ti ti-toggle-right' : 'ti ti-toggle-left'" />
+          </span>
         </button>
       </div>
     </div>
