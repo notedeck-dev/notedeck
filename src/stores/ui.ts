@@ -38,11 +38,14 @@ export const useUiStore = defineStore('ui', () => {
   // チュートリアル等が programmatic に開けるよう store に移管 (横断 UI 状態)。
   const mobileDrawerOpen = ref(false)
   /**
-   * カラム追加 UI (desktop: コマンドパレット / compact: ダイアログ) が
-   * 開いているか。チュートリアルが「開いていなければ開く」を判定するため、
-   * DeckLayout のローカル状態ではなくここに置く (#1029)
+   * compact のカラム追加ダイアログが開いているか。
+   *
+   * desktop はコマンドパレット (commandStore.isOpen) が担うので、ここには
+   * 出てこない。チュートリアルが「開いていなければ開く」を判定するために
+   * DeckLayout のローカル状態から出した (#1029)。compact のトグルは素通しに
+   * 呼ぶと閉じてしまうため。
    */
-  const addMenuOpen = ref(false)
+  const compactAddMenuOpen = ref(false)
 
   const hasWindow = typeof window !== 'undefined'
   const isNarrowViewport = ref(
@@ -99,7 +102,7 @@ export const useUiStore = defineStore('ui', () => {
     platformName,
     sidebarOpen,
     mobileDrawerOpen,
-    addMenuOpen,
+    compactAddMenuOpen,
     toggleSidebar,
     deckResumeSignal,
     emitDeckResume,

@@ -185,7 +185,12 @@ export const useTutorialStore = defineStore('tutorial', () => {
       await pendingWrite.catch(() => {
         // 書き込みの成否は問わない。読む前に完了していればよい
       })
-      progress.value = parseTutorialProgress(await readTutorialProgress())
+      const loaded = parseTutorialProgress(await readTutorialProgress())
+      // 待っている間に走り始めていたら捨てる。start() は loadProgress を
+      // 待たずにウィンドウを開くので、ここで入れ替えると走行中に記録した
+      // 達成が古いファイルの内容で消える
+      if (active.value) return
+      progress.value = loaded
     } catch (e) {
       console.warn('[tutorial] failed to read tutorial.json5 (ignored):', e)
     }
@@ -273,12 +278,9 @@ export const useTutorialStore = defineStore('tutorial', () => {
     const cleared = clearProgress(Date.now())
     progress.value = cleared
     if (!isTauri) return
-    // saveProgress は保存済みの記録と統合するので、消す時は使えない
-    void writeTutorialProgress(serializeTutorialProgress(cleared)).catch(
-      (e) => {
-        console.warn('[tutorial] failed to reset tutorial.json5 (ignored):', e)
-      },
-    )
+    // saveProgress は保存済みの記録と統合するので、消す時は使えない。
+    // 直接書くと、先に積まれた書き込みが後から完了して記録を戻すことがある
+    queueWrite(cleared)
   }
 
   /**
