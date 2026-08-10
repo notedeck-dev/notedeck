@@ -224,7 +224,9 @@ describe('useSettingsStore', () => {
       status: 'ok',
       data: 'not valid json {',
     } as never)
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {
+      // silence expected warning during test
+    })
 
     const store = useSettingsStore()
     await store.load()
@@ -241,7 +243,9 @@ describe('useSettingsStore', () => {
       status: 'ok',
       data: null,
     } as never)
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {
+      // silence expected warning during test
+    })
 
     const store = useSettingsStore()
     await store.load()

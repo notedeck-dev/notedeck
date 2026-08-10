@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref, useCssModule, watch } from 'vue'
+import { exposedColumnTypes } from '@/columns/exposure'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
-  ALL_COLUMN_TYPES,
   COLUMN_ICONS,
   COLUMN_LABELS,
   COLUMN_REGISTRY,
@@ -50,7 +50,7 @@ const navTypes = computed<Set<string>>(() => {
 })
 
 const items = computed<ColumnType[]>(() =>
-  ALL_COLUMN_TYPES.filter((t) => {
+  exposedColumnTypes().filter((t) => {
     if (navTypes.value.has(t)) return false
     const spec = COLUMN_REGISTRY[t]
     if (spec?.selectable) return false

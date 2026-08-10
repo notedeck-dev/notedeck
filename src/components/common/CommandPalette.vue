@@ -17,6 +17,7 @@ import {
   commandItemTargetId,
   useSpotlightStore,
 } from '@/composables/useSpotlight'
+import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { fuzzyMatch } from '@/utils/fuzzyMatch'
@@ -194,7 +195,9 @@ const categoryLabels: Record<string, string> = {
 const categoryOrder = ['general', 'note', 'navigation', 'column', 'account']
 
 const filteredGroups = computed<CommandGroup[]>(() => {
-  const enabled = commandStore.getEnabled().filter((c) => c.visible !== false)
+  const enabled = commandStore
+    .getEnabled()
+    .filter((c) => c.visible !== false && isExposed(c.exposure))
 
   const matched = query.value
     ? enabled.filter((c) => fuzzyMatch(query.value, c.label))

@@ -8,7 +8,12 @@
 
 import { isExposed } from '@/settings/exposure'
 import type { ColumnType } from '@/stores/deck'
-import { ALL_COLUMN_TYPES, COLUMN_REGISTRY } from './registry'
+import {
+  ALL_COLUMN_TYPES,
+  COLUMN_REGISTRY,
+  COLUMN_TYPE_GROUPS,
+  type ColumnGroupInfo,
+} from './registry'
 
 /**
  * 追加導線に出してよいカラム種別。
@@ -23,4 +28,15 @@ export function isColumnExposed(type: ColumnType): boolean {
 /** 追加導線が列挙するカラム種別 (registry 宣言順) */
 export function exposedColumnTypes(): ColumnType[] {
   return ALL_COLUMN_TYPES.filter(isColumnExposed)
+}
+
+/**
+ * 追加ダイアログ / コマンドパレットが使う UI グループ。
+ * 中身が空になったグループは落とす (見出しだけが残らないように)。
+ */
+export function exposedColumnGroups(): ColumnGroupInfo[] {
+  return COLUMN_TYPE_GROUPS.map((g) => ({
+    ...g,
+    types: g.types.filter(isColumnExposed),
+  })).filter((g) => g.types.length > 0)
 }

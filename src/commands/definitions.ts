@@ -660,6 +660,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     label: 'タスク設定',
     icon: 'player-play',
     category: 'general',
+    exposure: 'developer',
     shortcuts: keybindsStore.getShortcuts('tasks-editor'),
     execute: () => useWindowsStore().open('tasksEditor'),
   })
@@ -669,6 +670,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     label: 'スニペット',
     icon: 'code-plus',
     category: 'general',
+    exposure: 'developer',
     shortcuts: keybindsStore.getShortcuts('snippets-editor'),
     execute: () => useWindowsStore().open('snippetsEditor'),
   })
@@ -678,6 +680,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     label: 'デフォルトタスクを実行',
     icon: 'player-play-filled',
     category: 'general',
+    exposure: 'developer',
     shortcuts: keybindsStore.getShortcuts('tasks.run-default'),
     execute: () => {
       void useTaskRunnerStore().runDefault()
@@ -760,6 +763,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     label: 'AIアシスタント',
     icon: 'robot',
     category: 'navigation',
+    exposure: 'developer',
     shortcuts: keybindsStore.getShortcuts('ai'),
     execute: () => useDeckStore().toggleSidebarColumn('ai', null),
   })

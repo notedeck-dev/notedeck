@@ -110,6 +110,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
   },
   aiSettings: {
     label: 'エージェント',
+    exposure: 'developer',
     icon: 'ti ti-robot',
     width: 400,
     maxHeight: 700,
@@ -208,6 +209,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
   },
   tasksEditor: {
     label: 'タスク設定',
+    exposure: 'developer',
     icon: 'ti ti-player-play',
     width: 500,
     maxHeight: 700,
@@ -215,6 +217,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
   },
   snippetsEditor: {
     label: 'スニペット',
+    exposure: 'developer',
     icon: 'ti ti-code-plus',
     width: 500,
     maxHeight: 700,

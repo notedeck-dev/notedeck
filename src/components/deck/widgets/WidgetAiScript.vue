@@ -38,6 +38,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 import { useWindowsStore } from '@/stores/windows'
+import { isWindowExposed } from '@/windows/exposure'
 import type { PostFormRequest } from './AiScriptUiRenderer.vue'
 import AiScriptUiRenderer from './AiScriptUiRenderer.vue'
 
@@ -275,6 +276,7 @@ onMounted(() => {
       </span>
       <div :class="$style.headerActions">
         <button
+          v-if="isWindowExposed('widget-edit')"
           :class="$style.toolBtn"
           title="コードを編集"
           @click="openEditor"

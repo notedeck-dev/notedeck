@@ -26,6 +26,12 @@ vi.mock('@/stores/toast', () => ({
   useToast: vi.fn(() => ({ show: vi.fn() })),
 }))
 vi.mock('@/stores/windows', () => ({ useWindowsStore: vi.fn() }))
+let devMode = false
+vi.mock('@/stores/settings', () => ({
+  useSettingsStore: () => ({
+    get: (key: string) => (key === 'ui.developerMode' ? devMode : undefined),
+  }),
+}))
 vi.mock('@/utils/mediaProxy', () => ({ proxyThumbUrl: (u: unknown) => u }))
 vi.mock('@/utils/tauriInvoke', () => ({
   commands: {},
@@ -102,7 +108,9 @@ describe('getSettingsItems', () => {
   it('設定メニュー (SETTINGS_SECTIONS) と同じウィンドウを網羅する', () => {
     // パレット側とメニュー側で一覧が二重管理になっている。片方に足して
     // もう片方を忘れると、デスクトップとモバイルで開ける設定がずれる
-    // (実際に tutorialEditor がパレット側から漏れていた)
+    // (実際に tutorialEditor がパレット側から漏れていた)。
+    // 両者は同じ露出判定で絞られるので、比較は開発者モード on で行う
+    devMode = true
     const opened = new Set<string>()
     windowsMock.open.mockImplementation((w: string) => {
       opened.add(w)
@@ -114,6 +122,19 @@ describe('getSettingsItems', () => {
         `${section.window} がパレットに無い`,
       ).toBe(true)
     }
+    devMode = false
+  })
+
+  it('開発者モード off では開発者向けの設定が並ばない (#1034)', () => {
+    devMode = false
+    const ids = getSettingsItems().map((i) => i.id)
+    expect(ids).not.toContain('ai-settings')
+    expect(ids).not.toContain('tasks-editor')
+    expect(ids).not.toContain('snippets-editor')
+    // 一般側は残る
+    expect(ids).toContain('appearance')
+    expect(ids).toContain('permissions')
+    expect(ids).toContain('css-editor')
   })
 
   it('全項目がウィンドウを開くだけのフラットな一覧', () => {
