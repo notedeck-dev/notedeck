@@ -8,6 +8,7 @@ import { type Account, getAccountAvatarUrl } from '@/stores/accounts'
 import { useEmojisStore } from '@/stores/emojis'
 import { useWindowsStore } from '@/stores/windows'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
+import { isWindowExposed } from '@/windows/exposure'
 import MkAvatar from './MkAvatar.vue'
 import MkMfm from './MkMfm.vue'
 
@@ -96,7 +97,9 @@ const isLongText = computed(() => {
 
 function onAvatarClick(e: MouseEvent) {
   e.stopPropagation()
+  // persona メモのアバターはスキル編集の入口。開発者モードが off なら開かない
   if (isPersona.value && author.value) {
+    if (!isWindowExposed('skill-edit')) return
     const skillId = author.value.id.replace(/^skill:/, '')
     windowsStore.open('skill-edit', { skillId })
     return

@@ -22,7 +22,11 @@ const mockSteps: Array<{
   isFinal?: boolean
 }> = []
 
-const mockCategories: Array<{ id: string; title: string }> = []
+const mockCategories: Array<{
+  id: string
+  title: string
+  exposure?: 'general' | 'developer'
+}> = []
 
 vi.mock('@/data/tutorialSteps', () => ({
   buildTutorialSteps: () => mockSteps.map((s) => ({ ...s })),
@@ -32,8 +36,12 @@ vi.mock('@/data/tutorialSteps', () => ({
 }))
 
 const settingsSetSpy = vi.fn()
+let devMode = false
 vi.mock('@/stores/settings', () => ({
-  useSettingsStore: () => ({ set: settingsSetSpy }),
+  useSettingsStore: () => ({
+    set: settingsSetSpy,
+    get: (key: string) => (key === 'ui.developerMode' ? devMode : undefined),
+  }),
 }))
 
 /** tutorial.json5 の読み書き。書き込み順とレースを検証するために差し替える */
@@ -308,6 +316,25 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     expect(store.active).toBe(true)
     expect(store.totalSteps).toBe(2)
     expect(store.currentStep?.id).toBe('a')
+  })
+
+  it('開発者モード off では developer カテゴリを始めない (#1034)', () => {
+    mockCategories.push({
+      id: 'extend',
+      title: '拡張',
+      exposure: 'developer',
+    })
+    mockSteps.push({ id: 'x', title: 'X', description: '', category: 'extend' })
+    const store = useTutorialStore()
+
+    devMode = false
+    store.startCategory('extend')
+    expect(store.active).toBe(false)
+
+    devMode = true
+    store.startCategory('extend')
+    expect(store.active).toBe(true)
+    devMode = false
   })
 
   it('カテゴリを走り切っても完走フラグは立たない (ウィザードのものなので)', () => {

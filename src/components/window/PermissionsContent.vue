@@ -31,6 +31,7 @@ import {
   resolveForProfiled,
   usePermissionsConfig,
 } from '@/permissions/store'
+import { isExposed } from '@/settings/exposure'
 import { usePluginsStore } from '@/stores/plugins'
 import { useWidgetsStore } from '@/stores/widgets'
 import { useWindowsStore } from '@/stores/windows'
@@ -53,13 +54,26 @@ const widgetsStore = useWidgetsStore()
 const pluginsStore = usePluginsStore()
 
 // タブ (ビジュアル / permissions.json5 raw) — 他の設定ウィンドウと同じ形
-const { tab, containerRef: editorRef } = useEditorTabs(
-  ['visual', 'json'] as const,
-  (props.initialTab as 'visual' | 'json') ?? 'visual',
+// permissions.json5 を直接編集する面は開発者向け (#1034)。他の設定ウィンドウの
+// code タブと同じ扱い。認可そのものはビジュアル側で読めるので、隠しても
+// 「誰に何を許しているか」は見えなくならない
+const editorTabs = computed(() =>
+  isExposed('developer')
+    ? (['visual', 'json'] as const)
+    : (['visual'] as const),
+)
+
+const { tab, containerRef: editorRef } = useEditorTabs<'visual' | 'json'>(
+  editorTabs,
+  props.initialTab === 'json' && !isExposed('developer')
+    ? 'visual'
+    : ((props.initialTab as 'visual' | 'json') ?? 'visual'),
 )
 
 // ヘッダーの「OS 既定エディタで開く」ボタン対象 (DeckWindow が表示する)
-useWindowExternalFile(() => ({ name: 'permissions.json5' }))
+useWindowExternalFile(() =>
+  isExposed('developer') ? { name: 'permissions.json5' } : null,
+)
 
 onMounted(() => {
   void vault.refresh()
@@ -384,7 +398,9 @@ function handleReset() {
       v-model="tab"
       :tabs="[
         { value: 'visual', icon: 'adjustments', label: '権限' },
-        { value: 'json', icon: 'braces', label: 'permissions.json5' },
+        ...(isExposed('developer')
+          ? [{ value: 'json', icon: 'braces', label: 'permissions.json5' }]
+          : []),
       ]"
     />
 

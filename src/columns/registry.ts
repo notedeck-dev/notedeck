@@ -1,5 +1,6 @@
 import type { Component } from 'vue'
 import { defineAsyncComponent, reactive, shallowReactive } from 'vue'
+import type { ExposureTag } from '@/settings/exposure'
 import type { BuiltinColumnType, ColumnType, DeckColumn } from '@/stores/deck'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -60,6 +61,12 @@ export interface ColumnSpec {
    * 作る」種別が該当する。
    */
   customAddFlow?: boolean
+  /**
+   * 追加導線に出す条件 (#1034)。既定 (未指定) は 'general' で常に出る。
+   * 'developer' は開発者モードが有効なときだけ追加導線に現れる — デッキに
+   * 既に置かれたカラムの描画は止めない。
+   */
+  exposure?: ExposureTag
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: bindings の Result<T, E> と SelectableItem の橋渡し
@@ -500,6 +507,7 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     label: 'スキル',
     icon: 'sparkles',
     group: 'tool',
+    exposure: 'developer',
     guestAllowed: true,
     accountIndependent: true,
     defaultProps: { accountId: null },
@@ -509,6 +517,7 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     label: 'スクラッチパッド',
     icon: 'terminal-2',
     group: 'tool',
+    exposure: 'developer',
     guestAllowed: true,
     accountOptional: true,
     customAddFlow: true,
@@ -519,12 +528,14 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     label: 'APIコンソール',
     icon: 'api',
     group: 'tool',
+    exposure: 'developer',
     component: () => import('@/components/deck/DeckApiConsoleColumn.vue'),
   },
   apiDocs: {
     label: 'APIドキュメント',
     icon: 'file-description',
     group: 'tool',
+    exposure: 'developer',
     guestAllowed: true,
     accountIndependent: true,
     wide: true,
@@ -536,6 +547,7 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     label: 'ストリーム',
     icon: 'activity-heartbeat',
     group: 'tool',
+    exposure: 'developer',
     crossAccount: true,
     wide: true,
     component: () => import('@/components/deck/DeckStreamInspectorColumn.vue'),
@@ -544,6 +556,7 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     label: 'AI',
     icon: 'brain',
     group: 'tool',
+    exposure: 'developer',
     accountIndependent: true,
     defaultProps: { accountId: null },
     component: () => import('@/components/deck/DeckAiColumn.vue'),
@@ -563,6 +576,7 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     label: 'タスク',
     icon: 'player-play',
     group: 'tool',
+    exposure: 'developer',
     guestAllowed: true,
     accountIndependent: true,
     defaultProps: { accountId: null },

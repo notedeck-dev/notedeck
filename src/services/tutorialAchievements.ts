@@ -11,6 +11,7 @@
 
 import {
   TUTORIAL_CATEGORIES,
+  type TutorialCategory,
   type TutorialCategoryId,
 } from '@/data/tutorialSteps'
 import type { TutorialProgress } from '@/services/tutorialProgress'
@@ -22,12 +23,6 @@ const PREFIX = 'notedeck:'
 export function tutorialAchievementName(id: TutorialCategoryId): string {
   return `${PREFIX}${id}`
 }
-
-/** グリッドに並べる種別と順序 (カテゴリの並び = 学習の順序) */
-export const TUTORIAL_ACHIEVEMENT_TYPES: readonly string[] =
-  TUTORIAL_CATEGORIES.map((c) => tutorialAchievementName(c.id))
-
-export const TUTORIAL_ACHIEVEMENT_TOTAL = TUTORIAL_ACHIEVEMENT_TYPES.length
 
 /**
  * バッジ。段階が進むほど格を上げる (bronze → silver → gold) ことで、
@@ -64,4 +59,43 @@ export function tutorialAchievements(
     out.push({ name: tutorialAchievementName(category.id), unlockedAt: at })
   }
   return out
+}
+
+export interface TutorialAchievementView {
+  /** グリッドに並べる種別 (開放待ちも消さずに並べる) */
+  types: string[]
+  /** 達成率の分母。開放待ちで未達成のものは含めない */
+  total: number
+  /** 開放待ち = 案内先の面が隠れていて、まだ達成していないもの (#1036) */
+  pending: string[]
+}
+
+/**
+ * 開発者モードの状態を織り込んだ実績の見え方 (#1036)。
+ *
+ * 案内先の面が隠れているカテゴリは達成できないので、分母に入れると全部やっても
+ * 満数にならない。ただしグリッドからは消さない — 存在ごと隠すと、開発者モードを
+ * 有効にした瞬間に総数が増えて達成率が下がったように見える。
+ *
+ * 一度解除した実績は、あとで隠れる側に回っても達成済みのまま扱う。記録は残って
+ * いるので、消すと取り上げられたように見える。
+ */
+export function tutorialAchievementView(
+  progress: TutorialProgress,
+  isCategoryExposed: (category: TutorialCategory) => boolean,
+): TutorialAchievementView {
+  const types: string[] = []
+  const pending: string[] = []
+  let total = 0
+  for (const category of TUTORIAL_CATEGORIES) {
+    const name = tutorialAchievementName(category.id)
+    types.push(name)
+    const earned = progress.achievements[category.id] != null
+    if (earned || isCategoryExposed(category)) {
+      total++
+    } else {
+      pending.push(name)
+    }
+  }
+  return { types, total, pending }
 }

@@ -137,6 +137,22 @@ describe('registerDefaultCommands integrity', () => {
     expect([...store.commands.keys()]).toEqual([])
   })
 
+  it('開発者向けの command に exposure タグが付いている (#1034)', () => {
+    const store = useCommandStore()
+    registerDefaultCommands(makeHandlers())
+    const tagged = [...store.commands.values()]
+      .filter((c) => c.exposure === 'developer')
+      .map((c) => c.id)
+      .sort()
+    expect(tagged).toEqual([
+      'ai',
+      'devtools',
+      'snippets-editor',
+      'tasks-editor',
+      'tasks.run-default',
+    ])
+  })
+
   it('skips desktop-only commands when not on desktop', () => {
     vi.mocked(useUiStore).mockReturnValue({ isDesktop: false } as never)
     const store = useCommandStore()

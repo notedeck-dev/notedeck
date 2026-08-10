@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
+import { isWindowExposed } from '@/windows/exposure'
 
 type Mode = 'store' | 'library'
 
@@ -144,6 +145,7 @@ function handlePrimaryClick() {
               <i class="ti ti-trash" />
             </button>
             <button
+              v-if="isWindowExposed('widget-edit')"
               class="_button"
               :class="$style.iconBtn"
               title="ウィジットを編集"

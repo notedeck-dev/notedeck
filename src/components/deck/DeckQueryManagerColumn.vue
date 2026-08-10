@@ -19,6 +19,7 @@ import {
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
+import { isWindowExposed } from '@/windows/exposure'
 import ColumnSection from './ColumnSection.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
@@ -120,6 +121,9 @@ function refCount(query: NamedQueryMeta): number {
   return queriesStore.refCountByQueryId[query.id] ?? 0
 }
 
+/** クエリを「作る」面は開発者モードに従う (#1034)。導入・実行・削除は一般側 */
+const canEdit = computed(() => isWindowExposed('column-query-editor'))
+
 function openEditor(query: NamedQueryMeta): void {
   windowsStore.open('column-query-editor', { queryId: query.id })
 }
@@ -191,7 +195,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 
     <template #header-meta>
       <button
-        v-if="viewTab === 'installed'"
+        v-if="viewTab === 'installed' && canEdit"
         class="_button"
         :class="$style.headerBtn"
         title="新規クエリを作成"
@@ -232,7 +236,12 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
                 クエリはカラムの視界を定義する AiScript 式です。作成すると
                 各ノートカラムのクエリ設定からトグルで適用できます。
               </span>
-              <button class="_button" :class="$style.emptyLink" @click="createNew">
+              <button
+                v-if="canEdit"
+                class="_button"
+                :class="$style.emptyLink"
+                @click="createNew"
+              >
                 クエリを作成
               </button>
             </template>

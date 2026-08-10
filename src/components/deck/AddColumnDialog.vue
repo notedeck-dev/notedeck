@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch, watchEffect } from 'vue'
+import { exposedColumnGroups } from '@/columns/exposure'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
   ACCOUNT_OPTIONAL_TYPES,
@@ -7,7 +8,6 @@ import {
   COLUMN_ICONS,
   COLUMN_LABELS,
   COLUMN_REGISTRY,
-  COLUMN_TYPE_GROUPS,
   CROSS_ACCOUNT_TYPES,
   GUEST_ALLOWED_TYPES,
   type SelectableItem,
@@ -57,6 +57,9 @@ function finalizeColumn(config: Omit<DeckColumn, 'id'>) {
   }
 }
 
+/** 追加候補。開発者モードが off なら開発者向けの種別は並ばない (#1034) */
+const columnGroups = computed(() => exposedColumnGroups())
+
 const expandedCategories = reactive<Record<string, boolean>>({})
 
 function toggleCategory(key: string) {
@@ -68,7 +71,7 @@ function toggleCategory(key: string) {
 // 光らせる対象が無いまま手順が進まなくなる。開くだけで閉じないので、
 // spotlight が無いときの既定 (全て閉じる) は変わらない
 watchEffect(() => {
-  for (const g of COLUMN_TYPE_GROUPS) {
+  for (const g of columnGroups.value) {
     const spotlighted = g.types.some((t) =>
       spotlightStore.spotlights.has(commandItemTargetId(`col-${t}`)),
     )
@@ -332,7 +335,7 @@ function close() {
       <!-- Step 1: Column type selection -->
       <template v-if="!addColumnType">
         <div
-          v-for="g in COLUMN_TYPE_GROUPS"
+          v-for="g in columnGroups"
           :key="g.group"
           :class="$style.addCategorySection"
         >

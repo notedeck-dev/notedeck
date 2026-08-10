@@ -11,6 +11,7 @@ import { useCommandStore } from '@/commands/registry'
 import { useColumnHistory } from '@/composables/useColumnHistory'
 import { openDeckWindow } from '@/composables/useDeckWindow'
 import { openPipWindow } from '@/composables/usePipWindow'
+import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
@@ -184,6 +185,7 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
     <div :class="$style.titlebarControls">
       <template v-if="isDesktop">
         <button
+          v-if="isExposed('developer')"
           :class="[$style.titlebarBtn, $style.titlebarWindowBtn]"
           title="開発者ツール"
           @click="commandStore.execute('devtools')"

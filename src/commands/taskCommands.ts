@@ -25,6 +25,8 @@ function syncCommands(): void {
       label: `タスク: ${t.label}`,
       icon: 'player-play',
       category: 'general',
+      // タスクは開発者向けの面 (#1034)。定義があってもパレットには並べない
+      exposure: 'developer',
       shortcuts: [],
       execute: () => {
         void runner.runTask(t.id)

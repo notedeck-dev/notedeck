@@ -14,6 +14,7 @@
  */
 
 import { computed, onMounted, ref, watch } from 'vue'
+import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useTutorialStore } from '@/composables/useTutorial'
 import {
@@ -22,10 +23,18 @@ import {
   type TutorialCategoryId,
   tutorialDocsUrl,
 } from '@/data/tutorialSteps'
+import { isExposed } from '@/settings/exposure'
 import { openSafeUrl } from '@/utils/url'
 
 const tutorial = useTutorialStore()
 const resetConfirm = useDoubleConfirm()
+
+const { setEnabled: setDeveloperMode } = useDeveloperMode()
+
+/** ロックされたカテゴリの案内先を開放する */
+function unlockDeveloperCategories(): void {
+  setDeveloperMode(true)
+}
 
 /** カテゴリごとの項目と達成状況 */
 const groups = computed(() => {
@@ -45,6 +54,8 @@ const groups = computed(() => {
       step: index + 1,
       items,
       doneCount,
+      // 案内先の面が隠れているカテゴリは開放待ち (#1034)
+      locked: !isExposed(category.exposure),
       complete: doneCount === items.length,
       running: tutorial.active && tutorial.runningCategoryId === category.id,
     }
@@ -53,7 +64,7 @@ const groups = computed(() => {
 
 /** 次に手をつけるカテゴリ (先頭の未完了)。順路を 1 つだけ指し示す */
 const nextCategoryId = computed(
-  () => groups.value.find((g) => !g.complete)?.category.id ?? null,
+  () => groups.value.find((g) => !g.complete && !g.locked)?.category.id ?? null,
 )
 
 /**
@@ -135,7 +146,10 @@ function openDocs(path: string): void {
             <span :class="$style.groupTitle">{{ group.category.title }}</span>
             <span :class="$style.groupDesc">{{ group.category.description }}</span>
           </span>
-          <span :class="$style.groupCount">{{ group.doneCount }}/{{ group.items.length }}</span>
+          <span :class="$style.groupCount">
+            <i v-if="group.locked" class="ti ti-lock" />
+            <template v-else>{{ group.doneCount }}/{{ group.items.length }}</template>
+          </span>
           <i
             :class="[
               'ti ti-chevron-down',
@@ -187,6 +201,16 @@ function openDocs(path: string): void {
             @click="tutorial.focusCard()"
           >
             案内を表示
+          </button>
+          <button
+            v-else-if="group.locked"
+            type="button"
+            class="_button"
+            :class="$style.runBtn"
+            title="このカテゴリで案内する機能を表示する"
+            @click="unlockDeveloperCategories"
+          >
+            開発者モードで開放
           </button>
           <button
             v-else

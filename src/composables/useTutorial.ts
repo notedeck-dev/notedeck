@@ -37,6 +37,7 @@ import {
   type TutorialProgress,
   unlockAchievement,
 } from '@/services/tutorialProgress'
+import { isExposed } from '@/settings/exposure'
 import { useSettingsStore } from '@/stores/settings'
 import { useWindowsStore } from '@/stores/windows'
 import {
@@ -366,6 +367,11 @@ export const useTutorialStore = defineStore('tutorial', () => {
       focusCard()
       return
     }
+    // 案内先の面が隠れているカテゴリは始めない。spotlight が存在しない項目を
+    // 指したまま進まなくなる (#1034)
+    const category = TUTORIAL_CATEGORIES.find((c) => c.id === categoryId)
+    if (category && !isExposed(category.exposure)) return
+
     const members = buildTutorialSteps().filter(
       (s) => s.category === categoryId,
     )

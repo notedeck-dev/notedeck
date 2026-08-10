@@ -8,6 +8,7 @@ import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import EmojiMuteSection from '@/components/window/EmojiMuteSection.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { isExposed } from '@/settings/exposure'
 import { CURRENT_SCHEMA_VERSION, parseSettings } from '@/settings/schema'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
@@ -26,9 +27,20 @@ const deckStore = useDeckStore()
 const { confirm } = useConfirm()
 
 // ── Tab management ──
-const { tab, containerRef: contentRef } = useEditorTabs(
-  ['visual', 'code'] as const,
-  (props.initialTab as 'visual' | 'code') ?? 'visual',
+// 生ファイルを直接編集する code タブは開発者向けの面 (#1034)。この窓が
+// 自分で opt-in する — タブ機構側で一律に外すと、カスタム CSS や Play 編集の
+// ように code タブが唯一の編集面になっている窓を巻き添えで壊す
+const editorTabs = computed(() =>
+  isExposed('developer')
+    ? (['visual', 'code'] as const)
+    : (['visual'] as const),
+)
+
+const { tab, containerRef: contentRef } = useEditorTabs<'visual' | 'code'>(
+  editorTabs,
+  props.initialTab === 'code' && !isExposed('developer')
+    ? 'visual'
+    : ((props.initialTab as 'visual' | 'code') ?? 'visual'),
 )
 
 useWindowExternalFile(() =>
@@ -165,7 +177,9 @@ const statusClass = computed(() => {
       v-model="tab"
       :tabs="[
         { value: 'visual', icon: 'adjustments', label: 'ビジュアル' },
-        { value: 'code', icon: 'code', label: 'コード' },
+        ...(isExposed('developer')
+          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          : []),
       ]"
     />
 

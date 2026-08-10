@@ -33,6 +33,7 @@ import UserProfileNotesList from '@/components/window/user-profile/UserProfileNo
 import UserProfilePagesPane from '@/components/window/user-profile/UserProfilePagesPane.vue'
 import UserProfilePlayPane from '@/components/window/user-profile/UserProfilePlayPane.vue'
 import UserProfileQrCode from '@/components/window/user-profile/UserProfileQrCode.vue'
+import { isExposed } from '@/settings/exposure'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -142,7 +143,10 @@ const topTabDefs = computed<TopTabDef[]>(() => {
   }
   defs.push({ value: 'clips', icon: 'paperclip', label: 'クリップ' })
   defs.push({ value: 'achievements', icon: 'medal', label: '実績' })
-  defs.push({ value: 'raw', icon: 'code', label: 'Raw' })
+  // Raw JSON はプロトコルが見える面 (#1034)
+  if (isExposed('developer')) {
+    defs.push({ value: 'raw', icon: 'code', label: 'Raw' })
+  }
   return defs
 })
 const topTabs = computed<readonly TopTab[]>(() =>

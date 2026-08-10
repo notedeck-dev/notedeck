@@ -207,6 +207,59 @@ describe('useSettingsStore', () => {
     expect(commands.writeNotedeckJson).toHaveBeenCalledTimes(1)
   })
 
+  it('空ファイル (新規インストール) は読み込み失敗として扱わない', async () => {
+    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+      status: 'ok',
+      data: '',
+    } as never)
+
+    const store = useSettingsStore()
+    await store.load()
+
+    expect(store.loadFailed).toBe(false)
+  })
+
+  it('パース失敗時は loadFailed を立てる', async () => {
+    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+      status: 'ok',
+      data: 'not valid json {',
+    } as never)
+    vi.spyOn(console, 'warn').mockImplementation(() => {
+      // silence expected warning during test
+    })
+
+    const store = useSettingsStore()
+    await store.load()
+
+    expect(store.loadFailed).toBe(true)
+  })
+
+  it('読み込み失敗後は書き戻さない — defaults による上書き消失を防ぐ', async () => {
+    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+      status: 'ok',
+      data: 'not valid json {',
+    } as never)
+    vi.mocked(commands.writeNotedeckJson).mockResolvedValue({
+      status: 'ok',
+      data: null,
+    } as never)
+    vi.spyOn(console, 'warn').mockImplementation(() => {
+      // silence expected warning during test
+    })
+
+    const store = useSettingsStore()
+    await store.load()
+
+    // メモリ上の変更は効くが、ファイルには書かない
+    store.set('modes.realtime', false)
+    expect(store.get('modes.realtime')).toBe(false)
+    await vi.advanceTimersByTimeAsync(300)
+    expect(commands.writeNotedeckJson).not.toHaveBeenCalled()
+
+    await store.flush()
+    expect(commands.writeNotedeckJson).not.toHaveBeenCalled()
+  })
+
   it('flush() immediately persists pending changes', async () => {
     vi.mocked(commands.readNotedeckJson).mockResolvedValue({
       status: 'ok',

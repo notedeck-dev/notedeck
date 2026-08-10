@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
+import { isWindowExposed } from '@/windows/exposure'
 
 /**
  * カラムクエリのアイテムカード (#783)。
@@ -52,11 +53,14 @@ const emit = defineEmits<{
 
 const isStore = computed(() => props.mode === 'store')
 
+/** 編集はクエリを「作る」面なので開発者モードに従う (#1034)。導入・実行は一般側 */
+const canEdit = computed(() => isWindowExposed('column-query-editor'))
+
 function handlePrimaryClick() {
   if (isStore.value) {
     if (props.alreadyInstalled || props.installing) return
     emit('install')
-  } else {
+  } else if (canEdit.value) {
     emit('edit')
   }
 }
@@ -149,6 +153,7 @@ function handlePrimaryClick() {
               <i class="ti ti-trash" />
             </button>
             <button
+              v-if="canEdit"
               class="_button"
               :class="$style.primaryBtn"
               @click.stop="emit('edit')"
