@@ -27,6 +27,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
+import { isExposed } from '@/settings/exposure'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
@@ -65,15 +66,20 @@ type UsersView = 'inc-dec' | 'total'
 type NotesView = 'inc-dec' | 'breakdown' | 'total'
 type DriveView = 'files' | 'size'
 
-const TAB_DEFS: ColumnTabDef[] = [
+// エンドポイント別の生 JSON タブはプロトコルが見える面 (#1034)
+const TAB_DEFS = computed<ColumnTabDef[]>(() => [
   { value: 'charts', label: 'チャート', icon: 'chart-line' },
-  { value: 'active-users', label: 'active-users', icon: 'code' },
-  { value: 'federation', label: 'federation', icon: 'code' },
-  { value: 'ap-request', label: 'ap-request', icon: 'code' },
-  { value: 'notes', label: 'notes', icon: 'code' },
-  { value: 'users', label: 'users', icon: 'code' },
-  { value: 'drive', label: 'drive', icon: 'code' },
-]
+  ...(isExposed('developer')
+    ? [
+        { value: 'active-users', label: 'active-users', icon: 'code' },
+        { value: 'federation', label: 'federation', icon: 'code' },
+        { value: 'ap-request', label: 'ap-request', icon: 'code' },
+        { value: 'notes', label: 'notes', icon: 'code' },
+        { value: 'users', label: 'users', icon: 'code' },
+        { value: 'drive', label: 'drive', icon: 'code' },
+      ]
+    : []),
+])
 
 const activeTab = ref<Tab>('charts')
 const span = ref<Span>('hour')
