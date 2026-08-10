@@ -865,6 +865,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
       label: '開発者ツール',
       icon: 'code',
       category: 'general',
+      exposure: 'developer',
       shortcuts: keybindsStore.getShortcuts('devtools'),
       execute: () => {
         import('@/utils/tauriInvoke').then(({ commands }) => {
