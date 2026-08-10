@@ -1,5 +1,6 @@
 import type { Component } from 'vue'
 import { defineAsyncComponent } from 'vue'
+import type { ExposureTag } from '@/settings/exposure'
 import type { DeckWindow, WindowType } from '@/stores/windows'
 
 /**
@@ -30,6 +31,13 @@ export interface WindowSpec {
    * 必要な props が欠けていれば null を返す。
    */
   uri?: (win: DeckWindow, host: string) => string | null
+  /**
+   * 入口を出す条件 (#1034)。既定 (未指定) は 'general'。'developer' を付けた
+   * ウィンドウは、開発者モードが無効なときメニュー等の入口から消える。
+   * open() 自体は塞がない — プラグイン・AI・notedeck:// リンクからの正当な
+   * 呼び出しまで壊すと「機能の削除・劣化はしない」原則に反するため。
+   */
+  exposure?: ExposureTag
 }
 
 export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
@@ -47,6 +55,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
   'note-inspector': {
     label: 'ノートインスペクタ',
     icon: 'ti ti-code',
+    exposure: 'developer',
     width: 620,
     maxHeight: 720,
     component: () => import('@/components/window/NoteInspectorContent.vue'),
@@ -58,6 +67,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
   'notification-inspector': {
     label: '通知インスペクタ',
     icon: 'ti ti-code',
+    exposure: 'developer',
     width: 620,
     maxHeight: 720,
     component: () =>
@@ -220,6 +230,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
   'column-query-editor': {
     label: 'カラムクエリ',
     icon: 'ti ti-filter',
+    exposure: 'developer',
     width: 560,
     maxHeight: 720,
     component: () => import('@/components/window/ColumnQueryEditorContent.vue'),
@@ -303,6 +314,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
   'widget-edit': {
     label: 'ウィジット編集',
     icon: 'ti ti-layout-dashboard',
+    exposure: 'developer',
     width: 500,
     maxHeight: 720,
     component: () => import('@/components/window/WidgetEditContent.vue'),
@@ -310,6 +322,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
   'skill-edit': {
     label: 'スキル編集',
     icon: 'ti ti-sparkles',
+    exposure: 'developer',
     width: 500,
     maxHeight: 720,
     component: () => import('@/components/window/SkillEditContent.vue'),

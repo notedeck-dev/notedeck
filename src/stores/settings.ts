@@ -57,6 +57,14 @@ export const useSettingsStore = defineStore('settings', () => {
   const lastError = ref<string | null>(null)
 
   /**
+   * settings.json5 の読み込みに失敗したか (ファイルは在るのに読めない / 壊れている)。
+   * この状態で書き戻すと defaults がユーザーの設定を上書きして恒久的に消える
+   * ため、立っている間は永続化しない。空ファイル (新規インストール) は失敗では
+   * ないので false のまま。
+   */
+  const loadFailed = ref(false)
+
+  /**
    * settings.json5 を読み込んで settings を初期化する。
    * 複数回呼ばれても idempotent (初回のみ実行)。
    * 読み込みに失敗したら defaults で続行する。
@@ -84,6 +92,8 @@ export const useSettingsStore = defineStore('settings', () => {
         e,
       )
       settings.value = { ...DEFAULT_SETTINGS }
+      loadFailed.value = true
+      lastError.value = e instanceof Error ? e.message : String(e)
     }
     initialized.value = true
     startCrossWindowSync()
@@ -142,6 +152,8 @@ export const useSettingsStore = defineStore('settings', () => {
 
   async function persist(): Promise<void> {
     if (!isTauri) return // Web ビルドでは no-op
+    // 読み込めなかったファイルを defaults ベースで上書きしない
+    if (loadFailed.value) return
 
     saving.value = true
     try {
@@ -177,6 +189,7 @@ export const useSettingsStore = defineStore('settings', () => {
     initialized,
     saving,
     lastError,
+    loadFailed,
     load,
     get,
     set,
