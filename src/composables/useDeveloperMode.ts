@@ -6,9 +6,11 @@
  */
 
 import { computed, watch } from 'vue'
+import { useAiConfig } from '@/composables/useAiConfig'
 import { resolveDeveloperMode } from '@/services/developerMode'
 import { useAccountsStore } from '@/stores/accounts'
 import { useSettingsStore } from '@/stores/settings'
+import { useToast } from '@/stores/toast'
 import { readAiSettings } from '@/utils/settingsFs'
 
 export function useDeveloperMode() {
@@ -17,6 +19,15 @@ export function useDeveloperMode() {
 
   function setEnabled(value: boolean): void {
     settings.set('ui.developerMode', value)
+    // HEARTBEAT は開発者モードと無関係に走り続ける。off にすると制御面 (エージェント
+    // 設定) の入口が消えるので、動いていることを黙らせない (#1034)。停止は
+    // 「NoteDeck について」の稼働バッジから行える
+    if (!value && useAiConfig().config.value.heartbeat.enabled) {
+      useToast().show(
+        'HEARTBEAT は動作したままです。停止は「NoteDeck について」から',
+        'info',
+      )
+    }
   }
 
   return { enabled, setEnabled, toggle: () => setEnabled(!enabled.value) }

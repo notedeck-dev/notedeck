@@ -21,6 +21,7 @@ import {
   windowTargetId,
 } from '@/composables/useSpotlight'
 import { useVault } from '@/composables/useVault'
+import type { ExposureTag } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { type ColumnType, useDeckStore } from '@/stores/deck'
@@ -79,6 +80,12 @@ export interface TutorialCategory {
   achievementEmoji: string
   /** 対応するドキュメントのパス */
   docsPath: string
+  /**
+   * このカテゴリを実行できる条件 (#1034)。'developer' のカテゴリは開発者モードが
+   * 無効なとき、案内を始めずに「開発者モードで開放」として見せる。案内先の面が
+   * 隠れている状態で始めると、spotlight が存在しない項目を指して詰む。
+   */
+  exposure?: ExposureTag
 }
 
 export interface TutorialStep {
@@ -199,6 +206,7 @@ export const TUTORIAL_CATEGORIES: TutorialCategory[] = [
   },
   {
     id: 'mastery',
+    exposure: 'developer',
     title: '使いこなす',
     description: '外部の AI をつないで自分の環境を動かす',
     achievementName: '使い手',
@@ -207,6 +215,7 @@ export const TUTORIAL_CATEGORIES: TutorialCategory[] = [
   },
   {
     id: 'extend',
+    exposure: 'developer',
     title: '拡張をつくる',
     description: '自分だけのプラグイン・テーマ・クエリを組み立てる',
     achievementName: '拡張の作者',

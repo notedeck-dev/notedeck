@@ -2,6 +2,7 @@
 import { getTauriVersion } from '@tauri-apps/api/app'
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import type { Check, HealthReport, Status } from '@/bindings'
+import { useAiConfig } from '@/composables/useAiConfig'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useUpdater } from '@/composables/useUpdater'
 import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
@@ -26,6 +27,18 @@ const uiStore = useUiStore()
 
 const { enabled: developerMode, toggle: toggleDeveloperMode } =
   useDeveloperMode()
+
+const aiConfig = useAiConfig()
+
+/** 開発者モードが off で、かつ HEARTBEAT が動いている状態 */
+const heartbeatRunningHidden = computed(
+  () => !developerMode.value && aiConfig.config.value.heartbeat.enabled,
+)
+
+function stopHeartbeat(): void {
+  aiConfig.config.value.heartbeat.enabled = false
+  aiConfig.save()
+}
 const accountsStore = useAccountsStore()
 
 const REPO_URL = 'https://github.com/notedeck-dev/notedeck'
@@ -483,6 +496,20 @@ function reportBug() {
           <span :class="$style.formLinkSuffix">
             <i :class="developerMode ? 'ti ti-toggle-right' : 'ti ti-toggle-left'" />
           </span>
+        </button>
+        <!-- off でも HEARTBEAT は走り続ける。制御面が隠れている間の唯一の
+             稼働表示と停止導線 (#1034) -->
+        <button
+          v-if="heartbeatRunningHidden"
+          type="button"
+          class="_button"
+          :class="$style.formLink"
+          title="HEARTBEAT を停止する"
+          @click="stopHeartbeat"
+        >
+          <i class="ti ti-activity-heartbeat" :class="$style.formLinkIcon" />
+          <span>HEARTBEAT が動作中</span>
+          <span :class="$style.formLinkSuffix">停止</span>
         </button>
       </div>
     </div>
