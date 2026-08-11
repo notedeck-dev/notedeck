@@ -65,6 +65,9 @@ export async function initDeveloperMode(): Promise<void> {
     // ai.json5 が読めない = 使った痕跡なしとして扱う
   }
 
+  // await 中にユーザーがトグルしていたら、その選択を推定値で潰さない
+  if (settings.get('ui.developerMode') !== undefined) return
+
   settings.set(
     'ui.developerMode',
     resolveDeveloperMode(undefined, {
