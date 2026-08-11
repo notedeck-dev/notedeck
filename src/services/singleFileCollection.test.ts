@@ -292,6 +292,36 @@ describe('persistItem', () => {
     expect(t.fileBase).toBe('alpha-2')
   })
 
+  it('preferredBase が規約適合で空いていればそれを使う (builtin seed / store install)', async () => {
+    const fs = makeFakeFs()
+    const col = makeCollection(fs, {
+      preferredBase: (t) => (t.id === 't1' ? 'notedeck-guide' : undefined),
+    })
+    const t = item({ name: 'NoteDeck ガイド' })
+    await col.persistItem(t, [t])
+    expect(t.fileBase).toBe('notedeck-guide')
+  })
+
+  it('preferredBase が占有済みなら連番 suffix で回避する', async () => {
+    const fs = makeFakeFs({ [`notedeck-guide${EXT}`]: file('other', 'x') })
+    const col = makeCollection(fs, {
+      preferredBase: () => 'notedeck-guide',
+    })
+    const t = item({ name: 'guide' })
+    await col.persistItem(t, [t])
+    expect(t.fileBase).toBe('notedeck-guide-2')
+  })
+
+  it('preferredBase が規約不適合なら無視して表示名 slug に落ちる', async () => {
+    const fs = makeFakeFs()
+    const col = makeCollection(fs, {
+      preferredBase: () => '日本語ID',
+    })
+    const t = item({ name: 'Alpha' })
+    await col.persistItem(t, [t])
+    expect(t.fileBase).toBe('alpha')
+  })
+
   it('fileBase 割当済みなら name が変わっても再計算しない', async () => {
     const fs = makeFakeFs()
     const col = makeCollection(fs)

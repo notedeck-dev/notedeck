@@ -223,6 +223,9 @@ const skillFiles = createSingleFileCollection<SkillMeta, ParsedSkillFile>({
   logTag: 'skills',
   kindFallback: 'skill',
   ext: settingsFs.SKILL_EXT,
+  // builtin seed はテンプレ id (slug 適合) をそのままファイル名にする
+  // (表示名 slug だと `notedeck.md` / `notedeck-2.md` に化けて意味が消える)
+  preferredBase: (s) => (s.builtIn ? s.id : undefined),
   // 占有判定・sweep には .history.json5 を含む実列挙が要る
   // (規定拡張子の filter はコレクション側が行う)
   list: () => settingsFs.listSkillDirFiles(),

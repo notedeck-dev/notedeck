@@ -64,6 +64,11 @@ export interface SidecarCollectionConfig<T extends SidecarItemFile, M> {
    * 「メタあり・ソースなし」のソース再作成 (読込規則) に使う。
    */
   mirrorSrcById?(id: string): string | undefined
+  /**
+   * 新規割当時に優先するファイル基底名 (ストアインストールの storeId 等)。
+   * 規約不適合なら無視して表示名 slug に落ち、占有時は連番 suffix で回避する。
+   */
+  preferredBase?(item: T): string | undefined
 }
 
 const META_SUFFIX = '.meta.json5'
@@ -225,10 +230,12 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
         excludeItem: item,
         includeIds: true,
       })
-      item.fileBase = resolveAvailable(
-        slugifyName(cfg.nameOf(item), cfg.kindFallback),
-        (c) => taken.has(casefold(c)),
-      )
+      const preferred = cfg.preferredBase?.(item)
+      const base =
+        preferred !== undefined && isSlugConforming(preferred)
+          ? preferred
+          : slugifyName(cfg.nameOf(item), cfg.kindFallback)
+      item.fileBase = resolveAvailable(base, (c) => taken.has(casefold(c)))
     }
     const base = item.fileBase
     // 書込順は src → meta (メタを存在マーカーとする)

@@ -62,6 +62,12 @@ export interface SingleFileCollectionConfig<T extends SingleItemFile, P> {
   nameOf(item: T): string
   /** 通常保存経路の再シリアライズ。fileBase を含めないこと */
   serialize(item: T): string
+  /**
+   * 新規割当時に優先するファイル基底名 (builtin seed のテンプレ id、
+   * ストアインストールの storeId 等)。規約不適合なら無視して表示名 slug に
+   * 落ち、占有時は連番 suffix で回避する。
+   */
+  preferredBase?(item: T): string | undefined
 }
 
 const HISTORY_SUFFIX = '.history.json5'
@@ -201,10 +207,12 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
         excludeItem: item,
         includeIds: true,
       })
-      item.fileBase = resolveAvailable(
-        slugifyName(cfg.nameOf(item), cfg.kindFallback),
-        (c) => taken.has(casefold(c)),
-      )
+      const preferred = cfg.preferredBase?.(item)
+      const base =
+        preferred !== undefined && isSlugConforming(preferred)
+          ? preferred
+          : slugifyName(cfg.nameOf(item), cfg.kindFallback)
+      item.fileBase = resolveAvailable(base, (c) => taken.has(casefold(c)))
     }
     await cfg.write(item.fileBase + cfg.ext, cfg.serialize(item))
   }
