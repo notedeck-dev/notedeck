@@ -206,7 +206,6 @@ export const TUTORIAL_CATEGORIES: TutorialCategory[] = [
   },
   {
     id: 'mastery',
-    exposure: 'developer',
     title: '使いこなす',
     description: '外部の AI をつないで自分の環境を動かす',
     achievementName: '使い手',

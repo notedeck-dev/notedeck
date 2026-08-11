@@ -7,7 +7,6 @@ import type {
   TrustedPlugin,
   VaultTestResult,
 } from '@/bindings'
-import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES } from '@/data/connectionTemplates'
 import { resolveForProfiled, usePermissionsConfig } from '@/permissions/store'
@@ -72,8 +71,6 @@ const trustedExternal = ref(false)
 const connTemplateId = ref<string | null>(null)
 const protocol = ref<ConnectionProtocol | null>(null)
 
-const { enabled: developerMode, setEnabled: setDeveloperMode } =
-  useDeveloperMode()
 const externalSource = ref<string | null>(null)
 
 // secret: 既存接続では「鍵を入れ替える」を押すまで入力欄を出さない。
@@ -246,20 +243,6 @@ async function save() {
         'external',
         exposedExternal.value && trustedExternal.value,
       )
-    }
-
-    // AI プロトコル付きの接続を保存したのに AI の面が全部隠れていると、
-    // 登録した鍵が何にも使えない袋小路になる (#1034)。黙って UI を開くのでは
-    // なく、開放するかを一度だけ尋ねる
-    if (protocol.value && !developerMode.value) {
-      const ok = await confirm({
-        title: '開発者モードを有効にしますか',
-        message:
-          'AI の接続を登録しました。AI アシスタントやエージェント設定は開発者モードで表示されます。',
-        okLabel: '有効にする',
-        cancelLabel: '今はしない',
-      })
-      if (ok) setDeveloperMode(true)
     }
 
     emit('close')

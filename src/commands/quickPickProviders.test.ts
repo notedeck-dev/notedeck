@@ -126,13 +126,14 @@ describe('getSettingsItems', () => {
   it('開発者モード off では開発者向けの設定が並ばない (#1034)', () => {
     devMode = false
     const ids = getSettingsItems().map((i) => i.id)
-    expect(ids).not.toContain('aiSettings')
     expect(ids).not.toContain('tasksEditor')
     expect(ids).not.toContain('snippetsEditor')
     // 一般側は残る
     expect(ids).toContain('appearanceEditor')
     expect(ids).toContain('permissions')
     expect(ids).toContain('cssEditor')
+    // AI は一般側 — 接続と権限が一般に出ている以上、隠すと袋小路になる
+    expect(ids).toContain('aiSettings')
   })
 
   it('全項目がウィンドウを開くだけのフラットな一覧', () => {

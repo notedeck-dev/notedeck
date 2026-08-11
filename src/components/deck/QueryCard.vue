@@ -82,7 +82,13 @@ function handlePrimaryClick() {
     </div>
     <div :class="$style.body">
       <div :class="$style.row1">
-        <button type="button" :class="$style.name" @click.stop="handlePrimaryClick">{{ name }}</button>
+        <button
+          v-if="isStore || canEdit"
+          type="button"
+          :class="$style.name"
+          @click.stop="handlePrimaryClick"
+        >{{ name }}</button>
+        <span v-else :class="$style.name">{{ name }}</span>
         <span
           v-if="!isStore && execution === 'degraded'"
           :class="$style.degradedBadge"

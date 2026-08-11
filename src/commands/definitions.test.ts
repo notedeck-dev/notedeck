@@ -145,7 +145,6 @@ describe('registerDefaultCommands integrity', () => {
       .map((c) => c.id)
       .sort()
     expect(tagged).toEqual([
-      'ai',
       'devtools',
       'snippets-editor',
       'tasks-editor',
