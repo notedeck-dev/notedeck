@@ -458,11 +458,9 @@ function reportBug() {
     <!-- 開発者モード (#1034)。パレットのトグルコマンドと並ぶ唯一の入口なので、
          off の状態からも見つかる場所に置く。行の型は他の設定と同じスイッチ -->
     <div :class="$style.formSection">
-      <div :class="$style.formSectionLabel">開発者モード</div>
       <div :class="$style.sectionBody">
         <AiSwitchRow
-          label="開発者向けの機能を表示"
-          sub-label="API コンソール・ストリーム・スクラッチパッド・AI など"
+          label="開発者モード"
           icon="ti-code"
           :on="developerMode"
           @toggle="toggleDeveloperMode"
