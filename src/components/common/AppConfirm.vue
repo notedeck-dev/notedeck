@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
+import CodeDiffView from '@/components/common/CodeDiffView.vue'
 import SystemIcon from '@/components/common/SystemIcon.vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
@@ -123,8 +124,17 @@ useNativeDialog(dialogRef, visible, {
               </div>
             </div>
           </div>
+          <!-- diff 指定時はコードブロックの代わりに全文 diff を描画 (#981)。
+               code と併用時は diff 優先 -->
+          <div v-if="options.diff" :class="$style.diffBlock">
+            <CodeDiffView
+              :old-text="options.diff.old"
+              :new-text="options.diff.new"
+              :language="options.diff.language ?? 'text'"
+            />
+          </div>
           <div
-            v-if="options.code"
+            v-else-if="options.code"
             :key="`code-${highlighterLoaded}`"
             :class="$style.codeBlock"
             v-html="highlightCode(options.code, options.codeLanguage ?? 'json')"
@@ -325,6 +335,18 @@ useNativeDialog(dialogRef, visible, {
   color: var(--nd-fg);
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
+}
+
+// diff block — 適用前の全文 diff (#981)。ダイアログ内は最大高さを制限して
+// diff 側に内部スクロールを持たせる。
+.diffBlock {
+  margin-top: 8px;
+  text-align: left;
+  font-size: 0.85em;
+
+  > [data-nd-code-diff] {
+    max-height: 40vh;
+  }
 }
 
 // code block — capability の引数 JSON / コード片用。タイトルは中央寄せだが
