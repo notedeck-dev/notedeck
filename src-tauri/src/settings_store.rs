@@ -40,6 +40,9 @@ pub const ALLOWED_ROOT_FILES: &[&str] = &[
     // 公開しない制約はここではなく capability registry 側で担保している
     // (settingsFs の固定名ラッパーのみが本コマンドに到達する)
     "permissions.json5",
+    // custom.css の編集履歴サイドカー (#913 付随修正)。allowlist から漏れて
+    // いたため、フロントの履歴 read/write が一度も成功していなかった
+    "custom.css.history.json5",
 ];
 
 /// Validate a subdirectory name against the whitelist.
