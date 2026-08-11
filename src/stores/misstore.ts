@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
 import { launchPlugin, parsePluginMeta } from '@/aiscript/plugin-api'
+import { casefold, resolveAvailable } from '@/services/settingsSlug'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import {
   type PluginMeta,
@@ -353,7 +354,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
   /**
    * MisStore からスキル (.md + frontmatter) を取得して skills/ に保存する。
-   * 既存の同 storeId/同 id は上書き更新 (再インストール = アップデート)。
+   * 照合キーは storeId のみ (#913 — 表示名・frontmatter の id 宣言は使わない)。
+   * 既存の同 storeId は上書き更新 (再インストール = アップデート)。
+   * ローカル値 (改名 name / 実行モード mode / スコープ) は更新で維持する。
    * インストール直後に有効化はしない (mode=always のスキルは常時有効)。
    */
   async function installSkill(entry: StoreSkillEntry): Promise<void> {
@@ -372,9 +375,38 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
       const { meta, body } = parseSkillFile(source)
       const skillsStore = useSkillsStore()
-      const id = (meta.id as string | undefined) || entry.id
-      const existing = skillsStore.get(id)
+      const existing = skillsStore.skills.find((s) => s.storeId === entry.id)
       const now = Date.now()
+
+      if (existing) {
+        // 上書き更新: 本体とストア由来メタのみ。ローカル ID・name・mode・
+        // scope/installedFor・有効/無効 (activeIds) は維持する
+        skillsStore.update(existing.id, {
+          version: (meta.version as string | undefined) || entry.version,
+          description:
+            (meta.description as string | undefined) || entry.description,
+          author: (meta.author as string | undefined) || entry.author,
+          triggers: Array.isArray(meta.triggers)
+            ? (meta.triggers as string[])
+            : [],
+          body,
+          iconUrl: (meta.iconUrl as string | undefined) || entry.iconUrl,
+          cheapCheckCapabilities: Array.isArray(meta.cheapCheckCapabilities)
+            ? (meta.cheapCheckCapabilities as string[])
+            : [],
+          isPersona: meta.isPersona === true,
+          storeId: entry.id,
+          storeSha512: hash,
+          storeVersion: entry.version,
+        })
+        return
+      }
+
+      // 新規: ローカル ID = storeId (配布物内の ID 宣言よりレジストリの
+      // ディレクトリ名を正とする)。storeId 不一致の既存 ID に占有されて
+      // いたら上書きせず連番 suffix で回避する
+      const takenIds = new Set(skillsStore.skills.map((s) => casefold(s.id)))
+      const id = resolveAvailable(entry.id, (c) => takenIds.has(casefold(c)))
       const newSkill: SkillMeta = {
         id,
         name: (meta.name as string | undefined) || entry.name,
@@ -397,8 +429,10 @@ export const useMisStoreStore = defineStore('misstore', () => {
             ? (meta.installedFor as string[])
             : undefined,
         storeId: entry.id,
+        storeSha512: hash,
+        storeVersion: entry.version,
         body,
-        createdAt: existing?.createdAt ?? now,
+        createdAt: now,
         updatedAt: now,
         builtIn: false,
         iconUrl: (meta.iconUrl as string | undefined) || entry.iconUrl,
@@ -407,22 +441,16 @@ export const useMisStoreStore = defineStore('misstore', () => {
           : [],
         isPersona: meta.isPersona === true,
       }
-
-      if (existing) {
-        skillsStore.update(id, newSkill)
-      } else {
-        skillsStore.add(newSkill)
-      }
+      skillsStore.add(newSkill)
     } finally {
       installingSkill.value = null
     }
   }
 
   function isSkillInstalled(entry: StoreSkillEntry): boolean {
+    // 照合キーは storeId のみ (#913 — 内部 ID 一致では真にしない)
     const skillsStore = useSkillsStore()
-    return skillsStore.skills.some(
-      (s) => s.storeId === entry.id || s.id === entry.id,
-    )
+    return skillsStore.skills.some((s) => s.storeId === entry.id)
   }
 
   // --- Queries (#783 カラムクエリ) ---
@@ -473,10 +501,13 @@ export const useMisStoreStore = defineStore('misstore', () => {
       queriesStore.ensureLoaded()
       const existing = queriesStore.queries.find((q) => q.storeId === entry.id)
       if (existing) {
-        await queriesStore.updateQuery(existing.id, {
-          name: entry.name,
-          description: entry.description,
+        // 上書き更新: 本体とストア由来メタのみ。ローカル改名 (name) は維持
+        await queriesStore.applyStoreUpdate(existing.id, {
           src: source,
+          description: entry.description,
+          iconUrl: entry.iconUrl,
+          storeSha512: hash,
+          storeVersion: entry.version,
         })
       } else {
         await queriesStore.createQuery({
@@ -485,6 +516,8 @@ export const useMisStoreStore = defineStore('misstore', () => {
           src: source,
           storeId: entry.id,
           iconUrl: entry.iconUrl,
+          storeSha512: hash,
+          storeVersion: entry.version,
         })
       }
     } finally {
@@ -501,9 +534,11 @@ export const useMisStoreStore = defineStore('misstore', () => {
   // --- Install ---
 
   /**
-   * MisStore からプラグインをインストール / スコープ追加する (#771)。
-   * - 同じ storeId の既存プラグインがあればライブラリ本体は再取得せず、
-   *   指定 scope への参照を追加するだけ (重複インストールは避ける)
+   * MisStore からプラグインをインストール / 更新する (#771, #913)。
+   * 照合キーは storeId のみ (同名の自作があってもインストール可能 —
+   * ファイル名は suffix が捌く)。
+   * - 同じ storeId の既存プラグインがあれば本体とストア由来メタを上書き更新し、
+   *   指定 scope への参照を追加する (active/configData/scope/name は維持)
    * - 無ければ新規追加 (指定 scope で有効化、storeId 紐付け)
    */
   async function installPlugin(
@@ -513,12 +548,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
     installing.value = entry.id
     try {
       const pluginsStore = usePluginsStore()
-      // 既に同 storeId でインストール済みなら scope 参照を追加するだけ
       const existing = pluginsStore.plugins.find((p) => p.storeId === entry.id)
-      if (existing) {
-        pluginsStore.linkScope(existing.installId, scope)
-        return
-      }
 
       const res = await fetch(entry.sourceUrl)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -536,8 +566,20 @@ export const useMisStoreStore = defineStore('misstore', () => {
         throw new Error('プラグインメタデータの解析に失敗しました')
       }
 
-      if (pluginsStore.isDuplicate(meta.name)) {
-        throw new Error(`"${meta.name}" は既にインストールされています`)
+      if (existing) {
+        pluginsStore.applyStoreUpdate(existing.installId, {
+          src: source,
+          version: meta.version,
+          author: meta.author,
+          description: meta.description,
+          permissions: meta.permissions,
+          config: meta.config,
+          iconUrl: entry.iconUrl,
+          storeSha512: hash,
+          storeVersion: entry.version,
+        })
+        pluginsStore.linkScope(existing.installId, scope)
+        return
       }
 
       const configData: Record<string, unknown> = {}
@@ -559,6 +601,8 @@ export const useMisStoreStore = defineStore('misstore', () => {
         src: source,
         active: true,
         storeId: entry.id,
+        storeSha512: hash,
+        storeVersion: entry.version,
         ...(entry.iconUrl ? { iconUrl: entry.iconUrl } : {}),
         ...(scope.kind === 'global'
           ? { global: true }
@@ -575,9 +619,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
   // --- Install widget ---
 
   /**
-   * MisStore からウィジェットを取得して widgetsStore に追加する。
-   * 同 storeId のウィジェットが既にあれば再インストールせず early return
-   * (UI 側の DeckWidgetColumn ライブラリインストール挙動と整合)。
+   * MisStore からウィジェットを取得して widgetsStore に追加 / 更新する。
+   * 照合キーは storeId のみ (#913)。同 storeId の既存があれば本体とストア由来
+   * メタを上書き更新する (ローカル値 name/autoRun は維持)。
    *
    * AI capability (`widgets.install`) はカラム文脈を持たないので、
    * deckStore.addWidget ではなく widgetsStore.addWidget を直接呼んで
@@ -589,9 +633,19 @@ export const useMisStoreStore = defineStore('misstore', () => {
     try {
       const widgetsStore = useWidgetsStore()
       const existing = widgetsStore.widgets.find((w) => w.storeId === entry.id)
-      if (existing) return existing
 
+      // fetchWidgetSource が sha512 照合済み → entry.sha512 = 検証済みの値
       const src = await fetchWidgetSource(entry)
+      if (existing) {
+        const updated = widgetsStore.applyStoreUpdate(existing.installId, {
+          src,
+          iconUrl: entry.iconUrl,
+          storeSha512: entry.sha512,
+          storeVersion: entry.version,
+        })
+        return updated ?? existing
+      }
+
       const now = Date.now()
       const widget: WidgetMeta = {
         installId: generateWidgetId(),
@@ -599,6 +653,8 @@ export const useMisStoreStore = defineStore('misstore', () => {
         src,
         autoRun: entry.autoRun,
         storeId: entry.id,
+        storeSha512: entry.sha512,
+        storeVersion: entry.version,
         createdAt: now,
         updatedAt: now,
         ...(entry.iconUrl ? { iconUrl: entry.iconUrl } : {}),
@@ -643,10 +699,11 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
       const JSON5 = (await import('json5')).default
       const parsed = JSON5.parse(source)
-      // 既存インストールがあれば installedFor を引き継ぎ、新規 ID と union
+      // 照合キーは storeId のみ (#913)。既存インストールがあれば
+      // installedFor を引き継ぎ、新規 ID と union
       const themeStore = useThemeStore()
       const existing = themeStore.installedThemes.find(
-        (t) => t.id === entry.id || t.$notedeck?.storeId === entry.id,
+        (t) => t.$notedeck?.storeId === entry.id,
       )
       const installedForBase = existing?.$notedeck?.installedFor ?? []
       const installedFor = Array.from(
@@ -654,9 +711,14 @@ export const useMisStoreStore = defineStore('misstore', () => {
       )
       const withMeta = {
         ...parsed,
+        // 更新は配布内 UUID が変わってもローカル ID・ローカル改名を維持する
+        // (themeStore.installTheme が同 ID を既存対応表のファイルへ書く)
+        ...(existing ? { id: existing.id, name: existing.name } : {}),
         $notedeck: {
           ...(parsed.$notedeck ?? {}),
           storeId: entry.id,
+          storeSha512: hash,
+          storeVersion: entry.version,
           ...(installedFor.length > 0 ? { installedFor } : {}),
         },
       }
@@ -671,21 +733,17 @@ export const useMisStoreStore = defineStore('misstore', () => {
   }
 
   // --- Installed check ---
+  // 照合キーは storeId のみ (#913)。表示名・ファイル内 ID では照合しない
 
   function isInstalled(entry: StorePluginEntry): boolean {
     const pluginsStore = usePluginsStore()
-    return pluginsStore.plugins.some((p) => p.name === entry.name)
+    return pluginsStore.plugins.some((p) => p.storeId === entry.id)
   }
 
   function isThemeInstalled(entry: StoreThemeEntry): boolean {
-    // id 比較が一次基準: MisStore は id ユニーク (ame / dark-amethyst 等) なので
-    // 同 id があれば確実にこの store entry のインストール済みコピー。
-    // storeId 比較を fallback にするのは、テーマインストール時 themeStore は
-    // theme.id を尊重するが、parsed の id が衝突した時 themeStore 側で
-    // `custom-${Date.now()}` に置換される可能性があるため (theme.ts L236)。
     const themeStore = useThemeStore()
     return themeStore.installedThemes.some(
-      (t) => t.id === entry.id || t.$notedeck?.storeId === entry.id,
+      (t) => t.$notedeck?.storeId === entry.id,
     )
   }
 
