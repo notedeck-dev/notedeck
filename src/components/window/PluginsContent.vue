@@ -13,6 +13,7 @@ import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { isExposed } from '@/settings/exposure'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import {
   type PluginMeta,
@@ -54,11 +55,23 @@ const pluginLogs = computed(() =>
 const isNewInstall = computed(() => !plugin.value)
 
 // --- Tabs ---
+/**
+ * プラグインのソースを見せてよいか (#1034)。配布物は「カラムは一般 /
+ * 作成・編集は開発者」なので、インストール済みプラグインの code タブは
+ * 開発者モードに従う。設定とログは管理の面なので一般側に残る。
+ *
+ * 新規インストールは code が唯一の面なので出す — 隠すのは入口 (管理カラムの
+ * 「新規プラグインを作成」) の側で、開いた窓を空にはしない。
+ */
+const codeExposed = computed(() => isNewInstall.value || isExposed('developer'))
+
 const tabOptions = computed<readonly ('config' | 'code' | 'logs')[]>(() => {
   if (isNewInstall.value) {
     return ['code']
   }
-  const tabs: ('config' | 'code' | 'logs')[] = ['code', 'logs']
+  const tabs: ('config' | 'code' | 'logs')[] = codeExposed.value
+    ? ['code', 'logs']
+    : ['logs']
   if (plugin.value?.config && Object.keys(plugin.value.config).length > 0) {
     tabs.unshift('config')
   }
@@ -67,10 +80,10 @@ const tabOptions = computed<readonly ('config' | 'code' | 'logs')[]>(() => {
 
 const defaultTab = computed(() => {
   if (isNewInstall.value) return 'code'
-  if (props.initialTab === 'code') return 'code'
+  if (props.initialTab === 'code' && codeExposed.value) return 'code'
   if (plugin.value?.config && Object.keys(plugin.value.config).length > 0)
     return 'config'
-  return 'code'
+  return codeExposed.value ? 'code' : 'logs'
 })
 
 const { tab, containerRef: editorRef } = useEditorTabs(
@@ -277,6 +290,8 @@ async function exportPlugin() {
 const barActions = computed<EditorAction[]>(() => {
   // 新規インストール中はまだ export するものが無い
   if (!plugin.value) return []
+  // ソースを読み書きするアクションは code タブと同じ扱い (#1034)
+  if (!codeExposed.value) return []
   return [
     {
       key: 'import',
@@ -299,6 +314,7 @@ const barPrimary = computed<EditorAction | null>(() => {
   if (!plugin.value) {
     return { key: 'install', label: 'インストール', icon: 'download' }
   }
+  if (!codeExposed.value) return null
   return {
     key: 'save',
     label: '保存して再起動',
@@ -479,7 +495,9 @@ async function importPlugin() {
       </div>
     </div>
 
+    <!-- ソースを触るアクションだけのバーなので、隠れたときは枠ごと出さない -->
     <EditorActionBar
+      v-if="barActions.length > 0 || barPrimary"
       :actions="barActions"
       :primary="barPrimary"
       @action="onBarAction"

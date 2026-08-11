@@ -15,6 +15,7 @@ import {
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { usePointerReorder } from '@/composables/usePointerReorder'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { isExposed } from '@/settings/exposure'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
@@ -93,9 +94,19 @@ const editingName = computed(() =>
 const codeContent = ref('')
 const codeError = ref<string | null>(null)
 
-const { tab, containerRef: editorRef } = useEditorTabs(
-  ['visual', 'code'] as const,
-  (props.initialTab as 'visual' | 'code') ?? 'visual',
+// 生ファイルを直接編集する code タブは開発者向けの面 (#1034)。アピアランス /
+// キーバインド / テーマ / 権限と同じ宣言的 opt-in
+const editorTabs = computed(() =>
+  isExposed('developer')
+    ? (['visual', 'code'] as const)
+    : (['visual'] as const),
+)
+
+const { tab, containerRef: editorRef } = useEditorTabs<'visual' | 'code'>(
+  editorTabs,
+  props.initialTab === 'code' && !isExposed('developer')
+    ? 'visual'
+    : ((props.initialTab as 'visual' | 'code') ?? 'visual'),
 )
 
 useWindowExternalFile(() =>
@@ -352,7 +363,9 @@ async function importFromClipboard() {
       v-model="tab"
       :tabs="[
         { value: 'visual', icon: 'layout-columns', label: 'ビジュアル' },
-        { value: 'code', icon: 'code', label: 'コード' },
+        ...(isExposed('developer')
+          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          : []),
       ]"
     />
 

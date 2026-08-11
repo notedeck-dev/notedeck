@@ -2,7 +2,7 @@
 import { json } from '@codemirror/lang-json'
 import { type Diagnostic, linter } from '@codemirror/lint'
 import JSON5 from 'json5'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import AiConnectionSection from '@/components/window/ai-settings/AiConnectionSection.vue'
@@ -18,6 +18,7 @@ import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { isExposed } from '@/settings/exposure'
 
 const jsonLang = json()
 
@@ -45,12 +46,22 @@ const props = defineProps<{
   initialTab?: string
 }>()
 
-const { tab, containerRef: editorRef } = useEditorTabs(
-  ['api', 'json'] as const,
-  (props.initialTab as 'api' | 'json') ?? 'api',
+// AI そのものは一般側の面だが、ai.json5 を直接編集するタブは他の設定窓の
+// code タブと同じ「生ファイルを編集する面」なので開発者モードに従う (#1034)
+const editorTabs = computed(() =>
+  isExposed('developer') ? (['api', 'json'] as const) : (['api'] as const),
 )
 
-useWindowExternalFile(() => ({ name: 'ai.json5' }))
+const { tab, containerRef: editorRef } = useEditorTabs<'api' | 'json'>(
+  editorTabs,
+  props.initialTab === 'json' && !isExposed('developer')
+    ? 'api'
+    : ((props.initialTab as 'api' | 'json') ?? 'api'),
+)
+
+useWindowExternalFile(() =>
+  isExposed('developer') ? { name: 'ai.json5' } : null,
+)
 
 // --- Config (delegated to composable) ---
 // 各セクションコンポーネントは useAiConfig() のシングルトン config を直接
@@ -165,7 +176,9 @@ function handleReset() {
       v-model="tab"
       :tabs="[
         { value: 'api', icon: 'plug-connected', label: 'API' },
-        { value: 'json', icon: 'braces', label: 'ai.json5' },
+        ...(isExposed('developer')
+          ? [{ value: 'json', icon: 'braces', label: 'ai.json5' }]
+          : []),
       ]"
     />
 
