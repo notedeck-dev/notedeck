@@ -2,6 +2,7 @@
 import { getTauriVersion } from '@tauri-apps/api/app'
 import { computed, onMounted, ref, shallowRef } from 'vue'
 import type { Check, HealthReport, Status } from '@/bindings'
+import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useUpdater } from '@/composables/useUpdater'
 import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
@@ -454,6 +455,21 @@ function reportBug() {
       </div>
     </div>
 
+    <!-- 開発者モード (#1034)。パレットのトグルコマンドと並ぶ唯一の入口なので、
+         off の状態からも見つかる場所に置く。行の型は他の設定と同じスイッチ -->
+    <div :class="$style.formSection">
+      <div :class="$style.formSectionLabel">開発者モード</div>
+      <div :class="$style.sectionBody">
+        <AiSwitchRow
+          label="開発者向けの機能を表示"
+          sub-label="API コンソール・ストリーム・スクラッチパッド・AI など"
+          icon="ti-code"
+          :on="developerMode"
+          @toggle="toggleDeveloperMode"
+        />
+      </div>
+    </div>
+
     <!-- 本家 about-misskey の projectMembers 踏襲 (行の型は formLink に統一)。
          飛び先を Sponsors にすることで寄付導線を兼ねる -->
     <div :class="$style.formSection">
@@ -463,27 +479,6 @@ function reportBug() {
           <img src="https://github.com/hitalin.png?size=48" :class="$style.devAvatar" alt="" />
           <span>@hitalin</span>
           <span :class="$style.formLinkSuffix">GitHub Sponsors <i class="ti ti-external-link" /></span>
-        </button>
-      </div>
-    </div>
-
-    <!-- 開発者モード (#1034)。パレットのトグルコマンドと並ぶ唯一の入口なので、
-         off の状態からも見つかる場所に置く -->
-    <div :class="$style.formSection">
-      <div :class="$style.formSectionLabel">開発者モード</div>
-      <div :class="$style.sectionBody">
-        <button
-          type="button"
-          class="_button"
-          :class="$style.formLink"
-          :title="developerMode ? '無効にする' : '有効にする'"
-          @click="toggleDeveloperMode"
-        >
-          <i class="ti ti-code" :class="$style.formLinkIcon" />
-          <span>API コンソール・ストリーム・スクラッチパッドなどを表示</span>
-          <span :class="$style.formLinkSuffix">
-            <i :class="developerMode ? 'ti ti-toggle-right' : 'ti ti-toggle-left'" />
-          </span>
         </button>
       </div>
     </div>
