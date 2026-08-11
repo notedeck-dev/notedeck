@@ -110,7 +110,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
   },
   aiSettings: {
     label: 'エージェント',
-    exposure: 'developer',
     icon: 'ti ti-robot',
     width: 400,
     maxHeight: 700,

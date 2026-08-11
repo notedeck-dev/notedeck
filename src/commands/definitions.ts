@@ -784,7 +784,6 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     label: 'AIアシスタント',
     icon: 'robot',
     category: 'navigation',
-    exposure: 'developer',
     shortcuts: keybindsStore.getShortcuts('ai'),
     execute: () => useDeckStore().toggleSidebarColumn('ai', null),
   })
