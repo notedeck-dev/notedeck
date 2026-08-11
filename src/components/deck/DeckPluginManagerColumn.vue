@@ -7,6 +7,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { getPluginDenial } from '@/permissions/pluginDenials'
+import { isExposed } from '@/settings/exposure'
 import {
   accountScopeKey,
   getAccountAvatarUrl,
@@ -278,6 +279,12 @@ function openPluginDetail(pluginId: string) {
   })
 }
 
+/**
+ * プラグインを「作る」面は開発者モードに従う (#1034)。導入・実行・on/off・
+ * 削除は一般側なので、隠れるのは新規作成の入口とソース編集タブだけ。
+ */
+const canCreate = computed(() => isExposed('developer'))
+
 function openNewPlugin() {
   windowsStore.open('plugins', {
     ...(columnScope.value ? { initialScope: columnScope.value } : {}),
@@ -357,7 +364,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
         />
       </div>
       <button
-        v-if="viewTab === 'installed'"
+        v-if="viewTab === 'installed' && canCreate"
         class="_button"
         :class="$style.headerBtn"
         title="新規プラグインを作成"

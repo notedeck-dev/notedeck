@@ -19,6 +19,7 @@ import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
+import { isWindowExposed } from '@/windows/exposure'
 import ColumnSection from './ColumnSection.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
@@ -31,6 +32,13 @@ const props = defineProps<{
 const skillsStore = useSkillsStore()
 const misStore = useMisStoreStore()
 const windowsStore = useWindowsStore()
+
+/**
+ * スキルを「作る」面は開発者モードに従う (#1034)。導入・実行・on/off・削除は
+ * 一般側なので、隠れるのは新規作成と編集の入口だけ (テーマ・プラグイン・
+ * ウィジェット・クエリと同じ規則)。
+ */
+const canEdit = computed(() => isWindowExposed('skill-edit'))
 const { columnThemeVars } = useColumnTheme(() => props.column)
 
 skillsStore.ensureLoaded()
@@ -212,7 +220,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 
     <template #header-meta>
       <button
-        v-if="viewTab === 'installed'"
+        v-if="viewTab === 'installed' && canEdit"
         class="_button"
         :class="$style.headerBtn"
         title="新規スキルを作成"
@@ -308,6 +316,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                       <i class="ti ti-trash" />
                     </button>
                     <button
+                      v-if="canEdit"
                       class="_button"
                       :class="$style.iconBtn"
                       title="編集"

@@ -7,6 +7,7 @@ import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { isExposed } from '@/settings/exposure'
 import {
   CATEGORY_LABELS,
   FADER_CATEGORIES,
@@ -24,9 +25,19 @@ const props = defineProps<{
 
 const perfStore = usePerformanceStore()
 
-const { tab, containerRef: editorRef } = useEditorTabs(
-  ['visual', 'code'] as const,
-  (props.initialTab as 'visual' | 'code') ?? 'visual',
+// 生ファイルを直接編集する code タブは開発者向けの面 (#1034)。アピアランス /
+// キーバインド / テーマ / 権限と同じ宣言的 opt-in
+const editorTabs = computed(() =>
+  isExposed('developer')
+    ? (['visual', 'code'] as const)
+    : (['visual'] as const),
+)
+
+const { tab, containerRef: editorRef } = useEditorTabs<'visual' | 'code'>(
+  editorTabs,
+  props.initialTab === 'code' && !isExposed('developer')
+    ? 'visual'
+    : ((props.initialTab as 'visual' | 'code') ?? 'visual'),
 )
 
 useWindowExternalFile(() =>
@@ -229,7 +240,9 @@ function handleReset() {
       v-model="tab"
       :tabs="[
         { value: 'visual', icon: 'adjustments', label: 'ビジュアル' },
-        { value: 'code', icon: 'code', label: 'コード' },
+        ...(isExposed('developer')
+          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          : []),
       ]"
     />
 
