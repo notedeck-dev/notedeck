@@ -1,6 +1,3 @@
-import JSON5 from 'json5'
-
-import { injectJson5Id } from '@/services/idFreeze'
 import {
   casefold,
   isSlugConforming,
@@ -9,70 +6,70 @@ import {
 } from '@/services/settingsSlug'
 
 /**
- * 「src + meta サイドカーペアで 1 アイテム」を表すコレクションのファイル
- * 永続化サービス (#782 Phase 2 → #913 で対応表化)。
+ * 「単一ファイルで 1 アイテム」を表すコレクションのファイル永続化サービス
+ * (#913 — テーマ `.ndtheme.json5` / スキル `.md` 共通)。
+ * sidecarFileCollection の単一ファイル版で、不変条件は同じ:
  *
- * #913 の不変条件:
  * - ファイル basename は ASCII slug (slugify の不動点)。参照はファイル内 ID
  * - ID → 実ファイル名の対応表が唯一の正。実体は各アイテムの runtime-only
  *   フィールド `fileBase` (ファイルへは書かない。localStorage ミラーには同乗)
- * - ID 凍結は常設規則: ID 欠損のメタを読んだらメタファイル完全名を書き戻す
+ * - ID 凍結は常設規則: ID 欠損のファイルを読んだら種別の実効値を書き戻す
  * - 履歴サイドカー (`<fileBase>.history.json5`) の basename は主ファイルと同一
  *
- * 状態は持たない。reactive state・localStorage・マージ/seed の方針は
- * 引き続き store 側が持ち、ファイル I/O の手続きだけをここへ委譲する。
+ * 状態は持たない。reactive state・localStorage・seed の方針は store 側が持ち、
+ * ファイル I/O の手続きだけをここへ委譲する。
  * (同一ウィンドウ内の書込交錯を防ぐ直列化キューのみ内部に持つ)
  */
 
 /** 各アイテムが持つ runtime-only のファイル対応フィールド。 */
-export interface SidecarItemFile {
+export interface SingleItemFile {
   /**
-   * 実ファイル基底名 (拡張子 `.is` / `.meta.json5` を除いた部分)。
+   * 実ファイル基底名 (規定拡張子を除いた部分)。
    * 未割当 (undefined) = まだファイル化されていない。
-   * ファイルへは書かない (toFileMeta に含めないこと)。
+   * ファイルへは書かない (serialize に含めないこと)。
    */
   fileBase?: string
-  /**
-   * ソース欠損 (localStorage ミラーにも本文なし) の読取専用アイテム。
-   * persist は抑止される (空ソースの書き戻しでコードを恒久喪失させない)。
-   */
-  readOnly?: boolean
 }
 
-export interface SidecarCollectionConfig<T extends SidecarItemFile, M> {
-  /** console.warn の識別子 (例: 'plugins') */
+export interface SingleFileCollectionConfig<T extends SingleItemFile, P> {
+  /** console.warn の識別子 (例: 'theme' | 'skills') */
   logTag: string
-  /** slug が空になったときの種別 fallback ('widget' | 'plugin' | 'query') */
+  /** slug が空になったときの種別 fallback ('theme' | 'skill') */
   kindFallback: string
-  /** メタ JSON5 内の ID キー名 ('installId' | 'id') */
-  idKey: string
+  /** 規定複合拡張子 ('.ndtheme.json5' | '.md') */
+  ext: string
   list(): Promise<string[]>
   read(filename: string): Promise<string>
   write(filename: string, content: string): Promise<void>
   remove(filename: string): Promise<void>
   rename(oldFilename: string, newFilename: string): Promise<void>
+  /** 生内容のパース。throw = パース不能 (読込スキップ・正規化対象外) */
+  parse(raw: string): P
+  /** パース成功でも採用しない個体 (テーマの props 欠損等)。false = 警告スキップ (凍結もしない) */
+  accepts?(parsed: P): boolean
+  /** パース結果から生 ID 値 (欠損判定前) を取り出す */
+  rawIdOf(parsed: P): unknown
+  /** ID 凍結の実効値 (テーマ = `custom-<完全ファイル名>` / スキル = 拡張子なし basename) */
+  effectiveIdOf(filename: string, base: string): string
+  /** 生内容への最小変換で ID を注入する (idFreeze) */
+  injectId(raw: string, id: string): string
+  /** パース結果 + 確定 ID → アイテム。fileBase はサービスが付与する */
+  fromFile(parsed: P, id: string, filename: string): T
+  /** copy-adopt で slug の元にする表示名 (欠損なら '' → kindFallback に落ちる) */
+  displayNameOf(parsed: P): string
   idOf(item: T): string
-  /** 表示名 (slug の元)。空なら kindFallback に落ちる */
+  /** 表示名 (新規割当・リネームの slug の元)。空なら kindFallback に落ちる */
   nameOf(item: T): string
-  srcOf(item: T): string
-  /** item → meta ファイルに書く projection。fileBase/readOnly を含めないこと */
-  toFileMeta(item: T): M
-  /** パース済み meta + src → item。呼び出し側の try/catch はサービスが持つ */
-  fromFile(meta: M, src: string, metaFile: string): T
+  /** 通常保存経路の再シリアライズ。fileBase を含めないこと */
+  serialize(item: T): string
   /**
-   * localStorage ミラーから同 ID の本文を引く。
-   * 「メタあり・ソースなし」のソース再作成 (読込規則) に使う。
-   */
-  mirrorSrcById?(id: string): string | undefined
-  /**
-   * 新規割当時に優先するファイル基底名 (ストアインストールの storeId 等)。
-   * 規約不適合なら無視して表示名 slug に落ち、占有時は連番 suffix で回避する。
+   * 新規割当時に優先するファイル基底名 (builtin seed のテンプレ id、
+   * ストアインストールの storeId 等)。規約不適合なら無視して表示名 slug に
+   * 落ち、占有時は連番 suffix で回避する。
    */
   preferredBase?(item: T): string | undefined
 }
 
-const META_SUFFIX = '.meta.json5'
-const SRC_SUFFIX = '.is'
 const HISTORY_SUFFIX = '.history.json5'
 /** ID 凍結の欠損判定に使う上限長。制御文字含有は欠損に含めない (#913) */
 const ID_MAX_LENGTH = 256
@@ -80,7 +77,7 @@ const ID_MAX_LENGTH = 256
 export interface LoadAllResult<T> {
   items: T[]
   /**
-   * ディレクトリに存在した meta ファイル数。`items.length` と別に返すのは
+   * ディレクトリに存在した規定拡張子ファイル数。`items.length` と別に返すのは
    * 「全ファイルがパース失敗」(entryFileCount > 0, items 空) と「ファイルなし」
    * (= localStorage → ファイルの片方向移行が必要) を呼び出し側が区別するため。
    */
@@ -106,16 +103,8 @@ function isValidId(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0 && v.length <= ID_MAX_LENGTH
 }
 
-/** 規定拡張子を剥がした basename。規定拡張子でなければ null。 */
-function stripKnownExt(filename: string): string | null {
-  for (const ext of [META_SUFFIX, HISTORY_SUFFIX, SRC_SUFFIX]) {
-    if (filename.endsWith(ext)) return filename.slice(0, -ext.length)
-  }
-  return null
-}
-
-export function createSidecarCollection<T extends SidecarItemFile, M>(
-  cfg: SidecarCollectionConfig<T, M>,
+export function createSingleFileCollection<T extends SingleItemFile, P>(
+  cfg: SingleFileCollectionConfig<T, P>,
 ) {
   // 同一ウィンドウ内の変更系操作を直列化する (空き名探索 → 書込の交錯防止)。
   let chain: Promise<unknown> = Promise.resolve()
@@ -125,10 +114,21 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
     return next
   }
 
+  /** 規定拡張子 or 履歴を剥がした basename。どちらでもなければ null。 */
+  function stripKnownExt(filename: string): string | null {
+    if (filename.endsWith(HISTORY_SUFFIX)) {
+      return filename.slice(0, -HISTORY_SUFFIX.length)
+    }
+    if (filename.endsWith(cfg.ext)) {
+      return filename.slice(0, -cfg.ext.length)
+    }
+    return null
+  }
+
   /**
    * 占有集合 (casefold 済み) を構築する。
-   * 探索空間 = 種別ディレクトリの実列挙 (規定拡張子の basename。パース不能・
-   * スキップ個体・履歴も含む) ∪ 対応表 (各アイテムの fileBase)
+   * 探索空間 = 種別ディレクトリの実列挙 (規定拡張子 + 履歴の basename。
+   * パース不能・スキップ個体も含む) ∪ 対応表 (各アイテムの fileBase)
    * ∪ (ID を決める操作では) 種別内 ID 集合。
    * 操作対象アイテム自身 (とその実ファイル) は占有とみなさない。
    */
@@ -155,75 +155,52 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
 
   async function loadAllImpl(): Promise<LoadAllResult<T>> {
     const allFiles = (await cfg.list()).slice().sort(compareBytes)
-    const fileSet = new Set(allFiles)
-    const metaFiles = allFiles.filter((f) => f.endsWith(META_SUFFIX))
+    const mainFiles = allFiles.filter(
+      (f) => f.endsWith(cfg.ext) && !f.endsWith(HISTORY_SUFFIX),
+    )
 
     const items: T[] = []
     const seenIds = new Set<string>()
-    for (const metaFile of metaFiles) {
+    for (const filename of mainFiles) {
       try {
-        const base = metaFile.slice(0, -META_SUFFIX.length)
-        let rawMeta = await cfg.read(metaFile)
-        let parsed = JSON5.parse(rawMeta) as Record<string, unknown>
-        if (!isValidId(parsed[cfg.idKey])) {
-          // ID 凍結 (常設規則): 実効値 = メタファイルの完全名を最小変換で注入
-          rawMeta = injectJson5Id(rawMeta, cfg.idKey, metaFile)
-          await cfg.write(metaFile, rawMeta)
-          parsed = JSON5.parse(rawMeta) as Record<string, unknown>
+        const base = filename.slice(0, -cfg.ext.length)
+        let raw = await cfg.read(filename)
+        let parsed = cfg.parse(raw)
+        if (cfg.accepts && !cfg.accepts(parsed)) {
+          console.warn(
+            `[${cfg.logTag}] ${filename} is not a valid item — skipped (file kept)`,
+          )
+          continue
         }
-        const id = parsed[cfg.idKey] as string
+        if (!isValidId(cfg.rawIdOf(parsed))) {
+          // ID 凍結 (常設規則): 種別の実効値を最小変換で注入して書き戻す
+          raw = cfg.injectId(raw, cfg.effectiveIdOf(filename, base))
+          await cfg.write(filename, raw)
+          parsed = cfg.parse(raw)
+        }
+        const id = cfg.rawIdOf(parsed) as string
         if (seenIds.has(id)) {
           console.warn(
-            `[${cfg.logTag}] duplicate id "${id}" in ${metaFile} — skipped (file kept)`,
+            `[${cfg.logTag}] duplicate id "${id}" in ${filename} — skipped (file kept)`,
           )
           continue
         }
         seenIds.add(id)
 
-        const srcFile = base + SRC_SUFFIX
-        let src = ''
-        let readOnly = false
-        if (fileSet.has(srcFile)) {
-          src = await cfg.read(srcFile)
-        } else {
-          const mirror = cfg.mirrorSrcById?.(id)
-          if (typeof mirror === 'string' && mirror.length > 0) {
-            // ミラー本文からソースを再作成して通常読込 (移行 (b) と同じ向き)
-            await cfg.write(srcFile, mirror)
-            src = mirror
-            console.warn(
-              `[${cfg.logTag}] ${srcFile} was missing — recreated from mirror`,
-            )
-          } else {
-            // 空ソースは書かない。読取専用で可視化する
-            readOnly = true
-            console.warn(
-              `[${cfg.logTag}] ${srcFile} is missing and no mirror body — read-only`,
-            )
-          }
-        }
-
-        const item = cfg.fromFile(parsed as unknown as M, src, metaFile)
+        const item = cfg.fromFile(parsed, id, filename)
         item.fileBase = base
-        if (readOnly) item.readOnly = true
         items.push(item)
       } catch (e) {
-        console.warn(`[${cfg.logTag}] failed to parse ${metaFile}:`, e)
+        console.warn(`[${cfg.logTag}] failed to parse ${filename}:`, e)
       }
     }
-    return { items, entryFileCount: metaFiles.length }
+    return { items, entryFileCount: mainFiles.length }
   }
 
   async function persistItemImpl(
     item: T,
     allItems: readonly T[],
   ): Promise<void> {
-    if (item.readOnly) {
-      console.warn(
-        `[${cfg.logTag}] skip persisting read-only item "${cfg.idOf(item)}"`,
-      )
-      return
-    }
     if (item.fileBase === undefined) {
       // 新規割当 (ID を決める操作): ファイル名と ID 集合の両方に対して空きを探す
       const taken = await buildTaken(allItems, {
@@ -237,40 +214,22 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
           : slugifyName(cfg.nameOf(item), cfg.kindFallback)
       item.fileBase = resolveAvailable(base, (c) => taken.has(casefold(c)))
     }
-    const base = item.fileBase
-    // 書込順は src → meta (メタを存在マーカーとする)
-    await cfg.write(base + SRC_SUFFIX, cfg.srcOf(item))
-    await cfg.write(
-      base + META_SUFFIX,
-      JSON5.stringify(cfg.toFileMeta(item), null, 2),
-    )
-  }
-
-  async function persistAllImpl(
-    items: readonly T[],
-    allItems: readonly T[],
-  ): Promise<void> {
-    // 直列実行 (並行だと空き名探索が交錯して同名を二重割当する)
-    for (const item of items) {
-      await persistItemImpl(item, allItems)
-    }
+    await cfg.write(item.fileBase + cfg.ext, cfg.serialize(item))
   }
 
   async function deleteItemFilesImpl(item: T): Promise<void> {
     const base = item.fileBase
     if (base === undefined) return
-    // 削除順は meta → src (メタを存在マーカーとする)。履歴サイドカーも削除
-    // (残すと同名の新規アイテムが削除済みアイテムの履歴リングを継承する)。
-    // remove は missing = no-op 意味論 (settings_store.rs 側)。
-    await cfg.remove(base + META_SUFFIX)
-    await cfg.remove(base + SRC_SUFFIX)
+    // 履歴サイドカーも削除 (残すと同名の新規アイテムが削除済みアイテムの
+    // 履歴リングを継承する)。remove は missing = no-op 意味論。
+    await cfg.remove(base + cfg.ext)
     await cfg.remove(base + HISTORY_SUFFIX)
   }
 
-  /** src → meta → history の順で rename する。不在は skip (ensure-dest)。 */
+  /** 主ファイル → history の順で rename する。不在は skip (ensure-dest)。 */
   async function renameFileSet(from: string, to: string): Promise<void> {
     const files = new Set(await cfg.list())
-    for (const ext of [SRC_SUFFIX, META_SUFFIX, HISTORY_SUFFIX]) {
+    for (const ext of [cfg.ext, HISTORY_SUFFIX]) {
       const oldFile = from + ext
       const newFile = to + ext
       if (!files.has(oldFile)) continue
@@ -318,17 +277,9 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
   }
 
   /** 読み戻し検証: 書いた内容と一致するか。 */
-  async function verifyWritten(
-    base: string,
-    rawSrc: string,
-    rawMeta: string,
-  ): Promise<boolean> {
+  async function verifyWritten(base: string, raw: string): Promise<boolean> {
     try {
-      const [src, meta] = await Promise.all([
-        cfg.read(base + SRC_SUFFIX),
-        cfg.read(base + META_SUFFIX),
-      ])
-      return src === rawSrc && meta === rawMeta
+      return (await cfg.read(base + cfg.ext)) === raw
     } catch {
       return false
     }
@@ -343,13 +294,11 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
     oldBase: string,
     allItems: readonly T[],
   ): Promise<void> {
-    const oldMetaFile = oldBase + META_SUFFIX
-    const rawMeta = await cfg.read(oldMetaFile)
-    const rawSrc = await cfg.read(oldBase + SRC_SUFFIX)
-    const parsed = JSON5.parse(rawMeta) as Record<string, unknown>
-    // slug の元はファイル内メタの表示名 (欠損なら種別 fallback)
-    const displayName = typeof parsed.name === 'string' ? parsed.name : ''
-    const candidate = slugifyName(displayName, cfg.kindFallback)
+    const oldFile = oldBase + cfg.ext
+    const raw = await cfg.read(oldFile)
+    const parsed = cfg.parse(raw)
+    // slug の元はファイル内の表示名 (欠損なら種別 fallback)
+    const candidate = slugifyName(cfg.displayNameOf(parsed), cfg.kindFallback)
     const taken = await buildTaken(allItems, {
       excludeItem: item,
       includeIds: false,
@@ -362,18 +311,14 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
         slugifyName(`${candidate} mv`, cfg.kindFallback),
         (c) => isTaken(c) || casefold(c) === casefold(candidate),
       )
-      await cfg.write(inter + SRC_SUFFIX, rawSrc)
-      await cfg.write(inter + META_SUFFIX, rawMeta)
-      if (!(await verifyWritten(inter, rawSrc, rawMeta))) {
+      await cfg.write(inter + cfg.ext, raw)
+      if (!(await verifyWritten(inter, raw))) {
         console.warn(`[${cfg.logTag}] migration verify failed for ${inter}`)
-        await cfg.remove(inter + META_SUFFIX)
-        await cfg.remove(inter + SRC_SUFFIX)
+        await cfg.remove(inter + cfg.ext)
         return
       }
-      await cfg.remove(oldMetaFile)
-      await cfg.remove(oldBase + SRC_SUFFIX)
-      await cfg.rename(inter + SRC_SUFFIX, candidate + SRC_SUFFIX)
-      await cfg.rename(inter + META_SUFFIX, candidate + META_SUFFIX)
+      await cfg.remove(oldFile)
+      await cfg.rename(inter + cfg.ext, candidate + cfg.ext)
       item.fileBase = candidate
       return
     }
@@ -382,81 +327,69 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
     if (!isTaken(candidate)) {
       final = candidate
     } else {
-      // 達成済み判定: 衝突先 (casefold 一致の実名 meta。自身の旧名は除く) の
+      // 達成済み判定: 衝突先 (casefold 一致の実名。自身の旧名は除く) の
       // 内部 ID と内容を照合する
       const files = await cfg.list()
-      const occupantMetaFile = files.find(
+      const occupantFile = files.find(
         (f) =>
-          f.endsWith(META_SUFFIX) &&
-          f.slice(0, -META_SUFFIX.length) !== oldBase &&
-          casefold(f.slice(0, -META_SUFFIX.length)) === casefold(candidate),
+          f.endsWith(cfg.ext) &&
+          !f.endsWith(HISTORY_SUFFIX) &&
+          f.slice(0, -cfg.ext.length) !== oldBase &&
+          casefold(f.slice(0, -cfg.ext.length)) === casefold(candidate),
       )
-      if (occupantMetaFile !== undefined) {
-        const occupantBase = occupantMetaFile.slice(0, -META_SUFFIX.length)
+      if (occupantFile !== undefined) {
+        const occupantBase = occupantFile.slice(0, -cfg.ext.length)
         let occupantId: unknown
-        let occupantMeta: string | null = null
+        let occupantRaw: string | null = null
         try {
-          occupantMeta = await cfg.read(occupantMetaFile)
-          occupantId = (JSON5.parse(occupantMeta) as Record<string, unknown>)[
-            cfg.idKey
-          ]
+          occupantRaw = await cfg.read(occupantFile)
+          occupantId = cfg.rawIdOf(cfg.parse(occupantRaw))
         } catch {
           // パース不能な衝突先は ID 不一致として扱う (単純占有 → suffix)
         }
         if (occupantId === cfg.idOf(item)) {
-          let occupantSrc: string | null = null
-          try {
-            occupantSrc = await cfg.read(occupantBase + SRC_SUFFIX)
-          } catch {
-            // 衝突先ソース不在 → 内容不一致扱い
-          }
-          if (occupantMeta === rawMeta && occupantSrc === rawSrc) {
+          if (occupantRaw === raw) {
             // 達成済み (クラッシュ残骸の回収): 旧削除のみ再実行
-            await cfg.remove(oldMetaFile)
-            await cfg.remove(oldBase + SRC_SUFFIX)
+            await cfg.remove(oldFile)
             item.fileBase = occupantBase
             return
           }
           // ID 一致・内容不一致 (旧形式バックアップ復元等): 削除せず suffix へ。
           // 重複 ID 警告として可視化し手動解決に委ねる
           console.warn(
-            `[${cfg.logTag}] duplicate id "${cfg.idOf(item)}" at ${occupantMetaFile} with different content — kept both`,
+            `[${cfg.logTag}] duplicate id "${cfg.idOf(item)}" at ${occupantFile} with different content — kept both`,
           )
         }
       }
       final = resolveAvailable(candidate, isTaken)
     }
 
-    await cfg.write(final + SRC_SUFFIX, rawSrc)
-    await cfg.write(final + META_SUFFIX, rawMeta)
-    if (!(await verifyWritten(final, rawSrc, rawMeta))) {
+    await cfg.write(final + cfg.ext, raw)
+    if (!(await verifyWritten(final, raw))) {
       console.warn(`[${cfg.logTag}] migration verify failed for ${final}`)
-      await cfg.remove(final + META_SUFFIX)
-      await cfg.remove(final + SRC_SUFFIX)
+      await cfg.remove(final + cfg.ext)
       return
     }
     if (casefold(final) === casefold(oldBase)) {
       // 保険: 旧削除前に新旧が同一ファイルへ解決しないことを確認
       console.warn(
-        `[${cfg.logTag}] migration target resolves to the same file as ${oldBase} — old files kept`,
+        `[${cfg.logTag}] migration target resolves to the same file as ${oldBase} — old file kept`,
       )
       item.fileBase = final
       return
     }
-    await cfg.remove(oldMetaFile)
-    await cfg.remove(oldBase + SRC_SUFFIX)
+    await cfg.remove(oldFile)
     item.fileBase = final
   }
 
   /**
    * 移行 (a): 対応表のうち規約外名 (slugify の不動点でない) のアイテムを
-   * copy-adopt で正規化する。ソースを欠く readOnly アイテムは据え置き。
-   * 冪等 (失敗分は次回起動でリトライされる)。
+   * copy-adopt で正規化する。冪等 (失敗分は次回起動でリトライされる)。
    */
   async function migrateItemsImpl(items: readonly T[]): Promise<void> {
     for (const item of items) {
       const oldBase = item.fileBase
-      if (oldBase === undefined || item.readOnly) continue
+      if (oldBase === undefined) continue
       if (isSlugConforming(oldBase)) continue
       try {
         await copyAdoptOne(item, oldBase, items)
@@ -476,10 +409,8 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
     const mainBases = new Set<string>()
     for (const f of files) {
       if (f.endsWith(HISTORY_SUFFIX)) continue
-      if (f.endsWith(META_SUFFIX)) {
-        mainBases.add(casefold(f.slice(0, -META_SUFFIX.length)))
-      } else if (f.endsWith(SRC_SUFFIX)) {
-        mainBases.add(casefold(f.slice(0, -SRC_SUFFIX.length)))
+      if (f.endsWith(cfg.ext)) {
+        mainBases.add(casefold(f.slice(0, -cfg.ext.length)))
       }
     }
     for (const f of files) {
@@ -495,8 +426,6 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
     loadAll: () => enqueue(loadAllImpl),
     persistItem: (item: T, allItems: readonly T[]) =>
       enqueue(() => persistItemImpl(item, allItems)),
-    persistAll: (items: readonly T[], allItems: readonly T[]) =>
-      enqueue(() => persistAllImpl(items, allItems)),
     deleteItemFiles: (item: T) => enqueue(() => deleteItemFilesImpl(item)),
     renameItemFiles: (item: T, allItems: readonly T[]) =>
       enqueue(() => renameItemFilesImpl(item, allItems)),

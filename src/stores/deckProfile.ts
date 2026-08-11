@@ -1,14 +1,15 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
+import { migrateWidgetColumns } from '@/services/deckProfileCodec'
 import {
-  migrateWidgetColumns,
-  parseProfileFile,
-} from '@/services/deckProfileCodec'
-import {
-  loadProfileFileEntries,
-  persistAllProfileFiles,
-  persistProfileFile,
+  drainProfileLoadByproducts,
+  profileFiles,
 } from '@/services/deckProfileFiles'
+import {
+  casefold,
+  resolveAvailable,
+  slugifyName,
+} from '@/services/settingsSlug'
 import type { DeckColumn, DeckProfile, DeckWindowLayout } from '@/stores/deck'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
@@ -60,6 +61,13 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
   const profileVersion = ref(0)
   /** Whether file-based storage has been initialized */
   const initialized = ref(false)
+
+  // 変更系操作 (作成・リネーム・保存・削除) のファイル反映は
+  // 「初回読込 (対応表確定) + 初回移行」の完了を待つゲート (#913)
+  let resolveReady: (() => void) | undefined
+  const ready = new Promise<void>((resolve) => {
+    resolveReady = resolve
+  })
 
   /** Cached profile name, kept in sync imperatively to avoid localStorage dependency. */
   const currentProfileName = ref<string | null>(null)
@@ -134,6 +142,58 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   // --- Persistence (debounced) ---
 
+  /**
+   * 保存・削除の直前にミラーの対応表 (fileBase) を読み直す (#913)。
+   * 自分のミラー書込が別ウィンドウのリネーム結果を潰す前に、必ず先に
+   * 取り込む (stale なファイル名での書込・削除の空振り防止)。
+   */
+  function adoptMirrorFileBases(profiles: readonly DeckProfile[]) {
+    const mirror = getStorageJson<DeckProfile[]>(STORAGE_KEYS.deckProfiles, [])
+    const byId = new Map(mirror.map((p) => [p.id, p.fileBase]))
+    for (const p of profiles) {
+      const fileBase = byId.get(p.id)
+      if (fileBase) p.fileBase = fileBase
+    }
+  }
+
+  /** ミラーへ書く直前に対応表を読み直して合流させてから書く。 */
+  function writeProfilesMirror() {
+    if (settingsFs.isTauri) adoptMirrorFileBases(profilesData.value)
+    setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
+  }
+
+  /** プロファイル 1 件をファイルへ反映する (ready 待ち + 対応表のミラー反映)。 */
+  function persistProfileToFile(profileId: string) {
+    if (!settingsFs.isTauri) return
+    void ready
+      .then(async () => {
+        // 直近の状態を参照する (初期化中のマージでオブジェクトが入れ替わる)
+        const live = profilesData.value.find((p) => p.id === profileId)
+        if (!live) return // 既に削除された
+        adoptMirrorFileBases([live])
+        await profileFiles.persistItem(live, profilesData.value)
+        setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
+        profileVersion.value++
+      })
+      .catch((e) => console.warn('[deckProfile] failed to persist profile:', e))
+  }
+
+  /** 全プロファイルをファイルへ反映する (ready 待ち)。 */
+  function persistAllProfilesToFiles() {
+    if (!settingsFs.isTauri) return
+    void ready
+      .then(async () => {
+        for (const p of profilesData.value) {
+          await profileFiles.persistItem(p, profilesData.value)
+        }
+        setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
+        profileVersion.value++
+      })
+      .catch((e) =>
+        console.warn('[deckProfile] failed to persist to files:', e),
+      )
+  }
+
   const { schedule: schedulePersist, cancel: cancelPersist } =
     createDebouncedPersist(persistNow)
 
@@ -145,16 +205,11 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   function persistNow() {
     try {
-      const profiles = profilesData.value
       // Sync: localStorage + bump version
-      setStorageJson(STORAGE_KEYS.deckProfiles, profiles)
+      writeProfilesMirror()
       const profile = currentProfile.value
       // Async: write changed profile to file
-      if (initialized.value && profile) {
-        persistProfileFile(profile).catch((e) =>
-          console.warn('[deckProfile] failed to persist profile:', e),
-        )
-      }
+      if (profile) persistProfileToFile(profile.id)
       // Notify other windows
       if (windowProfileId.value) {
         emitTauri('deck:profile-updated', {
@@ -226,13 +281,9 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
   /** Persist profiles: write profilesData to localStorage + files + notify other windows. */
   function saveProfiles(profiles: DeckProfile[]) {
     profilesData.value = profiles
-    setStorageJson(STORAGE_KEYS.deckProfiles, profiles)
+    writeProfilesMirror()
     profileVersion.value++
-    if (initialized.value) {
-      persistAllProfileFiles(profiles).catch((e) =>
-        console.warn('[deckProfile] failed to persist to files:', e),
-      )
-    }
+    persistAllProfilesToFiles()
     // Notify all windows that the profile list changed
     emitTauri('deck:profiles-changed').catch(() => {
       // Not running in Tauri (browser dev mode)
@@ -257,6 +308,18 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     }
   }
 
+  /**
+   * 新規プロファイルの ID を slug 形式で生成する (#913: ファイル名由来をやめる)。
+   * ファイル basename は persistItem が対応表・実列挙に対して別途解決するため、
+   * ここでは種別内 ID の一意性のみ見る。
+   */
+  function generateProfileId(name: string): string {
+    const taken = new Set(profilesData.value.map((p) => casefold(p.id)))
+    return resolveAvailable(slugifyName(name, 'profile'), (c) =>
+      taken.has(casefold(c)),
+    )
+  }
+
   // --- Profile CRUD ---
 
   function syncColumnsToProfile(
@@ -268,13 +331,9 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     if (!profile) return
     profile.columns = deepClone(cols)
     profile.layout = deepClone(lay)
-    setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
+    writeProfilesMirror()
     profileVersion.value++
-    if (initialized.value) {
-      persistProfileFile(profile).catch((e) =>
-        console.warn('[deckProfile] failed to persist profile:', e),
-      )
-    }
+    persistProfileToFile(profileId)
   }
 
   function switchProfile(
@@ -285,7 +344,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     if (!newProfile) return null
 
     // Single localStorage write
-    setStorageJson(STORAGE_KEYS.deckProfiles, profiles)
+    writeProfilesMirror()
     profileVersion.value++
 
     const oldProfileId = windowProfileId.value
@@ -295,15 +354,10 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     refreshProfileName()
 
     // Async: persist only changed profiles
-    if (initialized.value) {
-      const toWrite = oldProfileId
-        ? profiles.filter((p) => p.id === oldProfileId || p.id === newProfileId)
-        : [newProfile]
-      const unique = [...new Map(toWrite.map((p) => [p.id, p])).values()]
-      persistAllProfileFiles(unique).catch((e) =>
-        console.warn('[deckProfile] failed to persist profiles:', e),
-      )
+    if (oldProfileId && oldProfileId !== newProfileId) {
+      persistProfileToFile(oldProfileId)
     }
+    persistProfileToFile(newProfileId)
 
     return {
       columns: newProfile.columns,
@@ -316,7 +370,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     const autoName = name || nextProfileName(profiles)
 
     const profile: DeckProfile = {
-      id: settingsFs.profileFilename(autoName),
+      id: generateProfileId(autoName),
       name: autoName,
       columns: [],
       layout: [],
@@ -335,7 +389,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     const profiles = profilesData.value
     const autoName = name || nextProfileName(profiles)
     const profile: DeckProfile = {
-      id: settingsFs.profileFilename(autoName),
+      id: generateProfileId(autoName),
       name: autoName,
       columns: [],
       layout: [],
@@ -368,18 +422,21 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
   function deleteProfile(profileId: string): (() => void) | undefined {
     const removedIndex = profilesData.value.findIndex((p) => p.id === profileId)
     const removed = profilesData.value[removedIndex]
+    // 削除対象の対応表 (fileBase) は、ミラーを絞り込みで上書きする前に読み直す
+    // (別ウィンドウのリネーム後の削除が stale 名で空振りしないように #913)
+    if (removed && settingsFs.isTauri) adoptMirrorFileBases([removed])
     const profiles = profilesData.value.filter((p) => p.id !== profileId)
     profilesData.value = profiles
-    setStorageJson(STORAGE_KEYS.deckProfiles, profiles)
+    writeProfilesMirror()
     profileVersion.value++
 
     if (activeProfileId.value === profileId) {
       saveActiveProfileId(profiles[0]?.id ?? null)
     }
 
-    if (initialized.value) {
-      settingsFs
-        .deleteProfile(profileId)
+    if (removed && settingsFs.isTauri) {
+      void ready
+        .then(() => profileFiles.deleteItemFiles(removed))
         .catch((e) => console.warn('[deckProfile] failed to delete file:', e))
     }
 
@@ -393,31 +450,36 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     }
   }
 
+  /**
+   * 表示名を変更する (#913: ID 不変。activeProfileId / windowProfileId /
+   * `?profile=` の追随は不要)。ファイルは rename コマンドで追随させる
+   * (旧削除 + 新書込の並行発火は旧ファイルを孤児化させるため禁止)。
+   */
   function renameProfile(profileId: string, newName: string) {
     const profile = profilesData.value.find((p) => p.id === profileId)
     if (!profile) return
 
-    const oldFilename = profile.id
-    const newFilename = settingsFs.profileFilename(newName)
-
     profile.name = newName
-    profile.id = newFilename
-
-    if (activeProfileId.value === oldFilename) {
-      saveActiveProfileId(newFilename)
-    }
-    if (windowProfileId.value === oldFilename) {
-      windowProfileId.value = newFilename
-    }
-
-    saveProfiles(profilesData.value)
+    writeProfilesMirror()
+    profileVersion.value++
     refreshProfileName()
+    emitTauri('deck:profiles-changed').catch(() => {
+      // Not running in Tauri (browser dev mode)
+    })
 
-    if (initialized.value && oldFilename !== newFilename) {
-      settingsFs
-        .renameProfile(oldFilename, newFilename)
-        .catch((e) => console.warn('[deckProfile] failed to rename file:', e))
-    }
+    if (!settingsFs.isTauri) return
+    // rename の完了を待ってから保存する (並行発火の順序バグ根絶 #913)
+    void ready
+      .then(async () => {
+        const live = profilesData.value.find((p) => p.id === profileId)
+        if (!live) return // 既に削除された
+        adoptMirrorFileBases([live])
+        await profileFiles.renameItemFiles(live, profilesData.value)
+        await profileFiles.persistItem(live, profilesData.value)
+        setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
+        profileVersion.value++
+      })
+      .catch((e) => console.warn('[deckProfile] failed to rename file:', e))
   }
 
   /** Initialize this window with a profile */
@@ -468,17 +530,6 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   // --- File-based initialization ---
 
-  async function loadProfilesFromFiles(): Promise<DeckProfile[]> {
-    const entries = await loadProfileFileEntries()
-    return entries.map(({ filename, data }) => {
-      const { profile, droppedConsoleCount, extractedWidgets, sidebarSeed } =
-        parseProfileFile(filename, data)
-      pendingConsoleMigrationCount += droppedConsoleCount
-      pushExtractedWidgets(extractedWidgets, sidebarSeed)
-      return profile
-    })
-  }
-
   /** Ensure profiles exist on first load. Discards legacy format profiles. */
   function ensureDefaults(
     fallbackColumns: DeckColumn[],
@@ -500,7 +551,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
     if (profiles.length === 0) {
       const profile: DeckProfile = {
-        id: settingsFs.profileFilename('プロファイル 1'),
+        id: generateProfileId('プロファイル 1'),
         name: 'プロファイル 1',
         columns: deepClone(fallbackColumns),
         layout: deepClone(fallbackLayout),
@@ -519,28 +570,79 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
     // Kick off async file sync in background (Tauri only)
     if (settingsFs.isTauri) {
-      initFileStorage().catch((e) =>
-        console.warn('[deckProfile] file storage init failed:', e),
-      )
+      initFileStorage()
+        .catch((e) =>
+          console.warn('[deckProfile] file storage init failed:', e),
+        )
+        .finally(() => resolveReady?.())
     } else {
       initialized.value = true
       flushConsoleMigrationNotice()
+      resolveReady?.()
     }
   }
 
   async function initFileStorage(): Promise<void> {
-    const fileProfiles = await loadProfilesFromFiles()
+    const { items: fileProfiles } = await profileFiles.loadAll()
+    const byproducts = drainProfileLoadByproducts()
+    pendingConsoleMigrationCount += byproducts.droppedConsoleCount
+    pushExtractedWidgets(byproducts.extractedWidgets, byproducts.sidebarSeed)
 
+    // Merge: file profiles are authoritative, but keep in-memory-only
+    // profiles that were created before file I/O completed.
+    // 同定は「ID 一致 or 名前 + 作成日時一致」(#913 決定録 — ダウングレード
+    // 往復でファイル内 ID が剥がれた場合の複製緩和)
+    const memOnly = profilesData.value.filter(
+      (p) =>
+        !fileProfiles.some(
+          (f) =>
+            f.id === p.id || (f.name === p.name && f.createdAt === p.createdAt),
+        ),
+    )
     if (fileProfiles.length > 0) {
-      // Merge: file profiles are authoritative, but keep in-memory-only
-      // profiles that were created before file I/O completed.
-      const fileIds = new Set(fileProfiles.map((p) => p.id))
-      const memOnly = profilesData.value.filter((p) => !fileIds.has(p.id))
-      const merged = [...fileProfiles, ...memOnly]
-      profilesData.value = merged
-      setStorageJson(STORAGE_KEYS.deckProfiles, merged)
+      profilesData.value = [...fileProfiles, ...memOnly]
       profileVersion.value++
+      refreshProfileName()
     }
+
+    // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
+    if (settingsFs.isMainDeckWindow()) {
+      // (a) 規約外名の copy-adopt 正規化。凍結済み ID (= 旧完全ファイル名) は
+      //     不変なので、activeProfileId / `?profile=` はファイル名が変わっても
+      //     無追随で整合する
+      await profileFiles.migrateItems(profilesData.value)
+      // (b) ミラーに在りファイル不在 → 新 slug 名で再作成
+      //     (localStorage → ファイルの旧片方向移行もこの経路に統合)
+      for (const p of memOnly) {
+        p.fileBase = undefined // ミラー由来の旧 fileBase は無効 (ファイル不在)
+        await profileFiles
+          .persistItem(p, profilesData.value)
+          .catch((e) =>
+            console.warn(
+              '[deckProfile] failed to persist mirror-only profile:',
+              e,
+            ),
+          )
+      }
+      // マージでミラー複製が落ちた場合のアクティブ参照の修復
+      if (
+        activeProfileId.value &&
+        !profilesData.value.some((p) => p.id === activeProfileId.value)
+      ) {
+        saveActiveProfileId(profilesData.value[0]?.id ?? null)
+      }
+    }
+    // このウィンドウの表示対象がマージで消えた場合はアクティブへ退避する
+    if (
+      windowProfileId.value &&
+      !profilesData.value.some((p) => p.id === windowProfileId.value)
+    ) {
+      windowProfileId.value = activeProfileId.value
+      refreshProfileName()
+    }
+    // fileBase 割当 (対応表) をミラーへ同乗させる
+    setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
+
     initialized.value = true
     flushConsoleMigrationNotice()
 
@@ -548,9 +650,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     if (pendingConsoleMigrationFilesDirty || pendingWidgetExtractionDirty) {
       pendingConsoleMigrationFilesDirty = false
       pendingWidgetExtractionDirty = false
-      persistAllProfileFiles(profilesData.value).catch((e) =>
-        console.warn('[deckProfile] migration rewrite failed:', e),
-      )
+      persistAllProfilesToFiles()
     }
   }
 

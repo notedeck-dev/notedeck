@@ -126,6 +126,11 @@ export interface DeckProfile {
   createdAt: number
   /** Window positions/sizes for multi-window layouts */
   windows?: DeckWindowLayout[]
+  /**
+   * 実ファイル basename (#913 の ID → ファイル名対応表)。runtime-only —
+   * ファイルへは書かない (toFileFormat が strip する)。localStorage ミラーには同乗する
+   */
+  fileBase?: string
 }
 
 /** sidebar チャットカラムで開く DM 会話のターゲット (永続化しない transient 値)。 */

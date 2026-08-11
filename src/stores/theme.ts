@@ -122,6 +122,33 @@ export const useThemeStore = defineStore('theme', () => {
   const customCss = ref('')
   // Whether file-based storage has been initialized
   const initialized = ref(false)
+  // 変更系操作 (インストール・リネーム・削除) のファイル反映は
+  // 「初回読込 (対応表確定) + 初回移行」の完了を待つゲート (#913)
+  let resolveReady: (() => void) | undefined
+  const ready = new Promise<void>((resolve) => {
+    resolveReady = resolve
+  })
+
+  /** 保存・削除の直前にミラーの対応表を読み直す (別ウィンドウのリネーム追随)。 */
+  function adoptMirrorFileBase(theme: MisskeyTheme) {
+    const mirrored = getStorageJson<MisskeyTheme[]>(
+      STORAGE_KEYS.themeInstalledThemes,
+      [],
+    ).find((t) => t.id === theme.id)
+    if (mirrored?.fileBase) theme.fileBase = mirrored.fileBase
+  }
+
+  /** テーマ 1 件をファイルへ反映する (ready 待ち + fileBase 割当のミラー反映)。 */
+  function persistThemeFile(theme: MisskeyTheme) {
+    if (!settingsFs.isTauri) return
+    void ready
+      .then(async () => {
+        adoptMirrorFileBase(theme)
+        await themeFileSync.themeFiles.persistItem(theme, installedThemes.value)
+        setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+      })
+      .catch((e) => console.warn('[theme] failed to persist theme:', e))
+  }
 
   function init(): void {
     // Restore compiled CSS from localStorage first (sync, FOUC prevention).
@@ -183,11 +210,12 @@ export const useThemeStore = defineStore('theme', () => {
 
     // Kick off async file sync in background (Tauri only)
     if (settingsFs.isTauri) {
-      initFileStorage().catch((e) =>
-        console.warn('[theme] file storage init failed:', e),
-      )
+      initFileStorage()
+        .catch((e) => console.warn('[theme] file storage init failed:', e))
+        .finally(() => resolveReady?.())
     } else {
       initialized.value = true
+      resolveReady?.()
     }
   }
 
@@ -281,6 +309,18 @@ export const useThemeStore = defineStore('theme', () => {
       if (parsed.$notedeck && typeof parsed.$notedeck === 'object') {
         theme.$notedeck = { ...parsed.$notedeck }
       }
+
+      // 同一 ID は更新扱い: 既存対応表のファイルへ書く (#913)。貼り付け
+      // コードに $notedeck が無ければ既存の $notedeck (storeId 等) を保持
+      // する — 落とすとストア同一性が消え、次のストアインストールが
+      // suffix 付き重複になり更新検知も恒久的に死ぬ
+      const existingTheme = installedThemes.value.find((t) => t.id === theme.id)
+      if (existingTheme) {
+        if (!theme.$notedeck && existingTheme.$notedeck) {
+          theme.$notedeck = { ...existingTheme.$notedeck }
+        }
+        theme.fileBase = existingTheme.fileBase
+      }
       // forAccountIds に指定された account 全てを installedFor に追加。
       // per-account カラム経由なら [accountId]、全アカウントカラム経由なら
       // 全 logged-in account ids。
@@ -292,16 +332,17 @@ export const useThemeStore = defineStore('theme', () => {
         }
       }
 
-      // Avoid duplicates
-      const existingTheme = installedThemes.value.find((t) => t.id === theme.id)
       if (existingTheme) {
-        // 上書きケース: 既存テーマの編集前 snapshot を history に push
-        pushSnapshot('theme', existingTheme.id, {
-          id: existingTheme.id,
-          name: existingTheme.name,
-          base: existingTheme.base,
-          props: existingTheme.props,
-        }).catch((e) => console.warn('[theme] history push failed:', e))
+        // 上書きケース: 既存テーマの編集前 snapshot を history に push。
+        // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)
+        if (existingTheme.fileBase) {
+          pushSnapshot('theme', existingTheme.fileBase, {
+            id: existingTheme.id,
+            name: existingTheme.name,
+            base: existingTheme.base,
+            props: existingTheme.props,
+          }).catch((e) => console.warn('[theme] history push failed:', e))
+        }
         installedThemes.value = installedThemes.value.map((t) =>
           t.id === theme.id ? theme : t,
         )
@@ -310,12 +351,8 @@ export const useThemeStore = defineStore('theme', () => {
       }
       // Sync: localStorage cache
       setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
-      // Async: write only the changed theme to file
-      if (initialized.value) {
-        themeFileSync
-          .persistSingleTheme(theme)
-          .catch((e) => console.warn('[theme] failed to persist theme:', e))
-      }
+      // Async: write only the changed theme to file (ready 待ち)
+      persistThemeFile(theme)
       return true
     } catch {
       return false
@@ -330,6 +367,9 @@ export const useThemeStore = defineStore('theme', () => {
   function removeTheme(id: string): (() => void) | undefined {
     const idx = installedThemes.value.findIndex((t) => t.id === id)
     const removed = installedThemes.value[idx]
+    // ミラー上書き前に対応表を読み直す (別ウィンドウのリネーム後の削除が
+    // stale なファイル名で空振りしないように)
+    if (removed && settingsFs.isTauri) adoptMirrorFileBase(removed)
     installedThemes.value = installedThemes.value.filter((t) => t.id !== id)
     // Clear selection if removed (computed setter → settingsStore)
     const wasDark = selectedDarkThemeId.value === id
@@ -343,10 +383,10 @@ export const useThemeStore = defineStore('theme', () => {
     // Sync: update localStorage cache only (no need to rewrite remaining theme files)
     setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
     applyCurrentTheme()
-    // Async: delete the removed theme file
-    if (initialized.value && removed) {
-      themeFileSync
-        .deleteThemeFile(removed)
+    // Async: delete the removed theme file (+ 履歴サイドカー、ready 待ち)
+    if (settingsFs.isTauri && removed) {
+      void ready
+        .then(() => themeFileSync.themeFiles.deleteItemFiles(removed))
         .catch((e) => console.warn('[theme] failed to delete theme file:', e))
     }
     if (!removed) return undefined
@@ -362,13 +402,7 @@ export const useThemeStore = defineStore('theme', () => {
       if (wasLight) selectedLightThemeId.value = id
       setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
       applyCurrentTheme()
-      if (initialized.value) {
-        themeFileSync
-          .persistSingleTheme(removed)
-          .catch((e) =>
-            console.warn('[theme] failed to restore theme file:', e),
-          )
-      }
+      persistThemeFile(removed)
     }
   }
 
@@ -404,13 +438,7 @@ export const useThemeStore = defineStore('theme', () => {
       t.id === themeId ? updated : t,
     )
     setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
-    if (initialized.value) {
-      themeFileSync
-        .persistSingleTheme(updated)
-        .catch((e) =>
-          console.warn('[theme] failed to persist installedFor update:', e),
-        )
-    }
+    persistThemeFile(updated)
     return undefined
   }
 
@@ -418,19 +446,24 @@ export const useThemeStore = defineStore('theme', () => {
     const theme = installedThemes.value.find((t) => t.id === themeId)
     if (!theme) return
 
-    const oldFilename = settingsFs.themeFilename(theme.name || theme.id)
     theme.name = newName
-    const newFilename = settingsFs.themeFilename(newName)
-
     setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
 
-    if (initialized.value && oldFilename !== newFilename) {
-      // Delete old file and write new one (theme id stays the same, only name changes)
-      Promise.all([
-        settingsFs.deleteTheme(oldFilename),
-        themeFileSync.persistSingleTheme(theme),
-      ]).catch((e) => console.warn('[theme] failed to rename theme file:', e))
-    }
+    if (!settingsFs.isTauri) return
+    // ファイルは rename コマンドで追随させる (ID 不変・主ファイル + 履歴。
+    // 旧削除 + 新書込の並行発火は旧ファイルを孤児化させるため禁止 #913)。
+    // rename の完了を待ってから保存する
+    void ready
+      .then(async () => {
+        adoptMirrorFileBase(theme)
+        await themeFileSync.themeFiles.renameItemFiles(
+          theme,
+          installedThemes.value,
+        )
+        await themeFileSync.themeFiles.persistItem(theme, installedThemes.value)
+        setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+      })
+      .catch((e) => console.warn('[theme] failed to rename theme file:', e))
   }
 
   function selectTheme(id: string | null, mode: 'dark' | 'light'): void {
@@ -628,9 +661,14 @@ export const useThemeStore = defineStore('theme', () => {
   async function initFileStorage(): Promise<void> {
     const data = await themeFileSync.loadFromFiles()
 
+    // 初期化 (この async 関数が走る間) にメモリ追加されたテーマと、
+    // ミラーにだけ在るテーマ (過去の書込が黙って失敗した個体) の集合。
+    const fileIds = new Set(data.themes.map((t) => t.id))
+    const memoryOnly = installedThemes.value.filter((t) => !fileIds.has(t.id))
+
     if (data.themes.length > 0) {
-      installedThemes.value = data.themes
-      setStorageJson(STORAGE_KEYS.themeInstalledThemes, data.themes)
+      installedThemes.value = [...data.themes, ...memoryOnly]
+      setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
       applyCurrentTheme()
     }
 
@@ -642,12 +680,28 @@ export const useThemeStore = defineStore('theme', () => {
 
     initialized.value = true
 
-    // Migrate: if localStorage has themes but no files exist, write them
-    if (data.needsMigrateThemes && installedThemes.value.length > 0) {
-      themeFileSync
-        .persistAllThemes(installedThemes.value)
-        .catch((e) => console.warn('[theme] migration to files failed:', e))
+    // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
+    if (settingsFs.isMainDeckWindow()) {
+      // (a) 規約外名の copy-adopt 正規化
+      await themeFileSync.themeFiles.migrateItems(installedThemes.value)
+      // (b) ミラー在・ファイル不在 → 新 slug 名で再作成
+      //     (localStorage → ファイルの旧片方向移行もこの経路に統合)
+      for (const t of memoryOnly) {
+        t.fileBase = undefined // ミラー由来の旧 fileBase は無効 (ファイル不在)
+        await themeFileSync.themeFiles
+          .persistItem(t, installedThemes.value)
+          .catch((e) =>
+            console.warn('[theme] failed to persist mirror-only theme:', e),
+          )
+      }
+      // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
+      await themeFileSync.themeFiles
+        .sweepHistory()
+        .catch((e) => console.warn('[theme] history sweep failed:', e))
     }
+    // fileBase 割当をミラーへ反映
+    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+
     // Migrate custom CSS to file if not yet written
     if (data.needsMigrateCss && customCss.value) {
       themeFileSync

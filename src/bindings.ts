@@ -2329,7 +2329,7 @@ async exportSettingsJson() : Promise<Result<boolean, { code: string; message: st
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async importSettingsJson() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null }>> {
+async importSettingsJson() : Promise<Result<ImportSettingsResult, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("import_settings_json") };
 } catch (e) {
@@ -3223,6 +3223,12 @@ export type HttpFetchResponse = { status: number; headers: Partial<{ [key in str
  * 画像ディスクキャッシュの使用量 (#815)。設定のキャッシュ画面で表示する
  */
 export type ImageCacheStats = { bytes: number; files: number }
+/**
+ * import_settings_json の結果。`imported: false` はダイアログのキャンセル。
+ * `warnings` はスキップ / 別名退避したエントリの説明 (#913 付随修正 — フロントは
+ * 復元完了メッセージに件数 + 内容を表示する)。
+ */
+export type ImportSettingsResult = { imported: boolean; warnings: string[] }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 /**
  * Misskey の `mutedWords` / `hardMutedWords` の 1 要素。

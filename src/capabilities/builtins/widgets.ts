@@ -381,7 +381,7 @@ export const widgetsHistoryCapability: Command = {
     if (!widget) {
       throw new Error(`widgets.history: widget "${installId}" not found`)
     }
-    const basename = widget.name || widget.installId
+    const basename = widget.fileBase ?? (widget.name || widget.installId)
     return await listSnapshots<WidgetSnapshot>('widget', basename)
   },
 }
@@ -400,7 +400,7 @@ export const widgetsRevertCapability: Command = {
     const index = typeof params?.index === 'number' ? params.index : -1
     const cur = useWidgetsStore().getWidget(installId)
     if (!cur || index < 0) return null
-    const basename = cur.name || cur.installId
+    const basename = cur.fileBase ?? (cur.name || cur.installId)
     const entry = await getSnapshotAt<WidgetSnapshot>('widget', basename, index)
     if (!entry) return null
     return {
@@ -445,7 +445,7 @@ export const widgetsRevertCapability: Command = {
     if (!widget) {
       throw new Error(`widgets.revert: widget "${installId}" not found`)
     }
-    const basename = widget.name || widget.installId
+    const basename = widget.fileBase ?? (widget.name || widget.installId)
     const entry = await getSnapshotAt<WidgetSnapshot>('widget', basename, index)
     if (!entry) {
       throw new Error(`widgets.revert: no snapshot at index ${index}`)
