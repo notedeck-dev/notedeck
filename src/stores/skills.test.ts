@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: false,
   SKILL_EXT: '.md',
+  PROFILE_EXT: '.ndprofile.json5',
 }))
 
 import type { SkillMeta } from '@/stores/skills'

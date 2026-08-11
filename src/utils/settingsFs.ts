@@ -95,15 +95,11 @@ export async function openSettingsFileInEditor(
 // --- Profile-specific helpers ---
 
 const PROFILES_DIR = 'profiles'
-const PROFILE_EXT = '.ndprofile.json5'
+export const PROFILE_EXT = '.ndprofile.json5'
 
-export function profileFilename(name: string): string {
-  return sanitizeFilename(name) + PROFILE_EXT
-}
-
-export async function listProfiles(): Promise<string[]> {
-  const files = await listSettingsFiles(PROFILES_DIR)
-  return files.filter((f) => f.endsWith(PROFILE_EXT))
+/** profiles/ の実列挙 (履歴 .history.json5 を含む。#913 の占有判定・sweep 用)。 */
+export async function listProfileDirFiles(): Promise<string[]> {
+  return listSettingsFiles(PROFILES_DIR)
 }
 
 export async function readProfile(filename: string): Promise<string> {

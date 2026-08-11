@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: false,
   isMainDeckWindow: () => true,
+  PROFILE_EXT: '.ndprofile.json5',
   writePluginFile: vi.fn(async () => undefined),
   deletePluginFile: vi.fn(async () => undefined),
   listPluginFiles: vi.fn(async () => []),

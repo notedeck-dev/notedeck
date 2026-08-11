@@ -9,6 +9,7 @@ vi.mock('@/utils/settingsFs', () => ({
   isTauri: true,
   isMainDeckWindow: () => true,
   SKILL_EXT: '.md',
+  PROFILE_EXT: '.ndprofile.json5',
   listSkillDirFiles: async () => Array.from(files.keys()),
   readSkillFile: async (f: string) => {
     const c = files.get(f)
