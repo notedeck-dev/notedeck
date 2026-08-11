@@ -15,19 +15,21 @@ import {
   unregisterColumnType,
 } from '@/columns/registry'
 
-/** #1034 決定録 1 で「隠す」と決めたカラム種別 */
+/**
+ * 開発者向けと決めたカラム種別 (#1034)。AI とスキルは一般側に戻した — 接続と
+ * 権限の設定が一般に出ている以上 AI の存在は既に露出しており、スキルは他の配布物と
+ * 同じく「カラムは一般 / 編集は開発者」に揃えた
+ */
 const DEVELOPER_COLUMNS = [
   'apiConsole',
   'apiDocs',
   'streamInspector',
   'aiscript',
   'taskRunner',
-  'ai',
-  'skill',
 ]
 
 describe('カラムの帰属タグ', () => {
-  it('決定した 7 種だけが developer タグを持つ', () => {
+  it('決定した種別だけが developer タグを持つ', () => {
     const tagged = Object.entries(COLUMN_REGISTRY)
       .filter(([, spec]) => spec.exposure === 'developer')
       .map(([type]) => type)
@@ -41,6 +43,8 @@ describe('カラムの帰属タグ', () => {
       'widget',
       'queryManager',
       'memos',
+      'skill',
+      'ai',
     ]) {
       expect(COLUMN_REGISTRY[type]?.exposure).toBeUndefined()
     }

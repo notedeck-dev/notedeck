@@ -115,6 +115,10 @@ export const useSettingsStore = defineStore('settings', () => {
           raw.length === 0
             ? { ...DEFAULT_SETTINGS }
             : parseSettings(JSON5.parse(raw) as Record<string, unknown>)
+        // 読めるようになったら書き戻しを再開する。解除しないと、一度失敗した
+        // セッションは再起動するまで保存できないままになる
+        loadFailed.value = false
+        lastError.value = null
       } catch (e) {
         console.warn('[settings] cross-window reload failed:', e)
       }

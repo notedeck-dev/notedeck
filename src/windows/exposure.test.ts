@@ -18,7 +18,6 @@ const DEVELOPER_WINDOWS = [
   'column-query-editor',
   'widget-edit',
   'skill-edit',
-  'aiSettings',
   'tasksEditor',
   'snippetsEditor',
 ]
@@ -33,6 +32,7 @@ describe('ウィンドウの帰属タグ', () => {
 
   it('一般に残す設定ウィンドウはタグを持たない', () => {
     for (const type of [
+      'aiSettings',
       'permissions',
       'connections',
       'cssEditor',
@@ -50,15 +50,14 @@ describe('isWindowExposed', () => {
   it('off では developer タグのウィンドウが false', () => {
     devMode = false
     expect(isWindowExposed('note-inspector')).toBe(false)
-    expect(isWindowExposed('aiSettings')).toBe(false)
     expect(isWindowExposed('note-detail')).toBe(true)
+    expect(isWindowExposed('aiSettings')).toBe(true)
     expect(isWindowExposed('permissions')).toBe(true)
   })
 
   it('on では全部 true', () => {
     devMode = true
     expect(isWindowExposed('note-inspector')).toBe(true)
-    expect(isWindowExposed('aiSettings')).toBe(true)
     expect(isWindowExposed('note-detail')).toBe(true)
   })
 })
