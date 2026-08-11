@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-
 import { emitNoteDeckEvent } from '@/aiscript/events'
 import { planBuiltInSeed } from '@/services/builtInSeed'
 import { injectFrontmatterId } from '@/services/idFreeze'
@@ -14,6 +13,7 @@ import {
   serializeSkillFile,
 } from '@/utils/skillFrontmatter'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
+import { notifyWarningToast } from '@/utils/toastNotify'
 
 /**
  * Skill 実行モード:
@@ -231,6 +231,7 @@ function serializeSkill(skill: SkillMeta): string {
  */
 const skillFiles = createSingleFileCollection<SkillMeta, ParsedSkillFile>({
   logTag: 'skills',
+  notify: notifyWarningToast,
   kindFallback: 'skill',
   ext: settingsFs.SKILL_EXT,
   // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)。

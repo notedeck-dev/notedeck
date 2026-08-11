@@ -217,6 +217,19 @@ describe('loadAll', () => {
     expect(fs.files.has(`b${EXT}`)).toBe(true)
   })
 
+  it('同一 ID の 2 件目は notify フックで UI 通知を出す', async () => {
+    const fs = makeFakeFs({
+      [`a${EXT}`]: file('dup', 'a'),
+      [`b${EXT}`]: file('dup', 'b'),
+    })
+    const notify = vi.fn()
+    const col = makeCollection(fs, { notify })
+    await col.loadAll()
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify.mock.calls[0]?.[0]).toContain('dup')
+    expect(notify.mock.calls[0]?.[0]).toContain(`b${EXT}`)
+  })
+
   it('パースに失敗したファイルはスキップし、他は復元する', async () => {
     const fs = makeFakeFs({
       [`broken${EXT}`]: '{{{ not json5',
