@@ -146,15 +146,11 @@ async function writeRootSettingsFile(
 // --- Theme-specific helpers ---
 
 const THEMES_DIR = 'themes'
-const THEME_EXT = '.ndtheme.json5'
+export const THEME_EXT = '.ndtheme.json5'
 
-export function themeFilename(name: string): string {
-  return sanitizeFilename(name) + THEME_EXT
-}
-
-export async function listThemes(): Promise<string[]> {
-  const files = await listSettingsFiles(THEMES_DIR)
-  return files.filter((f) => f.endsWith(THEME_EXT))
+/** themes/ の実列挙 (履歴 .history.json5 を含む。#913 の占有判定・sweep 用)。 */
+export async function listThemeDirFiles(): Promise<string[]> {
+  return listSettingsFiles(THEMES_DIR)
 }
 
 export async function readTheme(filename: string): Promise<string> {

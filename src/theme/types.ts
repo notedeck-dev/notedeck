@@ -19,6 +19,12 @@ export interface MisskeyTheme {
   props: Record<string, string>
   /** NoteDeck 独自拡張 (本家は無視、registry sync では保持される) */
   $notedeck?: NotedeckThemeMeta
+  /**
+   * 実ファイル basename (#913 の ID → ファイル名対応表)。runtime-only —
+   * ファイルへは書かず (themeFileSync が書込前に strip)、localStorage
+   * ミラーには同乗する。
+   */
+  fileBase?: string
 }
 
 export type CompiledProps = Record<string, string>

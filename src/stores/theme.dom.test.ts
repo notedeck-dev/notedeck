@@ -126,6 +126,62 @@ describe('useThemeStore.removeTheme (undo) — #988', () => {
   })
 })
 
+describe('useThemeStore.installTheme — 同一 ID の貼り付けは更新扱い (#913)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('貼り付けコードに $notedeck が無ければ既存の $notedeck を保持する', async () => {
+    const store = useThemeStore()
+    store.installedThemes = [
+      { ...RED, $notedeck: { storeId: 'red-store', installedFor: ['acc-1'] } },
+    ]
+
+    const ok = await store.installTheme(
+      JSON.stringify({ id: RED.id, name: 'Red v2', props: { bg: '#f00' } }),
+    )
+
+    expect(ok).toBe(true)
+    expect(store.installedThemes).toHaveLength(1)
+    expect(store.installedThemes[0]?.name).toBe('Red v2')
+    expect(store.installedThemes[0]?.$notedeck?.storeId).toBe('red-store')
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual(['acc-1'])
+  })
+
+  it('貼り付けコードに $notedeck があればそちらを採用する', async () => {
+    const store = useThemeStore()
+    store.installedThemes = [{ ...RED, $notedeck: { storeId: 'old-store' } }]
+
+    const ok = await store.installTheme(
+      JSON.stringify({
+        id: RED.id,
+        name: 'Red v3',
+        props: { bg: '#f00' },
+        $notedeck: { storeId: 'new-store' },
+      }),
+    )
+
+    expect(ok).toBe(true)
+    expect(store.installedThemes[0]?.$notedeck?.storeId).toBe('new-store')
+  })
+
+  it('更新扱いでも既存の fileBase (対応表) を引き継ぐ', async () => {
+    const store = useThemeStore()
+    store.installedThemes = [{ ...RED, fileBase: 'red' }]
+
+    await store.installTheme(
+      JSON.stringify({ id: RED.id, name: 'Red v2', props: { bg: '#f00' } }),
+    )
+
+    expect(store.installedThemes[0]?.fileBase).toBe('red')
+  })
+})
+
 describe('useThemeStore.unlinkAccountFromTheme — #988', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
