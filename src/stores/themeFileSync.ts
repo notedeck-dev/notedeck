@@ -1,9 +1,9 @@
 import JSON5 from 'json5'
-
 import { injectJson5Id } from '@/services/idFreeze'
 import { createSingleFileCollection } from '@/services/singleFileCollection'
 import type { MisskeyTheme, NotedeckThemeMeta } from '@/theme/types'
 import * as settingsFs from '@/utils/settingsFs'
+import { notifyWarningToast } from '@/utils/toastNotify'
 
 /**
  * テーマ (`themes/<base>.ndtheme.json5` 単一ファイル) の永続化
@@ -34,6 +34,7 @@ function serializeTheme(theme: MisskeyTheme): string {
 export const themeFiles = createSingleFileCollection<MisskeyTheme, ParsedTheme>(
   {
     logTag: 'theme',
+    notify: notifyWarningToast,
     kindFallback: 'theme',
     ext: settingsFs.THEME_EXT,
     // 占有判定・sweep には .history.json5 を含む実列挙が要る

@@ -19,6 +19,7 @@ import { createSingleFileCollection } from '@/services/singleFileCollection'
 import type { DeckProfile } from '@/stores/deck'
 import type { WidgetMeta } from '@/stores/widgets'
 import * as settingsFs from '@/utils/settingsFs'
+import { notifyWarningToast } from '@/utils/toastNotify'
 
 export interface ProfileLoadByproducts {
   droppedConsoleCount: number
@@ -44,6 +45,7 @@ export const profileFiles = createSingleFileCollection<
   Record<string, unknown>
 >({
   logTag: 'deckProfile',
+  notify: notifyWarningToast,
   kindFallback: 'profile',
   ext: settingsFs.PROFILE_EXT,
   // 占有判定・sweep には .history.json5 を含む実列挙が要る

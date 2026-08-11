@@ -68,6 +68,12 @@ export interface SingleFileCollectionConfig<T extends SingleItemFile, P> {
    * 落ち、占有時は連番 suffix で回避する。
    */
   preferredBase?(item: T): string | undefined
+  /**
+   * ユーザーへの UI 通知 (トースト等)。重複 ID skip のような
+   * 「ユーザー操作なしには解消しない状態」の可視化に使う。
+   * console.warn は常に別途出る。
+   */
+  notify?(message: string): void
 }
 
 const HISTORY_SUFFIX = '.history.json5'
@@ -182,6 +188,9 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
         if (seenIds.has(id)) {
           console.warn(
             `[${cfg.logTag}] duplicate id "${id}" in ${filename} — skipped (file kept)`,
+          )
+          cfg.notify?.(
+            `同じ ID「${id}」の設定ファイルが複数あります。${filename} は読み込まれていません (ファイルは残っています — 不要なら手動で削除してください)`,
           )
           continue
         }

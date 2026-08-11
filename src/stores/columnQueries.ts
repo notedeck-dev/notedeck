@@ -7,6 +7,7 @@ import {
 import { useDeckStore } from '@/stores/deck'
 import * as settingsFs from '@/utils/settingsFs'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
+import { notifyWarningToast } from '@/utils/toastNotify'
 
 /**
  * 名前付きカラムクエリのプール (#783 Phase 1.5、仕様追補 A)。
@@ -52,6 +53,7 @@ interface QueryFileMeta {
 
 const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
   logTag: 'columnQueries',
+  notify: notifyWarningToast,
   kindFallback: 'query',
   idKey: 'id',
   list: () => settingsFs.listQueryFiles(),

@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-
 import {
   createSidecarCollection,
   type SidecarItemFile,
@@ -15,6 +14,7 @@ import {
   setStorageJson,
   setStorageString,
 } from '@/utils/storage'
+import { notifyWarningToast } from '@/utils/toastNotify'
 
 export interface WidgetMeta extends SidecarItemFile {
   installId: string
@@ -48,6 +48,7 @@ interface WidgetFileMeta {
 /** .is + .meta.json5 ペアのファイル永続化 (#782 Phase 2、plugins と共通) */
 const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
   logTag: 'widgets',
+  notify: notifyWarningToast,
   kindFallback: 'widget',
   idKey: 'installId',
   // 直接参照ではなくアロー包みで遅延参照する (テストの部分モックと相性を保つ)

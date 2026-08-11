@@ -218,6 +218,21 @@ describe('loadAll', () => {
       expect(fs.files.has('b.meta.json5')).toBe(true)
       expect(fs.files.has('b.is')).toBe(true)
     })
+
+    it('notify フックで UI 通知を出す', async () => {
+      const fs = makeFakeFs({
+        'a.meta.json5': '{ installId: "dup", name: "a" }',
+        'a.is': 'src-a',
+        'b.meta.json5': '{ installId: "dup", name: "b" }',
+        'b.is': 'src-b',
+      })
+      const notify = vi.fn()
+      const col = makeCollection(fs, { notify })
+      await col.loadAll()
+      expect(notify).toHaveBeenCalledTimes(1)
+      expect(notify.mock.calls[0]?.[0]).toContain('dup')
+      expect(notify.mock.calls[0]?.[0]).toContain('b.meta.json5')
+    })
   })
 
   describe('メタあり・ソースなし', () => {

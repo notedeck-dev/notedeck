@@ -1,7 +1,6 @@
 import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-
 import { planBuiltInSeed } from '@/services/builtInSeed'
 import {
   createSidecarCollection,
@@ -18,6 +17,7 @@ import {
   setStorageJson,
   setStorageString,
 } from '@/utils/storage'
+import { notifyWarningToast } from '@/utils/toastNotify'
 
 interface BuiltInPluginTemplate {
   installId: string
@@ -168,6 +168,7 @@ interface PluginFileMeta {
 /** .is + .meta.json5 ペアのファイル永続化 (#782 Phase 2、widgets と共通) */
 const pluginFiles = createSidecarCollection<PluginMeta, PluginFileMeta>({
   logTag: 'plugins',
+  notify: notifyWarningToast,
   kindFallback: 'plugin',
   idKey: 'installId',
   // 直接参照ではなくアロー包みで遅延参照する (テストの部分モックと相性を保つ)
