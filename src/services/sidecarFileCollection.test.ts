@@ -367,6 +367,31 @@ describe('persistItem', () => {
     await col.persistItem(w, [w])
     expect(fs.files.size).toBe(0)
   })
+
+  it('preferredBase が規約適合で空いていればそれを使う (ストアインストール #913)', async () => {
+    const fs = makeFakeFs()
+    const col = makeCollection(fs, { preferredBase: () => 'store-item' })
+    const w = item({ name: 'とても日本語な表示名' })
+    await col.persistItem(w, [w])
+    expect(w.fileBase).toBe('store-item')
+    expect(fs.files.has('store-item.meta.json5')).toBe(true)
+  })
+
+  it('preferredBase が占有済みなら連番 suffix で回避する', async () => {
+    const fs = makeFakeFs({ 'store-item.meta.json5': '{}' })
+    const col = makeCollection(fs, { preferredBase: () => 'store-item' })
+    const w = item({ name: 'alpha' })
+    await col.persistItem(w, [w])
+    expect(w.fileBase).toBe('store-item-2')
+  })
+
+  it('preferredBase が規約不適合なら無視して表示名 slug に落ちる', async () => {
+    const fs = makeFakeFs()
+    const col = makeCollection(fs, { preferredBase: () => '日本語ID' })
+    const w = item({ name: 'alpha' })
+    await col.persistItem(w, [w])
+    expect(w.fileBase).toBe('alpha')
+  })
 })
 
 describe('persistAll', () => {

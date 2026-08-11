@@ -22,6 +22,10 @@ export interface WidgetMeta extends SidecarItemFile {
   src: string
   autoRun: boolean
   storeId?: string
+  /** インストール/更新時に照合済みの配布ソース SHA-512 (#913。更新検知 #1040 の baseline) */
+  storeSha512?: string
+  /** インストール/更新時の registry バージョン (#913) */
+  storeVersion?: string
   createdAt: number
   updatedAt: number
   /** 個別アイコン URL (MisStore registry の iconUrl 互換) */
@@ -34,6 +38,8 @@ interface WidgetFileMeta {
   name: string
   autoRun: boolean
   storeId?: string
+  storeSha512?: string
+  storeVersion?: string
   createdAt: number
   updatedAt: number
   iconUrl?: string
@@ -54,6 +60,8 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
   idOf: (w) => w.installId,
   nameOf: (w) => w.name,
   srcOf: (w) => w.src,
+  // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)
+  preferredBase: (w) => w.storeId,
   mirrorSrcById: (id) =>
     loadWidgetsFromStorage().find((w) => w.installId === id)?.src,
   toFileMeta: (w) => ({
@@ -61,6 +69,8 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
     name: w.name,
     autoRun: w.autoRun,
     ...(w.storeId ? { storeId: w.storeId } : {}),
+    ...(w.storeSha512 ? { storeSha512: w.storeSha512 } : {}),
+    ...(w.storeVersion ? { storeVersion: w.storeVersion } : {}),
     ...(w.iconUrl ? { iconUrl: w.iconUrl } : {}),
     createdAt: w.createdAt,
     updatedAt: w.updatedAt,
@@ -71,6 +81,8 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
     src,
     autoRun: meta.autoRun ?? false,
     storeId: meta.storeId,
+    storeSha512: meta.storeSha512,
+    storeVersion: meta.storeVersion,
     iconUrl: meta.iconUrl,
     createdAt: meta.createdAt ?? Date.now(),
     updatedAt: meta.updatedAt ?? Date.now(),
@@ -154,8 +166,14 @@ export const useWidgetsStore = defineStore('widgets', () => {
     void ready
       .then(async () => {
         if (widget) {
-          adoptMirrorFileBase(widget)
-          await widgetFiles.persistItem(widget, widgets.value)
+          // ref の深い reactivity で widgets.value の要素は proxy になるため、
+          // 占有判定の「操作対象自身は占有とみなさない」参照一致が崩れない
+          // よう live 要素 (proxy) を渡す
+          const live =
+            widgets.value.find((w) => w.installId === widget.installId) ??
+            widget
+          adoptMirrorFileBase(live)
+          await widgetFiles.persistItem(live, widgets.value)
         } else {
           await widgetFiles.persistAll(widgets.value, widgets.value)
         }
@@ -373,6 +391,41 @@ export const useWidgetsStore = defineStore('widgets', () => {
     }
   }
 
+  /**
+   * ストア再インストール (#913): 本体 (src) とストア由来メタを上書き更新する。
+   * ローカル値 (name の改名・autoRun) は維持。ソース欠損の readOnly 個体は
+   * 検証済み配布ソースで復旧する (persist 抑止を解除)。
+   */
+  function applyStoreUpdate(
+    installId: string,
+    patch: {
+      src: string
+      iconUrl?: string
+      storeSha512: string
+      storeVersion: string
+    },
+  ): WidgetMeta | undefined {
+    ensureLoaded()
+    const widget = widgets.value.find((w) => w.installId === installId)
+    if (!widget) return undefined
+    // 編集前 src を history sidecar に push (updateSrc と同じ undo リング)
+    if (widget.fileBase && !widget.readOnly) {
+      pushSnapshot('widget', widget.fileBase, {
+        src: widget.src,
+        name: widget.name,
+        autoRun: widget.autoRun,
+      }).catch((e) => console.warn('[widgets] history push failed:', e))
+    }
+    widget.src = patch.src
+    widget.iconUrl = patch.iconUrl
+    widget.storeSha512 = patch.storeSha512
+    widget.storeVersion = patch.storeVersion
+    widget.updatedAt = Date.now()
+    widget.readOnly = undefined
+    persist(widget)
+    return widget
+  }
+
   function setStoreId(installId: string, storeId: string | undefined) {
     ensureLoaded()
     const widget = widgets.value.find((w) => w.installId === installId)
@@ -418,6 +471,7 @@ export const useWidgetsStore = defineStore('widgets', () => {
     removeWidget,
     updateSrc,
     setAutoRun,
+    applyStoreUpdate,
     setStoreId,
     renameWidget,
     getWidget,

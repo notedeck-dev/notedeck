@@ -181,4 +181,32 @@ describe('useSkillsStore — ファイル対応表配線 (#913)', () => {
     expect(store.get('dup')?.fileBase).toBe('a')
     expect(files.has('b.md')).toBe(true)
   })
+
+  it('storeId 付きの新規 (ストアインストール) は storeId をファイル名にする (#913)', async () => {
+    files.set('seed.md', skillFile('seed', 'Seed'))
+    const store = await initStore()
+    store.add({
+      ...makeSkill('ent-skill', '日本語の表示名'),
+      storeId: 'ent-skill',
+    })
+    await vi.waitFor(() => {
+      expect(files.has('ent-skill.md')).toBe(true)
+    })
+  })
+
+  it('storeSha512 / storeVersion は frontmatter に永続化され読み戻せる (#913)', async () => {
+    files.set(
+      'greeter.md',
+      '---\nid: g1\nname: Greeter\nversion: 1.0.0\nmode: manual\nscope: global\nstoreId: ent\nstoreSha512: abc123\nstoreVersion: 1.0.0\ncreatedAt: 1\nupdatedAt: 1\n---\nbody',
+    )
+    const store = await initStore()
+    expect(store.get('g1')?.storeSha512).toBe('abc123')
+    expect(store.get('g1')?.storeVersion).toBe('1.0.0')
+    store.update('g1', { body: 'new body' })
+    await vi.waitFor(() => {
+      expect(files.get('greeter.md')).toContain('new body')
+    })
+    expect(files.get('greeter.md')).toContain('storeSha512: abc123')
+    expect(files.get('greeter.md')).toContain('storeVersion: 1.0.0')
+  })
 })

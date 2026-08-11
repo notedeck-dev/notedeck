@@ -25,6 +25,10 @@ export interface NamedQueryMeta extends SidecarItemFile {
   description?: string
   src: string
   storeId?: string
+  /** インストール/更新時に照合済みの配布ソース SHA-512 (#913。更新検知 #1040 の baseline) */
+  storeSha512?: string
+  /** インストール/更新時の registry バージョン (#913) */
+  storeVersion?: string
   /** ストア配布物のアイコン (任意)。他の配布物カードと表示を揃える */
   iconUrl?: string
   /** 組込シードのクエリ (スキルの builtIn と同じ分類軸) */
@@ -38,6 +42,8 @@ interface QueryFileMeta {
   name: string
   description?: string
   storeId?: string
+  storeSha512?: string
+  storeVersion?: string
   iconUrl?: string
   builtIn?: boolean
   createdAt: number
@@ -57,6 +63,8 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
   idOf: (q) => q.id,
   nameOf: (q) => q.name,
   srcOf: (q) => q.src,
+  // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)
+  preferredBase: (q) => q.storeId,
   mirrorSrcById: (id) =>
     getStorageJson<NamedQueryMeta[]>(STORAGE_KEYS.columnQueries, []).find(
       (q) => q.id === id,
@@ -66,6 +74,8 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
     name: q.name,
     ...(q.description ? { description: q.description } : {}),
     ...(q.storeId ? { storeId: q.storeId } : {}),
+    ...(q.storeSha512 ? { storeSha512: q.storeSha512 } : {}),
+    ...(q.storeVersion ? { storeVersion: q.storeVersion } : {}),
     ...(q.iconUrl ? { iconUrl: q.iconUrl } : {}),
     ...(q.builtIn ? { builtIn: true } : {}),
     createdAt: q.createdAt,
@@ -77,6 +87,8 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
     description: meta.description,
     src,
     storeId: meta.storeId,
+    storeSha512: meta.storeSha512,
+    storeVersion: meta.storeVersion,
     iconUrl: meta.iconUrl,
     builtIn: meta.builtIn,
     createdAt: meta.createdAt ?? Date.now(),
@@ -175,8 +187,12 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     if (settingsFs.isTauri) {
       await ready
       try {
-        adoptMirrorFileBase(query)
-        await queryFiles.persistItem(query, queries.value)
+        // ref の深い reactivity で queries.value の要素は proxy になるため、
+        // 占有判定の「操作対象自身は占有とみなさない」参照一致が崩れない
+        // よう live 要素 (proxy) を渡す
+        const live = queries.value.find((q) => q.id === query.id) ?? query
+        adoptMirrorFileBase(live)
+        await queryFiles.persistItem(live, queries.value)
         // fileBase 割当をミラーへ反映
         persistMirror()
       } catch (e) {
@@ -192,7 +208,12 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
 
   async function createQuery(
     input: Pick<NamedQueryMeta, 'name' | 'src'> &
-      Partial<Pick<NamedQueryMeta, 'description' | 'storeId' | 'iconUrl'>>,
+      Partial<
+        Pick<
+          NamedQueryMeta,
+          'description' | 'storeId' | 'iconUrl' | 'storeSha512' | 'storeVersion'
+        >
+      >,
   ): Promise<NamedQueryMeta> {
     ensureLoaded()
     const now = Date.now()
@@ -233,6 +254,35 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
         console.warn('[columnQueries] rename failed', e)
       }
     }
+    await persist(next)
+  }
+
+  /**
+   * ストア再インストール (#913): 本体 (src) とストア由来メタを上書き更新する。
+   * ローカル値 (name の改名) は維持。ソース欠損の readOnly 個体は
+   * 検証済み配布ソースで復旧する (persist 抑止を解除)。
+   */
+  async function applyStoreUpdate(
+    id: string,
+    patch: {
+      src: string
+      description?: string
+      iconUrl?: string
+      storeSha512: string
+      storeVersion: string
+    },
+  ): Promise<void> {
+    ensureLoaded()
+    const idx = queries.value.findIndex((q) => q.id === id)
+    const prev = queries.value[idx]
+    if (!prev) return
+    const next: NamedQueryMeta = {
+      ...prev,
+      ...patch,
+      readOnly: undefined,
+      updatedAt: Date.now(),
+    }
+    queries.value = queries.value.map((q) => (q.id === id ? next : q))
     await persist(next)
   }
 
@@ -290,6 +340,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     getQuery,
     createQuery,
     updateQuery,
+    applyStoreUpdate,
     removeQuery,
     refCountByQueryId,
   }

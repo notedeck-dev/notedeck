@@ -332,3 +332,63 @@ describe('removePlugin (undo) — #988', () => {
     expect(store.getPlugin('p1')?.name).toBe('readded')
   })
 })
+
+describe('applyStoreUpdate (#913 ストア再インストール)', () => {
+  it('本体とストア由来メタを上書きし、ローカル値 (name/active/scope/configData) を維持する', () => {
+    const store = usePluginsStore()
+    store.addPlugin(
+      makePlugin({
+        installId: 'p1',
+        name: 'My Renamed',
+        active: false,
+        global: true,
+        storeId: 'ent-plugin',
+        config: {
+          greet: { type: 'string', label: 'greet', default: 'hi' },
+        },
+        configData: { greet: 'こんにちは' },
+      }),
+    )
+    store.applyStoreUpdate('p1', {
+      src: 'new src',
+      version: '2.0.0',
+      description: 'new desc',
+      config: {
+        greet: { type: 'string', label: 'greet', default: 'hi' },
+        extra: { type: 'string', label: 'extra', default: 'def' },
+      },
+      iconUrl: 'https://example.com/icon.svg',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+    })
+    const p = store.getPlugin('p1')
+    expect(p).toMatchObject({
+      src: 'new src',
+      version: '2.0.0',
+      description: 'new desc',
+      iconUrl: 'https://example.com/icon.svg',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+      // ローカル値は維持
+      name: 'My Renamed',
+      active: false,
+      global: true,
+    })
+    // 既存の設定値は維持し、新キーのみデフォルト補完
+    expect(p?.configData).toEqual({ greet: 'こんにちは', extra: 'def' })
+  })
+
+  it('ソース欠損の readOnly 個体は検証済み配布ソースで復旧する', () => {
+    const store = usePluginsStore()
+    store.addPlugin(makePlugin({ installId: 'p1', readOnly: true, src: '' }))
+    store.applyStoreUpdate('p1', {
+      src: 'recovered',
+      version: '1.0.0',
+      storeSha512: 'abc',
+      storeVersion: '1.0.0',
+    })
+    const p = store.getPlugin('p1')
+    expect(p?.src).toBe('recovered')
+    expect(p?.readOnly).toBeFalsy()
+  })
+})

@@ -40,6 +40,10 @@ export interface SkillMeta {
   scope: SkillScope
   installedFor?: string[]
   storeId?: string
+  /** インストール/更新時に照合済みの配布ソース SHA-512 (#913。更新検知 #1040 の baseline) */
+  storeSha512?: string
+  /** インストール/更新時の registry バージョン (#913) */
+  storeVersion?: string
   /** Markdown 本文 (frontmatter を除いた指示文) */
   body: string
   createdAt: number
@@ -103,6 +107,8 @@ interface SkillFrontmatter {
   scope?: string
   installedFor?: string[]
   storeId?: string
+  storeSha512?: string
+  storeVersion?: string
   builtIn?: boolean
   createdAt?: number
   updatedAt?: number
@@ -150,6 +156,8 @@ function frontmatterFromMeta(skill: SkillMeta): Record<string, unknown> {
     out.installedFor = skill.installedFor
   }
   if (skill.storeId) out.storeId = skill.storeId
+  if (skill.storeSha512) out.storeSha512 = skill.storeSha512
+  if (skill.storeVersion) out.storeVersion = skill.storeVersion
   if (skill.builtIn) out.builtIn = true
   if (skill.iconUrl) out.iconUrl = skill.iconUrl
   if (skill.cheapCheckCapabilities && skill.cheapCheckCapabilities.length > 0) {
@@ -187,6 +195,8 @@ function metaFromFrontmatter(
     installedFor:
       scope === 'per-account' ? asArray(fm.installedFor) : undefined,
     storeId: fm.storeId,
+    storeSha512: fm.storeSha512,
+    storeVersion: fm.storeVersion,
     body,
     createdAt: fm.createdAt ?? now,
     updatedAt: fm.updatedAt ?? now,
@@ -223,9 +233,10 @@ const skillFiles = createSingleFileCollection<SkillMeta, ParsedSkillFile>({
   logTag: 'skills',
   kindFallback: 'skill',
   ext: settingsFs.SKILL_EXT,
+  // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)。
   // builtin seed はテンプレ id (slug 適合) をそのままファイル名にする
   // (表示名 slug だと `notedeck.md` / `notedeck-2.md` に化けて意味が消える)
-  preferredBase: (s) => (s.builtIn ? s.id : undefined),
+  preferredBase: (s) => s.storeId ?? (s.builtIn ? s.id : undefined),
   // 占有判定・sweep には .history.json5 を含む実列挙が要る
   // (規定拡張子の filter はコレクション側が行う)
   list: () => settingsFs.listSkillDirFiles(),
@@ -362,7 +373,12 @@ export const useSkillsStore = defineStore('skills', () => {
   /** ファイルへの直接反映 (初期化・seed 用。通常経路は ready ゲート越し)。 */
   async function persist(skill: SkillMeta): Promise<void> {
     if (!settingsFs.isTauri) return
-    await skillFiles.persistItem(skill, skills.value)
+    // ref の深い reactivity で skills.value の要素は proxy になるため、
+    // 占有判定の「操作対象自身は占有とみなさない」参照一致が崩れないよう
+    // live 要素 (proxy) を渡す (raw を渡すと自分の ID/fileBase が占有扱いに
+    // なり preferredBase = id/storeId のファイル名へ無意味な suffix が付く)
+    const live = skills.value.find((s) => s.id === skill.id) ?? skill
+    await skillFiles.persistItem(live, skills.value)
   }
 
   async function initFileStorage(): Promise<void> {
@@ -504,10 +520,11 @@ export const useSkillsStore = defineStore('skills', () => {
     const skill: SkillMeta = { ...input, createdAt: now, updatedAt: now }
     skills.value = [...skills.value, skill]
     if (settingsFs.isTauri) {
-      // 新規作成の fileBase は表示名 slug から persistItem が割り当てる
-      // (ファイル名は ID からでなく対応表から #913)。ready 待ちで移行と直列化
+      // 新規作成の fileBase は persistItem が割り当てる (storeId 優先 →
+      // 表示名 slug。ファイル名は ID からでなく対応表から #913)。
+      // ready 待ちで移行と直列化
       void ready
-        .then(() => skillFiles.persistItem(skill, skills.value))
+        .then(() => persist(skill))
         .catch((e) => console.warn('[skills] failed to persist new skill:', e))
     }
     return skill

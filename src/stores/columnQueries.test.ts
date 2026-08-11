@@ -50,3 +50,49 @@ describe('useColumnQueriesStore.removeQuery (undo) — #988', () => {
     expect(store.getQuery(a.id)?.name).toBe('readded')
   })
 })
+
+describe('applyStoreUpdate (#913 ストア再インストール)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('src / description / sha を上書きし name (ローカル改名) は維持する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({
+      name: 'My Renamed',
+      src: 'old',
+      storeId: 'ent-query',
+    })
+    await store.applyStoreUpdate(q.id, {
+      src: 'new',
+      description: 'd2',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+    })
+    expect(store.getQuery(q.id)).toMatchObject({
+      name: 'My Renamed',
+      src: 'new',
+      description: 'd2',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+    })
+  })
+
+  it('ソース欠損の readOnly 個体は検証済み配布ソースで復旧する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({
+      name: 'a',
+      src: '',
+      storeId: 'ent-query',
+    })
+    store.queries = [{ ...q, readOnly: true }]
+    await store.applyStoreUpdate(q.id, {
+      src: 'recovered',
+      storeSha512: 'abc',
+      storeVersion: '1.0.0',
+    })
+    expect(store.getQuery(q.id)?.src).toBe('recovered')
+    expect(store.getQuery(q.id)?.readOnly).toBeFalsy()
+  })
+})

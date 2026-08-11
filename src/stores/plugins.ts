@@ -110,6 +110,10 @@ export interface PluginMeta extends SidecarItemFile {
   installedFor?: string[]
   /** misstore 由来の追跡 ID (将来の自動更新用) */
   storeId?: string
+  /** インストール/更新時に照合済みの配布ソース SHA-512 (#913。更新検知 #1040 の baseline) */
+  storeSha512?: string
+  /** インストール/更新時の registry バージョン (#913) */
+  storeVersion?: string
   /** 個別アイコン URL (MisStore registry の iconUrl 互換) */
   iconUrl?: string
 }
@@ -156,6 +160,8 @@ interface PluginFileMeta {
   global?: boolean
   installedFor?: string[]
   storeId?: string
+  storeSha512?: string
+  storeVersion?: string
   iconUrl?: string
 }
 
@@ -174,6 +180,8 @@ const pluginFiles = createSidecarCollection<PluginMeta, PluginFileMeta>({
   idOf: (p) => p.installId,
   nameOf: (p) => p.name,
   srcOf: (p) => p.src,
+  // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)
+  preferredBase: (p) => p.storeId,
   mirrorSrcById: (id) =>
     loadPluginsFromStorage().find((p) => p.installId === id)?.src,
   toFileMeta: (p) => ({
@@ -189,6 +197,8 @@ const pluginFiles = createSidecarCollection<PluginMeta, PluginFileMeta>({
     ...(p.global ? { global: true } : {}),
     ...(p.installedFor?.length ? { installedFor: p.installedFor } : {}),
     ...(p.storeId ? { storeId: p.storeId } : {}),
+    ...(p.storeSha512 ? { storeSha512: p.storeSha512 } : {}),
+    ...(p.storeVersion ? { storeVersion: p.storeVersion } : {}),
     ...(p.iconUrl ? { iconUrl: p.iconUrl } : {}),
   }),
   fromFile: (meta, src, metaFile) => ({
@@ -205,6 +215,8 @@ const pluginFiles = createSidecarCollection<PluginMeta, PluginFileMeta>({
     global: meta.global,
     installedFor: meta.installedFor,
     storeId: meta.storeId,
+    storeSha512: meta.storeSha512,
+    storeVersion: meta.storeVersion,
     iconUrl: meta.iconUrl,
   }),
 })
@@ -268,8 +280,14 @@ export const usePluginsStore = defineStore('plugins', () => {
     void ready
       .then(async () => {
         if (plugin) {
-          adoptMirrorFileBase(plugin)
-          await pluginFiles.persistItem(plugin, plugins.value)
+          // ref の深い reactivity で plugins.value の要素は proxy になるため、
+          // 占有判定の「操作対象自身は占有とみなさない」参照一致が崩れない
+          // よう live 要素 (proxy) を渡す
+          const live =
+            plugins.value.find((p) => p.installId === plugin.installId) ??
+            plugin
+          adoptMirrorFileBase(live)
+          await pluginFiles.persistItem(live, plugins.value)
         } else {
           await pluginFiles.persistAll(plugins.value, plugins.value)
         }
@@ -583,6 +601,57 @@ export const usePluginsStore = defineStore('plugins', () => {
     }
   }
 
+  /**
+   * ストア再インストール (#913): 本体 (src) とストア由来メタを上書き更新する。
+   * ローカル値 (name の改名・active・スコープ・configData の設定値) は維持し、
+   * 新しい config キーのみデフォルト値を補完する。ソース欠損の readOnly 個体は
+   * 検証済み配布ソースで復旧する (persist 抑止を解除)。
+   */
+  function applyStoreUpdate(
+    installId: string,
+    patch: {
+      src: string
+      version: string
+      author?: string
+      description?: string
+      permissions?: string[]
+      config?: Record<string, PluginConfigDef>
+      iconUrl?: string
+      storeSha512: string
+      storeVersion: string
+    },
+  ): void {
+    ensureLoaded()
+    const plugin = plugins.value.find((p) => p.installId === installId)
+    if (!plugin) return
+    // 編集前 src を history sidecar に push (updateSrc と同じ undo リング)
+    if (plugin.fileBase && !plugin.readOnly) {
+      pushSnapshot('plugin', plugin.fileBase, {
+        src: plugin.src,
+        name: plugin.name,
+        version: plugin.version,
+        permissions: plugin.permissions,
+        active: plugin.active,
+      }).catch((e) => console.warn('[plugins] history push failed:', e))
+    }
+    plugin.src = patch.src
+    plugin.version = patch.version
+    plugin.author = patch.author
+    plugin.description = patch.description
+    plugin.permissions = patch.permissions
+    plugin.config = patch.config
+    plugin.iconUrl = patch.iconUrl
+    plugin.storeSha512 = patch.storeSha512
+    plugin.storeVersion = patch.storeVersion
+    if (patch.config) {
+      for (const [key, def] of Object.entries(patch.config)) {
+        if (!(key in plugin.configData)) plugin.configData[key] = def.default
+      }
+    }
+    plugin.readOnly = undefined
+    persist(plugin)
+  }
+
   function renamePlugin(installId: string, newName: string) {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
@@ -626,6 +695,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     linkScope,
     unlinkScope,
     migrateScopes,
+    applyStoreUpdate,
     renamePlugin,
     setActive,
     updateConfigData,
