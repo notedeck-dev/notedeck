@@ -8,7 +8,7 @@ import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { type SkillMode, useSkillsStore } from '@/stores/skills'
-import { skillFilename } from '@/utils/settingsFs'
+import { SKILL_EXT } from '@/utils/settingsFs'
 
 const CodeEditor = defineAsyncComponent(
   () => import('@/components/deck/widgets/CodeEditor.vue'),
@@ -31,9 +31,16 @@ skillsStore.ensureLoaded()
 
 const skill = computed(() => skillsStore.get(props.skillId))
 
-useWindowExternalFile(() =>
-  skill.value ? { name: skillFilename(props.skillId), subdir: 'skills' } : null,
-)
+// 外部エディタ起動はファイル名を対応表 (fileBase) から引く — ID から計算しない (#913)
+useWindowExternalFile(() => {
+  const s = skill.value
+  if (!s) return null
+  return {
+    name: s.fileBase ? `${s.fileBase}${SKILL_EXT}` : '',
+    subdir: 'skills',
+    disabled: !s.fileBase,
+  }
+})
 
 const name = ref('')
 const description = ref('')

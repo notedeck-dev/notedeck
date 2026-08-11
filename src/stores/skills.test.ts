@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: false,
+  SKILL_EXT: '.md',
 }))
 
 import type { SkillMeta } from '@/stores/skills'

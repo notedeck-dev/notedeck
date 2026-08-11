@@ -352,15 +352,11 @@ export async function renamePluginFile(
 // --- Skill helpers ---
 
 const SKILLS_DIR = 'skills'
-const SKILL_EXT = '.md'
+export const SKILL_EXT = '.md'
 
-export function skillFilename(name: string): string {
-  return sanitizeFilename(name) + SKILL_EXT
-}
-
-export async function listSkillFiles(): Promise<string[]> {
-  const files = await listSettingsFiles(SKILLS_DIR)
-  return files.filter((f) => f.endsWith(SKILL_EXT))
+/** skills/ の実列挙 (履歴 .history.json5 を含む。#913 の占有判定・sweep 用)。 */
+export async function listSkillDirFiles(): Promise<string[]> {
+  return listSettingsFiles(SKILLS_DIR)
 }
 
 export async function readSkillFile(filename: string): Promise<string> {
