@@ -10,11 +10,7 @@ import {
 } from '@/stores/plugins'
 import { type SkillMeta, useSkillsStore } from '@/stores/skills'
 import { useThemeStore } from '@/stores/theme'
-import {
-  generateWidgetId,
-  useWidgetsStore,
-  type WidgetMeta,
-} from '@/stores/widgets'
+import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 import { parseSkillFile } from '@/utils/skillFrontmatter'
 
 const STORE_BASE_URL = 'https://store.notedeck.io'
@@ -511,6 +507,10 @@ export const useMisStoreStore = defineStore('misstore', () => {
         })
       } else {
         await queriesStore.createQuery({
+          // 新規インストールのローカル ID = storeId (#913)。衝突時のみ suffix
+          id: resolveAvailable(entry.id, (c) =>
+            queriesStore.queries.some((q) => casefold(q.id) === c),
+          ),
           name: entry.name,
           description: entry.description,
           src: source,
@@ -590,7 +590,11 @@ export const useMisStoreStore = defineStore('misstore', () => {
       }
 
       const newPlugin: PluginMeta = {
-        installId: `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        // 新規インストールのローカル ID = storeId (#913。再インストールで
+        // 参照が生き残る)。衝突時のみ連番 suffix
+        installId: resolveAvailable(entry.id, (c) =>
+          pluginsStore.plugins.some((p) => casefold(p.installId) === c),
+        ),
         name: meta.name,
         version: meta.version,
         author: meta.author,
@@ -648,7 +652,10 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
       const now = Date.now()
       const widget: WidgetMeta = {
-        installId: generateWidgetId(),
+        // 新規インストールのローカル ID = storeId (#913)。衝突時のみ suffix
+        installId: resolveAvailable(entry.id, (c) =>
+          widgetsStore.widgets.some((w) => casefold(w.installId) === c),
+        ),
         name: entry.name,
         src,
         autoRun: entry.autoRun,

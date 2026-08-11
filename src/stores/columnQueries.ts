@@ -211,7 +211,12 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
       Partial<
         Pick<
           NamedQueryMeta,
-          'description' | 'storeId' | 'iconUrl' | 'storeSha512' | 'storeVersion'
+          | 'id'
+          | 'description'
+          | 'storeId'
+          | 'iconUrl'
+          | 'storeSha512'
+          | 'storeVersion'
         >
       >,
   ): Promise<NamedQueryMeta> {

@@ -580,7 +580,8 @@ describe('installWidget', () => {
       widgetEntry({ sha512: sha512Hex(source) }),
     )
     expect(widget).toMatchObject({
-      installId: 'w-test-1',
+      // 新規インストールのローカル ID = storeId (#913)
+      installId: 'ent-widget',
       name: 'Test Widget',
       src: source,
       autoRun: true,
