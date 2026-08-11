@@ -19,6 +19,7 @@ import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
+import { isWindowExposed } from '@/windows/exposure'
 import ColumnSection from './ColumnSection.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
@@ -31,6 +32,13 @@ const props = defineProps<{
 const skillsStore = useSkillsStore()
 const misStore = useMisStoreStore()
 const windowsStore = useWindowsStore()
+
+/**
+ * スキルを「作る」面は開発者モードに従う (#1034)。導入・実行・on/off・削除は
+ * 一般側なので、隠れるのは新規作成と編集の入口だけ (テーマ・プラグイン・
+ * ウィジェット・クエリと同じ規則)。
+ */
+const canEdit = computed(() => isWindowExposed('skill-edit'))
 const { columnThemeVars } = useColumnTheme(() => props.column)
 
 skillsStore.ensureLoaded()
@@ -125,6 +133,8 @@ function toggleHeartbeat(skill: SkillMeta) {
 }
 
 function openInEditor(skill: SkillMeta) {
+  // カード全体と名前もこの関数を呼ぶので、入口はここで 1 本に絞る
+  if (!canEdit.value) return
   windowsStore.open('skill-edit', { skillId: skill.id })
 }
 
@@ -212,7 +222,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 
     <template #header-meta>
       <button
-        v-if="viewTab === 'installed'"
+        v-if="viewTab === 'installed' && canEdit"
         class="_button"
         :class="$style.headerBtn"
         title="新規スキルを作成"
@@ -259,7 +269,11 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
             <div
               v-for="skill in section.items"
               :key="skill.id"
-              :class="[$style.card, !isActive(skill) && $style.cardDisabled]"
+              :class="[
+                $style.card,
+                !isActive(skill) && $style.cardDisabled,
+                !canEdit && $style.cardStatic,
+              ]"
               @click="openInEditor(skill)"
             >
               <div :class="$style.icon">
@@ -273,7 +287,13 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
               </div>
               <div :class="$style.body">
                 <div :class="$style.row1">
-                  <button type="button" :class="$style.name" @click.stop="openInEditor(skill)">{{ skill.name }}</button>
+                  <button
+                    v-if="canEdit"
+                    type="button"
+                    :class="$style.name"
+                    @click.stop="openInEditor(skill)"
+                  >{{ skill.name }}</button>
+                  <span v-else :class="[$style.name, $style.cardStatic]">{{ skill.name }}</span>
                   <span :class="$style.modeBadge" :data-mode="skill.mode">
                     <i v-if="skill.mode === 'heartbeat'" class="ti ti-activity-heartbeat" />
                     {{ modeLabel[skill.mode] }}
@@ -308,6 +328,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                       <i class="ti ti-trash" />
                     </button>
                     <button
+                      v-if="canEdit"
                       class="_button"
                       :class="$style.iconBtn"
                       title="編集"
@@ -575,6 +596,11 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 }
 
 // 行の主アクションはこの button が入口 (PluginCard と同型)
+// 開発者モード off ではカードも名前も編集を開かないので、押せる見た目にしない
+.cardStatic {
+  cursor: default;
+}
+
 .name {
   appearance: none;
   background: none;
