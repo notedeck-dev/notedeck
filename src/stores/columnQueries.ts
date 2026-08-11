@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { createSidecarCollection } from '@/services/sidecarFileCollection'
+import {
+  createSidecarCollection,
+  type SidecarItemFile,
+} from '@/services/sidecarFileCollection'
 import { useDeckStore } from '@/stores/deck'
 import * as settingsFs from '@/utils/settingsFs'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
@@ -16,7 +19,7 @@ import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
  * - MisStore 配布クエリは storeId を持つ (導入・差分承認は Phase 3.5)
  */
 
-export interface NamedQueryMeta {
+export interface NamedQueryMeta extends SidecarItemFile {
   id: string
   name: string
   description?: string
@@ -43,14 +46,21 @@ interface QueryFileMeta {
 
 const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
   logTag: 'columnQueries',
-  srcFilename: (base) => settingsFs.querySrcFilename(base),
-  metaFilename: (base) => settingsFs.queryMetaFilename(base),
+  kindFallback: 'query',
+  idKey: 'id',
   list: () => settingsFs.listQueryFiles(),
   read: (filename) => settingsFs.readQueryFile(filename),
   write: (filename, content) => settingsFs.writeQueryFile(filename, content),
   remove: (filename) => settingsFs.deleteQueryFile(filename),
-  baseName: (q) => q.name || q.id,
+  rename: (oldFilename, newFilename) =>
+    settingsFs.renameQueryFile(oldFilename, newFilename),
+  idOf: (q) => q.id,
+  nameOf: (q) => q.name,
   srcOf: (q) => q.src,
+  mirrorSrcById: (id) =>
+    getStorageJson<NamedQueryMeta[]>(STORAGE_KEYS.columnQueries, []).find(
+      (q) => q.id === id,
+    )?.src,
   toFileMeta: (q) => ({
     id: q.id,
     name: q.name,
@@ -81,6 +91,12 @@ export function generateQueryId(): string {
 export const useColumnQueriesStore = defineStore('columnQueries', () => {
   const queries = ref<NamedQueryMeta[]>([])
   let loaded = false
+  // 変更系操作 (新規作成・リネーム・保存・削除) のファイル反映は
+  // 「初回読込 (対応表確定) + 初回移行」の完了を待つゲート (#913)
+  let resolveReady: (() => void) | undefined
+  const ready = new Promise<void>((resolve) => {
+    resolveReady = resolve
+  })
 
   function ensureLoaded() {
     if (loaded) return
@@ -90,23 +106,52 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
       [],
     )
     if (settingsFs.isTauri) {
-      void initFileStorage()
+      void initFileStorage().finally(() => resolveReady?.())
+    } else {
+      resolveReady?.()
     }
   }
 
   async function initFileStorage() {
     try {
-      const { items, entryFileCount } = await queryFiles.loadAll()
-      if (entryFileCount > 0) {
-        // ファイルが正なので localStorage ミラーを上書き
-        if (items.length > 0) {
-          queries.value = items
-          persistMirror()
-        }
-      } else if (queries.value.length > 0) {
-        // 初回: localStorage → ファイルへ片方向移行
-        await queryFiles.persistAll(queries.value)
+      const { items } = await queryFiles.loadAll()
+
+      // 初期化中にメモリ追加されたクエリと、ミラーにだけ在るクエリ
+      // (過去の書込が黙って失敗した個体) の集合。
+      const fileIds = new Set(items.map((q) => q.id))
+      const memoryOnly = queries.value.filter((q) => !fileIds.has(q.id))
+
+      if (items.length > 0) {
+        // ファイルが正なので localStorage ミラーを上書き (メモリ分はマージ)
+        queries.value = [...items, ...memoryOnly]
       }
+
+      // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
+      if (settingsFs.isMainDeckWindow()) {
+        // (a) 規約外名の copy-adopt 正規化
+        await queryFiles.migrateItems(queries.value)
+        // (b) ミラー在・ファイル不在 → 新 slug 名で再作成 (空ソースは書かない)
+        for (const q of memoryOnly) {
+          if (q.readOnly || !q.src) continue
+          q.fileBase = undefined // ミラー由来の旧 fileBase は無効 (ファイル不在)
+          await queryFiles
+            .persistItem(q, queries.value)
+            .catch((e) =>
+              console.warn(
+                '[columnQueries] failed to persist memory-only query:',
+                e,
+              ),
+            )
+        }
+        // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
+        await queryFiles
+          .sweepHistory()
+          .catch((e) =>
+            console.warn('[columnQueries] history sweep failed:', e),
+          )
+      }
+
+      persistMirror()
     } catch (e) {
       console.warn('[columnQueries] file storage init failed', e)
     }
@@ -116,11 +161,24 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     setStorageJson(STORAGE_KEYS.columnQueries, queries.value)
   }
 
+  /** 保存・削除の直前にミラーの対応表を読み直す (別ウィンドウのリネーム追随)。 */
+  function adoptMirrorFileBase(query: NamedQueryMeta) {
+    const mirrored = getStorageJson<NamedQueryMeta[]>(
+      STORAGE_KEYS.columnQueries,
+      [],
+    ).find((q) => q.id === query.id)
+    if (mirrored?.fileBase) query.fileBase = mirrored.fileBase
+  }
+
   async function persist(query: NamedQueryMeta) {
     persistMirror()
     if (settingsFs.isTauri) {
+      await ready
       try {
-        await queryFiles.persistItem(query)
+        adoptMirrorFileBase(query)
+        await queryFiles.persistItem(query, queries.value)
+        // fileBase 割当をミラーへ反映
+        persistMirror()
       } catch (e) {
         console.warn('[columnQueries] persist failed', e)
       }
@@ -158,14 +216,21 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     if (idx < 0) return
     const prev = queries.value[idx]
     if (!prev) return
+    if (prev.readOnly && updates.src !== undefined) {
+      // ソース欠損の読取専用個体: 内容編集と保存を抑止 (#913)
+      console.warn('[columnQueries] read-only query — src update suppressed')
+      return
+    }
     const next = { ...prev, ...updates, updatedAt: Date.now() }
     queries.value = queries.value.map((q) => (q.id === id ? next : q))
-    // 改名でファイル基底名が変わる場合は旧ファイルを消してから書く
+    // 改名はファイルを rename で追随させる (ID 不変)。完了を待ってから保存
     if (settingsFs.isTauri && updates.name && updates.name !== prev.name) {
+      await ready
       try {
-        await queryFiles.deleteItemFiles(prev)
+        adoptMirrorFileBase(next)
+        await queryFiles.renameItemFiles(next, queries.value)
       } catch (e) {
-        console.warn('[columnQueries] rename cleanup failed', e)
+        console.warn('[columnQueries] rename failed', e)
       }
     }
     await persist(next)
@@ -182,9 +247,13 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     const idx = queries.value.findIndex((q) => q.id === id)
     const target = queries.value[idx]
     if (!target) return undefined
+    // ミラー上書き前に対応表を読み直す (別ウィンドウのリネーム後の削除が
+    // stale なファイル名で空振りしないように)
+    if (settingsFs.isTauri) adoptMirrorFileBase(target)
     queries.value = queries.value.filter((q) => q.id !== id)
     persistMirror()
     if (settingsFs.isTauri) {
+      await ready
       try {
         await queryFiles.deleteItemFiles(target)
       } catch (e) {

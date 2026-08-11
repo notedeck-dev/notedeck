@@ -21,7 +21,6 @@ import {
   usePluginsStore,
 } from '@/stores/plugins'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
-import { pluginSrcFilename } from '@/utils/settingsFs'
 
 const props = defineProps<{
   initialPluginId?: string
@@ -94,9 +93,10 @@ const { tab, containerRef: editorRef } = useEditorTabs(
 useWindowExternalFile(() => {
   if (tab.value !== 'code' || isNewInstall.value) return null
   const p = plugin.value
-  if (!p) return null
+  // 対応表 (fileBase) のファイル名で開く。未割当 = ファイル未作成なら出さない
+  if (!p?.fileBase) return null
   return {
-    name: pluginSrcFilename(p.name || p.installId),
+    name: `${p.fileBase}.is`,
     subdir: 'plugins',
   }
 })

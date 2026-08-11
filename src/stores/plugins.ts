@@ -3,7 +3,10 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
 import { planBuiltInSeed } from '@/services/builtInSeed'
-import { createSidecarCollection } from '@/services/sidecarFileCollection'
+import {
+  createSidecarCollection,
+  type SidecarItemFile,
+} from '@/services/sidecarFileCollection'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
@@ -87,7 +90,7 @@ export interface PluginConfigDef {
   default: unknown
 }
 
-export interface PluginMeta {
+export interface PluginMeta extends SidecarItemFile {
   installId: string
   name: string
   version: string
@@ -159,15 +162,20 @@ interface PluginFileMeta {
 /** .is + .meta.json5 ペアのファイル永続化 (#782 Phase 2、widgets と共通) */
 const pluginFiles = createSidecarCollection<PluginMeta, PluginFileMeta>({
   logTag: 'plugins',
+  kindFallback: 'plugin',
+  idKey: 'installId',
   // 直接参照ではなくアロー包みで遅延参照する (テストの部分モックと相性を保つ)
-  srcFilename: (base) => settingsFs.pluginSrcFilename(base),
-  metaFilename: (base) => settingsFs.pluginMetaFilename(base),
   list: () => settingsFs.listPluginFiles(),
   read: (filename) => settingsFs.readPluginFile(filename),
   write: (filename, content) => settingsFs.writePluginFile(filename, content),
   remove: (filename) => settingsFs.deletePluginFile(filename),
-  baseName: (p) => p.name || p.installId,
+  rename: (oldFilename, newFilename) =>
+    settingsFs.renamePluginFile(oldFilename, newFilename),
+  idOf: (p) => p.installId,
+  nameOf: (p) => p.name,
   srcOf: (p) => p.src,
+  mirrorSrcById: (id) =>
+    loadPluginsFromStorage().find((p) => p.installId === id)?.src,
   toFileMeta: (p) => ({
     installId: p.installId,
     name: p.name,
@@ -213,6 +221,12 @@ export const usePluginsStore = defineStore('plugins', () => {
   const plugins = ref<PluginMeta[]>([])
   let loaded = false
   const initialized = ref(false)
+  // 変更系操作 (新規作成・リネーム・保存・削除) のファイル反映は
+  // 「初回読込 (対応表確定) + 初回移行」の完了を待つゲート (#913)
+  let resolveReady: (() => void) | undefined
+  const ready = new Promise<void>((resolve) => {
+    resolveReady = resolve
+  })
 
   function ensureLoaded() {
     if (loaded) return
@@ -221,11 +235,12 @@ export const usePluginsStore = defineStore('plugins', () => {
 
     // Kick off file-based init (Tauri only)
     if (settingsFs.isTauri) {
-      initFileStorage().catch((e) =>
-        console.warn('[plugins] file storage init failed:', e),
-      )
+      initFileStorage()
+        .catch((e) => console.warn('[plugins] file storage init failed:', e))
+        .finally(() => resolveReady?.())
     } else {
       initialized.value = true
+      resolveReady?.()
       // ブラウザ環境 (ファイル I/O なし) でも built-in を seed して
       // 動作確認ができるようにする
       seedMissingBuiltIns()
@@ -239,35 +254,66 @@ export const usePluginsStore = defineStore('plugins', () => {
     return plugins.value.filter((p) => p.active)
   })
 
+  /** 保存・削除の直前にミラーの対応表を読み直す (別ウィンドウのリネーム追随)。 */
+  function adoptMirrorFileBase(plugin: PluginMeta) {
+    const mirrored = loadPluginsFromStorage().find(
+      (p) => p.installId === plugin.installId,
+    )
+    if (mirrored?.fileBase) plugin.fileBase = mirrored.fileBase
+  }
+
   function persist(plugin?: PluginMeta) {
     savePluginsToStorage(plugins.value)
-    if (initialized.value) {
-      const task = plugin
-        ? pluginFiles.persistItem(plugin)
-        : pluginFiles.persistAll(plugins.value)
-      task.catch((e) =>
-        console.warn('[plugins] failed to persist to files:', e),
-      )
-    }
+    if (!settingsFs.isTauri) return
+    void ready
+      .then(async () => {
+        if (plugin) {
+          adoptMirrorFileBase(plugin)
+          await pluginFiles.persistItem(plugin, plugins.value)
+        } else {
+          await pluginFiles.persistAll(plugins.value, plugins.value)
+        }
+        // fileBase 割当をミラーへ反映
+        savePluginsToStorage(plugins.value)
+      })
+      .catch((e) => console.warn('[plugins] failed to persist to files:', e))
   }
 
   /** Load plugins from files. Files are source of truth. */
   async function initFileStorage(): Promise<void> {
-    const { items: filePlugins, entryFileCount } = await pluginFiles.loadAll()
+    const { items: filePlugins } = await pluginFiles.loadAll()
+
+    // 初期化中にメモリ追加された plugin と、ミラーにだけ在る plugin
+    // (過去の書込が黙って失敗した個体) の集合。
+    const fileIds = new Set(filePlugins.map((p) => p.installId))
+    const memoryOnly = plugins.value.filter((p) => !fileIds.has(p.installId))
 
     if (filePlugins.length > 0) {
-      plugins.value = filePlugins
-      savePluginsToStorage(filePlugins)
+      plugins.value = [...filePlugins, ...memoryOnly]
     }
 
+    // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
+    if (settingsFs.isMainDeckWindow()) {
+      // (a) 規約外名の copy-adopt 正規化
+      await pluginFiles.migrateItems(plugins.value)
+      // (b) ミラー在・ファイル不在 → 新 slug 名で再作成 (空ソースは書かない)
+      for (const p of memoryOnly) {
+        if (p.readOnly || !p.src) continue
+        p.fileBase = undefined // ミラー由来の旧 fileBase は無効 (ファイル不在)
+        await pluginFiles
+          .persistItem(p, plugins.value)
+          .catch((e) =>
+            console.warn('[plugins] failed to persist memory-only plugins:', e),
+          )
+      }
+      // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
+      await pluginFiles
+        .sweepHistory()
+        .catch((e) => console.warn('[plugins] history sweep failed:', e))
+    }
+
+    savePluginsToStorage(plugins.value)
     initialized.value = true
-
-    // Migrate: localStorage has plugins but no files exist
-    if (entryFileCount === 0 && plugins.value.length > 0) {
-      pluginFiles
-        .persistAll(plugins.value)
-        .catch((e) => console.warn('[plugins] migration to files failed:', e))
-    }
 
     // Seed built-in plugins (初回起動 + 後追い追加に対応)。
     await seedMissingBuiltIns()
@@ -301,12 +347,13 @@ export const usePluginsStore = defineStore('plugins', () => {
       const added = toAdd.map(pluginMetaToFullMeta)
       plugins.value = [...plugins.value, ...added]
       savePluginsToStorage(plugins.value)
-      if (initialized.value) {
+      if (settingsFs.isTauri) {
         await pluginFiles
-          .persistAll(added)
+          .persistAll(added, plugins.value)
           .catch((e) =>
             console.warn('[plugins] failed to seed built-in plugin files:', e),
           )
+        savePluginsToStorage(plugins.value)
       }
     }
     setStorageJson(STORAGE_KEYS.pluginsSeededBuiltins, seededIds)
@@ -327,6 +374,9 @@ export const usePluginsStore = defineStore('plugins', () => {
     ensureLoaded()
     const idx = plugins.value.findIndex((p) => p.installId === installId)
     const removed = plugins.value[idx]
+    // ミラー上書き前に対応表を読み直す (別ウィンドウのリネーム後の削除が
+    // stale なファイル名で空振りしないように)
+    if (removed && settingsFs.isTauri) adoptMirrorFileBase(removed)
     // Clean up plugin localStorage entries
     // undo で戻せるよう消す前にスナップショットを取る (widgets と同型)
     const storagePrefix = STORAGE_KEYS.aiscriptPlugin(installId)
@@ -336,9 +386,9 @@ export const usePluginsStore = defineStore('plugins', () => {
     // Sync: localStorage only (file deletion handles the rest)
     savePluginsToStorage(plugins.value)
     // Delete files
-    if (initialized.value && removed) {
-      pluginFiles
-        .deleteItemFiles(removed)
+    if (settingsFs.isTauri && removed) {
+      void ready
+        .then(() => pluginFiles.deleteItemFiles(removed))
         .catch((e) =>
           console.warn('[plugins] failed to delete plugin files:', e),
         )
@@ -356,9 +406,10 @@ export const usePluginsStore = defineStore('plugins', () => {
       for (const [key, value] of Object.entries(savedStorage)) {
         setStorageString(key, value)
       }
-      if (initialized.value) {
-        pluginFiles
-          .persistItem(removed)
+      if (settingsFs.isTauri) {
+        void ready
+          .then(() => pluginFiles.persistItem(removed, plugins.value))
+          .then(() => savePluginsToStorage(plugins.value))
           .catch((e) =>
             console.warn('[plugins] failed to restore plugin files:', e),
           )
@@ -511,14 +562,22 @@ export const usePluginsStore = defineStore('plugins', () => {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
     if (plugin) {
-      // 編集前 src を history sidecar に push (fire-and-forget)
-      pushSnapshot('plugin', plugin.name || plugin.installId, {
-        src: plugin.src,
-        name: plugin.name,
-        version: plugin.version,
-        permissions: plugin.permissions,
-        active: plugin.active,
-      }).catch((e) => console.warn('[plugins] history push failed:', e))
+      if (plugin.readOnly) {
+        // ソース欠損の読取専用個体: 内容編集と保存を抑止 (#913)
+        console.warn('[plugins] read-only plugin — src update suppressed')
+        return
+      }
+      // 編集前 src を history sidecar に push (fire-and-forget)。
+      // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)
+      if (plugin.fileBase) {
+        pushSnapshot('plugin', plugin.fileBase, {
+          src: plugin.src,
+          name: plugin.name,
+          version: plugin.version,
+          permissions: plugin.permissions,
+          active: plugin.active,
+        }).catch((e) => console.warn('[plugins] history push failed:', e))
+      }
       plugin.src = src
       persist(plugin)
     }
@@ -529,19 +588,19 @@ export const usePluginsStore = defineStore('plugins', () => {
     const plugin = plugins.value.find((p) => p.installId === installId)
     if (!plugin) return
 
-    const oldBaseName = plugin.name || plugin.installId
     plugin.name = newName
-
-    persist(plugin)
-
-    if (initialized.value && oldBaseName !== newName) {
-      // Delete old files and write new ones (installId stays the same)
-      pluginFiles
-        .deleteItemFiles({ ...plugin, name: oldBaseName })
-        .catch((e) =>
-          console.warn('[plugins] failed to delete old plugin files:', e),
-        )
-    }
+    savePluginsToStorage(plugins.value)
+    if (!settingsFs.isTauri) return
+    // ファイルは rename で追随させる (ID 不変・旧削除 + 新書込の並行発火禁止)。
+    // rename の完了を待ってから保存する
+    void ready
+      .then(async () => {
+        adoptMirrorFileBase(plugin)
+        await pluginFiles.renameItemFiles(plugin, plugins.value)
+        await pluginFiles.persistItem(plugin, plugins.value)
+        savePluginsToStorage(plugins.value)
+      })
+      .catch((e) => console.warn('[plugins] failed to rename plugin files:', e))
   }
 
   function getPlugin(installId: string): PluginMeta | undefined {

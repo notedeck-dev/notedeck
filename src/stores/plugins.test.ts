@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: false,
-  pluginSrcFilename: (n: string) => `${n}.is`,
-  pluginMetaFilename: (n: string) => `${n}.meta.json5`,
+  isMainDeckWindow: () => true,
   writePluginFile: vi.fn(async () => undefined),
   deletePluginFile: vi.fn(async () => undefined),
   listPluginFiles: vi.fn(async () => []),
   readPluginFile: vi.fn(async () => ''),
+  renamePluginFile: vi.fn(async () => undefined),
 }))
 
 vi.mock('@/utils/storage', () => {
