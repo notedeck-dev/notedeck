@@ -221,10 +221,20 @@ pub async fn export_settings_json(app: tauri::AppHandle) -> Result<bool> {
     Ok(true)
 }
 
+/// import_settings_json の結果。`imported: false` はダイアログのキャンセル。
+/// `warnings` はスキップ / 別名退避したエントリの説明 (#913 付随修正 — フロントは
+/// 復元完了メッセージに件数 + 内容を表示する)。
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportSettingsResult {
+    pub imported: bool,
+    pub warnings: Vec<String>,
+}
+
 /// Import settings from a JSON bundle via open dialog.
 #[tauri::command]
 #[specta::specta]
-pub async fn import_settings_json(app: tauri::AppHandle) -> Result<bool> {
+pub async fn import_settings_json(app: tauri::AppHandle) -> Result<ImportSettingsResult> {
     use std::collections::BTreeMap;
     use tauri_plugin_dialog::DialogExt;
 
@@ -237,7 +247,11 @@ pub async fn import_settings_json(app: tauri::AppHandle) -> Result<bool> {
         .blocking_pick_file();
 
     let Some(src) = src else {
-        return Ok(false); // user cancelled
+        // user cancelled
+        return Ok(ImportSettingsResult {
+            imported: false,
+            warnings: vec![],
+        });
     };
 
     let src_path = src
@@ -249,7 +263,10 @@ pub async fn import_settings_json(app: tauri::AppHandle) -> Result<bool> {
     let bundle: BTreeMap<String, String> = serde_json::from_str(&raw)
         .map_err(|e| NoteDeckError::InvalidInput(format!("Invalid JSON: {e}")))?;
 
-    store::import_bundle(&base_dir, &bundle)?;
+    let warnings = store::import_bundle(&base_dir, &bundle)?;
 
-    Ok(true)
+    Ok(ImportSettingsResult {
+        imported: true,
+        warnings,
+    })
 }
