@@ -29,7 +29,7 @@ const DEVELOPER_COLUMNS = [
 ]
 
 describe('カラムの帰属タグ', () => {
-  it('決定した 7 種だけが developer タグを持つ', () => {
+  it('決定した種別だけが developer タグを持つ', () => {
     const tagged = Object.entries(COLUMN_REGISTRY)
       .filter(([, spec]) => spec.exposure === 'developer')
       .map(([type]) => type)
