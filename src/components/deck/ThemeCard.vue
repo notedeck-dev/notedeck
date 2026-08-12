@@ -26,6 +26,12 @@ const props = defineProps<{
   perAccount?: boolean
   // 削除可能か (builtin は不可)
   removable?: boolean
+  /**
+   * remove ボタンが本体削除になるか、紐付けを外すだけか (#1048)。
+   * ゴミ箱アイコンは本体削除 (テーマも消える) 専用にし、可逆な「外す」は
+   * 他の配布物カードと同じ ti-circle-minus で見分けられるようにする。
+   */
+  removeMode?: 'detach' | 'delete'
 }>()
 
 const emit = defineEmits<{
@@ -110,11 +116,11 @@ function handleClick() {
         <button
           v-if="removable"
           class="_button"
-          :class="$style.removeBtn"
-          title="削除"
+          :class="[$style.removeBtn, removeMode === 'detach' && $style.removeBtnDetach]"
+          :title="removeMode === 'detach' ? 'このアカウントから外す' : 'ライブラリから削除 (テーマも消えます)'"
           @click.stop="emit('remove')"
         >
-          <i class="ti ti-x" />
+          <i :class="removeMode === 'detach' ? 'ti ti-circle-minus' : 'ti ti-trash'" />
         </button>
       </div>
       <div v-else-if="mode === 'store'" :class="$style.previewActions">
@@ -256,6 +262,13 @@ function handleClick() {
 
 .removeBtn {
   background: var(--nd-error);
+}
+
+// 可逆な「外す」は破壊色に染めない (#1048)。clearBtn と同じ中立色
+.removeBtnDetach {
+  background: var(--nd-fg);
+  color: var(--nd-bg);
+  opacity: 0.7;
 }
 
 .clearBtn {

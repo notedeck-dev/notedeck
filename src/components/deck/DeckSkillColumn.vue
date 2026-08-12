@@ -336,8 +336,8 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                     <button
                       v-if="!skill.builtIn"
                       class="_button"
-                      :class="$style.iconBtn"
-                      title="アンインストール"
+                      :class="[$style.iconBtn, $style.iconBtnDanger]"
+                      title="ライブラリから削除 (本文も消えます)"
                       @click.stop="uninstall(skill)"
                     >
                       <i class="ti ti-trash" />
@@ -804,6 +804,14 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   &:hover {
     opacity: 1;
     background: var(--nd-buttonHoverBg);
+  }
+}
+
+// 本体削除 (ti-trash) 用。他の配布物カードと同じ hover で朱に寄る表現 (#1048)
+.iconBtnDanger {
+  &:hover {
+    color: var(--nd-love);
+    background: color-mix(in srgb, var(--nd-love) 14%, transparent);
   }
 }
 

@@ -301,13 +301,20 @@ function openNewPlugin() {
 }
 
 /**
- * カード trash = このカラムのスコープから外す (widgets の detach と同型)。
- * 本体はライブラリに残り、ピッカーから再追加/完全削除できる。
+ * カードの「外す」= このカラムのスコープから外す (widgets の detach と同型)。
+ * 本体はライブラリに残り、ピッカーから再追加/完全削除できる。可逆なので
+ * 確認は挟まず undo トーストで戻せるようにする (#1048)。
  */
 function detachFromScope(plugin: PluginMeta) {
   const scope = columnScope.value
   if (!scope) return
   pluginsStore.unlinkScope(plugin.installId, scope)
+  useToast().show('プラグインを外しました', 'info', {
+    action: {
+      label: '元に戻す',
+      onClick: () => pluginsStore.linkScope(plugin.installId, scope),
+    },
+  })
 }
 
 const detachTitle = computed(() =>
@@ -448,12 +455,12 @@ async function deleteFromLibrary(plugin: PluginMeta) {
               :category="storeByName.get(plugin.name)?.category"
               :category-label="storeByName.get(plugin.name)?.category ? PLUGIN_CATEGORY_LABELS[storeByName.get(plugin.name)!.category] : undefined"
               :active="plugin.active"
-              :uninstall-title="detachTitle"
+              :detach-title="detachTitle"
               :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
               :denied-badge="getPluginDenial(plugin.installId)"
               @click="openPluginDetail(plugin.installId)"
               @toggle="toggleActive(plugin)"
-              @uninstall="detachFromScope(plugin)"
+              @detach="detachFromScope(plugin)"
               @settings="openPluginDetail(plugin.installId)"
               @denied-click="openPermissionSettings()"
             />

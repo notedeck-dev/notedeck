@@ -26,9 +26,8 @@ const props = defineProps<{
   /** 非互換理由の短いラベル (要アップデート 等) */
   capabilityBadge?: string | null
   capabilityReason?: string | null
-  confirmingUninstall?: boolean
-  /** installed mode: trash ボタンの title (スコープ文脈で言い換える) */
-  uninstallTitle?: string
+  /** installed mode: 「外す」ボタンの title (スコープ文脈で言い換える) */
+  detachTitle?: string
   iconUrl?: string
   /**
    * 権限拒否バッジ (#712 §8.4)。plugin principal の permission_denied が
@@ -40,7 +39,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'click'): void
   (e: 'toggle'): void
-  (e: 'uninstall'): void
+  (e: 'detach'): void
   (e: 'install'): void
   (e: 'update'): void
   (e: 'settings'): void
@@ -125,13 +124,14 @@ const updateTitle = computed(() => {
         <div :class="$style.actions">
           <!-- Installed mode -->
           <template v-if="mode === 'installed'">
+            <!-- 可逆な「外す」なので ti-trash (= 本体削除) とは別アイコン (#1048) -->
             <button
               class="_button"
-              :class="[$style.iconBtn, confirmingUninstall && $style.iconBtnDanger]"
-              :title="confirmingUninstall ? 'もう一度クリックで実行' : (uninstallTitle ?? 'アンインストール')"
-              @click.stop="emit('uninstall')"
+              :class="$style.iconBtn"
+              :title="detachTitle ?? 'このカラムから外す'"
+              @click.stop="emit('detach')"
             >
-              <i class="ti ti-trash" />
+              <i class="ti ti-circle-minus" />
             </button>
             <button
               class="_button"
@@ -154,8 +154,8 @@ const updateTitle = computed(() => {
           <template v-else-if="mode === 'library'">
             <button
               class="_button"
-              :class="$style.iconBtn"
-              title="ライブラリから削除 (コードも消える)"
+              :class="[$style.iconBtn, $style.iconBtnDanger]"
+              title="ライブラリから削除 (コードも消えます)"
               @click.stop="emit('delete')"
             >
               <i class="ti ti-trash" />
@@ -456,13 +456,11 @@ const updateTitle = computed(() => {
   }
 }
 
+// 本体削除 (ti-trash) 用。WidgetCard / QueryCard と同じ hover で朱に寄る表現
 .iconBtnDanger {
-  opacity: 1;
-  color: var(--nd-love);
-  background: color-mix(in srgb, var(--nd-love) 14%, transparent);
-
   &:hover {
-    background: color-mix(in srgb, var(--nd-love) 22%, transparent);
+    color: var(--nd-love);
+    background: color-mix(in srgb, var(--nd-love) 14%, transparent);
   }
 }
 

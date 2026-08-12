@@ -185,7 +185,7 @@ function handlePrimaryClick() {
             <button
               class="_button"
               :class="[$style.iconBtn, $style.iconBtnDanger]"
-              title="削除"
+              title="ライブラリから削除 (本文も消えます)"
               @click.stop="emit('delete')"
             >
               <i class="ti ti-trash" />
