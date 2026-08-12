@@ -39,6 +39,7 @@ export type WindowType =
   | 'play-edit'
   | 'widget-edit'
   | 'skill-edit'
+  | 'edit-history'
   | 'connections'
   | 'connectionEdit'
   | 'tutorial'
@@ -97,6 +98,7 @@ export const useWindowsStore = defineStore('windows', () => {
     'play-edit': ['flashId', 'accountId'],
     'widget-edit': ['widgetId'],
     'skill-edit': ['skillId'],
+    'edit-history': ['kind', 'basename'],
     connectionEdit: ['connectionId'],
   }
 

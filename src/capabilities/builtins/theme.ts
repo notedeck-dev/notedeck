@@ -1,9 +1,16 @@
 import type { Command } from '@/commands/registry'
+import { themeFromSnapshot } from '@/services/editHistory'
+import {
+  mergeThemeUpdate,
+  serializeTheme,
+  type ThemeUpdatePatch,
+} from '@/services/selfEditApply'
 import { useAccountsStore } from '@/stores/accounts'
 import { useMisStoreStore } from '@/stores/misstore'
 import { useThemeStore } from '@/stores/theme'
 import type { MisskeyTheme } from '@/theme/types'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 interface ThemeSnapshot {
   id: string
@@ -268,23 +275,24 @@ export const themeUpdateCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['theme.write'],
-  requiresConfirmation: (params) => {
+  requiresConfirmation: (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const cur = useThemeStore().installedThemes.find((t) => t.id === id)
     if (!cur) return null
-    const newName =
-      typeof params?.name === 'string' && params.name.length > 0
-        ? params.name
-        : cur.name
-    const newBase =
-      params?.base === 'dark' || params?.base === 'light'
-        ? params.base
-        : (cur.base ?? 'dark')
-    const patch = isStringRecord(params?.props) ? params.props : null
+    const patch = themeUpdatePatch(params, cur)
+    const newName = patch.name ?? cur.name
+    const newBase = patch.base ?? cur.base ?? 'dark'
+    // patch だけでは変化量を判断できない (#981)。現在値とマージ後を並べる
+    const baseline = serializeTheme(mergeThemeUpdate(cur, {}))
+    const next = stageEdit(
+      ctx,
+      baseline,
+      serializeTheme(mergeThemeUpdate(cur, patch)),
+    )
     return {
       title: 'テーマを更新',
-      message: patch
-        ? `${cur.name} の ${Object.keys(patch).length} 個の CSS 変数を更新します。`
+      message: patch.props
+        ? `${cur.name} の ${Object.keys(patch.props).length} 個の CSS 変数を更新します。`
         : `${cur.name} のメタ情報を更新します。`,
       installPreview: {
         kind: 'theme',
@@ -292,8 +300,7 @@ export const themeUpdateCapability: Command = {
         version: id,
         description: `${newBase} テーマ`,
       },
-      code: patch ? JSON.stringify(patch, null, 2) : '',
-      codeLanguage: 'json',
+      diff: { old: baseline, new: next, language: 'json5' },
       okLabel: '更新',
       cancelLabel: 'やめる',
       type: 'warning',
@@ -325,7 +332,7 @@ export const themeUpdateCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('theme.update: id is required')
     const store = useThemeStore()
@@ -333,24 +340,14 @@ export const themeUpdateCapability: Command = {
     if (!current) {
       throw new Error(`theme.update: theme "${id}" is not installed`)
     }
-    const name =
-      typeof params?.name === 'string' && params.name.length > 0
-        ? params.name
-        : current.name
-    const baseRaw = typeof params?.base === 'string' ? params.base : ''
-    const base: 'dark' | 'light' =
-      baseRaw === 'dark' || baseRaw === 'light'
-        ? baseRaw
-        : (current.base ?? 'dark')
-    const propsPatch = isStringRecord(params?.props) ? params.props : null
-    const merged: MisskeyTheme = {
-      id,
-      name,
-      base,
-      props: propsPatch ? { ...current.props, ...propsPatch } : current.props,
-    }
-    if (current.$notedeck) merged.$notedeck = current.$notedeck
-    const updated = await store.installTheme(JSON.stringify(merged))
+    const patch = themeUpdatePatch(params, current)
+    const text = takeStagedEdit(
+      ctx,
+      'theme.update',
+      serializeTheme(mergeThemeUpdate(current, {})),
+      () => serializeTheme(mergeThemeUpdate(current, patch)),
+    )
+    const updated = await store.installTheme(text)
     return { id, updated }
   },
 }
@@ -361,6 +358,24 @@ function isStringRecord(v: unknown): v is Record<string, string> {
     if (typeof value !== 'string') return false
   }
   return true
+}
+
+/** `theme.update` の params を部分更新パッチへ正規化する。 */
+function themeUpdatePatch(
+  params: Record<string, unknown> | undefined,
+  current: MisskeyTheme,
+): ThemeUpdatePatch {
+  const patch: ThemeUpdatePatch = {}
+  if (typeof params?.name === 'string' && params.name.length > 0) {
+    patch.name = params.name
+  }
+  if (params?.base === 'dark' || params?.base === 'light') {
+    patch.base = params.base
+  } else if (current.base) {
+    patch.base = current.base
+  }
+  if (isStringRecord(params?.props)) patch.props = params.props
+  return patch
 }
 
 /** 履歴サイドカーのキーは対応表の fileBase (#913)。未割当なら id に落ちる。 */
@@ -405,7 +420,7 @@ export const themeRevertCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['theme.write'],
-  requiresConfirmation: async (params) => {
+  requiresConfirmation: async (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const index = typeof params?.index === 'number' ? params.index : -1
     if (!id || index < 0) return null
@@ -416,6 +431,13 @@ export const themeRevertCapability: Command = {
     )
     if (!entry) return null
     const snap = entry.snapshot
+    const cur = useThemeStore().installedThemes.find((t) => t.id === id)
+    const baseline = cur ? serializeTheme(mergeThemeUpdate(cur, {})) : ''
+    const next = stageEdit(
+      ctx,
+      baseline,
+      serializeTheme(themeFromSnapshot(snap)),
+    )
     return {
       title: 'テーマを過去の状態に戻す',
       message:
@@ -427,8 +449,7 @@ export const themeRevertCapability: Command = {
         version: snap.id,
         description: `${snap.base ?? 'dark'} テーマ / ${Object.keys(snap.props).length} 変数`,
       },
-      code: JSON.stringify(snap.props, null, 2),
-      codeLanguage: 'json',
+      diff: { old: baseline, new: next, language: 'json5' },
       okLabel: 'この状態に戻す',
       cancelLabel: 'やめる',
       type: 'warning',
@@ -446,7 +467,7 @@ export const themeRevertCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const index = typeof params?.index === 'number' ? params.index : -1
     if (!id) throw new Error('theme.revert: id is required')
@@ -459,14 +480,15 @@ export const themeRevertCapability: Command = {
     if (!entry) {
       throw new Error(`theme.revert: no snapshot at index ${index}`)
     }
-    const restored: MisskeyTheme = {
-      id: entry.snapshot.id,
-      name: entry.snapshot.name,
-      base: entry.snapshot.base,
-      props: entry.snapshot.props,
-    }
     const store = useThemeStore()
-    await store.installTheme(JSON.stringify(restored))
+    const cur = store.installedThemes.find((t) => t.id === id)
+    const text = takeStagedEdit(
+      ctx,
+      'theme.revert',
+      cur ? serializeTheme(mergeThemeUpdate(cur, {})) : '',
+      () => serializeTheme(themeFromSnapshot(entry.snapshot)),
+    )
+    await store.installTheme(text)
     return { id, reverted: true, at: entry.at }
   },
 }

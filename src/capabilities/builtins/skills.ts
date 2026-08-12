@@ -1,4 +1,5 @@
 import type { Command } from '@/commands/registry'
+import { appendBlock, replaceMarkdownSection } from '@/services/selfEditApply'
 import { useMisStoreStore } from '@/stores/misstore'
 import {
   generateSkillId,
@@ -6,6 +7,7 @@ import {
   useSkillsStore,
 } from '@/stores/skills'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 interface SkillSnapshot {
   body: string
@@ -270,11 +272,14 @@ export const skillsAppendCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['skills.write'],
-  requiresConfirmation: (params) => {
+  requiresConfirmation: (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const content = typeof params?.content === 'string' ? params.content : ''
     const cur = useSkillsStore().skills.find((s) => s.id === id)
     if (!cur) return null
+    // 追記断片ではなく適用後の全文を見せる (#981 確定 2)。どこに何が入るかは
+    // 既存本文と並べないと判断できない。
+    const next = stageEdit(ctx, cur.body, appendBlock(cur.body, content))
     return {
       title: 'スキル本文に追記',
       message:
@@ -286,8 +291,7 @@ export const skillsAppendCapability: Command = {
         version: cur.version,
         description: `${cur.mode} mode / ${cur.scope} scope`,
       },
-      code: content,
-      codeLanguage: 'markdown',
+      diff: { old: cur.body, new: next, language: 'markdown' },
       okLabel: '追記',
       cancelLabel: 'やめる',
       type: 'normal',
@@ -313,7 +317,7 @@ export const skillsAppendCapability: Command = {
     },
   },
   visible: false,
-  execute: (params) => {
+  execute: (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const content = typeof params?.content === 'string' ? params.content : ''
     if (!id) throw new Error('skills.append: id is required')
@@ -321,7 +325,9 @@ export const skillsAppendCapability: Command = {
     const store = useSkillsStore()
     const skill = store.skills.find((s) => s.id === id)
     if (!skill) throw new Error(`skills.append: skill "${id}" not found`)
-    const newBody = `${skill.body}${skill.body.endsWith('\n') ? '' : '\n'}${content}`
+    const newBody = takeStagedEdit(ctx, 'skills.append', skill.body, () =>
+      appendBlock(skill.body, content),
+    )
     store.update(id, { body: newBody })
     return { id, length: newBody.length }
   },
@@ -342,12 +348,18 @@ export const skillsReplaceSectionCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['skills.write'],
-  requiresConfirmation: (params) => {
+  requiresConfirmation: (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const heading = typeof params?.heading === 'string' ? params.heading : ''
     const content = typeof params?.content === 'string' ? params.content : ''
     const cur = useSkillsStore().skills.find((s) => s.id === id)
     if (!cur) return null
+    // 置換で消える旧セクションの本文は、全文 diff にしないと見えない (#981)
+    const next = stageEdit(
+      ctx,
+      cur.body,
+      replaceMarkdownSection(cur.body, heading, content).body,
+    )
     return {
       title: 'スキルのセクションを置換',
       message:
@@ -359,8 +371,7 @@ export const skillsReplaceSectionCapability: Command = {
         version: cur.version,
         description: `${cur.mode} mode / ${cur.scope} scope`,
       },
-      code: `## ${heading}\n\n${content}`,
-      codeLanguage: 'markdown',
+      diff: { old: cur.body, new: next, language: 'markdown' },
       okLabel: '置換',
       cancelLabel: 'やめる',
       type: 'warning',
@@ -387,7 +398,7 @@ export const skillsReplaceSectionCapability: Command = {
     },
   },
   visible: false,
-  execute: (params) => {
+  execute: (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const heading = typeof params?.heading === 'string' ? params.heading : ''
     const content = typeof params?.content === 'string' ? params.content : ''
@@ -398,13 +409,15 @@ export const skillsReplaceSectionCapability: Command = {
     if (!skill) {
       throw new Error(`skills.replaceSection: skill "${id}" not found`)
     }
-    const { body, replaced } = replaceMarkdownSection(
+    const computed = replaceMarkdownSection(skill.body, heading, content)
+    const body = takeStagedEdit(
+      ctx,
+      'skills.replaceSection',
       skill.body,
-      heading,
-      content,
+      () => computed.body,
     )
     store.update(id, { body })
-    return { id, replaced, length: body.length }
+    return { id, replaced: computed.replaced, length: body.length }
   },
 }
 
@@ -444,60 +457,6 @@ export const skillsToggleCapability: Command = {
     store.setActive(id, active)
     return { id, active }
   },
-}
-
-/**
- * `## <heading>` で始まるセクションを置換する。次に出現する `## ` / `# `
- * の直前までが置換対象。
- */
-export function replaceMarkdownSection(
-  body: string,
-  heading: string,
-  newContent: string,
-): { body: string; replaced: boolean } {
-  const lines = body.split('\n')
-  const headingPattern = new RegExp(
-    `^##\\s+${escapeRegExp(heading.trim())}\\s*$`,
-  )
-  let startIdx = -1
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] ?? ''
-    if (headingPattern.test(line)) {
-      startIdx = i
-      break
-    }
-  }
-
-  if (startIdx < 0) {
-    // 見つからない: 末尾に新規セクションを追加
-    const prefix = body.endsWith('\n') || body.length === 0 ? body : `${body}\n`
-    const sep = prefix.length === 0 ? '' : '\n'
-    return {
-      body: `${prefix}${sep}## ${heading}\n\n${newContent}`,
-      replaced: false,
-    }
-  }
-
-  let endIdx = lines.length
-  for (let i = startIdx + 1; i < lines.length; i++) {
-    const line = lines[i] ?? ''
-    if (/^#{1,2}\s/.test(line)) {
-      endIdx = i
-      break
-    }
-  }
-
-  const before = lines.slice(0, startIdx).join('\n')
-  const after = lines.slice(endIdx).join('\n')
-  const newSection = `## ${heading}\n\n${newContent}`
-  const joined = [before, newSection, after]
-    .filter((s, i) => i === 1 || s.length > 0)
-    .join('\n')
-  return { body: joined, replaced: true }
-}
-
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 export const skillsHistoryCapability: Command = {
@@ -542,7 +501,7 @@ export const skillsRevertCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['skills.write'],
-  requiresConfirmation: async (params) => {
+  requiresConfirmation: async (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const index = typeof params?.index === 'number' ? params.index : -1
     const cur = useSkillsStore().skills.find((s) => s.id === id)
@@ -550,6 +509,7 @@ export const skillsRevertCapability: Command = {
     const basename = cur.fileBase ?? (cur.name || cur.id)
     const entry = await getSnapshotAt<SkillSnapshot>('skill', basename, index)
     if (!entry) return null
+    const next = stageEdit(ctx, cur.body, entry.snapshot.body)
     return {
       title: 'スキルを過去の状態に戻す',
       message:
@@ -562,8 +522,7 @@ export const skillsRevertCapability: Command = {
         version: cur.version,
         description: `${cur.mode} mode / ${cur.scope} scope`,
       },
-      code: entry.snapshot.body,
-      codeLanguage: 'markdown',
+      diff: { old: cur.body, new: next, language: 'markdown' },
       okLabel: 'この状態に戻す',
       cancelLabel: 'やめる',
       type: 'warning',
@@ -585,7 +544,7 @@ export const skillsRevertCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const index = typeof params?.index === 'number' ? params.index : -1
     if (!id) throw new Error('skills.revert: id is required')
@@ -598,7 +557,13 @@ export const skillsRevertCapability: Command = {
     if (!entry) {
       throw new Error(`skills.revert: no snapshot at index ${index}`)
     }
-    store.update(id, { body: entry.snapshot.body })
+    const body = takeStagedEdit(
+      ctx,
+      'skills.revert',
+      skill.body,
+      () => entry.snapshot.body,
+    )
+    store.update(id, { body })
     return { id, reverted: true, at: entry.at }
   },
 }

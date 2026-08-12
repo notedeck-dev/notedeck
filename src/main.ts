@@ -77,6 +77,7 @@ const _idle =
 _idle(() => {
   import('katex/dist/katex.min.css')
   import('./assets/shiki-dark-plus.css')
+  import('./assets/shiki-light-plus.css')
 })
 
 const app = createApp(App)

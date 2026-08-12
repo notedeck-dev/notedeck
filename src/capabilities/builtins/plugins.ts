@@ -7,6 +7,7 @@ import type { Command } from '@/commands/registry'
 import { useMisStoreStore } from '@/stores/misstore'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { stageEdit, takeStagedEdit } from '../stagedEdit'
 import { preflightValidateSrc } from './aiscript'
 
 interface PluginSnapshot {
@@ -224,12 +225,13 @@ export const pluginsUpdateCapability: Command = {
   aiTool: true,
   permissions: ['plugins.write'],
   preflight: (params) => preflightValidateSrc(params, 'plugin'),
-  requiresConfirmation: (params) => {
+  requiresConfirmation: (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const src = typeof params?.src === 'string' ? params.src : ''
     const cur = usePluginsStore().getPlugin(installId)
     if (!cur) return null
+    stageEdit(ctx, cur.src, src)
     const newMeta = parsePluginMeta(src)
     return {
       title: 'プラグインを更新',
@@ -246,8 +248,7 @@ export const pluginsUpdateCapability: Command = {
         description: newMeta?.description ?? cur.description,
         permissions: newMeta?.permissions ?? cur.permissions ?? [],
       },
-      code: src,
-      codeLanguage: 'is',
+      diff: { old: cur.src, new: src, language: 'aiscript' },
       okLabel: '更新',
       cancelLabel: 'やめる',
       type: 'warning',
@@ -272,17 +273,19 @@ export const pluginsUpdateCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const src = typeof params?.src === 'string' ? params.src : ''
     if (!installId) throw new Error('plugins.update: installId is required')
     if (!src) throw new Error('plugins.update: src is required')
     const store = usePluginsStore()
-    if (!store.getPlugin(installId)) {
+    const cur = store.getPlugin(installId)
+    if (!cur) {
       throw new Error(`plugins.update: plugin "${installId}" not found`)
     }
-    store.updateSrc(installId, src)
+    const next = takeStagedEdit(ctx, 'plugins.update', cur.src, () => src)
+    store.updateSrc(installId, next)
     // アクティブなら UI の保存と同様に新 src で再起動する (#744)。
     // launchPlugin は内部で既存インスタンスを abort する。
     const updated = store.getPlugin(installId)
@@ -291,7 +294,7 @@ export const pluginsUpdateCapability: Command = {
       await launchPlugin(updated)
       relaunched = true
     }
-    return { installId, length: src.length, relaunched }
+    return { installId, length: next.length, relaunched }
   },
 }
 
@@ -477,7 +480,7 @@ export const pluginsRevertCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['plugins.write'],
-  requiresConfirmation: async (params) => {
+  requiresConfirmation: async (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const index = typeof params?.index === 'number' ? params.index : -1
@@ -487,6 +490,7 @@ export const pluginsRevertCapability: Command = {
     const entry = await getSnapshotAt<PluginSnapshot>('plugin', basename, index)
     if (!entry) return null
     const snap = entry.snapshot
+    const next = stageEdit(ctx, cur.src, snap.src)
     return {
       title: 'プラグインを過去の状態に戻す',
       message:
@@ -500,8 +504,7 @@ export const pluginsRevertCapability: Command = {
         description: cur.description,
         permissions: snap.permissions ?? cur.permissions ?? [],
       },
-      code: snap.src,
-      codeLanguage: 'is',
+      diff: { old: cur.src, new: next, language: 'aiscript' },
       okLabel: 'この状態に戻す',
       cancelLabel: 'やめる',
       type: 'warning',
@@ -522,7 +525,7 @@ export const pluginsRevertCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const index = typeof params?.index === 'number' ? params.index : -1
@@ -538,7 +541,13 @@ export const pluginsRevertCapability: Command = {
     if (!entry) {
       throw new Error(`plugins.revert: no snapshot at index ${index}`)
     }
-    store.updateSrc(installId, entry.snapshot.src)
+    const next = takeStagedEdit(
+      ctx,
+      'plugins.revert',
+      plugin.src,
+      () => entry.snapshot.src,
+    )
+    store.updateSrc(installId, next)
     return { installId, reverted: true, at: entry.at }
   },
 }

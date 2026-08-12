@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CapabilityContext } from '@/capabilities/types'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 
 // unit プロジェクトは node 環境のため localStorage を stub する (deck.test.ts と同じ)
@@ -212,6 +213,33 @@ describe('widgets.update — 表示中なら再実行を要求する (#744)', ()
     expect(r.rerunning).toBe(true)
     expect(store.rerunSignal(widget.installId)).toBe(1)
     expect(store.getWidget(widget.installId)?.src).toBe('let y = 2')
+  })
+
+  it('確認は旧 src と新 src の全文 diff を見せる (#981)', async () => {
+    if (typeof widgetsUpdateCapability.requiresConfirmation !== 'function') {
+      throw new Error('requiresConfirmation must be a function')
+    }
+    // 他テストと installId を共有すると localStorage ミラー経由で src を
+    // 引き継いでしまうため、diff 検証は専用 id で作る
+    useWidgetsStore().addWidget({
+      installId: 'w-diff-1',
+      name: 'diff-widget',
+      src: 'let x = 1',
+      autoRun: false,
+      createdAt: 0,
+      updatedAt: 0,
+    })
+    const ctx: CapabilityContext = {}
+    const opts = await widgetsUpdateCapability.requiresConfirmation(
+      { installId: 'w-diff-1', src: 'let y = 2' },
+      ctx,
+    )
+    expect(opts?.diff).toEqual({
+      old: 'let x = 1',
+      new: 'let y = 2',
+      language: 'aiscript',
+    })
+    expect(ctx.stagedEdit).toEqual({ baseline: 'let x = 1', next: 'let y = 2' })
   })
 
   it('確認ダイアログは表示中のときのみ再実行を予告する', async () => {

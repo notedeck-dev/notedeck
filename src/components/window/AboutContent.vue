@@ -10,7 +10,7 @@ import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
-import { highlightCode, highlighterLoaded } from '@/utils/highlight'
+import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
@@ -556,7 +556,7 @@ function reportBug() {
         <!-- 問題のある行だけを log 言語でシンタックスハイライト (正常時は非表示) -->
         <div
           v-else-if="diagnosticsLog"
-          :key="`diag-${highlighterLoaded}`"
+          :key="`diag-${highlightRevision}`"
           :class="$style.logBlock"
           v-html="highlightCode(diagnosticsLog, 'log')"
         />
@@ -1108,12 +1108,14 @@ function reportBug() {
   border: 1px solid var(--nd-panelBorder);
   overflow: hidden;
 
+  // 面はハイライトの有無とテーマに関係なく揃える (トークン色がダーク固定)
   :global(pre) {
     margin: 0;
     padding: 8px 10px;
     max-height: 200px;
     overflow: auto;
-    background: var(--nd-codeBg, var(--nd-panelHighlight));
+    background: var(--nd-codeEditorBg);
+    color: var(--nd-codeEditorFg);
     scrollbar-width: thin;
   }
 

@@ -18,7 +18,9 @@ import type { EditorAction } from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
+import { openEditHistoryWindow } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { isExposed } from '@/settings/exposure'
 import { useConfirm } from '@/stores/confirm'
@@ -349,6 +351,10 @@ const barActions = computed<EditorAction[]>(() => {
       icon: 'clipboard-copy',
     },
   ]
+  // 履歴は開発者向けの面 (#1034)。入口だけ隠す
+  if (editingThemeId.value && isExposed('developer')) {
+    list.push({ key: 'history', label: '履歴', icon: 'history' })
+  }
   if (hasChangesFromSnapshot.value) {
     list.push({ key: 'reset', icon: 'arrow-back-up', title: '元に戻す' })
   }
@@ -365,8 +371,24 @@ const barPrimary = computed<EditorAction>(() => ({
   icon: installedMessage.value ? 'check' : 'device-floppy',
 }))
 
+/** AI が過去に何を変えたかを diff で追う (#981)。編集中のテーマが対象。 */
+function openHistory() {
+  const id = editingThemeId.value
+  const theme = id
+    ? themeStore.installedThemes.find((t) => t.id === id)
+    : undefined
+  if (!theme) return
+  openEditHistoryWindow({
+    kind: 'theme',
+    basename: theme.fileBase ?? theme.id,
+    itemId: theme.id,
+    name: theme.name,
+  })
+}
+
 function onBarAction(key: string) {
-  if (key === 'install') installTheme()
+  if (key === 'history') openHistory()
+  else if (key === 'install') installTheme()
   else if (key === 'import') importTheme()
   else if (key === 'export') exportTheme()
   else if (key === 'reset') resetToSnapshot()
@@ -421,6 +443,44 @@ function loadFromInstalled(theme: MisskeyTheme) {
   editingThemeId.value = theme.id
   saveSnapshot()
 }
+
+/**
+ * 外部からの変更 (履歴からの revert / AI の theme.update) を編集中の値へ
+ * 取り込む。未保存の変更があるときはユーザーの編集を優先する。
+ */
+/**
+ * 外部からの変更 (履歴からの revert / AI の theme.update) を編集中の値へ
+ * 取り込む。規則は useExternalEditSync 側にある。
+ *
+ * テーマはオブジェクトのまま比べると保存のたびに参照が変わるので、
+ * 見た目に効く部分のキーで同一性を見る。
+ */
+function editingThemeOf(): MisskeyTheme | undefined {
+  return editingThemeId.value
+    ? themeStore.installedThemes.find((t) => t.id === editingThemeId.value)
+    : undefined
+}
+
+function themeKey(theme: MisskeyTheme | undefined): string {
+  return theme ? JSON.stringify([theme.name, theme.base, theme.props]) : ''
+}
+
+let lastSyncedThemeKey = ''
+useExternalEditSync<string>({
+  source: () => {
+    const theme = editingThemeOf()
+    return theme ? themeKey(theme) : undefined
+  },
+  current: () => lastSyncedThemeKey,
+  isDirty: () => hasChangesFromSnapshot.value,
+  apply: (key) => {
+    lastSyncedThemeKey = key
+    const theme = editingThemeOf()
+    if (!theme) return
+    loadFromInstalled(theme)
+    if (tab.value === 'code') syncCodeFromVisual()
+  },
+})
 
 // Delete installed theme
 // 他の配布物 (skill / widget / plugin / query) と同じく confirm → 元に戻せる

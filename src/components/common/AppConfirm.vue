@@ -6,7 +6,7 @@ import SystemIcon from '@/components/common/SystemIcon.vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { type ConfirmIcon, useConfirm } from '@/stores/confirm'
-import { highlightCode, highlighterLoaded } from '@/utils/highlight'
+import { highlightCode, highlightRevision } from '@/utils/highlight'
 
 const INSTALL_PREVIEW_ICON = {
   plugin: 'ti-puzzle',
@@ -135,7 +135,7 @@ useNativeDialog(dialogRef, visible, {
           </div>
           <div
             v-else-if="options.code"
-            :key="`code-${highlighterLoaded}`"
+            :key="`code-${highlightRevision}`"
             :class="$style.codeBlock"
             v-html="highlightCode(options.code, options.codeLanguage ?? 'json')"
           />
@@ -359,10 +359,12 @@ useNativeDialog(dialogRef, visible, {
   border-radius: 6px;
   overflow: hidden;
 
+  // 面はハイライトの有無とテーマに関係なく揃える (トークン色がダーク固定)
   :global(pre) {
     margin: 0;
     padding: 10px 12px;
-    background: var(--nd-codeBg, var(--nd-panelHighlight));
+    background: var(--nd-codeEditorBg);
+    color: var(--nd-codeEditorFg);
     overflow-x: auto;
     scrollbar-width: thin;
   }

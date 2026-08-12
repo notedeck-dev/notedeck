@@ -11,7 +11,12 @@ import type { EditorAction } from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
+import {
+  historyBasename,
+  openEditHistoryWindow,
+} from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { isExposed } from '@/settings/exposure'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
@@ -143,6 +148,20 @@ watch(tab, (t) => {
     editingCode.value = plugin.value.src
     codeModified.value = false
   }
+})
+
+/**
+ * 外部からの src 変更 (履歴からの revert / AI 編集 / 外部エディタ) を編集
+ * バッファへ取り込む。規則は useExternalEditSync 側にある。
+ */
+useExternalEditSync<string>({
+  source: () => plugin.value?.src,
+  current: () => editingCode.value,
+  isDirty: () => codeModified.value,
+  apply: (src) => {
+    editingCode.value = src
+    codeModified.value = false
+  },
 })
 
 async function saveCode() {
@@ -307,8 +326,24 @@ const barActions = computed<EditorAction[]>(() => {
       label: copiedMessage.value ? 'コピー済み' : 'エクスポート',
       icon: 'clipboard-copy',
     },
+    // 履歴は開発者向けの面 (#1034)。入口だけ隠す
+    ...(isExposed('developer')
+      ? [{ key: 'history', label: '履歴', icon: 'history' }]
+      : []),
   ]
 })
+
+/** AI が過去に何を変えたかを diff で追う (#981)。 */
+function openHistory() {
+  const p = plugin.value
+  if (!p) return
+  openEditHistoryWindow({
+    kind: 'plugin',
+    basename: historyBasename(p.fileBase, p.name, p.installId),
+    itemId: p.installId,
+    name: p.name,
+  })
+}
 
 const barPrimary = computed<EditorAction | null>(() => {
   if (!plugin.value) {
@@ -328,6 +363,7 @@ function onBarAction(key: string) {
   else if (key === 'install') doInstall()
   else if (key === 'import') importPlugin()
   else if (key === 'export') exportPlugin()
+  else if (key === 'history') openHistory()
 }
 
 async function importPlugin() {

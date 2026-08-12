@@ -574,11 +574,12 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const now = Date.now()
 
       if (existing) {
-        // 上書き更新: 本体とストア由来メタのみ。ローカル ID・name・mode・
-        // scope/installedFor・有効/無効 (activeIds) は維持する
-        skillsStore.update(
-          existing.id,
-          buildSkillStorePatch(meta, body, e, hash),
+        // 再インストール = 実質更新。ローカル編集を無言で消さないため
+        // 更新導線と同じ diff 確認を通す (#981)
+        await confirmSkillUpdate(
+          existing,
+          { source, hash, entry: e },
+          { alwaysConfirm: false },
         )
         return
       }
@@ -677,14 +678,12 @@ export const useMisStoreStore = defineStore('misstore', () => {
       queriesStore.ensureLoaded()
       const existing = queriesStore.queries.find((q) => q.storeId === e.id)
       if (existing) {
-        // 上書き更新: 本体とストア由来メタのみ。ローカル改名 (name) は維持
-        await queriesStore.applyStoreUpdate(existing.id, {
-          src: source,
-          description: e.description,
-          iconUrl: e.iconUrl,
-          storeSha512: hash,
-          storeVersion: e.version,
-        })
+        // 再インストール = 実質更新。ローカル編集を無言で消さない (#981)
+        await confirmQueryUpdate(
+          existing,
+          { source, hash, entry: e },
+          { alwaysConfirm: false },
+        )
       } else {
         await queriesStore.createQuery({
           // 新規インストールのローカル ID = storeId (#913)。衝突時のみ suffix
@@ -824,13 +823,13 @@ export const useMisStoreStore = defineStore('misstore', () => {
         entry: e,
       } = await fetchVerifiedSource(entry, refetchWidgetEntry(entry.id))
       if (existing) {
-        const updated = widgetsStore.applyStoreUpdate(existing.installId, {
-          src,
-          iconUrl: e.iconUrl,
-          storeSha512: hash,
-          storeVersion: e.version,
-        })
-        return updated ?? existing
+        // 再インストール = 実質更新。ローカル編集を無言で消さない (#981)
+        const applied = await confirmWidgetUpdate(
+          existing,
+          { source: src, hash, entry: e },
+          { alwaysConfirm: false },
+        )
+        return applied || existing
       }
 
       const now = Date.now()
@@ -890,14 +889,24 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const existing = themeStore.installedThemes.find(
         (t) => t.$notedeck?.storeId === e.id,
       )
+      if (existing) {
+        // 再インストール = 実質更新。ローカル編集を無言で消さない (#981)
+        await confirmThemeUpdate(
+          existing,
+          { parsed, hash, entry: e },
+          forAccountIds,
+          { alwaysConfirm: false },
+        )
+        return
+      }
+
       const withMeta = buildThemeWithMeta(
         parsed,
-        existing,
+        undefined,
         e,
         hash,
         forAccountIds,
       )
-
       const ok = await themeStore.installTheme(JSON.stringify(withMeta))
       if (!ok) {
         throw new Error('テーマのインストールに失敗しました')
@@ -969,17 +978,17 @@ export const useMisStoreStore = defineStore('misstore', () => {
   // 意味そのもの (#981 不変条件)。未インストール (既存なし) は install* の担当で
   // false を返す。戻り値は「適用したか」(キャンセル / 未インストールで false)。
 
-  async function updateWidget(entry: StoreWidgetEntry): Promise<boolean> {
-    const widgetsStore = useWidgetsStore()
-    const existing = widgetsStore.widgets.find((w) => w.storeId === entry.id)
-    if (!existing) return false
-    installingWidget.value = entry.id
-    try {
-      const {
-        source,
-        hash,
-        entry: e,
-      } = await fetchVerifiedSource(entry, refetchWidgetEntry(entry.id))
+  /**
+   * 取得済みソースを既存ウィジェットへ適用する (#1040 / #981)。
+   * installWidget の既存分岐と updateWidget の共用点 (confirmSkillUpdate と同型)。
+   */
+  async function confirmWidgetUpdate(
+    existing: WidgetMeta,
+    fetched: { source: string; hash: string; entry: StoreWidgetEntry },
+    opts: { alwaysConfirm: boolean },
+  ): Promise<WidgetMeta | undefined | false> {
+    const { source, hash, entry: e } = fetched
+    if (opts.alwaysConfirm || source !== existing.src) {
       const ok = await useConfirm().confirm({
         title: 'ウィジェットを更新',
         message: updateConfirmMessage(existing.name || e.name, e),
@@ -987,13 +996,29 @@ export const useMisStoreStore = defineStore('misstore', () => {
         diff: { old: existing.src, new: source, language: 'aiscript' },
       })
       if (!ok) return false
-      widgetsStore.applyStoreUpdate(existing.installId, {
-        src: source,
-        iconUrl: e.iconUrl,
-        storeSha512: hash,
-        storeVersion: e.version,
+    }
+    return useWidgetsStore().applyStoreUpdate(existing.installId, {
+      src: source,
+      iconUrl: e.iconUrl,
+      storeSha512: hash,
+      storeVersion: e.version,
+    })
+  }
+
+  async function updateWidget(entry: StoreWidgetEntry): Promise<boolean> {
+    const widgetsStore = useWidgetsStore()
+    const existing = widgetsStore.widgets.find((w) => w.storeId === entry.id)
+    if (!existing) return false
+    installingWidget.value = entry.id
+    try {
+      const fetched = await fetchVerifiedSource(
+        entry,
+        refetchWidgetEntry(entry.id),
+      )
+      const applied = await confirmWidgetUpdate(existing, fetched, {
+        alwaysConfirm: true,
       })
-      return true
+      return applied !== false
     } finally {
       installingWidget.value = null
     }
@@ -1070,18 +1095,24 @@ export const useMisStoreStore = defineStore('misstore', () => {
     }
   }
 
-  async function updateSkill(entry: StoreSkillEntry): Promise<boolean> {
-    const skillsStore = useSkillsStore()
-    const existing = skillsStore.skills.find((s) => s.storeId === entry.id)
-    if (!existing) return false
-    installingSkill.value = entry.id
-    try {
-      const {
-        source,
-        hash,
-        entry: e,
-      } = await fetchVerifiedSource(entry, refetchSkillEntry(entry.id))
-      const { meta, body } = parseSkillFile(source)
+  /**
+   * 取得済みソースを既存スキルへ適用する (#1040 / #981)。
+   * installSkill の既存分岐と updateSkill の共用点。
+   *
+   * 再インストールも本体を書き換える = ローカル編集が消えるので、本文が
+   * 変わるなら更新導線と同じ diff 確認を通す。`alwaysConfirm` = 更新操作
+   * (差分の確認自体が目的) は本文が同じでも確認する。
+   *
+   * @returns 適用したら true / ユーザーが拒否したら false
+   */
+  async function confirmSkillUpdate(
+    existing: SkillMeta,
+    fetched: { source: string; hash: string; entry: StoreSkillEntry },
+    opts: { alwaysConfirm: boolean },
+  ): Promise<boolean> {
+    const { source, hash, entry: e } = fetched
+    const { meta, body } = parseSkillFile(source)
+    if (opts.alwaysConfirm || body !== existing.body) {
       const ok = await useConfirm().confirm({
         title: 'スキルを更新',
         message: updateConfirmMessage(existing.name || e.name, e),
@@ -1091,11 +1122,62 @@ export const useMisStoreStore = defineStore('misstore', () => {
         diff: { old: existing.body, new: body, language: 'markdown' },
       })
       if (!ok) return false
-      skillsStore.update(existing.id, buildSkillStorePatch(meta, body, e, hash))
-      return true
+    }
+    // 上書き更新: 本体とストア由来メタのみ。ローカル ID・name・mode・
+    // scope/installedFor・有効/無効 (activeIds) は維持する
+    useSkillsStore().update(
+      existing.id,
+      buildSkillStorePatch(meta, body, e, hash),
+    )
+    return true
+  }
+
+  async function updateSkill(entry: StoreSkillEntry): Promise<boolean> {
+    const skillsStore = useSkillsStore()
+    const existing = skillsStore.skills.find((s) => s.storeId === entry.id)
+    if (!existing) return false
+    installingSkill.value = entry.id
+    try {
+      const fetched = await fetchVerifiedSource(
+        entry,
+        refetchSkillEntry(entry.id),
+      )
+      return await confirmSkillUpdate(existing, fetched, {
+        alwaysConfirm: true,
+      })
     } finally {
       installingSkill.value = null
     }
+  }
+
+  /**
+   * 取得済みソースを既存クエリへ適用する (#1040 / #981)。
+   * installQuery の既存分岐と updateQuery の共用点 (confirmSkillUpdate と同型)。
+   */
+  async function confirmQueryUpdate(
+    existing: { id: string; name?: string; src: string },
+    fetched: { source: string; hash: string; entry: StoreQueryEntry },
+    opts: { alwaysConfirm: boolean },
+  ): Promise<boolean> {
+    const { source, hash, entry: e } = fetched
+    if (opts.alwaysConfirm || source !== existing.src) {
+      const ok = await useConfirm().confirm({
+        title: 'クエリを更新',
+        message: updateConfirmMessage(existing.name || e.name, e),
+        okLabel: '更新',
+        diff: { old: existing.src, new: source, language: 'aiscript' },
+      })
+      if (!ok) return false
+    }
+    // 上書き更新: 本体とストア由来メタのみ。ローカル改名 (name) は維持
+    await useColumnQueriesStore().applyStoreUpdate(existing.id, {
+      src: source,
+      description: e.description,
+      iconUrl: e.iconUrl,
+      storeSha512: hash,
+      storeVersion: e.version,
+    })
+    return true
   }
 
   async function updateQuery(entry: StoreQueryEntry): Promise<boolean> {
@@ -1105,29 +1187,68 @@ export const useMisStoreStore = defineStore('misstore', () => {
     if (!existing) return false
     installingQuery.value = entry.id
     try {
-      const {
-        source,
-        hash,
-        entry: e,
-      } = await fetchVerifiedSource(entry, refetchQueryEntry(entry.id))
-      const ok = await useConfirm().confirm({
-        title: 'クエリを更新',
-        message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: '更新',
-        diff: { old: existing.src, new: source, language: 'aiscript' },
+      const fetched = await fetchVerifiedSource(
+        entry,
+        refetchQueryEntry(entry.id),
+      )
+      return await confirmQueryUpdate(existing, fetched, {
+        alwaysConfirm: true,
       })
-      if (!ok) return false
-      await queriesStore.applyStoreUpdate(existing.id, {
-        src: source,
-        description: e.description,
-        iconUrl: e.iconUrl,
-        storeSha512: hash,
-        storeVersion: e.version,
-      })
-      return true
     } finally {
       installingQuery.value = null
     }
+  }
+
+  /** テーマの「見た目に効く部分」だけの同一性キー (メタの差は無視する)。 */
+  function themeBodyKey(theme: Record<string, unknown> | MisskeyTheme): string {
+    const t = theme as Record<string, unknown>
+    return JSON.stringify([t.name, t.base, t.props])
+  }
+
+  /**
+   * 取得済みソースを既存テーマへ適用する (#1040 / #981)。
+   * installTheme の既存分岐と updateTheme の共用点 (confirmSkillUpdate と同型)。
+   */
+  async function confirmThemeUpdate(
+    existing: MisskeyTheme,
+    fetched: {
+      parsed: Record<string, unknown>
+      hash: string
+      entry: StoreThemeEntry
+    },
+    forAccountIds: string[],
+    opts: { alwaysConfirm: boolean },
+  ): Promise<boolean> {
+    const { parsed, hash, entry: e } = fetched
+    const withMeta = buildThemeWithMeta(
+      parsed,
+      existing,
+      e,
+      hash,
+      forAccountIds,
+    )
+    // fileBase は runtime-only (書込前に strip される) なので diff に出さない
+    const { fileBase: _fileBase, ...currentTheme } = existing
+    const newJson = JSON.stringify(withMeta, null, 2)
+    const currentJson = JSON.stringify(currentTheme, null, 2)
+    // 見た目が変わらない再インストール (別アカウントへの installedFor 追加
+    // だけ) で確認を出さない。判定は表示に効く部分のみ
+    const changed = themeBodyKey(withMeta) !== themeBodyKey(currentTheme)
+    if (opts.alwaysConfirm || changed) {
+      const ok = await useConfirm().confirm({
+        title: 'テーマを更新',
+        message: updateConfirmMessage(existing.name || e.name, e),
+        okLabel: '更新',
+        diff: { old: currentJson, new: newJson, language: 'json5' },
+      })
+      if (!ok) return false
+    }
+    // 不変条件: 確認に使った全文をそのまま書き込む (#981)
+    const applied = await useThemeStore().installTheme(newJson)
+    if (!applied) {
+      throw new Error('テーマのインストールに失敗しました')
+    }
+    return true
   }
 
   async function updateTheme(
@@ -1148,33 +1269,12 @@ export const useMisStoreStore = defineStore('misstore', () => {
       } = await fetchVerifiedSource(entry, refetchThemeEntry(entry.id))
       const JSON5 = (await import('json5')).default
       const parsed = JSON5.parse(source)
-      const withMeta = buildThemeWithMeta(
-        parsed,
+      return await confirmThemeUpdate(
         existing,
-        e,
-        hash,
+        { parsed, hash, entry: e },
         forAccountIds,
+        { alwaysConfirm: true },
       )
-      // fileBase は runtime-only (書込前に strip される) なので diff に出さない
-      const { fileBase: _fileBase, ...currentTheme } = existing
-      const newJson = JSON.stringify(withMeta, null, 2)
-      const ok = await useConfirm().confirm({
-        title: 'テーマを更新',
-        message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: '更新',
-        diff: {
-          old: JSON.stringify(currentTheme, null, 2),
-          new: newJson,
-          language: 'json5',
-        },
-      })
-      if (!ok) return false
-      // 不変条件: 確認に使った全文をそのまま書き込む (#981)
-      const applied = await themeStore.installTheme(newJson)
-      if (!applied) {
-        throw new Error('テーマのインストールに失敗しました')
-      }
-      return true
     } finally {
       installingTheme.value = null
     }

@@ -29,12 +29,21 @@ import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
 import AiScriptUiRenderer, {
   type PostFormRequest,
 } from '@/components/deck/widgets/AiScriptUiRenderer.vue'
-import type { EditorActionStatus } from '@/components/window/EditorActionBar.vue'
+import type {
+  EditorAction,
+  EditorActionStatus,
+} from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
+import {
+  historyBasename,
+  openEditHistoryWindow,
+} from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { providerFromPrincipal } from '@/plugins/registrationId'
+import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
@@ -97,6 +106,7 @@ function flushPendingSave() {
 }
 watch(code, (val) => {
   if (!widget.value) return
+  if (isSyncing()) return
   dirty.value = true
   saved.value = false
   if (saveTimer) clearTimeout(saveTimer)
@@ -108,9 +118,42 @@ watch(code, (val) => {
 onBeforeUnmount(flushPendingSave)
 
 /**
+ * 外部からの src 変更 (履歴からの revert / AI 編集 / 外部エディタ) を編集
+ * バッファへ取り込む。無いと表示が開いた瞬間のままで、次の打鍵で古い内容が
+ * 書き戻される。規則は useExternalEditSync 側にある。
+ */
+const { isSyncing } = useExternalEditSync<string>({
+  source: () => widget.value?.src,
+  current: () => code.value,
+  isDirty: () => dirty.value,
+  apply: (src) => {
+    code.value = src
+  },
+})
+
+/**
  * 自動保存の状態。デバウンス保存なので「いま保存されているか」が
  * 見えないと不安になる。明示保存ボタンは同じバーの右端に置く。
  */
+/** AI が過去に何を変えたかを diff で追う (#981)。 */
+function openHistory() {
+  const w = widget.value
+  if (!w) return
+  openEditHistoryWindow({
+    kind: 'widget',
+    basename: historyBasename(w.fileBase, w.name, w.installId),
+    itemId: w.installId,
+    name: w.name,
+  })
+}
+
+// 履歴は開発者向けの面 (#1034)。入口だけ隠す
+const historyActions = computed<EditorAction[]>(() =>
+  isExposed('developer')
+    ? [{ key: 'history', label: '履歴', icon: 'history' }]
+    : [],
+)
+
 const barStatus = computed<EditorActionStatus | null>(() => {
   if (saved.value) return { text: '保存しました', icon: 'check', tone: 'ok' }
   if (dirty.value) return { text: '未保存の変更', icon: 'pencil' }
@@ -399,13 +442,14 @@ function toggleAutoRun() {
     <EditorActionBar
       v-if="widget"
       :status="barStatus"
+      :actions="historyActions"
       :primary="{
         key: 'save',
         label: '保存',
         icon: 'device-floppy',
         disabled: !dirty,
       }"
-      @action="flushPendingSave"
+      @action="(key) => (key === 'history' ? openHistory() : flushPendingSave())"
     />
 
     <div v-if="showPostForm && activeAccountId" ref="postFormPortalRef">

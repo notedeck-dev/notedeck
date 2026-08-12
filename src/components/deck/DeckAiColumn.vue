@@ -40,7 +40,7 @@ import {
   isTimestampTitle,
   timestampTitle,
 } from '@/utils/aiSessionTitle'
-import { highlightCode, highlighterLoaded } from '@/utils/highlight'
+import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { resolveIdentity } from '@/utils/identity'
 import { isImeComposing } from '@/utils/ime'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
@@ -801,10 +801,13 @@ function onAssistantContentClick(e: MouseEvent) {
   navigator.clipboard
     .writeText(text)
     .then(() => {
-      const original = btn.textContent
-      btn.textContent = 'コピー済み'
+      // 表示はメッセージ単位のコピーボタンと同じアイコン切替に揃える
+      const icon = btn.querySelector('i')
+      if (icon) icon.className = 'ti ti-check'
+      btn.title = 'コピーしました'
       window.setTimeout(() => {
-        btn.textContent = original
+        if (icon) icon.className = 'ti ti-copy'
+        btn.title = 'コピー'
       }, 1500)
     })
     .catch((err) => {
@@ -1030,7 +1033,7 @@ function onKeydown(e: KeyboardEvent) {
             <div v-if="msg.content" :class="$style.toolEventCommentary">{{ msg.content }}</div>
             <div
               v-if="expandedToolDetails[msg.id]"
-              :key="`tool-input-${msg.id}-${highlighterLoaded}`"
+              :key="`tool-input-${msg.id}-${highlightRevision}`"
               :class="$style.toolEventBody"
               v-html="highlightCode(formatToolInput(msg.toolUseInput), 'json')"
             />
@@ -1061,7 +1064,7 @@ function onKeydown(e: KeyboardEvent) {
             <template v-if="expandedToolDetails[msg.id]">
               <div
                 v-if="looksLikeJson(msg.content)"
-                :key="`tool-result-${msg.id}-${highlighterLoaded}`"
+                :key="`tool-result-${msg.id}-${highlightRevision}`"
                 :class="$style.toolEventBody"
                 v-html="highlightCode(msg.content, 'json')"
               />
@@ -1095,6 +1098,7 @@ function onKeydown(e: KeyboardEvent) {
                 </div>
                 <div
                   v-else-if="msg.role === 'assistant'"
+                  :key="`md-${msg.id}-${highlightRevision}`"
                   :class="$style.markdownContent"
                   v-html="renderAssistant(msg.content)"
                   @click="onAssistantContentClick"
@@ -1629,7 +1633,9 @@ function onKeydown(e: KeyboardEvent) {
   margin: 0;
   padding: 8px;
   border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
+  // 面はハイライトの有無とテーマに関係なく揃える (トークン色がダーク固定)
+  background: var(--nd-codeEditorBg);
+  color: var(--nd-codeEditorFg);
   font-family: var(--nd-font-mono);
   font-size: 0.9em;
   line-height: 1.45;
@@ -1640,8 +1646,7 @@ function onKeydown(e: KeyboardEvent) {
 
   // shiki が <pre class="shiki"><code>...</code></pre> を埋め込むので、
   // 内側 pre の browser default margin / padding を打ち消して toolEventBody の
-  // padding にだけ依存させる。background は親 (toolEventBody) の var(--nd-bg) を
-  // そのまま使うため透過に。
+  // padding にだけ依存させる。background は親のコード面をそのまま使うため透過に。
   :global(pre.shiki) {
     margin: 0;
     padding: 0;
@@ -1663,23 +1668,51 @@ function onKeydown(e: KeyboardEvent) {
   :global(p + p) {
     margin-top: 0.4em;
   }
+  // コードブロックの面はハイライトの有無とテーマに関係なく揃える。
+  // トークン色が dark-plus 準拠でダーク固定なので、面だけ明るいと潰れる
   :global(pre) {
     position: relative;
     margin: 0.5em 0;
     padding: 8px 10px;
     padding-right: 28px;
-    background: var(--nd-base);
+    background: var(--nd-codeEditorBg);
+    color: var(--nd-codeEditorFg);
     border-radius: var(--nd-radius-sm);
     overflow-x: auto;
     font-size: 0.85em;
   }
+  // ブロック内の code は面を持たない (インライン code の装飾を打ち消す)
   :global(pre code) {
+    padding: 0;
+    background: transparent;
+    color: inherit;
     font-family: var(--nd-font-mono);
+  }
+  // diff フェンスは確認ダイアログの diff と同じ色トークンで行を塗る
+  // (Shiki の淡い前景色 1 色では吹き出しの中で増減が読み取れない)
+  :global(.nd-md-diff-line) {
+    display: block;
+    // 空行が潰れないように 1 行分の高さを保証する
+    min-height: 1.45em;
+    margin: 0 -10px;
+    padding: 0 10px;
+  }
+  :global(.nd-md-diff-add) {
+    background: var(--nd-diffInsertBg);
+  }
+  :global(.nd-md-diff-del) {
+    background: var(--nd-diffDeleteBg);
+  }
+  :global(.nd-md-diff-meta) {
+    opacity: 0.6;
   }
   :global(pre button[data-md-copy]) {
     position: absolute;
     top: 4px;
     right: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 22px;
     height: 22px;
     border: none;
@@ -1688,7 +1721,7 @@ function onKeydown(e: KeyboardEvent) {
     opacity: 0.3;
     border-radius: var(--nd-radius-sm);
     cursor: pointer;
-    font-size: 0.7em;
+    font-size: 13px;
   }
   :global(pre:hover button[data-md-copy]) {
     opacity: 0.7;

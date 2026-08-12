@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { launchPlugin } from '@/aiscript/plugin-api'
+import type { CapabilityContext } from '@/capabilities/types'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import {
   PLUGINS_BUILTIN_CAPABILITIES,
@@ -295,6 +296,53 @@ describe('plugins.update — アクティブなら再起動する (#744)', () =>
     const arg = vi.mocked(launchPlugin).mock.calls[0]?.[0]
     expect(arg?.src).toBe('let y = 2')
     expect(arg?.active).toBe(true)
+  })
+
+  // 他テストと installId を共有すると localStorage ミラー経由で src を
+  // 引き継いでしまうため、diff 検証は専用 id で作る
+  function addDiffPlugin(installId: string): string {
+    usePluginsStore().addPlugin({
+      installId,
+      name: 'diff-plugin',
+      version: '1.0.0',
+      configData: {},
+      src: 'let x = 1',
+      active: false,
+    })
+    return installId
+  }
+
+  it('確認は旧 src と新 src の全文 diff を見せる (#981)', async () => {
+    if (typeof pluginsUpdateCapability.requiresConfirmation !== 'function') {
+      throw new Error('requiresConfirmation must be a function')
+    }
+    const installId = addDiffPlugin('p-diff-confirm')
+    const ctx: CapabilityContext = {}
+    const opts = await pluginsUpdateCapability.requiresConfirmation(
+      { installId, src: 'let y = 2' },
+      ctx,
+    )
+    expect(opts?.diff).toEqual({
+      old: 'let x = 1',
+      new: 'let y = 2',
+      language: 'aiscript',
+    })
+    expect(ctx.stagedEdit).toEqual({ baseline: 'let x = 1', next: 'let y = 2' })
+  })
+
+  it('確認後に src が変わっていたら書き込まない (#981)', async () => {
+    const installId = addDiffPlugin('p-diff-stale')
+    const store = usePluginsStore()
+    store.updateSrc(installId, 'ユーザーがエディタで書き換えた')
+    const ctx: CapabilityContext = {
+      stagedEdit: { baseline: 'let x = 1', next: 'let y = 2' },
+    }
+    await expect(
+      pluginsUpdateCapability.execute({ installId, src: 'let y = 2' }, ctx),
+    ).rejects.toThrow(/確認後/)
+    expect(store.getPlugin(installId)?.src).toBe(
+      'ユーザーがエディタで書き換えた',
+    )
   })
 
   it('確認ダイアログはアクティブ時のみ再起動を予告する', async () => {

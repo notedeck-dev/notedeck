@@ -368,8 +368,9 @@ export const useWidgetsStore = defineStore('widgets', () => {
         return
       }
       // 編集前 src を history sidecar に push (fire-and-forget)。
-      // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)
-      if (widget.fileBase) {
+      // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
+      // 内容が同じ保存では積まない (plugins.updateSrc と同じ理由)
+      if (widget.fileBase && widget.src !== src) {
         pushSnapshot('widget', widget.fileBase, {
           src: widget.src,
           name: widget.name,

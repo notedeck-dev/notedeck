@@ -105,11 +105,32 @@
   --nd-accent-subtle: color-mix(in srgb, var(--nd-accent) 10%, transparent);
   --nd-love-hover: color-mix(in srgb, var(--nd-love) 15%, transparent);
   --nd-love-subtle: color-mix(in srgb, var(--nd-love) 10%, transparent);
-  /* コードエディタ面 (CodeMirror 系エディタ / CodeDiffView)。中身の
-     シンタックスハイライトが VS Code Dark+ 準拠でダーク固定なので面も
-     ダーク固定だが、カスタム CSS から上書きできるよう変数で開放する */
+  /* コード面 (エディタ / 差分表示 / コードブロック)。既定は VS Code Dark+
+     準拠。明暗は data-nd-code-scheme で切り替わる (#1053) が、どちらの側も
+     カスタム CSS から上書きできるよう変数で開放する */
   --nd-codeEditorBg: #1e1e1e;
+  --nd-codeEditorFg: #d4d4d4;
   --nd-codeEditorFgMuted: #9d9d9d;
+  --nd-codeEditorPanelBg: #252526;
+  --nd-codeEditorPanelBorder: #454545;
+  --nd-codeEditorSelectionBg: #264f78;
+  --nd-codeEditorActiveItemBg: #04395e;
+  --nd-codeEditorCaret: #aeafad;
+  --nd-codeEditorGutterFg: #858585;
+  --nd-codeEditorGutterActiveFg: #c6c6c6;
+  --nd-codeEditorActiveLineBg: rgba(255, 255, 255, 0.04);
+  --nd-codeEditorMatchBg: rgba(255, 255, 255, 0.1);
+  --nd-codeEditorMatchBorder: rgba(255, 255, 255, 0.3);
+  /* シンタックストークン (CodeMirror 側)。Shiki 側は色ごとのクラスを
+     assets/shiki-*.css が持つので、こちらはエディタ用 */
+  --nd-codeKeyword: #569cd6;
+  --nd-codeString: #ce9178;
+  --nd-codeNumber: #b5cea8;
+  --nd-codeComment: #6a9955;
+  --nd-codeVariable: #9cdcfe;
+  --nd-codeFunction: #dcdcaa;
+  --nd-codeType: #4ec9b0;
+  --nd-codeLink: #4fc1ff;
   /* Diff 表示 (CodeDiffView #981/#1040) の挿入/削除色。エディタ面と同じく
      テーマ非依存の値 */
   --nd-diffInsertBg: rgba(87, 171, 90, 0.16);
@@ -878,6 +899,45 @@ dialog._nativeDialog[open] {
 }
 ._shake {
   animation: nd-shake 0.4s var(--nd-ease-decel);
+}
+
+/* ---- コード面の明暗 (#1053) ---- */
+
+/* 既定 (data-nd-code-scheme 未設定 / dark) は上の :root 定義をそのまま使う。
+   light は VS Code Light+ 準拠の値へ差し替える。Shiki 側のトークン色は
+   assets/shiki-light-plus.css が別に持つ */
+:root[data-nd-code-scheme='light'] {
+  --nd-codeEditorBg: #ffffff;
+  --nd-codeEditorFg: #000000;
+  --nd-codeEditorFgMuted: #6a6a6a;
+  --nd-codeEditorPanelBg: #f3f3f3;
+  --nd-codeEditorPanelBorder: #c8c8c8;
+  --nd-codeEditorSelectionBg: #add6ff;
+  --nd-codeEditorActiveItemBg: #d6ebff;
+  --nd-codeEditorCaret: #000000;
+  --nd-codeEditorGutterFg: #237893;
+  --nd-codeEditorGutterActiveFg: #0b216f;
+  --nd-codeEditorActiveLineBg: rgba(0, 0, 0, 0.04);
+  --nd-codeEditorMatchBg: rgba(0, 0, 0, 0.1);
+  --nd-codeEditorMatchBorder: rgba(0, 0, 0, 0.25);
+  --nd-codeKeyword: #0000ff;
+  --nd-codeString: #a31515;
+  --nd-codeNumber: #098658;
+  --nd-codeComment: #008000;
+  --nd-codeVariable: #001080;
+  --nd-codeFunction: #795e26;
+  --nd-codeType: #267f99;
+  --nd-codeLink: #0070c1;
+}
+
+/* ---- 読み取り専用のコードブロック面 ---- */
+
+/* Shiki のトークン色は VS Code Dark+ 準拠でダーク固定なので、面もテーマに
+   関係なくダークに揃える。shiki-dark-plus.css は色を直書きするため、要素を
+   足した特異度でこちらを勝たせ、面の色をトークン 1 箇所に集約する (#981) */
+pre.shiki {
+  background-color: var(--nd-codeEditorBg);
+  color: var(--nd-codeEditorFg);
 }
 
 /* ---- Global reduced-motion ---- */

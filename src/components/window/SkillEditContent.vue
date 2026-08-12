@@ -2,11 +2,19 @@
 import { markdown } from '@codemirror/lang-markdown'
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
-import type { EditorActionStatus } from '@/components/window/EditorActionBar.vue'
+import type {
+  EditorAction,
+  EditorActionStatus,
+} from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
+import {
+  historyBasename,
+  openEditHistoryWindow,
+} from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { isExposed } from '@/settings/exposure'
 import { type SkillMode, useSkillsStore } from '@/stores/skills'
 import { SKILL_EXT } from '@/utils/settingsFs'
 
@@ -139,6 +147,25 @@ const isFromStore = computed(() => !!skill.value?.storeId)
  * 自動保存の状態。デバウンス保存なので「いま保存されているか」が
  * 見えないと不安になる。明示保存ボタンは同じバーの右端に置く。
  */
+/** AI が過去に何を変えたかを diff で追う (#981)。 */
+function openHistory() {
+  const s = skill.value
+  if (!s) return
+  openEditHistoryWindow({
+    kind: 'skill',
+    basename: historyBasename(s.fileBase, s.name, s.id),
+    itemId: s.id,
+    name: s.name,
+  })
+}
+
+// 履歴は開発者向けの面 (#1034)。入口だけ隠す
+const historyActions = computed<EditorAction[]>(() =>
+  isExposed('developer')
+    ? [{ key: 'history', label: '履歴', icon: 'history' }]
+    : [],
+)
+
 const barStatus = computed<EditorActionStatus | null>(() => {
   if (saved.value) return { text: '保存しました', icon: 'check', tone: 'ok' }
   if (dirty.value) return { text: '未保存の変更', icon: 'pencil' }
@@ -282,13 +309,14 @@ const barStatus = computed<EditorActionStatus | null>(() => {
 
       <EditorActionBar
         :status="barStatus"
+        :actions="historyActions"
         :primary="{
           key: 'save',
           label: '保存',
           icon: 'device-floppy',
           disabled: !dirty,
         }"
-        @action="save"
+        @action="(key) => (key === 'history' ? openHistory() : save())"
       />
     </template>
   </div>

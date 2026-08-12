@@ -8,7 +8,9 @@ import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import CssPresetDropdown from '@/components/window/CssPresetDropdown.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
+import { openEditHistoryWindow } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import {
   buildPresetCss,
@@ -25,6 +27,7 @@ import {
   VISIBILITY_BG_COLORS,
   VISIBILITY_BG_OPTIONS,
 } from '@/services/cssPresets'
+import { isExposed } from '@/settings/exposure'
 import { useThemeStore } from '@/stores/theme'
 
 const cssLang = css()
@@ -134,6 +137,7 @@ const fullCss = computed(() => {
 
 let applyTimer: ReturnType<typeof setTimeout> | null = null
 watch(fullCss, (cssStr) => {
+  if (isSyncing()) return
   cssCode.value = cssStr
   if (applyTimer) clearTimeout(applyTimer)
   applyTimer = setTimeout(() => {
@@ -151,6 +155,7 @@ watch(
     presets.value.hideUserStats,
   ],
   () => {
+    if (isSyncing()) return
     const cssStr = fullCss.value
     cssCode.value = cssStr
     themeStore.setCustomCss(cssStr)
@@ -161,6 +166,7 @@ const codeError = ref<string | null>(null)
 let codeApplyTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(cssCode, (cssStr) => {
+  if (isSyncing()) return
   if (tab.value !== 'code') return
   if (codeApplyTimer) clearTimeout(codeApplyTimer)
   codeApplyTimer = setTimeout(() => {
@@ -200,6 +206,18 @@ const {
 function exportCss() {
   navigator.clipboard.writeText(cssCode.value)
   showCopied()
+}
+
+// 履歴は開発者向けの面 (#1034)。入口だけ隠す
+const historyExposed = computed(() => isExposed('developer'))
+
+/** AI が過去に何を変えたかを diff で追う (#981)。custom.css は単一ファイル。 */
+function openHistory() {
+  openEditHistoryWindow({
+    kind: 'css',
+    basename: 'custom.css',
+    name: 'custom.css',
+  })
 }
 
 async function importCss() {
@@ -259,6 +277,31 @@ watch(tab, (t) => {
     presets.value = parsePresetsFromCss(cssCode.value)
     userFreeformCss.value = extractUserCss(cssCode.value)
   }
+})
+
+/**
+ * 外部からの custom.css 変更 (履歴からの revert / AI 編集 / 外部エディタ) を
+ * 編集バッファへ取り込む。ここが無いとエディタは開いた瞬間の内容を持ち続け、
+ * 次にタブを切り替えたりプリセットを触った時点で古い内容を書き戻してしまう
+ * (= revert が無言で打ち消される)。
+ *
+ * custom.css は明示保存を持たない (常に自動保存 = 未保存の編集という状態が
+ * 無い) ので isDirty は常に false。取り込み中に presets / userFreeformCss を
+ * 入れ直すと fullCss が動くため、書込み側の watch は isSyncing で止める
+ * (止めないと「取り込んだ内容」ではなく「再構築した内容」が保存される)。
+ */
+const { isSyncing } = useExternalEditSync<string>({
+  source: () => themeStore.customCss,
+  current: () => cssCode.value,
+  isDirty: () => false,
+  apply: (css) => {
+    if (applyTimer) clearTimeout(applyTimer)
+    if (codeApplyTimer) clearTimeout(codeApplyTimer)
+    cssCode.value = css
+    presets.value = parsePresetsFromCss(css)
+    userFreeformCss.value = extractUserCss(css)
+    codeError.value = null
+  },
 })
 </script>
 
@@ -490,6 +533,15 @@ watch(tab, (t) => {
         >
           <i class="ti ti-clipboard-copy" />
           {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+        </button>
+        <button
+          v-if="historyExposed"
+          class="_button"
+          :class="[$style.actionBtn, $style.secondary]"
+          @click="openHistory"
+        >
+          <i class="ti ti-history" />
+          履歴
         </button>
       </div>
       <button
