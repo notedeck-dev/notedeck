@@ -6,6 +6,7 @@ import {
   type WidgetMeta,
 } from '@/stores/widgets'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { stageEdit, takeStagedEdit } from '../stagedEdit'
 import { preflightValidateSrc } from './aiscript'
 
 interface WidgetSnapshot {
@@ -187,12 +188,13 @@ export const widgetsUpdateCapability: Command = {
   aiTool: true,
   permissions: ['widgets.write'],
   preflight: (params) => preflightValidateSrc(params, 'widget'),
-  requiresConfirmation: (params) => {
+  requiresConfirmation: (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const src = typeof params?.src === 'string' ? params.src : ''
     const cur = useWidgetsStore().getWidget(installId)
     if (!cur) return null
+    stageEdit(ctx, cur.src, src)
     return {
       title: 'ウィジェットを更新',
       message:
@@ -204,8 +206,7 @@ export const widgetsUpdateCapability: Command = {
         kind: 'widget',
         name: cur.name,
       },
-      code: src,
-      codeLanguage: 'is',
+      diff: { old: cur.src, new: src, language: 'aiscript' },
       okLabel: '更新',
       cancelLabel: 'やめる',
       type: 'warning',
@@ -234,21 +235,23 @@ export const widgetsUpdateCapability: Command = {
     },
   },
   visible: false,
-  execute: (params) => {
+  execute: (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const src = typeof params?.src === 'string' ? params.src : ''
     if (!installId) throw new Error('widgets.update: installId is required')
     if (!src) throw new Error('widgets.update: src is required')
     const store = useWidgetsStore()
-    if (!store.getWidget(installId)) {
+    const cur = store.getWidget(installId)
+    if (!cur) {
       throw new Error(`widgets.update: widget "${installId}" not found`)
     }
-    store.updateSrc(installId, src)
+    const next = takeStagedEdit(ctx, 'widgets.update', cur.src, () => src)
+    store.updateSrc(installId, next)
     // 表示中のインスタンスに再実行を要求する (#744)。ユーザーのエディタ編集
     // (debounce 自動保存) と違い、AI 経由の保存だけがこのシグナルを発火する。
     const rerunning = store.requestRerun(installId) > 0
-    return { installId, length: src.length, rerunning }
+    return { installId, length: next.length, rerunning }
   },
 }
 
@@ -394,7 +397,7 @@ export const widgetsRevertCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['widgets.write'],
-  requiresConfirmation: async (params) => {
+  requiresConfirmation: async (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const index = typeof params?.index === 'number' ? params.index : -1
@@ -403,6 +406,7 @@ export const widgetsRevertCapability: Command = {
     const basename = cur.fileBase ?? (cur.name || cur.installId)
     const entry = await getSnapshotAt<WidgetSnapshot>('widget', basename, index)
     if (!entry) return null
+    const next = stageEdit(ctx, cur.src, entry.snapshot.src)
     return {
       title: 'ウィジェットを過去の状態に戻す',
       message:
@@ -412,8 +416,7 @@ export const widgetsRevertCapability: Command = {
         kind: 'widget',
         name: entry.snapshot.name ?? cur.name,
       },
-      code: entry.snapshot.src,
-      codeLanguage: 'is',
+      diff: { old: cur.src, new: next, language: 'aiscript' },
       okLabel: 'この状態に戻す',
       cancelLabel: 'やめる',
       type: 'warning',
@@ -434,7 +437,7 @@ export const widgetsRevertCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const index = typeof params?.index === 'number' ? params.index : -1
@@ -450,7 +453,13 @@ export const widgetsRevertCapability: Command = {
     if (!entry) {
       throw new Error(`widgets.revert: no snapshot at index ${index}`)
     }
-    store.updateSrc(installId, entry.snapshot.src)
+    const next = takeStagedEdit(
+      ctx,
+      'widgets.revert',
+      widget.src,
+      () => entry.snapshot.src,
+    )
+    store.updateSrc(installId, next)
     return { installId, reverted: true, at: entry.at }
   },
 }

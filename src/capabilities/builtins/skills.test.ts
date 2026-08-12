@@ -1,8 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { CapabilityContext } from '@/capabilities/types'
 import { useSkillsStore } from '@/stores/skills'
 import {
-  replaceMarkdownSection,
   SKILLS_BUILTIN_CAPABILITIES,
   skillsAppendCapability,
   skillsCreateCapability,
@@ -16,8 +16,8 @@ import {
 
 // Note: execute は内部で useSkillsStore (Pinia) を呼ぶため、unit 環境では
 // store mock が必要になる。Pinia の setup 抜きでは走らないので、本テストは
-// capability 定義 (id / permissions / signature / aiTool) と引数バリデーション、
-// および pure ロジック (replaceMarkdownSection) を検証する。
+// capability 定義 (id / permissions / signature / aiTool) と引数バリデーション
+// を検証する。適用後全文の計算は services 層 (selfEditApply.test.ts) が持つ。
 
 describe('skill capabilities — declaration', () => {
   it('skills.list: read permission, aiTool true, cheap', () => {
@@ -298,77 +298,73 @@ describe('SKILLS_BUILTIN_CAPABILITIES', () => {
   })
 })
 
-describe('replaceMarkdownSection — pure logic', () => {
-  it('replaces an existing section between `## heading` and the next heading', () => {
-    const body = [
-      'intro line',
-      '',
-      '## Foo',
-      'old foo content',
-      'still foo',
-      '',
-      '## Bar',
-      'bar content',
-    ].join('\n')
-    const { body: out, replaced } = replaceMarkdownSection(
+describe('自己拡張系 write の適用前 diff (#981)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  function addSkill(body: string): string {
+    const skill = useSkillsStore().add({
+      id: 'sk-diff',
+      name: 'diff test',
+      version: '0.1.0',
+      mode: 'manual',
+      triggers: [],
+      scope: 'global',
       body,
-      'Foo',
-      'NEW FOO',
+      cheapCheckCapabilities: [],
+    })
+    return skill.id
+  }
+
+  it('skills.append: 追記断片ではなく追記後の全文を diff で見せる', async () => {
+    const confirm = skillsAppendCapability.requiresConfirmation
+    if (typeof confirm !== 'function') throw new Error('expected function')
+    const id = addSkill('# 見出し\n\n既存の本文')
+    const ctx: CapabilityContext = {}
+    const opts = await confirm({ id, content: '追記した行' }, ctx)
+    expect(opts?.diff?.old).toBe('# 見出し\n\n既存の本文')
+    expect(opts?.diff?.new).toBe('# 見出し\n\n既存の本文\n追記した行')
+    expect(opts?.diff?.language).toBe('markdown')
+    expect(ctx.stagedEdit?.next).toBe(opts?.diff?.new)
+  })
+
+  it('skills.replaceSection: 置換で消える旧セクションが diff に出る', async () => {
+    const confirm = skillsReplaceSectionCapability.requiresConfirmation
+    if (typeof confirm !== 'function') throw new Error('expected function')
+    const id = addSkill('## Foo\n\n消える本文\n\n## Bar\n\n残る本文')
+    const opts = await confirm(
+      { id, heading: 'Foo', content: '新しい本文' },
+      {},
     )
-    expect(replaced).toBe(true)
-    expect(out).toContain('intro line')
-    expect(out).toContain('## Foo\n\nNEW FOO')
-    expect(out).toContain('## Bar\nbar content')
-    expect(out).not.toContain('old foo content')
+    expect(opts?.diff?.old).toContain('消える本文')
+    expect(opts?.diff?.new).not.toContain('消える本文')
+    expect(opts?.diff?.new).toContain('## Bar\n\n残る本文')
   })
 
-  it('replaces the last section (next-heading boundary = EOF)', () => {
-    const body = '## Foo\nold'
-    const { body: out, replaced } = replaceMarkdownSection(body, 'Foo', 'new')
-    expect(replaced).toBe(true)
-    expect(out).toBe('## Foo\n\nnew')
-  })
-
-  it('appends a new section when heading is not found', () => {
-    const body = 'just text'
-    const { body: out, replaced } = replaceMarkdownSection(
-      body,
-      'New',
-      'fresh content',
+  it('確認で見せた全文をそのまま書く (承認後に再計算しない)', () => {
+    const id = addSkill('元の本文')
+    const ctx: CapabilityContext = {
+      stagedEdit: { baseline: '元の本文', next: '確認で見せた全文' },
+    }
+    skillsAppendCapability.execute({ id, content: '追記' }, ctx)
+    expect(useSkillsStore().skills.find((s) => s.id === id)?.body).toBe(
+      '確認で見せた全文',
     )
-    expect(replaced).toBe(false)
-    expect(out).toBe('just text\n\n## New\n\nfresh content')
   })
 
-  it('handles empty body (= 新規セクションだけ)', () => {
-    const { body: out, replaced } = replaceMarkdownSection('', 'New', 'x')
-    expect(replaced).toBe(false)
-    expect(out).toBe('## New\n\nx')
-  })
-
-  it('stops replacement at the next h1 (= ## の上位境界)', () => {
-    const body = ['## Foo', 'old', '# Section', 'after'].join('\n')
-    const { body: out } = replaceMarkdownSection(body, 'Foo', 'new')
-    expect(out).toContain('## Foo\n\nnew')
-    expect(out).toContain('# Section\nafter')
-    expect(out).not.toContain('old')
-  })
-
-  it('treats heading text comparison as exact (whitespace-trim only)', () => {
-    const body = '## Foo Bar\nstuff'
-    const { replaced } = replaceMarkdownSection(body, 'foo bar', 'x')
-    // case-sensitive: 'foo bar' は '## Foo Bar' とは異なる
-    expect(replaced).toBe(false)
-  })
-
-  it('escapes regex metacharacters in heading', () => {
-    const body = '## A.B (test)\nold'
-    const { body: out, replaced } = replaceMarkdownSection(
-      body,
-      'A.B (test)',
-      'new',
+  it('確認後に本文が変わっていたら書き込まない', () => {
+    const id = addSkill('元の本文')
+    const store = useSkillsStore()
+    store.update(id, { body: 'ユーザーが手で書き換えた本文' })
+    const ctx: CapabilityContext = {
+      stagedEdit: { baseline: '元の本文', next: '確認で見せた全文' },
+    }
+    expect(() =>
+      skillsAppendCapability.execute({ id, content: '追記' }, ctx),
+    ).toThrow(/確認後/)
+    expect(store.skills.find((s) => s.id === id)?.body).toBe(
+      'ユーザーが手で書き換えた本文',
     )
-    expect(replaced).toBe(true)
-    expect(out).toContain('## A.B (test)\n\nnew')
   })
 })

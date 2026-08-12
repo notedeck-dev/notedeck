@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it } from 'vitest'
+import type { CapabilityContext } from '@/capabilities/types'
+import { useThemeStore } from '@/stores/theme'
 import {
   STYLES_BUILTIN_CAPABILITIES,
   stylesAppendCapability,
@@ -64,24 +67,51 @@ describe('styles capabilities — declaration', () => {
 })
 
 describe('styles capabilities — confirmation params', () => {
-  it('styles.write confirm: shows body length and css code', async () => {
-    const confirm = stylesWriteCapability.requiresConfirmation
-    if (typeof confirm !== 'function') throw new Error('expected function')
-    const opts = await confirm({ body: '.foo { color: red; }' }, {})
-    expect(opts).not.toBeNull()
-    expect(opts?.code).toBe('.foo { color: red; }')
-    expect(opts?.codeLanguage).toBe('css')
-    expect(opts?.type).toBe('warning')
+  beforeEach(() => {
+    setActivePinia(createPinia())
   })
 
-  it('styles.append confirm: shows content length and css code', async () => {
+  it('styles.write confirm: 現在の CSS と全置換後を diff で見せる', async () => {
+    const confirm = stylesWriteCapability.requiresConfirmation
+    if (typeof confirm !== 'function') throw new Error('expected function')
+    useThemeStore().customCss = '.old { color: blue; }'
+    const ctx: CapabilityContext = {}
+    const opts = await confirm({ body: '.foo { color: red; }' }, ctx)
+    expect(opts?.diff).toEqual({
+      old: '.old { color: blue; }',
+      new: '.foo { color: red; }',
+      language: 'css',
+    })
+    expect(opts?.type).toBe('warning')
+    expect(ctx.stagedEdit).toEqual({
+      baseline: '.old { color: blue; }',
+      next: '.foo { color: red; }',
+    })
+  })
+
+  it('styles.append confirm: 断片ではなく追記後の全文を diff で見せる', async () => {
     const confirm = stylesAppendCapability.requiresConfirmation
     if (typeof confirm !== 'function') throw new Error('expected function')
-    const opts = await confirm({ content: 'body { margin: 0; }' }, {})
-    expect(opts).not.toBeNull()
-    expect(opts?.code).toBe('body { margin: 0; }')
-    expect(opts?.codeLanguage).toBe('css')
+    useThemeStore().customCss = '.old { color: blue; }'
+    const ctx: CapabilityContext = {}
+    const opts = await confirm({ content: 'body { margin: 0; }' }, ctx)
+    expect(opts?.diff?.old).toBe('.old { color: blue; }')
+    expect(opts?.diff?.new).toBe('.old { color: blue; }\nbody { margin: 0; }')
+    expect(opts?.diff?.language).toBe('css')
     expect(opts?.type).toBe('normal')
+  })
+
+  it('styles.append: 確認後に CSS が変わっていたら書き込まない', () => {
+    const store = useThemeStore()
+    store.customCss = '.old {}'
+    const ctx: CapabilityContext = {
+      stagedEdit: { baseline: '.old {}', next: '.old {}\n.added {}' },
+    }
+    store.customCss = '.changed-by-user {}'
+    expect(() =>
+      stylesAppendCapability.execute({ content: '.added {}' }, ctx),
+    ).toThrow(/確認後/)
+    expect(store.customCss).toBe('.changed-by-user {}')
   })
 
   it('styles.revert confirm: returns null when index < 0', async () => {

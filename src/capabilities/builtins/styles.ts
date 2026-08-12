@@ -1,6 +1,8 @@
 import type { Command } from '@/commands/registry'
+import { appendBlock } from '@/services/selfEditApply'
 import { useThemeStore } from '@/stores/theme'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 /**
  * Styles (custom.css) 系 capability — 「自己拡張する IDE」の延長線
@@ -59,15 +61,16 @@ export const stylesWriteCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['styles.write'],
-  requiresConfirmation: (params) => {
+  requiresConfirmation: (params, ctx) => {
     const body = typeof params?.body === 'string' ? params.body : ''
+    const cur = useThemeStore().customCss
+    stageEdit(ctx, cur, body)
     return {
       title: 'カスタム CSS を全置換',
       message:
         `custom.css の内容を ${body.length} 文字に全置換します。` +
         ' 現在の CSS は履歴に保存され、styles.revert で戻せます。',
-      code: body,
-      codeLanguage: 'css',
+      diff: { old: cur, new: body, language: 'css' },
       okLabel: '上書き',
       cancelLabel: 'やめる',
       type: 'warning',
@@ -89,11 +92,17 @@ export const stylesWriteCapability: Command = {
     },
   },
   visible: false,
-  execute: (params) => {
+  execute: (params, ctx) => {
     const body = typeof params?.body === 'string' ? params.body : ''
     const store = useThemeStore()
-    store.setCustomCss(body)
-    return { length: body.length }
+    const next = takeStagedEdit(
+      ctx,
+      'styles.write',
+      store.customCss,
+      () => body,
+    )
+    store.setCustomCss(next)
+    return { length: next.length }
   },
 }
 
@@ -105,15 +114,16 @@ export const stylesAppendCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['styles.write'],
-  requiresConfirmation: (params) => {
+  requiresConfirmation: (params, ctx) => {
     const content = typeof params?.content === 'string' ? params.content : ''
+    const cur = useThemeStore().customCss
+    const next = stageEdit(ctx, cur, appendBlock(cur, content))
     return {
       title: 'カスタム CSS に追記',
       message:
         `custom.css の末尾に ${content.length} 文字を追記します。` +
         ' 既存ルールは保持されます。',
-      code: content,
-      codeLanguage: 'css',
+      diff: { old: cur, new: next, language: 'css' },
       okLabel: '追記',
       cancelLabel: 'やめる',
       type: 'normal',
@@ -135,13 +145,14 @@ export const stylesAppendCapability: Command = {
     },
   },
   visible: false,
-  execute: (params) => {
+  execute: (params, ctx) => {
     const content = typeof params?.content === 'string' ? params.content : ''
     if (!content) throw new Error('styles.append: content is required')
     const store = useThemeStore()
     const prev = store.customCss
-    const sep = prev.length === 0 || prev.endsWith('\n') ? '' : '\n'
-    const next = `${prev}${sep}${content}`
+    const next = takeStagedEdit(ctx, 'styles.append', prev, () =>
+      appendBlock(prev, content),
+    )
     store.setCustomCss(next)
     return { length: next.length }
   },
@@ -180,7 +191,7 @@ export const stylesRevertCapability: Command = {
   shortcuts: [],
   aiTool: true,
   permissions: ['styles.write'],
-  requiresConfirmation: async (params) => {
+  requiresConfirmation: async (params, ctx) => {
     const index = typeof params?.index === 'number' ? params.index : -1
     if (index < 0) return null
     const entry = await getSnapshotAt<CssSnapshot>(
@@ -189,14 +200,15 @@ export const stylesRevertCapability: Command = {
       index,
     )
     if (!entry) return null
+    const cur = useThemeStore().customCss
+    const next = stageEdit(ctx, cur, entry.snapshot.body)
     return {
       title: 'カスタム CSS を過去の状態に戻す',
       message:
         `custom.css を編集履歴 #${index} ` +
         `(${new Date(entry.at).toLocaleString()}) の状態に戻します。` +
         ' 現在の CSS は上書きされます (戻す操作自体も履歴に残ります)。',
-      code: entry.snapshot.body,
-      codeLanguage: 'css',
+      diff: { old: cur, new: next, language: 'css' },
       okLabel: 'この状態に戻す',
       cancelLabel: 'やめる',
       type: 'warning',
@@ -218,7 +230,7 @@ export const stylesRevertCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const index = typeof params?.index === 'number' ? params.index : -1
     if (index < 0) throw new Error('styles.revert: index must be >= 0')
     const entry = await getSnapshotAt<CssSnapshot>(
@@ -230,7 +242,13 @@ export const stylesRevertCapability: Command = {
       throw new Error(`styles.revert: no snapshot at index ${index}`)
     }
     const store = useThemeStore()
-    store.setCustomCss(entry.snapshot.body)
+    const next = takeStagedEdit(
+      ctx,
+      'styles.revert',
+      store.customCss,
+      () => entry.snapshot.body,
+    )
+    store.setCustomCss(next)
     return { reverted: true, at: entry.at }
   },
 }

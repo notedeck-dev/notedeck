@@ -87,4 +87,11 @@ export interface CapabilityContext {
    * 未指定 (= 従来どおり activeAccountId フォールバック)。
    */
   accountId?: string
+  /**
+   * 確認ダイアログで見せた「適用後の全文」(#981)。dispatcher は
+   * requiresConfirmation と execute に同一の ctx を渡すので、確認を出す側が
+   * ここへ置き、execute はそれをそのまま書き込む (承認後に再計算しない)。
+   * 読み書きは `capabilities/stagedEdit.ts` の stageEdit / takeStagedEdit 経由。
+   */
+  stagedEdit?: import('./stagedEdit').StagedEdit
 }

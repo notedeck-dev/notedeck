@@ -1,4 +1,7 @@
+import { createPinia, setActivePinia } from 'pinia'
 import { describe, expect, it } from 'vitest'
+import type { CapabilityContext } from '@/capabilities/types'
+import { useThemeStore } from '@/stores/theme'
 import {
   THEME_BUILTIN_CAPABILITIES,
   themeApplyCapability,
@@ -129,6 +132,33 @@ describe('theme.update capability', () => {
     expect(params?.name?.optional).toBe(true)
     expect(params?.base?.optional).toBe(true)
     expect(params?.props?.optional).toBe(true)
+  })
+
+  it('確認は現在のテーマとマージ後を全文 diff で見せる (#981)', async () => {
+    setActivePinia(createPinia())
+    const confirm = themeUpdateCapability.requiresConfirmation
+    if (typeof confirm !== 'function') throw new Error('expected function')
+    const store = useThemeStore()
+    store.installedThemes = [
+      {
+        id: 'th-diff',
+        name: 'Diff Theme',
+        base: 'dark',
+        props: { accent: '#f00', panel: '#111' },
+      },
+    ]
+    const ctx: CapabilityContext = {}
+    const opts = await confirm(
+      { id: 'th-diff', props: { accent: '#0f0' } },
+      ctx,
+    )
+    expect(opts?.diff?.language).toBe('json5')
+    // patch だけでなく現在値が並ぶ (変化量を判断できる)
+    expect(opts?.diff?.old).toContain('"accent": "#f00"')
+    expect(opts?.diff?.new).toContain('"accent": "#0f0"')
+    // patch に無いキーは維持される
+    expect(opts?.diff?.new).toContain('"panel": "#111"')
+    expect(ctx.stagedEdit?.next).toBe(opts?.diff?.new)
   })
 })
 
