@@ -15,6 +15,8 @@
  */
 
 import JSON5 from 'json5'
+import type { Principal } from '@/permissions/principal'
+import { evictHistory, shouldCoalesceEdit } from '@/services/editHistory'
 import {
   type HistoryKind,
   readHistorySidecar,
@@ -29,13 +31,34 @@ export interface HistoryEntry<T = unknown> {
   at: number
   /** kind 固有の編集前 state */
   snapshot: T
+  /**
+   * 誰の編集か (#1052)。記録を始める前のエントリには無い (前方互換)。
+   * 権限の principal をそのまま入れるので、確認ダイアログ・Spotlight・履歴で
+   * 帰属の粒度が揃う。
+   */
+  by?: Principal
+  /**
+   * なぜ変えたか (#1052)。承認ダイアログで見せた理由を承認後に記録する。
+   * 本人の手編集はデバウンスの自動保存で理由を書く機会が無いため付かない。
+   */
+  reason?: string
+}
+
+/** 編集の帰属と理由。書込側 (store の mutator) が capability から受け取る。 */
+export interface EditAttribution {
+  by?: Principal
+  reason?: string
 }
 
 interface HistoryFile<T = unknown> {
   entries: HistoryEntry<T>[]
 }
 
-const RING_SIZE = 10
+/**
+ * 保持件数 (#1052)。帰属・理由を記録しても押し出されれば意味が無いので、
+ * 単純な古い順のリングをやめて優先度付きの eviction にしたうえで枠を広げた。
+ */
+const RING_SIZE = 30
 
 async function readFile<T>(
   kind: HistoryKind,
@@ -64,20 +87,29 @@ async function writeFile<T>(
 }
 
 /**
- * snapshot を history に push する。リングを `RING_SIZE` で維持。
+ * snapshot を history に push する。件数は `RING_SIZE` を上限に、優先度の低い
+ * ものから落とす (#1052)。本人の連続した自動保存は直前のエントリに畳んで
+ * 積まない (古い方が「その編集セッションの直前の状態」として正しいため)。
+ *
  * 失敗は warn だけ吐いて呼出し元を止めない (= 編集本体を阻害しない)。
  */
 export async function pushSnapshot<T>(
   kind: HistoryKind,
   basename: string,
   snapshot: T,
+  attribution?: EditAttribution,
 ): Promise<void> {
   try {
     const file = await readFile<T>(kind, basename)
-    file.entries.unshift({ at: Date.now(), snapshot })
-    if (file.entries.length > RING_SIZE) {
-      file.entries = file.entries.slice(0, RING_SIZE)
-    }
+    const at = Date.now()
+    if (shouldCoalesceEdit(file.entries[0], { at, by: attribution?.by })) return
+    file.entries.unshift({
+      at,
+      snapshot,
+      ...(attribution?.by ? { by: attribution.by } : {}),
+      ...(attribution?.reason ? { reason: attribution.reason } : {}),
+    })
+    file.entries = evictHistory(file.entries, RING_SIZE)
     await writeFile(kind, basename, file)
   } catch (e) {
     console.warn(`[history] push failed (${kind}/${basename}):`, e)

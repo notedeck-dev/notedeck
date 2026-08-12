@@ -21,6 +21,36 @@ function skill(partial: Partial<SkillMeta> & Pick<SkillMeta, 'id'>): SkillMeta {
 }
 
 describe('planStoreMovedMigration (#969)', () => {
+  it('同梱していた skill をすべて移管対象にする (#746 で同梱ゼロにした)', () => {
+    expect([...STORE_MOVED_SKILL_IDS].sort()).toEqual([
+      'aiscript-author',
+      'notedeck-guide',
+      'notedeck-memo',
+      'plugin-author',
+      'self-profile',
+      'skill-author',
+      'theme-author',
+      'theme-reference',
+      'widget-author',
+    ])
+  })
+
+  it('#746 で移した 3 本もストア配布版相当に変換する', () => {
+    const before = [
+      skill({ id: 'notedeck-guide', builtIn: true }),
+      skill({ id: 'notedeck-memo', builtIn: true }),
+      skill({ id: 'self-profile', builtIn: true }),
+    ]
+    const { migrated, changed } = planStoreMovedMigration(before, 100)
+    expect(changed).toBe(true)
+    expect(migrated.map((s) => s.storeId)).toEqual([
+      'notedeck-guide',
+      'notedeck-memo',
+      'self-profile',
+    ])
+    expect(migrated.every((s) => s.builtIn === false)).toBe(true)
+  })
+
   it('同梱をやめた built-in をストア配布版相当に変換する', () => {
     const before = [skill({ id: 'plugin-author', builtIn: true })]
     const { migrated, changed } = planStoreMovedMigration(before, 100)
@@ -60,8 +90,10 @@ describe('planStoreMovedMigration (#969)', () => {
     expect(migrated[0]).toBe(before[0])
   })
 
+  // 同梱はゼロになったが、frontmatter に builtIn を書いた手元の skill は
+  // ありうる。移管表に無い id を勝手にストア扱いへ倒さないことを固定する
   it('移行対象外の built-in は触らない', () => {
-    const before = [skill({ id: 'notedeck-memo', builtIn: true })]
+    const before = [skill({ id: 'hand-written-builtin', builtIn: true })]
     const { migrated, changed } = planStoreMovedMigration(before, 100)
     expect(changed).toBe(false)
     expect(migrated[0]).toBe(before[0])
@@ -76,30 +108,19 @@ describe('planStoreMovedMigration (#969)', () => {
 
   it('複数の対象をまとめて変換し、順序を保つ', () => {
     const before = [
-      skill({ id: 'notedeck-memo', builtIn: true }),
+      skill({ id: 'hand-written-builtin', builtIn: true }),
       skill({ id: 'aiscript-author', builtIn: true }),
       skill({ id: 'theme-reference', builtIn: true }),
     ]
     const { migrated, changed } = planStoreMovedMigration(before, 100)
     expect(changed).toBe(true)
     expect(migrated.map((s) => s.id)).toEqual([
-      'notedeck-memo',
+      'hand-written-builtin',
       'aiscript-author',
       'theme-reference',
     ])
     expect(migrated[0]?.builtIn).toBe(true)
     expect(migrated[1]?.builtIn).toBe(false)
     expect(migrated[2]?.builtIn).toBe(false)
-  })
-
-  it('移行対象は作者系 4 本 + リファレンス 2 本', () => {
-    expect([...STORE_MOVED_SKILL_IDS].sort()).toEqual([
-      'aiscript-author',
-      'plugin-author',
-      'skill-author',
-      'theme-author',
-      'theme-reference',
-      'widget-author',
-    ])
   })
 })

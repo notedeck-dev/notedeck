@@ -7,6 +7,7 @@ import type { Command } from '@/commands/registry'
 import { useMisStoreStore } from '@/stores/misstore'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { editAttribution, REASON_PARAM } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 import { preflightValidateSrc } from './aiscript'
 
@@ -264,6 +265,7 @@ export const pluginsUpdateCapability: Command = {
     params: {
       installId: { type: 'string', description: '対象プラグインの installId' },
       src: { type: 'string', description: '新しい AiScript ソース全文' },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -285,7 +287,7 @@ export const pluginsUpdateCapability: Command = {
       throw new Error(`plugins.update: plugin "${installId}" not found`)
     }
     const next = takeStagedEdit(ctx, 'plugins.update', cur.src, () => src)
-    store.updateSrc(installId, next)
+    store.updateSrc(installId, next, editAttribution(ctx, params))
     // アクティブなら UI の保存と同様に新 src で再起動する (#744)。
     // launchPlugin は内部で既存インスタンスを abort する。
     const updated = store.getPlugin(installId)
@@ -518,6 +520,7 @@ export const pluginsRevertCapability: Command = {
     params: {
       installId: { type: 'string', description: '対象プラグインの installId' },
       index: { type: 'number', description: 'snapshot index (0 = 最新)' },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -547,7 +550,7 @@ export const pluginsRevertCapability: Command = {
       plugin.src,
       () => entry.snapshot.src,
     )
-    store.updateSrc(installId, next)
+    store.updateSrc(installId, next, editAttribution(ctx, params))
     return { installId, reverted: true, at: entry.at }
   },
 }

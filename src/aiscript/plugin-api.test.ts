@@ -1,4 +1,3 @@
-import { Parser, utils } from '@syuilo/aiscript'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
@@ -14,7 +13,6 @@ import {
   applyNotePostInterruptors,
   applyNoteViewInterruptors,
   getPluginHandlers,
-  isSupportedAiScriptVersion,
   launchAllPlugins,
   launchPlugin,
   parsePluginMeta,
@@ -399,22 +397,6 @@ describe('AiScript version header requirement (launch)', () => {
       plugin.installId,
     )
     expect(entries.some((e) => e.message.includes('not supported'))).toBe(true)
-  })
-
-  it('built-in plugin sources carry a supported header and parse on the modern parser', async () => {
-    const sources = import.meta.glob('@/defaults/plugins/*.is', {
-      query: '?raw',
-      import: 'default',
-    })
-    const paths = Object.keys(sources)
-    expect(paths.length).toBeGreaterThan(0)
-    for (const path of paths) {
-      const src = (await sources[path]?.()) as string
-      const version = utils.getLangVersion(src)
-      expect(version, path).not.toBeNull()
-      expect(isSupportedAiScriptVersion(version as string), path).toBe(true)
-      expect(() => new Parser().parse(src), path).not.toThrow()
-    }
   })
 })
 

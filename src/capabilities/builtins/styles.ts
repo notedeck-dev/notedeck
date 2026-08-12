@@ -2,6 +2,7 @@ import type { Command } from '@/commands/registry'
 import { appendBlock } from '@/services/selfEditApply'
 import { useThemeStore } from '@/stores/theme'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { editAttribution, REASON_PARAM } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 /**
@@ -85,6 +86,7 @@ export const stylesWriteCapability: Command = {
         type: 'string',
         description: '新しい custom.css 全文',
       },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -101,7 +103,7 @@ export const stylesWriteCapability: Command = {
       store.customCss,
       () => body,
     )
-    store.setCustomCss(next)
+    store.setCustomCss(next, editAttribution(ctx, params))
     return { length: next.length }
   },
 }
@@ -138,6 +140,7 @@ export const stylesAppendCapability: Command = {
         type: 'string',
         description: '末尾に追記する CSS (改行は \\n)',
       },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -153,7 +156,7 @@ export const stylesAppendCapability: Command = {
     const next = takeStagedEdit(ctx, 'styles.append', prev, () =>
       appendBlock(prev, content),
     )
-    store.setCustomCss(next)
+    store.setCustomCss(next, editAttribution(ctx, params))
     return { length: next.length }
   },
 }
@@ -223,6 +226,7 @@ export const stylesRevertCapability: Command = {
         type: 'number',
         description: 'snapshot index (0 = 最新、styles.history の順序と一致)',
       },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -248,7 +252,7 @@ export const stylesRevertCapability: Command = {
       store.customCss,
       () => entry.snapshot.body,
     )
-    store.setCustomCss(next)
+    store.setCustomCss(next, editAttribution(ctx, params))
     return { reverted: true, at: entry.at }
   },
 }

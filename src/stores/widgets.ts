@@ -4,7 +4,7 @@ import {
   createSidecarCollection,
   type SidecarItemFile,
 } from '@/services/sidecarFileCollection'
-import { pushSnapshot } from '@/utils/historyFs'
+import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
   getStorageByPrefix,
@@ -358,7 +358,11 @@ export const useWidgetsStore = defineStore('widgets', () => {
     return mountedCounts.value.get(installId) ?? 0
   }
 
-  function updateSrc(installId: string, src: string) {
+  function updateSrc(
+    installId: string,
+    src: string,
+    attribution?: EditAttribution,
+  ) {
     ensureLoaded()
     const widget = widgets.value.find((w) => w.installId === installId)
     if (widget) {
@@ -371,11 +375,16 @@ export const useWidgetsStore = defineStore('widgets', () => {
       // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
       // 内容が同じ保存では積まない (plugins.updateSrc と同じ理由)
       if (widget.fileBase && widget.src !== src) {
-        pushSnapshot('widget', widget.fileBase, {
-          src: widget.src,
-          name: widget.name,
-          autoRun: widget.autoRun,
-        }).catch((e) => console.warn('[widgets] history push failed:', e))
+        pushSnapshot(
+          'widget',
+          widget.fileBase,
+          {
+            src: widget.src,
+            name: widget.name,
+            autoRun: widget.autoRun,
+          },
+          attribution,
+        ).catch((e) => console.warn('[widgets] history push failed:', e))
       }
       widget.src = src
       widget.updatedAt = Date.now()

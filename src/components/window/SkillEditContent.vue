@@ -140,7 +140,6 @@ function save() {
   }, 1500)
 }
 
-const isBuiltIn = computed(() => skill.value?.builtIn ?? false)
 const isFromStore = computed(() => !!skill.value?.storeId)
 
 /**
@@ -190,7 +189,6 @@ const barStatus = computed<EditorActionStatus | null>(() => {
           <template v-if="author"> · {{ author }}</template>
           <span :class="$style.headerBadge">{{ headerModeLabel }}</span>
           <span v-if="skill.storeId" :class="$style.headerBadge">ストア</span>
-          <span v-else-if="skill.builtIn" :class="$style.headerBadge">ビルドイン</span>
         </template>
       </EditorItemHeader>
 
@@ -292,10 +290,9 @@ const barStatus = computed<EditorActionStatus | null>(() => {
             memo の作者として記録されます (#491)。
           </span>
         </div>
-        <div v-if="isBuiltIn || isFromStore" :class="$style.note">
+        <div v-if="isFromStore" :class="$style.note">
           <i class="ti ti-info-circle" />
-          <span v-if="isBuiltIn">内蔵スキル — 編集内容はローカルファイルに保存されます</span>
-          <span v-else>ストア由来のスキル — 編集内容はローカルファイルに保存されます (再インストールで上書きされる可能性あり)</span>
+          <span>ストア由来のスキル — 編集内容はローカルファイルに保存されます (再インストールで上書きされる可能性あり)</span>
         </div>
       </div>
 

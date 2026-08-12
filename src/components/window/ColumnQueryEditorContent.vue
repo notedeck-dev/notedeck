@@ -162,7 +162,6 @@ async function save(): Promise<void> {
     >
       <template #sub>
         <span v-if="namedQuery.storeId" :class="$style.headerBadge">ストア</span>
-        <span v-else-if="namedQuery.builtIn" :class="$style.headerBadge">ビルドイン</span>
         <span v-else :class="$style.headerBadge">ローカル</span>
       </template>
     </EditorItemHeader>

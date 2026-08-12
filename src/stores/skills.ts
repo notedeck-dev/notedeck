@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { emitNoteDeckEvent } from '@/aiscript/events'
-import { planBuiltInSeed } from '@/services/builtInSeed'
 import { injectFrontmatterId } from '@/services/idFreeze'
 import { createSingleFileCollection } from '@/services/singleFileCollection'
 import { planStoreMovedMigration } from '@/services/storeMovedSkills'
-import { pushSnapshot } from '@/utils/historyFs'
+import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
   type ParsedSkillFile,
@@ -48,7 +47,10 @@ export interface SkillMeta {
   body: string
   createdAt: number
   updatedAt: number
-  /** 内蔵テンプレ由来 (アンインストールではなく無効化が推奨される) */
+  /**
+   * 旧・内蔵テンプレ由来 (#746 で同梱は廃止)。手元に残った旧同梱 skill を
+   * ストア配布版へ移行する判定にだけ使う。新しく true になる経路は無い
+   */
   builtIn?: boolean
   /** スキル個別アイコン URL (MisStore registry の iconUrl 互換) */
   iconUrl?: string
@@ -115,22 +117,6 @@ interface SkillFrontmatter {
   iconUrl?: string
   cheapCheckCapabilities?: string[]
   isPersona?: boolean
-}
-
-/**
- * 簡易 semver 比較。`1.2.0` vs `1.10.0` を文字列でなく数値で比較するために
- * 各セグメントを int にして辞書順比較する。pre-release / build metadata は
- * 無視。NaN は 0 扱い。a < b なら -1、a > b なら 1、等しければ 0。
- */
-function compareSemver(a: string, b: string): number {
-  const pa = a.split('.').map((x) => Number.parseInt(x, 10) || 0)
-  const pb = b.split('.').map((x) => Number.parseInt(x, 10) || 0)
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const da = pa[i] ?? 0
-    const db = pb[i] ?? 0
-    if (da !== db) return da < db ? -1 : 1
-  }
-  return 0
 }
 
 function asArray(v: unknown): string[] {
@@ -262,31 +248,6 @@ const skillFiles = createSingleFileCollection<SkillMeta, ParsedSkillFile>({
   serialize: serializeSkill,
 })
 
-interface BuiltInTemplate {
-  id: string
-  filename: string
-  raw: string
-}
-
-/**
- * Built-in skill templates bundled with the app. Seeded on first run so the
- * skill カラム is never empty out-of-the-box.
- */
-async function loadBuiltInTemplates(): Promise<BuiltInTemplate[]> {
-  const modules = import.meta.glob('@/defaults/skills/*.md', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  })
-  const out: BuiltInTemplate[] = []
-  for (const [path, raw] of Object.entries(modules)) {
-    const filename = path.split('/').pop() ?? ''
-    const id = filename.replace(/\.md$/, '')
-    out.push({ id, filename, raw: raw as string })
-  }
-  return out
-}
-
 export const useSkillsStore = defineStore('skills', () => {
   const skills = ref<SkillMeta[]>([])
   const activeIds = ref<string[]>(
@@ -387,7 +348,8 @@ export const useSkillsStore = defineStore('skills', () => {
     fileSkills.sort((a, b) => a.createdAt - b.createdAt)
 
     if (fileSkills.length === 0) {
-      await seedBuiltIns()
+      // 同梱の skill はゼロ (#746 で全て MisStore 配布へ移した)。手元に何も
+      // 無い状態が正しい初期状態で、追加はストアからのインストールで行う
       initialized.value = true
       return
     }
@@ -411,61 +373,7 @@ export const useSkillsStore = defineStore('skills', () => {
 
     await migrateLegacyAizu()
     await migrateStoreMovedBuiltIns()
-    await seedMissingBuiltIns()
-    // initialized=true を立てた **後** に sync する (update() のファイル反映は
-    // ready ゲート越しなので、この関数の完了後に順に flush される)。
     initialized.value = true
-    const templates = await loadBuiltInTemplates()
-    syncBuiltInsMetadata(templates)
-  }
-
-  async function seedBuiltIns(): Promise<void> {
-    const templates = await loadBuiltInTemplates()
-    const seeded: SkillMeta[] = []
-    for (const tpl of templates) {
-      const { meta, body } = parseSkillFile(tpl.raw)
-      const fm = meta as SkillFrontmatter
-      const skill = metaFromFrontmatter(fm, body, tpl.id)
-      skill.builtIn = true
-      seeded.push(skill)
-    }
-    skills.value = seeded
-    await Promise.all(seeded.map((s) => persist(s)))
-    setStorageJson(
-      STORAGE_KEYS.skillsSeededBuiltins,
-      seeded.map((s) => s.id),
-    )
-  }
-
-  /**
-   * 既に skill ディレクトリに何か入っている既存ユーザー向けに、後から
-   * 追加された built-in テンプレを補填する。
-   *
-   * 「過去 seed した id」を localStorage に蓄積しているので、ユーザーが
-   * 内蔵 skill を意図的に削除した場合は再生成しない (= seed 済 id は永続)。
-   * 新しく defaults/skills/ に追加された未知 id だけが対象になる。
-   */
-  async function seedMissingBuiltIns(): Promise<void> {
-    const templates = await loadBuiltInTemplates()
-    const parsed = templates.map((tpl) => {
-      const { meta, body } = parseSkillFile(tpl.raw)
-      const skill = metaFromFrontmatter(meta as SkillFrontmatter, body, tpl.id)
-      skill.builtIn = true
-      return skill
-    })
-
-    const { toAdd, seededIds } = planBuiltInSeed(
-      parsed,
-      (s) => s.id,
-      new Set(skills.value.map((s) => s.id)),
-      new Set(getStorageJson<string[]>(STORAGE_KEYS.skillsSeededBuiltins, [])),
-    )
-
-    if (toAdd.length > 0) {
-      skills.value = [...skills.value, ...toAdd]
-      await Promise.all(toAdd.map((s) => persist(s)))
-    }
-    setStorageJson(STORAGE_KEYS.skillsSeededBuiltins, seededIds)
   }
 
   /**
@@ -531,7 +439,11 @@ export const useSkillsStore = defineStore('skills', () => {
     return skill
   }
 
-  function update(id: string, patch: Partial<SkillMeta>): void {
+  function update(
+    id: string,
+    patch: Partial<SkillMeta>,
+    attribution?: EditAttribution,
+  ): void {
     ensureLoaded()
     const idx = skills.value.findIndex((s) => s.id === id)
     if (idx < 0) return
@@ -552,8 +464,8 @@ export const useSkillsStore = defineStore('skills', () => {
       updatedAt: Date.now(),
     }
     // snapshot が記録する範囲が動いたときだけ履歴に積む。内容が同じ保存で
-    // 積むと、エディタのデバウンス自動保存が 10 件のリングを使い潰し、
-    // 意味のある編集前の状態が押し出される
+    // 積むと、エディタのデバウンス自動保存がリングを使い潰し、意味のある
+    // 編集前の状態が押し出される
     const snapshotChanged =
       prevSnapshot.body !== updated.body ||
       prevSnapshot.name !== updated.name ||
@@ -573,7 +485,12 @@ export const useSkillsStore = defineStore('skills', () => {
           // 編集前 snapshot を history sidecar に push。履歴キーは対応表の
           // fileBase (未割当 = ファイル未作成なら履歴も無し)
           if (live.fileBase && snapshotChanged) {
-            await pushSnapshot('skill', live.fileBase, prevSnapshot)
+            await pushSnapshot(
+              'skill',
+              live.fileBase,
+              prevSnapshot,
+              attribution,
+            )
           }
           // 表示名の変更はファイル rename で追随 (ID 不変・主ファイル + 履歴)。
           // rename の完了を待ってから保存する (#913)
@@ -657,52 +574,6 @@ export const useSkillsStore = defineStore('skills', () => {
     }
   }
 
-  // --- built-in metadata sync ---
-
-  /**
-   * builtIn=true な skill について、`src/defaults/skills/` 側 (template) の
-   * frontmatter version が disk 側より新しければ **メタデータのみ** 同期する。
-   * 同期対象は `mode` / `triggers` / `version` の 3 つだけ (= ユーザーが編集
-   * しうる body / name / description / author 等は触らない)。
-   *
-   * 背景: `seedBuiltIns` / `seedMissingBuiltIns` は「id 既知ならスキップ」設計
-   * のため、templates 側の frontmatter を更新しても disk 上の skill は古い
-   * ままになる (= trigger 化しても既存ユーザーに反映されない)。
-   *
-   * テスタビリティ: templates を引数で受ける形にして、テストでは固定 array
-   * を渡す。`loadBuiltInTemplates()` は import.meta.glob 由来で test 環境で
-   * モックしづらいため。
-   */
-  function syncBuiltInsMetadata(templates: BuiltInTemplate[]): void {
-    for (const tpl of templates) {
-      const { meta } = parseSkillFile(tpl.raw)
-      const fm = meta as SkillFrontmatter
-      const existing = skills.value.find(
-        (s) => s.id === tpl.id && s.builtIn === true,
-      )
-      if (!existing) continue
-      const tplVersion = String(fm.version ?? '0.0.0')
-      const tplMode = (fm.mode as SkillMode) ?? existing.mode
-      const tplTriggers = asArray(fm.triggers)
-
-      const versionCmp = compareSemver(tplVersion, existing.version)
-      // template version が新しいなら無条件 sync。同じバージョンでも mode/triggers
-      // が乖離していたら sync (= 過去 sync 時の parser bug 等で disk が中途半端な
-      // 状態で凍結するのを次回起動時に自動修復する)。
-      const drifted =
-        versionCmp === 0 &&
-        (existing.mode !== tplMode ||
-          existing.triggers.join('\n') !== tplTriggers.join('\n'))
-      if (versionCmp < 0 || (versionCmp === 0 && !drifted)) continue
-
-      update(existing.id, {
-        mode: tplMode,
-        triggers: tplTriggers,
-        version: tplVersion,
-      })
-    }
-  }
-
   // --- HEARTBEAT (#411) ---
 
   /**
@@ -768,6 +639,5 @@ export const useSkillsStore = defineStore('skills', () => {
     heartbeatSkills,
     setHeartbeat,
     triggerMatchingSkillIds,
-    syncBuiltInsMetadata,
   }
 })

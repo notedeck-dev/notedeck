@@ -227,6 +227,14 @@ export async function dispatchCapability(
     if (actor) {
       confirmOpts.attribution = actor
     }
+    // 編集の理由 (#1052): write 系 capability が受け取った reason を、承認前に
+    // 「何を変えるか (diff)」と同じ画面で見せる。承認後は同じ文字列が編集履歴に
+    // 記録されるので、ここで見せていないものが履歴に残ることはない。
+    const reason =
+      typeof params?.reason === 'string' ? params.reason.trim() : ''
+    if (reason) {
+      confirmOpts.reason = reason
+    }
     if (skipScope !== null && !crossAccount && !confirmOpts.rememberLabel) {
       confirmOpts.rememberLabel = '今後この操作を確認しない'
     }

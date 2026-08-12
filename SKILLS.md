@@ -20,7 +20,7 @@ NoteDeck の AI チャット機能で使う **SKILL (= Markdown 形式の指示�
 |---|---|---|
 | 形式 | Markdown | TypeScript / AiScript コード |
 | 役割 | AI への指示 (read-only) | AI が呼べる関数 (tool calling) |
-| 配布 | misstore で配布 | builtin (NoteDeck 同梱) or AiScript プラグイン |
+| 配布 | misstore で配布 | NoteDeck 本体に実装 or AiScript プラグイン |
 | 例 | 「丁寧に応答する」 | `time.now()` → ISO 8601 |
 
 ### 1.1 起動 mode (frontmatter `mode`)
@@ -223,7 +223,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | **メモ** | `memos.list`, `memos.search`, `memos.backlinks`, `memos.create`, `memos.update`, `memos.delete` | AI 永続記憶用ローカルメモ CRUD (#492 #494) |
 | **テーマ** | `theme.list`, `theme.read`, `theme.apply`, `theme.create`, `theme.update`, `theme.install`, `theme.uninstall`, `theme.history`, `theme.revert` | per-account テーマ CRUD + 編集履歴 + MisStore install/uninstall |
 | **CSS** | `styles.read`, `styles.write`, `styles.append`, `styles.history`, `styles.revert` | カスタム CSS の AI 編集 |
-| **スキル** | `skills.list`, `skills.read`, `skills.create`, `skills.append`, `skills.replaceSection`, `skills.toggle`, `skills.install`, `skills.uninstall`, `skills.history`, `skills.revert` | skill 新規作成 (#726) + 自己編集 + MisStore install/uninstall (builtIn 削除はガード) |
+| **スキル** | `skills.list`, `skills.read`, `skills.create`, `skills.append`, `skills.replaceSection`, `skills.toggle`, `skills.install`, `skills.uninstall`, `skills.history`, `skills.revert` | skill 新規作成 (#726) + 自己編集 + MisStore install/uninstall |
 | **ウィジェット** | `widgets.list`, `widgets.read`, `widgets.create`, `widgets.update`, `widgets.setAutoRun`, `widgets.delete`, `widgets.install`, `widgets.uninstall`, `widgets.history`, `widgets.revert` | AiScript widget の AI 編集 + MisStore install/uninstall |
 | **プラグイン** | `plugins.list`, `plugins.read`, `plugins.create`, `plugins.update`, `plugins.setActive`, `plugins.delete`, `plugins.install`, `plugins.uninstall`, `plugins.history`, `plugins.revert` | AiScript plugin の AI 編集 + MisStore install/uninstall |
 | **キーバインド** | `keybinds.list`, `keybinds.set`, `keybinds.reset`, `keybinds.resetAll` | ショートカット編集 |
@@ -316,7 +316,7 @@ skill / widget / plugin / theme の **書き込み系 capability** (`skills.crea
 
 1. **permission**: `skills.write` / `widgets.write` / `plugins.write` / `theme.write` は preset (`safe` / `full`) か custom で許可されたときだけ通る。#712 以降は principal 別に解決され、`skills.write` / `ai.persona.write` (AI 指示チャネル) は plugin / external principal に対し保存値に関わらず恒久 deny (confused deputy 防止)
 2. **確認ダイアログ**: `requiresConfirmation` で dispatch 直前にユーザー承認 (#714 の「今後確認しない」で capability 単位のスキップ可)
-3. **capability 個別ガード**: builtIn skill の削除拒否、`skills.create` の frontmatter 遮断 + id 内部生成、`aiscript.validate` preflight 等
+3. **capability 個別ガード**: `skills.create` の frontmatter 遮断 + id 内部生成、`aiscript.validate` preflight 等
 
 `aiTool: false` が残るのは `ai.chat` (プラグイン専用 — AI 自身からの再帰呼び出し防止) のみ。
 
@@ -455,25 +455,32 @@ LLM は曖昧な指示で長文を返しがちなので、形式制約が効き�
 | MisStore からのスキルインストール | frontmatter の `mode` (`always` / `trigger` / `heartbeat`) と `isPersona` をそのまま取り込む | `mode: heartbeat` でも daemon 全体が無効なら回らない (#967) |
 | heartbeat skill の cheapCheck | `cheapCheckCapabilities` 宣言時のみ発動 | 未宣言だと毎 tick AI 呼び出し (§1.2) |
 
-## 11. Built-in skill
+## 11. 同梱スキルの廃止 (#746)
 
-NoteDeck 同梱で初回起動時に seed される skill:
+**NoteDeck は skill を同梱しない。** 手元に置かれる skill はすべて MisStore 配布かサイドロード (手書き / AI 生成 / インポート) で、初回起動時に自動で配られるものは無い。
 
-| id | 用途 |
+同梱したままだと、修正版を届ける手段がユーザーによる削除・再シードしかなかった。配布に移せばストアの更新検知がそのまま使えるため、同梱シード機構ごと廃止した。
+
+### 11.1 MisStore へ移した skill
+
+| 移管 | skill |
 |---|---|
-| `notedeck-memo` | `<memos>` ブロックを永続記憶として扱う指示書 (#489) |
-| `self-profile` | `skills.replaceSection` で AI が自分のプロフィールを継続更新する自己編集デモ |
-| `notedeck-guide` | 「○○ はどこ?」「使い方は?」に答え、その場で開く提案までする |
-
-正本は `src/defaults/skills/`。ここに置いたものが初回起動時に seed される。
-
-### 11.1 MisStore へ移した skill (#969)
-
-自己拡張の作者系 (`plugin-author` / `widget-author` / `theme-author` / `skill-author`) と、その依存先のリファレンス (`aiscript-author` / `theme-reference`) は同梱をやめ、MisStore 配布に移した。使う人だけが入れる形にして、初回起動時に読み込む本文を減らすため。
+| [#969](https://github.com/notedeck-dev/notedeck/issues/969) | `plugin-author` / `widget-author` / `theme-author` / `skill-author` / `aiscript-author` / `theme-reference` |
+| [#746](https://github.com/notedeck-dev/notedeck/issues/746) | `notedeck-guide` / `notedeck-memo` / `self-profile` |
 
 作者系スキルはリファレンスと同じ triggers でセット起動される設計なので、**作者系を入れるときは対応するリファレンスも入れる**（`plugin-author` / `widget-author` → `aiscript-author`、`theme-author` → `theme-reference`）。欠けると生成品質が落ちる。
 
-既に seed 済みのユーザーの手元では、`builtIn: false` + `storeId` 付きのストア配布版相当に変換され、以降はストアから更新できる（削除ではなく変換なのは、本文を書き換えている可能性があるため）。判定は `src/services/storeMovedSkills.ts`。
+既に seed 済みのユーザーの手元では、`builtIn: false` + `storeId` 付きのストア配布版相当に変換され、以降はストアから更新できる（削除ではなく変換なのは、本文を書き換えている可能性があるため）。判定は `src/services/storeMovedSkills.ts`。プラグインも同じ形で `src/services/storeMovedPlugins.ts` が担う。
+
+`builtIn` フラグはこの移行判定にだけ残っており、新しく true になる経路は無い。管理カラムの出自分類も「サイドロード」と「ストア配布」の 2 つになった。
+
+### 11.2 テーマだけが例外
+
+テーマ管理カラムには「デフォルト」セクションが残り、既定テーマ (Mi Dark / Mi Light) が並ぶ。これは配布アイテムではなく**アプリが動作するための既定値**。
+
+skill / plugin / query / widget は 0 個でも成立する (無ければ何も起きないだけ) のに対し、**テーマは 0 個が成立しない** — 適用するテーマが無いと画面を描画できず、ストアから取得するまでの間を埋めるものが要る。同じ理由でフォールバック先の base テーマ (props の欠損を埋める、[#1046](https://github.com/notedeck-dev/notedeck/issues/1046)) も本体が持つ。
+
+配布物の「ビルドイン」とは別概念なので、ラベルも「デフォルト」と呼び分ける。削除・編集はできない。
 
 ---
 

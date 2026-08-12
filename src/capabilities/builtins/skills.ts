@@ -7,6 +7,7 @@ import {
   useSkillsStore,
 } from '@/stores/skills'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { editAttribution, REASON_PARAM } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 interface SkillSnapshot {
@@ -310,6 +311,7 @@ export const skillsAppendCapability: Command = {
         type: 'string',
         description: '末尾に追記する markdown (改行は \\n)',
       },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -328,7 +330,7 @@ export const skillsAppendCapability: Command = {
     const newBody = takeStagedEdit(ctx, 'skills.append', skill.body, () =>
       appendBlock(skill.body, content),
     )
-    store.update(id, { body: newBody })
+    store.update(id, { body: newBody }, editAttribution(ctx, params))
     return { id, length: newBody.length }
   },
 }
@@ -391,6 +393,7 @@ export const skillsReplaceSectionCapability: Command = {
         type: 'string',
         description: 'セクション本体の新しい markdown (heading 行は含めない)',
       },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -416,7 +419,7 @@ export const skillsReplaceSectionCapability: Command = {
       skill.body,
       () => computed.body,
     )
-    store.update(id, { body })
+    store.update(id, { body }, editAttribution(ctx, params))
     return { id, replaced: computed.replaced, length: body.length }
   },
 }
@@ -537,6 +540,7 @@ export const skillsRevertCapability: Command = {
         type: 'number',
         description: 'snapshot index (0 = 最新、skills.history の順序と一致)',
       },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -563,7 +567,7 @@ export const skillsRevertCapability: Command = {
       skill.body,
       () => entry.snapshot.body,
     )
-    store.update(id, { body })
+    store.update(id, { body }, editAttribution(ctx, params))
     return { id, reverted: true, at: entry.at }
   },
 }
@@ -657,8 +661,8 @@ export const skillsInstallCapability: Command = {
 /**
  * `skills.uninstall` — インストール済みスキルを完全削除する。
  *
- * 安全弁: builtIn skill (= NoteDeck 標準同梱) は削除を拒否する。
- * AI が誤って自己定義 (= 自分が立脚している persona) を消すのを防ぐ。
+ * 同梱 skill は廃止したので (#746)、削除できない skill は無い。不可逆操作の
+ * 保護は確認ダイアログ (削除内容と「残りません」の明示) が担う。
  */
 export const skillsUninstallCapability: Command = {
   id: 'skills.uninstall',
@@ -673,7 +677,6 @@ export const skillsUninstallCapability: Command = {
     if (!id) return null
     const cur = useSkillsStore().skills.find((s) => s.id === id)
     if (!cur) return null
-    if (cur.builtIn) return null
     return {
       title: 'スキルを削除',
       message:
@@ -692,8 +695,8 @@ export const skillsUninstallCapability: Command = {
   },
   signature: {
     description:
-      'インストール済みスキルを完全削除する。builtIn (NoteDeck 標準同梱) skill は' +
-      ' 削除拒否される (= 安全弁)。MisStore 経由 install したものは普通に消せる。',
+      'インストール済みスキルを完全削除する。frontmatter・本文・編集履歴ファイルが' +
+      ' 消える (= 不可逆)。',
     params: {
       id: { type: 'string', description: '削除するスキルの id' },
     },
@@ -710,11 +713,6 @@ export const skillsUninstallCapability: Command = {
     const skill = store.skills.find((s) => s.id === id)
     if (!skill) {
       throw new Error(`skills.uninstall: skill "${id}" is not installed`)
-    }
-    if (skill.builtIn) {
-      throw new Error(
-        `skills.uninstall: cannot remove built-in skill "${id}" (safety guard)`,
-      )
     }
     store.remove(id)
     return { id, removed: true }

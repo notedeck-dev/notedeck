@@ -36,6 +36,12 @@ export interface ConfirmOptions {
    * 注入されない。ダイアログ冒頭に必須表示される。
    */
   attribution?: string
+  /**
+   * この編集をなぜ行うか (#1052)。write 系 capability の `reason` パラメータを
+   * dispatcher が注入する。「何を変えるか」は diff が示すので、その意図を添える
+   * 欄として使う。承認後は同じ文字列が編集履歴に記録される。
+   */
+  reason?: string
   okLabel?: string
   cancelLabel?: string
   type?: ConfirmType
