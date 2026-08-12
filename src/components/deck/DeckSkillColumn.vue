@@ -91,7 +91,7 @@ const visibleSkills = computed(() => {
 })
 
 interface SkillSection {
-  key: 'builtin' | 'sideload' | 'store'
+  key: 'sideload' | 'store'
   label: string
   items: SkillMeta[]
 }
