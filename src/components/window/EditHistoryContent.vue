@@ -127,6 +127,7 @@ function formatAt(at: number): string {
         >
           <span :class="$style.entryIndex">#{{ i }}</span>
           <span :class="$style.entryAt">{{ formatAt(entry.at) }}</span>
+          <span v-if="i === 0" :class="$style.entryTag">直前</span>
         </button>
       </div>
 
@@ -210,11 +211,14 @@ function formatAt(at: number): string {
   font-size: 13px;
 }
 
+// 履歴は「上が新しい」縦の時系列。横スクロールのチップだと件数が増えたとき
+// 見えない項目が出るうえ、時系列の向きが読み取れない
 .list {
   display: flex;
-  gap: 4px;
-  padding: 8px 10px;
-  overflow-x: auto;
+  flex-direction: column;
+  padding: 4px 0;
+  max-height: 30%;
+  overflow-y: auto;
   border-bottom: 1px solid var(--nd-divider);
   flex-shrink: 0;
 }
@@ -222,20 +226,35 @@ function formatAt(at: number): string {
 .entry {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border: 1px solid var(--nd-divider);
-  border-radius: 3px;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 14px;
+  border: none;
+  border-left: 2px solid transparent;
   background: transparent;
   color: var(--nd-fg);
-  font-size: 11px;
+  font-size: 12px;
+  text-align: left;
   white-space: nowrap;
   cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
+  }
 }
 
 .entrySelected {
-  border-color: var(--nd-accent);
+  border-left-color: var(--nd-accent);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
+}
+
+.entryTag {
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
+  font-size: 10px;
+  opacity: 0.8;
 }
 
 .entryIndex {

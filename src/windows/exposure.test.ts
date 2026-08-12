@@ -18,6 +18,7 @@ const DEVELOPER_WINDOWS = [
   'column-query-editor',
   'widget-edit',
   'skill-edit',
+  'edit-history',
   'tasksEditor',
   'snippetsEditor',
 ]

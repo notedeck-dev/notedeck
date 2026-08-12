@@ -30,7 +30,10 @@ import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
 import AiScriptUiRenderer, {
   type PostFormRequest,
 } from '@/components/deck/widgets/AiScriptUiRenderer.vue'
-import type { EditorActionStatus } from '@/components/window/EditorActionBar.vue'
+import type {
+  EditorAction,
+  EditorActionStatus,
+} from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import {
   historyBasename,
@@ -40,6 +43,7 @@ import { useEditorTabs } from '@/composables/useEditorTabs'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { providerFromPrincipal } from '@/plugins/registrationId'
+import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
@@ -147,6 +151,13 @@ function openHistory() {
     name: w.name,
   })
 }
+
+// 履歴は開発者向けの面 (#1034)。入口だけ隠す
+const historyActions = computed<EditorAction[]>(() =>
+  isExposed('developer')
+    ? [{ key: 'history', label: '履歴', icon: 'history' }]
+    : [],
+)
 
 const barStatus = computed<EditorActionStatus | null>(() => {
   if (saved.value) return { text: '保存しました', icon: 'check', tone: 'ok' }
@@ -436,7 +447,7 @@ function toggleAutoRun() {
     <EditorActionBar
       v-if="widget"
       :status="barStatus"
-      :actions="[{ key: 'history', label: '履歴', icon: 'history' }]"
+      :actions="historyActions"
       :primary="{
         key: 'save',
         label: '保存',

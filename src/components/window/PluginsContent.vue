@@ -326,7 +326,10 @@ const barActions = computed<EditorAction[]>(() => {
       label: copiedMessage.value ? 'コピー済み' : 'エクスポート',
       icon: 'clipboard-copy',
     },
-    { key: 'history', label: '履歴', icon: 'history' },
+    // 履歴は開発者向けの面 (#1034)。入口だけ隠す
+    ...(isExposed('developer')
+      ? [{ key: 'history', label: '履歴', icon: 'history' }]
+      : []),
   ]
 })
 

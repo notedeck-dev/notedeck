@@ -26,6 +26,7 @@ import {
   VISIBILITY_BG_COLORS,
   VISIBILITY_BG_OPTIONS,
 } from '@/services/cssPresets'
+import { isExposed } from '@/settings/exposure'
 import { useThemeStore } from '@/stores/theme'
 
 const cssLang = css()
@@ -208,6 +209,9 @@ function exportCss() {
   navigator.clipboard.writeText(cssCode.value)
   showCopied()
 }
+
+// 履歴は開発者向けの面 (#1034)。入口だけ隠す
+const historyExposed = computed(() => isExposed('developer'))
 
 /** AI が過去に何を変えたかを diff で追う (#981)。custom.css は単一ファイル。 */
 function openHistory() {
@@ -536,6 +540,7 @@ watch(
           {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
         </button>
         <button
+          v-if="historyExposed"
           class="_button"
           :class="[$style.actionBtn, $style.secondary]"
           @click="openHistory"

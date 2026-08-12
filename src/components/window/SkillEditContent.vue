@@ -2,7 +2,10 @@
 import { markdown } from '@codemirror/lang-markdown'
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
-import type { EditorActionStatus } from '@/components/window/EditorActionBar.vue'
+import type {
+  EditorAction,
+  EditorActionStatus,
+} from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import {
@@ -11,6 +14,7 @@ import {
 } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { isExposed } from '@/settings/exposure'
 import { type SkillMode, useSkillsStore } from '@/stores/skills'
 import { SKILL_EXT } from '@/utils/settingsFs'
 
@@ -155,6 +159,13 @@ function openHistory() {
   })
 }
 
+// 履歴は開発者向けの面 (#1034)。入口だけ隠す
+const historyActions = computed<EditorAction[]>(() =>
+  isExposed('developer')
+    ? [{ key: 'history', label: '履歴', icon: 'history' }]
+    : [],
+)
+
 const barStatus = computed<EditorActionStatus | null>(() => {
   if (saved.value) return { text: '保存しました', icon: 'check', tone: 'ok' }
   if (dirty.value) return { text: '未保存の変更', icon: 'pencil' }
@@ -298,7 +309,7 @@ const barStatus = computed<EditorActionStatus | null>(() => {
 
       <EditorActionBar
         :status="barStatus"
-        :actions="[{ key: 'history', label: '履歴', icon: 'history' }]"
+        :actions="historyActions"
         :primary="{
           key: 'save',
           label: '保存',

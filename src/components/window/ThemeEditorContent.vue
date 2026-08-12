@@ -350,7 +350,8 @@ const barActions = computed<EditorAction[]>(() => {
       icon: 'clipboard-copy',
     },
   ]
-  if (editingThemeId.value) {
+  // 履歴は開発者向けの面 (#1034)。入口だけ隠す
+  if (editingThemeId.value && isExposed('developer')) {
     list.push({ key: 'history', label: '履歴', icon: 'history' })
   }
   if (hasChangesFromSnapshot.value) {

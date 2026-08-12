@@ -332,6 +332,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
   'edit-history': {
     label: '編集履歴',
     icon: 'ti ti-history',
+    exposure: 'developer',
     width: 620,
     maxHeight: 720,
     component: () => import('@/components/window/EditHistoryContent.vue'),
