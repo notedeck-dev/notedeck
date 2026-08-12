@@ -10,27 +10,32 @@ const h = vi.hoisted(() => ({
     skills: [] as unknown[],
     add: vi.fn(),
     update: vi.fn(),
+    recordStoreBaseline: vi.fn(),
   },
   pluginsStore: {
     plugins: [] as unknown[],
     linkScope: vi.fn(),
     addPlugin: vi.fn(),
     applyStoreUpdate: vi.fn(),
+    recordStoreBaseline: vi.fn(),
   },
   widgetsStore: {
     widgets: [] as unknown[],
     addWidget: vi.fn(),
     applyStoreUpdate: vi.fn(),
+    recordStoreBaseline: vi.fn(),
   },
   queriesStore: {
     queries: [] as unknown[],
     ensureLoaded: vi.fn(),
     createQuery: vi.fn(async () => undefined),
     applyStoreUpdate: vi.fn(async () => undefined),
+    recordStoreBaseline: vi.fn(async () => undefined),
   },
   themeStore: {
     installedThemes: [] as unknown[],
     installTheme: vi.fn(async (_json: string) => true),
+    recordStoreBaseline: vi.fn(),
   },
   launchPlugin: vi.fn(async () => undefined),
   parsePluginMeta: vi.fn(),
@@ -682,6 +687,161 @@ describe('installTheme', () => {
     expect(store.isThemeInstalled(themeEntry())).toBe(false)
     h.themeStore.installedThemes = [{ id: 'other' }]
     expect(store.isThemeInstalled(themeEntry())).toBe(false)
+  })
+})
+
+describe('更新検知 (#1040)', () => {
+  it('hasWidgetUpdate: 記録済み storeSha512 と registry sha512 の不一致で true', () => {
+    const store = useMisStoreStore()
+    const entry = widgetEntry({ sha512: 'sha-new' })
+    h.widgetsStore.widgets = [
+      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-old' },
+    ]
+    expect(store.hasWidgetUpdate(entry)).toBe(true)
+    h.widgetsStore.widgets = [
+      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-new' },
+    ]
+    expect(store.hasWidgetUpdate(entry)).toBe(false)
+  })
+
+  it('未インストール / storeSha512 未記録 (baseline 前) は false', () => {
+    const store = useMisStoreStore()
+    const entry = widgetEntry({ sha512: 'sha-new' })
+    h.widgetsStore.widgets = []
+    expect(store.hasWidgetUpdate(entry)).toBe(false)
+    h.widgetsStore.widgets = [{ installId: 'w0', storeId: 'ent-widget' }]
+    expect(store.hasWidgetUpdate(entry)).toBe(false)
+  })
+
+  it('version 文字列は判定に使わない (同一 version でも sha 不一致なら更新あり)', () => {
+    const store = useMisStoreStore()
+    const entry = widgetEntry({ sha512: 'sha-new', version: '1.0.0' })
+    h.widgetsStore.widgets = [
+      {
+        installId: 'w0',
+        storeId: 'ent-widget',
+        storeSha512: 'sha-old',
+        storeVersion: '1.0.0',
+      },
+    ]
+    expect(store.hasWidgetUpdate(entry)).toBe(true)
+  })
+
+  it('hasSkillUpdate / hasPluginUpdate / hasQueryUpdate は storeId で照合する', () => {
+    const store = useMisStoreStore()
+    h.skillsStore.skills = [
+      { id: 'local-1', storeId: 'ent-skill', storeSha512: 'sha-old' },
+    ]
+    expect(store.hasSkillUpdate(skillEntry({ sha512: 'sha-new' }))).toBe(true)
+    expect(store.hasSkillUpdate(skillEntry({ sha512: 'sha-old' }))).toBe(false)
+
+    h.pluginsStore.plugins = [
+      { installId: 'p1', storeId: 'ent-plugin', storeSha512: 'sha-old' },
+    ]
+    expect(store.hasPluginUpdate(pluginEntry({ sha512: 'sha-new' }))).toBe(true)
+
+    h.queriesStore.queries = [
+      { id: 'q1', storeId: 'ent-query', storeSha512: 'sha-old' },
+    ]
+    expect(store.hasQueryUpdate(queryEntry({ sha512: 'sha-new' }))).toBe(true)
+  })
+
+  it('hasThemeUpdate は $notedeck.storeId / storeSha512 で照合する', () => {
+    const store = useMisStoreStore()
+    h.themeStore.installedThemes = [
+      {
+        id: 'custom-1',
+        $notedeck: { storeId: 'ent-theme', storeSha512: 'sha-old' },
+      },
+    ]
+    expect(store.hasThemeUpdate(themeEntry({ sha512: 'sha-new' }))).toBe(true)
+    expect(store.hasThemeUpdate(themeEntry({ sha512: 'sha-old' }))).toBe(false)
+    // baseline 前 (storeSha512 未記録) は false
+    h.themeStore.installedThemes = [
+      { id: 'custom-1', $notedeck: { storeId: 'ent-theme' } },
+    ]
+    expect(store.hasThemeUpdate(themeEntry({ sha512: 'sha-new' }))).toBe(false)
+  })
+})
+
+describe('baseline 無通知記録 (#1040)', () => {
+  it('fetchWidgets: storeSha512 未記録のインストール済みへ現行値を記録する', async () => {
+    const store = useMisStoreStore()
+    h.widgetsStore.widgets = [{ installId: 'w0', storeId: 'ent-widget' }]
+    const entry = widgetEntry({ sha512: 'sha-now', version: '2.0.0' })
+    fetchMock.mockResolvedValue(okJson({ widgets: [entry] }))
+    await store.fetchWidgets()
+    expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledWith('w0', {
+      storeSha512: 'sha-now',
+      storeVersion: '2.0.0',
+    })
+  })
+
+  it('記録済み storeSha512 があるものには触れない (更新検知を上書きしない)', async () => {
+    const store = useMisStoreStore()
+    h.widgetsStore.widgets = [
+      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-old' },
+    ]
+    fetchMock.mockResolvedValue(
+      okJson({ widgets: [widgetEntry({ sha512: 'sha-now' })] }),
+    )
+    await store.fetchWidgets()
+    expect(h.widgetsStore.recordStoreBaseline).not.toHaveBeenCalled()
+  })
+
+  it('fetchSkills / fetchPlugins / fetchQueries も未記録分へ記録する', async () => {
+    const store = useMisStoreStore()
+    h.skillsStore.skills = [{ id: 'local-1', storeId: 'ent-skill' }]
+    h.pluginsStore.plugins = [{ installId: 'p1', storeId: 'ent-plugin' }]
+    h.queriesStore.queries = [{ id: 'q1', storeId: 'ent-query' }]
+    fetchMock
+      .mockResolvedValueOnce(
+        okJson({ skills: [skillEntry({ sha512: 's-sha' })] }),
+      )
+      .mockResolvedValueOnce(
+        okJson({ plugins: [pluginEntry({ sha512: 'p-sha' })] }),
+      )
+      .mockResolvedValueOnce(
+        okJson({ queries: [queryEntry({ sha512: 'q-sha' })] }),
+      )
+    await store.fetchSkills()
+    await store.fetchPlugins()
+    await store.fetchQueries()
+    expect(h.skillsStore.recordStoreBaseline).toHaveBeenCalledWith('local-1', {
+      storeSha512: 's-sha',
+      storeVersion: '1.0.0',
+    })
+    expect(h.pluginsStore.recordStoreBaseline).toHaveBeenCalledWith('p1', {
+      storeSha512: 'p-sha',
+      storeVersion: '1.0.0',
+    })
+    expect(h.queriesStore.recordStoreBaseline).toHaveBeenCalledWith('q1', {
+      storeSha512: 'q-sha',
+      storeVersion: '1.0.0',
+    })
+  })
+
+  it('fetchThemes: $notedeck.storeSha512 未記録のテーマへ記録する', async () => {
+    const store = useMisStoreStore()
+    h.themeStore.installedThemes = [
+      { id: 'custom-1', $notedeck: { storeId: 'ent-theme' } },
+    ]
+    fetchMock.mockResolvedValue(
+      okJson({ themes: [themeEntry({ sha512: 't-sha' })] }),
+    )
+    await store.fetchThemes()
+    expect(h.themeStore.recordStoreBaseline).toHaveBeenCalledWith('custom-1', {
+      storeSha512: 't-sha',
+      storeVersion: '1.0.0',
+    })
+  })
+
+  it('インストールされていない registry エントリには何も記録しない', async () => {
+    const store = useMisStoreStore()
+    h.widgetsStore.widgets = [{ installId: 'w9', storeId: 'other-widget' }]
+    fetchMock.mockResolvedValue(okJson({ widgets: [widgetEntry()] }))
+    await store.fetchWidgets()
+    expect(h.widgetsStore.recordStoreBaseline).not.toHaveBeenCalled()
   })
 })
 

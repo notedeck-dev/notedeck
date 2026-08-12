@@ -577,6 +577,36 @@ export const useSkillsStore = defineStore('skills', () => {
     emitNoteDeckEvent('skill:edited', { id })
   }
 
+  /**
+   * 更新検知の基準記録 (#1040)。storeSha512 未記録のストア由来スキルへ
+   * registry 現行値を無通知で記録する。update() と違い履歴 push・
+   * updatedAt 更新・skill:edited イベントを出さない。
+   */
+  function recordStoreBaseline(
+    id: string,
+    patch: { storeSha512: string; storeVersion: string },
+  ): void {
+    ensureLoaded()
+    const idx = skills.value.findIndex((s) => s.id === id)
+    const current = skills.value[idx]
+    if (!current) return
+    const updated: SkillMeta = { ...current, ...patch }
+    skills.value = [
+      ...skills.value.slice(0, idx),
+      updated,
+      ...skills.value.slice(idx + 1),
+    ]
+    if (settingsFs.isTauri) {
+      void ready
+        .then(() => {
+          const live = skills.value.find((s) => s.id === id)
+          if (!live) return
+          return skillFiles.persistItem(live, skills.value)
+        })
+        .catch((e) => console.warn('[skills] failed to persist baseline:', e))
+    }
+  }
+
   /** スキルを削除する。undo トースト用に復元関数を返す (ファイル再書込方式) */
   function remove(id: string): (() => void) | undefined {
     ensureLoaded()
@@ -725,6 +755,7 @@ export const useSkillsStore = defineStore('skills', () => {
     get,
     add,
     update,
+    recordStoreBaseline,
     remove: removeWithMigration,
     heartbeatSkills,
     setHeartbeat,
