@@ -708,17 +708,43 @@ export const useDeckStore = defineStore('deck', () => {
   }
 
   /**
-   * widget カラムから widget を取り除く。
-   * sidebar widget カラムなら本体削除 (コードも消える)、
-   * non-sidebar widget カラムならカラムからの参照剥がしのみ (本体ストアに残る)。
+   * widget カラムから widget を取り除く。sidebar / non-sidebar とも
+   * 「配置から外す」だけで、本体 (コード) は widgetsStore に残る (#1048)。
+   * かつては sidebar だけ本体削除に落ちていたが、attachWidget が sidebar 並びを
+   * 「もう 1 つの配置先」として扱っている以上、外す操作だけが本体を消すのは
+   * 非対称で、しかも同じアイコン・無確認で不可逆だった。本体削除はライブラリ
+   * ピッカー (確認ダイアログ + undo トースト) に一本化する。
+   * undo トースト用に、元の位置へ戻す復元関数を返す。
    */
-  function removeWidget(columnId: string, installId: string) {
+  function removeWidget(
+    columnId: string,
+    installId: string,
+  ): (() => void) | undefined {
     const col = getColumn(columnId)
-    if (col?.type !== 'widget') return
+    if (col?.type !== 'widget') return undefined
     if (col.sidebar === true) {
-      widgetsStore.removeWidget(installId)
-    } else if (col.widgetIds) {
-      col.widgetIds = col.widgetIds.filter((id) => id !== installId)
+      const idx = widgetsStore.sidebarWidgetIds.indexOf(installId)
+      if (idx < 0) return undefined
+      widgetsStore.removeFromSidebar(installId)
+      return () => {
+        const ids = [...widgetsStore.sidebarWidgetIds]
+        if (ids.includes(installId)) return
+        ids.splice(Math.min(idx, ids.length), 0, installId)
+        widgetsStore.reorderSidebar(ids)
+      }
+    }
+    const placed = col.widgetIds ?? []
+    const idx = placed.indexOf(installId)
+    if (idx < 0) return undefined
+    col.widgetIds = placed.filter((id) => id !== installId)
+    save()
+    return () => {
+      const target = getColumn(columnId)
+      if (target?.type !== 'widget') return
+      const ids = [...(target.widgetIds ?? [])]
+      if (ids.includes(installId)) return
+      ids.splice(Math.min(idx, ids.length), 0, installId)
+      target.widgetIds = ids
       save()
     }
   }

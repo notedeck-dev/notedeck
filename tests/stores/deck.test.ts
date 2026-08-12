@@ -2,6 +2,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDeckStore } from '@/stores/deck'
+import { useWidgetsStore } from '@/stores/widgets'
 
 // Mock localStorage
 const storage = new Map<string, string>()
@@ -735,6 +736,69 @@ describe('deck store', () => {
 
       deck.currentWindowId = 'w1'
       expect(deck.windowLayout).toEqual([[col2.id]])
+    })
+  })
+
+  describe('removeWidget は配置から外すだけ (#1048)', () => {
+    /** widget カラム 1 本 + ライブラリに 2 個の widget を用意する */
+    function setup(sidebar: boolean) {
+      const deck = useDeckStore()
+      const widgets = useWidgetsStore()
+      const col = deck.addColumn({
+        type: 'widget',
+        name: 'W',
+        width: 400,
+        accountId: null,
+        ...(sidebar ? { sidebar: true } : {}),
+      })
+      deck.addWidget(col.id, { name: 'first' })
+      deck.addWidget(col.id, { name: 'second' })
+      const ids = sidebar
+        ? [...widgets.sidebarWidgetIds]
+        : [...(deck.getColumn(col.id)?.widgetIds ?? [])]
+      return { deck, widgets, col, ids }
+    }
+
+    const placedIds = (deck: ReturnType<typeof useDeckStore>, id: string) =>
+      deck.getColumn(id)?.widgetIds ?? []
+
+    it('sidebar カラムでも widget 本体 (コード) を消さない', () => {
+      const { deck, widgets, col, ids } = setup(true)
+
+      deck.removeWidget(col.id, ids[0] as string)
+
+      expect(widgets.sidebarWidgetIds).toEqual([ids[1]])
+      // 本体はライブラリに残る (ピッカーから再配置・完全削除できる)
+      expect(widgets.widgets.map((w) => w.installId).sort()).toEqual(
+        [...ids].sort(),
+      )
+    })
+
+    it('sidebar カラムの undo は元の位置に戻す', () => {
+      const { deck, widgets, col, ids } = setup(true)
+
+      const undo = deck.removeWidget(col.id, ids[0] as string)
+      expect(undo).toBeTypeOf('function')
+      undo?.()
+
+      expect(widgets.sidebarWidgetIds).toEqual(ids)
+    })
+
+    it('通常カラムでも本体を消さず undo で元の位置に戻る', () => {
+      const { deck, widgets, col, ids } = setup(false)
+
+      const undo = deck.removeWidget(col.id, ids[0] as string)
+
+      expect(placedIds(deck, col.id)).toEqual([ids[1]])
+      expect(widgets.widgets).toHaveLength(2)
+      undo?.()
+      expect(placedIds(deck, col.id)).toEqual(ids)
+    })
+
+    it('配置されていない widget を外しても undo は返さない', () => {
+      const { deck, col } = setup(false)
+
+      expect(deck.removeWidget(col.id, 'not-placed')).toBeUndefined()
     })
   })
 

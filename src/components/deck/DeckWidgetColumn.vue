@@ -77,8 +77,14 @@ function scrollToTop() {
   widgetBodyRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+/** 配置から外す (可逆)。本体はライブラリに残るので確認は挟まず undo を出す。 */
 function handleRemove(installId: string) {
-  deckStore.removeWidget(props.column.id, installId)
+  const undo = deckStore.removeWidget(props.column.id, installId)
+  if (undo) {
+    useToast().show('ウィジットを外しました', 'info', {
+      action: { label: '元に戻す', onClick: undo },
+    })
+  }
 }
 
 // --- Drag & drop reorder (配置タブ内) ---
