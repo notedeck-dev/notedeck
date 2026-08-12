@@ -994,6 +994,117 @@ describe('ハッシュ不一致の 1 回リトライ (#1040)', () => {
 })
 
 describe('更新適用 (#1040)', () => {
+  it('installWidget: 既存への再インストールも diff 確認を通す (#981)', async () => {
+    const store = useMisStoreStore()
+    const oldSrc = '<: "local edit"'
+    const newSrc = '<: "widget v2"'
+    h.widgetsStore.widgets = [
+      {
+        installId: 'w0',
+        storeId: 'ent-widget',
+        name: 'My Widget',
+        src: oldSrc,
+      },
+    ]
+    h.widgetsStore.applyStoreUpdate.mockReturnValue({
+      installId: 'w0',
+      src: newSrc,
+    })
+    fetchMock.mockResolvedValue(okText(newSrc))
+    await store.installWidget(widgetEntry({ sha512: sha512Hex(newSrc) }))
+    const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(opts.diff).toEqual({
+      old: oldSrc,
+      new: newSrc,
+      language: 'aiscript',
+    })
+  })
+
+  it('installWidget: 確認をキャンセルしたらローカルの src を書き換えない (#981)', async () => {
+    const store = useMisStoreStore()
+    h.confirm.mockResolvedValueOnce(false)
+    const existing = {
+      installId: 'w0',
+      storeId: 'ent-widget',
+      src: '<: "local edit"',
+    } as WidgetMeta
+    h.widgetsStore.widgets = [existing]
+    const newSrc = '<: "widget v2"'
+    fetchMock.mockResolvedValue(okText(newSrc))
+    await expect(
+      store.installWidget(widgetEntry({ sha512: sha512Hex(newSrc) })),
+    ).resolves.toBe(existing)
+    expect(h.widgetsStore.applyStoreUpdate).not.toHaveBeenCalled()
+  })
+
+  it('installSkill: 既存への再インストールも diff 確認を通す (#981)', async () => {
+    const store = useMisStoreStore()
+    const body = '# v2\n\n新しい本文'
+    const source = `---\nname: Test Skill\n---\n${body}`
+    h.skillsStore.skills = [
+      { id: 'sk0', storeId: 'ent-skill', name: 'Test Skill', body: '# v1' },
+    ]
+    fetchMock.mockResolvedValue(okText(source))
+    await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
+    const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(opts.diff).toEqual({
+      old: '# v1',
+      new: body,
+      language: 'markdown',
+    })
+    expect(h.skillsStore.update).toHaveBeenCalled()
+  })
+
+  it('installSkill: 確認をキャンセルしたら本文を書き換えない (#981)', async () => {
+    const store = useMisStoreStore()
+    h.confirm.mockResolvedValueOnce(false)
+    h.skillsStore.skills = [
+      { id: 'sk0', storeId: 'ent-skill', name: 'Test Skill', body: '# v1' },
+    ]
+    const source = '---\nname: Test Skill\n---\n# v2'
+    fetchMock.mockResolvedValue(okText(source))
+    await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
+    expect(h.skillsStore.update).not.toHaveBeenCalled()
+  })
+
+  it('installTheme: 見た目が変わらない再インストール (installedFor 追加だけ) は確認しない (#981)', async () => {
+    const store = useMisStoreStore()
+    const source = "{ id: 'ent-theme', name: 'T', props: { accent: '#f00' } }"
+    h.themeStore.installedThemes = [
+      {
+        id: 'ent-theme',
+        name: 'T',
+        props: { accent: '#f00' },
+        $notedeck: { storeId: 'ent-theme', installedFor: ['acc1'] },
+      },
+    ]
+    fetchMock.mockResolvedValue(okText(source))
+    await store.installTheme(themeEntry({ sha512: sha512Hex(source) }), [
+      'acc2',
+    ])
+    expect(h.confirm).not.toHaveBeenCalled()
+    expect(h.themeStore.installTheme).toHaveBeenCalledTimes(1)
+  })
+
+  it('installTheme: props が変わる再インストールは diff 確認を通す (#981)', async () => {
+    const store = useMisStoreStore()
+    const source = "{ id: 'ent-theme', name: 'T', props: { accent: '#0f0' } }"
+    h.themeStore.installedThemes = [
+      {
+        id: 'ent-theme',
+        name: 'T',
+        props: { accent: '#f00' },
+        $notedeck: { storeId: 'ent-theme' },
+      },
+    ]
+    fetchMock.mockResolvedValue(okText(source))
+    await store.installTheme(themeEntry({ sha512: sha512Hex(source) }))
+    const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
+    const diff = opts.diff as { old: string; new: string }
+    expect(diff.old).toContain('"accent": "#f00"')
+    expect(diff.new).toContain('"accent": "#0f0"')
+  })
+
   it('updateWidget: diff 付き確認 → 承認で確認に使ったソースをそのまま適用する', async () => {
     const store = useMisStoreStore()
     const oldSrc = '<: "widget v1"'
