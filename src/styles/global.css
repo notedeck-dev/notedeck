@@ -109,6 +109,7 @@
      シンタックスハイライトが VS Code Dark+ 準拠でダーク固定なので面も
      ダーク固定だが、カスタム CSS から上書きできるよう変数で開放する */
   --nd-codeEditorBg: #1e1e1e;
+  --nd-codeEditorFg: #d4d4d4;
   --nd-codeEditorFgMuted: #9d9d9d;
   /* Diff 表示 (CodeDiffView #981/#1040) の挿入/削除色。エディタ面と同じく
      テーマ非依存の値 */
@@ -878,6 +879,16 @@ dialog._nativeDialog[open] {
 }
 ._shake {
   animation: nd-shake 0.4s var(--nd-ease-decel);
+}
+
+/* ---- 読み取り専用のコードブロック面 ---- */
+
+/* Shiki のトークン色は VS Code Dark+ 準拠でダーク固定なので、面もテーマに
+   関係なくダークに揃える。shiki-dark-plus.css は色を直書きするため、要素を
+   足した特異度でこちらを勝たせ、面の色をトークン 1 箇所に集約する (#981) */
+pre.shiki {
+  background-color: var(--nd-codeEditorBg);
+  color: var(--nd-codeEditorFg);
 }
 
 /* ---- Global reduced-motion ---- */

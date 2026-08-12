@@ -359,10 +359,12 @@ useNativeDialog(dialogRef, visible, {
   border-radius: 6px;
   overflow: hidden;
 
+  // 面はハイライトの有無とテーマに関係なく揃える (トークン色がダーク固定)
   :global(pre) {
     margin: 0;
     padding: 10px 12px;
-    background: var(--nd-codeBg, var(--nd-panelHighlight));
+    background: var(--nd-codeEditorBg);
+    color: var(--nd-codeEditorFg);
     overflow-x: auto;
     scrollbar-width: thin;
   }

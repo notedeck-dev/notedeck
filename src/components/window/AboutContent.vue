@@ -1108,12 +1108,14 @@ function reportBug() {
   border: 1px solid var(--nd-panelBorder);
   overflow: hidden;
 
+  // 面はハイライトの有無とテーマに関係なく揃える (トークン色がダーク固定)
   :global(pre) {
     margin: 0;
     padding: 8px 10px;
     max-height: 200px;
     overflow: auto;
-    background: var(--nd-codeBg, var(--nd-panelHighlight));
+    background: var(--nd-codeEditorBg);
+    color: var(--nd-codeEditorFg);
     scrollbar-width: thin;
   }
 

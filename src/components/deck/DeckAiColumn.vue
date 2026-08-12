@@ -1633,7 +1633,9 @@ function onKeydown(e: KeyboardEvent) {
   margin: 0;
   padding: 8px;
   border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
+  // 面はハイライトの有無とテーマに関係なく揃える (トークン色がダーク固定)
+  background: var(--nd-codeEditorBg);
+  color: var(--nd-codeEditorFg);
   font-family: var(--nd-font-mono);
   font-size: 0.9em;
   line-height: 1.45;
@@ -1644,8 +1646,7 @@ function onKeydown(e: KeyboardEvent) {
 
   // shiki が <pre class="shiki"><code>...</code></pre> を埋め込むので、
   // 内側 pre の browser default margin / padding を打ち消して toolEventBody の
-  // padding にだけ依存させる。background は親 (toolEventBody) の var(--nd-bg) を
-  // そのまま使うため透過に。
+  // padding にだけ依存させる。background は親のコード面をそのまま使うため透過に。
   :global(pre.shiki) {
     margin: 0;
     padding: 0;
@@ -1667,22 +1668,24 @@ function onKeydown(e: KeyboardEvent) {
   :global(p + p) {
     margin-top: 0.4em;
   }
+  // コードブロックの面はハイライトの有無とテーマに関係なく揃える。
+  // トークン色が dark-plus 準拠でダーク固定なので、面だけ明るいと潰れる
   :global(pre) {
     position: relative;
     margin: 0.5em 0;
     padding: 8px 10px;
     padding-right: 28px;
+    background: var(--nd-codeEditorBg);
+    color: var(--nd-codeEditorFg);
     border-radius: var(--nd-radius-sm);
     overflow-x: auto;
     font-size: 0.85em;
   }
-  // ハイライト済みの塊は dark-plus のトークン色前提なので、背景も
-  // shiki 側 (assets/shiki-dark-plus.css) に譲る。ライトテーマで
-  // トークン色が潰れるのを防ぐ
-  :global(pre:not(.shiki)) {
-    background: var(--nd-base);
-  }
+  // ブロック内の code は面を持たない (インライン code の装飾を打ち消す)
   :global(pre code) {
+    padding: 0;
+    background: transparent;
+    color: inherit;
     font-family: var(--nd-font-mono);
   }
   // diff フェンスは確認ダイアログの diff と同じ色トークンで行を塗る
