@@ -6,7 +6,6 @@ import DayNightToggle from '@/components/deck/DayNightToggle.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import EmojiMuteSection from '@/components/window/EmojiMuteSection.vue'
-import type { CodeSchemePreference } from '@/composables/useCodeScheme'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { isExposed } from '@/settings/exposure'
@@ -58,24 +57,6 @@ const fileInput = ref<HTMLInputElement | null>(null)
 function toggleDarkMode() {
   hapticSelection()
   themeStore.toggleTheme()
-}
-
-// ── コード面の明暗 (#1053) ──
-// エディタ・差分表示・コードブロックはトークン色と面がセットなので 1 つの
-// 設定でまとめて切り替える (編集と表示で分けない)
-const CODE_SCHEME_OPTIONS = [
-  { value: 'auto', label: 'テーマに追従', icon: 'ti-contrast' },
-  { value: 'dark', label: 'ダーク', icon: 'ti-moon' },
-  { value: 'light', label: 'ライト', icon: 'ti-sun' },
-] as const
-
-const codeScheme = computed<CodeSchemePreference>(
-  () => settingsStore.get('appearance.codeScheme') ?? 'auto',
-)
-
-function setCodeSchemePreference(value: CodeSchemePreference) {
-  hapticSelection()
-  settingsStore.set('appearance.codeScheme', value)
 }
 
 function toggleSyncDevice(checked: boolean) {
@@ -229,26 +210,6 @@ const statusClass = computed(() => {
         </button>
       </div>
 
-      <!-- コード面の明暗 (#1053) -->
-      <div :class="$style.section">
-        <div :class="$style.rowLabel">
-          <i class="ti ti-code" />
-          <span>コードの配色</span>
-        </div>
-        <div :class="$style.segmented">
-          <button
-            v-for="opt in CODE_SCHEME_OPTIONS"
-            :key="opt.value"
-            class="_button"
-            :class="[$style.segment, codeScheme === opt.value && $style.segmentActive]"
-            @click="setCodeSchemePreference(opt.value)"
-          >
-            <i class="ti" :class="opt.icon" />
-            <span>{{ opt.label }}</span>
-          </button>
-        </div>
-      </div>
-
       <!-- Note view -->
       <div :class="$style.section">
         <AiSwitchRow
@@ -332,45 +293,6 @@ const statusClass = computed(() => {
 }
 
 // ── Menu items ──
-
-.rowLabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 4px;
-  font-size: 13px;
-  color: var(--nd-fg);
-}
-
-// 3 択は触ればわかる形にする (セレクトを開かせない)
-.segmented {
-  display: flex;
-  gap: 4px;
-}
-
-.segment {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  flex: 1;
-  padding: 6px 8px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: transparent;
-  color: var(--nd-fg);
-  font-size: 12px;
-  cursor: pointer;
-
-  &:hover {
-    background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
-  }
-}
-
-.segmentActive {
-  border-color: var(--nd-accent);
-  background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-}
 
 .menuItem {
   display: flex;

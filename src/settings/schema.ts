@@ -18,13 +18,6 @@ export interface NotedeckSettings {
   'theme.selectedDarkThemeId'?: string | null
   'theme.selectedLightThemeId'?: string | null
 
-  /**
-   * コード面 (エディタ / 差分表示 / コードブロック) の明暗 (#1053)。
-   * 'auto' はアプリのテーマに追従する。トークン色は面の明暗とセットで
-   * 切り替わるので、面だけカスタム CSS で変えると色が合わなくなる。
-   */
-  'appearance.codeScheme'?: 'dark' | 'light' | 'auto'
-
   // --- Deck (Next 1 移行済み) ---
   // アクティブプロファイルの実体は localStorage 側 (STORAGE_KEYS.deckActiveProfile)
   // にあり、settings.json5 には一度も書かれていない。宣言だけ残っていた

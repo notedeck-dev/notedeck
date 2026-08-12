@@ -724,9 +724,10 @@ const { activate, deactivate } = useMenuKeyboard({
 - 種別ごとの差分 (snapshot → 全文テキスト・言語・revert 先 capability) は `src/services/editHistory.ts` に集約
 
 **コード面の明暗 (#1053):**
-- エディタ / 差分表示 / コードブロックはトークン色と面がセットなので、設定は 1 つ (`appearance.codeScheme`: `dark` / `light` / `auto`、既定は `auto` = アプリのテーマに追従)
+- エディタ / 差分表示 / コードブロックはトークン色と面がセットなので、**アプリのテーマにそのまま追従**する (アプリが OS 追従ならコード面も OS に追従)。設定項目は持たない
 - 実効値は root の `data-nd-code-scheme` に出し、CSS 変数 (`--nd-code*`) がそれを見る。CodeMirror のテーマも Shiki のトークン色も同じ実効値から決まる (`useCodeScheme`)
 - Shiki はテーマごとに色クラスが変わるので、明暗のパレット CSS を両方読み込み、切替時は再描画する
+- 明暗を別扱いしたい場合はカスタム CSS で変数を上書きする
 
 **適用前 diff (#981):**
 - 自己拡張系の write 確認 (`ConfirmOptions.diff`) は編集後の断片ではなく、編集前と適用後の**全文**を並べて見せる。部分編集 (追記・セクション置換・props patch) も適用後全文を確認時点で計算する (`src/services/selfEditApply.ts`)
