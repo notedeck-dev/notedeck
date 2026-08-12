@@ -551,6 +551,14 @@ export const useSkillsStore = defineStore('skills', () => {
       id,
       updatedAt: Date.now(),
     }
+    // snapshot が記録する範囲が動いたときだけ履歴に積む。内容が同じ保存で
+    // 積むと、エディタのデバウンス自動保存が 10 件のリングを使い潰し、
+    // 意味のある編集前の状態が押し出される
+    const snapshotChanged =
+      prevSnapshot.body !== updated.body ||
+      prevSnapshot.name !== updated.name ||
+      prevSnapshot.version !== updated.version ||
+      prevSnapshot.mode !== updated.mode
     skills.value = [
       ...skills.value.slice(0, idx),
       updated,
@@ -564,7 +572,7 @@ export const useSkillsStore = defineStore('skills', () => {
           if (!live) return // 既に削除された
           // 編集前 snapshot を history sidecar に push。履歴キーは対応表の
           // fileBase (未割当 = ファイル未作成なら履歴も無し)
-          if (live.fileBase) {
+          if (live.fileBase && snapshotChanged) {
             await pushSnapshot('skill', live.fileBase, prevSnapshot)
           }
           // 表示名の変更はファイル rename で追随 (ID 不変・主ファイル + 履歴)。

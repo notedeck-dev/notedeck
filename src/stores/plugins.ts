@@ -587,8 +587,10 @@ export const usePluginsStore = defineStore('plugins', () => {
         return
       }
       // 編集前 src を history sidecar に push (fire-and-forget)。
-      // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)
-      if (plugin.fileBase) {
+      // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
+      // 内容が同じ保存では積まない — エディタのデバウンス自動保存で 10 件の
+      // リングを使い潰し、意味のある編集前の状態が押し出されるのを防ぐ
+      if (plugin.fileBase && plugin.src !== src) {
         pushSnapshot('plugin', plugin.fileBase, {
           src: plugin.src,
           name: plugin.name,

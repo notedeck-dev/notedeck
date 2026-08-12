@@ -1,7 +1,12 @@
 // @vitest-environment happy-dom
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { pushSnapshot } from '@/utils/historyFs'
 import { useWidgetsStore, type WidgetMeta } from './widgets'
+
+vi.mock('@/utils/historyFs', () => ({
+  pushSnapshot: vi.fn(async () => undefined),
+}))
 
 describe('useWidgetsStore — 再実行シグナル (#744)', () => {
   beforeEach(() => {
@@ -147,5 +152,39 @@ describe('applyStoreUpdate (#913 ストア再インストール)', () => {
         storeVersion: '1',
       }),
     ).toBeUndefined()
+  })
+})
+
+describe('編集履歴の同値ガード (#981)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(pushSnapshot).mockClear()
+  })
+
+  // localStorage ミラー経由で前テストの src を引き継がないよう id を分ける
+  function addWidget(installId: string): WidgetMeta {
+    const widget: WidgetMeta = {
+      installId,
+      name: 'hist',
+      src: '<: "v1"',
+      autoRun: false,
+      createdAt: 0,
+      updatedAt: 0,
+      fileBase: 'hist',
+    }
+    useWidgetsStore().addWidget(widget)
+    return widget
+  }
+
+  it('内容が変わる保存は編集前 snapshot を積む', () => {
+    const w = addWidget('w-hist-changed')
+    useWidgetsStore().updateSrc(w.installId, '<: "v2"')
+    expect(pushSnapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it('同じ内容の保存では積まない (自動保存でリングを使い潰さない)', () => {
+    const w = addWidget('w-hist-same')
+    useWidgetsStore().updateSrc(w.installId, '<: "v1"')
+    expect(pushSnapshot).not.toHaveBeenCalled()
   })
 })

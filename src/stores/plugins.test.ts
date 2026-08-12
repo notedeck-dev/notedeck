@@ -55,6 +55,7 @@ import {
   type PluginMeta,
   usePluginsStore,
 } from '@/stores/plugins'
+import { pushSnapshot } from '@/utils/historyFs'
 import {
   getStorageByPrefix,
   STORAGE_KEYS,
@@ -390,5 +391,38 @@ describe('applyStoreUpdate (#913 ストア再インストール)', () => {
     const p = store.getPlugin('p1')
     expect(p?.src).toBe('recovered')
     expect(p?.readOnly).toBeFalsy()
+  })
+})
+
+describe('編集履歴の同値ガード (#981)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(pushSnapshot).mockClear()
+  })
+
+  function addPlugin(): PluginMeta {
+    const plugin: PluginMeta = {
+      installId: 'p-hist',
+      name: 'hist',
+      version: '1.0.0',
+      configData: {},
+      src: 'let x = 1',
+      active: false,
+      fileBase: 'hist',
+    }
+    usePluginsStore().addPlugin(plugin)
+    return plugin
+  }
+
+  it('内容が変わる保存は編集前 snapshot を積む', () => {
+    const p = addPlugin()
+    usePluginsStore().updateSrc(p.installId, 'let y = 2')
+    expect(pushSnapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it('同じ内容の保存では積まない (自動保存でリングを使い潰さない)', () => {
+    const p = addPlugin()
+    usePluginsStore().updateSrc(p.installId, 'let x = 1')
+    expect(pushSnapshot).not.toHaveBeenCalled()
   })
 })
