@@ -19,8 +19,10 @@ export interface NotedeckSettings {
   'theme.selectedLightThemeId'?: string | null
 
   // --- Deck (Next 1 移行済み) ---
+  // アクティブプロファイルの実体は localStorage 側 (STORAGE_KEYS.deckActiveProfile)
+  // にあり、settings.json5 には一度も書かれていない。宣言だけ残っていた
+  // 'deck.activeProfileId' は削除済み (#1042)
   'deck.wallpaper'?: string | null
-  'deck.activeProfileId'?: string | null
 
   // --- Modes (PoC 移行済み) ---
   'modes.realtime'?: boolean

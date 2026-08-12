@@ -247,7 +247,7 @@ NoteDeck のスカラー設定 (選択・トグル・ユーザー preferences) �
 |---|---|---|
 | テーマ選択状態 | `theme.manual`, `theme.selectedDarkThemeId` | テーマ **定義** は `themes/*.ndtheme.json5` に別置き |
 | モード | `modes.realtime`, `modes.offline` | |
-| デック | `deck.activeProfileId`, `deck.wallpaper` | プロファイル **定義** は `profiles/*.ndprofile.json5` に別置き |
+| デック | `deck.wallpaper` | プロファイル **定義** は `profiles/*.ndprofile.json5` に別置き。アクティブプロファイルはウィンドウごとに切り替わるためファイルに持たない |
 | ミュート | `mute.emojis` 等 | ワード / インスタンスミュートはサーバー側設定 |
 | 投稿フォームの挙動 | `postForm.preview`, `postForm.rememberVisibility` 等 | ボタン構成そのものは `postform.json5` |
 | キャッシュ | `cache.evictionPreset`, `chat.cacheEnabled` 等 | |
