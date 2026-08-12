@@ -94,7 +94,7 @@ export function injectJson5Id(raw: string, key: string, value: string): string {
   return raw.slice(0, at) + insert + raw.slice(at)
 }
 
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)(\r?\n)---(\r?\n)/
+const FRONTMATTER_RE = /^---(\r?\n)([\s\S]*?)(\r?\n)---(\r?\n)/
 
 /**
  * skill ファイルの frontmatter へ id を注入する。
@@ -107,7 +107,10 @@ export function injectFrontmatterId(raw: string, value: string): string {
   if (!m || m.index === undefined) {
     return `---\nid: ${quoted}\n---\n\n${raw}`
   }
-  const inner = m[1] ?? ''
-  const innerEnd = m.index + 4 + inner.length
-  return `${raw.slice(0, innerEnd)}${m[2]}id: ${quoted}${raw.slice(innerEnd)}`
+  // 開きデリミタ長はマッチから導く (CRLF なら `---\r\n` = 5)。
+  // 固定値にすると改行コードの違いで挿入位置が 1 ずれて行が壊れる
+  const openLen = '---'.length + (m[1] ?? '\n').length
+  const inner = m[2] ?? ''
+  const innerEnd = m.index + openLen + inner.length
+  return `${raw.slice(0, innerEnd)}${m[3]}id: ${quoted}${raw.slice(innerEnd)}`
 }

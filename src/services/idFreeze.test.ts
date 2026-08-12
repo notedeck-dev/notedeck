@@ -75,6 +75,16 @@ describe('injectFrontmatterId', () => {
     expect(parsed.body).toBe('# body\n')
   })
 
+  it('CRLF の frontmatter でも各行が壊れない', () => {
+    const raw = '---\r\nname: 天気\r\nmode: manual\r\n---\r\n\r\n# body\r\n'
+    const out = injectFrontmatterId(raw, 'tenki')
+    const parsed = parseSkillFile(out)
+    expect(parsed.meta.id).toBe('tenki')
+    expect(parsed.meta.name).toBe('天気')
+    expect(parsed.meta.mode).toBe('manual')
+    expect(parsed.body).toContain('# body')
+  })
+
   it('frontmatter が無ければ作る', () => {
     const raw = '# 本文だけ\n'
     const out = injectFrontmatterId(raw, 'skill-1')
