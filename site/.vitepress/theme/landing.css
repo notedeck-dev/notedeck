@@ -537,6 +537,13 @@
   letter-spacing: 0.03em; white-space: nowrap;
 }
 
+.unsigned-note {
+  margin-top: var(--space-md);
+  text-align: center;
+  color: var(--text-muted); font-size: var(--text-xs);
+  max-width: 68ch; margin-inline: auto;
+}
+
 .install-alt { margin-top: var(--space-md); padding: var(--space-lg); }
 .install-alt h3 {
   font-size: var(--text-sm); font-weight: 700;
@@ -592,9 +599,10 @@
   max-width: 62ch; margin-inline: auto;
 }
 .store-cta-grid {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-md); margin-top: var(--space-lg);
 }
+@media (max-width: 1000px) { .store-cta-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 800px) { .store-cta-grid { grid-template-columns: minmax(0, 1fr); } }
 .store-cta {
   background: var(--tint);
@@ -611,6 +619,10 @@
 }
 .store-cta p { font-size: var(--text-sm); flex: 1; }
 .store-cta .btn { margin-top: var(--space-md); }
+.btn-icon {
+  width: 16px; height: 16px; fill: currentColor;
+  margin-right: var(--space-2xs); flex: none;
+}
 
 /* ===== Reduced motion ===== */
 @media (prefers-reduced-motion: reduce) {

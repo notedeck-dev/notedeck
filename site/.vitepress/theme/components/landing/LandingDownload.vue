@@ -73,6 +73,11 @@ onUnmounted(() => clearTimeout(resetTimer))
         </a>
       </div>
 
+      <p class="unsigned-note" data-fade>
+        Windows / macOS 版はまだコード署名なしで配布しているため、初回起動時に「発行元不明」の警告が出ます。
+        <a href="#store-distribution">警告をなくすために、協力をお願いしています</a>
+      </p>
+
       <div class="install-alt acrylic" data-fade>
         <h3>パッケージマネージャー</h3>
         <button
@@ -113,16 +118,28 @@ onUnmounted(() => clearTimeout(resetTimer))
         </button>
       </div>
 
-      <!-- Mobile Store Distribution -->
+      <!-- 配布の壁（署名 / ストア）と、協力のお願い -->
       <div id="store-distribution" class="store-distribution" data-fade>
         <h3 class="store-distribution-title">
-          <b class="u-line">スマホ版を、ストアで届けるために</b>
+          <b class="u-line">警告なしで、ストアから届けるために</b>
         </h3>
         <p class="store-distribution-lead">
-          Google Play / App Store
-          への正式配布には、開発者アカウントの登録費とクローズドテストの参加者が必要です。需要があれば、コミュニティの皆さんと一緒に進めたいと思っています。
+          デスクトップ版の「発行元不明」警告も、Google Play / App
+          Store への正式配布も、残っているのは技術ではなく手続きの壁です。プロジェクトが知られていることと、開発者アカウントの費用。コミュニティの皆さんと一緒に越えたいと思っています。
         </p>
         <div class="store-cta-grid">
+          <div class="store-cta">
+            <h4>GitHub で Star をつける</h4>
+            <p>
+              Windows 向けの OSS 無料コード署名（SignPath
+              Foundation）は「誰も知らないソースコードには署名できない」として、実際に使われている実績を審査で見ています。Star
+              とダウンロード数がそのまま材料になります。クリック 1 回でできる、いちばん手軽な後押しです。
+            </p>
+            <a href="https://github.com/notedeck-dev/notedeck" class="btn btn-accent shadow">
+              <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.26 6.86.72-5.12 4.6 1.45 6.72L12 16.9l-6.09 3.4 1.45-6.72-5.12-4.6 6.86-.72L12 2z" /></svg>
+              GitHub で Star
+            </a>
+          </div>
           <div class="store-cta">
             <h4>ベータテスター募集</h4>
             <p>
@@ -140,9 +157,10 @@ onUnmounted(() => clearTimeout(resetTimer))
           <div class="store-cta">
             <h4>開発を支援する</h4>
             <p>
-              Google Play（登録費 $25）/ Apple Developer Program（$99/年）のアカウント費用、テスト機材の調達、継続的な配布作業の維持にあてさせていただきます。
+              Google Play（登録費 $25）/ Apple Developer Program（$99/年）のアカウント費用、テスト機材の調達、継続的な配布作業の維持にあてさせていただきます。macOS
+              の Gatekeeper 警告をなくす公証（notarization）にも、同じ Apple Developer Program が要ります。
             </p>
-            <a href="https://github.com/sponsors/hitalin" class="btn btn-accent shadow">
+            <a href="https://github.com/sponsors/hitalin" class="btn btn-plain shadow">
               GitHub Sponsor
             </a>
           </div>
