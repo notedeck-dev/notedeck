@@ -6,6 +6,7 @@ import {
   type WidgetMeta,
 } from '@/stores/widgets'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { editAttribution, REASON_PARAM } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 import { preflightValidateSrc } from './aiscript'
 
@@ -226,6 +227,7 @@ export const widgetsUpdateCapability: Command = {
         description: '対象ウィジェットの installId',
       },
       src: { type: 'string', description: '新しい AiScript ソース全文' },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -247,7 +249,7 @@ export const widgetsUpdateCapability: Command = {
       throw new Error(`widgets.update: widget "${installId}" not found`)
     }
     const next = takeStagedEdit(ctx, 'widgets.update', cur.src, () => src)
-    store.updateSrc(installId, next)
+    store.updateSrc(installId, next, editAttribution(ctx, params))
     // 表示中のインスタンスに再実行を要求する (#744)。ユーザーのエディタ編集
     // (debounce 自動保存) と違い、AI 経由の保存だけがこのシグナルを発火する。
     const rerunning = store.requestRerun(installId) > 0
@@ -430,6 +432,7 @@ export const widgetsRevertCapability: Command = {
         description: '対象ウィジェットの installId',
       },
       index: { type: 'number', description: 'snapshot index (0 = 最新)' },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -459,7 +462,7 @@ export const widgetsRevertCapability: Command = {
       widget.src,
       () => entry.snapshot.src,
     )
-    store.updateSrc(installId, next)
+    store.updateSrc(installId, next, editAttribution(ctx, params))
     return { installId, reverted: true, at: entry.at }
   },
 }

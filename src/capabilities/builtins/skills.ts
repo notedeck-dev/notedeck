@@ -7,6 +7,7 @@ import {
   useSkillsStore,
 } from '@/stores/skills'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { editAttribution, REASON_PARAM } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 interface SkillSnapshot {
@@ -310,6 +311,7 @@ export const skillsAppendCapability: Command = {
         type: 'string',
         description: '末尾に追記する markdown (改行は \\n)',
       },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -328,7 +330,7 @@ export const skillsAppendCapability: Command = {
     const newBody = takeStagedEdit(ctx, 'skills.append', skill.body, () =>
       appendBlock(skill.body, content),
     )
-    store.update(id, { body: newBody })
+    store.update(id, { body: newBody }, editAttribution(ctx, params))
     return { id, length: newBody.length }
   },
 }
@@ -391,6 +393,7 @@ export const skillsReplaceSectionCapability: Command = {
         type: 'string',
         description: 'セクション本体の新しい markdown (heading 行は含めない)',
       },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -416,7 +419,7 @@ export const skillsReplaceSectionCapability: Command = {
       skill.body,
       () => computed.body,
     )
-    store.update(id, { body })
+    store.update(id, { body }, editAttribution(ctx, params))
     return { id, replaced: computed.replaced, length: body.length }
   },
 }
@@ -537,6 +540,7 @@ export const skillsRevertCapability: Command = {
         type: 'number',
         description: 'snapshot index (0 = 最新、skills.history の順序と一致)',
       },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -563,7 +567,7 @@ export const skillsRevertCapability: Command = {
       skill.body,
       () => entry.snapshot.body,
     )
-    store.update(id, { body })
+    store.update(id, { body }, editAttribution(ctx, params))
     return { id, reverted: true, at: entry.at }
   },
 }

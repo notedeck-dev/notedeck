@@ -100,6 +100,10 @@ useNativeDialog(dialogRef, visible, {
         </div>
         <div :class="$style.body">
           <p v-if="options.message" :class="$style.message">{{ options.message }}</p>
+          <div v-if="options.reason" :class="$style.reason">
+            <i class="ti ti-quote" />
+            <span>{{ options.reason }}</span>
+          </div>
           <div v-if="options.installPreview" :class="$style.installPreview">
             <div :class="$style.installIcon">
               <i :class="['ti', INSTALL_PREVIEW_ICON[options.installPreview.kind]]" />
@@ -246,6 +250,28 @@ useNativeDialog(dialogRef, visible, {
   opacity: 0.8;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+// 編集の理由 (#1052): diff が示す「何を」に対する「なぜ」。承認後そのまま
+// 編集履歴に残るので、message の補足ではなく独立した引用として見せる
+.reason {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: var(--nd-radius-sm, 6px);
+  background: var(--nd-buttonBg);
+  color: var(--nd-fg);
+  font-size: 0.85em;
+  line-height: 1.5;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+
+  i {
+    flex-shrink: 0;
+    opacity: 0.5;
+  }
 }
 
 // install preview — plugin / widget のインストール確認時に MisStore カード風の

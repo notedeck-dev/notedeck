@@ -306,6 +306,55 @@ describe('dispatchCapability — confirmation flow', () => {
     expect(seenTrusted).toBe(true)
   })
 
+  it('injects the edit reason into the confirm dialog (#1052)', async () => {
+    let seenReason: string | undefined
+    registerCapability(
+      makeCapability({
+        id: 'notes.create',
+        permissions: ['notes.write'],
+        requiresConfirmation: true,
+        execute: () => 'posted',
+      }),
+    )
+    await dispatchCapability(
+      'notes.create',
+      { text: 'hi', reason: '  フック名の乖離を直すため  ' },
+      ctxWithPreset('full'),
+      {
+        confirmFn: async (opts) => {
+          seenReason = opts.reason
+          return { accepted: true, remember: false }
+        },
+      },
+    )
+    // 承認後に編集履歴へ記録されるのと同じ文字列を、承認前に見せる
+    expect(seenReason).toBe('フック名の乖離を直すため')
+  })
+
+  it('leaves the confirm reason unset when no reason is given (#1052)', async () => {
+    let seenReason: string | undefined = 'not touched'
+    registerCapability(
+      makeCapability({
+        id: 'notes.create',
+        permissions: ['notes.write'],
+        requiresConfirmation: true,
+        execute: () => 'posted',
+      }),
+    )
+    await dispatchCapability(
+      'notes.create',
+      { text: 'hi', reason: '   ' },
+      ctxWithPreset('full'),
+      {
+        confirmFn: async (opts) => {
+          seenReason = opts.reason
+          return { accepted: true, remember: false }
+        },
+      },
+    )
+    expect(seenReason).toBeUndefined()
+  })
+
   it('injects dedupKey (scope:capabilityId) for a skippable scope (#720)', async () => {
     let seenKey: string | undefined
     registerCapability(

@@ -13,7 +13,7 @@ import {
 import { compileMisskeyTheme } from '@/theme/compiler'
 import { CustomCssManager } from '@/theme/cssApplier'
 import type { CompiledProps, MisskeyTheme, ThemeSource } from '@/theme/types'
-import { pushSnapshot } from '@/utils/historyFs'
+import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import { readSafeMode } from '@/utils/safeMode'
 import * as settingsFs from '@/utils/settingsFs'
 import {
@@ -293,6 +293,7 @@ export const useThemeStore = defineStore('theme', () => {
   async function installTheme(
     code: string,
     forAccountIds: string[] = [],
+    attribution?: EditAttribution,
   ): Promise<boolean> {
     try {
       const JSON5 = (await import('json5')).default
@@ -336,12 +337,17 @@ export const useThemeStore = defineStore('theme', () => {
         // 上書きケース: 既存テーマの編集前 snapshot を history に push。
         // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)
         if (existingTheme.fileBase) {
-          pushSnapshot('theme', existingTheme.fileBase, {
-            id: existingTheme.id,
-            name: existingTheme.name,
-            base: existingTheme.base,
-            props: existingTheme.props,
-          }).catch((e) => console.warn('[theme] history push failed:', e))
+          pushSnapshot(
+            'theme',
+            existingTheme.fileBase,
+            {
+              id: existingTheme.id,
+              name: existingTheme.name,
+              base: existingTheme.base,
+              props: existingTheme.props,
+            },
+            attribution,
+          ).catch((e) => console.warn('[theme] history push failed:', e))
         }
         installedThemes.value = installedThemes.value.map((t) =>
           t.id === theme.id ? theme : t,
@@ -552,13 +558,13 @@ export const useThemeStore = defineStore('theme', () => {
     persistAccountThemes()
   }
 
-  function setCustomCss(css: string): void {
+  function setCustomCss(css: string, attribution?: EditAttribution): void {
     // 編集前 snapshot を history sidecar に push (fire-and-forget)。
     // 内容が同じ場合は no-op (= UI 再描画で同値が来た場合の bloat 防止)。
     const prev = customCss.value
     if (prev !== css) {
-      pushSnapshot('css', 'custom.css', { body: prev }).catch((e) =>
-        console.warn('[theme] custom.css history push failed:', e),
+      pushSnapshot('css', 'custom.css', { body: prev }, attribution).catch(
+        (e) => console.warn('[theme] custom.css history push failed:', e),
       )
     }
     customCss.value = css
