@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { css } from '@codemirror/lang-css'
 import { type Diagnostic, linter } from '@codemirror/lint'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
@@ -133,8 +133,12 @@ const fullCss = computed(() => {
   return preset || user
 })
 
+// store からの取り込み中は書込み側の watch を止める (下の同期 watch を参照)
+let syncingFromStore = false
+
 let applyTimer: ReturnType<typeof setTimeout> | null = null
 watch(fullCss, (cssStr) => {
+  if (syncingFromStore) return
   cssCode.value = cssStr
   if (applyTimer) clearTimeout(applyTimer)
   applyTimer = setTimeout(() => {
@@ -152,6 +156,7 @@ watch(
     presets.value.hideUserStats,
   ],
   () => {
+    if (syncingFromStore) return
     const cssStr = fullCss.value
     cssCode.value = cssStr
     themeStore.setCustomCss(cssStr)
@@ -162,6 +167,7 @@ const codeError = ref<string | null>(null)
 let codeApplyTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(cssCode, (cssStr) => {
+  if (syncingFromStore) return
   if (tab.value !== 'code') return
   if (codeApplyTimer) clearTimeout(codeApplyTimer)
   codeApplyTimer = setTimeout(() => {
@@ -209,7 +215,6 @@ function openHistory() {
     kind: 'css',
     basename: 'custom.css',
     name: 'custom.css',
-    current: themeStore.customCss,
   })
 }
 
@@ -271,6 +276,34 @@ watch(tab, (t) => {
     userFreeformCss.value = extractUserCss(cssCode.value)
   }
 })
+
+/**
+ * 外部からの custom.css 変更 (履歴からの revert / AI 編集 / 外部エディタ) を
+ * 編集バッファへ取り込む。ここが無いとエディタは開いた瞬間の内容を持ち続け、
+ * 次にタブを切り替えたりプリセットを触った時点で古い内容を書き戻してしまう
+ * (= revert が無言で打ち消される)。
+ *
+ * 取り込みは一方向でなければならない。presets / userFreeformCss を入れ直すと
+ * fullCss が動くので、そのまま書き戻すと「取り込んだ内容」ではなく
+ * 「再構築した内容」が保存されてしまう (プリセット記法の正規化で原文が変わる)。
+ * 同期中は書込み側の watch を止め、待機中のデバウンスも捨てる。
+ */
+watch(
+  () => themeStore.customCss,
+  (css) => {
+    if (css === cssCode.value) return
+    syncingFromStore = true
+    if (applyTimer) clearTimeout(applyTimer)
+    if (codeApplyTimer) clearTimeout(codeApplyTimer)
+    cssCode.value = css
+    presets.value = parsePresetsFromCss(css)
+    userFreeformCss.value = extractUserCss(css)
+    codeError.value = null
+    void nextTick(() => {
+      syncingFromStore = false
+    })
+  },
+)
 </script>
 
 <template>

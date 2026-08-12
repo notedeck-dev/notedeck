@@ -21,7 +21,6 @@ import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { openEditHistoryWindow } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
-import { mergeThemeUpdate, serializeTheme } from '@/services/selfEditApply'
 import { isExposed } from '@/settings/exposure'
 import { useConfirm } from '@/stores/confirm'
 import { useThemeStore } from '@/stores/theme'
@@ -382,7 +381,6 @@ function openHistory() {
     basename: theme.fileBase ?? theme.id,
     itemId: theme.id,
     name: theme.name,
-    current: serializeTheme(mergeThemeUpdate(theme, {})),
   })
 }
 

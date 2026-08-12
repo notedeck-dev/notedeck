@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { dispatchCapability } from '@/capabilities/dispatcher'
+import { useEditTargetText } from '@/composables/useEditTargetText'
 import { EDIT_HISTORY_SPECS, historyDiffPair } from '@/services/editHistory'
 import { type HistoryEntry, listSnapshots } from '@/utils/historyFs'
 import type { HistoryKind } from '@/utils/settingsFs'
@@ -29,8 +30,6 @@ const props = defineProps<{
   itemId?: string
   /** ヘッダに出す対象名 */
   name?: string
-  /** 現在の内容 (最新 snapshot の比較相手) */
-  current: string
 }>()
 
 defineEmits<{
@@ -38,6 +37,13 @@ defineEmits<{
 }>()
 
 const spec = computed(() => EDIT_HISTORY_SPECS[props.kind])
+
+// 最新 snapshot の比較相手。開いた時点のコピーではなく store から読むので、
+// revert / AI 編集の後もそのまま実態を指す
+const current = useEditTargetText(
+  () => props.kind,
+  () => props.itemId,
+)
 
 const entries = ref<HistoryEntry[]>([])
 const selected = ref(0)
@@ -58,7 +64,7 @@ const snapshotTexts = computed(() =>
 
 /** 選択 snapshot = その編集の「前」。比較相手は 1 つ新しい状態。 */
 const diff = computed(() =>
-  historyDiffPair(snapshotTexts.value, selected.value, props.current),
+  historyDiffPair(snapshotTexts.value, selected.value, current.value),
 )
 
 const compareLabel = computed(() =>

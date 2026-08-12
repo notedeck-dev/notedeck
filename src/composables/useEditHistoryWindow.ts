@@ -12,8 +12,6 @@ export function openEditHistoryWindow(params: {
   /** revert capability に渡す対象 id。css では不要 */
   itemId?: string
   name?: string
-  /** 最新 snapshot の比較相手になる現在の内容 */
-  current: string
 }): void {
   useWindowsStore().open('edit-history', { ...params })
 }

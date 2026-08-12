@@ -152,7 +152,6 @@ function openHistory() {
     basename: historyBasename(s.fileBase, s.name, s.id),
     itemId: s.id,
     name: s.name,
-    current: s.body,
   })
 }
 

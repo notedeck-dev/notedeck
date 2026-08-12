@@ -124,7 +124,6 @@ function openHistory() {
     basename: historyBasename(w.fileBase, w.name, w.installId),
     itemId: w.installId,
     name: w.name,
-    current: w.src,
   })
 }
 
