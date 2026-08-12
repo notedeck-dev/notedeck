@@ -24,7 +24,7 @@ import { useServersStore } from '@/stores/servers'
 import { useIsCompactLayout } from '@/stores/ui'
 import { createJson5Linter } from '@/utils/json5Linter'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
-import { profileFilename } from '@/utils/settingsFs'
+import { PROFILE_EXT } from '@/utils/settingsFs'
 
 const AddColumnDialog = defineAsyncComponent(
   () => import('@/components/deck/AddColumnDialog.vue'),
@@ -109,12 +109,20 @@ const { tab, containerRef: editorRef } = useEditorTabs<'visual' | 'code'>(
     : ((props.initialTab as 'visual' | 'code') ?? 'visual'),
 )
 
+// 外部エディタで開く実ファイル名は対応表 (fileBase) から引く (#913:
+// 表示名から計算しない)。fileBase 未割当 = ファイル未作成なら無効
+const editingProfileFilename = computed(() => {
+  void profileStore.profileVersion
+  const fileBase = editingProfile.value?.fileBase
+  return fileBase ? fileBase + PROFILE_EXT : null
+})
+
 useWindowExternalFile(() =>
   tab.value === 'code'
     ? {
-        name: profileFilename(editingName.value),
+        name: editingProfileFilename.value ?? '',
         subdir: 'profiles',
-        disabled: !editingName.value,
+        disabled: !editingProfileFilename.value,
       }
     : null,
 )

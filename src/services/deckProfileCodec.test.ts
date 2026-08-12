@@ -74,19 +74,31 @@ describe('migrateWidgetColumns', () => {
 })
 
 describe('parseProfileFile', () => {
-  it('ファイル名を id に割り当て、欠損フィールドをデフォルト補完する', () => {
-    const { profile } = parseProfileFile('main.json5', {})
-    expect(profile.id).toBe('main.json5')
-    expect(profile.name).toBe('main.json5')
+  it('確定済み ID を採用し、欠損フィールドをデフォルト補完する', () => {
+    const { profile } = parseProfileFile({}, 'my-id', 'main.ndprofile.json5')
+    expect(profile.id).toBe('my-id')
+    expect(profile.name).toBe('main.ndprofile.json5')
     expect(profile.columns).toEqual([])
     expect(profile.layout).toEqual([])
     expect(profile.createdAt).toBeGreaterThan(0)
   })
 
+  it('未知フィールドを保持する (ダウングレード往復でフィールドが剥がれない)', () => {
+    const { profile } = parseProfileFile(
+      { name: 'メイン', futureField: 'keep' },
+      'my-id',
+      'main.ndprofile.json5',
+    )
+    expect((profile as unknown as { futureField?: string }).futureField).toBe(
+      'keep',
+    )
+  })
+
   it('columns にマイグレーションを適用し、副産物を返す', () => {
     const { profile, droppedConsoleCount, extractedWidgets } = parseProfileFile(
-      'main.json5',
       { name: 'メイン', columns: [legacyWidgetColumn()] },
+      'my-id',
+      'main.ndprofile.json5',
     )
     expect(profile.name).toBe('メイン')
     expect(
@@ -98,15 +110,29 @@ describe('parseProfileFile', () => {
 })
 
 describe('toFileFormat', () => {
-  it('内部フィールド id をファイルに書かない', () => {
+  it('id をファイルに書き、runtime-only の fileBase は書かない', () => {
     const out = toFileFormat({
-      id: 'main.json5',
+      id: 'my-id',
       name: 'メイン',
       columns: [],
       layout: [],
       createdAt: 1,
+      fileBase: 'main',
     })
-    expect(out).not.toHaveProperty('id')
+    expect(out.id).toBe('my-id')
+    expect(out).not.toHaveProperty('fileBase')
     expect(out.name).toBe('メイン')
+  })
+
+  it('未知フィールドを往復で保持する', () => {
+    const { profile } = parseProfileFile(
+      { name: 'メイン', futureField: 'keep' },
+      'my-id',
+      'main.ndprofile.json5',
+    )
+    profile.fileBase = 'main'
+    const out = toFileFormat(profile)
+    expect(out.futureField).toBe('keep')
+    expect(out).not.toHaveProperty('fileBase')
   })
 })

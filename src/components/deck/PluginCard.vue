@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 
 type Mode = 'installed' | 'store' | 'library'
@@ -15,15 +16,18 @@ const props = defineProps<{
   active?: boolean
   installing?: boolean
   alreadyInstalled?: boolean
+  /** store mode: インストール済みかつストア側が更新されている (#1040) */
+  hasUpdate?: boolean
+  /** store mode: レジストリの updatedAt (更新バッジの tooltip 用) */
+  updatedAt?: string
   /** store mode: MisStore 宣言の capabilities (バッジ表示用) */
   capabilities?: readonly string[]
   capabilityOk?: boolean
   /** 非互換理由の短いラベル (要アップデート 等) */
   capabilityBadge?: string | null
   capabilityReason?: string | null
-  confirmingUninstall?: boolean
-  /** installed mode: trash ボタンの title (スコープ文脈で言い換える) */
-  uninstallTitle?: string
+  /** installed mode: 「外す」ボタンの title (スコープ文脈で言い換える) */
+  detachTitle?: string
   iconUrl?: string
   /**
    * 権限拒否バッジ (#712 §8.4)。plugin principal の permission_denied が
@@ -35,8 +39,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'click'): void
   (e: 'toggle'): void
-  (e: 'uninstall'): void
+  (e: 'detach'): void
   (e: 'install'): void
+  (e: 'update'): void
   (e: 'settings'): void
   (e: 'open-detail'): void
   (e: 'denied-click'): void
@@ -60,6 +65,14 @@ const incompatTitle = computed(() => {
     : ''
   return [props.capabilityReason ?? '', caps].filter(Boolean).join('\n')
 })
+// 更新の主表示は updatedAt、version は補助 (#1040)
+const updateTitle = computed(() => {
+  if (!props.updatedAt) return ''
+  const date = formatDate(props.updatedAt)
+  return props.version
+    ? `ストア更新日: ${date} / v${props.version}`
+    : `ストア更新日: ${date}`
+})
 </script>
 
 <template>
@@ -82,6 +95,11 @@ const incompatTitle = computed(() => {
         <button type="button" :class="$style.name" @click.stop="emit('click')">{{ name }}</button>
         <span v-if="incompatible" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
         <span v-else-if="disabled" :class="$style.disabledBadge">無効</span>
+        <span
+          v-if="mode === 'store' && alreadyInstalled && hasUpdate"
+          :class="$style.updateBadge"
+          :title="updateTitle"
+        >更新あり</span>
         <button
           v-if="deniedBadge"
           class="_button"
@@ -106,13 +124,14 @@ const incompatTitle = computed(() => {
         <div :class="$style.actions">
           <!-- Installed mode -->
           <template v-if="mode === 'installed'">
+            <!-- 可逆な「外す」なので ti-trash (= 本体削除) とは別アイコン (#1048) -->
             <button
               class="_button"
-              :class="[$style.iconBtn, confirmingUninstall && $style.iconBtnDanger]"
-              :title="confirmingUninstall ? 'もう一度クリックで実行' : (uninstallTitle ?? 'アンインストール')"
-              @click.stop="emit('uninstall')"
+              :class="$style.iconBtn"
+              :title="detachTitle ?? 'このカラムから外す'"
+              @click.stop="emit('detach')"
             >
-              <i class="ti ti-trash" />
+              <i class="ti ti-circle-minus" />
             </button>
             <button
               class="_button"
@@ -135,8 +154,8 @@ const incompatTitle = computed(() => {
           <template v-else-if="mode === 'library'">
             <button
               class="_button"
-              :class="$style.iconBtn"
-              title="ライブラリから削除 (コードも消える)"
+              :class="[$style.iconBtn, $style.iconBtnDanger]"
+              title="ライブラリから削除 (コードも消えます)"
               @click.stop="emit('delete')"
             >
               <i class="ti ti-trash" />
@@ -162,7 +181,19 @@ const incompatTitle = computed(() => {
               <i class="ti ti-external-link" />
             </button>
             <button
-              v-if="alreadyInstalled"
+              v-if="alreadyInstalled && hasUpdate"
+              class="_button"
+              :class="$style.primaryBtn"
+              :disabled="installing || capabilityOk === false"
+              :title="updateTitle"
+              @click.stop="emit('update')"
+            >
+              <i v-if="installing" class="ti ti-loader-2 nd-spin" />
+              <i v-else class="ti ti-refresh" />
+              更新
+            </button>
+            <button
+              v-else-if="alreadyInstalled"
               class="_button"
               :class="$style.installedBadge"
               disabled
@@ -368,6 +399,17 @@ const incompatTitle = computed(() => {
   letter-spacing: 0.02em;
 }
 
+/* 更新ありバッジ (#1040)。他カードの originBadge と同型の accent チップ */
+.updateBadge {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
+  color: var(--nd-accent);
+  line-height: 1.3;
+}
+
 .spacer {
   flex: 1;
   min-width: 4px;
@@ -414,13 +456,11 @@ const incompatTitle = computed(() => {
   }
 }
 
+// 本体削除 (ti-trash) 用。WidgetCard / QueryCard と同じ hover で朱に寄る表現
 .iconBtnDanger {
-  opacity: 1;
-  color: var(--nd-love);
-  background: color-mix(in srgb, var(--nd-love) 14%, transparent);
-
   &:hover {
-    background: color-mix(in srgb, var(--nd-love) 22%, transparent);
+    color: var(--nd-love);
+    background: color-mix(in srgb, var(--nd-love) 14%, transparent);
   }
 }
 

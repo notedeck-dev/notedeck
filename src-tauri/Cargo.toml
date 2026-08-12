@@ -1,6 +1,6 @@
 [package]
 name = "notedeck"
-version = "1.46.2"
+version = "1.47.0"
 description = "Misskey Pro — integrated deck environment (IDE) for Misskey power users"
 edition = "2021"
 license = "AGPL-3.0-only"
@@ -37,7 +37,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "stream", "json"] }
 url = "2"
 sha2 = "0.10"
-lru = "0.16"
+lru = "0.18"
 regex = "1"
 async-trait = "0.1"
 mime_guess = "2"

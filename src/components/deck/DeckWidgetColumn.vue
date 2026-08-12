@@ -77,8 +77,14 @@ function scrollToTop() {
   widgetBodyRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
+/** 配置から外す (可逆)。本体はライブラリに残るので確認は挟まず undo を出す。 */
 function handleRemove(installId: string) {
-  deckStore.removeWidget(props.column.id, installId)
+  const undo = deckStore.removeWidget(props.column.id, installId)
+  if (undo) {
+    useToast().show('ウィジットを外しました', 'info', {
+      action: { label: '元に戻す', onClick: undo },
+    })
+  }
 }
 
 // --- Drag & drop reorder (配置タブ内) ---
@@ -262,6 +268,15 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
   }
 }
 
+async function handleStoreUpdate(entry: StoreWidgetEntry) {
+  installError.value = null
+  try {
+    await misStore.updateWidget(entry)
+  } catch (e) {
+    installError.value = e instanceof Error ? e.message : '更新失敗'
+  }
+}
+
 function handleOpenStoreDetail(entry: StoreWidgetEntry) {
   openSafeUrl(getWidgetDetailUrl(entry.id))
 }
@@ -398,10 +413,13 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
             :capability-ok="capabilityChecks[entry.id]?.ok"
             :capability-badge="capabilityChecks[entry.id]?.badge"
             :capability-reason="capabilityChecks[entry.id]?.reason"
-            :installing="installingId === entry.id"
+            :installing="installingId === entry.id || misStore.installingWidget === entry.id"
             :already-installed="installedStoreIds.has(entry.id)"
+            :has-update="misStore.hasWidgetUpdate(entry)"
+            :updated-at="entry.updatedAt"
             :icon-url="entry.iconUrl"
             @install="handleStoreInstall(entry)"
+            @update="handleStoreUpdate(entry)"
             @open-detail="handleOpenStoreDetail(entry)"
           />
 

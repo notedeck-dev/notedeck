@@ -17,6 +17,7 @@ import {
 } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
+import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
 import { isWindowExposed } from '@/windows/exposure'
@@ -205,6 +206,20 @@ async function handleStoreInstall(entry: StoreSkillEntry) {
   }
 }
 
+async function handleStoreUpdate(entry: StoreSkillEntry) {
+  installError.value = null
+  try {
+    await misStore.updateSkill(entry)
+  } catch (e) {
+    installError.value = e instanceof Error ? e.message : '更新失敗'
+  }
+}
+
+/** 更新の主表示は updatedAt、version は補助 (#1040) */
+function storeUpdateTitle(entry: StoreSkillEntry): string {
+  return `ストア更新日: ${formatDate(entry.updatedAt)} / v${entry.version}`
+}
+
 function handleOpenStoreDetail(entry: StoreSkillEntry) {
   openSafeUrl(getSkillDetailUrl(entry.id))
 }
@@ -321,8 +336,8 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                     <button
                       v-if="!skill.builtIn"
                       class="_button"
-                      :class="$style.iconBtn"
-                      title="アンインストール"
+                      :class="[$style.iconBtn, $style.iconBtnDanger]"
+                      title="ライブラリから削除 (本文も消えます)"
                       @click.stop="uninstall(skill)"
                     >
                       <i class="ti ti-trash" />
@@ -412,8 +427,13 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
             <div :class="$style.body">
               <div :class="$style.row1">
                 <span :class="$style.name">{{ entry.name }}</span>
+                <span
+                  v-if="misStore.isSkillInstalled(entry) && misStore.hasSkillUpdate(entry)"
+                  :class="$style.updateBadge"
+                  :title="storeUpdateTitle(entry)"
+                >更新あり</span>
                 <i
-                  v-if="misStore.isSkillInstalled(entry)"
+                  v-else-if="misStore.isSkillInstalled(entry)"
                   class="ti ti-circle-check-filled"
                   :class="$style.installedMark"
                   title="インストール済"
@@ -438,7 +458,19 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                     <i class="ti ti-external-link" />
                   </button>
                   <button
-                    v-if="misStore.isSkillInstalled(entry)"
+                    v-if="misStore.isSkillInstalled(entry) && misStore.hasSkillUpdate(entry)"
+                    class="_button"
+                    :class="$style.primaryBtn"
+                    :disabled="misStore.installingSkill === entry.id"
+                    :title="storeUpdateTitle(entry)"
+                    @click.stop="handleStoreUpdate(entry)"
+                  >
+                    <i v-if="misStore.installingSkill === entry.id" class="ti ti-loader-2 nd-spin" />
+                    <i v-else class="ti ti-refresh" />
+                    更新
+                  </button>
+                  <button
+                    v-else-if="misStore.isSkillInstalled(entry)"
                     class="_button"
                     :class="$style.installedBadge"
                     disabled
@@ -775,6 +807,14 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   }
 }
 
+// 本体削除 (ti-trash) 用。他の配布物カードと同じ hover で朱に寄る表現 (#1048)
+.iconBtnDanger {
+  &:hover {
+    color: var(--nd-love);
+    background: color-mix(in srgb, var(--nd-love) 14%, transparent);
+  }
+}
+
 // HEARTBEAT 対象として toggle ON のとき、iconBtn を accent カラーで強調。
 // 非ホバー時も常時表示する (= hover で消える .actions の opacity を打ち消し)
 .heartbeatActive {
@@ -834,6 +874,17 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   color: var(--nd-fg);
   opacity: 0.6;
   cursor: default;
+}
+
+/* 更新ありバッジ (#1040)。他ストアカードの originBadge と同型の accent チップ */
+.updateBadge {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
+  color: var(--nd-accent);
+  line-height: 1.3;
 }
 
 .empty {

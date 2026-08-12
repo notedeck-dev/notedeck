@@ -251,6 +251,15 @@ async function handleStoreInstall(entry: StorePluginEntry) {
   }
 }
 
+async function handleStoreUpdate(entry: StorePluginEntry) {
+  installError.value = null
+  try {
+    await misStore.updatePlugin(entry)
+  } catch (e) {
+    installError.value = e instanceof Error ? e.message : '更新失敗'
+  }
+}
+
 /** ストアエントリがこのカラムのスコープに参加済みか (「インストール済み」表示基準)。 */
 function isEntryInScope(entry: StorePluginEntry): boolean {
   const plugin = pluginsStore.plugins.find((p) => p.storeId === entry.id)
@@ -292,13 +301,20 @@ function openNewPlugin() {
 }
 
 /**
- * カード trash = このカラムのスコープから外す (widgets の detach と同型)。
- * 本体はライブラリに残り、ピッカーから再追加/完全削除できる。
+ * カードの「外す」= このカラムのスコープから外す (widgets の detach と同型)。
+ * 本体はライブラリに残り、ピッカーから再追加/完全削除できる。可逆なので
+ * 確認は挟まず undo トーストで戻せるようにする (#1048)。
  */
 function detachFromScope(plugin: PluginMeta) {
   const scope = columnScope.value
   if (!scope) return
   pluginsStore.unlinkScope(plugin.installId, scope)
+  useToast().show('プラグインを外しました', 'info', {
+    action: {
+      label: '元に戻す',
+      onClick: () => pluginsStore.linkScope(plugin.installId, scope),
+    },
+  })
 }
 
 const detachTitle = computed(() =>
@@ -439,12 +455,12 @@ async function deleteFromLibrary(plugin: PluginMeta) {
               :category="storeByName.get(plugin.name)?.category"
               :category-label="storeByName.get(plugin.name)?.category ? PLUGIN_CATEGORY_LABELS[storeByName.get(plugin.name)!.category] : undefined"
               :active="plugin.active"
-              :uninstall-title="detachTitle"
+              :detach-title="detachTitle"
               :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
               :denied-badge="getPluginDenial(plugin.installId)"
               @click="openPluginDetail(plugin.installId)"
               @toggle="toggleActive(plugin)"
-              @uninstall="detachFromScope(plugin)"
+              @detach="detachFromScope(plugin)"
               @settings="openPluginDetail(plugin.installId)"
               @denied-click="openPermissionSettings()"
             />
@@ -530,12 +546,15 @@ async function deleteFromLibrary(plugin: PluginMeta) {
             :category-label="entry.category ? PLUGIN_CATEGORY_LABELS[entry.category] : undefined"
             :installing="misStore.installing === entry.id"
             :already-installed="isEntryInScope(entry)"
+            :has-update="misStore.hasPluginUpdate(entry)"
+            :updated-at="entry.updatedAt"
             :capabilities="entry.capabilities"
             :capability-ok="capabilityChecks[entry.id]?.ok"
             :capability-badge="capabilityChecks[entry.id]?.badge"
             :capability-reason="capabilityChecks[entry.id]?.reason"
             :icon-url="entry.iconUrl"
             @install="handleStoreInstall(entry)"
+            @update="handleStoreUpdate(entry)"
             @open-detail="handleOpenStoreDetail(entry)"
           />
 

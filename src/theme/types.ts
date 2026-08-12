@@ -6,6 +6,10 @@
 export interface NotedeckThemeMeta {
   /** misstore からインストールされた場合の追跡 ID (将来の自動更新用) */
   storeId?: string
+  /** インストール/更新時に照合済みの配布ソース SHA-512 (#913。更新検知 #1040 の baseline) */
+  storeSha512?: string
+  /** インストール/更新時の registry バージョン (#913) */
+  storeVersion?: string
   /** どの account の per-account テーマカラム「ストアのテーマ」セクションに
    *  表示するか。空 / undefined なら誰も使わない (Global ローカルセクション
    *  にのみ出る)。複数 account に紐付けられる (重複インストール不要)。 */
@@ -19,6 +23,12 @@ export interface MisskeyTheme {
   props: Record<string, string>
   /** NoteDeck 独自拡張 (本家は無視、registry sync では保持される) */
   $notedeck?: NotedeckThemeMeta
+  /**
+   * 実ファイル basename (#913 の ID → ファイル名対応表)。runtime-only —
+   * ファイルへは書かず (themeFileSync が書込前に strip)、localStorage
+   * ミラーには同乗する。
+   */
+  fileBase?: string
 }
 
 export type CompiledProps = Record<string, string>

@@ -2,7 +2,7 @@
   "name": "notedeck",
   "description": "Misskey Pro — integrated deck environment (IDE) for Misskey power users",
   "private": true,
-  "version": "1.46.2",
+  "version": "1.47.0",
   "type": "module",
   "packageManager": "pnpm@11.18.0",
   "engines": {
@@ -53,6 +53,7 @@
     "@codemirror/language-data": "^6.5.2",
     "@codemirror/lint": "^6.9.7",
     "@codemirror/lsp-client": "^6.2.5",
+    "@codemirror/merge": "^6.12.2",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.43.1",
     "@lezer/highlight": "^1.2.3",

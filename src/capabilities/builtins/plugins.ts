@@ -464,7 +464,7 @@ export const pluginsHistoryCapability: Command = {
     if (!plugin) {
       throw new Error(`plugins.history: plugin "${installId}" not found`)
     }
-    const basename = plugin.name || plugin.installId
+    const basename = plugin.fileBase ?? (plugin.name || plugin.installId)
     return await listSnapshots<PluginSnapshot>('plugin', basename)
   },
 }
@@ -483,7 +483,7 @@ export const pluginsRevertCapability: Command = {
     const index = typeof params?.index === 'number' ? params.index : -1
     const cur = usePluginsStore().getPlugin(installId)
     if (!cur || index < 0) return null
-    const basename = cur.name || cur.installId
+    const basename = cur.fileBase ?? (cur.name || cur.installId)
     const entry = await getSnapshotAt<PluginSnapshot>('plugin', basename, index)
     if (!entry) return null
     const snap = entry.snapshot
@@ -533,7 +533,7 @@ export const pluginsRevertCapability: Command = {
     if (!plugin) {
       throw new Error(`plugins.revert: plugin "${installId}" not found`)
     }
-    const basename = plugin.name || plugin.installId
+    const basename = plugin.fileBase ?? (plugin.name || plugin.installId)
     const entry = await getSnapshotAt<PluginSnapshot>('plugin', basename, index)
     if (!entry) {
       throw new Error(`plugins.revert: no snapshot at index ${index}`)

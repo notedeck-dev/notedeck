@@ -301,10 +301,10 @@ onMounted(() => {
       </div>
       <button
         :class="$style.widgetRemove"
-        :title="isSidebar ? 'widget を削除 (コードも消えます)' : 'このカラムから外す (widget 本体は保持)'"
+        :title="isSidebar ? 'サイドバーから外す' : 'このカラムから外す'"
         @click="emit('remove')"
       >
-        <i class="ti ti-x" />
+        <i class="ti ti-circle-minus" />
       </button>
     </div>
 

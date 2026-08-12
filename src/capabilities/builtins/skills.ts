@@ -528,7 +528,8 @@ export const skillsHistoryCapability: Command = {
     const store = useSkillsStore()
     const skill = store.skills.find((s) => s.id === id)
     if (!skill) throw new Error(`skills.history: skill "${id}" not found`)
-    const basename = skill.name || skill.id
+    // 履歴キーは対応表の fileBase (#913)。未割当なら旧キーに落ちる
+    const basename = skill.fileBase ?? (skill.name || skill.id)
     return await listSnapshots<SkillSnapshot>('skill', basename)
   },
 }
@@ -546,7 +547,7 @@ export const skillsRevertCapability: Command = {
     const index = typeof params?.index === 'number' ? params.index : -1
     const cur = useSkillsStore().skills.find((s) => s.id === id)
     if (!cur || index < 0) return null
-    const basename = cur.name || cur.id
+    const basename = cur.fileBase ?? (cur.name || cur.id)
     const entry = await getSnapshotAt<SkillSnapshot>('skill', basename, index)
     if (!entry) return null
     return {
@@ -592,7 +593,7 @@ export const skillsRevertCapability: Command = {
     const store = useSkillsStore()
     const skill = store.skills.find((s) => s.id === id)
     if (!skill) throw new Error(`skills.revert: skill "${id}" not found`)
-    const basename = skill.name || skill.id
+    const basename = skill.fileBase ?? (skill.name || skill.id)
     const entry = await getSnapshotAt<SkillSnapshot>('skill', basename, index)
     if (!entry) {
       throw new Error(`skills.revert: no snapshot at index ${index}`)

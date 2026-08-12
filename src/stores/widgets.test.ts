@@ -93,3 +93,59 @@ describe('useWidgetsStore.removeWidget (undo)', () => {
     expect(localStorage.getItem('nd-aiscript-app-w1:key')).toBe('"v"')
   })
 })
+
+describe('applyStoreUpdate (#913 ストア再インストール)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('src とストア由来メタを上書きし name / autoRun は維持する', () => {
+    const store = useWidgetsStore()
+    store.addWidget({
+      ...makeWidget('w1', 'My Renamed'),
+      autoRun: true,
+      storeId: 'ent-widget',
+      iconUrl: 'https://example.com/old.svg',
+    })
+    const updated = store.applyStoreUpdate('w1', {
+      src: 'new src',
+      iconUrl: 'https://example.com/new.svg',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+    })
+    expect(updated).toBe(store.getWidget('w1'))
+    expect(store.getWidget('w1')).toMatchObject({
+      src: 'new src',
+      iconUrl: 'https://example.com/new.svg',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+      // ローカル値は維持
+      name: 'My Renamed',
+      autoRun: true,
+    })
+  })
+
+  it('ソース欠損の readOnly 個体は検証済み配布ソースで復旧する', () => {
+    const store = useWidgetsStore()
+    store.addWidget({ ...makeWidget('w1'), readOnly: true, src: '' })
+    store.applyStoreUpdate('w1', {
+      src: 'recovered',
+      storeSha512: 'abc',
+      storeVersion: '1.0.0',
+    })
+    expect(store.getWidget('w1')?.src).toBe('recovered')
+    expect(store.getWidget('w1')?.readOnly).toBeFalsy()
+  })
+
+  it('未知の installId には undefined を返す', () => {
+    const store = useWidgetsStore()
+    expect(
+      store.applyStoreUpdate('nope', {
+        src: 's',
+        storeSha512: 'a',
+        storeVersion: '1',
+      }),
+    ).toBeUndefined()
+  })
+})

@@ -105,6 +105,17 @@
   --nd-accent-subtle: color-mix(in srgb, var(--nd-accent) 10%, transparent);
   --nd-love-hover: color-mix(in srgb, var(--nd-love) 15%, transparent);
   --nd-love-subtle: color-mix(in srgb, var(--nd-love) 10%, transparent);
+  /* コードエディタ面 (CodeMirror 系エディタ / CodeDiffView)。中身の
+     シンタックスハイライトが VS Code Dark+ 準拠でダーク固定なので面も
+     ダーク固定だが、カスタム CSS から上書きできるよう変数で開放する */
+  --nd-codeEditorBg: #1e1e1e;
+  --nd-codeEditorFgMuted: #9d9d9d;
+  /* Diff 表示 (CodeDiffView #981/#1040) の挿入/削除色。エディタ面と同じく
+     テーマ非依存の値 */
+  --nd-diffInsertBg: rgba(87, 171, 90, 0.16);
+  --nd-diffInsertTextBg: rgba(87, 171, 90, 0.35);
+  --nd-diffDeleteBg: rgba(221, 46, 68, 0.14);
+  --nd-diffDeleteTextBg: rgba(221, 46, 68, 0.35);
   /* Shadow depth — Apple dual-layer: near contact + distant ambient */
   --nd-shadow-contact: rgba(0, 0, 0, 0.08);
   --nd-shadow-ambient: rgba(0, 0, 0, 0.15);

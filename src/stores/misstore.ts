@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
-import { launchPlugin, parsePluginMeta } from '@/aiscript/plugin-api'
+import {
+  launchPlugin,
+  type ParsedPluginMeta,
+  parsePluginMeta,
+} from '@/aiscript/plugin-api'
+import { casefold, resolveAvailable } from '@/services/settingsSlug'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
+import { useConfirm } from '@/stores/confirm'
 import {
   type PluginMeta,
   type PluginScope,
@@ -9,12 +15,9 @@ import {
 } from '@/stores/plugins'
 import { type SkillMeta, useSkillsStore } from '@/stores/skills'
 import { useThemeStore } from '@/stores/theme'
-import {
-  generateWidgetId,
-  useWidgetsStore,
-  type WidgetMeta,
-} from '@/stores/widgets'
-import { parseSkillFile } from '@/utils/skillFrontmatter'
+import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
+import type { MisskeyTheme } from '@/theme/types'
+import { type Frontmatter, parseSkillFile } from '@/utils/skillFrontmatter'
 
 const STORE_BASE_URL = 'https://store.notedeck.io'
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
@@ -204,6 +207,84 @@ async function computeSha512(source: string): Promise<string> {
     .join('')
 }
 
+async function fetchSourceText(url: string): Promise<string> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.text()
+}
+
+/** 更新確認の主表示はレジストリの updatedAt (#1040)。ロケール非依存で整形する */
+function formatUpdatedAt(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
+}
+
+/** 更新適用の確認メッセージ。主 = updatedAt、補助 = version (#1040) */
+function updateConfirmMessage(
+  name: string,
+  e: { updatedAt: string; version: string },
+): string {
+  return `「${name}」をストアの内容で更新します。\nストア更新日: ${formatUpdatedAt(e.updatedAt)} / v${e.version}`
+}
+
+/**
+ * ストア由来スキルの上書き更新 patch (#913 の境界)。
+ * 本体 (body) とストア由来メタのみ — ローカル値 (改名 name / 実行モード mode /
+ * スコープ・installedFor・ローカル ID) は含めない。
+ */
+function buildSkillStorePatch(
+  meta: Frontmatter,
+  body: string,
+  e: StoreSkillEntry,
+  hash: string,
+): Partial<SkillMeta> {
+  return {
+    version: (meta.version as string | undefined) || e.version,
+    description: (meta.description as string | undefined) || e.description,
+    author: (meta.author as string | undefined) || e.author,
+    triggers: Array.isArray(meta.triggers) ? (meta.triggers as string[]) : [],
+    body,
+    iconUrl: (meta.iconUrl as string | undefined) || e.iconUrl,
+    cheapCheckCapabilities: Array.isArray(meta.cheapCheckCapabilities)
+      ? (meta.cheapCheckCapabilities as string[])
+      : [],
+    isPersona: meta.isPersona === true,
+    storeId: e.id,
+    storeSha512: hash,
+    storeVersion: e.version,
+  }
+}
+
+/**
+ * ストア配布テーマの適用 JSON を組み立てる (#913 の境界)。既存インストールが
+ * あれば配布内 UUID が変わってもローカル ID・ローカル改名を維持し
+ * (themeStore.installTheme が同 ID を既存対応表のファイルへ書く)、
+ * installedFor は既存と forAccountIds の union。
+ */
+function buildThemeWithMeta(
+  parsed: Record<string, unknown>,
+  existing: MisskeyTheme | undefined,
+  e: StoreThemeEntry,
+  hash: string,
+  forAccountIds: string[],
+): Record<string, unknown> {
+  const installedFor = Array.from(
+    new Set([...(existing?.$notedeck?.installedFor ?? []), ...forAccountIds]),
+  )
+  return {
+    ...parsed,
+    ...(existing ? { id: existing.id, name: existing.name } : {}),
+    $notedeck: {
+      ...((parsed.$notedeck as Record<string, unknown> | undefined) ?? {}),
+      storeId: e.id,
+      storeSha512: hash,
+      storeVersion: e.version,
+      ...(installedFor.length > 0 ? { installedFor } : {}),
+    },
+  }
+}
+
 // --- Store ---
 
 export const useMisStoreStore = defineStore('misstore', () => {
@@ -247,6 +328,79 @@ export const useMisStoreStore = defineStore('misstore', () => {
   const isQueriesCacheValid = () =>
     Date.now() - queriesLastFetchedAt < CACHE_TTL_MS
 
+  // --- baseline 無通知記録 (#1040) ---
+  // storeSha512 未記録のインストール済みアイテムは、レジストリ照会時に現行
+  // entry.sha512 / version を無通知で基準記録し、次の変更から検知を始める
+  // (ローカルソースからの逆算は再シリアライズ形式のため不可能。誤って
+  // 「全件更新あり」にしない)。
+
+  function recordPluginBaselines(entries: StorePluginEntry[]): void {
+    const pluginsStore = usePluginsStore()
+    for (const entry of entries) {
+      const p = pluginsStore.plugins.find((p) => p.storeId === entry.id)
+      if (p && !p.storeSha512) {
+        pluginsStore.recordStoreBaseline(p.installId, {
+          storeSha512: entry.sha512,
+          storeVersion: entry.version,
+        })
+      }
+    }
+  }
+
+  function recordThemeBaselines(entries: StoreThemeEntry[]): void {
+    const themeStore = useThemeStore()
+    for (const entry of entries) {
+      const t = themeStore.installedThemes.find(
+        (t) => t.$notedeck?.storeId === entry.id,
+      )
+      if (t && !t.$notedeck?.storeSha512) {
+        themeStore.recordStoreBaseline(t.id, {
+          storeSha512: entry.sha512,
+          storeVersion: entry.version,
+        })
+      }
+    }
+  }
+
+  function recordWidgetBaselines(entries: StoreWidgetEntry[]): void {
+    const widgetsStore = useWidgetsStore()
+    for (const entry of entries) {
+      const w = widgetsStore.widgets.find((w) => w.storeId === entry.id)
+      if (w && !w.storeSha512) {
+        widgetsStore.recordStoreBaseline(w.installId, {
+          storeSha512: entry.sha512,
+          storeVersion: entry.version,
+        })
+      }
+    }
+  }
+
+  function recordSkillBaselines(entries: StoreSkillEntry[]): void {
+    const skillsStore = useSkillsStore()
+    for (const entry of entries) {
+      const s = skillsStore.skills.find((s) => s.storeId === entry.id)
+      if (s && !s.storeSha512) {
+        skillsStore.recordStoreBaseline(s.id, {
+          storeSha512: entry.sha512,
+          storeVersion: entry.version,
+        })
+      }
+    }
+  }
+
+  function recordQueryBaselines(entries: StoreQueryEntry[]): void {
+    const queriesStore = useColumnQueriesStore()
+    for (const entry of entries) {
+      const q = queriesStore.queries.find((q) => q.storeId === entry.id)
+      if (q && !q.storeSha512) {
+        void queriesStore.recordStoreBaseline(q.id, {
+          storeSha512: entry.sha512,
+          storeVersion: entry.version,
+        })
+      }
+    }
+  }
+
   async function fetchPlugins(): Promise<void> {
     if (isCacheValid() && plugins.value.length > 0) return
     loading.value = true
@@ -257,6 +411,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const data = await res.json()
       plugins.value = data.plugins ?? []
       lastFetchedAt = Date.now()
+      recordPluginBaselines(plugins.value)
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'fetch failed'
     } finally {
@@ -274,6 +429,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const data = await res.json()
       themes.value = data.themes ?? []
       themesLastFetchedAt = Date.now()
+      recordThemeBaselines(themes.value)
     } catch (e) {
       themesError.value = e instanceof Error ? e.message : 'fetch failed'
     } finally {
@@ -291,6 +447,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const data = await res.json()
       widgets.value = data.widgets ?? []
       widgetsLastFetchedAt = Date.now()
+      recordWidgetBaselines(widgets.value)
     } catch (e) {
       widgetsError.value = e instanceof Error ? e.message : 'fetch failed'
     } finally {
@@ -308,6 +465,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const data = await res.json()
       skillEntries.value = data.skills ?? []
       skillsLastFetchedAt = Date.now()
+      recordSkillBaselines(skillEntries.value)
     } catch (e) {
       skillsError.value = e instanceof Error ? e.message : 'fetch failed'
     } finally {
@@ -316,16 +474,10 @@ export const useMisStoreStore = defineStore('misstore', () => {
   }
 
   async function fetchWidgetSource(entry: StoreWidgetEntry): Promise<string> {
-    const res = await fetch(entry.sourceUrl)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const source = await res.text()
-
-    const hash = await computeSha512(source)
-    if (hash !== entry.sha512) {
-      throw new Error(
-        'ハッシュ不一致: ソースが改ざんされている可能性があります',
-      )
-    }
+    const { source } = await fetchVerifiedSource(
+      entry,
+      refetchWidgetEntry(entry.id),
+    )
     return source
   }
 
@@ -349,39 +501,99 @@ export const useMisStoreStore = defineStore('misstore', () => {
     return fetchSkills()
   }
 
+  // --- 検証付きソース取得 (#1040 リトライ) ---
+
+  /**
+   * 配布ソースを取得し sha512 を照合する。不一致のときは改ざん警告の前に
+   * レジストリ index をキャッシュ無効化して再取得し、1 回だけリトライする
+   * (ストア更新直後の TTL 内は正常な更新が偽の改ざん警告になるため)。
+   * 再取得後も不一致なら従来どおり警告を投げる。
+   */
+  async function fetchVerifiedSource<
+    E extends { id: string; sourceUrl: string; sha512: string },
+  >(
+    entry: E,
+    refetchEntry: () => Promise<E | undefined>,
+  ): Promise<{ source: string; hash: string; entry: E }> {
+    const source = await fetchSourceText(entry.sourceUrl)
+    const hash = await computeSha512(source)
+    if (hash === entry.sha512) return { source, hash, entry }
+    const fresh = await refetchEntry()
+    if (fresh) {
+      const retried = await fetchSourceText(fresh.sourceUrl)
+      const retriedHash = await computeSha512(retried)
+      if (retriedHash === fresh.sha512) {
+        return { source: retried, hash: retriedHash, entry: fresh }
+      }
+    }
+    throw new Error('ハッシュ不一致: ソースが改ざんされている可能性があります')
+  }
+
+  const refetchPluginEntry = (id: string) => async () => {
+    await refresh()
+    return plugins.value.find((e) => e.id === id)
+  }
+  const refetchThemeEntry = (id: string) => async () => {
+    await refreshThemes()
+    return themes.value.find((e) => e.id === id)
+  }
+  const refetchWidgetEntry = (id: string) => async () => {
+    await refreshWidgets()
+    return widgets.value.find((e) => e.id === id)
+  }
+  const refetchSkillEntry = (id: string) => async () => {
+    await refreshSkills()
+    return skillEntries.value.find((e) => e.id === id)
+  }
+  const refetchQueryEntry = (id: string) => async () => {
+    await refreshQueries()
+    return queryEntries.value.find((e) => e.id === id)
+  }
+
   // --- Install skill ---
 
   /**
    * MisStore からスキル (.md + frontmatter) を取得して skills/ に保存する。
-   * 既存の同 storeId/同 id は上書き更新 (再インストール = アップデート)。
+   * 照合キーは storeId のみ (#913 — 表示名・frontmatter の id 宣言は使わない)。
+   * 既存の同 storeId は上書き更新 (再インストール = アップデート)。
+   * ローカル値 (改名 name / 実行モード mode / スコープ) は更新で維持する。
    * インストール直後に有効化はしない (mode=always のスキルは常時有効)。
    */
   async function installSkill(entry: StoreSkillEntry): Promise<void> {
     installingSkill.value = entry.id
     try {
-      const res = await fetch(entry.sourceUrl)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const source = await res.text()
-
-      const hash = await computeSha512(source)
-      if (hash !== entry.sha512) {
-        throw new Error(
-          'ハッシュ不一致: ソースが改ざんされている可能性があります',
-        )
-      }
+      const {
+        source,
+        hash,
+        entry: e,
+      } = await fetchVerifiedSource(entry, refetchSkillEntry(entry.id))
 
       const { meta, body } = parseSkillFile(source)
       const skillsStore = useSkillsStore()
-      const id = (meta.id as string | undefined) || entry.id
-      const existing = skillsStore.get(id)
+      const existing = skillsStore.skills.find((s) => s.storeId === e.id)
       const now = Date.now()
+
+      if (existing) {
+        // 上書き更新: 本体とストア由来メタのみ。ローカル ID・name・mode・
+        // scope/installedFor・有効/無効 (activeIds) は維持する
+        skillsStore.update(
+          existing.id,
+          buildSkillStorePatch(meta, body, e, hash),
+        )
+        return
+      }
+
+      // 新規: ローカル ID = storeId (配布物内の ID 宣言よりレジストリの
+      // ディレクトリ名を正とする)。storeId 不一致の既存 ID に占有されて
+      // いたら上書きせず連番 suffix で回避する
+      const takenIds = new Set(skillsStore.skills.map((s) => casefold(s.id)))
+      const id = resolveAvailable(e.id, (c) => takenIds.has(casefold(c)))
       const newSkill: SkillMeta = {
         id,
-        name: (meta.name as string | undefined) || entry.name,
-        version: (meta.version as string | undefined) || entry.version,
-        description:
-          (meta.description as string | undefined) || entry.description,
-        author: (meta.author as string | undefined) || entry.author,
+        name: (meta.name as string | undefined) || e.name,
+        version: (meta.version as string | undefined) || e.version,
+        description: (meta.description as string | undefined) || e.description,
+        author: (meta.author as string | undefined) || e.author,
         mode:
           meta.mode === 'always' ||
           meta.mode === 'trigger' ||
@@ -396,33 +608,29 @@ export const useMisStoreStore = defineStore('misstore', () => {
           meta.scope === 'per-account' && Array.isArray(meta.installedFor)
             ? (meta.installedFor as string[])
             : undefined,
-        storeId: entry.id,
+        storeId: e.id,
+        storeSha512: hash,
+        storeVersion: e.version,
         body,
-        createdAt: existing?.createdAt ?? now,
+        createdAt: now,
         updatedAt: now,
         builtIn: false,
-        iconUrl: (meta.iconUrl as string | undefined) || entry.iconUrl,
+        iconUrl: (meta.iconUrl as string | undefined) || e.iconUrl,
         cheapCheckCapabilities: Array.isArray(meta.cheapCheckCapabilities)
           ? (meta.cheapCheckCapabilities as string[])
           : [],
         isPersona: meta.isPersona === true,
       }
-
-      if (existing) {
-        skillsStore.update(id, newSkill)
-      } else {
-        skillsStore.add(newSkill)
-      }
+      skillsStore.add(newSkill)
     } finally {
       installingSkill.value = null
     }
   }
 
   function isSkillInstalled(entry: StoreSkillEntry): boolean {
+    // 照合キーは storeId のみ (#913 — 内部 ID 一致では真にしない)
     const skillsStore = useSkillsStore()
-    return skillsStore.skills.some(
-      (s) => s.storeId === entry.id || s.id === entry.id,
-    )
+    return skillsStore.skills.some((s) => s.storeId === entry.id)
   }
 
   // --- Queries (#783 カラムクエリ) ---
@@ -437,6 +645,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const data = await res.json()
       queryEntries.value = data.queries ?? []
       queriesLastFetchedAt = Date.now()
+      recordQueryBaselines(queryEntries.value)
     } catch (e) {
       queriesError.value = e instanceof Error ? e.message : 'fetch failed'
     } finally {
@@ -458,33 +667,37 @@ export const useMisStoreStore = defineStore('misstore', () => {
   async function installQuery(entry: StoreQueryEntry): Promise<void> {
     installingQuery.value = entry.id
     try {
-      const res = await fetch(entry.sourceUrl)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const source = await res.text()
-
-      const hash = await computeSha512(source)
-      if (hash !== entry.sha512) {
-        throw new Error(
-          'ハッシュ不一致: ソースが改ざんされている可能性があります',
-        )
-      }
+      const {
+        source,
+        hash,
+        entry: e,
+      } = await fetchVerifiedSource(entry, refetchQueryEntry(entry.id))
 
       const queriesStore = useColumnQueriesStore()
       queriesStore.ensureLoaded()
-      const existing = queriesStore.queries.find((q) => q.storeId === entry.id)
+      const existing = queriesStore.queries.find((q) => q.storeId === e.id)
       if (existing) {
-        await queriesStore.updateQuery(existing.id, {
-          name: entry.name,
-          description: entry.description,
+        // 上書き更新: 本体とストア由来メタのみ。ローカル改名 (name) は維持
+        await queriesStore.applyStoreUpdate(existing.id, {
           src: source,
+          description: e.description,
+          iconUrl: e.iconUrl,
+          storeSha512: hash,
+          storeVersion: e.version,
         })
       } else {
         await queriesStore.createQuery({
-          name: entry.name,
-          description: entry.description,
+          // 新規インストールのローカル ID = storeId (#913)。衝突時のみ suffix
+          id: resolveAvailable(e.id, (c) =>
+            queriesStore.queries.some((q) => casefold(q.id) === c),
+          ),
+          name: e.name,
+          description: e.description,
           src: source,
-          storeId: entry.id,
-          iconUrl: entry.iconUrl,
+          storeId: e.id,
+          iconUrl: e.iconUrl,
+          storeSha512: hash,
+          storeVersion: e.version,
         })
       }
     } finally {
@@ -501,9 +714,11 @@ export const useMisStoreStore = defineStore('misstore', () => {
   // --- Install ---
 
   /**
-   * MisStore からプラグインをインストール / スコープ追加する (#771)。
-   * - 同じ storeId の既存プラグインがあればライブラリ本体は再取得せず、
-   *   指定 scope への参照を追加するだけ (重複インストールは避ける)
+   * MisStore からプラグインをインストール / 更新する (#771, #913)。
+   * 照合キーは storeId のみ (同名の自作があってもインストール可能 —
+   * ファイル名は suffix が捌く)。
+   * - 同じ storeId の既存プラグインがあれば本体とストア由来メタを上書き更新し、
+   *   指定 scope への参照を追加する (active/configData/scope/name は維持)
    * - 無ければ新規追加 (指定 scope で有効化、storeId 紐付け)
    */
   async function installPlugin(
@@ -513,31 +728,36 @@ export const useMisStoreStore = defineStore('misstore', () => {
     installing.value = entry.id
     try {
       const pluginsStore = usePluginsStore()
-      // 既に同 storeId でインストール済みなら scope 参照を追加するだけ
       const existing = pluginsStore.plugins.find((p) => p.storeId === entry.id)
-      if (existing) {
-        pluginsStore.linkScope(existing.installId, scope)
-        return
-      }
 
-      const res = await fetch(entry.sourceUrl)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const source = await res.text()
-
-      const hash = await computeSha512(source)
-      if (hash !== entry.sha512) {
-        throw new Error(
-          'ハッシュ不一致: ソースが改ざんされている可能性があります',
-        )
-      }
+      const {
+        source,
+        hash,
+        entry: e,
+      } = await fetchVerifiedSource(entry, refetchPluginEntry(entry.id))
 
       const meta = parsePluginMeta(source)
       if (!meta) {
         throw new Error('プラグインメタデータの解析に失敗しました')
       }
 
-      if (pluginsStore.isDuplicate(meta.name)) {
-        throw new Error(`"${meta.name}" は既にインストールされています`)
+      if (existing) {
+        // 追加インストール (別スコープ) でもソースが変われば中身は更新になる。
+        // 権限が拡大するなら updatePlugin と同じ再同意を通す (#1040 —
+        // この経路を無確認にすると再同意の抜け穴になる)。
+        // sha 一致 = 中身が同じなら本体・権限には触れない
+        if (existing.storeSha512 !== hash) {
+          await confirmPluginUpdate(
+            existing,
+            { source, hash, entry: e },
+            meta,
+            { alwaysConfirm: false },
+          )
+        }
+        // 再同意を断られても「このスコープへ入れる」操作自体は成立させる
+        // (中身は既存のまま)
+        pluginsStore.linkScope(existing.installId, scope)
+        return
       }
 
       const configData: Record<string, unknown> = {}
@@ -548,7 +768,11 @@ export const useMisStoreStore = defineStore('misstore', () => {
       }
 
       const newPlugin: PluginMeta = {
-        installId: `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        // 新規インストールのローカル ID = storeId (#913。再インストールで
+        // 参照が生き残る)。衝突時のみ連番 suffix
+        installId: resolveAvailable(e.id, (c) =>
+          pluginsStore.plugins.some((p) => casefold(p.installId) === c),
+        ),
         name: meta.name,
         version: meta.version,
         author: meta.author,
@@ -558,8 +782,10 @@ export const useMisStoreStore = defineStore('misstore', () => {
         configData,
         src: source,
         active: true,
-        storeId: entry.id,
-        ...(entry.iconUrl ? { iconUrl: entry.iconUrl } : {}),
+        storeId: e.id,
+        storeSha512: hash,
+        storeVersion: e.version,
+        ...(e.iconUrl ? { iconUrl: e.iconUrl } : {}),
         ...(scope.kind === 'global'
           ? { global: true }
           : { installedFor: [scope.key] }),
@@ -575,9 +801,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
   // --- Install widget ---
 
   /**
-   * MisStore からウィジェットを取得して widgetsStore に追加する。
-   * 同 storeId のウィジェットが既にあれば再インストールせず early return
-   * (UI 側の DeckWidgetColumn ライブラリインストール挙動と整合)。
+   * MisStore からウィジェットを取得して widgetsStore に追加 / 更新する。
+   * 照合キーは storeId のみ (#913)。同 storeId の既存があれば本体とストア由来
+   * メタを上書き更新する (ローカル値 name/autoRun は維持)。
    *
    * AI capability (`widgets.install`) はカラム文脈を持たないので、
    * deckStore.addWidget ではなく widgetsStore.addWidget を直接呼んで
@@ -589,19 +815,39 @@ export const useMisStoreStore = defineStore('misstore', () => {
     try {
       const widgetsStore = useWidgetsStore()
       const existing = widgetsStore.widgets.find((w) => w.storeId === entry.id)
-      if (existing) return existing
 
-      const src = await fetchWidgetSource(entry)
+      // fetchVerifiedSource が sha512 照合済み → hash = 検証済みの値。
+      // リトライで index が更新されていたら新 entry (e) の値を記録する
+      const {
+        source: src,
+        hash,
+        entry: e,
+      } = await fetchVerifiedSource(entry, refetchWidgetEntry(entry.id))
+      if (existing) {
+        const updated = widgetsStore.applyStoreUpdate(existing.installId, {
+          src,
+          iconUrl: e.iconUrl,
+          storeSha512: hash,
+          storeVersion: e.version,
+        })
+        return updated ?? existing
+      }
+
       const now = Date.now()
       const widget: WidgetMeta = {
-        installId: generateWidgetId(),
-        name: entry.name,
+        // 新規インストールのローカル ID = storeId (#913)。衝突時のみ suffix
+        installId: resolveAvailable(e.id, (c) =>
+          widgetsStore.widgets.some((w) => casefold(w.installId) === c),
+        ),
+        name: e.name,
         src,
-        autoRun: entry.autoRun,
-        storeId: entry.id,
+        autoRun: e.autoRun,
+        storeId: e.id,
+        storeSha512: hash,
+        storeVersion: e.version,
         createdAt: now,
         updatedAt: now,
-        ...(entry.iconUrl ? { iconUrl: entry.iconUrl } : {}),
+        ...(e.iconUrl ? { iconUrl: e.iconUrl } : {}),
       }
       widgetsStore.addWidget(widget)
       return widget
@@ -630,36 +876,27 @@ export const useMisStoreStore = defineStore('misstore', () => {
   ): Promise<void> {
     installingTheme.value = entry.id
     try {
-      const res = await fetch(entry.sourceUrl)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const source = await res.text()
-
-      const hash = await computeSha512(source)
-      if (hash !== entry.sha512) {
-        throw new Error(
-          'ハッシュ不一致: ソースが改ざんされている可能性があります',
-        )
-      }
+      const {
+        source,
+        hash,
+        entry: e,
+      } = await fetchVerifiedSource(entry, refetchThemeEntry(entry.id))
 
       const JSON5 = (await import('json5')).default
       const parsed = JSON5.parse(source)
-      // 既存インストールがあれば installedFor を引き継ぎ、新規 ID と union
+      // 照合キーは storeId のみ (#913)。既存インストールがあれば
+      // installedFor を引き継ぎ、新規 ID と union
       const themeStore = useThemeStore()
       const existing = themeStore.installedThemes.find(
-        (t) => t.id === entry.id || t.$notedeck?.storeId === entry.id,
+        (t) => t.$notedeck?.storeId === e.id,
       )
-      const installedForBase = existing?.$notedeck?.installedFor ?? []
-      const installedFor = Array.from(
-        new Set([...installedForBase, ...forAccountIds]),
+      const withMeta = buildThemeWithMeta(
+        parsed,
+        existing,
+        e,
+        hash,
+        forAccountIds,
       )
-      const withMeta = {
-        ...parsed,
-        $notedeck: {
-          ...(parsed.$notedeck ?? {}),
-          storeId: entry.id,
-          ...(installedFor.length > 0 ? { installedFor } : {}),
-        },
-      }
 
       const ok = await themeStore.installTheme(JSON.stringify(withMeta))
       if (!ok) {
@@ -671,22 +908,276 @@ export const useMisStoreStore = defineStore('misstore', () => {
   }
 
   // --- Installed check ---
+  // 照合キーは storeId のみ (#913)。表示名・ファイル内 ID では照合しない
 
   function isInstalled(entry: StorePluginEntry): boolean {
     const pluginsStore = usePluginsStore()
-    return pluginsStore.plugins.some((p) => p.name === entry.name)
+    return pluginsStore.plugins.some((p) => p.storeId === entry.id)
   }
 
   function isThemeInstalled(entry: StoreThemeEntry): boolean {
-    // id 比較が一次基準: MisStore は id ユニーク (ame / dark-amethyst 等) なので
-    // 同 id があれば確実にこの store entry のインストール済みコピー。
-    // storeId 比較を fallback にするのは、テーマインストール時 themeStore は
-    // theme.id を尊重するが、parsed の id が衝突した時 themeStore 側で
-    // `custom-${Date.now()}` に置換される可能性があるため (theme.ts L236)。
     const themeStore = useThemeStore()
     return themeStore.installedThemes.some(
-      (t) => t.id === entry.id || t.$notedeck?.storeId === entry.id,
+      (t) => t.$notedeck?.storeId === entry.id,
     )
+  }
+
+  // --- 更新検知 (#1040) ---
+  // 判定は「インストール時に記録した storeSha512」と registry 現行 sha512 の
+  // 比較のみ。version 文字列は bump が機械強制されていないため使わない。
+  // storeSha512 未記録 (baseline 前) は false — 誤検知しない。
+
+  function hasStoreUpdate(
+    recorded: string | undefined,
+    entrySha: string,
+  ): boolean {
+    return !!recorded && recorded !== entrySha
+  }
+
+  function hasPluginUpdate(entry: StorePluginEntry): boolean {
+    const p = usePluginsStore().plugins.find((p) => p.storeId === entry.id)
+    return !!p && hasStoreUpdate(p.storeSha512, entry.sha512)
+  }
+
+  function hasThemeUpdate(entry: StoreThemeEntry): boolean {
+    const t = useThemeStore().installedThemes.find(
+      (t) => t.$notedeck?.storeId === entry.id,
+    )
+    return !!t && hasStoreUpdate(t.$notedeck?.storeSha512, entry.sha512)
+  }
+
+  function hasWidgetUpdate(entry: StoreWidgetEntry): boolean {
+    const w = useWidgetsStore().widgets.find((w) => w.storeId === entry.id)
+    return !!w && hasStoreUpdate(w.storeSha512, entry.sha512)
+  }
+
+  function hasSkillUpdate(entry: StoreSkillEntry): boolean {
+    const s = useSkillsStore().skills.find((s) => s.storeId === entry.id)
+    return !!s && hasStoreUpdate(s.storeSha512, entry.sha512)
+  }
+
+  function hasQueryUpdate(entry: StoreQueryEntry): boolean {
+    const queriesStore = useColumnQueriesStore()
+    const q = queriesStore.queries.find((q) => q.storeId === entry.id)
+    return !!q && hasStoreUpdate(q.storeSha512, entry.sha512)
+  }
+
+  // --- 更新適用 (#1040) ---
+  // 更新ボタン → ソース fetch + sha 照合 (不一致は index 再取得の 1 回リトライ)
+  // → 適用前に全文 diff 付き確認 → 承認で「確認に使った内容」をそのまま適用する。
+  // 承認後の再 fetch・再計算はしない — 見せたものと書くものの一致が承認 UI の
+  // 意味そのもの (#981 不変条件)。未インストール (既存なし) は install* の担当で
+  // false を返す。戻り値は「適用したか」(キャンセル / 未インストールで false)。
+
+  async function updateWidget(entry: StoreWidgetEntry): Promise<boolean> {
+    const widgetsStore = useWidgetsStore()
+    const existing = widgetsStore.widgets.find((w) => w.storeId === entry.id)
+    if (!existing) return false
+    installingWidget.value = entry.id
+    try {
+      const {
+        source,
+        hash,
+        entry: e,
+      } = await fetchVerifiedSource(entry, refetchWidgetEntry(entry.id))
+      const ok = await useConfirm().confirm({
+        title: 'ウィジェットを更新',
+        message: updateConfirmMessage(existing.name || e.name, e),
+        okLabel: '更新',
+        diff: { old: existing.src, new: source, language: 'aiscript' },
+      })
+      if (!ok) return false
+      widgetsStore.applyStoreUpdate(existing.installId, {
+        src: source,
+        iconUrl: e.iconUrl,
+        storeSha512: hash,
+        storeVersion: e.version,
+      })
+      return true
+    } finally {
+      installingWidget.value = null
+    }
+  }
+
+  /**
+   * 取得済みソースを既存プラグインへ適用する (#1040)。
+   * installPlugin の既存分岐と updatePlugin の共用点。
+   *
+   * 再同意: permissions が拡大する更新 (新規権限の出現) は新しい権限を明示して
+   * 確認する。既存側の記録が無いなど比較できない場合は拡大側に倒す
+   * (before = 空集合)。`alwaysConfirm` = 更新操作 (差分の確認自体が目的) は
+   * 権限が変わらなくても確認する。
+   *
+   * @returns 適用したら true / ユーザーが拒否したら false
+   */
+  async function confirmPluginUpdate(
+    existing: PluginMeta,
+    fetched: { source: string; hash: string; entry: StorePluginEntry },
+    meta: ParsedPluginMeta,
+    opts: { alwaysConfirm: boolean },
+  ): Promise<boolean> {
+    const { source, hash, entry: e } = fetched
+    const before = new Set(existing.permissions ?? [])
+    const added = (meta.permissions ?? []).filter((p) => !before.has(p))
+    if (opts.alwaysConfirm || added.length > 0) {
+      let message = updateConfirmMessage(existing.name || e.name, e)
+      if (added.length > 0) {
+        message += `\n新しい権限: ${added.join(', ')}`
+      }
+      const ok = await useConfirm().confirm({
+        title: 'プラグインを更新',
+        message,
+        okLabel: '更新',
+        ...(added.length > 0 ? { type: 'warning' as const } : {}),
+        diff: { old: existing.src, new: source, language: 'aiscript' },
+      })
+      if (!ok) return false
+    }
+    usePluginsStore().applyStoreUpdate(existing.installId, {
+      src: source,
+      version: meta.version,
+      author: meta.author,
+      description: meta.description,
+      permissions: meta.permissions,
+      config: meta.config,
+      iconUrl: e.iconUrl,
+      storeSha512: hash,
+      storeVersion: e.version,
+    })
+    return true
+  }
+
+  async function updatePlugin(entry: StorePluginEntry): Promise<boolean> {
+    const pluginsStore = usePluginsStore()
+    const existing = pluginsStore.plugins.find((p) => p.storeId === entry.id)
+    if (!existing) return false
+    installing.value = entry.id
+    try {
+      const fetched = await fetchVerifiedSource(
+        entry,
+        refetchPluginEntry(entry.id),
+      )
+      const meta = parsePluginMeta(fetched.source)
+      if (!meta) {
+        throw new Error('プラグインメタデータの解析に失敗しました')
+      }
+      // 更新はスコープに触れない (linkScope しない — 有効範囲はローカル値)
+      return await confirmPluginUpdate(existing, fetched, meta, {
+        alwaysConfirm: true,
+      })
+    } finally {
+      installing.value = null
+    }
+  }
+
+  async function updateSkill(entry: StoreSkillEntry): Promise<boolean> {
+    const skillsStore = useSkillsStore()
+    const existing = skillsStore.skills.find((s) => s.storeId === entry.id)
+    if (!existing) return false
+    installingSkill.value = entry.id
+    try {
+      const {
+        source,
+        hash,
+        entry: e,
+      } = await fetchVerifiedSource(entry, refetchSkillEntry(entry.id))
+      const { meta, body } = parseSkillFile(source)
+      const ok = await useConfirm().confirm({
+        title: 'スキルを更新',
+        message: updateConfirmMessage(existing.name || e.name, e),
+        okLabel: '更新',
+        // 本体 = frontmatter を除いた body 同士で比較する (ローカルは body
+        // しか保持しない。frontmatter 由来メタは patch 側が反映する)
+        diff: { old: existing.body, new: body, language: 'markdown' },
+      })
+      if (!ok) return false
+      skillsStore.update(existing.id, buildSkillStorePatch(meta, body, e, hash))
+      return true
+    } finally {
+      installingSkill.value = null
+    }
+  }
+
+  async function updateQuery(entry: StoreQueryEntry): Promise<boolean> {
+    const queriesStore = useColumnQueriesStore()
+    queriesStore.ensureLoaded()
+    const existing = queriesStore.queries.find((q) => q.storeId === entry.id)
+    if (!existing) return false
+    installingQuery.value = entry.id
+    try {
+      const {
+        source,
+        hash,
+        entry: e,
+      } = await fetchVerifiedSource(entry, refetchQueryEntry(entry.id))
+      const ok = await useConfirm().confirm({
+        title: 'クエリを更新',
+        message: updateConfirmMessage(existing.name || e.name, e),
+        okLabel: '更新',
+        diff: { old: existing.src, new: source, language: 'aiscript' },
+      })
+      if (!ok) return false
+      await queriesStore.applyStoreUpdate(existing.id, {
+        src: source,
+        description: e.description,
+        iconUrl: e.iconUrl,
+        storeSha512: hash,
+        storeVersion: e.version,
+      })
+      return true
+    } finally {
+      installingQuery.value = null
+    }
+  }
+
+  async function updateTheme(
+    entry: StoreThemeEntry,
+    forAccountIds: string[] = [],
+  ): Promise<boolean> {
+    const themeStore = useThemeStore()
+    const existing = themeStore.installedThemes.find(
+      (t) => t.$notedeck?.storeId === entry.id,
+    )
+    if (!existing) return false
+    installingTheme.value = entry.id
+    try {
+      const {
+        source,
+        hash,
+        entry: e,
+      } = await fetchVerifiedSource(entry, refetchThemeEntry(entry.id))
+      const JSON5 = (await import('json5')).default
+      const parsed = JSON5.parse(source)
+      const withMeta = buildThemeWithMeta(
+        parsed,
+        existing,
+        e,
+        hash,
+        forAccountIds,
+      )
+      // fileBase は runtime-only (書込前に strip される) なので diff に出さない
+      const { fileBase: _fileBase, ...currentTheme } = existing
+      const newJson = JSON.stringify(withMeta, null, 2)
+      const ok = await useConfirm().confirm({
+        title: 'テーマを更新',
+        message: updateConfirmMessage(existing.name || e.name, e),
+        okLabel: '更新',
+        diff: {
+          old: JSON.stringify(currentTheme, null, 2),
+          new: newJson,
+          language: 'json5',
+        },
+      })
+      if (!ok) return false
+      // 不変条件: 確認に使った全文をそのまま書き込む (#981)
+      const applied = await themeStore.installTheme(newJson)
+      if (!applied) {
+        throw new Error('テーマのインストールに失敗しました')
+      }
+      return true
+    } finally {
+      installingTheme.value = null
+    }
   }
 
   return {
@@ -731,5 +1222,15 @@ export const useMisStoreStore = defineStore('misstore', () => {
     isThemeInstalled,
     isWidgetInstalled,
     isSkillInstalled,
+    hasPluginUpdate,
+    hasThemeUpdate,
+    hasWidgetUpdate,
+    hasSkillUpdate,
+    hasQueryUpdate,
+    updatePlugin,
+    updateTheme,
+    updateWidget,
+    updateSkill,
+    updateQuery,
   }
 })

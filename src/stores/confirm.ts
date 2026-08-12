@@ -53,6 +53,18 @@ export interface ConfirmOptions {
   /** code 用の言語キー (default: 'json')。`highlightCode` の lang と一致。 */
   codeLanguage?: string
   /**
+   * 適用前の全文 diff 確認 (#981 確定 3 / #1040)。指定時 AppConfirm は
+   * `code` のコードブロックの代わりに `CodeDiffView` を描画する (併用時は
+   * diff 優先)。「編集前」を用意する責務は確認を出す側にある: 確認直前に
+   * 現在の全文を読み、適用後全文を計算してから確認を出す。承認後は
+   * 再計算せず、確認に使った適用後全文をそのまま書き込むこと (不変条件)。
+   */
+  diff?: {
+    old: string
+    new: string
+    language?: 'aiscript' | 'json5' | 'markdown' | 'css' | 'text'
+  }
+  /**
    * 指定された場合、actions の上に「次回から確認しない」系のチェックボックスを
    * 表示する。チェック状態は `confirmWithDecision` の戻り値 `remember` で受け取る。
    * dispatcher が capability の `onConfirmRemember` を呼ぶかの判断に使う。

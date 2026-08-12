@@ -363,6 +363,12 @@ function isStringRecord(v: unknown): v is Record<string, string> {
   return true
 }
 
+/** 履歴サイドカーのキーは対応表の fileBase (#913)。未割当なら id に落ちる。 */
+function themeHistoryBase(id: string): string {
+  const theme = useThemeStore().installedThemes.find((t) => t.id === id)
+  return theme?.fileBase ?? id
+}
+
 export const themeHistoryCapability: Command = {
   id: 'theme.history',
   label: 'テーマの編集履歴',
@@ -387,7 +393,7 @@ export const themeHistoryCapability: Command = {
   execute: async (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('theme.history: id is required')
-    return await listSnapshots<ThemeSnapshot>('theme', id)
+    return await listSnapshots<ThemeSnapshot>('theme', themeHistoryBase(id))
   },
 }
 
@@ -403,7 +409,11 @@ export const themeRevertCapability: Command = {
     const id = typeof params?.id === 'string' ? params.id : ''
     const index = typeof params?.index === 'number' ? params.index : -1
     if (!id || index < 0) return null
-    const entry = await getSnapshotAt<ThemeSnapshot>('theme', id, index)
+    const entry = await getSnapshotAt<ThemeSnapshot>(
+      'theme',
+      themeHistoryBase(id),
+      index,
+    )
     if (!entry) return null
     const snap = entry.snapshot
     return {
@@ -441,7 +451,11 @@ export const themeRevertCapability: Command = {
     const index = typeof params?.index === 'number' ? params.index : -1
     if (!id) throw new Error('theme.revert: id is required')
     if (index < 0) throw new Error('theme.revert: index must be >= 0')
-    const entry = await getSnapshotAt<ThemeSnapshot>('theme', id, index)
+    const entry = await getSnapshotAt<ThemeSnapshot>(
+      'theme',
+      themeHistoryBase(id),
+      index,
+    )
     if (!entry) {
       throw new Error(`theme.revert: no snapshot at index ${index}`)
     }

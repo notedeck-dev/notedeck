@@ -1,13 +1,19 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-
 import { emitNoteDeckEvent } from '@/aiscript/events'
 import { planBuiltInSeed } from '@/services/builtInSeed'
+import { injectFrontmatterId } from '@/services/idFreeze'
+import { createSingleFileCollection } from '@/services/singleFileCollection'
 import { planStoreMovedMigration } from '@/services/storeMovedSkills'
 import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
-import { parseSkillFile, serializeSkillFile } from '@/utils/skillFrontmatter'
+import {
+  type ParsedSkillFile,
+  parseSkillFile,
+  serializeSkillFile,
+} from '@/utils/skillFrontmatter'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
+import { notifyWarningToast } from '@/utils/toastNotify'
 
 /**
  * Skill 実行モード:
@@ -34,6 +40,10 @@ export interface SkillMeta {
   scope: SkillScope
   installedFor?: string[]
   storeId?: string
+  /** インストール/更新時に照合済みの配布ソース SHA-512 (#913。更新検知 #1040 の baseline) */
+  storeSha512?: string
+  /** インストール/更新時の registry バージョン (#913) */
+  storeVersion?: string
   /** Markdown 本文 (frontmatter を除いた指示文) */
   body: string
   createdAt: number
@@ -69,6 +79,11 @@ export interface SkillMeta {
    * 未指定 = false。
    */
   isPersona?: boolean
+  /**
+   * 実ファイル basename (#913 の ID → ファイル名対応表)。runtime-only —
+   * frontmatter には書かない (frontmatterFromMeta に含めないこと)。
+   */
+  fileBase?: string
 }
 
 export function generateSkillId(name: string): string {
@@ -92,6 +107,8 @@ interface SkillFrontmatter {
   scope?: string
   installedFor?: string[]
   storeId?: string
+  storeSha512?: string
+  storeVersion?: string
   builtIn?: boolean
   createdAt?: number
   updatedAt?: number
@@ -139,6 +156,8 @@ function frontmatterFromMeta(skill: SkillMeta): Record<string, unknown> {
     out.installedFor = skill.installedFor
   }
   if (skill.storeId) out.storeId = skill.storeId
+  if (skill.storeSha512) out.storeSha512 = skill.storeSha512
+  if (skill.storeVersion) out.storeVersion = skill.storeVersion
   if (skill.builtIn) out.builtIn = true
   if (skill.iconUrl) out.iconUrl = skill.iconUrl
   if (skill.cheapCheckCapabilities && skill.cheapCheckCapabilities.length > 0) {
@@ -176,6 +195,8 @@ function metaFromFrontmatter(
     installedFor:
       scope === 'per-account' ? asArray(fm.installedFor) : undefined,
     storeId: fm.storeId,
+    storeSha512: fm.storeSha512,
+    storeVersion: fm.storeVersion,
     body,
     createdAt: fm.createdAt ?? now,
     updatedAt: fm.updatedAt ?? now,
@@ -194,6 +215,52 @@ export const _internal = {
   metaFromFrontmatter,
   frontmatterFromMeta,
 }
+
+function serializeSkill(skill: SkillMeta): string {
+  const fm = frontmatterFromMeta(skill)
+  return serializeSkillFile(
+    fm as Record<string, string | number | boolean | string[]>,
+    skill.body,
+  )
+}
+
+/**
+ * skill (`skills/<base>.md` 単一ファイル・frontmatter が meta) の永続化
+ * (#913 で ID → ファイル名対応表化)。
+ * ID 凍結の実効値 = 拡張子を除いた basename (現行 fallbackId と同値)。
+ */
+const skillFiles = createSingleFileCollection<SkillMeta, ParsedSkillFile>({
+  logTag: 'skills',
+  notify: notifyWarningToast,
+  kindFallback: 'skill',
+  ext: settingsFs.SKILL_EXT,
+  // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)。
+  // builtin seed はテンプレ id (slug 適合) をそのままファイル名にする
+  // (表示名 slug だと `notedeck.md` / `notedeck-2.md` に化けて意味が消える)
+  preferredBase: (s) => s.storeId ?? (s.builtIn ? s.id : undefined),
+  // 占有判定・sweep には .history.json5 を含む実列挙が要る
+  // (規定拡張子の filter はコレクション側が行う)
+  list: () => settingsFs.listSkillDirFiles(),
+  read: (filename) => settingsFs.readSkillFile(filename),
+  write: (filename, content) => settingsFs.writeSkillFile(filename, content),
+  remove: (filename) => settingsFs.deleteSkillFile(filename),
+  rename: (oldFilename, newFilename) =>
+    settingsFs.renameSkillFile(oldFilename, newFilename),
+  parse: (raw) => parseSkillFile(raw),
+  rawIdOf: (p) => p.meta.id,
+  effectiveIdOf: (_filename, base) => base,
+  injectId: (raw, id) => injectFrontmatterId(raw, id),
+  fromFile: (p, id, filename) =>
+    metaFromFrontmatter(
+      { ...(p.meta as SkillFrontmatter), id },
+      p.body,
+      filename.replace(/\.md$/, ''),
+    ),
+  displayNameOf: (p) => (typeof p.meta.name === 'string' ? p.meta.name : ''),
+  idOf: (s) => s.id,
+  nameOf: (s) => s.name,
+  serialize: serializeSkill,
+})
 
 interface BuiltInTemplate {
   id: string
@@ -227,16 +294,23 @@ export const useSkillsStore = defineStore('skills', () => {
   )
   const initialized = ref(false)
   let loaded = false
+  // 変更系操作 (新規作成・リネーム・保存・削除) のファイル反映は
+  // 「初回読込 (対応表確定) + 初回移行」の完了を待つゲート (#913)
+  let resolveReady: (() => void) | undefined
+  const ready = new Promise<void>((resolve) => {
+    resolveReady = resolve
+  })
 
   function ensureLoaded() {
     if (loaded) return
     loaded = true
     if (settingsFs.isTauri) {
-      initFileStorage().catch((e) =>
-        console.warn('[skills] file storage init failed:', e),
-      )
+      initFileStorage()
+        .catch((e) => console.warn('[skills] file storage init failed:', e))
+        .finally(() => resolveReady?.())
     } else {
       initialized.value = true
+      resolveReady?.()
     }
   }
 
@@ -297,59 +371,52 @@ export const useSkillsStore = defineStore('skills', () => {
       .join('\n\n')
   }
 
+  /** ファイルへの直接反映 (初期化・seed 用。通常経路は ready ゲート越し)。 */
   async function persist(skill: SkillMeta): Promise<void> {
     if (!settingsFs.isTauri) return
-    const fm = frontmatterFromMeta(skill)
-    const content = serializeSkillFile(
-      fm as Record<string, string | number | boolean | string[]>,
-      skill.body,
-    )
-    const filename = settingsFs.skillFilename(skill.id)
-    await settingsFs.writeSkillFile(filename, content)
-  }
-
-  async function deleteFile(skill: SkillMeta): Promise<void> {
-    if (!settingsFs.isTauri) return
-    const filename = settingsFs.skillFilename(skill.id)
-    try {
-      await settingsFs.deleteSkillFile(filename)
-    } catch (e) {
-      console.warn('[skills] failed to delete skill file:', e)
-    }
+    // ref の深い reactivity で skills.value の要素は proxy になるため、
+    // 占有判定の「操作対象自身は占有とみなさない」参照一致が崩れないよう
+    // live 要素 (proxy) を渡す (raw を渡すと自分の ID/fileBase が占有扱いに
+    // なり preferredBase = id/storeId のファイル名へ無意味な suffix が付く)
+    const live = skills.value.find((s) => s.id === skill.id) ?? skill
+    await skillFiles.persistItem(live, skills.value)
   }
 
   async function initFileStorage(): Promise<void> {
-    const files = await settingsFs.listSkillFiles()
-    const fileSkills: SkillMeta[] = []
-    for (const filename of files) {
-      try {
-        const raw = await settingsFs.readSkillFile(filename)
-        const { meta, body } = parseSkillFile(raw)
-        const fallbackId = filename.replace(/\.md$/, '')
-        fileSkills.push(
-          metaFromFrontmatter(meta as SkillFrontmatter, body, fallbackId),
-        )
-      } catch (e) {
-        console.warn(`[skills] failed to parse ${filename}:`, e)
-      }
-    }
+    const { items: fileSkills } = await skillFiles.loadAll()
     fileSkills.sort((a, b) => a.createdAt - b.createdAt)
 
     if (fileSkills.length === 0) {
       await seedBuiltIns()
       initialized.value = true
-    } else {
-      skills.value = fileSkills
-      await migrateLegacyAizu()
-      await migrateStoreMovedBuiltIns()
-      await seedMissingBuiltIns()
-      // initialized=true を立てた **後** に sync する。update() 内の persist は
-      // `if (initialized.value)` ガード越しなので、立てる前に呼ぶと in-memory
-      // だけ反映され disk に書かれず、次回起動も古い frontmatter を読んでしまう。
-      initialized.value = true
-      const templates = await loadBuiltInTemplates()
-      syncBuiltInsMetadata(templates)
+      return
     }
+
+    // 初期化 (この async 関数が走る間) にメモリ追加された skill は残す
+    const fileIds = new Set(fileSkills.map((s) => s.id))
+    const memoryOnly = skills.value.filter((s) => !fileIds.has(s.id))
+    skills.value = [...fileSkills, ...memoryOnly]
+
+    // マイグレーション (#913) はメインウィンドウのみが実行する。冪等。
+    // スキルは本文の localStorage ミラーが無いため (b) 再作成は非適用
+    // (外部削除 = 削除確定)
+    if (settingsFs.isMainDeckWindow()) {
+      // (a) 規約外名の copy-adopt 正規化
+      await skillFiles.migrateItems(skills.value)
+      // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
+      await skillFiles
+        .sweepHistory()
+        .catch((e) => console.warn('[skills] history sweep failed:', e))
+    }
+
+    await migrateLegacyAizu()
+    await migrateStoreMovedBuiltIns()
+    await seedMissingBuiltIns()
+    // initialized=true を立てた **後** に sync する (update() のファイル反映は
+    // ready ゲート越しなので、この関数の完了後に順に flush される)。
+    initialized.value = true
+    const templates = await loadBuiltInTemplates()
+    syncBuiltInsMetadata(templates)
   }
 
   async function seedBuiltIns(): Promise<void> {
@@ -453,10 +520,13 @@ export const useSkillsStore = defineStore('skills', () => {
     const now = Date.now()
     const skill: SkillMeta = { ...input, createdAt: now, updatedAt: now }
     skills.value = [...skills.value, skill]
-    if (initialized.value) {
-      persist(skill).catch((e) =>
-        console.warn('[skills] failed to persist new skill:', e),
-      )
+    if (settingsFs.isTauri) {
+      // 新規作成の fileBase は persistItem が割り当てる (storeId 優先 →
+      // 表示名 slug。ファイル名は ID からでなく対応表から #913)。
+      // ready 待ちで移行と直列化
+      void ready
+        .then(() => persist(skill))
+        .catch((e) => console.warn('[skills] failed to persist new skill:', e))
     }
     return skill
   }
@@ -467,13 +537,14 @@ export const useSkillsStore = defineStore('skills', () => {
     if (idx < 0) return
     const current = skills.value[idx]
     if (!current) return
-    // 編集前 snapshot を history sidecar に push (fire-and-forget)
-    pushSnapshot('skill', current.name || current.id, {
+    const prevSnapshot = {
       body: current.body,
       name: current.name,
       version: current.version,
       mode: current.mode,
-    }).catch((e) => console.warn('[skills] history push failed:', e))
+    }
+    const renamed =
+      typeof patch.name === 'string' && patch.name !== current.name
     const updated: SkillMeta = {
       ...current,
       ...patch,
@@ -485,12 +556,55 @@ export const useSkillsStore = defineStore('skills', () => {
       updated,
       ...skills.value.slice(idx + 1),
     ]
-    if (initialized.value) {
-      persist(updated).catch((e) =>
-        console.warn('[skills] failed to persist update:', e),
-      )
+    if (settingsFs.isTauri) {
+      void ready
+        .then(async () => {
+          // 直近の状態を参照する (連続 update では最後の閉包が最新を書く)
+          const live = skills.value.find((s) => s.id === id)
+          if (!live) return // 既に削除された
+          // 編集前 snapshot を history sidecar に push。履歴キーは対応表の
+          // fileBase (未割当 = ファイル未作成なら履歴も無し)
+          if (live.fileBase) {
+            await pushSnapshot('skill', live.fileBase, prevSnapshot)
+          }
+          // 表示名の変更はファイル rename で追随 (ID 不変・主ファイル + 履歴)。
+          // rename の完了を待ってから保存する (#913)
+          if (renamed) await skillFiles.renameItemFiles(live, skills.value)
+          await skillFiles.persistItem(live, skills.value)
+        })
+        .catch((e) => console.warn('[skills] failed to persist update:', e))
     }
     emitNoteDeckEvent('skill:edited', { id })
+  }
+
+  /**
+   * 更新検知の基準記録 (#1040)。storeSha512 未記録のストア由来スキルへ
+   * registry 現行値を無通知で記録する。update() と違い履歴 push・
+   * updatedAt 更新・skill:edited イベントを出さない。
+   */
+  function recordStoreBaseline(
+    id: string,
+    patch: { storeSha512: string; storeVersion: string },
+  ): void {
+    ensureLoaded()
+    const idx = skills.value.findIndex((s) => s.id === id)
+    const current = skills.value[idx]
+    if (!current) return
+    const updated: SkillMeta = { ...current, ...patch }
+    skills.value = [
+      ...skills.value.slice(0, idx),
+      updated,
+      ...skills.value.slice(idx + 1),
+    ]
+    if (settingsFs.isTauri) {
+      void ready
+        .then(() => {
+          const live = skills.value.find((s) => s.id === id)
+          if (!live) return
+          return skillFiles.persistItem(live, skills.value)
+        })
+        .catch((e) => console.warn('[skills] failed to persist baseline:', e))
+    }
   }
 
   /** スキルを削除する。undo トースト用に復元関数を返す (ファイル再書込方式) */
@@ -500,7 +614,12 @@ export const useSkillsStore = defineStore('skills', () => {
     const target = skills.value[idx]
     if (!target) return undefined
     skills.value = skills.value.filter((s) => s.id !== id)
-    if (initialized.value) deleteFile(target)
+    if (settingsFs.isTauri) {
+      // 主ファイル + 履歴サイドカーを削除 (ready 待ち)
+      void ready
+        .then(() => skillFiles.deleteItemFiles(target))
+        .catch((e) => console.warn('[skills] failed to delete skill file:', e))
+    }
     return () => {
       if (skills.value.some((s) => s.id === id)) return
       const at = Math.min(idx, skills.value.length)
@@ -509,10 +628,12 @@ export const useSkillsStore = defineStore('skills', () => {
         target,
         ...skills.value.slice(at),
       ]
-      if (initialized.value) {
-        persist(target).catch((e) =>
-          console.warn('[skills] failed to restore skill file:', e),
-        )
+      if (settingsFs.isTauri) {
+        void ready
+          .then(() => skillFiles.persistItem(target, skills.value))
+          .catch((e) =>
+            console.warn('[skills] failed to restore skill file:', e),
+          )
       }
     }
   }
@@ -634,6 +755,7 @@ export const useSkillsStore = defineStore('skills', () => {
     get,
     add,
     update,
+    recordStoreBaseline,
     remove: removeWithMigration,
     heartbeatSkills,
     setHeartbeat,

@@ -317,6 +317,16 @@ function isLastAccountForTheme(theme: MisskeyTheme): boolean {
   return installedFor.every((id) => id === accountId.value)
 }
 
+/**
+ * remove ボタンが本体削除になるか、紐付けを外すだけか (#1048)。
+ * per-account カラムからの除去は原則「外す」だが、紐付けが自分だけなら
+ * 本体ごと消えるのでゴミ箱表示に落とす (実際の動作とアイコンを一致させる)。
+ */
+function removeModeOf(entry: ThemeEntry): 'detach' | 'delete' {
+  if (isCrossAccount.value || !accountId.value) return 'delete'
+  return isLastAccountForTheme(entry.theme) ? 'delete' : 'detach'
+}
+
 async function removeTheme(entry: ThemeEntry) {
   if (!isCrossAccount.value && accountId.value) {
     // per-account カラムからの除去は「このアカウントから外す」のみ
@@ -327,7 +337,8 @@ async function removeTheme(entry: ThemeEntry) {
     // ただし紐付けが自分だけのときは本体ごと消える。無言で消さず、完全削除と
     // 同じ confirm → 元に戻せるトーストを通す (#988)。
     const mode = entry.theme.base ?? 'dark'
-    if (isLastAccountForTheme(entry.theme)) {
+    const deletesBody = isLastAccountForTheme(entry.theme)
+    if (deletesBody) {
       const ok = await confirm({
         title: 'テーマを削除',
         message: `「${entry.theme.name}」はこのアカウントにのみ紐付いています。外すとテーマ自体が削除されます。削除しますか？`,
@@ -342,9 +353,13 @@ async function removeTheme(entry: ThemeEntry) {
     )
     themeStore.clearAccountTheme(mode, accountId.value)
     if (undo) {
-      useToast().show('テーマを削除しました', 'info', {
-        action: { label: '元に戻す', onClick: undo },
-      })
+      useToast().show(
+        deletesBody ? 'テーマを削除しました' : 'テーマを外しました',
+        'info',
+        {
+          action: { label: '元に戻す', onClick: undo },
+        },
+      )
     }
   } else {
     // cross-account (Global) からは完全削除。他の配布物 (skill / widget /
@@ -376,6 +391,16 @@ async function handleStoreInstall(entry: StoreThemeEntry) {
     await misStore.installTheme(entry, contextAccountIds())
   } catch (e) {
     installError.value = e instanceof Error ? e.message : 'インストール失敗'
+  }
+}
+
+async function handleStoreUpdate(entry: StoreThemeEntry) {
+  installError.value = null
+  try {
+    // 更新はスコープ (installedFor) に触れない — 既存の適用範囲を維持する
+    await misStore.updateTheme(entry)
+  } catch (e) {
+    installError.value = e instanceof Error ? e.message : '更新失敗'
   }
 }
 
@@ -485,6 +510,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
                 :is-applied-global="isAppliedToGlobal(entry.theme)"
                 :per-account="!isCrossAccount"
                 :removable="entry.removable"
+                :remove-mode="removeModeOf(entry)"
                 @apply-account="applyToAccount(entry)"
                 @apply-global="applyToGlobal(entry)"
                 @clear-account="clearForAccount(entry)"
@@ -542,7 +568,11 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
               source="misstore"
               :installing="misStore.installingTheme === entry.id"
               :already-installed="misStore.isThemeInstalled(entry)"
+              :has-update="misStore.hasThemeUpdate(entry)"
+              :updated-at="entry.updatedAt"
+              :version="entry.version"
               @install="handleStoreInstall(entry)"
+              @update="handleStoreUpdate(entry)"
               @open-detail="openSafeUrl(getThemeDetailUrl(entry.id))"
             />
           </div>

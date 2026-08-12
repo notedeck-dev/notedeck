@@ -4,6 +4,17 @@ export const isTauri =
   typeof window !== 'undefined' &&
   ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
 
+/**
+ * このウィンドウがメインウィンドウか (#913 マイグレーションの実行主体判定)。
+ * サブウィンドウ (カラム分離・ミラーデッキ) は `?profile=` / `?window=` を
+ * 付けて開かれる (useDeckWindow.ts)。
+ */
+export function isMainDeckWindow(): boolean {
+  if (typeof window === 'undefined') return true
+  const params = new URLSearchParams(window.location.search)
+  return !params.has('profile') && !params.has('window')
+}
+
 /** Characters not allowed in filenames (Windows + Unix safety). */
 const INVALID_CHARS = /[<>:"/\\|?*]/g
 
@@ -84,15 +95,11 @@ export async function openSettingsFileInEditor(
 // --- Profile-specific helpers ---
 
 const PROFILES_DIR = 'profiles'
-const PROFILE_EXT = '.ndprofile.json5'
+export const PROFILE_EXT = '.ndprofile.json5'
 
-export function profileFilename(name: string): string {
-  return sanitizeFilename(name) + PROFILE_EXT
-}
-
-export async function listProfiles(): Promise<string[]> {
-  const files = await listSettingsFiles(PROFILES_DIR)
-  return files.filter((f) => f.endsWith(PROFILE_EXT))
+/** profiles/ の実列挙 (履歴 .history.json5 を含む。#913 の占有判定・sweep 用)。 */
+export async function listProfileDirFiles(): Promise<string[]> {
+  return listSettingsFiles(PROFILES_DIR)
 }
 
 export async function readProfile(filename: string): Promise<string> {
@@ -135,15 +142,11 @@ async function writeRootSettingsFile(
 // --- Theme-specific helpers ---
 
 const THEMES_DIR = 'themes'
-const THEME_EXT = '.ndtheme.json5'
+export const THEME_EXT = '.ndtheme.json5'
 
-export function themeFilename(name: string): string {
-  return sanitizeFilename(name) + THEME_EXT
-}
-
-export async function listThemes(): Promise<string[]> {
-  const files = await listSettingsFiles(THEMES_DIR)
-  return files.filter((f) => f.endsWith(THEME_EXT))
+/** themes/ の実列挙 (履歴 .history.json5 を含む。#913 の占有判定・sweep 用)。 */
+export async function listThemeDirFiles(): Promise<string[]> {
+  return listSettingsFiles(THEMES_DIR)
 }
 
 export async function readTheme(filename: string): Promise<string> {
@@ -315,16 +318,6 @@ export async function openMemoFileInEditor(name: string): Promise<void> {
 // --- Plugin helpers ---
 
 const PLUGINS_DIR = 'plugins'
-const PLUGIN_SRC_EXT = '.is'
-const PLUGIN_META_EXT = '.meta.json5'
-
-export function pluginSrcFilename(name: string): string {
-  return sanitizeFilename(name) + PLUGIN_SRC_EXT
-}
-
-export function pluginMetaFilename(name: string): string {
-  return sanitizeFilename(name) + PLUGIN_META_EXT
-}
 
 export async function listPluginFiles(): Promise<string[]> {
   return listSettingsFiles(PLUGINS_DIR)
@@ -355,15 +348,11 @@ export async function renamePluginFile(
 // --- Skill helpers ---
 
 const SKILLS_DIR = 'skills'
-const SKILL_EXT = '.md'
+export const SKILL_EXT = '.md'
 
-export function skillFilename(name: string): string {
-  return sanitizeFilename(name) + SKILL_EXT
-}
-
-export async function listSkillFiles(): Promise<string[]> {
-  const files = await listSettingsFiles(SKILLS_DIR)
-  return files.filter((f) => f.endsWith(SKILL_EXT))
+/** skills/ の実列挙 (履歴 .history.json5 を含む。#913 の占有判定・sweep 用)。 */
+export async function listSkillDirFiles(): Promise<string[]> {
+  return listSettingsFiles(SKILLS_DIR)
 }
 
 export async function readSkillFile(filename: string): Promise<string> {
@@ -507,16 +496,6 @@ export async function deleteAiSessionFile(filename: string): Promise<void> {
 // --- Widget helpers ---
 
 const WIDGETS_DIR = 'widgets'
-const WIDGET_SRC_EXT = '.is'
-const WIDGET_META_EXT = '.meta.json5'
-
-export function widgetSrcFilename(name: string): string {
-  return sanitizeFilename(name) + WIDGET_SRC_EXT
-}
-
-export function widgetMetaFilename(name: string): string {
-  return sanitizeFilename(name) + WIDGET_META_EXT
-}
 
 export async function listWidgetFiles(): Promise<string[]> {
   return listSettingsFiles(WIDGETS_DIR)
@@ -548,14 +527,6 @@ export async function renameWidgetFile(
 
 const QUERIES_DIR = 'queries'
 
-export function querySrcFilename(name: string): string {
-  return sanitizeFilename(name) + WIDGET_SRC_EXT
-}
-
-export function queryMetaFilename(name: string): string {
-  return sanitizeFilename(name) + WIDGET_META_EXT
-}
-
 export async function listQueryFiles(): Promise<string[]> {
   return listSettingsFiles(QUERIES_DIR)
 }
@@ -573,4 +544,11 @@ export async function writeQueryFile(
 
 export async function deleteQueryFile(filename: string): Promise<void> {
   return deleteSettingsFile(QUERIES_DIR, filename)
+}
+
+export async function renameQueryFile(
+  oldFilename: string,
+  newFilename: string,
+): Promise<void> {
+  return renameSettingsFile(QUERIES_DIR, oldFilename, newFilename)
 }

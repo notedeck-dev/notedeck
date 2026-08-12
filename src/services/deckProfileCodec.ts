@@ -7,12 +7,16 @@
  * 戻り値の副産物を見て適用する。
  */
 
-import type { DeckColumn, DeckProfile, DeckWindowLayout } from '@/stores/deck'
+import type { DeckColumn, DeckProfile } from '@/stores/deck'
 import type { WidgetMeta } from '@/stores/widgets'
 
-/** Strip internal-only fields before writing to file. */
+/**
+ * ファイルへ書く形にする (#913: id はファイルに書く。参照はファイル内 ID)。
+ * runtime-only の fileBase (ID → ファイル名対応表) だけを strip し、
+ * 未知フィールドはそのまま書き戻す (ダウングレード往復での剥がれ防止)。
+ */
 export function toFileFormat(profile: DeckProfile): Record<string, unknown> {
-  const { id: _id, ...rest } = profile
+  const { fileBase: _fileBase, ...rest } = profile
   return rest
 }
 
@@ -82,23 +86,31 @@ export interface ParsedProfileFile
   profile: DeckProfile
 }
 
-/** Parse a profile file and assign an ID based on filename. */
+/**
+ * プロファイルファイルのパース結果をアイテム化する (#913: id はファイル内が正。
+ * 欠損時の凍結は singleFileCollection が済ませてから渡す)。
+ * パース済み raw オブジェクトを土台に既知フィールドを上書きする方式で、
+ * 未知フィールドを保持する (createdAt の Date.now() 補完等の揮発デフォルトは
+ * 通常保存経路のみに現れ、凍結・copy-adopt の書込内容には混入しない)。
+ */
 export function parseProfileFile(
-  filename: string,
   data: Record<string, unknown>,
+  id: string,
+  filename: string,
 ): ParsedProfileFile {
   const rawColumns = (data.columns as DeckColumn[]) || []
   const { columns, droppedConsoleCount, extractedWidgets, sidebarSeed } =
     migrateWidgetColumns(rawColumns)
+  const profile = {
+    ...data,
+    id,
+    name: (data.name as string) || filename,
+    columns,
+    layout: (data.layout as string[][]) || [],
+    createdAt: (data.createdAt as number) || Date.now(),
+  } as DeckProfile
   return {
-    profile: {
-      id: filename,
-      name: (data.name as string) || filename,
-      columns,
-      layout: (data.layout as string[][]) || [],
-      createdAt: (data.createdAt as number) || Date.now(),
-      windows: data.windows as DeckWindowLayout[] | undefined,
-    },
+    profile,
     droppedConsoleCount,
     extractedWidgets,
     sidebarSeed,

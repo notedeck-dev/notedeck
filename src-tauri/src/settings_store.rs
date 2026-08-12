@@ -40,6 +40,9 @@ pub const ALLOWED_ROOT_FILES: &[&str] = &[
     // 公開しない制約はここではなく capability registry 側で担保している
     // (settingsFs の固定名ラッパーのみが本コマンドに到達する)
     "permissions.json5",
+    // custom.css の編集履歴サイドカー (#913 付随修正)。allowlist から漏れて
+    // いたため、フロントの履歴 read/write が一度も成功していなかった
+    "custom.css.history.json5",
 ];
 
 /// Validate a subdirectory name against the whitelist.
@@ -300,36 +303,295 @@ pub fn export_bundle(base_dir: &Path) -> Result<BTreeMap<String, String>> {
     Ok(bundle)
 }
 
-/// バックアップバンドルを検証しながら書き戻す。
-/// path traversal と allowlist 外のエントリは warn してスキップする。
-pub fn import_bundle(base_dir: &Path, bundle: &BTreeMap<String, String>) -> Result<()> {
-    for (key, content) in bundle {
-        // Path traversal prevention
-        if key.contains("..") || key.starts_with('/') || key.starts_with('\\') {
-            tracing::warn!("Skipping suspicious entry: {key}");
-            continue;
-        }
-
-        // Validate: must be in allowed subdirs or allowed root files
-        let allowed = ALLOWED_SUBDIRS
-            .iter()
-            .any(|d| key.starts_with(&format!("{d}/")))
-            || ALLOWED_ROOT_FILES.contains(&key.as_str());
-        if !allowed {
-            tracing::warn!("Skipping unknown entry: {key}");
-            continue;
-        }
-
-        let dest_path = base_dir.join(key);
-
-        if let Some(parent) = dest_path.parent() {
-            fs::create_dir_all(parent).map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-        }
-
-        fs::write(&dest_path, content)
-            .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to write {key}: {e}")))?;
+/// import キー内ファイル名の強化検証 (#913)。「新しく置くファイル」にのみ適用し、
+/// `validate_filename` 本体は強化しない (規約外名の既存ファイルへの読取・削除・
+/// リネーム元指定を拒否すると移行が成立しないため)。
+/// 文字種 (日本語等) は寛容のまま受ける — 旧バックアップの復元を拒否しない。
+fn validate_import_filename(name: &str) -> Result<()> {
+    validate_filename(name)?;
+    if name.chars().any(|c| c.is_control()) {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "Filename contains control characters: {name:?}"
+        )));
+    }
+    if name.starts_with('.') {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "Filename must not start with a dot: {name}"
+        )));
+    }
+    if name.ends_with('.') || name.ends_with(' ') {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "Filename must not end with a dot or space: {name}"
+        )));
+    }
+    // Windows 予約デバイス名 (stem = 最初のドットより前で判定)
+    let stem = name.split('.').next().unwrap_or(name);
+    if is_windows_reserved_stem(stem) {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "Filename uses a Windows reserved device name: {name}"
+        )));
     }
     Ok(())
+}
+
+fn is_windows_reserved_stem(stem: &str) -> bool {
+    let upper = stem.to_ascii_uppercase();
+    matches!(upper.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || (upper.len() == 4
+            && (upper.starts_with("COM") || upper.starts_with("LPT"))
+            && matches!(upper.as_bytes()[3], b'1'..=b'9'))
+}
+
+/// 種別の規定複合拡張子。suffix は「複合拡張子の前」に挿入するので、長い順に
+/// 剥がして basename を得る (`.json5` は複合拡張子の suffix なので必ず最後)。
+const COMPOUND_EXTS: &[&str] = &[
+    ".meta.json5",
+    ".history.json5",
+    ".ndprofile.json5",
+    ".ndtheme.json5",
+    ".is",
+    ".md",
+    ".json5",
+];
+
+/// ファイル名を (basename, 複合拡張子) に分割する。既知の拡張子がなければ
+/// 全体を basename とする (suffix は末尾付与になる)。
+fn split_compound_ext(name: &str) -> (&str, &str) {
+    for ext in COMPOUND_EXTS {
+        if let Some(base) = name.strip_suffix(ext) {
+            if !base.is_empty() {
+                return (base, ext);
+            }
+        }
+    }
+    (name, "")
+}
+
+/// グループ全構成の宛先を `create_new` で排他予約する。1 つでも既存衝突したら
+/// 予約済み分を削除して `Ok(false)` を返す (FS 自身の同名解決 — 非 ASCII
+/// casefold・NFC/NFD — を衝突検出の正とするため、事前照合では拾えない衝突も
+/// ここで検出される)。
+fn reserve_all(dir: &Path, names: &[String]) -> Result<bool> {
+    let mut reserved: Vec<PathBuf> = Vec::new();
+    for name in names {
+        let path = dir.join(name);
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(_) => reserved.push(path),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                for p in &reserved {
+                    let _ = fs::remove_file(p);
+                }
+                return Ok(false);
+            }
+            Err(e) => {
+                for p in &reserved {
+                    let _ = fs::remove_file(p);
+                }
+                return Err(NoteDeckError::InvalidInput(format!(
+                    "Failed to write {}: {e}",
+                    path.display()
+                )));
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// `reserve_all` で確保した宛先をまとめて解放する。書込途中で失敗したグループを
+/// そのまま残すと、空の予約ファイルがゴミとして残り次回 import の衝突判定を
+/// 汚す (グループは全構成そろって初めて意味を持つので部分適用も残さない)。
+fn release_reserved(dir: &Path, names: &[String]) {
+    for name in names {
+        let _ = fs::remove_file(dir.join(name));
+    }
+}
+
+/// 同一 basename のグループ (ソース + メタ + 履歴。単一ファイル種別は 1 ファイル
+/// = 1 グループ) を書き込む。衝突判定・skip/suffix はグループ単位 — エントリ
+/// 単位でばらすとペア種別のソースとメタが別名に分裂し、既存の孤児ソースと
+/// 誤ペアリングしたり履歴だけが別アイテムのリングに結合する。
+fn import_group(
+    base_dir: &Path,
+    subdir: &str,
+    members: &[(String, String)],
+    warnings: &mut Vec<String>,
+) -> Result<()> {
+    let dir = base_dir.join(subdir);
+    fs::create_dir_all(&dir).map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+    // sessions/ は AI 会話内容のため 0o600 を維持 (write_file と同じ流儀)
+    let mode = if subdir == "sessions" {
+        Some(0o600)
+    } else {
+        None
+    };
+
+    // 書込直前の実列挙 + ASCII casefold の事前スクリーニング (case-sensitive FS
+    // でも「大文字小文字のみ異なる既存名は占有」の規則を守る)
+    let existing = list_files(base_dir, subdir)?;
+    let collides = |name: &str| -> bool {
+        let folded = name.to_ascii_lowercase();
+        existing.iter().any(|e| e.to_ascii_lowercase() == folded)
+    };
+
+    if !members.iter().any(|(n, _)| collides(n)) {
+        let names: Vec<String> = members.iter().map(|(n, _)| n.clone()).collect();
+        if reserve_all(&dir, &names)? {
+            for (name, content) in members {
+                if let Err(e) = atomic_write(&dir.join(name), content, mode) {
+                    release_reserved(&dir, &names);
+                    return Err(e);
+                }
+            }
+            return Ok(());
+        }
+        // 排他予約が失敗 = 事前照合で拾えない FS の同名解決 (非 ASCII casefold・
+        // NFC/NFD)。予約済み分は削除済みなので、グループごと衝突分岐へ回す
+    }
+
+    // --- 衝突分岐 (グループ単位) ---
+    // 衝突した構成が全て内容バイト一致ならグループ全体 skip (再 import の no-op
+    // 収束)。いずれか不一致ならグループ全体を同一 suffix の basename へ退避する
+    // (ファイル内 ID は変えず、次回起動の重複 ID 警告で手動解決に乗せる)。
+    let mut any_collision = false;
+    let mut all_identical = true;
+    for (name, content) in members {
+        // fs::read は FS の同名解決を通るので、排他失敗の実体も拾える
+        match fs::read(dir.join(name)) {
+            Ok(bytes) => {
+                any_collision = true;
+                if bytes != content.as_bytes() {
+                    all_identical = false;
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                return Err(NoteDeckError::InvalidInput(format!(
+                    "Failed to read {subdir}/{name}: {e}"
+                )));
+            }
+        }
+        // casefold 一致の別表記 (case-sensitive FS では上の read に映らない)
+        let folded = name.to_ascii_lowercase();
+        for e in existing.iter().filter(|e| e.to_ascii_lowercase() == folded) {
+            any_collision = true;
+            match fs::read(dir.join(e)) {
+                Ok(bytes) => {
+                    if bytes != content.as_bytes() {
+                        all_identical = false;
+                    }
+                }
+                Err(_) => all_identical = false,
+            }
+        }
+    }
+
+    let member_keys = || -> String {
+        members
+            .iter()
+            .map(|(n, _)| format!("{subdir}/{n}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+
+    if any_collision && all_identical {
+        tracing::warn!("Import: skipping identical group: {}", member_keys());
+        warnings.push(format!("スキップ (既存と内容同一): {}", member_keys()));
+        return Ok(());
+    }
+
+    // suffix 退避: 全構成が同時に空く番号を create_new プローブで探索する
+    for n in 2..10_000u32 {
+        let candidates: Vec<String> = members
+            .iter()
+            .map(|(name, _)| {
+                let (base, ext) = split_compound_ext(name);
+                format!("{base}-{n}{ext}")
+            })
+            .collect();
+        if candidates.iter().any(|c| collides(c)) {
+            continue;
+        }
+        if !reserve_all(&dir, &candidates)? {
+            continue;
+        }
+        for ((_, content), cand) in members.iter().zip(&candidates) {
+            if let Err(e) = atomic_write(&dir.join(cand), content, mode) {
+                release_reserved(&dir, &candidates);
+                return Err(e);
+            }
+        }
+        let renamed = candidates.join(", ");
+        tracing::warn!(
+            "Import: group collides, restored with suffix: {} -> {renamed}",
+            member_keys()
+        );
+        warnings.push(format!(
+            "別名で復元 (既存と衝突): {} → {renamed}",
+            member_keys()
+        ));
+        return Ok(());
+    }
+    Err(NoteDeckError::InvalidInput(format!(
+        "No free suffix found for import group: {}",
+        member_keys()
+    )))
+}
+
+/// バックアップバンドルを検証しながら書き戻す。
+///
+/// - キー構造は「許可サブディレクトリ + ファイル名」の 2 要素、または許可
+///   ルートファイル名そのものの 1 要素のみ。3 要素以上のネストは拒否
+/// - サブディレクトリ側のファイル名には強化検証 (`validate_import_filename`) を
+///   適用。拒否したエントリはスキップし警告として収集する
+/// - 許可ルートファイルは固定名の単一ファイルなので復元 = atomic 置換
+///   (suffix 退避先の名前は allowlist 外で二度と読まれないため衝突分岐は不適用)
+/// - サブディレクトリのアイテムは basename グループ単位で casefold 衝突検査 +
+///   排他書込 (詳細は `import_group`)
+///
+/// 戻り値はスキップ / 別名退避したエントリの警告リスト。
+pub fn import_bundle(base_dir: &Path, bundle: &BTreeMap<String, String>) -> Result<Vec<String>> {
+    let mut warnings: Vec<String> = Vec::new();
+    // (subdir, basename) → [(filename, content)]。BTreeMap なので処理順は決定的
+    let mut groups: BTreeMap<(String, String), Vec<(String, String)>> = BTreeMap::new();
+
+    if !bundle.is_empty() {
+        fs::create_dir_all(base_dir).map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+    }
+
+    for (key, content) in bundle {
+        let parts: Vec<&str> = key.split('/').collect();
+        match parts.as_slice() {
+            [name] if ALLOWED_ROOT_FILES.contains(name) => {
+                atomic_write(&base_dir.join(name), content, None)?;
+            }
+            [subdir, name] if ALLOWED_SUBDIRS.contains(subdir) => {
+                if let Err(e) = validate_import_filename(name) {
+                    tracing::warn!("Import: skipping invalid filename: {key}: {e}");
+                    warnings.push(format!("スキップ (不正なファイル名): {key}"));
+                    continue;
+                }
+                let (base, _) = split_compound_ext(name);
+                groups
+                    .entry((subdir.to_string(), base.to_string()))
+                    .or_default()
+                    .push((name.to_string(), content.clone()));
+            }
+            _ => {
+                tracing::warn!("Import: skipping unknown entry: {key}");
+                warnings.push(format!("スキップ (不正なキー): {key}"));
+            }
+        }
+    }
+
+    for ((subdir, _), members) in &groups {
+        import_group(base_dir, subdir, members, &mut warnings)?;
+    }
+
+    Ok(warnings)
 }
 
 #[cfg(test)]
@@ -572,10 +834,261 @@ mod tests {
         bundle.insert("secret.txt".to_string(), "secret".to_string());
         bundle.insert("config/bad.json".to_string(), "bad".to_string());
 
-        import_bundle(&base, &bundle).unwrap();
+        let warnings = import_bundle(&base, &bundle).unwrap();
 
         assert!(base.join("custom.css").exists());
         assert!(!base.join("secret.txt").exists());
         assert!(!base.join("config/bad.json").exists());
+        // 拒否 2 件が警告として収集される
+        assert_eq!(warnings.len(), 2);
+    }
+
+    #[test]
+    fn custom_css_history_is_allowed_root_file() {
+        // #913 付随修正: allowlist から漏れていて履歴の read/write が常に
+        // reject されていた (フロントは settingsFs の history 系でこの名前を使う)
+        assert!(ALLOWED_ROOT_FILES.contains(&"custom.css.history.json5"));
+        let dir = tempfile::tempdir().unwrap();
+        write_root_file(dir.path(), "custom.css.history.json5", "{ entries: [] }").unwrap();
+        assert_eq!(
+            read_root_file(dir.path(), "custom.css.history.json5").unwrap(),
+            "{ entries: [] }"
+        );
+    }
+
+    #[test]
+    fn import_bundle_rejects_nested_keys() {
+        // キー構造は 2 要素 (subdir/name) か許可ルートファイルの 1 要素のみ。
+        // 3 要素以上のネストは拒否 + 警告
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+
+        let mut bundle = BTreeMap::new();
+        bundle.insert("themes/deep/evil.json5".to_string(), "x".to_string());
+
+        let warnings = import_bundle(base, &bundle).unwrap();
+        assert!(!base.join("themes/deep/evil.json5").exists());
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("themes/deep/evil.json5"));
+    }
+
+    #[test]
+    fn import_bundle_rejects_reserved_and_malformed_filenames() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+
+        let mut bundle = BTreeMap::new();
+        // Windows 予約デバイス名 (stem 判定)
+        bundle.insert("themes/aux.ndtheme.json5".to_string(), "x".to_string());
+        bundle.insert("skills/COM1.md".to_string(), "x".to_string());
+        // 制御文字 / 先頭ドット / 末尾ドット・空白
+        bundle.insert("skills/bad\u{1}name.md".to_string(), "x".to_string());
+        bundle.insert("skills/.hidden.md".to_string(), "x".to_string());
+        bundle.insert("skills/trail .md ".to_string(), "x".to_string());
+
+        let warnings = import_bundle(base, &bundle).unwrap();
+        assert_eq!(warnings.len(), 5);
+        assert_eq!(list_files(base, "themes").unwrap(), Vec::<String>::new());
+        assert_eq!(list_files(base, "skills").unwrap(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn import_bundle_accepts_lenient_charset() {
+        // 文字種 (日本語等) は寛容のまま — 旧バックアップの復元を拒否しない
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+
+        let mut bundle = BTreeMap::new();
+        bundle.insert(
+            "themes/天気テーマ.ndtheme.json5".to_string(),
+            "{ id: 't1' }".to_string(),
+        );
+
+        let warnings = import_bundle(base, &bundle).unwrap();
+        assert!(warnings.is_empty());
+        assert_eq!(
+            read_file(base, "themes", "天気テーマ.ndtheme.json5").unwrap(),
+            "{ id: 't1' }"
+        );
+    }
+
+    #[test]
+    fn import_bundle_skips_identical_group() {
+        // 衝突した構成が全て内容バイト一致 → グループ全体 skip (再 import の
+        // no-op 収束)
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        write_file(base, "skills", "weather.md", "# weather").unwrap();
+
+        let mut bundle = BTreeMap::new();
+        bundle.insert("skills/weather.md".to_string(), "# weather".to_string());
+
+        let warnings = import_bundle(base, &bundle).unwrap();
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("skills/weather.md"));
+        assert_eq!(list_files(base, "skills").unwrap(), vec!["weather.md"]);
+    }
+
+    #[test]
+    fn import_bundle_diverts_conflicting_group_with_suffix() {
+        // 内容不一致の衝突はグループ全体を同一 suffix の basename へ退避する。
+        // ペア種別 (ソース + メタ) はメタが非衝突でも分裂させない
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        write_file(base, "widgets", "clock.is", "local code").unwrap();
+
+        let mut bundle = BTreeMap::new();
+        bundle.insert("widgets/clock.is".to_string(), "backup code".to_string());
+        bundle.insert(
+            "widgets/clock.meta.json5".to_string(),
+            "{ id: 'w1' }".to_string(),
+        );
+
+        let warnings = import_bundle(base, &bundle).unwrap();
+        assert_eq!(warnings.len(), 1);
+
+        // 既存はそのまま、バックアップ側は -2 で並置 (suffix は複合拡張子の前)
+        assert_eq!(
+            read_file(base, "widgets", "clock.is").unwrap(),
+            "local code"
+        );
+        assert_eq!(
+            read_file(base, "widgets", "clock-2.is").unwrap(),
+            "backup code"
+        );
+        assert_eq!(
+            read_file(base, "widgets", "clock-2.meta.json5").unwrap(),
+            "{ id: 'w1' }"
+        );
+        assert!(!base.join("widgets/clock.meta.json5").exists());
+    }
+
+    #[test]
+    fn import_bundle_casefold_collision_diverts_on_case_sensitive_fs() {
+        // 大文字小文字のみ異なる既存名は占有 (ASCII casefold の事前照合)。
+        // case-sensitive FS でも Windows/macOS と挙動を揃える
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        write_file(base, "skills", "Weather.md", "local").unwrap();
+
+        let mut bundle = BTreeMap::new();
+        bundle.insert("skills/weather.md".to_string(), "backup".to_string());
+
+        let warnings = import_bundle(base, &bundle).unwrap();
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(read_file(base, "skills", "Weather.md").unwrap(), "local");
+        assert_eq!(read_file(base, "skills", "weather-2.md").unwrap(), "backup");
+    }
+
+    #[test]
+    fn import_bundle_suffix_probes_next_free_number() {
+        // -2 が占有済みなら全構成が同時に空く次の番号へ
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        write_file(base, "skills", "weather.md", "local").unwrap();
+        write_file(base, "skills", "weather-2.md", "taken").unwrap();
+
+        let mut bundle = BTreeMap::new();
+        bundle.insert("skills/weather.md".to_string(), "backup".to_string());
+
+        let warnings = import_bundle(base, &bundle).unwrap();
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(read_file(base, "skills", "weather-3.md").unwrap(), "backup");
+        assert_eq!(read_file(base, "skills", "weather-2.md").unwrap(), "taken");
+    }
+
+    #[test]
+    fn import_bundle_overwrites_root_files_atomically() {
+        // 許可ルートファイルは固定名の単一ファイル。復元 = 置換 (skip/suffix の
+        // 衝突分岐は適用しない — suffix 先は allowlist 外で二度と読まれない)
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        write_root_file(base, "custom.css", "old {}").unwrap();
+
+        let mut bundle = BTreeMap::new();
+        bundle.insert("custom.css".to_string(), "new {}".to_string());
+
+        let warnings = import_bundle(base, &bundle).unwrap();
+        assert!(warnings.is_empty());
+        assert_eq!(read_root_file(base, "custom.css").unwrap(), "new {}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn import_bundle_applies_sessions_mode() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+
+        let mut bundle = BTreeMap::new();
+        bundle.insert("sessions/20260722.json5".to_string(), "{}".to_string());
+
+        import_bundle(base, &bundle).unwrap();
+        let mode = fs::metadata(base.join("sessions/20260722.json5"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
+
+    #[test]
+    fn import_bundle_leaves_no_temp_or_reservation_files() {
+        // 排他予約 (create_new) + atomic_write 後に空ファイルや .tmp が残らない
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        write_file(base, "skills", "weather.md", "local").unwrap();
+
+        let mut bundle = BTreeMap::new();
+        bundle.insert("skills/weather.md".to_string(), "backup".to_string());
+        bundle.insert("skills/fresh.md".to_string(), "fresh".to_string());
+
+        import_bundle(base, &bundle).unwrap();
+        assert_eq!(
+            list_files(base, "skills").unwrap(),
+            vec!["fresh.md", "weather-2.md", "weather.md"]
+        );
+        assert_eq!(read_file(base, "skills", "fresh.md").unwrap(), "fresh");
+    }
+
+    #[test]
+    fn split_compound_ext_longest_first() {
+        assert_eq!(
+            split_compound_ext("clock.meta.json5"),
+            ("clock", ".meta.json5")
+        );
+        assert_eq!(
+            split_compound_ext("clock.history.json5"),
+            ("clock", ".history.json5")
+        );
+        assert_eq!(
+            split_compound_ext("p.ndprofile.json5"),
+            ("p", ".ndprofile.json5")
+        );
+        assert_eq!(
+            split_compound_ext("t.ndtheme.json5"),
+            ("t", ".ndtheme.json5")
+        );
+        assert_eq!(split_compound_ext("w.is"), ("w", ".is"));
+        assert_eq!(split_compound_ext("s.md"), ("s", ".md"));
+        assert_eq!(split_compound_ext("q.json5"), ("q", ".json5"));
+        assert_eq!(split_compound_ext("noext"), ("noext", ""));
+    }
+
+    #[test]
+    fn validate_import_filename_rules() {
+        assert!(validate_import_filename("weather.md").is_ok());
+        assert!(validate_import_filename("日本語.json5").is_ok());
+        // 予約デバイス名は stem 判定・case-insensitive
+        assert!(validate_import_filename("CON").is_err());
+        assert!(validate_import_filename("nul.json5").is_err());
+        assert!(validate_import_filename("Lpt9.is").is_err());
+        // COM0 / COM10 / 部分一致は予約名ではない
+        assert!(validate_import_filename("com0.md").is_ok());
+        assert!(validate_import_filename("com10.md").is_ok());
+        assert!(validate_import_filename("console.md").is_ok());
+        assert!(validate_import_filename("\u{7f}x.md").is_err());
+        assert!(validate_import_filename(".dotfile").is_err());
+        assert!(validate_import_filename("dot.").is_err());
+        assert!(validate_import_filename("space ").is_err());
     }
 }

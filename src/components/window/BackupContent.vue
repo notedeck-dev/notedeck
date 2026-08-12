@@ -44,7 +44,24 @@ const exportSettings = () =>
 const importSettings = () =>
   backupAction(
     isImportingSettings,
-    () => commands.importSettingsJson().then((r) => unwrap(r)),
+    async () => {
+      const result = unwrap(await commands.importSettingsJson())
+      if (!result.imported) return false // dialog cancelled
+      // スキップ / 別名退避したエントリ (#913) を再起動前に開示する。
+      // 再起動後では警告が失われるのでここで見せるしかない
+      if (result.warnings.length > 0) {
+        await confirm({
+          title: '設定インポート完了',
+          message: `${result.warnings.length} 件のエントリをスキップまたは別名で復元しました。アプリを再起動します。`,
+          code: result.warnings.join('\n'),
+          codeLanguage: 'text',
+          type: 'warning',
+          hideCancel: true,
+          okLabel: '再起動',
+        })
+      }
+      return true
+    },
     {
       confirmOpts: {
         title: '設定インポート',
