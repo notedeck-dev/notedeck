@@ -678,14 +678,12 @@ export const useMisStoreStore = defineStore('misstore', () => {
       queriesStore.ensureLoaded()
       const existing = queriesStore.queries.find((q) => q.storeId === e.id)
       if (existing) {
-        // 上書き更新: 本体とストア由来メタのみ。ローカル改名 (name) は維持
-        await queriesStore.applyStoreUpdate(existing.id, {
-          src: source,
-          description: e.description,
-          iconUrl: e.iconUrl,
-          storeSha512: hash,
-          storeVersion: e.version,
-        })
+        // 再インストール = 実質更新。ローカル編集を無言で消さない (#981)
+        await confirmQueryUpdate(
+          existing,
+          { source, hash, entry: e },
+          { alwaysConfirm: false },
+        )
       } else {
         await queriesStore.createQuery({
           // 新規インストールのローカル ID = storeId (#913)。衝突時のみ suffix
@@ -1152,18 +1150,17 @@ export const useMisStoreStore = defineStore('misstore', () => {
     }
   }
 
-  async function updateQuery(entry: StoreQueryEntry): Promise<boolean> {
-    const queriesStore = useColumnQueriesStore()
-    queriesStore.ensureLoaded()
-    const existing = queriesStore.queries.find((q) => q.storeId === entry.id)
-    if (!existing) return false
-    installingQuery.value = entry.id
-    try {
-      const {
-        source,
-        hash,
-        entry: e,
-      } = await fetchVerifiedSource(entry, refetchQueryEntry(entry.id))
+  /**
+   * 取得済みソースを既存クエリへ適用する (#1040 / #981)。
+   * installQuery の既存分岐と updateQuery の共用点 (confirmSkillUpdate と同型)。
+   */
+  async function confirmQueryUpdate(
+    existing: { id: string; name?: string; src: string },
+    fetched: { source: string; hash: string; entry: StoreQueryEntry },
+    opts: { alwaysConfirm: boolean },
+  ): Promise<boolean> {
+    const { source, hash, entry: e } = fetched
+    if (opts.alwaysConfirm || source !== existing.src) {
       const ok = await useConfirm().confirm({
         title: 'クエリを更新',
         message: updateConfirmMessage(existing.name || e.name, e),
@@ -1171,14 +1168,32 @@ export const useMisStoreStore = defineStore('misstore', () => {
         diff: { old: existing.src, new: source, language: 'aiscript' },
       })
       if (!ok) return false
-      await queriesStore.applyStoreUpdate(existing.id, {
-        src: source,
-        description: e.description,
-        iconUrl: e.iconUrl,
-        storeSha512: hash,
-        storeVersion: e.version,
+    }
+    // 上書き更新: 本体とストア由来メタのみ。ローカル改名 (name) は維持
+    await useColumnQueriesStore().applyStoreUpdate(existing.id, {
+      src: source,
+      description: e.description,
+      iconUrl: e.iconUrl,
+      storeSha512: hash,
+      storeVersion: e.version,
+    })
+    return true
+  }
+
+  async function updateQuery(entry: StoreQueryEntry): Promise<boolean> {
+    const queriesStore = useColumnQueriesStore()
+    queriesStore.ensureLoaded()
+    const existing = queriesStore.queries.find((q) => q.storeId === entry.id)
+    if (!existing) return false
+    installingQuery.value = entry.id
+    try {
+      const fetched = await fetchVerifiedSource(
+        entry,
+        refetchQueryEntry(entry.id),
+      )
+      return await confirmQueryUpdate(existing, fetched, {
+        alwaysConfirm: true,
       })
-      return true
     } finally {
       installingQuery.value = null
     }

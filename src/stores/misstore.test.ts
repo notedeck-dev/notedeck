@@ -1037,6 +1037,35 @@ describe('更新適用 (#1040)', () => {
     expect(h.widgetsStore.applyStoreUpdate).not.toHaveBeenCalled()
   })
 
+  it('installQuery: 既存への再インストールも diff 確認を通す (#981)', async () => {
+    const store = useMisStoreStore()
+    const newSrc = '<: "query v2"'
+    h.queriesStore.queries = [
+      { id: 'q0', storeId: 'ent-query', name: 'Q', src: '<: "local edit"' },
+    ]
+    fetchMock.mockResolvedValue(okText(newSrc))
+    await store.installQuery(queryEntry({ sha512: sha512Hex(newSrc) }))
+    const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(opts.diff).toEqual({
+      old: '<: "local edit"',
+      new: newSrc,
+      language: 'aiscript',
+    })
+    expect(h.queriesStore.applyStoreUpdate).toHaveBeenCalled()
+  })
+
+  it('installQuery: 確認をキャンセルしたら src を書き換えない (#981)', async () => {
+    const store = useMisStoreStore()
+    h.confirm.mockResolvedValueOnce(false)
+    h.queriesStore.queries = [
+      { id: 'q0', storeId: 'ent-query', name: 'Q', src: '<: "local edit"' },
+    ]
+    const newSrc = '<: "query v2"'
+    fetchMock.mockResolvedValue(okText(newSrc))
+    await store.installQuery(queryEntry({ sha512: sha512Hex(newSrc) }))
+    expect(h.queriesStore.applyStoreUpdate).not.toHaveBeenCalled()
+  })
+
   it('installSkill: 既存への再インストールも diff 確認を通す (#981)', async () => {
     const store = useMisStoreStore()
     const body = '# v2\n\n新しい本文'
