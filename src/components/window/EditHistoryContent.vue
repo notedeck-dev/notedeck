@@ -134,12 +134,12 @@ function isSelfEdit(entry: HistoryEntry): boolean {
           @click="selected = i"
         >
           <span :class="$style.entryIndex">#{{ i }}</span>
-          <span :class="$style.entryReason">{{ entry.reason }}</span>
-          <span v-if="i === 0" :class="$style.entryTag">直前</span>
+          <span :class="$style.entryAt">{{ formatAbsoluteTime(entry.at) }}</span>
           <span
             :class="[$style.entryActor, !isSelfEdit(entry) && $style.entryActorOther]"
           >{{ historyActorLabel(entry.by) }}</span>
-          <span :class="$style.entryAt">{{ formatAbsoluteTime(entry.at) }}</span>
+          <span v-if="i === 0" :class="$style.entryTag">直前</span>
+          <span :class="$style.entryReason">{{ entry.reason }}</span>
         </button>
       </div>
 
@@ -279,8 +279,10 @@ function isSelfEdit(entry: HistoryEntry): boolean {
   opacity: 0.6;
 }
 
-// 理由 (#1052): git のコミット履歴と同じく、行の主役は「なぜ変えたか」。
-// 理由が付くのは AI の編集だけなので、本人の手編集では空のまま列だけが残る
+// 理由 (#1052): git のコミット履歴と同じ並び。可変長の列は最後に置き、
+// 手前の列 (時刻・帰属) を固定幅にして縦を揃える (tig / lazygit / gitui が
+// どれも subject を最右に置き、author を固定幅で切り詰めるのと同じ理由)。
+// 理由が付くのは AI の編集だけなので、本人の手編集では空のまま列が残る
 .entryReason {
   flex: 1;
   min-width: 0;
@@ -288,9 +290,13 @@ function isSelfEdit(entry: HistoryEntry): boolean {
   text-overflow: ellipsis;
 }
 
-// 帰属 (#1052): 本人の編集と AI・プラグインの編集を一覧で見分ける
+// 帰属 (#1052): 本人の編集と AI・プラグインの編集を一覧で見分ける。
+// 「プラグイン「〇〇」」は長くなるので固定幅で切る (縦の整列を優先する)
 .entryActor {
   flex-shrink: 0;
+  width: 8em;
+  overflow: hidden;
+  text-overflow: ellipsis;
   opacity: 0.6;
 }
 
