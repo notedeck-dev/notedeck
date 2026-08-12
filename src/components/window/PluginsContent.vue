@@ -11,6 +11,10 @@ import type { EditorAction } from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
+import {
+  historyBasename,
+  openEditHistoryWindow,
+} from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { isExposed } from '@/settings/exposure'
@@ -307,8 +311,22 @@ const barActions = computed<EditorAction[]>(() => {
       label: copiedMessage.value ? 'コピー済み' : 'エクスポート',
       icon: 'clipboard-copy',
     },
+    { key: 'history', label: '履歴', icon: 'history' },
   ]
 })
+
+/** AI が過去に何を変えたかを diff で追う (#981)。 */
+function openHistory() {
+  const p = plugin.value
+  if (!p) return
+  openEditHistoryWindow({
+    kind: 'plugin',
+    basename: historyBasename(p.fileBase, p.name, p.installId),
+    itemId: p.installId,
+    name: p.name,
+    current: p.src,
+  })
+}
 
 const barPrimary = computed<EditorAction | null>(() => {
   if (!plugin.value) {
@@ -328,6 +346,7 @@ function onBarAction(key: string) {
   else if (key === 'install') doInstall()
   else if (key === 'import') importPlugin()
   else if (key === 'export') exportPlugin()
+  else if (key === 'history') openHistory()
 }
 
 async function importPlugin() {

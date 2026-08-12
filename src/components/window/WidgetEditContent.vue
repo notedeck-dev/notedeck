@@ -31,6 +31,10 @@ import AiScriptUiRenderer, {
 } from '@/components/deck/widgets/AiScriptUiRenderer.vue'
 import type { EditorActionStatus } from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
+import {
+  historyBasename,
+  openEditHistoryWindow,
+} from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
@@ -111,6 +115,19 @@ onBeforeUnmount(flushPendingSave)
  * 自動保存の状態。デバウンス保存なので「いま保存されているか」が
  * 見えないと不安になる。明示保存ボタンは同じバーの右端に置く。
  */
+/** AI が過去に何を変えたかを diff で追う (#981)。 */
+function openHistory() {
+  const w = widget.value
+  if (!w) return
+  openEditHistoryWindow({
+    kind: 'widget',
+    basename: historyBasename(w.fileBase, w.name, w.installId),
+    itemId: w.installId,
+    name: w.name,
+    current: w.src,
+  })
+}
+
 const barStatus = computed<EditorActionStatus | null>(() => {
   if (saved.value) return { text: '保存しました', icon: 'check', tone: 'ok' }
   if (dirty.value) return { text: '未保存の変更', icon: 'pencil' }
@@ -399,13 +416,14 @@ function toggleAutoRun() {
     <EditorActionBar
       v-if="widget"
       :status="barStatus"
+      :actions="[{ key: 'history', label: '履歴', icon: 'history' }]"
       :primary="{
         key: 'save',
         label: '保存',
         icon: 'device-floppy',
         disabled: !dirty,
       }"
-      @action="flushPendingSave"
+      @action="(key) => (key === 'history' ? openHistory() : flushPendingSave())"
     />
 
     <div v-if="showPostForm && activeAccountId" ref="postFormPortalRef">

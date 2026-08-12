@@ -1,6 +1,8 @@
 import type { Command } from '@/commands/registry'
+import { themeFromSnapshot } from '@/services/editHistory'
 import {
   mergeThemeUpdate,
+  serializeTheme,
   type ThemeUpdatePatch,
 } from '@/services/selfEditApply'
 import { useAccountsStore } from '@/stores/accounts'
@@ -358,14 +360,6 @@ function isStringRecord(v: unknown): v is Record<string, string> {
   return true
 }
 
-/**
- * 確認 diff と書込の両方で使うテーマの全文表現 (#981)。runtime-only の
- * fileBase を落とすため、必ず mergeThemeUpdate を通した値を渡すこと。
- */
-function serializeTheme(theme: MisskeyTheme): string {
-  return JSON.stringify(theme, null, 2)
-}
-
 /** `theme.update` の params を部分更新パッチへ正規化する。 */
 function themeUpdatePatch(
   params: Record<string, unknown> | undefined,
@@ -416,16 +410,6 @@ export const themeHistoryCapability: Command = {
     if (!id) throw new Error('theme.history: id is required')
     return await listSnapshots<ThemeSnapshot>('theme', themeHistoryBase(id))
   },
-}
-
-/** 履歴 snapshot からテーマ本体を復元する (メタは snapshot に無いので落ちる)。 */
-function themeFromSnapshot(snap: ThemeSnapshot): MisskeyTheme {
-  return {
-    id: snap.id,
-    name: snap.name,
-    base: snap.base,
-    props: snap.props,
-  }
 }
 
 export const themeRevertCapability: Command = {

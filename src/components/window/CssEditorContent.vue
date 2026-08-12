@@ -8,6 +8,7 @@ import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import CssPresetDropdown from '@/components/window/CssPresetDropdown.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
+import { openEditHistoryWindow } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import {
@@ -200,6 +201,16 @@ const {
 function exportCss() {
   navigator.clipboard.writeText(cssCode.value)
   showCopied()
+}
+
+/** AI が過去に何を変えたかを diff で追う (#981)。custom.css は単一ファイル。 */
+function openHistory() {
+  openEditHistoryWindow({
+    kind: 'css',
+    basename: 'custom.css',
+    name: 'custom.css',
+    current: themeStore.customCss,
+  })
 }
 
 async function importCss() {
@@ -490,6 +501,14 @@ watch(tab, (t) => {
         >
           <i class="ti ti-clipboard-copy" />
           {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+        </button>
+        <button
+          class="_button"
+          :class="[$style.actionBtn, $style.secondary]"
+          @click="openHistory"
+        >
+          <i class="ti ti-history" />
+          履歴
         </button>
       </div>
       <button

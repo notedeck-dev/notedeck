@@ -73,6 +73,15 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+/**
+ * 確認 diff・履歴 diff・書込のすべてで使うテーマの全文表現 (#981)。
+ * runtime-only の fileBase を落とすため、mergeThemeUpdate / themeFromSnapshot
+ * を通した値を渡すこと。
+ */
+export function serializeTheme(theme: MisskeyTheme): string {
+  return JSON.stringify(theme, null, 2)
+}
+
 /** `theme.update` の部分更新パッチ。未指定フィールドは現在値を維持する。 */
 export interface ThemeUpdatePatch {
   name?: string

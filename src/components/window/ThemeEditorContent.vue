@@ -18,8 +18,10 @@ import type { EditorAction } from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
+import { openEditHistoryWindow } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { mergeThemeUpdate, serializeTheme } from '@/services/selfEditApply'
 import { isExposed } from '@/settings/exposure'
 import { useConfirm } from '@/stores/confirm'
 import { useThemeStore } from '@/stores/theme'
@@ -349,6 +351,9 @@ const barActions = computed<EditorAction[]>(() => {
       icon: 'clipboard-copy',
     },
   ]
+  if (editingThemeId.value) {
+    list.push({ key: 'history', label: '履歴', icon: 'history' })
+  }
   if (hasChangesFromSnapshot.value) {
     list.push({ key: 'reset', icon: 'arrow-back-up', title: '元に戻す' })
   }
@@ -365,8 +370,25 @@ const barPrimary = computed<EditorAction>(() => ({
   icon: installedMessage.value ? 'check' : 'device-floppy',
 }))
 
+/** AI が過去に何を変えたかを diff で追う (#981)。編集中のテーマが対象。 */
+function openHistory() {
+  const id = editingThemeId.value
+  const theme = id
+    ? themeStore.installedThemes.find((t) => t.id === id)
+    : undefined
+  if (!theme) return
+  openEditHistoryWindow({
+    kind: 'theme',
+    basename: theme.fileBase ?? theme.id,
+    itemId: theme.id,
+    name: theme.name,
+    current: serializeTheme(mergeThemeUpdate(theme, {})),
+  })
+}
+
 function onBarAction(key: string) {
-  if (key === 'install') installTheme()
+  if (key === 'history') openHistory()
+  else if (key === 'install') installTheme()
   else if (key === 'import') importTheme()
   else if (key === 'export') exportTheme()
   else if (key === 'reset') resetToSnapshot()
