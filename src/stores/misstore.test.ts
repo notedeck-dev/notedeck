@@ -39,6 +39,7 @@ const h = vi.hoisted(() => ({
   },
   launchPlugin: vi.fn(async () => undefined),
   parsePluginMeta: vi.fn(),
+  confirm: vi.fn(async (_opts: Record<string, unknown>) => true),
 }))
 
 vi.mock('@/aiscript/plugin-api', () => ({
@@ -60,6 +61,9 @@ vi.mock('@/stores/columnQueries', () => ({
 }))
 vi.mock('@/stores/theme', () => ({
   useThemeStore: () => h.themeStore,
+}))
+vi.mock('@/stores/confirm', () => ({
+  useConfirm: () => ({ confirm: h.confirm }),
 }))
 
 import {
@@ -163,6 +167,7 @@ beforeEach(() => {
   h.queriesStore.queries = []
   h.themeStore.installedThemes = []
   h.themeStore.installTheme.mockResolvedValue(true)
+  h.confirm.mockResolvedValue(true)
   vi.stubGlobal('fetch', fetchMock)
 })
 
@@ -842,6 +847,308 @@ describe('baseline 無通知記録 (#1040)', () => {
     fetchMock.mockResolvedValue(okJson({ widgets: [widgetEntry()] }))
     await store.fetchWidgets()
     expect(h.widgetsStore.recordStoreBaseline).not.toHaveBeenCalled()
+  })
+})
+
+describe('ハッシュ不一致の 1 回リトライ (#1040)', () => {
+  it('fetchWidgetSource: 不一致なら index を再取得して 1 回だけリトライする', async () => {
+    const store = useMisStoreStore()
+    const newSrc = '<: "widget v2"'
+    // TTL 内の古い index (旧 sha) を持ったままストア側が更新されたケース
+    const staleEntry = widgetEntry({ sha512: sha512Hex('old source') })
+    const freshEntry = widgetEntry({
+      sha512: sha512Hex(newSrc),
+      version: '1.1.0',
+    })
+    fetchMock
+      .mockResolvedValueOnce(okText(newSrc)) // ソース (旧 sha と不一致)
+      .mockResolvedValueOnce(okJson({ widgets: [freshEntry] })) // index 再取得
+      .mockResolvedValueOnce(okText(newSrc)) // ソース再取得 (新 sha と一致)
+    await expect(store.fetchWidgetSource(staleEntry)).resolves.toBe(newSrc)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      'https://store.notedeck.io/registry/widgets.json',
+    )
+  })
+
+  it('再取得後も不一致なら従来どおり改ざん警告を出す (リトライは 1 回だけ)', async () => {
+    const store = useMisStoreStore()
+    const entry = widgetEntry({ sha512: sha512Hex('original') })
+    fetchMock
+      .mockResolvedValueOnce(okText('tampered'))
+      .mockResolvedValueOnce(okJson({ widgets: [entry] }))
+      .mockResolvedValueOnce(okText('tampered'))
+    await expect(store.fetchWidgetSource(entry)).rejects.toThrow(
+      /ハッシュ不一致/,
+    )
+    // ソース → index → ソースの 3 回で打ち止め (2 回目のリトライはしない)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+  })
+
+  it('installWidget: リトライで得た新 entry の sha / version を記録する', async () => {
+    const store = useMisStoreStore()
+    const newSrc = '<: "widget v2"'
+    const staleEntry = widgetEntry({ sha512: sha512Hex('old source') })
+    const freshEntry = widgetEntry({
+      sha512: sha512Hex(newSrc),
+      version: '1.1.0',
+    })
+    fetchMock
+      .mockResolvedValueOnce(okText(newSrc))
+      .mockResolvedValueOnce(okJson({ widgets: [freshEntry] }))
+      .mockResolvedValueOnce(okText(newSrc))
+    const widget = await store.installWidget(staleEntry)
+    expect(widget.storeSha512).toBe(sha512Hex(newSrc))
+    expect(widget.storeVersion).toBe('1.1.0')
+  })
+})
+
+describe('更新適用 (#1040)', () => {
+  it('updateWidget: diff 付き確認 → 承認で確認に使ったソースをそのまま適用する', async () => {
+    const store = useMisStoreStore()
+    const oldSrc = '<: "widget v1"'
+    const newSrc = '<: "widget v2"'
+    h.widgetsStore.widgets = [
+      {
+        installId: 'w0',
+        storeId: 'ent-widget',
+        name: 'My Widget',
+        src: oldSrc,
+        storeSha512: sha512Hex(oldSrc),
+      },
+    ]
+    fetchMock.mockResolvedValue(okText(newSrc))
+    const entry = widgetEntry({ sha512: sha512Hex(newSrc), version: '2.0.0' })
+    await expect(store.updateWidget(entry)).resolves.toBe(true)
+    expect(h.confirm).toHaveBeenCalledTimes(1)
+    const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(opts.diff).toEqual({
+      old: oldSrc,
+      new: newSrc,
+      language: 'aiscript',
+    })
+    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
+      'w0',
+      expect.objectContaining({
+        src: newSrc,
+        storeSha512: sha512Hex(newSrc),
+        storeVersion: '2.0.0',
+      }),
+    )
+    // 承認後の再 fetch なし: ソース取得は確認前の 1 回だけ (#981 不変条件)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(store.installingWidget).toBeNull()
+  })
+
+  it('updateWidget: キャンセルで適用しない', async () => {
+    const store = useMisStoreStore()
+    const newSrc = '<: "v2"'
+    h.widgetsStore.widgets = [
+      { installId: 'w0', storeId: 'ent-widget', src: 'old', storeSha512: 'x' },
+    ]
+    fetchMock.mockResolvedValue(okText(newSrc))
+    h.confirm.mockResolvedValue(false)
+    await expect(
+      store.updateWidget(widgetEntry({ sha512: sha512Hex(newSrc) })),
+    ).resolves.toBe(false)
+    expect(h.widgetsStore.applyStoreUpdate).not.toHaveBeenCalled()
+  })
+
+  it('updateWidget: 未インストールなら fetch せず false', async () => {
+    const store = useMisStoreStore()
+    h.widgetsStore.widgets = []
+    await expect(store.updateWidget(widgetEntry())).resolves.toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('updatePlugin: permissions が拡大する更新は新規権限を明示する', async () => {
+    const store = useMisStoreStore()
+    const newSrc = '/* v2 */'
+    h.pluginsStore.plugins = [
+      {
+        installId: 'p1',
+        storeId: 'ent-plugin',
+        name: 'My Plugin',
+        src: '/* v1 */',
+        permissions: ['read:account'],
+        storeSha512: 'old-sha',
+      },
+    ]
+    h.parsePluginMeta.mockReturnValue({
+      name: 'My Plugin',
+      version: '2.0.0',
+      permissions: ['read:account', 'write:notes'],
+    })
+    fetchMock.mockResolvedValue(okText(newSrc))
+    await expect(
+      store.updatePlugin(pluginEntry({ sha512: sha512Hex(newSrc) })),
+    ).resolves.toBe(true)
+    const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(opts.message).toContain('新しい権限: write:notes')
+    expect(opts.type).toBe('warning')
+    expect(opts.diff).toMatchObject({ new: newSrc, language: 'aiscript' })
+    expect(h.pluginsStore.applyStoreUpdate).toHaveBeenCalledWith(
+      'p1',
+      expect.objectContaining({
+        src: newSrc,
+        permissions: ['read:account', 'write:notes'],
+        storeSha512: sha512Hex(newSrc),
+      }),
+    )
+    // 更新はスコープに触れない (linkScope を呼ばない)
+    expect(h.pluginsStore.linkScope).not.toHaveBeenCalled()
+  })
+
+  it('updatePlugin: permissions が拡大しなければ警告文を出さない', async () => {
+    const store = useMisStoreStore()
+    const newSrc = '/* v2 */'
+    h.pluginsStore.plugins = [
+      {
+        installId: 'p1',
+        storeId: 'ent-plugin',
+        name: 'My Plugin',
+        src: '/* v1 */',
+        permissions: ['read:account'],
+        storeSha512: 'old-sha',
+      },
+    ]
+    h.parsePluginMeta.mockReturnValue({
+      name: 'My Plugin',
+      version: '2.0.0',
+      permissions: ['read:account'],
+    })
+    fetchMock.mockResolvedValue(okText(newSrc))
+    await store.updatePlugin(pluginEntry({ sha512: sha512Hex(newSrc) }))
+    const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(opts.message).not.toContain('新しい権限')
+    expect(opts.type).toBeUndefined()
+  })
+
+  it('updateSkill: 本文 (body) 同士の markdown diff で確認し、承認でそのまま適用する', async () => {
+    const store = useMisStoreStore()
+    const newSource = '---\nname: Greeter\nversion: 2.0.0\n---\nNew body'
+    h.skillsStore.skills = [
+      {
+        id: 'local-1',
+        storeId: 'ent-skill',
+        name: 'My Renamed',
+        body: 'Old body',
+        storeSha512: 'old-sha',
+      },
+    ]
+    fetchMock.mockResolvedValue(okText(newSource))
+    await expect(
+      store.updateSkill(skillEntry({ sha512: sha512Hex(newSource) })),
+    ).resolves.toBe(true)
+    const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(opts.diff).toEqual({
+      old: 'Old body',
+      new: 'New body',
+      language: 'markdown',
+    })
+    expect(h.skillsStore.update).toHaveBeenCalledWith(
+      'local-1',
+      expect.objectContaining({
+        body: 'New body',
+        storeSha512: sha512Hex(newSource),
+      }),
+    )
+    // ローカル値は維持 (installSkill の上書き更新と同じ境界)
+    const patch = h.skillsStore.update.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >
+    expect(patch).not.toHaveProperty('name')
+    expect(patch).not.toHaveProperty('mode')
+  })
+
+  it('updateQuery: src の diff 確認 → applyStoreUpdate に確認したソースを渡す', async () => {
+    const store = useMisStoreStore()
+    const newSrc = 'note.text == null'
+    h.queriesStore.queries = [
+      {
+        id: 'q-local',
+        storeId: 'ent-query',
+        name: 'My Query',
+        src: 'note.text != null',
+        storeSha512: 'old-sha',
+      },
+    ]
+    fetchMock.mockResolvedValue(okText(newSrc))
+    await expect(
+      store.updateQuery(queryEntry({ sha512: sha512Hex(newSrc) })),
+    ).resolves.toBe(true)
+    const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(opts.diff).toEqual({
+      old: 'note.text != null',
+      new: newSrc,
+      language: 'aiscript',
+    })
+    expect(h.queriesStore.applyStoreUpdate).toHaveBeenCalledWith(
+      'q-local',
+      expect.objectContaining({
+        src: newSrc,
+        storeSha512: sha512Hex(newSrc),
+      }),
+    )
+  })
+
+  it('updateTheme: json5 diff で確認し、確認に使った全文をそのまま installTheme に渡す', async () => {
+    const store = useMisStoreStore()
+    const source = "{ id: 'new-uuid', props: { accent: '#0f0' } }"
+    h.themeStore.installedThemes = [
+      {
+        id: 'custom-1',
+        name: 'My Theme',
+        base: 'dark',
+        props: { accent: '#f00' },
+        $notedeck: { storeId: 'ent-theme', storeSha512: 'old-sha' },
+      },
+    ]
+    fetchMock.mockResolvedValue(okText(source))
+    await expect(
+      store.updateTheme(themeEntry({ sha512: sha512Hex(source) }), ['acc1']),
+    ).resolves.toBe(true)
+    const opts = h.confirm.mock.calls[0]?.[0] as {
+      diff: { old: string; new: string; language: string }
+    }
+    expect(opts.diff.language).toBe('json5')
+    expect(opts.diff.old).toContain('#f00')
+    // ローカル ID / 改名は維持される (#913 と同じ境界)
+    const applied = JSON.parse(opts.diff.new)
+    expect(applied.id).toBe('custom-1')
+    expect(applied.name).toBe('My Theme')
+    expect(applied.$notedeck.storeSha512).toBe(sha512Hex(source))
+    expect(applied.$notedeck.installedFor).toEqual(['acc1'])
+    // 不変条件: 確認に使った全文 = 書き込む全文
+    expect(h.themeStore.installTheme).toHaveBeenCalledWith(opts.diff.new)
+  })
+
+  it('更新も sha 不一致なら index 再取得の 1 回リトライを経て新 entry を適用する', async () => {
+    const store = useMisStoreStore()
+    const newSrc = 'note.userId != null'
+    h.queriesStore.queries = [
+      {
+        id: 'q-local',
+        storeId: 'ent-query',
+        src: 'old',
+        storeSha512: 'old-sha',
+      },
+    ]
+    const staleEntry = queryEntry({ sha512: sha512Hex('stale') })
+    const freshEntry = queryEntry({
+      sha512: sha512Hex(newSrc),
+      version: '3.0.0',
+    })
+    fetchMock
+      .mockResolvedValueOnce(okText(newSrc))
+      .mockResolvedValueOnce(okJson({ queries: [freshEntry] }))
+      .mockResolvedValueOnce(okText(newSrc))
+    await expect(store.updateQuery(staleEntry)).resolves.toBe(true)
+    expect(h.queriesStore.applyStoreUpdate).toHaveBeenCalledWith(
+      'q-local',
+      expect.objectContaining({ src: newSrc, storeVersion: '3.0.0' }),
+    )
   })
 })
 
