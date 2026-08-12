@@ -27,6 +27,17 @@ nix run github:notedeck-dev/notedeck
 
 :::
 
+## 初回起動時の警告
+
+Windows / macOS 版はまだコード署名なしで配布しているため、初回起動時に「発行元不明」の警告が出ます。
+
+- **Windows**: SmartScreen の画面で「詳細情報」→「実行」
+- **macOS**: Finder でアプリを右クリック →「開く」→ もう一度「開く」（システム設定 →「プライバシーとセキュリティ」から許可する方法もあります）
+
+署名がないのはコストと審査の問題で、悪意のあるコードが入っているわけではありません。配布物は GitHub Actions が公開リポジトリのソースからビルドしており、`SHA256SUMS.txt` でハッシュを検証できます。
+
+警告をなくすには、Windows は OSS 向け無料コード署名（[SignPath Foundation](https://signpath.org/)）の審査を通すこと、macOS は Apple Developer Program での公証（notarization）が必要です。SignPath Foundation は「誰も知らないソースコードには署名できない」として実際に使われている実績を見るため、[GitHub の Star](https://github.com/notedeck-dev/notedeck) とダウンロード数がそのまま材料になります。協力できる方は[ダウンロードページ下部の案内](/#store-distribution)を見てください。
+
 ## モバイル
 
 Android は `.apk` を直接インストールします。提供元不明のアプリのインストール許可を求められたら、許可してください。
