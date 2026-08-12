@@ -184,7 +184,7 @@ const updateTitle = computed(() => {
               v-if="alreadyInstalled && hasUpdate"
               class="_button"
               :class="$style.primaryBtn"
-              :disabled="installing"
+              :disabled="installing || capabilityOk === false"
               :title="updateTitle"
               @click.stop="emit('update')"
             >

@@ -97,7 +97,7 @@ onUnmounted(() => {
 .diffView {
   border-radius: var(--nd-radius-sm);
   overflow: auto;
-  background: #1e1e1e;
+  background: var(--nd-codeEditorBg);
   text-align: left;
 
   :global(.cm-editor) {
@@ -127,8 +127,8 @@ onUnmounted(() => {
   }
 
   :global(.cm-collapsedLines) {
-    background: color-mix(in srgb, var(--nd-accent) 10%, #1e1e1e);
-    color: #9d9d9d;
+    background: color-mix(in srgb, var(--nd-accent) 10%, var(--nd-codeEditorBg));
+    color: var(--nd-codeEditorFgMuted);
     padding: 2px 8px;
     cursor: pointer;
   }

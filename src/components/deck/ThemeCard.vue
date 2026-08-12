@@ -122,6 +122,7 @@ function handleClick() {
           v-if="alreadyInstalled && hasUpdate"
           class="_button"
           :class="$style.updateBtn"
+          :disabled="installing"
           title="更新"
           @click.stop="emit('update')"
         >
