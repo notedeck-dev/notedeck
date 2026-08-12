@@ -1,11 +1,10 @@
-import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import { planBuiltInSeed } from '@/services/builtInSeed'
 import {
   createSidecarCollection,
   type SidecarItemFile,
 } from '@/services/sidecarFileCollection'
+import { planStoreMovedPluginMigration } from '@/services/storeMovedPlugins'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
@@ -18,70 +17,6 @@ import {
   setStorageString,
 } from '@/utils/storage'
 import { notifyWarningToast } from '@/utils/toastNotify'
-
-interface BuiltInPluginTemplate {
-  installId: string
-  meta: PluginFileMeta
-  src: string
-}
-
-/**
- * `@/defaults/plugins/*.is` + `*.meta.json5` を vite glob で読み込む。
- * 初回起動 / 後追い追加で seed する用 (skill の loadBuiltInTemplates と同型)。
- */
-function loadBuiltInPluginTemplates(): BuiltInPluginTemplate[] {
-  const srcModules = import.meta.glob('@/defaults/plugins/*.is', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  })
-  const metaModules = import.meta.glob('@/defaults/plugins/*.meta.json5', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  })
-
-  const out: BuiltInPluginTemplate[] = []
-  for (const [path, raw] of Object.entries(srcModules)) {
-    const filename = path.split('/').pop() ?? ''
-    const metaPath = path.replace(/\.is$/, '.meta.json5')
-    const metaRaw = metaModules[metaPath] as string | undefined
-    if (!metaRaw) {
-      console.warn(`[plugins] built-in ${filename} has no meta sidecar`)
-      continue
-    }
-    try {
-      const meta = JSON5.parse(metaRaw) as PluginFileMeta
-      out.push({
-        installId: meta.installId,
-        meta,
-        src: raw as string,
-      })
-    } catch (e) {
-      console.warn(`[plugins] failed to parse built-in ${metaPath}:`, e)
-    }
-  }
-  return out
-}
-
-function pluginMetaToFullMeta(tpl: BuiltInPluginTemplate): PluginMeta {
-  return {
-    installId: tpl.meta.installId,
-    name: tpl.meta.name,
-    version: tpl.meta.version,
-    author: tpl.meta.author,
-    description: tpl.meta.description,
-    permissions: tpl.meta.permissions,
-    config: tpl.meta.config,
-    configData: tpl.meta.configData || {},
-    src: tpl.src,
-    active: tpl.meta.active ?? true,
-    global: tpl.meta.global,
-    installedFor: tpl.meta.installedFor,
-    storeId: tpl.meta.storeId,
-    iconUrl: tpl.meta.iconUrl,
-  }
-}
 
 export interface PluginConfigDef {
   type: 'string' | 'number' | 'boolean'
@@ -120,18 +55,6 @@ export interface PluginMeta extends SidecarItemFile {
 
 /** インストール/追加先スコープ (#771)。カラムの文脈から決まる。 */
 export type PluginScope = { kind: 'global' } | { kind: 'account'; key: string }
-
-let builtInIdCache: Set<string> | null = null
-
-/** アプリ同梱 (defaults/plugins seed) 由来のプラグインか。セクション分類用。 */
-export function isBuiltInPlugin(installId: string): boolean {
-  if (!builtInIdCache) {
-    builtInIdCache = new Set(
-      loadBuiltInPluginTemplates().map((t) => t.installId),
-    )
-  }
-  return builtInIdCache.has(installId)
-}
 
 /**
  * plugin が scopeKey (`accountScopeKey`) のアカウントに効くか。
@@ -254,11 +177,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     } else {
       initialized.value = true
       resolveReady?.()
-      // ブラウザ環境 (ファイル I/O なし) でも built-in を seed して
-      // 動作確認ができるようにする
-      seedMissingBuiltIns()
-        .then(() => scheduleScopeMigration())
-        .catch((e) => console.warn('[plugins] built-in seed failed:', e))
+      scheduleScopeMigration()
     }
   }
 
@@ -334,8 +253,8 @@ export const usePluginsStore = defineStore('plugins', () => {
     savePluginsToStorage(plugins.value)
     initialized.value = true
 
-    // Seed built-in plugins (初回起動 + 後追い追加に対応)。
-    await seedMissingBuiltIns()
+    // 同梱をやめて MisStore 配布に移したプラグインの移行 (#746)
+    await migrateStoreMovedBuiltIns()
 
     // レガシー紐付けのスコープ移行 (#771)。files が source of truth に
     // なった後で走らせる。
@@ -343,39 +262,23 @@ export const usePluginsStore = defineStore('plugins', () => {
   }
 
   /**
-   * `src/defaults/plugins/` 配下のテンプレートを seed する。
-   *
-   * - 既に同 installId のプラグインがある → ユーザー編集を尊重して何もしない
-   * - 過去に seed したことがある (= ユーザーが削除した) → 再生成しない
-   * - 未知の built-in installId だけが対象
-   *
-   * skill の seedMissingBuiltIns と同型 (storage key も対応関係にある)。
+   * 手元に残っている旧同梱プラグインを MisStore 配布版相当へ変換する (#746)。
+   * 削除ではなく変換なので、ソースを書き換えていても壊れない。
    */
-  async function seedMissingBuiltIns(): Promise<void> {
-    const templates = loadBuiltInPluginTemplates()
-    if (templates.length === 0) return
-
-    const { toAdd, seededIds } = planBuiltInSeed(
-      templates,
-      (tpl) => tpl.installId,
-      new Set(plugins.value.map((p) => p.installId)),
-      new Set(getStorageJson<string[]>(STORAGE_KEYS.pluginsSeededBuiltins, [])),
+  async function migrateStoreMovedBuiltIns(): Promise<void> {
+    const { migrated, changed, changedPlugins } = planStoreMovedPluginMigration(
+      plugins.value,
     )
-
-    if (toAdd.length > 0) {
-      const added = toAdd.map(pluginMetaToFullMeta)
-      plugins.value = [...plugins.value, ...added]
-      savePluginsToStorage(plugins.value)
-      if (settingsFs.isTauri) {
-        await pluginFiles
-          .persistAll(added, plugins.value)
-          .catch((e) =>
-            console.warn('[plugins] failed to seed built-in plugin files:', e),
-          )
-        savePluginsToStorage(plugins.value)
-      }
+    if (!changed) return
+    plugins.value = migrated
+    savePluginsToStorage(plugins.value)
+    if (settingsFs.isTauri) {
+      await pluginFiles
+        .persistAll(changedPlugins, plugins.value)
+        .catch((e) =>
+          console.warn('[plugins] failed to persist store-moved plugins:', e),
+        )
     }
-    setStorageJson(STORAGE_KEYS.pluginsSeededBuiltins, seededIds)
   }
 
   function addPlugin(plugin: PluginMeta) {

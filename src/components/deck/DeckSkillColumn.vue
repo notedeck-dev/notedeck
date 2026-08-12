@@ -97,18 +97,15 @@ interface SkillSection {
 }
 
 /**
- * インストール済みタブのセクション分け (プラグインと同形 / 出自 3 分類):
- *   ビルドイン: アプリ同梱 (builtIn フラグ)
- *   サイドロード: ユーザー手書き・AI 生成 (storeId 無し、同梱以外)
+ * インストール済みタブのセクション分け (プラグインと同形 / 出自 2 分類):
+ *   サイドロード: ユーザー手書き・AI 生成 (storeId 無し)
  *   ストア配布: storeId 持ち。MisStore に上流がある複製 (改造しても残留)
  * 0 件のセクションは表示しない。
  */
 const installedSections = computed<SkillSection[]>(() => {
-  const builtin = visibleSkills.value.filter((s) => !s.storeId && s.builtIn)
-  const sideloaded = visibleSkills.value.filter((s) => !s.storeId && !s.builtIn)
+  const sideloaded = visibleSkills.value.filter((s) => !s.storeId)
   const store = visibleSkills.value.filter((s) => !!s.storeId)
   const sections: SkillSection[] = [
-    { key: 'builtin', label: 'ビルドイン', items: builtin },
     { key: 'sideload', label: 'サイドロード', items: sideloaded },
     { key: 'store', label: 'ストア配布', items: store },
   ]
@@ -158,7 +155,6 @@ function createNewSkill() {
 const { confirm } = useConfirm()
 
 async function uninstall(skill: SkillMeta) {
-  if (skill.builtIn) return
   const ok = await confirm({
     title: 'スキルを削除',
     message: `「${skill.name}」を削除しますか？スキルの本文も消えます。`,
@@ -322,7 +318,6 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                 </div>
                 <div :class="$style.row3">
                   <span v-if="skill.author" :class="$style.author">{{ skill.author }}</span>
-                  <span v-if="skill.builtIn" :class="$style.category">内蔵</span>
                   <span :class="$style.spacer" />
                   <div :class="$style.actions">
                     <button
@@ -334,7 +329,6 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                       <i class="ti ti-activity-heartbeat" />
                     </button>
                     <button
-                      v-if="!skill.builtIn"
                       class="_button"
                       :class="[$style.iconBtn, $style.iconBtnDanger]"
                       title="ライブラリから削除 (本文も消えます)"

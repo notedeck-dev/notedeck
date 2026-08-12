@@ -17,7 +17,6 @@ vi.mock('@/utils/storage', () => {
   return {
     STORAGE_KEYS: {
       plugins: 'nd:plugins',
-      pluginsSeededBuiltins: 'nd:plugins-seeded',
       aiscriptPlugin: (id: string) => `nd:aiscript-plugin:${id}`,
     },
     getStorageJson: (key: string, fallback: unknown) =>
@@ -105,8 +104,6 @@ function setupAccounts() {
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  // seed 済み扱いにして built-in seed がテストを汚さないようにする
-  setStorageJson(STORAGE_KEYS.pluginsSeededBuiltins, ['ai-actions-builtin'])
   setStorageJson(STORAGE_KEYS.plugins, [])
 })
 

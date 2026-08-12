@@ -1,10 +1,12 @@
 import type { SkillMeta } from '@/stores/skills'
 
 /**
- * 同梱をやめて MisStore 配布に移した built-in skill (#969)。
+ * 同梱をやめて MisStore 配布に移した skill (#969 → #746)。
  *
- * 自己拡張の作者系 4 本と、その依存先のリファレンス 2 本。同梱は
- * notedeck-memo / self-profile / notedeck-guide の 3 本だけになる。
+ * #969 で自己拡張の作者系 4 本とリファレンス 2 本を移し、#746 で残る 3 本も
+ * 移した。**同梱の skill はゼロになり、シード機構そのものが不要になった** —
+ * 同梱のままだと修正版を届ける手段が削除・再シードしかないのに対し、配布に
+ * 移せばストアの更新検知がそのまま使えるため。
  */
 export const STORE_MOVED_SKILL_IDS = [
   'plugin-author',
@@ -13,6 +15,9 @@ export const STORE_MOVED_SKILL_IDS = [
   'skill-author',
   'aiscript-author',
   'theme-reference',
+  'notedeck-guide',
+  'notedeck-memo',
+  'self-profile',
 ] as const
 
 const MOVED = new Set<string>(STORE_MOVED_SKILL_IDS)
