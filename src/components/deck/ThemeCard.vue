@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import ThemePreview from '@/components/ThemePreview.vue'
 import type { MisskeyTheme } from '@/theme/types'
+import { formatDate } from '@/utils/format'
 
 type Mode = 'installed' | 'store'
 type Source = 'builtin' | 'local' | 'misstore' | 'server'
@@ -13,6 +14,12 @@ const props = defineProps<{
   // 状態
   installing?: boolean
   alreadyInstalled?: boolean
+  /** store mode: インストール済みかつストア側が更新されている (#1040) */
+  hasUpdate?: boolean
+  /** store mode: レジストリの updatedAt (更新バッジの tooltip 用) */
+  updatedAt?: string
+  /** store mode: レジストリの version (tooltip の補助表示) */
+  version?: string
   isAppliedAccount?: boolean
   isAppliedGlobal?: boolean
   // per-account / cross-account モード
@@ -28,6 +35,7 @@ const emit = defineEmits<{
   (e: 'edit'): void
   (e: 'remove'): void
   (e: 'install'): void
+  (e: 'update'): void
   (e: 'open-detail'): void
 }>()
 
@@ -35,9 +43,20 @@ const isApplied = computed(
   () => props.isAppliedAccount || props.isAppliedGlobal,
 )
 
+// 更新の主表示は updatedAt、version は補助 (#1040)
+const updateTitle = computed(() => {
+  if (!props.updatedAt) return ''
+  const date = formatDate(props.updatedAt)
+  return props.version
+    ? `ストア更新日: ${date} / v${props.version}`
+    : `ストア更新日: ${date}`
+})
+
 function handleClick() {
   if (props.mode === 'store') {
-    if (!props.alreadyInstalled && !props.installing) emit('install')
+    if (props.installing) return
+    if (!props.alreadyInstalled) emit('install')
+    else if (props.hasUpdate) emit('update')
     return
   }
   // installed mode
@@ -100,6 +119,15 @@ function handleClick() {
       </div>
       <div v-else-if="mode === 'store'" :class="$style.previewActions">
         <button
+          v-if="alreadyInstalled && hasUpdate"
+          class="_button"
+          :class="$style.updateBtn"
+          title="更新"
+          @click.stop="emit('update')"
+        >
+          <i class="ti ti-refresh" />
+        </button>
+        <button
           class="_button"
           :class="$style.detailBtn"
           title="MisStore で詳細を見る"
@@ -110,7 +138,8 @@ function handleClick() {
       </div>
 
       <!-- 適用中 / インストール状態はカード自体の border 色で表現する。
-           UI ノイズ低減のため左上バッジは表示しない。 -->
+           UI ノイズ低減のため左上バッジは表示しない。
+           更新あり (#1040) はアクション可能な状態なので例外的にバッジで示す。 -->
       <span
         v-if="mode === 'store' && installing"
         :class="$style.installingOverlay"
@@ -118,6 +147,11 @@ function handleClick() {
       >
         <i class="ti ti-loader-2 nd-spin" />
       </span>
+      <span
+        v-else-if="mode === 'store' && alreadyInstalled && hasUpdate"
+        :class="$style.updateBadge"
+        :title="updateTitle"
+      >更新あり</span>
     </div>
     <div :class="$style.name" :title="theme.name">{{ theme.name }}</div>
   </button>
@@ -194,6 +228,7 @@ function handleClick() {
 .editBtn,
 .removeBtn,
 .clearBtn,
+.updateBtn,
 .detailBtn {
   width: 18px;
   height: 18px;
@@ -214,6 +249,10 @@ function handleClick() {
   background: var(--nd-accent);
 }
 
+.updateBtn {
+  background: var(--nd-accent);
+}
+
 .removeBtn {
   background: var(--nd-error);
 }
@@ -228,6 +267,20 @@ function handleClick() {
   background: var(--nd-fg);
   color: var(--nd-bg);
   opacity: 0.7;
+}
+
+/* 更新ありバッジ (#1040)。他ストアカードと同じ文言の accent チップ */
+.updateBadge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nd-accent) 85%, var(--nd-bg));
+  color: var(--nd-fgOnAccent);
+  line-height: 1.3;
 }
 
 .installingOverlay {

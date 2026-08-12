@@ -178,6 +178,15 @@ async function handleInstall(entry: StoreQueryEntry): Promise<void> {
   }
 }
 
+async function handleUpdate(entry: StoreQueryEntry): Promise<void> {
+  installError.value = null
+  try {
+    await misStore.updateQuery(entry)
+  } catch (e) {
+    installError.value = e instanceof Error ? e.message : '更新失敗'
+  }
+}
+
 function handleOpenStoreDetail(entry: StoreQueryEntry): void {
   openSafeUrl(getQueryDetailUrl(entry.id))
 }
@@ -314,7 +323,10 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
             :category-label="queryCategoryLabel(entry.category)"
             :installing="misStore.installingQuery === entry.id"
             :already-installed="misStore.isQueryInstalled(entry)"
+            :has-update="misStore.hasQueryUpdate(entry)"
+            :updated-at="entry.updatedAt"
             @install="handleInstall(entry)"
+            @update="handleUpdate(entry)"
             @open-detail="handleOpenStoreDetail(entry)"
           />
 
