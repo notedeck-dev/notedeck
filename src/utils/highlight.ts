@@ -3,6 +3,14 @@ import { shallowRef } from 'vue'
 
 export const highlighterLoaded = shallowRef(false)
 
+/**
+ * ハイライタの状態が進むたびに増える版数。初期化完了だけでなく**遅延ロードの
+ * 言語が入ったとき**も進む。`highlighterLoaded` (boolean) だけを再描画キーに
+ * 使うと、遅延言語 (python / diff 等) は「ロードが終わっても誰も再描画しない」
+ * ためハイライトされないままになる。描画側はこれをキーに含めること。
+ */
+export const highlightRevision = shallowRef(0)
+
 let highlighter: HighlighterCore | null = null
 let initPromise: Promise<void> | null = null
 let purify: typeof import('dompurify').default | null = null
@@ -132,6 +140,7 @@ function initHighlighter(): Promise<void> {
     const mod = await import('dompurify')
     purify = mod.default
     highlighterLoaded.value = true
+    highlightRevision.value++
   })()
 
   return initPromise
@@ -145,6 +154,7 @@ async function loadLazyLang(lang: string): Promise<void> {
   try {
     const mod = await loader()
     highlighter.loadLanguageSync(mod.default)
+    highlightRevision.value++
   } finally {
     pendingLangs.delete(lang)
   }

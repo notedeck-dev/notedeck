@@ -37,9 +37,25 @@ describe('renderSimpleMarkdown — コードブロック', () => {
     expect(html).toContain('class="shiki-d4d4d4"')
   })
 
-  it('言語キーをそのままハイライタへ渡す (diff / aiscript も届く)', () => {
-    renderSimpleMarkdown('```diff\n+added\n```')
-    expect(highlightCodeTokens).toHaveBeenCalledWith('+added', 'diff')
+  it('diff は Shiki に渡さず行単位で塗る (増減が読み取れる色にする)', () => {
+    const html = renderSimpleMarkdown('```diff\n+added\n-removed\n keep\n```')
+    expect(highlightCodeTokens).not.toHaveBeenCalled()
+    expect(html).toContain('nd-md-diff-add')
+    expect(html).toContain('nd-md-diff-del')
+    // 文脈行にも行 span は付く (増減クラスは付かない)
+    expect(html).toContain('<span class="nd-md-diff-line"> keep</span>')
+  })
+
+  it('diff の行 span は改行文字を挟まない (1 行おきの空行を作らない)', () => {
+    const html = renderSimpleMarkdown('```diff\n+a\n+b\n```')
+    expect(html).toContain(
+      '</span><span class="nd-md-diff-line nd-md-diff-add">+b</span>',
+    )
+  })
+
+  it('言語キーをそのままハイライタへ渡す', () => {
+    renderSimpleMarkdown('```python\nx = 1\n```')
+    expect(highlightCodeTokens).toHaveBeenCalledWith('x = 1', 'python')
   })
 
   it('言語指定なしのフェンスも壊さない', () => {

@@ -10,7 +10,7 @@ import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
-import { highlightCode, highlighterLoaded } from '@/utils/highlight'
+import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
@@ -556,7 +556,7 @@ function reportBug() {
         <!-- 問題のある行だけを log 言語でシンタックスハイライト (正常時は非表示) -->
         <div
           v-else-if="diagnosticsLog"
-          :key="`diag-${highlighterLoaded}`"
+          :key="`diag-${highlightRevision}`"
           :class="$style.logBlock"
           v-html="highlightCode(diagnosticsLog, 'log')"
         />
