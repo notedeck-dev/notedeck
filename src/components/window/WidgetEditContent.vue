@@ -3,7 +3,6 @@ import { type Ast, type Interpreter, Parser } from '@syuilo/aiscript'
 import {
   computed,
   defineAsyncComponent,
-  nextTick,
   onBeforeUnmount,
   onMounted,
   ref,
@@ -40,6 +39,7 @@ import {
   openEditHistoryWindow,
 } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { providerFromPrincipal } from '@/plugins/registrationId'
@@ -106,7 +106,7 @@ function flushPendingSave() {
 }
 watch(code, (val) => {
   if (!widget.value) return
-  if (syncingFromStore) return
+  if (isSyncing()) return
   dirty.value = true
   saved.value = false
   if (saveTimer) clearTimeout(saveTimer)
@@ -120,21 +120,16 @@ onBeforeUnmount(flushPendingSave)
 /**
  * 外部からの src 変更 (履歴からの revert / AI 編集 / 外部エディタ) を編集
  * バッファへ取り込む。無いと表示が開いた瞬間のままで、次の打鍵で古い内容が
- * 書き戻される。未保存の編集があるときはユーザーのバッファを優先する。
+ * 書き戻される。規則は useExternalEditSync 側にある。
  */
-let syncingFromStore = false
-watch(
-  () => widget.value?.src,
-  (src) => {
-    if (src === undefined || src === code.value) return
-    if (dirty.value) return
-    syncingFromStore = true
+const { isSyncing } = useExternalEditSync<string>({
+  source: () => widget.value?.src,
+  current: () => code.value,
+  isDirty: () => dirty.value,
+  apply: (src) => {
     code.value = src
-    void nextTick(() => {
-      syncingFromStore = false
-    })
   },
-)
+})
 
 /**
  * 自動保存の状態。デバウンス保存なので「いま保存されているか」が

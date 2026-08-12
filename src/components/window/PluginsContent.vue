@@ -16,6 +16,7 @@ import {
   openEditHistoryWindow,
 } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { isExposed } from '@/settings/exposure'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
@@ -151,18 +152,17 @@ watch(tab, (t) => {
 
 /**
  * 外部からの src 変更 (履歴からの revert / AI 編集 / 外部エディタ) を編集
- * バッファへ取り込む。未保存の編集があるときはユーザーのバッファを優先する
- * (保存すればユーザーの内容で上書きされる = 本人の明示操作)。
+ * バッファへ取り込む。規則は useExternalEditSync 側にある。
  */
-watch(
-  () => plugin.value?.src,
-  (src) => {
-    if (src === undefined || src === editingCode.value) return
-    if (codeModified.value) return
+useExternalEditSync<string>({
+  source: () => plugin.value?.src,
+  current: () => editingCode.value,
+  isDirty: () => codeModified.value,
+  apply: (src) => {
     editingCode.value = src
     codeModified.value = false
   },
-)
+})
 
 async function saveCode() {
   if (!plugin.value) return

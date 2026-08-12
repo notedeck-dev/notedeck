@@ -20,6 +20,7 @@ import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { openEditHistoryWindow } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { isExposed } from '@/settings/exposure'
 import { useConfirm } from '@/stores/confirm'
@@ -447,23 +448,39 @@ function loadFromInstalled(theme: MisskeyTheme) {
  * 外部からの変更 (履歴からの revert / AI の theme.update) を編集中の値へ
  * 取り込む。未保存の変更があるときはユーザーの編集を優先する。
  */
+/**
+ * 外部からの変更 (履歴からの revert / AI の theme.update) を編集中の値へ
+ * 取り込む。規則は useExternalEditSync 側にある。
+ *
+ * テーマはオブジェクトのまま比べると保存のたびに参照が変わるので、
+ * 見た目に効く部分のキーで同一性を見る。
+ */
+function editingThemeOf(): MisskeyTheme | undefined {
+  return editingThemeId.value
+    ? themeStore.installedThemes.find((t) => t.id === editingThemeId.value)
+    : undefined
+}
+
+function themeKey(theme: MisskeyTheme | undefined): string {
+  return theme ? JSON.stringify([theme.name, theme.base, theme.props]) : ''
+}
+
 let lastSyncedThemeKey = ''
-watch(
-  () =>
-    editingThemeId.value
-      ? themeStore.installedThemes.find((t) => t.id === editingThemeId.value)
-      : undefined,
-  (theme) => {
-    if (!theme) return
-    // 自分の保存でも installedThemes は動くので、中身が同じなら何もしない
-    const key = JSON.stringify([theme.name, theme.base, theme.props])
-    if (key === lastSyncedThemeKey) return
+useExternalEditSync<string>({
+  source: () => {
+    const theme = editingThemeOf()
+    return theme ? themeKey(theme) : undefined
+  },
+  current: () => lastSyncedThemeKey,
+  isDirty: () => hasChangesFromSnapshot.value,
+  apply: (key) => {
     lastSyncedThemeKey = key
-    if (hasChangesFromSnapshot.value) return
+    const theme = editingThemeOf()
+    if (!theme) return
     loadFromInstalled(theme)
     if (tab.value === 'code') syncCodeFromVisual()
   },
-)
+})
 
 // Delete installed theme
 // 他の配布物 (skill / widget / plugin / query) と同じく confirm → 元に戻せる

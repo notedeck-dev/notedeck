@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { css } from '@codemirror/lang-css'
 import { type Diagnostic, linter } from '@codemirror/lint'
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
@@ -10,6 +10,7 @@ import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { openEditHistoryWindow } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import {
   buildPresetCss,
@@ -134,12 +135,9 @@ const fullCss = computed(() => {
   return preset || user
 })
 
-// store からの取り込み中は書込み側の watch を止める (下の同期 watch を参照)
-let syncingFromStore = false
-
 let applyTimer: ReturnType<typeof setTimeout> | null = null
 watch(fullCss, (cssStr) => {
-  if (syncingFromStore) return
+  if (isSyncing()) return
   cssCode.value = cssStr
   if (applyTimer) clearTimeout(applyTimer)
   applyTimer = setTimeout(() => {
@@ -157,7 +155,7 @@ watch(
     presets.value.hideUserStats,
   ],
   () => {
-    if (syncingFromStore) return
+    if (isSyncing()) return
     const cssStr = fullCss.value
     cssCode.value = cssStr
     themeStore.setCustomCss(cssStr)
@@ -168,7 +166,7 @@ const codeError = ref<string | null>(null)
 let codeApplyTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(cssCode, (cssStr) => {
-  if (syncingFromStore) return
+  if (isSyncing()) return
   if (tab.value !== 'code') return
   if (codeApplyTimer) clearTimeout(codeApplyTimer)
   codeApplyTimer = setTimeout(() => {
@@ -287,27 +285,24 @@ watch(tab, (t) => {
  * 次にタブを切り替えたりプリセットを触った時点で古い内容を書き戻してしまう
  * (= revert が無言で打ち消される)。
  *
- * 取り込みは一方向でなければならない。presets / userFreeformCss を入れ直すと
- * fullCss が動くので、そのまま書き戻すと「取り込んだ内容」ではなく
- * 「再構築した内容」が保存されてしまう (プリセット記法の正規化で原文が変わる)。
- * 同期中は書込み側の watch を止め、待機中のデバウンスも捨てる。
+ * custom.css は明示保存を持たない (常に自動保存 = 未保存の編集という状態が
+ * 無い) ので isDirty は常に false。取り込み中に presets / userFreeformCss を
+ * 入れ直すと fullCss が動くため、書込み側の watch は isSyncing で止める
+ * (止めないと「取り込んだ内容」ではなく「再構築した内容」が保存される)。
  */
-watch(
-  () => themeStore.customCss,
-  (css) => {
-    if (css === cssCode.value) return
-    syncingFromStore = true
+const { isSyncing } = useExternalEditSync<string>({
+  source: () => themeStore.customCss,
+  current: () => cssCode.value,
+  isDirty: () => false,
+  apply: (css) => {
     if (applyTimer) clearTimeout(applyTimer)
     if (codeApplyTimer) clearTimeout(codeApplyTimer)
     cssCode.value = css
     presets.value = parsePresetsFromCss(css)
     userFreeformCss.value = extractUserCss(css)
     codeError.value = null
-    void nextTick(() => {
-      syncingFromStore = false
-    })
   },
-)
+})
 </script>
 
 <template>
