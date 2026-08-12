@@ -5,7 +5,7 @@ import type { MisskeyTheme } from '@/theme/types'
 import { formatDate } from '@/utils/format'
 
 type Mode = 'installed' | 'store'
-type Source = 'builtin' | 'local' | 'misstore' | 'server'
+type Source = 'default' | 'local' | 'misstore' | 'server'
 
 const props = defineProps<{
   mode: Mode
@@ -24,7 +24,7 @@ const props = defineProps<{
   isAppliedGlobal?: boolean
   // per-account / cross-account モード
   perAccount?: boolean
-  // 削除可能か (builtin は不可)
+  // 削除可能か (デフォルトテーマは不可)
   removable?: boolean
   /**
    * remove ボタンが本体削除になるか、紐付けを外すだけか (#1048)。

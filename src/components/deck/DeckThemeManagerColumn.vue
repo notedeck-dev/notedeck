@@ -62,7 +62,7 @@ const viewTab = ref<ViewTab>('installed')
 const columnContentRef = ref<HTMLElement | null>(null)
 
 // --- Source-tagged theme list ---
-type Source = 'builtin' | 'local' | 'misstore' | 'server'
+type Source = 'default' | 'local' | 'misstore' | 'server'
 interface ThemeEntry {
   theme: MisskeyTheme
   source: Source
@@ -96,7 +96,7 @@ interface ThemeSection {
 
 // インストール済みタブのセクション構成 (出自 3 分類 + サーバー):
 //   per-account: サイドロード + ストア配布 (MisStore 由来) + サーバー (admin Branding)
-//   cross-account (Global): ビルドイン (同梱) + サイドロード + ストア配布 — アプリ全体管理
+//   cross-account (Global): デフォルト (同梱) + サイドロード + ストア配布 — アプリ全体管理
 //
 // 「Web UI で選択中のテーマ」(本家 darkTheme/lightTheme Pref) はサーバーに保存
 // されないため、NoteDeck 側でも介入しない。ユーザーが MisStore から取り込んだ
@@ -108,16 +108,21 @@ const themeSections = computed<ThemeSection[]>(() => {
   // logged-in account id 集合 (cross-account = 全アカウント集約 viewer の判定用)。
   const loggedInIds = new Set(accountsStore.accounts.map((a) => a.id))
 
-  // 「ビルドイン」= アプリ同梱 (Mi Dark / Mi Light、削除/編集不可)。
-  // プラグイン/スキルカラムの同梱セクションと同じ扱いで全アカウントカラムのみ。
+  // 「デフォルト」= 起動時に適用される既定テーマ (Mi Dark / Mi Light、削除/編集不可)。
+  //
+  // 配布物の同梱は #746 で全廃したが、テーマだけは**ゼロ個が成立しない** —
+  // skill / plugin / query / widget は無ければ何も起きないだけで済むのに対し、
+  // テーマが無いと画面を描画できない。ストアから取ってくるまでの間に適用する
+  // ものが要るので、既定値として本体が持つ。配布アイテムではないため「ビルド
+  // イン」ではなく「デフォルト」と呼び分ける。全アカウントカラムのみ。
   if (isCrossAccount.value) {
     sections.push({
-      key: 'builtin',
-      label: 'ビルドイン',
+      key: 'default',
+      label: 'デフォルト',
       items: [
         {
           theme: mode === 'dark' ? MI_DARK : MI_LIGHT,
-          source: 'builtin',
+          source: 'default',
           removable: false,
         },
       ],

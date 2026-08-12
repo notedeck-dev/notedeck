@@ -809,9 +809,9 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
   の 4 要素 (PR #489)。`memos.{create,update,delete,list,search,backlinks}` capability、
   `memo:<id>` markdown link の link expand + `referencedBy` 添付、
   author 埋め込みブロック (#493) で persona との紐付けが完成
-- [x] **built-in skill seed** — `notedeck-memo` (永続記憶の運用手順) /
-  `self-profile` (`skills.replaceSection` で AI が自分のプロフィールを継続更新する
-  自己編集デモ) を初回起動時に seed
+- [x] **`notedeck-memo` (永続記憶の運用手順) / `self-profile` (`skills.replaceSection`
+  で AI が自分のプロフィールを継続更新する自己編集デモ)** — 当初は同梱して初回起動時に
+  seed していたが、修正版を届けられないため MisStore 配布へ移した (#746)
 
 **Step 4.6: 自己拡張する IDE** (Hackable layer)
 - [x] **skill / theme / widget / plugin 編集 capability** — AI が IDE 自身を

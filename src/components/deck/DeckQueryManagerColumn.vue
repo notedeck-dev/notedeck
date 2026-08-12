@@ -94,13 +94,9 @@ interface QuerySection {
 }
 
 const installedSections = computed<QuerySection[]>(() => {
-  const builtin = visibleQueries.value.filter((q) => !q.storeId && q.builtIn)
-  const sideloaded = visibleQueries.value.filter(
-    (q) => !q.storeId && !q.builtIn,
-  )
+  const sideloaded = visibleQueries.value.filter((q) => !q.storeId)
   const store = visibleQueries.value.filter((q) => !!q.storeId)
   const sections: QuerySection[] = [
-    { key: 'builtin', label: 'ビルドイン', items: builtin },
     { key: 'sideload', label: 'サイドロード', items: sideloaded },
     { key: 'store', label: 'ストア配布', items: store },
   ]

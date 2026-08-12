@@ -504,7 +504,7 @@ skill / widget / plugin / theme の write 系 capability は、かつて `aiTool
 
 1. **permission**: `skills.write` / `widgets.write` / `plugins.write` / `theme.write` が許可されたときだけ通る。plugin / external principal に対しては `skills.write` / `ai.persona.write` が恒久 deny
 2. **確認ダイアログ**: `requiresConfirmation` で dispatch 直前にユーザー承認
-3. **capability 個別ガード**: builtIn skill の削除拒否、`skills.create` の frontmatter 遮断 + id 内部生成、`aiscript.validate` の preflight 等
+3. **capability 個別ガード**: `skills.create` の frontmatter 遮断 + id 内部生成、`aiscript.validate` の preflight 等
 
 `aiTool: false` が残るのは `ai.chat` (AI 自身の再帰呼び出しを防ぐためプラグイン専用) のみ。詳細は [SKILLS.md](SKILLS.md) §5.2。
 

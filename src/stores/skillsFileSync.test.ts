@@ -44,17 +44,6 @@ vi.mock('@/utils/settingsFs', () => ({
 }))
 
 import { type SkillMeta, useSkillsStore } from '@/stores/skills'
-import { STORAGE_KEYS, setStorageJson } from '@/utils/storage'
-
-// builtin seed が試験対象のファイル群へ混入しないよう、テンプレ id を
-// 「seed 済み」として localStorage に前置きする (テンプレ追加に追従)
-const tplIds = Object.keys(
-  import.meta.glob('@/defaults/skills/*.md', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }),
-).map((p) => p.split('/').pop()?.replace(/\.md$/, '') ?? '')
 
 const skillFile = (id: string, name: string, body = 'body') =>
   `---\nid: ${id}\nname: ${name}\nversion: 0.1.0\nmode: manual\nscope: global\ncreatedAt: 1\nupdatedAt: 1\n---\n${body}`
@@ -89,7 +78,6 @@ describe('useSkillsStore — ファイル対応表配線 (#913)', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     files.clear()
-    setStorageJson(STORAGE_KEYS.skillsSeededBuiltins, tplIds)
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   })
 
