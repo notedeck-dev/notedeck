@@ -235,7 +235,11 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
     await cfg.remove(base + HISTORY_SUFFIX)
   }
 
-  /** 主ファイル → history の順で rename する。不在は skip (ensure-dest)。 */
+  /**
+   * 主ファイル → history の順で rename する。不在は skip (ensure-dest)。
+   * 履歴サイドカーの失敗は警告のみで飲む — 主ファイルが移った後に throw すると
+   * 対応表 (fileBase) が旧名のまま残り、実ファイルとずれる (#913 の不変条件)。
+   */
   async function renameFileSet(from: string, to: string): Promise<void> {
     const files = new Set(await cfg.list())
     for (const ext of [cfg.ext, HISTORY_SUFFIX]) {
@@ -246,6 +250,17 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
         console.warn(
           `[${cfg.logTag}] rename target already exists, skipped: ${newFile}`,
         )
+        continue
+      }
+      if (ext === HISTORY_SUFFIX) {
+        try {
+          await cfg.rename(oldFile, newFile)
+        } catch (e) {
+          console.warn(
+            `[${cfg.logTag}] failed to rename history sidecar ${oldFile}:`,
+            e,
+          )
+        }
         continue
       }
       await cfg.rename(oldFile, newFile)
@@ -278,6 +293,9 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
         (c) => taken.has(casefold(c)) || casefold(c) === casefold(resolved),
       )
       await renameFileSet(oldBase, inter)
+      // 主ファイルが中間名へ移った時点で対応表を確定させる (2 段目が失敗しても
+      // fileBase が実ファイルを指したままになる)
+      item.fileBase = inter
       await renameFileSet(inter, resolved)
     } else {
       await renameFileSet(oldBase, resolved)

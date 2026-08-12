@@ -526,6 +526,50 @@ describe('renameItemFiles', () => {
     await col.renameItemFiles(w, [w])
     expect(w.fileBase).toBeUndefined()
   })
+
+  it('履歴サイドカーの rename が失敗しても主ファイルの結果を巻き戻さない', async () => {
+    const fs = makeFakeFs({
+      'old.meta.json5': '{ installId: "p1", name: "old" }',
+      'old.is': 'code',
+      'old.history.json5': '{ entries: [] }',
+    })
+    const col = makeCollection(fs, {
+      rename: async (oldFilename: string, newFilename: string) => {
+        if (oldFilename.endsWith('.history.json5')) {
+          throw new Error('EPERM')
+        }
+        await fs.rename(oldFilename, newFilename)
+      },
+    })
+    const w = item({ name: 'New Name', fileBase: 'old' })
+    await col.renameItemFiles(w, [w])
+
+    // 対応表と実ファイルが一致していること (#913 の不変条件)
+    expect(w.fileBase).toBe('new-name')
+    expect(fs.files.has('new-name.is')).toBe(true)
+    expect(fs.files.has('new-name.meta.json5')).toBe(true)
+    expect(fs.files.has('old.history.json5')).toBe(true)
+    expect(warn).toHaveBeenCalled()
+  })
+
+  it('case-only 2 段の 2 段目が失敗しても fileBase は実ファイルを指す', async () => {
+    const fs = makeFakeFs({
+      'Alpha.meta.json5': '{ installId: "p1" }',
+      'Alpha.is': 'code',
+    })
+    const col = makeCollection(fs, {
+      rename: async (oldFilename: string, newFilename: string) => {
+        // 2 段目 (中間名 → 目的名) の主ファイル rename だけ失敗させる
+        if (newFilename === 'alpha.is') throw new Error('EPERM')
+        await fs.rename(oldFilename, newFilename)
+      },
+    })
+    const w = item({ name: 'alpha', fileBase: 'Alpha' })
+    await expect(col.renameItemFiles(w, [w])).rejects.toThrow()
+
+    expect(w.fileBase).toBeDefined()
+    expect(fs.files.has(`${w.fileBase}.is`)).toBe(true)
+  })
 })
 
 describe('migrateItems (copy-adopt)', () => {

@@ -401,6 +401,15 @@ fn reserve_all(dir: &Path, names: &[String]) -> Result<bool> {
     Ok(true)
 }
 
+/// `reserve_all` で確保した宛先をまとめて解放する。書込途中で失敗したグループを
+/// そのまま残すと、空の予約ファイルがゴミとして残り次回 import の衝突判定を
+/// 汚す (グループは全構成そろって初めて意味を持つので部分適用も残さない)。
+fn release_reserved(dir: &Path, names: &[String]) {
+    for name in names {
+        let _ = fs::remove_file(dir.join(name));
+    }
+}
+
 /// 同一 basename のグループ (ソース + メタ + 履歴。単一ファイル種別は 1 ファイル
 /// = 1 グループ) を書き込む。衝突判定・skip/suffix はグループ単位 — エントリ
 /// 単位でばらすとペア種別のソースとメタが別名に分裂し、既存の孤児ソースと
@@ -432,7 +441,10 @@ fn import_group(
         let names: Vec<String> = members.iter().map(|(n, _)| n.clone()).collect();
         if reserve_all(&dir, &names)? {
             for (name, content) in members {
-                atomic_write(&dir.join(name), content, mode)?;
+                if let Err(e) = atomic_write(&dir.join(name), content, mode) {
+                    release_reserved(&dir, &names);
+                    return Err(e);
+                }
             }
             return Ok(());
         }
@@ -507,7 +519,10 @@ fn import_group(
             continue;
         }
         for ((_, content), cand) in members.iter().zip(&candidates) {
-            atomic_write(&dir.join(cand), content, mode)?;
+            if let Err(e) = atomic_write(&dir.join(cand), content, mode) {
+                release_reserved(&dir, &candidates);
+                return Err(e);
+            }
         }
         let renamed = candidates.join(", ");
         tracing::warn!(

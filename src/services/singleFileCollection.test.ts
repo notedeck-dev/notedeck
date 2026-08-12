@@ -439,6 +439,45 @@ describe('renameItemFiles', () => {
     await col.renameItemFiles(t, [t])
     expect(t.fileBase).toBeUndefined()
   })
+
+  it('履歴サイドカーの rename が失敗しても主ファイルの結果を巻き戻さない', async () => {
+    const fs = makeFakeFs({
+      [`old${EXT}`]: file('p1', 'old'),
+      'old.history.json5': '{ entries: [] }',
+    })
+    const col = makeCollection(fs, {
+      rename: async (oldFilename: string, newFilename: string) => {
+        if (oldFilename.endsWith('.history.json5')) {
+          throw new Error('EPERM')
+        }
+        await fs.rename(oldFilename, newFilename)
+      },
+    })
+    const t = item({ name: 'New Name', fileBase: 'old' })
+    await col.renameItemFiles(t, [t])
+
+    // 対応表と実ファイルが一致していること (#913 の不変条件)
+    expect(t.fileBase).toBe('new-name')
+    expect(fs.files.has(`new-name${EXT}`)).toBe(true)
+    expect(fs.files.has('old.history.json5')).toBe(true)
+    expect(warn).toHaveBeenCalled()
+  })
+
+  it('case-only 2 段の 2 段目が失敗しても fileBase は実ファイルを指す', async () => {
+    const fs = makeFakeFs({ [`Alpha${EXT}`]: file('p1', 'Alpha') })
+    const col = makeCollection(fs, {
+      rename: async (oldFilename: string, newFilename: string) => {
+        // 2 段目 (中間名 → 目的名) の主ファイル rename だけ失敗させる
+        if (newFilename === `alpha${EXT}`) throw new Error('EPERM')
+        await fs.rename(oldFilename, newFilename)
+      },
+    })
+    const t = item({ name: 'alpha', fileBase: 'Alpha' })
+    await expect(col.renameItemFiles(t, [t])).rejects.toThrow()
+
+    expect(t.fileBase).toBeDefined()
+    expect(fs.files.has(`${t.fileBase}${EXT}`)).toBe(true)
+  })
 })
 
 describe('migrateItems (copy-adopt)', () => {
@@ -536,6 +575,22 @@ describe('migrateItems (copy-adopt)', () => {
     expect(fs.files.has(`Alpha${EXT}`)).toBe(false)
     // 中間名の残骸が無い
     expect(fs.files.size).toBe(1)
+  })
+
+  it('旧 basename の履歴は新 basename へ移送せず sweep で削除する (#913 の決定)', async () => {
+    const fs = makeFakeFs({
+      [`Bad Name${EXT}`]: file('i1', 'Bad Name'),
+      'Bad Name.history.json5': '{ entries: [] }',
+    })
+    const col = makeCollection(fs)
+    const { items } = await col.loadAll()
+    await col.migrateItems(items)
+
+    expect(items[0]?.fileBase).toBe('bad-name')
+    // legacy 履歴は初回移行で全数削除する (rekey 復元は不採用)
+    expect(fs.files.has('bad-name.history.json5')).toBe(false)
+    await col.sweepHistory()
+    expect(fs.files.has('Bad Name.history.json5')).toBe(false)
   })
 
   it('表示名が欠損なら種別 fallback で slug 化する', async () => {
