@@ -11,6 +11,20 @@ export const highlighterLoaded = shallowRef(false)
  */
 export const highlightRevision = shallowRef(0)
 
+/**
+ * コード面の明暗 (#1053)。トークン色は面の明暗とセットでないと読めないので、
+ * 面を切り替えたらハイライトのテーマも切り替えて再描画する。
+ * 実効値の決定 (設定 + アプリのテーマ) は useCodeScheme が持つ。
+ */
+export type CodeScheme = 'dark' | 'light'
+let codeScheme: CodeScheme = 'dark'
+
+export function setCodeScheme(scheme: CodeScheme): void {
+  if (codeScheme === scheme) return
+  codeScheme = scheme
+  highlightRevision.value++
+}
+
 let highlighter: HighlighterCore | null = null
 let initPromise: Promise<void> | null = null
 let purify: typeof import('dompurify').default | null = null
@@ -106,13 +120,15 @@ function initHighlighter(): Promise<void> {
     const [
       shikiCore,
       shikiEngine,
-      themeModule,
+      darkTheme,
+      lightTheme,
       aiscriptGrammar,
       ...langModules
     ] = await Promise.all([
       import('shiki/core'),
       import('shiki/engine/javascript'),
       import('shiki/dist/themes/dark-plus.mjs'),
+      import('shiki/dist/themes/light-plus.mjs'),
       import('@/assets/aiscript.tmLanguage.json'),
       // Core languages — most common in Misskey posts
       import('shiki/dist/langs/bash.mjs'),
@@ -130,7 +146,7 @@ function initHighlighter(): Promise<void> {
     ])
 
     highlighter = shikiCore.createHighlighterCoreSync({
-      themes: [themeModule.default],
+      themes: [darkTheme.default, lightTheme.default],
       langs: [
         ...langModules.map((m) => m.default),
         aiscriptGrammar.default as unknown as LanguageRegistration,
@@ -181,6 +197,10 @@ function resolveReadyLang(lang: string | null): string | null {
   return resolved
 }
 
+function shikiThemeName(): string {
+  return codeScheme === 'light' ? 'light-plus' : 'dark-plus'
+}
+
 export function highlightCode(code: string, lang: string | null): string {
   const resolved = resolveReadyLang(lang)
   if (!resolved || !highlighter || !purify) {
@@ -188,7 +208,7 @@ export function highlightCode(code: string, lang: string | null): string {
   }
   const { tokens, fg } = highlighter.codeToTokens(code, {
     lang: resolved,
-    theme: 'dark-plus',
+    theme: shikiThemeName(),
   })
   return purify.sanitize(tokensToHtml(tokens, fg), {
     ALLOWED_TAGS: ['pre', 'code', 'span'],
@@ -209,7 +229,7 @@ export function highlightCodeTokens(
   if (!resolved || !highlighter || !purify) return null
   const { tokens, fg } = highlighter.codeToTokens(code, {
     lang: resolved,
-    theme: 'dark-plus',
+    theme: shikiThemeName(),
   })
   return {
     html: purify.sanitize(tokensToInnerHtml(tokens), {

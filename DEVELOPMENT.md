@@ -723,6 +723,11 @@ const { activate, deactivate } = useMenuKeyboard({
 - 各エディタの「履歴」から編集履歴ウィンドウ (`edit-history`) を開くと、選んだスナップショットを「その編集で何が変わったか」の diff で読める (比較相手は 1 つ新しいスナップショット、無ければ現在の内容)。戻す操作は同じウィンドウから `*.revert` capability を通す
 - 種別ごとの差分 (snapshot → 全文テキスト・言語・revert 先 capability) は `src/services/editHistory.ts` に集約
 
+**コード面の明暗 (#1053):**
+- エディタ / 差分表示 / コードブロックはトークン色と面がセットなので、設定は 1 つ (`appearance.codeScheme`: `dark` / `light` / `auto`、既定は `auto` = アプリのテーマに追従)
+- 実効値は root の `data-nd-code-scheme` に出し、CSS 変数 (`--nd-code*`) がそれを見る。CodeMirror のテーマも Shiki のトークン色も同じ実効値から決まる (`useCodeScheme`)
+- Shiki はテーマごとに色クラスが変わるので、明暗のパレット CSS を両方読み込み、切替時は再描画する
+
 **適用前 diff (#981):**
 - 自己拡張系の write 確認 (`ConfirmOptions.diff`) は編集後の断片ではなく、編集前と適用後の**全文**を並べて見せる。部分編集 (追記・セクション置換・props patch) も適用後全文を確認時点で計算する (`src/services/selfEditApply.ts`)
 - 承認後は再計算せず、確認に使った全文をそのまま書き込む。確認と書込の間に元ファイルが変わっていたら書かずに中止する (`src/capabilities/stagedEdit.ts` — 「見せたものと書くものの一致」が承認 UI の意味そのもの)

@@ -8,6 +8,7 @@ import {
   watch,
 } from 'vue'
 import { useRoute } from 'vue-router'
+import { useCodeScheme } from '@/composables/useCodeScheme'
 import { useHeartbeatDaemon } from '@/composables/useHeartbeatDaemon'
 import { useKeyboard } from '@/composables/useKeyboard'
 import { initKeyboardInset } from '@/composables/useKeyboardInset'
@@ -94,6 +95,10 @@ if (isTauri) {
   const { init: initKeyboard } = useKeyboard()
   initKeyboard()
 }
+
+// コード面の明暗 (#1053) — 設定 + アプリのテーマから実効値を決めて root に
+// 出す。PiP ウィンドウも自分の document を持つので両方で mount する。
+useCodeScheme()
 
 // HEARTBEAT (#411) — App-level singleton daemon。AI カラムの有無に関係なく
 // アプリ起動中ずっと走る。manual trigger は AI 設定画面から
