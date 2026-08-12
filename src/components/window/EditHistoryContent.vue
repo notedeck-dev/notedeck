@@ -2,7 +2,11 @@
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { dispatchCapability } from '@/capabilities/dispatcher'
 import { useEditTargetText } from '@/composables/useEditTargetText'
-import { EDIT_HISTORY_SPECS, historyDiffPair } from '@/services/editHistory'
+import {
+  EDIT_HISTORY_SPECS,
+  historyActorLabel,
+  historyDiffPair,
+} from '@/services/editHistory'
 import { type HistoryEntry, listSnapshots } from '@/utils/historyFs'
 import type { HistoryKind } from '@/utils/settingsFs'
 
@@ -97,6 +101,13 @@ async function revert(index: number) {
 function formatAt(at: number): string {
   return new Date(at).toLocaleString()
 }
+
+const selectedEntry = computed(() => entries.value[selected.value])
+
+/** 本人の編集は帰属を強調しない (AI・プラグインの編集を目立たせる #1052) */
+function isSelfEdit(entry: HistoryEntry): boolean {
+  return !entry.by || entry.by.kind === 'user'
+}
 </script>
 
 <template>
@@ -127,12 +138,20 @@ function formatAt(at: number): string {
         >
           <span :class="$style.entryIndex">#{{ i }}</span>
           <span :class="$style.entryAt">{{ formatAt(entry.at) }}</span>
+          <span
+            :class="[$style.entryActor, !isSelfEdit(entry) && $style.entryActorOther]"
+          >{{ historyActorLabel(entry.by) }}</span>
+          <i v-if="entry.reason" class="ti ti-quote" :class="$style.entryReasonMark" />
           <span v-if="i === 0" :class="$style.entryTag">直前</span>
         </button>
       </div>
 
       <div v-if="diff" :class="$style.diffPanel">
         <div :class="$style.diffLabel">{{ compareLabel }}</div>
+        <div v-if="selectedEntry?.reason" :class="$style.reason">
+          <i class="ti ti-quote" />
+          <span>{{ selectedEntry.reason }}</span>
+        </div>
         <CodeDiffView
           :old-text="diff.old"
           :new-text="diff.new"
@@ -260,6 +279,41 @@ function formatAt(at: number): string {
 .entryIndex {
   font-variant-numeric: tabular-nums;
   opacity: 0.6;
+}
+
+// 帰属 (#1052): 本人の編集と AI・プラグインの編集を一覧で見分ける
+.entryActor {
+  margin-left: auto;
+  opacity: 0.6;
+}
+
+.entryActorOther {
+  color: var(--nd-accent);
+  opacity: 1;
+}
+
+.entryReasonMark {
+  font-size: 11px;
+  opacity: 0.5;
+}
+
+// 選択中の編集の理由 (#1052)。承認ダイアログで見せた文字列がそのまま残る
+.reason {
+  display: flex;
+  gap: 6px;
+  margin: 6px 14px 0;
+  padding: 6px 8px;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-buttonBg);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+
+  i {
+    flex-shrink: 0;
+    opacity: 0.5;
+  }
 }
 
 .entryAt {

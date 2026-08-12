@@ -10,6 +10,7 @@ import { useMisStoreStore } from '@/stores/misstore'
 import { useThemeStore } from '@/stores/theme'
 import type { MisskeyTheme } from '@/theme/types'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { editAttribution, REASON_PARAM } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 interface ThemeSnapshot {
@@ -222,6 +223,7 @@ export const themeCreateCapability: Command = {
         description: 'テーマ id (省略時は custom-<timestamp> で自動生成)',
         optional: true,
       },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -229,7 +231,7 @@ export const themeCreateCapability: Command = {
     },
   },
   visible: false,
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const name = typeof params?.name === 'string' ? params.name : ''
     const baseRaw = typeof params?.base === 'string' ? params.base : ''
     const props = isStringRecord(params?.props) ? params.props : null
@@ -257,6 +259,7 @@ export const themeCreateCapability: Command = {
     const installed = await store.installTheme(
       JSON.stringify(theme),
       forAccountIds,
+      editAttribution(ctx, params),
     )
     return { id: theme.id, name: theme.name, base: theme.base, installed }
   },
@@ -325,6 +328,7 @@ export const themeUpdateCapability: Command = {
           '上書きする CSS 変数 ({ key: string })。既存とマージされる',
         optional: true,
       },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -347,7 +351,11 @@ export const themeUpdateCapability: Command = {
       serializeTheme(mergeThemeUpdate(current, {})),
       () => serializeTheme(mergeThemeUpdate(current, patch)),
     )
-    const updated = await store.installTheme(text)
+    const updated = await store.installTheme(
+      text,
+      [],
+      editAttribution(ctx, params),
+    )
     return { id, updated }
   },
 }
@@ -460,6 +468,7 @@ export const themeRevertCapability: Command = {
     params: {
       id: { type: 'string', description: '対象テーマの id' },
       index: { type: 'number', description: 'snapshot index (0 = 最新)' },
+      reason: REASON_PARAM,
     },
     returns: {
       type: 'object',
@@ -488,7 +497,7 @@ export const themeRevertCapability: Command = {
       cur ? serializeTheme(mergeThemeUpdate(cur, {})) : '',
       () => serializeTheme(themeFromSnapshot(entry.snapshot)),
     )
-    await store.installTheme(text)
+    await store.installTheme(text, [], editAttribution(ctx, params))
     return { id, reverted: true, at: entry.at }
   },
 }

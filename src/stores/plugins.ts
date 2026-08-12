@@ -7,7 +7,7 @@ import {
   type SidecarItemFile,
 } from '@/services/sidecarFileCollection'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
-import { pushSnapshot } from '@/utils/historyFs'
+import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
   getStorageByPrefix,
@@ -577,7 +577,11 @@ export const usePluginsStore = defineStore('plugins', () => {
     }
   }
 
-  function updateSrc(installId: string, src: string) {
+  function updateSrc(
+    installId: string,
+    src: string,
+    attribution?: EditAttribution,
+  ) {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
     if (plugin) {
@@ -588,16 +592,21 @@ export const usePluginsStore = defineStore('plugins', () => {
       }
       // 編集前 src を history sidecar に push (fire-and-forget)。
       // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
-      // 内容が同じ保存では積まない — エディタのデバウンス自動保存で 10 件の
-      // リングを使い潰し、意味のある編集前の状態が押し出されるのを防ぐ
+      // 内容が同じ保存では積まない — エディタのデバウンス自動保存でリングを
+      // 使い潰し、意味のある編集前の状態が押し出されるのを防ぐ
       if (plugin.fileBase && plugin.src !== src) {
-        pushSnapshot('plugin', plugin.fileBase, {
-          src: plugin.src,
-          name: plugin.name,
-          version: plugin.version,
-          permissions: plugin.permissions,
-          active: plugin.active,
-        }).catch((e) => console.warn('[plugins] history push failed:', e))
+        pushSnapshot(
+          'plugin',
+          plugin.fileBase,
+          {
+            src: plugin.src,
+            name: plugin.name,
+            version: plugin.version,
+            permissions: plugin.permissions,
+            active: plugin.active,
+          },
+          attribution,
+        ).catch((e) => console.warn('[plugins] history push failed:', e))
       }
       plugin.src = src
       persist(plugin)

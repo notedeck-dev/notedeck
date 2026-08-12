@@ -5,7 +5,7 @@ import { planBuiltInSeed } from '@/services/builtInSeed'
 import { injectFrontmatterId } from '@/services/idFreeze'
 import { createSingleFileCollection } from '@/services/singleFileCollection'
 import { planStoreMovedMigration } from '@/services/storeMovedSkills'
-import { pushSnapshot } from '@/utils/historyFs'
+import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
   type ParsedSkillFile,
@@ -531,7 +531,11 @@ export const useSkillsStore = defineStore('skills', () => {
     return skill
   }
 
-  function update(id: string, patch: Partial<SkillMeta>): void {
+  function update(
+    id: string,
+    patch: Partial<SkillMeta>,
+    attribution?: EditAttribution,
+  ): void {
     ensureLoaded()
     const idx = skills.value.findIndex((s) => s.id === id)
     if (idx < 0) return
@@ -552,8 +556,8 @@ export const useSkillsStore = defineStore('skills', () => {
       updatedAt: Date.now(),
     }
     // snapshot が記録する範囲が動いたときだけ履歴に積む。内容が同じ保存で
-    // 積むと、エディタのデバウンス自動保存が 10 件のリングを使い潰し、
-    // 意味のある編集前の状態が押し出される
+    // 積むと、エディタのデバウンス自動保存がリングを使い潰し、意味のある
+    // 編集前の状態が押し出される
     const snapshotChanged =
       prevSnapshot.body !== updated.body ||
       prevSnapshot.name !== updated.name ||
@@ -573,7 +577,12 @@ export const useSkillsStore = defineStore('skills', () => {
           // 編集前 snapshot を history sidecar に push。履歴キーは対応表の
           // fileBase (未割当 = ファイル未作成なら履歴も無し)
           if (live.fileBase && snapshotChanged) {
-            await pushSnapshot('skill', live.fileBase, prevSnapshot)
+            await pushSnapshot(
+              'skill',
+              live.fileBase,
+              prevSnapshot,
+              attribution,
+            )
           }
           // 表示名の変更はファイル rename で追随 (ID 不変・主ファイル + 履歴)。
           // rename の完了を待ってから保存する (#913)
