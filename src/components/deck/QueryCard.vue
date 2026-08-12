@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { isWindowExposed } from '@/windows/exposure'
 
@@ -25,6 +26,10 @@ const props = withDefaults(
     installing?: boolean
     /** store mode: 既にプールにある */
     alreadyInstalled?: boolean
+    /** store mode: インストール済みかつストア側が更新されている (#1040) */
+    hasUpdate?: boolean
+    /** store mode: レジストリの updatedAt (更新バッジの tooltip 用) */
+    updatedAt?: string
     /** library mode: storeId 有無で「ストア由来」/「ローカル保存」バッジ表示 */
     storeId?: string
     /**
@@ -45,6 +50,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   // store
   (e: 'install'): void
+  (e: 'update'): void
   (e: 'open-detail'): void
   // library
   (e: 'edit'): void
@@ -55,6 +61,15 @@ const isStore = computed(() => props.mode === 'store')
 
 /** 編集はクエリを「作る」面なので開発者モードに従う (#1034)。導入・実行は一般側 */
 const canEdit = computed(() => isWindowExposed('column-query-editor'))
+
+// 更新の主表示は updatedAt、version は補助 (#1040)
+const updateTitle = computed(() => {
+  if (!props.updatedAt) return ''
+  const date = formatDate(props.updatedAt)
+  return props.version
+    ? `ストア更新日: ${date} / v${props.version}`
+    : `ストア更新日: ${date}`
+})
 
 function handlePrimaryClick() {
   if (isStore.value) {
@@ -99,6 +114,11 @@ function handlePrimaryClick() {
           :class="$style.incompatBadge"
           title="解釈できないため適用中のカラムは新着を停止します (編集して修正してください)"
         >評価不能</span>
+        <span
+          v-if="isStore && alreadyInstalled && hasUpdate"
+          :class="$style.updateBadge"
+          :title="updateTitle"
+        >更新あり</span>
         <span :class="$style.spacer" />
         <span v-if="version" :class="$style.version">v{{ version }}</span>
       </div>
@@ -129,7 +149,19 @@ function handlePrimaryClick() {
               <i class="ti ti-external-link" />
             </button>
             <button
-              v-if="alreadyInstalled"
+              v-if="alreadyInstalled && hasUpdate"
+              class="_button"
+              :class="$style.primaryBtn"
+              :disabled="installing"
+              :title="updateTitle"
+              @click.stop="emit('update')"
+            >
+              <i v-if="installing" class="ti ti-loader-2 nd-spin" />
+              <i v-else class="ti ti-refresh" />
+              更新
+            </button>
+            <button
+              v-else-if="alreadyInstalled"
               class="_button"
               :class="$style.installedBadge"
               disabled
@@ -332,6 +364,17 @@ function handlePrimaryClick() {
   background: color-mix(in srgb, var(--nd-love) 15%, transparent);
   color: var(--nd-love);
   letter-spacing: 0.02em;
+}
+
+/* 更新ありバッジ (#1040)。originBadge と同型の accent チップ */
+.updateBadge {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
+  color: var(--nd-accent);
+  line-height: 1.3;
 }
 
 /* 逐次適用 (#783 Phase 2)。効いてはいるので警告色にとどめる */

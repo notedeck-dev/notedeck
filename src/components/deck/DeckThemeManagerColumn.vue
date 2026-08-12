@@ -379,6 +379,16 @@ async function handleStoreInstall(entry: StoreThemeEntry) {
   }
 }
 
+async function handleStoreUpdate(entry: StoreThemeEntry) {
+  installError.value = null
+  try {
+    // 更新はスコープ (installedFor) に触れない — 既存の適用範囲を維持する
+    await misStore.updateTheme(entry)
+  } catch (e) {
+    installError.value = e instanceof Error ? e.message : '更新失敗'
+  }
+}
+
 function openNewTheme() {
   windowsStore.open('themeEditor', {
     initialAccountIds: contextAccountIds(),
@@ -542,7 +552,11 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
               source="misstore"
               :installing="misStore.installingTheme === entry.id"
               :already-installed="misStore.isThemeInstalled(entry)"
+              :has-update="misStore.hasThemeUpdate(entry)"
+              :updated-at="entry.updatedAt"
+              :version="entry.version"
               @install="handleStoreInstall(entry)"
+              @update="handleStoreUpdate(entry)"
               @open-detail="openSafeUrl(getThemeDetailUrl(entry.id))"
             />
           </div>

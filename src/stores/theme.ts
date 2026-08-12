@@ -442,6 +442,28 @@ export const useThemeStore = defineStore('theme', () => {
     return undefined
   }
 
+  /**
+   * 更新検知の基準記録 (#1040)。$notedeck.storeSha512 未記録のストア由来
+   * テーマへ registry 現行値を無通知で記録する。本体 (props) には触れない
+   * (履歴 push もしない)。
+   */
+  function recordStoreBaseline(
+    themeId: string,
+    patch: { storeSha512: string; storeVersion: string },
+  ): void {
+    const theme = installedThemes.value.find((t) => t.id === themeId)
+    if (!theme?.$notedeck?.storeId) return
+    const updated: MisskeyTheme = {
+      ...theme,
+      $notedeck: { ...theme.$notedeck, ...patch },
+    }
+    installedThemes.value = installedThemes.value.map((t) =>
+      t.id === themeId ? updated : t,
+    )
+    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+    persistThemeFile(updated)
+  }
+
   function renameTheme(themeId: string, newName: string): void {
     const theme = installedThemes.value.find((t) => t.id === themeId)
     if (!theme) return
@@ -787,6 +809,7 @@ export const useThemeStore = defineStore('theme', () => {
     installTheme,
     removeTheme,
     unlinkAccountFromTheme,
+    recordStoreBaseline,
     renameTheme,
     selectTheme,
     applyAccountTheme,

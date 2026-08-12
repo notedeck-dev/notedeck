@@ -251,6 +251,15 @@ async function handleStoreInstall(entry: StorePluginEntry) {
   }
 }
 
+async function handleStoreUpdate(entry: StorePluginEntry) {
+  installError.value = null
+  try {
+    await misStore.updatePlugin(entry)
+  } catch (e) {
+    installError.value = e instanceof Error ? e.message : '更新失敗'
+  }
+}
+
 /** ストアエントリがこのカラムのスコープに参加済みか (「インストール済み」表示基準)。 */
 function isEntryInScope(entry: StorePluginEntry): boolean {
   const plugin = pluginsStore.plugins.find((p) => p.storeId === entry.id)
@@ -530,12 +539,15 @@ async function deleteFromLibrary(plugin: PluginMeta) {
             :category-label="entry.category ? PLUGIN_CATEGORY_LABELS[entry.category] : undefined"
             :installing="misStore.installing === entry.id"
             :already-installed="isEntryInScope(entry)"
+            :has-update="misStore.hasPluginUpdate(entry)"
+            :updated-at="entry.updatedAt"
             :capabilities="entry.capabilities"
             :capability-ok="capabilityChecks[entry.id]?.ok"
             :capability-badge="capabilityChecks[entry.id]?.badge"
             :capability-reason="capabilityChecks[entry.id]?.reason"
             :icon-url="entry.iconUrl"
             @install="handleStoreInstall(entry)"
+            @update="handleStoreUpdate(entry)"
             @open-detail="handleOpenStoreDetail(entry)"
           />
 

@@ -653,6 +653,23 @@ export const usePluginsStore = defineStore('plugins', () => {
     persist(plugin)
   }
 
+  /**
+   * 更新検知の基準記録 (#1040)。storeSha512 未記録のストア由来プラグインへ
+   * registry 現行値を無通知で記録する。本体・ローカル値には触れない
+   * (履歴 push もしない)。
+   */
+  function recordStoreBaseline(
+    installId: string,
+    patch: { storeSha512: string; storeVersion: string },
+  ): void {
+    ensureLoaded()
+    const plugin = plugins.value.find((p) => p.installId === installId)
+    if (!plugin) return
+    plugin.storeSha512 = patch.storeSha512
+    plugin.storeVersion = patch.storeVersion
+    persist(plugin)
+  }
+
   function renamePlugin(installId: string, newName: string) {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
@@ -697,6 +714,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     unlinkScope,
     migrateScopes,
     applyStoreUpdate,
+    recordStoreBaseline,
     renamePlugin,
     setActive,
     updateConfigData,

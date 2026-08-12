@@ -427,6 +427,23 @@ export const useWidgetsStore = defineStore('widgets', () => {
     return widget
   }
 
+  /**
+   * 更新検知の基準記録 (#1040)。storeSha512 未記録のストア由来 widget へ
+   * registry 現行値を無通知で記録する。本体・ローカル値・updatedAt には
+   * 触れない (履歴 push もしない)。
+   */
+  function recordStoreBaseline(
+    installId: string,
+    patch: { storeSha512: string; storeVersion: string },
+  ): void {
+    ensureLoaded()
+    const widget = widgets.value.find((w) => w.installId === installId)
+    if (!widget) return
+    widget.storeSha512 = patch.storeSha512
+    widget.storeVersion = patch.storeVersion
+    persist(widget)
+  }
+
   function setStoreId(installId: string, storeId: string | undefined) {
     ensureLoaded()
     const widget = widgets.value.find((w) => w.installId === installId)
@@ -473,6 +490,7 @@ export const useWidgetsStore = defineStore('widgets', () => {
     updateSrc,
     setAutoRun,
     applyStoreUpdate,
+    recordStoreBaseline,
     setStoreId,
     renameWidget,
     getWidget,

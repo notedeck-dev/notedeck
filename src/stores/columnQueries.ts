@@ -294,6 +294,23 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
   }
 
   /**
+   * 更新検知の基準記録 (#1040)。storeSha512 未記録のストア由来クエリへ
+   * registry 現行値を無通知で記録する。本体・ローカル値・updatedAt には
+   * 触れない。
+   */
+  async function recordStoreBaseline(
+    id: string,
+    patch: { storeSha512: string; storeVersion: string },
+  ): Promise<void> {
+    ensureLoaded()
+    const prev = queries.value.find((q) => q.id === id)
+    if (!prev) return
+    const next: NamedQueryMeta = { ...prev, ...patch }
+    queries.value = queries.value.map((q) => (q.id === id ? next : q))
+    await persist(next)
+  }
+
+  /**
    * クエリを削除する。削除を取り消す undo を返す (#988 — skill / widget と同じ
    * 「confirm → 削除 → 元に戻すトースト」に揃えるため)。未知の id なら undefined。
    * カラム側の参照 (noteQueryRefs) は削除時に剥がしていないので、undo で復活
@@ -348,6 +365,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     createQuery,
     updateQuery,
     applyStoreUpdate,
+    recordStoreBaseline,
     removeQuery,
     refCountByQueryId,
   }
