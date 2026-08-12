@@ -1095,6 +1095,7 @@ function onKeydown(e: KeyboardEvent) {
                 </div>
                 <div
                   v-else-if="msg.role === 'assistant'"
+                  :key="`md-${msg.id}-${highlighterLoaded}`"
                   :class="$style.markdownContent"
                   v-html="renderAssistant(msg.content)"
                   @click="onAssistantContentClick"
@@ -1668,10 +1669,15 @@ function onKeydown(e: KeyboardEvent) {
     margin: 0.5em 0;
     padding: 8px 10px;
     padding-right: 28px;
-    background: var(--nd-base);
     border-radius: var(--nd-radius-sm);
     overflow-x: auto;
     font-size: 0.85em;
+  }
+  // ハイライト済みの塊は dark-plus のトークン色前提なので、背景も
+  // shiki 側 (assets/shiki-dark-plus.css) に譲る。ライトテーマで
+  // トークン色が潰れるのを防ぐ
+  :global(pre:not(.shiki)) {
+    background: var(--nd-base);
   }
   :global(pre code) {
     font-family: var(--nd-font-mono);

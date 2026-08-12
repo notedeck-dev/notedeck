@@ -25,6 +25,8 @@ const lazyLangLoaders: Record<
   () => Promise<{ default: LanguageRegistration[] }>
 > = {
   c: () => import('shiki/dist/langs/c.mjs'),
+  // AI が編集内容を ```diff で見せることがある (#981)
+  diff: () => import('shiki/dist/langs/diff.mjs'),
   cpp: () => import('shiki/dist/langs/cpp.mjs'),
   go: () => import('shiki/dist/langs/go.mjs'),
   java: () => import('shiki/dist/langs/java.mjs'),
@@ -52,8 +54,16 @@ function colorToClass(color: string): string {
 
 function tokensToHtml(tokens: ThemedToken[][], fg?: string): string {
   const fgClass = fg ? ` ${colorToClass(fg)}` : ''
+  return (
+    `<pre class="shiki${fgClass}"><code>` +
+    tokensToInnerHtml(tokens) +
+    '</code></pre>'
+  )
+}
 
-  let html = `<pre class="shiki${fgClass}"><code>`
+/** トークン列を span 列だけの HTML にする (pre / code は呼び出し側の持ち物)。 */
+function tokensToInnerHtml(tokens: ThemedToken[][]): string {
+  let html = ''
   for (let i = 0; i < tokens.length; i++) {
     if (i > 0) html += '\n'
     const line = tokens[i]
@@ -78,7 +88,6 @@ function tokensToHtml(tokens: ThemedToken[][], fg?: string): string {
       }
     }
   }
-  html += '</code></pre>'
   return html
 }
 
@@ -141,7 +150,11 @@ async function loadLazyLang(lang: string): Promise<void> {
   }
 }
 
-export function highlightCode(code: string, lang: string | null): string {
+/**
+ * ハイライト可能なら解決済み言語名を返す。不可なら null を返し、必要な
+ * 初期化 / 遅延ロードを走らせる (完了後は highlighterLoaded で再描画される)。
+ */
+function resolveReadyLang(lang: string | null): string | null {
   const resolved = lang ? (langAliases[lang] ?? lang) : null
   if (
     !resolved ||
@@ -153,6 +166,14 @@ export function highlightCode(code: string, lang: string | null): string {
     if (resolved && highlighter && purify && lazyLangLoaders[resolved]) {
       loadLazyLang(resolved)
     }
+    return null
+  }
+  return resolved
+}
+
+export function highlightCode(code: string, lang: string | null): string {
+  const resolved = resolveReadyLang(lang)
+  if (!resolved || !highlighter || !purify) {
     return `<pre><code>${escapeHtml(code)}</code></pre>`
   }
   const { tokens, fg } = highlighter.codeToTokens(code, {
@@ -163,4 +184,28 @@ export function highlightCode(code: string, lang: string | null): string {
     ALLOWED_TAGS: ['pre', 'code', 'span'],
     ALLOWED_ATTR: ['class'],
   })
+}
+
+/**
+ * ハイライト済みのトークン HTML だけを返す (pre / code は呼び出し側が持つ)。
+ * 独自の pre 構造を持つ描画 (AI メッセージの markdown — コピーボタン同居) から
+ * 使う。ハイライトできないときは null (= 呼び出し側が素のエスケープで出す)。
+ */
+export function highlightCodeTokens(
+  code: string,
+  lang: string | null,
+): { html: string; fgClass: string } | null {
+  const resolved = resolveReadyLang(lang)
+  if (!resolved || !highlighter || !purify) return null
+  const { tokens, fg } = highlighter.codeToTokens(code, {
+    lang: resolved,
+    theme: 'dark-plus',
+  })
+  return {
+    html: purify.sanitize(tokensToInnerHtml(tokens), {
+      ALLOWED_TAGS: ['span'],
+      ALLOWED_ATTR: ['class'],
+    }),
+    fgClass: fg ? colorToClass(fg) : '',
+  }
 }
