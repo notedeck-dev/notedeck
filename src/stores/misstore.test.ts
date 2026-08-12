@@ -549,6 +549,96 @@ describe('installPlugin', () => {
     ).rejects.toThrow(/メタデータの解析に失敗/)
   })
 
+  it('既存への追加インストールで権限が拡大するなら再同意を取る (#1040)', async () => {
+    const store = useMisStoreStore()
+    const newSrc = '/* v2 */'
+    h.pluginsStore.plugins = [
+      {
+        installId: 'p1',
+        storeId: 'ent-plugin',
+        name: 'My Plugin',
+        src: '/* v1 */',
+        permissions: ['read:account'],
+        storeSha512: 'old-sha',
+      },
+    ]
+    h.parsePluginMeta.mockReturnValue({
+      ...meta,
+      permissions: ['read:account', 'write:notes'],
+    })
+    fetchMock.mockResolvedValue(okText(newSrc))
+    await store.installPlugin(pluginEntry({ sha512: sha512Hex(newSrc) }), {
+      kind: 'global',
+    })
+    const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(opts.message).toContain('新しい権限: write:notes')
+    expect(opts.type).toBe('warning')
+    expect(h.pluginsStore.applyStoreUpdate).toHaveBeenCalledWith(
+      'p1',
+      expect.objectContaining({
+        src: newSrc,
+        permissions: ['read:account', 'write:notes'],
+      }),
+    )
+  })
+
+  it('権限拡大の再同意を断ったら本体・権限は据え置きで scope だけ足す', async () => {
+    const store = useMisStoreStore()
+    const newSrc = '/* v2 */'
+    h.pluginsStore.plugins = [
+      {
+        installId: 'p1',
+        storeId: 'ent-plugin',
+        name: 'My Plugin',
+        src: '/* v1 */',
+        permissions: ['read:account'],
+        storeSha512: 'old-sha',
+      },
+    ]
+    h.parsePluginMeta.mockReturnValue({
+      ...meta,
+      permissions: ['read:account', 'write:notes'],
+    })
+    fetchMock.mockResolvedValue(okText(newSrc))
+    h.confirm.mockResolvedValueOnce(false)
+    await store.installPlugin(pluginEntry({ sha512: sha512Hex(newSrc) }), {
+      kind: 'global',
+    })
+    expect(h.pluginsStore.applyStoreUpdate).not.toHaveBeenCalled()
+    expect(h.pluginsStore.linkScope).toHaveBeenCalledWith('p1', {
+      kind: 'global',
+    })
+  })
+
+  it('ソースが変わっていなければ scope のリンクだけ行う (本体・権限を触らない)', async () => {
+    const store = useMisStoreStore()
+    h.pluginsStore.plugins = [
+      {
+        installId: 'p1',
+        storeId: 'ent-plugin',
+        name: 'My Plugin',
+        src: source,
+        permissions: ['read:account'],
+        storeSha512: sha512Hex(source),
+      },
+    ]
+    h.parsePluginMeta.mockReturnValue({
+      ...meta,
+      permissions: ['read:account', 'write:notes'],
+    })
+    fetchMock.mockResolvedValue(okText(source))
+    await store.installPlugin(pluginEntry({ sha512: sha512Hex(source) }), {
+      kind: 'account',
+      key: 'yami.ski:u1',
+    })
+    expect(h.confirm).not.toHaveBeenCalled()
+    expect(h.pluginsStore.applyStoreUpdate).not.toHaveBeenCalled()
+    expect(h.pluginsStore.linkScope).toHaveBeenCalledWith('p1', {
+      kind: 'account',
+      key: 'yami.ski:u1',
+    })
+  })
+
   it('isInstalled は storeId のみで照合する (名前一致では真にならない #913)', () => {
     const store = useMisStoreStore()
     h.pluginsStore.plugins = [{ installId: 'p1', storeId: 'ent-plugin' }]

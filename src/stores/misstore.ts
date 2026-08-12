@@ -1,6 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
-import { launchPlugin, parsePluginMeta } from '@/aiscript/plugin-api'
+import {
+  launchPlugin,
+  type ParsedPluginMeta,
+  parsePluginMeta,
+} from '@/aiscript/plugin-api'
 import { casefold, resolveAvailable } from '@/services/settingsSlug'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
@@ -738,17 +742,20 @@ export const useMisStoreStore = defineStore('misstore', () => {
       }
 
       if (existing) {
-        pluginsStore.applyStoreUpdate(existing.installId, {
-          src: source,
-          version: meta.version,
-          author: meta.author,
-          description: meta.description,
-          permissions: meta.permissions,
-          config: meta.config,
-          iconUrl: e.iconUrl,
-          storeSha512: hash,
-          storeVersion: e.version,
-        })
+        // 追加インストール (別スコープ) でもソースが変われば中身は更新になる。
+        // 権限が拡大するなら updatePlugin と同じ再同意を通す (#1040 —
+        // この経路を無確認にすると再同意の抜け穴になる)。
+        // sha 一致 = 中身が同じなら本体・権限には触れない
+        if (existing.storeSha512 !== hash) {
+          await confirmPluginUpdate(
+            existing,
+            { source, hash, entry: e },
+            meta,
+            { alwaysConfirm: false },
+          )
+        }
+        // 再同意を断られても「このスコープへ入れる」操作自体は成立させる
+        // (中身は既存のまま)
         pluginsStore.linkScope(existing.installId, scope)
         return
       }
@@ -992,25 +999,27 @@ export const useMisStoreStore = defineStore('misstore', () => {
     }
   }
 
-  async function updatePlugin(entry: StorePluginEntry): Promise<boolean> {
-    const pluginsStore = usePluginsStore()
-    const existing = pluginsStore.plugins.find((p) => p.storeId === entry.id)
-    if (!existing) return false
-    installing.value = entry.id
-    try {
-      const {
-        source,
-        hash,
-        entry: e,
-      } = await fetchVerifiedSource(entry, refetchPluginEntry(entry.id))
-      const meta = parsePluginMeta(source)
-      if (!meta) {
-        throw new Error('プラグインメタデータの解析に失敗しました')
-      }
-      // 再同意 (#1040): permissions が拡大する更新 (新規権限の出現) は明示する。
-      // 既存側の記録が無いなど比較できない場合は拡大側に倒す (before = 空集合)
-      const before = new Set(existing.permissions ?? [])
-      const added = (meta.permissions ?? []).filter((p) => !before.has(p))
+  /**
+   * 取得済みソースを既存プラグインへ適用する (#1040)。
+   * installPlugin の既存分岐と updatePlugin の共用点。
+   *
+   * 再同意: permissions が拡大する更新 (新規権限の出現) は新しい権限を明示して
+   * 確認する。既存側の記録が無いなど比較できない場合は拡大側に倒す
+   * (before = 空集合)。`alwaysConfirm` = 更新操作 (差分の確認自体が目的) は
+   * 権限が変わらなくても確認する。
+   *
+   * @returns 適用したら true / ユーザーが拒否したら false
+   */
+  async function confirmPluginUpdate(
+    existing: PluginMeta,
+    fetched: { source: string; hash: string; entry: StorePluginEntry },
+    meta: ParsedPluginMeta,
+    opts: { alwaysConfirm: boolean },
+  ): Promise<boolean> {
+    const { source, hash, entry: e } = fetched
+    const before = new Set(existing.permissions ?? [])
+    const added = (meta.permissions ?? []).filter((p) => !before.has(p))
+    if (opts.alwaysConfirm || added.length > 0) {
       let message = updateConfirmMessage(existing.name || e.name, e)
       if (added.length > 0) {
         message += `\n新しい権限: ${added.join(', ')}`
@@ -1023,19 +1032,39 @@ export const useMisStoreStore = defineStore('misstore', () => {
         diff: { old: existing.src, new: source, language: 'aiscript' },
       })
       if (!ok) return false
+    }
+    usePluginsStore().applyStoreUpdate(existing.installId, {
+      src: source,
+      version: meta.version,
+      author: meta.author,
+      description: meta.description,
+      permissions: meta.permissions,
+      config: meta.config,
+      iconUrl: e.iconUrl,
+      storeSha512: hash,
+      storeVersion: e.version,
+    })
+    return true
+  }
+
+  async function updatePlugin(entry: StorePluginEntry): Promise<boolean> {
+    const pluginsStore = usePluginsStore()
+    const existing = pluginsStore.plugins.find((p) => p.storeId === entry.id)
+    if (!existing) return false
+    installing.value = entry.id
+    try {
+      const fetched = await fetchVerifiedSource(
+        entry,
+        refetchPluginEntry(entry.id),
+      )
+      const meta = parsePluginMeta(fetched.source)
+      if (!meta) {
+        throw new Error('プラグインメタデータの解析に失敗しました')
+      }
       // 更新はスコープに触れない (linkScope しない — 有効範囲はローカル値)
-      pluginsStore.applyStoreUpdate(existing.installId, {
-        src: source,
-        version: meta.version,
-        author: meta.author,
-        description: meta.description,
-        permissions: meta.permissions,
-        config: meta.config,
-        iconUrl: e.iconUrl,
-        storeSha512: hash,
-        storeVersion: e.version,
+      return await confirmPluginUpdate(existing, fetched, meta, {
+        alwaysConfirm: true,
       })
-      return true
     } finally {
       installing.value = null
     }
