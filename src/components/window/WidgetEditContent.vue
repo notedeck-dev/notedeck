@@ -3,6 +3,7 @@ import { type Ast, type Interpreter, Parser } from '@syuilo/aiscript'
 import {
   computed,
   defineAsyncComponent,
+  nextTick,
   onBeforeUnmount,
   onMounted,
   ref,
@@ -101,6 +102,7 @@ function flushPendingSave() {
 }
 watch(code, (val) => {
   if (!widget.value) return
+  if (syncingFromStore) return
   dirty.value = true
   saved.value = false
   if (saveTimer) clearTimeout(saveTimer)
@@ -110,6 +112,25 @@ watch(code, (val) => {
   }, 500)
 })
 onBeforeUnmount(flushPendingSave)
+
+/**
+ * 外部からの src 変更 (履歴からの revert / AI 編集 / 外部エディタ) を編集
+ * バッファへ取り込む。無いと表示が開いた瞬間のままで、次の打鍵で古い内容が
+ * 書き戻される。未保存の編集があるときはユーザーのバッファを優先する。
+ */
+let syncingFromStore = false
+watch(
+  () => widget.value?.src,
+  (src) => {
+    if (src === undefined || src === code.value) return
+    if (dirty.value) return
+    syncingFromStore = true
+    code.value = src
+    void nextTick(() => {
+      syncingFromStore = false
+    })
+  },
+)
 
 /**
  * 自動保存の状態。デバウンス保存なので「いま保存されているか」が

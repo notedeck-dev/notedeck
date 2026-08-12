@@ -442,6 +442,28 @@ function loadFromInstalled(theme: MisskeyTheme) {
   saveSnapshot()
 }
 
+/**
+ * 外部からの変更 (履歴からの revert / AI の theme.update) を編集中の値へ
+ * 取り込む。未保存の変更があるときはユーザーの編集を優先する。
+ */
+let lastSyncedThemeKey = ''
+watch(
+  () =>
+    editingThemeId.value
+      ? themeStore.installedThemes.find((t) => t.id === editingThemeId.value)
+      : undefined,
+  (theme) => {
+    if (!theme) return
+    // 自分の保存でも installedThemes は動くので、中身が同じなら何もしない
+    const key = JSON.stringify([theme.name, theme.base, theme.props])
+    if (key === lastSyncedThemeKey) return
+    lastSyncedThemeKey = key
+    if (hasChangesFromSnapshot.value) return
+    loadFromInstalled(theme)
+    if (tab.value === 'code') syncCodeFromVisual()
+  },
+)
+
 // Delete installed theme
 // 他の配布物 (skill / widget / plugin / query) と同じく confirm → 元に戻せる
 // トースト (#988)

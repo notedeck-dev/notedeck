@@ -149,6 +149,21 @@ watch(tab, (t) => {
   }
 })
 
+/**
+ * 外部からの src 変更 (履歴からの revert / AI 編集 / 外部エディタ) を編集
+ * バッファへ取り込む。未保存の編集があるときはユーザーのバッファを優先する
+ * (保存すればユーザーの内容で上書きされる = 本人の明示操作)。
+ */
+watch(
+  () => plugin.value?.src,
+  (src) => {
+    if (src === undefined || src === editingCode.value) return
+    if (codeModified.value) return
+    editingCode.value = src
+    codeModified.value = false
+  },
+)
+
 async function saveCode() {
   if (!plugin.value) return
   pluginsStore.updateSrc(plugin.value.installId, editingCode.value)
