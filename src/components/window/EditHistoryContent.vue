@@ -7,6 +7,7 @@ import {
   historyActorLabel,
   historyDiffPair,
 } from '@/services/editHistory'
+import { formatAbsoluteTime } from '@/utils/formatTime'
 import { type HistoryEntry, listSnapshots } from '@/utils/historyFs'
 import type { HistoryKind } from '@/utils/settingsFs'
 
@@ -98,10 +99,6 @@ async function revert(index: number) {
   if (result.ok) await reload()
 }
 
-function formatAt(at: number): string {
-  return new Date(at).toLocaleString()
-}
-
 const selectedEntry = computed(() => entries.value[selected.value])
 
 /** 本人の編集は帰属を強調しない (AI・プラグインの編集を目立たせる #1052) */
@@ -137,12 +134,12 @@ function isSelfEdit(entry: HistoryEntry): boolean {
           @click="selected = i"
         >
           <span :class="$style.entryIndex">#{{ i }}</span>
-          <span :class="$style.entryAt">{{ formatAt(entry.at) }}</span>
+          <span :class="$style.entryReason">{{ entry.reason }}</span>
+          <span v-if="i === 0" :class="$style.entryTag">直前</span>
           <span
             :class="[$style.entryActor, !isSelfEdit(entry) && $style.entryActorOther]"
           >{{ historyActorLabel(entry.by) }}</span>
-          <i v-if="entry.reason" class="ti ti-quote" :class="$style.entryReasonMark" />
-          <span v-if="i === 0" :class="$style.entryTag">直前</span>
+          <span :class="$style.entryAt">{{ formatAbsoluteTime(entry.at) }}</span>
         </button>
       </div>
 
@@ -268,7 +265,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 }
 
 .entryTag {
-  margin-left: auto;
+  flex-shrink: 0;
   padding: 0 6px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
@@ -277,24 +274,29 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 }
 
 .entryIndex {
+  flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   opacity: 0.6;
 }
 
+// 理由 (#1052): git のコミット履歴と同じく、行の主役は「なぜ変えたか」。
+// 理由が付くのは AI の編集だけなので、本人の手編集では空のまま列だけが残る
+.entryReason {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 // 帰属 (#1052): 本人の編集と AI・プラグインの編集を一覧で見分ける
 .entryActor {
-  margin-left: auto;
+  flex-shrink: 0;
   opacity: 0.6;
 }
 
 .entryActorOther {
   color: var(--nd-accent);
   opacity: 1;
-}
-
-.entryReasonMark {
-  font-size: 11px;
-  opacity: 0.5;
 }
 
 // 選択中の編集の理由 (#1052)。承認ダイアログで見せた文字列がそのまま残る
@@ -317,7 +319,9 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 }
 
 .entryAt {
+  flex-shrink: 0;
   font-variant-numeric: tabular-nums;
+  opacity: 0.6;
 }
 
 .diffPanel {
