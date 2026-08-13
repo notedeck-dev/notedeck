@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref, useTemplateRef } from 'vue'
 import { isAllAccounts } from '@/columns/accountScope'
+import AccountPickerSheet from '@/components/common/AccountPickerSheet.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import { useAccountPicker } from '@/composables/useAccountPicker'
 import { useColumnTheme } from '@/composables/useColumnTheme'
@@ -195,7 +196,13 @@ async function openLibraryWidgetEditor(widget: WidgetMeta) {
 }
 
 const { confirm } = useConfirm()
-const { pickAccount, hasPickableAccount } = useAccountPicker()
+const {
+  pickAccount,
+  pickableAccounts,
+  hasPickableAccount,
+  sheetPurpose,
+  resolveSheet,
+} = useAccountPicker()
 
 /** ライブラリから widget 本体を削除 (コードも消える)。
  *  本体削除前に全 widget カラムから参照を剥がして dangling id を残さない
@@ -481,6 +488,16 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
       </template>
     </div>
   </DeckColumn>
+
+  <!-- 実行アカウントの選択 (コンパクト表示のみ。デスクトップはコマンドパレット) -->
+  <AccountPickerSheet
+    :show="sheetPurpose !== null"
+    :accounts="pickableAccounts"
+    title="アカウントを選択"
+    :description="sheetPurpose ?? undefined"
+    @select="resolveSheet($event)"
+    @close="resolveSheet(null)"
+  />
 </template>
 
 <style lang="scss" module>

@@ -8,23 +8,23 @@
  *
  * 選ばせ方はレイアウトで変える。デスクトップは既に「候補を絞って選ぶ」場所が
  * コマンドパレットにあるのでそれに乗せ、コンパクト表示ではパレットが画面を
- * 占有してしまうためダイアログを使う。どちらもアバターにサーバーバッジを出す。
+ * 占有してしまうためボトムシート (AccountPickerSheet) を使う。どちらもアバターに
+ * サーバーバッジを出す。
+ *
+ * シートは呼び出し側のテンプレートに置く — `sheetPurpose` が非 null の間だけ
+ * 開き、選択 / キャンセルを `resolveSheet` に渡すと pickAccount が解決する。
  */
 
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useCommandStore } from '@/commands/registry'
 import {
   getAccountAvatarUrl,
   getAccountLabel,
   useAccountsStore,
 } from '@/stores/accounts'
-import { useConfirm } from '@/stores/confirm'
 import { useIsCompactLayout } from '@/stores/ui'
 
-const CANCEL = '__cancel'
-
 export function useAccountPicker() {
-  const { confirmWithAction } = useConfirm()
   const commandStore = useCommandStore()
   const isCompact = useIsCompactLayout()
 
@@ -51,25 +51,26 @@ export function useAccountPicker() {
     if (!only) return null
     if (accounts.length === 1) return only.id
 
-    if (isCompact.value) return pickViaDialog(purpose)
+    if (isCompact.value) return pickViaSheet(purpose)
     return pickViaPalette(purpose)
   }
 
-  function pickViaDialog(purpose: string): Promise<string | null> {
-    return confirmWithAction({
-      title: 'アカウントを選択',
-      message: purpose,
-      icon: 'none',
-      actions: [
-        ...pickableAccounts.value.map((a) => ({
-          value: a.id,
-          label: `@${a.username}`,
-          description: a.host,
-          avatar: { src: getAccountAvatarUrl(a), host: a.host },
-        })),
-        { value: CANCEL, label: 'キャンセル', cancel: true },
-      ],
-    }).then((action) => (action && action !== CANCEL ? action : null))
+  /** シートを開いている間の目的文 (= 開いているかどうか) */
+  const sheetPurpose = ref<string | null>(null)
+  let sheetResolve: ((accountId: string | null) => void) | null = null
+
+  function pickViaSheet(purpose: string): Promise<string | null> {
+    return new Promise((resolve) => {
+      sheetResolve = resolve
+      sheetPurpose.value = purpose
+    })
+  }
+
+  /** シートの選択 / キャンセルを pickAccount 側へ返す */
+  function resolveSheet(accountId: string | null) {
+    sheetPurpose.value = null
+    sheetResolve?.(accountId)
+    sheetResolve = null
   }
 
   function pickViaPalette(purpose: string): Promise<string | null> {
@@ -108,5 +109,11 @@ export function useAccountPicker() {
     })
   }
 
-  return { pickAccount, pickableAccounts, hasPickableAccount }
+  return {
+    pickAccount,
+    pickableAccounts,
+    hasPickableAccount,
+    sheetPurpose,
+    resolveSheet,
+  }
 }

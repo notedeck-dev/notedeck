@@ -26,6 +26,7 @@ import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { getNoteShareUrl } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { isWindowExposed } from '@/windows/exposure'
+import AccountPickerSheet from './AccountPickerSheet.vue'
 import PopupMenu from './PopupMenu.vue'
 
 const props = defineProps<{
@@ -58,27 +59,20 @@ const popupMenuRef = ref<InstanceType<typeof PopupMenu>>()
 const showDeleteConfirm = ref(false)
 const showDeleteAndEditConfirm = ref(false)
 const showReportForm = ref(false)
-// compact ではコマンドパレットが無いので、シート内で 2 段選択する (#627)
+// compact ではコマンドパレットが無いので、アカウント選択シートで 2 段選択する
+// (#627 / #1018 — 選ばせ方はナビバーのアカウント一覧に揃える)
 const showActAs = ref(false)
 const actAsAccountId = ref<string | null>(null)
 const reportComment = ref('')
 const localIsFavorited = ref(props.isFavorited)
 const localIsPinned = ref(props.isPinned)
 
-type MenuView =
-  | 'main'
-  | 'deleteConfirm'
-  | 'deleteAndEditConfirm'
-  | 'reportForm'
-  | 'actAsAccounts'
-  | 'actAsOperations'
+type MenuView = 'main' | 'deleteConfirm' | 'deleteAndEditConfirm' | 'reportForm'
 
 const currentView = computed<MenuView>(() => {
   if (showDeleteConfirm.value) return 'deleteConfirm'
   if (showDeleteAndEditConfirm.value) return 'deleteAndEditConfirm'
   if (showReportForm.value) return 'reportForm'
-  if (showActAs.value)
-    return actAsAccountId.value ? 'actAsOperations' : 'actAsAccounts'
   return 'main'
 })
 
@@ -114,9 +108,22 @@ function resetSubViews() {
   showDeleteConfirm.value = false
   showDeleteAndEditConfirm.value = false
   showReportForm.value = false
+  reportComment.value = ''
+}
+
+/** アカウント選択シートを閉じる (メニュー本体は既に閉じている) */
+function closeActAs() {
   showActAs.value = false
   actAsAccountId.value = null
-  reportComment.value = ''
+}
+
+function actAs(op: 'reactAs' | 'renoteAs' | 'quoteAs') {
+  const accountId = actAsAccountId.value
+  closeActAs()
+  if (!accountId) return
+  if (op === 'reactAs') emit('reactAs', accountId)
+  else if (op === 'renoteAs') emit('renoteAs', accountId)
+  else emit('quoteAs', accountId)
 }
 
 function backToMain() {
@@ -267,10 +274,14 @@ function actAsOperations(accountId: string) {
 }
 
 function openActAs() {
-  // compact はコマンドパレットが無い (TitleBar ごと非表示) ので
-  // ボトムシートの中で同じ 2 段選択を再現する
+  // compact はコマンドパレットが無い (TitleBar ごと非表示) ので、共通の
+  // アカウント選択シートで同じ 2 段選択を再現する。メニュー自身もシートなので、
+  // 閉じ切ってから開く (dialog が重ならないように)
   if (isCompact.value) {
-    showActAs.value = true
+    close()
+    setTimeout(() => {
+      showActAs.value = true
+    }, 200)
     return
   }
   close()
@@ -369,45 +380,6 @@ defineExpose({ open })
     </template>
 
 
-
-    <!-- 別のアカウントで… (compact のみ): アカウント選択 -->
-    <template v-else-if="currentView === 'actAsAccounts'">
-      <div class="_popupConfirmText">別のアカウントで…</div>
-      <button
-        v-for="acc in actAsCandidates"
-        :key="acc.id"
-        class="_popupItem"
-        @click="actAsAccountId = acc.id"
-      >
-        <img :src="proxyThumbUrl(getAccountAvatarUrl(acc), 18)" :class="$style.actAsAvatar" alt="" />
-        {{ getAccountLabel(acc) }}
-      </button>
-      <button class="_popupItem" @click="backToMain">
-        <i class="ti ti-arrow-left" />
-        戻る
-      </button>
-    </template>
-
-    <!-- 別のアカウントで… (compact のみ): 操作選択 -->
-    <template v-else-if="currentView === 'actAsOperations'">
-      <div class="_popupConfirmText">{{ actAsAccountLabel }}</div>
-      <button class="_popupItem" @click="emit('reactAs', actAsAccountId!); close()">
-        <i class="ti ti-mood-plus" />
-        リアクション
-      </button>
-      <button class="_popupItem" @click="emit('renoteAs', actAsAccountId!); close()">
-        <i class="ti ti-repeat" />
-        リノート
-      </button>
-      <button class="_popupItem" @click="emit('quoteAs', actAsAccountId!); close()">
-        <i class="ti ti-quote" />
-        引用
-      </button>
-      <button class="_popupItem" @click="actAsAccountId = null">
-        <i class="ti ti-arrow-left" />
-        戻る
-      </button>
-    </template>
 
     <!-- Report form -->
     <template v-else-if="currentView === 'reportForm'">
@@ -516,15 +488,35 @@ defineExpose({ open })
       </template>
     </template>
   </PopupMenu>
-</template>
 
-<style lang="scss" module>
-// 「別のアカウントで…」のアカウント行アバター (._popupItem .ti と同じ幅に揃える)
-.actAsAvatar {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  object-fit: cover;
-}
-</style>
+  <!-- 別のアカウントで… (compact のみ): アカウント選択 → 操作選択の 2 段 -->
+  <AccountPickerSheet
+    :show="showActAs"
+    :accounts="actAsCandidates"
+    :title="actAsAccountId ? actAsAccountLabel : '別のアカウントで…'"
+    :description="actAsAccountId ? undefined : 'このノートを操作するアカウント'"
+    :stage="actAsAccountId ? 'detail' : 'accounts'"
+    has-next
+    @select="actAsAccountId = $event"
+    @close="closeActAs"
+  >
+    <template #detail>
+      <button class="_popupItem" @click="actAs('reactAs')">
+        <i class="ti ti-mood-plus" />
+        リアクション
+      </button>
+      <button class="_popupItem" @click="actAs('renoteAs')">
+        <i class="ti ti-repeat" />
+        リノート
+      </button>
+      <button class="_popupItem" @click="actAs('quoteAs')">
+        <i class="ti ti-quote" />
+        引用
+      </button>
+      <button class="_popupItem" @click="actAsAccountId = null">
+        <i class="ti ti-arrow-left" />
+        戻る
+      </button>
+    </template>
+  </AccountPickerSheet>
+</template>
