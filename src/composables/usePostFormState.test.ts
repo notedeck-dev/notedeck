@@ -739,8 +739,8 @@ describe('memo モード', () => {
     expect(form.sessionSlotKey.value).toBe('memo-1')
     form.text.value = 'めも'
     await form.post()
+    // メモはアカウントに紐づかない (#1018)。誰が書いたかは author が持つ
     expect(saveMemoMock).toHaveBeenCalledWith(
-      'acc1',
       'memo-1',
       expect.objectContaining({ text: 'めも', tags: [] }),
     )
@@ -754,7 +754,7 @@ describe('memo モード', () => {
   it('removeCurrentSlot は deleteMemo を呼ぶ', async () => {
     const form = mount({}, { memoMode: true })
     await form.removeCurrentSlot()
-    expect(deleteMemoMock).toHaveBeenCalledWith('acc1', 'memo-1')
+    expect(deleteMemoMock).toHaveBeenCalledWith('memo-1')
   })
 })
 
@@ -951,7 +951,6 @@ describe('auto-save watch', () => {
     await nextTick()
     await vi.advanceTimersByTimeAsync(800)
     expect(saveMemoMock).toHaveBeenCalledWith(
-      'acc1',
       'memo-1',
       expect.objectContaining({ text: 'めも' }),
     )

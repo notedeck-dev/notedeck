@@ -66,3 +66,19 @@ export function principalActorLabel(principal: Principal): string | null {
       return '外部アプリ'
   }
 }
+
+/**
+ * メモの著者ブロックに入れる principal の識別子 (#1018)。
+ * 人間 (user) は既定なので null — メモは「誰が書いたか」を持たないのが
+ * 人間の手書き、という表現にする。
+ */
+export function principalAuthorId(principal: Principal): string | null {
+  switch (principal.kind) {
+    case 'user':
+      return null
+    case 'plugin':
+      return `plugin:${principal.pluginId}`
+    default:
+      return principal.kind
+  }
+}

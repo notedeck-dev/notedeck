@@ -235,6 +235,9 @@ const {
 
 // --- Preview ---
 const previewNote = computed<NormalizedNote | null>(() => {
+  // メモはノートではないので、ノートとしてのプレビューは出さない (#1018)。
+  // 誰のアカウントで見えるかを示す意味も無い (メモはアカウントに紐づかない)
+  if (props.memoMode) return null
   if (!showPreview.value) return null
   const acc = account.value
   if (!acc) return null
@@ -660,8 +663,9 @@ function onPaste(e: ClipboardEvent) {
               <i class="ti ti-dots" />
             </button>
             <div v-if="showMoreMenu" :class="$style.moreMenu" @click.stop>
-              <!-- Preview toggle -->
+              <!-- Preview toggle (memo はノートではないので出さない #1018) -->
               <div
+                v-if="!memoMode"
                 :class="$style.moreMenuItem"
                 role="switch"
                 :aria-checked="showPreview"
@@ -696,8 +700,10 @@ function onPaste(e: ClipboardEvent) {
                   <span class="nd-toggle-switch-knob" />
                 </span>
               </div>
-              <!-- Remember visibility toggle -->
+              <!-- Remember visibility toggle。inline (メモ) は公開範囲
+                   ピッカー自体を出さないので、記憶する対象が無い (#1018) -->
               <div
+                v-if="!inline"
                 :class="$style.moreMenuItem"
                 role="switch"
                 :aria-checked="rememberVisibilityEnabled"
@@ -748,9 +754,13 @@ function onPaste(e: ClipboardEvent) {
               <span :class="$style.postingDots">...</span>
             </template>
             <template v-else>
-              {{ editNote ? '編集' : replyTo ? '返信' : renoteId ? '引用' : scheduledAt ? '予約' : 'ノート' }}
+              {{ memoMode ? 'メモ' : editNote ? '編集' : replyTo ? '返信' : renoteId ? '引用' : scheduledAt ? '予約' : 'ノート' }}
               <svg viewBox="0 0 24 24" width="16" height="16" :class="$style.submitIcon">
-                <template v-if="editNote">
+                <!-- メモはノートではないので送信アイコンにしない (#1018) -->
+                <template v-if="memoMode">
+                  <path d="M5 4h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1zM8 10h8M8 14h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                </template>
+                <template v-else-if="editNote">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
                 </template>
                 <template v-else-if="replyTo">
@@ -846,7 +856,10 @@ function onPaste(e: ClipboardEvent) {
           :position="acPopupPosition"
           @select="acConfirmSelection"
         />
+        <!-- 残り文字数はサーバーの上限 (maxNoteTextLength) 由来。メモは
+             ローカルのテキストで上限が無いので出さない (#1018) -->
         <span
+          v-if="!memoMode"
           class="_acrylic"
           :class="[
             $style.textCount,
@@ -876,15 +889,15 @@ function onPaste(e: ClipboardEvent) {
         </span>
       </div>
 
-      <!-- Preview -->
-      <div v-if="showPreview" :class="$style.previewSection">
+      <!-- Preview (memo はノートではないので出さない #1018) -->
+      <div v-if="showPreview && !memoMode" :class="$style.previewSection">
         <div
           v-if="previewNote"
           @click.capture="onPreviewClick"
         >
           <MkNote :note="previewNote" embedded />
         </div>
-        <div v-else :class="$style.previewEmpty">アカウントが選択されていません</div>
+        <div v-else-if="!memoMode" :class="$style.previewEmpty">アカウントが選択されていません</div>
       </div>
 
       <!-- Poll editor -->
@@ -914,8 +927,10 @@ function onPaste(e: ClipboardEvent) {
       <!-- Error -->
       <div v-if="error" :class="$style.postError">{{ error }}</div>
 
-      <!-- Footer -->
-      <footer :class="$style.footer">
+      <!-- Footer。メモでは出さない (#1018) — 絵文字・CW・ハッシュタグ・
+           メンション・MFM・添付・アンケート・下書きはどれも Misskey サーバー
+           を前提にした機能で、アカウントから切り離したメモには効かない -->
+      <footer v-if="!memoMode" :class="$style.footer">
         <div :class="$style.footerLeft">
           <template v-for="btnId in postFormStore.buttons" :key="btnId">
             <!-- Emoji -->
@@ -1326,6 +1341,9 @@ function onPaste(e: ClipboardEvent) {
 .headerBtn {
   display: flex;
   align-items: center;
+  /* アイコンだけのボタン (「…」等) は min-width 44px の中で中央に置く。
+     指定が無いと flex の既定で左寄せになり、グリフが中心からずれる */
+  justify-content: center;
   gap: 6px;
   padding: 8px;
   min-height: 44px;

@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { destroyAdapter } from '@/adapters/factory'
 import type { ServerSoftware } from '@/adapters/types'
-import { deleteAllMemos } from '@/composables/useMemos'
 import { invalidateResolutionCache } from '@/services/entityResolution'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { removeStorage, STORAGE_KEYS } from '@/utils/storage'
@@ -166,7 +165,8 @@ export const useAccountsStore = defineStore('accounts', () => {
     removeStorage(STORAGE_KEYS.notificationCache(id))
     removeStorage(STORAGE_KEYS.policies(id))
     useSuspensionsStore().purgeAccount(id)
-    deleteAllMemos(id)
+    // メモはアカウントに紐づかない (#1018) ので purge しない。サーバーへ
+    // 送っていないローカルの書き物で、アカウントを消した後も残す
   }
 
   async function logoutAccount(id: string): Promise<void> {

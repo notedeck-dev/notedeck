@@ -11,9 +11,10 @@ import {
 } from './editHistory'
 
 describe('EDIT_HISTORY_SPECS', () => {
-  it('履歴を持つ 5 種別すべてに spec がある', () => {
+  it('履歴を持つ種別すべてに spec がある', () => {
     expect(Object.keys(EDIT_HISTORY_SPECS).sort()).toEqual([
       'css',
+      'memo',
       'plugin',
       'skill',
       'theme',

@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { NoteVisibility } from '@/adapters/types'
 import AppTime from '@/components/common/AppTime.vue'
 import type { StoredMemo } from '@/composables/useMemos'
 import { useNavigation } from '@/composables/useNavigation'
-import { type Account, getAccountAvatarUrl } from '@/stores/accounts'
+import { useAccountsStore } from '@/stores/accounts'
 import { useEmojisStore } from '@/stores/emojis'
 import { useWindowsStore } from '@/stores/windows'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
@@ -30,13 +29,7 @@ import MkMfm from './MkMfm.vue'
  */
 
 const props = defineProps<{
-  account: Account
   memo: StoredMemo
-  /**
-   * Cross-account ビューで `@user@host` 表示にしたい場合 true。
-   * persona memo (memo.author 埋め込みあり) では無視 (常に `@yui` 表示)。
-   */
-  showAccountHost?: boolean
 }>()
 
 const emojisStore = useEmojisStore()
@@ -47,26 +40,20 @@ const author = computed(() => props.memo.data.author ?? null)
 
 const isPersona = computed(() => author.value?.id.startsWith('skill:') ?? false)
 
-const displayName = computed(
-  () =>
-    author.value?.displayName ??
-    props.account.displayName ??
-    props.account.username,
-)
+const displayName = computed(() => author.value?.displayName ?? 'メモ')
 
-const avatarUrl = computed(
-  () => author.value?.avatarUrl ?? getAccountAvatarUrl(props.account),
-)
+const avatarUrl = computed(() => author.value?.avatarUrl ?? '')
 
+/**
+ * 誰が書いたかの表示 (#1018)。人間が書いたメモ (author 無し) には何も出さない
+ * — アカウントに紐づかないので宛名が存在しない。
+ */
 const handle = computed(() => {
-  if (author.value) {
-    // persona は host を持たない (= ローカル概念)。`@yui` のみ表示。
-    return `@${author.value.id.replace(/^skill:/, '')}`
-  }
-  if (props.showAccountHost) {
-    return `@${props.account.username}@${props.account.host}`
-  }
-  return `@${props.account.username}`
+  const id = author.value?.id
+  if (!id) return ''
+  // persona は host を持たない (= ローカル概念)。`@yui` のみ表示
+  if (id.startsWith('skill:')) return `@${id.slice(6)}`
+  return ''
 })
 
 const text = computed(() => props.memo.data.text)
@@ -76,12 +63,12 @@ const cw = computed(() => {
   return d.showCw && d.cw ? d.cw : null
 })
 
-const visibility = computed(() => props.memo.data.visibility as NoteVisibility)
-const localOnly = computed(() => props.memo.data.localOnly)
-
-const emojiDict = computed(
-  () => emojisStore.cache.get(props.account.host) ?? {},
-)
+/**
+ * メモはサーバーに紐づかないが、本文の `:emoji:` は今見ているアカウントの
+ * サーバー辞書で解決する (書いた時点のサーバーは記録していない)。
+ */
+const activeHost = computed(() => useAccountsStore().activeAccount?.host ?? '')
+const emojiDict = computed(() => emojisStore.cache.get(activeHost.value) ?? {})
 
 // CW / 長文折り畳み (MkNote と同じ閾値)
 const cwExpanded = ref(false)
@@ -104,8 +91,7 @@ function onAvatarClick(e: MouseEvent) {
     windowsStore.open('skill-edit', { skillId })
     return
   }
-  // 通常 memo: 保存先 account の user page (= memo の保存空間オーナー)
-  navigateToUser(props.account.id, props.account.userId)
+  // persona 以外は行き先が無い (メモはアカウントに紐づかない)
 }
 
 /**
@@ -116,27 +102,8 @@ function onAvatarClick(e: MouseEvent) {
  */
 function onMemoLinkClick(memoId: string) {
   windowsStore.open('memoEditor', {
-    accountId: props.account.id,
     memoKey: memoId,
   })
-}
-
-const VISIBILITY_LABELS: Record<NoteVisibility, string> = {
-  public: '公開',
-  home: 'ホーム',
-  followers: 'フォロワー限定',
-  specified: 'ダイレクト',
-}
-
-// MkNote と同じ SVG path で表示 (見た目を完全に揃えるため)
-const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
-  public:
-    'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z',
-  home: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
-  followers:
-    'M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z',
-  specified:
-    'M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z',
 }
 </script>
 
@@ -158,8 +125,10 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
         aria-hidden="true"
       />
     </button>
+    <!-- persona 以外はアバターを出さない。メモはアカウントに紐づかないので
+         「誰の」を示すアイコンが要らない (#1018) -->
     <MkAvatar
-      v-else
+      v-else-if="author"
       :avatar-url="avatarUrl"
       :size="58"
       :alt="displayName"
@@ -169,35 +138,21 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
 
     <div :class="$style.main">
       <header :class="$style.header">
-        <span :class="$style.name">
+        <span v-if="author" :class="$style.name">
           <MkMfm
             v-if="!isPersona"
             :text="displayName"
             :emojis="emojiDict"
-            :server-host="account.host"
+            :server-host="activeHost"
             plain
           />
           <template v-else>{{ displayName }}</template>
         </span>
-        <span :class="$style.handle">{{ handle }}</span>
+        <span v-if="handle" :class="$style.handle">{{ handle }}</span>
         <span :class="$style.info">
+          <!-- 公開範囲・ローカルのみは投稿の概念。メモは投稿しないので
+               出さない (#1018。投稿フォーム側でも選ばせていない) -->
           <AppTime :class="$style.time" :at="memo.updatedAt" />
-          <i
-            v-if="localOnly"
-            class="ti ti-rocket-off"
-            :class="$style.visibilityIcon"
-            title="ローカルのみ"
-          />
-          <svg
-            v-if="visibility !== 'public'"
-            :class="$style.visibilityIcon"
-            viewBox="0 0 24 24"
-            width="14"
-            height="14"
-          >
-            <title>{{ VISIBILITY_LABELS[visibility] }}</title>
-            <path :d="VISIBILITY_ICONS[visibility]" fill="currentColor" />
-          </svg>
         </span>
       </header>
 
@@ -207,7 +162,7 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
           <MkMfm
             :text="cw"
             :emojis="emojiDict"
-            :server-host="account.host"
+            :server-host="activeHost"
           />
         </p>
         <button
@@ -231,7 +186,7 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
               :text="text"
               :emojis="emojiDict"
               :reaction-emojis="emojiDict"
-              :server-host="account.host"
+              :server-host="activeHost"
               markdown
               @memo-link-click="onMemoLinkClick"
             />
@@ -257,17 +212,18 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
 // container query でカラム幅に応じて padding / font-size を縮小するのも MkNote と同じ。
 .card {
   display: flex;
-  padding: 28px 32px;
-  font-size: 1.05em;
+  /* 本文が主役なので、ノート詳細ほどの余白は取らない */
+  padding: 16px 18px;
+  font-size: 1.02em;
   contain: content;
   container-type: inline-size;
 }
 
 @container (max-width: 580px) {
-  .card { font-size: 0.95em; padding: 24px 26px; }
+  .card { font-size: 0.95em; padding: 14px 15px; }
 }
 @container (max-width: 500px) {
-  .card { font-size: 0.9em; padding: 20px 22px; }
+  .card { font-size: 0.9em; padding: 12px 13px; }
 }
 
 .avatar {
@@ -368,11 +324,6 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
   opacity: 0.7;
 }
 
-.visibilityIcon {
-  opacity: 0.5;
-  font-size: 14px;
-}
-
 /* CW (MkNote と 1:1) */
 .cw {
   margin-bottom: 4px;
@@ -414,6 +365,34 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
 
 .body {
   overflow-wrap: break-word;
+  line-height: 1.65;
+
+  /* markdown の見出し・リスト・コードが地の文と溶けないよう間を作る */
+  :deep(h1),
+  :deep(h2),
+  :deep(h3) {
+    margin: 0.9em 0 0.4em;
+    line-height: 1.35;
+
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+
+  :deep(ul),
+  :deep(ol) {
+    margin: 0.4em 0;
+    padding-left: 1.4em;
+  }
+
+  :deep(li) {
+    margin: 0.15em 0;
+  }
+
+  :deep(pre),
+  :deep(blockquote) {
+    margin: 0.6em 0;
+  }
 }
 
 .textContainer {

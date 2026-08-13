@@ -69,6 +69,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'memos.backlinks',
         'memos.create',
         'memos.delete',
+        'memos.revert',
         'memos.list',
         'memos.search',
         'memos.update',

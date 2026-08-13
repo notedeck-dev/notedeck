@@ -76,6 +76,13 @@ export const EDIT_HISTORY_SPECS: Record<HistoryKind, EditHistorySpec> = {
     revertCapabilityId: 'theme.revert',
     revertParams: (id, index) => ({ id, index }),
   },
+  memo: {
+    label: 'メモ',
+    language: 'markdown',
+    snapshotText: (s) => field(s, 'body'),
+    revertCapabilityId: 'memos.revert',
+    revertParams: (id, index) => ({ id, index }),
+  },
   css: {
     label: 'カスタム CSS',
     language: 'css',

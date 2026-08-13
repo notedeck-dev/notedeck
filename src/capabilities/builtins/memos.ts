@@ -7,8 +7,15 @@ import {
   type MemoData,
   saveMemo,
 } from '@/composables/useMemos'
+import {
+  type Principal,
+  principalActorLabel,
+  principalAuthorId,
+} from '@/permissions/principal'
+import { getSnapshotAt } from '@/utils/historyFs'
 import { resolveIdentity } from '@/utils/identity'
-import { ACCOUNT_ID_PARAM_DESC, resolveAccountId } from '../accountContext'
+import { editAttribution, REASON_PARAM } from '../editAttribution'
+import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 /**
  * Phase 5+: AI がローカルメモ (Zettelkasten 形式 markdown) を作成 / 編集する
@@ -50,6 +57,19 @@ function pickStringArray(input: unknown): string[] | undefined {
  * 記録されるのを防ぐ)。Identity 解決時点でのスナップショットなので、後で
  * skill / account が削除されても memo の author block は残る (immutable)。
  */
+/**
+ * 呼び出した principal を著者にする (#1018)。人間の手書きは author を持たない。
+ * AI が persona を名乗る場合は authorId が明示されるので、そちらが優先される。
+ */
+function authorFromPrincipal(
+  principal: Principal | undefined,
+): MemoData['author'] {
+  if (!principal) return undefined
+  const id = principalAuthorId(principal)
+  if (!id) return undefined
+  return { id, displayName: principalActorLabel(principal) ?? id }
+}
+
 function buildAuthorBlock(authorId: string): MemoData['author'] {
   const identity = resolveIdentity(authorId)
   if (!identity) {
@@ -126,16 +146,11 @@ export const memosCreateCapability: Command = {
           ' 埋め込まれて UI で表示される',
         optional: true,
       },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
     },
     returns: {
       type: 'object',
       description:
-        '`{ id, text, updatedAt, accountId, tags?, author? }` — id は Zettelkasten 形式',
+        '`{ id, text, updatedAt, tags?, author? }` — id は Zettelkasten 形式',
     },
   },
   visible: false,
@@ -144,20 +159,16 @@ export const memosCreateCapability: Command = {
     if (!text) throw new Error('memos.create: text is required')
     const tags = pickStringArray(params?.tags) ?? []
     const authorIdInput = pickString(params?.authorId)
-    const author = authorIdInput ? buildAuthorBlock(authorIdInput) : undefined
-    const accountId = resolveAccountId(params?.accountId, ctx)
+    const author = authorIdInput
+      ? buildAuthorBlock(authorIdInput)
+      : authorFromPrincipal(ctx?.principal)
     await ensureMemosLoaded()
     const memoKey = generateMemoKey()
-    const stored = saveMemo(
-      accountId,
-      memoKey,
-      emptyMemoData(text, tags, author),
-    )
+    const stored = saveMemo(memoKey, emptyMemoData(text, tags, author))
     const result: Record<string, unknown> = {
       id: memoKey,
       text: stored.data.text,
       updatedAt: stored.updatedAt,
-      accountId,
     }
     if (stored.data.tags.length > 0) result.tags = stored.data.tags
     if (stored.data.author) result.author = stored.data.author
@@ -206,19 +217,14 @@ export const memosUpdateCapability: Command = {
           ' ユーザー本人に戻す等の特殊操作で使う',
         optional: true,
       },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
     },
     returns: {
       type: 'object',
-      description: '`{ id, text, updatedAt, accountId, tags?, author? }`',
+      description: '`{ id, text, updatedAt, tags?, author? }`',
     },
   },
   visible: false,
-  execute: async (params, ctx) => {
+  execute: async (params) => {
     const id = pickString(params?.id)
     if (!id) throw new Error('memos.update: id is required')
     const text = pickString(params?.text)
@@ -239,13 +245,12 @@ export const memosUpdateCapability: Command = {
         'memos.update: at least one of text / tags / authorId is required',
       )
     }
-    const accountId = resolveAccountId(params?.accountId, ctx)
     await ensureMemosLoaded()
-    const existing = loadMemo(accountId, id)
+    const existing = loadMemo(id)
     if (!existing) {
-      throw new Error(`memos.update: memo "${id}" not found in account`)
+      throw new Error(`memos.update: memo "${id}" not found`)
     }
-    const stored = saveMemo(accountId, id, {
+    const stored = saveMemo(id, {
       ...existing.data,
       text: text ?? existing.data.text,
       tags: tags ?? existing.data.tags,
@@ -255,7 +260,6 @@ export const memosUpdateCapability: Command = {
       id,
       text: stored.data.text,
       updatedAt: stored.updatedAt,
-      accountId,
     }
     if (stored.data.tags.length > 0) result.tags = stored.data.tags
     if (stored.data.author) result.author = stored.data.author
@@ -284,29 +288,83 @@ export const memosDeleteCapability: Command = {
         type: 'string',
         description: '削除対象の memoKey (Zettelkasten id, `YYYYMMDDHHmmss`)',
       },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
     },
     returns: {
       type: 'object',
-      description: '`{ ok: true, id, accountId }`',
+      description: '`{ ok: true, id }`',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const id = pickString(params?.id)
+    if (!id) throw new Error('memos.delete: id is required')
+    await ensureMemosLoaded()
+    const existing = loadMemo(id)
+    if (!existing) {
+      throw new Error(`memos.delete: memo "${id}" not found`)
+    }
+    deleteMemo(id)
+    return { ok: true, id }
+  },
+}
+
+/** `memos.revert` — メモを編集履歴の過去状態に戻す (#981 と同型) */
+export const memosRevertCapability: Command = {
+  id: 'memos.revert',
+  label: 'メモを過去の状態に戻す',
+  icon: 'ti-arrow-back-up',
+  category: 'general',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['memos.write'],
+  requiresConfirmation: async (params, ctx) => {
+    const id = pickString(params?.id) ?? ''
+    const index = typeof params?.index === 'number' ? params.index : -1
+    await ensureMemosLoaded()
+    const cur = loadMemo(id)
+    if (!cur || index < 0) return null
+    const entry = await getSnapshotAt<{ body: string }>('memo', id, index)
+    if (!entry) return null
+    stageEdit(ctx, cur.data.text, entry.snapshot.body)
+    return {
+      title: 'メモを過去の状態に戻す',
+      message:
+        `メモ ${id} を編集履歴 #${index} ` +
+        `(${new Date(entry.at).toLocaleString()}) の状態に戻します。` +
+        '現在の本文は上書きされます。',
+    }
+  },
+  signature: {
+    description: 'メモを編集履歴の過去の状態に戻す。index は 0 が最新の履歴。',
+    params: {
+      id: { type: 'string', description: 'メモ ID (Zettelkasten 形式)' },
+      index: { type: 'number', description: '履歴のインデックス (0 が最新)' },
+      reason: REASON_PARAM,
+    },
+    returns: {
+      type: 'object',
+      description: '`{ id, reverted: true, at }`',
     },
   },
   visible: false,
   execute: async (params, ctx) => {
     const id = pickString(params?.id)
-    if (!id) throw new Error('memos.delete: id is required')
-    const accountId = resolveAccountId(params?.accountId, ctx)
+    const index = typeof params?.index === 'number' ? params.index : -1
+    if (!id) throw new Error('memos.revert: id is required')
+    if (index < 0) throw new Error('memos.revert: index must be >= 0')
     await ensureMemosLoaded()
-    const existing = loadMemo(accountId, id)
-    if (!existing) {
-      throw new Error(`memos.delete: memo "${id}" not found in account`)
-    }
-    deleteMemo(accountId, id)
-    return { ok: true, id, accountId }
+    const cur = loadMemo(id)
+    if (!cur) throw new Error(`memos.revert: memo "${id}" not found`)
+    const entry = await getSnapshotAt<{ body: string }>('memo', id, index)
+    if (!entry) throw new Error(`memos.revert: no snapshot at index ${index}`)
+    const next = takeStagedEdit(
+      ctx,
+      'memos.revert',
+      cur.data.text,
+      () => entry.snapshot.body,
+    )
+    saveMemo(id, { ...cur.data, text: next }, editAttribution(ctx, params))
+    return { id, reverted: true, at: entry.at }
   },
 }
 
@@ -314,4 +372,5 @@ export const MEMOS_BUILTIN_CAPABILITIES: readonly Command[] = [
   memosCreateCapability,
   memosUpdateCapability,
   memosDeleteCapability,
+  memosRevertCapability,
 ]

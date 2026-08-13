@@ -4,12 +4,10 @@ import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import MemoCard from '@/components/common/MemoCard.vue'
 import PopupMenu from '@/components/common/PopupMenu.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
-import { saveDraft } from '@/composables/useDrafts'
 import {
   deleteMemo,
   ensureMemosLoaded,
   loadAllMemos,
-  loadAllMemosCrossAccount,
   memosVersion,
   type StoredMemo,
 } from '@/composables/useMemos'
@@ -38,13 +36,13 @@ const toast = useToast()
 const { columnThemeVars } = useColumnTheme(() => props.column)
 
 /**
- * accountId == null は cross-account ビュー (全アカウントのメモを時系列マージ)。
- * 通知カラムと同様、投稿フォームは隠し、閲覧専用として機能する。
+ * メモはアカウントに紐づかない (#1018)。サーバーへ送らずローカルで完結し、
+ * 同じくアカウントなしの AI カラムからも参照されるため、カラム自体を
+ * 「アカウントなし」種別にしてある。ここでのアカウントは「どのアカウントで
+ * 書いたか」の記録で、投稿フォームの宛先を決めるのにだけ使う。
  */
-const isCrossAccount = computed(() => props.column.accountId == null)
-
-const account = computed<Account | undefined>(() =>
-  accountsStore.accounts.find((a) => a.id === props.column.accountId),
+const account = computed<Account | undefined>(
+  () => accountsStore.activeAccount ?? accountsStore.accounts[0],
 )
 
 const accountById = computed(() => {
@@ -75,8 +73,6 @@ interface MemoEntry {
   key: string
   memo: StoredMemo
   context: MemoContext
-  /** Memo の所属アカウント。cross-account ビューでメモごとに異なる。 */
-  account: Account
 }
 
 function parseMemoKey(key: string): MemoContext {
@@ -116,12 +112,11 @@ watch(
   { immediate: true },
 )
 
-function buildEntry(acc: Account, key: string, memo: StoredMemo): MemoEntry {
+function buildEntry(key: string, memo: StoredMemo): MemoEntry {
   return {
     key,
     memo,
     context: parseMemoKey(key),
-    account: acc,
   }
 }
 
@@ -129,19 +124,8 @@ const entries = computed<MemoEntry[]>(() => {
   void memosVersion.value
   if (!loaded.value) return []
   const out: MemoEntry[] = []
-  if (isCrossAccount.value) {
-    for (const { accountId, memoKey, memo } of loadAllMemosCrossAccount()) {
-      const acc = accountById.value.get(accountId)
-      if (!acc) continue
-      out.push(buildEntry(acc, memoKey, memo))
-    }
-  } else {
-    const acc = account.value
-    if (!acc) return []
-    const map = loadAllMemos(acc.id)
-    for (const [key, memo] of Object.entries(map)) {
-      out.push(buildEntry(acc, key, memo))
-    }
+  for (const [key, memo] of Object.entries(loadAllMemos())) {
+    out.push(buildEntry(key, memo))
   }
   out.sort((a, b) => b.memo.updatedAt.localeCompare(a.memo.updatedAt))
   return out
@@ -192,19 +176,11 @@ const formMountKey = ref(0)
 
 function onOpenEditor(entry: MemoEntry) {
   closeMenu()
-  windowsStore.open('memoEditor', {
-    accountId: entry.account.id,
-    memoKey: entry.key,
-  })
+  windowsStore.open('memoEditor', { memoKey: entry.key })
 }
 
 function onRestoreToForm(entry: MemoEntry) {
   closeMenu()
-  // Cross-account ビューでは投稿フォームが存在しないため、エディタウィンドウで開く
-  if (isCrossAccount.value) {
-    onOpenEditor(entry)
-    return
-  }
   editingKey.value = entry.key
   editingMemo.value = entry.memo
   formMountKey.value++
@@ -223,32 +199,6 @@ function onPosted() {
   formMountKey.value++
 }
 
-/**
- * 「下書きにする」: 同じアカウントの server-side drafts に複製し (notes/drafts/create)、
- * 成功したら元のメモを削除する。visibility/cw/files などのフィールドは共通構造なので
- * そのままコピー可能。
- */
-async function onPromoteToDraft(entry: MemoEntry) {
-  closeMenu()
-  const acc = entry.account
-  try {
-    await saveDraft(acc.id, null, { ...entry.memo.data })
-  } catch (e) {
-    toast.show(
-      `下書き化に失敗しました: ${e instanceof Error ? e.message : String(e)}`,
-      'error',
-    )
-    return
-  }
-  deleteMemo(acc.id, entry.key)
-  if (editingKey.value === entry.key) {
-    editingKey.value = null
-    editingMemo.value = null
-    formMountKey.value++
-  }
-  toast.show('下書きに変換しました', 'info')
-}
-
 async function onDelete(entry: MemoEntry) {
   closeMenu()
   const ok = await confirm({
@@ -258,7 +208,7 @@ async function onDelete(entry: MemoEntry) {
     type: 'danger',
   })
   if (!ok) return
-  deleteMemo(entry.account.id, entry.key)
+  deleteMemo(entry.key)
   toast.show('メモを削除しました', 'info')
   if (editingKey.value === entry.key) {
     editingKey.value = null
@@ -296,13 +246,10 @@ function closeMenu() {
     <template #header-meta>
     </template>
 
-    <!-- Embedded post form (memoMode: post = save as memo).
-         Cross-account ビューでは投稿先アカウントが定まらないので非表示。 -->
-    <div
-      v-if="account && !isCrossAccount"
-      :class="$style.embeddedForm"
-      data-memo-form
-    >
+    <!-- Embedded post form (memoMode: post = save as memo)。
+         メモ自体はアカウント不要だが、フォームは MFM 補完・添付のために
+         サーバー文脈を要るので、ログイン中のアカウントがあるときだけ出す -->
+    <div v-if="account" :class="$style.embeddedForm" data-memo-form>
       <MkPostForm
         :key="formMountKey"
         inline
@@ -323,7 +270,7 @@ function closeMenu() {
     <div v-else :class="$style.list">
       <div
         v-for="entry in entries"
-        :key="`${entry.account.id}:${entry.key}`"
+        :key="entry.key"
         :class="[$style.item, { [$style.itemEditing]: editingKey === entry.key }]"
         @contextmenu.capture="onContextMenu($event, entry)"
       >
@@ -372,11 +319,7 @@ function closeMenu() {
           @click.stop="onOpenEditor(entry)"
           @keydown.enter="onOpenEditor(entry)"
         >
-          <MemoCard
-            :account="entry.account"
-            :memo="entry.memo"
-            :show-account-host="isCrossAccount"
-          />
+          <MemoCard :memo="entry.memo" />
         </div>
       </div>
     </div>
@@ -389,13 +332,6 @@ function closeMenu() {
         >
           <i class="ti ti-arrow-back-up" />
           投稿フォームに復元
-        </button>
-        <button
-          class="_popupItem"
-          @click="onPromoteToDraft(activeEntry)"
-        >
-          <i class="ti ti-send" />
-          下書きにする
         </button>
         <div class="_popupDivider" />
         <button

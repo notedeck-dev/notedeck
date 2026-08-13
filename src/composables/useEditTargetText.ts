@@ -1,4 +1,5 @@
 import { type ComputedRef, computed } from 'vue'
+import { loadMemo } from '@/composables/useMemos'
 import { mergeThemeUpdate, serializeTheme } from '@/services/selfEditApply'
 import { usePluginsStore } from '@/stores/plugins'
 import { useSkillsStore } from '@/stores/skills'
@@ -36,6 +37,8 @@ export function useEditTargetText(
       }
       case 'css':
         return theme.customCss
+      case 'memo':
+        return loadMemo(id)?.data.text ?? ''
     }
   })
 }

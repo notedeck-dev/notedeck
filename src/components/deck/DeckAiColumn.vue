@@ -584,20 +584,14 @@ async function sendMessage(
     // round ごとに context を組み直す (memos / vault 開示状態は round 間で
     // 変わりうるため)。history は sendLoop が組み立てた wire history。
     buildSystem: async (history) => {
-      // memos は active account のものだけを context に含める。AI カラム自体は
-      // cross-account だが、メモは per-account 設計なので「いま操作中の account
-      // の draft / Zettelkasten」が一番文脈として明確。
-      const activeAccountId = accountsStore.activeAccount?.id ?? null
-      const memoEntries = activeAccountId
-        ? Object.entries(loadAllMemos(activeAccountId))
-        : []
+      // メモはアカウントに紐づかない (#1018) ので全件を context に含める。
+      // AI カラム自体もアカウントなしなので、参照範囲が食い違わない。
+      const memoEntries = Object.entries(loadAllMemos())
 
       // memosConfig.excludeTags があれば AI 注入から該当 tag メモを除外 (#492)。
       // expandLinks / includeBacklinks (#494) も同 config で制御 (default true)。
       const memosCfg = aiConfig.value.dataSources.memosConfig
-      const allMemosByAccount = activeAccountId
-        ? new Map([[activeAccountId, loadAllMemos(activeAccountId)]])
-        : new Map()
+      const allMemosByAccount = new Map([['', loadAllMemos()]])
 
       // Secret Vault (#564): Ai クラスに開示された接続を AI に見せる (#712 §6.1)。
       // secret / id は渡さず name / baseUrl / auth のみ projection する。

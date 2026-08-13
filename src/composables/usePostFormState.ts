@@ -196,7 +196,9 @@ export function usePostFormState(
 
   const canPost = computed(() => {
     if (isPosting.value || isUploading.value) return false
-    if (remainingChars.value < 0) return false
+    // メモはローカルのテキストなので上限が無い (#1018)。上限はサーバーの
+    // maxNoteTextLength 由来で、投稿しないメモには効かない
+    if (!memoMode && remainingChars.value < 0) return false
     if (props.renoteId) return true
     if (attachedFiles.value.length > 0) return true
     if (showPoll.value && pollChoices.value.filter((c) => c.trim()).length >= 2)
@@ -354,10 +356,10 @@ export function usePostFormState(
     // Memo mode: no server call, just save + reset for next unique entry
     // (Obsidian's "Create Unique New Note" style workflow for Zettelkasten).
     if (memoMode) {
-      const acc = account.value
-      if (!acc || !canPost.value) return
+      // メモはアカウントに紐づかない (#1018)。書いた記録としてだけ account を渡す
+      if (!canPost.value) return
       const key = sessionSlotKey.value ?? generateMemoKey()
-      saveMemo(acc.id, key, buildSlotData())
+      saveMemo(key, buildSlotData())
       resetForm()
       sessionSlotKey.value = generateMemoKey()
       posted.value = true
@@ -642,13 +644,13 @@ export function usePostFormState(
    */
   async function saveCurrentSlot() {
     const acc = account.value
-    if (!acc) return
     if (memoMode) {
       const key = sessionSlotKey.value
       if (!key) return
-      saveMemo(acc.id, key, buildSlotData())
+      saveMemo(key, buildSlotData())
       return
     }
+    if (!acc) return
     // create 中なら重複発行を避けるため、既存 promise の完了を待ってから進める
     if (draftCreateInFlight) {
       try {
@@ -768,12 +770,11 @@ export function usePostFormState(
 
   async function removeCurrentSlot() {
     const acc = account.value
-    if (!acc) return
     const key = sessionSlotKey.value
     if (!key) return
     if (memoMode) {
-      deleteMemo(acc.id, key)
-    } else {
+      deleteMemo(key)
+    } else if (acc) {
       try {
         await deleteDraft(acc.id, key)
       } catch (e) {

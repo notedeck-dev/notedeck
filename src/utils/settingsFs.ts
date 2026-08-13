@@ -415,7 +415,13 @@ export async function writeAiSessionFile(
 
 const HISTORY_EXT = '.history.json5'
 
-export type HistoryKind = 'skill' | 'widget' | 'plugin' | 'theme' | 'css'
+export type HistoryKind =
+  | 'skill'
+  | 'widget'
+  | 'plugin'
+  | 'theme'
+  | 'css'
+  | 'memo'
 
 // css は root 直下の単一ファイル (custom.css) なので subdir を持たない。
 // 他 kind と異なり historyDirFor の対象外 (sidecar も root に置く)。
@@ -429,6 +435,8 @@ function historyDirFor(kind: Exclude<HistoryKind, 'css'>): string {
       return PLUGINS_DIR
     case 'theme':
       return THEMES_DIR
+    case 'memo':
+      return MEMOS_DIR
   }
 }
 

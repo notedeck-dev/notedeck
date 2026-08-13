@@ -2,7 +2,7 @@ import yaml from 'js-yaml'
 import { ref } from 'vue'
 import type { NoteVisibility } from '@/adapters/types'
 import { emitNoteDeckEvent } from '@/aiscript/events'
-import { useAccountsStore } from '@/stores/accounts'
+import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import {
   deleteMemoFile,
   isTauri,
@@ -30,15 +30,20 @@ export interface MemoData {
    */
   tags: string[]
   /**
-   * 著者の埋め込みメタデータ (#493)。Git commit の Author header / Misskey
-   * note の user フィールドと同型の document intrinsic property。
-   * cache ではなく memo 自体の真のデータなので、参照先 (skill / account)
-   * が後で消えても表示は壊れない (= immutable)。
+   * 誰が書いたか (#493、#1018 で principal 種別へ)。Git commit の Author
+   * header と同型の document intrinsic property。cache ではなく memo 自体の
+   * 真のデータなので、参照先が後で消えても表示は壊れない (= immutable)。
    *
-   * - `id`: Identity ID (`skill:<persona-id>` or accountId)
+   * メモはアカウントに紐づかないので、ここに入るのは「どのアカウントで
+   * 書いたか」ではなく「人間か、AI か、HEARTBEAT か、プラグインか、外部
+   * アプリか」という principal 種別 (#712)。
+   *
+   * - `id`: `user` / `ai.chat` / `ai.heartbeat` / `external` /
+   *   `plugin:<id>` / `skill:<persona-id>` (AI のどの人格かは principal の
+   *   下位の詳細)
    * - `displayName` / `avatarUrl`: 作成時に snapshot された表示用情報
    *
-   * 未指定 = ユーザー本人 (= accountId にフォールバック表示)。
+   * 未指定 = 人間が書いた (= `user` と同義。既定なので省略される)。
    */
   author?: {
     id: string
@@ -53,9 +58,6 @@ export interface StoredMemo {
 }
 
 export type StoredMemos = Record<string, StoredMemo>
-
-/** accountId → memos keyed by memoKey. */
-type MemosFile = Record<string, StoredMemos>
 
 const VALID_VISIBILITIES: ReadonlyArray<NoteVisibility> = [
   'public',
@@ -105,25 +107,21 @@ function memoKeyFromFilename(name: string): string | null {
   return name.slice(0, -3)
 }
 
-/** True if `memoKey` is already present in any account bucket of the cache. */
+/** True if `memoKey` is already present in the cache. */
 function memoKeyExists(memoKey: string): boolean {
-  for (const bucket of Object.values(cache)) {
-    if (memoKey in bucket) return true
-  }
-  return false
+  return memoKey in cache
 }
 
 // --- In-memory cache ---
 
-let cache: MemosFile = {}
+/**
+ * メモはアカウントに紐づかない (#1018)。サーバーに送らずローカルで完結する
+ * もので、アカウントに紐づかない AI カラムからも参照される。所有者ではなく
+ * 「どのアカウントで書いたか」だけを著者情報として持つ。
+ */
+let cache: StoredMemos = {}
 /** Per-memo createdAt, kept alongside the cache so re-saves preserve it. */
 const createdAtCache: Record<string, string> = {}
-/**
- * Per-memo accountId (denormalised into frontmatter). Needed on re-save
- * because the caller no longer passes accountId once the form is open
- * against a stored memo.
- */
-const accountIdByKey: Record<string, string> = {}
 let loaded = false
 
 export const memosVersion = ref(0)
@@ -158,35 +156,13 @@ function buildMemoSource(
   return `---\n${yamlStr}---\n\n${body}\n`
 }
 
-/**
- * Human-readable `@username@host` for the frontmatter, read lazily from the
- * accounts store so a rename propagates to new saves. Purely for external
- * readers (Obsidian/AI); accountId remains the source of truth on load.
- */
-function resolveAuthor(accountId: string): string | null {
-  try {
-    const store = useAccountsStore()
-    const account = store.accounts.find((a) => a.id === accountId)
-    if (!account) return null
-    return `@${account.username}@${account.host}`
-  } catch {
-    return null
-  }
-}
-
 function toFrontmatterSource(
   memoKey: string,
-  accountId: string,
   stored: StoredMemo,
   createdAt: string,
 ): string {
   const d = stored.data
-  const frontmatter: Record<string, unknown> = {
-    id: memoKey,
-    accountId,
-  }
-  const author = resolveAuthor(accountId)
-  if (author) frontmatter.author = author
+  const frontmatter: Record<string, unknown> = { id: memoKey }
   frontmatter.createdAt = createdAt
   frontmatter.updatedAt = stored.updatedAt
 
@@ -229,7 +205,6 @@ function parseAuthorBlock(raw: unknown): MemoData['author'] {
 }
 
 function parseMemoContent(fileContent: string): {
-  accountId: string | null
   stored: StoredMemo
   createdAt: string
 } {
@@ -238,8 +213,6 @@ function parseMemoContent(fileContent: string): {
   const updatedAt =
     typeof fm.updatedAt === 'string' ? fm.updatedAt : new Date().toISOString()
   const createdAt = typeof fm.createdAt === 'string' ? fm.createdAt : updatedAt
-  const accountId = typeof fm.accountId === 'string' ? fm.accountId : null
-
   const visibility: NoteVisibility = VALID_VISIBILITIES.includes(
     fm.visibility as NoteVisibility,
   )
@@ -267,7 +240,7 @@ function parseMemoContent(fileContent: string): {
     author: parseAuthorBlock(fm.author),
   }
 
-  return { accountId, stored: { updatedAt, data }, createdAt }
+  return { stored: { updatedAt, data }, createdAt }
 }
 
 // --- Loading ---
@@ -280,20 +253,16 @@ export async function ensureMemosLoaded(): Promise<void> {
   }
 
   const files = await listMemoFiles()
-  const next: MemosFile = {}
+  const next: StoredMemos = {}
   for (const filename of files) {
     const memoKey = memoKeyFromFilename(filename)
     if (!memoKey) continue
     try {
       const content = await readMemoFile(filename)
       if (!content) continue
-      const { accountId, stored, createdAt } = parseMemoContent(content)
-      if (!accountId) continue // Skip memos without an owner — treat as orphan
-      const bucket = next[accountId] ?? {}
-      bucket[memoKey] = stored
-      next[accountId] = bucket
+      const { stored, createdAt } = parseMemoContent(content)
+      next[memoKey] = stored
       createdAtCache[memoKey] = createdAt
-      accountIdByKey[memoKey] = accountId
     } catch {
       // Skip unreadable/corrupt files but keep loading the rest
     }
@@ -302,36 +271,13 @@ export async function ensureMemosLoaded(): Promise<void> {
   loaded = true
 }
 
-export function loadAllMemos(accountId: string): StoredMemos {
-  return cache[accountId] ?? {}
+/** 全メモ (#1018)。アカウントによる区分けは無い。 */
+export function loadAllMemos(): StoredMemos {
+  return cache
 }
 
-export interface CrossAccountMemoEntry {
-  accountId: string
-  memoKey: string
-  memo: StoredMemo
-}
-
-/**
- * Flatten all memos across all accounts. Used by cross-account memo column
- * to merge per-account buckets into a single timeline-style view. Caller is
- * responsible for sorting (by `memo.updatedAt` descending in the typical case).
- */
-export function loadAllMemosCrossAccount(): CrossAccountMemoEntry[] {
-  const out: CrossAccountMemoEntry[] = []
-  for (const [accountId, bucket] of Object.entries(cache)) {
-    for (const [memoKey, memo] of Object.entries(bucket)) {
-      out.push({ accountId, memoKey, memo })
-    }
-  }
-  return out
-}
-
-export function loadMemo(
-  accountId: string,
-  memoKey: string,
-): StoredMemo | null {
-  return loadAllMemos(accountId)[memoKey] ?? null
+export function loadMemo(memoKey: string): StoredMemo | null {
+  return cache[memoKey] ?? null
 }
 
 // --- Per-memo debounced writes ---
@@ -345,12 +291,10 @@ function schedulePersist(memoKey: string): void {
   if (existingTimer) clearTimeout(existingTimer)
   const timer = setTimeout(() => {
     writeTimers.delete(memoKey)
-    const accountId = accountIdByKey[memoKey]
-    if (!accountId) return
-    const stored = cache[accountId]?.[memoKey]
+    const stored = cache[memoKey]
     if (!stored) return
     const createdAt = createdAtCache[memoKey] ?? stored.updatedAt
-    const content = toFrontmatterSource(memoKey, accountId, stored, createdAt)
+    const content = toFrontmatterSource(memoKey, stored, createdAt)
     writeMemoFile(memoFilename(memoKey), content).catch((e) => {
       console.error(`[useMemos] Failed to persist ${memoKey}:`, e)
     })
@@ -368,57 +312,44 @@ function cancelPendingWrite(memoKey: string): void {
 
 // --- Mutations ---
 
+/**
+ * メモを保存する。誰が書いたかは `data.author` (principal 種別) が持つ。
+ * 未設定 = 人間が書いた。
+ */
 export function saveMemo(
-  accountId: string,
   memoKey: string,
   data: MemoData,
+  attribution?: EditAttribution,
 ): StoredMemo {
   const stored: StoredMemo = { updatedAt: new Date().toISOString(), data }
-  const existing = cache[accountId] ?? {}
-  const isNew = !(memoKey in existing)
-  cache = {
-    ...cache,
-    [accountId]: { ...existing, [memoKey]: stored },
+  const isNew = !(memoKey in cache)
+  // 編集前 snapshot を history sidecar に push (fire-and-forget)。
+  // 他のテキスト (スキル・ウィジット・テーマ・CSS) と同じ扱い。内容が同じ
+  // 保存では積まない — 自動保存でリングを使い潰さないため
+  const prev = cache[memoKey]?.data.text
+  if (prev !== undefined && prev !== data.text) {
+    pushSnapshot('memo', memoKey, { body: prev }, attribution).catch((e) =>
+      console.warn('[useMemos] history push failed:', e),
+    )
   }
+  cache = { ...cache, [memoKey]: stored }
   if (!createdAtCache[memoKey]) createdAtCache[memoKey] = stored.updatedAt
-  accountIdByKey[memoKey] = accountId
   schedulePersist(memoKey)
   memosVersion.value++
-  emitNoteDeckEvent(isNew ? 'memo:created' : 'memo:updated', {
-    accountId,
-    memoKey,
-  })
+  emitNoteDeckEvent(isNew ? 'memo:created' : 'memo:updated', { memoKey })
   return stored
 }
 
-export function deleteMemo(accountId: string, memoKey: string): void {
-  const existing = cache[accountId]
-  if (!existing || !(memoKey in existing)) return
-  const next = { ...existing }
+export function deleteMemo(memoKey: string): void {
+  if (!(memoKey in cache)) return
+  const next = { ...cache }
   delete next[memoKey]
-  cache = { ...cache, [accountId]: next }
+  cache = next
   delete createdAtCache[memoKey]
-  delete accountIdByKey[memoKey]
   cancelPendingWrite(memoKey)
   if (isTauri) {
     void deleteMemoFile(memoFilename(memoKey))
   }
   memosVersion.value++
-  emitNoteDeckEvent('memo:deleted', { accountId, memoKey })
-}
-
-export function deleteAllMemos(accountId: string): void {
-  const existing = cache[accountId]
-  if (!existing) return
-  const memoKeys = Object.keys(existing)
-  for (const memoKey of memoKeys) {
-    delete createdAtCache[memoKey]
-    delete accountIdByKey[memoKey]
-    cancelPendingWrite(memoKey)
-    if (isTauri) {
-      void deleteMemoFile(memoFilename(memoKey))
-    }
-  }
-  cache = { ...cache, [accountId]: {} }
-  memosVersion.value++
+  emitNoteDeckEvent('memo:deleted', { memoKey })
 }
