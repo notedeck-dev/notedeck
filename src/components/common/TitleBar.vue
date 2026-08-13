@@ -14,7 +14,7 @@ import { openPipWindow } from '@/composables/usePipWindow'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
-import { useIsCompactLayout, useUiStore } from '@/stores/ui'
+import { MOBILE_WINDOW_SIZE, useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { buildWindowUri } from '@/windows/registry'
 
@@ -64,9 +64,6 @@ const titleBarText = computed(() => {
   return `NoteDeck${suffix}`
 })
 const isMaximized = ref(false)
-
-const MOBILE_WIDTH = 420
-const MOBILE_HEIGHT = 780
 
 let savedDesktopSize: { width: number; height: number } | null = null
 
@@ -122,7 +119,9 @@ async function toggleMobileSize() {
       width: window.innerWidth,
       height: window.innerHeight,
     }
-    await appWindow.setSize(new LogicalSize(MOBILE_WIDTH, MOBILE_HEIGHT))
+    await appWindow.setSize(
+      new LogicalSize(MOBILE_WINDOW_SIZE.width, MOBILE_WINDOW_SIZE.height),
+    )
   }
   await appWindow.center()
 }

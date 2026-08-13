@@ -2,6 +2,7 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { nextTick } from 'vue'
 import type { DeckWindowLayout } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import { MOBILE_WINDOW_SIZE } from '@/stores/ui'
 import { emitTauri, listenTauri } from '@/utils/tauriEvents'
 import { withViewTransition } from '@/utils/viewTransition'
 
@@ -127,12 +128,12 @@ export async function popOutColumnToWindow(
   // Flush save synchronously so the sub-window can read the updated profile
   deckStore.flushSave()
 
-  // ポップアウト先はモバイルサイズ表示 (コンパクト判定に入る幅) で使う。
-  // `decorations: false` なのでウィンドウ幅 = 中身の幅で、カラムは全幅描画に
-  // なるため、幅をそのまま渡せばデッキ上のカラムと同じ実寸になる (PiP と同じ)
+  // ポップアウト先はモバイルサイズ表示で使うので、タイトルバーの「モバイル
+  // サイズ」ボタンと同じ寸法で開く (同じスマホ表示なのに窓の大きさが違うと
+  // 見比べられない)
   const result = await openColumnWindow(deckStore.windowProfileId, windowId, {
-    width: col.width,
-    height: 700,
+    width: MOBILE_WINDOW_SIZE.width,
+    height: MOBILE_WINDOW_SIZE.height,
   })
 
   if (!result) {
