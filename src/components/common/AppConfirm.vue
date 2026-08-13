@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
+import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import CodeDiffView from '@/components/common/CodeDiffView.vue'
 import SystemIcon from '@/components/common/SystemIcon.vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
@@ -45,6 +46,11 @@ const { visible, entering, leaving } = useVaporTransition(show, {
 })
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
+
+/** アバター付き選択肢 (アカウント選択 #1018) を含むか */
+const hasAvatarActions = computed(() =>
+  (options.value?.actions ?? []).some((a) => a.avatar),
+)
 
 // `rememberLabel` 付きダイアログのチェックボックス状態。ダイアログを開くたび
 // (新しい options がセットされるたび) に false へリセットする。
@@ -148,17 +154,43 @@ useNativeDialog(dialogRef, visible, {
           <input v-model="remember" type="checkbox" />
           <span>{{ options.rememberLabel }}</span>
         </label>
-        <div :class="$style.actions">
+        <div :class="[$style.actions, hasAvatarActions && $style.actionsList]">
           <template v-if="options.actions">
-            <button
-              v-for="action in options.actions"
-              :key="action.value"
-              class="_button"
-              :class="action.primary ? (options.type === 'danger' ? $style.btnDanger : $style.btnOk) : $style.btnCancel"
-              @click="action.cancel ? cancel() : resolveAction(action.value)"
-            >
-              {{ action.label }}
-            </button>
+            <!-- アバター付き (アカウント選択 #1018): 横並びのボタンだと label が
+                 溢れるので、アイコン + 2 行テキストの縦積みリストにする -->
+            <template v-if="hasAvatarActions">
+              <button
+                v-for="action in options.actions"
+                :key="action.value"
+                class="_button"
+                :class="action.cancel ? $style.btnCancel : $style.optionRow"
+                @click="action.cancel ? cancel() : resolveAction(action.value)"
+              >
+                <AccountAvatar
+                  v-if="action.avatar"
+                  :src="action.avatar.src"
+                  :host="action.avatar.host"
+                  :size="32"
+                  show-server
+                  badge-background="var(--nd-panel)"
+                />
+                <span :class="$style.optionText">
+                  <span :class="$style.optionLabel">{{ action.label }}</span>
+                  <span v-if="action.description" :class="$style.optionDesc">{{ action.description }}</span>
+                </span>
+              </button>
+            </template>
+            <template v-else>
+              <button
+                v-for="action in options.actions"
+                :key="action.value"
+                class="_button"
+                :class="action.primary ? (options.type === 'danger' ? $style.btnDanger : $style.btnOk) : $style.btnCancel"
+                @click="action.cancel ? cancel() : resolveAction(action.value)"
+              >
+                {{ action.label }}
+              </button>
+            </template>
           </template>
           <template v-else>
             <button v-if="!options.hideCancel" class="_button" :class="$style.btnCancel" @click="cancel">
@@ -426,6 +458,50 @@ useNativeDialog(dialogRef, visible, {
   gap: 6px;
   padding: 8px 16px 16px;
   justify-content: center;
+}
+
+/* アバター付き選択肢 (アカウント選択 #1018) の縦積みリスト */
+.actionsList {
+  flex-direction: column;
+  align-items: stretch;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.optionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: left;
+  color: var(--nd-fg);
+
+  &:hover {
+    background: var(--nd-buttonHoverBg);
+  }
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.optionLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionDesc {
+  font-size: 0.8em;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .btnCancel { @include btn-secondary; }

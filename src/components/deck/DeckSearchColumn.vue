@@ -42,7 +42,6 @@ import {
   isValidRegex,
 } from '@/utils/regexSearch'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 function collectFulfilled<T>(results: PromiseSettledResult<T[]>[]): T[] {
   return results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
@@ -662,7 +661,6 @@ onUnmounted(() => {
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount v-if="!isCrossAccount" :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <template #header-extra>

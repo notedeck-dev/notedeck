@@ -23,6 +23,7 @@ import { sanitizeCode } from '@/aiscript/sanitize'
 import { createAiScriptUiLib, type UiComponent } from '@/aiscript/ui'
 import type { JsonValue } from '@/bindings'
 import { useCommandStore } from '@/commands/registry'
+import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import { usePortal } from '@/composables/usePortal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
@@ -284,17 +285,21 @@ onMounted(() => {
   <div :class="$style.widgetApp">
     <div :class="$style.widgetHeader">
       <span :class="$style.widgetLabel" :title="displayName">
+        <!-- ウィジット固有の実行アカウント (#1018)。全アカウントのカラムでは
+             ウィジットごとに動く先が違うので、ここに出さないと見分けが付かない。
+             ラベルと同じ塊に入れる — 外に出すと余白を挟んで右のボタン群まで
+             流れていく -->
+        <AccountAvatar
+          v-if="ownAccount"
+          :src="getAccountAvatarUrl(ownAccount)"
+          :host="ownAccount.host"
+          :size="18"
+          show-server
+          :title="getAccountLabel(ownAccount)"
+        />
         <i class="ti ti-layout-dashboard" />
         <span :class="$style.widgetLabelText">{{ displayName }}</span>
       </span>
-      <!-- ウィジット固有の実行アカウント (#1018)。全アカウントのカラムでは
-           ウィジットごとに動く先が違うので、ここに出さないと見分けが付かない -->
-      <img
-        v-if="ownAccount"
-        :src="proxyThumbUrl(getAccountAvatarUrl(ownAccount), 40)"
-        :class="$style.widgetAccountAvatar"
-        :title="getAccountLabel(ownAccount)"
-      />
       <div :class="$style.headerActions">
         <button
           v-if="isWindowExposed('widget-edit')"
@@ -402,14 +407,6 @@ onMounted(() => {
   min-width: 0;
 }
 
-.widgetAccountAvatar {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  object-fit: cover;
-  margin-right: 4px;
-}
 
 .headerActions {
   display: flex;

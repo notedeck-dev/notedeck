@@ -215,7 +215,9 @@ async function buildAccountStep(type: ColumnType): Promise<QuickPickItem[]> {
       id: `account-${account.id}`,
       label: getAccountLabel(account),
       icon: 'user',
-      avatarUrl: proxyThumbUrl(getAccountAvatarUrl(account), 18),
+      // プロキシは表示側 (AccountAvatar) が寸法に合わせて掛ける
+      avatarUrl: getAccountAvatarUrl(account),
+      serverHost: account.host,
       children: () => {
         if (!account.hasToken && authRequired) {
           showLoginPrompt()

@@ -18,7 +18,6 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 interface FollowRequest {
   id: string
@@ -253,7 +252,6 @@ onMounted(() => {
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount v-if="!isCrossAccount" :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <template #header-extra>

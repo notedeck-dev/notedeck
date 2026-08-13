@@ -34,7 +34,6 @@ import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useToast } from '@/stores/toast'
 import { webUiUrl as buildWebUiUrl } from '@/utils/url'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 import TimelineFilterPopup from './TimelineFilterPopup.vue'
 
 const props = withDefaults(
@@ -307,7 +306,6 @@ defineExpose({
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <template #header-extra>

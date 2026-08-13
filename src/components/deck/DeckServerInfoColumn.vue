@@ -15,7 +15,6 @@ import { AppError } from '@/utils/errors'
 import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 interface ServerMeta {
   uri: string
@@ -182,7 +181,6 @@ onMounted(() => {
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <ColumnEmptyState

@@ -1034,14 +1034,6 @@ onBeforeUnmount(() => {
         <i :class="showConvSearch ? 'ti ti-x' : 'ti ti-search'" />
       </button>
 
-      <div v-if="!isCrossAccount && account" :class="$style.headerAccount">
-        <img :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)" :class="$style.headerAvatar" />
-        <img
-          :class="$style.headerFavicon"
-          :src="serverIconUrl || proxyThumbUrl(`https://${account.host}/favicon.ico`, 28)"
-          :title="account.host"
-        />
-      </div>
     </template>
 
     <!-- History view: 常設検索バー (#483 v1) はサブヘッダーに置く -->

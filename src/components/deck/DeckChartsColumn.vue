@@ -37,7 +37,6 @@ import '@/utils/initChart'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 const props = defineProps<{
   column: DeckColumnType
@@ -703,7 +702,6 @@ watch(driveView, (v) => {
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <div ref="bodyRef" :class="$style.body">

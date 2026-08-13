@@ -126,9 +126,6 @@ function scrollToTop() {
 
     <template #header-meta>
       <span v-if="unlockedCount > 0" :class="$style.headerCount">{{ unlockedCount }}/{{ totalCount }}</span>
-      <div v-if="account" :class="$style.headerAccount">
-        <img :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)" :class="$style.headerAvatar" />
-      </div>
     </template>
 
     <template #header-extra>

@@ -10,7 +10,6 @@ import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 const props = defineProps<{
   column: DeckColumnType
@@ -75,7 +74,6 @@ onMounted(() => {
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <ColumnEmptyState v-if="ads.length === 0 && !isLoading" message="広告はありません" :image-url="serverInfoImageUrl" />

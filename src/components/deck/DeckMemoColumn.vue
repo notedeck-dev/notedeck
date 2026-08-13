@@ -21,7 +21,6 @@ import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { formatScheduleAbsolute } from '@/utils/scheduleFormat'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -295,11 +294,6 @@ function closeMenu() {
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount
-        v-if="!isCrossAccount"
-        :account="account"
-        :server-icon-url="serverIconUrl"
-      />
     </template>
 
     <!-- Embedded post form (memoMode: post = save as memo).

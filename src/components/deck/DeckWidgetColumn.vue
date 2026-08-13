@@ -27,7 +27,6 @@ import { isWindowExposed } from '@/windows/exposure'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 import WidgetCard from './WidgetCard.vue'
 import {
   type CapabilityCheck,
@@ -342,7 +341,6 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
       <button
         v-if="viewTab === 'installed' && isWindowExposed('widget-edit')"
         class="_button"

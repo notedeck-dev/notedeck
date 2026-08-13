@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, provide, ref, watch } from 'vue'
 import { isAllAccounts } from '@/columns/accountScope'
-import AvatarStack from '@/components/common/AvatarStack.vue'
+import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import {
   popOutColumnToWindow,
@@ -12,7 +12,11 @@ import { usePipAlwaysOnTop } from '@/composables/usePipAlwaysOnTop'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useServerImages } from '@/composables/useServerImages'
 import { useVaporTransition } from '@/composables/useVaporTransition'
-import { isGuestAccount, useAccountsStore } from '@/stores/accounts'
+import {
+  getAccountAvatarUrl,
+  isGuestAccount,
+  useAccountsStore,
+} from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
@@ -267,20 +271,28 @@ function openAsPip() {
         :data-tauri-drag-region="isPipMode ? '' : undefined"
       />
 
+      <!-- どのアカウントのカラムかを種別アイコンの左に置く (#1018)。
+           per-account はそのアカウント、全アカウントは顔を並べず記号 1 つ
+           (誰が含まれるかは可変で、狭いヘッダーに並べても読み取れない)、
+           「アカウントなし」のカラムには何も出ない。各カラムが header-meta で
+           出していた per-account 表示をここへ集約している -->
+      <AccountAvatar
+        v-if="columnAccount && !isPipMode"
+        :src="getAccountAvatarUrl(columnAccount)"
+        :host="columnAccount.host"
+        :size="20"
+        badge-background="var(--nd-panelHeaderBg)"
+        :title="`@${columnAccount.username}@${columnAccount.host}`"
+      />
+      <i
+        v-else-if="isAllAccountsColumn && !isPipMode"
+        :class="['ti ti-user', $style.headerAllAccounts]"
+        title="全アカウント"
+      />
       <slot name="header-icon" />
       <span :class="$style.headerTitle" :data-tauri-drag-region="isPipMode ? '' : undefined">{{ title }}</span>
 
       <template v-if="!isPipMode">
-        <!-- 全アカウントのカラム (#1018)。per-account カラムが header-meta に
-             出すアカウント表示と同じ位置に置き、「アカウントなし」のカラム
-             (何も出ない) と見分けられるようにする -->
-        <AvatarStack
-          v-if="isAllAccountsColumn"
-          :class="$style.headerAccounts"
-          :size="18"
-          :max="3"
-          title="全アカウント"
-        />
         <slot name="header-meta" />
       </template>
 
@@ -457,10 +469,13 @@ function openAsPip() {
   font-size: 0.85em;
 }
 
-/* per-account カラムの .headerAccount (column-common) と同じ間の取り方 */
-.headerAccounts {
-  margin-left: 4px;
+/* 全アカウントのカラム (#1018)。per-account のアバターと同じ場所・同じ寸法 */
+.headerAllAccounts {
   flex-shrink: 0;
+  width: 20px;
+  font-size: 18px;
+  text-align: center;
+  opacity: 0.8;
 }
 
 .grabber {

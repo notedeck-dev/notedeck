@@ -35,7 +35,6 @@ import { isImeComposing } from '@/utils/ime'
 import { getNoteUri, parseUserQuery } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -563,10 +562,6 @@ async function handlePosted(editedNoteId?: string) {
     </template>
 
     <template #header-meta>
-      <div v-if="isCrossAccount" :class="$style.headerAccount">
-        <i class="ti ti-git-merge" :class="$style.headerCrossIcon" />
-      </div>
-      <DeckHeaderAccount v-else :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <template #header-extra>
