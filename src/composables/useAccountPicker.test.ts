@@ -2,14 +2,6 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, ref } from 'vue'
 import type { QuickPickStep } from '@/commands/quickPick'
-import type { ConfirmOptions } from '@/stores/confirm'
-
-const confirmWithAction =
-  vi.fn<(opts: ConfirmOptions) => Promise<string | null>>()
-
-vi.mock('@/stores/confirm', () => ({
-  useConfirm: () => ({ confirmWithAction }),
-}))
 
 const isCompact = ref(false)
 vi.mock('@/stores/ui', () => ({
@@ -64,7 +56,6 @@ const TWO = [
 describe('useAccountPicker — 全アカウントカラムからの操作先 (#1018)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    confirmWithAction.mockReset()
     isCompact.value = false
     paletteOpen.value = false
     lastStep = null
@@ -72,19 +63,19 @@ describe('useAccountPicker — 全アカウントカラムからの操作先 (#1
 
   it('候補が無ければ何も出さずに null', async () => {
     setAccounts([])
-    const { pickAccount } = useAccountPicker()
+    const { pickAccount, sheetPurpose } = useAccountPicker()
 
     expect(await pickAccount('テスト')).toBeNull()
-    expect(confirmWithAction).not.toHaveBeenCalled()
+    expect(sheetPurpose.value).toBeNull()
     expect(lastStep).toBeNull()
   })
 
   it('候補が 1 つなら選ぶ余地がないので何も出さない', async () => {
     setAccounts([makeAccount({ id: 'only' })])
-    const { pickAccount } = useAccountPicker()
+    const { pickAccount, sheetPurpose } = useAccountPicker()
 
     expect(await pickAccount('テスト')).toBe('only')
-    expect(confirmWithAction).not.toHaveBeenCalled()
+    expect(sheetPurpose.value).toBeNull()
     expect(lastStep).toBeNull()
   })
 
@@ -110,7 +101,6 @@ describe('useAccountPicker — 全アカウントカラムからの操作先 (#1
       await nextTick()
 
       expect(paletteOpen.value).toBe(true)
-      expect(confirmWithAction).not.toHaveBeenCalled()
       expect(lastStep?.placeholder).toBe('どのアカウントで？')
       // アバターとサーバーバッジの材料が渡っている
       expect(lastStep?.items.map((i) => i.serverHost)).toEqual([
@@ -134,31 +124,40 @@ describe('useAccountPicker — 全アカウントカラムからの操作先 (#1
     })
   })
 
-  describe('コンパクト表示 — ダイアログで選ぶ', () => {
+  describe('コンパクト表示 — ボトムシートで選ぶ', () => {
     beforeEach(() => {
       isCompact.value = true
     })
 
-    it('アバター付きの選択肢を出し、選ばれたアカウントを返す', async () => {
+    it('シートを開き、選ばれたアカウントを返す', async () => {
       setAccounts(TWO)
-      confirmWithAction.mockResolvedValue('a2')
-      const { pickAccount } = useAccountPicker()
+      const { pickAccount, pickableAccounts, sheetPurpose, resolveSheet } =
+        useAccountPicker()
 
-      expect(await pickAccount('どのアカウントで？')).toBe('a2')
+      const picked = pickAccount('どのアカウントで？')
+      await nextTick()
+
+      // パレットではなくシートが開く
       expect(lastStep).toBeNull()
+      expect(paletteOpen.value).toBe(false)
+      expect(sheetPurpose.value).toBe('どのアカウントで？')
+      expect(pickableAccounts.value.map((a) => a.id)).toEqual(['a1', 'a2'])
 
-      const actions = confirmWithAction.mock.calls[0]?.[0]?.actions
-      expect(actions?.map((a) => a.value)).toEqual(['a1', 'a2', '__cancel'])
-      expect(actions?.[0]?.avatar?.host).toBe('example.com')
-      expect(actions?.[0]?.description).toBe('example.com')
+      resolveSheet('a2')
+      expect(await picked).toBe('a2')
+      expect(sheetPurpose.value).toBeNull()
     })
 
     it('キャンセルなら null', async () => {
       setAccounts(TWO)
-      confirmWithAction.mockResolvedValue('__cancel')
-      const { pickAccount } = useAccountPicker()
+      const { pickAccount, sheetPurpose, resolveSheet } = useAccountPicker()
 
-      expect(await pickAccount('テスト')).toBeNull()
+      const picked = pickAccount('テスト')
+      await nextTick()
+      resolveSheet(null)
+
+      expect(await picked).toBeNull()
+      expect(sheetPurpose.value).toBeNull()
     })
   })
 })

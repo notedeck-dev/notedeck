@@ -14,7 +14,6 @@ import {
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { useServersStore } from '@/stores/servers'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { formatScheduleAbsolute } from '@/utils/scheduleFormat'
@@ -29,7 +28,6 @@ const props = defineProps<{
 }>()
 
 const accountsStore = useAccountsStore()
-const serversStore = useServersStore()
 const windowsStore = useWindowsStore()
 const { confirm } = useConfirm()
 const toast = useToast()
@@ -44,24 +42,6 @@ const { columnThemeVars } = useColumnTheme(() => props.column)
 const account = computed<Account | undefined>(
   () => accountsStore.activeAccount ?? accountsStore.accounts[0],
 )
-
-const accountById = computed(() => {
-  const map = new Map<string, Account>()
-  for (const a of accountsStore.accounts) map.set(a.id, a)
-  return map
-})
-
-const serverInfoImageUrl = computed(() => {
-  const host = account.value?.host
-  if (!host) return undefined
-  return serversStore.getServer(host)?.infoImageUrl
-})
-
-const serverIconUrl = computed(() => {
-  const host = account.value?.host
-  if (!host) return undefined
-  return serversStore.getServer(host)?.iconUrl
-})
 
 interface MemoContext {
   kind: 'reply' | 'renote' | 'note' | 'channel-note'
@@ -261,10 +241,11 @@ function closeMenu() {
       />
     </div>
 
+    <!-- 空状態はアプリ既定のアイコン。サーバーの infoImageUrl は引かない
+         (メモはアカウント / サーバーに紐づかない — #1018) -->
     <ColumnEmptyState
       v-if="loaded && memoCount === 0"
       message="メモはありません"
-      :image-url="serverInfoImageUrl"
     />
 
     <div v-else :class="$style.list">

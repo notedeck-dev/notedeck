@@ -1493,12 +1493,23 @@ onUnmounted(() => {
 
 .notifItem {
   border-bottom: 1px solid var(--nd-divider);
+  font-size: 0.9em;
 }
 
+// 余白・文字サイズはカラム幅に追随させる (本家 MkNotification と同じ段階)
 .notifLayout {
   display: flex;
-  padding: 12px 16px;
-  gap: 12px;
+  padding: 24px 32px;
+  gap: 8px;
+}
+
+@container (max-width: 600px) {
+  .notifLayout { padding: 16px; }
+}
+
+@container (max-width: 500px) {
+  .notifItem { font-size: 0.85em; }
+  .notifLayout { padding: 12px; }
 }
 
 .notifHead {

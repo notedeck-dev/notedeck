@@ -31,6 +31,13 @@ const isDesktop = isTauri && !isMobilePlatform
 
 const MOBILE_BREAKPOINT = 420 // 420px 以下をモバイルとみなす（タブレット横持ち等は除外）
 
+/**
+ * モバイルサイズ表示にするときのウィンドウサイズ。タイトルバーの「モバイル
+ * サイズ」ボタンと、カラムのポップアウト先で共有する (同じスマホ表示なのに
+ * 窓の大きさが違うと見比べられない)。幅は MOBILE_BREAKPOINT ちょうど。
+ */
+export const MOBILE_WINDOW_SIZE = { width: MOBILE_BREAKPOINT, height: 780 }
+
 export const useUiStore = defineStore('ui', () => {
   const sidebarOpen = ref(true)
 

@@ -554,6 +554,7 @@ defineExpose({
   align-items: center;
   flex-shrink: 0;
   gap: 2px;
+  margin: auto 0;
   padding: 2px 6px;
   border-radius: var(--nd-radius-full);
   font-size: 0.75em;
@@ -584,9 +585,12 @@ defineExpose({
 
 
 /* フィルタメニュー (#841): サブヘッダ右端の共通トグルボタン */
+// タブ行と同じ面に載せる (#1045)。以前はタブだけが背景と下線を持ち、右端の
+// フィルタ / クエリバッジがその外に浮いて見えていた
 .subHeaderRow {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  background: var(--nd-bg);
 }
 
 .subHeaderMain {
@@ -598,7 +602,10 @@ defineExpose({
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   padding: 8px 12px;
+  // タブ行と同じ下線でつなぐ (タブが無いカラムではここだけが行を作る)
+  border-bottom: 1px solid var(--nd-divider);
   opacity: 0.5;
   color: var(--nd-fg);
   transition:

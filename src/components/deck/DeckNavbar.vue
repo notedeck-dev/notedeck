@@ -1,29 +1,22 @@
 <script setup lang="ts">
-import {
-  computed,
-  nextTick,
-  onUnmounted,
-  ref,
-  toRef,
-  useCssModule,
-  watch,
-} from 'vue'
+import { computed, nextTick, onUnmounted, ref, useCssModule, watch } from 'vue'
 import { isColumnExposed } from '@/columns/exposure'
 import { useCommandStore } from '@/commands/registry'
+import AccountAvatar from '@/components/common/AccountAvatar.vue'
+import AccountPickerSheet from '@/components/common/AccountPickerSheet.vue'
 import ColumnBadges from '@/components/common/ColumnBadges.vue'
 import { useAccountActions } from '@/composables/useAccountActions'
 import { useColumnBadge } from '@/composables/useColumnBadge'
 import { COLUMN_ICONS, COLUMN_LABELS } from '@/composables/useColumnTabs'
-import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
 import {
   accountTargetId,
   navbarTargetId,
   useSpotlightStore,
 } from '@/composables/useSpotlight'
-import { useVaporTransition } from '@/composables/useVaporTransition'
 import {
   type Account,
+  getAccountAvatarUrl,
   getAccountLabel,
   isGuestAccount,
   useAccountsStore,
@@ -32,7 +25,6 @@ import { useConfirm } from '@/stores/confirm'
 import { isNavDivider, type NavItem, useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
-import { useServersStore } from '@/stores/servers'
 import { useStreamingStore } from '@/stores/streaming'
 import { useIsCompactLayout } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
@@ -42,7 +34,6 @@ import {
 } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
 import { hapticLight, hapticMedium } from '@/utils/haptics'
-import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckLaunchPad from './DeckLaunchPad.vue'
 import DeckProfileMenu from './DeckProfileMenu.vue'
@@ -175,14 +166,7 @@ function closeDrawerAndDo(fn: () => void) {
   nextTick(fn)
 }
 const accountsStore = useAccountsStore()
-const serversStore = useServersStore()
 const streamingStore = useStreamingStore()
-
-function getServerIconUrl(host: string): string | undefined {
-  const url =
-    serversStore.getServer(host)?.iconUrl || `https://${host}/favicon.ico`
-  return proxyThumbUrl(url, 28)
-}
 
 watch(
   () => accountsStore.accounts.length,
@@ -210,9 +194,12 @@ function onlineStatusClass(accountId: string): string | undefined {
 }
 
 // Navbar resize
-const MIN_WIDTH = 56
-const COLLAPSE_THRESHOLD = 120
-const DEFAULT_WIDTH = 220
+// 幅は本家 Misskey のデッキ UI に合わせる (#1045)。
+// MIN_WIDTH = navbar の --nav-icon-only-width / DEFAULT_WIDTH = --nav-width。
+// ドラッグでのリサイズと上限は NoteDeck 固有 (本家は設定でのトグルのみ)
+const MIN_WIDTH = 80
+const COLLAPSE_THRESHOLD = 140
+const DEFAULT_WIDTH = 250
 const MAX_WIDTH = 400
 const navWidth = ref(
   document.documentElement.clientWidth <= 1279 ? MIN_WIDTH : DEFAULT_WIDTH,
@@ -272,24 +259,6 @@ function toggleSettingsMenu() {
 // Account menu
 const accountMenuId = ref<string | null>(null)
 const showAccountPopup = ref(false)
-const accountDialogRef = ref<HTMLDialogElement | null>(null)
-const { visible: accountPopupVisible, leaving: accountPopupLeaving } =
-  useVaporTransition(toRef(showAccountPopup), {
-    enterDuration: 200,
-    leaveDuration: 200,
-  })
-
-useNativeDialog(
-  accountDialogRef,
-  computed(() => accountPopupVisible.value && isCompact.value),
-  {
-    onCancel: () => {
-      showAccountPopup.value = false
-      accountMenuId.value = null
-    },
-    leaveDuration: 200,
-  },
-)
 
 function toggleAccountPopup() {
   if (showAccountPopup.value) {
@@ -633,7 +602,7 @@ defineExpose({
           </button>
 
           <!-- Account button -->
-          <div :class="$style.menuWrap">
+          <div :class="[$style.menuWrap, $style.accountWrap]">
             <button
               class="_button"
               :class="$style.item"
@@ -647,66 +616,42 @@ defineExpose({
               </div>
               <span :class="$style.label">アカウント</span>
             </button>
-            <!-- Mobile: bottom sheet via native <dialog> -->
-            <dialog
-              v-if="isCompact && accountPopupVisible"
-              ref="accountDialogRef"
-              class="_nativeDialog"
-              :class="[$style.mobileBackdrop, accountPopupLeaving ? $style.sheetBackdropLeave : $style.sheetBackdropEnter]"
+            <!-- Mobile: bottom sheet (アカウント選択の共通シート #1018) -->
+            <AccountPickerSheet
+              v-if="isCompact"
+              :show="showAccountPopup"
+              :accounts="accountsStore.accounts"
+              :active-id="accountMenuId"
+              :row-class="(id: string) => isAccountSpotlighted(id) ? $style.accountRowSpotlighted : undefined"
+              has-next
+              @select="clearAccountSpotlight($event); toggleAccountMenu($event)"
+              @close="showAccountPopup = false; accountMenuId = null"
             >
-              <div
-                autofocus
-                tabindex="-1"
-                :class="[$style.accountPopup, accountPopupLeaving ? $style.sheetContentLeave : $style.sheetContentEnter]"
-                @click.stop="accountMenuId = null"
-              >
-                <div
-                  v-for="acc in accountsStore.accounts"
-                  :key="acc.id"
-                  :class="[$style.accountPopupItem, { [$style.spotlighted]: isAccountSpotlighted(acc.id) }]"
-                  @mousedown="clearAccountSpotlight(acc.id)"
-                  @click.stop="toggleAccountMenu(acc.id)"
-                >
-                  <div
-                    :class="[$style.accountPopupBtn, { [$style.accountPopupBtnActive]: accountMenuId === acc.id }]"
-                    :title="getAccountLabel(acc)"
-                  >
-                    <div :class="$style.avatarWrap">
-                      <img
-                        v-if="isGuestAccount(acc)"
-                        src="/avatar-guest.svg"
-                        :class="$style.avatar"
-                      />
-                      <img
-                        v-else-if="acc.avatarUrl"
-                        :src="proxyThumbUrl(acc.avatarUrl, 56)"
-                        :class="$style.avatar"
-                      />
-                      <div v-else :class="[$style.avatar, $style.avatarPlaceholder]" />
-                      <img
-                        :src="getServerIconUrl(acc.host)"
-                        :class="$style.serverBadge"
-                        :title="acc.host"
-                      />
-                      <span
-                        :class="[$style.onlineIndicator, onlineStatusClass(acc.id)]"
-                      />
-                    </div>
-                    <span :class="$style.accountPopupName">{{ getAccountLabel(acc) }}</span>
-                    <i class="ti ti-chevron-right" :class="$style.accountPopupChevron" />
-                  </div>
-                </div>
+              <!-- ストリーミング接続状態はナビバーだけの情報なのでここで重ねる -->
+              <template #avatar="{ account }">
+                <span :class="$style.avatarWrap">
+                  <AccountAvatar
+                    :src="getAccountAvatarUrl(account)"
+                    :host="account.host"
+                    :size="32"
+                    show-server
+                    badge-background="var(--nd-navBg)"
+                  />
+                  <span :class="[$style.onlineIndicator, onlineStatusClass(account.id)]" />
+                </span>
+              </template>
+              <template #footer>
                 <div :class="$style.accountPopupDivider" />
                 <button
                   class="_button"
-                  :class="$style.accountPopupBtn"
+                  :class="$style.accountAddBtn"
                   @click="showAccountPopup = false; closeDrawerAndDo(navigateToLogin)"
                 >
                   <div :class="$style.accountPopupIcon"><i class="ti ti-plus" /></div>
                   <span>アカウント追加</span>
                 </button>
-              </div>
-            </dialog>
+              </template>
+            </AccountPickerSheet>
             <NavAccountMenu
               v-if="showAccountPopup && selectedAccount"
               :key="accountMenuId!"
@@ -797,11 +742,11 @@ defineExpose({
 // ============================================================
 // Left Navbar — base styles (all sizes)
 // ============================================================
+// 本家のナビバーは deckBg との境界線を持たない (背景色だけで面を分ける #1045)
 .navbar {
   flex: 0 0 auto;
   display: flex;
   background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
-  border-right: var(--nd-nav-border) solid var(--nd-divider);
   position: relative;
   z-index: 1;
   container-type: inline-size;
@@ -822,12 +767,14 @@ defineExpose({
   }
 }
 
+// 本家 navbar の --top-height: 80px / padding-left: 6px (#1045)
 .top {
   position: sticky;
   top: 0;
   z-index: 1;
   display: flex;
-  height: 36px;
+  height: 80px;
+  padding-left: 6px;
   flex-shrink: 0;
 }
 
@@ -840,9 +787,9 @@ defineExpose({
 }
 
 .instanceIcon {
-  width: 30px;
+  width: 38px;
   aspect-ratio: 1;
-  border-radius: 4px;
+  border-radius: 8px;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -876,20 +823,25 @@ defineExpose({
   }
 }
 
+// 項目の背景 pill は本家と同じく左右 17px インセット (本家は
+// `width: calc(100% - 34px)` の ::before。NoteDeck は item 自体を pill に
+// しているので、section 側の padding で同じ位置に落とす) — #1045
 .section {
   display: flex;
   flex-direction: column;
-  padding: 10px 6px;
+  padding: 0 17px;
 }
 
+// 本家 navbar の .bottom は padding-top: 20px
 .bottomSection {
   flex-shrink: 0;
+  padding-top: 20px;
 }
 
 .divider {
-  height: 1px;
-  background: var(--nd-divider);
-  margin: 10px 6px;
+  height: 0;
+  border-top: solid 0.5px var(--nd-divider);
+  margin: 16px 0;
   align-self: stretch;
 }
 
@@ -897,18 +849,20 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 14px;
+  // 17px (section) + 13px = 本家のアイコン左端 30px
+  padding: 0 13px;
   line-height: 2.85rem;
   border-radius: var(--nd-radius-full);
   color: var(--nd-navFg, var(--nd-fg));
-  font-size: 0.95em;
+  font-size: 0.9em;
   white-space: nowrap;
   text-decoration: none;
   transition: background var(--nd-duration-base), color var(--nd-duration-base), transform var(--nd-duration-fast) var(--nd-ease-spring);
 
+  // hover / 選択中はアクセント色 + accentedBg の pill (本家 navbar と同じ)
   &:hover {
-    background: var(--nd-buttonHoverBg);
-    color: var(--nd-fgHighlighted);
+    background: var(--nd-accentedBg);
+    color: var(--nd-accent);
 
     :global(.ti) {
       opacity: 1;
@@ -925,8 +879,8 @@ defineExpose({
 }
 
 .sidebarActive {
-  background: var(--nd-buttonHoverBg);
-  color: var(--nd-fgHighlighted);
+  background: var(--nd-accentedBg);
+  color: var(--nd-accent);
 
   :global(.ti) {
     opacity: 1;
@@ -985,36 +939,19 @@ defineExpose({
 }
 
 // Account popup — bottom sheet inside <dialog class="_nativeDialog">
-.accountPopup {
-  width: 100%;
-  margin: 0;
-  border-radius: 16px 16px 0 0;
-  background: color-mix(in srgb, var(--nd-navBg) 96%, transparent);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
-  max-height: 80vh;
-  overflow-y: auto;
-  padding: 8px 0 calc(8px + var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
-
-  &:focus,
-  &:focus-visible {
-    outline: none;
-  }
-}
-
-.accountPopupItem {
-  position: relative;
-}
-
 /* AI Spotlight: account.switch でこの行の外周を光らせる (中身は潰さない) */
-.accountPopupItem.spotlighted {
+.accountRowSpotlighted {
+  position: relative;
   @include spotlight-ring;
 }
 
-.accountPopupBtn {
+/* シート末尾の「アカウント追加」。アカウント行と同じ寸法に揃える */
+.accountAddBtn {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 4px 12px;
+  min-height: 44px;
   width: 100%;
   font-size: 0.85em;
   color: var(--nd-fg);
@@ -1025,24 +962,6 @@ defineExpose({
   &:hover {
     background: var(--nd-buttonHoverBg);
   }
-}
-
-.accountPopupBtnActive {
-  background: var(--nd-buttonHoverBg);
-  color: var(--nd-fgHighlighted);
-}
-
-.accountPopupChevron {
-  margin-left: auto;
-  font-size: 0.75em;
-  opacity: 0.4;
-  flex-shrink: 0;
-}
-
-.accountPopupName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
 }
 
 .accountPopupIcon {
@@ -1066,30 +985,8 @@ defineExpose({
 
 .avatarWrap {
   position: relative;
+  display: inline-flex;
   flex-shrink: 0;
-}
-
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  object-fit: cover;
-  display: block;
-}
-
-.avatarPlaceholder {
-  background: var(--nd-buttonBg);
-}
-
-.serverBadge {
-  position: absolute;
-  top: -2px;
-  right: -4px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1.5px solid var(--nd-navBg);
 }
 
 .onlineIndicator {
@@ -1121,12 +1018,14 @@ defineExpose({
 
 
 
+// 本家 navbar の .post: 展開時は高さ 40px の pill (#1045)
 .postBtn {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 10px 14px;
+  height: 40px;
+  padding: 0 13px;
   border-radius: var(--nd-radius-full);
   background: linear-gradient(90deg, var(--nd-buttonGradateA, var(--nd-accent)), var(--nd-buttonGradateB, var(--nd-accentDarken)));
   color: var(--nd-fgOnAccent, #fff);
@@ -1260,6 +1159,12 @@ defineExpose({
   flex-direction: column;
 }
 
+// 本家 navbar の .account は上下 20px の余白を持ち、ノート投稿ボタンから
+// 離れて最下部に落ちる (#1045)
+.accountWrap {
+  margin-top: 20px;
+}
+
 .updateDot { @include update-dot; }
 
 // ============================================================
@@ -1276,43 +1181,44 @@ defineExpose({
     display: none;
   }
 
+  // アイコンのみ表示。寸法は本家 navbar の .root.iconOnly に合わせる (#1045)
   .top {
-    padding-left: 0;
+    height: auto;
+    padding: 20px 0;
     justify-content: center;
   }
 
   .instanceIcon {
     width: 30px;
-    border-radius: 4px;
+    border-radius: 8px;
   }
 
+  // 本家は `padding: 16px 0` の全幅項目に正方形の pill を敷く。
+  // NoteDeck は item 自体を pill にしているので同じ実寸の円で置き換える
   .item {
     justify-content: center;
     padding: 0;
-    width: 44px;
-    height: 44px;
-    margin: 2px auto;
+    width: 52px;
+    height: 52px;
+    margin: 0 auto;
     border-radius: 50%;
 
     :global(.ti) { @include nav-icon; }
   }
 
-  .accountPopup {
-    bottom: 0;
-    left: 100%;
-    right: auto;
-    margin-bottom: 0;
-    margin-left: 4px;
-  }
-
   .section {
-    padding: 8px 0 0;
+    padding: 0;
     align-items: center;
   }
 
+  .divider {
+    width: calc(100% - 32px);
+    margin: 8px auto;
+  }
+
   .postBtn {
-    width: 44px;
-    height: 44px;
+    width: 52px;
+    height: 52px;
     padding: 0;
     margin: 0 auto;
     border-radius: 50%;

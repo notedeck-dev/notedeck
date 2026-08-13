@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, reactive, ref, watch, watchEffect } from 'vue'
 import { exposedColumnGroups } from '@/columns/exposure'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
@@ -9,11 +9,13 @@ import {
   COLUMN_LABELS,
   COLUMN_REGISTRY,
   CROSS_ACCOUNT_TYPES,
+  DEFAULT_COLUMN_WIDTH,
   GUEST_ALLOWED_TYPES,
   type SelectableItem,
   type SelectableSpec,
 } from '@/columns/registry'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
+import AccountPickerRow from '@/components/common/AccountPickerRow.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useNativeDialog } from '@/composables/useNativeDialog'
@@ -31,6 +33,7 @@ import {
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useToast } from '@/stores/toast'
+import { useIsCompactLayout } from '@/stores/ui'
 import { logWarn } from '@/utils/logger'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -62,8 +65,20 @@ const columnGroups = computed(() => exposedColumnGroups())
 
 const expandedCategories = reactive<Record<string, boolean>>({})
 
-function toggleCategory(key: string) {
-  expandedCategories[key] = !expandedCategories[key]
+/**
+ * カテゴリの開閉。シート表示は高さが限られるので、開いたカテゴリに場所を譲る —
+ * 他のカテゴリを畳んだうえで、見出しがシート上端に来るようスクロールする。
+ * (デスクトップは高さに余裕があるので複数開いたままにできる)
+ */
+function toggleCategory(key: string, event: MouseEvent) {
+  const open = !expandedCategories[key]
+  if (isSheet.value && open) {
+    for (const g of columnGroups.value) expandedCategories[g.group] = false
+  }
+  expandedCategories[key] = open
+  if (!open || !isSheet.value) return
+  const el = event.currentTarget as HTMLElement | null
+  nextTick(() => el?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 
 // spotlight (チュートリアル) が特定のカラム種別を指しているときは、その種別を
@@ -270,7 +285,7 @@ async function createNewItem() {
     finalizeColumn({
       type: config.type,
       name: colName,
-      width: 360,
+      width: DEFAULT_COLUMN_WIDTH,
       accountId,
       [config.spec.idKey]: created.id,
       active: true,
@@ -292,7 +307,7 @@ function addSelectableColumn(item: SelectableItem) {
   finalizeColumn({
     type: config.type,
     name,
-    width: 360,
+    width: DEFAULT_COLUMN_WIDTH,
     accountId,
     [config.spec.idKey]: item.id,
     active: true,
@@ -301,6 +316,11 @@ function addSelectableColumn(item: SelectableItem) {
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
 const showDialog = ref(true)
+
+// コンパクト表示では他のメニュー同様ボトムシートで出す (#1018)。PiP は
+// カラムの中身として埋め込まれるので対象外
+const isCompact = useIsCompactLayout()
+const isSheet = computed(() => isCompact.value && props.mode !== 'pip')
 
 if (props.mode !== 'pip') {
   useNativeDialog(dialogRef, showDialog, {
@@ -317,9 +337,9 @@ function close() {
   <component
     :is="mode !== 'pip' ? 'dialog' : 'div'"
     ref="dialogRef"
-    :class="[mode === 'pip' ? $style.addInline : [$style.addOverlay, '_nativeDialog']]"
+    :class="[mode === 'pip' ? $style.addInline : [$style.addOverlay, '_nativeDialog', isSheet && $style.mobileBackdrop]]"
   >
-    <div :class="mode === 'pip' ? $style.addPopupInline : $style.addPopup">
+    <div :class="[mode === 'pip' ? $style.addPopupInline : $style.addPopup, isSheet && [$style.addSheet, $style.sheetContentEnter]]">
       <div v-if="!(mode === 'pip' && !addColumnType && !selectConfig)" :class="[$style.addPopupHeader, mode === 'pip' && $style.addPopupHeaderPip]">
         <button v-if="addColumnType && !selectConfig" class="_button" :class="$style.addBackBtn" @click="addColumnType = null">
           <i class="ti ti-chevron-left" />
@@ -339,7 +359,7 @@ function close() {
           :key="g.group"
           :class="$style.addCategorySection"
         >
-          <button class="_button" :class="$style.addCategoryLabel" @click="toggleCategory(g.group)">
+          <button class="_button" :class="$style.addCategoryLabel" @click="toggleCategory(g.group, $event)">
             <i class="ti" :class="`ti-${g.icon}`" />
             {{ g.label }}
             <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedCategories[g.group] }]" />
@@ -419,54 +439,55 @@ function close() {
         </button>
       </template>
 
-      <!-- Step 2: Account selection -->
+      <!-- Step 2: Account selection (行はナビバーのアカウント一覧に揃える #1018) -->
       <template v-else>
         <!-- 全アカウント: 0 件でも開ける (ナビバーのデフォルト項目がトグルで
              開けることとの整合)。1 件のときだけ per-account 選択に譲って非表示 -->
-        <button
+        <AccountPickerRow
           v-if="addColumnType && CROSS_ACCOUNT_TYPES.has(addColumnType) && accountsStore.accounts.length !== 1"
-          class="_button"
-          :class="$style.addAccountBtn"
+          label="全アカウント"
           @click="addColumnForAccount(null)"
         >
           <!-- カラムヘッダーと同じ記号で示す (#1018)。誰が含まれるかは可変な
                ので顔は並べない -->
-          <i class="ti ti-user" style="font-size: 28px;" />
-          <span>全アカウント</span>
-        </button>
-        <button
+          <template #avatar>
+            <i class="ti ti-user" :class="$style.addAccountIcon" />
+          </template>
+        </AccountPickerRow>
+        <AccountPickerRow
           v-if="addColumnType && ACCOUNT_OPTIONAL_TYPES.has(addColumnType)"
-          class="_button"
-          :class="$style.addAccountBtn"
+          label="アカウントなし"
           @click="addColumnForAccount(null)"
         >
-          <i class="ti ti-circle-off" style="font-size: 28px; opacity: 0.5;" />
-          <span>アカウントなし</span>
-        </button>
-        <button
+          <template #avatar>
+            <i class="ti ti-circle-off" :class="[$style.addAccountIcon, $style.addAccountIconMuted]" />
+          </template>
+        </AccountPickerRow>
+        <AccountPickerRow
           v-for="account in accountsStore.accounts"
           :key="account.id"
-          class="_button"
-          :class="[$style.addAccountBtn, { [$style.addAccountDisabled]: isGuestAccount(account) && requiresAuth }]"
+          :label="getAccountLabel(account)"
           :disabled="isGuestAccount(account) && requiresAuth"
           :title="isGuestAccount(account) && requiresAuth ? 'ゲストアカウントではこのカラムを使えません' : ''"
           @click="(!account.hasToken && requiresAuth) ? showLoginPrompt() : addColumnForAccount(account.id)"
         >
-          <AccountAvatar
-            :src="getAccountAvatarUrl(account)"
-            :host="account.host"
-            :size="28"
-            show-server
-            badge-background="var(--nd-popup)"
-          />
-          <span>{{ getAccountLabel(account) }}</span>
-        </button>
+          <template #avatar>
+            <AccountAvatar
+              :src="getAccountAvatarUrl(account)"
+              :host="account.host"
+              :size="32"
+              show-server
+              badge-background="var(--nd-navBg)"
+            />
+          </template>
+        </AccountPickerRow>
       </template>
     </div>
   </component>
 </template>
 
 <style lang="scss" module>
+@use '@/styles/navMenu';
 @use '@/styles/spotlight' as *;
 
 .addOverlay {
@@ -475,7 +496,8 @@ function close() {
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    > .addPopup {
+    // シート表示は下からのスライド (sheetContentEnter) に任せる
+    > .addPopup:not(.addSheet) {
       animation: addPopupIn 0.2s var(--nd-ease-spring);
     }
   }
@@ -489,6 +511,17 @@ function close() {
   max-width: 480px;
   max-height: 90vh;
   overflow-y: auto;
+}
+
+/* コンパクト表示: 画面下からのシート (他のメニューと同じ形) */
+.addSheet {
+  width: 100%;
+  max-width: none;
+  max-height: 80vh;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
 }
 
 .addInline {
@@ -546,39 +579,19 @@ function close() {
   padding: 2rem;
 }
 
-.addAccountBtn {
+/* 「全アカウント」「アカウントなし」の記号。アバターと同じ枠に収める */
+.addAccountIcon {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 24px;
-  font-size: 0.85em;
-  font-weight: bold;
-  color: var(--nd-fgHighlighted);
-  transition: background var(--nd-duration-base);
-
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-  }
-
-  & + & {
-    border-top: 1px solid var(--nd-divider);
-  }
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  font-size: 24px;
+  flex-shrink: 0;
 }
 
-.addAccountDisabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-
-  &:hover {
-    background: transparent;
-  }
-}
-
-.addAccountAvatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+.addAccountIconMuted {
+  opacity: 0.5;
 }
 
 .addBackBtn {

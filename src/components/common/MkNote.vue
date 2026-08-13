@@ -1772,6 +1772,9 @@ function handlePickerReaction(reaction: string) {
 }
 
 /* Container query responsive breakpoints */
+/* アバターはカラム幅で縮めない (#1045)。本家は 58 → 50 → 46 → 44 と
+   縮めるが、デッキの狭いカラムでは顔が小さくなって見分けにくくなるので
+   58px 固定のままにする */
 @container (max-width: 580px) {
   .noteRoot { font-size: 0.95em; }
   .article { padding: 24px 26px; }
