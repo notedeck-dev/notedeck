@@ -30,6 +30,12 @@ export interface WidgetMeta extends SidecarItemFile {
   updatedAt: number
   /** 個別アイコン URL (MisStore registry の iconUrl 互換) */
   iconUrl?: string
+  /**
+   * 実行アカウント (#1018)。全アカウントのカラムに置いたウィジットは、カラムから
+   * アカウントを決められないのでインストール時に選んだものをここに持つ。
+   * per-account カラムのウィジットは未設定 — カラムの accountId で動く。
+   */
+  accountId?: string
 }
 
 /** Metadata fields stored in *.meta.json5 (everything except src). */
@@ -43,6 +49,7 @@ interface WidgetFileMeta {
   createdAt: number
   updatedAt: number
   iconUrl?: string
+  accountId?: string
 }
 
 /** .is + .meta.json5 ペアのファイル永続化 (#782 Phase 2、plugins と共通) */
@@ -73,6 +80,7 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
     ...(w.storeSha512 ? { storeSha512: w.storeSha512 } : {}),
     ...(w.storeVersion ? { storeVersion: w.storeVersion } : {}),
     ...(w.iconUrl ? { iconUrl: w.iconUrl } : {}),
+    ...(w.accountId ? { accountId: w.accountId } : {}),
     createdAt: w.createdAt,
     updatedAt: w.updatedAt,
   }),
@@ -85,6 +93,7 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
     storeSha512: meta.storeSha512,
     storeVersion: meta.storeVersion,
     iconUrl: meta.iconUrl,
+    accountId: meta.accountId,
     createdAt: meta.createdAt ?? Date.now(),
     updatedAt: meta.updatedAt ?? Date.now(),
   }),
@@ -392,6 +401,20 @@ export const useWidgetsStore = defineStore('widgets', () => {
     }
   }
 
+  /**
+   * 実行アカウントを固定する (#1018)。全アカウントのカラムに置いたウィジットが
+   * どのアカウントで動くかは、カラムからは決まらないのでここに持つ。
+   */
+  function setAccountId(installId: string, accountId: string | undefined) {
+    ensureLoaded()
+    const widget = widgets.value.find((w) => w.installId === installId)
+    if (widget) {
+      widget.accountId = accountId
+      widget.updatedAt = Date.now()
+      persist(widget)
+    }
+  }
+
   function setAutoRun(installId: string, autoRun: boolean) {
     ensureLoaded()
     const widget = widgets.value.find((w) => w.installId === installId)
@@ -499,6 +522,7 @@ export const useWidgetsStore = defineStore('widgets', () => {
     removeWidget,
     updateSrc,
     setAutoRun,
+    setAccountId,
     applyStoreUpdate,
     recordStoreBaseline,
     setStoreId,

@@ -14,6 +14,13 @@
 export interface CapabilityContext {
   /** Widget カラムの accountId (未設定なら null = cross-account / ゲスト)。 */
   accountId: string | null
+  /**
+   * accountId が無くても、インストール時にアカウントを選べるか (#1018)。
+   * 全アカウントのカラムは実行アカウントをウィジット単位で選ばせるので、
+   * アカウント必須の capability を非互換にはしない。選べる相手 (ログイン済み
+   * アカウント) が 1 つも無いときは false。
+   */
+  canPickAccount?: boolean
 }
 
 export interface CapabilityCheck {
@@ -34,6 +41,20 @@ const KNOWN_CAPABILITIES = new Set<string>([
   // gate されるため、install 判定では互換とだけ扱う。
   'secret-vault',
 ])
+
+/** 実行にアカウントを要する capability。 */
+const ACCOUNT_REQUIRED_CAPABILITIES = new Set<string>([
+  'misskey-api',
+  'misskey-account',
+])
+
+/**
+ * 実行アカウントが要るか (#1018)。全アカウントのカラムは、これが true の
+ * アイテムだけインストール時にアカウントを選ばせる。
+ */
+export function requiresAccount(capabilities: readonly string[]): boolean {
+  return capabilities.some((c) => ACCOUNT_REQUIRED_CAPABILITIES.has(c))
+}
 
 /** NoteDeck が capability を理解しているかだけを判定する (plugin install 用)。 */
 export function checkKnownCapabilities(
@@ -57,6 +78,11 @@ export function checkWidgetCapabilities(
 ): CapabilityCheck {
   const known = checkKnownCapabilities(capabilities)
   if (!known.ok) return known
+  // 実行アカウントが後から決まるなら、アカウント条件は install を止める理由に
+  // ならない (#1018)
+  if (ctx.accountId === null && ctx.canPickAccount) {
+    return { ok: true, badge: null, reason: null }
+  }
   for (const cap of capabilities) {
     if (cap === 'misskey-api' && ctx.accountId === null) {
       return {

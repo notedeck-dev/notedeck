@@ -32,6 +32,7 @@ import WidgetCard from './WidgetCard.vue'
 import {
   type CapabilityCheck,
   checkWidgetCapabilities,
+  requiresAccount,
 } from './widgets/capabilities'
 
 const WidgetAiScript = defineAsyncComponent(
@@ -119,8 +120,14 @@ function handleDragStart(idx: number, e: PointerEvent) {
  * 配置はピッカー (= showLibraryPicker) から行う。
  */
 async function openNewWidgetEditor() {
-  const accountId = await resolveEditorAccountId()
-  if (accountId === undefined) return
+  let accountId: string | undefined
+  if (isAllAccounts(props.column)) {
+    const picked = await pickAccount(
+      'ウィジットをどのアカウントで動かしますか？',
+    )
+    if (!picked) return
+    accountId = picked
+  }
   const installId = generateWidgetId()
   const now = Date.now()
   widgetsStore.addWidget({
@@ -128,25 +135,33 @@ async function openNewWidgetEditor() {
     name: `Widget ${installId.slice(4, 12)}`,
     src: '',
     autoRun: false,
+    accountId,
     createdAt: now,
     updatedAt: now,
   })
   windowsStore.open('widget-edit', {
     widgetId: installId,
-    accountId,
+    accountId: accountId ?? props.column.accountId,
   })
 }
 
 /**
- * ウィジットエディタに渡すアカウント (#1018)。全アカウントのカラムは
- * accountId を持たないため、そのまま渡すとエディタから Misskey API を一切
- * 呼べない (「開けるが使えない」)。どのアカウントで動かすかをここで選ばせる。
- * キャンセルは undefined — 「アカウントなし」(null) と区別する。
+ * ウィジットを動かすアカウント (#1018)。ウィジット固有の指定 → カラムの順。
+ * 全アカウントのカラムはそのままだと accountId が決まらず、ウィジットから
+ * Misskey API を一切呼べない (「開けるが使えない」)。まだ決まっていなければ
+ * 選ばせて、以後そのウィジットに固定する。キャンセルは undefined。
  */
-async function resolveEditorAccountId(): Promise<string | null | undefined> {
+async function resolveWidgetAccountId(
+  widget: WidgetMeta,
+): Promise<string | null | undefined> {
+  if (widget.accountId) return widget.accountId
   if (!isAllAccounts(props.column)) return props.column.accountId
-  const picked = await pickAccount('ウィジットをどのアカウントで動かしますか？')
-  return picked ?? undefined
+  const picked = await pickAccount(
+    `「${widget.name}」をどのアカウントで動かしますか？`,
+  )
+  if (!picked) return undefined
+  widgetsStore.setAccountId(widget.installId, picked)
+  return picked
 }
 
 // --- Library picker (配置タブ Add Widget ボタン) ---
@@ -172,7 +187,7 @@ function placeFromLibrary(widget: WidgetMeta) {
 }
 
 async function openLibraryWidgetEditor(widget: WidgetMeta) {
-  const accountId = await resolveEditorAccountId()
+  const accountId = await resolveWidgetAccountId(widget)
   if (accountId === undefined) return
   windowsStore.open('widget-edit', {
     widgetId: widget.installId,
@@ -181,7 +196,7 @@ async function openLibraryWidgetEditor(widget: WidgetMeta) {
 }
 
 const { confirm } = useConfirm()
-const { pickAccount } = useAccountPicker()
+const { pickAccount, hasPickableAccount } = useAccountPicker()
 
 /** ライブラリから widget 本体を削除 (コードも消える)。
  *  本体削除前に全 widget カラムから参照を剥がして dangling id を残さない
@@ -243,7 +258,12 @@ const filteredStoreWidgets = computed(() => {
 })
 
 const capabilityChecks = computed<Record<string, CapabilityCheck>>(() => {
-  const ctx = { accountId: props.column.accountId }
+  const ctx = {
+    accountId: props.column.accountId,
+    // 全アカウントのカラムは install 時に実行アカウントを選ばせるので、
+    // アカウント必須の capability でも止めない (#1018)
+    canPickAccount: isAllAccounts(props.column) && hasPickableAccount.value,
+  }
   const result: Record<string, CapabilityCheck> = {}
   for (const w of misStore.widgets) {
     result[w.id] = checkWidgetCapabilities(w.capabilities ?? [], ctx)
@@ -271,6 +291,19 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
       viewTab.value = 'installed'
       return
     }
+    // 全アカウントのカラムはどのアカウントで動かすかが決まらないので、
+    // アカウント必須のアイテムはここで選ばせて widget 側に持たせる (#1018)
+    let accountId: string | undefined
+    if (
+      requiresAccount(entry.capabilities ?? []) &&
+      isAllAccounts(props.column)
+    ) {
+      const picked = await pickAccount(
+        `「${entry.name}」をどのアカウントで動かしますか？`,
+      )
+      if (!picked) return
+      accountId = picked
+    }
     const src = await misStore.fetchWidgetSource(entry)
     deckStore.addWidget(props.column.id, {
       name: entry.name,
@@ -278,6 +311,7 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
       autoRun: entry.autoRun,
       storeId: entry.id,
       iconUrl: entry.iconUrl,
+      accountId,
     })
     viewTab.value = 'installed'
   } catch (e) {
@@ -350,7 +384,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
             <WidgetAiScript
               :widget="widget"
               :column-id="column.id"
-              :account-id="column.accountId"
+              :account-id="widget.accountId ?? column.accountId"
               :is-sidebar="isSidebar"
               @remove="handleRemove(widget.installId)"
               @drag-start="handleDragStart(idx, $event)"

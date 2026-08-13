@@ -188,3 +188,33 @@ describe('編集履歴の同値ガード (#981)', () => {
     expect(pushSnapshot).not.toHaveBeenCalled()
   })
 })
+
+describe('useWidgetsStore.setAccountId — ウィジット単位の実行アカウント (#1018)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('実行アカウントを固定できる', () => {
+    const store = useWidgetsStore()
+    store.addWidget(makeWidget('w-acc'))
+
+    store.setAccountId('w-acc', 'a1')
+
+    expect(store.getWidget('w-acc')?.accountId).toBe('a1')
+  })
+
+  it('undefined を渡すと解除される (カラムのアカウントに従う状態へ戻す)', () => {
+    const store = useWidgetsStore()
+    store.addWidget({ ...makeWidget('w-acc'), accountId: 'a1' })
+
+    store.setAccountId('w-acc', undefined)
+
+    expect(store.getWidget('w-acc')?.accountId).toBeUndefined()
+  })
+
+  it('未知の installId は no-op', () => {
+    const store = useWidgetsStore()
+    expect(() => store.setAccountId('missing', 'a1')).not.toThrow()
+  })
+})
