@@ -1772,14 +1772,12 @@ function handlePickerReaction(reaction: string) {
 }
 
 /* Container query responsive breakpoints */
-/* アバターはカラム幅に応じて縮める (本家と同じ 58 → 50 → 46 → 44)。
-   MkAvatar は --avatar-size をインライン style で持っていて外から変数を
-   上書きできないので、寸法を直接指定する。MkAvatar 側の width/height と
-   同じ特異度だと読み込み順に依存するため (0,2,0) に上げる (#1045) */
+/* アバターはカラム幅で縮めない (#1045)。本家は 58 → 50 → 46 → 44 と
+   縮めるが、デッキの狭いカラムでは顔が小さくなって見分けにくくなるので
+   58px 固定のままにする */
 @container (max-width: 580px) {
   .noteRoot { font-size: 0.95em; }
   .article { padding: 24px 26px; }
-  .avatar.avatar { width: 50px; height: 50px; }
   .renoteInfo { padding: 12px 26px 6px 26px; }
   .pinnedInfo { padding: 10px 26px 0 26px; }
   .replyTo { padding: 10px 26px 0 26px; }
@@ -1804,7 +1802,6 @@ function handlePickerReaction(reaction: string) {
 
 @container (max-width: 450px) {
   .avatar { margin: 0 10px 0 0; }
-  .avatar.avatar { width: 46px; height: 46px; }
 }
 
 @container (max-width: 400px) {
@@ -1817,7 +1814,6 @@ function handlePickerReaction(reaction: string) {
 }
 
 @container (max-width: 300px) {
-  .avatar.avatar { width: 44px; height: 44px; }
   .footerButton { margin-right: 8px; }
   .reaction { height: 32px; font-size: 1em; border-radius: 4px; }
   .reaction .count { font-size: 0.9em; line-height: 32px; }

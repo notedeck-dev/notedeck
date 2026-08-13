@@ -417,7 +417,7 @@ export const useDeckStore = defineStore('deck', () => {
       addColumnAt(0, {
         type: 'chat',
         name: null,
-        width: 330,
+        width: 360,
         accountId: null,
         sidebar: true,
       })
@@ -449,7 +449,7 @@ export const useDeckStore = defineStore('deck', () => {
       addColumnAt(0, {
         type: 'search',
         name: null,
-        width: 330,
+        width: 360,
         accountId: null,
         sidebar: true,
         query,
@@ -487,7 +487,7 @@ export const useDeckStore = defineStore('deck', () => {
     addColumnAt(0, {
       type,
       name: null,
-      width: 330,
+      width: 360,
       accountId,
       sidebar: true,
       ...extraProps,
