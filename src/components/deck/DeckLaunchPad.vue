@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref, useCssModule, watch } from 'vue'
-import { getAccountScope } from '@/columns/accountScope'
 import { exposedColumnTypes } from '@/columns/exposure'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
@@ -58,24 +57,6 @@ const items = computed<ColumnType[]>(() =>
     return CROSS_ACCOUNT_TYPES.has(t) || ACCOUNT_INDEPENDENT_TYPES.has(t)
   }),
 )
-
-/**
- * 「全アカウント」と「アカウントなし」を別の見出しで出す (#1018)。
- * 1 グループにまとめていたので、束ねるカラムとアカウントに紐づかないカラムの
- * 区別がここから伝わらなかった。
- */
-const sections = computed(() => {
-  const groups: Record<'all' | 'none', ColumnType[]> = { all: [], none: [] }
-  for (const t of items.value) {
-    const scope = getAccountScope({ type: t, accountId: null })
-    if (scope === 'all') groups.all.push(t)
-    else groups.none.push(t)
-  }
-  return [
-    { key: 'all', label: '全アカウント', types: groups.all },
-    { key: 'none', label: 'アカウントなし', types: groups.none },
-  ].filter((s) => s.types.length > 0)
-})
 
 const contentClass = computed(() => {
   if (isCompact.value) {
@@ -154,21 +135,18 @@ function close() {
       :class="contentClass"
       :style="popupStyle"
     >
-      <template v-for="section in sections" :key="section.key">
-        <div :class="$style.sectionLabel">{{ section.label }}</div>
-        <div :class="$style.grid">
-          <button
-            v-for="t in section.types"
-            :key="t"
-            class="_button"
-            :class="$style.item"
-            @click="selectItem(t)"
-          >
-            <i class="ti" :class="[$style.icon, `ti-${COLUMN_ICONS[t]}`]" />
-            <span :class="$style.label">{{ COLUMN_LABELS[t] }}</span>
-          </button>
-        </div>
-      </template>
+      <div :class="$style.grid">
+        <button
+          v-for="t in items"
+          :key="t"
+          class="_button"
+          :class="$style.item"
+          @click="selectItem(t)"
+        >
+          <i class="ti" :class="[$style.icon, `ti-${COLUMN_ICONS[t]}`]" />
+          <span :class="$style.label">{{ COLUMN_LABELS[t] }}</span>
+        </button>
+      </div>
     </div>
   </dialog>
 </template>
@@ -214,16 +192,6 @@ dialog.overlay::backdrop {
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
     padding-bottom: max(20px, var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
-  }
-}
-
-.sectionLabel {
-  font-size: 0.75em;
-  opacity: 0.6;
-  padding: 6px 4px 2px;
-
-  &:first-child {
-    padding-top: 0;
   }
 }
 
