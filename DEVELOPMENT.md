@@ -443,12 +443,17 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 
 **Cross-account カラム:**
 
-ストリーム系カラムは `accountId` で動作モードが決まる。
+カラムのアカウントスコープは 3 状態ある。`accountId` は `string | null` のままで、`null` の意味は registry の `crossAccount` 宣言から引き直す（#1018）。
 
-- `accountId: "user-xxx"` → **per-account**（`useColumnSetup` で単一アダプタ）
-- `accountId: null` → **cross-account**（`useMultiAccountAdapters` で全アカウント並列取得）
+| スコープ | 条件 | 動作 |
+|---------|------|------|
+| **per-account** | `accountId` あり | `useColumnSetup` で単一アダプタ |
+| **全アカウント** | `accountId: null` + `crossAccount: true` | `useMultiAccountAdapters` で全アカウント並列取得 |
+| **アカウントなし** | `accountId: null` + `crossAccount` 宣言なし | アカウントに紐づかない（AI・スキル・タスク等） |
 
-対応済みカラム: 通知、検索、チャット、メンション、ダイレクト、フォローリクエスト。
+判定は `src/columns/accountScope.ts` の `getAccountScope()` 一本。カラムを受け取る側が「束ねるべき」か「関係ない」かを各自で判定すると、対応種別が増えるたびに虫食いが再発するため、この 1 箇所を経由する。対応種別の正本は `src/columns/registry.ts` の `crossAccount` 宣言。
+
+全アカウントのカラムはヘッダーに `AvatarStack` が出る（アカウントなしは何も出ない）。そこからアカウント必須の操作を始めるときは `useAccountPicker` でどのアカウントで実行するかを選ばせる — アクティブアカウントへ暗黙にフォールバックしない。
 
 **ナビバー（VSCode Activity Bar 式）:**
 

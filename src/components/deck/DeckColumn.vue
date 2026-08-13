@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, provide, ref, watch } from 'vue'
+import { isAllAccounts } from '@/columns/accountScope'
+import AvatarStack from '@/components/common/AvatarStack.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import {
   popOutColumnToWindow,
@@ -72,6 +74,7 @@ const isLoggedOut = computed(() => {
   const acc = columnAccount.value
   return acc != null && !acc.hasToken && !isGuestAccount(acc)
 })
+const isAllAccountsColumn = computed(() => isAllAccounts(columnConfig.value))
 
 // `requireAccount` = true なカラム向け: アカウント解決状態に応じて本体スロットを差し替える
 const serverNotFoundImageUrl = useServerImages(
@@ -268,6 +271,16 @@ function openAsPip() {
       <span :class="$style.headerTitle" :data-tauri-drag-region="isPipMode ? '' : undefined">{{ title }}</span>
 
       <template v-if="!isPipMode">
+        <!-- 全アカウントのカラム (#1018)。per-account カラムが header-meta に
+             出すアカウント表示と同じ位置に置き、「アカウントなし」のカラム
+             (何も出ない) と見分けられるようにする -->
+        <AvatarStack
+          v-if="isAllAccountsColumn"
+          :class="$style.headerAccounts"
+          :size="18"
+          :max="3"
+          title="全アカウント"
+        />
         <slot name="header-meta" />
       </template>
 
@@ -442,6 +455,12 @@ function openAsPip() {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.85em;
+}
+
+/* per-account カラムの .headerAccount (column-common) と同じ間の取り方 */
+.headerAccounts {
+  margin-left: 4px;
+  flex-shrink: 0;
 }
 
 .grabber {

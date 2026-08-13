@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref, useTemplateRef } from 'vue'
+import { isAllAccounts } from '@/columns/accountScope'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import { useAccountPicker } from '@/composables/useAccountPicker'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { usePointerReorder } from '@/composables/usePointerReorder'
 import { useServerImages } from '@/composables/useServerImages'
@@ -116,7 +118,9 @@ function handleDragStart(idx: number, e: PointerEvent) {
  * column.widgetIds には push しない (= 配置タブには出ない)。
  * 配置はピッカー (= showLibraryPicker) から行う。
  */
-function openNewWidgetEditor() {
+async function openNewWidgetEditor() {
+  const accountId = await resolveEditorAccountId()
+  if (accountId === undefined) return
   const installId = generateWidgetId()
   const now = Date.now()
   widgetsStore.addWidget({
@@ -129,8 +133,20 @@ function openNewWidgetEditor() {
   })
   windowsStore.open('widget-edit', {
     widgetId: installId,
-    accountId: props.column.accountId,
+    accountId,
   })
+}
+
+/**
+ * ウィジットエディタに渡すアカウント (#1018)。全アカウントのカラムは
+ * accountId を持たないため、そのまま渡すとエディタから Misskey API を一切
+ * 呼べない (「開けるが使えない」)。どのアカウントで動かすかをここで選ばせる。
+ * キャンセルは undefined — 「アカウントなし」(null) と区別する。
+ */
+async function resolveEditorAccountId(): Promise<string | null | undefined> {
+  if (!isAllAccounts(props.column)) return props.column.accountId
+  const picked = await pickAccount('ウィジットをどのアカウントで動かしますか？')
+  return picked ?? undefined
 }
 
 // --- Library picker (配置タブ Add Widget ボタン) ---
@@ -155,14 +171,17 @@ function placeFromLibrary(widget: WidgetMeta) {
   showLibraryPicker.value = false
 }
 
-function openLibraryWidgetEditor(widget: WidgetMeta) {
+async function openLibraryWidgetEditor(widget: WidgetMeta) {
+  const accountId = await resolveEditorAccountId()
+  if (accountId === undefined) return
   windowsStore.open('widget-edit', {
     widgetId: widget.installId,
-    accountId: props.column.accountId,
+    accountId,
   })
 }
 
 const { confirm } = useConfirm()
+const { pickAccount } = useAccountPicker()
 
 /** ライブラリから widget 本体を削除 (コードも消える)。
  *  本体削除前に全 widget カラムから参照を剥がして dangling id を残さない
