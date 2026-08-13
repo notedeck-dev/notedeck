@@ -781,17 +781,20 @@ export const useThemeStore = defineStore('theme', () => {
     if (compiledCache.has(cacheKey)) return compiledCache.get(cacheKey) ?? null
 
     const cached = accountThemeCache.value.get(accountId)
-    if (!cached) return null
 
     const dark = isCurrentDark()
     // mode strict: dark モード時は dark のみ、light モード時は light のみ。
     // sync が無ければ meta default を fallback とする (registry sync 削除後も
     // インスタンスデフォルトが残っていれば反映される)。クロスモードの fallback
     // はしない (dark モードで light が当たる混乱を避ける)。
-    const theme = dark
-      ? (cached.dark ?? cached.metaDark)
-      : (cached.light ?? cached.metaLight)
-    if (!theme) return null
+    const accountTheme = dark
+      ? (cached?.dark ?? cached?.metaDark)
+      : (cached?.light ?? cached?.metaLight)
+
+    // per-account テーマが無ければ組込テーマへ落とす (#1046)。グローバルの
+    // カスタムテーマはアカウントに紐づかないカラム (アカウントなし / 全
+    // アカウント) のものなので、アカウントのカラムに継承させない。
+    const theme = accountTheme ?? (dark ? DARK_THEME : LIGHT_THEME)
 
     const base = dark ? DARK_BASE : LIGHT_BASE
     const compiled = compileMisskeyTheme(theme, base)

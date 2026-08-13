@@ -1,5 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DARK_BASE, DARK_THEME } from '@/theme/builtinThemes'
+import { compileMisskeyTheme } from '@/theme/compiler'
 import type { MisskeyTheme } from '@/theme/types'
 import { STORAGE_KEYS } from '@/utils/storage'
 import { useThemeStore } from './theme'
@@ -213,5 +215,52 @@ describe('useThemeStore.unlinkAccountFromTheme — #988', () => {
     const undo = store.unlinkAccountFromTheme(RED.id, 'acc-1')
     expect(undo).toBeUndefined()
     expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual(['acc-2'])
+  })
+})
+
+describe('useThemeStore.getStyleVarsForAccount — グローバルテーマの適用範囲 (#1046)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  /** グローバルにカスタムテーマ RED を選択した dark モードの状態を作る */
+  function selectRedGlobally() {
+    const store = useThemeStore()
+    store.manualMode = 'dark'
+    store.installedThemes = [RED]
+    store.selectedDarkThemeId = RED.id
+    store.applyCurrentTheme()
+    return store
+  }
+
+  it('per-account テーマが無いアカウントのカラムには組込テーマを当てる', () => {
+    const store = selectRedGlobally()
+
+    const vars = store.getStyleVarsForAccount('acc-no-theme')
+
+    const builtin = compileMisskeyTheme(DARK_THEME, DARK_BASE)
+    expect(vars?.['--nd-bg']).toBe(builtin.bg)
+    expect(vars?.['--nd-bg']).not.toBe(RED.props.bg)
+  })
+
+  it('per-account テーマを持つアカウントのカラムにはそのテーマを当てる', () => {
+    const store = selectRedGlobally()
+    store.accountThemeCache = new Map([['acc-1', { dark: BLUE }]])
+
+    const vars = store.getStyleVarsForAccount('acc-1')
+
+    expect(vars?.['--nd-bg']).toBe(BLUE.props.bg)
+  })
+
+  it('セーフモード中はカラムに何も当てない (組込テーマがグローバルに当たっている)', () => {
+    localStorage.setItem(STORAGE_KEYS.safeMode, 'true')
+    const store = selectRedGlobally()
+
+    expect(store.getStyleVarsForAccount('acc-no-theme')).toBeUndefined()
   })
 })
