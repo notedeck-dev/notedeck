@@ -13,7 +13,7 @@ import {
   type SelectableItem,
   type SelectableSpec,
 } from '@/columns/registry'
-import AvatarStack from '@/components/common/AvatarStack.vue'
+import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useNativeDialog } from '@/composables/useNativeDialog'
@@ -429,9 +429,9 @@ function close() {
           :class="$style.addAccountBtn"
           @click="addColumnForAccount(null)"
         >
-          <!-- 「全アカウント」は文字どおり全件重ねる (既定の 3 件打ち切りだと
-               4 件目以降が含まれないように見える) -->
-          <AvatarStack :size="28" :max="accountsStore.accounts.length" />
+          <!-- カラムヘッダーと同じ記号で示す (#1018)。誰が含まれるかは可変な
+               ので顔は並べない -->
+          <i class="ti ti-user" style="font-size: 28px;" />
           <span>全アカウント</span>
         </button>
         <button
@@ -452,7 +452,13 @@ function close() {
           :title="isGuestAccount(account) && requiresAuth ? 'ゲストアカウントではこのカラムを使えません' : ''"
           @click="(!account.hasToken && requiresAuth) ? showLoginPrompt() : addColumnForAccount(account.id)"
         >
-          <img :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)" :class="$style.addAccountAvatar" />
+          <AccountAvatar
+            :src="getAccountAvatarUrl(account)"
+            :host="account.host"
+            :size="28"
+            show-server
+            badge-background="var(--nd-popup)"
+          />
           <span>{{ getAccountLabel(account) }}</span>
         </button>
       </template>

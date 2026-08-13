@@ -15,7 +15,6 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 const props = defineProps<{
   column: DeckColumnType
@@ -124,7 +123,6 @@ function scrollToTop() {
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <div ref="listContentRef" :class="$style.playListContent">

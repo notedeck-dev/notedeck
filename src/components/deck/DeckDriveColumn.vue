@@ -382,9 +382,6 @@ fetchDrive()
       <button v-if="!selectMode && canWrite" class="_button" :class="$style.headerRefresh" title="アップロード" aria-label="アップロード" :disabled="uploading" @click.stop="openFilePicker">
         <i :class="uploading ? 'ti ti-loader-2 nd-spin' : 'ti ti-upload'" />
       </button>
-      <div v-if="account" :class="$style.headerAccount">
-        <img :src="proxyThumbUrl(getAccountAvatarUrl(account), 56)" :class="$style.headerAvatar" />
-      </div>
     </template>
 
     <input

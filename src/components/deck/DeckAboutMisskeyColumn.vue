@@ -22,7 +22,6 @@ import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 interface ServerMeta {
   version: string
@@ -186,7 +185,6 @@ onMounted(() => {
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <div v-if="error" :class="[$style.columnEmpty, $style.columnError]">

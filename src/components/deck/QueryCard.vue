@@ -6,11 +6,15 @@ import { isWindowExposed } from '@/windows/exposure'
 
 /**
  * カラムクエリのアイテムカード (#783)。
- * WidgetCard と同型の 2 モード (store / library) 構成で、他のストア配布
- * 管理カラム (プラグイン・ウィジェット・スキル・テーマ) と UI/UX を揃える。
+ * PluginCard と同型の 3 モード構成で、他のストア配布管理カラム
+ * (プラグイン・ウィジェット・スキル・テーマ) と UI/UX を揃える。
+ *
+ * - `installed`: カラムのスコープに参加中 (#1018)。外す / 削除 / 編集
+ * - `library`: スコープ未参加のライブラリ本体。追加 / 削除
+ * - `store`: MisStore 配布物
  */
 
-type Mode = 'store' | 'library'
+type Mode = 'store' | 'library' | 'installed'
 
 const props = withDefaults(
   defineProps<{
@@ -39,6 +43,8 @@ const props = withDefaults(
     execution?: 'fast' | 'degraded' | 'invalid'
     /** library mode: 適用中のカラム数 */
     refCount?: number
+    /** installed mode: 「外す」ボタンの tooltip (#1018) */
+    detachTitle?: string
   }>(),
   {
     mode: 'store',
@@ -52,9 +58,11 @@ const emit = defineEmits<{
   (e: 'install'): void
   (e: 'update'): void
   (e: 'open-detail'): void
-  // library
+  // installed / library
   (e: 'edit'): void
   (e: 'delete'): void
+  (e: 'detach'): void
+  (e: 'place'): void
 }>()
 
 const isStore = computed(() => props.mode === 'store')
@@ -75,6 +83,9 @@ function handlePrimaryClick() {
   if (isStore.value) {
     if (props.alreadyInstalled || props.installing) return
     emit('install')
+  } else if (props.mode === 'library') {
+    // ピッカーのカードは「このカラムに追加」が主動作
+    emit('place')
   } else if (canEdit.value) {
     emit('edit')
   }
@@ -180,8 +191,38 @@ function handlePrimaryClick() {
               インストール
             </button>
           </template>
-          <!-- library mode -->
+          <!-- library mode (スコープ未参加のライブラリ本体) -->
+          <template v-else-if="mode === 'library'">
+            <button
+              class="_button"
+              :class="[$style.iconBtn, $style.iconBtnDanger]"
+              title="ライブラリから削除 (本文も消えます)"
+              @click.stop="emit('delete')"
+            >
+              <i class="ti ti-trash" />
+            </button>
+            <button
+              class="_button"
+              :class="$style.primaryBtn"
+              @click.stop="emit('place')"
+            >
+              <i class="ti ti-plus" />
+              追加
+            </button>
+          </template>
+
+          <!-- installed mode (カラムのスコープに参加中) -->
           <template v-else>
+            <!-- 可逆な「外す」なので ti-trash (= 本体削除) とは別アイコン (#1048) -->
+            <button
+              v-if="detachTitle"
+              class="_button"
+              :class="$style.iconBtn"
+              :title="detachTitle"
+              @click.stop="emit('detach')"
+            >
+              <i class="ti ti-circle-minus" />
+            </button>
             <button
               class="_button"
               :class="[$style.iconBtn, $style.iconBtnDanger]"

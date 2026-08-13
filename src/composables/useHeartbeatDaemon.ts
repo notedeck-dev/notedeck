@@ -810,19 +810,13 @@ export function useHeartbeatDaemon() {
     // heartbeat は currentColumn=null だが memos は column 非依存なので
     // ds.memos が ON なら自律 tick からも参照される。
     await ensureMemosLoaded()
-    const heartbeatActiveAccountId = accountsStore.activeAccount?.id ?? null
-    const heartbeatMemoEntries = heartbeatActiveAccountId
-      ? Object.entries(loadAllMemos(heartbeatActiveAccountId))
-      : []
+    // メモはアカウントに紐づかない (#1018) ので、ログイン状態に関わらず全件見る
+    const heartbeatMemoEntries = Object.entries(loadAllMemos())
 
     // chat と同じく memosConfig.excludeTags / expandLinks / includeBacklinks を
     // 尊重 (#492 / #494)
     const heartbeatMemosCfg = config.value.dataSources.memosConfig
-    const heartbeatAllMemos = heartbeatActiveAccountId
-      ? new Map([
-          [heartbeatActiveAccountId, loadAllMemos(heartbeatActiveAccountId)],
-        ])
-      : new Map()
+    const heartbeatAllMemos = new Map([['', loadAllMemos()]])
     const notedeckContext = buildAiContextBlock(config.value, {
       activeAccount: accountsStore.activeAccount,
       currentColumn: null,

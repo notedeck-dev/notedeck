@@ -17,7 +17,6 @@ import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 const props = defineProps<{
   column: DeckColumnType
@@ -207,7 +206,6 @@ function onInstanceClick(inst: FederationInstance) {
 
     <template #header-meta>
       <span v-if="instances.length > 0" :class="$style.headerCount">{{ instances.length }}</span>
-      <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <div :class="$style.body">

@@ -9,6 +9,7 @@ const initAdapterForMock = vi.fn()
 const saveDraftMock = vi.fn()
 const deleteDraftMock = vi.fn()
 const saveMemoMock = vi.fn()
+const ensureMemosLoadedMock = vi.fn(async () => undefined)
 const deleteMemoMock = vi.fn()
 const generateMemoKeyMock = vi.fn()
 const detectAvailableTimelinesMock = vi.fn()
@@ -61,7 +62,7 @@ vi.mock('@/composables/useDrafts', () => ({
 }))
 vi.mock('@/composables/useMemos', () => ({
   generateMemoKey: () => generateMemoKeyMock(),
-  ensureMemosLoaded: async () => undefined,
+  ensureMemosLoaded: () => ensureMemosLoadedMock(),
   saveMemo: (...a: unknown[]) => saveMemoMock(...a),
   deleteMemo: (...a: unknown[]) => deleteMemoMock(...a),
 }))
@@ -733,14 +734,36 @@ describe('memo モード', () => {
     expect(apiGetUserPoliciesMock).not.toHaveBeenCalled()
   })
 
+  it('アカウントが 1 つも無くても書いて保存できる (#1018)', async () => {
+    const restore = accountsState.accounts
+    accountsState.accounts = []
+    try {
+      const form = mount({ accountId: '' }, { memoMode: true })
+      await form.initAdapter()
+      // ローカルの memo cache は読む (account guard で降りない)
+      expect(ensureMemosLoadedMock).toHaveBeenCalled()
+
+      form.text.value = 'アカウント無しのメモ'
+      expect(form.canPost.value).toBe(true)
+      await form.post()
+
+      expect(saveMemoMock).toHaveBeenCalledWith(
+        'memo-1',
+        expect.objectContaining({ text: 'アカウント無しのメモ' }),
+      )
+    } finally {
+      accountsState.accounts = restore
+    }
+  })
+
   it('post はローカル保存してフォームをリセットし新しい key を採番する', async () => {
     const form = mount({}, { memoMode: true })
     await form.initAdapter()
     expect(form.sessionSlotKey.value).toBe('memo-1')
     form.text.value = 'めも'
     await form.post()
+    // メモはアカウントに紐づかない (#1018)。誰が書いたかは author が持つ
     expect(saveMemoMock).toHaveBeenCalledWith(
-      'acc1',
       'memo-1',
       expect.objectContaining({ text: 'めも', tags: [] }),
     )
@@ -754,7 +777,7 @@ describe('memo モード', () => {
   it('removeCurrentSlot は deleteMemo を呼ぶ', async () => {
     const form = mount({}, { memoMode: true })
     await form.removeCurrentSlot()
-    expect(deleteMemoMock).toHaveBeenCalledWith('acc1', 'memo-1')
+    expect(deleteMemoMock).toHaveBeenCalledWith('memo-1')
   })
 })
 
@@ -951,7 +974,6 @@ describe('auto-save watch', () => {
     await nextTick()
     await vi.advanceTimersByTimeAsync(800)
     expect(saveMemoMock).toHaveBeenCalledWith(
-      'acc1',
       'memo-1',
       expect.objectContaining({ text: 'めも' }),
     )

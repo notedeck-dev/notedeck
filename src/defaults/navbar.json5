@@ -10,5 +10,4 @@
   { type: 'lookup', accountId: null },
   { type: 'widget', accountId: null },
   { type: 'ai', accountId: null },
-  { type: 'memos', accountId: null },
 ]

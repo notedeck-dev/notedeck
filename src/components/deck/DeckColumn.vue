@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, provide, ref, watch } from 'vue'
+import { isAllAccounts } from '@/columns/accountScope'
+import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import {
   popOutColumnToWindow,
@@ -10,7 +12,11 @@ import { usePipAlwaysOnTop } from '@/composables/usePipAlwaysOnTop'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useServerImages } from '@/composables/useServerImages'
 import { useVaporTransition } from '@/composables/useVaporTransition'
-import { isGuestAccount, useAccountsStore } from '@/stores/accounts'
+import {
+  getAccountAvatarUrl,
+  isGuestAccount,
+  useAccountsStore,
+} from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
@@ -72,6 +78,7 @@ const isLoggedOut = computed(() => {
   const acc = columnAccount.value
   return acc != null && !acc.hasToken && !isGuestAccount(acc)
 })
+const isAllAccountsColumn = computed(() => isAllAccounts(columnConfig.value))
 
 // `requireAccount` = true なカラム向け: アカウント解決状態に応じて本体スロットを差し替える
 const serverNotFoundImageUrl = useServerImages(
@@ -264,6 +271,24 @@ function openAsPip() {
         :data-tauri-drag-region="isPipMode ? '' : undefined"
       />
 
+      <!-- どのアカウントのカラムかを種別アイコンの左に置く (#1018)。
+           per-account はそのアカウント、全アカウントは顔を並べず記号 1 つ
+           (誰が含まれるかは可変で、狭いヘッダーに並べても読み取れない)、
+           「アカウントなし」のカラムには何も出ない。各カラムが header-meta で
+           出していた per-account 表示をここへ集約している -->
+      <AccountAvatar
+        v-if="columnAccount && !isPipMode"
+        :src="getAccountAvatarUrl(columnAccount)"
+        :host="columnAccount.host"
+        :size="20"
+        badge-background="var(--nd-panelHeaderBg)"
+        :title="`@${columnAccount.username}@${columnAccount.host}`"
+      />
+      <i
+        v-else-if="isAllAccountsColumn && !isPipMode"
+        :class="['ti ti-user', $style.headerAllAccounts]"
+        title="全アカウント"
+      />
       <slot name="header-icon" />
       <span :class="$style.headerTitle" :data-tauri-drag-region="isPipMode ? '' : undefined">{{ title }}</span>
 
@@ -442,6 +467,15 @@ function openAsPip() {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.85em;
+}
+
+/* 全アカウントのカラム (#1018)。per-account のアバターと同じ場所・同じ寸法 */
+.headerAllAccounts {
+  flex-shrink: 0;
+  width: 20px;
+  font-size: 18px;
+  text-align: center;
+  opacity: 0.8;
 }
 
 .grabber {

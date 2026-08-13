@@ -23,10 +23,12 @@ import { sanitizeCode } from '@/aiscript/sanitize'
 import { createAiScriptUiLib, type UiComponent } from '@/aiscript/ui'
 import type { JsonValue } from '@/bindings'
 import { useCommandStore } from '@/commands/registry'
+import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import { usePortal } from '@/composables/usePortal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useToast } from '@/stores/toast'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { readSafeMode } from '@/utils/safeMode'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -34,7 +36,11 @@ const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
 )
 
-import { useAccountsStore } from '@/stores/accounts'
+import {
+  getAccountAvatarUrl,
+  getAccountLabel,
+  useAccountsStore,
+} from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 import { useWindowsStore } from '@/stores/windows'
@@ -67,6 +73,14 @@ const serverUrl = computed(() => {
   if (!props.accountId) return ''
   const account = accountsStore.accounts.find((a) => a.id === props.accountId)
   return account ? `https://${account.host}` : ''
+})
+/**
+ * ウィジット固有の実行アカウント (#1018)。カラムから決まる場合は undefined —
+ * カラムヘッダーが既に示しているので重ねて出さない。
+ */
+const ownAccount = computed(() => {
+  const id = props.widget.accountId
+  return id ? accountsStore.accounts.find((a) => a.id === id) : undefined
 })
 // src の正本は widgetsStore (widget-edit window / AI 経由で更新される)。
 const code = computed(() => props.widget.src ?? '')
@@ -271,6 +285,18 @@ onMounted(() => {
   <div :class="$style.widgetApp">
     <div :class="$style.widgetHeader">
       <span :class="$style.widgetLabel" :title="displayName">
+        <!-- ウィジット固有の実行アカウント (#1018)。全アカウントのカラムでは
+             ウィジットごとに動く先が違うので、ここに出さないと見分けが付かない。
+             ラベルと同じ塊に入れる — 外に出すと余白を挟んで右のボタン群まで
+             流れていく -->
+        <AccountAvatar
+          v-if="ownAccount"
+          :src="getAccountAvatarUrl(ownAccount)"
+          :host="ownAccount.host"
+          :size="18"
+          show-server
+          :title="getAccountLabel(ownAccount)"
+        />
         <i class="ti ti-layout-dashboard" />
         <span :class="$style.widgetLabelText">{{ displayName }}</span>
       </span>
@@ -380,6 +406,7 @@ onMounted(() => {
   white-space: nowrap;
   min-width: 0;
 }
+
 
 .headerActions {
   display: flex;

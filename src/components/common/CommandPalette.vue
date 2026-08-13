@@ -10,6 +10,7 @@ import {
 } from '@/commands/quickPickProviders'
 import type { Command } from '@/commands/registry'
 import { useCommandStore } from '@/commands/registry'
+import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import { handleDeepLink } from '@/composables/useDeepLink'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePortal } from '@/composables/usePortal'
@@ -512,7 +513,15 @@ function primaryShortcut(cmd: Command): string | null {
             @click="selectQuickPickItem(item)"
             @mouseenter="selectedIndex = flatQuickPickList.indexOf(item)"
           >
-            <img v-if="item.avatarUrl" :src="proxyThumbUrl(item.avatarUrl, 56)" :class="$style.itemAvatar" />
+            <AccountAvatar
+              v-if="item.avatarUrl"
+              :class="$style.itemAvatar"
+              :src="item.avatarUrl"
+              :host="item.serverHost"
+              :size="24"
+              show-server
+              badge-background="var(--nd-popup)"
+            />
             <i v-else :class="['ti ti-' + item.icon, $style.itemIcon]" />
             <div :class="$style.itemContent">
               <span :class="$style.itemLabel">{{ item.label }}</span>
@@ -748,11 +757,7 @@ function primaryShortcut(cmd: Command): string | null {
 }
 
 .itemAvatar {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
   flex-shrink: 0;
-  object-fit: cover;
 }
 
 .itemLabel {

@@ -5,7 +5,6 @@ import {
   type StoredMemo,
 } from '@/composables/useMemos'
 import { extractMemoRefs } from '@/utils/memoLinks'
-import { ACCOUNT_ID_PARAM_DESC, resolveAccountId } from '../accountContext'
 
 /**
  * memos.read 系 capability (#492) — AI がローカルメモを「列挙 / 検索」する
@@ -106,11 +105,6 @@ export const memosListCapability: Command = {
         description: '返す最大件数 (default 10、最大 50)',
         optional: true,
       },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
     },
     returns: {
       type: 'array',
@@ -120,9 +114,8 @@ export const memosListCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params, ctx) => {
+  execute: async (params) => {
     await ensureMemosLoaded()
-    const accountId = resolveAccountId(params?.accountId, ctx)
     const tag = pickString(params?.tag)
     const authorIdFilter = pickString(params?.authorId)
     const olderThanDays = pickPositiveNumber(params?.olderThanDays)
@@ -134,7 +127,7 @@ export const memosListCapability: Command = {
       ? new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
       : null
 
-    const all = loadAllMemos(accountId)
+    const all = loadAllMemos()
     const entries: Array<[string, StoredMemo]> = Object.entries(all)
     const filtered = entries.filter(([, memo]) => {
       if (tag && !memo.data.tags.includes(tag)) return false
@@ -190,11 +183,6 @@ export const memosSearchCapability: Command = {
         description: '返す最大件数 (default 10、最大 50)',
         optional: true,
       },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
     },
     returns: {
       type: 'array',
@@ -203,16 +191,15 @@ export const memosSearchCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params, ctx) => {
+  execute: async (params) => {
     await ensureMemosLoaded()
     const query = pickString(params?.query)
     if (!query) throw new Error('memos.search: query is required')
     const authorIdFilter = pickString(params?.authorId)
     const limit = clampLimit(params?.limit)
-    const accountId = resolveAccountId(params?.accountId, ctx)
     const queryLower = query.toLowerCase()
 
-    const all = loadAllMemos(accountId)
+    const all = loadAllMemos()
     const entries: Array<[string, StoredMemo]> = Object.entries(all)
     const hits = entries.filter(([, memo]) => {
       if (!memo.data.text.toLowerCase().includes(queryLower)) return false
@@ -252,11 +239,6 @@ export const memosBacklinksCapability: Command = {
         type: 'string',
         description: '対象 memoKey (Zettelkasten id, `YYYYMMDDHHmmss`)',
       },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
     },
     returns: {
       type: 'array',
@@ -266,7 +248,7 @@ export const memosBacklinksCapability: Command = {
     cheap: true,
   },
   visible: false,
-  execute: async (params, ctx) => {
+  execute: async (params) => {
     const targetId = pickString(params?.id)
     if (!targetId) throw new Error('memos.backlinks: id is required')
     // 対象 memo 自体の存在は要求しない (= 削除済 id でも参照側は返す)。ただ
@@ -276,9 +258,8 @@ export const memosBacklinksCapability: Command = {
         'memos.backlinks: id must be a Zettelkasten key (14-digit number)',
       )
     }
-    const accountId = resolveAccountId(params?.accountId, ctx)
     await ensureMemosLoaded()
-    const all = loadAllMemos(accountId)
+    const all = loadAllMemos()
     const hits: [string, StoredMemo][] = []
     for (const [key, memo] of Object.entries(all)) {
       if (key === targetId) continue

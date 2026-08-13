@@ -20,13 +20,12 @@ describe('memos-read capability shape', () => {
     expect(memosListCapability.requiresConfirmation).toBeFalsy()
   })
 
-  it('memos.list params (tag / olderThanDays / query / limit / accountId) are optional', () => {
+  it('memos.list params (tag / olderThanDays / query / limit) are optional', () => {
     const params = memosListCapability.signature?.params
     expect(params?.tag?.optional).toBe(true)
     expect(params?.olderThanDays?.optional).toBe(true)
     expect(params?.query?.optional).toBe(true)
     expect(params?.limit?.optional).toBe(true)
-    expect(params?.accountId?.optional).toBe(true)
   })
 
   it('memos.search declares memos.read permission and requires query', () => {
@@ -37,7 +36,6 @@ describe('memos-read capability shape', () => {
     const params = memosSearchCapability.signature?.params
     expect(params?.query?.optional).toBeFalsy() // required
     expect(params?.limit?.optional).toBe(true)
-    expect(params?.accountId?.optional).toBe(true)
   })
 
   it('memos.search rejects empty / missing query', async () => {
@@ -57,7 +55,6 @@ describe('memos-read capability shape', () => {
     expect(memosBacklinksCapability.requiresConfirmation).toBeFalsy()
     const params = memosBacklinksCapability.signature?.params
     expect(params?.id?.optional).toBeFalsy() // required
-    expect(params?.accountId?.optional).toBe(true)
   })
 
   it('memos.backlinks rejects missing / malformed id', async () => {

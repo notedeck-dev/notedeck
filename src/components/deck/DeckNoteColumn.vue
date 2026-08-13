@@ -25,8 +25,15 @@ import {
 } from '@/composables/useNoteColumn'
 import { usePortal } from '@/composables/usePortal'
 import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
-import { isGuestAccount } from '@/stores/accounts'
-import { useColumnQueriesStore } from '@/stores/columnQueries'
+import {
+  accountScopeKey,
+  isGuestAccount,
+  useAccountsStore,
+} from '@/stores/accounts'
+import {
+  isQueryEffectiveFor,
+  useColumnQueriesStore,
+} from '@/stores/columnQueries'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
@@ -34,7 +41,6 @@ import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useToast } from '@/stores/toast'
 import { webUiUrl as buildWebUiUrl } from '@/utils/url'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 import TimelineFilterPopup from './TimelineFilterPopup.vue'
 
 const props = withDefaults(
@@ -195,11 +201,25 @@ const isQuerySuspended = computed(
 // --- フィルタメニュー (#841): 組込トグル + クエリトグルを全ノートカラム共通で提供 ---
 const deckStore = useDeckStore()
 const columnQueriesStore = useColumnQueriesStore()
+const accountsStore = useAccountsStore()
 columnQueriesStore.ensureLoaded()
 
-const namedQueryToggles = computed(() =>
-  columnQueriesStore.queries.map((q) => ({ id: q.id, name: q.name })),
-)
+/**
+ * このカラムで選べる名前付きクエリ (#1018)。全体スコープのクエリはどのカラム
+ * でも、アカウント別スコープのクエリはそのアカウントのカラムでだけ出す。
+ * 既にこのカラムへ適用済みのものは、スコープから外れていても出す — 黙って
+ * 選択肢から消えると、なぜ効いているのか分からないトグルが残るため。
+ */
+const namedQueryToggles = computed(() => {
+  const account = accountsStore.accounts.find(
+    (a) => a.id === props.column.accountId,
+  )
+  const scopeKey = account ? accountScopeKey(account) : null
+  const applied = new Set(props.column.noteQueryRefs ?? [])
+  return columnQueriesStore.queries
+    .filter((q) => isQueryEffectiveFor(q, scopeKey) || applied.has(q.id))
+    .map((q) => ({ id: q.id, name: q.name }))
+})
 const effectiveFilterKeys = computed(() => props.filterKeys ?? [])
 const showFilterBtn = computed(
   () =>
@@ -307,7 +327,6 @@ defineExpose({
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <template #header-extra>

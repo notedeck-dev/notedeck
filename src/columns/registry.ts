@@ -498,10 +498,21 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     icon: 'filter',
     group: 'tool',
     guestAllowed: true,
-    // クエリは純粋 (アカウント状態を参照しない) な全体プール (#783 追補 A)
+    // スコープ別プール (#1018)。全アカウントのカラムは全体スコープ、
+    // per-account カラムはそのアカウントのスコープを管理する
+    crossAccount: true,
+    component: () => import('@/components/deck/DeckQueryManagerColumn.vue'),
+  },
+  memos: {
+    label: 'メモ',
+    icon: 'notes',
+    group: 'tool',
+    guestAllowed: true,
+    // メモはサーバーに送らずローカルで完結し、同じくアカウントなしの AI カラム
+    // からも参照される。アカウントに紐づけない (#1018)
     accountIndependent: true,
     defaultProps: { accountId: null },
-    component: () => import('@/components/deck/DeckQueryManagerColumn.vue'),
+    component: () => import('@/components/deck/DeckMemoColumn.vue'),
   },
   skill: {
     label: 'スキル',
@@ -558,17 +569,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     accountIndependent: true,
     defaultProps: { accountId: null },
     component: () => import('@/components/deck/DeckAiColumn.vue'),
-  },
-  memos: {
-    label: 'メモ',
-    icon: 'notes',
-    group: 'tool',
-    guestAllowed: true,
-    // accountId == null は「全アカウント集約 viewer」として機能する。
-    // 投稿フォームは隠れ、各メモは frontmatter に書かれた accountId で
-    // 解決される。
-    crossAccount: true,
-    component: () => import('@/components/deck/DeckMemoColumn.vue'),
   },
   taskRunner: {
     label: 'タスク',

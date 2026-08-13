@@ -24,6 +24,14 @@ export interface ConfirmAction {
   primary?: boolean
   /** true のとき、このボタンはキャンセル扱い（confirmWithAction は null を返す）。 */
   cancel?: boolean
+  /**
+   * 選択肢がアカウントのときのアバター (#1018)。アカウント選択をラベルだけで
+   * 並べると、どのサーバーの誰かが読み取りにくく、横並びのボタンから溢れる。
+   * これが付いた actions は縦積みのリストとして描画される。
+   */
+  avatar?: { src: string; host: string }
+  /** avatar 付き選択肢の 2 行目 (サーバー名など) */
+  description?: string
 }
 
 export interface ConfirmOptions {

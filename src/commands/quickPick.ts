@@ -4,6 +4,12 @@ export interface QuickPickItem {
   icon: string
   /** アバター画像URL（指定時は icon の代わりに表示） */
   avatarUrl?: string
+  /**
+   * アバターの右上に出すサーバーバッジのホスト (#1018)。
+   * アカウントを選ばせる項目に付ける — アバターだけではどのサーバーの
+   * アカウントか分からないため。
+   */
+  serverHost?: string
   /** 2行目のサブテキスト */
   description?: string
   /** カテゴリグループ */

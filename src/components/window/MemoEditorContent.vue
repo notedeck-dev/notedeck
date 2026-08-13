@@ -5,7 +5,7 @@ import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import MemoCard from '@/components/common/MemoCard.vue'
 import PopupMenu from '@/components/common/PopupMenu.vue'
-import { saveDraft } from '@/composables/useDrafts'
+import { openEditHistoryWindow } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import {
   deleteMemo,
@@ -27,7 +27,8 @@ const CodeEditor = defineAsyncComponent(
 )
 
 const props = defineProps<{
-  accountId: string
+  /** メモを書いたアカウント (#1018)。表示と「下書きへ送る」にだけ使う */
+  accountId?: string | null
   memoKey: string
   initialTab?: string
 }>()
@@ -57,7 +58,7 @@ let pendingEcho = 0
 
 const memo = computed(() => {
   void memosVersion.value
-  return loadMemo(props.accountId, props.memoKey)
+  return loadMemo(props.memoKey)
 })
 
 const account = computed<Account | undefined>(() =>
@@ -104,7 +105,7 @@ watch(
   async () => {
     loaded.value = false
     await ensureMemosLoaded()
-    const m = loadMemo(props.accountId, props.memoKey)
+    const m = loadMemo(props.memoKey)
     localText.value = m?.data.text ?? ''
     loaded.value = true
   },
@@ -136,7 +137,7 @@ function onTextUpdate(next: string) {
     if (!current) return
     const data: MemoData = { ...current.data, text: localText.value }
     pendingEcho++
-    saveMemo(props.accountId, props.memoKey, data)
+    saveMemo(props.memoKey, data)
   }, 200)
 }
 
@@ -154,19 +155,15 @@ function closeMenu() {
   popupMenuRef.value?.close()
 }
 
-async function onPromoteToDraft() {
+/** 他のテキスト (スキル・ウィジット・テーマ・CSS) と同じ編集履歴を開く */
+function openHistory() {
   closeMenu()
-  const m = memo.value
-  if (!m) return
-  try {
-    await saveDraft(props.accountId, null, { ...m.data })
-  } catch (e) {
-    toast.show(`下書き化に失敗しました: ${AppError.from(e).message}`, 'error')
-    return
-  }
-  deleteMemo(props.accountId, props.memoKey)
-  toast.show('下書きに変換しました', 'info')
-  emit('close')
+  openEditHistoryWindow({
+    kind: 'memo',
+    basename: props.memoKey,
+    itemId: props.memoKey,
+    name: props.memoKey,
+  })
 }
 
 async function onDelete() {
@@ -178,7 +175,7 @@ async function onDelete() {
     type: 'danger',
   })
   if (!ok) return
-  deleteMemo(props.accountId, props.memoKey)
+  deleteMemo(props.memoKey)
   toast.show('メモを削除しました', 'info')
   emit('close')
 }
@@ -221,11 +218,11 @@ async function onDelete() {
       <!-- 右クリックでメモメニューを開く。click は MemoCard 内 (avatar /
            もっと見る等) の handler に委ねる。 -->
       <div
-        v-else-if="memo && account"
+        v-else-if="memo"
         :class="$style.previewWrap"
         @contextmenu.capture="onContextMenu"
       >
-        <MemoCard :account="account" :memo="memo" />
+        <MemoCard :memo="memo" />
       </div>
     </div>
 
@@ -248,9 +245,9 @@ async function onDelete() {
     </div>
 
     <PopupMenu ref="popupMenuRef">
-      <button class="_popupItem" @click="onPromoteToDraft">
-        <i class="ti ti-send" />
-        下書きにする
+      <button class="_popupItem" @click="openHistory">
+        <i class="ti ti-history" />
+        編集履歴
       </button>
       <div class="_popupDivider" />
       <button class="_popupItem _popupItemDanger" @click="onDelete">

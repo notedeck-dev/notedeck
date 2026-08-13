@@ -19,7 +19,6 @@ import { AppError } from '@/utils/errors'
 import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 const props = defineProps<{
   column: DeckColumnType
@@ -218,7 +217,6 @@ function getRowItems(index: number): ServerEmoji[] {
 
     <template #header-meta>
       <span v-if="allEmojis.length > 0" :class="$style.headerCount">{{ allEmojis.length }}</span>
-      <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <ColumnEmptyState

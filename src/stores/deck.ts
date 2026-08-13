@@ -644,6 +644,8 @@ export const useDeckStore = defineStore('deck', () => {
       storeId?: string
       name?: string
       iconUrl?: string
+      /** 実行アカウント (#1018)。全アカウントのカラムでインストール時に選ぶ */
+      accountId?: string
     },
   ) {
     const col = getColumn(columnId)
@@ -657,6 +659,7 @@ export const useDeckStore = defineStore('deck', () => {
       autoRun: initial?.autoRun ?? false,
       storeId: initial?.storeId,
       iconUrl: initial?.iconUrl,
+      accountId: initial?.accountId,
       createdAt: now,
       updatedAt: now,
     })

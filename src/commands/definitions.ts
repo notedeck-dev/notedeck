@@ -21,7 +21,6 @@ import {
   modeLabel,
 } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
-import { proxyThumbUrl } from '@/utils/mediaProxy'
 
 export interface CommandHandlers {
   openCompose: () => void
@@ -193,7 +192,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
             id: acc.id,
             label: actions.getAccountLabel(acc),
             icon: actions.isGuestAccount(acc) ? 'user-off' : 'user',
-            avatarUrl: proxyThumbUrl(getAccountAvatarUrl(acc), 18),
+            // プロキシは表示側 (AccountAvatar) が寸法に合わせて掛ける
+            avatarUrl: getAccountAvatarUrl(acc),
+            serverHost: acc.host,
             children: async () => {
               const items = []
               // モード切替 (Yami/Hana 等のフォーク固有モード)。

@@ -12,7 +12,6 @@ import { AppError } from '@/utils/errors'
 import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
-import DeckHeaderAccount from './DeckHeaderAccount.vue'
 
 interface Announcement {
   id: string
@@ -124,7 +123,6 @@ onUnmounted(() => {
     </template>
 
     <template #header-meta>
-      <DeckHeaderAccount :account="account" :server-icon-url="serverIconUrl" />
     </template>
 
     <ColumnEmptyState
