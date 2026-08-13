@@ -4,8 +4,10 @@ import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
+import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   type NamedQueryMeta,
+  type QueryScope,
   useColumnQueriesStore,
 } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
@@ -30,6 +32,9 @@ import QueryCard from './QueryCard.vue'
  * クエリ管理カラム (#783 Phase 1.5、仕様追補 E)。
  *
  * テーマ・プラグイン・ウィジェット・スキルと同列のツールカラム。
+ * スコープはプラグインと同型 (#1018): 全アカウントのカラムは全体スコープ、
+ * per-account カラムはそのアカウントのスコープを管理し、どちらにも属さない
+ * 本体はライブラリに残る。
  * 導入済みタブ: 名前付きクエリの一覧・作成・編集・削除と適用先カラム数。
  * ストアタブ: MisStore 配布クエリの検索・導入 (ソースのみ + sha512 検証 +
  * 自動有効化なし。差分承認つき更新は Phase 3.5 で強化)。
@@ -40,6 +45,7 @@ const props = defineProps<{
 }>()
 
 const queriesStore = useColumnQueriesStore()
+const accountsStore = useAccountsStore()
 const misStore = useMisStoreStore()
 const windowsStore = useWindowsStore()
 const { confirm } = useConfirm()
@@ -47,15 +53,45 @@ const { columnThemeVars } = useColumnTheme(() => props.column)
 
 queriesStore.ensureLoaded()
 
+// --- Mode resolution (per-account / 全アカウント) ---
+const isCrossAccount = computed(() => props.column.accountId == null)
+const account = computed(() =>
+  isCrossAccount.value
+    ? null
+    : (accountsStore.accounts.find((a) => a.id === props.column.accountId) ??
+      null),
+)
+/**
+ * このカラムが管理するスコープ (#1018)。
+ * per-account カラムでアカウントが見つからない (ログアウト済) 場合は null。
+ */
+const columnScope = computed<QueryScope | null>(() => {
+  if (isCrossAccount.value) return { kind: 'global' }
+  if (!account.value) return null
+  return { kind: 'account', key: accountScopeKey(account.value) }
+})
+
+/** カラムのスコープに参加しているか (スコープ別プール)。 */
+function matchesContext(query: NamedQueryMeta): boolean {
+  const scope = columnScope.value
+  if (!scope) return false
+  if (scope.kind === 'global') return query.global === true
+  return query.installedFor?.includes(scope.key) ?? false
+}
+
 type ViewTab = 'installed' | 'store'
 const viewTabs: ViewTab[] = ['installed', 'store']
 const viewTab = ref<ViewTab>('installed')
 const columnContentRef = ref<HTMLElement | null>(null)
 
+const scopeCount = computed(
+  () => queriesStore.queries.filter((q) => matchesContext(q)).length,
+)
+
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: `インストール済み ${queriesStore.queries.length}`,
+    label: `インストール済み ${scopeCount.value}`,
   },
   { value: 'store', label: 'ストア' },
 ])
@@ -75,9 +111,9 @@ const installError = ref<string | null>(null)
 
 const visibleQueries = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  const sorted = [...queriesStore.queries].sort(
-    (a, b) => b.updatedAt - a.updatedAt,
-  )
+  const sorted = queriesStore.queries
+    .filter((item) => matchesContext(item))
+    .sort((a, b) => b.updatedAt - a.updatedAt)
   if (!q) return sorted
   return sorted.filter(
     (item) =>
@@ -128,8 +164,45 @@ async function createNew(): Promise<void> {
   const query = await queriesStore.createQuery({
     name: `新しいクエリ ${queriesStore.queries.length + 1}`,
     src: 'note.text != null && note.text.incl("キーワード")',
+    // このカラムの文脈で作る = そのスコープに参加した状態で始める
+    ...(columnScope.value ? { scope: columnScope.value } : {}),
   })
   openEditor(query)
+}
+
+/**
+ * カードの「外す」= このカラムのスコープから外す。本体はライブラリに残り、
+ * ピッカーから再追加/完全削除できる。可逆なので確認は挟まず undo で戻す。
+ */
+function detachFromScope(query: NamedQueryMeta): void {
+  const scope = columnScope.value
+  if (!scope) return
+  queriesStore.unlinkScope(query.id, scope)
+  useToast().show('クエリを外しました', 'info', {
+    action: {
+      label: '元に戻す',
+      onClick: () => queriesStore.linkScope(query.id, scope),
+    },
+  })
+}
+
+const detachTitle = computed(() =>
+  isCrossAccount.value ? '全アカウント対象から外す' : 'このアカウントから外す',
+)
+
+// --- Library picker (スコープ未参加のライブラリ本体の追加) ---
+const showLibraryPicker = ref(false)
+
+/** このカラムのスコープに未参加のライブラリ本体 (= 追加可能候補)。 */
+const libraryCandidates = computed<NamedQueryMeta[]>(() =>
+  queriesStore.queries.filter((q) => !matchesContext(q)),
+)
+
+function placeFromLibrary(query: NamedQueryMeta): void {
+  const scope = columnScope.value
+  if (!scope) return
+  queriesStore.linkScope(query.id, scope)
+  showLibraryPicker.value = false
 }
 
 async function remove(query: NamedQueryMeta): Promise<void> {
@@ -168,7 +241,8 @@ const filteredStoreQueries = computed(() => {
 async function handleInstall(entry: StoreQueryEntry): Promise<void> {
   installError.value = null
   try {
-    await misStore.installQuery(entry)
+    // 入れた場所のスコープに参加させる (#1018)
+    await misStore.installQuery(entry, columnScope.value ?? undefined)
   } catch (e) {
     installError.value = e instanceof Error ? e.message : 'インストール失敗'
   }
@@ -261,6 +335,38 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
             <QueryCard
               v-for="query in section.items"
               :key="query.id"
+              mode="installed"
+              :name="query.name"
+              :description="query.description"
+              :icon-url="query.iconUrl"
+              :store-id="query.storeId"
+              :execution="executionOf(query)"
+              :ref-count="refCount(query)"
+              :detach-title="detachTitle"
+              @edit="openEditor(query)"
+              @delete="remove(query)"
+              @detach="detachFromScope(query)"
+            />
+          </ColumnSection>
+
+          <!-- Library picker: スコープ未参加のライブラリ本体を追加 -->
+          <div :class="$style.addArea">
+            <button
+              :class="[$style.addBtn, showLibraryPicker && $style.addBtnActive]"
+              @click="showLibraryPicker = !showLibraryPicker"
+            >
+              <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
+              {{ showLibraryPicker ? '閉じる' : 'ライブラリから追加' }}
+            </button>
+          </div>
+
+          <div v-if="showLibraryPicker" :class="$style.pickerWrap">
+            <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
+              ライブラリに追加可能なクエリがありません。
+            </div>
+            <QueryCard
+              v-for="query in libraryCandidates"
+              :key="query.id"
               mode="library"
               :name="query.name"
               :description="query.description"
@@ -268,10 +374,11 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
               :store-id="query.storeId"
               :execution="executionOf(query)"
               :ref-count="refCount(query)"
+              @place="placeFromLibrary(query)"
               @edit="openEditor(query)"
               @delete="remove(query)"
             />
-          </ColumnSection>
+          </div>
         </div>
       </template>
 
@@ -340,6 +447,49 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 </template>
 
 <style lang="scss" module>
+.addArea {
+  padding: 8px 10px;
+}
+
+.addBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px dashed var(--nd-divider);
+  background: transparent;
+  color: var(--nd-fg);
+  opacity: 0.8;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 1;
+    background: var(--nd-buttonHoverBg);
+  }
+}
+
+.addBtnActive {
+  opacity: 1;
+  background: var(--nd-buttonHoverBg);
+}
+
+.pickerWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+.pickerEmpty {
+  padding: 12px;
+  text-align: center;
+  font-size: 0.85em;
+  opacity: 0.6;
+}
+
 .headerIcon {
   opacity: 0.85;
 }

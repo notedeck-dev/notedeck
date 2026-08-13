@@ -14,7 +14,6 @@ import {
   type SelectableSpec,
 } from '@/columns/registry'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
-import AvatarStack from '@/components/common/AvatarStack.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useNativeDialog } from '@/composables/useNativeDialog'
@@ -430,9 +429,9 @@ function close() {
           :class="$style.addAccountBtn"
           @click="addColumnForAccount(null)"
         >
-          <!-- 「全アカウント」は文字どおり全件重ねる (打ち切ると 4 件目以降が
-               含まれていないように見える)。溢れる分は重なりを詰めて吸収する -->
-          <AvatarStack :size="28" :max-width="200" badge-background="var(--nd-popup)" />
+          <!-- カラムヘッダーと同じ記号で示す (#1018)。誰が含まれるかは可変な
+               ので顔は並べない -->
+          <i class="ti ti-user" style="font-size: 28px;" />
           <span>全アカウント</span>
         </button>
         <button

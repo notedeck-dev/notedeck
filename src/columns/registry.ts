@@ -498,9 +498,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     icon: 'filter',
     group: 'tool',
     guestAllowed: true,
-    // クエリは純粋 (アカウント状態を参照しない) な全体プール (#783 追補 A)
-    accountIndependent: true,
-    defaultProps: { accountId: null },
+    // スコープ別プール (#1018)。全アカウントのカラムは全体スコープ、
+    // per-account カラムはそのアカウントのスコープを管理する
+    crossAccount: true,
     component: () => import('@/components/deck/DeckQueryManagerColumn.vue'),
   },
   skill: {

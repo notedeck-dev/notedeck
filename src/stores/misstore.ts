@@ -6,7 +6,7 @@ import {
   parsePluginMeta,
 } from '@/aiscript/plugin-api'
 import { casefold, resolveAvailable } from '@/services/settingsSlug'
-import { useColumnQueriesStore } from '@/stores/columnQueries'
+import { type QueryScope, useColumnQueriesStore } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
 import {
   type PluginMeta,
@@ -665,7 +665,11 @@ export const useMisStoreStore = defineStore('misstore', () => {
    * 導入してもカラムへの自動適用はしない (自動有効化なし、V18)。
    * 既存の同 storeId は上書き更新 (再インストール = アップデート)。
    */
-  async function installQuery(entry: StoreQueryEntry): Promise<void> {
+  async function installQuery(
+    entry: StoreQueryEntry,
+    /** 参加させるスコープ (#1018)。カラムの文脈から渡す */
+    scope?: QueryScope,
+  ): Promise<void> {
     installingQuery.value = entry.id
     try {
       const {
@@ -690,6 +694,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
           id: resolveAvailable(e.id, (c) =>
             queriesStore.queries.some((q) => casefold(q.id) === c),
           ),
+          ...(scope ? { scope } : {}),
           name: e.name,
           description: e.description,
           src: source,
