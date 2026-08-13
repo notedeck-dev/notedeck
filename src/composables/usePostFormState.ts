@@ -178,8 +178,15 @@ export function usePostFormState(
   // auto-save が飛んで重複 create されるのを防ぐ。
   let draftCreateInFlight: Promise<string> | null = null
 
+  /**
+   * メモはアカウントに紐づかない (#1018) ので、memo モードではアカウントの
+   * サーバーテーマを乗せずアプリのテーマのままにする (投稿ボタンの色などが
+   * アクティブアカウント依存になるのを避ける)。
+   */
   const formThemeVars = computed(() =>
-    themeStore.getStyleVarsForAccount(activeAccountId.value),
+    memoMode
+      ? undefined
+      : themeStore.getStyleVarsForAccount(activeAccountId.value),
   )
 
   const currentVisibility = computed(
