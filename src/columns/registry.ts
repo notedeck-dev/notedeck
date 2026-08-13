@@ -734,7 +734,7 @@ export function buildColumnDefaults(
   const spec = COLUMN_REGISTRY[type]
   return {
     name: spec?.label ?? type,
-    width: spec?.defaultWidth ?? 360,
+    width: spec?.defaultWidth ?? 330,
     accountId,
     active: true,
     ...spec?.defaultProps,

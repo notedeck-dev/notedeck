@@ -284,7 +284,7 @@ async function createNewItem() {
     finalizeColumn({
       type: config.type,
       name: colName,
-      width: 360,
+      width: 330,
       accountId,
       [config.spec.idKey]: created.id,
       active: true,
@@ -306,7 +306,7 @@ function addSelectableColumn(item: SelectableItem) {
   finalizeColumn({
     type: config.type,
     name,
-    width: 360,
+    width: 330,
     accountId,
     [config.spec.idKey]: item.id,
     active: true,

@@ -194,9 +194,12 @@ function onlineStatusClass(accountId: string): string | undefined {
 }
 
 // Navbar resize
-const MIN_WIDTH = 56
-const COLLAPSE_THRESHOLD = 120
-const DEFAULT_WIDTH = 220
+// 幅は本家 Misskey のデッキ UI に合わせる (#1045)。
+// MIN_WIDTH = navbar の --nav-icon-only-width / DEFAULT_WIDTH = --nav-width。
+// ドラッグでのリサイズと上限は NoteDeck 固有 (本家は設定でのトグルのみ)
+const MIN_WIDTH = 80
+const COLLAPSE_THRESHOLD = 140
+const DEFAULT_WIDTH = 250
 const MAX_WIDTH = 400
 const navWidth = ref(
   document.documentElement.clientWidth <= 1279 ? MIN_WIDTH : DEFAULT_WIDTH,
@@ -599,7 +602,7 @@ defineExpose({
           </button>
 
           <!-- Account button -->
-          <div :class="$style.menuWrap">
+          <div :class="[$style.menuWrap, $style.accountWrap]">
             <button
               class="_button"
               :class="$style.item"
@@ -739,11 +742,11 @@ defineExpose({
 // ============================================================
 // Left Navbar — base styles (all sizes)
 // ============================================================
+// 本家のナビバーは deckBg との境界線を持たない (背景色だけで面を分ける #1045)
 .navbar {
   flex: 0 0 auto;
   display: flex;
   background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
-  border-right: var(--nd-nav-border) solid var(--nd-divider);
   position: relative;
   z-index: 1;
   container-type: inline-size;
@@ -764,12 +767,14 @@ defineExpose({
   }
 }
 
+// 本家 navbar の --top-height: 80px / padding-left: 6px (#1045)
 .top {
   position: sticky;
   top: 0;
   z-index: 1;
   display: flex;
-  height: 36px;
+  height: 80px;
+  padding-left: 6px;
   flex-shrink: 0;
 }
 
@@ -782,9 +787,9 @@ defineExpose({
 }
 
 .instanceIcon {
-  width: 30px;
+  width: 38px;
   aspect-ratio: 1;
-  border-radius: 4px;
+  border-radius: 8px;
   user-select: none;
   -webkit-user-select: none;
 }
@@ -818,20 +823,25 @@ defineExpose({
   }
 }
 
+// 項目の背景 pill は本家と同じく左右 17px インセット (本家は
+// `width: calc(100% - 34px)` の ::before。NoteDeck は item 自体を pill に
+// しているので、section 側の padding で同じ位置に落とす) — #1045
 .section {
   display: flex;
   flex-direction: column;
-  padding: 10px 6px;
+  padding: 0 17px;
 }
 
+// 本家 navbar の .bottom は padding-top: 20px
 .bottomSection {
   flex-shrink: 0;
+  padding-top: 20px;
 }
 
 .divider {
-  height: 1px;
-  background: var(--nd-divider);
-  margin: 10px 6px;
+  height: 0;
+  border-top: solid 0.5px var(--nd-divider);
+  margin: 16px 0;
   align-self: stretch;
 }
 
@@ -839,11 +849,12 @@ defineExpose({
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 14px;
+  // 17px (section) + 13px = 本家のアイコン左端 30px
+  padding: 0 13px;
   line-height: 2.85rem;
   border-radius: var(--nd-radius-full);
   color: var(--nd-navFg, var(--nd-fg));
-  font-size: 0.95em;
+  font-size: 0.9em;
   white-space: nowrap;
   text-decoration: none;
   transition: background var(--nd-duration-base), color var(--nd-duration-base), transform var(--nd-duration-fast) var(--nd-ease-spring);
@@ -1006,12 +1017,14 @@ defineExpose({
 
 
 
+// 本家 navbar の .post: 展開時は高さ 40px の pill (#1045)
 .postBtn {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  padding: 10px 14px;
+  height: 40px;
+  padding: 0 13px;
   border-radius: var(--nd-radius-full);
   background: linear-gradient(90deg, var(--nd-buttonGradateA, var(--nd-accent)), var(--nd-buttonGradateB, var(--nd-accentDarken)));
   color: var(--nd-fgOnAccent, #fff);
@@ -1145,6 +1158,12 @@ defineExpose({
   flex-direction: column;
 }
 
+// 本家 navbar の .account は上下 20px の余白を持ち、ノート投稿ボタンから
+// 離れて最下部に落ちる (#1045)
+.accountWrap {
+  margin-top: 20px;
+}
+
 .updateDot { @include update-dot; }
 
 // ============================================================
@@ -1161,35 +1180,44 @@ defineExpose({
     display: none;
   }
 
+  // アイコンのみ表示。寸法は本家 navbar の .root.iconOnly に合わせる (#1045)
   .top {
-    padding-left: 0;
+    height: auto;
+    padding: 20px 0;
     justify-content: center;
   }
 
   .instanceIcon {
     width: 30px;
-    border-radius: 4px;
+    border-radius: 8px;
   }
 
+  // 本家は `padding: 16px 0` の全幅項目に正方形の pill を敷く。
+  // NoteDeck は item 自体を pill にしているので同じ実寸の円で置き換える
   .item {
     justify-content: center;
     padding: 0;
-    width: 44px;
-    height: 44px;
-    margin: 2px auto;
+    width: 52px;
+    height: 52px;
+    margin: 0 auto;
     border-radius: 50%;
 
     :global(.ti) { @include nav-icon; }
   }
 
   .section {
-    padding: 8px 0 0;
+    padding: 0;
     align-items: center;
   }
 
+  .divider {
+    width: calc(100% - 32px);
+    margin: 8px auto;
+  }
+
   .postBtn {
-    width: 44px;
-    height: 44px;
+    width: 52px;
+    height: 52px;
     padding: 0;
     margin: 0 auto;
     border-radius: 50%;

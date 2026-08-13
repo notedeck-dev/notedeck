@@ -141,10 +141,10 @@ const {
   flex: 0 0 auto;
   display: flex;
   align-items: stretch;
-  margin-left: calc(-1 * (var(--nd-nav-resize-handle) + var(--nd-nav-border)));
-  padding-left: calc(var(--nd-nav-resize-handle) + var(--nd-nav-border));
+  margin-left: calc(-1 * var(--nd-nav-resize-handle));
+  padding-left: var(--nd-nav-resize-handle);
+  // 本家のボトムバーもナビバーも境界線を持たない。面は背景色だけで分ける (#1045)
   background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
-  box-shadow: 0 -0.5px 0 0 var(--nd-divider);
 }
 
 .left {
