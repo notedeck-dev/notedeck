@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Account } from '@/stores/accounts'
 import { useAccountsStore } from '@/stores/accounts'
 import { useThemeStore } from '@/stores/theme'
-import { DARK_THEME, LIGHT_THEME } from '@/theme/builtinThemes'
+import {
+  DARK_BASE,
+  DARK_THEME,
+  LIGHT_BASE,
+  LIGHT_THEME,
+} from '@/theme/builtinThemes'
+import { compileMisskeyTheme } from '@/theme/compiler'
 
 function makeAccount(id: string): Account {
   return {
@@ -206,9 +212,14 @@ describe('theme store', () => {
 
   // --- getCompiledForAccount ---
 
-  it('getCompiledForAccount() returns null for unknown account', () => {
+  it('getCompiledForAccount() falls back to the builtin theme for unknown account', () => {
+    // per-account テーマを持たないアカウントは組込テーマを当てる。グローバルの
+    // カスタムテーマをカラムへ継承させないため (#1046)。
     const store = useThemeStore()
-    expect(store.getCompiledForAccount('unknown-acc')).toBeNull()
+    store.applySource({ kind: 'builtin-dark', theme: DARK_THEME })
+
+    const compiled = store.getCompiledForAccount('unknown-acc')
+    expect(compiled).toEqual(compileMisskeyTheme(DARK_THEME, DARK_BASE))
   })
 
   it('getCompiledForAccount() compiles and caches theme', async () => {
@@ -256,11 +267,11 @@ describe('theme store', () => {
     expect(compiled?.bg).toBe('#eee')
   })
 
-  it('getCompiledForAccount() returns null when current mode theme is missing (no cross-mode fallback)', async () => {
+  it('getCompiledForAccount() falls back to the builtin theme when current mode theme is missing (no cross-mode fallback)', async () => {
     // dark モードで適用するテーマしか持たないアカウント。light モードでは
-    // 該当テーマが無いので null を返す (デッキ全体の builtin にフォールバック)。
-    // 旧実装は cross-mode で dark を当てていたが、dark/light が混在表示される
-    // 混乱を避けるため mode strict 化 (#339)。
+    // 該当テーマが無いので組込テーマを当てる。旧実装は cross-mode で dark を
+    // 当てていたが、dark/light が混在表示される混乱を避けるため mode strict
+    // 化 (#339)。
     mockFetchTheme.mockResolvedValue({
       status: 'ok',
       data: { metaDark: JSON.stringify({ name: 'D', props: { bg: '#222' } }) },
@@ -272,7 +283,7 @@ describe('theme store', () => {
     await store.fetchAccountTheme('acc-fb')
 
     const compiled = store.getCompiledForAccount('acc-fb')
-    expect(compiled).toBeNull()
+    expect(compiled).toEqual(compileMisskeyTheme(LIGHT_THEME, LIGHT_BASE))
   })
 
   it('applySource() clears compiled cache so columns recompile', async () => {
