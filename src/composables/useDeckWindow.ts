@@ -127,8 +127,11 @@ export async function popOutColumnToWindow(
   // Flush save synchronously so the sub-window can read the updated profile
   deckStore.flushSave()
 
+  // ポップアウト先はモバイルサイズ表示 (コンパクト判定に入る幅) で使う。
+  // `decorations: false` なのでウィンドウ幅 = 中身の幅で、カラムは全幅描画に
+  // なるため、幅をそのまま渡せばデッキ上のカラムと同じ実寸になる (PiP と同じ)
   const result = await openColumnWindow(deckStore.windowProfileId, windowId, {
-    width: col.width + 40,
+    width: col.width,
     height: 700,
   })
 
