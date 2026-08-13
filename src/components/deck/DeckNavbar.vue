@@ -859,9 +859,10 @@ defineExpose({
   text-decoration: none;
   transition: background var(--nd-duration-base), color var(--nd-duration-base), transform var(--nd-duration-fast) var(--nd-ease-spring);
 
+  // hover / 選択中はアクセント色 + accentedBg の pill (本家 navbar と同じ)
   &:hover {
-    background: var(--nd-buttonHoverBg);
-    color: var(--nd-fgHighlighted);
+    background: var(--nd-accentedBg);
+    color: var(--nd-accent);
 
     :global(.ti) {
       opacity: 1;
@@ -878,8 +879,8 @@ defineExpose({
 }
 
 .sidebarActive {
-  background: var(--nd-buttonHoverBg);
-  color: var(--nd-fgHighlighted);
+  background: var(--nd-accentedBg);
+  color: var(--nd-accent);
 
   :global(.ti) {
     opacity: 1;
