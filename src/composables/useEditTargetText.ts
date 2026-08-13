@@ -1,5 +1,5 @@
 import { type ComputedRef, computed } from 'vue'
-import { loadMemo } from '@/composables/useMemos'
+import { loadMemo, memosVersion } from '@/composables/useMemos'
 import { mergeThemeUpdate, serializeTheme } from '@/services/selfEditApply'
 import { usePluginsStore } from '@/stores/plugins'
 import { useSkillsStore } from '@/stores/skills'
@@ -38,6 +38,9 @@ export function useEditTargetText(
       case 'css':
         return theme.customCss
       case 'memo':
+        // メモの cache はモジュール変数で reactive ではないので、version ref を
+        // 読んで依存を張る (他の分岐は store 越しなので自然に追随する)
+        void memosVersion.value
         return loadMemo(id)?.data.text ?? ''
     }
   })

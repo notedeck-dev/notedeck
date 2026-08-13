@@ -247,14 +247,14 @@ function closeMenu() {
     </template>
 
     <!-- Embedded post form (memoMode: post = save as memo)。
-         メモ自体はアカウント不要だが、フォームは MFM 補完・添付のために
-         サーバー文脈を要るので、ログイン中のアカウントがあるときだけ出す -->
-    <div v-if="account" :class="$style.embeddedForm" data-memo-form>
+         アカウントが 1 つも無くても書ける (#1018)。渡すアカウントは MFM 補完の
+         ような表示上の文脈にだけ使われ、保存はローカルで完結する -->
+    <div :class="$style.embeddedForm" data-memo-form>
       <MkPostForm
         :key="formMountKey"
         inline
         memo-mode
-        :account-id="account.id"
+        :account-id="account?.id ?? ''"
         :initial-slot="editingMemo"
         :initial-slot-key="editingKey"
         @posted="onPosted"

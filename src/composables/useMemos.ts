@@ -4,6 +4,7 @@ import type { NoteVisibility } from '@/adapters/types'
 import { emitNoteDeckEvent } from '@/aiscript/events'
 import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import {
+  deleteHistorySidecar,
   deleteMemoFile,
   isTauri,
   listMemoFiles,
@@ -116,8 +117,8 @@ function memoKeyExists(memoKey: string): boolean {
 
 /**
  * メモはアカウントに紐づかない (#1018)。サーバーに送らずローカルで完結する
- * もので、アカウントに紐づかない AI カラムからも参照される。所有者ではなく
- * 「どのアカウントで書いたか」だけを著者情報として持つ。
+ * もので、アカウントに紐づかない AI カラムからも参照される。所有者は持たず、
+ * 「誰が書いたか」は principal 種別 (`MemoData.author`) だけで表す。
  */
 let cache: StoredMemos = {}
 /** Per-memo createdAt, kept alongside the cache so re-saves preserve it. */
@@ -349,6 +350,10 @@ export function deleteMemo(memoKey: string): void {
   cancelPendingWrite(memoKey)
   if (isTauri) {
     void deleteMemoFile(memoFilename(memoKey))
+    // 履歴サイドカーも一緒に消す。残すと、同じ Zettelkasten ID で作り直した
+    // メモが前のメモの履歴を引き継ぐ (他の配布物は sidecarFileCollection が
+    // 主ファイルと一緒に消している)
+    void deleteHistorySidecar('memo', memoKey)
   }
   memosVersion.value++
   emitNoteDeckEvent('memo:deleted', { memoKey })

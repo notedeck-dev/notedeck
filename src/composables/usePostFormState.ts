@@ -207,16 +207,17 @@ export function usePostFormState(
   })
 
   async function initAdapter() {
-    const acc = account.value
-    if (!acc) return
-    adapter = null
     // Memo mode: purely local, so skip every server call. Works for guest
-    // accounts that have no token. Policies / default visibility / scheduled
-    // notes are server-side concepts and don't apply to memos.
+    // accounts that have no token — and for no account at all (#1018), since
+    // memos are not tied to an account. Policies / default visibility /
+    // scheduled notes are server-side concepts and don't apply to memos.
     if (memoMode) {
       await ensureMemosLoaded()
       return
     }
+    const acc = account.value
+    if (!acc) return
+    adapter = null
     try {
       const result = await initAdapterFor(acc.host, acc.id)
       adapter = result.adapter
@@ -356,7 +357,7 @@ export function usePostFormState(
     // Memo mode: no server call, just save + reset for next unique entry
     // (Obsidian's "Create Unique New Note" style workflow for Zettelkasten).
     if (memoMode) {
-      // メモはアカウントに紐づかない (#1018)。書いた記録としてだけ account を渡す
+      // メモはアカウントに紐づかない (#1018) ので account を見ない
       if (!canPost.value) return
       const key = sessionSlotKey.value ?? generateMemoKey()
       saveMemo(key, buildSlotData())
