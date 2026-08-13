@@ -9,6 +9,7 @@ import {
   COLUMN_LABELS,
   COLUMN_REGISTRY,
   CROSS_ACCOUNT_TYPES,
+  DEFAULT_COLUMN_WIDTH,
   GUEST_ALLOWED_TYPES,
   type SelectableItem,
   type SelectableSpec,
@@ -284,7 +285,7 @@ async function createNewItem() {
     finalizeColumn({
       type: config.type,
       name: colName,
-      width: 360,
+      width: DEFAULT_COLUMN_WIDTH,
       accountId,
       [config.spec.idKey]: created.id,
       active: true,
@@ -306,7 +307,7 @@ function addSelectableColumn(item: SelectableItem) {
   finalizeColumn({
     type: config.type,
     name,
-    width: 360,
+    width: DEFAULT_COLUMN_WIDTH,
     accountId,
     [config.spec.idKey]: item.id,
     active: true,

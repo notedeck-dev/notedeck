@@ -2,6 +2,7 @@ import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, nextTick, reactive, ref } from 'vue'
 import type { TimelineFilter, TimelineType } from '@/adapters/types'
+import { DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import defaultNavbarJson5 from '@/defaults/navbar.json5?raw'
 import { useAccountsStore } from '@/stores/accounts'
@@ -417,7 +418,7 @@ export const useDeckStore = defineStore('deck', () => {
       addColumnAt(0, {
         type: 'chat',
         name: null,
-        width: 360,
+        width: DEFAULT_COLUMN_WIDTH,
         accountId: null,
         sidebar: true,
       })
@@ -449,7 +450,7 @@ export const useDeckStore = defineStore('deck', () => {
       addColumnAt(0, {
         type: 'search',
         name: null,
-        width: 360,
+        width: DEFAULT_COLUMN_WIDTH,
         accountId: null,
         sidebar: true,
         query,
@@ -487,7 +488,7 @@ export const useDeckStore = defineStore('deck', () => {
     addColumnAt(0, {
       type,
       name: null,
-      width: 360,
+      width: DEFAULT_COLUMN_WIDTH,
       accountId,
       sidebar: true,
       ...extraProps,

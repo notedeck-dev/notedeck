@@ -1,10 +1,16 @@
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
 import type { DeckColumn } from '@/stores/deck'
 import type { WindowType } from '@/stores/windows'
 import { listenTauri } from '@/utils/tauriEvents'
 import { WINDOW_SIZES } from '@/windows/registry'
 
-const PIP_WIDTH = 360
+/**
+ * PiP はカラム 1 本を切り出した窓なので、幅はデッキのカラムと同じにする。
+ * `decorations: false` なのでウィンドウ幅 = 中身の幅になり、コンパクト表示
+ * (420px 以下) で全幅表示されるカラムの実寸もデッキ側と一致する。
+ */
+const PIP_WIDTH = DEFAULT_COLUMN_WIDTH
 const PIP_HEIGHT = 640
 const PIP_MIN_WIDTH = 280
 const PIP_MIN_HEIGHT = 400

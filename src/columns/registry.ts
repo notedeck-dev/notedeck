@@ -722,6 +722,13 @@ export function unregisterColumnType(type: string): void {
 }
 
 /**
+ * カラムの既定幅。ナビバーをアイコンのみ (80px) に畳んだ 1920px 幅の画面で、
+ * カラムが 5 本並んでも横スクロールが出ない値にしている:
+ * 80 + 左右 padding 12 + gap 6×9 + 列リサイズハンドル 4×5 + 350×5 = 1916px。
+ */
+export const DEFAULT_COLUMN_WIDTH = 350
+
+/**
  * カラム追加時の共通デフォルト。呼び出し側は type/accountId を指定するだけでよい。
  * `defaultProps` が `accountId` を含む場合はそれが優先される (accountIndependent 用)。
  */
@@ -734,7 +741,7 @@ export function buildColumnDefaults(
   const spec = COLUMN_REGISTRY[type]
   return {
     name: spec?.label ?? type,
-    width: spec?.defaultWidth ?? 360,
+    width: spec?.defaultWidth ?? DEFAULT_COLUMN_WIDTH,
     accountId,
     active: true,
     ...spec?.defaultProps,
