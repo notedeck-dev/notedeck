@@ -11,7 +11,16 @@ import { WINDOW_SIZES } from '@/windows/registry'
  * (420px 以下) で全幅表示されるカラムの実寸もデッキ側と一致する。
  */
 const PIP_WIDTH = DEFAULT_COLUMN_WIDTH
-const PIP_HEIGHT = 640
+
+/**
+ * 高さは既定サイズ (800px) のウィンドウに並ぶカラムと同じ長さにする。カラムは
+ * ウィンドウ高さからタイトルバー (32px)、カラム領域の上下 padding (6px×2)、
+ * ボトムバー (42px) を引いた分:
+ *   800 - 32 - 12 - 42 = 714
+ * PiP はカラムを選んだ後ドラッグバーを出さないので、ウィンドウの高さが
+ * そのままカラムの高さになり、デッキ上のカラムと並べても長さが揃う。
+ */
+const PIP_HEIGHT = 714
 const PIP_MIN_WIDTH = 280
 const PIP_MIN_HEIGHT = 400
 const PIP_WINDOW_MAX_HEIGHT = 900
