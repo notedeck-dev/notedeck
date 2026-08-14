@@ -384,6 +384,9 @@ export const heartbeatStatus = {
 const HEARTBEAT_TITLE_SYSTEM_PROMPT =
   'あなたは HEARTBEAT 通知の要約タイトル生成アシスタントです。与えられた通知内容を端的に表す短い日本語のタイトルを 1 行で出力してください。20 文字程度 (最大 40 文字) に収めること。引用符、前置き、改行、絵文字、文末句点は付けないでください。タイトルのみを返してください。'
 
+/** DeckAiColumn.vue の TITLE_MAX_TOKENS と同じ理由 (reasoning 系モデル対策)。 */
+const HEARTBEAT_TITLE_MAX_TOKENS = 512
+
 export function useHeartbeatDaemon() {
   // セーフモード (#794) — 常駐して AI 推論を回す global daemon なので、
   // 第三者コードと同格に止める。App.vue の mount より手前で抜けるので
@@ -494,7 +497,7 @@ export function useHeartbeatDaemon() {
           },
         ],
         system: HEARTBEAT_TITLE_SYSTEM_PROMPT,
-        maxTokens: 80,
+        maxTokens: HEARTBEAT_TITLE_MAX_TOKENS,
       })
       const cleaned = raw
         .replace(/[\r\n]+/g, ' ')
