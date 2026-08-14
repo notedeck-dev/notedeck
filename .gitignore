@@ -52,6 +52,7 @@ CLAUDE.local.md
 .claude/*
 !.claude/settings.json
 !.claude/skills/
+!.claude/hooks/
 
 # Codex
 .codex

@@ -17,5 +17,19 @@
       "Bash(git push origin main*)",
       "Bash(git push -u origin main*)"
     ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/openapi-reminder.sh\"",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
   }
 }
