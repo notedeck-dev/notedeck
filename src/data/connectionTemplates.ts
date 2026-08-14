@@ -88,6 +88,21 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     defaultModel: 'grok-4.5',
   },
   {
+    id: 'builtin:google@1',
+    name: 'Google',
+    icon: 'brand-google',
+    // Gemini API (AI Studio 系) の、ネイティブ形式ではなく OpenAI 互換
+    // レイヤーの baseUrl。Vertex AI は別経路なのでこのテンプレでは扱わない。
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    authType: { kind: 'bearer' },
+    allowedHosts: ['generativelanguage.googleapis.com'],
+    testPath: '/models',
+    secretLabel: 'API Key',
+    secretHelpUrl: 'https://aistudio.google.com/apikey',
+    protocol: 'openai-compat',
+    defaultModel: 'gemini-3.7-flash',
+  },
+  {
     id: 'builtin:openrouter@1',
     name: 'OpenRouter',
     icon: 'router',
