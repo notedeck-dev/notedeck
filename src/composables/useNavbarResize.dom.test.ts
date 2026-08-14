@@ -1,6 +1,17 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope } from 'vue'
-import { useNavbarResize } from './useNavbarResize'
+
+const settingsData: Record<string, unknown> = {}
+vi.mock('@/stores/settings', () => ({
+  useSettingsStore: () => ({
+    get: (key: string) => settingsData[key],
+    set: (key: string, value: unknown) => {
+      settingsData[key] = value
+    },
+  }),
+}))
+
+const { useNavbarResize } = await import('./useNavbarResize')
 
 function setViewportWidth(w: number) {
   Object.defineProperty(document.documentElement, 'clientWidth', {
@@ -16,8 +27,22 @@ function setup() {
   return api
 }
 
+/** ドラッグでナビバーの右端を x px まで動かして離す */
+async function drag(
+  startResize: (e: PointerEvent) => void,
+  x: number,
+): Promise<void> {
+  startResize(new Event('pointerdown') as PointerEvent)
+  document.dispatchEvent(
+    Object.assign(new Event('pointermove'), { clientX: x }),
+  )
+  await new Promise((resolve) => requestAnimationFrame(resolve))
+  document.dispatchEvent(new Event('pointerup'))
+}
+
 describe('useNavbarResize', () => {
   beforeEach(() => {
+    for (const key of Object.keys(settingsData)) delete settingsData[key]
     setViewportWidth(1440)
   })
 
@@ -62,9 +87,10 @@ describe('useNavbarResize', () => {
     expect(navWidth.value).toBe(250)
   })
 
-  it('ドラッグで決めた幅はスマホサイズを往復しても復元される', () => {
-    const { navWidth, setNavWidth, handleResize } = setup()
-    setNavWidth(320)
+  it('ドラッグで決めた幅はスマホサイズを往復しても復元される', async () => {
+    const { navWidth, startResize, handleResize } = setup()
+    await drag(startResize, 320)
+    expect(navWidth.value).toBe(320)
 
     setViewportWidth(420)
     handleResize()
@@ -73,5 +99,45 @@ describe('useNavbarResize', () => {
     setViewportWidth(1440)
     handleResize()
     expect(navWidth.value).toBe(320)
+  })
+
+  describe('永続化', () => {
+    it('トグルで畳んだ状態は次回起動時に復元される', () => {
+      setup().toggleNav()
+      expect(settingsData['deck.navWidth']).toBe(80)
+
+      expect(setup().navCollapsed.value).toBe(true)
+    })
+
+    it('ドラッグで決めた幅は次回起動時に復元される', async () => {
+      await drag(setup().startResize, 320)
+      expect(settingsData['deck.navWidth']).toBe(320)
+
+      expect(setup().navWidth.value).toBe(320)
+    })
+
+    it('保存済みの幅は狭いビューポートで起動しても失われない', () => {
+      settingsData['deck.navWidth'] = 320
+      setViewportWidth(1000)
+      const { navWidth, handleResize } = setup()
+      expect(navWidth.value).toBe(80)
+
+      setViewportWidth(1440)
+      handleResize()
+      expect(navWidth.value).toBe(320)
+    })
+
+    it('手編集された範囲外の値は許容範囲に丸める', () => {
+      settingsData['deck.navWidth'] = 9999
+      expect(setup().navWidth.value).toBe(400)
+
+      settingsData['deck.navWidth'] = 10
+      expect(setup().navWidth.value).toBe(80)
+    })
+
+    it('数値でない値は既定幅として扱う', () => {
+      settingsData['deck.navWidth'] = 'wide'
+      expect(setup().navWidth.value).toBe(250)
+    })
   })
 })
