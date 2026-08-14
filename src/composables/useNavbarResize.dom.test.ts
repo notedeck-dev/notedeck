@@ -116,6 +116,19 @@ describe('useNavbarResize', () => {
       expect(setup().navWidth.value).toBe(320)
     })
 
+    it('最後の pointermove と同じフレームで離しても最終位置が保存される', () => {
+      const { navWidth, startResize } = setup()
+      startResize(new Event('pointerdown') as PointerEvent)
+      document.dispatchEvent(
+        Object.assign(new Event('pointermove'), { clientX: 320 }),
+      )
+      // frame を待たずに離す (実機のドラッグ終了で起きる順序)
+      document.dispatchEvent(new Event('pointerup'))
+
+      expect(navWidth.value).toBe(320)
+      expect(settingsData['deck.navWidth']).toBe(320)
+    })
+
     it('保存済みの幅は狭いビューポートで起動しても失われない', () => {
       settingsData['deck.navWidth'] = 320
       setViewportWidth(1000)

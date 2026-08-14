@@ -62,15 +62,28 @@ export function useNavbarResize() {
   }
 
   let resizeRafId = 0
+  let lastClientX = 0
+  function applyWidth(clientX: number) {
+    setNavWidth(
+      clientX <= COLLAPSE_THRESHOLD ? MIN_WIDTH : Math.min(clientX, MAX_WIDTH),
+    )
+  }
+
   function onResize(e: PointerEvent) {
+    lastClientX = e.clientX
     cancelAnimationFrame(resizeRafId)
-    resizeRafId = requestAnimationFrame(() => {
-      const w = e.clientX
-      setNavWidth(w <= COLLAPSE_THRESHOLD ? MIN_WIDTH : Math.min(w, MAX_WIDTH))
-    })
+    resizeRafId = requestAnimationFrame(() => applyWidth(lastClientX))
   }
 
   function stopResize() {
+    // pointerup が最後の pointermove と同じフレームに来ると、予約した frame は
+    // persist の後に走る。永続化した幅が最後の動きより古くならないよう、ここで
+    // frame を潰して最終位置を同期に当ててから書く
+    if (resizeRafId !== 0) {
+      cancelAnimationFrame(resizeRafId)
+      resizeRafId = 0
+      applyWidth(lastClientX)
+    }
     isResizing.value = false
     document.body.style.userSelect = ''
     document.body.style.cursor = ''
