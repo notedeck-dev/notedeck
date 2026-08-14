@@ -830,6 +830,14 @@ function onPaste(e: ClipboardEvent) {
         引用付き
       </div>
 
+      <!-- チャンネル投稿の表示。埋め込みフォーム (inline) はカラム自体が
+           チャンネルなので出さない。下書きの復元で投稿先が変わったことが
+           分かるように (#1073) -->
+      <div v-if="effectiveChannelId && !inline" :class="$style.quoteIndicator">
+        <i class="ti ti-device-tv" />
+        チャンネルに投稿
+      </div>
+
       <!-- CW input -->
       <div v-if="showCw" :class="$style.cwOuter">
         <input

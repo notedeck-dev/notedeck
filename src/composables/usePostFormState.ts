@@ -177,15 +177,30 @@ export function usePostFormState(
   )
 
   /**
+   * 下書きの復元で受け取った投稿先チャンネル (#1073)。下書きはアカウント
+   * ごとなので、どのアカウントで復元したかを一緒に覚えておく。
+   */
+  const restoredChannel = shallowRef<{
+    id: string
+    accountId: string
+  } | null>(null)
+
+  /**
    * 投稿先チャンネル。「削除して編集」では元ノートのチャンネルを引き継ぐ (#953)。
    * カラムは :channel-id を渡すが、ノート詳細・プロフィールのウィンドウには
    * 渡す経路が無く、そこから操作するとチャンネル外に出てしまっていた。
-   * 明示指定 (チャンネルカラムの埋め込みフォーム等) が常に優先。
+   * 下書きを復元したときはその下書きのチャンネルが最優先 (#1073) — 返信・引用と
+   * 同じく、下書きが保存していた文脈をそのまま戻す。次点が明示指定
+   * (チャンネルカラムの埋め込みフォーム等)。
    *
    * 引き継ぎはアカウントが一致するときだけ。フォーム上でアカウントを切り替え
    * たら、元アカウントのチャンネル ID を別サーバーへ送ることになるため落とす。
    */
   const channelId = computed(() => {
+    const restored = restoredChannel.value
+    if (restored && restored.accountId === activeAccountId.value) {
+      return restored.id
+    }
     if (props.channelId) return props.channelId
     const note = props.initialNote
     if (!note?.channelId) return undefined
@@ -783,16 +798,26 @@ export function usePostFormState(
     pollMultiple.value = d.pollMultiple
     showPoll.value = d.showPoll
     scheduledAt.value = d.scheduledAt
-    // 下書きが保持している返信・引用の文脈を戻す (#1073)。戻さないと
-    // 「返信の下書き」が通常のノートとして投稿されてしまう。
-    // 文脈を持たない下書きは今のフォームの文脈を残す — 返信フォームを開いた
-    // まま書きかけの下書きを引っぱってくる操作で、返信先が消えないように。
-    if ('replyId' in stored && (stored.replyId || stored.renoteId)) {
-      replyId.value = stored.replyId
-      renoteId.value = stored.renoteId
-      if (replyNote.value?.id !== stored.replyId) replyNote.value = null
-      if (quoteNote.value?.id !== stored.renoteId) quoteNote.value = null
-      void hydrateContextNotes()
+    // 下書きが保持している返信・引用・チャンネルの文脈を戻す (#1073)。戻さないと
+    // 「返信の下書き」が通常のノートとして、チャンネルの下書きがチャンネル外の
+    // ノートとして投稿されてしまう。
+    // 文脈を持たない下書きは今のフォームの文脈を残す — 返信フォームやチャンネル
+    // カラムを開いたまま書きかけの下書きを引っぱってくる操作で、宛先が消えない
+    // ように。
+    if ('replyId' in stored) {
+      if (stored.replyId || stored.renoteId) {
+        replyId.value = stored.replyId
+        renoteId.value = stored.renoteId
+        if (replyNote.value?.id !== stored.replyId) replyNote.value = null
+        if (quoteNote.value?.id !== stored.renoteId) quoteNote.value = null
+        void hydrateContextNotes()
+      }
+      if (stored.channelId) {
+        restoredChannel.value = {
+          id: stored.channelId,
+          accountId: activeAccountId.value,
+        }
+      }
     }
     // draft モードではサーバー id、memo モードでは memoKey を受け取る
     if (key) sessionSlotKey.value = key
