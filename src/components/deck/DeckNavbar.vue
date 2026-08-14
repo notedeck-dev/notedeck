@@ -204,13 +204,6 @@ const {
   startResize,
 } = useNavbarResize()
 const subButtonsHovered = ref(false)
-watch(
-  navCollapsed,
-  (v) => {
-    deckStore.navCollapsed = v
-  },
-  { immediate: true },
-)
 
 // Launch pad ("もっと")
 const showLaunchPad = ref(false)

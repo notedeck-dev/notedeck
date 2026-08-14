@@ -275,7 +275,6 @@ export const useDeckStore = defineStore('deck', () => {
     }
   }
 
-  const navCollapsed = ref(false)
   const activeColumnId = ref<string | null>(null)
   /**
    * カラム ID → 現在 focus されているノート ID。
@@ -856,7 +855,6 @@ export const useDeckStore = defineStore('deck', () => {
   return {
     columns,
     layout,
-    navCollapsed,
     activeColumnId,
     activeColumnUri,
     focusedNoteIdByColumn,
