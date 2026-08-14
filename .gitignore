@@ -47,9 +47,11 @@ result
 *.keystore
 *.jks
 
-# Claude Code
+# Claude Code (settings.json と skills/ はプロジェクト共有のため追跡)
 CLAUDE.local.md
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/skills/
 
 # Codex
 .codex
