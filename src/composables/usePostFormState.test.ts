@@ -925,6 +925,24 @@ describe('restoreSlot: 返信・引用の文脈 (#1073)', () => {
     )
   })
 
+  it('ダイレクトへの返信を復元すると public/home が塞がり visibility が補正される', async () => {
+    getNoteMock.mockImplementation(async (id: string) =>
+      makeNote({ id, visibility: 'specified' }),
+    )
+    const form = mount()
+    await form.initAdapter()
+    form.restoreSlot(
+      makeStoredDraft({
+        replyId: 'r9',
+        data: { ...makeStoredDraft().data, visibility: 'public' },
+      }),
+    )
+    await vi.waitFor(() => expect(form.replyNote.value?.id).toBe('r9'))
+    expect(form.disabledVisibilities.value.has('public')).toBe(true)
+    expect(form.disabledVisibilities.value.has('home')).toBe(true)
+    expect(form.visibility.value).toBe('followers')
+  })
+
   it('復元した文脈は以後の下書き保存にも引き継がれる', async () => {
     const form = mount()
     await form.initAdapter()

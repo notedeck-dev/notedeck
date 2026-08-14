@@ -281,6 +281,26 @@ export function usePostFormState(
       replyResult.status === 'fulfilled' ? replyResult.value : null
     quoteNote.value =
       quoteResult.status === 'fulfilled' ? quoteResult.value : null
+    restrictVisibilityForReply()
+  }
+
+  /**
+   * 返信先がダイレクト (specified) なら public / home を塞ぐ。
+   *
+   * `initAdapter` でも同じ判定をしているが、下書きの復元では返信先の解決が
+   * そのあとに来る (#1073)。解決後に当て直さないと、ダイレクトへの返信の
+   * 下書きを開いた画面で公開・ホームが選べたままになる。
+   */
+  function restrictVisibilityForReply() {
+    if (replyNote.value?.visibility !== 'specified') return
+    const disabled = new Set(disabledVisibilities.value)
+    disabled.add('public')
+    disabled.add('home')
+    disabledVisibilities.value = disabled
+    if (disabled.has(visibility.value)) {
+      const first = visibilityOptions.find((o) => !disabled.has(o.value))
+      if (first) visibility.value = first.value
+    }
   }
 
   async function initAdapter() {
