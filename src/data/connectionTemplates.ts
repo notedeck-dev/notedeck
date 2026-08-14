@@ -115,6 +115,22 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     protocol: 'openai-compat',
     defaultModel: 'moonshotai/kimi-k3',
   },
+  {
+    // 同じ OpenCode が Zen と Go という別 API を出しており、Zen は
+    // モデル系統ごとにエンドポイントが分かれる (= 単一の baseUrl に
+    // 収まらない)。ここで扱うのは単一エンドポイントの Go の方。
+    id: 'builtin:opencode-go@1',
+    name: 'OpenCode Go',
+    icon: 'terminal-2',
+    baseUrl: 'https://opencode.ai/zen/go/v1',
+    authType: { kind: 'bearer' },
+    allowedHosts: ['opencode.ai'],
+    testPath: '/models',
+    secretLabel: 'API Key',
+    secretHelpUrl: 'https://opencode.ai/auth',
+    protocol: 'openai-compat',
+    defaultModel: 'deepseek-v4-pro',
+  },
 ]
 
 /**
