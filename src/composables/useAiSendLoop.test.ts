@@ -272,6 +272,24 @@ describe('runSend: tool round', () => {
     }
   })
 
+  it('設定の maxToolRounds が上限として効く', async () => {
+    const limit = 2
+    const script: ChatStep[] = Array.from({ length: limit + 1 }, (_, i) =>
+      toolStep(`round ${i}`, `toolu_${i}`, 'time.now'),
+    )
+    const { dispatch, deps } = makeDeps(script)
+    const loop = useAiSendLoop(deps)
+
+    const outcome = await loop.runSend(
+      request({ generation: { maxToolRounds: limit } }),
+    )
+
+    expect(dispatch).toHaveBeenCalledTimes(limit)
+    if (outcome.status === 'done') {
+      expect(outcome.finalText).toContain(`上限 (${limit} 回)`)
+    }
+  })
+
   it('reloadConfigs が失敗しても dispatch は続行する', async () => {
     const reloadConfigs = vi.fn(async () => {
       throw new Error('config broken')

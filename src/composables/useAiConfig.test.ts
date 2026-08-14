@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   _internal,
+  AI_MAX_TOKENS_DEFAULT,
+  AI_MAX_TOOL_ROUNDS_DEFAULT,
+  AI_MAX_TOOL_ROUNDS_MAX,
+  AI_READ_TIMEOUT_DEFAULT_SECONDS,
+  AI_READ_TIMEOUT_MIN_SECONDS,
+  AI_TITLE_MAX_TOKENS_DEFAULT,
   type AiConfig,
   DATA_SOURCE_KEYS,
   type DataSourcesConfig,
@@ -9,6 +15,7 @@ import {
   HEARTBEAT_INTERVAL_MAX_MINUTES,
   HEARTBEAT_INTERVAL_MIN_MINUTES,
   type HeartbeatConfig,
+  normalizeGenerationConfig,
   resolveDataSources,
   setDataSourcePreset,
 } from './useAiConfig'
@@ -186,5 +193,48 @@ describe('heartbeat config (#411 Phase 6)', () => {
     expect(
       mergeConfig(defaultConfig(), partial).heartbeat.intervalMinutes,
     ).toBe(HEARTBEAT_INTERVAL_DEFAULT_MINUTES)
+  })
+})
+
+describe('generation config', () => {
+  it('既定値は ai.json5 の値がそのまま出る', () => {
+    const gen = defaultConfig().generation
+    expect(gen.maxTokens).toBe(AI_MAX_TOKENS_DEFAULT)
+    expect(gen.maxToolRounds).toBe(AI_MAX_TOOL_ROUNDS_DEFAULT)
+    expect(gen.titleMaxTokens).toBe(AI_TITLE_MAX_TOKENS_DEFAULT)
+    expect(gen.readTimeoutSeconds).toBe(AI_READ_TIMEOUT_DEFAULT_SECONDS)
+  })
+
+  it('手編集された範囲外の値は許容範囲に丸める', () => {
+    const gen = normalizeGenerationConfig({
+      maxTokens: -1,
+      maxToolRounds: 9999,
+      titleMaxTokens: 0,
+      readTimeoutSeconds: 1,
+    })
+    expect(gen.maxTokens).toBe(0)
+    expect(gen.maxToolRounds).toBe(AI_MAX_TOOL_ROUNDS_MAX)
+    expect(gen.titleMaxTokens).toBe(16)
+    expect(gen.readTimeoutSeconds).toBe(AI_READ_TIMEOUT_MIN_SECONDS)
+  })
+
+  it('数値でない値は既定値として扱う', () => {
+    const gen = normalizeGenerationConfig({
+      maxToolRounds: 'many' as unknown as number,
+    })
+    expect(gen.maxToolRounds).toBe(AI_MAX_TOOL_ROUNDS_DEFAULT)
+  })
+
+  it('generation を持たない ai.json5 でも既定で埋まる', () => {
+    const merged = mergeConfig(defaultConfig(), { activeConnectionId: 'c1' })
+    expect(merged.generation.maxToolRounds).toBe(AI_MAX_TOOL_ROUNDS_DEFAULT)
+  })
+
+  it('一部だけ書かれた generation は残りが既定で埋まる', () => {
+    const merged = mergeConfig(defaultConfig(), {
+      generation: { maxToolRounds: 20 } as AiConfig['generation'],
+    })
+    expect(merged.generation.maxToolRounds).toBe(20)
+    expect(merged.generation.titleMaxTokens).toBe(AI_TITLE_MAX_TOKENS_DEFAULT)
   })
 })

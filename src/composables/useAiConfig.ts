@@ -80,6 +80,57 @@ export const HEARTBEAT_DAILY_MAX_AI_RUNS_DEFAULT = 48
 export type HeartbeatDailyLimitAction = 'warn' | 'disable'
 
 /**
+ * 応答の最大トークン。0 = プロバイダーの既定に任せる (= 何も送らない)。
+ * 上限はモデル側の上限に当たれば向こうが弾くので、こちらは事故防止の桁だけ。
+ */
+export const AI_MAX_TOKENS_MIN = 0
+export const AI_MAX_TOKENS_MAX = 200_000
+/** Anthropic は max_tokens 必須なので、未指定のときはこの値を送る。 */
+export const AI_MAX_TOKENS_DEFAULT = 4096
+
+/**
+ * tool 呼び出しの上限ラウンド。1 ラウンド = AI が tool を呼び、結果を渡して
+ * 再度応答するまで。上げるほど 1 回の依頼で到達できる作業が増える一方、
+ * 費用と暴走時の被害も比例して増える。
+ */
+export const AI_MAX_TOOL_ROUNDS_MIN = 1
+export const AI_MAX_TOOL_ROUNDS_MAX = 50
+export const AI_MAX_TOOL_ROUNDS_DEFAULT = 10
+
+/**
+ * セッションのタイトル生成に使う最大トークン。この上限は thinking を含む
+ * 出力全体にかかる一方、タイトルとして拾うのは本文だけなので、reasoning 系
+ * モデルでは思考の取り分を見込んで広く取る必要がある。
+ */
+export const AI_TITLE_MAX_TOKENS_MIN = 16
+export const AI_TITLE_MAX_TOKENS_MAX = 8192
+export const AI_TITLE_MAX_TOKENS_DEFAULT = 512
+
+/**
+ * 応答待ちのアイドルタイムアウト (秒)。バイトが届かなくなってからの計測なので、
+ * 健全な長考は切らない。ローカル LLM のように最初のトークンまで待つ実行先では
+ * 伸ばす必要が出る。
+ */
+export const AI_READ_TIMEOUT_MIN_SECONDS = 10
+export const AI_READ_TIMEOUT_MAX_SECONDS = 3600
+export const AI_READ_TIMEOUT_DEFAULT_SECONDS = 120
+
+/**
+ * 生成まわりの調整値。既定のままで使えることを前提に、実行先のモデルに
+ * よって既定が合わなくなるものだけを開けている。
+ */
+export interface GenerationConfig {
+  /** 応答の最大トークン。0 = プロバイダー既定に任せる */
+  maxTokens: number
+  /** tool 呼び出しの上限ラウンド */
+  maxToolRounds: number
+  /** セッションのタイトル生成に使う最大トークン */
+  titleMaxTokens: number
+  /** 応答待ちのアイドルタイムアウト (秒) */
+  readTimeoutSeconds: number
+}
+
+/**
  * 出力先 AI session の routing。OpenClaw HEARTBEAT の `target` と同概念。
  * - `'auto'`: kind='heartbeat' の専用 session を auto-create + 永続使用 (default)
  * - `'none'`: session に append しない (= silent log only)
@@ -162,6 +213,8 @@ export interface AiConfig {
   models: Record<string, string>
   dataSources: DataSourcesConfig
   heartbeat: HeartbeatConfig
+  /** 生成まわりの調整値。詳細は {@link GenerationConfig}。 */
+  generation: GenerationConfig
   /**
    * このアプリで AI が振る舞う persona (#491)。skill で `isPersona: true`
    * を設定したものから 1 つ選択する。空文字 / 未指定 = 通常の汎用 AI として
@@ -277,6 +330,7 @@ export function defaultConfig(): AiConfig {
       onDailyLimit: defaultFileConfig.heartbeat.onDailyLimit,
       desktopNotification: defaultFileConfig.heartbeat.desktopNotification,
     },
+    generation: normalizeGenerationConfig(defaultFileConfig.generation),
   }
 }
 
@@ -338,6 +392,41 @@ export function normalizeHeartbeatConfig(
   }
 }
 
+/**
+ * 生成設定の sanity 補正。手編集された ai.json5 も想定して、各値を
+ * MIN〜MAX に clamp する (範囲外・非数値は既定値に落とす)。
+ */
+export function normalizeGenerationConfig(
+  cfg: Partial<GenerationConfig> | undefined,
+): GenerationConfig {
+  return {
+    maxTokens: clampInt(
+      cfg?.maxTokens,
+      AI_MAX_TOKENS_MIN,
+      AI_MAX_TOKENS_MAX,
+      AI_MAX_TOKENS_DEFAULT,
+    ),
+    maxToolRounds: clampInt(
+      cfg?.maxToolRounds,
+      AI_MAX_TOOL_ROUNDS_MIN,
+      AI_MAX_TOOL_ROUNDS_MAX,
+      AI_MAX_TOOL_ROUNDS_DEFAULT,
+    ),
+    titleMaxTokens: clampInt(
+      cfg?.titleMaxTokens,
+      AI_TITLE_MAX_TOKENS_MIN,
+      AI_TITLE_MAX_TOKENS_MAX,
+      AI_TITLE_MAX_TOKENS_DEFAULT,
+    ),
+    readTimeoutSeconds: clampInt(
+      cfg?.readTimeoutSeconds,
+      AI_READ_TIMEOUT_MIN_SECONDS,
+      AI_READ_TIMEOUT_MAX_SECONDS,
+      AI_READ_TIMEOUT_DEFAULT_SECONDS,
+    ),
+  }
+}
+
 // --- Merge ---
 
 function mergeDataSources(
@@ -378,6 +467,10 @@ function mergeConfig(base: AiConfig, partial: Partial<AiConfig>): AiConfig {
   result.models = { ...base.models, ...(partial.models ?? {}) }
   result.dataSources = mergeDataSources(base.dataSources, partial.dataSources)
   result.heartbeat = mergeHeartbeat(base.heartbeat, partial.heartbeat)
+  result.generation = normalizeGenerationConfig({
+    ...base.generation,
+    ...(partial.generation ?? {}),
+  })
   return result
 }
 

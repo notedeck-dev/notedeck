@@ -85,6 +85,8 @@ pub struct AiChatRequest {
     pub messages: Vec<AiChatMessage>,
     pub system: Option<String>,
     pub max_tokens: Option<u32>,
+    /// 応答待ちのアイドルタイムアウト (ミリ秒)。None / 範囲外は既定の 120 秒。
+    pub read_timeout_ms: Option<u64>,
     /// Provider 形式 (Anthropic or OpenAI) の生 tool definition 配列。
     /// フロントが provider に応じて事前変換した形で渡す。空 / None なら
     /// tool calling は無効 (= 既存挙動と同じ)。
@@ -127,6 +129,10 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 /// kill a healthy long generation — it only fires when no bytes arrive for this
 /// long, so a silently-dropped mid-stream connection is still bounded.
 const READ_TIMEOUT: Duration = Duration::from_secs(120);
+/// リクエストが指定できるアイドルタイムアウトの範囲。フロント側の設定
+/// (`AI_READ_TIMEOUT_MIN_SECONDS` / `MAX`) と同じ幅。範囲外は既定に落とす。
+const MIN_READ_TIMEOUT_MS: u64 = 10_000;
+const MAX_READ_TIMEOUT_MS: u64 = 3_600_000;
 const DEFAULT_MAX_TOKENS: u32 = 4096;
 /// Hard cap on the total bytes (system + all message contents) sent in one
 /// chat request. Prevents accidental paste-of-a-huge-file and runaway costs.
@@ -191,20 +197,40 @@ async fn backoff_sleep(attempt: u32) {
 ///   180s で問答無用に切られていた (#508 の「長文応答で切れる」直因)。read_timeout
 ///   は無音が続いたときだけ発火するので長文生成自体は切らない
 ///
-/// `OnceLock` でプロセス生存期間 1 回だけ構築。
-static STREAMING_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+/// `read_timeout` は `ClientBuilder` にしか無く request 単位で変えられないので、
+/// 秒数ごとに Client を作って使い回す。実際に現れる値は設定に入れた 1〜2 種で、
+/// `reqwest::Client` の clone は内部 Arc の複製で安い。
+static STREAMING_CLIENTS: OnceLock<Mutex<HashMap<u64, reqwest::Client>>> = OnceLock::new();
 
-fn streaming_client() -> &'static reqwest::Client {
-    STREAMING_CLIENT.get_or_init(|| {
-        reqwest::Client::builder()
-            .http1_only()
-            .pool_max_idle_per_host(0)
-            .connect_timeout(CONNECT_TIMEOUT)
-            .read_timeout(READ_TIMEOUT)
-            .user_agent("notedeck-ai-streaming")
-            .build()
-            .expect("failed to build AI streaming client")
-    })
+fn streaming_client(read_timeout: Duration) -> reqwest::Client {
+    let key = read_timeout.as_secs();
+    // poisoned のまま諦めると AI が二度と繋がらなくなるので、中身を取り出して続行する
+    let mut map = STREAMING_CLIENTS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    map.entry(key)
+        .or_insert_with(|| {
+            reqwest::Client::builder()
+                .http1_only()
+                .pool_max_idle_per_host(0)
+                .connect_timeout(CONNECT_TIMEOUT)
+                .read_timeout(read_timeout)
+                .user_agent("notedeck-ai-streaming")
+                .build()
+                .expect("failed to build AI streaming client")
+        })
+        .clone()
+}
+
+/// リクエストが指定したアイドルタイムアウト。未指定 / 範囲外は既定値。
+fn resolve_read_timeout(req: &AiChatRequest) -> Duration {
+    match req.read_timeout_ms {
+        Some(ms) if (MIN_READ_TIMEOUT_MS..=MAX_READ_TIMEOUT_MS).contains(&ms) => {
+            Duration::from_millis(ms)
+        }
+        _ => READ_TIMEOUT,
+    }
 }
 
 /// reqwest::Error の Display は短すぎて診断に使えない (例:
@@ -530,7 +556,7 @@ async fn run_anthropic_attempt(
         }
     }
 
-    let resp = streaming_client()
+    let resp = streaming_client(resolve_read_timeout(req))
         .post(&url)
         .header("x-api-key", api_key)
         .header("anthropic-version", ANTHROPIC_VERSION)
@@ -720,7 +746,7 @@ async fn run_openai_compat_attempt(
         }
     }
 
-    let mut request = streaming_client()
+    let mut request = streaming_client(resolve_read_timeout(req))
         .post(&url)
         .header("content-type", "application/json")
         .json(&body);

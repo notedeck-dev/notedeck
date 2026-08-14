@@ -59,6 +59,18 @@ export interface AiSendRequest {
   /** provider 形式に変換済みの tool definition 配列 */
   tools?: unknown[]
   /**
+   * 生成まわりの調整値 (AI 設定の `generation`)。省略時は既定値。
+   * round ごとの sendMessage にそのまま渡す。
+   */
+  generation?: {
+    /** 応答の最大トークン。0 / 省略はプロバイダー既定に任せる */
+    maxTokens?: number
+    /** tool 呼び出しの上限ラウンド */
+    maxToolRounds?: number
+    /** 応答待ちのアイドルタイムアウト (秒) */
+    readTimeoutSeconds?: number
+  }
+  /**
    * 切断ターンの継続モード (#737)。user メッセージを追加せず、session に
    * 残っている実行済み tool_use / tool_result を含む履歴から続きを生成する。
    * 実行済み tool を再生成しないため write capability の二重実行が起きない。
@@ -117,10 +129,11 @@ export const CONTINUATION_NOTICE =
   '直前の応答は途中で切断されました。会話履歴にある tool 実行結果は既に実行済みです。同じ書き込み操作を繰り返さず、既存の結果を使って応答の続きを完成させてください。'
 
 /**
- * tool_use ループで暴走しないための上限。1 ターン中に AI が連続で tool を
- * 呼び続けるケースを抑える (普通は 1〜2 回で止まる)。
+ * tool_use ループで暴走しないための上限の既定値。1 ターン中に AI が連続で
+ * tool を呼び続けるケースを抑える (普通は 1〜2 回で止まる)。AI 設定の
+ * `generation.maxToolRounds` で変えられる。
  */
-export const MAX_TOOL_ROUNDS = 5
+export const MAX_TOOL_ROUNDS = 10
 
 export function useAiSendLoop(deps: AiSendLoopDeps) {
   // 進行中ストリームのセッション ID。カラム側の currentSessionId の reactive
@@ -191,6 +204,7 @@ export function useAiSendLoop(deps: AiSendLoopDeps) {
 
     activeStreamSessionId.value = req.sessionId
 
+    const maxToolRounds = req.generation?.maxToolRounds ?? MAX_TOOL_ROUNDS
     let toolRound = 0
     let placeholderId = assistantMsg.id
     let finalAssistantText = ''
@@ -224,6 +238,9 @@ export function useAiSendLoop(deps: AiSendLoopDeps) {
           model: req.model,
           history,
           system,
+          // 0 は「プロバイダー既定に任せる」なので送らない
+          maxTokens: req.generation?.maxTokens || undefined,
+          readTimeoutSeconds: req.generation?.readTimeoutSeconds,
           tools: req.tools,
           onToolUse: (e) => {
             pendingToolUse = e
@@ -234,10 +251,10 @@ export function useAiSendLoop(deps: AiSendLoopDeps) {
 
         if (!pendingToolUse) break
 
-        if (toolRound >= MAX_TOOL_ROUNDS) {
+        if (toolRound >= maxToolRounds) {
           finalAssistantText =
             (turnText || finalAssistantText) +
-            `\n\n⚠️ tool 呼び出しが上限 (${MAX_TOOL_ROUNDS} 回) に達しました。`
+            `\n\n⚠️ tool 呼び出しが上限 (${maxToolRounds} 回) に達しました。`
           break
         }
         toolRound++

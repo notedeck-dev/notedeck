@@ -401,16 +401,6 @@ async function retryLastSend(): Promise<void> {
  * - ユーザーが手動 rename したら上書きしない (titleBefore で race 対策)
  * - LLM 応答に余計な引用符や改行が混じる場合があるので軽く整形する
  */
-/**
- * タイトル生成の出力上限。
- *
- * max_tokens は thinking を含む出力全体にかかる一方、本文として拾うのは
- * text / content デルタだけ。タイトルの長さに合わせて切り詰めると、reasoning
- * 系モデルでは思考が枠を使い切って本文が 1 文字も来ず、日付のままになる。
- * 実際に必要なのは 40 文字ぶんだけなので、思考の取り分を見込んで広く取る。
- */
-const TITLE_MAX_TOKENS = 512
-
 const TITLE_SYSTEM_PROMPT =
   'あなたは会話セッションのタイトル生成アシスタントです。与えられた会話の内容を端的に表す短い日本語のタイトルを 1 行で出力してください。20 文字程度 (最大 40 文字) に収めること。引用符、前置き、改行、絵文字、文末句点は付けないでください。タイトルのみを返してください。'
 
@@ -459,7 +449,8 @@ async function generateAiTitleAsync(
         { id: 'u', role: 'user', content: conversationPrompt, timestamp: 0 },
       ],
       system: TITLE_SYSTEM_PROMPT,
-      maxTokens: TITLE_MAX_TOKENS,
+      maxTokens: aiConfig.value.generation.titleMaxTokens,
+      readTimeoutSeconds: aiConfig.value.generation.readTimeoutSeconds,
     })
     const cleaned = raw
       .replace(/[\r\n]+/g, ' ')
@@ -614,6 +605,7 @@ async function sendMessage(
     model: resolved.model,
     tools: toolsForProvider,
     continuation,
+    generation: aiConfig.value.generation,
     // round ごとに context を組み直す (memos / vault 開示状態は round 間で
     // 変わりうるため)。history は sendLoop が組み立てた wire history。
     buildSystem: async (history) => {

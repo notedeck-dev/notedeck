@@ -36,6 +36,8 @@ export interface AiChatSendOptions {
   /** Composed system prompt (optional). */
   system?: string
   maxTokens?: number
+  /** 応答待ちのアイドルタイムアウト (秒)。省略時は Rust 側の既定 (120 秒)。 */
+  readTimeoutSeconds?: number
   /**
    * Provider 形式 (Anthropic or OpenAI) の生 tool definition 配列。
    * 呼び出し側で `toAnthropicTool` / `toOpenAiTool` を使って事前変換する。
@@ -85,6 +87,12 @@ export class AiChatCancelledError extends Error {
 
 function generateStreamId(): string {
   return `ai-stream-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/** 秒指定を wire のミリ秒へ。範囲の検査は Rust 側が持つ。 */
+function toReadTimeoutMs(seconds: number | undefined): number | null {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return null
+  return Math.round(seconds * 1000)
 }
 
 function toWireMessage(m: ChatMessage): AiChatMessage {
@@ -255,6 +263,7 @@ export function useAiChat() {
             messages: opts.history.map(toWireMessage),
             system: opts.system && opts.system.length > 0 ? opts.system : null,
             max_tokens: opts.maxTokens ?? null,
+            read_timeout_ms: toReadTimeoutMs(opts.readTimeoutSeconds),
             tools:
               opts.tools && opts.tools.length > 0
                 ? (opts.tools as unknown as JsonValue)
@@ -322,6 +331,7 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
           messages: opts.history.map(toWireMessage),
           system: opts.system && opts.system.length > 0 ? opts.system : null,
           max_tokens: opts.maxTokens ?? null,
+          read_timeout_ms: toReadTimeoutMs(opts.readTimeoutSeconds),
           tools: null,
         })
       })
