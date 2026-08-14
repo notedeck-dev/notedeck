@@ -152,6 +152,14 @@ function classBadge(
   flex-direction: column;
   padding: 16px;
   gap: 8px;
+  // テンプレも登録済みの接続も増えると窓の max-height を超える — 超過分を
+  // スクロールに流す (ConnectionEditContent と同じパターン)。DeckWindow の
+  // windowBody は overflow: hidden なので、スクロールは content 側の責務
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-color: var(--nd-scrollbarHandle) transparent;
+  scrollbar-width: thin;
 }
 
 .sectionTitle {

@@ -131,7 +131,10 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     secretLabel: 'API Key',
     secretHelpUrl: 'https://opencode.ai/auth',
     protocol: 'openai-compat',
-    defaultModel: 'deepseek-v4-pro',
+    // /models に載っていても地域制限で 403 (RegionError) になるモデルがある
+    // (deepseek-v4-pro は中国ホストのみで、明示の opt in が要る)。制限の判定は
+    // 認証の後なので一覧からは見分けられない
+    defaultModel: 'kimi-k3',
   },
 
   // ── MisStore 配布のプラグイン / ウィジェットが要求する外部サービス ──

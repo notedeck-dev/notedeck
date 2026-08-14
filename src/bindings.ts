@@ -2897,6 +2897,10 @@ export type AiChatRequest = { stream_id: string;
  */
 connection_id: string; model: string; messages: AiChatMessage[]; system: string | null; max_tokens: number | null; 
 /**
+ * 応答待ちのアイドルタイムアウト (ミリ秒)。None / 範囲外は既定の 120 秒。
+ */
+read_timeout_ms: number | null; 
+/**
  * Provider 形式 (Anthropic or OpenAI) の生 tool definition 配列。
  * フロントが provider に応じて事前変換した形で渡す。空 / None なら
  * tool calling は無効 (= 既存挙動と同じ)。

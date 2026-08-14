@@ -7,6 +7,7 @@ import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import AiConnectionSection from '@/components/window/ai-settings/AiConnectionSection.vue'
 import AiDataSourcesSection from '@/components/window/ai-settings/AiDataSourcesSection.vue'
+import AiGenerationSection from '@/components/window/ai-settings/AiGenerationSection.vue'
 import AiHeartbeatSection from '@/components/window/ai-settings/AiHeartbeatSection.vue'
 import AiPersonaSection from '@/components/window/ai-settings/AiPersonaSection.vue'
 import {
@@ -188,6 +189,7 @@ function handleReset() {
       <AiPersonaSection />
       <AiDataSourcesSection />
       <AiHeartbeatSection />
+      <AiGenerationSection />
     </div>
 
     <!-- ai.json5 raw editor tab -->
