@@ -6,8 +6,10 @@
  * テンプレ id は `builtin:<id>@<version>` 形式 — v2 で MisStore 配布の
  * `@<author>/<id>@<version>` 形式と名前空間を分離するための予約。
  *
- * v1 では AI プロバイダー 4 種のみ。GitHub / Linear / Slack 等の汎用 API
- * テンプレは需要を見て v1.x で追加する (手動追加 / URL ペーストは現状でも可)。
+ * 収録範囲は「AI プロバイダー」と「MisStore 配布のプラグイン / ウィジェットが
+ * 要求する外部サービス」。配布物を入れた利用者がセットアップ手順の baseUrl や
+ * 認証方式を自分で書き写さずに済むことを基準にしている。ここに無いサービスも
+ * 手動追加 / URL ペーストで登録できる。
  */
 
 import type { AuthType, ConnectionProtocol } from '@/bindings'
@@ -130,6 +132,149 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     secretHelpUrl: 'https://opencode.ai/auth',
     protocol: 'openai-compat',
     defaultModel: 'deepseek-v4-pro',
+  },
+
+  // ── MisStore 配布のプラグイン / ウィジェットが要求する外部サービス ──
+  // AI プロバイダーではないので protocol は持たず、AI 設定のピッカーには出ない。
+  // baseUrl / 認証方式は各配布物のセットアップ手順に合わせてある (ずれると
+  // 配布物がそのまま動かない)。testPath は「鍵が正しいときだけ 2xx」を選ぶ。
+  {
+    id: 'builtin:deepl@1',
+    name: 'DeepL',
+    icon: 'language',
+    // 無料枠と Pro でホストが分かれる。Pro 契約なら baseUrl を api.deepl.com に変える
+    baseUrl: 'https://api-free.deepl.com',
+    // 認証スキームが Bearer ではなく DeepL-Auth-Key なので、ヘッダ値ごと秘匿する
+    authType: { kind: 'header', name: 'Authorization' },
+    allowedHosts: ['api-free.deepl.com', 'api.deepl.com'],
+    testPath: '/v2/usage',
+    secretLabel: 'Authorization ヘッダ値 (DeepL-Auth-Key <API キー>)',
+    secretHelpUrl: 'https://www.deepl.com/your-account/keys',
+  },
+  {
+    id: 'builtin:saucenao@1',
+    name: 'SauceNAO',
+    icon: 'search',
+    baseUrl: 'https://saucenao.com',
+    authType: { kind: 'query', param: 'api_key' },
+    allowedHosts: ['saucenao.com'],
+    // 身元だけを返すエンドポイントが無いため、疎通テストは検索 1 回を消費する
+    // (無料枠 100 回/日)。応答ヘッダに残枠が入る
+    testPath:
+      '/search.php?output_type=2&numres=1&url=https://saucenao.com/images/static/banner.gif',
+    secretLabel: 'API Key',
+    secretHelpUrl: 'https://saucenao.com/user.php?page=search-api',
+  },
+  {
+    id: 'builtin:todoist@1',
+    name: 'Todoist',
+    icon: 'circle-check',
+    baseUrl: 'https://api.todoist.com',
+    authType: { kind: 'bearer' },
+    allowedHosts: ['api.todoist.com'],
+    testPath: '/api/v1/tasks',
+    secretLabel: 'API トークン',
+    secretHelpUrl:
+      'https://app.todoist.com/app/settings/integrations/developer',
+  },
+  {
+    id: 'builtin:clickup@1',
+    name: 'ClickUp',
+    icon: 'checklist',
+    baseUrl: 'https://api.clickup.com',
+    // Personal API Token は素のまま Authorization に載せる (Bearer を付けると 401)
+    authType: { kind: 'header', name: 'Authorization' },
+    allowedHosts: ['api.clickup.com'],
+    testPath: '/api/v2/user',
+    secretLabel: 'Personal API Token (pk_...)',
+    secretHelpUrl: 'https://app.clickup.com/settings/apps',
+  },
+  {
+    id: 'builtin:hackerone@1',
+    name: 'HackerOne',
+    icon: 'bug',
+    baseUrl: 'https://api.hackerone.com',
+    // ユーザー名はテンプレでは決められないので、接続を作るときに入力してもらう
+    authType: { kind: 'basic', username: '' },
+    allowedHosts: ['api.hackerone.com'],
+    testPath: '/v1/hackers/payments/balance',
+    secretLabel: 'API トークン (生の値)',
+    secretHelpUrl: 'https://hackerone.com/settings/api_token/edit',
+  },
+  {
+    id: 'builtin:wakatime@1',
+    name: 'WakaTime',
+    icon: 'clock-code',
+    baseUrl: 'https://api.wakatime.com',
+    // Bearer / ヘッダーでは 401 になる
+    authType: { kind: 'query', param: 'api_key' },
+    allowedHosts: ['api.wakatime.com'],
+    testPath: '/api/v1/users/current',
+    secretLabel: 'API Key',
+    secretHelpUrl: 'https://wakatime.com/settings/api-key',
+  },
+  {
+    id: 'builtin:steam@1',
+    name: 'Steam',
+    icon: 'brand-steam',
+    baseUrl: 'https://api.steampowered.com',
+    // Bearer / ヘッダーでは 403 になる
+    authType: { kind: 'query', param: 'key' },
+    allowedHosts: ['api.steampowered.com'],
+    // 身元を返すエンドポイントが無いので、Valve のドキュメントと同じ公開 ID を引いて
+    // 鍵の有効性だけを見る
+    testPath: '/ISteamUser/GetPlayerSummaries/v2/?steamids=76561197960435530',
+    secretLabel: 'Web API Key',
+    secretHelpUrl: 'https://steamcommunity.com/dev/apikey',
+  },
+  {
+    id: 'builtin:shodan@1',
+    name: 'Shodan',
+    icon: 'shield-search',
+    baseUrl: 'https://api.shodan.io',
+    authType: { kind: 'query', param: 'key' },
+    allowedHosts: ['api.shodan.io'],
+    testPath: '/api-info',
+    secretLabel: 'API Key',
+    secretHelpUrl: 'https://account.shodan.io/',
+  },
+  {
+    id: 'builtin:habitica@1',
+    name: 'Habitica',
+    icon: 'sword',
+    baseUrl: 'https://habitica.com',
+    // 既定の Bearer では 401
+    authType: { kind: 'header', name: 'x-api-key' },
+    allowedHosts: ['habitica.com'],
+    // 認証つきの面は x-api-user (User ID) も要求し、それは接続ではなくウィジェット側が
+    // 持つ。ここで見られるのは到達性まで
+    testPath: '/api/v3/status',
+    secretLabel: 'API トークン',
+    secretHelpUrl: 'https://habitica.com/user/settings/api',
+  },
+  {
+    id: 'builtin:commafeed@1',
+    name: 'CommaFeed',
+    icon: 'rss',
+    // セルフホストなら自分のインスタンスに変える
+    baseUrl: 'https://www.commafeed.com',
+    authType: { kind: 'query', param: 'apiKey' },
+    allowedHosts: ['www.commafeed.com'],
+    // API キー認証で通るのは GET のみ
+    testPath: '/rest/category/get',
+    secretLabel: 'API キー',
+    secretHelpUrl: 'https://www.commafeed.com',
+  },
+  {
+    id: 'builtin:mewk@1',
+    name: 'Mewk',
+    icon: 'message-question',
+    baseUrl: 'https://mewk.app',
+    authType: { kind: 'bearer' },
+    allowedHosts: ['mewk.app'],
+    testPath: '/api/v1/users/me/stats',
+    secretLabel: 'API キー (mewk_...)',
+    secretHelpUrl: 'https://mewk.app/settings/developer',
   },
 ]
 

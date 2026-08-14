@@ -722,9 +722,9 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
   - **型安全**: secret は `secrecy::SecretString` で workspace 一貫、`Debug` derive 禁止 lint、
     dispatcher caller は transport 由来固定
   - HTTP API (19820) からは vault を完全排除、CLI は Tauri IPC + peer credential 検査
-  - 内蔵接続テンプレ (AI プロバイダー) + URL ペースト推論。テンプレ一覧は
-    `src/data/connectionTemplates.ts` が正本。GitHub / Linear / Slack 等の汎用 API
-    テンプレは需要を見て追加する (手動登録は現状でも可)
+  - 内蔵接続テンプレ (AI プロバイダー + MisStore 配布物が要求する外部サービス)
+    + URL ペースト推論。テンプレ一覧は `src/data/connectionTemplates.ts` が正本。
+    ここに無いサービスは手動登録できる
   - OAuth 2 フロー / Webhook (inbound) / MCP 連携 / dynamic capability は v2 以降。
     詳細仕様は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault" 節
 
