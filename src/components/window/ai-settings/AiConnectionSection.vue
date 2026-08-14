@@ -42,7 +42,7 @@ const currentModel = computed<string>({
 function selectConnection(id: string): void {
   config.value.activeConnectionId = id
   // モデル未設定の接続はテンプレートの defaultModel で初期化する —
-  // OpenAI / Anthropic / OpenRouter を選ぶだけで書き込み無しに動き出せる
+  // 内蔵テンプレから作った接続は選ぶだけで書き込み無しに動き出せる
   if (!config.value.models[id]) {
     const conn = vault.connections.value.find((c) => c.id === id)
     const tpl = conn?.templateId
@@ -101,7 +101,7 @@ function openConnectionsWindow(): void {
     <div v-else :class="$style.connEmpty">
       <i class="ti ti-info-circle" />
       <span>
-        AI プロバイダー接続がありません。「接続」ウィンドウで OpenAI / Anthropic / OpenRouter のテンプレートから接続を追加してください。
+        AI プロバイダー接続がありません。「接続」ウィンドウのテンプレートから接続を追加してください。
       </span>
     </div>
     <button

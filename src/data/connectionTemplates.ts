@@ -73,8 +73,10 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     defaultModel: 'claude-sonnet-5',
   },
   {
-    id: 'builtin:grok@1',
-    name: 'Grok',
+    // テンプレの単位は「どこに繋ぐか」なので、名前は提供元に揃える
+    // (Grok はモデル名で、defaultModel 側に出る)
+    id: 'builtin:xai@1',
+    name: 'xAI',
     icon: 'brand-x',
     baseUrl: 'https://api.x.ai/v1',
     authType: { kind: 'bearer' },
