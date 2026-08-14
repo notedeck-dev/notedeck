@@ -142,6 +142,34 @@ export function usePostFormState(
   const scheduledAt = ref<string | null>(null)
   const supportsScheduledNotes = ref(false)
 
+  /**
+   * 返信・引用の文脈 (#1073)。props の初期値から始まり、下書きの復元で
+   * 差し替わる。投稿・下書き保存はここだけを見る (props を直接読まない) ため、
+   * 「返信の下書きを開いて投稿する」経路でも返信リンクが保たれる。
+   * replyNote はプレビュー用で、取得できなくても replyId 側は残す。
+   */
+  const replyId = ref<string | null>(props.replyTo?.id ?? null)
+  const replyNote = shallowRef<NormalizedNote | null>(props.replyTo ?? null)
+  const renoteId = ref<string | null>(props.renoteId ?? null)
+
+  // フォームを開いたまま別ノートへ返信・引用する経路 (カラムの投稿フォームは
+  // 開きっぱなしで props だけ差し替わる) を維持する
+  watch(
+    () => props.replyTo,
+    (note) => {
+      replyId.value = note?.id ?? null
+      replyNote.value = note ?? null
+      void hydrateContextNotes()
+    },
+  )
+  watch(
+    () => props.renoteId,
+    (id) => {
+      renoteId.value = id ?? null
+      void hydrateContextNotes()
+    },
+  )
+
   const activeAccountId = ref(props.accountId)
   const accounts = computed(() => accountsStore.accounts)
   const account = computed(() =>
@@ -149,15 +177,30 @@ export function usePostFormState(
   )
 
   /**
+   * 下書きの復元で受け取った投稿先チャンネル (#1073)。下書きはアカウント
+   * ごとなので、どのアカウントで復元したかを一緒に覚えておく。
+   */
+  const restoredChannel = shallowRef<{
+    id: string
+    accountId: string
+  } | null>(null)
+
+  /**
    * 投稿先チャンネル。「削除して編集」では元ノートのチャンネルを引き継ぐ (#953)。
    * カラムは :channel-id を渡すが、ノート詳細・プロフィールのウィンドウには
    * 渡す経路が無く、そこから操作するとチャンネル外に出てしまっていた。
-   * 明示指定 (チャンネルカラムの埋め込みフォーム等) が常に優先。
+   * 下書きを復元したときはその下書きのチャンネルが最優先 (#1073) — 返信・引用と
+   * 同じく、下書きが保存していた文脈をそのまま戻す。次点が明示指定
+   * (チャンネルカラムの埋め込みフォーム等)。
    *
    * 引き継ぎはアカウントが一致するときだけ。フォーム上でアカウントを切り替え
    * たら、元アカウントのチャンネル ID を別サーバーへ送ることになるため落とす。
    */
   const channelId = computed(() => {
+    const restored = restoredChannel.value
+    if (restored && restored.accountId === activeAccountId.value) {
+      return restored.id
+    }
     if (props.channelId) return props.channelId
     const note = props.initialNote
     if (!note?.channelId) return undefined
@@ -206,12 +249,59 @@ export function usePostFormState(
     // メモはローカルのテキストなので上限が無い (#1018)。上限はサーバーの
     // maxNoteTextLength 由来で、投稿しないメモには効かない
     if (!memoMode && remainingChars.value < 0) return false
-    if (props.renoteId) return true
+    if (renoteId.value) return true
     if (attachedFiles.value.length > 0) return true
     if (showPoll.value && pollChoices.value.filter((c) => c.trim()).length >= 2)
       return true
     return text.value.trim().length > 0
   })
+
+  /**
+   * replyId / renoteId からプレビュー用のノートを解決する。下書きは ID しか
+   * 持たないため、復元経路 (#1073) ではここで取り直す必要がある。取得失敗
+   * (別サーバーの ID・削除済み等) はプレビューを諦めるだけで、投稿時の
+   * 返信・引用リンクは ID 側に残る。
+   */
+  async function hydrateContextNotes() {
+    const a = adapter
+    if (!a) return
+    const wantReply = replyId.value
+    const wantRenote = renoteId.value
+    const [replyResult, quoteResult] = await Promise.allSettled([
+      wantReply == null
+        ? Promise.resolve(null)
+        : replyNote.value?.id === wantReply
+          ? Promise.resolve(replyNote.value)
+          : a.api.getNote(wantReply),
+      wantRenote == null ? Promise.resolve(null) : a.api.getNote(wantRenote),
+    ])
+    // 解決を待つ間に文脈が差し替わっていたら、古い結果は捨てる
+    if (replyId.value !== wantReply || renoteId.value !== wantRenote) return
+    replyNote.value =
+      replyResult.status === 'fulfilled' ? replyResult.value : null
+    quoteNote.value =
+      quoteResult.status === 'fulfilled' ? quoteResult.value : null
+    restrictVisibilityForReply()
+  }
+
+  /**
+   * 返信先がダイレクト (specified) なら public / home を塞ぐ。
+   *
+   * `initAdapter` でも同じ判定をしているが、下書きの復元では返信先の解決が
+   * そのあとに来る (#1073)。解決後に当て直さないと、ダイレクトへの返信の
+   * 下書きを開いた画面で公開・ホームが選べたままになる。
+   */
+  function restrictVisibilityForReply() {
+    if (replyNote.value?.visibility !== 'specified') return
+    const disabled = new Set(disabledVisibilities.value)
+    disabled.add('public')
+    disabled.add('home')
+    disabledVisibilities.value = disabled
+    if (disabled.has(visibility.value)) {
+      const first = visibilityOptions.find((o) => !disabled.has(o.value))
+      if (first) visibility.value = first.value
+    }
+  }
 
   async function initAdapter() {
     // Memo mode: purely local, so skip every server call. Works for guest
@@ -236,29 +326,19 @@ export function usePostFormState(
     }
 
     // Fetch modes, policies, and user settings in parallel (all independent after adapter init)
-    const [
-      availabilityResult,
-      policiesResult,
-      userInfoResult,
-      metaResult,
-      quoteResult,
-    ] = await Promise.allSettled([
-      detectAvailableTimelines(acc.id),
-      commands.apiGetUserPolicies(acc.id).then(unwrap),
-      commands.apiGetSelf(acc.id).then(unwrap) as Promise<{
-        defaultNoteVisibility?: string
-        defaultNoteLocalOnly?: boolean
-      }>,
-      commands.apiGetMetaDetail(acc.id).then(unwrap) as Promise<{
-        maxNoteTextLength?: unknown
-      }>,
-      props.renoteId && adapter
-        ? adapter.api.getNote(props.renoteId)
-        : Promise.resolve(null),
-    ])
-
-    quoteNote.value =
-      quoteResult.status === 'fulfilled' ? quoteResult.value : null
+    const [availabilityResult, policiesResult, userInfoResult, metaResult] =
+      await Promise.allSettled([
+        detectAvailableTimelines(acc.id),
+        commands.apiGetUserPolicies(acc.id).then(unwrap),
+        commands.apiGetSelf(acc.id).then(unwrap) as Promise<{
+          defaultNoteVisibility?: string
+          defaultNoteLocalOnly?: boolean
+        }>,
+        commands.apiGetMetaDetail(acc.id).then(unwrap) as Promise<{
+          maxNoteTextLength?: unknown
+        }>,
+        hydrateContextNotes(),
+      ])
 
     // 文字数上限をサーバー設定に同期 (#753)
     maxTextLength.value =
@@ -308,7 +388,7 @@ export function usePostFormState(
       }
       noteModeFlags.value = filtered
     }
-    if (props.replyTo?.visibility === 'specified') {
+    if (replyNote.value?.visibility === 'specified') {
       disabled.add('public')
       disabled.add('home')
     }
@@ -330,7 +410,7 @@ export function usePostFormState(
     // 返信・編集・メモ・チャネルは visibility が文脈で決まるため対象外。
     // 記憶値はアカウントごとに保持。
     const isContextual =
-      props.replyTo || props.editNote || memoMode || channelId.value
+      replyId.value || props.editNote || memoMode || channelId.value
     if (!isContextual && settingsStore.get('postForm.rememberVisibility')) {
       const lastMap = settingsStore.get('postForm.lastUsedVisibilityByAccount')
       const last = lastMap?.[activeAccountId.value]
@@ -437,11 +517,7 @@ export function usePostFormState(
           activeAccountId.value,
           sessionSlotKey.value,
           buildSlotData(true),
-          {
-            replyId: props.replyTo?.id ?? null,
-            renoteId: props.renoteId ?? null,
-            channelId: channelId.value ?? null,
-          },
+          buildDraftContext(),
         )
         posted.value = true
         callbacks.onPosted()
@@ -484,8 +560,8 @@ export function usePostFormState(
             ? false
             : localOnly.value || undefined,
         modeFlags,
-        replyId: props.replyTo?.id,
-        renoteId: props.renoteId,
+        replyId: replyId.value ?? undefined,
+        renoteId: renoteId.value ?? undefined,
         channelId: channelId.value,
         fileIds,
         poll: pollParam,
@@ -496,7 +572,7 @@ export function usePostFormState(
 
     // rememberVisibility ON のときは送信した visibility を記憶 (per-account)
     if (
-      !props.replyTo &&
+      !replyId.value &&
       !channelId.value &&
       settingsStore.get('postForm.rememberVisibility')
     ) {
@@ -524,11 +600,7 @@ export function usePostFormState(
     const currentAdapter = adapter
     const currentAccountId = activeAccountId.value
     const retryKey = sessionSlotKey.value
-    const retryCtx: DraftContext = {
-      replyId: props.replyTo?.id ?? null,
-      renoteId: props.renoteId ?? null,
-      channelId: channelId.value ?? null,
-    }
+    const retryCtx: DraftContext = buildDraftContext()
     currentAdapter.api.createNote(noteParams).catch(async (e) => {
       const { show } = useToast()
       show(AppError.from(e).message, 'error')
@@ -639,8 +711,8 @@ export function usePostFormState(
 
   function buildDraftContext(): DraftContext {
     return {
-      replyId: props.replyTo?.id ?? null,
-      renoteId: props.renoteId ?? null,
+      replyId: replyId.value,
+      renoteId: renoteId.value,
       channelId: channelId.value ?? null,
     }
   }
@@ -746,6 +818,27 @@ export function usePostFormState(
     pollMultiple.value = d.pollMultiple
     showPoll.value = d.showPoll
     scheduledAt.value = d.scheduledAt
+    // 下書きが保持している返信・引用・チャンネルの文脈を戻す (#1073)。戻さないと
+    // 「返信の下書き」が通常のノートとして、チャンネルの下書きがチャンネル外の
+    // ノートとして投稿されてしまう。
+    // 文脈を持たない下書きは今のフォームの文脈を残す — 返信フォームやチャンネル
+    // カラムを開いたまま書きかけの下書きを引っぱってくる操作で、宛先が消えない
+    // ように。
+    if ('replyId' in stored) {
+      if (stored.replyId || stored.renoteId) {
+        replyId.value = stored.replyId
+        renoteId.value = stored.renoteId
+        if (replyNote.value?.id !== stored.replyId) replyNote.value = null
+        if (quoteNote.value?.id !== stored.renoteId) quoteNote.value = null
+        void hydrateContextNotes()
+      }
+      if (stored.channelId) {
+        restoredChannel.value = {
+          id: stored.channelId,
+          accountId: activeAccountId.value,
+        }
+      }
+    }
     // draft モードではサーバー id、memo モードでは memoKey を受け取る
     if (key) sessionSlotKey.value = key
     else if ('id' in stored) sessionSlotKey.value = stored.id
@@ -809,6 +902,9 @@ export function usePostFormState(
     noteModeFlags,
     disabledVisibilities,
     activeAccountId,
+    replyId,
+    replyNote,
+    renoteId,
     quoteNote,
     showPoll,
     pollChoices,

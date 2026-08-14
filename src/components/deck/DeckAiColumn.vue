@@ -22,6 +22,7 @@ import {
 } from '@/composables/useAiSystemContext'
 import { ensureMemosLoaded, loadAllMemos } from '@/composables/useMemos'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
+import { useTutorialStore } from '@/composables/useTutorial'
 import { describeAuthType, useVault } from '@/composables/useVault'
 import { reloadPermissionsConfig } from '@/permissions/store'
 import { useAccountsStore } from '@/stores/accounts'
@@ -286,7 +287,7 @@ async function onDeleteSession(
 // 注意: checkProvider 内で vault.refresh() を呼ばないこと。refresh は
 // connections.value を新しい配列で差し替えるため、下の deep watch が
 // connections を購読していると無限ループになり (#572 系)、その間ずっと
-// 入力欄が無効化されて「入力した瞬間に打てなくなる」挙動になる。
+// providerStatus が揺れ続ける。
 // 接続一覧の再取得は mount 時と CRUD 後 (useVault 側) に任せ、ここは
 // reactive な connections.value から同期的に判定するだけにする。
 
@@ -297,6 +298,22 @@ function checkProvider(): void {
     resolved.model.length > 0 &&
     (resolved.connection.slots?.length ?? 0) > 0
   providerStatus.value = ready ? 'connected' : 'disconnected'
+  // 設定が済んだら導線は用済み
+  if (ready) needsAiSetup.value = false
+}
+
+const AI_SETUP_REQUIRED_MESSAGE =
+  'AI の API キーが設定されていないため、この質問には応答できません。\n\n' +
+  'AI プロバイダの API キーを登録すると使えるようになります。' +
+  '下の「AI 設定を案内」からチュートリアルを開けます。\n\n' +
+  '`/help` などの / コマンドは API キーなしで実行できます。'
+
+/** API キー未設定で AI 応答を断った直後か (= 設定チュートリアルへ誘導する) */
+const needsAiSetup = ref(false)
+
+/** AI 設定チュートリアル (「使いこなす」カテゴリ) を開く (#1071) */
+function startAiSetupTutorial(): void {
+  useTutorialStore().startCategory('mastery')
 }
 
 // カラム表示時に接続一覧を最新化する (watch が connections.value の変化を
@@ -504,7 +521,13 @@ async function sendMessage(
     return
   }
 
-  if (providerStatus.value !== 'connected') return
+  // AI が必要な入力は、API キー未設定なら黙って捨てずにエラーとして返し、
+  // AI 設定チュートリアルへの導線を出す (#1070 / #1071)。
+  if (providerStatus.value !== 'connected') {
+    if (!preset) input.value = ''
+    await appendAiSetupRequiredError(text)
+    return
+  }
 
   // ensureSession の戻り値 (sessionId) を以降のすべての store 更新に直接使う。
   // currentSessionId は computed(props.column.aiCurrentSessionId) で、
@@ -653,6 +676,43 @@ async function sendMessage(
       sessionsStore.setTitle(sessionId, generateSessionTitle(text))
     }
   }
+  scrollToBottom()
+}
+
+/**
+ * API キー未設定のまま AI への質問が送られたときの応答 (#1070 / #1071)。
+ *
+ * 入力欄はガードせず (= `/help` などの slash は打てる必要がある)、AI が要る
+ * 入力だけをここでエラーとして返す。返した後は入力欄の上に AI 設定チュートリアル
+ * への導線を出す。
+ */
+async function appendAiSetupRequiredError(text: string): Promise<void> {
+  const sessionId = ensureSession()
+  const before = sessionsStore.get(sessionId)
+  if (!before) return
+
+  const now = Date.now()
+  const userMsg: ChatMessage = {
+    id: `msg-${now}-u`,
+    role: 'user',
+    content: text,
+    timestamp: now,
+  }
+  const errorMsg: ChatMessage = {
+    id: `msg-${now}-e`,
+    role: 'assistant',
+    content: AI_SETUP_REQUIRED_MESSAGE,
+    timestamp: now,
+  }
+  sessionsStore.updateMessages(sessionId, [
+    ...before.messages,
+    userMsg,
+    errorMsg,
+  ])
+  if (!before.title) {
+    sessionsStore.setTitle(sessionId, timestampTitle(new Date(now)))
+  }
+  needsAiSetup.value = true
   scrollToBottom()
 }
 
@@ -811,20 +871,14 @@ function onAssistantContentClick(e: MouseEvent) {
 
 // 入力欄の自動高さ調整は textarea の `field-sizing: content` (CSS) に委ねる。
 
-/** slash コマンド入力中か (= AI provider 接続有無に関わらず送信可) */
-const inputIsSlash = computed(() => isSlashCommand(input.value.trim()))
-
-/** 送信ボタンを押せる条件: 入力非空 + (slash か provider 接続済み) */
-const canSubmit = computed(
-  () =>
-    input.value.trim().length > 0 &&
-    (inputIsSlash.value || providerStatus.value === 'connected'),
-)
-
-/** textarea を有効化する条件: provider 接続済み or slash モード */
-const inputEnabled = computed(
-  () => providerStatus.value === 'connected' || inputIsSlash.value,
-)
+/**
+ * 送信ボタンを押せる条件: 入力非空のみ。
+ *
+ * API キー未設定でも入力欄はガードしない (#1070)。`/help` などの slash は
+ * AI 抜きで動くし、AI が要る入力は送信後にエラーとして返して設定へ誘導する
+ * (= 打てないまま理由がわからない、を避ける)。
+ */
+const canSubmit = computed(() => input.value.trim().length > 0)
 
 const aiMessagesRef = useTemplateRef<HTMLElement>('aiMessagesRef')
 
@@ -975,9 +1029,8 @@ function onKeydown(e: KeyboardEvent) {
             :class="$style.chatTextarea"
             :placeholder="providerStatus === 'connected'
               ? '質問するか /help でコマンド一覧'
-              : '/help でコマンド一覧 (AI は API キー未設定)'"
+              : '/help でコマンド一覧 (API キー未設定)'"
             rows="1"
-            :disabled="!inputEnabled"
             @keydown="onKeydown"
           />
           <button
@@ -995,9 +1048,11 @@ function onKeydown(e: KeyboardEvent) {
     <div v-else :class="$style.aiColumnBody">
       <ColumnEmptyState
         v-if="messages.length === 0 && providerStatus !== 'connected'"
-        message="エージェント設定で API キーを設定してください"
-        :is-error="true"
-        fallback-kind="error"
+        message="AI に質問するには API キーの設定が必要です (/help などのコマンドはそのまま使えます)"
+        fallback-kind="info"
+        cta-label="AI 設定を案内"
+        cta-icon="ti-key"
+        @cta="startAiSetupTutorial"
       />
 
       <div v-else-if="messages.length > 0" ref="aiMessagesRef" :class="$style.aiMessages">
@@ -1124,6 +1179,18 @@ function onKeydown(e: KeyboardEvent) {
         </button>
       </div>
 
+      <!-- API キー未設定で AI 応答を断った直後の誘導 (#1071) -->
+      <div v-if="needsAiSetup" :class="$style.retryBar">
+        <button
+          class="_button"
+          :class="$style.retryBtn"
+          @click="startAiSetupTutorial"
+        >
+          <i class="ti ti-key" />
+          <span>AI 設定を案内</span>
+        </button>
+      </div>
+
       <div :class="$style.chatInput">
         <div :class="$style.chatInputRow">
           <textarea
@@ -1132,9 +1199,8 @@ function onKeydown(e: KeyboardEvent) {
             :class="$style.chatTextarea"
             :placeholder="providerStatus === 'connected'
               ? '質問するか /help でコマンド一覧'
-              : '/help でコマンド一覧 (AI は API キー未設定)'"
+              : '/help でコマンド一覧 (API キー未設定)'"
             rows="1"
-            :disabled="!inputEnabled"
             @keydown="onKeydown"
           />
           <button

@@ -9,7 +9,9 @@ NoteDeck は AI を組み込めますが、**使うかどうかは任意**です
 1. 接続管理ウィンドウで、プロバイダの API キーを登録する
 2. AI 設定で、登録した接続を選ぶ
 
-対応しているのは **Anthropic Messages 互換**と **OpenAI Chat Completions 互換**の 2 方式です。OpenAI、OpenRouter、Groq、自前の LLM ゲートウェイなど、どちらかの形式を話すサービスなら繋がります。
+Anthropic、OpenAI、xAI、Google、OpenRouter、OpenCode Go はテンプレートを内蔵しているので、選んで API キーを貼るだけで繋がります。
+
+対応しているのは **Anthropic Messages 互換**と **OpenAI Chat Completions 互換**の 2 方式です。テンプレートに無いサービスでも、自前の LLM ゲートウェイなどどちらかの形式を話すなら手で登録して繋げます。
 
 API キーは OS のキーチェーンに保管されます。設定ファイルには書かれず、プラグインや AI 自身から中身を読むことはできません。
 

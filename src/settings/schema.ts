@@ -23,6 +23,12 @@ export interface NotedeckSettings {
   // にあり、settings.json5 には一度も書かれていない。宣言だけ残っていた
   // 'deck.activeProfileId' は削除済み (#1042)
   'deck.wallpaper'?: string | null
+  /**
+   * ナビバーの幅 (px)。ユーザーがトグル・ドラッグで選んだ値だけを保存し、
+   * 狭いビューポートでの自動折りたたみは書き込まない。許容範囲は
+   * `useNavbarResize` が正本で、範囲外の手編集は読み込み時に丸める。
+   */
+  'deck.navWidth'?: number
 
   // --- Modes (PoC 移行済み) ---
   'modes.realtime'?: boolean

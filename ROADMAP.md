@@ -210,7 +210,9 @@ NoteDeck は `Cargo.toml` で git 依存として参照。
 - [x] **カラムリサイズ** — ドラッグで 280px〜600px に自由変更、幅を localStorage に永続化
 - [x] **カラムスタック（上下分割）** — カラムをグループ化して上下分割表示。ドラッグ＆ドロップで
   スタック内の並べ替え・スタック間のカラム移動・空きエリアへのドロップで独立カラム化が可能
-- [x] **ナビバー構造** — 折りたたみ/展開（68px↔250px）、ドラッグリサイズ、120px 以下で自動折りたたみ
+- [x] **ナビバー構造** — 折りたたみ/展開、ドラッグリサイズ、細くするとアイコンのみ表示に自動切り替え。
+  選んだ幅は `settings.json5` に永続化し、ウィンドウが狭いあいだの自動折りたたみでは上書きしない
+  （幅と閾値は `src/composables/useNavbarResize.ts` が正本）
 - [x] **フローティングウィンドウ** — ノート詳細・ユーザープロフィール・ログインをウィンドウで表示。
   ドラッグ移動、最小化/最大化、Z-index 自動管理、同一対象の重複排除、サーバーテーマ反映
 - [x] **インスペクタウィンドウ** — ノート/通知/ユーザーの Raw JSON 表示（`RawJsonView` 共通コンポーネント、`useSensitiveMask` で機密マスキング）。
@@ -720,7 +722,9 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
   - **型安全**: secret は `secrecy::SecretString` で workspace 一貫、`Debug` derive 禁止 lint、
     dispatcher caller は transport 由来固定
   - HTTP API (19820) からは vault を完全排除、CLI は Tauri IPC + peer credential 検査
-  - 内蔵テンプレ 6 種 (GitHub/OpenAI/Anthropic/OpenRouter/Linear/Slack) + URL ペースト推論
+  - 内蔵接続テンプレ (AI プロバイダー + MisStore 配布物が要求する外部サービス)
+    + URL ペースト推論。テンプレ一覧は `src/data/connectionTemplates.ts` が正本。
+    ここに無いサービスは手動登録できる
   - OAuth 2 フロー / Webhook (inbound) / MCP 連携 / dynamic capability は v2 以降。
     詳細仕様は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault" 節
 
@@ -737,14 +741,16 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
 
 **Step 1: 要約・チャット**
 - [x] **AI チャットカラム** (#103) — カラム追加ダイアログから追加可能、他カラムと同じくリサイズ・削除可能。
-  **Anthropic Claude / OpenAI ChatGPT / Custom (OpenAI 互換: OpenRouter 等)** の 3 プロバイダー対応、
+  **Anthropic Messages 互換 / OpenAI Chat Completions 互換**の 2 プロトコル対応
+  (内蔵テンプレは `src/data/connectionTemplates.ts` が正本)、
   SSE ストリーミング応答、セッション永続化 (`notedeck/sessions/<YYYYMMDDhhmmss>.json5`、Unix では 0600。
   カラムから独立、master-detail UI で一覧/切替/CRUD)、
   Markdown レンダリング (自前実装 + DOMPurify)、コードブロック個別コピー、
   ChatGPT/Claude 風 suggested prompts chip (空状態)、ユーザーメッセージ copy button、
   スキルストア (`composedSystemPrompt()`) による system prompt 統合。
   `AiSessionKind = 'chat' | 'command' | 'task' | 'heartbeat'` で kind 別ドロワー表示。
-  API キーは `notecli::keychain` (Misskey トークンと同じ機構) で OS キーチェーンに格納
+  API キーは Secret Vault ([#564](https://github.com/notedeck-dev/notedeck/issues/564)) の
+  接続として OS キーチェーンに格納 (フロント・AI はキー本体に触れない)
 
 **Step 2: AI 設定 — permissions / dataSources** (#408)
 - [x] **AI 権限・データソース設定** — Claude Code の `settings.json` 相当。

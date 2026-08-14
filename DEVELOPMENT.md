@@ -684,7 +684,7 @@ const { activate, deactivate } = useMenuKeyboard({
 - AI 設定は `ai.json5` に格納 (`useAiConfig` が単一 source of truth)。`activeConnectionId` + `models` のみで、API キー / endpoint は持たない
 - **API キーは Secret Vault (OS キーチェーン)** に統合。詳細は [AI Credentials](#ai-credentials)
 
-**対応プロバイダー:** Anthropic Messages 互換 / OpenAI Chat Completions 互換 (OpenAI / OpenRouter / Groq / 自前 LLM ゲートウェイ等)。Vault 接続として登録し、AI 設定でピッカー選択する。詳細は [AI Chat Streaming](#ai-chat-streaming)。
+**対応プロバイダー:** Anthropic Messages 互換 / OpenAI Chat Completions 互換のどちらかを話すサービス (自前 LLM ゲートウェイを含む)。Vault 接続として登録し、AI 設定でピッカー選択する。API キーを貼るだけで繋がる内蔵テンプレの一覧は `src/data/connectionTemplates.ts` が正本。詳細は [AI Chat Streaming](#ai-chat-streaming)。
 
 **主要セクション:**
 - データソース (`dataSources: DataSourcesConfig`): system prompt の `<notedeck-context>` ブロックに含める情報の制御 (現在のアカウント / カラム / 可視ノート / 会話履歴 / memos)
@@ -947,7 +947,7 @@ AI プロバイダーとして使える接続は `Connection.protocol` (`anthrop
 |---------|------|
 | `src/composables/useAiConfig.ts` | `AiConfig` schema (`activeConnectionId` + `models`)、`resolveAiConnection()`、`migrateProvidersToVault()` |
 | `src/components/window/AiSettingsContent.vue` | AI 接続ピッカー (Vault 接続のラジオリスト) + モデル名入力。接続の追加・編集は「接続」ウィンドウへ誘導 |
-| `src/data/connectionTemplates.ts` | 内蔵テンプレ (OpenAI / Anthropic / OpenRouter) に `protocol` / `defaultModel` を定義 |
+| `src/data/connectionTemplates.ts` | 内蔵接続テンプレ (`BUILTIN_TEMPLATES`) の正本。AI プロバイダーのテンプレは `protocol` / `defaultModel` を持つ |
 | `src/defaults/ai.json5` | `activeConnectionId` + `models` スキーマ。**API キー / endpoint は含まない** |
 
 #### 新しい AI プロバイダーを追加するとき

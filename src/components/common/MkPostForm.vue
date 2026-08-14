@@ -122,6 +122,11 @@ const {
   noteModeFlags,
   disabledVisibilities,
   activeAccountId,
+  // 返信・引用の文脈は props ではなくフォーム側が持つ (#1073): 下書きを
+  // 復元すると、その下書きが保存していた返信先・引用先に差し替わる
+  replyId: activeReplyId,
+  replyNote: activeReplyNote,
+  renoteId: activeRenoteId,
   channelId: effectiveChannelId,
   accounts,
   account,
@@ -250,8 +255,8 @@ const previewNote = computed<NormalizedNote | null>(() => {
     cw: showCw.value && cw.value ? cw.value : null,
     visibility: visibility.value,
     localOnly: localOnly.value,
-    replyId: props.replyTo?.id ?? null,
-    renoteId: props.renoteId ?? null,
+    replyId: activeReplyId.value,
+    renoteId: activeRenoteId.value,
     channelId: effectiveChannelId.value ?? null,
     poll: {
       choices: pollChoices.value,
@@ -754,7 +759,7 @@ function onPaste(e: ClipboardEvent) {
               <span :class="$style.postingDots">...</span>
             </template>
             <template v-else>
-              {{ memoMode ? 'メモ' : editNote ? '編集' : replyTo ? '返信' : renoteId ? '引用' : scheduledAt ? '予約' : 'ノート' }}
+              {{ memoMode ? 'メモ' : editNote ? '編集' : activeReplyId ? '返信' : activeRenoteId ? '引用' : scheduledAt ? '予約' : 'ノート' }}
               <svg viewBox="0 0 24 24" width="16" height="16" :class="$style.submitIcon">
                 <!-- メモはノートではないので送信アイコンにしない (#1018) -->
                 <template v-if="memoMode">
@@ -763,10 +768,10 @@ function onPaste(e: ClipboardEvent) {
                 <template v-else-if="editNote">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
                 </template>
-                <template v-else-if="replyTo">
+                <template v-else-if="activeReplyId">
                   <path d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 010 11H11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
                 </template>
-                <template v-else-if="renoteId">
+                <template v-else-if="activeRenoteId">
                   <path d="M10 11h6m-3-3v6M3 8V6a2 2 0 012-2h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
                 </template>
                 <template v-else>
@@ -778,25 +783,32 @@ function onPaste(e: ClipboardEvent) {
         </div>
       </header>
 
-      <!-- Reply preview -->
-      <div v-if="replyTo" :class="$style.replyPreview">
+      <!-- Reply preview。下書き復元では ID から取り直すので、取得前・取得
+           失敗時はインジケータのみ (#1073) -->
+      <div v-if="activeReplyNote" :class="$style.replyPreview">
         <img
-          v-if="replyTo.user.avatarUrl"
-          :src="proxyThumbUrl(replyTo.user.avatarUrl, 56)"
+          v-if="activeReplyNote.user.avatarUrl"
+          :src="proxyThumbUrl(activeReplyNote.user.avatarUrl, 56)"
           :class="$style.replyAvatar"
         />
         <div :class="$style.replyContent">
           <span :class="$style.replyUser">
-            <MkMfm v-if="replyTo.user.name" :text="replyTo.user.name" :emojis="replyTo.user.emojis" :server-host="replyTo._serverHost" plain />
-            <template v-else>{{ replyTo.user.username }}</template>
+            <MkMfm v-if="activeReplyNote.user.name" :text="activeReplyNote.user.name" :emojis="activeReplyNote.user.emojis" :server-host="activeReplyNote._serverHost" plain />
+            <template v-else>{{ activeReplyNote.user.username }}</template>
           </span>
-          <span :class="$style.replyHandle">@{{ replyTo.user.username }}</span>
-          <p :class="$style.replyText">{{ replyTo.text }}</p>
+          <span :class="$style.replyHandle">@{{ activeReplyNote.user.username }}</span>
+          <p :class="$style.replyText">{{ activeReplyNote.text }}</p>
         </div>
+      </div>
+      <div v-else-if="activeReplyId" :class="$style.quoteIndicator">
+        <svg viewBox="0 0 24 24" width="14" height="14">
+          <path d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 010 11H11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+        </svg>
+        返信
       </div>
 
       <!-- Quote preview (#753)。取得前・取得失敗時はインジケータのみ -->
-      <div v-if="quoteNote && !replyTo" :class="[$style.replyPreview, $style.quotePreview]">
+      <div v-if="quoteNote && !activeReplyId" :class="[$style.replyPreview, $style.quotePreview]">
         <img
           v-if="quoteNote.user.avatarUrl"
           :src="proxyThumbUrl(quoteNote.user.avatarUrl, 56)"
@@ -811,11 +823,19 @@ function onPaste(e: ClipboardEvent) {
           <p :class="$style.replyText">{{ quoteNote.cw ?? quoteNote.text }}</p>
         </div>
       </div>
-      <div v-else-if="renoteId && !replyTo" :class="$style.quoteIndicator">
+      <div v-else-if="activeRenoteId && !activeReplyId" :class="$style.quoteIndicator">
         <svg viewBox="0 0 24 24" width="14" height="14">
           <path d="M10 11h6m-3-3v6M3 8V6a2 2 0 012-2h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
         </svg>
         引用付き
+      </div>
+
+      <!-- チャンネル投稿の表示。埋め込みフォーム (inline) はカラム自体が
+           チャンネルなので出さない。下書きの復元で投稿先が変わったことが
+           分かるように (#1073) -->
+      <div v-if="effectiveChannelId && !inline" :class="$style.quoteIndicator">
+        <i class="ti ti-device-tv" />
+        チャンネルに投稿
       </div>
 
       <!-- CW input -->
@@ -835,7 +855,7 @@ function onPaste(e: ClipboardEvent) {
           v-model="text"
           :class="$style.textArea"
           :maxlength="maxTextLength"
-          :placeholder="replyTo ? '返信...' : renoteId ? '引用...' : '今どんな気分？'"
+          :placeholder="activeReplyId ? '返信...' : activeRenoteId ? '引用...' : '今どんな気分？'"
           autocomplete="off"
           autocorrect="off"
           autocapitalize="sentences"

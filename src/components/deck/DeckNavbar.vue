@@ -8,6 +8,7 @@ import ColumnBadges from '@/components/common/ColumnBadges.vue'
 import { useAccountActions } from '@/composables/useAccountActions'
 import { useColumnBadge } from '@/composables/useColumnBadge'
 import { COLUMN_ICONS, COLUMN_LABELS } from '@/composables/useColumnTabs'
+import { useNavbarResize } from '@/composables/useNavbarResize'
 import { useNavigation } from '@/composables/useNavigation'
 import {
   accountTargetId,
@@ -194,30 +195,15 @@ function onlineStatusClass(accountId: string): string | undefined {
 }
 
 // Navbar resize
-// 幅は本家 Misskey のデッキ UI に合わせる (#1045)。
-// MIN_WIDTH = navbar の --nav-icon-only-width / DEFAULT_WIDTH = --nav-width。
-// ドラッグでのリサイズと上限は NoteDeck 固有 (本家は設定でのトグルのみ)
-const MIN_WIDTH = 80
-const COLLAPSE_THRESHOLD = 140
-const DEFAULT_WIDTH = 250
-const MAX_WIDTH = 400
-const navWidth = ref(
-  document.documentElement.clientWidth <= 1279 ? MIN_WIDTH : DEFAULT_WIDTH,
-)
-const isResizing = ref(false)
-const subButtonsHovered = ref(false)
-const navCollapsed = computed(() => navWidth.value <= MIN_WIDTH)
-watch(
+const {
+  navWidth,
   navCollapsed,
-  (v) => {
-    deckStore.navCollapsed = v
-  },
-  { immediate: true },
-)
-
-function toggleNav() {
-  navWidth.value = navCollapsed.value ? DEFAULT_WIDTH : MIN_WIDTH
-}
+  isResizing,
+  toggleNav,
+  handleResize,
+  startResize,
+} = useNavbarResize()
+const subButtonsHovered = ref(false)
 
 // Launch pad ("もっと")
 const showLaunchPad = ref(false)
@@ -386,47 +372,6 @@ function toggleFirstAccountMenu() {
   }
   showAccountPopup.value = !showAccountPopup.value
   if (!showAccountPopup.value) accountMenuId.value = null
-}
-
-function handleResize() {
-  if (document.documentElement.clientWidth <= 1279) {
-    navWidth.value = MIN_WIDTH
-  } else if (navWidth.value <= MIN_WIDTH) {
-    navWidth.value = DEFAULT_WIDTH
-  }
-}
-
-// Navbar drag resize
-function startResize(e: PointerEvent) {
-  e.preventDefault()
-  isResizing.value = true
-  document.body.style.userSelect = 'none'
-  document.body.style.cursor = 'col-resize'
-  document.addEventListener('pointermove', onResize)
-  document.addEventListener('pointerup', stopResize)
-  document.addEventListener('pointercancel', stopResize)
-}
-
-let resizeRafId = 0
-function onResize(e: PointerEvent) {
-  cancelAnimationFrame(resizeRafId)
-  resizeRafId = requestAnimationFrame(() => {
-    const w = e.clientX
-    if (w <= COLLAPSE_THRESHOLD) {
-      navWidth.value = MIN_WIDTH
-    } else {
-      navWidth.value = Math.min(w, MAX_WIDTH)
-    }
-  })
-}
-
-function stopResize() {
-  isResizing.value = false
-  document.body.style.userSelect = ''
-  document.body.style.cursor = ''
-  document.removeEventListener('pointermove', onResize)
-  document.removeEventListener('pointerup', stopResize)
-  document.removeEventListener('pointercancel', stopResize)
 }
 
 defineExpose({

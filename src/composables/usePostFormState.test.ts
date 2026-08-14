@@ -866,6 +866,154 @@ describe('restoreSlot / removeCurrentSlot', () => {
   })
 })
 
+describe('restoreSlot: 返信・引用の文脈 (#1073)', () => {
+  beforeEach(() => {
+    getNoteMock.mockImplementation(async (id: string) => makeNote({ id }))
+  })
+
+  it('返信の下書きを復元すると返信として投稿される', async () => {
+    const form = mount()
+    await form.initAdapter()
+    form.restoreSlot(makeStoredDraft({ replyId: 'r9' }))
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ replyId: 'r9', renoteId: undefined }),
+    )
+  })
+
+  it('引用の下書きを復元すると引用として投稿される', async () => {
+    const form = mount()
+    await form.initAdapter()
+    form.restoreSlot(makeStoredDraft({ renoteId: 'q9' }))
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ renoteId: 'q9', replyId: undefined }),
+    )
+  })
+
+  it('復元した返信先・引用先をプレビュー用に取得する', async () => {
+    const form = mount()
+    await form.initAdapter()
+    form.restoreSlot(makeStoredDraft({ replyId: 'r9', renoteId: 'q9' }))
+    await vi.waitFor(() => {
+      expect(form.replyNote.value?.id).toBe('r9')
+      expect(form.quoteNote.value?.id).toBe('q9')
+    })
+  })
+
+  it('返信先ノートの取得に失敗しても返信リンクは外れない', async () => {
+    getNoteMock.mockRejectedValue(new Error('not found'))
+    const form = mount()
+    await form.initAdapter()
+    form.restoreSlot(makeStoredDraft({ replyId: 'r9' }))
+    await vi.waitFor(() => expect(getNoteMock).toHaveBeenCalledWith('r9'))
+    expect(form.replyNote.value).toBeNull()
+    expect(form.replyId.value).toBe('r9')
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ replyId: 'r9' }),
+    )
+  })
+
+  it('文脈を持たない下書きの復元では今の返信先を落とさない', async () => {
+    const form = mount({ replyTo: makeNote({ id: 'r1' }) })
+    await form.initAdapter()
+    form.restoreSlot(makeStoredDraft())
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ replyId: 'r1' }),
+    )
+  })
+
+  it('ダイレクトへの返信を復元すると public/home が塞がり visibility が補正される', async () => {
+    getNoteMock.mockImplementation(async (id: string) =>
+      makeNote({ id, visibility: 'specified' }),
+    )
+    const form = mount()
+    await form.initAdapter()
+    form.restoreSlot(
+      makeStoredDraft({
+        replyId: 'r9',
+        data: { ...makeStoredDraft().data, visibility: 'public' },
+      }),
+    )
+    await vi.waitFor(() => expect(form.replyNote.value?.id).toBe('r9'))
+    expect(form.disabledVisibilities.value.has('public')).toBe(true)
+    expect(form.disabledVisibilities.value.has('home')).toBe(true)
+    expect(form.visibility.value).toBe('followers')
+  })
+
+  it('復元した文脈は以後の下書き保存にも引き継がれる', async () => {
+    const form = mount()
+    await form.initAdapter()
+    form.restoreSlot(makeStoredDraft({ replyId: 'r9' }))
+    await form.saveCurrentSlot()
+    expect(saveDraftMock).toHaveBeenCalledWith(
+      'acc1',
+      'd9',
+      expect.objectContaining({ text: '復元テキスト' }),
+      { replyId: 'r9', renoteId: null, channelId: null },
+    )
+  })
+})
+
+describe('restoreSlot: 投稿先チャンネル (#1073)', () => {
+  it('チャンネルの下書きを復元するとそのチャンネルへ投稿される', async () => {
+    const form = mount()
+    await form.initAdapter()
+    form.restoreSlot(makeStoredDraft({ channelId: 'ch-draft' }))
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channelId: 'ch-draft' }),
+    )
+  })
+
+  it('明示的な channelId より復元した下書きのチャンネルを優先する', async () => {
+    const form = mount({ channelId: 'ch-open' })
+    await form.initAdapter()
+    form.restoreSlot(makeStoredDraft({ channelId: 'ch-draft' }))
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channelId: 'ch-draft' }),
+    )
+  })
+
+  it('チャンネルを持たない下書きの復元では今のチャンネルを落とさない', async () => {
+    const form = mount({ channelId: 'ch-open' })
+    await form.initAdapter()
+    form.restoreSlot(makeStoredDraft())
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channelId: 'ch-open' }),
+    )
+  })
+
+  it('アカウントを切り替えたら復元したチャンネルは引き継がない', async () => {
+    accountsState.accounts = [makeAccount(), makeAccount({ id: 'acc2' })]
+    const form = mount()
+    await form.initAdapter()
+    form.restoreSlot(makeStoredDraft({ channelId: 'ch-draft' }))
+    await form.switchAccount('acc2')
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ channelId: undefined }),
+    )
+  })
+
+  it('復元したチャンネルは以後の下書き保存にも引き継がれる', async () => {
+    const form = mount()
+    await form.initAdapter()
+    form.restoreSlot(makeStoredDraft({ channelId: 'ch-draft' }))
+    await form.saveCurrentSlot()
+    expect(saveDraftMock).toHaveBeenCalledWith(
+      'acc1',
+      'd9',
+      expect.objectContaining({ text: '復元テキスト' }),
+      { replyId: null, renoteId: null, channelId: 'ch-draft' },
+    )
+  })
+})
+
 describe('restoreFromNote (削除して編集)', () => {
   it('本文・CW・公開範囲・localOnly を復元する', () => {
     const form = mount()
