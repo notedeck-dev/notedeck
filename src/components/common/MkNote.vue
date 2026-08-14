@@ -553,6 +553,21 @@ function handleReactionClick(
   emit('react', reaction, effectiveNote.value)
 }
 
+/**
+ * フッターのリアクションボタン (#1076)。未リアクションならピッカーを開き、
+ * リアクション済みなら「-」として取り消す (emit('react') は同じ絵文字なら取消)。
+ */
+function toggleFooterReaction(e: MouseEvent) {
+  const mine = effectiveNote.value.myReaction
+  if (!mine) {
+    reactionPickerRef.value?.open(e)
+    return
+  }
+  // 自分の操作による変化は IntersectionObserver の発火を待たず即描画する
+  reactionsVisible.value = true
+  emit('react', mine, effectiveNote.value)
+}
+
 // 別のアカウントで… (#627): リアクション / リノート / 引用。
 // リアクションはピッカーをそのアカウントのサーバー絵文字セットで開き、
 // pick を emit('react') ではなく reactAs へ流す。引用は選択アカウントの
@@ -936,11 +951,12 @@ function handlePickerReaction(reaction: string) {
             <i class="ti ti-ban" />
           </button>
           <button
-            :class="[$style.footerButton, $style.reactionButton, { [$style.footerDisabled]: isGuest }]"
+            :class="[$style.footerButton, $style.reactionButton, { [$style.reacted]: effectiveNote.myReaction != null, [$style.footerDisabled]: isGuest }]"
             :disabled="isGuest"
-            @click.stop="canInteract ? reactionPickerRef?.open($event) : showLoginPrompt()"
+            :title="effectiveNote.myReaction != null ? 'リアクションを取り消す' : 'リアクション'"
+            @click.stop="canInteract ? toggleFooterReaction($event) : showLoginPrompt()"
           >
-            <i class="ti ti-plus" />
+            <i :class="effectiveNote.myReaction != null ? 'ti ti-minus' : 'ti ti-plus'" />
           </button>
           <button
             :class="[$style.footerButton, $style.moreButton]"
@@ -1683,6 +1699,11 @@ function handlePickerReaction(reaction: string) {
 .renoteButton:hover,
 .renoteButton.renoted {
   color: var(--nd-renote);
+}
+
+/* リアクション済み (#1076): hover 側が後勝ちになるよう先に置く */
+.reactionButton.reacted {
+  color: var(--nd-accent);
 }
 
 .reactionButton:hover {
