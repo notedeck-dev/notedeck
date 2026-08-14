@@ -285,6 +285,7 @@ describe('runSend: tool round', () => {
     )
 
     expect(dispatch).toHaveBeenCalledTimes(limit)
+    expect(outcome.status).toBe('done')
     if (outcome.status === 'done') {
       expect(outcome.finalText).toContain(`上限 (${limit} 回)`)
     }

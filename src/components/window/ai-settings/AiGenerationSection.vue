@@ -10,6 +10,7 @@ import {
   AI_TITLE_MAX_TOKENS_MAX,
   AI_TITLE_MAX_TOKENS_MIN,
   defaultConfig,
+  normalizeGenerationConfig,
   useAiConfig,
 } from '@/composables/useAiConfig'
 import AiSettingsSection from './AiSettingsSection.vue'
@@ -17,6 +18,17 @@ import AiSettingsSection from './AiSettingsSection.vue'
 const { config } = useAiConfig()
 
 const defaults = defaultConfig().generation
+
+/**
+ * 入力を確定した時点で許容範囲へ丸め、空欄は既定値に戻す。
+ *
+ * 入力中に丸めると 15 を打とうとした 1 が最小値へ飛ぶので、`@change`
+ * (blur / Enter) だけで走らせる。リクエスト側も使う直前に同じ正規化を通すので、
+ * 入力途中の値がそのまま AI に渡ることはない。
+ */
+function commit(): void {
+  config.value.generation = normalizeGenerationConfig(config.value.generation)
+}
 
 /**
  * 既定から動かしているかどうかだけをヘッダーに出す。個々の値は開かないと
@@ -50,6 +62,7 @@ const changed = computed(() =>
             :min="AI_MAX_TOKENS_MIN"
             :max="AI_MAX_TOKENS_MAX"
             :class="$style.numberInput"
+            @change="commit"
           />
           <span :class="$style.fieldUnit">token</span>
         </div>
@@ -70,6 +83,7 @@ const changed = computed(() =>
             :min="AI_MAX_TOOL_ROUNDS_MIN"
             :max="AI_MAX_TOOL_ROUNDS_MAX"
             :class="$style.numberInput"
+            @change="commit"
           />
           <span :class="$style.fieldUnit">ラウンド</span>
         </div>
@@ -90,6 +104,7 @@ const changed = computed(() =>
             :min="AI_TITLE_MAX_TOKENS_MIN"
             :max="AI_TITLE_MAX_TOKENS_MAX"
             :class="$style.numberInput"
+            @change="commit"
           />
           <span :class="$style.fieldUnit">token</span>
         </div>
@@ -110,6 +125,7 @@ const changed = computed(() =>
             :min="AI_READ_TIMEOUT_MIN_SECONDS"
             :max="AI_READ_TIMEOUT_MAX_SECONDS"
             :class="$style.numberInput"
+            @change="commit"
           />
           <span :class="$style.fieldUnit">秒</span>
         </div>

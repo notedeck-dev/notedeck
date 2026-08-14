@@ -203,7 +203,9 @@ async fn backoff_sleep(attempt: u32) {
 static STREAMING_CLIENTS: OnceLock<Mutex<HashMap<u64, reqwest::Client>>> = OnceLock::new();
 
 fn streaming_client(read_timeout: Duration) -> reqwest::Client {
-    let key = read_timeout.as_secs();
+    // ミリ秒のまま鍵にする。秒に丸めると 10_001ms と 10_999ms が同じ
+    // クライアント (= 片方が意図しないタイムアウト) を共有してしまう
+    let key = read_timeout.as_millis() as u64;
     // poisoned のまま諦めると AI が二度と繋がらなくなるので、中身を取り出して続行する
     let mut map = STREAMING_CLIENTS
         .get_or_init(|| Mutex::new(HashMap::new()))

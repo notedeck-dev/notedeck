@@ -45,6 +45,7 @@ import {
   type AiConfig,
   HEARTBEAT_ACK_MAX_CHARS,
   type HeartbeatTarget,
+  normalizeGenerationConfig,
   resolveAiConnection,
   useAiConfig,
 } from './useAiConfig'
@@ -481,6 +482,7 @@ export function useHeartbeatDaemon() {
   ): Promise<void> {
     const resolved = resolveAiConnection(config.value, vault.connections.value)
     if (!resolved || !resolved.model) return
+    const generation = normalizeGenerationConfig(config.value.generation)
     try {
       const raw = await titleGen.sendMessage({
         connectionId: resolved.connection.id,
@@ -494,8 +496,8 @@ export function useHeartbeatDaemon() {
           },
         ],
         system: HEARTBEAT_TITLE_SYSTEM_PROMPT,
-        maxTokens: config.value.generation.titleMaxTokens,
-        readTimeoutSeconds: config.value.generation.readTimeoutSeconds,
+        maxTokens: generation.titleMaxTokens,
+        readTimeoutSeconds: generation.readTimeoutSeconds,
       })
       const cleaned = raw
         .replace(/[\r\n]+/g, ' ')
@@ -846,7 +848,8 @@ export function useHeartbeatDaemon() {
       connectionId: resolved.connection.id,
       model: resolved.model,
       tools,
-      generation: config.value.generation,
+      // 入力途中の空欄・範囲外がそのまま送られないよう、使う直前に必ず通す
+      generation: normalizeGenerationConfig(config.value.generation),
       buildSystem: () => system,
     })
     // cancelled (#770) は scope dispose 等によるユーザー起因の中断なので、

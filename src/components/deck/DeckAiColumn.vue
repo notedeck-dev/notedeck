@@ -7,6 +7,7 @@ import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import { type ChatMessage, useAiChat } from '@/composables/useAiChat'
 import {
+  normalizeGenerationConfig,
   reloadAiConfig,
   resolveAiConnection,
   useAiConfig,
@@ -436,6 +437,8 @@ async function generateAiTitleAsync(
     return
   }
 
+  const generation = normalizeGenerationConfig(aiConfig.value.generation)
+
   // 会話を 1 つの user メッセージに集約する。assistant role を history に
   // 置くと Anthropic 側が「続きを書く」モードになりタイトルが取れない。
   const conversationPrompt =
@@ -450,8 +453,8 @@ async function generateAiTitleAsync(
         { id: 'u', role: 'user', content: conversationPrompt, timestamp: 0 },
       ],
       system: TITLE_SYSTEM_PROMPT,
-      maxTokens: aiConfig.value.generation.titleMaxTokens,
-      readTimeoutSeconds: aiConfig.value.generation.readTimeoutSeconds,
+      maxTokens: generation.titleMaxTokens,
+      readTimeoutSeconds: generation.readTimeoutSeconds,
     })
     const cleaned = raw
       .replace(/[\r\n]+/g, ' ')
@@ -606,7 +609,8 @@ async function sendMessage(
     model: resolved.model,
     tools: toolsForProvider,
     continuation,
-    generation: aiConfig.value.generation,
+    // 入力途中の空欄・範囲外がそのまま送られないよう、使う直前に必ず通す
+    generation: normalizeGenerationConfig(aiConfig.value.generation),
     // round ごとに context を組み直す (memos / vault 開示状態は round 間で
     // 変わりうるため)。history は sendLoop が組み立てた wire history。
     buildSystem: async (history) => {

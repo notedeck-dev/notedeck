@@ -218,6 +218,21 @@ describe('generation config', () => {
     expect(gen.readTimeoutSeconds).toBe(AI_READ_TIMEOUT_MIN_SECONDS)
   })
 
+  it('入力欄を空にした値 (空文字) は既定値として扱う', () => {
+    // v-model.number は空欄を '' にする。素通りすると maxToolRounds が ''
+    // になり、`0 >= ''` が真になって tool が 1 回も呼べなくなる
+    const gen = normalizeGenerationConfig({
+      maxToolRounds: '' as unknown as number,
+      titleMaxTokens: '' as unknown as number,
+      readTimeoutSeconds: '' as unknown as number,
+      maxTokens: '' as unknown as number,
+    })
+    expect(gen.maxToolRounds).toBe(AI_MAX_TOOL_ROUNDS_DEFAULT)
+    expect(gen.titleMaxTokens).toBe(AI_TITLE_MAX_TOKENS_DEFAULT)
+    expect(gen.readTimeoutSeconds).toBe(AI_READ_TIMEOUT_DEFAULT_SECONDS)
+    expect(gen.maxTokens).toBe(AI_MAX_TOKENS_DEFAULT)
+  })
+
   it('数値でない値は既定値として扱う', () => {
     const gen = normalizeGenerationConfig({
       maxToolRounds: 'many' as unknown as number,
