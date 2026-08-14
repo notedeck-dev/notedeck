@@ -45,6 +45,7 @@ import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { resolveIdentity } from '@/utils/identity'
 import { isImeComposing } from '@/utils/ime'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
+import { createRenderCache } from '@/utils/renderCache'
 import { renderSimpleMarkdown } from '@/utils/simpleMarkdown'
 import DeckColumnComponent from './DeckColumn.vue'
 
@@ -841,8 +842,30 @@ async function copyMessage(msg: ChatMessage) {
   }
 }
 
-function renderAssistant(content: string): string {
-  return renderSimpleMarkdown(content)
+/**
+ * 描画結果のキャッシュ (assistant 本文 / ツールの入力・結果で共有)。
+ *
+ * 上限はセッションを跨いだ蓄積への蓋。1 セッションのメッセージ数を十分
+ * 上回るので、表示中の枠が押し出されることは実質ない。
+ */
+const renderCache = createRenderCache(400)
+
+/**
+ * assistant 本文を HTML に。`highlightRevision` は本文以外に出力を変える要因
+ * (ハイライトのテーマ切り替え・遅延ロードされた文法の到着) を表し、進めば
+ * 全メッセージが描き直される (従来どおり)。
+ */
+function renderAssistant(id: string, content: string): string {
+  return renderCache.render(`md:${id}`, content, highlightRevision.value, () =>
+    renderSimpleMarkdown(content),
+  )
+}
+
+/** ツールの入力 / 結果の JSON を色付けして HTML に。 */
+function renderToolJson(key: string, code: string): string {
+  return renderCache.render(key, code, highlightRevision.value, () =>
+    highlightCode(code, 'json'),
+  )
 }
 
 function onAssistantContentClick(e: MouseEvent) {
@@ -1086,7 +1109,7 @@ function onKeydown(e: KeyboardEvent) {
               v-if="expandedToolDetails[msg.id]"
               :key="`tool-input-${msg.id}-${highlightRevision}`"
               :class="$style.toolEventBody"
-              v-html="highlightCode(formatToolInput(msg.toolUseInput), 'json')"
+              v-html="renderToolJson(`ti:${msg.id}`, formatToolInput(msg.toolUseInput))"
             />
           </div>
 
@@ -1117,7 +1140,7 @@ function onKeydown(e: KeyboardEvent) {
                 v-if="looksLikeJson(msg.content)"
                 :key="`tool-result-${msg.id}-${highlightRevision}`"
                 :class="$style.toolEventBody"
-                v-html="highlightCode(msg.content, 'json')"
+                v-html="renderToolJson(`tr:${msg.id}`, msg.content)"
               />
               <pre v-else :class="$style.toolEventBody">{{ msg.content }}</pre>
             </template>
@@ -1151,7 +1174,7 @@ function onKeydown(e: KeyboardEvent) {
                   v-else-if="msg.role === 'assistant'"
                   :key="`md-${msg.id}-${highlightRevision}`"
                   :class="$style.markdownContent"
-                  v-html="renderAssistant(msg.content)"
+                  v-html="renderAssistant(msg.id, msg.content)"
                   @click="onAssistantContentClick"
                 />
                 <div v-else :class="$style.chatText">{{ msg.content }}</div>
