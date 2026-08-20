@@ -68,9 +68,12 @@ const reactionUsers = ref<NoteReaction[]>([])
 // 本家準拠: リアクション種別チップで絞り込んでユーザー一覧を表示する
 const reactionTab = ref<string | null>(null)
 // #575: ミュート・凍結ユーザーのリアクションを抹消した表示用カウント
-const { counts: recountedCounts } = useVisibleReactionCounts(() => note.value)
+const { counts: recountedCounts, pending: recountPending } =
+  useVisibleReactionCounts(() => note.value)
 const visibleReactionCounts = computed<Record<string, number>>(() => {
-  if (!note.value) return {}
+  // 数え直しの初回取得中は描画を保留 (#1081): 未フィルタのカウントを
+  // 一瞬でも見せない
+  if (!note.value || recountPending.value) return {}
   return recountedCounts.value ?? note.value.reactions
 })
 const reactionTypes = computed(() => Object.keys(visibleReactionCounts.value))

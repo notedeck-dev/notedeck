@@ -352,10 +352,8 @@ const reactionsData = computed(() =>
 
 // #575: ミュート・凍結ユーザーのリアクション抹消。数え直し済みカウントが
 // あれば count を差し替え、0 になった絵文字は行ごと消す
-const { counts: recountedCounts } = useVisibleReactionCounts(
-  () => effectiveNote.value,
-  reactionsVisible,
-)
+const { counts: recountedCounts, pending: recountPending } =
+  useVisibleReactionCounts(() => effectiveNote.value, reactionsVisible)
 
 // #630: リモート絵文字リアクションに相乗りできるサーバーか
 const serversStore = useServersStore()
@@ -394,8 +392,13 @@ const sortedReactions = computed(() => {
 })
 const reactionUrls = computed(() => reactionsData.value.urls)
 
+// 数え直しの初回取得中はチップを渡さない (#1081): 未フィルタのカウントを
+// 一瞬でも描画すると、抹消したはずのリアクションの存在が見えてしまう。
+// エリア自体は reactionsAreaPending が高さを予約して押し下げを防ぐ
 const reactionsWithId = computed(() =>
-  sortedReactions.value.map((r) => ({ ...r, id: r.reaction })),
+  recountPending.value
+    ? []
+    : sortedReactions.value.map((r) => ({ ...r, id: r.reaction })),
 )
 const {
   rendered: renderedReactions,
@@ -883,7 +886,7 @@ function handlePickerReaction(reaction: string) {
         </div>
 
         <!-- Reactions -->
-        <div v-if="sortedReactions.length > 0 && !embedded && !softMuteCollapsed" ref="reactionsAreaRef" :class="[$style.reactionsArea, !reactionsVisible && $style.reactionsAreaPending]">
+        <div v-if="sortedReactions.length > 0 && !embedded && !softMuteCollapsed" ref="reactionsAreaRef" :class="[$style.reactionsArea, (!reactionsVisible || recountPending) && $style.reactionsAreaPending]">
           <div
             v-if="reactionsVisible"
             :class="$style.reactions"

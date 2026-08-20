@@ -34,8 +34,11 @@ const REFETCH_COOLDOWN_MS = 5000
 interface RecountEntry {
   /** serverCounts の JSON。リアクション増減の検知に使う */
   signature: string
-  /** 取得時点の可視リアクション列挙 (縮約)。カウントは get 時に照合込みで数える */
-  records: VisibleReactionRecord[]
+  /**
+   * 取得時点の可視リアクション列挙 (縮約)。カウントは get 時に照合込みで
+   * 数える。null は取得失敗 = サーバー集計へのフォールバックで確定 (#1081)
+   */
+  records: VisibleReactionRecord[] | null
   /** 取得時刻 (epoch ms)。連射抑制の判定に使う */
   fetchedAt: number
 }
@@ -80,7 +83,7 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     serverCounts: Record<string, number>,
   ): Record<string, number> | null {
     const entry = cache.value.get(noteId)
-    if (!entry) return null
+    if (!entry?.records) return null
     // 総数が取得上限を超えたら stale を使い続けず、サーバー集計に戻す
     if (totalReactionCount(serverCounts) > RECOUNT_MAX_TOTAL) return null
     return recountVisibleReactions(
@@ -90,6 +93,20 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
         mutesStore.isUserMuted(accountId, userId) ||
         suspensionsStore.isSuspended(accountId, userId),
     )
+  }
+
+  /**
+   * 列挙の初回取得がまだ終わっていないか (#1081)。true の間は未フィルタの
+   * サーバー集計を描画せず保留する (見えてから消えるのを防ぐ)。
+   * 対象外 (0 件 / 総数超過) と取得失敗 (フォールバック確定) は false。
+   */
+  function isPending(
+    noteId: string,
+    serverCounts: Record<string, number>,
+  ): boolean {
+    const total = totalReactionCount(serverCounts)
+    if (total === 0 || total > RECOUNT_MAX_TOTAL) return false
+    return !cache.value.has(noteId)
   }
 
   /** 同時フェッチ上限。トグル ON 直後の TL 表示で一斉に飛ぶのを抑える */
@@ -164,6 +181,19 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     }
   }
 
+  function setEntry(
+    noteId: string,
+    signature: string,
+    records: VisibleReactionRecord[] | null,
+  ): void {
+    if (cache.value.size >= CACHE_CAP) {
+      const oldest = cache.value.keys().next().value
+      if (oldest !== undefined) cache.value.delete(oldest)
+    }
+    cache.value.set(noteId, { signature, records, fetchedAt: Date.now() })
+    triggerRef(cache)
+  }
+
   async function fetchAndStore(
     accountId: string,
     noteId: string,
@@ -173,36 +203,36 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
       const account = useAccountsStore().accounts.find(
         (a) => a.id === accountId,
       )
-      if (!account) return
-      const { adapter } = await initAdapterFor(account.host, account.id, {
-        pinnedReactions: false,
-        hasToken: account.hasToken,
-      })
-      const reactions = await adapter.api.getNoteReactions(
-        noteId,
-        undefined,
-        RECOUNT_MAX_TOTAL,
-      )
-      if (cache.value.size >= CACHE_CAP) {
-        const oldest = cache.value.keys().next().value
-        if (oldest !== undefined) cache.value.delete(oldest)
+      if (account) {
+        const { adapter } = await initAdapterFor(account.host, account.id, {
+          pinnedReactions: false,
+          hasToken: account.hasToken,
+        })
+        const reactions = await adapter.api.getNoteReactions(
+          noteId,
+          undefined,
+          RECOUNT_MAX_TOTAL,
+        )
+        setEntry(
+          noteId,
+          signature,
+          reactions.map((r) => ({ type: r.type, userId: r.user.id })),
+        )
+        // サーバーは凍結ユーザーを列挙から除外しないため、リアクターを
+        // 凍結検知 (#828) に回す。検知されれば get の照合で reactive に消える
+        suspensionsStore.probe(
+          accountId,
+          reactions.map((r) => r.user.id),
+        )
+        return
       }
-      cache.value.set(noteId, {
-        signature,
-        records: reactions.map((r) => ({ type: r.type, userId: r.user.id })),
-        fetchedAt: Date.now(),
-      })
-      triggerRef(cache)
-      // サーバーは凍結ユーザーを列挙から除外しないため、リアクターを
-      // 凍結検知 (#828) に回す。検知されれば get の照合で reactive に消える
-      suspensionsStore.probe(
-        accountId,
-        reactions.map((r) => r.user.id),
-      )
     } catch (e) {
       // 非クリティカル: 取得失敗時はサーバー集計のまま (原因は診断できるよう残す)
       console.warn('[reaction-recount] fetch failed:', noteId, e)
     }
+    // 取得できなかったノートもエントリで確定させる (#1081): isPending を
+    // 解いてサーバー集計を表示させ、隠したまま固まるのを防ぐ
+    setEntry(noteId, signature, null)
   }
 
   function purgeAll(): void {
@@ -211,5 +241,5 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     triggerRef(cache)
   }
 
-  return { get, ensure, purgeAll }
+  return { get, isPending, ensure, purgeAll }
 })
