@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  RECOUNT_CACHE_CAP,
   RECOUNT_MAX_TOTAL,
   useReactionRecountsStore,
 } from '@/stores/reactionRecounts'
@@ -83,5 +84,26 @@ describe('useReactionRecountsStore.isPending (#1081)', () => {
     await store.ensure('acc-gone', 'n1', { '❤': 1 })
     expect(store.isPending('n1', { '❤': 1 })).toBe(false)
     expect(store.get('acc-gone', 'n1', { '❤': 1 })).toBeNull()
+  })
+
+  it('LRU 破棄されたノートは pending に戻らない (サーバー集計へフォールバック)', async () => {
+    api.getNoteReactions.mockResolvedValue([reactor('❤', 'u1')])
+    await store.ensure('acc1', 'n0', { '❤': 1 })
+    // キャッシュを溢れさせて n0 を追い出す
+    for (let i = 1; i <= RECOUNT_CACHE_CAP; i++) {
+      await store.ensure('acc1', `spill-${i}`, { '❤': 1 })
+    }
+    expect(store.get('acc1', 'n0', { '❤': 1 })).toBeNull()
+    // pending に戻すと evict → refetch → evict の自己増幅ループになるため、
+    // 一度取得が完了したノートは集計表示へフォールバックする
+    expect(store.isPending('n0', { '❤': 1 })).toBe(false)
+  })
+
+  it('purgeAll は settled 履歴ごと消して pending に戻す (ミュート解除の取り直し)', async () => {
+    api.getNoteReactions.mockResolvedValue([reactor('❤', 'u1')])
+    await store.ensure('acc1', 'n1', { '❤': 1 })
+    expect(store.isPending('n1', { '❤': 1 })).toBe(false)
+    store.purgeAll()
+    expect(store.isPending('n1', { '❤': 1 })).toBe(true)
   })
 })

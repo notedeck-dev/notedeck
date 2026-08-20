@@ -394,12 +394,17 @@ const reactionUrls = computed(() => reactionsData.value.urls)
 
 // 数え直しの初回取得中はチップを渡さない (#1081): 未フィルタのカウントを
 // 一瞬でも描画すると、抹消したはずのリアクションの存在が見えてしまう。
+// 自分のリアクションだけは対象外 — 0 件のノートに押した直後は楽観的更新で
+// pending になるため、隠すと押したチップが RTT の間消える。
 // エリア自体は reactionsAreaPending が高さを予約して押し下げを防ぐ
-const reactionsWithId = computed(() =>
-  recountPending.value
-    ? []
-    : sortedReactions.value.map((r) => ({ ...r, id: r.reaction })),
-)
+const reactionsWithId = computed(() => {
+  const base = recountPending.value
+    ? sortedReactions.value.filter(
+        (r) => r.reaction === effectiveNote.value.myReaction,
+      )
+    : sortedReactions.value
+  return base.map((r) => ({ ...r, id: r.reaction }))
+})
 const {
   rendered: renderedReactions,
   enteringIds: reactionEnteringIds,

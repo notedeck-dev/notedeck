@@ -48,8 +48,9 @@ export function useVisibleReactionCounts(
       () => note()?.reactions,
       // ミュート解除 (縮小方向) は purge されるので取り直しを駆動する
       () => mutesStore.mutedUsersRemovalVersion,
-      // purge や CACHE_CAP の LRU 破棄でエントリが消えると pending に戻る。
-      // 放置するとチップが保留 (非表示) のまま固まるので取り直しを駆動する
+      // purge でエントリが消えると pending に戻る。放置するとチップが
+      // 保留 (非表示) のまま固まるので取り直しを駆動する。LRU 破棄は
+      // pending に戻らない (ストア側の settled 履歴がフォールバックさせる)
       pending,
     ],
     () => {

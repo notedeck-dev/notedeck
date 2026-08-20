@@ -71,18 +71,17 @@ const reactionTab = ref<string | null>(null)
 const { counts: recountedCounts, pending: recountPending } =
   useVisibleReactionCounts(() => note.value)
 const visibleReactionCounts = computed<Record<string, number>>(() => {
+  if (!note.value) return {}
   // 数え直しの初回取得中は描画を保留 (#1081): 未フィルタのカウントを
-  // 一瞬でも見せない
-  if (!note.value || recountPending.value) return {}
+  // 一瞬でも見せない。自分のリアクションだけは楽観的更新を壊さないよう残す
+  if (recountPending.value) {
+    const my = note.value.myReaction
+    const count = my ? note.value.reactions[my] : undefined
+    return my && count ? { [my]: count } : {}
+  }
   return recountedCounts.value ?? note.value.reactions
 })
 const reactionTypes = computed(() => Object.keys(visibleReactionCounts.value))
-// 抹消でチップが消えたら選択タブを追従させる
-watch(reactionTypes, (types) => {
-  if (reactionTab.value && !types.includes(reactionTab.value)) {
-    reactionTab.value = types[0] ?? null
-  }
-})
 const isLoading = ref(true)
 const error = ref<AppError | null>(null)
 const myUserId = ref<string | undefined>()
@@ -212,6 +211,16 @@ watch(activeTab, async (tab) => {
     }
   } catch (e) {
     console.warn('[NoteDetail] failed to load tab:', tab, e)
+  }
+})
+
+// 抹消でチップが消えたら選択タブを追従させる。数え直しの保留中 (#1081) に
+// タブを開くと未選択のままになるので、種別が現れたときも先頭を選ぶ
+watch(reactionTypes, (types) => {
+  if (!reactionTab.value) {
+    if (loadedTabs.value.has('reactions')) reactionTab.value = types[0] ?? null
+  } else if (!types.includes(reactionTab.value)) {
+    reactionTab.value = types[0] ?? null
   }
 })
 

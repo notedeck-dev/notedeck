@@ -73,14 +73,13 @@ describe('useVisibleReactionCounts (#1081)', () => {
     expect(pending.value).toBe(false)
   })
 
-  it('エントリが破棄されて pending に戻ったら列挙を取り直す (LRU 破棄・purge)', async () => {
+  it('purge で pending に戻ったら列挙を取り直す (保留のまま固まらない)', async () => {
     const recountsStore = useReactionRecountsStore()
     const { pending } = useVisibleReactionCounts(() => NOTE)
     await vi.waitFor(() => expect(pending.value).toBe(false))
     expect(api.getNoteReactions).toHaveBeenCalledTimes(1)
 
-    // LRU 破棄と同じ「エントリ消滅」を purgeAll で再現する
-    // (mutedUsersRemovalVersion は変えず、pending 復帰だけで駆動されることを確認)
+    // mutedUsersRemovalVersion は変えず、pending 復帰だけで駆動されることを確認
     recountsStore.purgeAll()
     await nextTick()
     await vi.waitFor(() => expect(pending.value).toBe(false))

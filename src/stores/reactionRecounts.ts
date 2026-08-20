@@ -18,7 +18,10 @@ import { useSuspensionsStore } from '@/stores/suspensions'
 export const RECOUNT_MAX_TOTAL = 100
 
 /** キャッシュ肥大の上限 (ノート数)。超えたら古いものから捨てる。 */
-const CACHE_CAP = 500
+export const RECOUNT_CACHE_CAP = 500
+
+/** settled 履歴の上限。noteId 文字列のみなのでキャッシュ本体より緩くてよい */
+const SETTLED_CAP = 5000
 
 /**
  * 同じノートの列挙を取り直すまでの最短間隔。
@@ -55,6 +58,14 @@ interface RecountEntry {
 export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
   const cache = shallowRef(new Map<string, RecountEntry>())
   const inflight = new Set<string>()
+  /**
+   * 一度でも取得が完了 (成功・失敗とも) したノート (#1084 レビュー)。
+   * LRU 破棄でエントリが消えたノートを pending に戻すと、可視ノートが
+   * CACHE_CAP を超えたとき evict → 再取得 → evict の自己増幅ループに
+   * なるため、破棄後はサーバー集計へのフォールバックで受ける。
+   * 変更は必ず cache の triggerRef と同時に行う (reactive 化はしない)。
+   */
+  const settledOnce = new Set<string>()
 
   const mutesStore = useMutesStore()
   const suspensionsStore = useSuspensionsStore()
@@ -98,7 +109,8 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
   /**
    * 列挙の初回取得がまだ終わっていないか (#1081)。true の間は未フィルタの
    * サーバー集計を描画せず保留する (見えてから消えるのを防ぐ)。
-   * 対象外 (0 件 / 総数超過) と取得失敗 (フォールバック確定) は false。
+   * 対象外 (0 件 / 総数超過)・取得失敗 (フォールバック確定)・取得後に
+   * LRU 破棄されたノートは false。
    */
   function isPending(
     noteId: string,
@@ -106,7 +118,7 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
   ): boolean {
     const total = totalReactionCount(serverCounts)
     if (total === 0 || total > RECOUNT_MAX_TOTAL) return false
-    return !cache.value.has(noteId)
+    return !cache.value.has(noteId) && !settledOnce.has(noteId)
   }
 
   /** 同時フェッチ上限。トグル ON 直後の TL 表示で一斉に飛ぶのを抑える */
@@ -186,9 +198,15 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     signature: string,
     records: VisibleReactionRecord[] | null,
   ): void {
-    if (cache.value.size >= CACHE_CAP) {
+    // 既存エントリの取り直しでは他のノートを追い出さない
+    if (!cache.value.has(noteId) && cache.value.size >= RECOUNT_CACHE_CAP) {
       const oldest = cache.value.keys().next().value
       if (oldest !== undefined) cache.value.delete(oldest)
+    }
+    settledOnce.add(noteId)
+    if (settledOnce.size > SETTLED_CAP) {
+      const oldest = settledOnce.values().next().value
+      if (oldest !== undefined) settledOnce.delete(oldest)
     }
     cache.value.set(noteId, { signature, records, fetchedAt: Date.now() })
     triggerRef(cache)
@@ -236,7 +254,10 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
   }
 
   function purgeAll(): void {
-    if (cache.value.size === 0) return
+    if (cache.value.size === 0 && settledOnce.size === 0) return
+    // settled 履歴ごと消して pending に戻す: ミュート解除の取り直し中に
+    // 古い列挙由来の値やサーバー集計を見せない (隠しすぎ側に倒す)
+    settledOnce.clear()
     cache.value.clear()
     triggerRef(cache)
   }
