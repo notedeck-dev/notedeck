@@ -13,6 +13,16 @@ import { type FrameStats, frameEngine } from '../frameEngine'
 
 export type QualityLevel = 'low' | 'balanced' | 'high'
 
+export interface FrameTelemetrySnapshot {
+  available: boolean
+  /** Last real Frame Engine sample time (epoch ms). */
+  lastSampleAt: number | null
+  fps: number | null
+  frameTimeEmaMs: number | null
+  p95FrameTimeMs: number | null
+  jankCount: number | null
+}
+
 /** Default thresholds for automatic quality adjustment. */
 const DEFAULT_JANK_DOWNGRADE_THRESHOLD = 5
 const DEFAULT_STABLE_UPGRADE_SECONDS = 10
@@ -26,6 +36,7 @@ class FrameTelemetryImpl {
   private _frameTimeEma = ref(16.6)
   private _p95FrameTime = ref(16.6)
   private _jankCount = ref(0)
+  private _lastSampleAt = ref<number | null>(null)
   private _currentQuality = ref<QualityLevel>('balanced')
   private _autoAdjustEnabled = ref(true)
 
@@ -44,6 +55,7 @@ class FrameTelemetryImpl {
   readonly frameTimeEma = readonly(this._frameTimeEma)
   readonly p95FrameTime = readonly(this._p95FrameTime)
   readonly jankCount = readonly(this._jankCount)
+  readonly lastSampleAt = readonly(this._lastSampleAt)
   readonly currentQuality = readonly(this._currentQuality)
   readonly autoAdjustEnabled = readonly(this._autoAdjustEnabled)
 
@@ -68,9 +80,10 @@ class FrameTelemetryImpl {
     this._historySize = options?.frameHistorySize ?? FRAME_HISTORY_SIZE
     this._currentQuality.value = initialQuality
     this._onQualityChange = onQualityChange ?? null
-    this._frameTimeHistory = new Array(this._historySize).fill(16.6)
+    this._frameTimeHistory = []
     this._historyIndex = 0
     this._stableSeconds = 0
+    this._lastSampleAt.value = null
 
     this._unsubscribe = frameEngine.onFrame((stats) => this._handleFrame(stats))
   }
@@ -99,6 +112,19 @@ class FrameTelemetryImpl {
     this._stableSeconds = 0
   }
 
+  /** Return only measured frame values; defaults remain internal until sampled. */
+  snapshot(): FrameTelemetrySnapshot {
+    const available = this._lastSampleAt.value !== null
+    return {
+      available,
+      lastSampleAt: this._lastSampleAt.value,
+      fps: available ? this._fps.value : null,
+      frameTimeEmaMs: available ? this._frameTimeEma.value : null,
+      p95FrameTimeMs: available ? this._p95FrameTime.value : null,
+      jankCount: available ? this._jankCount.value : null,
+    }
+  }
+
   private _handleFrame(stats: FrameStats): void {
     // Update reactive state
     this._fps.value = stats.fps
@@ -106,11 +132,16 @@ class FrameTelemetryImpl {
     this._jankCount.value = stats.jankCount
 
     // Record frame time in ring buffer
-    this._frameTimeHistory[this._historyIndex] = stats.frameTimeEma
-    this._historyIndex = (this._historyIndex + 1) % this._historySize
+    if (this._frameTimeHistory.length < this._historySize) {
+      this._frameTimeHistory.push(stats.frameTimeEma)
+    } else {
+      this._frameTimeHistory[this._historyIndex] = stats.frameTimeEma
+      this._historyIndex = (this._historyIndex + 1) % this._historySize
+    }
 
     // Calculate P95
     this._p95FrameTime.value = this._calculateP95()
+    this._lastSampleAt.value = Date.now()
 
     // Auto quality adjustment
     if (this._autoAdjustEnabled.value) {
