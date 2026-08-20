@@ -7,7 +7,8 @@ import { useSettingsStore } from '@/stores/settings'
 /**
  * ミュート・凍結ユーザーのリアクションを抹消した表示用カウント (#575)。
  * リアクションバーを持つ面 (MkNote / ノート詳細) から使う。
- * `counts` が null の間はサーバー集計のまま表示する。
+ * `pending` の間は描画を保留し、それ以外で `counts` が null なら
+ * サーバー集計のまま表示する (対象外・取得失敗のフォールバック)。
  *
  * トグル (`mute.hideMutedUserReactions`) 自体がオプトインなので、ON なら
  * ミュート/凍結の有無を問わず列挙を取得する — 凍結はサーバー側の除外に
@@ -31,6 +32,14 @@ export function useVisibleReactionCounts(
     return recountsStore.get(n._accountId, n.id, n.reactions)
   })
 
+  // 列挙の初回取得待ち (#1081)。true の間は未フィルタのサーバー集計を
+  // 描画せず保留する — キャッシュ表示で「見えてから消える」のを防ぐ
+  const pending = computed(() => {
+    const n = note()
+    if (!enabled.value || !n) return false
+    return recountsStore.isPending(n.id, n.reactions)
+  })
+
   watch(
     [
       enabled,
@@ -39,6 +48,10 @@ export function useVisibleReactionCounts(
       () => note()?.reactions,
       // ミュート解除 (縮小方向) は purge されるので取り直しを駆動する
       () => mutesStore.mutedUsersRemovalVersion,
+      // purge でエントリが消えると pending に戻る。放置するとチップが
+      // 保留 (非表示) のまま固まるので取り直しを駆動する。LRU 破棄は
+      // pending に戻らない (ストア側の settled 履歴がフォールバックさせる)
+      pending,
     ],
     () => {
       const n = note()
@@ -48,5 +61,5 @@ export function useVisibleReactionCounts(
     { immediate: true },
   )
 
-  return { enabled, counts }
+  return { enabled, counts, pending }
 }

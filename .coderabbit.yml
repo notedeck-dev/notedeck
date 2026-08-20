@@ -1,0 +1,37 @@
+language: "ja-JP"
+tone_instructions: "日本語で簡潔に。指摘では問題点・影響・根拠を明確にし、具体的な修正案を添えてください。不確実な事項は推測と明示してください。重大なバグ・セキュリティ上の懸念は重要度と根拠を明確に伝えてください。"
+reviews:
+  profile: "chill"
+  high_level_summary: false
+  poem: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "develop"
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        【レビュー対象外】
+        - フォーマット・型・lint の問題 (biome / vue-tsc / cargo clippy / cargo fmt で検出可能なもの) は CI でチェック済みのため指摘しない。
+
+        【注力してほしい観点】
+        - ビジネスロジックの不備、セキュリティ (permission/capability 境界、シークレットの扱い)、パフォーマンス、設計の適切性。
+        - PR のタイトル・説明に照らして明らかにスコープ外の変更が混入していないか。判断に迷う場合は指摘しない。
+    - path: "src/**/*.vue"
+      instructions: |
+        - Vue Vapor モード互換 (#52) の維持: <script setup> 必須 / h()・JSX 禁止 / カスタムディレクティブ・mixins・getCurrentInstance() 禁止 / <Transition>・<Teleport> は useVaporTransition / usePortal で代替。違反は指摘する。
+        - スタイルは <style module lang="scss"> + $style 参照 (CSS Modules)。モバイル/デスクトップ切替は v-if (CSS display ではない)。
+    - path: "src/stores/**"
+      instructions: |
+        - 正規化・マイグレーション・マージ規則などの純ロジックが store に直接書かれていたら src/services/ への分離を提案する (#782)。store は「購読 + キャッシュ + UI 状態」のみ。
+        - 無制限に成長しうるキャッシュ・Map・配列には上限 (bounded cache 不変条件 #987) があるか確認する。
+    - path: "src-tauri/**"
+      instructions: |
+        - 公開 API は get_credentials_or_anon()、認証必須 API は get_credentials() を使う (ゲスト・ログアウト対応)。
+        - ウィンドウ操作は #[cfg(desktop)] ガード必須 (Android ビルドはタグ push まで CI で検出されない)。
+        - Misskey トークン・外部サービスのシークレットは OS キーチェーン / Secret Vault 経由のみ。フロントに本体を渡すコードは指摘する。
+  path_filters:
+    - "!**/__snapshots__/**"
+    - "!src-tauri/openapi.json"
+    - "!src-tauri/gen/**"
