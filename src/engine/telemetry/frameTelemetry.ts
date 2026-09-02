@@ -13,10 +13,34 @@ import { type FrameStats, frameEngine } from '../frameEngine'
 
 export type QualityLevel = 'low' | 'balanced' | 'high'
 
+export interface FrameTelemetrySnapshot {
+  available: boolean
+  /** Last real Frame Engine sample time (epoch ms). */
+  lastSampleAt: number | null
+  /** Ring buffer 内の実サンプル数。少ない間は p95 が最大値に寄る。 */
+  sampleCount: number
+  /** 1 フレームの時間予算 (1000 / リフレッシュレート)。jank は 2 倍超。 */
+  frameBudgetMs: number
+  /**
+   * jank がこの回数/秒を超えると自動調整が品質を 1 段下げる実効閾値
+   * (performance.json5 で変更可能)。診断の warn/fail 判定もこれを使う
+   */
+  jankDowngradeThreshold: number
+  fps: number | null
+  frameTimeEmaMs: number | null
+  p95FrameTimeMs: number | null
+  jankCount: number | null
+}
+
 /** Default thresholds for automatic quality adjustment. */
 const DEFAULT_JANK_DOWNGRADE_THRESHOLD = 5
 const DEFAULT_STABLE_UPGRADE_SECONDS = 10
 const FRAME_HISTORY_SIZE = 100 // ring buffer for P95 calculation
+
+// frameEngine の onFrame は RAF 稼働中に毎秒 1 回発火し、アイドル時は
+// RAF ごと停止する。これ以上サンプルが来ていない snapshot は「凍結値」
+// なので、実測値として返さない
+const SNAPSHOT_STALE_MS = 3_000
 
 const QUALITY_ORDER: QualityLevel[] = ['low', 'balanced', 'high']
 
@@ -26,6 +50,7 @@ class FrameTelemetryImpl {
   private _frameTimeEma = ref(16.6)
   private _p95FrameTime = ref(16.6)
   private _jankCount = ref(0)
+  private _lastSampleAt = ref<number | null>(null)
   private _currentQuality = ref<QualityLevel>('balanced')
   private _autoAdjustEnabled = ref(true)
 
@@ -44,6 +69,7 @@ class FrameTelemetryImpl {
   readonly frameTimeEma = readonly(this._frameTimeEma)
   readonly p95FrameTime = readonly(this._p95FrameTime)
   readonly jankCount = readonly(this._jankCount)
+  readonly lastSampleAt = readonly(this._lastSampleAt)
   readonly currentQuality = readonly(this._currentQuality)
   readonly autoAdjustEnabled = readonly(this._autoAdjustEnabled)
 
@@ -61,6 +87,8 @@ class FrameTelemetryImpl {
       frameHistorySize?: number
     },
   ): void {
+    // stop() なしの再 start でリスナーが重複しないよう先に解除する
+    this.stop()
     this._jankThreshold =
       options?.jankDowngradeThreshold ?? DEFAULT_JANK_DOWNGRADE_THRESHOLD
     this._stableTarget =
@@ -68,9 +96,10 @@ class FrameTelemetryImpl {
     this._historySize = options?.frameHistorySize ?? FRAME_HISTORY_SIZE
     this._currentQuality.value = initialQuality
     this._onQualityChange = onQualityChange ?? null
-    this._frameTimeHistory = new Array(this._historySize).fill(16.6)
+    this._frameTimeHistory = []
     this._historyIndex = 0
     this._stableSeconds = 0
+    this._lastSampleAt.value = null
 
     this._unsubscribe = frameEngine.onFrame((stats) => this._handleFrame(stats))
   }
@@ -81,6 +110,9 @@ class FrameTelemetryImpl {
   stop(): void {
     this._unsubscribe?.()
     this._unsubscribe = null
+    // 収集停止後の snapshot が凍結値を「実測」として返さないようにする
+    // (start() 側のリセットと対称)
+    this._lastSampleAt.value = null
   }
 
   /**
@@ -99,6 +131,24 @@ class FrameTelemetryImpl {
     this._stableSeconds = 0
   }
 
+  /** Return only measured frame values; defaults remain internal until sampled. */
+  snapshot(): FrameTelemetrySnapshot {
+    const lastSampleAt = this._lastSampleAt.value
+    const available =
+      lastSampleAt !== null && Date.now() - lastSampleAt <= SNAPSHOT_STALE_MS
+    return {
+      available,
+      lastSampleAt,
+      sampleCount: this._frameTimeHistory.length,
+      frameBudgetMs: frameEngine.frameBudget,
+      jankDowngradeThreshold: this._jankThreshold,
+      fps: available ? this._fps.value : null,
+      frameTimeEmaMs: available ? this._frameTimeEma.value : null,
+      p95FrameTimeMs: available ? this._p95FrameTime.value : null,
+      jankCount: available ? this._jankCount.value : null,
+    }
+  }
+
   private _handleFrame(stats: FrameStats): void {
     // Update reactive state
     this._fps.value = stats.fps
@@ -106,11 +156,16 @@ class FrameTelemetryImpl {
     this._jankCount.value = stats.jankCount
 
     // Record frame time in ring buffer
-    this._frameTimeHistory[this._historyIndex] = stats.frameTimeEma
-    this._historyIndex = (this._historyIndex + 1) % this._historySize
+    if (this._frameTimeHistory.length < this._historySize) {
+      this._frameTimeHistory.push(stats.frameTimeEma)
+    } else {
+      this._frameTimeHistory[this._historyIndex] = stats.frameTimeEma
+      this._historyIndex = (this._historyIndex + 1) % this._historySize
+    }
 
     // Calculate P95
     this._p95FrameTime.value = this._calculateP95()
+    this._lastSampleAt.value = Date.now()
 
     // Auto quality adjustment
     if (this._autoAdjustEnabled.value) {

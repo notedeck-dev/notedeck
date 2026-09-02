@@ -350,10 +350,12 @@ const reactionsData = computed(() =>
   buildReactionsData(effectiveNote.value, reactionUrlRaw),
 )
 
-// #575: ミュート・凍結ユーザーのリアクション抹消。数え直し済みカウントが
-// あれば count を差し替え、0 になった絵文字は行ごと消す
-const { counts: recountedCounts, pending: recountPending } =
-  useVisibleReactionCounts(() => effectiveNote.value, reactionsVisible)
+// #575: ミュート・凍結ユーザーのリアクション抹消。displayCounts が保留
+// マスク (#1081) 込みの表示用カウントを返し、0 になった絵文字は行ごと消す
+const { displayCounts, pending: recountPending } = useVisibleReactionCounts(
+  () => effectiveNote.value,
+  reactionsVisible,
+)
 
 // #630: リモート絵文字リアクションに相乗りできるサーバーか
 const serversStore = useServersStore()
@@ -365,21 +367,19 @@ const supportsRemoteEmojiReactions = computed(
 
 const sortedReactions = computed(() => {
   const sorted = reactionsData.value.sorted
-  const counts = recountedCounts.value
-  const visible = counts
-    ? sorted
-        .map((r) => ({
-          ...r,
-          // 自分のリアクションはミュート除外 (数え直し) の対象外。楽観的
-          // 更新の直後は古い列挙に自分がまだ居らず count 0 → チップごと
-          // 消えるため、最低 1 を保証する
-          count:
-            r.reaction === effectiveNote.value.myReaction
-              ? Math.max(counts[r.reaction] ?? 0, 1)
-              : (counts[r.reaction] ?? 0),
-        }))
-        .filter((r) => r.count > 0)
-    : sorted
+  const display = displayCounts.value
+  const visible = sorted
+    .map((r) => ({
+      ...r,
+      // 自分のリアクションはミュート除外 (数え直し) の対象外。楽観的
+      // 更新の直後は古い列挙に自分がまだ居らず count 0 → チップごと
+      // 消えるため、最低 1 を保証する
+      count:
+        r.reaction === effectiveNote.value.myReaction
+          ? Math.max(display[r.reaction] ?? 0, 1)
+          : (display[r.reaction] ?? 0),
+    }))
+    .filter((r) => r.count > 0)
   const urls = reactionsData.value.urls
   return visible.map((r) => ({
     ...r,
@@ -392,19 +392,11 @@ const sortedReactions = computed(() => {
 })
 const reactionUrls = computed(() => reactionsData.value.urls)
 
-// 数え直しの初回取得中はチップを渡さない (#1081): 未フィルタのカウントを
-// 一瞬でも描画すると、抹消したはずのリアクションの存在が見えてしまう。
-// 自分のリアクションだけは対象外 — 0 件のノートに押した直後は楽観的更新で
-// pending になるため、隠すと押したチップが RTT の間消える。
-// エリア自体は reactionsAreaPending が高さを予約して押し下げを防ぐ
-const reactionsWithId = computed(() => {
-  const base = recountPending.value
-    ? sortedReactions.value.filter(
-        (r) => r.reaction === effectiveNote.value.myReaction,
-      )
-    : sortedReactions.value
-  return base.map((r) => ({ ...r, id: r.reaction }))
-})
+// 保留マスク (#1081) は displayCounts → sortedReactions で適用済み:
+// チップ・モーダル・ポップアップのどこにも未フィルタ値が渡らない
+const reactionsWithId = computed(() =>
+  sortedReactions.value.map((r) => ({ ...r, id: r.reaction })),
+)
 const {
   rendered: renderedReactions,
   enteringIds: reactionEnteringIds,
@@ -412,6 +404,19 @@ const {
 } = useVaporTransitionGroup(reactionsWithId, {
   enterDuration: 200,
   leaveDuration: 200,
+})
+
+// 保留に入る直前の実高さを予約する (#1084 レビュー)。CSS の 1 行分固定
+// だけでは複数行のチップが潰れ、settle 時にタイムラインが跳ねる。
+// 初回表示 (記録する高さがない) は CSS 側の min-height が下限を受ける
+const reactionsAreaMinHeight = ref<string | null>(null)
+watch(recountPending, (pending) => {
+  if (pending) {
+    const h = reactionsAreaRef.value?.offsetHeight
+    if (h) reactionsAreaMinHeight.value = `${h}px`
+  } else {
+    reactionsAreaMinHeight.value = null
+  }
 })
 
 // Spawn floating effect when reaction count increases (Misskey-compatible)
@@ -891,7 +896,9 @@ function handlePickerReaction(reaction: string) {
         </div>
 
         <!-- Reactions -->
-        <div v-if="sortedReactions.length > 0 && !embedded && !softMuteCollapsed" ref="reactionsAreaRef" :class="[$style.reactionsArea, (!reactionsVisible || recountPending) && $style.reactionsAreaPending]">
+        <!-- 保留中 (recountPending) はマスクで sortedReactions が空になり
+             うるが、エリア自体は残して高さを予約する (押し下げ防止) -->
+        <div v-if="(sortedReactions.length > 0 || recountPending) && !embedded && !softMuteCollapsed" ref="reactionsAreaRef" :class="[$style.reactionsArea, (!reactionsVisible || recountPending) && $style.reactionsAreaPending]" :style="reactionsAreaMinHeight ? { minHeight: reactionsAreaMinHeight } : undefined">
           <div
             v-if="reactionsVisible"
             :class="$style.reactions"
@@ -910,12 +917,12 @@ function handlePickerReaction(reaction: string) {
               :data-reaction="r.reaction"
               :disabled="isGuest"
               @click.stop="handleReactionClick($event, r.reaction, r.joinability)"
-              @contextmenu.prevent.stop="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, effectiveNote.reactions[r.reaction] ?? 0)"
+              @contextmenu.prevent.stop="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, r.count)"
               @pointerdown="lpHandlers.onPointerdown"
               @pointermove="lpHandlers.onPointermove"
               @pointerup="lpHandlers.onPointerup"
               @pointercancel="lpHandlers.onPointercancel"
-              @mouseenter="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, effectiveNote.reactions[r.reaction] ?? 0)"
+              @mouseenter="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, r.count)"
               @mouseleave="reactionUsersRef?.hide()"
             >
               <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.customEmoji" role="img" :aria-label="r.reaction" :title="`${r.reaction} (ミュート中)`" />

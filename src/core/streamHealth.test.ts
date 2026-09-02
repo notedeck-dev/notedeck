@@ -4,6 +4,8 @@ import {
   getStreamHealth,
   recordStreamHealth,
   removeStreamHealth,
+  type StreamHealth,
+  summarizeStreamHealth,
 } from './streamHealth'
 
 describe('streamHealth', () => {
@@ -45,5 +47,42 @@ describe('streamHealth', () => {
     expect(formatHealthDuration(now - 5_000)).toBe('5秒前から')
     expect(formatHealthDuration(now - 3 * 60_000)).toBe('3分前から')
     expect(formatHealthDuration(now - 2 * 3_600_000)).toBe('2時間前から')
+  })
+})
+
+describe('summarizeStreamHealth', () => {
+  const stream = (
+    state: StreamHealth['state'],
+    since: number,
+  ): StreamHealth => ({ state, since })
+
+  it('接続なしは unknown、全接続 connected は healthy', () => {
+    expect(summarizeStreamHealth([], false).overallHealth).toBe('unknown')
+    const all = summarizeStreamHealth(
+      [stream('connected', 100), stream('connected', 200)],
+      false,
+    )
+    expect(all.overallHealth).toBe('healthy')
+    expect(all.observedConnectionCount).toBe(2)
+    expect(all.byState.connected).toBe(2)
+    expect(all.lastTransitionAt).toBe(200)
+  })
+
+  it('全断は offline、一部断/再接続は degraded', () => {
+    expect(
+      summarizeStreamHealth([stream('disconnected', 100)], false).overallHealth,
+    ).toBe('offline')
+    expect(
+      summarizeStreamHealth(
+        [stream('connected', 100), stream('reconnecting', 200)],
+        false,
+      ).overallHealth,
+    ).toBe('degraded')
+  })
+
+  it('手動オフラインは接続状態によらず manual-offline', () => {
+    expect(
+      summarizeStreamHealth([stream('disconnected', 100)], true).overallHealth,
+    ).toBe('manual-offline')
   })
 })

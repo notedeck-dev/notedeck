@@ -67,20 +67,10 @@ const renotes = ref<NormalizedNote[]>([])
 const reactionUsers = ref<NoteReaction[]>([])
 // 本家準拠: リアクション種別チップで絞り込んでユーザー一覧を表示する
 const reactionTab = ref<string | null>(null)
-// #575: ミュート・凍結ユーザーのリアクションを抹消した表示用カウント
-const { counts: recountedCounts, pending: recountPending } =
+// #575: ミュート・凍結ユーザーのリアクションを抹消した表示用カウント。
+// 保留マスク (#1081) は composable 側で一元適用される (MkNote と共通)
+const { displayCounts: visibleReactionCounts, pending: recountPending } =
   useVisibleReactionCounts(() => note.value)
-const visibleReactionCounts = computed<Record<string, number>>(() => {
-  if (!note.value) return {}
-  // 数え直しの初回取得中は描画を保留 (#1081): 未フィルタのカウントを
-  // 一瞬でも見せない。自分のリアクションだけは楽観的更新を壊さないよう残す
-  if (recountPending.value) {
-    const my = note.value.myReaction
-    const count = my ? note.value.reactions[my] : undefined
-    return my && count ? { [my]: count } : {}
-  }
-  return recountedCounts.value ?? note.value.reactions
-})
 const reactionTypes = computed(() => Object.keys(visibleReactionCounts.value))
 const isLoading = ref(true)
 const error = ref<AppError | null>(null)
@@ -162,6 +152,11 @@ onMounted(async () => {
       hasToken: account.hasToken,
     })
     adapter = result.adapter
+    // adapter は非リアクティブなローカル変数なので、キャッシュ即描画の窓で
+    // 初期化前に選ばれたタブ・種別は watch では拾えない。ここで拾い直す
+    // (PR #1086 レビュー)
+    void loadTabContent(activeTab.value)
+    void loadReactionUsers(reactionTab.value)
     note.value = await adapter.api.getNote(props.noteId)
 
     const [conv, replies] = await Promise.all([
@@ -200,23 +195,36 @@ watch(
 
 const loadedTabs = ref<Set<DetailTab>>(new Set(['replies']))
 
-watch(activeTab, async (tab) => {
-  if (loadedTabs.value.has(tab) || !adapter) return
+async function loadTabContent(tab: DetailTab): Promise<void> {
+  if (loadedTabs.value.has(tab)) return
+  if (tab === 'reactions') {
+    // adapter 初期化を待たずに登録する — キャッシュ済みノートでは初期化前に
+    // タブが押せる窓があり、ここで登録し損ねると下の reactionTypes watch の
+    // 自動選択が永久に発火しない (#1084 レビュー)
+    loadedTabs.value.add(tab)
+    reactionTab.value = reactionTypes.value[0] ?? null
+    return
+  }
+  if (!adapter) return
   loadedTabs.value.add(tab)
   try {
     if (tab === 'renotes') {
       renotes.value = await adapter.api.getNoteRenotes(props.noteId)
-    } else if (tab === 'reactions') {
-      reactionTab.value = reactionTypes.value[0] ?? null
     }
   } catch (e) {
     console.warn('[NoteDetail] failed to load tab:', tab, e)
   }
-})
+}
+
+watch(activeTab, (tab) => void loadTabContent(tab))
 
 // 抹消でチップが消えたら選択タブを追従させる。数え直しの保留中 (#1081) に
 // タブを開くと未選択のままになるので、種別が現れたときも先頭を選ぶ
 watch(reactionTypes, (types) => {
+  // 保留中は種別が一時的に空になる (purgeAll)。ここで追従させると選択中の
+  // タブが勝手に先頭へリセットされ、冗長なユーザー再取得も走るので、
+  // 選択を保持して settle 後の再出現で復元する (#1084 レビュー)
+  if (recountPending.value) return
   if (!reactionTab.value) {
     if (loadedTabs.value.has('reactions')) reactionTab.value = types[0] ?? null
   } else if (!types.includes(reactionTab.value)) {
@@ -224,7 +232,7 @@ watch(reactionTypes, (types) => {
   }
 })
 
-watch(reactionTab, async (type) => {
+async function loadReactionUsers(type: string | null): Promise<void> {
   if (!type || !adapter) return
   reactionUsers.value = []
   try {
@@ -236,7 +244,9 @@ watch(reactionTab, async (type) => {
   } catch (e) {
     console.warn('[NoteDetail] failed to load reactions:', type, e)
   }
-})
+}
+
+watch(reactionTab, (type) => void loadReactionUsers(type))
 
 function reactionTypeUrl(type: string): string | null {
   if (!note.value) return null
@@ -626,6 +636,10 @@ async function handlePosted(editedNoteId?: string) {
               </div>
             </button>
           </div>
+        </div>
+        <!-- 数え直しの保留中に「ありません」と誤断言しない (#1084 レビュー) -->
+        <div v-else-if="recountPending" :class="$style.stateMessage">
+          <i class="ti ti-loader-2 nd-spin" /> 読み込み中...
         </div>
         <div v-else :class="$style.stateMessage">
           リアクションはありません

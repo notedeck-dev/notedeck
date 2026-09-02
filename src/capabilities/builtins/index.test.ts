@@ -78,6 +78,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'meta.heartbeat',
         'meta.permissions',
         'meta.persona',
+        'metrics.read',
         'misstore.search',
         'navbar.list',
         'navbar.reset',

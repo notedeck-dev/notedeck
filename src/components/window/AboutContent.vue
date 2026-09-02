@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { getTauriVersion } from '@tauri-apps/api/app'
-import { computed, onMounted, ref, shallowRef } from 'vue'
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import type { Check, HealthReport, Status } from '@/bindings'
+import type { MetricsSnapshot } from '@/capabilities/builtins/metrics'
+import { dispatchCapability } from '@/capabilities/dispatcher'
 import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useUpdater } from '@/composables/useUpdater'
-import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
+import {
+  formatHealthDuration,
+  getStreamHealth,
+  type OverallStreamHealth,
+} from '@/core/streamHealth'
+import type { QualityLevel } from '@/engine/telemetry/frameTelemetry'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
+import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
@@ -24,6 +32,7 @@ const tauriVersion = ref('')
 const rustVersion = ref('')
 const copied = ref(false)
 const uiStore = useUiStore()
+const windowsStore = useWindowsStore()
 
 const { enabled: developerMode, toggle: toggleDeveloperMode } =
   useDeveloperMode()
@@ -287,6 +296,186 @@ const startupRows = computed<StartupRow[]>(() => {
 const startupTotalMs = computed(() => {
   const last = startupRows.value[startupRows.value.length - 1]
   return last?.cum ?? null
+})
+
+// 実行時パフォーマンス (#732)。metrics.read capability を UI からも同じ経路で
+// 呼び、AI に見せている実測値と同一の snapshot を表示する。point-in-time
+// snapshot なので、セクションを開いている間だけ定期更新する (フレーム
+// サンプリングは毎秒 + staleness 判定 3 秒なので 2 秒間隔で追えば十分)
+const metricsOpen = ref(false)
+const metrics = shallowRef<MetricsSnapshot | null>(null)
+const metricsError = ref<string | null>(null)
+let metricsTimer: ReturnType<typeof setInterval> | null = null
+
+function stopMetricsTimer(): void {
+  if (metricsTimer !== null) {
+    clearInterval(metricsTimer)
+    metricsTimer = null
+  }
+}
+
+async function refreshMetrics(): Promise<void> {
+  const result = await dispatchCapability(
+    'metrics.read',
+    {},
+    { principal: { kind: 'user' } },
+  )
+  if (result.ok) {
+    metrics.value = result.result as MetricsSnapshot
+    metricsError.value = null
+  } else {
+    metricsError.value = result.error
+    // 権限拒否・未登録は再試行で変わらないのでポーリングを止める
+    if (
+      result.code === 'permission_denied' ||
+      result.code === 'unknown_capability'
+    ) {
+      stopMetricsTimer()
+    }
+  }
+}
+
+watch(metricsOpen, (open) => {
+  if (open) {
+    void refreshMetrics()
+    metricsTimer = setInterval(() => void refreshMetrics(), 2_000)
+  } else {
+    stopMetricsTimer()
+  }
+})
+
+onUnmounted(stopMetricsTimer)
+
+const QUALITY_LABELS: Record<QualityLevel, string> = {
+  low: '低',
+  balanced: 'バランス',
+  high: '高',
+}
+
+const STREAM_HEALTH_LABELS: Record<OverallStreamHealth, string> = {
+  unknown: '接続なし',
+  initializing: '接続中',
+  healthy: '正常',
+  degraded: '一部切断',
+  offline: '切断',
+  'manual-offline': 'オフラインモード',
+}
+
+interface MetricsRow {
+  label: string
+  value: string
+  /** 予算比の判定。付けない行 (FPS 等) は素の情報として出す */
+  status?: Status
+}
+
+const metricsRows = computed<MetricsRow[]>(() => {
+  const m = metrics.value
+  if (!m) return []
+  const ms = (v: number | null) => (v === null ? '—' : `${v.toFixed(1)}ms`)
+  const f = m.frame
+  // フレーム時間は予算 (1000/リフレッシュレート) 内なら ok、jank 判定と
+  // 同じ 2 倍超で fail。fps は「描画作業をした frame 数」なので低くても
+  // 問題とは限らず、判定を付けない
+  const timeStatus = (v: number | null): Status | undefined =>
+    v === null
+      ? undefined
+      : v <= f.frameBudgetMs
+        ? 'ok'
+        : v <= f.frameBudgetMs * 2
+          ? 'warn'
+          : 'fail'
+  const jank = f.jankCount ?? 0
+  const frameRows: MetricsRow[] = f.available
+    ? [
+        { label: 'FPS', value: String(f.fps ?? '—') },
+        {
+          label: 'フレーム時間',
+          value: `${ms(f.frameTimeEmaMs)} (予算 ${ms(f.frameBudgetMs)})`,
+          status: timeStatus(f.frameTimeEmaMs),
+        },
+        {
+          label: 'p95 フレーム時間',
+          value: `${ms(f.p95FrameTimeMs)} (${f.sampleCount} サンプル)`,
+          status: timeStatus(f.p95FrameTimeMs),
+        },
+        {
+          label: 'フレーム落ち',
+          value: `${jank} 回/秒`,
+          // 閾値は snapshot が返す実効値 (performance.json5 で変更可能) を
+          // 使い、自動調整の判定と診断がずれないようにする
+          status:
+            jank === 0
+              ? 'ok'
+              : jank <= f.jankDowngradeThreshold
+                ? 'warn'
+                : 'fail',
+        },
+      ]
+    : [{ label: 'フレーム計測', value: 'アイドル (描画作業なし)' }]
+  const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)}MB`
+  const memoryRows: MetricsRow[] = []
+  // JS ヒープは Chromium 系 WebView のみ。取れない環境では行ごと出さない
+  if (m.memory.jsHeap) {
+    memoryRows.push({
+      label: 'JS ヒープ',
+      value: `${mb(m.memory.jsHeap.usedBytes)} / ${mb(m.memory.jsHeap.totalBytes)}`,
+    })
+  }
+  memoryRows.push({
+    label: '画像メモリ (推定)',
+    value: `${mb(m.memory.images.estimatedDecodedBytes)} (${m.memory.images.uniqueCount} URL / ${m.memory.images.elementCount} 要素)`,
+  })
+  return [
+    ...frameRows,
+    {
+      label: '描画品質',
+      value: `${QUALITY_LABELS[m.adaptiveQuality.currentLevel]} (自動調整${m.adaptiveQuality.autoAdjustEnabled ? 'あり' : 'なし'})`,
+    },
+    {
+      label: 'ストリーム接続',
+      value: `${STREAM_HEALTH_LABELS[m.streaming.overallHealth]} (${m.streaming.observedConnectionCount} 接続)`,
+    },
+    ...memoryRows,
+  ]
+})
+
+// 「この数値を見てどう設定を動かすか」への橋渡し。自動調整の有無で
+// 文言を変える (ありなら品質は勝手に追従するので、手を動かすべきは
+// 自動調整が追従しきれない場合だけ)
+const metricsAdvice = computed<{ status: Status; text: string } | null>(() => {
+  const m = metrics.value
+  if (!m) return null
+  if (!m.frame.available) {
+    return {
+      status: 'ok',
+      text: 'アイドル中です。デッキを操作すると計測が始まります',
+    }
+  }
+  const statuses = metricsRows.value.map((r) => r.status)
+  const auto = m.adaptiveQuality.autoAdjustEnabled
+  if (statuses.includes('fail')) {
+    return {
+      status: 'fail',
+      text: auto
+        ? '描画が追いついていません。自動調整が品質を下げて追従します。改善しない場合はパフォーマンス設定を省電力寄りにしてください'
+        : '描画が追いついていません。パフォーマンス設定で品質を下げるとカクつきが減ります',
+    }
+  }
+  if (statuses.includes('warn')) {
+    return {
+      status: 'warn',
+      text: '描画にやや負荷がかかっています。カクつきを感じる場合はパフォーマンス設定で品質を下げてください',
+    }
+  }
+  if (m.adaptiveQuality.currentLevel !== 'high') {
+    return {
+      status: 'ok',
+      text: auto
+        ? '描画に余裕があります。安定が続けば自動調整が品質を上げます'
+        : '描画に余裕があります。パフォーマンス設定で品質を上げても快適に動く見込みです',
+    }
+  }
+  return { status: 'ok', text: '描画は良好です' }
 })
 
 const fmtMs = (ms: number) => `${ms.toLocaleString()}ms`
@@ -605,6 +794,56 @@ function reportBug() {
         <div v-if="webviewFixedCost === null" :class="$style.startupNote">
           WebView 起動はプロセス初回のナビゲーションでのみ計測されます (累計は画面読み込み起点)
         </div>
+      </div>
+    </div>
+
+    <!-- 実行時パフォーマンス (#732)。metrics.read capability の実測値を
+         AI と同じ経路で表示する。開いている間だけ定期更新 -->
+    <div :class="$style.formSection">
+      <div :class="$style.infoHead">
+        <button
+          type="button"
+          class="_button"
+          :class="[$style.formSectionLabel, $style.infoToggle, metricsOpen && $style.infoOpen]"
+          @click="metricsOpen = !metricsOpen"
+        >
+          実行時パフォーマンス
+          <i class="ti ti-chevron-down" :class="$style.infoChevron" />
+        </button>
+        <span v-if="metricsOpen && metrics?.frame.available" :class="$style.headBadge">{{ metrics.frame.fps }}fps</span>
+      </div>
+      <div v-if="metricsOpen" :class="$style.aboutInfo">
+        <div v-if="metricsError" :class="$style.diagError">{{ metricsError }}</div>
+        <div v-else-if="!metrics">計測中...</div>
+        <template v-else>
+          <div v-for="row in metricsRows" :key="row.label" :class="$style.aboutRow">
+            <span :class="$style.aboutLabel">{{ row.label }}:</span>
+            <span :class="$style.aboutValue">
+              <i
+                v-if="row.status"
+                :class="[STATUS_ICON[row.status], $style.diagIcon, $style[row.status]]"
+              />
+              {{ row.value }}
+            </span>
+          </div>
+        </template>
+      </div>
+      <div v-if="metricsOpen" :class="$style.sectionBody">
+        <div v-if="metrics && metricsAdvice" :class="$style.metricsAdvice">
+          <i
+            :class="[STATUS_ICON[metricsAdvice.status], $style.diagIcon, $style[metricsAdvice.status]]"
+          />
+          <span>{{ metricsAdvice.text }}</span>
+        </div>
+        <button
+          type="button"
+          class="_button"
+          :class="$style.formLink"
+          @click="windowsStore.open('performanceEditor')"
+        >
+          <i class="ti ti-gauge" :class="$style.formLinkIcon" />
+          <span>パフォーマンス設定を開く</span>
+        </button>
       </div>
     </div>
   </div>
@@ -969,6 +1208,17 @@ function reportBug() {
 .diagError {
   color: var(--nd-error);
   font-size: 0.9em;
+}
+
+// 実測値から設定操作への橋渡し文。数値行 (mono) と区別して通常フォントのまま
+.metricsAdvice {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: 0.85em;
+  line-height: 1.5;
+  opacity: 0.85;
 }
 
 // 折りたたみヘッダ右端のバッジ (診断ステータス / 起動合計)。
