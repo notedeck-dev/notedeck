@@ -17,7 +17,7 @@ const frameEngineMock = vi.hoisted(() => ({
 }))
 
 vi.mock('../frameEngine', () => ({
-  frameEngine: { onFrame: frameEngineMock.onFrame },
+  frameEngine: { onFrame: frameEngineMock.onFrame, frameBudget: 16.6 },
 }))
 
 import { frameTelemetry } from './frameTelemetry'
@@ -49,6 +49,7 @@ describe('frameTelemetry snapshot', () => {
       available: false,
       lastSampleAt: null,
       sampleCount: 0,
+      frameBudgetMs: 16.6,
       fps: null,
       frameTimeEmaMs: null,
       p95FrameTimeMs: null,
@@ -70,6 +71,7 @@ describe('frameTelemetry snapshot', () => {
       available: true,
       lastSampleAt: 1_000_000,
       sampleCount: 1,
+      frameBudgetMs: 16.6,
       fps: 42,
       frameTimeEmaMs: 24,
       p95FrameTimeMs: 24,

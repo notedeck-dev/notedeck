@@ -19,14 +19,19 @@ export interface FrameTelemetrySnapshot {
   lastSampleAt: number | null
   /** Ring buffer 内の実サンプル数。少ない間は p95 が最大値に寄る。 */
   sampleCount: number
+  /** 1 フレームの時間予算 (1000 / リフレッシュレート)。jank は 2 倍超。 */
+  frameBudgetMs: number
   fps: number | null
   frameTimeEmaMs: number | null
   p95FrameTimeMs: number | null
   jankCount: number | null
 }
 
-/** Default thresholds for automatic quality adjustment. */
-const DEFAULT_JANK_DOWNGRADE_THRESHOLD = 5
+/**
+ * Jank がこの回数/秒を超えると自動調整が品質を 1 段下げる。
+ * About の実行時パフォーマンス表示も同じ閾値で warn/fail を判定する。
+ */
+export const DEFAULT_JANK_DOWNGRADE_THRESHOLD = 5
 const DEFAULT_STABLE_UPGRADE_SECONDS = 10
 const FRAME_HISTORY_SIZE = 100 // ring buffer for P95 calculation
 
@@ -133,6 +138,7 @@ class FrameTelemetryImpl {
       available,
       lastSampleAt,
       sampleCount: this._frameTimeHistory.length,
+      frameBudgetMs: frameEngine.frameBudget,
       fps: available ? this._fps.value : null,
       frameTimeEmaMs: available ? this._frameTimeEma.value : null,
       p95FrameTimeMs: available ? this._p95FrameTime.value : null,

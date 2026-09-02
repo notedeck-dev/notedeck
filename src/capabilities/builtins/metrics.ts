@@ -1,7 +1,27 @@
 import type { Command } from '@/commands/registry'
-import { listStreamHealth, summarizeStreamHealth } from '@/core/streamHealth'
-import { frameTelemetry } from '@/engine/telemetry/frameTelemetry'
+import {
+  listStreamHealth,
+  type StreamHealthSummary,
+  summarizeStreamHealth,
+} from '@/core/streamHealth'
+import {
+  type FrameTelemetrySnapshot,
+  frameTelemetry,
+  type QualityLevel,
+} from '@/engine/telemetry/frameTelemetry'
 import { useOfflineModeStore } from '@/stores/offlineMode'
+
+/** metrics.read の返り値。About ウィンドウも同じ snapshot を表示する。 */
+export interface MetricsSnapshot {
+  schemaVersion: 1
+  capturedAt: number
+  frame: FrameTelemetrySnapshot
+  adaptiveQuality: {
+    currentLevel: QualityLevel
+    autoAdjustEnabled: boolean
+  }
+  streaming: StreamHealthSummary
+}
 
 export const metricsReadCapability: Command = {
   id: 'metrics.read',
@@ -24,10 +44,12 @@ export const metricsReadCapability: Command = {
       type: 'object',
       description:
         '{ schemaVersion, capturedAt, frame: { available, lastSampleAt, ' +
-        'sampleCount, fps, frameTimeEmaMs, p95FrameTimeMs, jankCount }, ' +
-        'adaptiveQuality: { currentLevel, autoAdjustEnabled }, streaming: { ' +
-        'observedConnectionCount, byState, overallHealth, lastTransitionAt } }。' +
-        '時刻は epoch ms。fps は直近 1 秒に描画作業を実行した frame 数で、' +
+        'sampleCount, frameBudgetMs, fps, frameTimeEmaMs, p95FrameTimeMs, ' +
+        'jankCount }, adaptiveQuality: { currentLevel, autoAdjustEnabled }, ' +
+        'streaming: { observedConnectionCount, byState, overallHealth, ' +
+        'lastTransitionAt } }。時刻は epoch ms。frameBudgetMs は 1 フレームの' +
+        '時間予算 (1000/リフレッシュレート) で、jank はその 2 倍超のフレーム数/秒。' +
+        'fps は直近 1 秒に描画作業を実行した frame 数で、' +
         '画面リフレッシュレートではない。p95FrameTimeMs は sampleCount が' +
         '小さい間 (起動直後) はサンプル最大値に寄る。overallHealth は ' +
         'unknown | initializing | healthy | degraded | offline | ' +
@@ -35,8 +57,8 @@ export const metricsReadCapability: Command = {
     },
   },
   visible: false,
-  execute: () => ({
-    schemaVersion: 1 as const,
+  execute: (): MetricsSnapshot => ({
+    schemaVersion: 1,
     capturedAt: Date.now(),
     frame: frameTelemetry.snapshot(),
     adaptiveQuality: {
