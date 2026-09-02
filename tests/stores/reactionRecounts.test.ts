@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useMutesStore } from '@/stores/mutes'
 import {
+  RECOUNT_CACHE_CAP,
   RECOUNT_MAX_TOTAL,
   useReactionRecountsStore,
 } from '@/stores/reactionRecounts'
@@ -181,5 +182,157 @@ describe('useReactionRecountsStore: refetch cooldown (#575)', () => {
     await store.ensure('acc1', 'note2', { '❤': 1 })
 
     expect(getNoteReactionsMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('useReactionRecountsStore.isPending (#1081)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    getNoteReactionsMock.mockReset()
+    probeMock.mockReset()
+    suspendedIds.clear()
+  })
+
+  it('未取得の対象ノートは pending — 描画を保留させる', () => {
+    const store = useReactionRecountsStore()
+    expect(store.isPending('n1', { '❤': 2 })).toBe(true)
+  })
+
+  it('リアクション 0 件・総数超過は対象外なので pending にならない', () => {
+    const store = useReactionRecountsStore()
+    expect(store.isPending('n1', {})).toBe(false)
+    expect(store.isPending('n1', { '❤': RECOUNT_MAX_TOTAL + 1 })).toBe(false)
+  })
+
+  it('取得成功で pending が解け、数え直し値が返る', async () => {
+    getNoteReactionsMock.mockResolvedValue([record('❤', 'u1')])
+    const store = useReactionRecountsStore()
+    await store.ensure('acc1', 'n1', { '❤': 2 })
+    expect(store.isPending('n1', { '❤': 2 })).toBe(false)
+    expect(store.get('acc1', 'n1', { '❤': 2 })).toEqual({ '❤': 1 })
+  })
+
+  it('取得失敗でも pending が解け、サーバー集計へフォールバックする', async () => {
+    getNoteReactionsMock.mockRejectedValue(new Error('network'))
+    const store = useReactionRecountsStore()
+    await store.ensure('acc1', 'n1', { '❤': 2 })
+    expect(store.isPending('n1', { '❤': 2 })).toBe(false)
+    expect(store.get('acc1', 'n1', { '❤': 2 })).toBeNull()
+  })
+
+  it('アカウント不明でも pending が解ける (フォールバック確定)', async () => {
+    const store = useReactionRecountsStore()
+    await store.ensure('acc-gone', 'n1', { '❤': 1 })
+    expect(store.isPending('n1', { '❤': 1 })).toBe(false)
+    expect(store.get('acc-gone', 'n1', { '❤': 1 })).toBeNull()
+  })
+
+  it('LRU 破棄されたノートは pending に戻らない (サーバー集計へフォールバック)', async () => {
+    getNoteReactionsMock.mockResolvedValue([record('❤', 'u1')])
+    const store = useReactionRecountsStore()
+    await store.ensure('acc1', 'n0', { '❤': 1 })
+    // キャッシュを溢れさせて n0 を追い出す
+    for (let i = 1; i <= RECOUNT_CACHE_CAP; i++) {
+      await store.ensure('acc1', `spill-${i}`, { '❤': 1 })
+    }
+    expect(store.get('acc1', 'n0', { '❤': 1 })).toBeNull()
+    // pending に戻すと evict → refetch → evict の自己増幅ループになるため、
+    // 一度取得が完了したノートは集計表示へフォールバックする
+    expect(store.isPending('n0', { '❤': 1 })).toBe(false)
+  })
+
+  it('purgeAll は settled 履歴ごと消して pending に戻す (ミュート解除の取り直し)', async () => {
+    getNoteReactionsMock.mockResolvedValue([record('❤', 'u1')])
+    const store = useReactionRecountsStore()
+    await store.ensure('acc1', 'n1', { '❤': 1 })
+    expect(store.isPending('n1', { '❤': 1 })).toBe(false)
+    store.purgeAll()
+    expect(store.isPending('n1', { '❤': 1 })).toBe(true)
+  })
+})
+
+/**
+ * #1084 レビュー: 一時的な状況 (ネットワーク失敗 / unmute と fetch の race)
+ * が恒久状態としてキャッシュに固定され、抹消 (#575) が黙って無効化される
+ * 系の回帰テスト。
+ */
+describe('useReactionRecountsStore: 失敗の回復と purge の race (#1084)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    getNoteReactionsMock.mockReset()
+    probeMock.mockReset()
+    suspendedIds.clear()
+  })
+
+  it('初回失敗は確定するが恒久化しない — クールダウン明けに再試行して回復する', async () => {
+    vi.useFakeTimers()
+    try {
+      getNoteReactionsMock.mockRejectedValueOnce(new Error('network'))
+      getNoteReactionsMock.mockResolvedValue([record('❤', 'u1')])
+      const store = useReactionRecountsStore()
+      const serverCounts = { '❤': 2 }
+      await store.ensure('acc1', 'note1', serverCounts)
+      // 失敗はフォールバックで確定 (隠れたまま固まらない)
+      expect(store.isPending('note1', serverCounts)).toBe(false)
+      expect(store.get('acc1', 'note1', serverCounts)).toBeNull()
+
+      // 同じ serverCounts でもクールダウン明けに取り直され、回復する
+      await store.ensure('acc1', 'note1', serverCounts)
+      await vi.advanceTimersByTimeAsync(6000)
+      expect(store.get('acc1', 'note1', serverCounts)).toEqual({ '❤': 1 })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('取り直しの失敗は手元の正常な列挙を捨てない (stale-while-revalidate)', async () => {
+    vi.useFakeTimers()
+    try {
+      getNoteReactionsMock.mockResolvedValueOnce([record('❤', 'u1')])
+      const store = useReactionRecountsStore()
+      await store.ensure('acc1', 'note1', { '❤': 2 })
+      expect(store.get('acc1', 'note1', { '❤': 2 })).toEqual({ '❤': 1 })
+
+      // クールダウン明けの取り直しが失敗しても、数え直し値は生きたまま
+      await vi.advanceTimersByTimeAsync(6000)
+      getNoteReactionsMock.mockRejectedValueOnce(new Error('network'))
+      await store.ensure('acc1', 'note1', { '❤': 3 })
+      expect(store.get('acc1', 'note1', { '❤': 3 })).toEqual({ '❤': 1 })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('purge をまたいだ応答は捨てられ、最新の列挙で取り直される', async () => {
+    // ミュート解除前に発射された列挙 (解除したユーザーを除外済み) が
+    // purge 後に確定すると、取り直し不能なまま抹消が固定される
+    let resolveStale: (v: unknown) => void = () => {
+      // mock の executor が同期実行された時点で必ず上書きされる
+    }
+    getNoteReactionsMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStale = resolve
+        }),
+    )
+    getNoteReactionsMock.mockResolvedValue([
+      record('❤', 'u1'),
+      record('❤', 'u2'),
+    ])
+    const store = useReactionRecountsStore()
+    const serverCounts = { '❤': 2 }
+    const stale = store.ensure('acc1', 'note1', serverCounts)
+    // 列挙リクエストが飛んでから (in-flight になってから) purge する
+    await vi.waitFor(() => expect(getNoteReactionsMock).toHaveBeenCalled())
+
+    store.purgeAll()
+    resolveStale([record('❤', 'u1')])
+    await stale
+
+    // 古い応答 (u2 なし) は書き戻されず、取り直しの結果で確定する
+    await vi.waitFor(() => {
+      expect(store.get('acc1', 'note1', serverCounts)).toEqual({ '❤': 2 })
+    })
+    expect(store.isPending('note1', serverCounts)).toBe(false)
   })
 })

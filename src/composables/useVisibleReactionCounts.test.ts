@@ -86,3 +86,35 @@ describe('useVisibleReactionCounts (#1081)', () => {
     expect(api.getNoteReactions).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('useVisibleReactionCounts.displayCounts (#1084 レビュー)', () => {
+  it('保留中は未フィルタのサーバー集計をどの count にも出さない (自分の分だけ 1)', async () => {
+    const noteWithMine = {
+      id: 'n-mine',
+      reactions: { '❤': 12, '🎉': 3 },
+      myReaction: '❤',
+      _accountId: 'acc1',
+    }
+    const { displayCounts, counts, pending } = useVisibleReactionCounts(
+      () => noteWithMine,
+    )
+    expect(pending.value).toBe(true)
+    // 12 (未フィルタ) を出すと settle で縮んでミュートユーザーの存在が漏れる
+    expect(displayCounts.value).toEqual({ '❤': 1 })
+
+    await vi.waitFor(() => expect(pending.value).toBe(false))
+    expect(displayCounts.value).toEqual(counts.value)
+  })
+
+  it('保留中で自分のリアクションがなければ空 (チップなし + 高さ予約は面側)', () => {
+    const { displayCounts, pending } = useVisibleReactionCounts(() => NOTE)
+    expect(pending.value).toBe(true)
+    expect(displayCounts.value).toEqual({})
+  })
+
+  it('トグル OFF ならサーバー集計をそのまま返す', () => {
+    state.hideMuted = false
+    const { displayCounts } = useVisibleReactionCounts(() => NOTE)
+    expect(displayCounts.value).toEqual(NOTE.reactions)
+  })
+})

@@ -15,7 +15,10 @@ import { useSettingsStore } from '@/stores/settings'
  * 頼れず、取得しないと差分が判定できないため。
  */
 export function useVisibleReactionCounts(
-  note: () => Pick<NormalizedNote, 'id' | 'reactions' | '_accountId'> | null,
+  note: () => Pick<
+    NormalizedNote,
+    'id' | 'reactions' | 'myReaction' | '_accountId'
+  > | null,
   visible?: Ref<boolean>,
 ) {
   const settingsStore = useSettingsStore()
@@ -40,6 +43,25 @@ export function useVisibleReactionCounts(
     return recountsStore.isPending(n.id, n.reactions)
   })
 
+  /**
+   * そのまま描画してよい表示用カウント。保留の扱いを面ごとに再実装させない
+   * (#1084 レビュー — MkNote と NoteDetail で filter / 再構築の 2 実装に
+   * 分かれ、片方がモーダルへ未フィルタ値を漏らしていた)。
+   *
+   * 保留中は未フィルタのサーバー集計をどの count にも出さない。自分の
+   * リアクションだけは「押した」事実 (1) として残す — 隠すと押した直後に
+   * チップが RTT の間消える。実数は settle 後に出る (増える方向のみ)。
+   */
+  const displayCounts = computed<Record<string, number>>(() => {
+    const n = note()
+    if (!n) return {}
+    if (!enabled.value) return n.reactions
+    if (pending.value) {
+      return n.myReaction ? { [n.myReaction]: 1 } : {}
+    }
+    return counts.value ?? n.reactions
+  })
+
   watch(
     [
       enabled,
@@ -61,5 +83,5 @@ export function useVisibleReactionCounts(
     { immediate: true },
   )
 
-  return { enabled, counts, pending }
+  return { enabled, counts, pending, displayCounts }
 }

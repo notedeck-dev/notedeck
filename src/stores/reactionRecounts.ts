@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { shallowRef, triggerRef, watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
+import { createBoundedCache } from '@/services/boundedCache'
 import {
   recountVisibleReactions,
   totalReactionCount,
@@ -35,7 +36,11 @@ const SETTLED_CAP = 5000
 const REFETCH_COOLDOWN_MS = 5000
 
 interface RecountEntry {
-  /** serverCounts の JSON。リアクション増減の検知に使う */
+  /**
+   * serverCounts の JSON。リアクション増減の検知に使う。
+   * 空文字は「取得失敗の確定」— どの実 signature とも一致しないため、
+   * 次の ensure がクールダウン明けに再試行する (negative cache を恒久化させない)
+   */
   signature: string
   /**
    * 取得時点の可視リアクション列挙 (縮約)。カウントは get 時に照合込みで
@@ -56,7 +61,12 @@ interface RecountEntry {
  * 列挙から欠落したまま」になりうるため、集合の変更で全 purge して取り直す。
  */
 export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
-  const cache = shallowRef(new Map<string, RecountEntry>())
+  const cache = shallowRef(
+    createBoundedCache<string, RecountEntry>(
+      RECOUNT_CACHE_CAP,
+      'reactionRecounts',
+    ),
+  )
   const inflight = new Set<string>()
   /**
    * 一度でも取得が完了 (成功・失敗とも) したノート (#1084 レビュー)。
@@ -65,7 +75,16 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
    * なるため、破棄後はサーバー集計へのフォールバックで受ける。
    * 変更は必ず cache の triggerRef と同時に行う (reactive 化はしない)。
    */
-  const settledOnce = new Set<string>()
+  const settledOnce = createBoundedCache<string, true>(
+    SETTLED_CAP,
+    'reactionRecounts:settled',
+  )
+
+  /**
+   * purgeAll (ミュート解除) の世代。in-flight の応答は解除前の除外設定で
+   * 数えたものなので、着弾時に世代が進んでいたら捨てて取り直す。
+   */
+  let generation = 0
 
   const mutesStore = useMutesStore()
   const suspensionsStore = useSuspensionsStore()
@@ -78,6 +97,12 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
 
   function signatureOf(counts: Record<string, number>): string {
     return JSON.stringify(counts)
+  }
+
+  /** 列挙取得の対象か。0 件と総数超過は対象外 (サーバー集計のまま表示)。 */
+  function isRecountTarget(serverCounts: Record<string, number>): boolean {
+    const total = totalReactionCount(serverCounts)
+    return total > 0 && total <= RECOUNT_MAX_TOTAL
   }
 
   /**
@@ -96,7 +121,7 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     const entry = cache.value.get(noteId)
     if (!entry?.records) return null
     // 総数が取得上限を超えたら stale を使い続けず、サーバー集計に戻す
-    if (totalReactionCount(serverCounts) > RECOUNT_MAX_TOTAL) return null
+    if (!isRecountTarget(serverCounts)) return null
     return recountVisibleReactions(
       serverCounts,
       entry.records,
@@ -116,8 +141,7 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     noteId: string,
     serverCounts: Record<string, number>,
   ): boolean {
-    const total = totalReactionCount(serverCounts)
-    if (total === 0 || total > RECOUNT_MAX_TOTAL) return false
+    if (!isRecountTarget(serverCounts)) return false
     return !cache.value.has(noteId) && !settledOnce.has(noteId)
   }
 
@@ -177,20 +201,24 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     const signature = signatureOf(serverCounts)
     const entry = cache.value.get(noteId)
     if (entry?.signature === signature) return
-    const total = totalReactionCount(serverCounts)
-    if (total === 0 || total > RECOUNT_MAX_TOTAL) return
+    if (!isRecountTarget(serverCounts)) return
     if (inflight.has(noteId)) return
     // 取得済みのノートは連射を避けてクールダウン明けにまとめて取り直す
     if (entry && Date.now() - entry.fetchedAt < REFETCH_COOLDOWN_MS) {
       scheduleDeferred(accountId, noteId, serverCounts)
       return
     }
+    const gen = generation
     inflight.add(noteId)
     try {
       await withFetchSlot(() => fetchAndStore(accountId, noteId, signature))
     } finally {
       inflight.delete(noteId)
     }
+    // 実行中に purge された場合、応答は fetchAndStore が捨てている。
+    // purge 直後の ensure (watch 駆動) は inflight で弾かれていたので、
+    // ここで取り直さないと pending のまま誰も駆動しなくなる
+    if (gen !== generation) void ensure(accountId, noteId, serverCounts)
   }
 
   function setEntry(
@@ -198,16 +226,9 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     signature: string,
     records: VisibleReactionRecord[] | null,
   ): void {
-    // 既存エントリの取り直しでは他のノートを追い出さない
-    if (!cache.value.has(noteId) && cache.value.size >= RECOUNT_CACHE_CAP) {
-      const oldest = cache.value.keys().next().value
-      if (oldest !== undefined) cache.value.delete(oldest)
-    }
-    settledOnce.add(noteId)
-    if (settledOnce.size > SETTLED_CAP) {
-      const oldest = settledOnce.values().next().value
-      if (oldest !== undefined) settledOnce.delete(oldest)
-    }
+    // boundedCache が LRU 退避を担う。settledOnce も set で末尾に移る
+    // (再 settle したホットなノートが先に退避されない)
+    settledOnce.set(noteId, true)
     cache.value.set(noteId, { signature, records, fetchedAt: Date.now() })
     triggerRef(cache)
   }
@@ -217,6 +238,7 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
     noteId: string,
     signature: string,
   ): Promise<void> {
+    const gen = generation
     try {
       const account = useAccountsStore().accounts.find(
         (a) => a.id === accountId,
@@ -231,6 +253,9 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
           undefined,
           RECOUNT_MAX_TOTAL,
         )
+        // purge (ミュート解除) をまたいだ応答は解除前の除外設定で数えた
+        // もの。書き戻すと取り直しの成果が古い列挙で上書きされるので捨てる
+        if (gen !== generation) return
         setEntry(
           noteId,
           signature,
@@ -248,12 +273,30 @@ export const useReactionRecountsStore = defineStore('reactionRecounts', () => {
       // 非クリティカル: 取得失敗時はサーバー集計のまま (原因は診断できるよう残す)
       console.warn('[reaction-recount] fetch failed:', noteId, e)
     }
-    // 取得できなかったノートもエントリで確定させる (#1081): isPending を
-    // 解いてサーバー集計を表示させ、隠したまま固まるのを防ぐ
-    setEntry(noteId, signature, null)
+    if (gen !== generation) return
+    // 取り直しの失敗は手元の正常な列挙を捨てない (stale-while-revalidate)。
+    // fetchedAt だけ更新して連射を抑え、signature は古いまま残して回復後の
+    // ensure に取り直させる
+    const existing = cache.value.get(noteId)
+    if (existing?.records) {
+      setEntry(noteId, existing.signature, existing.records)
+      return
+    }
+    // 初回の取得失敗もエントリで確定させる (#1081): isPending を解いて
+    // サーバー集計を表示させ、隠したまま固まるのを防ぐ。signature は
+    // 空のまま残し、一時的な失敗が恒久的な negative cache にならないようにする
+    setEntry(noteId, '', null)
   }
 
   function purgeAll(): void {
+    // in-flight の応答と保留中の取り直しは解除前の除外設定で数えたもの。
+    // 世代を進めて着弾時に捨てさせ、無意味になった deferred も破棄する
+    generation++
+    deferred.clear()
+    if (deferredTimer) {
+      clearTimeout(deferredTimer)
+      deferredTimer = null
+    }
     if (cache.value.size === 0 && settledOnce.size === 0) return
     // settled 履歴ごと消して pending に戻す: ミュート解除の取り直し中に
     // 古い列挙由来の値やサーバー集計を見せない (隠しすぎ側に倒す)
