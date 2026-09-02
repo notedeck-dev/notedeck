@@ -48,6 +48,7 @@ describe('frameTelemetry snapshot', () => {
     expect(frameTelemetry.snapshot()).toEqual({
       available: false,
       lastSampleAt: null,
+      sampleCount: 0,
       fps: null,
       frameTimeEmaMs: null,
       p95FrameTimeMs: null,
@@ -68,11 +69,40 @@ describe('frameTelemetry snapshot', () => {
     expect(frameTelemetry.snapshot()).toEqual({
       available: true,
       lastSampleAt: 1_000_000,
+      sampleCount: 1,
       fps: 42,
       frameTimeEmaMs: 24,
       p95FrameTimeMs: 24,
       jankCount: 3,
     })
+  })
+
+  it('drops availability when sampling stalls (idle RAF stop)', () => {
+    frameTelemetry.start('balanced')
+    emitFrame({
+      fps: 55,
+      frameTimeEma: 18,
+      jankCount: 0,
+      lastFrameTime: 19,
+    })
+
+    // サンプリングが止まって 3 秒を超えたら凍結値を実測として返さない
+    vi.setSystemTime(1_004_000)
+    const stale = frameTelemetry.snapshot()
+    expect(stale.available).toBe(false)
+    expect(stale.fps).toBeNull()
+    expect(stale.p95FrameTimeMs).toBeNull()
+    // いつまで計測できていたかは受け手が判断できるよう残す
+    expect(stale.lastSampleAt).toBe(1_000_000)
+
+    // 次のサンプルで復帰する
+    emitFrame({
+      fps: 58,
+      frameTimeEma: 17,
+      jankCount: 0,
+      lastFrameTime: 18,
+    })
+    expect(frameTelemetry.snapshot().available).toBe(true)
   })
 
   it('resets availability when a new collection lifecycle starts', () => {
@@ -89,5 +119,28 @@ describe('frameTelemetry snapshot', () => {
 
     expect(frameTelemetry.snapshot().available).toBe(false)
     expect(frameTelemetry.snapshot().lastSampleAt).toBeNull()
+  })
+
+  it('stop() alone leaves no frozen availability behind', () => {
+    frameTelemetry.start('balanced')
+    emitFrame({
+      fps: 55,
+      frameTimeEma: 18,
+      jankCount: 0,
+      lastFrameTime: 19,
+    })
+
+    frameTelemetry.stop()
+
+    expect(frameTelemetry.snapshot().available).toBe(false)
+    expect(frameTelemetry.snapshot().lastSampleAt).toBeNull()
+  })
+
+  it('restarting without stop() does not duplicate the frame listener', () => {
+    frameTelemetry.start('balanced')
+    frameTelemetry.start('balanced')
+
+    expect(frameEngineMock.unsubscribe).toHaveBeenCalledTimes(1)
+    expect(frameEngineMock.onFrame).toHaveBeenCalledTimes(2)
   })
 })

@@ -231,7 +231,6 @@ const WITHOUT_PERMISSIONS = [
   'meta.heartbeat',
   'meta.permissions',
   'meta.persona',
-  'metrics.read',
   'navbar.list',
   'performance.list',
   'sidebar.toggle',

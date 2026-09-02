@@ -10,6 +10,7 @@ const metricsMock = vi.hoisted(() => ({
   frame: {
     available: false,
     lastSampleAt: null as number | null,
+    sampleCount: 0,
     fps: null as number | null,
     frameTimeEmaMs: null as number | null,
     p95FrameTimeMs: null as number | null,
@@ -41,7 +42,9 @@ vi.mock('@/engine/telemetry/frameTelemetry', () => ({
   },
 }))
 
-vi.mock('@/core/streamHealth', () => ({
+// listStreamHealth だけ差し替え、summarizeStreamHealth は実物を通す
+vi.mock('@/core/streamHealth', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/core/streamHealth')>()),
   listStreamHealth: () => metricsMock.streams,
 }))
 
@@ -62,6 +65,7 @@ describe('metrics.read', () => {
     metricsMock.frame = {
       available: false,
       lastSampleAt: null,
+      sampleCount: 0,
       fps: null,
       frameTimeEmaMs: null,
       p95FrameTimeMs: null,
@@ -77,11 +81,16 @@ describe('metrics.read', () => {
     vi.useRealTimers()
   })
 
-  it('is a cheap, read-only AI capability', () => {
+  it('is a read-only AI capability gated by deck.read', () => {
     expect(metricsReadCapability.id).toBe('metrics.read')
-    expect(metricsReadCapability.permissions).toEqual([])
+    // external principal はデフォルトで deck.read を持たないため、
+    // /api/capabilities/{id}/execute 経由の外部トークンには開かない
+    // (/api/health が streams 詳細を deck.read で隠すのと同じ境界)
+    expect(metricsReadCapability.permissions).toEqual(['deck.read'])
     expect(metricsReadCapability.aiTool).toBe(true)
-    expect(metricsReadCapability.signature?.cheap).toBe(true)
+    // payload が capturedAt / EMA など毎回変わる値を含むため、HEARTBEAT の
+    // Cheap Check (結果の文字列比較) には使えない = cheap を宣言しない
+    expect(metricsReadCapability.signature?.cheap).toBeUndefined()
     expect(metricsReadCapability.signature?.returns?.type).toBe('object')
     expect(METRICS_BUILTIN_CAPABILITIES).toEqual([metricsReadCapability])
   })
@@ -93,6 +102,7 @@ describe('metrics.read', () => {
       frame: {
         available: false,
         lastSampleAt: null,
+        sampleCount: 0,
         fps: null,
         frameTimeEmaMs: null,
         p95FrameTimeMs: null,
@@ -120,6 +130,7 @@ describe('metrics.read', () => {
     metricsMock.frame = {
       available: true,
       lastSampleAt: 1_999_000,
+      sampleCount: 42,
       fps: 48,
       frameTimeEmaMs: 21,
       p95FrameTimeMs: 29,

@@ -17,6 +17,8 @@ export interface FrameTelemetrySnapshot {
   available: boolean
   /** Last real Frame Engine sample time (epoch ms). */
   lastSampleAt: number | null
+  /** Ring buffer 内の実サンプル数。少ない間は p95 が最大値に寄る。 */
+  sampleCount: number
   fps: number | null
   frameTimeEmaMs: number | null
   p95FrameTimeMs: number | null
@@ -27,6 +29,11 @@ export interface FrameTelemetrySnapshot {
 const DEFAULT_JANK_DOWNGRADE_THRESHOLD = 5
 const DEFAULT_STABLE_UPGRADE_SECONDS = 10
 const FRAME_HISTORY_SIZE = 100 // ring buffer for P95 calculation
+
+// frameEngine の onFrame は RAF 稼働中に毎秒 1 回発火し、アイドル時は
+// RAF ごと停止する。これ以上サンプルが来ていない snapshot は「凍結値」
+// なので、実測値として返さない
+const SNAPSHOT_STALE_MS = 3_000
 
 const QUALITY_ORDER: QualityLevel[] = ['low', 'balanced', 'high']
 
@@ -73,6 +80,8 @@ class FrameTelemetryImpl {
       frameHistorySize?: number
     },
   ): void {
+    // stop() なしの再 start でリスナーが重複しないよう先に解除する
+    this.stop()
     this._jankThreshold =
       options?.jankDowngradeThreshold ?? DEFAULT_JANK_DOWNGRADE_THRESHOLD
     this._stableTarget =
@@ -94,6 +103,9 @@ class FrameTelemetryImpl {
   stop(): void {
     this._unsubscribe?.()
     this._unsubscribe = null
+    // 収集停止後の snapshot が凍結値を「実測」として返さないようにする
+    // (start() 側のリセットと対称)
+    this._lastSampleAt.value = null
   }
 
   /**
@@ -114,10 +126,13 @@ class FrameTelemetryImpl {
 
   /** Return only measured frame values; defaults remain internal until sampled. */
   snapshot(): FrameTelemetrySnapshot {
-    const available = this._lastSampleAt.value !== null
+    const lastSampleAt = this._lastSampleAt.value
+    const available =
+      lastSampleAt !== null && Date.now() - lastSampleAt <= SNAPSHOT_STALE_MS
     return {
       available,
-      lastSampleAt: this._lastSampleAt.value,
+      lastSampleAt,
+      sampleCount: this._frameTimeHistory.length,
       fps: available ? this._fps.value : null,
       frameTimeEmaMs: available ? this._frameTimeEma.value : null,
       p95FrameTimeMs: available ? this._p95FrameTime.value : null,

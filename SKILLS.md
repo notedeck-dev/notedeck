@@ -229,6 +229,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | **キーバインド** | `keybinds.list`, `keybinds.set`, `keybinds.reset`, `keybinds.resetAll` | ショートカット編集 |
 | **ナビバー** | `navbar.list`, `navbar.set`, `navbar.reset` | サイドバー構成編集 |
 | **パフォーマンス** | `performance.list`, `performance.set`, `performance.applySlider`, `performance.reset`, `performance.resetAll` | パフォーマンス設定 |
+| **メトリクス** | `metrics.read` | Frame Engine 実測値と接続状態の匿名集約 (`deck.read` permission) |
 | **ペルソナ** | `ai.listPersonas`, `ai.setPersona` | AI ペルソナ一覧 / 切替 |
 | **AI セッション** | `ai.chat`, `ai.sessions.list`, `ai.sessions.read`, `ai.sessions.search` | プラグインから本体 AI を呼ぶ / 過去セッション参照 |
 | **ウィンドウ** | `windows.open`, `windows.close`, `windows.closeAll`, `windows.focus`, `windows.list` | サブウィンドウ操作 |
