@@ -20,6 +20,7 @@
 [![Made with Tauri](https://img.shields.io/badge/Made%20with-Tauri-ffc131?style=flat-square&logo=tauri)](https://tauri.app)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](https://github.com/notedeck-dev/notedeck/pulls)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/notedeck-dev/notedeck)
+[![GitGem](https://gitgem.org/api/badge/github/notedeck-dev/notedeck.svg)](https://gitgem.org/github/notedeck-dev/notedeck)
 [![misskey.io](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmisskey.io%2Fusers%2Fanl48t0qf1ns05tf%2Ffollowers&query=%24.totalItems&logo=misskey&logoColor=fff&label=misskey.io&color=86b300)](https://misskey.io/@notedeck)
 
 [Download](https://github.com/notedeck-dev/notedeck/releases/latest) ·
