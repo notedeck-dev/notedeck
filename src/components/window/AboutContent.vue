@@ -402,6 +402,19 @@ const metricsRows = computed<MetricsRow[]>(() => {
         },
       ]
     : [{ label: 'フレーム計測', value: 'アイドル (描画作業なし)' }]
+  const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)}MB`
+  const memoryRows: MetricsRow[] = []
+  // JS ヒープは Chromium 系 WebView のみ。取れない環境では行ごと出さない
+  if (m.memory.jsHeap) {
+    memoryRows.push({
+      label: 'JS ヒープ',
+      value: `${mb(m.memory.jsHeap.usedBytes)} / ${mb(m.memory.jsHeap.totalBytes)}`,
+    })
+  }
+  memoryRows.push({
+    label: '画像メモリ (推定)',
+    value: `${mb(m.memory.images.estimatedDecodedBytes)} (${m.memory.images.uniqueCount} URL / ${m.memory.images.elementCount} 要素)`,
+  })
   return [
     ...frameRows,
     {
@@ -412,6 +425,7 @@ const metricsRows = computed<MetricsRow[]>(() => {
       label: 'ストリーム接続',
       value: `${STREAM_HEALTH_LABELS[m.streaming.overallHealth]} (${m.streaming.observedConnectionCount} 接続)`,
     },
+    ...memoryRows,
   ]
 })
 

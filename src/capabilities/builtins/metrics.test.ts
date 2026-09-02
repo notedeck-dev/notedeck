@@ -57,6 +57,14 @@ vi.mock('@/stores/offlineMode', () => ({
   }),
 }))
 
+vi.mock('@/utils/startupTrace', () => ({
+  getStartupEntries: () => [
+    { name: 'main-eval', at: 120.4 },
+    { name: 'deck-mounted', at: 730.6 },
+  ],
+  getWebviewFixedCost: () => 250,
+}))
+
 import { METRICS_BUILTIN_CAPABILITIES, metricsReadCapability } from './metrics'
 
 describe('metrics.read', () => {
@@ -125,6 +133,19 @@ describe('metrics.read', () => {
         },
         overallHealth: 'unknown',
         lastTransitionAt: null,
+      },
+      // #985 結線: About の起動パフォーマンスと同じ計測点。atMs は丸める
+      startup: {
+        webviewFixedCostMs: 250,
+        phases: [
+          { name: 'main-eval', atMs: 120 },
+          { name: 'deck-mounted', atMs: 731 },
+        ],
+      },
+      // unit 環境には performance.memory も DOM もない
+      memory: {
+        jsHeap: null,
+        images: { elementCount: 0, uniqueCount: 0, estimatedDecodedBytes: 0 },
       },
     })
   })
