@@ -191,12 +191,18 @@ jobs:
 
           for FLAVOR_DIR in apk/*/release; do
             FLAVOR=$(basename "$(dirname "$FLAVOR_DIR")")
+            # Obtainium の ABI 自動選択 (arm64 / armv7 / x86_64 を名前で照合) に
+            # 合わせる。tauri の flavor 名 "arm" だけは armv7 に読み替える
+            case "$FLAVOR" in
+              arm) ABI=armv7 ;;
+              *) ABI=$FLAVOR ;;
+            esac
             # 署名済みのみを配る。未署名 APK は Android が
             # INSTALL_PARSE_FAILED_NO_CERTIFICATES で install を拒否するため、
             # フォールバックで配っても利用者はインストールできない
             APKS=("$FLAVOR_DIR"/*-release-signed.apk)
             [ ${#APKS[@]} -eq 0 ] && continue
-            cp "${APKS[0]}" "NoteDeck-${VERSION}-android-${FLAVOR}.apk"
+            cp "${APKS[0]}" "NoteDeck-${VERSION}-android-${ABI}.apk"
           done
 
           if ! ls NoteDeck-*-android-*.apk > /dev/null 2>&1; then

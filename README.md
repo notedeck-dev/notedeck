@@ -10,6 +10,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/releases/latest)
 [![winget](https://img.shields.io/badge/winget-NotedeckDev.NoteDeck-blue?style=flat-square&logo=windows)](https://github.com/microsoft/winget-pkgs/tree/master/manifests/n/NotedeckDev/NoteDeck)
 [![AUR](https://img.shields.io/aur/version/misskey-notedeck-bin?style=flat-square&logo=archlinux&label=AUR)](https://aur.archlinux.org/packages/misskey-notedeck-bin)
+[![Obtainium](https://img.shields.io/badge/Obtainium-Android-3ddc84?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.notedeck.desktop%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fnotedeck-dev%2Fnotedeck%22%2C%22author%22%3A%22notedeck-dev%22%2C%22name%22%3A%22NoteDeck%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22fallbackToOlderReleases%5C%22%3Afalse%2C%5C%22versionDetection%5C%22%3Atrue%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22autoApkFilterByArch%5C%22%3Atrue%2C%5C%22appName%5C%22%3A%5C%22NoteDeck%5C%22%2C%5C%22appAuthor%5C%22%3A%5C%22notedeck-dev%5C%22%7D%22%7D)
 [![Nix Flake](https://img.shields.io/badge/nix-flake-blue?style=flat-square&logo=nixos)](https://github.com/notedeck-dev/notedeck)
 [![License](https://img.shields.io/github/license/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/blob/main/LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/stargazers)
@@ -60,6 +61,12 @@ yay -S misskey-notedeck-bin
 ```bash
 nix run github:notedeck-dev/notedeck
 ```
+
+**Android (Obtainium)**
+
+[<img src="site/public/badge_obtainium.png" alt="Get it on Obtainium" height="48" />](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.notedeck.desktop%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fnotedeck-dev%2Fnotedeck%22%2C%22author%22%3A%22notedeck-dev%22%2C%22name%22%3A%22NoteDeck%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22fallbackToOlderReleases%5C%22%3Afalse%2C%5C%22versionDetection%5C%22%3Atrue%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22autoApkFilterByArch%5C%22%3Atrue%2C%5C%22appName%5C%22%3A%5C%22NoteDeck%5C%22%2C%5C%22appAuthor%5C%22%3A%5C%22notedeck-dev%5C%22%7D%22%7D)
+
+[Obtainium](https://obtainium.imranr.dev/) に GitHub Releases をソースとして登録すると、新しいバージョンが出るたびに APK の更新を自動で追従できます。バッジをタップすると設定済みの構成が Obtainium に渡ります。手動で追加する場合は Obtainium の「追加」にリポジトリ URL `https://github.com/notedeck-dev/notedeck` を貼り付けてください。端末の CPU に合う APK は自動で選ばれます。
 
 ## 貢献する
 
