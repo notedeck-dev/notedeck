@@ -3,12 +3,16 @@ import { onMounted, ref } from 'vue'
 const RELEASES_LATEST =
   'https://github.com/notedeck-dev/notedeck/releases/latest'
 
-/** ダウンロードカードが解決したい配布物。名前の末尾でリリースアセットを引き当てる。 */
+/**
+ * ダウンロードカードが解決したい配布物。名前の末尾でリリースアセットを引き当てる。
+ * Android は ABI 別に複数の APK があるので、実機の大半を占める arm64 を固定で指す
+ * (末尾 `.apk` だと名前順で先頭の APK が拾われ、どの ABI になるかが順序依存になる)。
+ */
 const ASSET_SUFFIX = {
   windows: '-setup.exe',
   macos: '.dmg',
   linux: '.deb',
-  android: '.apk',
+  android: '-android-arm64.apk',
 } as const
 
 export type PlatformKey = keyof typeof ASSET_SUFFIX
