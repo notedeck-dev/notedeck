@@ -917,12 +917,12 @@ function handlePickerReaction(reaction: string) {
               :data-reaction="r.reaction"
               :disabled="isGuest"
               @click.stop="handleReactionClick($event, r.reaction, r.joinability)"
-              @contextmenu.prevent.stop="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, effectiveNote.reactions[r.reaction] ?? 0)"
+              @contextmenu.prevent.stop="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, r.count)"
               @pointerdown="lpHandlers.onPointerdown"
               @pointermove="lpHandlers.onPointermove"
               @pointerup="lpHandlers.onPointerup"
               @pointercancel="lpHandlers.onPointercancel"
-              @mouseenter="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, effectiveNote.reactions[r.reaction] ?? 0)"
+              @mouseenter="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, r.count)"
               @mouseleave="reactionUsersRef?.hide()"
             >
               <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.customEmoji" role="img" :aria-label="r.reaction" :title="`${r.reaction} (ミュート中)`" />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { estimateImageMemory } from './imageMemory'
+import { estimateImageMemory, isLocalAssetUrl } from './imageMemory'
 
 const img = (currentSrc: string, w: number, h: number) => ({
   currentSrc,
@@ -50,5 +50,28 @@ describe('estimateImageMemory (#732 / #991)', () => {
       uniqueCount: 0,
       estimatedDecodedBytes: 0,
     })
+  })
+})
+
+describe('isLocalAssetUrl', () => {
+  const origin = 'https://app.example'
+
+  it('data/blob とアプリ自身のオリジンだけをローカル扱いする', () => {
+    expect(isLocalAssetUrl('data:image/png;base64,x', origin)).toBe(true)
+    expect(isLocalAssetUrl('blob:https://app.example/uuid', origin)).toBe(true)
+    expect(isLocalAssetUrl('https://app.example/assets/logo.svg', origin)).toBe(
+      true,
+    )
+    expect(isLocalAssetUrl('https://cdn.example/a.webp', origin)).toBe(false)
+  })
+
+  it('接頭辞が一致するだけの別オリジンはリモート扱い (過少報告防止)', () => {
+    expect(isLocalAssetUrl('https://app.example.evil/a.webp', origin)).toBe(
+      false,
+    )
+  })
+
+  it('parse 不能な URL は集計から外す (ローカル扱い)', () => {
+    expect(isLocalAssetUrl('not a url', origin)).toBe(true)
   })
 })

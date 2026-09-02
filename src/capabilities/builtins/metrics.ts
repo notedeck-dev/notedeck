@@ -12,6 +12,7 @@ import {
 import {
   estimateImageMemory,
   type ImageMemoryEstimate,
+  isLocalAssetUrl,
 } from '@/services/imageMemory'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
@@ -70,21 +71,14 @@ function readJsHeap(): MemoryMetrics['jsHeap'] {
   }
 }
 
-/** 同梱資産をリモート画像として誤計上しない (#991 で実例のある罠) */
-function isLocalAssetUrl(url: string): boolean {
-  return (
-    url.startsWith('data:') ||
-    url.startsWith('blob:') ||
-    url.startsWith(location.origin)
-  )
-}
-
 function readImageMemory(): ImageMemoryEstimate {
   // テスト環境 (node) では DOM がない
   if (typeof document === 'undefined') {
     return { elementCount: 0, uniqueCount: 0, estimatedDecodedBytes: 0 }
   }
-  return estimateImageMemory(document.images, isLocalAssetUrl)
+  return estimateImageMemory(document.images, (url) =>
+    isLocalAssetUrl(url, location.origin),
+  )
 }
 
 export const metricsReadCapability: Command = {

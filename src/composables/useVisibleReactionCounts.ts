@@ -40,7 +40,7 @@ export function useVisibleReactionCounts(
   const pending = computed(() => {
     const n = note()
     if (!enabled.value || !n) return false
-    return recountsStore.isPending(n.id, n.reactions)
+    return recountsStore.isPending(n._accountId, n.id, n.reactions)
   })
 
   /**

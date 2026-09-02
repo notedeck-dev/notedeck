@@ -1,10 +1,10 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { RECOUNT_MAX_TOTAL } from '@/services/reactionRecount'
 import { useMutesStore } from '@/stores/mutes'
 import {
   RECOUNT_CACHE_CAP,
-  RECOUNT_MAX_TOTAL,
   useReactionRecountsStore,
 } from '@/stores/reactionRecounts'
 
@@ -20,7 +20,10 @@ vi.mock('@/adapters/factory', () => ({
 
 vi.mock('@/stores/accounts', () => ({
   useAccountsStore: () => ({
-    accounts: [{ id: 'acc1', host: 'example.com', hasToken: true }],
+    accounts: [
+      { id: 'acc1', host: 'example.com', hasToken: true },
+      { id: 'acc2', host: 'example.com', hasToken: true },
+    ],
   }),
 }))
 
@@ -195,20 +198,22 @@ describe('useReactionRecountsStore.isPending (#1081)', () => {
 
   it('未取得の対象ノートは pending — 描画を保留させる', () => {
     const store = useReactionRecountsStore()
-    expect(store.isPending('n1', { '❤': 2 })).toBe(true)
+    expect(store.isPending('acc1', 'n1', { '❤': 2 })).toBe(true)
   })
 
   it('リアクション 0 件・総数超過は対象外なので pending にならない', () => {
     const store = useReactionRecountsStore()
-    expect(store.isPending('n1', {})).toBe(false)
-    expect(store.isPending('n1', { '❤': RECOUNT_MAX_TOTAL + 1 })).toBe(false)
+    expect(store.isPending('acc1', 'n1', {})).toBe(false)
+    expect(store.isPending('acc1', 'n1', { '❤': RECOUNT_MAX_TOTAL + 1 })).toBe(
+      false,
+    )
   })
 
   it('取得成功で pending が解け、数え直し値が返る', async () => {
     getNoteReactionsMock.mockResolvedValue([record('❤', 'u1')])
     const store = useReactionRecountsStore()
     await store.ensure('acc1', 'n1', { '❤': 2 })
-    expect(store.isPending('n1', { '❤': 2 })).toBe(false)
+    expect(store.isPending('acc1', 'n1', { '❤': 2 })).toBe(false)
     expect(store.get('acc1', 'n1', { '❤': 2 })).toEqual({ '❤': 1 })
   })
 
@@ -216,15 +221,34 @@ describe('useReactionRecountsStore.isPending (#1081)', () => {
     getNoteReactionsMock.mockRejectedValue(new Error('network'))
     const store = useReactionRecountsStore()
     await store.ensure('acc1', 'n1', { '❤': 2 })
-    expect(store.isPending('n1', { '❤': 2 })).toBe(false)
+    expect(store.isPending('acc1', 'n1', { '❤': 2 })).toBe(false)
     expect(store.get('acc1', 'n1', { '❤': 2 })).toBeNull()
   })
 
   it('アカウント不明でも pending が解ける (フォールバック確定)', async () => {
     const store = useReactionRecountsStore()
     await store.ensure('acc-gone', 'n1', { '❤': 1 })
-    expect(store.isPending('n1', { '❤': 1 })).toBe(false)
+    expect(store.isPending('acc-gone', 'n1', { '❤': 1 })).toBe(false)
     expect(store.get('acc-gone', 'n1', { '❤': 1 })).toBeNull()
+  })
+
+  it('別アカウントの列挙を使い回さない (サーバー側除外がアカウント依存)', async () => {
+    // acc1 の列挙は u2 を除外して返る (acc1 が u2 をブロックしている想定)
+    getNoteReactionsMock.mockResolvedValueOnce([record('❤', 'u1')])
+    getNoteReactionsMock.mockResolvedValue([
+      record('❤', 'u1'),
+      record('❤', 'u2'),
+    ])
+    const store = useReactionRecountsStore()
+    const serverCounts = { '❤': 2 }
+    await store.ensure('acc1', 'n1', serverCounts)
+    expect(store.get('acc1', 'n1', serverCounts)).toEqual({ '❤': 1 })
+
+    // acc2 は自分の列挙で数える (acc1 の除外結果を引き継がない)
+    expect(store.isPending('acc2', 'n1', serverCounts)).toBe(true)
+    await store.ensure('acc2', 'n1', serverCounts)
+    expect(store.get('acc2', 'n1', serverCounts)).toEqual({ '❤': 2 })
+    expect(store.get('acc1', 'n1', serverCounts)).toEqual({ '❤': 1 })
   })
 
   it('LRU 破棄されたノートは pending に戻らない (サーバー集計へフォールバック)', async () => {
@@ -238,16 +262,16 @@ describe('useReactionRecountsStore.isPending (#1081)', () => {
     expect(store.get('acc1', 'n0', { '❤': 1 })).toBeNull()
     // pending に戻すと evict → refetch → evict の自己増幅ループになるため、
     // 一度取得が完了したノートは集計表示へフォールバックする
-    expect(store.isPending('n0', { '❤': 1 })).toBe(false)
+    expect(store.isPending('acc1', 'n0', { '❤': 1 })).toBe(false)
   })
 
   it('purgeAll は settled 履歴ごと消して pending に戻す (ミュート解除の取り直し)', async () => {
     getNoteReactionsMock.mockResolvedValue([record('❤', 'u1')])
     const store = useReactionRecountsStore()
     await store.ensure('acc1', 'n1', { '❤': 1 })
-    expect(store.isPending('n1', { '❤': 1 })).toBe(false)
+    expect(store.isPending('acc1', 'n1', { '❤': 1 })).toBe(false)
     store.purgeAll()
-    expect(store.isPending('n1', { '❤': 1 })).toBe(true)
+    expect(store.isPending('acc1', 'n1', { '❤': 1 })).toBe(true)
   })
 })
 
@@ -273,7 +297,7 @@ describe('useReactionRecountsStore: 失敗の回復と purge の race (#1084)', 
       const serverCounts = { '❤': 2 }
       await store.ensure('acc1', 'note1', serverCounts)
       // 失敗はフォールバックで確定 (隠れたまま固まらない)
-      expect(store.isPending('note1', serverCounts)).toBe(false)
+      expect(store.isPending('acc1', 'note1', serverCounts)).toBe(false)
       expect(store.get('acc1', 'note1', serverCounts)).toBeNull()
 
       // 同じ serverCounts でもクールダウン明けに取り直され、回復する
@@ -333,6 +357,6 @@ describe('useReactionRecountsStore: 失敗の回復と purge の race (#1084)', 
     await vi.waitFor(() => {
       expect(store.get('acc1', 'note1', serverCounts)).toEqual({ '❤': 2 })
     })
-    expect(store.isPending('note1', serverCounts)).toBe(false)
+    expect(store.isPending('acc1', 'note1', serverCounts)).toBe(false)
   })
 })

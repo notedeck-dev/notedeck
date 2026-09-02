@@ -310,6 +310,13 @@ const metrics = shallowRef<MetricsSnapshot | null>(null)
 const metricsError = ref<string | null>(null)
 let metricsTimer: ReturnType<typeof setInterval> | null = null
 
+function stopMetricsTimer(): void {
+  if (metricsTimer !== null) {
+    clearInterval(metricsTimer)
+    metricsTimer = null
+  }
+}
+
 async function refreshMetrics(): Promise<void> {
   const result = await dispatchCapability(
     'metrics.read',
@@ -321,6 +328,13 @@ async function refreshMetrics(): Promise<void> {
     metricsError.value = null
   } else {
     metricsError.value = result.error
+    // 権限拒否・未登録は再試行で変わらないのでポーリングを止める
+    if (
+      result.code === 'permission_denied' ||
+      result.code === 'unknown_capability'
+    ) {
+      stopMetricsTimer()
+    }
   }
 }
 
@@ -328,15 +342,12 @@ watch(metricsOpen, (open) => {
   if (open) {
     void refreshMetrics()
     metricsTimer = setInterval(() => void refreshMetrics(), 2_000)
-  } else if (metricsTimer !== null) {
-    clearInterval(metricsTimer)
-    metricsTimer = null
+  } else {
+    stopMetricsTimer()
   }
 })
 
-onUnmounted(() => {
-  if (metricsTimer !== null) clearInterval(metricsTimer)
-})
+onUnmounted(stopMetricsTimer)
 
 const QUALITY_LABELS: Record<QualityLevel, string> = {
   low: '低',

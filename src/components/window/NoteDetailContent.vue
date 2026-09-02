@@ -152,6 +152,11 @@ onMounted(async () => {
       hasToken: account.hasToken,
     })
     adapter = result.adapter
+    // adapter は非リアクティブなローカル変数なので、キャッシュ即描画の窓で
+    // 初期化前に選ばれたタブ・種別は watch では拾えない。ここで拾い直す
+    // (PR #1086 レビュー)
+    void loadTabContent(activeTab.value)
+    void loadReactionUsers(reactionTab.value)
     note.value = await adapter.api.getNote(props.noteId)
 
     const [conv, replies] = await Promise.all([
@@ -190,7 +195,7 @@ watch(
 
 const loadedTabs = ref<Set<DetailTab>>(new Set(['replies']))
 
-watch(activeTab, async (tab) => {
+async function loadTabContent(tab: DetailTab): Promise<void> {
   if (loadedTabs.value.has(tab)) return
   if (tab === 'reactions') {
     // adapter 初期化を待たずに登録する — キャッシュ済みノートでは初期化前に
@@ -209,7 +214,9 @@ watch(activeTab, async (tab) => {
   } catch (e) {
     console.warn('[NoteDetail] failed to load tab:', tab, e)
   }
-})
+}
+
+watch(activeTab, (tab) => void loadTabContent(tab))
 
 // 抹消でチップが消えたら選択タブを追従させる。数え直しの保留中 (#1081) に
 // タブを開くと未選択のままになるので、種別が現れたときも先頭を選ぶ
@@ -225,7 +232,7 @@ watch(reactionTypes, (types) => {
   }
 })
 
-watch(reactionTab, async (type) => {
+async function loadReactionUsers(type: string | null): Promise<void> {
   if (!type || !adapter) return
   reactionUsers.value = []
   try {
@@ -237,7 +244,9 @@ watch(reactionTab, async (type) => {
   } catch (e) {
     console.warn('[NoteDetail] failed to load reactions:', type, e)
   }
-})
+}
+
+watch(reactionTab, (type) => void loadReactionUsers(type))
 
 function reactionTypeUrl(type: string): string | null {
   if (!note.value) return null

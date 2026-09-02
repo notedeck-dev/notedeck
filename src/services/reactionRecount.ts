@@ -47,3 +47,16 @@ export function totalReactionCount(counts: Record<string, number>): number {
   for (const n of Object.values(counts)) sum += n
   return sum
 }
+
+/**
+ * これを超えるリアクション総数のノートは列挙を取得しない (#575)。
+ * `notes/reactions` は 1 回 100 件までなので、1 リクエストで全件取れる
+ * 範囲だけを対象にする。超えるノートはサーバー集計のまま表示。
+ */
+export const RECOUNT_MAX_TOTAL = 100
+
+/** 列挙取得の対象か。0 件と総数超過は対象外 (サーバー集計のまま表示)。 */
+export function isRecountTarget(serverCounts: Record<string, number>): boolean {
+  const total = totalReactionCount(serverCounts)
+  return total > 0 && total <= RECOUNT_MAX_TOTAL
+}

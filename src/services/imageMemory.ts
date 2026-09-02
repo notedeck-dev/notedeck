@@ -26,6 +26,21 @@ export interface ImageMemoryEstimate {
   estimatedDecodedBytes: number
 }
 
+/**
+ * アプリ自身の資産 (同梱 SVG / 生成 blob) をリモート画像として誤計上しない
+ * ための判定。同一オリジンは URL の origin 同士で比較する — 接頭辞比較だと
+ * `https://app.example.evil/...` もローカル扱いになり過少報告する。
+ */
+export function isLocalAssetUrl(url: string, appOrigin: string): boolean {
+  if (url.startsWith('data:') || url.startsWith('blob:')) return true
+  try {
+    return new URL(url).origin === appOrigin
+  } catch {
+    // parse 不能な URL はサイズ推定も信用できないので集計から外す
+    return true
+  }
+}
+
 export function estimateImageMemory(
   images: Iterable<ImageLike>,
   isLocalAsset: (url: string) => boolean,
