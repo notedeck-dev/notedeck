@@ -12,10 +12,7 @@ import {
   getStreamHealth,
   type OverallStreamHealth,
 } from '@/core/streamHealth'
-import {
-  DEFAULT_JANK_DOWNGRADE_THRESHOLD,
-  type QualityLevel,
-} from '@/engine/telemetry/frameTelemetry'
+import type { QualityLevel } from '@/engine/telemetry/frameTelemetry'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
@@ -404,10 +401,12 @@ const metricsRows = computed<MetricsRow[]>(() => {
         {
           label: 'フレーム落ち',
           value: `${jank} 回/秒`,
+          // 閾値は snapshot が返す実効値 (performance.json5 で変更可能) を
+          // 使い、自動調整の判定と診断がずれないようにする
           status:
             jank === 0
               ? 'ok'
-              : jank <= DEFAULT_JANK_DOWNGRADE_THRESHOLD
+              : jank <= f.jankDowngradeThreshold
                 ? 'warn'
                 : 'fail',
         },

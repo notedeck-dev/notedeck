@@ -103,14 +103,17 @@ export const metricsReadCapability: Command = {
       type: 'object',
       description:
         '{ schemaVersion, capturedAt, frame: { available, lastSampleAt, ' +
-        'sampleCount, frameBudgetMs, fps, frameTimeEmaMs, p95FrameTimeMs, ' +
-        'jankCount }, adaptiveQuality: { currentLevel, autoAdjustEnabled }, ' +
+        'sampleCount, frameBudgetMs, jankDowngradeThreshold, fps, ' +
+        'frameTimeEmaMs, p95FrameTimeMs, jankCount }, ' +
+        'adaptiveQuality: { currentLevel, autoAdjustEnabled }, ' +
         'streaming: { observedConnectionCount, byState, overallHealth, ' +
         'lastTransitionAt }, startup: { webviewFixedCostMs, phases: ' +
         '[{ name, atMs }] }, memory: { jsHeap: { usedBytes, totalBytes } | ' +
         'null, images: { elementCount, uniqueCount, estimatedDecodedBytes } } }。' +
         '時刻は epoch ms。frameBudgetMs は 1 フレームの時間予算 ' +
         '(1000/リフレッシュレート) で、jank はその 2 倍超のフレーム数/秒。' +
+        'jankCount が jankDowngradeThreshold (実効設定値) を超えると' +
+        '自動調整が品質を 1 段下げる。' +
         'fps は直近 1 秒に描画作業を実行した frame 数で、' +
         '画面リフレッシュレートではない。p95FrameTimeMs は sampleCount が' +
         '小さい間 (起動直後) はサンプル最大値に寄る。overallHealth は ' +

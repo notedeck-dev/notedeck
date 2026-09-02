@@ -50,6 +50,7 @@ describe('frameTelemetry snapshot', () => {
       lastSampleAt: null,
       sampleCount: 0,
       frameBudgetMs: 16.6,
+      jankDowngradeThreshold: 5,
       fps: null,
       frameTimeEmaMs: null,
       p95FrameTimeMs: null,
@@ -58,7 +59,11 @@ describe('frameTelemetry snapshot', () => {
   })
 
   it('exposes the first real sample and its timestamp', () => {
-    frameTelemetry.start('balanced', undefined, { frameHistorySize: 4 })
+    // jank 閾値は performance.json5 由来の実効値が snapshot に出る
+    frameTelemetry.start('balanced', undefined, {
+      frameHistorySize: 4,
+      jankDowngradeThreshold: 9,
+    })
 
     emitFrame({
       fps: 42,
@@ -72,6 +77,7 @@ describe('frameTelemetry snapshot', () => {
       lastSampleAt: 1_000_000,
       sampleCount: 1,
       frameBudgetMs: 16.6,
+      jankDowngradeThreshold: 9,
       fps: 42,
       frameTimeEmaMs: 24,
       p95FrameTimeMs: 24,
