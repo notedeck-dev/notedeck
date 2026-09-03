@@ -23,6 +23,20 @@ vi.mock('./events', async () => {
   }
 })
 
+// requiresConfirmation の確認ダイアログは node 環境で開けないので、決定だけ差し替える
+const confirmDecision = vi.hoisted(() => ({ accepted: true, remember: false }))
+vi.mock('@/stores/confirm', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/stores/confirm')>('@/stores/confirm')
+  return {
+    ...actual,
+    useConfirm: () => ({
+      ...actual.useConfirm(),
+      confirmWithDecision: async () => ({ ...confirmDecision }),
+    }),
+  }
+})
+
 // Note: 本テストは「Nd:register_command が options を Command にどう乗せるか」と
 // 「Nd:call / Nd:capabilities が dispatcher / registry を正しく呼ぶか」を検証する。
 // AiScript インタプリタ経由の execute 挙動は実機 / E2E で確認する。
@@ -579,5 +593,55 @@ describe('登録 ID は provider 名前空間 (#794 未決事項 2)', () => {
     ])
     expect(a.register.mock.calls[0]?.[0]?.id).toBe('acme.clock:greet')
     expect(b.register.mock.calls[0]?.[0]?.id).toBe('other.plugin:greet')
+  })
+})
+
+describe('Nd:call — 確認ダイアログのキャンセル (#1074)', () => {
+  beforeEach(() => {
+    _clearCapabilitiesForTest()
+    confirmDecision.accepted = true
+  })
+
+  afterEach(() => {
+    _clearCapabilitiesForTest()
+  })
+
+  it('キャンセルは throw せず、user_cancelled の error 値として返る', async () => {
+    // キャンセルはユーザーの正常な操作。AiScript に try/catch は無いので、
+    // throw するとプラグイン側で握り潰す手段がない。本家 Mk:api の失敗時と
+    // 同じく error 値で返し、Core:type(r) == "error" で見分けられるようにする
+    const execute = vi.fn().mockReturnValue('should not run')
+    registerCapability(
+      makeCapability({
+        id: 'demo.confirm',
+        requiresConfirmation: true,
+        execute,
+      }),
+    )
+    confirmDecision.accepted = false
+    const stores = makeFakeStores()
+    const env = createNoteDeckEnv(stores.ctx)
+    const result = await callNative(env, 'Nd:call', [
+      values.STR('demo.confirm'),
+    ])
+    expect(result.type).toBe('error')
+    expect(result.type === 'error' ? result.value : null).toBe('user_cancelled')
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('承認されれば従来どおり結果が返る', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'demo.confirm',
+        requiresConfirmation: true,
+        execute: () => 'done',
+      }),
+    )
+    const stores = makeFakeStores()
+    const env = createNoteDeckEnv(stores.ctx)
+    const result = await callNative(env, 'Nd:call', [
+      values.STR('demo.confirm'),
+    ])
+    expect(utils.valToJs(result)).toBe('done')
   })
 })
