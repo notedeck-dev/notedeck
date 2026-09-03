@@ -565,13 +565,20 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
   // Plugin-specific Mk:api overrides the base one
   const env = { ...baseEnv, ...pluginEnv, ...ndEnv }
 
-  const ioOpts = createInterpreterOptions({
-    onOutput: (text) => runLog.print(text),
-    onError: (err) => {
-      runLog.error(err.message)
-      ctx.lastError = err.message
-    },
-  })
+  const ioOpts = {
+    ...createInterpreterOptions({
+      onOutput: (text) => runLog.print(text),
+      onError: (err) => {
+        runLog.error(err.message)
+        ctx.lastError = err.message
+      },
+    }),
+    // プラグインは長寿命の interpreter 1 つに handler を登録する構造。共通値の
+    // abortOnError: true だと handler が 1 回エラーを出しただけで interpreter が
+    // 止まり、設定を直して再クリックしても以後ずっと無言になる。本家 Misskey
+    // 同様、エラーは err callback に流すだけで interpreter は止めない
+    abortOnError: false,
+  }
 
   const code = sanitizeCode(plugin.src)
 

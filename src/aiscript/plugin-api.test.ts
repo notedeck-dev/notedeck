@@ -706,6 +706,25 @@ describe('UI 起点の実行エラー表示 (#1072 / #1074)', () => {
     expect(entries.some((e) => e.level === 'error')).toBe(false)
   })
 
+  it('handler のエラー後も同じプラグインの別の action は動く', async () => {
+    // interpreter を abortOnError で止めると、設定を直して再クリックしても
+    // 以後ずっと無言になる — toast が初回にしか効かない
+    await installAndLaunch(
+      [
+        'Plugin:register_note_action("boom", @(note) { Nd:call("nope.nope") })',
+        'Plugin:register_note_action("ok", @(note) { Mk:toast("alive") })',
+      ].join('\n'),
+    )
+    const handlers = getPluginHandlers('note_action')
+    await handlers.find((h) => h.title === 'boom')?.handler({ id: 'n1' })
+    await handlers.find((h) => h.title === 'ok')?.handler({ id: 'n1' })
+    await handlers.find((h) => h.title === 'boom')?.handler({ id: 'n1' })
+    const texts = useToast().toasts.value.map((t) => t.text)
+    expect(texts).toContain('alive')
+    // 2 回目のエラーも toast に届く (同文は積み直さず延長される)
+    expect(texts.filter((t) => t.includes('nope.nope'))).toHaveLength(1)
+  })
+
   it('interruptor のエラーは描画のたびに走るので toast にしない', async () => {
     await installAndLaunch(
       'Plugin:register_note_view_interruptor(@(note) { Core:add(1, "a") })',
