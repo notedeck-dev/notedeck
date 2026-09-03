@@ -1,5 +1,10 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  _clearCapabilitiesForTest,
+  registerCapability,
+} from '@/capabilities/registry'
+import type { Command } from '@/commands/registry'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
@@ -34,6 +39,20 @@ vi.mock('@/utils/tauriInvoke', async () => {
 vi.mock('@/permissions/misskeyApiGate', () => ({
   assertMisskeyApiAllowed: vi.fn(() => Promise.resolve()),
 }))
+
+// requiresConfirmation の確認ダイアログは node 環境で開けないので、決定だけ差し替える
+const confirmDecision = vi.hoisted(() => ({ accepted: true, remember: false }))
+vi.mock('@/stores/confirm', async () => {
+  const actual =
+    await vi.importActual<typeof import('@/stores/confirm')>('@/stores/confirm')
+  return {
+    ...actual,
+    useConfirm: () => ({
+      ...actual.useConfirm(),
+      confirmWithDecision: async () => ({ ...confirmDecision }),
+    }),
+  }
+})
 
 vi.mock('@/utils/url', async () => {
   const actual =
@@ -588,5 +607,110 @@ describe('Mk:toast (プラグイン env の配線)', () => {
     // handler は execFn の Promise を返す (#821) ので await だけで完了を追える
     await getPluginHandlers('note_action')[0]?.handler({ id: 'n1' })
     expect(toasts.value.map((t) => t.text)).toEqual(['done'])
+  })
+})
+
+describe('UI 起点の実行エラー表示 (#1072 / #1074)', () => {
+  function makeCapability(overrides: Partial<Command>): Command {
+    return {
+      id: 'test.cap',
+      label: 'test',
+      icon: 'ti-flask',
+      category: 'general',
+      shortcuts: [],
+      permissions: [],
+      signature: { description: 'test capability' },
+      execute: () => 'ok',
+      ...overrides,
+    }
+  }
+
+  beforeEach(() => {
+    _clearCapabilitiesForTest()
+    confirmDecision.accepted = true
+    useToast().toasts.value.splice(0)
+  })
+
+  afterEach(() => {
+    _clearCapabilitiesForTest()
+  })
+
+  it('note_action の実行時エラーはプラグイン名付きの toast で通知される', async () => {
+    // AiScript に try/catch が無いためプラグイン側では回避できない。runLog だけに
+    // 流すと「メニューを押したのに何も起きない」に見える (#1072)
+    const plugin = await installAndLaunch(
+      'Plugin:register_note_action("boom", @(note) { Nd:call("nope.nope") })',
+    )
+    await getPluginHandlers('note_action')[0]?.handler({ id: 'n1' })
+    const { toasts } = useToast()
+    expect(toasts.value).toHaveLength(1)
+    expect(toasts.value[0]?.type).toBe('error')
+    expect(toasts.value[0]?.text).toContain(plugin.name)
+    expect(toasts.value[0]?.text).toContain('unknown_capability')
+    // runLog への記録は従来どおり残す (詳細はそちらで追う)
+    const entries = useAiScriptLogsStore().entriesFor(
+      'plugin',
+      plugin.installId,
+    )
+    expect(entries.some((e) => e.level === 'error')).toBe(true)
+  })
+
+  it('user_action / post_form_action も同じ経路で通知される', async () => {
+    await installAndLaunch(
+      'Plugin:register_user_action("u", @(user) { Nd:call("nope.user") })',
+    )
+    await installAndLaunch(
+      'Plugin:register_post_form_action("p", @(form, update) { Nd:call("nope.form") })',
+    )
+    await getPluginHandlers('user_action')[0]?.handler({ id: 'u1' })
+    await getPluginHandlers('post_form_action')[0]?.handler(
+      { text: '' },
+      vi.fn(),
+    )
+    const texts = useToast().toasts.value.map((t) => t.text)
+    expect(texts.some((t) => t.includes('nope.user'))).toBe(true)
+    expect(texts.some((t) => t.includes('nope.form'))).toBe(true)
+  })
+
+  it('正常終了では toast を出さない', async () => {
+    await installAndLaunch(
+      'Plugin:register_note_action("ok", @(note) { note.id })',
+    )
+    await getPluginHandlers('note_action')[0]?.handler({ id: 'n1' })
+    expect(useToast().toasts.value).toHaveLength(0)
+  })
+
+  it('確認ダイアログのキャンセルは error にならず toast も出ない (#1074)', async () => {
+    const execute = vi.fn().mockReturnValue('should not run')
+    registerCapability(
+      makeCapability({
+        id: 'demo.confirm',
+        requiresConfirmation: true,
+        execute,
+      }),
+    )
+    confirmDecision.accepted = false
+    // プラグインは戻り値の型で「キャンセルされた」と見分けられる
+    const plugin = await installAndLaunch(
+      'Plugin:register_note_action("c", @(note) { let r = Nd:call("demo.confirm"); Mk:toast(Core:type(r)) })',
+    )
+    await getPluginHandlers('note_action')[0]?.handler({ id: 'n1' })
+    expect(execute).not.toHaveBeenCalled()
+    expect(useToast().toasts.value.map((t) => [t.text, t.type])).toEqual([
+      ['error', 'info'],
+    ])
+    const entries = useAiScriptLogsStore().entriesFor(
+      'plugin',
+      plugin.installId,
+    )
+    expect(entries.some((e) => e.level === 'error')).toBe(false)
+  })
+
+  it('interruptor のエラーは描画のたびに走るので toast にしない', async () => {
+    await installAndLaunch(
+      'Plugin:register_note_view_interruptor(@(note) { Core:add(1, "a") })',
+    )
+    applyNoteViewInterruptors({ id: 'n1' })
+    expect(useToast().toasts.value).toHaveLength(0)
   })
 })

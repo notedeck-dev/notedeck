@@ -82,6 +82,12 @@ export function createNoteDeckEnv(
       accountId: ctx.getAccountId?.() ?? null,
     })
     if (!result.ok) {
+      // 確認ダイアログのキャンセルはユーザーの正常な操作 (#1074)。AiScript に
+      // try/catch は無く、throw するとプラグイン側で握り潰せないため、本家
+      // Mk:api の失敗時と同じく error 値で返す (Core:type(r) == "error")
+      if (result.code === 'user_cancelled') {
+        return values.ERROR('user_cancelled', values.STR(result.error))
+      }
       throw new Error(
         `Nd:call ${idVal.value} (${result.code}): ${result.error}`,
       )

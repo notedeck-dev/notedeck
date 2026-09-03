@@ -178,7 +178,16 @@ export interface PluginHandler {
 
 const pluginHandlers: PluginHandler[] = []
 const pluginContexts = new Map<string, Interpreter>()
-const pluginAccountContext = new Map<string, { accountId: string | null }>()
+const pluginAccountContext = new Map<string, PluginRunContext>()
+
+/**
+ * 実行中プラグインのミュータブル文脈。accountId は handler 実行中のアカウント
+ * (#821)、lastError は直近の実行時エラー (UI 起点の実行が toast に拾う、#1072)。
+ */
+interface PluginRunContext {
+  accountId: string | null
+  lastError: string | null
+}
 const pluginNdContexts = new Map<string, NoteDeckEnvContext>()
 
 /**
@@ -223,10 +232,33 @@ function removePluginHandlers(installId: string) {
 
 function createPluginSpecificEnv(
   plugin: PluginMeta,
-  ctx: { accountId: string | null },
+  ctx: PluginRunContext,
 ): Record<string, Value> {
   const id = plugin.installId
   const consts: Record<string, Value> = {}
+
+  // UI 起点 (ユーザーのクリックが起点) の handler 実行 (#1072)。実行時エラーは
+  // runLog に加えて toast でも知らせる — AiScript に try/catch が無いため
+  // プラグイン側では回避できず、runLog だけだと「押したのに何も起きない」に
+  // 見える。interruptor は描画のたびに走るので対象外。
+  // execFn の Promise を返す (#821) — withPluginAccountContext が handler 本体の
+  // 完了 (Mk:api 等の await 含む) を追跡できるようにする。interpreter に err
+  // callback が登録済みのため reject はしない。
+  const runUiAction = async (handler: VFn, args: Value[]): Promise<void> => {
+    const interp = pluginContexts.get(id)
+    if (!interp) return
+    ctx.lastError = null
+    await interp.execFn(handler, args)
+    // await 越しの err callback による書き換えを TS は追えない (代入の narrowing
+    // が残る) ため型を戻す
+    const message = ctx.lastError as string | null
+    if (message) {
+      // AiScript のエラー文は 2 行目以降にスタックが付く。toast は要点だけ
+      // 見せ、全文は runLog で追う
+      const [firstLine] = message.split('\n', 1)
+      useToast().show(`${plugin.name}: ${firstLine}`, 'error')
+    }
+  }
 
   // --- Plugin:register_note_action ---
   consts['Plugin:register_note_action'] = values.FN_NATIVE(
@@ -237,14 +269,8 @@ function createPluginSpecificEnv(
         pluginInstallId: id,
         type: 'note_action',
         title: titleVal.value,
-        handler: (note: unknown) => {
-          const interp = pluginContexts.get(id)
-          if (!interp) return
-          // execFn の Promise を返す (#821) — withPluginAccountContext が
-          // handler 本体の完了 (Mk:api 等の await 含む) を追跡できるようにする。
-          // interpreter に err callback が登録済みのため reject はしない。
-          return interp.execFn(handlerVal as VFn, [utils.jsToVal(note)])
-        },
+        handler: (note: unknown) =>
+          runUiAction(handlerVal as VFn, [utils.jsToVal(note)]),
       })
     },
   )
@@ -258,11 +284,8 @@ function createPluginSpecificEnv(
         pluginInstallId: id,
         type: 'user_action',
         title: titleVal.value,
-        handler: (user: unknown) => {
-          const interp = pluginContexts.get(id)
-          if (!interp) return
-          return interp.execFn(handlerVal as VFn, [utils.jsToVal(user)])
-        },
+        handler: (user: unknown) =>
+          runUiAction(handlerVal as VFn, [utils.jsToVal(user)]),
       })
     },
   )
@@ -279,17 +302,14 @@ function createPluginSpecificEnv(
         handler: (
           form: unknown,
           update: (key: unknown, value: unknown) => void,
-        ) => {
-          const interp = pluginContexts.get(id)
-          if (!interp) return
-          return interp.execFn(handlerVal as VFn, [
+        ) =>
+          runUiAction(handlerVal as VFn, [
             utils.jsToVal(form),
             values.FN_NATIVE(([keyVal, valueVal]) => {
               if (!keyVal || !valueVal) return
               update(utils.valToJs(keyVal), utils.valToJs(valueVal))
             }),
-          ])
-        },
+          ]),
       })
     },
   )
@@ -503,7 +523,7 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
   )
   pluginRunLoggers.set(plugin.installId, runLog)
 
-  const ctx = { accountId: null as string | null }
+  const ctx: PluginRunContext = { accountId: null, lastError: null }
   pluginAccountContext.set(plugin.installId, ctx)
 
   // Build environment: base Mk:* (overridden by plugin-specific Mk:api) + Plugin:* + Nd:*
@@ -547,7 +567,10 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
 
   const ioOpts = createInterpreterOptions({
     onOutput: (text) => runLog.print(text),
-    onError: (err) => runLog.error(err.message),
+    onError: (err) => {
+      runLog.error(err.message)
+      ctx.lastError = err.message
+    },
   })
 
   const code = sanitizeCode(plugin.src)
