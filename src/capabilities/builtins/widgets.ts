@@ -352,7 +352,7 @@ export const widgetsDeleteCapability: Command = {
     },
     returns: {
       type: 'object',
-      description: '{ installId, installIds: string[], removed: boolean }',
+      description: '{ installId, removed: boolean }',
     },
   },
   visible: false,
@@ -644,7 +644,10 @@ export const widgetsUninstallCapability: Command = {
     },
     returns: {
       type: 'object',
-      description: '{ installId, removed: boolean }',
+      description:
+        '{ installId, installIds: string[], removed: boolean }。' +
+        ' storeId 指定は実行アカウント別の全個体が対象なので installIds に' +
+        ' 消した個体をすべて返す。',
     },
   },
   visible: false,

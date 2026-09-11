@@ -159,6 +159,16 @@ describe('widgets.uninstall capability', () => {
     )
   })
 
+  it('storeId 指定は全個体を消すので戻り値に installIds を宣言する (#1061)', () => {
+    expect(
+      widgetsUninstallCapability.signature?.returns?.description,
+    ).toContain('installIds')
+    // widgets.delete は installId 指定の 1 個体のみ — installIds は返さない
+    expect(
+      widgetsDeleteCapability.signature?.returns?.description,
+    ).not.toContain('installIds')
+  })
+
   it('marks both installId and storeId as optional (one of them required)', () => {
     const params = widgetsUninstallCapability.signature?.params
     expect(params?.installId?.optional).toBe(true)

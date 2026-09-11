@@ -111,7 +111,17 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
 })
 
 function loadWidgetsFromStorage(): WidgetMeta[] {
-  return getStorageJson<WidgetMeta[]>(STORAGE_KEYS.widgets, [])
+  // 旧ミラーは実行アカウントを内部 UUID の accountId で直接持つ (#1061)。
+  // ファイル経由 (fromFile) と同じ形に正規化しないと、ミラーだけに在る個体
+  // (ブラウザ実行・ファイル欠損からの復旧) が移行対象から漏れる
+  return getStorageJson<WidgetMeta[]>(STORAGE_KEYS.widgets, []).map((w) => {
+    const legacy = (w as WidgetMeta & { accountId?: string }).accountId
+    if (!legacy) return w
+    const { accountId: _drop, ...rest } = w as WidgetMeta & {
+      accountId?: string
+    }
+    return w.accountKey ? rest : { ...rest, legacyAccountId: legacy }
+  })
 }
 
 function saveWidgetsToStorage(widgets: WidgetMeta[]) {

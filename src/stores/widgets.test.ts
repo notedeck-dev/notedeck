@@ -258,6 +258,19 @@ describe('useWidgetsStore.migrateScopes — 実行アカウントの安定キー
     expect(w?.legacyAccountId).toBeUndefined()
   })
 
+  it('ミラーに旧形式 (accountId) のまま残っている個体も移行する', () => {
+    setupAccounts()
+    // 旧バージョンの localStorage ミラーはファイルを経由せず accountId を直接持つ
+    seed({ ...makeWidget('w1'), accountId: 'uuid-yami' } as WidgetMeta)
+    const store = useWidgetsStore()
+
+    store.migrateScopes()
+
+    const w = store.getWidget('w1') as WidgetMeta & { accountId?: string }
+    expect(w?.accountKey).toBe('yami.ski:u1')
+    expect(w?.accountId).toBeUndefined()
+  })
+
   it('旧 accountId が現存しないアカウントなら「アカウント無し」へ戻して救済する', () => {
     setupAccounts()
     seed({ ...makeWidget('w1'), legacyAccountId: 'uuid-dead' })
