@@ -127,10 +127,18 @@ describe('widgets.install capability', () => {
     )
   })
 
-  it('marks id as the only required param', () => {
+  it('marks id as the only required param; accountId is optional (#1061)', () => {
     const params = widgetsInstallCapability.signature?.params
     expect(params?.id?.optional).not.toBe(true)
-    expect(Object.keys(params ?? {})).toEqual(['id'])
+    expect(params?.accountId?.optional).toBe(true)
+    expect(Object.keys(params ?? {})).toEqual(['id', 'accountId'])
+  })
+
+  it('accountId が現存しないアカウントなら fetch 前に失敗する (#1061)', async () => {
+    setActivePinia(createPinia())
+    await expect(
+      widgetsInstallCapability.execute({ id: 'clock', accountId: 'nope' }),
+    ).rejects.toThrow(/account "nope" not found/)
   })
 })
 

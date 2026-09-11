@@ -33,6 +33,14 @@ export function accountScopeKey(account: {
   return `${account.host}:${account.userId}`
 }
 
+/** 安定キー → 現行アカウント (無ければ undefined)。 */
+export function findAccountByScopeKey(
+  accounts: readonly Account[],
+  key: string,
+): Account | undefined {
+  return accounts.find((a) => accountScopeKey(a) === key)
+}
+
 export function isGuestAccount(account: Account): boolean {
   return account.userId === GUEST_USER_ID && !account.hasToken
 }

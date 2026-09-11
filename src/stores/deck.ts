@@ -644,8 +644,8 @@ export const useDeckStore = defineStore('deck', () => {
       storeId?: string
       name?: string
       iconUrl?: string
-      /** 実行アカウント (#1018)。全アカウントのカラムでインストール時に選ぶ */
-      accountId?: string
+      /** 実行アカウントの安定キー (#1018)。全アカウントのカラムでインストール時に選ぶ */
+      accountKey?: string
     },
   ) {
     const col = getColumn(columnId)
@@ -659,7 +659,7 @@ export const useDeckStore = defineStore('deck', () => {
       autoRun: initial?.autoRun ?? false,
       storeId: initial?.storeId,
       iconUrl: initial?.iconUrl,
-      accountId: initial?.accountId,
+      accountKey: initial?.accountKey,
       createdAt: now,
       updatedAt: now,
     })
@@ -708,6 +708,17 @@ export const useDeckStore = defineStore('deck', () => {
         }
       }
     })
+  }
+
+  /**
+   * アカウント削除時に、そのアカウントに固定されたウィジェット個体を
+   * 参照ごと消す (#1061)。本体削除の前に全カラムから剥がす。
+   */
+  function purgeAccountWidgets(accountKey: string) {
+    for (const w of widgetsStore.widgets) {
+      if (w.accountKey === accountKey) detachWidgetFromAllColumns(w.installId)
+    }
+    widgetsStore.purgeAccount(accountKey)
   }
 
   /**
@@ -895,6 +906,7 @@ export const useDeckStore = defineStore('deck', () => {
     addWidget,
     attachWidget,
     detachWidgetFromAllColumns,
+    purgeAccountWidgets,
     removeWidget,
     reorderWidgetIds,
     // Wallpaper (facade)

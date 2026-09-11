@@ -18,6 +18,10 @@ const EXEMPT: readonly string[] = [
   // 指定で、API 実行主体ではない
   'column.add',
   'column.updateSettings',
+  // widgets.install の accountId は「その個体をどのアカウントで動かすか」の
+  // 紐付け (#1061)。呼び出し時点では MisStore から取得するだけで Misskey API
+  // を叩かず、column.add と同じ UI スコープ指定
+  'widgets.install',
 ]
 
 describe('actsAsAccount 宣言 (#777)', () => {

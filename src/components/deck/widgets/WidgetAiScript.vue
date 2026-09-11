@@ -37,6 +37,7 @@ const MkPostForm = defineAsyncComponent(
 )
 
 import {
+  findAccountByScopeKey,
   getAccountAvatarUrl,
   getAccountLabel,
   useAccountsStore,
@@ -79,8 +80,8 @@ const serverUrl = computed(() => {
  * カラムヘッダーが既に示しているので重ねて出さない。
  */
 const ownAccount = computed(() => {
-  const id = props.widget.accountId
-  return id ? accountsStore.accounts.find((a) => a.id === id) : undefined
+  const key = props.widget.accountKey
+  return key ? findAccountByScopeKey(accountsStore.accounts, key) : undefined
 })
 // src の正本は widgetsStore (widget-edit window / AI 経由で更新される)。
 const code = computed(() => props.widget.src ?? '')

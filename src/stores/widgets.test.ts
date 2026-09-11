@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { type Account, useAccountsStore } from '@/stores/accounts'
 import { pushSnapshot } from '@/utils/historyFs'
+import { STORAGE_KEYS, setStorageJson } from '@/utils/storage'
 import { useWidgetsStore, type WidgetMeta } from './widgets'
 
 vi.mock('@/utils/historyFs', () => ({
@@ -189,32 +191,123 @@ describe('編集履歴の同値ガード (#981)', () => {
   })
 })
 
-describe('useWidgetsStore.setAccountId — ウィジット単位の実行アカウント (#1018)', () => {
+describe('useWidgetsStore.setAccountKey — ウィジット単位の実行アカウント (#1018 / #1061)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
   })
 
-  it('実行アカウントを固定できる', () => {
+  it('実行アカウントを安定キーで固定できる', () => {
     const store = useWidgetsStore()
     store.addWidget(makeWidget('w-acc'))
 
-    store.setAccountId('w-acc', 'a1')
+    store.setAccountKey('w-acc', 'misskey.io:u1')
 
-    expect(store.getWidget('w-acc')?.accountId).toBe('a1')
+    expect(store.getWidget('w-acc')?.accountKey).toBe('misskey.io:u1')
   })
 
   it('undefined を渡すと解除される (カラムのアカウントに従う状態へ戻す)', () => {
     const store = useWidgetsStore()
-    store.addWidget({ ...makeWidget('w-acc'), accountId: 'a1' })
+    store.addWidget({ ...makeWidget('w-acc'), accountKey: 'misskey.io:u1' })
 
-    store.setAccountId('w-acc', undefined)
+    store.setAccountKey('w-acc', undefined)
 
-    expect(store.getWidget('w-acc')?.accountId).toBeUndefined()
+    expect(store.getWidget('w-acc')?.accountKey).toBeUndefined()
   })
 
   it('未知の installId は no-op', () => {
     const store = useWidgetsStore()
-    expect(() => store.setAccountId('missing', 'a1')).not.toThrow()
+    expect(() => store.setAccountKey('missing', 'misskey.io:u1')).not.toThrow()
+  })
+})
+
+const yami = {
+  id: 'uuid-yami',
+  host: 'yami.ski',
+  userId: 'u1',
+  username: 'alice',
+  hasToken: true,
+} as Account
+
+function setupAccounts() {
+  const accounts = useAccountsStore()
+  accounts.accounts = [yami]
+  accounts.isLoaded = true
+}
+
+describe('useWidgetsStore.migrateScopes — 実行アカウントの安定キー化 (#1061)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  // 移行は初回ロード直後に 1 回だけ走るので、ロード前のデータとして仕込む
+  function seed(...widgets: WidgetMeta[]) {
+    setStorageJson(STORAGE_KEYS.widgets, widgets)
+  }
+
+  it('旧 accountId (UUID) が現行アカウントに該当すれば安定キーへ置換する', () => {
+    setupAccounts()
+    seed({ ...makeWidget('w1'), legacyAccountId: 'uuid-yami' })
+    const store = useWidgetsStore()
+
+    store.migrateScopes()
+
+    const w = store.getWidget('w1')
+    expect(w?.accountKey).toBe('yami.ski:u1')
+    expect(w?.legacyAccountId).toBeUndefined()
+  })
+
+  it('旧 accountId が現存しないアカウントなら「アカウント無し」へ戻して救済する', () => {
+    setupAccounts()
+    seed({ ...makeWidget('w1'), legacyAccountId: 'uuid-dead' })
+    const store = useWidgetsStore()
+
+    store.migrateScopes()
+
+    const w = store.getWidget('w1')
+    expect(w?.accountKey).toBeUndefined()
+    expect(w?.legacyAccountId).toBeUndefined()
+  })
+
+  it('現存しない安定キーも「アカウント無し」へ戻す (バックアップ復元の孤児)', () => {
+    setupAccounts()
+    seed(
+      { ...makeWidget('w1'), accountKey: 'gone.example:u9' },
+      { ...makeWidget('w2'), accountKey: 'yami.ski:u1' },
+    )
+    const store = useWidgetsStore()
+
+    store.migrateScopes()
+
+    expect(store.getWidget('w1')?.accountKey).toBeUndefined()
+    expect(store.getWidget('w2')?.accountKey).toBe('yami.ski:u1')
+  })
+
+  it('accounts 未ロードなら何もしない', () => {
+    seed({ ...makeWidget('w1'), legacyAccountId: 'uuid-yami' })
+    const store = useWidgetsStore()
+
+    store.migrateScopes()
+
+    expect(store.getWidget('w1')?.legacyAccountId).toBe('uuid-yami')
+  })
+})
+
+describe('useWidgetsStore.purgeAccount — アカウント削除で紐づく個体を消す (#1061)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('同じ安定キーの個体だけを削除し、削除した installId を返す', () => {
+    const store = useWidgetsStore()
+    store.addWidget({ ...makeWidget('w1'), accountKey: 'yami.ski:u1' })
+    store.addWidget({ ...makeWidget('w2'), accountKey: 'cloud.example:u2' })
+    store.addWidget(makeWidget('w3'))
+
+    expect(store.purgeAccount('yami.ski:u1')).toEqual(['w1'])
+
+    expect(store.widgets.map((w) => w.installId)).toEqual(['w2', 'w3'])
   })
 })

@@ -1,4 +1,6 @@
 import type { Command } from '@/commands/registry'
+import { listWidgetInstances } from '@/services/widgetInstances'
+import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { useMisStoreStore } from '@/stores/misstore'
 import {
   generateWidgetId,
@@ -6,6 +8,7 @@ import {
   type WidgetMeta,
 } from '@/stores/widgets'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
+import { pickAccountId } from '../accountContext'
 import { editAttribution, REASON_PARAM } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 import { preflightValidateSrc } from './aiscript'
@@ -338,7 +341,7 @@ export const widgetsDeleteCapability: Command = {
     },
     returns: {
       type: 'object',
-      description: '{ installId, removed: boolean }',
+      description: '{ installId, installIds: string[], removed: boolean }',
     },
   },
   visible: false,
@@ -516,11 +519,20 @@ export const widgetsInstallCapability: Command = {
     description:
       'MisStore (store.notedeck.io) の既製ウィジェットをインストールする。' +
       ' id は `misstore.search` で取得した値を渡す。sha512 検証付き。' +
-      ' 既に同 storeId のウィジェットがインストール済みなら既存 installId を返す。',
+      ' 個体は storeId × 実行アカウントの組で 1 つ。同じ組が既にあれば更新して既存 installId を返す。',
     params: {
       id: {
         type: 'string',
         description: 'MisStore registry 上の widget id',
+      },
+      accountId: {
+        type: 'string',
+        description:
+          'どのアカウントで動かすか (全アカウントのウィジェットカラムに置く個体用)。' +
+          ' 未指定なら実行アカウントを固定しない個体になる (per-account カラムに' +
+          ' 置けばそのカラムのアカウントで動く)。呼び出し文脈のアカウントへは' +
+          ' フォールバックしない。',
+        optional: true,
       },
     },
     returns: {
@@ -532,6 +544,16 @@ export const widgetsInstallCapability: Command = {
   execute: async (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('widgets.install: id is required')
+    // 実行アカウントは安定キーで持つ (#1061)。存在しない指定は fetch 前に弾く
+    const accountId = pickAccountId(params?.accountId)
+    let accountKey: string | undefined
+    if (accountId) {
+      const account = useAccountsStore().accountMap.get(accountId)
+      if (!account) {
+        throw new Error(`widgets.install: account "${accountId}" not found`)
+      }
+      accountKey = accountScopeKey(account)
+    }
     const misStore = useMisStoreStore()
     await misStore.fetchWidgets()
     const entry = misStore.widgets.find((w) => w.id === id)
@@ -540,7 +562,7 @@ export const widgetsInstallCapability: Command = {
         `widgets.install: widget "${id}" not found in MisStore (try misstore.search first)`,
       )
     }
-    const widget = await misStore.installWidget(entry)
+    const widget = await misStore.installWidget(entry, accountKey)
     return {
       installId: widget.installId,
       name: widget.name,
@@ -569,14 +591,17 @@ export const widgetsUninstallCapability: Command = {
       typeof params?.installId === 'string' ? params.installId : ''
     const storeId = typeof params?.storeId === 'string' ? params.storeId : ''
     const widgetsStore = useWidgetsStore()
-    const cur = installId
-      ? widgetsStore.getWidget(installId)
-      : widgetsStore.widgets.find((w) => w.storeId === storeId)
+    const targets = installId
+      ? [widgetsStore.getWidget(installId)].filter((w) => w !== undefined)
+      : listWidgetInstances(widgetsStore.widgets, storeId)
+    const cur = targets[0]
     if (!cur) return null
+    // storeId 指定は実行アカウント別の全個体が対象 (#1061)
+    const others = targets.length > 1 ? ` ほか ${targets.length - 1} 件` : ''
     return {
       title: 'ウィジェットを削除',
       message:
-        `${cur.name} を削除します。AiScript ソース・メタ・Mk:save 領域が` +
+        `${cur.name}${others} を削除します。AiScript ソース・メタ・Mk:save 領域が` +
         'すべて消えます (= 不可逆)。',
       installPreview: {
         kind: 'widget',
@@ -590,7 +615,8 @@ export const widgetsUninstallCapability: Command = {
   signature: {
     description:
       'インストール済みウィジェットを完全削除する。installId か storeId の' +
-      ' どちらかを渡す (両方渡されたら installId 優先)。' +
+      ' どちらかを渡す (両方渡されたら installId 優先)。storeId 指定は' +
+      ' 実行アカウント別の全個体を消す。' +
       ' widgets.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。',
     params: {
       installId: {
@@ -619,16 +645,21 @@ export const widgetsUninstallCapability: Command = {
       throw new Error('widgets.uninstall: installId or storeId is required')
     }
     const store = useWidgetsStore()
-    const widget = installId
-      ? store.getWidget(installId)
-      : store.widgets.find((w) => w.storeId === storeId)
-    if (!widget) {
+    const targets = installId
+      ? [store.getWidget(installId)].filter((w) => w !== undefined)
+      : listWidgetInstances(store.widgets, storeId)
+    const first = targets[0]
+    if (!first) {
       throw new Error(
         `widgets.uninstall: widget not found (installId="${installId}" storeId="${storeId}")`,
       )
     }
-    store.removeWidget(widget.installId)
-    return { installId: widget.installId, removed: true }
+    for (const w of targets) store.removeWidget(w.installId)
+    return {
+      installId: first.installId,
+      installIds: targets.map((w) => w.installId),
+      removed: true,
+    }
   },
 }
 
