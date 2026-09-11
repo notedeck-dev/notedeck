@@ -8,6 +8,15 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { usePointerReorder } from '@/composables/usePointerReorder'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
+import {
+  findWidgetInstance,
+  isStoreWidgetInstalled,
+} from '@/services/widgetInstances'
+import {
+  accountScopeKey,
+  findAccountByScopeKey,
+  useAccountsStore,
+} from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
@@ -47,6 +56,7 @@ const deckStore = useDeckStore()
 const widgetsStore = useWidgetsStore()
 const misStore = useMisStoreStore()
 const windowsStore = useWindowsStore()
+const accountsStore = useAccountsStore()
 widgetsStore.ensureLoaded()
 
 const { account, columnThemeVars } = useColumnTheme(() => props.column)
@@ -135,7 +145,7 @@ async function openNewWidgetEditor() {
     name: `Widget ${installId.slice(4, 12)}`,
     src: '',
     autoRun: false,
-    accountId,
+    accountKey: scopeKeyOf(accountId),
     createdAt: now,
     updatedAt: now,
   })
@@ -143,6 +153,20 @@ async function openNewWidgetEditor() {
     widgetId: installId,
     accountId: accountId ?? props.column.accountId,
   })
+}
+
+/** 内部 UUID → 安定キー (ウィジェットの実行アカウントは安定キーで持つ、#1061) */
+function scopeKeyOf(accountId: string | undefined): string | undefined {
+  const account = accountId
+    ? accountsStore.accountMap.get(accountId)
+    : undefined
+  return account ? accountScopeKey(account) : undefined
+}
+
+/** ウィジェットに固定された実行アカウントの内部 UUID (現存しなければ undefined) */
+function ownAccountIdOf(widget: WidgetMeta): string | undefined {
+  if (!widget.accountKey) return undefined
+  return findAccountByScopeKey(accountsStore.accounts, widget.accountKey)?.id
 }
 
 /**
@@ -154,13 +178,14 @@ async function openNewWidgetEditor() {
 async function resolveWidgetAccountId(
   widget: WidgetMeta,
 ): Promise<string | null | undefined> {
-  if (widget.accountId) return widget.accountId
+  const own = ownAccountIdOf(widget)
+  if (own) return own
   if (!isAllAccounts(props.column)) return props.column.accountId
   const picked = await pickAccount(
     `「${widget.name}」をどのアカウントで動かしますか？`,
   )
   if (!picked) return undefined
-  widgetsStore.setAccountId(widget.installId, picked)
+  widgetsStore.setAccountKey(widget.installId, scopeKeyOf(picked))
   return picked
 }
 
@@ -277,28 +302,42 @@ const capabilityChecks = computed<Record<string, CapabilityCheck>>(() => {
   return result
 })
 
-/** 既にライブラリにある storeId 集合 (= 「インストール済み」判定)。 */
-const installedStoreIds = computed(
-  () => new Set(widgetsStore.widgets.map((w) => w.storeId).filter(Boolean)),
-)
+/**
+ * ストアカードの「インストール済み」判定 (#1061)。個体は storeId × 実行
+ * アカウントの組なので、全アカウントのカラムでは「選べるアカウント全部に
+ * 個体が揃っているか」を見る。未インストールのアカウントが残るうちは
+ * 通常の状態で出す (プラグインのスコープ別判定と同じ粒度)。
+ */
+const installedStoreIds = computed(() => {
+  const scope = isAllAccounts(props.column)
+    ? ({
+        kind: 'all',
+        accountKeys: pickableAccounts.value.map((a) => accountScopeKey(a)),
+      } as const)
+    : ({
+        kind: 'account',
+        key: scopeKeyOf(props.column.accountId ?? undefined) ?? '',
+      } as const)
+  const result = new Set<string>()
+  for (const entry of misStore.widgets) {
+    const installed = isStoreWidgetInstalled(widgetsStore.widgets, entry.id, {
+      requiresAccount: requiresAccount(entry.capabilities ?? []),
+      scope,
+    })
+    if (installed) result.add(entry.id)
+  }
+  return result
+})
 
 async function handleStoreInstall(entry: StoreWidgetEntry) {
   if (installingId.value) return
   installError.value = null
   installingId.value = entry.id
   try {
-    // 既に同 storeId のライブラリ widget があれば再インストールせず attach のみ。
-    // (= 同じ storeId のものを 2 つに増やさない。複数 column で同じ widget を
-    //  動かしたいなら別 column 側で同じ widget をピッカーから配置する想定だが、
-    //  attachWidget は同 column 内では no-op なので同一カラム重複も起こらない)
-    const existing = widgetsStore.widgets.find((w) => w.storeId === entry.id)
-    if (existing) {
-      deckStore.attachWidget(props.column.id, existing.installId)
-      viewTab.value = 'installed'
-      return
-    }
     // 全アカウントのカラムはどのアカウントで動かすかが決まらないので、
-    // アカウント必須のアイテムはここで選ばせて widget 側に持たせる (#1018)
+    // アカウント必須のアイテムは先に選ばせる (#1018)。個体は storeId ×
+    // 実行アカウントの組で 1 つ (#1061): 同じ組が既にあれば attach のみ、
+    // 別アカウントなら新しい個体を作る。
     let accountId: string | undefined
     if (
       requiresAccount(entry.capabilities ?? []) &&
@@ -310,6 +349,17 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
       if (!picked) return
       accountId = picked
     }
+    const accountKey = scopeKeyOf(accountId)
+    const existing = findWidgetInstance(
+      widgetsStore.widgets,
+      entry.id,
+      accountKey,
+    )
+    if (existing) {
+      deckStore.attachWidget(props.column.id, existing.installId)
+      viewTab.value = 'installed'
+      return
+    }
     const src = await misStore.fetchWidgetSource(entry)
     deckStore.addWidget(props.column.id, {
       name: entry.name,
@@ -317,7 +367,7 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
       autoRun: entry.autoRun,
       storeId: entry.id,
       iconUrl: entry.iconUrl,
-      accountId,
+      accountKey,
     })
     viewTab.value = 'installed'
   } catch (e) {
@@ -389,7 +439,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
             <WidgetAiScript
               :widget="widget"
               :column-id="column.id"
-              :account-id="widget.accountId ?? column.accountId"
+              :account-id="ownAccountIdOf(widget) ?? column.accountId"
               :is-sidebar="isSidebar"
               @remove="handleRemove(widget.installId)"
               @drag-start="handleDragStart(idx, $event)"

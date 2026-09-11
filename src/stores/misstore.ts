@@ -6,6 +6,10 @@ import {
   parsePluginMeta,
 } from '@/aiscript/plugin-api'
 import { casefold, resolveAvailable } from '@/services/settingsSlug'
+import {
+  findWidgetInstance,
+  listWidgetInstances,
+} from '@/services/widgetInstances'
 import { type QueryScope, useColumnQueriesStore } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
 import {
@@ -365,8 +369,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
   function recordWidgetBaselines(entries: StoreWidgetEntry[]): void {
     const widgetsStore = useWidgetsStore()
     for (const entry of entries) {
-      const w = widgetsStore.widgets.find((w) => w.storeId === entry.id)
-      if (w && !w.storeSha512) {
+      // 同 storeId の個体は実行アカウント別に複数ありうる (#1061)
+      for (const w of listWidgetInstances(widgetsStore.widgets, entry.id)) {
+        if (w.storeSha512) continue
         widgetsStore.recordStoreBaseline(w.installId, {
           storeSha512: entry.sha512,
           storeVersion: entry.version,
@@ -813,12 +818,22 @@ export const useMisStoreStore = defineStore('misstore', () => {
    * deckStore.addWidget ではなく widgetsStore.addWidget を直接呼んで
    * カラム外の独立 widget として保存する。カラムへの attach は後から
    * ユーザーが UI でやる想定 (= 「とりあえず手元に入れておく」が正)。
+   *
+   * 個体は storeId × 実行アカウント (accountKey) の組で 1 つ (#1061)。
+   * 同じ組の既存があれば更新、別アカウントなら新しい個体を作る。
    */
-  async function installWidget(entry: StoreWidgetEntry): Promise<WidgetMeta> {
+  async function installWidget(
+    entry: StoreWidgetEntry,
+    accountKey?: string,
+  ): Promise<WidgetMeta> {
     installingWidget.value = entry.id
     try {
       const widgetsStore = useWidgetsStore()
-      const existing = widgetsStore.widgets.find((w) => w.storeId === entry.id)
+      const existing = findWidgetInstance(
+        widgetsStore.widgets,
+        entry.id,
+        accountKey,
+      )
 
       // fetchVerifiedSource が sha512 照合済み → hash = 検証済みの値。
       // リトライで index が更新されていたら新 entry (e) の値を記録する
@@ -852,6 +867,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
         createdAt: now,
         updatedAt: now,
         ...(e.iconUrl ? { iconUrl: e.iconUrl } : {}),
+        ...(accountKey ? { accountKey } : {}),
       }
       widgetsStore.addWidget(widget)
       return widget
@@ -961,8 +977,10 @@ export const useMisStoreStore = defineStore('misstore', () => {
   }
 
   function hasWidgetUpdate(entry: StoreWidgetEntry): boolean {
-    const w = useWidgetsStore().widgets.find((w) => w.storeId === entry.id)
-    return !!w && hasStoreUpdate(w.storeSha512, entry.sha512)
+    // 個体のどれか 1 つでも古ければ更新あり (#1061)
+    return listWidgetInstances(useWidgetsStore().widgets, entry.id).some((w) =>
+      hasStoreUpdate(w.storeSha512, entry.sha512),
+    )
   }
 
   function hasSkillUpdate(entry: StoreSkillEntry): boolean {
@@ -1010,20 +1028,40 @@ export const useMisStoreStore = defineStore('misstore', () => {
     })
   }
 
+  /**
+   * 同 storeId の全個体に更新を当てる (#1061)。確認は先頭の個体で 1 回。
+   * 先頭と同じソースの個体は同じ diff を見せたことになるので無確認で適用し、
+   * ローカル編集で分岐した個体だけ個別に diff 確認する (キャンセルはその個体
+   * のみ飛ばす)。戻り値は先頭の個体に適用したか。
+   */
   async function updateWidget(entry: StoreWidgetEntry): Promise<boolean> {
     const widgetsStore = useWidgetsStore()
-    const existing = widgetsStore.widgets.find((w) => w.storeId === entry.id)
-    if (!existing) return false
+    const [first, ...rest] = listWidgetInstances(widgetsStore.widgets, entry.id)
+    if (!first) return false
     installingWidget.value = entry.id
     try {
       const fetched = await fetchVerifiedSource(
         entry,
         refetchWidgetEntry(entry.id),
       )
-      const applied = await confirmWidgetUpdate(existing, fetched, {
+      const baseSrc = first.src
+      const applied = await confirmWidgetUpdate(first, fetched, {
         alwaysConfirm: true,
       })
-      return applied !== false
+      if (applied === false) return false
+      for (const w of rest) {
+        if (w.src === baseSrc) {
+          widgetsStore.applyStoreUpdate(w.installId, {
+            src: fetched.source,
+            iconUrl: fetched.entry.iconUrl,
+            storeSha512: fetched.hash,
+            storeVersion: fetched.entry.version,
+          })
+          continue
+        }
+        await confirmWidgetUpdate(w, fetched, { alwaysConfirm: false })
+      }
+      return true
     } finally {
       installingWidget.value = null
     }

@@ -1,5 +1,6 @@
 import {
   type Account,
+  accountScopeKey,
   getAccountLabel,
   isGuestAccount,
   useAccountsStore,
@@ -46,6 +47,9 @@ export function useAccountActions() {
         deckStore.removeColumn(col.id)
       }
     }
+    // このアカウントに固定されたウィジェット個体はアカウントと運命を共にする
+    // (#1061)。全アカウントカラムに置かれているので、参照を剥がしてから消す
+    deckStore.purgeAccountWidgets(accountScopeKey(acc))
     try {
       await accountsStore.removeAccount(acc.id)
     } catch (e) {
