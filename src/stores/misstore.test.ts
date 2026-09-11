@@ -28,6 +28,7 @@ const h = vi.hoisted(() => ({
   queriesStore: {
     queries: [] as unknown[],
     ensureLoaded: vi.fn(),
+    linkScope: vi.fn(),
     createQuery: vi.fn(async () => undefined),
     applyStoreUpdate: vi.fn(async () => undefined),
     recordStoreBaseline: vi.fn(async () => undefined),
@@ -452,6 +453,45 @@ describe('installQuery', () => {
     h.queriesStore.queries = [{ id: 'ent-query' }]
     expect(store.isQueryInstalled(queryEntry())).toBe(false)
   })
+
+  it('isQueryInstalled: スコープ指定はそのスコープに参加している個体だけを済みとみなす (プラグインと同じ粒度)', () => {
+    const store = useMisStoreStore()
+    h.queriesStore.queries = [
+      { id: 'q1', storeId: 'ent-query', installedFor: ['yami.ski:u1'] },
+    ]
+    expect(
+      store.isQueryInstalled(queryEntry(), {
+        kind: 'account',
+        key: 'yami.ski:u1',
+      }),
+    ).toBe(true)
+    expect(
+      store.isQueryInstalled(queryEntry(), {
+        kind: 'account',
+        key: 'cloud.example:u2',
+      }),
+    ).toBe(false)
+    expect(store.isQueryInstalled(queryEntry(), { kind: 'global' })).toBe(false)
+    h.queriesStore.queries = [{ id: 'q1', storeId: 'ent-query', global: true }]
+    expect(store.isQueryInstalled(queryEntry(), { kind: 'global' })).toBe(true)
+  })
+
+  it('既存 (storeId 一致) に別スコープからインストールすると、そのスコープへ参加させる (プラグインと同型)', async () => {
+    const store = useMisStoreStore()
+    h.queriesStore.queries = [
+      { id: 'q-local', storeId: 'ent-query', src: source, global: true },
+    ]
+    fetchMock.mockResolvedValue(okText(source))
+    await store.installQuery(queryEntry({ sha512: sha512Hex(source) }), {
+      kind: 'account',
+      key: 'yami.ski:u1',
+    })
+    expect(h.queriesStore.createQuery).not.toHaveBeenCalled()
+    expect(h.queriesStore.linkScope).toHaveBeenCalledWith('q-local', {
+      kind: 'account',
+      key: 'yami.ski:u1',
+    })
+  })
 })
 
 describe('installPlugin', () => {
@@ -693,6 +733,55 @@ describe('installWidget', () => {
     expect(store.installingWidget).toBeNull()
   })
 
+  it('accountKey 指定: 同 storeId でもアカウント無しの個体があれば別個体として新規作成する (#1061)', async () => {
+    const store = useMisStoreStore()
+    const source = '<: "widget"'
+    h.widgetsStore.widgets = [
+      { installId: 'ent-widget', storeId: 'ent-widget', src: source },
+    ]
+    fetchMock.mockResolvedValue(okText(source))
+    const widget = await store.installWidget(
+      widgetEntry({ sha512: sha512Hex(source) }),
+      'misskey.io:u1',
+    )
+    expect(widget).toMatchObject({
+      storeId: 'ent-widget',
+      accountKey: 'misskey.io:u1',
+    })
+    // ファイル名の正本は storeId のまま、ローカル ID は衝突を避けて suffix
+    expect(widget.installId).not.toBe('ent-widget')
+    expect(h.widgetsStore.addWidget).toHaveBeenCalledWith(widget)
+    expect(h.widgetsStore.applyStoreUpdate).not.toHaveBeenCalled()
+  })
+
+  it('accountKey 指定: 同じアカウントの個体があれば更新扱い (#1061)', async () => {
+    const store = useMisStoreStore()
+    const source = '<: "widget v2"'
+    const existing = {
+      installId: 'w-acc',
+      storeId: 'ent-widget',
+      accountKey: 'misskey.io:u1',
+    } as WidgetMeta
+    h.widgetsStore.widgets = [
+      { installId: 'ent-widget', storeId: 'ent-widget' },
+      existing,
+    ]
+    h.widgetsStore.applyStoreUpdate.mockReturnValue({
+      ...existing,
+      src: source,
+    })
+    fetchMock.mockResolvedValue(okText(source))
+    await store.installWidget(
+      widgetEntry({ sha512: sha512Hex(source) }),
+      'misskey.io:u1',
+    )
+    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
+      'w-acc',
+      expect.objectContaining({ src: source }),
+    )
+    expect(h.widgetsStore.addWidget).not.toHaveBeenCalled()
+  })
+
   it('isWidgetInstalled matches by storeId', () => {
     const store = useMisStoreStore()
     h.widgetsStore.widgets = [{ storeId: 'ent-widget' }]
@@ -799,6 +888,21 @@ describe('更新検知 (#1040)', () => {
     expect(store.hasWidgetUpdate(entry)).toBe(false)
   })
 
+  it('hasWidgetUpdate: 同 storeId の個体が複数あれば 1 つでも古ければ true (#1061)', () => {
+    const store = useMisStoreStore()
+    const entry = widgetEntry({ sha512: 'sha-new' })
+    h.widgetsStore.widgets = [
+      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-new' },
+      {
+        installId: 'w1',
+        storeId: 'ent-widget',
+        storeSha512: 'sha-old',
+        accountKey: 'misskey.io:u1',
+      },
+    ]
+    expect(store.hasWidgetUpdate(entry)).toBe(true)
+  })
+
   it('未インストール / storeSha512 未記録 (baseline 前) は false', () => {
     const store = useMisStoreStore()
     const entry = widgetEntry({ sha512: 'sha-new' })
@@ -869,6 +973,30 @@ describe('baseline 無通知記録 (#1040)', () => {
     expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledWith('w0', {
       storeSha512: 'sha-now',
       storeVersion: '2.0.0',
+    })
+  })
+
+  it('fetchWidgets: 同 storeId の個体が複数あれば未記録の全個体に baseline を記録する (#1061)', async () => {
+    const store = useMisStoreStore()
+    h.widgetsStore.widgets = [
+      { installId: 'w0', storeId: 'ent-widget' },
+      { installId: 'w1', storeId: 'ent-widget', accountKey: 'misskey.io:u1' },
+      { installId: 'w2', storeId: 'ent-widget', storeSha512: 'sha-cur' },
+    ]
+    fetchMock.mockResolvedValue(
+      okJson({
+        widgets: [widgetEntry({ sha512: 'sha-cur', version: '1.2.0' })],
+      }),
+    )
+    await store.fetchWidgets()
+    expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledTimes(2)
+    expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledWith('w0', {
+      storeSha512: 'sha-cur',
+      storeVersion: '1.2.0',
+    })
+    expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledWith('w1', {
+      storeSha512: 'sha-cur',
+      storeVersion: '1.2.0',
     })
   })
 
@@ -1168,6 +1296,67 @@ describe('更新適用 (#1040)', () => {
     // 承認後の再 fetch なし: ソース取得は確認前の 1 回だけ (#981 不変条件)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(store.installingWidget).toBeNull()
+  })
+
+  it('updateWidget: 同 storeId の全個体に適用し、ソースが同じ個体は 1 回の確認で済ませる (#1061)', async () => {
+    const store = useMisStoreStore()
+    const oldSrc = '<: "widget v1"'
+    const newSrc = '<: "widget v2"'
+    h.widgetsStore.widgets = [
+      { installId: 'w0', storeId: 'ent-widget', src: oldSrc },
+      {
+        installId: 'w1',
+        storeId: 'ent-widget',
+        src: oldSrc,
+        accountKey: 'misskey.io:u1',
+      },
+    ]
+    fetchMock.mockResolvedValue(okText(newSrc))
+    const entry = widgetEntry({ sha512: sha512Hex(newSrc), version: '2.0.0' })
+    await expect(store.updateWidget(entry)).resolves.toBe(true)
+    expect(h.confirm).toHaveBeenCalledTimes(1)
+    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledTimes(2)
+    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
+      'w0',
+      expect.objectContaining({ src: newSrc }),
+    )
+    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
+      'w1',
+      expect.objectContaining({ src: newSrc }),
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('updateWidget: ローカル編集で分岐した個体は個別に diff 確認し、キャンセルはその個体だけ飛ばす (#1061)', async () => {
+    const store = useMisStoreStore()
+    const oldSrc = '<: "widget v1"'
+    const editedSrc = '<: "widget v1 (edited)"'
+    const newSrc = '<: "widget v2"'
+    h.widgetsStore.widgets = [
+      { installId: 'w0', storeId: 'ent-widget', src: oldSrc },
+      {
+        installId: 'w1',
+        storeId: 'ent-widget',
+        src: editedSrc,
+        accountKey: 'misskey.io:u1',
+      },
+    ]
+    h.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    fetchMock.mockResolvedValue(okText(newSrc))
+    const entry = widgetEntry({ sha512: sha512Hex(newSrc), version: '2.0.0' })
+    await expect(store.updateWidget(entry)).resolves.toBe(true)
+    expect(h.confirm).toHaveBeenCalledTimes(2)
+    const second = h.confirm.mock.calls[1]?.[0] as Record<string, unknown>
+    expect(second.diff).toEqual({
+      old: editedSrc,
+      new: newSrc,
+      language: 'aiscript',
+    })
+    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledTimes(1)
+    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
+      'w0',
+      expect.anything(),
+    )
   })
 
   it('updateWidget: キャンセルで適用しない', async () => {

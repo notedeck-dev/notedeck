@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CapabilityContext } from '@/capabilities/types'
+import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 
 // unit プロジェクトは node 環境のため localStorage を stub する (deck.test.ts と同じ)
@@ -127,10 +128,18 @@ describe('widgets.install capability', () => {
     )
   })
 
-  it('marks id as the only required param', () => {
+  it('marks id as the only required param; accountId is optional (#1061)', () => {
     const params = widgetsInstallCapability.signature?.params
     expect(params?.id?.optional).not.toBe(true)
-    expect(Object.keys(params ?? {})).toEqual(['id'])
+    expect(params?.accountId?.optional).toBe(true)
+    expect(Object.keys(params ?? {})).toEqual(['id', 'accountId'])
+  })
+
+  it('accountId が現存しないアカウントなら fetch 前に失敗する (#1061)', async () => {
+    setActivePinia(createPinia())
+    await expect(
+      widgetsInstallCapability.execute({ id: 'clock', accountId: 'nope' }),
+    ).rejects.toThrow(/account "nope" not found/)
   })
 })
 
@@ -148,6 +157,16 @@ describe('widgets.uninstall capability', () => {
     expect(() => widgetsUninstallCapability.execute({})).toThrow(
       /installId or storeId is required/,
     )
+  })
+
+  it('storeId 指定は全個体を消すので戻り値に installIds を宣言する (#1061)', () => {
+    expect(
+      widgetsUninstallCapability.signature?.returns?.description,
+    ).toContain('installIds')
+    // widgets.delete は installId 指定の 1 個体のみ — installIds は返さない
+    expect(
+      widgetsDeleteCapability.signature?.returns?.description,
+    ).not.toContain('installIds')
   })
 
   it('marks both installId and storeId as optional (one of them required)', () => {
@@ -172,6 +191,45 @@ describe('WIDGETS_BUILTIN_CAPABILITIES', () => {
       'widgets.uninstall',
       'widgets.update',
     ])
+  })
+})
+
+describe('widgets.list — 個体の実行アカウント (#1061)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    storage.clear()
+  })
+
+  it('accountKey を現行アカウントの id に引き直して返し、未固定と孤児は null', () => {
+    const accounts = useAccountsStore()
+    accounts.accounts = [
+      {
+        id: 'uuid-yami',
+        host: 'yami.ski',
+        userId: 'u1',
+        username: 'alice',
+        hasToken: true,
+      } as Account,
+    ]
+    const widgets = useWidgetsStore()
+    const base = { src: '', autoRun: false, createdAt: 0, updatedAt: 0 }
+    widgets.addWidget({ ...base, installId: 'w1', name: 'a' })
+    widgets.addWidget({
+      ...base,
+      installId: 'w2',
+      name: 'b',
+      accountKey: 'yami.ski:u1',
+    })
+    widgets.addWidget({
+      ...base,
+      installId: 'w3',
+      name: 'c',
+      accountKey: 'gone.example:u9',
+    })
+
+    const rows = widgetsListCapability.execute({}) as { accountId: unknown }[]
+
+    expect(rows.map((r) => r.accountId)).toEqual([null, 'uuid-yami', null])
   })
 })
 

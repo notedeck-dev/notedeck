@@ -425,7 +425,9 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
             :icon-url="entry.iconUrl"
             :category-label="queryCategoryLabel(entry.category)"
             :installing="misStore.installingQuery === entry.id"
-            :already-installed="misStore.isQueryInstalled(entry)"
+            :already-installed="
+              misStore.isQueryInstalled(entry, columnScope ?? undefined)
+            "
             :has-update="misStore.hasQueryUpdate(entry)"
             :updated-at="entry.updatedAt"
             @install="handleInstall(entry)"

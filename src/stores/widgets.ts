@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import {
   createSidecarCollection,
   type SidecarItemFile,
 } from '@/services/sidecarFileCollection'
+import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
@@ -31,11 +32,18 @@ export interface WidgetMeta extends SidecarItemFile {
   /** 個別アイコン URL (MisStore registry の iconUrl 互換) */
   iconUrl?: string
   /**
-   * 実行アカウント (#1018)。全アカウントのカラムに置いたウィジットは、カラムから
-   * アカウントを決められないのでインストール時に選んだものをここに持つ。
+   * 実行アカウントの安定キー (`accountScopeKey`、#1018 / #1061)。全アカウントの
+   * カラムに置いたウィジットは、カラムからアカウントを決められないので
+   * インストール時に選んだものをここに持つ。同じ storeId でもキーが違えば
+   * 別個体 (Mk:save 領域が個体単位なので本体を共有しない)。
    * per-account カラムのウィジットは未設定 — カラムの accountId で動く。
    */
-  accountId?: string
+  accountKey?: string
+  /**
+   * 旧形式の実行アカウント (内部 UUID)。ファイルから読んだ直後だけ持ち、
+   * accounts ロード後の migrateScopes で accountKey へ置換して消える。
+   */
+  legacyAccountId?: string
 }
 
 /** Metadata fields stored in *.meta.json5 (everything except src). */
@@ -49,6 +57,8 @@ interface WidgetFileMeta {
   createdAt: number
   updatedAt: number
   iconUrl?: string
+  accountKey?: string
+  /** @deprecated 旧形式 (内部 UUID)。読取専用 — migrateScopes で accountKey へ移行 */
   accountId?: string
 }
 
@@ -80,7 +90,7 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
     ...(w.storeSha512 ? { storeSha512: w.storeSha512 } : {}),
     ...(w.storeVersion ? { storeVersion: w.storeVersion } : {}),
     ...(w.iconUrl ? { iconUrl: w.iconUrl } : {}),
-    ...(w.accountId ? { accountId: w.accountId } : {}),
+    ...(w.accountKey ? { accountKey: w.accountKey } : {}),
     createdAt: w.createdAt,
     updatedAt: w.updatedAt,
   }),
@@ -93,14 +103,25 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
     storeSha512: meta.storeSha512,
     storeVersion: meta.storeVersion,
     iconUrl: meta.iconUrl,
-    accountId: meta.accountId,
+    accountKey: meta.accountKey,
+    legacyAccountId: meta.accountKey ? undefined : meta.accountId,
     createdAt: meta.createdAt ?? Date.now(),
     updatedAt: meta.updatedAt ?? Date.now(),
   }),
 })
 
 function loadWidgetsFromStorage(): WidgetMeta[] {
-  return getStorageJson<WidgetMeta[]>(STORAGE_KEYS.widgets, [])
+  // 旧ミラーは実行アカウントを内部 UUID の accountId で直接持つ (#1061)。
+  // ファイル経由 (fromFile) と同じ形に正規化しないと、ミラーだけに在る個体
+  // (ブラウザ実行・ファイル欠損からの復旧) が移行対象から漏れる
+  return getStorageJson<WidgetMeta[]>(STORAGE_KEYS.widgets, []).map((w) => {
+    const legacy = (w as WidgetMeta & { accountId?: string }).accountId
+    if (!legacy) return w
+    const { accountId: _drop, ...rest } = w as WidgetMeta & {
+      accountId?: string
+    }
+    return w.accountKey ? rest : { ...rest, legacyAccountId: legacy }
+  })
 }
 
 function saveWidgetsToStorage(widgets: WidgetMeta[]) {
@@ -149,6 +170,7 @@ export const useWidgetsStore = defineStore('widgets', () => {
     } else {
       initialized.value = true
       resolveReady?.()
+      scheduleScopeMigration()
     }
   }
 
@@ -232,6 +254,9 @@ export const useWidgetsStore = defineStore('widgets', () => {
     saveWidgetsToStorage(widgets.value)
     initialized.value = true
     pruneSidebarOrder()
+    // 実行アカウントの安定キー化 (#1061)。files が source of truth に
+    // なった後で走らせる
+    scheduleScopeMigration()
   }
 
   function addWidget(widget: WidgetMeta) {
@@ -405,14 +430,77 @@ export const useWidgetsStore = defineStore('widgets', () => {
    * 実行アカウントを固定する (#1018)。全アカウントのカラムに置いたウィジットが
    * どのアカウントで動くかは、カラムからは決まらないのでここに持つ。
    */
-  function setAccountId(installId: string, accountId: string | undefined) {
+  function setAccountKey(installId: string, accountKey: string | undefined) {
     ensureLoaded()
     const widget = widgets.value.find((w) => w.installId === installId)
     if (widget) {
-      widget.accountId = accountId
+      widget.accountKey = accountKey
       widget.updatedAt = Date.now()
       persist(widget)
     }
+  }
+
+  let scopesMigrated = false
+
+  /**
+   * 実行アカウントの安定キー化 (#1061、plugins の migrateScopes と同型)。
+   * アカウント一覧が必要なので accounts ロード後に 1 回だけ走る。
+   * - 旧 accountId (UUID) → 現行アカウントに該当すれば安定キーへ置換
+   * - 該当しない UUID / 現存しない安定キー (バックアップ復元の孤児) →
+   *   「アカウント無し」へ戻す。次回実行時にアカウントを選び直させる
+   */
+  function migrateScopes() {
+    const accountsStore = useAccountsStore()
+    if (!accountsStore.isLoaded || scopesMigrated) return
+    scopesMigrated = true
+    ensureLoaded()
+
+    const uuidToKey = new Map(
+      accountsStore.accounts.map((a) => [a.id, accountScopeKey(a)]),
+    )
+    const liveKeys = new Set(uuidToKey.values())
+
+    for (const widget of widgets.value) {
+      let next = widget.accountKey
+      if (widget.legacyAccountId) {
+        next = uuidToKey.get(widget.legacyAccountId)
+      }
+      if (next && !liveKeys.has(next)) next = undefined
+      if (next === widget.accountKey && !widget.legacyAccountId) continue
+      widget.accountKey = next
+      widget.legacyAccountId = undefined
+      persist(widget)
+    }
+  }
+
+  /** accounts のロード完了を待って migrateScopes を 1 回だけ実行する。 */
+  function scheduleScopeMigration() {
+    const accountsStore = useAccountsStore()
+    if (accountsStore.isLoaded) {
+      migrateScopes()
+      return
+    }
+    const stop = watch(
+      () => accountsStore.isLoaded,
+      (ready) => {
+        if (!ready) return
+        stop()
+        migrateScopes()
+      },
+    )
+  }
+
+  /**
+   * アカウント削除時に、そのアカウントに固定された個体をすべて消す (#1061)。
+   * カラムからの参照剥がしは呼び出し側 (deck) の責務。削除した installId を返す。
+   */
+  function purgeAccount(accountKey: string): string[] {
+    ensureLoaded()
+    const targets = widgets.value
+      .filter((w) => w.accountKey === accountKey)
+      .map((w) => w.installId)
+    for (const id of targets) removeWidget(id)
+    return targets
   }
 
   function setAutoRun(installId: string, autoRun: boolean) {
@@ -522,7 +610,9 @@ export const useWidgetsStore = defineStore('widgets', () => {
     removeWidget,
     updateSrc,
     setAutoRun,
-    setAccountId,
+    setAccountKey,
+    migrateScopes,
+    purgeAccount,
     applyStoreUpdate,
     recordStoreBaseline,
     setStoreId,

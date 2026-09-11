@@ -29,6 +29,12 @@ const props = withDefaults(
     /** library mode: storeId 有無で「ストア由来」/「ローカル保存」バッジ表示 */
     storeId?: string
     iconUrl?: string
+    /**
+     * library mode: 個体に固定された実行アカウントのラベル (#1061)。
+     * 同じストアアイテムをアカウント別に持てるので、無いと同名の個体を
+     * 見分けられない
+     */
+    accountLabel?: string
   }>(),
   {
     mode: 'store',
@@ -120,6 +126,9 @@ function handlePrimaryClick() {
         <template v-if="isLibrary">
           <span v-if="storeId" :class="$style.originBadge">ストア</span>
           <span v-else :class="[$style.originBadge, $style.originBadgeLocal]">ローカル</span>
+          <span v-if="accountLabel" :class="$style.accountBadge" :title="accountLabel">
+            {{ accountLabel }}
+          </span>
         </template>
         <span :class="$style.spacer" />
         <div :class="$style.actions">
@@ -343,6 +352,20 @@ function handlePrimaryClick() {
   background: color-mix(in srgb, var(--nd-fg) 12%, transparent);
   color: var(--nd-fg);
   opacity: 0.85;
+}
+
+.accountBadge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--nd-fg) 8%, transparent);
+  color: var(--nd-fg);
+  opacity: 0.7;
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
 }
 
 .incompatBadge {

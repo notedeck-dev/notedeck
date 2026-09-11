@@ -8,7 +8,7 @@ import defaultNavbarJson5 from '@/defaults/navbar.json5?raw'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useDeckWallpaperStore } from '@/stores/deckWallpaper'
-import { generateWidgetId, useWidgetsStore } from '@/stores/widgets'
+import { useWidgetsStore } from '@/stores/widgets'
 import { buildColumnUri } from '@/utils/columnUri'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import * as deckLayout from '@/utils/deckLayout'
@@ -632,47 +632,6 @@ export const useDeckStore = defineStore('deck', () => {
   const widgetsStore = useWidgetsStore()
 
   /**
-   * widget カラムに新規 widget を追加する。
-   * sidebar widget カラム (ナビバートグルで開閉) なら sidebar 並びに登録、
-   * non-sidebar widget カラムならカラム自身の widgetIds[] に push する。
-   */
-  function addWidget(
-    columnId: string,
-    initial?: {
-      src?: string
-      autoRun?: boolean
-      storeId?: string
-      name?: string
-      iconUrl?: string
-      /** 実行アカウント (#1018)。全アカウントのカラムでインストール時に選ぶ */
-      accountId?: string
-    },
-  ) {
-    const col = getColumn(columnId)
-    if (col?.type !== 'widget') return
-    const installId = generateWidgetId()
-    const now = Date.now()
-    widgetsStore.addWidget({
-      installId,
-      name: initial?.name ?? `Widget ${installId.slice(4, 12)}`,
-      src: initial?.src ?? '',
-      autoRun: initial?.autoRun ?? false,
-      storeId: initial?.storeId,
-      iconUrl: initial?.iconUrl,
-      accountId: initial?.accountId,
-      createdAt: now,
-      updatedAt: now,
-    })
-    if (col.sidebar === true) {
-      widgetsStore.addToSidebar(installId)
-    } else {
-      if (!col.widgetIds) col.widgetIds = []
-      col.widgetIds.push(installId)
-      save()
-    }
-  }
-
-  /**
    * 既存ライブラリ widget をカラムに配置する (= column.widgetIds への参照追加)。
    * widget 本体は widgetsStore に既にあるものを再利用する。
    * sidebar widget カラムなら sidebarWidgetIds に、それ以外は column.widgetIds に push。
@@ -708,6 +667,17 @@ export const useDeckStore = defineStore('deck', () => {
         }
       }
     })
+  }
+
+  /**
+   * アカウント削除時に、そのアカウントに固定されたウィジェット個体を
+   * 参照ごと消す (#1061)。本体削除の前に全カラムから剥がす。
+   */
+  function purgeAccountWidgets(accountKey: string) {
+    for (const w of widgetsStore.widgets) {
+      if (w.accountKey === accountKey) detachWidgetFromAllColumns(w.installId)
+    }
+    widgetsStore.purgeAccount(accountKey)
   }
 
   /**
@@ -892,9 +862,9 @@ export const useDeckStore = defineStore('deck', () => {
     flushSave,
     load,
     clear,
-    addWidget,
     attachWidget,
     detachWidgetFromAllColumns,
+    purgeAccountWidgets,
     removeWidget,
     reorderWidgetIds,
     // Wallpaper (facade)

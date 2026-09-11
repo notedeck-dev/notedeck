@@ -1,5 +1,6 @@
 import {
   type Account,
+  accountScopeKey,
   getAccountLabel,
   isGuestAccount,
   useAccountsStore,
@@ -60,6 +61,11 @@ export function useAccountActions() {
     // 通知キャッシュは notecli DB ではなく localStorage なので個別に消す。
     // cross-account 通知カラムの分は該当アカウント entry のみ除去する
     purgeNotificationCacheForAccount(acc.id)
+    // このアカウントに固定されたウィジェット個体はアカウントと運命を共にする
+    // (#1061)。全アカウントカラムに置かれているので、参照を剥がしてから消す。
+    // backend 削除の成功後に回す — ソースと Mk:save 領域の削除は不可逆で、
+    // アカウントが残ったまま消えると復元できない
+    deckStore.purgeAccountWidgets(accountScopeKey(acc))
   }
 
   /** ログアウト確認ダイアログを表示し実行する */

@@ -751,8 +751,18 @@ describe('deck store', () => {
         accountId: null,
         ...(sidebar ? { sidebar: true } : {}),
       })
-      deck.addWidget(col.id, { name: 'first' })
-      deck.addWidget(col.id, { name: 'second' })
+      for (const name of ['first', 'second']) {
+        const installId = `wgt-${name}`
+        widgets.addWidget({
+          installId,
+          name,
+          src: '',
+          autoRun: false,
+          createdAt: 1,
+          updatedAt: 1,
+        })
+        deck.attachWidget(col.id, installId)
+      }
       const ids = sidebar
         ? [...widgets.sidebarWidgetIds]
         : [...(deck.getColumn(col.id)?.widgetIds ?? [])]
