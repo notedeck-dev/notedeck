@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CapabilityContext } from '@/capabilities/types'
+import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 
 // unit プロジェクトは node 環境のため localStorage を stub する (deck.test.ts と同じ)
@@ -180,6 +181,45 @@ describe('WIDGETS_BUILTIN_CAPABILITIES', () => {
       'widgets.uninstall',
       'widgets.update',
     ])
+  })
+})
+
+describe('widgets.list — 個体の実行アカウント (#1061)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    storage.clear()
+  })
+
+  it('accountKey を現行アカウントの id に引き直して返し、未固定と孤児は null', () => {
+    const accounts = useAccountsStore()
+    accounts.accounts = [
+      {
+        id: 'uuid-yami',
+        host: 'yami.ski',
+        userId: 'u1',
+        username: 'alice',
+        hasToken: true,
+      } as Account,
+    ]
+    const widgets = useWidgetsStore()
+    const base = { src: '', autoRun: false, createdAt: 0, updatedAt: 0 }
+    widgets.addWidget({ ...base, installId: 'w1', name: 'a' })
+    widgets.addWidget({
+      ...base,
+      installId: 'w2',
+      name: 'b',
+      accountKey: 'yami.ski:u1',
+    })
+    widgets.addWidget({
+      ...base,
+      installId: 'w3',
+      name: 'c',
+      accountKey: 'gone.example:u9',
+    })
+
+    const rows = widgetsListCapability.execute({}) as { accountId: unknown }[]
+
+    expect(rows.map((r) => r.accountId)).toEqual([null, 'uuid-yami', null])
   })
 })
 

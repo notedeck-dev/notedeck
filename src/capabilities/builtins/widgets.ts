@@ -1,6 +1,10 @@
 import type { Command } from '@/commands/registry'
 import { listWidgetInstances } from '@/services/widgetInstances'
-import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
+import {
+  accountScopeKey,
+  findAccountByScopeKey,
+  useAccountsStore,
+} from '@/stores/accounts'
 import { useMisStoreStore } from '@/stores/misstore'
 import {
   generateWidgetId,
@@ -51,18 +55,25 @@ export const widgetsListCapability: Command = {
     params: {},
     returns: {
       type: 'array',
-      description: '{ installId, name, autoRun, storeId?, updatedAt } の配列',
+      description:
+        '{ installId, name, autoRun, storeId?, accountId?, updatedAt } の配列。' +
+        ' accountId は個体に固定された実行アカウント (未固定は null)。' +
+        ' 同じ storeId の個体が実行アカウント別に複数ありうる。',
     },
     cheap: true,
   },
   visible: false,
   execute: () => {
     const store = useWidgetsStore()
+    const accounts = useAccountsStore().accounts
     return store.widgets.map((w) => ({
       installId: w.installId,
       name: w.name,
       autoRun: w.autoRun,
       storeId: w.storeId ?? null,
+      accountId: w.accountKey
+        ? (findAccountByScopeKey(accounts, w.accountKey)?.id ?? null)
+        : null,
       updatedAt: w.updatedAt,
     }))
   },

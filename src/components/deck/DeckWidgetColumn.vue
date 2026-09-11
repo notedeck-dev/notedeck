@@ -15,6 +15,7 @@ import {
 import {
   accountScopeKey,
   findAccountByScopeKey,
+  getAccountLabel,
   useAccountsStore,
 } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
@@ -163,10 +164,20 @@ function scopeKeyOf(accountId: string | undefined): string | undefined {
   return account ? accountScopeKey(account) : undefined
 }
 
-/** ウィジェットに固定された実行アカウントの内部 UUID (現存しなければ undefined) */
-function ownAccountIdOf(widget: WidgetMeta): string | undefined {
+/** ウィジェットに固定された実行アカウント (現存しなければ undefined) */
+function ownAccountOf(widget: WidgetMeta) {
   if (!widget.accountKey) return undefined
-  return findAccountByScopeKey(accountsStore.accounts, widget.accountKey)?.id
+  return findAccountByScopeKey(accountsStore.accounts, widget.accountKey)
+}
+
+function ownAccountIdOf(widget: WidgetMeta): string | undefined {
+  return ownAccountOf(widget)?.id
+}
+
+/** ライブラリピッカーで同名の個体を見分けるためのラベル (#1061) */
+function ownAccountLabelOf(widget: WidgetMeta): string | undefined {
+  const account = ownAccountOf(widget)
+  return account ? getAccountLabel(account) : undefined
 }
 
 /**
@@ -463,6 +474,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
               :description="w.src ? `${w.src.length} chars` : '空のコード'"
               :store-id="w.storeId"
               :icon-url="w.iconUrl"
+              :account-label="ownAccountLabelOf(w)"
               @place="placeFromLibrary(w)"
               @edit="openLibraryWidgetEditor(w)"
               @delete="deleteFromLibrary(w)"
