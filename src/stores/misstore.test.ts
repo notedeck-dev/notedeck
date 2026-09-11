@@ -28,6 +28,7 @@ const h = vi.hoisted(() => ({
   queriesStore: {
     queries: [] as unknown[],
     ensureLoaded: vi.fn(),
+    linkScope: vi.fn(),
     createQuery: vi.fn(async () => undefined),
     applyStoreUpdate: vi.fn(async () => undefined),
     recordStoreBaseline: vi.fn(async () => undefined),
@@ -451,6 +452,45 @@ describe('installQuery', () => {
     expect(store.isQueryInstalled(queryEntry())).toBe(true)
     h.queriesStore.queries = [{ id: 'ent-query' }]
     expect(store.isQueryInstalled(queryEntry())).toBe(false)
+  })
+
+  it('isQueryInstalled: スコープ指定はそのスコープに参加している個体だけを済みとみなす (プラグインと同じ粒度)', () => {
+    const store = useMisStoreStore()
+    h.queriesStore.queries = [
+      { id: 'q1', storeId: 'ent-query', installedFor: ['yami.ski:u1'] },
+    ]
+    expect(
+      store.isQueryInstalled(queryEntry(), {
+        kind: 'account',
+        key: 'yami.ski:u1',
+      }),
+    ).toBe(true)
+    expect(
+      store.isQueryInstalled(queryEntry(), {
+        kind: 'account',
+        key: 'cloud.example:u2',
+      }),
+    ).toBe(false)
+    expect(store.isQueryInstalled(queryEntry(), { kind: 'global' })).toBe(false)
+    h.queriesStore.queries = [{ id: 'q1', storeId: 'ent-query', global: true }]
+    expect(store.isQueryInstalled(queryEntry(), { kind: 'global' })).toBe(true)
+  })
+
+  it('既存 (storeId 一致) に別スコープからインストールすると、そのスコープへ参加させる (プラグインと同型)', async () => {
+    const store = useMisStoreStore()
+    h.queriesStore.queries = [
+      { id: 'q-local', storeId: 'ent-query', src: source, global: true },
+    ]
+    fetchMock.mockResolvedValue(okText(source))
+    await store.installQuery(queryEntry({ sha512: sha512Hex(source) }), {
+      kind: 'account',
+      key: 'yami.ski:u1',
+    })
+    expect(h.queriesStore.createQuery).not.toHaveBeenCalled()
+    expect(h.queriesStore.linkScope).toHaveBeenCalledWith('q-local', {
+      kind: 'account',
+      key: 'yami.ski:u1',
+    })
   })
 })
 

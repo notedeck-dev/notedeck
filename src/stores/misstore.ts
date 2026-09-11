@@ -693,6 +693,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
           { source, hash, entry: e },
           { alwaysConfirm: false },
         )
+        // 別スコープからのインストールは本体を増やさず参加スコープを足す
+        // (プラグインと同型)
+        if (scope) queriesStore.linkScope(existing.id, scope)
       } else {
         await queriesStore.createQuery({
           // 新規インストールのローカル ID = storeId (#913)。衝突時のみ suffix
@@ -714,10 +717,24 @@ export const useMisStoreStore = defineStore('misstore', () => {
     }
   }
 
-  function isQueryInstalled(entry: StoreQueryEntry): boolean {
+  /**
+   * scope を渡すと「そのスコープに参加している個体があるか」で判定する
+   * (プラグインのストアカードと同じ粒度)。未参加のスコープが残るうちは
+   * 通常の状態で出し、押せばそのスコープへ参加させる。
+   */
+  function isQueryInstalled(
+    entry: StoreQueryEntry,
+    scope?: QueryScope,
+  ): boolean {
     const queriesStore = useColumnQueriesStore()
     queriesStore.ensureLoaded()
-    return queriesStore.queries.some((q) => q.storeId === entry.id)
+    return queriesStore.queries.some((q) => {
+      if (q.storeId !== entry.id) return false
+      if (!scope) return true
+      return scope.kind === 'global'
+        ? q.global === true
+        : (q.installedFor?.includes(scope.key) ?? false)
+    })
   }
 
   // --- Install ---
