@@ -360,15 +360,9 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
       viewTab.value = 'installed'
       return
     }
-    const src = await misStore.fetchWidgetSource(entry)
-    deckStore.addWidget(props.column.id, {
-      name: entry.name,
-      src,
-      autoRun: entry.autoRun,
-      storeId: entry.id,
-      iconUrl: entry.iconUrl,
-      accountKey,
-    })
+    // sha512 検証と baseline 記録は misstore 側の経路に一本化する
+    const widget = await misStore.installWidget(entry, accountKey)
+    deckStore.attachWidget(props.column.id, widget.installId)
     viewTab.value = 'installed'
   } catch (e) {
     installError.value = e instanceof Error ? e.message : 'インストール失敗'

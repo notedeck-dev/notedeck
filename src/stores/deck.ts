@@ -8,7 +8,7 @@ import defaultNavbarJson5 from '@/defaults/navbar.json5?raw'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useDeckWallpaperStore } from '@/stores/deckWallpaper'
-import { generateWidgetId, useWidgetsStore } from '@/stores/widgets'
+import { useWidgetsStore } from '@/stores/widgets'
 import { buildColumnUri } from '@/utils/columnUri'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import * as deckLayout from '@/utils/deckLayout'
@@ -632,47 +632,6 @@ export const useDeckStore = defineStore('deck', () => {
   const widgetsStore = useWidgetsStore()
 
   /**
-   * widget カラムに新規 widget を追加する。
-   * sidebar widget カラム (ナビバートグルで開閉) なら sidebar 並びに登録、
-   * non-sidebar widget カラムならカラム自身の widgetIds[] に push する。
-   */
-  function addWidget(
-    columnId: string,
-    initial?: {
-      src?: string
-      autoRun?: boolean
-      storeId?: string
-      name?: string
-      iconUrl?: string
-      /** 実行アカウントの安定キー (#1018)。全アカウントのカラムでインストール時に選ぶ */
-      accountKey?: string
-    },
-  ) {
-    const col = getColumn(columnId)
-    if (col?.type !== 'widget') return
-    const installId = generateWidgetId()
-    const now = Date.now()
-    widgetsStore.addWidget({
-      installId,
-      name: initial?.name ?? `Widget ${installId.slice(4, 12)}`,
-      src: initial?.src ?? '',
-      autoRun: initial?.autoRun ?? false,
-      storeId: initial?.storeId,
-      iconUrl: initial?.iconUrl,
-      accountKey: initial?.accountKey,
-      createdAt: now,
-      updatedAt: now,
-    })
-    if (col.sidebar === true) {
-      widgetsStore.addToSidebar(installId)
-    } else {
-      if (!col.widgetIds) col.widgetIds = []
-      col.widgetIds.push(installId)
-      save()
-    }
-  }
-
-  /**
    * 既存ライブラリ widget をカラムに配置する (= column.widgetIds への参照追加)。
    * widget 本体は widgetsStore に既にあるものを再利用する。
    * sidebar widget カラムなら sidebarWidgetIds に、それ以外は column.widgetIds に push。
@@ -903,7 +862,6 @@ export const useDeckStore = defineStore('deck', () => {
     flushSave,
     load,
     clear,
-    addWidget,
     attachWidget,
     detachWidgetFromAllColumns,
     purgeAccountWidgets,
