@@ -191,7 +191,7 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     label: 'タイムライン',
     icon: 'home',
     group: 'account',
-    // 全アカウントはホーム / ソーシャルのみ (#1059)。同一ノートは束ねる (#1058)
+    // 全アカウントはホーム / グローバルのみ (#1059)。同一ノートは束ねる (#1058)
     crossAccount: true,
     guestAllowed: true,
     defaultProps: { tl: 'home', name: null },

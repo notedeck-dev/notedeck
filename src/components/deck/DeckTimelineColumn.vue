@@ -191,11 +191,13 @@ const TL_ICONS: Record<TimelineType, string> = {
 }
 
 // --- 全アカウントモード (#1059) ---
-// 対象はホームとソーシャルだけ。どちらも「自分がフォローしている人」の集合なので
-// サーバーを跨いでも意味が通る。ローカル / グローバルは「そのサーバーの民」の
-// 性質が強く対象にしない (#205 の棄却理由がそのまま残る)
+// 対象はホームとグローバルだけ。ホームは「自分がフォローしている人」、グローバルは
+// 「各サーバーから見た連合全体」なのでサーバーを跨いでも意味が通り、同じ連合
+// ノートが複数サーバーから届くので束ね (#1058) の効果も出る。ローカルと、
+// ローカルを含むソーシャルは「そのサーバーの民」の性質が強く対象にしない
+// (#205 の棄却理由がそのまま残る)
 const CROSS_TL_TYPES = TL_TYPES.filter(
-  (t) => t.value === 'home' || t.value === 'social',
+  (t) => t.value === 'home' || t.value === 'global',
 )
 if (
   isCrossAccount.value &&
@@ -529,7 +531,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <!-- Cross-account mode (#1059): ホーム / ソーシャルを全アカウントで混ぜて束ねる -->
+  <!-- Cross-account mode (#1059): ホーム / グローバルを全アカウントで混ぜて束ねる -->
   <DeckColumn
     v-if="isCrossAccount"
     :column-id="column.id"
