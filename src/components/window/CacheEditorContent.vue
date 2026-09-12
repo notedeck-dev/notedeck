@@ -265,6 +265,9 @@ onMounted(refreshStats)
         <span :class="$style.sectionTitle">保存粒度</span>
       </div>
       <p :class="$style.hint">{{ presetHint }}</p>
+      <p :class="$style.hint">
+        このキャッシュはクライアント検索の索引でもあります。フォロワー限定やダイレクトを含む、自分の目を通った全ノートが暗号化されずに保存されます。
+      </p>
       <div :class="$style.presetRow">
         <button
           v-for="opt in PRESET_OPTIONS"
