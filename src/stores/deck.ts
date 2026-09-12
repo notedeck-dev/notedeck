@@ -5,6 +5,7 @@ import type { TimelineFilter, TimelineType } from '@/adapters/types'
 import { DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import defaultNavbarJson5 from '@/defaults/navbar.json5?raw'
+import type { ClientSearchFilter } from '@/services/clientSearch'
 import type { VariantKey } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckProfileStore } from '@/stores/deckProfile'
@@ -25,6 +26,7 @@ export type BuiltinColumnType =
   | 'timeline'
   | 'notifications'
   | 'search'
+  | 'clientSearch'
   | 'list'
   | 'antenna'
   | 'favorites'
@@ -89,6 +91,7 @@ export const TIMELINE_LIKE_COLUMN_TYPES: ReadonlySet<ColumnType> = new Set([
   'user',
   'specified',
   'search',
+  'clientSearch',
   'role',
   'chat',
 ])
@@ -151,9 +154,12 @@ export interface DeckColumn {
   width: number
   accountId: string | null
   tl?: TimelineType
+  /** サーバー検索 / クライアント検索の検索語 */
   query?: string
   active?: boolean
   filters?: TimelineFilter
+  /** クライアント検索 (#945 / #958) の絞り込み。カラムに永続化する */
+  clientSearchFilter?: ClientSearchFilter
   /**
    * カラムクエリ (#783 層 2)。AiScript 式のソース。空/未定義 = クエリなし。
    * 検索カラム用の `query` とは別物 (仕様追補 A)。

@@ -1006,6 +1006,43 @@ pub async fn api_search_notes_local(
     )
 }
 
+/// クライアント検索 (notedeck#945 / #958): 複数アカウントのキャッシュを横断して
+/// 引く。結果は取得元アカウントごとの variant のまま返し、束ねはフロントが行う。
+#[tauri::command]
+#[specta::specta]
+#[allow(clippy::too_many_arguments)]
+pub async fn api_search_notes_cached_across(
+    app_state: State<'_, AppState>,
+    account_ids: Vec<String>,
+    query: String,
+    limit: Option<i64>,
+    since_date: Option<String>,
+    until_date: Option<String>,
+    ascending: Option<bool>,
+    author: Option<String>,
+    has_files: Option<bool>,
+) -> Result<Vec<NormalizedNote>> {
+    if query.len() > 1000 {
+        return Err(NoteDeckError::InvalidInput(
+            "Search query too long".to_string(),
+        ));
+    }
+    let db = app_state.db().await;
+    let ids: Vec<&str> = account_ids.iter().map(String::as_str).collect();
+    db.search_cached_notes_across(
+        &ids,
+        &notecli::db::CachedSearchOptions {
+            query: &query,
+            limit: limit.unwrap_or(50).clamp(1, 200),
+            since_date: since_date.as_deref(),
+            until_date: until_date.as_deref(),
+            ascending: ascending.unwrap_or(false),
+            author: author.as_deref().filter(|a| !a.trim().is_empty()),
+            has_files,
+        },
+    )
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn api_delete_cached_note(
