@@ -14,6 +14,15 @@ export interface UseStreamingBatchOptions {
   onNewNotes?: (notes: NormalizedNote[]) => void
   /** Called once when the buffer overflows (emergency cap reached). */
   onOverflow?: () => void
+  /**
+   * 束ねる面 (#1058 §6): 同じ identity の group が既に列にある variant は行を増やさず
+   * 既存 group の直後に差し込む (サイレント挿入)。新着カウント・アニメーション・
+   * pending は通さない。両方揃って初めて有効
+   */
+  hasGroup?: (note: NormalizedNote) => boolean
+  insertSilently?: (notes: NormalizedNote[]) => void
+  /** pending の新着数を group 数で数えるための identity (束ねる面のみ) */
+  identityOf?: (note: NormalizedNote) => string
 }
 
 export function useStreamingBatch(options: UseStreamingBatchOptions) {
@@ -25,10 +34,14 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
   /** Tab-switch diff-fetch notes — NOT auto-flushed, banner-tap only */
   const queuedNotes = shallowRef<NormalizedNote[]>([])
   const isAtTop = ref(true)
-  /** Combined count: presence (>0) drives the "新しいノート" banner visibility */
-  const pendingCount = computed(
-    () => pendingNotes.value.length + queuedNotes.value.length,
-  )
+  /** Combined count: presence (>0) drives the "新しいノート" banner visibility.
+   *  束ねる面では variant 数ではなく identity の distinct 数 (= 増える行数) */
+  const pendingCount = computed(() => {
+    const all = [...pendingNotes.value, ...queuedNotes.value]
+    const identityOf = options.identityOf
+    if (!identityOf) return all.length
+    return new Set(all.map(identityOf)).size
+  })
   /** 行キー (variant key) のうちスライドインアニメーション中のもの */
   const animatingIds = shallowRef<ReadonlySet<VariantKey>>(new Set())
   const _animTimers = new Set<ReturnType<typeof setTimeout>>()
@@ -71,11 +84,23 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
     _paused = paused
   }
 
+  /** 既存 group に畳める variant を先に差し込み、行が増える分だけ返す */
+  function takeSilent(notes: NormalizedNote[]): NormalizedNote[] {
+    const { hasGroup, insertSilently } = options
+    if (!hasGroup || !insertSilently) return notes
+    const silent: NormalizedNote[] = []
+    const fresh: NormalizedNote[] = []
+    for (const n of notes) (hasGroup(n) ? silent : fresh).push(n)
+    if (silent.length > 0) insertSilently(silent)
+    return fresh
+  }
+
   function flushRafBuffer() {
     rafScheduled = false
     if (rafBuffer.length === 0) return
-    const batch = rafBuffer
+    const batch = takeSilent(rafBuffer)
     rafBuffer = []
+    if (batch.length === 0) return
     if (isAtTop.value) {
       enableAnimation(batch.map(variantKeyOf))
       for (const n of batch) options.noteKeys.add(variantKeyOf(n))
@@ -114,8 +139,9 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
 
   function flushPending() {
     if (pendingNotes.value.length === 0) return
-    const newNotes = pendingNotes.value.filter(
-      (n) => !options.noteKeys.has(variantKeyOf(n)),
+    // pending の間に既存 group ができた variant はここでも差し込み側に回す
+    const newNotes = takeSilent(
+      pendingNotes.value.filter((n) => !options.noteKeys.has(variantKeyOf(n))),
     )
     if (newNotes.length === 0) {
       pendingNotes.value = []
@@ -174,8 +200,8 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
    *  Not auto-flushed — only revealed on explicit banner tap / scrollToTop. */
   function addQueued(newNotes: NormalizedNote[]) {
     if (newNotes.length === 0) return
-    const deduped = newNotes.filter(
-      (n) => !options.noteKeys.has(variantKeyOf(n)),
+    const deduped = takeSilent(
+      newNotes.filter((n) => !options.noteKeys.has(variantKeyOf(n))),
     )
     if (deduped.length === 0) return
     const merged = insertIntoSorted(queuedNotes.value, deduped)

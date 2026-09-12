@@ -138,3 +138,90 @@ describe('useNoteList: noteCapture 同期の通知経路 (#939)', () => {
     expect(list.rawNotes.value.map((n) => n.id)).toEqual(['n0', 'n1', 'n2'])
   })
 })
+
+describe('useNoteList: 束ねる面のサイレント挿入 (#1058 §6)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  function variant(
+    id: string,
+    accountId: string,
+    identity: string,
+    trusted = true,
+  ): NormalizedNote {
+    return {
+      ...makeNote(id, '2026-01-01T00:00:00.000Z'),
+      _accountId: accountId,
+      _serverHost: `${accountId}.example`,
+      _identity: identity,
+      _isOrigin: false,
+      _identityTrusted: trusted,
+    } as unknown as NormalizedNote
+  }
+
+  function setup() {
+    return useNoteList({
+      bundle: true,
+      getAdapter: () => null,
+      deleteHandler: async () => false,
+      closePostForm: () => {},
+    })
+  }
+
+  it('同じ identity の group が列にあれば hasGroupFor が真', () => {
+    const list = setup()
+    list.setNotes([variant('n1', 'a', 'https://o/notes/n1')])
+    expect(list.hasGroupFor(variant('n1', 'b', 'https://o/notes/n1'))).toBe(
+      true,
+    )
+    expect(list.hasGroupFor(variant('n2', 'b', 'https://o/notes/n2'))).toBe(
+      false,
+    )
+  })
+
+  it('整合検査を通らない variant は既存 group 扱いにしない', () => {
+    const list = setup()
+    list.setNotes([variant('n1', 'a', 'https://o/notes/n1', false)])
+    expect(list.hasGroupFor(variant('n1', 'b', 'https://o/notes/n1'))).toBe(
+      false,
+    )
+  })
+
+  it('後着 variant は既存 group の直後に差し込まれ、行数は増えない', () => {
+    const list = setup()
+    list.setNotes([
+      variant('x1', 'a', 'https://o/notes/x1'),
+      variant('y1', 'a', 'https://o/notes/y1'),
+    ])
+    list.insertSilently([variant('x1', 'b', 'https://o/notes/x1')])
+    expect(list.rawNotes.value.map((n) => `${n._accountId}:${n.id}`)).toEqual([
+      'a:x1',
+      'b:x1',
+      'a:y1',
+    ])
+    expect(list.groups.value).toHaveLength(2)
+    expect(list.groups.value[0]?.variants).toHaveLength(2)
+  })
+
+  it('group が無い variant と既知の variant は無視される', () => {
+    const list = setup()
+    const a = variant('x1', 'a', 'https://o/notes/x1')
+    list.setNotes([a])
+    list.insertSilently([a, variant('z9', 'b', 'https://o/notes/z9')])
+    expect(list.rawNotes.value).toHaveLength(1)
+  })
+
+  it('差し込み後は capture 同期 (onNotesChanged) が 1 回呼ばれる', () => {
+    const list = setup()
+    list.setNotes([variant('x1', 'a', 'https://o/notes/x1')])
+    let calls = 0
+    list.setOnNotesChanged(() => {
+      calls++
+    })
+    list.insertSilently([variant('x1', 'b', 'https://o/notes/x1')])
+    expect(calls).toBe(1)
+    list.insertSilently([variant('x1', 'b', 'https://o/notes/x1')])
+    expect(calls).toBe(1)
+  })
+})

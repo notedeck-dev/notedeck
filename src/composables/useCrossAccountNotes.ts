@@ -1,5 +1,20 @@
-import { onMounted, type Ref, watch } from 'vue'
-import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onScopeDispose,
+  type Ref,
+  watch,
+} from 'vue'
+import type {
+  ChannelSubscription,
+  ManagedChannelSubscription,
+  NormalizedNote,
+  NoteUpdateEvent,
+  ServerAdapter,
+  SubscriptionRuntimeState,
+} from '@/adapters/types'
+import { useColumnLive } from '@/composables/useColumnMount'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useMultiNoteCapture } from '@/composables/useMultiNoteCapture'
 import {
@@ -8,10 +23,13 @@ import {
 } from '@/composables/useNoteColumnCache'
 import { useNoteList } from '@/composables/useNoteList'
 import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
-import { variantKeyOf } from '@/services/noteKey'
+import { useStreamingBatch } from '@/composables/useStreamingBatch'
+import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
+import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
 import { useToast } from '@/stores/toast'
+import { useUiStore } from '@/stores/ui'
 import { mapWithConcurrency } from '@/utils/concurrency'
 import { AppError } from '@/utils/errors'
 import { toggleReaction } from '@/utils/toggleReaction'
@@ -42,7 +60,25 @@ export interface CrossAccountNotesOptions {
   scroller: Ref<HTMLElement | null>
   onScrollReport: () => void
   closePostForm?: () => void
+
+  /**
+   * ライブ更新 (#1059)。アカウントごとに購読し、新着は 1 つの
+   * useStreamingBatch に合流させる。同じ identity の group が既に列にある
+   * variant は行を増やさず差し込む (サイレント挿入、#1058 §6)。
+   * `columnId` は可視 / live 予算の判定に使う
+   */
+  streaming?: {
+    columnId: string
+    subscribe: (
+      accountId: string,
+      adapter: ServerAdapter,
+      enqueue: (note: NormalizedNote) => void,
+      callbacks: { onNoteUpdated: (event: NoteUpdateEvent) => void },
+    ) => ChannelSubscription
+  }
 }
+
+type StreamEventName = 'connected' | 'disconnected' | 'reconnecting'
 
 /** Promise.allSettled の結果からノートを集約 */
 function collectFulfilled(
@@ -118,6 +154,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   const multiAdapters = useMultiAccountAdapters()
   const noteStore = useNoteStore()
   const toast = useToast()
+  const uiStore = useUiStore()
   const { noteScrollerRef } = useNoteScrollerRef(scroller)
 
   const list = useNoteList({
@@ -135,7 +172,16 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       }
     },
   })
-  const { notes, groups, rawNotes, setNotes, onNoteUpdate, removeNote } = list
+  const {
+    notes,
+    groups,
+    rawNotes,
+    noteKeys,
+    setNotes,
+    mergeUpdate,
+    onNoteUpdate,
+    removeNote,
+  } = list
 
   // 各アカウントの接続で variant を購読する (§6)。接続を持たないアカウントの
   // variant は購読しない
@@ -143,16 +189,242 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     (accountId) => multiAdapters.getCached(accountId)?.stream,
     onNoteUpdate,
   )
-  list.setOnNotesChanged((visible) => capture.sync(visible))
+  // 束ねる面の可視ノートは主ビューだけなので、表示中 group の全 variant を渡す。
+  // 非主 variant を購読しないと、そのアカウント経由のリアクションが届かない
+  list.setOnNotesChanged(() =>
+    capture.sync(groups.value.flatMap((g) => g.variants)),
+  )
+
+  // --- ライブ更新: アカウント別購読 × N → 1 つの batch に合流 (#1059) ---
+  const streaming = options.streaming
+  const streamingBatch = streaming
+    ? useStreamingBatch({
+        notes: rawNotes,
+        noteKeys,
+        scroller,
+        hasGroup: list.hasGroupFor,
+        insertSilently: list.insertSilently,
+        identityOf: (n) => (n._identityTrusted ? n._identity : variantKeyOf(n)),
+        onOverflow: () => {
+          toast.show('新着が多すぎるため一部をスキップしました', 'warning')
+        },
+      })
+    : null
+  /** accountId → 購読。runtime state はカラム単位で共有する */
+  const subscriptions = new Map<string, ChannelSubscription>()
+  let runtimeState: SubscriptionRuntimeState = 'live'
+  const streamHandlers: {
+    adapter: ServerAdapter
+    event: StreamEventName
+    handler: () => void
+  }[] = []
+  /** connect のたびに進める。古い connect / resume の結果を捨てる */
+  let generation = 0
+
+  function setRuntimeState(state: SubscriptionRuntimeState) {
+    runtimeState = state
+    for (const sub of subscriptions.values()) {
+      ;(sub as Partial<ManagedChannelSubscription>).setRuntimeState?.(state)
+    }
+  }
+
+  function disposeSubscriptions() {
+    for (const sub of subscriptions.values()) sub.dispose()
+    subscriptions.clear()
+    for (const { adapter, event, handler } of streamHandlers) {
+      adapter.stream.off(event, handler)
+    }
+    streamHandlers.length = 0
+  }
+
+  function onStreamEvent(
+    adapter: ServerAdapter,
+    event: StreamEventName,
+    handler: () => void,
+  ) {
+    adapter.stream.on(event, handler)
+    streamHandlers.push({ adapter, event, handler })
+  }
+
+  function subscribeAccount(accountId: string, adapter: ServerAdapter) {
+    if (!streaming || !streamingBatch) return
+    subscriptions.get(accountId)?.dispose()
+    const sub = streaming.subscribe(
+      accountId,
+      adapter,
+      (note) => streamingBatch.enqueueNote(note),
+      {
+        onNoteUpdated: (event) => {
+          if (event.type === 'deleted') {
+            streamingBatch.removePending(
+              variantKey(event.accountId, event.noteId),
+            )
+          }
+          onNoteUpdate(event)
+        },
+      },
+    )
+    ;(sub as Partial<ManagedChannelSubscription>).setRuntimeState?.(
+      runtimeState,
+    )
+    subscriptions.set(accountId, sub)
+
+    // WS 瞬断からの再接続で、切断中に欠けたノートを埋める (#704 K)。
+    // 初回接続では発火しない
+    let wasDisconnected = false
+    const markDown = () => {
+      wasDisconnected = true
+    }
+    onStreamEvent(adapter, 'disconnected', markDown)
+    onStreamEvent(adapter, 'reconnecting', markDown)
+    onStreamEvent(adapter, 'connected', () => {
+      if (!wasDisconnected) return
+      wasDisconnected = false
+      void onResume()
+    })
+  }
+
+  /** 新着バナーの件数 (束ねる面なので identity の distinct 数) */
+  const pendingCount = streamingBatch?.pendingCount ?? computed(() => 0)
+  /**
+   * スライドイン中の行キー。batch は variant key で管理するが、束ねる面の
+   * 行キーは group の rowKey なので写像する
+   */
+  const animatingRowKeys = computed<ReadonlySet<string>>(() => {
+    const ids = streamingBatch?.animatingIds.value
+    if (!ids || ids.size === 0) return new Set()
+    const out = new Set<string>()
+    for (const g of groups.value) {
+      if (g.variants.some((v) => ids.has(variantKeyOf(v)))) out.add(g.rowKey)
+    }
+    return out
+  })
 
   function scrollToTop() {
-    if (noteScrollerRef.value) {
-      noteScrollerRef.value.scrollToIndex(0, {
-        align: 'start',
-        behavior: 'smooth',
-      })
-    } else {
-      scroller.value?.scrollTo({ top: 0, behavior: 'smooth' })
+    streamingBatch?.flushToTop()
+    nextTick(() => {
+      if (noteScrollerRef.value) {
+        noteScrollerRef.value.scrollToIndex(0, {
+          align: 'start',
+          behavior: 'smooth',
+        })
+      } else {
+        scroller.value?.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+    })
+  }
+
+  // 可視 / live 予算に応じて batch と Rust 側購読を制御する。規則は
+  // useNoteColumn と同じ: 不可視は pause + warm、可視・予算外は pause のまま
+  // 購読だけ live (suspend 中のリアクションを取り逃さない)、可視・予算内は
+  // catch-up してから live
+  let wantLive = !streaming
+  if (streaming && streamingBatch) {
+    const { isVisible, isLive } = useColumnLive(streaming.columnId)
+    let transition = 0
+    watch(
+      [isVisible, isLive],
+      async ([visible, live]) => {
+        const seq = ++transition
+        wantLive = false
+        streamingBatch.setPaused(true)
+        if (!visible) {
+          setRuntimeState('warm')
+          return
+        }
+        if (!live) {
+          setRuntimeState('live')
+          return
+        }
+        await onResume()
+        if (seq !== transition) return
+        wantLive = true
+        setRuntimeState('live')
+        streamingBatch.setPaused(false)
+      },
+      { immediate: true },
+    )
+
+    // 端末復帰 (スリープ / タイムジャンプ): 全接続を張り直して catch-up
+    watch(
+      () => uiStore.deckResumeSignal,
+      () => {
+        for (const acc of accountsStore.accounts) {
+          multiAdapters.getCached(acc.id)?.stream.reconnect()
+        }
+        void onResume()
+      },
+    )
+
+    onScopeDispose(disposeSubscriptions)
+  }
+
+  let lastResumeAt = 0
+
+  /**
+   * 復帰時の catch-up。アカウントごとに最新ページを取り、そのアカウントの行と
+   * 1 件も重ならなければ (1 ページ超の欠落) そのアカウントの variant だけを
+   * 置換する。他アカウントの行は消さない (#1058 §6)。重なりがあれば既存は
+   * 更新、新規は新着バナー経由で流す
+   */
+  async function onResume() {
+    if (!isCrossAccount() || !streamingBatch) return
+    if (rawNotes.value.length === 0) return
+    const now = Date.now()
+    if (now - lastResumeAt < 3000) return
+    lastResumeAt = now
+
+    const accounts = accountsStore.accounts.filter((a) => a.hasToken)
+    if (accounts.length === 0) return
+    const gen = generation
+    const results = await mapWithConcurrency(
+      accounts,
+      async (acc): Promise<[string, NormalizedNote[]]> => {
+        const adapter = await multiAdapters.getOrCreate(acc.id)
+        if (!adapter) return [acc.id, []]
+        try {
+          return [acc.id, await fetchNotes(adapter)]
+        } catch {
+          return [acc.id, []]
+        }
+      },
+      3,
+    )
+    if (gen !== generation) return
+
+    const current = rawNotes.value
+    const gapAccounts = new Set<string>()
+    const replacement: NormalizedNote[] = []
+    const overlap: NormalizedNote[] = []
+    for (const r of results) {
+      if (r.status !== 'fulfilled') continue
+      const [accountId, fetched] = r.value
+      const shown = new Set<VariantKey>()
+      for (const n of current) {
+        if (n._accountId === accountId) shown.add(variantKeyOf(n))
+      }
+      if (hasGap(fetched, shown, shown.size > 0)) {
+        gapAccounts.add(accountId)
+        replacement.push(...fetched)
+      } else {
+        overlap.push(...fetched)
+      }
+    }
+
+    if (gapAccounts.size > 0) {
+      const kept = current.filter((n) => !gapAccounts.has(n._accountId))
+      setNotes(await dedupAsync([...replacement, ...kept]))
+      if (gen !== generation) return
+    }
+    if (overlap.length > 0) {
+      const existing = overlap.filter((n) => noteKeys.has(variantKeyOf(n)))
+      const brandNew = overlap.filter((n) => !noteKeys.has(variantKeyOf(n)))
+      if (existing.length > 0) mergeUpdate(existing)
+      if (brandNew.length > 0) {
+        streamingBatch.addQueued(brandNew)
+        // 最上部にいるときだけ即 flush。スクロール中はバナーに留める (#791)
+        if (streamingBatch.isAtTop.value) scrollToTop()
+      }
     }
   }
 
@@ -177,9 +449,16 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   async function connectCrossAccount() {
     error.value = null
     isLoading.value = true
+    const gen = ++generation
+    // 取得中の auto-flush ちらつきを防ぐ。購読は張り直す (TL タブ切替も
+    // ここを通るため、旧タブの購読を残さない)
+    streamingBatch?.setPaused(true)
+    streamingBatch?.resetBatch()
+    disposeSubscriptions()
 
     // オフラインファースト: キャッシュを即時表示（ログアウト中のアカウント分も含む）
     const cached = await loadCrossAccountCache()
+    if (gen !== generation) return
     if (cached.length > 0) setNotes(cached)
 
     const accounts = accountsStore.accounts.filter((a) => a.hasToken)
@@ -197,17 +476,22 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
           if (!adapter) return []
           // capture 用に接続を張る (既に接続済みなら no-op)
           adapter.stream.connect()
+          if (gen === generation) subscribeAccount(acc.id, adapter)
           return fetchNotes(adapter)
         },
         3,
       )
+      if (gen !== generation) return
 
       // live を優先しつつキャッシュとマージ（dedup は先勝ち）
       setNotes(await dedupAsync([...collectFulfilled(results), ...cached]))
     } catch (e) {
-      error.value = AppError.from(e)
+      if (gen === generation) error.value = AppError.from(e)
     } finally {
-      isLoading.value = false
+      if (gen === generation) {
+        isLoading.value = false
+        if (wantLive) streamingBatch?.setPaused(false)
+      }
     }
   }
 
@@ -262,6 +546,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   }
 
   function handleScroll() {
+    streamingBatch?.handleScroll()
     onScrollReport()
   }
 
@@ -331,5 +616,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     removeNote,
     react,
     vote,
+    pendingCount,
+    animatingRowKeys,
+    onResume,
   }
 }

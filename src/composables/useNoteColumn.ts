@@ -44,6 +44,7 @@ import { composeQir } from '@/services/columnQuery/composeQir'
 import { getSharedDegradedRunner } from '@/services/columnQuery/degradedRunner'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
+import { hasGap as hasTimelineGap } from '@/services/timelineGap'
 import { isGuestAccount } from '@/stores/accounts'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
@@ -747,19 +748,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
     }
   }
 
-  /**
-   * 最新ページと表示中ノートの重なりで 1 ページ超の欠落を判定する (#791)。
-   * 重なりゼロ = 最新ページの最古ですら表示中の先頭より新しい。マージすると
-   * 間に隠れた穴が残るため、呼び出し側は最新ページで丸ごと置換する
-   * (古いノートはスクロールで再取得可能)。復帰 (onResume)・タブ切替
-   * (switchWithSnapshot)・手動リロード (refresh) 共通の catch-up 判定。
-   */
+  /** 復帰・タブ切替・手動リロード共通の catch-up 判定 (規則は services/timelineGap) */
   function hasGap(fetched: NormalizedNote[], hadNotes: boolean): boolean {
-    return (
-      hadNotes &&
-      fetched.length > 0 &&
-      !fetched.some((n) => noteKeys.has(variantKeyOf(n)))
-    )
+    return hasTimelineGap(fetched, noteKeys, hadNotes)
   }
 
   function getDedupKey(): string {
