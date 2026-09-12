@@ -555,6 +555,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
   // 順に enqueue するので、Worker の応答が前後しても表示順は入れ替わらない。
   let heldNotes: NormalizedNote[] = []
   let holdFlush: Promise<void> | null = null
+  /** 判定中 (Worker 往復の間) に削除されたキー。enqueue の直前で再確認する */
+  const droppedWhileHeld = new Set<VariantKey>()
 
   function holdForDegraded(n: NormalizedNote): void {
     heldNotes.push(n)
@@ -570,13 +572,18 @@ export function useNoteColumn(config: NoteColumnConfig) {
       const batch = heldNotes
       heldNotes = []
       const admitted = await admitDegraded(batch)
-      for (const note of admitted) streamingBatch?.enqueueNote(note)
+      for (const note of admitted) {
+        if (droppedWhileHeld.has(variantKeyOf(note))) continue
+        streamingBatch?.enqueueNote(note)
+      }
     }
+    droppedWhileHeld.clear()
   }
 
   /** 判定待ちのまま削除されたノートを捨てる (removePending と同じ役割) */
   function dropHeldNote(key: VariantKey): void {
     heldNotes = heldNotes.filter((n) => variantKeyOf(n) !== key)
+    if (holdFlush !== null) droppedWhileHeld.add(key)
   }
 
   /**
@@ -1304,10 +1311,11 @@ export function useNoteColumn(config: NoteColumnConfig) {
     setSubscription(
       config.streaming.subscribe(adapter, enqueueWithQuery, {
         onNoteUpdated: (event) => {
-          if (event.type === 'deleted')
-            streamingBatch.removePending(
-              variantKey(event.accountId, event.noteId),
-            )
+          if (event.type === 'deleted') {
+            const key = variantKey(event.accountId, event.noteId)
+            streamingBatch.removePending(key)
+            dropHeldNote(key)
+          }
           onNoteUpdateWithQuery(event)
         },
       }),

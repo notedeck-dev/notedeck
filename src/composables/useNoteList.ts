@@ -146,11 +146,22 @@ export function useNoteList(options: UseNoteListOptions) {
 
   function setNotes(newNotes: NormalizedNote[], trim: TrimSide = 'oldest') {
     // rawNotes setter 側の切り捨ては 'oldest' 固定なので、'newest' のときは
-    // ここで先に上限まで削っておく (setter 側は結果的に no-op になる)
-    rawNotes.value =
-      trim === 'newest' && newNotes.length > maxNotes
-        ? newNotes.slice(newNotes.length - maxNotes)
-        : newNotes
+    // ここで先に上限まで削っておく (setter 側は結果的に no-op になる)。
+    // 束ねる面は group 数で数える (variant 数で切ると上限内の group が欠ける)
+    if (trim === 'newest') {
+      rawNotes.value = bundle
+        ? [
+            ...truncateByGroups(
+              [...clusterByIdentity(newNotes)].reverse(),
+              maxNotes,
+            ),
+          ].reverse()
+        : newNotes.length > maxNotes
+          ? newNotes.slice(newNotes.length - maxNotes)
+          : newNotes
+      return
+    }
+    rawNotes.value = newNotes
   }
 
   /**

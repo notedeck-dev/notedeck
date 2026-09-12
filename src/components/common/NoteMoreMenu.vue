@@ -553,26 +553,29 @@ defineExpose({ open })
     @close="closeActAs"
   >
     <template #detail>
+      <!-- 非公開 variant は desktop の actAsOperations と同じく全操作を出さない -->
       <div v-if="actAsAccountId && variantHidden(actAsAccountId)" class="_popupItem" aria-disabled="true" style="opacity: 0.6; cursor: default">
         <i class="ti ti-lock" />
         このアカウントでは本文が非公開のため操作できません
       </div>
-      <button v-else-if="actAsAccountId && variantReaction(actAsAccountId)" class="_popupItem" @click="actAs('unreactAs')">
-        <i class="ti ti-mood-minus" />
-        リアクションを取り消す ({{ variantReaction(actAsAccountId) }})
-      </button>
-      <button v-else class="_popupItem" @click="actAs('reactAs')">
-        <i class="ti ti-mood-plus" />
-        リアクション
-      </button>
-      <button class="_popupItem" @click="actAs('renoteAs')">
-        <i class="ti ti-repeat" />
-        リノート
-      </button>
-      <button class="_popupItem" @click="actAs('quoteAs')">
-        <i class="ti ti-quote" />
-        引用
-      </button>
+      <template v-else>
+        <button v-if="actAsAccountId && variantReaction(actAsAccountId)" class="_popupItem" @click="actAs('unreactAs')">
+          <i class="ti ti-mood-minus" />
+          リアクションを取り消す ({{ variantReaction(actAsAccountId) }})
+        </button>
+        <button v-else class="_popupItem" @click="actAs('reactAs')">
+          <i class="ti ti-mood-plus" />
+          リアクション
+        </button>
+        <button class="_popupItem" @click="actAs('renoteAs')">
+          <i class="ti ti-repeat" />
+          リノート
+        </button>
+        <button class="_popupItem" @click="actAs('quoteAs')">
+          <i class="ti ti-quote" />
+          引用
+        </button>
+      </template>
       <button class="_popupItem" @click="actAsAccountId = null">
         <i class="ti ti-arrow-left" />
         戻る

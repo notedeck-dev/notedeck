@@ -87,20 +87,25 @@ const currentError = computed(() =>
   tab.value === 'misskey' ? misskeyError.value : apError.value,
 )
 
+/** ビュー切替のたびに進める。切替前に投げた取得の結果は捨てる */
+let viewGeneration = 0
+
 async function loadMisskey() {
   if (misskeyRaw.value != null || isLoadingMisskey.value) return
+  const gen = viewGeneration
   isLoadingMisskey.value = true
   misskeyError.value = null
   try {
-    misskeyRaw.value = unwrap(
+    const raw = unwrap(
       await commands.apiGetNoteRaw(active.value.accountId, {
         noteId: active.value.noteId,
       } as never),
     )
+    if (gen === viewGeneration) misskeyRaw.value = raw
   } catch (e) {
-    misskeyError.value = AppError.from(e).message
+    if (gen === viewGeneration) misskeyError.value = AppError.from(e).message
   } finally {
-    isLoadingMisskey.value = false
+    if (gen === viewGeneration) isLoadingMisskey.value = false
   }
 }
 
@@ -111,14 +116,16 @@ async function loadActivityPub() {
     apError.value = 'URI を特定できませんでした'
     return
   }
+  const gen = viewGeneration
   isLoadingAp.value = true
   apError.value = null
   try {
-    apRaw.value = unwrap(await commands.apiApShow(active.value.accountId, uri))
+    const raw = unwrap(await commands.apiApShow(active.value.accountId, uri))
+    if (gen === viewGeneration) apRaw.value = raw
   } catch (e) {
-    apError.value = AppError.from(e).message
+    if (gen === viewGeneration) apError.value = AppError.from(e).message
   } finally {
-    isLoadingAp.value = false
+    if (gen === viewGeneration) isLoadingAp.value = false
   }
 }
 
@@ -128,8 +135,12 @@ onMounted(() => {
 
 // ビューを切り替えたら両タブとも取り直す
 watch(activeVariant, () => {
+  viewGeneration++
   misskeyRaw.value = null
   apRaw.value = null
+  // 進行中の取得は結果を捨てるので、ここで新しい取得を始められる
+  isLoadingMisskey.value = false
+  isLoadingAp.value = false
   loadMisskey()
   if (tab.value === 'activitypub') loadActivityPub()
 })
