@@ -518,6 +518,15 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     defaultProps: { accountId: null },
     component: () => import('@/components/deck/DeckMemoColumn.vue'),
   },
+  // 「もっと」はこの並び順で出る。AI はスキル / スクラッチパッドの前
+  ai: {
+    label: 'AI',
+    icon: 'brain',
+    group: 'tool',
+    accountIndependent: true,
+    defaultProps: { accountId: null },
+    component: () => import('@/components/deck/DeckAiColumn.vue'),
+  },
   skill: {
     label: 'スキル',
     icon: 'sparkles',
@@ -565,14 +574,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     crossAccount: true,
     wide: true,
     component: () => import('@/components/deck/DeckStreamInspectorColumn.vue'),
-  },
-  ai: {
-    label: 'AI',
-    icon: 'brain',
-    group: 'tool',
-    accountIndependent: true,
-    defaultProps: { accountId: null },
-    component: () => import('@/components/deck/DeckAiColumn.vue'),
   },
   taskRunner: {
     label: 'タスク',

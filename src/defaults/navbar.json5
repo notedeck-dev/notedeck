@@ -1,6 +1,8 @@
 // NoteDeck navbar.json5 デフォルト
 // ナビバー構成
 [
+  // 全アカウント TL (#1059) を最上部に。目玉機能なので最初に目に入る位置
+  { type: 'timeline', accountId: null },
   { type: 'notifications', accountId: null },
   { type: 'mentions', accountId: null },
   { type: 'specified', accountId: null },
@@ -9,5 +11,5 @@
   { type: 'search', accountId: null },
   { type: 'lookup', accountId: null },
   { type: 'widget', accountId: null },
-  { type: 'ai', accountId: null },
+  // AI カラムは既定から外し「もっと」(registry 順) から開く
 ]
