@@ -84,10 +84,22 @@ const { navigateToNote } = useNavigation()
 // 同一 identity の variant を 1 行に束ねる (#1058)。サーバー検索とローカル FTS の
 // 2 段マージ・昇順/降順・正規表現はこのカラム側で決め、列には結果だけを書く。
 // 表示用 notes は述語で隠す（#606）。検索は一覧面なので opt-out なし
-const { notes, groups, rawNotes, setNotes } = useNoteList({
+const { notes, groups, rawNotes, setNotes, removeNote } = useNoteList({
   bundle: isCrossAccount.value,
   getAdapter,
-  deleteHandler: (note) => handlers.delete(note),
+  // 全アカウント面は variant の取得元アカウントで消す。成功時の noteStore.remove
+  // (tombstone) と SQLite キャッシュ削除は useNoteList.removeNote が担う
+  deleteHandler: async (note) => {
+    if (!isCrossAccount.value) return handlers.delete(note)
+    const adapter = await multiAdapters.getOrCreate(note._accountId)
+    if (!adapter) return false
+    try {
+      await adapter.api.deleteNote(note.id)
+      return true
+    } catch {
+      return false
+    }
+  },
   closePostForm: postForm.close,
 })
 
@@ -623,32 +635,6 @@ async function loadMoreCrossAccount() {
     error.value = AppError.from(e)
   } finally {
     isLoading.value = false
-  }
-}
-
-async function removeNote(note: NormalizedNote) {
-  const id = note.id
-  const prevNotes = rawNotes.value
-  rawNotes.value = rawNotes.value.filter(
-    (n) =>
-      n._accountId !== note._accountId || (n.id !== id && n.renoteId !== id),
-  )
-
-  if (isCrossAccount.value) {
-    const adapter = await multiAdapters.getOrCreate(note._accountId)
-    if (!adapter) {
-      rawNotes.value = prevNotes
-      return
-    }
-    try {
-      await adapter.api.deleteNote(note.id)
-    } catch {
-      rawNotes.value = prevNotes
-    }
-  } else {
-    if (!(await handlers.delete(note))) {
-      rawNotes.value = prevNotes
-    }
   }
 }
 

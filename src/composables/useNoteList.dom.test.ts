@@ -70,6 +70,49 @@ describe('useNoteList: 保持上限の切り捨て方向 (#834)', () => {
   })
 })
 
+describe('useNoteList: 束ねる面の保持上限 (#1058 §4)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  function variant(id: string, accountId: string, identity: string) {
+    return {
+      ...makeNote(id, '2026-01-01T00:00:00.000Z'),
+      _accountId: accountId,
+      _serverHost: `${accountId}.example`,
+      _identity: identity,
+      _isOrigin: false,
+      _identityTrusted: true,
+    } as unknown as NormalizedNote
+  }
+
+  it("trim='newest' でも group 数で数え、上限内の group を variant 数で欠かない", () => {
+    const list = useNoteList({
+      bundle: true,
+      getAdapter: () => null,
+      deleteHandler: async () => false,
+      closePostForm: () => undefined,
+      maxNotes: 2,
+    })
+    list.setNotes(
+      [
+        variant('x', 'a', 'https://o/notes/x'),
+        variant('y', 'a', 'https://o/notes/y'),
+        variant('y', 'b', 'https://o/notes/y'),
+        variant('z', 'a', 'https://o/notes/z'),
+      ],
+      'newest',
+    )
+    // 古い側 2 group (y, z) を残す。variant 数で切ると y の片方が欠ける
+    expect(list.rawNotes.value.map((n) => `${n._accountId}:${n.id}`)).toEqual([
+      'a:y',
+      'b:y',
+      'a:z',
+    ])
+    expect(list.groups.value).toHaveLength(2)
+  })
+})
+
 describe('useNoteList: noteCapture 同期の通知経路 (#939)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())

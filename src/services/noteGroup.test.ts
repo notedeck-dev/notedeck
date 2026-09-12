@@ -206,6 +206,23 @@ describe('selectPrimary (設計 §5.2 のシナリオ)', () => {
     expect(selectPrimary([o, a], ctx)).toBe(o)
   })
 
+  it('返信先を持たない (replyId のみ) variant は返信先を持つ variant より下がる', () => {
+    const parent = makeNote({
+      id: 'p',
+      _accountId: 'acc-a',
+      _serverHost: 'a.example',
+      uri: 'https://origin.example/notes/p',
+    })
+    const withReply = remoteVariant('acc-a', 'a.example', {
+      replyId: 'p',
+      reply: parent,
+    })
+    const o = originVariant({ replyId: 'p' })
+    const noAuthor = defaultGroupContext({ ...ctx, userIdOf: () => undefined })
+    // origin でも返信文脈が欠けていれば、文脈を持つ非 origin が主になる
+    expect(selectPrimary([o, withReply], noAuthor)).toBe(withReply)
+  })
+
   it('埋め込みが非 origin 由来の削除で隠された variant はランクが下がる', () => {
     const inner = makeNote({
       id: 'inner',
