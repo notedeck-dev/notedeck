@@ -100,6 +100,8 @@ const {
   removeNote,
   react: reactCrossAccount,
   vote: voteCrossAccount,
+  pendingCount,
+  animatingRowKeys,
 } = useCrossAccountNotes({
   fetchNotes: (adapter, opts) =>
     isSpecified.value
@@ -111,6 +113,27 @@ const {
   error,
   scroller,
   onScrollReport,
+  streaming: {
+    columnId: props.column.id,
+    subscribe: (accountId, _adapter, enqueue, callbacks) =>
+      createQuerySubscription({
+        open: async () =>
+          unwrap(await commands.querySubscribeMentions(accountId)),
+        onInsert: (item) => {
+          const note = queryItemAsNote(item)
+          if (!note) return
+          if (isSpecified.value && note.visibility !== 'specified') return
+          enqueue(note)
+        },
+        onDelete: (id) =>
+          callbacks.onNoteUpdated({
+            accountId,
+            noteId: id,
+            type: 'deleted',
+            body: {},
+          }),
+      }),
+  },
 })
 </script>
 
@@ -146,38 +169,49 @@ const {
         :image-url="serverInfoImageUrl"
       />
 
-      <NoteScroller
-        v-else
-        ref="noteScrollerRef"
-        :items="groups"
-        :class="$style.tlScroller"
-        @scroll="handleScroll"
-        @near-end="loadMoreCrossAccount"
-      >
-        <template #default="{ item }">
-          <div>
-            <MkNote
-              :note="item.primary"
-              :group="item"
-              @react="reactCrossAccount"
-              @reply="handlers.reply"
-              @renote="handlers.renote"
-              @quote="handlers.quote"
-              @delete="removeNote"
-              @edit="handlers.edit"
-              @bookmark="handlers.bookmark"
-              @delete-and-edit="handlers.deleteAndEdit"
-              @vote="voteCrossAccount"
-            />
-          </div>
-        </template>
+      <template v-else>
+        <button
+          v-if="pendingCount > 0"
+          :class="$style.newNotesBanner"
+          class="_button"
+          @click="scrollToTop()"
+        >
+          <i class="ti ti-arrow-up" />新しいノート
+        </button>
 
-        <template #append>
-          <div v-if="isLoading && notes.length > 0" :class="$style.loadingMore">
-            <LoadingSpinner />
-          </div>
-        </template>
-      </NoteScroller>
+        <NoteScroller
+          ref="noteScrollerRef"
+          :items="groups"
+          :animating-ids="animatingRowKeys"
+          :class="$style.tlScroller"
+          @scroll="handleScroll"
+          @near-end="loadMoreCrossAccount"
+        >
+          <template #default="{ item }">
+            <div>
+              <MkNote
+                :note="item.primary"
+                :group="item"
+                @react="reactCrossAccount"
+                @reply="handlers.reply"
+                @renote="handlers.renote"
+                @quote="handlers.quote"
+                @delete="removeNote"
+                @edit="handlers.edit"
+                @bookmark="handlers.bookmark"
+                @delete-and-edit="handlers.deleteAndEdit"
+                @vote="voteCrossAccount"
+              />
+            </div>
+          </template>
+
+          <template #append>
+            <div v-if="isLoading && notes.length > 0" :class="$style.loadingMore">
+              <LoadingSpinner />
+            </div>
+          </template>
+        </NoteScroller>
+      </template>
     </div>
   </DeckColumn>
 

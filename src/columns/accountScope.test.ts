@@ -45,7 +45,7 @@ describe('getAccountScope — 「全アカウント」と「アカウントな�
   })
 
   it('accountId が消えた per-account 種別は none に倒す (束ねる対象がない)', () => {
-    expect(getAccountScope(column({ type: 'timeline' }))).toBe('none')
+    expect(getAccountScope(column({ type: 'list' }))).toBe('none')
   })
 
   it('registry の 2 つの集合は排他 — 種別から意味が一意に復元できる', () => {
