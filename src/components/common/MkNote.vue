@@ -1308,6 +1308,8 @@ function handlePickerReaction(reaction: string) {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/spotlight' as *;
+
 /* 束ね (#1058 §7): 視点の数。文字ラベルは置かず (狭いカラムで名前が潰れる) アイコン + 数字 */
 .bundleBadge {
   display: inline-flex;
@@ -1351,8 +1353,6 @@ function handlePickerReaction(reaction: string) {
     margin-left: -3px;
   }
 }
-
-@use '@/styles/spotlight' as *;
 
 .noteRoot {
   position: relative;
