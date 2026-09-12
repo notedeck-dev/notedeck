@@ -345,6 +345,9 @@ async function performLookupCrossAccount(q: string) {
 
   const focalUri = q
   const allFragments: ThreadFragment[] = []
+  // 主ビュー選択の材料。ゲスト取得の variant (Phase 1 のローカル DB 由来) を
+  // 最下位にするため、トークンの有無を含めて全アカウントを渡す
+  const mergeCtx = { accounts: accountsStore.accounts }
 
   // Phase 1: ローカル DB 横断検索（即座）
   try {
@@ -355,7 +358,11 @@ async function performLookupCrossAccount(q: string) {
       for (const note of cached) {
         allFragments.push({ note, sourceAccountId: note._accountId })
       }
-      mergedThread.value = mergeThreadFragments(allFragments, focalUri)
+      mergedThread.value = mergeThreadFragments(
+        allFragments,
+        focalUri,
+        mergeCtx,
+      )
       lookupLoading.value = false
     }
   } catch {
@@ -406,7 +413,11 @@ async function performLookupCrossAccount(q: string) {
         // プログレッシブ更新
         if (fragments.length > 0) {
           allFragments.push(...fragments)
-          mergedThread.value = mergeThreadFragments(allFragments, focalUri)
+          mergedThread.value = mergeThreadFragments(
+            allFragments,
+            focalUri,
+            mergeCtx,
+          )
           // 最初の結果が来たらローディング解除
           if (lookupLoading.value) lookupLoading.value = false
         }

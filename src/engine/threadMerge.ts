@@ -18,9 +18,23 @@ export interface NoteVariant {
   noteId: string
 }
 
+/** 主ビュー選択に使うアカウント情報 (並び順 = アカウント一覧の順) */
+export interface ThreadMergeAccount {
+  id: string
+  userId: string
+  hasToken: boolean
+}
+
+export interface ThreadMergeContext {
+  accounts?: ReadonlyArray<ThreadMergeAccount>
+}
+
 /** マージ済みノード */
 export interface MergedThreadNode {
-  /** 代表ノート（統計マージ済み） */
+  /**
+   * 主ビュー。variant そのものを指す (複製しない)。
+   * 複製すると楽観 patch が複製側に乗り、再マージで消える。
+   */
   note: NormalizedNote
   /** 同一ノートの各サーバーコピー */
   variants: NoteVariant[]
@@ -42,25 +56,33 @@ export interface MergedThread {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** リアクション辞書を合算する（キーごとに sum） */
-function mergeReactions(
-  ...maps: Record<string, number>[]
-): Record<string, number> {
-  const result: Record<string, number> = {}
-  for (const m of maps) {
-    for (const [key, count] of Object.entries(m)) {
-      result[key] = (result[key] ?? 0) + count
-    }
+/** URI の host (ポート込み・小文字)。解釈できなければ null */
+function hostOf(uri: string): string | null {
+  try {
+    return new URL(uri).host.toLowerCase()
+  } catch {
+    return null
   }
-  return result
 }
 
 /**
- * 同一 URI のフラグメント群から代表ノートを選出し、統計をマージする。
- * - reactions: 全 variant を合算
- * - renoteCount / repliesCount: 全 variant の max
+ * 同一 URI のフラグメント群から主ビューを選ぶ。
+ *
+ * 数 (reactions / renoteCount / repliesCount) は主ビューの値をそのまま使い、
+ * 合算も max もしない。Like はオリジンと反応者のフォロワー先の両方に配送される
+ * ので足すと二重計上になり、max は取消が一方にしか届かないと膨らむ (#1058)。
+ *
+ * ランク (静的な事実だけ。取得順・数に依存しない):
+ *   1. トークンを持つアカウントの variant (ゲスト取得は最下位)
+ *   2. variant のアカウントが投稿者本人
+ *   3. origin (URI の host == 取得元サーバー) の variant
+ *   4. アカウント一覧の並び順
+ * ctx が無いときは 3 のみ評価し、同点は最初のフラグメント。
  */
-function pickRepresentative(frags: ThreadFragment[]): {
+function pickRepresentative(
+  frags: ThreadFragment[],
+  ctx: ThreadMergeContext | undefined,
+): {
   note: NormalizedNote
   variants: NoteVariant[]
 } {
@@ -70,35 +92,46 @@ function pickRepresentative(frags: ThreadFragment[]): {
     noteId: f.note.id,
   }))
 
-  // 代表ノート: repliesCount + renoteCount が最大のものをベースにする
+  const accountIndex = new Map<string, number>()
+  const accountById = new Map<string, ThreadMergeAccount>()
+  for (const [i, a] of (ctx?.accounts ?? []).entries()) {
+    accountIndex.set(a.id, i)
+    accountById.set(a.id, a)
+  }
+
+  const scoreOf = (f: ThreadFragment): number[] => {
+    const account = accountById.get(f.sourceAccountId)
+    const hasToken = account?.hasToken ? 1 : 0
+    const isAuthor = account && account.userId === f.note.user.id ? 1 : 0
+    const isOrigin =
+      hostOf(getNoteUri(f.note)) === f.note._serverHost.toLowerCase() ? 1 : 0
+    const order = -(
+      accountIndex.get(f.sourceAccountId) ?? Number.MAX_SAFE_INTEGER
+    )
+    return [hasToken, isAuthor, isOrigin, order]
+  }
+
   // biome-ignore lint/style/noNonNullAssertion: frags is guaranteed non-empty by caller
   let best = frags[0]!
-  let bestScore = 0
-  for (const f of frags) {
-    const score = (f.note.repliesCount ?? 0) + (f.note.renoteCount ?? 0)
-    if (score > bestScore) {
+  let bestScore = scoreOf(best)
+  for (const f of frags.slice(1)) {
+    const score = scoreOf(f)
+    if (compareScore(score, bestScore) > 0) {
       best = f
       bestScore = score
     }
   }
 
-  // 統計をマージ
-  const mergedReactions = mergeReactions(...frags.map((f) => f.note.reactions))
-  let maxRenoteCount = 0
-  let maxRepliesCount = 0
-  for (const f of frags) {
-    maxRenoteCount = Math.max(maxRenoteCount, f.note.renoteCount ?? 0)
-    maxRepliesCount = Math.max(maxRepliesCount, f.note.repliesCount ?? 0)
-  }
+  return { note: best.note, variants }
+}
 
-  const note: NormalizedNote = {
-    ...best.note,
-    reactions: mergedReactions,
-    renoteCount: maxRenoteCount,
-    repliesCount: maxRepliesCount,
+/** 辞書順比較。a > b なら正 */
+function compareScore(a: number[], b: number[]): number {
+  for (let i = 0; i < a.length; i++) {
+    const d = (a[i] ?? 0) - (b[i] ?? 0)
+    if (d !== 0) return d
   }
-
-  return { note, variants }
+  return 0
 }
 
 /**
@@ -123,10 +156,12 @@ function resolveParentUri(
  *
  * @param fragments - 全アカウントから収集したノート群
  * @param focalUri  - フォーカルノート（照会対象）の URI
+ * @param ctx       - 主ビュー選択に使うアカウント情報 (省略可)
  */
 export function mergeThreadFragments(
   fragments: ThreadFragment[],
   focalUri: string,
+  ctx?: ThreadMergeContext,
 ): MergedThread | null {
   if (fragments.length === 0) return null
 
@@ -149,7 +184,7 @@ export function mergeThreadFragments(
   // 2. 各 URI グループから代表ノードを生成
   const nodes = new Map<string, MergedThreadNode>()
   for (const [uri, frags] of byUri) {
-    const { note, variants } = pickRepresentative(frags)
+    const { note, variants } = pickRepresentative(frags, ctx)
     nodes.set(uri, { note, variants, children: [] })
   }
 
