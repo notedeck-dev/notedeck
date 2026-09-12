@@ -175,42 +175,6 @@ const noteColumnConfig: NoteColumnConfig = {
   timelineType: () => tlType.value,
 }
 
-// --- DeckNoteColumn ref (expose: account, scroller, reconnect, switchWithSnapshot, notes, columnThemeVars) ---
-const noteColumnRef = ref<InstanceType<typeof DeckNoteColumn> | null>(null)
-
-// Report visible items to deckStore so AI / inspector / audit log can read them
-// without special-casing AI columns (memory feedback_no_special_case_columns).
-watch(
-  () =>
-    isCrossAccount.value
-      ? crossNotes.value
-      : (noteColumnRef.value?.notes as NormalizedNote[] | undefined),
-  (notes) => {
-    deckStore.reportVisibleItems(props.column.id, notes ?? [])
-  },
-  { immediate: true },
-)
-const account = computed(() => noteColumnRef.value?.account)
-const columnThemeVars = computed(() =>
-  isCrossAccount.value
-    ? crossThemeVars.value
-    : (noteColumnRef.value?.columnThemeVars ?? {}),
-)
-const swipeTarget = computed<HTMLElement | null>(() =>
-  isCrossAccount.value
-    ? scroller.value
-    : ((noteColumnRef.value?.scroller as HTMLElement | undefined) ?? null),
-)
-
-async function reconnect(useCache = false) {
-  await noteColumnRef.value?.reconnect(useCache)
-}
-
-// --- Ads ---
-const { fetchAds, pickAd, shouldShowAd, muteAd, serverHost } = useAds(
-  () => props.column.accountId ?? undefined,
-)
-
 // --- TL type definitions ---
 const TL_TYPES: { value: TimelineType; label: string }[] = [
   { value: 'home', label: 'ホーム' },
@@ -310,6 +274,42 @@ const {
       }),
   },
 })
+
+// --- DeckNoteColumn ref (expose: account, scroller, reconnect, switchWithSnapshot, notes, columnThemeVars) ---
+const noteColumnRef = ref<InstanceType<typeof DeckNoteColumn> | null>(null)
+
+// Report visible items to deckStore so AI / inspector / audit log can read them
+// without special-casing AI columns (memory feedback_no_special_case_columns).
+watch(
+  () =>
+    isCrossAccount.value
+      ? crossNotes.value
+      : (noteColumnRef.value?.notes as NormalizedNote[] | undefined),
+  (notes) => {
+    deckStore.reportVisibleItems(props.column.id, notes ?? [])
+  },
+  { immediate: true },
+)
+const account = computed(() => noteColumnRef.value?.account)
+const columnThemeVars = computed(() =>
+  isCrossAccount.value
+    ? crossThemeVars.value
+    : (noteColumnRef.value?.columnThemeVars ?? {}),
+)
+const swipeTarget = computed<HTMLElement | null>(() =>
+  isCrossAccount.value
+    ? scroller.value
+    : ((noteColumnRef.value?.scroller as HTMLElement | undefined) ?? null),
+)
+
+async function reconnect(useCache = false) {
+  await noteColumnRef.value?.reconnect(useCache)
+}
+
+// --- Ads ---
+const { fetchAds, pickAd, shouldShowAd, muteAd, serverHost } = useAds(
+  () => props.column.accountId ?? undefined,
+)
 
 function isTablerIcon(icon: string): boolean {
   return !icon.includes(' ')
