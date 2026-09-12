@@ -37,6 +37,7 @@ import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavigation } from '@/composables/useNavigation'
+import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
@@ -103,6 +104,8 @@ const props = defineProps<{
 }>()
 
 const isCrossAccount = computed(() => props.column.accountId == null)
+// 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
+provideNoteFrame(isCrossAccount)
 const accountsStore = useAccountsStore()
 const serversStore = useServersStore()
 const multiAdapters = useMultiAccountAdapters()

@@ -47,7 +47,11 @@ export function stripCredentials<T>(input: T): T {
 }
 
 export interface AiContextInput {
-  activeAccount: Account | null
+  /**
+   * 呼び出し文脈のアカウント = AI カラムのアカウント (全アカウントのカラムと
+   * HEARTBEAT は null)。「アクティブアカウント」ではない (#941)
+   */
+  currentAccount: Account | null
   currentColumn: DeckColumn | null
   /** 既に projection 済みの可視ノート配列。空配列なら出力しない。 */
   visibleNotes?: unknown[]
@@ -462,9 +466,9 @@ export function buildAiContextBlock(
   const ds = resolveDataSources(config.dataSources)
   const parts: string[] = []
 
-  if (ds.currentAccount && ctx.activeAccount) {
+  if (ds.currentAccount && ctx.currentAccount) {
     parts.push(
-      `  <currentAccount>\n${jsonBlock(ctx.activeAccount)}\n  </currentAccount>`,
+      `  <currentAccount>\n${jsonBlock(ctx.currentAccount)}\n  </currentAccount>`,
     )
   }
   if (ds.currentColumn && ctx.currentColumn) {

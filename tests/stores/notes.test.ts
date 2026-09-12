@@ -84,7 +84,13 @@ describe('noteStore (variant key, #1010)', () => {
     const store = useNoteStore()
     store.put([
       makeNote({ id: 'n1', _accountId: 'acc-a', reactions: {} }),
-      makeNote({ id: 'n1', _accountId: 'acc-b', reactions: {} }),
+      // acc-b は楽観反映済み: echo が来てもカウントを進めない
+      makeNote({
+        id: 'n1',
+        _accountId: 'acc-b',
+        reactions: { '👍': 1 },
+        myReaction: '👍',
+      }),
     ])
     store.applyUpdate(
       {

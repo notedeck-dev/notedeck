@@ -40,7 +40,7 @@ const { columnThemeVars } = useColumnTheme(() => props.column)
  * 書いたか」の記録で、投稿フォームの宛先を決めるのにだけ使う。
  */
 const account = computed<Account | undefined>(
-  () => accountsStore.activeAccount ?? accountsStore.accounts[0],
+  () => accountsStore.fallbackAccount ?? accountsStore.accounts[0],
 )
 
 interface MemoContext {

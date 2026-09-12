@@ -21,6 +21,7 @@ import { useLongPress } from '@/composables/useLongPress'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteAccountId } from '@/composables/useNoteContext'
+import { useNoteFrame } from '@/composables/useNoteFrame'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
 import { useRippleEffect } from '@/composables/useRippleEffect'
@@ -30,6 +31,7 @@ import {
   useVaporTransitionGroup,
 } from '@/composables/useVaporTransition'
 import { useVisibleReactionCounts } from '@/composables/useVisibleReactionCounts'
+import { displayAcct, tickerInfo } from '@/services/noteFrame'
 import type { NoteGroup } from '@/services/noteGroup'
 import { variantKeyOf } from '@/services/noteKey'
 import {
@@ -225,14 +227,26 @@ const myAccount = computed(() =>
 )
 const { reactionUrl: reactionUrlRaw } = useEmojiResolver()
 const { isEmojiMuted } = useEmojiMute()
-const instanceIconUrl = computed(() => {
-  const inst = effectiveNote.value.user.instance
-  if (!inst) return null
-  return inst.faviconUrl || inst.iconUrl || null
-})
+// 基準サーバー (#1059): 全アカウント面ではローカルユーザーにも取得元を補う
+const noteFrame = useNoteFrame()
+const acct = computed(() =>
+  displayAcct(
+    effectiveNote.value.user,
+    effectiveNote.value._serverHost,
+    noteFrame.absolute.value,
+  ),
+)
+const ticker = computed(() =>
+  tickerInfo(
+    effectiveNote.value.user,
+    effectiveNote.value._serverHost,
+    noteFrame.absolute.value,
+    serversStore.getServer,
+  ),
+)
 
 const instanceTickerStyle = computed(() => {
-  const color = effectiveNote.value.user.instance?.themeColor || '#777'
+  const color = ticker.value?.themeColor || '#777'
   return {
     background: `linear-gradient(90deg, ${color}, transparent)`,
   }
@@ -934,7 +948,7 @@ function handlePickerReaction(reaction: string) {
             />
             <template v-else>{{ effectiveNote.user.username }}</template>
           </span>
-          <span :class="$style.username">@{{ effectiveNote.user.username }}{{ effectiveNote.user.host ? `@${effectiveNote.user.host}` : '' }}</span>
+          <span :class="$style.username">{{ acct }}</span>
           <span v-if="effectiveNote.user.isBot" :class="$style.isBot">Bot</span>
           <span :class="$style.info">
             <AppTime :class="$style.time" :at="effectiveNote.createdAt" />
@@ -979,22 +993,22 @@ function handlePickerReaction(reaction: string) {
           </span>
         </header>
 
-        <!-- Server badge (remote users) -->
+        <!-- Server badge (リモートユーザー。全アカウント面では全員) -->
         <div
-          v-if="effectiveNote.user.instance"
+          v-if="ticker"
           :class="$style.instanceTicker"
           :style="instanceTickerStyle"
         >
           <img
-            v-if="instanceIconUrl"
-            :src="proxyThumbUrl(instanceIconUrl, 28)"
+            v-if="ticker.iconUrl"
+            :src="proxyThumbUrl(ticker.iconUrl, 28)"
             :class="$style.instanceIcon"
             width="14"
             height="14"
             loading="lazy"
             decoding="async"
           />
-          <span :class="$style.instanceName">{{ effectiveNote.user.instance.name || effectiveNote.user.host }}</span>
+          <span :class="$style.instanceName">{{ ticker.name }}</span>
         </div>
 
         <!-- Word mute (soft, #610) -->

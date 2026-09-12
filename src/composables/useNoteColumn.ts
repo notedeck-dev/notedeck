@@ -44,6 +44,7 @@ import { composeQir } from '@/services/columnQuery/composeQir'
 import { getSharedDegradedRunner } from '@/services/columnQuery/degradedRunner'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
+import { hasGap as hasTimelineGap } from '@/services/timelineGap'
 import { isGuestAccount } from '@/stores/accounts'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
@@ -555,6 +556,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
   // 順に enqueue するので、Worker の応答が前後しても表示順は入れ替わらない。
   let heldNotes: NormalizedNote[] = []
   let holdFlush: Promise<void> | null = null
+  /** 判定中 (Worker 往復の間) に削除されたキー。enqueue の直前で再確認する */
+  const droppedWhileHeld = new Set<VariantKey>()
 
   function holdForDegraded(n: NormalizedNote): void {
     heldNotes.push(n)
@@ -570,13 +573,18 @@ export function useNoteColumn(config: NoteColumnConfig) {
       const batch = heldNotes
       heldNotes = []
       const admitted = await admitDegraded(batch)
-      for (const note of admitted) streamingBatch?.enqueueNote(note)
+      for (const note of admitted) {
+        if (droppedWhileHeld.has(variantKeyOf(note))) continue
+        streamingBatch?.enqueueNote(note)
+      }
     }
+    droppedWhileHeld.clear()
   }
 
   /** 判定待ちのまま削除されたノートを捨てる (removePending と同じ役割) */
   function dropHeldNote(key: VariantKey): void {
     heldNotes = heldNotes.filter((n) => variantKeyOf(n) !== key)
+    if (holdFlush !== null) droppedWhileHeld.add(key)
   }
 
   /**
@@ -747,19 +755,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
     }
   }
 
-  /**
-   * 最新ページと表示中ノートの重なりで 1 ページ超の欠落を判定する (#791)。
-   * 重なりゼロ = 最新ページの最古ですら表示中の先頭より新しい。マージすると
-   * 間に隠れた穴が残るため、呼び出し側は最新ページで丸ごと置換する
-   * (古いノートはスクロールで再取得可能)。復帰 (onResume)・タブ切替
-   * (switchWithSnapshot)・手動リロード (refresh) 共通の catch-up 判定。
-   */
+  /** 復帰・タブ切替・手動リロード共通の catch-up 判定 (規則は services/timelineGap) */
   function hasGap(fetched: NormalizedNote[], hadNotes: boolean): boolean {
-    return (
-      hadNotes &&
-      fetched.length > 0 &&
-      !fetched.some((n) => noteKeys.has(variantKeyOf(n)))
-    )
+    return hasTimelineGap(fetched, noteKeys, hadNotes)
   }
 
   function getDedupKey(): string {
@@ -1304,10 +1302,11 @@ export function useNoteColumn(config: NoteColumnConfig) {
     setSubscription(
       config.streaming.subscribe(adapter, enqueueWithQuery, {
         onNoteUpdated: (event) => {
-          if (event.type === 'deleted')
-            streamingBatch.removePending(
-              variantKey(event.accountId, event.noteId),
-            )
+          if (event.type === 'deleted') {
+            const key = variantKey(event.accountId, event.noteId)
+            streamingBatch.removePending(key)
+            dropHeldNote(key)
+          }
           onNoteUpdateWithQuery(event)
         },
       }),

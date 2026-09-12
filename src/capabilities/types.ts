@@ -82,9 +82,10 @@ export interface CapabilityContext {
   /**
    * 呼び出し文脈のアカウント (#821)。プラグインのノート/ユーザーアクション
    * 経由ならそのエンティティの所属アカウントが入る。capability 側は
-   * 「明示的な params.accountId → ctx.accountId → activeAccountId」の順で
-   * 解決する (capabilities/accountContext.ts)。AI / HTTP / slash 経路では
-   * 未指定 (= 従来どおり activeAccountId フォールバック)。
+   * 「明示的な params.accountId → ctx.accountId」の順で解決する
+   * (capabilities/accountContext.ts)。per-account の AI カラムはカラムの
+   * アカウントを入れる。全アカウントの AI / HEARTBEAT / HTTP 経路では未指定で、
+   * capability は params.accountId を必須にする (#941)。
    */
   accountId?: string
   /**

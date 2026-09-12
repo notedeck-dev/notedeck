@@ -11,6 +11,7 @@ import {
 import type { Command } from '@/commands/registry'
 import { useCommandStore } from '@/commands/registry'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
+import { useAccountPicker } from '@/composables/useAccountPicker'
 import { handleDeepLink } from '@/composables/useDeepLink'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePortal } from '@/composables/usePortal'
@@ -177,6 +178,7 @@ const cliHandlers = createCliHandlers({
   navigateToNote,
   navigateToUser,
   toggleAccountMenu: () => commandStore.execute('account-menu'),
+  pickAccount: useAccountPicker().pickAccount,
 })
 
 interface CommandGroup {

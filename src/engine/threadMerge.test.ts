@@ -115,6 +115,31 @@ describe('mergeThreadFragments', () => {
     expect(result.focal.note.repliesCount).toBe(2)
   })
 
+  it('整合検査を通らない variant は同じ identity を名乗っても統合しない', () => {
+    const uri = 'https://origin.example/notes/n1'
+    const trusted = makeNote({
+      id: 'n1',
+      _accountId: 'accA',
+      _serverHost: 'origin.example',
+      uri,
+    })
+    // 別ノートなのに origin の identity を騙るサーバーからの variant
+    const impostor = makeNote({
+      id: 'zzz',
+      _accountId: 'accB',
+      _serverHost: 'evil.example',
+      uri,
+      _identityTrusted: false,
+      text: 'forged',
+    })
+    const result = ensureNotNull(
+      mergeThreadFragments([frag(trusted), frag(impostor)], uri),
+    )
+    expect(result.focal.note).toBe(trusted)
+    expect(result.focal.variants).toHaveLength(1)
+    expect(result.stats.totalNotes).toBe(2)
+  })
+
   describe('主ビューの選択 (#1058 準備段階の暫定ランク)', () => {
     const uri = 'https://origin.example/notes/orig1'
     const accounts = [
@@ -133,6 +158,7 @@ describe('mergeThreadFragments', () => {
         id: 'g',
         _accountId: 'guest',
         _serverHost: 'origin.example',
+        uri,
         renoteCount: 99,
       })
       const tokenNote = makeNote({
@@ -152,6 +178,7 @@ describe('mergeThreadFragments', () => {
         id: 'o',
         _accountId: 'accA',
         _serverHost: 'origin.example',
+        uri,
         user: {
           id: 'someone',
           username: 'x',

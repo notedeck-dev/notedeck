@@ -64,10 +64,12 @@ const cw = computed(() => {
 })
 
 /**
- * メモはサーバーに紐づかないが、本文の `:emoji:` は今見ているアカウントの
+ * メモはサーバーに紐づかないが、本文の `:emoji:` は既定アカウントの
  * サーバー辞書で解決する (書いた時点のサーバーは記録していない)。
  */
-const activeHost = computed(() => useAccountsStore().activeAccount?.host ?? '')
+const activeHost = computed(
+  () => useAccountsStore().fallbackAccount?.host ?? '',
+)
 const emojiDict = computed(() => emojisStore.cache.get(activeHost.value) ?? {})
 
 // CW / 長文折り畳み (MkNote と同じ閾値)

@@ -248,7 +248,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 
 - `user.block` / `user.unblock` / `user.report` — ブロック / 通報は人手判断必須、AI に委ねない
 - `heartbeat.write` (HEARTBEAT daemon 設定変更) — daemon 自己変更で暴走リスク
-- `account.add` / `account.switch` / `account.logout` — 認証系操作は AI 不可
+- `account.add` / `account.logout` — 認証系操作は AI 不可
 - `announcements.read` (既読化) — AI が勝手に既読化して読み逃しを起こすため
 - like / unlike 系 (pages / gallery / flash) — 通知が飛ぶ副作用
 - plugin install from URL — AI が任意 URL から実行可能になる

@@ -4,6 +4,7 @@ import type {
   NoteUpdateEvent,
   StreamAdapter,
 } from '@/adapters/types'
+import { captureTargets } from '@/services/captureBudget'
 import { usePerformanceStore } from '@/stores/performance'
 
 /**
@@ -31,11 +32,13 @@ export function useNoteCapture(
     const stream = getStream()
     if (!stream) return
 
-    const capped = notes.slice(0, perfStore.get('noteCaptureMax'))
+    // 予算は実際の購読数 (本体 + renote 元) で数える。規則は services/captureBudget
     const currentIds = new Set<string>()
-    for (const note of capped) {
-      currentIds.add(note.id)
-      if (note.renoteId) currentIds.add(note.renoteId)
+    for (const ids of captureTargets(
+      notes,
+      perfStore.get('noteCaptureMax'),
+    ).values()) {
+      for (const id of ids) currentIds.add(id)
     }
 
     // Subscribe new notes

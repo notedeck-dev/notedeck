@@ -80,7 +80,6 @@ export function initEarlyAccountListener(): void {
 
 export const useAccountsStore = defineStore('accounts', () => {
   const accounts = ref<Account[]>([])
-  const activeAccountId = ref<string | null>(null)
   const isLoaded = ref(false)
   const modeVersionByAccount = ref<Record<string, number>>({})
 
@@ -90,11 +89,14 @@ export const useAccountsStore = defineStore('accounts', () => {
     return map
   })
 
-  const activeAccount = computed(
-    () =>
-      (activeAccountId.value
-        ? accountMap.value.get(activeAccountId.value)
-        : null) ?? null,
+  /**
+   * 呼び出し文脈にアカウントが無いときの既定 (#941)。登録順の先頭でトークンを
+   * 持つアカウント。ユーザーが選ぶものではなく、切り替えも永続化もしない。
+   * UI の既定値 (投稿フォームの初期宛先、メモの絵文字辞書) にだけ使い、
+   * 「アクティブ」「現在の」アカウントとして扱わない
+   */
+  const fallbackAccount = computed(
+    () => accounts.value.find((a) => a.hasToken) ?? null,
   )
 
   const accountsByServer = computed(() => {
@@ -111,9 +113,6 @@ export const useAccountsStore = defineStore('accounts', () => {
 
   function applyAccounts(stored: Account[]): void {
     accounts.value = stored
-    if (stored.length > 0 && !activeAccountId.value) {
-      activeAccountId.value = accounts.value[0]?.id ?? null
-    }
     isLoaded.value = true
   }
 
@@ -148,9 +147,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     } else {
       accounts.value.push(account)
     }
-    if (!activeAccountId.value) {
-      activeAccountId.value = account.id
-    }
   }
 
   // 削除/ログアウトは「資格情報の無効化 → backend 切断」の順に行う (#700)。
@@ -165,9 +161,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     unwrap(await commands.deleteAccount(id))
     accounts.value = accounts.value.filter((a) => a.id !== id)
     if (account) invalidateResolutionCache(accountScopeKey(account))
-    if (activeAccountId.value === id) {
-      activeAccountId.value = accounts.value[0]?.id ?? null
-    }
     destroyAdapter(id)
     // Clean up localStorage caches associated with this account
     removeStorage(STORAGE_KEYS.notificationCache(id))
@@ -184,12 +177,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     destroyAdapter(id)
   }
 
-  function switchAccount(id: string): void {
-    if (accounts.value.some((a) => a.id === id)) {
-      activeAccountId.value = id
-    }
-  }
-
   function getModeVersion(accountId: string): number {
     return modeVersionByAccount.value[accountId] ?? 0
   }
@@ -203,8 +190,7 @@ export const useAccountsStore = defineStore('accounts', () => {
 
   return {
     accounts,
-    activeAccountId,
-    activeAccount,
+    fallbackAccount,
     accountMap,
     accountsByServer,
     isLoaded,
@@ -212,7 +198,6 @@ export const useAccountsStore = defineStore('accounts', () => {
     addAccount,
     removeAccount,
     logoutAccount,
-    switchAccount,
     modeVersionByAccount,
     getModeVersion,
     bumpModeVersion,

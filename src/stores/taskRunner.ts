@@ -84,11 +84,7 @@ export const useTaskRunnerStore = defineStore('taskRunner', () => {
     host: string | null
   } | null {
     const accountsStore = useAccountsStore()
-    const resolved = resolveTaskAccount(
-      accountsStore.accounts,
-      accountsStore.activeAccount,
-      defAccountId,
-    )
+    const resolved = resolveTaskAccount(accountsStore.accounts, defAccountId)
     if (!resolved.ok) {
       useToast().show(
         resolved.reason === 'not-found'

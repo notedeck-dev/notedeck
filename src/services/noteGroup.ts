@@ -83,7 +83,7 @@ function effective(note: NormalizedNote): NormalizedNote {
 
 /**
  * 埋め込み (Renote 元 / 返信先) が「非 origin 由来の削除」で隠されている、
- * または欠落 (`renoteId` あり + `renote` なし = 誰の判断か分からない) か。
+ * または欠落 (`renoteId` / `replyId` あり + 実体なし = 誰の判断か分からない) か。
  * origin 由来の削除は §5.5 で group ごと隠すので、ここでは見ない。
  */
 function embeddedDegraded(
@@ -91,6 +91,7 @@ function embeddedDegraded(
   ctx: NoteGroupContext,
 ): boolean {
   if (note.renoteId && !note.renote) return true
+  if (note.replyId && !note.reply) return true
   for (const nested of [note.renote, note.reply]) {
     if (!nested) continue
     if (ctx.isDeleted(nestedVariantKey(note, nested.id)) && !nested._isOrigin)

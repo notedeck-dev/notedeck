@@ -9,9 +9,16 @@ import type {
   TimelineFilter,
   TimelineType,
 } from '@/adapters/types'
+import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAd from '@/components/common/MkAd.vue'
+import MkNote from '@/components/common/MkNote.vue'
+import NoteScroller from '@/components/common/NoteScroller.vue'
 import { useAds } from '@/composables/useAds'
+import { useColumnSetup } from '@/composables/useColumnSetup'
+import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
+import { provideNoteFrame } from '@/composables/useNoteFrame'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useTabSlide } from '@/composables/useTabSlide'
@@ -35,6 +42,7 @@ import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
+import DeckColumn from './DeckColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
 const props = defineProps<{
@@ -44,6 +52,10 @@ const props = defineProps<{
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
 const cacheKeyDeps = accountsCacheKeyDeps()
+
+const isCrossAccount = computed(() => props.column.accountId == null)
+// 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
+provideNoteFrame(isCrossAccount)
 
 // Guest accounts can only access public timelines (local/global), not home/social
 const accountData = accountsStore.accountMap.get(props.column.accountId ?? '')
@@ -166,35 +178,6 @@ const noteColumnConfig: NoteColumnConfig = {
   timelineType: () => tlType.value,
 }
 
-// --- DeckNoteColumn ref (expose: account, scroller, reconnect, switchWithSnapshot, notes, columnThemeVars) ---
-const noteColumnRef = ref<InstanceType<typeof DeckNoteColumn> | null>(null)
-
-// Report visible items to deckStore so AI / inspector / audit log can read them
-// without special-casing AI columns (memory feedback_no_special_case_columns).
-watch(
-  () => noteColumnRef.value?.notes as NormalizedNote[] | undefined,
-  (notes) => {
-    deckStore.reportVisibleItems(props.column.id, notes ?? [])
-  },
-  { immediate: true },
-)
-const account = computed(() => noteColumnRef.value?.account)
-const columnThemeVars = computed(
-  () => noteColumnRef.value?.columnThemeVars ?? {},
-)
-const swipeTarget = computed<HTMLElement | null>(
-  () => (noteColumnRef.value?.scroller as HTMLElement | undefined) ?? null,
-)
-
-async function reconnect(useCache = false) {
-  await noteColumnRef.value?.reconnect(useCache)
-}
-
-// --- Ads ---
-const { fetchAds, pickAd, shouldShowAd, muteAd, serverHost } = useAds(
-  () => props.column.accountId ?? undefined,
-)
-
 // --- TL type definitions ---
 const TL_TYPES: { value: TimelineType; label: string }[] = [
   { value: 'home', label: 'ホーム' },
@@ -209,6 +192,129 @@ const TL_ICONS: Record<TimelineType, string> = {
   social: 'rocket',
   global: 'whirl',
 }
+
+// --- 全アカウントモード (#1059) ---
+// 対象はホームとグローバルだけ。ホームは「自分がフォローしている人」、グローバルは
+// 「各サーバーから見た連合全体」なのでサーバーを跨いでも意味が通り、同じ連合
+// ノートが複数サーバーから届くので束ね (#1058) の効果も出る。ローカルと、
+// ローカルを含むソーシャルは「そのサーバーの民」の性質が強く対象にしない
+// (#205 の棄却理由がそのまま残る)
+const CROSS_TL_TYPES = TL_TYPES.filter(
+  (t) => t.value === 'home' || t.value === 'global',
+)
+if (
+  isCrossAccount.value &&
+  !CROSS_TL_TYPES.some((t) => t.value === tlType.value)
+) {
+  tlType.value = 'home'
+  deckStore.updateColumn(props.column.id, { tl: 'home' })
+}
+const crossTabDefs = computed<ColumnTabDef[]>(() =>
+  CROSS_TL_TYPES.map((opt) => ({
+    value: opt.value,
+    label: opt.label,
+    icon: TL_ICONS[opt.value],
+    iconIsSvg: false,
+  })),
+)
+
+const {
+  columnThemeVars: crossThemeVars,
+  serverInfoImageUrl,
+  serverErrorImageUrl,
+  isLoading,
+  error,
+  handlers,
+  scroller,
+  onScrollReport,
+} = useColumnSetup(() => props.column)
+
+const {
+  notes: crossNotes,
+  groups,
+  noteScrollerRef,
+  scrollToTop,
+  connectCrossAccount,
+  loadMoreCrossAccount,
+  handleScroll,
+  removeNote,
+  react: reactCrossAccount,
+  vote: voteCrossAccount,
+  pendingCount,
+  animatingRowKeys,
+} = useCrossAccountNotes({
+  // 組込フィルタは per-account 面の機能。全アカウント面は素の TL を混ぜる
+  fetchNotes: (adapter, opts) => adapter.api.getTimeline(tlType.value, opts),
+  isCrossAccount: () => isCrossAccount.value,
+  // per-account と同じ 'home' / 'social' キーで各アカウントのキャッシュを読む
+  cacheKey: () => columnCacheKey(props.column, cacheKeyDeps),
+  isLoading,
+  error,
+  scroller,
+  onScrollReport,
+  streaming: {
+    columnId: props.column.id,
+    subscribe: (accountId, _adapter, enqueue, callbacks) =>
+      createQuerySubscription({
+        open: async () =>
+          unwrap(
+            await commands.querySubscribeTimeline(
+              accountId,
+              tlType.value,
+              null,
+            ),
+          ),
+        onInsert: (item) => {
+          const note = queryItemAsNote(item)
+          if (note) enqueue(note)
+        },
+        onDelete: (id) =>
+          callbacks.onNoteUpdated({
+            accountId,
+            noteId: id,
+            type: 'deleted',
+            body: {},
+          }),
+        onUpdate: (event) => callbacks.onNoteUpdated(event),
+      }),
+  },
+})
+
+// --- DeckNoteColumn ref (expose: account, scroller, reconnect, switchWithSnapshot, notes, columnThemeVars) ---
+const noteColumnRef = ref<InstanceType<typeof DeckNoteColumn> | null>(null)
+
+// Report visible items to deckStore so AI / inspector / audit log can read them
+// without special-casing AI columns (memory feedback_no_special_case_columns).
+watch(
+  () =>
+    isCrossAccount.value
+      ? crossNotes.value
+      : (noteColumnRef.value?.notes as NormalizedNote[] | undefined),
+  (notes) => {
+    deckStore.reportVisibleItems(props.column.id, notes ?? [])
+  },
+  { immediate: true },
+)
+const account = computed(() => noteColumnRef.value?.account)
+const columnThemeVars = computed(() =>
+  isCrossAccount.value
+    ? crossThemeVars.value
+    : (noteColumnRef.value?.columnThemeVars ?? {}),
+)
+const swipeTarget = computed<HTMLElement | null>(() =>
+  isCrossAccount.value
+    ? scroller.value
+    : ((noteColumnRef.value?.scroller as HTMLElement | undefined) ?? null),
+)
+
+async function reconnect(useCache = false) {
+  await noteColumnRef.value?.reconnect(useCache)
+}
+
+// --- Ads ---
+const { fetchAds, pickAd, shouldShowAd, muteAd, serverHost } = useAds(
+  () => props.column.accountId ?? undefined,
+)
 
 function isTablerIcon(icon: string): boolean {
   return !icon.includes(' ')
@@ -253,7 +359,7 @@ const allTlTypes = computed(() => {
 
 // Tab slide animation
 const tlTabIndex = computed(() => {
-  const types = allTlTypes.value
+  const types = isCrossAccount.value ? CROSS_TL_TYPES : allTlTypes.value
   return types.findIndex((t) => t.value === tlType.value)
 })
 useTabSlide(tlTabIndex, swipeTarget)
@@ -299,6 +405,14 @@ function onTabChange(value: string) {
 
 async function switchTl(type: TimelineType) {
   if (type === tlType.value) return
+
+  if (isCrossAccount.value) {
+    // 全アカウント面はタブごとの snapshot を持たず取り直す (購読も張り直す)
+    tlType.value = type
+    deckStore.updateColumn(props.column.id, { tl: type })
+    await connectCrossAccount()
+    return
+  }
 
   // Save current tab snapshot via unified SnapshotStore.
   // unfiltered な orderedIds を保存（ミュート等の可視性を焼き込まない / #574）
@@ -420,7 +534,95 @@ onMounted(async () => {
 </script>
 
 <template>
+  <!-- Cross-account mode (#1059): ホーム / グローバルを全アカウントで混ぜて束ねる -->
+  <DeckColumn
+    v-if="isCrossAccount"
+    :column-id="column.id"
+    :title="column.name || 'タイムライン'"
+    :theme-vars="columnThemeVars"
+    @header-click="scrollToTop"
+    @refresh="connectCrossAccount"
+  >
+    <template #header-icon>
+      <i :class="['ti ti-' + currentTlIcon, $style.tlHeaderIcon]" />
+    </template>
+
+    <template #header-extra>
+      <ColumnTabs
+        :tabs="crossTabDefs"
+        :model-value="tlType"
+        :swipe-target="swipeTarget"
+        compact
+        @update:model-value="onTabChange"
+      />
+    </template>
+
+    <ColumnEmptyState
+      v-if="error"
+      :error="error"
+      :account-id="column.accountId"
+      is-error
+      :image-url="serverErrorImageUrl"
+      cta-label="再試行"
+      cta-icon="ti-refresh"
+      @cta="connectCrossAccount"
+    />
+
+    <div v-else :class="$style.tlBody">
+      <ColumnEmptyState
+        v-if="crossNotes.length === 0 && !isLoading"
+        message="ノートはありません"
+        :image-url="serverInfoImageUrl"
+      />
+
+      <template v-else>
+        <button
+          v-if="pendingCount > 0"
+          :class="$style.newNotesBanner"
+          class="_button"
+          @click="scrollToTop()"
+        >
+          <i class="ti ti-arrow-up" />新しいノート
+        </button>
+
+        <NoteScroller
+          ref="noteScrollerRef"
+          :items="groups"
+          :animating-ids="animatingRowKeys"
+          :class="$style.tlScroller"
+          @scroll="handleScroll"
+          @near-end="loadMoreCrossAccount"
+        >
+          <template #default="{ item }">
+            <div>
+              <MkNote
+                :note="item.primary"
+                :group="item"
+                @react="reactCrossAccount"
+                @reply="handlers.reply"
+                @renote="handlers.renote"
+                @quote="handlers.quote"
+                @delete="removeNote"
+                @edit="handlers.edit"
+                @bookmark="handlers.bookmark"
+                @delete-and-edit="handlers.deleteAndEdit"
+                @vote="voteCrossAccount"
+              />
+            </div>
+          </template>
+
+          <template #append>
+            <div v-if="isLoading && crossNotes.length > 0" :class="$style.loadingMore">
+              <LoadingSpinner />
+            </div>
+          </template>
+        </NoteScroller>
+      </template>
+    </div>
+  </DeckColumn>
+
   <DeckNoteColumn
+    v-else
     ref="noteColumnRef"
     :column="column"
     title="タイムライン"

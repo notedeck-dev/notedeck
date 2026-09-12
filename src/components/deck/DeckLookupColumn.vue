@@ -19,6 +19,7 @@ import MkNoteTree from '@/components/common/MkNoteTree.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { useNoteGroupContext } from '@/composables/useNoteGroups'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
@@ -70,6 +71,8 @@ const accountsStore = useAccountsStore()
 const { context: groupContext } = useNoteGroupContext()
 
 const isCrossAccount = computed(() => props.column.accountId == null)
+// 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
+provideNoteFrame(isCrossAccount)
 const multiAdapters = useMultiAccountAdapters()
 
 const queryInput = ref('')

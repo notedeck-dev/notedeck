@@ -47,14 +47,12 @@ describe('pickAccountId', () => {
 
 describe('resolveAccountId (#821 解決順)', () => {
   it('明示的な params.accountId が最優先', () => {
-    useAccountsStore().activeAccountId = 'acc-active'
     expect(resolveAccountId('acc-explicit', { accountId: 'acc-ctx' })).toBe(
       'acc-explicit',
     )
   })
 
   it('明示指定が無ければ ctx.accountId (呼び出し文脈)', () => {
-    useAccountsStore().activeAccountId = 'acc-active'
     expect(resolveAccountId(undefined, { accountId: 'acc-ctx' })).toBe(
       'acc-ctx',
     )
@@ -62,14 +60,13 @@ describe('resolveAccountId (#821 解決順)', () => {
     expect(resolveAccountId('  ', { accountId: 'acc-ctx' })).toBe('acc-ctx')
   })
 
-  it('文脈も無ければ activeAccountId へフォールバック (従来挙動)', () => {
-    useAccountsStore().activeAccountId = 'acc-active'
-    expect(resolveAccountId(undefined, undefined)).toBe('acc-active')
-    expect(resolveAccountId(undefined, {})).toBe('acc-active')
-  })
-
-  it('どれも無ければ throw', () => {
-    expect(() => resolveAccountId(undefined, {})).toThrow('No active account')
+  it('文脈も無ければ throw (暗黙のフォールバックはしない、#941)', () => {
+    expect(() => resolveAccountId(undefined, undefined)).toThrow(
+      'accountId is required',
+    )
+    expect(() => resolveAccountId(undefined, {})).toThrow(
+      'accountId is required',
+    )
   })
 })
 
@@ -80,15 +77,13 @@ describe('getApiAdapter', () => {
       makeAccount({ id: 'acc-1', host: 'a.example' }),
       makeAccount({ id: 'acc-2', host: 'b.example', userId: 'u2' }),
     )
-    store.activeAccountId = 'acc-1'
     const api = await getApiAdapter(undefined, { accountId: 'acc-2' })
     expect(initAdapterForMock).toHaveBeenCalledWith('b.example', 'acc-2')
     expect(api).toEqual({ _accountId: 'acc-2' })
   })
 
   it('存在しないアカウント ID は throw', async () => {
-    useAccountsStore().activeAccountId = 'acc-ghost'
-    await expect(getApiAdapter(undefined)).rejects.toThrow(
+    await expect(getApiAdapter('acc-ghost')).rejects.toThrow(
       'Account "acc-ghost" not found',
     )
   })

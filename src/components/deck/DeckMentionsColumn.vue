@@ -12,6 +12,7 @@ import NoteScroller from '@/components/common/NoteScroller.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
+import { provideNoteFrame } from '@/composables/useNoteFrame'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -41,6 +42,8 @@ const config = computed(() =>
 )
 
 const isCrossAccount = computed(() => props.column.accountId == null)
+// 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
+provideNoteFrame(isCrossAccount)
 
 // Single-account config
 const noteColumnConfig: NoteColumnConfig = {
@@ -100,6 +103,8 @@ const {
   removeNote,
   react: reactCrossAccount,
   vote: voteCrossAccount,
+  pendingCount,
+  animatingRowKeys,
 } = useCrossAccountNotes({
   fetchNotes: (adapter, opts) =>
     isSpecified.value
@@ -111,6 +116,27 @@ const {
   error,
   scroller,
   onScrollReport,
+  streaming: {
+    columnId: props.column.id,
+    subscribe: (accountId, _adapter, enqueue, callbacks) =>
+      createQuerySubscription({
+        open: async () =>
+          unwrap(await commands.querySubscribeMentions(accountId)),
+        onInsert: (item) => {
+          const note = queryItemAsNote(item)
+          if (!note) return
+          if (isSpecified.value && note.visibility !== 'specified') return
+          enqueue(note)
+        },
+        onDelete: (id) =>
+          callbacks.onNoteUpdated({
+            accountId,
+            noteId: id,
+            type: 'deleted',
+            body: {},
+          }),
+      }),
+  },
 })
 </script>
 
@@ -146,38 +172,49 @@ const {
         :image-url="serverInfoImageUrl"
       />
 
-      <NoteScroller
-        v-else
-        ref="noteScrollerRef"
-        :items="groups"
-        :class="$style.tlScroller"
-        @scroll="handleScroll"
-        @near-end="loadMoreCrossAccount"
-      >
-        <template #default="{ item }">
-          <div>
-            <MkNote
-              :note="item.primary"
-              :group="item"
-              @react="reactCrossAccount"
-              @reply="handlers.reply"
-              @renote="handlers.renote"
-              @quote="handlers.quote"
-              @delete="removeNote"
-              @edit="handlers.edit"
-              @bookmark="handlers.bookmark"
-              @delete-and-edit="handlers.deleteAndEdit"
-              @vote="voteCrossAccount"
-            />
-          </div>
-        </template>
+      <template v-else>
+        <button
+          v-if="pendingCount > 0"
+          :class="$style.newNotesBanner"
+          class="_button"
+          @click="scrollToTop()"
+        >
+          <i class="ti ti-arrow-up" />新しいノート
+        </button>
 
-        <template #append>
-          <div v-if="isLoading && notes.length > 0" :class="$style.loadingMore">
-            <LoadingSpinner />
-          </div>
-        </template>
-      </NoteScroller>
+        <NoteScroller
+          ref="noteScrollerRef"
+          :items="groups"
+          :animating-ids="animatingRowKeys"
+          :class="$style.tlScroller"
+          @scroll="handleScroll"
+          @near-end="loadMoreCrossAccount"
+        >
+          <template #default="{ item }">
+            <div>
+              <MkNote
+                :note="item.primary"
+                :group="item"
+                @react="reactCrossAccount"
+                @reply="handlers.reply"
+                @renote="handlers.renote"
+                @quote="handlers.quote"
+                @delete="removeNote"
+                @edit="handlers.edit"
+                @bookmark="handlers.bookmark"
+                @delete-and-edit="handlers.deleteAndEdit"
+                @vote="voteCrossAccount"
+              />
+            </div>
+          </template>
+
+          <template #append>
+            <div v-if="isLoading && notes.length > 0" :class="$style.loadingMore">
+              <LoadingSpinner />
+            </div>
+          </template>
+        </NoteScroller>
+      </template>
     </div>
   </DeckColumn>
 

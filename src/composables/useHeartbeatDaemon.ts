@@ -596,9 +596,9 @@ export function useHeartbeatDaemon() {
       return
     }
 
-    // active account がいない (= 未ログイン) なら skip。アカウント context
-    // 自体は capability 側で必要なものだけ参照する。
-    if (!accountsStore.activeAccountId) {
+    // トークンを持つアカウントがいない (= 未ログイン) なら skip。HEARTBEAT には
+    // 文脈アカウントが無いので、capability は accountId を明示する (#941)
+    if (!accountsStore.accounts.some((a) => a.hasToken)) {
       console.debug('[heartbeat] no active account, skip')
       heartbeatStatus.lastOutcome = 'skip:no-account'
       return
@@ -821,7 +821,8 @@ export function useHeartbeatDaemon() {
     const heartbeatMemosCfg = config.value.dataSources.memosConfig
     const heartbeatAllMemos = new Map([['', loadAllMemos()]])
     const notedeckContext = buildAiContextBlock(config.value, {
-      activeAccount: accountsStore.activeAccount,
+      // HEARTBEAT はカラムに属さないので文脈アカウントも無い
+      currentAccount: null,
       currentColumn: null,
       memos: projectMemos(heartbeatMemoEntries, {
         excludeTags: heartbeatMemosCfg?.excludeTags,

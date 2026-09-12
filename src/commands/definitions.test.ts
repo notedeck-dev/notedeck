@@ -16,7 +16,7 @@ vi.mock('@/composables/useDeckWindow', () => ({
 }))
 vi.mock('@/stores/accounts', () => ({
   getAccountAvatarUrl: vi.fn(() => null),
-  useAccountsStore: vi.fn(() => ({ accounts: [], activeAccount: undefined })),
+  useAccountsStore: vi.fn(() => ({ accounts: [] })),
 }))
 vi.mock('@/stores/confirm', () => ({ useConfirm: vi.fn() }))
 vi.mock('@/stores/deck', () => ({ useDeckStore: vi.fn() }))

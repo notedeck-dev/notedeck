@@ -4,7 +4,11 @@ import {
   type NoteGroupContext,
   selectPrimary,
 } from '@/services/noteGroup'
-import { nestedVariantKey, type VariantKey } from '@/services/noteKey'
+import {
+  nestedVariantKey,
+  type VariantKey,
+  variantKeyOf,
+} from '@/services/noteKey'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,15 +79,24 @@ function pickRepresentative(
 }
 
 /**
- * フラグメント中の replyId から親ノードの URI を解決する。
- * reply フィールドがあればその URI を直接取得。なければ既知ノートから ID で検索。
+ * 統合のキー。整合検査を通った variant だけを identity で束ね、通らないものは
+ * 行キーのまま単独ノードにする (`noteGroup.clusterByIdentity` と同じ規則)。
+ * サーバーが他ノートの identity を騙ってもスレッドに合流させない
+ */
+function threadKey(note: NormalizedNote): string {
+  return note._identityTrusted ? note._identity : variantKeyOf(note)
+}
+
+/**
+ * フラグメント中の replyId から親ノードのキーを解決する。
+ * reply フィールドがあればそのキーを直接取得。なければ既知ノートから ID で検索。
  */
 function resolveParentUri(
   note: NormalizedNote,
   keyToUri: Map<VariantKey, string>,
 ): string | null {
   if (!note.replyId) return null
-  if (note.reply) return note.reply._identity
+  if (note.reply) return threadKey(note.reply)
   // 返信先はこの variant と同じアカウント経由で取得されている (行キーで引く、#1010)
   return keyToUri.get(nestedVariantKey(note, note.replyId)) ?? null
 }
@@ -113,7 +126,7 @@ export function mergeThreadFragments(
   const keyToUri = new Map<VariantKey, string>()
 
   for (const f of fragments) {
-    const uri = f.note._identity
+    const uri = threadKey(f.note)
     const list = byUri.get(uri)
     if (list) {
       list.push(f)
@@ -160,7 +173,7 @@ export function mergeThreadFragments(
   if (!focal) {
     // フォーカルノードが見つからない場合、最初のルートノートで代替
     const firstRoot = [...nodes.values()].find(
-      (n) => !childOf.has(n.note._identity),
+      (n) => !childOf.has(threadKey(n.note)),
     )
     if (!firstRoot) return null
     return buildResult(firstRoot, nodes, childOf)
@@ -177,7 +190,7 @@ function buildResult(
 ): MergedThread {
   // ancestors: フォーカルから親を遡る
   const ancestors: MergedThreadNode[] = []
-  let currentUri = focal.note._identity
+  let currentUri = threadKey(focal.note)
   const visited = new Set<string>()
 
   while (childOf.has(currentUri)) {

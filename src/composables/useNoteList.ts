@@ -52,13 +52,33 @@ export function useNoteList(options: UseNoteListOptions) {
    */
   const orderedKeys = shallowRef<VariantKey[]>([])
   const noteKeys = new Set<VariantKey>()
+  /**
+   * identity → その group の先頭 (最初に現れた) variant key。束ねる面のサイレント
+   * 挿入 (#1058 §6) の既存判定と挿入位置に使う。順序配列を書き換える全点
+   * (setter / 削除リスナー / サイレント挿入) で同期し、computed の遅延評価に
+   * 依存しない。載せるのは整合検査を通った variant だけ
+   */
+  const identityIndex = new Map<string, VariantKey>()
   let onNotesChangedFn = options.onNotesChanged
+
+  function rebuildIdentityIndex(keys: readonly VariantKey[]) {
+    identityIndex.clear()
+    if (!bundle) return
+    for (const key of keys) {
+      const note = noteStore.get(key)
+      if (!note?._identityTrusted) continue
+      if (!identityIndex.has(note._identity)) {
+        identityIndex.set(note._identity, key)
+      }
+    }
+  }
 
   // Listen for global note deletions so ALL columns clean up their orderedKeys
   const unsubDelete = noteStore.onDelete((key) => {
     if (noteKeys.has(key)) {
       orderedKeys.value = orderedKeys.value.filter((k) => k !== key)
       noteKeys.delete(key)
+      if (bundle) rebuildIdentityIndex(orderedKeys.value)
     }
   })
   onScopeDispose(unsubDelete)
@@ -101,6 +121,7 @@ export function useNoteList(options: UseNoteListOptions) {
       noteKeys.clear()
       for (const key of keys) noteKeys.add(key)
       orderedKeys.value = keys
+      rebuildIdentityIndex(keys)
       if (inserted.length > 0) suspensionsStore.probeNotes(inserted)
       // noteCapture の購読同期 (#939)。ストリーミングの新着 flush
       // (useStreamingBatch) は setNotes を通らず setter へ直接書くため、
@@ -135,6 +156,43 @@ export function useNoteList(options: UseNoteListOptions) {
     onNotesChangedFn = fn
   }
 
+  /** 束ねる面で、同じ identity の group が既にこの列にあるか (#1058 §6) */
+  function hasGroupFor(note: NormalizedNote): boolean {
+    return note._identityTrusted && identityIndex.has(note._identity)
+  }
+
+  /**
+   * サイレント挿入 (#1058 §6): ストリーム経由で後着した variant を、同じ identity の
+   * 既存 group の直後に足す。行は増えないので新着カウント・アニメーション・未読側
+   * の pending は通さず、capture の同期だけ通す。group が無い variant は呼び出し側が
+   * 通常の新着経路に回す
+   */
+  function insertSilently(incoming: NormalizedNote[]) {
+    if (incoming.length === 0) return
+    const keys = orderedKeys.value.slice()
+    let changed = false
+    const fresh: NormalizedNote[] = []
+    for (const note of incoming) {
+      const key = variantKeyOf(note)
+      if (noteKeys.has(key)) continue
+      const anchor = hasGroupFor(note)
+        ? identityIndex.get(note._identity)
+        : undefined
+      if (anchor === undefined) continue
+      const at = keys.indexOf(anchor)
+      if (at < 0) continue
+      keys.splice(at + 1, 0, key)
+      noteKeys.add(key)
+      fresh.push(note)
+      changed = true
+    }
+    if (!changed) return
+    noteStore.put(fresh, true)
+    orderedKeys.value = keys
+    suspensionsStore.probeNotes(fresh)
+    onNotesChangedFn?.(notes.value)
+  }
+
   /**
    * 保持上限を超えたときにどちら側を捨てるか (#834)。
    *
@@ -146,11 +204,22 @@ export function useNoteList(options: UseNoteListOptions) {
 
   function setNotes(newNotes: NormalizedNote[], trim: TrimSide = 'oldest') {
     // rawNotes setter 側の切り捨ては 'oldest' 固定なので、'newest' のときは
-    // ここで先に上限まで削っておく (setter 側は結果的に no-op になる)
-    rawNotes.value =
-      trim === 'newest' && newNotes.length > maxNotes
-        ? newNotes.slice(newNotes.length - maxNotes)
-        : newNotes
+    // ここで先に上限まで削っておく (setter 側は結果的に no-op になる)。
+    // 束ねる面は group 数で数える (variant 数で切ると上限内の group が欠ける)
+    if (trim === 'newest') {
+      rawNotes.value = bundle
+        ? [
+            ...truncateByGroups(
+              [...clusterByIdentity(newNotes)].reverse(),
+              maxNotes,
+            ),
+          ].reverse()
+        : newNotes.length > maxNotes
+          ? newNotes.slice(newNotes.length - maxNotes)
+          : newNotes
+      return
+    }
+    rawNotes.value = newNotes
   }
 
   /**
@@ -248,6 +317,8 @@ export function useNoteList(options: UseNoteListOptions) {
     setNotes,
     mergeUpdate,
     setOnNotesChanged,
+    hasGroupFor,
+    insertSilently,
     onNoteUpdate,
     handlePosted,
     removeNote,
