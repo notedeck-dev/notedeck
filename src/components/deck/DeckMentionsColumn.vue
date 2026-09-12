@@ -91,6 +91,7 @@ const {
 
 const {
   notes,
+  groups,
   noteScrollerRef,
   scrollToTop,
   connectCrossAccount,
@@ -148,7 +149,7 @@ const {
       <NoteScroller
         v-else
         ref="noteScrollerRef"
-        :items="notes"
+        :items="groups"
         :class="$style.tlScroller"
         @scroll="handleScroll"
         @near-end="loadMoreCrossAccount"
@@ -156,7 +157,8 @@ const {
         <template #default="{ item }">
           <div>
             <MkNote
-              :note="item"
+              :note="item.primary"
+              :group="item"
               @react="reactCrossAccount"
               @reply="handlers.reply"
               @renote="handlers.renote"

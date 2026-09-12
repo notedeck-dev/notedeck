@@ -1,4 +1,4 @@
-<script setup lang="ts" generic="T extends { id: string; _accountId?: string }">
+<script setup lang="ts" generic="T extends { id?: string; _accountId?: string; rowKey?: string }">
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { computed, ref, watch } from 'vue'
 import { variantKey } from '@/services/noteKey'
@@ -6,8 +6,14 @@ import { usePerformanceStore } from '@/stores/performance'
 
 const perfStore = usePerformanceStore()
 
-function defaultKeyOf(item: { id: string; _accountId?: string }): string {
-  return item._accountId ? variantKey(item._accountId, item.id) : item.id
+function defaultKeyOf(item: {
+  id?: string
+  _accountId?: string
+  rowKey?: string
+}): string {
+  if (item.rowKey != null) return item.rowKey
+  const id = item.id ?? ''
+  return item._accountId ? variantKey(item._accountId, id) : id
 }
 
 const props = withDefaults(

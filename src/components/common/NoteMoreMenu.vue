@@ -9,6 +9,7 @@ import { useCommandStore } from '@/commands/registry'
 import { useAccountMode } from '@/composables/useAccountMode'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import type { NoteGroup } from '@/services/noteGroup'
 import {
   getAccountAvatarUrl,
   getAccountLabel,
@@ -34,6 +35,8 @@ const props = defineProps<{
   isOwnNote: boolean
   isFavorited: boolean
   isPinned: boolean
+  /** 束ねた行 (#1058)。各アカウントの variant があれば ap/show なしで操作できる */
+  group?: NoteGroup
 }>()
 
 const emit = defineEmits<{
@@ -43,6 +46,8 @@ const emit = defineEmits<{
   pin: [note: NormalizedNote]
   deleteAndEdit: [note: NormalizedNote]
   reactAs: [accountId: string]
+  /** そのアカウントの variant が反応済みのとき、その反応を取り消す (#1058 §5.6) */
+  unreactAs: [accountId: string]
   renoteAs: [accountId: string]
   quoteAs: [accountId: string]
 }>()
@@ -117,13 +122,32 @@ function closeActAs() {
   actAsAccountId.value = null
 }
 
-function actAs(op: 'reactAs' | 'renoteAs' | 'quoteAs') {
+function actAs(op: 'reactAs' | 'unreactAs' | 'renoteAs' | 'quoteAs') {
   const accountId = actAsAccountId.value
   closeActAs()
   if (!accountId) return
   if (op === 'reactAs') emit('reactAs', accountId)
+  else if (op === 'unreactAs') emit('unreactAs', accountId)
   else if (op === 'renoteAs') emit('renoteAs', accountId)
   else emit('quoteAs', accountId)
+}
+
+/** 束ねた行で、そのアカウントの variant (#1058)。無ければ ap/show で解決する */
+function variantFor(accountId: string): NormalizedNote | undefined {
+  return props.group?.variants.find((v) => v._accountId === accountId)
+}
+
+/** その variant が反応済みなら、描画される側 (Renote なら renote 元) の myReaction */
+function variantReaction(accountId: string): string | null {
+  const v = variantFor(accountId)
+  if (!v) return null
+  const eff = v.renote && v.text == null ? v.renote : v
+  return eff.myReaction ?? null
+}
+
+/** 本文が非公開の variant を持つアカウントでは操作させない (「選べないものは選べない」) */
+function variantHidden(accountId: string): boolean {
+  return variantFor(accountId)?.contentHidden === true
 }
 
 function backToMain() {
@@ -134,8 +158,15 @@ function openInspector() {
   useWindowsStore().open('note-inspector', {
     accountId: props.note._accountId,
     noteId: props.note.id,
-    noteUri: props.note.uri ?? props.note.url ?? undefined,
+    noteUri: props.note._identity,
     serverHost: props.note._serverHost,
+    // 束ねた行なら各ビューを切り替えて見られる (開発者モード、#1058 §7)
+    variants: props.group?.variants.map((v) => ({
+      accountId: v._accountId,
+      noteId: v.id,
+      serverHost: v._serverHost,
+      identity: v._identity,
+    })),
   })
   close()
 }
@@ -242,16 +273,37 @@ const actAsAccountLabel = computed(() => {
 })
 
 function actAsOperations(accountId: string) {
-  return [
-    {
-      id: `${accountId}-react`,
-      label: 'リアクション',
-      icon: 'mood-plus',
-      action: () => {
-        commandStore.close()
-        emit('reactAs', accountId)
+  if (variantHidden(accountId)) {
+    return [
+      {
+        id: `${accountId}-hidden`,
+        label: 'このアカウントでは本文が非公開のため操作できません',
+        icon: 'lock',
+        action: () => commandStore.close(),
       },
-    },
+    ]
+  }
+  const mine = variantReaction(accountId)
+  return [
+    mine
+      ? {
+          id: `${accountId}-unreact`,
+          label: `リアクションを取り消す (${mine})`,
+          icon: 'mood-minus',
+          action: () => {
+            commandStore.close()
+            emit('unreactAs', accountId)
+          },
+        }
+      : {
+          id: `${accountId}-react`,
+          label: 'リアクション',
+          icon: 'mood-plus',
+          action: () => {
+            commandStore.close()
+            emit('reactAs', accountId)
+          },
+        },
     {
       id: `${accountId}-renote`,
       label: 'リノート',
@@ -501,7 +553,15 @@ defineExpose({ open })
     @close="closeActAs"
   >
     <template #detail>
-      <button class="_popupItem" @click="actAs('reactAs')">
+      <div v-if="actAsAccountId && variantHidden(actAsAccountId)" class="_popupItem" aria-disabled="true" style="opacity: 0.6; cursor: default">
+        <i class="ti ti-lock" />
+        このアカウントでは本文が非公開のため操作できません
+      </div>
+      <button v-else-if="actAsAccountId && variantReaction(actAsAccountId)" class="_popupItem" @click="actAs('unreactAs')">
+        <i class="ti ti-mood-minus" />
+        リアクションを取り消す ({{ variantReaction(actAsAccountId) }})
+      </button>
+      <button v-else class="_popupItem" @click="actAs('reactAs')">
         <i class="ti ti-mood-plus" />
         リアクション
       </button>

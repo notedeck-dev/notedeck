@@ -15,7 +15,35 @@ const props = defineProps<{
   noteUri?: string
   /** Server host — used to derive a URI when noteUri is absent. */
   serverHost?: string
+  /**
+   * 束ねたノートの各ビュー (#1058 §7 開発者モード)。サーバーごとの生データの
+   * 差分を見る唯一の面。identity は束ねのキーで、逆プロキシ構成の自己診断にも使う
+   */
+  variants?: {
+    accountId: string
+    noteId: string
+    serverHost: string
+    identity: string
+  }[]
 }>()
+
+const activeVariant = ref(0)
+const variantList = computed(() =>
+  props.variants && props.variants.length > 1 ? props.variants : null,
+)
+const active = computed(() => {
+  const v = variantList.value?.[activeVariant.value]
+  return v
+    ? { accountId: v.accountId, noteId: v.noteId, serverHost: v.serverHost }
+    : {
+        accountId: props.accountId,
+        noteId: props.noteId,
+        serverHost: props.serverHost,
+      }
+})
+const identity = computed(
+  () => variantList.value?.[activeVariant.value]?.identity ?? null,
+)
 
 // Notes themselves are mostly public, but DMs carry `visibleUserIds` and
 // `myReaction` leaks the viewer's interaction state. Mask by default.
@@ -39,9 +67,10 @@ const isLoadingAp = ref(false)
 const apError = ref<string | null>(null)
 
 const derivedUri = computed(() => {
+  if (identity.value) return identity.value
   if (props.noteUri) return props.noteUri
-  if (props.serverHost)
-    return `https://${props.serverHost}/notes/${props.noteId}`
+  if (active.value.serverHost)
+    return `https://${active.value.serverHost}/notes/${active.value.noteId}`
   return null
 })
 
@@ -64,8 +93,8 @@ async function loadMisskey() {
   misskeyError.value = null
   try {
     misskeyRaw.value = unwrap(
-      await commands.apiGetNoteRaw(props.accountId, {
-        noteId: props.noteId,
+      await commands.apiGetNoteRaw(active.value.accountId, {
+        noteId: active.value.noteId,
       } as never),
     )
   } catch (e) {
@@ -85,7 +114,7 @@ async function loadActivityPub() {
   isLoadingAp.value = true
   apError.value = null
   try {
-    apRaw.value = unwrap(await commands.apiApShow(props.accountId, uri))
+    apRaw.value = unwrap(await commands.apiApShow(active.value.accountId, uri))
   } catch (e) {
     apError.value = AppError.from(e).message
   } finally {
@@ -95,6 +124,14 @@ async function loadActivityPub() {
 
 onMounted(() => {
   loadMisskey()
+})
+
+// ビューを切り替えたら両タブとも取り直す
+watch(activeVariant, () => {
+  misskeyRaw.value = null
+  apRaw.value = null
+  loadMisskey()
+  if (tab.value === 'activitypub') loadActivityPub()
 })
 
 // AP tab is lazy-loaded on first activation so opening the inspector doesn't
@@ -111,6 +148,18 @@ watch(tab, (t) => {
       :model-value="tab"
       @update:model-value="(v) => (tab = v as InspectorTab)"
     />
+
+    <div v-if="variantList" :class="$style.variantBar">
+      <label :class="$style.variantLabel">
+        ビュー
+        <select v-model="activeVariant" :class="$style.variantSelect">
+          <option v-for="(v, i) in variantList" :key="`${v.accountId}:${v.noteId}`" :value="i">
+            {{ v.serverHost }} / {{ v.noteId }}
+          </option>
+        </select>
+      </label>
+      <code v-if="identity" :class="$style.identity" :title="identity">{{ identity }}</code>
+    </div>
 
     <RawJsonView
       ref="containerRef"
@@ -134,6 +183,35 @@ watch(tab, (t) => {
 </template>
 
 <style module lang="scss">
+.variantBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  font-size: 0.85em;
+  border-bottom: 1px solid var(--nd-divider);
+  min-width: 0;
+}
+
+.variantLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.variantSelect {
+  font: inherit;
+}
+
+.identity {
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .wrapper {
   display: flex;
   flex-direction: column;
