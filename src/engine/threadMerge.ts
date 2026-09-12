@@ -1,5 +1,4 @@
 import type { NormalizedNote } from '@/adapters/types'
-import { getNoteUri } from '@/utils/noteUrl'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,15 +55,6 @@ export interface MergedThread {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** URI の host (ポート込み・小文字)。解釈できなければ null */
-function hostOf(uri: string): string | null {
-  try {
-    return new URL(uri).host.toLowerCase()
-  } catch {
-    return null
-  }
-}
-
 /**
  * 同一 URI のフラグメント群から主ビューを選ぶ。
  *
@@ -75,7 +65,7 @@ function hostOf(uri: string): string | null {
  * ランク (静的な事実だけ。取得順・数に依存しない):
  *   1. トークンを持つアカウントの variant (ゲスト取得は最下位)
  *   2. variant のアカウントが投稿者本人
- *   3. origin (URI の host == 取得元サーバー) の variant
+ *   3. origin (identity の host == 取得元サーバー、判定は Rust 側) の variant
  *   4. アカウント一覧の並び順
  * ctx が無いときは 3 のみ評価し、同点は最初のフラグメント。
  */
@@ -103,8 +93,7 @@ function pickRepresentative(
     const account = accountById.get(f.sourceAccountId)
     const hasToken = account?.hasToken ? 1 : 0
     const isAuthor = account && account.userId === f.note.user.id ? 1 : 0
-    const isOrigin =
-      hostOf(getNoteUri(f.note)) === f.note._serverHost.toLowerCase() ? 1 : 0
+    const isOrigin = f.note._isOrigin ? 1 : 0
     const order = -(
       accountIndex.get(f.sourceAccountId) ?? Number.MAX_SAFE_INTEGER
     )
@@ -143,7 +132,7 @@ function resolveParentUri(
   idToUri: Map<string, string>,
 ): string | null {
   if (!note.replyId) return null
-  if (note.reply) return getNoteUri(note.reply)
+  if (note.reply) return note.reply._identity
   return idToUri.get(note.replyId) ?? null
 }
 
@@ -152,10 +141,11 @@ function resolveParentUri(
 // ---------------------------------------------------------------------------
 
 /**
- * 複数サーバーのスレッド断片を uri ベースで統合し、1 つのスレッドツリーを構築する。
+ * 複数サーバーのスレッド断片を identity (正規化 AP object id) で統合し、
+ * 1 つのスレッドツリーを構築する。
  *
  * @param fragments - 全アカウントから収集したノート群
- * @param focalUri  - フォーカルノート（照会対象）の URI
+ * @param focalUri  - フォーカルノート（照会対象）の identity
  * @param ctx       - 主ビュー選択に使うアカウント情報 (省略可)
  */
 export function mergeThreadFragments(
@@ -171,7 +161,7 @@ export function mergeThreadFragments(
   const idToUri = new Map<string, string>()
 
   for (const f of fragments) {
-    const uri = getNoteUri(f.note)
+    const uri = f.note._identity
     const list = byUri.get(uri)
     if (list) {
       list.push(f)
@@ -218,7 +208,7 @@ export function mergeThreadFragments(
   if (!focal) {
     // フォーカルノードが見つからない場合、最初のルートノートで代替
     const firstRoot = [...nodes.values()].find(
-      (n) => !childOf.has(getNoteUri(n.note)),
+      (n) => !childOf.has(n.note._identity),
     )
     if (!firstRoot) return null
     return buildResult(firstRoot, nodes, childOf)
@@ -235,7 +225,7 @@ function buildResult(
 ): MergedThread {
   // ancestors: フォーカルから親を遡る
   const ancestors: MergedThreadNode[] = []
-  let currentUri = getNoteUri(focal.note)
+  let currentUri = focal.note._identity
   const visited = new Set<string>()
 
   while (childOf.has(currentUri)) {

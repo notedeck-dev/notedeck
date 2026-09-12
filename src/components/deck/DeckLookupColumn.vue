@@ -32,7 +32,7 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { mapWithConcurrency } from '@/utils/concurrency'
 import { isImeComposing } from '@/utils/ime'
-import { getNoteUri, parseUserQuery } from '@/utils/noteUrl'
+import { parseUserQuery } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
@@ -343,7 +343,8 @@ async function performLookupCrossAccount(q: string) {
     return
   }
 
-  const focalUri = q
+  // 束ねのキーは identity (正規化 AP object id)。導出は notecli 側 1 か所 (#1058)
+  const focalUri = await commands.apiNoteIdentity(q)
   const allFragments: ThreadFragment[] = []
   // 主ビュー選択の材料。ゲスト取得の variant (Phase 1 のローカル DB 由来) を
   // 最下位にするため、トークンの有無を含めて全アカウントを渡す
@@ -352,7 +353,7 @@ async function performLookupCrossAccount(q: string) {
   // Phase 1: ローカル DB 横断検索（即座）
   try {
     const cached = unwrap(
-      await commands.apiFindNotesByUri(focalUri),
+      await commands.apiFindNotesByIdentity(focalUri),
     ) as unknown as NormalizedNote[]
     if (cached.length > 0) {
       for (const note of cached) {
@@ -621,7 +622,7 @@ async function handlePosted(editedNoteId?: string) {
         <div v-if="mergedThread.ancestors.length > 0" :class="$style.ancestors">
           <MkNote
             v-for="node in mergedThread.ancestors"
-            :key="getNoteUri(node.note)"
+            :key="node.note._identity"
             :note="node.note"
             @react="handleReactionCrossAccount"
             @renote="handleRenoteCrossAccount"

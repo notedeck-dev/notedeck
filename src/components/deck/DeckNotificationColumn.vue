@@ -67,7 +67,6 @@ import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { AppError } from '@/utils/errors'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
-import { getNoteUri } from '@/utils/noteUrl'
 import {
   CROSS_ACCOUNT_NOTIFICATION_KEY,
   loadNotificationCache,
@@ -186,7 +185,7 @@ function notifMenuOpenNoteInspector() {
   useWindowsStore().open('note-inspector', {
     accountId: notif._accountId,
     noteId: notif.note.id,
-    noteUri: getNoteUri(notif.note),
+    noteUri: notif.note._identity,
     serverHost: notif._serverHost,
   })
   closeNotifMenu()

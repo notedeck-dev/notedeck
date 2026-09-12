@@ -21,6 +21,7 @@ import { useConfirm } from '@/stores/confirm'
 import { useServersStore } from '@/stores/servers'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
+import { localNoteIdentity } from '@/utils/noteUrl'
 import {
   formatScheduleAbsolute,
   formatScheduleRelative,
@@ -108,6 +109,10 @@ function toPreviewNote(acc: Account, stored: StoredDraft): NormalizedNote {
     id: `draft:${acc.id}:${stored.id}`,
     _accountId: acc.id,
     _serverHost: acc.host,
+    _identity: localNoteIdentity(acc.host, `draft:${acc.id}:${stored.id}`),
+    _isOrigin: true,
+    _identityTrusted: true,
+    contentHidden: false,
     createdAt: stored.updatedAt,
     text: d.text || null,
     cw: d.showCw && d.cw ? d.cw : null,

@@ -212,6 +212,18 @@ export interface NormalizedNote {
   id: string
   _accountId: string
   _serverHost: string
+  /**
+   * 同一性キー (正規化 AP object id)。複数サーバーで観測した同じノートを束ねる
+   * ためのキーで、導出は notecli 側の 1 か所 (#1058)。TS では組み立てない。
+   * Rust 側は serde default 付き非 Option なので JSON に常に存在する (localOnly と同じ扱い)
+   */
+  _identity: string
+  /** identity の host == 取得元サーバー (このビューが origin か)。比較は Rust 側 */
+  _isOrigin: boolean
+  /** 整合検査: リモート投稿者の host と identity の host が一致するか。不一致なら束ねない */
+  _identityTrusted: boolean
+  /** サーバーが本文を隠した状態 (packed の isHidden)。ミュート由来の非表示とは別概念 */
+  contentHidden: boolean
   createdAt: string
   text: string | null
   cw: string | null

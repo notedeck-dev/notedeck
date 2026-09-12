@@ -959,14 +959,24 @@ pub async fn api_get_cache_date_range(
     db.get_cache_date_range(&account_id, &key)
 }
 
+/// identity (正規化 AP object id) でローカルキャッシュを account 横断で引く (#1058)。
+/// 引数は生の URI でもよい (notecli 側で同じ規則で正規化する)。
 #[tauri::command]
 #[specta::specta]
-pub async fn api_find_notes_by_uri(
+pub async fn api_find_notes_by_identity(
     app_state: State<'_, AppState>,
     uri: String,
 ) -> Result<Vec<NormalizedNote>> {
     let db = app_state.db().await;
-    db.find_notes_by_uri(&uri)
+    db.find_notes_by_identity(&uri)
+}
+
+/// URI を identity に正規化する。導出規則は notecli 側の 1 か所に閉じ、
+/// フロントは結果を読むだけにする (#1058)。
+#[tauri::command]
+#[specta::specta]
+pub fn api_note_identity(uri: String) -> String {
+    notecli::identity::identity_of(Some(&uri), "", "")
 }
 
 #[tauri::command]

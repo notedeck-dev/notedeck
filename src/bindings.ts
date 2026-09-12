@@ -817,14 +817,28 @@ async apiSearchNotesLocal(accountId: string, query: string, limit: number | null
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
-async apiFindNotesByUri(uri: string) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
+/**
+ * identity (正規化 AP object id) でローカルキャッシュを account 横断で引く (#1058)。
+ * 引数は生の URI でもよい (notecli 側で同じ規則で正規化する)。
+ *
+ * @see src-tauri/src/commands/timeline.rs
+ */
+async apiFindNotesByIdentity(uri: string) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("api_find_notes_by_uri", { uri }) };
+    return { status: "ok", data: await TAURI_INVOKE("api_find_notes_by_identity", { uri }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * URI を identity に正規化する。導出規則は notecli 側の 1 か所に閉じ、
+ * フロントは結果を読むだけにする (#1058)。
+ *
+ * @see src-tauri/src/commands/timeline.rs
+ */
+async apiNoteIdentity(uri: string) : Promise<string> {
+    return await TAURI_INVOKE("api_note_identity", { uri });
 },
 /** @see src-tauri/src/commands/timeline.rs */
 async apiPinNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
@@ -3261,7 +3275,25 @@ height?: number | null;
  * blurhash プレースホルダ文字列
  */
 blurhash?: string | null }
-export type NormalizedNote = { id: string; _accountId: string; _serverHost: string; createdAt: string; text: string | null; cw: string | null; user: NormalizedUser; visibility: string; emojis?: Partial<{ [key in string]: string }>; reactionEmojis?: Partial<{ [key in string]: string }>; reactions?: Partial<{ [key in string]: number }>; myReaction: string | null; renoteCount: number; repliesCount: number; files?: NormalizedDriveFile[]; poll?: NormalizedPoll | null; replyId?: string | null; renoteId?: string | null; channelId?: string | null; channel?: Channel | null; reactionAcceptance?: string | null; uri?: string | null; url?: string | null; updatedAt?: string | null; localOnly?: boolean; visibleUserIds?: string[]; isFavorited?: boolean; 
+export type NormalizedNote = { id: string; _accountId: string; _serverHost: string; 
+/**
+ * 同一性キー (正規化 AP object id)。導出は `identity::identity_of` (notedeck#1058)。
+ * 旧 JSON には無いので default で読み、`fill_identity` で補う。
+ */
+_identity?: string; 
+/**
+ * identity の host == 取得元サーバー (このビューが origin か)
+ */
+_isOrigin?: boolean; 
+/**
+ * 整合検査: リモート投稿者の host と identity の host が一致するか。
+ * ローカル投稿者 (user.host = None) は identity を自分で組むので常に true。
+ */
+_identityTrusted?: boolean; 
+/**
+ * サーバーが本文を隠した状態 (packed の isHidden)。ミュート由来の非表示とは別概念。
+ */
+contentHidden?: boolean; createdAt: string; text: string | null; cw: string | null; user: NormalizedUser; visibility: string; emojis?: Partial<{ [key in string]: string }>; reactionEmojis?: Partial<{ [key in string]: string }>; reactions?: Partial<{ [key in string]: number }>; myReaction: string | null; renoteCount: number; repliesCount: number; files?: NormalizedDriveFile[]; poll?: NormalizedPoll | null; replyId?: string | null; renoteId?: string | null; channelId?: string | null; channel?: Channel | null; reactionAcceptance?: string | null; uri?: string | null; url?: string | null; updatedAt?: string | null; localOnly?: boolean; visibleUserIds?: string[]; isFavorited?: boolean; 
 /**
  * Fork-specific mode flags (e.g., isNoteInYamiMode)
  */

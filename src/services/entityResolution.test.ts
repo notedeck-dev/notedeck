@@ -54,7 +54,17 @@ function makeNote(
     _serverHost: string
   },
 ): NormalizedNote {
+  // Rust 側 identity_of と同じ規則の最小版 (テスト用): uri があればそれ、無ければ host + id
+  const identity =
+    overrides._identity ??
+    overrides.uri ??
+    `https://${overrides._serverHost.toLowerCase()}/notes/${overrides.id}`
+  const identityHost = identity.replace(/^https?:\/\//, '').split('/')[0] ?? ''
   return {
+    _identity: identity,
+    _isOrigin: identityHost === overrides._serverHost.toLowerCase(),
+    _identityTrusted: true,
+    contentHidden: false,
     createdAt: '2025-01-01T00:00:00.000Z',
     text: null,
     cw: null,
