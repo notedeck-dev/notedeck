@@ -12,6 +12,7 @@ import NoteScroller from '@/components/common/NoteScroller.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
+import { provideNoteFrame } from '@/composables/useNoteFrame'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -41,6 +42,8 @@ const config = computed(() =>
 )
 
 const isCrossAccount = computed(() => props.column.accountId == null)
+// 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
+provideNoteFrame(isCrossAccount)
 
 // Single-account config
 const noteColumnConfig: NoteColumnConfig = {

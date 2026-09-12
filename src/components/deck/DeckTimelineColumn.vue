@@ -18,6 +18,7 @@ import { useAds } from '@/composables/useAds'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
+import { provideNoteFrame } from '@/composables/useNoteFrame'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useTabSlide } from '@/composables/useTabSlide'
@@ -53,6 +54,8 @@ const accountsStore = useAccountsStore()
 const cacheKeyDeps = accountsCacheKeyDeps()
 
 const isCrossAccount = computed(() => props.column.accountId == null)
+// 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
+provideNoteFrame(isCrossAccount)
 
 // Guest accounts can only access public timelines (local/global), not home/social
 const accountData = accountsStore.accountMap.get(props.column.accountId ?? '')

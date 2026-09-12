@@ -17,6 +17,7 @@ import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import RegexGuide from '@/components/common/RegexGuide.vue'
 import { useNavigation } from '@/composables/useNavigation'
+import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import type { NoteGroup } from '@/services/noteGroup'
@@ -57,6 +58,8 @@ const props = defineProps<{
 }>()
 
 const isCrossAccount = computed(() => props.column.accountId == null)
+// 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
+provideNoteFrame(isCrossAccount)
 const accountsStore = useAccountsStore()
 const multiAdapters = useMultiAccountAdapters()
 
