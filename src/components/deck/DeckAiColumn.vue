@@ -359,8 +359,13 @@ const sendLoop = useAiSendLoop({
   chat: aiChat,
   sessions: sessionsStore,
   // capability dispatch (permissions チェック込み)
+  // per-account の AI カラムはそのアカウントを呼び出し文脈にする。全アカウント
+  // のカラムは文脈なし = capability 側で accountId を明示させる (#941)
   dispatch: (name, input) =>
-    dispatchCapability(name, input, { principal: { kind: 'ai.chat' } }),
+    dispatchCapability(name, input, {
+      principal: { kind: 'ai.chat' },
+      accountId: props.column.accountId ?? undefined,
+    }),
   // 外部エディタで ai.json5 / permissions.json5 を変更した直後でも最新の
   // 設定・権限で判定したいので、tool 実行直前に再読込する (= 再起動不要)。
   reloadConfigs: async () => {
@@ -635,7 +640,9 @@ async function sendMessage(
         }))
 
       const contextBlock = buildAiContextBlock(aiConfig.value, {
-        activeAccount: accountsStore.activeAccount,
+        currentAccount: props.column.accountId
+          ? (accountsStore.accountMap.get(props.column.accountId) ?? null)
+          : null,
         currentColumn: focusedColumn ?? props.column,
         visibleNotes: projectVisibleItems(visibleNotesRaw, focusedColumn?.type),
         recentConversation: projectRecentConversation(history),

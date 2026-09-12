@@ -65,7 +65,6 @@ const noop = (): void => {
 describe('SUPPORTED_EVENT_NAMES', () => {
   it('includes the Phase 1 + Phase 2 + v0.24 events', () => {
     expect(SUPPORTED_EVENT_NAMES).toEqual([
-      'account:switch',
       'column:added',
       'column:removed',
       'streaming:status',

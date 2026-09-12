@@ -1,5 +1,6 @@
 import { useCommandStore } from '@/commands/registry'
 import { useAccountActions } from '@/composables/useAccountActions'
+import { useAccountPicker } from '@/composables/useAccountPicker'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { isEntityType, useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteAction } from '@/composables/useNoteFocus'
@@ -715,10 +716,12 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     icon: 'puzzle',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('plugins'),
-    execute: () => {
-      const accountsStore = useAccountsStore()
-      const accountId = accountsStore.activeAccount?.id ?? null
-      useDeckStore().toggleSidebarColumn('pluginManager', accountId)
+    execute: async () => {
+      const accountId = await useAccountPicker().pickAccount(
+        'プラグインを管理するアカウント',
+      )
+      if (accountId)
+        useDeckStore().toggleSidebarColumn('pluginManager', accountId)
     },
   })
 
@@ -737,10 +740,12 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     icon: 'palette',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('theme-manager'),
-    execute: () => {
-      const accountsStore = useAccountsStore()
-      const accountId = accountsStore.activeAccount?.id ?? null
-      useDeckStore().toggleSidebarColumn('themeManager', accountId)
+    execute: async () => {
+      const accountId = await useAccountPicker().pickAccount(
+        'テーマを管理するアカウント',
+      )
+      if (accountId)
+        useDeckStore().toggleSidebarColumn('themeManager', accountId)
     },
   })
 

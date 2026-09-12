@@ -1718,7 +1718,6 @@ describe('dispatchCapability — 第三者 deny floor と external read floor (#
 describe('account.actAs gate (#777)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    useAccountsStore().activeAccountId = 'acc-active'
   })
 
   /** actsAsAccount 宣言付きの write 系 capability (permissions は空で actAs だけを検査する) */
@@ -1732,9 +1731,13 @@ describe('account.actAs gate (#777)', () => {
     })
   }
 
+  /** ノートのメニューから起動したプラグイン相当 (文脈アカウント = acc-ctx) */
   function pluginCtx(preset: 'readonly' | 'safe' | 'full'): DispatchContext {
     setPrincipalPreset('plugin', preset)
-    return { principal: { kind: 'plugin', pluginId: 'p1' } }
+    return {
+      principal: { kind: 'plugin', pluginId: 'p1' },
+      accountId: 'acc-ctx',
+    }
   }
 
   const accept = async () => ({ accepted: true, remember: false })
@@ -1752,6 +1755,18 @@ describe('account.actAs gate (#777)', () => {
       expect(r.code).toBe('permission_denied')
       expect(r.error).toContain('account.actAs')
     }
+  })
+
+  it('文脈アカウントが無ければ明示指定は cross 扱いにしない (#941)', async () => {
+    registerCapability(actAsCap())
+    setPrincipalPreset('plugin', 'safe')
+    const r = await dispatchCapability(
+      'notes.create',
+      { accountId: 'acc-other' },
+      { principal: { kind: 'plugin', pluginId: 'p1' } },
+      { confirmFn: accept },
+    )
+    expect(r).toEqual({ ok: true, result: 'posted' })
   })
 
   it('plugin (full) はクロスアカウント実行できる (確認あり)', async () => {
@@ -1836,7 +1851,7 @@ describe('account.actAs gate (#777)', () => {
     const ctx = pluginCtx('full')
     const same = await dispatchCapability(
       'notes.create',
-      { accountId: 'acc-active' },
+      { accountId: 'acc-ctx' },
       ctx,
       { confirmFn },
     )
@@ -1930,7 +1945,6 @@ describe('plugin 拒否の UI 操作起点 toast (#712 §8.4 補強)', () => {
   })
 
   it('account.actAs の拒否も UI 操作起点なら toast する', async () => {
-    useAccountsStore().activeAccountId = 'acc-active'
     registerCapability(
       makeCapability({
         id: 'notes.create',

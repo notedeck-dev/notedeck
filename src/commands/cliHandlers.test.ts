@@ -32,7 +32,7 @@ interface FakeColumn {
 }
 
 function makeDeps(
-  overrides: { activeAccountId?: string | null; columns?: FakeColumn[] } = {},
+  overrides: { accountId?: string | null; columns?: FakeColumn[] } = {},
 ) {
   const deckStore = {
     columns: overrides.columns ?? [],
@@ -40,18 +40,17 @@ function makeDeps(
     setActiveColumn: vi.fn(),
     invalidateColumnByKey: vi.fn(),
   }
-  const accountsStore = {
-    activeAccount:
-      overrides.activeAccountId === null
-        ? undefined
-        : { id: overrides.activeAccountId ?? 'acc-1' },
-  }
+  const accountsStore = { accounts: [] }
   const deps = {
     deckStore,
     accountsStore,
     navigateToNote: vi.fn(),
     navigateToUser: vi.fn(),
     toggleAccountMenu: vi.fn(),
+    // 文脈の無いコマンドはアカウントを選ばせる (#941)。null = キャンセル / 候補なし
+    pickAccount: vi.fn(async () =>
+      overrides.accountId === null ? null : (overrides.accountId ?? 'acc-1'),
+    ),
   }
   return {
     deps,
@@ -64,8 +63,8 @@ beforeEach(() => {
 })
 
 describe('post', () => {
-  it('does nothing without an active account or without text', async () => {
-    const noAccount = makeDeps({ activeAccountId: null })
+  it('does nothing without a picked account or without text', async () => {
+    const noAccount = makeDeps({ accountId: null })
     await noAccount.handlers.post?.('hello')
     const withAccount = makeDeps()
     await withAccount.handlers.post?.('   ')
@@ -263,8 +262,8 @@ describe('favorite / unfavorite', () => {
 })
 
 describe('accounts', () => {
-  it('toggles the account menu even without an active account', async () => {
-    const { deps, handlers } = makeDeps({ activeAccountId: null })
+  it('toggles the account menu even without a pickable account', async () => {
+    const { deps, handlers } = makeDeps({ accountId: null })
     await handlers.accounts?.('')
     expect(deps.toggleAccountMenu).toHaveBeenCalled()
   })

@@ -453,7 +453,7 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 
 判定は `src/columns/accountScope.ts` の `getAccountScope()` 一本。カラムを受け取る側が「束ねるべき」か「関係ない」かを各自で判定すると、対応種別が増えるたびに虫食いが再発するため、この 1 箇所を経由する。対応種別の正本は `src/columns/registry.ts` の `crossAccount` 宣言。
 
-全アカウントのカラムはヘッダーに `AvatarStack` が出る（アカウントなしは何も出ない）。そこからアカウント必須の操作を始めるときは `useAccountPicker` でどのアカウントで実行するかを選ばせる — アクティブアカウントへ暗黙にフォールバックしない。
+全アカウントのカラムはヘッダーに `AvatarStack` が出る（アカウントなしは何も出ない）。そこからアカウント必須の操作を始めるときは `useAccountPicker` でどのアカウントで実行するかを選ばせる。「アクティブアカウント」という概念は持たない（[#941](https://github.com/notedeck-dev/notedeck/issues/941)）: 実態は登録順の先頭でユーザーが選んだものではなかったので、UI・capability・スラッシュコマンドのどこでも暗黙にフォールバックしない。capability は「明示の `accountId` → 呼び出し文脈のアカウント（per-account の AI カラム、ノートメニューから起動したプラグイン）」の順で解決し、どちらも無ければ `accountId` を必須にする。文脈が無いときの UI の初期値（投稿フォームの宛先、メモの絵文字辞書）だけ `accountsStore.fallbackAccount`（トークンを持つ先頭）を使い、これを「現在のアカウント」として見せない。
 
 **同一ノートの束ね（[#1058](https://github.com/notedeck-dev/notedeck/issues/1058)）:**
 
@@ -766,7 +766,7 @@ const { activate, deactivate } = useMenuKeyboard({
 **AiScript からの拡張:**
 - `Nd:register_command(id, label, fn, options)` の `options` に `signature` / `permissions` / `aiTool` / `requiresConfirmation` を渡すと **capability registry にもミラー登録**され、即 5 経路に公開される
 - `Nd:capabilities()` で registry にある capability の宣言情報を列挙 (プラグインの自己発見)
-- `Nd:on(name, handler)` で `account:switch` / `column:added` / `column:removed` / `streaming:status` / `note:new` / `notification:new` を購読。`note:new` / `notification:new` は queryDelta を `core/queryRegistry`（queryId → flavor/accountId）で振り分けて fan-out する
+- `Nd:on(name, handler)` で `column:added` / `column:removed` / `streaming:status` / `note:new` / `notification:new` を購読。`note:new` / `notification:new` は queryDelta を `core/queryRegistry`（queryId → flavor/accountId）で振り分けて fan-out する
 
 ### Theme 管理
 

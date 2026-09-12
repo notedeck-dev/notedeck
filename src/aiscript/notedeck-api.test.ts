@@ -449,7 +449,7 @@ describe('Nd:on', () => {
     const stores = makeFakeStores()
     const env = createNoteDeckEnv(stores.ctx)
     const result = await callNative(env, 'Nd:on', [
-      values.STR('account:switch'),
+      values.STR('column:added'),
       dummyHandler,
     ])
     expect(result.type).toBe('fn')

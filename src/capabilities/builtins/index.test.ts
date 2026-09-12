@@ -11,7 +11,6 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
       [
         'account.current',
         'account.list',
-        'account.switch',
         'ai.chat',
         'ai.listPersonas',
         'ai.sessions.list',
@@ -253,8 +252,6 @@ const WITHOUT_PERMISSIONS = [
  * 出さない capability。権限そのものが gate になっている面。
  */
 const HIGH_RISK_WITHOUT_CONFIRMATION = [
-  // アクティブアカウントの切替。もう一度呼べば戻せる
-  'account.switch',
   // 検索のみ (外部ネットワークへの read)
   'misstore.search',
   // skill の有効 / 無効の切替。本文は書き換えない

@@ -30,6 +30,7 @@ function createTestAccount(overrides: Partial<Account> = {}): Account {
     displayName: 'Test User',
     avatarUrl: null,
     software: 'misskey',
+    hasToken: true,
     ...overrides,
   }
 }
@@ -42,22 +43,29 @@ describe('accounts store', () => {
   it('starts with empty accounts', () => {
     const store = useAccountsStore()
     expect(store.accounts).toHaveLength(0)
-    expect(store.activeAccount).toBeNull()
+    expect(store.fallbackAccount).toBeNull()
   })
 
-  it('adds an account and sets it as active', async () => {
+  it('adds an account', async () => {
     const store = useAccountsStore()
     const account = createTestAccount()
 
     store.addAccount(account)
 
     expect(store.accounts).toHaveLength(1)
-    expect(store.activeAccountId).toBe('test-1')
-    expect(store.activeAccount).toEqual(account)
+    expect(store.fallbackAccount).toEqual(account)
   })
 
-  it('switches active account', async () => {
+  it('fallbackAccount は登録順の先頭でトークンを持つアカウント (#941)', async () => {
     const store = useAccountsStore()
+    store.addAccount(
+      createTestAccount({
+        id: 'g',
+        host: 'server-a.com',
+        userId: 'u0',
+        hasToken: false,
+      }),
+    )
     store.addAccount(
       createTestAccount({ id: 'a1', host: 'server-a.com', userId: 'u1' }),
     )
@@ -65,21 +73,18 @@ describe('accounts store', () => {
       createTestAccount({ id: 'a2', host: 'server-b.com', userId: 'u2' }),
     )
 
-    store.switchAccount('a2')
-
-    expect(store.activeAccountId).toBe('a2')
+    expect(store.fallbackAccount?.id).toBe('a1')
   })
 
-  it('removes an account and falls back to first', async () => {
+  it('removes an account', async () => {
     const store = useAccountsStore()
     store.addAccount(createTestAccount({ id: 'a1', userId: 'u1' }))
     store.addAccount(createTestAccount({ id: 'a2', userId: 'u2' }))
-    store.switchAccount('a2')
 
-    await store.removeAccount('a2')
+    await store.removeAccount('a1')
 
     expect(store.accounts).toHaveLength(1)
-    expect(store.activeAccountId).toBe('a1')
+    expect(store.fallbackAccount?.id).toBe('a2')
   })
 
   it('groups accounts by server', async () => {

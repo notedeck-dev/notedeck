@@ -1,11 +1,11 @@
 /**
  * capability のアカウント解決の共通ヘルパ (#821)。
  *
- * 解決順: 明示的な params.accountId → ctx.accountId (呼び出し文脈) →
- * activeAccountId。従来は各 builtin がローカルヘルパで
- * 「params.accountId → activeAccountId」を実装しており、プラグインの
- * ノート/ユーザーアクション経由の呼び出し (ctx.accountId) が常に
- * アクティブアカウントへフォールバックしていた。
+ * 解決順: 明示的な params.accountId → ctx.accountId (呼び出し文脈)。どちらも
+ * 無ければエラー。かつては「アクティブアカウント」(実態は登録順の先頭) に
+ * 暗黙でフォールバックしていたが、ユーザーが選んでいないアカウントで書込が
+ * 走る元だったので廃止した (#941)。全アカウントの AI カラムや HEARTBEAT の
+ * ように文脈アカウントが無い経路では、呼び出し側が accountId を渡す
  */
 
 import { initAdapterFor } from '@/adapters/factory'
@@ -20,8 +20,9 @@ import type { CapabilityContext } from './types'
  */
 export const ACCOUNT_ID_PARAM_DESC =
   'どのアカウントで実行するか。未指定なら呼び出し文脈のアカウント' +
-  ' (無ければ active アカウント)。' +
-  ' 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。'
+  ' (per-account の AI カラムならそのアカウント)。全アカウントのカラムや' +
+  ' HEARTBEAT には文脈アカウントが無いので、`account.list` か' +
+  ' `<currentColumn>.accountId` から選んで必ず渡す。'
 
 /** 入力から空白除去済みの accountId を取り出す (空文字・非文字列は undefined)。 */
 export function pickAccountId(input: unknown): string | undefined {
@@ -32,7 +33,7 @@ export function pickAccountId(input: unknown): string | undefined {
 
 /**
  * 実行アカウント ID を解決する。
- * 順序: 明示的な input (params.accountId) → ctx.accountId → activeAccountId。
+ * 順序: 明示的な input (params.accountId) → ctx.accountId。無ければ throw。
  */
 export function resolveAccountId(
   input: unknown,
@@ -41,9 +42,9 @@ export function resolveAccountId(
   const explicit = pickAccountId(input)
   if (explicit) return explicit
   if (ctx?.accountId) return ctx.accountId
-  const id = useAccountsStore().activeAccountId
-  if (!id) throw new Error('No active account')
-  return id
+  throw new Error(
+    'accountId is required: no account in calling context (pick one from account.list)',
+  )
 }
 
 /**

@@ -5,7 +5,6 @@
  * 公開イベント名と payload subset を NoteDeck 側で明示的に定義する。
  *
  * Phase 1 で提供する 4 種類:
- *   - account:switch — アクティブアカウントが切り替わったとき
  *   - column:added — 新しいカラムがデッキに追加されたとき
  *   - column:removed — カラムがデッキから削除されたとき
  *   - streaming:status — accountId 単位の接続状態が変化したとき
@@ -22,12 +21,10 @@ import {
   getQueryInfo,
   type QueryFlavor,
 } from '@/core/queryRegistry'
-import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { type OnlineStatus, useStreamingStore } from '@/stores/streaming'
 
 export type NoteDeckEventName =
-  | 'account:switch'
   | 'column:added'
   | 'column:removed'
   | 'streaming:status'
@@ -40,7 +37,6 @@ export type NoteDeckEventName =
   | 'theme:applied'
 
 export const SUPPORTED_EVENT_NAMES: readonly NoteDeckEventName[] = [
-  'account:switch',
   'column:added',
   'column:removed',
   'streaming:status',
@@ -143,8 +139,6 @@ export function subscribeNoteDeckEvent(
   handler: EventHandler,
 ): Unsubscribe {
   switch (name) {
-    case 'account:switch':
-      return subscribeAccountSwitch(handler)
     case 'column:added':
       return subscribeColumnAdded(handler)
     case 'column:removed':
@@ -238,17 +232,6 @@ export function _resetEventStateForTest(): void {
   noteHandlers.clear()
   notificationHandlers.clear()
   stopQueryDeltaListener()
-}
-
-function subscribeAccountSwitch(handler: EventHandler): Unsubscribe {
-  const store = useAccountsStore()
-  return watch(
-    () => store.activeAccountId,
-    (newId, oldId) => {
-      if (newId === oldId) return
-      handler({ accountId: newId, previousAccountId: oldId ?? null })
-    },
-  )
 }
 
 function subscribeColumnAdded(handler: EventHandler): Unsubscribe {

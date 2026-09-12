@@ -86,14 +86,14 @@ describe('buildAiContextBlock', () => {
   it('returns empty string when nothing to inject (no account, no column)', () => {
     const cfg = configWithDataSources('full')
     expect(
-      buildAiContextBlock(cfg, { activeAccount: null, currentColumn: null }),
+      buildAiContextBlock(cfg, { currentAccount: null, currentColumn: null }),
     ).toBe('')
   })
 
   it('outputs currentAccount block by default (readonly preset)', () => {
     const cfg = defaultConfig() // readonly: currentAccount on, visibleNotes off
     const block = buildAiContextBlock(cfg, {
-      activeAccount: SAMPLE_ACCOUNT,
+      currentAccount: SAMPLE_ACCOUNT,
       currentColumn: null,
     })
     expect(block).toContain('<currentAccount>')
@@ -112,7 +112,7 @@ describe('buildAiContextBlock', () => {
       accessToken: 'SHOULD-NOT-LEAK-3',
     } as unknown as Account
     const block = buildAiContextBlock(cfg, {
-      activeAccount: leaky,
+      currentAccount: leaky,
       currentColumn: null,
     })
     expect(block).toContain('"id": "acc-1"')
@@ -134,7 +134,7 @@ describe('buildAiContextBlock', () => {
       },
     }
     const block = buildAiContextBlock(cfg, {
-      activeAccount: SAMPLE_ACCOUNT,
+      currentAccount: SAMPLE_ACCOUNT,
       currentColumn: { id: 'c', type: 'timeline' } as unknown as DeckColumn,
       visibleNotes: [{ id: 'n1', text: 'hi' }],
       recentConversation: [{ role: 'user', content: 'msg' }],
@@ -174,7 +174,7 @@ describe('buildAiContextBlock', () => {
     ]
 
     const block = buildAiContextBlock(cfg, {
-      activeAccount: leakyAccount,
+      currentAccount: leakyAccount,
       currentColumn: leakyColumn,
       visibleNotes: leakyNotes, // 注: stripCredentials は raw でも効く
       recentConversation: leakyConv,
@@ -213,7 +213,7 @@ describe('buildAiContextBlock', () => {
       },
     }
     const block = buildAiContextBlock(cfg, {
-      activeAccount: SAMPLE_ACCOUNT,
+      currentAccount: SAMPLE_ACCOUNT,
       currentColumn: null,
     })
     expect(block).toBe('')
@@ -222,7 +222,7 @@ describe('buildAiContextBlock', () => {
   it('omits visibleNotes block when array is empty even if enabled', () => {
     const cfg = configWithDataSources('safe')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: SAMPLE_ACCOUNT,
+      currentAccount: SAMPLE_ACCOUNT,
       currentColumn: null,
       visibleNotes: [],
     })
@@ -232,7 +232,7 @@ describe('buildAiContextBlock', () => {
   it('includes visibleNotes block when enabled and non-empty', () => {
     const cfg = configWithDataSources('safe')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: { id: 'c', type: 'timeline' } as unknown as DeckColumn,
       visibleNotes: [{ id: 'n1', text: 'hello' }],
     })
@@ -249,7 +249,7 @@ describe('buildAiContextBlock', () => {
       accountId: null,
     } as unknown as DeckColumn
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: column,
     })
     expect(block).toContain('<currentColumn>')
@@ -278,7 +278,7 @@ describe('buildAiContextBlock', () => {
       },
     ]
     const block = buildAiContextBlock(cfg, {
-      activeAccount: SAMPLE_ACCOUNT,
+      currentAccount: SAMPLE_ACCOUNT,
       currentColumn: column,
       accounts,
     })
@@ -296,7 +296,7 @@ describe('buildAiContextBlock', () => {
       accountId: null,
     } as unknown as DeckColumn
     const block = buildAiContextBlock(cfg, {
-      activeAccount: SAMPLE_ACCOUNT,
+      currentAccount: SAMPLE_ACCOUNT,
       currentColumn: column,
       accounts: [SAMPLE_ACCOUNT],
     })
@@ -312,7 +312,7 @@ describe('buildAiContextBlock', () => {
       accountId: 'acc-1',
     } as unknown as DeckColumn
     const block = buildAiContextBlock(cfg, {
-      activeAccount: SAMPLE_ACCOUNT,
+      currentAccount: SAMPLE_ACCOUNT,
       currentColumn: column,
     })
     expect(block).not.toContain('accountHost')
@@ -409,7 +409,7 @@ describe('buildAiContextBlock — visible block tag dispatch', () => {
   it('emits <visibleNotes> for timeline column', () => {
     const cfg = configWithDataSources('safe')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: { id: 'c', type: 'timeline' } as unknown as DeckColumn,
       visibleNotes: [{ id: 'n1', text: 'hi' }],
     })
@@ -421,7 +421,7 @@ describe('buildAiContextBlock — visible block tag dispatch', () => {
   it('emits <visibleNotifications> for notifications column', () => {
     const cfg = configWithDataSources('safe')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: {
         id: 'c',
         type: 'notifications',
@@ -435,7 +435,7 @@ describe('buildAiContextBlock — visible block tag dispatch', () => {
   it('emits <visibleDriveItems> for drive column', () => {
     const cfg = configWithDataSources('safe')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: { id: 'c', type: 'drive' } as unknown as DeckColumn,
       visibleNotes: [{ id: 'f1', name: 'a.png' }],
     })
@@ -446,7 +446,7 @@ describe('buildAiContextBlock — visible block tag dispatch', () => {
   it('falls back to <visibleItems> for unsupported column types', () => {
     const cfg = configWithDataSources('safe')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: { id: 'c', type: 'explore' } as unknown as DeckColumn,
       visibleNotes: [{ id: 'x' }],
     })
@@ -910,7 +910,7 @@ describe('buildAiContextBlock — memos', () => {
   it('emits <memos> when ds.memos is on and memos array is non-empty', () => {
     const cfg = configWithDataSources('safe')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: null,
       memos: [SAMPLE_MEMO],
     })
@@ -926,7 +926,7 @@ describe('buildAiContextBlock — memos', () => {
       custom: { ...cfg.dataSources.custom, memos: false },
     }
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: null,
       memos: [SAMPLE_MEMO],
     })
@@ -936,7 +936,7 @@ describe('buildAiContextBlock — memos', () => {
   it('omits <memos> when memos array is empty even if enabled', () => {
     const cfg = configWithDataSources('safe')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: null,
       memos: [],
     })
@@ -946,7 +946,7 @@ describe('buildAiContextBlock — memos', () => {
   it('omits <memos> when memos is undefined even if enabled', () => {
     const cfg = configWithDataSources('safe')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: null,
     })
     expect(block).not.toContain('<memos>')
@@ -957,7 +957,7 @@ describe('buildAiContextBlock — persona (#491)', () => {
   it('emits <persona> block with id, displayName, and authorId instruction', () => {
     const cfg = configWithDataSources('readonly')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: null,
       persona: {
         id: 'skill:aizu-9k2x',
@@ -974,7 +974,7 @@ describe('buildAiContextBlock — persona (#491)', () => {
   it('includes bio line when persona has bio', () => {
     const cfg = configWithDataSources('readonly')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: null,
       persona: {
         id: 'skill:aizu',
@@ -988,7 +988,7 @@ describe('buildAiContextBlock — persona (#491)', () => {
   it('omits <persona> block when persona is undefined', () => {
     const cfg = configWithDataSources('readonly')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: null,
     })
     expect(block).not.toContain('<persona>')
@@ -998,7 +998,7 @@ describe('buildAiContextBlock — persona (#491)', () => {
     // dataSources で memos / visibleNotes 等を全部切っても persona は渡せば出る
     const cfg = configWithDataSources('readonly')
     const block = buildAiContextBlock(cfg, {
-      activeAccount: null,
+      currentAccount: null,
       currentColumn: null,
       persona: { id: 'skill:p', displayName: 'P' },
     })

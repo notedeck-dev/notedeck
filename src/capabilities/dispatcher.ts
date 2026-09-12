@@ -79,8 +79,8 @@ export interface DispatchContext {
   principal: Principal
   /**
    * 呼び出し文脈のアカウント (#821)。Nd:call (プラグインのアクション実行中)
-   * が埋める。未指定 = アカウント文脈なし (capability 側で activeAccountId
-   * にフォールバック)。
+   * が埋め、per-account の AI カラムはカラムのアカウントを入れる。未指定 =
+   * アカウント文脈なし (capability 側は params.accountId を必須にする、#941)。
    */
   accountId?: string | null
 }
@@ -116,17 +116,18 @@ export async function dispatchCapability(
     }
   }
   // クロスアカウント実行の検査 (#777): actsAsAccount 宣言付き capability で、
-  // 非 user principal が呼び出し文脈 (ctx.accountId、無ければ active) と
-  // 異なるアカウントを明示指定したときだけ true。ctx.accountId 由来の実行
-  // (#821 — 本人がそのノートのメニューから起動した文脈) は対象外。
+  // 非 user principal が呼び出し文脈 (ctx.accountId) と異なるアカウントを
+  // 明示指定したときだけ true。ctx.accountId 由来の実行 (#821 — 本人がその
+  // ノートのメニューから起動した文脈) は対象外。文脈アカウントが無い経路
+  // (全アカウントの AI カラム / HEARTBEAT / 全体プラグイン) は「別のアカウント
+  // として振る舞う」相手がいないので対象外 (#941 でアクティブアカウントへの
+  // 暗黙フォールバックを廃止した)
   const crossAccountId =
-    cap.actsAsAccount && ctx.principal.kind !== 'user'
+    cap.actsAsAccount && ctx.principal.kind !== 'user' && ctx.accountId
       ? pickAccountId(params?.accountId)
       : undefined
   const crossAccount =
-    crossAccountId !== undefined &&
-    crossAccountId !==
-      (ctx.accountId ?? useAccountsStore().activeAccountId ?? null)
+    crossAccountId !== undefined && crossAccountId !== ctx.accountId
   if (crossAccount) {
     const actAsDenied = checkPermissions(['account.actAs'], ctx.principal)
     if (actAsDenied.length > 0) {
