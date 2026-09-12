@@ -356,7 +356,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     component: () => import('@/components/deck/DeckAnnouncementsColumn.vue'),
   },
   search: {
-    label: '検索',
+    // Misskey サーバー側の検索 (各アカウントの notes/search)。キャッシュから引く
+    // 「クライアント検索」(#945 / #958) とは別の面で並立する (#1058)
+    label: 'サーバー検索',
     icon: 'search',
     group: 'server',
     guestAllowed: true,

@@ -722,7 +722,7 @@ onUnmounted(() => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    title="検索"
+    title="サーバー検索"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"

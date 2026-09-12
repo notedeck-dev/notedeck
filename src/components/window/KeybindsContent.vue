@@ -77,7 +77,7 @@ const commandIds = computed(() =>
 
 const COMMAND_LABELS: Record<string, string> = {
   'command-palette': 'コマンドパレット',
-  search: '検索',
+  search: 'サーバー検索',
   notifications: '通知',
   compose: 'ノート作成',
   'add-column': 'カラム追加',
