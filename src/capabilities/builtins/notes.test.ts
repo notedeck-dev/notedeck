@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   NOTES_BUILTIN_CAPABILITIES,
   notesChildrenCapability,
+  notesSearchArchiveCapability,
   notesSearchCapability,
   notesShowCapability,
   notesTimelineCapability,
@@ -34,6 +35,28 @@ describe('notes.search capability', () => {
     await expect(
       notesSearchCapability.execute({ query: '   ' }),
     ).rejects.toThrow(/query is required/)
+  })
+})
+
+describe('notes.searchArchive capability (#947)', () => {
+  it('declares notes.readArchive (not notes.read) and aiTool: true', () => {
+    expect(notesSearchArchiveCapability.permissions).toEqual([
+      'notes.readArchive',
+    ])
+    expect(notesSearchArchiveCapability.aiTool).toBe(true)
+    expect(notesSearchArchiveCapability.id).toBe('notes.searchArchive')
+  })
+
+  it('every param is optional and includePrivate defaults to public only', () => {
+    const params = notesSearchArchiveCapability.signature?.params ?? {}
+    for (const key of Object.keys(params)) {
+      expect(params[key]?.optional, key).toBe(true)
+    }
+    expect(params.includePrivate?.description).toContain('既定 false')
+  })
+
+  it('is registered', () => {
+    expect(NOTES_BUILTIN_CAPABILITIES).toContain(notesSearchArchiveCapability)
   })
 })
 
@@ -130,8 +153,9 @@ describe('notes.children capability', () => {
 })
 
 describe('NOTES_BUILTIN_CAPABILITIES', () => {
-  it('contains all five notes capabilities', () => {
-    expect(NOTES_BUILTIN_CAPABILITIES).toHaveLength(5)
+  it('contains all six notes capabilities', () => {
+    expect(NOTES_BUILTIN_CAPABILITIES).toHaveLength(6)
+    expect(NOTES_BUILTIN_CAPABILITIES).toContain(notesSearchArchiveCapability)
     expect(NOTES_BUILTIN_CAPABILITIES).toContain(notesSearchCapability)
     expect(NOTES_BUILTIN_CAPABILITIES).toContain(notesTimelineCapability)
     expect(NOTES_BUILTIN_CAPABILITIES).toContain(notesUserCapability)

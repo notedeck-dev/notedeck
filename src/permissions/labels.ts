@@ -42,6 +42,10 @@ export interface PermissionLabel {
 
 export const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
   'notes.read': { label: 'ノートの読取', icon: 'ti-eye' },
+  'notes.readArchive': {
+    label: '手元の索引の検索 (非公開ノートを含む)',
+    icon: 'ti-archive',
+  },
   'notes.write': { label: 'ノートの投稿/編集/削除', icon: 'ti-pencil' },
   'notes.react': { label: 'リアクション/お気に入り', icon: 'ti-heart' },
   'account.read': { label: 'アカウント情報の読取', icon: 'ti-user' },
@@ -176,6 +180,7 @@ export const PERMISSION_CATEGORIES: readonly {
   {
     label: 'ローカルデータ',
     keys: [
+      'notes.readArchive',
       'memos.read',
       'memos.write',
       'drafts.read',

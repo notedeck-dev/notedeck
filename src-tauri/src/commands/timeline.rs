@@ -1021,6 +1021,7 @@ pub async fn api_search_notes_cached_across(
     ascending: Option<bool>,
     author: Option<String>,
     has_files: Option<bool>,
+    public_only: Option<bool>,
 ) -> Result<Vec<NormalizedNote>> {
     if query.len() > 1000 {
         return Err(NoteDeckError::InvalidInput(
@@ -1039,6 +1040,7 @@ pub async fn api_search_notes_cached_across(
             ascending: ascending.unwrap_or(false),
             author: author.as_deref().filter(|a| !a.trim().is_empty()),
             has_files,
+            public_only: public_only.unwrap_or(false),
         },
     )
 }

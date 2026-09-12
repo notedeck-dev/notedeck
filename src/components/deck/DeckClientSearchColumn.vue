@@ -128,6 +128,7 @@ async function fetchPage(untilDate: string | null): Promise<NormalizedNote[]> {
       filter.value.ascending ?? false,
       filter.value.author?.trim() || null,
       filter.value.hasFiles ?? null,
+      null,
     ),
   ) as NormalizedNote[]
 }

@@ -823,9 +823,9 @@ async apiSearchNotesLocal(accountId: string, query: string, limit: number | null
  *
  * @see src-tauri/src/commands/timeline.rs
  */
-async apiSearchNotesCachedAcross(accountIds: string[], query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null, author: string | null, hasFiles: boolean | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
+async apiSearchNotesCachedAcross(accountIds: string[], query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null, author: string | null, hasFiles: boolean | null, publicOnly: boolean | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("api_search_notes_cached_across", { accountIds, query, limit, sinceDate, untilDate, ascending, author, hasFiles }) };
+    return { status: "ok", data: await TAURI_INVOKE("api_search_notes_cached_across", { accountIds, query, limit, sinceDate, untilDate, ascending, author, hasFiles, publicOnly }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
