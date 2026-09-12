@@ -19,6 +19,7 @@ import MkNoteTree from '@/components/common/MkNoteTree.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { useNoteGroupContext } from '@/composables/useNoteGroups'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
 import {
@@ -66,6 +67,7 @@ const {
 })
 
 const accountsStore = useAccountsStore()
+const { context: groupContext } = useNoteGroupContext()
 
 const isCrossAccount = computed(() => props.column.accountId == null)
 const multiAdapters = useMultiAccountAdapters()
@@ -346,9 +348,9 @@ async function performLookupCrossAccount(q: string) {
   // 束ねのキーは identity (正規化 AP object id)。導出は notecli 側 1 か所 (#1058)
   const focalUri = await commands.apiNoteIdentity(q)
   const allFragments: ThreadFragment[] = []
-  // 主ビュー選択の材料。ゲスト取得の variant (Phase 1 のローカル DB 由来) を
-  // 最下位にするため、トークンの有無を含めて全アカウントを渡す
-  const mergeCtx = { accounts: accountsStore.accounts }
+  // 主ビュー選択の文脈 (#1058 §5.2)。ゲスト取得の variant (Phase 1 のローカル
+  // DB 由来) は最下位になる
+  const mergeCtx = groupContext.value
 
   // Phase 1: ローカル DB 横断検索（即座）
   try {

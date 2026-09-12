@@ -97,6 +97,8 @@ const {
   loadMoreCrossAccount,
   handleScroll,
   removeNote,
+  react: reactCrossAccount,
+  vote: voteCrossAccount,
 } = useCrossAccountNotes({
   fetchNotes: (adapter, opts) =>
     isSpecified.value
@@ -155,7 +157,7 @@ const {
           <div>
             <MkNote
               :note="item"
-              @react="handlers.reaction"
+              @react="reactCrossAccount"
               @reply="handlers.reply"
               @renote="handlers.renote"
               @quote="handlers.quote"
@@ -163,7 +165,7 @@ const {
               @edit="handlers.edit"
               @bookmark="handlers.bookmark"
               @delete-and-edit="handlers.deleteAndEdit"
-              @vote="handlers.vote"
+              @vote="voteCrossAccount"
             />
           </div>
         </template>

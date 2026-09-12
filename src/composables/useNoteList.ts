@@ -4,6 +4,11 @@ import type {
   NoteUpdateEvent,
   ServerAdapter,
 } from '@/adapters/types'
+import {
+  clusterByIdentity,
+  type NoteGroup,
+  truncateByGroups,
+} from '@/services/noteGroup'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
@@ -11,6 +16,7 @@ import { usePerformanceStore } from '@/stores/performance'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { insertIntoSorted } from '@/utils/sortNotes'
 import { commands } from '@/utils/tauriInvoke'
+import { useNoteGroupContext } from './useNoteGroups'
 import { useNoteVisibility, type VisibilityOpts } from './useNoteVisibility'
 
 /** @deprecated Use usePerformanceStore().get('noteListMax') instead. Kept for test compatibility. */
@@ -24,6 +30,11 @@ export interface UseNoteListOptions {
   maxNotes?: number
   /** 面ごとの述語 opt-out（お気に入り・プロフィール等）。既定は全適用 */
   visibility?: VisibilityOpts
+  /**
+   * 束ねる面 (#1058)。同一 identity の variant を 1 行 (group) に畳み、上限も
+   * group 数で数える。`notes` は各 group の主ビュー、`groups` が表示単位
+   */
+  bundle?: boolean
 }
 
 export function useNoteList(options: UseNoteListOptions) {
@@ -33,6 +44,8 @@ export function useNoteList(options: UseNoteListOptions) {
   const perfStore = usePerformanceStore()
   const suspensionsStore = useSuspensionsStore()
   const maxNotes = options.maxNotes ?? perfStore.get('noteListMax')
+  const bundle = options.bundle === true
+  const groupContext = bundle ? useNoteGroupContext(options.visibility) : null
   /**
    * 列のメンバーシップ。キーは variant key = (取得元アカウント, ノート ID) の複合
    * (#1010)。ノート ID 単独だと別サーバー由来の同じ ID が衝突する
@@ -63,8 +76,12 @@ export function useNoteList(options: UseNoteListOptions) {
   const rawNotes = computed({
     get: () => noteStore.resolve(orderedKeys.value),
     set: (newNotes: NormalizedNote[]) => {
-      const trimmed =
-        newNotes.length > maxNotes ? newNotes.slice(0, maxNotes) : newNotes
+      // 束ねる面は同 identity を隣接させてから group 数で切り詰める (§4)
+      const trimmed = bundle
+        ? truncateByGroups(clusterByIdentity(newNotes), maxNotes)
+        : newNotes.length > maxNotes
+          ? newNotes.slice(0, maxNotes)
+          : newNotes
       // skipTrigger: orderedKeys assignment below already drives this column's reactivity.
       // A global triggerRef would redundantly invalidate ALL columns' notes computeds.
       noteStore.put(trimmed, true)
@@ -99,8 +116,19 @@ export function useNoteList(options: UseNoteListOptions) {
    * noteMap/orderedIds に復活しうるため、表示時の可視性述語で除外する（#602）。
    * muted/archived の合成もこの述語に集約。書込は rawNotes 側で行う。
    */
+  /**
+   * 束ねる面の表示単位。同一 identity の variant を畳み、可視性は group 層で
+   * 評価する (ユーザー意思は variant の OR / サーバー判断は origin のみ)。
+   * 束ねない面では空配列。
+   */
+  const groups = computed<NoteGroup[]>(() =>
+    groupContext ? groupContext.groupsOf(rawNotes.value) : [],
+  )
+
   const notes = computed(() =>
-    visibility.filterVisible(rawNotes.value, options.visibility),
+    bundle
+      ? groups.value.map((g) => g.primary)
+      : visibility.filterVisible(rawNotes.value, options.visibility),
   )
 
   function setOnNotesChanged(fn: (notes: NormalizedNote[]) => void) {
@@ -209,6 +237,7 @@ export function useNoteList(options: UseNoteListOptions) {
 
   return {
     notes,
+    groups,
     // unfiltered な書込基底。同期位置の決定（sinceId / untilId / 空ガード等）は
     // 隠れたノートを含むこちらを読む（#831 §1.4 の読取判別規則）
     rawNotes,

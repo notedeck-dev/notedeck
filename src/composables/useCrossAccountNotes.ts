@@ -1,18 +1,21 @@
-import { computed, onMounted, type Ref, shallowRef, watch } from 'vue'
+import { onMounted, type Ref, watch } from 'vue'
 import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { useMultiNoteCapture } from '@/composables/useMultiNoteCapture'
 import {
   loadCachedTimeline,
   loadCachedTimelineBefore,
 } from '@/composables/useNoteColumnCache'
+import { useNoteList } from '@/composables/useNoteList'
 import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
-import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { variantKeyOf } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
-import { useSuspensionsStore } from '@/stores/suspensions'
+import { useToast } from '@/stores/toast'
 import { mapWithConcurrency } from '@/utils/concurrency'
 import { AppError } from '@/utils/errors'
+import { toggleReaction } from '@/utils/toggleReaction'
+import { votePoll } from '@/utils/votePoll'
 import { createWorkerClient } from '@/utils/workerClient'
 import type { DedupResponse } from '@/workers/dedupWorker'
 
@@ -38,6 +41,7 @@ export interface CrossAccountNotesOptions {
   error: Ref<AppError | null>
   scroller: Ref<HTMLElement | null>
   onScrollReport: () => void
+  closePostForm?: () => void
 }
 
 /** Promise.allSettled の結果からノートを集約 */
@@ -91,6 +95,14 @@ function dedupAsync(
     .catch(() => dedupMain(incoming, existingKeys))
 }
 
+/**
+ * 全アカウント面 (メンション / ダイレクト) の取得と束ね (#1058 P2a)。
+ *
+ * 列は `useNoteList` (行キーの順序配列 + noteStore) に載せ、`bundle` で同一
+ * identity の variant を 1 行に畳む。これで楽観更新の patch・削除 tombstone・
+ * 退避保護が per-account 面と同じ経路を通り、各アカウントの接続で Note
+ * Capture するので他者のリアクションもライブで届く。
+ */
 export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   const {
     fetchNotes,
@@ -105,16 +117,33 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   const accountsStore = useAccountsStore()
   const multiAdapters = useMultiAccountAdapters()
   const noteStore = useNoteStore()
-  const { isHidden } = useNoteVisibility()
-
-  // 取得した生データ。表示用 notes はミュート/削除を表示時に除外（#606 / #574）
-  const rawNotes = shallowRef<NormalizedNote[]>([])
-  const notes = computed(() => rawNotes.value.filter((n) => !isHidden(n)))
-
-  // 凍結 probe の供給点（#828）。per-account fetch 完了ごとに rawNotes が
-  // 差し替わるので、ここ 1 点で全経路を拾える（TTL・dedupe はストア側）
-  watch(rawNotes, (items) => useSuspensionsStore().probeNotes(items))
+  const toast = useToast()
   const { noteScrollerRef } = useNoteScrollerRef(scroller)
+
+  const list = useNoteList({
+    bundle: true,
+    getAdapter: () => null,
+    closePostForm: options.closePostForm ?? (() => undefined),
+    deleteHandler: async (note) => {
+      const adapter = await multiAdapters.getOrCreate(note._accountId)
+      if (!adapter) return false
+      try {
+        await adapter.api.deleteNote(note.id)
+        return true
+      } catch {
+        return false
+      }
+    },
+  })
+  const { notes, groups, rawNotes, setNotes, onNoteUpdate, removeNote } = list
+
+  // 各アカウントの接続で variant を購読する (§6)。接続を持たないアカウントの
+  // variant は購読しない
+  const capture = useMultiNoteCapture(
+    (accountId) => multiAdapters.getCached(accountId)?.stream,
+    onNoteUpdate,
+  )
+  list.setOnNotesChanged((visible) => capture.sync(visible))
 
   function scrollToTop() {
     if (noteScrollerRef.value) {
@@ -151,7 +180,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
 
     // オフラインファースト: キャッシュを即時表示（ログアウト中のアカウント分も含む）
     const cached = await loadCrossAccountCache()
-    if (cached.length > 0) rawNotes.value = cached
+    if (cached.length > 0) setNotes(cached)
 
     const accounts = accountsStore.accounts.filter((a) => a.hasToken)
     // 全アカウントがログアウト中なら live fetch せずキャッシュ表示のみ
@@ -166,16 +195,15 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         async (acc) => {
           const adapter = await multiAdapters.getOrCreate(acc.id)
           if (!adapter) return []
+          // capture 用に接続を張る (既に接続済みなら no-op)
+          adapter.stream.connect()
           return fetchNotes(adapter)
         },
         3,
       )
 
       // live を優先しつつキャッシュとマージ（dedup は先勝ち）
-      rawNotes.value = await dedupAsync([
-        ...collectFulfilled(results),
-        ...cached,
-      ])
+      setNotes(await dedupAsync([...collectFulfilled(results), ...cached]))
     } catch (e) {
       error.value = AppError.from(e)
     } finally {
@@ -224,7 +252,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
 
       const existingKeys = new Set<string>(rawNotes.value.map(variantKeyOf))
       const newOlder = await dedupAsync(collectFulfilled(results), existingKeys)
-      rawNotes.value = [...rawNotes.value, ...newOlder]
+      // 下方向のページングなので古い側を残す
+      setNotes([...rawNotes.value, ...newOlder], 'newest')
     } catch (e) {
       error.value = AppError.from(e)
     } finally {
@@ -236,19 +265,54 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     onScrollReport()
   }
 
-  async function removeNote(note: NormalizedNote) {
+  /** 楽観更新の差分を、その variant を保持する noteStore へ差し替えで反映する */
+  function applyPatch(
+    note: NormalizedNote,
+    compute: (current: NormalizedNote) => Partial<NormalizedNote>,
+  ) {
+    const key = variantKeyOf(note)
+    const current = noteStore.get(key) ?? note
+    noteStore.update(key, { ...current, ...compute(current) })
+  }
+
+  /**
+   * 主ビューの variant に対してリアクションする (#1058 §5.6)。宛先はその variant の
+   * 取得元アカウント。adapter 取得は非同期なので、連打の二重 create は
+   * toggleReaction 側の in-flight ガードで塞ぐ。
+   */
+  async function react(reaction: string, note: NormalizedNote) {
     const adapter = await multiAdapters.getOrCreate(note._accountId)
     if (!adapter) return
     try {
-      await adapter.api.deleteNote(note.id)
-    } catch {
-      return
+      await toggleReaction(adapter.api, note, reaction, (compute) =>
+        applyPatch(note, compute),
+      )
+    } catch (e) {
+      const err = AppError.from(e)
+      toast.show(`リアクションに失敗しました（${err.displayCode}）`, 'error')
     }
-    rawNotes.value = rawNotes.value.filter(
-      (n) => variantKeyOf(n) !== variantKeyOf(note),
-    )
-    noteStore.remove(variantKeyOf(note))
   }
+
+  async function vote(choice: number, note: NormalizedNote) {
+    const adapter = await multiAdapters.getOrCreate(note._accountId)
+    if (!adapter) return
+    try {
+      await votePoll(adapter.api, note, choice, (compute) =>
+        applyPatch(note, compute),
+      )
+    } catch (e) {
+      const err = AppError.from(e)
+      toast.show(`投票に失敗しました（${err.displayCode}）`, 'error')
+    }
+  }
+
+  // アカウントの追加・削除で対象が変わったら取り直す
+  watch(
+    () => accountsStore.accounts.map((a) => `${a.id}:${a.hasToken}`).join(','),
+    () => {
+      if (isCrossAccount()) connectCrossAccount()
+    },
+  )
 
   onMounted(() => {
     if (isCrossAccount()) {
@@ -258,11 +322,14 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
 
   return {
     notes,
+    groups,
     noteScrollerRef,
     scrollToTop,
     connectCrossAccount,
     loadMoreCrossAccount,
     handleScroll,
     removeNote,
+    react,
+    vote,
   }
 }

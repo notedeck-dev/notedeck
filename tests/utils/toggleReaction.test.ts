@@ -244,3 +244,23 @@ describe('toggleReaction', () => {
     expect(t.state.myReaction).toBeNull()
   })
 })
+
+describe('toggleReaction in-flight guard (#1058)', () => {
+  it('同じ variant への連打は最初の 1 回だけ API に届く', async () => {
+    const api = makeApi()
+    let resolveCreate: (() => void) | null = null
+    api.createReaction = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveCreate = resolve
+        }),
+    )
+    const note = makeNote({ myReaction: null })
+    const apply = vi.fn()
+    const p1 = toggleReaction(api, note, '👍', apply)
+    const p2 = toggleReaction(api, note, '👍', apply)
+    resolveCreate?.()
+    await Promise.all([p1, p2])
+    expect(api.createReaction).toHaveBeenCalledTimes(1)
+  })
+})

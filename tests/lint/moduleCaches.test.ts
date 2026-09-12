@@ -47,6 +47,8 @@ const ALLOWED: Record<string, string> = {
     'bounded: MAX_CACHE_ENTRIES',
 
   // lifecycle — 完了・解除・発火で消える
+  'src/utils/toggleReaction.ts:inFlight':
+    'lifecycle: リアクション API の完了 (finally) で必ず削除される進行中集合 (#1058)',
   'src/services/boundedCache.ts:registry':
     'lifecycle: WeakRef 保持 — 参照切れは登録時と一覧読み取り時に掃除 (#977 観測レジストリ)',
   'src/utils/dedup.ts:inflight': 'lifecycle: finally で削除',

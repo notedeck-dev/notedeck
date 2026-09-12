@@ -1,4 +1,10 @@
 import type { NormalizedNote } from '@/adapters/types'
+import {
+  defaultGroupContext,
+  type NoteGroupContext,
+  selectPrimary,
+} from '@/services/noteGroup'
+import { nestedVariantKey, type VariantKey } from '@/services/noteKey'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,17 +21,6 @@ export interface NoteVariant {
   accountId: string
   serverHost: string
   noteId: string
-}
-
-/** 主ビュー選択に使うアカウント情報 (並び順 = アカウント一覧の順) */
-export interface ThreadMergeAccount {
-  id: string
-  userId: string
-  hasToken: boolean
-}
-
-export interface ThreadMergeContext {
-  accounts?: ReadonlyArray<ThreadMergeAccount>
 }
 
 /** マージ済みノード */
@@ -56,22 +51,13 @@ export interface MergedThread {
 // ---------------------------------------------------------------------------
 
 /**
- * 同一 URI のフラグメント群から主ビューを選ぶ。
- *
- * 数 (reactions / renoteCount / repliesCount) は主ビューの値をそのまま使い、
- * 合算も max もしない。Like はオリジンと反応者のフォロワー先の両方に配送される
- * ので足すと二重計上になり、max は取消が一方にしか届かないと膨らむ (#1058)。
- *
- * ランク (静的な事実だけ。取得順・数に依存しない):
- *   1. トークンを持つアカウントの variant (ゲスト取得は最下位)
- *   2. variant のアカウントが投稿者本人
- *   3. origin (identity の host == 取得元サーバー、判定は Rust 側) の variant
- *   4. アカウント一覧の並び順
- * ctx が無いときは 3 のみ評価し、同点は最初のフラグメント。
+ * 同一 identity のフラグメント群から主ビューを選ぶ。規則は `noteGroup.selectPrimary`
+ * (#1058 §5.2) と同じ 1 か所。数 (reactions / renoteCount / repliesCount) は主ビューの
+ * 値をそのまま使い、合算も max もしない。
  */
 function pickRepresentative(
   frags: ThreadFragment[],
-  ctx: ThreadMergeContext | undefined,
+  ctx: NoteGroupContext,
 ): {
   note: NormalizedNote
   variants: NoteVariant[]
@@ -81,46 +67,11 @@ function pickRepresentative(
     serverHost: f.note._serverHost,
     noteId: f.note.id,
   }))
-
-  const accountIndex = new Map<string, number>()
-  const accountById = new Map<string, ThreadMergeAccount>()
-  for (const [i, a] of (ctx?.accounts ?? []).entries()) {
-    accountIndex.set(a.id, i)
-    accountById.set(a.id, a)
-  }
-
-  const scoreOf = (f: ThreadFragment): number[] => {
-    const account = accountById.get(f.sourceAccountId)
-    const hasToken = account?.hasToken ? 1 : 0
-    const isAuthor = account && account.userId === f.note.user.id ? 1 : 0
-    const isOrigin = f.note._isOrigin ? 1 : 0
-    const order = -(
-      accountIndex.get(f.sourceAccountId) ?? Number.MAX_SAFE_INTEGER
-    )
-    return [hasToken, isAuthor, isOrigin, order]
-  }
-
-  // biome-ignore lint/style/noNonNullAssertion: frags is guaranteed non-empty by caller
-  let best = frags[0]!
-  let bestScore = scoreOf(best)
-  for (const f of frags.slice(1)) {
-    const score = scoreOf(f)
-    if (compareScore(score, bestScore) > 0) {
-      best = f
-      bestScore = score
-    }
-  }
-
-  return { note: best.note, variants }
-}
-
-/** 辞書順比較。a > b なら正 */
-function compareScore(a: number[], b: number[]): number {
-  for (let i = 0; i < a.length; i++) {
-    const d = (a[i] ?? 0) - (b[i] ?? 0)
-    if (d !== 0) return d
-  }
-  return 0
+  const note = selectPrimary(
+    frags.map((f) => f.note),
+    ctx,
+  )
+  return { note, variants }
 }
 
 /**
@@ -129,11 +80,12 @@ function compareScore(a: number[], b: number[]): number {
  */
 function resolveParentUri(
   note: NormalizedNote,
-  idToUri: Map<string, string>,
+  keyToUri: Map<VariantKey, string>,
 ): string | null {
   if (!note.replyId) return null
   if (note.reply) return note.reply._identity
-  return idToUri.get(note.replyId) ?? null
+  // 返信先はこの variant と同じアカウント経由で取得されている (行キーで引く、#1010)
+  return keyToUri.get(nestedVariantKey(note, note.replyId)) ?? null
 }
 
 // ---------------------------------------------------------------------------
@@ -146,19 +98,19 @@ function resolveParentUri(
  *
  * @param fragments - 全アカウントから収集したノート群
  * @param focalUri  - フォーカルノート（照会対象）の identity
- * @param ctx       - 主ビュー選択に使うアカウント情報 (省略可)
+ * @param ctx       - 主ビュー選択の文脈 (省略時は述語なしの既定)
  */
 export function mergeThreadFragments(
   fragments: ThreadFragment[],
   focalUri: string,
-  ctx?: ThreadMergeContext,
+  ctx: NoteGroupContext = defaultGroupContext(),
 ): MergedThread | null {
   if (fragments.length === 0) return null
 
   // 1. URI → フラグメント群のマップを構築
   const byUri = new Map<string, ThreadFragment[]>()
-  // noteId → URI の逆引きマップ（replyId 解決用）
-  const idToUri = new Map<string, string>()
+  // 行キー → identity の逆引きマップ（replyId 解決用）
+  const keyToUri = new Map<VariantKey, string>()
 
   for (const f of fragments) {
     const uri = f.note._identity
@@ -168,7 +120,7 @@ export function mergeThreadFragments(
     } else {
       byUri.set(uri, [f])
     }
-    idToUri.set(f.note.id, uri)
+    keyToUri.set(nestedVariantKey(f.note, f.note.id), uri)
   }
 
   // 2. 各 URI グループから代表ノードを生成
@@ -181,7 +133,7 @@ export function mergeThreadFragments(
   // 3. 親子関係を構築
   const childOf = new Map<string, string>() // childUri → parentUri
   for (const [uri, node] of nodes) {
-    const parentUri = resolveParentUri(node.note, idToUri)
+    const parentUri = resolveParentUri(node.note, keyToUri)
     if (parentUri && nodes.has(parentUri)) {
       childOf.set(uri, parentUri)
     }

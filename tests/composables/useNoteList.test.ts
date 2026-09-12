@@ -175,3 +175,83 @@ describe('useNoteList', () => {
     expect(callback.mock.calls[0][0]).toHaveLength(5)
   })
 })
+
+describe('useNoteList bundle (#1058 束ね)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  function variant(
+    id: string,
+    accountId: string,
+    host: string,
+    uri?: string,
+  ): NormalizedNote {
+    const identity = uri ?? `https://${host}/notes/${id}`
+    const identityHost = identity.replace(/^https?:\/\//, '').split('/')[0]
+    return {
+      ...makeNote(id),
+      _accountId: accountId,
+      _serverHost: host,
+      _identity: identity,
+      _isOrigin: identityHost === host,
+      _identityTrusted: true,
+      contentHidden: false,
+      uri,
+    }
+  }
+
+  function createBundled(maxNotes?: number) {
+    return useNoteList({
+      bundle: true,
+      getAdapter: () => null,
+      deleteHandler: async () => true,
+      closePostForm: () => {
+        /* noop */
+      },
+      maxNotes,
+    })
+  }
+
+  it('同一 identity の variant を 1 行に畳み、主ビューは origin', () => {
+    const { notes, groups, rawNotes, setNotes } = createBundled()
+    const remote = variant(
+      'r1',
+      'acc-b',
+      'b.example',
+      'https://origin.example/notes/o1',
+    )
+    const origin = variant('o1', 'acc-o', 'origin.example')
+    setNotes([remote, origin])
+    expect(rawNotes.value).toHaveLength(2)
+    expect(notes.value).toHaveLength(1)
+    expect(notes.value[0]).toBe(origin)
+    expect(groups.value[0]?.variants).toHaveLength(2)
+  })
+
+  it('どれかのアカウントのミュートで group ごと隠れる (ユーザー意思の OR)', () => {
+    const { notes, setNotes } = createBundled()
+    const muteStore = useMutesStore()
+    setNotes([
+      variant('r1', 'acc-b', 'b.example', 'https://origin.example/notes/o1'),
+      variant('o1', 'acc-o', 'origin.example'),
+    ])
+    expect(notes.value).toHaveLength(1)
+    muteStore.muteUser('acc-b', 'u1')
+    expect(notes.value).toHaveLength(0)
+    muteStore.unmuteUser('acc-b', 'u1')
+    expect(notes.value).toHaveLength(1)
+  })
+
+  it('上限は group 数で数える', () => {
+    const { notes, rawNotes, setNotes } = createBundled(1)
+    setNotes([
+      variant('r1', 'acc-b', 'b.example', 'https://origin.example/notes/o1'),
+      variant('x', 'acc-b', 'b.example'),
+      variant('o1', 'acc-o', 'origin.example'),
+    ])
+    // 同 identity は隣接に寄せられ、1 group = 2 variant が残る
+    expect(rawNotes.value).toHaveLength(2)
+    expect(notes.value).toHaveLength(1)
+  })
+})

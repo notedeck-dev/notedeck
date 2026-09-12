@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { NormalizedNote } from '@/adapters/types'
+import { defaultGroupContext } from '@/services/noteGroup'
 import type { MergedThread } from './threadMerge'
 import { mergeThreadFragments, type ThreadFragment } from './threadMerge'
 
@@ -121,6 +122,11 @@ describe('mergeThreadFragments', () => {
       { id: 'accB', userId: 'userB', hasToken: true },
       { id: 'guest', userId: 'guest', hasToken: false },
     ]
+    const ctx = defaultGroupContext({
+      accountOrder: accounts.map((a) => a.id),
+      hasToken: (id) => accounts.find((a) => a.id === id)?.hasToken ?? false,
+      userIdOf: (id) => accounts.find((a) => a.id === id)?.userId,
+    })
 
     it('トークンを持つアカウントの variant をゲストより優先する', () => {
       const guestNote = makeNote({
@@ -136,9 +142,7 @@ describe('mergeThreadFragments', () => {
         uri,
       })
       const result = ensureNotNull(
-        mergeThreadFragments([frag(guestNote), frag(tokenNote)], uri, {
-          accounts,
-        }),
+        mergeThreadFragments([frag(guestNote), frag(tokenNote)], uri, ctx),
       )
       expect(result.focal.note).toBe(tokenNote)
     })
@@ -170,9 +174,7 @@ describe('mergeThreadFragments', () => {
         },
       })
       const result = ensureNotNull(
-        mergeThreadFragments([frag(originOther), frag(ownRemote)], uri, {
-          accounts,
-        }),
+        mergeThreadFragments([frag(originOther), frag(ownRemote)], uri, ctx),
       )
       expect(result.focal.note).toBe(ownRemote)
     })
@@ -192,7 +194,7 @@ describe('mergeThreadFragments', () => {
         _serverHost: 'origin.example',
       })
       const result = ensureNotNull(
-        mergeThreadFragments([frag(remote), frag(origin)], uri, { accounts }),
+        mergeThreadFragments([frag(remote), frag(origin)], uri, ctx),
       )
       expect(result.focal.note).toBe(origin)
     })
@@ -211,7 +213,7 @@ describe('mergeThreadFragments', () => {
         uri,
       })
       const result = ensureNotNull(
-        mergeThreadFragments([frag(remote), frag(origin)], uri, { accounts }),
+        mergeThreadFragments([frag(remote), frag(origin)], uri, ctx),
       )
       expect(result.focal.note).toBe(origin)
     })
@@ -230,7 +232,7 @@ describe('mergeThreadFragments', () => {
         uri,
       })
       const result = ensureNotNull(
-        mergeThreadFragments([frag(fromB), frag(fromA)], uri, { accounts }),
+        mergeThreadFragments([frag(fromB), frag(fromA)], uri, ctx),
       )
       expect(result.focal.note).toBe(fromA)
     })

@@ -67,6 +67,20 @@ export function useNoteVisibility() {
    */
   function isHidden(note: NormalizedNote, opts?: VisibilityOpts): boolean {
     if (noteStore.isDeleted(variantKeyOf(note))) return true
+    const subject = !opts?.ignoreSubject
+    return (
+      isUserHidden(note, opts) ||
+      (subject && !opts?.ignoreSuspension && isSuspendedNote(note))
+    )
+    // 将来の OR 合成点: || archiveStore.isArchived(...)  // 魚拓
+  }
+
+  /**
+   * ユーザーの意思による非表示 (ミュート系) だけを合成した述語。束ねる面
+   * (#1058 §5.5) は「ユーザーの意思は variant の OR / サーバーの判断 (削除・
+   * 凍結) は origin のみ」と規則が違うので、材料を分けて渡せるようにする。
+   */
+  function isUserHidden(note: NormalizedNote, opts?: VisibilityOpts): boolean {
     const acc = note._accountId
     const subject = !opts?.ignoreSubject
     return (
@@ -76,10 +90,8 @@ export function useNoteVisibility() {
           mutesStore.isUserMuted(acc, note.renote?.user?.id))) ||
       isHardWordMuted(note) ||
       (subject && isRenoteMuted(note)) ||
-      (subject && isInstanceMuted(note)) ||
-      (subject && !opts?.ignoreSuspension && isSuspendedNote(note))
+      (subject && isInstanceMuted(note))
     )
-    // 将来の OR 合成点: || archiveStore.isArchived(...)  // 魚拓
   }
 
   /** 表示用に述語を適用した列を返す。独自 ref の面（検索・詳細等）が使う。 */
@@ -208,6 +220,8 @@ export function useNoteVisibility() {
 
   return {
     isHidden,
+    isUserHidden,
+    isSuspendedNote,
     filterVisible,
     isSoftWordMuted,
     isNotificationHidden,
