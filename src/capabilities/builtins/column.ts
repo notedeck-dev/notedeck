@@ -1,5 +1,6 @@
 import { ALL_COLUMN_TYPES, COLUMN_REGISTRY } from '@/columns/registry'
 import type { Command } from '@/commands/registry'
+import { parseVariantKey } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
@@ -282,7 +283,7 @@ export const columnRemoveCapability: Command = {
 
 /**
  * `column.focusedNote` — 現在 active なカラムで focus されているノートを返す。
- * `useNoteFocus` から deck store に持ち上げられた `focusedNoteIdByColumn` を
+ * `useNoteFocus` から deck store に持ち上げられた `focusedNoteKeyByColumn` を
  * 引いて、対応するノートメタを返す。AI Actions プラグインが「ユーザーが今見て
  * るノートを翻訳」のような操作で使う。
  *
@@ -305,7 +306,7 @@ export const columnFocusedNoteCapability: Command = {
     returns: {
       type: 'object',
       description:
-        '{ columnId, noteId, note: { id, text, userId, ... } } | { note: null }',
+        '{ columnId, noteId, accountId, note: { id, text, userId, ... } } | { note: null }',
     },
     cheap: true,
   },
@@ -314,16 +315,20 @@ export const columnFocusedNoteCapability: Command = {
     const store = useDeckStore()
     const columnId = store.activeColumnId
     if (!columnId) return { note: null }
-    const noteId = store.focusedNoteIdByColumn.get(columnId)
-    if (!noteId) return { note: null }
+    const key = store.focusedNoteKeyByColumn.get(columnId)
+    if (!key) return { note: null }
+    const { accountId, noteId } = parseVariantKey(key)
     const notes = store.visibleNotesByColumn[columnId] as
       | NormalizedNoteLike[]
       | undefined
-    const note = notes?.find((n) => n.id === noteId) ?? null
+    const note =
+      notes?.find((n) => n.id === noteId && n._accountId === accountId) ?? null
     if (!note) return { note: null }
     return {
       columnId,
       noteId,
+      // ノート ID はサーバー内でしか一意でないため、操作するアカウントを添える (#1010)
+      accountId,
       note: {
         id: note.id,
         text: note.text ?? null,
@@ -339,6 +344,7 @@ export const columnFocusedNoteCapability: Command = {
 
 interface NormalizedNoteLike {
   id: string
+  _accountId?: string
   text?: string | null
   userId?: string | null
   createdAt?: string | null

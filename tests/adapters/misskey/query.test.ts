@@ -99,7 +99,7 @@ function delta(overrides: Partial<QueryDelta> = {}): QueryDelta {
 describe('toNoteUpdateEvent', () => {
   it('maps reacted with emoji passthrough and null userId → undefined', () => {
     expect(
-      toNoteUpdateEvent('n1', {
+      toNoteUpdateEvent('acc-1', 'n1', {
         noteId: 'n1',
         updateType: 'reacted',
         body: {
@@ -109,6 +109,7 @@ describe('toNoteUpdateEvent', () => {
         },
       }),
     ).toEqual({
+      accountId: 'acc-1',
       noteId: 'n1',
       type: 'reacted',
       body: {
@@ -121,12 +122,13 @@ describe('toNoteUpdateEvent', () => {
 
   it('maps unreacted', () => {
     expect(
-      toNoteUpdateEvent('n1', {
+      toNoteUpdateEvent('acc-1', 'n1', {
         noteId: 'n1',
         updateType: 'unreacted',
         body: { reaction: '👍', userId: 'u1' },
       }),
     ).toEqual({
+      accountId: 'acc-1',
       noteId: 'n1',
       type: 'unreacted',
       body: { reaction: '👍', userId: 'u1' },
@@ -135,12 +137,13 @@ describe('toNoteUpdateEvent', () => {
 
   it('maps pollVoted', () => {
     expect(
-      toNoteUpdateEvent('n1', {
+      toNoteUpdateEvent('acc-1', 'n1', {
         noteId: 'n1',
         updateType: 'pollVoted',
         body: { choice: 2, userId: 'u1' },
       }),
     ).toEqual({
+      accountId: 'acc-1',
       noteId: 'n1',
       type: 'pollVoted',
       body: { choice: 2, userId: 'u1' },
@@ -149,12 +152,13 @@ describe('toNoteUpdateEvent', () => {
 
   it('maps deleted with null deletedAt → undefined', () => {
     expect(
-      toNoteUpdateEvent('n1', {
+      toNoteUpdateEvent('acc-1', 'n1', {
         noteId: 'n1',
         updateType: 'deleted',
         body: { deletedAt: null },
       }),
     ).toEqual({
+      accountId: 'acc-1',
       noteId: 'n1',
       type: 'deleted',
       body: { deletedAt: undefined },
@@ -226,6 +230,7 @@ describe('createQuerySubscription', () => {
     expect(onInsert).toHaveBeenCalledWith(noteItem)
     expect(onDelete).toHaveBeenCalledWith('old-1')
     expect(onUpdate).toHaveBeenCalledWith({
+      accountId: 'acc-1',
       noteId: 'note-1',
       type: 'reacted',
       body: { reaction: '👍', emoji: null, userId: 'u1' },

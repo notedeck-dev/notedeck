@@ -19,6 +19,7 @@ import MkNoteTree from '@/components/common/MkNoteTree.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { useNoteGroupContext } from '@/composables/useNoteGroups'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
 import {
@@ -32,7 +33,7 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { mapWithConcurrency } from '@/utils/concurrency'
 import { isImeComposing } from '@/utils/ime'
-import { getNoteUri, parseUserQuery } from '@/utils/noteUrl'
+import { parseUserQuery } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
@@ -66,6 +67,7 @@ const {
 })
 
 const accountsStore = useAccountsStore()
+const { context: groupContext } = useNoteGroupContext()
 
 const isCrossAccount = computed(() => props.column.accountId == null)
 const multiAdapters = useMultiAccountAdapters()
@@ -343,19 +345,27 @@ async function performLookupCrossAccount(q: string) {
     return
   }
 
-  const focalUri = q
+  // 束ねのキーは identity (正規化 AP object id)。導出は notecli 側 1 か所 (#1058)
+  const focalUri = await commands.apiNoteIdentity(q)
   const allFragments: ThreadFragment[] = []
+  // 主ビュー選択の文脈 (#1058 §5.2)。ゲスト取得の variant (Phase 1 のローカル
+  // DB 由来) は最下位になる
+  const mergeCtx = groupContext.value
 
   // Phase 1: ローカル DB 横断検索（即座）
   try {
     const cached = unwrap(
-      await commands.apiFindNotesByUri(focalUri),
+      await commands.apiFindNotesByIdentity(focalUri),
     ) as unknown as NormalizedNote[]
     if (cached.length > 0) {
       for (const note of cached) {
         allFragments.push({ note, sourceAccountId: note._accountId })
       }
-      mergedThread.value = mergeThreadFragments(allFragments, focalUri)
+      mergedThread.value = mergeThreadFragments(
+        allFragments,
+        focalUri,
+        mergeCtx,
+      )
       lookupLoading.value = false
     }
   } catch {
@@ -406,7 +416,11 @@ async function performLookupCrossAccount(q: string) {
         // プログレッシブ更新
         if (fragments.length > 0) {
           allFragments.push(...fragments)
-          mergedThread.value = mergeThreadFragments(allFragments, focalUri)
+          mergedThread.value = mergeThreadFragments(
+            allFragments,
+            focalUri,
+            mergeCtx,
+          )
           // 最初の結果が来たらローディング解除
           if (lookupLoading.value) lookupLoading.value = false
         }
@@ -610,7 +624,7 @@ async function handlePosted(editedNoteId?: string) {
         <div v-if="mergedThread.ancestors.length > 0" :class="$style.ancestors">
           <MkNote
             v-for="node in mergedThread.ancestors"
-            :key="getNoteUri(node.note)"
+            :key="node.note._identity"
             :note="node.note"
             @react="handleReactionCrossAccount"
             @renote="handleRenoteCrossAccount"

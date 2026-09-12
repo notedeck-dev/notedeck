@@ -417,6 +417,24 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             let app_state: tauri::State<'_, commands::AppState> = app_handle.state();
             app_state.initialize_db(db.clone());
 
+            // V7 で追加した identity 列の backfill (#1058)。migration は列追加だけに
+            // して起動をブロックせず、ここで 1 チャンクずつ埋める。各チャンクは
+            // 短い tx で writer ロックを持ち、間で yield して WS 取り込みを止めない。
+            // 完了前は notecli 側が uri 列でフォールバックする。
+            {
+                let db = db.clone();
+                std::thread::spawn(move || loop {
+                    match db.backfill_identity_chunk(2000) {
+                        Ok(0) => break,
+                        Ok(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+                        Err(e) => {
+                            tracing::warn!("identity backfill stopped: {e}");
+                            break;
+                        }
+                    }
+                });
+            }
+
             commands::export_account_list(&app_handle, &db);
 
             // Streaming manager (depends on DB)。
@@ -826,7 +844,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::api_get_cached_timeline_before,
             commands::api_get_cache_date_range,
             commands::api_search_notes_local,
-            commands::api_find_notes_by_uri,
+            commands::api_find_notes_by_identity,
+            commands::api_note_identity,
             commands::api_pin_note,
             commands::api_unpin_note,
             commands::api_mute_user,

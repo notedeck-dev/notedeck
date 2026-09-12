@@ -4,6 +4,7 @@ import type {
   NoteVisibility,
 } from '@/adapters/types'
 import { type Account, getAccountAvatarUrl } from '@/stores/accounts'
+import { localNoteIdentity } from '@/utils/noteUrl'
 
 export interface PreviewPollInput {
   choices: string[]
@@ -62,6 +63,10 @@ export function buildPreviewNote(
     id: opts.id,
     _accountId: account.id,
     _serverHost: account.host,
+    _identity: localNoteIdentity(account.host, opts.id),
+    _isOrigin: true,
+    _identityTrusted: true,
+    contentHidden: false,
     createdAt: opts.createdAt,
     text: opts.text,
     cw: opts.cw,

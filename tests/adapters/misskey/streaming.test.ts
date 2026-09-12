@@ -147,6 +147,7 @@ describe('MisskeyStream (IPC boundary)', () => {
 
       expect(handler).toHaveBeenCalledTimes(1)
       expect(handler).toHaveBeenCalledWith({
+        accountId: 'acc-1',
         noteId: 'note-1',
         type: 'reacted',
         body: { reaction: '👍', emoji: null, userId: 'user-1' },

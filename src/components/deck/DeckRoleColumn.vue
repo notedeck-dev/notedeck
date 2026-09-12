@@ -40,6 +40,7 @@ const noteColumnConfig: NoteColumnConfig = {
         },
         onDelete: (id) =>
           callbacks.onNoteUpdated?.({
+            accountId,
             noteId: id,
             type: 'deleted',
             body: {},

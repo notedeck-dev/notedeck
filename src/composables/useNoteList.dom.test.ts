@@ -28,7 +28,6 @@ describe('useNoteList: 保持上限の切り捨て方向 (#834)', () => {
 
   function setup(maxNotes: number) {
     return useNoteList({
-      getMyUserId: () => 'me',
       getAdapter: () => null,
       deleteHandler: async () => false,
       closePostForm: () => {},
@@ -78,7 +77,6 @@ describe('useNoteList: noteCapture 同期の通知経路 (#939)', () => {
 
   function setup(maxNotes: number) {
     return useNoteList({
-      getMyUserId: () => 'me',
       getAdapter: () => null,
       deleteHandler: async () => false,
       closePostForm: () => {},
@@ -118,7 +116,6 @@ describe('useNoteList: noteCapture 同期の通知経路 (#939)', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const list = useNoteList({
-      getMyUserId: () => 'me',
       getAdapter: () => null,
       deleteHandler: async () => false, // 削除失敗
       closePostForm: () => {},

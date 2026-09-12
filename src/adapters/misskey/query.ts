@@ -107,7 +107,7 @@ export function createQuerySubscription(
       }
       if (opts.onUpdate) {
         for (const u of delta.updates)
-          opts.onUpdate(toNoteUpdateEvent(u.noteId, u))
+          opts.onUpdate(toNoteUpdateEvent(snap.key.account_id, u.noteId, u))
       }
       lastRevision = delta.revision
     })
@@ -160,12 +160,14 @@ export function createQuerySubscription(
  * されないため、それを含む NoteUpdate | NoteCapture を受ける)
  */
 export function toNoteUpdateEvent(
+  accountId: string,
   noteId: string,
   u: NoteUpdate | NoteCapture,
 ): NoteUpdateEvent {
   switch (u.updateType) {
     case 'reacted':
       return {
+        accountId,
         noteId,
         type: 'reacted',
         body: {
@@ -176,18 +178,21 @@ export function toNoteUpdateEvent(
       }
     case 'unreacted':
       return {
+        accountId,
         noteId,
         type: 'unreacted',
         body: { reaction: u.body.reaction, userId: u.body.userId ?? undefined },
       }
     case 'pollVoted':
       return {
+        accountId,
         noteId,
         type: 'pollVoted',
         body: { choice: u.body.choice, userId: u.body.userId ?? undefined },
       }
     case 'deleted':
       return {
+        accountId,
         noteId,
         type: 'deleted',
         body: { deletedAt: u.body.deletedAt ?? undefined },

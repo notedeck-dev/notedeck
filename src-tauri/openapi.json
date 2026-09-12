@@ -6,7 +6,7 @@
     "license": {
       "name": "MIT"
     },
-    "version": "1.55.1"
+    "version": "1.56.0"
   },
   "paths": {
     "/api": {
@@ -2130,6 +2130,18 @@
           "_accountId": {
             "type": "string"
           },
+          "_identity": {
+            "type": "string",
+            "description": "同一性キー (正規化 AP object id)。導出は `identity::identity_of` (notedeck#1058)。\n旧 JSON には無いので default で読み、`fill_identity` で補う。"
+          },
+          "_identityTrusted": {
+            "type": "boolean",
+            "description": "整合検査: リモート投稿者の host と identity の host が一致するか。\nローカル投稿者 (user.host = None) は identity を自分で組むので常に true。"
+          },
+          "_isOrigin": {
+            "type": "boolean",
+            "description": "identity の host == 取得元サーバー (このビューが origin か)"
+          },
           "_serverHost": {
             "type": "string"
           },
@@ -2148,6 +2160,10 @@
               "string",
               "null"
             ]
+          },
+          "contentHidden": {
+            "type": "boolean",
+            "description": "サーバーが本文を隠した状態 (packed の isHidden)。ミュート由来の非表示とは別概念。"
           },
           "createdAt": {
             "type": "string"

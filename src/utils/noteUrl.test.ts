@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getNoteShareUrl,
-  getNoteUri,
+  localNoteIdentity,
   parseNoteUrl,
   parseUserQuery,
 } from './noteUrl'
@@ -125,25 +125,9 @@ describe('parseUserQuery', () => {
   })
 })
 
-describe('getNoteUri', () => {
-  it('uri があればそれを返す（AP id 優先）', () => {
-    expect(
-      getNoteUri({
-        id: 'local1',
-        uri: 'https://remote.example/notes/remote1',
-        _serverHost: 'a.example',
-      }),
-    ).toBe('https://remote.example/notes/remote1')
-  })
-
-  it('uri がなければサーバーホストから推定する', () => {
-    expect(getNoteUri({ id: 'n1', _serverHost: 'a.example' })).toBe(
-      'https://a.example/notes/n1',
-    )
-  })
-
-  it('uri が null でも推定にフォールバックする', () => {
-    expect(getNoteUri({ id: 'n1', uri: null, _serverHost: 'a.example' })).toBe(
+describe('localNoteIdentity', () => {
+  it('合成ノートの identity を自アカウントのサーバーで組む (host は小文字)', () => {
+    expect(localNoteIdentity('A.Example', 'n1')).toBe(
       'https://a.example/notes/n1',
     )
   })

@@ -15,6 +15,7 @@ import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useTabSlide } from '@/composables/useTabSlide'
+import type { VariantKey } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
@@ -151,6 +152,7 @@ const noteColumnConfig: NoteColumnConfig = {
         },
         onDelete: (id) =>
           callbacks.onNoteUpdated?.({
+            accountId,
             noteId: id,
             type: 'deleted',
             body: {},
@@ -305,7 +307,7 @@ async function switchTl(type: TimelineType) {
     snapshotStore.save(
       props.column.id,
       tlType.value,
-      ((col.orderedIds as string[] | undefined) ?? []).slice(),
+      ((col.orderedKeys as VariantKey[] | undefined) ?? []).slice(),
       (col.scroller as HTMLElement | undefined)?.scrollTop ?? 0,
       (
         col.noteScrollerRef as NoteScrollerExpose | null | undefined

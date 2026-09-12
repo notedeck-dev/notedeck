@@ -19,6 +19,8 @@ import RegexGuide from '@/components/common/RegexGuide.vue'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import type { NoteGroup } from '@/services/noteGroup'
+import { variantKeyOf } from '@/services/noteKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
@@ -28,12 +30,13 @@ const MkPostForm = defineAsyncComponent(
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNoteFocus } from '@/composables/useNoteFocus'
-import { useNoteVisibility } from '@/composables/useNoteVisibility'
+import { useNoteList } from '@/composables/useNoteList'
 import { useSearchFilters } from '@/composables/useSearchFilters'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
-import { useSuspensionsStore } from '@/stores/suspensions'
+import { useNoteStore } from '@/stores/notes'
+import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
 import {
@@ -41,6 +44,8 @@ import {
   filterNotesByRegexAsync,
   isValidRegex,
 } from '@/utils/regexSearch'
+import { toggleReaction } from '@/utils/toggleReaction'
+import { votePoll } from '@/utils/votePoll'
 import DeckColumn from './DeckColumn.vue'
 
 function collectFulfilled<T>(results: PromiseSettledResult<T[]>[]): T[] {
@@ -72,17 +77,75 @@ const {
   handlers,
   scroller,
   onScroll,
-  setOnNotesMutated,
 } = useColumnSetup(() => props.column)
 
 const { navigateToNote } = useNavigation()
-// 取得した生データ。表示用 notes は述語で隠す（#606）。検索は一覧面なので
-// opt-out なし（全材料を適用）
-const rawNotes = shallowRef<NormalizedNote[]>([])
-const { filterVisible } = useNoteVisibility()
-const notes = computed(() => filterVisible(rawNotes.value))
-// 凍結 probe の供給点（#828）。独自 ref の面は fetch 完了時に自前で probe する
-watch(rawNotes, (items) => useSuspensionsStore().probeNotes(items))
+// 列は useNoteList (行キーの順序配列 + noteStore) に載せる。全アカウント面は
+// 同一 identity の variant を 1 行に束ねる (#1058)。サーバー検索とローカル FTS の
+// 2 段マージ・昇順/降順・正規表現はこのカラム側で決め、列には結果だけを書く。
+// 表示用 notes は述語で隠す（#606）。検索は一覧面なので opt-out なし
+const { notes, groups, rawNotes, setNotes } = useNoteList({
+  bundle: isCrossAccount.value,
+  getAdapter,
+  deleteHandler: (note) => handlers.delete(note),
+  closePostForm: postForm.close,
+})
+
+/** 行 = 全アカウントなら group、per-account なら variant 1 個の擬似 group */
+interface SearchRow {
+  rowKey: string
+  primary: NormalizedNote
+  group?: NoteGroup
+}
+const rows = computed<SearchRow[]>(() =>
+  isCrossAccount.value
+    ? groups.value.map((g) => ({
+        rowKey: g.rowKey,
+        primary: g.primary,
+        group: g,
+      }))
+    : notes.value.map((n) => ({ rowKey: variantKeyOf(n), primary: n })),
+)
+
+const noteStore = useNoteStore()
+const toast = useToast()
+/** 楽観更新の差分を、その variant を保持する noteStore へ差し替えで反映する */
+function applyPatch(
+  note: NormalizedNote,
+  compute: (current: NormalizedNote) => Partial<NormalizedNote>,
+) {
+  const key = variantKeyOf(note)
+  const current = noteStore.get(key) ?? note
+  noteStore.update(key, { ...current, ...compute(current) })
+}
+/** 全アカウント面では主ビューの取得元アカウントで操作する (#1058 §5.6) */
+async function handleReaction(reaction: string, note: NormalizedNote) {
+  if (!isCrossAccount.value) return handlers.reaction(reaction, note)
+  const adapter = await multiAdapters.getOrCreate(note._accountId)
+  if (!adapter) return
+  try {
+    await toggleReaction(adapter.api, note, reaction, (compute) =>
+      applyPatch(note, compute),
+    )
+  } catch (e) {
+    toast.show(
+      `リアクションに失敗しました（${AppError.from(e).displayCode}）`,
+      'error',
+    )
+  }
+}
+async function handleVote(choice: number, note: NormalizedNote) {
+  if (!isCrossAccount.value) return handlers.vote(choice, note)
+  const adapter = await multiAdapters.getOrCreate(note._accountId)
+  if (!adapter) return
+  try {
+    await votePoll(adapter.api, note, choice, (compute) =>
+      applyPatch(note, compute),
+    )
+  } catch (e) {
+    toast.show(`投票に失敗しました（${AppError.from(e).displayCode}）`, 'error')
+  }
+}
 const noteScrollerRef = ref<{
   getElement: () => HTMLElement | null
   scrollToIndex: (
@@ -97,9 +160,6 @@ watch(
   },
   { flush: 'post' },
 )
-setOnNotesMutated(() => {
-  rawNotes.value = [...rawNotes.value]
-})
 const { focusedNoteId } = useNoteFocus(
   props.column.id,
   notes,
@@ -208,12 +268,15 @@ function mergeNotes(
   existing: NormalizedNote[],
   incoming: NormalizedNote[],
 ): NormalizedNote[] {
-  const seen = new Set(existing.map((n) => n.id))
+  // 行の一意性は取得元アカウント + note id (#1010)。全アカウント検索では
+  // 別サーバー由来の同じ id が並ぶ
+  const seen = new Set(existing.map(variantKeyOf))
   const merged = [...existing]
   for (const note of incoming) {
-    if (!seen.has(note.id)) {
+    const key = variantKeyOf(note)
+    if (!seen.has(key)) {
       merged.push(note)
-      seen.add(note.id)
+      seen.add(key)
     }
   }
   const dir = ascending.value ? 1 : -1
@@ -509,7 +572,11 @@ async function loadMorePerAccount() {
     if (regexMode.value) {
       older = await filterNotesByRegexAsync(older, q)
     }
-    rawNotes.value = mergeNotes(rawNotes.value, older)
+    // 古い側を足したので、昇順なら先頭 (古い側) を、降順なら末尾を残す
+    setNotes(
+      mergeNotes(rawNotes.value, older),
+      ascending.value ? 'oldest' : 'newest',
+    )
   } catch (e) {
     error.value = AppError.from(e)
   } finally {
@@ -548,7 +615,10 @@ async function loadMoreCrossAccount() {
     if (regexMode.value) {
       older = await filterNotesByRegexAsync(older, q)
     }
-    rawNotes.value = mergeNotes(rawNotes.value, older)
+    setNotes(
+      mergeNotes(rawNotes.value, older),
+      ascending.value ? 'oldest' : 'newest',
+    )
   } catch (e) {
     error.value = AppError.from(e)
   } finally {
@@ -560,7 +630,8 @@ async function removeNote(note: NormalizedNote) {
   const id = note.id
   const prevNotes = rawNotes.value
   rawNotes.value = rawNotes.value.filter(
-    (n) => n.id !== id && n.renoteId !== id,
+    (n) =>
+      n._accountId !== note._accountId || (n.id !== id && n.renoteId !== id),
   )
 
   if (isCrossAccount.value) {
@@ -651,7 +722,7 @@ onUnmounted(() => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    title="検索"
+    title="サーバー検索"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
@@ -791,7 +862,7 @@ onUnmounted(() => {
       <NoteScroller
         v-else
         ref="noteScrollerRef"
-        :items="notes"
+        :items="rows"
         :focused-id="focusedNoteId"
         :class="$style.searchScroller"
         @scroll="handleScroll"
@@ -799,9 +870,10 @@ onUnmounted(() => {
         <template #default="{ item, index }">
           <div>
             <MkNote
-              :note="item"
-              :focused="item.id === focusedNoteId"
-              @react="handlers.reaction"
+              :note="item.primary"
+              :group="item.group"
+              :focused="variantKeyOf(item.primary) === focusedNoteId"
+              @react="handleReaction"
               @reply="handlers.reply"
               @renote="handlers.renote"
               @quote="handlers.quote"
@@ -809,7 +881,7 @@ onUnmounted(() => {
               @edit="handlers.edit"
               @bookmark="handlers.bookmark"
               @delete-and-edit="handlers.deleteAndEdit"
-              @vote="handlers.vote"
+              @vote="handleVote"
             />
           </div>
         </template>

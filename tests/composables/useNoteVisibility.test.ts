@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { NormalizedNote, NormalizedNotification } from '@/adapters/types'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
+import { variantKey, variantKeyOf } from '@/services/noteKey'
 import { useMutesStore } from '@/stores/mutes'
 import { useNoteStore } from '@/stores/notes'
 import { useSuspensionsStore } from '@/stores/suspensions'
@@ -37,7 +38,7 @@ describe('useNoteVisibility', () => {
     noteStore.put([note])
     expect(isHidden(note)).toBe(false)
 
-    noteStore.remove('1')
+    noteStore.remove(variantKey('acc1', '1'))
     expect(isHidden(note)).toBe(true)
   })
 
@@ -47,7 +48,7 @@ describe('useNoteVisibility', () => {
     const a = makeNote('1')
     const b = makeNote('2')
     noteStore.put([a, b])
-    noteStore.remove('1')
+    noteStore.remove(variantKey('acc1', '1'))
     expect(isHidden(b)).toBe(false)
   })
 
@@ -153,7 +154,7 @@ describe('useNoteVisibility.isNotificationHidden (#606)', () => {
     })
     expect(isNotificationHidden(notif)).toBe(false)
 
-    noteStore.remove('1')
+    noteStore.remove(variantKey('acc1', '1'))
     expect(isNotificationHidden(notif)).toBe(true)
   })
 
@@ -411,7 +412,7 @@ describe('useNoteVisibility 凍結と面別 opt-out (#828 / #606)', () => {
     )
     const deleted = makeNote('5', 'ok')
     noteStore.put([deleted])
-    noteStore.remove(deleted.id)
+    noteStore.remove(variantKeyOf(deleted))
     expect(isHidden(deleted, opts)).toBe(true)
   })
 

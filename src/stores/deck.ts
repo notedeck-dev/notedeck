@@ -5,6 +5,7 @@ import type { TimelineFilter, TimelineType } from '@/adapters/types'
 import { DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import defaultNavbarJson5 from '@/defaults/navbar.json5?raw'
+import type { VariantKey } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useDeckWallpaperStore } from '@/stores/deckWallpaper'
@@ -277,16 +278,17 @@ export const useDeckStore = defineStore('deck', () => {
 
   const activeColumnId = ref<string | null>(null)
   /**
-   * カラム ID → 現在 focus されているノート ID。
+   * カラム ID → 現在 focus されているノートの行キー (variant key = 取得元
+   * アカウント + ノート ID、#1010)。
    * `useNoteFocus.ts` から書き込まれ、`column.focusedNote` capability で読まれる。
    * カラム削除時にエントリも掃除する。
    */
-  const focusedNoteIdByColumn = ref<Map<string, string>>(new Map())
-  function setFocusedNoteId(columnId: string, noteId: string | null) {
-    const next = new Map(focusedNoteIdByColumn.value)
-    if (noteId) next.set(columnId, noteId)
+  const focusedNoteKeyByColumn = ref<Map<string, VariantKey>>(new Map())
+  function setFocusedNoteKey(columnId: string, key: VariantKey | null) {
+    const next = new Map(focusedNoteKeyByColumn.value)
+    if (key) next.set(columnId, key)
     else next.delete(columnId)
-    focusedNoteIdByColumn.value = next
+    focusedNoteKeyByColumn.value = next
   }
   /** Incremented to trigger a refresh on the active column */
   const refreshTrigger = ref(0)
@@ -514,7 +516,7 @@ export const useDeckStore = defineStore('deck', () => {
     if (lastFocusedTimelineColumnId.value === id) {
       lastFocusedTimelineColumnId.value = null
     }
-    setFocusedNoteId(id, null)
+    setFocusedNoteKey(id, null)
     hapticMedium()
     if (!removed) return undefined
     return () => {
@@ -827,8 +829,8 @@ export const useDeckStore = defineStore('deck', () => {
     layout,
     activeColumnId,
     activeColumnUri,
-    focusedNoteIdByColumn,
-    setFocusedNoteId,
+    focusedNoteKeyByColumn,
+    setFocusedNoteKey,
     visibleNotesByColumn,
     lastFocusedTimelineColumnId,
     reportVisibleItems,

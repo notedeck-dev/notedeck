@@ -1,5 +1,10 @@
 import type { NormalizedNote } from '@/adapters/types'
-import { getNoteUri } from '@/utils/noteUrl'
+import {
+  defaultGroupContext,
+  type NoteGroupContext,
+  selectPrimary,
+} from '@/services/noteGroup'
+import { nestedVariantKey, type VariantKey } from '@/services/noteKey'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,7 +25,10 @@ export interface NoteVariant {
 
 /** マージ済みノード */
 export interface MergedThreadNode {
-  /** 代表ノート（統計マージ済み） */
+  /**
+   * 主ビュー。variant そのものを指す (複製しない)。
+   * 複製すると楽観 patch が複製側に乗り、再マージで消える。
+   */
   note: NormalizedNote
   /** 同一ノートの各サーバーコピー */
   variants: NoteVariant[]
@@ -42,25 +50,15 @@ export interface MergedThread {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** リアクション辞書を合算する（キーごとに sum） */
-function mergeReactions(
-  ...maps: Record<string, number>[]
-): Record<string, number> {
-  const result: Record<string, number> = {}
-  for (const m of maps) {
-    for (const [key, count] of Object.entries(m)) {
-      result[key] = (result[key] ?? 0) + count
-    }
-  }
-  return result
-}
-
 /**
- * 同一 URI のフラグメント群から代表ノートを選出し、統計をマージする。
- * - reactions: 全 variant を合算
- * - renoteCount / repliesCount: 全 variant の max
+ * 同一 identity のフラグメント群から主ビューを選ぶ。規則は `noteGroup.selectPrimary`
+ * (#1058 §5.2) と同じ 1 か所。数 (reactions / renoteCount / repliesCount) は主ビューの
+ * 値をそのまま使い、合算も max もしない。
  */
-function pickRepresentative(frags: ThreadFragment[]): {
+function pickRepresentative(
+  frags: ThreadFragment[],
+  ctx: NoteGroupContext,
+): {
   note: NormalizedNote
   variants: NoteVariant[]
 } {
@@ -69,35 +67,10 @@ function pickRepresentative(frags: ThreadFragment[]): {
     serverHost: f.note._serverHost,
     noteId: f.note.id,
   }))
-
-  // 代表ノート: repliesCount + renoteCount が最大のものをベースにする
-  // biome-ignore lint/style/noNonNullAssertion: frags is guaranteed non-empty by caller
-  let best = frags[0]!
-  let bestScore = 0
-  for (const f of frags) {
-    const score = (f.note.repliesCount ?? 0) + (f.note.renoteCount ?? 0)
-    if (score > bestScore) {
-      best = f
-      bestScore = score
-    }
-  }
-
-  // 統計をマージ
-  const mergedReactions = mergeReactions(...frags.map((f) => f.note.reactions))
-  let maxRenoteCount = 0
-  let maxRepliesCount = 0
-  for (const f of frags) {
-    maxRenoteCount = Math.max(maxRenoteCount, f.note.renoteCount ?? 0)
-    maxRepliesCount = Math.max(maxRepliesCount, f.note.repliesCount ?? 0)
-  }
-
-  const note: NormalizedNote = {
-    ...best.note,
-    reactions: mergedReactions,
-    renoteCount: maxRenoteCount,
-    repliesCount: maxRepliesCount,
-  }
-
+  const note = selectPrimary(
+    frags.map((f) => f.note),
+    ctx,
+  )
   return { note, variants }
 }
 
@@ -107,11 +80,12 @@ function pickRepresentative(frags: ThreadFragment[]): {
  */
 function resolveParentUri(
   note: NormalizedNote,
-  idToUri: Map<string, string>,
+  keyToUri: Map<VariantKey, string>,
 ): string | null {
   if (!note.replyId) return null
-  if (note.reply) return getNoteUri(note.reply)
-  return idToUri.get(note.replyId) ?? null
+  if (note.reply) return note.reply._identity
+  // 返信先はこの variant と同じアカウント経由で取得されている (行キーで引く、#1010)
+  return keyToUri.get(nestedVariantKey(note, note.replyId)) ?? null
 }
 
 // ---------------------------------------------------------------------------
@@ -119,44 +93,47 @@ function resolveParentUri(
 // ---------------------------------------------------------------------------
 
 /**
- * 複数サーバーのスレッド断片を uri ベースで統合し、1 つのスレッドツリーを構築する。
+ * 複数サーバーのスレッド断片を identity (正規化 AP object id) で統合し、
+ * 1 つのスレッドツリーを構築する。
  *
  * @param fragments - 全アカウントから収集したノート群
- * @param focalUri  - フォーカルノート（照会対象）の URI
+ * @param focalUri  - フォーカルノート（照会対象）の identity
+ * @param ctx       - 主ビュー選択の文脈 (省略時は述語なしの既定)
  */
 export function mergeThreadFragments(
   fragments: ThreadFragment[],
   focalUri: string,
+  ctx: NoteGroupContext = defaultGroupContext(),
 ): MergedThread | null {
   if (fragments.length === 0) return null
 
   // 1. URI → フラグメント群のマップを構築
   const byUri = new Map<string, ThreadFragment[]>()
-  // noteId → URI の逆引きマップ（replyId 解決用）
-  const idToUri = new Map<string, string>()
+  // 行キー → identity の逆引きマップ（replyId 解決用）
+  const keyToUri = new Map<VariantKey, string>()
 
   for (const f of fragments) {
-    const uri = getNoteUri(f.note)
+    const uri = f.note._identity
     const list = byUri.get(uri)
     if (list) {
       list.push(f)
     } else {
       byUri.set(uri, [f])
     }
-    idToUri.set(f.note.id, uri)
+    keyToUri.set(nestedVariantKey(f.note, f.note.id), uri)
   }
 
   // 2. 各 URI グループから代表ノードを生成
   const nodes = new Map<string, MergedThreadNode>()
   for (const [uri, frags] of byUri) {
-    const { note, variants } = pickRepresentative(frags)
+    const { note, variants } = pickRepresentative(frags, ctx)
     nodes.set(uri, { note, variants, children: [] })
   }
 
   // 3. 親子関係を構築
   const childOf = new Map<string, string>() // childUri → parentUri
   for (const [uri, node] of nodes) {
-    const parentUri = resolveParentUri(node.note, idToUri)
+    const parentUri = resolveParentUri(node.note, keyToUri)
     if (parentUri && nodes.has(parentUri)) {
       childOf.set(uri, parentUri)
     }
@@ -183,7 +160,7 @@ export function mergeThreadFragments(
   if (!focal) {
     // フォーカルノードが見つからない場合、最初のルートノートで代替
     const firstRoot = [...nodes.values()].find(
-      (n) => !childOf.has(getNoteUri(n.note)),
+      (n) => !childOf.has(n.note._identity),
     )
     if (!firstRoot) return null
     return buildResult(firstRoot, nodes, childOf)
@@ -200,7 +177,7 @@ function buildResult(
 ): MergedThread {
   // ancestors: フォーカルから親を遡る
   const ancestors: MergedThreadNode[] = []
-  let currentUri = getNoteUri(focal.note)
+  let currentUri = focal.note._identity
   const visited = new Set<string>()
 
   while (childOf.has(currentUri)) {

@@ -30,11 +30,20 @@ import {
   useVaporTransitionGroup,
 } from '@/composables/useVaporTransition'
 import { useVisibleReactionCounts } from '@/composables/useVisibleReactionCounts'
+import type { NoteGroup } from '@/services/noteGroup'
+import { variantKeyOf } from '@/services/noteKey'
+import {
+  type CanonicalReactionKey,
+  canonicalReactionKey,
+  wireReaction,
+} from '@/services/reactionKey'
 import {
   type ReactionJoinability,
   reactionJoinability,
 } from '@/services/remoteReaction'
-import { useAccountsStore } from '@/stores/accounts'
+import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
+import { useEmojisStore } from '@/stores/emojis'
+import { useNoteStore } from '@/stores/notes'
 import { useServersStore } from '@/stores/servers'
 import { useSettingsStore } from '@/stores/settings'
 import { useToast } from '@/stores/toast'
@@ -55,6 +64,8 @@ import {
 import { spawnReactionEffect } from '@/utils/reactionEffect'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { extractColumnThemeVars } from '@/utils/themeVars'
+import { toggleReaction } from '@/utils/toggleReaction'
+import AccountAvatar from './AccountAvatar.vue'
 import MkAvatar from './MkAvatar.vue'
 import MkEmoji from './MkEmoji.vue'
 import MkMediaGrid from './MkMediaGrid.vue'
@@ -63,6 +74,7 @@ import MkPoll from './MkPoll.vue'
 import NoteMoreMenu from './NoteMoreMenu.vue'
 import NoteReactionPickerPopup from './NoteReactionPickerPopup.vue'
 import NoteReactionUsersPopup from './NoteReactionUsersPopup.vue'
+import NoteVariantsPopup from './NoteVariantsPopup.vue'
 import RenoteMoreMenu from './RenoteMoreMenu.vue'
 
 const MkUserPopup = defineAsyncComponent(() => import('./MkUserPopup.vue'))
@@ -90,6 +102,11 @@ const props = defineProps<{
    * bubble に任せる + 内部 button の `.stop` 修飾子に依存する)。
    */
   disableArticleClick?: boolean
+  /**
+   * 束ねた行 (#1058)。`note` はその主ビュー。variants を持つと、他アカウントの
+   * 反応の 2 段階表示・合成チップ・内訳バッジ・variant 直接操作が有効になる
+   */
+  group?: NoteGroup
 }>()
 
 // ビューモデル導出は utils/noteViewModel.ts に抽出済み (#707)
@@ -141,6 +158,9 @@ const renoteMoreMenuRef = ref<InstanceType<typeof RenoteMoreMenu> | null>(null)
 const reactionPickerRef = ref<InstanceType<
   typeof NoteReactionPickerPopup
 > | null>(null)
+const variantsPopupRef = ref<InstanceType<typeof NoteVariantsPopup> | null>(
+  null,
+)
 const reactionUsersRef = ref<InstanceType<
   typeof NoteReactionUsersPopup
 > | null>(null)
@@ -297,8 +317,10 @@ const isOwnNote = computed(() => {
   return account?.userId === effectiveNote.value.user.id
 })
 
-const canRenote = computed(() =>
-  canRenoteNote(effectiveNote.value, isOwnNote.value),
+const canRenote = computed(
+  () =>
+    canRenoteNote(effectiveNote.value, isOwnNote.value) &&
+    !effectiveNote.value.contentHidden,
 )
 
 // User hover popup
@@ -392,11 +414,122 @@ const sortedReactions = computed(() => {
 })
 const reactionUrls = computed(() => reactionsData.value.urls)
 
-// 保留マスク (#1081) は displayCounts → sortedReactions で適用済み:
-// チップ・モーダル・ポップアップのどこにも未フィルタ値が渡らない
-const reactionsWithId = computed(() =>
-  sortedReactions.value.map((r) => ({ ...r, id: r.reaction })),
+// ---- 束ね (#1058 §5.3 / §7) ----
+const emojisStore = useEmojisStore()
+const noteStore = useNoteStore()
+const groupAccountIds = computed(() => {
+  const ids = new Set<string>()
+  for (const v of props.group?.variants ?? []) ids.add(v._accountId)
+  return [...ids]
+})
+/** 2 アカウント以上の視点で見えている行 */
+const isBundled = computed(() => groupAccountIds.value.length >= 2)
+const bundleHostCount = computed(
+  () => new Set((props.group?.variants ?? []).map((v) => v._serverHost)).size,
 )
+const bundleCount = computed(() =>
+  bundleHostCount.value >= 2
+    ? bundleHostCount.value
+    : groupAccountIds.value.length,
+)
+const bundleLabel = computed(() =>
+  bundleHostCount.value >= 2
+    ? `${bundleHostCount.value} サーバーで表示中`
+    : `${groupAccountIds.value.length} アカウントで表示中`,
+)
+/** 主ビュー以外のアカウントが押している反応: 正規キー → アカウント */
+const othersReactedBy = computed(() => {
+  const m = new Map<CanonicalReactionKey, string[]>()
+  if (!props.group) return m
+  for (const [key, accounts] of props.group.reactedBy) {
+    const others = accounts.filter((a) => a !== props.note._accountId)
+    if (others.length > 0) m.set(key, others)
+  }
+  return m
+})
+function othersFor(reaction: string): string[] {
+  if (othersReactedBy.value.size === 0) return []
+  return (
+    othersReactedBy.value.get(
+      canonicalReactionKey(reaction, effectiveNote.value._serverHost),
+    ) ?? []
+  )
+}
+function accountAvatar(accountId: string): string {
+  const acc = accountsStore.accountMap.get(accountId)
+  return acc ? (proxyThumbUrl(getAccountAvatarUrl(acc), 24) ?? '') : ''
+}
+function describeOthers(reaction: string): string {
+  const names = othersFor(reaction).map((id) => {
+    const acc = accountsStore.accountMap.get(id)
+    return acc ? `@${acc.username}@${acc.host}` : id
+  })
+  return names.length > 0 ? `${names.join(', ')} が反応済み` : ''
+}
+/** 描画される側 (純粋 Renote なら renote 元) */
+function effectiveOf(n: NormalizedNote): NormalizedNote {
+  return n.renote && n.text == null ? n.renote : n
+}
+/**
+ * 合成チップ: 主ビューのチップ列に無いが、他のアカウントで自分が押している
+ * 反応 (別サーバーから押した Like が主ビューのサーバーに届いていない /
+ * ❤ に落とされた)。数は出さず点灯とアバターだけ。押すと主ビューでも点ける
+ * ので、可否は主ビューのサーバーの相乗り判定で決める
+ */
+const syntheticReactions = computed(() => {
+  if (!props.group || othersReactedBy.value.size === 0) return []
+  const host = effectiveNote.value._serverHost
+  const present = new Set(
+    sortedReactions.value.map((r) => canonicalReactionKey(r.reaction, host)),
+  )
+  const out: {
+    reaction: string
+    count: number
+    joinability: ReactionJoinability
+    url: string | null
+  }[] = []
+  for (const [key, accounts] of othersReactedBy.value) {
+    if (present.has(key)) continue
+    const wire = wireReaction(key, host)
+    let url: string | null = null
+    for (const v of props.group.variants) {
+      if (!accounts.includes(v._accountId)) continue
+      const eff = effectiveOf(v)
+      const my = eff.myReaction
+      if (!my) continue
+      const shortcode = my.replace(/^:|:$/g, '').replace(/@\.$/, '')
+      url =
+        eff.reactionEmojis?.[shortcode] ??
+        emojisStore.resolve(v._serverHost, shortcode)
+      if (url) break
+    }
+    const primaryShortcode = wire.replace(/^:|:$/g, '')
+    out.push({
+      reaction: wire,
+      count: 0,
+      joinability: reactionJoinability(wire, {
+        serverHost: host,
+        remoteEmojiReactions: supportsRemoteEmojiReactions.value,
+        hasEmojiUrl:
+          reactionUrls.value[wire] != null ||
+          emojisStore.resolve(host, primaryShortcode) != null,
+      }),
+      url,
+    })
+  }
+  return out
+})
+function urlFor(r: { reaction: string; url?: string | null }): string | null {
+  return reactionUrls.value[r.reaction] ?? r.url ?? null
+}
+
+// 保留マスク (#1081) は displayCounts → sortedReactions で適用済み:
+// チップ・モーダル・ポップアップのどこにも未フィルタ値が渡らない。
+// 合成チップは主ビューのチップ列の後段に足す (前段だと数 0 で落ちる)
+const reactionsWithId = computed(() => [
+  ...sortedReactions.value.map((r) => ({ ...r, id: r.reaction, url: null })),
+  ...syntheticReactions.value.map((r) => ({ ...r, id: r.reaction })),
+])
 const {
   rendered: renderedReactions,
   enteringIds: reactionEnteringIds,
@@ -603,12 +736,51 @@ function openCrossAccountPicker(accountId: string) {
   if (noteRootRef.value) reactionPickerRef.value?.open(noteRootRef.value)
 }
 
+/** 束ねた行で、そのアカウントの variant (#1058)。無ければ ap/show で解決する経路へ */
+function variantFor(accountId: string): NormalizedNote | undefined {
+  return props.group?.variants.find((v) => v._accountId === accountId)
+}
+
+/**
+ * variant が手元にあるときの別アカウント操作 (#1058 §5.6)。ap/show を通さず、
+ * その variant に楽観 patch を当てる (反映は noteStore 経由で group が再計算する)
+ */
+async function reactOnVariant(variant: NormalizedNote, reaction: string) {
+  const adapter = await getAdapterFor(variant._accountId)
+  if (!adapter) return
+  const target = effectiveOf(variant)
+  const key = variantKeyOf(target)
+  try {
+    await toggleReaction(adapter.api, target, reaction, (compute) => {
+      const current = noteStore.get(key) ?? target
+      noteStore.update(key, { ...current, ...compute(current) })
+    })
+  } catch (e) {
+    console.error('[reactOnVariant]', e)
+    useToast().show('リアクションに失敗しました', 'error')
+  }
+}
+
+/** ノートメニュー「別のアカウントで…」からの取り消し */
+function handleUnreactAs(accountId: string) {
+  const variant = variantFor(accountId)
+  if (!variant) return
+  const mine = effectiveOf(variant).myReaction
+  if (!mine) return
+  void reactOnVariant(variant, mine)
+}
+
 function handleRenoteAs(accountId: string) {
-  void renoteAs(accountId, effectiveNote.value)
+  const variant = variantFor(accountId)
+  void renoteAs(accountId, variant ? effectiveOf(variant) : effectiveNote.value)
 }
 
 async function openCrossAccountQuote(accountId: string) {
-  crossQuoteTarget.value = await quoteAs(accountId, effectiveNote.value)
+  const variant = variantFor(accountId)
+  crossQuoteTarget.value = await quoteAs(
+    accountId,
+    variant ? effectiveOf(variant) : effectiveNote.value,
+  )
 }
 
 const crossQuotePortalRef = useTemplateRef<HTMLElement>('crossQuotePortalRef')
@@ -617,7 +789,9 @@ usePortal(crossQuotePortalRef)
 function handlePickerReaction(reaction: string) {
   const crossTarget = pickerAccount.value
   if (crossTarget) {
-    void reactAs(crossTarget.accountId, effectiveNote.value, reaction)
+    const variant = variantFor(crossTarget.accountId)
+    if (variant) void reactOnVariant(variant, reaction)
+    else void reactAs(crossTarget.accountId, effectiveNote.value, reaction)
     return
   }
   // 0 → 1 個目のリアクションは reactionsArea 自体が今から生まれるため、
@@ -764,6 +938,17 @@ function handlePickerReaction(reaction: string) {
           <span v-if="effectiveNote.user.isBot" :class="$style.isBot">Bot</span>
           <span :class="$style.info">
             <AppTime :class="$style.time" :at="effectiveNote.createdAt" />
+            <button
+              v-if="isBundled"
+              type="button"
+              :class="$style.bundleBadge"
+              :aria-label="bundleLabel"
+              :title="bundleLabel"
+              @click.stop="variantsPopupRef?.open($event)"
+            >
+              <i class="ti ti-stack-2" />
+              <span>{{ bundleCount }}</span>
+            </button>
             <span
               v-if="effectiveNote.updatedAt"
               :class="$style.edited"
@@ -821,7 +1006,13 @@ function handlePickerReaction(reaction: string) {
         </div>
 
         <!-- CW -->
-        <div v-if="effectiveNote.cw !== null && !softMuteCollapsed" :class="$style.cw">
+        <!-- サーバーが本文を隠したノート (followers/specified の非可視、投稿者の隠す設定)。
+             本家と同じく本文・添付・投票を出さず理由だけ出す (#1058 §5.2) -->
+        <div v-if="effectiveNote.contentHidden && !softMuteCollapsed" :class="$style.hiddenPlaceholder">
+          <i class="ti ti-lock" />
+          このノートは非公開です
+        </div>
+        <div v-if="effectiveNote.cw !== null && !softMuteCollapsed && !effectiveNote.contentHidden" :class="$style.cw">
           <p :class="$style.cwText">
             <MkMfm
               v-if="effectiveNote.cw"
@@ -843,7 +1034,7 @@ function handlePickerReaction(reaction: string) {
 
         <!-- Body -->
         <div v-show="(effectiveNote.cw === null || cwExpanded) && !softMuteCollapsed" :class="[$style.body, effectiveNote.cw !== null && cwExpanded && $style.bodyReveal]">
-          <div v-if="effectiveNote.text" :class="[$style.textContainer, { [$style.collapsed]: isLongText && !longTextExpanded }]">
+          <div v-if="effectiveNote.text && !effectiveNote.contentHidden" :class="[$style.textContainer, { [$style.collapsed]: isLongText && !longTextExpanded }]">
             <p :class="$style.text">
               <MkMfm
                 :text="effectiveNote.text"
@@ -866,13 +1057,13 @@ function handlePickerReaction(reaction: string) {
           </button>
 
           <MkMediaGrid
-            v-if="effectiveNote.files.length > 0"
+            v-if="effectiveNote.files.length > 0 && !effectiveNote.contentHidden"
             :files="effectiveNote.files"
             :eager="props.nearViewport"
           />
 
           <MkPoll
-            v-if="effectiveNote.poll"
+            v-if="effectiveNote.poll && !effectiveNote.contentHidden"
             :poll="effectiveNote.poll"
             @vote="(choice) => emit('vote', choice, effectiveNote)"
           />
@@ -906,30 +1097,36 @@ function handlePickerReaction(reaction: string) {
             <button
               v-for="r in renderedReactions"
               :key="r.reaction"
-              v-memo="[r.reaction, r.count, effectiveNote.myReaction === r.reaction, reactionUrls[r.reaction], reactionEnteringIds.has(r.id), reactionLeavingIds.has(r.id), isEmojiMuted(r.reaction), r.joinability]"
+              v-memo="[r.reaction, r.count, effectiveNote.myReaction === r.reaction, urlFor(r), reactionEnteringIds.has(r.id), reactionLeavingIds.has(r.id), isEmojiMuted(r.reaction), r.joinability, othersFor(r.reaction).join(',')]"
               :class="[
                 $style.reaction,
                 { [$style.reacted]: effectiveNote.myReaction === r.reaction },
+                { [$style.reactedElsewhere]: effectiveNote.myReaction !== r.reaction && othersFor(r.reaction).length > 0 },
                 r.joinability !== 'ok' && $style.notJoinable,
                 reactionEnteringIds.has(r.id) && $style.reactionEnter,
                 reactionLeavingIds.has(r.id) && $style.reactionLeave,
               ]"
               :data-reaction="r.reaction"
               :disabled="isGuest"
+              :aria-pressed="effectiveNote.myReaction === r.reaction"
+              :aria-label="describeOthers(r.reaction) ? `${r.reaction}: ${describeOthers(r.reaction)}` : undefined"
               @click.stop="handleReactionClick($event, r.reaction, r.joinability)"
-              @contextmenu.prevent.stop="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, r.count)"
+              @contextmenu.prevent.stop="reactionUsersRef?.show($event, r.reaction, urlFor(r), r.count)"
               @pointerdown="lpHandlers.onPointerdown"
               @pointermove="lpHandlers.onPointermove"
               @pointerup="lpHandlers.onPointerup"
               @pointercancel="lpHandlers.onPointercancel"
-              @mouseenter="reactionUsersRef?.show($event, r.reaction, reactionUrls[r.reaction] ?? null, r.count)"
+              @mouseenter="reactionUsersRef?.show($event, r.reaction, urlFor(r), r.count)"
               @mouseleave="reactionUsersRef?.hide()"
             >
               <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.customEmoji" role="img" :aria-label="r.reaction" :title="`${r.reaction} (ミュート中)`" />
-              <img v-else-if="reactionUrls[r.reaction]" :src="proxyEmojiUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.customEmoji" decoding="async" loading="lazy" @error="onCustomEmojiImgError" />
+              <img v-else-if="urlFor(r)" :src="proxyEmojiUrl(urlFor(r)!)" :alt="r.reaction" :class="$style.customEmoji" decoding="async" loading="lazy" @error="onCustomEmojiImgError" />
               <img v-else-if="r.reaction.startsWith(':')" src="/emoji-unknown.svg" :alt="r.reaction" :title="r.reaction" :class="$style.customEmoji" />
               <MkEmoji v-else :emoji="r.reaction" :class="$style.reactionEmoji" />
-              <span class="note-reaction-count" :class="$style.count">{{ r.count }}</span>
+              <span v-if="r.count > 0" class="note-reaction-count" :class="$style.count">{{ r.count }}</span>
+              <span v-if="effectiveNote.myReaction !== r.reaction && othersFor(r.reaction).length > 0" :class="$style.reactedByAvatars" aria-hidden="true">
+                <AccountAvatar v-for="acc in othersFor(r.reaction).slice(0, 3)" :key="acc" :src="accountAvatar(acc)" :size="12" :show-server="false" />
+              </span>
             </button>
           </div>
         </div>
@@ -966,8 +1163,8 @@ function handlePickerReaction(reaction: string) {
             <i class="ti ti-ban" />
           </button>
           <button
-            :class="[$style.footerButton, $style.reactionButton, { [$style.reacted]: effectiveNote.myReaction != null, [$style.footerDisabled]: isGuest }]"
-            :disabled="isGuest"
+            :class="[$style.footerButton, $style.reactionButton, { [$style.reacted]: effectiveNote.myReaction != null, [$style.footerDisabled]: isGuest || effectiveNote.contentHidden }]"
+            :disabled="isGuest || effectiveNote.contentHidden"
             :title="effectiveNote.myReaction != null ? 'リアクションを取り消す' : 'リアクション'"
             @click.stop="canInteract ? toggleFooterReaction($event) : showLoginPrompt()"
           >
@@ -1066,6 +1263,7 @@ function handlePickerReaction(reaction: string) {
   <NoteMoreMenu
     ref="moreMenuRef"
     :note="effectiveNote"
+    :group="group"
     :is-own-note="isOwnNote"
     :is-favorited="effectiveNote.isFavorited ?? false"
     :is-pinned="props.pinnedNoteIds?.includes(effectiveNote.id) ?? false"
@@ -1075,6 +1273,7 @@ function handlePickerReaction(reaction: string) {
     @pin="emit('pin', $event)"
     @delete-and-edit="emit('deleteAndEdit', $event)"
     @react-as="openCrossAccountPicker"
+    @unreact-as="handleUnreactAs"
     @renote-as="handleRenoteAs"
     @quote-as="openCrossAccountQuote"
   />
@@ -1090,9 +1289,12 @@ function handlePickerReaction(reaction: string) {
     ref="reactionPickerRef"
     :server-host="pickerAccount?.serverHost ?? effectiveNote._serverHost"
     :account-id="pickerAccount?.accountId ?? note._accountId"
+    :show-acting-account="isBundled || pickerAccount != null"
     @pick="handlePickerReaction"
     @close="pickerAccount = null"
   />
+
+  <NoteVariantsPopup v-if="group && isBundled" ref="variantsPopupRef" :group="group" />
 
   <!-- 別のアカウントで引用 (#627): 選択アカウントの投稿フォーム -->
   <div v-if="crossQuoteTarget" ref="crossQuotePortalRef">
@@ -1107,6 +1309,50 @@ function handlePickerReaction(reaction: string) {
 
 <style lang="scss" module>
 @use '@/styles/spotlight' as *;
+
+/* 束ね (#1058 §7): 視点の数。文字ラベルは置かず (狭いカラムで名前が潰れる) アイコン + 数字 */
+.bundleBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  padding: 0 5px;
+  height: 18px;
+  border: 1px solid var(--nd-divider);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 0.75em;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.8;
+
+  &:hover {
+    opacity: 1;
+    background: var(--nd-buttonBg);
+  }
+}
+
+/* 本文が非公開 (contentHidden) のプレースホルダ */
+.hiddenPlaceholder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  opacity: 0.7;
+  font-size: 0.9em;
+}
+
+/* 主ビュー以外のアカウントだけが押している反応: 塗りなし + 破線 (色差だけでない形差) */
+.reactedByAvatars {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+
+  > * + * {
+    margin-left: -3px;
+  }
+}
 
 .noteRoot {
   position: relative;
@@ -1593,6 +1839,11 @@ function handlePickerReaction(reaction: string) {
     background: var(--nd-accentedBg);
     color: var(--nd-accent);
     box-shadow: 0 0 0 1px var(--nd-accent) inset;
+  }
+
+  &.reactedElsewhere {
+    outline: 1px dashed var(--nd-accent);
+    outline-offset: -1px;
   }
 
   /* #630: 相乗りできないリモート絵文字。押せる見た目をやめる (絵文字自体は出す) */

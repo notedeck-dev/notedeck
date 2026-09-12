@@ -45,6 +45,7 @@ import { useTabSlide } from '@/composables/useTabSlide'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { getStreamHealth } from '@/core/streamHealth'
 import { createBoundedCache } from '@/services/boundedCache'
+import { variantKey, variantKeyOf } from '@/services/noteKey'
 import { mergeNotifications as mergeNotificationLists } from '@/services/notificationMerge'
 import { syncNotificationNotes } from '@/services/notificationNoteSync'
 import { TUTORIAL_ACHIEVEMENT_LABELS } from '@/services/tutorialAchievements'
@@ -67,7 +68,6 @@ import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { AppError } from '@/utils/errors'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
-import { getNoteUri } from '@/utils/noteUrl'
 import {
   CROSS_ACCOUNT_NOTIFICATION_KEY,
   loadNotificationCache,
@@ -88,6 +88,9 @@ const MkUserPopup = defineAsyncComponent(
 )
 
 const noteStore = useNoteStore()
+/** 通知の行キー。通知 ID はサーバー内でしか一意でない (#1010) */
+const notificationKey = (n: { _accountId: string; id: string }) =>
+  variantKey(n._accountId, n.id)
 const toast = useToast()
 
 const userPopupPortalRef = useTemplateRef<HTMLElement>('userPopupPortalRef')
@@ -186,7 +189,7 @@ function notifMenuOpenNoteInspector() {
   useWindowsStore().open('note-inspector', {
     accountId: notif._accountId,
     noteId: notif.note.id,
-    noteUri: getNoteUri(notif.note),
+    noteUri: notif.note._identity,
     serverHost: notif._serverHost,
   })
   closeNotifMenu()
@@ -291,16 +294,17 @@ const notifications = shallowRef<NormalizedNotification[]>([])
 // 表示に届かない。mutation のたびに store 側の最新オブジェクトへ差し替えて
 // 反映する (shallowRef なので配列ごと新しくする)
 setOnNotesMutated(() => {
-  notifications.value = syncNotificationNotes(notifications.value, (id) =>
-    noteStore.get(id),
+  notifications.value = syncNotificationNotes(
+    notifications.value,
+    (accountId, id) => noteStore.get(variantKey(accountId, id)),
   )
 })
 
 // 前回読了位置マーカー (#750) — タイムラインと同じ localStorage 方式
-const { viewMarkerId } = useReadMarker(
-  props.column.id,
-  () => notifications.value[0]?.id ?? null,
-)
+const { viewMarkerId } = useReadMarker(props.column.id, () => {
+  const top = notifications.value[0]
+  return top ? notificationKey(top) : null
+})
 
 /**
  * 前回読了位置より上に「実際の通知」があるか。合成した実績 (#1029) は
@@ -311,7 +315,7 @@ const hasUnreadAboveMarker = computed(() => {
   const id = viewMarkerId.value
   if (!id) return false
   const list = filteredNotifications.value
-  const idx = list.findIndex((n) => n.id === id)
+  const idx = list.findIndex((n) => notificationKey(n) === id)
   if (idx <= 0) return false
   return list.slice(0, idx).some((n) => !isTutorialNotificationId(n.id))
 })
@@ -979,10 +983,12 @@ async function removeNote(note: NormalizedNote) {
   }
   const id = note.id
   notifications.value = notifications.value.filter(
-    (x) => x.note?.id !== id && x.note?.renoteId !== id,
+    (x) =>
+      x._accountId !== note._accountId ||
+      (x.note?.id !== id && x.note?.renoteId !== id),
   )
   saveCache()
-  noteStore.remove(id)
+  noteStore.remove(variantKeyOf(note))
   commands
     .apiDeleteCachedNote(note._accountId, id)
     .then((r) => unwrap(r))
@@ -1037,14 +1043,14 @@ async function handleFollowRequest(
     else await adapter.api.rejectFollowRequest(notif.user.id)
     followRequestStates.value = {
       ...followRequestStates.value,
-      [notif.id]: action,
+      [notificationKey(notif)]: action,
     }
   } catch (e) {
     const appErr = AppError.from(e)
     if (appErr.message.includes('NO_SUCH_FOLLOW_REQUEST')) {
       followRequestStates.value = {
         ...followRequestStates.value,
-        [notif.id]: action,
+        [notificationKey(notif)]: action,
       }
     } else {
       toast.show(appErr.message, 'error')
@@ -1209,7 +1215,7 @@ onUnmounted(() => {
         <template #default="{ item: notif, index }">
           <div>
             <ReadMarkerDivider
-              v-if="viewMarkerId && hasUnreadAboveMarker && notif.id === viewMarkerId"
+              v-if="viewMarkerId && hasUnreadAboveMarker && notificationKey(notif) === viewMarkerId"
             />
             <!-- Grouped notification: reaction:grouped / renote:grouped -->
             <div
@@ -1373,9 +1379,9 @@ onUnmounted(() => {
                     v-if="notif.type === 'receiveFollowRequest' && notif.user"
                     :class="$style.followRequestActions"
                   >
-                    <template v-if="followRequestStates[notif.id]">
+                    <template v-if="followRequestStates[notificationKey(notif)]">
                       <span :class="$style.followRequestDone">
-                        {{ followRequestStates[notif.id] === 'accepted' ? '承認済み' : '拒否済み' }}
+                        {{ followRequestStates[notificationKey(notif)] === 'accepted' ? '承認済み' : '拒否済み' }}
                       </span>
                     </template>
                     <template v-else>

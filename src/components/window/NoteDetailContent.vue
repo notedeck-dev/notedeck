@@ -37,6 +37,7 @@ import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
 import { useVisibleReactionCounts } from '@/composables/useVisibleReactionCounts'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { variantKey, variantKeyOf } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
 import { useSuspensionsStore } from '@/stores/suspensions'
@@ -94,8 +95,8 @@ useWindowExternalLink(() =>
 const { sync: syncCapture } = useNoteCapture(
   () => adapter?.stream,
   (event) => {
-    noteStore.applyUpdate(event, myUserId.value)
-    const latest = noteStore.get(event.noteId)
+    noteStore.applyUpdate(event, () => myUserId.value)
+    const latest = noteStore.get(variantKey(event.accountId, event.noteId))
     if (note.value?.id === event.noteId) {
       note.value = latest ?? null
     }
@@ -140,7 +141,7 @@ onMounted(async () => {
   myUserId.value = account.userId
 
   // Show cached note immediately (skip skeleton) while fetching fresh data
-  const cached = noteStore.get(props.noteId)
+  const cached = noteStore.get(variantKey(props.accountId, props.noteId))
   if (cached) {
     note.value = cached
     isLoading.value = false
@@ -328,7 +329,7 @@ async function handleDelete(target: NormalizedNote) {
   try {
     await adapter.api.deleteNote(target.id)
     const id = target.id
-    noteStore.remove(id)
+    noteStore.remove(variantKeyOf(target))
     commands
       .apiDeleteCachedNote(target._accountId, id)
       .then((r) => unwrap(r))
@@ -356,7 +357,7 @@ async function handleDeleteAndEdit(target: NormalizedNote) {
   try {
     await adapter.api.deleteNote(target.id)
     const id = target.id
-    noteStore.remove(id)
+    noteStore.remove(variantKeyOf(target))
     commands
       .apiDeleteCachedNote(target._accountId, id)
       .then((r) => unwrap(r))

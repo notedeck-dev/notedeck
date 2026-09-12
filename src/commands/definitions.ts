@@ -90,7 +90,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'search',
-    label: '検索',
+    label: 'サーバー検索',
     icon: 'search',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('search'),

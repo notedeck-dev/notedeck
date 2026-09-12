@@ -1,4 +1,5 @@
 import type { NormalizedNote } from '@/adapters/types'
+import { type VariantKey, variantKeyOf } from '@/services/noteKey'
 import { hapticLight } from '@/utils/haptics'
 
 interface ReactionApi {
@@ -52,7 +53,30 @@ function negated(delta: Record<string, number>): Record<string, number> {
  * する。開始時のスナップショットで丸ごと置き換えると、API を待つ間に届いた
  * 他人のリアクションまで巻き戻してしまう (#904)。
  */
+/**
+ * 進行中の variant。adapter 取得が非同期な面 (束ねる面・照会) では連打が同じ
+ * `note.myReaction` から差分を計算して二重 create になるため、variant key
+ * 単位でここ 1 か所で塞ぐ (#1058 §5.6)。
+ */
+const inFlight = new Set<VariantKey>()
+
 export async function toggleReaction(
+  api: ReactionApi,
+  note: NormalizedNote,
+  reaction: string,
+  apply: (compute: ReactionPatchFn) => void,
+): Promise<void> {
+  const key = variantKeyOf(note)
+  if (inFlight.has(key)) return
+  inFlight.add(key)
+  try {
+    await toggleReactionInner(api, note, reaction, apply)
+  } finally {
+    inFlight.delete(key)
+  }
+}
+
+async function toggleReactionInner(
   api: ReactionApi,
   note: NormalizedNote,
   reaction: string,

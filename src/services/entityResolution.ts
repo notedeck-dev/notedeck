@@ -10,7 +10,7 @@ import type { NormalizedNote } from '@/adapters/types'
 import { evictByLiveness } from '@/services/mapEviction'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { AppError } from '@/utils/errors'
-import { getNoteUri, parseNoteUrl } from '@/utils/noteUrl'
+import { parseNoteUrl } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 export type ResolveNoteError = {
@@ -115,5 +115,5 @@ export async function resolveNoteFor(
   note: NormalizedNote,
 ): Promise<ResolveNoteResult> {
   if (note._accountId === accountId) return { ok: true, noteId: note.id }
-  return resolveNoteUriFor(accountId, getNoteUri(note))
+  return resolveNoteUriFor(accountId, note._identity)
 }

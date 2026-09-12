@@ -7,6 +7,7 @@ import MkNote from '@/components/common/MkNote.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import ReadMarkerDivider from '@/components/common/ReadMarkerDivider.vue'
+import { variantKeyOf } from '@/services/noteKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
@@ -330,7 +331,7 @@ usePortal(postPortalRef)
                   />
                   <MkNote
                     :note="item"
-                    :focused="item.id === focusedNoteId"
+                    :focused="variantKeyOf(item) === focusedNoteId"
                     @react="handlers.reaction"
                     @reply="handlers.reply"
                     @renote="handlers.renote"

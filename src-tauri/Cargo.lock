@@ -3161,7 +3161,7 @@ checksum = "0676bb32a98c1a483ce53e500a81ad9c3d5b3f7c920c28c24e9cb0980d0b5bc8"
 [[package]]
 name = "notecli"
 version = "0.8.1"
-source = "git+https://github.com/notedeck-dev/notecli?rev=0b0d39dabde7530767895ae6cd59aad62cfe3ea4#0b0d39dabde7530767895ae6cd59aad62cfe3ea4"
+source = "git+https://github.com/notedeck-dev/notecli?rev=92db2f6743c8f37ac22688c3966cddccb13f882b#92db2f6743c8f37ac22688c3966cddccb13f882b"
 dependencies = [
  "android-native-keyring-store",
  "apple-native-keyring-store",
@@ -3187,6 +3187,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "url",
  "utoipa",
  "utoipa-axum",
  "uuid",
@@ -3197,7 +3198,7 @@ dependencies = [
 
 [[package]]
 name = "notedeck"
-version = "1.55.1"
+version = "1.56.0"
 dependencies = [
  "async-trait",
  "axum",

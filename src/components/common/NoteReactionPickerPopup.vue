@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed, defineAsyncComponent, ref, useCssModule } from 'vue'
+import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import {
+  getAccountAvatarUrl,
+  getAccountLabel,
+  useAccountsStore,
+} from '@/stores/accounts'
 import { useUiStore } from '@/stores/ui'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { COLUMN_SELECTOR, extractThemeVars } from '@/utils/themeVars'
 
 const MkReactionPicker = defineAsyncComponent(
@@ -14,6 +21,12 @@ const MkReactionPicker = defineAsyncComponent(
 const props = defineProps<{
   serverHost: string
   accountId: string
+  /**
+   * 宛先アカウントをヘッダーに出す (#1058 §5.6)。束ねた行では主ビューの
+   * アカウントが暗黙の宛先になるため、操作の瞬間に見えるようにする。
+   * tooltip は正本にしない (タッチで到達できない)
+   */
+  showActingAccount?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -23,6 +36,12 @@ const emit = defineEmits<{
 
 const $style = useCssModule()
 const { isCompactLayout: isCompact } = storeToRefs(useUiStore())
+const accountsStore = useAccountsStore()
+const actingAccount = computed(() =>
+  props.showActingAccount
+    ? accountsStore.accountMap.get(props.accountId)
+    : undefined,
+)
 const show = ref(false)
 // 右端揃え。left + translateX(-100%) だと中身 (async component) がロード
 // されるまで幅 0 で左端が右端に来てしまい、初回だけ隣のカラムにはみ出して
@@ -110,6 +129,10 @@ defineExpose({ open })
     :class="contentClass"
     :style="{ ...theme, top: pos.y + 'px', right: pos.right + 'px' }"
   >
+    <div v-if="actingAccount" :class="$style.actingAccount">
+      <AccountAvatar :src="proxyThumbUrl(getAccountAvatarUrl(actingAccount), 40) ?? ''" :host="actingAccount.host" :size="18" :show-server="false" />
+      <span>{{ getAccountLabel(actingAccount) }} として</span>
+    </div>
     <MkReactionPicker
       :server-host="serverHost"
       :account-id="accountId"
@@ -133,6 +156,10 @@ defineExpose({ open })
       :class="contentClass"
       :style="theme"
     >
+      <div v-if="actingAccount" :class="$style.actingAccount">
+        <AccountAvatar :src="proxyThumbUrl(getAccountAvatarUrl(actingAccount), 40) ?? ''" :host="actingAccount.host" :size="18" :show-server="false" />
+        <span>{{ getAccountLabel(actingAccount) }} として</span>
+      </div>
       <MkReactionPicker
         :server-host="serverHost"
         :account-id="accountId"
@@ -143,6 +170,15 @@ defineExpose({ open })
 </template>
 
 <style lang="scss" module>
+.actingAccount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 0;
+  font-size: 0.8em;
+  opacity: 0.85;
+}
+
 .reactionPickerPopup {
   position: fixed;
   // 本家 (MkModal) はアンカーとの位置関係で起点を決める。ピッカーは常に

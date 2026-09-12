@@ -27,11 +27,16 @@ export function useMultiAccountAdapters() {
     return adapter
   }
 
+  /** 生成済みならその adapter (同期)。ストリーム購読の同期など非同期を避けたい場面用 */
+  function getCached(accountId: string): ServerAdapter | undefined {
+    return adapters.get(accountId)
+  }
+
   function cleanup() {
     // Adapters are shared globally — do NOT call stream.cleanup() here
     // as it would destroy handlers for other columns using the same adapter.
     adapters.clear()
   }
 
-  return { getOrCreate, cleanup }
+  return { getOrCreate, getCached, cleanup }
 }

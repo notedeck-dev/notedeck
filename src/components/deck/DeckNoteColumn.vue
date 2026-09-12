@@ -12,6 +12,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import ReadMarkerDivider from '@/components/common/ReadMarkerDivider.vue'
+import { variantKeyOf } from '@/services/noteKey'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -88,14 +89,14 @@ const {
   columnQueryMissingIds,
   dropMissingQueryRefs,
   notes,
-  orderedIds,
+  orderedKeys,
   focusedNoteId,
   pendingCount,
   animatingIds,
   postForm,
   handlers,
   noteScrollerRef,
-  removingIds,
+  removingKeys,
   scroller,
   scrollToTop,
   handleScroll,
@@ -301,7 +302,7 @@ defineExpose({
   reconnect,
   switchWithSnapshot,
   notes,
-  orderedIds,
+  orderedKeys,
   columnThemeVars,
   serverInfoImageUrl,
   serverNotFoundImageUrl,
@@ -472,7 +473,7 @@ defineExpose({
           :items="notes"
           :focused-id="focusedNoteId"
           :animating-ids="animatingIds"
-          :leaving-ids="removingIds"
+          :leaving-ids="removingKeys"
           :prefetch="(notes) => { prefetchNoteImages(notes); prefetchNoteMfm(notes) }"
           :class="$style.tlScroller"
           @scroll="handleScroll"
@@ -485,7 +486,7 @@ defineExpose({
               />
               <MkNote
                 :note="item"
-                :focused="item.id === focusedNoteId"
+                :focused="variantKeyOf(item) === focusedNoteId"
                 :near-viewport="nearViewport"
                 :hide-channel-badge="hideChannelBadge"
                 @react="handlers.reaction"

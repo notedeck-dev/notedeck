@@ -67,6 +67,7 @@ const noteColumnConfig: NoteColumnConfig = {
         },
         onDelete: (id) =>
           callbacks.onNoteUpdated?.({
+            accountId,
             noteId: id,
             type: 'deleted',
             body: {},
@@ -90,12 +91,15 @@ const {
 
 const {
   notes,
+  groups,
   noteScrollerRef,
   scrollToTop,
   connectCrossAccount,
   loadMoreCrossAccount,
   handleScroll,
   removeNote,
+  react: reactCrossAccount,
+  vote: voteCrossAccount,
 } = useCrossAccountNotes({
   fetchNotes: (adapter, opts) =>
     isSpecified.value
@@ -145,7 +149,7 @@ const {
       <NoteScroller
         v-else
         ref="noteScrollerRef"
-        :items="notes"
+        :items="groups"
         :class="$style.tlScroller"
         @scroll="handleScroll"
         @near-end="loadMoreCrossAccount"
@@ -153,8 +157,9 @@ const {
         <template #default="{ item }">
           <div>
             <MkNote
-              :note="item"
-              @react="handlers.reaction"
+              :note="item.primary"
+              :group="item"
+              @react="reactCrossAccount"
               @reply="handlers.reply"
               @renote="handlers.renote"
               @quote="handlers.quote"
@@ -162,7 +167,7 @@ const {
               @edit="handlers.edit"
               @bookmark="handlers.bookmark"
               @delete-and-edit="handlers.deleteAndEdit"
-              @vote="handlers.vote"
+              @vote="voteCrossAccount"
             />
           </div>
         </template>

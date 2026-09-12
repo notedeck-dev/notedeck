@@ -43,6 +43,7 @@ import {
 import { composeQir } from '@/services/columnQuery/composeQir'
 import { getSharedDegradedRunner } from '@/services/columnQuery/degradedRunner'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
+import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { isGuestAccount } from '@/stores/accounts'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
@@ -153,22 +154,20 @@ export function useNoteColumn(config: NoteColumnConfig) {
   const {
     notes,
     rawNotes,
-    orderedIds,
-    noteIds,
+    orderedKeys,
+    noteKeys,
     setNotes,
     mergeUpdate,
     setOnNotesChanged,
     onNoteUpdate,
     handlePosted,
     removeNote,
-    removingIds,
+    removingKeys,
   } = useNoteList({
-    getMyUserId: () => account.value?.userId,
     getAdapter,
     deleteHandler: handlers.delete,
     closePostForm: postForm.close,
     visibility: config.visibility,
-    accountId: () => config.getColumn().accountId,
   })
 
   // Streaming (Group A) or NoteCapture (Group B)
@@ -182,7 +181,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
         // 書込基底は unfiltered 側。filtered を基底にすると隠れたノートが
         // flush のたびに列から落ちて焼き込まれる（#831 §1.4）
         notes: rawNotes,
-        noteIds,
+        noteKeys,
         scroller,
         onNewNotes: (batch) => {
           if (config.getColumn().soundMuted) return
@@ -278,10 +277,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
    * time of the last unmount. Notes ABOVE it are new since last visit.
    * Sticky for this session — does not move as new notes stream in.
    */
-  const { viewMarkerId } = useReadMarker(
-    config.getColumn().id,
-    () => notes.value[0]?.id ?? null,
-  )
+  const { viewMarkerId } = useReadMarker(config.getColumn().id, () => {
+    const top = notes.value[0]
+    return top ? variantKeyOf(top) : null
+  })
 
   // --- カラムクエリ (#783 層 2) ---
   // カラム設定の noteQuery (インライン式) + noteQueryRefs (名前付きクエリ参照)
@@ -576,8 +575,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
   }
 
   /** 判定待ちのまま削除されたノートを捨てる (removePending と同じ役割) */
-  function dropHeldNote(noteId: string): void {
-    heldNotes = heldNotes.filter((n) => n.id !== noteId)
+  function dropHeldNote(key: VariantKey): void {
+    heldNotes = heldNotes.filter((n) => variantKeyOf(n) !== key)
   }
 
   /**
@@ -589,16 +588,17 @@ export function useNoteColumn(config: NoteColumnConfig) {
   function onNoteUpdateWithQuery(event: NoteUpdateEvent): void {
     onNoteUpdate(event)
     if (!compiledQuery.value || event.type === 'deleted') return
+    const key = variantKey(event.accountId, event.noteId)
     void nextTick(async () => {
-      const note = rawNotes.value.find((n) => n.id === event.noteId)
+      const note = rawNotes.value.find((n) => variantKeyOf(n) === key)
       if (!note) return
       if (!queryAdmitsFast(note)) {
-        setNotes(rawNotes.value.filter((n) => n.id !== event.noteId))
+        setNotes(rawNotes.value.filter((n) => variantKeyOf(n) !== key))
         return
       }
       const admitted = await admitDegraded([note])
       if (admitted.length === 0) {
-        setNotes(rawNotes.value.filter((n) => n.id !== event.noteId))
+        setNotes(rawNotes.value.filter((n) => variantKeyOf(n) !== key))
       }
     })
   }
@@ -733,8 +733,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
       return
     }
     if (streamingBatch) {
-      const existing = incoming.filter((n) => noteIds.has(n.id))
-      const brandNew = incoming.filter((n) => !noteIds.has(n.id))
+      const existing = incoming.filter((n) => noteKeys.has(variantKeyOf(n)))
+      const brandNew = incoming.filter((n) => !noteKeys.has(variantKeyOf(n)))
       if (existing.length > 0) mergeUpdate(existing)
       if (brandNew.length > 0) {
         streamingBatch.addQueued(brandNew)
@@ -756,7 +756,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
    */
   function hasGap(fetched: NormalizedNote[], hadNotes: boolean): boolean {
     return (
-      hadNotes && fetched.length > 0 && !fetched.some((n) => noteIds.has(n.id))
+      hadNotes &&
+      fetched.length > 0 &&
+      !fetched.some((n) => noteKeys.has(variantKeyOf(n)))
     )
   }
 
@@ -943,9 +945,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
           config.streaming.subscribe(adapter, enqueueWithQuery, {
             onNoteUpdated: (event) => {
               if (event.type === 'deleted') {
-                streamingBatch.removePending(event.noteId)
+                const key = variantKey(event.accountId, event.noteId)
+                streamingBatch.removePending(key)
                 // 判定待ちのまま消えたノートを取り込まない
-                dropHeldNote(event.noteId)
+                dropHeldNote(key)
               }
               onNoteUpdateWithQuery(event)
             },
@@ -1302,7 +1305,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
       config.streaming.subscribe(adapter, enqueueWithQuery, {
         onNoteUpdated: (event) => {
           if (event.type === 'deleted')
-            streamingBatch.removePending(event.noteId)
+            streamingBatch.removePending(
+              variantKey(event.accountId, event.noteId),
+            )
           onNoteUpdateWithQuery(event)
         },
       }),
@@ -1465,13 +1470,13 @@ export function useNoteColumn(config: NoteColumnConfig) {
   onUnmounted(() => {
     // Save snapshot for instant restore if column is re-mounted
     const unmountCacheKey = config.cache?.getKey()
-    if (orderedIds.value.length > 0 && unmountCacheKey) {
+    if (orderedKeys.value.length > 0 && unmountCacheKey) {
       const el = noteScrollerRef.value?.getElement?.()
-      // unfiltered な orderedIds を保存（可視性は復帰後に述語で再適用）
+      // unfiltered な orderedKeys を保存（可視性は復帰後に述語で再適用）
       snapshotStore.save(
         config.getColumn().id,
         unmountCacheKey,
-        orderedIds.value,
+        orderedKeys.value,
         el?.scrollTop ?? 0,
         noteScrollerRef.value?.getScrollAnchor?.() ?? null,
       )
@@ -1505,7 +1510,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     columnQueryMissingIds: missingQueryIds,
     dropMissingQueryRefs,
     notes,
-    orderedIds,
+    orderedKeys,
     focusedNoteId,
     pendingCount,
     animatingIds,
@@ -1517,7 +1522,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     handleScroll,
     handlePosted,
     removeNote,
-    removingIds,
+    removingKeys,
     loadMore,
     refresh,
     isPulling,
