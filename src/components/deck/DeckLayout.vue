@@ -48,6 +48,7 @@ const {
   navigateToNote,
   navigateToUser,
   navigateToSearch,
+  navigateToClientSearch,
   navigateToNotifications,
 } = useNavigation()
 const commandStore = useCommandStore()
@@ -215,6 +216,7 @@ deckStore.load()
 useDeckInit({
   openCompose,
   navigateToSearch,
+  navigateToClientSearch,
   navigateToNotifications,
   navigateToNote,
   navigateToUser,

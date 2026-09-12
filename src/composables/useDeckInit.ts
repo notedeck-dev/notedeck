@@ -34,6 +34,7 @@ import { logStartupSummary, markStartup } from '@/utils/startupTrace'
 export function useDeckInit(options: {
   openCompose: () => void
   navigateToSearch: () => void
+  navigateToClientSearch: () => void
   navigateToNotifications: () => void
   navigateToNote: (accountId: string, noteId: string) => void
   navigateToUser: (accountId: string, userId: string) => void
@@ -116,6 +117,7 @@ export function useDeckInit(options: {
     registerDefaultCommands({
       openCompose: options.openCompose,
       openSearch: options.navigateToSearch,
+      openClientSearch: options.navigateToClientSearch,
       openNotifications: options.navigateToNotifications,
       toggleAddMenu: options.toggleAddMenu,
       toggleNav: () => options.navbarRef.value?.toggleNav(),

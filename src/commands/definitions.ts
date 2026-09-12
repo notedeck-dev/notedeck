@@ -26,6 +26,7 @@ import { AppError } from '@/utils/errors'
 export interface CommandHandlers {
   openCompose: () => void
   openSearch: () => void
+  openClientSearch: () => void
   openNotifications: () => void
   toggleAddMenu: () => void
   toggleNav: () => void
@@ -96,6 +97,15 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('search'),
     execute: handlers.openSearch,
+  })
+
+  commandStore.register({
+    id: 'client-search',
+    label: 'クライアント検索',
+    icon: 'archive',
+    category: 'navigation',
+    shortcuts: keybindsStore.getShortcuts('client-search'),
+    execute: handlers.openClientSearch,
   })
 
   commandStore.register({
@@ -964,6 +974,7 @@ export function unregisterDefaultCommands() {
   for (const id of [
     'command-palette',
     'search',
+    'client-search',
     'notifications',
     'compose',
     'boss-key',
