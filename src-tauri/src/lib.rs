@@ -844,6 +844,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::api_get_cached_timeline_before,
             commands::api_get_cache_date_range,
             commands::api_search_notes_local,
+            commands::api_search_notes_cached_across,
             commands::api_find_notes_by_identity,
             commands::api_note_identity,
             commands::api_pin_note,

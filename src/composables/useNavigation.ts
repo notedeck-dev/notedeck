@@ -61,7 +61,7 @@ export function useNavigation() {
   }
 
   function toggleOrOpenColumn(
-    type: 'notifications' | 'search' | 'chat' | 'ai',
+    type: 'notifications' | 'search' | 'clientSearch' | 'chat' | 'ai',
   ) {
     if (!isDeckActive()) {
       router.push('/deck')
@@ -71,6 +71,11 @@ export function useNavigation() {
 
   function navigateToSearch() {
     toggleOrOpenColumn('search')
+  }
+
+  /** クライアント検索 (手元のキャッシュ横断、#945) をサイドバーで開く */
+  function navigateToClientSearch() {
+    toggleOrOpenColumn('clientSearch')
   }
 
   /** ハッシュタグクリックから検索カラムを `#tag` クエリ付きで開く。 */
@@ -99,6 +104,7 @@ export function useNavigation() {
     navigateToChannel,
     navigateToLogin,
     navigateToSearch,
+    navigateToClientSearch,
     navigateToHashtag,
     navigateToNotifications,
     navigateToAi,

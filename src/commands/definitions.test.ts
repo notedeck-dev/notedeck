@@ -65,6 +65,7 @@ function makeHandlers(): CommandHandlers {
   return {
     openCompose: vi.fn(),
     openSearch: vi.fn(),
+    openClientSearch: vi.fn(),
     openNotifications: vi.fn(),
     toggleAddMenu: vi.fn(),
     toggleNav: vi.fn(),

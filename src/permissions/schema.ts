@@ -20,6 +20,9 @@ export const PRESET_KEYS: readonly PresetKey[] = [
 
 export const PERMISSION_KEYS = [
   'notes.read',
+  // 手元の索引 (キャッシュ) の横断検索 (#947)。サーバー検索では見えない
+  // フォロワー限定 / ダイレクトも索引にあるので notes.read とは分け、既定は閉じる
+  'notes.readArchive',
   'notes.write',
   'notes.react',
   'account.read',
@@ -147,6 +150,7 @@ export const PERMISSION_PRESETS: Record<
 > = {
   readonly: {
     'notes.read': true,
+    'notes.readArchive': false,
     'notes.write': false,
     'notes.react': false,
     'account.read': true,
@@ -186,6 +190,7 @@ export const PERMISSION_PRESETS: Record<
   },
   safe: {
     'notes.read': true,
+    'notes.readArchive': false,
     'notes.write': false,
     'notes.react': true,
     'account.read': true,
@@ -225,6 +230,7 @@ export const PERMISSION_PRESETS: Record<
   },
   full: {
     'notes.read': true,
+    'notes.readArchive': true,
     'notes.write': true,
     'notes.react': true,
     'account.read': true,
@@ -296,6 +302,7 @@ export function setPermissionPreset(
  * PKM メモ全文・未投稿下書き・AI 会話履歴の read への同意ではない。
  */
 export const LOCAL_READ_KEYS: readonly PermissionKey[] = [
+  'notes.readArchive',
   'memos.read',
   'drafts.read',
   'skills.read',

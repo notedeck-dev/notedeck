@@ -199,7 +199,8 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | **アカウント** | `account.current`, `account.list` | 自アカウント / 全アカウント情報 (auth 系 add/switch/logout は塞ぐ) |
 | **メタ** | `meta.permissions`, `meta.activeSkills`, `meta.persona`, `meta.config`, `meta.heartbeat` | 自分自身 (AI の権限・skill・persona・config・HEARTBEAT 設定) を内省 |
 | **カラム** | `column.list`, `column.active`, `column.add`, `column.remove`, `column.move`, `column.updateSettings`, `column.focusedNote` | デッキカラムの操作 + 並び替え + 設定変更 + フォーカスノート取得 |
-| **ノート (read)** | `notes.timeline`, `notes.user`, `notes.search`, `notes.show`, `notes.children` | TL / ユーザー別 / 検索 / 単発取得 / 返信ツリー |
+| **ノート (read)** | `notes.timeline`, `notes.user`, `notes.search`, `notes.show`, `notes.children` | TL / ユーザー別 / サーバー検索 / 単発取得 / 返信ツリー |
+| **ノート (手元の索引)** | `notes.searchArchive` | 手元のキャッシュをサーバー・アカウント横断で検索 (`notes.readArchive` permission、既定は閉じる。公開範囲は既定 public のみ) |
 | **ノート (write)** | `notes.create`, `notes.react`, `notes.unreact`, `notes.delete`, `notes.pin`, `notes.unpin` | 投稿・リアクション・解除・削除・プロファイル pin (`notes.write` / `notes.react` permission) |
 | **ノート (お気に入り)** | `favorites.add`, `favorites.remove` | お気に入り登録 / 解除 |
 | **アンテナ** | `antenna.list`, `antenna.notes` | 自分のアンテナ一覧 + マッチ note |
@@ -258,6 +259,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 capability は原則 **`ApiAdapter` 経由** (`src/adapters/types.ts` + `src/adapters/misskey/api.ts`) で API を叩く (= フォーク対応の道を残す)。Tauri commands を直接呼ぶのは下記の例外のみ:
 
 - `registry.*` — Misskey 専用の KV ストア API、フォーク差異想定外
+- `notes.searchArchive` — ローカル DB (SQLite) の読取で Misskey API ではない
 - `chat.*` — Misskey 新 Chat API、フォーク未対応領域 (memory `project_misskey_chat_api_facts.md`)
 
 新規 capability では adapter にメソッドを足してから capability を書くのが正攻法。

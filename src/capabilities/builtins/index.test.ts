@@ -88,6 +88,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'notes.pin',
         'notes.react',
         'notes.search',
+        'notes.searchArchive',
         'notes.show',
         'notes.timeline',
         'notes.unpin',

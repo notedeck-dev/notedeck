@@ -818,6 +818,20 @@ async apiSearchNotesLocal(accountId: string, query: string, limit: number | null
 }
 },
 /**
+ * クライアント検索 (notedeck#945 / #958): 複数アカウントのキャッシュを横断して
+ * 引く。結果は取得元アカウントごとの variant のまま返し、束ねはフロントが行う。
+ *
+ * @see src-tauri/src/commands/timeline.rs
+ */
+async apiSearchNotesCachedAcross(accountIds: string[], query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null, author: string | null, hasFiles: boolean | null, publicOnly: boolean | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_search_notes_cached_across", { accountIds, query, limit, sinceDate, untilDate, ascending, author, hasFiles, publicOnly }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * identity (正規化 AP object id) でローカルキャッシュを account 横断で引く (#1058)。
  * 引数は生の URI でもよい (notecli 側で同じ規則で正規化する)。
  *

@@ -367,6 +367,17 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     crossAccount: true,
     component: () => import('@/components/deck/DeckSearchColumn.vue'),
   },
+  clientSearch: {
+    // 手元のキャッシュ (SQLite) をサーバー・アカウント横断で引く (#945 / #958)。
+    // サーバー検索と並立する別の面。アカウントに紐づかず、ログアウト中でも動く
+    label: 'クライアント検索',
+    icon: 'archive',
+    group: 'tool',
+    guestAllowed: true,
+    accountIndependent: true,
+    defaultProps: { accountId: null, query: '' },
+    component: () => import('@/components/deck/DeckClientSearchColumn.vue'),
+  },
   lookup: {
     label: '照会',
     icon: 'world-search',

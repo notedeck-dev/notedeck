@@ -1,6 +1,8 @@
-import type { TimelineType } from '@/adapters/types'
+import type { NormalizedNote, TimelineType } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import { projectVisibleItems } from '@/composables/useAiSystemContext'
+import { useAccountsStore } from '@/stores/accounts'
+import { commands, unwrap } from '@/utils/tauriInvoke'
 import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
 
 /**
@@ -36,8 +38,9 @@ function pickUntilId(input: unknown): string | undefined {
  * カラムを読みたいときは `<currentColumn>.accountId` を渡せるよう示唆する。
  */
 const ACCOUNT_ID_HINT =
-  '`accountId` 未指定なら active アカウントを使う。' +
-  ' active と異なるサーバーのカラムを読みたいときは `<currentColumn>.accountId` を渡す。'
+  '`accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその' +
+  ' アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か' +
+  ' `<currentColumn>.accountId` から選んで渡す。'
 
 /** `notes.search` — Misskey の /notes/search 経由でキーワード検索 */
 export const notesSearchCapability: Command = {
@@ -90,6 +93,126 @@ export const notesSearchCapability: Command = {
     const api = await getApiAdapter(params?.accountId, ctx)
     const notes = await api.searchNotes(query, { limit, untilId })
     return projectVisibleItems(notes, 'search', limit)
+  },
+}
+
+function pickString(input: unknown): string | undefined {
+  if (typeof input !== 'string') return undefined
+  const t = input.trim()
+  return t.length > 0 ? t : undefined
+}
+
+/**
+ * `notes.searchArchive` — 手元の索引 (キャッシュ) をサーバー・アカウント横断で
+ * 引く (#947)。サーバー検索 (`notes.search`) では答えられない「いつか見たノート」に
+ * 届く。索引にはフォロワー限定 / ダイレクトも入っているので、権限は
+ * `notes.readArchive` (既定は閉じる) に分け、公開範囲も既定で public だけ。
+ * ローカル DB の読取なので adapter を通さず Tauri command を直接呼ぶ
+ * (Misskey API ではないためフォーク差異の対象外)。
+ */
+export const notesSearchArchiveCapability: Command = {
+  id: 'notes.searchArchive',
+  label: '手元の索引を検索',
+  icon: 'ti-archive',
+  category: 'note',
+  shortcuts: [],
+  aiTool: true,
+  permissions: ['notes.readArchive'],
+  signature: {
+    description:
+      '手元に貯めたノート (自分の画面に流れてきたもの) を、サーバーとアカウントを' +
+      ' 跨いでまとめて検索する。「先週〇〇の話をしていた人は誰か」のような、' +
+      ' サーバー検索では引けない過去の記憶に答えるための道具。query / author /' +
+      ' since / until / hasFiles は全部任意で、AND で絞る (全部省略すると新しい順に' +
+      ' 並べるだけ)。既定では公開範囲が public のノートだけを返す。' +
+      ' 結果は note projection に accountId (どのアカウントで見たか) と serverHost' +
+      ' (そのサーバー) を足したもの。同じノートを複数サーバーで見ていれば複数行になる。' +
+      ' 続きを取るときは最後のノートの createdAt を until に渡して再呼び出し。',
+    params: {
+      query: {
+        type: 'string',
+        description: '本文の検索語 (部分一致)。省略可',
+        optional: true,
+      },
+      author: {
+        type: 'string',
+        description: '投稿者。`name` または `name@host`。省略可',
+        optional: true,
+      },
+      since: {
+        type: 'string',
+        description: 'この日時 (ISO 8601) 以降。省略可',
+        optional: true,
+      },
+      until: {
+        type: 'string',
+        description: 'この日時 (ISO 8601) 以前。ページングにも使う。省略可',
+        optional: true,
+      },
+      hasFiles: {
+        type: 'boolean',
+        description: 'true = 添付あり、false = 添付なし。省略時は問わない',
+        optional: true,
+      },
+      includePrivate: {
+        type: 'boolean',
+        description:
+          'フォロワー限定・ダイレクトも含める。既定 false (public だけ)。' +
+          ' ユーザーが明示的に求めたときだけ true にする',
+        optional: true,
+      },
+      accountIds: {
+        type: 'array',
+        description:
+          '検索対象のアカウント ID 列 (account.list で得られる)。省略時は全アカウント',
+        optional: true,
+      },
+      limit: {
+        type: 'number',
+        description: '取得件数 (1-100, default 10)',
+        optional: true,
+      },
+    },
+    returns: {
+      type: 'array',
+      description:
+        'ノート projection (id / userId / username / text / createdAt) + accountId / serverHost の配列',
+    },
+  },
+  visible: false,
+  execute: async (params) => {
+    const accountsStore = useAccountsStore()
+    const known = new Set(accountsStore.accounts.map((a) => a.id))
+    const requested = Array.isArray(params?.accountIds)
+      ? params.accountIds.filter(
+          (id): id is string => typeof id === 'string' && known.has(id),
+        )
+      : undefined
+    const accountIds = requested ?? [...known]
+    if (accountIds.length === 0) return []
+    const limit = clampLimit(params?.limit)
+    const includePrivate = params?.includePrivate === true
+    const hasFiles =
+      typeof params?.hasFiles === 'boolean' ? params.hasFiles : null
+    const notes = unwrap(
+      await commands.apiSearchNotesCachedAcross(
+        accountIds,
+        pickString(params?.query) ?? '',
+        limit,
+        pickString(params?.since) ?? null,
+        pickString(params?.until) ?? null,
+        false,
+        pickString(params?.author) ?? null,
+        hasFiles,
+        !includePrivate,
+      ),
+    ) as NormalizedNote[]
+    const projected = projectVisibleItems(notes, 'search', limit)
+    return projected.map((p, i) => ({
+      ...p,
+      accountId: notes[i]?._accountId,
+      serverHost: notes[i]?._serverHost,
+    }))
   },
 }
 
@@ -311,6 +434,7 @@ export const notesChildrenCapability: Command = {
 
 export const NOTES_BUILTIN_CAPABILITIES: readonly Command[] = [
   notesSearchCapability,
+  notesSearchArchiveCapability,
   notesTimelineCapability,
   notesUserCapability,
   notesShowCapability,
