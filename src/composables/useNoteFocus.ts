@@ -1,6 +1,7 @@
 import type { ShallowRef } from 'vue'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
+import { type VariantKey, variantKeyOf } from '@/services/noteKey'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { usePinnedReactionsStore } from '@/stores/pinnedReactions'
@@ -63,15 +64,17 @@ export function useNoteFocus(
   const pinnedReactionsStore = usePinnedReactionsStore()
   const focusedIndex = ref(-1)
 
-  const focusedNoteId = computed<string | undefined>(() => {
+  /** focus 中ノートの行キー (variant key)。NoteScroller の focusedId と同じキー空間 */
+  const focusedNoteId = computed<VariantKey | undefined>(() => {
     const idx = focusedIndex.value
     if (idx < 0 || idx >= notes.value.length) return undefined
-    return notes.value[idx]?.id ?? undefined
+    const note = notes.value[idx]
+    return note ? variantKeyOf(note) : undefined
   })
 
   // capability `column.focusedNote` から横断で読めるよう deck store に反映
-  watch(focusedNoteId, (id) => {
-    deckStore.setFocusedNoteId(columnId, id ?? null)
+  watch(focusedNoteId, (key) => {
+    deckStore.setFocusedNoteKey(columnId, key ?? null)
   })
 
   const isActive = computed(() => deckStore.activeColumnId === columnId)

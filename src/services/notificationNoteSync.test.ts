@@ -41,7 +41,7 @@ describe('syncNotificationNotes', () => {
     const notif = makeNotif(makeNote())
     const latest = makeNote({ reactions: { '👍': 1 } })
 
-    const result = syncNotificationNotes([notif], (id) =>
+    const result = syncNotificationNotes([notif], (_accountId, id) =>
       id === 'n1' ? latest : undefined,
     )
 
@@ -65,7 +65,7 @@ describe('syncNotificationNotes', () => {
       reactions: { '👍': 1 },
     })
 
-    const result = syncNotificationNotes([notif], (id) =>
+    const result = syncNotificationNotes([notif], (_accountId, id) =>
       id === 'inner' ? latestInner : undefined,
     )
 
@@ -77,7 +77,7 @@ describe('syncNotificationNotes', () => {
     const note = makeNote()
     const notif = makeNotif(note)
 
-    const result = syncNotificationNotes([notif], (id) =>
+    const result = syncNotificationNotes([notif], (_accountId, id) =>
       id === 'n1' ? note : undefined,
     )
 
@@ -109,7 +109,7 @@ describe('syncNotificationNotes', () => {
       reactions: { '👍': 1 },
     })
 
-    const result = syncNotificationNotes([notif], (id) =>
+    const result = syncNotificationNotes([notif], (_accountId, id) =>
       id === 'outer' ? latestOuter : makeNote({ id: 'unexpected' }),
     )
 

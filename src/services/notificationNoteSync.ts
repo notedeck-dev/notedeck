@@ -15,14 +15,14 @@ import type { NormalizedNote, NormalizedNotification } from '@/adapters/types'
 
 export function syncNotificationNotes(
   notifications: NormalizedNotification[],
-  getNote: (id: string) => NormalizedNote | undefined,
+  getNote: (accountId: string, id: string) => NormalizedNote | undefined,
 ): NormalizedNotification[] {
   return notifications.map((n) => {
     if (!n.note) return n
-    const latest = getNote(n.note.id)
+    const latest = getNote(n._accountId, n.note.id)
     if (latest && latest !== n.note) return { ...n, note: latest }
     if (n.note.renoteId) {
-      const latestRenote = getNote(n.note.renoteId)
+      const latestRenote = getNote(n._accountId, n.note.renoteId)
       if (latestRenote && latestRenote !== n.note.renote) {
         return { ...n, note: { ...n.note, renote: latestRenote } }
       }

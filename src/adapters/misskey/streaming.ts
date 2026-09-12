@@ -25,10 +25,14 @@ export class MisskeyStream implements StreamAdapter {
   /** Incremented on each registerListeners() call; stale listeners check this to self-discard. */
   private _listenerGeneration = 0
 
-  /** Per-note capture handlers (subNote / unsubNote). */
+  /**
+   * Per-note capture handlers (subNote / unsubNote)。同じ variant を複数のカラムが
+   * 購読するので noteId → ハンドラ集合。集合が空になったときだけ Rust 側へ
+   * unsub を送る (後勝ちで上書きすると片方の unsub でもう片方も切れる、#1058)
+   */
   private noteCaptureHandlers = new Map<
     string,
-    (event: NoteUpdateEvent) => void
+    Set<(event: NoteUpdateEvent) => void>
   >()
   /** Raw event observers (StreamInspector). */
   private rawEventHandlers = new Set<(event: RawStreamEvent) => void>()
@@ -141,9 +145,10 @@ export class MisskeyStream implements StreamAdapter {
         if (gen !== this._listenerGeneration) return
         for (const c of event.payload.captures) {
           if (c.accountId !== this.accountId) continue
-          this.noteCaptureHandlers.get(c.noteId)?.(
-            toNoteUpdateEvent(c.noteId, c),
-          )
+          const handlers = this.noteCaptureHandlers.get(c.noteId)
+          if (!handlers) continue
+          const ev = toNoteUpdateEvent(c.accountId, c.noteId, c)
+          for (const h of handlers) h(ev)
         }
       })
       .then((fn) => {
@@ -182,13 +187,23 @@ export class MisskeyStream implements StreamAdapter {
   }
 
   subNote(noteId: string, handler: (event: NoteUpdateEvent) => void): void {
-    this.noteCaptureHandlers.set(noteId, handler)
+    const handlers = this.noteCaptureHandlers.get(noteId)
+    if (handlers) {
+      handlers.add(handler)
+      return
+    }
+    this.noteCaptureHandlers.set(noteId, new Set([handler]))
     commands.streamSubNote(this.accountId, noteId).catch((e) => {
       console.warn('[stream] subNote failed:', e)
     })
   }
 
-  unsubNote(noteId: string): void {
+  unsubNote(noteId: string, handler?: (event: NoteUpdateEvent) => void): void {
+    const handlers = this.noteCaptureHandlers.get(noteId)
+    if (!handlers) return
+    if (handler) handlers.delete(handler)
+    else handlers.clear()
+    if (handlers.size > 0) return
     this.noteCaptureHandlers.delete(noteId)
     commands.streamUnsubNote(this.accountId, noteId).catch((e) => {
       console.warn('[stream] unsubNote failed:', e)

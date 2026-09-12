@@ -175,7 +175,6 @@ describe('useSuspensionsStore: probe 供給の 1 点フック (#828)', () => {
   it('useNoteList への新規挿入で当事者が probe される', async () => {
     api.probeSuspended.mockResolvedValue(ok([]))
     const { setNotes } = useNoteList({
-      getMyUserId: () => 'me',
       getAdapter: () => null,
       deleteHandler: async () => true,
       closePostForm: () => {

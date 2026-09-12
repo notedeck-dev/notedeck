@@ -4,6 +4,7 @@ import type {
   NormalizedUser,
   ReactionInfo,
 } from '@/adapters/types'
+import { variantKeyOf } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import { useMutesStore } from '@/stores/mutes'
 import { useNoteStore } from '@/stores/notes'
@@ -65,7 +66,7 @@ export function useNoteVisibility() {
    * `opts` は明示的に開いた面・保存した面のための opt-out（既定は全適用 = 安全側）。
    */
   function isHidden(note: NormalizedNote, opts?: VisibilityOpts): boolean {
-    if (noteStore.isDeleted(note.id)) return true
+    if (noteStore.isDeleted(variantKeyOf(note))) return true
     const acc = note._accountId
     const subject = !opts?.ignoreSubject
     return (

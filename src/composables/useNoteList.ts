@@ -4,6 +4,8 @@ import type {
   NoteUpdateEvent,
   ServerAdapter,
 } from '@/adapters/types'
+import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
+import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
 import { usePerformanceStore } from '@/stores/performance'
 import { useSuspensionsStore } from '@/stores/suspensions'
@@ -15,7 +17,6 @@ import { useNoteVisibility, type VisibilityOpts } from './useNoteVisibility'
 export const NOTE_LIST_MAX = 200
 
 export interface UseNoteListOptions {
-  getMyUserId: () => string | undefined
   getAdapter: () => ServerAdapter | null
   deleteHandler: (note: NormalizedNote) => Promise<boolean>
   closePostForm: () => void
@@ -23,36 +24,34 @@ export interface UseNoteListOptions {
   maxNotes?: number
   /** 面ごとの述語 opt-out（お気に入り・プロフィール等）。既定は全適用 */
   visibility?: VisibilityOpts
-  /**
-   * DB キャッシュ削除 (apiDeleteCachedNote) の account スコープ。streaming の
-   * deleted イベントは note 本体を持たず _accountId を参照できないため、
-   * カラム所有者の accountId を注入する。未指定なら DB 削除はスキップ
-   * (メモリ上の除去のみ)。
-   */
-  accountId?: () => string | null
 }
 
 export function useNoteList(options: UseNoteListOptions) {
   const noteStore = useNoteStore()
+  const accountsStore = useAccountsStore()
   const visibility = useNoteVisibility()
   const perfStore = usePerformanceStore()
   const suspensionsStore = useSuspensionsStore()
   const maxNotes = options.maxNotes ?? perfStore.get('noteListMax')
-  const orderedIds = shallowRef<string[]>([])
-  const noteIds = new Set<string>()
+  /**
+   * 列のメンバーシップ。キーは variant key = (取得元アカウント, ノート ID) の複合
+   * (#1010)。ノート ID 単独だと別サーバー由来の同じ ID が衝突する
+   */
+  const orderedKeys = shallowRef<VariantKey[]>([])
+  const noteKeys = new Set<VariantKey>()
   let onNotesChangedFn = options.onNotesChanged
 
-  // Listen for global note deletions so ALL columns clean up their orderedIds
-  const unsubDelete = noteStore.onDelete((id) => {
-    if (noteIds.has(id)) {
-      orderedIds.value = orderedIds.value.filter((oid) => oid !== id)
-      noteIds.delete(id)
+  // Listen for global note deletions so ALL columns clean up their orderedKeys
+  const unsubDelete = noteStore.onDelete((key) => {
+    if (noteKeys.has(key)) {
+      orderedKeys.value = orderedKeys.value.filter((k) => k !== key)
+      noteKeys.delete(key)
     }
   })
   onScopeDispose(unsubDelete)
 
-  // カラムの表示中 ID を noteStore に root として登録。退避時に保護される。
-  const unregisterRoot = noteStore.registerRoot(() => noteIds)
+  // カラムの表示中キーを noteStore に root として登録。退避時に保護される。
+  const unregisterRoot = noteStore.registerRoot(() => noteKeys)
   onScopeDispose(unregisterRoot)
 
   /**
@@ -62,14 +61,14 @@ export function useNoteList(options: UseNoteListOptions) {
    * たびに列から落ちて焼き込まれ、ミュート解除で復活しなくなる。
    */
   const rawNotes = computed({
-    get: () => noteStore.resolve(orderedIds.value),
+    get: () => noteStore.resolve(orderedKeys.value),
     set: (newNotes: NormalizedNote[]) => {
       const trimmed =
         newNotes.length > maxNotes ? newNotes.slice(0, maxNotes) : newNotes
-      // skipTrigger: orderedIds assignment below already drives this column's reactivity.
+      // skipTrigger: orderedKeys assignment below already drives this column's reactivity.
       // A global triggerRef would redundantly invalidate ALL columns' notes computeds.
       noteStore.put(trimmed, true)
-      const ids: string[] = new Array(trimmed.length)
+      const keys: VariantKey[] = new Array(trimmed.length)
       // 凍結 probe の供給点（#828）。全書込経路（connect / streaming /
       // loadMore / キャッシュ復元 / snapshot / resume / refresh）はこの setter
       // を通るため、ここで新規ノートを拾えば経路列挙が不要になる。
@@ -78,12 +77,13 @@ export function useNoteList(options: UseNoteListOptions) {
       for (let i = 0; i < trimmed.length; i++) {
         // biome-ignore lint/style/noNonNullAssertion: bounded loop
         const note = trimmed[i]!
-        ids[i] = note.id
-        if (!noteIds.has(note.id)) inserted.push(note)
+        const key = variantKeyOf(note)
+        keys[i] = key
+        if (!noteKeys.has(key)) inserted.push(note)
       }
-      noteIds.clear()
-      for (const id of ids) noteIds.add(id)
-      orderedIds.value = ids
+      noteKeys.clear()
+      for (const key of keys) noteKeys.add(key)
+      orderedKeys.value = keys
       if (inserted.length > 0) suspensionsStore.probeNotes(inserted)
       // noteCapture の購読同期 (#939)。ストリーミングの新着 flush
       // (useStreamingBatch) は setNotes を通らず setter へ直接書くため、
@@ -131,28 +131,29 @@ export function useNoteList(options: UseNoteListOptions) {
    * - Genuinely new notes are inserted in sorted order.
    */
   function mergeUpdate(newNotes: NormalizedNote[]): void {
-    const existing = newNotes.filter((n) => noteIds.has(n.id))
-    const brandNew = newNotes.filter((n) => !noteIds.has(n.id))
+    const existing = newNotes.filter((n) => noteKeys.has(variantKeyOf(n)))
+    const brandNew = newNotes.filter((n) => !noteKeys.has(variantKeyOf(n)))
     if (existing.length > 0) noteStore.put(existing)
     if (brandNew.length > 0)
       setNotes(insertIntoSorted(rawNotes.value, brandNew))
   }
 
+  /** echo 抑止用: イベントを受けたアカウントのサーバー内 userId */
+  const myUserIdOf = (accountId: string) =>
+    accountsStore.accountMap.get(accountId)?.userId
+
   function onNoteUpdate(event: NoteUpdateEvent) {
     if (event.type === 'deleted') {
       // noteStore.remove() triggers global onDelete listeners,
-      // which clean up orderedIds/noteIds in ALL columns
-      noteStore.remove(event.noteId)
-      const accountId = options.accountId?.() ?? null
-      if (accountId) {
-        commands.apiDeleteCachedNote(accountId, event.noteId).catch((e) => {
-          if (import.meta.env.DEV)
-            console.debug('[delete-cached-note] ignored:', e)
-        })
-      }
+      // which clean up orderedKeys/noteKeys in ALL columns
+      noteStore.remove(variantKey(event.accountId, event.noteId))
+      commands.apiDeleteCachedNote(event.accountId, event.noteId).catch((e) => {
+        if (import.meta.env.DEV)
+          console.debug('[delete-cached-note] ignored:', e)
+      })
       return
     }
-    noteStore.applyUpdate(event, options.getMyUserId())
+    noteStore.applyUpdate(event, myUserIdOf)
   }
 
   async function handlePosted(editedNoteId?: string) {
@@ -171,35 +172,38 @@ export function useNoteList(options: UseNoteListOptions) {
     }
   }
 
-  /** ユーザー操作で削除中のノート id。NoteScroller の leave アニメに使う */
-  const removingIds = shallowRef<ReadonlySet<string>>(new Set())
+  /** ユーザー操作で削除中のノートの行キー。NoteScroller の leave アニメに使う */
+  const removingKeys = shallowRef<ReadonlySet<VariantKey>>(new Set())
 
   async function removeNote(note: NormalizedNote) {
-    const id = note.id
+    const key = variantKeyOf(note)
     // リストから消す前にフェードアウトを見せる (reduced-motion では即時)
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      removingIds.value = new Set([...removingIds.value, id])
+      removingKeys.value = new Set([...removingKeys.value, key])
       await new Promise((resolve) => setTimeout(resolve, 180))
-      const next = new Set(removingIds.value)
-      next.delete(id)
-      removingIds.value = next
+      const next = new Set(removingKeys.value)
+      next.delete(key)
+      removingKeys.value = next
     }
-    const prevIds = orderedIds.value
+    const prevKeys = orderedKeys.value
+    // 同じアカウント経由で見えている Renote 行も道連れにする
     rawNotes.value = rawNotes.value.filter(
-      (n) => n.id !== id && n.renoteId !== id,
+      (n) =>
+        n._accountId !== note._accountId ||
+        (n.id !== note.id && n.renoteId !== note.id),
     )
 
     if (await options.deleteHandler(note)) {
-      noteStore.remove(id)
-      commands.apiDeleteCachedNote(note._accountId, id).catch((e) => {
+      noteStore.remove(key)
+      commands.apiDeleteCachedNote(note._accountId, note.id).catch((e) => {
         if (import.meta.env.DEV)
           console.debug('[delete-cached-note] ignored:', e)
       })
     } else {
-      // 楽観削除の巻き戻し。orderedIds を直接書かずに setter を通す — 直接
+      // 楽観削除の巻き戻し。orderedKeys を直接書かずに setter を通す — 直接
       // 書くと noteCapture の購読同期が走らず、ノートは表示に戻るのに購読は
       // 外れたままになり、そのノートへの他者リアクションが以後届かなくなる
-      rawNotes.value = noteStore.resolve(prevIds)
+      rawNotes.value = noteStore.resolve(prevKeys)
     }
   }
 
@@ -210,14 +214,14 @@ export function useNoteList(options: UseNoteListOptions) {
     rawNotes,
     // 表示述語でフィルタされない「列のメンバーシップ」。snapshot 保存はこれを使う
     // ことで、ミュート等の可視性状態を焼き込まず、解除で復活できる（#574）。
-    orderedIds,
-    noteIds,
+    orderedKeys,
+    noteKeys,
     setNotes,
     mergeUpdate,
     setOnNotesChanged,
     onNoteUpdate,
     handlePosted,
     removeNote,
-    removingIds,
+    removingKeys,
   }
 }

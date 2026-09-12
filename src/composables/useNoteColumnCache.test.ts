@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
+import { variantKey } from '@/services/noteKey'
 import { useNoteStore } from '@/stores/notes'
 import { purgeStaleCachedNotes } from './useNoteColumnCache'
 
@@ -58,11 +59,11 @@ describe('purgeStaleCachedNotes: verify-purge (notecli#30 v5 §6-8 / §9-23)', (
 
     // 削除は missing の b のみ (accountId スコープ付き)
     expect(bindings.deleteCalls).toEqual([['acc-1', 'b']])
-    expect(noteStore.get('b')).toBeUndefined()
+    expect(noteStore.get(variantKey('acc-1', 'b'))).toBeUndefined()
     // verified の a は fresh データで更新される
-    expect(noteStore.get('a')?.text).toBe('fresh a')
+    expect(noteStore.get(variantKey('acc-1', 'a'))?.text).toBe('fresh a')
     // verified にも missing にも無い c は「生存扱い」— 削除しない
-    expect(noteStore.get('c')).toBeDefined()
+    expect(noteStore.get(variantKey('acc-1', 'c'))).toBeDefined()
   })
 
   it('通信エラー相当 (verified にも missing にも無い) は一切削除しない', async () => {
@@ -77,8 +78,8 @@ describe('purgeStaleCachedNotes: verify-purge (notecli#30 v5 §6-8 / §9-23)', (
     await purgeStaleCachedNotes(adapter, ['a', 'b'], () => true, 'acc-1')
 
     expect(bindings.deleteCalls).toEqual([])
-    expect(noteStore.get('a')).toBeDefined()
-    expect(noteStore.get('b')).toBeDefined()
+    expect(noteStore.get(variantKey('acc-1', 'a'))).toBeDefined()
+    expect(noteStore.get(variantKey('acc-1', 'b'))).toBeDefined()
   })
 
   it('bulk verify 自体の失敗ではキャッシュを触らない', async () => {
@@ -92,6 +93,6 @@ describe('purgeStaleCachedNotes: verify-purge (notecli#30 v5 §6-8 / §9-23)', (
     await purgeStaleCachedNotes(adapter, ['a'], () => true, 'acc-1')
 
     expect(bindings.deleteCalls).toEqual([])
-    expect(noteStore.get('a')).toBeDefined()
+    expect(noteStore.get(variantKey('acc-1', 'a'))).toBeDefined()
   })
 })

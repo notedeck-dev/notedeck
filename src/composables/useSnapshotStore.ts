@@ -1,4 +1,5 @@
 import type { NormalizedNote } from '@/adapters/types'
+import type { VariantKey } from '@/services/noteKey'
 import { useNoteStore } from '@/stores/notes'
 import { usePerformanceStore } from '@/stores/performance'
 
@@ -10,7 +11,7 @@ export interface ScrollAnchor {
 }
 
 interface Snapshot {
-  noteIds: string[]
+  noteIds: VariantKey[]
   scrollTop: number
   /** 仮想スクローラの再測定に強いアンカー。あれば scrollTop より優先して復元 */
   anchor: ScrollAnchor | null
@@ -52,7 +53,7 @@ function resolveSnapshot(snap: Snapshot): ResolvedSnapshot | null {
 export function save(
   columnId: string,
   cacheKey: string,
-  noteIds: string[],
+  noteIds: VariantKey[],
   scrollTop: number,
   anchor: ScrollAnchor | null = null,
 ): void {

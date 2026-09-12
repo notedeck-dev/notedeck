@@ -381,6 +381,12 @@ export interface NoteReaction {
 }
 
 export interface NoteUpdateEvent {
+  /**
+   * イベントを受けたアカウント。ノート ID はサーバー内でしか一意でないので、
+   * (accountId, noteId) で初めて行キーが組める (#1010)。`body.userId` は
+   * このアカウントのサーバー上の id
+   */
+  accountId: string
   noteId: string
   type: 'reacted' | 'unreacted' | 'deleted' | 'pollVoted'
   body: {
@@ -843,7 +849,8 @@ export interface StreamAdapter {
   cleanup(): void
   /** Subscribe to per-note updates (Misskey Note Capture). */
   subNote(noteId: string, handler: (event: NoteUpdateEvent) => void): void
-  unsubNote(noteId: string): void
+  /** handler を省略すると全ハンドラを外す。指定時はそのハンドラだけ外し、残りがあれば購読を維持する */
+  unsubNote(noteId: string, handler?: (event: NoteUpdateEvent) => void): void
   readonly state: StreamConnectionState
   on(
     event: 'connected' | 'disconnected' | 'reconnecting',

@@ -19,6 +19,7 @@ import RegexGuide from '@/components/common/RegexGuide.vue'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { variantKeyOf } from '@/services/noteKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
@@ -208,12 +209,15 @@ function mergeNotes(
   existing: NormalizedNote[],
   incoming: NormalizedNote[],
 ): NormalizedNote[] {
-  const seen = new Set(existing.map((n) => n.id))
+  // 行の一意性は取得元アカウント + note id (#1010)。全アカウント検索では
+  // 別サーバー由来の同じ id が並ぶ
+  const seen = new Set(existing.map(variantKeyOf))
   const merged = [...existing]
   for (const note of incoming) {
-    if (!seen.has(note.id)) {
+    const key = variantKeyOf(note)
+    if (!seen.has(key)) {
       merged.push(note)
-      seen.add(note.id)
+      seen.add(key)
     }
   }
   const dir = ascending.value ? 1 : -1
@@ -560,7 +564,8 @@ async function removeNote(note: NormalizedNote) {
   const id = note.id
   const prevNotes = rawNotes.value
   rawNotes.value = rawNotes.value.filter(
-    (n) => n.id !== id && n.renoteId !== id,
+    (n) =>
+      n._accountId !== note._accountId || (n.id !== id && n.renoteId !== id),
   )
 
   if (isCrossAccount.value) {
@@ -800,7 +805,7 @@ onUnmounted(() => {
           <div>
             <MkNote
               :note="item"
-              :focused="item.id === focusedNoteId"
+              :focused="variantKeyOf(item) === focusedNoteId"
               @react="handlers.reaction"
               @reply="handlers.reply"
               @renote="handlers.renote"

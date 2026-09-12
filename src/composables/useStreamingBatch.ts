@@ -1,12 +1,14 @@
 import { computed, onScopeDispose, ref, shallowRef } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
 import { useFrameScheduler } from '@/composables/useFrameScheduler'
+import { type VariantKey, variantKeyOf } from '@/services/noteKey'
 import { usePerformanceStore } from '@/stores/performance'
 import { insertIntoSorted } from '@/utils/sortNotes'
 
 export interface UseStreamingBatchOptions {
   notes: { value: NormalizedNote[] }
-  noteIds: Set<string>
+  /** 列のメンバーシップ (variant key)。useNoteList の noteKeys と共有する */
+  noteKeys: Set<VariantKey>
   scroller: { value: HTMLElement | null }
   maxNotes?: number
   onNewNotes?: (notes: NormalizedNote[]) => void
@@ -27,18 +29,18 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
   const pendingCount = computed(
     () => pendingNotes.value.length + queuedNotes.value.length,
   )
-  /** Set of note IDs currently playing the slide-in animation */
-  const animatingIds = shallowRef<ReadonlySet<string>>(new Set())
+  /** 行キー (variant key) のうちスライドインアニメーション中のもの */
+  const animatingIds = shallowRef<ReadonlySet<VariantKey>>(new Set())
   const _animTimers = new Set<ReturnType<typeof setTimeout>>()
   let rafBuffer: NormalizedNote[] = []
   let rafScheduled = false
   let _paused = false
 
   /** IDs waiting to be cleared from animatingIds, batched into a single timer */
-  let _pendingClearIds: Set<string> | null = null
+  let _pendingClearIds: Set<VariantKey> | null = null
   let _clearTimer: ReturnType<typeof setTimeout> | null = null
 
-  function enableAnimation(batchIds: string[]) {
+  function enableAnimation(batchIds: VariantKey[]) {
     if (batchIds.length === 0) return
     const next = new Set(animatingIds.value)
     for (const id of batchIds) next.add(id)
@@ -60,9 +62,9 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
     _animTimers.add(_clearTimer)
   }
 
-  function syncNoteIds() {
-    options.noteIds.clear()
-    for (const n of options.notes.value) options.noteIds.add(n.id)
+  function syncNoteKeys() {
+    options.noteKeys.clear()
+    for (const n of options.notes.value) options.noteKeys.add(variantKeyOf(n))
   }
 
   function setPaused(paused: boolean) {
@@ -75,13 +77,13 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
     const batch = rafBuffer
     rafBuffer = []
     if (isAtTop.value) {
-      enableAnimation(batch.map((n) => n.id))
-      for (const n of batch) options.noteIds.add(n.id)
+      enableAnimation(batch.map(variantKeyOf))
+      for (const n of batch) options.noteKeys.add(variantKeyOf(n))
       const merged = insertIntoSorted(options.notes.value, batch)
       const truncated = merged.length > MAX_NOTES
       if (truncated) merged.length = MAX_NOTES
       options.notes.value = merged
-      if (truncated) syncNoteIds()
+      if (truncated) syncNoteKeys()
       options.onNewNotes?.(batch)
     } else {
       const merged = insertIntoSorted(pendingNotes.value, batch)
@@ -113,19 +115,19 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
   function flushPending() {
     if (pendingNotes.value.length === 0) return
     const newNotes = pendingNotes.value.filter(
-      (n) => !options.noteIds.has(n.id),
+      (n) => !options.noteKeys.has(variantKeyOf(n)),
     )
     if (newNotes.length === 0) {
       pendingNotes.value = []
       return
     }
-    enableAnimation(newNotes.map((n) => n.id))
-    for (const n of newNotes) options.noteIds.add(n.id)
+    enableAnimation(newNotes.map(variantKeyOf))
+    for (const n of newNotes) options.noteKeys.add(variantKeyOf(n))
     const merged = insertIntoSorted(options.notes.value, newNotes)
     const truncated = merged.length > MAX_NOTES
     if (truncated) merged.length = MAX_NOTES
     options.notes.value = merged
-    if (truncated) syncNoteIds()
+    if (truncated) syncNoteKeys()
     pendingNotes.value = []
   }
 
@@ -154,13 +156,17 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
     flushPending()
   }
 
-  function removePending(noteId: string) {
-    rafBuffer = rafBuffer.filter((n) => n.id !== noteId)
-    if (pendingNotes.value.some((n) => n.id === noteId)) {
-      pendingNotes.value = pendingNotes.value.filter((n) => n.id !== noteId)
+  function removePending(key: VariantKey) {
+    rafBuffer = rafBuffer.filter((n) => variantKeyOf(n) !== key)
+    if (pendingNotes.value.some((n) => variantKeyOf(n) === key)) {
+      pendingNotes.value = pendingNotes.value.filter(
+        (n) => variantKeyOf(n) !== key,
+      )
     }
-    if (queuedNotes.value.some((n) => n.id === noteId)) {
-      queuedNotes.value = queuedNotes.value.filter((n) => n.id !== noteId)
+    if (queuedNotes.value.some((n) => variantKeyOf(n) === key)) {
+      queuedNotes.value = queuedNotes.value.filter(
+        (n) => variantKeyOf(n) !== key,
+      )
     }
   }
 
@@ -168,7 +174,9 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
    *  Not auto-flushed — only revealed on explicit banner tap / scrollToTop. */
   function addQueued(newNotes: NormalizedNote[]) {
     if (newNotes.length === 0) return
-    const deduped = newNotes.filter((n) => !options.noteIds.has(n.id))
+    const deduped = newNotes.filter(
+      (n) => !options.noteKeys.has(variantKeyOf(n)),
+    )
     if (deduped.length === 0) return
     const merged = insertIntoSorted(queuedNotes.value, deduped)
     if (merged.length > MAX_NOTES) merged.length = MAX_NOTES

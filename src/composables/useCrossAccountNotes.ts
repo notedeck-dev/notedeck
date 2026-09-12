@@ -7,6 +7,7 @@ import {
 } from '@/composables/useNoteColumnCache'
 import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
+import { variantKeyOf } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
 import { useSuspensionsStore } from '@/stores/suspensions'
@@ -62,31 +63,32 @@ const dedupWorker = createWorkerClient<DedupResponse>(
 /** メインスレッドフォールバック（Worker が CSP 等でブロックされた場合） */
 function dedupMain(
   incoming: NormalizedNote[],
-  existingIds?: Set<string>,
+  existingKeys?: Set<string>,
 ): NormalizedNote[] {
-  const seen = existingIds ?? new Set<string>()
+  const seen = existingKeys ?? new Set<string>()
   return incoming
     .filter((n) => {
-      if (seen.has(n.id)) return false
-      seen.add(n.id)
+      const key = variantKeyOf(n)
+      if (seen.has(key)) return false
+      seen.add(key)
       return true
     })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 }
 
-/** 既存IDを除外し、createdAt降順でソート（Worker で実行、失敗時メインスレッド） */
+/** 既存の行キー (取得元アカウント + note id、#1010) を除外し、createdAt降順でソート（Worker で実行、失敗時メインスレッド） */
 function dedupAsync(
   incoming: NormalizedNote[],
-  existingIds?: Set<string>,
+  existingKeys?: Set<string>,
 ): Promise<NormalizedNote[]> {
   return dedupWorker
     .post({
       type: 'dedup',
       notes: incoming,
-      existingIds: existingIds ? [...existingIds] : null,
+      existingKeys: existingKeys ? [...existingKeys] : null,
     })
     .then((res) => res.notes)
-    .catch(() => dedupMain(incoming, existingIds))
+    .catch(() => dedupMain(incoming, existingKeys))
 }
 
 export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
@@ -220,8 +222,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         3,
       )
 
-      const existingIds = new Set(rawNotes.value.map((n) => n.id))
-      const newOlder = await dedupAsync(collectFulfilled(results), existingIds)
+      const existingKeys = new Set<string>(rawNotes.value.map(variantKeyOf))
+      const newOlder = await dedupAsync(collectFulfilled(results), existingKeys)
       rawNotes.value = [...rawNotes.value, ...newOlder]
     } catch (e) {
       error.value = AppError.from(e)
@@ -242,8 +244,10 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     } catch {
       return
     }
-    rawNotes.value = rawNotes.value.filter((n) => n.id !== note.id)
-    noteStore.remove(note.id)
+    rawNotes.value = rawNotes.value.filter(
+      (n) => variantKeyOf(n) !== variantKeyOf(note),
+    )
+    noteStore.remove(variantKeyOf(note))
   }
 
   onMounted(() => {

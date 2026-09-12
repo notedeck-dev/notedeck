@@ -50,7 +50,7 @@ export function useNoteCapture(
     for (const id of capturedIds) {
       if (!currentIds.has(id)) {
         capturedIds.delete(id)
-        stream.unsubNote(id)
+        stream.unsubNote(id, onUpdate)
       }
     }
   }
@@ -59,7 +59,7 @@ export function useNoteCapture(
     const stream = getStream()
     if (stream) {
       for (const id of capturedIds) {
-        stream.unsubNote(id)
+        stream.unsubNote(id, onUpdate)
       }
     }
     capturedIds.clear()

@@ -1,26 +1,38 @@
-<script setup lang="ts" generic="T extends { id: string }">
+<script setup lang="ts" generic="T extends { id: string; _accountId?: string }">
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { computed, ref, watch } from 'vue'
+import { variantKey } from '@/services/noteKey'
 import { usePerformanceStore } from '@/stores/performance'
 
 const perfStore = usePerformanceStore()
+
+function defaultKeyOf(item: { id: string; _accountId?: string }): string {
+  return item._accountId ? variantKey(item._accountId, item.id) : item.id
+}
 
 const props = withDefaults(
   defineProps<{
     items: T[]
     /** Estimated item height for virtualizer sizing */
     estimatedHeight?: number
+    /**
+     * 行キー。既定はアイテムに `_accountId` があれば variant key (取得元アカウント +
+     * id、#1010)、無ければ id。focusedId / animatingIds / leavingIds /
+     * スクロールアンカーはすべてこのキー空間で受ける
+     */
+    keyOf?: (item: T) => string
     /** When set, highlights the focused item (passed through, not used internally) */
     focusedId?: string
-    /** Set of note IDs currently animating (slide-in for new streaming notes) */
+    /** 行キーのうちアニメーション中のもの (slide-in for new streaming notes) */
     animatingIds?: ReadonlySet<string>
-    /** 削除中のノート id (leave フェードアウト + 後続行のスライドアップ) */
+    /** 削除中の行キー (leave フェードアウト + 後続行のスライドアップ) */
     leavingIds?: ReadonlySet<string>
     /** Called with items beyond nearViewport that should be image-prefetched */
     prefetch?: (items: T[]) => void
   }>(),
   {
     estimatedHeight: 150,
+    keyOf: undefined,
     focusedId: undefined,
     animatingIds: () => new Set(),
     leavingIds: () => new Set(),
@@ -67,12 +79,17 @@ let _measuredCount = 0
 const dynamicEstimate = ref(props.estimatedHeight)
 let _estimateRafScheduled = false
 
+const rowKey = (item: T): string => (props.keyOf ?? defaultKeyOf)(item)
+
 const virtualizerOptions = computed(() => ({
   count: props.items.length,
   getScrollElement: () => scrollContainer.value,
   estimateSize: () => dynamicEstimate.value,
   overscan: perfStore.get('overscan'),
-  getItemKey: (index: number) => props.items[index]?.id ?? index,
+  getItemKey: (index: number) => {
+    const item = props.items[index]
+    return item ? rowKey(item) : index
+  },
 }))
 
 const virtualizer = useVirtualizer(virtualizerOptions)
@@ -201,16 +218,16 @@ defineExpose({
     const scrollTop = el.scrollTop
     for (const item of virtualizer.value.getVirtualItems()) {
       if (item.end > scrollTop) {
-        const id = props.items[item.index]?.id
-        if (id == null) return null
-        return { id: String(id), offset: scrollTop - item.start }
+        const target = props.items[item.index]
+        if (!target) return null
+        return { id: rowKey(target), offset: scrollTop - item.start }
       }
     }
     return null
   },
   /** アンカー id へ復元する。id が見つからなければ false (呼び出し側で scrollTop にフォールバック) */
   restoreScrollAnchor: (id: string, offset: number): boolean => {
-    const index = props.items.findIndex((it) => it.id === id)
+    const index = props.items.findIndex((it) => rowKey(it) === id)
     if (index < 0) return false
     virtualizer.value.scrollToIndex(index, { align: 'start', behavior: 'auto' })
     // 動的高さの再測定で位置が動くため、次フレームで再アンカーしてから offset を足す
@@ -243,13 +260,13 @@ defineSlots<{
     <div :class="$style.noteList" :style="{ height: `${totalSize}px` }">
       <div
         v-for="vRow in virtualItems"
-        :key="props.items[vRow.index]!.id"
+        :key="rowKey(props.items[vRow.index]!)"
         :ref="measureElement"
         :data-index="vRow.index"
         :class="[
           $style.noteItem,
-          animatingIds.has(props.items[vRow.index]!.id) && $style.enterAnimation,
-          leavingIds.has(props.items[vRow.index]!.id) && $style.leaveAnimation,
+          animatingIds.has(rowKey(props.items[vRow.index]!)) && $style.enterAnimation,
+          leavingIds.has(rowKey(props.items[vRow.index]!)) && $style.leaveAnimation,
           shifting && $style.shifting,
         ]"
         :style="{ translate: `0 ${vRow.start}px` }"

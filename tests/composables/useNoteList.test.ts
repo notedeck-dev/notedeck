@@ -2,6 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NormalizedNote } from '@/adapters/types'
 import { NOTE_LIST_MAX, useNoteList } from '@/composables/useNoteList'
+import { variantKey } from '@/services/noteKey'
 import { useMutesStore } from '@/stores/mutes'
 import { useNoteStore } from '@/stores/notes'
 
@@ -21,7 +22,6 @@ function makeNote(id: string, createdAt?: string): NormalizedNote {
 
 function createNoteList(maxNotes?: number) {
   return useNoteList({
-    getMyUserId: () => 'u1',
     getAdapter: () => null,
     deleteHandler: async () => true,
     closePostForm: () => {
@@ -45,21 +45,21 @@ describe('useNoteList', () => {
   })
 
   it('trims notes exceeding default NOTE_LIST_MAX', () => {
-    const { notes, setNotes, noteIds } = createNoteList()
+    const { notes, setNotes, noteKeys } = createNoteList()
     const items = Array.from({ length: NOTE_LIST_MAX + 50 }, (_, i) =>
       makeNote(String(i)),
     )
     setNotes(items)
     expect(notes.value).toHaveLength(NOTE_LIST_MAX)
-    expect(noteIds.size).toBe(NOTE_LIST_MAX)
+    expect(noteKeys.size).toBe(NOTE_LIST_MAX)
   })
 
   it('trims notes exceeding custom maxNotes', () => {
-    const { notes, setNotes, noteIds } = createNoteList(10)
+    const { notes, setNotes, noteKeys } = createNoteList(10)
     const items = Array.from({ length: 25 }, (_, i) => makeNote(String(i)))
     setNotes(items)
     expect(notes.value).toHaveLength(10)
-    expect(noteIds.size).toBe(10)
+    expect(noteKeys.size).toBe(10)
     // First 10 notes are kept (newest at top)
     expect(notes.value.map((n) => n.id)).toEqual(
       items.slice(0, 10).map((n) => n.id),
@@ -67,11 +67,11 @@ describe('useNoteList', () => {
   })
 
   it('trims on direct rawNotes.value assignment', () => {
-    const { notes, rawNotes, noteIds } = createNoteList(5)
+    const { notes, rawNotes, noteKeys } = createNoteList(5)
     const items = Array.from({ length: 10 }, (_, i) => makeNote(String(i)))
     rawNotes.value = items
     expect(notes.value).toHaveLength(5)
-    expect(noteIds.size).toBe(5)
+    expect(noteKeys.size).toBe(5)
   })
 
   it('rawNotes は可視性述語でフィルタされず、notes だけが隠される (#831)', () => {
@@ -97,7 +97,7 @@ describe('useNoteList', () => {
     const noteStore = useNoteStore()
     setNotes([makeNote('1'), makeNote('2'), makeNote('3')])
 
-    noteStore.remove('2')
+    noteStore.remove(variantKey('acc1', '2'))
 
     // Tab switch reloads the SQLite cache, which still contains the deleted note.
     setNotes([makeNote('1'), makeNote('2'), makeNote('3')])
@@ -121,8 +121,8 @@ describe('useNoteList', () => {
     expect(notes.value.map((n) => n.id)).toEqual(['1', '2', '3'])
   })
 
-  it('retains muted notes in orderedIds so a snapshot restores them on unmute (#574)', () => {
-    const { notes, rawNotes, setNotes, orderedIds } = createNoteList()
+  it('retains muted notes in orderedKeys so a snapshot restores them on unmute (#574)', () => {
+    const { notes, rawNotes, setNotes, orderedKeys } = createNoteList()
     const muteStore = useMutesStore()
     setNotes([makeNote('1'), makeNote('2'), makeNote('3')]) // all authored by 'u1'
 
@@ -132,7 +132,9 @@ describe('useNoteList', () => {
     // A tab-switch snapshot must capture the unfiltered membership, not the
     // filtered display — otherwise muted notes are baked out and unmute can't
     // bring them back.
-    expect(orderedIds.value).toEqual(['1', '2', '3'])
+    expect(orderedKeys.value).toEqual(
+      ['1', '2', '3'].map((id) => variantKey('acc1', id)),
+    )
 
     // Simulate snapshot save (unfiltered) → restore.
     setNotes(rawNotes.value)
@@ -159,7 +161,6 @@ describe('useNoteList', () => {
   it('passes trimmed notes to onNotesChanged callback', () => {
     const callback = vi.fn()
     const { setNotes } = useNoteList({
-      getMyUserId: () => 'u1',
       getAdapter: () => null,
       deleteHandler: async () => true,
       closePostForm: () => {

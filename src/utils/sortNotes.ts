@@ -1,4 +1,5 @@
 import type { NormalizedNote } from '@/adapters/types'
+import { type VariantKey, variantKeyOf } from '@/services/noteKey'
 
 /**
  * Sort notes by createdAt in descending order (newest first).
@@ -12,7 +13,7 @@ export function sortByCreatedAtDesc(notes: NormalizedNote[]): NormalizedNote[] {
 
 /**
  * Merge two already-sorted (desc) note arrays into one sorted array.
- * Deduplicates by note id — when the same id appears in both arrays,
+ * Deduplicates by variant key (取得元アカウント + note id、#1010) — when the same key appears in both arrays,
  * the entry from `a` (typically the newer/fresher data) wins.
  * O(n + m) instead of O((n+m) log(n+m)).
  */
@@ -21,36 +22,36 @@ export function mergeSortedNotes(
   b: NormalizedNote[],
 ): NormalizedNote[] {
   const result: NormalizedNote[] = []
-  const seen = new Set<string>()
+  const seen = new Set<VariantKey>()
   let i = 0
   let j = 0
   let ai = a[0]
   let bj = b[0]
   while (ai && bj) {
     if (ai.createdAt >= bj.createdAt) {
-      if (!seen.has(ai.id)) {
-        seen.add(ai.id)
+      if (!seen.has(variantKeyOf(ai))) {
+        seen.add(variantKeyOf(ai))
         result.push(ai)
       }
       ai = a[++i]
     } else {
-      if (!seen.has(bj.id)) {
-        seen.add(bj.id)
+      if (!seen.has(variantKeyOf(bj))) {
+        seen.add(variantKeyOf(bj))
         result.push(bj)
       }
       bj = b[++j]
     }
   }
   while (ai) {
-    if (!seen.has(ai.id)) {
-      seen.add(ai.id)
+    if (!seen.has(variantKeyOf(ai))) {
+      seen.add(variantKeyOf(ai))
       result.push(ai)
     }
     ai = a[++i]
   }
   while (bj) {
-    if (!seen.has(bj.id)) {
-      seen.add(bj.id)
+    if (!seen.has(variantKeyOf(bj))) {
+      seen.add(variantKeyOf(bj))
       result.push(bj)
     }
     bj = b[++j]

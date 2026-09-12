@@ -1,5 +1,6 @@
 import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
 import type { QirQuery } from '@/bindings'
+import { variantKey } from '@/services/noteKey'
 import { useNoteStore } from '@/stores/notes'
 import { usePerformanceStore } from '@/stores/performance'
 import { catchLog } from '@/utils/logger'
@@ -70,7 +71,11 @@ export async function purgeStaleCachedNotes(
 
     // Update confirmed notes with fresh data
     for (const [id, fresh] of Object.entries(result.verified)) {
-      if (fresh) noteStore.update(id, fresh as unknown as NormalizedNote)
+      if (fresh)
+        noteStore.update(
+          variantKey(accountId, id),
+          fresh as unknown as NormalizedNote,
+        )
     }
 
     // 削除するのは `missing` (サーバーが NO_SUCH_NOTE を返した = 削除確認済み)
@@ -79,7 +84,7 @@ export async function purgeStaleCachedNotes(
     // 誤って恒久削除しない (notecli#30 v5 §6-8)。
     // verify-miss を tombstone しないのは従来どおり (false-positive 回避)。
     for (const id of result.missing) {
-      noteStore.remove(id, false)
+      noteStore.remove(variantKey(accountId, id), false)
       commands
         .apiDeleteCachedNote(accountId, id)
         .catch(catchLog('delete-cached-note'))

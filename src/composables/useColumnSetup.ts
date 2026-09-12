@@ -11,6 +11,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { useScrollDirection } from '@/composables/useScrollDirection'
 import { useServerImages } from '@/composables/useServerImages'
+import { variantKeyOf } from '@/services/noteKey'
 import { useConfirm } from '@/stores/confirm'
 import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
@@ -54,7 +55,7 @@ export function useColumnSetup(
   /** Create a callback that replaces the note reference in the store (triggers Vue reactivity) */
   function notifyMutationFor(note: NormalizedNote) {
     return () => {
-      noteStore.update(note.id, { ...note })
+      noteStore.update(variantKeyOf(note), { ...note })
       customMutatedFn?.()
     }
   }
@@ -189,9 +190,10 @@ export function useColumnSetup(
     } else {
       // 手元の note は API を待つ間にストリーミングで差し替わっていることが
       // あるので、常に store の最新から差分を計算する (#904)
-      const current = noteStore.get(note.id) ?? note
+      const key = variantKeyOf(note)
+      const current = noteStore.get(key) ?? note
       // 新オブジェクトへの差し替えで store に反映する (reactive に届く)
-      noteStore.update(note.id, { ...current, ...compute(current) })
+      noteStore.update(key, { ...current, ...compute(current) })
     }
     customMutatedFn?.()
   }

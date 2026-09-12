@@ -34,7 +34,12 @@ describe('mergeNoteUpdate', () => {
     const note = makeNote({ reactions: { '👍': 1 } })
     const merged = mergeNoteUpdate(
       note,
-      { type: 'reacted', noteId: 'n1', body: { userId: 'u2', reaction: '👍' } },
+      {
+        accountId: 'acc-1',
+        type: 'reacted',
+        noteId: 'n1',
+        body: { userId: 'u2', reaction: '👍' },
+      },
       'me',
     )
     expect(merged?.reactions['👍']).toBe(2)
@@ -46,7 +51,12 @@ describe('mergeNoteUpdate', () => {
     const note = makeNote({ reactions: { '👍': 1 }, myReaction: '👍' })
     const merged = mergeNoteUpdate(
       note,
-      { type: 'reacted', noteId: 'n1', body: { userId: 'me', reaction: '👍' } },
+      {
+        accountId: 'acc-1',
+        type: 'reacted',
+        noteId: 'n1',
+        body: { userId: 'me', reaction: '👍' },
+      },
       'me',
     )
     expect(merged).toBeNull()
@@ -59,6 +69,7 @@ describe('mergeNoteUpdate', () => {
     const merged = mergeNoteUpdate(
       note,
       {
+        accountId: 'acc-1',
         type: 'reacted',
         noteId: 'n1',
         body: { userId: 'me', reaction: ':meow@.:' },
@@ -74,7 +85,12 @@ describe('mergeNoteUpdate', () => {
     const note = makeNote({ reactions: { '👍': 1 } })
     const merged = mergeNoteUpdate(
       note,
-      { type: 'reacted', noteId: 'n1', body: { userId: 'me', reaction: '🎉' } },
+      {
+        accountId: 'acc-1',
+        type: 'reacted',
+        noteId: 'n1',
+        body: { userId: 'me', reaction: '🎉' },
+      },
       'me',
     )
     expect(merged?.reactions['🎉']).toBe(1)
@@ -86,6 +102,7 @@ describe('mergeNoteUpdate', () => {
     const merged = mergeNoteUpdate(
       note,
       {
+        accountId: 'acc-1',
         type: 'reacted',
         noteId: 'n1',
         body: { userId: 'me', reaction: ':meow@.:' },
@@ -107,6 +124,7 @@ describe('mergeNoteUpdate', () => {
     const merged = mergeNoteUpdate(
       note,
       {
+        accountId: 'acc-1',
         type: 'reacted',
         noteId: 'n1',
         body: {
@@ -133,6 +151,7 @@ describe('mergeNoteUpdate', () => {
     const merged = mergeNoteUpdate(
       note,
       {
+        accountId: 'acc-1',
         type: 'reacted',
         noteId: 'n1',
         body: {
@@ -151,6 +170,7 @@ describe('mergeNoteUpdate', () => {
     const merged = mergeNoteUpdate(
       note,
       {
+        accountId: 'acc-1',
         type: 'reacted',
         noteId: 'n1',
         body: {
@@ -169,6 +189,7 @@ describe('mergeNoteUpdate', () => {
     const merged = mergeNoteUpdate(
       makeNote(),
       {
+        accountId: 'acc-1',
         type: 'reacted',
         noteId: 'n1',
         body: { userId: 'u2', reaction: ':cat:', emoji: 'https://x/cat.png' },
@@ -183,6 +204,7 @@ describe('mergeNoteUpdate', () => {
     const merged = mergeNoteUpdate(
       note,
       {
+        accountId: 'acc-1',
         type: 'unreacted',
         noteId: 'n1',
         body: { userId: 'u2', reaction: '👍' },
@@ -197,6 +219,7 @@ describe('mergeNoteUpdate', () => {
     const merged = mergeNoteUpdate(
       makeNote({ reactions: { '👍': 1 } }),
       {
+        accountId: 'acc-1',
         type: 'unreacted',
         noteId: 'n1',
         body: { userId: 'me', reaction: '👍' },
@@ -213,7 +236,12 @@ describe('mergeNoteUpdate', () => {
     const note = makeNote()
     const merged = mergeNoteUpdate(
       note,
-      { type: 'reacted', noteId: 'n1', body: { reaction: '👍' } },
+      {
+        accountId: 'acc-1',
+        type: 'reacted',
+        noteId: 'n1',
+        body: { reaction: '👍' },
+      },
       undefined,
     )
     expect(merged?.reactions['👍']).toBe(1)
@@ -227,6 +255,7 @@ describe('mergeNoteUpdate', () => {
     const merged = mergeNoteUpdate(
       note,
       {
+        accountId: 'acc-1',
         type: 'unreacted',
         noteId: 'n1',
         body: { userId: 'me', reaction: '👍' },
@@ -250,7 +279,12 @@ describe('mergeNoteUpdate', () => {
     })
     const other = mergeNoteUpdate(
       note,
-      { type: 'pollVoted', noteId: 'n1', body: { userId: 'u2', choice: 1 } },
+      {
+        accountId: 'acc-1',
+        type: 'pollVoted',
+        noteId: 'n1',
+        body: { userId: 'u2', choice: 1 },
+      },
       'me',
     )
     expect(other?.poll?.choices[1]?.votes).toBe(1)
@@ -258,7 +292,12 @@ describe('mergeNoteUpdate', () => {
 
     const mine = mergeNoteUpdate(
       note,
-      { type: 'pollVoted', noteId: 'n1', body: { userId: 'me', choice: 0 } },
+      {
+        accountId: 'acc-1',
+        type: 'pollVoted',
+        noteId: 'n1',
+        body: { userId: 'me', choice: 0 },
+      },
       'me',
     )
     expect(mine?.poll?.choices[0]?.votes).toBe(2)
@@ -268,7 +307,12 @@ describe('mergeNoteUpdate', () => {
   it('poll の無いノートへの pollVoted は no-op (null)', () => {
     const merged = mergeNoteUpdate(
       makeNote(),
-      { type: 'pollVoted', noteId: 'n1', body: { userId: 'u2', choice: 0 } },
+      {
+        accountId: 'acc-1',
+        type: 'pollVoted',
+        noteId: 'n1',
+        body: { userId: 'u2', choice: 0 },
+      },
       'me',
     )
     expect(merged).toBeNull()
