@@ -6,6 +6,7 @@ import {
 } from '@/adapters/misskey/query'
 import type { NormalizedNote } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
@@ -105,6 +106,7 @@ const {
   vote: voteCrossAccount,
   pendingCount,
   animatingRowKeys,
+  crossProgress,
 } = useCrossAccountNotes({
   fetchNotes: (adapter, opts) =>
     isSpecified.value
@@ -209,7 +211,10 @@ const {
           </template>
 
           <template #append>
-            <div v-if="isLoading && notes.length > 0" :class="$style.loadingMore">
+            <div v-if="isLoading && crossProgress" :class="$style.loadingMore">
+              <CrossAccountProgress :progress="crossProgress" :size="20" />
+            </div>
+            <div v-else-if="isLoading && notes.length > 0" :class="$style.loadingMore">
               <LoadingSpinner />
             </div>
           </template>

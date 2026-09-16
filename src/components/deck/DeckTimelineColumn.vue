@@ -10,6 +10,7 @@ import type {
   TimelineType,
 } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAd from '@/components/common/MkAd.vue'
 import MkNote from '@/components/common/MkNote.vue'
@@ -242,6 +243,7 @@ const {
   vote: voteCrossAccount,
   pendingCount,
   animatingRowKeys,
+  crossProgress,
 } = useCrossAccountNotes({
   // 組込フィルタは per-account 面の機能。全アカウント面は素の TL を混ぜる
   fetchNotes: (adapter, opts) => adapter.api.getTimeline(tlType.value, opts),
@@ -612,7 +614,12 @@ onMounted(async () => {
           </template>
 
           <template #append>
-            <div v-if="isLoading && crossNotes.length > 0" :class="$style.loadingMore">
+            <!-- 全アカウント取得中は「N アカウントのうち M 件待ち」(#1095)。
+                 初回 (0 件) でも止まって見えないよう同じ枠に出す -->
+            <div v-if="isLoading && crossProgress" :class="$style.loadingMore">
+              <CrossAccountProgress :progress="crossProgress" :size="20" />
+            </div>
+            <div v-else-if="isLoading && crossNotes.length > 0" :class="$style.loadingMore">
               <LoadingSpinner />
             </div>
           </template>
