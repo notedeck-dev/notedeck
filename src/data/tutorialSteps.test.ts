@@ -29,7 +29,7 @@ describe('buildTutorialSteps', () => {
     expect(ids).toEqual([
       'welcome',
       'account-login',
-      'add-first-column',
+      'customize-deck',
       'open-notifications',
       'complete',
     ])

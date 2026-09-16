@@ -24,7 +24,11 @@ import { useVault } from '@/composables/useVault'
 import type { ExposureTag } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
-import { type ColumnType, useDeckStore } from '@/stores/deck'
+import {
+  type ColumnType,
+  DEFAULT_DECK_COLUMNS,
+  useDeckStore,
+} from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { usePluginsStore } from '@/stores/plugins'
 import { useSkillsStore } from '@/stores/skills'
@@ -133,6 +137,30 @@ function hasAnyColumn(): boolean {
   return useDeckStore().columns.length > 0
 }
 
+/**
+ * デッキが既定構成 (#1011) のままか。表示順に種別・対象アカウント・TL 種別を
+ * 並べて比べる。「デッキを自分のものにする」step の達成 = 既定から変えたこと
+ */
+function isDefaultDeck(): boolean {
+  const key = (c: {
+    type: string
+    accountId: string | null
+    tl?: string
+  }): string => `${c.type}/${c.accountId ?? ''}/${c.tl ?? ''}`
+  const deck = useDeckStore()
+  const current = deck.layout
+    .flat()
+    .map((id) => deck.getColumn(id))
+    .filter((c) => c !== undefined)
+    .map(key)
+  return current.join(',') === DEFAULT_DECK_COLUMNS.map(key).join(',')
+}
+
+/** 既定デッキから並び替え・削除・追加のどれかをしたか */
+function hasCustomizedDeck(): boolean {
+  return hasAnyColumn() && !isDefaultDeck()
+}
+
 /** 通知カラム (sidebar スロット) が今開いているか */
 function isNotificationsColumnOpen(): boolean {
   return useDeckStore().columns.some(
@@ -237,7 +265,7 @@ export function tutorialDocsUrl(docsPath: string): string {
  * チェックリストから後で出会う。
  *
  * 初回ウィザード (wizard: true):
- *   welcome → account-login → add-first-column → open-notifications → complete
+ *   welcome → account-login → customize-deck → open-notifications → complete
  *
  * チェックリスト (category 付き): はじめに → 使いこなす → 拡張をつくる
  */
@@ -276,19 +304,24 @@ export function buildTutorialSteps(): TutorialStep[] {
     },
 
     {
-      id: 'add-first-column',
+      id: 'customize-deck',
       category: 'getting-started',
       docsPath: '/docs/deck/columns',
-      title: '最初のカラムを追加',
+      title: 'デッキを自分のものにする',
       description:
-        'NoteDeck はカラムを並べて使います。カラム追加 (＋) から' +
-        '「タイムライン」を選ぶとホームタイムラインが表示されます。' +
-        '追加すると自動で次へ進みます。',
-      precheck: () => (hasAnyColumn() ? 'skip' : 'show'),
-      onEnter: () => openAddColumnAndPoint('timeline', 'タイムライン'),
+        'NoteDeck はカラムを並べて使います。最初から並んでいるのは、' +
+        '追加した全アカウントをまとめて表示するカラムです。' +
+        'カラムのヘッダーから並べ替え・削除ができ、' +
+        'カラム追加 (＋) から通知・検索・チャットなどを足せます。' +
+        '並びを 1 つ変えると自動で次へ進みます。',
+      precheck: () => (hasCustomizedDeck() ? 'skip' : 'show'),
+      onEnter: () => {
+        // 空デッキ (全部消した後のやり直し) なら追加の入口を示す
+        if (!hasAnyColumn()) openAddColumnAndPoint('timeline', 'タイムライン')
+      },
       completion: {
-        watch: () => useDeckStore().columns.length,
-        isComplete: () => hasAnyColumn(),
+        watch: () => hasCustomizedDeck(),
+        isComplete: () => hasCustomizedDeck(),
       },
     },
 

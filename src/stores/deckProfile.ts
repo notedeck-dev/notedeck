@@ -55,6 +55,12 @@ function pushExtractedWidgets(extracted: WidgetMeta[], sidebarSeed: string[]) {
 
 export const useDeckProfileStore = defineStore('deckProfile', () => {
   const activeProfileId = ref<string | null>(null)
+  /**
+   * ミラーが空だったので初回起動とみなして作った仮プロファイルの id。
+   * ファイル読込で既存プロファイルが見つかれば初回起動ではなかったので捨てる
+   * (既定デッキ (#1011) 入りの複製をファイルに書き出さない)
+   */
+  let firstRunPlaceholderId: string | null = null
   /** Per-window profile ID (set via ?profile= query). Isolates this window from deck:sync. */
   const windowProfileId = ref<string | null>(null)
   /** Bumped on every persist to make profile-derived computeds reactive */
@@ -560,6 +566,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       profiles.push(profile)
       saveProfiles(profiles)
       saveActiveProfileId(profile.id)
+      firstRunPlaceholderId = profile.id
     } else {
       loadActiveProfileId()
       const first = profiles[0]
@@ -594,6 +601,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     // 往復でファイル内 ID が剥がれた場合の複製緩和)
     const memOnly = profilesData.value.filter(
       (p) =>
+        (fileProfiles.length === 0 || p.id !== firstRunPlaceholderId) &&
         !fileProfiles.some(
           (f) =>
             f.id === p.id || (f.name === p.name && f.createdAt === p.createdAt),
