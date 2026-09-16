@@ -247,24 +247,24 @@ defineExpose({
       />
     </template>
 
-    <!-- 空デッキ (全カラム削除後)。既定の構成 (#1011) に戻す逃げ道もここに置く -->
+    <!-- 空デッキ (全カラム削除後)。CTA は既定の構成 (#1011) に戻す方。カラムを
+         1 本ずつ足す入口はナビバーと ＋ にあるのでここには置かない。
+         ポップアウトは applyDefaultDeck がメインの並びに足すので従来の追加 CTA -->
     <div v-if="deckStore.windowLayout.length === 0" :class="$style.emptyDeck">
       <ColumnEmptyState
+        v-if="!deckStore.currentWindowId"
+        message="カラムがありません"
+        cta-label="既定の構成で始める"
+        cta-icon="ti-layout-columns"
+        @cta="deckStore.applyDefaultDeck()"
+      />
+      <ColumnEmptyState
+        v-else
         message="カラムがありません"
         cta-label="カラムを追加"
         cta-icon="ti-plus"
         @cta="emit('add-column')"
       />
-      <!-- addColumn はメインウィンドウの並びに足すので、ポップアウトでは出さない -->
-      <button
-        v-if="!deckStore.currentWindowId"
-        type="button"
-        class="_button"
-        :class="$style.emptyDeckDefault"
-        @click="deckStore.applyDefaultDeck()"
-      >
-        既定の構成で始める
-      </button>
     </div>
   </div>
 </template>
@@ -273,16 +273,8 @@ defineExpose({
 .emptyDeck {
   flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-}
-
-.emptyDeckDefault {
-  font-size: 0.85em;
-  color: var(--nd-fgTransparent);
-  text-decoration: underline;
 }
 
 .columns {
