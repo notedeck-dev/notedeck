@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useDeckStore } from '@/stores/deck'
+import { DEFAULT_DECK_COLUMNS, useDeckStore } from '@/stores/deck'
 import { useWidgetsStore } from '@/stores/widgets'
 
 // Mock localStorage
@@ -12,12 +12,33 @@ vi.stubGlobal('localStorage', {
   removeItem: (key: string) => storage.delete(key),
 })
 
+/**
+ * 既存ユーザーの空プロファイルをミラーに置く。何も無い状態で load() すると
+ * 初回起動扱いで既定デッキ (#1011) が seed され、カラム数のアサートが
+ * ずれるため、カラム操作のテストは空デッキから始める。
+ */
+function seedEmptyProfile() {
+  storage.set(
+    'nd-deck-profiles',
+    JSON.stringify([
+      {
+        id: 'p1',
+        name: 'プロファイル 1',
+        columns: [],
+        layout: [],
+        createdAt: 1,
+      },
+    ]),
+  )
+  storage.set('nd-deck-active-profile', 'p1')
+}
+
 describe('deck store', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     setActivePinia(createPinia())
     storage.clear()
-    // Initialize profile store (creates default profile)
+    seedEmptyProfile()
     useDeckStore().load()
   })
 
@@ -825,5 +846,101 @@ describe('deck store', () => {
       deck.clearWallpaper()
       expect(deck.wallpaper).toBeNull()
     })
+  })
+})
+
+describe('既定デッキ (#1011)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    setActivePinia(createPinia())
+    storage.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('初回起動 (プロファイル無し) は既定のカラム構成で始まる', () => {
+    const deck = useDeckStore()
+    deck.load()
+
+    expect(DEFAULT_DECK_COLUMNS.length).toBeGreaterThan(0)
+    expect(deck.columns.map((c) => c.type)).toEqual(
+      DEFAULT_DECK_COLUMNS.map((c) => c.type),
+    )
+    // 差別化が見える構成: すべて全アカウント (accountId: null)
+    expect(deck.columns.every((c) => c.accountId === null)).toBe(true)
+    // 1 カラム 1 列。id は実行時採番で一意
+    expect(deck.layout).toEqual(deck.columns.map((c) => [c.id]))
+    expect(new Set(deck.columns.map((c) => c.id)).size).toBe(
+      deck.columns.length,
+    )
+    // registry の既定 (幅・名前) が埋まっている
+    for (const col of deck.columns) {
+      expect(col.width).toBeGreaterThan(0)
+      expect(col.active).toBe(true)
+    }
+  })
+
+  it('既定デッキはプロファイルに保存され、再起動後も残る', () => {
+    const deck = useDeckStore()
+    deck.load()
+    const ids = deck.columns.map((c) => c.id)
+
+    setActivePinia(createPinia())
+    const deck2 = useDeckStore()
+    deck2.load()
+
+    expect(deck2.columns.map((c) => c.id)).toEqual(ids)
+  })
+
+  it('旧 nd-deck からの移行時は既定デッキを混ぜない', () => {
+    storage.set(
+      'nd-deck',
+      JSON.stringify({
+        columns: [
+          {
+            id: 'legacy',
+            type: 'timeline',
+            name: 'A',
+            width: 400,
+            accountId: 'a1',
+          },
+        ],
+        layout: [['legacy']],
+      }),
+    )
+    const deck = useDeckStore()
+    deck.load()
+
+    expect(deck.columns.map((c) => c.id)).toEqual(['legacy'])
+  })
+
+  it('既存プロファイルがあれば seed しない (空デッキは空のまま)', () => {
+    seedEmptyProfile()
+    const deck = useDeckStore()
+    deck.load()
+
+    expect(deck.columns).toHaveLength(0)
+  })
+
+  it('applyDefaultDeck は既定のカラムを末尾に足す (空デッキからのやり直し)', () => {
+    seedEmptyProfile()
+    const deck = useDeckStore()
+    deck.load()
+    deck.addColumn({
+      type: 'notifications',
+      name: 'N',
+      width: 300,
+      accountId: 'a1',
+    })
+
+    deck.applyDefaultDeck()
+
+    expect(deck.columns.map((c) => c.type)).toEqual([
+      'notifications',
+      ...DEFAULT_DECK_COLUMNS.map((c) => c.type),
+    ])
+    expect(deck.layout).toHaveLength(1 + DEFAULT_DECK_COLUMNS.length)
   })
 })

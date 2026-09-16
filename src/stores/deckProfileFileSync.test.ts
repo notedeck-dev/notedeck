@@ -226,6 +226,25 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     expect(store.activeProfileId).toBe(`main${EXT}`)
   })
 
+  it('ミラーが空でファイルがあれば、初回起動用の仮プロファイルは書き出さない (#1011)', async () => {
+    files.set(
+      `main${EXT}`,
+      profileFile({
+        id: 'main',
+        name: 'メイン',
+        columns: [],
+        layout: [],
+        createdAt: 42,
+      }),
+    )
+    // ミラー空 → ensureDefaults が仮プロファイルを作るが、ファイル読込で
+    // 初回起動ではないと分かった時点で捨てる (既定デッキ入りの複製を作らない)
+    const store = await initStore()
+    expect(store.getProfiles().map((p) => p.id)).toEqual(['main'])
+    expect(files.size).toBe(1)
+    expect(store.activeProfileId).toBe('main')
+  })
+
   it('削除は対応表のファイルを消す', async () => {
     files.set(
       `work${EXT}`,
