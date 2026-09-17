@@ -266,6 +266,8 @@ AI チャットは `connection_id` から endpoint / キー / protocol を Rust 
 - API トークンは CSPRNG で 256-bit 生成（`rand` クレート）
 - 不正トークンには 401 Unauthorized を返却 + tracing でログ記録
 - 永続トークン (外部アプリ向け) は external principal gate (`permissions_gate.rs`) を通る。必要権限は Rust が `permissions.json5` をリクエストごとに直接読んで解決し、WebView (JS) の状態には依存しない (#1099)
+- 画像プロキシ (`/proxy/image`) も無認証ではない (#1099)。`<img src>` は Authorization ヘッダーを付けられないため、起動毎に生成するプロキシ専用トークンを query `t` で要求する。WebView は `get_media_proxy_token` command で受け取り、同一マシンの他ブラウザで開いたページは値を知り得ない。ephemeral API トークン (全権) を画像 URL に置かないために分けている
+- CORS は許可リスト (WebView の origin と `localhost:5173` の dev サーバー) のみ。以前の permissive は「認証は別途あるが無認証の面を作らない」原則に反していた (#1099)
 
 ---
 

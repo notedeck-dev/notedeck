@@ -14,6 +14,16 @@ pub fn get_openapi_spec() -> serde_json::Value {
     serde_json::to_value(crate::http_server::openapi_spec()).unwrap_or_default()
 }
 
+/// 画像プロキシ (`/proxy/image`) の起動毎トークン (#1099)。フロントは起動時に
+/// 1 回受け取り、プロキシ URL の query `t` に載せる。
+#[tauri::command]
+#[specta::specta]
+pub fn get_media_proxy_token(
+    token: tauri::State<'_, crate::http_server::MediaProxyToken>,
+) -> String {
+    token.0.clone()
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn get_rustc_version() -> String {

@@ -370,6 +370,16 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         }
         let token_path_str = token_path.to_string_lossy().to_string();
 
+        // 画像プロキシ経路の起動毎トークン (#1099)。WebView には
+        // get_media_proxy_token command で渡す (ファイルには書かない)
+        let media_proxy_token = http_server::MediaProxyToken(
+            rand::random::<[u8; 32]>()
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+        );
+        app.manage(media_proxy_token.clone());
+
         // dev ダッシュボード (#977) のログ tail 用に /api インデックスで開示する
         let log_dir = app
             .path()
@@ -500,6 +510,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                         token_path: token_path_str,
                         log_dir,
                         image_cache: image_cache_bg,
+                        media_proxy_token,
                         perf: shared_perf_bg,
                         shutdown: shutdown_token,
                     }, ready_tx)
@@ -1039,6 +1050,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::delete_settings_file,
             commands::rename_settings_file,
             commands::get_settings_dir,
+            commands::get_media_proxy_token,
             commands::get_log_dir,
             commands::open_settings_file_in_editor,
             commands::read_root_settings_file,

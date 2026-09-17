@@ -2253,6 +2253,15 @@ async getSettingsDir() : Promise<Result<string, { code: string; message: string;
 }
 },
 /**
+ * 画像プロキシ (`/proxy/image`) の起動毎トークン (#1099)。フロントは起動時に
+ * 1 回受け取り、プロキシ URL の query `t` に載せる。
+ *
+ * @see src-tauri/src/commands/utility.rs
+ */
+async getMediaProxyToken() : Promise<string> {
+    return await TAURI_INVOKE("get_media_proxy_token");
+},
+/**
  * Get the log directory path (`app_log_dir`, holds `notedeck.log` — #644).
  * Separate from the settings dir, so the "ファイル → ログフォルダを開く" menu
  * item can reveal it. Created if missing so it opens even when empty.
