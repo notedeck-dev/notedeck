@@ -16,7 +16,9 @@ vi.mock('@/services/columnQuery/degradedRunner', () => ({
 
 import { releaseSharedSuspension } from '@/services/columnQuery/degradedRunner'
 import {
+  isQueryActive,
   isQueryEffectiveFor,
+  type NamedQueryMeta,
   useColumnQueriesStore,
 } from '@/stores/columnQueries'
 
@@ -253,5 +255,81 @@ describe('ソース編集でサスペンドを解除する (#783 追補 D / #111
       storeVersion: '2.0.0',
     })
     expect(releaseSharedSuspension).toHaveBeenCalledWith(q.id)
+  })
+})
+
+describe('クエリの有効 / 無効 (#1043) — 本体のキルスイッチ', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('値が無ければ有効、無効の印があれば無効', () => {
+    const base: NamedQueryMeta = {
+      id: 'q',
+      name: 'q',
+      src: 'true',
+      createdAt: 0,
+      updatedAt: 0,
+    }
+    expect(isQueryActive(base)).toBe(true)
+    expect(isQueryActive({ ...base, disabled: true })).toBe(false)
+    expect(isQueryActive({ ...base, disabled: false })).toBe(true)
+  })
+
+  it('新規作成・ストア導入で生まれた個体は有効', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'true', storeId: 's' })
+    expect(isQueryActive(q)).toBe(true)
+    expect('disabled' in q).toBe(false)
+  })
+
+  it('無効にすると印が保存され、有効に戻すと印ごと消える (省略書式)', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'true' })
+    expect(await store.setDisabled(q.id, true)).toBe(true)
+    expect(store.getQuery(q.id)?.disabled).toBe(true)
+    const mirrored = () =>
+      JSON.parse(localStorage.getItem('nd-column-queries') ?? '[]').find(
+        (m: { id: string }) => m.id === q.id,
+      )
+    expect(mirrored().disabled).toBe(true)
+
+    expect(await store.setDisabled(q.id, false)).toBe(true)
+    expect(store.getQuery(q.id)?.disabled).toBeUndefined()
+    expect('disabled' in mirrored()).toBe(false)
+  })
+
+  it('読取専用 (ソース欠損) の個体は切り替えを拒否する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: '' })
+    store.queries = [{ ...q, readOnly: true }]
+    expect(await store.setDisabled(q.id, true)).toBe(false)
+    expect(store.getQuery(q.id)?.disabled).toBeUndefined()
+    const mirrored = JSON.parse(
+      localStorage.getItem('nd-column-queries') ?? '[]',
+    ).find((m: { id: string }) => m.id === q.id)
+    expect(mirrored?.disabled).toBeUndefined()
+  })
+
+  it('ストア更新では無効のまま維持する (#1040)', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old', storeId: 's' })
+    await store.setDisabled(q.id, true)
+    await store.applyStoreUpdate(q.id, {
+      src: 'new',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+    })
+    expect(store.getQuery(q.id)?.disabled).toBe(true)
+  })
+
+  it('削除の undo は削除時の無効を復元する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'true' })
+    await store.setDisabled(q.id, true)
+    const undo = await store.removeQuery(q.id)
+    await undo?.()
+    expect(store.getQuery(q.id)?.disabled).toBe(true)
   })
 })

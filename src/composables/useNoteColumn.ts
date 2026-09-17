@@ -46,7 +46,7 @@ import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { hasGap as hasTimelineGap } from '@/services/timelineGap'
 import { isGuestAccount } from '@/stores/accounts'
-import { useColumnQueriesStore } from '@/stores/columnQueries'
+import { isQueryActive, useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
@@ -315,6 +315,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
     const rejected: { label: string | null; result: CompileResult }[] = []
     // 参照消失 (削除・未導入) は捨てず fail-closed (仕様追補 A)
     const missing: string[] = []
+    // 無効化された参照 (#1043)。評価上は「無いもの」(fail-open) だが、
+    // 「設定してあるのに効いていない」を表示で見せるために名前を残す
+    const disabled: string[] = []
 
     function classify(label: string | null, key: string, src: string): void {
       const result = compileColumnQuery(src)
@@ -334,10 +337,16 @@ export function useNoteColumn(config: NoteColumnConfig) {
         missing.push(id)
         continue
       }
+      // 無効はコンパイルしない・Worker に渡さない・キャッシュ検索にも入れない。
+      // 解釈不能でも無効なら止まる側 (消失だけは無効化で救えない)
+      if (!isQueryActive(named)) {
+        disabled.push(named.name)
+        continue
+      }
       // key は名前付きクエリ id。同じクエリを使う全カラムでサスペンドを共有する
       classify(named.name, id, named.src)
     }
-    return { fast, degraded, rejected, missing }
+    return { fast, degraded, rejected, missing, disabled }
   })
   /** per-note エラーの診断計上 (V14: エラー = 除外 + 計上) */
   const queryErrorCount = ref(0)
@@ -382,10 +391,11 @@ export function useNoteColumn(config: NoteColumnConfig) {
       const hasQuery =
         !!col.noteQuery?.trim() || (col.noteQueryRefs ?? []).length > 0
       if (hasQuery && readSafeMode()) {
-        return { status: 'safeMode' as const, diagnostics: [] }
+        return { status: 'safeMode' as const, diagnostics: [], disabled: [] }
       }
-      return { status: 'none' as const, diagnostics: [] }
+      return { status: 'none' as const, diagnostics: [], disabled: [] }
     }
+    const disabled = compiled.disabled
     const diagnostics: { message: string }[] = []
     for (const id of compiled.missing) {
       diagnostics.push({
@@ -399,13 +409,22 @@ export function useNoteColumn(config: NoteColumnConfig) {
       }
     }
     if (diagnostics.length > 0) {
-      return { status: 'invalid' as const, diagnostics }
+      return { status: 'invalid' as const, diagnostics, disabled }
+    }
+    // 適用がすべて無効 (#1043): 評価対象が空。クエリ無しと同じ結果を返すが、
+    // 「未設定」と見分けるためバッジは消さない (セーフモードの #971 と同型)
+    if (
+      compiled.fast.length === 0 &&
+      compiled.degraded.length === 0 &&
+      disabled.length > 0
+    ) {
+      return { status: 'disabled' as const, diagnostics: [], disabled }
     }
     // 🐢: 逐次適用に降格しているカラム (インデックス検索は使えない)
     if (compiled.degraded.length > 0) {
-      return { status: 'degraded' as const, diagnostics: [] }
+      return { status: 'degraded' as const, diagnostics: [], disabled }
     }
-    return { status: 'active' as const, diagnostics: [] }
+    return { status: 'active' as const, diagnostics: [], disabled }
   })
 
   /**

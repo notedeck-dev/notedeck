@@ -6,6 +6,7 @@ import { useTabSlide } from '@/composables/useTabSlide'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
+  isQueryActive,
   type NamedQueryMeta,
   type QueryScope,
   useColumnQueriesStore,
@@ -37,7 +38,8 @@ import QueryCard from './QueryCard.vue'
  * 本体はライブラリに残る。
  * 導入済みタブ: 名前付きクエリの一覧・作成・編集・削除と適用先カラム数。
  * ストアタブ: MisStore 配布クエリの検索・導入 (ソースのみ + sha512 検証 +
- * 自動有効化なし。差分承認つき更新は Phase 3.5 で強化)。
+ * カラムへの自動適用なし。差分承認つき更新は Phase 3.5 で強化)。
+ * 本体の有効/無効 (#1043) はプラグインと同型のキルスイッチで、ここで切り替える。
  */
 
 const props = defineProps<{
@@ -109,11 +111,35 @@ const installError = ref<string | null>(null)
 
 // --- Installed tab ---
 
+/** プラグイン管理と同じ接頭辞フィルタ (@enabled / @disabled、#1043) */
+type FilterMode = 'all' | 'enabled' | 'disabled'
+const activeFilter = computed<FilterMode>(() => {
+  const q = searchQuery.value.trimStart()
+  if (q.startsWith('@enabled')) return 'enabled'
+  if (q.startsWith('@disabled')) return 'disabled'
+  return 'all'
+})
+const textQuery = computed(() =>
+  searchQuery.value
+    .replace(/^@(?:installed|enabled|disabled)\s*/, '')
+    .trim()
+    .toLowerCase(),
+)
+function setFilter(mode: FilterMode) {
+  searchQuery.value =
+    mode === 'enabled' ? '@enabled ' : mode === 'disabled' ? '@disabled ' : ''
+}
+
 const visibleQueries = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  const sorted = queriesStore.queries
+  const q = textQuery.value
+  let sorted = queriesStore.queries
     .filter((item) => matchesContext(item))
     .sort((a, b) => b.updatedAt - a.updatedAt)
+  if (activeFilter.value === 'enabled') {
+    sorted = sorted.filter((item) => isQueryActive(item))
+  } else if (activeFilter.value === 'disabled') {
+    sorted = sorted.filter((item) => !isQueryActive(item))
+  }
   if (!q) return sorted
   return sorted.filter(
     (item) =>
@@ -205,13 +231,28 @@ function placeFromLibrary(query: NamedQueryMeta): void {
   showLibraryPicker.value = false
 }
 
+/**
+ * 本体の有効/無効 (#1043)。カラムの適用には触れない。読取専用 (ソース欠損) は
+ * store が拒否するので理由を出す (可視化と復旧導線は #1111)
+ */
+async function toggleDisabled(query: NamedQueryMeta): Promise<void> {
+  const ok = await queriesStore.setDisabled(query.id, isQueryActive(query))
+  if (!ok) {
+    useToast().show('ソースファイルが見つからないため変更できません', 'warning')
+  }
+}
+
 async function remove(query: NamedQueryMeta): Promise<void> {
   const used = refCount(query)
+  // 無効中は今効いていないので、消すとカラムが止まる逆転を先に言う (#1043)
+  const usedMessage = isQueryActive(query)
+    ? `「${query.name}」は ${used} 個のカラムに適用中です。削除するとそれらのカラムは評価不能 (fail-closed) になります。削除しますか？`
+    : `「${query.name}」は無効ですが、${used} 個のカラムに適用中です。削除するとそれらのカラムは評価不能 (fail-closed) になります。削除しますか？`
   const ok = await confirm({
     title: 'クエリを削除',
     message:
       used > 0
-        ? `「${query.name}」は ${used} 個のカラムで使用中です。削除するとそれらのカラムは評価不能 (fail-closed) になります。削除しますか？`
+        ? usedMessage
         : `「${query.name}」を削除しますか？クエリの本文も消えます。`,
     okLabel: '削除',
     type: 'danger',
@@ -228,7 +269,7 @@ async function remove(query: NamedQueryMeta): Promise<void> {
 // --- Store tab ---
 
 const filteredStoreQueries = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
+  const q = textQuery.value
   if (!q) return misStore.queries
   return misStore.queries.filter(
     (entry) =>
@@ -285,7 +326,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
     </template>
 
     <div ref="columnContentRef" :class="$style.wrapper">
-      <SafeModeNotice subject="カラムのクエリフィルタ" />
+      <SafeModeNotice subject="クエリ" />
 
       <ColumnTabs
         :tabs="tabDefs"
@@ -301,6 +342,24 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
           type="text"
           placeholder="クエリを探す"
         />
+        <div v-if="viewTab === 'installed'" :class="$style.searchActions">
+          <button
+            class="_button"
+            :class="[$style.filterBtn, activeFilter === 'enabled' && $style.filterBtnActive]"
+            title="有効なクエリ"
+            @click="setFilter(activeFilter === 'enabled' ? 'all' : 'enabled')"
+          >
+            <i class="ti ti-check" />
+          </button>
+          <button
+            class="_button"
+            :class="[$style.filterBtn, activeFilter === 'disabled' && $style.filterBtnActive]"
+            title="無効なクエリ"
+            @click="setFilter(activeFilter === 'disabled' ? 'all' : 'disabled')"
+          >
+            <i class="ti ti-circle-off" />
+          </button>
+        </div>
       </div>
 
       <!-- ===== Installed tab ===== -->
@@ -343,9 +402,12 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
               :execution="executionOf(query)"
               :ref-count="refCount(query)"
               :detach-title="detachTitle"
+              :disabled="!isQueryActive(query)"
+              :read-only="query.readOnly"
               @edit="openEditor(query)"
               @delete="remove(query)"
               @detach="detachFromScope(query)"
+              @toggle="toggleDisabled(query)"
             />
           </ColumnSection>
 
@@ -374,9 +436,12 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
               :store-id="query.storeId"
               :execution="executionOf(query)"
               :ref-count="refCount(query)"
+              :disabled="!isQueryActive(query)"
+              :read-only="query.readOnly"
               @place="placeFromLibrary(query)"
               @edit="openEditor(query)"
               @delete="remove(query)"
+              @toggle="toggleDisabled(query)"
             />
           </div>
         </div>
@@ -509,7 +574,41 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 }
 
 .searchWrap {
+  display: flex;
+  align-items: center;
   padding: 8px 10px 0;
+}
+
+.searchActions {
+  display: flex;
+  align-items: center;
+  margin-left: 2px;
+  gap: 1px;
+}
+
+.filterBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  color: var(--nd-fg);
+  opacity: 0.45;
+  font-size: 13px;
+  transition:
+    opacity 0.1s,
+    background 0.1s;
+
+  &:hover {
+    opacity: 0.85;
+    background: var(--nd-buttonHoverBg);
+  }
+}
+
+.filterBtnActive {
+  opacity: 1;
+  color: var(--nd-accent);
 }
 
 .searchInput {

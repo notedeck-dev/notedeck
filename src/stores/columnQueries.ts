@@ -51,8 +51,23 @@ export interface NamedQueryMeta extends SidecarItemFile {
    * 属さない) を再起動後も保てるよう、移行済みかどうかを個体側に持たせる。
    */
   scoped?: boolean
+  /**
+   * 本体の無効化 (#1043)。プラグインの有効/無効と同じ位置のキルスイッチで、
+   * 無効なクエリは参照している全カラムで評価上「無いもの」(fail-open) になる。
+   * 無効のときだけ印を書く省略書式 (値が無い = 有効)。既存ファイルはすべて
+   * 値を持たないので移行不要で、判定は `isQueryActive` の 1 箇所に集約する。
+   * カラム側の適用 (noteQueryRefs) やスコープ参加には触れない
+   */
+  disabled?: boolean
   createdAt: number
   updatedAt: number
+}
+
+/** 無効と明示されていない限り有効 (#1043)。判定はここ 1 箇所。 */
+export function isQueryActive(
+  query: Pick<NamedQueryMeta, 'disabled'>,
+): boolean {
+  return query.disabled !== true
 }
 
 /** インストール/追加先スコープ (#1018)。カラムの文脈から決まる。 */
@@ -82,6 +97,7 @@ interface QueryFileMeta {
   global?: boolean
   installedFor?: string[]
   scoped?: boolean
+  disabled?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -117,6 +133,7 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
     ...(q.global ? { global: true } : {}),
     ...(q.installedFor?.length ? { installedFor: q.installedFor } : {}),
     ...(q.scoped ? { scoped: true } : {}),
+    ...(q.disabled ? { disabled: true } : {}),
     createdAt: q.createdAt,
     updatedAt: q.updatedAt,
   }),
@@ -132,6 +149,7 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
     global: meta.global,
     installedFor: meta.installedFor,
     scoped: meta.scoped,
+    ...(meta.disabled ? { disabled: true } : {}),
     createdAt: meta.createdAt ?? Date.now(),
     updatedAt: meta.updatedAt ?? Date.now(),
   }),
@@ -355,6 +373,29 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     return query
   }
 
+  /**
+   * 本体の有効/無効を切り替える (#1043)。カラムの適用には触れない。
+   * ソース欠損の読取専用個体は拒否する (false を返す) — 保存できず端末
+   * ローカルにだけ載って次回起動で巻き戻るため、ミラーに書く前に抜ける。
+   * ファイルの破損はここで止める話ではなく、可視化と復旧導線は #1111
+   */
+  async function setDisabled(id: string, disabled: boolean): Promise<boolean> {
+    ensureLoaded()
+    const prev = queries.value.find((q) => q.id === id)
+    if (!prev) return false
+    if (prev.readOnly) {
+      console.warn('[columnQueries] read-only query — enable/disable rejected')
+      return false
+    }
+    if (isQueryActive(prev) === !disabled) return true
+    // 有効に戻すときは印ごと消す (省略書式)
+    const { disabled: _omit, ...rest } = prev
+    const next: NamedQueryMeta = disabled ? { ...rest, disabled: true } : rest
+    queries.value = queries.value.map((q) => (q.id === id ? next : q))
+    await persist(next)
+    return true
+  }
+
   async function updateQuery(
     id: string,
     updates: Partial<Pick<NamedQueryMeta, 'name' | 'description' | 'src'>>,
@@ -492,6 +533,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     linkScope,
     unlinkScope,
     updateQuery,
+    setDisabled,
     applyStoreUpdate,
     recordStoreBaseline,
     removeQuery,

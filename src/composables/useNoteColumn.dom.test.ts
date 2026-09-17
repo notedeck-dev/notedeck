@@ -14,7 +14,10 @@ import type {
   TimelineFilter,
 } from '@/adapters/types'
 import { type Account, useAccountsStore } from '@/stores/accounts'
-import { useColumnQueriesStore } from '@/stores/columnQueries'
+import {
+  type NamedQueryMeta,
+  useColumnQueriesStore,
+} from '@/stores/columnQueries'
 import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
 import { matchesFilter } from '@/utils/timelineFilter'
@@ -1271,5 +1274,142 @@ describe('useNoteColumn: 保留表示と「再開」は評価対象のクエリ�
     degraded.notify()
     await flush()
     expect(api.columnQuerySuspendedKeys.value).toEqual([])
+  })
+})
+
+describe('useNoteColumn: 無効なクエリは評価上「無いもの」(#1043)', () => {
+  const FAST = 'note.text != null'
+  const SLOW = 'note.text != null && note.text.len > 3'
+  function seed(
+    id: string,
+    src: string,
+    extra: Partial<NamedQueryMeta> = {},
+  ): void {
+    const store = useColumnQueriesStore()
+    store.ensureLoaded()
+    store.queries.push({
+      id,
+      name: `named-${id}`,
+      src,
+      createdAt: 0,
+      updatedAt: 0,
+      ...extra,
+    })
+  }
+  const mixed = async () => [
+    { ...note('a'), text: 'hello world' } as NormalizedNote,
+    { ...note('b'), text: null } as NormalizedNote,
+  ]
+
+  it('無効な参照だけのカラムは絞り込まず、状態は「停止」', async () => {
+    seed('q-off-1', FAST, { disabled: true })
+    addAccount('acc-1043-only')
+    const { api } = mountColumn({
+      accountId: 'acc-1043-only',
+      noteQueryRefs: ['q-off-1'],
+      fetch: mixed,
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a', 'b'])
+    expect(api.columnQueryState.value.status).toBe('disabled')
+    expect(api.columnQueryState.value.disabled).toEqual(['named-q-off-1'])
+  })
+
+  it('一部だけ無効なら有効な部分で状態が決まり、無効名が付く', async () => {
+    seed('q-off-2', SLOW, { disabled: true })
+    seed('q-on-2', FAST)
+    addAccount('acc-1043-mix')
+    const runsBefore = degraded.runCalls.length
+    const { api } = mountColumn({
+      accountId: 'acc-1043-mix',
+      noteQueryRefs: ['q-off-2', 'q-on-2'],
+      fetch: mixed,
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a'])
+    // 🐢 が無効なので ⚡ に戻る (逐次適用に落ちない)
+    expect(api.columnQueryState.value.status).toBe('active')
+    expect(api.columnQueryState.value.disabled).toEqual(['named-q-off-2'])
+    expect(degraded.runCalls).toHaveLength(runsBefore)
+  })
+
+  it('解釈不能なクエリも無効化すれば fail-closed から復帰する', async () => {
+    seed('q-bad', 'Date:now() > 0', { disabled: true })
+    addAccount('acc-1043-bad')
+    const { api } = mountColumn({
+      accountId: 'acc-1043-bad',
+      noteQueryRefs: ['q-bad'],
+      fetch: mixed,
+    })
+    await flush()
+    expect(api.columnQueryState.value.status).toBe('disabled')
+    expect(ids(api)).toEqual(['a', 'b'])
+  })
+
+  it('無効と参照消失の混在は fail-closed のまま', async () => {
+    seed('q-off-3', FAST, { disabled: true })
+    addAccount('acc-1043-missing')
+    const { api } = mountColumn({
+      accountId: 'acc-1043-missing',
+      noteQueryRefs: ['q-off-3', 'q-gone'],
+      fetch: mixed,
+    })
+    await flush()
+    expect(api.columnQueryState.value.status).toBe('invalid')
+    expect(ids(api)).toEqual([])
+  })
+
+  it('インライン式 + 全参照無効ならインライン式で状態が決まる', async () => {
+    seed('q-off-4', SLOW, { disabled: true })
+    addAccount('acc-1043-inline')
+    const { api } = mountColumn({
+      accountId: 'acc-1043-inline',
+      noteQuery: FAST,
+      noteQueryRefs: ['q-off-4'],
+      fetch: mixed,
+    })
+    await flush()
+    expect(api.columnQueryState.value.status).toBe('active')
+    expect(ids(api)).toEqual(['a'])
+  })
+
+  it('セーフモード中は無効なクエリがあってもセーフモード表示が優先', async () => {
+    localStorage.setItem('nd-safe-mode', 'true')
+    try {
+      seed('q-off-5', FAST, { disabled: true })
+      addAccount('acc-1043-safe')
+      const { api } = mountColumn({
+        accountId: 'acc-1043-safe',
+        noteQueryRefs: ['q-off-5'],
+        fetch: mixed,
+      })
+      await flush()
+      expect(api.columnQueryState.value.status).toBe('safeMode')
+    } finally {
+      localStorage.removeItem('nd-safe-mode')
+    }
+  })
+
+  it('有効 / 無効を切り替えると参照カラムが即時再適用 + 再取得する', async () => {
+    seed('q-tog', FAST)
+    addAccount('acc-1043-toggle')
+    const fetchImpl = vi.fn(mixed)
+    const { api } = mountColumn({
+      accountId: 'acc-1043-toggle',
+      noteQueryRefs: ['q-tog'],
+      fetch: fetchImpl,
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a'])
+    const calls = fetchImpl.mock.calls.length
+
+    await useColumnQueriesStore().setDisabled('q-tog', true)
+    await flush(20)
+    expect(ids(api)).toEqual(['a', 'b'])
+    expect(fetchImpl.mock.calls.length).toBeGreaterThan(calls)
+
+    await useColumnQueriesStore().setDisabled('q-tog', false)
+    await flush(20)
+    expect(ids(api)).toEqual(['a'])
   })
 })
