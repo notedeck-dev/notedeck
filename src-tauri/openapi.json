@@ -1619,6 +1619,20 @@
                 "null"
               ]
             }
+          },
+          {
+            "name": "static",
+            "in": "query",
+            "description": "`static=1` flattens animated images (GIF / APNG / animated WebP) to\ntheir first frame, like Misskey's media proxy (#931)",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
           }
         ],
         "responses": {

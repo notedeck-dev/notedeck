@@ -41,6 +41,7 @@ pub async fn ensure_local_file(cache: &ImageCache, url: &str, w: Option<u32>) ->
         w,
         h: None,
         format: None,
+        static_frame: false,
     };
     let key = req.cache_key();
     if let Some(entry) = cache.check_cache_only(&key).await {
@@ -63,6 +64,7 @@ pub async fn ensure_bytes(cache: &ImageCache, url: &str) -> Option<Vec<u8>> {
         w: None,
         h: None,
         format: None,
+        static_frame: false,
     };
     crate::media_proxy::ensure_media_inner(cache, &req)
         .await
