@@ -21,7 +21,6 @@ import {
   writeAiSettings,
   writePermissionsSettings,
 } from '@/utils/settingsFs'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { Principal, ProfiledPrincipalId } from './principal'
 import {
   EXTERNAL_DEFAULT_PROFILE,
@@ -225,20 +224,42 @@ let _initPromise: Promise<void> | null = null
 // 読込はこれを待ってから走る (#716)。
 let _pendingWrite: Promise<unknown> = Promise.resolve()
 
+/**
+ * permissions.json5 の本文 → 正規化済みファイル構造 (純関数)。
+ *
+ * - パース失敗 (破損) は最小権限 (全 principal readonly) へ倒す (#719)
+ * - パースできるが構造が違う (null / 配列 等) は欠損として既定値で埋める
+ *
+ * Rust 側 external gate (`permissions_profile.rs`) は同じ本文から同じ
+ * 解決を独立に行う (#1099)。両者の一致は `golden/vectors.json` で検査する。
+ */
+export function parsePermissionsFile(content: string): {
+  file: PermissionsFileConfig
+  error: unknown | null
+} {
+  try {
+    return {
+      file: normalizePermissionsFile(
+        JSON5.parse(content) as Partial<PermissionsFileConfig>,
+      ),
+      error: null,
+    }
+  } catch (e) {
+    return { file: safeFallbackFile(), error: e }
+  }
+}
+
 async function _initFileStorage(): Promise<void> {
   // 進行中の save() の書き込みを待ってから読む (save→reload レースで
   // 未完了の書き込みより前の内容を読み戻さない #716)。
   await _pendingWrite.catch(() => {})
   const content = await readPermissionsSettings()
   if (content) {
-    try {
-      _file.value = normalizePermissionsFile(
-        JSON5.parse(content) as Partial<PermissionsFileConfig>,
-      )
-    } catch (e) {
+    const { file, error } = parsePermissionsFile(content)
+    _file.value = file
+    if (error !== null) {
       // 破損時はデフォルト (plugin=safe) でなく最小権限へ倒す (#719)
-      console.warn('[permissions] failed to parse permissions.json5:', e)
-      _file.value = safeFallbackFile()
+      console.warn('[permissions] failed to parse permissions.json5:', error)
       // 無言で権限を狭めない (#722): ユーザーに最小権限起動を知らせる
       useToast().show(
         '権限設定を読み込めなかったため、安全のため最小権限で起動しました。設定から権限を確認してください。',
@@ -283,81 +304,31 @@ async function _initFileStorage(): Promise<void> {
 }
 
 /**
- * Rust 側 external gate (#712 §5.3 PR 4) へ resolve 済み granted map を同期
- * する。フロント (dispatcher) と Rust (core proxy gate) の 2 つの enforce 点が
- * 別々の値で動く時間帯を作らない — 再読込・保存は必ずこれを伴う (#712 §4.2)。
- */
-const SYNC_MAX_ATTEMPTS = 3
-const SYNC_RETRY_BASE_MS = 200
-
-async function syncExternalToRust(): Promise<void> {
-  if (!isTauri) return
-  // 呼び出し時点の granted を送る。sync 失敗を握りつぶすと Rust gate が古い
-  // (広い) 権限のまま動き続けるため、一時障害はリトライで回復させる (#718)。
-  const granted = resolveForProfiled('external')
-  for (let attempt = 1; attempt <= SYNC_MAX_ATTEMPTS; attempt++) {
-    try {
-      unwrap(await commands.permissionsSync(granted))
-      return
-    } catch (e) {
-      if (attempt === SYNC_MAX_ATTEMPTS) {
-        // リトライ枯渇。古い広い権限のまま動かさないよう Rust gate を
-        // フェイルセーフに倒す (floor 以外を全 deny #718)。無引数なので
-        // payload 起因の sync 失敗でも到達しうる。lockdown も失敗 (IPC 全断)
-        // なら Rust は到達不能なので警告に残すしかない。
-        console.warn(
-          `[permissions] permissions_sync failed after ${SYNC_MAX_ATTEMPTS} attempts; locking external gate down:`,
-          e,
-        )
-        try {
-          unwrap(await commands.permissionsLockdown())
-        } catch (e2) {
-          console.warn('[permissions] permissions_lockdown also failed:', e2)
-        }
-        // 無言で外部連携を止めない (#722): 自動制限をユーザーに知らせる
-        useToast().show(
-          '権限の同期に失敗したため、外部連携を一時的に制限しました。アプリを再起動すると復旧します。',
-          'warning',
-        )
-        return
-      }
-      await new Promise((resolve) =>
-        setTimeout(resolve, SYNC_RETRY_BASE_MS * attempt),
-      )
-    }
-  }
-}
-
-/**
  * permissions.json5 を再読込して singleton に反映する。外部エディタで編集した
  * 場合に AI tool 呼び出し直前のフローで呼ぶ (reloadAiConfig と対)。
- * Rust 側 gate への permissions_sync を必ず伴う。
+ * Rust 側 external gate は同期を待たない — リクエストごとにファイルを直接
+ * 読む (#1099) ので、ここで何かを push する必要はない。
  */
 export async function reloadPermissionsConfig(): Promise<void> {
   await _initFileStorage()
-  await syncExternalToRust()
 }
 
 export function usePermissionsConfig() {
   if (!_initStarted) {
     _initStarted = true
     if (isTauri) {
-      _initPromise = _initFileStorage()
-        .then(syncExternalToRust)
-        .catch((e: unknown) => {
-          console.warn('[permissions] initial load failed:', e)
-        })
+      _initPromise = _initFileStorage().catch((e: unknown) => {
+        console.warn('[permissions] initial load failed:', e)
+      })
     }
   }
 
   function save(): void {
     _pendingWrite = writePermissionsSettings(
       `${JSON5.stringify(_file.value, null, 2)}\n`,
+    ).catch((e: unknown) =>
+      console.warn('[permissions] failed to write permissions.json5:', e),
     )
-      .then(syncExternalToRust)
-      .catch((e: unknown) =>
-        console.warn('[permissions] failed to write permissions.json5:', e),
-      )
   }
 
   return {
@@ -466,8 +437,18 @@ export function resolveForProfiled(
   id: ProfiledPrincipalId,
 ): Record<PermissionKey, boolean> {
   usePermissionsConfig()
-  const profile =
-    _file.value.principals[id] ?? normalizeProfile(READONLY_PROFILE, id)
+  return resolveProfiledIn(_file.value, id)
+}
+
+/**
+ * ファイル構造 → principal の実効 granted map (純関数)。Rust 側
+ * `permissions_profile::resolve` と同じ意味論 (#1099、golden で一致検査)。
+ */
+export function resolveProfiledIn(
+  file: PermissionsFileConfig,
+  id: ProfiledPrincipalId,
+): Record<PermissionKey, boolean> {
+  const profile = file.principals[id] ?? normalizeProfile(READONLY_PROFILE, id)
   return clampForPrincipal(resolvePermissions(profile), id)
 }
 

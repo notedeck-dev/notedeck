@@ -36,6 +36,7 @@ mod ogp;
 mod os_notify;
 mod perf_config;
 mod permissions_gate;
+mod permissions_profile;
 mod query_bridge;
 mod query_runtime;
 mod rate_limit;
@@ -251,6 +252,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             tracing::warn!("keychain unavailable ({e})");
         }
         migrations::run_fs(&app_dir)?;
+        // external gate が permissions.json5 を直接読むための所在 (#1099)
+        permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
 
         // AppState: empty wrapper — commands await until Phase 2 fills it
         let app_state = commands::AppState::new();
@@ -1092,8 +1095,6 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             query_runtime::query_get_read_model_snapshot,
             perf_config::update_performance_config,
             perf_config::get_performance_config,
-            permissions_gate::permissions_sync,
-            permissions_gate::permissions_lockdown,
         ])
         .events(tauri_specta::collect_events![
             query_runtime::QueryDelta,

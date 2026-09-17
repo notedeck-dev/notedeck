@@ -13,7 +13,7 @@ use crate::settings_store as store;
 use super::Result;
 
 /// Settings subdirectory name under app_data_dir.
-const SETTINGS_DIR: &str = "notedeck";
+pub(crate) const SETTINGS_DIR: &str = "notedeck";
 
 /// Resolve the settings base directory: `app_data_dir/notedeck/`.
 fn settings_base_dir(app: &tauri::AppHandle) -> Result<PathBuf> {

@@ -265,6 +265,7 @@ AI チャットは `connection_id` から endpoint / キー / protocol を Rust 
 - Bearer Token で全エンドポイントを保護（定数時間比較: `subtle` クレート）
 - API トークンは CSPRNG で 256-bit 生成（`rand` クレート）
 - 不正トークンには 401 Unauthorized を返却 + tracing でログ記録
+- 永続トークン (外部アプリ向け) は external principal gate (`permissions_gate.rs`) を通る。必要権限は Rust が `permissions.json5` をリクエストごとに直接読んで解決し、WebView (JS) の状態には依存しない (#1099)
 
 ---
 
@@ -495,6 +496,7 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 - **external の read 下限**: HTTP API トークンの発行自体を Misskey コンテンツ read への同意とみなし、その範囲は常時 ON に clamp。逆に PKM メモ・下書き・AI 会話履歴などローカル私的データの read は external のデフォルトから外してある
 - 権限キー追加時は `backfillValue()` で principal ごとの既定値を宣言する。欠損キーは拒否扱い
 - 設定変更は dispatch 直前に再読込されるため、外部エディタや設定 UI からの変更が **再起動なしで即反映**される
+- **external の解決は Rust 側にもある** (`src-tauri/src/permissions_profile.rs`)。HTTP API の external gate が JS から push された認可表を信じる構造は、WebView 内に入った任意 JS が外部トークンの権限を書き換えられる穴だった (#1099)。JS (dispatcher) と Rust (HTTP gate) は同じ `permissions.json5` を独立に読み、`src/permissions/golden/vectors.json` で一致を機械検査する。「判定の二重実装を持たない」(#712 §4.2) はこの理由で不採用に改めた — 二重化の代償 (ずれ) は golden で払い、認可境界を攻撃面の外に置くことを優先する
 
 権限キーの一覧と capability との対応は [SKILLS.md](SKILLS.md) §5 を参照。
 
