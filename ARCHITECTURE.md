@@ -140,7 +140,7 @@ sequenceDiagram
 
 #### A-1. Query Bridge（Rust ↔ フロントエンド双方向クエリ）
 
-**場所**: `query_bridge.rs` + `utils/apiBridge.ts`
+**場所**: `query_bridge.rs` + `core/apiBridge.ts`
 
 外部 HTTP リクエスト → Rust → Tauri Event → Vue/Pinia → Tauri Event → Rust → HTTP レスポンス。
 フロントエンドのリアクティブ状態（デッキカラム、コマンド一覧等）を外部ツールから直接取得可能。

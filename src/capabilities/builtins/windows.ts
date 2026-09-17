@@ -78,7 +78,7 @@ export const windowsOpenCapability: Command = {
   category: 'window',
   shortcuts: [],
   aiTool: true,
-  permissions: [],
+  permissions: ['deck.write'],
   signature: {
     description:
       'DeckWindow を開く。type は note-detail / user-profile / aiSettings / ' +
@@ -129,7 +129,7 @@ export const windowsCloseCapability: Command = {
   category: 'window',
   shortcuts: [],
   aiTool: true,
-  permissions: [],
+  permissions: ['deck.write'],
   signature: {
     description:
       '指定 id の DeckWindow を閉じる。id は windows.list で取得した値を渡す。',
@@ -158,7 +158,7 @@ export const windowsFocusCapability: Command = {
   category: 'window',
   shortcuts: [],
   aiTool: true,
-  permissions: [],
+  permissions: ['deck.write'],
   signature: {
     description:
       '指定 id の DeckWindow を最前面 (= 最大 zIndex) に持ってくる。',
@@ -187,7 +187,7 @@ export const windowsCloseAllCapability: Command = {
   category: 'window',
   shortcuts: [],
   aiTool: true,
-  permissions: [],
+  permissions: ['deck.write'],
   requiresConfirmation: () => ({
     title: '全ウィンドウを閉じる',
     message: '現在開いているすべての DeckWindow を閉じます。',

@@ -87,7 +87,8 @@ impl HeartbeatScheduler {
         });
     }
 
-    fn unregister(&self) {
+    /// scheduler を止める。unconfigure と終了処理 (#1098) の両方から呼ばれる。
+    pub(crate) fn unregister(&self) {
         let mut slot = match self.inner.lock() {
             Ok(g) => g,
             Err(e) => {

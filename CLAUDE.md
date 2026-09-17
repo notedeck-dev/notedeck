@@ -60,7 +60,7 @@ pnpm doctor       # 開発環境の診断（ツールチェーン・システム
 
 ## アーキテクチャ要点
 
-- API クライアント・DB・ストリーミングは全て **notecli** クレート側（`src-tauri/` は薄いラッパー）
+- Misskey API クライアント・DB・ストリーミングコアは **notecli** クレート側。`src-tauri/` は「薄いラッパー」ではなく、Tauri に依存しないドメイン（OGP 抽出 / Secret Vault / クエリランタイム / 画像キャッシュ / AI SSE クライアント / HTTP API サーバー）も抱える。置き場の規則は「`commands/*.rs` は IPC アダプタとして薄く保つ / トップレベルの `*_service.rs` `*_store.rs` は引数を取る単体テスト可能なサービス」（#782）。ドメインをクレートに切り出すかは #1098 で判断する
 - **TS service 層 (`src/services/`)**: 正規化・マイグレーション・マージ規則・ファイル codec などの純ロジックは store に書かず `src/services/` に置いて直接ユニットテストする（#782）。store は「購読 + キャッシュ + UI 状態」のみ。新規ロジックは「まず notecli → src-tauri service → `src/services/` に置けないか」の順で検討してから store に足す
 - フォーク対応は adapter パターン（`src/adapters/`）
 - ゲスト・ログアウト対応: 公開 API は `get_credentials_or_anon()`、認証必須 API は `get_credentials()` を使用（詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の "Guest Mode & Logout Fallback"）

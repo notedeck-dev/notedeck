@@ -3,7 +3,7 @@
 //! QIR 型は Rust が source of truth で、specta 経由で bindings.ts に載る (V21)。
 //! フロントの compiler (src/services/columnQuery/compiler.ts) は AiScript AST を
 //! この型へコンパイルし、JS QIR eval が streaming/fetch 面で評価する。
-//! Phase 3 で Rust QIR eval (ローカルキャッシュ検索・バックフィル) が加わる。
+//! Rust QIR eval (ローカルキャッシュ検索・バックフィル) もここに持つ (#783 Phase 3)。
 //!
 //! 意味論は AiScript 1.2.1 と同一 (不変条件 (a))。全評価器は共有 golden vector
 //! (src/services/columnQuery/golden/vectors.json) で一致を検証する。

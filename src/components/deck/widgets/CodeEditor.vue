@@ -117,7 +117,6 @@ onUnmounted(() => {
   border-radius: var(--nd-radius-sm);
   overflow: auto;
   background: #1e1e1e;
-  transition: box-shadow var(--nd-duration-base);
 
   &:focus-within {
     box-shadow: 0 0 0 2px var(--nd-accent);

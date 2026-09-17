@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, shallowRef } from 'vue'
+import { type Ref, ref, type ShallowRef, shallowRef } from 'vue'
 import {
   launchPlugin,
   type ParsedPluginMeta,
@@ -289,61 +289,70 @@ function buildThemeWithMeta(
   }
 }
 
-// --- Store ---
+// --- Registry feed ---
+// レジストリ index の取得・TTL キャッシュ・baseline 記録・インストール済み
+// 判定・更新検知は 5 種の配布物で完全に同型だったので 1 つに畳む (#1098)。
+// kind ごとに違うのは「インストール済み個体をどう見つけるか」だけで、それを
+// instancesOf で受ける。install / update は kind ごとに意味が違うので畳まない。
 
-export const useMisStoreStore = defineStore('misstore', () => {
-  const plugins = shallowRef<StorePluginEntry[]>([])
+interface StoreEntryBase {
+  id: string
+  sha512: string
+  version: string
+}
+
+/** インストール済み個体のうち、更新検知と baseline 記録に要る最小の面。 */
+interface InstalledInstance {
+  storeSha512?: string
+  recordBaseline(rec: { storeSha512: string; storeVersion: string }): void
+}
+
+interface RegistryFeed<E extends StoreEntryBase> {
+  entries: ShallowRef<E[]>
+  loading: Ref<boolean>
+  error: Ref<string | null>
+  /** インストール / 更新中の entry id (UI のスピナー用) */
+  installing: Ref<string | null>
+  fetch(): Promise<void>
+  refresh(): Promise<void>
+  refetchEntry(id: string): () => Promise<E | undefined>
+  isInstalled(entry: E): boolean
+  hasUpdate(entry: E): boolean
+}
+
+/**
+ * 更新検知 (#1040) の判定は「インストール時に記録した storeSha512」と registry
+ * 現行 sha512 の比較のみ。version 文字列は bump が機械強制されていないため
+ * 使わない。storeSha512 未記録 (baseline 前) は false — 誤検知しない。
+ */
+function hasStoreUpdate(
+  recorded: string | undefined,
+  entrySha: string,
+): boolean {
+  return !!recorded && recorded !== entrySha
+}
+
+function createRegistryFeed<E extends StoreEntryBase>(
+  registryKey: 'plugins' | 'themes' | 'widgets' | 'skills' | 'queries',
+  /** entry に対応するインストール済み個体。照合キーは storeId のみ (#913) */
+  instancesOf: (entry: E) => InstalledInstance[],
+): RegistryFeed<E> {
+  const entries = shallowRef<E[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
-  const installing = ref<string | null>(null) // installId of currently installing
+  const installing = ref<string | null>(null)
   let lastFetchedAt = 0
-
-  const themes = shallowRef<StoreThemeEntry[]>([])
-  const themesLoading = ref(false)
-  const themesError = ref<string | null>(null)
-  const installingTheme = ref<string | null>(null)
-  let themesLastFetchedAt = 0
-
-  const widgets = shallowRef<StoreWidgetEntry[]>([])
-  const widgetsLoading = ref(false)
-  const widgetsError = ref<string | null>(null)
-  const installingWidget = ref<string | null>(null)
-  let widgetsLastFetchedAt = 0
-
-  const skillEntries = shallowRef<StoreSkillEntry[]>([])
-  const skillsLoading = ref(false)
-  const skillsError = ref<string | null>(null)
-  const installingSkill = ref<string | null>(null)
-  let skillsLastFetchedAt = 0
-
-  const queryEntries = shallowRef<StoreQueryEntry[]>([])
-  const queriesLoading = ref(false)
-  const queriesError = ref<string | null>(null)
-  const installingQuery = ref<string | null>(null)
-  let queriesLastFetchedAt = 0
-
   const isCacheValid = () => Date.now() - lastFetchedAt < CACHE_TTL_MS
-  const isThemesCacheValid = () =>
-    Date.now() - themesLastFetchedAt < CACHE_TTL_MS
-  const isWidgetsCacheValid = () =>
-    Date.now() - widgetsLastFetchedAt < CACHE_TTL_MS
-  const isSkillsCacheValid = () =>
-    Date.now() - skillsLastFetchedAt < CACHE_TTL_MS
-  const isQueriesCacheValid = () =>
-    Date.now() - queriesLastFetchedAt < CACHE_TTL_MS
 
-  // --- baseline 無通知記録 (#1040) ---
-  // storeSha512 未記録のインストール済みアイテムは、レジストリ照会時に現行
-  // entry.sha512 / version を無通知で基準記録し、次の変更から検知を始める
-  // (ローカルソースからの逆算は再シリアライズ形式のため不可能。誤って
-  // 「全件更新あり」にしない)。
-
-  function recordPluginBaselines(entries: StorePluginEntry[]): void {
-    const pluginsStore = usePluginsStore()
-    for (const entry of entries) {
-      const p = pluginsStore.plugins.find((p) => p.storeId === entry.id)
-      if (p && !p.storeSha512) {
-        pluginsStore.recordStoreBaseline(p.installId, {
+  // baseline 無通知記録 (#1040): storeSha512 未記録のインストール済みアイテムは、
+  // レジストリ照会時に現行 entry.sha512 / version を無通知で基準記録し、次の
+  // 変更から検知を始める (ローカルソースからの逆算は再シリアライズ形式のため
+  // 不可能。誤って「全件更新あり」にしない)
+  function recordBaselines(list: E[]): void {
+    for (const entry of list) {
+      for (const inst of instancesOf(entry)) {
+        if (inst.storeSha512) continue
+        inst.recordBaseline({
           storeSha512: entry.sha512,
           storeVersion: entry.version,
         })
@@ -351,72 +360,17 @@ export const useMisStoreStore = defineStore('misstore', () => {
     }
   }
 
-  function recordThemeBaselines(entries: StoreThemeEntry[]): void {
-    const themeStore = useThemeStore()
-    for (const entry of entries) {
-      const t = themeStore.installedThemes.find(
-        (t) => t.$notedeck?.storeId === entry.id,
-      )
-      if (t && !t.$notedeck?.storeSha512) {
-        themeStore.recordStoreBaseline(t.id, {
-          storeSha512: entry.sha512,
-          storeVersion: entry.version,
-        })
-      }
-    }
-  }
-
-  function recordWidgetBaselines(entries: StoreWidgetEntry[]): void {
-    const widgetsStore = useWidgetsStore()
-    for (const entry of entries) {
-      // 同 storeId の個体は実行アカウント別に複数ありうる (#1061)
-      for (const w of listWidgetInstances(widgetsStore.widgets, entry.id)) {
-        if (w.storeSha512) continue
-        widgetsStore.recordStoreBaseline(w.installId, {
-          storeSha512: entry.sha512,
-          storeVersion: entry.version,
-        })
-      }
-    }
-  }
-
-  function recordSkillBaselines(entries: StoreSkillEntry[]): void {
-    const skillsStore = useSkillsStore()
-    for (const entry of entries) {
-      const s = skillsStore.skills.find((s) => s.storeId === entry.id)
-      if (s && !s.storeSha512) {
-        skillsStore.recordStoreBaseline(s.id, {
-          storeSha512: entry.sha512,
-          storeVersion: entry.version,
-        })
-      }
-    }
-  }
-
-  function recordQueryBaselines(entries: StoreQueryEntry[]): void {
-    const queriesStore = useColumnQueriesStore()
-    for (const entry of entries) {
-      const q = queriesStore.queries.find((q) => q.storeId === entry.id)
-      if (q && !q.storeSha512) {
-        void queriesStore.recordStoreBaseline(q.id, {
-          storeSha512: entry.sha512,
-          storeVersion: entry.version,
-        })
-      }
-    }
-  }
-
-  async function fetchPlugins(): Promise<void> {
-    if (isCacheValid() && plugins.value.length > 0) return
+  async function fetchIndex(): Promise<void> {
+    if (isCacheValid() && entries.value.length > 0) return
     loading.value = true
     error.value = null
     try {
-      const res = await fetch(`${STORE_BASE_URL}/registry/plugins.json`)
+      const res = await fetch(`${STORE_BASE_URL}/registry/${registryKey}.json`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
-      plugins.value = data.plugins ?? []
+      entries.value = data[registryKey] ?? []
       lastFetchedAt = Date.now()
-      recordPluginBaselines(plugins.value)
+      recordBaselines(entries.value)
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'fetch failed'
     } finally {
@@ -424,87 +378,122 @@ export const useMisStoreStore = defineStore('misstore', () => {
     }
   }
 
-  async function fetchThemes(): Promise<void> {
-    if (isThemesCacheValid() && themes.value.length > 0) return
-    themesLoading.value = true
-    themesError.value = null
-    try {
-      const res = await fetch(`${STORE_BASE_URL}/registry/themes.json`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      themes.value = data.themes ?? []
-      themesLastFetchedAt = Date.now()
-      recordThemeBaselines(themes.value)
-    } catch (e) {
-      themesError.value = e instanceof Error ? e.message : 'fetch failed'
-    } finally {
-      themesLoading.value = false
-    }
-  }
-
-  async function fetchWidgets(): Promise<void> {
-    if (isWidgetsCacheValid() && widgets.value.length > 0) return
-    widgetsLoading.value = true
-    widgetsError.value = null
-    try {
-      const res = await fetch(`${STORE_BASE_URL}/registry/widgets.json`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      widgets.value = data.widgets ?? []
-      widgetsLastFetchedAt = Date.now()
-      recordWidgetBaselines(widgets.value)
-    } catch (e) {
-      widgetsError.value = e instanceof Error ? e.message : 'fetch failed'
-    } finally {
-      widgetsLoading.value = false
-    }
-  }
-
-  async function fetchSkills(): Promise<void> {
-    if (isSkillsCacheValid() && skillEntries.value.length > 0) return
-    skillsLoading.value = true
-    skillsError.value = null
-    try {
-      const res = await fetch(`${STORE_BASE_URL}/registry/skills.json`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      skillEntries.value = data.skills ?? []
-      skillsLastFetchedAt = Date.now()
-      recordSkillBaselines(skillEntries.value)
-    } catch (e) {
-      skillsError.value = e instanceof Error ? e.message : 'fetch failed'
-    } finally {
-      skillsLoading.value = false
-    }
-  }
-
-  async function fetchWidgetSource(entry: StoreWidgetEntry): Promise<string> {
-    const { source } = await fetchVerifiedSource(
-      entry,
-      refetchWidgetEntry(entry.id),
-    )
-    return source
-  }
-
   function refresh(): Promise<void> {
     lastFetchedAt = 0
-    return fetchPlugins()
+    return fetchIndex()
   }
 
-  function refreshThemes(): Promise<void> {
-    themesLastFetchedAt = 0
-    return fetchThemes()
+  const refetchEntry = (id: string) => async () => {
+    await refresh()
+    return entries.value.find((e) => e.id === id)
   }
 
-  function refreshWidgets(): Promise<void> {
-    widgetsLastFetchedAt = 0
-    return fetchWidgets()
+  return {
+    entries,
+    loading,
+    error,
+    installing,
+    fetch: fetchIndex,
+    refresh,
+    refetchEntry,
+    isInstalled: (entry) => instancesOf(entry).length > 0,
+    // 個体のどれか 1 つでも古ければ更新あり (#1061)
+    hasUpdate: (entry) =>
+      instancesOf(entry).some((i) =>
+        hasStoreUpdate(i.storeSha512, entry.sha512),
+      ),
   }
+}
 
-  function refreshSkills(): Promise<void> {
-    skillsLastFetchedAt = 0
-    return fetchSkills()
-  }
+// --- Store ---
+
+export const useMisStoreStore = defineStore('misstore', () => {
+  const pluginFeed = createRegistryFeed<StorePluginEntry>(
+    'plugins',
+    (entry) => {
+      const store = usePluginsStore()
+      const p = store.plugins.find((p) => p.storeId === entry.id)
+      if (!p) return []
+      return [
+        {
+          storeSha512: p.storeSha512,
+          recordBaseline: (rec) => store.recordStoreBaseline(p.installId, rec),
+        },
+      ]
+    },
+  )
+  const themeFeed = createRegistryFeed<StoreThemeEntry>('themes', (entry) => {
+    const store = useThemeStore()
+    const t = store.installedThemes.find(
+      (t) => t.$notedeck?.storeId === entry.id,
+    )
+    if (!t) return []
+    return [
+      {
+        storeSha512: t.$notedeck?.storeSha512,
+        recordBaseline: (rec) => store.recordStoreBaseline(t.id, rec),
+      },
+    ]
+  })
+  const widgetFeed = createRegistryFeed<StoreWidgetEntry>(
+    'widgets',
+    (entry) => {
+      const store = useWidgetsStore()
+      // 同 storeId の個体は実行アカウント別に複数ありうる (#1061)
+      return listWidgetInstances(store.widgets, entry.id).map((w) => ({
+        storeSha512: w.storeSha512,
+        recordBaseline: (rec) => store.recordStoreBaseline(w.installId, rec),
+      }))
+    },
+  )
+  const skillFeed = createRegistryFeed<StoreSkillEntry>('skills', (entry) => {
+    const store = useSkillsStore()
+    const k = store.skills.find((k) => k.storeId === entry.id)
+    if (!k) return []
+    return [
+      {
+        storeSha512: k.storeSha512,
+        recordBaseline: (rec) => store.recordStoreBaseline(k.id, rec),
+      },
+    ]
+  })
+  const queryFeed = createRegistryFeed<StoreQueryEntry>('queries', (entry) => {
+    const store = useColumnQueriesStore()
+    const q = store.queries.find((q) => q.storeId === entry.id)
+    if (!q) return []
+    return [
+      {
+        storeSha512: q.storeSha512,
+        recordBaseline: (rec) => {
+          void store.recordStoreBaseline(q.id, rec)
+        },
+      },
+    ]
+  })
+
+  // 公開名はカラム / capability / テストが参照するので feed へのエイリアスで維持
+  const plugins = pluginFeed.entries
+  const loading = pluginFeed.loading
+  const error = pluginFeed.error
+  const installing = pluginFeed.installing
+  const themes = themeFeed.entries
+  const installingTheme = themeFeed.installing
+  const widgets = widgetFeed.entries
+  const installingWidget = widgetFeed.installing
+  const skillEntries = skillFeed.entries
+  const installingSkill = skillFeed.installing
+  const queryEntries = queryFeed.entries
+  const installingQuery = queryFeed.installing
+  const refresh = pluginFeed.refresh
+  const refreshThemes = themeFeed.refresh
+  const refreshWidgets = widgetFeed.refresh
+  const refreshSkills = skillFeed.refresh
+  const refreshQueries = queryFeed.refresh
+  const refetchPluginEntry = pluginFeed.refetchEntry
+  const refetchThemeEntry = themeFeed.refetchEntry
+  const refetchWidgetEntry = widgetFeed.refetchEntry
+  const refetchSkillEntry = skillFeed.refetchEntry
+  const refetchQueryEntry = queryFeed.refetchEntry
 
   // --- 検証付きソース取得 (#1040 リトライ) ---
 
@@ -534,25 +523,12 @@ export const useMisStoreStore = defineStore('misstore', () => {
     throw new Error('ハッシュ不一致: ソースが改ざんされている可能性があります')
   }
 
-  const refetchPluginEntry = (id: string) => async () => {
-    await refresh()
-    return plugins.value.find((e) => e.id === id)
-  }
-  const refetchThemeEntry = (id: string) => async () => {
-    await refreshThemes()
-    return themes.value.find((e) => e.id === id)
-  }
-  const refetchWidgetEntry = (id: string) => async () => {
-    await refreshWidgets()
-    return widgets.value.find((e) => e.id === id)
-  }
-  const refetchSkillEntry = (id: string) => async () => {
-    await refreshSkills()
-    return skillEntries.value.find((e) => e.id === id)
-  }
-  const refetchQueryEntry = (id: string) => async () => {
-    await refreshQueries()
-    return queryEntries.value.find((e) => e.id === id)
+  async function fetchWidgetSource(entry: StoreWidgetEntry): Promise<string> {
+    const { source } = await fetchVerifiedSource(
+      entry,
+      refetchWidgetEntry(entry.id),
+    )
+    return source
   }
 
   // --- Install skill ---
@@ -633,36 +609,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
     }
   }
 
-  function isSkillInstalled(entry: StoreSkillEntry): boolean {
-    // 照合キーは storeId のみ (#913 — 内部 ID 一致では真にしない)
-    const skillsStore = useSkillsStore()
-    return skillsStore.skills.some((s) => s.storeId === entry.id)
-  }
-
-  // --- Queries (#783 カラムクエリ) ---
-
-  async function fetchQueries(): Promise<void> {
-    if (isQueriesCacheValid() && queryEntries.value.length > 0) return
-    queriesLoading.value = true
-    queriesError.value = null
-    try {
-      const res = await fetch(`${STORE_BASE_URL}/registry/queries.json`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      queryEntries.value = data.queries ?? []
-      queriesLastFetchedAt = Date.now()
-      recordQueryBaselines(queryEntries.value)
-    } catch (e) {
-      queriesError.value = e instanceof Error ? e.message : 'fetch failed'
-    } finally {
-      queriesLoading.value = false
-    }
-  }
-
-  function refreshQueries(): Promise<void> {
-    queriesLastFetchedAt = 0
-    return fetchQueries()
-  }
+  // --- Install query (#783 カラムクエリ) ---
 
   /**
    * MisStore からカラムクエリのソースを取得して名前付きクエリプールへ保存する。
@@ -893,11 +840,6 @@ export const useMisStoreStore = defineStore('misstore', () => {
     }
   }
 
-  function isWidgetInstalled(entry: StoreWidgetEntry): boolean {
-    const widgetsStore = useWidgetsStore()
-    return widgetsStore.widgets.some((w) => w.storeId === entry.id)
-  }
-
   // --- Install theme ---
 
   /**
@@ -952,63 +894,6 @@ export const useMisStoreStore = defineStore('misstore', () => {
     } finally {
       installingTheme.value = null
     }
-  }
-
-  // --- Installed check ---
-  // 照合キーは storeId のみ (#913)。表示名・ファイル内 ID では照合しない
-
-  function isInstalled(entry: StorePluginEntry): boolean {
-    const pluginsStore = usePluginsStore()
-    return pluginsStore.plugins.some((p) => p.storeId === entry.id)
-  }
-
-  function isThemeInstalled(entry: StoreThemeEntry): boolean {
-    const themeStore = useThemeStore()
-    return themeStore.installedThemes.some(
-      (t) => t.$notedeck?.storeId === entry.id,
-    )
-  }
-
-  // --- 更新検知 (#1040) ---
-  // 判定は「インストール時に記録した storeSha512」と registry 現行 sha512 の
-  // 比較のみ。version 文字列は bump が機械強制されていないため使わない。
-  // storeSha512 未記録 (baseline 前) は false — 誤検知しない。
-
-  function hasStoreUpdate(
-    recorded: string | undefined,
-    entrySha: string,
-  ): boolean {
-    return !!recorded && recorded !== entrySha
-  }
-
-  function hasPluginUpdate(entry: StorePluginEntry): boolean {
-    const p = usePluginsStore().plugins.find((p) => p.storeId === entry.id)
-    return !!p && hasStoreUpdate(p.storeSha512, entry.sha512)
-  }
-
-  function hasThemeUpdate(entry: StoreThemeEntry): boolean {
-    const t = useThemeStore().installedThemes.find(
-      (t) => t.$notedeck?.storeId === entry.id,
-    )
-    return !!t && hasStoreUpdate(t.$notedeck?.storeSha512, entry.sha512)
-  }
-
-  function hasWidgetUpdate(entry: StoreWidgetEntry): boolean {
-    // 個体のどれか 1 つでも古ければ更新あり (#1061)
-    return listWidgetInstances(useWidgetsStore().widgets, entry.id).some((w) =>
-      hasStoreUpdate(w.storeSha512, entry.sha512),
-    )
-  }
-
-  function hasSkillUpdate(entry: StoreSkillEntry): boolean {
-    const s = useSkillsStore().skills.find((s) => s.storeId === entry.id)
-    return !!s && hasStoreUpdate(s.storeSha512, entry.sha512)
-  }
-
-  function hasQueryUpdate(entry: StoreQueryEntry): boolean {
-    const queriesStore = useColumnQueriesStore()
-    const q = queriesStore.queries.find((q) => q.storeId === entry.id)
-    return !!q && hasStoreUpdate(q.storeSha512, entry.sha512)
   }
 
   // --- 更新適用 (#1040) ---
@@ -1346,22 +1231,22 @@ export const useMisStoreStore = defineStore('misstore', () => {
     error,
     installing,
     themes,
-    themesLoading,
-    themesError,
+    themesLoading: themeFeed.loading,
+    themesError: themeFeed.error,
     installingTheme,
     widgets,
-    widgetsLoading,
-    widgetsError,
+    widgetsLoading: widgetFeed.loading,
+    widgetsError: widgetFeed.error,
     installingWidget,
     skills: skillEntries,
-    skillsLoading,
-    skillsError,
+    skillsLoading: skillFeed.loading,
+    skillsError: skillFeed.error,
     installingSkill,
-    fetchPlugins,
-    fetchThemes,
-    fetchWidgets,
+    fetchPlugins: pluginFeed.fetch,
+    fetchThemes: themeFeed.fetch,
+    fetchWidgets: widgetFeed.fetch,
     fetchWidgetSource,
-    fetchSkills,
+    fetchSkills: skillFeed.fetch,
     refresh,
     refreshThemes,
     refreshWidgets,
@@ -1371,22 +1256,22 @@ export const useMisStoreStore = defineStore('misstore', () => {
     installWidget,
     installSkill,
     queries: queryEntries,
-    queriesLoading,
-    queriesError,
+    queriesLoading: queryFeed.loading,
+    queriesError: queryFeed.error,
     installingQuery,
-    fetchQueries,
+    fetchQueries: queryFeed.fetch,
     refreshQueries,
     installQuery,
     isQueryInstalled,
-    isInstalled,
-    isThemeInstalled,
-    isWidgetInstalled,
-    isSkillInstalled,
-    hasPluginUpdate,
-    hasThemeUpdate,
-    hasWidgetUpdate,
-    hasSkillUpdate,
-    hasQueryUpdate,
+    isInstalled: pluginFeed.isInstalled,
+    isThemeInstalled: themeFeed.isInstalled,
+    isWidgetInstalled: widgetFeed.isInstalled,
+    isSkillInstalled: skillFeed.isInstalled,
+    hasPluginUpdate: pluginFeed.hasUpdate,
+    hasThemeUpdate: themeFeed.hasUpdate,
+    hasWidgetUpdate: widgetFeed.hasUpdate,
+    hasSkillUpdate: skillFeed.hasUpdate,
+    hasQueryUpdate: queryFeed.hasUpdate,
     updatePlugin,
     updateTheme,
     updateWidget,

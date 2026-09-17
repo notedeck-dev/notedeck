@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
+import { WINDOW_COMPONENTS } from '@/components/window/windowComponents'
 import { useVaporTransitionGroup } from '@/composables/useVaporTransition'
 import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
-import { WINDOW_COMPONENTS } from '@/windows/registry'
 import DeckWindow from './DeckWindow.vue'
 
 const windowsStore = useWindowsStore()

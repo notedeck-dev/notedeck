@@ -200,6 +200,25 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
     path.join(profileDir, 'notedeck', 'settings.json5'),
     `${JSON.stringify({ 'tutorial.completed': true }, null, 2)}\n`,
   )
+  // ハーネスは「ユーザーが権限を与えた外部アプリ」として HTTP API を叩く。
+  // external の既定はデッキ構成の変更 (deck.write) を含まないので (#1098)、
+  // カラム追加を使うテストのために明示的に許可する。他のキーは既定どおり
+  // (欠損は起動時に external の backfill 値 = false で補完され、Misskey
+  // read の floor は resolve 時に常時 ON)
+  await writeFile(
+    path.join(profileDir, 'notedeck', 'permissions.json5'),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        principals: {
+          external: { preset: 'custom', custom: { 'deck.write': true } },
+        },
+        confirmSkips: {},
+      },
+      null,
+      2,
+    )}\n`,
+  )
   if (options.seedAccount) {
     seedAccountDb(profileDir, options.seedAccount)
   }

@@ -15,7 +15,7 @@ use notecli::error::NoteDeckError;
 use notecli::keychain;
 use notecli::models::{Account, AccountPublic};
 
-type Result<T> = std::result::Result<T, NoteDeckError>;
+use crate::error::Result;
 
 /// MiAuth で要求するデフォルト権限一式。
 pub const DEFAULT_MIAUTH_PERMISSIONS: &[&str] = &[

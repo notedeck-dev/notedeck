@@ -293,7 +293,15 @@ src-tauri/src/              # Rust backend (Tauri 固有部分)
 └── main.rs                 # Entry point
 ```
 
-Misskey API クライアント・DB・モデル・ストリーミングコアなどの共通ロジックは全て `notecli` クレートにあり、`src-tauri/` には Tauri 固有の薄いラッパーのみ残っています。
+Misskey API クライアント・DB・モデル・ストリーミングコアは `notecli` クレートにある。一方 `src-tauri/` は Tauri 固有の配線だけではなく、Tauri に依存しないドメインも抱えている (OGP 抽出とサイト別プラグイン / Secret Vault / クエリランタイム / 画像キャッシュ / AI SSE クライアント / HTTP API サーバー / カラムクエリの QIR 評価器)。行数では notecli より大きい。
+
+置き場の規則 (#782):
+
+- `commands/*.rs` は IPC アダプタ。State の取り出しとパス解決だけを行い、薄く保つ
+- トップレベルの `*_service.rs` / `*_store.rs` / サブモジュールは、引数を取って単体テストできるサービス。`AppHandle` や `State` を直接受けない
+- Misskey の API / DB / ストリーミングに関わる共通処理は notecli に足す (フォークやスタンドアロン CLI からも使えるように)
+
+この規則は一部のモジュールにしか適用されておらず (column_query / export / http は commands/ にドメインを持つ)、ドメインをクレートに切り出すかも含めて #1098 で扱う。終了時のタスク所有は `shutdown.rs` に一元化されている。
 
 ### Boot Sequence
 
@@ -427,7 +435,7 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 2. 各ウィンドウは `windowLayout`（computed）で自分に属するカラムだけをフィルタして表示する
 3. ウィンドウの作成・破棄はプロファイルのデータに影響しない
 
-**同期方式:** localStorage（全 webview 共有）を SSoT とし、Tauri イベント（`deck:profile-updated`）でキャッシュ無効化を通知。Rust 側に SSoT を移す案も検討したが、localStorage が既に全 webview で共有されており、本質的に同じ構造になるため不採用（[PR #172](https://github.com/notedeck-dev/notedeck/pull/172) で議論）。
+**同期方式:** 永続化の正本はプロファイルフォルダ配下のファイル（#913。ID とファイル名の対応表つき）。localStorage は全 webview 共有の**ミラー**で、起動時の即時復元と他ウィンドウへの伝播に使い、Tauri イベント（`deck:profile-updated` / `deck:profiles-changed`）で変更を通知する。ミラーへ書く直前に対応表を読み直して合流させ、別ウィンドウのリネーム結果を潰さない。Rust 側に正本を移す案は不採用（[PR #172](https://github.com/notedeck-dev/notedeck/pull/172) で議論）。
 
 ### Window / Column Model（[#194](https://github.com/notedeck-dev/notedeck/issues/194)）
 
@@ -797,10 +805,9 @@ NoteDeck のパフォーマンス関連パラメータはすべてユーザー�
 **操作モデル:** 両端「省メモリ ↔ 高性能」の **スライダー** で線形補間する。固定プリセット名 (preset 列挙) は持たない。中央値が `src/defaults/performance.json5` と同値。
 
 **永続化:**
-- 設定は `settings.json`（`performance.*` キー）に一元化（`useSettingsStore` が単一 source of truth）
+- 設定は `performance.json5` に独立ファイルとして保存する（`usePerformanceStore` が single source of truth）。`settings.json` のスカラーハブとは分けている（構造を持つ定義は専用ファイル、の規則）
 - デフォルト値と同じキーはオーバーライドに含めない（差分のみ保存）
 - バックエンド（Rust）側のパラメータは `invoke('update_performance_config')` で即時同期
-- 旧 `performance.json5` は初回起動時の移行読込のみ。新規書込は `settings.json` のみ
 
 ### レンダリングパフォーマンス
 
@@ -808,13 +815,13 @@ SNS クライアントに必要な3つのパフォーマンス基盤を実装済
 
 #### CSS レンダリング規約
 
-- **Compositor-only アニメーション**: `transform`, `opacity`, `translate`, `scale`, `rotate` のみ。`width`/`height`/`top`/`left` 等は禁止（全コンポーネント監査済み）
+- **Compositor-only アニメーション**: `transform`, `opacity`, `translate`, `scale`, `rotate` のみ。`width`/`height`/`top`/`left` 等は禁止（`tests/lint/cssTransitions.test.ts` が `transition` 宣言を検査。残存分は同テストの ALLOWED に凍結）
   - タブインジケータ: `left`/`width` → `translate`/`scale`（`useTabIndicator.ts`）
   - 投票バー: `width` → `scaleX` + CSS 変数（`MkPoll.vue`）
   - カラムドラッグ: `style.left`/`top` → `translate` + 幅キャッシュ（`useColumnDrag.ts`）
 - **Layout Thrashing 回避**: DOM 読み取り（`offsetHeight` 等）と書き込みを交互に行わない
 - **CSS Containment**: スクロール内アイテムに `contain: layout style paint` + `content-visibility: auto`（24+ コンポーネントで適用済み）
-- **ペイント誘発プロパティ**: `box-shadow`/`border-radius`/`clip-path`/`backdrop-filter` のアニメーション禁止（静的使用は可）
+- **ペイント誘発プロパティ**: `box-shadow`/`border-radius`/`clip-path`/`backdrop-filter` のアニメーション禁止（静的使用は可。同じく `cssTransitions.test.ts` が検査）
 - **CSS Custom Properties 優先**: JS から直接 `style.top` 等を操作せず `setProperty('--nd-offset', ...)` 経由
 
 #### Frame Scheduler — DOM read/write バッチング

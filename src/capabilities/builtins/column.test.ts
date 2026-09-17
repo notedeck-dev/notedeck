@@ -40,8 +40,8 @@ describe('column.list capability', () => {
 })
 
 describe('column.add capability', () => {
-  it('declares no permissions and aiTool: true', () => {
-    expect(columnAddCapability.permissions).toEqual([])
+  it('declares deck.write and aiTool: true', () => {
+    expect(columnAddCapability.permissions).toEqual(['deck.write'])
     expect(columnAddCapability.aiTool).toBe(true)
   })
 
@@ -102,8 +102,8 @@ describe('column.add capability', () => {
 })
 
 describe('column.remove capability', () => {
-  it('declares no permissions and aiTool: true', () => {
-    expect(columnRemoveCapability.permissions).toEqual([])
+  it('declares deck.write and aiTool: true', () => {
+    expect(columnRemoveCapability.permissions).toEqual(['deck.write'])
     expect(columnRemoveCapability.aiTool).toBe(true)
   })
 
@@ -157,7 +157,6 @@ describe('addable な種別はレジストリ由来 (#794 W2)', () => {
       label: 'デモ',
       icon: 'flask',
       group: 'tool',
-      component: async () => ({ default: {} }),
     })
     expect(enumTypes()).toContain('x:demo')
   })

@@ -2,8 +2,8 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { migrateWidgetColumns } from '@/services/deckProfileCodec'
 import {
+  createProfileFiles,
   drainProfileLoadByproducts,
-  profileFiles,
 } from '@/services/deckProfileFiles'
 import { selectMemoryOnlyProfiles } from '@/services/deckProfileMerge'
 import {
@@ -23,6 +23,9 @@ import {
   setStorageString,
 } from '@/utils/storage'
 import { emitTauri, listenTauri } from '@/utils/tauriEvents'
+import { notifyWarningToast } from '@/utils/toastNotify'
+
+const profileFiles = createProfileFiles(notifyWarningToast)
 
 /** Deep-clone reactive state into a plain object safe for serialization.
  *  structuredClone strips Vue Proxy wrappers without the overhead of

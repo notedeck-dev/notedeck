@@ -71,6 +71,11 @@ export const PERMISSION_KEYS = [
   // column 系 capability は従来 ungated (permissions: []) だったので、既存
   // principal の挙動は変わらない。external のみデフォルト OFF (backfill 規則)。
   'deck.read',
+  // デッキ / ウィンドウ構成の変更 (カラム追加・削除・並替・設定変更、ウィンドウ
+  // 開閉、サイドバー開閉、テーマ適用) (#1098)。従来は permissions: [] で全
+  // principal に無条件許可だったため、readonly の heartbeat や external トークン
+  // でもデッキを消せた。readonly のみ false。
+  'deck.write',
 ] as const
 export type PermissionKey = (typeof PERMISSION_KEYS)[number]
 
@@ -187,6 +192,7 @@ export const PERMISSION_PRESETS: Record<
     'files.export': false,
     'backup.create': false,
     'deck.read': true,
+    'deck.write': false,
   },
   safe: {
     'notes.read': true,
@@ -227,6 +233,7 @@ export const PERMISSION_PRESETS: Record<
     'files.export': false,
     'backup.create': false,
     'deck.read': true,
+    'deck.write': true,
   },
   full: {
     'notes.read': true,
@@ -267,6 +274,7 @@ export const PERMISSION_PRESETS: Record<
     'files.export': true,
     'backup.create': true,
     'deck.read': true,
+    'deck.write': true,
   },
 }
 
@@ -372,6 +380,9 @@ export interface PermissionsFileConfig {
  *
  * - `deck.read`: ai.chat / ai.heartbeat / plugin = true (現在 ungated な
  *   column 系の挙動保存)、external = false (第 5 の穴を閉じる意図した縮小)
+ * - `deck.write`: ai.chat / plugin = true (従来 ungated だった column /
+ *   windows 系の挙動保存)、ai.heartbeat / external = false (無人実行と外部
+ *   トークンにデッキを組み替えさせない意図した縮小 #1098)
  * - その他の欠損キー: false (checkPermissions は欠損を拒否扱いするので同値)
  */
 export function backfillValue(
@@ -379,6 +390,8 @@ export function backfillValue(
   principalId: ProfiledPrincipalId,
 ): boolean {
   if (key === 'deck.read') return principalId !== 'external'
+  if (key === 'deck.write')
+    return principalId === 'ai.chat' || principalId === 'plugin'
   return false
 }
 

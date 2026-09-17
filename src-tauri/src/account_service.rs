@@ -5,13 +5,12 @@
 //! has_token 判定は従来 load_accounts と emit_accounts_early に重複していた。
 
 use notecli::db::Database;
-use notecli::error::NoteDeckError;
 use notecli::keychain;
 use notecli::models::{Account, AccountPublic};
 
 use crate::commands::invalidate_credentials;
 
-type Result<T> = std::result::Result<T, NoteDeckError>;
+use crate::error::Result;
 
 /// ゲスト (未認証) アカウントを表す user_id マーカー。
 pub const GUEST_USER_ID: &str = "__guest__";

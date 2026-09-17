@@ -151,6 +151,10 @@ export const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'デッキ構成の読取 (カラム一覧 / 検索クエリ等)',
     icon: 'ti-columns',
   },
+  'deck.write': {
+    label: 'デッキ構成の変更 (カラム / ウィンドウ / サイドバー / テーマ適用)',
+    icon: 'ti-layout-columns',
+  },
 }
 
 /**
@@ -186,6 +190,7 @@ export const PERMISSION_CATEGORIES: readonly {
       'drafts.read',
       'drafts.write',
       'deck.read',
+      'deck.write',
       'ai.sessions.read',
       'logs.read',
       'skills.read',

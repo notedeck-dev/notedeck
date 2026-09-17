@@ -198,7 +198,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | **時刻** | `time.now` | ISO 8601 で現在時刻 |
 | **アカウント** | `account.current`, `account.list` | 自アカウント / 全アカウント情報 (auth 系 add/switch/logout は塞ぐ) |
 | **メタ** | `meta.permissions`, `meta.activeSkills`, `meta.persona`, `meta.config`, `meta.heartbeat` | 自分自身 (AI の権限・skill・persona・config・HEARTBEAT 設定) を内省 |
-| **カラム** | `column.list`, `column.active`, `column.add`, `column.remove`, `column.move`, `column.updateSettings`, `column.focusedNote` | デッキカラムの操作 + 並び替え + 設定変更 + フォーカスノート取得 |
+| **カラム** | `column.list`, `column.active`, `column.add`, `column.remove`, `column.move`, `column.updateSettings`, `column.focusedNote`, `sidebar.toggle` | デッキカラムの操作 + 並び替え + 設定変更 + フォーカスノート取得 + サイドバー開閉 (変更系は `deck.write` permission) |
 | **ノート (read)** | `notes.timeline`, `notes.user`, `notes.search`, `notes.show`, `notes.children` | TL / ユーザー別 / サーバー検索 / 単発取得 / 返信ツリー |
 | **ノート (手元の索引)** | `notes.searchArchive` | 手元のキャッシュをサーバー・アカウント横断で検索 (`notes.readArchive` permission、既定は閉じる。公開範囲は既定 public のみ) |
 | **ノート (write)** | `notes.create`, `notes.react`, `notes.unreact`, `notes.delete`, `notes.pin`, `notes.unpin` | 投稿・リアクション・解除・削除・プロファイル pin (`notes.write` / `notes.react` permission) |
@@ -221,8 +221,8 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | **Gallery** | `gallery.list` | Misskey Gallery を read |
 | **Misskey Play** | `flash.list`, `flash.show` | Misskey Play (AiScript 小アプリ)。`flash.show` は **AiScript ソース含む** |
 | **Registry** | `registry.listKeys`, `registry.get`, `registry.set`, `registry.delete` | Misskey サーバー側 KV ストア (Misskey 専用、adapter 経由しない) |
-| **メモ** | `memos.list`, `memos.search`, `memos.backlinks`, `memos.create`, `memos.update`, `memos.delete` | AI 永続記憶用ローカルメモ CRUD (#492 #494) |
-| **テーマ** | `theme.list`, `theme.read`, `theme.apply`, `theme.create`, `theme.update`, `theme.install`, `theme.uninstall`, `theme.history`, `theme.revert` | per-account テーマ CRUD + 編集履歴 + MisStore install/uninstall |
+| **メモ** | `memos.list`, `memos.search`, `memos.backlinks`, `memos.create`, `memos.update`, `memos.delete`, `memos.revert` | AI 永続記憶用ローカルメモ CRUD + 過去の状態へ戻す (#492 #494) |
+| **テーマ** | `theme.list`, `theme.read`, `theme.apply`, `theme.create`, `theme.update`, `theme.install`, `theme.uninstall`, `theme.history`, `theme.revert` | per-account テーマ CRUD + 編集履歴 + MisStore install/uninstall (apply は `deck.write` permission) |
 | **CSS** | `styles.read`, `styles.write`, `styles.append`, `styles.history`, `styles.revert` | カスタム CSS の AI 編集 |
 | **スキル** | `skills.list`, `skills.read`, `skills.create`, `skills.append`, `skills.replaceSection`, `skills.toggle`, `skills.install`, `skills.uninstall`, `skills.history`, `skills.revert` | skill 新規作成 (#726) + 自己編集 + MisStore install/uninstall |
 | **ウィジェット** | `widgets.list`, `widgets.read`, `widgets.create`, `widgets.update`, `widgets.setAutoRun`, `widgets.delete`, `widgets.install`, `widgets.uninstall`, `widgets.history`, `widgets.revert` | AiScript widget の AI 編集 + MisStore install/uninstall |
@@ -233,15 +233,17 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | **メトリクス** | `metrics.read` | Frame Engine 実測値・接続状態の匿名集約・起動フェーズ内訳・メモリ指標 (`deck.read` permission) |
 | **ペルソナ** | `ai.listPersonas`, `ai.setPersona` | AI ペルソナ一覧 / 切替 |
 | **AI セッション** | `ai.chat`, `ai.sessions.list`, `ai.sessions.read`, `ai.sessions.search` | プラグインから本体 AI を呼ぶ / 過去セッション参照 |
-| **ウィンドウ** | `windows.open`, `windows.close`, `windows.closeAll`, `windows.focus`, `windows.list` | サブウィンドウ操作 |
+| **ウィンドウ** | `windows.open`, `windows.close`, `windows.closeAll`, `windows.focus`, `windows.list` | サブウィンドウ操作 (list 以外は `deck.write` permission) |
 | **クリップボード** | `clipboard.read`, `clipboard.write` | OS クリップボード入出力 |
 | **ストア** | `misstore.search` | MisStore のプラグイン/テーマ検索 |
 | **HTTP** | `http.fetch` | 任意の外部 HTTP API (`network.external` permission) |
+| **AiScript** | `aiscript.validate`, `aiscript.logs` | 構文検証 (skill / plugin 保存前の preflight) + 実行ログ取得 |
+| **Vault** | `vault.fetch` | Vault 接続の認証情報を注入して HTTP リクエスト (`vault.use` permission。本体はフロントに出ない) |
 | **UI** | `ui.notify` | OS / アプリ内通知 |
 | **ログ** | `logs.recent` | 直近の AI セッションログ |
 | **タスク** | `tasks.run` | 内部タスク実行 |
 
-各 capability の params / 戻り値の詳細は `src/capabilities/builtins/<subject>.ts` の `params` (zod schema) を参照。
+各 capability の params / 戻り値の詳細は `src/capabilities/builtins/<subject>.ts` の `params` (`ParameterDef` の手書き定義) を参照。表とレジストリの一致は `tests/lint/capabilityDocs.test.ts` が検査する。
 
 ### 4.0.1 永久に塞ぐ capability (AI に開放しない)
 
@@ -284,7 +286,11 @@ capability は原則 **`ApiAdapter` 経由** (`src/adapters/types.ts` + `src/ada
 | { ok: false, code: 'unknown_capability', error: string }
 | { ok: false, code: 'permission_denied', error: string }
 | { ok: false, code: 'execute_failed', error: string }
+| { ok: false, code: 'preflight_failed', error: string }
+| { ok: false, code: 'user_cancelled', error: string }
 ```
+
+`preflight_failed` は capability の `preflight` (例: AiScript の構文検証) で弾かれた場合、`user_cancelled` は `requiresConfirmation` の確認ダイアログで拒否された場合。
 
 AI には `tool_result` の `content` として文字列化された結果が返される (失敗時はエラー文字列)。
 
@@ -297,7 +303,7 @@ AI には `tool_result` の `content` として文字列化された結果が返
 | preset | readonly | safe | full | custom |
 |---|---|---|---|---|
 | 読み取り系 (`notes.read` / `account.read` / `drive.read` / `memos.read` / `clips.read` / `drafts.read` / `skills.read` / `widgets.read` / `plugins.read` / `ai.sessions.read` / `logs.read` / `deck.read`) | ✓ | ✓ | ✓ | 個別 |
-| 軽い書き込み (`notes.react` / `clips.write` / `drafts.write` / `clipboard` / `notifications` / `tasks.run` / `ai.invoke`) | | ✓ | ✓ | 個別 |
+| 軽い書き込み (`notes.react` / `clips.write` / `drafts.write` / `clipboard` / `notifications` / `tasks.run` / `ai.invoke` / `deck.write`) | | ✓ | ✓ | 個別 |
 | 自己編集系 (`memos.write` / `skills.write` / `widgets.write` / `plugins.write`) | | ✓ | ✓ | 個別 |
 | UI 設定 write (`theme.write` / `styles.write` / `navbar.write` / `keybinds.write` / `performance.write`) | | | ✓ | 個別 |
 | 高リスク write (`notes.write` / `account.write` / `account.actAs` / `drive.write` / `network.external` / `vault.use` / `ai.persona.write` / `files.export` / `backup.create`) | | | ✓ | 個別 |

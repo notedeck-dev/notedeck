@@ -27,8 +27,8 @@ describe('theme.list capability', () => {
 })
 
 describe('theme.apply capability', () => {
-  it('declares no permissions and aiTool: true', () => {
-    expect(themeApplyCapability.permissions).toEqual([])
+  it('declares deck.write and aiTool: true', () => {
+    expect(themeApplyCapability.permissions).toEqual(['deck.write'])
     expect(themeApplyCapability.aiTool).toBe(true)
     expect(themeApplyCapability.id).toBe('theme.apply')
   })

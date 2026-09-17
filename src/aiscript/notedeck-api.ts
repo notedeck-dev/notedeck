@@ -6,6 +6,7 @@ import { listCapabilities } from '@/capabilities/registry'
 import type { CapabilitySignature, PermissionKey } from '@/capabilities/types'
 import type { Command, useCommandStore } from '@/commands/registry'
 import type { Principal } from '@/permissions/principal'
+import { PERMISSION_KEYS } from '@/permissions/schema'
 import { makeRegistrationId } from '@/plugins/registrationId'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { version as appVersion } from '../../package.json'
@@ -322,9 +323,18 @@ function parseRegisterCommandOptions(
   const options = utils.valToJs(optionsVal) as Record<string, unknown>
   if (options.aiTool === true) out.aiTool = true
   if (Array.isArray(options.permissions)) {
-    out.permissions = options.permissions.filter(
-      (p): p is string => typeof p === 'string',
-    ) as PermissionKey[]
+    // 自己申告の permission は語彙に無いキーを弾く (#1098)。未知キーは
+    // checkPermissions で常に拒否になるため穴ではないが、黙って dispatch
+    // 不能なコマンドが登録されるより登録時に落とす方が作者に伝わる
+    const permissions: PermissionKey[] = []
+    for (const p of options.permissions) {
+      if (typeof p !== 'string') continue
+      if (!(PERMISSION_KEYS as readonly string[]).includes(p)) {
+        throw new Error(`Nd:register_command: unknown permission key "${p}"`)
+      }
+      permissions.push(p as PermissionKey)
+    }
+    out.permissions = permissions
   }
   if (typeof options.requiresConfirmation === 'boolean') {
     out.requiresConfirmation = options.requiresConfirmation

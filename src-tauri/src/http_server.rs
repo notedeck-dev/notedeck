@@ -176,6 +176,8 @@ pub struct ServeConfig {
     pub log_dir: Option<String>,
     pub image_cache: Arc<ImageCache>,
     pub perf: crate::perf_config::SharedPerfConfig,
+    /// 終了通知 (#1098)。受けたら新規接続を止めて graceful に閉じる
+    pub shutdown: crate::shutdown::ShutdownToken,
 }
 
 /// 永続トークン → ephemeral トークンのブリッジ用 state。
@@ -306,14 +308,19 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
         ))
         .layer(middleware::from_fn(host_guard_middleware));
 
-    // Background cleanup of stale rate-limit entries
+    // Background cleanup of stale rate-limit entries。終了通知で抜ける
     {
         let limiter = rate_limiter.clone();
+        let stop = config.shutdown.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(120));
+            let stop = stop.cancelled();
+            tokio::pin!(stop);
             loop {
-                interval.tick().await;
-                limiter.cleanup().await;
+                tokio::select! {
+                    _ = interval.tick() => limiter.cleanup().await,
+                    _ = &mut stop => break,
+                }
             }
         });
     }
@@ -321,7 +328,10 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
     tracing::info!("HTTP server serving");
     ready_tx.send(()).ok();
 
-    if let Err(e) = axum::serve(config.server.listener, app).await {
+    if let Err(e) = axum::serve(config.server.listener, app)
+        .with_graceful_shutdown(config.shutdown.cancelled())
+        .await
+    {
         tracing::error!(%e, "HTTP server error");
     }
 }
