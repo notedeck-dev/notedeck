@@ -61,8 +61,10 @@ kamadak-exif = "0.6.1"
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 user-notify = "0.4.2"
 # 通知画像の PNG 再エンコード用 (Windows toast は webp 非対応)。
-# Linux では user-notify が同 crate を使うため追加コストなし
-image = "0.25"
+# Linux では user-notify が同 crate を使うため追加コストなし。
+# feature は上の宣言と揃える — Cargo は feature を統合するので、ここで
+# default を有効にすると上で絞ったコーデック集合が無効になる (#1098)
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 
 # ステータスバーのテーマ追従 (#755): MainActivity.setStatusBarStyle を JNI で呼ぶ
 [target.'cfg(target_os = "android")'.dependencies]

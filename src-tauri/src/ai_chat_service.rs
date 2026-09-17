@@ -17,7 +17,7 @@ use tauri::{async_runtime::JoinHandle, Emitter};
 
 use notecli::error::{AuthErrorKind, NoteDeckError};
 
-type Result<T> = std::result::Result<T, NoteDeckError>;
+use crate::error::Result;
 
 /// In-flight chat streaming tasks keyed by `stream_id`. Used by `ai_chat_cancel`
 /// to abort the background SSE consumer for a specific stream (e.g. when the
@@ -202,6 +202,11 @@ async fn backoff_sleep(attempt: u32) {
 /// `reqwest::Client` の clone は内部 Arc の複製で安い。
 static STREAMING_CLIENTS: OnceLock<Mutex<HashMap<u64, reqwest::Client>>> = OnceLock::new();
 
+/// 鍵は JS 側が渡す任意の readTimeoutMs なので実質無限。使い回しの利益は
+/// 接続プールだけで小さい (pool_max_idle_per_host(0) なので実質ゼロ) ため、
+/// 溢れたら全部捨てて作り直す (#1098)
+const STREAMING_CLIENT_CAP: usize = 8;
+
 fn streaming_client(read_timeout: Duration) -> reqwest::Client {
     // ミリ秒のまま鍵にする。秒に丸めると 10_001ms と 10_999ms が同じ
     // クライアント (= 片方が意図しないタイムアウト) を共有してしまう
@@ -211,6 +216,9 @@ fn streaming_client(read_timeout: Duration) -> reqwest::Client {
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if !map.contains_key(&key) && map.len() >= STREAMING_CLIENT_CAP {
+        map.clear();
+    }
     map.entry(key)
         .or_insert_with(|| {
             reqwest::Client::builder()
@@ -938,7 +946,24 @@ fn format_http_error(status: u16, body: &str) -> String {
 }
 
 #[cfg(test)]
+fn streaming_client_count() -> usize {
+    STREAMING_CLIENTS
+        .get_or_init(|| Mutex::new(HashMap::new()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .len()
+}
+
+#[cfg(test)]
 mod tests {
+    #[test]
+    fn streaming_clients_are_bounded() {
+        for ms in 0..(super::STREAMING_CLIENT_CAP as u64 * 3) {
+            super::streaming_client(std::time::Duration::from_millis(10_000 + ms));
+        }
+        assert!(super::streaming_client_count() <= super::STREAMING_CLIENT_CAP);
+    }
+
     use super::*;
     use serde_json::json;
 

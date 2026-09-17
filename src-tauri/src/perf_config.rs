@@ -47,7 +47,7 @@ pub type SharedPerfConfig = Arc<RwLock<PerformanceConfig>>;
 pub async fn update_performance_config(
     config: PerformanceConfig,
     state: tauri::State<'_, SharedPerfConfig>,
-) -> Result<(), String> {
+) -> crate::error::Result<()> {
     let mut current = state.write().await;
     *current = config;
     Ok(())
@@ -58,6 +58,6 @@ pub async fn update_performance_config(
 #[specta::specta]
 pub async fn get_performance_config(
     state: tauri::State<'_, SharedPerfConfig>,
-) -> Result<PerformanceConfig, String> {
+) -> crate::error::Result<PerformanceConfig> {
     Ok(state.read().await.clone())
 }
