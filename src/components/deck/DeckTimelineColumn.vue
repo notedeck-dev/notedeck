@@ -44,6 +44,7 @@ import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { matchesFilter } from '@/utils/timelineFilter'
 import ColumnFilterButton from './ColumnFilterButton.vue'
+import ColumnPullFrame from './ColumnPullFrame.vue'
 import ColumnQueryBadge from './ColumnQueryBadge.vue'
 import ColumnQueryBanners from './ColumnQueryBanners.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
@@ -249,6 +250,10 @@ const {
   pendingCount,
   animatingRowKeys,
   crossProgress,
+  isPulling: crossIsPulling,
+  isPulledEnough: crossIsPulledEnough,
+  isRefreshing: crossIsRefreshing,
+  displayHeight: crossPullHeight,
   columnQueryState: crossQueryState,
   columnQueryErrorCount: crossQueryErrorCount,
   columnQueryExcludedCount: crossQueryExcludedCount,
@@ -655,6 +660,12 @@ onMounted(async () => {
     />
 
     <div v-else :class="$style.tlBody">
+      <ColumnPullFrame
+        :is-pulling="crossIsPulling"
+        :is-pulled-enough="crossIsPulledEnough"
+        :is-refreshing="crossIsRefreshing"
+        :height="crossPullHeight()"
+      />
       <ColumnQueryBanners
         :state="crossQueryState"
         :error-count="crossQueryErrorCount"
