@@ -233,3 +233,21 @@ describe('useSkillsStore — 有効 / 無効のファイル化 (#1116)', () => {
     expect(localStorage.getItem('nd-skills-active')).toBeNull()
   })
 })
+
+describe('useSkillsStore — 旧 active 一覧が壊れていても初期化を止めない (#1118 レビュー指摘)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    files.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  it('配列でない値 (オブジェクト等) は捨てて初期化を完了する', async () => {
+    files.set('alpha.md', skillFile('alpha', 'Alpha'))
+    localStorage.setItem('nd-skills-active', '{}')
+    const store = await initStore()
+    expect(store.initialized).toBe(true)
+    expect(store.isActive('alpha')).toBe(false)
+    expect(localStorage.getItem('nd-skills-active')).toBeNull()
+  })
+})

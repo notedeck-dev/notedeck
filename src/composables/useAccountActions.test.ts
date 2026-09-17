@@ -133,7 +133,8 @@ describe('アカウント削除でプラグイン・クエリ・テーマのス�
     const key = accountScopeKey(acc)
     expect(h.pluginsStore.purgeAccount).toHaveBeenCalledWith(key)
     expect(h.queriesStore.purgeAccount).toHaveBeenCalledWith(key)
-    expect(h.themeStore.purgeAccount).toHaveBeenCalledWith(key)
+    // テーマは適用キャッシュ (内部 ID) も捨てるので 2 引数
+    expect(h.themeStore.purgeAccount).toHaveBeenCalledWith(key, acc.id)
   })
 
   it('backend 削除が失敗したら何も外さない', async () => {

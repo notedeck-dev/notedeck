@@ -80,7 +80,8 @@ export function useAccountActions() {
     const key = accountScopeKey(acc)
     usePluginsStore().purgeAccount(key)
     useColumnQueriesStore().purgeAccount(key)
-    useThemeStore().purgeAccount(key)
+    // テーマは紐付け (安定キー) と per-account 適用キャッシュ (内部 ID) の両方を捨てる
+    useThemeStore().purgeAccount(key, acc.id)
   }
 
   /** ログアウト確認ダイアログを表示し実行する */

@@ -46,5 +46,14 @@ export function matchesFilter(
   // Bot を除外
   if (filter.withBots === false && note.user.isBot) return false
 
+  // センシティブなファイルを含むノートを除外 (本家 withSensitive と同義)。
+  // リノート先も見るのは withFiles と同じ理由 (TL にはその添付が出る)
+  if (filter.withSensitive === false) {
+    const hasSensitive =
+      note.files.some((f) => f.isSensitive) ||
+      (note.renote?.files?.some((f) => f.isSensitive) ?? false)
+    if (hasSensitive) return false
+  }
+
   return true
 }

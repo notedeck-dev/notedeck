@@ -376,12 +376,15 @@ export const useSkillsStore = defineStore('skills', () => {
    * 一覧に載っていてファイルに印の無い個体だけ書き、終わったら一覧を消す
    */
   async function migrateLegacyActiveList(): Promise<void> {
-    const legacy = getStorageJson<string[] | null>(
-      STORAGE_KEYS.skillsActive,
-      null,
-    )
-    if (!legacy) return
-    const ids = new Set(legacy)
+    const legacy = getStorageJson<unknown>(STORAGE_KEYS.skillsActive, null)
+    if (legacy === null) return
+    // 壊れた値 (配列でない JSON) で初期化ごと止めない。捨てて先へ進む
+    if (!Array.isArray(legacy)) {
+      console.warn('[skills] legacy active list is not an array — discarded')
+      removeStorage(STORAGE_KEYS.skillsActive)
+      return
+    }
+    const ids = new Set(legacy.map(String))
     const changed: SkillMeta[] = []
     skills.value = skills.value.map((s) => {
       if (!ids.has(s.id) || s.active === true) return s

@@ -97,3 +97,30 @@ describe('matchesFilter', () => {
     expect(matchesFilter(makeNote(), { withBots: false })).toBe(true)
   })
 })
+
+describe('matchesFilter — withSensitive (#1118 レビュー指摘)', () => {
+  const sensitive = makeNote({
+    files: [{ id: 'f1', isSensitive: true }],
+  } as unknown as Partial<NormalizedNote>)
+  const plain = makeNote({
+    files: [{ id: 'f2', isSensitive: false }],
+  } as unknown as Partial<NormalizedNote>)
+
+  it('withSensitive: false はセンシティブなファイルを含むノートを除外する', () => {
+    expect(matchesFilter(sensitive, { withSensitive: false })).toBe(false)
+    expect(matchesFilter(plain, { withSensitive: false })).toBe(true)
+  })
+
+  it('リノート先のファイルも見る (withFiles と同じ扱い)', () => {
+    const renote = makeNote({
+      files: [],
+      renote: { files: [{ id: 'f3', isSensitive: true }] },
+    } as unknown as Partial<NormalizedNote>)
+    expect(matchesFilter(renote, { withSensitive: false })).toBe(false)
+  })
+
+  it('未指定 / true では除外しない', () => {
+    expect(matchesFilter(sensitive, {})).toBe(true)
+    expect(matchesFilter(sensitive, { withSensitive: true })).toBe(true)
+  })
+})

@@ -216,6 +216,9 @@ export const useThemeStore = defineStore('theme', () => {
         .finally(() => resolveReady?.())
     } else {
       initialized.value = true
+      // 非 Tauri (ブラウザ dev) は initFileStorage を通らないので、ここで移行を
+      // 仕掛ける。やらないと旧 UUID の紐付けが残り、テーマがカラムから消える
+      scheduleScopeMigration()
       resolveReady?.()
     }
   }
@@ -538,13 +541,24 @@ export const useThemeStore = defineStore('theme', () => {
   /**
    * アカウント削除時に、そのアカウントの紐付けをすべて外す (#1114)。
    * 紐付けが無くなるテーマは手動の「外す」と同じく本体ごと消す (テーマには
-   * 「全体」の印が無く、紐付け 0 はどの管理カラムにも出ないゾンビになるため)
+   * 「全体」の印が無く、紐付け 0 はどの管理カラムにも出ないゾンビになるため)。
+   *
+   * `accountId` (内部 ID) を渡すと per-account の適用キャッシュも捨てる。
+   * 紐付け (安定キー) と適用キャッシュ (内部 ID) はキー体系が違うので両方要る
    */
-  function purgeAccount(accountKey: string): void {
+  function purgeAccount(accountKey: string, accountId?: string): void {
     const targets = installedThemes.value
       .filter((t) => t.$notedeck?.installedFor?.includes(accountKey))
       .map((t) => t.id)
     for (const id of targets) unlinkAccountFromTheme(id, accountKey)
+    if (!accountId) return
+    if (!accountThemeCache.value.has(accountId)) return
+    const next = new Map(accountThemeCache.value)
+    next.delete(accountId)
+    accountThemeCache.value = next
+    compiledCache.clear()
+    styleVarsCache.clear()
+    persistAccountThemes()
   }
 
   // --- installedFor の安定キー化 (#1113、プラグインの #771 と同型) ---

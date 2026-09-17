@@ -295,8 +295,11 @@ export function useColumnQuery(deps: ColumnQueryDeps) {
     }
     return [
       ...compiled.fast.map((p) => hashQirQuery(p.query)),
-      // 🐢 パーツは QIR を持たないのでソースそのものを署名に混ぜる
-      ...compiled.degraded.map((d) => `slow:${d.key}:${d.source.length}`),
+      // 🐢 パーツは QIR を持たないのでソース全文を署名に混ぜる。長さだけだと
+      // 同じ文字数への編集で署名が動かず、再適用も再取得も起きない
+      ...compiled.degraded.map(
+        (d) => `slow:${JSON.stringify([d.key, d.source])}`,
+      ),
     ].join('+')
   })
 

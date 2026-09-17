@@ -418,7 +418,10 @@ async function refreshFilterKeys() {
  * サーバーごとに対応が違うキーを出すと、効くサーバーと効かないサーバーが混ざる
  */
 const crossFilterKeys = ref<(keyof TimelineFilter)[]>([])
+/** 世代。TL 種別やアカウント一覧が続けて変わったとき、遅い検出で上書きしない */
+let crossFilterKeysGeneration = 0
 async function refreshCrossFilterKeys() {
+  const generation = ++crossFilterKeysGeneration
   const hosts = Array.from(
     new Set(
       accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.host),
@@ -427,6 +430,7 @@ async function refreshCrossFilterKeys() {
   const perHost = await Promise.all(
     hosts.map((host) => detectFilterKeys(host, tlType.value)),
   )
+  if (generation !== crossFilterKeysGeneration) return
   crossFilterKeys.value = commonFilterKeys(perHost)
 }
 if (isCrossAccount.value) {

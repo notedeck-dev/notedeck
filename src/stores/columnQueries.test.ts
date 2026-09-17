@@ -503,3 +503,39 @@ describe('フィルタメニューの候補 (#1043) — 未適用の無効なク
     expect(isQueryOfferedFor(scoped, 'h:u1', applied)).toBe(true)
   })
 })
+
+describe('クエリの改名は履歴の書き込みを待つ (#1118 レビュー指摘)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.mocked(pushSnapshot).mockClear()
+  })
+
+  it('履歴の書き込みが終わるまで保存 (改名を含む) を進めない', async () => {
+    let release: (() => void) | undefined
+    vi.mocked(pushSnapshot).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        }),
+    )
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old' })
+    const live = store.getQuery(q.id)
+    if (live) live.fileBase = 'a'
+
+    let done = false
+    const saving = store
+      .updateQuery(q.id, { name: 'b', src: 'new' })
+      .then(() => {
+        done = true
+      })
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(done).toBe(false)
+
+    release?.()
+    await saving
+    expect(done).toBe(true)
+    expect(store.getQuery(q.id)?.name).toBe('b')
+  })
+})

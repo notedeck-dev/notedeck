@@ -452,11 +452,11 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
    * snapshot の範囲 (src / name / description) が動いたときだけ積む — 同じ
    * 内容の保存で積むとリングを使い潰す
    */
-  function pushHistory(
+  async function pushHistory(
     prev: NamedQueryMeta,
     next: Pick<NamedQueryMeta, 'src' | 'name' | 'description'>,
     attribution?: EditAttribution,
-  ): void {
+  ): Promise<void> {
     if (!prev.fileBase) return
     if (
       prev.src === next.src &&
@@ -465,7 +465,9 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     ) {
       return
     }
-    pushSnapshot(
+    // 呼び出し側は完了を待つ。改名は履歴サイドカーも動かすので、書き込みが
+    // 飛んでいる最中に rename すると最新 snapshot が旧 basename に取り残される
+    await pushSnapshot(
       'query',
       prev.fileBase,
       { src: prev.src, name: prev.name, description: prev.description },
@@ -486,7 +488,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     if (!prev) return false
     // ソース欠損の読取専用個体: 内容編集も改名も保存を抑止 (#913 / #1111)
     if (rejectIfReadOnly(prev)) return false
-    pushHistory(prev, { ...prev, ...updates }, attribution)
+    await pushHistory(prev, { ...prev, ...updates }, attribution)
     // ソースが変わったら暴走サスペンドを解除する (#783 追補 D / #1112)。
     // 署名変化の watch が走る前に解除しておく
     if (updates.src !== undefined && updates.src !== prev.src) {

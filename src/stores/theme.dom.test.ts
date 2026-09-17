@@ -391,3 +391,24 @@ describe('useThemeStore.linkAccountToTheme — ライブラリから追加 (テ�
     expect(store.linkAccountToTheme('nope', 'h:u1')).toBe(false)
   })
 })
+
+describe('useThemeStore.purgeAccount — per-account テーマキャッシュも捨てる (#1118 レビュー指摘)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('内部 ID を渡すと accountThemeCache の entry を消す', () => {
+    const store = useThemeStore()
+    store.installedThemes = [{ ...RED, $notedeck: { installedFor: ['h:u1'] } }]
+    store.applyAccountTheme(RED, 'dark', 'uuid-1')
+    expect(store.accountThemeCache.get('uuid-1')).toBeDefined()
+    store.purgeAccount('h:u1', 'uuid-1')
+    expect(store.accountThemeCache.get('uuid-1')).toBeUndefined()
+    expect(store.installedThemes).toHaveLength(0)
+  })
+})
