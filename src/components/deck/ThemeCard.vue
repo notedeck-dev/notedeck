@@ -4,7 +4,7 @@ import ThemePreview from '@/components/ThemePreview.vue'
 import type { MisskeyTheme } from '@/theme/types'
 import { formatDate } from '@/utils/format'
 
-type Mode = 'installed' | 'store'
+type Mode = 'installed' | 'store' | 'library'
 type Source = 'default' | 'local' | 'misstore' | 'server'
 
 const props = defineProps<{
@@ -43,6 +43,8 @@ const emit = defineEmits<{
   (e: 'install'): void
   (e: 'update'): void
   (e: 'open-detail'): void
+  /** library mode: このアカウントに追加 (紐付け) */
+  (e: 'place'): void
 }>()
 
 const isApplied = computed(
@@ -59,6 +61,10 @@ const updateTitle = computed(() => {
 })
 
 function handleClick() {
+  if (props.mode === 'library') {
+    emit('place')
+    return
+  }
   if (props.mode === 'store') {
     if (props.installing) return
     if (!props.alreadyInstalled) emit('install')
@@ -121,6 +127,17 @@ function handleClick() {
           @click.stop="emit('remove')"
         >
           <i :class="removeMode === 'detach' ? 'ti ti-circle-minus' : 'ti ti-trash'" />
+        </button>
+      </div>
+      <!-- library mode: このアカウントに未紐付けのライブラリ本体 (他 3 種のピッカーと同型) -->
+      <div v-else-if="mode === 'library'" :class="$style.previewActions">
+        <button
+          class="_button"
+          :class="$style.editBtn"
+          title="このアカウントに追加"
+          @click.stop="emit('place')"
+        >
+          <i class="ti ti-plus" />
         </button>
       </div>
       <div v-else-if="mode === 'store'" :class="$style.previewActions">
