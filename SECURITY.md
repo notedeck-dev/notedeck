@@ -41,7 +41,7 @@ graph TB
     FE -->|"IPC (型安全)"| CMD
     FE -->|"loopback HTTP"| HTTP
     EXT -->|"localhost only"| HTTP
-    HTTP -->|"画像プロキシ (認証なし)"| IC
+    HTTP -->|"画像プロキシ (起動毎トークン)"| IC
     HTTP -->|"外部 principal API"| AUTH
     AUTH -->|"401 if invalid"| EXT
     AUTH --> IC
@@ -65,7 +65,7 @@ graph TB
 
 1. **Tauri のプロセス分離**: WebView (フロントエンド) と Rust コアは別プロセス。IPC ブリッジ経由でのみ通信し、フロントエンドから直接ネットワークやファイルシステムにアクセスできない
 2. **Rust による境界防御**: ネットワーク通信・トークン管理・ホスト検証はすべて Rust 側で実行。メモリ安全性が保証された言語で機密処理を行う
-3. **メディア取得の単一経路**: 画像・効果音は WebView・外部ツールとも loopback に bind した内蔵 HTTP サーバー (bind 先とポートの正本は `src-tauri/src/http_server.rs`) の画像プロキシ経由。認証はルート単位で、画像プロキシは認証なし・外部 principal 向け API は Bearer Token 保護。すべて同じ Rust 側キャッシュ層に入り、HTTPS 強制・ホスト検証・サーキットブレーカーを迂回できない
+3. **メディア取得の単一経路**: 画像・効果音は WebView・外部ツールとも loopback に bind した内蔵 HTTP サーバー (bind 先とポートの正本は `src-tauri/src/http_server.rs`) の画像プロキシ経由。認証はルート単位で、画像プロキシは起動毎のプロキシ専用トークン (#1099)・外部 principal 向け API は Bearer Token 保護。すべて同じ Rust 側キャッシュ層に入り、HTTPS 強制・ホスト検証・サーキットブレーカーを迂回できない
 
 ---
 
@@ -265,6 +265,9 @@ AI チャットは `connection_id` から endpoint / キー / protocol を Rust 
 - Bearer Token で全エンドポイントを保護（定数時間比較: `subtle` クレート）
 - API トークンは CSPRNG で 256-bit 生成（`rand` クレート）
 - 不正トークンには 401 Unauthorized を返却 + tracing でログ記録
+- 永続トークン (外部アプリ向け) は external principal gate (`permissions_gate.rs`) を通る。必要権限は Rust が `permissions.json5` をリクエストごとに直接読んで解決し、WebView (JS) の状態には依存しない (#1099)
+- 画像プロキシ (`/proxy/image`) も無認証ではない (#1099)。`<img src>` は Authorization ヘッダーを付けられないため、起動毎に生成するプロキシ専用トークンを query `t` で要求する。WebView は `get_media_proxy_token` command で受け取り、同一マシンの他ブラウザで開いたページは値を知り得ない。ephemeral API トークン (全権) を画像 URL に置かないために分けている
+- CORS は許可リスト (WebView の origin と `localhost:5173` の dev サーバー) のみ。以前の permissive は「認証は別途あるが無認証の面を作らない」原則に反していた (#1099)
 
 ---
 
@@ -487,7 +490,7 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 
 ### Permission モデル (#712)
 
-権限は **principal ごとに独立したプロファイル**として `<configDir>/notedeck/permissions.json5` に保存される。principal は `ai.chat` / `ai.heartbeat` / `plugin` / `external` の 4 つ。ファイルは capability 層から書き換えられない場所に隔離されている (settingsFs の固定名ラッパー経由でのみ到達)。
+権限は **principal ごとに独立したプロファイル**として `<configDir>/notedeck/permissions.json5` に保存される。principal は `ai.chat` / `ai.heartbeat` / `plugin` / `external` / `scratchpad` (スクラッチパッドカラムで本人が書くコード、既定 readonly、#1099)。全許可を持つのは本人の UI 操作 (`user`) だけで、カラムやウィンドウの種類で `user` は配らない。ファイルは capability 層から書き換えられない場所に隔離されている (settingsFs の固定名ラッパー経由でのみ到達)。
 
 - 各プロファイルは preset (`readonly` / `safe` / `full` / `custom`) + 個別 toggle。権限キーの語彙は capability の `permissions[]` 宣言が Single Source of Truth (`src/permissions/schema.ts`)
 - capability の `permissions: PermissionKey[]` と principal のプロファイルを **AND 照合**で評価。不一致なら `permission_denied` を tool_result に返す (AI には実行されない)
@@ -495,6 +498,9 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 - **external の read 下限**: HTTP API トークンの発行自体を Misskey コンテンツ read への同意とみなし、その範囲は常時 ON に clamp。逆に PKM メモ・下書き・AI 会話履歴などローカル私的データの read は external のデフォルトから外してある
 - 権限キー追加時は `backfillValue()` で principal ごとの既定値を宣言する。欠損キーは拒否扱い
 - 設定変更は dispatch 直前に再読込されるため、外部エディタや設定 UI からの変更が **再起動なしで即反映**される
+- **`tasks.run` は endpoint ごとに検査される** (#1099)。ユーザー定義タスクの action が叩く Misskey endpoint を、plugin の `Mk:api` と同じ対応表 (`src/permissions/misskeyApiGate.ts`) で呼び出し元 principal の権限に照らす。`tasks.run` は「タスクを起動してよい」であって「任意の endpoint に届いてよい」ではないので、`safe` preset が `notes.write: false` と `tasks.run: true` を同時に持つのは矛盾ではない
+- **plugin 登録 capability の実効権限は「呼び出し元 ∩ plugin」** (#1099)。プラグインが `Nd:register_command` で登録した capability を AI / 外部トークンが呼ぶと、handler 内の `Nd:call` / `Nd:http` / `Mk:api` は plugin principal で走るが、dispatcher は呼び出し元 (`onBehalfOf`) の権限も AND で検査する。以前は plugin 単独 (principal の置換) を意図的な決定としていたが、`ai.chat` が readonly でも plugin 経由なら safe + `network.external` が効く昇格になるため不採用に改めた
+- **external の解決は Rust 側にもある** (`src-tauri/src/permissions_profile.rs`)。HTTP API の external gate が JS から push された認可表を信じる構造は、WebView 内に入った任意 JS が外部トークンの権限を書き換えられる穴だった (#1099)。JS (dispatcher) と Rust (HTTP gate) は同じ `permissions.json5` を独立に読み、`src/permissions/golden/vectors.json` で一致を機械検査する。「判定の二重実装を持たない」(#712 §4.2) はこの理由で不採用に改めた — 二重化の代償 (ずれ) は golden で払い、認可境界を攻撃面の外に置くことを優先する
 
 権限キーの一覧と capability との対応は [SKILLS.md](SKILLS.md) §5 を参照。
 

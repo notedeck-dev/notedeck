@@ -298,7 +298,7 @@ AI には `tool_result` の `content` として文字列化された結果が返
 
 ## 5. permissions スキーマ
 
-権限は principal (`ai.chat` / `ai.heartbeat` / `plugin` / `external`) 別に `<config dir>/notedeck/permissions.json5` で管理される (#712 で AI 設定から独立ファイルに隔離 — capability からは書き換え不能)。各 principal のプロファイルは `preset` + `custom` で表現:
+権限は principal (`ai.chat` / `ai.heartbeat` / `plugin` / `external` / `scratchpad`) 別に `<config dir>/notedeck/permissions.json5` で管理される (#712 で AI 設定から独立ファイルに隔離 — capability からは書き換え不能)。各 principal のプロファイルは `preset` + `custom` で表現:
 
 | preset | readonly | safe | full | custom |
 |---|---|---|---|---|

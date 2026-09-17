@@ -1,4 +1,4 @@
-//! HTTP API (port 19820) の external principal gate (#712 §5.3 / #711)。
+//! HTTP API (port 19820) の external principal gate (#712 §5.3 / #711 / #1099)。
 //!
 //! 永続トークン由来のリクエストを external プロファイル (permissions.json5 の
 //! `external`) に従属させる。従来は永続トークンが起動毎の ephemeral 全権
@@ -12,16 +12,17 @@
 //! - **GET / 非 GET とも deny-by-default + per-route の明示対応表**。対応表に
 //!   無いルートはメソッド問わず 403 (notecli 側で新ルートが増えても黙って
 //!   開かない)。
-//! - **判定に使う granted map はフロントの `resolveFor('external')` の結果を
-//!   `permissions_sync` invoke で受け取ったもの** — preset / floor / clamp の
-//!   ロジックを Rust に複製しない (判定の二重実装を持たない #712 §4.2)。
-//! - **初回 sync 前は deny-by-default**: EXTERNAL_READ_FLOOR キーにマップされる
-//!   GET のみ許可し、非 GET と floor 外キーの GET は拒否する。フロント初期化は
-//!   数秒であり、「未設定のあいだ開いている」時間帯を作らない。
+//! - **granted 集合は Rust が permissions.json5 を直接読んで解決する**
+//!   (`permissions_profile`)。以前はフロントの `resolveFor('external')` の結果を
+//!   IPC で受け取っていたが、WebView 内の任意 JS がその command を呼べる以上、
+//!   外部トークンの権限を JS から全許可に書き換えられた (#1099)。ファイルは
+//!   リクエストごとに読む — 外部トークン由来のリクエストにしか走らず、
+//!   ファイルは小さいので、キャッシュの整合を持ち込むより単純で確実。
+//! - **ファイルが無ければ既定プロファイル、壊れていれば readonly** — フロントと
+//!   同じ倒し方 (golden で一致検査)。読取エラーも readonly 側に倒す。
 
-use notecli::error::NoteDeckError;
-use std::collections::HashMap;
-use std::sync::RwLock;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use axum::extract::Request;
 use axum::http::{Method, StatusCode};
@@ -30,71 +31,43 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::json;
 
+use crate::permissions_profile::{self, Granted, PrincipalId};
+
 /// 永続トークンで認証されたリクエストに付く marker (request extension)。
 /// プロセス外から付与できないため「inbound ヘッダーの strip 忘れ」という
 /// 脆弱性クラス自体が存在しない (#712 §7.2 と同じ理由で extension 方式)。
 #[derive(Clone, Copy, Debug)]
 pub struct ExternalTokenMarker;
 
-/// external principal の Misskey コンテンツ read 下限 (#712 §5.3)。
-/// フロント側 `EXTERNAL_READ_FLOOR` と同じ意味論的選択 — 「トークンを発行して
-/// 渡す行為そのものが Misskey コンテンツ read への同意」。sync 前でもこの
-/// キーにマップされる GET は許可する。
-const EXTERNAL_READ_FLOOR: [&str; 4] = ["notes.read", "account.read", "drive.read", "clips.read"];
+const PERMISSIONS_FILE_NAME: &str = "permissions.json5";
 
-/// フロントから同期された external の実効 granted map。
-/// None = 初回 sync 前 (deny-by-default で動く)。
-static EXTERNAL_GRANTED: RwLock<Option<HashMap<String, bool>>> = RwLock::new(None);
+/// `<settings dir>/permissions.json5`。起動時に `init` で 1 回だけ決まる。
+static PERMISSIONS_PATH: OnceLock<PathBuf> = OnceLock::new();
 
-/// フロントの `resolveFor('external')` の結果を受け取る (#712 §4.2)。
-/// `reloadPermissionsConfig()` / 権限保存が必ずこれを伴う。
-#[tauri::command]
-#[specta::specta]
-pub fn permissions_sync(external_granted: HashMap<String, bool>) -> crate::error::Result<()> {
-    let mut guard = EXTERNAL_GRANTED
-        .write()
-        .map_err(|e| NoteDeckError::Internal(format!("permissions sync lock poisoned: {e}")))?;
-    *guard = Some(external_granted);
-    Ok(())
+/// 設定ディレクトリ (`<app dir>/notedeck`) を登録する。HTTP サーバー起動前
+/// (setup) に呼ぶ。
+pub fn init(settings_dir: &Path) {
+    let _ = PERMISSIONS_PATH.set(settings_dir.join(PERMISSIONS_FILE_NAME));
 }
 
-/// external gate をフェイルセーフに倒す (#718)。sync がリトライ後も失敗し
-/// 続けると、フロントの絞った権限が Rust に届かず古い広い map のまま動いて
-/// しまう。フロントは失敗確定時にこれを呼び、floor 以外を全 deny の状態
-/// (空 map) に固定する。以後は次の成功 sync が来るまで最小権限で動く。
-///
-/// 引数を取らないので、payload の serialize / 大きさ起因で `permissions_sync`
-/// が失敗するケースでも到達できる (IPC 自体が全断ならこの呼び出しも失敗する
-/// が、その場合フロントは警告に残す)。
-#[tauri::command]
-#[specta::specta]
-pub fn permissions_lockdown() -> crate::error::Result<()> {
-    let mut guard = EXTERNAL_GRANTED
-        .write()
-        .map_err(|e| NoteDeckError::Internal(format!("permissions lockdown lock poisoned: {e}")))?;
-    *guard = Some(HashMap::new());
-    Ok(())
-}
-
-/// テスト用: sync 状態を初期化する。
-#[cfg(test)]
-pub fn reset_external_granted_for_test() {
-    *EXTERNAL_GRANTED.write().unwrap() = None;
-}
-
-fn is_granted(key: &str) -> bool {
-    // floor キーは sync 状態に関わらず常時許可 (resolveFor 側でも ON に clamp
-    // されるので表示と一致する)
-    if EXTERNAL_READ_FLOOR.contains(&key) {
-        return true;
+/// ファイル読取結果 → external の実効 granted。NotFound は「ファイル無し」
+/// (既定プロファイル)、その他の IO エラーは破損と同じ readonly に倒す。
+fn granted_from_read(result: std::io::Result<String>) -> Granted {
+    match result {
+        Ok(content) => permissions_profile::resolve(Some(&content), PrincipalId::External),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            permissions_profile::resolve(None, PrincipalId::External)
+        }
+        Err(_) => permissions_profile::resolve_fallback(PrincipalId::External),
     }
-    match EXTERNAL_GRANTED.read() {
-        Ok(guard) => match guard.as_ref() {
-            Some(map) => map.get(key).copied().unwrap_or(false),
-            // 初回 sync 前: floor 外キーは拒否
-            None => false,
-        },
-        Err(_) => false,
+}
+
+/// external の実効 granted を permissions.json5 から解決する。`init` 前
+/// (HTTP サーバーは setup 後に起動するので通常は無い) は既定プロファイル。
+async fn external_granted() -> Granted {
+    match PERMISSIONS_PATH.get() {
+        Some(path) => granted_from_read(tokio::fs::read_to_string(path).await),
+        None => permissions_profile::resolve(None, PrincipalId::External),
     }
 }
 
@@ -236,7 +209,12 @@ pub async fn external_gate_middleware(req: Request, next: Next) -> Response {
     match route_rule(req.method(), req.uri().path()) {
         RouteRule::Exempt => next.run(req).await,
         RouteRule::Keys(keys) => {
-            let denied: Vec<&str> = keys.iter().filter(|k| !is_granted(k)).copied().collect();
+            let granted = external_granted().await;
+            let denied: Vec<&str> = keys
+                .iter()
+                .filter(|k| !granted.contains(*k))
+                .copied()
+                .collect();
             if denied.is_empty() {
                 next.run(req).await
             } else {
@@ -249,30 +227,13 @@ pub async fn external_gate_middleware(req: Request, next: Next) -> Response {
 
 /// health ハンドラ用: 永続トークン由来のリクエストで streams 詳細
 /// (接続先 host 等のローカルデータ) を返してよいか。
-pub fn external_may_read_deck() -> bool {
-    is_granted("deck.read")
+pub async fn external_may_read_deck() -> bool {
+    external_granted().await.contains("deck.read")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    /// EXTERNAL_GRANTED はプロセス全体で共有のため、これを触るテストが
-    /// 並列実行されると互いの sync/reset が混線して flaky になる (CI 実績あり)。
-    /// state を変更するテストはこの lock を先頭で取って直列化する。
-    static STATE_LOCK: Mutex<()> = Mutex::new(());
-
-    fn lock_state() -> std::sync::MutexGuard<'static, ()> {
-        // 先行テストの assert 失敗で poison されても後続テストは続行してよい
-        STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
-    }
-
-    fn sync(pairs: &[(&str, bool)]) {
-        let map: HashMap<String, bool> =
-            pairs.iter().map(|(k, v)| ((*k).to_string(), *v)).collect();
-        *EXTERNAL_GRANTED.write().unwrap() = Some(map);
-    }
 
     #[test]
     fn core_write_routes_require_write_keys() {
@@ -378,40 +339,57 @@ mod tests {
     }
 
     #[test]
-    fn floor_keys_are_granted_even_before_first_sync() {
-        let _guard = lock_state();
-        reset_external_granted_for_test();
-        assert!(is_granted("notes.read"));
-        assert!(is_granted("account.read"));
-        // floor 外キーは sync 前は拒否
-        assert!(!is_granted("notifications"));
-        assert!(!is_granted("deck.read"));
-        assert!(!is_granted("notes.write"));
+    fn missing_file_grants_only_misskey_read_floor() {
+        let g = granted_from_read(Err(std::io::Error::from(std::io::ErrorKind::NotFound)));
+        assert!(g.contains("notes.read"));
+        assert!(g.contains("account.read"));
+        // floor 外は既定で拒否
+        assert!(!g.contains("notifications"));
+        assert!(!g.contains("deck.read"));
+        assert!(!g.contains("notes.write"));
     }
 
     #[test]
-    fn synced_map_controls_non_floor_keys() {
-        let _guard = lock_state();
-        sync(&[("notes.write", true), ("deck.read", false)]);
-        assert!(is_granted("notes.write"));
-        assert!(!is_granted("deck.read"));
-        // floor は synced 値に関わらず true (resolveFor 側でも clamp 済み)
-        assert!(is_granted("clips.read"));
-        reset_external_granted_for_test();
+    fn file_content_controls_non_floor_keys() {
+        let g = granted_from_read(Ok(
+            "{ principals: { external: { preset: 'custom', custom: { 'notes.write': true, 'deck.read': false } } } }"
+                .to_string(),
+        ));
+        assert!(g.contains("notes.write"));
+        assert!(!g.contains("deck.read"));
+        // floor は保存値に関わらず true
+        assert!(g.contains("clips.read"));
     }
 
     #[test]
-    fn lockdown_denies_non_floor_even_after_broad_sync() {
-        let _guard = lock_state();
-        // 広い権限が同期された後に lockdown すると floor 以外は全 deny (#718)
-        sync(&[("notes.write", true), ("notifications", true)]);
-        assert!(is_granted("notes.write"));
-        permissions_lockdown().unwrap();
-        assert!(!is_granted("notes.write"));
-        assert!(!is_granted("notifications"));
-        // floor は lockdown 後も維持 (トークン発行 = read 同意の下限)
-        assert!(is_granted("notes.read"));
-        assert!(is_granted("account.read"));
-        reset_external_granted_for_test();
+    fn unreadable_file_falls_back_to_readonly_with_floor() {
+        // 広い権限は届かず、readonly + floor に倒れる (旧 lockdown と同じ側)
+        let g = granted_from_read(Err(std::io::Error::from(
+            std::io::ErrorKind::PermissionDenied,
+        )));
+        assert!(!g.contains("notes.write"));
+        assert!(!g.contains("notifications"));
+        assert!(g.contains("notes.read"));
+    }
+
+    #[tokio::test]
+    async fn reads_permissions_file_from_disk_per_request() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(PERMISSIONS_FILE_NAME);
+        // このテストは OnceLock を触らず、ファイル読取 → 解決の経路だけを実機で確かめる
+        std::fs::write(&path, "{ principals: { external: { preset: 'full' } } }").unwrap();
+        let g = granted_from_read(tokio::fs::read_to_string(&path).await);
+        assert!(g.contains("notes.write"));
+        assert!(
+            !g.contains("tasks.run"),
+            "third-party deny survives full preset"
+        );
+        std::fs::write(
+            &path,
+            "{ principals: { external: { preset: 'readonly' } } }",
+        )
+        .unwrap();
+        let g = granted_from_read(tokio::fs::read_to_string(&path).await);
+        assert!(!g.contains("notes.write"));
     }
 }

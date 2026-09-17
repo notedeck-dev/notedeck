@@ -106,6 +106,7 @@ const handlers: Record<string, QueryHandler> = {
       'ai.heartbeat',
       'plugin',
       'external',
+      'scratchpad',
     ]
     return {
       keys: PERMISSION_KEYS,

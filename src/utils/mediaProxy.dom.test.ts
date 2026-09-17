@@ -62,6 +62,22 @@ describe('proxyUrl', () => {
   })
 })
 
+describe('起動毎のプロキシトークン (#1099)', () => {
+  it('設定後は query t が付き、解除すると外れる', async () => {
+    const { proxyUrl, proxyThumbUrl, setMediaProxyToken } = await loadModule()
+    expect(proxyUrl(REMOTE)).not.toContain('&t=')
+    setMediaProxyToken('abc123')
+    expect(proxyUrl(REMOTE)).toBe(
+      `${BASE}?url=${encodeURIComponent(REMOTE)}&t=abc123`,
+    )
+    expect(proxyThumbUrl(REMOTE, 56)).toBe(
+      `${BASE}?url=${encodeURIComponent(REMOTE)}&w=56&t=abc123`,
+    )
+    setMediaProxyToken(null)
+    expect(proxyUrl(REMOTE)).toBe(`${BASE}?url=${encodeURIComponent(REMOTE)}`)
+  })
+})
+
 describe('proxyThumbUrl', () => {
   // format は付けない: 明示すると「上限以下なら変換不要」の素通しが効かなくなる
   it('幅だけを付ける', async () => {

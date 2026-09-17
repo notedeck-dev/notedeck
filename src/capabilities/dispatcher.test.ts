@@ -101,6 +101,46 @@ describe('dispatchCapability', () => {
     expect(seen).toEqual(['acc-ctx', undefined])
   })
 
+  it('onBehalfOf の principal も AND で検査する (#1099)', async () => {
+    registerCapability(
+      makeCapability({ id: 'w.cap', permissions: ['notes.write'] }),
+    )
+    setPrincipalPreset('plugin', 'full')
+    setPrincipalPreset('ai.chat', 'readonly')
+    const plugin = { kind: 'plugin', pluginId: 'p' } as const
+    // plugin 単独なら通る
+    expect(
+      (await dispatchCapability('w.cap', {}, { principal: plugin })).ok,
+    ).toBe(true)
+    // AI (readonly) の呼び出しで走っている plugin handler からは通らない
+    const r = await dispatchCapability(
+      'w.cap',
+      {},
+      {
+        principal: plugin,
+        onBehalfOf: [{ kind: 'ai.chat' }],
+      },
+    )
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.code).toBe('permission_denied')
+      expect(r.error).toContain('plugin on behalf of ai.chat')
+    }
+    // user はプロファイルを持たないので影響しない
+    expect(
+      (
+        await dispatchCapability(
+          'w.cap',
+          {},
+          {
+            principal: plugin,
+            onBehalfOf: [{ kind: 'user' }],
+          },
+        )
+      ).ok,
+    ).toBe(true)
+  })
+
   it('returns unknown_capability for an unregistered id', async () => {
     const r = await dispatchCapability('not-here', {}, ctxWithPreset('full'))
     expect(r.ok).toBe(false)

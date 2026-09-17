@@ -110,8 +110,12 @@ export function useAiScriptRunner() {
       )
     }
 
+    // この env の登録 capability を実行中の呼び出し元 (#1099) — Mk:api と
+    // Nd:* が同じ配列を見る
+    const callers: Principal[] = []
     const env = createAiScriptEnv(
       {
+        getCallers: () => callers,
         principal: options.principal,
         api: apiOption,
         storagePrefix: options.storagePrefix,
@@ -149,6 +153,7 @@ export function useAiScriptRunner() {
       principal: options.principal,
       provider: providerFromPrincipal(options.principal),
       disposers: [],
+      callers,
       getAccountId: () => options.accountId,
     }
     const ndEnv = createNoteDeckEnv(ndCtx)

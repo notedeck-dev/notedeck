@@ -29,6 +29,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { useVerticalResize } from '@/composables/useVerticalResize'
+import type { Principal } from '@/permissions/principal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
@@ -218,10 +219,15 @@ async function run() {
     return
   }
 
+  // この env の登録 capability を実行中の呼び出し元 (#1099) — Mk:api と
+  // Nd:* が同じ配列を見る
+  const callers: Principal[] = []
   const env = createAiScriptEnv(
     {
-      // playground: 本人がその場で書いて実行するコードは本人の操作
-      principal: { kind: 'user' } as const,
+      getCallers: () => callers,
+      // スクラッチパッド専用 principal (#1099): 本人のコードでも全許可
+      // (user) は配らず、権限ウィンドウの scratchpad 行で解決する
+      principal: { kind: 'scratchpad' } as const,
       api: apiOption,
       storagePrefix: `col-aiscript-${props.column.id}`,
       onDialog: (title, text, type) =>
@@ -243,14 +249,16 @@ async function run() {
 
   const ndCtx: NoteDeckEnvContext = {
     commandStore,
-    // playground: 本人がその場で書いて実行するコードは本人の操作 (#712 §3.2 —
-    // ターミナルにシェルスクリプトを貼るのと同じ local trust)
-    principal: { kind: 'user' },
+    // 「ターミナルにシェルスクリプトを貼るのと同じ local trust」で user を
+    // 配っていたが、露出 (developer) は認可境界ではないので、コード実行面には
+    // 種類に関わらずプロファイルを持たせる (#1099)。既定 readonly
+    principal: { kind: 'scratchpad' },
     // スクラッチパッドは本人のコードなので固定の local:user 名前空間。
     // カラムを跨いで同じ名前を登録すると衝突する (先勝ち) が、本人の
     // コード同士なので黙って上書きするより気付ける方がよい
-    provider: providerFromPrincipal({ kind: 'user' }),
+    provider: providerFromPrincipal({ kind: 'scratchpad' }),
     disposers: [],
+    callers,
     getAccountId: () => props.column.accountId ?? null,
   }
   const ndEnv = createNoteDeckEnv(ndCtx)

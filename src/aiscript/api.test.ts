@@ -136,7 +136,10 @@ describe('Mk:api', () => {
       values.STR('notes/show'),
       utils.jsToVal({ noteId: 'n1' }),
     ])
-    expect(gateMock).toHaveBeenCalledWith(principal, 'notes/show')
+    // 呼び出し元 (onBehalfOf) は env 側の getCallers 未設定なら undefined (#1099)
+    expect(gateMock).toHaveBeenCalledWith(principal, 'notes/show', {
+      onBehalfOf: undefined,
+    })
     expect(api).toHaveBeenCalledWith('notes/show', { noteId: 'n1' })
     expect(utils.valToJs(result)).toEqual({ id: 'n1', text: 'hi' })
   })

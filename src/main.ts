@@ -12,6 +12,7 @@ import { useServersStore } from './stores/servers'
 import { useSettingsStore } from './stores/settings'
 import { useThemeStore } from './stores/theme'
 import { resolveEvictionConfig } from './utils/cacheEviction'
+import { setMediaProxyToken } from './utils/mediaProxy'
 import { printSelfXssWarning } from './utils/selfXssWarning'
 import { isTauri } from './utils/settingsFs'
 import { logStartupSummary, markStartup } from './utils/startupTrace'
@@ -111,10 +112,18 @@ if (isTauri) {
   // settings.json (single source of truth for scalar preferences) と
   // performance.json5 (CSS render-cost knobs: blur/shadow/animation) を
   // 並列ロード。両者は独立ファイルなので往復遅延を重ねない。
-  // 初回 Vue paint 前に完了させて FOUC を防ぐ。
+  // 初回 Vue paint 前に完了させて FOUC を防ぐ。画像プロキシのトークン
+  // (#1099) も同じ待ちに相乗りする — 無いと初回描画の画像が全部 403 になる
   const settingsStore = useSettingsStore()
   markStartup('settings-await')
-  await Promise.all([settingsStore.load(), usePerformanceStore().init()])
+  await Promise.all([
+    settingsStore.load(),
+    usePerformanceStore().init(),
+    commands
+      .getMediaProxyToken()
+      .then((token) => setMediaProxyToken(token))
+      .catch((e) => console.warn('[media-proxy] token unavailable:', e)),
+  ])
   markStartup('settings-loaded')
 
   // ユーザー設定の eviction policy を Rust 側に反映 (fire-and-forget)。

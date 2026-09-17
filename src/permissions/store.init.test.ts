@@ -17,13 +17,6 @@ vi.mock('@/utils/settingsFs', () => ({
   writePermissionsSettings: () => Promise.resolve(),
 }))
 
-vi.mock('@/utils/tauriInvoke', () => ({
-  commands: {
-    permissionsSync: () => Promise.resolve({ status: 'ok', data: null }),
-  },
-  unwrap: (r: unknown) => r,
-}))
-
 describe('whenPermissionsReady (#716)', () => {
   it('読込完了前は解決せず、完了後に confirmSkips が反映される', async () => {
     const { whenPermissionsReady, isConfirmSkipped } = await import('./store')

@@ -26,6 +26,13 @@ export type Principal =
    * scope PR で配管する (型にだけ存在、現状は未使用)。
    */
   | { kind: 'external'; tokenId?: string }
+  /**
+   * スクラッチパッドカラムで本人がその場で書いて実行するコード (#1099)。
+   * 以前は `user` (全許可) だったが、全許可は本人の UI 操作にだけ配り、
+   * コード実行面はカラムの種類に関わらずプロファイルを持たせる。既定は
+   * readonly で、露出 (developer) は入口を隠すだけで認可境界ではない。
+   */
+  | { kind: 'scratchpad' }
 
 /** 権限プロファイルを持つ principal (user は常時フル、プロファイル不要) */
 export type ProfiledPrincipalId =
@@ -33,6 +40,7 @@ export type ProfiledPrincipalId =
   | 'ai.heartbeat'
   | 'plugin'
   | 'external'
+  | 'scratchpad'
 
 /**
  * 確認ダイアログ / Spotlight の帰属表示に使う actor ラベル。
@@ -64,6 +72,8 @@ export function principalActorLabel(principal: Principal): string | null {
     }
     case 'external':
       return '外部アプリ'
+    case 'scratchpad':
+      return 'スクラッチパッド'
   }
 }
 

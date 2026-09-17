@@ -17,6 +17,12 @@ export interface AiScriptEnvOptions {
    * Mk:api は endpoint 対応表 gate で判定される。user (playground) は免除。
    */
   principal: Principal
+  /**
+   * この env が登録した capability を dispatcher 経由で実行中の呼び出し元
+   * (#1099、NoteDeckEnvContext.callers と同じ配列)。Mk:api は
+   * 「呼び出し元 ∩ principal」で判定する
+   */
+  getCallers?: () => readonly Principal[]
   /** Mk:api の実装。未設定なら Mk:api は使用不可エラー */
   api?: (endpoint: string, params: Record<string, unknown>) => Promise<unknown>
   /** localStorage のキー prefix（Mk:save/Mk:load 用） */
@@ -105,8 +111,11 @@ export function createAiScriptEnv(
     }
     const endpoint = endpointVal?.type === 'str' ? endpointVal.value : ''
     // plugin principal は endpoint 対応表 gate で判定 (#712 §5.5 / #711)。
-    // 拒否なら throw (プラグイン作者向けの理由付きメッセージ)
-    await assertMisskeyApiAllowed(options.principal, endpoint)
+    // 拒否なら throw (プラグイン作者向けの理由付きメッセージ)。実行中の
+    // 呼び出し元があれば AND (#1099)
+    await assertMisskeyApiAllowed(options.principal, endpoint, {
+      onBehalfOf: options.getCallers?.(),
+    })
     const params =
       paramsVal?.type === 'obj'
         ? (utils.valToJs(paramsVal) as Record<string, unknown>)
