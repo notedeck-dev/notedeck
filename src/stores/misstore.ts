@@ -1069,7 +1069,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       if (!ok) return false
     }
     // 上書き更新: 本体とストア由来メタのみ。ローカル ID・name・mode・
-    // scope/installedFor・有効/無効 (activeIds) は維持する
+    // scope/installedFor・有効/無効 (active) は維持する
     useSkillsStore().update(
       existing.id,
       buildSkillStorePatch(meta, body, e, hash),
