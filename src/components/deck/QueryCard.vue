@@ -223,8 +223,13 @@ function handlePrimaryClick() {
             >
               <i class="ti ti-trash" />
             </button>
-            <!-- スコープ未参加でも適用済みカラムがあれば評価されるので、ここでも止められる (#1043) -->
+            <!--
+              スコープ未参加でも適用済みカラムがあれば評価され続けるので、
+              適用中のものだけここで止められる (#1043)。未適用ならプラグインの
+              ライブラリと同じく「追加」だけ (走っていないものに有効/無効は無意味)
+            -->
             <button
+              v-if="refCount > 0 || isDisabled"
               class="_button"
               :class="[$style.primaryBtn, !isDisabled && $style.secondaryBtn]"
               :disabled="readOnly"
