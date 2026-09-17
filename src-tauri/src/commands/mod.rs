@@ -189,7 +189,7 @@ pub(crate) fn extract_ogp_urls(text: &str) -> Vec<String> {
         .collect()
 }
 
-pub(crate) type Result<T> = std::result::Result<T, NoteDeckError>;
+pub(crate) use crate::error::Result;
 
 pub(crate) const MAX_UPLOAD_BYTES: usize = 50 * 1024 * 1024; // 50 MB
 

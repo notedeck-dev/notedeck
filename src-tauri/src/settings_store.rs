@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 
 use notecli::error::NoteDeckError;
 
-type Result<T> = std::result::Result<T, NoteDeckError>;
+use crate::error::Result;
 
 /// Allowed subdirectory names for settings files. Also the set included in settings backup.
 pub const ALLOWED_SUBDIRS: &[&str] = &[

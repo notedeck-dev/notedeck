@@ -2801,7 +2801,7 @@ async queryGetReadModelSnapshot(queryId: string, limit: number | null) : Promise
  *
  * @see src-tauri/src/perf_config.rs
  */
-async updatePerformanceConfig(config: PerformanceConfig) : Promise<Result<null, string>> {
+async updatePerformanceConfig(config: PerformanceConfig) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_performance_config", { config }) };
 } catch (e) {
@@ -2814,7 +2814,7 @@ async updatePerformanceConfig(config: PerformanceConfig) : Promise<Result<null, 
  *
  * @see src-tauri/src/perf_config.rs
  */
-async getPerformanceConfig() : Promise<Result<PerformanceConfig, string>> {
+async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_performance_config") };
 } catch (e) {
@@ -2828,7 +2828,7 @@ async getPerformanceConfig() : Promise<Result<PerformanceConfig, string>> {
  *
  * @see src-tauri/src/permissions_gate.rs
  */
-async permissionsSync(externalGranted: Partial<{ [key in string]: boolean }>) : Promise<Result<null, string>> {
+async permissionsSync(externalGranted: Partial<{ [key in string]: boolean }>) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("permissions_sync", { externalGranted }) };
 } catch (e) {
@@ -2848,7 +2848,7 @@ async permissionsSync(externalGranted: Partial<{ [key in string]: boolean }>) : 
  *
  * @see src-tauri/src/permissions_gate.rs
  */
-async permissionsLockdown() : Promise<Result<null, string>> {
+async permissionsLockdown() : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("permissions_lockdown") };
 } catch (e) {

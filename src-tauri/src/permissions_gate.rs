@@ -19,6 +19,7 @@
 //!   GET のみ許可し、非 GET と floor 外キーの GET は拒否する。フロント初期化は
 //!   数秒であり、「未設定のあいだ開いている」時間帯を作らない。
 
+use notecli::error::NoteDeckError;
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -49,10 +50,10 @@ static EXTERNAL_GRANTED: RwLock<Option<HashMap<String, bool>>> = RwLock::new(Non
 /// `reloadPermissionsConfig()` / 権限保存が必ずこれを伴う。
 #[tauri::command]
 #[specta::specta]
-pub fn permissions_sync(external_granted: HashMap<String, bool>) -> Result<(), String> {
+pub fn permissions_sync(external_granted: HashMap<String, bool>) -> crate::error::Result<()> {
     let mut guard = EXTERNAL_GRANTED
         .write()
-        .map_err(|e| format!("permissions sync lock poisoned: {e}"))?;
+        .map_err(|e| NoteDeckError::Internal(format!("permissions sync lock poisoned: {e}")))?;
     *guard = Some(external_granted);
     Ok(())
 }
@@ -67,10 +68,10 @@ pub fn permissions_sync(external_granted: HashMap<String, bool>) -> Result<(), S
 /// が、その場合フロントは警告に残す)。
 #[tauri::command]
 #[specta::specta]
-pub fn permissions_lockdown() -> Result<(), String> {
+pub fn permissions_lockdown() -> crate::error::Result<()> {
     let mut guard = EXTERNAL_GRANTED
         .write()
-        .map_err(|e| format!("permissions lockdown lock poisoned: {e}"))?;
+        .map_err(|e| NoteDeckError::Internal(format!("permissions lockdown lock poisoned: {e}")))?;
     *guard = Some(HashMap::new());
     Ok(())
 }
@@ -108,9 +109,17 @@ pub enum RouteRule {
     Deny,
 }
 
-/// per-route 対応表 (#712 §5.3)。openapi.json の全 25 ルートを網羅する。
+/// per-route 対応表 (#712 §5.3)。openapi.json の全ルートを網羅する — 網羅は
+/// `every_openapi_route_has_an_explicit_rule` が機械検査する (#1098)。
 /// 対応表に無いパスは Deny (deny-by-default)。
 pub fn route_rule(method: &Method, path: &str) -> RouteRule {
+    explicit_route_rule(method, path).unwrap_or(RouteRule::Deny)
+}
+
+/// 対応表に明示されたルールだけを返す。None = 対応表に無い (fallback の Deny)。
+/// 恒久拒否のルートは `Some(Deny)` で書き、「忘れて Deny」と区別する。
+fn explicit_route_rule(method: &Method, path: &str) -> Option<RouteRule> {
+    use RouteRule::{Deny, Exempt, Keys};
     let segments: Vec<&str> = path.trim_matches('/').split('/').collect();
 
     // --- 公開 meta / proxy (認証自体が無いルート) ---
@@ -118,19 +127,19 @@ pub fn route_rule(method: &Method, path: &str) -> RouteRule {
         (&Method::GET, "/api")
         | (&Method::GET, "/api/docs")
         | (&Method::GET, "/api/openapi.json") => {
-            return RouteRule::Exempt;
+            return Some(Exempt);
         }
         _ => {}
     }
     if method == Method::GET && path.starts_with("/proxy/image") {
-        return RouteRule::Exempt;
+        return Some(Exempt);
     }
 
     // --- NoteDeck 固有ルート (先に完全一致で判定 — {host} パターンより優先) ---
     if path == "/api/capabilities" && method == Method::GET {
         // capability id の列挙は静的 metadata で秘匿情報でない。外部アプリの
         // discovery に必要 (#712 §5.3)
-        return RouteRule::Exempt;
+        return Some(Exempt);
     }
     if segments.len() == 4
         && segments[0] == "api"
@@ -140,30 +149,39 @@ pub fn route_rule(method: &Method, path: &str) -> RouteRule {
     {
         // dispatcher に届くルートは gate 免除 — dispatcher が external
         // principal で enforce する (単一 enforce 点の維持)
-        return RouteRule::Exempt;
+        return Some(Exempt);
     }
     if path == "/api/health" && method == Method::GET {
         // self-diagnosis の summary は免除。streams 詳細 (接続先 host 等) の
         // deck.read gate はハンドラ側で応答から間引く
-        return RouteRule::Exempt;
+        return Some(Exempt);
     }
     if method == Method::GET {
         match path {
             // ローカル identity 列挙 (全アカウント / 全サーバー) — サーバー側
             // account.read ではなく deck.read (external デフォルト OFF)
-            "/api/accounts" => return RouteRule::Keys(&["deck.read"]),
+            "/api/accounts" => return Some(Keys(&["deck.read"])),
             // カラム構成 = 検索クエリ / アンテナ名等のローカル私的データ
             "/api/deck/columns" | "/api/deck/active" => {
-                return RouteRule::Keys(&["deck.read"]);
+                return Some(Keys(&["deck.read"]));
             }
             // コマンド一覧はインストール済みプラグイン由来の項目を含む
-            "/api/commands" => return RouteRule::Keys(&["deck.read"]),
+            "/api/commands" => return Some(Keys(&["deck.read"])),
             // SSE: timeline + notification 等の複合面。v1 は接続時に両キーを
             // 要求する (notifications=false で notification イベントだけ filter
             // する形は notecli 側 stream の wrap が必要なので将来)
             "/api/events" => {
-                return RouteRule::Keys(&["notes.read", "notifications"]);
+                return Some(Keys(&["notes.read", "notifications"]));
             }
+            // 診断・開発向けの面。従来は対応表に無く fallback で Deny だったのを
+            // 明示した (挙動は同じ)。外部トークンへ開放するなら個別に判断する
+            "/api/heartbeat/status"
+            | "/api/inspector/recent"
+            | "/api/logs/recent"
+            | "/api/perf/caches"
+            | "/api/permissions/resolved"
+            | "/api/querybridge/trace"
+            | "/api/startup/trace" => return Some(Deny),
             _ => {}
         }
     }
@@ -172,24 +190,24 @@ pub fn route_rule(method: &Method, path: &str) -> RouteRule {
     if segments.len() >= 3 && segments[0] == "api" {
         let rest = &segments[2..];
         return match (method, rest) {
-            (&Method::POST, ["note"]) => RouteRule::Keys(&["notes.write"]),
-            (&Method::GET, ["timeline", _]) => RouteRule::Keys(&["notes.read"]),
-            (&Method::GET, ["notifications"]) => RouteRule::Keys(&["notifications"]),
-            (&Method::GET, ["search"]) => RouteRule::Keys(&["notes.read"]),
-            (&Method::GET, ["notes", _]) => RouteRule::Keys(&["notes.read"]),
-            (&Method::DELETE, ["notes", _]) => RouteRule::Keys(&["notes.write"]),
+            (&Method::POST, ["note"]) => Some(Keys(&["notes.write"])),
+            (&Method::GET, ["timeline", _]) => Some(Keys(&["notes.read"])),
+            (&Method::GET, ["notifications"]) => Some(Keys(&["notifications"])),
+            (&Method::GET, ["search"]) => Some(Keys(&["notes.read"])),
+            (&Method::GET, ["notes", _]) => Some(Keys(&["notes.read"])),
+            (&Method::DELETE, ["notes", _]) => Some(Keys(&["notes.write"])),
             (&Method::GET, ["notes", _, "children" | "conversation" | "reactions"]) => {
-                RouteRule::Keys(&["notes.read"])
+                Some(Keys(&["notes.read"]))
             }
             (&Method::POST, ["notes", _, "reactions"])
-            | (&Method::DELETE, ["notes", _, "reactions"]) => RouteRule::Keys(&["notes.react"]),
-            (&Method::GET, ["users", _]) => RouteRule::Keys(&["account.read"]),
-            (&Method::GET, ["users", _, "notes"]) => RouteRule::Keys(&["notes.read"]),
-            _ => RouteRule::Deny,
+            | (&Method::DELETE, ["notes", _, "reactions"]) => Some(Keys(&["notes.react"])),
+            (&Method::GET, ["users", _]) => Some(Keys(&["account.read"])),
+            (&Method::GET, ["users", _, "notes"]) => Some(Keys(&["notes.read"])),
+            _ => None,
         };
     }
 
-    RouteRule::Deny
+    None
 }
 
 fn forbidden(required: &[&str]) -> Response {
@@ -309,6 +327,41 @@ mod tests {
         );
         assert_eq!(route_rule(&Method::GET, "/api/health"), RouteRule::Exempt);
         assert_eq!(route_rule(&Method::GET, "/api"), RouteRule::Exempt);
+    }
+
+    /// openapi.json の全ルートが対応表に明示されている (#1098)。新しいルートを
+    /// 足して表を忘れると fallback の Deny で黙って塞がるので、ここで落とす。
+    #[test]
+    fn every_openapi_route_has_an_explicit_rule() {
+        let spec: serde_json::Value =
+            serde_json::from_str(include_str!("../openapi.json")).expect("openapi.json parses");
+        let paths = spec["paths"].as_object().expect("paths object");
+        let mut missing = Vec::new();
+        for (template, ops) in paths {
+            let concrete = template
+                .replace("{host}", "misskey.io")
+                .replace("{note_id}", "abc123")
+                .replace("{user_id}", "u1")
+                .replace("{tl_type}", "home")
+                .replace("{capability_id}", "notes.create");
+            for method in ops.as_object().expect("operations").keys() {
+                let m = match method.as_str() {
+                    "get" => Method::GET,
+                    "post" => Method::POST,
+                    "put" => Method::PUT,
+                    "delete" => Method::DELETE,
+                    "patch" => Method::PATCH,
+                    _ => continue,
+                };
+                if explicit_route_rule(&m, &concrete).is_none() {
+                    missing.push(format!("{} {}", m, template));
+                }
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "routes without an explicit rule: {missing:?}"
+        );
     }
 
     #[test]

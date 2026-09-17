@@ -21,6 +21,7 @@ mod app_dir;
 mod auth_service;
 mod commands;
 mod crash_report;
+mod error;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
 /// [`http_server::build_openapi`].
 pub mod http_server;
