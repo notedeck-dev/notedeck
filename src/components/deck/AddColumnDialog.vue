@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch, watchEffect } from 'vue'
+import {
+  CROSS_ACCOUNT_UNAVAILABLE_LABELS,
+  crossAccountUnavailableReason,
+} from '@/columns/accountScope'
 import { exposedColumnGroups } from '@/columns/exposure'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
@@ -95,6 +99,13 @@ watchEffect(() => {
 })
 
 const addColumnType = ref<ColumnType | null>(null)
+
+/** 「全アカウント」で開けない理由 (#1017)。null なら開ける */
+const crossAccountReason = computed(() =>
+  addColumnType.value
+    ? crossAccountUnavailableReason(addColumnType.value)
+    : null,
+)
 
 /** Whether the selected column type requires authentication */
 const requiresAuth = computed(() => {
@@ -450,6 +461,18 @@ function close() {
         >
           <!-- カラムヘッダーと同じ記号で示す (#1018)。誰が含まれるかは可変な
                ので顔は並べない -->
+          <template #avatar>
+            <i class="ti ti-user" :class="$style.addAccountIcon" />
+          </template>
+        </AccountPickerRow>
+        <!-- 対応していない種別は行を消さず、無効の行と理由を出す (#1017)。
+             構造上できないのか未実装なのかを見て分かるようにする -->
+        <AccountPickerRow
+          v-else-if="addColumnType && crossAccountReason && accountsStore.accounts.length !== 1"
+          label="全アカウント"
+          :hint="CROSS_ACCOUNT_UNAVAILABLE_LABELS[crossAccountReason]"
+          disabled
+        >
           <template #avatar>
             <i class="ti ti-user" :class="$style.addAccountIcon" />
           </template>

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { getAccountScope, isAllAccounts } from '@/columns/accountScope'
+import {
+  crossAccountUnavailableReason,
+  getAccountScope,
+  isAllAccounts,
+} from '@/columns/accountScope'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
   CROSS_ACCOUNT_TYPES,
@@ -83,5 +87,30 @@ describe('isAllAccounts', () => {
   it('カラムが無ければ false (undefined 安全)', () => {
     expect(isAllAccounts(null)).toBe(false)
     expect(isAllAccounts(undefined)).toBe(false)
+  })
+})
+
+describe('crossAccountUnavailableReason — 全アカウントで開けない理由 (#1017)', () => {
+  it('全アカウント対応 / アカウントなしの種別は null', () => {
+    expect(crossAccountUnavailableReason('timeline')).toBeNull()
+    expect(crossAccountUnavailableReason('favorites')).toBeNull()
+    expect(crossAccountUnavailableReason('memos')).toBeNull()
+  })
+
+  it('サーバーごとに ID を選ぶ面は selectable (束ね方が未定)', () => {
+    expect(crossAccountUnavailableReason('list')).toBe('selectable')
+    expect(crossAccountUnavailableReason('antenna')).toBe('selectable')
+    expect(crossAccountUnavailableReason('user')).toBe('selectable')
+  })
+
+  it('サーバー単位の面は server (束ねる単位がアカウントでない)', () => {
+    expect(crossAccountUnavailableReason('serverInfo')).toBe('server')
+    expect(crossAccountUnavailableReason('emoji')).toBe('server')
+    expect(crossAccountUnavailableReason('gallery')).toBe('server')
+  })
+
+  it('構造上の理由が無いものは unsupported', () => {
+    expect(crossAccountUnavailableReason('drive')).toBe('unsupported')
+    expect(crossAccountUnavailableReason('achievements')).toBe('unsupported')
   })
 })

@@ -13,8 +13,12 @@
  * 対応種別が増えるたびに虫食いが再発するため。
  */
 
-import type { DeckColumn } from '@/stores/deck'
-import { CROSS_ACCOUNT_TYPES } from './registry'
+import type { ColumnType, DeckColumn } from '@/stores/deck'
+import {
+  ACCOUNT_INDEPENDENT_TYPES,
+  COLUMN_REGISTRY,
+  CROSS_ACCOUNT_TYPES,
+} from './registry'
 
 export type AccountScope =
   /** 特定アカウントに紐づく */
@@ -44,4 +48,44 @@ export function isAccountIndependent(
   column: ColumnLike | null | undefined,
 ): boolean {
   return !!column && getAccountScope(column) === 'none'
+}
+
+/**
+ * 「全アカウント」で開けない理由 (#1017)。カラム追加ダイアログが、対応して
+ * いない種別で行を黙って消す代わりに、無効の行と理由を出すために使う。
+ * 構造上できないのか、まだ作っていないのかをユーザーが区別できるようにする。
+ *
+ * - `selectable`: サーバーごとに ID を選ぶ面 (リスト / アンテナ / クリップ /
+ *   チャンネル / ロール / ユーザー)。「各アカウントの当該リソースを束ねる」の
+ *   意味を決めないと実装できない
+ * - `server`: サーバー単位の面 (サーバー情報 / 絵文字 / みつける / チャート
+ *   等)。束ねる単位はアカウントではなくサーバーなので、全アカウントの意味が薄い
+ * - `unsupported`: 構造上の理由は無く、まだ対応していないだけ
+ */
+export type CrossAccountUnavailableReason =
+  | 'selectable'
+  | 'server'
+  | 'unsupported'
+
+export const CROSS_ACCOUNT_UNAVAILABLE_LABELS: Record<
+  CrossAccountUnavailableReason,
+  string
+> = {
+  selectable:
+    'サーバーごとに選ぶ項目のため、全アカウントでの束ね方が決まっていません',
+  server: 'サーバー単位の面のため、アカウントをまたぐ意味がありません',
+  unsupported: 'このカラムはまだ全アカウントに対応していません',
+}
+
+/** 全アカウントで開ける (または アカウントに紐づかない) 種別なら null */
+export function crossAccountUnavailableReason(
+  type: ColumnType,
+): CrossAccountUnavailableReason | null {
+  if (CROSS_ACCOUNT_TYPES.has(type) || ACCOUNT_INDEPENDENT_TYPES.has(type)) {
+    return null
+  }
+  const spec = COLUMN_REGISTRY[type]
+  if (spec?.selectable) return 'selectable'
+  if (spec?.group === 'server') return 'server'
+  return 'unsupported'
 }
