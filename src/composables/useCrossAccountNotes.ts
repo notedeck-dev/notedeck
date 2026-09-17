@@ -790,7 +790,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     pendingCount,
     animatingRowKeys,
     onResume,
-    // Pull to Refresh (引き下げ枠の描画用)
+    // Pull to Refresh (引き下げ枠の描画用)。pullRefresh はテストと明示更新用
+    pullRefresh,
     isPulling,
     isPulledEnough,
     isRefreshing,
