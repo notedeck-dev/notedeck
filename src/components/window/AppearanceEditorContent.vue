@@ -199,6 +199,11 @@ const statusClass = computed(() => {
       <!-- テーマ選択 / 編集 / 削除 はテーマカラム (themeManager) に集約。
            コマンドパレット → 「テーマを管理」で開ける。 -->
 
+      <!-- Pet (#1080) -->
+      <div :class="$style.section">
+        <PetSection />
+      </div>
+
       <!-- Wallpaper -->
       <div :class="$style.section">
         <button v-if="deckStore.wallpaper == null" :class="$style.menuItem" @click="pickWallpaper">
@@ -220,11 +225,6 @@ const statusClass = computed(() => {
           :on="nyaizeEnabled"
           @toggle="toggleNyaize"
         />
-      </div>
-
-      <!-- Pet (#1080) -->
-      <div :class="$style.section">
-        <PetSection />
       </div>
 
       <!-- Reaction visibility (#612 / #575) -->
