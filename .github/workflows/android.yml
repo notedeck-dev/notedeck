@@ -42,6 +42,11 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # 既定は "tools platform-tools" だが、旧 SDK Tools ("tools") は SDK
+          # リポジトリから消えて sdkmanager が exit 1 になる (v1.58.1 で発生)。
+          # 必要なのは platform-tools だけで、残りは次の step で入れる
+          packages: platform-tools
 
       - name: Install Android SDK components
         run: |
