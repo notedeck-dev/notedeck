@@ -346,6 +346,12 @@ watch(metricsOpen, (open) => {
 
 onUnmounted(stopMetricsTimer)
 
+// 開発者モードを切るとセクションごと消える (v-if) が、開いたままだと
+// metricsOpen の watch は動かず、見えない面が metrics.read を叩き続ける
+watch(developerMode, (on) => {
+  if (!on) metricsOpen.value = false
+})
+
 const QUALITY_LABELS: Record<QualityLevel, string> = {
   low: '低',
   balanced: 'バランス',

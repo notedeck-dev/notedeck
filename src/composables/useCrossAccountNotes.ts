@@ -572,10 +572,13 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         },
       )
     } catch (e) {
-      error.value = AppError.from(e)
+      if (gen === generation) error.value = AppError.from(e)
     } finally {
-      isLoading.value = false
-      crossProgress.value = null
+      // 走行中に connectCrossAccount が始まっていたら、その表示状態を奪わない
+      if (gen === generation) {
+        isLoading.value = false
+        crossProgress.value = null
+      }
     }
   }
 

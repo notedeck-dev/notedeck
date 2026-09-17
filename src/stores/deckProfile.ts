@@ -5,6 +5,7 @@ import {
   drainProfileLoadByproducts,
   profileFiles,
 } from '@/services/deckProfileFiles'
+import { selectMemoryOnlyProfiles } from '@/services/deckProfileMerge'
 import {
   casefold,
   resolveAvailable,
@@ -597,15 +598,10 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
     // Merge: file profiles are authoritative, but keep in-memory-only
     // profiles that were created before file I/O completed.
-    // 同定は「ID 一致 or 名前 + 作成日時一致」(#913 決定録 — ダウングレード
-    // 往復でファイル内 ID が剥がれた場合の複製緩和)
-    const memOnly = profilesData.value.filter(
-      (p) =>
-        (fileProfiles.length === 0 || p.id !== firstRunPlaceholderId) &&
-        !fileProfiles.some(
-          (f) =>
-            f.id === p.id || (f.name === p.name && f.createdAt === p.createdAt),
-        ),
+    const memOnly = selectMemoryOnlyProfiles(
+      profilesData.value,
+      fileProfiles,
+      firstRunPlaceholderId,
     )
     if (fileProfiles.length > 0) {
       profilesData.value = [...fileProfiles, ...memOnly]
