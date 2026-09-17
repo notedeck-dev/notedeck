@@ -1,5 +1,3 @@
-import type { Component } from 'vue'
-import { defineAsyncComponent } from 'vue'
 import type { ExposureTag } from '@/settings/exposure'
 import type { DeckWindow, WindowType } from '@/stores/windows'
 
@@ -24,8 +22,6 @@ export interface WindowSpec {
   maxHeight: number
   /** 右上アンカー。指定するとビューポート右端からの相対配置になる */
   anchor?: 'top-right'
-  /** 中身のコンポーネント。props は DeckWindow.props がそのまま渡る */
-  component: () => Promise<{ default: Component }>
   /**
    * notedeck:// URI の生成。省略した種別は URI 非対応 (共有できない)。
    * 必要な props が欠けていれば null を返す。
@@ -46,7 +42,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     icon: 'ti ti-note',
     width: 500,
     maxHeight: 600,
-    component: () => import('@/components/window/NoteDetailContent.vue'),
     uri: (w, h) =>
       typeof w.props.noteId === 'string'
         ? `notedeck://${h}/note/${w.props.noteId}`
@@ -58,7 +53,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     exposure: 'developer',
     width: 620,
     maxHeight: 720,
-    component: () => import('@/components/window/NoteInspectorContent.vue'),
     uri: (w, h) =>
       typeof w.props.noteId === 'string'
         ? `notedeck://${h}/note/${w.props.noteId}`
@@ -70,15 +64,12 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     exposure: 'developer',
     width: 620,
     maxHeight: 720,
-    component: () =>
-      import('@/components/window/NotificationInspectorContent.vue'),
   },
   'user-profile': {
     label: 'プロフィール',
     icon: 'ti ti-user',
     width: 620,
     maxHeight: 650,
-    component: () => import('@/components/window/UserProfileContent.vue'),
     uri: (w, h) =>
       typeof w.props.userId === 'string'
         ? `notedeck://${h}/user/${w.props.userId}`
@@ -89,7 +80,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     icon: 'ti ti-planet',
     width: 500,
     maxHeight: 650,
-    component: () => import('@/components/window/InstanceProfileContent.vue'),
     uri: (w, h) =>
       typeof w.props.host === 'string'
         ? `notedeck://${h}/instance/${w.props.host}`
@@ -100,7 +90,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     icon: 'ti ti-users',
     width: 500,
     maxHeight: 650,
-    component: () => import('@/components/window/FollowListContent.vue'),
     uri: (w, h) => {
       const uid = w.props.userId
       if (typeof uid !== 'string') return null
@@ -113,98 +102,84 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     icon: 'ti ti-robot',
     width: 400,
     maxHeight: 700,
-    component: () => import('@/components/window/AiSettingsContent.vue'),
   },
   permissions: {
     label: '権限',
     icon: 'ti ti-shield-lock',
     width: 420,
     maxHeight: 700,
-    component: () => import('@/components/window/PermissionsContent.vue'),
   },
   plugins: {
     label: 'プラグイン',
     icon: 'ti ti-plug',
     width: 500,
     maxHeight: 720,
-    component: () => import('@/components/window/PluginsContent.vue'),
   },
   keybinds: {
     label: 'キーバインド',
     icon: 'ti ti-keyboard',
     width: 400,
     maxHeight: 650,
-    component: () => import('@/components/window/KeybindsContent.vue'),
   },
   cssEditor: {
     label: 'カスタムCSS',
     icon: 'ti ti-code',
     width: 400,
     maxHeight: 650,
-    component: () => import('@/components/window/CssEditorContent.vue'),
   },
   themeEditor: {
     label: 'テーマ',
     icon: 'ti ti-palette',
     width: 400,
     maxHeight: 720,
-    component: () => import('@/components/window/ThemeEditorContent.vue'),
   },
   profileEditor: {
     label: 'プロファイルエディタ',
     icon: 'ti ti-layout-columns',
     width: 400,
     maxHeight: 700,
-    component: () => import('@/components/window/ProfileEditorContent.vue'),
   },
   login: {
     label: 'アカウント追加',
     icon: 'ti ti-login-2',
     width: 380,
     maxHeight: 480,
-    component: () => import('@/components/window/LoginContent.vue'),
   },
   about: {
     label: 'NoteDeck について',
     icon: 'ti ti-info-circle',
     width: 380,
     maxHeight: 640,
-    component: () => import('@/components/window/AboutContent.vue'),
   },
   navEditor: {
     label: 'ナビバー',
     icon: 'ti ti-layout-sidebar-left-collapse',
     width: 400,
     maxHeight: 700,
-    component: () => import('@/components/window/NavEditorContent.vue'),
   },
   performanceEditor: {
     label: 'パフォーマンス',
     icon: 'ti ti-gauge',
     width: 420,
     maxHeight: 750,
-    component: () => import('@/components/window/PerformanceEditorContent.vue'),
   },
   appearanceEditor: {
     label: 'アピアランス',
     icon: 'ti ti-brush',
     width: 400,
     maxHeight: 700,
-    component: () => import('@/components/window/AppearanceEditorContent.vue'),
   },
   backup: {
     label: 'バックアップ',
     icon: 'ti ti-package-export',
     width: 440,
     maxHeight: 550,
-    component: () => import('@/components/window/BackupContent.vue'),
   },
   cacheEditor: {
     label: 'キャッシュ',
     icon: 'ti ti-eraser',
     width: 440,
     maxHeight: 550,
-    component: () => import('@/components/window/CacheEditorContent.vue'),
   },
   tasksEditor: {
     label: 'タスク設定',
@@ -212,7 +187,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     icon: 'ti ti-player-play',
     width: 500,
     maxHeight: 700,
-    component: () => import('@/components/window/TasksEditorContent.vue'),
   },
   snippetsEditor: {
     label: 'スニペット',
@@ -220,14 +194,12 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     icon: 'ti ti-code-plus',
     width: 500,
     maxHeight: 700,
-    component: () => import('@/components/window/SnippetsEditorContent.vue'),
   },
   memoEditor: {
     label: 'メモ',
     icon: 'ti ti-notes',
     width: 500,
     maxHeight: 600,
-    component: () => import('@/components/window/MemoEditorContent.vue'),
   },
   'column-query-editor': {
     label: 'カラムクエリ',
@@ -235,14 +207,12 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     exposure: 'developer',
     width: 560,
     maxHeight: 720,
-    component: () => import('@/components/window/ColumnQueryEditorContent.vue'),
   },
   'page-detail': {
     label: 'ページ',
     icon: 'ti ti-note',
     width: 500,
     maxHeight: 720,
-    component: () => import('@/components/window/PageDetailContent.vue'),
     uri: (w, h) =>
       typeof w.props.pageId === 'string'
         ? `notedeck://${h}/page/${w.props.pageId}`
@@ -253,7 +223,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     icon: 'ti ti-player-play',
     width: 500,
     maxHeight: 720,
-    component: () => import('@/components/window/PlayDetailContent.vue'),
     uri: (w, h) =>
       typeof w.props.flashId === 'string'
         ? `notedeck://${h}/play/${w.props.flashId}`
@@ -264,7 +233,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     icon: 'ti ti-icons',
     width: 500,
     maxHeight: 720,
-    component: () => import('@/components/window/GalleryDetailContent.vue'),
     uri: (w, h) =>
       typeof w.props.postId === 'string'
         ? `notedeck://${h}/gallery/${w.props.postId}`
@@ -275,7 +243,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     icon: 'ti ti-list',
     width: 500,
     maxHeight: 720,
-    component: () => import('@/components/window/ListDetailContent.vue'),
     uri: (w, h) =>
       typeof w.props.listId === 'string'
         ? `notedeck://${h}/list/${w.props.listId}`
@@ -286,7 +253,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     icon: 'ti ti-paperclip',
     width: 500,
     maxHeight: 720,
-    component: () => import('@/components/window/ClipDetailContent.vue'),
     uri: (w, h) =>
       typeof w.props.clipId === 'string'
         ? `notedeck://${h}/clip/${w.props.clipId}`
@@ -297,21 +263,18 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     icon: 'ti ti-file',
     width: 500,
     maxHeight: 720,
-    component: () => import('@/components/window/DriveFileDetailContent.vue'),
   },
   'page-edit': {
     label: 'ページを編集',
     icon: 'ti ti-pencil',
     width: 500,
     maxHeight: 720,
-    component: () => import('@/components/window/PageEditContent.vue'),
   },
   'play-edit': {
     label: 'Play を編集',
     icon: 'ti ti-pencil',
     width: 500,
     maxHeight: 720,
-    component: () => import('@/components/window/PlayEditContent.vue'),
   },
   'widget-edit': {
     label: 'ウィジット編集',
@@ -319,7 +282,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     exposure: 'developer',
     width: 500,
     maxHeight: 720,
-    component: () => import('@/components/window/WidgetEditContent.vue'),
   },
   'skill-edit': {
     label: 'スキル編集',
@@ -327,7 +289,6 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     exposure: 'developer',
     width: 500,
     maxHeight: 720,
-    component: () => import('@/components/window/SkillEditContent.vue'),
   },
   'edit-history': {
     label: '編集履歴',
@@ -335,21 +296,18 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     exposure: 'developer',
     width: 620,
     maxHeight: 720,
-    component: () => import('@/components/window/EditHistoryContent.vue'),
   },
   connections: {
     label: '接続',
     icon: 'ti ti-plug-connected',
     width: 440,
     maxHeight: 650,
-    component: () => import('@/components/window/ConnectionsContent.vue'),
   },
   connectionEdit: {
     label: '接続を編集',
     icon: 'ti ti-plug-connected',
     width: 440,
     maxHeight: 720,
-    component: () => import('@/components/window/ConnectionEditContent.vue'),
   },
   tutorial: {
     label: 'チュートリアル',
@@ -357,14 +315,12 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     width: 380,
     maxHeight: 420,
     anchor: 'top-right',
-    component: () => import('@/components/tutorial/TutorialContent.vue'),
   },
   tutorialEditor: {
     label: 'チュートリアル',
     icon: 'ti ti-checkbox',
     width: 500,
     maxHeight: 700,
-    component: () => import('@/components/window/TutorialEditorContent.vue'),
   },
 }
 
@@ -399,14 +355,6 @@ export const WINDOW_SIZES: Record<
   WindowType,
   { width: number; maxHeight: number; anchor?: 'top-right' }
 >
-
-/** DeckWindowLayer が `<component :is>` で描くためのマップ */
-export const WINDOW_COMPONENTS: Record<string, Component> = Object.fromEntries(
-  ALL_WINDOW_TYPES.map((t) => [
-    t,
-    defineAsyncComponent(WINDOW_REGISTRY[t].component),
-  ]),
-)
 
 /**
  * notedeck:// URI を組む。URI 未対応の種別・ホスト不明・必要な props 欠落は null。

@@ -60,7 +60,6 @@ describe('getAccountScope — 「全アカウント」と「アカウントな�
       icon: 'puzzle',
       group: 'tool',
       crossAccount: true,
-      component: () => Promise.resolve({ default: {} }),
     })
     try {
       expect(getAccountScope(column({ type: 'pluginCross' }))).toBe('all')

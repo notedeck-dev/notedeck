@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, toRef, useCssModule, useTemplateRef } from 'vue'
-import { COLUMN_COMPONENTS } from '@/columns/registry'
 import ColumnErrorBoundary from '@/components/deck/ColumnErrorBoundary.vue'
 import ColumnTombstone from '@/components/deck/ColumnTombstone.vue'
+import { COLUMN_COMPONENTS } from '@/components/deck/columnComponents'
 import { useColumnMount } from '@/composables/useColumnMount'
 import type { DeckColumn } from '@/stores/deck'
 import { useStreamInspectorStore } from '@/stores/streamInspector'

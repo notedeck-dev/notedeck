@@ -83,6 +83,21 @@ const RULES: Record<string, Rule> = {
         '凍結 (#1098): 絵文字 / pinned reaction / server store を adapter 初期化時に引く。依存は呼び出し側から注入すべき',
     },
   },
+  'columns のレジストリは components を import しない': {
+    from: 'src/columns',
+    forbid: ['@/components/'],
+    allowed: {},
+  },
+  'windows のレジストリは components を import しない': {
+    from: 'src/windows',
+    forbid: ['@/components/'],
+    allowed: {},
+  },
+  'capabilities は components を import しない': {
+    from: 'src/capabilities',
+    forbid: ['@/components/'],
+    allowed: {},
+  },
   'components は IPC / adapter factory を直接叩かない': {
     from: 'src/components',
     forbid: [

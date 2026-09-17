@@ -76,7 +76,6 @@ describe('exposedColumnTypes', () => {
       label: 'テスト',
       icon: 'puzzle',
       group: 'tool',
-      component: () => Promise.resolve({ default: {} }),
     })
     try {
       expect(exposedColumnTypes()).toContain('test-plugin-column')
