@@ -46,7 +46,7 @@ vi.mock('@/utils/settingsFs', () => ({
 import { type SkillMeta, useSkillsStore } from '@/stores/skills'
 
 const skillFile = (id: string, name: string, body = 'body') =>
-  `---\nid: ${id}\nname: ${name}\nversion: 0.1.0\nmode: manual\nscope: global\ncreatedAt: 1\nupdatedAt: 1\n---\n${body}`
+  `---\nid: ${id}\nname: ${name}\nversion: 0.1.0\nmode: manual\ncreatedAt: 1\nupdatedAt: 1\n---\n${body}`
 
 async function initStore() {
   const store = useSkillsStore()
@@ -67,7 +67,6 @@ function makeSkill(
     version: '0.1.0',
     mode: 'manual',
     triggers: [],
-    scope: 'global',
     body: 'b',
     cheapCheckCapabilities: [],
   }
@@ -185,7 +184,7 @@ describe('useSkillsStore — ファイル対応表配線 (#913)', () => {
   it('storeSha512 / storeVersion は frontmatter に永続化され読み戻せる (#913)', async () => {
     files.set(
       'greeter.md',
-      '---\nid: g1\nname: Greeter\nversion: 1.0.0\nmode: manual\nscope: global\nstoreId: ent\nstoreSha512: abc123\nstoreVersion: 1.0.0\ncreatedAt: 1\nupdatedAt: 1\n---\nbody',
+      '---\nid: g1\nname: Greeter\nversion: 1.0.0\nmode: manual\nstoreId: ent\nstoreSha512: abc123\nstoreVersion: 1.0.0\ncreatedAt: 1\nupdatedAt: 1\n---\nbody',
     )
     const store = await initStore()
     expect(store.get('g1')?.storeSha512).toBe('abc123')

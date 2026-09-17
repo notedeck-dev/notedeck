@@ -26,7 +26,6 @@ import { notifyWarningToast } from '@/utils/toastNotify'
  *   (OpenClaw HEARTBEAT.md 相当 / #411)
  */
 export type SkillMode = 'always' | 'manual' | 'trigger' | 'heartbeat'
-export type SkillScope = 'global' | 'per-account'
 
 export interface SkillMeta {
   id: string
@@ -36,8 +35,6 @@ export interface SkillMeta {
   author?: string
   mode: SkillMode
   triggers: string[]
-  scope: SkillScope
-  installedFor?: string[]
   /**
    * 本体の有効 (#1116)。有効のときだけ frontmatter に書く省略書式 (値が無い =
    * 無効。従来の「有効一覧に無ければ無効」と同じ既定)。mode='always' は
@@ -113,8 +110,6 @@ interface SkillFrontmatter {
   author?: string
   mode?: string
   triggers?: string[]
-  scope?: string
-  installedFor?: string[]
   active?: boolean
   storeId?: string
   storeSha512?: string
@@ -139,16 +134,12 @@ function frontmatterFromMeta(skill: SkillMeta): Record<string, unknown> {
     name: skill.name,
     version: skill.version,
     mode: skill.mode,
-    scope: skill.scope,
     createdAt: skill.createdAt,
     updatedAt: skill.updatedAt,
   }
   if (skill.description) out.description = skill.description
   if (skill.author) out.author = skill.author
   if (skill.triggers.length > 0) out.triggers = skill.triggers
-  if (skill.installedFor && skill.installedFor.length > 0) {
-    out.installedFor = skill.installedFor
-  }
   if (skill.active) out.active = true
   if (skill.storeId) out.storeId = skill.storeId
   if (skill.storeSha512) out.storeSha512 = skill.storeSha512
@@ -175,9 +166,6 @@ function metaFromFrontmatter(
     fm.mode === 'manual'
       ? fm.mode
       : 'manual'
-  const scope = (
-    fm.scope === 'per-account' ? 'per-account' : 'global'
-  ) as SkillScope
   return {
     id: fm.id || fallbackId,
     name: fm.name || fallbackId,
@@ -186,9 +174,6 @@ function metaFromFrontmatter(
     author: fm.author,
     mode,
     triggers: asArray(fm.triggers),
-    scope,
-    installedFor:
-      scope === 'per-account' ? asArray(fm.installedFor) : undefined,
     ...(fm.active === true ? { active: true } : {}),
     storeId: fm.storeId,
     storeSha512: fm.storeSha512,

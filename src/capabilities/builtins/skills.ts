@@ -24,7 +24,7 @@ interface SkillSnapshot {
  * 育てられる。
  *
  * 設計判断:
- * - frontmatter (id / version / mode / scope / builtIn / isPersona) は
+ * - frontmatter (id / version / mode / builtIn / isPersona) は
  *   触らせない。本文 markdown のみ編集対象
  * - 全文置換は破壊的なので append / replaceSection を提供 (memory 推奨)
  * - 編集系は requiresConfirmation: true (= ユーザー承認後に書込)
@@ -168,7 +168,7 @@ export const skillsCreateCapability: Command = {
         kind: 'skill',
         name,
         version: '0.1.0',
-        description: `${mode} mode / global scope`,
+        description: `${mode} mode`,
       },
       code: body,
       codeLanguage: 'markdown',
@@ -257,7 +257,6 @@ export const skillsCreateCapability: Command = {
       description,
       mode,
       triggers,
-      scope: 'global',
       body,
       cheapCheckCapabilities: toStringArray(params?.cheapCheckCapabilities),
     })
@@ -290,7 +289,7 @@ export const skillsAppendCapability: Command = {
         kind: 'skill',
         name: cur.name,
         version: cur.version,
-        description: `${cur.mode} mode / ${cur.scope} scope`,
+        description: `${cur.mode} mode`,
       },
       diff: { old: cur.body, new: next, language: 'markdown' },
       okLabel: '追記',
@@ -371,7 +370,7 @@ export const skillsReplaceSectionCapability: Command = {
         kind: 'skill',
         name: cur.name,
         version: cur.version,
-        description: `${cur.mode} mode / ${cur.scope} scope`,
+        description: `${cur.mode} mode`,
       },
       diff: { old: cur.body, new: next, language: 'markdown' },
       okLabel: '置換',
@@ -523,7 +522,7 @@ export const skillsRevertCapability: Command = {
         kind: 'skill',
         name: cur.name,
         version: cur.version,
-        description: `${cur.mode} mode / ${cur.scope} scope`,
+        description: `${cur.mode} mode`,
       },
       diff: { old: cur.body, new: next, language: 'markdown' },
       okLabel: 'この状態に戻す',
@@ -686,7 +685,7 @@ export const skillsUninstallCapability: Command = {
         kind: 'skill',
         name: cur.name,
         version: cur.version,
-        description: `${cur.mode} mode / ${cur.scope} scope`,
+        description: `${cur.mode} mode`,
       },
       okLabel: '削除',
       cancelLabel: 'やめる',
