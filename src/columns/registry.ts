@@ -1,5 +1,4 @@
-import type { Component } from 'vue'
-import { defineAsyncComponent, reactive, shallowReactive } from 'vue'
+import { reactive, shallowReactive } from 'vue'
 import type { ExposureTag } from '@/settings/exposure'
 import type { BuiltinColumnType, ColumnType, DeckColumn } from '@/stores/deck'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -51,8 +50,6 @@ export interface ColumnSpec {
   defaultWidth?: number
   /** 追加時にマージされる extra props */
   defaultProps?: Partial<Omit<DeckColumn, 'id' | 'type'>>
-  /** 非同期コンポーネントローダー */
-  component: () => Promise<{ default: Component }>
   /** list/antenna/channel/clip/user のような選択式タイプ */
   selectable?: SelectableSpec
   /**
@@ -195,7 +192,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     crossAccount: true,
     guestAllowed: true,
     defaultProps: { tl: 'home', name: null },
-    component: () => import('@/components/deck/DeckTimelineColumn.vue'),
   },
   notifications: {
     label: '通知',
@@ -205,26 +201,22 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // ログアウト中でも追加可能。ログアウト中はローカルキャッシュ
     // (notificationCache) から read-only で履歴を読める。chat と同じ流儀。
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckNotificationColumn.vue'),
   },
   drive: {
     label: 'ドライブ',
     icon: 'cloud',
     group: 'account',
-    component: () => import('@/components/deck/DeckDriveColumn.vue'),
   },
   followRequests: {
     label: 'フォローリクエスト',
     icon: 'user-plus',
     group: 'account',
     crossAccount: true,
-    component: () => import('@/components/deck/DeckFollowRequestsColumn.vue'),
   },
   list: {
     label: 'リスト',
     icon: 'list',
     group: 'account',
-    component: () => import('@/components/deck/DeckListColumn.vue'),
     selectable: {
       idKey: 'listId',
       fetch: fetchListsWithFavorites,
@@ -235,7 +227,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     label: 'アンテナ',
     icon: 'antenna-bars-5',
     group: 'account',
-    component: () => import('@/components/deck/DeckAntennaColumn.vue'),
     selectable: {
       idKey: 'antennaId',
       fetch: (aid) => commands.apiGetAntennas(aid).then(unwrapItems),
@@ -259,13 +250,11 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // (cacheKey='favorites') から履歴を読める。timeline と同じ流儀。
     // list/antenna/clip と違い ID 選択 picker が無いので素直に解放できる。
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckFavoritesColumn.vue'),
   },
   clip: {
     label: 'クリップ',
     icon: 'paperclip',
     group: 'account',
-    component: () => import('@/components/deck/DeckClipColumn.vue'),
     selectable: {
       idKey: 'clipId',
       fetch: fetchClipsWithFavorites,
@@ -280,7 +269,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // ログアウト中でも追加可能。ログアウト中は SQLite キャッシュ
     // (cacheKey='mentions') から履歴を読める (#683)。chat と同じ流儀。
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckMentionsColumn.vue'),
   },
   specified: {
     label: 'ダイレクト',
@@ -290,7 +278,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // ログアウト中でも追加可能。ログアウト中は SQLite キャッシュ
     // (cacheKey='specified') から履歴を読める (#683)。chat と同じ流儀。
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckMentionsColumn.vue'),
   },
   chat: {
     label: 'チャット',
@@ -300,7 +287,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // ログアウト中・ゲストアカウントでも追加可能。ログアウト中は
     // `chat_messages_cache` から履歴を読める (#460)。timeline と同じ流儀。
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckChatColumn.vue'),
   },
   achievements: {
     label: '実績',
@@ -309,7 +295,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // NoteDeck 独自実績 (#1029) はアカウントに紐づかないので、ログイン前でも
     // 見られる必要がある。サーバー実績タブはログアウト時の表示に従う
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckAchievementsColumn.vue'),
   },
 
   // ============================================================
@@ -320,42 +305,36 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     icon: 'server',
     group: 'server',
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckServerInfoColumn.vue'),
   },
   aboutMisskey: {
     label: 'Misskeyについて',
     icon: 'info-circle',
     group: 'server',
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckAboutMisskeyColumn.vue'),
   },
   emoji: {
     label: 'カスタム絵文字',
     icon: 'mood-smile',
     group: 'server',
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckEmojiColumn.vue'),
   },
   ads: {
     label: '広告',
     icon: 'ad-2',
     group: 'server',
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckAdsColumn.vue'),
   },
   explore: {
     label: 'みつける',
     icon: 'compass',
     group: 'server',
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckExploreColumn.vue'),
   },
   announcements: {
     label: 'お知らせ',
     icon: 'speakerphone',
     group: 'server',
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckAnnouncementsColumn.vue'),
   },
   search: {
     // Misskey サーバー側の検索 (各アカウントの notes/search)。キャッシュから引く
@@ -365,7 +344,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     group: 'server',
     guestAllowed: true,
     crossAccount: true,
-    component: () => import('@/components/deck/DeckSearchColumn.vue'),
   },
   clientSearch: {
     // 手元のキャッシュ (SQLite) をサーバー・アカウント横断で引く (#945 / #958)。
@@ -376,7 +354,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     guestAllowed: true,
     accountIndependent: true,
     defaultProps: { accountId: null, query: '' },
-    component: () => import('@/components/deck/DeckClientSearchColumn.vue'),
   },
   lookup: {
     label: '照会',
@@ -384,14 +361,12 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     group: 'server',
     guestAllowed: true,
     crossAccount: true,
-    component: () => import('@/components/deck/DeckLookupColumn.vue'),
   },
   channel: {
     label: 'チャンネル',
     icon: 'device-tv',
     group: 'server',
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckChannelColumn.vue'),
     selectable: {
       idKey: 'channelId',
       fetch: (aid) => commands.apiGetChannels(aid).then(unwrapItems),
@@ -402,7 +377,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     label: 'ロール',
     icon: 'badge',
     group: 'server',
-    component: () => import('@/components/deck/DeckRoleColumn.vue'),
     selectable: {
       idKey: 'roleId',
       fetch: (aid) => commands.apiGetRoles(aid).then(unwrapRoles),
@@ -421,7 +395,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     icon: 'icons',
     group: 'server',
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckGalleryColumn.vue'),
   },
   play: {
     label: 'Misskey Play',
@@ -429,7 +402,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     group: 'server',
     guestAllowed: true,
     customAddFlow: true,
-    component: () => import('@/components/deck/DeckPlayColumn.vue'),
   },
   page: {
     label: 'ページ',
@@ -437,14 +409,12 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     group: 'server',
     guestAllowed: true,
     customAddFlow: true,
-    component: () => import('@/components/deck/DeckPageColumn.vue'),
   },
   user: {
     label: 'ユーザー',
     icon: 'user',
     group: 'server',
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckUserColumn.vue'),
     selectable: {
       idKey: 'userId',
       fetch: (aid) =>
@@ -459,14 +429,12 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     icon: 'chart-line',
     group: 'server',
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckChartsColumn.vue'),
   },
   federation: {
     label: '連合',
     icon: 'planet',
     group: 'server',
     guestAllowed: true,
-    component: () => import('@/components/deck/DeckFederationColumn.vue'),
   },
 
   // ============================================================
@@ -481,7 +449,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // 他カラム (notifications 等) と同じ semantics で、ストア/ローカル
     // のテーマは全 logged-in account の installedFor に追加される。
     crossAccount: true,
-    component: () => import('@/components/deck/DeckThemeManagerColumn.vue'),
   },
   pluginManager: {
     label: 'プラグイン',
@@ -492,7 +459,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // (themeManager と同様)。per-account カラムでは installedFor が当該
     // account を含むプラグインのみが表示・handler 発火される。
     crossAccount: true,
-    component: () => import('@/components/deck/DeckPluginManagerColumn.vue'),
   },
   widget: {
     label: 'ウィジェット',
@@ -506,7 +472,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     crossAccount: true,
     customAddFlow: true,
     defaultProps: { widgets: [] },
-    component: () => import('@/components/deck/DeckWidgetColumn.vue'),
   },
   queryManager: {
     label: 'クエリ',
@@ -516,7 +481,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // スコープ別プール (#1018)。全アカウントのカラムは全体スコープ、
     // per-account カラムはそのアカウントのスコープを管理する
     crossAccount: true,
-    component: () => import('@/components/deck/DeckQueryManagerColumn.vue'),
   },
   memos: {
     label: 'メモ',
@@ -527,7 +491,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // からも参照される。アカウントに紐づけない (#1018)
     accountIndependent: true,
     defaultProps: { accountId: null },
-    component: () => import('@/components/deck/DeckMemoColumn.vue'),
   },
   // 「もっと」はこの並び順で出る。AI はスキル / スクラッチパッドの前
   ai: {
@@ -536,7 +499,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     group: 'tool',
     accountIndependent: true,
     defaultProps: { accountId: null },
-    component: () => import('@/components/deck/DeckAiColumn.vue'),
   },
   skill: {
     label: 'スキル',
@@ -545,7 +507,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     guestAllowed: true,
     accountIndependent: true,
     defaultProps: { accountId: null },
-    component: () => import('@/components/deck/DeckSkillColumn.vue'),
   },
   aiscript: {
     label: 'スクラッチパッド',
@@ -556,14 +517,12 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     accountOptional: true,
     customAddFlow: true,
     defaultProps: { aiscriptCode: '<: "Hello, AiScript!"' },
-    component: () => import('@/components/deck/DeckAiScriptColumn.vue'),
   },
   apiConsole: {
     label: 'APIコンソール',
     icon: 'api',
     group: 'tool',
     exposure: 'developer',
-    component: () => import('@/components/deck/DeckApiConsoleColumn.vue'),
   },
   apiDocs: {
     label: 'APIドキュメント',
@@ -575,7 +534,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     wide: true,
     defaultWidth: 990,
     defaultProps: { accountId: null },
-    component: () => import('@/components/deck/DeckApiDocsColumn.vue'),
   },
   streamInspector: {
     label: 'ストリーム',
@@ -584,7 +542,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     exposure: 'developer',
     crossAccount: true,
     wide: true,
-    component: () => import('@/components/deck/DeckStreamInspectorColumn.vue'),
   },
   taskRunner: {
     label: 'タスク',
@@ -594,7 +551,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     guestAllowed: true,
     accountIndependent: true,
     defaultProps: { accountId: null },
-    component: () => import('@/components/deck/DeckTaskRunnerColumn.vue'),
   },
 }
 
@@ -657,9 +613,6 @@ export const COLUMN_TYPE_GROUPS: ColumnGroupInfo[] = reactive([
   { group: 'tool', label: 'ツール', icon: 'tool', types: [] },
 ])
 
-/** Vue コンポーネントマップ (PipPage / DeckColumnsArea から参照) */
-export const COLUMN_COMPONENTS = shallowReactive<Record<string, Component>>({})
-
 const FLAG_SETS: ReadonlyArray<[keyof ColumnSpec, Set<ColumnType>]> = [
   ['guestAllowed', GUEST_ALLOWED_TYPES],
   ['crossAccount', CROSS_ACCOUNT_TYPES],
@@ -676,8 +629,6 @@ function rebuildDerived(): void {
 
   for (const key of Object.keys(COLUMN_LABELS)) delete COLUMN_LABELS[key]
   for (const key of Object.keys(COLUMN_ICONS)) delete COLUMN_ICONS[key]
-  for (const key of Object.keys(COLUMN_COMPONENTS))
-    delete COLUMN_COMPONENTS[key]
   for (const [, set] of FLAG_SETS) set.clear()
   PIP_ENABLED_TYPES.clear()
   for (const g of COLUMN_TYPE_GROUPS) g.types.length = 0
@@ -687,7 +638,6 @@ function rebuildDerived(): void {
     if (!spec) continue
     COLUMN_LABELS[type] = spec.label
     COLUMN_ICONS[type] = spec.icon
-    COLUMN_COMPONENTS[type] = defineAsyncComponent(spec.component)
     for (const [flag, set] of FLAG_SETS) {
       if (spec[flag]) set.add(type)
     }

@@ -157,7 +157,6 @@ describe('addable な種別はレジストリ由来 (#794 W2)', () => {
       label: 'デモ',
       icon: 'flask',
       group: 'tool',
-      component: async () => ({ default: {} }),
     })
     expect(enumTypes()).toContain('x:demo')
   })

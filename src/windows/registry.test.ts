@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { WINDOW_COMPONENTS } from '@/components/window/windowComponents'
 import type { DeckWindow } from '@/stores/windows'
 import {
   ALL_WINDOW_TYPES,
@@ -31,7 +32,7 @@ describe('ウィンドウレジストリ (#794 W6)', () => {
       expect(spec?.icon, type).toBeTruthy()
       expect(spec?.width, type).toBeGreaterThan(0)
       expect(spec?.maxHeight, type).toBeGreaterThan(0)
-      expect(spec?.component, type).toBeTypeOf('function')
+      expect(WINDOW_COMPONENTS[type], type).toBeDefined()
     }
   })
 
