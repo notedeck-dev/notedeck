@@ -2464,6 +2464,15 @@ async heartbeatStatus() : Promise<Result<number | null, { code: string; message:
     else return { status: "error", error: e  as any };
 }
 },
+/** @see src-tauri/src/commands/system_state.rs */
+async systemStateGet() : Promise<Result<SystemState, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("system_state_get") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see src-tauri/src/commands/health.rs */
 async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: string; apiCode: string | null }>> {
     try {
@@ -2870,7 +2879,8 @@ streamChatMessageReacted: StreamChatMessageReacted,
 streamChatMessageUnreacted: StreamChatMessageUnreacted,
 streamEmojiChanged: StreamEmojiChanged,
 streamEnvelope: StreamEnvelope,
-streamStatus: StreamStatus
+streamStatus: StreamStatus,
+systemState: SystemState
 }>({
 exportProgress: "export-progress",
 noteCaptureBatch: "note-capture-batch",
@@ -2880,7 +2890,8 @@ streamChatMessageReacted: "stream-chat-message-reacted",
 streamChatMessageUnreacted: "stream-chat-message-unreacted",
 streamEmojiChanged: "stream-emoji-changed",
 streamEnvelope: "stream-envelope",
-streamStatus: "stream-status"
+streamStatus: "stream-status",
+systemState: "system-state"
 })
 
 /** user-defined constants **/
@@ -3737,6 +3748,28 @@ export type StreamNotificationEvent = { accountId: string; subscriptionId: strin
 export type StreamStatus = StreamStatusEvent
 export type StreamStatusEvent = { accountId: string; state: StreamConnectionState }
 export type SummaryData = { title: string | null; description: string | null; icon: string | null; sitename: string | null; thumbnail: string | null; medias: string[]; player: Player | null; url: string; sensitive: boolean }
+/**
+ * OS 状態のスナップショット。`None` = その項目をこのプラットフォームでは
+ * 取得できない (または取得に失敗した)。
+ */
+export type SystemState = { 
+/**
+ * バッテリー駆動中 (AC 未接続で放電中)。バッテリーの無い机上機は None
+ */
+onBattery: boolean | null; 
+/**
+ * OS の省電力モードが有効 (macOS 低電力モード / Windows バッテリー
+ * 節約機能 / Linux power-profiles-daemon の power-saver)
+ */
+lowPowerMode: boolean | null; 
+/**
+ * 現在のインターネット接続が従量制 (テザリング・モバイル回線等)
+ */
+metered: boolean | null; 
+/**
+ * OS の集中モード / おやすみモードが有効
+ */
+doNotDisturb: boolean | null }
 export type TimelineFilter = { withRenotes: boolean | null; withReplies: boolean | null; withFiles: boolean | null; withBots: boolean | null; withSensitive: boolean | null }
 export type TimelineOptions = { limit?: number; sinceId: string | null; untilId: string | null; filters?: TimelineFilter | null; listId: string | null }
 /**
