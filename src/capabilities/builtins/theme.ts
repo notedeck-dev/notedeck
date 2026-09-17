@@ -117,7 +117,7 @@ export const themeApplyCapability: Command = {
   category: 'general',
   shortcuts: [],
   aiTool: true,
-  permissions: [],
+  permissions: ['deck.write'],
   signature: {
     description:
       'インストール済みテーマを適用する。' +

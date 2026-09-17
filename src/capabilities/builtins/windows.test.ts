@@ -21,9 +21,9 @@ describe('windows capabilities — declaration', () => {
     expect(windowsListCapability.signature?.returns?.type).toBe('array')
   })
 
-  it('windows.open: no permission, no confirmation, validates type', () => {
+  it('windows.open: deck.write, no confirmation, validates type', () => {
     expect(windowsOpenCapability.id).toBe('windows.open')
-    expect(windowsOpenCapability.permissions).toEqual([])
+    expect(windowsOpenCapability.permissions).toEqual(['deck.write'])
     expect(windowsOpenCapability.requiresConfirmation).not.toBe(true)
     expect(windowsOpenCapability.signature?.params?.type?.optional).not.toBe(
       true,
@@ -43,23 +43,23 @@ describe('windows capabilities — declaration', () => {
     expect(enumList).toContain('navEditor')
   })
 
-  it('windows.close: no permission, no confirmation, requires id', () => {
+  it('windows.close: deck.write, no confirmation, requires id', () => {
     expect(windowsCloseCapability.id).toBe('windows.close')
-    expect(windowsCloseCapability.permissions).toEqual([])
+    expect(windowsCloseCapability.permissions).toEqual(['deck.write'])
     expect(windowsCloseCapability.requiresConfirmation).not.toBe(true)
     expect(() => windowsCloseCapability.execute({})).toThrow(/id is required/)
   })
 
-  it('windows.focus: no permission, no confirmation, requires id', () => {
+  it('windows.focus: deck.write, no confirmation, requires id', () => {
     expect(windowsFocusCapability.id).toBe('windows.focus')
-    expect(windowsFocusCapability.permissions).toEqual([])
+    expect(windowsFocusCapability.permissions).toEqual(['deck.write'])
     expect(windowsFocusCapability.requiresConfirmation).not.toBe(true)
     expect(() => windowsFocusCapability.execute({})).toThrow(/id is required/)
   })
 
-  it('windows.closeAll: no permission, warning confirmation, no params', () => {
+  it('windows.closeAll: deck.write, warning confirmation, no params', () => {
     expect(windowsCloseAllCapability.id).toBe('windows.closeAll')
-    expect(windowsCloseAllCapability.permissions).toEqual([])
+    expect(windowsCloseAllCapability.permissions).toEqual(['deck.write'])
     expect(typeof windowsCloseAllCapability.requiresConfirmation).toBe(
       'function',
     )
