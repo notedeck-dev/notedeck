@@ -329,9 +329,22 @@ export function usePermissionsConfig() {
   function save(): void {
     _pendingWrite = writePermissionsSettings(
       `${JSON5.stringify(_file.value, null, 2)}\n`,
-    ).catch((e: unknown) =>
-      console.warn('[permissions] failed to write permissions.json5:', e),
-    )
+    ).catch(async (e: unknown) => {
+      console.warn('[permissions] failed to write permissions.json5:', e)
+      // 書けなかった変更をメモリに残すと、UI は絞ったつもりでも Rust 側
+      // (ファイルを読む external gate) は旧権限のまま動く (#1099)。永続状態へ
+      // 戻して、無言にしない (#722)
+      try {
+        const content = await readPermissionsSettings()
+        if (content) _file.value = parsePermissionsFile(content).file
+      } catch (e2) {
+        console.warn('[permissions] failed to reload after write error:', e2)
+      }
+      useToast().show(
+        '権限の保存に失敗しました。変更は反映されていません。',
+        'error',
+      )
+    })
   }
 
   return {

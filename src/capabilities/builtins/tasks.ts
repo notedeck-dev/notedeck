@@ -59,7 +59,7 @@ export const tasksRunCapability: Command = {
     await assertMisskeyApiAllowed(
       ctx?.principal ?? { kind: 'user' },
       def.action.method,
-      { source: 'tasks.run' },
+      { source: 'tasks.run', onBehalfOf: ctx?.onBehalfOf },
     )
 
     const rawInputs = params?.inputs

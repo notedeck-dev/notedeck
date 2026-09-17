@@ -204,6 +204,8 @@ export async function dispatchCapability(
     aiConfig: useAiConfig().config.value,
     principal: ctx.principal,
     ...(ctx.accountId ? { accountId: ctx.accountId } : {}),
+    // 内側の判定 (tasks.run / plugin handler) にも連鎖を渡す (#1099)
+    ...(ctx.onBehalfOf?.length ? { onBehalfOf: ctx.onBehalfOf } : {}),
   }
   // 確認ダイアログ (write 系などで requiresConfirmation: true)。
   // クロスアカウント実行は requiresConfirmation 未宣言でも必ず確認する。

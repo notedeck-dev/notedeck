@@ -279,8 +279,12 @@ export function createNoteDeckEnv(
             params && Object.keys(params).length > 0
               ? [utils.jsToVal(params)]
               : []
-          const tracked = caller.kind !== 'user'
-          if (tracked) ctx.callers.push(caller)
+          // 呼び出し元の連鎖ごと積む (AI → 別 plugin の command → この command
+          // のように多段でも、上流全員の AND になる)。user は積まない
+          const tracked = [...(capCtx.onBehalfOf ?? []), caller].filter(
+            (p) => p.kind !== 'user',
+          )
+          ctx.callers.push(...tracked)
           try {
             const result = await interp.execFnSimple(handler, args)
             return utils.valToJs(result)
@@ -288,8 +292,8 @@ export function createNoteDeckEnv(
             console.warn('[Nd:register_command]', e)
             throw e
           } finally {
-            if (tracked) {
-              const idx = ctx.callers.lastIndexOf(caller)
+            for (const p of tracked) {
+              const idx = ctx.callers.lastIndexOf(p)
               if (idx >= 0) ctx.callers.splice(idx, 1)
             }
           }

@@ -111,6 +111,28 @@ describe('tasks.run は action の endpoint を呼び出し元の権限で検査
     expect(runTask).toHaveBeenCalledWith('whoami', undefined)
   })
 
+  it('呼び出し元の連鎖 (onBehalfOf) も検査する', async () => {
+    // 実行体は full でも、上流の ai.chat (safe) に notes.write が無ければ起動しない
+    const { file } = usePermissionsConfig()
+    file.value.principals.scratchpad = setPermissionPreset(
+      file.value.principals.scratchpad ?? {
+        preset: 'readonly',
+        custom: {} as never,
+      },
+      'full',
+    )
+    await expect(
+      tasksRunCapability.execute(
+        { taskId: 'post-hello' },
+        {
+          principal: { kind: 'scratchpad' },
+          onBehalfOf: [{ kind: 'ai.chat' }],
+        },
+      ),
+    ).rejects.toThrow(/tasks\.run: permission_denied.*notes\.write/)
+    expect(runTask).not.toHaveBeenCalled()
+  })
+
   it('本人の UI 操作 (ctx なし) は検査しない', async () => {
     await expect(
       tasksRunCapability.execute({ taskId: 'post-hello' }),

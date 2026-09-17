@@ -750,6 +750,28 @@ describe('Nd:register_command — 呼び出し元の伝播 (#1099)', () => {
     expect(interp.execFnSimple).toHaveBeenCalledWith(expect.anything(), [])
   })
 
+  it('呼び出し元の連鎖 (onBehalfOf) ごと積み、終了後に全部降りる', async () => {
+    const stores = makeFakeStores()
+    let seen: Principal[] = []
+    stores.ctx.interpreter = fakeInterpreter(() => {
+      seen = [...stores.ctx.callers]
+    })
+    const cmd = await registerOne(stores)
+    await cmd.execute(
+      { x: 1 },
+      {
+        principal: { kind: 'plugin', pluginId: 'other' },
+        onBehalfOf: [{ kind: 'ai.chat' }, { kind: 'user' }],
+      },
+    )
+    // user は積まれない
+    expect(seen).toEqual([
+      { kind: 'ai.chat' },
+      { kind: 'plugin', pluginId: 'other' },
+    ])
+    expect(stores.ctx.callers).toEqual([])
+  })
+
   it('handler が throw しても呼び出し元は降りる', async () => {
     const stores = makeFakeStores()
     stores.ctx.interpreter = {

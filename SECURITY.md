@@ -366,7 +366,7 @@ WebView 内・外部ツールとも HTTP API `/proxy/image` の一経路 (`src-t
 - 内部 HTTP サーバーは `127.0.0.1:19820` にバインド
 - 外部ネットワークからアクセス不可
 - DNS Rebinding 防御: `Host` ヘッダーが `127.0.0.1` / `localhost` / `[::1]` でなければ 403 拒否
-- `CorsLayer::permissive()` — localhost 限定のため許容
+- CORS は許可リスト (WebView の origin と `localhost:5173`)。以前の permissive は「localhost 限定のため許容」としていたが、同一マシンのブラウザで開いた任意ページがループバック API を叩ける面を作るため #1099 で不採用にした
 
 ---
 

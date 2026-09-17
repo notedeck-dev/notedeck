@@ -114,7 +114,8 @@ export function createAiScriptEnv(
     // 拒否なら throw (プラグイン作者向けの理由付きメッセージ)。実行中の
     // 呼び出し元があれば AND (#1099)
     await assertMisskeyApiAllowed(options.principal, endpoint, {
-      onBehalfOf: options.getCallers?.(),
+      // 判定は呼び出し時点の連鎖で行う (await の間に積み下ろしされても変えない)
+      onBehalfOf: options.getCallers ? [...options.getCallers()] : undefined,
     })
     const params =
       paramsVal?.type === 'obj'

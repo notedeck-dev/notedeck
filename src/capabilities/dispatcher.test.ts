@@ -141,6 +141,24 @@ describe('dispatchCapability', () => {
     ).toBe(true)
   })
 
+  it('onBehalfOf は execute の ctx にも渡る (内側の判定で連鎖を保つ #1099)', async () => {
+    const execute = vi.fn().mockReturnValue('ok')
+    registerCapability(makeCapability({ id: 'chain.cap', execute }))
+    setPrincipalPreset('plugin', 'full')
+    await dispatchCapability(
+      'chain.cap',
+      {},
+      {
+        principal: { kind: 'plugin', pluginId: 'p' },
+        onBehalfOf: [{ kind: 'ai.chat' }],
+      },
+    )
+    expect(execute).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ onBehalfOf: [{ kind: 'ai.chat' }] }),
+    )
+  })
+
   it('returns unknown_capability for an unregistered id', async () => {
     const r = await dispatchCapability('not-here', {}, ctxWithPreset('full'))
     expect(r.ok).toBe(false)

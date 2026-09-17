@@ -234,6 +234,8 @@ function removePluginHandlers(installId: string) {
 function createPluginSpecificEnv(
   plugin: PluginMeta,
   ctx: PluginRunContext,
+  /** 登録 capability を実行中の呼び出し元 (#1099)。Mk:api は AND で判定する */
+  callers: readonly Principal[],
 ): Record<string, Value> {
   const id = plugin.installId
   const consts: Record<string, Value> = {}
@@ -414,10 +416,13 @@ function createPluginSpecificEnv(
       throw new Error('Mk:api: no account context available')
     }
     const endpoint = endpointVal?.type === 'str' ? endpointVal.value : ''
-    // プラグインの生 Misskey API は endpoint 対応表 gate に従属 (#712 / #711)
+    // プラグインの生 Misskey API は endpoint 対応表 gate に従属 (#712 / #711)。
+    // 実行中の呼び出し元があれば「呼び出し元 ∩ plugin」(#1099)
     await assertMisskeyApiAllowed(
       { kind: 'plugin', pluginId: plugin.installId, name: plugin.name },
       endpoint,
+      // 判定は呼び出し時点の連鎖で行う (await の間に積み下ろしされても変えない)
+      { onBehalfOf: [...callers] },
     )
     const params =
       paramsVal?.type === 'obj'
@@ -546,7 +551,7 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
     },
     { LOCALE: navigator.language },
   )
-  const pluginEnv = createPluginSpecificEnv(plugin, ctx)
+  const pluginEnv = createPluginSpecificEnv(plugin, ctx, callers)
 
   // Nd:* APIs (lazy import to avoid circular deps)
   const { useCommandStore } = await import('@/commands/registry')

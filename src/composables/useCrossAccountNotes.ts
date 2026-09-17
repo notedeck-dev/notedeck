@@ -480,8 +480,12 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     if (cached.length > 0) setNotes(cached)
 
     const accounts = accountsStore.accounts.filter((a) => a.hasToken)
-    // 全アカウントがログアウト中なら live fetch せずキャッシュ表示のみ
+    // 全アカウントがログアウト中なら live fetch せずキャッシュ表示のみ。
+    // キャッシュも無ければ (最後のアカウントを消した等) 表示を空にする —
+    // 上の setNotes は空キャッシュで呼ばないので、ここで消さないと削除済み
+    // アカウントの行が残る
     if (accounts.length === 0) {
+      if (cached.length === 0) setNotes([])
       isLoading.value = false
       return
     }
