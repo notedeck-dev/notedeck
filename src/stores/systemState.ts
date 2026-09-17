@@ -8,6 +8,7 @@ import {
 } from '@/services/systemAdaptation'
 import { useSettingsStore } from '@/stores/settings'
 import { useToast } from '@/stores/toast'
+import { useUiStore } from '@/stores/ui'
 import { setEmojiStaticMode } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -37,8 +38,11 @@ export const useSystemStateStore = defineStore('systemState', () => {
     },
   })
 
+  // ウィンドウが隠れている (#986) は Rust ではなく `useAppBackground` が観測し、
+  // ui store に置く。同じ思想の別トリガーなので判断はここに合流させる
+  const uiStore = useUiStore()
   const adaptation = computed(() =>
-    deriveAdaptation(state.value, autoAdapt.value),
+    deriveAdaptation(state.value, autoAdapt.value, uiStore.isBackground),
   )
 
   // 絵文字 URL の組み立ては util (mediaProxy.ts) にあり store を見ないので、

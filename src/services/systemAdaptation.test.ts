@@ -21,10 +21,9 @@ describe('deriveAdaptation', () => {
   it('バッテリー駆動なら先読みと絵文字アニメを止め、メディアは自動読み込みのまま', () => {
     const a = deriveAdaptation({ ...NONE, onBattery: true }, true)
     expect(a).toEqual({
+      ...NO_ADAPTATION,
       suppressPrefetch: true,
       staticEmoji: true,
-      deferMedia: false,
-      muteSounds: false,
     })
   })
 
@@ -37,10 +36,9 @@ describe('deriveAdaptation', () => {
   it('従量制回線なら先読みを止めてメディアはタップ読み込み、絵文字アニメは動く', () => {
     const a = deriveAdaptation({ ...NONE, metered: true }, true)
     expect(a).toEqual({
+      ...NO_ADAPTATION,
       suppressPrefetch: true,
-      staticEmoji: false,
       deferMedia: true,
-      muteSounds: false,
     })
   })
 
@@ -64,6 +62,18 @@ describe('deriveAdaptation', () => {
       false,
     )
     expect(a).toEqual(NO_ADAPTATION)
+  })
+
+  it('background ならストリーム購読だけ落とし、画像や音は触らない (#986)', () => {
+    expect(deriveAdaptation(NONE, true, true)).toEqual({
+      ...NO_ADAPTATION,
+      suspendStreams: true,
+    })
+    expect(deriveAdaptation(NONE, true, false).suspendStreams).toBe(false)
+  })
+
+  it('自動調整 OFF なら background でも購読を落とさない', () => {
+    expect(deriveAdaptation(NONE, false, true).suspendStreams).toBe(false)
   })
 
   it('集中モードの通知音停止は自動調整 OFF でも効く (#928: 設定に依らない)', () => {

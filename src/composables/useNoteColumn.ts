@@ -50,6 +50,7 @@ import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
+import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { dedup } from '@/utils/dedup'
@@ -212,7 +213,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
   setOnNotesChanged(syncNoteCapture)
 
   // Visibility / budget で 3 段階の挙動をする。
-  //   - 不可視: streamingBatch を pause + warm → 8s 後 suspend (Rust 側 unsub)
+  //   - 不可視 (ウィンドウごと隠れている #986 も同じ): streamingBatch を pause + warm
+  //     → 8s 後 suspend (Rust 側 unsub)。WS と main チャネルは残るので OS 通知は生きる
   //   - 可視・予算外: streamingBatch は pause するが Rust 側 subscription は live のまま。
   //                    こうしないと「画面に見えているのに予算外なだけのカラム」が
   //                    suspend されてしまい、その間の他人のリアクションが永続的に
@@ -221,12 +223,18 @@ export function useNoteColumn(config: NoteColumnConfig) {
   if (streamingBatch) {
     const { isVisible, isLive } = useColumnLive(config.getColumn().id)
     const inspectorStore = useStreamInspectorStore()
+    const systemStateStore = useSystemStateStore()
     let runtimeTransition = 0
     watch(
-      [isVisible, isLive, () => inspectorStore.capturing],
-      async ([visible, live, capturing]) => {
+      [
+        isVisible,
+        isLive,
+        () => inspectorStore.capturing,
+        () => systemStateStore.adaptation.suspendStreams,
+      ],
+      async ([visible, live, capturing, suspended]) => {
         const seq = ++runtimeTransition
-        if (!visible) {
+        if (!visible || suspended) {
           // Stream Inspector 観測中は画面外でも購読を維持し、イベントを
           // buffer に流し続ける（Android 1カラムでの観測を可能にする）。
           // 描画用 batch は止めたまま、Rust 側 subscription だけ live に保つ。

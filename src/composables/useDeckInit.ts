@@ -8,6 +8,7 @@ import {
 } from '@/commands/definitions'
 import { useCommandStore } from '@/commands/registry'
 import { startTaskCommandSync } from '@/commands/taskCommands'
+import { useAppBackground } from '@/composables/useAppBackground'
 import { useDeckResume } from '@/composables/useDeckResume'
 import {
   listenDeckWindowEvents,
@@ -54,6 +55,8 @@ export function useDeckInit(options: {
   // 復帰検知 (visibilitychange / OS スリープ / Android ネイティブ) は
   // useDeckResume に一元化。ここは検知後の下流処理だけを持つ
   useDeckResume()
+  // 対になる離脱検知 (#986)。猶予を超えて隠れたら購読を warm に落とす
+  useAppBackground()
 
   let handleResizeRef: (() => void) | null = null
   let unlistenQuickNote: (() => void) | null = null

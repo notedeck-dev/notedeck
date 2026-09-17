@@ -29,6 +29,7 @@ import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
+import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
@@ -324,14 +325,15 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   let wantLive = !streaming
   if (streaming && streamingBatch) {
     const { isVisible, isLive } = useColumnLive(streaming.columnId)
+    const systemStateStore = useSystemStateStore()
     let transition = 0
     watch(
-      [isVisible, isLive],
-      async ([visible, live]) => {
+      [isVisible, isLive, () => systemStateStore.adaptation.suspendStreams],
+      async ([visible, live, suspended]) => {
         const seq = ++transition
         wantLive = false
         streamingBatch.setPaused(true)
-        if (!visible) {
+        if (!visible || suspended) {
           setRuntimeState('warm')
           return
         }
