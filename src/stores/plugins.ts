@@ -339,55 +339,78 @@ export const usePluginsStore = defineStore('plugins', () => {
     }
   }
 
+  /**
+   * 読取専用 (ソース欠損) の個体は変更を拒否する (#1111)。保存できず端末
+   * ローカルにだけ載って次回起動で巻き戻るため、ミラーに書く前に抜ける
+   */
+  function rejectIfReadOnly(plugin: PluginMeta | undefined): boolean {
+    if (!plugin?.readOnly) return false
+    console.warn('[plugins] read-only plugin — change rejected')
+    return true
+  }
+
   /** 全体スコープに参加させる。全アカウントカラムからのインストール/追加用。 */
-  function linkGlobalScope(installId: string) {
+  function linkGlobalScope(installId: string): boolean {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
-    if (!plugin || plugin.global) return
+    if (!plugin) return false
+    if (rejectIfReadOnly(plugin)) return false
+    if (plugin.global) return true
     plugin.global = true
     persist(plugin)
+    return true
   }
 
   /** 全体スコープから外す。本体はライブラリに残る (widgets の detach と同型)。 */
-  function unlinkGlobalScope(installId: string) {
+  function unlinkGlobalScope(installId: string): boolean {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
-    if (!plugin?.global) return
+    if (!plugin) return false
+    if (rejectIfReadOnly(plugin)) return false
+    if (!plugin.global) return true
     plugin.global = undefined
     persist(plugin)
+    return true
   }
 
   /** アカウント別スコープ (`accountScopeKey`) に参加させる (union)。 */
-  function linkAccountScope(installId: string, scopeKey: string) {
+  function linkAccountScope(installId: string, scopeKey: string): boolean {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
-    if (!plugin) return
+    if (!plugin) return false
+    if (rejectIfReadOnly(plugin)) return false
     const existing = plugin.installedFor ?? []
-    if (existing.includes(scopeKey)) return
+    if (existing.includes(scopeKey)) return true
     plugin.installedFor = [...existing, scopeKey]
     persist(plugin)
+    return true
   }
 
   /** アカウント別スコープから外す。本体はライブラリに残る。 */
-  function unlinkAccountScope(installId: string, scopeKey: string) {
+  function unlinkAccountScope(installId: string, scopeKey: string): boolean {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
-    if (!plugin?.installedFor) return
+    if (!plugin) return false
+    if (rejectIfReadOnly(plugin)) return false
+    if (!plugin.installedFor) return true
     const remaining = plugin.installedFor.filter((k) => k !== scopeKey)
     plugin.installedFor = remaining.length > 0 ? remaining : undefined
     persist(plugin)
+    return true
   }
 
-  /** scope に応じて linkGlobalScope / linkAccountScope へ振り分ける。 */
-  function linkScope(installId: string, scope: PluginScope) {
-    if (scope.kind === 'global') linkGlobalScope(installId)
-    else linkAccountScope(installId, scope.key)
+  /** scope に応じて振り分ける。false = 読取専用で拒否 (#1111)。 */
+  function linkScope(installId: string, scope: PluginScope): boolean {
+    return scope.kind === 'global'
+      ? linkGlobalScope(installId)
+      : linkAccountScope(installId, scope.key)
   }
 
-  /** scope に応じて unlinkGlobalScope / unlinkAccountScope へ振り分ける。 */
-  function unlinkScope(installId: string, scope: PluginScope) {
-    if (scope.kind === 'global') unlinkGlobalScope(installId)
-    else unlinkAccountScope(installId, scope.key)
+  /** scope に応じて振り分ける。false = 読取専用で拒否 (#1111)。 */
+  function unlinkScope(installId: string, scope: PluginScope): boolean {
+    return scope.kind === 'global'
+      ? unlinkGlobalScope(installId)
+      : unlinkAccountScope(installId, scope.key)
   }
 
   /** 安定キーは host:userId 形式で必ず ':' を含む。旧 UUID には含まれない。 */
@@ -462,37 +485,42 @@ export const usePluginsStore = defineStore('plugins', () => {
     )
   }
 
-  function setActive(installId: string, active: boolean) {
+  /** false = 読取専用で拒否 (#1111)。 */
+  function setActive(installId: string, active: boolean): boolean {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
-    if (plugin) {
-      plugin.active = active
-      persist(plugin)
-    }
+    if (!plugin) return false
+    if (rejectIfReadOnly(plugin)) return false
+    plugin.active = active
+    persist(plugin)
+    return true
   }
 
-  function updateConfigData(installId: string, data: Record<string, unknown>) {
+  /** false = 読取専用で拒否 (#1111)。 */
+  function updateConfigData(
+    installId: string,
+    data: Record<string, unknown>,
+  ): boolean {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
-    if (plugin) {
-      plugin.configData = data
-      persist(plugin)
-    }
+    if (!plugin) return false
+    if (rejectIfReadOnly(plugin)) return false
+    plugin.configData = data
+    persist(plugin)
+    return true
   }
 
+  /** false = 読取専用で拒否 (#913 / #1111)。 */
   function updateSrc(
     installId: string,
     src: string,
     attribution?: EditAttribution,
-  ) {
+  ): boolean {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
-    if (plugin) {
-      if (plugin.readOnly) {
-        // ソース欠損の読取専用個体: 内容編集と保存を抑止 (#913)
-        console.warn('[plugins] read-only plugin — src update suppressed')
-        return
-      }
+    if (!plugin) return false
+    if (rejectIfReadOnly(plugin)) return false
+    {
       // 編集前 src を history sidecar に push (fire-and-forget)。
       // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
       // 内容が同じ保存では積まない — エディタのデバウンス自動保存でリングを
@@ -514,6 +542,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       plugin.src = src
       persist(plugin)
     }
+    return true
   }
 
   /**
@@ -584,14 +613,16 @@ export const usePluginsStore = defineStore('plugins', () => {
     persist(plugin)
   }
 
-  function renamePlugin(installId: string, newName: string) {
+  /** false = 読取専用で拒否 (#1111)。 */
+  function renamePlugin(installId: string, newName: string): boolean {
     ensureLoaded()
     const plugin = plugins.value.find((p) => p.installId === installId)
-    if (!plugin) return
+    if (!plugin) return false
+    if (rejectIfReadOnly(plugin)) return false
 
     plugin.name = newName
     savePluginsToStorage(plugins.value)
-    if (!settingsFs.isTauri) return
+    if (!settingsFs.isTauri) return true
     // ファイルは rename で追随させる (ID 不変・旧削除 + 新書込の並行発火禁止)。
     // rename の完了を待ってから保存する
     void ready
@@ -602,6 +633,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         savePluginsToStorage(plugins.value)
       })
       .catch((e) => console.warn('[plugins] failed to rename plugin files:', e))
+    return true
   }
 
   function getPlugin(installId: string): PluginMeta | undefined {

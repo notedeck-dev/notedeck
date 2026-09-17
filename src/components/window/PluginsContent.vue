@@ -18,6 +18,7 @@ import {
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import {
@@ -25,6 +26,7 @@ import {
   type PluginScope,
   usePluginsStore,
 } from '@/stores/plugins'
+import { useToast } from '@/stores/toast'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 
 const props = defineProps<{
@@ -166,7 +168,11 @@ useExternalEditSync<string>({
 
 async function saveCode() {
   if (!plugin.value) return
-  pluginsStore.updateSrc(plugin.value.installId, editingCode.value)
+  if (!pluginsStore.updateSrc(plugin.value.installId, editingCode.value)) {
+    // 読取専用 (ソース欠損) は保存されない (#1111)
+    useToast().show(READ_ONLY_REASON, 'warning')
+    return
+  }
   codeModified.value = false
 
   if (plugin.value.active) {
@@ -243,7 +249,9 @@ function commitRename() {
   if (!plugin.value) return
   const newName = renamingValue.value.trim()
   if (newName && newName !== plugin.value.name) {
-    pluginsStore.renamePlugin(plugin.value.installId, newName)
+    if (!pluginsStore.renamePlugin(plugin.value.installId, newName)) {
+      useToast().show(READ_ONLY_REASON, 'warning')
+    }
   }
   isRenaming.value = false
 }
@@ -256,7 +264,9 @@ function cancelRename() {
 function updateConfig(key: string, value: unknown) {
   if (!plugin.value) return
   const newData = { ...plugin.value.configData, [key]: value }
-  pluginsStore.updateConfigData(plugin.value.installId, newData)
+  if (!pluginsStore.updateConfigData(plugin.value.installId, newData)) {
+    useToast().show(READ_ONLY_REASON, 'warning')
+  }
 }
 
 function resetConfig(key: string) {

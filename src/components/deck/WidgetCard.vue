@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { READ_ONLY_HINT } from '@/services/sidecarFileCollection'
 import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { isWindowExposed } from '@/windows/exposure'
@@ -35,6 +36,8 @@ const props = withDefaults(
      * 見分けられない
      */
     accountLabel?: string
+    /** library mode: ソース欠損の読取専用個体 (#913 / #1111)。変更は保存できない */
+    readOnly?: boolean
   }>(),
   {
     mode: 'store',
@@ -109,6 +112,11 @@ function handlePrimaryClick() {
           @click.stop="handlePrimaryClick"
         >{{ name }}</button>
         <span v-if="cardDisabled" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
+        <span
+          v-else-if="isLibrary && readOnly"
+          :class="$style.incompatBadge"
+          :title="READ_ONLY_HINT"
+        >ソース欠損</span>
         <span
           v-if="isStore && alreadyInstalled && hasUpdate"
           :class="$style.updateBadge"

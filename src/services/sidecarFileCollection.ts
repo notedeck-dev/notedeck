@@ -81,6 +81,16 @@ export interface SidecarCollectionConfig<T extends SidecarItemFile, M> {
   notify?(message: string): void
 }
 
+/**
+ * 読取専用 (メタあり・ソース無し) の個体に対する変更を拒否するときの理由 (#1111)。
+ * 変更は保存できず端末ローカルにだけ載って次回起動で巻き戻るため、store の
+ * 入口で拒否して UI がこの文言を出す
+ */
+export const READ_ONLY_REASON = 'ソースファイルが見つからないため変更できません'
+/** 読取専用の印の tooltip。復旧導線をここで案内する */
+export const READ_ONLY_HINT =
+  'ソースファイルが見つかりません。ソースを置き直せば次回起動で復帰します。ストア配布物はストアから再導入、不要なら削除してください'
+
 const META_SUFFIX = '.meta.json5'
 const SRC_SUFFIX = '.is'
 const HISTORY_SUFFIX = '.history.json5'

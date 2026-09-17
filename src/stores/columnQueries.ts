@@ -251,58 +251,81 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     if (changed) void Promise.all(list.map((q) => persist(q)))
   }
 
+  /**
+   * 読取専用 (ソース欠損) の個体は変更を拒否する (#1111)。保存できず端末
+   * ローカルにだけ載って次回起動で巻き戻るため、ミラーに書く前に抜ける
+   */
+  function rejectIfReadOnly(query: NamedQueryMeta | undefined): boolean {
+    if (!query?.readOnly) return false
+    console.warn('[columnQueries] read-only query — change rejected')
+    return true
+  }
+
   /** 全体スコープに参加させる。全アカウントのカラムからの作成/追加用。 */
-  function linkGlobalScope(id: string) {
+  function linkGlobalScope(id: string): boolean {
     ensureLoaded()
     const query = queries.value.find((q) => q.id === id)
-    if (!query || query.global) return
+    if (!query) return false
+    if (rejectIfReadOnly(query)) return false
+    if (query.global) return true
     query.global = true
     query.scoped = true
     void persist(query)
+    return true
   }
 
   /** 全体スコープから外す。本体はライブラリに残る。 */
-  function unlinkGlobalScope(id: string) {
+  function unlinkGlobalScope(id: string): boolean {
     ensureLoaded()
     const query = queries.value.find((q) => q.id === id)
-    if (!query?.global) return
+    if (!query) return false
+    if (rejectIfReadOnly(query)) return false
+    if (!query.global) return true
     query.global = undefined
     query.scoped = true
     void persist(query)
+    return true
   }
 
   /** アカウント別スコープ (`accountScopeKey`) に参加させる (union)。 */
-  function linkAccountScope(id: string, scopeKey: string) {
+  function linkAccountScope(id: string, scopeKey: string): boolean {
     ensureLoaded()
     const query = queries.value.find((q) => q.id === id)
-    if (!query) return
+    if (!query) return false
+    if (rejectIfReadOnly(query)) return false
     const existing = query.installedFor ?? []
-    if (existing.includes(scopeKey)) return
+    if (existing.includes(scopeKey)) return true
     query.installedFor = [...existing, scopeKey]
     query.scoped = true
     void persist(query)
+    return true
   }
 
   /** アカウント別スコープから外す。本体はライブラリに残る。 */
-  function unlinkAccountScope(id: string, scopeKey: string) {
+  function unlinkAccountScope(id: string, scopeKey: string): boolean {
     ensureLoaded()
     const query = queries.value.find((q) => q.id === id)
-    if (!query?.installedFor) return
+    if (!query) return false
+    if (rejectIfReadOnly(query)) return false
+    if (!query.installedFor) return true
     const remaining = query.installedFor.filter((k) => k !== scopeKey)
     query.installedFor = remaining.length > 0 ? remaining : undefined
     query.scoped = true
     void persist(query)
+    return true
   }
 
-  /** scope に応じて全体 / アカウント別へ振り分ける。 */
-  function linkScope(id: string, scope: QueryScope) {
-    if (scope.kind === 'global') linkGlobalScope(id)
-    else linkAccountScope(id, scope.key)
+  /** scope に応じて全体 / アカウント別へ振り分ける。false = 読取専用で拒否。 */
+  function linkScope(id: string, scope: QueryScope): boolean {
+    return scope.kind === 'global'
+      ? linkGlobalScope(id)
+      : linkAccountScope(id, scope.key)
   }
 
-  function unlinkScope(id: string, scope: QueryScope) {
-    if (scope.kind === 'global') unlinkGlobalScope(id)
-    else unlinkAccountScope(id, scope.key)
+  function unlinkScope(id: string, scope: QueryScope): boolean {
+    return scope.kind === 'global'
+      ? unlinkGlobalScope(id)
+      : unlinkAccountScope(id, scope.key)
   }
 
   /** 保存・削除の直前にミラーの対応表を読み直す (別ウィンドウのリネーム追随)。 */
@@ -383,10 +406,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     ensureLoaded()
     const prev = queries.value.find((q) => q.id === id)
     if (!prev) return false
-    if (prev.readOnly) {
-      console.warn('[columnQueries] read-only query — enable/disable rejected')
-      return false
-    }
+    if (rejectIfReadOnly(prev)) return false
     if (isQueryActive(prev) === !disabled) return true
     // 有効に戻すときは印ごと消す (省略書式)
     const { disabled: _omit, ...rest } = prev
@@ -396,20 +416,18 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     return true
   }
 
+  /** false = 読取専用 (ソース欠損) で拒否 (#1111)。UI は理由を出す */
   async function updateQuery(
     id: string,
     updates: Partial<Pick<NamedQueryMeta, 'name' | 'description' | 'src'>>,
-  ): Promise<void> {
+  ): Promise<boolean> {
     ensureLoaded()
     const idx = queries.value.findIndex((q) => q.id === id)
-    if (idx < 0) return
+    if (idx < 0) return false
     const prev = queries.value[idx]
-    if (!prev) return
-    if (prev.readOnly && updates.src !== undefined) {
-      // ソース欠損の読取専用個体: 内容編集と保存を抑止 (#913)
-      console.warn('[columnQueries] read-only query — src update suppressed')
-      return
-    }
+    if (!prev) return false
+    // ソース欠損の読取専用個体: 内容編集も改名も保存を抑止 (#913 / #1111)
+    if (rejectIfReadOnly(prev)) return false
     // ソースが変わったら暴走サスペンドを解除する (#783 追補 D / #1112)。
     // 署名変化の watch が走る前に解除しておく
     if (updates.src !== undefined && updates.src !== prev.src) {
@@ -428,6 +446,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
       }
     }
     await persist(next)
+    return true
   }
 
   /**

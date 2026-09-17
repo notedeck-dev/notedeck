@@ -7,6 +7,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { getPluginDenial } from '@/permissions/pluginDenials'
+import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import {
   accountScopeKey,
@@ -265,7 +266,11 @@ function handleOpenStoreDetail(entry: StorePluginEntry) {
 // --- Installed tab actions ---
 async function toggleActive(plugin: PluginMeta) {
   const newActive = !plugin.active
-  pluginsStore.setActive(plugin.installId, newActive)
+  if (!pluginsStore.setActive(plugin.installId, newActive)) {
+    // 読取専用 (ソース欠損) は保存されず巻き戻る。起動もしない (#1111)
+    useToast().show(READ_ONLY_REASON, 'warning')
+    return
+  }
   if (newActive) {
     await launchPlugin(plugin)
   } else {
@@ -300,7 +305,10 @@ function openNewPlugin() {
 function detachFromScope(plugin: PluginMeta) {
   const scope = columnScope.value
   if (!scope) return
-  pluginsStore.unlinkScope(plugin.installId, scope)
+  if (!pluginsStore.unlinkScope(plugin.installId, scope)) {
+    useToast().show(READ_ONLY_REASON, 'warning')
+    return
+  }
   useToast().show('プラグインを外しました', 'info', {
     action: {
       label: '元に戻す',
@@ -325,7 +333,10 @@ const libraryCandidates = computed<PluginMeta[]>(() =>
 function placeFromLibrary(plugin: PluginMeta) {
   const scope = columnScope.value
   if (!scope) return
-  pluginsStore.linkScope(plugin.installId, scope)
+  if (!pluginsStore.linkScope(plugin.installId, scope)) {
+    useToast().show(READ_ONLY_REASON, 'warning')
+    return
+  }
   showLibraryPicker.value = false
 }
 
@@ -438,6 +449,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
               :category="storeByName.get(plugin.name)?.category"
               :category-label="storeByName.get(plugin.name)?.category ? PLUGIN_CATEGORY_LABELS[storeByName.get(plugin.name)!.category] : undefined"
               :active="plugin.active"
+              :read-only="plugin.readOnly"
               :detach-title="detachTitle"
               :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
               :denied-badge="getPluginDenial(plugin.installId)"
@@ -484,6 +496,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
               :author="storeByName.get(plugin.name)?.author ?? plugin.author"
               :version="plugin.version"
               :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
+              :read-only="plugin.readOnly"
               @click="openPluginDetail(plugin.installId)"
               @place="placeFromLibrary(plugin)"
               @delete="deleteFromLibrary(plugin)"

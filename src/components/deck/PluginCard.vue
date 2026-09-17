@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { READ_ONLY_HINT } from '@/services/sidecarFileCollection'
 import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 
@@ -34,6 +35,8 @@ const props = defineProps<{
    * 記録されているとき表示し、クリックで権限編集 UI へ誘導する。
    */
   deniedBadge?: { lastTarget: string; lastKeys: string[]; count: number } | null
+  /** ソース欠損の読取専用個体 (#913 / #1111)。変更は保存できない */
+  readOnly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -94,6 +97,11 @@ const updateTitle = computed(() => {
       <div :class="$style.row1">
         <button type="button" :class="$style.name" @click.stop="emit('click')">{{ name }}</button>
         <span v-if="incompatible" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
+        <span
+          v-else-if="mode !== 'store' && readOnly"
+          :class="$style.incompatBadge"
+          :title="READ_ONLY_HINT"
+        >ソース欠損</span>
         <span v-else-if="disabled" :class="$style.disabledBadge">無効</span>
         <span
           v-if="mode === 'store' && alreadyInstalled && hasUpdate"
