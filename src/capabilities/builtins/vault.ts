@@ -9,6 +9,8 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
  * - ai.chat / ai.heartbeat → 'ai'
  * - plugin → 'plugin' (接続ごとの opt-in 開示 — default 非開示)
  * - external → 'external'
+ * - scratchpad → 'plugin' (本人のコードでも全開示は配らない #1099。接続ごとの
+ *   opt-in 開示で扱う)
  * - user → 'user' を返すが全開示 (本人は常に全接続を扱える)
  */
 function classOf(principal: Principal): PrincipalClass | 'user' {
@@ -19,6 +21,7 @@ function classOf(principal: Principal): PrincipalClass | 'user' {
     case 'ai.heartbeat':
       return 'ai'
     case 'plugin':
+    case 'scratchpad':
       return 'plugin'
     case 'external':
       return 'external'

@@ -133,6 +133,7 @@ pub enum PrincipalId {
     AiHeartbeat,
     Plugin,
     External,
+    Scratchpad,
 }
 
 impl PrincipalId {
@@ -144,6 +145,7 @@ impl PrincipalId {
             "ai.heartbeat" => Some(Self::AiHeartbeat),
             "plugin" => Some(Self::Plugin),
             "external" => Some(Self::External),
+            "scratchpad" => Some(Self::Scratchpad),
             _ => None,
         }
     }
@@ -154,6 +156,7 @@ impl PrincipalId {
             Self::AiHeartbeat => "ai.heartbeat",
             Self::Plugin => "plugin",
             Self::External => "external",
+            Self::Scratchpad => "scratchpad",
         }
     }
 
@@ -193,7 +196,9 @@ fn backfill(key: &str, id: PrincipalId) -> bool {
 fn default_profile(id: PrincipalId) -> Granted {
     match id {
         PrincipalId::AiChat => preset("safe").expect("safe preset"),
-        PrincipalId::AiHeartbeat => preset("readonly").expect("readonly preset"),
+        PrincipalId::AiHeartbeat | PrincipalId::Scratchpad => {
+            preset("readonly").expect("readonly preset")
+        }
         PrincipalId::Plugin => {
             let mut g = preset("safe").expect("safe preset");
             g.insert("network.external");

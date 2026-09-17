@@ -354,12 +354,13 @@ export const PROFILED_PRINCIPAL_IDS: readonly ProfiledPrincipalId[] = [
   'ai.heartbeat',
   'plugin',
   'external',
+  'scratchpad',
 ]
 
 /**
  * `<config dir>/notedeck/permissions.json5` の構造。
  *
- * `principals` は Record<string, ...> として読む — 固定 4 キーは規約で、
+ * `principals` は Record<string, ...> として読む — 固定キー (PROFILED_PRINCIPAL_IDS) は規約で、
  * 未知キーは無視して保持する (将来の per-plugin scope `plugin:<id>` 拡張を
  * 塞がない #712 §3.6。ただし dynamic キーへの書き込みは grant のライフサイクル
  * 束縛が実装されるまで解禁しない)。

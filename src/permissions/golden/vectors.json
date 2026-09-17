@@ -523,6 +523,80 @@
         "skills.read",
         "widgets.read"
       ]
+    },
+    {
+      "name": "missing-file-scratchpad",
+      "principal": "scratchpad",
+      "file": null,
+      "granted": [
+        "account.read",
+        "ai.sessions.read",
+        "clips.read",
+        "deck.read",
+        "drafts.read",
+        "drive.read",
+        "logs.read",
+        "memos.read",
+        "notes.read",
+        "plugins.read",
+        "skills.read",
+        "widgets.read"
+      ]
+    },
+    {
+      "name": "scratchpad-full-is-not-clamped",
+      "principal": "scratchpad",
+      "file": "{ principals: { scratchpad: { preset: 'full' } } }",
+      "granted": [
+        "account.actAs",
+        "account.read",
+        "account.write",
+        "ai.invoke",
+        "ai.persona.write",
+        "ai.sessions.read",
+        "backup.create",
+        "clipboard",
+        "clips.read",
+        "clips.write",
+        "deck.read",
+        "deck.write",
+        "drafts.read",
+        "drafts.write",
+        "drive.read",
+        "drive.write",
+        "files.export",
+        "keybinds.write",
+        "logs.read",
+        "memos.read",
+        "memos.write",
+        "navbar.write",
+        "network.external",
+        "notes.react",
+        "notes.read",
+        "notes.readArchive",
+        "notes.write",
+        "notifications",
+        "performance.write",
+        "plugins.read",
+        "plugins.write",
+        "skills.read",
+        "skills.write",
+        "styles.write",
+        "tasks.run",
+        "theme.write",
+        "vault.use",
+        "widgets.read",
+        "widgets.write"
+      ]
+    },
+    {
+      "name": "scratchpad-custom-missing-deck-keys",
+      "principal": "scratchpad",
+      "file": "{ principals: { scratchpad: { preset: 'custom', custom: { 'notes.write': true } } } }",
+      "granted": [
+        "deck.read",
+        "notes.write"
+      ]
     }
   ]
 }

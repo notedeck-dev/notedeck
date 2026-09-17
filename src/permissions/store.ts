@@ -81,6 +81,8 @@ function safeFallbackFile(): PermissionsFileConfig {
  * - `ai.heartbeat`: `readonly` — 無人実行は安全側 (#712 §4.4)
  * - `external`: 縮小 custom (#712 §4.4 — 「トークン発行 = Misskey read の
  *   同意」にローカル私的データを含めない)
+ * - `scratchpad`: `readonly` — 本人のコードでも全許可 (`user`) は配らない
+ *   (#1099)。書き込みは権限ウィンドウ (developer 露出) で明示的に開く
  */
 export function defaultPermissionsFile(): PermissionsFileConfig {
   return {
@@ -96,6 +98,7 @@ export function defaultPermissionsFile(): PermissionsFileConfig {
         preset: 'custom',
         custom: { ...EXTERNAL_DEFAULT_PROFILE.custom },
       },
+      scratchpad: { preset: 'readonly', custom: {} as never },
     },
     confirmSkips: {},
   }
@@ -122,7 +125,7 @@ function normalizeConfirmSkips(raw: unknown): Record<string, string[]> {
 }
 
 /**
- * 読み込んだファイルの正規化: 固定 4 principal の存在保証 + custom map の
+ * 読み込んだファイルの正規化: 固定 principal の存在保証 + custom map の
  * 欠損キー backfill。未知キー (将来の `plugin:<id>` 等) はそのまま保持する。
  */
 export function normalizePermissionsFile(
@@ -372,6 +375,8 @@ function principalProfileId(principal: Principal): ProfiledPrincipalId | null {
       return 'plugin'
     case 'external':
       return 'external'
+    case 'scratchpad':
+      return 'scratchpad'
   }
 }
 
@@ -469,6 +474,8 @@ export function resolveProfiledIn(
  * - `ai.heartbeat` → null (無人実行。チャットで押した同意の波及はもちろん、
  *   heartbeat 自身のダイアログでの記憶も認めない — 同意すり替え防止 #712 §3.3)
  * - `external` → null (外部アプリの書き込みは都度確認)
+ * - `scratchpad` → null (本人のコードだが、記憶を持たせるほどの反復操作面
+ *   ではない。必要になったら scope を切る)
  */
 export function confirmSkipScope(principal: Principal): string | null {
   switch (principal.kind) {
@@ -479,6 +486,7 @@ export function confirmSkipScope(principal: Principal): string | null {
     case 'user':
     case 'ai.heartbeat':
     case 'external':
+    case 'scratchpad':
       return null
   }
 }
