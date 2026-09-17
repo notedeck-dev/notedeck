@@ -496,6 +496,7 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 - **external の read 下限**: HTTP API トークンの発行自体を Misskey コンテンツ read への同意とみなし、その範囲は常時 ON に clamp。逆に PKM メモ・下書き・AI 会話履歴などローカル私的データの read は external のデフォルトから外してある
 - 権限キー追加時は `backfillValue()` で principal ごとの既定値を宣言する。欠損キーは拒否扱い
 - 設定変更は dispatch 直前に再読込されるため、外部エディタや設定 UI からの変更が **再起動なしで即反映**される
+- **`tasks.run` は endpoint ごとに検査される** (#1099)。ユーザー定義タスクの action が叩く Misskey endpoint を、plugin の `Mk:api` と同じ対応表 (`src/permissions/misskeyApiGate.ts`) で呼び出し元 principal の権限に照らす。`tasks.run` は「タスクを起動してよい」であって「任意の endpoint に届いてよい」ではないので、`safe` preset が `notes.write: false` と `tasks.run: true` を同時に持つのは矛盾ではない
 - **external の解決は Rust 側にもある** (`src-tauri/src/permissions_profile.rs`)。HTTP API の external gate が JS から push された認可表を信じる構造は、WebView 内に入った任意 JS が外部トークンの権限を書き換えられる穴だった (#1099)。JS (dispatcher) と Rust (HTTP gate) は同じ `permissions.json5` を独立に読み、`src/permissions/golden/vectors.json` で一致を機械検査する。「判定の二重実装を持たない」(#712 §4.2) はこの理由で不採用に改めた — 二重化の代償 (ずれ) は golden で払い、認可境界を攻撃面の外に置くことを優先する
 
 権限キーの一覧と capability との対応は [SKILLS.md](SKILLS.md) §5 を参照。

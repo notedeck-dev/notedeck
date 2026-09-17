@@ -67,6 +67,29 @@ describe('assertMisskeyApiAllowed (#712 §5.5)', () => {
     ).rejects.toThrow(/開放されません/)
   })
 
+  it('ai.chat も自分のプロファイルで判定される (tasks.run 経由 #1099)', async () => {
+    const { file } = usePermissionsConfig()
+    file.value.principals['ai.chat'] = setPermissionPreset(
+      file.value.principals['ai.chat'] ?? {
+        preset: 'readonly',
+        custom: {} as never,
+      },
+      'safe',
+    )
+    await expect(
+      assertMisskeyApiAllowed({ kind: 'ai.chat' }, 'notes/create', {
+        source: 'tasks.run',
+      }),
+    ).rejects.toThrow(/^tasks\.run: permission_denied.*notes\.write/)
+    await expect(
+      assertMisskeyApiAllowed({ kind: 'ai.chat' }, 'notes/show', {
+        source: 'tasks.run',
+      }),
+    ).resolves.toBeUndefined()
+    // AI の拒否はプラグインバッジには乗らない
+    expect(getPluginDenial('p1')).toBeNull()
+  })
+
   it('user (playground) は gate 免除', async () => {
     setPluginPreset('readonly')
     await expect(

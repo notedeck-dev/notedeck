@@ -84,7 +84,8 @@ export type PermissionKey = (typeof PERMISSION_KEYS)[number]
  *
  * skills.write / ai.persona.write は AI の指示ストリームへの書込 (#712 §3.7)、
  * memos.write は dataSources 自動注入との組合せで injection の実効性が高い
- * データ書込、tasks.run は任意 method の raw API 代理実行 (#712 §3.8)。
+ * データ書込、tasks.run はユーザー定義 action の代理実行 (#712 §3.8。叩く
+ * endpoint は Mk:api と同じ対応表で per-key 検査される #1099)。
  */
 export const HIGH_RISK_PERMISSION_KEYS: readonly PermissionKey[] = [
   'notes.write',
@@ -117,8 +118,8 @@ export const AI_INSTRUCTION_KEYS: readonly PermissionKey[] = [
  * resolveFor が保存値に関わらず OFF に clamp する — full preset でも拒否
  * (「同意しても成立させない」構造的禁止)。
  *
- * tasks.run はユーザー定義 action を任意 method・アカウント権限のまま代理実行
- * する per-key gate の迂回路 — task の起動同意は本人と AI class までに留める。
+ * tasks.run が叩く endpoint は per-key 検査される (#1099) ので迂回路ではなく
+ * なったが、タスク定義は本人の資産なので起動同意は本人と AI class までに留める。
  */
 export const THIRD_PARTY_DENY_KEYS: readonly PermissionKey[] = [
   ...AI_INSTRUCTION_KEYS,
