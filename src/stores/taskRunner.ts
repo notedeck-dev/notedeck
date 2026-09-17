@@ -4,6 +4,7 @@ import type { JsonValue } from '@/bindings'
 import { useCommandStore } from '@/commands/registry'
 import { TASK_COMMAND_PREFIX } from '@/commands/taskCommandPrefix'
 import { useAccountsStore } from '@/stores/accounts'
+import { useAiActivity } from '@/stores/aiActivity'
 import { usePrompt } from '@/stores/prompt'
 import { useTasksStore } from '@/stores/tasks'
 import { useToast } from '@/stores/toast'
@@ -160,6 +161,9 @@ export const useTaskRunnerStore = defineStore('taskRunner', () => {
       return runs.value.find((r) => r.id === run.id) ?? null
     }
 
+    // ペット (#1080): 実行中は running、失敗で倒れる
+    const activity = useAiActivity()
+    const endRunning = activity.begin('running')
     try {
       const result = unwrap(
         await commands.apiRequest(
@@ -175,6 +179,7 @@ export const useTaskRunnerStore = defineStore('taskRunner', () => {
       })
       useToast().show(`タスク完了: ${def.label}`, 'success')
     } catch (e) {
+      activity.pulse('failed')
       const msg = AppError.from(e).message
       updateRun(run.id, {
         status: 'error',
@@ -182,6 +187,8 @@ export const useTaskRunnerStore = defineStore('taskRunner', () => {
         error: msg,
       })
       useToast().show(`タスク失敗: ${def.label} — ${msg}`, 'error')
+    } finally {
+      endRunning()
     }
 
     return runs.value.find((r) => r.id === run.id) ?? null

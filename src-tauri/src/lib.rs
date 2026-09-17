@@ -37,6 +37,7 @@ mod os_notify;
 mod perf_config;
 mod permissions_gate;
 mod permissions_profile;
+mod pet_store;
 mod query_bridge;
 mod query_runtime;
 mod rate_limit;
@@ -1038,6 +1039,9 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::save_image_to_file,
             commands::image_cache_stats,
             commands::clear_image_cache,
+            commands::pet_install,
+            commands::pet_load,
+            commands::pet_clear,
             commands::get_backup_dir,
             commands::backup_create,
             commands::get_export_dir,

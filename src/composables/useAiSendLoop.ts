@@ -6,6 +6,7 @@ import {
   type ChatMessage,
   type ToolUseEvent,
 } from '@/composables/useAiChat'
+import { useAiActivity } from '@/stores/aiActivity'
 import { extractErrorMessage } from '@/utils/errors'
 
 /**
@@ -141,6 +142,7 @@ export function useAiSendLoop(deps: AiSendLoopDeps) {
   const activeStreamSessionId = ref<string | null>(null)
 
   const retryContext = ref<AiRetryContext | null>(null)
+  const activity = useAiActivity()
 
   // Stream deltas → update last assistant message in-place
   watch(deps.chat.currentText, (text) => {
@@ -203,6 +205,8 @@ export function useAiSendLoop(deps: AiSendLoopDeps) {
     deps.onUpdate?.()
 
     activeStreamSessionId.value = req.sessionId
+    // ペット (#1080): ターン開始で跳ね、完了で手を振り、失敗で倒れる
+    activity.pulse('jumping')
 
     const maxToolRounds = req.generation?.maxToolRounds ?? MAX_TOOL_ROUNDS
     let toolRound = 0
@@ -335,10 +339,12 @@ export function useAiSendLoop(deps: AiSendLoopDeps) {
           ])
         }
       }
+      activity.pulse('waving')
       return { status: 'done', finalText: finalAssistantText, wasFirstRound }
     } catch (e) {
       const cancelled = e instanceof AiChatCancelledError
       if (!cancelled) {
+        activity.pulse('failed')
         // 診断: AI ストリーム失敗時の raw error を console に dump。
         // [object Object] 表示の根本原因 (= 想定外の error shape) を追跡しやすくする。
         console.error('[ai-send-loop] stream error raw:', e)
