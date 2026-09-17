@@ -423,3 +423,54 @@ describe('編集履歴の同値ガード (#981)', () => {
     expect(pushSnapshot).not.toHaveBeenCalled()
   })
 })
+
+describe('読取専用 (ソース欠損) のプラグインは変更を拒否する (#1111)', () => {
+  it('有効/無効・改名・設定値・スコープの変更を拒否して false を返す', () => {
+    setupAccounts()
+    const store = usePluginsStore()
+    store.addPlugin(makePlugin({ installId: 'ro', src: '', active: true }))
+    const live = store.getPlugin('ro')
+    if (live) live.readOnly = true
+    expect(store.setActive('ro', false)).toBe(false)
+    expect(store.getPlugin('ro')?.active).toBe(true)
+    expect(store.renamePlugin('ro', 'renamed')).toBe(false)
+    expect(store.getPlugin('ro')?.name).toBe('test-plugin')
+    expect(store.updateConfigData('ro', { k: 1 })).toBe(false)
+    expect(store.getPlugin('ro')?.configData).toEqual({})
+    expect(store.linkScope('ro', { kind: 'global' })).toBe(false)
+    expect(store.getPlugin('ro')?.global).toBeUndefined()
+    expect(store.updateSrc('ro', 'x')).toBe(false)
+  })
+
+  it('通常のプラグインでは true を返す', () => {
+    setupAccounts()
+    const store = usePluginsStore()
+    store.addPlugin(makePlugin({ installId: 'ok' }))
+    expect(store.setActive('ok', false)).toBe(true)
+    expect(store.renamePlugin('ok', 'renamed')).toBe(true)
+    expect(store.linkScope('ok', { kind: 'global' })).toBe(true)
+  })
+})
+
+describe('アカウント削除でスコープ参加を掃除する (#1114)', () => {
+  it('そのアカウントのキーだけを全プラグインから外し、全体スコープと他アカウントは残す', () => {
+    setupAccounts()
+    const store = usePluginsStore()
+    store.addPlugin(
+      makePlugin({
+        installId: 'a',
+        installedFor: ['yami.ski:u1', 'misskey.cloud:u2'],
+      }),
+    )
+    store.addPlugin(
+      makePlugin({ installId: 'b', installedFor: ['yami.ski:u1'] }),
+    )
+    store.addPlugin(makePlugin({ installId: 'c', global: true }))
+    store.purgeAccount('yami.ski:u1')
+    expect(store.getPlugin('a')?.installedFor).toEqual(['misskey.cloud:u2'])
+    // 参加先が無くなった本体はライブラリに残る (ピッカーから再追加できる)
+    expect(store.getPlugin('b')?.installedFor).toBeUndefined()
+    expect(store.getPlugin('b')).toBeDefined()
+    expect(store.getPlugin('c')?.global).toBe(true)
+  })
+})

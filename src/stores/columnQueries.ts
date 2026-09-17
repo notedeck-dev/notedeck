@@ -1,10 +1,12 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { releaseSharedSuspension } from '@/services/columnQuery/degradedRunner'
 import {
   createSidecarCollection,
   type SidecarItemFile,
 } from '@/services/sidecarFileCollection'
 import { useDeckStore } from '@/stores/deck'
+import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
 import { notifyWarningToast } from '@/utils/toastNotify'
@@ -50,8 +52,39 @@ export interface NamedQueryMeta extends SidecarItemFile {
    * 属さない) を再起動後も保てるよう、移行済みかどうかを個体側に持たせる。
    */
   scoped?: boolean
+  /**
+   * 本体の無効化 (#1043)。プラグインの有効/無効と同じ位置のキルスイッチで、
+   * 無効なクエリは参照している全カラムで評価上「無いもの」(fail-open) になる。
+   * 無効のときだけ印を書く省略書式 (値が無い = 有効)。既存ファイルはすべて
+   * 値を持たないので移行不要で、判定は `isQueryActive` の 1 箇所に集約する。
+   * カラム側の適用 (noteQueryRefs) やスコープ参加には触れない
+   */
+  disabled?: boolean
   createdAt: number
   updatedAt: number
+}
+
+/** 無効と明示されていない限り有効 (#1043)。判定はここ 1 箇所。 */
+export function isQueryActive(
+  query: Pick<NamedQueryMeta, 'disabled'>,
+): boolean {
+  return query.disabled !== true
+}
+
+/**
+ * フィルタメニューの候補に出すか (#1043)。
+ * - 有効でスコープ内: 出す
+ * - 無効で未適用: 出さない (使えない選択肢で場所と認知負荷を食わない)
+ * - 適用済み: スコープ外でも無効でも出す (外す導線と、効いていない理由を
+ *   追えるように。行には「無効」チップが付く)
+ */
+export function isQueryOfferedFor(
+  query: NamedQueryMeta,
+  scopeKey: string | null,
+  applied: ReadonlySet<string>,
+): boolean {
+  if (applied.has(query.id)) return true
+  return isQueryActive(query) && isQueryEffectiveFor(query, scopeKey)
 }
 
 /** インストール/追加先スコープ (#1018)。カラムの文脈から決まる。 */
@@ -81,6 +114,7 @@ interface QueryFileMeta {
   global?: boolean
   installedFor?: string[]
   scoped?: boolean
+  disabled?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -116,6 +150,7 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
     ...(q.global ? { global: true } : {}),
     ...(q.installedFor?.length ? { installedFor: q.installedFor } : {}),
     ...(q.scoped ? { scoped: true } : {}),
+    ...(q.disabled ? { disabled: true } : {}),
     createdAt: q.createdAt,
     updatedAt: q.updatedAt,
   }),
@@ -131,6 +166,7 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
     global: meta.global,
     installedFor: meta.installedFor,
     scoped: meta.scoped,
+    ...(meta.disabled ? { disabled: true } : {}),
     createdAt: meta.createdAt ?? Date.now(),
     updatedAt: meta.updatedAt ?? Date.now(),
   }),
@@ -232,58 +268,94 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     if (changed) void Promise.all(list.map((q) => persist(q)))
   }
 
+  /**
+   * 読取専用 (ソース欠損) の個体は変更を拒否する (#1111)。保存できず端末
+   * ローカルにだけ載って次回起動で巻き戻るため、ミラーに書く前に抜ける
+   */
+  function rejectIfReadOnly(query: NamedQueryMeta | undefined): boolean {
+    if (!query?.readOnly) return false
+    console.warn('[columnQueries] read-only query — change rejected')
+    return true
+  }
+
   /** 全体スコープに参加させる。全アカウントのカラムからの作成/追加用。 */
-  function linkGlobalScope(id: string) {
+  function linkGlobalScope(id: string): boolean {
     ensureLoaded()
     const query = queries.value.find((q) => q.id === id)
-    if (!query || query.global) return
+    if (!query) return false
+    if (rejectIfReadOnly(query)) return false
+    if (query.global) return true
     query.global = true
     query.scoped = true
     void persist(query)
+    return true
   }
 
   /** 全体スコープから外す。本体はライブラリに残る。 */
-  function unlinkGlobalScope(id: string) {
+  function unlinkGlobalScope(id: string): boolean {
     ensureLoaded()
     const query = queries.value.find((q) => q.id === id)
-    if (!query?.global) return
+    if (!query) return false
+    if (rejectIfReadOnly(query)) return false
+    if (!query.global) return true
     query.global = undefined
     query.scoped = true
     void persist(query)
+    return true
   }
 
   /** アカウント別スコープ (`accountScopeKey`) に参加させる (union)。 */
-  function linkAccountScope(id: string, scopeKey: string) {
+  function linkAccountScope(id: string, scopeKey: string): boolean {
     ensureLoaded()
     const query = queries.value.find((q) => q.id === id)
-    if (!query) return
+    if (!query) return false
+    if (rejectIfReadOnly(query)) return false
     const existing = query.installedFor ?? []
-    if (existing.includes(scopeKey)) return
+    if (existing.includes(scopeKey)) return true
     query.installedFor = [...existing, scopeKey]
     query.scoped = true
     void persist(query)
+    return true
   }
 
   /** アカウント別スコープから外す。本体はライブラリに残る。 */
-  function unlinkAccountScope(id: string, scopeKey: string) {
+  function unlinkAccountScope(id: string, scopeKey: string): boolean {
     ensureLoaded()
     const query = queries.value.find((q) => q.id === id)
-    if (!query?.installedFor) return
+    if (!query) return false
+    if (rejectIfReadOnly(query)) return false
+    if (!query.installedFor) return true
     const remaining = query.installedFor.filter((k) => k !== scopeKey)
     query.installedFor = remaining.length > 0 ? remaining : undefined
     query.scoped = true
     void persist(query)
+    return true
   }
 
-  /** scope に応じて全体 / アカウント別へ振り分ける。 */
-  function linkScope(id: string, scope: QueryScope) {
-    if (scope.kind === 'global') linkGlobalScope(id)
-    else linkAccountScope(id, scope.key)
+  /** scope に応じて全体 / アカウント別へ振り分ける。false = 読取専用で拒否。 */
+  function linkScope(id: string, scope: QueryScope): boolean {
+    return scope.kind === 'global'
+      ? linkGlobalScope(id)
+      : linkAccountScope(id, scope.key)
   }
 
-  function unlinkScope(id: string, scope: QueryScope) {
-    if (scope.kind === 'global') unlinkGlobalScope(id)
-    else unlinkAccountScope(id, scope.key)
+  function unlinkScope(id: string, scope: QueryScope): boolean {
+    return scope.kind === 'global'
+      ? unlinkGlobalScope(id)
+      : unlinkAccountScope(id, scope.key)
+  }
+
+  /**
+   * アカウント削除時に、そのアカウントのスコープ参加をすべて外す (#1114)。
+   * プラグインと同じ。本体はライブラリに残り、全体スコープと他アカウントの
+   * 参加には触れない
+   */
+  function purgeAccount(scopeKey: string): void {
+    ensureLoaded()
+    for (const query of queries.value) {
+      if (!query.installedFor?.includes(scopeKey)) continue
+      unlinkAccountScope(query.id, scopeKey)
+    }
   }
 
   /** 保存・削除の直前にミラーの対応表を読み直す (別ウィンドウのリネーム追随)。 */
@@ -354,19 +426,73 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     return query
   }
 
+  /**
+   * 本体の有効/無効を切り替える (#1043)。カラムの適用には触れない。
+   * ソース欠損の読取専用個体は拒否する (false を返す) — 保存できず端末
+   * ローカルにだけ載って次回起動で巻き戻るため、ミラーに書く前に抜ける。
+   * ファイルの破損はここで止める話ではなく、可視化と復旧導線は #1111
+   */
+  async function setDisabled(id: string, disabled: boolean): Promise<boolean> {
+    ensureLoaded()
+    const prev = queries.value.find((q) => q.id === id)
+    if (!prev) return false
+    if (rejectIfReadOnly(prev)) return false
+    if (isQueryActive(prev) === !disabled) return true
+    // 有効に戻すときは印ごと消す (省略書式)
+    const { disabled: _omit, ...rest } = prev
+    const next: NamedQueryMeta = disabled ? { ...rest, disabled: true } : rest
+    queries.value = queries.value.map((q) => (q.id === id ? next : q))
+    await persist(next)
+    return true
+  }
+
+  /**
+   * 編集前の状態を履歴サイドカーに積む (#1117、他の配布物と同じリング)。
+   * 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
+   * snapshot の範囲 (src / name / description) が動いたときだけ積む — 同じ
+   * 内容の保存で積むとリングを使い潰す
+   */
+  async function pushHistory(
+    prev: NamedQueryMeta,
+    next: Pick<NamedQueryMeta, 'src' | 'name' | 'description'>,
+    attribution?: EditAttribution,
+  ): Promise<void> {
+    if (!prev.fileBase) return
+    if (
+      prev.src === next.src &&
+      prev.name === next.name &&
+      prev.description === next.description
+    ) {
+      return
+    }
+    // 呼び出し側は完了を待つ。改名は履歴サイドカーも動かすので、書き込みが
+    // 飛んでいる最中に rename すると最新 snapshot が旧 basename に取り残される
+    await pushSnapshot(
+      'query',
+      prev.fileBase,
+      { src: prev.src, name: prev.name, description: prev.description },
+      attribution,
+    ).catch((e) => console.warn('[columnQueries] history push failed:', e))
+  }
+
+  /** false = 読取専用 (ソース欠損) で拒否 (#1111)。UI は理由を出す */
   async function updateQuery(
     id: string,
     updates: Partial<Pick<NamedQueryMeta, 'name' | 'description' | 'src'>>,
-  ): Promise<void> {
+    attribution?: EditAttribution,
+  ): Promise<boolean> {
     ensureLoaded()
     const idx = queries.value.findIndex((q) => q.id === id)
-    if (idx < 0) return
+    if (idx < 0) return false
     const prev = queries.value[idx]
-    if (!prev) return
-    if (prev.readOnly && updates.src !== undefined) {
-      // ソース欠損の読取専用個体: 内容編集と保存を抑止 (#913)
-      console.warn('[columnQueries] read-only query — src update suppressed')
-      return
+    if (!prev) return false
+    // ソース欠損の読取専用個体: 内容編集も改名も保存を抑止 (#913 / #1111)
+    if (rejectIfReadOnly(prev)) return false
+    await pushHistory(prev, { ...prev, ...updates }, attribution)
+    // ソースが変わったら暴走サスペンドを解除する (#783 追補 D / #1112)。
+    // 署名変化の watch が走る前に解除しておく
+    if (updates.src !== undefined && updates.src !== prev.src) {
+      releaseSharedSuspension(id)
     }
     const next = { ...prev, ...updates, updatedAt: Date.now() }
     queries.value = queries.value.map((q) => (q.id === id ? next : q))
@@ -381,6 +507,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
       }
     }
     await persist(next)
+    return true
   }
 
   /**
@@ -402,6 +529,10 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     const idx = queries.value.findIndex((q) => q.id === id)
     const prev = queries.value[idx]
     if (!prev) return
+    if (patch.src !== prev.src) releaseSharedSuspension(id)
+    // 更新前の本体を履歴に積む (updateQuery と同じリング)。readOnly 個体は
+    // 復旧なので積まない (空ソースを履歴に残す意味が無い)
+    if (!prev.readOnly) pushHistory(prev, { ...prev, ...patch })
     const next: NamedQueryMeta = {
       ...prev,
       ...patch,
@@ -484,7 +615,9 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     createQuery,
     linkScope,
     unlinkScope,
+    purgeAccount,
     updateQuery,
+    setDisabled,
     applyStoreUpdate,
     recordStoreBaseline,
     removeQuery,

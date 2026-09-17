@@ -392,52 +392,63 @@ export const useWidgetsStore = defineStore('widgets', () => {
     return mountedCounts.value.get(installId) ?? 0
   }
 
+  /**
+   * 読取専用 (ソース欠損) の個体は変更を拒否する (#1111)。保存できず端末
+   * ローカルにだけ載って次回起動で巻き戻るため、ミラーに書く前に抜ける
+   */
+  function rejectIfReadOnly(widget: WidgetMeta | undefined): boolean {
+    if (!widget?.readOnly) return false
+    console.warn('[widgets] read-only widget — change rejected')
+    return true
+  }
+
+  /** false = 読取専用で拒否 (#913 / #1111)。 */
   function updateSrc(
     installId: string,
     src: string,
     attribution?: EditAttribution,
-  ) {
+  ): boolean {
     ensureLoaded()
     const widget = widgets.value.find((w) => w.installId === installId)
-    if (widget) {
-      if (widget.readOnly) {
-        // ソース欠損の読取専用個体: 内容編集と保存を抑止 (#913)
-        console.warn('[widgets] read-only widget — src update suppressed')
-        return
-      }
-      // 編集前 src を history sidecar に push (fire-and-forget)。
-      // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
-      // 内容が同じ保存では積まない (plugins.updateSrc と同じ理由)
-      if (widget.fileBase && widget.src !== src) {
-        pushSnapshot(
-          'widget',
-          widget.fileBase,
-          {
-            src: widget.src,
-            name: widget.name,
-            autoRun: widget.autoRun,
-          },
-          attribution,
-        ).catch((e) => console.warn('[widgets] history push failed:', e))
-      }
-      widget.src = src
-      widget.updatedAt = Date.now()
-      persist(widget)
+    if (!widget) return false
+    if (rejectIfReadOnly(widget)) return false
+    // 編集前 src を history sidecar に push (fire-and-forget)。
+    // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
+    // 内容が同じ保存では積まない (plugins.updateSrc と同じ理由)
+    if (widget.fileBase && widget.src !== src) {
+      pushSnapshot(
+        'widget',
+        widget.fileBase,
+        {
+          src: widget.src,
+          name: widget.name,
+          autoRun: widget.autoRun,
+        },
+        attribution,
+      ).catch((e) => console.warn('[widgets] history push failed:', e))
     }
+    widget.src = src
+    widget.updatedAt = Date.now()
+    persist(widget)
+    return true
   }
 
   /**
    * 実行アカウントを固定する (#1018)。全アカウントのカラムに置いたウィジットが
    * どのアカウントで動くかは、カラムからは決まらないのでここに持つ。
    */
-  function setAccountKey(installId: string, accountKey: string | undefined) {
+  function setAccountKey(
+    installId: string,
+    accountKey: string | undefined,
+  ): boolean {
     ensureLoaded()
     const widget = widgets.value.find((w) => w.installId === installId)
-    if (widget) {
-      widget.accountKey = accountKey
-      widget.updatedAt = Date.now()
-      persist(widget)
-    }
+    if (!widget) return false
+    if (rejectIfReadOnly(widget)) return false
+    widget.accountKey = accountKey
+    widget.updatedAt = Date.now()
+    persist(widget)
+    return true
   }
 
   let scopesMigrated = false
@@ -503,14 +514,16 @@ export const useWidgetsStore = defineStore('widgets', () => {
     return targets
   }
 
-  function setAutoRun(installId: string, autoRun: boolean) {
+  /** false = 読取専用で拒否 (#1111)。 */
+  function setAutoRun(installId: string, autoRun: boolean): boolean {
     ensureLoaded()
     const widget = widgets.value.find((w) => w.installId === installId)
-    if (widget) {
-      widget.autoRun = autoRun
-      widget.updatedAt = Date.now()
-      persist(widget)
-    }
+    if (!widget) return false
+    if (rejectIfReadOnly(widget)) return false
+    widget.autoRun = autoRun
+    widget.updatedAt = Date.now()
+    persist(widget)
+    return true
   }
 
   /**
@@ -575,15 +588,17 @@ export const useWidgetsStore = defineStore('widgets', () => {
     }
   }
 
-  function renameWidget(installId: string, newName: string) {
+  /** false = 読取専用で拒否 (#1111)。 */
+  function renameWidget(installId: string, newName: string): boolean {
     ensureLoaded()
     const widget = widgets.value.find((w) => w.installId === installId)
-    if (!widget) return
+    if (!widget) return false
+    if (rejectIfReadOnly(widget)) return false
 
     widget.name = newName
     widget.updatedAt = Date.now()
     saveWidgetsToStorage(widgets.value)
-    if (!settingsFs.isTauri) return
+    if (!settingsFs.isTauri) return true
     // ファイルは rename で追随させる (ID 不変・旧削除 + 新書込の並行発火禁止)。
     // rename の完了を待ってから保存する
     void ready
@@ -594,6 +609,7 @@ export const useWidgetsStore = defineStore('widgets', () => {
         saveWidgetsToStorage(widgets.value)
       })
       .catch((e) => console.warn('[widgets] failed to rename widget files:', e))
+    return true
   }
 
   function getWidget(installId: string): WidgetMeta | undefined {

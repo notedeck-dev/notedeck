@@ -10,9 +10,13 @@ export interface NotedeckThemeMeta {
   storeSha512?: string
   /** インストール/更新時の registry バージョン (#913) */
   storeVersion?: string
-  /** どの account の per-account テーマカラム「ストアのテーマ」セクションに
-   *  表示するか。空 / undefined なら誰も使わない (Global ローカルセクション
-   *  にのみ出る)。複数 account に紐付けられる (重複インストール不要)。 */
+  /**
+   * どのアカウントのテーマカラムに出すか。値はアカウントの安定キー
+   * (`accountScopeKey` = host:userId、#1113)。内部 UUID は再ログインで変わり
+   * 紐付けが無言で切れるため使わない (プラグイン #771 / クエリ / ウィジェット
+   * と同じ)。複数アカウントに紐付けられる (重複インストール不要)。
+   * 旧 UUID の値は起動時に安定キーへ移行する。
+   */
   installedFor?: string[]
 }
 

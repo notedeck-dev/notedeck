@@ -3,7 +3,11 @@ import type {
   ColumnQueryWorkerRequest,
   ColumnQueryWorkerResponse,
 } from '@/workers/columnQueryWorker'
-import { createDegradedRunner } from './degradedRunner'
+import {
+  createDegradedRunner,
+  releaseSharedSuspension,
+  resetSharedDegradedRunner,
+} from './degradedRunner'
 
 /**
  * Worker の代役。postMessage された内容を記録し、テストから応答を差し込む。
@@ -176,6 +180,25 @@ describe('createDegradedRunner: 暴走の打ち切り (V15/V23)', () => {
     expect(out.verdicts).toEqual(['match', 'match'])
     runner.dispose()
   })
+
+  it('サスペンドと再開を購読者に通知する (#1110)', async () => {
+    FakeWorker.hangOn = 'slow'
+    const runner = makeRunner()
+    const seen: string[][] = []
+    const unsubscribe = runner.subscribe(() =>
+      seen.push(runner.suspendedKeys()),
+    )
+    const p = runner.run([{ key: 'slow', source: 'loop {}' }], notes)
+    await vi.runAllTimersAsync()
+    await p
+    expect(seen).toEqual([['slow']])
+    runner.resume('slow')
+    expect(seen).toEqual([['slow'], []])
+    unsubscribe()
+    runner.resume('slow')
+    expect(seen).toHaveLength(2)
+    runner.dispose()
+  })
 })
 
 describe('createDegradedRunner: 巻き添えの防止', () => {
@@ -212,5 +235,12 @@ describe('createDegradedRunner: 空入力', () => {
     expect(out.verdicts).toEqual([])
     expect(FakeWorker.instances).toHaveLength(0)
     runner.dispose()
+  })
+})
+
+describe('releaseSharedSuspension (#1112)', () => {
+  it('共有 runner が無ければ何もしない (Worker を起こさない)', () => {
+    resetSharedDegradedRunner()
+    expect(() => releaseSharedSuspension('q1')).not.toThrow()
   })
 })

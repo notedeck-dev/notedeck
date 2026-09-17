@@ -264,17 +264,17 @@ function buildSkillStorePatch(
  * ストア配布テーマの適用 JSON を組み立てる (#913 の境界)。既存インストールが
  * あれば配布内 UUID が変わってもローカル ID・ローカル改名を維持し
  * (themeStore.installTheme が同 ID を既存対応表のファイルへ書く)、
- * installedFor は既存と forAccountIds の union。
+ * installedFor は既存と forAccountKeys (アカウントの安定キー、#1113) の union。
  */
 function buildThemeWithMeta(
   parsed: Record<string, unknown>,
   existing: MisskeyTheme | undefined,
   e: StoreThemeEntry,
   hash: string,
-  forAccountIds: string[],
+  forAccountKeys: string[],
 ): Record<string, unknown> {
   const installedFor = Array.from(
-    new Set([...(existing?.$notedeck?.installedFor ?? []), ...forAccountIds]),
+    new Set([...(existing?.$notedeck?.installedFor ?? []), ...forAccountKeys]),
   )
   return {
     ...parsed,
@@ -585,11 +585,6 @@ export const useMisStoreStore = defineStore('misstore', () => {
         triggers: Array.isArray(meta.triggers)
           ? (meta.triggers as string[])
           : [],
-        scope: meta.scope === 'per-account' ? 'per-account' : 'global',
-        installedFor:
-          meta.scope === 'per-account' && Array.isArray(meta.installedFor)
-            ? (meta.installedFor as string[])
-            : undefined,
         storeId: e.id,
         storeSha512: hash,
         storeVersion: e.version,
@@ -614,7 +609,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
   /**
    * MisStore からカラムクエリのソースを取得して名前付きクエリプールへ保存する。
    * 配布はソースのみ・ローカルで必ず再コンパイルされる (#783 不変条件 (e))。
-   * 導入してもカラムへの自動適用はしない (自動有効化なし、V18)。
+   * 導入してもカラムへの自動適用はしない (V18)。アイテムとしては有効で入る (#1043)。
    * 既存の同 storeId は上書き更新 (再インストール = アップデート)。
    */
   async function installQuery(
@@ -844,14 +839,14 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
   /**
    * MisStore からテーマをインストールする。
-   * forAccountIds に指定された account 全てを installedFor に追加する。
+   * forAccountKeys (アカウントの安定キー、#1113) を installedFor に追加する。
    * - per-account カラムから呼ぶ場合: [accountId]
    * - cross-account (全アカウント) カラムから呼ぶ場合: 全 logged-in account の id 一覧
    * - 設定経由など account コンテキスト無し: 空配列 (どの account にも紐付かない)
    */
   async function installTheme(
     entry: StoreThemeEntry,
-    forAccountIds: string[] = [],
+    forAccountKeys: string[] = [],
   ): Promise<void> {
     installingTheme.value = entry.id
     try {
@@ -874,7 +869,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
         await confirmThemeUpdate(
           existing,
           { parsed, hash, entry: e },
-          forAccountIds,
+          forAccountKeys,
           { alwaysConfirm: false },
         )
         return
@@ -885,7 +880,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
         undefined,
         e,
         hash,
-        forAccountIds,
+        forAccountKeys,
       )
       const ok = await themeStore.installTheme(JSON.stringify(withMeta))
       if (!ok) {
@@ -1069,7 +1064,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       if (!ok) return false
     }
     // 上書き更新: 本体とストア由来メタのみ。ローカル ID・name・mode・
-    // scope/installedFor・有効/無効 (activeIds) は維持する
+    // scope/installedFor・有効/無効 (active) は維持する
     useSkillsStore().update(
       existing.id,
       buildSkillStorePatch(meta, body, e, hash),
@@ -1161,7 +1156,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       hash: string
       entry: StoreThemeEntry
     },
-    forAccountIds: string[],
+    forAccountKeys: string[],
     opts: { alwaysConfirm: boolean },
   ): Promise<boolean> {
     const { parsed, hash, entry: e } = fetched
@@ -1170,7 +1165,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       existing,
       e,
       hash,
-      forAccountIds,
+      forAccountKeys,
     )
     // fileBase は runtime-only (書込前に strip される) なので diff に出さない
     const { fileBase: _fileBase, ...currentTheme } = existing
@@ -1198,7 +1193,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
   async function updateTheme(
     entry: StoreThemeEntry,
-    forAccountIds: string[] = [],
+    forAccountKeys: string[] = [],
   ): Promise<boolean> {
     const themeStore = useThemeStore()
     const existing = themeStore.installedThemes.find(
@@ -1217,7 +1212,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       return await confirmThemeUpdate(
         existing,
         { parsed, hash, entry: e },
-        forAccountIds,
+        forAccountKeys,
         { alwaysConfirm: true },
       )
     } finally {

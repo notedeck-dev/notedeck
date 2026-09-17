@@ -46,7 +46,7 @@ vi.mock('@/utils/settingsFs', () => ({
 import { type SkillMeta, useSkillsStore } from '@/stores/skills'
 
 const skillFile = (id: string, name: string, body = 'body') =>
-  `---\nid: ${id}\nname: ${name}\nversion: 0.1.0\nmode: manual\nscope: global\ncreatedAt: 1\nupdatedAt: 1\n---\n${body}`
+  `---\nid: ${id}\nname: ${name}\nversion: 0.1.0\nmode: manual\ncreatedAt: 1\nupdatedAt: 1\n---\n${body}`
 
 async function initStore() {
   const store = useSkillsStore()
@@ -67,7 +67,6 @@ function makeSkill(
     version: '0.1.0',
     mode: 'manual',
     triggers: [],
-    scope: 'global',
     body: 'b',
     cheapCheckCapabilities: [],
   }
@@ -185,7 +184,7 @@ describe('useSkillsStore — ファイル対応表配線 (#913)', () => {
   it('storeSha512 / storeVersion は frontmatter に永続化され読み戻せる (#913)', async () => {
     files.set(
       'greeter.md',
-      '---\nid: g1\nname: Greeter\nversion: 1.0.0\nmode: manual\nscope: global\nstoreId: ent\nstoreSha512: abc123\nstoreVersion: 1.0.0\ncreatedAt: 1\nupdatedAt: 1\n---\nbody',
+      '---\nid: g1\nname: Greeter\nversion: 1.0.0\nmode: manual\nstoreId: ent\nstoreSha512: abc123\nstoreVersion: 1.0.0\ncreatedAt: 1\nupdatedAt: 1\n---\nbody',
     )
     const store = await initStore()
     expect(store.get('g1')?.storeSha512).toBe('abc123')
@@ -196,5 +195,59 @@ describe('useSkillsStore — ファイル対応表配線 (#913)', () => {
     })
     expect(files.get('greeter.md')).toContain('storeSha512: abc123')
     expect(files.get('greeter.md')).toContain('storeVersion: 1.0.0')
+  })
+})
+
+describe('useSkillsStore — 有効 / 無効のファイル化 (#1116)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    files.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  it('有効にするとファイルに active: true が書かれ、無効に戻すと消える', async () => {
+    files.set('alpha.md', skillFile('alpha', 'Alpha'))
+    const store = await initStore()
+    store.setActive('alpha', true)
+    await vi.waitFor(() => {
+      expect(files.get('alpha.md')).toContain('active: true')
+    })
+    store.setActive('alpha', false)
+    await vi.waitFor(() => {
+      expect(files.get('alpha.md')).not.toContain('active')
+    })
+  })
+
+  it('初回起動で端末ローカルの有効一覧をファイルへ移し、一覧は消す', async () => {
+    files.set('alpha.md', skillFile('alpha', 'Alpha'))
+    files.set('beta.md', skillFile('beta', 'Beta'))
+    localStorage.setItem('nd-skills-active', JSON.stringify(['alpha', 'gone']))
+    const store = await initStore()
+    await vi.waitFor(() => {
+      expect(files.get('alpha.md')).toContain('active: true')
+    })
+    expect(store.isActive('alpha')).toBe(true)
+    expect(store.isActive('beta')).toBe(false)
+    expect(files.get('beta.md')).not.toContain('active')
+    expect(localStorage.getItem('nd-skills-active')).toBeNull()
+  })
+})
+
+describe('useSkillsStore — 旧 active 一覧が壊れていても初期化を止めない (#1118 レビュー指摘)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    files.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  it('配列でない値 (オブジェクト等) は捨てて初期化を完了する', async () => {
+    files.set('alpha.md', skillFile('alpha', 'Alpha'))
+    localStorage.setItem('nd-skills-active', '{}')
+    const store = await initStore()
+    expect(store.initialized).toBe(true)
+    expect(store.isActive('alpha')).toBe(false)
+    expect(localStorage.getItem('nd-skills-active')).toBeNull()
   })
 })

@@ -5,9 +5,12 @@ import {
   isGuestAccount,
   useAccountsStore,
 } from '@/stores/accounts'
+import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
+import { usePluginsStore } from '@/stores/plugins'
 import { useStreamingStore } from '@/stores/streaming'
+import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { purgeNotificationCacheForAccount } from '@/utils/notificationCache'
@@ -70,6 +73,15 @@ export function useAccountActions() {
     // backend 削除の成功後に回す — ソースと Mk:save 領域の削除は不可逆で、
     // アカウントが残ったまま消えると復元できない
     deckStore.purgeAccountWidgets(accountScopeKey(acc))
+    // プラグイン・クエリ・テーマのスコープ参加も同じ場所で外す (#1114)。
+    // 「データを削除」は明示的な破棄で、ログアウト (残す) とは別の操作。
+    // プラグイン・クエリの本体はライブラリに残り、テーマは紐付けが無くなる
+    // ものだけ本体ごと消える (手動の「外す」と同じ)
+    const key = accountScopeKey(acc)
+    usePluginsStore().purgeAccount(key)
+    useColumnQueriesStore().purgeAccount(key)
+    // テーマは紐付け (安定キー) と per-account 適用キャッシュ (内部 ID) の両方を捨てる
+    useThemeStore().purgeAccount(key, acc.id)
   }
 
   /** ログアウト確認ダイアログを表示し実行する */

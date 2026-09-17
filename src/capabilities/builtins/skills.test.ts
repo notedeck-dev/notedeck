@@ -115,7 +115,6 @@ describe('skills.create capability (#726)', () => {
       expect(skill?.builtIn).toBeFalsy()
       expect(skill?.isPersona).toBeFalsy()
       expect(skill?.version).toBe('0.1.0')
-      expect(skill?.scope).toBe('global')
       expect(skill?.body).toBe('# テスト手順\n\nやること')
     })
 
@@ -310,7 +309,6 @@ describe('自己拡張系 write の適用前 diff (#981)', () => {
       version: '0.1.0',
       mode: 'manual',
       triggers: [],
-      scope: 'global',
       body,
       cheapCheckCapabilities: [],
     })

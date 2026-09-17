@@ -11,7 +11,7 @@ import {
   parseSkillFile,
   serializeSkillFile,
 } from '@/utils/skillFrontmatter'
-import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
+import { getStorageJson, removeStorage, STORAGE_KEYS } from '@/utils/storage'
 import { notifyWarningToast } from '@/utils/toastNotify'
 
 /**
@@ -26,7 +26,6 @@ import { notifyWarningToast } from '@/utils/toastNotify'
  *   (OpenClaw HEARTBEAT.md 相当 / #411)
  */
 export type SkillMode = 'always' | 'manual' | 'trigger' | 'heartbeat'
-export type SkillScope = 'global' | 'per-account'
 
 export interface SkillMeta {
   id: string
@@ -36,8 +35,13 @@ export interface SkillMeta {
   author?: string
   mode: SkillMode
   triggers: string[]
-  scope: SkillScope
-  installedFor?: string[]
+  /**
+   * 本体の有効 (#1116)。有効のときだけ frontmatter に書く省略書式 (値が無い =
+   * 無効。従来の「有効一覧に無ければ無効」と同じ既定)。mode='always' は
+   * この印に関係なく常時有効。プラグイン・クエリと同じくファイルが正で、
+   * 設定バックアップにそのまま乗る
+   */
+  active?: boolean
   storeId?: string
   /** インストール/更新時に照合済みの配布ソース SHA-512 (#913。更新検知 #1040 の baseline) */
   storeSha512?: string
@@ -106,8 +110,7 @@ interface SkillFrontmatter {
   author?: string
   mode?: string
   triggers?: string[]
-  scope?: string
-  installedFor?: string[]
+  active?: boolean
   storeId?: string
   storeSha512?: string
   storeVersion?: string
@@ -131,16 +134,13 @@ function frontmatterFromMeta(skill: SkillMeta): Record<string, unknown> {
     name: skill.name,
     version: skill.version,
     mode: skill.mode,
-    scope: skill.scope,
     createdAt: skill.createdAt,
     updatedAt: skill.updatedAt,
   }
   if (skill.description) out.description = skill.description
   if (skill.author) out.author = skill.author
   if (skill.triggers.length > 0) out.triggers = skill.triggers
-  if (skill.installedFor && skill.installedFor.length > 0) {
-    out.installedFor = skill.installedFor
-  }
+  if (skill.active) out.active = true
   if (skill.storeId) out.storeId = skill.storeId
   if (skill.storeSha512) out.storeSha512 = skill.storeSha512
   if (skill.storeVersion) out.storeVersion = skill.storeVersion
@@ -166,9 +166,6 @@ function metaFromFrontmatter(
     fm.mode === 'manual'
       ? fm.mode
       : 'manual'
-  const scope = (
-    fm.scope === 'per-account' ? 'per-account' : 'global'
-  ) as SkillScope
   return {
     id: fm.id || fallbackId,
     name: fm.name || fallbackId,
@@ -177,9 +174,7 @@ function metaFromFrontmatter(
     author: fm.author,
     mode,
     triggers: asArray(fm.triggers),
-    scope,
-    installedFor:
-      scope === 'per-account' ? asArray(fm.installedFor) : undefined,
+    ...(fm.active === true ? { active: true } : {}),
     storeId: fm.storeId,
     storeSha512: fm.storeSha512,
     storeVersion: fm.storeVersion,
@@ -250,9 +245,6 @@ const skillFiles = createSingleFileCollection<SkillMeta, ParsedSkillFile>({
 
 export const useSkillsStore = defineStore('skills', () => {
   const skills = ref<SkillMeta[]>([])
-  const activeIds = ref<string[]>(
-    getStorageJson<string[]>(STORAGE_KEYS.skillsActive, []),
-  )
   const initialized = ref(false)
   let loaded = false
   // 変更系操作 (新規作成・リネーム・保存・削除) のファイル反映は
@@ -275,34 +267,36 @@ export const useSkillsStore = defineStore('skills', () => {
     }
   }
 
-  function persistActive() {
-    setStorageJson(STORAGE_KEYS.skillsActive, activeIds.value)
-  }
-
   function isActive(id: string): boolean {
-    return activeIds.value.includes(id)
+    return skills.value.find((s) => s.id === id)?.active === true
   }
 
+  /**
+   * 本体の有効 / 無効 (#1116)。ファイルの frontmatter に持つ (以前は端末
+   * ローカルの一覧で、バックアップに乗らなかった)。有効に戻すときは印ごと消す
+   */
   function setActive(id: string, active: boolean) {
     ensureLoaded()
-    const has = activeIds.value.includes(id)
-    if (active && !has) {
-      activeIds.value = [...activeIds.value, id]
-      persistActive()
-    } else if (!active && has) {
-      activeIds.value = activeIds.value.filter((x) => x !== id)
-      persistActive()
+    const idx = skills.value.findIndex((s) => s.id === id)
+    const current = skills.value[idx]
+    if (!current) return
+    if ((current.active === true) === active) return
+    const { active: _omit, ...rest } = current
+    const next: SkillMeta = active ? { ...rest, active: true } : rest
+    skills.value = skills.value.map((s) => (s.id === id ? next : s))
+    if (settingsFs.isTauri) {
+      void ready
+        .then(() => persist(next))
+        .catch((e) => console.warn('[skills] failed to persist active:', e))
     }
   }
 
   /** mode='always' のスキルは常に active 扱い (UI でトグル不可)。 */
-  const effectiveActiveIds = computed(() => {
-    const set = new Set(activeIds.value)
-    for (const s of skills.value) {
-      if (s.mode === 'always') set.add(s.id)
-    }
-    return Array.from(set)
-  })
+  const effectiveActiveIds = computed(() =>
+    skills.value
+      .filter((s) => s.mode === 'always' || s.active === true)
+      .map((s) => s.id),
+  )
 
   /**
    * Phase 2 で AI provider に渡す system prompt を組み立てるためのヘルパ。
@@ -373,7 +367,33 @@ export const useSkillsStore = defineStore('skills', () => {
 
     await migrateLegacyAizu()
     await migrateStoreMovedBuiltIns()
+    await migrateLegacyActiveList()
     initialized.value = true
+  }
+
+  /**
+   * 端末ローカルにしか無かった有効一覧をファイルへ移す (#1116)。一度きり。
+   * 一覧に載っていてファイルに印の無い個体だけ書き、終わったら一覧を消す
+   */
+  async function migrateLegacyActiveList(): Promise<void> {
+    const legacy = getStorageJson<unknown>(STORAGE_KEYS.skillsActive, null)
+    if (legacy === null) return
+    // 壊れた値 (配列でない JSON) で初期化ごと止めない。捨てて先へ進む
+    if (!Array.isArray(legacy)) {
+      console.warn('[skills] legacy active list is not an array — discarded')
+      removeStorage(STORAGE_KEYS.skillsActive)
+      return
+    }
+    const ids = new Set(legacy.map(String))
+    const changed: SkillMeta[] = []
+    skills.value = skills.value.map((s) => {
+      if (!ids.has(s.id) || s.active === true) return s
+      const next = { ...s, active: true }
+      changed.push(next)
+      return next
+    })
+    await Promise.all(changed.map((s) => persist(s)))
+    removeStorage(STORAGE_KEYS.skillsActive)
   }
 
   /**
@@ -563,17 +583,6 @@ export const useSkillsStore = defineStore('skills', () => {
     }
   }
 
-  function removeWithMigration(id: string): (() => void) | undefined {
-    const wasActive = activeIds.value.includes(id)
-    const undoRemove = remove(id)
-    if (!undoRemove) return undefined
-    setActive(id, false)
-    return () => {
-      undoRemove()
-      if (wasActive) setActive(id, true)
-    }
-  }
-
   // --- HEARTBEAT (#411) ---
 
   /**
@@ -624,7 +633,6 @@ export const useSkillsStore = defineStore('skills', () => {
 
   return {
     skills,
-    activeIds,
     effectiveActiveIds,
     initialized,
     ensureLoaded,
@@ -635,7 +643,7 @@ export const useSkillsStore = defineStore('skills', () => {
     add,
     update,
     recordStoreBaseline,
-    remove: removeWithMigration,
+    remove,
     heartbeatSkills,
     setHeartbeat,
     triggerMatchingSkillIds,

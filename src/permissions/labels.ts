@@ -131,6 +131,14 @@ export const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     label: 'プラグインの読取',
     icon: 'ti-puzzle',
   },
+  'queries.read': {
+    label: 'クエリの編集履歴の読取',
+    icon: 'ti-filter',
+  },
+  'queries.write': {
+    label: 'クエリを編集履歴から復元',
+    icon: 'ti-arrow-back-up',
+  },
   'plugins.write': {
     label: 'プラグインの作成/編集 (AiScript) — AI 直接呼出しは不可',
     icon: 'ti-puzzle',
@@ -196,6 +204,7 @@ export const PERMISSION_CATEGORIES: readonly {
       'skills.read',
       'widgets.read',
       'plugins.read',
+      'queries.read',
       'files.export',
       'backup.create',
     ],
@@ -220,6 +229,7 @@ export const PERMISSION_CATEGORIES: readonly {
       'performance.write',
       'widgets.write',
       'plugins.write',
+      'queries.write',
       'clipboard',
       'network.external',
     ],

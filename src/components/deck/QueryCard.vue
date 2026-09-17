@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { READ_ONLY_HINT } from '@/services/sidecarFileCollection'
 import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { isWindowExposed } from '@/windows/exposure'
@@ -45,6 +46,10 @@ const props = withDefaults(
     refCount?: number
     /** installed mode: 「外す」ボタンの tooltip (#1018) */
     detachTitle?: string
+    /** installed / library mode: 本体が無効 (#1043)。評価されず、適用先では効いていない */
+    disabled?: boolean
+    /** ソース欠損の読取専用個体。有効/無効の切替は保存できないので受け付けない (#1111) */
+    readOnly?: boolean
   }>(),
   {
     mode: 'store',
@@ -63,9 +68,14 @@ const emit = defineEmits<{
   (e: 'delete'): void
   (e: 'detach'): void
   (e: 'place'): void
+  (e: 'toggle'): void
 }>()
 
 const isStore = computed(() => props.mode === 'store')
+const isDisabled = computed(() => !isStore.value && props.disabled === true)
+const toggleTitle = computed(() =>
+  props.readOnly ? 'ソースファイルが見つからないため変更できません' : '',
+)
 
 /** 編集はクエリを「作る」面なので開発者モードに従う (#1034)。導入・実行は一般側 */
 const canEdit = computed(() => isWindowExposed('column-query-editor'))
@@ -94,7 +104,7 @@ function handlePrimaryClick() {
 
 <template>
   <div
-    :class="$style.card"
+    :class="[$style.card, isDisabled && $style.cardDisabled]"
     @click="handlePrimaryClick"
   >
     <div :class="$style.icon">
@@ -115,8 +125,20 @@ function handlePrimaryClick() {
           @click.stop="handlePrimaryClick"
         >{{ name }}</button>
         <span v-else :class="$style.name">{{ name }}</span>
+        <!-- ソース欠損 (#913 / #1111): 評価不能の原因と復旧導線を先に見せる -->
         <span
-          v-if="!isStore && execution === 'degraded'"
+          v-if="!isStore && readOnly"
+          :class="$style.incompatBadge"
+          :title="READ_ONLY_HINT"
+        >ソース欠損</span>
+        <!-- 無効は実行形態より前に出す: 止まっているものの実行形態は二の次 (#1043) -->
+        <span
+          v-else-if="isDisabled"
+          :class="$style.disabledBadge"
+          title="本体を無効にしています。適用先のカラムでは評価されません"
+        >無効</span>
+        <span
+          v-else-if="!isStore && execution === 'degraded'"
           :class="$style.degradedBadge"
           title="1 件ずつ判定します。絞り込みは効きますが、キャッシュ検索には使えません"
         >逐次適用</span>
@@ -144,7 +166,7 @@ function handlePrimaryClick() {
           <span v-if="storeId" :class="$style.originBadge">ストア</span>
           <span v-else :class="[$style.originBadge, $style.originBadgeLocal]">ローカル</span>
           <span v-if="refCount > 0" :class="$style.originBadge">
-            {{ refCount }} カラムで使用中
+            {{ refCount }} カラムで適用中
           </span>
         </template>
         <span :class="$style.spacer" />
@@ -201,6 +223,21 @@ function handlePrimaryClick() {
             >
               <i class="ti ti-trash" />
             </button>
+            <!--
+              スコープ未参加でも適用済みカラムがあれば評価され続けるので、
+              適用中のものだけここで止められる (#1043)。未適用ならプラグインの
+              ライブラリと同じく「追加」だけ (走っていないものに有効/無効は無意味)
+            -->
+            <button
+              v-if="refCount > 0 || isDisabled"
+              class="_button"
+              :class="[$style.primaryBtn, !isDisabled && $style.secondaryBtn]"
+              :disabled="readOnly"
+              :title="toggleTitle"
+              @click.stop="emit('toggle')"
+            >
+              {{ isDisabled ? '有効にする' : '無効にする' }}
+            </button>
             <button
               class="_button"
               :class="$style.primaryBtn"
@@ -230,6 +267,15 @@ function handlePrimaryClick() {
               @click.stop="emit('delete')"
             >
               <i class="ti ti-trash" />
+            </button>
+            <button
+              class="_button"
+              :class="[$style.primaryBtn, !isDisabled && $style.secondaryBtn]"
+              :disabled="readOnly"
+              :title="toggleTitle"
+              @click.stop="emit('toggle')"
+            >
+              {{ isDisabled ? '有効にする' : '無効にする' }}
             </button>
             <button
               v-if="canEdit"
@@ -394,6 +440,25 @@ function handlePrimaryClick() {
   opacity: 0.85;
 }
 
+/* 本体が無効 (#1043)。PluginCard の disabledBadge と同型 */
+.disabledBadge {
+  flex-shrink: 0;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  height: 14px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--nd-fg) 15%, transparent);
+  color: var(--nd-fg);
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+
+.cardDisabled {
+  opacity: 0.6;
+}
+
 .incompatBadge {
   flex-shrink: 0;
   padding: 0 5px;
@@ -499,6 +564,17 @@ function handlePrimaryClick() {
 
   &:disabled {
     opacity: 0.5;
+  }
+}
+
+.secondaryBtn {
+  background: transparent;
+  border: 1px solid var(--nd-divider);
+  color: var(--nd-fg);
+
+  &:hover:not(:disabled) {
+    filter: none;
+    background: var(--nd-buttonHoverBg);
   }
 }
 

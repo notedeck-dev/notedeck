@@ -473,6 +473,20 @@ const KNOWN_FILTER_KEYS = Object.keys(
   FILTER_PARAM_ALIASES,
 ) as (keyof TimelineFilter)[]
 
+/**
+ * 全アカウント面の組込フィルタ候補: 対象サーバー全部が対応するキーだけ
+ * (既知の順)。片方だけ対応するキーを出すと、効くサーバーと効かないサーバーが
+ * 混ざって「なぜ一部だけ残るのか」が追えない。対象が無ければ空
+ */
+export function commonFilterKeys(
+  perHost: readonly (readonly (keyof TimelineFilter)[])[],
+): (keyof TimelineFilter)[] {
+  if (perHost.length === 0) return []
+  return KNOWN_FILTER_KEYS.filter((k) =>
+    perHost.every((keys) => keys.includes(k)),
+  )
+}
+
 // Cache: "host:endpoint" → filter keys
 const filterKeyCache = new Map<string, (keyof TimelineFilter)[]>()
 

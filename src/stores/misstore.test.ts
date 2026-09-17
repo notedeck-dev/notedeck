@@ -281,7 +281,6 @@ describe('installSkill', () => {
       name: 'Greeter',
       mode: 'always',
       triggers: ['hi', 'hello'],
-      scope: 'global',
       storeId: 'ent-skill',
       body: 'Greet the user',
       builtIn: false,

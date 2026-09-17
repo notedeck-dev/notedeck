@@ -145,7 +145,6 @@ function createNewSkill() {
     description: '',
     mode: 'manual',
     triggers: [],
-    scope: 'global',
     body: '指示文をここに記述します。\n',
     cheapCheckCapabilities: [],
   })

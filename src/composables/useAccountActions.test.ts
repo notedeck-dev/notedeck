@@ -13,6 +13,9 @@ const h = vi.hoisted(() => ({
   confirm: vi.fn(async () => true),
   toast: { show: vi.fn() },
   purgeNotificationCacheForAccount: vi.fn(),
+  pluginsStore: { purgeAccount: vi.fn() },
+  queriesStore: { purgeAccount: vi.fn() },
+  themeStore: { purgeAccount: vi.fn() },
 }))
 
 vi.mock('@/stores/accounts', async (importOriginal) => ({
@@ -31,6 +34,11 @@ vi.mock('@/stores/toast', () => ({ useToast: () => h.toast }))
 vi.mock('@/utils/notificationCache', () => ({
   purgeNotificationCacheForAccount: h.purgeNotificationCacheForAccount,
 }))
+vi.mock('@/stores/plugins', () => ({ usePluginsStore: () => h.pluginsStore }))
+vi.mock('@/stores/columnQueries', () => ({
+  useColumnQueriesStore: () => h.queriesStore,
+}))
+vi.mock('@/stores/theme', () => ({ useThemeStore: () => h.themeStore }))
 
 import { type Account, accountScopeKey } from '@/stores/accounts'
 import { useAccountActions } from './useAccountActions'
@@ -115,5 +123,26 @@ describe('アカウント削除でカラムを閉じる順序 (#1091)', () => {
     await vi.waitFor(() => expect(h.toast.show).toHaveBeenCalled())
 
     expect(h.deckStore.removeColumn).not.toHaveBeenCalled()
+  })
+})
+
+describe('アカウント削除でプラグイン・クエリ・テーマのスコープ参加を掃除する (#1114)', () => {
+  it('backend 削除が成功したら安定キーで各 store の purge を呼ぶ', async () => {
+    const actions = useAccountActions()
+    await actions.deleteAccountData(acc)
+    const key = accountScopeKey(acc)
+    expect(h.pluginsStore.purgeAccount).toHaveBeenCalledWith(key)
+    expect(h.queriesStore.purgeAccount).toHaveBeenCalledWith(key)
+    // テーマは適用キャッシュ (内部 ID) も捨てるので 2 引数
+    expect(h.themeStore.purgeAccount).toHaveBeenCalledWith(key, acc.id)
+  })
+
+  it('backend 削除が失敗したら何も外さない', async () => {
+    h.accountsStore.removeAccount.mockRejectedValueOnce(new Error('boom'))
+    const actions = useAccountActions()
+    await actions.deleteAccountData(acc)
+    expect(h.pluginsStore.purgeAccount).not.toHaveBeenCalled()
+    expect(h.queriesStore.purgeAccount).not.toHaveBeenCalled()
+    expect(h.themeStore.purgeAccount).not.toHaveBeenCalled()
   })
 })

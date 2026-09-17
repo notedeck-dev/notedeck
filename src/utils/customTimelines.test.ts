@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { modeIcon, noteModeBadgeIcon } from './customTimelines'
+import {
+  commonFilterKeys,
+  modeIcon,
+  noteModeBadgeIcon,
+} from './customTimelines'
 
 describe('modeIcon', () => {
   it('yami モードは月 (yamisskey 本家の ti-moon / ti-moon-off に合わせる)', () => {
@@ -32,5 +36,20 @@ describe('noteModeBadgeIcon', () => {
   it('未知のモードはトグルではなく中立な印にフォールバックする', () => {
     expect(noteModeBadgeIcon('isNoteInFooMode')).toBe('circle-dot')
     expect(noteModeBadgeIcon('customFlag')).toBe('circle-dot')
+  })
+})
+
+describe('commonFilterKeys — 全アカウント面の組込フィルタ候補', () => {
+  it('全サーバーが対応するキーだけを既知の順で返す', () => {
+    expect(
+      commonFilterKeys([
+        ['withRenotes', 'withReplies', 'withFiles'],
+        ['withFiles', 'withRenotes'],
+      ]),
+    ).toEqual(['withRenotes', 'withFiles'])
+  })
+
+  it('対象サーバーが無ければ空', () => {
+    expect(commonFilterKeys([])).toEqual([])
   })
 })

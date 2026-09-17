@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAccountsStore } from '@/stores/accounts'
 import { DARK_BASE, DARK_THEME } from '@/theme/builtinThemes'
 import { compileMisskeyTheme } from '@/theme/compiler'
 import type { MisskeyTheme } from '@/theme/types'
@@ -262,5 +263,152 @@ describe('useThemeStore.getStyleVarsForAccount — グローバルテーマの�
     const store = selectRedGlobally()
 
     expect(store.getStyleVarsForAccount('acc-no-theme')).toBeUndefined()
+  })
+})
+
+describe('useThemeStore.migrateScopes — installedFor を安定キーへ (#1113)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    const accounts = useAccountsStore()
+    accounts.accounts = [
+      {
+        id: 'uuid-1',
+        host: 'example.com',
+        userId: 'u1',
+        username: 'one',
+        displayName: null,
+        avatarUrl: null,
+        software: 'misskey-dev/misskey',
+        hasToken: true,
+      },
+    ] as never
+    accounts.isLoaded = true
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('旧 UUID は現行アカウントの安定キーへ置換し、該当しない UUID は捨てる', () => {
+    const store = useThemeStore()
+    store.installedThemes = [
+      {
+        ...RED,
+        $notedeck: { installedFor: ['uuid-1', 'uuid-dead', 'other.host:u9'] },
+      },
+    ]
+    store.migrateScopes()
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual([
+      'example.com:u1',
+      'other.host:u9',
+    ])
+  })
+
+  it('紐付け先が全滅した個体は現行の全アカウントに紐付け直す (ゾンビ化させない)', () => {
+    const store = useThemeStore()
+    store.installedThemes = [
+      { ...RED, $notedeck: { installedFor: ['uuid-dead'] } },
+    ]
+    store.migrateScopes()
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual([
+      'example.com:u1',
+    ])
+  })
+
+  it('安定キーだけの個体と紐付けの無い個体には触れない (冪等)', () => {
+    const store = useThemeStore()
+    store.installedThemes = [
+      { ...RED, $notedeck: { installedFor: ['example.com:u1'] } },
+      { ...RED, id: 'blue', name: 'Blue' },
+    ]
+    store.migrateScopes()
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual([
+      'example.com:u1',
+    ])
+    expect(store.installedThemes[1]?.$notedeck).toBeUndefined()
+  })
+})
+
+describe('useThemeStore.purgeAccount — アカウント削除でスコープ参加を掃除する (#1114)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('そのアカウントのキーだけを外し、紐付けが無くなるテーマは本体ごと消す (手動の「外す」と同じ)', () => {
+    const store = useThemeStore()
+    store.installedThemes = [
+      { ...RED, $notedeck: { installedFor: ['h:u1', 'h:u2'] } },
+      {
+        ...RED,
+        id: 'blue',
+        name: 'Blue',
+        $notedeck: { installedFor: ['h:u1'] },
+      },
+      { ...RED, id: 'green', name: 'Green' },
+    ]
+    store.purgeAccount('h:u1')
+    expect(store.installedThemes.map((t) => t.id)).toEqual([RED.id, 'green'])
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual(['h:u2'])
+  })
+})
+
+describe('useThemeStore.linkAccountToTheme — ライブラリから追加 (テーマのピッカー)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('アカウントの安定キーを紐付けに足す (union、重複しない)', () => {
+    const store = useThemeStore()
+    store.installedThemes = [{ ...RED, $notedeck: { installedFor: ['h:u1'] } }]
+    expect(store.linkAccountToTheme(RED.id, 'h:u2')).toBe(true)
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual([
+      'h:u1',
+      'h:u2',
+    ])
+    expect(store.linkAccountToTheme(RED.id, 'h:u2')).toBe(true)
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual([
+      'h:u1',
+      'h:u2',
+    ])
+  })
+
+  it('紐付けの無いテーマにも足せる ($notedeck を作る)。未知の id は false', () => {
+    const store = useThemeStore()
+    store.installedThemes = [{ ...RED }]
+    expect(store.linkAccountToTheme(RED.id, 'h:u1')).toBe(true)
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual(['h:u1'])
+    expect(store.linkAccountToTheme('nope', 'h:u1')).toBe(false)
+  })
+})
+
+describe('useThemeStore.purgeAccount — per-account テーマキャッシュも捨てる (#1118 レビュー指摘)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('内部 ID を渡すと accountThemeCache の entry を消す', () => {
+    const store = useThemeStore()
+    store.installedThemes = [{ ...RED, $notedeck: { installedFor: ['h:u1'] } }]
+    store.applyAccountTheme(RED, 'dark', 'uuid-1')
+    expect(store.accountThemeCache.get('uuid-1')).toBeDefined()
+    store.purgeAccount('h:u1', 'uuid-1')
+    expect(store.accountThemeCache.get('uuid-1')).toBeUndefined()
+    expect(store.installedThemes).toHaveLength(0)
   })
 })

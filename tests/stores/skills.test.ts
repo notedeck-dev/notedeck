@@ -28,7 +28,6 @@ describe('skills store / metaFromFrontmatter', () => {
       version: '0.1.0',
       mode: 'heartbeat',
       triggers: [],
-      scope: 'global',
       body: '',
       createdAt: 0,
       updatedAt: 0,
@@ -51,7 +50,6 @@ describe('skills store / setHeartbeat & heartbeatSkills', () => {
       version: '0.1.0',
       mode: 'manual',
       triggers: [],
-      scope: 'global',
       body: '',
     })
     store.setHeartbeat('s1', true)
@@ -67,7 +65,6 @@ describe('skills store / setHeartbeat & heartbeatSkills', () => {
       version: '0.1.0',
       mode: 'heartbeat',
       triggers: [],
-      scope: 'global',
       body: '',
     })
     store.setHeartbeat('s1', false)
@@ -83,7 +80,6 @@ describe('skills store / setHeartbeat & heartbeatSkills', () => {
       version: '0.1.0',
       mode: 'heartbeat',
       triggers: [],
-      scope: 'global',
       body: '',
     })
     store.add({
@@ -92,7 +88,6 @@ describe('skills store / setHeartbeat & heartbeatSkills', () => {
       version: '0.1.0',
       mode: 'manual',
       triggers: [],
-      scope: 'global',
       body: '',
     })
     store.add({
@@ -101,7 +96,6 @@ describe('skills store / setHeartbeat & heartbeatSkills', () => {
       version: '0.1.0',
       mode: 'heartbeat',
       triggers: [],
-      scope: 'global',
       body: '',
     })
     expect(store.heartbeatSkills.map((s) => s.id)).toEqual(['a', 'c'])
@@ -122,7 +116,6 @@ describe('skills store / composedSystemPrompt with #491 extensions', () => {
       version: '0.1.0',
       mode: 'always',
       triggers: [],
-      scope: 'global',
       body: 'BODY-A',
       cheapCheckCapabilities: [],
     })
@@ -133,7 +126,6 @@ describe('skills store / composedSystemPrompt with #491 extensions', () => {
       version: '0.1.0',
       mode: 'manual',
       triggers: [],
-      scope: 'global',
       body: 'BODY-B',
       cheapCheckCapabilities: [],
     })
@@ -152,7 +144,6 @@ describe('skills store / composedSystemPrompt with #491 extensions', () => {
       version: '0.1.0',
       mode: 'always',
       triggers: [],
-      scope: 'global',
       body: 'AIZU',
       cheapCheckCapabilities: [],
       isPersona: true,
@@ -163,7 +154,6 @@ describe('skills store / composedSystemPrompt with #491 extensions', () => {
       version: '0.1.0',
       mode: 'always',
       triggers: [],
-      scope: 'global',
       body: 'ORIN',
       cheapCheckCapabilities: [],
       isPersona: true,
@@ -186,7 +176,6 @@ describe('skills store / composedSystemPrompt with #491 extensions', () => {
       version: '0.1.0',
       mode: 'always',
       triggers: [],
-      scope: 'global',
       body: 'TOOL',
       cheapCheckCapabilities: [],
     })
@@ -196,7 +185,6 @@ describe('skills store / composedSystemPrompt with #491 extensions', () => {
       version: '0.1.0',
       mode: 'always',
       triggers: [],
-      scope: 'global',
       body: 'AIZU',
       cheapCheckCapabilities: [],
       isPersona: true,

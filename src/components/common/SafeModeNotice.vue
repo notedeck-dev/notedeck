@@ -19,7 +19,7 @@ const isSafeMode = readSafeMode()
 <template>
   <div v-if="isSafeMode" :class="$style.notice">
     <i class="ti ti-shield-half" />
-    <span>セーフモードで起動中のため{{ subject }}は適用されていません。編集内容は保存され、通常起動で有効になります。</span>
+    <span>セーフモードで起動中のため{{ subject }}は適用されていません。編集内容は保存され、通常起動で適用されます。</span>
   </div>
 </template>
 

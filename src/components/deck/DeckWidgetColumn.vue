@@ -475,6 +475,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
               :store-id="w.storeId"
               :icon-url="w.iconUrl"
               :account-label="ownAccountLabelOf(w)"
+              :read-only="w.readOnly"
               @place="placeFromLibrary(w)"
               @edit="openLibraryWidgetEditor(w)"
               @delete="deleteFromLibrary(w)"

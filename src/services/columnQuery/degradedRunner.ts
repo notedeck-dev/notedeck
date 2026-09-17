@@ -20,7 +20,9 @@ import type {
  *   - 直前に届いた評価開始マーカーから犯人フィルタを特定し、**そのフィルタだけ**
  *     サスペンドする。Worker を作り直して残りのフィルタは評価を続ける
  *   - サスペンド中のフィルタを含むバッチは fail-closed (全件除外) にする。
- *     解除はユーザーの明示操作 (`resume`) に限る (不変条件 (f))
+ *     解除はユーザーの明示操作 (`resume`) か、そのクエリのソース編集
+ *     (`releaseSharedSuspension`、#783 追補 D) に限る。有効/無効・スコープ・
+ *     適用の変更は同じコードを黙って走らせ直すことになるので解除しない
  */
 
 /** バッチ 1 回あたりの判定タイムアウト */
@@ -43,6 +45,12 @@ export interface DegradedRunner {
   suspendedKeys(): string[]
   /** ユーザーの明示操作でサスペンドを解除する */
   resume(key: string): void
+  /**
+   * サスペンド集合の変化を購読する (#1110)。runner はウィンドウ内で共有され、
+   * 別カラムでの再開をこのカラムの保留表示に即時反映するために使う。
+   * 戻り値で購読を解除する
+   */
+  subscribe(listener: () => void): () => void
   dispose(): void
 }
 
@@ -70,6 +78,15 @@ export function getSharedDegradedRunner(): DegradedRunner {
   return sharedRunner
 }
 
+/**
+ * ソース編集でサスペンドを解除する (#783 追補 D / #1112)。コードが変わった
+ * ので「同じ暴走コードを黙って走らせ直さない」規則の対象外。runner 未生成
+ * なら解除するものが無く、Worker も起こさない
+ */
+export function releaseSharedSuspension(key: string): void {
+  sharedRunner?.resume(key)
+}
+
 /** テスト用: 共有 runner を破棄する */
 export function resetSharedDegradedRunner(): void {
   sharedRunner?.dispose()
@@ -82,6 +99,10 @@ export function createDegradedRunner(
   const factory = options.workerFactory ?? defaultWorkerFactory
   const timeoutMs = options.timeoutMs ?? DEGRADED_BATCH_TIMEOUT_MS
   const suspended = new Set<string>()
+  const listeners = new Set<() => void>()
+  function notifySuspensionChanged(): void {
+    for (const listener of listeners) listener()
+  }
 
   let worker: Worker | null = null
   let nextId = 0
@@ -225,6 +246,7 @@ export function createDegradedRunner(
           break
         }
         suspended.add(culprit)
+        notifySuspensionChanged()
         newlySuspended.push(culprit)
         remaining = remaining.filter((f) => f.key !== culprit)
         if (remaining.length === 0) break
@@ -246,7 +268,14 @@ export function createDegradedRunner(
     },
 
     resume(key) {
-      suspended.delete(key)
+      if (suspended.delete(key)) notifySuspensionChanged()
+    },
+
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
     },
 
     dispose() {

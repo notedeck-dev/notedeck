@@ -44,6 +44,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import type { Principal } from '@/permissions/principal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
+import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
@@ -90,7 +91,11 @@ const saved = ref(false)
 
 function commitSave(src: string) {
   if (!widget.value) return
-  widgetsStore.updateSrc(widget.value.installId, src)
+  if (!widgetsStore.updateSrc(widget.value.installId, src)) {
+    // 読取専用 (ソース欠損) は保存されない。「保存しました」を出さない (#1111)
+    showToast(READ_ONLY_REASON, 'warning')
+    return
+  }
   dirty.value = false
   saved.value = true
   setTimeout(() => {
@@ -347,7 +352,9 @@ function commitRename() {
   if (!widget.value) return
   const v = renamingValue.value.trim()
   if (v && v !== widget.value.name) {
-    widgetsStore.renameWidget(widget.value.installId, v)
+    if (!widgetsStore.renameWidget(widget.value.installId, v)) {
+      showToast(READ_ONLY_REASON, 'warning')
+    }
   }
   isRenaming.value = false
 }

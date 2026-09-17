@@ -10,10 +10,23 @@ vi.mock('@/utils/settingsFs', async () => {
   return { ...actual, isTauri: false }
 })
 
+vi.mock('@/services/columnQuery/degradedRunner', () => ({
+  releaseSharedSuspension: vi.fn(),
+}))
+
+vi.mock('@/utils/historyFs', () => ({
+  pushSnapshot: vi.fn(async () => undefined),
+}))
+
+import { releaseSharedSuspension } from '@/services/columnQuery/degradedRunner'
 import {
+  isQueryActive,
   isQueryEffectiveFor,
+  isQueryOfferedFor,
+  type NamedQueryMeta,
   useColumnQueriesStore,
 } from '@/stores/columnQueries'
+import { pushSnapshot } from '@/utils/historyFs'
 
 describe('useColumnQueriesStore.removeQuery (undo) — #988', () => {
   beforeEach(() => {
@@ -208,5 +221,321 @@ describe('クエリのスコープ (#1018) — 全体 / アカウント別 / ラ
     reloaded.ensureLoaded()
 
     expect(reloaded.getQuery(q.id)?.global).toBeUndefined()
+  })
+})
+
+describe('ソース編集でサスペンドを解除する (#783 追補 D / #1112)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.mocked(releaseSharedSuspension).mockClear()
+  })
+
+  it('src が変わる編集はそのクエリのサスペンドを解除する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old' })
+    await store.updateQuery(q.id, { src: 'new' })
+    expect(releaseSharedSuspension).toHaveBeenCalledWith(q.id)
+  })
+
+  it('名前・説明だけの編集では解除しない', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old' })
+    await store.updateQuery(q.id, { name: 'b', description: 'd' })
+    expect(releaseSharedSuspension).not.toHaveBeenCalled()
+  })
+
+  it('src が同じ内容の保存では解除しない', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'same' })
+    await store.updateQuery(q.id, { name: 'b', src: 'same' })
+    expect(releaseSharedSuspension).not.toHaveBeenCalled()
+  })
+
+  it('ストア更新でソースが変わったときも解除する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old', storeId: 's' })
+    await store.applyStoreUpdate(q.id, {
+      src: 'new',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+    })
+    expect(releaseSharedSuspension).toHaveBeenCalledWith(q.id)
+  })
+})
+
+describe('クエリの有効 / 無効 (#1043) — 本体のキルスイッチ', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('値が無ければ有効、無効の印があれば無効', () => {
+    const base: NamedQueryMeta = {
+      id: 'q',
+      name: 'q',
+      src: 'true',
+      createdAt: 0,
+      updatedAt: 0,
+    }
+    expect(isQueryActive(base)).toBe(true)
+    expect(isQueryActive({ ...base, disabled: true })).toBe(false)
+    expect(isQueryActive({ ...base, disabled: false })).toBe(true)
+  })
+
+  it('新規作成・ストア導入で生まれた個体は有効', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'true', storeId: 's' })
+    expect(isQueryActive(q)).toBe(true)
+    expect('disabled' in q).toBe(false)
+  })
+
+  it('無効にすると印が保存され、有効に戻すと印ごと消える (省略書式)', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'true' })
+    expect(await store.setDisabled(q.id, true)).toBe(true)
+    expect(store.getQuery(q.id)?.disabled).toBe(true)
+    const mirrored = () =>
+      JSON.parse(localStorage.getItem('nd-column-queries') ?? '[]').find(
+        (m: { id: string }) => m.id === q.id,
+      )
+    expect(mirrored().disabled).toBe(true)
+
+    expect(await store.setDisabled(q.id, false)).toBe(true)
+    expect(store.getQuery(q.id)?.disabled).toBeUndefined()
+    expect('disabled' in mirrored()).toBe(false)
+  })
+
+  it('読取専用 (ソース欠損) の個体は切り替えを拒否する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: '' })
+    store.queries = [{ ...q, readOnly: true }]
+    expect(await store.setDisabled(q.id, true)).toBe(false)
+    expect(store.getQuery(q.id)?.disabled).toBeUndefined()
+    const mirrored = JSON.parse(
+      localStorage.getItem('nd-column-queries') ?? '[]',
+    ).find((m: { id: string }) => m.id === q.id)
+    expect(mirrored?.disabled).toBeUndefined()
+  })
+
+  it('ストア更新では無効のまま維持する (#1040)', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old', storeId: 's' })
+    await store.setDisabled(q.id, true)
+    await store.applyStoreUpdate(q.id, {
+      src: 'new',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+    })
+    expect(store.getQuery(q.id)?.disabled).toBe(true)
+  })
+
+  it('削除の undo は削除時の無効を復元する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'true' })
+    await store.setDisabled(q.id, true)
+    const undo = await store.removeQuery(q.id)
+    await undo?.()
+    expect(store.getQuery(q.id)?.disabled).toBe(true)
+  })
+})
+
+describe('読取専用 (ソース欠損) の個体は変更を拒否する (#1111)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('改名・説明の変更も拒否して false を返す (端末ローカルにだけ載せない)', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: '' })
+    store.queries = [{ ...q, readOnly: true }]
+    expect(await store.updateQuery(q.id, { name: 'renamed' })).toBe(false)
+    expect(store.getQuery(q.id)?.name).toBe('a')
+  })
+
+  it('スコープの参加・離脱も拒否する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({
+      name: 'a',
+      src: '',
+      scope: { kind: 'global' },
+    })
+    store.queries = [{ ...q, readOnly: true }]
+    expect(store.unlinkScope(q.id, { kind: 'global' })).toBe(false)
+    expect(store.getQuery(q.id)?.global).toBe(true)
+    expect(store.linkScope(q.id, { kind: 'account', key: 'h:u' })).toBe(false)
+    expect(store.getQuery(q.id)?.installedFor).toBeUndefined()
+  })
+
+  it('通常の個体では true を返す', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'true' })
+    expect(await store.updateQuery(q.id, { name: 'b' })).toBe(true)
+    expect(store.linkScope(q.id, { kind: 'global' })).toBe(true)
+  })
+})
+
+describe('クエリの編集履歴 (#1117) — 編集前 snapshot を積む', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.mocked(pushSnapshot).mockClear()
+  })
+
+  async function seeded() {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({
+      name: 'a',
+      src: 'old',
+      description: 'd',
+    })
+    const live = store.getQuery(q.id)
+    if (live) live.fileBase = 'a'
+    return { store, q }
+  }
+
+  it('ソースが変わる保存は編集前の src / name / description を積む', async () => {
+    const { store, q } = await seeded()
+    await store.updateQuery(q.id, { src: 'new' })
+    expect(pushSnapshot).toHaveBeenCalledTimes(1)
+    expect(pushSnapshot).toHaveBeenCalledWith(
+      'query',
+      'a',
+      { src: 'old', name: 'a', description: 'd' },
+      undefined,
+    )
+  })
+
+  it('名前だけの変更でも積む (snapshot に含まれる範囲が動いた)', async () => {
+    const { store, q } = await seeded()
+    await store.updateQuery(q.id, { name: 'b' })
+    expect(pushSnapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it('同じ内容の保存では積まない', async () => {
+    const { store, q } = await seeded()
+    await store.updateQuery(q.id, { src: 'old', name: 'a', description: 'd' })
+    expect(pushSnapshot).not.toHaveBeenCalled()
+  })
+
+  it('ファイル未割当 (fileBase 無し) では積まない', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old' })
+    await store.updateQuery(q.id, { src: 'new' })
+    expect(pushSnapshot).not.toHaveBeenCalled()
+  })
+
+  it('ストア更新でソースが変わるときも積む', async () => {
+    const { store, q } = await seeded()
+    await store.applyStoreUpdate(q.id, {
+      src: 'new',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+    })
+    expect(pushSnapshot).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('アカウント削除でスコープ参加を掃除する (#1114)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('そのアカウントのキーだけを全クエリから外し、本体はライブラリに残す', async () => {
+    const store = useColumnQueriesStore()
+    const a = await store.createQuery({
+      name: 'a',
+      src: 'true',
+      scope: { kind: 'account', key: 'h:u1' },
+    })
+    store.linkScope(a.id, { kind: 'account', key: 'h:u2' })
+    const b = await store.createQuery({
+      name: 'b',
+      src: 'true',
+      scope: { kind: 'account', key: 'h:u1' },
+    })
+    const c = await store.createQuery({
+      name: 'c',
+      src: 'true',
+      scope: { kind: 'global' },
+    })
+    store.purgeAccount('h:u1')
+    expect(store.getQuery(a.id)?.installedFor).toEqual(['h:u2'])
+    expect(store.getQuery(b.id)?.installedFor).toBeUndefined()
+    expect(store.getQuery(b.id)).toBeDefined()
+    expect(store.getQuery(c.id)?.global).toBe(true)
+  })
+})
+
+describe('フィルタメニューの候補 (#1043) — 未適用の無効なクエリは出さない', () => {
+  const base: NamedQueryMeta = {
+    id: 'q',
+    name: 'q',
+    src: 'true',
+    global: true,
+    createdAt: 0,
+    updatedAt: 0,
+  }
+  const none = new Set<string>()
+  const applied = new Set(['q'])
+
+  it('有効でスコープ内なら出す', () => {
+    expect(isQueryOfferedFor(base, null, none)).toBe(true)
+  })
+
+  it('無効で未適用なら出さない (使えない選択肢で場所と認知負荷を食わない)', () => {
+    expect(isQueryOfferedFor({ ...base, disabled: true }, null, none)).toBe(
+      false,
+    )
+  })
+
+  it('無効でも適用済みなら出す (外す導線と、効いていない理由を追えるように)', () => {
+    expect(isQueryOfferedFor({ ...base, disabled: true }, null, applied)).toBe(
+      true,
+    )
+  })
+
+  it('スコープ外でも適用済みなら出す (従来どおり)', () => {
+    const scoped = { ...base, global: undefined, installedFor: ['h:u2'] }
+    expect(isQueryOfferedFor(scoped, 'h:u1', none)).toBe(false)
+    expect(isQueryOfferedFor(scoped, 'h:u1', applied)).toBe(true)
+  })
+})
+
+describe('クエリの改名は履歴の書き込みを待つ (#1118 レビュー指摘)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.mocked(pushSnapshot).mockClear()
+  })
+
+  it('履歴の書き込みが終わるまで保存 (改名を含む) を進めない', async () => {
+    let release: (() => void) | undefined
+    vi.mocked(pushSnapshot).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve
+        }),
+    )
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old' })
+    const live = store.getQuery(q.id)
+    if (live) live.fileBase = 'a'
+
+    let done = false
+    const saving = store
+      .updateQuery(q.id, { name: 'b', src: 'new' })
+      .then(() => {
+        done = true
+      })
+    for (let i = 0; i < 10; i++) await Promise.resolve()
+    expect(done).toBe(false)
+
+    release?.()
+    await saving
+    expect(done).toBe(true)
+    expect(store.getQuery(q.id)?.name).toBe('b')
   })
 })

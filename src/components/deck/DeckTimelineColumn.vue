@@ -32,6 +32,7 @@ import type { CustomTimelineInfo } from '@/utils/customTimelines'
 import {
   clearAvailableTlCache,
   clearRuntimeDenied,
+  commonFilterKeys,
   detectAvailableTimelines,
   detectCustomTimelines,
   detectFilterKeys,
@@ -41,6 +42,11 @@ import {
 } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { matchesFilter } from '@/utils/timelineFilter'
+import ColumnFilterButton from './ColumnFilterButton.vue'
+import ColumnPullFrame from './ColumnPullFrame.vue'
+import ColumnQueryBadge from './ColumnQueryBadge.vue'
+import ColumnQueryBanners from './ColumnQueryBanners.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -244,10 +250,31 @@ const {
   pendingCount,
   animatingRowKeys,
   crossProgress,
+  isPulling: crossIsPulling,
+  isPulledEnough: crossIsPulledEnough,
+  isRefreshing: crossIsRefreshing,
+  displayHeight: crossPullHeight,
+  columnQueryState: crossQueryState,
+  columnQueryErrorCount: crossQueryErrorCount,
+  columnQueryExcludedCount: crossQueryExcludedCount,
+  columnQuerySuspendedKeys: crossQuerySuspendedKeys,
+  columnQuerySuspendedCount: crossQuerySuspendedCount,
+  columnQueryMissingIds: crossQueryMissingIds,
+  resumeSuspendedQueries: crossResumeSuspendedQueries,
+  dropMissingQueryRefs: crossDropMissingQueryRefs,
 } = useCrossAccountNotes({
-  // 組込フィルタは per-account 面の機能。全アカウント面は素の TL を混ぜる
-  fetchNotes: (adapter, opts) => adapter.api.getTimeline(tlType.value, opts),
+  // 組込フィルタは API 側パラメータ (per-account と同じ) + クライアント側の
+  // 防御層、クエリは共有の評価器で、全アカウント面でも効かせる
+  fetchNotes: (adapter, opts) =>
+    adapter.api.getTimeline(tlType.value, {
+      ...opts,
+      ...buildTimelineOptions(),
+    }),
   isCrossAccount: () => isCrossAccount.value,
+  filter: {
+    getColumn: () => props.column,
+    builtinAdmits: (n) => matchesFilter(n, props.column.filters, tlType.value),
+  },
   // per-account と同じ 'home' / 'social' キーで各アカウントのキャッシュを読む
   cacheKey: () => columnCacheKey(props.column, cacheKeyDeps),
   isLoading,
@@ -385,6 +412,57 @@ async function refreshFilterKeys() {
   }
   availableFilterKeys.value = await detectFilterKeys(host, tlType.value)
 }
+
+/**
+ * 全アカウント面の組込フィルタ候補: ログイン中の全サーバーが対応するキーだけ。
+ * サーバーごとに対応が違うキーを出すと、効くサーバーと効かないサーバーが混ざる
+ */
+const crossFilterKeys = ref<(keyof TimelineFilter)[]>([])
+/** 世代。TL 種別やアカウント一覧が続けて変わったとき、遅い検出で上書きしない */
+let crossFilterKeysGeneration = 0
+async function refreshCrossFilterKeys() {
+  const generation = ++crossFilterKeysGeneration
+  const hosts = Array.from(
+    new Set(
+      accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.host),
+    ),
+  )
+  const perHost = await Promise.all(
+    hosts.map((host) => detectFilterKeys(host, tlType.value)),
+  )
+  if (generation !== crossFilterKeysGeneration) return
+  crossFilterKeys.value = commonFilterKeys(perHost)
+}
+if (isCrossAccount.value) {
+  watch(
+    [
+      tlType,
+      () =>
+        accountsStore.accounts
+          .filter((a) => a.hasToken)
+          .map((a) => a.host)
+          .join(','),
+    ],
+    () => {
+      void refreshCrossFilterKeys()
+    },
+    { immediate: true },
+  )
+}
+
+/** 全アカウント面の空状態: クエリによる全件除外と「TL が空」を区別する (仕様追補 E) */
+const crossEmptyMessage = computed(() => {
+  if (crossQueryState.value.status === 'invalid') {
+    return 'クエリを解釈できないため表示を停止中です'
+  }
+  if (
+    crossQueryState.value.status === 'active' &&
+    crossQueryExcludedCount.value > 0
+  ) {
+    return `クエリに合致するノートがありません (${crossQueryExcludedCount.value} 件を除外中)`
+  }
+  return 'ノートはありません'
+})
 
 // --- Tab defs for ColumnTabs ---
 const tabDefs = computed<ColumnTabDef[]>(() =>
@@ -550,13 +628,28 @@ onMounted(async () => {
     </template>
 
     <template #header-extra>
-      <ColumnTabs
-        :tabs="crossTabDefs"
-        :model-value="tlType"
-        :swipe-target="swipeTarget"
-        compact
-        @update:model-value="onTabChange"
-      />
+      <div :class="$style.subHeaderRow">
+        <div :class="$style.subHeaderMain">
+          <ColumnTabs
+            :tabs="crossTabDefs"
+            :model-value="tlType"
+            :swipe-target="swipeTarget"
+            compact
+            @update:model-value="onTabChange"
+          />
+        </div>
+        <!-- per-account と同じバッジ + フィルタメニュー (組込 + クエリ) -->
+        <ColumnQueryBadge
+          :state="crossQueryState"
+          :error-count="crossQueryErrorCount"
+          @open="deckStore.toggleSidebarColumn('queryManager', null)"
+        />
+        <ColumnFilterButton
+          :column="column"
+          :filter-keys="crossFilterKeys"
+          :theme-vars="columnThemeVars"
+        />
+      </div>
     </template>
 
     <ColumnEmptyState
@@ -571,9 +664,24 @@ onMounted(async () => {
     />
 
     <div v-else :class="$style.tlBody">
+      <ColumnPullFrame
+        :is-pulling="crossIsPulling"
+        :is-pulled-enough="crossIsPulledEnough"
+        :is-refreshing="crossIsRefreshing"
+        :height="crossPullHeight()"
+      />
+      <ColumnQueryBanners
+        :state="crossQueryState"
+        :error-count="crossQueryErrorCount"
+        :missing-ids="crossQueryMissingIds"
+        :suspended-keys="crossQuerySuspendedKeys"
+        :suspended-count="crossQuerySuspendedCount"
+        @resume="crossResumeSuspendedQueries"
+        @drop-missing="crossDropMissingQueryRefs"
+      />
       <ColumnEmptyState
         v-if="crossNotes.length === 0 && !isLoading"
-        message="ノートはありません"
+        :message="crossEmptyMessage"
         :image-url="serverInfoImageUrl"
       />
 
@@ -674,5 +782,17 @@ onMounted(async () => {
 /* tlHeaderIcon は column-common.module.scss から継承、font-size のみ拡張 */
 .tlHeaderIcon {
   font-size: 14px;
+}
+
+/* 全アカウント面のサブヘッダ (per-account の DeckNoteColumn と同じ行構成) */
+.subHeaderRow {
+  display: flex;
+  align-items: stretch;
+  background: var(--nd-bg);
+}
+
+.subHeaderMain {
+  flex: 1;
+  min-width: 0;
 }
 </style>

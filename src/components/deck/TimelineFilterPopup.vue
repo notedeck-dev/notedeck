@@ -10,10 +10,13 @@ const props = defineProps<{
   filters: TimelineFilter
   position: { top: number; left: number }
   themeVars?: Record<string, string>
-  /** インストール済みの名前付きクエリ (#783 カスタムフィルタトグル) */
-  namedQueries?: { id: string; name: string }[]
-  /** このカラムで有効化中のクエリ id 列 */
-  enabledQueryIds?: string[]
+  /**
+   * インストール済みの名前付きクエリ (#783 カスタムフィルタトグル)。
+   * disabled は本体が無効 (#1043): 適用は残せるが評価されない
+   */
+  namedQueries?: { id: string; name: string; disabled?: boolean }[]
+  /** このカラムに適用中のクエリ id 列 (有効/無効はアイテム側の別軸) */
+  appliedQueryIds?: string[]
 }>()
 
 const { visible, leaving } = useVaporTransition(toRef(props, 'show'), {
@@ -25,10 +28,12 @@ const emit = defineEmits<{
   close: []
   toggle: [key: keyof TimelineFilter]
   toggleQuery: [id: string]
+  /** 無効チップから管理カラムへ (触っても何も起きないスイッチにしない、#1043) */
+  openManager: []
 }>()
 
-function isQueryEnabled(id: string): boolean {
-  return props.enabledQueryIds?.includes(id) ?? false
+function isQueryApplied(id: string): boolean {
+  return props.appliedQueryIds?.includes(id) ?? false
 }
 
 const popoverRef = ref<HTMLElement | null>(null)
@@ -90,11 +95,21 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
         :class="$style.filterItem"
         @click="emit('toggleQuery', q.id)"
       >
-        <span :class="$style.filterLabel">{{ q.name }}</span>
+        <span
+          :class="[$style.filterLabel, $style.queryLabel, q.disabled && $style.queryLabelDisabled]"
+          :title="q.name"
+        >{{ q.name }}</span>
+        <button
+          v-if="q.disabled"
+          class="_button"
+          :class="$style.disabledChip"
+          title="このクエリは無効です — 押すとクエリ管理カラムを開きます"
+          @click.stop="emit('openManager')"
+        >無効</button>
         <button
           class="nd-toggle-switch"
-          :class="{ on: isQueryEnabled(q.id) }"
-          :aria-checked="isQueryEnabled(q.id)"
+          :class="{ on: isQueryApplied(q.id) }"
+          :aria-checked="isQueryApplied(q.id)"
           role="switch"
         >
           <span class="nd-toggle-switch-knob" />
@@ -137,6 +152,33 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
 
 .filterLabel {
   font-size: 0.9em;
+}
+
+/* 名前は省略記号で切り詰め、無効チップは常に見せる (幅が狭い、#1043) */
+.queryLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queryLabelDisabled {
+  opacity: 0.5;
+}
+
+.disabledChip {
+  flex-shrink: 0;
+  margin: 0 8px;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  height: 14px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--nd-fg) 15%, transparent);
+  color: var(--nd-fg);
+  opacity: 0.75;
 }
 
 .filterPopupEnter { animation: filterPopupIn 0.18s var(--nd-ease-pop); }
