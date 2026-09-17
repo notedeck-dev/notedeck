@@ -39,6 +39,7 @@ mod query_bridge;
 mod query_runtime;
 mod rate_limit;
 mod settings_store;
+mod shutdown;
 mod streaming;
 mod vault;
 mod win_chrome;
@@ -288,11 +289,16 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         ));
         app.manage(image_cache.clone());
 
+        // 終了時のタスク所有 (#1098)。常駐ループはここ経由で spawn し、
+        // ExitRequested で begin_shutdown が abort する
+        let shutdown = std::sync::Arc::new(shutdown::Shutdown::new());
+        app.manage(shutdown.clone());
+
         // ディスク画像キャッシュの掃除 (#815)。TTL 超過分と上限超過分は
         // read 側では消えないため、起動時と定期実行でここだけが削除口になる
         {
             let sweeper = image_cache.clone();
-            tauri::async_runtime::spawn(async move {
+            shutdown.spawn(async move {
                 let interval = std::time::Duration::from_secs(6 * 60 * 60);
                 // 初回だけ遅らせる: 起動直後はフロントがカラムを mount して
                 // 同じディレクトリから絵文字・アバターを読むため、全走査を
@@ -330,7 +336,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // 常駐 flusher: notify_one を受けて DELTA_FLUSH_WINDOW スリープ後に
         // drain_pending() を emit。
         let flusher_app = app.app_handle().clone();
-        tauri::async_runtime::spawn(async move {
+        shutdown.spawn(async move {
             query_runtime::run_delta_flusher(flusher_app).await;
         });
 
@@ -376,6 +382,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         let app_handle = app.app_handle().clone();
         let app_dir_bg = app_dir.clone();
         let image_cache_bg = image_cache.clone();
+        let shutdown_token = shutdown.token();
         std::thread::spawn(move || {
             // Parallel: DB open + MisskeyClient init + HTTP bind (all independent)
             let db_path = app_dir_bg.join("notecli.db");
@@ -478,6 +485,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                         log_dir,
                         image_cache: image_cache_bg,
                         perf: shared_perf_bg,
+                        shutdown: shutdown_token,
                     }, ready_tx)
                     .await;
                 });
@@ -522,7 +530,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Periodic credential cache cleanup (every 5 minutes)
-        tauri::async_runtime::spawn(async {
+        shutdown.spawn(async {
             let interval = std::time::Duration::from_secs(5 * 60);
             loop {
                 tokio::time::sleep(interval).await;
@@ -753,9 +761,29 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    builder.run(tauri::generate_context!())?;
+    let app = builder.build(tauri::generate_context!())?;
+    app.run(|app, event| {
+        if let tauri::RunEvent::ExitRequested { .. } = event {
+            begin_shutdown(app);
+        }
+    });
 
     Ok(())
+}
+
+/// 終了処理の唯一の入口 (#1098)。追跡中の常駐タスクを abort し、自前の
+/// 登録簿を持つもの (HEARTBEAT scheduler / AI ストリーム) も止める。axum は
+/// ShutdownToken で自ら graceful に閉じ、export は is_shutting_down() を見て
+/// 次の項目へ進まない。
+fn begin_shutdown(app: &tauri::AppHandle) {
+    tracing::info!("shutdown requested");
+    if let Some(s) = app.try_state::<std::sync::Arc<shutdown::Shutdown>>() {
+        s.trigger();
+    }
+    if let Some(h) = app.try_state::<std::sync::Arc<commands::HeartbeatScheduler>>() {
+        h.unregister();
+    }
+    ai_chat_service::abort_all_streams();
 }
 
 /// Build the tauri-specta builder shared by the runtime, the `gen_bindings`
