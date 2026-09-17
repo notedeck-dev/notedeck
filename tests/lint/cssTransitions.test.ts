@@ -51,20 +51,12 @@ const FROZEN =
 const ALLOWED: Record<string, string> = {
   'src/components/common/MkPoll.vue: width':
     '凍結 (#1098): DEVELOPMENT.md は scaleX 化済みと書いているが width の transition が残っている',
-  'src/components/common/MkPostForm.vue: box-shadow': FROZEN,
   'src/components/deck/DayNightToggle.vue: height': FROZEN,
   'src/components/deck/DayNightToggle.vue: width': FROZEN,
-  'src/components/deck/DeckLayout.vue: box-shadow': FROZEN,
   'src/components/deck/DeckLookupColumn.vue: width': FROZEN,
-  'src/components/deck/DeckNavbar.vue: box-shadow': FROZEN,
-  'src/components/deck/DeckWidgetColumn.vue: box-shadow': FROZEN,
-  'src/components/deck/widgets/AiScriptEditor.vue: box-shadow': FROZEN,
-  'src/components/deck/widgets/AiScriptUiRenderer.vue: box-shadow': FROZEN,
-  'src/components/deck/widgets/CodeEditor.vue: box-shadow': FROZEN,
   'src/components/dev/DevDashboard.vue: height': FROZEN,
   'src/components/dev/DevDashboard.vue: width': FROZEN,
   'src/components/window/AboutContent.vue: width': FROZEN,
-  'src/components/window/LoginContent.vue: box-shadow': FROZEN,
 }
 
 function styleFiles(dir: string): string[] {

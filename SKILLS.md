@@ -286,7 +286,11 @@ capability は原則 **`ApiAdapter` 経由** (`src/adapters/types.ts` + `src/ada
 | { ok: false, code: 'unknown_capability', error: string }
 | { ok: false, code: 'permission_denied', error: string }
 | { ok: false, code: 'execute_failed', error: string }
+| { ok: false, code: 'preflight_failed', error: string }
+| { ok: false, code: 'user_cancelled', error: string }
 ```
+
+`preflight_failed` は capability の `preflight` (例: AiScript の構文検証) で弾かれた場合、`user_cancelled` は `requiresConfirmation` の確認ダイアログで拒否された場合。
 
 AI には `tool_result` の `content` として文字列化された結果が返される (失敗時はエラー文字列)。
 

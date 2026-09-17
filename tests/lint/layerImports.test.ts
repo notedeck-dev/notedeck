@@ -50,8 +50,6 @@ const RULES: Record<string, Rule> = {
         'pinia',
       ],
       allowed: {
-        'src/services/deckProfileFiles.ts':
-          '凍結 (#1098): 読込失敗を toast で知らせる。警告は戻り値で返して呼び出し側 (store) が出すべき',
         'src/services/entityResolution.ts':
           '凍結 (#1098): accounts store を直接引く。アカウント一覧は引数で受けるべき',
       },

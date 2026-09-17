@@ -70,11 +70,6 @@ export function getPluginDenial(pluginId: string): PluginDenialEntry | null {
   return _denials.get(pluginId) ?? null
 }
 
-/** プラグイン無効化 / アンインストール時のクリア。 */
-export function clearPluginDenial(pluginId: string): void {
-  _denials.delete(pluginId)
-}
-
 /** @internal テスト用 */
 export function _clearPluginDenialsForTest(): void {
   _denials.clear()
