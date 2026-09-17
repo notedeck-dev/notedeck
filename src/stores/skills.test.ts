@@ -9,7 +9,7 @@ vi.mock('@/utils/settingsFs', () => ({
 }))
 
 import type { SkillMeta } from '@/stores/skills'
-import { useSkillsStore } from '@/stores/skills'
+import { _internal, useSkillsStore } from '@/stores/skills'
 
 function makeSkill(
   partial: Partial<SkillMeta> & Pick<SkillMeta, 'id'>,
@@ -141,5 +141,59 @@ describe('useSkillsStore.remove (undo)', () => {
     undo?.()
     expect(store.skills.filter((s) => s.id === 'a')).toHaveLength(1)
     expect(store.get('a')?.name).toBe('readded')
+  })
+})
+
+describe('スキルの有効 / 無効はファイル (frontmatter) に持つ (#1116)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('有効にすると個体に active が付き、無効に戻すと印ごと消える', () => {
+    const store = useSkillsStore()
+    store.add(makeSkill({ id: 'a', mode: 'manual' }))
+    store.setActive('a', true)
+    expect(store.get('a')?.active).toBe(true)
+    expect(store.isActive('a')).toBe(true)
+    store.setActive('a', false)
+    expect('active' in (store.get('a') ?? {})).toBe(false)
+    expect(store.isActive('a')).toBe(false)
+  })
+
+  it('frontmatter には有効のときだけ active を書き、読み戻せる', () => {
+    const base = {
+      ...makeSkill({ id: 'a', mode: 'manual' }),
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    expect('active' in _internal.frontmatterFromMeta(base)).toBe(false)
+    expect(
+      _internal.frontmatterFromMeta({ ...base, active: true }).active,
+    ).toBe(true)
+    const parsed = _internal.metaFromFrontmatter(
+      { id: 'a', active: true },
+      'body',
+      'a',
+    )
+    expect(parsed.active).toBe(true)
+    const parsedOff = _internal.metaFromFrontmatter({ id: 'a' }, 'body', 'a')
+    expect('active' in parsedOff).toBe(false)
+  })
+
+  it('mode=always は印が無くても実効有効', () => {
+    const store = useSkillsStore()
+    store.add(makeSkill({ id: 'a', mode: 'always' }))
+    store.add(makeSkill({ id: 'b', mode: 'manual' }))
+    expect(store.effectiveActiveIds).toEqual(['a'])
+    store.setActive('b', true)
+    expect(store.effectiveActiveIds).toEqual(['a', 'b'])
+  })
+
+  it('端末ローカル (localStorage) の有効一覧はもう読まない', () => {
+    localStorage.setItem('nd-skills-active', JSON.stringify(['a']))
+    const store = useSkillsStore()
+    store.add(makeSkill({ id: 'a', mode: 'manual' }))
+    expect(store.isActive('a')).toBe(false)
   })
 })
