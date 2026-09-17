@@ -138,7 +138,7 @@ export const columnAddCapability: Command = {
   category: 'column',
   shortcuts: [],
   aiTool: true,
-  permissions: [],
+  permissions: ['deck.write'],
   signature: {
     description:
       '新しいカラムをデッキに追加する。type で種別を指定する。' +
@@ -260,7 +260,7 @@ export const columnRemoveCapability: Command = {
   category: 'column',
   shortcuts: [],
   aiTool: true,
-  permissions: [],
+  permissions: ['deck.write'],
   signature: {
     description:
       '指定したカラムをデッキから削除する。該当カラムが無ければ no-op。' +
@@ -365,7 +365,7 @@ export const columnMoveCapability: Command = {
   category: 'column',
   shortcuts: [],
   aiTool: true,
-  permissions: [],
+  permissions: ['deck.write'],
   signature: {
     description:
       '既存カラムを指定インデックスに移動する。targetIndex は 0 ベース ' +
@@ -422,7 +422,7 @@ export const columnUpdateSettingsCapability: Command = {
   category: 'column',
   shortcuts: [],
   aiTool: true,
-  permissions: [],
+  permissions: ['deck.write'],
   signature: {
     description:
       '既存カラムの表示プロパティ (name / width / query / soundMuted) を更新する。' +
@@ -506,7 +506,7 @@ export const sidebarToggleCapability: Command = {
   category: 'column',
   shortcuts: [],
   aiTool: true,
-  permissions: [],
+  permissions: ['deck.write'],
   signature: {
     description:
       'サイドバースロットを指定タイプで開く (既に同タイプなら閉じる)。' +

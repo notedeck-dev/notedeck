@@ -5,6 +5,7 @@ import {
   LOCAL_READ_KEYS,
   normalizeProfile,
   PERMISSION_KEYS,
+  PERMISSION_PRESETS,
   type PermissionsConfig,
   presetFromMap,
   resolvePermissions,
@@ -192,5 +193,23 @@ describe('presetFromMap', () => {
     const result = presetFromMap(map)
     expect(result.preset).toBe('custom')
     expect(result.custom['theme.write']).toBe(true)
+  })
+})
+
+describe('deck.write (#1098: デッキ / ウィンドウ構成の変更を無条件許可にしない)', () => {
+  it('readonly では false、safe / full では true', () => {
+    expect(PERMISSION_PRESETS.readonly['deck.write']).toBe(false)
+    expect(PERMISSION_PRESETS.safe['deck.write']).toBe(true)
+    expect(PERMISSION_PRESETS.full['deck.write']).toBe(true)
+  })
+
+  it('custom map に欠損していれば ai.chat / plugin は true、ai.heartbeat / external は false で backfill', () => {
+    const saved = { preset: 'custom', custom: {} } as PermissionsConfig
+    expect(normalizeProfile(saved, 'ai.chat').custom['deck.write']).toBe(true)
+    expect(normalizeProfile(saved, 'plugin').custom['deck.write']).toBe(true)
+    expect(normalizeProfile(saved, 'ai.heartbeat').custom['deck.write']).toBe(
+      false,
+    )
+    expect(normalizeProfile(saved, 'external').custom['deck.write']).toBe(false)
   })
 })

@@ -191,10 +191,27 @@ describe('Nd:register_command (5-arg with options)', () => {
     register = stores.register
   })
 
-  it('forwards aiTool/signature/permissions/requiresConfirmation to commandStore', async () => {
+  it('rejects a permission key that is not in PERMISSION_KEYS (#1098: 自己申告を検証する)', async () => {
     const options = utils.jsToVal({
       aiTool: true,
       permissions: ['notes.write.post'],
+    })
+    await expect(
+      callRegisterCommand(env, [
+        values.STR('bad-perm'),
+        values.STR('Bad'),
+        values.STR('ti-x'),
+        dummyHandler,
+        options,
+      ]),
+    ).rejects.toThrow(/unknown permission key.*notes\.write\.post/)
+    expect(register).not.toHaveBeenCalled()
+  })
+
+  it('forwards aiTool/signature/permissions/requiresConfirmation to commandStore', async () => {
+    const options = utils.jsToVal({
+      aiTool: true,
+      permissions: ['notes.write'],
       requiresConfirmation: true,
       signature: {
         description: 'Reverse the input string',
@@ -218,7 +235,7 @@ describe('Nd:register_command (5-arg with options)', () => {
     expect(register).toHaveBeenCalledTimes(1)
     const cmd = nthCommand(register, 0)
     expect(cmd.aiTool).toBe(true)
-    expect(cmd.permissions).toEqual(['notes.write.post'])
+    expect(cmd.permissions).toEqual(['notes.write'])
     expect(cmd.requiresConfirmation).toBe(true)
     expect(cmd.signature?.description).toBe('Reverse the input string')
     expect(cmd.signature?.params?.text?.type).toBe('string')
@@ -245,7 +262,7 @@ describe('Nd:register_command (5-arg with options)', () => {
   it('drops non-string entries from permissions array', async () => {
     const options = utils.jsToVal({
       aiTool: true,
-      permissions: ['notes.read', 123, null, 'notifications.read'],
+      permissions: ['notes.read', 123, null, 'notifications'],
       signature: { description: 'mixed perms' },
     })
     await callRegisterCommand(env, [
@@ -256,7 +273,7 @@ describe('Nd:register_command (5-arg with options)', () => {
       options,
     ])
     const cmd = nthCommand(register, 0)
-    expect(cmd.permissions).toEqual(['notes.read', 'notifications.read'])
+    expect(cmd.permissions).toEqual(['notes.read', 'notifications'])
   })
 
   it('ignores a non-object options argument', async () => {

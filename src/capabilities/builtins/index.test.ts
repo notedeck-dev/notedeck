@@ -221,10 +221,6 @@ const NOT_EXPOSED_TO_AI = ['ai.chat']
  */
 const WITHOUT_PERMISSIONS = [
   'aiscript.validate',
-  'column.add',
-  'column.move',
-  'column.remove',
-  'column.updateSettings',
   'keybinds.list',
   'meta.activeSkills',
   'meta.config',
@@ -233,19 +229,13 @@ const WITHOUT_PERMISSIONS = [
   'meta.persona',
   'navbar.list',
   'performance.list',
-  'sidebar.toggle',
   'styles.history',
   'styles.read',
-  'theme.apply',
   'theme.history',
   'theme.list',
   'theme.read',
   'time.now',
-  'windows.close',
-  'windows.closeAll',
-  'windows.focus',
   'windows.list',
-  'windows.open',
 ]
 
 /**
