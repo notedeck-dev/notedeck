@@ -12,10 +12,10 @@ export const PET_COLUMNS = 8
 export const PET_FRAME_WIDTH = 192
 export const PET_FRAME_HEIGHT = 208
 
-/** 表示倍率の範囲。既定は元の半分 */
+/** 表示倍率の範囲。既定は元の 3/4 */
 export const PET_SCALE_MIN = 0.25
 export const PET_SCALE_MAX = 2
-export const PET_SCALE_DEFAULT = 0.5
+export const PET_SCALE_DEFAULT = 0.75
 
 /** 設定値を表示に使える倍率へ丸める (未設定・非数・範囲外の保険) */
 export function clampPetScale(value: unknown): number {

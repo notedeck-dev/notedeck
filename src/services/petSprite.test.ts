@@ -103,10 +103,10 @@ describe('petSprite: parsePetSlugInput', () => {
 })
 
 describe('petSprite: clampPetScale', () => {
-  it('未設定・非数は既定の 0.5', () => {
-    expect(clampPetScale(undefined)).toBe(0.5)
-    expect(clampPetScale(Number.NaN)).toBe(0.5)
-    expect(clampPetScale('1')).toBe(0.5)
+  it('未設定・非数は既定の 0.75', () => {
+    expect(clampPetScale(undefined)).toBe(0.75)
+    expect(clampPetScale(Number.NaN)).toBe(0.75)
+    expect(clampPetScale('1')).toBe(0.75)
   })
 
   it('範囲内はそのまま、範囲外は端に丸める', () => {

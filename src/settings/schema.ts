@@ -40,7 +40,7 @@ export interface NotedeckSettings {
   'pet.right'?: number
   'pet.bottom'?: number
   /**
-   * ペットの表示倍率 (元のコマ 192×208 に対する比)。既定は 0.5 (96×104)。
+   * ペットの表示倍率 (元のコマ 192×208 に対する比)。既定は 0.75 (144×156)。
    * 許容範囲はアピアランス設定のスライダーが正本で、範囲外は表示時に丸める
    */
   'pet.scale'?: number
