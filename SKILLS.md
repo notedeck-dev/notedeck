@@ -198,7 +198,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | **時刻** | `time.now` | ISO 8601 で現在時刻 |
 | **アカウント** | `account.current`, `account.list` | 自アカウント / 全アカウント情報 (auth 系 add/switch/logout は塞ぐ) |
 | **メタ** | `meta.permissions`, `meta.activeSkills`, `meta.persona`, `meta.config`, `meta.heartbeat` | 自分自身 (AI の権限・skill・persona・config・HEARTBEAT 設定) を内省 |
-| **カラム** | `column.list`, `column.active`, `column.add`, `column.remove`, `column.move`, `column.updateSettings`, `column.focusedNote` | デッキカラムの操作 + 並び替え + 設定変更 + フォーカスノート取得 |
+| **カラム** | `column.list`, `column.active`, `column.add`, `column.remove`, `column.move`, `column.updateSettings`, `column.focusedNote`, `sidebar.toggle` | デッキカラムの操作 + 並び替え + 設定変更 + フォーカスノート取得 + サイドバー開閉 |
 | **ノート (read)** | `notes.timeline`, `notes.user`, `notes.search`, `notes.show`, `notes.children` | TL / ユーザー別 / サーバー検索 / 単発取得 / 返信ツリー |
 | **ノート (手元の索引)** | `notes.searchArchive` | 手元のキャッシュをサーバー・アカウント横断で検索 (`notes.readArchive` permission、既定は閉じる。公開範囲は既定 public のみ) |
 | **ノート (write)** | `notes.create`, `notes.react`, `notes.unreact`, `notes.delete`, `notes.pin`, `notes.unpin` | 投稿・リアクション・解除・削除・プロファイル pin (`notes.write` / `notes.react` permission) |
@@ -221,7 +221,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | **Gallery** | `gallery.list` | Misskey Gallery を read |
 | **Misskey Play** | `flash.list`, `flash.show` | Misskey Play (AiScript 小アプリ)。`flash.show` は **AiScript ソース含む** |
 | **Registry** | `registry.listKeys`, `registry.get`, `registry.set`, `registry.delete` | Misskey サーバー側 KV ストア (Misskey 専用、adapter 経由しない) |
-| **メモ** | `memos.list`, `memos.search`, `memos.backlinks`, `memos.create`, `memos.update`, `memos.delete` | AI 永続記憶用ローカルメモ CRUD (#492 #494) |
+| **メモ** | `memos.list`, `memos.search`, `memos.backlinks`, `memos.create`, `memos.update`, `memos.delete`, `memos.revert` | AI 永続記憶用ローカルメモ CRUD + 過去の状態へ戻す (#492 #494) |
 | **テーマ** | `theme.list`, `theme.read`, `theme.apply`, `theme.create`, `theme.update`, `theme.install`, `theme.uninstall`, `theme.history`, `theme.revert` | per-account テーマ CRUD + 編集履歴 + MisStore install/uninstall |
 | **CSS** | `styles.read`, `styles.write`, `styles.append`, `styles.history`, `styles.revert` | カスタム CSS の AI 編集 |
 | **スキル** | `skills.list`, `skills.read`, `skills.create`, `skills.append`, `skills.replaceSection`, `skills.toggle`, `skills.install`, `skills.uninstall`, `skills.history`, `skills.revert` | skill 新規作成 (#726) + 自己編集 + MisStore install/uninstall |
@@ -237,11 +237,13 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | **クリップボード** | `clipboard.read`, `clipboard.write` | OS クリップボード入出力 |
 | **ストア** | `misstore.search` | MisStore のプラグイン/テーマ検索 |
 | **HTTP** | `http.fetch` | 任意の外部 HTTP API (`network.external` permission) |
+| **AiScript** | `aiscript.validate`, `aiscript.logs` | 構文検証 (skill / plugin 保存前の preflight) + 実行ログ取得 |
+| **Vault** | `vault.fetch` | Vault 接続の認証情報を注入して HTTP リクエスト (`vault.use` permission。本体はフロントに出ない) |
 | **UI** | `ui.notify` | OS / アプリ内通知 |
 | **ログ** | `logs.recent` | 直近の AI セッションログ |
 | **タスク** | `tasks.run` | 内部タスク実行 |
 
-各 capability の params / 戻り値の詳細は `src/capabilities/builtins/<subject>.ts` の `params` (zod schema) を参照。
+各 capability の params / 戻り値の詳細は `src/capabilities/builtins/<subject>.ts` の `params` (`ParameterDef` の手書き定義) を参照。表とレジストリの一致は `tests/lint/capabilityDocs.test.ts` が検査する。
 
 ### 4.0.1 永久に塞ぐ capability (AI に開放しない)
 
