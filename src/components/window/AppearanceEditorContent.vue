@@ -6,6 +6,7 @@ import DayNightToggle from '@/components/deck/DayNightToggle.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import EmojiMuteSection from '@/components/window/EmojiMuteSection.vue'
+import PetSection from '@/components/window/PetSection.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { isExposed } from '@/settings/exposure'
@@ -197,6 +198,11 @@ const statusClass = computed(() => {
 
       <!-- テーマ選択 / 編集 / 削除 はテーマカラム (themeManager) に集約。
            コマンドパレット → 「テーマを管理」で開ける。 -->
+
+      <!-- Pet (#1080) -->
+      <div :class="$style.section">
+        <PetSection />
+      </div>
 
       <!-- Wallpaper -->
       <div :class="$style.section">

@@ -1,6 +1,7 @@
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { onScopeDispose, ref } from 'vue'
 import type { AiChatMessage, JsonValue } from '@/bindings'
+import { useAiActivity } from '@/stores/aiActivity'
 import { extractErrorMessage } from '@/utils/errors'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -170,8 +171,12 @@ export function useAiChat() {
   // 進行中 sendMessage の reject。cancel / dispose 時に AiChatCancelledError で
   // settle し、await している送信ループ側の掃除 (placeholder 除去等) を走らせる。
   let activeReject: ((e: Error) => void) | null = null
+  // ペット (#1080) 向けの「生成中」報告。cleanup で必ず戻す
+  let endActivity: (() => void) | null = null
 
   function cleanup() {
+    endActivity?.()
+    endActivity = null
     if (activeUnlisten) {
       activeUnlisten()
       activeUnlisten = null
@@ -217,6 +222,7 @@ export function useAiChat() {
     isStreaming.value = true
     lastError.value = null
     currentText.value = ''
+    endActivity = useAiActivity().begin('running')
 
     const streamId = generateStreamId()
     activeStreamId = streamId
@@ -307,8 +313,11 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
   const streamId = `ai-once-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   let accumulated = ''
   let unlisten: UnlistenFn | null = null
+  // ペット (#1080) 向けの「生成中」報告。解放は settle 時に一箇所で行う
+  // (useAiChat の cleanup / taskRunner の finally と同じく漏れない作り)
+  const endActivity = useAiActivity().begin('running')
 
-  return new Promise<string>((resolve, reject) => {
+  const run = new Promise<string>((resolve, reject) => {
     listenTauri('nd:ai-chat-event', (p) => {
       if (p.stream_id !== streamId) return
       if (p.kind === 'delta' && p.text) {
@@ -345,4 +354,5 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
         reject(new Error(message))
       })
   })
+  return run.finally(endActivity)
 }
