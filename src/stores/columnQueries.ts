@@ -329,6 +329,19 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
       : unlinkAccountScope(id, scope.key)
   }
 
+  /**
+   * アカウント削除時に、そのアカウントのスコープ参加をすべて外す (#1114)。
+   * プラグインと同じ。本体はライブラリに残り、全体スコープと他アカウントの
+   * 参加には触れない
+   */
+  function purgeAccount(scopeKey: string): void {
+    ensureLoaded()
+    for (const query of queries.value) {
+      if (!query.installedFor?.includes(scopeKey)) continue
+      unlinkAccountScope(query.id, scopeKey)
+    }
+  }
+
   /** 保存・削除の直前にミラーの対応表を読み直す (別ウィンドウのリネーム追随)。 */
   function adoptMirrorFileBase(query: NamedQueryMeta) {
     const mirrored = getStorageJson<NamedQueryMeta[]>(
@@ -584,6 +597,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     createQuery,
     linkScope,
     unlinkScope,
+    purgeAccount,
     updateQuery,
     setDisabled,
     applyStoreUpdate,

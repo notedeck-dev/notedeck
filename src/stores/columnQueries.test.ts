@@ -435,3 +435,35 @@ describe('クエリの編集履歴 (#1117) — 編集前 snapshot を積む', ()
     expect(pushSnapshot).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('アカウント削除でスコープ参加を掃除する (#1114)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('そのアカウントのキーだけを全クエリから外し、本体はライブラリに残す', async () => {
+    const store = useColumnQueriesStore()
+    const a = await store.createQuery({
+      name: 'a',
+      src: 'true',
+      scope: { kind: 'account', key: 'h:u1' },
+    })
+    store.linkScope(a.id, { kind: 'account', key: 'h:u2' })
+    const b = await store.createQuery({
+      name: 'b',
+      src: 'true',
+      scope: { kind: 'account', key: 'h:u1' },
+    })
+    const c = await store.createQuery({
+      name: 'c',
+      src: 'true',
+      scope: { kind: 'global' },
+    })
+    store.purgeAccount('h:u1')
+    expect(store.getQuery(a.id)?.installedFor).toEqual(['h:u2'])
+    expect(store.getQuery(b.id)?.installedFor).toBeUndefined()
+    expect(store.getQuery(b.id)).toBeDefined()
+    expect(store.getQuery(c.id)?.global).toBe(true)
+  })
+})

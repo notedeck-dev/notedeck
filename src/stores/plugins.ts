@@ -413,6 +413,20 @@ export const usePluginsStore = defineStore('plugins', () => {
       : unlinkAccountScope(installId, scope.key)
   }
 
+  /**
+   * アカウント削除時に、そのアカウントのスコープ参加をすべて外す (#1114)。
+   * 「データを削除」はウィジェット (#1061) と同じ明示的な破棄なので、
+   * ここで掃除する (ログアウトでは残す)。本体はライブラリに残り、ピッカーから
+   * 再追加できる。全体スコープと他アカウントの参加には触れない
+   */
+  function purgeAccount(scopeKey: string): void {
+    ensureLoaded()
+    for (const plugin of plugins.value) {
+      if (!plugin.installedFor?.includes(scopeKey)) continue
+      unlinkAccountScope(plugin.installId, scopeKey)
+    }
+  }
+
   /** 安定キーは host:userId 形式で必ず ':' を含む。旧 UUID には含まれない。 */
   const isScopeKey = (v: string) => v.includes(':')
 
@@ -656,6 +670,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     unlinkAccountScope,
     linkScope,
     unlinkScope,
+    purgeAccount,
     migrateScopes,
     applyStoreUpdate,
     recordStoreBaseline,

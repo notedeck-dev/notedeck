@@ -510,6 +510,18 @@ export const useThemeStore = defineStore('theme', () => {
     emitNoteDeckEvent('theme:applied', { id, mode })
   }
 
+  /**
+   * アカウント削除時に、そのアカウントの紐付けをすべて外す (#1114)。
+   * 紐付けが無くなるテーマは手動の「外す」と同じく本体ごと消す (テーマには
+   * 「全体」の印が無く、紐付け 0 はどの管理カラムにも出ないゾンビになるため)
+   */
+  function purgeAccount(accountKey: string): void {
+    const targets = installedThemes.value
+      .filter((t) => t.$notedeck?.installedFor?.includes(accountKey))
+      .map((t) => t.id)
+    for (const id of targets) unlinkAccountFromTheme(id, accountKey)
+  }
+
   // --- installedFor の安定キー化 (#1113、プラグインの #771 と同型) ---
   const isScopeKey = (v: string) => v.includes(':')
   let scopesMigrated = false
@@ -885,6 +897,7 @@ export const useThemeStore = defineStore('theme', () => {
     installTheme,
     removeTheme,
     unlinkAccountFromTheme,
+    purgeAccount,
     migrateScopes,
     recordStoreBaseline,
     renameTheme,

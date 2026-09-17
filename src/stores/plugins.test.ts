@@ -451,3 +451,26 @@ describe('読取専用 (ソース欠損) のプラグインは変更を拒否す
     expect(store.linkScope('ok', { kind: 'global' })).toBe(true)
   })
 })
+
+describe('アカウント削除でスコープ参加を掃除する (#1114)', () => {
+  it('そのアカウントのキーだけを全プラグインから外し、全体スコープと他アカウントは残す', () => {
+    setupAccounts()
+    const store = usePluginsStore()
+    store.addPlugin(
+      makePlugin({
+        installId: 'a',
+        installedFor: ['yami.ski:u1', 'misskey.cloud:u2'],
+      }),
+    )
+    store.addPlugin(
+      makePlugin({ installId: 'b', installedFor: ['yami.ski:u1'] }),
+    )
+    store.addPlugin(makePlugin({ installId: 'c', global: true }))
+    store.purgeAccount('yami.ski:u1')
+    expect(store.getPlugin('a')?.installedFor).toEqual(['misskey.cloud:u2'])
+    // 参加先が無くなった本体はライブラリに残る (ピッカーから再追加できる)
+    expect(store.getPlugin('b')?.installedFor).toBeUndefined()
+    expect(store.getPlugin('b')).toBeDefined()
+    expect(store.getPlugin('c')?.global).toBe(true)
+  })
+})
