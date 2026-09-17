@@ -51,6 +51,10 @@ vi.mock('@/bindings', () => ({
 const degraded = vi.hoisted(() => ({
   suspended: new Set<string>(),
   runCalls: [] as { keys: string[]; noteCount: number }[],
+  listeners: new Set<() => void>(),
+  notify() {
+    for (const l of this.listeners) l()
+  },
 }))
 
 vi.mock('@/services/columnQuery/degradedRunner', async () => {
@@ -81,7 +85,14 @@ vi.mock('@/services/columnQuery/degradedRunner', async () => {
       },
       isSuspended: (key: string) => degraded.suspended.has(key),
       suspendedKeys: () => [...degraded.suspended],
-      resume: (key: string) => degraded.suspended.delete(key),
+      resume: (key: string) => {
+        degraded.suspended.delete(key)
+        degraded.notify()
+      },
+      subscribe: (listener: () => void) => {
+        degraded.listeners.add(listener)
+        return () => degraded.listeners.delete(listener)
+      },
       dispose: () => {
         // Worker を持たないので解放するものがない
       },
@@ -1171,5 +1182,94 @@ describe('useNoteColumn: セーフモードでカラムクエリを停止する 
     expect(
       bindings.calls.filter((c) => c.name === 'apiGetCachedTimelineBefore'),
     ).toHaveLength(1)
+  })
+})
+
+describe('useNoteColumn: 保留表示と「再開」は評価対象のクエリだけを追う (#1110)', () => {
+  const SLOW_QUERY = 'note.text != null && note.text.len > 3'
+  const notes2 = async () => [
+    { ...note('a'), text: 'hello world' } as NormalizedNote,
+    { ...note('b'), text: 'hello there' } as NormalizedNote,
+  ]
+
+  function mountMutable(accountId: string, column: Ref<Partial<DeckColumn>>) {
+    let api: ReturnType<typeof useNoteColumn> | null = null
+    const Host = defineComponent({
+      setup() {
+        api = useNoteColumn({
+          getColumn: () =>
+            ({
+              id: `col-${accountId}`,
+              type: 'timeline',
+              accountId,
+              ...column.value,
+            }) as DeckColumn,
+          fetch: notes2,
+          cache: { getKey: () => 'home' },
+        })
+        return () => null
+      },
+    })
+    const app = createApp(Host)
+    app.use(pinia)
+    app.mount(document.createElement('div'))
+    apps.push(app)
+    if (!api) throw new Error('harness setup failed')
+    return api as ReturnType<typeof useNoteColumn>
+  }
+
+  beforeEach(() => {
+    degraded.suspended.clear()
+    degraded.listeners.clear()
+  })
+
+  it('適用トグルで外したクエリの保留表示と保留件数が消える', async () => {
+    addAccount('acc-1110-drop')
+    degraded.suspended.add('col-acc-1110-drop:inline')
+    const column = ref<Partial<DeckColumn>>({ noteQuery: SLOW_QUERY })
+    const api = mountMutable('acc-1110-drop', column)
+    await flush()
+    expect(api.columnQuerySuspendedKeys.value).toEqual([
+      'col-acc-1110-drop:inline',
+    ])
+    expect(api.columnQuerySuspendedCount.value).toBe(2)
+
+    column.value = {}
+    await flush(20)
+    expect(api.columnQuerySuspendedKeys.value).toEqual([])
+    expect(api.columnQuerySuspendedCount.value).toBe(0)
+    expect(ids(api)).toEqual(['a', 'b'])
+  })
+
+  it('「再開」は評価対象から外れたクエリのサスペンドを解除しない', async () => {
+    addAccount('acc-1110-resume')
+    degraded.suspended.add('col-acc-1110-resume:inline')
+    const column = ref<Partial<DeckColumn>>({ noteQuery: SLOW_QUERY })
+    const api = mountMutable('acc-1110-resume', column)
+    await flush()
+
+    column.value = {}
+    await flush(20)
+    api.resumeSuspendedQueries()
+    await flush()
+    // 外れたクエリは他カラムで効いているかもしれない。黙って走らせ直さない
+    expect(degraded.suspended.has('col-acc-1110-resume:inline')).toBe(true)
+  })
+
+  it('別カラムでの再開が、バッチを通らなくても即時に反映される', async () => {
+    addAccount('acc-1110-other')
+    degraded.suspended.add('col-acc-1110-other:inline')
+    const column = ref<Partial<DeckColumn>>({ noteQuery: SLOW_QUERY })
+    const api = mountMutable('acc-1110-other', column)
+    await flush()
+    expect(api.columnQuerySuspendedKeys.value).toEqual([
+      'col-acc-1110-other:inline',
+    ])
+
+    // 同じクエリを持つ別カラムが「再開」した (共有 runner の状態が変わる)
+    degraded.suspended.delete('col-acc-1110-other:inline')
+    degraded.notify()
+    await flush()
+    expect(api.columnQuerySuspendedKeys.value).toEqual([])
   })
 })
