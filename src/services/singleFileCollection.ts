@@ -1,4 +1,8 @@
 import {
+  type DuplicateIdEntry,
+  formatDuplicateIdNotice,
+} from '@/services/duplicateIdNotice'
+import {
   casefold,
   isSlugConforming,
   resolveAvailable,
@@ -167,6 +171,7 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
 
     const items: T[] = []
     const seenIds = new Set<string>()
+    const duplicates: DuplicateIdEntry[] = []
     for (const filename of mainFiles) {
       try {
         const base = filename.slice(0, -cfg.ext.length)
@@ -189,9 +194,7 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
           console.warn(
             `[${cfg.logTag}] duplicate id "${id}" in ${filename} — skipped (file kept)`,
           )
-          cfg.notify?.(
-            `同じ ID「${id}」の設定ファイルが複数あります。${filename} は読み込まれていません (ファイルは残っています — 不要なら手動で削除してください)`,
-          )
+          duplicates.push({ id, file: filename })
           continue
         }
         seenIds.add(id)
@@ -203,6 +206,8 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
         console.warn(`[${cfg.logTag}] failed to parse ${filename}:`, e)
       }
     }
+    const notice = formatDuplicateIdNotice(duplicates)
+    if (notice) cfg.notify?.(notice)
     return { items, entryFileCount: mainFiles.length }
   }
 

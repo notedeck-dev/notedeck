@@ -276,13 +276,23 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   function loadProfilesFromStorage(): DeckProfile[] {
     const raw = getStorageJson<DeckProfile[]>(STORAGE_KEYS.deckProfiles, [])
-    return raw.map((p) => {
-      const { columns, droppedConsoleCount, extractedWidgets, sidebarSeed } =
-        migrateWidgetColumns(p.columns ?? [])
-      pendingConsoleMigrationCount += droppedConsoleCount
-      pushExtractedWidgets(extractedWidgets, sidebarSeed)
-      return { ...p, columns }
-    })
+    // ミラーに同じ ID が並んでいたら先勝ちで 1 件にする (ファイル読込と同じ規則)。
+    // 同じ ID のプロファイルがメモリに 2 つあると、保存のたびに別名ファイルが
+    // 増える (どちらを書くかが id 検索で揺れ、fileBase が噛み合わない)
+    const seen = new Set<string>()
+    return raw
+      .filter((p) => {
+        if (seen.has(p.id)) return false
+        seen.add(p.id)
+        return true
+      })
+      .map((p) => {
+        const { columns, droppedConsoleCount, extractedWidgets, sidebarSeed } =
+          migrateWidgetColumns(p.columns ?? [])
+        pendingConsoleMigrationCount += droppedConsoleCount
+        pushExtractedWidgets(extractedWidgets, sidebarSeed)
+        return { ...p, columns }
+      })
   }
 
   /** Persist profiles: write profilesData to localStorage + files + notify other windows. */
