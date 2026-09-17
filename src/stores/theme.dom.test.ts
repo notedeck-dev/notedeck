@@ -329,3 +329,31 @@ describe('useThemeStore.migrateScopes — installedFor を安定キーへ (#1113
     expect(store.installedThemes[1]?.$notedeck).toBeUndefined()
   })
 })
+
+describe('useThemeStore.purgeAccount — アカウント削除でスコープ参加を掃除する (#1114)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('そのアカウントのキーだけを外し、紐付けが無くなるテーマは本体ごと消す (手動の「外す」と同じ)', () => {
+    const store = useThemeStore()
+    store.installedThemes = [
+      { ...RED, $notedeck: { installedFor: ['h:u1', 'h:u2'] } },
+      {
+        ...RED,
+        id: 'blue',
+        name: 'Blue',
+        $notedeck: { installedFor: ['h:u1'] },
+      },
+      { ...RED, id: 'green', name: 'Green' },
+    ]
+    store.purgeAccount('h:u1')
+    expect(store.installedThemes.map((t) => t.id)).toEqual([RED.id, 'green'])
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual(['h:u2'])
+  })
+})
