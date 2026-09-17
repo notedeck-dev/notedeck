@@ -343,8 +343,31 @@ export function useNoteColumn(config: NoteColumnConfig) {
   const queryErrorCount = ref(0)
   /** クエリで除外したノート数 (空状態の「TL が空」との区別表示用) */
   const queryExcludedCount = ref(0)
-  /** 暴走で打ち切られサスペンド中のフィルタ (「N 件保留中」表示用) */
-  const suspendedQueryKeys = shallowRef<readonly string[]>([])
+  /**
+   * 共有 runner のサスペンド集合の版 (#1110)。runner は reactive ではないので、
+   * 変更通知で版を上げて下の computed を再評価させる。別カラムでの
+   * サスペンド・再開も、バッチを通らずにこのカラムの表示へ届く
+   */
+  const suspensionVersion = ref(0)
+  const unsubscribeSuspension = getSharedDegradedRunner().subscribe(() => {
+    suspensionVersion.value++
+  })
+  /**
+   * 暴走で打ち切られサスペンド中のフィルタ (「N 件保留中」表示用)。
+   * 「今このカラムが評価対象にしている 🐢 パーツ」∩「runner のサスペンド集合」
+   * から毎回導く (#1110)。保持した一覧を使い回すと、適用トグルや無効化で
+   * 評価対象から外れたクエリの表示が残り、その「再開」が外れたクエリまで
+   * 解除してしまう (他カラムで黙って走り直す)
+   */
+  const suspendedQueryKeys = computed<readonly string[]>(() => {
+    suspensionVersion.value
+    const compiled = compiledQuery.value
+    if (!compiled || compiled.degraded.length === 0) return []
+    const runner = getSharedDegradedRunner()
+    return compiled.degraded
+      .map((d) => d.key)
+      .filter((key) => runner.isSuspended(key))
+  })
   /** サスペンド中に判定できず取り込めなかった件数 */
   const querySuspendedCount = ref(0)
 
@@ -422,10 +445,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
       compiled.degraded.map((d) => ({ key: d.key, source: d.source })),
       notes,
     )
-    suspendedQueryKeys.value = compiled.degraded
-      .map((d) => d.key)
-      .filter((key) => runner.isSuspended(key))
-    const isSuspended = suspendedQueryKeys.value.length > 0
+    const isSuspended = compiled.degraded.some((d) => runner.isSuspended(d.key))
     const admitted: NormalizedNote[] = []
     outcome.verdicts.forEach((verdict, i) => {
       const note = notes[i]
@@ -490,8 +510,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
    */
   function resumeSuspendedQueries(): void {
     const runner = getSharedDegradedRunner()
+    // 今このカラムが評価対象にしているキーだけ。外れたクエリは対象外 (#1110)
     for (const key of suspendedQueryKeys.value) runner.resume(key)
-    suspendedQueryKeys.value = []
     querySuspendedCount.value = 0
     void refresh()
   }
@@ -519,6 +539,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (next === prev) return
     queryErrorCount.value = 0
     queryExcludedCount.value = 0
+    // 保留件数は外れたクエリのものかもしれないので一緒に捨てる (#1110)
+    querySuspendedCount.value = 0
     const generation = ++querySignatureGeneration
     // 再適用と refetch は直列に流す。並行にすると、🐢 の Worker 待ちで遅れた
     // 再適用が refetch の結果を「変更前のクエリで絞った列」で上書きしてしまう
@@ -1479,6 +1501,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
   })
 
   onUnmounted(() => {
+    unsubscribeSuspension()
     // Save snapshot for instant restore if column is re-mounted
     const unmountCacheKey = config.cache?.getKey()
     if (orderedKeys.value.length > 0 && unmountCacheKey) {

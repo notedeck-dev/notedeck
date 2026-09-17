@@ -180,6 +180,25 @@ describe('createDegradedRunner: 暴走の打ち切り (V15/V23)', () => {
     expect(out.verdicts).toEqual(['match', 'match'])
     runner.dispose()
   })
+
+  it('サスペンドと再開を購読者に通知する (#1110)', async () => {
+    FakeWorker.hangOn = 'slow'
+    const runner = makeRunner()
+    const seen: string[][] = []
+    const unsubscribe = runner.subscribe(() =>
+      seen.push(runner.suspendedKeys()),
+    )
+    const p = runner.run([{ key: 'slow', source: 'loop {}' }], notes)
+    await vi.runAllTimersAsync()
+    await p
+    expect(seen).toEqual([['slow']])
+    runner.resume('slow')
+    expect(seen).toEqual([['slow'], []])
+    unsubscribe()
+    runner.resume('slow')
+    expect(seen).toHaveLength(2)
+    runner.dispose()
+  })
 })
 
 describe('createDegradedRunner: 巻き添えの防止', () => {

@@ -45,6 +45,12 @@ export interface DegradedRunner {
   suspendedKeys(): string[]
   /** ユーザーの明示操作でサスペンドを解除する */
   resume(key: string): void
+  /**
+   * サスペンド集合の変化を購読する (#1110)。runner はウィンドウ内で共有され、
+   * 別カラムでの再開をこのカラムの保留表示に即時反映するために使う。
+   * 戻り値で購読を解除する
+   */
+  subscribe(listener: () => void): () => void
   dispose(): void
 }
 
@@ -93,6 +99,10 @@ export function createDegradedRunner(
   const factory = options.workerFactory ?? defaultWorkerFactory
   const timeoutMs = options.timeoutMs ?? DEGRADED_BATCH_TIMEOUT_MS
   const suspended = new Set<string>()
+  const listeners = new Set<() => void>()
+  function notifySuspensionChanged(): void {
+    for (const listener of listeners) listener()
+  }
 
   let worker: Worker | null = null
   let nextId = 0
@@ -236,6 +246,7 @@ export function createDegradedRunner(
           break
         }
         suspended.add(culprit)
+        notifySuspensionChanged()
         newlySuspended.push(culprit)
         remaining = remaining.filter((f) => f.key !== culprit)
         if (remaining.length === 0) break
@@ -257,7 +268,14 @@ export function createDegradedRunner(
     },
 
     resume(key) {
-      suspended.delete(key)
+      if (suspended.delete(key)) notifySuspensionChanged()
+    },
+
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
     },
 
     dispose() {
