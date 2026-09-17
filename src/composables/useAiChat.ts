@@ -313,20 +313,20 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
   const streamId = `ai-once-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   let accumulated = ''
   let unlisten: UnlistenFn | null = null
+  // ペット (#1080) 向けの「生成中」報告。解放は settle 時に一箇所で行う
+  // (useAiChat の cleanup / taskRunner の finally と同じく漏れない作り)
   const endActivity = useAiActivity().begin('running')
 
-  return new Promise<string>((resolve, reject) => {
+  const run = new Promise<string>((resolve, reject) => {
     listenTauri('nd:ai-chat-event', (p) => {
       if (p.stream_id !== streamId) return
       if (p.kind === 'delta' && p.text) {
         accumulated += p.text
       } else if (p.kind === 'done') {
         unlisten?.()
-        endActivity()
         resolve(accumulated)
       } else if (p.kind === 'error') {
         unlisten?.()
-        endActivity()
         reject(new Error(p.error ?? '不明なエラー'))
       }
       // 'tool_use' は無視 (one-shot では tools を渡さない前提)
@@ -350,9 +350,9 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
       .catch((e) => {
         console.error('[ai-chat one-shot] invoke error raw:', e)
         unlisten?.()
-        endActivity()
         const message = extractErrorMessage(e)
         reject(new Error(message))
       })
   })
+  return run.finally(endActivity)
 }
