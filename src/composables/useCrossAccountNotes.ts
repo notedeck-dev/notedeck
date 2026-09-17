@@ -26,6 +26,7 @@ import {
 import { useNoteList } from '@/composables/useNoteList'
 import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
 import type { VisibilityOpts } from '@/composables/useNoteVisibility'
+import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { hasGap } from '@/services/timelineGap'
@@ -435,6 +436,28 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   let lastResumeAt = 0
 
   /**
+   * Pull to Refresh (per-account の pullRefresh 相当)。列があれば復帰時と同じ
+   * catch-up (アカウントごとに最新ページを取り、重なりで差し替え / 新着を
+   * 流す) を throttle 無しで走らせ、無ければ取り直す。終わったら先頭へ
+   */
+  async function pullRefresh(): Promise<void> {
+    if (rawNotes.value.length === 0 || !streamingBatch) {
+      await connectCrossAccount()
+    } else {
+      lastResumeAt = 0
+      await onResume()
+    }
+    scrollToTop()
+  }
+  const {
+    isPulling,
+    isPulledEnough,
+    isRefreshing,
+    pullDistance,
+    displayHeight,
+  } = usePullToRefresh(scroller, pullRefresh)
+
+  /**
    * 復帰時の catch-up。アカウントごとに最新ページを取り、そのアカウントの行と
    * 1 件も重ならなければ (1 ページ超の欠落) そのアカウントの variant だけを
    * 置換する。他アカウントの行は消さない (#1058 §6)。重なりがあれば既存は
@@ -767,6 +790,12 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     pendingCount,
     animatingRowKeys,
     onResume,
+    // Pull to Refresh (引き下げ枠の描画用)
+    isPulling,
+    isPulledEnough,
+    isRefreshing,
+    pullDistance,
+    displayHeight,
     // カラムクエリ (#783): UI 側のバッジ・バナー表示用。filter 未指定なら常に「なし」
     columnQueryState: query?.columnQueryState ?? NO_QUERY_STATE,
     columnQueryErrorCount: query?.queryErrorCount ?? ZERO,

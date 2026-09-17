@@ -43,6 +43,7 @@ import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useToast } from '@/stores/toast'
 import { webUiUrl as buildWebUiUrl } from '@/utils/url'
 import ColumnFilterButton from './ColumnFilterButton.vue'
+import ColumnPullFrame from './ColumnPullFrame.vue'
 import ColumnQueryBadge from './ColumnQueryBadge.vue'
 import ColumnQueryBanners from './ColumnQueryBanners.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -244,21 +245,12 @@ defineExpose({
     />
 
     <div v-else :class="$style.tlBody">
-      <div
-        v-if="isPulling"
-        :class="$style.pullFrame"
-        :style="`--frame-min-height: ${displayHeight()}px`"
-      >
-        <div :class="$style.pullFrameContent">
-          <i v-if="isRefreshing" class="ti ti-loader-2 nd-spin" />
-          <i v-else class="ti ti-arrow-bar-to-down" :class="{ refresh: isPulledEnough }" />
-          <div :class="$style.pullText">
-            <template v-if="isPulledEnough">離してリフレッシュ</template>
-            <template v-else-if="isRefreshing">リフレッシュ中…</template>
-            <template v-else>下に引いてリフレッシュ</template>
-          </div>
-        </div>
-      </div>
+      <ColumnPullFrame
+        :is-pulling="isPulling"
+        :is-pulled-enough="isPulledEnough"
+        :is-refreshing="isRefreshing"
+        :height="displayHeight()"
+      />
 
       <!-- モバイルは hover が無いのでタップで同じ詳細を toast に出す -->
       <div
