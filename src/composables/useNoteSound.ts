@@ -1,4 +1,5 @@
 import { usePerformanceStore } from '@/stores/performance'
+import { useSystemStateStore } from '@/stores/systemState'
 import { proxyUrl } from '@/utils/mediaProxy'
 
 const RETRY_AFTER_MS = 5 * 60 * 1000
@@ -107,6 +108,13 @@ export function useNoteSound(
   let lastPlayedAt = 0
 
   async function play() {
+    // OS の集中モード / おやすみモード中は鳴らさない (#928)。通知自体は
+    // カラムに積まれ、解除後に鳴らし直すこともしない
+    try {
+      if (useSystemStateStore().adaptation.muteSounds) return
+    } catch {
+      // Store not ready yet — proceed
+    }
     const now = Date.now()
     if (now - lastPlayedAt < 300) return
     lastPlayedAt = now

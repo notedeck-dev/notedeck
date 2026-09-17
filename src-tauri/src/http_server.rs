@@ -860,6 +860,10 @@ struct ProxyImageParams {
     h: Option<u32>,
     /// Optional output format ("webp" to convert)
     format: Option<String>,
+    /// `static=1` flattens animated images (GIF / APNG / animated WebP) to
+    /// their first frame, like Misskey's media proxy (#931)
+    #[serde(rename = "static")]
+    static_frame: Option<u8>,
 }
 
 #[utoipa::path(get, path = "/proxy/image", tag = "proxy",
@@ -884,6 +888,7 @@ async fn proxy_image(
         w: params.w,
         h: params.h,
         format: params.format.clone(),
+        static_frame: params.static_frame == Some(1),
     };
     let etag = req.etag();
 

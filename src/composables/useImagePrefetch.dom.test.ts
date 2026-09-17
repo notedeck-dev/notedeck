@@ -7,6 +7,13 @@ vi.mock('@/stores/performance', () => ({
   }),
 }))
 
+const systemState = vi.hoisted(() => ({ suppressPrefetch: false }))
+vi.mock('@/stores/systemState', () => ({
+  useSystemStateStore: () => ({
+    adaptation: { suppressPrefetch: systemState.suppressPrefetch },
+  }),
+}))
+
 /** new Image() を記録するスタブ。onload/onerror を後から発火できる */
 class FakeImage {
   static instances: FakeImage[] = []
@@ -46,6 +53,14 @@ describe('prefetchNoteImages の同時実行絞り', () => {
   beforeEach(() => {
     FakeImage.instances = []
     vi.stubGlobal('Image', FakeImage)
+    systemState.suppressPrefetch = false
+  })
+
+  it('バッテリー駆動・従量制回線 (suppressPrefetch) では Image を 1 つも作らない (#931 / #935)', async () => {
+    systemState.suppressPrefetch = true
+    const { prefetchNoteImages } = await loadModule()
+    prefetchNoteImages([note('a', 4)])
+    expect(FakeImage.instances.length).toBe(0)
   })
 
   it('同時に発火する Image は上限までに絞られる', async () => {
