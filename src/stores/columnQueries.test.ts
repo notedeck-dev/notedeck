@@ -22,6 +22,7 @@ import { releaseSharedSuspension } from '@/services/columnQuery/degradedRunner'
 import {
   isQueryActive,
   isQueryEffectiveFor,
+  isQueryOfferedFor,
   type NamedQueryMeta,
   useColumnQueriesStore,
 } from '@/stores/columnQueries'
@@ -465,5 +466,40 @@ describe('アカウント削除でスコープ参加を掃除する (#1114)', ()
     expect(store.getQuery(b.id)?.installedFor).toBeUndefined()
     expect(store.getQuery(b.id)).toBeDefined()
     expect(store.getQuery(c.id)?.global).toBe(true)
+  })
+})
+
+describe('フィルタメニューの候補 (#1043) — 未適用の無効なクエリは出さない', () => {
+  const base: NamedQueryMeta = {
+    id: 'q',
+    name: 'q',
+    src: 'true',
+    global: true,
+    createdAt: 0,
+    updatedAt: 0,
+  }
+  const none = new Set<string>()
+  const applied = new Set(['q'])
+
+  it('有効でスコープ内なら出す', () => {
+    expect(isQueryOfferedFor(base, null, none)).toBe(true)
+  })
+
+  it('無効で未適用なら出さない (使えない選択肢で場所と認知負荷を食わない)', () => {
+    expect(isQueryOfferedFor({ ...base, disabled: true }, null, none)).toBe(
+      false,
+    )
+  })
+
+  it('無効でも適用済みなら出す (外す導線と、効いていない理由を追えるように)', () => {
+    expect(isQueryOfferedFor({ ...base, disabled: true }, null, applied)).toBe(
+      true,
+    )
+  })
+
+  it('スコープ外でも適用済みなら出す (従来どおり)', () => {
+    const scoped = { ...base, global: undefined, installedFor: ['h:u2'] }
+    expect(isQueryOfferedFor(scoped, 'h:u1', none)).toBe(false)
+    expect(isQueryOfferedFor(scoped, 'h:u1', applied)).toBe(true)
   })
 })

@@ -71,6 +71,22 @@ export function isQueryActive(
   return query.disabled !== true
 }
 
+/**
+ * フィルタメニューの候補に出すか (#1043)。
+ * - 有効でスコープ内: 出す
+ * - 無効で未適用: 出さない (使えない選択肢で場所と認知負荷を食わない)
+ * - 適用済み: スコープ外でも無効でも出す (外す導線と、効いていない理由を
+ *   追えるように。行には「無効」チップが付く)
+ */
+export function isQueryOfferedFor(
+  query: NamedQueryMeta,
+  scopeKey: string | null,
+  applied: ReadonlySet<string>,
+): boolean {
+  if (applied.has(query.id)) return true
+  return isQueryActive(query) && isQueryEffectiveFor(query, scopeKey)
+}
+
 /** インストール/追加先スコープ (#1018)。カラムの文脈から決まる。 */
 export type QueryScope = { kind: 'global' } | { kind: 'account'; key: string }
 

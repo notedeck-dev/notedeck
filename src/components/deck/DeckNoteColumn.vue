@@ -33,7 +33,7 @@ import {
 } from '@/stores/accounts'
 import {
   isQueryActive,
-  isQueryEffectiveFor,
+  isQueryOfferedFor,
   useColumnQueriesStore,
 } from '@/stores/columnQueries'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
@@ -217,10 +217,11 @@ const accountsStore = useAccountsStore()
 columnQueriesStore.ensureLoaded()
 
 /**
- * このカラムで選べる名前付きクエリ (#1018)。全体スコープのクエリはどのカラム
- * でも、アカウント別スコープのクエリはそのアカウントのカラムでだけ出す。
- * 既にこのカラムへ適用済みのものは、スコープから外れていても出す — 黙って
- * 選択肢から消えると、なぜ効いているのか分からないトグルが残るため。
+ * このカラムで選べる名前付きクエリ (#1018 / #1043)。全体スコープのクエリは
+ * どのカラムでも、アカウント別スコープのクエリはそのアカウントのカラムでだけ
+ * 出す。未適用の無効なクエリは出さない (適用しても評価されない選択肢で場所と
+ * 認知負荷を食わない)。既に適用済みのものは、スコープ外でも無効でも出す —
+ * 黙って選択肢から消えると、なぜ効いている / 効いていないのか追えないため。
  */
 const namedQueryToggles = computed(() => {
   const account = accountsStore.accounts.find(
@@ -228,12 +229,9 @@ const namedQueryToggles = computed(() => {
   )
   const scopeKey = account ? accountScopeKey(account) : null
   const applied = new Set(props.column.noteQueryRefs ?? [])
-  return (
-    columnQueriesStore.queries
-      .filter((q) => isQueryEffectiveFor(q, scopeKey) || applied.has(q.id))
-      // 無効でも候補から消さない: 適用したまま消えると効いていない理由が追えない (#1043)
-      .map((q) => ({ id: q.id, name: q.name, disabled: !isQueryActive(q) }))
-  )
+  return columnQueriesStore.queries
+    .filter((q) => isQueryOfferedFor(q, scopeKey, applied))
+    .map((q) => ({ id: q.id, name: q.name, disabled: !isQueryActive(q) }))
 })
 const effectiveFilterKeys = computed(() => props.filterKeys ?? [])
 const showFilterBtn = computed(
