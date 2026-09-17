@@ -29,6 +29,7 @@ import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
+import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
@@ -156,6 +157,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   const noteStore = useNoteStore()
   const toast = useToast()
   const uiStore = useUiStore()
+  const systemStateStore = useSystemStateStore()
   const { noteScrollerRef } = useNoteScrollerRef(scroller)
 
   const list = useNoteList({
@@ -326,12 +328,12 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     const { isVisible, isLive } = useColumnLive(streaming.columnId)
     let transition = 0
     watch(
-      [isVisible, isLive],
-      async ([visible, live]) => {
+      [isVisible, isLive, () => systemStateStore.adaptation.suspendStreams],
+      async ([visible, live, suspended]) => {
         const seq = ++transition
         wantLive = false
         streamingBatch.setPaused(true)
-        if (!visible) {
+        if (!visible || suspended) {
           setRuntimeState('warm')
           return
         }
@@ -373,6 +375,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   async function onResume() {
     if (!isCrossAccount() || !streamingBatch) return
     if (rawNotes.value.length === 0) return
+    // ウィンドウが隠れている間 (#986) は REST を叩かない (useNoteColumn と同じ)
+    if (systemStateStore.adaptation.suspendStreams) return
     const now = Date.now()
     if (now - lastResumeAt < 3000) return
     lastResumeAt = now

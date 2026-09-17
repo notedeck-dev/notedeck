@@ -42,6 +42,7 @@ mod rate_limit;
 mod settings_store;
 mod shutdown;
 mod streaming;
+mod system_state;
 mod vault;
 mod win_chrome;
 
@@ -317,6 +318,17 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     tokio::time::sleep(interval).await;
                 }
+            });
+        }
+
+        // OS の電源・回線・集中モード状態 (#931 / #935 / #928)。変化時だけ
+        // SystemState event を emit する。observe だけで、落とす判断はフロント
+        {
+            let shared: system_state::SharedSystemState = Default::default();
+            app.manage(shared.clone());
+            let monitor_app = app.app_handle().clone();
+            shutdown.spawn(async move {
+                system_state::run_monitor(monitor_app, shared).await;
             });
         }
 
@@ -1043,6 +1055,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::heartbeat_unconfigure,
             commands::heartbeat_trigger_now,
             commands::heartbeat_status,
+            // OS 状態 (#931 / #935 / #928)
+            commands::system_state_get,
             // Healthcheck (#644) — notecli doctor + ランタイム状態の自己診断
             commands::run_healthcheck,
             // 永続 API トークン (#709) — 外部アプリ向け名前付きトークンの発行/失効
@@ -1091,6 +1105,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             streaming::StreamEmojiChanged,
             os_notify::NotificationClicked,
             commands::ExportProgress,
+            system_state::SystemState,
         ])
 }
 

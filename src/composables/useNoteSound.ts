@@ -1,4 +1,5 @@
 import { usePerformanceStore } from '@/stores/performance'
+import { useSystemStateStore } from '@/stores/systemState'
 import { proxyUrl } from '@/utils/mediaProxy'
 
 const RETRY_AFTER_MS = 5 * 60 * 1000
@@ -98,6 +99,19 @@ function ensureAudioElement(host: string, soundType: string): HTMLAudioElement {
   return el
 }
 
+/**
+ * OS の集中モード / おやすみモード中は鳴らさない (#928)。通知自体は
+ * カラムに積まれ、解除後に鳴らし直すこともしない
+ */
+function isMuted(): boolean {
+  try {
+    return useSystemStateStore().adaptation.muteSounds
+  } catch {
+    // Store not ready yet — proceed
+    return false
+  }
+}
+
 // --- Public API ---
 
 export function useNoteSound(
@@ -107,6 +121,7 @@ export function useNoteSound(
   let lastPlayedAt = 0
 
   async function play() {
+    if (isMuted()) return
     const now = Date.now()
     if (now - lastPlayedAt < 300) return
     lastPlayedAt = now
@@ -128,6 +143,8 @@ export function useNoteSound(
 
     const buffer = await ensureBuffer(host, soundType)
     if (!buffer) return
+    // 音源の取得を待つ間に集中モードへ入ったら鳴らさない
+    if (isMuted()) return
     const source = ctx.createBufferSource()
     source.buffer = buffer
     const gain = ctx.createGain()

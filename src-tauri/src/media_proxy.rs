@@ -28,6 +28,10 @@ pub struct MediaRequest {
     pub h: Option<u32>,
     /// 出力形式 ("webp" で変換)
     pub format: Option<String>,
+    /// アニメーション (GIF / APNG / animated WebP) を 1 フレーム目の静止画に
+    /// 潰す (本家 media-proxy の `static=1`)。バッテリー駆動・省電力モードで
+    /// 絵文字アニメを止める用途 (#931)。静止画には何もしない
+    pub static_frame: bool,
 }
 
 impl MediaRequest {
@@ -35,21 +39,23 @@ impl MediaRequest {
     /// `h` は指定時のみ付ける — h 導入前からある variant (アバター等の w 指定)
     /// のキーを変えると、更新直後に全端末で再変換とディスクの二重保存が走る
     pub fn cache_key(&self) -> String {
-        match (&self.w, &self.h, &self.format) {
-            (None, None, None) => self.url.clone(),
-            _ => {
-                let mut key = format!(
-                    "{}|w={}|f={}",
-                    self.url,
-                    self.w.unwrap_or(0),
-                    self.format.as_deref().unwrap_or("")
-                );
-                if let Some(h) = self.h {
-                    key.push_str(&format!("|h={h}"));
-                }
-                key
-            }
+        if !self.wants_transform() {
+            return self.url.clone();
         }
+        let mut key = format!(
+            "{}|w={}|f={}",
+            self.url,
+            self.w.unwrap_or(0),
+            self.format.as_deref().unwrap_or("")
+        );
+        if let Some(h) = self.h {
+            key.push_str(&format!("|h={h}"));
+        }
+        // static も h と同じく指定時のみ付け、既存 variant のキーを変えない
+        if self.static_frame {
+            key.push_str("|s=1");
+        }
+        key
     }
 
     pub fn etag(&self) -> String {
@@ -57,7 +63,7 @@ impl MediaRequest {
     }
 
     pub fn wants_transform(&self) -> bool {
-        self.w.is_some() || self.h.is_some() || self.format.is_some()
+        self.w.is_some() || self.h.is_some() || self.format.is_some() || self.static_frame
     }
 }
 
@@ -121,21 +127,27 @@ fn image_dimensions(data: &[u8]) -> Option<(u32, u32)> {
 /// `max_width` / `max_height` は「収まる箱」の指定 (アスペクト維持・拡大しない)。
 /// 片方だけなら他方は無制限 — 絵文字は `max_height` のみ指定し、横長でも
 /// 高さが潰れないようにする (本家 media-proxy と同じ意味論、#921)。
+///
+/// `static_frame` はアニメーションを 1 フレーム目に潰す指示。指定が無ければ
+/// アニメーションは (他の変換指定があっても) 素通しする。
 pub fn transform_image(
     data: &[u8],
     max_width: Option<u32>,
     max_height: Option<u32>,
     target_format: Option<&str>,
+    static_frame: bool,
 ) -> Option<(Vec<u8>, String)> {
     let needs_resize = max_width.is_some() || max_height.is_some();
     let needs_webp = target_format == Some("webp");
-    if !needs_resize && !needs_webp {
+    // 「アニメを静止させる」は動く画像にだけ意味がある変換
+    let flatten = static_frame && may_be_animated(data);
+    if !needs_resize && !needs_webp && !flatten {
         return None;
     }
 
-    // アニメーションは変換で潰れるため、明示 format があっても素通し
-    // (壊れた静止画を返すより原本を返す方が正しい)
-    if may_be_animated(data) {
+    // アニメーションは変換で潰れるため、静止化の指示が無い限り明示 format が
+    // あっても素通し (壊れた静止画を返すより原本を返す方が正しい)
+    if may_be_animated(data) && !flatten {
         return None;
     }
 
@@ -146,7 +158,7 @@ pub fn transform_image(
     //
     // format が明示されている場合はスキップしない。HTTP API (`/proxy/image`) は
     // 外部 principal にも開いており、webp を要求されたのに元形式を返すと契約違反。
-    if target_format.is_none() {
+    if target_format.is_none() && !flatten {
         if let Some((width, height)) = image_dimensions(data) {
             let fits_w = max_width.is_none_or(|w| width <= w);
             let fits_h = max_height.is_none_or(|h| height <= h);
@@ -201,12 +213,13 @@ async fn apply_transform(
     let w = req.w;
     let h = req.h;
     let format = req.format.clone();
-    tokio::task::spawn_blocking(
-        move || match transform_image(&data, w, h, format.as_deref()) {
+    let static_frame = req.static_frame;
+    tokio::task::spawn_blocking(move || {
+        match transform_image(&data, w, h, format.as_deref(), static_frame) {
             Some(transformed) => transformed,
             None => (data, content_type),
-        },
-    )
+        }
+    })
     .await
     // JoinError は closure の panic のみ (release は panic = "abort" が先に
     // 効く)。空バイト列を成功として返すと variant に永続化されて TTL の間
@@ -278,7 +291,55 @@ mod tests {
             w,
             h,
             format: format.map(str::to_string),
+            static_frame: false,
         }
+    }
+
+    fn gif_bytes(size: u32) -> Vec<u8> {
+        let img = image::RgbaImage::from_pixel(size, size, image::Rgba([1, 2, 3, 255]));
+        let mut buf = std::io::Cursor::new(Vec::new());
+        let mut enc = image::codecs::gif::GifEncoder::new(&mut buf);
+        enc.encode_frame(image::Frame::new(img))
+            .expect("encode gif");
+        drop(enc);
+        buf.into_inner()
+    }
+
+    #[test]
+    fn cache_key_separates_static_frame() {
+        let moving = req("https://e.com/a.gif", None, Some(128), None);
+        let still = MediaRequest {
+            static_frame: true,
+            ..req("https://e.com/a.gif", None, Some(128), None)
+        };
+        assert_ne!(moving.cache_key(), still.cache_key());
+        // static だけの指定でも原本とは別 variant
+        let only_static = MediaRequest {
+            static_frame: true,
+            ..req("https://e.com/a.gif", None, None, None)
+        };
+        assert!(only_static.wants_transform());
+        assert_ne!(only_static.cache_key(), "https://e.com/a.gif");
+    }
+
+    /// static=1 は動く画像を 1 フレーム目の静止画 (WebP) に潰す (#931)
+    #[test]
+    fn static_frame_flattens_animated_gif() {
+        let (out, ct) =
+            transform_image(&gif_bytes(100), None, Some(128), None, true).expect("should flatten");
+        assert_eq!(ct, "image/webp");
+        let decoded = image::load_from_memory(&out).expect("decode webp");
+        assert_eq!((decoded.width(), decoded.height()), (100, 100));
+        // static だけでも (h 指定なし) 静止化は走る
+        assert!(transform_image(&gif_bytes(10), None, None, None, true).is_some());
+    }
+
+    /// static=1 でも静止画には手を付けない (無駄な再エンコードをしない)
+    #[test]
+    fn static_frame_leaves_still_images_untouched() {
+        assert!(transform_image(&png_bytes(10, 10), None, None, None, true).is_none());
+        // 上限以下で h 指定のみなら従来どおりスキップ
+        assert!(transform_image(&png_bytes(10, 10), None, Some(128), None, true).is_none());
     }
 
     #[test]
@@ -317,23 +378,23 @@ mod tests {
     /// Misskey のアバターはサーバー側で縮小済みなので、この経路が大半を占める。
     #[test]
     fn skips_transform_when_already_within_limit() {
-        assert!(transform_image(&png_bytes(32, 32), Some(56), None, None).is_none());
+        assert!(transform_image(&png_bytes(32, 32), Some(56), None, None, false).is_none());
         // ちょうど上限も変換しない
-        assert!(transform_image(&png_bytes(56, 56), Some(56), None, None).is_none());
+        assert!(transform_image(&png_bytes(56, 56), Some(56), None, None, false).is_none());
     }
 
     /// format を明示されたら縮まなくても変換する。HTTP API は外部にも開いて
     /// いるので、webp を要求されたのに元形式を返すのは契約違反。
     #[test]
     fn honors_explicit_format_even_when_small() {
-        let (_, ct) = transform_image(&png_bytes(32, 32), Some(56), None, Some("webp"))
+        let (_, ct) = transform_image(&png_bytes(32, 32), Some(56), None, Some("webp"), false)
             .expect("explicit format must be honored");
         assert_eq!(ct, "image/webp");
     }
 
     #[test]
     fn transforms_when_wider_than_limit() {
-        let (out, ct) = transform_image(&png_bytes(200, 200), Some(56), None, Some("webp"))
+        let (out, ct) = transform_image(&png_bytes(200, 200), Some(56), None, Some("webp"), false)
             .expect("should transform");
         assert_eq!(ct, "image/webp");
         assert!(!out.is_empty());
@@ -344,8 +405,8 @@ mod tests {
     /// 潰していた
     #[test]
     fn height_only_resize_preserves_wide_aspect() {
-        let (out, ct) =
-            transform_image(&png_bytes(400, 100), None, Some(50), None).expect("should transform");
+        let (out, ct) = transform_image(&png_bytes(400, 100), None, Some(50), None, false)
+            .expect("should transform");
         assert_eq!(ct, "image/webp");
         let img = image::load_from_memory(&out).expect("must decode");
         assert_eq!((img.width(), img.height()), (200, 50));
@@ -355,13 +416,13 @@ mod tests {
     /// (h 基準では幅を理由に再エンコードしない)
     #[test]
     fn skips_wide_image_when_height_within_limit() {
-        assert!(transform_image(&png_bytes(400, 100), None, Some(128), None).is_none());
+        assert!(transform_image(&png_bytes(400, 100), None, Some(128), None, false).is_none());
     }
 
     /// w と h の両指定は「収まる箱」: きつい方の辺が効く
     #[test]
     fn width_and_height_fit_within_box() {
-        let (out, _) = transform_image(&png_bytes(400, 100), Some(100), Some(50), None)
+        let (out, _) = transform_image(&png_bytes(400, 100), Some(100), Some(50), None, false)
             .expect("should transform");
         let img = image::load_from_memory(&out).expect("must decode");
         assert_eq!((img.width(), img.height()), (100, 25));
@@ -370,7 +431,7 @@ mod tests {
     /// format 明示で変換は走っても拡大はしない (小さい原本はそのままの寸法)
     #[test]
     fn never_upscales_small_images() {
-        let (out, _) = transform_image(&png_bytes(40, 10), None, Some(50), Some("webp"))
+        let (out, _) = transform_image(&png_bytes(40, 10), None, Some(50), Some("webp"), false)
             .expect("explicit format must be honored");
         let img = image::load_from_memory(&out).expect("must decode");
         assert_eq!((img.width(), img.height()), (40, 10));
@@ -383,7 +444,7 @@ mod tests {
     fn refuses_decode_of_oversized_dimensions() {
         // 高さ 2px なのでテスト自体のメモリは軽い
         let wide = png_bytes(MAX_DECODE_DIMENSION + 1, 2);
-        assert!(transform_image(&wide, Some(56), None, Some("webp")).is_none());
+        assert!(transform_image(&wide, Some(56), None, Some("webp"), false).is_none());
     }
 
     /// アニメーションの可能性がある形式は変換で 1 フレーム目に潰れるため、
@@ -400,7 +461,7 @@ mod tests {
             drop(enc);
             buf.into_inner()
         };
-        assert!(transform_image(&gif, Some(56), None, Some("webp")).is_none());
+        assert!(transform_image(&gif, Some(56), None, Some("webp"), false).is_none());
 
         // APNG: IDAT より前の acTL チャンクで判定 (CRC は見ない)
         let mut apng = png_bytes(100, 100);
@@ -410,7 +471,7 @@ mod tests {
         actl.extend_from_slice(&[0u8; 12]); // frames(4) + plays(4) + crc(4)
         apng.splice(33..33, actl); // IHDR 直後 (8 sig + 25 IHDR chunk)
         assert!(may_be_animated(&apng));
-        assert!(transform_image(&apng, Some(56), None, Some("webp")).is_none());
+        assert!(transform_image(&apng, Some(56), None, Some("webp"), false).is_none());
 
         // Animated WebP: ヘッダ近傍の ANIM チャンク
         let mut awebp = Vec::new();

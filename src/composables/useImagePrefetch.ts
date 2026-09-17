@@ -1,5 +1,6 @@
 import type { NormalizedNote } from '@/adapters/types'
 import { usePerformanceStore } from '@/stores/performance'
+import { useSystemStateStore } from '@/stores/systemState'
 import { proxyUrl } from '@/utils/mediaProxy'
 import { isSafeUrl } from '@/utils/url'
 
@@ -25,7 +26,27 @@ const MAX_QUEUE = 100
 let activePrefetches = 0
 const prefetchQueue: string[] = []
 
+/** バッテリー駆動・省電力・従量制回線では先読み自体を止める (#931 / #935) */
+function isPrefetchSuppressed(): boolean {
+  try {
+    return useSystemStateStore().adaptation.suppressPrefetch
+  } catch {
+    // Store not ready yet — proceed with prefetch
+    return false
+  }
+}
+
+/** 抑制に入ったら未開始分を捨てる。取得していない URL は「先読み済み」からも外す (#893 と同じ理由) */
+function dropQueuedPrefetches() {
+  for (const url of prefetchQueue) prefetchedUrls.delete(url)
+  prefetchQueue.length = 0
+}
+
 function pumpPrefetchQueue() {
+  if (isPrefetchSuppressed()) {
+    dropQueuedPrefetches()
+    return
+  }
   while (
     activePrefetches < MAX_CONCURRENT_PREFETCH &&
     prefetchQueue.length > 0
@@ -86,6 +107,7 @@ export function prefetchNoteImages(notes: NormalizedNote[]): void {
   } catch {
     // Store not ready yet — proceed with prefetch
   }
+  if (isPrefetchSuppressed()) return
   for (const note of notes) {
     const effective = resolveEffectiveNote(note)
     for (const file of effective.files) {

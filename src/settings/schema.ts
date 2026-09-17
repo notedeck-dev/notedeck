@@ -128,6 +128,16 @@ export interface NotedeckSettings {
    */
   'tutorial.completed'?: boolean
 
+  // --- OS の状態への自動適応 (#931 / #935 / #986) ---
+  /**
+   * バッテリー駆動・省電力モード・従量制回線を OS から読んで、画像の先読み・
+   * アニメーション絵文字・添付メディアの自動読み込みを自動で落とす。
+   * ウィンドウが隠れている間はタイムラインの購読を休止する (#986)。
+   * 何をどの状態で落とすかは個別に選ばせない (`services/systemAdaptation.ts`)。
+   * 集中モード中の通知音停止 (#928) はこの設定に依らず常に効く。
+   */
+  'system.autoAdapt'?: boolean
+
   // --- UI の露出 (#1034) ---
   /**
    * 開発者モード。有効にすると API コンソール・ストリーム・スクラッチパッド・
@@ -168,6 +178,8 @@ export const DEFAULT_SETTINGS: NotedeckSettings = {
   'chat.cacheEnabled': true,
   'chat.perAccountLimit': 1_000_000,
   'chat.ttlDays': null,
+  // 電源が潤沢な前提の挙動をバッテリー駆動でも続けない (#931)。既定 ON
+  'system.autoAdapt': true,
 }
 
 /**

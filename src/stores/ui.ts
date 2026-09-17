@@ -89,6 +89,12 @@ export const useUiStore = defineStore('ui', () => {
     deckResumeSignal.value++
   }
 
+  /**
+   * ウィンドウが猶予を超えて隠れている (#986)。発生源は `useAppBackground`。
+   * 何を落とすかは `useSystemStateStore().adaptation` が決める
+   */
+  const isBackground = ref(false)
+
   /** Set to true when DeckLayout DOM is mounted (used to dismiss splash). */
   const deckMounted = ref(false)
 
@@ -113,6 +119,7 @@ export const useUiStore = defineStore('ui', () => {
     toggleSidebar,
     deckResumeSignal,
     emitDeckResume,
+    isBackground,
     deckMounted,
     driveFilesChanged,
     emitDriveFilesChanged,

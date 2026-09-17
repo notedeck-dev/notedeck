@@ -3,6 +3,7 @@ import { json } from '@codemirror/lang-json'
 import { computed, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
+import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
@@ -16,6 +17,8 @@ import {
   type PerformanceKey,
   usePerformanceStore,
 } from '@/stores/performance'
+import { useSystemStateStore } from '@/stores/systemState'
+import { hapticSelection } from '@/utils/haptics'
 
 const jsonLang = json()
 
@@ -24,6 +27,14 @@ const props = defineProps<{
 }>()
 
 const perfStore = usePerformanceStore()
+
+// OS の電源・回線・ウィンドウの状態に合わせた自動調整 (#931 / #935 / #986)。設定は 1 つだけで、
+// 何をどの状態で落とすかは選ばせない (細かく決めたい人は下の手動設定を使う)
+const systemStateStore = useSystemStateStore()
+function toggleAutoAdapt() {
+  hapticSelection()
+  systemStateStore.autoAdapt = !systemStateStore.autoAdapt
+}
 
 // 生ファイルを直接編集する code タブは開発者向けの面 (#1034)。アピアランス /
 // キーバインド / テーマ / 権限と同じ宣言的 opt-in
@@ -248,6 +259,16 @@ function handleReset() {
 
     <!-- Visual Tab -->
     <div v-show="tab === 'visual'" :class="$style.panel">
+      <div :class="$style.section">
+        <AiSwitchRow
+          label="電源・回線・ウィンドウの状態に合わせて自動調整する"
+          sub-label="バッテリー駆動・省電力モードでは画像の先読みとアニメーション絵文字を止め、従量制回線では画像・動画をタップで読み込み、ウィンドウを隠している間はタイムラインの購読を休止する"
+          icon="ti-battery-eco"
+          :on="systemStateStore.autoAdapt"
+          @toggle="toggleAutoAdapt"
+        />
+      </div>
+
       <!-- マスターは横 1 本。各チャンネルの相対差を保ったまま全体を上下させる -->
       <div :class="$style.section">
         <div :class="$style.sliderRow">

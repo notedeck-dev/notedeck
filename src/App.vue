@@ -20,6 +20,7 @@ import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
 import { useTheme } from '@/composables/useTheme'
 import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { useLogsStore } from '@/stores/logs'
+import { useSystemStateStore } from '@/stores/systemState'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { exitSafeMode, readSafeMode } from '@/utils/safeMode'
 import { markStartup } from '@/utils/startupTrace'
@@ -113,6 +114,12 @@ if (!isPipWindow.value) {
 if (isTauri && !isPipWindow.value) {
   useOsWindowTitle()
   useOsUnreadBadge()
+}
+
+// OS の電源・回線・集中モード状態 (#931 / #935 / #928)。event は全ウィンドウに
+// 届くので PiP でも購読し、絵文字・メディアの落とし方を揃える
+if (isTauri) {
+  useSystemStateStore().start()
 }
 
 // Listen for PiP IPC events (main window only)
