@@ -3,7 +3,11 @@ import type {
   ColumnQueryWorkerRequest,
   ColumnQueryWorkerResponse,
 } from '@/workers/columnQueryWorker'
-import { createDegradedRunner } from './degradedRunner'
+import {
+  createDegradedRunner,
+  releaseSharedSuspension,
+  resetSharedDegradedRunner,
+} from './degradedRunner'
 
 /**
  * Worker の代役。postMessage された内容を記録し、テストから応答を差し込む。
@@ -212,5 +216,12 @@ describe('createDegradedRunner: 空入力', () => {
     expect(out.verdicts).toEqual([])
     expect(FakeWorker.instances).toHaveLength(0)
     runner.dispose()
+  })
+})
+
+describe('releaseSharedSuspension (#1112)', () => {
+  it('共有 runner が無ければ何もしない (Worker を起こさない)', () => {
+    resetSharedDegradedRunner()
+    expect(() => releaseSharedSuspension('q1')).not.toThrow()
   })
 })

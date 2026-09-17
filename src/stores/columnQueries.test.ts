@@ -10,6 +10,11 @@ vi.mock('@/utils/settingsFs', async () => {
   return { ...actual, isTauri: false }
 })
 
+vi.mock('@/services/columnQuery/degradedRunner', () => ({
+  releaseSharedSuspension: vi.fn(),
+}))
+
+import { releaseSharedSuspension } from '@/services/columnQuery/degradedRunner'
 import {
   isQueryEffectiveFor,
   useColumnQueriesStore,
@@ -208,5 +213,45 @@ describe('クエリのスコープ (#1018) — 全体 / アカウント別 / ラ
     reloaded.ensureLoaded()
 
     expect(reloaded.getQuery(q.id)?.global).toBeUndefined()
+  })
+})
+
+describe('ソース編集でサスペンドを解除する (#783 追補 D / #1112)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.mocked(releaseSharedSuspension).mockClear()
+  })
+
+  it('src が変わる編集はそのクエリのサスペンドを解除する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old' })
+    await store.updateQuery(q.id, { src: 'new' })
+    expect(releaseSharedSuspension).toHaveBeenCalledWith(q.id)
+  })
+
+  it('名前・説明だけの編集では解除しない', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old' })
+    await store.updateQuery(q.id, { name: 'b', description: 'd' })
+    expect(releaseSharedSuspension).not.toHaveBeenCalled()
+  })
+
+  it('src が同じ内容の保存では解除しない', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'same' })
+    await store.updateQuery(q.id, { name: 'b', src: 'same' })
+    expect(releaseSharedSuspension).not.toHaveBeenCalled()
+  })
+
+  it('ストア更新でソースが変わったときも解除する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old', storeId: 's' })
+    await store.applyStoreUpdate(q.id, {
+      src: 'new',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+    })
+    expect(releaseSharedSuspension).toHaveBeenCalledWith(q.id)
   })
 })
