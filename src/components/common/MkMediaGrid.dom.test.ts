@@ -21,6 +21,18 @@ vi.mock('./MkMediaLightbox.vue', () => ({
   }),
 }))
 
+// 従量制回線の遅延読み込み (#935) は store 経由。pinia を立てずに直接差し込む
+const systemState = vi.hoisted(() => ({ deferMedia: false }))
+vi.mock('@/stores/systemState', () => ({
+  useSystemStateStore: () => ({
+    adaptation: {
+      get deferMedia() {
+        return systemState.deferMedia
+      },
+    },
+  }),
+}))
+
 import MkMediaGrid from './MkMediaGrid.vue'
 
 function makeImage(id: string, sensitive = false): NormalizedDriveFile {
@@ -61,6 +73,34 @@ afterEach(() => {
   container?.remove()
   app = null
   container = null
+  systemState.deferMedia = false
+})
+
+describe('従量制回線ではタップするまで読まない (#935)', () => {
+  it('img を出さずタップ読み込みの口を出し、タップで読み込む', async () => {
+    systemState.deferMedia = true
+    mountGrid([makeImage('a')])
+    expect(container?.querySelector('img[src*="a.png"]')).toBeNull()
+    const overlay = container?.querySelector(
+      '._sensitiveOverlay',
+    ) as HTMLElement | null
+    expect(overlay?.textContent).toContain('タップで読み込み')
+    overlay?.click()
+    await vi.waitFor(() =>
+      expect(container?.querySelector('img[src*="a.png"]')).not.toBeNull(),
+    )
+    // 読み込んだ後は通常どおりライトボックスが開く
+    cells()[0]?.click()
+    await vi.waitFor(() => expect(lightboxProps).toHaveLength(1))
+  })
+
+  it('遅延中のセルはクリックしてもライトボックスが開かない', async () => {
+    systemState.deferMedia = true
+    mountGrid([makeImage('a')])
+    cells()[0]?.click()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(lightboxProps).toHaveLength(0)
+  })
 })
 
 describe('MkMediaGrid ライトボックス抽出後の回帰 (#792)', () => {

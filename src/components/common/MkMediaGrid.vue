@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef } from 'vue'
 import type { NormalizedDriveFile } from '@/adapters/types'
+import { useSystemStateStore } from '@/stores/systemState'
 import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
 import { proxyUrl } from '@/utils/mediaProxy'
 import { isSafeUrl, openSafeUrl } from '@/utils/url'
@@ -32,6 +33,16 @@ const revealedIds = shallowRef(new Set<string>())
 const loadedIds = shallowRef(new Set<string>())
 const erroredIds = shallowRef(new Set<string>())
 const lightboxIndex = ref<number | null>(null)
+
+// 従量制回線 (#935) では添付画像・動画を自動で読まず、タップしたものだけ読む。
+// 明示的に開いた (revealed) ものは NSFW と同じ集合で覚える。blurhash は
+// ノート本文に同梱の文字列なので通信なしで出せる
+const systemStateStore = useSystemStateStore()
+function isDeferred(file: NormalizedDriveFile): boolean {
+  return (
+    systemStateStore.adaptation.deferMedia && !revealedIds.value.has(file.id)
+  )
+}
 
 function isImage(file: NormalizedDriveFile): boolean {
   return file.type.startsWith('image/')
@@ -104,6 +115,7 @@ function toggleSensitive(file: NormalizedDriveFile, e: Event) {
 function openLightbox(file: NormalizedDriveFile, e: Event) {
   e.stopPropagation()
   if (file.isSensitive && !revealedIds.value.has(file.id)) return
+  if (isDeferred(file)) return
   const idx = previewableFiles.value.indexOf(file)
   if (idx >= 0) lightboxIndex.value = idx
 }
@@ -162,7 +174,7 @@ function closeLightbox() {
       />
       <template v-if="isImage(file)">
         <img
-          v-if="!erroredIds.has(file.id)"
+          v-if="!erroredIds.has(file.id) && !isDeferred(file)"
           :src="proxiedImageSrc(file.thumbnailUrl) || proxiedImageSrc(file.url)"
           :alt="file.name"
           :class="[$style.mediaImage, { [$style.isLoaded]: loadedIds.has(file.id) }]"
@@ -171,13 +183,13 @@ function closeLightbox() {
           @load="onImageLoaded(file.id)"
           @error="onImageError(file.id)"
         />
-        <div v-else :class="$style.mediaPlaceholder">
+        <div v-else-if="!isDeferred(file)" :class="$style.mediaPlaceholder">
           <i class="ti ti-photo" />
         </div>
       </template>
       <template v-else-if="isVideo(file)">
         <video
-          v-if="!erroredIds.has(file.id)"
+          v-if="!erroredIds.has(file.id) && !isDeferred(file)"
           :src="safeMediaSrc(file.url)"
           :class="$style.mediaVideo"
           preload="metadata"
@@ -186,14 +198,24 @@ function closeLightbox() {
           @loadeddata="onImageLoaded(file.id)"
           @error="onImageError(file.id)"
         />
-        <div v-else :class="$style.mediaPlaceholder">
+        <div v-else-if="!isDeferred(file)" :class="$style.mediaPlaceholder">
           <i class="ti ti-video" />
         </div>
       </template>
 
+      <!-- 従量制回線: タップで読み込み (#935)。NSFW と同じ見た目の口 -->
+      <div
+        v-if="isDeferred(file)"
+        class="_sensitiveOverlay"
+        @click.stop="toggleSensitive(file, $event)"
+      >
+        <i class="ti ti-download" />
+        <span>{{ isVideo(file) ? '動画をタップで読み込み' : '画像をタップで読み込み' }}</span>
+      </div>
+
       <!-- NSFW overlay -->
       <div
-        v-if="file.isSensitive && !revealedIds.has(file.id)"
+        v-else-if="file.isSensitive && !revealedIds.has(file.id)"
         class="_sensitiveOverlay"
         @click.stop="toggleSensitive(file, $event)"
       >

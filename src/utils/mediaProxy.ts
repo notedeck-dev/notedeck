@@ -1,3 +1,4 @@
+import { ref } from 'vue'
 import { usePerformanceStore } from '@/stores/performance'
 
 /**
@@ -120,8 +121,19 @@ export function proxyCssUrl(
  * 同じ variant キャッシュを共有する。
  * アニメ絵文字はプロキシ側が変換を素通しするので壊れない。
  */
+/**
+ * アニメーション絵文字を 1 フレーム目で止めるか (#931)。バッテリー駆動・
+ * 省電力モードで `useSystemStateStore` が押し込む。ref なので template から
+ * 呼ばれる `proxyEmojiUrl` は切り替え時に再評価され、表示中の絵文字も止まる
+ */
+const emojiStaticMode = ref(false)
+
+export function setEmojiStaticMode(on: boolean): void {
+  emojiStaticMode.value = on
+}
+
 export function proxyEmojiUrl(
   url: string | null | undefined,
 ): string | undefined {
-  return buildProxyUrl(url, 'h=128')
+  return buildProxyUrl(url, emojiStaticMode.value ? 'h=128&static=1' : 'h=128')
 }

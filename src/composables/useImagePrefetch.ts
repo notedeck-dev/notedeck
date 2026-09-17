@@ -1,5 +1,6 @@
 import type { NormalizedNote } from '@/adapters/types'
 import { usePerformanceStore } from '@/stores/performance'
+import { useSystemStateStore } from '@/stores/systemState'
 import { proxyUrl } from '@/utils/mediaProxy'
 import { isSafeUrl } from '@/utils/url'
 
@@ -83,6 +84,12 @@ export function prefetchNoteImages(notes: NormalizedNote[]): void {
   // Skip prefetch in low-quality mode (images are blurred/hidden anyway)
   try {
     if (usePerformanceStore().get('cssBlurLevel') === 0) return
+  } catch {
+    // Store not ready yet — proceed with prefetch
+  }
+  // バッテリー駆動・省電力・従量制回線では先読み自体を止める (#931 / #935)
+  try {
+    if (useSystemStateStore().adaptation.suppressPrefetch) return
   } catch {
     // Store not ready yet — proceed with prefetch
   }

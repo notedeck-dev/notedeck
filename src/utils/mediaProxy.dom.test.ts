@@ -93,6 +93,19 @@ describe('proxyEmojiUrl (カスタム絵文字の共通サムネイル口)', () 
     expect(proxyEmojiUrl(REMOTE)).not.toContain('w=')
   })
 
+  it('静止モード (#931) では static=1 を付け、戻すと元の URL に戻る', async () => {
+    const { proxyEmojiUrl, setEmojiStaticMode } = await loadModule()
+    const moving = proxyEmojiUrl(REMOTE)
+    setEmojiStaticMode(true)
+    const still = proxyEmojiUrl(REMOTE)
+    expect(still).toBe(
+      `${BASE}?url=${encodeURIComponent(REMOTE)}&h=128&static=1`,
+    )
+    expect(still).not.toBe(moving)
+    setEmojiStaticMode(false)
+    expect(proxyEmojiUrl(REMOTE)).toBe(moving)
+  })
+
   it('https 以外は素通し (同梱 twemoji のローカルパス等)', async () => {
     const { proxyEmojiUrl } = await loadModule()
     expect(proxyEmojiUrl('/twemoji/1f600.svg')).toBe('/twemoji/1f600.svg')
