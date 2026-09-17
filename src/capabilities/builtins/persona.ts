@@ -53,7 +53,6 @@ export const aiListPersonasCapability: Command = {
         name: s.name,
         description: s.description ?? null,
         mode: s.mode,
-        scope: s.scope,
         active: s.id === currentId,
       }))
   },

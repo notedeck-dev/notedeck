@@ -585,11 +585,6 @@ export const useMisStoreStore = defineStore('misstore', () => {
         triggers: Array.isArray(meta.triggers)
           ? (meta.triggers as string[])
           : [],
-        scope: meta.scope === 'per-account' ? 'per-account' : 'global',
-        installedFor:
-          meta.scope === 'per-account' && Array.isArray(meta.installedFor)
-            ? (meta.installedFor as string[])
-            : undefined,
         storeId: e.id,
         storeSha512: hash,
         storeVersion: e.version,

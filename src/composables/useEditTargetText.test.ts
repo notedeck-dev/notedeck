@@ -30,7 +30,6 @@ describe('useEditTargetText', () => {
       version: '0.1.0',
       mode: 'manual',
       triggers: [],
-      scope: 'global',
       body: '本文',
       cheapCheckCapabilities: [],
     })

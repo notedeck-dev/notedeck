@@ -11,7 +11,6 @@ function skill(partial: Partial<SkillMeta> & Pick<SkillMeta, 'id'>): SkillMeta {
     version: '1.0.0',
     mode: 'trigger',
     triggers: [],
-    scope: 'global',
     body: 'body',
     cheapCheckCapabilities: [],
     createdAt: 1,

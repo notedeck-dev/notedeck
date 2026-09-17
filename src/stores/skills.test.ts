@@ -19,7 +19,6 @@ function makeSkill(
     version: '1.0.0',
     mode: 'trigger',
     triggers: [],
-    scope: 'global',
     body: 'body',
     cheapCheckCapabilities: [],
     ...partial,
