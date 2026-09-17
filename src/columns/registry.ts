@@ -250,6 +250,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // (cacheKey='favorites') から履歴を読める。timeline と同じ流儀。
     // list/antenna/clip と違い ID 選択 picker が無いので素直に解放できる。
     guestAllowed: true,
+    // 全アカウント = 各アカウントのお気に入りを並べる (#1017)。ID 選択が無く
+    // 行キーは取得元アカウント + ノート ID の複合 (#1058) で足りる
+    crossAccount: true,
   },
   clip: {
     label: 'クリップ',

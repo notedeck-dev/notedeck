@@ -468,6 +468,27 @@ describe('Mk:api account context bridging', () => {
     expect(gateMock).toHaveBeenCalledWith(
       { kind: 'plugin', pluginId: plugin.installId, name: plugin.name },
       'notes/show',
+      { onBehalfOf: [] },
+    )
+  })
+
+  it('Nd:register_command の handler から呼ぶ Mk:api は呼び出し元の権限も検査する (#1099)', async () => {
+    apiRequestMock.mockResolvedValue({ status: 'ok', data: { id: 'n1' } })
+    const plugin = await installAndLaunch(
+      'Nd:register_command("call", "Call", "ti-x", @(p) { Mk:api("notes/show", { noteId: "n1" }) }, { aiTool: true })',
+    )
+    const { useCommandStore } = await import('@/commands/registry')
+    const cmd = [...useCommandStore().commands.values()].find((c) =>
+      c.id.endsWith(':call'),
+    )
+    expect(cmd).toBeDefined()
+    await withPluginAccountContext(plugin.installId, 'acc-9', () =>
+      cmd?.execute({ x: 1 }, { principal: { kind: 'ai.chat' } }),
+    )
+    expect(gateMock).toHaveBeenCalledWith(
+      { kind: 'plugin', pluginId: plugin.installId, name: plugin.name },
+      'notes/show',
+      { onBehalfOf: [{ kind: 'ai.chat' }] },
     )
   })
 })

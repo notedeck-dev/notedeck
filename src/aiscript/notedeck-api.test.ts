@@ -1,4 +1,4 @@
-import { utils, values } from '@syuilo/aiscript'
+import { type Interpreter, utils, values } from '@syuilo/aiscript'
 import type { Value } from '@syuilo/aiscript/interpreter/value.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -6,6 +6,7 @@ import {
   registerCapability,
 } from '@/capabilities/registry'
 import type { Command, useCommandStore } from '@/commands/registry'
+import type { Principal } from '@/permissions/principal'
 import { setPermissionPreset } from '@/permissions/schema'
 import { usePermissionsConfig } from '@/permissions/store'
 import * as eventsModule from './events'
@@ -68,6 +69,7 @@ function makeFakeStores(): {
       principal: { kind: 'plugin', pluginId: 'test-plugin' } as const,
       provider: 'acme.clock',
       disposers: [],
+      callers: [],
     },
     register,
     unregister,
@@ -328,6 +330,37 @@ describe('Nd:call', () => {
     await expect(
       callNative(env, 'Nd:call', [values.STR('nope.nope')]),
     ).rejects.toThrow(/unknown_capability/)
+  })
+
+  it('積まれた呼び出し元の権限も AND で検査される (#1099)', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'demo.write',
+        permissions: ['notes.write'],
+        execute: () => 'wrote',
+      }),
+    )
+    const stores = makeFakeStores() // plugin = full
+    const { file } = usePermissionsConfig()
+    file.value.principals['ai.chat'] = setPermissionPreset(
+      file.value.principals['ai.chat'] ?? {
+        preset: 'readonly',
+        custom: {} as never,
+      },
+      'readonly',
+    )
+    const env = createNoteDeckEnv(stores.ctx)
+    // plugin 単独なら通る
+    expect(
+      utils.valToJs(
+        await callNative(env, 'Nd:call', [values.STR('demo.write')]),
+      ),
+    ).toBe('wrote')
+    // AI (readonly) の呼び出しで走っている handler からは通らない
+    stores.ctx.callers.push({ kind: 'ai.chat' })
+    await expect(
+      callNative(env, 'Nd:call', [values.STR('demo.write')]),
+    ).rejects.toThrow(/permission_denied.*on behalf of ai\.chat/)
   })
 
   it('throws with permission_denied when readonly preset disallows the cap', async () => {
@@ -660,5 +693,118 @@ describe('Nd:call — 確認ダイアログのキャンセル (#1074)', () => {
       values.STR('demo.confirm'),
     ])
     expect(utils.valToJs(result)).toBe('done')
+  })
+})
+
+describe('Nd:register_command — 呼び出し元の伝播 (#1099)', () => {
+  function fakeInterpreter(onRun: () => void) {
+    return {
+      execFnSimple: vi.fn(async () => {
+        onRun()
+        return values.STR('done')
+      }),
+      execFn: vi.fn(async () => values.NULL),
+    } as unknown as Interpreter
+  }
+
+  async function registerOne(
+    stores: ReturnType<typeof makeFakeStores>,
+  ): Promise<Command> {
+    const env = createNoteDeckEnv(stores.ctx)
+    await callRegisterCommand(env, [
+      values.STR('cmd'),
+      values.STR('Cmd'),
+      values.STR('ti-x'),
+      values.FN_NATIVE(() => values.NULL),
+      utils.jsToVal({ aiTool: true }),
+    ])
+    return nthCommand(stores.register, 0)
+  }
+
+  it('dispatcher 経由の実行中は呼び出し元が積まれ、終了後に降りる', async () => {
+    const stores = makeFakeStores()
+    let seen: Principal[] = []
+    stores.ctx.interpreter = fakeInterpreter(() => {
+      seen = [...stores.ctx.callers]
+    })
+    const cmd = await registerOne(stores)
+    const result = await cmd.execute(
+      { x: 1 },
+      { principal: { kind: 'ai.chat' } },
+    )
+    expect(result).toBe('done')
+    expect(seen).toEqual([{ kind: 'ai.chat' }])
+    expect(stores.ctx.callers).toEqual([])
+  })
+
+  it('params が無くても dispatcher 経由なら待って呼び出し元を積む', async () => {
+    const stores = makeFakeStores()
+    let seen: Principal[] = []
+    const interp = fakeInterpreter(() => {
+      seen = [...stores.ctx.callers]
+    })
+    stores.ctx.interpreter = interp
+    const cmd = await registerOne(stores)
+    await cmd.execute(undefined, { principal: { kind: 'external' } })
+    expect(seen).toEqual([{ kind: 'external' }])
+    expect(interp.execFnSimple).toHaveBeenCalledWith(expect.anything(), [])
+  })
+
+  it('呼び出し元の連鎖 (onBehalfOf) ごと積み、終了後に全部降りる', async () => {
+    const stores = makeFakeStores()
+    let seen: Principal[] = []
+    stores.ctx.interpreter = fakeInterpreter(() => {
+      seen = [...stores.ctx.callers]
+    })
+    const cmd = await registerOne(stores)
+    await cmd.execute(
+      { x: 1 },
+      {
+        principal: { kind: 'plugin', pluginId: 'other' },
+        onBehalfOf: [{ kind: 'ai.chat' }, { kind: 'user' }],
+      },
+    )
+    // user は積まれない
+    expect(seen).toEqual([
+      { kind: 'ai.chat' },
+      { kind: 'plugin', pluginId: 'other' },
+    ])
+    expect(stores.ctx.callers).toEqual([])
+  })
+
+  it('handler が throw しても呼び出し元は降りる', async () => {
+    const stores = makeFakeStores()
+    stores.ctx.interpreter = {
+      execFnSimple: vi.fn(async () => {
+        throw new Error('boom')
+      }),
+    } as unknown as Interpreter
+    const cmd = await registerOne(stores)
+    await expect(
+      cmd.execute({ x: 1 }, { principal: { kind: 'ai.chat' } }),
+    ).rejects.toThrow('boom')
+    expect(stores.ctx.callers).toEqual([])
+  })
+
+  it('user の呼び出しは積まない (プロファイルを持たない)', async () => {
+    const stores = makeFakeStores()
+    let seen: Principal[] = []
+    stores.ctx.interpreter = fakeInterpreter(() => {
+      seen = [...stores.ctx.callers]
+    })
+    const cmd = await registerOne(stores)
+    await cmd.execute({ x: 1 }, { principal: { kind: 'user' } })
+    expect(seen).toEqual([])
+  })
+
+  it('UI コマンドパレット (ctx なし) は fire-and-forget のまま', async () => {
+    const stores = makeFakeStores()
+    const interp = fakeInterpreter(noop)
+    stores.ctx.interpreter = interp
+    const cmd = await registerOne(stores)
+    await cmd.execute()
+    expect(interp.execFn).toHaveBeenCalledWith(expect.anything(), [])
+    expect(interp.execFnSimple).not.toHaveBeenCalled()
+    expect(stores.ctx.callers).toEqual([])
   })
 })

@@ -83,6 +83,24 @@ export interface DispatchContext {
    * アカウント文脈なし (capability 側は params.accountId を必須にする、#941)。
    */
   accountId?: string | null
+  /**
+   * この dispatch を引き起こした上流の principal (#1099)。plugin が登録した
+   * capability を AI / 外部トークンが呼ぶと、handler 内の Nd:call は plugin
+   * principal で dispatch されるが、実効権限は「呼び出し元 ∩ 実行体」で決める
+   * — principal の置換で権限が広がらない。ここに積まれた principal 全員の許可
+   * が要る (user はプロファイルを持たないので無視される)。
+   */
+  onBehalfOf?: readonly Principal[]
+}
+
+/** エラー文用: 実行体と (あれば) 呼び出し元を並べる。 */
+function describePrincipals(ctx: DispatchContext): string {
+  const callers = (ctx.onBehalfOf ?? [])
+    .filter((p) => p.kind !== 'user')
+    .map((p) => p.kind)
+  return callers.length > 0
+    ? `${ctx.principal.kind} on behalf of ${callers.join(', ')}`
+    : ctx.principal.kind
 }
 
 /**
@@ -129,7 +147,11 @@ export async function dispatchCapability(
   const crossAccount =
     crossAccountId !== undefined && crossAccountId !== ctx.accountId
   if (crossAccount) {
-    const actAsDenied = checkPermissions(['account.actAs'], ctx.principal)
+    const actAsDenied = checkPermissions(
+      ['account.actAs'],
+      ctx.principal,
+      ctx.onBehalfOf,
+    )
     if (actAsDenied.length > 0) {
       if (ctx.principal.kind === 'plugin') {
         recordPluginDenial(ctx.principal.pluginId, cap.id, actAsDenied)
@@ -140,11 +162,15 @@ export async function dispatchCapability(
       return {
         ok: false,
         code: 'permission_denied',
-        error: `Permission denied for ${capabilityId}: cross-account execution (accountId "${crossAccountId}") requires [account.actAs] not allowed for principal "${ctx.principal.kind}" (permissions.json5)`,
+        error: `Permission denied for ${capabilityId}: cross-account execution (accountId "${crossAccountId}") requires [account.actAs] not allowed for principal "${describePrincipals(ctx)}" (permissions.json5)`,
       }
     }
   }
-  const denied = checkPermissions(cap.permissions ?? [], ctx.principal)
+  const denied = checkPermissions(
+    cap.permissions ?? [],
+    ctx.principal,
+    ctx.onBehalfOf,
+  )
   if (denied.length > 0) {
     // plugin の拒否はプラグインカラムの拒否バッジに流す (#712 §8.4 — 破壊的
     // 変更をリリースノート依存にしない in-app 導線)。UI 操作起点
@@ -160,7 +186,7 @@ export async function dispatchCapability(
     return {
       ok: false,
       code: 'permission_denied',
-      error: `Permission denied for ${capabilityId}: required [${denied.join(', ')}] not allowed for principal "${ctx.principal.kind}" (permissions.json5)`,
+      error: `Permission denied for ${capabilityId}: required [${denied.join(', ')}] not allowed for principal "${describePrincipals(ctx)}" (permissions.json5)`,
     }
   }
   // preflight (入力検証 — 確認ダイアログより前に走る)
@@ -178,6 +204,8 @@ export async function dispatchCapability(
     aiConfig: useAiConfig().config.value,
     principal: ctx.principal,
     ...(ctx.accountId ? { accountId: ctx.accountId } : {}),
+    // 内側の判定 (tasks.run / plugin handler) にも連鎖を渡す (#1099)
+    ...(ctx.onBehalfOf?.length ? { onBehalfOf: ctx.onBehalfOf } : {}),
   }
   // 確認ダイアログ (write 系などで requiresConfirmation: true)。
   // クロスアカウント実行は requiresConfirmation 未宣言でも必ず確認する。
@@ -485,14 +513,23 @@ async function buildConfirmOptions(
   }
 }
 
-/** required permission のうち principal の実効権限で disallow になっているものを返す。 */
+/**
+ * required permission のうち disallow になっているものを返す。実行体
+ * principal と呼び出し元 (onBehalfOf) 全員の実効権限の AND で判定する
+ * (#1099) — どれか 1 人でも持っていないキーは拒否。
+ */
 function checkPermissions(
   required: readonly PermissionKey[],
   principal: Principal,
+  onBehalfOf?: readonly Principal[],
 ): PermissionKey[] {
   if (required.length === 0) return []
-  const resolved = resolveFor(principal)
-  // user principal はプロファイルを持たず常時許可 (#712 §3.3)
-  if (resolved === null) return []
-  return required.filter((key) => !resolved[key])
+  const denied = new Set<PermissionKey>()
+  for (const p of [principal, ...(onBehalfOf ?? [])]) {
+    const resolved = resolveFor(p)
+    // user principal はプロファイルを持たず常時許可 (#712 §3.3)
+    if (resolved === null) continue
+    for (const key of required) if (!resolved[key]) denied.add(key)
+  }
+  return required.filter((key) => denied.has(key))
 }

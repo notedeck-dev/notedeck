@@ -103,6 +103,7 @@ const {
   handleScroll,
   removeNote,
   react: reactCrossAccount,
+  bookmark: bookmarkCrossAccount,
   vote: voteCrossAccount,
   pendingCount,
   animatingRowKeys,
@@ -203,7 +204,7 @@ const {
                 @quote="handlers.quote"
                 @delete="removeNote"
                 @edit="handlers.edit"
-                @bookmark="handlers.bookmark"
+                @bookmark="bookmarkCrossAccount"
                 @delete-and-edit="handlers.deleteAndEdit"
                 @vote="voteCrossAccount"
               />

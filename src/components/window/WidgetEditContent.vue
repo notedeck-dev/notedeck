@@ -42,6 +42,7 @@ import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
+import type { Principal } from '@/permissions/principal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
@@ -225,8 +226,12 @@ async function run() {
     return
   }
 
+  // この env の登録 capability を実行中の呼び出し元 (#1099) — Mk:api と
+  // Nd:* が同じ配列を見る
+  const callers: Principal[] = []
   const env = createAiScriptEnv(
     {
+      getCallers: () => callers,
       principal: {
         kind: 'plugin',
         pluginId: `widget:${props.widgetId}`,
@@ -285,6 +290,7 @@ async function run() {
       widget.value.storeId,
     ),
     disposers: [],
+    callers,
     getAccountId: () => activeAccountId.value,
   }
   const ndEnv = createNoteDeckEnv(ndCtx)

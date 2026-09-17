@@ -119,3 +119,16 @@ describe('カラムレジストリの実行時登録 (#794 W2)', () => {
     expect(labels.value).not.toContain('テスト')
   })
 })
+
+describe('全アカウントで開けるカラムの導線 (#1017)', () => {
+  it('お気に入りは「もっと」に出る (ナビバー既定に無く、全アカウント対応で ID 選択が無い)', async () => {
+    const { DEFAULT_NAV_ITEMS, isNavDivider } = await import('@/stores/deck')
+    const inNavbar = new Set(
+      DEFAULT_NAV_ITEMS.filter((i) => !isNavDivider(i)).map((i) => i.type),
+    )
+    // DeckLaunchPad と同じ選別規則
+    expect(CROSS_ACCOUNT_TYPES.has('favorites')).toBe(true)
+    expect(COLUMN_REGISTRY.favorites?.selectable).toBeUndefined()
+    expect(inNavbar.has('favorites')).toBe(false)
+  })
+})

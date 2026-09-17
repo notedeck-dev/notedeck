@@ -1,6 +1,6 @@
 [package]
 name = "notedeck"
-version = "1.59.0"
+version = "1.60.0"
 description = "Misskey Pro — integrated deck environment (IDE) for Misskey power users"
 edition = "2021"
 license = "AGPL-3.0-only"
@@ -54,6 +54,7 @@ tauri-plugin-haptics = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-deep-link = "2"
 kamadak-exif = "0.6.1"
+json5 = "1"
 
 # OS 通知のクリック遷移 (#754)。plugin-notification のデスクトップ実装は
 # クリックイベント非対応 (上流 #2150) のため、Linux/Windows はこちらで表示する。

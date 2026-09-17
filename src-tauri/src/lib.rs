@@ -36,6 +36,7 @@ mod ogp;
 mod os_notify;
 mod perf_config;
 mod permissions_gate;
+mod permissions_profile;
 mod query_bridge;
 mod query_runtime;
 mod rate_limit;
@@ -251,6 +252,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             tracing::warn!("keychain unavailable ({e})");
         }
         migrations::run_fs(&app_dir)?;
+        // external gate が permissions.json5 を直接読むための所在 (#1099)
+        permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
 
         // AppState: empty wrapper — commands await until Phase 2 fills it
         let app_state = commands::AppState::new();
@@ -366,6 +369,16 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             std::fs::set_permissions(&token_path, std::fs::Permissions::from_mode(0o600))?;
         }
         let token_path_str = token_path.to_string_lossy().to_string();
+
+        // 画像プロキシ経路の起動毎トークン (#1099)。WebView には
+        // get_media_proxy_token command で渡す (ファイルには書かない)
+        let media_proxy_token = http_server::MediaProxyToken(
+            rand::random::<[u8; 32]>()
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+        );
+        app.manage(media_proxy_token.clone());
 
         // dev ダッシュボード (#977) のログ tail 用に /api インデックスで開示する
         let log_dir = app
@@ -497,6 +510,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                         token_path: token_path_str,
                         log_dir,
                         image_cache: image_cache_bg,
+                        media_proxy_token,
                         perf: shared_perf_bg,
                         shutdown: shutdown_token,
                     }, ready_tx)
@@ -1036,6 +1050,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::delete_settings_file,
             commands::rename_settings_file,
             commands::get_settings_dir,
+            commands::get_media_proxy_token,
             commands::get_log_dir,
             commands::open_settings_file_in_editor,
             commands::read_root_settings_file,
@@ -1092,8 +1107,6 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             query_runtime::query_get_read_model_snapshot,
             perf_config::update_performance_config,
             perf_config::get_performance_config,
-            permissions_gate::permissions_sync,
-            permissions_gate::permissions_lockdown,
         ])
         .events(tauri_specta::collect_events![
             query_runtime::QueryDelta,

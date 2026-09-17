@@ -6,7 +6,7 @@
     "license": {
       "name": "MIT"
     },
-    "version": "1.59.0"
+    "version": "1.60.0"
   },
   "paths": {
     "/api": {
@@ -1633,6 +1633,18 @@
               "format": "int32",
               "minimum": 0
             }
+          },
+          {
+            "name": "t",
+            "in": "query",
+            "description": "起動毎の画像プロキシトークン (#1099)。WebView が\n`get_media_proxy_token` で受け取って付ける。無効なら 403",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         ],
         "responses": {
@@ -1641,6 +1653,9 @@
           },
           "304": {
             "description": "Not Modified (ETag match)"
+          },
+          "403": {
+            "description": "Missing or invalid media proxy token"
           },
           "502": {
             "description": "Upstream fetch failed"

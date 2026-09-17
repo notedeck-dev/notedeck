@@ -36,6 +36,13 @@ export interface NoteDeckEnvContext {
   /** Set after interpreter is created, enables Nd:register_command handlers */
   interpreter?: Interpreter
   /**
+   * この env が登録した capability を dispatcher 経由で実行中の呼び出し元
+   * (#1099)。`Nd:register_command` の handler が走る間だけ積まれ、handler 内の
+   * `Nd:call` / `Nd:http` / `Mk:api` は「呼び出し元 ∩ この env の principal」で
+   * 判定される。複数の呼び出しが同時に走ると全員の AND になる (安全側に倒す)。
+   */
+  callers: Principal[]
+  /**
    * この env が行った全登録の解除関数 (#794 原則 5)。
    *
    * 「プラグインからの登録は必ずコンテキスト経由で行い、停止時に一括解除される」
@@ -68,19 +75,25 @@ export function createNoteDeckEnv(
   // permissions / requiresConfirmation は dispatcher が処理するため、
   // ここでは結果の包み替えとエラー throw のみ行う。
   //
-  // principal は env 構築時に確定した ctx.principal (#712 §3.5)。plugin コード
-  // からの Nd:call は起動経路 (AI tool 経由か自律か) に関係なく常に plugin
-  // プロファイル単独で resolve される — その write を許すかは権限設定の
-  // plugin 行に対するユーザーの同意が正本。
+  // principal は env 構築時に確定した ctx.principal (#712 §3.5)。以前は
+  // 「plugin コードからの Nd:call は起動経路に関係なく plugin プロファイル
+  // 単独で resolve する」を意図的な決定としていたが、AI (readonly) が plugin
+  // 登録 capability 経由で plugin (safe + network.external) の権限を使える
+  // 置換になっていたため不採用に改めた (#1099)。実行中の呼び出し元
+  // (ctx.callers) を onBehalfOf として渡し、dispatcher が AND で判定する。
   consts['Nd:call'] = values.FN_NATIVE(async ([idVal, paramsVal]) => {
     utils.assertString(idVal)
     const params =
       paramsVal?.type === 'obj'
         ? (utils.valToJs(paramsVal) as Record<string, unknown>)
         : undefined
+    // 呼び出し元は同期的に写し取る — await の間に別の handler が積み下ろし
+    // してもこの dispatch の判定は変わらない
+    const onBehalfOf = [...ctx.callers]
     const result = await dispatchCapability(idVal.value, params, {
       principal: ctx.principal,
       accountId: ctx.getAccountId?.() ?? null,
+      ...(onBehalfOf.length > 0 ? { onBehalfOf } : {}),
     })
     if (!result.ok) {
       // 確認ダイアログのキャンセルはユーザーの正常な操作 (#1074)。AiScript に
@@ -153,8 +166,10 @@ export function createNoteDeckEnv(
     if (typeof options.timeoutMs === 'number') {
       params.timeoutMs = options.timeoutMs
     }
+    const onBehalfOf = [...ctx.callers]
     const result = await dispatchCapability('http.fetch', params, {
       principal: ctx.principal,
+      ...(onBehalfOf.length > 0 ? { onBehalfOf } : {}),
     })
     if (!result.ok) {
       throw new Error(`Nd:http (${result.code}): ${result.error}`)
@@ -237,24 +252,50 @@ export function createNoteDeckEnv(
         icon: iconVal.value,
         category: 'general',
         shortcuts: [],
-        execute: (params) => {
+        execute: async (params, capCtx) => {
           const interp = ctx.interpreter
           if (!interp) {
             console.warn('[Nd:register_command] interpreter not available')
             return
           }
-          try {
-            // params あり (= dispatcher / AI tool 経由) は戻り値を返す必要があるため
-            // 同期実行 + JS 値変換。params なし (= UI コマンドパレット経由) は
-            // 戻り値不要なので fire-and-forget。
-            if (params && Object.keys(params).length > 0) {
-              const result = interp.execFnSync(handler, [utils.jsToVal(params)])
-              return utils.valToJs(result)
+          const caller = capCtx?.principal
+          if (!caller) {
+            // UI コマンドパレット (本人操作): 戻り値不要なので fire-and-forget
+            try {
+              interp.execFn(handler, [])
+            } catch (e) {
+              console.warn('[Nd:register_command]', e)
+              throw e
             }
-            interp.execFn(handler, [])
+            return
+          }
+          // dispatcher 経由 (AI tool / HTTP API / 他プラグイン): 呼び出し元を
+          // 積んで handler の完了を待つ。handler 内の Nd:call / Nd:http / Mk:api
+          // は「呼び出し元 ∩ plugin」で判定される (#1099)。user はプロファイルを
+          // 持たないので積まない。以前は params ありを同期実行 (execFnSync)
+          // していたが、同期実行では async native (Nd:call 等) を呼べず、
+          // params なしは fire-and-forget で呼び出し元が失われていた
+          const args =
+            params && Object.keys(params).length > 0
+              ? [utils.jsToVal(params)]
+              : []
+          // 呼び出し元の連鎖ごと積む (AI → 別 plugin の command → この command
+          // のように多段でも、上流全員の AND になる)。user は積まない
+          const tracked = [...(capCtx.onBehalfOf ?? []), caller].filter(
+            (p) => p.kind !== 'user',
+          )
+          ctx.callers.push(...tracked)
+          try {
+            const result = await interp.execFnSimple(handler, args)
+            return utils.valToJs(result)
           } catch (e) {
             console.warn('[Nd:register_command]', e)
             throw e
+          } finally {
+            for (const p of tracked) {
+              const idx = ctx.callers.lastIndexOf(p)
+              if (idx >= 0) ctx.callers.splice(idx, 1)
+            }
           }
         },
       }

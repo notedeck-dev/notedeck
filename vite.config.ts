@@ -418,7 +418,9 @@ function ndApiProxy(): Record<string, ProxyOptions> {
         })
       },
     },
-    // 画像プロキシは無認証なので素通し
+    // 画像プロキシは起動毎トークン (query `t`, #1099) で守られる。ブラウザ
+    // dev はトークンを受け取れないので画像は 403 になる (Dev Dashboard は
+    // 画像を描かない)。Tauri dev の WebView は IPC で受け取るので影響なし
     '/proxy': { target: ND_APP_ORIGIN, changeOrigin: true },
   }
 }

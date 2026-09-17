@@ -12,6 +12,11 @@
  */
 defineProps<{
   label: string
+  /**
+   * ラベルの下に出す補足 (無効な行の理由など)。ツールチップだけだと
+   * タッチ環境で到達できないので (#975)、行の中に置く
+   */
+  hint?: string
   /** 選択中 / 展開中の行を示す */
   active?: boolean
   /** この行を選ぶと次の段がある (chevron を出す) */
@@ -27,7 +32,10 @@ defineProps<{
     :disabled="disabled"
   >
     <slot name="avatar" />
-    <span :class="$style.label">{{ label }}</span>
+    <span :class="$style.label">
+      {{ label }}
+      <span v-if="hint" :class="$style.hint">{{ hint }}</span>
+    </span>
     <slot name="trailing">
       <i v-if="hasNext" class="ti ti-chevron-right" :class="$style.chevron" />
     </slot>
@@ -49,6 +57,12 @@ defineProps<{
   cursor: pointer;
   transition: background var(--nd-duration-fast);
 
+  // 理由つきの無効行は 2 行になるので上下に少し余白を足す
+  &:has(.hint) {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
   &:hover {
     background: var(--nd-buttonHoverBg);
   }
@@ -69,6 +83,14 @@ defineProps<{
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.85em;
+  opacity: 0.7;
+  white-space: normal;
 }
 
 .chevron {

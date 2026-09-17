@@ -25,6 +25,22 @@ const HTTP_MEDIA_BASE = 'http://127.0.0.1:19820/proxy/image'
 
 const proxyUrlCache = new Map<string, string>()
 
+/**
+ * 起動毎のプロキシトークン (#1099)。プロキシ経路は同一マシンの他ブラウザから
+ * 踏み台にされないよう query `t` を要求する。`<img src>` は Authorization
+ * ヘッダーを付けられないので URL に載せる。main.ts が mount 前に
+ * `get_media_proxy_token` で受け取って設定する。未設定 (ブラウザ dev 等) の
+ * URL はサーバーが 403 を返す。
+ */
+let mediaProxyToken: string | null = null
+
+export function setMediaProxyToken(token: string | null): void {
+  if (token === mediaProxyToken) return
+  mediaProxyToken = token
+  // 組み立て済み URL はトークン無しなので捨てる
+  proxyUrlCache.clear()
+}
+
 function getProxyCacheMax(): number {
   try {
     return usePerformanceStore().get('imageProxyCacheMax')
@@ -62,7 +78,7 @@ function buildProxyUrl(
   let cached = proxyUrlCache.get(key)
   if (!cached) {
     evictOldestIfFull(proxyUrlCache, key)
-    cached = `${HTTP_MEDIA_BASE}?url=${encodeURIComponent(url)}${sizeQuery ? `&${sizeQuery}` : ''}`
+    cached = `${HTTP_MEDIA_BASE}?url=${encodeURIComponent(url)}${sizeQuery ? `&${sizeQuery}` : ''}${mediaProxyToken ? `&t=${mediaProxyToken}` : ''}`
     proxyUrlCache.set(key, cached)
   }
   return cached

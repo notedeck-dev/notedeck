@@ -1,7 +1,10 @@
 use axum::{
     body::Body,
     extract::{Path, Query, Request, State},
-    http::{header::AUTHORIZATION, StatusCode},
+    http::{
+        header::{AUTHORIZATION, CONTENT_TYPE},
+        HeaderValue, Method, StatusCode,
+    },
     middleware::{self, Next},
     response::{IntoResponse, Response},
     Json, Router,
@@ -11,7 +14,7 @@ use serde_json::{json, Value};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tauri::AppHandle;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use utoipa::{IntoParams, Modify, OpenApi, ToSchema};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -87,6 +90,45 @@ struct DeckState {
     app_handle: AppHandle,
     api_token: String,
     image_cache: Arc<ImageCache>,
+}
+
+/// 画像プロキシ (`/proxy/image`) 用の起動毎トークン (#1099)。`<img src>` は
+/// Authorization ヘッダーを付けられないので query `t` で運ぶ。WebView は
+/// `get_media_proxy_token` command で受け取る — 同一マシンの他ブラウザで
+/// 開いたページはこの値を知り得ないので、プロキシを踏み台にできない。
+/// ephemeral API トークン (全権) とは分ける: 画像 URL は DOM 中に大量に
+/// 露出するので、そこに全権トークンを置かない。
+#[derive(Clone)]
+pub struct MediaProxyToken(pub String);
+
+/// WebView と dev サーバー以外の origin からの CORS を拒む (#1099)。
+/// 以前は permissive だったため、同一マシンのブラウザで開いた任意ページが
+/// ループバック API を fetch できた (認証は別途あるが、無認証の面を作らない)。
+///
+/// - `tauri://localhost` (macOS / iOS / Linux) と `http(s)://tauri.localhost`
+///   (Windows / Android) が本番 WebView の origin
+/// - `localhost:5173` は `pnpm tauri:dev` の WebView と Dev Dashboard (#977)
+const ALLOWED_ORIGINS: &[&str] = &[
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+];
+
+fn cors_layer() -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::list(
+            ALLOWED_ORIGINS.iter().map(|o| HeaderValue::from_static(o)),
+        ))
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::PATCH,
+        ])
+        .allow_headers([AUTHORIZATION, CONTENT_TYPE])
 }
 
 // --- Error type ---
@@ -175,6 +217,8 @@ pub struct ServeConfig {
     pub token_path: String,
     pub log_dir: Option<String>,
     pub image_cache: Arc<ImageCache>,
+    /// 画像プロキシ経路の起動毎トークン (#1099)
+    pub media_proxy_token: MediaProxyToken,
     pub perf: crate::perf_config::SharedPerfConfig,
     /// 終了通知 (#1098)。受けたら新規接続を止めて graceful に閉じる
     pub shutdown: crate::shutdown::ShutdownToken,
@@ -247,12 +291,18 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
             deck_state.clone(),
             deck_auth_middleware,
         ))
-        .layer(CorsLayer::permissive())
+        .layer(cors_layer())
         .with_state(deck_state.clone());
 
-    // Public image proxy (no auth)
+    // Image proxy: 起動毎のプロキシトークン (query `t`) で守る (#1099)。
+    // WebView の <img> が唯一の正規クライアントで、Authorization ヘッダーを
+    // 付けられないため Bearer 認証ではなく専用トークン
     let proxy_routes = proxy_openapi_router()
-        .layer(CorsLayer::permissive())
+        .layer(middleware::from_fn_with_state(
+            config.media_proxy_token.clone(),
+            proxy_auth_middleware,
+        ))
+        .layer(cors_layer())
         .with_state(deck_state);
 
     // Merge every annotated route into one OpenApiRouter — the Router half is
@@ -265,7 +315,7 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
 
     // Public meta routes (no auth): `/api` index, raw spec, Scalar UI.
     let meta_routes = meta_openapi_router()
-        .layer(CorsLayer::permissive())
+        .layer(cors_layer())
         .with_state(MetaState {
             openapi: openapi.clone(),
             token_path: config.token_path.clone(),
@@ -355,6 +405,36 @@ async fn host_guard_middleware(req: Request, next: Next) -> Result<Response, Res
         Err((
             StatusCode::FORBIDDEN,
             Json(json!({ "error": "FORBIDDEN", "message": "Invalid Host header" })),
+        )
+            .into_response())
+    }
+}
+
+/// query 文字列から key の値 (最初の 1 件) を取り出す。プロキシトークンは
+/// hex 固定なので percent-decode は不要。
+fn query_param<'a>(query: Option<&'a str>, key: &str) -> Option<&'a str> {
+    query?
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .find(|(k, _)| *k == key)
+        .map(|(_, v)| v)
+}
+
+/// 画像プロキシ経路の認証 (#1099)。query `t` が起動毎のプロキシトークンと
+/// 一致しなければ 403。
+async fn proxy_auth_middleware(
+    State(token): State<MediaProxyToken>,
+    req: Request,
+    next: Next,
+) -> Result<Response, Response> {
+    let presented = query_param(req.uri().query(), "t").unwrap_or("");
+    if bool::from(presented.as_bytes().ct_eq(token.0.as_bytes())) {
+        Ok(next.run(req).await)
+    } else {
+        tracing::warn!(uri = %req.uri().path(), "media proxy request without a valid token");
+        Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "FORBIDDEN", "message": "Invalid media proxy token" })),
         )
             .into_response())
     }
@@ -698,7 +778,8 @@ async fn get_health(
     // 永続トークン由来 (external principal) で deck.read が無い場合、streams
     // 詳細 (接続先 host 等のローカルデータ) は応答から間引く (#712 §5.3)。
     // self-diagnosis の summary 部 (backendReady / frontendReady 等) は返す
-    let may_read_streams = external.is_none() || crate::permissions_gate::external_may_read_deck();
+    let may_read_streams =
+        external.is_none() || crate::permissions_gate::external_may_read_deck().await;
 
     if let Value::Object(map) = &mut body {
         match query_bridge::query_frontend(app, "health/streams", json!({})).await {
@@ -864,6 +945,10 @@ struct ProxyImageParams {
     /// their first frame, like Misskey's media proxy (#931)
     #[serde(rename = "static")]
     static_frame: Option<u8>,
+    /// 起動毎の画像プロキシトークン (#1099)。WebView が
+    /// `get_media_proxy_token` で受け取って付ける。無効なら 403
+    #[allow(dead_code)]
+    t: Option<String>,
 }
 
 #[utoipa::path(get, path = "/proxy/image", tag = "proxy",
@@ -871,6 +956,7 @@ struct ProxyImageParams {
     responses(
         (status = 200, description = "Proxied image (with 3-layer cache)"),
         (status = 304, description = "Not Modified (ETag match)"),
+        (status = 403, description = "Missing or invalid media proxy token"),
         (status = 502, description = "Upstream fetch failed"),
     )
 )]
@@ -998,6 +1084,87 @@ mod tests {
             .await
             .expect("router should respond")
             .status()
+    }
+
+    /// 画像プロキシのトークン検査 (#1099)。
+    async fn proxy_status_for(query: &str) -> StatusCode {
+        let app = Router::new()
+            .route("/proxy/image", get(|| async { "img" }))
+            .layer(middleware::from_fn_with_state(
+                MediaProxyToken("abc123".to_string()),
+                proxy_auth_middleware,
+            ));
+        let req = Request::builder()
+            .uri(format!("/proxy/image{query}"))
+            .body(Body::empty())
+            .unwrap();
+        app.oneshot(req)
+            .await
+            .expect("router should respond")
+            .status()
+    }
+
+    #[tokio::test]
+    async fn proxy_requires_the_boot_token() {
+        assert_eq!(
+            proxy_status_for("?url=https://x/a.png").await,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            proxy_status_for("?url=https://x/a.png&t=wrong").await,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            proxy_status_for("?url=https://x/a.png&t=abc123").await,
+            StatusCode::OK
+        );
+        // 位置は問わない
+        assert_eq!(
+            proxy_status_for("?t=abc123&url=https://x/a.png").await,
+            StatusCode::OK
+        );
+    }
+
+    /// CORS は WebView / dev サーバーの origin だけに開く (#1099)。
+    async fn cors_allow_origin_for(origin: &str) -> Option<String> {
+        let app = Router::new()
+            .route("/ping", get(|| async { "pong" }))
+            .layer(cors_layer());
+        let req = Request::builder()
+            .method(Method::OPTIONS)
+            .uri("/ping")
+            .header(axum::http::header::ORIGIN, origin)
+            .header(axum::http::header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+            .body(Body::empty())
+            .unwrap();
+        app.oneshot(req)
+            .await
+            .expect("router should respond")
+            .headers()
+            .get(axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN)
+            .map(|v| v.to_str().unwrap_or("").to_string())
+    }
+
+    #[tokio::test]
+    async fn cors_is_an_allowlist() {
+        assert_eq!(
+            cors_allow_origin_for("http://tauri.localhost")
+                .await
+                .as_deref(),
+            Some("http://tauri.localhost")
+        );
+        assert_eq!(
+            cors_allow_origin_for("tauri://localhost").await.as_deref(),
+            Some("tauri://localhost")
+        );
+        assert_eq!(
+            cors_allow_origin_for("http://localhost:5173")
+                .await
+                .as_deref(),
+            Some("http://localhost:5173")
+        );
+        assert_eq!(cors_allow_origin_for("https://evil.example").await, None);
+        assert_eq!(cors_allow_origin_for("http://localhost:3000").await, None);
     }
 
     #[tokio::test]

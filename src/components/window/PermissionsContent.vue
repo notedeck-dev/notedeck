@@ -299,7 +299,19 @@ const ROWS: readonly {
     label: '外部アプリ',
     hint: 'HTTP API (永続トークン) 経由の外部アプリに許可する操作',
   },
+  {
+    id: 'scratchpad',
+    icon: 'ti-terminal-2',
+    label: 'スクラッチパッド',
+    hint: 'スクラッチパッドカラムで自分が書いて実行するコードに許可する操作 (既定は読み取りのみ)',
+  },
 ]
+
+// スクラッチパッドは開発者向けの面 (#1034) なので行も developer 露出の下に置く。
+// 露出は入口を隠すだけで、隠れている間もプロファイル (既定 readonly) は効く
+const visibleRows = computed(() =>
+  ROWS.filter((row) => row.id !== 'scratchpad' || isExposed('developer')),
+)
 
 function disabledFor(id: ProfiledPrincipalId) {
   if (id === 'plugin') return PLUGIN_DISABLED
@@ -411,7 +423,7 @@ function handleReset() {
       @change="scheduleSave"
       @click="scheduleSave"
     >
-      <div v-for="row in ROWS" :key="row.id" :class="$style.principalRow">
+      <div v-for="row in visibleRows" :key="row.id" :class="$style.principalRow">
       <button class="_button" :class="$style.rowHeader" @click="toggleRow(row.id)">
         <i :class="'ti ' + row.icon" />
         <span :class="$style.rowLabel">{{ row.label }}</span>

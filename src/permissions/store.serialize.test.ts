@@ -22,13 +22,6 @@ vi.mock('@/utils/settingsFs', () => ({
     }),
 }))
 
-vi.mock('@/utils/tauriInvoke', () => ({
-  commands: {
-    permissionsSync: () => Promise.resolve({ status: 'ok', data: null }),
-  },
-  unwrap: (r: unknown) => r,
-}))
-
 describe('save → reload 直列化 (#716)', () => {
   it('reload の読込は進行中の save の書き込み完了を待つ', async () => {
     const {

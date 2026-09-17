@@ -18,6 +18,7 @@ mod http;
 mod lists;
 mod messaging;
 mod settings;
+pub(crate) use settings::SETTINGS_DIR;
 mod streaming;
 mod system_state;
 mod timeline;

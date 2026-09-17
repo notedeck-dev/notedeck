@@ -2253,6 +2253,15 @@ async getSettingsDir() : Promise<Result<string, { code: string; message: string;
 }
 },
 /**
+ * 画像プロキシ (`/proxy/image`) の起動毎トークン (#1099)。フロントは起動時に
+ * 1 回受け取り、プロキシ URL の query `t` に載せる。
+ *
+ * @see src-tauri/src/commands/utility.rs
+ */
+async getMediaProxyToken() : Promise<string> {
+    return await TAURI_INVOKE("get_media_proxy_token");
+},
+/**
  * Get the log directory path (`app_log_dir`, holds `notedeck.log` — #644).
  * Separate from the settings dir, so the "ファイル → ログフォルダを開く" menu
  * item can reveal it. Created if missing so it opens even when empty.
@@ -2826,40 +2835,6 @@ async updatePerformanceConfig(config: PerformanceConfig) : Promise<Result<null, 
 async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_performance_config") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * フロントの `resolveFor('external')` の結果を受け取る (#712 §4.2)。
- * `reloadPermissionsConfig()` / 権限保存が必ずこれを伴う。
- *
- * @see src-tauri/src/permissions_gate.rs
- */
-async permissionsSync(externalGranted: Partial<{ [key in string]: boolean }>) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("permissions_sync", { externalGranted }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * external gate をフェイルセーフに倒す (#718)。sync がリトライ後も失敗し
- * 続けると、フロントの絞った権限が Rust に届かず古い広い map のまま動いて
- * しまう。フロントは失敗確定時にこれを呼び、floor 以外を全 deny の状態
- * (空 map) に固定する。以後は次の成功 sync が来るまで最小権限で動く。
- * 
- * 引数を取らないので、payload の serialize / 大きさ起因で `permissions_sync`
- * が失敗するケースでも到達できる (IPC 自体が全断ならこの呼び出しも失敗する
- * が、その場合フロントは警告に残す)。
- *
- * @see src-tauri/src/permissions_gate.rs
- */
-async permissionsLockdown() : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("permissions_lockdown") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

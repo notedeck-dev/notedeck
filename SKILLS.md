@@ -298,7 +298,7 @@ AI には `tool_result` の `content` として文字列化された結果が返
 
 ## 5. permissions スキーマ
 
-権限は principal (`ai.chat` / `ai.heartbeat` / `plugin` / `external`) 別に `<config dir>/notedeck/permissions.json5` で管理される (#712 で AI 設定から独立ファイルに隔離 — capability からは書き換え不能)。各 principal のプロファイルは `preset` + `custom` で表現:
+権限は principal (`ai.chat` / `ai.heartbeat` / `plugin` / `external` / `scratchpad`) 別に `<config dir>/notedeck/permissions.json5` で管理される (#712 で AI 設定から独立ファイルに隔離 — capability からは書き換え不能)。各 principal のプロファイルは `preset` + `custom` で表現:
 
 | preset | readonly | safe | full | custom |
 |---|---|---|---|---|
@@ -311,7 +311,7 @@ AI には `tool_result` の `content` として文字列化された結果が返
 - キーの一覧は `src/permissions/schema.ts` の `PERMISSION_KEYS` が正本 (capability の `permissions[]` 宣言が語彙を定義する)
 - capability の `permissions: PermissionKey[]` 宣言と principal の解決値 (`resolveFor(principal)`) を **AND 照合** で評価。不許可なら `permission_denied`
 - principal 別デフォルト: `ai.chat` = safe / `ai.heartbeat` = readonly (無人実行は安全側) / `plugin` = safe + `network.external` / `external` = readonly からローカル私的データ read (`memos.read` / `drafts.read` / `skills.read` 等) を落とした縮小 custom
-- resolve 時の恒久 clamp (保存値より優先): `skills.write` / `ai.persona.write` / `tasks.run` / `backup.create` は plugin / external に恒久 deny (full preset でも拒否)。plugin は `vault.use` も deny。external は Misskey コンテンツ read 4 キー (`notes.read` / `account.read` / `drive.read` / `clips.read`) が常時 ON (トークン発行 = read への同意)
+- resolve 時の恒久 clamp (保存値より優先): `skills.write` / `ai.persona.write` / `tasks.run` / `backup.create` は plugin / external に恒久 deny (full preset でも拒否)。plugin の `vault.use` は clamp しない (既定 OFF で、接続ごとの `exposedTo` 開示が要る二段 gate #759)。external は Misskey コンテンツ read 4 キー (`notes.read` / `account.read` / `drive.read` / `clips.read`) が常時 ON (トークン発行 = read への同意)
 - `custom` プリセットでは個別に on/off
 - 自己編集系は `safe` 以上で許可。write 系 capability は全て dispatch 直前の確認ダイアログで enforce される (§5.2)
 

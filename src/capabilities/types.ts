@@ -80,6 +80,12 @@ export interface CapabilityContext {
   /** この実行を要求している主体 (#712)。dispatcher 経由なら必ず入る */
   principal?: Principal
   /**
+   * principal を呼び出した上流の主体 (#1099)。capability が内側でさらに
+   * 権限判定をする (tasks.run の endpoint gate、plugin 登録 command の handler
+   * 実行) ときに、直近の呼び出し元だけでなく連鎖全体で AND を取れるようにする
+   */
+  onBehalfOf?: readonly Principal[]
+  /**
    * 呼び出し文脈のアカウント (#821)。プラグインのノート/ユーザーアクション
    * 経由ならそのエンティティの所属アカウントが入る。capability 側は
    * 「明示的な params.accountId → ctx.accountId」の順で解決する

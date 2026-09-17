@@ -24,16 +24,20 @@ import {
 } from '@/composables/useNoteColumnCache'
 import { useNoteList } from '@/composables/useNoteList'
 import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
+import type { VisibilityOpts } from '@/composables/useNoteVisibility'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
+import { useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
+import { FAVORITES_CACHE_KEY } from '@/utils/columnCacheKey'
 import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { AppError } from '@/utils/errors'
+import { toggleFavorite } from '@/utils/toggleFavorite'
 import { toggleReaction } from '@/utils/toggleReaction'
 import { votePoll } from '@/utils/votePoll'
 import { createWorkerClient } from '@/utils/workerClient'
@@ -62,6 +66,12 @@ export interface CrossAccountNotesOptions {
   scroller: Ref<HTMLElement | null>
   onScrollReport: () => void
   closePostForm?: () => void
+
+  /**
+   * 表示制御の例外 (per-account の `NoteColumnConfig.visibility` と同じ)。
+   * お気に入りのような「自分が保存した面」は凍結を貫通させる (#606)
+   */
+  visibility?: VisibilityOpts
 
   /**
    * ライブ更新 (#1059)。アカウントごとに購読し、新着は 1 つの
@@ -134,7 +144,7 @@ function dedupAsync(
 }
 
 /**
- * 全アカウント面 (メンション / ダイレクト) の取得と束ね (#1058 P2a)。
+ * 全アカウント面 (メンション / ダイレクト / お気に入り 等) の取得と束ね (#1058 P2a)。
  *
  * 列は `useNoteList` (行キーの順序配列 + noteStore) に載せ、`bundle` で同一
  * identity の variant を 1 行に畳む。これで楽観更新の patch・削除 tombstone・
@@ -163,6 +173,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   const list = useNoteList({
     bundle: true,
     getAdapter: () => null,
+    visibility: options.visibility,
     closePostForm: options.closePostForm ?? (() => undefined),
     deleteHandler: async (note) => {
       const adapter = await multiAdapters.getOrCreate(note._accountId)
@@ -469,8 +480,12 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     if (cached.length > 0) setNotes(cached)
 
     const accounts = accountsStore.accounts.filter((a) => a.hasToken)
-    // 全アカウントがログアウト中なら live fetch せずキャッシュ表示のみ
+    // 全アカウントがログアウト中なら live fetch せずキャッシュ表示のみ。
+    // キャッシュも無ければ (最後のアカウントを消した等) 表示を空にする —
+    // 上の setNotes は空キャッシュで呼ばないので、ここで消さないと削除済み
+    // アカウントの行が残る
     if (accounts.length === 0) {
+      if (cached.length === 0) setNotes([])
       isLoading.value = false
       return
     }
@@ -619,6 +634,27 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     }
   }
 
+  /**
+   * 主ビューの variant をお気に入りに登録 / 解除する。宛先はその variant の
+   * 取得元アカウント。useColumnSetup の bookmark ハンドラはカラム固有の
+   * adapter を前提にしているので全アカウント面では no-op になる — ここで
+   * variant ごとに解決する (#1017)。成功したらお気に入りカラムの無効化
+   * シグナルを出し、全アカウントのお気に入り面も取り直す
+   */
+  async function bookmark(note: NormalizedNote) {
+    const adapter = await multiAdapters.getOrCreate(note._accountId)
+    if (!adapter) return
+    try {
+      await toggleFavorite(adapter.api, note, () =>
+        applyPatch(note, () => ({ isFavorited: note.isFavorited })),
+      )
+      useDeckStore().invalidateColumnByKey(FAVORITES_CACHE_KEY)
+    } catch (e) {
+      const err = AppError.from(e)
+      toast.show(`ブックマークに失敗しました（${err.displayCode}）`, 'error')
+    }
+  }
+
   async function vote(choice: number, note: NormalizedNote) {
     const adapter = await multiAdapters.getOrCreate(note._accountId)
     if (!adapter) return
@@ -657,6 +693,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     handleScroll,
     removeNote,
     react,
+    bookmark,
     vote,
     pendingCount,
     animatingRowKeys,
