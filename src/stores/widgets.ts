@@ -412,26 +412,24 @@ export const useWidgetsStore = defineStore('widgets', () => {
     const widget = widgets.value.find((w) => w.installId === installId)
     if (!widget) return false
     if (rejectIfReadOnly(widget)) return false
-    {
-      // 編集前 src を history sidecar に push (fire-and-forget)。
-      // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
-      // 内容が同じ保存では積まない (plugins.updateSrc と同じ理由)
-      if (widget.fileBase && widget.src !== src) {
-        pushSnapshot(
-          'widget',
-          widget.fileBase,
-          {
-            src: widget.src,
-            name: widget.name,
-            autoRun: widget.autoRun,
-          },
-          attribution,
-        ).catch((e) => console.warn('[widgets] history push failed:', e))
-      }
-      widget.src = src
-      widget.updatedAt = Date.now()
-      persist(widget)
+    // 編集前 src を history sidecar に push (fire-and-forget)。
+    // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
+    // 内容が同じ保存では積まない (plugins.updateSrc と同じ理由)
+    if (widget.fileBase && widget.src !== src) {
+      pushSnapshot(
+        'widget',
+        widget.fileBase,
+        {
+          src: widget.src,
+          name: widget.name,
+          autoRun: widget.autoRun,
+        },
+        attribution,
+      ).catch((e) => console.warn('[widgets] history push failed:', e))
     }
+    widget.src = src
+    widget.updatedAt = Date.now()
+    persist(widget)
     return true
   }
 

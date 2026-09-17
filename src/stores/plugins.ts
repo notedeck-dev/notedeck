@@ -520,28 +520,26 @@ export const usePluginsStore = defineStore('plugins', () => {
     const plugin = plugins.value.find((p) => p.installId === installId)
     if (!plugin) return false
     if (rejectIfReadOnly(plugin)) return false
-    {
-      // 編集前 src を history sidecar に push (fire-and-forget)。
-      // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
-      // 内容が同じ保存では積まない — エディタのデバウンス自動保存でリングを
-      // 使い潰し、意味のある編集前の状態が押し出されるのを防ぐ
-      if (plugin.fileBase && plugin.src !== src) {
-        pushSnapshot(
-          'plugin',
-          plugin.fileBase,
-          {
-            src: plugin.src,
-            name: plugin.name,
-            version: plugin.version,
-            permissions: plugin.permissions,
-            active: plugin.active,
-          },
-          attribution,
-        ).catch((e) => console.warn('[plugins] history push failed:', e))
-      }
-      plugin.src = src
-      persist(plugin)
+    // 編集前 src を history sidecar に push (fire-and-forget)。
+    // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
+    // 内容が同じ保存では積まない — エディタのデバウンス自動保存でリングを
+    // 使い潰し、意味のある編集前の状態が押し出されるのを防ぐ
+    if (plugin.fileBase && plugin.src !== src) {
+      pushSnapshot(
+        'plugin',
+        plugin.fileBase,
+        {
+          src: plugin.src,
+          name: plugin.name,
+          version: plugin.version,
+          permissions: plugin.permissions,
+          active: plugin.active,
+        },
+        attribution,
+      ).catch((e) => console.warn('[plugins] history push failed:', e))
     }
+    plugin.src = src
+    persist(plugin)
     return true
   }
 
