@@ -24,6 +24,11 @@ import { resolveFor, whenPermissionsReady } from './store'
 export interface MisskeyApiGateOptions {
   /** エラー文と拒否バッジに出す入口の名前 (既定 `Mk:api`) */
   source?: string
+  /**
+   * 実行体を呼び出した上流の principal (#1099)。実効権限は
+   * 「呼び出し元 ∩ 実行体」— 全員が endpoint のキーを持たなければ拒否
+   */
+  onBehalfOf?: readonly Principal[]
 }
 
 function denyForPlugin(
@@ -52,9 +57,13 @@ export async function assertMisskeyApiAllowed(
   // dispatcher と同じく読込完了を待ってから判定する。
   await whenPermissionsReady()
 
-  // user (playground / 本人操作) は gate 免除
-  const granted = resolveFor(principal)
-  if (granted === null) return
+  // 判定対象 = 実行体 + 呼び出し元 (#1099)。user はプロファイルを持たない
+  // (本人操作) ので外れる。全員が user なら gate 免除
+  const subjects = [principal, ...(options?.onBehalfOf ?? [])].flatMap((p) => {
+    const granted = resolveFor(p)
+    return granted === null ? [] : [{ principal: p, granted }]
+  })
+  if (subjects.length === 0) return
 
   const target = `${source} ${endpoint}`
   const rule: MisskeyEndpointRule | undefined = MISSKEY_ENDPOINT_RULES[endpoint]
@@ -75,11 +84,12 @@ export async function assertMisskeyApiAllowed(
   }
 
   const requiredKey = rule as PermissionKey
-  if (!granted[requiredKey]) {
+  const blocked = subjects.find((s) => !s.granted[requiredKey])
+  if (blocked) {
     denyForPlugin(principal, target, [requiredKey])
     throw new Error(
       `${source}: permission_denied for "${endpoint}" — requires "${requiredKey}"` +
-        ` (permissions.json5 の ${principal.kind} プロファイルで許可すると使えます)`,
+        ` (permissions.json5 の ${blocked.principal.kind} プロファイルで許可すると使えます)`,
     )
   }
 }

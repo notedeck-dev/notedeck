@@ -90,6 +90,36 @@ describe('assertMisskeyApiAllowed (#712 §5.5)', () => {
     expect(getPluginDenial('p1')).toBeNull()
   })
 
+  it('onBehalfOf の principal も AND で検査される (#1099)', async () => {
+    setPluginPreset('full')
+    const { file } = usePermissionsConfig()
+    file.value.principals['ai.chat'] = setPermissionPreset(
+      file.value.principals['ai.chat'] ?? {
+        preset: 'readonly',
+        custom: {} as never,
+      },
+      'readonly',
+    )
+    const plugin = { kind: 'plugin', pluginId: 'p1' } as const
+    await expect(
+      assertMisskeyApiAllowed(plugin, 'notes/create', {
+        onBehalfOf: [{ kind: 'ai.chat' }],
+      }),
+    ).rejects.toThrow(/ai\.chat プロファイル/)
+    // user の呼び出し元は制限にならない
+    await expect(
+      assertMisskeyApiAllowed(plugin, 'notes/create', {
+        onBehalfOf: [{ kind: 'user' }],
+      }),
+    ).resolves.toBeUndefined()
+    // user の実行体でも AI の呼び出し元があれば検査される
+    await expect(
+      assertMisskeyApiAllowed({ kind: 'user' }, 'notes/create', {
+        onBehalfOf: [{ kind: 'ai.chat' }],
+      }),
+    ).rejects.toThrow(/permission_denied/)
+  })
+
   it('user (playground) は gate 免除', async () => {
     setPluginPreset('readonly')
     await expect(

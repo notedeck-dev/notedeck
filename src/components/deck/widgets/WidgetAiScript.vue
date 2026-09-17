@@ -26,6 +26,7 @@ import { useCommandStore } from '@/commands/registry'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import { usePortal } from '@/composables/usePortal'
+import type { Principal } from '@/permissions/principal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useToast } from '@/stores/toast'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
@@ -187,8 +188,12 @@ async function run() {
     return
   }
 
+  // この env の登録 capability を実行中の呼び出し元 (#1099) — Mk:api と
+  // Nd:* が同じ配列を見る
+  const callers: Principal[] = []
   const env = createAiScriptEnv(
     {
+      getCallers: () => callers,
       principal: {
         kind: 'plugin',
         pluginId: `widget:${props.widget.installId}`,
@@ -248,6 +253,7 @@ async function run() {
       props.widget.storeId,
     ),
     disposers: [],
+    callers,
     getAccountId: () => props.accountId,
   }
   const ndEnv = createNoteDeckEnv(ndCtx)

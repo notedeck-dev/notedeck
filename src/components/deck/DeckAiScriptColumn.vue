@@ -29,6 +29,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { useVerticalResize } from '@/composables/useVerticalResize'
+import type { Principal } from '@/permissions/principal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
@@ -218,8 +219,12 @@ async function run() {
     return
   }
 
+  // この env の登録 capability を実行中の呼び出し元 (#1099) — Mk:api と
+  // Nd:* が同じ配列を見る
+  const callers: Principal[] = []
   const env = createAiScriptEnv(
     {
+      getCallers: () => callers,
       // スクラッチパッド専用 principal (#1099): 本人のコードでも全許可
       // (user) は配らず、権限ウィンドウの scratchpad 行で解決する
       principal: { kind: 'scratchpad' } as const,
@@ -253,6 +258,7 @@ async function run() {
     // コード同士なので黙って上書きするより気付ける方がよい
     provider: providerFromPrincipal({ kind: 'scratchpad' }),
     disposers: [],
+    callers,
     getAccountId: () => props.column.accountId ?? null,
   }
   const ndEnv = createNoteDeckEnv(ndCtx)

@@ -8,6 +8,7 @@ import {
 import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
 import type { JsonValue } from '@/bindings'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
+import type { Principal } from '@/permissions/principal'
 import { pluginProviderKey } from '@/plugins/registrationId'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
@@ -527,8 +528,12 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
   pluginAccountContext.set(plugin.installId, ctx)
 
   // Build environment: base Mk:* (overridden by plugin-specific Mk:api) + Plugin:* + Nd:*
+  // この env の登録 capability を実行中の呼び出し元 (#1099) — Mk:api と
+  // Nd:* が同じ配列を見る
+  const callers: Principal[] = []
   const baseEnv = createAiScriptEnv(
     {
+      getCallers: () => callers,
       principal: {
         kind: 'plugin',
         pluginId: plugin.installId,
@@ -555,6 +560,7 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
     },
     provider: pluginProviderKey(plugin),
     disposers: [],
+    callers,
     // Nd:call が Mk:api と同じアカウント文脈 (withPluginAccountContext) を
     // 参照する (#821)
     getAccountId: () => ctx.accountId,
