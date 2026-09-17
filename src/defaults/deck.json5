@@ -1,0 +1,9 @@
+// NoteDeck deck.json5 デフォルト
+// 初回起動 (プロファイルが 1 つも無いとき) に組む既定のカラム構成 (#1011)。
+// 差別化 (クロスアカウント) が起動直後に見えるよう、全アカウント (accountId: null)
+// のカラムだけで組む。id は実行時採番なので持たない (navbar.json5 と同じ流儀)
+// 通知はナビバーからサイドバーに開く導線 (チュートリアル) があるので置かない
+[
+  { type: 'mentions', accountId: null },
+  { type: 'timeline', accountId: null, tl: 'home' },
+]

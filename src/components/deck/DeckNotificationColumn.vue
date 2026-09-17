@@ -22,6 +22,7 @@ import type {
 } from '@/adapters/types'
 import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkEmoji from '@/components/common/MkEmoji.vue'
@@ -66,6 +67,7 @@ import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
+import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { AppError } from '@/utils/errors'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
@@ -348,6 +350,8 @@ function probeSuspensions(items: NormalizedNotification[]) {
   }
 }
 const followRequestStates = ref<Record<string, 'accepted' | 'rejected'>>({})
+/** 全アカウント取得の進捗 (#1095)。取得中以外は null */
+const crossProgress = ref<SettleProgress | null>(null)
 
 // --- Notification cache helpers ---
 
@@ -817,21 +821,33 @@ async function connectCrossAccount(useCache = false) {
   }
 
   try {
-    const results = await Promise.allSettled(
-      accounts.map(async (acc) => {
+    crossProgress.value = { done: 0, total: accounts.length }
+    const allNotifs: NormalizedNotification[] = []
+    await mapWithConcurrency(
+      accounts,
+      async (acc) => {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return []
         return fetchNotifications(adapter.api, acc.host)
-      }),
+      },
+      accounts.length,
+      (r, _acc, progress) => {
+        if (isStale()) return
+        crossProgress.value = progress
+        if (r.status !== 'fulfilled' || !r.value) return
+        allNotifs.push(...r.value)
+        // 何も出ていなければ最初に返った分で描画する (#1095)。既に何か出て
+        // いれば全部揃ってから 1 回で並べ直す (画面が動くのを 1 回に抑える)
+        if (
+          notifications.value.length === 0 &&
+          r.value.length > 0 &&
+          progress.done < progress.total
+        ) {
+          notifications.value = mergeNotifications(r.value, cached)
+        }
+      },
     )
     if (isStale()) return
-
-    const allNotifs: NormalizedNotification[] = []
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) {
-        allNotifs.push(...r.value)
-      }
-    }
 
     notifications.value = mergeNotifications(allNotifs, cached)
     saveCache()
@@ -873,7 +889,10 @@ async function connectCrossAccount(useCache = false) {
     }
   } finally {
     // 新しい呼び出しがロード中なら、その表示状態を奪わない
-    if (!isStale()) isLoading.value = false
+    if (!isStale()) {
+      isLoading.value = false
+      crossProgress.value = null
+    }
   }
 }
 
@@ -918,6 +937,10 @@ async function loadMorePerAccount() {
 async function loadMoreCrossAccount() {
   if (isLoading.value || noMoreData.value) return
   if (notifications.value.length === 0) return
+  // connectCrossAccount と世代を共有する。追加取得中にアカウント集合が変わって
+  // 張り直しが始まったら、削除済みアカウントの通知を戻さず、表示状態も奪わない
+  const generation = crossReconnectGeneration
+  const isStale = () => generation !== crossReconnectGeneration
   isLoading.value = true
 
   const accounts = accountsStore.accounts.filter((a) => a.hasToken)
@@ -931,8 +954,11 @@ async function loadMoreCrossAccount() {
   }
 
   try {
-    const results = await Promise.allSettled(
-      accounts.map(async (acc) => {
+    crossProgress.value = { done: 0, total: accounts.length }
+    let gotAny = false
+    await mapWithConcurrency(
+      accounts,
+      async (acc) => {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return []
         const lastForAccount = lastByAccount.get(acc.id)
@@ -940,27 +966,31 @@ async function loadMoreCrossAccount() {
         return fetchNotifications(adapter.api, acc.host, {
           untilId: lastForAccount.id,
         })
-      }),
+      },
+      accounts.length,
+      // 返ったアカウントの分から順に足す (#1095)
+      (r, _acc, progress) => {
+        if (isStale()) return
+        crossProgress.value = progress
+        if (r.status !== 'fulfilled' || !r.value?.length) return
+        gotAny = true
+        notifications.value = mergeNotifications(r.value, notifications.value)
+      },
     )
+    if (isStale()) return
 
-    const olderNotifs: NormalizedNotification[] = []
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) {
-        olderNotifs.push(...r.value)
-      }
-    }
-
-    if (olderNotifs.length === 0) {
+    if (!gotAny) {
       noMoreData.value = true
       return
     }
-
-    notifications.value = mergeNotifications(olderNotifs, notifications.value)
     saveCache()
   } catch (e) {
-    error.value = AppError.from(e)
+    if (!isStale()) error.value = AppError.from(e)
   } finally {
-    isLoading.value = false
+    if (!isStale()) {
+      isLoading.value = false
+      crossProgress.value = null
+    }
   }
 }
 
@@ -1198,7 +1228,8 @@ onUnmounted(() => {
       </div>
 
       <div v-if="isLoading && notifications.length === 0" :class="$style.columnLoading">
-        <LoadingSpinner />
+        <CrossAccountProgress v-if="crossProgress" :progress="crossProgress" />
+        <LoadingSpinner v-else />
       </div>
 
       <ColumnEmptyState
@@ -1431,7 +1462,8 @@ onUnmounted(() => {
 
         <template #append>
           <div v-if="isLoading && notifications.length > 0" :class="$style.loadingMore">
-            <LoadingSpinner />
+            <CrossAccountProgress v-if="crossProgress" :progress="crossProgress" :size="20" />
+            <LoadingSpinner v-else />
           </div>
         </template>
       </NoteScroller>

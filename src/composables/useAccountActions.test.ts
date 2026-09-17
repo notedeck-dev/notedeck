@@ -81,3 +81,39 @@ describe('アカウント削除でウィジェット個体を消す順序 (#1061
     expect(h.deckStore.purgeAccountWidgets).not.toHaveBeenCalled()
   })
 })
+
+describe('アカウント削除でカラムを閉じる順序 (#1091)', () => {
+  const ownColumn = { id: 'col-own', accountId: acc.id }
+  const otherColumn = { id: 'col-other', accountId: 'uuid-other' }
+  const crossColumn = { id: 'col-cross', accountId: null }
+
+  beforeEach(() => {
+    h.deckStore.columns = [ownColumn, otherColumn, crossColumn]
+  })
+
+  it('backend 削除が成功してから、そのアカウントのカラムだけを閉じる', async () => {
+    const { deleteAccount } = useAccountActions()
+
+    await deleteAccount(acc)
+    await vi.waitFor(() =>
+      expect(h.deckStore.removeColumn).toHaveBeenCalledWith(ownColumn.id),
+    )
+
+    expect(h.deckStore.removeColumn).toHaveBeenCalledTimes(1)
+    const removeAccountOrder =
+      h.accountsStore.removeAccount.mock.invocationCallOrder[0] ?? 0
+    const removeColumnOrder =
+      h.deckStore.removeColumn.mock.invocationCallOrder[0] ?? 0
+    expect(removeColumnOrder).toBeGreaterThan(removeAccountOrder)
+  })
+
+  it('backend 削除が失敗したらカラムを閉じない (アカウントが残るのにカラムだけ消えた状態を作らない)', async () => {
+    h.accountsStore.removeAccount.mockRejectedValue(new Error('db locked'))
+    const { deleteAccount } = useAccountActions()
+
+    await deleteAccount(acc)
+    await vi.waitFor(() => expect(h.toast.show).toHaveBeenCalled())
+
+    expect(h.deckStore.removeColumn).not.toHaveBeenCalled()
+  })
+})

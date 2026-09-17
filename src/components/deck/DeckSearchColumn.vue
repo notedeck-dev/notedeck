@@ -12,6 +12,7 @@ import {
 } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
@@ -22,6 +23,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import type { NoteGroup } from '@/services/noteGroup'
 import { variantKeyOf } from '@/services/noteKey'
+import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
@@ -58,6 +60,13 @@ const props = defineProps<{
 }>()
 
 const isCrossAccount = computed(() => props.column.accountId == null)
+/** 全アカウントのサーバー検索の進捗 (#1095)。取得中以外は null */
+const crossProgress = ref<SettleProgress | null>(null)
+/**
+ * 検索の世代。同じクエリで条件 (日付・並び順) だけ変えた再実行はクエリ文字列
+ * では区別できないので、走行中の検索が古いかどうかは世代で判定する
+ */
+let searchGeneration = 0
 // 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
 provideNoteFrame(isCrossAccount)
 const accountsStore = useAccountsStore()
@@ -428,18 +437,20 @@ async function performSearch() {
   isLoading.value = true
   isPreview.value = false
   confirmedQuery.value = q
+  const gen = ++searchGeneration
 
   deckStore.updateColumn(props.column.id, { query: q })
 
   const hint = getSearchHint(q)
 
   if (isCrossAccount.value) {
-    await performSearchCrossAccount(q, hint)
+    await performSearchCrossAccount(q, hint, gen)
   } else {
     await performSearchPerAccount(q, hint)
   }
 
-  isLoading.value = false
+  // 走行中に別の検索が始まっていたら、その表示状態を奪わない
+  if (gen === searchGeneration) isLoading.value = false
 }
 
 async function performSearchPerAccount(q: string, hint: string) {
@@ -495,7 +506,7 @@ async function performSearchPerAccount(q: string, hint: string) {
   }
 }
 
-async function performSearchCrossAccount(q: string, hint: string) {
+async function performSearchCrossAccount(q: string, hint: string, gen: number) {
   const accounts = accountsStore.accounts
 
   // Local search first (instant) if not already showing preview
@@ -528,31 +539,45 @@ async function performSearchCrossAccount(q: string, hint: string) {
     }
   }
 
-  // Server search across all accounts
+  // Server search across all accounts。返ったアカウントの分から順に出す
+  // (#1095)。Meilisearch 未導入のサーバーは PostgreSQL 走査で遅く、1 つの
+  // 遅いサーバーが他の結果まで止めていた。検索は「速い分から」で素直に
+  // 良くなる面なので初回から段階的に描く
   if (hint) {
+    crossProgress.value = { done: 0, total: accounts.length }
+    let merged = hasLocalResults.value ? rawNotes.value : []
     try {
-      const serverResults = await Promise.allSettled(
-        accounts.map(async (acc) => {
+      await mapWithConcurrency(
+        accounts,
+        async (acc) => {
           const adapter = await multiAdapters.getOrCreate(acc.id)
           if (!adapter) return []
           return adapter.api.searchNotes(hint, {
             sinceDate: getSinceDateMs(),
             untilDate: getUntilDateMs(),
           })
-        }),
+        },
+        accounts.length,
+        async (r, _acc, progress) => {
+          // 走行中に別の検索が始まっていたら、その結果に上書きしない
+          if (gen !== searchGeneration) return
+          crossProgress.value = progress
+          if (r.status !== 'fulfilled') return
+          let notes = filterServerNotes(r.value, q)
+          if (regexMode.value) {
+            notes = await filterNotesByRegexAsync(notes, q)
+          }
+          merged = mergeNotes(merged, notes)
+          rawNotes.value = merged
+        },
       )
-      let merged = filterServerNotes(collectFulfilled(serverResults), q)
-      if (regexMode.value) {
-        merged = await filterNotesByRegexAsync(merged, q)
-      }
-      rawNotes.value = mergeNotes(
-        hasLocalResults.value ? rawNotes.value : [],
-        merged,
-      )
+      if (gen === searchGeneration) rawNotes.value = merged
     } catch (e) {
-      if (!hasLocalResults.value) {
+      if (gen === searchGeneration && !hasLocalResults.value) {
         error.value = AppError.from(e)
       }
+    } finally {
+      if (gen === searchGeneration) crossProgress.value = null
     }
   }
 }
@@ -607,11 +632,14 @@ async function loadMoreCrossAccount() {
   if (!hint) return
 
   const accounts = accountsStore.accounts
+  const gen = searchGeneration
   isLoading.value = true
 
   try {
-    const results = await Promise.allSettled(
-      accounts.map(async (acc) => {
+    crossProgress.value = { done: 0, total: accounts.length }
+    await mapWithConcurrency(
+      accounts,
+      async (acc) => {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return []
         // Find this account's oldest note for pagination
@@ -623,21 +651,32 @@ async function loadMoreCrossAccount() {
           sinceDate: getSinceDateMs(),
           untilDate: getUntilDateMs(),
         })
-      }),
-    )
-
-    let older = filterServerNotes(collectFulfilled(results), q)
-    if (regexMode.value) {
-      older = await filterNotesByRegexAsync(older, q)
-    }
-    setNotes(
-      mergeNotes(rawNotes.value, older),
-      ascending.value ? 'oldest' : 'newest',
+      },
+      accounts.length,
+      // 返ったアカウントの分から順に足す (#1095)。untilId で古い側へ進むほど
+      // 遅くなるサーバーを、速いサーバーの分まで待たせない
+      async (r, _acc, progress) => {
+        if (gen !== searchGeneration) return
+        crossProgress.value = progress
+        if (r.status !== 'fulfilled') return
+        let older = filterServerNotes(r.value, q)
+        if (regexMode.value) {
+          older = await filterNotesByRegexAsync(older, q)
+        }
+        if (gen !== searchGeneration || older.length === 0) return
+        setNotes(
+          mergeNotes(rawNotes.value, older),
+          ascending.value ? 'oldest' : 'newest',
+        )
+      },
     )
   } catch (e) {
-    error.value = AppError.from(e)
+    if (gen === searchGeneration) error.value = AppError.from(e)
   } finally {
-    isLoading.value = false
+    if (gen === searchGeneration) {
+      isLoading.value = false
+      crossProgress.value = null
+    }
   }
 }
 
@@ -833,7 +872,8 @@ onUnmounted(() => {
 
     <div v-else :class="$style.searchBody">
       <div v-if="isLoading && notes.length === 0" :class="$style.columnLoading">
-        <LoadingSpinner />
+        <CrossAccountProgress v-if="crossProgress" :progress="crossProgress" />
+        <LoadingSpinner v-else />
       </div>
 
       <ColumnEmptyState
@@ -880,7 +920,8 @@ onUnmounted(() => {
             Enterキーでサーバーを検索
           </div>
           <div v-else-if="isLoading && notes.length > 0" :class="$style.loadingMore">
-            <LoadingSpinner />
+            <CrossAccountProgress v-if="crossProgress" :progress="crossProgress" :size="20" />
+            <LoadingSpinner v-else />
           </div>
         </template>
       </NoteScroller>

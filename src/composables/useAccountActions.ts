@@ -42,21 +42,25 @@ export function useAccountActions() {
 
   /** アカウントとカラムをすべて削除する */
   async function deleteAccountData(acc: Account) {
-    for (const col of deckStore.columns) {
-      if (col.accountId === acc.id) {
-        deckStore.removeColumn(col.id)
-      }
-    }
     try {
       await accountsStore.removeAccount(acc.id)
     } catch (e) {
-      // backend 削除に失敗したのに「カラムだけ消えて無言」にならないよう通知する
+      // backend 削除に失敗したときは何も消さない。カラムだけ先に閉じていると
+      // アカウントは残るのにカラムが消えた中途半端な状態になる (#1091)
       const { useToast } = await import('@/stores/toast')
       useToast().show(
         `アカウント削除に失敗しました: ${AppError.from(e).message}`,
         'error',
       )
       return
+    }
+    // カラムは backend 削除の成功後に閉じる (#1091、ウィジェットの #1061 と同じ)。
+    // アカウントが消えてから閉じるまでの一瞬は DeckColumn の
+    // 「アカウントが見つかりません」表示が受けるので、参照が残っても壊れない
+    for (const col of [...deckStore.columns]) {
+      if (col.accountId === acc.id) {
+        deckStore.removeColumn(col.id)
+      }
     }
     // 通知キャッシュは notecli DB ではなく localStorage なので個別に消す。
     // cross-account 通知カラムの分は該当アカウント entry のみ除去する

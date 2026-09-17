@@ -5,6 +5,7 @@ import {
   drainProfileLoadByproducts,
   profileFiles,
 } from '@/services/deckProfileFiles'
+import { selectMemoryOnlyProfiles } from '@/services/deckProfileMerge'
 import {
   casefold,
   resolveAvailable,
@@ -55,6 +56,12 @@ function pushExtractedWidgets(extracted: WidgetMeta[], sidebarSeed: string[]) {
 
 export const useDeckProfileStore = defineStore('deckProfile', () => {
   const activeProfileId = ref<string | null>(null)
+  /**
+   * ミラーが空だったので初回起動とみなして作った仮プロファイルの id。
+   * ファイル読込で既存プロファイルが見つかれば初回起動ではなかったので捨てる
+   * (既定デッキ (#1011) 入りの複製をファイルに書き出さない)
+   */
+  let firstRunPlaceholderId: string | null = null
   /** Per-window profile ID (set via ?profile= query). Isolates this window from deck:sync. */
   const windowProfileId = ref<string | null>(null)
   /** Bumped on every persist to make profile-derived computeds reactive */
@@ -269,13 +276,23 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   function loadProfilesFromStorage(): DeckProfile[] {
     const raw = getStorageJson<DeckProfile[]>(STORAGE_KEYS.deckProfiles, [])
-    return raw.map((p) => {
-      const { columns, droppedConsoleCount, extractedWidgets, sidebarSeed } =
-        migrateWidgetColumns(p.columns ?? [])
-      pendingConsoleMigrationCount += droppedConsoleCount
-      pushExtractedWidgets(extractedWidgets, sidebarSeed)
-      return { ...p, columns }
-    })
+    // ミラーに同じ ID が並んでいたら先勝ちで 1 件にする (ファイル読込と同じ規則)。
+    // 同じ ID のプロファイルがメモリに 2 つあると、保存のたびに別名ファイルが
+    // 増える (どちらを書くかが id 検索で揺れ、fileBase が噛み合わない)
+    const seen = new Set<string>()
+    return raw
+      .filter((p) => {
+        if (seen.has(p.id)) return false
+        seen.add(p.id)
+        return true
+      })
+      .map((p) => {
+        const { columns, droppedConsoleCount, extractedWidgets, sidebarSeed } =
+          migrateWidgetColumns(p.columns ?? [])
+        pendingConsoleMigrationCount += droppedConsoleCount
+        pushExtractedWidgets(extractedWidgets, sidebarSeed)
+        return { ...p, columns }
+      })
   }
 
   /** Persist profiles: write profilesData to localStorage + files + notify other windows. */
@@ -560,6 +577,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       profiles.push(profile)
       saveProfiles(profiles)
       saveActiveProfileId(profile.id)
+      firstRunPlaceholderId = profile.id
     } else {
       loadActiveProfileId()
       const first = profiles[0]
@@ -590,14 +608,10 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
     // Merge: file profiles are authoritative, but keep in-memory-only
     // profiles that were created before file I/O completed.
-    // 同定は「ID 一致 or 名前 + 作成日時一致」(#913 決定録 — ダウングレード
-    // 往復でファイル内 ID が剥がれた場合の複製緩和)
-    const memOnly = profilesData.value.filter(
-      (p) =>
-        !fileProfiles.some(
-          (f) =>
-            f.id === p.id || (f.name === p.name && f.createdAt === p.createdAt),
-        ),
+    const memOnly = selectMemoryOnlyProfiles(
+      profilesData.value,
+      fileProfiles,
+      firstRunPlaceholderId,
     )
     if (fileProfiles.length > 0) {
       profilesData.value = [...fileProfiles, ...memOnly]

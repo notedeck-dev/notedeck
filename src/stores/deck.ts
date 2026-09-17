@@ -2,10 +2,16 @@ import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, nextTick, reactive, ref } from 'vue'
 import type { TimelineFilter, TimelineType } from '@/adapters/types'
-import { DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
+import { buildColumnDefaults, DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
 import * as snapshotStore from '@/composables/useSnapshotStore'
+import defaultDeckJson5 from '@/defaults/deck.json5?raw'
 import defaultNavbarJson5 from '@/defaults/navbar.json5?raw'
 import type { ClientSearchFilter } from '@/services/clientSearch'
+import {
+  buildDefaultDeck,
+  type DefaultDeckColumn,
+  expandDefaultDeckColumns,
+} from '@/services/defaultDeck'
 import type { VariantKey } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckProfileStore } from '@/stores/deckProfile'
@@ -217,6 +223,14 @@ export type NavItem =
     }
 
 export const DEFAULT_NAV_ITEMS: NavItem[] = JSON5.parse(defaultNavbarJson5)
+
+/** 初回起動時に組む既定のカラム構成 (#1011)。展開の規則は services/defaultDeck */
+export const DEFAULT_DECK_COLUMNS: DefaultDeckColumn[] =
+  JSON5.parse(defaultDeckJson5)
+
+function defaultDeckColumns(): Omit<DeckColumn, 'id'>[] {
+  return expandDefaultDeckColumns(DEFAULT_DECK_COLUMNS, buildColumnDefaults)
+}
 
 export function isNavDivider(item: NavItem): item is { type: 'divider' } {
   return item.type === 'divider'
@@ -612,10 +626,12 @@ export const useDeckStore = defineStore('deck', () => {
       layout?: string[][]
     } | null>(STORAGE_KEYS.deck, null)
 
-    const fallbackColumns = data?.columns ?? []
-    const fallbackLayout = data?.layout ?? []
+    // 移行元も無い = 初回起動。空ではなく既定デッキで始める (#1011)
+    const fallback = data
+      ? { columns: data.columns ?? [], layout: data.layout ?? [] }
+      : buildDefaultDeck(defaultDeckColumns(), genColumnId)
 
-    profileStore.ensureDefaults(fallbackColumns, fallbackLayout)
+    profileStore.ensureDefaults(fallback.columns, fallback.layout)
 
     if (data !== null) {
       removeStorage(STORAGE_KEYS.deck)
@@ -739,6 +755,11 @@ export const useDeckStore = defineStore('deck', () => {
 
   function clear() {
     profileStore.setColumnsAndLayout([], [])
+  }
+
+  /** 既定のカラム構成を現在のデッキの末尾に足す (全カラム削除後のやり直し用) */
+  function applyDefaultDeck() {
+    for (const col of defaultDeckColumns()) addColumn(col)
   }
 
   // --- Profile facade (delegates to profileStore) ---
@@ -870,6 +891,7 @@ export const useDeckStore = defineStore('deck', () => {
     flushSave,
     load,
     clear,
+    applyDefaultDeck,
     attachWidget,
     detachWidgetFromAllColumns,
     purgeAccountWidgets,

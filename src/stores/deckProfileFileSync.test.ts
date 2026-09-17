@@ -226,6 +226,25 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     expect(store.activeProfileId).toBe(`main${EXT}`)
   })
 
+  it('ミラーが空でファイルがあれば、初回起動用の仮プロファイルは書き出さない (#1011)', async () => {
+    files.set(
+      `main${EXT}`,
+      profileFile({
+        id: 'main',
+        name: 'メイン',
+        columns: [],
+        layout: [],
+        createdAt: 42,
+      }),
+    )
+    // ミラー空 → ensureDefaults が仮プロファイルを作るが、ファイル読込で
+    // 初回起動ではないと分かった時点で捨てる (既定デッキ入りの複製を作らない)
+    const store = await initStore()
+    expect(store.getProfiles().map((p) => p.id)).toEqual(['main'])
+    expect(files.size).toBe(1)
+    expect(store.activeProfileId).toBe('main')
+  })
+
   it('削除は対応表のファイルを消す', async () => {
     files.set(
       `work${EXT}`,
@@ -334,5 +353,49 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     await vi.waitFor(() => {
       expect(files.has(`renamed${EXT}`)).toBe(false)
     })
+  })
+})
+
+describe('useDeckProfileStore — ミラーの重複 ID', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    files.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  it('ミラーに同じ ID が 2 件あっても先勝ちで 1 件にする (保存のたびにファイルが増えない)', async () => {
+    files.set(
+      `1${EXT}`,
+      profileFile({
+        id: '1',
+        name: 'プロファイル 1',
+        columns: [],
+        layout: [],
+        createdAt: 1,
+      }),
+    )
+    setStorageJson(STORAGE_KEYS.deckProfiles, [
+      {
+        id: '1',
+        name: 'プロファイル 1',
+        columns: [],
+        layout: [],
+        createdAt: 1,
+        fileBase: '1',
+      },
+      {
+        id: '1',
+        name: 'プロファイル 1',
+        columns: [],
+        layout: [],
+        createdAt: 2,
+      },
+    ])
+    setStorageString(STORAGE_KEYS.deckActiveProfile, '1')
+    const store = await initStore()
+    expect(store.getProfiles().filter((p) => p.id === '1')).toHaveLength(1)
+    // 複製がファイルに書き出されない
+    expect(files.size).toBe(1)
   })
 })

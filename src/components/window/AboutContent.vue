@@ -346,6 +346,12 @@ watch(metricsOpen, (open) => {
 
 onUnmounted(stopMetricsTimer)
 
+// 開発者モードを切るとセクションごと消える (v-if) が、開いたままだと
+// metricsOpen の watch は動かず、見えない面が metrics.read を叩き続ける
+watch(developerMode, (on) => {
+  if (!on) metricsOpen.value = false
+})
+
 const QUALITY_LABELS: Record<QualityLevel, string> = {
   low: '低',
   balanced: 'バランス',
@@ -753,9 +759,10 @@ function reportBug() {
     </div>
 
     <!-- VS Code の Startup Performance 踏襲 (#985/#732)。表示のみ・設定なし。
-         「情報をコピー」の本文にも同梱されるので、実機確認 issue やバグ報告に
-         そのまま貼れる -->
-    <div v-if="startupRows.length > 0" :class="$style.formSection">
+         「情報をコピー」の本文には表示に関係なく同梱されるので、実機確認 issue や
+         バグ報告にそのまま貼れる。表示は開発者モードのみ (#1034) — 数値は
+         性能 issue の材料で、一般ユーザーが読んで行動できるものではない -->
+    <div v-if="developerMode && startupRows.length > 0" :class="$style.formSection">
       <div :class="$style.infoHead">
         <button
           type="button"
@@ -798,8 +805,10 @@ function reportBug() {
     </div>
 
     <!-- 実行時パフォーマンス (#732)。metrics.read capability の実測値を
-         AI と同じ経路で表示する。開いている間だけ定期更新 -->
-    <div :class="$style.formSection">
+         AI と同じ経路で表示する。開いている間だけ定期更新。起動パフォーマンスと
+         同じ理由で開発者モードのみ。自己診断は残す — 「何かが壊れている」を
+         一般ユーザーが知る唯一の場所で、既定で畳んであるので邪魔にならない -->
+    <div v-if="developerMode" :class="$style.formSection">
       <div :class="$style.infoHead">
         <button
           type="button"

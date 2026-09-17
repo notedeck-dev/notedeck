@@ -4,6 +4,7 @@ import {
   onMounted,
   onScopeDispose,
   type Ref,
+  ref,
   watch,
 } from 'vue'
 import type {
@@ -30,7 +31,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
-import { mapWithConcurrency } from '@/utils/concurrency'
+import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { AppError } from '@/utils/errors'
 import { toggleReaction } from '@/utils/toggleReaction'
 import { votePoll } from '@/utils/votePoll'
@@ -220,6 +221,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   }[] = []
   /** connect のたびに進める。古い connect / resume の結果を捨てる */
   let generation = 0
+  /** 全アカウント取得の進捗 (#1095)。取得中以外は null */
+  const crossProgress = ref<SettleProgress | null>(null)
 
   function setRuntimeState(state: SubscriptionRuntimeState) {
     runtimeState = state
@@ -469,7 +472,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     }
 
     try {
-      const results = await mapWithConcurrency(
+      crossProgress.value = { done: 0, total: accounts.length }
+      const live: NormalizedNote[] = []
+      await mapWithConcurrency(
         accounts,
         async (acc) => {
           const adapter = await multiAdapters.getOrCreate(acc.id)
@@ -480,16 +485,35 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
           return fetchNotes(adapter)
         },
         3,
+        async (r, _acc, progress) => {
+          if (gen !== generation) return
+          crossProgress.value = progress
+          if (r.status !== 'fulfilled' || !r.value) return
+          live.push(...r.value)
+          // 何も出ていなければ最初に返った分で描画する (#1095)。既に何か
+          // (キャッシュや先に返った分) が出ていれば全部揃ってから 1 回で
+          // 並べ直す — 速い分を先に出すと後から上に差し込まれて画面が動く
+          // ので、動くのは最大 1 回に抑える
+          if (
+            rawNotes.value.length === 0 &&
+            r.value.length > 0 &&
+            progress.done < progress.total
+          ) {
+            const painted = await dedupAsync([...live, ...cached])
+            if (gen === generation) setNotes(painted)
+          }
+        },
       )
       if (gen !== generation) return
 
       // live を優先しつつキャッシュとマージ（dedup は先勝ち）
-      setNotes(await dedupAsync([...collectFulfilled(results), ...cached]))
+      setNotes(await dedupAsync([...live, ...cached]))
     } catch (e) {
       if (gen === generation) error.value = AppError.from(e)
     } finally {
       if (gen === generation) {
         isLoading.value = false
+        crossProgress.value = null
         if (wantLive) streamingBatch?.setPaused(false)
       }
     }
@@ -499,11 +523,13 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     if (isLoading.value || rawNotes.value.length === 0) return
     isLoading.value = true
     const key = cacheKey?.()
+    const gen = generation
 
     try {
       // 全アカウントを対象（ログアウト中も含む）。ログイン中は live API で
       // untilId 遡り、ログアウト中は SQLite キャッシュを createdAt で遡る。
-      const results = await mapWithConcurrency(
+      crossProgress.value = { done: 0, total: accountsStore.accounts.length }
+      await mapWithConcurrency(
         accountsStore.accounts,
         async (acc) => {
           const lastForAccount = [...rawNotes.value]
@@ -532,16 +558,27 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
           }
         },
         3,
+        // 返ったアカウントの分から順に足す (#1095)。下に足すだけなので
+        // 遅いサーバーの分が後から来ても画面は動かない
+        async (r, _acc, progress) => {
+          if (gen !== generation) return
+          crossProgress.value = progress
+          if (r.status !== 'fulfilled' || !r.value?.length) return
+          const existingKeys = new Set<string>(rawNotes.value.map(variantKeyOf))
+          const newOlder = await dedupAsync(r.value, existingKeys)
+          if (gen !== generation || newOlder.length === 0) return
+          // 下方向のページングなので古い側を残す
+          setNotes([...rawNotes.value, ...newOlder], 'newest')
+        },
       )
-
-      const existingKeys = new Set<string>(rawNotes.value.map(variantKeyOf))
-      const newOlder = await dedupAsync(collectFulfilled(results), existingKeys)
-      // 下方向のページングなので古い側を残す
-      setNotes([...rawNotes.value, ...newOlder], 'newest')
     } catch (e) {
-      error.value = AppError.from(e)
+      if (gen === generation) error.value = AppError.from(e)
     } finally {
-      isLoading.value = false
+      // 走行中に connectCrossAccount が始まっていたら、その表示状態を奪わない
+      if (gen === generation) {
+        isLoading.value = false
+        crossProgress.value = null
+      }
     }
   }
 
@@ -612,6 +649,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     scrollToTop,
     connectCrossAccount,
     loadMoreCrossAccount,
+    crossProgress,
     handleScroll,
     removeNote,
     react,
