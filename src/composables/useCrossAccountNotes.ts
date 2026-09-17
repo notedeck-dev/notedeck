@@ -16,6 +16,7 @@ import type {
   SubscriptionRuntimeState,
 } from '@/adapters/types'
 import { useColumnLive } from '@/composables/useColumnMount'
+import { useColumnQuery } from '@/composables/useColumnQuery'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useMultiNoteCapture } from '@/composables/useMultiNoteCapture'
 import {
@@ -29,7 +30,7 @@ import { useStreamingBatch } from '@/composables/useStreamingBatch'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
-import { useDeckStore } from '@/stores/deck'
+import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
@@ -87,6 +88,21 @@ export interface CrossAccountNotesOptions {
       enqueue: (note: NormalizedNote) => void,
       callbacks: { onNoteUpdated: (event: NoteUpdateEvent) => void },
     ) => ChannelSubscription
+  }
+
+  /**
+   * 組込フィルタ (#841) + カラムクエリ (#783) を全アカウント面にも通す。
+   * per-account と同じ評価器 (useColumnQuery) を使い、全取り込み経路
+   * (キャッシュ / 初回 / 追加読み込み / 復帰 / streaming) で AND 合成する。
+   * 組込フィルタの API 側パラメータは fetchNotes が渡し、ここはクライアント側の
+   * 防御層 (streaming と キャッシュ) を担う。フィルタ変更は全アカウント取り直し
+   */
+  filter?: {
+    getColumn: () => Pick<
+      DeckColumn,
+      'id' | 'noteQuery' | 'noteQueryRefs' | 'filters'
+    >
+    builtinAdmits: (note: NormalizedNote) => boolean
   }
 }
 
@@ -197,6 +213,40 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     removeNote,
   } = list
 
+  // --- 組込フィルタ + カラムクエリ (per-account と同じ評価器を共有) ---
+  const filter = options.filter
+  const query = filter
+    ? useColumnQuery({
+        getColumn: filter.getColumn,
+        rawNotes,
+        setNotes: (n) => setNotes(n),
+        // 緩和方向の回収は全アカウント取り直し (per-account の refresh 相当)
+        refresh: () => connectCrossAccount(),
+        enqueue: (n) => streamingBatch?.enqueueNote(n),
+        onNoteUpdate,
+      })
+    : null
+  const builtinAdmits = filter?.builtinAdmits ?? (() => true)
+  /** 取り込み経路の共通ゲート: 組込 (最安) → クエリ の AND 合成 */
+  async function admit(incoming: NormalizedNote[]): Promise<NormalizedNote[]> {
+    const builtin = filter ? incoming.filter(builtinAdmits) : incoming
+    return query ? query.applyQueryFilter(builtin) : builtin
+  }
+  if (filter) {
+    // 組込フィルタ変更時: 絞り込み方向は表示中ノートへ即時適用、緩和方向は
+    // 取り直しで回収 (useNoteColumn のフィルタシグネチャ watch と同じ)
+    watch(
+      () => JSON.stringify(filter.getColumn().filters ?? null),
+      (next, prev) => {
+        if (next === prev) return
+        if (rawNotes.value.length > 0) {
+          setNotes(rawNotes.value.filter(builtinAdmits))
+        }
+        void connectCrossAccount()
+      },
+    )
+  }
+
   // 各アカウントの接続で variant を購読する (§6)。接続を持たないアカウントの
   // variant は購読しない
   const capture = useMultiNoteCapture(
@@ -268,15 +318,22 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     const sub = streaming.subscribe(
       accountId,
       adapter,
-      (note) => streamingBatch.enqueueNote(note),
+      (note) => {
+        // 組込フィルタ + クエリを enqueue の前段で通す (per-account と同じ)
+        if (!builtinAdmits(note)) return
+        if (query) query.enqueueWithQuery(note)
+        else streamingBatch.enqueueNote(note)
+      },
       {
         onNoteUpdated: (event) => {
           if (event.type === 'deleted') {
-            streamingBatch.removePending(
-              variantKey(event.accountId, event.noteId),
-            )
+            const key = variantKey(event.accountId, event.noteId)
+            streamingBatch.removePending(key)
+            // 判定待ちのまま消えたノートを取り込まない
+            query?.dropHeldNote(key)
           }
-          onNoteUpdate(event)
+          if (query) query.onNoteUpdateWithQuery(event)
+          else onNoteUpdate(event)
         },
       },
     )
@@ -431,12 +488,18 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
 
     if (gapAccounts.size > 0) {
       const kept = current.filter((n) => !gapAccounts.has(n._accountId))
-      setNotes(await dedupAsync([...replacement, ...kept]))
+      // 置換分だけ判定する (kept は取り込み時に判定済み。二重に数えない)
+      const admittedReplacement = await admit(replacement)
+      if (gen !== generation) return
+      setNotes(await dedupAsync([...admittedReplacement, ...kept]))
       if (gen !== generation) return
     }
     if (overlap.length > 0) {
       const existing = overlap.filter((n) => noteKeys.has(variantKeyOf(n)))
-      const brandNew = overlap.filter((n) => !noteKeys.has(variantKeyOf(n)))
+      const brandNew = await admit(
+        overlap.filter((n) => !noteKeys.has(variantKeyOf(n))),
+      )
+      if (gen !== generation) return
       if (existing.length > 0) mergeUpdate(existing)
       if (brandNew.length > 0) {
         streamingBatch.addQueued(brandNew)
@@ -477,7 +540,11 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     // オフラインファースト: キャッシュを即時表示（ログアウト中のアカウント分も含む）
     const cached = await loadCrossAccountCache()
     if (gen !== generation) return
-    if (cached.length > 0) setNotes(cached)
+    if (cached.length > 0) {
+      const admitted = await admit(cached)
+      if (gen !== generation) return
+      setNotes(admitted)
+    }
 
     const accounts = accountsStore.accounts.filter((a) => a.hasToken)
     // 全アカウントがログアウト中なら live fetch せずキャッシュ表示のみ。
@@ -518,7 +585,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
             r.value.length > 0 &&
             progress.done < progress.total
           ) {
-            const painted = await dedupAsync([...live, ...cached])
+            const painted = await admit(await dedupAsync([...live, ...cached]))
             if (gen === generation) setNotes(painted)
           }
         },
@@ -526,7 +593,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       if (gen !== generation) return
 
       // live を優先しつつキャッシュとマージ（dedup は先勝ち）
-      setNotes(await dedupAsync([...live, ...cached]))
+      const merged = await admit(await dedupAsync([...live, ...cached]))
+      if (gen !== generation) return
+      setNotes(merged)
     } catch (e) {
       if (gen === generation) error.value = AppError.from(e)
     } finally {
@@ -584,7 +653,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
           crossProgress.value = progress
           if (r.status !== 'fulfilled' || !r.value?.length) return
           const existingKeys = new Set<string>(rawNotes.value.map(variantKeyOf))
-          const newOlder = await dedupAsync(r.value, existingKeys)
+          const newOlder = await admit(await dedupAsync(r.value, existingKeys))
           if (gen !== generation || newOlder.length === 0) return
           // 下方向のページングなので古い側を残す
           setNotes([...rawNotes.value, ...newOlder], 'newest')
@@ -698,5 +767,23 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     pendingCount,
     animatingRowKeys,
     onResume,
+    // カラムクエリ (#783): UI 側のバッジ・バナー表示用。filter 未指定なら常に「なし」
+    columnQueryState: query?.columnQueryState ?? NO_QUERY_STATE,
+    columnQueryErrorCount: query?.queryErrorCount ?? ZERO,
+    columnQueryExcludedCount: query?.queryExcludedCount ?? ZERO,
+    columnQuerySuspendedKeys: query?.suspendedQueryKeys ?? NO_KEYS,
+    columnQuerySuspendedCount: query?.querySuspendedCount ?? ZERO,
+    columnQueryMissingIds: query?.missingQueryIds ?? NO_KEYS,
+    resumeSuspendedQueries: query?.resumeSuspendedQueries ?? (() => undefined),
+    dropMissingQueryRefs: query?.dropMissingQueryRefs ?? (() => undefined),
   }
 }
+
+// filter 未指定の面 (メンション / 通知など) が返す定数。reactive でなくてよい
+const NO_QUERY_STATE = computed(() => ({
+  status: 'none' as const,
+  diagnostics: [] as { message: string }[],
+  disabled: [] as string[],
+}))
+const ZERO = ref(0)
+const NO_KEYS = computed<readonly string[]>(() => [])
