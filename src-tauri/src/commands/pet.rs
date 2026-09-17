@@ -5,7 +5,7 @@
 use base64::Engine;
 use notecli::error::NoteDeckError;
 
-use crate::pet_store::{self, PetInfo, MAX_SPRITE_BYTES, PETDEX_API_BASE};
+use crate::pet_store::{self, PetInfo};
 
 use super::Result;
 
@@ -36,37 +36,9 @@ pub async fn pet_install(
 ) -> Result<PetInfo> {
     pet_store::validate_slug(&slug).map_err(invalid)?;
     let dir = app_dir(&app)?;
-
-    let resolve_url = format!("{PETDEX_API_BASE}/api/install-pet/{slug}");
-    let body: serde_json::Value = http
-        .get(&resolve_url)
-        .send()
+    let (resolved, bytes) = pet_store::fetch_from_petdex(&http, &slug)
         .await
-        .map_err(NoteDeckError::from)?
-        .json()
-        .await
-        .map_err(NoteDeckError::from)?;
-    let resolved = pet_store::parse_install_response(&body).map_err(invalid)?;
-
-    let resp = http
-        .get(&resolved.spritesheet_url)
-        .send()
-        .await
-        .map_err(NoteDeckError::from)?;
-    if !resp.status().is_success() {
-        return Err(invalid(format!(
-            "petdex: sprite download failed ({})",
-            resp.status()
-        )));
-    }
-    if resp
-        .content_length()
-        .is_some_and(|len| len > MAX_SPRITE_BYTES as u64)
-    {
-        return Err(invalid("petdex: sprite too large".into()));
-    }
-    let bytes = resp.bytes().await.map_err(NoteDeckError::from)?;
-
+        .map_err(invalid)?;
     tauri::async_runtime::spawn_blocking(move || pet_store::store(&dir, &resolved, &bytes))
         .await
         .map_err(|e| invalid(e.to_string()))?

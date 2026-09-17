@@ -44,6 +44,15 @@ const cellH = computed(() => Math.round(PET_FRAME_HEIGHT * scale.value))
 // ── 位置 ──
 const right = ref(settings.get('pet.right') ?? DEFAULT_MARGIN)
 const bottom = ref(settings.get('pet.bottom') ?? DEFAULT_MARGIN)
+// コードタブ・外部エディタ・別ウィンドウからの変更も位置に反映する
+watch(
+  () => [settings.get('pet.right'), settings.get('pet.bottom')] as const,
+  ([nextRight, nextBottom]) => {
+    right.value = nextRight ?? DEFAULT_MARGIN
+    bottom.value = nextBottom ?? DEFAULT_MARGIN
+    clamp()
+  },
+)
 
 function clamp(): void {
   right.value = Math.min(

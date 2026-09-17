@@ -19,6 +19,10 @@ pub const MAX_SPRITE_BYTES: usize = 16 * 1024 * 1024;
 pub const PET_COLUMNS: u32 = 8;
 pub const PET_FRAME_WIDTH: u32 = 192;
 pub const PET_FRAME_HEIGHT: u32 = 208;
+/// 受け付ける寸法の上限 = 正規寸法 (v2) の 2 倍。detect_atlas は比が合えば
+/// どんな倍率でも通すので、デコード時のメモリを抑えるために別途上限を置く
+pub const MAX_SPRITE_WIDTH: u32 = 2 * PET_COLUMNS * PET_FRAME_WIDTH;
+pub const MAX_SPRITE_HEIGHT: u32 = 2 * 11 * PET_FRAME_HEIGHT;
 
 /// petdex の解決 API (`/api/install-pet/<slug>`) とアセット CDN
 pub const PETDEX_API_BASE: &str = "https://petdex.dev";
@@ -88,6 +92,16 @@ pub fn detect_atlas(width: u32, height: u32) -> Option<(u8, u32)> {
     None
 }
 
+/// 寸法の上限検査 (デコード前)。圧縮後のサイズ検査 (MAX_SPRITE_BYTES) とは別
+pub fn check_dimensions(width: u32, height: u32) -> Result<(), String> {
+    if width > MAX_SPRITE_WIDTH || height > MAX_SPRITE_HEIGHT {
+        return Err(format!(
+            "sprite too large: {width}x{height} (max {MAX_SPRITE_WIDTH}x{MAX_SPRITE_HEIGHT})"
+        ));
+    }
+    Ok(())
+}
+
 /// ピクセルをデコードせずヘッダから寸法を読む
 pub fn sprite_dimensions(bytes: &[u8]) -> Result<(u32, u32), String> {
     image::ImageReader::new(std::io::Cursor::new(bytes))
@@ -144,6 +158,59 @@ fn require_trusted_asset_url(url: &str) -> Result<(), String> {
     }
 }
 
+/// petdex から slug のペットを解決して本体を取る。本文は受信しながら
+/// MAX_SPRITE_BYTES で打ち切る (Content-Length は無い・嘘をつくことがある)
+pub async fn fetch_from_petdex(
+    http: &reqwest::Client,
+    slug: &str,
+) -> Result<(ResolvedPet, Vec<u8>), String> {
+    validate_slug(slug)?;
+    let resolve_url = format!("{PETDEX_API_BASE}/api/install-pet/{slug}");
+    let body: serde_json::Value = http
+        .get(&resolve_url)
+        .send()
+        .await
+        .map_err(|e| format!("petdex: resolve failed: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("petdex: resolve response invalid: {e}"))?;
+    let resolved = parse_install_response(&body)?;
+
+    let resp = http
+        .get(&resolved.spritesheet_url)
+        .send()
+        .await
+        .map_err(|e| format!("petdex: sprite download failed: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!(
+            "petdex: sprite download failed ({})",
+            resp.status()
+        ));
+    }
+    let bytes = read_bounded(resp).await?;
+    Ok((resolved, bytes))
+}
+
+async fn read_bounded(resp: reqwest::Response) -> Result<Vec<u8>, String> {
+    use tokio_stream::StreamExt;
+    if resp
+        .content_length()
+        .is_some_and(|len| len > MAX_SPRITE_BYTES as u64)
+    {
+        return Err("petdex: sprite too large".into());
+    }
+    let mut buf = Vec::new();
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("petdex: sprite download failed: {e}"))?;
+        if buf.len() + chunk.len() > MAX_SPRITE_BYTES {
+            return Err("petdex: sprite too large".into());
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(buf)
+}
+
 pub fn pet_dir(app_dir: &Path, slug: &str) -> PathBuf {
     app_dir.join(PET_CACHE_DIR).join(slug)
 }
@@ -154,6 +221,7 @@ pub fn store(app_dir: &Path, resolved: &ResolvedPet, sprite: &[u8]) -> Result<Pe
         return Err(format!("sprite too large: {} bytes", sprite.len()));
     }
     let (width, height) = sprite_dimensions(sprite)?;
+    check_dimensions(width, height)?;
     let (sprite_version, rows) = detect_atlas(width, height)
         .ok_or_else(|| format!("not a petdex sprite grid: {width}x{height}"))?;
     let info = PetInfo {
@@ -257,6 +325,16 @@ mod tests {
         assert_eq!(detect_atlas(192, 234), Some((1, 9)));
         assert_eq!(detect_atlas(1000, 1000), None);
         assert_eq!(detect_atlas(0, 1872), None);
+    }
+
+    #[test]
+    fn oversized_dimensions_are_rejected_before_decode() {
+        assert!(check_dimensions(1536, 1872).is_ok());
+        assert!(check_dimensions(3072, 4576).is_ok());
+        // 比は合っている (v1 の 3 倍) が上限を超える
+        assert_eq!(detect_atlas(4608, 5616), Some((1, 9)));
+        assert!(check_dimensions(4608, 5616).is_err());
+        assert!(check_dimensions(1536, 4577).is_err());
     }
 
     #[test]
