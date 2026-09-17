@@ -64,15 +64,20 @@ export const useSystemStateStore = defineStore('systemState', () => {
   })
 
   let unlisten: (() => void) | null = null
+  /** event を受けた回数。初期値取得中に届いた event を初期値で上書きしないため */
+  let eventGeneration = 0
 
-  /** main window で 1 回だけ呼ぶ。listen を先に張ってから初期値を取る (取りこぼし防止) */
+  /** ウィンドウごとに 1 回呼ぶ。listen を先に張ってから初期値を取る (取りこぼし防止)。失敗しても reject しない */
   async function start(): Promise<void> {
     if (unlisten) return
-    unlisten = await events.systemState.listen(({ payload }) => {
-      state.value = payload
-    })
     try {
-      state.value = unwrap(await commands.systemStateGet())
+      unlisten = await events.systemState.listen(({ payload }) => {
+        eventGeneration++
+        state.value = payload
+      })
+      const generationBeforeGet = eventGeneration
+      const initial = unwrap(await commands.systemStateGet())
+      if (generationBeforeGet === eventGeneration) state.value = initial
     } catch {
       // backend 未起動 (ブラウザ開発時) は全項目 null のまま = 通常どおり
     }

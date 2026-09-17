@@ -10,7 +10,11 @@ vi.mock('@/stores/performance', () => ({
 const systemState = vi.hoisted(() => ({ suppressPrefetch: false }))
 vi.mock('@/stores/systemState', () => ({
   useSystemStateStore: () => ({
-    adaptation: { suppressPrefetch: systemState.suppressPrefetch },
+    adaptation: {
+      get suppressPrefetch() {
+        return systemState.suppressPrefetch
+      },
+    },
   }),
 }))
 
@@ -54,6 +58,19 @@ describe('prefetchNoteImages の同時実行絞り', () => {
     FakeImage.instances = []
     vi.stubGlobal('Image', FakeImage)
     systemState.suppressPrefetch = false
+  })
+
+  it('進行中に抑制へ入ったら、完了後にキューの残りを始めず「先読み済み」からも外す', async () => {
+    const { prefetchNoteImages } = await loadModule()
+    prefetchNoteImages([note('a', 4), note('b', 4)])
+    expect(FakeImage.instances.length).toBe(4)
+    systemState.suppressPrefetch = true
+    FakeImage.instances[0]?.onload?.()
+    expect(FakeImage.instances.length).toBe(4)
+    // 捨てた分は抑制解除後に改めて先読みできる
+    systemState.suppressPrefetch = false
+    prefetchNoteImages([note('b', 4)])
+    expect(FakeImage.instances.length).toBeGreaterThan(4)
   })
 
   it('バッテリー駆動・従量制回線 (suppressPrefetch) では Image を 1 つも作らない (#931 / #935)', async () => {

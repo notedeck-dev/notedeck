@@ -157,6 +157,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   const noteStore = useNoteStore()
   const toast = useToast()
   const uiStore = useUiStore()
+  const systemStateStore = useSystemStateStore()
   const { noteScrollerRef } = useNoteScrollerRef(scroller)
 
   const list = useNoteList({
@@ -325,7 +326,6 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   let wantLive = !streaming
   if (streaming && streamingBatch) {
     const { isVisible, isLive } = useColumnLive(streaming.columnId)
-    const systemStateStore = useSystemStateStore()
     let transition = 0
     watch(
       [isVisible, isLive, () => systemStateStore.adaptation.suspendStreams],
@@ -375,6 +375,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   async function onResume() {
     if (!isCrossAccount() || !streamingBatch) return
     if (rawNotes.value.length === 0) return
+    // ウィンドウが隠れている間 (#986) は REST を叩かない (useNoteColumn と同じ)
+    if (systemStateStore.adaptation.suspendStreams) return
     const now = Date.now()
     if (now - lastResumeAt < 3000) return
     lastResumeAt = now

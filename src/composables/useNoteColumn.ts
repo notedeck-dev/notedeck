@@ -212,6 +212,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
   )
   setOnNotesChanged(syncNoteCapture)
 
+  const systemStateStore = useSystemStateStore()
+
   // Visibility / budget で 3 段階の挙動をする。
   //   - 不可視 (ウィンドウごと隠れている #986 も同じ): streamingBatch を pause + warm
   //     → 8s 後 suspend (Rust 側 unsub)。WS と main チャネルは残るので OS 通知は生きる
@@ -223,7 +225,6 @@ export function useNoteColumn(config: NoteColumnConfig) {
   if (streamingBatch) {
     const { isVisible, isLive } = useColumnLive(config.getColumn().id)
     const inspectorStore = useStreamInspectorStore()
-    const systemStateStore = useSystemStateStore()
     let runtimeTransition = 0
     watch(
       [
@@ -1242,6 +1243,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
     const adapter = getAdapter()
     if (!adapter || !account.value) return
     if (config.validate && !config.validate()) return
+    // ウィンドウが隠れている間 (#986) は WS 再接続などで呼ばれても REST を
+    // 叩かない。可視化時に可視性 watch が改めて呼ぶ
+    if (systemStateStore.adaptation.suspendStreams) return
 
     const now = Date.now()
     if (now - lastResumeAt < 3000) return

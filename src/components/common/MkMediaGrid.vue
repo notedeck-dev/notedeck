@@ -204,14 +204,15 @@ function closeLightbox() {
       </template>
 
       <!-- 従量制回線: タップで読み込み (#935)。NSFW と同じ見た目の口 -->
-      <div
+      <button
         v-if="isDeferred(file)"
-        class="_sensitiveOverlay"
+        type="button"
+        class="_sensitiveOverlay _button"
         @click.stop="toggleSensitive(file, $event)"
       >
         <i class="ti ti-download" />
         <span>{{ isVideo(file) ? '動画をタップで読み込み' : '画像をタップで読み込み' }}</span>
-      </div>
+      </button>
 
       <!-- NSFW overlay -->
       <div
