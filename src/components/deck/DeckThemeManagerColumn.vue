@@ -4,7 +4,11 @@ import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
-import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
+import {
+  accountScopeKey,
+  getAccountAvatarUrl,
+  useAccountsStore,
+} from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import {
@@ -47,6 +51,10 @@ const account = computed(() =>
       null),
 )
 const accountId = computed(() => props.column.accountId)
+/** このカラムのアカウントの安定キー (installedFor の値、#1113)。 */
+const accountKey = computed(() =>
+  account.value ? accountScopeKey(account.value) : null,
+)
 
 // 現在の dark/light モード。テーマ一覧を該当モードのみに絞る
 // (DeckSettingsMenu の themeGrid と同パターン)。
@@ -105,8 +113,8 @@ const themeSections = computed<ThemeSection[]>(() => {
   const mode = currentMode.value
   const sections: ThemeSection[] = []
 
-  // logged-in account id 集合 (cross-account = 全アカウント集約 viewer の判定用)。
-  const loggedInIds = new Set(accountsStore.accounts.map((a) => a.id))
+  // logged-in account の安定キー集合 (cross-account = 全アカウント集約 viewer の判定用)。
+  const loggedInKeys = new Set(accountsStore.accounts.map(accountScopeKey))
 
   // 「デフォルト」= 起動時に適用される既定テーマ (Mi Dark / Mi Light、削除/編集不可)。
   //
@@ -139,9 +147,11 @@ const themeSections = computed<ThemeSection[]>(() => {
       if ((t.base ?? 'dark') !== mode) return false
       const installedFor = t.$notedeck?.installedFor ?? []
       if (isCrossAccount.value) {
-        return installedFor.some((id) => loggedInIds.has(id))
+        return installedFor.some((key) => loggedInKeys.has(key))
       }
-      return installedFor.includes(accountId.value as string)
+      return (
+        accountKey.value !== null && installedFor.includes(accountKey.value)
+      )
     })
     .map<ThemeEntry>((t) => ({
       theme: t,
@@ -164,7 +174,8 @@ const themeSections = computed<ThemeSection[]>(() => {
       .filter(
         (t) =>
           t.$notedeck?.storeId &&
-          t.$notedeck?.installedFor?.includes(accountId.value as string) &&
+          accountKey.value !== null &&
+          t.$notedeck?.installedFor?.includes(accountKey.value) &&
           (t.base ?? 'dark') === mode,
       )
       .map<ThemeEntry>((t) => ({
@@ -193,7 +204,7 @@ const themeSections = computed<ThemeSection[]>(() => {
         if (!t.$notedeck?.storeId) return false
         if ((t.base ?? 'dark') !== mode) return false
         const installedFor = t.$notedeck?.installedFor ?? []
-        return installedFor.some((id) => loggedInIds.has(id))
+        return installedFor.some((key) => loggedInKeys.has(key))
       })
       .map<ThemeEntry>((t) => ({
         theme: t,
@@ -319,7 +330,7 @@ const { confirm } = useConfirm()
 function isLastAccountForTheme(theme: MisskeyTheme): boolean {
   const installedFor = theme.$notedeck?.installedFor
   if (!installedFor) return false
-  return installedFor.every((id) => id === accountId.value)
+  return installedFor.every((key) => key === accountKey.value)
 }
 
 /**
@@ -354,7 +365,7 @@ async function removeTheme(entry: ThemeEntry) {
     }
     const undo = themeStore.unlinkAccountFromTheme(
       entry.theme.id,
-      accountId.value,
+      accountKey.value ?? '',
     )
     themeStore.clearAccountTheme(mode, accountId.value)
     if (undo) {
@@ -393,7 +404,7 @@ async function handleStoreInstall(entry: StoreThemeEntry) {
     // per-account: 当該アカウントの installedFor に追加 →「ストアのテーマ」表示
     // 全アカウントカラム: 全 logged-in account を installedFor に追加 → 全
     //   per-account カラムにも反映される (集約 viewer の semantics)
-    await misStore.installTheme(entry, contextAccountIds())
+    await misStore.installTheme(entry, contextAccountKeys())
   } catch (e) {
     installError.value = e instanceof Error ? e.message : 'インストール失敗'
   }
@@ -415,12 +426,23 @@ function openNewTheme() {
   })
 }
 
-/** カラムの context (per-account / 全アカウント) に応じた installedFor 対象 ids。 */
+/**
+ * カラムの context (per-account / 全アカウント) に応じた対象アカウントの
+ * 内部 ID (per-column 適用キャッシュ用。エディタへ渡す)。
+ */
 function contextAccountIds(): string[] {
   if (isCrossAccount.value) {
     return accountsStore.accounts.map((a) => a.id)
   }
   return accountId.value ? [accountId.value] : []
+}
+
+/** 同じ対象の安定キー (installedFor の値、#1113)。 */
+function contextAccountKeys(): string[] {
+  if (isCrossAccount.value) {
+    return accountsStore.accounts.map(accountScopeKey)
+  }
+  return accountKey.value ? [accountKey.value] : []
 }
 
 // Store entry → MisskeyTheme (preview 用)
