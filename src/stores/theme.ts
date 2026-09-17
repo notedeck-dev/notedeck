@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { emitNoteDeckEvent } from '@/aiscript/events'
+import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { useSettingsStore } from '@/stores/settings'
 import * as themeFileSync from '@/stores/themeFileSync'
 import { applyTheme } from '@/theme/applier'
@@ -289,10 +290,13 @@ export const useThemeStore = defineStore('theme', () => {
     manualMode.value = isCurrentDark() ? 'dark' : 'light'
   }
 
-  /** Install a Misskey theme from JSON code. Returns true on success. */
+  /**
+   * Install a Misskey theme from JSON code. Returns true on success.
+   * `forAccountKeys` はアカウントの安定キー (`accountScopeKey`、#1113)。
+   */
   async function installTheme(
     code: string,
-    forAccountIds: string[] = [],
+    forAccountKeys: string[] = [],
     attribution?: EditAttribution,
   ): Promise<boolean> {
     try {
@@ -322,14 +326,14 @@ export const useThemeStore = defineStore('theme', () => {
         }
         theme.fileBase = existingTheme.fileBase
       }
-      // forAccountIds に指定された account 全てを installedFor に追加。
-      // per-account カラム経由なら [accountId]、全アカウントカラム経由なら
-      // 全 logged-in account ids。
-      if (forAccountIds.length > 0) {
+      // forAccountKeys に指定された account 全てを installedFor に追加。
+      // per-account カラム経由なら [そのアカウントのキー]、全アカウントカラム
+      // 経由なら全 logged-in account のキー。
+      if (forAccountKeys.length > 0) {
         const existing = theme.$notedeck?.installedFor ?? []
         theme.$notedeck = {
           ...(theme.$notedeck ?? {}),
-          installedFor: Array.from(new Set([...existing, ...forAccountIds])),
+          installedFor: Array.from(new Set([...existing, ...forAccountKeys])),
         }
       }
 
@@ -413,8 +417,9 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   /**
-   * テーマの per-account 紐付け (`$notedeck.installedFor`) から accountId を外す。
-   * installedFor が空になれば installedThemes 自体からも削除する。
+   * テーマの per-account 紐付け (`$notedeck.installedFor`) からアカウントの
+   * 安定キー (`accountScopeKey`) を外す。installedFor が空になれば
+   * installedThemes 自体からも削除する。
    * per-account テーマカラムでの「× ボタン」=「このアカウントから外す」用。
    *
    * 本体ごと消えた場合のみ、削除を取り消す undo を返す (#988)。紐付けが残る
@@ -422,7 +427,7 @@ export const useThemeStore = defineStore('theme', () => {
    */
   function unlinkAccountFromTheme(
     themeId: string,
-    accountId: string,
+    accountKey: string,
   ): (() => void) | undefined {
     const theme = installedThemes.value.find((t) => t.id === themeId)
     if (!theme || !theme.$notedeck?.installedFor) {
@@ -431,7 +436,7 @@ export const useThemeStore = defineStore('theme', () => {
       return undefined
     }
     const remaining = theme.$notedeck.installedFor.filter(
-      (id) => id !== accountId,
+      (key) => key !== accountKey,
     )
     if (remaining.length === 0) {
       return removeTheme(themeId)
@@ -503,6 +508,67 @@ export const useThemeStore = defineStore('theme', () => {
     }
     applyCurrentTheme()
     emitNoteDeckEvent('theme:applied', { id, mode })
+  }
+
+  // --- installedFor の安定キー化 (#1113、プラグインの #771 と同型) ---
+  const isScopeKey = (v: string) => v.includes(':')
+  let scopesMigrated = false
+
+  /**
+   * 旧 UUID 紐付けの一括移行。アカウント一覧が要るので accounts ロード後に
+   * 1 回だけ走る。
+   * - 旧 UUID → 現行アカウントに該当すれば安定キーへ置換、該当しなければ破棄
+   * - 置換の結果 空 (紐付け先が全滅) → 現行の全アカウントに紐付け直す。
+   *   テーマには「全体」の印が無く、紐付け 0 のテーマはどの管理カラムにも
+   *   出ないゾンビになるため
+   * 安定キーのみ / 紐付け無しの個体には触れない (冪等)。
+   */
+  function migrateScopes(): void {
+    const accountsStore = useAccountsStore()
+    if (!accountsStore.isLoaded || scopesMigrated) return
+    scopesMigrated = true
+    const uuidToKey = new Map(
+      accountsStore.accounts.map((a) => [a.id, accountScopeKey(a)]),
+    )
+    const allKeys = accountsStore.accounts.map((a) => accountScopeKey(a))
+    let changed = false
+    const next = installedThemes.value.map((theme) => {
+      const list = theme.$notedeck?.installedFor
+      if (!list || list.length === 0 || list.every(isScopeKey)) return theme
+      const mapped = Array.from(
+        new Set(list.map((v) => (isScopeKey(v) ? v : uuidToKey.get(v)))),
+      ).filter((v): v is string => !!v)
+      const migrated: MisskeyTheme = {
+        ...theme,
+        $notedeck: {
+          ...theme.$notedeck,
+          installedFor: mapped.length > 0 ? mapped : allKeys,
+        },
+      }
+      changed = true
+      persistThemeFile(migrated)
+      return migrated
+    })
+    if (!changed) return
+    installedThemes.value = next
+    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+  }
+
+  /** accounts のロード完了を待って migrateScopes を 1 回だけ実行する。 */
+  function scheduleScopeMigration(): void {
+    const accountsStore = useAccountsStore()
+    if (accountsStore.isLoaded) {
+      migrateScopes()
+      return
+    }
+    const stop = watch(
+      () => accountsStore.isLoaded,
+      (ready) => {
+        if (!ready) return
+        stop()
+        migrateScopes()
+      },
+    )
   }
 
   /**
@@ -707,6 +773,7 @@ export const useThemeStore = defineStore('theme', () => {
     }
 
     initialized.value = true
+    scheduleScopeMigration()
 
     // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
     if (settingsFs.isMainDeckWindow()) {
@@ -818,6 +885,7 @@ export const useThemeStore = defineStore('theme', () => {
     installTheme,
     removeTheme,
     unlinkAccountFromTheme,
+    migrateScopes,
     recordStoreBaseline,
     renameTheme,
     selectTheme,

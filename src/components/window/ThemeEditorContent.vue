@@ -23,6 +23,7 @@ import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { isExposed } from '@/settings/exposure'
+import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
@@ -47,6 +48,7 @@ const props = defineProps<{
 }>()
 
 const themeStore = useThemeStore()
+const accountsStore = useAccountsStore()
 const { confirm } = useConfirm()
 
 // 生ファイルを直接編集する code タブは開発者向けの面 (#1034)。この窓が
@@ -307,7 +309,12 @@ async function installTheme() {
   if (codeError.value) return
   const theme = buildCurrentTheme()
   const ids = props.initialAccountIds ?? []
-  await themeStore.installTheme(JSON.stringify(theme), ids)
+  // installedFor は安定キー (#1113)、per-column 適用キャッシュは内部 ID
+  const keys = ids
+    .map((id) => accountsStore.accounts.find((a) => a.id === id))
+    .filter((a): a is NonNullable<typeof a> => !!a)
+    .map(accountScopeKey)
+  await themeStore.installTheme(JSON.stringify(theme), keys)
   if (ids.length > 0) {
     for (const id of ids) {
       themeStore.applyAccountTheme(theme, baseMode.value, id)

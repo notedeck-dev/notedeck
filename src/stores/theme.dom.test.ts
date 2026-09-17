@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAccountsStore } from '@/stores/accounts'
 import { DARK_BASE, DARK_THEME } from '@/theme/builtinThemes'
 import { compileMisskeyTheme } from '@/theme/compiler'
 import type { MisskeyTheme } from '@/theme/types'
@@ -262,5 +263,69 @@ describe('useThemeStore.getStyleVarsForAccount — グローバルテーマの�
     const store = selectRedGlobally()
 
     expect(store.getStyleVarsForAccount('acc-no-theme')).toBeUndefined()
+  })
+})
+
+describe('useThemeStore.migrateScopes — installedFor を安定キーへ (#1113)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    const accounts = useAccountsStore()
+    accounts.accounts = [
+      {
+        id: 'uuid-1',
+        host: 'example.com',
+        userId: 'u1',
+        username: 'one',
+        displayName: null,
+        avatarUrl: null,
+        software: 'misskey-dev/misskey',
+        hasToken: true,
+      },
+    ] as never
+    accounts.isLoaded = true
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('旧 UUID は現行アカウントの安定キーへ置換し、該当しない UUID は捨てる', () => {
+    const store = useThemeStore()
+    store.installedThemes = [
+      {
+        ...RED,
+        $notedeck: { installedFor: ['uuid-1', 'uuid-dead', 'other.host:u9'] },
+      },
+    ]
+    store.migrateScopes()
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual([
+      'example.com:u1',
+      'other.host:u9',
+    ])
+  })
+
+  it('紐付け先が全滅した個体は現行の全アカウントに紐付け直す (ゾンビ化させない)', () => {
+    const store = useThemeStore()
+    store.installedThemes = [
+      { ...RED, $notedeck: { installedFor: ['uuid-dead'] } },
+    ]
+    store.migrateScopes()
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual([
+      'example.com:u1',
+    ])
+  })
+
+  it('安定キーだけの個体と紐付けの無い個体には触れない (冪等)', () => {
+    const store = useThemeStore()
+    store.installedThemes = [
+      { ...RED, $notedeck: { installedFor: ['example.com:u1'] } },
+      { ...RED, id: 'blue', name: 'Blue' },
+    ]
+    store.migrateScopes()
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual([
+      'example.com:u1',
+    ])
+    expect(store.installedThemes[1]?.$notedeck).toBeUndefined()
   })
 })
