@@ -977,7 +977,7 @@ defineExpose({
   font-weight: bold;
   font-size: 0.9em;
   white-space: nowrap;
-  transition: transform var(--nd-duration-fast) var(--nd-ease-spring), box-shadow var(--nd-duration-base);
+  transition: transform var(--nd-duration-fast) var(--nd-ease-spring);
 
   &:hover {
     transform: scale(1.03);

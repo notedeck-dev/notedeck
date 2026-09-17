@@ -435,7 +435,7 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 2. 各ウィンドウは `windowLayout`（computed）で自分に属するカラムだけをフィルタして表示する
 3. ウィンドウの作成・破棄はプロファイルのデータに影響しない
 
-**同期方式:** localStorage（全 webview 共有）を SSoT とし、Tauri イベント（`deck:profile-updated`）でキャッシュ無効化を通知。Rust 側に SSoT を移す案も検討したが、localStorage が既に全 webview で共有されており、本質的に同じ構造になるため不採用（[PR #172](https://github.com/notedeck-dev/notedeck/pull/172) で議論）。
+**同期方式:** 永続化の正本はプロファイルフォルダ配下のファイル（#913。ID とファイル名の対応表つき）。localStorage は全 webview 共有の**ミラー**で、起動時の即時復元と他ウィンドウへの伝播に使い、Tauri イベント（`deck:profile-updated` / `deck:profiles-changed`）で変更を通知する。ミラーへ書く直前に対応表を読み直して合流させ、別ウィンドウのリネーム結果を潰さない。Rust 側に正本を移す案は不採用（[PR #172](https://github.com/notedeck-dev/notedeck/pull/172) で議論）。
 
 ### Window / Column Model（[#194](https://github.com/notedeck-dev/notedeck/issues/194)）
 
@@ -805,10 +805,9 @@ NoteDeck のパフォーマンス関連パラメータはすべてユーザー�
 **操作モデル:** 両端「省メモリ ↔ 高性能」の **スライダー** で線形補間する。固定プリセット名 (preset 列挙) は持たない。中央値が `src/defaults/performance.json5` と同値。
 
 **永続化:**
-- 設定は `settings.json`（`performance.*` キー）に一元化（`useSettingsStore` が単一 source of truth）
+- 設定は `performance.json5` に独立ファイルとして保存する（`usePerformanceStore` が single source of truth）。`settings.json` のスカラーハブとは分けている（構造を持つ定義は専用ファイル、の規則）
 - デフォルト値と同じキーはオーバーライドに含めない（差分のみ保存）
 - バックエンド（Rust）側のパラメータは `invoke('update_performance_config')` で即時同期
-- 旧 `performance.json5` は初回起動時の移行読込のみ。新規書込は `settings.json` のみ
 
 ### レンダリングパフォーマンス
 

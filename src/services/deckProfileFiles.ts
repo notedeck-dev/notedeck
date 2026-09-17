@@ -19,7 +19,6 @@ import { createSingleFileCollection } from '@/services/singleFileCollection'
 import type { DeckProfile } from '@/stores/deck'
 import type { WidgetMeta } from '@/stores/widgets'
 import * as settingsFs from '@/utils/settingsFs'
-import { notifyWarningToast } from '@/utils/toastNotify'
 
 export interface ProfileLoadByproducts {
   droppedConsoleCount: number
@@ -40,37 +39,40 @@ export function drainProfileLoadByproducts(): ProfileLoadByproducts {
   return out
 }
 
-export const profileFiles = createSingleFileCollection<
-  DeckProfile,
-  Record<string, unknown>
->({
-  logTag: 'deckProfile',
-  notify: notifyWarningToast,
-  kindFallback: 'profile',
-  ext: settingsFs.PROFILE_EXT,
-  // 占有判定・sweep には .history.json5 を含む実列挙が要る
-  // (規定拡張子の filter はコレクション側が行う)
-  list: () => settingsFs.listProfileDirFiles(),
-  read: (filename) => settingsFs.readProfile(filename),
-  write: (filename, content) => settingsFs.writeProfile(filename, content),
-  remove: (filename) => settingsFs.deleteProfile(filename),
-  rename: (oldFilename, newFilename) =>
-    settingsFs.renameProfile(oldFilename, newFilename),
-  parse: (raw) => JSON5.parse(raw) as Record<string, unknown>,
-  accepts: (p) => !!p && typeof p === 'object' && !Array.isArray(p),
-  rawIdOf: (p) => p.id,
-  effectiveIdOf: (filename) => filename,
-  injectId: (raw, id) => injectJson5Id(raw, 'id', id),
-  fromFile: (p, id, filename) => {
-    const { profile, droppedConsoleCount, extractedWidgets, sidebarSeed } =
-      parseProfileFile(p, id, filename)
-    pendingByproducts.droppedConsoleCount += droppedConsoleCount
-    pendingByproducts.extractedWidgets.push(...extractedWidgets)
-    pendingByproducts.sidebarSeed.push(...sidebarSeed)
-    return profile
-  },
-  displayNameOf: (p) => (typeof p.name === 'string' ? p.name : ''),
-  idOf: (p) => p.id,
-  nameOf: (p) => p.name,
-  serialize: (p) => JSON5.stringify(toFileFormat(p), null, 2),
-})
+/**
+ * プロファイルのファイルコレクション。読込時の警告は呼び出し側 (store) が
+ * 渡す notify で出す — サービス層は UI (toast) を知らない (#1098)。
+ */
+export function createProfileFiles(notify: (message: string) => void) {
+  return createSingleFileCollection<DeckProfile, Record<string, unknown>>({
+    logTag: 'deckProfile',
+    notify,
+    kindFallback: 'profile',
+    ext: settingsFs.PROFILE_EXT,
+    // 占有判定・sweep には .history.json5 を含む実列挙が要る
+    // (規定拡張子の filter はコレクション側が行う)
+    list: () => settingsFs.listProfileDirFiles(),
+    read: (filename) => settingsFs.readProfile(filename),
+    write: (filename, content) => settingsFs.writeProfile(filename, content),
+    remove: (filename) => settingsFs.deleteProfile(filename),
+    rename: (oldFilename, newFilename) =>
+      settingsFs.renameProfile(oldFilename, newFilename),
+    parse: (raw) => JSON5.parse(raw) as Record<string, unknown>,
+    accepts: (p) => !!p && typeof p === 'object' && !Array.isArray(p),
+    rawIdOf: (p) => p.id,
+    effectiveIdOf: (filename) => filename,
+    injectId: (raw, id) => injectJson5Id(raw, 'id', id),
+    fromFile: (p, id, filename) => {
+      const { profile, droppedConsoleCount, extractedWidgets, sidebarSeed } =
+        parseProfileFile(p, id, filename)
+      pendingByproducts.droppedConsoleCount += droppedConsoleCount
+      pendingByproducts.extractedWidgets.push(...extractedWidgets)
+      pendingByproducts.sidebarSeed.push(...sidebarSeed)
+      return profile
+    },
+    displayNameOf: (p) => (typeof p.name === 'string' ? p.name : ''),
+    idOf: (p) => p.id,
+    nameOf: (p) => p.name,
+    serialize: (p) => JSON5.stringify(toFileFormat(p), null, 2),
+  })
+}

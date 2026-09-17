@@ -602,7 +602,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
   overflow: hidden;
   contain: layout style paint;
   content-visibility: auto;
-  transition: transform 0.12s, box-shadow 0.12s, opacity 0.12s;
+  transition: transform 0.12s, opacity 0.12s;
 }
 
 .widgetItemDragging {

@@ -450,7 +450,6 @@ function acceptCrossWindowDrop() {
   color: var(--nd-fgOnAccent, #fff);
   font-size: 20px;
   box-shadow: var(--nd-shadow-m);
-  transition: box-shadow var(--nd-duration-base) var(--nd-ease-decel);
 
   // signal は影の深さ 1 つ。以前は scale(1.05) と accent 40% の色付き影を
   // 同時に出していたが、暗い面の上の色付きグローは装飾でしかない

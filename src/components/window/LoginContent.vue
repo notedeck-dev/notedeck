@@ -378,7 +378,7 @@ onMounted(() => {
   font-weight: bold;
   font-family: inherit;
   cursor: pointer;
-  transition: transform var(--nd-duration-base), box-shadow var(--nd-duration-base), opacity var(--nd-duration-base);
+  transition: transform var(--nd-duration-base), opacity var(--nd-duration-base);
 
   &:hover:not(:disabled) {
     transform: scale(1.02);

@@ -29,8 +29,9 @@ const keywordCompletions: Completion[] = [
   'false',
 ].map((kw) => ({ label: kw, type: 'keyword' }))
 
-// Namespace:member built-in functions
-const builtins: Record<string, string[]> = {
+// Namespace:member built-in functions。Nd: / Plugin: は NoteDeck 独自 API
+// (notedeck-api.ts / plugin-api.ts の登録と一致することを tests/lint が検査する)
+export const AISCRIPT_BUILTIN_COMPLETIONS: Record<string, string[]> = {
   Mk: [
     'dialog',
     'confirm',
@@ -182,7 +183,19 @@ const builtins: Record<string, string[]> = {
   Uri: ['encode_full', 'encode_component', 'decode_full', 'decode_component'],
   Util: ['uuid'],
   Error: ['create'],
+  Nd: ['call', 'capabilities', 'http', 'on', 'register_command', 'version'],
+  Plugin: [
+    'config',
+    'open_url',
+    'register_note_action',
+    'register_note_post_interruptor',
+    'register_note_view_interruptor',
+    'register_page_view_interruptor',
+    'register_post_form_action',
+    'register_user_action',
+  ],
 }
+const builtins = AISCRIPT_BUILTIN_COMPLETIONS
 
 // Pre-build namespace member completions
 const nsMemberCompletions = new Map<string, Completion[]>()

@@ -303,7 +303,6 @@ function handlePostFormButton(comp: UiComponent) {
   color: var(--nd-fg);
   font-size: 0.85em;
   outline: none;
-  transition: box-shadow var(--nd-duration-base);
 
   &:focus {
     box-shadow: 0 0 0 2px var(--nd-accent);
@@ -321,7 +320,6 @@ function handlePostFormButton(comp: UiComponent) {
   outline: none;
   resize: vertical;
   min-height: 60px;
-  transition: box-shadow var(--nd-duration-base);
 
   &:focus {
     box-shadow: 0 0 0 2px var(--nd-accent);

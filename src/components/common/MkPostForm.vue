@@ -1533,7 +1533,7 @@ function onPaste(e: ClipboardEvent) {
   color: var(--nd-fgOnAccent);
   background: linear-gradient(90deg, var(--nd-buttonGradateA, var(--nd-accent)), var(--nd-buttonGradateB, var(--nd-accent)));
   cursor: pointer;
-  transition: opacity var(--nd-duration-base), box-shadow var(--nd-duration-slow) ease;
+  transition: opacity var(--nd-duration-base);
 
   &:hover:not(:disabled) {
     opacity: 0.85;
