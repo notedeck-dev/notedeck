@@ -86,3 +86,23 @@ describe('mapWithConcurrency', () => {
     expect(log).toEqual(['start 1', 'end 1', 'start 2', 'end 2'])
   })
 })
+
+describe('mapWithConcurrency — onSettled の失敗', () => {
+  it('途中のコールバックが失敗しても残りを呼び切り、最初のエラーを最後に投げる', async () => {
+    const called: number[] = []
+    await expect(
+      mapWithConcurrency(
+        [1, 2, 3],
+        async (n) => n,
+        1,
+        (r) => {
+          const v = r.status === 'fulfilled' ? r.value : 0
+          called.push(v)
+          if (v === 1) throw new Error('first')
+          if (v === 2) throw new Error('second')
+        },
+      ),
+    ).rejects.toThrow('first')
+    expect(called).toEqual([1, 2, 3])
+  })
+})

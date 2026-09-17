@@ -937,6 +937,10 @@ async function loadMorePerAccount() {
 async function loadMoreCrossAccount() {
   if (isLoading.value || noMoreData.value) return
   if (notifications.value.length === 0) return
+  // connectCrossAccount と世代を共有する。追加取得中にアカウント集合が変わって
+  // 張り直しが始まったら、削除済みアカウントの通知を戻さず、表示状態も奪わない
+  const generation = crossReconnectGeneration
+  const isStale = () => generation !== crossReconnectGeneration
   isLoading.value = true
 
   const accounts = accountsStore.accounts.filter((a) => a.hasToken)
@@ -966,12 +970,14 @@ async function loadMoreCrossAccount() {
       accounts.length,
       // 返ったアカウントの分から順に足す (#1095)
       (r, _acc, progress) => {
+        if (isStale()) return
         crossProgress.value = progress
         if (r.status !== 'fulfilled' || !r.value?.length) return
         gotAny = true
         notifications.value = mergeNotifications(r.value, notifications.value)
       },
     )
+    if (isStale()) return
 
     if (!gotAny) {
       noMoreData.value = true
@@ -979,10 +985,12 @@ async function loadMoreCrossAccount() {
     }
     saveCache()
   } catch (e) {
-    error.value = AppError.from(e)
+    if (!isStale()) error.value = AppError.from(e)
   } finally {
-    isLoading.value = false
-    crossProgress.value = null
+    if (!isStale()) {
+      isLoading.value = false
+      crossProgress.value = null
+    }
   }
 }
 

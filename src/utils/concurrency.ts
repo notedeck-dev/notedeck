@@ -11,6 +11,8 @@ export interface SettleProgress {
  * `onSettled` を渡すと 1 件終わるごとに完了順で呼ぶ (#1095 の段階表示用)。
  * コールバックは直列に実行し (前のが終わるまで次を始めない)、全部終わってから
  * resolve する。呼び出し側は「到着した分をマージして描画」を素直に書ける。
+ * コールバックが 1 つ失敗しても残りは呼び切り、最初のエラーを最後に投げる
+ * (途中で止めると「1 件終わるごとに呼ぶ」契約が破れる)。
  */
 export async function mapWithConcurrency<T, R>(
   items: T[],
@@ -26,6 +28,7 @@ export async function mapWithConcurrency<T, R>(
   let idx = 0
   let done = 0
   let chain: Promise<void> = Promise.resolve()
+  const callbackErrors: unknown[] = []
 
   async function worker() {
     while (idx < items.length) {
@@ -42,7 +45,13 @@ export async function mapWithConcurrency<T, R>(
       done++
       if (onSettled) {
         const progress = { done, total: items.length }
-        chain = chain.then(() => onSettled(result, item, progress))
+        chain = chain.then(async () => {
+          try {
+            await onSettled(result, item, progress)
+          } catch (reason) {
+            callbackErrors.push(reason)
+          }
+        })
       }
     }
   }
@@ -51,5 +60,6 @@ export async function mapWithConcurrency<T, R>(
     Array.from({ length: Math.min(limit, items.length) }, worker),
   )
   await chain
+  if (callbackErrors.length > 0) throw callbackErrors[0]
   return results
 }

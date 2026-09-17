@@ -62,6 +62,11 @@ const props = defineProps<{
 const isCrossAccount = computed(() => props.column.accountId == null)
 /** 全アカウントのサーバー検索の進捗 (#1095)。取得中以外は null */
 const crossProgress = ref<SettleProgress | null>(null)
+/**
+ * 検索の世代。同じクエリで条件 (日付・並び順) だけ変えた再実行はクエリ文字列
+ * では区別できないので、走行中の検索が古いかどうかは世代で判定する
+ */
+let searchGeneration = 0
 // 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
 provideNoteFrame(isCrossAccount)
 const accountsStore = useAccountsStore()
@@ -432,18 +437,20 @@ async function performSearch() {
   isLoading.value = true
   isPreview.value = false
   confirmedQuery.value = q
+  const gen = ++searchGeneration
 
   deckStore.updateColumn(props.column.id, { query: q })
 
   const hint = getSearchHint(q)
 
   if (isCrossAccount.value) {
-    await performSearchCrossAccount(q, hint)
+    await performSearchCrossAccount(q, hint, gen)
   } else {
     await performSearchPerAccount(q, hint)
   }
 
-  isLoading.value = false
+  // 走行中に別の検索が始まっていたら、その表示状態を奪わない
+  if (gen === searchGeneration) isLoading.value = false
 }
 
 async function performSearchPerAccount(q: string, hint: string) {
@@ -499,7 +506,7 @@ async function performSearchPerAccount(q: string, hint: string) {
   }
 }
 
-async function performSearchCrossAccount(q: string, hint: string) {
+async function performSearchCrossAccount(q: string, hint: string, gen: number) {
   const accounts = accountsStore.accounts
 
   // Local search first (instant) if not already showing preview
@@ -553,7 +560,7 @@ async function performSearchCrossAccount(q: string, hint: string) {
         accounts.length,
         async (r, _acc, progress) => {
           // 走行中に別の検索が始まっていたら、その結果に上書きしない
-          if (confirmedQuery.value !== q) return
+          if (gen !== searchGeneration) return
           crossProgress.value = progress
           if (r.status !== 'fulfilled') return
           let notes = filterServerNotes(r.value, q)
@@ -564,13 +571,13 @@ async function performSearchCrossAccount(q: string, hint: string) {
           rawNotes.value = merged
         },
       )
-      if (confirmedQuery.value === q) rawNotes.value = merged
+      if (gen === searchGeneration) rawNotes.value = merged
     } catch (e) {
-      if (!hasLocalResults.value) {
+      if (gen === searchGeneration && !hasLocalResults.value) {
         error.value = AppError.from(e)
       }
     } finally {
-      if (confirmedQuery.value === q) crossProgress.value = null
+      if (gen === searchGeneration) crossProgress.value = null
     }
   }
 }
@@ -625,6 +632,7 @@ async function loadMoreCrossAccount() {
   if (!hint) return
 
   const accounts = accountsStore.accounts
+  const gen = searchGeneration
   isLoading.value = true
 
   try {
@@ -648,13 +656,14 @@ async function loadMoreCrossAccount() {
       // 返ったアカウントの分から順に足す (#1095)。untilId で古い側へ進むほど
       // 遅くなるサーバーを、速いサーバーの分まで待たせない
       async (r, _acc, progress) => {
+        if (gen !== searchGeneration) return
         crossProgress.value = progress
         if (r.status !== 'fulfilled') return
         let older = filterServerNotes(r.value, q)
         if (regexMode.value) {
           older = await filterNotesByRegexAsync(older, q)
         }
-        if (older.length === 0) return
+        if (gen !== searchGeneration || older.length === 0) return
         setNotes(
           mergeNotes(rawNotes.value, older),
           ascending.value ? 'oldest' : 'newest',
@@ -662,10 +671,12 @@ async function loadMoreCrossAccount() {
       },
     )
   } catch (e) {
-    error.value = AppError.from(e)
+    if (gen === searchGeneration) error.value = AppError.from(e)
   } finally {
-    isLoading.value = false
-    crossProgress.value = null
+    if (gen === searchGeneration) {
+      isLoading.value = false
+      crossProgress.value = null
+    }
   }
 }
 
