@@ -37,7 +37,7 @@
 
 </div>
 
-<img width="1194" height="793" alt="スクリーンショット 2026-05-03 095616" src="https://github.com/user-attachments/assets/a9bca10d-a59d-4c35-9284-fb0534ccf886" />
+<img width="2376" height="1706" alt="image" src="https://github.com/user-attachments/assets/610f1403-471b-4298-abd9-a1f92cc5942d" />
 
 ## Install
 
