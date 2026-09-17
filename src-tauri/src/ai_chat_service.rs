@@ -327,6 +327,14 @@ pub async fn start_stream(
     Ok(())
 }
 
+/// 終了処理 (#1098): 進行中の全ストリームを中断する。
+pub fn abort_all_streams() {
+    let handles: Vec<JoinHandle<()>> = active_streams().drain().map(|(_, h)| h).collect();
+    for h in handles {
+        h.abort();
+    }
+}
+
 /// 進行中ストリームを中断する。冪等 — 完了済み / 未登録なら no-op。
 pub fn cancel_stream(stream_id: &str) {
     let handle = active_streams().remove(stream_id);
