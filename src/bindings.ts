@@ -2098,6 +2098,46 @@ async clearImageCache() : Promise<Result<null, { code: string; message: string; 
 }
 },
 /**
+ * petdex から slug のペットを取得してキャッシュに置く。
+ * 他の slug のキャッシュは消える (保持は選択中の 1 体だけ)。
+ *
+ * @see src-tauri/src/commands/pet.rs
+ */
+async petInstall(slug: string) : Promise<Result<PetInfo, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("pet_install", { slug }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * キャッシュ済みのペットを読む。無ければ None (呼び出し側が再取得する)
+ *
+ * @see src-tauri/src/commands/pet.rs
+ */
+async petLoad(slug: string) : Promise<Result<PetLoaded | null, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("pet_load", { slug }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * キャッシュを全部消す (ペットを外したとき)
+ *
+ * @see src-tauri/src/commands/pet.rs
+ */
+async petClear() : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("pet_clear") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * バックアップ保存先を (無ければ作って) 返す。UI の「フォルダを開く」用
  *
  * @see src-tauri/src/commands/backup.rs
@@ -3428,6 +3468,20 @@ image_cache_max_bytes: number;
  * そのぶんピークメモリが増える (モバイルでは特に効く)
  */
 image_cache_max_file_bytes: number }
+export type PetInfo = { slug: string; displayName: string; 
+/**
+ * 1 = 8×9 行, 2 = 8×11 行
+ */
+spriteVersion: number; rows: number; width: number; height: number; 
+/**
+ * "webp" | "png"
+ */
+spriteExt: string }
+export type PetLoaded = { info: PetInfo; 
+/**
+ * `data:image/...;base64,...` — WebView 側で Blob にして CSS 背景に敷く
+ */
+dataUrl: string }
 export type Player = { url: string; width: number | null; height: number | null; allow?: string[] }
 /**
  * 接続を開示する先の principal クラス (#712 §6.1)。
