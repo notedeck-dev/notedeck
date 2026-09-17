@@ -172,7 +172,9 @@ export interface DeckColumn {
    */
   noteQuery?: string
   /**
-   * 有効化した名前付きクエリの id 列 (useColumnQueriesStore、#783 Phase 1.5)。
+   * 適用した名前付きクエリの id 列 (useColumnQueriesStore、#783 Phase 1.5)。
+   * 「適用」はカラム側の軸。本体の有効/無効 (#1043) はアイテム側の別軸で、
+   * 無効なクエリは適用したまま評価上「無いもの」になる。
    * インライン式・組込フィルタと AND 合成。参照消失は fail-closed で保持。
    */
   noteQueryRefs?: string[]

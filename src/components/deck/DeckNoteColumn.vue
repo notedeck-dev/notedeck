@@ -32,6 +32,7 @@ import {
   useAccountsStore,
 } from '@/stores/accounts'
 import {
+  isQueryActive,
   isQueryEffectiveFor,
   useColumnQueriesStore,
 } from '@/stores/columnQueries'
@@ -164,15 +165,23 @@ const queryBadgeTitle = computed(() => {
   if (columnQueryState.value.status === 'invalid') {
     return 'クエリを解釈できません — 押すとクエリ管理カラムを開きます'
   }
+  // 適用がすべて無効 (#1043): 意図的な停止なのでセーフモードとは別文言
+  if (columnQueryState.value.status === 'disabled') {
+    return '適用中のクエリはすべて無効です — 絞り込まずに全件表示中。押すとクエリ管理カラムを開きます'
+  }
   const err =
     columnQueryErrorCount.value > 0
       ? ` (評価エラー ${columnQueryErrorCount.value} 件を除外)`
       : ''
+  const off =
+    columnQueryState.value.disabled.length > 0
+      ? ` (無効: ${columnQueryState.value.disabled.join(', ')})`
+      : ''
   const hint = ' — 押すとクエリ管理カラムを開きます'
   if (columnQueryState.value.status === 'degraded') {
-    return `クエリ適用中 — 1 件ずつ判定するため検索では使えません${err}${hint}`
+    return `クエリ適用中 — 1 件ずつ判定するため検索では使えません${err}${off}${hint}`
   }
-  return `クエリ適用中${err}${hint}`
+  return `クエリ適用中${err}${off}${hint}`
 })
 
 /**
@@ -186,8 +195,10 @@ const queryBadgeIcon = computed(() => {
       return 'ti ti-alert-triangle'
     case 'degraded':
       return 'ti ti-hourglass'
-    // セーフモードで停止中 (#971): フィルタ軸のまま「効いていない」を示す
+    // セーフモードで停止中 (#971) / 適用がすべて無効 (#1043):
+    // フィルタ軸のまま「効いていない」を示す
     case 'safeMode':
+    case 'disabled':
       return 'ti ti-filter-off'
     default:
       return 'ti ti-filter-check'
@@ -217,9 +228,12 @@ const namedQueryToggles = computed(() => {
   )
   const scopeKey = account ? accountScopeKey(account) : null
   const applied = new Set(props.column.noteQueryRefs ?? [])
-  return columnQueriesStore.queries
-    .filter((q) => isQueryEffectiveFor(q, scopeKey) || applied.has(q.id))
-    .map((q) => ({ id: q.id, name: q.name }))
+  return (
+    columnQueriesStore.queries
+      .filter((q) => isQueryEffectiveFor(q, scopeKey) || applied.has(q.id))
+      // 無効でも候補から消さない: 適用したまま消えると効いていない理由が追えない (#1043)
+      .map((q) => ({ id: q.id, name: q.name, disabled: !isQueryActive(q) }))
+  )
 })
 const effectiveFilterKeys = computed(() => props.filterKeys ?? [])
 const showFilterBtn = computed(
@@ -343,7 +357,9 @@ defineExpose({
             $style.queryBadge,
             columnQueryState.status === 'invalid' && $style.queryBadgeInvalid,
             columnQueryState.status === 'degraded' && $style.queryBadgeDegraded,
-            columnQueryState.status === 'safeMode' && $style.queryBadgeStopped,
+            (columnQueryState.status === 'safeMode' ||
+              columnQueryState.status === 'disabled') &&
+              $style.queryBadgeStopped,
           ]"
           :title="queryBadgeTitle"
           @click.stop="openQueryManager"
@@ -523,10 +539,11 @@ defineExpose({
     :position="filterPopupPos"
     :theme-vars="columnThemeVars"
     :named-queries="namedQueryToggles"
-    :enabled-query-ids="column.noteQueryRefs ?? []"
+    :applied-query-ids="column.noteQueryRefs ?? []"
     @close="showFilterMenu = false"
     @toggle="toggleFilter"
     @toggle-query="toggleNamedQuery"
+    @open-manager="openQueryManager"
   />
 
   <div v-if="postForm.show.value && column.accountId && account?.hasToken" ref="postFormPortalRef">
