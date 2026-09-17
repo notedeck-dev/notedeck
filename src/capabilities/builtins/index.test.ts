@@ -113,6 +113,8 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'plugins.setActive',
         'plugins.uninstall',
         'plugins.update',
+        'queries.history',
+        'queries.revert',
         'registry.delete',
         'registry.get',
         'registry.listKeys',

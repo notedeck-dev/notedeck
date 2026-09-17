@@ -3,11 +3,17 @@ import { Parser } from '@syuilo/aiscript'
 import { computed, ref } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
+import type { EditorAction } from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
+import {
+  historyBasename,
+  openEditHistoryWindow,
+} from '@/composables/useEditHistoryWindow'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
 import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
+import { isExposed } from '@/settings/exposure'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { useDeckStore } from '@/stores/deck'
 import { useToast } from '@/stores/toast'
@@ -139,6 +145,25 @@ const isDirty = computed(() => {
   )
 })
 
+/** AI / 自分が過去に何を変えたかを diff で追う (#981 / #1117)。 */
+function openHistory(): void {
+  const q = namedQuery.value
+  if (!q) return
+  openEditHistoryWindow({
+    kind: 'query',
+    basename: historyBasename(q.fileBase, q.name, q.id),
+    itemId: q.id,
+    name: q.name,
+  })
+}
+
+// 履歴は開発者向けの面 (#1034)。入口だけ隠す (他の配布物のエディタと同じ)
+const historyActions = computed<EditorAction[]>(() =>
+  isExposed('developer')
+    ? [{ key: 'history', label: '履歴', icon: 'history' }]
+    : [],
+)
+
 async function save(): Promise<void> {
   if (!canSave.value) return
   const ok = await queriesStore.updateQuery(props.queryId, {
@@ -249,13 +274,14 @@ async function save(): Promise<void> {
 
     <EditorActionBar
       :class="$style.barBleed"
+      :actions="historyActions"
       :primary="{
         key: 'save',
         label: warnings.length > 0 ? 'このまま保存' : '保存',
         icon: 'device-floppy',
         disabled: !canSave || !isDirty,
       }"
-      @action="save"
+      @action="(key) => (key === 'history' ? openHistory() : save())"
     />
   </div>
 </template>

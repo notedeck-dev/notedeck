@@ -51,6 +51,8 @@ pub const PERMISSION_KEYS: &[&str] = &[
     "widgets.write",
     "plugins.read",
     "plugins.write",
+    "queries.read",
+    "queries.write",
     "ai.sessions.read",
     "logs.read",
     "vault.use",
@@ -71,6 +73,7 @@ const READONLY_KEYS: &[&str] = &[
     "skills.read",
     "widgets.read",
     "plugins.read",
+    "queries.read",
     "ai.sessions.read",
     "logs.read",
     "deck.read",
@@ -89,6 +92,7 @@ const SAFE_EXTRA_KEYS: &[&str] = &[
     "skills.write",
     "widgets.write",
     "plugins.write",
+    "queries.write",
     "deck.write",
 ];
 
@@ -115,6 +119,7 @@ const LOCAL_READ_KEYS: &[&str] = &[
     "skills.read",
     "widgets.read",
     "plugins.read",
+    "queries.read",
     "ai.sessions.read",
     "logs.read",
     "deck.read",

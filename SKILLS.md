@@ -227,6 +227,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | **スキル** | `skills.list`, `skills.read`, `skills.create`, `skills.append`, `skills.replaceSection`, `skills.toggle`, `skills.install`, `skills.uninstall`, `skills.history`, `skills.revert` | skill 新規作成 (#726) + 自己編集 + MisStore install/uninstall |
 | **ウィジェット** | `widgets.list`, `widgets.read`, `widgets.create`, `widgets.update`, `widgets.setAutoRun`, `widgets.delete`, `widgets.install`, `widgets.uninstall`, `widgets.history`, `widgets.revert` | AiScript widget の AI 編集 + MisStore install/uninstall |
 | **プラグイン** | `plugins.list`, `plugins.read`, `plugins.create`, `plugins.update`, `plugins.setActive`, `plugins.delete`, `plugins.install`, `plugins.uninstall`, `plugins.history`, `plugins.revert` | AiScript plugin の AI 編集 + MisStore install/uninstall |
+| **クエリ** | `queries.history`, `queries.revert` | 名前付きクエリの編集履歴と復元 (#1117)。作成・編集は開発者モードのエディタのみで AI には開放しない |
 | **キーバインド** | `keybinds.list`, `keybinds.set`, `keybinds.reset`, `keybinds.resetAll` | ショートカット編集 |
 | **ナビバー** | `navbar.list`, `navbar.set`, `navbar.reset` | サイドバー構成編集 |
 | **パフォーマンス** | `performance.list`, `performance.set`, `performance.applySlider`, `performance.reset`, `performance.resetAll` | パフォーマンス設定 |

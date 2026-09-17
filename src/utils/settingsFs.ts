@@ -422,6 +422,7 @@ export type HistoryKind =
   | 'theme'
   | 'css'
   | 'memo'
+  | 'query'
 
 // css は root 直下の単一ファイル (custom.css) なので subdir を持たない。
 // 他 kind と異なり historyDirFor の対象外 (sidecar も root に置く)。
@@ -437,6 +438,8 @@ function historyDirFor(kind: Exclude<HistoryKind, 'css'>): string {
       return THEMES_DIR
     case 'memo':
       return MEMOS_DIR
+    case 'query':
+      return QUERIES_DIR
   }
 }
 

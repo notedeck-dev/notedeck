@@ -1,6 +1,7 @@
 import { type ComputedRef, computed } from 'vue'
 import { loadMemo, memosVersion } from '@/composables/useMemos'
 import { mergeThemeUpdate, serializeTheme } from '@/services/selfEditApply'
+import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { usePluginsStore } from '@/stores/plugins'
 import { useSkillsStore } from '@/stores/skills'
 import { useThemeStore } from '@/stores/theme'
@@ -22,6 +23,7 @@ export function useEditTargetText(
   const widgets = useWidgetsStore()
   const plugins = usePluginsStore()
   const theme = useThemeStore()
+  const queries = useColumnQueriesStore()
   return computed(() => {
     const id = itemId() ?? ''
     switch (kind()) {
@@ -31,6 +33,8 @@ export function useEditTargetText(
         return widgets.getWidget(id)?.src ?? ''
       case 'plugin':
         return plugins.getPlugin(id)?.src ?? ''
+      case 'query':
+        return queries.getQuery(id)?.src ?? ''
       case 'theme': {
         const t = theme.installedThemes.find((x) => x.id === id)
         return t ? serializeTheme(mergeThemeUpdate(t, {})) : ''
