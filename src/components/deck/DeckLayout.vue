@@ -36,6 +36,7 @@ import DeckBottomBar from './DeckBottomBar.vue'
 import DeckColumnsArea from './DeckColumnsArea.vue'
 import DeckMobileNav from './DeckMobileNav.vue'
 import DeckNavbar from './DeckNavbar.vue'
+import DeckPetOverlay from './DeckPetOverlay.vue'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -371,6 +372,9 @@ function acceptCrossWindowDrop() {
       :y="r.y"
       @done="removeRipple(r.id)"
     />
+
+    <!-- デッキの上に浮かぶペット (#1080) -->
+    <DeckPetOverlay />
 
     <!-- Cross-window column drop overlay -->
     <div

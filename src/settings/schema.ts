@@ -30,6 +30,21 @@ export interface NotedeckSettings {
    */
   'deck.navWidth'?: number
 
+  // --- Pet (#1080) ---
+  /**
+   * デッキに置く petdex 形式のペットの slug。null / 未設定で無し (既定)。
+   * 本体 (スプライト) はキャッシュ扱いで設定には入らない (`pet_store`)。
+   */
+  'pet.slug'?: string | null
+  /** ペットの位置 (右端・下端からの px)。ドラッグで動かした値だけ保存する */
+  'pet.right'?: number
+  'pet.bottom'?: number
+  /**
+   * ペットの表示倍率 (元のコマ 192×208 に対する比)。既定は 0.5 (96×104)。
+   * 許容範囲はアピアランス設定のスライダーが正本で、範囲外は表示時に丸める
+   */
+  'pet.scale'?: number
+
   // --- Modes (PoC 移行済み) ---
   'modes.realtime'?: boolean
   'modes.offline'?: boolean
