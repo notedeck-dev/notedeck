@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { READ_ONLY_HINT } from '@/services/sidecarFileCollection'
 import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { isWindowExposed } from '@/windows/exposure'
@@ -124,9 +125,15 @@ function handlePrimaryClick() {
           @click.stop="handlePrimaryClick"
         >{{ name }}</button>
         <span v-else :class="$style.name">{{ name }}</span>
+        <!-- ソース欠損 (#913 / #1111): 評価不能の原因と復旧導線を先に見せる -->
+        <span
+          v-if="!isStore && readOnly"
+          :class="$style.incompatBadge"
+          :title="READ_ONLY_HINT"
+        >ソース欠損</span>
         <!-- 無効は実行形態より前に出す: 止まっているものの実行形態は二の次 (#1043) -->
         <span
-          v-if="isDisabled"
+          v-else-if="isDisabled"
           :class="$style.disabledBadge"
           title="本体を無効にしています。適用先のカラムでは評価されません"
         >無効</span>

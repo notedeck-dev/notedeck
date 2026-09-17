@@ -7,6 +7,7 @@ import EditorActionBar from '@/components/window/EditorActionBar.vue'
 import EditorItemHeader from '@/components/window/EditorItemHeader.vue'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
+import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { useDeckStore } from '@/stores/deck'
 import { useToast } from '@/stores/toast'
@@ -140,11 +141,16 @@ const isDirty = computed(() => {
 
 async function save(): Promise<void> {
   if (!canSave.value) return
-  await queriesStore.updateQuery(props.queryId, {
+  const ok = await queriesStore.updateQuery(props.queryId, {
     name: queryName.value.trim(),
     description: queryDescription.value.trim() || undefined,
     src: source.value,
   })
+  // 読取専用 (ソース欠損) は保存されない。成功トーストを出さず理由を見せる (#1111)
+  if (!ok) {
+    toast.show(READ_ONLY_REASON, 'warning')
+    return
+  }
   toast.show('クエリを保存しました', 'success')
   emit('close')
 }

@@ -324,3 +324,31 @@ describe('useWidgetsStore.purgeAccount — アカウント削除で紐づく個�
     expect(store.widgets.map((w) => w.installId)).toEqual(['w2', 'w3'])
   })
 })
+
+describe('読取専用 (ソース欠損) のウィジットは変更を拒否する (#1111)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('自動実行・改名・ソース・実行アカウントの変更を拒否して false を返す', () => {
+    const store = useWidgetsStore()
+    store.addWidget({ ...makeWidget('ro'), src: '' })
+    const live = store.getWidget('ro')
+    if (live) live.readOnly = true
+    expect(store.setAutoRun('ro', true)).toBe(false)
+    expect(store.getWidget('ro')?.autoRun).toBe(false)
+    expect(store.renameWidget('ro', 'renamed')).toBe(false)
+    expect(store.getWidget('ro')?.name).toBe('ro')
+    expect(store.updateSrc('ro', 'x')).toBe(false)
+    expect(store.setAccountKey('ro', 'h:u')).toBe(false)
+    expect(store.getWidget('ro')?.accountKey).toBeUndefined()
+  })
+
+  it('通常のウィジットでは true を返す', () => {
+    const store = useWidgetsStore()
+    store.addWidget(makeWidget('ok'))
+    expect(store.setAutoRun('ok', true)).toBe(true)
+    expect(store.renameWidget('ok', 'renamed')).toBe(true)
+  })
+})

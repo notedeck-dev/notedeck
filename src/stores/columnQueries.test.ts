@@ -333,3 +333,39 @@ describe('クエリの有効 / 無効 (#1043) — 本体のキルスイッチ', 
     expect(store.getQuery(q.id)?.disabled).toBe(true)
   })
 })
+
+describe('読取専用 (ソース欠損) の個体は変更を拒否する (#1111)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  it('改名・説明の変更も拒否して false を返す (端末ローカルにだけ載せない)', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: '' })
+    store.queries = [{ ...q, readOnly: true }]
+    expect(await store.updateQuery(q.id, { name: 'renamed' })).toBe(false)
+    expect(store.getQuery(q.id)?.name).toBe('a')
+  })
+
+  it('スコープの参加・離脱も拒否する', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({
+      name: 'a',
+      src: '',
+      scope: { kind: 'global' },
+    })
+    store.queries = [{ ...q, readOnly: true }]
+    expect(store.unlinkScope(q.id, { kind: 'global' })).toBe(false)
+    expect(store.getQuery(q.id)?.global).toBe(true)
+    expect(store.linkScope(q.id, { kind: 'account', key: 'h:u' })).toBe(false)
+    expect(store.getQuery(q.id)?.installedFor).toBeUndefined()
+  })
+
+  it('通常の個体では true を返す', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'true' })
+    expect(await store.updateQuery(q.id, { name: 'b' })).toBe(true)
+    expect(store.linkScope(q.id, { kind: 'global' })).toBe(true)
+  })
+})

@@ -4,6 +4,7 @@ import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
+import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   isQueryActive,
@@ -203,7 +204,10 @@ async function createNew(): Promise<void> {
 function detachFromScope(query: NamedQueryMeta): void {
   const scope = columnScope.value
   if (!scope) return
-  queriesStore.unlinkScope(query.id, scope)
+  if (!queriesStore.unlinkScope(query.id, scope)) {
+    useToast().show(READ_ONLY_REASON, 'warning')
+    return
+  }
   useToast().show('クエリを外しました', 'info', {
     action: {
       label: '元に戻す',
@@ -227,7 +231,10 @@ const libraryCandidates = computed<NamedQueryMeta[]>(() =>
 function placeFromLibrary(query: NamedQueryMeta): void {
   const scope = columnScope.value
   if (!scope) return
-  queriesStore.linkScope(query.id, scope)
+  if (!queriesStore.linkScope(query.id, scope)) {
+    useToast().show(READ_ONLY_REASON, 'warning')
+    return
+  }
   showLibraryPicker.value = false
 }
 
@@ -237,9 +244,7 @@ function placeFromLibrary(query: NamedQueryMeta): void {
  */
 async function toggleDisabled(query: NamedQueryMeta): Promise<void> {
   const ok = await queriesStore.setDisabled(query.id, isQueryActive(query))
-  if (!ok) {
-    useToast().show('ソースファイルが見つからないため変更できません', 'warning')
-  }
+  if (!ok) useToast().show(READ_ONLY_REASON, 'warning')
 }
 
 async function remove(query: NamedQueryMeta): Promise<void> {
