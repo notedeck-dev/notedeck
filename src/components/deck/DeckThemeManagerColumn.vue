@@ -246,6 +246,30 @@ useTabSlide(tabIndex, columnContentRef)
 const searchQuery = ref('')
 const storeQuery = ref('')
 
+// --- Library picker (他アカウント向けに入れた / 紐付けの無いテーマをこのアカウントへ) ---
+// プラグイン・クエリ・ウィジェットのライブラリピッカーと同型。全アカウントの
+// カラムは集約表示なので per-account カラムだけに出す
+const showLibraryPicker = ref(false)
+
+/** このアカウントに未紐付けの本体 (= 追加可能候補)。現在のモードに絞る */
+const libraryCandidates = computed<MisskeyTheme[]>(() => {
+  const key = accountKey.value
+  if (isCrossAccount.value || !key) return []
+  const mode = currentMode.value
+  return themeStore.installedThemes.filter(
+    (t) =>
+      (t.base ?? 'dark') === mode &&
+      !(t.$notedeck?.installedFor ?? []).includes(key),
+  )
+})
+
+function placeFromLibrary(theme: MisskeyTheme): void {
+  const key = accountKey.value
+  if (!key) return
+  themeStore.linkAccountToTheme(theme.id, key)
+  showLibraryPicker.value = false
+}
+
 const filteredSections = computed<ThemeSection[]>(() => {
   const q = searchQuery.value.trim().toLowerCase()
   // 検索クエリが空のときは空セクションもそのまま (label を表示するため)。
@@ -538,6 +562,32 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
             </div>
           </ColumnSection>
 
+          <!-- Library picker: このアカウントに未紐付けの本体を追加 (per-account のみ) -->
+          <div v-if="!isCrossAccount && accountKey" :class="$style.addArea">
+            <button
+              :class="[$style.addBtn, showLibraryPicker && $style.addBtnActive]"
+              @click="showLibraryPicker = !showLibraryPicker"
+            >
+              <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
+              {{ showLibraryPicker ? '閉じる' : 'ライブラリから追加' }}
+            </button>
+          </div>
+          <div v-if="!isCrossAccount && showLibraryPicker" :class="$style.pickerWrap">
+            <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
+              ライブラリに追加可能なテーマがありません。
+            </div>
+            <div v-else :class="$style.grid">
+              <ThemeCard
+                v-for="theme in libraryCandidates"
+                :key="`library:${theme.id}`"
+                mode="library"
+                :theme="theme"
+                :source="theme.$notedeck?.storeId ? 'misstore' : 'local'"
+                @place="placeFromLibrary(theme)"
+              />
+            </div>
+          </div>
+
           <div v-if="totalFilteredCount === 0" :class="$style.empty">
             <template v-if="searchQuery">
               一致するテーマがありません
@@ -716,6 +766,50 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
     opacity: 1;
     background: color-mix(in srgb, var(--nd-love) 15%, transparent);
   }
+}
+
+/* ライブラリピッカー (他 3 種のカラムと同型) */
+.addArea {
+  padding: 8px 10px;
+}
+
+.addBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px dashed var(--nd-divider);
+  background: transparent;
+  color: var(--nd-fg);
+  opacity: 0.8;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 1;
+    background: var(--nd-buttonHoverBg);
+  }
+}
+
+.addBtnActive {
+  opacity: 1;
+  background: var(--nd-buttonHoverBg);
+}
+
+.pickerWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+.pickerEmpty {
+  padding: 12px;
+  text-align: center;
+  font-size: 0.85em;
+  opacity: 0.6;
 }
 
 .empty {

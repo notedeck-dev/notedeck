@@ -357,3 +357,37 @@ describe('useThemeStore.purgeAccount — アカウント削除でスコープ参
     expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual(['h:u2'])
   })
 })
+
+describe('useThemeStore.linkAccountToTheme — ライブラリから追加 (テーマのピッカー)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('アカウントの安定キーを紐付けに足す (union、重複しない)', () => {
+    const store = useThemeStore()
+    store.installedThemes = [{ ...RED, $notedeck: { installedFor: ['h:u1'] } }]
+    expect(store.linkAccountToTheme(RED.id, 'h:u2')).toBe(true)
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual([
+      'h:u1',
+      'h:u2',
+    ])
+    expect(store.linkAccountToTheme(RED.id, 'h:u2')).toBe(true)
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual([
+      'h:u1',
+      'h:u2',
+    ])
+  })
+
+  it('紐付けの無いテーマにも足せる ($notedeck を作る)。未知の id は false', () => {
+    const store = useThemeStore()
+    store.installedThemes = [{ ...RED }]
+    expect(store.linkAccountToTheme(RED.id, 'h:u1')).toBe(true)
+    expect(store.installedThemes[0]?.$notedeck?.installedFor).toEqual(['h:u1'])
+    expect(store.linkAccountToTheme('nope', 'h:u1')).toBe(false)
+  })
+})

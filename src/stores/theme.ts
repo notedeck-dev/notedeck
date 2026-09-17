@@ -511,6 +511,31 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   /**
+   * 既存のテーマをアカウントに紐付ける (ライブラリから追加)。プラグイン・
+   * クエリ・ウィジェットのライブラリピッカーと同型で、本体は 1 つのまま
+   * `installedFor` に安定キーを足す (union)。
+   */
+  function linkAccountToTheme(themeId: string, accountKey: string): boolean {
+    const theme = installedThemes.value.find((t) => t.id === themeId)
+    if (!theme) return false
+    const existing = theme.$notedeck?.installedFor ?? []
+    if (existing.includes(accountKey)) return true
+    const updated: MisskeyTheme = {
+      ...theme,
+      $notedeck: {
+        ...(theme.$notedeck ?? {}),
+        installedFor: [...existing, accountKey],
+      },
+    }
+    installedThemes.value = installedThemes.value.map((t) =>
+      t.id === themeId ? updated : t,
+    )
+    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+    persistThemeFile(updated)
+    return true
+  }
+
+  /**
    * アカウント削除時に、そのアカウントの紐付けをすべて外す (#1114)。
    * 紐付けが無くなるテーマは手動の「外す」と同じく本体ごと消す (テーマには
    * 「全体」の印が無く、紐付け 0 はどの管理カラムにも出ないゾンビになるため)
@@ -897,6 +922,7 @@ export const useThemeStore = defineStore('theme', () => {
     installTheme,
     removeTheme,
     unlinkAccountFromTheme,
+    linkAccountToTheme,
     purgeAccount,
     migrateScopes,
     recordStoreBaseline,
