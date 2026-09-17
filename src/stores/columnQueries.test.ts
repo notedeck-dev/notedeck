@@ -14,6 +14,10 @@ vi.mock('@/services/columnQuery/degradedRunner', () => ({
   releaseSharedSuspension: vi.fn(),
 }))
 
+vi.mock('@/utils/historyFs', () => ({
+  pushSnapshot: vi.fn(async () => undefined),
+}))
+
 import { releaseSharedSuspension } from '@/services/columnQuery/degradedRunner'
 import {
   isQueryActive,
@@ -21,6 +25,7 @@ import {
   type NamedQueryMeta,
   useColumnQueriesStore,
 } from '@/stores/columnQueries'
+import { pushSnapshot } from '@/utils/historyFs'
 
 describe('useColumnQueriesStore.removeQuery (undo) — #988', () => {
   beforeEach(() => {
@@ -367,5 +372,66 @@ describe('読取専用 (ソース欠損) の個体は変更を拒否する (#111
     const q = await store.createQuery({ name: 'a', src: 'true' })
     expect(await store.updateQuery(q.id, { name: 'b' })).toBe(true)
     expect(store.linkScope(q.id, { kind: 'global' })).toBe(true)
+  })
+})
+
+describe('クエリの編集履歴 (#1117) — 編集前 snapshot を積む', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.mocked(pushSnapshot).mockClear()
+  })
+
+  async function seeded() {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({
+      name: 'a',
+      src: 'old',
+      description: 'd',
+    })
+    const live = store.getQuery(q.id)
+    if (live) live.fileBase = 'a'
+    return { store, q }
+  }
+
+  it('ソースが変わる保存は編集前の src / name / description を積む', async () => {
+    const { store, q } = await seeded()
+    await store.updateQuery(q.id, { src: 'new' })
+    expect(pushSnapshot).toHaveBeenCalledTimes(1)
+    expect(pushSnapshot).toHaveBeenCalledWith(
+      'query',
+      'a',
+      { src: 'old', name: 'a', description: 'd' },
+      undefined,
+    )
+  })
+
+  it('名前だけの変更でも積む (snapshot に含まれる範囲が動いた)', async () => {
+    const { store, q } = await seeded()
+    await store.updateQuery(q.id, { name: 'b' })
+    expect(pushSnapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it('同じ内容の保存では積まない', async () => {
+    const { store, q } = await seeded()
+    await store.updateQuery(q.id, { src: 'old', name: 'a', description: 'd' })
+    expect(pushSnapshot).not.toHaveBeenCalled()
+  })
+
+  it('ファイル未割当 (fileBase 無し) では積まない', async () => {
+    const store = useColumnQueriesStore()
+    const q = await store.createQuery({ name: 'a', src: 'old' })
+    await store.updateQuery(q.id, { src: 'new' })
+    expect(pushSnapshot).not.toHaveBeenCalled()
+  })
+
+  it('ストア更新でソースが変わるときも積む', async () => {
+    const { store, q } = await seeded()
+    await store.applyStoreUpdate(q.id, {
+      src: 'new',
+      storeSha512: 'abc',
+      storeVersion: '2.0.0',
+    })
+    expect(pushSnapshot).toHaveBeenCalledTimes(1)
   })
 })

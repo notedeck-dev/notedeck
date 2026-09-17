@@ -6,6 +6,7 @@ import {
   type SidecarItemFile,
 } from '@/services/sidecarFileCollection'
 import { useDeckStore } from '@/stores/deck'
+import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
 import { notifyWarningToast } from '@/utils/toastNotify'
@@ -416,10 +417,38 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     return true
   }
 
+  /**
+   * 編集前の状態を履歴サイドカーに積む (#1117、他の配布物と同じリング)。
+   * 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
+   * snapshot の範囲 (src / name / description) が動いたときだけ積む — 同じ
+   * 内容の保存で積むとリングを使い潰す
+   */
+  function pushHistory(
+    prev: NamedQueryMeta,
+    next: Pick<NamedQueryMeta, 'src' | 'name' | 'description'>,
+    attribution?: EditAttribution,
+  ): void {
+    if (!prev.fileBase) return
+    if (
+      prev.src === next.src &&
+      prev.name === next.name &&
+      prev.description === next.description
+    ) {
+      return
+    }
+    pushSnapshot(
+      'query',
+      prev.fileBase,
+      { src: prev.src, name: prev.name, description: prev.description },
+      attribution,
+    ).catch((e) => console.warn('[columnQueries] history push failed:', e))
+  }
+
   /** false = 読取専用 (ソース欠損) で拒否 (#1111)。UI は理由を出す */
   async function updateQuery(
     id: string,
     updates: Partial<Pick<NamedQueryMeta, 'name' | 'description' | 'src'>>,
+    attribution?: EditAttribution,
   ): Promise<boolean> {
     ensureLoaded()
     const idx = queries.value.findIndex((q) => q.id === id)
@@ -428,6 +457,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     if (!prev) return false
     // ソース欠損の読取専用個体: 内容編集も改名も保存を抑止 (#913 / #1111)
     if (rejectIfReadOnly(prev)) return false
+    pushHistory(prev, { ...prev, ...updates }, attribution)
     // ソースが変わったら暴走サスペンドを解除する (#783 追補 D / #1112)。
     // 署名変化の watch が走る前に解除しておく
     if (updates.src !== undefined && updates.src !== prev.src) {
@@ -469,6 +499,9 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     const prev = queries.value[idx]
     if (!prev) return
     if (patch.src !== prev.src) releaseSharedSuspension(id)
+    // 更新前の本体を履歴に積む (updateQuery と同じリング)。readOnly 個体は
+    // 復旧なので積まない (空ソースを履歴に残す意味が無い)
+    if (!prev.readOnly) pushHistory(prev, { ...prev, ...patch })
     const next: NamedQueryMeta = {
       ...prev,
       ...patch,

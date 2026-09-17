@@ -16,6 +16,7 @@ describe('EDIT_HISTORY_SPECS', () => {
       'css',
       'memo',
       'plugin',
+      'query',
       'skill',
       'theme',
       'widget',

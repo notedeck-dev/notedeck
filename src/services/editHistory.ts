@@ -76,6 +76,13 @@ export const EDIT_HISTORY_SPECS: Record<HistoryKind, EditHistorySpec> = {
     revertCapabilityId: 'theme.revert',
     revertParams: (id, index) => ({ id, index }),
   },
+  query: {
+    label: 'クエリ',
+    language: 'aiscript',
+    snapshotText: (s) => field(s, 'src'),
+    revertCapabilityId: 'queries.revert',
+    revertParams: (id, index) => ({ id, index }),
+  },
   memo: {
     label: 'メモ',
     language: 'markdown',
