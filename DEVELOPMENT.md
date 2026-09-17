@@ -293,7 +293,15 @@ src-tauri/src/              # Rust backend (Tauri 固有部分)
 └── main.rs                 # Entry point
 ```
 
-Misskey API クライアント・DB・モデル・ストリーミングコアなどの共通ロジックは全て `notecli` クレートにあり、`src-tauri/` には Tauri 固有の薄いラッパーのみ残っています。
+Misskey API クライアント・DB・モデル・ストリーミングコアは `notecli` クレートにある。一方 `src-tauri/` は Tauri 固有の配線だけではなく、Tauri に依存しないドメインも抱えている (OGP 抽出とサイト別プラグイン / Secret Vault / クエリランタイム / 画像キャッシュ / AI SSE クライアント / HTTP API サーバー / カラムクエリの QIR 評価器)。行数では notecli より大きい。
+
+置き場の規則 (#782):
+
+- `commands/*.rs` は IPC アダプタ。State の取り出しとパス解決だけを行い、薄く保つ
+- トップレベルの `*_service.rs` / `*_store.rs` / サブモジュールは、引数を取って単体テストできるサービス。`AppHandle` や `State` を直接受けない
+- Misskey の API / DB / ストリーミングに関わる共通処理は notecli に足す (フォークやスタンドアロン CLI からも使えるように)
+
+この規則は一部のモジュールにしか適用されておらず (column_query / export / http は commands/ にドメインを持つ)、ドメインをクレートに切り出すかも含めて #1098 で扱う。終了時のタスク所有は `shutdown.rs` に一元化されている。
 
 ### Boot Sequence
 
