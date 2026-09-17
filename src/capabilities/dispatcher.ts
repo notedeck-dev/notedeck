@@ -35,7 +35,9 @@ import {
   resolveFor,
   whenPermissionsReady,
 } from '@/permissions/store'
+import { isReadOnlyPermissions } from '@/services/petActivity'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
+import { useAiActivity } from '@/stores/aiActivity'
 import {
   type ConfirmDecision,
   type ConfirmOptions,
@@ -268,7 +270,16 @@ export async function dispatchCapability(
       confirmOpts.rememberLabel = '今後この操作を確認しない'
     }
     const confirmFn = options?.confirmFn ?? useConfirm().confirmWithDecision
-    const decision = await confirmFn(confirmOpts)
+    // ペット (#1080): AI の要求で承認を待っている間は waiting
+    const endWaiting = isAiPrincipal(ctx.principal)
+      ? useAiActivity().begin('waiting')
+      : null
+    let decision: Awaited<ReturnType<typeof confirmFn>>
+    try {
+      decision = await confirmFn(confirmOpts)
+    } finally {
+      endWaiting?.()
+    }
     if (!decision.accepted) {
       return {
         ok: false,
@@ -287,6 +298,12 @@ export async function dispatchCapability(
       }
     }
   }
+  // ペット (#1080): 読み取り系は review、それ以外は running
+  const endExecute = isAiPrincipal(ctx.principal)
+    ? useAiActivity().begin(
+        isReadOnlyPermissions(cap.permissions ?? []) ? 'review' : 'running',
+      )
+    : null
   try {
     const result = await cap.execute(params, capCtx)
     // AI 操作の可視化: 成功時のみ、対応する UI 要素を一時的に光らせる。
@@ -309,7 +326,13 @@ export async function dispatchCapability(
       code: 'execute_failed',
       error: e instanceof Error ? e.message : String(e),
     }
+  } finally {
+    endExecute?.()
   }
+}
+
+function isAiPrincipal(principal: Principal): boolean {
+  return principal.kind === 'ai.chat' || principal.kind === 'ai.heartbeat'
 }
 
 /**

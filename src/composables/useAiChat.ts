@@ -1,6 +1,7 @@
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { onScopeDispose, ref } from 'vue'
 import type { AiChatMessage, JsonValue } from '@/bindings'
+import { useAiActivity } from '@/stores/aiActivity'
 import { extractErrorMessage } from '@/utils/errors'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -170,8 +171,12 @@ export function useAiChat() {
   // 進行中 sendMessage の reject。cancel / dispose 時に AiChatCancelledError で
   // settle し、await している送信ループ側の掃除 (placeholder 除去等) を走らせる。
   let activeReject: ((e: Error) => void) | null = null
+  // ペット (#1080) 向けの「生成中」報告。cleanup で必ず戻す
+  let endActivity: (() => void) | null = null
 
   function cleanup() {
+    endActivity?.()
+    endActivity = null
     if (activeUnlisten) {
       activeUnlisten()
       activeUnlisten = null
@@ -217,6 +222,7 @@ export function useAiChat() {
     isStreaming.value = true
     lastError.value = null
     currentText.value = ''
+    endActivity = useAiActivity().begin('running')
 
     const streamId = generateStreamId()
     activeStreamId = streamId
@@ -307,6 +313,7 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
   const streamId = `ai-once-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   let accumulated = ''
   let unlisten: UnlistenFn | null = null
+  const endActivity = useAiActivity().begin('running')
 
   return new Promise<string>((resolve, reject) => {
     listenTauri('nd:ai-chat-event', (p) => {
@@ -315,9 +322,11 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
         accumulated += p.text
       } else if (p.kind === 'done') {
         unlisten?.()
+        endActivity()
         resolve(accumulated)
       } else if (p.kind === 'error') {
         unlisten?.()
+        endActivity()
         reject(new Error(p.error ?? '不明なエラー'))
       }
       // 'tool_use' は無視 (one-shot では tools を渡さない前提)
@@ -341,6 +350,7 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
       .catch((e) => {
         console.error('[ai-chat one-shot] invoke error raw:', e)
         unlisten?.()
+        endActivity()
         const message = extractErrorMessage(e)
         reject(new Error(message))
       })
