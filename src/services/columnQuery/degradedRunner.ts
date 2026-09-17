@@ -20,7 +20,9 @@ import type {
  *   - 直前に届いた評価開始マーカーから犯人フィルタを特定し、**そのフィルタだけ**
  *     サスペンドする。Worker を作り直して残りのフィルタは評価を続ける
  *   - サスペンド中のフィルタを含むバッチは fail-closed (全件除外) にする。
- *     解除はユーザーの明示操作 (`resume`) に限る (不変条件 (f))
+ *     解除はユーザーの明示操作 (`resume`) か、そのクエリのソース編集
+ *     (`releaseSharedSuspension`、#783 追補 D) に限る。有効/無効・スコープ・
+ *     適用の変更は同じコードを黙って走らせ直すことになるので解除しない
  */
 
 /** バッチ 1 回あたりの判定タイムアウト */
@@ -68,6 +70,15 @@ let sharedRunner: DegradedRunner | null = null
 export function getSharedDegradedRunner(): DegradedRunner {
   sharedRunner ??= createDegradedRunner()
   return sharedRunner
+}
+
+/**
+ * ソース編集でサスペンドを解除する (#783 追補 D / #1112)。コードが変わった
+ * ので「同じ暴走コードを黙って走らせ直さない」規則の対象外。runner 未生成
+ * なら解除するものが無く、Worker も起こさない
+ */
+export function releaseSharedSuspension(key: string): void {
+  sharedRunner?.resume(key)
 }
 
 /** テスト用: 共有 runner を破棄する */

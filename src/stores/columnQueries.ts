@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
+import { releaseSharedSuspension } from '@/services/columnQuery/degradedRunner'
 import {
   createSidecarCollection,
   type SidecarItemFile,
@@ -368,6 +369,11 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
       console.warn('[columnQueries] read-only query — src update suppressed')
       return
     }
+    // ソースが変わったら暴走サスペンドを解除する (#783 追補 D / #1112)。
+    // 署名変化の watch が走る前に解除しておく
+    if (updates.src !== undefined && updates.src !== prev.src) {
+      releaseSharedSuspension(id)
+    }
     const next = { ...prev, ...updates, updatedAt: Date.now() }
     queries.value = queries.value.map((q) => (q.id === id ? next : q))
     // 改名はファイルを rename で追随させる (ID 不変)。完了を待ってから保存
@@ -402,6 +408,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     const idx = queries.value.findIndex((q) => q.id === id)
     const prev = queries.value[idx]
     if (!prev) return
+    if (patch.src !== prev.src) releaseSharedSuspension(id)
     const next: NamedQueryMeta = {
       ...prev,
       ...patch,
