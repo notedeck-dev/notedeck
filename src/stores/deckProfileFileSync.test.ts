@@ -355,3 +355,47 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     })
   })
 })
+
+describe('useDeckProfileStore — ミラーの重複 ID', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    files.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  it('ミラーに同じ ID が 2 件あっても先勝ちで 1 件にする (保存のたびにファイルが増えない)', async () => {
+    files.set(
+      `1${EXT}`,
+      profileFile({
+        id: '1',
+        name: 'プロファイル 1',
+        columns: [],
+        layout: [],
+        createdAt: 1,
+      }),
+    )
+    setStorageJson(STORAGE_KEYS.deckProfiles, [
+      {
+        id: '1',
+        name: 'プロファイル 1',
+        columns: [],
+        layout: [],
+        createdAt: 1,
+        fileBase: '1',
+      },
+      {
+        id: '1',
+        name: 'プロファイル 1',
+        columns: [],
+        layout: [],
+        createdAt: 2,
+      },
+    ])
+    setStorageString(STORAGE_KEYS.deckActiveProfile, '1')
+    const store = await initStore()
+    expect(store.getProfiles().filter((p) => p.id === '1')).toHaveLength(1)
+    // 複製がファイルに書き出されない
+    expect(files.size).toBe(1)
+  })
+})

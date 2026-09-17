@@ -1,5 +1,9 @@
 import JSON5 from 'json5'
 
+import {
+  type DuplicateIdEntry,
+  formatDuplicateIdNotice,
+} from '@/services/duplicateIdNotice'
 import { injectJson5Id } from '@/services/idFreeze'
 import {
   casefold,
@@ -166,6 +170,7 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
 
     const items: T[] = []
     const seenIds = new Set<string>()
+    const duplicates: DuplicateIdEntry[] = []
     for (const metaFile of metaFiles) {
       try {
         const base = metaFile.slice(0, -META_SUFFIX.length)
@@ -182,9 +187,7 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
           console.warn(
             `[${cfg.logTag}] duplicate id "${id}" in ${metaFile} — skipped (file kept)`,
           )
-          cfg.notify?.(
-            `同じ ID「${id}」の設定ファイルが複数あります。${metaFile} は読み込まれていません (ファイルは残っています — 不要なら手動で削除してください)`,
-          )
+          duplicates.push({ id, file: metaFile })
           continue
         }
         seenIds.add(id)
@@ -220,6 +223,8 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
         console.warn(`[${cfg.logTag}] failed to parse ${metaFile}:`, e)
       }
     }
+    const notice = formatDuplicateIdNotice(duplicates)
+    if (notice) cfg.notify?.(notice)
     return { items, entryFileCount: metaFiles.length }
   }
 
