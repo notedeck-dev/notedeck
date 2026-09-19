@@ -16,6 +16,7 @@ import {
   columnCacheKey,
   FAVORITES_CACHE_KEY,
 } from '@/utils/columnCacheKey'
+import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
@@ -53,6 +54,7 @@ const {
   isLoading,
   error,
   handlers,
+  postForm,
   scroller,
   onScrollReport,
 } = useColumnSetup(() => props.column)
@@ -66,9 +68,6 @@ const {
   loadMoreCrossAccount,
   handleScroll,
   removeNote,
-  react: reactCrossAccount,
-  bookmark: bookmarkCrossAccount,
-  vote: voteCrossAccount,
   crossProgress,
 } = useCrossAccountNotes({
   fetchNotes: (adapter, opts) => adapter.api.getFavorites(opts),
@@ -79,6 +78,7 @@ const {
   error,
   scroller,
   onScrollReport,
+  deleteNote: handlers.delete,
 })
 
 // per-account 面 (useNoteColumn) と同じく、お気に入りの登録 / 解除で出る
@@ -137,15 +137,15 @@ watch(
             <MkNote
               :note="item.primary"
               :group="item"
-              @react="reactCrossAccount"
+              @react="handlers.reaction"
               @reply="handlers.reply"
               @renote="handlers.renote"
               @quote="handlers.quote"
               @delete="removeNote"
               @edit="handlers.edit"
-              @bookmark="bookmarkCrossAccount"
+              @bookmark="handlers.bookmark"
               @delete-and-edit="handlers.deleteAndEdit"
-              @vote="voteCrossAccount"
+              @vote="handlers.vote"
             />
           </div>
         </template>
@@ -170,6 +170,7 @@ watch(
     icon="ti-star"
     :note-column-config="noteColumnConfig"
   />
+  <ColumnCrossPostForm v-if="isCrossAccount" :post-form="postForm" @posted="postForm.close" />
 </template>
 
 <style lang="scss" module>

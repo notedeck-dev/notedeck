@@ -12,6 +12,7 @@ import { useNoteSound } from '@/composables/useNoteSound'
 import { useScrollDirection } from '@/composables/useScrollDirection'
 import { useServerImages } from '@/composables/useServerImages'
 import { variantKeyOf } from '@/services/noteKey'
+import { useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
@@ -21,6 +22,7 @@ import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { FAVORITES_CACHE_KEY } from '@/utils/columnCacheKey'
 import { AppError } from '@/utils/errors'
+import { commands } from '@/utils/tauriInvoke'
 import { toggleFavorite } from '@/utils/toggleFavorite'
 import { toggleReaction } from '@/utils/toggleReaction'
 import { votePoll } from '@/utils/votePoll'
@@ -52,13 +54,6 @@ export function useColumnSetup(
     customMutatedFn = fn
   }
 
-  /** Create a callback that replaces the note reference in the store (triggers Vue reactivity) */
-  function notifyMutationFor(note: NormalizedNote) {
-    return () => {
-      noteStore.update(variantKeyOf(note), { ...note })
-      customMutatedFn?.()
-    }
-  }
   const { account, columnThemeVars } = useColumnTheme(getColumn)
 
   const serverIconUrl = ref<string | undefined>()
@@ -92,6 +87,37 @@ export function useColumnSetup(
 
   function getAdapter() {
     return adapter
+  }
+
+  /**
+   * ノート操作の宛先アカウント。全アカウント面 (column.accountId == null) は
+   * カラム adapter を持たないので、variant の取得元 (`_accountId`) で解決する
+   * (#1058 §5.6)。未ログイン / ゲスト / 不在なら null を返して toast を出す —
+   * 無言 no-op にしない (per-account の凍結カラムも同じ判定で止まる)
+   */
+  function accountFor(note: NormalizedNote) {
+    const acc = useAccountsStore().accountMap.get(note._accountId)
+    if (acc?.hasToken) return acc
+    console.warn('[column-setup] no token for account', note._accountId)
+    toast.show('このアカウントでは操作できません（未ログイン）', 'error')
+    return null
+  }
+
+  /**
+   * ノート操作に使う adapter。カラム adapter があればそれ、無ければ取得元
+   * アカウントの adapter (factory の共有キャッシュ。per-account の initAdapter と
+   * 同じく、キャッシュ済みならその adapter がそのまま返る)。hasToken は
+   * accountFor が保証するので既定 (認証付き) で作る — ログアウト中に anon
+   * adapter をキャッシュへ載せると再ログイン後も残るため、hasToken を渡さない
+   */
+  async function adapterFor(
+    note: NormalizedNote,
+  ): Promise<ServerAdapter | null> {
+    if (adapter) return adapter
+    const acc = accountFor(note)
+    if (!acc) return null
+    const { adapter: resolved } = await initAdapterFor(acc.host, acc.id)
+    return resolved
   }
   function setSubscription(sub: ChannelSubscription) {
     subscription = sub
@@ -161,6 +187,8 @@ export function useColumnSetup(
 
   // Post form
   const showPostForm = ref(false)
+  /** 投稿先アカウント。全アカウント面では操作したノートの取得元になる */
+  const postFormAccountId = ref<string | undefined>()
   const postFormReplyTo = ref<NormalizedNote | undefined>()
   const postFormRenoteId = ref<string | undefined>()
   const postFormEditNote = ref<NormalizedNote | undefined>()
@@ -199,9 +227,11 @@ export function useColumnSetup(
   }
 
   async function handleReaction(reaction: string, note: NormalizedNote) {
-    if (!adapter || checkOffline()) return
+    if (checkOffline()) return
+    const api = (await adapterFor(note))?.api
+    if (!api) return
     try {
-      await toggleReaction(adapter.api, note, reaction, (compute) =>
+      await toggleReaction(api, note, reaction, (compute) =>
         applyPatch(note, compute),
       )
       if (!getColumn().soundMuted) actionSound.play()
@@ -213,11 +243,11 @@ export function useColumnSetup(
   }
 
   async function handlePollVote(choice: number, note: NormalizedNote) {
-    if (!adapter || checkOffline()) return
+    if (checkOffline()) return
+    const api = (await adapterFor(note))?.api
+    if (!api) return
     try {
-      await votePoll(adapter.api, note, choice, (compute) =>
-        applyPatch(note, compute),
-      )
+      await votePoll(api, note, choice, (compute) => applyPatch(note, compute))
     } catch (e) {
       const err = AppError.from(e)
       console.error('[vote]', err.code, err.message)
@@ -226,15 +256,18 @@ export function useColumnSetup(
   }
 
   async function handleRenote(note: NormalizedNote) {
-    if (!adapter || checkOffline()) return
-    const notify = notifyMutationFor(note)
-    note.renoteCount = (note.renoteCount ?? 0) + 1
-    notify()
+    if (checkOffline()) return
+    const api = (await adapterFor(note))?.api
+    if (!api) return
+    // 常に store の最新から差分を取る (#904)。受け取り時点の note で上書きすると
+    // API 待ちの間に届いたライブ更新を巻き戻す
+    applyPatch(note, (cur) => ({ renoteCount: (cur.renoteCount ?? 0) + 1 }))
     try {
-      await adapter.api.createNote({ renoteId: note.id })
+      await api.createNote({ renoteId: note.id })
     } catch (e) {
-      note.renoteCount = Math.max(0, (note.renoteCount ?? 1) - 1)
-      notify()
+      applyPatch(note, (cur) => ({
+        renoteCount: Math.max(0, (cur.renoteCount ?? 1) - 1),
+      }))
       const err = AppError.from(e)
       console.error('[renote]', err.code, err.message)
       toast.show(`リノートに失敗しました（${err.displayCode}）`, 'error')
@@ -242,7 +275,8 @@ export function useColumnSetup(
   }
 
   function handleReply(note: NormalizedNote) {
-    if (checkOffline()) return
+    if (checkOffline() || !accountFor(note)) return
+    postFormAccountId.value = note._accountId
     postFormReplyTo.value = note
     postFormRenoteId.value = undefined
     postFormInitialNote.value = undefined
@@ -250,7 +284,8 @@ export function useColumnSetup(
   }
 
   function handleQuote(note: NormalizedNote) {
-    if (checkOffline()) return
+    if (checkOffline() || !accountFor(note)) return
+    postFormAccountId.value = note._accountId
     postFormReplyTo.value = undefined
     postFormRenoteId.value = note.id
     postFormInitialNote.value = undefined
@@ -258,9 +293,11 @@ export function useColumnSetup(
   }
 
   async function handleDelete(note: NormalizedNote): Promise<boolean> {
-    if (!adapter || checkOffline()) return false
+    if (checkOffline()) return false
+    const api = (await adapterFor(note))?.api
+    if (!api) return false
     try {
-      await adapter.api.deleteNote(note.id)
+      await api.deleteNote(note.id)
       return true
     } catch (e) {
       const err = AppError.from(e)
@@ -271,7 +308,8 @@ export function useColumnSetup(
   }
 
   function handleEdit(note: NormalizedNote) {
-    if (checkOffline()) return
+    if (checkOffline() || !accountFor(note)) return
+    postFormAccountId.value = note._accountId
     postFormReplyTo.value = undefined
     postFormRenoteId.value = undefined
     postFormEditNote.value = note
@@ -283,11 +321,21 @@ export function useColumnSetup(
   }
 
   async function handleDeleteAndEdit(note: NormalizedNote) {
-    if (!adapter || checkOffline()) return
+    if (checkOffline()) return
+    const api = (await adapterFor(note))?.api
+    if (!api) return
     try {
-      await adapter.api.deleteNote(note.id)
+      await api.deleteNote(note.id)
+      // 行を消す (tombstone) + SQLite キャッシュからも消す。ストリーミングの
+      // 無い面 (お気に入り / クライアント検索) では deleted イベントが来ない
+      noteStore.remove(variantKeyOf(note))
+      commands.apiDeleteCachedNote(note._accountId, note.id).catch((e) => {
+        if (import.meta.env.DEV)
+          console.debug('[delete-cached-note] ignored:', e)
+      })
+      postFormAccountId.value = note._accountId
       postFormReplyTo.value = note.replyId
-        ? await adapter.api.getNote(note.replyId).catch(() => undefined)
+        ? await api.getNote(note.replyId).catch(() => undefined)
         : undefined
       // 引用・添付・アンケート等を引き継ぐ (#944)。本家も削除して編集では
       // renote / reply / channel と initialNote を引き渡している
@@ -306,9 +354,14 @@ export function useColumnSetup(
   }
 
   async function handleBookmark(note: NormalizedNote) {
-    if (!adapter || checkOffline()) return
+    if (checkOffline()) return
+    const api = (await adapterFor(note))?.api
+    if (!api) return
+    // toggleFavorite は note を直接書き換えるので、その値だけを store に写す
+    const syncFavorited = () =>
+      applyPatch(note, () => ({ isFavorited: note.isFavorited }))
     try {
-      await toggleFavorite(adapter.api, note, notifyMutationFor(note))
+      await toggleFavorite(api, note, syncFavorited)
       useDeckStore().invalidateColumnByKey(FAVORITES_CACHE_KEY)
     } catch (e) {
       const err = AppError.from(e)
@@ -324,10 +377,10 @@ export function useColumnSetup(
         if (ok) {
           try {
             note.isFavorited = true
-            notifyMutationFor(note)()
-            await adapter.api.deleteFavorite(note.id)
+            syncFavorited()
+            await api.deleteFavorite(note.id)
             note.isFavorited = false
-            notifyMutationFor(note)()
+            syncFavorited()
             useDeckStore().invalidateColumnByKey(FAVORITES_CACHE_KEY)
           } catch (e2) {
             const err2 = AppError.from(e2)
@@ -340,7 +393,7 @@ export function useColumnSetup(
         } else {
           // Sync local state: server says it's favorited
           note.isFavorited = true
-          notifyMutationFor(note)()
+          syncFavorited()
         }
       } else {
         console.error('[bookmark]', err.code, err.message)
@@ -351,6 +404,7 @@ export function useColumnSetup(
 
   function closePostForm() {
     showPostForm.value = false
+    postFormAccountId.value = undefined
     postFormReplyTo.value = undefined
     postFormRenoteId.value = undefined
     postFormEditNote.value = undefined
@@ -409,6 +463,7 @@ export function useColumnSetup(
     // Post form
     postForm: {
       show: showPostForm,
+      accountId: postFormAccountId,
       replyTo: postFormReplyTo,
       renoteId: postFormRenoteId,
       editNote: postFormEditNote,

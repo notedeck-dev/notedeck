@@ -31,17 +31,12 @@ import { useStreamingBatch } from '@/composables/useStreamingBatch'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
-import { type DeckColumn, useDeckStore } from '@/stores/deck'
-import { useNoteStore } from '@/stores/notes'
+import type { DeckColumn } from '@/stores/deck'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
-import { FAVORITES_CACHE_KEY } from '@/utils/columnCacheKey'
 import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { AppError } from '@/utils/errors'
-import { toggleFavorite } from '@/utils/toggleFavorite'
-import { toggleReaction } from '@/utils/toggleReaction'
-import { votePoll } from '@/utils/votePoll'
 import { createWorkerClient } from '@/utils/workerClient'
 import type { DedupResponse } from '@/workers/dedupWorker'
 
@@ -68,6 +63,12 @@ export interface CrossAccountNotesOptions {
   scroller: Ref<HTMLElement | null>
   onScrollReport: () => void
   closePostForm?: () => void
+  /**
+   * 行削除の実体。useColumnSetup の `handlers.delete` を渡す (取得元アカウントで
+   * adapter を解決し、失敗は toast で伝える)。ここで自前に書くと未ログイン
+   * 判定と失敗通知を迂回する
+   */
+  deleteNote: (note: NormalizedNote) => Promise<boolean>
 
   /**
    * 表示制御の例外 (per-account の `NoteColumnConfig.visibility` と同じ)。
@@ -181,7 +182,6 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
 
   const accountsStore = useAccountsStore()
   const multiAdapters = useMultiAccountAdapters()
-  const noteStore = useNoteStore()
   const toast = useToast()
   const uiStore = useUiStore()
   const systemStateStore = useSystemStateStore()
@@ -192,16 +192,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     getAdapter: () => null,
     visibility: options.visibility,
     closePostForm: options.closePostForm ?? (() => undefined),
-    deleteHandler: async (note) => {
-      const adapter = await multiAdapters.getOrCreate(note._accountId)
-      if (!adapter) return false
-      try {
-        await adapter.api.deleteNote(note.id)
-        return true
-      } catch {
-        return false
-      }
-    },
+    deleteHandler: options.deleteNote,
   })
   const {
     notes,
@@ -698,68 +689,6 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     onScrollReport()
   }
 
-  /** 楽観更新の差分を、その variant を保持する noteStore へ差し替えで反映する */
-  function applyPatch(
-    note: NormalizedNote,
-    compute: (current: NormalizedNote) => Partial<NormalizedNote>,
-  ) {
-    const key = variantKeyOf(note)
-    const current = noteStore.get(key) ?? note
-    noteStore.update(key, { ...current, ...compute(current) })
-  }
-
-  /**
-   * 主ビューの variant に対してリアクションする (#1058 §5.6)。宛先はその variant の
-   * 取得元アカウント。adapter 取得は非同期なので、連打の二重 create は
-   * toggleReaction 側の in-flight ガードで塞ぐ。
-   */
-  async function react(reaction: string, note: NormalizedNote) {
-    const adapter = await multiAdapters.getOrCreate(note._accountId)
-    if (!adapter) return
-    try {
-      await toggleReaction(adapter.api, note, reaction, (compute) =>
-        applyPatch(note, compute),
-      )
-    } catch (e) {
-      const err = AppError.from(e)
-      toast.show(`リアクションに失敗しました（${err.displayCode}）`, 'error')
-    }
-  }
-
-  /**
-   * 主ビューの variant をお気に入りに登録 / 解除する。宛先はその variant の
-   * 取得元アカウント。useColumnSetup の bookmark ハンドラはカラム固有の
-   * adapter を前提にしているので全アカウント面では no-op になる — ここで
-   * variant ごとに解決する (#1017)。成功したらお気に入りカラムの無効化
-   * シグナルを出し、全アカウントのお気に入り面も取り直す
-   */
-  async function bookmark(note: NormalizedNote) {
-    const adapter = await multiAdapters.getOrCreate(note._accountId)
-    if (!adapter) return
-    try {
-      await toggleFavorite(adapter.api, note, () =>
-        applyPatch(note, () => ({ isFavorited: note.isFavorited })),
-      )
-      useDeckStore().invalidateColumnByKey(FAVORITES_CACHE_KEY)
-    } catch (e) {
-      const err = AppError.from(e)
-      toast.show(`ブックマークに失敗しました（${err.displayCode}）`, 'error')
-    }
-  }
-
-  async function vote(choice: number, note: NormalizedNote) {
-    const adapter = await multiAdapters.getOrCreate(note._accountId)
-    if (!adapter) return
-    try {
-      await votePoll(adapter.api, note, choice, (compute) =>
-        applyPatch(note, compute),
-      )
-    } catch (e) {
-      const err = AppError.from(e)
-      toast.show(`投票に失敗しました（${err.displayCode}）`, 'error')
-    }
-  }
-
   // アカウントの追加・削除で対象が変わったら取り直す
   watch(
     () => accountsStore.accounts.map((a) => `${a.id}:${a.hasToken}`).join(','),
@@ -784,9 +713,6 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     crossProgress,
     handleScroll,
     removeNote,
-    react,
-    bookmark,
-    vote,
     pendingCount,
     animatingRowKeys,
     onResume,

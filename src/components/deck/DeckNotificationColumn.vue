@@ -79,6 +79,7 @@ import {
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { char2twemojiUrl } from '@/utils/twemoji'
 import { isWindowExposed } from '@/windows/exposure'
+import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -1494,6 +1495,7 @@ onUnmounted(() => {
       @posted="handlePosted"
     />
   </div>
+  <ColumnCrossPostForm v-if="isCrossAccount" :post-form="postForm" @posted="handlePosted" />
 
   <!-- Notification context menu -->
   <PopupMenu ref="notifMenuRef">

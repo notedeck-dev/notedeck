@@ -43,6 +43,7 @@ import {
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { matchesFilter } from '@/utils/timelineFilter'
+import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import ColumnFilterButton from './ColumnFilterButton.vue'
 import ColumnPullFrame from './ColumnPullFrame.vue'
 import ColumnQueryBadge from './ColumnQueryBadge.vue'
@@ -232,6 +233,7 @@ const {
   isLoading,
   error,
   handlers,
+  postForm,
   scroller,
   onScrollReport,
 } = useColumnSetup(() => props.column)
@@ -245,8 +247,6 @@ const {
   loadMoreCrossAccount,
   handleScroll,
   removeNote,
-  react: reactCrossAccount,
-  vote: voteCrossAccount,
   pendingCount,
   animatingRowKeys,
   crossProgress,
@@ -281,6 +281,7 @@ const {
   error,
   scroller,
   onScrollReport,
+  deleteNote: handlers.delete,
   streaming: {
     columnId: props.column.id,
     subscribe: (accountId, _adapter, enqueue, callbacks) =>
@@ -708,7 +709,7 @@ onMounted(async () => {
               <MkNote
                 :note="item.primary"
                 :group="item"
-                @react="reactCrossAccount"
+                @react="handlers.reaction"
                 @reply="handlers.reply"
                 @renote="handlers.renote"
                 @quote="handlers.quote"
@@ -716,7 +717,7 @@ onMounted(async () => {
                 @edit="handlers.edit"
                 @bookmark="handlers.bookmark"
                 @delete-and-edit="handlers.deleteAndEdit"
-                @vote="voteCrossAccount"
+                @vote="handlers.vote"
               />
             </div>
           </template>
@@ -769,6 +770,8 @@ onMounted(async () => {
       <MkAd v-if="shouldShowAd(index)" :ad="pickAd(index)!" :server-host="serverHost" @mute="muteAd" />
     </template>
   </DeckNoteColumn>
+
+  <ColumnCrossPostForm v-if="isCrossAccount" :post-form="postForm" @posted="postForm.close" />
 </template>
 
 <style lang="scss" module>
