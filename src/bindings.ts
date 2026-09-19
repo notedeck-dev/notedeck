@@ -3468,6 +3468,16 @@ image_cache_max_bytes: number;
  * そのぶんピークメモリが増える (モバイルでは特に効く)
  */
 image_cache_max_file_bytes: number }
+/**
+ * スプライト行 (= 状態) ごとの当たり判定マスク。行内の全コマで alpha > 0 の
+ * 画素を HIT_DILATE だけ膨らませ、HIT_BLOCK のブロックに丸めた上位集合。
+ * clip-path は描画も切るので「見える画素を必ず含む」ことが不変条件
+ */
+export type PetHitMask = { cols: number; rows: number; 
+/**
+ * スプライト行ごとの水平ラン。`[y, x, w, y, x, w, ...]` の平坦な三つ組
+ */
+runs: number[][] }
 export type PetInfo = { slug: string; displayName: string; 
 /**
  * 1 = 8×9 行, 2 = 8×11 行
@@ -3481,7 +3491,11 @@ export type PetLoaded = { info: PetInfo;
 /**
  * `data:image/...;base64,...` — WebView 側で Blob にして CSS 背景に敷く
  */
-dataUrl: string }
+dataUrl: string; 
+/**
+ * 状態ごとの当たり判定 (clip-path の元)。作れなければ None = 矩形のまま
+ */
+hitMask: PetHitMask | null }
 export type Player = { url: string; width: number | null; height: number | null; allow?: string[] }
 /**
  * 接続を開示する先の principal クラス (#712 §6.1)。

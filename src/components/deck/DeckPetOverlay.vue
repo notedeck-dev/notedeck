@@ -10,6 +10,10 @@
  * コンパクト (スマホ幅) では下端の基準をモバイルナビの上端に置く
  * (`--nd-mobileNavHeight`、DeckMobileNav が body に公開)。位置未設定なら
  * FAB (右下) の上に載せる。
+ *
+ * 当たり判定は矩形ではなく、状態ごとの不透明領域 (Rust が作るマスク) を
+ * clip-path にして切り抜く。透過部のクリック・タップ・スクロールは下の
+ * デッキに届く。マスクが無い / path() 非対応なら矩形のまま。
  */
 import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import {
@@ -19,6 +23,7 @@ import {
   PET_FRAME_WIDTH,
   type PetState,
   petFrames,
+  petHitClipPath,
   petStateRow,
 } from '@/services/petSprite'
 import { useAiActivity } from '@/stores/aiActivity'
@@ -186,6 +191,23 @@ watch(
 )
 onScopeDispose(stopFrames)
 
+// ── 当たり判定 ──
+const clipSupported =
+  typeof CSS !== 'undefined' &&
+  typeof CSS.supports === 'function' &&
+  CSS.supports('clip-path', 'path("M0 0h1v1z")')
+const clipPath = computed(() => {
+  if (!clipSupported || !pet.hitMask) return undefined
+  return (
+    petHitClipPath(
+      pet.hitMask,
+      petStateRow(displayState.value),
+      cellW.value,
+      cellH.value,
+    ) ?? undefined
+  )
+})
+
 const spriteStyle = computed(() => {
   const info = pet.info
   if (!info || !pet.spriteUrl) return undefined
@@ -195,6 +217,7 @@ const spriteStyle = computed(() => {
   return {
     right: `${right.value}px`,
     '--pet-bottom': `${bottom.value}px`,
+    '--pet-clip': clipPath.value,
     width: `${cellW.value}px`,
     height: `${cellH.value}px`,
     backgroundImage: `url("${pet.spriteUrl}")`,
@@ -224,6 +247,9 @@ const spriteStyle = computed(() => {
   position: fixed;
   // 下端はモバイルナビの上端基準 (デスクトップではナビ高 0)
   bottom: calc(var(--pet-bottom, 16px) + var(--nd-mobileNavHeight, 0px));
+  // 当たり判定 = 不透明領域 (透明側に膨らませたブロック)。描画も切るので
+  // box-shadow / outline のような要素外周の装飾はここでは使えない
+  clip-path: var(--pet-clip, none);
   z-index: var(--nd-z-popup);
   background-repeat: no-repeat;
   image-rendering: auto;

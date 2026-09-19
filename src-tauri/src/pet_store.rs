@@ -111,6 +111,94 @@ pub fn sprite_dimensions(bytes: &[u8]) -> Result<(u32, u32), String> {
         .map_err(|e| format!("unreadable image: {e}"))
 }
 
+/// 当たり判定マスクの粒度。正規コマ (192×208) を 4px ブロックで刻む
+pub const HIT_BLOCK: u32 = 4;
+pub const HIT_COLS: u32 = PET_FRAME_WIDTH / HIT_BLOCK;
+pub const HIT_ROWS: u32 = PET_FRAME_HEIGHT / HIT_BLOCK;
+/// 不透明画素の周りを正規座標で何 px 膨らませるか。clip-path の境界線が
+/// 必ず完全に透明な領域を通るようにして、縁の画素が薄くならないようにする
+pub const HIT_DILATE: u32 = 1;
+
+/// スプライト行 (= 状態) ごとの当たり判定マスク。行内の全コマで alpha > 0 の
+/// 画素を HIT_DILATE だけ膨らませ、HIT_BLOCK のブロックに丸めた上位集合。
+/// clip-path は描画も切るので「見える画素を必ず含む」ことが不変条件
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PetHitMask {
+    pub cols: u32,
+    pub rows: u32,
+    /// スプライト行ごとの水平ラン。`[y, x, w, y, x, w, ...]` の平坦な三つ組
+    pub runs: Vec<Vec<u32>>,
+}
+
+/// スプライトをデコードして行ごとのマスクを作る。縮小シートも正規座標に
+/// 写して同じグリッドにする (寸法は detect_atlas を通った前提)
+pub fn hit_mask(sprite: &[u8], sprite_rows: u32) -> Result<PetHitMask, String> {
+    let img = image::load_from_memory(sprite)
+        .map_err(|e| format!("undecodable sprite: {e}"))?
+        .into_rgba8();
+    let (width, height) = img.dimensions();
+    if sprite_rows == 0 || width < PET_COLUMNS || height < sprite_rows {
+        return Err(format!("not a petdex sprite grid: {width}x{height}"));
+    }
+    let cell_w = u64::from(width / PET_COLUMNS);
+    let cell_h = u64::from(height / sprite_rows);
+    // 正規座標 1px = cell_w (横) / cell_h (縦) 単位の固定小数で扱う
+    let block_w = u64::from(HIT_BLOCK) * cell_w;
+    let block_h = u64::from(HIT_BLOCK) * cell_h;
+    let dilate_x = u64::from(HIT_DILATE) * cell_w;
+    let dilate_y = u64::from(HIT_DILATE) * cell_h;
+    let (cols, rows) = (HIT_COLS as usize, HIT_ROWS as usize);
+
+    let mut runs = Vec::with_capacity(sprite_rows as usize);
+    for r in 0..sprite_rows {
+        let mut grid = vec![false; cols * rows];
+        let y0 = u64::from(r) * cell_h;
+        for ly in 0..cell_h {
+            for x in 0..u64::from(width) {
+                if img.get_pixel(x as u32, (y0 + ly) as u32)[3] == 0 {
+                    continue;
+                }
+                let lx = x % cell_w;
+                // 画素の占める範囲 [lx, lx+1) を正規座標に写して膨らませる
+                let nx0 = (lx * u64::from(PET_FRAME_WIDTH)).saturating_sub(dilate_x);
+                let nx1 = (lx + 1) * u64::from(PET_FRAME_WIDTH) + dilate_x;
+                let ny0 = (ly * u64::from(PET_FRAME_HEIGHT)).saturating_sub(dilate_y);
+                let ny1 = (ly + 1) * u64::from(PET_FRAME_HEIGHT) + dilate_y;
+                let bx1 = (((nx1 - 1) / block_w) as usize).min(cols - 1);
+                let by1 = (((ny1 - 1) / block_h) as usize).min(rows - 1);
+                for by in ((ny0 / block_h) as usize)..=by1 {
+                    for bx in ((nx0 / block_w) as usize)..=bx1 {
+                        grid[by * cols + bx] = true;
+                    }
+                }
+            }
+        }
+        let mut row_runs = Vec::new();
+        for by in 0..rows {
+            let line = &grid[by * cols..(by + 1) * cols];
+            let mut bx = 0;
+            while bx < cols {
+                if !line[bx] {
+                    bx += 1;
+                    continue;
+                }
+                let start = bx;
+                while bx < cols && line[bx] {
+                    bx += 1;
+                }
+                row_runs.extend([by as u32, start as u32, (bx - start) as u32]);
+            }
+        }
+        runs.push(row_runs);
+    }
+    Ok(PetHitMask {
+        cols: HIT_COLS,
+        rows: HIT_ROWS,
+        runs,
+    })
+}
+
 /// 解決 API の応答から必要な項目を取り出す。アセット URL は petdex の
 /// ホストに限る (応答を信用してどこへでも取りに行かない)
 pub fn parse_install_response(body: &serde_json::Value) -> Result<ResolvedPet, String> {
@@ -304,6 +392,111 @@ mod tests {
             spritesheet_url: format!("https://assets.petdex.dev/curated/{slug}/sprite.png"),
             sprite_ext: "png".into(),
         }
+    }
+
+    /// 指定画素だけ不透明 (alpha) にしたシート
+    fn png_with(width: u32, height: u32, pixels: &[(u32, u32, u8)]) -> Vec<u8> {
+        let mut img = image::RgbaImage::from_pixel(width, height, image::Rgba([0, 0, 0, 0]));
+        for &(x, y, a) in pixels {
+            img.put_pixel(x, y, image::Rgba([255, 255, 255, a]));
+        }
+        let mut buf = Vec::new();
+        image::DynamicImage::ImageRgba8(img)
+            .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+            .unwrap();
+        buf
+    }
+
+    /// ランをグリッドに展開する
+    fn grid_of(mask: &PetHitMask, row: usize) -> Vec<Vec<bool>> {
+        let mut g = vec![vec![false; mask.cols as usize]; mask.rows as usize];
+        for run in mask.runs[row].chunks(3) {
+            let (y, x, w) = (run[0] as usize, run[1] as usize, run[2] as usize);
+            for cell in &mut g[y][x..x + w] {
+                *cell = true;
+            }
+        }
+        g
+    }
+
+    #[test]
+    fn hit_mask_marks_blocks_around_opaque_pixel_with_dilation() {
+        // 列 0 / 行 0 のコマ内 (100, 50) だけ不透明。4px ブロックで x=25 だが、
+        // 1px 膨らませるので x=24 (99px) も入る。y は 49..51 が同じブロック
+        let sheet = png_with(1536, 1872, &[(100, 50, 255)]);
+        let mask = hit_mask(&sheet, 9).unwrap();
+        assert_eq!((mask.cols, mask.rows), (48, 52));
+        assert_eq!(mask.runs.len(), 9);
+        assert_eq!(mask.runs[0], vec![12, 24, 2]);
+        for row in 1..9 {
+            assert!(mask.runs[row].is_empty(), "row {row} must be empty");
+        }
+    }
+
+    #[test]
+    fn hit_mask_covers_every_frame_of_the_row() {
+        // 同じ行の別コマ (列 3) の画素も行のマスクに入る
+        let sheet = png_with(1536, 1872, &[(4, 4, 255), (3 * 192 + 180, 200, 1)]);
+        let mask = hit_mask(&sheet, 9).unwrap();
+        let g = grid_of(&mask, 0);
+        assert!(g[1][1]);
+        assert!(g[49][44] && g[50][45]);
+    }
+
+    #[test]
+    fn hit_mask_is_a_superset_of_opaque_pixels() {
+        // 擬似乱数で散らした半透明込みの画素が、どれもマスクの内側にある
+        let mut seed: u32 = 0x1234_5678;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            seed
+        };
+        let (w, h) = (1536u32, 2288u32);
+        let pixels: Vec<(u32, u32, u8)> = (0..400)
+            .map(|_| (next() % w, next() % h, (next() % 255 + 1) as u8))
+            .collect();
+        let mask = hit_mask(&png_with(w, h, &pixels), 11).unwrap();
+        for &(x, y, _) in &pixels {
+            let row = (y / 208) as usize;
+            let (lx, ly) = (x % 192, y % 208);
+            let g = grid_of(&mask, row);
+            for bx in [lx.saturating_sub(1) / 4, (lx + 1) / 4] {
+                for by in [ly.saturating_sub(1) / 4, (ly + 1) / 4] {
+                    assert!(
+                        g[by.min(51) as usize][bx.min(47) as usize],
+                        "pixel ({x},{y}) block ({bx},{by}) not covered"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn hit_mask_of_scaled_sheet_matches_canonical() {
+        // 正規寸法で列 2 / 行 3 に置いた矩形と、半分に縮小したシートの同じ矩形
+        let mut canon = Vec::new();
+        let mut half = Vec::new();
+        for x in 40..80 {
+            for y in 60..100 {
+                canon.push((2 * 192 + x, 3 * 208 + y, 255));
+            }
+        }
+        for x in 20..40 {
+            for y in 30..50 {
+                half.push((2 * 96 + x, 3 * 104 + y, 255));
+            }
+        }
+        let a = hit_mask(&png_with(1536, 1872, &canon), 9).unwrap();
+        let b = hit_mask(&png_with(768, 936, &half), 9).unwrap();
+        assert_eq!(a.runs, b.runs);
+        assert!(!a.runs[3].is_empty());
+    }
+
+    #[test]
+    fn hit_mask_rejects_undecodable_bytes() {
+        assert!(hit_mask(b"not an image", 9).is_err());
     }
 
     #[test]

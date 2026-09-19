@@ -18,8 +18,18 @@ vi.mock('@/stores/systemState', () => ({
   useSystemStateStore: () => ({ adaptation: { staticEmoji: true } }),
 }))
 
-function mountPet() {
+const MASK = {
+  cols: 48,
+  rows: 52,
+  runs: [
+    [12, 24, 2],
+    [0, 0, 48],
+  ],
+}
+
+function mountPet(hitMask: typeof MASK | null = null) {
   const pet = usePetStore()
+  pet.hitMask = hitMask
   pet.info = {
     slug: 'cat',
     displayName: 'Cat',
@@ -42,8 +52,11 @@ describe('DeckPetOverlay — コンパクトレイアウト', () => {
     setActivePinia(createPinia())
     isCompact.value = false
     document.body.style.removeProperty('--nd-mobileNavHeight')
+    // happy-dom には CSS.supports が無い。clip-path 対応環境として振る舞わせる
+    vi.stubGlobal('CSS', { supports: () => true })
   })
   afterEach(() => {
+    vi.unstubAllGlobals()
     document.body.innerHTML = ''
   })
 
@@ -77,5 +90,40 @@ describe('DeckPetOverlay — コンパクトレイアウト', () => {
     await nextTick()
     const style = petEl(wrapper)?.getAttribute('style') ?? ''
     expect(style).toMatch(/--pet-bottom:\s*40px/)
+  })
+})
+
+describe('DeckPetOverlay — 当たり判定の切り抜き (clip-path)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    isCompact.value = false
+    vi.stubGlobal('CSS', { supports: () => true })
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    document.body.innerHTML = ''
+  })
+
+  it('マスクがあれば表示中の状態 (idle = 行 0) の clip-path を当てる', async () => {
+    const wrapper = mountPet(MASK)
+    await nextTick()
+    const style = petEl(wrapper)?.getAttribute('style') ?? ''
+    // 既定倍率 0.75 → 144×156、ブロック 3px: (24,12) 幅 2 → x=72 y=36 w=6 h=3
+    expect(style).toContain('--pet-clip: path("M72 36h6v3h-6z")')
+  })
+
+  it('マスクが無ければ clip-path を付けない (矩形のまま)', async () => {
+    const wrapper = mountPet(null)
+    await nextTick()
+    const style = petEl(wrapper)?.getAttribute('style') ?? ''
+    expect(style).not.toContain('--pet-clip')
+  })
+
+  it('clip-path: path() に対応しない環境では付けない', async () => {
+    vi.stubGlobal('CSS', { supports: () => false })
+    const wrapper = mountPet(MASK)
+    await nextTick()
+    const style = petEl(wrapper)?.getAttribute('style') ?? ''
+    expect(style).not.toContain('--pet-clip')
   })
 })
