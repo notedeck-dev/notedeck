@@ -3,6 +3,7 @@ import {
   computed,
   defineAsyncComponent,
   onMounted,
+  onScopeDispose,
   onUnmounted,
   ref,
   shallowRef,
@@ -47,9 +48,12 @@ import { useTabSlide } from '@/composables/useTabSlide'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { getStreamHealth } from '@/core/streamHealth'
 import { createBoundedCache } from '@/services/boundedCache'
-import { variantKey, variantKeyOf } from '@/services/noteKey'
+import { parseVariantKey, variantKey } from '@/services/noteKey'
 import { mergeNotifications as mergeNotificationLists } from '@/services/notificationMerge'
-import { syncNotificationNotes } from '@/services/notificationNoteSync'
+import {
+  dropDeletedNote,
+  syncNotificationNotes,
+} from '@/services/notificationNoteSync'
 import { TUTORIAL_ACHIEVEMENT_LABELS } from '@/services/tutorialAchievements'
 import {
   isTutorialNotificationId,
@@ -79,6 +83,7 @@ import {
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { char2twemojiUrl } from '@/utils/twemoji'
 import { isWindowExposed } from '@/windows/exposure'
+import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -304,6 +309,27 @@ setOnNotesMutated(() => {
     (accountId, id) => noteStore.get(variantKey(accountId, id)),
   )
 })
+
+// 他所 (削除して編集 / 別カラムの削除 / ストリーミングの deleted) で消えた
+// ノートの通知は自前配列にもキャッシュにも残るので、tombstone を購読して落とす
+// (#1123)。Renote 通知は落とさず、配列を差し替えて述語 (isNotificationHidden)
+// に再評価させる。tombstone なしの除去 (整合検査のミス) は「消えた」ではない
+onScopeDispose(
+  noteStore.onDelete((key, tombstone) => {
+    if (!tombstone) return
+    const { accountId, noteId } = parseVariantKey(key)
+    const current = notifications.value
+    const hit = current.some(
+      (n) =>
+        n._accountId === accountId &&
+        (n.note?.id === noteId || n.note?.renoteId === noteId),
+    )
+    if (!hit) return
+    const next = dropDeletedNote(current, accountId, noteId)
+    notifications.value = next.length === current.length ? [...current] : next
+    if (next.length !== current.length) saveCache()
+  }),
+)
 
 // 前回読了位置マーカー (#750) — タイムラインと同じ localStorage 方式
 const { viewMarkerId } = useReadMarker(props.column.id, () => {
@@ -1003,31 +1029,9 @@ async function loadMore() {
 }
 
 async function removeNote(note: NormalizedNote) {
-  if (isCrossAccount.value) {
-    const adapter = await multiAdapters.getOrCreate(note._accountId)
-    if (!adapter) return
-    try {
-      await adapter.api.deleteNote(note.id)
-    } catch {
-      return
-    }
-  } else {
-    if (!(await handlers.delete(note))) return
-  }
-  const id = note.id
-  notifications.value = notifications.value.filter(
-    (x) =>
-      x._accountId !== note._accountId ||
-      (x.note?.id !== id && x.note?.renoteId !== id),
-  )
-  saveCache()
-  noteStore.remove(variantKeyOf(note))
-  commands
-    .apiDeleteCachedNote(note._accountId, id)
-    .then((r) => unwrap(r))
-    .catch((e) => {
-      if (import.meta.env.DEV) console.debug('[delete-cached-note] ignored:', e)
-    })
+  // handlers.delete が取得元アカウントで消して tombstone を積む。自前配列と
+  // キャッシュからの除去は上の onDelete 購読が受ける
+  await handlers.delete(note)
 }
 
 async function handlePosted(editedNoteId?: string) {
@@ -1494,6 +1498,7 @@ onUnmounted(() => {
       @posted="handlePosted"
     />
   </div>
+  <ColumnCrossPostForm v-if="isCrossAccount" :post-form="postForm" @posted="handlePosted" />
 
   <!-- Notification context menu -->
   <PopupMenu ref="notifMenuRef">

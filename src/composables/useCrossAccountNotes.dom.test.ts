@@ -9,14 +9,18 @@ import {
   type Ref,
   ref,
 } from 'vue'
+import { initAdapterFor } from '@/adapters/factory'
 import type { NormalizedNote, NoteUpdateEvent } from '@/adapters/types'
 import { useColumnSetup } from '@/composables/useColumnSetup'
+import { variantKey } from '@/services/noteKey'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import {
   type NamedQueryMeta,
   useColumnQueriesStore,
 } from '@/stores/columnQueries'
 import type { DeckColumn } from '@/stores/deck'
+import { useNoteStore } from '@/stores/notes'
+import { useToast } from '@/stores/toast'
 import { matchesFilter } from '@/utils/timelineFilter'
 import { useCrossAccountNotes } from './useCrossAccountNotes'
 
@@ -173,7 +177,7 @@ async function flushFrames() {
   await flush(60)
 }
 
-function addAccount(id: string, host = 'example.com') {
+function addAccount(id: string, host = 'example.com', hasToken = true) {
   useAccountsStore().accounts.push({
     id,
     host,
@@ -182,7 +186,7 @@ function addAccount(id: string, host = 'example.com') {
     displayName: null,
     avatarUrl: null,
     software: 'misskey-dev/misskey',
-    hasToken: true,
+    hasToken,
   } as Account)
 }
 
@@ -215,6 +219,8 @@ beforeEach(() => {
   degraded.runCalls.length = 0
   degraded.listeners.clear()
   adapters.clear()
+  vi.mocked(initAdapterFor).mockClear()
+  useToast().toasts.value.length = 0
   pinia = createPinia()
   setActivePinia(pinia)
 })
@@ -228,6 +234,10 @@ interface Live {
   enqueue: (note: NormalizedNote) => void
   onNoteUpdated: (event: NoteUpdateEvent) => void
 }
+type HostSetup = Pick<
+  ReturnType<typeof useColumnSetup>,
+  'handlers' | 'postForm'
+>
 
 /**
  * 全アカウント TL カラム相当の設定で useCrossAccountNotes をマウントする。
@@ -243,6 +253,7 @@ function mountCross(opts: {
 }) {
   const live = new Map<string, Live>()
   let api: ReturnType<typeof useCrossAccountNotes> | null = null
+  let setup: HostSetup | null = null
   const columnOf = () =>
     ({
       id: 'col-cross',
@@ -253,9 +264,9 @@ function mountCross(opts: {
     }) as DeckColumn
   const Host = defineComponent({
     setup() {
-      const { isLoading, error, scroller, onScrollReport } = useColumnSetup(
-        () => columnOf(),
-      )
+      const { isLoading, error, scroller, onScrollReport, handlers, postForm } =
+        useColumnSetup(() => columnOf())
+      setup = { handlers, postForm }
       api = useCrossAccountNotes({
         // 実 adapter は取得元アカウント (_accountId) を付けて返す。全アカウント
         // 面は variant キーと追加読み込みの位置決めにこれを使うので土台でも付ける
@@ -271,6 +282,7 @@ function mountCross(opts: {
         error,
         scroller,
         onScrollReport,
+        deleteNote: handlers.delete,
         filter: {
           getColumn: columnOf,
           builtinAdmits: (n) => matchesFilter(n, columnOf().filters, 'home'),
@@ -295,8 +307,27 @@ function mountCross(opts: {
   app.use(pinia)
   app.mount(document.createElement('div'))
   apps.push(app)
-  if (!api) throw new Error('harness setup failed')
-  return { api: api as ReturnType<typeof useCrossAccountNotes>, live }
+  if (!api || !setup) throw new Error('harness setup failed')
+  return {
+    api: api as ReturnType<typeof useCrossAccountNotes>,
+    live,
+    ...(setup as HostSetup),
+  }
+}
+
+/** 取得元アカウントの adapter を API モック付きで先に登録する */
+function seedAdapter(accountId: string) {
+  const api = {
+    createNote: vi.fn(async () => ({})),
+    deleteNote: vi.fn(async () => undefined),
+    getNote: vi.fn(async () => undefined),
+    createFavorite: vi.fn(async () => undefined),
+    deleteFavorite: vi.fn(async () => undefined),
+    createReaction: vi.fn(async () => undefined),
+    deleteReaction: vi.fn(async () => undefined),
+  }
+  adapters.set(accountId, { api, stream: makeStream(), accountId })
+  return api
 }
 
 function ids(api: ReturnType<typeof useCrossAccountNotes>): string[] {
@@ -465,5 +496,113 @@ describe('useCrossAccountNotes: streaming と Pull to Refresh', () => {
     await flushFrames()
     expect(fetchFor.mock.calls.length).toBeGreaterThan(before)
     expect(ids(api)).toEqual(['a02', 'a01'])
+  })
+})
+
+describe('useCrossAccountNotes: ノートアクションは取得元アカウントで実行する', () => {
+  function mountOne() {
+    addAccount('acc-a')
+    const apiA = seedAdapter('acc-a')
+    const mounted = mountCross({
+      column: ref<Partial<DeckColumn>>({}),
+      fetchFor: (accountId) => (accountId === 'acc-a' ? [note('a01')] : []),
+    })
+    return { ...mounted, apiA }
+  }
+  const keyA = variantKey('acc-a', 'a01')
+  function first(api: ReturnType<typeof useCrossAccountNotes>): NormalizedNote {
+    const n = api.notes.value[0]
+    if (!n) throw new Error('list is empty')
+    return n
+  }
+
+  it('リノートすると取得元アカウントの adapter で createNote し、renoteCount を楽観更新する', async () => {
+    const { api, handlers, apiA } = mountOne()
+    await flush()
+    await handlers.renote(first(api))
+    expect(apiA.createNote).toHaveBeenCalledWith({ renoteId: 'a01' })
+    expect(useNoteStore().get(keyA)?.renoteCount).toBe(1)
+  })
+
+  it('ブックマークすると取得元アカウントの adapter で createFavorite する', async () => {
+    const { api, handlers, apiA } = mountOne()
+    await flush()
+    await handlers.bookmark(first(api))
+    expect(apiA.createFavorite).toHaveBeenCalledWith('a01')
+    expect(useNoteStore().get(keyA)?.isFavorited).toBe(true)
+  })
+
+  it('返信すると投稿フォームが取得元アカウント宛てに開く', async () => {
+    const { api, handlers, postForm } = mountOne()
+    await flush()
+    handlers.reply(first(api))
+    expect(postForm.show.value).toBe(true)
+    expect(postForm.accountId.value).toBe('acc-a')
+    expect(postForm.replyTo.value?.id).toBe('a01')
+    postForm.close()
+    expect(postForm.accountId.value).toBeUndefined()
+  })
+
+  it('ログアウト済みアカウントのノートは adapter を作らず toast で止める', async () => {
+    const { handlers, postForm } = mountOne()
+    addAccount('acc-b', 'other.example', false)
+    await flush()
+    await handlers.renote(stamp(note('b01'), 'acc-b'))
+    expect(adapters.has('acc-b')).toBe(false)
+    expect(
+      vi.mocked(initAdapterFor).mock.calls.some((c) => c[1] === 'acc-b'),
+    ).toBe(false)
+    expect(useToast().toasts.value).toHaveLength(1)
+    // 返信 (キーボード経路) も同じ判定で止まり、フォームは開かない
+    handlers.reply(stamp(note('b02'), 'acc-b'))
+    expect(postForm.show.value).toBe(false)
+  })
+
+  it('削除は取得元アカウントで deleteNote し、tombstone と SQLite キャッシュ削除まで行う', async () => {
+    const { api, handlers, apiA } = mountOne()
+    await flush()
+    await expect(handlers.delete(first(api))).resolves.toBe(true)
+    expect(apiA.deleteNote).toHaveBeenCalledWith('a01')
+    expect(useNoteStore().isDeleted(keyA)).toBe(true)
+    expect(
+      bindings.calls.some(
+        (c) => c.name === 'apiDeleteCachedNote' && c.args[1] === 'a01',
+      ),
+    ).toBe(true)
+  })
+
+  it('削除して編集は削除後に行を tombstone 化してフォームを開く', async () => {
+    const { api, handlers, postForm, apiA } = mountOne()
+    await flush()
+    await expect(handlers.deleteAndEdit(first(api))).resolves.toBe(true)
+    expect(apiA.deleteNote).toHaveBeenCalledWith('a01')
+    expect(useNoteStore().get(keyA)).toBeUndefined()
+    expect(
+      bindings.calls.some(
+        (c) => c.name === 'apiDeleteCachedNote' && c.args[1] === 'a01',
+      ),
+    ).toBe(true)
+    expect(postForm.show.value).toBe(true)
+    expect(postForm.accountId.value).toBe('acc-a')
+    expect(postForm.initialNote.value?.id).toBe('a01')
+  })
+
+  it('adapter の生成に失敗したら false を返して toast を出す (無言で終わらない)', async () => {
+    const { api, handlers } = mountOne()
+    await flush()
+    const target = first(api)
+    adapters.delete('acc-a')
+    vi.mocked(initAdapterFor).mockRejectedValueOnce(new Error('offline'))
+    await expect(handlers.delete(target)).resolves.toBe(false)
+    expect(useToast().toasts.value).toHaveLength(1)
+  })
+
+  it('削除して編集は削除に失敗したら false を返し、行もフォームも触らない', async () => {
+    const { api, handlers, postForm, apiA } = mountOne()
+    await flush()
+    apiA.deleteNote.mockRejectedValueOnce(new Error('boom'))
+    await expect(handlers.deleteAndEdit(first(api))).resolves.toBe(false)
+    expect(useNoteStore().get(keyA)).toBeDefined()
+    expect(postForm.show.value).toBe(false)
   })
 })
