@@ -6,8 +6,16 @@
  * petdex desktop と同じ固定表 (services/petSprite)。ドラッグで位置を変えられ、
  * 動かした向きで running-left / right になる。省電力 (#931) とウィンドウ非表示
  * の間は 1 コマ目で止める。
+ *
+ * コンパクト (スマホ幅) では下端の基準をモバイルナビの上端に置く
+ * (`--nd-mobileNavHeight`、DeckMobileNav が body に公開)。位置未設定なら
+ * FAB (右下) の上に載せる。
+ *
+ * 当たり判定は矩形ではなく、状態ごとの不透明領域 (Rust が作るマスク) を
+ * clip-path にして切り抜く。透過部のクリック・タップ・スクロールは下の
+ * デッキに届く。マスクが無い / path() 非対応なら矩形のまま。
  */
-import { computed, onScopeDispose, ref, watch } from 'vue'
+import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import {
   clampPetScale,
   PET_COLUMNS,
@@ -15,6 +23,7 @@ import {
   PET_FRAME_WIDTH,
   type PetState,
   petFrames,
+  petHitClipPath,
   petStateRow,
 } from '@/services/petSprite'
 import { useAiActivity } from '@/stores/aiActivity'
@@ -24,6 +33,8 @@ import { useSystemStateStore } from '@/stores/systemState'
 import { useIsCompactLayout } from '@/stores/ui'
 
 const DEFAULT_MARGIN = 16
+/** コンパクト時の既定の下端。DeckLayout の FAB (56px, ナビ上 12px) を避ける */
+const COMPACT_DEFAULT_BOTTOM = 12 + 56 + 12
 const DRAG_THRESHOLD = 4
 
 const pet = usePetStore()
@@ -32,9 +43,7 @@ const systemState = useSystemStateStore()
 const isCompact = useIsCompactLayout()
 const { petState, pulse } = useAiActivity()
 
-const visible = computed(
-  () => !isCompact.value && pet.spriteUrl !== null && pet.info !== null,
-)
+const visible = computed(() => pet.spriteUrl !== null && pet.info !== null)
 
 // ── 大きさ (アピアランス設定のスライダー) ──
 const scale = computed(() => clampPetScale(settings.get('pet.scale')))
@@ -42,17 +51,28 @@ const cellW = computed(() => Math.round(PET_FRAME_WIDTH * scale.value))
 const cellH = computed(() => Math.round(PET_FRAME_HEIGHT * scale.value))
 
 // ── 位置 ──
+// bottom はモバイルナビの上端からの距離 (デスクトップではナビ高 0 = 画面下端)
+const defaultBottom = () =>
+  isCompact.value ? COMPACT_DEFAULT_BOTTOM : DEFAULT_MARGIN
 const right = ref(settings.get('pet.right') ?? DEFAULT_MARGIN)
-const bottom = ref(settings.get('pet.bottom') ?? DEFAULT_MARGIN)
+const bottom = ref(settings.get('pet.bottom') ?? defaultBottom())
 // コードタブ・外部エディタ・別ウィンドウからの変更も位置に反映する
 watch(
   () => [settings.get('pet.right'), settings.get('pet.bottom')] as const,
   ([nextRight, nextBottom]) => {
     right.value = nextRight ?? DEFAULT_MARGIN
-    bottom.value = nextBottom ?? DEFAULT_MARGIN
+    bottom.value = nextBottom ?? defaultBottom()
     clamp()
   },
 )
+
+function mobileNavHeight(): number {
+  return (
+    Number.parseFloat(
+      document.body.style.getPropertyValue('--nd-mobileNavHeight'),
+    ) || 0
+  )
+}
 
 function clamp(): void {
   right.value = Math.min(
@@ -61,11 +81,21 @@ function clamp(): void {
   )
   bottom.value = Math.min(
     Math.max(0, bottom.value),
-    Math.max(0, window.innerHeight - cellH.value),
+    Math.max(0, window.innerHeight - mobileNavHeight() - cellH.value),
   )
 }
 clamp()
 watch(scale, clamp)
+// ナビの高さは DeckMobileNav のマウント後に決まるので 1 tick 待つ。
+// 初回からコンパクトな場合も同じで、初期化時の clamp はナビ高 0 で走っている
+watch(
+  isCompact,
+  () => {
+    if (settings.get('pet.bottom') === undefined) bottom.value = defaultBottom()
+    void nextTick(clamp)
+  },
+  { immediate: true },
+)
 window.addEventListener('resize', clamp)
 onScopeDispose(() => window.removeEventListener('resize', clamp))
 
@@ -166,6 +196,23 @@ watch(
 )
 onScopeDispose(stopFrames)
 
+// ── 当たり判定 ──
+const clipSupported =
+  typeof CSS !== 'undefined' &&
+  typeof CSS.supports === 'function' &&
+  CSS.supports('clip-path', 'path("M0 0h1v1z")')
+const clipPath = computed(() => {
+  if (!clipSupported || !pet.hitMask) return undefined
+  return (
+    petHitClipPath(
+      pet.hitMask,
+      petStateRow(displayState.value),
+      cellW.value,
+      cellH.value,
+    ) ?? undefined
+  )
+})
+
 const spriteStyle = computed(() => {
   const info = pet.info
   if (!info || !pet.spriteUrl) return undefined
@@ -174,7 +221,8 @@ const spriteStyle = computed(() => {
   const row = petStateRow(displayState.value)
   return {
     right: `${right.value}px`,
-    bottom: `${bottom.value}px`,
+    '--pet-bottom': `${bottom.value}px`,
+    '--pet-clip': clipPath.value,
     width: `${cellW.value}px`,
     height: `${cellH.value}px`,
     backgroundImage: `url("${pet.spriteUrl}")`,
@@ -202,6 +250,11 @@ const spriteStyle = computed(() => {
 <style module lang="scss">
 .pet {
   position: fixed;
+  // 下端はモバイルナビの上端基準 (デスクトップではナビ高 0)
+  bottom: calc(var(--pet-bottom, 16px) + var(--nd-mobileNavHeight, 0px));
+  // 当たり判定 = 不透明領域 (透明側に膨らませたブロック)。描画も切るので
+  // box-shadow / outline のような要素外周の装飾はここでは使えない
+  clip-path: var(--pet-clip, none);
   z-index: var(--nd-z-popup);
   background-repeat: no-repeat;
   image-rendering: auto;

@@ -5,7 +5,7 @@
 use base64::Engine;
 use notecli::error::NoteDeckError;
 
-use crate::pet_store::{self, PetInfo};
+use crate::pet_store::{self, PetHitMask, PetInfo};
 
 use super::Result;
 
@@ -15,6 +15,8 @@ pub struct PetLoaded {
     pub info: PetInfo,
     /// `data:image/...;base64,...` — WebView 側で Blob にして CSS 背景に敷く
     pub data_url: String,
+    /// 状態ごとの当たり判定 (clip-path の元)。作れなければ None = 矩形のまま
+    pub hit_mask: Option<PetHitMask>,
 }
 
 fn app_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf> {
@@ -54,17 +56,31 @@ pub async fn pet_load(app: tauri::AppHandle, slug: String) -> Result<Option<PetL
         .await
         .map_err(|e| invalid(e.to_string()))?
         .map_err(invalid)?;
-    Ok(loaded.map(|(info, bytes)| {
-        let mime = if info.sprite_ext == "png" {
-            "image/png"
-        } else {
-            "image/webp"
-        };
-        let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
-        PetLoaded {
-            info,
-            data_url: format!("data:{mime};base64,{b64}"),
-        }
+    let Some((info, bytes)) = loaded else {
+        return Ok(None);
+    };
+    let rows = info.rows;
+    // マスク計算はブロッキングスレッドへ渡すが、本体は base64 にも使う。
+    // 上限サイズのシートを複製しないよう所有権だけ共有する
+    let bytes = std::sync::Arc::new(bytes);
+    let mask_bytes = std::sync::Arc::clone(&bytes);
+    let hit_mask =
+        tauri::async_runtime::spawn_blocking(move || pet_store::hit_mask(&mask_bytes, rows))
+            .await
+            .map_err(|e| e.to_string())
+            .and_then(|r| r)
+            .map_err(|e| tracing::warn!("[pet] hit mask unavailable, falling back to box: {e}"))
+            .ok();
+    let mime = if info.sprite_ext == "png" {
+        "image/png"
+    } else {
+        "image/webp"
+    };
+    let b64 = base64::engine::general_purpose::STANDARD.encode(bytes.as_slice());
+    Ok(Some(PetLoaded {
+        info,
+        data_url: format!("data:{mime};base64,{b64}"),
+        hit_mask,
     }))
 }
 

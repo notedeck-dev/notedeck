@@ -36,7 +36,10 @@ export interface NotedeckSettings {
    * 本体 (スプライト) はキャッシュ扱いで設定には入らない (`pet_store`)。
    */
   'pet.slug'?: string | null
-  /** ペットの位置 (右端・下端からの px)。ドラッグで動かした値だけ保存する */
+  /**
+   * ペットの位置 (右端からの px / 下端からの px)。下端はコンパクト時は
+   * モバイルナビの上端が基準。ドラッグで動かした値だけ保存する
+   */
   'pet.right'?: number
   'pet.bottom'?: number
   /**

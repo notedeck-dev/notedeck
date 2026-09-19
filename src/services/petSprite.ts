@@ -8,6 +8,8 @@
  * v2 の残り 2 行は「クライアントが自由に使ってよい」予備で、ここでは使わない。
  */
 
+import type { PetHitMask } from '@/bindings'
+
 export const PET_COLUMNS = 8
 export const PET_FRAME_WIDTH = 192
 export const PET_FRAME_HEIGHT = 208
@@ -152,4 +154,35 @@ export function parsePetSlugInput(input: string): string | null {
   const idx = parts.indexOf('pets')
   const slug = idx >= 0 ? parts[idx + 1] : undefined
   return slug && SLUG_RE.test(slug) ? slug : null
+}
+
+function px(n: number): string {
+  return String(Math.round(n * 100) / 100)
+}
+
+/**
+ * 当たり判定マスク (Rust `pet_store::hit_mask`、状態ごとのブロックのラン) を
+ * 表示寸法に合わせた `clip-path: path()` にする。ブロックは透明側にしか
+ * 膨らんでいないので、描かれる画素は切れない。ランが無い行は null (= 矩形)
+ */
+export function petHitClipPath(
+  mask: PetHitMask,
+  row: number,
+  cellW: number,
+  cellH: number,
+): string | null {
+  const runs = mask.runs[row]
+  if (!runs) return null
+  // 行に絵が無い = 触れる場所も無い。null (= 矩形に戻す) と区別する
+  if (runs.length === 0) return 'inset(50%)'
+  const bw = cellW / mask.cols
+  const bh = cellH / mask.rows
+  let d = ''
+  for (let i = 0; i + 2 < runs.length; i += 3) {
+    const y = runs[i] as number
+    const x = runs[i + 1] as number
+    const w = runs[i + 2] as number
+    d += `M${px(x * bw)} ${px(y * bh)}h${px(w * bw)}v${px(bh)}h${px(-w * bw)}z`
+  }
+  return `path("${d}")`
 }

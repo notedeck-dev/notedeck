@@ -8,7 +8,7 @@
  */
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
-import type { PetInfo } from '@/bindings'
+import type { PetHitMask, PetInfo } from '@/bindings'
 import { parsePetSlugInput } from '@/services/petSprite'
 import { useSettingsStore } from '@/stores/settings'
 import { extractErrorMessage } from '@/utils/errors'
@@ -30,6 +30,8 @@ export const usePetStore = defineStore('pet', () => {
   const info = shallowRef<PetInfo | null>(null)
   /** Blob URL。差し替え時は revoke する */
   const spriteUrl = ref<string | null>(null)
+  /** 状態ごとの当たり判定。無ければ矩形 */
+  const hitMask = shallowRef<PetHitMask | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -37,6 +39,7 @@ export const usePetStore = defineStore('pet', () => {
     if (spriteUrl.value) URL.revokeObjectURL(spriteUrl.value)
     spriteUrl.value = null
     info.value = null
+    hitMask.value = null
   }
 
   async function load(target: string | null): Promise<void> {
@@ -55,6 +58,7 @@ export const usePetStore = defineStore('pet', () => {
       if (slug.value !== target) return
       if (loaded) {
         info.value = loaded.info
+        hitMask.value = loaded.hitMask
         spriteUrl.value = dataUrlToBlobUrl(loaded.dataUrl)
       }
     } catch (e) {
@@ -103,5 +107,5 @@ export const usePetStore = defineStore('pet', () => {
 
   watch(slug, (s) => void load(s), { immediate: true })
 
-  return { slug, info, spriteUrl, loading, error, select, clear }
+  return { slug, info, spriteUrl, hitMask, loading, error, select, clear }
 })
