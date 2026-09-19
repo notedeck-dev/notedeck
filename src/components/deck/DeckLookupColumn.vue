@@ -25,17 +25,25 @@ import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
 import {
   type MergedThread,
+  type MergedThreadNode,
   mergeThreadFragments,
   type ThreadFragment,
 } from '@/engine/threadMerge'
 import { resolveNoteUriFor } from '@/services/entityResolution'
+import {
+  nestedVariantKey,
+  type VariantKey,
+  variantKeyOf,
+} from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { mapWithConcurrency } from '@/utils/concurrency'
 import { isImeComposing } from '@/utils/ime'
 import { parseUserQuery } from '@/utils/noteUrl'
+import { isRenoteOnly } from '@/utils/noteViewModel'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
 
 const MkPostForm = defineAsyncComponent(
@@ -81,6 +89,27 @@ const isProbing = ref(false)
 const probeProgress = ref(0)
 const lookupError = ref<string | null>(null)
 const mergedThread = ref<MergedThread | null>(null)
+/**
+ * この照会で削除したノート (variant key)。ローカル保持 (result / ancestors /
+ * children / mergedThread) から外すだけでは、遅れて返るアカウントの
+ * プログレッシブ再マージや per-account のスレッド取得で復活するので、
+ * 取り込み前にここで落とす。照会をやり直したら空にする
+ */
+const deletedKeys = new Set<VariantKey>()
+/**
+ * 同じく identity。全アカウント照会は同じノートを複数アカウントの variant で
+ * 持つので、variant key だけだと別アカウント経由の variant が主ビューに昇格して
+ * スレッドごと復活する
+ */
+const deletedIdentities = new Set<string>()
+/** 削除済み、または削除済みノートの純 Renote か */
+function isDropped(note: NormalizedNote): boolean {
+  if (deletedKeys.has(variantKeyOf(note))) return true
+  if (deletedIdentities.has(note._identity)) return true
+  if (!note.renoteId || !isRenoteOnly(note)) return false
+  if (deletedKeys.has(nestedVariantKey(note, note.renoteId))) return true
+  return !!note.renote && deletedIdentities.has(note.renote._identity)
+}
 
 type LookupResult =
   | { type: 'Note'; note: NormalizedNote }
@@ -165,20 +194,6 @@ const mergedChildrenTree = computed<NoteTreeNode[]>(() => {
   )
 })
 
-const noop = () => {
-  /* cross-account では未対応 */
-}
-const crossAccountTreeHandlers = computed<NoteTreeHandlers>(() => ({
-  react: handleReactionCrossAccount,
-  reply: noop,
-  renote: handleRenoteCrossAccount,
-  quote: noop,
-  deleteFn: handleDeleteCrossAccount,
-  edit: noop,
-  deleteAndEdit: noop,
-  vote: handleVoteCrossAccount,
-}))
-
 const postPortalRef = useTemplateRef<HTMLElement>('postPortalRef')
 usePortal(postPortalRef)
 
@@ -191,6 +206,8 @@ onMounted(async () => {
 async function performLookup() {
   const q = queryInput.value.trim()
   if (!q) return
+  deletedKeys.clear()
+  deletedIdentities.clear()
 
   if (isCrossAccount.value) {
     await performLookupCrossAccount(q)
@@ -316,8 +333,8 @@ async function loadThread(noteId: string) {
         .catch(() => [] as NormalizedNote[]),
       adapter.api.getNoteChildren(noteId).catch(() => [] as NormalizedNote[]),
     ])
-    ancestors.value = conv.reverse()
-    children.value = replies
+    ancestors.value = conv.reverse().filter((n) => !isDropped(n))
+    children.value = replies.filter((n) => !isDropped(n))
   } catch {
     // スレッド取得失敗は無視（ノート自体は表示済み）
   }
@@ -365,7 +382,7 @@ async function performLookupCrossAccount(q: string) {
         allFragments.push({ note, sourceAccountId: note._accountId })
       }
       mergedThread.value = mergeThreadFragments(
-        allFragments,
+        allFragments.filter((f) => !isDropped(f.note)),
         focalUri,
         mergeCtx,
       )
@@ -420,7 +437,7 @@ async function performLookupCrossAccount(q: string) {
         if (fragments.length > 0) {
           allFragments.push(...fragments)
           mergedThread.value = mergeThreadFragments(
-            allFragments,
+            allFragments.filter((f) => !isDropped(f.note)),
             focalUri,
             mergeCtx,
           )
@@ -441,58 +458,6 @@ async function performLookupCrossAccount(q: string) {
   }
 }
 
-/** cross-account 時: note._accountId でアダプタを逆引きして操作 */
-async function handleReactionCrossAccount(
-  reaction: string,
-  target: NormalizedNote,
-) {
-  const adapter = await multiAdapters.getOrCreate(target._accountId)
-  if (!adapter) return
-  const { toggleReaction } = await import('@/utils/toggleReaction')
-  try {
-    // スレッドは deep reactive (ref) なので、差分の代入で反映される
-    await toggleReaction(adapter.api, target, reaction, (compute) => {
-      Object.assign(target, compute(target))
-    })
-  } catch {
-    // ignore
-  }
-}
-
-async function handleVoteCrossAccount(choice: number, target: NormalizedNote) {
-  const adapter = await multiAdapters.getOrCreate(target._accountId)
-  if (!adapter) return
-  const { votePoll } = await import('@/utils/votePoll')
-  try {
-    // スレッドは deep reactive (ref) なので、差分の代入で反映される
-    await votePoll(adapter.api, target, choice, (compute) => {
-      Object.assign(target, compute(target))
-    })
-  } catch {
-    // ignore
-  }
-}
-
-async function handleRenoteCrossAccount(target: NormalizedNote) {
-  const adapter = await multiAdapters.getOrCreate(target._accountId)
-  if (!adapter) return
-  try {
-    await adapter.api.createNote({ renoteId: target.id })
-  } catch {
-    // ignore
-  }
-}
-
-async function handleDeleteCrossAccount(target: NormalizedNote) {
-  const adapter = await multiAdapters.getOrCreate(target._accountId)
-  if (!adapter) return
-  try {
-    await adapter.api.deleteNote(target.id)
-  } catch {
-    // ignore
-  }
-}
-
 function onKeydown(e: KeyboardEvent) {
   if (isImeComposing(e)) return
   if (e.key === 'Enter') {
@@ -500,48 +465,49 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
-/** 削除後にスレッド表示からノードを除去 */
-async function handleDelete(target: NormalizedNote) {
-  const deleted = await handlers.delete(target)
-  if (!deleted) return
-  const id = target.id
-  if (result.value?.type === 'Note' && result.value.note.id === id) {
+/**
+ * 削除したノードをローカル保持のスレッドから外す。照会結果は noteStore に
+ * 置いていないので、handlers 側の tombstone だけでは表示から消えない
+ */
+function removeFromLocalThread(target: NormalizedNote) {
+  deletedKeys.add(variantKeyOf(target))
+  if (target._identity) deletedIdentities.add(target._identity)
+  if (isCrossAccount.value) {
+    const thread = mergedThread.value
+    if (!thread) return
+    if (isDropped(thread.focal.note)) {
+      mergedThread.value = null
+      return
+    }
+    const prune = (nodes: MergedThreadNode[]): MergedThreadNode[] =>
+      nodes
+        .filter((n) => !isDropped(n.note))
+        .map((n) => ({ ...n, children: prune(n.children) }))
+    mergedThread.value = {
+      ...thread,
+      ancestors: prune(thread.ancestors),
+      children: prune(thread.children),
+    }
+    return
+  }
+  if (result.value?.type === 'Note' && isDropped(result.value.note)) {
     result.value = null
     ancestors.value = []
     children.value = []
   } else {
-    children.value = children.value.filter(
-      (n) => n.id !== id && n.renoteId !== id,
-    )
-    ancestors.value = ancestors.value.filter(
-      (n) => n.id !== id && n.renoteId !== id,
-    )
+    children.value = children.value.filter((n) => !isDropped(n))
+    ancestors.value = ancestors.value.filter((n) => !isDropped(n))
   }
 }
 
-/** 削除して編集 — 削除後にポストフォームを開く */
+/** 削除後にスレッド表示からノードを除去 */
+async function handleDelete(target: NormalizedNote) {
+  if (await handlers.delete(target)) removeFromLocalThread(target)
+}
+
+/** 削除して編集 — 削除後にポストフォームを開く (フォーム組み立ては handlers 側) */
 async function handleDeleteAndEdit(target: NormalizedNote) {
-  const adapter = getAdapter()
-  if (!adapter) return
-  try {
-    await adapter.api.deleteNote(target.id)
-    if (result.value?.type === 'Note' && result.value.note.id === target.id) {
-      result.value = null
-    }
-    postForm.replyTo.value = target.replyId
-      ? await adapter.api.getNote(target.replyId).catch(() => undefined)
-      : undefined
-    // 引用・添付・アンケート等を引き継ぐ (#944)
-    postForm.renoteId.value = target.renoteId ?? undefined
-    postForm.editNote.value = undefined
-    postForm.initialNote.value = target
-    postForm.initialText.value = undefined
-    postForm.initialCw.value = undefined
-    postForm.initialVisibility.value = undefined
-    postForm.show.value = true
-  } catch {
-    // ignore
-  }
+  if (await handlers.deleteAndEdit(target)) removeFromLocalThread(target)
 }
 
 const lookupResultRef = useTemplateRef<HTMLElement>('lookupResultRef')
@@ -551,9 +517,36 @@ function scrollToTop() {
 }
 
 async function handlePosted(editedNoteId?: string) {
+  // 全アカウント照会では投稿したアカウント (close で消える) で再取得する
+  const postedAccountId = postForm.accountId.value
   postForm.close()
+  if (!editedNoteId) return
+  if (isCrossAccount.value) {
+    const thread = mergedThread.value
+    const focal = thread?.focal.note
+    if (
+      !thread ||
+      !focal ||
+      !postedAccountId ||
+      focal._accountId !== postedAccountId ||
+      focal.id !== editedNoteId
+    )
+      return
+    const adapter = await multiAdapters.getOrCreate(postedAccountId)
+    if (!adapter) return
+    try {
+      const updated = await adapter.api.getNote(editedNoteId)
+      mergedThread.value = {
+        ...thread,
+        focal: { ...thread.focal, note: updated },
+      }
+    } catch {
+      // ignore
+    }
+    return
+  }
   const adapter = getAdapter()
-  if (editedNoteId && adapter && result.value?.type === 'Note') {
+  if (adapter && result.value?.type === 'Note') {
     try {
       const updated = await adapter.api.getNote(editedNoteId)
       if (result.value.note.id === editedNoteId) {
@@ -629,25 +622,33 @@ async function handlePosted(editedNoteId?: string) {
             v-for="node in mergedThread.ancestors"
             :key="node.note._identity"
             :note="node.note"
-            @react="handleReactionCrossAccount"
-            @renote="handleRenoteCrossAccount"
-            @delete="handleDeleteCrossAccount"
-            @vote="handleVoteCrossAccount"
+            @react="handlers.reaction"
+            @reply="handlers.reply"
+            @renote="handlers.renote"
+            @quote="handlers.quote"
+            @delete="handleDelete"
+            @edit="handlers.edit"
+            @delete-and-edit="handleDeleteAndEdit"
+            @vote="handlers.vote"
           />
         </div>
         <MkNote
           :note="mergedThread.focal.note"
           detailed
-          @react="handleReactionCrossAccount"
-          @renote="handleRenoteCrossAccount"
-          @delete="handleDeleteCrossAccount"
-          @vote="handleVoteCrossAccount"
+          @react="handlers.reaction"
+          @reply="handlers.reply"
+          @renote="handlers.renote"
+          @quote="handlers.quote"
+          @delete="handleDelete"
+          @edit="handlers.edit"
+          @delete-and-edit="handleDeleteAndEdit"
+          @vote="handlers.vote"
         />
         <MkNoteTree
           v-if="mergedThread.children.length > 0"
           :nodes="mergedChildrenTree"
           :account-id="mergedThread.focal.note._accountId"
-          :handlers="crossAccountTreeHandlers"
+          :handlers="treeHandlers"
         />
       </div>
     </template>
@@ -731,6 +732,7 @@ async function handlePosted(editedNoteId?: string) {
       @posted="handlePosted"
     />
   </div>
+  <ColumnCrossPostForm v-if="isCrossAccount" :post-form="postForm" @posted="handlePosted" />
 </template>
 
 <style lang="scss" module>

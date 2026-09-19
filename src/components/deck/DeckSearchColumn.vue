@@ -38,8 +38,6 @@ import { useSearchFilters } from '@/composables/useSearchFilters'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
-import { useNoteStore } from '@/stores/notes'
-import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
 import {
@@ -47,8 +45,6 @@ import {
   filterNotesByRegexAsync,
   isValidRegex,
 } from '@/utils/regexSearch'
-import { toggleReaction } from '@/utils/toggleReaction'
-import { votePoll } from '@/utils/votePoll'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
 
@@ -102,17 +98,7 @@ const { notes, groups, rawNotes, setNotes, removeNote } = useNoteList({
   getAdapter,
   // 全アカウント面は variant の取得元アカウントで消す。成功時の noteStore.remove
   // (tombstone) と SQLite キャッシュ削除は useNoteList.removeNote が担う
-  deleteHandler: async (note) => {
-    if (!isCrossAccount.value) return handlers.delete(note)
-    const adapter = await multiAdapters.getOrCreate(note._accountId)
-    if (!adapter) return false
-    try {
-      await adapter.api.deleteNote(note.id)
-      return true
-    } catch {
-      return false
-    }
-  },
+  deleteHandler: handlers.delete,
   closePostForm: postForm.close,
 })
 
@@ -132,45 +118,6 @@ const rows = computed<SearchRow[]>(() =>
     : notes.value.map((n) => ({ rowKey: variantKeyOf(n), primary: n })),
 )
 
-const noteStore = useNoteStore()
-const toast = useToast()
-/** 楽観更新の差分を、その variant を保持する noteStore へ差し替えで反映する */
-function applyPatch(
-  note: NormalizedNote,
-  compute: (current: NormalizedNote) => Partial<NormalizedNote>,
-) {
-  const key = variantKeyOf(note)
-  const current = noteStore.get(key) ?? note
-  noteStore.update(key, { ...current, ...compute(current) })
-}
-/** 全アカウント面では主ビューの取得元アカウントで操作する (#1058 §5.6) */
-async function handleReaction(reaction: string, note: NormalizedNote) {
-  if (!isCrossAccount.value) return handlers.reaction(reaction, note)
-  const adapter = await multiAdapters.getOrCreate(note._accountId)
-  if (!adapter) return
-  try {
-    await toggleReaction(adapter.api, note, reaction, (compute) =>
-      applyPatch(note, compute),
-    )
-  } catch (e) {
-    toast.show(
-      `リアクションに失敗しました（${AppError.from(e).displayCode}）`,
-      'error',
-    )
-  }
-}
-async function handleVote(choice: number, note: NormalizedNote) {
-  if (!isCrossAccount.value) return handlers.vote(choice, note)
-  const adapter = await multiAdapters.getOrCreate(note._accountId)
-  if (!adapter) return
-  try {
-    await votePoll(adapter.api, note, choice, (compute) =>
-      applyPatch(note, compute),
-    )
-  } catch (e) {
-    toast.show(`投票に失敗しました（${AppError.from(e).displayCode}）`, 'error')
-  }
-}
 const noteScrollerRef = ref<{
   getElement: () => HTMLElement | null
   scrollToIndex: (
@@ -903,7 +850,7 @@ onUnmounted(() => {
               :note="item.primary"
               :group="item.group"
               :focused="variantKeyOf(item.primary) === focusedNoteId"
-              @react="handleReaction"
+              @react="handlers.reaction"
               @reply="handlers.reply"
               @renote="handlers.renote"
               @quote="handlers.quote"
@@ -911,7 +858,7 @@ onUnmounted(() => {
               @edit="handlers.edit"
               @bookmark="handlers.bookmark"
               @delete-and-edit="handlers.deleteAndEdit"
-              @vote="handleVote"
+              @vote="handlers.vote"
             />
           </div>
         </template>

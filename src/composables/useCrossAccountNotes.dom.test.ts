@@ -558,10 +558,23 @@ describe('useCrossAccountNotes: ノートアクションは取得元アカウン
     expect(postForm.show.value).toBe(false)
   })
 
+  it('削除は取得元アカウントで deleteNote し、tombstone と SQLite キャッシュ削除まで行う', async () => {
+    const { api, handlers, apiA } = mountOne()
+    await flush()
+    await expect(handlers.delete(first(api))).resolves.toBe(true)
+    expect(apiA.deleteNote).toHaveBeenCalledWith('a01')
+    expect(useNoteStore().isDeleted(keyA)).toBe(true)
+    expect(
+      bindings.calls.some(
+        (c) => c.name === 'apiDeleteCachedNote' && c.args[1] === 'a01',
+      ),
+    ).toBe(true)
+  })
+
   it('削除して編集は削除後に行を tombstone 化してフォームを開く', async () => {
     const { api, handlers, postForm, apiA } = mountOne()
     await flush()
-    await handlers.deleteAndEdit(first(api))
+    await expect(handlers.deleteAndEdit(first(api))).resolves.toBe(true)
     expect(apiA.deleteNote).toHaveBeenCalledWith('a01')
     expect(useNoteStore().get(keyA)).toBeUndefined()
     expect(
@@ -572,5 +585,14 @@ describe('useCrossAccountNotes: ノートアクションは取得元アカウン
     expect(postForm.show.value).toBe(true)
     expect(postForm.accountId.value).toBe('acc-a')
     expect(postForm.initialNote.value?.id).toBe('a01')
+  })
+
+  it('削除して編集は削除に失敗したら false を返し、行もフォームも触らない', async () => {
+    const { api, handlers, postForm, apiA } = mountOne()
+    await flush()
+    apiA.deleteNote.mockRejectedValueOnce(new Error('boom'))
+    await expect(handlers.deleteAndEdit(first(api))).resolves.toBe(false)
+    expect(useNoteStore().get(keyA)).toBeDefined()
+    expect(postForm.show.value).toBe(false)
   })
 })

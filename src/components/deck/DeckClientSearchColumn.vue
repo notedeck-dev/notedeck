@@ -6,7 +6,6 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
-import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { useNoteList } from '@/composables/useNoteList'
 import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
@@ -20,12 +19,8 @@ import { variantKeyOf } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
-import { useNoteStore } from '@/stores/notes'
-import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { toggleReaction } from '@/utils/toggleReaction'
-import { votePoll } from '@/utils/votePoll'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
 
@@ -42,9 +37,6 @@ const PAGE_SIZE = 50
 
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
-const multiAdapters = useMultiAccountAdapters()
-const noteStore = useNoteStore()
-const toast = useToast()
 
 // 取得元サーバーは行ごとに違うので、ローカルユーザーにも @server とティッカーを出す
 provideNoteFrame(computed(() => true))
@@ -65,16 +57,7 @@ const { noteScrollerRef } = useNoteScrollerRef(scroller)
 const { notes, groups, rawNotes, setNotes, removeNote } = useNoteList({
   bundle: true,
   getAdapter: () => null,
-  deleteHandler: async (note) => {
-    const adapter = await multiAdapters.getOrCreate(note._accountId)
-    if (!adapter) return false
-    try {
-      await adapter.api.deleteNote(note.id)
-      return true
-    } catch {
-      return false
-    }
-  },
+  deleteHandler: handlers.delete,
   closePostForm: postForm.close,
 })
 
@@ -223,43 +206,6 @@ function scrollToTop() {
   }
 }
 
-// --- 操作: 主ビューの取得元アカウントで行う (#1058 §5.6) ---
-function applyPatch(
-  note: NormalizedNote,
-  compute: (current: NormalizedNote) => Partial<NormalizedNote>,
-) {
-  const key = variantKeyOf(note)
-  const current = noteStore.get(key) ?? note
-  noteStore.update(key, { ...current, ...compute(current) })
-}
-
-async function react(reaction: string, note: NormalizedNote) {
-  const adapter = await multiAdapters.getOrCreate(note._accountId)
-  if (!adapter) return
-  try {
-    await toggleReaction(adapter.api, note, reaction, (compute) =>
-      applyPatch(note, compute),
-    )
-  } catch (e) {
-    toast.show(
-      `リアクションに失敗しました（${AppError.from(e).displayCode}）`,
-      'error',
-    )
-  }
-}
-
-async function vote(choice: number, note: NormalizedNote) {
-  const adapter = await multiAdapters.getOrCreate(note._accountId)
-  if (!adapter) return
-  try {
-    await votePoll(adapter.api, note, choice, (compute) =>
-      applyPatch(note, compute),
-    )
-  } catch (e) {
-    toast.show(`投票に失敗しました（${AppError.from(e).displayCode}）`, 'error')
-  }
-}
-
 const emptyMessage = computed(() =>
   hasSearched.value
     ? '手元のキャッシュに一致するノートはありません'
@@ -392,7 +338,7 @@ onMounted(async () => {
             <MkNote
               :note="item.primary"
               :group="item"
-              @react="react"
+              @react="handlers.reaction"
               @reply="handlers.reply"
               @renote="handlers.renote"
               @quote="handlers.quote"
@@ -400,7 +346,7 @@ onMounted(async () => {
               @edit="handlers.edit"
               @bookmark="handlers.bookmark"
               @delete-and-edit="handlers.deleteAndEdit"
-              @vote="vote"
+              @vote="handlers.vote"
             />
           </div>
         </template>

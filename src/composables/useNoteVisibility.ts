@@ -4,11 +4,12 @@ import type {
   NormalizedUser,
   ReactionInfo,
 } from '@/adapters/types'
-import { variantKeyOf } from '@/services/noteKey'
+import { nestedVariantKey, variantKeyOf } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import { useMutesStore } from '@/stores/mutes'
 import { useNoteStore } from '@/stores/notes'
 import { useSuspensionsStore } from '@/stores/suspensions'
+import { isRenoteOnly } from '@/utils/noteViewModel'
 
 /**
  * 述語の opt-out オプション（#828 / #831 §1.1）。
@@ -67,6 +68,15 @@ export function useNoteVisibility() {
    */
   function isHidden(note: NormalizedNote, opts?: VisibilityOpts): boolean {
     if (noteStore.isDeleted(variantKeyOf(note))) return true
+    // 元ノートが削除された純 Renote は見せない (#1123)。本家 2025.10 以降は
+    // Renote を cascade 削除しないので、列から外しても再取得で戻ってくる —
+    // 述語で隠す。引用 (本文・添付等が残る) は隠さない
+    if (
+      note.renoteId &&
+      isRenoteOnly(note) &&
+      noteStore.isDeleted(nestedVariantKey(note, note.renoteId))
+    )
+      return true
     const subject = !opts?.ignoreSubject
     return (
       isUserHidden(note, opts) ||
