@@ -116,8 +116,17 @@ export function useColumnSetup(
     if (adapter) return adapter
     const acc = accountFor(note)
     if (!acc) return null
-    const { adapter: resolved } = await initAdapterFor(acc.host, acc.id)
-    return resolved
+    try {
+      // サーバー情報の取得を伴うので失敗しうる。ここで受けないと呼び出し側の
+      // try の外で reject し、無言で終わる (削除では楽観削除も巻き戻らない)
+      const { adapter: resolved } = await initAdapterFor(acc.host, acc.id)
+      return resolved
+    } catch (e) {
+      const err = AppError.from(e)
+      console.error('[column-setup] adapter init failed', err.code, err.message)
+      toast.show(`サーバーに接続できません（${err.displayCode}）`, 'error')
+      return null
+    }
   }
   function setSubscription(sub: ChannelSubscription) {
     subscription = sub

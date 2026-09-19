@@ -587,6 +587,16 @@ describe('useCrossAccountNotes: ノートアクションは取得元アカウン
     expect(postForm.initialNote.value?.id).toBe('a01')
   })
 
+  it('adapter の生成に失敗したら false を返して toast を出す (無言で終わらない)', async () => {
+    const { api, handlers } = mountOne()
+    await flush()
+    const target = first(api)
+    adapters.delete('acc-a')
+    vi.mocked(initAdapterFor).mockRejectedValueOnce(new Error('offline'))
+    await expect(handlers.delete(target)).resolves.toBe(false)
+    expect(useToast().toasts.value).toHaveLength(1)
+  })
+
   it('削除して編集は削除に失敗したら false を返し、行もフォームも触らない', async () => {
     const { api, handlers, postForm, apiA } = mountOne()
     await flush()
