@@ -86,11 +86,16 @@ function clamp(): void {
 }
 clamp()
 watch(scale, clamp)
-// ナビの高さは DeckMobileNav のマウント後に決まるので 1 tick 待つ
-watch(isCompact, () => {
-  if (settings.get('pet.bottom') === undefined) bottom.value = defaultBottom()
-  void nextTick(clamp)
-})
+// ナビの高さは DeckMobileNav のマウント後に決まるので 1 tick 待つ。
+// 初回からコンパクトな場合も同じで、初期化時の clamp はナビ高 0 で走っている
+watch(
+  isCompact,
+  () => {
+    if (settings.get('pet.bottom') === undefined) bottom.value = defaultBottom()
+    void nextTick(clamp)
+  },
+  { immediate: true },
+)
 window.addEventListener('resize', clamp)
 onScopeDispose(() => window.removeEventListener('resize', clamp))
 

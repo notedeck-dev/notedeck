@@ -83,6 +83,20 @@ describe('DeckPetOverlay — コンパクトレイアウト', () => {
     expect(style).toMatch(/right:\s*16px/)
   })
 
+  it('初回からコンパクトでも、後から決まるナビ高で位置を収める', async () => {
+    // ナビは DeckPetOverlay より後にマウントされて高さを公開する。
+    // 初期化時の clamp はナビ高 0 で走るので、そのままだと上にはみ出す
+    isCompact.value = true
+    useSettingsStore().set('pet.bottom', 10000)
+    const wrapper = mountPet()
+    document.body.style.setProperty('--nd-mobileNavHeight', '60px')
+    await nextTick()
+    await nextTick()
+    const style = petEl(wrapper)?.getAttribute('style') ?? ''
+    // happy-dom の innerHeight 768 − ナビ 60 − ペット 156
+    expect(style).toMatch(/--pet-bottom:\s*552px/)
+  })
+
   it('保存済みの位置はコンパクトでもそのまま使う (ナビ上端基準に載せるだけ)', async () => {
     isCompact.value = true
     useSettingsStore().set('pet.bottom', 40)
@@ -110,6 +124,14 @@ describe('DeckPetOverlay — 当たり判定の切り抜き (clip-path)', () => 
     const style = petEl(wrapper)?.getAttribute('style') ?? ''
     // 既定倍率 0.75 → 144×156、ブロック 3px: (24,12) 幅 2 → x=72 y=36 w=6 h=3
     expect(style).toContain('--pet-clip: path("M72 36h6v3h-6z")')
+  })
+
+  it('表示中の状態が全部透明ならクリックを一切受けない', async () => {
+    // 表示中の idle (行 0) にランが無いマスク
+    const wrapper = mountPet({ cols: 48, rows: 52, runs: [[], [12, 24, 2]] })
+    await nextTick()
+    const style = petEl(wrapper)?.getAttribute('style') ?? ''
+    expect(style).toContain('--pet-clip: inset(50%)')
   })
 
   it('マスクが無ければ clip-path を付けない (矩形のまま)', async () => {

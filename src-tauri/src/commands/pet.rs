@@ -60,7 +60,10 @@ pub async fn pet_load(app: tauri::AppHandle, slug: String) -> Result<Option<PetL
         return Ok(None);
     };
     let rows = info.rows;
-    let mask_bytes = bytes.clone();
+    // マスク計算はブロッキングスレッドへ渡すが、本体は base64 にも使う。
+    // 上限サイズのシートを複製しないよう所有権だけ共有する
+    let bytes = std::sync::Arc::new(bytes);
+    let mask_bytes = std::sync::Arc::clone(&bytes);
     let hit_mask =
         tauri::async_runtime::spawn_blocking(move || pet_store::hit_mask(&mask_bytes, rows))
             .await
@@ -73,7 +76,7 @@ pub async fn pet_load(app: tauri::AppHandle, slug: String) -> Result<Option<PetL
     } else {
         "image/webp"
     };
-    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    let b64 = base64::engine::general_purpose::STANDARD.encode(bytes.as_slice());
     Ok(Some(PetLoaded {
         info,
         data_url: format!("data:{mime};base64,{b64}"),

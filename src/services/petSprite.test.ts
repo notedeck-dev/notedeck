@@ -133,8 +133,11 @@ describe('petSprite: hit mask → clip-path', () => {
     )
   })
 
-  it('ランが無い行と範囲外の行は null (clip を付けない)', () => {
-    expect(petHitClipPath(mask, 1, 144, 156)).toBeNull()
+  it('全部透明な行は「当たり判定なし」にする (矩形に戻さない)', () => {
+    expect(petHitClipPath(mask, 1, 144, 156)).toBe('inset(50%)')
+  })
+
+  it('マスクに無い行だけ null (clip を付けない)', () => {
     expect(petHitClipPath(mask, 5, 144, 156)).toBeNull()
   })
 

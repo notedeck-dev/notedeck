@@ -172,7 +172,9 @@ export function petHitClipPath(
   cellH: number,
 ): string | null {
   const runs = mask.runs[row]
-  if (!runs || runs.length === 0) return null
+  if (!runs) return null
+  // 行に絵が無い = 触れる場所も無い。null (= 矩形に戻す) と区別する
+  if (runs.length === 0) return 'inset(50%)'
   const bw = cellW / mask.cols
   const bh = cellH / mask.rows
   let d = ''
