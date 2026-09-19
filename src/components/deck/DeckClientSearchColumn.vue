@@ -26,6 +26,7 @@ import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { toggleReaction } from '@/utils/toggleReaction'
 import { votePoll } from '@/utils/votePoll'
+import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
 
 /**
@@ -412,6 +413,7 @@ onMounted(async () => {
       </NoteScroller>
     </div>
   </DeckColumn>
+  <ColumnCrossPostForm :post-form="postForm" @posted="postForm.close" />
 </template>
 
 <style lang="scss" module>

@@ -17,6 +17,7 @@ import { provideNoteFrame } from '@/composables/useNoteFrame'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
@@ -89,6 +90,7 @@ const {
   isLoading,
   error,
   handlers,
+  postForm,
   scroller,
   onScrollReport,
 } = useColumnSetup(() => props.column)
@@ -102,9 +104,6 @@ const {
   loadMoreCrossAccount,
   handleScroll,
   removeNote,
-  react: reactCrossAccount,
-  bookmark: bookmarkCrossAccount,
-  vote: voteCrossAccount,
   pendingCount,
   animatingRowKeys,
   crossProgress,
@@ -119,6 +118,7 @@ const {
   error,
   scroller,
   onScrollReport,
+  deleteNote: handlers.delete,
   streaming: {
     columnId: props.column.id,
     subscribe: (accountId, _adapter, enqueue, callbacks) =>
@@ -198,15 +198,15 @@ const {
               <MkNote
                 :note="item.primary"
                 :group="item"
-                @react="reactCrossAccount"
+                @react="handlers.reaction"
                 @reply="handlers.reply"
                 @renote="handlers.renote"
                 @quote="handlers.quote"
                 @delete="removeNote"
                 @edit="handlers.edit"
-                @bookmark="bookmarkCrossAccount"
+                @bookmark="handlers.bookmark"
                 @delete-and-edit="handlers.deleteAndEdit"
-                @vote="voteCrossAccount"
+                @vote="handlers.vote"
               />
             </div>
           </template>
@@ -233,6 +233,7 @@ const {
     sound-enabled
     :note-column-config="noteColumnConfig"
   />
+  <ColumnCrossPostForm v-if="isCrossAccount" :post-form="postForm" @posted="postForm.close" />
 </template>
 
 <style lang="scss" module>

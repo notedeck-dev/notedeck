@@ -49,6 +49,7 @@ import {
 } from '@/utils/regexSearch'
 import { toggleReaction } from '@/utils/toggleReaction'
 import { votePoll } from '@/utils/votePoll'
+import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
 
 function collectFulfilled<T>(results: PromiseSettledResult<T[]>[]): T[] {
@@ -942,6 +943,7 @@ onUnmounted(() => {
       @posted="handlePosted"
     />
   </div>
+  <ColumnCrossPostForm v-if="isCrossAccount" :post-form="postForm" @posted="handlePosted" />
 </template>
 
 <style lang="scss" module>
