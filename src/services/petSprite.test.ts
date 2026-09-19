@@ -8,6 +8,7 @@ import {
   type PetState,
   parsePetSlugInput,
   petFrames,
+  petHitClipPath,
   petStateRow,
 } from './petSprite'
 
@@ -113,5 +114,33 @@ describe('petSprite: clampPetScale', () => {
     expect(clampPetScale(1)).toBe(1)
     expect(clampPetScale(0.1)).toBe(0.25)
     expect(clampPetScale(5)).toBe(2)
+  })
+})
+
+describe('petSprite: hit mask → clip-path', () => {
+  const mask = { cols: 48, rows: 52, runs: [[12, 24, 2, 13, 0, 48], []] }
+
+  it('ランをコマ寸法に合わせた矩形の path() にする', () => {
+    // 144×156 (0.75 倍) → ブロックは 3×3px
+    expect(petHitClipPath(mask, 0, 144, 156)).toBe(
+      'path("M72 36h6v3h-6zM0 39h144v3h-144z")',
+    )
+  })
+
+  it('倍率が変わると座標だけ変わる', () => {
+    expect(petHitClipPath(mask, 0, 192, 208)).toBe(
+      'path("M96 48h8v4h-8zM0 52h192v4h-192z")',
+    )
+  })
+
+  it('ランが無い行と範囲外の行は null (clip を付けない)', () => {
+    expect(petHitClipPath(mask, 1, 144, 156)).toBeNull()
+    expect(petHitClipPath(mask, 5, 144, 156)).toBeNull()
+  })
+
+  it('端数の座標は小数 2 桁に丸める', () => {
+    expect(petHitClipPath(mask, 0, 100, 100)).toBe(
+      'path("M50 23.08h4.17v1.92h-4.17zM0 25h100v1.92h-100z")',
+    )
   })
 })
