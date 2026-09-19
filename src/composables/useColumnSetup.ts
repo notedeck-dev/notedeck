@@ -198,7 +198,12 @@ export function useColumnSetup(
   const postFormInitialNote = ref<NormalizedNote | undefined>()
 
   const toast = useToast()
-  const actionSound = useNoteSound(() => account.value?.host, 'syuilo/bubble2')
+  /** 全アカウント面 (カラムにアカウントが無い) では直近に操作したノートの取得元で鳴らす */
+  const actionHost = ref<string | undefined>()
+  const actionSound = useNoteSound(
+    () => account.value?.host ?? actionHost.value,
+    'syuilo/bubble2',
+  )
 
   function checkOffline(): boolean {
     if (useOfflineModeStore().isOfflineMode || options?.isOffline?.()) {
@@ -230,6 +235,7 @@ export function useColumnSetup(
     if (checkOffline()) return
     const api = (await adapterFor(note))?.api
     if (!api) return
+    actionHost.value = useAccountsStore().accountMap.get(note._accountId)?.host
     try {
       await toggleReaction(api, note, reaction, (compute) =>
         applyPatch(note, compute),
@@ -292,12 +298,24 @@ export function useColumnSetup(
     showPostForm.value = true
   }
 
+  /**
+   * 削除成功後の共通処理: tombstone (他カラム / 束ねる面 / 通知の購読に伝える)
+   * + SQLite キャッシュから消す。ノートを noteStore に置かない面のために本体も渡す
+   */
+  function markDeleted(note: NormalizedNote) {
+    noteStore.remove(variantKeyOf(note), true, note)
+    commands.apiDeleteCachedNote(note._accountId, note.id).catch((e) => {
+      if (import.meta.env.DEV) console.debug('[delete-cached-note] ignored:', e)
+    })
+  }
+
   async function handleDelete(note: NormalizedNote): Promise<boolean> {
     if (checkOffline()) return false
     const api = (await adapterFor(note))?.api
     if (!api) return false
     try {
       await api.deleteNote(note.id)
+      markDeleted(note)
       return true
     } catch (e) {
       const err = AppError.from(e)
@@ -320,19 +338,14 @@ export function useColumnSetup(
     showPostForm.value = true
   }
 
-  async function handleDeleteAndEdit(note: NormalizedNote) {
-    if (checkOffline()) return
+  /** 削除して編集。削除に成功してフォームを開いたら true (ローカル保持の面が行を外す合図) */
+  async function handleDeleteAndEdit(note: NormalizedNote): Promise<boolean> {
+    if (checkOffline()) return false
     const api = (await adapterFor(note))?.api
-    if (!api) return
+    if (!api) return false
     try {
       await api.deleteNote(note.id)
-      // 行を消す (tombstone) + SQLite キャッシュからも消す。ストリーミングの
-      // 無い面 (お気に入り / クライアント検索) では deleted イベントが来ない
-      noteStore.remove(variantKeyOf(note))
-      commands.apiDeleteCachedNote(note._accountId, note.id).catch((e) => {
-        if (import.meta.env.DEV)
-          console.debug('[delete-cached-note] ignored:', e)
-      })
+      markDeleted(note)
       postFormAccountId.value = note._accountId
       postFormReplyTo.value = note.replyId
         ? await api.getNote(note.replyId).catch(() => undefined)
@@ -346,10 +359,12 @@ export function useColumnSetup(
       postFormInitialCw.value = undefined
       postFormInitialVisibility.value = undefined
       showPostForm.value = true
+      return true
     } catch (e) {
       const err = AppError.from(e)
       console.error('[deleteAndEdit]', err.code, err.message)
       toast.show(`削除に失敗しました（${err.displayCode}）`, 'error')
+      return false
     }
   }
 

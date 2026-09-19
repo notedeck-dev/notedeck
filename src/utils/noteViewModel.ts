@@ -13,6 +13,21 @@ export function isPureRenote(note: NormalizedNote): boolean {
   return !!note.renote && note.text === null
 }
 
+/**
+ * Renote 元の参照だけを持ち、自分の内容 (本文・CW・添付・アンケート) が無いか。
+ * `isPureRenote` と違い `renote` の実体を要求しない — 本家 2025.10 以降は元ノート
+ * 削除で Renote を cascade 削除せず `renote: null` で返すので、その判定に使う。
+ */
+export function isRenoteOnly(note: NormalizedNote): boolean {
+  return (
+    !!note.renoteId &&
+    note.text == null &&
+    note.cw == null &&
+    (note.files?.length ?? 0) === 0 &&
+    !note.poll
+  )
+}
+
 /** 純粋リノートなら内側のノート、それ以外は自身を表示対象にする。 */
 export function resolveEffectiveNoteBase(note: NormalizedNote): NormalizedNote {
   return note.renote && note.text === null ? note.renote : note

@@ -30,3 +30,19 @@ export function syncNotificationNotes(
     return n
   })
 }
+
+/**
+ * 同じアカウントで削除されたノートの通知を落とす (#1123)。`renoteId` 一致の
+ * Renote 通知は落とさない — 本家 2025.10 以降は Renote を cascade 削除せず
+ * `renote: null` で返し続けるので、落としても次の取得で戻る。表示は
+ * `isNotificationHidden` (元ノートの tombstone) が隠す
+ */
+export function dropDeletedNote(
+  notifications: NormalizedNotification[],
+  accountId: string,
+  noteId: string,
+): NormalizedNotification[] {
+  return notifications.filter(
+    (n) => n._accountId !== accountId || n.note?.id !== noteId,
+  )
+}

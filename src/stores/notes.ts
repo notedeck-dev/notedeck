@@ -39,7 +39,9 @@ export const useNoteStore = defineStore('notes', () => {
   const perfStore = usePerformanceStore()
   const { schedule } = useFrameScheduler()
   const noteMap = shallowRef(new Map<VariantKey, NormalizedNote>())
-  const deleteListeners = new Set<(key: VariantKey) => void>()
+  const deleteListeners = new Set<
+    (key: VariantKey, tombstone: boolean) => void
+  >()
   /**
    * 削除済みノートの tombstone（セッション揮発）。SQLite 再読込で復活した
    * 削除済みノートを表示述語 isDeleted で握り潰すため（#602）。表示述語の
@@ -187,15 +189,20 @@ export const useNoteStore = defineStore('notes', () => {
    *   origin の variant なら identity 単位でも記録する (map に本体が無い経路は
    *   identity が分からないのでスキップ。退避済みなら表示にも居ない)。
    */
-  function remove(key: VariantKey, tombstone = true) {
-    const note = noteMap.value.get(key)
+  function remove(
+    key: VariantKey,
+    tombstone = true,
+    /** map に本体が無い面 (通知 / ルックアップ) から identity を記録するための本体 */
+    removed?: NormalizedNote,
+  ) {
+    const note = noteMap.value.get(key) ?? removed
     if (tombstone) {
       deletedKeys.set(key, true)
       if (note?._isOrigin) deletedAtOrigin.set(noteIdentityOf(note), true)
     }
     noteMap.value.delete(key)
     scheduleTrigger()
-    for (const listener of deleteListeners) listener(key)
+    for (const listener of deleteListeners) listener(key, tombstone)
   }
 
   /** ノートが削除済み tombstone かを返す。表示述語の素材（#602）。 */
@@ -208,7 +215,13 @@ export const useNoteStore = defineStore('notes', () => {
     return deletedAtOrigin.has(identity)
   }
 
-  function onDelete(listener: (key: VariantKey) => void): () => void {
+  /**
+   * 削除の購読。`tombstone` が false の除去 (整合検査のミス等) は「消えた」
+   * のではなく「手元から外した」だけなので、表示を落とす側は true だけ見る
+   */
+  function onDelete(
+    listener: (key: VariantKey, tombstone: boolean) => void,
+  ): () => void {
     deleteListeners.add(listener)
     return () => deleteListeners.delete(listener)
   }

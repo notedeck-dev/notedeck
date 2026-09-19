@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import type { NormalizedNote, NormalizedNotification } from '@/adapters/types'
-import { syncNotificationNotes } from '@/services/notificationNoteSync'
+import {
+  dropDeletedNote,
+  syncNotificationNotes,
+} from '@/services/notificationNoteSync'
 
 function makeNote(partial: Partial<NormalizedNote> = {}): NormalizedNote {
   return {
@@ -114,5 +117,29 @@ describe('syncNotificationNotes', () => {
     )
 
     expect(result[0]?.note).toBe(latestOuter)
+  })
+})
+
+describe('dropDeletedNote', () => {
+  it('同じアカウントで削除されたノートの通知だけ落とし、別アカウントの同 id は残す', () => {
+    const mine = makeNotif(makeNote({ id: 'gone' }))
+    const other = { ...makeNotif(makeNote({ id: 'gone' })), _accountId: 'acc2' }
+    const keep = makeNotif(makeNote({ id: 'alive' }))
+    const noNote = makeNotif(undefined)
+    const result = dropDeletedNote([mine, other, keep, noNote], 'acc1', 'gone')
+    expect(result).toEqual([other, keep, noNote])
+  })
+
+  it('リノート通知 (renoteId 一致) は落とさない — 表示は述語が隠し、サーバーは返し続ける', () => {
+    const renote = makeNotif(
+      makeNote({
+        id: 'outer',
+        text: null,
+        renoteId: 'gone',
+        renote: undefined,
+      }),
+    )
+    const result = dropDeletedNote([renote], 'acc1', 'gone')
+    expect(result).toEqual([renote])
   })
 })
