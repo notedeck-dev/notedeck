@@ -21,6 +21,7 @@ mod app_dir;
 mod auth_service;
 mod commands;
 mod crash_report;
+mod emoji_cache_store;
 mod error;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
 /// [`http_server::build_openapi`].
@@ -411,6 +412,12 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         let image_cache_bg = image_cache.clone();
         let shutdown_token = shutdown.token();
         std::thread::spawn(move || {
+            // 起動計測 (Rust 側): フロントの startupTrace と突き合わせるため、
+            // 各段階の到達をこのスレッド開始からの経過 ms で 1 行ずつ出す
+            let boot = std::time::Instant::now();
+            let stage = |name: &str| {
+                tracing::info!(stage = name, elapsed_ms = boot.elapsed().as_millis() as u64, "[startup]");
+            };
             // Parallel: DB open + MisskeyClient init + HTTP bind (all independent)
             let db_path = app_dir_bg.join("notecli.db");
             let db_handle = std::thread::spawn(move || notecli::db::Database::open(&db_path));
@@ -442,14 +449,17 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
             let bound_server = http_handle.join().expect("http bind thread panicked");
+            stage("db-open");
 
             // DB migrations + account export (must complete before commands can use credentials)
             migrations::run_db(&db);
+            stage("db-migrated");
 
             // Stage 1: Signal DB readiness — unblocks DB-only commands (load_accounts, etc.)
             // immediately, without waiting for MisskeyClient or HTTP server.
             let app_state: tauri::State<'_, commands::AppState> = app_handle.state();
             app_state.initialize_db(db.clone());
+            stage("stage1-db-ready");
 
             // V7 で追加した identity 列の backfill (#1058)。migration は列追加だけに
             // して起動をブロックせず、ここで 1 チャンクずつ埋める。各チャンクは
@@ -489,6 +499,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
             // Stage 2: Signal full AppState — unblocks commands needing MisskeyClient.
             app_state.initialize(db.clone(), client.clone());
+            stage("stage2-full-ready");
 
             // OGP cache (lazy-loaded on first access via ensure_loaded())
             app_handle.manage(ogp::OgpCache::with_client(db.clone(), shared_http, shared_perf_bg.clone()));
@@ -520,6 +531,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 // Block until routes are built and server is about to accept
                 tauri::async_runtime::block_on(async { ready_rx.await.ok() });
             }
+            stage("backend-ready");
             let _ = tauri::Emitter::emit(&app_handle, "nd:backend-ready", ());
         });
 

@@ -240,6 +240,10 @@ const STARTUP_LABELS: Record<string, string> = {
   mounted: 'Vue マウント',
   'window-shown': 'ウィンドウ表示',
   'deck-mounted': 'デッキ表示',
+  'column-setup': 'カラム setup',
+  'column-connect': 'カラム接続開始',
+  'cache-loaded': 'DB キャッシュ到着',
+  'first-notes': '初回ノート表示',
 }
 
 interface StartupRow {

@@ -589,9 +589,14 @@ onMounted(async () => {
     ? accountsStore.accountMap.get(accountId)?.host
     : undefined
   fetchAds()
+  // フィルタキー検出 (api/endpoint への往復) はメニューの出し分けにしか
+  // 使わないので初回接続の前提にしない。以前は applyPolicies と一緒に
+  // await していたため、DB キャッシュからの初回描画までサーバー往復 +
+  // Rust 側の full-ready を直列で待っていた
+  if (host && accountId) void refreshFilterKeys()
   try {
     if (host && accountId) {
-      await Promise.all([applyPolicies(accountId, host), refreshFilterKeys()])
+      await applyPolicies(accountId, host)
       if (availableStandardTl.value.length === 0) {
         // Nothing reachable for this account (e.g. guest on a closed server).
         // Leave connectReady=false so useNoteColumn doesn't fire a doomed fetch.

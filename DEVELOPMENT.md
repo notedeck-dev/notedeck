@@ -286,7 +286,8 @@ src-tauri/src/              # Rust backend (Tauri 固有部分)
 ├── http_server.rs          # Axum HTTP API server (localhost:19820)
 ├── permissions_gate.rs     # external principal gate (#712) — 永続トークンの per-route 権限判定
 ├── permissions_profile.rs  # permissions.json5 → 実効権限の解決 (#1099) — JS と golden vector で一致検査
-├── image_cache.rs          # 3-tier image cache (memory → disk → network)
+├── image_cache.rs          # 3-tier image cache (memory → disk → network)。host 単位の 429 throttle 窓と half-open circuit breaker で一時失敗を <img> のエラーにしない
+├── emoji_cache_store.rs    # サーバー絵文字辞書のディスクキャッシュ (host 単位、鮮度内なら起動時の全件取得を省く)
 ├── ogp/                    # OGP metadata extraction & cache
 ├── streaming.rs            # TauriEmitter adapter (FrontendEmitter trait impl)
 ├── query_bridge.rs         # HTTP API ↔ frontend (Pinia) bridge

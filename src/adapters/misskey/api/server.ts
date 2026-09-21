@@ -17,8 +17,13 @@ export function createServerContentApi(
   ctx: MisskeyApiContext,
 ): ServerContentApi {
   return {
-    async getServerEmojis(): Promise<ServerEmoji[]> {
-      return unwrapAny(await commands.apiGetServerEmojis(ctx.accountId))
+    async getServerEmojis(options = {}): Promise<ServerEmoji[]> {
+      return unwrapAny(
+        await commands.apiGetServerEmojis(
+          ctx.accountId,
+          options.refresh ?? false,
+        ),
+      )
     },
 
     async getPinnedReactions(): Promise<string[]> {
