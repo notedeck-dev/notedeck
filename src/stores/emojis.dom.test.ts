@@ -282,18 +282,24 @@ describe('useEmojisStore', () => {
   })
 
   describe('メモリ上限 (#987)', () => {
-    it('emojiCachePerHost を超えた絵文字は辞書に載せない', async () => {
-      perf.emojiCachePerHost = 2
+    it('host の辞書は件数で切らず全件保持する (misskey.io は 13,000 件超)', async () => {
       const store = useEmojisStore()
-      store.ensureLoaded(
-        HOST,
-        vi.fn().mockResolvedValue([emoji('a'), emoji('b'), emoji('c')]),
-      )
+      const many = Array.from({ length: 15_000 }, (_, i) => emoji(`e${i}`))
+      store.ensureLoaded(HOST, vi.fn().mockResolvedValue(many))
       await flush()
 
+      expect(store.resolve(HOST, 'e0')).not.toBeNull()
+      expect(store.resolve(HOST, 'e14999')).not.toBeNull()
+      expect(store.getEmojiList(HOST)).toHaveLength(15_000)
+    })
+
+    it('push の emojiAdded は件数で古い絵文字を追い出さない', async () => {
+      const store = useEmojisStore()
+      store.ensureLoaded(HOST, vi.fn().mockResolvedValue([emoji('a')]))
+      await flush()
+      store.applyServerChange(HOST, 'added', [emoji('b'), emoji('c')])
       expect(store.resolve(HOST, 'a')).not.toBeNull()
-      expect(store.resolve(HOST, 'b')).not.toBeNull()
-      expect(store.resolve(HOST, 'c')).toBeNull()
+      expect(store.resolve(HOST, 'c')).not.toBeNull()
     })
 
     it('emojiCacheHosts を超えたら古い host の辞書から捨てる', async () => {

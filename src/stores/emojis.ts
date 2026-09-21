@@ -2,7 +2,9 @@ import { defineStore } from 'pinia'
 import { shallowRef } from 'vue'
 import type { ServerEmoji } from '@/adapters/types'
 import { events } from '@/bindings'
+import { warmEmojiImages } from '@/services/emojiWarm'
 import { usePerformanceStore } from '@/stores/performance'
+import { useSystemStateStore } from '@/stores/systemState'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
 
@@ -89,18 +91,9 @@ export const useEmojisStore = defineStore('emojis', () => {
     // (undefined を混ぜると has() が true を返し、以後取得を skip してしまう)
     if (typeof obj.hosts !== 'object' || obj.hosts === null) return
     const map = new Map<string, Record<string, string>>()
-    const perHost = Math.max(1, perfStore.get('emojiCachePerHost'))
     for (const [host, entry] of Object.entries(obj.hosts)) {
       if (typeof entry?.emojis !== 'object' || entry.emojis === null) continue
-      // 保存側の上限 (emojiPersistPerHost) と読み側の上限は独立に変えられる。
-      // 上限を下げたあとの起動や旧形式の大きな保存物をそのまま抱えない
-      const entries = Object.entries(entry.emojis)
-      map.set(
-        host,
-        entries.length > perHost
-          ? Object.fromEntries(entries.slice(0, perHost))
-          : entry.emojis,
-      )
+      map.set(host, entry.emojis)
       if (typeof entry.fetchedAt === 'number')
         fetchedAt.set(host, entry.fetchedAt)
     }
@@ -158,18 +151,15 @@ export const useEmojisStore = defineStore('emojis', () => {
   loadFromStorage()
 
   function set(host: string, emojis: ServerEmoji[]) {
-    // shortcode→url lookup。ホストあたりの件数は emojiCachePerHost で頭打ちに
-    // する (#987 — 以前は無制限で、大規模サーバーでは数万エントリになった)。
-    // 切り捨てられた絵文字は解決できないが、reportMiss → refresh でも現れない
-    // ため unknownNames に隔離され、空振りの再取得ループにはならない
-    const perHost = Math.max(1, perfStore.get('emojiCachePerHost'))
+    // shortcode→url lookup。host の辞書は件数で切らない — 以前は
+    // emojiCachePerHost (既定 4000) で先頭 N 件に切っていたが、misskey.io は
+    // 13,000 件超あり、切られた絵文字は unknown アイコンになったうえ
+    // reportMiss → refresh でも同じ上限で切られて unknownNames に隔離され、
+    // 再起動まで二度と出なかった。メモリの上限は host 数 (emojiCacheHosts)
+    // で取る: 辞書を持つのはログイン中アカウントの host だけなので、
+    // 1 host 数 MB × 数 host に収まる
     const lookup: Record<string, string> = {}
-    let count = 0
-    for (const e of emojis) {
-      if (count >= perHost) break
-      lookup[e.name] = e.url
-      count++
-    }
+    for (const e of emojis) lookup[e.name] = e.url
 
     const nextCache = new Map(cache.value)
     nextCache.set(host, lookup)
@@ -198,6 +188,15 @@ export const useEmojisStore = defineStore('emojis', () => {
 
     // Persist shortcode→url cache for offline use (debounced)
     schedulePersist()
+    // 画像を先行取得しておく (新規ノートの絵文字を待たせない)
+    warmImages(emojis)
+  }
+
+  /** 省電力 / 従量制 (#931) では先読みしない */
+  function warmImages(emojis: ServerEmoji[]) {
+    warmEmojiImages(emojis, {
+      suppress: useSystemStateStore().adaptation.suppressPrefetch,
+    })
   }
 
   function ensureLoaded(host: string, fetcher: EmojiFetcher): void {
@@ -331,15 +330,7 @@ export const useEmojisStore = defineStore('emojis', () => {
         // 再登録された絵文字を拾えるよう unknown から解放する
         unknown?.delete(e.name)
       }
-      // emojiAdded の積み重ねで set() の上限 (emojiCachePerHost) を素通り
-      // させない。追加分 (末尾) を残し、古いキー (先頭) から削る
-      const perHost = Math.max(1, perfStore.get('emojiCachePerHost'))
-      const names = Object.keys(nextLookup)
-      if (names.length > perHost) {
-        for (const name of names.slice(0, names.length - perHost)) {
-          delete nextLookup[name]
-        }
-      }
+      warmImages(emojis)
     }
     const nextCache = new Map(cache.value)
     nextCache.set(host, nextLookup)
