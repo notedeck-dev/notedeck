@@ -1,5 +1,4 @@
 {
-  "emojiCachePerHost": 4000,
   "emojiCacheHosts": 32,
   "emojiListHosts": 4,
   "emojiPersistPerHost": 500,

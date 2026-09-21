@@ -18,16 +18,6 @@ export interface FieldMeta {
 }
 
 export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
-  emojiCachePerHost: {
-    min: 500,
-    max: 10000,
-    step: 500,
-    unit: '件',
-    category: 'emoji',
-    label: '絵文字キャッシュ/ホスト',
-    description:
-      'ホストあたりのカスタム絵文字キャッシュ数。大規模サーバーは5000+の絵文字を持つ',
-  },
   emojiCacheHosts: {
     min: 4,
     max: 200,
@@ -528,7 +518,6 @@ export const CATEGORY_LABELS: Record<
 /** Preset definitions. */
 /** Slider endpoint: t=0 (省メモリ) */
 export const SLIDER_LOW: PerformanceConfig = {
-  emojiCachePerHost: 2000,
   emojiCacheHosts: 8,
   emojiListHosts: 2,
   emojiPersistPerHost: 200,
@@ -584,7 +573,6 @@ export const SLIDER_LOW: PerformanceConfig = {
 
 /** Slider endpoint: t=1 (高パフォーマンス) */
 export const SLIDER_HIGH: PerformanceConfig = {
-  emojiCachePerHost: 7000,
   emojiCacheHosts: 64,
   emojiListHosts: 6,
   emojiPersistPerHost: 700,

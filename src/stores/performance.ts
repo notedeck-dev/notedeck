@@ -14,7 +14,6 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
 /** All tunable performance keys. */
 export interface PerformanceConfig {
   // Emoji cache
-  emojiCachePerHost: number
   emojiCacheHosts: number
   emojiListHosts: number
   emojiPersistPerHost: number
