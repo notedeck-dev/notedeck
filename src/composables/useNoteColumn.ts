@@ -111,7 +111,22 @@ export interface NoteColumnConfig {
   visibility?: VisibilityOpts
 }
 
+/**
+ * 初回ノートが画面に出た時刻。setNotes の直後は描画前なので、DOM 更新
+ * (nextTick) の次のフレームで打つ = ノート描画 (MkNote setup / MFM パース)
+ * のコストが cache-loaded → first-notes の区間に乗る
+ */
+function markFirstNotesPainted(): void {
+  void nextTick(() => {
+    requestAnimationFrame(() => {
+      if (markStartup('first-notes')) logStartupSummary()
+    })
+  })
+}
+
 export function useNoteColumn(config: NoteColumnConfig) {
+  // 起動計測: deck-mounted 〜 first-notes の内訳 (最初のカラムだけ記録される)
+  markStartup('column-setup')
   const {
     account,
     columnThemeVars,
@@ -533,6 +548,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
   async function connect(useCache = false) {
     error.value = null
+    markStartup('column-connect')
 
     if (config.validate && !config.validate()) {
       return
@@ -577,11 +593,12 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
     // Display cached notes as soon as they arrive (don't wait for API)
     const cachedNotes = await cachePromise
+    markStartup('cache-loaded')
     if (!stillCurrent()) return
     let cachedIds: string[] = []
     if (cachedNotes.length > 0) {
       setNotes(cachedNotes)
-      if (markStartup('first-notes')) logStartupSummary()
+      markFirstNotesPainted()
       cachedIds = cachedNotes.map((n) => n.id)
     }
 
@@ -888,8 +905,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
       } else {
         const fetched = await config.fetch(adapter, {})
         setNotes(await applyFilter(fetched))
-        if (fetched.length > 0 && markStartup('first-notes'))
-          logStartupSummary()
+        if (fetched.length > 0) markFirstNotesPainted()
         resetFetchCursor(fetched)
         scrollToTop()
       }
