@@ -67,6 +67,9 @@ fn throttle_delay(retry_after: Option<&str>, attempt: u32) -> Duration {
 /// 失敗した URL の記録。TTL つき。
 type NegativeCache = HashMap<String, (Instant, Duration)>;
 
+/// キャッシュヒット時に mtime を更新する閾値 (LRU 化、書き込み増幅の抑制)
+const TOUCH_AFTER: Duration = Duration::from_secs(24 * 60 * 60);
+
 /// negative cache の上限。4xx は 24h 保持するので、期限切れの掃除だけでは
 /// 頭打ちにならない (壊れた絵文字を大量に持つサーバーを踏み続けたときなど)
 const NEGATIVE_CACHE_MAX: usize = 1024;
@@ -319,15 +322,23 @@ impl ImageCache {
             }
             let meta = data_path_owned.metadata().ok()?;
             let modified = meta.modified().ok()?;
-            if SystemTime::now()
+            let age = SystemTime::now()
                 .duration_since(modified)
-                .unwrap_or_default()
-                > cache_ttl
-            {
+                .unwrap_or_default();
+            if age > cache_ttl {
                 return None;
             }
             let content_type = std::fs::read_to_string(&meta_path_owned).ok()?;
             let bytes = std::fs::read(&data_path_owned).ok()?;
+            // TTL は「書いてから」ではなく「最後に使ってから」で数える。
+            // 絵文字のように何度も出るものが 7 日ごとに消えて取り直しになる
+            // のを防ぐ (URL は upload 単位で不変なので、更新は別 URL = 別
+            // エントリで来る)。書き込み増幅を避けて 1 日に 1 回だけ触る
+            if age > TOUCH_AFTER {
+                if let Ok(f) = std::fs::File::options().write(true).open(&data_path_owned) {
+                    f.set_modified(SystemTime::now()).ok();
+                }
+            }
             Some((content_type, bytes))
         })
         .await
@@ -1262,6 +1273,37 @@ mod tests {
         );
         let err = cache.fetch_streaming(url).await.err().expect("must fail");
         assert!(err.contains("circuit breaker"), "got: {err}");
+    }
+
+    /// ヒットした entry は「最後に使った時刻」として mtime が進む (1 日超のみ)。
+    /// TTL を書き込み時刻で数えると、毎日出る絵文字が 7 日ごとに消える
+    #[tokio::test]
+    async fn cache_hit_refreshes_mtime_of_old_entries_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(dir.path());
+        let cache_dir = dir.path().join("image_cache");
+        let old_url = "https://a.example/old.png";
+        let fresh_url = "https://a.example/fresh.png";
+        write_entry(&cache_dir, &hex_hash(old_url), 10, 2 * 24 * 60 * 60);
+        write_entry(&cache_dir, &hex_hash(fresh_url), 10, 60 * 60);
+
+        assert!(cache.check_cache_only(old_url).await.is_some());
+        assert!(cache.check_cache_only(fresh_url).await.is_some());
+
+        let age = |url: &str| {
+            let m = std::fs::metadata(cache_dir.join(format!("{}.dat", hex_hash(url)))).unwrap();
+            SystemTime::now()
+                .duration_since(m.modified().unwrap())
+                .unwrap()
+        };
+        assert!(
+            age(old_url) < Duration::from_secs(60),
+            "2 日前の entry は触られて今になる"
+        );
+        assert!(
+            age(fresh_url) > Duration::from_secs(30 * 60),
+            "1 時間前の entry は触らない"
+        );
     }
 
     /// `<stem>.dat` + `.meta` の対を作り、mtime を指定秒だけ過去にずらす

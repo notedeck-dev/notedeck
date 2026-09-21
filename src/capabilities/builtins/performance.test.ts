@@ -32,11 +32,11 @@ describe('performance capabilities — declaration', () => {
       performanceSetCapability.execute({ key: 'unknownKey', value: 100 }),
     ).toThrow(/unknown key/)
     expect(() =>
-      performanceSetCapability.execute({ key: 'emojiCachePerHost' }),
+      performanceSetCapability.execute({ key: 'emojiCacheHosts' }),
     ).toThrow(/value must be a finite number/)
     expect(() =>
       performanceSetCapability.execute({
-        key: 'emojiCachePerHost',
+        key: 'emojiCacheHosts',
         value: Number.NaN,
       }),
     ).toThrow(/value must be a finite number/)
