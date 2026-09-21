@@ -171,7 +171,7 @@ async function loadEmojis() {
     serverIconUrl.value = info.iconUrl
 
     if (!emojisStore.has(acc.host)) {
-      const emojis = unwrap(await commands.apiGetServerEmojis(acc.id))
+      const emojis = unwrap(await commands.apiGetServerEmojis(acc.id, false))
       emojisStore.set(acc.host, emojis)
     }
   } catch (e) {

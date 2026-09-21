@@ -18,6 +18,15 @@ const REFRESH_COOLDOWN_MS = 5 * 60_000
 /** これより古い辞書は ensureLoaded 時に背景で取り直す (絵文字画像の差し替えを拾う) */
 const STALE_AFTER_MS = 24 * 60 * 60_000
 
+/**
+ * 辞書の取得口。`refresh: false` は初回ロードで、Rust 側のディスク
+ * キャッシュ (`emoji_cache_store`, 24h) が鮮度内ならネットワークに出ない。
+ * `refresh: true` は miss 駆動 / 経年リフレッシュで、必ずサーバーへ行く
+ */
+export type EmojiFetcher = (opts: {
+  refresh: boolean
+}) => Promise<ServerEmoji[]>
+
 /** localStorage の永続化形式。旧形式 (バージョンなし) は捨てて再取得に任せる */
 interface PersistedCacheV2 {
   version: 2
@@ -58,7 +67,7 @@ export const useEmojisStore = defineStore('emojis', () => {
   // 辞書は「一度取ったら終わり」ではなく、未解決 shortcode の報告を
   // シグナルに取り直す。以下はすべて非 reactive (描画中の resolve から
   // 呼ばれるため、reactive 状態に触れて再描画ループを作らない)。
-  const fetchers = new Map<string, () => Promise<ServerEmoji[]>>()
+  const fetchers = new Map<string, EmojiFetcher>()
   const fetchedAt = new Map<string, number>()
   const missedNames = new Map<string, Set<string>>()
   // 再取得しても辞書に現れなかった名前 (本当に存在しない)。空振りの
@@ -191,10 +200,7 @@ export const useEmojisStore = defineStore('emojis', () => {
     schedulePersist()
   }
 
-  function ensureLoaded(
-    host: string,
-    fetcher: () => Promise<ServerEmoji[]>,
-  ): void {
+  function ensureLoaded(host: string, fetcher: EmojiFetcher): void {
     // miss 駆動 / 経年リフレッシュ用に常に保持 (最新の fetcher で上書き)
     fetchers.set(host, fetcher)
     if (
@@ -209,7 +215,7 @@ export const useEmojisStore = defineStore('emojis', () => {
     }
     const failedAt = failedHosts.get(host)
     if (failedAt && Date.now() - failedAt < RETRY_BACKOFF_MS) return
-    const p = fetcher()
+    const p = fetcher({ refresh: false })
       .then((emojis) => {
         failedHosts.delete(host)
         set(host, emojis)
@@ -270,7 +276,9 @@ export const useEmojisStore = defineStore('emojis', () => {
     const missed = missedNames.get(host)
     missedNames.delete(host)
     try {
-      const emojis = await fetcher()
+      // miss 駆動 / 経年リフレッシュはサーバーの現状を見たいので、Rust 側の
+      // ディスクキャッシュを飛ばして取る
+      const emojis = await fetcher({ refresh: true })
       // フェッチ中に host が上限で追い出されていたら結果を捨てる。
       // ここで set() すると追い出し済み host が復活し、より新しい host を
       // 逆に押し出してしまう (forgetHost は fetchers も消すのでそれで判る)

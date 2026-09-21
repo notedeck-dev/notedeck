@@ -645,10 +645,18 @@ async apiGetUserNotes(accountId: string, userId: string, options: TimelineOption
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/content.rs */
-async apiGetServerEmojis(accountId: string) : Promise<Result<ServerEmoji[], { code: string; message: string; apiCode: string | null }>> {
+/**
+ * サーバーの絵文字辞書。`refresh=false` ならディスクキャッシュ
+ * (`emoji_cache_store`) が鮮度内のときネットワークも Rust 側の full-ready
+ * 待ちも省いて返す — 起動直後、DB キャッシュから描いたノートの絵文字を
+ * 辞書到着まで unknown で見せないため。`refresh=true` はフロントの miss
+ * 駆動 / 経年リフレッシュで、必ずサーバーへ取りに行く。
+ *
+ * @see src-tauri/src/commands/content.rs
+ */
+async apiGetServerEmojis(accountId: string, refresh: boolean) : Promise<Result<ServerEmoji[], { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("api_get_server_emojis", { accountId }) };
+    return { status: "ok", data: await TAURI_INVOKE("api_get_server_emojis", { accountId, refresh }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

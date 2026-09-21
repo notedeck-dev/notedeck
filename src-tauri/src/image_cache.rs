@@ -27,14 +27,41 @@ const NEGATIVE_TTL_NETWORK: Duration = Duration::from_secs(5); // timeout/conn: 
 /// HTTP エラー status ごとの (negative cache TTL, host circuit breaker に
 /// 数えるか)。4xx はその URL 固有の問題 (辞書落ち絵文字の 404 等) なので
 /// host には数えない — 数えると 404 が数件連なるだけでそのサーバーの全
-/// メディアが circuit breaker で死ぬ。429 はホスト側の圧力なので、24h では
-/// なく短い TTL で引きつつ host にも数える。
+/// メディアが circuit breaker で死ぬ。
+///
+/// 429 は「減速せよ」であって「落ちている」ではない。`fetch_streaming` が
+/// host 単位の throttle 窓 + 再試行で吸収し、ここへ来るのは再試行を使い
+/// 切ったときだけ。それでも circuit には数えない — 実機ログ (2026-09-12)
+/// では起動直後の CDN 429 が 6 連続で breaker を発火させ、以降 60 秒間の
+/// 絵文字 64 件が全部 502 になっていた。
 fn classify_http_failure(status: u16) -> (Duration, bool) {
     match status {
-        429 => (NEGATIVE_TTL_SERVER, true),
+        429 => (NEGATIVE_TTL_NETWORK, false),
         400..=499 => (NEGATIVE_TTL_CLIENT, false),
         _ => (NEGATIVE_TTL_SERVER, true),
     }
+}
+
+/// 429 の待機。`Retry-After` (秒) を尊重し、無ければ試行回数で指数的に伸ばす
+const THROTTLE_BASE: Duration = Duration::from_secs(1);
+/// `Retry-After` が巨大でも `<img>` を待たせる上限
+const THROTTLE_MAX: Duration = Duration::from_secs(15);
+/// 429 に対する取得の試行回数 (初回込み)
+const THROTTLE_MAX_ATTEMPTS: u32 = 3;
+/// circuit breaker の half-open: 発火からこの時間が経てば 1 本だけ試験的に通す
+const HALF_OPEN_AFTER: Duration = Duration::from_secs(5);
+
+/// 429 を受けたときの待機時間。`Retry-After` は秒数形式のみ解釈し
+/// (HTTP-date 形式はまれで、解釈を誤ると長時間止まる)、0 や不正値は
+/// 既定の指数バックオフに倒す。
+fn throttle_delay(retry_after: Option<&str>, attempt: u32) -> Duration {
+    let from_header = retry_after
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|&secs| secs > 0)
+        .map(Duration::from_secs);
+    let delay =
+        from_header.unwrap_or_else(|| THROTTLE_BASE.saturating_mul(1u32 << attempt.min(16)));
+    delay.min(THROTTLE_MAX)
 }
 
 /// 失敗した URL の記録。TTL つき。
@@ -72,9 +99,67 @@ const DEFAULT_MAX_CONCURRENT_FETCHES: usize = 30;
 #[allow(dead_code)]
 const DEFAULT_CIRCUIT_BREAKER_THRESHOLD: u32 = 5;
 
+/// host 単位の上流健全性。circuit breaker (連続失敗で塞ぐ) と throttle 窓
+/// (429 で待つ) を同じ場所に持つ — どちらも「この host にいま投げてよいか」
+/// の判断で、`fetch_streaming` の入口で一度に見る。
 struct HostCircuitState {
     consecutive_failures: u32,
     tripped_at: Option<Instant>,
+    /// half-open で通した probe の時刻。結果が出るまで次の probe を出さない
+    probe_at: Option<Instant>,
+    /// 429 を受けてから次に投げてよくなる時刻
+    throttled_until: Option<Instant>,
+}
+
+impl HostCircuitState {
+    fn new() -> Self {
+        Self {
+            consecutive_failures: 0,
+            tripped_at: None,
+            probe_at: None,
+            throttled_until: None,
+        }
+    }
+
+    /// この host へ新規取得を出してよいか。発火中は `HALF_OPEN_AFTER` ごとに
+    /// 1 本だけ probe として通し、成功すれば呼び出し側が状態ごと消す
+    /// (= 即時回復)。以前は `circuit_breaker_duration` (60 秒) を flat で塞いで
+    /// いたため、上流が数秒で回復しても 1 分間その host の画像が全滅した。
+    fn admit(&mut self, now: Instant, cb_duration: Duration) -> bool {
+        let Some(tripped_at) = self.tripped_at else {
+            return true;
+        };
+        let since = now.saturating_duration_since(tripped_at);
+        if since >= cb_duration {
+            return true;
+        }
+        if since < HALF_OPEN_AFTER {
+            return false;
+        }
+        match self.probe_at {
+            Some(p) if now.saturating_duration_since(p) < HALF_OPEN_AFTER => false,
+            _ => {
+                self.probe_at = Some(now);
+                true
+            }
+        }
+    }
+
+    /// 429 を受けた: 少なくとも `delay` の間この host には投げない。並行して
+    /// 走る取得が各々 429 を受けて短い窓で上書きしないよう、遠い方を残す
+    fn throttle(&mut self, now: Instant, delay: Duration) {
+        let until = now + delay;
+        if self.throttled_until.is_none_or(|t| t < until) {
+            self.throttled_until = Some(until);
+        }
+    }
+
+    /// throttle 窓の残り。窓の外なら `None`
+    fn throttle_remaining(&self, now: Instant) -> Option<Duration> {
+        let until = self.throttled_until?;
+        let remaining = until.saturating_duration_since(now);
+        (remaining > Duration::ZERO).then_some(remaining)
+    }
 }
 
 /// 取得並列度の制限。perf_config.max_concurrent_fetches に追従するため、
@@ -323,18 +408,41 @@ impl ImageCache {
             .and_then(|u| u.host_str().map(|h| h.to_string()))
     }
 
-    /// Check if a host's circuit breaker is tripped.
+    /// Check if a host's circuit breaker is tripped (half-open probe を含む)。
     async fn is_host_blocked(&self, host: &str) -> bool {
         let cb_duration = Duration::from_secs(self.perf.read().await.circuit_breaker_duration);
-        let circuits = self.host_circuits.read().await;
-        if let Some(state) = circuits.get(host) {
-            if let Some(tripped_at) = state.tripped_at {
-                if tripped_at.elapsed() < cb_duration {
-                    return true;
-                }
+        let mut circuits = self.host_circuits.write().await;
+        match circuits.get_mut(host) {
+            Some(state) => !state.admit(Instant::now(), cb_duration),
+            None => false,
+        }
+    }
+
+    /// host が 429 の throttle 窓にいれば窓が閉じるまで待つ。失敗として
+    /// 返さないのは、この経路が `<img src>` の主経路 (#921) で、エラーを返すと
+    /// 表示側が unknown アイコンへ倒れて二度と戻らないため。プロキシは
+    /// 「本物が用意できるまでブロックして返す」のが契約。
+    async fn wait_host_throttle(&self, host: &str) {
+        loop {
+            let remaining = {
+                let circuits = self.host_circuits.read().await;
+                circuits
+                    .get(host)
+                    .and_then(|s| s.throttle_remaining(Instant::now()))
+            };
+            match remaining {
+                Some(d) => tokio::time::sleep(d).await,
+                None => return,
             }
         }
-        false
+    }
+
+    async fn throttle_host(&self, host: &str, delay: Duration) {
+        let mut circuits = self.host_circuits.write().await;
+        circuits
+            .entry(host.to_string())
+            .or_insert_with(HostCircuitState::new)
+            .throttle(Instant::now(), delay);
     }
 
     /// Fetch with streaming for cache misses. First requester gets a byte stream;
@@ -355,10 +463,11 @@ impl ImageCache {
         }
 
         // Circuit breaker: reject early if host is known-down
-        if let Some(host) = Self::extract_host(url) {
-            if self.is_host_blocked(&host).await {
-                return Err(format!("Host {host} temporarily blocked (circuit breaker)"));
-            }
+        let url_host = Self::extract_host(url).unwrap_or_default();
+        if !url_host.is_empty() && self.is_host_blocked(&url_host).await {
+            return Err(format!(
+                "Host {url_host} temporarily blocked (circuit breaker)"
+            ));
         }
 
         let hash = hex_hash(url);
@@ -391,9 +500,6 @@ impl ImageCache {
         inflight.insert(hash.clone(), rx);
         drop(inflight);
 
-        // Acquire semaphore
-        let _permit = self.acquire_fetch_permit().await?;
-
         // Start HTTP request (headers only, don't consume body yet)
         // Some hosts (e.g. i.pximg.net) require a valid Referer header.
         // scheme は入口で https 限定済みなので、元 URL から引き写さずに
@@ -402,15 +508,53 @@ impl ImageCache {
             .ok()
             .and_then(|u| u.host_str().map(|h| format!("https://{h}/")));
 
-        let mut req = self.http_client.get(url).timeout(MEDIA_FETCH_TIMEOUT);
-        if let Some(ref referer) = referer {
-            req = req.header(reqwest::header::REFERER, referer);
-        }
-        let resp = req.send().await.map_err(|e| {
-            let msg = format!("Fetch failed: {e:#}");
-            self.record_negative_and_notify(url, &hash, &tx, &msg, NEGATIVE_TTL_NETWORK, true);
-            msg
-        })?;
+        // 429 は host 単位の throttle 窓で吸収する: 窓が閉じるまで待ってから
+        // permit を取り (待機中に他 host の枠を塞がない)、429 なら窓を伸ばして
+        // permit を返し、待ち直して再試行する。同じ host へ並行する取得は
+        // 各々が窓を見るので、最初の 429 で以降の嵐が止まる
+        let mut attempt = 0u32;
+        let (resp, _permit) = loop {
+            if !url_host.is_empty() {
+                self.wait_host_throttle(&url_host).await;
+            }
+            let permit = self.acquire_fetch_permit().await?;
+            let mut req = self.http_client.get(url).timeout(MEDIA_FETCH_TIMEOUT);
+            if let Some(ref referer) = referer {
+                req = req.header(reqwest::header::REFERER, referer);
+            }
+            let resp = match req.send().await {
+                Ok(resp) => resp,
+                Err(e) => {
+                    let msg = format!("Fetch failed: {e:#}");
+                    self.record_negative_and_notify(
+                        url,
+                        &hash,
+                        &tx,
+                        &msg,
+                        NEGATIVE_TTL_NETWORK,
+                        true,
+                    );
+                    return Err(msg);
+                }
+            };
+            attempt += 1;
+            if resp.status().as_u16() != 429 || attempt >= THROTTLE_MAX_ATTEMPTS {
+                break (resp, permit);
+            }
+            let retry_after = resp
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned);
+            let delay = throttle_delay(retry_after.as_deref(), attempt - 1);
+            tracing::debug!(host = %url_host, attempt, ?delay, "media upstream 429, throttling host");
+            drop(permit);
+            if url_host.is_empty() {
+                tokio::time::sleep(delay).await;
+            } else {
+                self.throttle_host(&url_host, delay).await;
+            }
+        };
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
@@ -450,7 +594,6 @@ impl ImageCache {
         let mem_cache = self.mem_cache.clone();
         let host_circuits = self.host_circuits.clone();
         let perf = self.perf.clone();
-        let url_host = Self::extract_host(url).unwrap_or_default();
 
         tokio::spawn(async move {
             let _permit = _permit; // move permit into task to hold it
@@ -503,10 +646,7 @@ impl ImageCache {
                     let mut circuits = host_circuits.write().await;
                     let state = circuits
                         .entry(url_host.clone())
-                        .or_insert(HostCircuitState {
-                            consecutive_failures: 0,
-                            tripped_at: None,
-                        });
+                        .or_insert_with(HostCircuitState::new);
                     state.consecutive_failures += 1;
                     let threshold = perf.read().await.circuit_breaker_threshold;
                     if state.consecutive_failures >= threshold {
@@ -612,10 +752,7 @@ impl ImageCache {
             // classify_http_failure 参照)
             if count_toward_circuit && !host.is_empty() {
                 let mut circuits = host_circuits.write().await;
-                let state = circuits.entry(host).or_insert(HostCircuitState {
-                    consecutive_failures: 0,
-                    tripped_at: None,
-                });
+                let state = circuits.entry(host).or_insert_with(HostCircuitState::new);
                 state.consecutive_failures += 1;
                 let threshold = perf.read().await.circuit_breaker_threshold;
                 if state.consecutive_failures >= threshold {
@@ -764,15 +901,106 @@ mod tests {
 
     /// 4xx (404 等) は URL 固有の問題なので host circuit breaker に数えない。
     /// 数えると辞書落ち絵文字の 404 が数件連なるだけでサーバーの全メディアが
-    /// 60 秒死ぬ。429 はホスト圧力なので短 TTL + circuit 加算。
+    /// 60 秒死ぬ。429 は「減速せよ」であって「落ちている」ではないので、
+    /// 再試行を使い切っても circuit には数えず、短い TTL で引くだけにする
+    /// (実機ログ 2026-09-12: 起動 4 秒後に CDN の 429 が 6 連続 → breaker 発火
+    /// → 以降 64 件の絵文字が 60 秒間 502 で unknown アイコンに固定された)
     #[test]
     fn http_failure_classification() {
         assert_eq!(classify_http_failure(404), (NEGATIVE_TTL_CLIENT, false));
         assert_eq!(classify_http_failure(403), (NEGATIVE_TTL_CLIENT, false));
         // 429 を 24h 封印すると一時的なレート制限で絵文字が丸 1 日消える
-        assert_eq!(classify_http_failure(429), (NEGATIVE_TTL_SERVER, true));
+        assert_eq!(classify_http_failure(429), (NEGATIVE_TTL_NETWORK, false));
         assert_eq!(classify_http_failure(500), (NEGATIVE_TTL_SERVER, true));
         assert_eq!(classify_http_failure(502), (NEGATIVE_TTL_SERVER, true));
+    }
+
+    /// 429 の待機時間: `Retry-After` (秒) があればそれを上限つきで尊重し、
+    /// 無ければ試行回数で指数的に伸ばす。HTTP-date 形式や不正値は既定へ倒す
+    #[test]
+    fn throttle_delay_honors_retry_after_with_cap() {
+        assert_eq!(throttle_delay(Some("2"), 0), Duration::from_secs(2));
+        assert_eq!(throttle_delay(Some("3600"), 0), THROTTLE_MAX);
+        assert_eq!(throttle_delay(Some("0"), 0), THROTTLE_BASE);
+        assert_eq!(throttle_delay(Some("garbage"), 0), THROTTLE_BASE);
+        assert_eq!(
+            throttle_delay(Some("Wed, 21 Oct 2026 07:28:00 GMT"), 1),
+            THROTTLE_BASE * 2
+        );
+        assert_eq!(throttle_delay(None, 0), THROTTLE_BASE);
+        assert_eq!(throttle_delay(None, 1), THROTTLE_BASE * 2);
+        assert_eq!(throttle_delay(None, 2), THROTTLE_BASE * 4);
+        assert_eq!(throttle_delay(None, 30), THROTTLE_MAX);
+    }
+
+    /// circuit breaker の half-open: 発火直後は全部拒み、HALF_OPEN_AFTER を
+    /// 過ぎたら 1 本だけ試験的に通す。その probe の結果が出るまで (= 次の
+    /// HALF_OPEN_AFTER まで) 他は拒み続け、breaker の期限が切れれば全部通す。
+    /// 以前は 60 秒 flat で塞いでいたため、上流が数秒で回復しても 1 分間
+    /// 画像が全滅した
+    #[test]
+    fn circuit_half_open_admits_one_probe() {
+        let cb = Duration::from_secs(60);
+        let t0 = Instant::now();
+        let mut st = HostCircuitState {
+            consecutive_failures: 5,
+            tripped_at: Some(t0),
+            probe_at: None,
+            throttled_until: None,
+        };
+        assert!(!st.admit(t0, cb), "発火直後は拒む");
+        assert!(!st.admit(t0 + HALF_OPEN_AFTER / 2, cb), "半開前は拒む");
+        let t1 = t0 + HALF_OPEN_AFTER;
+        assert!(st.admit(t1, cb), "半開に入ったら 1 本通す");
+        assert!(!st.admit(t1, cb), "probe 中の 2 本目は拒む");
+        assert!(
+            !st.admit(t1 + HALF_OPEN_AFTER / 2, cb),
+            "probe の結果待ち中も拒む"
+        );
+        assert!(
+            st.admit(t1 + HALF_OPEN_AFTER, cb),
+            "probe が返らなければ次を通す"
+        );
+        assert!(st.admit(t0 + cb, cb), "期限切れは全部通す");
+        assert!(st.admit(t0 + cb, cb), "期限切れは全部通す (2 本目も)");
+    }
+
+    #[test]
+    fn circuit_not_tripped_admits_everything() {
+        let mut st = HostCircuitState {
+            consecutive_failures: 2,
+            tripped_at: None,
+            probe_at: None,
+            throttled_until: None,
+        };
+        let now = Instant::now();
+        assert!(st.admit(now, Duration::from_secs(60)));
+        assert!(st.admit(now, Duration::from_secs(60)));
+    }
+
+    /// 429 を受けた host は throttle 窓に入る。窓の中では取得を「失敗」では
+    /// なく「待機」にする (待ち終わるまでの残り時間を返す)
+    #[test]
+    fn throttle_window_reports_remaining_wait() {
+        let t0 = Instant::now();
+        let mut st = HostCircuitState {
+            consecutive_failures: 0,
+            tripped_at: None,
+            probe_at: None,
+            throttled_until: None,
+        };
+        assert_eq!(st.throttle_remaining(t0), None);
+        st.throttle(t0, Duration::from_secs(2));
+        assert_eq!(st.throttle_remaining(t0), Some(Duration::from_secs(2)));
+        assert_eq!(
+            st.throttle_remaining(t0 + Duration::from_secs(1)),
+            Some(Duration::from_secs(1))
+        );
+        assert_eq!(st.throttle_remaining(t0 + Duration::from_secs(2)), None);
+        // 短い窓で上書きされない (並行リクエストが各々 429 を受けるため)
+        st.throttle(t0, Duration::from_secs(5));
+        st.throttle(t0, Duration::from_secs(1));
+        assert_eq!(st.throttle_remaining(t0), Some(Duration::from_secs(5)));
     }
 
     #[test]
@@ -1028,6 +1256,8 @@ mod tests {
             HostCircuitState {
                 consecutive_failures: 9,
                 tripped_at: Some(Instant::now()),
+                probe_at: None,
+                throttled_until: None,
             },
         );
         let err = cache.fetch_streaming(url).await.err().expect("must fail");

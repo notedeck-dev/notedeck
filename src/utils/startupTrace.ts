@@ -23,11 +23,15 @@ declare global {
 
 const marks = new Map<string, number>()
 
-/** 計測点を記録する。同名の再呼び出しは初回優先で無視 */
-export function markStartup(name: string): void {
-  if (marks.has(name)) return
+/**
+ * 計測点を記録する。同名の再呼び出しは初回優先で無視し、新規に記録した
+ * ときだけ true を返す (全カラムが打つ `first-notes` の初回判定に使う)
+ */
+export function markStartup(name: string): boolean {
+  if (marks.has(name)) return false
   marks.set(name, performance.now())
   performance.mark(`nd:startup:${name}`)
+  return true
 }
 
 /** 記録済みの計測点 (navigation 起点 ms) を時刻順で返す */
@@ -51,7 +55,12 @@ export function getWebviewFixedCost(): number | null {
   return Math.round(performance.timeOrigin - window.__ND_PROCESS_START__)
 }
 
-/** deck 表示到達時に 1 回だけ呼ぶ。dev ではコンソールにサマリを出す */
+/**
+ * deck 表示到達時と初回ノート表示時に呼ぶ。dev ではコンソールにサマリを
+ * 出す。`deck-mounted` は DeckLayout のマウントであってノートが見えた時刻
+ * ではないので、その先の区間 (カラムの接続〜DB キャッシュ描画) は
+ * `first-notes` で測る
+ */
 export function logStartupSummary(): void {
   if (!import.meta.env.DEV) return
   const webviewFixedCost = getWebviewFixedCost()
