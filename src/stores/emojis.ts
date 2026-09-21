@@ -2,7 +2,9 @@ import { defineStore } from 'pinia'
 import { shallowRef } from 'vue'
 import type { ServerEmoji } from '@/adapters/types'
 import { events } from '@/bindings'
+import { warmEmojiImages } from '@/services/emojiWarm'
 import { usePerformanceStore } from '@/stores/performance'
+import { useSystemStateStore } from '@/stores/systemState'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { getStorageJson, STORAGE_KEYS, setStorageJson } from '@/utils/storage'
 
@@ -186,6 +188,15 @@ export const useEmojisStore = defineStore('emojis', () => {
 
     // Persist shortcode→url cache for offline use (debounced)
     schedulePersist()
+    // 画像を先行取得しておく (新規ノートの絵文字を待たせない)
+    warmImages(emojis)
+  }
+
+  /** 省電力 / 従量制 (#931) では先読みしない */
+  function warmImages(emojis: ServerEmoji[]) {
+    warmEmojiImages(emojis, {
+      suppress: useSystemStateStore().adaptation.suppressPrefetch,
+    })
   }
 
   function ensureLoaded(host: string, fetcher: EmojiFetcher): void {
@@ -319,6 +330,7 @@ export const useEmojisStore = defineStore('emojis', () => {
         // 再登録された絵文字を拾えるよう unknown から解放する
         unknown?.delete(e.name)
       }
+      warmImages(emojis)
     }
     const nextCache = new Map(cache.value)
     nextCache.set(host, nextLookup)

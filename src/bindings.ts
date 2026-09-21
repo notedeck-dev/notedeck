@@ -2106,6 +2106,20 @@ async clearImageCache() : Promise<Result<null, { code: string; message: string; 
 }
 },
 /**
+ * メディアの先行取得 (絵文字辞書の到着時など)。キューに積むだけで即返る。
+ * 受理した件数を返す (重複・https 以外は数えない)
+ *
+ * @see src-tauri/src/commands/utility.rs
+ */
+async warmMedia(urls: string[], h: number | null) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("warm_media", { urls, h }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * petdex から slug のペットを取得してキャッシュに置く。
  * 他の slug のキャッシュは消える (保持は選択中の 1 体だけ)。
  *

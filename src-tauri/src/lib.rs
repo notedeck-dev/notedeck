@@ -31,6 +31,7 @@ mod hwheel_hook;
 mod image_cache;
 mod ipc_index;
 mod media_proxy;
+mod media_warm;
 mod migrations;
 mod notify_media;
 mod ogp;
@@ -295,6 +296,10 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             shared_perf_bg.clone(),
         ));
         app.manage(image_cache.clone());
+        // 絵文字辞書到着時の先行取得キュー (worker は Phase 2 の runtime で起動)
+        let media_warmer = media_warm::MediaWarmer::new(image_cache.clone());
+        app.manage(media_warmer.clone());
+        tauri::async_runtime::spawn(async move { media_warmer.spawn_workers() });
 
         // 終了時のタスク所有 (#1098)。常駐ループはここ経由で spawn し、
         // ExitRequested で begin_shutdown が abort する
@@ -1051,6 +1056,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::save_image_to_file,
             commands::image_cache_stats,
             commands::clear_image_cache,
+            commands::warm_media,
             commands::pet_install,
             commands::pet_load,
             commands::pet_clear,

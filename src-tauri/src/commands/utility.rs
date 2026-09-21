@@ -433,6 +433,28 @@ pub async fn image_cache_stats(
     Ok(ImageCacheStats { bytes, files })
 }
 
+/// メディアの先行取得 (絵文字辞書の到着時など)。キューに積むだけで即返る。
+/// 受理した件数を返す (重複・https 以外は数えない)
+#[tauri::command]
+#[specta::specta]
+pub async fn warm_media(
+    warmer: tauri::State<'_, std::sync::Arc<crate::media_warm::MediaWarmer>>,
+    urls: Vec<String>,
+    h: Option<u32>,
+) -> Result<u32> {
+    let reqs = urls
+        .into_iter()
+        .map(|url| crate::media_proxy::MediaRequest {
+            url,
+            w: None,
+            h,
+            format: None,
+            static_frame: false,
+        })
+        .collect();
+    Ok(warmer.enqueue(reqs).await as u32)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_image_cache(

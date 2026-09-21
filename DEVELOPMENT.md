@@ -288,6 +288,7 @@ src-tauri/src/              # Rust backend (Tauri 固有部分)
 ├── permissions_profile.rs  # permissions.json5 → 実効権限の解決 (#1099) — JS と golden vector で一致検査
 ├── image_cache.rs          # 3-tier image cache (memory → disk → network)。host 単位の 429 throttle 窓と half-open circuit breaker で一時失敗を <img> のエラーにしない
 ├── emoji_cache_store.rs    # サーバー絵文字辞書のディスクキャッシュ (host 単位、鮮度内なら起動時の全件取得を省く)
+├── media_warm.rs           # メディア先行取得キュー (辞書到着時に絵文字 variant を低優先で温める)
 ├── ogp/                    # OGP metadata extraction & cache
 ├── streaming.rs            # TauriEmitter adapter (FrontendEmitter trait impl)
 ├── query_bridge.rs         # HTTP API ↔ frontend (Pinia) bridge
