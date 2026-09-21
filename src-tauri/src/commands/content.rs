@@ -72,14 +72,58 @@ pub async fn api_update_user_setting(
     client.update_user_setting(&host, &token, &key, value).await
 }
 
+/// サーバーの絵文字辞書。`refresh=false` ならディスクキャッシュ
+/// (`emoji_cache_store`) が鮮度内のときネットワークも Rust 側の full-ready
+/// 待ちも省いて返す — 起動直後、DB キャッシュから描いたノートの絵文字を
+/// 辞書到着まで unknown で見せないため。`refresh=true` はフロントの miss
+/// 駆動 / 経年リフレッシュで、必ずサーバーへ取りに行く。
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_server_emojis(
+    app: tauri::AppHandle,
     app_state: State<'_, AppState>,
     account_id: String,
+    refresh: bool,
 ) -> Result<Vec<ServerEmoji>> {
+    use crate::emoji_cache_store as cache;
+
+    let app_dir = crate::app_dir::resolve_app_dir(&app)
+        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+    let now_ms = || {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    };
+
+    if !refresh {
+        // host の解決は DB (Stage 1) だけで済ませ、命中時は full-ready を待たない
+        let host = {
+            let db = app_state.db().await;
+            get_credentials_or_anon(&db, &account_id)?.0
+        };
+        let dir = app_dir.clone();
+        let cached = tokio::task::spawn_blocking(move || cache::read(&dir, &host))
+            .await
+            .ok()
+            .flatten();
+        if let Some(cached) = cached {
+            if cache::is_fresh(cached.fetched_at_ms, now_ms()) {
+                return Ok(cached.emojis);
+            }
+        }
+    }
+
     let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
-    client.get_server_emojis(&host, &token).await
+    let emojis = client.get_server_emojis(&host, &token).await?;
+    let snapshot = emojis.clone();
+    let fetched_at_ms = now_ms();
+    tokio::task::spawn_blocking(move || {
+        if let Err(e) = cache::write(&app_dir, &host, &snapshot, fetched_at_ms) {
+            tracing::warn!(host, error = %e, "emoji cache write failed");
+        }
+    });
+    Ok(emojis)
 }
 
 #[tauri::command]

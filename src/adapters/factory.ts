@@ -67,7 +67,7 @@ function ensureSideEffects(
   options?: { pinnedReactions?: boolean },
 ): void {
   const emojisStore = useEmojisStore()
-  emojisStore.ensureLoaded(host, () => adapter.api.getServerEmojis())
+  emojisStore.ensureLoaded(host, (opts) => adapter.api.getServerEmojis(opts))
 
   if (hasToken && options?.pinnedReactions !== false) {
     const pinnedReactionsStore = usePinnedReactionsStore()

@@ -52,6 +52,21 @@ describe('useEmojisStore', () => {
     )
   })
 
+  it('初回取得はキャッシュ可 (refresh:false)、miss 駆動の再取得はサーバー必須 (refresh:true) で fetcher を呼ぶ', async () => {
+    const store = useEmojisStore()
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce([emoji('old')])
+      .mockResolvedValue([emoji('old'), emoji('brand_new')])
+    store.ensureLoaded(HOST, fetcher)
+    await flush()
+    expect(fetcher).toHaveBeenNthCalledWith(1, { refresh: false })
+
+    store.reportMiss(HOST, 'brand_new')
+    await vi.advanceTimersByTimeAsync(3_000)
+    expect(fetcher).toHaveBeenNthCalledWith(2, { refresh: true })
+  })
+
   it('未解決の reportMiss がデバウンス後に再取得し、新しい絵文字が解決できるようになる', async () => {
     const store = useEmojisStore()
     const fetcher = vi

@@ -754,7 +754,8 @@ export interface ChartsApi {
 
 /** サーバー提供コンテンツ (絵文字 / お知らせ / Pages / Gallery / Flash / 連合) */
 export interface ServerContentApi {
-  getServerEmojis(): Promise<ServerEmoji[]>
+  /** `refresh` を立てるとキャッシュを飛ばしてサーバーへ取りに行く */
+  getServerEmojis(options?: { refresh?: boolean }): Promise<ServerEmoji[]>
   getPinnedReactions(): Promise<string[]>
   getAnnouncements(options?: {
     limit?: number
