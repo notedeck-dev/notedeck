@@ -163,7 +163,7 @@ const startupMaxDelta = computed(() =>
   Math.max(1, ...startupRows.value.map((r) => r.delta)),
 )
 
-/** 最終マーク (通常 deck-mounted) までの合計 ms */
+/** 最終マーク (通常 first-notes) までの合計 ms */
 const startupTotal = computed(() => {
   const entries = startup.value?.entries ?? []
   const last = entries[entries.length - 1]
@@ -1009,7 +1009,7 @@ onUnmounted(() => {
             <div :class="$style.statCards">
               <div :class="$style.statCard">
                 <span :class="$style.statValue">{{ startupTotal ?? '—' }}<small>ms</small></span>
-                <span :class="$style.statLabel">deck-mounted まで</span>
+                <span :class="$style.statLabel">最終マークまで</span>
               </div>
               <div :class="$style.statCard">
                 <span :class="$style.statValue">{{ startup.webviewFixedCost ?? '—' }}<small>ms</small></span>

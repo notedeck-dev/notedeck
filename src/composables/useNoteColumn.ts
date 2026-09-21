@@ -49,6 +49,7 @@ import { dedup } from '@/utils/dedup'
 import { AppError } from '@/utils/errors'
 import { logWarn } from '@/utils/logger'
 import { insertIntoSorted } from '@/utils/sortNotes'
+import { logStartupSummary, markStartup } from '@/utils/startupTrace'
 import { matchesFilter } from '@/utils/timelineFilter'
 
 /** QIR キャッシュ検索が 1 度に返すノート数 (#783 Phase 3) */
@@ -580,6 +581,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     let cachedIds: string[] = []
     if (cachedNotes.length > 0) {
       setNotes(cachedNotes)
+      if (markStartup('first-notes')) logStartupSummary()
       cachedIds = cachedNotes.map((n) => n.id)
     }
 
@@ -886,6 +888,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
       } else {
         const fetched = await config.fetch(adapter, {})
         setNotes(await applyFilter(fetched))
+        if (fetched.length > 0 && markStartup('first-notes'))
+          logStartupSummary()
         resetFetchCursor(fetched)
         scrollToTop()
       }
