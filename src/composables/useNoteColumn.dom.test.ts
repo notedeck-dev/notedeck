@@ -10,6 +10,7 @@ import {
 } from 'vue'
 import type {
   NormalizedNote,
+  NoteUpdateEvent,
   ServerAdapter,
   TimelineFilter,
 } from '@/adapters/types'
@@ -21,6 +22,7 @@ import {
 import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
 import { matchesFilter } from '@/utils/timelineFilter'
+import type { FramePriority } from './useFrameScheduler'
 import { type NoteColumnConfig, useNoteColumn } from './useNoteColumn'
 
 // tauri-specta bindings: 全コマンドを空成功で応答（SQLite キャッシュは空扱い）。
@@ -46,6 +48,29 @@ vi.mock('@/bindings', () => ({
   ),
 }))
 
+// streaming batch の flush は frameEngine の RAF ループに乗る。テストではループが
+// 起動していないので、streaming 取り込みを見るテストだけ scheduler をマイクロ
+// タスク実行に差し替える (常時差し替えると既存テストのタイミングが変わる)
+const frameScheduler = vi.hoisted(() => ({ immediate: false }))
+vi.mock('@/composables/useFrameScheduler', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/composables/useFrameScheduler')
+  >('@/composables/useFrameScheduler')
+  return {
+    ...actual,
+    useFrameScheduler: () => {
+      const real = actual.useFrameScheduler()
+      return {
+        ...real,
+        schedule: (fn: () => void, priority: FramePriority) =>
+          frameScheduler.immediate
+            ? queueMicrotask(fn)
+            : real.schedule(fn, priority),
+      }
+    },
+  }
+})
+
 /**
  * 🐢 降格の runner を Worker 抜きで差し替える (#783 Phase 2c)。
  * 評価ロジックは本物 (degradedBatch) をそのまま同期実行するので、
@@ -54,6 +79,8 @@ vi.mock('@/bindings', () => ({
 const degraded = vi.hoisted(() => ({
   suspended: new Set<string>(),
   runCalls: [] as { keys: string[]; noteCount: number }[],
+  /** 設定中は Worker 応答をこの Promise が解決するまで止める (#1119 の再現用) */
+  gate: null as Promise<void> | null,
   listeners: new Set<() => void>(),
   notify() {
     for (const l of this.listeners) l()
@@ -74,6 +101,7 @@ vi.mock('@/services/columnQuery/degradedRunner', async () => {
           keys: filters.map((f) => f.key),
           noteCount: notes.length,
         })
+        if (degraded.gate) await degraded.gate
         if (filters.some((f) => degraded.suspended.has(f.key))) {
           return {
             verdicts: notes.map(() => 'error' as const),
@@ -1018,6 +1046,154 @@ describe('useNoteColumn: 消えたクエリ参照からの復旧 (#783 追補 A)
 
     api.dropMissingQueryRefs()
     expect(updates).toEqual([{ noteQueryRefs: undefined }])
+  })
+})
+
+describe('useNoteColumn: Worker 待ちの間にクエリが変わったら旧判定を捨てる (#1119)', () => {
+  // どちらも str.len を含むので全体が 🐢 (Worker 逐次適用) に降格する
+  const ACCEPT_LONG = 'note.text.len > 3'
+  const REJECT_ALL = 'note.text.len > 100'
+  const ACCEPT_UNREACTED = 'note.text.len > 3 && note.reactions["👍"] == null'
+
+  /** Worker 応答を止める gate と、それを解く関数 */
+  function deferredGate() {
+    let resolve: (() => void) | undefined
+    const gate = new Promise<void>((r) => {
+      resolve = r
+    })
+    return { gate, release: () => resolve?.() }
+  }
+
+  /** streaming の購読は adapter 解決後に非同期で張られるので、コールバックは後から読む */
+  function mountReactive(opts: {
+    accountId: string
+    columnId: string
+    column: Ref<Partial<DeckColumn>>
+    fetch: () => Promise<NormalizedNote[]>
+  }) {
+    let api: ReturnType<typeof useNoteColumn> | null = null
+    const stream = {
+      enqueue: null as ((n: NormalizedNote) => void) | null,
+      onNoteUpdated: null as ((e: NoteUpdateEvent) => void) | null,
+    }
+    const Host = defineComponent({
+      setup() {
+        api = useNoteColumn({
+          getColumn: () =>
+            ({
+              id: opts.columnId,
+              type: 'timeline',
+              accountId: opts.accountId,
+              ...opts.column.value,
+            }) as DeckColumn,
+          fetch: opts.fetch,
+          cache: { getKey: () => 'home' },
+          streaming: {
+            subscribe: (_adapter, enq, callbacks) => {
+              stream.enqueue = enq
+              stream.onNoteUpdated = callbacks.onNoteUpdated
+              return { dispose: vi.fn() }
+            },
+          },
+        })
+        return () => null
+      },
+    })
+    const app = createApp(Host)
+    app.use(pinia)
+    app.mount(document.createElement('div'))
+    apps.push(app)
+    if (!api) throw new Error('harness failed')
+    return { api: api as ReturnType<typeof useNoteColumn>, stream }
+  }
+
+  beforeEach(() => {
+    degraded.suspended.clear()
+    degraded.runCalls.length = 0
+    degraded.gate = null
+    frameScheduler.immediate = true
+  })
+
+  afterEach(() => {
+    frameScheduler.immediate = false
+    // 失敗して release されなかった gate を次のテストに持ち越さない
+    degraded.gate = null
+  })
+
+  it('hold-and-release: 旧クエリが通したノートを新クエリ適用後の列に入れない', async () => {
+    addAccount('acc-gen-hold')
+    const column = ref<Partial<DeckColumn>>({ noteQuery: ACCEPT_LONG })
+    const { api, stream } = mountReactive({
+      accountId: 'acc-gen-hold',
+      columnId: 'col-gen-hold',
+      column,
+      fetch: async () => [],
+    })
+    await flush()
+    expect(ids(api)).toEqual([])
+
+    // Worker 応答を止めたまま streaming で 1 件到着 → 判定待ちに積まれる
+    const { gate, release } = deferredGate()
+    degraded.gate = gate
+    stream.enqueue?.({
+      ...note('n1'),
+      _accountId: 'acc-gen-hold',
+      text: 'hello world',
+    } as NormalizedNote)
+    await flush()
+    expect(degraded.runCalls.length).toBe(1)
+
+    // 待っている間にクエリが「全件除外」へ変わる (この再適用 / 再取得は止めない)
+    degraded.gate = null
+    column.value = { noteQuery: REJECT_ALL }
+    await flush(20)
+
+    // 旧クエリの判定が返る → 捨てて新クエリで評価し直すので列に入らない
+    release()
+    await flush(20)
+    expect(ids(api)).toEqual([])
+  })
+
+  it('更新後の再評価: 新クエリなら残るノートを旧クエリの判定で消さない', async () => {
+    addAccount('acc-gen-update')
+    const column = ref<Partial<DeckColumn>>({ noteQuery: ACCEPT_UNREACTED })
+    const { api, stream } = mountReactive({
+      accountId: 'acc-gen-update',
+      columnId: 'col-gen-update',
+      column,
+      fetch: async () => [
+        {
+          ...note('n1'),
+          _accountId: 'acc-gen-update',
+          text: 'hello world',
+        } as NormalizedNote,
+      ],
+    })
+    await flush()
+    expect(ids(api)).toEqual(['n1'])
+
+    // Worker 応答を止めたまま 👍 が付く → 旧クエリでは外れる判定になる
+    const { gate, release } = deferredGate()
+    degraded.gate = gate
+    stream.onNoteUpdated?.({
+      type: 'reacted',
+      accountId: 'acc-gen-update',
+      noteId: 'n1',
+      body: { reaction: '👍', userId: 'someone-else' },
+    } as NoteUpdateEvent)
+    await flush()
+    expect(degraded.runCalls.length).toBe(2)
+
+    // 待っている間にクエリが「👍 を問わない」へ変わる
+    degraded.gate = null
+    column.value = { noteQuery: ACCEPT_LONG }
+    await flush(20)
+    expect(ids(api)).toEqual(['n1'])
+
+    // 旧クエリの「外れる」判定が返っても、新クエリで評価し直すので残る
+    release()
+    await flush(20)
+    expect(ids(api)).toEqual(['n1'])
   })
 })
 
