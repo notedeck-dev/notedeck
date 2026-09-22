@@ -1,8 +1,26 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NormalizedNote } from '@/adapters/types'
 import { noteIdentityOf, variantKey, variantKeyOf } from '@/services/noteKey'
 import { useNoteStore } from '@/stores/notes'
+
+// tauri-specta bindings: 呼び出しを記録して空成功で応答
+const bindings = vi.hoisted(() => ({
+  calls: [] as { name: string; args: unknown[] }[],
+}))
+vi.mock('@/bindings', () => ({
+  commands: new Proxy(
+    {},
+    {
+      get:
+        (_t, name: string) =>
+        (...args: unknown[]) => {
+          bindings.calls.push({ name, args })
+          return Promise.resolve({ status: 'ok', data: null })
+        },
+    },
+  ),
+}))
 
 function makeNote(
   overrides: Partial<NormalizedNote> & { id: string; _accountId: string },
@@ -121,5 +139,34 @@ describe('noteStore (variant key, #1010)', () => {
     store.put([innerV2])
     const [resolved] = store.resolve([variantKeyOf(outer)])
     expect(resolved?.renote?.text).toBe('v2')
+  })
+})
+
+describe('noteStore.markDeleted (#1123 / #1124)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    bindings.calls.length = 0
+  })
+
+  it('map に無いノートでも variant / identity の tombstone を積み、SQLite キャッシュ削除を呼ぶ', () => {
+    const store = useNoteStore()
+    const note = makeNote({ id: 'n1', _accountId: 'acc-a' })
+    store.markDeleted(note)
+    expect(store.isDeleted(variantKeyOf(note))).toBe(true)
+    expect(store.isDeletedAtOrigin(noteIdentityOf(note))).toBe(true)
+    expect(bindings.calls).toEqual([
+      { name: 'apiDeleteCachedNote', args: ['acc-a', 'n1'] },
+    ])
+  })
+
+  it('map に居るノートは map からも消し、購読者に tombstone=true で伝える', () => {
+    const store = useNoteStore()
+    const note = makeNote({ id: 'n1', _accountId: 'acc-a' })
+    store.put([note])
+    const seen: [string, boolean][] = []
+    store.onDelete((key, tombstone) => seen.push([key, tombstone]))
+    store.markDeleted(note)
+    expect(store.get(variantKeyOf(note))).toBeUndefined()
+    expect(seen).toEqual([[variantKeyOf(note), true]])
   })
 })

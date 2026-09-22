@@ -18,6 +18,7 @@ import {
   noteUpdateSig,
 } from '@/services/streamUpdateMerge'
 import { usePerformanceStore } from '@/stores/performance'
+import { commands } from '@/utils/tauriInvoke'
 
 /** Window for dropping duplicate noteUpdated events (channel + note capture から
  *  同一イベントが二重に来る場合の対策). 1.5s なら同じユーザの逐次操作 (react→unreact)
@@ -205,6 +206,19 @@ export const useNoteStore = defineStore('notes', () => {
     for (const listener of deleteListeners) listener(key, tombstone)
   }
 
+  /**
+   * ユーザー操作の削除が API で成功した後の共通処理 (#1123 / #1124): tombstone
+   * (他カラム / 束ねる面 / 通知の購読に伝える) + SQLite キャッシュから消す。
+   * ノートを map に置かない面 (通知 / ルックアップ / ウィンドウ) からも identity
+   * tombstone を積めるよう本体を受ける。カラムもウィンドウもこれを通す
+   */
+  function markDeleted(note: NormalizedNote) {
+    remove(variantKeyOf(note), true, note)
+    commands.apiDeleteCachedNote(note._accountId, note.id).catch((e) => {
+      if (import.meta.env.DEV) console.debug('[delete-cached-note] ignored:', e)
+    })
+  }
+
   /** ノートが削除済み tombstone かを返す。表示述語の素材（#602）。 */
   function isDeleted(key: VariantKey): boolean {
     return deletedKeys.has(key)
@@ -275,6 +289,7 @@ export const useNoteStore = defineStore('notes', () => {
     resolve,
     update,
     remove,
+    markDeleted,
     isDeleted,
     isDeletedAtOrigin,
     onDelete,
