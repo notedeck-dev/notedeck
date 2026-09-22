@@ -203,7 +203,8 @@ appDataDir/
     ├── custom.css          # カスタム CSS
     ├── connections.json    # Secret Vault の接続メタデータ（Rust が source of truth）
     ├── profiles/           # *.ndprofile.json5
-    ├── themes/             # *.ndtheme.json5
+    ├── theme-dropins.json5 # themes/ の素の .json5 を取り込んだ記録（元ファイル名 → 採用 ID）
+    ├── themes/             # *.ndtheme.json5（素の *.json5 は起動時に一回きりコピーして採用）
     ├── plugins/            # *.is + *.meta.json5
     ├── widgets/            # *.is + *.meta.json5
     ├── skills/             # *.md
@@ -256,7 +257,7 @@ NoteDeck のスカラー設定 (選択・トグル・ユーザー preferences) �
 
 | 対象 | 理由 |
 |---|---|
-| `themes/*.ndtheme.json5` | Misskey 互換フォーマット維持 — コミュニティテーマを `themes/` に drop するだけで使えるようにするため |
+| `themes/*.ndtheme.json5` | Misskey 互換フォーマット維持 — コミュニティテーマを `themes/` に drop するだけで使えるようにするため。素の `*.json5` は起動時にテーマとして解釈できたものだけ新しい ID の slug 名ファイルへ**コピーして採用**する（元ファイルは触らない・採用は一回きりで以後の編集は反映されない・シンボリックリンクは対象外）。再取り込みを防ぐ採用記録は `theme-dropins.json5`（[#1041](https://github.com/notedeck-dev/notedeck/issues/1041)） |
 | `plugins/*.is` + `*.meta.json5` | Misskey AiScript プラグインフォーマット維持 |
 | `snippets/*.json5` | VSCode スニペット互換フォーマット |
 | `profiles/*.ndprofile.json5` | NoteDeck 独自だが複数存在するコレクション。肥大化回避 + 個別エクスポート導線 |
