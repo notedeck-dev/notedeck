@@ -319,6 +319,35 @@ describe('useNoteColumn: 放置復帰の stale-tab ガードと REST 可視性�
     expect(ids(api)).toContain('h02')
   })
 
+  it('復帰で取り直した既存ノートも判定を通し、合致しなくなったものは表示から外す (#1120)', async () => {
+    addAccount('acc-resume-reeval')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([
+        { ...note('h01'), text: 'keep' },
+        { ...note('h02'), text: 'keep' },
+      ])
+      // 切断中に h01 の本文が編集されてクエリから外れた。h02 は重なるので gap ではない
+      .mockResolvedValueOnce([
+        { ...note('h01'), text: 'drop' },
+        { ...note('h02'), text: 'keep' },
+      ])
+    const { api } = mountColumn({
+      accountId: 'acc-resume-reeval',
+      noteQuery: 'note.text != "drop"',
+      fetch: () => fetchImpl(),
+      streaming: true,
+    })
+    await flush()
+    expect(ids(api)).toEqual(['h01', 'h02'])
+
+    vi.advanceTimersByTime(6000)
+    useUiStore().emitDeckResume()
+    await flush()
+
+    expect(ids(api)).toEqual(['h02'])
+  })
+
   it('reconnect(connect) 中にタブが切り替わったら旧タブの結果を破棄する', async () => {
     addAccount('acc-reconnect')
     let resolveReconnect: ((n: NormalizedNote[]) => void) | undefined
@@ -473,6 +502,37 @@ describe('useNoteColumn: スリープ復帰 catch-up とタブ切替の gap 検�
 
     // sinceId マージで穴を残さず、最新ページで丸ごと置換される
     expect(ids(api)).toEqual(['h11', 'h10'])
+  })
+
+  it('switchWithSnapshot: 取り直しで合致しなくなった snapshot のノートを外す (#1120)', async () => {
+    addAccount('acc-snap-reeval')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([{ ...note('h01'), text: 'keep' }])
+      .mockResolvedValueOnce([
+        { ...note('h01'), text: 'drop' },
+        { ...note('h00'), text: 'keep' },
+      ])
+    const { api } = mountColumn({
+      accountId: 'acc-snap-reeval',
+      noteQuery: 'note.text != "drop"',
+      fetch: () => fetchImpl(),
+      streaming: true,
+    })
+    await flush()
+    expect(ids(api)).toEqual(['h01'])
+
+    vi.advanceTimersByTime(6000)
+    // snapshot は編集前の h01。取り直しで h01 が外れ、h00 が残る (h00 が重なるので gap ではない)
+    await api.switchWithSnapshot(
+      [
+        { ...note('h01'), text: 'keep' },
+        { ...note('h00'), text: 'keep' },
+      ],
+      0,
+    )
+    await flush()
+    expect(ids(api)).toEqual(['h00'])
   })
 
   it('switchWithSnapshot: snapshot にもカラムクエリを適用する', async () => {
