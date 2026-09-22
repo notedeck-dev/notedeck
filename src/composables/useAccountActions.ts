@@ -1,3 +1,4 @@
+import { useVault } from '@/composables/useVault'
 import {
   type Account,
   accountScopeKey,
@@ -82,6 +83,18 @@ export function useAccountActions() {
     useColumnQueriesStore().purgeAccount(key)
     // テーマは紐付け (安定キー) と per-account 適用キャッシュ (内部 ID) の両方を捨てる
     useThemeStore().purgeAccount(key, acc.id)
+    // Secret Vault のアカウント専用接続 (内部 ID で紐付け) も slot の secret
+    // ごと消す (#1121)。OS キーチェーン操作なので失敗しうるが、アカウント本体は
+    // もう消えているので警告だけ出して終える
+    try {
+      await useVault().purgeAccount(acc.id)
+    } catch (e) {
+      const { useToast } = await import('@/stores/toast')
+      useToast().show(
+        `Vault 接続の削除に失敗しました: ${AppError.from(e).message}`,
+        'warning',
+      )
+    }
   }
 
   /** ログアウト確認ダイアログを表示し実行する */
