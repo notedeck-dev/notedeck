@@ -65,6 +65,7 @@ import { useSensitiveMask } from '@/composables/useSensitiveMask'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { useAccountsStore } from '@/stores/accounts'
+import { useNoteStore } from '@/stores/notes'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
 import { formatDate } from '@/utils/format'
@@ -82,6 +83,7 @@ const { navigateToUser: navToUser } = useNavigation()
 const portalRef = useTemplateRef<HTMLElement>('portalRef')
 usePortal(portalRef)
 const accountsStore = useAccountsStore()
+const noteStore = useNoteStore()
 const serversStore = useServersStore()
 
 // Declared up-front because `topTabs` (below) reads `isOwnProfile` / `user`
@@ -625,11 +627,27 @@ async function handlePin(target: NormalizedNote) {
   }
 }
 
+/**
+ * 削除成功後: 他の面 (カラム / 束ねる面 / 通知 / SQLite キャッシュ) へ伝える
+ * tombstone (#1124) + このウィンドウが手元に持つ 3 系統の配列から落とす
+ */
+function dropDeleted(target: NormalizedNote) {
+  noteStore.markDeleted(target)
+  notesListRef.value?.removeNote(target.id)
+  pinnedNotes.value = pinnedNotes.value.filter(
+    (n) => n.id !== target.id && n.renoteId !== target.id,
+  )
+  pinnedNoteIds.value = pinnedNoteIds.value.filter((id) => id !== target.id)
+  reactionEntries.value = reactionEntries.value.filter(
+    (e) => e.note.id !== target.id && e.note.renoteId !== target.id,
+  )
+}
+
 async function handleDelete(target: NormalizedNote) {
   if (!adapter.value) return
   try {
     await adapter.value.api.deleteNote(target.id)
-    notesListRef.value?.removeNote(target.id)
+    dropDeleted(target)
   } catch (e) {
     error.value = AppError.from(e)
   }
@@ -639,7 +657,7 @@ async function handleDeleteAndEdit(target: NormalizedNote) {
   if (!adapter.value) return
   try {
     await adapter.value.api.deleteNote(target.id)
-    notesListRef.value?.removeNote(target.id)
+    dropDeleted(target)
     postFormReplyTo.value = target.replyId
       ? await adapter.value.api.getNote(target.replyId).catch(() => undefined)
       : undefined

@@ -22,7 +22,6 @@ import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { FAVORITES_CACHE_KEY } from '@/utils/columnCacheKey'
 import { AppError } from '@/utils/errors'
-import { commands } from '@/utils/tauriInvoke'
 import { toggleFavorite } from '@/utils/toggleFavorite'
 import { toggleReaction } from '@/utils/toggleReaction'
 import { votePoll } from '@/utils/votePoll'
@@ -307,24 +306,13 @@ export function useColumnSetup(
     showPostForm.value = true
   }
 
-  /**
-   * 削除成功後の共通処理: tombstone (他カラム / 束ねる面 / 通知の購読に伝える)
-   * + SQLite キャッシュから消す。ノートを noteStore に置かない面のために本体も渡す
-   */
-  function markDeleted(note: NormalizedNote) {
-    noteStore.remove(variantKeyOf(note), true, note)
-    commands.apiDeleteCachedNote(note._accountId, note.id).catch((e) => {
-      if (import.meta.env.DEV) console.debug('[delete-cached-note] ignored:', e)
-    })
-  }
-
   async function handleDelete(note: NormalizedNote): Promise<boolean> {
     if (checkOffline()) return false
     const api = (await adapterFor(note))?.api
     if (!api) return false
     try {
       await api.deleteNote(note.id)
-      markDeleted(note)
+      noteStore.markDeleted(note)
       return true
     } catch (e) {
       const err = AppError.from(e)
@@ -354,7 +342,7 @@ export function useColumnSetup(
     if (!api) return false
     try {
       await api.deleteNote(note.id)
-      markDeleted(note)
+      noteStore.markDeleted(note)
       postFormAccountId.value = note._accountId
       postFormReplyTo.value = note.replyId
         ? await api.getNote(note.replyId).catch(() => undefined)

@@ -291,11 +291,7 @@ export function useNoteList(options: UseNoteListOptions) {
     )
 
     if (await options.deleteHandler(note)) {
-      noteStore.remove(key)
-      commands.apiDeleteCachedNote(note._accountId, note.id).catch((e) => {
-        if (import.meta.env.DEV)
-          console.debug('[delete-cached-note] ignored:', e)
-      })
+      noteStore.markDeleted(note)
     } else {
       // 楽観削除の巻き戻し。orderedKeys を直接書かずに setter を通す — 直接
       // 書くと noteCapture の購読同期が走らず、ノートは表示に戻るのに購読は

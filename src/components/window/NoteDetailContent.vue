@@ -23,7 +23,6 @@ import type {
   NoteTreeNode,
 } from '@/components/common/MkNoteTree.vue'
 import MkNoteTree from '@/components/common/MkNoteTree.vue'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -37,7 +36,7 @@ import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePortal } from '@/composables/usePortal'
 import { useVisibleReactionCounts } from '@/composables/useVisibleReactionCounts'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
-import { variantKey, variantKeyOf } from '@/services/noteKey'
+import { variantKey } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
 import { useSuspensionsStore } from '@/stores/suspensions'
@@ -329,14 +328,7 @@ async function handleDelete(target: NormalizedNote) {
   try {
     await adapter.api.deleteNote(target.id)
     const id = target.id
-    noteStore.remove(variantKeyOf(target))
-    commands
-      .apiDeleteCachedNote(target._accountId, id)
-      .then((r) => unwrap(r))
-      .catch((e) => {
-        if (import.meta.env.DEV)
-          console.debug('[delete-cached-note] ignored:', e)
-      })
+    noteStore.markDeleted(target)
     if (id === note.value?.id) {
       emit('close')
     } else {
@@ -357,14 +349,7 @@ async function handleDeleteAndEdit(target: NormalizedNote) {
   try {
     await adapter.api.deleteNote(target.id)
     const id = target.id
-    noteStore.remove(variantKeyOf(target))
-    commands
-      .apiDeleteCachedNote(target._accountId, id)
-      .then((r) => unwrap(r))
-      .catch((e) => {
-        if (import.meta.env.DEV)
-          console.debug('[delete-cached-note] ignored:', e)
-      })
+    noteStore.markDeleted(target)
     if (id !== note.value?.id) {
       children.value = children.value.filter(
         (n) => n.id !== id && n.renoteId !== id,
