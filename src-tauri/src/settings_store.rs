@@ -43,6 +43,9 @@ pub const ALLOWED_ROOT_FILES: &[&str] = &[
     // custom.css の編集履歴サイドカー (#913 付随修正)。allowlist から漏れて
     // いたため、フロントの履歴 read/write が一度も成功していなかった
     "custom.css.history.json5",
+    // themes/ の素の .json5 を取り込んだ記録 (元ファイル名 → 採用 ID、#1041)。
+    // 消えると次回起動で再取り込みされて複製が出るのでバックアップに含める
+    "theme-dropins.json5",
 ];
 
 /// Validate a subdirectory name against the whitelist.
@@ -685,6 +688,30 @@ mod tests {
         // #1029: チュートリアルの達成記録と実績の保存先。allowlist から漏れると
         // 読み書きもバックアップも黙って失敗する
         assert!(ALLOWED_ROOT_FILES.contains(&"tutorial.json5"));
+    }
+
+    #[test]
+    fn theme_dropins_json5_is_allowed_root_file() {
+        // #1041: drop-in の採用記録。allowlist から漏れると記録できず、
+        // 起動のたびに同じ元ファイルを再取り込みして複製が増える
+        assert!(ALLOWED_ROOT_FILES.contains(&"theme-dropins.json5"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn list_files_skips_symlinks() {
+        // #1041: themes/ の drop-in はシンボリックリンクを対象にしない
+        // (採用コピーの元として追いかけない)。列挙の段階で落ちることを固定する
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        let themes = base.join("themes");
+        fs::create_dir_all(&themes).unwrap();
+        fs::write(themes.join("real.json5"), "{}").unwrap();
+        let outside = base.join("outside.json5");
+        fs::write(&outside, "{}").unwrap();
+        std::os::unix::fs::symlink(&outside, themes.join("link.json5")).unwrap();
+
+        assert_eq!(list_files(base, "themes").unwrap(), vec!["real.json5"]);
     }
 
     #[test]

@@ -221,6 +221,16 @@ export async function writeTasks(content: string): Promise<void> {
   return writeRootSettingsFile('tasks.json5', content)
 }
 
+// --- Theme drop-in adoption record (#1041) ---
+
+export async function readThemeDropInRecord(): Promise<string> {
+  return readRootSettingsFile('theme-dropins.json5')
+}
+
+export async function writeThemeDropInRecord(content: string): Promise<void> {
+  return writeRootSettingsFile('theme-dropins.json5', content)
+}
+
 // --- Tutorial helpers (#1029) ---
 
 export async function readTutorialProgress(): Promise<string> {

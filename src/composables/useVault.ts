@@ -82,6 +82,17 @@ async function deleteConnection(id: string): Promise<void> {
   await refresh()
 }
 
+/**
+ * アカウント削除 (#1121): そのアカウント専用 (`accountScope` = 内部 ID) の
+ * 接続を、全 slot の secret ごと消す。全アカウント共通 (null) は残す
+ */
+async function purgeAccount(accountId: string): Promise<void> {
+  const all = unwrap(await commands.vaultListConnections())
+  const targets = all.filter((c) => c.accountScope === accountId)
+  for (const c of targets) unwrap(await commands.vaultDeleteConnection(c.id))
+  if (targets.length > 0) await refresh()
+}
+
 /** 接続の開示先クラス (AI / 外部アプリ) を切り替える (#712 §6.1)。 */
 async function setExposed(
   id: string,
@@ -158,6 +169,7 @@ export function useVault() {
     getSecretStatus,
     deleteSecret,
     deleteConnection,
+    purgeAccount,
     setExposed,
     setTrusted,
     setTrustedPlugin,

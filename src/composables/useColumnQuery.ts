@@ -199,6 +199,12 @@ export function useColumnQuery(deps: ColumnQueryDeps) {
   }
 
   /**
+   * クエリ変更の世代。遅れて返った再適用と Worker 判定が新しい状態を壊さない
+   * ためのガード (querySignature の watch で進める)
+   */
+  let querySignatureGeneration = 0
+
+  /**
    * 🐢 パーツを Worker で評価する (Phase 2c)。⚡ で生き残ったノートだけが対象。
    * 評価不能 (サスペンド・タイムアウト) は error = 除外 + 計上で、カラムは
    * fail-closed のまま新着が積まれない状態になる (不変条件 (f))。
@@ -211,10 +217,18 @@ export function useColumnQuery(deps: ColumnQueryDeps) {
       return notes
     }
     const runner = getSharedDegradedRunner()
+    const generation = querySignatureGeneration
     const outcome = await runner.run(
       compiled.degraded.map((d) => ({ key: d.key, source: d.source })),
       notes,
     )
+    // Worker 往復の間にクエリ (ソース・参照・有効状態) が変わっていたら、
+    // 返ってきたのは変更前のクエリの判定なので捨て、現在のクエリで ⚡ から
+    // 評価し直す (#1119)。hold-and-release と更新後の再評価はこの経路しか
+    // 通らないので、ガードはここ 1 箇所に置く
+    if (generation !== querySignatureGeneration) {
+      return admitDegraded(notes.filter(queryAdmitsFast))
+    }
     const isSuspended = compiled.degraded.some((d) => runner.isSuspended(d.key))
     const admitted: NormalizedNote[] = []
     outcome.verdicts.forEach((verdict, i) => {
@@ -302,9 +316,6 @@ export function useColumnQuery(deps: ColumnQueryDeps) {
       ),
     ].join('+')
   })
-
-  /** クエリ変更の世代。遅れて返った再適用が新しい状態を壊さないためのガード */
-  let querySignatureGeneration = 0
 
   // クエリ変更時 (インライン編集・トグル・named の編集伝播): 診断をリセットし、
   // 表示中ノートへ即時適用 (絞り込み方向) + refetch (緩和方向の回収)

@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   pluginsStore: { purgeAccount: vi.fn() },
   queriesStore: { purgeAccount: vi.fn() },
   themeStore: { purgeAccount: vi.fn() },
+  vault: { purgeAccount: vi.fn(async () => undefined) },
 }))
 
 vi.mock('@/stores/accounts', async (importOriginal) => ({
@@ -39,6 +40,7 @@ vi.mock('@/stores/columnQueries', () => ({
   useColumnQueriesStore: () => h.queriesStore,
 }))
 vi.mock('@/stores/theme', () => ({ useThemeStore: () => h.themeStore }))
+vi.mock('@/composables/useVault', () => ({ useVault: () => h.vault }))
 
 import { type Account, accountScopeKey } from '@/stores/accounts'
 import { useAccountActions } from './useAccountActions'
@@ -56,6 +58,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   h.deckStore.columns = []
   h.accountsStore.removeAccount.mockResolvedValue(undefined)
+  h.vault.purgeAccount.mockResolvedValue(undefined)
   h.confirm.mockResolvedValue(true)
 })
 
@@ -144,5 +147,30 @@ describe('アカウント削除でプラグイン・クエリ・テーマのス�
     expect(h.pluginsStore.purgeAccount).not.toHaveBeenCalled()
     expect(h.queriesStore.purgeAccount).not.toHaveBeenCalled()
     expect(h.themeStore.purgeAccount).not.toHaveBeenCalled()
+  })
+})
+
+describe('アカウント削除で Secret Vault のアカウント専用接続を消す (#1121)', () => {
+  it('backend 削除が成功したら内部 ID で Vault の purge を呼ぶ', async () => {
+    const actions = useAccountActions()
+    await actions.deleteAccountData(acc)
+    expect(h.vault.purgeAccount).toHaveBeenCalledWith(acc.id)
+  })
+
+  it('backend 削除が失敗したら Vault に触らない', async () => {
+    h.accountsStore.removeAccount.mockRejectedValueOnce(new Error('boom'))
+    const actions = useAccountActions()
+    await actions.deleteAccountData(acc)
+    expect(h.vault.purgeAccount).not.toHaveBeenCalled()
+  })
+
+  it('Vault の purge に失敗しても例外にせず警告を出す (アカウント本体は消えている)', async () => {
+    h.vault.purgeAccount.mockRejectedValueOnce(new Error('keychain locked'))
+    const actions = useAccountActions()
+    await expect(actions.deleteAccountData(acc)).resolves.toBeUndefined()
+    expect(h.toast.show).toHaveBeenCalledWith(
+      expect.stringContaining('keychain locked'),
+      'warning',
+    )
   })
 })

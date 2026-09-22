@@ -840,6 +840,25 @@ export const useThemeStore = defineStore('theme', () => {
             console.warn('[theme] failed to persist mirror-only theme:', e),
           )
       }
+      // (c) themes/ に置かれた素の .json5 (コミュニティテーマ) を一回きり
+      //     コピーして採用 (#1041)。採用記録があるので冪等
+      const adopted = await themeFileSync
+        .adoptDropIns(installedThemes.value)
+        .catch((e) => {
+          console.warn('[theme] drop-in adoption failed:', e)
+          return [] as MisskeyTheme[]
+        })
+      if (adopted.length > 0) {
+        installedThemes.value = [...installedThemes.value, ...adopted]
+        const names = adopted.map((t) => `「${t.name}」`).join(' ')
+        import('@/stores/toast')
+          .then(({ useToast }) =>
+            useToast().show(`テーマ ${names} を themes/ から取り込みました`),
+          )
+          .catch(() => {
+            /* toast unavailable — skip */
+          })
+      }
       // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
       await themeFileSync.themeFiles
         .sweepHistory()
