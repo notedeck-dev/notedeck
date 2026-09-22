@@ -497,6 +497,24 @@ describe('useCrossAccountNotes: streaming と Pull to Refresh', () => {
     expect(fetchFor.mock.calls.length).toBeGreaterThan(before)
     expect(ids(api)).toEqual(['a02', 'a01'])
   })
+
+  it('復帰で取り直した既存ノートも判定を通し、合致しなくなったものは表示から外す (#1120)', async () => {
+    addAccount('acc-a')
+    let page = [note('a02', { text: 'keep' }), note('a01', { text: 'keep' })]
+    const fetchFor = vi.fn(() => page)
+    const column = ref<Partial<DeckColumn>>({
+      noteQuery: 'note.text != "drop"',
+    })
+    const { api } = mountCross({ column, fetchFor, streaming: true })
+    await flush()
+    expect(ids(api)).toEqual(['a02', 'a01'])
+
+    // 切断中に a02 の本文が編集されてクエリから外れた。a01 は重なるので gap ではない
+    page = [note('a02', { text: 'drop' }), note('a01', { text: 'keep' })]
+    await api.pullRefresh()
+    await flushFrames()
+    expect(ids(api)).toEqual(['a01'])
+  })
 })
 
 describe('useCrossAccountNotes: ノートアクションは取得元アカウントで実行する', () => {

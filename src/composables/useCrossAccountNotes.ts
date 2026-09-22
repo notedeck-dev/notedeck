@@ -509,11 +509,22 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       if (gen !== generation) return
     }
     if (overlap.length > 0) {
-      const existing = overlap.filter((n) => noteKeys.has(variantKeyOf(n)))
-      const brandNew = await admit(
-        overlap.filter((n) => !noteKeys.has(variantKeyOf(n))),
-      )
+      // 取り直した分は既存・新規を問わず判定を通す (#1120)。復帰は取りこぼした
+      // 更新を回収する経路なので、切断中の編集で本文が変わって合致しなくなった
+      // 既存ノートはここで表示から外す
+      const admitted = await admit(overlap)
       if (gen !== generation) return
+      const admittedKeys = new Set(admitted.map(variantKeyOf))
+      const dropped = new Set(
+        overlap
+          .map(variantKeyOf)
+          .filter((k) => noteKeys.has(k) && !admittedKeys.has(k)),
+      )
+      if (dropped.size > 0) {
+        setNotes(rawNotes.value.filter((n) => !dropped.has(variantKeyOf(n))))
+      }
+      const existing = admitted.filter((n) => noteKeys.has(variantKeyOf(n)))
+      const brandNew = admitted.filter((n) => !noteKeys.has(variantKeyOf(n)))
       if (existing.length > 0) mergeUpdate(existing)
       if (brandNew.length > 0) {
         streamingBatch.addQueued(brandNew)

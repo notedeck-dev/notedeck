@@ -487,12 +487,40 @@ export function useNoteColumn(config: NoteColumnConfig) {
     adapter: ServerAdapter,
     opts: { sinceId?: string } = {},
   ): Promise<NormalizedNote[]> {
-    const fetched = await dedup(getDedupKey(), () =>
-      config.fetch(adapter, opts),
-    )
-    advanceFetchCursor(fetched)
+    return (await fetchAndAdmit(adapter, opts)).admitted
+  }
+
+  /**
+   * 生ページと判定通過分の両方を返す。復帰系は「取り直したのに判定に落ちた
+   * 既存行」を表示から外すのに生ページが要る (#1120)
+   */
+  async function fetchAndAdmit(
+    adapter: ServerAdapter,
+    opts: { sinceId?: string } = {},
+  ): Promise<{ raw: NormalizedNote[]; admitted: NormalizedNote[] }> {
+    const raw = await dedup(getDedupKey(), () => config.fetch(adapter, opts))
+    advanceFetchCursor(raw)
     // REST 取得もキャッシュ・ストリーミングと同じ防御フィルタを通す (#651)
-    return applyFilter(fetched)
+    return { raw, admitted: await applyFilter(raw) }
+  }
+
+  /**
+   * 取り直したページに載っているのに判定に落ちた既存行を表示から外す (#1120)。
+   * 切断中の編集で本文が変わり、フィルタ / クエリに合致しなくなったノートは
+   * ライブイベントが無いので、復帰の取り直しがそれを回収する唯一の経路
+   */
+  function dropRejectedExisting(
+    raw: NormalizedNote[],
+    admitted: NormalizedNote[],
+  ): void {
+    const admittedKeys = new Set(admitted.map(variantKeyOf))
+    const dropped = new Set(
+      raw
+        .map(variantKeyOf)
+        .filter((k) => noteKeys.has(k) && !admittedKeys.has(k)),
+    )
+    if (dropped.size === 0) return
+    setNotes(rawNotes.value.filter((n) => !dropped.has(variantKeyOf(n))))
   }
 
   function verifyStaleNotes(
@@ -979,15 +1007,21 @@ export function useNoteColumn(config: NoteColumnConfig) {
         : Promise.resolve([] as NormalizedNote[])
 
     let apiFailed = false
+    const empty = { raw: [], admitted: [] } as Awaited<
+      ReturnType<typeof fetchAndAdmit>
+    >
     const apiPromise = shouldFetch
-      ? fetchAndDedup(adapter, {}).catch((e) => {
+      ? fetchAndAdmit(adapter, {}).catch((e) => {
           logWarn('resume-api', e)
           apiFailed = true
-          return [] as NormalizedNote[]
+          return empty
         })
-      : Promise.resolve([] as NormalizedNote[])
+      : Promise.resolve(empty)
 
-    const [cached, fetched] = await Promise.all([cachePromise, apiPromise])
+    const [cached, { raw, admitted: fetched }] = await Promise.all([
+      cachePromise,
+      apiPromise,
+    ])
     // フェッチ中にタブが切り替わっていたら旧タブの結果を破棄 (#651)。
     // ガードなしだと下の gap 判定が別 TL のページで発火し、カラム全体が
     // 期待外の公開範囲のノートに丸ごと置換される。
@@ -999,7 +1033,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
       return
     }
 
-    // Merge: update existing in-place, route new notes through streaming batch
+    // Merge: update existing in-place, route new notes through streaming batch.
+    // 判定に落ちた既存行は先に外す (#1120)
+    dropRejectedExisting(raw, fetched)
     mergeOrEnqueue([...fetched, ...cached])
 
     // Background: verify cached notes not confirmed by fresh API fetch
@@ -1139,10 +1175,11 @@ export function useNoteColumn(config: NoteColumnConfig) {
       // 1 ページ分しか埋まらず、snapshot が古い (長期スリープ後など) と隠れた
       // 穴が残る。onResume と同じく gap を検出して置換する (#791)
       try {
-        const fetched = await fetchAndDedup(adapter, {})
+        const { raw, admitted: fetched } = await fetchAndAdmit(adapter, {})
         // Guard: discard if tab changed during async fetch
         if (!stillCurrent()) return
         const gap = hasGap(fetched, snapshotNotes.length > 0)
+        if (!gap) dropRejectedExisting(raw, fetched)
         mergeOrEnqueue(fetched, gap ? { replace: true } : undefined)
         isOffline.value = false
       } catch {
