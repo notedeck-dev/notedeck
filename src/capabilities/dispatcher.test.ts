@@ -309,6 +309,37 @@ describe('dispatchCapability — confirmation flow', () => {
     expect(confirmCalls).toBe(0)
   })
 
+  it('ai.heartbeat (無人実行) は確認を待たず user_cancelled で拒否する (#1106)', async () => {
+    let confirmCalls = 0
+    let executed = false
+    registerCapability(
+      makeCapability({
+        id: 'notes.create',
+        permissions: ['notes.write'],
+        requiresConfirmation: true,
+        execute: () => {
+          executed = true
+          return 'posted'
+        },
+      }),
+    )
+    setPrincipalPreset('ai.heartbeat', 'full')
+    const r = await dispatchCapability(
+      'notes.create',
+      { text: 'hello' },
+      { principal: { kind: 'ai.heartbeat' } },
+      {
+        confirmFn: async () => {
+          confirmCalls++
+          return { accepted: true, remember: false }
+        },
+      },
+    )
+    expect(r).toMatchObject({ ok: false, code: 'user_cancelled' })
+    expect(confirmCalls).toBe(0)
+    expect(executed).toBe(false)
+  })
+
   it('invokes confirmFn before execute when requiresConfirmation: true', async () => {
     const calls: string[] = []
     registerCapability(
@@ -716,16 +747,14 @@ describe('dispatchCapability — confirmation flow', () => {
     expect(confirmCalls).toBe(2)
   })
 
-  it('ai.chat の remember は ai.heartbeat に波及しない — 無人実行は常に確認 (#714)', async () => {
+  it('ai.chat の remember は ai.heartbeat に波及しない — 無人実行は確認せず拒否 (#714 / #1106)', async () => {
     let confirmCalls = 0
     registerCapability(
       makeCapability({ id: 'clips.create', requiresConfirmation: true }),
     )
     const opts = {
-      confirmFn: async (o: { rememberLabel?: string }) => {
+      confirmFn: async () => {
         confirmCalls++
-        // heartbeat のダイアログには remember チェックボックス自体を出さない
-        if (confirmCalls > 1) expect(o.rememberLabel).toBeUndefined()
         return { accepted: true, remember: true }
       },
     }
@@ -735,8 +764,8 @@ describe('dispatchCapability — confirmation flow', () => {
       { principal: { kind: 'ai.chat' } },
       opts,
     )
-    // chat で remember 済みでも heartbeat は毎回確認。remember=true を返しても
-    // 記憶されない
+    // chat で remember 済みでも heartbeat には効かない。無人実行は確認ダイアログを
+    // 開かず、確認が要る操作をその場で拒否する (#1106 §4.8)
     for (let i = 0; i < 2; i++) {
       const r = await dispatchCapability(
         'clips.create',
@@ -744,9 +773,9 @@ describe('dispatchCapability — confirmation flow', () => {
         { principal: { kind: 'ai.heartbeat' } },
         opts,
       )
-      expect(r.ok).toBe(true)
+      expect(r).toMatchObject({ ok: false, code: 'user_cancelled' })
     }
-    expect(confirmCalls).toBe(3)
+    expect(confirmCalls).toBe(1)
   })
 
   it('plugin の remember は個体単位 — 別プラグインには波及しない (#714)', async () => {
@@ -1506,9 +1535,29 @@ describe('dispatchCapability — 確認ダイアログの principal 帰属 (#712
     expect(attribution).toBe('AI')
   })
 
-  it('ai.heartbeat 由来の確認は「HEARTBEAT」の独立ラベルになる', async () => {
-    const attribution = await dispatchConfirmable({ kind: 'ai.heartbeat' })
-    expect(attribution).toBe('HEARTBEAT')
+  it('ai.heartbeat 由来の操作は確認ダイアログに到達しない (無人実行は拒否、#1106)', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'notes.create',
+        label: 'ノートを投稿',
+        requiresConfirmation: true,
+        execute: () => 'posted',
+      }),
+    )
+    let confirmCalls = 0
+    const r = await dispatchCapability(
+      'notes.create',
+      { text: 'hi' },
+      { principal: { kind: 'ai.heartbeat' } },
+      {
+        confirmFn: async () => {
+          confirmCalls++
+          return { accepted: true, remember: false }
+        },
+      },
+    )
+    expect(r).toMatchObject({ ok: false, code: 'user_cancelled' })
+    expect(confirmCalls).toBe(0)
   })
 
   it('external 由来の確認は「外部アプリ」で帰属表示される', async () => {

@@ -1,6 +1,6 @@
 # notedeck の Cargo workspace (#1106 段階 0)。
 # メンバー: src-tauri (アプリの Rust) / crates/notecli (Misskey クライアント + CLI)。
-# 今後 crates/notecore / crates/notenode をここに足す。プロファイルは workspace root にしか置けない。
+# 今後 crates/notecore / crates/notecored をここに足す。プロファイルは workspace root にしか置けない。
 [workspace]
 resolver = "2"
 members = ["src-tauri", "crates/notecli"]
