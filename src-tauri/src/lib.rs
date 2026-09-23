@@ -14,7 +14,6 @@ use tauri_plugin_autostart::MacosLauncher;
 #[cfg(not(mobile))]
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
-mod ai_chat_service;
 mod app_dir;
 mod commands;
 mod core;
@@ -28,7 +27,6 @@ mod ipc_index;
 mod os_notify;
 mod query_bridge;
 mod query_runtime;
-mod shutdown;
 mod streaming;
 mod system_state;
 mod win_chrome;
@@ -298,7 +296,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
         // 終了時のタスク所有 (#1098)。常駐ループはここ経由で spawn し、
         // ExitRequested で begin_shutdown が abort する
-        let shutdown = std::sync::Arc::new(shutdown::Shutdown::new());
+        let shutdown = std::sync::Arc::new(core::shutdown::Shutdown::new(tauri::async_runtime::handle().inner().clone()));
         app.manage(shutdown.clone());
 
         // ディスク画像キャッシュの掃除 (#815)。TTL 超過分と上限超過分は
@@ -817,13 +815,13 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 /// 次の項目へ進まない。
 fn begin_shutdown(app: &tauri::AppHandle) {
     tracing::info!("shutdown requested");
-    if let Some(s) = app.try_state::<std::sync::Arc<shutdown::Shutdown>>() {
+    if let Some(s) = app.try_state::<std::sync::Arc<core::shutdown::Shutdown>>() {
         s.trigger();
     }
     if let Some(h) = app.try_state::<std::sync::Arc<commands::HeartbeatScheduler>>() {
         h.unregister();
     }
-    ai_chat_service::abort_all_streams();
+    core::ai_chat_service::abort_all_streams();
 }
 
 /// Build the tauri-specta builder shared by the runtime, the `gen_bindings`
