@@ -1,7 +1,8 @@
 import type { JsonValue } from '@/bindings'
 import type { Command } from '@/commands/registry'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { ACCOUNT_ID_PARAM_DESC, resolveAccountId } from '../accountContext'
+import { resolveAccountId } from '../accountContext'
+import { implement } from '../declare'
 
 /**
  * Registry (Misskey サーバー側 KV ストア) 系 capability。
@@ -36,75 +37,15 @@ function pickScope(input: unknown): string[] {
   return out
 }
 
-const SCOPE_PARAM_DESC =
-  'registry の scope 配列 (= path components)。例: `["client"]` / ' +
-  '`["client","misskey"]`。Misskey 公式 UI と共有される設定エリア。'
-
-export const registryListKeysCapability: Command = {
-  id: 'registry.listKeys',
-  label: 'registry の key 一覧',
-  icon: 'ti-database',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.read'],
-  signature: {
-    description:
-      '指定 scope 配下の key 一覧と各 key の型を返す (Misskey ' +
-      '`i/registry/keys-with-type` 相当)。',
-    params: {
-      scope: {
-        type: 'array',
-        description: SCOPE_PARAM_DESC,
-      },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ [key]: typeString }',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const registryListKeysCapability = implement('registry.listKeys', {
   execute: async (params, ctx) => {
     const scope = pickScope(params?.scope)
     const accountId = resolveAccountId(params?.accountId, ctx)
     return unwrap(await commands.apiListRegistryKeys(accountId, scope))
   },
-}
+})
 
-export const registryGetCapability: Command = {
-  id: 'registry.get',
-  label: 'registry の値を取得',
-  icon: 'ti-database',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.read'],
-  signature: {
-    description:
-      '指定 scope の key の値を取得する (Misskey `i/registry/get-detail`)。' +
-      ' 存在しない key は null を返す。',
-    params: {
-      scope: { type: 'array', description: SCOPE_PARAM_DESC },
-      key: { type: 'string', description: '取得する key' },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '取得した JsonValue (型は scope/key 依存)',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const registryGetCapability = implement('registry.get', {
   execute: async (params, ctx) => {
     const scope = pickScope(params?.scope)
     const key = pickString(params?.key)
@@ -112,17 +53,9 @@ export const registryGetCapability: Command = {
     const accountId = resolveAccountId(params?.accountId, ctx)
     return unwrap(await commands.apiGetRegistryValue(accountId, scope, key))
   },
-}
+})
 
-export const registrySetCapability: Command = {
-  id: 'registry.set',
-  actsAsAccount: true,
-  label: 'registry に値を書込',
-  icon: 'ti-database-edit',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.write'],
+export const registrySetCapability = implement('registry.set', {
   requiresConfirmation: (params) => {
     const scope = Array.isArray(params?.scope)
       ? (params.scope as string[]).join('/')
@@ -141,28 +74,6 @@ export const registrySetCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description:
-      '指定 scope の key に JsonValue を書込む (Misskey `i/registry/set`)。' +
-      ' Misskey 公式 Web Client と共有される設定エリアなので、変更は公式 UI ' +
-      'にも反映される。',
-    params: {
-      scope: { type: 'array', description: SCOPE_PARAM_DESC },
-      key: { type: 'string', description: '書込先 key' },
-      value: {
-        type: 'object',
-        description:
-          '書込む JsonValue (number / string / array / object / null 何でも可)',
-      },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: { type: 'object', description: '{ ok: true, scope, key }' },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const scope = pickScope(params?.scope)
     const key = pickString(params?.key)
@@ -181,17 +92,9 @@ export const registrySetCapability: Command = {
     )
     return { ok: true, scope, key }
   },
-}
+})
 
-export const registryDeleteCapability: Command = {
-  id: 'registry.delete',
-  actsAsAccount: true,
-  label: 'registry の値を削除',
-  icon: 'ti-database-x',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.write'],
+export const registryDeleteCapability = implement('registry.delete', {
   requiresConfirmation: (params) => {
     const scope = Array.isArray(params?.scope)
       ? (params.scope as string[]).join('/')
@@ -208,22 +111,6 @@ export const registryDeleteCapability: Command = {
       type: 'danger',
     }
   },
-  signature: {
-    description:
-      '指定 scope の key を削除する (Misskey `i/registry/remove`)。' +
-      ' Misskey 公式 Web Client と共有される設定エリア。',
-    params: {
-      scope: { type: 'array', description: SCOPE_PARAM_DESC },
-      key: { type: 'string', description: '削除する key' },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: { type: 'object', description: '{ deleted: true, scope, key }' },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const scope = pickScope(params?.scope)
     const key = pickString(params?.key)
@@ -232,7 +119,7 @@ export const registryDeleteCapability: Command = {
     unwrap(await commands.apiDeleteRegistryValue(accountId, scope, key))
     return { deleted: true, scope, key }
   },
-}
+})
 
 export const REGISTRY_BUILTIN_CAPABILITIES: readonly Command[] = [
   registryListKeysCapability,

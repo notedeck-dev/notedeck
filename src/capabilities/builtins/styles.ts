@@ -2,7 +2,8 @@ import type { Command } from '@/commands/registry'
 import { appendBlock } from '@/services/selfEditApply'
 import { useThemeStore } from '@/stores/theme'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
-import { editAttribution, REASON_PARAM } from '../editAttribution'
+import { implement } from '../declare'
+import { editAttribution } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 /**
@@ -27,41 +28,15 @@ interface CssSnapshot {
   body: string
 }
 
-export const stylesReadCapability: Command = {
-  id: 'styles.read',
-  label: 'カスタム CSS を読む',
-  icon: 'ti-brush',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      '現在の custom.css の内容を返す。CSS 変数の上書きや独自ルール等を' +
-      ' AI が確認するために使う。',
-    params: {},
-    returns: {
-      type: 'object',
-      description: '{ body: string, length: number }',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const stylesReadCapability = implement('styles.read', {
   execute: () => {
     const store = useThemeStore()
     const body = store.customCss
     return { body, length: body.length }
   },
-}
+})
 
-export const stylesWriteCapability: Command = {
-  id: 'styles.write',
-  label: 'カスタム CSS を全置換',
-  icon: 'ti-brush',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['styles.write'],
+export const stylesWriteCapability = implement('styles.write', {
   requiresConfirmation: (params, ctx) => {
     const body = typeof params?.body === 'string' ? params.body : ''
     const cur = useThemeStore().customCss
@@ -77,23 +52,6 @@ export const stylesWriteCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description:
-      'custom.css の内容を `body` で全置換する。差分編集ではなく完全上書き' +
-      'なので、styles.read で現状を取得してからマージした内容を渡すこと。',
-    params: {
-      body: {
-        type: 'string',
-        description: '新しい custom.css 全文',
-      },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description: '{ length: 書込後の文字数 }',
-    },
-  },
-  visible: false,
   execute: (params, ctx) => {
     const body = typeof params?.body === 'string' ? params.body : ''
     const store = useThemeStore()
@@ -106,16 +64,9 @@ export const stylesWriteCapability: Command = {
     store.setCustomCss(next, editAttribution(ctx, params))
     return { length: next.length }
   },
-}
+})
 
-export const stylesAppendCapability: Command = {
-  id: 'styles.append',
-  label: 'カスタム CSS に追記',
-  icon: 'ti-plus',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['styles.write'],
+export const stylesAppendCapability = implement('styles.append', {
   requiresConfirmation: (params, ctx) => {
     const content = typeof params?.content === 'string' ? params.content : ''
     const cur = useThemeStore().customCss
@@ -131,23 +82,6 @@ export const stylesAppendCapability: Command = {
       type: 'normal',
     }
   },
-  signature: {
-    description:
-      'custom.css の末尾に CSS を追記する。既存ルールには触らない' +
-      ' (= 学習が積み上がる、skills.append と対称)。',
-    params: {
-      content: {
-        type: 'string',
-        description: '末尾に追記する CSS (改行は \\n)',
-      },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description: '{ length: 追記後の文字数 }',
-    },
-  },
-  visible: false,
   execute: (params, ctx) => {
     const content = typeof params?.content === 'string' ? params.content : ''
     if (!content) throw new Error('styles.append: content is required')
@@ -159,41 +93,15 @@ export const stylesAppendCapability: Command = {
     store.setCustomCss(next, editAttribution(ctx, params))
     return { length: next.length }
   },
-}
+})
 
-export const stylesHistoryCapability: Command = {
-  id: 'styles.history',
-  label: 'カスタム CSS の編集履歴',
-  icon: 'ti-history',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      'custom.css の編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。' +
-      ' 各エントリは { at: 時刻 ms, snapshot: { body } }。',
-    params: {},
-    returns: {
-      type: 'array',
-      description: '編集前 snapshot の配列 (新しい順)',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const stylesHistoryCapability = implement('styles.history', {
   execute: async () => {
     return await listSnapshots<CssSnapshot>('css', CSS_HISTORY_BASENAME)
   },
-}
+})
 
-export const stylesRevertCapability: Command = {
-  id: 'styles.revert',
-  label: 'カスタム CSS を過去の状態に戻す',
-  icon: 'ti-arrow-back-up',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['styles.write'],
+export const stylesRevertCapability = implement('styles.revert', {
   requiresConfirmation: async (params, ctx) => {
     const index = typeof params?.index === 'number' ? params.index : -1
     if (index < 0) return null
@@ -217,23 +125,6 @@ export const stylesRevertCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description:
-      'custom.css を編集履歴の index 番目の snapshot に戻す。' +
-      ' styles.history で index を取得。',
-    params: {
-      index: {
-        type: 'number',
-        description: 'snapshot index (0 = 最新、styles.history の順序と一致)',
-      },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description: '{ reverted: boolean, at: number }',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const index = typeof params?.index === 'number' ? params.index : -1
     if (index < 0) throw new Error('styles.revert: index must be >= 0')
@@ -255,7 +146,7 @@ export const stylesRevertCapability: Command = {
     store.setCustomCss(next, editAttribution(ctx, params))
     return { reverted: true, at: entry.at }
   },
-}
+})
 
 export const STYLES_BUILTIN_CAPABILITIES: readonly Command[] = [
   stylesReadCapability,

@@ -2,6 +2,7 @@ import type { Command } from '@/commands/registry'
 import { sendAiChatOnce } from '@/composables/useAiChat'
 import { resolveAiConnection } from '@/composables/useAiConfig'
 import { useVault } from '@/composables/useVault'
+import { implement } from '../declare'
 
 /**
  * `ai.chat` — NoteDeck 本体の AI に 1 ターンだけ問い合わせて応答を得る。
@@ -16,48 +17,8 @@ import { useVault } from '@/composables/useVault'
  *
  * 設計詳細: plans/atomic-crunching-floyd.md
  */
-export const aiChatCapability: Command = {
-  id: 'ai.chat',
-  label: 'AI に問い合わせる',
-  icon: 'ti-sparkles',
-  category: 'general',
-  shortcuts: [],
-  aiTool: false,
-  permissions: ['ai.invoke'],
+export const aiChatCapability = implement('ai.chat', {
   requiresConfirmation: false,
-  signature: {
-    description:
-      'NoteDeck の AI に 1 ターンだけ問い合わせて応答テキストを得る。' +
-      'AiScript プラグインや外部 API / CLI から呼ぶ用途。AI チャット本体' +
-      'からの自己再帰呼出しは aiTool:false で塞がれている。',
-    params: {
-      prompt: {
-        type: 'string',
-        description: 'ユーザー側プロンプト (= user role の content)',
-      },
-      system: {
-        type: 'string',
-        description: 'システムプロンプト (= AI に与える役割設定)',
-        optional: true,
-      },
-      model: {
-        type: 'string',
-        description: 'モデル override (省略時は現在の AI 設定を使う)',
-        optional: true,
-      },
-      maxTokens: {
-        type: 'number',
-        description: '最大トークン数 (省略時はプロバイダのデフォルト)',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ response: string }',
-    },
-    cheap: false,
-  },
-  visible: true,
   execute: async (params, ctx) => {
     const prompt = typeof params?.prompt === 'string' ? params.prompt : ''
     if (!prompt) throw new Error('prompt is required')
@@ -99,6 +60,6 @@ export const aiChatCapability: Command = {
 
     return { response }
   },
-}
+})
 
 export const AI_BUILTIN_CAPABILITIES: readonly Command[] = [aiChatCapability]

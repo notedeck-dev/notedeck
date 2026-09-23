@@ -1,6 +1,7 @@
 import type { Command } from '@/commands/registry'
 import { formatLocalTimestamp } from '@/utils/aiSessionId'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { implement } from '../declare'
 
 /**
  * `backup.create` — DB と設定を `Downloads/notedeck/backup/<日時>/` に書き出す (#816)。
@@ -22,40 +23,7 @@ function describeTargets(params?: Record<string, unknown>): string {
   return db ? 'ローカル DB のスナップショット' : '設定のスナップショット'
 }
 
-export const backupCreateCapability: Command = {
-  id: 'backup.create',
-  label: 'バックアップを作成',
-  icon: 'ti-database-export',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  visible: false,
-  permissions: ['backup.create'],
-  signature: {
-    description:
-      'ローカル DB と設定のスナップショットを Downloads/notedeck/backup/ に' +
-      ' 作成する。認証情報は含まれない。デッキ構成やプラグイン登録は対象外。' +
-      ' DB と設定はそれぞれ独立して選べる (既定は両方)。' +
-      ' 世代は新しい順に keep 件だけ残る。',
-    params: {
-      includeDb: {
-        type: 'boolean',
-        description: 'ローカル DB を含める (default: true)',
-        optional: true,
-      },
-      includeSettings: {
-        type: 'boolean',
-        description: '設定ファイル一式を含める (default: true)',
-        optional: true,
-      },
-      keep: {
-        type: 'number',
-        description: '残す世代数 (1〜100、default: 10)',
-        optional: true,
-      },
-    },
-    returns: { type: 'object' },
-  },
+export const backupCreateCapability = implement('backup.create', {
   preflight: (params) => {
     if (params?.includeDb === false && params?.includeSettings === false) {
       return {
@@ -92,7 +60,7 @@ export const backupCreateCapability: Command = {
       rotatedRemoved: result.rotatedRemoved,
     }
   },
-}
+})
 
 export const BACKUP_BUILTIN_CAPABILITIES: readonly Command[] = [
   backupCreateCapability,

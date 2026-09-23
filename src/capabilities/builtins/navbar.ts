@@ -7,6 +7,7 @@ import {
   type NavItem,
   useDeckStore,
 } from '@/stores/deck'
+import { implement } from '../declare'
 
 /**
  * Navbar 系 capability — 「自己拡張する IDE」(memory:
@@ -59,27 +60,7 @@ function parseNavItems(input: unknown): NavItem[] {
   return result
 }
 
-export const navbarListCapability: Command = {
-  id: 'navbar.list',
-  label: 'ナビバー構成を読む',
-  icon: 'ti-layout-sidebar',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      '現在のナビバー構成 (navItems) を返す。各要素は ' +
-      ' { type, accountId, label? } または { type: "divider" }。' +
-      ' navbar.set で AI が新構成を提案するときの起点。',
-    params: {},
-    returns: {
-      type: 'array',
-      description: '現在の NavItem 配列',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const navbarListCapability = implement('navbar.list', {
   execute: () => {
     const store = useDeckStore()
     return store.navItems.map((item) => {
@@ -91,16 +72,9 @@ export const navbarListCapability: Command = {
       }
     })
   },
-}
+})
 
-export const navbarSetCapability: Command = {
-  id: 'navbar.set',
-  label: 'ナビバー構成を上書き',
-  icon: 'ti-layout-sidebar',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['navbar.write'],
+export const navbarSetCapability = implement('navbar.set', {
   requiresConfirmation: (params) => {
     let count = 0
     if (Array.isArray(params?.items)) count = params.items.length
@@ -116,43 +90,15 @@ export const navbarSetCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description:
-      'ナビバー構成 (navItems) を全置換する。差分編集ではなく完全上書きなので、' +
-      ' navbar.list で現状取得してから、追加/削除/並び替えを反映した完全配列を渡す。' +
-      ' columnProps 等の詳細項目は AI 経由では触らない (= type / accountId / label のみ)。',
-    params: {
-      items: {
-        type: 'array',
-        description:
-          '新しい NavItem 配列。各要素は { type: ColumnType | "divider", ' +
-          'accountId: string | null, label?: string }。' +
-          ' ColumnType は notifications / mentions / chat / search / lookup ' +
-          '/ widget / ai / memos / emoji 等 (詳細は navbar.list の戻り値を参照)',
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ count: 書込後の項目数 }',
-    },
-  },
-  visible: false,
   execute: (params) => {
     const items = parseNavItems(params?.items)
     const store = useDeckStore()
     store.setNavItems(items)
     return { count: items.length }
   },
-}
+})
 
-export const navbarResetCapability: Command = {
-  id: 'navbar.reset',
-  label: 'ナビバー構成を default に戻す',
-  icon: 'ti-arrow-back-up',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['navbar.write'],
+export const navbarResetCapability = implement('navbar.reset', {
   requiresConfirmation: () => ({
     title: 'ナビバー構成を default に戻す',
     message: `現在のカスタム構成を破棄し、デフォルトの ${DEFAULT_NAV_ITEMS.length} 項目に戻します。`,
@@ -170,21 +116,12 @@ export const navbarResetCapability: Command = {
     cancelLabel: 'やめる',
     type: 'warning',
   }),
-  signature: {
-    description: 'ナビバー構成を NoteDeck の default に戻す。',
-    params: {},
-    returns: {
-      type: 'object',
-      description: '{ count: default 項目数 }',
-    },
-  },
-  visible: false,
   execute: () => {
     const store = useDeckStore()
     store.setNavItems(undefined)
     return { count: DEFAULT_NAV_ITEMS.length }
   },
-}
+})
 
 export const NAVBAR_BUILTIN_CAPABILITIES: readonly Command[] = [
   navbarListCapability,

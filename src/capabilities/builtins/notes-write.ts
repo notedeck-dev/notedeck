@@ -4,11 +4,8 @@ import { projectVisibleItems } from '@/composables/useAiSystemContext'
 import { reactionJoinability } from '@/services/remoteReaction'
 import { useAccountsStore } from '@/stores/accounts'
 import { useServersStore } from '@/stores/servers'
-import {
-  ACCOUNT_ID_PARAM_DESC,
-  getApiAdapter,
-  resolveAccountId,
-} from '../accountContext'
+import { getApiAdapter, resolveAccountId } from '../accountContext'
+import { implement } from '../declare'
 
 /**
  * Phase 5.0: write 系 capability。すべて `requiresConfirmation: true` を宣言し、
@@ -33,61 +30,7 @@ function pickString(input: unknown): string | undefined {
 }
 
 /** `notes.create` — 新規ノートを投稿する */
-export const notesCreateCapability: Command = {
-  id: 'notes.create',
-  actsAsAccount: true,
-  label: 'ノートを投稿',
-  icon: 'ti-pencil',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['notes.write'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      'Misskey にノートを投稿する。text 必須。visibility のデフォルトは public。' +
-      ' 投稿前に確認モーダルが出る。' +
-      ' 別サーバーから投稿するときは accountId を指定する。',
-    params: {
-      text: {
-        type: 'string',
-        description: '投稿本文 (空文字は不可)',
-      },
-      cw: {
-        type: 'string',
-        description: 'CW (内容警告)。空文字なし',
-        optional: true,
-      },
-      visibility: {
-        type: 'string',
-        description:
-          '公開範囲: public / home / followers / specified (default: public)',
-        enum: VALID_VISIBILITIES,
-        optional: true,
-      },
-      replyId: {
-        type: 'string',
-        description: 'リプライ先の noteId',
-        optional: true,
-      },
-      renoteId: {
-        type: 'string',
-        description: '引用 / リノートの対象 noteId (text 空ならただのリノート)',
-        optional: true,
-      },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description:
-        '投稿された note projection (id / userId / username / text / createdAt)',
-    },
-  },
-  visible: false,
+export const notesCreateCapability = implement('notes.create', {
   execute: async (params, ctx) => {
     const text = pickString(params?.text)
     const renoteId = pickString(params?.renoteId)
@@ -117,45 +60,10 @@ export const notesCreateCapability: Command = {
     const note = await api.createNote(create)
     return projectVisibleItems([note], 'search', 1)[0] ?? null
   },
-}
+})
 
 /** `notes.react` — ノートにリアクションする */
-export const notesReactCapability: Command = {
-  id: 'notes.react',
-  actsAsAccount: true,
-  label: 'リアクションする',
-  icon: 'ti-mood-smile',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['notes.react'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      'Misskey ノートにリアクションを付ける。reaction は :name: 形式 (`:thinking_face:`)' +
-      ' または Unicode 絵文字 (`👍`)。投稿前に確認モーダルが出る。' +
-      ' 別サーバーで操作するときは accountId を指定する。',
-    params: {
-      noteId: {
-        type: 'string',
-        description: '対象の noteId',
-      },
-      reaction: {
-        type: 'string',
-        description: 'リアクション (例: `:thinking_face:` / `👍`)',
-      },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '`{ ok: true, noteId, reaction }`',
-    },
-  },
-  visible: false,
+export const notesReactCapability = implement('notes.react', {
   execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     const reaction = pickString(params?.reaction)
@@ -184,7 +92,7 @@ export const notesReactCapability: Command = {
     await api.createReaction(noteId, reaction)
     return { ok: true, noteId, reaction }
   },
-}
+})
 
 /** `notes.unreact` — 自分が付けたリアクションを解除する。
  *
@@ -192,38 +100,7 @@ export const notesReactCapability: Command = {
  * (= 1 ノートに付けられる reaction は 1 つだけだから一意に決まる)。
  * notes.react と対称、可逆操作なので確認 UI は標準 (danger だが内容は軽い)。
  */
-export const notesUnreactCapability: Command = {
-  id: 'notes.unreact',
-  actsAsAccount: true,
-  label: 'リアクションを解除',
-  icon: 'ti-mood-x',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['notes.react'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      'Misskey ノートに付けた自分のリアクションを解除する。1 ノートに付け' +
-      'られる reaction は 1 つだけなので種別指定不要。' +
-      ' 別サーバーで操作するときは accountId を指定する。',
-    params: {
-      noteId: {
-        type: 'string',
-        description: '対象の noteId',
-      },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '`{ ok: true, noteId }`',
-    },
-  },
-  visible: false,
+export const notesUnreactCapability = implement('notes.unreact', {
   execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('notes.unreact: noteId is required')
@@ -231,7 +108,7 @@ export const notesUnreactCapability: Command = {
     await api.deleteReaction(noteId)
     return { ok: true, noteId }
   },
-}
+})
 
 /**
  * `notes.delete` — 自分のノートを削除する (慎重カテゴリ、不可逆)。
@@ -241,15 +118,7 @@ export const notesUnreactCapability: Command = {
  * 「整理しといて」と気軽に呼ばないよう、permission も notes.write を要求
  * (= safe preset では通らない)。
  */
-export const notesDeleteCapability: Command = {
-  id: 'notes.delete',
-  actsAsAccount: true,
-  label: 'ノートを削除',
-  icon: 'ti-trash',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['notes.write'],
+export const notesDeleteCapability = implement('notes.delete', {
   requiresConfirmation: (params) => {
     const noteId = typeof params?.noteId === 'string' ? params.noteId : ''
     return {
@@ -262,28 +131,6 @@ export const notesDeleteCapability: Command = {
       type: 'danger',
     }
   },
-  signature: {
-    description:
-      '自分のノートを削除する。**元に戻せない**。リノート / 引用 / お気に入り / ' +
-      'クリップに含まれている場合もすべて連鎖して見えなくなる。他人のノートは削除不可。' +
-      ' 別サーバーで操作するときは accountId を指定する。',
-    params: {
-      noteId: {
-        type: 'string',
-        description: '削除する noteId (自分のノートのみ)',
-      },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '`{ deleted: true, noteId }`',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('notes.delete: noteId is required')
@@ -291,41 +138,14 @@ export const notesDeleteCapability: Command = {
     await api.deleteNote(noteId)
     return { deleted: true, noteId }
   },
-}
+})
 
 /**
  * `notes.pin` / `notes.unpin` — 自分のプロファイルにノートを pin / 解除する。
  * 公開プロファイルの top に表示される。可逆操作 (unpin あり) なので確認 UI は
  * 標準 (danger だが内容は軽い)。Misskey の上限は通常 5 件。
  */
-export const notesPinCapability: Command = {
-  id: 'notes.pin',
-  actsAsAccount: true,
-  label: 'ノートをプロファイルに pin',
-  icon: 'ti-pin',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['notes.write'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      '自分のプロファイル top に指定ノートを pin する。Misskey の上限は通常 ' +
-      '5 件で、上限超過時はサーバー側でエラーになる。',
-    params: {
-      noteId: {
-        type: 'string',
-        description: 'pin する noteId (自分のノートのみ)',
-      },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: { type: 'object', description: '{ pinned: true, noteId }' },
-  },
-  visible: false,
+export const notesPinCapability = implement('notes.pin', {
   execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('notes.pin: noteId is required')
@@ -333,31 +153,9 @@ export const notesPinCapability: Command = {
     await api.pinNote(noteId)
     return { pinned: true, noteId }
   },
-}
+})
 
-export const notesUnpinCapability: Command = {
-  id: 'notes.unpin',
-  actsAsAccount: true,
-  label: 'ノートの pin を解除',
-  icon: 'ti-pinned-off',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['notes.write'],
-  requiresConfirmation: true,
-  signature: {
-    description: '自分のプロファイル top に pin したノートを解除する。',
-    params: {
-      noteId: { type: 'string', description: 'pin 解除する noteId' },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: { type: 'object', description: '{ unpinned: true, noteId }' },
-  },
-  visible: false,
+export const notesUnpinCapability = implement('notes.unpin', {
   execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('notes.unpin: noteId is required')
@@ -365,7 +163,7 @@ export const notesUnpinCapability: Command = {
     await api.unpinNote(noteId)
     return { unpinned: true, noteId }
   },
-}
+})
 
 export const NOTES_WRITE_BUILTIN_CAPABILITIES: readonly Command[] = [
   notesCreateCapability,

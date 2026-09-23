@@ -42,7 +42,7 @@ describe('meta.permissions', () => {
       { principal: { kind: 'external' } },
     ) as { principal: string; preset: string }
     expect(result.principal).toBe('external')
-    expect(result.preset).toBe(file.value.principals['external']?.preset)
+    expect(result.preset).toBe(file.value.principals.external?.preset)
   })
 
   it('returns all-true map with preset:null for user principal', () => {

@@ -10,7 +10,8 @@ import { useMisStoreStore } from '@/stores/misstore'
 import { useThemeStore } from '@/stores/theme'
 import type { MisskeyTheme } from '@/theme/types'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
-import { editAttribution, REASON_PARAM } from '../editAttribution'
+import { implement } from '../declare'
+import { editAttribution } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 interface ThemeSnapshot {
@@ -24,24 +25,7 @@ interface ThemeSnapshot {
  * `theme.list` — インストール済みテーマの一覧を返す。
  * AI が `theme.apply` で渡す ID を確認するために使う。
  */
-export const themeListCapability: Command = {
-  id: 'theme.list',
-  label: 'テーマ一覧',
-  icon: 'ti-palette',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      'インストール済みテーマの一覧を返す。各要素は { id, name, base, author }',
-    params: {},
-    returns: {
-      type: 'array',
-      description: 'インストール済みテーマ一覧',
-    },
-  },
-  visible: false,
+export const themeListCapability = implement('theme.list', {
   execute: () => {
     const store = useThemeStore()
     return store.installedThemes.map((t) => ({
@@ -56,7 +40,7 @@ export const themeListCapability: Command = {
           : null,
     }))
   },
-}
+})
 
 /**
  * `theme.apply` — 指定 id のテーマを適用する。
@@ -68,31 +52,7 @@ export const themeListCapability: Command = {
  * AI が「現在の配色を見て調整」のように、theme.update を呼ぶ前の現状把握用。
  * 色情報は機密ではないため permission 不要 (theme.list / apply と同じ扱い)。
  */
-export const themeReadCapability: Command = {
-  id: 'theme.read',
-  label: 'テーマの内容を読む',
-  icon: 'ti-palette',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      '指定 id のテーマの全プロパティ (Misskey 互換 CSS 変数) を返す。' +
-      ' theme.update で差分編集する前の現状把握に使う。',
-    params: {
-      id: {
-        type: 'string',
-        description: '対象テーマの id (theme.list で取得)',
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ id, name, base, props: Record<string,string> }',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const themeReadCapability = implement('theme.read', {
   execute: (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('theme.read: id is required')
@@ -108,40 +68,9 @@ export const themeReadCapability: Command = {
       props: { ...theme.props },
     }
   },
-}
+})
 
-export const themeApplyCapability: Command = {
-  id: 'theme.apply',
-  label: 'テーマを適用',
-  icon: 'ti-palette',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['deck.write'],
-  signature: {
-    description:
-      'インストール済みテーマを適用する。' +
-      ' theme.list で id を取得してから呼ぶ。' +
-      ' mode はテーマの base から自動判定 (省略可)。',
-    params: {
-      id: {
-        type: 'string',
-        description: '適用するテーマの id (theme.list で取得)',
-      },
-      mode: {
-        type: 'string',
-        description:
-          '明示的に dark / light どちらの slot に適用するか。省略時はテーマ自体の base を使う',
-        enum: ['dark', 'light'],
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '`{ applied: boolean, id, mode }`',
-    },
-  },
-  visible: false,
+export const themeApplyCapability = implement('theme.apply', {
   execute: (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('theme.apply: id is required')
@@ -163,7 +92,7 @@ export const themeApplyCapability: Command = {
     }
     return { applied: true, id, mode }
   },
-}
+})
 
 /**
  * `theme.create` — 新規テーマを installedThemes に追加する。
@@ -171,14 +100,7 @@ export const themeApplyCapability: Command = {
  * のように動的にテーマを作るための capability。frontmatter 相当の id は
  * 衝突しないよう自動生成 (`custom-<timestamp>`) でも、明示指定でも OK。
  */
-export const themeCreateCapability: Command = {
-  id: 'theme.create',
-  label: 'テーマを作成',
-  icon: 'ti-palette',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['theme.write'],
+export const themeCreateCapability = implement('theme.create', {
   requiresConfirmation: (params) => {
     const name = typeof params?.name === 'string' ? params.name : ''
     const base = typeof params?.base === 'string' ? params.base : ''
@@ -202,35 +124,6 @@ export const themeCreateCapability: Command = {
       type: 'normal',
     }
   },
-  signature: {
-    description:
-      '新規テーマを作成して installedThemes に追加する。' +
-      ' props は Misskey 互換 CSS 変数 (例: { accent: "#5f6", panel: "#0a0a0a" })。' +
-      ' 既存 id を指定した場合は theme.update と同等の挙動になる。',
-    params: {
-      name: { type: 'string', description: 'テーマ名 (UI 表示用)' },
-      base: {
-        type: 'string',
-        description: 'ダーク / ライト どちらの slot に置くか',
-        enum: ['dark', 'light'],
-      },
-      props: {
-        type: 'object',
-        description: 'Misskey 互換 CSS 変数のマップ ({ key: string })',
-      },
-      id: {
-        type: 'string',
-        description: 'テーマ id (省略時は custom-<timestamp> で自動生成)',
-        optional: true,
-      },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description: '{ id, name, base, installed: boolean }',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const name = typeof params?.name === 'string' ? params.name : ''
     const baseRaw = typeof params?.base === 'string' ? params.base : ''
@@ -263,21 +156,14 @@ export const themeCreateCapability: Command = {
     )
     return { id: theme.id, name: theme.name, base: theme.base, installed }
   },
-}
+})
 
 /**
  * `theme.update` — 既存テーマの props / name / base を部分更新する。
  * 内部的には installTheme (= upsert) を呼ぶので、id 不一致なら新規扱いに
  * ならないよう execute 側で必ず id 存在チェックを行う。
  */
-export const themeUpdateCapability: Command = {
-  id: 'theme.update',
-  label: 'テーマを更新',
-  icon: 'ti-palette',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['theme.write'],
+export const themeUpdateCapability = implement('theme.update', {
   requiresConfirmation: (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const cur = useThemeStore().installedThemes.find((t) => t.id === id)
@@ -309,33 +195,6 @@ export const themeUpdateCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description:
-      '既存テーマの props / name / base を部分更新する。指定された' +
-      'フィールドだけ上書きされる。id は theme.list で取得した値を渡す。',
-    params: {
-      id: { type: 'string', description: '対象テーマの id' },
-      name: { type: 'string', description: '新しいテーマ名', optional: true },
-      base: {
-        type: 'string',
-        description: 'ダーク / ライト',
-        enum: ['dark', 'light'],
-        optional: true,
-      },
-      props: {
-        type: 'object',
-        description:
-          '上書きする CSS 変数 ({ key: string })。既存とマージされる',
-        optional: true,
-      },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description: '{ id, updated: boolean }',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('theme.update: id is required')
@@ -358,7 +217,7 @@ export const themeUpdateCapability: Command = {
     )
     return { id, updated }
   },
-}
+})
 
 function isStringRecord(v: unknown): v is Record<string, string> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return false
@@ -392,42 +251,15 @@ function themeHistoryBase(id: string): string {
   return theme?.fileBase ?? id
 }
 
-export const themeHistoryCapability: Command = {
-  id: 'theme.history',
-  label: 'テーマの編集履歴',
-  icon: 'ti-history',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      '指定 id のテーマの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。',
-    params: {
-      id: { type: 'string', description: '対象テーマの id' },
-    },
-    returns: {
-      type: 'array',
-      description: '編集前 snapshot の配列 (新しい順)',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const themeHistoryCapability = implement('theme.history', {
   execute: async (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('theme.history: id is required')
     return await listSnapshots<ThemeSnapshot>('theme', themeHistoryBase(id))
   },
-}
+})
 
-export const themeRevertCapability: Command = {
-  id: 'theme.revert',
-  label: 'テーマを過去の状態に戻す',
-  icon: 'ti-arrow-back-up',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['theme.write'],
+export const themeRevertCapability = implement('theme.revert', {
   requiresConfirmation: async (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const index = typeof params?.index === 'number' ? params.index : -1
@@ -463,19 +295,6 @@ export const themeRevertCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description: 'テーマ props を編集履歴の index 番目に戻す。',
-    params: {
-      id: { type: 'string', description: '対象テーマの id' },
-      index: { type: 'number', description: 'snapshot index (0 = 最新)' },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description: '{ id, reverted: boolean, at: number }',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const index = typeof params?.index === 'number' ? params.index : -1
@@ -500,7 +319,7 @@ export const themeRevertCapability: Command = {
     await store.installTheme(text, [], editAttribution(ctx, params))
     return { id, reverted: true, at: entry.at }
   },
-}
+})
 
 /**
  * `theme.install` — MisStore (store.notedeck.io) から既製テーマを取得して
@@ -511,14 +330,7 @@ export const themeRevertCapability: Command = {
  * sha512 検証・$notedeck.storeId 紐付け・既存 installedFor の union は
  * misstore store 側で実装済。
  */
-export const themeInstallCapability: Command = {
-  id: 'theme.install',
-  label: 'MisStore からテーマを入れる',
-  icon: 'ti-download',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['theme.write', 'network.external'],
+export const themeInstallCapability = implement('theme.install', {
   requiresConfirmation: async (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) return null
@@ -543,23 +355,6 @@ export const themeInstallCapability: Command = {
       type: 'normal',
     }
   },
-  signature: {
-    description:
-      'MisStore (store.notedeck.io) の既製テーマをインストールする。' +
-      ' id は `misstore.search` で取得した値を渡す。' +
-      ' sha512 検証付き。インストール後は theme.apply で適用可能。',
-    params: {
-      id: {
-        type: 'string',
-        description: 'MisStore registry 上の theme id (例: "ame", "dracula")',
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ id, name, base, installed: boolean }',
-    },
-  },
-  visible: false,
   execute: async (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('theme.install: id is required')
@@ -581,7 +376,7 @@ export const themeInstallCapability: Command = {
       installed: true,
     }
   },
-}
+})
 
 /**
  * `theme.uninstall` — インストール済みテーマを完全削除する。
@@ -589,14 +384,7 @@ export const themeInstallCapability: Command = {
  * applyCurrentTheme まで連動する。per-account 紐付けの解除は別途
  * 設計が必要なため、ここではシンプルに「完全削除」に統一する。
  */
-export const themeUninstallCapability: Command = {
-  id: 'theme.uninstall',
-  label: 'テーマを削除',
-  icon: 'ti-trash',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['theme.write'],
+export const themeUninstallCapability = implement('theme.uninstall', {
   requiresConfirmation: (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) return null
@@ -618,19 +406,6 @@ export const themeUninstallCapability: Command = {
       type: 'danger',
     }
   },
-  signature: {
-    description:
-      'インストール済みテーマを完全削除する。選択中だった場合は selection も解除され、' +
-      ' デフォルトテーマにフォールバックする。',
-    params: {
-      id: { type: 'string', description: '削除するテーマの id' },
-    },
-    returns: {
-      type: 'object',
-      description: '{ id, removed: boolean }',
-    },
-  },
-  visible: false,
   execute: (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('theme.uninstall: id is required')
@@ -642,7 +417,7 @@ export const themeUninstallCapability: Command = {
     store.removeTheme(id)
     return { id, removed: true }
   },
-}
+})
 
 export const THEME_BUILTIN_CAPABILITIES: readonly Command[] = [
   themeListCapability,

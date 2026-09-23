@@ -122,7 +122,8 @@ export function createNoteDeckEnv(
         params: c.signature?.params ?? {},
         returns: c.signature?.returns ?? null,
         permissions: c.permissions ?? [],
-        requiresConfirmation: c.requiresConfirmation === true,
+        // 関数形 (確認内容を組み立てる) も「確認あり」。HTTP の一覧と同じ判定にする
+        requiresConfirmation: !!c.requiresConfirmation,
       })),
     )
   })

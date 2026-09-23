@@ -1,6 +1,7 @@
 import type { Command } from '@/commands/registry'
 import { useAiConfig } from '@/composables/useAiConfig'
 import { useSkillsStore } from '@/stores/skills'
+import { implement } from '../declare'
 
 /**
  * Persona 系 capability。AI の「同一性設定」(memory:
@@ -21,27 +22,7 @@ import { useSkillsStore } from '@/stores/skills'
  *   chat 側に即時反映
  */
 
-export const aiListPersonasCapability: Command = {
-  id: 'ai.listPersonas',
-  label: 'persona 用 skill 一覧',
-  icon: 'ti-user-circle',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['skills.read'],
-  signature: {
-    description:
-      'persona として選べる skill 一覧 (= isPersona:true な skill のみ)。' +
-      ' 現在 active な persona は `active: true`。',
-    params: {},
-    returns: {
-      type: 'array',
-      description:
-        '各要素は { id, name, description, mode, scope, active: boolean }',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const aiListPersonasCapability = implement('ai.listPersonas', {
   execute: () => {
     const skillsStore = useSkillsStore()
     const { config } = useAiConfig()
@@ -56,16 +37,9 @@ export const aiListPersonasCapability: Command = {
         active: s.id === currentId,
       }))
   },
-}
+})
 
-export const aiSetPersonaCapability: Command = {
-  id: 'ai.setPersona',
-  label: 'AI persona を切替',
-  icon: 'ti-user-circle',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['ai.persona.write'],
+export const aiSetPersonaCapability = implement('ai.setPersona', {
   requiresConfirmation: (params) => {
     const id = typeof params?.skillId === 'string' ? params.skillId : ''
     const skillsStore = useSkillsStore()
@@ -82,23 +56,6 @@ export const aiSetPersonaCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description:
-      'AI の persona (= 同一性設定) を切り替える。skillId は isPersona:true な ' +
-      'skill の id (ai.listPersonas で取得)、空文字を渡せば persona 解除。' +
-      ' chat / heartbeat / command / task すべての AI session に反映される。',
-    params: {
-      skillId: {
-        type: 'string',
-        description: '新しい persona skill id (空文字で解除 = 通常の汎用 AI)',
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ personaSkillId: string, persona: { id, name } | null }',
-    },
-  },
-  visible: false,
   execute: (params) => {
     const skillId = typeof params?.skillId === 'string' ? params.skillId : ''
     const skillsStore = useSkillsStore()
@@ -124,7 +81,7 @@ export const aiSetPersonaCapability: Command = {
     save()
     return { personaSkillId: '', persona: null }
   },
-}
+})
 
 export const PERSONA_BUILTIN_CAPABILITIES: readonly Command[] = [
   aiListPersonasCapability,

@@ -4,6 +4,7 @@ import { events } from '@/bindings'
 import type { Command } from '@/commands/registry'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { resolveAccountId } from '../accountContext'
+import { implement } from '../declare'
 
 /**
  * `files.export` — アプリが知っているファイル (fileId / noteId 参照) を
@@ -131,56 +132,7 @@ async function runExportAndWait(
   }
 }
 
-export const filesExportCapability: Command = {
-  id: 'files.export',
-  actsAsAccount: true,
-  label: 'ファイルをローカルに保存',
-  icon: 'ti-download',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  visible: false,
-  permissions: ['files.export'],
-  signature: {
-    description:
-      'ドライブファイル (fileIds) やノートの添付 (noteIds) をローカルの' +
-      ' ダウンロードフォルダ (Downloads/notedeck/) に保存する。任意 URL の' +
-      ' 取得はできない。同一ファイルの再保存はスキップされる (冪等)。' +
-      ' センシティブ設定のファイルも既定で保存する (本体のドライブ保存と同じ)。' +
-      ' 除外したい場合は includeSensitive: false を指定する。',
-    params: {
-      fileIds: {
-        type: 'array',
-        description: '保存するドライブファイルの ID 一覧',
-        optional: true,
-      },
-      noteIds: {
-        type: 'array',
-        description: '添付ファイルを保存するノートの ID 一覧',
-        optional: true,
-      },
-      subdir: {
-        type: 'string',
-        description:
-          'Downloads/notedeck/ 直下の保存先サブディレクトリ名 (1 段のみ、' +
-          " default: 'export')",
-        optional: true,
-      },
-      includeSensitive: {
-        type: 'boolean',
-        description:
-          'センシティブ設定のファイルを含めるか (default: true)。' +
-          ' false を指定した分は保存されず excludedSensitive に計上される',
-        optional: true,
-      },
-      accountId: {
-        type: 'string',
-        description: '対象アカウント ID (省略時はアクティブアカウント)',
-        optional: true,
-      },
-    },
-    returns: { type: 'object' },
-  },
+export const filesExportCapability = implement('files.export', {
   preflight: (params) => {
     const fileIds = asStringArray(params?.fileIds)
     const noteIds = asStringArray(params?.noteIds)
@@ -263,7 +215,7 @@ export const filesExportCapability: Command = {
       dir: result.dir,
     }
   },
-}
+})
 
 export const FILES_BUILTIN_CAPABILITIES: readonly Command[] = [
   filesExportCapability,

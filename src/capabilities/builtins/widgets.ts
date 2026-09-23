@@ -13,7 +13,8 @@ import {
 } from '@/stores/widgets'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
 import { pickAccountId } from '../accountContext'
-import { editAttribution, REASON_PARAM } from '../editAttribution'
+import { implement } from '../declare'
+import { editAttribution } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 import { preflightValidateSrc } from './aiscript'
 
@@ -40,29 +41,7 @@ interface WidgetSnapshot {
  *   のみ管理、ウィジェット内部の動作は別レイヤー)
  */
 
-export const widgetsListCapability: Command = {
-  id: 'widgets.list',
-  label: 'ウィジェット一覧',
-  icon: 'ti-layout-grid',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['widgets.read'],
-  signature: {
-    description:
-      'インストール済みウィジェットのメタデータ一覧を返す。' +
-      ' AiScript ソースは含まれない (src は widgets.read で個別取得)。',
-    params: {},
-    returns: {
-      type: 'array',
-      description:
-        '{ installId, name, autoRun, storeId?, accountId?, updatedAt } の配列。' +
-        ' accountId は個体に固定された実行アカウント (未固定は null)。' +
-        ' 同じ storeId の個体が実行アカウント別に複数ありうる。',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const widgetsListCapability = implement('widgets.list', {
   execute: () => {
     const store = useWidgetsStore()
     const accounts = useAccountsStore().accounts
@@ -77,31 +56,9 @@ export const widgetsListCapability: Command = {
       updatedAt: w.updatedAt,
     }))
   },
-}
+})
 
-export const widgetsReadCapability: Command = {
-  id: 'widgets.read',
-  label: 'ウィジェットの AiScript を読む',
-  icon: 'ti-code',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['widgets.read'],
-  signature: {
-    description: '指定 installId のウィジェットの AiScript ソースを返す。',
-    params: {
-      installId: {
-        type: 'string',
-        description: '対象ウィジェットの installId (widgets.list で取得)',
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ installId, name, src, autoRun }',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const widgetsReadCapability = implement('widgets.read', {
   execute: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -118,16 +75,9 @@ export const widgetsReadCapability: Command = {
       autoRun: widget.autoRun,
     }
   },
-}
+})
 
-export const widgetsCreateCapability: Command = {
-  id: 'widgets.create',
-  label: 'ウィジェットを作成',
-  icon: 'ti-plus',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['widgets.write'],
+export const widgetsCreateCapability = implement('widgets.create', {
   preflight: (params) => preflightValidateSrc(params, 'widget'),
   requiresConfirmation: (params) => {
     const name = typeof params?.name === 'string' ? params.name : ''
@@ -149,26 +99,6 @@ export const widgetsCreateCapability: Command = {
       type: 'normal',
     }
   },
-  signature: {
-    description:
-      'AiScript ソースから新規ウィジェットを作成する。autoRun の' +
-      ' default は false (= ユーザーが明示的に起動)。返り値の installId' +
-      ' で以降 widgets.update / setAutoRun / delete を呼ぶ。',
-    params: {
-      name: { type: 'string', description: 'ウィジェット名 (UI 表示用)' },
-      src: { type: 'string', description: 'AiScript ソースコード' },
-      autoRun: {
-        type: 'boolean',
-        description: 'カラム表示時に自動実行するか (default: false)',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ installId, name, autoRun }',
-    },
-  },
-  visible: false,
   execute: (params) => {
     const name = typeof params?.name === 'string' ? params.name : ''
     const src = typeof params?.src === 'string' ? params.src : ''
@@ -192,16 +122,9 @@ export const widgetsCreateCapability: Command = {
       autoRun: widget.autoRun,
     }
   },
-}
+})
 
-export const widgetsUpdateCapability: Command = {
-  id: 'widgets.update',
-  label: 'ウィジェットの AiScript を更新',
-  icon: 'ti-edit',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['widgets.write'],
+export const widgetsUpdateCapability = implement('widgets.update', {
   preflight: (params) => preflightValidateSrc(params, 'widget'),
   requiresConfirmation: (params, ctx) => {
     const installId =
@@ -227,30 +150,6 @@ export const widgetsUpdateCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description:
-      'ウィジェットの AiScript ソースを全文置換する。意図しない上書きを' +
-      '防ぐため、事前に widgets.read で現状を取得してから差分判断して' +
-      'から渡すことを推奨。表示中のウィジェットは保存後に新 src で自動' +
-      '再実行されるので、`aiscript.logs` で実行結果 (print / エラー) を' +
-      '確認し、エラーがあれば修正して再保存するループを回すこと。' +
-      '表示されていないウィジェットは実行されない (rerunning=false)。',
-    params: {
-      installId: {
-        type: 'string',
-        description: '対象ウィジェットの installId',
-      },
-      src: { type: 'string', description: '新しい AiScript ソース全文' },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description:
-        '{ installId, length: 新 src の文字数, rerunning: boolean }。' +
-        'rerunning=true なら表示中インスタンスが新 src で再実行される。',
-    },
-  },
-  visible: false,
   execute: (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -269,34 +168,9 @@ export const widgetsUpdateCapability: Command = {
     const rerunning = store.requestRerun(installId) > 0
     return { installId, length: next.length, rerunning }
   },
-}
+})
 
-export const widgetsSetAutoRunCapability: Command = {
-  id: 'widgets.setAutoRun',
-  label: 'ウィジェットの自動実行を切替',
-  icon: 'ti-player-play',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['widgets.write'],
-  signature: {
-    description: 'ウィジェットの autoRun フラグを切り替える (可逆操作)。',
-    params: {
-      installId: {
-        type: 'string',
-        description: '対象ウィジェットの installId',
-      },
-      autoRun: {
-        type: 'boolean',
-        description: 'true = 自動実行有効 / false = 無効',
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ installId, autoRun }',
-    },
-  },
-  visible: false,
+export const widgetsSetAutoRunCapability = implement('widgets.setAutoRun', {
   execute: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -311,16 +185,9 @@ export const widgetsSetAutoRunCapability: Command = {
     store.setAutoRun(installId, autoRun)
     return { installId, autoRun }
   },
-}
+})
 
-export const widgetsDeleteCapability: Command = {
-  id: 'widgets.delete',
-  label: 'ウィジェットを削除',
-  icon: 'ti-trash',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['widgets.write'],
+export const widgetsDeleteCapability = implement('widgets.delete', {
   requiresConfirmation: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -340,22 +207,6 @@ export const widgetsDeleteCapability: Command = {
       type: 'danger',
     }
   },
-  signature: {
-    description:
-      'ウィジェットを削除する。AiScript ソース・メタ・Mk:save 領域' +
-      'すべて消える (= 不可逆)。',
-    params: {
-      installId: {
-        type: 'string',
-        description: '対象ウィジェットの installId',
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ installId, removed: boolean }',
-    },
-  },
-  visible: false,
   execute: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -365,32 +216,9 @@ export const widgetsDeleteCapability: Command = {
     store.removeWidget(installId)
     return { installId, removed: existed }
   },
-}
+})
 
-export const widgetsHistoryCapability: Command = {
-  id: 'widgets.history',
-  label: 'ウィジェットの編集履歴',
-  icon: 'ti-history',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['widgets.read'],
-  signature: {
-    description:
-      '指定 installId のウィジェットの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。',
-    params: {
-      installId: {
-        type: 'string',
-        description: '対象ウィジェットの installId',
-      },
-    },
-    returns: {
-      type: 'array',
-      description: '編集前 snapshot の配列 (新しい順)',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const widgetsHistoryCapability = implement('widgets.history', {
   execute: async (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -403,16 +231,9 @@ export const widgetsHistoryCapability: Command = {
     const basename = widget.fileBase ?? (widget.name || widget.installId)
     return await listSnapshots<WidgetSnapshot>('widget', basename)
   },
-}
+})
 
-export const widgetsRevertCapability: Command = {
-  id: 'widgets.revert',
-  label: 'ウィジェットを過去の状態に戻す',
-  icon: 'ti-arrow-back-up',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['widgets.write'],
+export const widgetsRevertCapability = implement('widgets.revert', {
   requiresConfirmation: async (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -438,22 +259,6 @@ export const widgetsRevertCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description: 'ウィジェット src を編集履歴の index 番目に戻す。',
-    params: {
-      installId: {
-        type: 'string',
-        description: '対象ウィジェットの installId',
-      },
-      index: { type: 'number', description: 'snapshot index (0 = 最新)' },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description: '{ installId, reverted: boolean, at: number }',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -479,7 +284,7 @@ export const widgetsRevertCapability: Command = {
     store.updateSrc(installId, next, editAttribution(ctx, params))
     return { installId, reverted: true, at: entry.at }
   },
-}
+})
 
 /**
  * `widgets.install` — MisStore (store.notedeck.io) から既製ウィジェットを取得して
@@ -490,14 +295,7 @@ export const widgetsRevertCapability: Command = {
  * sha512 検証・同 storeId の重複インストール抑止は misstore store 側で実装済。
  * カラムへの attach はしない (= 「とりあえず手元に入れる」が capability の責務)。
  */
-export const widgetsInstallCapability: Command = {
-  id: 'widgets.install',
-  label: 'MisStore からウィジェットを入れる',
-  icon: 'ti-download',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['widgets.write', 'network.external'],
+export const widgetsInstallCapability = implement('widgets.install', {
   requiresConfirmation: async (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) return null
@@ -526,32 +324,6 @@ export const widgetsInstallCapability: Command = {
       type: 'normal',
     }
   },
-  signature: {
-    description:
-      'MisStore (store.notedeck.io) の既製ウィジェットをインストールする。' +
-      ' id は `misstore.search` で取得した値を渡す。sha512 検証付き。' +
-      ' 個体は storeId × 実行アカウントの組で 1 つ。同じ組が既にあれば更新して既存 installId を返す。',
-    params: {
-      id: {
-        type: 'string',
-        description: 'MisStore registry 上の widget id',
-      },
-      accountId: {
-        type: 'string',
-        description:
-          'どのアカウントで動かすか (全アカウントのウィジェットカラムに置く個体用)。' +
-          ' 未指定なら実行アカウントを固定しない個体になる (per-account カラムに' +
-          ' 置けばそのカラムのアカウントで動く)。呼び出し文脈のアカウントへは' +
-          ' フォールバックしない。',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ installId, name, autoRun, installed: boolean }',
-    },
-  },
-  visible: false,
   execute: async (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('widgets.install: id is required')
@@ -581,7 +353,7 @@ export const widgetsInstallCapability: Command = {
       installed: true,
     }
   },
-}
+})
 
 /**
  * `widgets.uninstall` — インストール済みウィジェットを完全削除する。
@@ -589,14 +361,7 @@ export const widgetsInstallCapability: Command = {
  * 揃えるためのエイリアス。AI が「入れて」「外して」と自然言語で発話したとき
  * id ベースでも installId ベースでも理解できるよう、両方を受け付ける。
  */
-export const widgetsUninstallCapability: Command = {
-  id: 'widgets.uninstall',
-  label: 'ウィジェットを削除',
-  icon: 'ti-trash',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['widgets.write'],
+export const widgetsUninstallCapability = implement('widgets.uninstall', {
   requiresConfirmation: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -623,34 +388,6 @@ export const widgetsUninstallCapability: Command = {
       type: 'danger',
     }
   },
-  signature: {
-    description:
-      'インストール済みウィジェットを完全削除する。installId か storeId の' +
-      ' どちらかを渡す (両方渡されたら installId 優先)。storeId 指定は' +
-      ' 実行アカウント別の全個体を消す。' +
-      ' widgets.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。',
-    params: {
-      installId: {
-        type: 'string',
-        description: '対象ウィジェットの installId (widgets.list で取得)',
-        optional: true,
-      },
-      storeId: {
-        type: 'string',
-        description:
-          'MisStore registry 上の id (= widgets.install で渡した id)',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description:
-        '{ installId, installIds: string[], removed: boolean }。' +
-        ' storeId 指定は実行アカウント別の全個体が対象なので installIds に' +
-        ' 消した個体をすべて返す。',
-    },
-  },
-  visible: false,
   execute: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -675,7 +412,7 @@ export const widgetsUninstallCapability: Command = {
       removed: true,
     }
   },
-}
+})
 
 export const WIDGETS_BUILTIN_CAPABILITIES: readonly Command[] = [
   widgetsListCapability,

@@ -5,6 +5,7 @@ import {
   type StoredMemo,
 } from '@/composables/useMemos'
 import { extractMemoRefs } from '@/utils/memoLinks'
+import { implement } from '../declare'
 
 /**
  * memos.read 系 capability (#492) — AI がローカルメモを「列挙 / 検索」する
@@ -61,59 +62,7 @@ function compareUpdatedAtDesc(a: StoredMemo, b: StoredMemo): number {
 }
 
 /** `memos.list` — tag / 日付 / キーワードで絞り込んでメモを列挙 */
-export const memosListCapability: Command = {
-  id: 'memos.list',
-  label: 'メモを列挙',
-  icon: 'ti-list',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['memos.read'],
-  signature: {
-    description:
-      'NoteDeck のローカル memo を絞り込んで列挙する。' +
-      ' tag / 経過日数 / 部分一致クエリ / 作者でフィルタ可能。' +
-      ' updatedAt 降順、limit 件で打ち切り (default 10、最大 50)。' +
-      ' AI は memos.search でキーワード検索する前に memos.list で全体像を' +
-      ' 把握するのが効率的。',
-    params: {
-      tag: {
-        type: 'string',
-        description: '指定すると tags にこの値が含まれるメモのみ返す',
-        optional: true,
-      },
-      authorId: {
-        type: 'string',
-        description:
-          '指定すると author.id がこの値のメモのみ返す (`skill:<id>` で persona' +
-          ' 別のメモ抽出、ユーザー本人は author 未設定なので "self" を渡すと該当)',
-        optional: true,
-      },
-      olderThanDays: {
-        type: 'number',
-        description:
-          '指定日数以上前に更新されたメモのみ返す (整理候補の発見に使える)',
-        optional: true,
-      },
-      query: {
-        type: 'string',
-        description: '本文に含まれる文字列 (大小無視の単純 substring 一致)',
-        optional: true,
-      },
-      limit: {
-        type: 'number',
-        description: '返す最大件数 (default 10、最大 50)',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'array',
-      description:
-        '`{ id, text, updatedAt, tags?, author? }` の配列。空配列なら一致なし',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const memosListCapability = implement('memos.list', {
   execute: async (params) => {
     await ensureMemosLoaded()
     const tag = pickString(params?.tag)
@@ -148,49 +97,10 @@ export const memosListCapability: Command = {
     filtered.sort(([, a], [, b]) => compareUpdatedAtDesc(a, b))
     return filtered.slice(0, limit).map(([key, memo]) => projectRow(key, memo))
   },
-}
+})
 
 /** `memos.search` — 部分一致 + recency boost で本文検索 */
-export const memosSearchCapability: Command = {
-  id: 'memos.search',
-  label: 'メモを検索',
-  icon: 'ti-search',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['memos.read'],
-  signature: {
-    description:
-      'NoteDeck のローカル memo を本文部分一致で検索する。' +
-      ' 大小無視の substring + 直近更新の recency boost で並べ、' +
-      ' limit 件 (default 10、最大 50) を返す。embedding 由来の semantic' +
-      ' 検索はないので、ヒットしない場合は AI が言い換え (例:「旅行」→' +
-      '「出張」「バカンス」) で再試行することを想定。' +
-      ' authorId で persona / 本人別のメモ検索も可能。',
-    params: {
-      query: {
-        type: 'string',
-        description: '検索文字列 (空文字不可、大小無視の部分一致)',
-      },
-      authorId: {
-        type: 'string',
-        description:
-          '指定すると author.id がこの値のメモのみ検索 (`skill:<id>` / "self")',
-        optional: true,
-      },
-      limit: {
-        type: 'number',
-        description: '返す最大件数 (default 10、最大 50)',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'array',
-      description: '`{ id, text, updatedAt, tags?, author? }` の配列',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const memosSearchCapability = implement('memos.search', {
   execute: async (params) => {
     await ensureMemosLoaded()
     const query = pickString(params?.query)
@@ -217,37 +127,10 @@ export const memosSearchCapability: Command = {
     hits.sort(([, a], [, b]) => compareUpdatedAtDesc(a, b))
     return hits.slice(0, limit).map(([key, memo]) => projectRow(key, memo))
   },
-}
+})
 
 /** `memos.backlinks` — 指定 memo を `[name](memo:<id>)` で参照しているメモを返す (#494) */
-export const memosBacklinksCapability: Command = {
-  id: 'memos.backlinks',
-  label: 'メモのバックリンク',
-  icon: 'ti-arrow-back-up',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['memos.read'],
-  signature: {
-    description:
-      '指定したメモ id を `[name](memo:<id>)` 形式で参照しているメモを' +
-      ' 返す (= バックリンク)。タグ整理 / 関連メモ把握に有用。本文に link が' +
-      ' あるメモ全件を返す (limit / pagination なし、通常 backlinks は少数)。' +
-      ' 検索範囲は accountId 指定のメモ空間のみ (cross-account はしない)。',
-    params: {
-      id: {
-        type: 'string',
-        description: '対象 memoKey (Zettelkasten id, `YYYYMMDDHHmmss`)',
-      },
-    },
-    returns: {
-      type: 'array',
-      description:
-        '`[{ id, text, updatedAt, tags?, author? }]` — 参照元メモの一覧 (新しい順)',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const memosBacklinksCapability = implement('memos.backlinks', {
   execute: async (params) => {
     const targetId = pickString(params?.id)
     if (!targetId) throw new Error('memos.backlinks: id is required')
@@ -269,7 +152,7 @@ export const memosBacklinksCapability: Command = {
     hits.sort(([, a], [, b]) => compareUpdatedAtDesc(a, b))
     return hits.map(([key, memo]) => projectRow(key, memo))
   },
-}
+})
 
 export const MEMOS_READ_BUILTIN_CAPABILITIES: readonly Command[] = [
   memosListCapability,
