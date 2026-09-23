@@ -7,6 +7,8 @@
 // - 宣言が `confirm: false` なのに実装が requiresConfirmation を渡していない
 //   (確認の要否は宣言が正本。実装は表示内容を組み立てるだけ)
 // - 宣言の `permissions` は権限語彙 (PERMISSION_KEYS) に含まれる
+// - 権限キーの語彙 (permissions 節) から生成した keys.generated.ts /
+//   permissions_keys.generated.rs もコミット済みのものと一致する (TS と Rust が同じ語彙を持つ)
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -20,13 +22,16 @@ import { PERMISSION_KEYS } from '@/permissions/schema'
 import {
   GENERATED_TS_PATH,
   generate,
+  PERMISSION_KEYS_RS_PATH,
+  PERMISSION_KEYS_TS_PATH,
   SKILLS_PATH,
 } from '../../scripts/gen-capabilities.mjs'
 
 const ROOT = resolve(import.meta.dirname, '../..')
 
 describe('capability 宣言 (#1133)', () => {
-  const { decls, generatedTs, skills } = generate()
+  const { decls, generatedTs, skills, permissionKeysTs, permissionKeysRs } =
+    generate()
 
   it('declarations.generated.ts は宣言ファイルから再生成したものと一致する', () => {
     const committed = readFileSync(GENERATED_TS_PATH, 'utf8')
@@ -42,6 +47,17 @@ describe('capability 宣言 (#1133)', () => {
       committed,
       'SKILLS.md の表が古い — `pnpm gen:capabilities` を実行してコミットする',
     ).toBe(skills)
+  })
+
+  it('権限キーの生成物 (TS / Rust) は宣言ファイルから再生成したものと一致する', () => {
+    expect(
+      readFileSync(PERMISSION_KEYS_TS_PATH, 'utf8'),
+      'keys.generated.ts が古い — `pnpm gen:capabilities` を実行してコミットする',
+    ).toBe(permissionKeysTs)
+    expect(
+      readFileSync(PERMISSION_KEYS_RS_PATH, 'utf8'),
+      'permissions_keys.generated.rs が古い — `pnpm gen:capabilities` を実行してコミットする',
+    ).toBe(permissionKeysRs)
   })
 
   it('宣言と builtins の実装が 1:1 に対応する', () => {

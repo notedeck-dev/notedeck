@@ -430,7 +430,7 @@ AI には `tool_result` の `content` として文字列化された結果が返
 | UI 設定 write (`theme.write` / `styles.write` / `navbar.write` / `keybinds.write` / `performance.write`) | | | ✓ | 個別 |
 | 高リスク write (`notes.write` / `account.write` / `account.actAs` / `drive.write` / `network.external` / `vault.use` / `ai.persona.write` / `files.export` / `backup.create`) | | | ✓ | 個別 |
 
-- キーの一覧は `src/permissions/schema.ts` の `PERMISSION_KEYS` が正本 (capability の `permissions[]` 宣言が語彙を定義する)
+- キーの一覧は `crates/notecore/capabilities.json5` の `permissions` 節が正本 (TS / Rust の `PERMISSION_KEYS` はそこから生成、`pnpm gen:capabilities`)
 - capability の `permissions: PermissionKey[]` 宣言と principal の解決値 (`resolveFor(principal)`) を **AND 照合** で評価。不許可なら `permission_denied`
 - principal 別デフォルト: `ai.chat` = safe / `ai.heartbeat` = readonly (無人実行は安全側) / `plugin` = safe + `network.external` / `external` = readonly からローカル私的データ read (`memos.read` / `drafts.read` / `skills.read` 等) を落とした縮小 custom
 - resolve 時の恒久 clamp (保存値より優先): `skills.write` / `ai.persona.write` / `tasks.run` / `backup.create` は plugin / external に恒久 deny (full preset でも拒否)。plugin の `vault.use` は clamp しない (既定 OFF で、接続ごとの `exposedTo` 開示が要る二段 gate #759)。external は Misskey コンテンツ read 4 キー (`notes.read` / `account.read` / `drive.read` / `clips.read`) が常時 ON (トークン発行 = read への同意)

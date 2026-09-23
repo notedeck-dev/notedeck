@@ -57,6 +57,7 @@
       "src/**/*.ts",
       "!src/bindings.ts",
       "!src/capabilities/declarations.generated.ts",
+      "!src/permissions/keys.generated.ts",
       "src/**/*.vue",
       "tests/**/*.ts",
       "vite.config.ts",

@@ -6,6 +6,8 @@
 // 生成するもの:
 //   - src/capabilities/declarations.generated.ts  (TS の宣言表と CapabilityId 型)
 //   - SKILLS.md §4.0 の表 (<!-- capabilities:begin --> 〜 <!-- capabilities:end -->)
+//   - src/permissions/keys.generated.ts / crates/notecore/src/permissions_keys.generated.rs
+//     (権限キーの語彙と preset / floor / deny の集合。TS と Rust で同じ宣言から)
 //
 // 宣言ファイルが正本。builtins は `implement(id, { execute, ... })` で振る舞いだけを
 // 結び付ける。生成物が最新かは tests/lint/capabilityDeclarations.test.ts が検査する
@@ -23,6 +25,14 @@ export const GENERATED_TS_PATH = join(
   'src/capabilities/declarations.generated.ts',
 )
 export const SKILLS_PATH = join(ROOT, 'SKILLS.md')
+export const PERMISSION_KEYS_TS_PATH = join(
+  ROOT,
+  'src/permissions/keys.generated.ts',
+)
+export const PERMISSION_KEYS_RS_PATH = join(
+  ROOT,
+  'crates/notecore/src/permissions_keys.generated.rs',
+)
 const BEGIN = '<!-- capabilities:begin -->'
 const END = '<!-- capabilities:end -->'
 
@@ -37,11 +47,44 @@ const CATEGORIES = new Set([
 ])
 const PARAM_TYPES = new Set(['string', 'number', 'boolean', 'object', 'array'])
 
+const PRESET_NAMES = ['readonly', 'safe']
+const KEY_FLAGS = [
+  'highRisk',
+  'aiInstruction',
+  'thirdPartyDeny',
+  'externalReadFloor',
+  'localRead',
+]
+
+/** 宣言ファイルの permissions 節 (権限キーの語彙) を検証して返す */
+export function loadPermissionKeys(text = readFileSync(DECLARATIONS_PATH, 'utf8')) {
+  const doc = JSON5.parse(text)
+  const out = []
+  for (const [key, d] of Object.entries(doc.permissions ?? {})) {
+    if (!/^[a-z][a-zA-Z]*(\.[a-zA-Z]+)*$/.test(key))
+      throw new Error(`bad permission key: ${key}`)
+    const presets = d.presets ?? []
+    for (const p of presets)
+      if (!PRESET_NAMES.includes(p))
+        throw new Error(`${key}: bad preset ${p}`)
+    if (presets.includes('readonly') && !presets.includes('safe'))
+      throw new Error(`${key}: readonly なら safe でも ON (safe ⊇ readonly)`)
+    const entry = { key, readonly: presets.includes('readonly'), safe: presets.includes('safe') }
+    for (const f of KEY_FLAGS) entry[f] = d[f] === true
+    if (entry.aiInstruction && !entry.thirdPartyDeny)
+      throw new Error(`${key}: aiInstruction なら thirdPartyDeny (第三者に恒久 deny)`)
+    out.push(entry)
+  }
+  if (out.length === 0) throw new Error('permissions 節が空')
+  return out
+}
+
 /** 宣言ファイルを読み、placeholder を展開して検証済みの一覧を返す */
 export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8')) {
   const doc = JSON5.parse(text)
   if (doc.schemaVersion !== 1)
     throw new Error(`unsupported schemaVersion ${doc.schemaVersion}`)
+  const knownKeys = new Set(Object.keys(doc.permissions ?? {}))
   const placeholders = doc.placeholders ?? {}
   const expand = (s) =>
     s.replace(/\$\{(\w+)\}/g, (_, name) => {
@@ -58,6 +101,9 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
       throw new Error(`${id}: bad category ${d.category}`)
     if (!Array.isArray(d.permissions))
       throw new Error(`${id}: permissions must be an array`)
+    for (const p of d.permissions)
+      if (!knownKeys.has(p))
+        throw new Error(`${id}: unknown permission key ${p}`)
     const exec = d.exec ?? 'device'
     if (!EXEC_KINDS.has(exec)) throw new Error(`${id}: bad exec ${exec}`)
     const params = {}
@@ -200,6 +246,80 @@ export function renderSkillsTable(decls) {
   return rows.join('\n')
 }
 
+export function renderPermissionKeysTs(keys) {
+  const list = (pred) => keys.filter(pred).map((k) => `  ${ts(k.key)},`)
+  const presetMap = (pred) =>
+    keys.map((k) => `    ${ts(k.key)}: ${pred(k)},`)
+  return [
+    '// 生成物 — 手で編集しない。正本は crates/notecore/capabilities.json5 の permissions 節、',
+    '// 生成は `pnpm gen:capabilities`。意味 (preset / floor / deny の扱い) は schema.ts 側の',
+    '// コメントと #712 を参照 (#1133)。',
+    '',
+    'export const PERMISSION_KEYS = [',
+    ...keys.map((k) => `  ${ts(k.key)},`),
+    '] as const',
+    'export type PermissionKey = (typeof PERMISSION_KEYS)[number]',
+    '',
+    'export const PERMISSION_PRESETS: Record<',
+    "  'readonly' | 'safe' | 'full',",
+    '  Record<PermissionKey, boolean>',
+    '> = {',
+    '  readonly: {',
+    ...presetMap((k) => k.readonly),
+    '  },',
+    '  safe: {',
+    ...presetMap((k) => k.safe),
+    '  },',
+    '  full: {',
+    ...presetMap(() => true),
+    '  },',
+    '}',
+    '',
+    'export const HIGH_RISK_PERMISSION_KEYS: readonly PermissionKey[] = [',
+    ...list((k) => k.highRisk),
+    ']',
+    '',
+    'export const AI_INSTRUCTION_KEYS: readonly PermissionKey[] = [',
+    ...list((k) => k.aiInstruction),
+    ']',
+    '',
+    'export const THIRD_PARTY_DENY_KEYS: readonly PermissionKey[] = [',
+    ...list((k) => k.thirdPartyDeny),
+    ']',
+    '',
+    'export const EXTERNAL_READ_FLOOR: readonly PermissionKey[] = [',
+    ...list((k) => k.externalReadFloor),
+    ']',
+    '',
+    'export const LOCAL_READ_KEYS: readonly PermissionKey[] = [',
+    ...list((k) => k.localRead),
+    ']',
+    '',
+  ].join('\n')
+}
+
+export function renderPermissionKeysRs(keys) {
+  const arr = (name, doc, pred) => [
+    `/// ${doc}`,
+    `pub const ${name}: &[&str] = &[`,
+    ...keys.filter(pred).map((k) => `    ${ts(k.key)},`),
+    '];',
+    '',
+  ]
+  return [
+    '// 生成物 — 手で編集しない。正本は crates/notecore/capabilities.json5 の permissions 節、',
+    '// 生成は `pnpm gen:capabilities` (scripts/gen-capabilities.mjs)。JS 側 (src/permissions/',
+    '// keys.generated.ts) と同じ宣言から生成され、解決結果の一致は golden vector で検査する (#1133)。',
+    '',
+    ...arr('PERMISSION_KEYS', '権限キーの語彙 (順序は golden の keys と同じ)。', () => true),
+    ...arr('READONLY_KEYS', '`readonly` preset で ON になるキー。', (k) => k.readonly),
+    ...arr('SAFE_EXTRA_KEYS', '`safe` preset で readonly に加えて ON になるキー。', (k) => k.safe && !k.readonly),
+    ...arr('THIRD_PARTY_DENY_KEYS', '第三者 principal (plugin / external) への恒久 deny (#712 §3.7 / §3.8)。', (k) => k.thirdPartyDeny),
+    ...arr('EXTERNAL_READ_FLOOR', 'external principal の Misskey コンテンツ read 下限 (#712 §5.3)。', (k) => k.externalReadFloor),
+    ...arr('LOCAL_READ_KEYS', 'NoteDeck ローカル私的データの read キー (#712 §4.4)。', (k) => k.localRead),
+  ].join('\n')
+}
+
 export function spliceSkills(md, table) {
   const b = md.indexOf(BEGIN)
   const e = md.indexOf(END)
@@ -210,16 +330,29 @@ export function spliceSkills(md, table) {
 
 export function generate() {
   const decls = loadDeclarations()
+  const keys = loadPermissionKeys()
   const generatedTs = `${renderTs(decls)}`
   const skills = spliceSkills(readFileSync(SKILLS_PATH, 'utf8'), renderSkillsTable(decls))
-  return { decls, generatedTs, skills }
+  return {
+    decls,
+    keys,
+    generatedTs,
+    skills,
+    permissionKeysTs: renderPermissionKeysTs(keys),
+    permissionKeysRs: renderPermissionKeysRs(keys),
+  }
 }
 
 const isMain =
   process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]
 if (isMain) {
-  const { decls, generatedTs, skills } = generate()
+  const { decls, keys, generatedTs, skills, permissionKeysTs, permissionKeysRs } =
+    generate()
   writeFileSync(GENERATED_TS_PATH, generatedTs)
   writeFileSync(SKILLS_PATH, skills)
-  console.log(`gen-capabilities: ${decls.length} capabilities`)
+  writeFileSync(PERMISSION_KEYS_TS_PATH, permissionKeysTs)
+  writeFileSync(PERMISSION_KEYS_RS_PATH, permissionKeysRs)
+  console.log(
+    `gen-capabilities: ${decls.length} capabilities, ${keys.length} permission keys`,
+  )
 }

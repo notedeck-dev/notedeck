@@ -5,6 +5,62 @@
     accountIdHint: '`accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。',
     scopeParamDesc: 'registry の scope 配列 (= path components)。例: `["client"]` / `["client","misskey"]`。Misskey 公式 UI と共有される設定エリア。',
   },
+  // 権限キーの語彙 (#712)。順序は UI / golden vector のキー順。TS (src/permissions/keys.generated.ts) と
+  // Rust (crates/notecore/src/permissions_keys.generated.rs) はここから生成する。
+  //   presets: どの preset で ON か (full は常に ON なので書かない)
+  //   highRisk: UI に warning を出す / aiInstruction: AI の指示チャネル (第三者に恒久 deny)
+  //   thirdPartyDeny: plugin / external に恒久 deny / externalReadFloor: external の read 下限 (常時 ON)
+  //   localRead: NoteDeck ローカル私的データの read (external の既定から落とす)
+  permissions: {
+    'notes.read': { presets: ['readonly', 'safe'], externalReadFloor: true },
+    // 手元の索引 (キャッシュ) の横断検索 (#947)。サーバー検索では見えないフォロワー限定 / ダイレクトも索引にあるので notes.read とは分け、既定は閉じる
+    'notes.readArchive': { presets: [], localRead: true },
+    'notes.write': { presets: [], highRisk: true },
+    'notes.react': { presets: ['safe'] },
+    'account.read': { presets: ['readonly', 'safe'], externalReadFloor: true },
+    'account.write': { presets: [], highRisk: true },
+    // クロスアカウント実行 (#777): 呼び出し文脈と異なるアカウントを明示指定して capability を実行する権利。actsAsAccount 宣言付き capability に対して dispatcher が検査する。user principal は対象外
+    'account.actAs': { presets: [], highRisk: true },
+    'drive.read': { presets: ['readonly', 'safe'], externalReadFloor: true },
+    'drive.write': { presets: [], highRisk: true },
+    'memos.read': { presets: ['readonly', 'safe'], localRead: true },
+    'memos.write': { presets: ['safe'], highRisk: true },
+    'clips.read': { presets: ['readonly', 'safe'], externalReadFloor: true },
+    'clips.write': { presets: ['safe'] },
+    'drafts.read': { presets: ['readonly', 'safe'], localRead: true },
+    'drafts.write': { presets: ['safe'] },
+    'network.external': { presets: [], highRisk: true },
+    'clipboard': { presets: ['safe'] },
+    'notifications': { presets: ['safe'] },
+    'tasks.run': { presets: ['safe'], highRisk: true, thirdPartyDeny: true },
+    'ai.invoke': { presets: ['safe'] },
+    'ai.persona.write': { presets: [], highRisk: true, aiInstruction: true, thirdPartyDeny: true },
+    'skills.read': { presets: ['readonly', 'safe'], localRead: true },
+    'skills.write': { presets: ['safe'], highRisk: true, aiInstruction: true, thirdPartyDeny: true },
+    'theme.write': { presets: [] },
+    'styles.write': { presets: [] },
+    'navbar.write': { presets: [] },
+    'keybinds.write': { presets: [] },
+    'performance.write': { presets: [] },
+    'widgets.read': { presets: ['readonly', 'safe'], localRead: true },
+    'widgets.write': { presets: ['safe'] },
+    'plugins.read': { presets: ['readonly', 'safe'], localRead: true },
+    'plugins.write': { presets: ['safe'] },
+    // カラムクエリ (#1117)。名前付きクエリの編集履歴の読取と、履歴からの復元
+    'queries.read': { presets: ['readonly', 'safe'], localRead: true },
+    'queries.write': { presets: ['safe'] },
+    'ai.sessions.read': { presets: ['readonly', 'safe'], localRead: true },
+    'logs.read': { presets: ['readonly', 'safe'], localRead: true },
+    'vault.use': { presets: [], highRisk: true },
+    // ローカルディスクへのファイル書き出し (#813)。Downloads/notedeck 配下に固定されるが、ユーザーのディスクに成果物を作る操作なので write 系
+    'files.export': { presets: [], highRisk: true },
+    // DB + 設定のバックアップ作成 (#816)。成果物にローカルのノートキャッシュ全量が含まれるため write 系かつ高リスク
+    'backup.create': { presets: [], highRisk: true, thirdPartyDeny: true },
+    // デッキ構成 (カラム一覧 = 検索クエリ / アンテナ名 / アカウント紐付け等のローカル私的データ) の read (#712 §5.3)。external のみ既定 OFF
+    'deck.read': { presets: ['readonly', 'safe'], localRead: true },
+    // デッキ / ウィンドウ構成の変更 (#1098)。従来は無条件許可だったため readonly の heartbeat や外部トークンでもデッキを消せた。readonly のみ false
+    'deck.write': { presets: ['safe'] },
+  },
   capabilities: {
     'account.current': {
       label: '現在のアカウント情報',
