@@ -21,10 +21,12 @@ const DOC_LINKS = [
     <div class="arch-grid" data-fade>
       <div class="arch-layer acrylic">
         <div class="arch-label">フロントエンド</div>
-        <div class="arch-title">Vue 3 + TypeScript</div>
+        <div class="arch-title">Vue 3 + Pinia</div>
         <div class="arch-desc">
-          Vapor モード移行準備済み。CSS Containment、Frame Scheduler で描画最適化。Pinia
-          による状態管理。WebView は常に手元の Rust とだけ話します。
+          デッキの UI。話す相手は手元の Rust だけで、コアがどこで動いているかを知りません。
+        </div>
+        <div class="arch-tags">
+          <span>TypeScript</span><span>Vapor 準備済み</span><span>CSS Containment</span><span>Frame Scheduler</span>
         </div>
       </div>
       <div class="arch-arrow" aria-hidden="true">
@@ -32,10 +34,10 @@ const DOC_LINKS = [
       </div>
       <div class="arch-shells">
         <div class="arch-layer acrylic">
-          <div class="arch-label">殻 — Tauri v2（手元の端末）</div>
-          <div class="arch-title">OS 統合 + クライアント層</div>
+          <div class="arch-label">殻 — 手元の端末</div>
+          <div class="arch-title">Tauri v2</div>
           <div class="arch-desc">
-            ウィンドウ、トレイ、OS 通知、キーチェーン、自動更新。データ系の呼び出しは切替点 1 箇所で、同じプロセス内の notecore に渡すか (既定)、右の notecored に中継するかが決まります。フロントは違いを知りません。
+            OS 統合 + クライアント層。ウィンドウ、トレイ、OS 通知、キーチェーン、自動更新。データ系の呼び出しは切替点 1 箇所を通り、同じプロセスの notecore に渡すか (既定)、notecored に中継するかが決まります。
           </div>
         </div>
         <div class="arch-arrow arch-arrow-h" aria-hidden="true">
@@ -43,10 +45,10 @@ const DOC_LINKS = [
           <span>中継</span>
         </div>
         <div class="arch-layer acrylic arch-shell-node">
-          <div class="arch-label">殻 — notecored（自分のサーバー）</div>
-          <div class="arch-title">常駐、RPC + SSE、ペアリング</div>
+          <div class="arch-label">殻 — 自分のサーバー</div>
+          <div class="arch-title">notecored</div>
           <div class="arch-desc">
-            同じ notecore を headless で包んだ殻。VPS や自宅サーバーで動き、端末を閉じても蓄積と AI が続き、複数の端末が同じデッキに繋がります。notedeck と同じリポジトリから出る別バイナリです。
+            常駐 + RPC/SSE + ペアリング。notecore を headless で包んだ別バイナリ。端末を閉じても蓄積・通知受信・AI が続き、複数の端末が同じデッキに繋がります。
           </div>
         </div>
       </div>
@@ -55,9 +57,9 @@ const DOC_LINKS = [
       </div>
       <div class="arch-layer arch-core acrylic">
         <div class="arch-label">コア</div>
-        <div class="arch-title">notecore — Tauri に依存しないドメイン</div>
+        <div class="arch-title">notecore</div>
         <div class="arch-desc">
-          Vault、クエリランタイム、AI エージェントループ、設定、認可、キャッシュ。どちらの殻に包まれても同じクレートで、動く場所が変わるだけで挙動は同じです。
+          Tauri に依存しないドメイン。Vault、クエリランタイム、AI エージェントループ、設定、認可、キャッシュ。「端末が 1 台も繋がっていなくても意味を持つ処理」だけを持ち、どちらの殻でも同じクレートです。
         </div>
       </div>
       <div class="arch-arrow" aria-hidden="true">
@@ -65,9 +67,9 @@ const DOC_LINKS = [
       </div>
       <div class="arch-layer acrylic">
         <div class="arch-label">Misskey クライアント</div>
-        <div class="arch-title">notecli — Rust ヘッドレスクライアント</div>
+        <div class="arch-title">notecli</div>
         <div class="arch-desc">
-          Misskey API + WebSocket ストリーミング + SQLite（FTS5）。Tauri なしでも単体で動く独立ライブラリです。
+          Misskey API、WebSocket ストリーミング、SQLite (FTS5)。NoteDeck 固有のことは知らず、ライブラリとしても CLI としても単体で動きます。
         </div>
         <div class="arch-tags">
           <span>reqwest</span><span>tokio</span><span>rusqlite</span><span>axum</span>
