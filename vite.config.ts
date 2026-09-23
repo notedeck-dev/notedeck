@@ -522,7 +522,7 @@ export default defineConfig({
     watch: {
       // WSL2: ポーリングを無効にしてイベントベース監視を強制（CPU負荷軽減）
       usePolling: false,
-      ignored: ['**/src-tauri/target/**'],
+      ignored: ['**/src-tauri/target/**', '**/target/**'],
     },
   },
 })

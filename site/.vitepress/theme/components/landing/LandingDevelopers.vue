@@ -35,7 +35,7 @@ const DOC_LINKS = [
           <div class="arch-label">殻 — Tauri v2（手元の端末）</div>
           <div class="arch-title">OS 統合 + クライアント層</div>
           <div class="arch-desc">
-            ウィンドウ、トレイ、OS 通知、キーチェーン、自動更新。データ系の呼び出しは切替点 1 箇所で、同じプロセス内の notecore に渡すか (既定)、右の notenode に中継するかが決まります。フロントは違いを知りません。
+            ウィンドウ、トレイ、OS 通知、キーチェーン、自動更新。データ系の呼び出しは切替点 1 箇所で、同じプロセス内の notecore に渡すか (既定)、右の notecored に中継するかが決まります。フロントは違いを知りません。
           </div>
         </div>
         <div class="arch-arrow arch-arrow-h" aria-hidden="true">
@@ -43,7 +43,7 @@ const DOC_LINKS = [
           <span>中継</span>
         </div>
         <div class="arch-layer acrylic arch-shell-node">
-          <div class="arch-label">殻 — notenode（自分のサーバー）</div>
+          <div class="arch-label">殻 — notecored（自分のサーバー）</div>
           <div class="arch-title">常駐、RPC + SSE、ペアリング</div>
           <div class="arch-desc">
             同じ notecore を headless で包んだ殻。VPS や自宅サーバーで動き、端末を閉じても蓄積と AI が続き、複数の端末が同じデッキに繋がります。notedeck と同じリポジトリから出る別バイナリです。

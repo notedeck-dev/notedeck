@@ -98,7 +98,7 @@ NoteDeck はローカル DB にノートを蓄積し、**サーバーが消え�
 - **設定エクスポート / インポート**: JSON + DB ファイルでデッキレイアウト・テーマ・キーバインドを丸ごと移行
 - **ログアウト後のデータ保持**: トークンのみ削除し、カラムとキャッシュは読み取り専用で保持。後から過去ノートをローカル検索で復旧可能
 
-**リモート構成 ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106)) での読み替え**: notecore を自分のサーバー (notenode) で常駐させる構成では、「手元」は端末ではなく自分が運用するホストになる。蓄積と検索はそこで続き、各端末には上限つきの直近キャッシュが残る。データ主権は保たれるが、サーバーの運用責任 (パッチ / TLS / バックアップ) は利用者が負う。
+**リモート構成 ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106)) での読み替え**: notecore を自分のサーバー (notecored) で常駐させる構成では、「手元」は端末ではなく自分が運用するホストになる。蓄積と検索はそこで続き、各端末には上限つきの直近キャッシュが残る。データ主権は保たれるが、サーバーの運用責任 (パッチ / TLS / バックアップ) は利用者が負う。
 
 ### ゲストモード — 試すハードルをゼロにする
 
@@ -225,7 +225,7 @@ NoteDeck の AI 統合は「AI とチャットする SNS クライアント」�
 
 ### 自律エージェント: HEARTBEAT Daemon
 
-`OpenClaw` の発想に倣った HEARTBEAT を実装。**アプリ起動中ずっと走る global daemon** が定期的に AI を起こし、ユーザー定義のチェックリストを実行する。重要な発見があれば会話セッションを生成し、なければ静かに終了する (現状は ack 文字列、[#1133](https://github.com/notedeck-dev/notedeck/issues/1133) でツール呼び出しに改める)。ループを Rust の notecore に移し (#1133)、notenode ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106)) で端末の電源と無関係に走らせるのが目指す形。無人時は承認を待たず、書き込み意図は下書きと受信箱カードにする。
+`OpenClaw` の発想に倣った HEARTBEAT を実装。**アプリ起動中ずっと走る global daemon** が定期的に AI を起こし、ユーザー定義のチェックリストを実行する。重要な発見があれば会話セッションを生成し、なければ静かに終了する (現状は ack 文字列、[#1133](https://github.com/notedeck-dev/notedeck/issues/1133) でツール呼び出しに改める)。ループを Rust の notecore に移し (#1133)、notecored ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106)) で端末の電源と無関係に走らせるのが目指す形。無人時は承認を待たず、書き込み意図は下書きと受信箱カードにする。
 
 - **Cheap Check First**: ローカルで低コスト判定 (未読数等) を行い閾値以下なら AI を呼ばない → トークン消費爆発の防止
 - **専用 deny リスト**: 通常許可している `notes.write` 等を HEARTBEAT 中だけ deny にできる (暴走スパム防止)

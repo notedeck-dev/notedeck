@@ -230,29 +230,29 @@ Stream Inspector カラムとの違い: Stream Inspector は**フロントのア
 
 ## Architecture
 
-NoteDeck は **notecli** と **notedeck** の 2 リポジトリで構成されています。
+NoteDeck は 1 つのリポジトリ (Cargo workspace) で、`crates/notecli` (Misskey クライアント + CLI) と `src-tauri` (アプリの Rust) を持ちます (notecli は 2026-09-23 に別リポジトリから取り込んだ、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106))。
 
-### notecli ([github.com/notedeck-dev/notecli](https://github.com/notedeck-dev/notecli))
+### notecli (`crates/notecli`)
 
 Tauri に依存しない Misskey ヘッドレスクライアント。Rust ライブラリ兼 CLI デーモン。
 
 - Misskey HTTP API クライアント、WebSocket ストリーミング、SQLite DB、REST API サーバー
 - 単体で `localhost:19820` の HTTP API デーモンとして動作（GUI 不要）
-- NoteDeck の Rust バックエンドとして `Cargo.toml` の git 依存で利用される
+- アプリの Rust (`src-tauri`) がパス依存で利用する。CLI バイナリはリリースの成果物として同じタグから出す
 
 ### notedeck (このリポジトリ)
 
 notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 対象プラットフォームは Windows / macOS / Linux / Android。
 
-### 目指す構成: notecore と notenode ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106))
+### 目指す構成: notecore と notecored ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106))
 
 `src-tauri/` には Tauri に依存しないドメイン (Vault / クエリランタイム / 画像キャッシュ / AI SSE クライアント / 設定ファイル store / 認可解決) が同居している。これを **notecore** (notedeck リポジトリ内の同名クレート) に集め、同じ notecore を 2 つの殻で動かす。
 
 ```
 フロントエンド (Vue)            WebView は常に手元の Rust とだけ話す
       │ IPC
-┌─ 殻: Tauri (手元) ──────┐   中継   ┌─ 殻: notenode (自分のサーバー) ─┐
+┌─ 殻: Tauri (手元) ──────┐   中継   ┌─ 殻: notecored (自分のサーバー) ─┐
 │ OS 統合 + クライアント層 │ ───────▶ │ 常駐、RPC + SSE、ペアリング       │
 └──────────┬──────────────┘          └──────────────┬──────────────────┘
            ▼                                        ▼
@@ -262,9 +262,9 @@ notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 ```
 
 - **切る基準**: 「その処理はデバイスが 1 台も繋がっていない状態で意味を持つか」。持つなら notecore、持たないなら手元 (ウィンドウ / トレイ / OS 通知 / クリップボード / dialog / OS キーチェーン)
-- **クライアント層**は手元の Rust の中の切替点 1 箇所。データ系コマンドはコマンド表 (型付き関数 + JSON アダプタを 1 つの宣言から生成) を通り、ローカル構成では in-process で埋め込み notecore を、リモート構成では notenode を呼ぶ。表に載っていないデータ系コマンドはどの構成でも存在しない
+- **クライアント層**は手元の Rust の中の切替点 1 箇所。データ系コマンドはコマンド表 (型付き関数 + JSON アダプタを 1 つの宣言から生成) を通り、ローカル構成では in-process で埋め込み notecore を、リモート構成では notecored を呼ぶ。表に載っていないデータ系コマンドはどの構成でも存在しない
 - **AI エージェントループは Rust で notecore に置く** ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。WebView に残るのは UI、確認ダイアログ、UI 系 capability、AiScript (plugin / widget / scratchpad) の実行
-- notecli の役割 (Misskey 通信・DB・ストリーミング) は変えない。notecore はその消費者。**notecli は notedeck の workspace に取り込む** (リポジトリは 1 つ、クレートは notecli / notecore / notenode / アプリの 4 つ。`notecli` の CLI と `notenode` のデーモンはクレートからバイナリとして出す)
+- notecli の役割 (Misskey 通信・DB・ストリーミング) は変えない。notecore はその消費者。**notecli は notedeck の workspace に取り込む** (リポジトリは 1 つ、クレートは notecli / notecore / notecored / アプリの 4 つ。`notecli` の CLI と `notecored` のデーモンはクレートからバイナリとして出す)
 - 段階と受け入れ条件、認証・ペアリング・イベント面・状態の所在の仕様は #1106 の仕様コメントが正本。ローカル構成は残り、リモート構成は追加の構成
 
 **今すぐ守ること**: 新しいドメインを書くときは、上の基準で notecore 側か手元側かを決め、Tauri の型 (AppHandle / Window / State) を notecore 側に持ち込まない。

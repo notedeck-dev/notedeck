@@ -60,14 +60,11 @@ allow = [
 # Tauri の依存ツリーは同一クレートの複数版を大量に含む。ここを deny にすると
 # 上流の更新を待つだけの赤信号が常時点灯するので許容する
 multiple-versions = "allow"
-# notecli は git の rev pin で、バージョン要件を持たない = wildcard と判定される。
-# rev 固定はバージョン範囲より強い固定なので、この検査は本プロジェクトに合わない
+# workspace 内のパス依存 (notecli) はバージョン要件を持たない = wildcard と判定される。
+# 同一リポジトリのクレートなので、この検査は本プロジェクトに合わない
 wildcards = "allow"
 
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-allow-git = [
-  # notecli は Misskey API クライアント本体 (自組織のリポジトリ)
-  "https://github.com/notedeck-dev/notecli",
-]
+allow-git = []
