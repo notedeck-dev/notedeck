@@ -76,7 +76,7 @@ pub struct AiChatMessage {
     pub tool_result_for: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Type)]
+#[derive(Debug, Clone, Deserialize, Type, Default, Serialize)]
 pub struct AiChatRequest {
     pub stream_id: String,
     /// 使用する Vault 接続 (#564 後続)。endpoint / 認証 / protocol は

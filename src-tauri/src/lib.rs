@@ -267,7 +267,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         let shared_perf: notecore::perf_config::SharedPerfConfig =
             std::sync::Arc::new(tokio::sync::RwLock::new(notecore::perf_config::PerformanceConfig::default()));
         let shared_perf_bg = shared_perf.clone();
-        app.manage(shared_perf);
+        app.manage(shared_perf.clone());
+        app.state::<commands::AppState>().set_perf(shared_perf);
 
         // Shared HTTP client (struct construction — fast, no I/O)。
         // ValidatingResolver (#857): メディア・OGP の全 egress で名前解決の
@@ -285,6 +286,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .build()?;
         app.manage(shared_http.clone());
         app.state::<commands::AppState>().set_http(shared_http.clone());
+        app.state::<commands::AppState>()
+            .set_ai_chat_sink(std::sync::Arc::new(commands::TauriSink(app.handle().clone())));
 
         // Image cache — 必ず Phase 1 で manage する (#921)。フロントは
         // nd:accounts-early を受けた瞬間にカラムを mount して絵文字を要求する
@@ -355,7 +358,6 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         app.manage(event_bus.clone());
 
         // Initialize auth session tracker (replay prevention)
-        app.manage(commands::AuthSessionTracker::new());
 
         // Query runtime: stream events から Read Model を materialize し、
         // pending を貯めて 16ms 間隔で query-delta event をバッチ emit する。

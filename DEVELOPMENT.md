@@ -270,7 +270,7 @@ notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 **今すぐ守ること (段階 0a、機械検査あり)**:
 
 - notecore 側のモジュールは `crates/notecore` に置く (2026-09-23 にクレート化済み)。notecore は `tauri` を参照せず、Cargo.toml に tauri 系を足さない (`tests/lint/rustCoreBoundary.test.ts`)。手元側 (WebView / managed state / OS 統合) が要る処理は trait (`FrontendBridge` / `AiChatSink`) で受け取り、Tauri 側 (`src-tauri/`) が実装を渡す。app dir のような値は `&Path` で受ける
-- **データ系コマンドは notecore のコマンド表に載せる** (`crates/notecore/src/commands/table.rs`、#1106 §4.1)。本体は `&Core` と引数を取る関数として `crates/notecore/src/commands/<module>.rs` に書き、表に 1 行足す。表から Tauri ラッパー (`src-tauri/src/commands/table.rs`)、JSON アダプタ (`dispatch`)、フィクスチャが生成され、属性検査 (許可ウィンドウ) は型付き経路でも JSON 経路でも本体の前に通る。全コマンドを JSON 経路で往復させるテストが notecore にあり、引数の型は `Default` を要求する。手元側 (OS 統合) と認可境界のコマンドは従来どおり `#[tauri::command]` で書く
+- **データ系コマンドは notecore のコマンド表に載せる** (`crates/notecore/src/commands/table.rs`、#1106 §4.1。2026-09-23 に既存のデータ系は全件移行済みで、`src-tauri/src/commands/` に `#[tauri::command]` で残るのは local / authz / mixed だけ)。本体は `&Core` と引数を取る関数として `crates/notecore/src/commands/<module>.rs` に書き、表に 1 行足す。表から Tauri ラッパー (`src-tauri/src/commands/table.rs`)、JSON アダプタ (`dispatch`)、フィクスチャが生成され、属性検査 (許可ウィンドウ) は型付き経路でも JSON 経路でも本体の前に通る。全コマンドを JSON 経路で往復させるテストが notecore にあり、引数の型は `Default` を要求する。手元側 (OS 統合) と認可境界のコマンドは従来どおり `#[tauri::command]` で書く
 - 表に載らない `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。リモート構成では橋がネイティブ確認してから通す) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
 
 ```
@@ -323,19 +323,14 @@ crates/notecli/             # Misskey クライアントライブラリ + CLI (M
 
 src-tauri/src/              # Rust backend (Tauri 固有部分 = 手元側)
 ├── lib.rs                  # App setup (tray, plugins, state)
-├── commands/               # Tauri IPC command handlers (手元側 + 表からの生成)
-│   ├── mod.rs              # 共通ユーティリティ (validate_host, typed_request 等)
-│   ├── table.rs            # notecore のコマンド表から Tauri ラッパーを生成 (#1106)
-│   ├── timeline.rs         # タイムライン系のうち手元側に残るもの (データ系は notecore へ移行済み)
-│   ├── content.rs          # ノート操作系コマンド
-│   ├── user.rs             # ユーザー系コマンド
-│   ├── messaging.rs        # チャット・DM 系コマンド
-│   ├── streaming.rs        # ストリーミング系コマンド
-│   ├── settings.rs         # 設定系コマンド
-│   ├── admin.rs            # 管理系コマンド
-│   ├── auth.rs             # 認証系コマンド
-│   ├── enrichment.rs       # OGP・エンリッチメント系コマンド
-│   └── utility.rs          # ユーティリティ系コマンド
+├── commands/               # Tauri IPC command handlers: データ系は表から生成、残りは手元側 (local / authz / mixed)
+│   ├── mod.rs              # 再公開と Tauri 側の sink (OGP ヒント等)
+│   ├── table.rs            # notecore のコマンド表から Tauri ラッパーを生成 (#1106)。データ系コマンドはすべてここ経由
+│   ├── admin.rs / auth.rs / api_tokens.rs / vault.rs  # 認可境界 (資格情報 / トークン / secret / 信頼設定)
+│   ├── settings.rs / backup.rs / export.rs / utility.rs  # dialog / OS 統合 / 端末のファイル (local / mixed)
+│   ├── heartbeat.rs / health.rs / system_state.rs  # 手元のランタイム (HEARTBEAT scheduler / 診断 / OS 状態)
+│   ├── query.rs            # クエリランタイムの delta flusher と Tauri イベント
+│   └── ai_chat.rs          # AI チャットのイベント sink
 ├── streaming.rs            # TauriEmitter adapter (FrontendEmitter trait impl)
 ├── query_bridge.rs         # FrontendBridge の Tauri 実装 (Tauri イベントで Pinia store に問い合わせる)
 └── main.rs                 # Entry point

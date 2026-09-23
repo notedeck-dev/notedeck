@@ -1,3 +1,6 @@
+//! http のデータ系コマンド本体 (#1106 段階 0b)。各関数は `&Core` と引数を取り、
+//! コマンド表 (commands/table.rs) から呼ばれる。
+
 //! 汎用 HTTP fetch capability の Rust 側実装。
 //!
 //! NoteDeck から外部 HTTP API (CORS なし) を叩く共通入口。capability
@@ -29,7 +32,10 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use notecore::ssrf::{validate_external_url, PinningResolver};
+use crate::ssrf::{validate_external_url, PinningResolver};
+
+use crate::context::Core;
+use crate::error::Result;
 
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 const MAX_TIMEOUT_SECS: u64 = 120;
@@ -37,7 +43,8 @@ const MIN_TIMEOUT_SECS: u64 = 1;
 const MAX_RESPONSE_BYTES: usize = 10 * 1024 * 1024; // 10 MB
 const DEFAULT_USER_AGENT: &str = "NoteDeck";
 
-#[derive(Debug, Deserialize, Type)]
+/// Serialize / Default はコマンド表のフィクスチャ用。
+#[derive(Debug, Default, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpFetchRequest {
     pub url: String,
@@ -55,13 +62,9 @@ pub struct HttpFetchResponse {
     pub body: String,
 }
 
-/// `http.fetch` capability 実装。
-///
-/// 検証 → reqwest 構築 → 送信 → response 整形 の単線。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn http_fetch(request: HttpFetchRequest) -> Result<HttpFetchResponse, String> {
+async fn http_fetch_inner(
+    request: HttpFetchRequest,
+) -> std::result::Result<HttpFetchResponse, String> {
     validate_external_url(&request.url)?;
 
     let method = parse_method(request.method.as_deref())?;
@@ -140,7 +143,7 @@ pub async fn http_fetch(request: HttpFetchRequest) -> Result<HttpFetchResponse, 
     })
 }
 
-fn parse_method(method: Option<&str>) -> Result<reqwest::Method, String> {
+fn parse_method(method: Option<&str>) -> std::result::Result<reqwest::Method, String> {
     let m = method.unwrap_or("GET").to_ascii_uppercase();
     match m.as_str() {
         "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" => {
@@ -148,6 +151,16 @@ fn parse_method(method: Option<&str>) -> Result<reqwest::Method, String> {
         }
         _ => Err(format!("method not allowed: {m}")),
     }
+}
+
+/// `http.fetch` capability 実装。
+///
+/// 検証 → reqwest 構築 → 送信 → response 整形 の単線。
+/// `http.fetch` のコマンド面。エラー文字列は NoteDeckError::InvalidInput に包む (表の規約)。
+pub async fn http_fetch(_core: &Core, request: HttpFetchRequest) -> Result<HttpFetchResponse> {
+    http_fetch_inner(request)
+        .await
+        .map_err(notecli::error::NoteDeckError::InvalidInput)
 }
 
 #[cfg(test)]
