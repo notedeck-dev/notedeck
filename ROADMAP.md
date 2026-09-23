@@ -190,7 +190,7 @@ Tauri 非依存のドメインを notecore に集め、アプリに埋め込む�
 - [ ] **単独で価値のある修正** — ループの既知の欠陥、ファイル secret backend への自動劣化、notecli ルートの CORS、ログ世代上限、migration 検査
 - [ ] **AI エージェントループを Rust の notecore へ** — [#1133](https://github.com/notedeck-dev/notedeck/issues/1133)
 - [ ] **同一ホストの notenode** — headless バイナリ、RPC 面、橋、クエリ差分、購読のセッション所有。notecli 単体のデーモンモードはここで廃止
-- [ ] **外向き** — 署名認証、ペアリング、TLS、移行パッケージ、配布
+- [ ] **外向き** — notenode を別リポジトリに切り出し、署名認証、ペアリング、TLS、移行パッケージ、配布
 - [ ] **モバイル** — Android / iOS でリモート構成を選べる
 
 ### 未完了
