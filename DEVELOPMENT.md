@@ -922,7 +922,7 @@ Vite 8 (Rolldown + OXC ベース) を使用。`vite.config.ts` で以下のカ�
 
 #### Rust ビルド成果物の肥大
 
-`src-tauri/target` は放置すると際限なく膨らむ。cargo は古い成果物を自動 GC しないため、開発期間に比例して単調増加する。要因は 3 つ:
+`target` (workspace root。以前は `src-tauri/target`) は放置すると際限なく膨らむ。cargo は古い成果物を自動 GC しないため、開発期間に比例して単調増加する。要因は 3 つ:
 
 - `[lib] crate-type` — モバイル対応のため同じコードを複数形態で出力する（`staticlib`/`cdylib` は依存ツリー全体を抱え込む）
 - 重量級の依存ツリー（tauri, axum, reqwest, image, specta, utoipa 等）にデバッグ情報が付き、上記の形態数と掛け算になる
@@ -941,7 +941,7 @@ pnpm clean               # dist と target を全消し（フルビルドにな�
 
 #### 開発環境全体のディスク使用量
 
-`src-tauri/target` 以外にも、開発を続けると単調増加する置き場がある。容量が逼迫したらこの順で確認する:
+`target` 以外にも、開発を続けると単調増加する置き場がある。容量が逼迫したらこの順で確認する:
 
 ```bash
 du -sh /nix/store ~/.rustup ~/.cargo src-tauri/target node_modules

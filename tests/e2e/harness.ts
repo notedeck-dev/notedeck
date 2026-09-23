@@ -186,10 +186,10 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
 
   const binary =
     process.env.NOTEDECK_E2E_BINARY ??
-    path.join(REPO_ROOT, 'src-tauri/target/debug/notedeck')
+    path.join(REPO_ROOT, 'target/debug/notedeck')
   if (!existsSync(binary)) {
     throw new Error(
-      `app binary not found: ${binary} — 先に "cargo build" (src-tauri/) を実行するか NOTEDECK_E2E_BINARY を指定してください`,
+      `app binary not found: ${binary} — 先に "cargo build -p notedeck" (workspace root) を実行するか NOTEDECK_E2E_BINARY を指定してください`,
     )
   }
 

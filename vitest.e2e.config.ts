@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config'
  * HTTP API (port 19820) 経由で駆動する。`pnpm test` (unit/dom) とは独立で、
  * `pnpm test:e2e` でのみ実行する。
  *
- * 前提: `src-tauri/target/debug/notedeck` がビルド済みであること
+ * 前提: `target/debug/notedeck` (workspace root) がビルド済みであること
  * (cargo build)。バイナリの場所は NOTEDECK_E2E_BINARY で上書き可能。
  */
 export default defineConfig({
