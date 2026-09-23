@@ -1,5 +1,6 @@
 import type { Command } from '@/commands/registry'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { implement } from '../declare'
 
 /**
  * `misstore.search` — MisStore (store.notedeck.io) のレジストリ JSON を
@@ -24,40 +25,7 @@ interface IndexItem {
   iconUrl?: string
 }
 
-export const misstoreSearchCapability: Command = {
-  id: 'misstore.search',
-  label: 'MisStore を検索',
-  icon: 'ti-shopping-bag',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['network.external'],
-  signature: {
-    description:
-      'MisStore (store.notedeck.io) のレジストリを検索する。' +
-      ' query は name / description / id の部分一致 (大小無視)。' +
-      ' kind 省略時は plugin / widget / skill / theme を全件横断検索。' +
-      ' エンドポイントは固定なので確認ダイアログは出ない。',
-    params: {
-      query: { type: 'string', description: '検索クエリ (部分一致、大小無視)' },
-      kind: {
-        type: 'string',
-        description: '検索する種別 (省略時は全種別)',
-        enum: ['plugin', 'widget', 'skill', 'theme'],
-        optional: true,
-      },
-      limit: {
-        type: 'number',
-        description: '最大返却数 (default: 20)',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'array',
-      description: '[{ id, name, description, category, kind, iconUrl? }]',
-    },
-  },
-  visible: false,
+export const misstoreSearchCapability = implement('misstore.search', {
   execute: async (params) => {
     const query = typeof params?.query === 'string' ? params.query : ''
     if (!query) throw new Error('misstore.search: query is required')
@@ -130,7 +98,7 @@ export const misstoreSearchCapability: Command = {
 
     return results
   },
-}
+})
 
 export const MISSTORE_BUILTIN_CAPABILITIES: readonly Command[] = [
   misstoreSearchCapability,

@@ -7,7 +7,8 @@ import type { Command } from '@/commands/registry'
 import { useMisStoreStore } from '@/stores/misstore'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
-import { editAttribution, REASON_PARAM } from '../editAttribution'
+import { implement } from '../declare'
+import { editAttribution } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 import { preflightValidateSrc } from './aiscript'
 
@@ -36,27 +37,7 @@ interface PluginSnapshot {
  * 読取系 (list / read / history) も `aiTool: true`。
  */
 
-export const pluginsListCapability: Command = {
-  id: 'plugins.list',
-  label: 'プラグイン一覧',
-  icon: 'ti-puzzle',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['plugins.read'],
-  signature: {
-    description:
-      'インストール済みプラグインのメタデータ一覧を返す。' +
-      ' AiScript ソースは含まれない (= plugins.read で個別取得)。',
-    params: {},
-    returns: {
-      type: 'array',
-      description:
-        '{ installId, name, version, author?, description?, active, permissions?, storeId? } の配列',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const pluginsListCapability = implement('plugins.list', {
   execute: () => {
     const store = usePluginsStore()
     return store.plugins.map((p) => ({
@@ -70,32 +51,9 @@ export const pluginsListCapability: Command = {
       storeId: p.storeId ?? null,
     }))
   },
-}
+})
 
-export const pluginsReadCapability: Command = {
-  id: 'plugins.read',
-  label: 'プラグインの AiScript を読む',
-  icon: 'ti-code',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['plugins.read'],
-  signature: {
-    description: '指定 installId のプラグインの AiScript ソースを返す。',
-    params: {
-      installId: {
-        type: 'string',
-        description: '対象プラグインの installId (plugins.list で取得)',
-      },
-    },
-    returns: {
-      type: 'object',
-      description:
-        '{ installId, name, version, src, active, permissions, configData }',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const pluginsReadCapability = implement('plugins.read', {
   execute: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -115,16 +73,9 @@ export const pluginsReadCapability: Command = {
       configData: plugin.configData,
     }
   },
-}
+})
 
-export const pluginsCreateCapability: Command = {
-  id: 'plugins.create',
-  label: 'プラグインを作成',
-  icon: 'ti-plus',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['plugins.write'],
+export const pluginsCreateCapability = implement('plugins.create', {
   preflight: (params) => preflightValidateSrc(params, 'plugin'),
   requiresConfirmation: (params) => ({
     title: 'プラグインをインストール',
@@ -151,34 +102,6 @@ export const pluginsCreateCapability: Command = {
     cancelLabel: 'やめる',
     type: 'normal',
   }),
-  signature: {
-    description:
-      'AiScript ソースから新規プラグインを作成する。必ず `active: false`' +
-      ' (= 無効化) で作成され、handler は走らない。有効化は plugins.setActive' +
-      ' で別途ユーザー UI から行う (= AI が連鎖的に handler を走らせるのを防ぐ' +
-      ' 二重承認境界)。permissions は Misskey 互換キー (read:account, write:notes 等)。',
-    params: {
-      name: { type: 'string', description: 'プラグイン名 (UI 表示用)' },
-      src: { type: 'string', description: 'AiScript ソースコード' },
-      version: {
-        type: 'string',
-        description: 'バージョン文字列 (default "1.0.0")',
-        optional: true,
-      },
-      author: { type: 'string', description: '作者表記', optional: true },
-      description: { type: 'string', description: '概要', optional: true },
-      permissions: {
-        type: 'array',
-        description: 'プラグインが要求する permission の配列 (Misskey 互換)',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ installId, name, active: false }',
-    },
-  },
-  visible: false,
   execute: (params) => {
     const name = typeof params?.name === 'string' ? params.name : ''
     const src = typeof params?.src === 'string' ? params.src : ''
@@ -215,16 +138,9 @@ export const pluginsCreateCapability: Command = {
     store.addPlugin(plugin)
     return { installId, name, active: false }
   },
-}
+})
 
-export const pluginsUpdateCapability: Command = {
-  id: 'plugins.update',
-  label: 'プラグインの AiScript を更新',
-  icon: 'ti-edit',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['plugins.write'],
+export const pluginsUpdateCapability = implement('plugins.update', {
   preflight: (params) => preflightValidateSrc(params, 'plugin'),
   requiresConfirmation: (params, ctx) => {
     const installId =
@@ -255,26 +171,6 @@ export const pluginsUpdateCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description:
-      'プラグインの AiScript ソースを全文置換する。' +
-      'plugins.read で現状を取得してから差分判断する運用を推奨。' +
-      'アクティブなプラグインは保存後に新 src で自動再起動されるので、' +
-      '`aiscript.logs` で実行結果 (起動 / print / エラー) を確認し、' +
-      'エラーがあれば修正して再保存するループを回すこと。',
-    params: {
-      installId: { type: 'string', description: '対象プラグインの installId' },
-      src: { type: 'string', description: '新しい AiScript ソース全文' },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description:
-        '{ installId, length: 新 src の文字数, relaunched: boolean }。' +
-        'relaunched=true ならアクティブなプラグインを新 src で再起動済み。',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -298,16 +194,9 @@ export const pluginsUpdateCapability: Command = {
     }
     return { installId, length: next.length, relaunched }
   },
-}
+})
 
-export const pluginsSetActiveCapability: Command = {
-  id: 'plugins.setActive',
-  label: 'プラグインの有効/無効を切替',
-  icon: 'ti-toggle-left',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['plugins.write'],
+export const pluginsSetActiveCapability = implement('plugins.setActive', {
   // 有効化 (active=true) は handler が動き始める = Misskey API 介入の副作用が
   // 走り得るので permissions を見せて確認。無効化 (active=false) は handler
   // 停止 (= 安全方向への可逆動作) なので即実行で OK。
@@ -336,26 +225,6 @@ export const pluginsSetActiveCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description:
-      'プラグインの active 状態を切り替える。有効化 (true) すると ' +
-      'handler が起動して Misskey API 介入の副作用が走り得るので、AI が ' +
-      '呼ぶときは確認ダイアログでユーザー承認を取る。無効化 (false) は ' +
-      '即実行 (= 可逆な停止操作)。有効化後は aiscript.logs (source: plugin) ' +
-      'に "started" が記録されるので起動確認に使える。',
-    params: {
-      installId: { type: 'string', description: '対象プラグインの installId' },
-      active: {
-        type: 'boolean',
-        description: 'true = 有効化 / false = 無効化',
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ installId, active }',
-    },
-  },
-  visible: false,
   execute: async (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -377,16 +246,9 @@ export const pluginsSetActiveCapability: Command = {
     }
     return { installId, active }
   },
-}
+})
 
-export const pluginsDeleteCapability: Command = {
-  id: 'plugins.delete',
-  label: 'プラグインを削除',
-  icon: 'ti-trash',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['plugins.write'],
+export const pluginsDeleteCapability = implement('plugins.delete', {
   requiresConfirmation: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -410,20 +272,6 @@ export const pluginsDeleteCapability: Command = {
       type: 'danger',
     }
   },
-  signature: {
-    description:
-      'プラグインを削除する。AiScript ソース・メタ・Mk:save 領域' +
-      'すべて消える (= 不可逆)。confirm ダイアログで対象プラグインの ' +
-      'name / version / permissions を表示してユーザー承認を取る。',
-    params: {
-      installId: { type: 'string', description: '対象プラグインの installId' },
-    },
-    returns: {
-      type: 'object',
-      description: '{ installId, removed: boolean }',
-    },
-  },
-  visible: false,
   execute: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -433,33 +281,13 @@ export const pluginsDeleteCapability: Command = {
     store.removePlugin(installId)
     return { installId, removed: existed }
   },
-}
+})
 
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string')
 }
 
-export const pluginsHistoryCapability: Command = {
-  id: 'plugins.history',
-  label: 'プラグインの編集履歴',
-  icon: 'ti-history',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['plugins.read'],
-  signature: {
-    description:
-      '指定 installId のプラグインの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。',
-    params: {
-      installId: { type: 'string', description: '対象プラグインの installId' },
-    },
-    returns: {
-      type: 'array',
-      description: '編集前 snapshot の配列 (新しい順)',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const pluginsHistoryCapability = implement('plugins.history', {
   execute: async (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -472,16 +300,9 @@ export const pluginsHistoryCapability: Command = {
     const basename = plugin.fileBase ?? (plugin.name || plugin.installId)
     return await listSnapshots<PluginSnapshot>('plugin', basename)
   },
-}
+})
 
-export const pluginsRevertCapability: Command = {
-  id: 'plugins.revert',
-  label: 'プラグインを過去の状態に戻す',
-  icon: 'ti-arrow-back-up',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['plugins.write'],
+export const pluginsRevertCapability = implement('plugins.revert', {
   requiresConfirmation: async (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -512,22 +333,6 @@ export const pluginsRevertCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description:
-      'プラグイン src を編集履歴の index 番目に戻す。confirm ダイアログで ' +
-      '戻し先 snapshot の name / version / permissions / AiScript ソースを ' +
-      '表示してユーザー承認を取る。',
-    params: {
-      installId: { type: 'string', description: '対象プラグインの installId' },
-      index: { type: 'number', description: 'snapshot index (0 = 最新)' },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description: '{ installId, reverted: boolean, at: number }',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -553,7 +358,7 @@ export const pluginsRevertCapability: Command = {
     store.updateSrc(installId, next, editAttribution(ctx, params))
     return { installId, reverted: true, at: entry.at }
   },
-}
+})
 
 /**
  * `plugins.install` — MisStore (store.notedeck.io) から既製プラグインを取得して
@@ -567,14 +372,7 @@ export const pluginsRevertCapability: Command = {
  * (全アカウント対象、後から追加した分も含む #771) で入れる。インストール後は
  * active=true で自動起動される (misstore.ts installPlugin の挙動)。
  */
-export const pluginsInstallCapability: Command = {
-  id: 'plugins.install',
-  label: 'MisStore からプラグインを入れる',
-  icon: 'ti-download',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['plugins.write', 'network.external'],
+export const pluginsInstallCapability = implement('plugins.install', {
   requiresConfirmation: async (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) return null
@@ -601,24 +399,6 @@ export const pluginsInstallCapability: Command = {
       type: 'normal',
     }
   },
-  signature: {
-    description:
-      'MisStore (store.notedeck.io) の既製プラグインをインストールする。' +
-      ' id は `misstore.search` で取得した値を渡す。sha512 検証付き。' +
-      ' 全体スコープ (全アカウント対象) でインストールされ、既に同 storeId の' +
-      ' プラグインがあれば再インストールせず全体スコープへ追加するだけ。',
-    params: {
-      id: {
-        type: 'string',
-        description: 'MisStore registry 上の plugin id',
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ id, name, installed: boolean }',
-    },
-  },
-  visible: false,
   execute: async (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('plugins.install: id is required')
@@ -633,7 +413,7 @@ export const pluginsInstallCapability: Command = {
     await misStore.installPlugin(entry, { kind: 'global' })
     return { id: entry.id, name: entry.name, installed: true }
   },
-}
+})
 
 /**
  * `plugins.uninstall` — インストール済みプラグインを完全削除する。
@@ -641,14 +421,7 @@ export const pluginsInstallCapability: Command = {
  * 揃え、storeId からも引けるエイリアス。AI が「MisStore で入れた○○外して」
  * と発話したとき id ベースで消せるよう、両方を受け付ける。
  */
-export const pluginsUninstallCapability: Command = {
-  id: 'plugins.uninstall',
-  label: 'プラグインを削除',
-  icon: 'ti-trash',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['plugins.write'],
+export const pluginsUninstallCapability = implement('plugins.uninstall', {
   requiresConfirmation: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -676,30 +449,6 @@ export const pluginsUninstallCapability: Command = {
       type: 'danger',
     }
   },
-  signature: {
-    description:
-      'インストール済みプラグインを完全削除する。installId か storeId の' +
-      ' どちらかを渡す (両方渡されたら installId 優先)。' +
-      ' plugins.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。',
-    params: {
-      installId: {
-        type: 'string',
-        description: '対象プラグインの installId (plugins.list で取得)',
-        optional: true,
-      },
-      storeId: {
-        type: 'string',
-        description:
-          'MisStore registry 上の id (= plugins.install で渡した id)',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ installId, removed: boolean }',
-    },
-  },
-  visible: false,
   execute: (params) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
@@ -719,7 +468,7 @@ export const pluginsUninstallCapability: Command = {
     store.removePlugin(plugin.installId)
     return { installId: plugin.installId, removed: true }
   },
-}
+})
 
 export const PLUGINS_BUILTIN_CAPABILITIES: readonly Command[] = [
   pluginsListCapability,

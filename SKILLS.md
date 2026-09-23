@@ -193,58 +193,179 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 
 ### 4.0 capability 一覧
 
-| subject | capability ID | 用途 |
-|---|---|---|
-| **時刻** | `time.now` | ISO 8601 で現在時刻 |
-| **アカウント** | `account.current`, `account.list` | 自アカウント / 全アカウント情報 (auth 系 add/switch/logout は塞ぐ) |
-| **メタ** | `meta.permissions`, `meta.activeSkills`, `meta.persona`, `meta.config`, `meta.heartbeat` | 自分自身 (AI の権限・skill・persona・config・HEARTBEAT 設定) を内省 |
-| **カラム** | `column.list`, `column.active`, `column.add`, `column.remove`, `column.move`, `column.updateSettings`, `column.focusedNote`, `sidebar.toggle` | デッキカラムの操作 + 並び替え + 設定変更 + フォーカスノート取得 + サイドバー開閉 (変更系は `deck.write` permission) |
-| **ノート (read)** | `notes.timeline`, `notes.user`, `notes.search`, `notes.show`, `notes.children` | TL / ユーザー別 / サーバー検索 / 単発取得 / 返信ツリー |
-| **ノート (手元の索引)** | `notes.searchArchive` | 手元のキャッシュをサーバー・アカウント横断で検索 (`notes.readArchive` permission、既定は閉じる。公開範囲は既定 public のみ) |
-| **ノート (write)** | `notes.create`, `notes.react`, `notes.unreact`, `notes.delete`, `notes.pin`, `notes.unpin` | 投稿・リアクション・解除・削除・プロファイル pin (`notes.write` / `notes.react` permission) |
-| **ノート (お気に入り)** | `favorites.add`, `favorites.remove` | お気に入り登録 / 解除 |
-| **アンテナ** | `antenna.list`, `antenna.notes` | 自分のアンテナ一覧 + マッチ note |
-| **チャネル** | `channel.list`, `channel.notes` | フォロー中チャネル一覧 + note |
-| **ロール** | `role.notes` | 指定ロール所属者の note |
-| **チャット** | `chat.react`, `chat.unreact` | Misskey 新 Chat API のリアクション操作 (Misskey 専用、registry 同様 adapter 経由しない) |
-| **ドラフト** | `drafts.create`, `drafts.update`, `drafts.delete`, `drafts.list` | 下書き CRUD |
-| **クリップ** | `clips.list`, `clips.notes`, `clips.create`, `clips.addNote`, `clips.removeNote` | ノートクリップの編集 |
-| **通知** | `notifications.list`, `notifications.markRead` | 通知一覧 + 既読化 |
-| **ドライブ** | `drive.list` | ファイル一覧 |
-| **バックアップ** | `backup.create` | DB / 設定のスナップショットを Downloads/notedeck/backup/ に作成 (#816。認証情報は含まない、DB と設定は個別選択可、世代ローテーション。HEARTBEAT からの定期実行が主目的で heartbeat のみ確認なし) |
-| **ローカル保存** | `files.export` | fileId / noteId 参照で Downloads/notedeck/ 配下に保存 (#813。任意 URL 不可、100 件/回。センシティブも既定で保存 — 除外は includeSensitive: false) |
-| **ユーザー** | `user.lookup`, `user.search`, `user.follow`, `user.unfollow`, `user.followers`, `user.following`, `user.mute`, `user.unmute`, `user.renoteMute`, `user.unrenoteMute` | ユーザー検索 / フォロー操作 / フォロー一覧 / ミュート (block / report は塞ぐ) |
-| **リスト** | `list.list`, `list.addUser`, `list.removeUser` | ユーザーリスト編成 |
-| **連合** | `federation.chart`, `federation.instances`, `federation.instance` | サーバー連合の統計 + 連合先情報 |
-| **アナウンス** | `announcements.list` | サーバーアナウンス read (既読化は塞ぐ) |
-| **Pages** | `pages.list`, `pages.show` | Misskey Pages (wiki/長文記事) を情報源化 |
-| **Gallery** | `gallery.list` | Misskey Gallery を read |
-| **Misskey Play** | `flash.list`, `flash.show` | Misskey Play (AiScript 小アプリ)。`flash.show` は **AiScript ソース含む** |
-| **Registry** | `registry.listKeys`, `registry.get`, `registry.set`, `registry.delete` | Misskey サーバー側 KV ストア (Misskey 専用、adapter 経由しない) |
-| **メモ** | `memos.list`, `memos.search`, `memos.backlinks`, `memos.create`, `memos.update`, `memos.delete`, `memos.revert` | AI 永続記憶用ローカルメモ CRUD + 過去の状態へ戻す (#492 #494) |
-| **テーマ** | `theme.list`, `theme.read`, `theme.apply`, `theme.create`, `theme.update`, `theme.install`, `theme.uninstall`, `theme.history`, `theme.revert` | per-account テーマ CRUD + 編集履歴 + MisStore install/uninstall (apply は `deck.write` permission) |
-| **CSS** | `styles.read`, `styles.write`, `styles.append`, `styles.history`, `styles.revert` | カスタム CSS の AI 編集 |
-| **スキル** | `skills.list`, `skills.read`, `skills.create`, `skills.append`, `skills.replaceSection`, `skills.toggle`, `skills.install`, `skills.uninstall`, `skills.history`, `skills.revert` | skill 新規作成 (#726) + 自己編集 + MisStore install/uninstall |
-| **ウィジェット** | `widgets.list`, `widgets.read`, `widgets.create`, `widgets.update`, `widgets.setAutoRun`, `widgets.delete`, `widgets.install`, `widgets.uninstall`, `widgets.history`, `widgets.revert` | AiScript widget の AI 編集 + MisStore install/uninstall |
-| **プラグイン** | `plugins.list`, `plugins.read`, `plugins.create`, `plugins.update`, `plugins.setActive`, `plugins.delete`, `plugins.install`, `plugins.uninstall`, `plugins.history`, `plugins.revert` | AiScript plugin の AI 編集 + MisStore install/uninstall |
-| **クエリ** | `queries.history`, `queries.revert` | 名前付きクエリの編集履歴と復元 (#1117)。作成・編集は開発者モードのエディタのみで AI には開放しない |
-| **キーバインド** | `keybinds.list`, `keybinds.set`, `keybinds.reset`, `keybinds.resetAll` | ショートカット編集 |
-| **ナビバー** | `navbar.list`, `navbar.set`, `navbar.reset` | サイドバー構成編集 |
-| **パフォーマンス** | `performance.list`, `performance.set`, `performance.applySlider`, `performance.reset`, `performance.resetAll` | パフォーマンス設定 |
-| **メトリクス** | `metrics.read` | Frame Engine 実測値・接続状態の匿名集約・起動フェーズ内訳・メモリ指標 (`deck.read` permission) |
-| **ペルソナ** | `ai.listPersonas`, `ai.setPersona` | AI ペルソナ一覧 / 切替 |
-| **AI セッション** | `ai.chat`, `ai.sessions.list`, `ai.sessions.read`, `ai.sessions.search` | プラグインから本体 AI を呼ぶ / 過去セッション参照 |
-| **ウィンドウ** | `windows.open`, `windows.close`, `windows.closeAll`, `windows.focus`, `windows.list` | サブウィンドウ操作 (list 以外は `deck.write` permission) |
-| **クリップボード** | `clipboard.read`, `clipboard.write` | OS クリップボード入出力 |
-| **ストア** | `misstore.search` | MisStore のプラグイン/テーマ検索 |
-| **HTTP** | `http.fetch` | 任意の外部 HTTP API (`network.external` permission) |
-| **AiScript** | `aiscript.validate`, `aiscript.logs` | 構文検証 (skill / plugin 保存前の preflight) + 実行ログ取得 |
-| **Vault** | `vault.fetch` | Vault 接続の認証情報を注入して HTTP リクエスト (`vault.use` permission。本体はフロントに出ない) |
-| **UI** | `ui.notify` | OS / アプリ内通知 |
-| **ログ** | `logs.recent` | 直近の AI セッションログ |
-| **タスク** | `tasks.run` | 内部タスク実行 |
+<!-- capabilities:begin -->
+<!-- 生成物: 正本は crates/notecore/capabilities.json5、生成は pnpm gen:capabilities -->
 
-各 capability の params / 戻り値の詳細は `src/capabilities/builtins/<subject>.ts` の `params` (`ParameterDef` の手書き定義) を参照。表とレジストリの一致は `tests/lint/capabilityDocs.test.ts` が検査する。
+| subject | capability ID | 用途 | 権限 | 確認 |
+|---|---|---|---|---|
+| account | `account.current` | 現在のアカウント情報 | `account.read` | — |
+| account | `account.list` | アカウント一覧 | `account.read` | — |
+| ai | `ai.chat` | AI に問い合わせる (AI からは呼べない) | `ai.invoke` | — |
+| ai | `ai.listPersonas` | persona 用 skill 一覧 | `skills.read` | — |
+| ai | `ai.sessions.list` | AI セッション一覧 | `ai.sessions.read` | — |
+| ai | `ai.sessions.read` | AI セッションを読む | `ai.sessions.read` | — |
+| ai | `ai.sessions.search` | AI セッション本文を検索 | `ai.sessions.read` | — |
+| ai | `ai.setPersona` | AI persona を切替 | `ai.persona.write` | あり |
+| aiscript | `aiscript.logs` | AiScript 実行ログを取得 | `logs.read` | — |
+| aiscript | `aiscript.validate` | AiScript を構文検証する | — | — |
+| announcements | `announcements.list` | サーバーアナウンス一覧 | `account.read` | — |
+| antenna | `antenna.list` | 自分のアンテナ一覧 | `account.read` | — |
+| antenna | `antenna.notes` | アンテナの note | `notes.read` | — |
+| backup | `backup.create` | バックアップを作成 | `backup.create` | あり |
+| channel | `channel.list` | 自分のフォロー中チャネル | `account.read` | — |
+| channel | `channel.notes` | チャネルの note | `notes.read` | — |
+| chat | `chat.react` | チャットメッセージにリアクション | `notes.react` | あり |
+| chat | `chat.unreact` | チャットメッセージのリアクションを解除 | `notes.react` | あり |
+| clipboard | `clipboard.read` | クリップボードを読む | `clipboard` | — |
+| clipboard | `clipboard.write` | クリップボードに書き込む | `clipboard` | — |
+| clips | `clips.addNote` | クリップにノートを追加 | `clips.write` | あり |
+| clips | `clips.create` | クリップを作成 | `clips.write` | あり |
+| clips | `clips.list` | クリップ一覧 | `clips.read` | — |
+| clips | `clips.notes` | クリップ内のノート一覧 | `clips.read`, `notes.read` | — |
+| clips | `clips.removeNote` | クリップからノートを削除 | `clips.write` | あり |
+| column | `column.active` | アクティブなカラムを取得 | `deck.read` | — |
+| column | `column.add` | カラムを追加 | `deck.write` | — |
+| column | `column.focusedNote` | フォーカス中のノートを取得 | `notes.read` | — |
+| column | `column.list` | カラム一覧 | `deck.read` | — |
+| column | `column.move` | カラムを移動 | `deck.write` | — |
+| column | `column.remove` | カラムを削除 | `deck.write` | — |
+| column | `column.updateSettings` | カラム設定を更新 | `deck.write` | — |
+| drafts | `drafts.create` | 下書きを作成 | `drafts.write` | あり |
+| drafts | `drafts.delete` | 下書きを削除 | `drafts.write` | あり |
+| drafts | `drafts.list` | 下書き一覧 | `drafts.read` | — |
+| drafts | `drafts.update` | 下書きを更新 | `drafts.write` | あり |
+| drive | `drive.list` | ドライブファイル一覧 | `drive.read` | — |
+| favorites | `favorites.add` | お気に入りに追加 | `notes.react` | あり |
+| favorites | `favorites.remove` | お気に入りから削除 | `notes.react` | あり |
+| federation | `federation.chart` | 連合チャート | `account.read` | — |
+| federation | `federation.instance` | 連合先インスタンス詳細 | `account.read` | — |
+| federation | `federation.instances` | 連合先インスタンス一覧 | `account.read` | — |
+| files | `files.export` | ファイルをローカルに保存 | `files.export` | あり |
+| flash | `flash.list` | Misskey Play 一覧 | `account.read` | — |
+| flash | `flash.show` | Misskey Play 詳細 | `account.read` | — |
+| gallery | `gallery.list` | Gallery 一覧 | `account.read` | — |
+| http | `http.fetch` | 外部 HTTP リクエスト | `network.external` | あり |
+| keybinds | `keybinds.list` | キーバインド一覧 | — | — |
+| keybinds | `keybinds.reset` | キーバインドを default に戻す | `keybinds.write` | あり |
+| keybinds | `keybinds.resetAll` | 全キーバインドを default に戻す | `keybinds.write` | あり |
+| keybinds | `keybinds.set` | キーバインドを設定 | `keybinds.write` | あり |
+| list | `list.addUser` | リストにユーザーを追加 | `account.write` | あり |
+| list | `list.list` | 自分のリスト一覧 | `account.read` | — |
+| list | `list.removeUser` | リストからユーザーを削除 | `account.write` | あり |
+| logs | `logs.recent` | 最近のログを取得 | `logs.read` | — |
+| memos | `memos.backlinks` | メモのバックリンク | `memos.read` | — |
+| memos | `memos.create` | メモを作成 | `memos.write` | あり |
+| memos | `memos.delete` | メモを削除 | `memos.write` | あり |
+| memos | `memos.list` | メモを列挙 | `memos.read` | — |
+| memos | `memos.revert` | メモを過去の状態に戻す | `memos.write` | あり |
+| memos | `memos.search` | メモを検索 | `memos.read` | — |
+| memos | `memos.update` | メモを更新 | `memos.write` | あり |
+| meta | `meta.activeSkills` | active な skill 一覧 | — | — |
+| meta | `meta.config` | 現在の AI 設定スナップショット | — | — |
+| meta | `meta.heartbeat` | HEARTBEAT 設定スナップショット | — | — |
+| meta | `meta.permissions` | 現在の permission を取得 | — | — |
+| meta | `meta.persona` | 現在の AI persona | — | — |
+| metrics | `metrics.read` | 実行時メトリクスを取得 | `deck.read` | — |
+| misstore | `misstore.search` | MisStore を検索 | `network.external` | — |
+| navbar | `navbar.list` | ナビバー構成を読む | — | — |
+| navbar | `navbar.reset` | ナビバー構成を default に戻す | `navbar.write` | あり |
+| navbar | `navbar.set` | ナビバー構成を上書き | `navbar.write` | あり |
+| notes | `notes.children` | リプライ取得 | `notes.read` | — |
+| notes | `notes.create` | ノートを投稿 | `notes.write` | あり |
+| notes | `notes.delete` | ノートを削除 | `notes.write` | あり |
+| notes | `notes.pin` | ノートをプロファイルに pin | `notes.write` | あり |
+| notes | `notes.react` | リアクションする | `notes.react` | あり |
+| notes | `notes.search` | ノート検索 | `notes.read` | — |
+| notes | `notes.searchArchive` | 手元の索引を検索 | `notes.readArchive` | — |
+| notes | `notes.show` | ノート取得 | `notes.read` | — |
+| notes | `notes.timeline` | タイムライン取得 | `notes.read` | — |
+| notes | `notes.unpin` | ノートの pin を解除 | `notes.write` | あり |
+| notes | `notes.unreact` | リアクションを解除 | `notes.react` | あり |
+| notes | `notes.user` | ユーザーのノート取得 | `notes.read` | — |
+| notifications | `notifications.list` | 通知一覧 | `notifications` | — |
+| notifications | `notifications.markRead` | 通知をすべて既読化 | `notifications` | あり |
+| pages | `pages.list` | Pages 一覧 | `account.read` | — |
+| pages | `pages.show` | Page 詳細 | `account.read` | — |
+| performance | `performance.applySlider` | パフォーマンススライダーを適用 | `performance.write` | あり |
+| performance | `performance.list` | パフォーマンス設定一覧 | — | — |
+| performance | `performance.reset` | パフォーマンス値を default に戻す | `performance.write` | あり |
+| performance | `performance.resetAll` | 全パフォーマンス値を default に戻す | `performance.write` | あり |
+| performance | `performance.set` | パフォーマンス値を設定 | `performance.write` | あり |
+| plugins | `plugins.create` | プラグインを作成 | `plugins.write` | あり |
+| plugins | `plugins.delete` | プラグインを削除 | `plugins.write` | あり |
+| plugins | `plugins.history` | プラグインの編集履歴 | `plugins.read` | — |
+| plugins | `plugins.install` | MisStore からプラグインを入れる | `plugins.write`, `network.external` | あり |
+| plugins | `plugins.list` | プラグイン一覧 | `plugins.read` | — |
+| plugins | `plugins.read` | プラグインの AiScript を読む | `plugins.read` | — |
+| plugins | `plugins.revert` | プラグインを過去の状態に戻す | `plugins.write` | あり |
+| plugins | `plugins.setActive` | プラグインの有効/無効を切替 | `plugins.write` | あり |
+| plugins | `plugins.uninstall` | プラグインを削除 | `plugins.write` | あり |
+| plugins | `plugins.update` | プラグインの AiScript を更新 | `plugins.write` | あり |
+| queries | `queries.history` | クエリの編集履歴 | `queries.read` | — |
+| queries | `queries.revert` | クエリを過去の状態に戻す | `queries.write` | あり |
+| registry | `registry.delete` | registry の値を削除 | `account.write` | あり |
+| registry | `registry.get` | registry の値を取得 | `account.read` | — |
+| registry | `registry.listKeys` | registry の key 一覧 | `account.read` | — |
+| registry | `registry.set` | registry に値を書込 | `account.write` | あり |
+| role | `role.notes` | ロールの note | `notes.read` | — |
+| sidebar | `sidebar.toggle` | サイドバーで開閉 | `deck.write` | — |
+| skills | `skills.append` | スキル本文に追記 | `skills.write` | あり |
+| skills | `skills.create` | スキルを作成 | `skills.write` | あり |
+| skills | `skills.history` | スキルの編集履歴を取得 | `skills.read` | — |
+| skills | `skills.install` | MisStore からスキルを入れる | `skills.write`, `network.external` | あり |
+| skills | `skills.list` | スキル一覧 | `skills.read` | — |
+| skills | `skills.read` | スキル本文を読む | `skills.read` | — |
+| skills | `skills.replaceSection` | スキルのセクションを置換 | `skills.write` | あり |
+| skills | `skills.revert` | スキルを過去の編集前状態に戻す | `skills.write` | あり |
+| skills | `skills.toggle` | スキルの有効/無効を切替 | `skills.write` | — |
+| skills | `skills.uninstall` | スキルを削除 | `skills.write` | あり |
+| styles | `styles.append` | カスタム CSS に追記 | `styles.write` | あり |
+| styles | `styles.history` | カスタム CSS の編集履歴 | — | — |
+| styles | `styles.read` | カスタム CSS を読む | — | — |
+| styles | `styles.revert` | カスタム CSS を過去の状態に戻す | `styles.write` | あり |
+| styles | `styles.write` | カスタム CSS を全置換 | `styles.write` | あり |
+| tasks | `tasks.run` | タスク実行 | `tasks.run` | — |
+| theme | `theme.apply` | テーマを適用 | `deck.write` | — |
+| theme | `theme.create` | テーマを作成 | `theme.write` | あり |
+| theme | `theme.history` | テーマの編集履歴 | — | — |
+| theme | `theme.install` | MisStore からテーマを入れる | `theme.write`, `network.external` | あり |
+| theme | `theme.list` | テーマ一覧 | — | — |
+| theme | `theme.read` | テーマの内容を読む | — | — |
+| theme | `theme.revert` | テーマを過去の状態に戻す | `theme.write` | あり |
+| theme | `theme.uninstall` | テーマを削除 | `theme.write` | あり |
+| theme | `theme.update` | テーマを更新 | `theme.write` | あり |
+| time | `time.now` | 現在時刻を取得 | — | — |
+| ui | `ui.notify` | デスクトップ通知 | `notifications` | — |
+| user | `user.follow` | ユーザーをフォロー | `account.write` | あり |
+| user | `user.followers` | フォロワー一覧 | `account.read` | — |
+| user | `user.following` | フォロー一覧 | `account.read` | — |
+| user | `user.lookup` | ユーザー検索 | `account.read` | — |
+| user | `user.mute` | ユーザーをミュート | `account.write` | あり |
+| user | `user.renoteMute` | リノートだけミュート | `account.write` | あり |
+| user | `user.search` | ユーザーをあいまい検索 | `account.read` | — |
+| user | `user.unfollow` | ユーザーのフォローを解除 | `account.write` | あり |
+| user | `user.unmute` | ユーザーのミュートを解除 | `account.write` | あり |
+| user | `user.unrenoteMute` | リノートミュートを解除 | `account.write` | あり |
+| vault | `vault.fetch` | Vault 接続で HTTP リクエスト | `vault.use` | あり |
+| widgets | `widgets.create` | ウィジェットを作成 | `widgets.write` | あり |
+| widgets | `widgets.delete` | ウィジェットを削除 | `widgets.write` | あり |
+| widgets | `widgets.history` | ウィジェットの編集履歴 | `widgets.read` | — |
+| widgets | `widgets.install` | MisStore からウィジェットを入れる | `widgets.write`, `network.external` | あり |
+| widgets | `widgets.list` | ウィジェット一覧 | `widgets.read` | — |
+| widgets | `widgets.read` | ウィジェットの AiScript を読む | `widgets.read` | — |
+| widgets | `widgets.revert` | ウィジェットを過去の状態に戻す | `widgets.write` | あり |
+| widgets | `widgets.setAutoRun` | ウィジェットの自動実行を切替 | `widgets.write` | — |
+| widgets | `widgets.uninstall` | ウィジェットを削除 | `widgets.write` | あり |
+| widgets | `widgets.update` | ウィジェットの AiScript を更新 | `widgets.write` | あり |
+| windows | `windows.close` | ウィンドウを閉じる | `deck.write` | — |
+| windows | `windows.closeAll` | 全ウィンドウを閉じる | `deck.write` | あり |
+| windows | `windows.focus` | ウィンドウを前面に | `deck.write` | — |
+| windows | `windows.list` | 開いているウィンドウ一覧 | — | — |
+| windows | `windows.open` | ウィンドウを開く | `deck.write` | — |
+
+<!-- capabilities:end -->
+
+各 capability の params / 戻り値の詳細は宣言ファイル `crates/notecore/capabilities.json5` を参照 (実装は `src/capabilities/builtins/<subject>.ts`)。上の表はそこから生成され (`pnpm gen:capabilities`)、最新かどうかは `tests/lint/capabilityDeclarations.test.ts` が検査する。
 
 ### 4.0.1 永久に塞ぐ capability (AI に開放しない)
 

@@ -1,6 +1,7 @@
 import type { Command } from '@/commands/registry'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { ACCOUNT_ID_PARAM_DESC, resolveAccountId } from '../accountContext'
+import { resolveAccountId } from '../accountContext'
+import { implement } from '../declare'
 
 /**
  * Chat reaction 系 capability — Misskey 新 Chat API (v2025) のメッセージに
@@ -17,39 +18,7 @@ function pickString(v: unknown): string | undefined {
   return t.length > 0 ? t : undefined
 }
 
-export const chatReactCapability: Command = {
-  id: 'chat.react',
-  actsAsAccount: true,
-  label: 'チャットメッセージにリアクション',
-  icon: 'ti-mood-smile',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['notes.react'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      'Misskey 新 Chat (v2025) のメッセージにリアクションを付ける。reaction は ' +
-      '`:name:` 形式または Unicode 絵文字。messageId は chat カラム表示中の' +
-      'メッセージから取得する想定。',
-    params: {
-      messageId: { type: 'string', description: '対象メッセージ id' },
-      reaction: {
-        type: 'string',
-        description: 'リアクション (`:thinking_face:` / `👍` 等)',
-      },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ ok: true, messageId, reaction }',
-    },
-  },
-  visible: false,
+export const chatReactCapability = implement('chat.react', {
   execute: async (params, ctx) => {
     const messageId = pickString(params?.messageId)
     const reaction = pickString(params?.reaction)
@@ -59,38 +28,9 @@ export const chatReactCapability: Command = {
     unwrap(await commands.apiReactChatMessage(accountId, messageId, reaction))
     return { ok: true, messageId, reaction }
   },
-}
+})
 
-export const chatUnreactCapability: Command = {
-  id: 'chat.unreact',
-  actsAsAccount: true,
-  label: 'チャットメッセージのリアクションを解除',
-  icon: 'ti-mood-x',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['notes.react'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      'Misskey Chat メッセージから自分のリアクションを解除する。reaction は' +
-      ' 付けたときと同じ値 (チャットでは複数 reaction を 1 ユーザーが付けられるため、' +
-      ' note のリアクションと違って種別指定が必要)。',
-    params: {
-      messageId: { type: 'string', description: '対象メッセージ id' },
-      reaction: { type: 'string', description: '解除する reaction 種別' },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ ok: true, messageId, reaction }',
-    },
-  },
-  visible: false,
+export const chatUnreactCapability = implement('chat.unreact', {
   execute: async (params, ctx) => {
     const messageId = pickString(params?.messageId)
     const reaction = pickString(params?.reaction)
@@ -100,7 +40,7 @@ export const chatUnreactCapability: Command = {
     unwrap(await commands.apiUnreactChatMessage(accountId, messageId, reaction))
     return { ok: true, messageId, reaction }
   },
-}
+})
 
 export const CHAT_BUILTIN_CAPABILITIES: readonly Command[] = [
   chatReactCapability,

@@ -56,6 +56,7 @@
     "includes": [
       "src/**/*.ts",
       "!src/bindings.ts",
+      "!src/capabilities/declarations.generated.ts",
       "src/**/*.vue",
       "tests/**/*.ts",
       "vite.config.ts",

@@ -4,6 +4,7 @@ import {
   type PerformanceKey,
   usePerformanceStore,
 } from '@/stores/performance'
+import { implement } from '../declare'
 
 /**
  * Performance 系 capability — 「自己拡張する IDE」(memory:
@@ -23,27 +24,7 @@ function isValidPerformanceKey(key: string): key is PerformanceKey {
   return key in FIELD_META
 }
 
-export const performanceListCapability: Command = {
-  id: 'performance.list',
-  label: 'パフォーマンス設定一覧',
-  icon: 'ti-gauge',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      '全パフォーマンス設定 key と、その現在値 / default / min / max / unit / ' +
-      'description / customized フラグを返す。AI がチューニング提案するときの起点。',
-    params: {},
-    returns: {
-      type: 'array',
-      description:
-        '各要素は { key, value, default, min, max, step, unit, category, label, description, customized }',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const performanceListCapability = implement('performance.list', {
   execute: () => {
     const store = usePerformanceStore()
     return (Object.keys(FIELD_META) as PerformanceKey[]).map((key) => {
@@ -63,16 +44,9 @@ export const performanceListCapability: Command = {
       }
     })
   },
-}
+})
 
-export const performanceSetCapability: Command = {
-  id: 'performance.set',
-  label: 'パフォーマンス値を設定',
-  icon: 'ti-gauge',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['performance.write'],
+export const performanceSetCapability = implement('performance.set', {
   requiresConfirmation: (params) => {
     const key = typeof params?.key === 'string' ? params.key : ''
     const value = typeof params?.value === 'number' ? params.value : NaN
@@ -88,26 +62,6 @@ export const performanceSetCapability: Command = {
       type: 'normal',
     }
   },
-  signature: {
-    description:
-      '指定 key のパフォーマンス値を上書きする。範囲外の値は store 側で ' +
-      'min..max に自動 clamp。default と同じ値を渡すと override 削除扱い。',
-    params: {
-      key: {
-        type: 'string',
-        description: '対象 key (performance.list で取得)',
-      },
-      value: {
-        type: 'number',
-        description: '新しい値 (FIELD_META.min..max にクランプ)',
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ key, value: clamp 後の実値 }',
-    },
-  },
-  visible: false,
   execute: (params) => {
     const key = typeof params?.key === 'string' ? params.key : ''
     if (!key) throw new Error('performance.set: key is required')
@@ -122,16 +76,9 @@ export const performanceSetCapability: Command = {
     store.set(key, value)
     return { key, value: store.get(key) }
   },
-}
+})
 
-export const performanceResetCapability: Command = {
-  id: 'performance.reset',
-  label: 'パフォーマンス値を default に戻す',
-  icon: 'ti-arrow-back-up',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['performance.write'],
+export const performanceResetCapability = implement('performance.reset', {
   requiresConfirmation: (params) => {
     const key = typeof params?.key === 'string' ? params.key : ''
     const meta = isValidPerformanceKey(key) ? FIELD_META[key] : null
@@ -145,17 +92,6 @@ export const performanceResetCapability: Command = {
       type: 'normal',
     }
   },
-  signature: {
-    description: '指定 key の override を破棄して default に戻す。',
-    params: {
-      key: { type: 'string', description: '対象 key' },
-    },
-    returns: {
-      type: 'object',
-      description: '{ key, reset: true, value: default 値 }',
-    },
-  },
-  visible: false,
   execute: (params) => {
     const key = typeof params?.key === 'string' ? params.key : ''
     if (!key) throw new Error('performance.reset: key is required')
@@ -166,16 +102,9 @@ export const performanceResetCapability: Command = {
     store.resetKey(key)
     return { key, reset: true, value: store.get(key) }
   },
-}
+})
 
-export const performanceResetAllCapability: Command = {
-  id: 'performance.resetAll',
-  label: '全パフォーマンス値を default に戻す',
-  icon: 'ti-arrow-back-up',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['performance.write'],
+export const performanceResetAllCapability = implement('performance.resetAll', {
   requiresConfirmation: () => ({
     title: '全パフォーマンス値を default に戻す',
     message:
@@ -184,68 +113,40 @@ export const performanceResetAllCapability: Command = {
     cancelLabel: 'やめる',
     type: 'warning',
   }),
-  signature: {
-    description: '全 key の override を破棄。',
-    params: {},
-    returns: {
-      type: 'object',
-      description: '{ reset: true }',
-    },
-  },
-  visible: false,
   execute: () => {
     const store = usePerformanceStore()
     store.resetAll()
     return { reset: true }
   },
-}
+})
 
-export const performanceApplySliderCapability: Command = {
-  id: 'performance.applySlider',
-  label: 'パフォーマンススライダーを適用',
-  icon: 'ti-adjustments',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['performance.write'],
-  requiresConfirmation: (params) => {
-    const t = typeof params?.t === 'number' ? params.t : NaN
-    const label = t <= 0.1 ? '省電力寄り' : t >= 0.9 ? 'リッチ寄り' : 'バランス'
-    return {
-      title: 'パフォーマンスプリセットを適用',
-      message: `スライダー位置 t=${t.toFixed(2)} (${label}) のプリセットを全 key に適用します。`,
-      okLabel: '適用',
-      cancelLabel: 'やめる',
-      type: 'warning',
-    }
-  },
-  signature: {
-    description:
-      '0..1 のスライダー位置 t に応じて全パフォーマンス値を線形補間で一括設定。' +
-      ' 0 = 省電力寄り、1 = リッチ寄り。包括的チューニングプリセット。',
-    params: {
-      t: {
-        type: 'number',
-        description: 'スライダー位置 (0..1、範囲外は clamp)',
-      },
+export const performanceApplySliderCapability = implement(
+  'performance.applySlider',
+  {
+    requiresConfirmation: (params) => {
+      const t = typeof params?.t === 'number' ? params.t : NaN
+      const label =
+        t <= 0.1 ? '省電力寄り' : t >= 0.9 ? 'リッチ寄り' : 'バランス'
+      return {
+        title: 'パフォーマンスプリセットを適用',
+        message: `スライダー位置 t=${t.toFixed(2)} (${label}) のプリセットを全 key に適用します。`,
+        okLabel: '適用',
+        cancelLabel: 'やめる',
+        type: 'warning',
+      }
     },
-    returns: {
-      type: 'object',
-      description: '{ applied: true, t: 適用された値 }',
+    execute: (params) => {
+      const raw = typeof params?.t === 'number' ? params.t : NaN
+      if (!Number.isFinite(raw)) {
+        throw new Error('performance.applySlider: t must be a finite number')
+      }
+      const t = Math.max(0, Math.min(1, raw))
+      const store = usePerformanceStore()
+      store.applySlider(t)
+      return { applied: true, t }
     },
   },
-  visible: false,
-  execute: (params) => {
-    const raw = typeof params?.t === 'number' ? params.t : NaN
-    if (!Number.isFinite(raw)) {
-      throw new Error('performance.applySlider: t must be a finite number')
-    }
-    const t = Math.max(0, Math.min(1, raw))
-    const store = usePerformanceStore()
-    store.applySlider(t)
-    return { applied: true, t }
-  },
-}
+)
 
 export const PERFORMANCE_BUILTIN_CAPABILITIES: readonly Command[] = [
   performanceListCapability,

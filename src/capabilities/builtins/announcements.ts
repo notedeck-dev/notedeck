@@ -1,5 +1,6 @@
 import type { Command } from '@/commands/registry'
-import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
+import { getApiAdapter } from '../accountContext'
+import { implement } from '../declare'
 
 /**
  * Announcements (Misskey サーバーアナウンス) 系 capability。
@@ -23,47 +24,14 @@ function pickBoolean(v: unknown): boolean | undefined {
   return typeof v === 'boolean' ? v : undefined
 }
 
-export const announcementsListCapability: Command = {
-  id: 'announcements.list',
-  label: 'サーバーアナウンス一覧',
-  icon: 'ti-megaphone',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.read'],
-  signature: {
-    description:
-      'Misskey サーバーのアナウンス一覧を返す (read-only)。isActive=true (default)' +
-      ' で現在有効なアナウンスのみ、false で過去含む。既読化は副作用ありのため' +
-      ' 本 capability では提供しない (取得のみ)。',
-    params: {
-      limit: {
-        type: 'number',
-        description: '取得件数 (default 30, 1-100)',
-        optional: true,
-      },
-      isActive: {
-        type: 'boolean',
-        description: '現在有効なアナウンスのみ (default: true)',
-        optional: true,
-      },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: { type: 'array', description: 'Announcement の配列' },
-    cheap: true,
-  },
-  visible: false,
+export const announcementsListCapability = implement('announcements.list', {
   execute: async (params, ctx) => {
     const limit = pickNumber(params?.limit)
     const isActive = pickBoolean(params?.isActive)
     const api = await getApiAdapter(params?.accountId, ctx)
     return await api.getAnnouncements({ limit, isActive })
   },
-}
+})
 
 export const ANNOUNCEMENTS_BUILTIN_CAPABILITIES: readonly Command[] = [
   announcementsListCapability,

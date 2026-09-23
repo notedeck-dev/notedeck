@@ -1,5 +1,6 @@
 import type { Command } from '@/commands/registry'
 import { useAiSessionsStore } from '@/stores/aiSessions'
+import { implement } from '../declare'
 
 /**
  * AI Sessions 系 capability — 過去の AI 会話履歴へのアクセス。
@@ -13,26 +14,7 @@ import { useAiSessionsStore } from '@/stores/aiSessions'
  * できる)。
  */
 
-export const aiSessionsListCapability: Command = {
-  id: 'ai.sessions.list',
-  label: 'AI セッション一覧',
-  icon: 'ti-messages',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['ai.sessions.read'],
-  signature: {
-    description:
-      '保存されている AI セッションのメタ一覧 (updatedAt 降順) を返す。' +
-      ' 各エントリは { id, kind, title, updatedAt, messageCount }。',
-    params: {},
-    returns: {
-      type: 'array',
-      description: 'AiSessionMeta の配列',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const aiSessionsListCapability = implement('ai.sessions.list', {
   execute: async () => {
     const store = useAiSessionsStore()
     await store.loadAllMeta()
@@ -44,28 +26,9 @@ export const aiSessionsListCapability: Command = {
       messageCount: m.messageCount,
     }))
   },
-}
+})
 
-export const aiSessionsReadCapability: Command = {
-  id: 'ai.sessions.read',
-  label: 'AI セッションを読む',
-  icon: 'ti-message-2',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['ai.sessions.read'],
-  signature: {
-    description: '指定 id の AI セッションのメッセージ列を返す。',
-    params: {
-      id: { type: 'string', description: '対象セッションの id' },
-    },
-    returns: {
-      type: 'object',
-      description: '{ id, kind, title, messages: [{ role, content }] }',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const aiSessionsReadCapability = implement('ai.sessions.read', {
   execute: async (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('ai.sessions.read: id is required')
@@ -85,35 +48,9 @@ export const aiSessionsReadCapability: Command = {
       })),
     }
   },
-}
+})
 
-export const aiSessionsSearchCapability: Command = {
-  id: 'ai.sessions.search',
-  label: 'AI セッション本文を検索',
-  icon: 'ti-search',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['ai.sessions.read'],
-  signature: {
-    description:
-      '保存されている AI セッションのメッセージ本文を全文 grep して、' +
-      'ヒットしたセッションを id + 周辺 snippet で返す。大文字小文字を無視。',
-    params: {
-      query: { type: 'string', description: '検索クエリ (部分一致)' },
-      limit: {
-        type: 'number',
-        description: '最大返却数 (default: 20)',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'array',
-      description: '[{ id, title, snippet }] の配列',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const aiSessionsSearchCapability = implement('ai.sessions.search', {
   execute: async (params) => {
     const query = typeof params?.query === 'string' ? params.query : ''
     if (!query) throw new Error('ai.sessions.search: query is required')
@@ -144,7 +81,7 @@ export const aiSessionsSearchCapability: Command = {
     }
     return results
   },
-}
+})
 
 export const AI_SESSIONS_BUILTIN_CAPABILITIES: readonly Command[] = [
   aiSessionsListCapability,
