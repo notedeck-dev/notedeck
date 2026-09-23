@@ -46,7 +46,7 @@ fn migrate_tokens_to_keychain(db: &Database) {
         return;
     }
     for account in &accounts {
-        if let Err(e) = crate::commands::get_credentials(db, &account.id) {
+        if let Err(e) = crate::core::credentials::get_credentials(db, &account.id) {
             tracing::warn!(account_id = %account.id, %e, "keychain migration failed");
         }
     }

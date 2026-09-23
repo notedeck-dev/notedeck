@@ -7,6 +7,7 @@
 
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::connections_store;
@@ -123,12 +124,12 @@ pub struct VaultTestResult {
 
 /// 「load → find(id) → mutate → save」の共通形。mutate 後に updated_at を更新する。
 pub fn update_connection<T>(
-    app: &tauri::AppHandle,
+    app_dir: &Path,
     id: &str,
     f: impl FnOnce(&mut Connection) -> T,
 ) -> VaultResult<T> {
     validate_connection_id(id)?;
-    let mut file = connections_store::load(app)?;
+    let mut file = connections_store::load(app_dir)?;
     let connection = file
         .connections
         .iter_mut()
@@ -136,7 +137,7 @@ pub fn update_connection<T>(
         .ok_or(VaultError::ConnectionNotFound)?;
     let out = f(connection);
     connection.updated_at = now_millis();
-    connections_store::save(app, &file)?;
+    connections_store::save(app_dir, &file)?;
     Ok(out)
 }
 
@@ -189,10 +190,10 @@ pub fn apply_trusted_plugin(
 // --- 手続き ---
 
 /// メタデータを upsert する。secret は触らない。
-pub fn upsert_metadata(app: &tauri::AppHandle, input: ConnectionUpsert) -> VaultResult<Connection> {
+pub fn upsert_metadata(app_dir: &Path, input: ConnectionUpsert) -> VaultResult<Connection> {
     validate_base_url(&input.base_url)?;
 
-    let mut file = connections_store::load(app)?;
+    let mut file = connections_store::load(app_dir)?;
     connections_store::check_schema_version(&file)?;
 
     // allowedHosts が空なら baseUrl の host を自動投入する。
@@ -259,13 +260,13 @@ pub fn upsert_metadata(app: &tauri::AppHandle, input: ConnectionUpsert) -> Vault
         }
     };
 
-    connections_store::save(app, &file)?;
+    connections_store::save(app_dir, &file)?;
     Ok(connection)
 }
 
 /// slot をメタデータの `slots` 配列に登録し、更新後の接続を返す。
-fn register_slot(app: &tauri::AppHandle, conn_id: &str, slot: &str) -> VaultResult<Connection> {
-    update_connection(app, conn_id, |connection| {
+fn register_slot(app_dir: &Path, conn_id: &str, slot: &str) -> VaultResult<Connection> {
+    update_connection(app_dir, conn_id, |connection| {
         if !connection.slots.iter().any(|s| s == slot) {
             connection.slots.push(slot.to_string());
         }
@@ -280,7 +281,7 @@ fn register_slot(app: &tauri::AppHandle, conn_id: &str, slot: &str) -> VaultResu
 /// keychain 書き込みに失敗したらメタデータは既に保存済みだが slot は未登録なので
 /// 「secret 未設定の接続」として残るだけで整合性は保たれる。
 pub fn upsert_with_secret(
-    app: &tauri::AppHandle,
+    app_dir: &Path,
     input: ConnectionUpsert,
     slot: &str,
     secret: String,
@@ -290,20 +291,15 @@ pub fn upsert_with_secret(
         return Err(VaultError::SecretTooShort);
     }
 
-    let connection = upsert_metadata(app, input)?;
+    let connection = upsert_metadata(app_dir, input)?;
     let conn_id = connection.id.clone();
 
     backend().store(&conn_id, slot, &SecretString::from(secret))?;
-    register_slot(app, &conn_id, slot)
+    register_slot(app_dir, &conn_id, slot)
 }
 
 /// 既存接続の secret を設定 / 入れ替える。
-pub fn set_secret(
-    app: &tauri::AppHandle,
-    id: &str,
-    slot: &str,
-    secret: String,
-) -> VaultResult<Connection> {
+pub fn set_secret(app_dir: &Path, id: &str, slot: &str, secret: String) -> VaultResult<Connection> {
     validate_connection_id(id)?;
     validate_slot(slot)?;
     if secret.len() < MIN_SECRET_LEN {
@@ -311,19 +307,19 @@ pub fn set_secret(
     }
 
     // 接続が存在することを確認する。
-    let file = connections_store::load(app)?;
+    let file = connections_store::load(app_dir)?;
     if !file.connections.iter().any(|c| c.id == id) {
         return Err(VaultError::ConnectionNotFound);
     }
 
     backend().store(id, slot, &SecretString::from(secret))?;
-    register_slot(app, id, slot)
+    register_slot(app_dir, id, slot)
 }
 
 /// secret 設定状況を返す (値そのものは決して返さない)。
-pub fn secret_status(app: &tauri::AppHandle, id: &str) -> VaultResult<SecretStatus> {
+pub fn secret_status(app_dir: &Path, id: &str) -> VaultResult<SecretStatus> {
     validate_connection_id(id)?;
-    let file = connections_store::load(app)?;
+    let file = connections_store::load(app_dir)?;
     let connection = file
         .connections
         .iter()
@@ -343,27 +339,27 @@ pub fn secret_status(app: &tauri::AppHandle, id: &str) -> VaultResult<SecretStat
 }
 
 /// 特定 slot の secret を削除する。
-pub fn delete_secret(app: &tauri::AppHandle, id: &str, slot: &str) -> VaultResult<()> {
+pub fn delete_secret(app_dir: &Path, id: &str, slot: &str) -> VaultResult<()> {
     validate_connection_id(id)?;
     validate_slot(slot)?;
 
     backend().delete(id, slot)?;
 
-    let mut file = connections_store::load(app)?;
+    let mut file = connections_store::load(app_dir)?;
     if let Some(connection) = file.connections.iter_mut().find(|c| c.id == id) {
         connection.slots.retain(|s| s != slot);
         connection.updated_at = now_millis();
-        connections_store::save(app, &file)?;
+        connections_store::save(app_dir, &file)?;
     }
     Ok(())
 }
 
 /// 接続を削除する。全 slot の secret を keychain から消し、メタデータも削除する。
 /// secret を先に消す (途中 crash でも orphan メタデータより orphan secret の方が安全)。
-pub fn delete_connection(app: &tauri::AppHandle, id: &str) -> VaultResult<()> {
+pub fn delete_connection(app_dir: &Path, id: &str) -> VaultResult<()> {
     validate_connection_id(id)?;
 
-    let mut file = connections_store::load(app)?;
+    let mut file = connections_store::load(app_dir)?;
     let Some(pos) = file.connections.iter().position(|c| c.id == id) else {
         return Err(VaultError::ConnectionNotFound);
     };
@@ -375,13 +371,13 @@ pub fn delete_connection(app: &tauri::AppHandle, id: &str) -> VaultResult<()> {
     }
 
     file.connections.remove(pos);
-    connections_store::save(app, &file)?;
+    connections_store::save(app_dir, &file)?;
     Ok(())
 }
 
 /// 接続の疎通テスト。baseUrl への GET (または指定パス) を 1 回実行する。
 pub async fn test_connection(
-    app: &tauri::AppHandle,
+    app_dir: &Path,
     id: &str,
     test_path: Option<String>,
 ) -> VaultResult<VaultTestResult> {
@@ -396,7 +392,7 @@ pub async fn test_connection(
         slot: None,
     };
 
-    match fetch::vault_fetch(app, id, request).await {
+    match fetch::vault_fetch(app_dir, id, request).await {
         Ok(resp) => Ok(VaultTestResult {
             status: Some(resp.status),
             ok: (200..400).contains(&resp.status),
@@ -417,14 +413,14 @@ pub async fn test_connection(
 /// 移行後、旧キーチェーンエントリーは削除する。該当エントリーが無い場合は
 /// `None` (移行対象なし)。
 pub fn migrate_ai_provider(
-    app: &tauri::AppHandle,
+    app_dir: &Path,
     provider: &str,
     name: String,
     base_url: String,
     protocol: ConnectionProtocol,
 ) -> VaultResult<Option<Connection>> {
     let api_key =
-        crate::commands::ai::read_ai_api_key(provider).map_err(|e| VaultError::InvalidInput {
+        crate::core::ai_keys::read_ai_api_key(provider).map_err(|e| VaultError::InvalidInput {
             message: e.to_string(),
         })?;
     let Some(api_key) = api_key.filter(|k| !k.is_empty()) else {
@@ -441,7 +437,7 @@ pub fn migrate_ai_provider(
     };
 
     let connection = upsert_metadata(
-        app,
+        app_dir,
         ConnectionUpsert {
             id: None,
             name,
@@ -459,17 +455,17 @@ pub fn migrate_ai_provider(
 
     let conn_id = connection.id.clone();
     backend().store(&conn_id, "primary", &SecretString::from(api_key))?;
-    let connection = register_slot(app, &conn_id, "primary")?;
+    let connection = register_slot(app_dir, &conn_id, "primary")?;
 
     // 旧キーチェーンエントリーを削除する。失敗しても移行自体は成功扱い。
-    let _ = notecli::keychain::delete_token(&crate::commands::ai::ai_keychain_id(provider));
+    let _ = notecli::keychain::delete_token(&crate::core::ai_keys::ai_keychain_id(provider));
 
     Ok(Some(connection))
 }
 
 /// 接続の `last_used_at` を現在時刻で更新する (ベストエフォート、失敗は無視)。
-pub fn touch_last_used(app: &tauri::AppHandle, id: &str) {
-    let _ = update_connection(app, id, |connection| {
+pub fn touch_last_used(app_dir: &Path, id: &str) {
+    let _ = update_connection(app_dir, id, |connection| {
         connection.last_used_at = Some(now_millis());
     });
 }

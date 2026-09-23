@@ -1,6 +1,9 @@
+//! 旧来の `ai.<provider>` keychain エントリを読む helper。Vault 接続への移行専用 (#564)。
+//! commands/ai.rs から移動 (#1106 段階 0b)。
+
 use notecli::error::NoteDeckError;
 
-use super::Result;
+use crate::error::Result;
 
 pub(crate) const VALID_AI_PROVIDERS: &[&str] = &["anthropic", "openai", "custom"];
 

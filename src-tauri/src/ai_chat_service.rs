@@ -281,7 +281,9 @@ pub async fn start_stream(
 
     // Vault 接続を解決する: endpoint / protocol はメタデータから、secret は
     // OS キーチェーンから。secret はこの Rust 側だけで展開しフロントには返さない。
-    let file = crate::vault::connections_store::load(&app)
+    let app_dir = crate::app_dir::resolve_app_dir(&app)
+        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+    let file = crate::core::vault::connections_store::load(&app_dir)
         .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
     let connection = file
         .connections
@@ -294,8 +296,8 @@ pub async fn start_stream(
     })?;
     let endpoint = connection.base_url.clone();
     let api_key = {
-        use crate::vault::SecretBackend as _;
-        crate::vault::KeychainBackend
+        use crate::core::vault::SecretBackend as _;
+        crate::core::vault::KeychainBackend
             .load(&req.connection_id, "primary")
             .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?
             .map(|s| {
@@ -316,10 +318,10 @@ pub async fn start_stream(
 
     let handle = tauri::async_runtime::spawn(async move {
         let result = match protocol {
-            crate::vault::ConnectionProtocol::Anthropic => {
+            crate::core::vault::ConnectionProtocol::Anthropic => {
                 run_anthropic(&client, &req, &endpoint, &api_key, &app_handle).await
             }
-            crate::vault::ConnectionProtocol::OpenaiCompat => {
+            crate::core::vault::ConnectionProtocol::OpenaiCompat => {
                 run_openai_compat(&client, &req, &endpoint, &api_key, &app_handle).await
             }
         };
