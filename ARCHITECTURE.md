@@ -152,7 +152,7 @@ sequenceDiagram
         notecli                             notecli
 ```
 
-- 依存の向きは一方向: フロント → Tauri → notecore → notecli、notenode → notecore → notecli。notecore は Tauri を知らず、notecli は notecore を知らない
+- 依存の向きは一方向: フロント → Tauri → notecore → notecli、notenode → notecore → notecli。notecore は Tauri を知らず、notecli は notecore を知らない。4 つは同じリポジトリの workspace クレートで、notecli は取り込む (別リポジトリの固定版更新をなくす)
 - 切替点は手元の Rust のクライアント層 1 箇所。データ系コマンドはコマンド表を通り、ローカル構成では in-process、リモート構成では notenode への中継になる。フロントは違いを知らず、接続 / 互換 / 同期の状態面だけを知る
 - AI エージェントループは Rust で notecore に置く（[#1133](https://github.com/notedeck-dev/notedeck/issues/1133)）
 - 認証 (デバイスの鍵対とペアリング)、イベント面 (購読宣言とクエリ単位の差分)、状態の所有 (notecore 側と手元側の設定の分け方) は #1106 の仕様コメントが正本
