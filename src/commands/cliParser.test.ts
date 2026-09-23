@@ -18,7 +18,10 @@ function makeRaw(overrides: Partial<CliCommandInfo> = {}): CliCommandInfo {
 /** commandCache がモジュールスコープなので毎回リセットして読み直す */
 async function loadModule(raw: CliCommandInfo[]) {
   const { commands } = await import('@/utils/tauriInvoke')
-  vi.mocked(commands.getCliCommands).mockResolvedValue(raw)
+  vi.mocked(commands.getCliCommands).mockResolvedValue({
+    status: 'ok',
+    data: raw,
+  })
   return import('./cliParser')
 }
 

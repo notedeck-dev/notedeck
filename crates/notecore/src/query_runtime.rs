@@ -47,9 +47,10 @@ pub enum QueryKey {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum QueryRuntimeState {
+    #[default]
     Live,
     Warm,
     Suspended,

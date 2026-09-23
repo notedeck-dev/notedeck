@@ -21,12 +21,17 @@ pub mod clips;
 pub mod column_query;
 pub mod content;
 pub mod drafts;
+pub mod enrichment;
 pub mod federation;
 pub mod lists;
 pub mod messaging;
+pub mod pet;
+pub mod query;
+pub mod streaming;
 pub mod table;
 pub mod timeline;
 pub mod user;
+pub mod utility;
 
 use std::sync::LazyLock;
 

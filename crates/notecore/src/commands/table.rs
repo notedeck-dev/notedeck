@@ -206,6 +206,40 @@ macro_rules! with_command_table {
             // --- column_query (crates/notecore/src/commands/column_query.rs) ---
         data qir_validate(query: $crate::commands::column_query::QirQuery) -> $crate::commands::column_query::QirValidation = $crate::commands::column_query::qir_validate;
         data qir_search_cache(account_id: String, query: $crate::commands::column_query::QirQuery, timeline_key: Option<String>, limit: Option<u32>, max_scanned_rows: Option<u32>, cursor: Option<$crate::commands::column_query::QirSearchCursor>) -> $crate::commands::column_query::QirSearchResult = $crate::commands::column_query::qir_search_cache;
+            // --- enrichment (crates/notecore/src/commands/enrichment.rs) ---
+        data fetch_ogp(url: String, account_id: Option<String>) -> $crate::ogp::OgpData = $crate::commands::enrichment::fetch_ogp;
+        data fetch_server_meta(host: String) -> serde_json::Value = $crate::commands::enrichment::fetch_server_meta;
+        data fetch_image_base64(url: String) -> Option<String> = $crate::commands::enrichment::fetch_image_base64;
+            // --- streaming (crates/notecore/src/commands/streaming.rs) ---
+        data stream_connect(account_id: String) -> () = $crate::commands::streaming::stream_connect;
+        data stream_disconnect(account_id: String) -> () = $crate::commands::streaming::stream_disconnect;
+        data stream_set_mode(account_id: String, mode: String, interval_ms: Option<u64>) -> () = $crate::commands::streaming::stream_set_mode;
+        data stream_sub_note(account_id: String, note_id: String) -> () = $crate::commands::streaming::stream_sub_note;
+        data stream_unsub_note(account_id: String, note_id: String) -> () = $crate::commands::streaming::stream_unsub_note;
+            // --- pet (crates/notecore/src/commands/pet.rs) ---
+        data pet_install(slug: String) -> $crate::pet_store::PetInfo = $crate::commands::pet::pet_install;
+        data pet_load(slug: String) -> Option<$crate::commands::pet::PetLoaded> = $crate::commands::pet::pet_load;
+        data pet_clear() -> () = $crate::commands::pet::pet_clear;
+            // --- query (crates/notecore/src/commands/query.rs) ---
+        data query_subscribe_timeline(account_id: String, timeline_type: String, list_id: Option<String>) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_timeline;
+        data query_subscribe_antenna(account_id: String, antenna_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_antenna;
+        data query_subscribe_channel(account_id: String, channel_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_channel;
+        data query_subscribe_role(account_id: String, role_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_role;
+        data query_subscribe_mentions(account_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_mentions;
+        data query_subscribe_notifications(account_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_notifications;
+        data query_subscribe_chat_user(account_id: String, other_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_chat_user;
+        data query_subscribe_chat_room(account_id: String, room_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_chat_room;
+        data query_set_runtime_state(query_id: String, state: $crate::query_runtime::QueryRuntimeState) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_set_runtime_state;
+        data query_close(query_id: String) -> () = $crate::commands::query::query_close;
+        data query_get_snapshot(query_id: String) -> Option<$crate::query_runtime::QuerySnapshot> = $crate::commands::query::query_get_snapshot;
+        data query_get_read_model_snapshot(query_id: String, limit: Option<u32>) -> Option<$crate::query_runtime::QueryReadModelSnapshot> = $crate::commands::query::query_get_read_model_snapshot;
+            // --- utility (crates/notecore/src/commands/utility.rs) ---
+        data get_cli_commands() -> Vec<notecli::cli::CliCommandInfo> = $crate::commands::utility::get_cli_commands;
+        data get_openapi_spec() -> serde_json::Value = $crate::commands::utility::get_openapi_spec;
+        data read_image_exif(url: String) -> Vec<$crate::commands::utility::ExifField> = $crate::commands::utility::read_image_exif;
+        data image_cache_stats() -> $crate::commands::utility::ImageCacheStats = $crate::commands::utility::image_cache_stats;
+        data warm_media(urls: Vec<String>, h: Option<u32>) -> u32 = $crate::commands::utility::warm_media;
+        data clear_image_cache() -> () = $crate::commands::utility::clear_image_cache;
         }
     };
 }

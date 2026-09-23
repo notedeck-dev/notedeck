@@ -18,7 +18,12 @@ use notecli::db::Database;
 
 use crate::credentials::{get_credentials, get_credentials_or_anon};
 use crate::error::Result;
+use crate::image_cache::ImageCache;
+use crate::media_warm::MediaWarmer;
 use crate::ogp::{OgpCache, OgpData};
+use crate::query_runtime::QueryRuntime;
+use notecli::error::NoteDeckError;
+use notecli::streaming::StreamingManager;
 
 /// 手元側 (WebView) へのヒント通知。データ系コマンドの副産物で、無くても処理は成立する。
 pub trait HintSink: Send + Sync + 'static {
@@ -45,6 +50,18 @@ pub struct Core {
     hints: OnceLock<Arc<dyn HintSink>>,
     /// アプリデータディレクトリ (notecli.db / notedeck/ 設定 / キャッシュの置き場)
     app_dir: OnceLock<PathBuf>,
+    /// 埋め込む側のバージョン (OpenAPI の info.version / `/api` が返す)
+    app_version: OnceLock<String>,
+    /// 共有 HTTP クライアント (SSRF 検証 resolver つき)
+    http: OnceLock<reqwest::Client>,
+    /// 画像キャッシュ
+    image_cache: OnceLock<Arc<ImageCache>>,
+    /// メディア先行取得キュー
+    media_warmer: OnceLock<Arc<MediaWarmer>>,
+    /// ストリーミング (WebSocket) 管理
+    streaming: OnceLock<Arc<StreamingManager>>,
+    /// クエリランタイム (購読台帳 / 差分バッファ)
+    query_runtime: OnceLock<Arc<QueryRuntime>>,
 }
 
 impl Default for Core {
@@ -65,6 +82,12 @@ impl Core {
             ogp: OnceLock::new(),
             hints: OnceLock::new(),
             app_dir: OnceLock::new(),
+            app_version: OnceLock::new(),
+            http: OnceLock::new(),
+            image_cache: OnceLock::new(),
+            media_warmer: OnceLock::new(),
+            streaming: OnceLock::new(),
+            query_runtime: OnceLock::new(),
         }
     }
 
@@ -98,6 +121,75 @@ impl Core {
             .get()
             .map(PathBuf::as_path)
             .ok_or_else(|| notecli::error::NoteDeckError::Internal("app dir is not set".into()))
+    }
+
+    pub fn set_app_version(&self, version: String) {
+        let _ = self.app_version.set(version);
+    }
+
+    pub fn app_version(&self) -> &str {
+        self.app_version
+            .get()
+            .map(String::as_str)
+            .unwrap_or("0.0.0")
+    }
+
+    pub fn set_http(&self, client: reqwest::Client) {
+        let _ = self.http.set(client);
+    }
+
+    pub fn http(&self) -> Result<&reqwest::Client> {
+        self.http
+            .get()
+            .ok_or_else(|| NoteDeckError::Internal("http client is not set".into()))
+    }
+
+    pub fn set_image_cache(&self, cache: Arc<ImageCache>) {
+        let _ = self.image_cache.set(cache);
+    }
+
+    pub fn image_cache(&self) -> Result<&Arc<ImageCache>> {
+        self.image_cache
+            .get()
+            .ok_or_else(|| NoteDeckError::Internal("image cache is not set".into()))
+    }
+
+    pub fn set_media_warmer(&self, warmer: Arc<MediaWarmer>) {
+        let _ = self.media_warmer.set(warmer);
+    }
+
+    pub fn media_warmer(&self) -> Result<&Arc<MediaWarmer>> {
+        self.media_warmer
+            .get()
+            .ok_or_else(|| NoteDeckError::Internal("media warmer is not set".into()))
+    }
+
+    pub fn set_streaming(&self, streaming: Arc<StreamingManager>) {
+        let _ = self.streaming.set(streaming);
+    }
+
+    /// ストリーミング管理。初期化前 (DB 準備中) は Err
+    pub fn streaming(&self) -> Result<&Arc<StreamingManager>> {
+        self.streaming
+            .get()
+            .ok_or_else(|| NoteDeckError::Internal("streaming is not ready".into()))
+    }
+
+    pub fn set_query_runtime(&self, runtime: Arc<QueryRuntime>) {
+        let _ = self.query_runtime.set(runtime);
+    }
+
+    pub fn query_runtime(&self) -> Result<&Arc<QueryRuntime>> {
+        self.query_runtime
+            .get()
+            .ok_or_else(|| NoteDeckError::Internal("query runtime is not set".into()))
+    }
+
+    /// OGP キャッシュ。未設定なら Err (先読みのような省略可能な用途は `ogp()` を使う)
+    pub fn ogp_cache(&self) -> Result<&OgpCache> {
+        self.ogp
+            .get()
+            .ok_or_else(|| NoteDeckError::Internal("ogp cache is not set".into()))
     }
 
     /// OGP キャッシュを差す (初期化後 1 回)。2 回目以降は無視される。
@@ -188,6 +280,8 @@ pub(crate) mod test_support {
         let client = Arc::new(MisskeyClient::new().unwrap());
         let core = Core::new();
         core.set_app_dir(dir.path().to_path_buf());
+        core.set_http(reqwest::Client::new());
+        core.set_query_runtime(Arc::new(QueryRuntime::default()));
         core.initialize(db, client);
         (dir, core)
     }

@@ -11,11 +11,13 @@ publish = false
 notecli = { path = "../notecli", features = ["specta"] }
 async-trait = "0.1"
 axum = "0.8"
+base64 = "0.22"
 bytes = "1"
 encoding_rs = "0.8"
 futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 json5 = "1"
+kamadak-exif = "0.6.1"
 lru = "0.18"
 rand = "0.9"
 regex = "1"
