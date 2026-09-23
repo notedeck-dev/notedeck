@@ -442,10 +442,24 @@
   color: var(--text-muted);
 }
 
-/* ===== Architecture — acrylic レイヤー ===== */
-.arch-grid { display: flex; flex-direction: column; }
+/* ===== Architecture — 含有関係で描く =====
+   手元の端末 (Tauri) がフロント / クライアント層 / 埋め込み notecore を包み、
+   自分のサーバー (notecored、任意) が同じ notecore を包む。矢印は呼び出しの向き */
+.arch-grid {
+  display: grid; grid-template-columns: minmax(0, 1.6fr) auto minmax(0, 1fr);
+  column-gap: var(--space-2xs); align-items: center;
+}
+.arch-box {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--space-md) var(--space-lg);
+}
+.arch-box > .arch-desc { margin-bottom: var(--space-sm); }
+.arch-box-remote { border-style: dashed; }
+.arch-core { border: 2px solid var(--accent); }
+.arch-compact { padding: var(--space-sm) var(--space-md); }
+.arch-compact > .arch-title { margin-bottom: 0; }
+.arch-compact > .arch-title + .arch-layer { margin-top: var(--space-2xs); }
 .arch-layer { padding: var(--space-md) var(--space-lg); }
-.arch-core { box-shadow: inset 0 0 0 2px var(--accent); }
 .arch-label {
   font-size: var(--text-2xs); font-weight: 700; color: var(--accent-text);
   text-transform: uppercase; letter-spacing: 0.1em; line-height: 1.4;
@@ -468,10 +482,17 @@
 }
 .arch-tags a:hover { border-color: var(--accent); text-decoration: none; }
 .arch-doc-links { margin-top: var(--space-lg); justify-content: center; }
-.arch-arrow { display: flex; justify-content: center; padding: var(--space-2xs) 0; color: var(--text-muted); }
-/* notecored は既定の経路に挟まる任意の殻。点線で囲み、acrylic は付けない */
-.arch-shell-node { border: 1px dashed var(--border); border-radius: var(--radius); }
-.arch-arrow span { margin-left: var(--space-2xs); font-size: var(--text-2xs); font-weight: 700; align-self: center; }
+.arch-arrow, .arch-relay {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-2xs);
+  padding: var(--space-2xs) 0; color: var(--text-muted);
+  font-size: var(--text-2xs); font-weight: 700;
+}
+.arch-relay { flex-direction: column; align-self: center; padding: 0 var(--space-2xs); }
+@media (max-width: 800px) {
+  .arch-grid { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-2xs); }
+  .arch-relay { flex-direction: row; padding: var(--space-2xs) 0; }
+  .arch-relay svg { transform: rotate(90deg); }
+}
 
 /* ===== Fork CTA — tint カード (Hub donation 風) ===== */
 .fork-cta {
