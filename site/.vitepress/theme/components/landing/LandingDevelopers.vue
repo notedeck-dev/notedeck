@@ -36,14 +36,12 @@ const DOC_LINKS = [
       </div>
       <div class="arch-fork">
         <div class="arch-bypass" aria-hidden="true">
-          <span>素通り (既定)</span>
           <div class="arch-bypass-line"></div>
           <svg width="24" height="12" viewBox="0 6 24 12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="19 8 12 15 5 8" /></svg>
         </div>
         <div class="arch-via">
           <div class="arch-arrow" aria-hidden="true">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>
-            <span>中継 (リモート構成)</span>
           </div>
           <div class="arch-box arch-box-remote">
             <div class="arch-label">自分のサーバー (任意)</div>
