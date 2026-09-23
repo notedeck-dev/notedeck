@@ -1,7 +1,7 @@
 // 「capability の宣言は crates/notecore/capabilities.json5 が正本で、生成物と実装が
 // それに一致する」を機械検査に落とす (#1133)。
 //
-// - declarations.generated.ts と SKILLS.md の表が宣言ファイルから再生成したものと一致する
+// - declarations.generated.ts / capabilities/generated.rs と SKILLS.md の表が宣言ファイルから再生成したものと一致する
 //   (openapi.json / bindings.ts と同じ snapshot 方式。ずれたら `pnpm gen:capabilities`)
 // - 宣言のある id は全部 builtins に実装がある / builtins にある id は全部宣言がある
 // - 宣言が `confirm: false` なのに実装が requiresConfirmation を渡していない
@@ -20,6 +20,7 @@ import {
 } from '@/capabilities/declarations.generated'
 import { PERMISSION_KEYS } from '@/permissions/schema'
 import {
+  CAPABILITIES_RS_PATH,
   GENERATED_TS_PATH,
   generate,
   PERMISSION_KEYS_RS_PATH,
@@ -30,8 +31,14 @@ import {
 const ROOT = resolve(import.meta.dirname, '../..')
 
 describe('capability 宣言 (#1133)', () => {
-  const { decls, generatedTs, skills, permissionKeysTs, permissionKeysRs } =
-    generate()
+  const {
+    decls,
+    generatedTs,
+    generatedRs,
+    skills,
+    permissionKeysTs,
+    permissionKeysRs,
+  } = generate()
 
   it('declarations.generated.ts は宣言ファイルから再生成したものと一致する', () => {
     const committed = readFileSync(GENERATED_TS_PATH, 'utf8')
@@ -39,6 +46,14 @@ describe('capability 宣言 (#1133)', () => {
       committed,
       'declarations.generated.ts が古い — `pnpm gen:capabilities` を実行してコミットする',
     ).toBe(generatedTs)
+  })
+
+  it('capabilities/generated.rs は宣言ファイルから再生成したものと一致する', () => {
+    const committed = readFileSync(CAPABILITIES_RS_PATH, 'utf8')
+    expect(
+      committed,
+      'generated.rs が古い — `pnpm gen:capabilities` を実行してコミットする',
+    ).toBe(generatedRs)
   })
 
   it('SKILLS.md の capability 表は宣言ファイルから再生成したものと一致する', () => {

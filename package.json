@@ -18,6 +18,7 @@
     "gen:golden-qir": "UPDATE_GOLDEN_QIR=1 vitest run src/services/columnQuery/goldenVectors.test.ts",
     "gen:capabilities": "node scripts/gen-capabilities.mjs",
     "gen:golden-permissions": "UPDATE_GOLDEN_PERMISSIONS=1 vitest run src/permissions/goldenVectors.test.ts",
+    "gen:golden-tools": "UPDATE_GOLDEN_TOOLS=1 vitest run src/capabilities/goldenTools.test.ts",
     "typecheck": "vue-tsc -b --noEmit",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

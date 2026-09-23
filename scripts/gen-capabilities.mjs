@@ -5,13 +5,14 @@
 //
 // 生成するもの:
 //   - src/capabilities/declarations.generated.ts  (TS の宣言表と CapabilityId 型)
+//   - crates/notecore/src/capabilities/generated.rs  (Rust の宣言表。型は同 mod.rs)
 //   - SKILLS.md §4.0 の表 (<!-- capabilities:begin --> 〜 <!-- capabilities:end -->)
 //   - src/permissions/keys.generated.ts / crates/notecore/src/permissions_keys.generated.rs
 //     (権限キーの語彙と preset / floor / deny の集合。TS と Rust で同じ宣言から)
 //
 // 宣言ファイルが正本。builtins は `implement(id, { execute, ... })` で振る舞いだけを
 // 結び付ける。生成物が最新かは tests/lint/capabilityDeclarations.test.ts が検査する
-// (openapi.json / bindings.ts と同じ運用)。Rust 側の生成は次の段階で足す。
+// (openapi.json / bindings.ts と同じ運用)。
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -28,6 +29,10 @@ export const SKILLS_PATH = join(ROOT, 'SKILLS.md')
 export const PERMISSION_KEYS_TS_PATH = join(
   ROOT,
   'src/permissions/keys.generated.ts',
+)
+export const CAPABILITIES_RS_PATH = join(
+  ROOT,
+  'crates/notecore/src/capabilities/generated.rs',
 )
 export const PERMISSION_KEYS_RS_PATH = join(
   ROOT,
@@ -141,7 +146,8 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
         : undefined,
     })
   }
-  out.sort((a, b) => a.id.localeCompare(b.id))
+  // code unit 順 (Rust 側の二分探索 / golden の並びと同じ)
+  out.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
   return out
 }
 
@@ -213,6 +219,90 @@ export function renderTs(decls) {
     lines.push('  },')
   }
   lines.push('}', '')
+  return lines.join('\n')
+}
+
+/** Rust の文字列リテラル (通常文字列。`\u{..}` で制御文字を逃がす) */
+function rs(value) {
+  let out = '"'
+  for (const ch of value) {
+    const c = ch.codePointAt(0)
+    if (ch === '"') out += '\\"'
+    else if (ch === '\\') out += '\\\\'
+    else if (ch === '\n') out += '\\n'
+    else if (ch === '\r') out += '\\r'
+    else if (ch === '\t') out += '\\t'
+    else if (c < 0x20 || c === 0x7f) out += `\\u{${c.toString(16)}}`
+    else out += ch
+  }
+  return `${out}"`
+}
+
+const pascal = (s) => s[0].toUpperCase() + s.slice(1)
+
+/** Rust の宣言表 (crates/notecore/src/capabilities/generated.rs、mod.rs が include! する) */
+export function renderRs(decls) {
+  const lines = [
+    '// 生成物 — 手で編集しない。正本は crates/notecore/capabilities.json5、',
+    '// 生成は `pnpm gen:capabilities` (scripts/gen-capabilities.mjs)。型は mod.rs。',
+    '// TS 側 (src/capabilities/declarations.generated.ts) と同じ宣言から生成され、',
+    '// AI に渡す tool schema の一致は src/capabilities/golden/tools.json で検査する (#1133)。',
+    '',
+    'pub static CAPABILITIES: &[CapabilityDecl] = &[',
+  ]
+  for (const d of decls) {
+    lines.push(
+      '    CapabilityDecl {',
+      `        id: ${rs(d.id)},`,
+      `        label: ${rs(d.label)},`,
+      `        category: Category::${pascal(d.category)},`,
+      `        icon: ${rs(d.icon)},`,
+      `        permissions: &[${d.permissions.map(rs).join(', ')}],`,
+      `        ai_tool: ${d.aiTool},`,
+      `        confirm: ${d.confirm},`,
+      `        acts_as_account: ${d.actsAsAccount},`,
+      `        cheap: ${d.cheap},`,
+      `        visible: ${d.visible},`,
+      `        exec: Exec::${pascal(d.exec)},`,
+      `        description: ${rs(d.description)},`,
+    )
+    const params = Object.entries(d.params)
+    if (params.length === 0) {
+      lines.push('        params: &[],')
+    } else {
+      lines.push('        params: &[')
+      for (const [name, p] of params) {
+        const enumValues = p.enum
+          ? `Some(&[${p.enum.map(rs).join(', ')}])`
+          : 'None'
+        lines.push(
+          '            ParamDecl {',
+          `                name: ${rs(name)},`,
+          `                ty: ParamType::${pascal(p.type)},`,
+          `                description: ${rs(p.description)},`,
+          `                optional: ${p.optional === true},`,
+          `                enum_values: ${enumValues},`,
+          '            },',
+        )
+      }
+      lines.push('        ],')
+    }
+    if (d.returns) {
+      const desc = d.returns.description
+        ? `Some(${rs(d.returns.description)})`
+        : 'None'
+      lines.push(
+        '        returns: Some(ReturnDecl {',
+        `            ty: ReturnType::${pascal(d.returns.type)},`,
+        `            description: ${desc},`,
+        '        }),',
+      )
+    } else {
+      lines.push('        returns: None,')
+    }
+    lines.push('    },')
+  }
+  lines.push('];', '')
   return lines.join('\n')
 }
 
@@ -338,6 +428,7 @@ export function generate() {
     keys,
     generatedTs,
     skills,
+    generatedRs: renderRs(decls),
     permissionKeysTs: renderPermissionKeysTs(keys),
     permissionKeysRs: renderPermissionKeysRs(keys),
   }
@@ -346,9 +437,17 @@ export function generate() {
 const isMain =
   process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]
 if (isMain) {
-  const { decls, keys, generatedTs, skills, permissionKeysTs, permissionKeysRs } =
-    generate()
+  const {
+    decls,
+    keys,
+    generatedTs,
+    generatedRs,
+    skills,
+    permissionKeysTs,
+    permissionKeysRs,
+  } = generate()
   writeFileSync(GENERATED_TS_PATH, generatedTs)
+  writeFileSync(CAPABILITIES_RS_PATH, generatedRs)
   writeFileSync(SKILLS_PATH, skills)
   writeFileSync(PERMISSION_KEYS_TS_PATH, permissionKeysTs)
   writeFileSync(PERMISSION_KEYS_RS_PATH, permissionKeysRs)
