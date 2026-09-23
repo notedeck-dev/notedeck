@@ -2768,7 +2768,7 @@ async aiMigrateProviderToVault(provider: string, name: string, baseUrl: string, 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async querySubscribeTimeline(accountId: string, timelineType: string, listId: string | null) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_timeline", { accountId, timelineType, listId }) };
@@ -2777,7 +2777,7 @@ async querySubscribeTimeline(accountId: string, timelineType: string, listId: st
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async querySubscribeAntenna(accountId: string, antennaId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_antenna", { accountId, antennaId }) };
@@ -2786,7 +2786,7 @@ async querySubscribeAntenna(accountId: string, antennaId: string) : Promise<Resu
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async querySubscribeChannel(accountId: string, channelId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_channel", { accountId, channelId }) };
@@ -2795,7 +2795,7 @@ async querySubscribeChannel(accountId: string, channelId: string) : Promise<Resu
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async querySubscribeRole(accountId: string, roleId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_role", { accountId, roleId }) };
@@ -2804,7 +2804,7 @@ async querySubscribeRole(accountId: string, roleId: string) : Promise<Result<Que
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async querySubscribeMentions(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_mentions", { accountId }) };
@@ -2813,7 +2813,7 @@ async querySubscribeMentions(accountId: string) : Promise<Result<QuerySnapshot, 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async querySubscribeNotifications(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_notifications", { accountId }) };
@@ -2822,7 +2822,7 @@ async querySubscribeNotifications(accountId: string) : Promise<Result<QuerySnaps
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async querySubscribeChatUser(accountId: string, otherId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_chat_user", { accountId, otherId }) };
@@ -2831,7 +2831,7 @@ async querySubscribeChatUser(accountId: string, otherId: string) : Promise<Resul
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async querySubscribeChatRoom(accountId: string, roomId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_chat_room", { accountId, roomId }) };
@@ -2840,7 +2840,7 @@ async querySubscribeChatRoom(accountId: string, roomId: string) : Promise<Result
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async querySetRuntimeState(queryId: string, state: QueryRuntimeState) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_set_runtime_state", { queryId, state }) };
@@ -2849,7 +2849,7 @@ async querySetRuntimeState(queryId: string, state: QueryRuntimeState) : Promise<
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async queryClose(queryId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_close", { queryId }) };
@@ -2858,7 +2858,7 @@ async queryClose(queryId: string) : Promise<Result<null, { code: string; message
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async queryGetSnapshot(queryId: string) : Promise<Result<QuerySnapshot | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_get_snapshot", { queryId }) };
@@ -2867,7 +2867,7 @@ async queryGetSnapshot(queryId: string) : Promise<Result<QuerySnapshot | null, {
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/query_runtime.rs */
+/** @see src-tauri/src/commands/query.rs */
 async queryGetReadModelSnapshot(queryId: string, limit: number | null) : Promise<Result<QueryReadModelSnapshot | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_get_read_model_snapshot", { queryId, limit }) };

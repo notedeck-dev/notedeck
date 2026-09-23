@@ -26,7 +26,6 @@ mod hwheel_hook;
 mod ipc_index;
 mod os_notify;
 mod query_bridge;
-mod query_runtime;
 mod streaming;
 mod system_state;
 mod win_chrome;
@@ -348,12 +347,12 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
         // Query runtime: stream events から Read Model を materialize し、
         // pending を貯めて 16ms 間隔で query-delta event をバッチ emit する。
-        app.manage(query_runtime::QueryRuntime::default());
+        app.manage(core::query_runtime::QueryRuntime::default());
         // 常駐 flusher: notify_one を受けて DELTA_FLUSH_WINDOW スリープ後に
         // drain_pending() を emit。
         let flusher_app = app.app_handle().clone();
         shutdown.spawn(async move {
-            query_runtime::run_delta_flusher(flusher_app).await;
+            commands::run_delta_flusher(flusher_app).await;
         });
 
         // Generate API token (256-bit CSPRNG) and write to file
@@ -1108,24 +1107,24 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::vault_fetch,
             commands::vault_test_connection,
             commands::ai_migrate_provider_to_vault,
-            query_runtime::query_subscribe_timeline,
-            query_runtime::query_subscribe_antenna,
-            query_runtime::query_subscribe_channel,
-            query_runtime::query_subscribe_role,
-            query_runtime::query_subscribe_mentions,
-            query_runtime::query_subscribe_notifications,
-            query_runtime::query_subscribe_chat_user,
-            query_runtime::query_subscribe_chat_room,
-            query_runtime::query_set_runtime_state,
-            query_runtime::query_close,
-            query_runtime::query_get_snapshot,
-            query_runtime::query_get_read_model_snapshot,
+            commands::query_subscribe_timeline,
+            commands::query_subscribe_antenna,
+            commands::query_subscribe_channel,
+            commands::query_subscribe_role,
+            commands::query_subscribe_mentions,
+            commands::query_subscribe_notifications,
+            commands::query_subscribe_chat_user,
+            commands::query_subscribe_chat_room,
+            commands::query_set_runtime_state,
+            commands::query_close,
+            commands::query_get_snapshot,
+            commands::query_get_read_model_snapshot,
             commands::update_performance_config,
             commands::get_performance_config,
         ])
         .events(tauri_specta::collect_events![
-            query_runtime::QueryDelta,
-            query_runtime::NoteCaptureBatch,
+            core::query_runtime::QueryDelta,
+            core::query_runtime::NoteCaptureBatch,
             streaming::StreamEnvelope,
             streaming::StreamStatus,
             streaming::StreamChatMessageReacted,
