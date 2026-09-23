@@ -6,14 +6,15 @@
 //! コマンド層は start_stream / cancel_stream への薄い委譲のみ。
 
 use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex, OnceLock};
+use std::path::Path;
+use std::sync::{Arc, LazyLock, Mutex, OnceLock};
 use std::time::Duration;
 
 use futures_util::StreamExt;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::{async_runtime::JoinHandle, Emitter};
+use tokio::task::JoinHandle;
 
 use notecli::error::{AuthErrorKind, NoteDeckError};
 
@@ -121,7 +122,11 @@ pub struct AiChatEvent {
     pub tool_use_input: Option<serde_json::Value>,
 }
 
-const EVENT_NAME: &str = "nd:ai-chat-event";
+/// ストリームのイベントの届け先。Tauri 側は `nd:ai-chat-event` へ emit する実装を渡す。
+/// この service は Tauri を知らない (#1106)。
+pub trait AiChatSink: Send + Sync + 'static {
+    fn emit(&self, event: AiChatEvent);
+}
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 /// Time allowed to establish the TCP+TLS connection.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -261,7 +266,8 @@ fn describe_stream_error(e: &reqwest::Error) -> String {
 /// protocol 別ランナーを background task で起動し、ストリーム台帳に登録する。
 /// 即座に返り、以後のイベントは `nd:ai-chat-event` に流れる。
 pub async fn start_stream(
-    app: tauri::AppHandle,
+    sink: Arc<dyn AiChatSink>,
+    app_dir: &Path,
     client: reqwest::Client,
     req: AiChatRequest,
 ) -> Result<()> {
@@ -281,9 +287,7 @@ pub async fn start_stream(
 
     // Vault 接続を解決する: endpoint / protocol はメタデータから、secret は
     // OS キーチェーンから。secret はこの Rust 側だけで展開しフロントには返さない。
-    let app_dir = crate::app_dir::resolve_app_dir(&app)
-        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-    let file = crate::core::vault::connections_store::load(&app_dir)
+    let file = crate::core::vault::connections_store::load(app_dir)
         .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
     let connection = file
         .connections
@@ -312,22 +316,21 @@ pub async fn start_stream(
         )));
     }
 
-    let app_handle = app.clone();
     let stream_id = req.stream_id.clone();
     let stream_id_for_task = stream_id.clone();
 
-    let handle = tauri::async_runtime::spawn(async move {
+    let handle = tokio::spawn(async move {
         let result = match protocol {
             crate::core::vault::ConnectionProtocol::Anthropic => {
-                run_anthropic(&client, &req, &endpoint, &api_key, &app_handle).await
+                run_anthropic(&client, &req, &endpoint, &api_key, sink.as_ref()).await
             }
             crate::core::vault::ConnectionProtocol::OpenaiCompat => {
-                run_openai_compat(&client, &req, &endpoint, &api_key, &app_handle).await
+                run_openai_compat(&client, &req, &endpoint, &api_key, sink.as_ref()).await
             }
         };
         match result {
-            Ok(()) => emit_done(&app_handle, &stream_id_for_task),
-            Err(message) => emit_error(&app_handle, &stream_id_for_task, message),
+            Ok(()) => emit_done(sink.as_ref(), &stream_id_for_task),
+            Err(message) => emit_error(sink.as_ref(), &stream_id_for_task, message),
         }
         deregister_stream(&stream_id_for_task);
     });
@@ -353,70 +356,58 @@ pub fn cancel_stream(stream_id: &str) {
     }
 }
 
-fn emit_delta(app: &tauri::AppHandle, stream_id: &str, text: String) {
-    let _ = app.emit(
-        EVENT_NAME,
-        AiChatEvent {
-            stream_id: stream_id.to_string(),
-            kind: "delta".into(),
-            text: Some(text),
-            error: None,
-            tool_use_id: None,
-            tool_use_name: None,
-            tool_use_input: None,
-        },
-    );
+fn emit_delta(sink: &dyn AiChatSink, stream_id: &str, text: String) {
+    sink.emit(AiChatEvent {
+        stream_id: stream_id.to_string(),
+        kind: "delta".into(),
+        text: Some(text),
+        error: None,
+        tool_use_id: None,
+        tool_use_name: None,
+        tool_use_input: None,
+    });
 }
 
-fn emit_done(app: &tauri::AppHandle, stream_id: &str) {
-    let _ = app.emit(
-        EVENT_NAME,
-        AiChatEvent {
-            stream_id: stream_id.to_string(),
-            kind: "done".into(),
-            text: None,
-            error: None,
-            tool_use_id: None,
-            tool_use_name: None,
-            tool_use_input: None,
-        },
-    );
+fn emit_done(sink: &dyn AiChatSink, stream_id: &str) {
+    sink.emit(AiChatEvent {
+        stream_id: stream_id.to_string(),
+        kind: "done".into(),
+        text: None,
+        error: None,
+        tool_use_id: None,
+        tool_use_name: None,
+        tool_use_input: None,
+    });
 }
 
-fn emit_error(app: &tauri::AppHandle, stream_id: &str, message: String) {
-    let _ = app.emit(
-        EVENT_NAME,
-        AiChatEvent {
-            stream_id: stream_id.to_string(),
-            kind: "error".into(),
-            text: None,
-            error: Some(message),
-            tool_use_id: None,
-            tool_use_name: None,
-            tool_use_input: None,
-        },
-    );
+fn emit_error(sink: &dyn AiChatSink, stream_id: &str, message: String) {
+    sink.emit(AiChatEvent {
+        stream_id: stream_id.to_string(),
+        kind: "error".into(),
+        text: None,
+        error: Some(message),
+        tool_use_id: None,
+        tool_use_name: None,
+        tool_use_input: None,
+    });
 }
 
 fn emit_tool_use(
-    app: &tauri::AppHandle,
+    sink: &dyn AiChatSink,
     stream_id: &str,
     id: String,
     name: String,
     input: serde_json::Value,
 ) {
-    let _ = app.emit(
-        EVENT_NAME,
-        AiChatEvent {
-            stream_id: stream_id.to_string(),
-            kind: "tool_use".into(),
-            text: None,
-            error: None,
-            tool_use_id: Some(id),
-            tool_use_name: Some(name),
-            tool_use_input: Some(input),
-        },
-    );
+    sink.emit(AiChatEvent {
+        stream_id: stream_id.to_string(),
+        kind: "tool_use".into(),
+        text: None,
+        error: None,
+        tool_use_id: Some(id),
+        tool_use_name: Some(name),
+        tool_use_input: Some(input),
+    });
 }
 
 fn role_str(r: &AiChatRole) -> &'static str {
@@ -521,12 +512,12 @@ async fn run_anthropic(
     req: &AiChatRequest,
     endpoint: &str,
     api_key: &str,
-    app: &tauri::AppHandle,
+    sink: &dyn AiChatSink,
 ) -> std::result::Result<(), String> {
     let mut has_emitted = false;
     let mut attempt: u32 = 0;
     loop {
-        match run_anthropic_attempt(req, endpoint, api_key, app, &mut has_emitted).await {
+        match run_anthropic_attempt(req, endpoint, api_key, sink, &mut has_emitted).await {
             Ok(()) => return Ok(()),
             Err(e) => {
                 if has_emitted || !e.retryable || attempt >= MAX_TRANSPARENT_RETRIES {
@@ -548,7 +539,7 @@ async fn run_anthropic_attempt(
     req: &AiChatRequest,
     endpoint: &str,
     api_key: &str,
-    app: &tauri::AppHandle,
+    sink: &dyn AiChatSink,
     has_emitted: &mut bool,
 ) -> std::result::Result<(), AttemptError> {
     let url = format!("{}/v1/messages", endpoint.trim_end_matches('/'));
@@ -579,7 +570,7 @@ async fn run_anthropic_attempt(
         let bytes = chunk.map_err(|e| AttemptError::retryable(describe_stream_error(&e)))?;
         buf.push_str(&String::from_utf8_lossy(&bytes));
         for block in parse_sse_blocks(&mut buf) {
-            handle_anthropic_block(&block, app, &req.stream_id, &mut tool_builder, has_emitted);
+            handle_anthropic_block(&block, sink, &req.stream_id, &mut tool_builder, has_emitted);
         }
     }
     Ok(())
@@ -596,7 +587,7 @@ struct AnthropicToolUseBuilder {
 
 fn handle_anthropic_block(
     block: &str,
-    app: &tauri::AppHandle,
+    sink: &dyn AiChatSink,
     stream_id: &str,
     tool_builder: &mut Option<AnthropicToolUseBuilder>,
     has_emitted: &mut bool,
@@ -641,7 +632,7 @@ fn handle_anthropic_block(
             if delta_type == Some("text_delta") {
                 if let Some(text) = value.pointer("/delta/text").and_then(|v| v.as_str()) {
                     *has_emitted = true;
-                    emit_delta(app, stream_id, text.to_string());
+                    emit_delta(sink, stream_id, text.to_string());
                 }
             } else if delta_type == Some("input_json_delta") {
                 if let Some(b) = tool_builder.as_mut() {
@@ -663,14 +654,14 @@ fn handle_anthropic_block(
                         .unwrap_or_else(|_| serde_json::json!({}))
                 };
                 *has_emitted = true;
-                emit_tool_use(app, stream_id, b.id, b.name, input);
+                emit_tool_use(sink, stream_id, b.id, b.name, input);
             }
         }
         "error" => {
             if let Some(msg) = value.pointer("/error/message").and_then(|v| v.as_str()) {
                 // SSE error イベントも UI に届く = このターンは透過リトライ不可
                 *has_emitted = true;
-                emit_error(app, stream_id, format!("Anthropic: {msg}"));
+                emit_error(sink, stream_id, format!("Anthropic: {msg}"));
             }
         }
         _ => {}
@@ -754,12 +745,12 @@ async fn run_openai_compat(
     req: &AiChatRequest,
     endpoint: &str,
     api_key: &str,
-    app: &tauri::AppHandle,
+    sink: &dyn AiChatSink,
 ) -> std::result::Result<(), String> {
     let mut has_emitted = false;
     let mut attempt: u32 = 0;
     loop {
-        match run_openai_compat_attempt(req, endpoint, api_key, app, &mut has_emitted).await {
+        match run_openai_compat_attempt(req, endpoint, api_key, sink, &mut has_emitted).await {
             Ok(()) => return Ok(()),
             Err(e) => {
                 if has_emitted || !e.retryable || attempt >= MAX_TRANSPARENT_RETRIES {
@@ -781,7 +772,7 @@ async fn run_openai_compat_attempt(
     req: &AiChatRequest,
     endpoint: &str,
     api_key: &str,
-    app: &tauri::AppHandle,
+    sink: &dyn AiChatSink,
     has_emitted: &mut bool,
 ) -> std::result::Result<(), AttemptError> {
     let url = format!("{}/chat/completions", endpoint.trim_end_matches('/'));
@@ -831,7 +822,7 @@ async fn run_openai_compat_attempt(
                     .and_then(|v| v.as_str())
                 {
                     *has_emitted = true;
-                    emit_delta(app, &req.stream_id, text.to_string());
+                    emit_delta(sink, &req.stream_id, text.to_string());
                 }
                 accumulate_openai_tool_calls(&value, &mut tool_builders);
                 if let Some(reason) = value
@@ -840,7 +831,7 @@ async fn run_openai_compat_attempt(
                 {
                     if reason == "tool_calls" {
                         flush_openai_tool_calls(
-                            app,
+                            sink,
                             &req.stream_id,
                             &mut tool_builders,
                             has_emitted,
@@ -852,7 +843,7 @@ async fn run_openai_compat_attempt(
     }
     // Stream が `[DONE]` で打ち切られた場合 / finish_reason が来なかった
     // ケースに備えて、残っている builder があれば flush する。
-    flush_openai_tool_calls(app, &req.stream_id, &mut tool_builders, has_emitted);
+    flush_openai_tool_calls(sink, &req.stream_id, &mut tool_builders, has_emitted);
     Ok(())
 }
 
@@ -903,7 +894,7 @@ fn accumulate_openai_tool_calls(
 }
 
 fn flush_openai_tool_calls(
-    app: &tauri::AppHandle,
+    sink: &dyn AiChatSink,
     stream_id: &str,
     builders: &mut Vec<OpenAiToolCallBuilder>,
     has_emitted: &mut bool,
@@ -919,7 +910,7 @@ fn flush_openai_tool_calls(
                 .unwrap_or_else(|_| serde_json::json!({}))
         };
         *has_emitted = true;
-        emit_tool_use(app, stream_id, b.id, b.name, input);
+        emit_tool_use(sink, stream_id, b.id, b.name, input);
     }
 }
 

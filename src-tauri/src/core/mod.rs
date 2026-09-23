@@ -10,6 +10,7 @@
 //! HTTP サーバー) は結合点を外してからここへ移す。
 
 pub mod account_service;
+pub mod ai_chat_service;
 pub mod ai_keys;
 pub mod api_tokens;
 pub mod auth_service;
@@ -28,5 +29,6 @@ pub mod permissions_profile;
 pub mod pet_store;
 pub mod rate_limit;
 pub mod settings_store;
+pub mod shutdown;
 pub mod ssrf;
 pub mod vault;

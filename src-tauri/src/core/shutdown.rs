@@ -7,7 +7,7 @@
 //! - 常駐ループは [`Shutdown::spawn`] で追跡し、[`Shutdown::trigger`] で abort
 //! - 自分で片付けたいもの (axum の graceful shutdown 等) は [`Shutdown::token`]
 //!   の `cancelled()` を待つ
-//! - AppHandle を引けない箇所 (export のキャンセル判定) は
+//! - managed state を引けない箇所 (export のキャンセル判定) は
 //!   [`is_shutting_down`] を読む。managed state と process-global の二本立て
 //!   になるのは、そこだけ state を辿る手段が無いため
 //!
@@ -18,8 +18,8 @@ use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
-use tauri::async_runtime::JoinHandle;
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 
 static SHUTTING_DOWN: AtomicBool = AtomicBool::new(false);
 
@@ -31,20 +31,18 @@ pub fn is_shutting_down() -> bool {
 pub struct Shutdown {
     tx: watch::Sender<bool>,
     tasks: Mutex<Vec<JoinHandle<()>>>,
-}
-
-impl Default for Shutdown {
-    fn default() -> Self {
-        Self::new()
-    }
+    /// 常駐タスクを載せる runtime。Tauri 側は `tauri::async_runtime::handle()` の
+    /// 中身を渡す (この module は Tauri を知らない、#1106)
+    handle: tokio::runtime::Handle,
 }
 
 impl Shutdown {
-    pub fn new() -> Self {
+    pub fn new(handle: tokio::runtime::Handle) -> Self {
         let (tx, _rx) = watch::channel(false);
         Self {
             tx,
             tasks: Mutex::new(Vec::new()),
+            handle,
         }
     }
 
@@ -53,7 +51,7 @@ impl Shutdown {
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        let handle = tauri::async_runtime::spawn(fut);
+        let handle = self.handle.spawn(fut);
         self.tasks
             .lock()
             .unwrap_or_else(|p| p.into_inner())
@@ -103,7 +101,7 @@ mod tests {
 
     #[tokio::test]
     async fn token_resolves_after_trigger() {
-        let s = Shutdown::new();
+        let s = Shutdown::new(tokio::runtime::Handle::current());
         let token = s.token();
         let waiter = tokio::spawn(token.cancelled());
         s.trigger();
@@ -115,7 +113,7 @@ mod tests {
 
     #[tokio::test]
     async fn token_taken_after_trigger_resolves_immediately() {
-        let s = Shutdown::new();
+        let s = Shutdown::new(tokio::runtime::Handle::current());
         s.trigger();
         tokio::time::timeout(Duration::from_millis(100), s.token().cancelled())
             .await
@@ -124,7 +122,7 @@ mod tests {
 
     #[tokio::test]
     async fn trigger_aborts_tracked_tasks() {
-        let s = Shutdown::new();
+        let s = Shutdown::new(tokio::runtime::Handle::current());
         let ticks = Arc::new(AtomicU64::new(0));
         let counter = ticks.clone();
         s.spawn(async move {

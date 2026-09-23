@@ -221,7 +221,7 @@ pub struct ServeConfig {
     pub media_proxy_token: MediaProxyToken,
     pub perf: crate::core::perf_config::SharedPerfConfig,
     /// 終了通知 (#1098)。受けたら新規接続を止めて graceful に閉じる
-    pub shutdown: crate::shutdown::ShutdownToken,
+    pub shutdown: crate::core::shutdown::ShutdownToken,
 }
 
 /// 永続トークン → ephemeral トークンのブリッジ用 state。

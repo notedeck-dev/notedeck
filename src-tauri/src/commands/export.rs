@@ -122,7 +122,7 @@ pub async fn export_files_start(
 /// ユーザーのキャンセルに加え、アプリ終了 (#1098) でも次の項目へ進まない。
 /// 進行中の 1 件と index の書き込みは finally 相当の経路で完了させる
 fn is_cancelled(task_id: &str) -> bool {
-    crate::shutdown::is_shutting_down() || CANCELLED.lock().unwrap().contains(task_id)
+    crate::core::shutdown::is_shutting_down() || CANCELLED.lock().unwrap().contains(task_id)
 }
 
 fn emit(
