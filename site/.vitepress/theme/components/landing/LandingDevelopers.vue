@@ -48,7 +48,7 @@ const DOC_LINKS = [
           <div class="arch-label">殻 — 自分のサーバー</div>
           <div class="arch-title">notecored</div>
           <div class="arch-desc">
-            常駐 + RPC/SSE + ペアリング。notecore を headless で包んだ別バイナリ。端末を閉じても蓄積・通知受信・AI が続き、複数の端末が同じデッキに繋がります。
+            常駐 + RPC/SSE + ペアリング。notecore を headless で包んだ殻。端末を閉じても蓄積・通知受信・AI が続き、複数の端末が同じデッキに繋がります。
           </div>
         </div>
       </div>
