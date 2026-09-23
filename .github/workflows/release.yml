@@ -273,7 +273,13 @@ jobs:
   # notecli の CLI を同じタグから配布する (#1106 段階 0)。
   # keyring は OS 依存が重く cross でビルドしにくいので、配布物は --no-default-features (トークンは DB に残る)。
   notecli:
-    needs: check
+    # アプリの Release を notecli の成否で止めない: publish の後に、公開済みの Release へ
+    # 成果物を追加する (SHA256SUMS には含まれない)
+    needs: publish
+    # softprops/action-gh-release が Release に成果物を載せるのに要る
+    # (build job と同じ。無いと GITHUB_TOKEN が read-only で 403、v1.65.1 で踏んだ)
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -333,7 +339,6 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
           files: ${{ matrix.artifact }}
 
   publish:
