@@ -25,7 +25,10 @@ import { ensureMemosLoaded, loadAllMemos } from '@/composables/useMemos'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { describeAuthType, useVault } from '@/composables/useVault'
-import { reloadPermissionsConfig } from '@/permissions/store'
+import {
+  reloadPermissionsConfig,
+  resolveForProfiled,
+} from '@/permissions/store'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSessionMeta, useAiSessionsStore } from '@/stores/aiSessions'
 import { useConfirm } from '@/stores/confirm'
@@ -598,8 +601,15 @@ async function sendMessage(
     : undefined
 
   // Tool calling に使う tools 配列を provider に応じて組み立て。
-  // 登録済み capability のうち aiTool: true なものを変換。
-  const eligibleCaps = listCapabilities().filter((c) => c.aiTool && c.signature)
+  // 登録済み capability のうち aiTool: true なものを変換。HEARTBEAT と同じく、
+  // ai.chat に許可されていない権限を要する capability は最初から見せない (#1106 §9)。
+  // 実行時の deny は dispatcher に残るので、これは「見えないが叩ける」ではなく
+  // 「見えないものは叩かない」に AI を誘導するための事前フィルタ。
+  const granted = resolveForProfiled('ai.chat')
+  const eligibleCaps = listCapabilities().filter(
+    (c) =>
+      c.aiTool && c.signature && (c.permissions ?? []).every((p) => granted[p]),
+  )
   const toolsForProvider: unknown[] | undefined =
     eligibleCaps.length === 0
       ? undefined

@@ -10,7 +10,36 @@ import {
   decideCheapCheck,
   HEARTBEAT_EPHEMERAL_SESSION_ID,
   HEARTBEAT_OK_TOKEN,
+  isCheapCheckAllowed,
 } from './useHeartbeatDaemon'
+
+describe('isCheapCheckAllowed (#1106: 手元側の capability は cheap check に使わない)', () => {
+  it('データ系 (notecore 単独で実行できる) は許可', () => {
+    for (const id of [
+      'notifications.count',
+      'notes.search',
+      'account.list',
+      'time.now',
+    ]) {
+      expect(isCheapCheckAllowed(id)).toBe(true)
+    }
+  })
+
+  it('画面・入力設定・端末性能に依存する手元側は不可', () => {
+    for (const id of [
+      'column.list',
+      'column.focusedNote',
+      'windows.list',
+      'clipboard.read',
+      'keybinds.list',
+      'performance.list',
+      'theme.read',
+      'styles.list',
+    ]) {
+      expect(isCheapCheckAllowed(id)).toBe(false)
+    }
+  })
+})
 
 // Note: useHeartbeatDaemon 自体は Pinia store / Tauri event listen / SkillStore
 // を必要とするため統合的にユニットテストしない。本テストは OpenClaw 流の

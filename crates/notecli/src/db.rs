@@ -168,6 +168,136 @@ pub struct CachedSearchOptions<'a> {
     pub public_only: bool,
 }
 
+/// 起動前の migration 検査の結果 (notedeck#1106)。`Database::open` は migration を
+/// 無条件に走らせるので、その前に「このバイナリでこの DB を開けるか」を知るための面。
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
+pub enum MigrationStatus {
+    /// 適用済み == 埋め込み。`version` は最新の番号
+    UpToDate { version: i64 },
+    /// このバイナリが未適用の migration を持つ (次の open で `pending` が順に適用される)
+    Pending {
+        applied: i64,
+        target: i64,
+        pending: Vec<String>,
+    },
+    /// DB がこのバイナリより新しい。open すると refinery が abort し起動できない
+    /// (新しいバイナリで migrate した DB を古いバイナリで開こうとしている)
+    DbNewer { applied: i64, target: i64 },
+    /// 同じ番号で名前か checksum が違う、または途中の番号が抜けている
+    Divergent { version: i64, reason: String },
+}
+
+impl MigrationStatus {
+    /// `Database::open` がこのバイナリで通る見込みがあるか (Pending は通る)
+    pub fn is_openable(&self) -> bool {
+        matches!(self, Self::UpToDate { .. } | Self::Pending { .. })
+    }
+}
+
+impl Database {
+    /// DB を変更せずに、埋め込み migration と `refinery_schema_history` を突き合わせる。
+    /// ファイルが無い / 履歴テーブルが無い DB は「全件 Pending」として扱う。
+    pub fn migration_status(path: &Path) -> Result<MigrationStatus, NoteDeckError> {
+        let runner = embedded::migrations::runner();
+        let mut embedded: Vec<(i64, String, String)> = runner
+            .get_migrations()
+            .iter()
+            .map(|m| {
+                (
+                    i64::from(m.version()),
+                    m.name().to_string(),
+                    m.checksum().to_string(),
+                )
+            })
+            .collect();
+        embedded.sort_by_key(|(v, _, _)| *v);
+        let target = embedded.last().map(|(v, _, _)| *v).unwrap_or(0);
+
+        let applied = Self::read_schema_history(path)?;
+        let applied_max = applied.last().map(|(v, _, _)| *v).unwrap_or(0);
+
+        if applied_max > target {
+            return Ok(MigrationStatus::DbNewer {
+                applied: applied_max,
+                target,
+            });
+        }
+        for (version, name, checksum) in &applied {
+            match embedded.iter().find(|(v, _, _)| v == version) {
+                None => {
+                    return Ok(MigrationStatus::Divergent {
+                        version: *version,
+                        reason: format!(
+                            "applied migration V{version}__{name} is not in this binary"
+                        ),
+                    })
+                }
+                Some((_, e_name, e_checksum)) if e_name != name => {
+                    return Ok(MigrationStatus::Divergent {
+                        version: *version,
+                        reason: format!("name differs: db={name} binary={e_name}"),
+                    })
+                }
+                Some((_, _, e_checksum)) if e_checksum != checksum => {
+                    return Ok(MigrationStatus::Divergent {
+                        version: *version,
+                        reason: format!("checksum differs for V{version}__{name}"),
+                    })
+                }
+                Some(_) => {}
+            }
+        }
+        let pending: Vec<String> = embedded
+            .iter()
+            .filter(|(v, _, _)| *v > applied_max)
+            .map(|(v, name, _)| format!("V{v}__{name}"))
+            .collect();
+        if pending.is_empty() {
+            Ok(MigrationStatus::UpToDate { version: target })
+        } else {
+            Ok(MigrationStatus::Pending {
+                applied: applied_max,
+                target,
+                pending,
+            })
+        }
+    }
+
+    /// `refinery_schema_history` を read-only 接続で読む: (version, name, checksum) の昇順。
+    fn read_schema_history(path: &Path) -> Result<Vec<(i64, String, String)>, NoteDeckError> {
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+        let conn = Connection::open_with_flags(
+            path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        let has_table: bool = conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master \
+             WHERE type = 'table' AND name = 'refinery_schema_history'",
+            [],
+            |row| row.get::<_, i64>(0).map(|n| n > 0),
+        )?;
+        if !has_table {
+            return Ok(Vec::new());
+        }
+        let mut stmt = conn.prepare(
+            "SELECT version, name, checksum FROM refinery_schema_history ORDER BY version",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+}
+
 impl Database {
     /// デフォルトの eviction policy で DB を開く。 後方互換性のために維持。
     pub fn open(path: &Path) -> Result<Self, NoteDeckError> {
@@ -2059,6 +2189,90 @@ mod tests {
 
     fn tk(s: &str) -> TimelineKey {
         TimelineKey::parse(s).unwrap()
+    }
+
+    // --- Migration status (pre-start check, notedeck#1106) ---
+
+    #[test]
+    fn migration_status_missing_file_is_all_pending() {
+        let dir = tempfile::tempdir().unwrap();
+        let status = Database::migration_status(&dir.path().join("none.db")).unwrap();
+        assert!(status.is_openable());
+        match status {
+            MigrationStatus::Pending {
+                applied, pending, ..
+            } => {
+                assert_eq!(applied, 0);
+                assert!(pending.first().unwrap().starts_with("V1__"));
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+
+    #[test]
+    fn migration_status_after_open_is_up_to_date() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = Database::open(&db_path).unwrap();
+        let status = Database::migration_status(&db_path).unwrap();
+        let expected = Database::schema_version(&db.lock().unwrap()).unwrap();
+        assert_eq!(status, MigrationStatus::UpToDate { version: expected });
+    }
+
+    #[test]
+    fn migration_status_detects_db_newer_than_binary() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = Database::open(&db_path).unwrap();
+        db.lock()
+            .unwrap()
+            .execute(
+                "INSERT INTO refinery_schema_history (version, name, applied_on, checksum) \
+                 VALUES (999, 'from_the_future', '2099-01-01T00:00:00Z', '0')",
+                [],
+            )
+            .unwrap();
+        let status = Database::migration_status(&db_path).unwrap();
+        assert!(matches!(
+            status,
+            MigrationStatus::DbNewer { applied: 999, .. }
+        ));
+        assert!(!status.is_openable());
+        // refinery 側も同じ判定で open を拒む (この検査はその前段)
+        assert!(Database::open(&db_path).is_err());
+    }
+
+    #[test]
+    fn migration_status_detects_divergent_checksum() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = Database::open(&db_path).unwrap();
+        db.lock()
+            .unwrap()
+            .execute(
+                "UPDATE refinery_schema_history SET checksum = 'tampered' WHERE version = 1",
+                [],
+            )
+            .unwrap();
+        let status = Database::migration_status(&db_path).unwrap();
+        assert!(
+            matches!(status, MigrationStatus::Divergent { version: 1, .. }),
+            "{status:?}"
+        );
+        assert!(!status.is_openable());
+    }
+
+    #[test]
+    fn migration_status_does_not_modify_db() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        std::fs::write(&db_path, b"").unwrap();
+        let status = Database::migration_status(&db_path).unwrap();
+        assert!(matches!(
+            status,
+            MigrationStatus::Pending { applied: 0, .. }
+        ));
+        assert_eq!(std::fs::metadata(&db_path).unwrap().len(), 0);
     }
 
     // --- Migration tests ---

@@ -37,14 +37,26 @@ pub fn init_store() -> Result<(), NoteDeckError> {
         // at-rest 暗号化 + 再起動永続 (notedeck#786)。GUI デスクトップには原則存在する。
         // D-Bus 接続成功だけでは不十分 — WSL2 等では daemon がいても default collection
         // が無く「書込だけ」失敗するため、roundtrip probe で書いて読めることを確認する。
-        // 使えない環境はカーネル keyutils に劣化する。keyutils は再起動非永続
-        // (UntilReboot) のため DB フォールバックが正になる (notedeck#785)
         if let Ok(store) = zbus_secret_service_keyring_store::Store::new() {
             if probe_roundtrip(&store) {
                 keyring_core::set_default_store(store);
                 return Ok(());
             }
         }
+        // 使えない環境 (headless サーバー / WSL2 / コンテナ) は暗号化ファイルに劣化する
+        // (notedeck#1106 §9)。再起動をまたいで永続するので DB の平文フォールバックは消せる。
+        match crate::file_keyring::Store::new() {
+            Ok(store) => {
+                tracing::info!("secret-service unavailable; using encrypted file store");
+                keyring_core::set_default_store(store);
+                return Ok(());
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "file store unavailable; falling back to keyutils")
+            }
+        }
+        // 最後の砦はカーネル keyutils。再起動非永続 (UntilReboot) のため
+        // DB フォールバックが正になる (notedeck#785)
         let store = linux_keyutils_keyring_store::Store::new()
             .map_err(|e| NoteDeckError::Keychain(e.to_string()))?;
         keyring_core::set_default_store(store);
@@ -71,7 +83,8 @@ fn probe_roundtrip(store: &std::sync::Arc<zbus_secret_service_keyring_store::Sto
 
 /// 現在の credential store が再起動をまたいで永続するかどうか。
 ///
-/// Linux の keyutils store はカーネルメモリ常駐（`UntilReboot`）のため false。
+/// Linux の keyutils store (ファイル backend も作れなかったときの最終劣化先) は
+/// カーネルメモリ常駐（`UntilReboot`）のため false。
 /// false の場合、呼び出し側は DB 等の永続フォールバックを消してはならず、
 /// keychain は高速キャッシュとして扱う（notedeck#785）。
 #[cfg(feature = "keyring")]

@@ -230,6 +230,17 @@ export async function dispatchCapability(
     skipScope !== null &&
     isConfirmSkipped(skipScope, cap.id)
   if (confirmOpts && !skipConfirmed) {
+    // 無人実行 (HEARTBEAT) は承認を待たない (#1106 §4.8)。従来は誰も見ていない
+    // モーダルを開いたまま run が止まり、後続 tick が already-running で
+    // スキップされていた。確認が要る操作はその場で拒否して AI に返す。
+    // 書き込み意図を下書き / 受信箱カードに変える最終形は #1133。
+    if (ctx.principal.kind === 'ai.heartbeat') {
+      return {
+        ok: false,
+        code: 'user_cancelled',
+        error: `Unattended HEARTBEAT does not run operations that require confirmation: ${capabilityId}`,
+      }
+    }
     // クロスアカウント実行: どのアカウントとして実行するかを必ず明示する
     if (crossAccount && crossAccountId) {
       const acc = useAccountsStore().accounts.find(
