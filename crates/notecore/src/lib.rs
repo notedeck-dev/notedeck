@@ -16,6 +16,7 @@ pub mod ai_keys;
 pub mod api_tokens;
 pub mod auth_service;
 pub mod backup_service;
+pub mod capabilities;
 pub mod commands;
 pub mod context;
 pub mod crash_report;
