@@ -50,9 +50,14 @@ pub async fn api_get_timeline(
     let notes = client
         .get_timeline(&host, &token, &account_id, &key, opts)
         .await?;
-    if let Err(e) = db.ingest_notes(&notes, &key) {
-        tracing::warn!("[cache] failed to cache timeline notes: {e}");
-    }
+    let notes = core
+        .blocking(move |db| {
+            if let Err(e) = db.ingest_notes(&notes, &key) {
+                tracing::warn!("[cache] failed to cache timeline notes: {e}");
+            }
+            Ok(notes)
+        })
+        .await?;
 
     // Background OGP prefetch: extract URLs and spawn async task (non-blocking)
     if !token.is_empty() {
@@ -206,14 +211,19 @@ pub async fn api_get_antenna_notes(
             until_id.as_deref(),
         )
         .await?;
-    if let Err(e) = db.ingest_notes(
-        &notes,
-        &TimelineKey::Antenna {
-            antenna_id: antenna_id.clone(),
-        },
-    ) {
-        tracing::warn!("[cache] failed to cache antenna notes: {e}");
-    }
+    let notes = core
+        .blocking(move |db| {
+            if let Err(e) = db.ingest_notes(
+                &notes,
+                &TimelineKey::Antenna {
+                    antenna_id: antenna_id.clone(),
+                },
+            ) {
+                tracing::warn!("[cache] failed to cache antenna notes: {e}");
+            }
+            Ok(notes)
+        })
+        .await?;
     Ok(notes)
 }
 
@@ -236,9 +246,14 @@ pub async fn api_get_favorites(
             until_id.as_deref(),
         )
         .await?;
-    if let Err(e) = db.ingest_notes(&notes, &TimelineKey::Favorites) {
-        tracing::warn!("[cache] failed to cache favorites: {e}");
-    }
+    let notes = core
+        .blocking(move |db| {
+            if let Err(e) = db.ingest_notes(&notes, &TimelineKey::Favorites) {
+                tracing::warn!("[cache] failed to cache favorites: {e}");
+            }
+            Ok(notes)
+        })
+        .await?;
     Ok(notes)
 }
 
@@ -282,9 +297,14 @@ pub async fn api_get_mentions(
     } else {
         TimelineKey::Mentions
     };
-    if let Err(e) = db.ingest_notes(&notes, &cache_key) {
-        tracing::warn!("[cache] failed to cache mentions: {e}");
-    }
+    let notes = core
+        .blocking(move |db| {
+            if let Err(e) = db.ingest_notes(&notes, &cache_key) {
+                tracing::warn!("[cache] failed to cache mentions: {e}");
+            }
+            Ok(notes)
+        })
+        .await?;
     Ok(notes)
 }
 
@@ -316,14 +336,19 @@ pub async fn api_get_clip_notes(
             until_id.as_deref(),
         )
         .await?;
-    if let Err(e) = db.ingest_notes(
-        &notes,
-        &TimelineKey::Clip {
-            clip_id: clip_id.clone(),
-        },
-    ) {
-        tracing::warn!("[cache] failed to cache clip notes: {e}");
-    }
+    let notes = core
+        .blocking(move |db| {
+            if let Err(e) = db.ingest_notes(
+                &notes,
+                &TimelineKey::Clip {
+                    clip_id: clip_id.clone(),
+                },
+            ) {
+                tracing::warn!("[cache] failed to cache clip notes: {e}");
+            }
+            Ok(notes)
+        })
+        .await?;
     Ok(notes)
 }
 
@@ -364,14 +389,19 @@ pub async fn api_get_channel_notes(
             until_id.as_deref(),
         )
         .await?;
-    if let Err(e) = db.ingest_notes(
-        &notes,
-        &TimelineKey::Channel {
-            channel_id: channel_id.clone(),
-        },
-    ) {
-        tracing::warn!("[cache] failed to cache channel notes: {e}");
-    }
+    let notes = core
+        .blocking(move |db| {
+            if let Err(e) = db.ingest_notes(
+                &notes,
+                &TimelineKey::Channel {
+                    channel_id: channel_id.clone(),
+                },
+            ) {
+                tracing::warn!("[cache] failed to cache channel notes: {e}");
+            }
+            Ok(notes)
+        })
+        .await?;
     Ok(notes)
 }
 
@@ -398,14 +428,19 @@ pub async fn api_get_role_notes(
             until_id.as_deref(),
         )
         .await?;
-    if let Err(e) = db.ingest_notes(
-        &notes,
-        &TimelineKey::Role {
-            role_id: role_id.clone(),
-        },
-    ) {
-        tracing::warn!("[cache] failed to cache role notes: {e}");
-    }
+    let notes = core
+        .blocking(move |db| {
+            if let Err(e) = db.ingest_notes(
+                &notes,
+                &TimelineKey::Role {
+                    role_id: role_id.clone(),
+                },
+            ) {
+                tracing::warn!("[cache] failed to cache role notes: {e}");
+            }
+            Ok(notes)
+        })
+        .await?;
     Ok(notes)
 }
 
@@ -568,10 +603,13 @@ pub async fn api_delete_favorite(core: &Core, account_id: String, note_id: Strin
     client.delete_favorite(&host, &token, &note_id).await?;
     // サーバー成功後に favorites バケットの所属を外す (失敗は warn + Ok —
     // サーバー状態は成功済みのため。stale は TTL/cap で最終解消)
-    let db = core.db().await;
-    if let Err(e) = db.remove_membership(&account_id, &TimelineKey::Favorites, &note_id) {
-        tracing::warn!("[cache] failed to remove favorites membership: {e}");
-    }
+    core.blocking(move |db| {
+        if let Err(e) = db.remove_membership(&account_id, &TimelineKey::Favorites, &note_id) {
+            tracing::warn!("[cache] failed to remove favorites membership: {e}");
+        }
+        Ok(())
+    })
+    .await?;
     Ok(())
 }
 
@@ -611,16 +649,19 @@ pub async fn api_remove_note_from_clip(
     client
         .remove_note_from_clip(&host, &token, &clip_id, &note_id)
         .await?;
-    let db = core.db().await;
-    if let Err(e) = db.remove_membership(
-        &account_id,
-        &TimelineKey::Clip {
-            clip_id: clip_id.clone(),
-        },
-        &note_id,
-    ) {
-        tracing::warn!("[cache] failed to remove clip membership: {e}");
-    }
+    core.blocking(move |db| {
+        if let Err(e) = db.remove_membership(
+            &account_id,
+            &TimelineKey::Clip {
+                clip_id: clip_id.clone(),
+            },
+            &note_id,
+        ) {
+            tracing::warn!("[cache] failed to remove clip membership: {e}");
+        }
+        Ok(())
+    })
+    .await?;
     Ok(())
 }
 
@@ -775,8 +816,10 @@ pub async fn api_get_cached_timeline(
 ) -> Result<Vec<NormalizedNote>> {
     // 不正キーは黙殺せず Err で顕在化させる (フロントは catch → [] で安全)
     let key = TimelineKey::parse(&timeline_type)?;
-    let db = core.db().await;
-    db.get_cached_timeline(&account_id, &key, limit.unwrap_or(40).clamp(1, 200))
+    core.blocking(move |db| {
+        db.get_cached_timeline(&account_id, &key, limit.unwrap_or(40).clamp(1, 200))
+    })
+    .await
 }
 
 pub async fn api_get_cached_timeline_before(
@@ -791,14 +834,16 @@ pub async fn api_get_cached_timeline_before(
         return Err(NoteDeckError::InvalidInput("Invalid date".to_string()));
     }
     let key = TimelineKey::parse(&timeline_type)?;
-    let db = core.db().await;
-    db.get_cached_timeline_before(
-        &account_id,
-        &key,
-        &before,
-        before_note_id.as_deref(),
-        limit.unwrap_or(40).clamp(1, 200),
-    )
+    core.blocking(move |db| {
+        db.get_cached_timeline_before(
+            &account_id,
+            &key,
+            &before,
+            before_note_id.as_deref(),
+            limit.unwrap_or(40).clamp(1, 200),
+        )
+    })
+    .await
 }
 
 pub async fn api_get_cache_date_range(
@@ -807,15 +852,15 @@ pub async fn api_get_cache_date_range(
     timeline_type: String,
 ) -> Result<Option<(String, String)>> {
     let key = TimelineKey::parse(&timeline_type)?;
-    let db = core.db().await;
-    db.get_cache_date_range(&account_id, &key)
+    core.blocking(move |db| db.get_cache_date_range(&account_id, &key))
+        .await
 }
 
 /// identity (正規化 AP object id) でローカルキャッシュを account 横断で引く (#1058)。
 /// 引数は生の URI でもよい (notecli 側で同じ規則で正規化する)。
 pub async fn api_find_notes_by_identity(core: &Core, uri: String) -> Result<Vec<NormalizedNote>> {
-    let db = core.db().await;
-    db.find_notes_by_identity(&uri)
+    core.blocking(move |db| db.find_notes_by_identity(&uri))
+        .await
 }
 
 /// URI を identity に正規化する。導出規則は notecli 側の 1 か所に閉じ、
@@ -839,15 +884,17 @@ pub async fn api_search_notes_local(
             "Search query too long".to_string(),
         ));
     }
-    let db = core.db().await;
-    db.search_cached_notes_advanced(
-        &account_id,
-        &query,
-        limit.unwrap_or(30).clamp(1, 200),
-        since_date.as_deref(),
-        until_date.as_deref(),
-        ascending.unwrap_or(false),
-    )
+    core.blocking(move |db| {
+        db.search_cached_notes_advanced(
+            &account_id,
+            &query,
+            limit.unwrap_or(30).clamp(1, 200),
+            since_date.as_deref(),
+            until_date.as_deref(),
+            ascending.unwrap_or(false),
+        )
+    })
+    .await
 }
 
 /// クライアント検索 (notedeck#945 / #958): 複数アカウントのキャッシュを横断して
@@ -870,21 +917,23 @@ pub async fn api_search_notes_cached_across(
             "Search query too long".to_string(),
         ));
     }
-    let db = core.db().await;
-    let ids: Vec<&str> = account_ids.iter().map(String::as_str).collect();
-    db.search_cached_notes_across(
-        &ids,
-        &notecli::db::CachedSearchOptions {
-            query: &query,
-            limit: limit.unwrap_or(50).clamp(1, 200),
-            since_date: since_date.as_deref(),
-            until_date: until_date.as_deref(),
-            ascending: ascending.unwrap_or(false),
-            author: author.as_deref().filter(|a| !a.trim().is_empty()),
-            has_files,
-            public_only: public_only.unwrap_or(false),
-        },
-    )
+    core.blocking(move |db| {
+        let ids: Vec<&str> = account_ids.iter().map(String::as_str).collect();
+        db.search_cached_notes_across(
+            &ids,
+            &notecli::db::CachedSearchOptions {
+                query: &query,
+                limit: limit.unwrap_or(50).clamp(1, 200),
+                since_date: since_date.as_deref(),
+                until_date: until_date.as_deref(),
+                ascending: ascending.unwrap_or(false),
+                author: author.as_deref().filter(|a| !a.trim().is_empty()),
+                has_files,
+                public_only: public_only.unwrap_or(false),
+            },
+        )
+    })
+    .await
 }
 
 pub async fn api_delete_cached_note(
@@ -892,8 +941,8 @@ pub async fn api_delete_cached_note(
     account_id: String,
     note_id: String,
 ) -> Result<()> {
-    let db = core.db().await;
-    db.delete_cached_note(&account_id, &note_id)?;
+    core.blocking(move |db| db.delete_cached_note(&account_id, &note_id))
+        .await?;
     Ok(())
 }
 

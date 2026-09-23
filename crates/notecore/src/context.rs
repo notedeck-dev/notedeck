@@ -265,6 +265,24 @@ impl Core {
         Arc::clone(r.as_ref().unwrap())
     }
 
+    /// 同期の DB 呼び出しを blocking スレッドへ寄せる (#1106 段階 0b)。
+    ///
+    /// notecli の Database は rusqlite (同期) なので、async のコマンド本体から直接呼ぶと
+    /// tokio の worker を塞ぐ (4 スレッドの runtime では連鎖して枯渇する)。行数の多い
+    /// 読み書き (取り込み / キャッシュ検索 / 一括削除) は必ずここを通す。
+    /// プール化や async API を notecli 側に持たせる判断 (#1098) は、この境界の裏で
+    /// 差し替えられる。
+    pub async fn blocking<T, F>(&self, f: F) -> Result<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&Database) -> Result<T> + Send + 'static,
+    {
+        let db = self.db().await;
+        tokio::task::spawn_blocking(move || f(&db))
+            .await
+            .map_err(|e| NoteDeckError::Internal(format!("blocking task failed: {e}")))?
+    }
+
     /// Await until fully initialized, then return MisskeyClient reference.
     pub async fn client(&self) -> Arc<MisskeyClient> {
         let mut rx = self.rx.clone();

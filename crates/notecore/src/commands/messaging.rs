@@ -206,8 +206,8 @@ pub async fn api_get_cached_chat_history(
     account_id: String,
     limit: Option<i64>,
 ) -> Result<Vec<ChatMessage>> {
-    let db = core.db().await;
-    db.get_cached_chat_history(&account_id, limit.unwrap_or(100))
+    core.blocking(move |db| db.get_cached_chat_history(&account_id, limit.unwrap_or(100)))
+        .await
 }
 
 pub async fn api_get_cached_chat_thread_messages(
@@ -217,13 +217,15 @@ pub async fn api_get_cached_chat_thread_messages(
     until_id: Option<String>,
     limit: Option<i64>,
 ) -> Result<Vec<ChatMessage>> {
-    let db = core.db().await;
-    db.get_cached_chat_thread_messages(
-        &account_id,
-        &thread_id,
-        until_id.as_deref(),
-        limit.unwrap_or(30),
-    )
+    core.blocking(move |db| {
+        db.get_cached_chat_thread_messages(
+            &account_id,
+            &thread_id,
+            until_id.as_deref(),
+            limit.unwrap_or(30),
+        )
+    })
+    .await
 }
 
 pub async fn api_get_cached_chat_latest_message_id(
@@ -231,8 +233,8 @@ pub async fn api_get_cached_chat_latest_message_id(
     account_id: String,
     thread_id: String,
 ) -> Result<Option<String>> {
-    let db = core.db().await;
-    db.get_cached_chat_latest_message_id(&account_id, &thread_id)
+    core.blocking(move |db| db.get_cached_chat_latest_message_id(&account_id, &thread_id))
+        .await
 }
 
 pub async fn api_react_chat_message(

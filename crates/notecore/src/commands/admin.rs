@@ -62,8 +62,8 @@ pub async fn cache_stats(core: &Core) -> Result<CacheStats> {
 }
 
 pub async fn account_cache_count(core: &Core, account_id: String) -> Result<i64> {
-    let db = core.db().await;
-    db.account_cache_count(&account_id)
+    core.blocking(move |db| db.account_cache_count(&account_id))
+        .await
 }
 
 pub async fn clear_account_cache(core: &Core, account_id: String) -> Result<u64> {
@@ -104,13 +104,13 @@ pub async fn chat_cache_stats(core: &Core) -> Result<ChatCacheStats> {
 }
 
 pub async fn chat_cache_count(core: &Core, account_id: String) -> Result<i64> {
-    let db = core.db().await;
-    db.chat_cache_count(&account_id)
+    core.blocking(move |db| db.chat_cache_count(&account_id))
+        .await
 }
 
 pub async fn clear_chat_cache_for_account(core: &Core, account_id: String) -> Result<u64> {
-    let db = core.db().await;
-    db.clear_chat_cache_for_account(&account_id)
+    core.blocking(move |db| db.clear_chat_cache_for_account(&account_id))
+        .await
 }
 
 /// chat 用の eviction config を即時適用する。`apply_eviction_config` (notes 用) と並列。
@@ -137,8 +137,7 @@ pub async fn create_guest_account(
 }
 
 pub async fn load_server_detections(core: &Core) -> Result<Vec<ServerDetection>> {
-    let db = core.db().await;
-    db.load_server_detections()
+    core.blocking(move |db| db.load_server_detections()).await
 }
 
 /// SWR 取得: fresh は即返し / stale は返しつつ背景再検出 / miss は検出して保存。
