@@ -77,6 +77,19 @@ async fn external_granted() -> Granted {
     granted_for(PrincipalId::External).await
 }
 
+/// 「次から確認しない」(#714) の記憶を permissions.json5 の `confirmSkips`
+/// から引く。AI ループ (#1133) が確認の要否を決めるときに使う。読めない /
+/// 壊れている / `init` 前は「記憶なし」(= 確認する側に倒す)。
+pub async fn confirm_skipped(scope: &str, capability_id: &str) -> bool {
+    let Some(path) = PERMISSIONS_PATH.get() else {
+        return false;
+    };
+    match tokio::fs::read_to_string(path).await {
+        Ok(content) => permissions_profile::confirm_skipped(&content, scope, capability_id),
+        Err(_) => false,
+    }
+}
+
 /// ルート → 必要 PermissionKey の判定結果。
 #[derive(Debug, PartialEq)]
 pub enum RouteRule {

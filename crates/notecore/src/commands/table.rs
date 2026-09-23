@@ -268,6 +268,8 @@ macro_rules! with_command_table {
         data ai_chat_cancel(stream_id: String) -> () = $crate::commands::ai_chat::ai_chat_cancel;
         data ai_turn_run(req: $crate::ai_turn::AiTurnRequest) -> () = $crate::commands::ai_chat::ai_turn_run;
         data ai_turn_cancel(turn_id: String) -> () = $crate::commands::ai_chat::ai_turn_cancel;
+        data ai_confirm_respond(request_id: String, accepted: bool) -> () = $crate::commands::ai_chat::ai_confirm_respond;
+        data ai_confirm_shown(request_id: String) -> () = $crate::commands::ai_chat::ai_confirm_shown;
         }
     };
 }

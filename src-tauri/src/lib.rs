@@ -256,6 +256,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         notecore::migrations::run_fs(&app_dir)?;
         // external gate が permissions.json5 を直接読むための所在 (#1099)
         notecore::permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
+        // 前回、確認待ちのまま残った AI ターンを閉じる (#1133)
+        notecore::ai_turn::recover(&app_dir);
 
         // AppState: empty wrapper — commands await until Phase 2 fills it
         let app_state = commands::AppState::new();
@@ -1109,6 +1111,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::ai_chat_cancel,
             commands::ai_turn_run,
             commands::ai_turn_cancel,
+            commands::ai_confirm_respond,
+            commands::ai_confirm_shown,
             // HTTP fetch (http.fetch capability / Nd:http)
             commands::http_fetch,
             // HEARTBEAT (#411 Phase 6) — per-column scheduler
