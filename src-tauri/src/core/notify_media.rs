@@ -12,8 +12,8 @@
 
 use std::path::PathBuf;
 
-use crate::image_cache::ImageCache;
-use crate::media_proxy::MediaRequest;
+use crate::core::image_cache::ImageCache;
+use crate::core::media_proxy::MediaRequest;
 
 /// リアクション通知に添付するカスタム絵文字画像の URL。
 /// 本家 sw (create-notification.ts) と同じ `/emoji/<name>.webp` 形式で、
@@ -47,7 +47,7 @@ pub async fn ensure_local_file(cache: &ImageCache, url: &str, w: Option<u32>) ->
     if let Some(entry) = cache.check_cache_only(&key).await {
         return Some(entry.path);
     }
-    crate::media_proxy::ensure_media_inner(cache, &req)
+    crate::core::media_proxy::ensure_media_inner(cache, &req)
         .await
         .ok()?;
     // ensure_media_inner は変換の要不要によらず必ず cache_key で永続化する
@@ -66,7 +66,7 @@ pub async fn ensure_bytes(cache: &ImageCache, url: &str) -> Option<Vec<u8>> {
         format: None,
         static_frame: false,
     };
-    crate::media_proxy::ensure_media_inner(cache, &req)
+    crate::core::media_proxy::ensure_media_inner(cache, &req)
         .await
         .ok()
         .map(|(bytes, _content_type)| bytes)

@@ -1,18 +1,15 @@
 use async_trait::async_trait;
 
 use super::{extract_iframe_src, fetch_oembed, Plugin, PluginError, SummaryData};
-use crate::ogp::Player;
+use crate::core::ogp::Player;
 
-pub struct SoundCloudPlugin;
-pub const PLUGIN: SoundCloudPlugin = SoundCloudPlugin;
+pub struct SpotifyPlugin;
+pub const PLUGIN: SpotifyPlugin = SpotifyPlugin;
 
 #[async_trait]
-impl Plugin for SoundCloudPlugin {
+impl Plugin for SpotifyPlugin {
     fn test(&self, url: &url::Url) -> bool {
-        matches!(
-            url.host_str(),
-            Some("soundcloud.com" | "www.soundcloud.com" | "on.soundcloud.com")
-        )
+        url.host_str() == Some("open.spotify.com")
     }
 
     async fn summarize(
@@ -20,11 +17,8 @@ impl Plugin for SoundCloudPlugin {
         url: &url::Url,
         client: &reqwest::Client,
     ) -> Result<SummaryData, PluginError> {
-        let mut endpoint = url::Url::parse("https://soundcloud.com/oembed").unwrap();
-        endpoint
-            .query_pairs_mut()
-            .append_pair("url", url.as_str())
-            .append_pair("format", "json");
+        let mut endpoint = url::Url::parse("https://open.spotify.com/oembed").unwrap();
+        endpoint.query_pairs_mut().append_pair("url", url.as_str());
         let oembed = fetch_oembed(client, endpoint.as_str()).await?;
 
         let player = oembed
@@ -35,12 +29,16 @@ impl Plugin for SoundCloudPlugin {
                 url: src,
                 width: oembed.width,
                 height: oembed.height,
-                allow: vec!["autoplay".to_string()],
+                allow: vec![
+                    "autoplay".to_string(),
+                    "clipboard-write".to_string(),
+                    "encrypted-media".to_string(),
+                ],
             });
 
         Ok(SummaryData {
             title: oembed.title,
-            description: oembed.author_name.map(|a| format!("by {a}")),
+            description: None,
             icon: None,
             sitename: oembed.provider_name,
             thumbnail: oembed.thumbnail_url,

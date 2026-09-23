@@ -1,6 +1,6 @@
 //! Regenerates `src/bindings.ts` from the tauri-specta command/event lists.
 //!
-//! Run after changing any `commands::*` / `query_runtime::*` / `perf_config::*`
+//! Run after changing any `commands::*` / `query_runtime::*`
 //! handler that is exposed to the frontend:
 //!
 //! ```sh

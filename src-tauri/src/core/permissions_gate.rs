@@ -31,7 +31,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::json;
 
-use crate::permissions_profile::{self, Granted, PrincipalId};
+use crate::core::permissions_profile::{self, Granted, PrincipalId};
 
 /// 永続トークンで認証されたリクエストに付く marker (request extension)。
 /// プロセス外から付与できないため「inbound ヘッダーの strip 忘れ」という
@@ -295,7 +295,7 @@ mod tests {
     #[test]
     fn every_openapi_route_has_an_explicit_rule() {
         let spec: serde_json::Value =
-            serde_json::from_str(include_str!("../openapi.json")).expect("openapi.json parses");
+            serde_json::from_str(include_str!("../../openapi.json")).expect("openapi.json parses");
         let paths = spec["paths"].as_object().expect("paths object");
         let mut missing = Vec::new();
         for (template, ops) in paths {

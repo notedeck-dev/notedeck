@@ -9,6 +9,7 @@ use crate::account_service;
 
 // --- DB: Accounts ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn load_accounts(app_state: State<'_, AppState>) -> Result<Vec<AccountPublic>> {
@@ -16,6 +17,7 @@ pub async fn load_accounts(app_state: State<'_, AppState>) -> Result<Vec<Account
     account_service::list_public(&db)
 }
 
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_account(
@@ -30,6 +32,7 @@ pub async fn delete_account(
 }
 
 /// Logout: delete token only, keep account record and columns
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn logout_account(
@@ -52,6 +55,7 @@ pub struct CacheStats {
     pub db_size_bytes: i64,
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn cache_stats(app_state: State<'_, AppState>) -> Result<CacheStats> {
@@ -63,6 +67,7 @@ pub async fn cache_stats(app_state: State<'_, AppState>) -> Result<CacheStats> {
     })
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn account_cache_count(
@@ -77,6 +82,7 @@ pub async fn account_cache_count(
 // spawn_blocking で退避する。writer は std::sync::Mutex のため async runtime 直呼びは
 // tokio worker の連鎖枯渇を招く (前例: messaging.rs)。
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_account_cache(
@@ -87,6 +93,7 @@ pub async fn clear_account_cache(
     run_blocking(move || db.clear_account_cache(&account_id)).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_all_cache(app_state: State<'_, AppState>) -> Result<u64> {
@@ -101,6 +108,7 @@ pub async fn clear_all_cache(app_state: State<'_, AppState>) -> Result<u64> {
 
 /// ユーザーが UI で選んだ eviction config を即時適用する。 戻り値は削除件数。
 /// JS 側で settings.cacheEviction を変更したタイミングで呼ぶ想定。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn apply_eviction_config(
@@ -122,6 +130,7 @@ async fn run_blocking<T: Send + 'static>(
 
 /// notecli の `EvictionConfig::default()` を取得する。 アプリの「バランス」
 /// プリセットの実体としてフロント側で参照する。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn default_eviction_config() -> Result<EvictionConfig> {
@@ -137,6 +146,7 @@ pub struct ChatCacheStats {
     pub bytes: i64,
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn chat_cache_stats(app_state: State<'_, AppState>) -> Result<ChatCacheStats> {
@@ -148,6 +158,7 @@ pub async fn chat_cache_stats(app_state: State<'_, AppState>) -> Result<ChatCach
     })
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn chat_cache_count(app_state: State<'_, AppState>, account_id: String) -> Result<i64> {
@@ -155,6 +166,7 @@ pub async fn chat_cache_count(app_state: State<'_, AppState>, account_id: String
     db.chat_cache_count(&account_id)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_chat_cache_for_account(
@@ -166,6 +178,7 @@ pub async fn clear_chat_cache_for_account(
 }
 
 /// chat 用の eviction config を即時適用する。`apply_eviction_config` (notes 用) と並列。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn apply_chat_eviction_config(
@@ -176,6 +189,7 @@ pub async fn apply_chat_eviction_config(
     run_blocking(move || db.cleanup_chat_with_eviction(&config)).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn default_chat_eviction_config() -> Result<ChatEvictionConfig> {
@@ -185,6 +199,7 @@ pub async fn default_chat_eviction_config() -> Result<ChatEvictionConfig> {
 // --- Guest / Anonymous API ---
 
 /// Create a guest (unauthenticated) account for browsing public timelines.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn create_guest_account(
@@ -202,6 +217,7 @@ pub async fn create_guest_account(
 
 // --- Server detections (SWR キャッシュは notecli::server_info、#782) ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn load_server_detections(
@@ -212,6 +228,7 @@ pub async fn load_server_detections(
 }
 
 /// SWR 取得: fresh は即返し / stale は返しつつ背景再検出 / miss は検出して保存。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn get_server_detection(
@@ -223,6 +240,7 @@ pub async fn get_server_detection(
 }
 
 /// 強制ネットワーク検出 + 保存。ログイン直後などキャッシュを確実に上書きする用。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn detect_server(

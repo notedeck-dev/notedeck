@@ -45,7 +45,7 @@ fn path_for(app_dir: &Path, host: &str) -> PathBuf {
     // host はサーバー由来の文字列なのでファイル名に直接使わない
     app_dir
         .join(EMOJI_CACHE_DIR)
-        .join(format!("{}.json", crate::image_cache::hex_hash(host)))
+        .join(format!("{}.json", crate::core::image_cache::hex_hash(host)))
 }
 
 pub fn is_fresh(fetched_at_ms: u64, now_ms: u64) -> bool {

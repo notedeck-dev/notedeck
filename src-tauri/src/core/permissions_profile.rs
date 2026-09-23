@@ -346,7 +346,7 @@ mod tests {
             cases: Vec<GoldenCase>,
         }
         let golden: GoldenFile =
-            serde_json::from_str(include_str!("../../src/permissions/golden/vectors.json"))
+            serde_json::from_str(include_str!("../../../src/permissions/golden/vectors.json"))
                 .expect("parse vectors.json");
         assert_eq!(
             golden.keys,

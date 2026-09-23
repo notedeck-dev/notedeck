@@ -40,6 +40,7 @@ fn cache_chat_response(
 
 // --- Notifications ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_notifications(
@@ -53,6 +54,7 @@ pub async fn api_get_notifications(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_notifications_grouped(
@@ -66,6 +68,7 @@ pub async fn api_get_notifications_grouped(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_unread_notification_count(
@@ -76,6 +79,7 @@ pub async fn api_get_unread_notification_count(
     client.get_unread_notification_count(&host, &token).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_mark_all_notifications_as_read(
@@ -88,6 +92,7 @@ pub async fn api_mark_all_notifications_as_read(
 
 // --- Unread chat ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_unread_chat(
@@ -107,6 +112,7 @@ pub async fn api_get_unread_chat(
 
 // --- Chat ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_chat_history(
@@ -125,6 +131,7 @@ pub async fn api_get_chat_history(
     Ok(msgs)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_chat_user_messages(
@@ -152,6 +159,7 @@ pub async fn api_get_chat_user_messages(
     Ok(msgs)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_chat_room_messages(
@@ -183,6 +191,7 @@ pub async fn api_get_chat_room_messages(
 /// `text` / `file_id` は両方 Option で、どちらか一方は必須 (Misskey 側で
 /// バリデーション)。`user_id` / `room_id` も両方 Option で、どちらか一方は必須
 /// (こちらは本関数で先回り検証)。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_create_chat_message(
@@ -221,6 +230,7 @@ pub async fn api_create_chat_message(
 
 // --- Cached chat (offline-first hydrate / gap reconcile 用) ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_cached_chat_history(
@@ -232,6 +242,7 @@ pub async fn api_get_cached_chat_history(
     db.get_cached_chat_history(&account_id, limit.unwrap_or(100))
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_cached_chat_thread_messages(
@@ -250,6 +261,7 @@ pub async fn api_get_cached_chat_thread_messages(
     )
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_cached_chat_latest_message_id(
@@ -263,6 +275,7 @@ pub async fn api_get_cached_chat_latest_message_id(
 
 // --- Chat reactions ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_react_chat_message(
@@ -277,6 +290,7 @@ pub async fn api_react_chat_message(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_unreact_chat_message(
@@ -300,6 +314,7 @@ pub async fn api_unreact_chat_message(
 /// `stream-chat-message-deleted` event が emit される。フロントの
 /// QuerySubscription はその event を受けて UI からも消すため、
 /// この command の呼び出し側で楽観更新は不要。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_delete_chat_message(

@@ -48,7 +48,7 @@ impl Plugin for NijiePlugin {
             .await
             .map_err(|e| PluginError::ParseFailed(e.to_string()))?;
 
-        let mut data = crate::ogp::parser::parse_html(&html, &final_url);
+        let mut data = crate::core::ogp::parser::parse_html(&html, &final_url);
 
         // Try JSON-LD for richer metadata (summaly approach)
         for cap in JSON_LD_RE.captures_iter(&html) {

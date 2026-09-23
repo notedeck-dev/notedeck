@@ -2,12 +2,14 @@ use notecli::error::NoteDeckError;
 
 use super::Result;
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn get_cli_commands() -> Vec<notecli::cli::CliCommandInfo> {
     notecli::cli::command_metadata()
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn get_openapi_spec() -> serde_json::Value {
@@ -16,6 +18,7 @@ pub fn get_openapi_spec() -> serde_json::Value {
 
 /// 画像プロキシ (`/proxy/image`) の起動毎トークン (#1099)。フロントは起動時に
 /// 1 回受け取り、プロキシ URL の query `t` に載せる。
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn get_media_proxy_token(
@@ -24,6 +27,7 @@ pub fn get_media_proxy_token(
     token.0.clone()
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn get_rustc_version() -> String {
@@ -32,6 +36,7 @@ pub fn get_rustc_version() -> String {
         .to_string()
 }
 
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn open_devtools(window: tauri::WebviewWindow) {
@@ -42,6 +47,7 @@ pub fn open_devtools(window: tauri::WebviewWindow) {
 /// notedeck-notification:// URL から復元した通知クリックの遷移コンテキストを
 /// 1 回だけ返す。フロントはデッキ初期化時に呼び、あればノート/ユーザーへ
 /// 遷移する。Windows 以外では常に None。
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn notification_take_pending_click(
@@ -55,6 +61,7 @@ pub fn notification_take_pending_click(
 /// WebView がそのまま透けるため、切り替えが必要なのはアイコンの明暗のみ。
 /// light_background = true (ライトテーマ) なら濃色アイコンにする。
 /// Android 以外では no-op。
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn set_status_bar_style(light_background: bool) {
@@ -113,6 +120,7 @@ fn validate_sqlite_file(path: &std::path::Path) -> Result<()> {
 /// OS キーチェーンにあり DB に入らないため、別マシンに復元すればどのみち
 /// 再ログインが必要になる。キーチェーンが永続しない環境では DB に平文で
 /// 残るので、そこだけ持ち出されるのを防ぐ。
+// nd-command: mixed
 #[tauri::command]
 #[specta::specta]
 pub async fn export_db(
@@ -150,6 +158,7 @@ pub async fn export_db(
 ///
 /// 注意: V6 (note_timelines) 適用済みの DB は旧バージョンのアプリへ持ち込めない
 /// (refinery の missing migration で open 不能。DB 自体は無傷)。
+// nd-command: mixed
 #[tauri::command]
 #[specta::specta]
 pub async fn import_db(app: tauri::AppHandle) -> Result<bool> {
@@ -186,6 +195,7 @@ pub async fn import_db(app: tauri::AppHandle) -> Result<bool> {
 }
 
 /// Download an image from URL and save to a user-chosen location via save dialog.
+// nd-command: mixed
 #[tauri::command]
 #[specta::specta]
 pub async fn save_image_to_file(app: tauri::AppHandle, url: String) -> Result<bool> {
@@ -292,6 +302,7 @@ fn parse_exif_fields(buf: &[u8]) -> Result<Vec<ExifField>> {
 }
 
 /// 画像 URL から EXIF フィールド一覧を読み取る。EXIF が無い場合は空リスト。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn read_image_exif(url: String) -> Result<Vec<ExifField>> {
@@ -332,6 +343,7 @@ pub async fn read_image_exif(url: String) -> Result<Vec<ExifField>> {
 /// - macOS Dock / Linux ランチャー: バッジ件数
 /// - Windows: タスクバーのオーバーレイドット
 /// - トレイ: tooltip の件数表記 + アイコン右上の未読ドット
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn set_unread_badge(app: tauri::AppHandle, count: u32) {
@@ -424,10 +436,11 @@ pub struct ImageCacheStats {
     pub files: usize,
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn image_cache_stats(
-    cache: tauri::State<'_, std::sync::Arc<crate::image_cache::ImageCache>>,
+    cache: tauri::State<'_, std::sync::Arc<crate::core::image_cache::ImageCache>>,
 ) -> Result<ImageCacheStats> {
     let (bytes, files) = cache.disk_stats().await;
     Ok(ImageCacheStats { bytes, files })
@@ -435,16 +448,17 @@ pub async fn image_cache_stats(
 
 /// メディアの先行取得 (絵文字辞書の到着時など)。キューに積むだけで即返る。
 /// 受理した件数を返す (重複・https 以外は数えない)
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn warm_media(
-    warmer: tauri::State<'_, std::sync::Arc<crate::media_warm::MediaWarmer>>,
+    warmer: tauri::State<'_, std::sync::Arc<crate::core::media_warm::MediaWarmer>>,
     urls: Vec<String>,
     h: Option<u32>,
 ) -> Result<u32> {
     let reqs = urls
         .into_iter()
-        .map(|url| crate::media_proxy::MediaRequest {
+        .map(|url| crate::core::media_proxy::MediaRequest {
             url,
             w: None,
             h,
@@ -455,10 +469,11 @@ pub async fn warm_media(
     Ok(warmer.enqueue(reqs).await as u32)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_image_cache(
-    cache: tauri::State<'_, std::sync::Arc<crate::image_cache::ImageCache>>,
+    cache: tauri::State<'_, std::sync::Arc<crate::core::image_cache::ImageCache>>,
 ) -> Result<()> {
     cache
         .clear_disk()

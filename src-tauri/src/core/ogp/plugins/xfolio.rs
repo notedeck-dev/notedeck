@@ -48,7 +48,7 @@ impl Plugin for XfolioPlugin {
             });
         }
 
-        let mut data = crate::ogp::parser::parse_html(&html, &final_url);
+        let mut data = crate::core::ogp::parser::parse_html(&html, &final_url);
 
         // R18/R18G content detection
         if html.contains("class=\"tags__example_list age_limit\"")

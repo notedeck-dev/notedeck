@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::{watch, Mutex, RwLock, Semaphore};
 
-use crate::perf_config::SharedPerfConfig;
+use crate::core::perf_config::SharedPerfConfig;
 
 /// メディア 1 件の取得予算 (接続〜ボディ読み切りまで)。共有 client の全体
 /// timeout (10s) より優先される。wry Android の custom protocol は応答を
@@ -217,7 +217,9 @@ impl ImageCache {
     /// Create with a default HTTP client and default perf config (used in tests).
     #[cfg(test)]
     pub fn new(app_dir: &Path) -> Self {
-        let perf = Arc::new(RwLock::new(crate::perf_config::PerformanceConfig::default()));
+        let perf = Arc::new(RwLock::new(
+            crate::core::perf_config::PerformanceConfig::default(),
+        ));
         Self::with_client(app_dir, reqwest::Client::default(), perf)
     }
 
@@ -463,14 +465,14 @@ impl ImageCache {
             return Err("Only HTTPS URLs are allowed".to_string());
         }
 
-        // SSRF 防御は commands::http の validate_external_host に一元化
+        // SSRF 防御は core::ssrf の validate_external_host に一元化
         // (IP literal に加えて localhost / .local / .internal 等の hostname も
         // 弾く)。DNS 解決結果の検証 (rebinding 対策) は共有 client に装着した
         // vault::ssrf::ValidatingResolver が接続前に行う (#857)
         {
             let parsed = url::Url::parse(url).map_err(|e| format!("invalid url: {e}"))?;
             let host = parsed.host_str().ok_or("url has no host")?;
-            crate::commands::validate_external_host(host)?;
+            crate::core::ssrf::validate_external_host(host)?;
         }
 
         // Circuit breaker: reject early if host is known-down
@@ -1229,7 +1231,7 @@ mod tests {
         assert!(!neg.contains_key("url-0"));
     }
 
-    /// SSRF 防御は commands::http の validate_external_host に一元化。
+    /// SSRF 防御は core::ssrf の validate_external_host に一元化。
     /// IP literal だけでなく localhost / 予約 TLD などの hostname も
     /// ネットワークに出る前に弾く (ローカル HTTP API からも叩ける面のため)
     #[tokio::test]

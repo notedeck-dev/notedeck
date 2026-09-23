@@ -46,7 +46,7 @@ pub fn install_panic_hook(dir: PathBuf) {
         // 複数スレッドが同時に panic しても唯一の手がかりを壊さないよう atomic に
         // 置き換える (fs::write は truncate 後に書くので混ざりうる)。
         let _ = std::fs::create_dir_all(&dir);
-        let _ = crate::settings_store::atomic_write(
+        let _ = crate::core::settings_store::atomic_write(
             &dir.join(PANIC_FILE),
             &format!("{}\n{body}", now_ms()),
             None,

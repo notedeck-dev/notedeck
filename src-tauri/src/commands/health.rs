@@ -27,9 +27,10 @@ pub struct HealthReport {
     pub log_dir: Option<String>,
     /// 記録されている直近の Rust panic。adb を繋げない Android でも
     /// ここから内容を読めるようにするのが主目的。無ければ null。
-    pub last_panic: Option<crate::crash_report::PanicReport>,
+    pub last_panic: Option<crate::core::crash_report::PanicReport>,
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn run_healthcheck(
@@ -59,7 +60,7 @@ pub async fn build_health_report(
     let log_dir_path = app.path().app_log_dir().ok();
     let last_panic = log_dir_path
         .as_deref()
-        .and_then(crate::crash_report::read_last_panic);
+        .and_then(crate::core::crash_report::read_last_panic);
     let log_dir = log_dir_path.map(|p| p.to_string_lossy().into_owned());
 
     Ok(HealthReport {

@@ -8,6 +8,7 @@ use super::{typed_request, AppState, Result};
 // 型化メソッド `client.get_clips()` を提供している。ここでは clips/show・
 // clips/create・clips/my-favorites・users/clips 等を補完する。
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_clip(
@@ -19,6 +20,7 @@ pub async fn api_get_clip(
     typed_request(&client, &host, &token, "clips/show", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_my_favorite_clips(
@@ -30,6 +32,7 @@ pub async fn api_get_my_favorite_clips(
     typed_request(&client, &host, &token, "clips/my-favorites", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_create_clip(
@@ -41,6 +44,7 @@ pub async fn api_create_clip(
     typed_request(&client, &host, &token, "clips/create", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_favorite_clip(
@@ -55,6 +59,7 @@ pub async fn api_favorite_clip(
     Ok(())
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_unfavorite_clip(
@@ -69,6 +74,7 @@ pub async fn api_unfavorite_clip(
     Ok(())
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_clips(

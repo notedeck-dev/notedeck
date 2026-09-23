@@ -19,6 +19,7 @@ async fn ensure_stream_connected(
     streaming.connect(account_id, &host, &token).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn stream_connect(
@@ -30,6 +31,7 @@ pub async fn stream_connect(
     ensure_stream_connected(&db, &streaming, &account_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn stream_disconnect(
@@ -42,6 +44,7 @@ pub async fn stream_disconnect(
 
 /// Switch between realtime (WebSocket) and polling (HTTP) mode.
 /// Subscriptions are preserved across the switch.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn stream_set_mode(
@@ -58,6 +61,7 @@ pub async fn stream_set_mode(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn stream_sub_note(
@@ -68,6 +72,7 @@ pub async fn stream_sub_note(
     streaming.sub_note(&account_id, &note_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn stream_unsub_note(

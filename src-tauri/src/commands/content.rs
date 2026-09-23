@@ -11,6 +11,7 @@ use super::{
 
 // --- Server metadata ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_endpoints(
@@ -22,6 +23,7 @@ pub async fn api_get_endpoints(
     client.get_endpoints(&host).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_endpoint_params(
@@ -43,6 +45,7 @@ pub async fn api_get_endpoint_params(
     client.get_endpoint_params(&host, &endpoint).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_policies(
@@ -53,6 +56,7 @@ pub async fn api_get_user_policies(
     client.get_user_policies(&host, &token).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_update_user_setting(
@@ -77,6 +81,7 @@ pub async fn api_update_user_setting(
 /// 待ちも省いて返す — 起動直後、DB キャッシュから描いたノートの絵文字を
 /// 辞書到着まで unknown で見せないため。`refresh=true` はフロントの miss
 /// 駆動 / 経年リフレッシュで、必ずサーバーへ取りに行く。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_server_emojis(
@@ -85,7 +90,7 @@ pub async fn api_get_server_emojis(
     account_id: String,
     refresh: bool,
 ) -> Result<Vec<ServerEmoji>> {
-    use crate::emoji_cache_store as cache;
+    use crate::core::emoji_cache_store as cache;
 
     let app_dir = crate::app_dir::resolve_app_dir(&app)
         .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
@@ -126,6 +131,7 @@ pub async fn api_get_server_emojis(
     Ok(emojis)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_pinned_reactions(
@@ -136,6 +142,7 @@ pub async fn api_get_pinned_reactions(
     client.get_pinned_reactions(&host, &token).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_server_stats(
@@ -146,6 +153,7 @@ pub async fn api_get_server_stats(
     client.get_server_stats(&host, &token).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_meta_detail(
@@ -158,6 +166,7 @@ pub async fn api_get_meta_detail(
 
 // --- Roles ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_roles(
@@ -171,6 +180,7 @@ pub async fn api_get_roles(
     client.get_roles(&host, &token).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_role_users(
@@ -194,6 +204,7 @@ pub async fn api_get_role_users(
 
 // --- Announcements ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_announcements(
@@ -213,6 +224,7 @@ pub async fn api_get_announcements(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_read_announcement(
@@ -236,6 +248,7 @@ struct PageLikeWrapper {
     page: Page,
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_pages(
@@ -264,6 +277,7 @@ pub async fn api_get_pages(
     }
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_page(
@@ -275,6 +289,7 @@ pub async fn api_get_page(
     client.get_page(&host, &token, &page_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_like_page(
@@ -286,6 +301,7 @@ pub async fn api_like_page(
     client.like_page(&host, &token, &page_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_unlike_page(
@@ -299,6 +315,7 @@ pub async fn api_unlike_page(
 
 // --- Gallery ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_gallery_posts(
@@ -319,6 +336,7 @@ pub async fn api_get_gallery_posts(
     Ok(serde_json::from_value(raw)?)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_like_gallery_post(
@@ -330,6 +348,7 @@ pub async fn api_like_gallery_post(
     client.like_gallery_post(&host, &token, &post_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_unlike_gallery_post(
@@ -343,6 +362,7 @@ pub async fn api_unlike_gallery_post(
 
 // --- Flash (Play) ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_flashes(
@@ -364,6 +384,7 @@ pub async fn api_get_flashes(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_flash(
@@ -375,6 +396,7 @@ pub async fn api_get_flash(
     client.get_flash(&host, &token, &flash_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_like_flash(
@@ -386,6 +408,7 @@ pub async fn api_like_flash(
     client.like_flash(&host, &token, &flash_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_unlike_flash(
@@ -399,6 +422,7 @@ pub async fn api_unlike_flash(
 
 // --- Drive ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_drive_folders(
@@ -418,6 +442,7 @@ pub async fn api_get_drive_folders(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_drive_files(
@@ -439,6 +464,7 @@ pub async fn api_get_drive_files(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_delete_drive_file(
@@ -461,6 +487,7 @@ pub struct CreatedDriveFolder {
     pub parent_id: Option<String>,
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_create_drive_folder(
@@ -474,6 +501,7 @@ pub async fn api_create_drive_folder(
     typed_request(&client, &host, &token, "drive/folders/create", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_update_drive_folder(
@@ -490,6 +518,7 @@ pub async fn api_update_drive_folder(
     Ok(())
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_delete_drive_folder(
@@ -507,6 +536,7 @@ pub async fn api_delete_drive_folder(
 
 /// drive/files/update。None のフィールドは送信されず変更されない。
 /// comment は空文字で null 送信 = alt テキストのクリア (#753)。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_update_drive_file(
@@ -540,6 +570,7 @@ pub async fn api_update_drive_file(
     Ok(())
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_move_drive_files(
@@ -559,6 +590,7 @@ pub async fn api_move_drive_files(
 
 // --- Page / Flash / Note / Drive: 詳細取得 + エディタ更新 ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_update_page(
@@ -570,6 +602,7 @@ pub async fn api_update_page(
     client.request(&host, &token, "pages/update", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_update_flash(
@@ -581,6 +614,7 @@ pub async fn api_update_flash(
     client.request(&host, &token, "flash/update", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_note_raw(
@@ -592,6 +626,7 @@ pub async fn api_get_note_raw(
     client.request(&host, &token, "notes/show", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_drive_file(
@@ -607,6 +642,7 @@ pub async fn api_get_drive_file(
 
 // --- Generic API proxy ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_request(
@@ -651,6 +687,7 @@ pub async fn api_request(
 /// local 設定で registry に書かれない設計のため、サーバー側からは admin が設定した
 /// meta default のみを取得する。NoteDeck 内 per-column 適用 / MisStore からの
 /// インストールはすべて NoteDeck 内部 state (localStorage / settings.json) で完結。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_fetch_account_theme(
@@ -682,6 +719,7 @@ pub async fn api_fetch_account_theme(
 
 /// Get a single registry value at the given scope/key.
 /// Returns None when the key does not exist (NO_SUCH_KEY) or the API errors.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_registry_value(
@@ -695,6 +733,7 @@ pub async fn api_get_registry_value(
 }
 
 /// Set a registry value at the given scope/key.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_set_registry_value(
@@ -712,6 +751,7 @@ pub async fn api_set_registry_value(
 
 /// Remove a registry value at the given scope/key.
 /// Idempotent: returns Ok even if the key did not exist.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_delete_registry_value(
@@ -727,6 +767,7 @@ pub async fn api_delete_registry_value(
 }
 
 /// List keys in a registry scope as `{ key: type }`.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_list_registry_keys(

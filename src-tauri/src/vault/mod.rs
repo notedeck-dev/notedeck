@@ -18,7 +18,6 @@ pub mod fetch;
 pub mod keychain_backend;
 pub mod model;
 pub mod redaction;
-pub mod ssrf;
 
 pub use backend::SecretBackend;
 pub use error::{VaultError, VaultResult};
