@@ -27,6 +27,7 @@ pub mod perf_config;
 pub mod permissions_gate;
 pub mod permissions_profile;
 pub mod pet_store;
+pub mod query_runtime;
 pub mod rate_limit;
 pub mod settings_store;
 pub mod shutdown;

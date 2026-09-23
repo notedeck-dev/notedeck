@@ -632,7 +632,10 @@ impl<R: tauri::Runtime> FrontendEmitter for TauriEmitter<R> {
     fn emit(&self, event: notecli::streaming::StreamEvent) {
         use notecli::streaming::StreamEvent as E;
 
-        if let Some(runtime) = self.app.try_state::<crate::query_runtime::QueryRuntime>() {
+        if let Some(runtime) = self
+            .app
+            .try_state::<crate::core::query_runtime::QueryRuntime>()
+        {
             if runtime.ingest_stream_event(&event) {
                 // 常駐 flusher が DELTA_FLUSH_WINDOW 後に drain して emit する。
                 runtime.flush_notify().notify_one();
@@ -691,7 +694,7 @@ mod tests {
     use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime};
     use tauri::{App, Manager};
 
-    use crate::query_runtime::{QueryKey, QueryRuntime};
+    use crate::core::query_runtime::{QueryKey, QueryRuntime};
 
     const RECV_TIMEOUT: Duration = Duration::from_secs(1);
 
