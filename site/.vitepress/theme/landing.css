@@ -469,9 +469,10 @@
 .arch-tags a:hover { border-color: var(--accent); text-decoration: none; }
 .arch-doc-links { margin-top: var(--space-lg); justify-content: center; }
 .arch-arrow { display: flex; justify-content: center; padding: var(--space-2xs) 0; color: var(--text-muted); }
-/* 殻の行だけ Tauri / notecored を横に並べ、その上下は 1 列 */
+/* 殻の行だけ Tauri / notecored を横に並べ、その上下は 1 列。
+   Tauri を広く取り、上下の中央矢印が Tauri の箱にかかるようにする (既定の経路) */
 .arch-shells {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  display: grid; grid-template-columns: minmax(0, 1.75fr) auto minmax(0, 1fr);
   column-gap: var(--space-2xs); align-items: stretch;
 }
 .arch-shell-node { border: 1px dashed var(--border); }
