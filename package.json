@@ -35,14 +35,14 @@
     "doctor": "bash scripts/doctor.sh",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings",
+    "lint:rust": "cargo clippy --workspace --all-targets -- -D warnings",
     "lint:docs": "node scripts/docs-lint.mjs",
     "check:dist": "node scripts/check-dist-budget.mjs",
-    "fmt": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "fmt": "cargo fmt --all",
     "changelog": "git log $(git describe --tags --abbrev=0 2>/dev/null || echo '')..HEAD --pretty=format:'- %s' --no-merges",
     "icons": "tauri icon src-tauri/icons/icon.svg -o src-tauri/icons && node scripts/gen-android-foreground.mjs",
-    "clean": "rm -rf dist src-tauri/target",
-    "clean:incremental": "rm -rf src-tauri/target/debug/incremental"
+    "clean": "rm -rf dist target",
+    "clean:incremental": "rm -rf target/debug/incremental"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

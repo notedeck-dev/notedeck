@@ -5,7 +5,7 @@ description = "Misskey Pro — integrated deck environment (IDE) for Misskey pow
 edition = "2021"
 license = "AGPL-3.0-only"
 [dependencies]
-notecli = { git = "https://github.com/notedeck-dev/notecli", rev = "55c5d2f6563b7346cc3a63c0c3dc48936ca51c6b", features = ["specta"] }
+notecli = { path = "../crates/notecli", features = ["specta"] }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
@@ -110,29 +110,6 @@ tower = { version = "0.5", features = ["util"] }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-
-# dev: 自分のコードは最速コンパイル、依存クレートだけ軽く最適化（実行速度とコンパイル速度のバランス）
-# debug 情報は target/ 肥大の主因（[lib] の 3 crate-type × 重量級依存ツリーで掛け算になる）。
-# 自分のコードは行番号のみ（パニック時のバックトレースは読める）、依存クレートは捨てる。
-# 依存クレート内部をデバッガでステップ実行したいときだけ一時的にこの 2 行を外す。
-[profile.dev]
-opt-level = 0
-debug = "line-tables-only"
-
-[profile.dev.package."*"]
-opt-level = 1
-debug = false
-
-# build script / proc-macro（デバッグ対象ではない）は debug 情報だけ落とす。
-# opt-level は cargo のデフォルト（0）のままにして、コンパイル時間は変えない。
-[profile.dev.build-override]
-debug = false
-
-[profile.release]
-lto = "fat"
-codegen-units = 1
-strip = "symbols"
-panic = "abort"
 
 [lib]
 name = "notedeck_lib"

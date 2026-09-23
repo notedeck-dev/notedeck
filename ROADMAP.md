@@ -67,6 +67,9 @@ Layer 3: 検索・整理 ──────────────────�
                    ↓
 Layer 4: 拡張 ─────────────────────────────────
   HTTP API │ CLI │ AI 統合 │ Nd:* API
+                   ↓
+常駐: notecore / notecored ──────────────────────
+  Tauri 非依存の中核を切り出し、自分のサーバーで常駐させる（#1106）
 ```
 
 ---
@@ -163,9 +166,8 @@ Layer 4: 拡張 ─────────────────────�
 
 ### notecli（ストレージエンジン分離）
 
-notecli は NoteDeck の Rust バックエンドから Tauri 非依存のコードを分離した独立リポジトリ
-（[github.com/notedeck-dev/notecli](https://github.com/notedeck-dev/notecli)）。
-NoteDeck は `Cargo.toml` で git 依存として参照。
+notecli は NoteDeck の Rust バックエンドから Tauri 非依存のコードを分離したクレート。
+当初は独立リポジトリだったが、2026-09-23 に `crates/notecli` として取り込んだ (#1106)。
 
 - [x] **API クライアント** — Misskey HTTP API ラッパー（api.rs）
 - [x] **SQLite データベース** — ノートキャッシュ・FTS5 検索・アカウント管理（db.rs）
@@ -177,6 +179,19 @@ NoteDeck は `Cargo.toml` で git 依存として参照。
 - [x] **ノート実体と所属の分離** — ノートそのものと「どのタイムラインに現れたか」を別々に持つ。
   同じノートが複数のカラムに現れても所属が後勝ちで上書きされなくなり、
   カラムの所属で絞った検索が取りこぼさなくなった（カラムクエリのキャッシュ検索の前提）
+
+### notecore / notecored（目指す構成、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)）
+
+Tauri 非依存のドメインを notecore に集め、アプリに埋め込む構成と、自分のサーバーで常駐させる notecored の両方で使う。ローカル構成は残り、リモート構成は追加の構成。リポジトリは notedeck 1 つで、notecli / notecore / notecored / アプリの 4 クレート。順序は #1106 本文の「なぜ」のとおり。
+
+- [x] **notecli の取り込み** — notecli を notedeck の workspace に履歴ごと取り込み、git 依存をパス依存に替えた。CLI バイナリはリリースの成果物として残す
+- [ ] **境界と検査** — notecore 配下が Tauri に依存しない検査、コマンド分類の検査
+- [ ] **コマンドの書き換えとクライアント層** — workspace を新設して notecore クレートを作り、データ系コマンドをその関数に書き直し、コマンド表 (型付き + JSON アダプタ) と in-process の transport を通す
+- [ ] **単独で価値のある修正** — ループの既知の欠陥、ファイル secret backend への自動劣化、notecli ルートの CORS、ログ世代上限、migration 検査
+- [ ] **AI エージェントループを Rust の notecore へ** — [#1133](https://github.com/notedeck-dev/notedeck/issues/1133)
+- [ ] **同一ホストの notecored** — headless バイナリ、RPC 面、橋、クエリ差分、購読のセッション所有。notecli 単体のデーモンモードはここで廃止
+- [ ] **外向き** — 署名認証、ペアリング、TLS、移行パッケージ、配布
+- [ ] **モバイル** — Android / iOS でリモート構成を選べる
 
 ### 未完了
 

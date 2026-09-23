@@ -60,7 +60,7 @@ pnpm doctor       # 開発環境の診断（ツールチェーン・システム
 
 ## アーキテクチャ要点
 
-- Misskey API クライアント・DB・ストリーミングコアは **notecli** クレート側。`src-tauri/` は「薄いラッパー」ではなく、Tauri に依存しないドメイン（OGP 抽出 / Secret Vault / クエリランタイム / 画像キャッシュ / AI SSE クライアント / HTTP API サーバー）も抱える。置き場の規則は「`commands/*.rs` は IPC アダプタとして薄く保つ / トップレベルの `*_service.rs` `*_store.rs` は引数を取る単体テスト可能なサービス」（#782）。ドメインをクレートに切り出すかは #1098 で判断する
+- Misskey API クライアント・DB・ストリーミングコアは **notecli** クレート側。`src-tauri/` は「薄いラッパー」ではなく、Tauri に依存しないドメイン（OGP 抽出 / Secret Vault / クエリランタイム / 画像キャッシュ / AI SSE クライアント / HTTP API サーバー）も抱える。置き場の規則は「`commands/*.rs` は IPC アダプタとして薄く保つ / トップレベルの `*_service.rs` `*_store.rs` は引数を取る単体テスト可能なサービス」（#782）。**目指す構成 (#1106 で確定、未実装)**: Tauri に依存しないドメインを **notecore** (同名クレート、notedeck リポジトリ内) に集め、アプリに埋め込む構成 (ローカル、現状) と **notecored** (notecore を headless で常駐させるバイナリ) で動かす構成 (リモート) の両方で使う。WebView は常に手元の Rust と話し、手元のクライアント層がコマンド表を通して埋め込み notecore に渡すか notecored に中継するかを切り替える。AI エージェントループは Rust で notecore に置く (#1133)。リポジトリは notedeck 1 つで、notecli / notecore / notecored / アプリの 4 クレート (notecli は取り込む)。命名は「1 つの名前 = ディレクトリ = パッケージ = バイナリ」、`note` + 役割名詞は配布単位か共有コアだけ (常駐バイナリは Unix 慣習の `-d` 接尾辞 = notecored、内部の分割は `notecore-*` の接尾辞)、`nd` はコード内の名前空間専用。**新しいドメインは「デバイスが 1 台も繋がっていなくても意味を持つか」で notecore 側と手元側 (OS 統合) に分け、混ぜない**
 - **TS service 層 (`src/services/`)**: 正規化・マイグレーション・マージ規則・ファイル codec などの純ロジックは store に書かず `src/services/` に置いて直接ユニットテストする（#782）。store は「購読 + キャッシュ + UI 状態」のみ。新規ロジックは「まず notecli → src-tauri service → `src/services/` に置けないか」の順で検討してから store に足す
 - フォーク対応は adapter パターン（`src/adapters/`）
 - ゲスト・ログアウト対応: 公開 API は `get_credentials_or_anon()`、認証必須 API は `get_credentials()` を使用（詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の "Guest Mode & Logout Fallback"）

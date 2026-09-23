@@ -230,20 +230,44 @@ Stream Inspector カラムとの違い: Stream Inspector は**フロントのア
 
 ## Architecture
 
-NoteDeck は **notecli** と **notedeck** の 2 リポジトリで構成されています。
+NoteDeck は 1 つのリポジトリ (Cargo workspace) で、`crates/notecli` (Misskey クライアント + CLI) と `src-tauri` (アプリの Rust) を持ちます (notecli は 2026-09-23 に別リポジトリから取り込んだ、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106))。
 
-### notecli ([github.com/notedeck-dev/notecli](https://github.com/notedeck-dev/notecli))
+### notecli (`crates/notecli`)
 
 Tauri に依存しない Misskey ヘッドレスクライアント。Rust ライブラリ兼 CLI デーモン。
 
 - Misskey HTTP API クライアント、WebSocket ストリーミング、SQLite DB、REST API サーバー
 - 単体で `localhost:19820` の HTTP API デーモンとして動作（GUI 不要）
-- NoteDeck の Rust バックエンドとして `Cargo.toml` の git 依存で利用される
+- アプリの Rust (`src-tauri`) がパス依存で利用する。CLI バイナリはリリースの成果物として同じタグから出す
 
 ### notedeck (このリポジトリ)
 
 notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 対象プラットフォームは Windows / macOS / Linux / Android。
+
+### 目指す構成: notecore と notecored ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106))
+
+`src-tauri/` には Tauri に依存しないドメイン (Vault / クエリランタイム / 画像キャッシュ / AI SSE クライアント / 設定ファイル store / 認可解決) が同居している。これを **notecore** (notedeck リポジトリ内の同名クレート) に集め、同じ notecore を 2 つの殻で動かす。
+
+```
+フロントエンド (Vue)            WebView は常に手元の Rust とだけ話す
+      │ IPC
+┌─ 殻: Tauri (手元) ──────┐   中継   ┌─ 殻: notecored (自分のサーバー) ─┐
+│ OS 統合 + クライアント層 │ ───────▶ │ 常駐、RPC + SSE、ペアリング       │
+└──────────┬──────────────┘          └──────────────┬──────────────────┘
+           ▼                                        ▼
+        notecore ─────────── 同じクレート ──────── notecore
+           ▼                                        ▼
+        notecli                                  notecli
+```
+
+- **切る基準**: 「その処理はデバイスが 1 台も繋がっていない状態で意味を持つか」。持つなら notecore、持たないなら手元 (ウィンドウ / トレイ / OS 通知 / クリップボード / dialog / OS キーチェーン)
+- **クライアント層**は手元の Rust の中の切替点 1 箇所。データ系コマンドはコマンド表 (型付き関数 + JSON アダプタを 1 つの宣言から生成) を通り、ローカル構成では in-process で埋め込み notecore を、リモート構成では notecored を呼ぶ。表に載っていないデータ系コマンドはどの構成でも存在しない
+- **AI エージェントループは Rust で notecore に置く** ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。WebView に残るのは UI、確認ダイアログ、UI 系 capability、AiScript (plugin / widget / scratchpad) の実行
+- notecli の役割 (Misskey 通信・DB・ストリーミング) は変えない。notecore はその消費者。**notecli は notedeck の workspace に取り込む** (リポジトリは 1 つ、クレートは notecli / notecore / notecored / アプリの 4 つ。`notecli` の CLI と `notecored` のデーモンはクレートからバイナリとして出す)
+- 段階と受け入れ条件、認証・ペアリング・イベント面・状態の所在の仕様は #1106 の仕様コメントが正本。ローカル構成は残り、リモート構成は追加の構成
+
+**今すぐ守ること**: 新しいドメインを書くときは、上の基準で notecore 側か手元側かを決め、Tauri の型 (AppHandle / Window / State) を notecore 側に持ち込まない。
 
 ```
 src/                        # Vue 3 frontend
@@ -898,7 +922,7 @@ Vite 8 (Rolldown + OXC ベース) を使用。`vite.config.ts` で以下のカ�
 
 #### Rust ビルド成果物の肥大
 
-`src-tauri/target` は放置すると際限なく膨らむ。cargo は古い成果物を自動 GC しないため、開発期間に比例して単調増加する。要因は 3 つ:
+`target` (workspace root。以前は `src-tauri/target`) は放置すると際限なく膨らむ。cargo は古い成果物を自動 GC しないため、開発期間に比例して単調増加する。要因は 3 つ:
 
 - `[lib] crate-type` — モバイル対応のため同じコードを複数形態で出力する（`staticlib`/`cdylib` は依存ツリー全体を抱え込む）
 - 重量級の依存ツリー（tauri, axum, reqwest, image, specta, utoipa 等）にデバッグ情報が付き、上記の形態数と掛け算になる
@@ -917,7 +941,7 @@ pnpm clean               # dist と target を全消し（フルビルドにな�
 
 #### 開発環境全体のディスク使用量
 
-`src-tauri/target` 以外にも、開発を続けると単調増加する置き場がある。容量が逼迫したらこの順で確認する:
+`target` 以外にも、開発を続けると単調増加する置き場がある。容量が逼迫したらこの順で確認する:
 
 ```bash
 du -sh /nix/store ~/.rustup ~/.cargo src-tauri/target node_modules
@@ -1129,7 +1153,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 
 ### HEARTBEAT Daemon ([#411](https://github.com/notedeck-dev/notedeck/issues/411))
 
-OpenClaw HEARTBEAT 仕様 ([docs.openclaw.ai/gateway/heartbeat](https://docs.openclaw.ai/gateway/heartbeat)) に揃えた **アプリ起動中ずっと走る global daemon**。AI カラムの有無 / 開いているカラム数に依存しない (= per-column scope ではない)。
+OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://docs.openclaw.ai/gateway/heartbeat)) に倣った **アプリ起動中ずっと走る global daemon**。ループ本体は現状フロントにあり、[#1133](https://github.com/notedeck-dev/notedeck/issues/1133) で Rust の notecore に移す。無人時の契約 (承認を待たない、書き込み意図は下書きと受信箱カード) もそこで実装する。AI カラムの有無 / 開いているカラム数に依存しない (= per-column scope ではない)。
 
 #### アーキテクチャ
 
@@ -1163,7 +1187,7 @@ OpenClaw `HEARTBEAT.md` の `tasks:` に相当するのが NoteDeck の `mode: h
 
 #### Suppression (`HEARTBEAT_OK`)
 
-`applyHeartbeatSuppression()` が AI 応答の先頭/末尾の `HEARTBEAT_OK` トークンを剥がし、残りが `HEARTBEAT_ACK_MAX_CHARS=300` 以下なら全体 drop (= 履歴に残さない)。OpenClaw `ackMaxChars` と同じ数値・同じ挙動。長文 alert (>300 字) は通常の assistant message として heartbeat session に append される。
+`applyHeartbeatSuppression()` が AI 応答の先頭/末尾の `HEARTBEAT_OK` トークンを剥がし、残りが `HEARTBEAT_ACK_MAX_CHARS=300` 以下なら全体 drop (= 履歴に残さない)。発想元の OpenClaw では ack 文字列の契約は既に legacy で、現行はツール呼び出しで通知の有無を返す形になっている (2026-09 時点)。#1133 でツール呼び出しに改め、ack 文字列は legacy として受理を残す。長文 alert (>300 字) は通常の assistant message として heartbeat session に append される。
 
 #### Target Routing
 

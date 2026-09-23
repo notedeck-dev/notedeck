@@ -40,6 +40,9 @@ jobs:
               - '.github/workflows/ci.yml'
             rust:
               - 'src-tauri/**'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
               - 'rust-toolchain.toml'
               - '.github/workflows/ci.yml'
             docs:
@@ -123,12 +126,12 @@ jobs:
 
       # ビルド前に済ませる。フォーマット崩れを 10 分待たずに知らせる
       - name: Format check
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+        run: cargo fmt --all --check
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: '. -> target'
           # e2e ジョブと同一キーを共有する。以前は check/e2e が別キーで同じ
           # ビルドを二重に保存し、リポジトリの 10GB 上限に張り付いて LRU で
           # evict され、毎回 cache miss していた
@@ -143,10 +146,10 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Lint (Clippy)
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Rust tests (incl. OpenAPI snapshot)
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test --workspace
 
   # E2E (#702): 実アプリを xvfb 上の隔離プロファイルで起動し、
   # 外部アプリと同じ HTTP API 面 (#709) で駆動する
@@ -173,7 +176,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: '. -> target'
           # rust ジョブと同じ依存クレートを使うので restore を共有する。
           # 保存側は rust ジョブに一本化し、ここでは書き込まない
           shared-key: rust
@@ -189,7 +192,7 @@ jobs:
         run: pnpm install
 
       - name: Build debug binary
-        run: cargo build --manifest-path src-tauri/Cargo.toml
+        run: cargo build -p notedeck
 
       - name: Run E2E tests (xvfb)
         run: xvfb-run -a --server-args="-screen 0 1280x800x24" pnpm test:e2e

@@ -469,6 +469,18 @@
 .arch-tags a:hover { border-color: var(--accent); text-decoration: none; }
 .arch-doc-links { margin-top: var(--space-lg); justify-content: center; }
 .arch-arrow { display: flex; justify-content: center; padding: var(--space-2xs) 0; color: var(--text-muted); }
+/* 殻の行だけ Tauri / notecored を横に並べ、その上下は 1 列 */
+.arch-shells {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  column-gap: var(--space-2xs); align-items: stretch;
+}
+.arch-shell-node { border: 1px dashed var(--border); }
+.arch-arrow-h { flex-direction: column; align-items: center; padding: 0 var(--space-2xs); font-size: var(--text-2xs); font-weight: 700; }
+@media (max-width: 800px) {
+  .arch-shells { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-2xs); }
+  .arch-arrow-h { padding: var(--space-2xs) 0; }
+  .arch-arrow-h svg { transform: rotate(90deg); }
+}
 
 /* ===== Fork CTA — tint カード (Hub donation 風) ===== */
 .fork-cta {
