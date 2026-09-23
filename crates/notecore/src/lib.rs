@@ -15,6 +15,8 @@ pub mod ai_chat_service;
 pub mod ai_keys;
 pub mod api_tokens;
 pub mod auth_service;
+pub mod commands;
+pub mod context;
 pub mod crash_report;
 pub mod credentials;
 pub mod emoji_cache_store;

@@ -22,6 +22,7 @@ mod settings;
 pub(crate) use settings::SETTINGS_DIR;
 mod streaming;
 mod system_state;
+mod table;
 mod timeline;
 mod user;
 mod utility;
@@ -51,146 +52,34 @@ pub use query::*;
 pub use settings::*;
 pub use streaming::*;
 pub use system_state::*;
+pub use table::*;
 pub use timeline::*;
 pub use user::*;
 pub use utility::*;
 pub use vault::*;
 
 use std::collections::HashMap;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::Mutex;
 use std::time::Instant;
 
 use notecli::api::MisskeyClient;
 use notecli::db::Database;
 use notecli::error::{AuthErrorKind, NoteDeckError};
 
-// ── AppState: deferred initialization wrapper ──
-
-struct AppStateInner {
-    db: Arc<Database>,
-    client: Arc<MisskeyClient>,
-    server_info: Arc<notecli::server_info::ServerInfoService>,
-}
-
-/// Heavy state (DB, MisskeyClient) wrapped for two-stage deferred initialization.
-/// Registered in setup() as empty, initialized in a background thread.
-///
-/// **Two-stage init**: DB becomes available first (after migrations), unblocking
-/// DB-only commands like `load_accounts`. The full state (DB + client) is signalled
-/// later once MisskeyClient is also ready.
-pub struct AppState {
-    // Full init (DB + client) — used by client() and ready()
-    rx: tokio::sync::watch::Receiver<Option<Arc<AppStateInner>>>,
-    tx: tokio::sync::watch::Sender<Option<Arc<AppStateInner>>>,
-    // DB-only early init — used by db()
-    db_rx: tokio::sync::watch::Receiver<Option<Arc<Database>>>,
-    db_tx: tokio::sync::watch::Sender<Option<Arc<Database>>>,
-}
-
-impl AppState {
-    pub fn new() -> Self {
-        let (tx, rx) = tokio::sync::watch::channel(None);
-        let (db_tx, db_rx) = tokio::sync::watch::channel(None);
-        Self {
-            rx,
-            tx,
-            db_rx,
-            db_tx,
-        }
-    }
-
-    /// Called as soon as DB is ready (after migrations, before client).
-    /// Unblocks all commands that only need `db()`.
-    pub fn initialize_db(&self, db: Arc<Database>) {
-        let _ = self.db_tx.send(Some(db));
-    }
-
-    /// Called once from the background init thread when DB + client are ready.
-    pub fn initialize(&self, db: Arc<Database>, client: Arc<MisskeyClient>) {
-        // Also signal DB channel in case initialize_db() wasn't called
-        let _ = self.db_tx.send(Some(Arc::clone(&db)));
-        let server_info =
-            notecli::server_info::ServerInfoService::new(Arc::clone(&db), Arc::clone(&client));
-        let _ = self.tx.send(Some(Arc::new(AppStateInner {
-            db,
-            client,
-            server_info,
-        })));
-    }
-
-    /// Non-blocking check of full readiness (DB + MisskeyClient). Used by the
-    /// healthcheck so it can report startup state without awaiting init.
-    pub fn is_ready(&self) -> bool {
-        self.rx.borrow().is_some()
-    }
-
-    /// Await until DB is ready (fast path — does not wait for MisskeyClient).
-    pub async fn db(&self) -> Arc<Database> {
-        let mut rx = self.db_rx.clone();
-        let r = rx.wait_for(|v| v.is_some()).await.unwrap();
-        Arc::clone(r.as_ref().unwrap())
-    }
-
-    /// Await until fully initialized, then return MisskeyClient reference.
-    pub async fn client(&self) -> Arc<MisskeyClient> {
-        let mut rx = self.rx.clone();
-        let r = rx.wait_for(|v| v.is_some()).await.unwrap();
-        Arc::clone(&r.as_ref().unwrap().client)
-    }
-
-    /// Await until fully initialized, then return the server-info SWR service.
-    pub async fn server_info(&self) -> Arc<notecli::server_info::ServerInfoService> {
-        let mut rx = self.rx.clone();
-        let r = rx.wait_for(|v| v.is_some()).await.unwrap();
-        Arc::clone(&r.as_ref().unwrap().server_info)
-    }
-
-    /// `ready()` + `get_credentials` の定型を 1 行に畳む (#782 R2)。
-    /// db を後続で使わないコマンド用 — 使う場合は従来どおり `ready()` を使う。
-    pub async fn authed(&self, account_id: &str) -> Result<(Arc<MisskeyClient>, String, String)> {
-        let (db, client) = self.ready().await;
-        let (host, token) = get_credentials(&db, account_id)?;
-        Ok((client, host, token))
-    }
-
-    /// 匿名フォールバック版 (公開エンドポイント用)。
-    pub async fn authed_or_anon(
-        &self,
-        account_id: &str,
-    ) -> Result<(Arc<MisskeyClient>, String, String)> {
-        let (db, client) = self.ready().await;
-        let (host, token) = get_credentials_or_anon(&db, account_id)?;
-        Ok((client, host, token))
-    }
-
-    /// Await until fully initialized, then return both.
-    pub async fn ready(&self) -> (Arc<Database>, Arc<MisskeyClient>) {
-        let mut rx = self.rx.clone();
-        let r = rx.wait_for(|v| v.is_some()).await.unwrap();
-        let inner = r.as_ref().unwrap();
-        (Arc::clone(&inner.db), Arc::clone(&inner.client))
-    }
-}
-
-/// Regex for extracting HTTPS URLs from note text
-static URL_RE: LazyLock<regex::Regex> =
-    LazyLock::new(|| regex::Regex::new(r"https?://[\w\-._~:/?#\[\]@!$&'()*+,;=%]+").unwrap());
-
-/// Media extensions to skip OGP prefetch for (they won't have OGP tags)
-static MEDIA_EXT_RE: LazyLock<regex::Regex> = LazyLock::new(|| {
-    regex::Regex::new(r"(?i)\.(jpg|jpeg|png|gif|webp|svg|mp4|webm|mov|mp3|ogg|wav)(\?.*)?$")
-        .unwrap()
-});
-
-pub(crate) fn extract_ogp_urls(text: &str) -> Vec<String> {
-    URL_RE
-        .find_iter(text)
-        .map(|m| m.as_str().to_string())
-        .filter(|u| !MEDIA_EXT_RE.is_match(u))
-        .collect()
-}
-
 pub(crate) use crate::error::Result;
+
+/// notecore の実行文脈。旧 `AppState` (二段階初期化) はそのまま notecore へ移った。
+pub use notecore::context::Core as AppState;
+
+/// タイムライン取得時の OGP 先読み結果を WebView へ `nd:ogp-hints` で流す。
+pub struct TauriHintSink(pub tauri::AppHandle);
+
+impl notecore::context::HintSink for TauriHintSink {
+    fn ogp_hints(&self, hints: std::collections::HashMap<String, notecore::ogp::OgpData>) {
+        use tauri::Emitter;
+        let _ = self.0.emit("nd:ogp-hints", &hints);
+    }
+}
 
 pub use notecore::credentials::{
     cleanup_expired_credentials, get_credentials, get_credentials_or_anon,
@@ -209,8 +98,6 @@ pub(crate) async fn typed_request<T: serde::de::DeserializeOwned>(
     let raw = client.request(host, token, endpoint, params).await?;
     Ok(serde_json::from_value(raw)?)
 }
-
-pub(crate) const MAX_UPLOAD_BYTES: usize = 50 * 1024 * 1024; // 50 MB
 
 /// Tracks MiAuth sessions to prevent replay attacks.
 /// Sessions expire after 15 minutes and are consumed on completion.
@@ -386,42 +273,6 @@ mod tests {
     use super::*;
 
     // --- extract_ogp_urls ---
-
-    #[test]
-    fn extract_urls_from_text() {
-        let text = "Check https://example.com/article and https://blog.example.com/post";
-        let urls = extract_ogp_urls(text);
-        assert_eq!(urls.len(), 2);
-        assert!(urls.contains(&"https://example.com/article".to_string()));
-    }
-
-    #[test]
-    fn skip_media_urls() {
-        let text = "Image: https://example.com/photo.jpg and https://example.com/video.mp4";
-        let urls = extract_ogp_urls(text);
-        assert!(urls.is_empty());
-    }
-
-    #[test]
-    fn skip_media_with_query_params() {
-        let text = "https://example.com/image.png?w=800";
-        let urls = extract_ogp_urls(text);
-        assert!(urls.is_empty());
-    }
-
-    #[test]
-    fn extract_non_media_urls_only() {
-        let text = "See https://example.com/page and https://example.com/photo.webp";
-        let urls = extract_ogp_urls(text);
-        assert_eq!(urls.len(), 1);
-        assert_eq!(urls[0], "https://example.com/page");
-    }
-
-    #[test]
-    fn empty_text_no_urls() {
-        assert!(extract_ogp_urls("").is_empty());
-        assert!(extract_ogp_urls("no urls here").is_empty());
-    }
 
     // --- validate_host ---
 
