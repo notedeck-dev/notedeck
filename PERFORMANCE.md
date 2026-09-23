@@ -3,7 +3,7 @@
 NoteDeck に入っている最適化と、検討したうえで採用しないと決めた最適化をまとめる。
 アーキテクチャ全体は [ARCHITECTURE.md](ARCHITECTURE.md) を参照。
 
-閾値や上限値はここには書かない — ユーザー設定で変わるため、`src-tauri/src/core/perf_config.rs` の `PerformanceConfig` が正本。
+閾値や上限値はここには書かない — ユーザー設定で変わるため、`crates/notecore/src/perf_config.rs` の `PerformanceConfig` が正本。
 
 ---
 
@@ -18,9 +18,9 @@ NoteDeck に入っている最適化と、検討したうえで採用しない�
 | overflow 通知 | emergency cap 到達時に warning toast (取りこぼしをバグと誤認させない) | 同上 |
 | 画像プリフェッチ | 先読み | `src/composables/useImagePrefetch.ts` |
 | OGP キャッシュ | LRU | `src/composables/useOgpPreview.ts` |
-| OGP inflight dedup | 同時リクエストの重複排除 | `src-tauri/src/core/ogp/mod.rs` |
+| OGP inflight dedup | 同時リクエストの重複排除 | `crates/notecore/src/ogp/mod.rs` |
 | コード分割 | `defineAsyncComponent` による per-component 分割。`manualChunks` は書かない (#985: rolldown-vite では名前付きグループが共有モジュールを吸収して entry を肥大化させる)。出力は CI の `check:dist` で予算検査 | `vite.config.ts`, `scripts/check-dist-budget.mjs` |
-| Multi-tier cache | メモリ LRU → ディスクキャッシュ → ネットワーク | `src-tauri/src/core/image_cache.rs` |
+| Multi-tier cache | メモリ LRU → ディスクキャッシュ → ネットワーク | `crates/notecore/src/image_cache.rs` |
 | 適応的品質 | CPU / メモリから low / balanced / high を自動判定 | `src/composables/useAdaptiveQuality.ts` |
 | WebSocket 共有 | accountId 毎に 1 接続、subscriptionId で多重化 | `src/adapters/misskey/streaming.ts` |
 | 2 段階初期化 | Phase 1 で最小構成を立ち上げ、Phase 2 を並行実行 | `src-tauri/src/lib.rs` |

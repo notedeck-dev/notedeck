@@ -1,4 +1,4 @@
-//! 設定ファイル系コマンド。実体は `crate::core::settings_store` domain service (#782)。
+//! 設定ファイル系コマンド。実体は `notecore::settings_store` domain service (#782)。
 //! ここに残るのは AppHandle からのパス解決・ダイアログ・OS 統合 (WSL エディタ
 //! 委譲) のみ。
 
@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use notecli::error::NoteDeckError;
 use tauri::Manager;
 
-use crate::core::perf_config::{PerformanceConfig, SharedPerfConfig};
-use crate::core::settings_store as store;
+use notecore::perf_config::{PerformanceConfig, SharedPerfConfig};
+use notecore::settings_store as store;
 
 use super::Result;
 

@@ -115,7 +115,7 @@ mod desktop {
         body: Option<&str>,
         context: Option<&NotificationClicked>,
         media: Option<&super::NotifyMedia>,
-        cache: Option<Arc<crate::core::image_cache::ImageCache>>,
+        cache: Option<Arc<notecore::image_cache::ImageCache>>,
     ) {
         // 未初期化 (ユニットテスト等) は no-op
         let Some(manager) = MANAGER.get() else {
@@ -175,7 +175,7 @@ mod desktop {
     /// 表示できないため、常に PNG へ変換する。失敗はすべて None (画像なしで
     /// 通知を出す)。
     fn fetch_to_cache(
-        cache: &crate::core::image_cache::ImageCache,
+        cache: &notecore::image_cache::ImageCache,
         url: &str,
     ) -> Option<std::path::PathBuf> {
         cache_png(cache, url, "", |img| {
@@ -192,7 +192,7 @@ mod desktop {
     /// suffix はキャッシュキーの区別用 (同じ URL でも変換後の画像は別ファイル
     /// になる)。専用スレッド上なので block_on してよい。
     fn cache_png(
-        cache: &crate::core::image_cache::ImageCache,
+        cache: &notecore::image_cache::ImageCache,
         url: &str,
         suffix: &str,
         transform: impl FnOnce(image::DynamicImage) -> image::DynamicImage,
@@ -201,21 +201,21 @@ mod desktop {
         std::fs::create_dir_all(&dir).ok()?;
         let path = dir.join(format!(
             "{}{suffix}.png",
-            crate::core::image_cache::hex_hash(url)
+            notecore::image_cache::hex_hash(url)
         ));
         if path.exists() {
             return Some(path);
         }
         let bytes =
-            tauri::async_runtime::block_on(crate::core::notify_media::ensure_bytes(cache, url))?;
+            tauri::async_runtime::block_on(notecore::notify_media::ensure_bytes(cache, url))?;
         // 寸法上限なしの decode は巨大 PNG の RGBA 展開でメモリを食い潰す。
         // 画像プロキシの変換 (media_proxy::transform_image) と同じ上限を掛ける
         let mut reader = image::ImageReader::new(std::io::Cursor::new(&bytes))
             .with_guessed_format()
             .ok()?;
         let mut limits = image::Limits::default();
-        limits.max_image_width = Some(crate::core::media_proxy::MAX_DECODE_DIMENSION);
-        limits.max_image_height = Some(crate::core::media_proxy::MAX_DECODE_DIMENSION);
+        limits.max_image_width = Some(notecore::media_proxy::MAX_DECODE_DIMENSION);
+        limits.max_image_height = Some(notecore::media_proxy::MAX_DECODE_DIMENSION);
         reader.limits(limits);
         let img = transform(reader.decode().ok()?);
         img.save_with_format(&path, image::ImageFormat::Png).ok()?;

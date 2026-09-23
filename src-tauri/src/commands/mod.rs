@@ -192,7 +192,7 @@ pub(crate) fn extract_ogp_urls(text: &str) -> Vec<String> {
 
 pub(crate) use crate::error::Result;
 
-pub use crate::core::credentials::{
+pub use notecore::credentials::{
     cleanup_expired_credentials, get_credentials, get_credentials_or_anon,
 };
 
@@ -302,7 +302,7 @@ pub fn emit_accounts_early(app: &tauri::AppHandle, db: &Database) {
     };
     let list: Vec<notecli::models::AccountPublic> = accounts
         .iter()
-        .map(crate::core::account_service::to_public)
+        .map(notecore::account_service::to_public)
         .collect();
     let _ = app.emit("nd:accounts-early", &list);
 }

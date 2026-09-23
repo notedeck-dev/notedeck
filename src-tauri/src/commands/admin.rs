@@ -5,7 +5,7 @@ use notecli::error::NoteDeckError;
 use notecli::models::{AccountPublic, ServerDetection};
 
 use super::{export_account_list, validate_host, AppState, Result};
-use crate::core::account_service;
+use notecore::account_service;
 
 // --- DB: Accounts ---
 

@@ -4,7 +4,7 @@ use std::time::Duration;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Listener, Manager};
 
-use crate::core::frontend_bridge::{BridgeFuture, FrontendBridge};
+use notecore::frontend_bridge::{BridgeFuture, FrontendBridge};
 
 /// Bridges HTTP API requests to the frontend (Pinia stores) via Tauri events.
 ///

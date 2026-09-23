@@ -1,17 +1,17 @@
 //! Secret Vault ([#564](https://github.com/notedeck-dev/notedeck/issues/564)) の Tauri コマンド層。
 //!
-//! ロジックは [`crate::core::vault::connections_service`] にあり、ここは
+//! ロジックは [`notecore::vault::connections_service`] にあり、ここは
 //! 「main ウィンドウ検証 + service 呼び出し」の薄いラッパー (#782 R4)。
 //! 全コマンドは main ウィンドウからのみ呼べる (AiScript の WebView 等を遮断)。
 //! `vault_fetch` (Phase B) を除き AI tool / HTTP API からは呼べない。
 
-use crate::core::vault::connections_service::{
+use notecore::vault::connections_service::{
     self as service, ConnectionUpsert, SecretStatus, VaultTestResult,
 };
-use crate::core::vault::connections_store;
-use crate::core::vault::fetch::{self, VaultFetchRequest, VaultFetchResponse};
-use crate::core::vault::model::{validate_connection_id, PrincipalClass};
-use crate::core::vault::{Connection, ConnectionProtocol, VaultError, VaultResult};
+use notecore::vault::connections_store;
+use notecore::vault::fetch::{self, VaultFetchRequest, VaultFetchResponse};
+use notecore::vault::model::{validate_connection_id, PrincipalClass};
+use notecore::vault::{Connection, ConnectionProtocol, VaultError, VaultResult};
 
 /// vault コマンドは main ウィンドウからのみ許可する。
 ///

@@ -333,20 +333,20 @@ WebView 内・外部ツールとも HTTP API `/proxy/image` の一経路 (`src-t
 
 | 制御 | 内容 | ファイル |
 |------|-----|----------|
-| プロトコル | HTTPS のみ | `src-tauri/src/core/image_cache.rs` |
-| ファイルサイズ上限 | あり | `src-tauri/src/core/perf_config.rs` |
+| プロトコル | HTTPS のみ | `crates/notecore/src/image_cache.rs` |
+| ファイルサイズ上限 | あり | `crates/notecore/src/perf_config.rs` |
 | 同時取得数 | semaphore で制限 | 同上 |
-| タイムアウト | あり | `src-tauri/src/core/image_cache.rs` |
-| サーキットブレーカー | 連続失敗で一定時間ブロック | `src-tauri/src/core/perf_config.rs` |
-| ネガティブキャッシュ | 4xx / 5xx / ネットワークエラーで別 TTL | `src-tauri/src/core/image_cache.rs` |
+| タイムアウト | あり | `crates/notecore/src/image_cache.rs` |
+| サーキットブレーカー | 連続失敗で一定時間ブロック | `crates/notecore/src/perf_config.rs` |
+| ネガティブキャッシュ | 4xx / 5xx / ネットワークエラーで別 TTL | `crates/notecore/src/image_cache.rs` |
 | メモリキャッシュ | LRU (item / 総量とも上限あり) | 同上 |
 | ディスクキャッシュ | TTL + 総量上限で掃除 | 同上 |
 
-閾値の既定値は `PerformanceConfig` (`src-tauri/src/core/perf_config.rs`) が正本で、ユーザー設定から実行時に変更できる。
+閾値の既定値は `PerformanceConfig` (`crates/notecore/src/perf_config.rs`) が正本で、ユーザー設定から実行時に変更できる。
 
 ### OGP フェッチ
 
-- **ファイル**: `src-tauri/src/core/ogp/mod.rs`
+- **ファイル**: `crates/notecore/src/ogp/mod.rs`
 - HTTPS 限定
 - リダイレクト回数の上限あり
 - タイムアウトあり (共通 HTTP クライアント注入)

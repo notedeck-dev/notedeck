@@ -1,4 +1,4 @@
-//! 永続 API トークンの管理コマンド (#709)。ストア本体は [`crate::core::api_tokens`]。
+//! 永続 API トークンの管理コマンド (#709)。ストア本体は [`notecore::api_tokens`]。
 
 use std::sync::Arc;
 
@@ -6,7 +6,7 @@ use notecli::error::NoteDeckError;
 use tauri::State;
 
 use super::Result;
-use crate::core::api_tokens::{ApiTokenMeta, ApiTokenStore};
+use notecore::api_tokens::{ApiTokenMeta, ApiTokenStore};
 
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

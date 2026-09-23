@@ -88,24 +88,23 @@ fn spawn_ogp_prefetch(
         return;
     }
 
-    let ogp_cache: crate::core::ogp::OgpCache =
-        (*app.state::<crate::core::ogp::OgpCache>()).clone();
+    let ogp_cache: notecore::ogp::OgpCache = (*app.state::<notecore::ogp::OgpCache>()).clone();
     let app = app.clone();
     tokio::spawn(async move {
-        let hints: HashMap<String, crate::core::ogp::OgpData> = stream::iter(urls)
+        let hints: HashMap<String, notecore::ogp::OgpData> = stream::iter(urls)
             .map(|url| {
                 let host = host.clone();
                 let token = token.clone();
                 let ogp = ogp_cache.clone();
                 async move {
-                    let result: std::result::Result<crate::core::ogp::OgpData, _> =
+                    let result: std::result::Result<notecore::ogp::OgpData, _> =
                         ogp.get_ogp_via_server(&url, &host, &token).await;
                     (url, result.ok())
                 }
             })
             .buffer_unordered(MAX_OGP_CONCURRENT)
             .filter_map(
-                |(url, data): (String, Option<crate::core::ogp::OgpData>)| async move {
+                |(url, data): (String, Option<notecore::ogp::OgpData>)| async move {
                     data.map(|d| (url, d))
                 },
             )

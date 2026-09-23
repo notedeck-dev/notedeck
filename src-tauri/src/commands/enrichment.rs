@@ -11,11 +11,11 @@ use super::{get_credentials, AppState, Result};
 #[tauri::command]
 #[specta::specta]
 pub async fn fetch_ogp(
-    ogp_cache: State<'_, crate::core::ogp::OgpCache>,
+    ogp_cache: State<'_, notecore::ogp::OgpCache>,
     app_state: State<'_, AppState>,
     url: String,
     account_id: Option<String>,
-) -> Result<crate::core::ogp::OgpData> {
+) -> Result<notecore::ogp::OgpData> {
     let db = app_state.db().await;
     if url.len() > 2048 {
         return Err(NoteDeckError::InvalidInput("URL too long".to_string()));

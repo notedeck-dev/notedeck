@@ -22,8 +22,8 @@ use specta::Type;
 use tauri::Manager;
 use tauri_specta::Event;
 
-use crate::core::ssrf::validate_external_url;
-use crate::core::ssrf::PinningResolver;
+use notecore::ssrf::validate_external_url;
+use notecore::ssrf::PinningResolver;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 /// chunk 間の無通信タイムアウト。総時間の上限は設けない (大きい動画を殺さない)
@@ -122,7 +122,7 @@ pub async fn export_files_start(
 /// ユーザーのキャンセルに加え、アプリ終了 (#1098) でも次の項目へ進まない。
 /// 進行中の 1 件と index の書き込みは finally 相当の経路で完了させる
 fn is_cancelled(task_id: &str) -> bool {
-    crate::core::shutdown::is_shutting_down() || CANCELLED.lock().unwrap().contains(task_id)
+    notecore::shutdown::is_shutting_down() || CANCELLED.lock().unwrap().contains(task_id)
 }
 
 fn emit(

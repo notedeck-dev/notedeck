@@ -16,11 +16,18 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 mod app_dir;
 mod commands;
-mod core;
 mod error;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
 /// [`http_server::build_openapi`].
-pub use core::http_server;
+/// notecore の HTTP サーバーの再公開。`build_openapi` はアプリのバージョンを埋めた形で
+/// 上書きする (examples の gen_openapi / snapshot テスト / get_openapi_spec が使う)。
+pub mod http_server {
+    pub use notecore::http_server::*;
+
+    pub fn build_openapi() -> utoipa::openapi::OpenApi {
+        notecore::http_server::build_openapi(env!("CARGO_PKG_VERSION"))
+    }
+}
 #[cfg(target_os = "windows")]
 mod hwheel_hook;
 mod ipc_index;
@@ -219,7 +226,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // panic をログディレクトリに残す。Android は adb を繋げない環境が普通なので、
         // 次回起動時に UI へ出すのが実質唯一のクラッシュ調査手段になる。
         if let Ok(dir) = app.path().app_log_dir() {
-            core::crash_report::install_panic_hook(dir);
+            notecore::crash_report::install_panic_hook(dir);
         }
 
         // tauri-specta typed events (e.g. QueryDelta) require the registry to be mounted.
@@ -246,17 +253,17 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         if let Err(e) = notecli::keychain::init_store() {
             tracing::warn!("keychain unavailable ({e})");
         }
-        core::migrations::run_fs(&app_dir)?;
+        notecore::migrations::run_fs(&app_dir)?;
         // external gate が permissions.json5 を直接読むための所在 (#1099)
-        core::permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
+        notecore::permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
 
         // AppState: empty wrapper — commands await until Phase 2 fills it
         let app_state = commands::AppState::new();
         app.manage(app_state);
 
         // Performance config: starts with defaults, updated dynamically via Tauri command
-        let shared_perf: core::perf_config::SharedPerfConfig =
-            std::sync::Arc::new(tokio::sync::RwLock::new(core::perf_config::PerformanceConfig::default()));
+        let shared_perf: notecore::perf_config::SharedPerfConfig =
+            std::sync::Arc::new(tokio::sync::RwLock::new(notecore::perf_config::PerformanceConfig::default()));
         let shared_perf_bg = shared_perf.clone();
         app.manage(shared_perf);
 
@@ -272,7 +279,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .pool_idle_timeout(std::time::Duration::from_secs(60))
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
             .redirect(reqwest::redirect::Policy::limited(5))
-            .dns_resolver(std::sync::Arc::new(core::ssrf::ValidatingResolver))
+            .dns_resolver(std::sync::Arc::new(notecore::ssrf::ValidatingResolver))
             .build()?;
         app.manage(shared_http.clone());
 
@@ -282,20 +289,20 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // (media cache not ready) になり、onerror の unknown アイコンが
         // カラム再 mount まで DOM に焼き付く。依存はディレクトリと
         // perf/http client だけなので前倒しできる。
-        let image_cache = std::sync::Arc::new(core::image_cache::ImageCache::with_client(
+        let image_cache = std::sync::Arc::new(notecore::image_cache::ImageCache::with_client(
             &app_dir,
             shared_http.clone(),
             shared_perf_bg.clone(),
         ));
         app.manage(image_cache.clone());
         // 絵文字辞書到着時の先行取得キュー (worker は Phase 2 の runtime で起動)
-        let media_warmer = core::media_warm::MediaWarmer::new(image_cache.clone());
+        let media_warmer = notecore::media_warm::MediaWarmer::new(image_cache.clone());
         app.manage(media_warmer.clone());
         tauri::async_runtime::spawn(async move { media_warmer.spawn_workers() });
 
         // 終了時のタスク所有 (#1098)。常駐ループはここ経由で spawn し、
         // ExitRequested で begin_shutdown が abort する
-        let shutdown = std::sync::Arc::new(core::shutdown::Shutdown::new(tauri::async_runtime::handle().inner().clone()));
+        let shutdown = std::sync::Arc::new(notecore::shutdown::Shutdown::new(tauri::async_runtime::handle().inner().clone()));
         app.manage(shutdown.clone());
 
         // ディスク画像キャッシュの掃除 (#815)。TTL 超過分と上限超過分は
@@ -347,7 +354,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
         // Query runtime: stream events から Read Model を materialize し、
         // pending を貯めて 16ms 間隔で query-delta event をバッチ emit する。
-        app.manage(core::query_runtime::QueryRuntime::default());
+        app.manage(notecore::query_runtime::QueryRuntime::default());
         // 常駐 flusher: notify_one を受けて DELTA_FLUSH_WINDOW スリープ後に
         // drain_pending() を emit。
         let flusher_app = app.app_handle().clone();
@@ -388,7 +395,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
         // 永続 API トークン (#709): ephemeral と併存する名前付きトークン。
         // ハッシュのみ保存なので読み込みは軽量 (Phase 1 で可)。
-        let api_token_store = std::sync::Arc::new(core::api_tokens::ApiTokenStore::load(&app_dir));
+        let api_token_store = std::sync::Arc::new(notecore::api_tokens::ApiTokenStore::load(&app_dir));
         app.manage(api_token_store.clone());
 
         // ══════════════════════════════════════════════════════════
@@ -449,7 +456,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             stage("db-open");
 
             // DB migrations + account export (must complete before commands can use credentials)
-            core::migrations::run_db(&db);
+            notecore::migrations::run_db(&db);
             stage("db-migrated");
 
             // Stage 1: Signal DB readiness — unblocks DB-only commands (load_accounts, etc.)
@@ -499,7 +506,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             stage("stage2-full-ready");
 
             // OGP cache (lazy-loaded on first access via ensure_loaded())
-            app_handle.manage(core::ogp::OgpCache::with_client(db.clone(), shared_http, shared_perf_bg.clone()));
+            app_handle.manage(notecore::ogp::OgpCache::with_client(db.clone(), shared_http, shared_perf_bg.clone()));
 
             // Start HTTP API server (attach routes to pre-bound listener)
             // Wait for the server to be ready before signalling the frontend,
@@ -510,6 +517,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 tauri::async_runtime::spawn(async move {
                     http_server::serve(http_server::ServeConfig {
                         server,
+                        app_version: env!("CARGO_PKG_VERSION").to_string(),
                         bridge,
                         db,
                         client,
@@ -814,13 +822,13 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 /// 次の項目へ進まない。
 fn begin_shutdown(app: &tauri::AppHandle) {
     tracing::info!("shutdown requested");
-    if let Some(s) = app.try_state::<std::sync::Arc<core::shutdown::Shutdown>>() {
+    if let Some(s) = app.try_state::<std::sync::Arc<notecore::shutdown::Shutdown>>() {
         s.trigger();
     }
     if let Some(h) = app.try_state::<std::sync::Arc<commands::HeartbeatScheduler>>() {
         h.unregister();
     }
-    core::ai_chat_service::abort_all_streams();
+    notecore::ai_chat_service::abort_all_streams();
 }
 
 /// Build the tauri-specta builder shared by the runtime, the `gen_bindings`
@@ -1123,8 +1131,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::get_performance_config,
         ])
         .events(tauri_specta::collect_events![
-            core::query_runtime::QueryDelta,
-            core::query_runtime::NoteCaptureBatch,
+            commands::QueryDeltaEvent,
+            commands::NoteCaptureBatchEvent,
             streaming::StreamEnvelope,
             streaming::StreamStatus,
             streaming::StreamChatMessageReacted,

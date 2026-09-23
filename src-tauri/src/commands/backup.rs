@@ -18,7 +18,7 @@ use specta::Type;
 use tauri::Manager;
 
 use super::Result;
-use crate::core::settings_store as store;
+use notecore::settings_store as store;
 
 const BACKUP_SUBDIR: &str = "backup";
 const SETTINGS_FILE: &str = "settings.json";
