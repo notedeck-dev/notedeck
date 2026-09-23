@@ -264,7 +264,7 @@ notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 - **切る基準**: 「その処理はデバイスが 1 台も繋がっていない状態で意味を持つか」。持つなら notecore、持たないなら手元 (ウィンドウ / トレイ / OS 通知 / クリップボード / dialog / OS キーチェーン)
 - **クライアント層**は手元の Rust の中の切替点 1 箇所。データ系コマンドはコマンド表 (型付き関数 + JSON アダプタを 1 つの宣言から生成) を通り、ローカル構成では in-process で埋め込み notecore を、リモート構成では notenode を呼ぶ。表に載っていないデータ系コマンドはどの構成でも存在しない
 - **AI エージェントループは Rust で notecore に置く** ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。WebView に残るのは UI、確認ダイアログ、UI 系 capability、AiScript (plugin / widget / scratchpad) の実行
-- notecli の役割 (Misskey 通信・DB・ストリーミング) は変えない。notecore はその消費者
+- notecli の役割 (Misskey 通信・DB・ストリーミング) は変えない。notecore はその消費者。**notecli は notedeck の workspace に取り込む** (リポジトリは 1 つ、クレートは notecli / notecore / notenode / アプリの 4 つ。`notecli` の CLI と `notenode` のデーモンはクレートからバイナリとして出す)
 - 段階と受け入れ条件、認証・ペアリング・イベント面・状態の所在の仕様は #1106 の仕様コメントが正本。ローカル構成は残り、リモート構成は追加の構成
 
 **今すぐ守ること**: 新しいドメインを書くときは、上の基準で notecore 側か手元側かを決め、Tauri の型 (AppHandle / Window / State) を notecore 側に持ち込まない。
