@@ -186,10 +186,10 @@ NoteDeck は `Cargo.toml` で git 依存として参照。
 Tauri 非依存のドメインを notecore に集め、アプリに埋め込む構成と、自分のサーバーで常駐させる notenode の両方で使う。ローカル構成は残り、リモート構成は追加の構成。順序は #1106 本文の「なぜ」のとおり。
 
 - [ ] **境界と検査** — notecore 配下が Tauri に依存しない検査、コマンド分類の検査
-- [ ] **コマンドの書き換えとクライアント層** — データ系コマンドを notecore の関数に書き直し、コマンド表 (型付き + JSON アダプタ) と in-process の transport を通す
+- [ ] **コマンドの書き換えとクライアント層** — workspace を新設して notecore クレートを作り、データ系コマンドをその関数に書き直し、コマンド表 (型付き + JSON アダプタ) と in-process の transport を通す
 - [ ] **単独で価値のある修正** — ループの既知の欠陥、ファイル secret backend への自動劣化、notecli ルートの CORS、ログ世代上限、migration 検査
 - [ ] **AI エージェントループを Rust の notecore へ** — [#1133](https://github.com/notedeck-dev/notedeck/issues/1133)
-- [ ] **同一ホストの notenode** — headless バイナリ、RPC 面、橋、クエリ差分、購読のセッション所有
+- [ ] **同一ホストの notenode** — headless バイナリ、RPC 面、橋、クエリ差分、購読のセッション所有。notecli 単体のデーモンモードはここで廃止
 - [ ] **外向き** — 署名認証、ペアリング、TLS、移行パッケージ、配布
 - [ ] **モバイル** — Android / iOS でリモート構成を選べる
 
