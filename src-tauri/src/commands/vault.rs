@@ -1,17 +1,17 @@
 //! Secret Vault ([#564](https://github.com/notedeck-dev/notedeck/issues/564)) の Tauri コマンド層。
 //!
-//! ロジックは [`crate::vault::connections_service`] にあり、ここは
+//! ロジックは [`crate::core::vault::connections_service`] にあり、ここは
 //! 「main ウィンドウ検証 + service 呼び出し」の薄いラッパー (#782 R4)。
 //! 全コマンドは main ウィンドウからのみ呼べる (AiScript の WebView 等を遮断)。
 //! `vault_fetch` (Phase B) を除き AI tool / HTTP API からは呼べない。
 
-use crate::vault::connections_service::{
+use crate::core::vault::connections_service::{
     self as service, ConnectionUpsert, SecretStatus, VaultTestResult,
 };
-use crate::vault::connections_store;
-use crate::vault::fetch::{self, VaultFetchRequest, VaultFetchResponse};
-use crate::vault::model::{validate_connection_id, PrincipalClass};
-use crate::vault::{Connection, ConnectionProtocol, VaultError, VaultResult};
+use crate::core::vault::connections_store;
+use crate::core::vault::fetch::{self, VaultFetchRequest, VaultFetchResponse};
+use crate::core::vault::model::{validate_connection_id, PrincipalClass};
+use crate::core::vault::{Connection, ConnectionProtocol, VaultError, VaultResult};
 
 /// vault コマンドは main ウィンドウからのみ許可する。
 ///
@@ -27,6 +27,13 @@ fn assert_main_window(window: &tauri::Window) -> VaultResult<()> {
     }
 }
 
+/// アプリデータディレクトリを解決する。service 層は Tauri を知らず `&Path` を受ける (#1106)。
+fn app_dir(app: &tauri::AppHandle) -> VaultResult<std::path::PathBuf> {
+    crate::app_dir::resolve_app_dir(app).map_err(|e| VaultError::StoreIo {
+        message: e.to_string(),
+    })
+}
+
 /// 全接続のメタデータ一覧を返す (secret は含まない)。
 // nd-command: data
 #[tauri::command]
@@ -36,7 +43,8 @@ pub async fn vault_list_connections(
     window: tauri::Window,
 ) -> VaultResult<Vec<Connection>> {
     assert_main_window(&window)?;
-    let file = connections_store::load(&app)?;
+    let dir = app_dir(&app)?;
+    let file = connections_store::load(&dir)?;
     connections_store::check_schema_version(&file)?;
     Ok(file.connections)
 }
@@ -51,8 +59,9 @@ pub async fn vault_get_connection(
     id: String,
 ) -> VaultResult<Option<Connection>> {
     assert_main_window(&window)?;
+    let dir = app_dir(&app)?;
     validate_connection_id(&id)?;
-    let file = connections_store::load(&app)?;
+    let file = connections_store::load(&dir)?;
     Ok(file.connections.into_iter().find(|c| c.id == id))
 }
 
@@ -66,7 +75,8 @@ pub async fn vault_upsert_connection(
     input: ConnectionUpsert,
 ) -> VaultResult<Connection> {
     assert_main_window(&window)?;
-    service::upsert_metadata(&app, input)
+    let dir = app_dir(&app)?;
+    service::upsert_metadata(&dir, input)
 }
 
 /// 接続のメタデータと secret を 1 トランザクションで作成 / 更新する。
@@ -81,7 +91,8 @@ pub async fn vault_upsert_connection_with_secret(
     secret: String,
 ) -> VaultResult<Connection> {
     assert_main_window(&window)?;
-    service::upsert_with_secret(&app, input, &slot, secret)
+    let dir = app_dir(&app)?;
+    service::upsert_with_secret(&dir, input, &slot, secret)
 }
 
 /// 既存接続の secret を設定 / 入れ替える。
@@ -96,7 +107,8 @@ pub async fn vault_set_secret(
     secret: String,
 ) -> VaultResult<Connection> {
     assert_main_window(&window)?;
-    service::set_secret(&app, &id, &slot, secret)
+    let dir = app_dir(&app)?;
+    service::set_secret(&dir, &id, &slot, secret)
 }
 
 /// 接続の secret 設定状況を返す (値そのものは決して返さない)。
@@ -109,7 +121,8 @@ pub async fn vault_get_secret_status(
     id: String,
 ) -> VaultResult<SecretStatus> {
     assert_main_window(&window)?;
-    service::secret_status(&app, &id)
+    let dir = app_dir(&app)?;
+    service::secret_status(&dir, &id)
 }
 
 /// 接続の特定 slot の secret を削除する。
@@ -123,7 +136,8 @@ pub async fn vault_delete_secret(
     slot: String,
 ) -> VaultResult<()> {
     assert_main_window(&window)?;
-    service::delete_secret(&app, &id, &slot)
+    let dir = app_dir(&app)?;
+    service::delete_secret(&dir, &id, &slot)
 }
 
 /// 接続を削除する。全 slot の secret を keychain から消し、メタデータも削除する。
@@ -136,7 +150,8 @@ pub async fn vault_delete_connection(
     id: String,
 ) -> VaultResult<()> {
     assert_main_window(&window)?;
-    service::delete_connection(&app, &id)
+    let dir = app_dir(&app)?;
+    service::delete_connection(&dir, &id)
 }
 
 /// 接続の開示先クラスを切り替える (#712 §6.1)。
@@ -151,7 +166,8 @@ pub async fn vault_set_exposed(
     exposed: bool,
 ) -> VaultResult<()> {
     assert_main_window(&window)?;
-    service::update_connection(&app, &id, |c| {
+    let dir = app_dir(&app)?;
+    service::update_connection(&dir, &id, |c| {
         service::apply_exposed(c, principal_class, exposed)
     })
 }
@@ -170,7 +186,8 @@ pub async fn vault_set_trusted(
     trusted: bool,
 ) -> VaultResult<()> {
     assert_main_window(&window)?;
-    service::update_connection(&app, &id, |c| {
+    let dir = app_dir(&app)?;
+    service::update_connection(&dir, &id, |c| {
         service::apply_trusted(c, principal_class, trusted)
     })
 }
@@ -191,7 +208,8 @@ pub async fn vault_set_trusted_plugin(
     trusted: bool,
 ) -> VaultResult<()> {
     assert_main_window(&window)?;
-    service::update_connection(&app, &id, |c| {
+    let dir = app_dir(&app)?;
+    service::update_connection(&dir, &id, |c| {
         service::apply_trusted_plugin(c, plugin_id, name, trusted)
     })
 }
@@ -213,8 +231,9 @@ pub async fn vault_fetch(
     request: VaultFetchRequest,
 ) -> VaultResult<VaultFetchResponse> {
     assert_main_window(&window)?;
-    let response = fetch::vault_fetch(&app, &id, request).await?;
-    service::touch_last_used(&app, &id);
+    let dir = app_dir(&app)?;
+    let response = fetch::vault_fetch(&dir, &id, request).await?;
+    service::touch_last_used(&dir, &id);
     Ok(response)
 }
 
@@ -229,7 +248,8 @@ pub async fn vault_test_connection(
     test_path: Option<String>,
 ) -> VaultResult<VaultTestResult> {
     assert_main_window(&window)?;
-    service::test_connection(&app, &id, test_path).await
+    let dir = app_dir(&app)?;
+    service::test_connection(&dir, &id, test_path).await
 }
 
 /// AI プロバイダーの API キーを Vault 接続へ移行する (#564 後続)。
@@ -245,5 +265,6 @@ pub async fn ai_migrate_provider_to_vault(
     protocol: ConnectionProtocol,
 ) -> VaultResult<Option<Connection>> {
     assert_main_window(&window)?;
-    service::migrate_ai_provider(&app, &provider, name, base_url, protocol)
+    let dir = app_dir(&app)?;
+    service::migrate_ai_provider(&dir, &provider, name, base_url, protocol)
 }

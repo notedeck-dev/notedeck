@@ -14,7 +14,6 @@ use tauri_plugin_autostart::MacosLauncher;
 #[cfg(not(mobile))]
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
-mod account_service;
 mod ai_chat_service;
 mod app_dir;
 mod commands;
@@ -26,14 +25,12 @@ pub mod http_server;
 #[cfg(target_os = "windows")]
 mod hwheel_hook;
 mod ipc_index;
-mod migrations;
 mod os_notify;
 mod query_bridge;
 mod query_runtime;
 mod shutdown;
 mod streaming;
 mod system_state;
-mod vault;
 mod win_chrome;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -252,7 +249,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         if let Err(e) = notecli::keychain::init_store() {
             tracing::warn!("keychain unavailable ({e})");
         }
-        migrations::run_fs(&app_dir)?;
+        core::migrations::run_fs(&app_dir)?;
         // external gate が permissions.json5 を直接読むための所在 (#1099)
         core::permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
 
@@ -455,7 +452,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             stage("db-open");
 
             // DB migrations + account export (must complete before commands can use credentials)
-            migrations::run_db(&db);
+            core::migrations::run_db(&db);
             stage("db-migrated");
 
             // Stage 1: Signal DB readiness — unblocks DB-only commands (load_accounts, etc.)

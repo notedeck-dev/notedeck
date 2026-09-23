@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::error::{VaultError, VaultResult};
 use super::model::{ConnectionsFile, PrincipalClass, SCHEMA_VERSION};
@@ -17,10 +17,9 @@ fn io_err(e: impl std::fmt::Display) -> VaultError {
     }
 }
 
-/// `connections.json` の絶対パスを解決する。
-fn connections_path(app: &tauri::AppHandle) -> VaultResult<PathBuf> {
-    let app_dir = crate::app_dir::resolve_app_dir(app).map_err(io_err)?;
-    Ok(app_dir.join(SETTINGS_DIR).join(CONNECTIONS_FILE))
+/// `connections.json` の絶対パスを解決する (`app_dir` はアプリデータディレクトリ)。
+fn connections_path(app_dir: &Path) -> PathBuf {
+    app_dir.join(SETTINGS_DIR).join(CONNECTIONS_FILE)
 }
 
 /// `connections.json` を読み込む。ファイルが無ければ空の [`ConnectionsFile`]。
@@ -29,8 +28,8 @@ fn connections_path(app: &tauri::AppHandle) -> VaultResult<PathBuf> {
 /// へ一度きり変換し、新形で書き戻す (#712 §6.1)。**External は誰にも自動付与
 /// しない** — 外部アプリへの開示は必ず明示 opt-in (これが同意すり替え問題の
 /// 修正そのもの)。
-pub fn load(app: &tauri::AppHandle) -> VaultResult<ConnectionsFile> {
-    let path = connections_path(app)?;
+pub fn load(app_dir: &Path) -> VaultResult<ConnectionsFile> {
+    let path = connections_path(app_dir);
     if !path.exists() {
         return Ok(ConnectionsFile::default());
     }
@@ -41,7 +40,7 @@ pub fn load(app: &tauri::AppHandle) -> VaultResult<ConnectionsFile> {
         })?;
 
     if migrate_legacy_exposure(&mut parsed) {
-        save(app, &parsed)?;
+        save(app_dir, &parsed)?;
     }
     Ok(parsed)
 }
@@ -79,8 +78,8 @@ fn migrate_legacy_exposure(file: &mut ConnectionsFile) -> bool {
 ///
 /// 同一ディレクトリ内の一時ファイルに書いてから `rename` で置換することで、
 /// 書き込み途中の電源喪失でもファイルが壊れない (EXDEV も起きない)。
-pub fn save(app: &tauri::AppHandle, file: &ConnectionsFile) -> VaultResult<()> {
-    let path = connections_path(app)?;
+pub fn save(app_dir: &Path, file: &ConnectionsFile) -> VaultResult<()> {
+    let path = connections_path(app_dir);
     let dir = path
         .parent()
         .ok_or_else(|| io_err("connections.json has no parent directory"))?;

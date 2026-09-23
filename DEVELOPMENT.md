@@ -319,6 +319,8 @@ src-tauri/src/              # Rust backend (Tauri 固有部分)
 │   ├── ogp/                # OGP metadata extraction & cache
 │   ├── ssrf.rs             # SSRF 防御 (URL / IP の一次検証 + DNS pinning)。汎用 fetch / 画像 / Vault / エクスポートが共用
 │   ├── settings_store.rs   # 設定ファイル store (allowlist が正本、export / import)
+│   ├── credentials.rs      # アカウント資格情報の解決 (メモリキャッシュ → keychain → DB)
+│   ├── vault/              # Secret Vault (#564)。app dir を &Path で受け、Tauri を知らない
 │   └── perf_config.rs      # パフォーマンス設定 (Rust 側)
 ├── http_server.rs          # Axum HTTP API server (localhost:19820)
 ├── streaming.rs            # TauriEmitter adapter (FrontendEmitter trait impl)

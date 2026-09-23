@@ -8,7 +8,7 @@ use notecli::db::Database;
 use notecli::keychain;
 use notecli::models::{Account, AccountPublic};
 
-use crate::commands::invalidate_credentials;
+use crate::core::credentials::invalidate_credentials;
 
 use crate::error::Result;
 

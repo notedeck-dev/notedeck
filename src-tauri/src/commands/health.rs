@@ -84,7 +84,7 @@ fn strip_guest_credential_checks(
 ) {
     let guest_labels: Vec<String> = accounts
         .iter()
-        .filter(|a| crate::account_service::is_guest(a))
+        .filter(|a| crate::core::account_service::is_guest(a))
         .map(|a| format!("@{}@{}", a.username, a.host))
         .collect();
     if guest_labels.is_empty() {
@@ -141,7 +141,10 @@ mod tests {
         };
         strip_guest_credential_checks(
             &mut report,
-            &[account(crate::account_service::GUEST_USER_ID, "guest_1")],
+            &[account(
+                crate::core::account_service::GUEST_USER_ID,
+                "guest_1",
+            )],
         );
         assert!(report.checks.is_empty());
         assert!(report.ok);
@@ -156,7 +159,7 @@ mod tests {
         strip_guest_credential_checks(
             &mut report,
             &[
-                account(crate::account_service::GUEST_USER_ID, "guest_1"),
+                account(crate::core::account_service::GUEST_USER_ID, "guest_1"),
                 account("u1", "alice"),
             ],
         );

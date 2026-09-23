@@ -12,6 +12,7 @@
 //! - レスポンスから secret を redaction、機密ヘッダーを除去
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -122,14 +123,14 @@ fn resolve_url(base_url: &str, path: &str) -> VaultResult<reqwest::Url> {
 
 /// `vault_fetch` の本体。
 pub async fn vault_fetch(
-    app: &tauri::AppHandle,
+    app_dir: &Path,
     connection_id: &str,
     request: VaultFetchRequest,
 ) -> VaultResult<VaultFetchResponse> {
     validate_connection_id(connection_id)?;
 
     // 接続メタデータを読む。
-    let file = connections_store::load(app)?;
+    let file = connections_store::load(app_dir)?;
     let connection = file
         .connections
         .iter()
