@@ -1,8 +1,9 @@
 /**
  * 権限語彙とプロファイル構造 (#712)。
  *
- * PermissionKey の語彙は capability の `permissions[]` 宣言が定義する
- * (capability レイヤー = Single Source of Truth #408)。保存は principal 別の
+ * PermissionKey の語彙は crates/notecore/capabilities.json5 の `permissions` 節が正本で、
+ * keys.generated.ts に生成される (#1133、capability レイヤー = Single Source of Truth #408)。
+ * このファイルは語彙を再公開し、プロファイル構造と解決規則を持つ。保存は principal 別の
  * `permissions.json5` (store.ts)。旧 `ai.json5` 内の 3 プロファイルは PR 1b で
  * ここへ移行した。
  */
@@ -18,274 +19,40 @@ export const PRESET_KEYS: readonly PresetKey[] = [
   'custom',
 ]
 
-export const PERMISSION_KEYS = [
-  'notes.read',
-  // 手元の索引 (キャッシュ) の横断検索 (#947)。サーバー検索では見えない
-  // フォロワー限定 / ダイレクトも索引にあるので notes.read とは分け、既定は閉じる
-  'notes.readArchive',
-  'notes.write',
-  'notes.react',
-  'account.read',
-  'account.write',
-  // クロスアカウント実行 (#777): 呼び出し文脈と異なるアカウントを明示指定して
-  // capability を実行する権利。actsAsAccount 宣言付き capability に対して
-  // dispatcher が検査する。user principal は対象外 (本人の UI 選択が同意)
-  'account.actAs',
-  'drive.read',
-  'drive.write',
-  'memos.read',
-  'memos.write',
-  'clips.read',
-  'clips.write',
-  'drafts.read',
-  'drafts.write',
-  'network.external',
-  'clipboard',
-  'notifications',
-  'tasks.run',
-  'ai.invoke',
-  'ai.persona.write',
-  'skills.read',
-  'skills.write',
-  'theme.write',
-  'styles.write',
-  'navbar.write',
-  'keybinds.write',
-  'performance.write',
-  'widgets.read',
-  'widgets.write',
-  'plugins.read',
-  'plugins.write',
-  // カラムクエリ (#1117)。名前付きクエリの編集履歴の読取と、履歴からの復元
-  'queries.read',
-  'queries.write',
-  'ai.sessions.read',
-  'logs.read',
-  'vault.use',
-  // ローカルディスクへのファイル書き出し (#813)。書き出し先は
-  // Downloads/notedeck 配下に固定され、保存元もアプリが知る fileId/noteId に
-  // 限られるが、ユーザーのディスクに成果物を作る操作なので write 系として扱う
-  'files.export',
-  // DB + 設定のバックアップ作成 (#816)。書き出す成果物にローカルの
-  // ノートキャッシュ全量が含まれるため write 系かつ高リスクとして扱う
-  'backup.create',
-  // デッキ構成 (カラム一覧 = 検索クエリ / アンテナ名 / アカウント紐付け等の
-  // ローカル私的データ) の read (#712 §5.3 の第 5 の穴)。全 preset で true —
-  // column 系 capability は従来 ungated (permissions: []) だったので、既存
-  // principal の挙動は変わらない。external のみデフォルト OFF (backfill 規則)。
-  'deck.read',
-  // デッキ / ウィンドウ構成の変更 (カラム追加・削除・並替・設定変更、ウィンドウ
-  // 開閉、サイドバー開閉、テーマ適用) (#1098)。従来は permissions: [] で全
-  // principal に無条件許可だったため、readonly の heartbeat や external トークン
-  // でもデッキを消せた。readonly のみ false。
-  'deck.write',
-] as const
-export type PermissionKey = (typeof PERMISSION_KEYS)[number]
+export type { PermissionKey } from './keys.generated'
+// 語彙と preset / floor / deny の集合は生成物 (正本は crates/notecore/capabilities.json5
+// の permissions 節、`pnpm gen:capabilities`)。意味は以下のとおり (#712):
+//
+// - HIGH_RISK_PERMISSION_KEYS: UI に warning アイコンを出す。skills.write / ai.persona.write は
+//   AI の指示ストリームへの書込 (§3.7)、memos.write は dataSources 自動注入との組合せで injection
+//   の実効性が高い、tasks.run はユーザー定義 action の代理実行 (§3.8、endpoint は per-key 検査 #1099)
+// - AI_INSTRUCTION_KEYS: AI への指示チャネル (§3.7)。第三者 principal に許可すると confused deputy
+//   になるので plugin / external には保存値に関わらず恒久 deny
+// - THIRD_PARTY_DENY_KEYS: 第三者 principal (plugin / external) への恒久 deny floor (§3.7 / §3.8)。
+//   resolveFor が保存値に関わらず OFF に clamp する (full preset でも拒否)
+// - EXTERNAL_READ_FLOOR: external の Misskey コンテンツ read 下限 (§5.3)。「トークンを発行して渡す
+//   行為そのものが read への同意」。resolveFor が常時 ON に clamp する
+// - LOCAL_READ_KEYS: NoteDeck ローカル私的データの read (§4.4)。external の既定はこれらを落とす
+export {
+  AI_INSTRUCTION_KEYS,
+  EXTERNAL_READ_FLOOR,
+  HIGH_RISK_PERMISSION_KEYS,
+  LOCAL_READ_KEYS,
+  PERMISSION_KEYS,
+  PERMISSION_PRESETS,
+  THIRD_PARTY_DENY_KEYS,
+} from './keys.generated'
 
-/**
- * 高リスク権限。UI に warning アイコンを出す。
- *
- * skills.write / ai.persona.write は AI の指示ストリームへの書込 (#712 §3.7)、
- * memos.write は dataSources 自動注入との組合せで injection の実効性が高い
- * データ書込、tasks.run はユーザー定義 action の代理実行 (#712 §3.8。叩く
- * endpoint は Mk:api と同じ対応表で per-key 検査される #1099)。
- */
-export const HIGH_RISK_PERMISSION_KEYS: readonly PermissionKey[] = [
-  'notes.write',
-  'account.write',
-  'account.actAs',
-  'drive.write',
-  'network.external',
-  'vault.use',
-  'skills.write',
-  'ai.persona.write',
-  'memos.write',
-  'tasks.run',
-  'files.export',
-  'backup.create',
-]
-
-/**
- * AI への指示チャネル (#712 §3.7)。skill / persona 本文は ai.chat /
- * ai.heartbeat の system prompt に注入されるため、第三者 principal に許可する
- * ことは「AI の実効能力を第三者が操縦できる」cross-principal grant になる
- * (confused deputy)。plugin / external には保存値に関わらず恒久 deny。
- */
-export const AI_INSTRUCTION_KEYS: readonly PermissionKey[] = [
-  'skills.write',
-  'ai.persona.write',
-]
-
-/**
- * 第三者 principal (plugin / external) への恒久 deny floor (#712 §3.7 / §3.8)。
- * resolveFor が保存値に関わらず OFF に clamp する — full preset でも拒否
- * (「同意しても成立させない」構造的禁止)。
- *
- * tasks.run が叩く endpoint は per-key 検査される (#1099) ので迂回路ではなく
- * なったが、タスク定義は本人の資産なので起動同意は本人と AI class までに留める。
- */
-export const THIRD_PARTY_DENY_KEYS: readonly PermissionKey[] = [
-  ...AI_INSTRUCTION_KEYS,
-  'tasks.run',
-  // バックアップ成果物にはローカルのノートキャッシュ全量が入る。第三者
-  // (plugin / external) に作らせる筋の操作ではないので構造的に禁じる
-  'backup.create',
-]
-
-/**
- * external principal の Misskey コンテンツ read 下限 (#712 §5.3)。
- * 「HTTP API トークンを発行して渡す行為そのものが Misskey コンテンツ read への
- * 同意」という共有プロファイル時代の暫定規則 — resolveFor が常時 ON に clamp
- * する。read まで遮断したい場合の正しい操作はトークンの失効。per-token scope
- * (将来) には持ち込まない。
- */
-export const EXTERNAL_READ_FLOOR: readonly PermissionKey[] = [
-  'notes.read',
-  'account.read',
-  'drive.read',
-  'clips.read',
-]
+import type { PermissionKey } from './keys.generated'
+import {
+  LOCAL_READ_KEYS,
+  PERMISSION_KEYS,
+  PERMISSION_PRESETS,
+} from './keys.generated'
 
 export interface PermissionsConfig {
   preset: PresetKey
   custom: Record<PermissionKey, boolean>
-}
-
-type ResolvedPreset = Exclude<PresetKey, 'custom'>
-
-export const PERMISSION_PRESETS: Record<
-  ResolvedPreset,
-  Record<PermissionKey, boolean>
-> = {
-  readonly: {
-    'notes.read': true,
-    'notes.readArchive': false,
-    'notes.write': false,
-    'notes.react': false,
-    'account.read': true,
-    'account.write': false,
-    'account.actAs': false,
-    'drive.read': true,
-    'drive.write': false,
-    'memos.read': true,
-    'memos.write': false,
-    'clips.read': true,
-    'clips.write': false,
-    'drafts.read': true,
-    'drafts.write': false,
-    'network.external': false,
-    clipboard: false,
-    notifications: false,
-    'tasks.run': false,
-    'ai.invoke': false,
-    'ai.persona.write': false,
-    'skills.read': true,
-    'skills.write': false,
-    'theme.write': false,
-    'styles.write': false,
-    'navbar.write': false,
-    'keybinds.write': false,
-    'performance.write': false,
-    'widgets.read': true,
-    'widgets.write': false,
-    'plugins.read': true,
-    'plugins.write': false,
-    'queries.read': true,
-    'queries.write': false,
-    'ai.sessions.read': true,
-    'logs.read': true,
-    'vault.use': false,
-    'files.export': false,
-    'backup.create': false,
-    'deck.read': true,
-    'deck.write': false,
-  },
-  safe: {
-    'notes.read': true,
-    'notes.readArchive': false,
-    'notes.write': false,
-    'notes.react': true,
-    'account.read': true,
-    'account.write': false,
-    'account.actAs': false,
-    'drive.read': true,
-    'drive.write': false,
-    'memos.read': true,
-    'memos.write': true,
-    'clips.read': true,
-    'clips.write': true,
-    'drafts.read': true,
-    'drafts.write': true,
-    'network.external': false,
-    clipboard: true,
-    notifications: true,
-    'tasks.run': true,
-    'ai.invoke': true,
-    'ai.persona.write': false,
-    'skills.read': true,
-    'skills.write': true,
-    'theme.write': false,
-    'styles.write': false,
-    'navbar.write': false,
-    'keybinds.write': false,
-    'performance.write': false,
-    'widgets.read': true,
-    'widgets.write': true,
-    'plugins.read': true,
-    'plugins.write': true,
-    'queries.read': true,
-    'queries.write': true,
-    'ai.sessions.read': true,
-    'logs.read': true,
-    'vault.use': false,
-    'files.export': false,
-    'backup.create': false,
-    'deck.read': true,
-    'deck.write': true,
-  },
-  full: {
-    'notes.read': true,
-    'notes.readArchive': true,
-    'notes.write': true,
-    'notes.react': true,
-    'account.read': true,
-    'account.write': true,
-    'account.actAs': true,
-    'drive.read': true,
-    'drive.write': true,
-    'memos.read': true,
-    'memos.write': true,
-    'clips.read': true,
-    'clips.write': true,
-    'drafts.read': true,
-    'drafts.write': true,
-    'network.external': true,
-    clipboard: true,
-    notifications: true,
-    'tasks.run': true,
-    'ai.invoke': true,
-    'ai.persona.write': true,
-    'skills.read': true,
-    'skills.write': true,
-    'theme.write': true,
-    'styles.write': true,
-    'navbar.write': true,
-    'keybinds.write': true,
-    'performance.write': true,
-    'widgets.read': true,
-    'widgets.write': true,
-    'plugins.read': true,
-    'plugins.write': true,
-    'queries.read': true,
-    'queries.write': true,
-    'ai.sessions.read': true,
-    'logs.read': true,
-    'vault.use': true,
-    'files.export': true,
-    'backup.create': true,
-    'deck.read': true,
-    'deck.write': true,
-  },
 }
 
 /**
@@ -313,24 +80,6 @@ export function setPermissionPreset(
   }
   return { preset: next, custom: { ...PERMISSION_PRESETS[next] } }
 }
-
-/**
- * NoteDeck ローカル私的データの read キー (#712 §4.4)。external のデフォルトは
- * これらを落とした縮小 custom — 「トークン発行 = Misskey read の同意」であって
- * PKM メモ全文・未投稿下書き・AI 会話履歴の read への同意ではない。
- */
-export const LOCAL_READ_KEYS: readonly PermissionKey[] = [
-  'notes.readArchive',
-  'memos.read',
-  'drafts.read',
-  'skills.read',
-  'widgets.read',
-  'plugins.read',
-  'queries.read',
-  'ai.sessions.read',
-  'logs.read',
-  'deck.read',
-]
 
 /**
  * external principal の正準縮小デフォルト (#712 §4.4)。readonly preset から
