@@ -44,9 +44,16 @@ const DOC_LINKS = [
             データ系の呼び出しはここ 1 箇所を通り、同じプロセスの notecore に渡すか (既定)、notecored に中継するかが決まります。
           </div>
         </div>
-        <div class="arch-arrow" aria-hidden="true">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>
-          <span>既定</span>
+      </div>
+      <div class="arch-arrow" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>
+        <span>既定は同じプロセス、リモート構成では中継</span>
+      </div>
+      <div class="arch-box arch-box-remote">
+        <div class="arch-label">自分のサーバー (任意)</div>
+        <div class="arch-title">notecored</div>
+        <div class="arch-desc">
+          常駐 + RPC/SSE + ペアリング。notecore を headless で包む殻。これを挟むと notecore から下は自分のサーバーで動き、端末を閉じても蓄積・通知受信・AI が続き、複数の端末が同じデッキに繋がります。挟まなければ notecore は Tauri と同じプロセスで動きます。
         </div>
         <div class="arch-box arch-core">
           <div class="arch-label">コア</div>
@@ -63,25 +70,6 @@ const DOC_LINKS = [
             <div class="arch-tags">
               <span>reqwest</span><span>tokio</span><span>rusqlite</span><span>axum</span>
             </div>
-          </div>
-        </div>
-      </div>
-      <div class="arch-relay" aria-hidden="true">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
-        <span>中継</span>
-      </div>
-      <div class="arch-box arch-box-remote">
-        <div class="arch-label">自分のサーバー (任意)</div>
-        <div class="arch-title">notecored</div>
-        <div class="arch-desc">
-          常駐 + RPC/SSE + ペアリング。同じ notecore を headless で包んだ殻。端末を閉じても蓄積・通知受信・AI が続き、複数の端末が同じデッキに繋がります。
-        </div>
-        <div class="arch-box arch-core arch-compact">
-          <div class="arch-label">コア</div>
-          <div class="arch-title">notecore</div>
-          <div class="arch-layer acrylic arch-compact">
-            <div class="arch-label">Misskey クライアント</div>
-            <div class="arch-title">notecli</div>
           </div>
         </div>
       </div>

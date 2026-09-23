@@ -442,13 +442,10 @@
   color: var(--text-muted);
 }
 
-/* ===== Architecture — 含有関係で描く =====
-   手元の端末 (Tauri) がフロント / クライアント層 / 埋め込み notecore を包み、
-   自分のサーバー (notecored、任意) が同じ notecore を包む。矢印は呼び出しの向き */
-.arch-grid {
-  display: grid; grid-template-columns: minmax(0, 1.6fr) auto minmax(0, 1fr);
-  column-gap: var(--space-2xs); align-items: center;
-}
+/* ===== Architecture — 含有関係で描く (縦 1 列) =====
+   手元の端末 (Tauri) がフロントとクライアント層を包み、その下に notecore。
+   notecored は notecore を包む点線の枠で、挟むかどうかが任意 (外せば Tauri → notecore) */
+.arch-grid { display: flex; flex-direction: column; }
 .arch-box {
   border: 1px solid var(--border); border-radius: var(--radius);
   padding: var(--space-md) var(--space-lg);
@@ -456,9 +453,6 @@
 .arch-box > .arch-desc { margin-bottom: var(--space-sm); }
 .arch-box-remote { border-style: dashed; }
 .arch-core { border: 2px solid var(--accent); }
-.arch-compact { padding: var(--space-sm) var(--space-md); }
-.arch-compact > .arch-title { margin-bottom: 0; }
-.arch-compact > .arch-title + .arch-layer { margin-top: var(--space-2xs); }
 .arch-layer { padding: var(--space-md) var(--space-lg); }
 .arch-label {
   font-size: var(--text-2xs); font-weight: 700; color: var(--accent-text);
@@ -482,16 +476,10 @@
 }
 .arch-tags a:hover { border-color: var(--accent); text-decoration: none; }
 .arch-doc-links { margin-top: var(--space-lg); justify-content: center; }
-.arch-arrow, .arch-relay {
+.arch-arrow {
   display: flex; align-items: center; justify-content: center; gap: var(--space-2xs);
   padding: var(--space-2xs) 0; color: var(--text-muted);
   font-size: var(--text-2xs); font-weight: 700;
-}
-.arch-relay { flex-direction: column; align-self: center; padding: 0 var(--space-2xs); }
-@media (max-width: 800px) {
-  .arch-grid { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-2xs); }
-  .arch-relay { flex-direction: row; padding: var(--space-2xs) 0; }
-  .arch-relay svg { transform: rotate(90deg); }
 }
 
 /* ===== Fork CTA — tint カード (Hub donation 風) ===== */
