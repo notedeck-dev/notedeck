@@ -24,18 +24,30 @@ const DOC_LINKS = [
         <div class="arch-title">Vue 3 + TypeScript</div>
         <div class="arch-desc">
           Vapor モード移行準備済み。CSS Containment、Frame Scheduler で描画最適化。Pinia
-          による状態管理。
+          による状態管理。WebView は常に手元の Rust とだけ話します。
         </div>
       </div>
       <div class="arch-arrow" aria-hidden="true">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>
       </div>
-      <div class="arch-layer acrylic">
-        <div class="arch-label">Tauri v2 ブリッジ</div>
-        <div class="arch-title">Rust — 薄いラッパー</div>
-        <div class="arch-desc">
-          グローバルホットキー、システムトレイ、OS キーチェーン、自動アップデート。WebView
-          とプロセス分離でセキュリティを確保。
+      <div class="arch-shells">
+        <div class="arch-layer acrylic">
+          <div class="arch-label">殻 — Tauri v2（手元の端末）</div>
+          <div class="arch-title">OS 統合 + クライアント層</div>
+          <div class="arch-desc">
+            ウィンドウ、トレイ、OS 通知、キーチェーン、自動更新。データ系の呼び出しは切替点 1 箇所で、同じプロセス内の notecore に渡すか (既定)、右の notenode に中継するかが決まります。フロントは違いを知りません。
+          </div>
+        </div>
+        <div class="arch-arrow arch-arrow-h" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+          <span>中継</span>
+        </div>
+        <div class="arch-layer acrylic arch-shell-node">
+          <div class="arch-label">殻 — notenode（自分のサーバー）</div>
+          <div class="arch-title">常駐、RPC + SSE、ペアリング</div>
+          <div class="arch-desc">
+            同じ notecore を headless で包んだ殻。VPS や自宅サーバーで動き、端末を閉じても蓄積と AI が続き、複数の端末が同じデッキに繋がります。notedeck と同じリポジトリから出る別バイナリです。
+          </div>
         </div>
       </div>
       <div class="arch-arrow" aria-hidden="true">
@@ -43,10 +55,19 @@ const DOC_LINKS = [
       </div>
       <div class="arch-layer arch-core acrylic">
         <div class="arch-label">コア</div>
+        <div class="arch-title">notecore — Tauri に依存しないドメイン</div>
+        <div class="arch-desc">
+          Vault、クエリランタイム、AI エージェントループ、設定、認可、キャッシュ。どちらの殻に包まれても同じクレートで、動く場所が変わるだけで挙動は同じです。
+        </div>
+      </div>
+      <div class="arch-arrow" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>
+      </div>
+      <div class="arch-layer acrylic">
+        <div class="arch-label">Misskey クライアント</div>
         <div class="arch-title">notecli — Rust ヘッドレスクライアント</div>
         <div class="arch-desc">
-          Misskey API + WebSocket ストリーミング + SQLite（FTS5）+ localhost HTTP API。Tauri
-          なしでも単体動作する独立ライブラリ。
+          Misskey API + WebSocket ストリーミング + SQLite（FTS5）。単体でも動く独立ライブラリで、notetui や notebot も同じものを使います。
         </div>
         <div class="arch-tags">
           <span>reqwest</span><span>tokio</span><span>rusqlite</span><span>axum</span>
