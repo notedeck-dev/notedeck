@@ -84,14 +84,19 @@ pub async fn api_get_user_notes(
             options.unwrap_or_default(),
         )
         .await?;
-    if let Err(e) = db.ingest_notes(
-        &notes,
-        &TimelineKey::UserNotes {
-            user_id: user_id.clone(),
-        },
-    ) {
-        tracing::warn!("[cache] failed to cache user notes: {e}");
-    }
+    let notes = core
+        .blocking(move |db| {
+            if let Err(e) = db.ingest_notes(
+                &notes,
+                &TimelineKey::UserNotes {
+                    user_id: user_id.clone(),
+                },
+            ) {
+                tracing::warn!("[cache] failed to cache user notes: {e}");
+            }
+            Ok(notes)
+        })
+        .await?;
     Ok(notes)
 }
 

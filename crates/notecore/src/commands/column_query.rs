@@ -587,25 +587,28 @@ pub async fn qir_search_cache(
         note_id: c.note_id,
     });
 
-    let db = core.db().await;
-    let scan = db.scan_cached_notes(
-        &account_id,
-        scope.as_ref(),
-        &literals,
-        limit,
-        max_scanned,
-        after.as_ref(),
-        |note| match serde_json::to_value(note) {
-            Ok(value) => match evaluate_qir(&query, &value) {
-                QirVerdict::Match => Some(true),
-                QirVerdict::Unmatch => Some(false),
-                QirVerdict::Error => None,
-            },
-            // 手元の値を JSON に戻せない = 評価対象の形にできない。
-            // None を返せば scan 側が per-note エラーとして数える
-            Err(_) => None,
-        },
-    )?;
+    let scan = core
+        .blocking(move |db| {
+            db.scan_cached_notes(
+                &account_id,
+                scope.as_ref(),
+                &literals,
+                limit,
+                max_scanned,
+                after.as_ref(),
+                |note| match serde_json::to_value(note) {
+                    Ok(value) => match evaluate_qir(&query, &value) {
+                        QirVerdict::Match => Some(true),
+                        QirVerdict::Unmatch => Some(false),
+                        QirVerdict::Error => None,
+                    },
+                    // 手元の値を JSON に戻せない = 評価対象の形にできない。
+                    // None を返せば scan 側が per-note エラーとして数える
+                    Err(_) => None,
+                },
+            )
+        })
+        .await?;
 
     Ok(QirSearchResult {
         notes: scan.notes,
