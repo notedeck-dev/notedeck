@@ -223,6 +223,11 @@ pub(crate) fn check_ip_safe(ip: IpAddr) -> Result<(), String> {
             if v4.is_link_local() {
                 return Err("link-local IPv4 not allowed".to_string());
             }
+            // 100.64.0.0/10 (CGNAT 共有アドレス)。Tailscale などのトンネルが使う帯で、
+            // 自ホストや同じ網の機器に届きうるので private と同じ扱いにする (#1106 §9)
+            if v4.octets()[0] == 100 && (v4.octets()[1] & 0xC0) == 64 {
+                return Err("shared-address (CGNAT) IPv4 not allowed".to_string());
+            }
             // 0.0.0.0/8 (current network) はカバー済 (is_unspecified は 0.0.0.0 のみ)
             // ここで 0.x も拒否
             if v4.octets()[0] == 0 {
@@ -283,6 +288,15 @@ mod tests {
         assert!(check("http://172.16.0.1/").is_err());
         assert!(check("http://172.31.0.1/").is_err());
         assert!(check("http://192.168.1.1/").is_err());
+    }
+
+    #[test]
+    fn rejects_cgnat_shared_range() {
+        assert!(check("http://100.64.0.1/").is_err());
+        assert!(check("http://100.100.1.1/").is_err()); // Tailscale の典型
+        assert!(check("http://100.127.255.254/").is_err());
+        check("http://100.63.255.255/").unwrap();
+        check("http://100.128.0.1/").unwrap();
     }
 
     #[test]

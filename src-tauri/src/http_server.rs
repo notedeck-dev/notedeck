@@ -882,8 +882,19 @@ async fn api_index(State(state): State<MetaState>) -> Json<Value> {
     Json(json!({
         "name": "notedeck",
         "version": env!("CARGO_PKG_VERSION"),
-        "auth": "Bearer token required. Read token from the file at tokenPath.",
-        "tokenPath": state.token_path,
+        // 起動毎トークンの置き場を無認証で開示するのは、同一ユーザーの任意プロセスに全権を
+        // 渡すのと同じ (#1106 §9)。必要とするのは dev ダッシュボード (#977) と E2E だけなので
+        // debug ビルドに限る。release では永続トークン (#709) を使う
+        "auth": if cfg!(debug_assertions) {
+            "Bearer token required. Read token from the file at tokenPath."
+        } else {
+            "Bearer token required. Issue a persistent API token in the app settings."
+        },
+        "tokenPath": if cfg!(debug_assertions) {
+            Value::String(state.token_path)
+        } else {
+            Value::Null
+        },
         // tracing の日次ローテートログ (notedeck.log.YYYY-MM-DD) の置き場。
         // dev ダッシュボード (#977) のログ tail が参照する
         "logDir": state.log_dir,

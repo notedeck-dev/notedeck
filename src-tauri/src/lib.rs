@@ -58,6 +58,9 @@ pub fn run() {
     }
 }
 
+/// 日次ローテートログを何世代残すか。2 週間分。
+const LOG_FILE_GENERATIONS: usize = 14;
+
 /// Install the global `tracing` subscriber: stdout plus a daily-rotating
 /// `notedeck.log` in the OS log dir (`app_log_dir`). The `EnvFilter` keeps the
 /// previous default (`notedeck=info,notecli=info,warn`) and still honors `RUST_LOG`.
@@ -78,15 +81,24 @@ fn init_logging(app: &tauri::App) {
         .app_log_dir()
         .ok()
         .filter(|dir| std::fs::create_dir_all(dir).is_ok())
-        .map(|dir| {
-            let appender = tracing_appender::rolling::daily(&dir, "notedeck.log");
+        .and_then(|dir| {
+            // 日次ローテートに世代上限を付ける。無いと notedeck.log.YYYY-MM-DD が永久に増える
+            // (常駐運用で小さいディスクを埋める、#1106 §9)。ファイル名は従来と同じ。
+            let appender = tracing_appender::rolling::RollingFileAppender::builder()
+                .rotation(tracing_appender::rolling::Rotation::DAILY)
+                .filename_prefix("notedeck.log")
+                .max_log_files(LOG_FILE_GENERATIONS)
+                .build(&dir)
+                .ok()?;
             let (non_blocking, guard) = tracing_appender::non_blocking(appender);
             // Keep the writer thread alive for the whole process (flushes on drop),
             // mirroring how the tokio runtime handle is leaked above.
             Box::leak(Box::new(guard));
-            tracing_subscriber::fmt::layer()
-                .with_ansi(false)
-                .with_writer(non_blocking)
+            Some(
+                tracing_subscriber::fmt::layer()
+                    .with_ansi(false)
+                    .with_writer(non_blocking),
+            )
         });
 
     tracing_subscriber::registry()
