@@ -17,6 +17,8 @@ pub mod auth_service;
 pub mod crash_report;
 pub mod credentials;
 pub mod emoji_cache_store;
+pub mod frontend_bridge;
+pub mod http_server;
 pub mod image_cache;
 pub mod media_proxy;
 pub mod media_warm;

@@ -20,7 +20,7 @@ mod core;
 mod error;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
 /// [`http_server::build_openapi`].
-pub mod http_server;
+pub use core::http_server;
 #[cfg(target_os = "windows")]
 mod hwheel_hook;
 mod ipc_index;
@@ -506,11 +506,11 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             // so the image proxy can serve emoji requests immediately.
             if let Some(server) = bound_server {
                 let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<()>();
-                let serve_app_handle = app_handle.clone();
+                let bridge = std::sync::Arc::new(query_bridge::TauriBridge(app_handle.clone()));
                 tauri::async_runtime::spawn(async move {
                     http_server::serve(http_server::ServeConfig {
                         server,
-                        app_handle: serve_app_handle,
+                        bridge,
                         db,
                         client,
                         event_bus,

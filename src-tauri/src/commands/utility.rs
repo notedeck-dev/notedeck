@@ -13,7 +13,7 @@ pub fn get_cli_commands() -> Vec<notecli::cli::CliCommandInfo> {
 #[tauri::command]
 #[specta::specta]
 pub fn get_openapi_spec() -> serde_json::Value {
-    serde_json::to_value(crate::http_server::openapi_spec()).unwrap_or_default()
+    serde_json::to_value(crate::core::http_server::openapi_spec()).unwrap_or_default()
 }
 
 /// 画像プロキシ (`/proxy/image`) の起動毎トークン (#1099)。フロントは起動時に
@@ -22,7 +22,7 @@ pub fn get_openapi_spec() -> serde_json::Value {
 #[tauri::command]
 #[specta::specta]
 pub fn get_media_proxy_token(
-    token: tauri::State<'_, crate::http_server::MediaProxyToken>,
+    token: tauri::State<'_, crate::core::http_server::MediaProxyToken>,
 ) -> String {
     token.0.clone()
 }
