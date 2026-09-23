@@ -1,31 +1,17 @@
-//! AI チャットコマンド。実体は [`crate::ai_chat_service`] (#782 R5)。
+//! AI チャットの Tauri 側: イベントを WebView へ流す sink だけ (#1106)。
+//! コマンド本体は notecore のコマンド表 (commands/ai_chat.rs)。
 
-use tauri::State;
+use tauri::Emitter;
 
-use crate::ai_chat_service::{self, AiChatRequest};
+use notecore::ai_chat_service::{AiChatEvent, AiChatSink};
 
-use super::Result;
+const EVENT_NAME: &str = "nd:ai-chat-event";
 
-/// Start a streaming chat completion request. Returns immediately;
-/// the actual request runs in a background task that emits events
-/// to `nd:ai-chat-event` keyed by `stream_id`.
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn ai_chat_send(
-    app: tauri::AppHandle,
-    http: State<'_, reqwest::Client>,
-    req: AiChatRequest,
-) -> Result<()> {
-    ai_chat_service::start_stream(app, http.inner().clone(), req).await
-}
+/// ストリームのイベントを `nd:ai-chat-event` として WebView へ流す。
+pub struct TauriSink(pub tauri::AppHandle);
 
-/// Cancel an in-flight streaming chat. Idempotent — silently no-ops if the
-/// stream has already completed or never existed.
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn ai_chat_cancel(stream_id: String) -> Result<()> {
-    ai_chat_service::cancel_stream(&stream_id);
-    Ok(())
+impl AiChatSink for TauriSink {
+    fn emit(&self, event: AiChatEvent) {
+        let _ = self.0.emit(EVENT_NAME, event);
+    }
 }

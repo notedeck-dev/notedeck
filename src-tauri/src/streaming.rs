@@ -128,7 +128,7 @@ fn show_os_notification<R: tauri::Runtime>(
     {
         let _ = host;
         let cache = app
-            .try_state::<std::sync::Arc<crate::core::image_cache::ImageCache>>()
+            .try_state::<std::sync::Arc<notecore::image_cache::ImageCache>>()
             .map(|s| s.inner().clone());
         crate::os_notify::show(title, body, context, media, cache);
     }
@@ -176,13 +176,13 @@ fn show_os_notification<R: tauri::Runtime>(
             // ImageCache は setup で manage される。未登録 (起動直後) なら
             // 画像なしで通知だけ出す
             let cache = app
-                .try_state::<std::sync::Arc<crate::core::image_cache::ImageCache>>()
+                .try_state::<std::sync::Arc<notecore::image_cache::ImageCache>>()
                 .map(|s| s.inner().clone());
             let (icon_path, image_path) = match cache {
                 Some(cache) => {
                     let icon = match icon_url {
                         Some(u) => {
-                            crate::core::notify_media::ensure_local_file(
+                            notecore::notify_media::ensure_local_file(
                                 &cache,
                                 &u,
                                 Some(AVATAR_MAX_WIDTH),
@@ -195,7 +195,7 @@ fn show_os_notification<R: tauri::Runtime>(
                     // メモリ安全は Kotlin 側の inSampleSize が担保する
                     let image = match image_url {
                         Some(u) => {
-                            crate::core::notify_media::ensure_local_file(&cache, &u, None).await
+                            notecore::notify_media::ensure_local_file(&cache, &u, None).await
                         }
                         None => None,
                     };
@@ -485,7 +485,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                 .then_some(notification.reaction.as_deref())
                 .flatten()
                 .and_then(|r| {
-                    crate::core::notify_media::emoji_image_url(&notification.server_host, r)
+                    notecore::notify_media::emoji_image_url(&notification.server_host, r)
                 });
             (icon_url.is_some() || image_url.is_some()).then_some(NotifyMedia {
                 icon_url,
@@ -632,7 +632,10 @@ impl<R: tauri::Runtime> FrontendEmitter for TauriEmitter<R> {
     fn emit(&self, event: notecli::streaming::StreamEvent) {
         use notecli::streaming::StreamEvent as E;
 
-        if let Some(runtime) = self.app.try_state::<crate::query_runtime::QueryRuntime>() {
+        if let Some(runtime) = self
+            .app
+            .try_state::<std::sync::Arc<notecore::query_runtime::QueryRuntime>>()
+        {
             if runtime.ingest_stream_event(&event) {
                 // 常駐 flusher が DELTA_FLUSH_WINDOW 後に drain して emit する。
                 runtime.flush_notify().notify_one();
@@ -691,7 +694,7 @@ mod tests {
     use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime};
     use tauri::{App, Manager};
 
-    use crate::query_runtime::{QueryKey, QueryRuntime};
+    use notecore::query_runtime::{QueryKey, QueryRuntime};
 
     const RECV_TIMEOUT: Duration = Duration::from_secs(1);
 
@@ -811,7 +814,7 @@ mod tests {
     #[test]
     fn note_capture_is_suppressed_on_envelope_and_buffered_in_runtime() {
         let app = mock_app();
-        app.manage(QueryRuntime::default());
+        app.manage(std::sync::Arc::new(QueryRuntime::default()));
         let env_rx = envelope_rx(&app);
 
         let emitter = TauriEmitter::new(app.handle().clone());
@@ -841,7 +844,7 @@ mod tests {
             "capture の個別 envelope は抑止されるはず"
         );
 
-        let captures = app.state::<QueryRuntime>().drain_captures();
+        let captures = app.state::<std::sync::Arc<QueryRuntime>>().drain_captures();
         assert_eq!(captures.len(), 1);
         assert_eq!(captures[0].note_id, "n1");
     }
@@ -851,9 +854,9 @@ mod tests {
     #[test]
     fn note_event_with_attached_subscription_buffers_delta_and_emits_envelope() {
         let app = mock_app();
-        app.manage(QueryRuntime::default());
+        app.manage(std::sync::Arc::new(QueryRuntime::default()));
         let snap = {
-            let rt = app.state::<QueryRuntime>();
+            let rt = app.state::<std::sync::Arc<QueryRuntime>>();
             let snap = rt.open(home_key("acct-1")).expect("open should succeed");
             rt.attach_stream_subscription(&snap.query_id, "sub-A".into())
                 .expect("attach should succeed");
@@ -864,7 +867,7 @@ mod tests {
         let emitter = TauriEmitter::new(app.handle().clone());
         emitter.emit(note_event("sub-A", "n1"));
 
-        let deltas = app.state::<QueryRuntime>().drain_pending();
+        let deltas = app.state::<std::sync::Arc<QueryRuntime>>().drain_pending();
         assert_eq!(deltas.len(), 1);
         assert_eq!(deltas[0].query_id, snap.query_id);
         assert_eq!(deltas[0].inserts.len(), 1);
@@ -880,13 +883,16 @@ mod tests {
     #[test]
     fn note_event_without_subscription_is_not_buffered_but_still_emitted() {
         let app = mock_app();
-        app.manage(QueryRuntime::default());
+        app.manage(std::sync::Arc::new(QueryRuntime::default()));
         let env_rx = envelope_rx(&app);
 
         let emitter = TauriEmitter::new(app.handle().clone());
         emitter.emit(note_event("sub-unknown", "n1"));
 
-        assert!(app.state::<QueryRuntime>().drain_pending().is_empty());
+        assert!(app
+            .state::<std::sync::Arc<QueryRuntime>>()
+            .drain_pending()
+            .is_empty());
         let envelope = env_rx
             .recv_timeout(RECV_TIMEOUT)
             .expect("stream-envelope should arrive");

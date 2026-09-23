@@ -2,32 +2,18 @@ use notecli::error::NoteDeckError;
 
 use super::Result;
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub fn get_cli_commands() -> Vec<notecli::cli::CliCommandInfo> {
-    notecli::cli::command_metadata()
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub fn get_openapi_spec() -> serde_json::Value {
-    serde_json::to_value(crate::http_server::openapi_spec()).unwrap_or_default()
-}
-
 /// 画像プロキシ (`/proxy/image`) の起動毎トークン (#1099)。フロントは起動時に
 /// 1 回受け取り、プロキシ URL の query `t` に載せる。
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn get_media_proxy_token(
-    token: tauri::State<'_, crate::http_server::MediaProxyToken>,
+    token: tauri::State<'_, notecore::http_server::MediaProxyToken>,
 ) -> String {
     token.0.clone()
 }
 
-// nd-command: data
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn get_rustc_version() -> String {
@@ -98,18 +84,6 @@ pub fn set_status_bar_style(light_background: bool) {
     let _ = light_background;
 }
 
-/// Validate that a file has a valid SQLite header.
-fn validate_sqlite_file(path: &std::path::Path) -> Result<()> {
-    let header = std::fs::read(path)
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to read file: {e}")))?;
-    if header.len() < 16 || &header[..16] != b"SQLite format 3\0" {
-        return Err(NoteDeckError::InvalidInput(
-            "Not a valid SQLite database file".to_string(),
-        ));
-    }
-    Ok(())
-}
-
 /// Export notecli.db to a user-chosen location via save dialog.
 ///
 /// DB は WAL モードのため単純なファイルコピーでは未反映のトランザクションが
@@ -120,7 +94,7 @@ fn validate_sqlite_file(path: &std::path::Path) -> Result<()> {
 /// OS キーチェーンにあり DB に入らないため、別マシンに復元すればどのみち
 /// 再ログインが必要になる。キーチェーンが永続しない環境では DB に平文で
 /// 残るので、そこだけ持ち出されるのを防ぐ。
-// nd-command: mixed
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn export_db(
@@ -145,10 +119,7 @@ pub async fn export_db(
         .ok_or_else(|| NoteDeckError::InvalidInput("Invalid destination path".to_string()))?
         .to_path_buf();
 
-    let db = app_state.db().await;
-    tokio::task::spawn_blocking(move || db.backup_to(&dest_path, true))
-        .await
-        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))??;
+    notecore::commands::admin::snapshot_db_to(&app_state, &dest_path).await?;
     Ok(true)
 }
 
@@ -158,15 +129,14 @@ pub async fn export_db(
 ///
 /// 注意: V6 (note_timelines) 適用済みの DB は旧バージョンのアプリへ持ち込めない
 /// (refinery の missing migration で open 不能。DB 自体は無傷)。
-// nd-command: mixed
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
-pub async fn import_db(app: tauri::AppHandle) -> Result<bool> {
+pub async fn import_db(
+    app: tauri::AppHandle,
+    app_state: tauri::State<'_, super::AppState>,
+) -> Result<bool> {
     use tauri_plugin_dialog::DialogExt;
-
-    let app_dir = crate::app_dir::resolve_app_dir(&app)
-        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-    let db_path = app_dir.join("notecli.db");
 
     let src = app
         .dialog()
@@ -182,23 +152,19 @@ pub async fn import_db(app: tauri::AppHandle) -> Result<bool> {
         .as_path()
         .ok_or_else(|| NoteDeckError::InvalidInput("Invalid source path".to_string()))?;
 
-    validate_sqlite_file(src_path)?;
-
-    std::fs::copy(src_path, &db_path)
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to import database: {e}")))?;
-
-    // Remove WAL/SHM files so the new DB starts clean after relaunch
-    let _ = std::fs::remove_file(app_dir.join("notecli.db-wal"));
-    let _ = std::fs::remove_file(app_dir.join("notecli.db-shm"));
-
+    notecore::commands::admin::replace_database_file(app_state.app_dir()?, src_path)?;
     Ok(true)
 }
 
 /// Download an image from URL and save to a user-chosen location via save dialog.
-// nd-command: mixed
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
-pub async fn save_image_to_file(app: tauri::AppHandle, url: String) -> Result<bool> {
+pub async fn save_image_to_file(
+    app: tauri::AppHandle,
+    app_state: tauri::State<'_, super::AppState>,
+    url: String,
+) -> Result<bool> {
     use tauri_plugin_dialog::DialogExt;
 
     // Derive filename from URL
@@ -238,105 +204,12 @@ pub async fn save_image_to_file(app: tauri::AppHandle, url: String) -> Result<bo
         .as_path()
         .ok_or_else(|| NoteDeckError::InvalidInput("Invalid destination path".to_string()))?;
 
-    // Download image
-    let response = reqwest::get(&url)
-        .await
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to download image: {e}")))?;
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to read image data: {e}")))?;
+    let bytes = notecore::commands::enrichment::fetch_image_bytes(&app_state, url).await?;
 
     std::fs::write(dest_path, &bytes)
         .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to save image: {e}")))?;
 
     Ok(true)
-}
-
-// --- EXIF viewer (#797) ---
-
-/// EXIF 1 フィールド。tag はタグ名 (例: "DateTimeOriginal", "GPSLatitude")。
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ExifField {
-    /// IFD 名 ("primary" / "thumbnail")
-    pub ifd: String,
-    pub tag: String,
-    pub value: String,
-}
-
-/// MakerNote 等の巨大なバイナリ値を UI 向けに切り詰める上限
-const EXIF_VALUE_MAX_CHARS: usize = 200;
-/// EXIF 読み取りのためにダウンロードする画像サイズの上限
-const EXIF_FETCH_MAX_BYTES: usize = 64 * 1024 * 1024;
-
-fn parse_exif_fields(buf: &[u8]) -> Result<Vec<ExifField>> {
-    let exif = match exif::Reader::new().read_from_container(&mut std::io::Cursor::new(buf)) {
-        Ok(exif) => exif,
-        // EXIF セグメント自体が無い = メタデータなし（正常系）
-        Err(exif::Error::NotFound(_)) => return Ok(Vec::new()),
-        Err(e) => {
-            return Err(NoteDeckError::InvalidInput(format!(
-                "Failed to parse image: {e}"
-            )))
-        }
-    };
-    Ok(exif
-        .fields()
-        .map(|f| {
-            let mut value = f.display_value().with_unit(&exif).to_string();
-            if value.chars().count() > EXIF_VALUE_MAX_CHARS {
-                value = value.chars().take(EXIF_VALUE_MAX_CHARS).collect::<String>() + "…";
-            }
-            ExifField {
-                ifd: if f.ifd_num == exif::In::PRIMARY {
-                    "primary".to_string()
-                } else {
-                    "thumbnail".to_string()
-                },
-                tag: f.tag.to_string(),
-                value,
-            }
-        })
-        .collect())
-}
-
-/// 画像 URL から EXIF フィールド一覧を読み取る。EXIF が無い場合は空リスト。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn read_image_exif(url: String) -> Result<Vec<ExifField>> {
-    if !url.starts_with("https://") {
-        return Err(NoteDeckError::InvalidInput(
-            "Only https URLs are allowed".to_string(),
-        ));
-    }
-
-    let mut response = reqwest::get(&url)
-        .await
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to download image: {e}")))?;
-    if let Some(len) = response.content_length() {
-        if len as usize > EXIF_FETCH_MAX_BYTES {
-            return Err(NoteDeckError::InvalidInput(
-                "Image is too large to inspect".to_string(),
-            ));
-        }
-    }
-    let mut buf: Vec<u8> = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to read image data: {e}")))?
-    {
-        if buf.len() + chunk.len() > EXIF_FETCH_MAX_BYTES {
-            return Err(NoteDeckError::InvalidInput(
-                "Image is too large to inspect".to_string(),
-            ));
-        }
-        buf.extend_from_slice(&chunk);
-    }
-
-    parse_exif_fields(&buf)
 }
 
 /// 未読合計を OS へ反映する (#748):
@@ -426,127 +299,4 @@ fn overlay_dot_icon() -> tauri::image::Image<'static> {
         }
     }
     tauri::image::Image::new_owned(rgba, SIZE as u32, SIZE as u32)
-}
-
-/// 画像ディスクキャッシュの使用量 (#815)。設定のキャッシュ画面で表示する
-#[derive(Debug, serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ImageCacheStats {
-    pub bytes: u64,
-    pub files: usize,
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn image_cache_stats(
-    cache: tauri::State<'_, std::sync::Arc<crate::core::image_cache::ImageCache>>,
-) -> Result<ImageCacheStats> {
-    let (bytes, files) = cache.disk_stats().await;
-    Ok(ImageCacheStats { bytes, files })
-}
-
-/// メディアの先行取得 (絵文字辞書の到着時など)。キューに積むだけで即返る。
-/// 受理した件数を返す (重複・https 以外は数えない)
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn warm_media(
-    warmer: tauri::State<'_, std::sync::Arc<crate::core::media_warm::MediaWarmer>>,
-    urls: Vec<String>,
-    h: Option<u32>,
-) -> Result<u32> {
-    let reqs = urls
-        .into_iter()
-        .map(|url| crate::core::media_proxy::MediaRequest {
-            url,
-            w: None,
-            h,
-            format: None,
-            static_frame: false,
-        })
-        .collect();
-    Ok(warmer.enqueue(reqs).await as u32)
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn clear_image_cache(
-    cache: tauri::State<'_, std::sync::Arc<crate::core::image_cache::ImageCache>>,
-) -> Result<()> {
-    cache
-        .clear_disk()
-        .await
-        .map_err(NoteDeckError::InvalidInput)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn validate_sqlite_valid() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("test.db");
-        // Write valid SQLite header + padding
-        let mut data = b"SQLite format 3\0".to_vec();
-        data.resize(100, 0);
-        std::fs::write(&path, &data).unwrap();
-        assert!(validate_sqlite_file(&path).is_ok());
-    }
-
-    #[test]
-    fn validate_sqlite_invalid_header() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("not-a-db.txt");
-        std::fs::write(&path, "this is not a database").unwrap();
-        assert!(validate_sqlite_file(&path).is_err());
-    }
-
-    #[test]
-    fn validate_sqlite_too_small() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("tiny.db");
-        std::fs::write(&path, "small").unwrap();
-        assert!(validate_sqlite_file(&path).is_err());
-    }
-
-    #[test]
-    fn validate_sqlite_empty() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("empty.db");
-        std::fs::write(&path, "").unwrap();
-        assert!(validate_sqlite_file(&path).is_err());
-    }
-
-    #[test]
-    fn parse_exif_fields_reads_tiff_tags() {
-        // 最小の TIFF (little endian): Make = "abc" の 1 エントリ IFD
-        let buf: Vec<u8> = vec![
-            0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, // II*\0, IFD offset 8
-            0x01, 0x00, // entry count = 1
-            0x0F, 0x01, 0x02, 0x00, 0x04, 0x00, 0x00, 0x00, // Make, ASCII, count 4
-            0x61, 0x62, 0x63, 0x00, // "abc\0" (inline)
-            0x00, 0x00, 0x00, 0x00, // next IFD = 0
-        ];
-        let fields = parse_exif_fields(&buf).unwrap();
-        assert_eq!(fields.len(), 1);
-        assert_eq!(fields[0].tag, "Make");
-        assert_eq!(fields[0].ifd, "primary");
-        assert!(fields[0].value.contains("abc"));
-    }
-
-    #[test]
-    fn parse_exif_fields_returns_empty_for_jpeg_without_exif() {
-        // SOI + EOI のみの JPEG (EXIF セグメントなし)
-        let buf: Vec<u8> = vec![0xFF, 0xD8, 0xFF, 0xD9];
-        let fields = parse_exif_fields(&buf).unwrap();
-        assert!(fields.is_empty());
-    }
-
-    #[test]
-    fn parse_exif_fields_rejects_non_image_bytes() {
-        assert!(parse_exif_fields(b"this is not an image at all").is_err());
-    }
 }

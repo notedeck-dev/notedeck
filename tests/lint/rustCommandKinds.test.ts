@@ -17,7 +17,7 @@
 //   authz  認可境界を動かす操作。権限ファイル / 信頼設定 / 公開 API トークン /
 //          Vault の secret / デバイス表に触れる。リモート構成では橋がネイティブ
 //          ダイアログで確認してから通す
-//   mixed  data と local が 1 関数に同居している。段階 0b で分割する対象
+//   mixed  data と local が 1 関数に同居している。新しく作らない (既存 8 件は 2026-09-23 に分割済み)
 //
 // 「認可境界」は忘れると危ないので denylist で二重に検査する: 本体が権限ファイル /
 // トークン store / Vault の secret 操作に触れているのに authz でなければ落とす。
@@ -61,8 +61,12 @@ const AUTHZ_DENYLIST: { pattern: RegExp; why: string }[] = [
   },
 ]
 
-/** `#[tauri::command]` を文字列として扱うだけの生成ツール。コマンドは持たない */
-const EXCLUDED_FILES = new Set(['src-tauri/src/ipc_index.rs'])
+/** `#[tauri::command]` を文字列やマクロ内に持つだけで、実体のコマンドは持たないファイル */
+const EXCLUDED_FILES = new Set([
+  'src-tauri/src/ipc_index.rs',
+  // コマンド表からラッパーを生成するマクロ。実体は表 (commandsInTable) で数える
+  'src-tauri/src/commands/table.rs',
+])
 
 interface Command {
   file: string
@@ -118,13 +122,56 @@ function commandsIn(path: string): Command[] {
   })
 }
 
-const commands = rustFiles(RUST_SRC)
-  .filter((p) => !EXCLUDED_FILES.has(relative(ROOT, p)))
-  .flatMap(commandsIn)
+/**
+ * notecore のコマンド表 (#1106)。表の行は種別を先頭に持つので、マーカーの代わりに
+ * その種別を採る。本体は notecore にあり Tauri ラッパーは生成されるので、
+ * denylist 検査の対象 (本体) はここには無い。
+ */
+const TABLE = resolve(ROOT, 'crates/notecore/src/commands/table.rs')
+const TABLE_ROW =
+  /^\s*(data|local|authz|mixed)\b(?:\s*\([^)]*\))?\s+([A-Za-z0-9_]+)\s*\(/
+
+function commandsInTable(): Command[] {
+  const lines = readFileSync(TABLE, 'utf-8').split('\n')
+  const file = relative(ROOT, TABLE)
+  const out: Command[] = []
+  lines.forEach((line, i) => {
+    const m = line.match(TABLE_ROW)
+    if (!m) return
+    out.push({
+      file,
+      name: m[2],
+      line: i + 1,
+      kind: m[1] as Kind,
+      rawKind: m[1],
+      body: '',
+    })
+  })
+  return out
+}
+
+const commands = [
+  ...rustFiles(RUST_SRC)
+    .filter((p) => !EXCLUDED_FILES.has(relative(ROOT, p)))
+    .flatMap(commandsIn),
+  ...commandsInTable(),
+]
 
 describe('Rust IPC コマンドの種別宣言 (#1106 段階 0a)', () => {
   it('コマンドが 1 つ以上見つかる (検査対象を見失っていない)', () => {
     expect(commands.length).toBeGreaterThan(200)
+    expect(commandsInTable().length).toBeGreaterThan(0)
+  })
+
+  it('コマンド名はマーカー付きと表で重複しない', () => {
+    const seen = new Map<string, string>()
+    const dupes: string[] = []
+    for (const c of commands) {
+      const prev = seen.get(c.name)
+      if (prev) dupes.push(`${c.name}: ${prev} と ${c.file}`)
+      seen.set(c.name, c.file)
+    }
+    expect(dupes).toEqual([])
   })
 
   it('全コマンドが #[tauri::command] の直前に `// nd-command: <kind>` を持つ', () => {

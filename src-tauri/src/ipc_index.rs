@@ -50,6 +50,47 @@ pub fn collect_command_locations(src_root: &Path) -> HashMap<String, String> {
     map
 }
 
+/// notecore のコマンド表 (#1106) の行から、コマンド名 → 本体のファイルを拾う。
+/// 表の行は `data name(...) -> T = $crate::commands::timeline::name;` の形で、
+/// 本体のモジュールパスがそのままファイルパスになる。
+pub fn collect_table_locations(table_path: &Path, map: &mut HashMap<String, String>) {
+    let Ok(text) = std::fs::read_to_string(table_path) else {
+        return;
+    };
+    for line in text.lines() {
+        let t = line.trim_start();
+        let Some(rest) = t
+            .strip_prefix("data ")
+            .or_else(|| t.strip_prefix("authz "))
+            .or_else(|| t.strip_prefix("local "))
+            .or_else(|| t.strip_prefix("mixed "))
+        else {
+            continue;
+        };
+        // 属性 `(window = main)` があれば飛ばす
+        let rest = match rest.trim_start().strip_prefix('(') {
+            Some(after) => after.split_once(')').map(|(_, r)| r).unwrap_or(""),
+            None => rest,
+        }
+        .trim_start();
+        let Some(name_end) = rest.find('(') else {
+            continue;
+        };
+        let name = rest[..name_end].trim();
+        let Some((_, body_path)) = rest.split_once("= $crate::") else {
+            continue;
+        };
+        let body_path = body_path.trim_end_matches(';').trim();
+        // `commands::timeline::api_get_note` → crates/notecore/src/commands/timeline.rs
+        let segments: Vec<&str> = body_path.split("::").collect();
+        if segments.len() < 2 {
+            continue;
+        }
+        let module = segments[..segments.len() - 1].join("/");
+        map.insert(name.to_string(), format!("crates/notecore/src/{module}.rs"));
+    }
+}
+
 fn scan_source(text: &str, rel_path: &str, map: &mut HashMap<String, String>) {
     let mut after_command_attr = false;
     for line in text.lines() {
@@ -219,6 +260,33 @@ async setStatusBarStyle(light: boolean) : Promise<void> {
             .contains(" * 既存の説明。\n *\n * @see src-tauri/src/commands/utility.rs\n */"));
         // JSDoc を二重に作らない
         assert_eq!(annotated.matches("/**").count(), 1);
+    }
+
+    #[test]
+    fn table_locations_point_at_the_body_module() {
+        let dir = tempfile::tempdir().unwrap();
+        let table = dir.path().join("table.rs");
+        std::fs::write(
+            &table,
+            r#"
+        $cb! {
+            // --- timeline ---
+        data api_get_note(account_id: String, note_id: String) -> notecli::models::NormalizedNote = $crate::commands::timeline::api_get_note;
+        data (window = main) vault_fetch(id: String) -> () = $crate::commands::vault::fetch;
+        }
+"#,
+        )
+        .unwrap();
+        let mut map = HashMap::new();
+        collect_table_locations(&table, &mut map);
+        assert_eq!(
+            map.get("api_get_note").map(String::as_str),
+            Some("crates/notecore/src/commands/timeline.rs")
+        );
+        assert_eq!(
+            map.get("vault_fetch").map(String::as_str),
+            Some("crates/notecore/src/commands/vault.rs")
+        );
     }
 
     #[test]

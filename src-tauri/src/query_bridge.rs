@@ -1,8 +1,10 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, Listener};
+use tauri::{AppHandle, Emitter, Listener, Manager};
+
+use notecore::frontend_bridge::{BridgeFuture, FrontendBridge};
 
 /// Bridges HTTP API requests to the frontend (Pinia stores) via Tauri events.
 ///
@@ -10,16 +12,8 @@ use tauri::{AppHandle, Emitter, Listener};
 ///   HTTP handler → query_frontend() → emit "nd:query-request"
 ///   → Frontend handles & emits "nd:query-response-{id}"
 ///   → query_frontend() receives via oneshot channel → HTTP response
-pub async fn query_frontend(
-    app: &AppHandle,
-    query_type: &str,
-    params: Value,
-) -> Result<Value, String> {
-    query_frontend_with_timeout(app, query_type, params, Duration::from_secs(5)).await
-}
-
-/// [`query_frontend`] のタイムアウト指定版。capability 実行のように
-/// ユーザー確認ダイアログ待ちを挟みうる query で使う。
+///
+/// タイムアウトは呼び出し側が決める (既定 5 秒は `core::frontend_bridge::query`)。
 pub async fn query_frontend_with_timeout(
     app: &AppHandle,
     query_type: &str,
@@ -52,4 +46,33 @@ pub async fn query_frontend_with_timeout(
         .await
         .map_err(|_| "Query timed out".to_string())?
         .map_err(|_| "Channel closed".to_string())
+}
+
+/// [`FrontendBridge`] の Tauri 実装。HTTP サーバー (core) はこれを通して WebView と
+/// managed state に届く (#1106)。
+pub struct TauriBridge(pub AppHandle);
+
+impl FrontendBridge for TauriBridge {
+    fn query<'a>(
+        &'a self,
+        query_type: &'a str,
+        params: Value,
+        timeout: Duration,
+    ) -> BridgeFuture<'a> {
+        Box::pin(query_frontend_with_timeout(
+            &self.0, query_type, params, timeout,
+        ))
+    }
+
+    fn health_report(&self) -> BridgeFuture<'_> {
+        Box::pin(async move {
+            let app = &self.0;
+            let app_state = app.state::<crate::commands::AppState>();
+            let scheduler = app.state::<Arc<crate::commands::HeartbeatScheduler>>();
+            let report = crate::commands::build_health_report(app, &app_state, &scheduler)
+                .await
+                .map_err(|e| e.to_string())?;
+            serde_json::to_value(&report).map_err(|e| e.to_string())
+        })
+    }
 }

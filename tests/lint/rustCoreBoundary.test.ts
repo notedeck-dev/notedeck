@@ -1,26 +1,21 @@
-// 「notecore 配下は Tauri に依存しない」を機械検査に落とす (#1106 段階 0a)。
+// 「notecore は Tauri に依存しない」を機械検査に落とす (#1106 段階 0a / 0b)。
 //
-// src-tauri/src/core/ は将来の notecore クレート (デバイスが 1 台も繋がっていなくても
-// 意味を持つ処理: Misskey 通信 / DB / キャッシュ / 設定ファイル store / 認可解決 /
-// 公開 API トークン / OGP 等) の置き場。段階 0a ではクレートを切らず、この検査で
-// 境界だけ先に作る。段階 0b で core/ をそのまま crates/notecore に移す。
+// crates/notecore は「デバイスが 1 台も繋がっていなくても意味を持つ処理」の置き場で、
+// アプリ (src-tauri) に埋め込む構成と notecored で常駐させる構成の両方で使う。
+// Cargo の依存方向 (notecore は notedeck を知らない) はコンパイラが守るが、
+// 「tauri 系クレートを notecore の依存に足す」「`#[tauri::command]` を置く」は
+// コンパイルが通ってしまうので、ここで落とす。
 //
-// 守ること:
-//   - core/ の中で `tauri` を参照しない (型も、async_runtime も、`#[tauri::command]` も)
-//   - core/ から `crate::` で参照してよいのは core 自身と `crate::error` だけ
-//     (手元側のモジュールや commands/ に依存すると、クレートに切った瞬間に壊れる)
-//
-// 逆向き (手元側が core を使う) は自由。
+// 手元側 (WebView / OS 統合) が要る処理は trait (`FrontendBridge` / `AiChatSink` 等)
+// で受け取る。
 
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const ROOT = resolve(import.meta.dirname, '../..')
-const CORE = resolve(ROOT, 'src-tauri/src/core')
-
-/** core/ から参照してよい `crate::` 直下のモジュール */
-const ALLOWED_CRATE_ROOTS = new Set(['core', 'error'])
+const CRATE = resolve(ROOT, 'crates/notecore')
+const SRC = resolve(CRATE, 'src')
 
 function rustFiles(dir: string): string[] {
   const out: string[] = []
@@ -32,14 +27,22 @@ function rustFiles(dir: string): string[] {
   return out.sort()
 }
 
-const files = rustFiles(CORE)
+const files = rustFiles(SRC)
 
-describe('notecore 配下 (src-tauri/src/core) の境界 (#1106 段階 0a)', () => {
-  it('core/ にファイルがある (検査対象を見失っていない)', () => {
-    expect(files.length).toBeGreaterThan(0)
+describe('notecore (crates/notecore) の境界 (#1106)', () => {
+  it('ソースがある (検査対象を見失っていない)', () => {
+    expect(files.length).toBeGreaterThan(10)
   })
 
-  it('tauri を参照しない', () => {
+  it('Cargo.toml に tauri 系の依存がない', () => {
+    const manifest = readFileSync(resolve(CRATE, 'Cargo.toml'), 'utf-8')
+    const offenders = manifest
+      .split('\n')
+      .filter((l) => /^\s*tauri/.test(l) || /^\s*notedeck\b/.test(l))
+    expect(offenders).toEqual([])
+  })
+
+  it('ソースで tauri を参照しない', () => {
     const violations: string[] = []
     for (const path of files) {
       const lines = readFileSync(path, 'utf-8').split('\n')
@@ -50,21 +53,6 @@ describe('notecore 配下 (src-tauri/src/core) の境界 (#1106 段階 0a)', () 
         const code = line.replace(/"[^"]*"/g, '""')
         if (/\btauri(_specta|_plugin_[a-z_]+)?\b/.test(code)) {
           violations.push(`${relative(ROOT, path)}:${i + 1}: ${line.trim()}`)
-        }
-      })
-    }
-    expect(violations).toEqual([])
-  })
-
-  it('crate:: で参照するのは core 自身と error だけ', () => {
-    const violations: string[] = []
-    for (const path of files) {
-      const lines = readFileSync(path, 'utf-8').split('\n')
-      lines.forEach((line, i) => {
-        for (const m of line.matchAll(/\bcrate::([A-Za-z0-9_]+)/g)) {
-          if (!ALLOWED_CRATE_ROOTS.has(m[1])) {
-            violations.push(`${relative(ROOT, path)}:${i + 1}: crate::${m[1]}`)
-          }
         }
       })
     }

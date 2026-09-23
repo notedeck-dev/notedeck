@@ -27,10 +27,11 @@ pub struct HealthReport {
     pub log_dir: Option<String>,
     /// 記録されている直近の Rust panic。adb を繋げない Android でも
     /// ここから内容を読めるようにするのが主目的。無ければ null。
-    pub last_panic: Option<crate::core::crash_report::PanicReport>,
+    pub last_panic: Option<notecore::crash_report::PanicReport>,
 }
 
-// nd-command: data
+// 手元のランタイム状態 (ログ場所 / HEARTBEAT scheduler) を含むので local。HTTP API は FrontendBridge 経由で受ける
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn run_healthcheck(
@@ -60,7 +61,7 @@ pub async fn build_health_report(
     let log_dir_path = app.path().app_log_dir().ok();
     let last_panic = log_dir_path
         .as_deref()
-        .and_then(crate::core::crash_report::read_last_panic);
+        .and_then(notecore::crash_report::read_last_panic);
     let log_dir = log_dir_path.map(|p| p.to_string_lossy().into_owned());
 
     Ok(HealthReport {
@@ -84,7 +85,7 @@ fn strip_guest_credential_checks(
 ) {
     let guest_labels: Vec<String> = accounts
         .iter()
-        .filter(|a| crate::account_service::is_guest(a))
+        .filter(|a| notecore::account_service::is_guest(a))
         .map(|a| format!("@{}@{}", a.username, a.host))
         .collect();
     if guest_labels.is_empty() {
@@ -141,7 +142,7 @@ mod tests {
         };
         strip_guest_credential_checks(
             &mut report,
-            &[account(crate::account_service::GUEST_USER_ID, "guest_1")],
+            &[account(notecore::account_service::GUEST_USER_ID, "guest_1")],
         );
         assert!(report.checks.is_empty());
         assert!(report.ok);
@@ -156,7 +157,7 @@ mod tests {
         strip_guest_credential_checks(
             &mut report,
             &[
-                account(crate::account_service::GUEST_USER_ID, "guest_1"),
+                account(notecore::account_service::GUEST_USER_ID, "guest_1"),
                 account("u1", "alice"),
             ],
         );

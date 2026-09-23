@@ -185,7 +185,7 @@ notecli は NoteDeck の Rust バックエンドから Tauri 非依存のコー�
 Tauri 非依存のドメインを notecore に集め、アプリに埋め込む構成と、自分のサーバーで常駐させる notecored の両方で使う。ローカル構成は残り、リモート構成は追加の構成。リポジトリは notedeck 1 つで、notecli / notecore / notecored / アプリの 4 クレート。順序は #1106 本文の「なぜ」のとおり。
 
 - [x] **notecli の取り込み** — notecli を notedeck の workspace に履歴ごと取り込み、git 依存をパス依存に替えた。CLI バイナリはリリースの成果物として残す
-- [x] **境界と検査** — `src-tauri/src/core/` (Tauri 非依存) と全コマンドの種別マーカー `// nd-command:` を lint で固定した
+- [x] **境界と検査** — `crates/notecore/src/` (Tauri 非依存) と全コマンドの種別マーカー `// nd-command:` を lint で固定した
 - [ ] **コマンドの書き換えとクライアント層** — notecore クレートを作り、データ系コマンドをその関数に書き直し、コマンド表 (型付き + JSON アダプタ) と in-process の transport を通す
 - [x] **単独で価値のある修正** — ループの既知の欠陥、ファイル secret backend への自動劣化、notecli ルートの CORS、ログ世代上限、migration 検査
 - [ ] **AI エージェントループを Rust の notecore へ** — [#1133](https://github.com/notedeck-dev/notedeck/issues/1133)

@@ -269,8 +269,10 @@ notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 
 **今すぐ守ること (段階 0a、機械検査あり)**:
 
-- notecore 側のモジュールは `src-tauri/src/core/` に置く。core/ の中では `tauri` を参照せず、`crate::` で参照してよいのは `crate::core` 自身と `crate::error` だけ (`tests/lint/rustCoreBoundary.test.ts`)。Tauri の型 (AppHandle / Window / State) を引数に取るモジュールは結合点を外してから core/ に移す。段階 0b で core/ をそのまま `crates/notecore` に切り出す
-- 全ての `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。リモート構成では橋がネイティブ確認してから通す) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
+- notecore 側のモジュールは `crates/notecore` に置く (2026-09-23 にクレート化済み)。notecore は `tauri` を参照せず、Cargo.toml に tauri 系を足さない (`tests/lint/rustCoreBoundary.test.ts`)。手元側 (WebView / managed state / OS 統合) が要る処理は trait (`FrontendBridge` / `AiChatSink`) で受け取り、Tauri 側 (`src-tauri/`) が実装を渡す。app dir のような値は `&Path` で受ける
+- **データ系コマンドは notecore のコマンド表に載せる** (`crates/notecore/src/commands/table.rs`、#1106 §4.1。2026-09-23 に既存のデータ系は全件移行済み。跨り (mixed) も「データ側は notecore の関数 (`export_service` / `backup_service` / `commands::admin` 等)、手元側は dialog や保存先の解決だけの薄い包み」に分けたので、`src-tauri/src/commands/` に `#[tauri::command]` で残るのは local と authz だけ)。本体は `&Core` と引数を取る関数として `crates/notecore/src/commands/<module>.rs` に書き、表に 1 行足す。表から Tauri ラッパー (`src-tauri/src/commands/table.rs`)、JSON アダプタ (`dispatch`)、フィクスチャが生成され、属性検査 (許可ウィンドウ) は型付き経路でも JSON 経路でも本体の前に通る。全コマンドを JSON 経路で往復させるテストが notecore にあり、引数の型は `Default` を要求する。手元側 (OS 統合) と認可境界のコマンドは従来どおり `#[tauri::command]` で書く
+- **行数の多い DB の読み書き (取り込み / キャッシュ検索 / 一括削除) は `Core::blocking` を通す** (notecli の Database は同期の rusqlite なので、async の本体から直接呼ぶと tokio の worker を塞ぐ)。1 行のキー引きや統計は直接呼んでよい。プール化や async API を notecli 側に持たせる判断 (#1098) はこの境界の裏で差し替える
+- 表に載らない `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。リモート構成では橋がネイティブ確認してから通す) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
 
 ```
 src/                        # Vue 3 frontend
@@ -296,33 +298,42 @@ src/                        # Vue 3 frontend
 ├── utils/                  # Shared utilities
 └── views/                  # Page components (NoteDetail, UserProfile)
 
-src-tauri/src/              # Rust backend (Tauri 固有部分)
+crates/notecore/src/        # notecore (Tauri 非依存のドメイン層、#1106)。アプリと notecored の両方で使う
+├── lib.rs                  # モジュール一覧と境界の説明
+├── error.rs                # Result alias (エラー型は notecli の NoteDeckError)
+├── context.rs              # Core: 実行文脈 (DB / Misskey クライアント / OGP、二段階初期化)。旧 AppState
+├── commands/               # コマンド表 (table.rs) とデータ系コマンドの本体 (timeline.rs, ...)
+├── permissions_gate.rs # external principal gate (#712) — 永続トークンの per-route 権限判定
+├── permissions_profile.rs # permissions.json5 → 実効権限の解決 (#1099) — JS と golden vector で一致検査
+├── image_cache.rs      # 3-tier image cache (memory → disk → network)。host 単位の 429 throttle 窓と half-open circuit breaker で一時失敗を <img> のエラーにしない
+├── emoji_cache_store.rs # サーバー絵文字辞書のディスクキャッシュ (host 単位、鮮度内なら起動時の全件取得を省く)
+├── media_warm.rs       # メディア先行取得キュー (辞書到着時に絵文字 variant を低優先で温める)
+├── ogp/                # OGP metadata extraction & cache
+├── ssrf.rs             # SSRF 防御 (URL / IP の一次検証 + DNS pinning)。汎用 fetch / 画像 / Vault / エクスポートが共用
+├── settings_store.rs   # 設定ファイル store (allowlist が正本、export / import)
+├── credentials.rs      # アカウント資格情報の解決 (メモリキャッシュ → keychain → DB)
+├── ai_chat_service.rs  # AI SSE クライアント。イベントは AiChatSink trait 経由 (Tauri 側が emit 実装を渡す)
+├── shutdown.rs         # 終了時のタスク所有。tokio Handle を受け取る
+├── query_runtime.rs    # クエリランタイム本体 (購読台帳 / 差分バッファ / 読み取りモデル)。コマンドと flusher は commands/query.rs
+├── vault/              # Secret Vault (#564)。app dir を &Path で受け、Tauri を知らない
+├── http_server.rs      # Axum HTTP API server (localhost:19820)。手元側への問い合わせは FrontendBridge 経由
+├── frontend_bridge.rs  # HTTP API → 手元側 (WebView / managed state) の問い合わせ口 trait
+├── perf_config.rs      # パフォーマンス設定 (Rust 側)
+
+crates/notecli/             # Misskey クライアントライブラリ + CLI (Misskey 通信 / DB / ストリーミング)
+
+src-tauri/src/              # Rust backend (Tauri 固有部分 = 手元側)
 ├── lib.rs                  # App setup (tray, plugins, state)
-├── commands/               # Tauri IPC command handlers (notecli 呼び出し)
-│   ├── mod.rs              # 共通ユーティリティ (validate_host, get_credentials 等)
-│   ├── timeline.rs         # タイムライン系コマンド
-│   ├── content.rs          # ノート操作系コマンド
-│   ├── user.rs             # ユーザー系コマンド
-│   ├── messaging.rs        # チャット・DM 系コマンド
-│   ├── streaming.rs        # ストリーミング系コマンド
-│   ├── settings.rs         # 設定系コマンド
-│   ├── admin.rs            # 管理系コマンド
-│   ├── auth.rs             # 認証系コマンド
-│   ├── enrichment.rs       # OGP・エンリッチメント系コマンド
-│   └── utility.rs          # ユーティリティ系コマンド
-├── core/                   # notecore 側 (Tauri 非依存、#1106 段階 0a)。段階 0b で crates/notecore に切り出す
-│   ├── permissions_gate.rs # external principal gate (#712) — 永続トークンの per-route 権限判定
-│   ├── permissions_profile.rs # permissions.json5 → 実効権限の解決 (#1099) — JS と golden vector で一致検査
-│   ├── image_cache.rs      # 3-tier image cache (memory → disk → network)。host 単位の 429 throttle 窓と half-open circuit breaker で一時失敗を <img> のエラーにしない
-│   ├── emoji_cache_store.rs # サーバー絵文字辞書のディスクキャッシュ (host 単位、鮮度内なら起動時の全件取得を省く)
-│   ├── media_warm.rs       # メディア先行取得キュー (辞書到着時に絵文字 variant を低優先で温める)
-│   ├── ogp/                # OGP metadata extraction & cache
-│   ├── ssrf.rs             # SSRF 防御 (URL / IP の一次検証 + DNS pinning)。汎用 fetch / 画像 / Vault / エクスポートが共用
-│   ├── settings_store.rs   # 設定ファイル store (allowlist が正本、export / import)
-│   └── perf_config.rs      # パフォーマンス設定 (Rust 側)
-├── http_server.rs          # Axum HTTP API server (localhost:19820)
+├── commands/               # Tauri IPC command handlers: データ系は表から生成、残りは手元側 (local / authz / mixed)
+│   ├── mod.rs              # 再公開と Tauri 側の sink (OGP ヒント等)
+│   ├── table.rs            # notecore のコマンド表から Tauri ラッパーを生成 (#1106)。データ系コマンドはすべてここ経由
+│   ├── admin.rs / auth.rs / api_tokens.rs / vault.rs  # 認可境界 (資格情報 / トークン / secret / 信頼設定)
+│   ├── settings.rs / backup.rs / export.rs / utility.rs  # dialog / OS 統合 / 端末のファイル (local / mixed)
+│   ├── heartbeat.rs / health.rs / system_state.rs  # 手元のランタイム (HEARTBEAT scheduler / 診断 / OS 状態)
+│   ├── query.rs            # クエリランタイムの delta flusher と Tauri イベント
+│   └── ai_chat.rs          # AI チャットのイベント sink
 ├── streaming.rs            # TauriEmitter adapter (FrontendEmitter trait impl)
-├── query_bridge.rs         # HTTP API ↔ frontend (Pinia) bridge
+├── query_bridge.rs         # FrontendBridge の Tauri 実装 (Tauri イベントで Pinia store に問い合わせる)
 └── main.rs                 # Entry point
 ```
 

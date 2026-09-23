@@ -3289,7 +3289,7 @@ checksum = "0676bb32a98c1a483ce53e500a81ad9c3d5b3f7c920c28c24e9cb0980d0b5bc8"
 
 [[package]]
 name = "notecli"
-version = "0.8.1"
+version = "0.9.0"
 dependencies = [
  "android-native-keyring-store",
  "apple-native-keyring-store",
@@ -3328,8 +3328,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "notecore"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "base64 0.22.1",
+ "bytes",
+ "encoding_rs",
+ "futures-util",
+ "image",
+ "json5",
+ "kamadak-exif",
+ "lru",
+ "notecli",
+ "rand 0.9.4",
+ "regex",
+ "reqwest 0.12.28",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha2",
+ "specta",
+ "subtle",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tower",
+ "tower-http",
+ "tracing",
+ "ulid",
+ "url",
+ "utoipa",
+ "utoipa-axum",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "notedeck"
-version = "1.64.0"
+version = "1.65.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -3346,6 +3384,7 @@ dependencies = [
  "mime_guess",
  "ndk-context",
  "notecli",
+ "notecore",
  "objc2-foundation",
  "rand 0.9.4",
  "regex",

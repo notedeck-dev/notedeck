@@ -6,7 +6,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useThemeStore } from '@/stores/theme'
-import { commands } from '@/utils/tauriInvoke'
+import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
 const props = defineProps<{
@@ -21,7 +21,7 @@ const error = ref<string | null>(null)
 
 onMounted(async () => {
   try {
-    const data = await commands.getOpenapiSpec()
+    const data = unwrap(await commands.getOpenapiSpec())
     spec.value = JSON.stringify(data)
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)

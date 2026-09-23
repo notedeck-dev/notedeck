@@ -1,33 +1,18 @@
+//! アカウント管理のうち認可境界 (資格情報の失効・削除) に当たるコマンド。
+//! データ系は notecore のコマンド表へ移行済み (#1106 段階 0b)。
+
 use tauri::State;
 
-use notecli::db::{ChatEvictionConfig, EvictionConfig};
-use notecli::error::NoteDeckError;
-use notecli::models::{AccountPublic, ServerDetection};
-
-use super::{export_account_list, validate_host, AppState, Result};
-use crate::account_service;
-
-// --- DB: Accounts ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn load_accounts(app_state: State<'_, AppState>) -> Result<Vec<AccountPublic>> {
-    let db = app_state.db().await;
-    account_service::list_public(&db)
-}
+use super::{export_account_list, AppState, Result};
+use notecore::account_service;
 
 // nd-command: authz
 #[tauri::command]
 #[specta::specta]
-pub async fn delete_account(
-    app: tauri::AppHandle,
-    app_state: State<'_, AppState>,
-    id: String,
-) -> Result<()> {
+pub async fn delete_account(app_state: State<'_, AppState>, id: String) -> Result<()> {
     let db = app_state.db().await;
     account_service::delete(&db, &id)?;
-    export_account_list(&app, &db);
+    export_account_list(&app_state, &db);
     Ok(())
 }
 
@@ -35,218 +20,9 @@ pub async fn delete_account(
 // nd-command: authz
 #[tauri::command]
 #[specta::specta]
-pub async fn logout_account(
-    app: tauri::AppHandle,
-    app_state: State<'_, AppState>,
-    id: String,
-) -> Result<()> {
+pub async fn logout_account(app_state: State<'_, AppState>, id: String) -> Result<()> {
     let db = app_state.db().await;
     account_service::logout(&db, &id)?;
-    export_account_list(&app, &db);
+    export_account_list(&app_state, &db);
     Ok(())
-}
-
-// --- Cache management ---
-
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct CacheStats {
-    pub note_count: i64,
-    pub db_size_bytes: i64,
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn cache_stats(app_state: State<'_, AppState>) -> Result<CacheStats> {
-    let db = app_state.db().await;
-    let (note_count, db_size_bytes) = db.cache_stats()?;
-    Ok(CacheStats {
-        note_count,
-        db_size_bytes,
-    })
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn account_cache_count(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<i64> {
-    let db = app_state.db().await;
-    db.account_cache_count(&account_id)
-}
-
-// 以下の cache 系コマンドは writer lock を長時間 (秒〜分オーダー) 保持し得るため
-// spawn_blocking で退避する。writer は std::sync::Mutex のため async runtime 直呼びは
-// tokio worker の連鎖枯渇を招く (前例: messaging.rs)。
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn clear_account_cache(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<u64> {
-    let db = app_state.db().await;
-    run_blocking(move || db.clear_account_cache(&account_id)).await
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn clear_all_cache(app_state: State<'_, AppState>) -> Result<u64> {
-    let db = app_state.db().await;
-    run_blocking(move || {
-        let notes = db.clear_all_notes_cache()?;
-        let _ogp = db.clear_ogp_cache()?;
-        Ok(notes)
-    })
-    .await
-}
-
-/// ユーザーが UI で選んだ eviction config を即時適用する。 戻り値は削除件数。
-/// JS 側で settings.cacheEviction を変更したタイミングで呼ぶ想定。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn apply_eviction_config(
-    app_state: State<'_, AppState>,
-    config: EvictionConfig,
-) -> Result<u64> {
-    let db = app_state.db().await;
-    run_blocking(move || db.cleanup_with_eviction(&config)).await
-}
-
-/// writer lock を長時間保持する DB 操作を blocking スレッドで実行する。
-async fn run_blocking<T: Send + 'static>(
-    f: impl FnOnce() -> std::result::Result<T, NoteDeckError> + Send + 'static,
-) -> Result<T> {
-    tokio::task::spawn_blocking(f)
-        .await
-        .map_err(|e| NoteDeckError::Internal(format!("blocking task failed: {e}")))?
-}
-
-/// notecli の `EvictionConfig::default()` を取得する。 アプリの「バランス」
-/// プリセットの実体としてフロント側で参照する。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn default_eviction_config() -> Result<EvictionConfig> {
-    Ok(EvictionConfig::default())
-}
-
-// --- Chat cache management ---
-
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ChatCacheStats {
-    pub message_count: i64,
-    pub bytes: i64,
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn chat_cache_stats(app_state: State<'_, AppState>) -> Result<ChatCacheStats> {
-    let db = app_state.db().await;
-    let (message_count, bytes) = db.chat_cache_stats()?;
-    Ok(ChatCacheStats {
-        message_count,
-        bytes,
-    })
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn chat_cache_count(app_state: State<'_, AppState>, account_id: String) -> Result<i64> {
-    let db = app_state.db().await;
-    db.chat_cache_count(&account_id)
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn clear_chat_cache_for_account(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<u64> {
-    let db = app_state.db().await;
-    db.clear_chat_cache_for_account(&account_id)
-}
-
-/// chat 用の eviction config を即時適用する。`apply_eviction_config` (notes 用) と並列。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn apply_chat_eviction_config(
-    app_state: State<'_, AppState>,
-    config: ChatEvictionConfig,
-) -> Result<u64> {
-    let db = app_state.db().await;
-    run_blocking(move || db.cleanup_chat_with_eviction(&config)).await
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn default_chat_eviction_config() -> Result<ChatEvictionConfig> {
-    Ok(ChatEvictionConfig::default())
-}
-
-// --- Guest / Anonymous API ---
-
-/// Create a guest (unauthenticated) account for browsing public timelines.
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn create_guest_account(
-    app: tauri::AppHandle,
-    app_state: State<'_, AppState>,
-    host: String,
-    software: String,
-) -> Result<AccountPublic> {
-    let db = app_state.db().await;
-    let host = validate_host(&host)?;
-    let account = account_service::create_guest(&db, host, software)?;
-    export_account_list(&app, &db);
-    Ok(AccountPublic::new(&account, false))
-}
-
-// --- Server detections (SWR キャッシュは notecli::server_info、#782) ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn load_server_detections(
-    app_state: State<'_, AppState>,
-) -> Result<Vec<ServerDetection>> {
-    let db = app_state.db().await;
-    db.load_server_detections()
-}
-
-/// SWR 取得: fresh は即返し / stale は返しつつ背景再検出 / miss は検出して保存。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn get_server_detection(
-    app_state: State<'_, AppState>,
-    host: String,
-) -> Result<ServerDetection> {
-    let svc = app_state.server_info().await;
-    svc.get_or_fetch(&host).await
-}
-
-/// 強制ネットワーク検出 + 保存。ログイン直後などキャッシュを確実に上書きする用。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn detect_server(
-    app_state: State<'_, AppState>,
-    host: String,
-) -> Result<ServerDetection> {
-    let svc = app_state.server_info().await;
-    svc.detect_and_store(&host).await
 }

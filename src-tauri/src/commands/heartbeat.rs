@@ -135,10 +135,11 @@ fn clamp_interval(minutes: u32) -> Result<u32> {
     Ok(minutes)
 }
 
+// HEARTBEAT の scheduler は WebView の daemon を起こす手元側の仕組み。Rust 化 (#1133) まで local。
 /// global heartbeat を登録 / 更新する。既存があれば interval を
 /// 上書きする。同じ interval が既に動いていたとしても abort + 再 spawn
 /// するので、JS 側の reactive watch から idempotent に呼んで OK。
-// nd-command: data
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn heartbeat_configure(
@@ -152,7 +153,7 @@ pub async fn heartbeat_configure(
 }
 
 /// global heartbeat を停止する。未登録なら no-op。
-// nd-command: data
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn heartbeat_unconfigure(scheduler: State<'_, Arc<HeartbeatScheduler>>) -> Result<()> {
@@ -162,7 +163,7 @@ pub async fn heartbeat_unconfigure(scheduler: State<'_, Arc<HeartbeatScheduler>>
 
 /// 即座に 1 回だけ tick を emit する。デバッグ用 + AI カラムの
 /// 「💓 今すぐ実行」ボタンから呼ばれる。scheduler の interval state は変更しない。
-// nd-command: data
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn heartbeat_trigger_now(app: tauri::AppHandle) -> Result<()> {
@@ -171,7 +172,7 @@ pub async fn heartbeat_trigger_now(app: tauri::AppHandle) -> Result<()> {
 }
 
 /// 現在 scheduler に登録されているかどうかを返す (デバッグ / UI ヘルパ)。
-// nd-command: data
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn heartbeat_status(
