@@ -136,14 +136,14 @@ sequenceDiagram
 
 ---
 
-### 目指す構成: notecore と notenode（[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)、未実装）
+### 目指す構成: notecore と notecored（[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)、未実装）
 
-上の全体像は現状で、Rust Backend の中に Tauri 非依存のドメインと Tauri アダプタが同居している。目指す構成では前者を **notecore** クレートに集め、同じ notecore を「Tauri の殻 (手元)」と「notenode の殻 (自分のサーバー)」の両方で動かす。
+上の全体像は現状で、Rust Backend の中に Tauri 非依存のドメインと Tauri アダプタが同居している。目指す構成では前者を **notecore** クレートに集め、同じ notecore を「Tauri の殻 (手元)」と「notecored の殻 (自分のサーバー)」の両方で動かす。
 
 ```
 フロントエンド (Vue)
       │ IPC (常に手元の Rust とだけ話す)
-┌─ 殻: Tauri ─────────────┐  中継  ┌─ 殻: notenode ───────────┐
+┌─ 殻: Tauri ─────────────┐  中継  ┌─ 殻: notecored ───────────┐
 │ OS 統合 + クライアント層 │ ─────▶ │ 常駐、RPC + SSE、ペアリング │
 └──────────┬──────────────┘        └───────────┬──────────────┘
            ▼                                   ▼
@@ -152,8 +152,8 @@ sequenceDiagram
         notecli                             notecli
 ```
 
-- 依存の向きは一方向: フロント → Tauri → notecore → notecli、notenode → notecore → notecli。notecore は Tauri を知らず、notecli は notecore を知らない。4 つは同じリポジトリの workspace クレートで、notecli は取り込む (別リポジトリの固定版更新をなくす)
-- 切替点は手元の Rust のクライアント層 1 箇所。データ系コマンドはコマンド表を通り、ローカル構成では in-process、リモート構成では notenode への中継になる。フロントは違いを知らず、接続 / 互換 / 同期の状態面だけを知る
+- 依存の向きは一方向: フロント → Tauri → notecore → notecli、notecored → notecore → notecli。notecore は Tauri を知らず、notecli は notecore を知らない。4 つは同じリポジトリの workspace クレートで、notecli は取り込む (別リポジトリの固定版更新をなくす)
+- 切替点は手元の Rust のクライアント層 1 箇所。データ系コマンドはコマンド表を通り、ローカル構成では in-process、リモート構成では notecored への中継になる。フロントは違いを知らず、接続 / 互換 / 同期の状態面だけを知る
 - AI エージェントループは Rust で notecore に置く（[#1133](https://github.com/notedeck-dev/notedeck/issues/1133)）
 - 認証 (デバイスの鍵対とペアリング)、イベント面 (購読宣言とクエリ単位の差分)、状態の所有 (notecore 側と手元側の設定の分け方) は #1106 の仕様コメントが正本
 
