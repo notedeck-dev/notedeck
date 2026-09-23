@@ -1,4 +1,4 @@
-//! AI チャットコマンド。実体は [`crate::core::ai_chat_service`] (#782 R5)。
+//! AI チャットコマンド。実体は [`notecore::ai_chat_service`] (#782 R5)。
 //! ここに残るのは app dir の解決と、イベントを Tauri へ流す sink だけ (#1106)。
 
 use std::sync::Arc;
@@ -6,7 +6,7 @@ use std::sync::Arc;
 use notecli::error::NoteDeckError;
 use tauri::{Emitter, State};
 
-use crate::core::ai_chat_service::{self, AiChatEvent, AiChatRequest, AiChatSink};
+use notecore::ai_chat_service::{self, AiChatEvent, AiChatRequest, AiChatSink};
 
 use super::Result;
 

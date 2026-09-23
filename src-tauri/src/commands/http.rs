@@ -29,7 +29,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::core::ssrf::{validate_external_url, PinningResolver};
+use notecore::ssrf::{validate_external_url, PinningResolver};
 
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 const MAX_TIMEOUT_SECS: u64 = 120;

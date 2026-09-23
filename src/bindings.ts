@@ -2909,9 +2909,9 @@ async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string;
 
 export const events = __makeEvents__<{
 exportProgress: ExportProgress,
-noteCaptureBatch: NoteCaptureBatch,
+noteCaptureBatch: NoteCaptureBatchEvent,
 notificationClicked: NotificationClicked,
-queryDelta: QueryDelta,
+queryDelta: QueryDeltaEvent,
 streamChatMessageReacted: StreamChatMessageReacted,
 streamChatMessageUnreacted: StreamChatMessageUnreacted,
 streamEmojiChanged: StreamEmojiChanged,
@@ -3425,6 +3425,7 @@ pinnedNotes?: NormalizedNote[] }
  */
 export type NoteCapture = ({ updateType: "reacted"; body: NoteReactedBody } | { updateType: "unreacted"; body: NoteUnreactedBody } | { updateType: "pollVoted"; body: NotePollVotedBody } | { updateType: "deleted"; body: NoteDeletedBody }) & { accountId: string; noteId: string }
 export type NoteCaptureBatch = { captures: NoteCapture[] }
+export type NoteCaptureBatchEvent = NoteCaptureBatch
 export type NoteDeletedBody = { deletedAt?: string | null }
 export type NoteDraft = { id: string; createdAt: string; text: string | null; cw: string | null; visibility: string; localOnly?: boolean; fileIds?: string[]; hashtag?: string | null; replyId?: string | null; renoteId?: string | null; channelId?: string | null; poll?: NoteDraftPoll | null; scheduledAt?: number | null; isActuallyScheduled?: boolean }
 /**
@@ -3680,6 +3681,7 @@ export type QueryDelta = { queryId: string; revision: number; inserts: QueryItem
  * consumers apply these to their own per-note state.
  */
 updates: NoteUpdate[] }
+export type QueryDeltaEvent = QueryDelta
 /**
  * Read-model item flowing through a query delta (#781). Internally tagged so
  * the frontend receives a discriminated union; every variant carries `id`.

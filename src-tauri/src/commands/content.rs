@@ -90,7 +90,7 @@ pub async fn api_get_server_emojis(
     account_id: String,
     refresh: bool,
 ) -> Result<Vec<ServerEmoji>> {
-    use crate::core::emoji_cache_store as cache;
+    use notecore::emoji_cache_store as cache;
 
     let app_dir = crate::app_dir::resolve_app_dir(&app)
         .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;

@@ -5,7 +5,7 @@
 use base64::Engine;
 use notecli::error::NoteDeckError;
 
-use crate::core::pet_store::{self, PetHitMask, PetInfo};
+use notecore::pet_store::{self, PetHitMask, PetInfo};
 
 use super::Result;
 

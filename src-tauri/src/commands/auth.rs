@@ -1,4 +1,4 @@
-//! MiAuth 認証コマンド。実体は `crate::core::auth_service` (#782 R3)。
+//! MiAuth 認証コマンド。実体は `notecore::auth_service` (#782 R3)。
 //! リプレイ防止のセッション追跡 (register/consume) のみここに残る。
 
 use tauri::State;
@@ -6,7 +6,7 @@ use tauri::State;
 use notecli::models::{AccountPublic, AuthSession};
 
 use super::{export_account_list, validate_host, AppState, AuthSessionTracker, Result};
-use crate::core::auth_service;
+use notecore::auth_service;
 
 // nd-command: data
 #[tauri::command]

@@ -13,7 +13,7 @@ pub fn get_cli_commands() -> Vec<notecli::cli::CliCommandInfo> {
 #[tauri::command]
 #[specta::specta]
 pub fn get_openapi_spec() -> serde_json::Value {
-    serde_json::to_value(crate::core::http_server::openapi_spec()).unwrap_or_default()
+    serde_json::to_value(crate::http_server::build_openapi()).unwrap_or_default()
 }
 
 /// 画像プロキシ (`/proxy/image`) の起動毎トークン (#1099)。フロントは起動時に
@@ -22,7 +22,7 @@ pub fn get_openapi_spec() -> serde_json::Value {
 #[tauri::command]
 #[specta::specta]
 pub fn get_media_proxy_token(
-    token: tauri::State<'_, crate::core::http_server::MediaProxyToken>,
+    token: tauri::State<'_, notecore::http_server::MediaProxyToken>,
 ) -> String {
     token.0.clone()
 }
@@ -440,7 +440,7 @@ pub struct ImageCacheStats {
 #[tauri::command]
 #[specta::specta]
 pub async fn image_cache_stats(
-    cache: tauri::State<'_, std::sync::Arc<crate::core::image_cache::ImageCache>>,
+    cache: tauri::State<'_, std::sync::Arc<notecore::image_cache::ImageCache>>,
 ) -> Result<ImageCacheStats> {
     let (bytes, files) = cache.disk_stats().await;
     Ok(ImageCacheStats { bytes, files })
@@ -452,13 +452,13 @@ pub async fn image_cache_stats(
 #[tauri::command]
 #[specta::specta]
 pub async fn warm_media(
-    warmer: tauri::State<'_, std::sync::Arc<crate::core::media_warm::MediaWarmer>>,
+    warmer: tauri::State<'_, std::sync::Arc<notecore::media_warm::MediaWarmer>>,
     urls: Vec<String>,
     h: Option<u32>,
 ) -> Result<u32> {
     let reqs = urls
         .into_iter()
-        .map(|url| crate::core::media_proxy::MediaRequest {
+        .map(|url| notecore::media_proxy::MediaRequest {
             url,
             w: None,
             h,
@@ -473,7 +473,7 @@ pub async fn warm_media(
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_image_cache(
-    cache: tauri::State<'_, std::sync::Arc<crate::core::image_cache::ImageCache>>,
+    cache: tauri::State<'_, std::sync::Arc<notecore::image_cache::ImageCache>>,
 ) -> Result<()> {
     cache
         .clear_disk()

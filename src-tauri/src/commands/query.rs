@@ -1,5 +1,5 @@
 //! クエリランタイムの IPC コマンド層と、Tauri イベントへの流し込み (#1106)。
-//! ランタイム本体は [`crate::core::query_runtime`]。
+//! ランタイム本体は [`notecore::query_runtime`]。
 
 use notecli::error::NoteDeckError;
 use notecli::models::TimelineKey;
@@ -7,26 +7,37 @@ use notecli::streaming::StreamingManager;
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
-use crate::core::query_runtime::{
+use notecore::query_runtime::{
     NoteCaptureBatch, QueryDelta, QueryKey, QueryReadModelSnapshot, QueryRuntime,
     QueryRuntimeState, QuerySnapshot, WARM_GRACE,
 };
 
 use super::{get_credentials, AppState};
 
-/// イベント名は derive(Event) が付けていた kebab-case と同じ (`query-delta` /
-/// `note-capture-batch`)。ペイロード型は core にあり tauri_specta を知らないので、
-/// ここで impl する。
-impl Event for QueryDelta {
+// notecore のペイロード型を Tauri イベントとして流すための newtype (orphan rule 対策)。
+// serde / specta とも transparent なので、イベント名とペイロードの TS 型は derive(Event)
+// を core 側に付けていたときと同じ (`query-delta` / `QueryDelta`)。bindings.ts には
+// `QueryDeltaEvent = QueryDelta` の alias が 1 行増えるだけ。
+#[derive(Clone, serde::Serialize, specta::Type)]
+#[serde(transparent)]
+#[specta(transparent)]
+pub struct QueryDeltaEvent(pub QueryDelta);
+
+impl Event for QueryDeltaEvent {
     const NAME: &'static str = "query-delta";
 }
 
-impl Event for NoteCaptureBatch {
+#[derive(Clone, serde::Serialize, specta::Type)]
+#[serde(transparent)]
+#[specta(transparent)]
+pub struct NoteCaptureBatchEvent(pub NoteCaptureBatch);
+
+impl Event for NoteCaptureBatchEvent {
     const NAME: &'static str = "note-capture-batch";
 }
 
 /// Long-running flusher task. Spawned once at app startup. `notified()` で起き
-/// (multiple notifies coalesce to one wakeup), crate::core::query_runtime::DELTA_FLUSH_WINDOW スリープして
+/// (multiple notifies coalesce to one wakeup), notecore::query_runtime::DELTA_FLUSH_WINDOW スリープして
 /// 同じ window 内の追加イベントを取り込んでから drain & emit する。
 pub async fn run_delta_flusher(app: AppHandle) {
     let notify = match app.try_state::<QueryRuntime>() {
@@ -35,18 +46,18 @@ pub async fn run_delta_flusher(app: AppHandle) {
     };
     loop {
         notify.notified().await;
-        tokio::time::sleep(crate::core::query_runtime::DELTA_FLUSH_WINDOW).await;
+        tokio::time::sleep(notecore::query_runtime::DELTA_FLUSH_WINDOW).await;
         let Some(runtime) = app.try_state::<QueryRuntime>() else {
             return;
         };
         for delta in runtime.drain_pending() {
-            if let Err(e) = delta.emit(&app) {
+            if let Err(e) = QueryDeltaEvent(delta).emit(&app) {
                 tracing::warn!("[query-delta] emit failed: {e}");
             }
         }
         let captures = runtime.drain_captures();
         if !captures.is_empty() {
-            if let Err(e) = (NoteCaptureBatch { captures }).emit(&app) {
+            if let Err(e) = NoteCaptureBatchEvent(NoteCaptureBatch { captures }).emit(&app) {
                 tracing::warn!("[note-capture-batch] emit failed: {e}");
             }
         }
