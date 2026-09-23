@@ -197,6 +197,31 @@ function saveDailyCounter(state: DailyCounterState): void {
 // Cheap Check First — 純関数 helpers (テスト容易性のため module-scope)
 // ---------------------------------------------------------------------------
 
+/**
+ * cheap check に使えない capability の id 接頭辞 (#1106 §4.2 / §4.8)。
+ * 画面・入力設定・端末性能に依存する「手元 (UI) 側」の capability は、
+ * ループが notecore (常駐側) に移ると存在しないので、HEARTBEAT の cheap check には
+ * 最初から使わせない。実行属性が registry に付くまでの暫定として id 接頭辞で判定する。
+ */
+const CHEAP_CHECK_DENIED_PREFIXES = [
+  'column.',
+  'windows.',
+  'navbar.',
+  'sidebar.',
+  'clipboard.',
+  'ui.',
+  'metrics.',
+  'keybinds.',
+  'performance.',
+  'theme.',
+  'styles.',
+] as const
+
+/** cheap check に使ってよい capability か (手元側の capability は不可)。 */
+export function isCheapCheckAllowed(capId: string): boolean {
+  return !CHEAP_CHECK_DENIED_PREFIXES.some((p) => capId.startsWith(p))
+}
+
 export interface CheapCheckOutcome {
   /** AI 起動するか (true=起動 / false=skip して HEARTBEAT_OK 扱い) */
   shouldRunAi: boolean
@@ -231,6 +256,12 @@ async function collectCheapResults(
       if (!cap || cap.signature?.cheap !== true) {
         // cheap=false / 未登録 / signature なし は無視 (重い API を tick ごとに
         // 連発するのを防ぐ)
+        continue
+      }
+      if (!isCheapCheckAllowed(capId)) {
+        console.warn(
+          `[heartbeat] cheap check "${capId}" in skill "${skill.id}" は手元 (UI) 側の capability なので無視する`,
+        )
         continue
       }
       // permission チェック
