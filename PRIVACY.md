@@ -26,8 +26,10 @@ NoteDeck の開発者はサーバーを一切運営していません。ユー�
 | OS | バックエンド |
 |---|---|
 | macOS | Keychain Access |
-| Linux | Secret Service (gnome-keyring / KWallet 等) |
+| Linux | Secret Service (gnome-keyring / KWallet 等)。使えない環境 (サーバー / WSL2 / コンテナ) では暗号化ファイル (`~/.local/share/notecli/secrets.enc`、鍵は別ディレクトリの `~/.config/notecli/secret.key`) |
 | Windows | Credential Manager |
+
+Linux の暗号化ファイルは、同じ OS ユーザーの他プロセスからは OS キーチェーンほど隔離されません。鍵をデータディレクトリの外に置くのは、データディレクトリだけのバックアップやコピーに鍵が混ざらないようにするためです。
 
 ## ローカルに保存されるデータ
 

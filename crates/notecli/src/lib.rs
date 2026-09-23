@@ -4,6 +4,8 @@ pub mod commands;
 pub mod db;
 pub mod error;
 pub mod event_bus;
+#[cfg(all(feature = "keyring", target_os = "linux"))]
+pub mod file_keyring;
 pub mod format;
 pub mod http_server;
 pub mod identity;
