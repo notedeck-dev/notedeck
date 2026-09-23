@@ -67,7 +67,7 @@ const DOC_LINKS = [
         <div class="arch-label">Misskey クライアント</div>
         <div class="arch-title">notecli — Rust ヘッドレスクライアント</div>
         <div class="arch-desc">
-          Misskey API + WebSocket ストリーミング + SQLite（FTS5）。単体でも動く独立ライブラリで、notetui や notebot も同じものを使います。
+          Misskey API + WebSocket ストリーミング + SQLite（FTS5）。Tauri なしでも単体で動く独立ライブラリです。
         </div>
         <div class="arch-tags">
           <span>reqwest</span><span>tokio</span><span>rusqlite</span><span>axum</span>
