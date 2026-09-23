@@ -84,18 +84,6 @@ pub fn set_status_bar_style(light_background: bool) {
     let _ = light_background;
 }
 
-/// Validate that a file has a valid SQLite header.
-fn validate_sqlite_file(path: &std::path::Path) -> Result<()> {
-    let header = std::fs::read(path)
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to read file: {e}")))?;
-    if header.len() < 16 || &header[..16] != b"SQLite format 3\0" {
-        return Err(NoteDeckError::InvalidInput(
-            "Not a valid SQLite database file".to_string(),
-        ));
-    }
-    Ok(())
-}
-
 /// Export notecli.db to a user-chosen location via save dialog.
 ///
 /// DB は WAL モードのため単純なファイルコピーでは未反映のトランザクションが
@@ -106,7 +94,7 @@ fn validate_sqlite_file(path: &std::path::Path) -> Result<()> {
 /// OS キーチェーンにあり DB に入らないため、別マシンに復元すればどのみち
 /// 再ログインが必要になる。キーチェーンが永続しない環境では DB に平文で
 /// 残るので、そこだけ持ち出されるのを防ぐ。
-// nd-command: mixed
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn export_db(
@@ -131,10 +119,7 @@ pub async fn export_db(
         .ok_or_else(|| NoteDeckError::InvalidInput("Invalid destination path".to_string()))?
         .to_path_buf();
 
-    let db = app_state.db().await;
-    tokio::task::spawn_blocking(move || db.backup_to(&dest_path, true))
-        .await
-        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))??;
+    notecore::commands::admin::snapshot_db_to(&app_state, &dest_path).await?;
     Ok(true)
 }
 
@@ -144,15 +129,14 @@ pub async fn export_db(
 ///
 /// 注意: V6 (note_timelines) 適用済みの DB は旧バージョンのアプリへ持ち込めない
 /// (refinery の missing migration で open 不能。DB 自体は無傷)。
-// nd-command: mixed
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
-pub async fn import_db(app: tauri::AppHandle) -> Result<bool> {
+pub async fn import_db(
+    app: tauri::AppHandle,
+    app_state: tauri::State<'_, super::AppState>,
+) -> Result<bool> {
     use tauri_plugin_dialog::DialogExt;
-
-    let app_dir = crate::app_dir::resolve_app_dir(&app)
-        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-    let db_path = app_dir.join("notecli.db");
 
     let src = app
         .dialog()
@@ -168,23 +152,19 @@ pub async fn import_db(app: tauri::AppHandle) -> Result<bool> {
         .as_path()
         .ok_or_else(|| NoteDeckError::InvalidInput("Invalid source path".to_string()))?;
 
-    validate_sqlite_file(src_path)?;
-
-    std::fs::copy(src_path, &db_path)
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to import database: {e}")))?;
-
-    // Remove WAL/SHM files so the new DB starts clean after relaunch
-    let _ = std::fs::remove_file(app_dir.join("notecli.db-wal"));
-    let _ = std::fs::remove_file(app_dir.join("notecli.db-shm"));
-
+    notecore::commands::admin::replace_database_file(app_state.app_dir()?, src_path)?;
     Ok(true)
 }
 
 /// Download an image from URL and save to a user-chosen location via save dialog.
-// nd-command: mixed
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
-pub async fn save_image_to_file(app: tauri::AppHandle, url: String) -> Result<bool> {
+pub async fn save_image_to_file(
+    app: tauri::AppHandle,
+    app_state: tauri::State<'_, super::AppState>,
+    url: String,
+) -> Result<bool> {
     use tauri_plugin_dialog::DialogExt;
 
     // Derive filename from URL
@@ -224,14 +204,7 @@ pub async fn save_image_to_file(app: tauri::AppHandle, url: String) -> Result<bo
         .as_path()
         .ok_or_else(|| NoteDeckError::InvalidInput("Invalid destination path".to_string()))?;
 
-    // Download image
-    let response = reqwest::get(&url)
-        .await
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to download image: {e}")))?;
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to read image data: {e}")))?;
+    let bytes = notecore::commands::enrichment::fetch_image_bytes(&app_state, url).await?;
 
     std::fs::write(dest_path, &bytes)
         .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to save image: {e}")))?;
@@ -326,44 +299,4 @@ fn overlay_dot_icon() -> tauri::image::Image<'static> {
         }
     }
     tauri::image::Image::new_owned(rgba, SIZE as u32, SIZE as u32)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn validate_sqlite_valid() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("test.db");
-        // Write valid SQLite header + padding
-        let mut data = b"SQLite format 3\0".to_vec();
-        data.resize(100, 0);
-        std::fs::write(&path, &data).unwrap();
-        assert!(validate_sqlite_file(&path).is_ok());
-    }
-
-    #[test]
-    fn validate_sqlite_invalid_header() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("not-a-db.txt");
-        std::fs::write(&path, "this is not a database").unwrap();
-        assert!(validate_sqlite_file(&path).is_err());
-    }
-
-    #[test]
-    fn validate_sqlite_too_small() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("tiny.db");
-        std::fs::write(&path, "small").unwrap();
-        assert!(validate_sqlite_file(&path).is_err());
-    }
-
-    #[test]
-    fn validate_sqlite_empty() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("empty.db");
-        std::fs::write(&path, "").unwrap();
-        assert!(validate_sqlite_file(&path).is_err());
-    }
 }

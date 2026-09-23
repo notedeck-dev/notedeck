@@ -123,7 +123,7 @@ pub fn open_settings_file_in_editor(
 }
 
 /// Export all settings files to a JSON bundle via save dialog.
-// nd-command: mixed
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn export_settings_json(app: tauri::AppHandle) -> Result<bool> {

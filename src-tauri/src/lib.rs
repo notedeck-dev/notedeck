@@ -1059,6 +1059,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::fetch_ogp,
             commands::fetch_server_meta,
             commands::fetch_image_base64,
+            commands::fetch_image_bytes,
             commands::get_cli_commands,
             commands::get_rustc_version,
             commands::get_openapi_spec,
@@ -1153,7 +1154,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             streaming::StreamChatMessageUnreacted,
             streaming::StreamEmojiChanged,
             os_notify::NotificationClicked,
-            commands::ExportProgress,
+            commands::ExportProgressEvent,
             system_state::SystemState,
         ])
 }
