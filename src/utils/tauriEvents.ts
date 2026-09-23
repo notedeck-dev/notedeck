@@ -1,5 +1,6 @@
 import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { AiChatEventPayload } from '@/composables/useAiChat'
+import type { AiTurnEventPayload } from '@/composables/useAiTurn'
 import type { HeartbeatTickPayload } from '@/composables/useHeartbeatDaemon'
 import type { QueryRequest } from '@/core/apiBridge'
 import type { Account } from '@/stores/accounts'
@@ -24,6 +25,7 @@ export interface TauriEventPayloads {
   'nd:deep-link': string
   'nd:ogp-hints': Record<string, OgpData>
   'nd:ai-chat-event': AiChatEventPayload
+  'nd:ai-turn-event': AiTurnEventPayload
   'nd:ai-heartbeat-tick': HeartbeatTickPayload
   'nd:query-request': QueryRequest
   // JS ↔ JS (ウィンドウ間 IPC)

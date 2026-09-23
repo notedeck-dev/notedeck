@@ -288,6 +288,12 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         app.state::<commands::AppState>().set_http(shared_http.clone());
         app.state::<commands::AppState>()
             .set_ai_chat_sink(std::sync::Arc::new(commands::TauriSink(app.handle().clone())));
+        app.state::<commands::AppState>()
+            .set_ai_turn_sink(std::sync::Arc::new(commands::TauriTurnSink(app.handle().clone())));
+        // ターン実行器 (#1133) が capability の実行要求を WebView に投げる口。
+        // HTTP サーバー (Phase 2) と同じ橋の実装
+        app.state::<commands::AppState>()
+            .set_frontend_bridge(std::sync::Arc::new(query_bridge::TauriBridge(app.handle().clone())));
 
         // Image cache — 必ず Phase 1 で manage する (#921)。フロントは
         // nd:accounts-early を受けた瞬間にカラムを mount して絵文字を要求する
@@ -843,6 +849,7 @@ fn begin_shutdown(app: &tauri::AppHandle) {
         h.unregister();
     }
     notecore::ai_chat_service::abort_all_streams();
+    notecore::ai_turn::abort_all_turns();
 }
 
 /// Build the tauri-specta builder shared by the runtime, the `gen_bindings`
@@ -1100,6 +1107,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // AI chat (LLM streaming via reqwest + emit)
             commands::ai_chat_send,
             commands::ai_chat_cancel,
+            commands::ai_turn_run,
+            commands::ai_turn_cancel,
             // HTTP fetch (http.fetch capability / Nd:http)
             commands::http_fetch,
             // HEARTBEAT (#411 Phase 6) — per-column scheduler

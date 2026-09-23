@@ -262,19 +262,11 @@ fn describe_stream_error(e: &reqwest::Error) -> String {
     details
 }
 
-/// ストリーミングチャットを開始する。入力検証 → Vault 接続解決 →
-/// protocol 別ランナーを background task で起動し、ストリーム台帳に登録する。
-/// 即座に返り、以後のイベントは `nd:ai-chat-event` に流れる。
-pub async fn start_stream(
-    sink: Arc<dyn AiChatSink>,
-    app_dir: &Path,
-    client: reqwest::Client,
-    req: AiChatRequest,
-) -> Result<()> {
+/// リクエストの入力検証 (model / サイズ上限)。ターン実行器 (#1133) とも共有する。
+pub fn validate_request(req: &AiChatRequest) -> Result<()> {
     if req.model.trim().is_empty() {
         return Err(NoteDeckError::InvalidInput("model is empty".into()));
     }
-
     let total_bytes: usize = req.messages.iter().map(|m| m.content.len()).sum::<usize>()
         + req.system.as_deref().map(str::len).unwrap_or(0);
     if total_bytes > MAX_REQUEST_BYTES {
@@ -284,25 +276,44 @@ pub async fn start_stream(
             MAX_REQUEST_BYTES / 1024
         )));
     }
+    Ok(())
+}
 
-    // Vault 接続を解決する: endpoint / protocol はメタデータから、secret は
-    // OS キーチェーンから。secret はこの Rust 側だけで展開しフロントには返さない。
+/// Vault 接続を解決した結果。endpoint / protocol はメタデータから、secret は
+/// OS キーチェーンから。secret はこの Rust 側だけで展開しフロントには返さない。
+#[derive(Clone)]
+pub struct ResolvedConnection {
+    pub protocol: crate::vault::ConnectionProtocol,
+    pub endpoint: String,
+    pub api_key: String,
+}
+
+impl std::fmt::Debug for ResolvedConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResolvedConnection")
+            .field("protocol", &self.protocol)
+            .field("endpoint", &self.endpoint)
+            .finish_non_exhaustive()
+    }
+}
+
+/// AI プロバイダーの Vault 接続を解決する。
+pub fn resolve_connection(app_dir: &Path, connection_id: &str) -> Result<ResolvedConnection> {
     let file = crate::vault::connections_store::load(app_dir)
         .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
     let connection = file
         .connections
         .iter()
-        .find(|c| c.id == req.connection_id)
+        .find(|c| c.id == connection_id)
         .ok_or_else(|| NoteDeckError::InvalidInput("AI 接続が見つかりません".into()))?
         .clone();
     let protocol = connection.protocol.ok_or_else(|| {
         NoteDeckError::InvalidInput("選択された接続は AI プロバイダーではありません".into())
     })?;
-    let endpoint = connection.base_url.clone();
     let api_key = {
         use crate::vault::SecretBackend as _;
         crate::vault::KeychainBackend
-            .load(&req.connection_id, "primary")
+            .load(connection_id, "primary")
             .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?
             .map(|s| {
                 use secrecy::ExposeSecret as _;
@@ -315,20 +326,47 @@ pub async fn start_stream(
             format!("接続「{}」の API キーが設定されていません", connection.name),
         )));
     }
+    Ok(ResolvedConnection {
+        protocol,
+        endpoint: connection.base_url.clone(),
+        api_key,
+    })
+}
+
+/// 1 ラウンド (1 リクエスト分の SSE) を走らせる。delta / tool_use は sink に
+/// 流れ、done / error は戻り値で表す。透過リトライ込み。
+pub async fn run_round(
+    req: &AiChatRequest,
+    conn: &ResolvedConnection,
+    sink: &dyn AiChatSink,
+) -> std::result::Result<(), String> {
+    match conn.protocol {
+        crate::vault::ConnectionProtocol::Anthropic => {
+            run_anthropic(req, &conn.endpoint, &conn.api_key, sink).await
+        }
+        crate::vault::ConnectionProtocol::OpenaiCompat => {
+            run_openai_compat(req, &conn.endpoint, &conn.api_key, sink).await
+        }
+    }
+}
+
+/// ストリーミングチャットを開始する。入力検証 → Vault 接続解決 →
+/// protocol 別ランナーを background task で起動し、ストリーム台帳に登録する。
+/// 即座に返り、以後のイベントは `nd:ai-chat-event` に流れる。
+pub async fn start_stream(
+    sink: Arc<dyn AiChatSink>,
+    app_dir: &Path,
+    _client: reqwest::Client,
+    req: AiChatRequest,
+) -> Result<()> {
+    validate_request(&req)?;
+    let conn = resolve_connection(app_dir, &req.connection_id)?;
 
     let stream_id = req.stream_id.clone();
     let stream_id_for_task = stream_id.clone();
 
     let handle = tokio::spawn(async move {
-        let result = match protocol {
-            crate::vault::ConnectionProtocol::Anthropic => {
-                run_anthropic(&client, &req, &endpoint, &api_key, sink.as_ref()).await
-            }
-            crate::vault::ConnectionProtocol::OpenaiCompat => {
-                run_openai_compat(&client, &req, &endpoint, &api_key, sink.as_ref()).await
-            }
-        };
-        match result {
+        match run_round(&req, &conn, sink.as_ref()).await {
             Ok(()) => emit_done(sink.as_ref(), &stream_id_for_task),
             Err(message) => emit_error(sink.as_ref(), &stream_id_for_task, message),
         }
@@ -506,9 +544,6 @@ fn parse_sse_blocks(buf: &mut String) -> Vec<String> {
 // --- Anthropic Messages API ---
 
 async fn run_anthropic(
-    // shared_http は使わず streaming_client() を使う (HTTP/2 RST_STREAM 回避)。
-    // 引数は呼び出し側の互換性のため残してある。
-    _shared_http: &reqwest::Client,
     req: &AiChatRequest,
     endpoint: &str,
     api_key: &str,
@@ -668,13 +703,8 @@ fn handle_anthropic_block(
     }
 }
 
-/// Anthropic Messages API のリクエスト body。
-///
-/// tools を渡すときは `disable_parallel_tool_use` で 1 ターン 1 tool_use に固定する。
-/// 今のループ (`useAiSendLoop`) は 1 ターンに 1 つの tool_use しか扱えず、複数
-/// 返ると先頭を黙って捨てて tool_result の欠けた履歴を送り、次のターンで API
-/// エラーになる。並列 tool_use を本当に扱うのはループの Rust 移設 (#1133) で行う
-/// (#1106 §9)。
+/// Anthropic Messages API のリクエスト body。並列 tool_use は許す
+/// (ターン実行器が 1 ラウンドの複数 tool_use を全部実行する、#1133)。
 fn anthropic_body(req: &AiChatRequest) -> serde_json::Value {
     use serde_json::json;
 
@@ -697,14 +727,12 @@ fn anthropic_body(req: &AiChatRequest) -> serde_json::Value {
     if let Some(tools) = req.tools.as_ref() {
         if !is_empty_array(tools) {
             body["tools"] = tools.clone();
-            body["tool_choice"] = json!({"type": "auto", "disable_parallel_tool_use": true});
         }
     }
     body
 }
 
-/// OpenAI Chat Completions 互換のリクエスト body。tools 付きのときは
-/// `parallel_tool_calls: false` (理由は [`anthropic_body`] と同じ)。
+/// OpenAI Chat Completions 互換のリクエスト body。
 fn openai_body(req: &AiChatRequest) -> serde_json::Value {
     use serde_json::json;
 
@@ -726,7 +754,6 @@ fn openai_body(req: &AiChatRequest) -> serde_json::Value {
     if let Some(tools) = req.tools.as_ref() {
         if !is_empty_array(tools) {
             body["tools"] = tools.clone();
-            body["parallel_tool_calls"] = json!(false);
         }
     }
     body
@@ -739,9 +766,6 @@ fn is_empty_array(v: &serde_json::Value) -> bool {
 // --- OpenAI Chat Completions (and OpenAI-compatible) ---
 
 async fn run_openai_compat(
-    // shared_http は使わず streaming_client() を使う (HTTP/2 RST_STREAM 回避)。
-    // 引数は呼び出し側の互換性のため残してある。
-    _shared_http: &reqwest::Client,
     req: &AiChatRequest,
     endpoint: &str,
     api_key: &str,
@@ -1187,15 +1211,12 @@ mod tests {
     }
 
     #[test]
-    fn anthropic_body_disables_parallel_tool_use_when_tools_present() {
-        // ループが 1 ターン 1 tool_use 前提なので、API 側で並列を止める (#1106 §9)
+    fn anthropic_body_passes_tools_and_allows_parallel_tool_use() {
+        // 並列 tool_use はターン実行器が全部実行するので API 側で止めない (#1133)
         let tools = json!([{"name": "notes.create", "input_schema": {"type": "object"}}]);
         let body = anthropic_body(&request_with_tools(Some(tools.clone())));
         assert_eq!(body["tools"], tools);
-        assert_eq!(
-            body["tool_choice"],
-            json!({"type": "auto", "disable_parallel_tool_use": true})
-        );
+        assert!(body.get("tool_choice").is_none());
     }
 
     #[test]
@@ -1209,19 +1230,18 @@ mod tests {
     }
 
     #[test]
-    fn openai_body_disables_parallel_tool_calls_when_tools_present() {
+    fn openai_body_passes_tools_and_allows_parallel_tool_calls() {
         let tools = json!([{"type": "function", "function": {"name": "notes.create"}}]);
         let body = openai_body(&request_with_tools(Some(tools.clone())));
         assert_eq!(body["tools"], tools);
-        assert_eq!(body["parallel_tool_calls"], json!(false));
+        assert!(body.get("parallel_tool_calls").is_none());
     }
 
     #[test]
-    fn openai_body_omits_parallel_flag_without_tools() {
+    fn openai_body_omits_tools_when_empty() {
         for tools in [None, Some(json!([]))] {
             let body = openai_body(&request_with_tools(tools));
             assert!(body.get("tools").is_none());
-            assert!(body.get("parallel_tool_calls").is_none());
         }
     }
 

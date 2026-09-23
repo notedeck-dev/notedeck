@@ -1,19 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
-import { dispatchCapability } from '@/capabilities/dispatcher'
-import { listCapabilities } from '@/capabilities/registry'
-import { toAnthropicTool, toOpenAiTool } from '@/capabilities/toolSchema'
 import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
-import { type ChatMessage, useAiChat } from '@/composables/useAiChat'
+import type { ChatMessage } from '@/composables/useAiChat'
 import {
   normalizeGenerationConfig,
-  reloadAiConfig,
   resolveAiConnection,
   useAiConfig,
 } from '@/composables/useAiConfig'
 import { useAiConversation } from '@/composables/useAiConversation'
-import { useAiSendLoop } from '@/composables/useAiSendLoop'
 import {
   buildAiContextBlock,
   joinSystemPrompt,
@@ -21,14 +16,11 @@ import {
   projectRecentConversation,
   projectVisibleItems,
 } from '@/composables/useAiSystemContext'
+import { useAiTurn } from '@/composables/useAiTurn'
 import { ensureMemosLoaded, loadAllMemos } from '@/composables/useMemos'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { describeAuthType, useVault } from '@/composables/useVault'
-import {
-  reloadPermissionsConfig,
-  resolveForProfiled,
-} from '@/permissions/store'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSessionMeta, useAiSessionsStore } from '@/stores/aiSessions'
 import { useConfirm } from '@/stores/confirm'
@@ -80,10 +72,6 @@ void sessionsStore.loadAllMeta()
 void ensureMemosLoaded()
 
 const { config: aiConfig } = useAiConfig()
-const aiChat = useAiChat()
-// 初回応答後にバックグラウンドでタイトルを AI 生成するための独立インスタンス。
-// `aiChat` の isStreaming や activeStreamId と干渉しないよう別 composable 化。
-const titleGen = useAiChat()
 
 // `column.aiCurrentSessionId` を reactive に橋渡し。useAiConversation は
 // この ref の変化を購読してメッセージ参照を切り替える。
@@ -105,7 +93,18 @@ const currentPersona = computed(() => {
 
 const conversation = useAiConversation(currentSessionId)
 const messages = conversation.messages
-const isGenerating = aiChat.isStreaming
+
+// ターンの投影 (#1133): ループ本体は notecore のターン実行器。ここは session
+// store への投影 / 中断 / 再試行コンテキストだけ。tool の実行要求は apiBridge
+// の `ai/execute-capability` が受けて dispatcher (確認 UI 込み) を走らせる
+const turn = useAiTurn({
+  sessions: sessionsStore,
+  // 生成ストリーミング中、ユーザーが上へスクロールして読んでいる間は追従しない
+  onUpdate: () => {
+    if (isNearBottom()) scrollToBottom()
+  },
+})
+const isGenerating = turn.isRunning
 
 // HEARTBEAT (#411): App-level singleton daemon が tick / runner を担当する。
 // AI カラムからは何も呼ばない (heartbeat session を見たければ session 一覧の
@@ -219,15 +218,15 @@ const headerTitle = computed(() => {
 // --- ナビゲーション ---
 
 function openSession(sessionId: string): void {
-  if (aiChat.isStreaming.value) {
-    void aiChat.cancel()
+  if (turn.isRunning.value) {
+    void turn.cancel()
   }
   deckStore.updateColumn(props.column.id, { aiCurrentSessionId: sessionId })
 }
 
 function backToSessions(): void {
-  if (aiChat.isStreaming.value) {
-    void aiChat.cancel()
+  if (turn.isRunning.value) {
+    void turn.cancel()
   }
   deckStore.updateColumn(props.column.id, { aiCurrentSessionId: null })
   input.value = ''
@@ -274,8 +273,8 @@ async function onDeleteSession(
   if (!ok) return
   // 削除対象が現在開いているセッションなら一覧画面に戻す
   if (currentSessionId.value === sessionId) {
-    if (aiChat.isStreaming.value) {
-      void aiChat.cancel()
+    if (turn.isRunning.value) {
+      void turn.cancel()
     }
     deckStore.updateColumn(props.column.id, { aiCurrentSessionId: null })
   }
@@ -356,36 +355,11 @@ watch(currentSessionId, () => {
   scrollToBottom()
 })
 
-// send ループ本体 (#707): tool round / partial 温存 (#508) / retryContext
-// (#646) は useAiSendLoop に抽出済み。ここは deps を束ねるだけ。
-const sendLoop = useAiSendLoop({
-  chat: aiChat,
-  sessions: sessionsStore,
-  // capability dispatch (permissions チェック込み)
-  // per-account の AI カラムはそのアカウントを呼び出し文脈にする。全アカウント
-  // のカラムは文脈なし = capability 側で accountId を明示させる (#941)
-  dispatch: (name, input) =>
-    dispatchCapability(name, input, {
-      principal: { kind: 'ai.chat' },
-      accountId: props.column.accountId ?? undefined,
-    }),
-  // 外部エディタで ai.json5 / permissions.json5 を変更した直後でも最新の
-  // 設定・権限で判定したいので、tool 実行直前に再読込する (= 再起動不要)。
-  reloadConfigs: async () => {
-    await reloadAiConfig()
-    await reloadPermissionsConfig()
-  },
-  // 生成ストリーミング中、ユーザーが上へスクロールして読んでいる間は追従しない
-  onUpdate: () => {
-    if (isNearBottom()) scrollToBottom()
-  },
-})
-
 const canRetry = computed(
   () =>
-    sendLoop.retryContext.value !== null &&
-    sendLoop.retryContext.value.sessionId === currentSessionId.value &&
-    !aiChat.isStreaming.value,
+    turn.retryContext.value !== null &&
+    turn.retryContext.value.sessionId === currentSessionId.value &&
+    !turn.isRunning.value,
 )
 
 /**
@@ -395,105 +369,12 @@ const canRetry = computed(
  *   (write capability を再実行しない継続モード)
  */
 async function retryLastSend(): Promise<void> {
-  const retry = sendLoop.prepareRetry(currentSessionId.value)
+  const retry = turn.prepareRetry(currentSessionId.value)
   if (!retry) return
   await sendMessage(retry.text, { continuation: retry.mode === 'continue' })
 }
 
 // --- 送信 ---
-
-/**
- * 初回 round 完了後にバックグラウンドで AI にタイトルを生成させる。
- * - 会話 (user + assistant) を 1 つの user メッセージにまとめて送る。
- *   Anthropic は last message が assistant だと assistant 応答の続きとして
- *   扱うため、history には絶対に assistant role を置かない。
- * - 失敗は silent (best-effort)
- * - ユーザーが手動 rename したら上書きしない (titleBefore で race 対策)
- * - LLM 応答に余計な引用符や改行が混じる場合があるので軽く整形する
- */
-const TITLE_SYSTEM_PROMPT =
-  'あなたは会話セッションのタイトル生成アシスタントです。与えられた会話の内容を端的に表す短い日本語のタイトルを 1 行で出力してください。20 文字程度 (最大 40 文字) に収めること。引用符、前置き、改行、絵文字、文末句点は付けないでください。タイトルのみを返してください。'
-
-async function generateAiTitleAsync(
-  sessionId: string,
-  userText: string,
-  assistantText: string,
-): Promise<void> {
-  // 初期プレースホルダー (timestampTitle) は sendMessage 側で既にセット済み。
-  // AI 生成に失敗した場合は何もせず、プレースホルダーがそのまま残る。
-  // 診断ログ (#484): 日付フォールバックのまま残る原因を特定するため
-  // 各 early return / 失敗パスに warn を出す。
-  if (providerStatus.value !== 'connected') {
-    console.warn(
-      '[ai-title-gen] skip: provider not connected',
-      providerStatus.value,
-    )
-    return
-  }
-  const before = sessionsStore.get(sessionId)
-  if (!before) {
-    console.warn('[ai-title-gen] skip: session not found', sessionId)
-    return
-  }
-  const titleBefore = before.title
-  const resolved = resolveAiConnection(aiConfig.value, vault.connections.value)
-  if (!resolved || !resolved.model) {
-    console.warn('[ai-title-gen] skip: connection/model unresolved', {
-      hasResolved: !!resolved,
-      model: resolved?.model,
-    })
-    return
-  }
-
-  const generation = normalizeGenerationConfig(aiConfig.value.generation)
-
-  // 会話を 1 つの user メッセージに集約する。assistant role を history に
-  // 置くと Anthropic 側が「続きを書く」モードになりタイトルが取れない。
-  const conversationPrompt =
-    `次の会話に短いタイトルを付けてください。タイトルだけを 1 行で出力。\n\n` +
-    `ユーザー:\n${userText}\n\nアシスタント:\n${assistantText}`
-
-  try {
-    const raw = await titleGen.sendMessage({
-      connectionId: resolved.connection.id,
-      model: resolved.model,
-      history: [
-        { id: 'u', role: 'user', content: conversationPrompt, timestamp: 0 },
-      ],
-      system: TITLE_SYSTEM_PROMPT,
-      maxTokens: generation.titleMaxTokens,
-      readTimeoutSeconds: generation.readTimeoutSeconds,
-    })
-    const cleaned = raw
-      .replace(/[\r\n]+/g, ' ')
-      .replace(/^[\s「『"'“”]+|[\s」』"'“”。．、]+$/g, '')
-      .trim()
-      .slice(0, 40)
-    if (!cleaned) {
-      console.warn('[ai-title-gen] skip: cleaned title is empty', {
-        rawLength: raw.length,
-        rawPreview: raw.slice(0, 80),
-      })
-      return
-    }
-    // ユーザーが間に手動 rename していたら触らない
-    const cur = sessionsStore.get(sessionId)
-    if (!cur) {
-      console.warn('[ai-title-gen] skip: session lost during generation')
-      return
-    }
-    if (cur.title !== titleBefore) {
-      console.warn('[ai-title-gen] skip: title changed by user during gen', {
-        titleBefore,
-        titleNow: cur.title,
-      })
-      return
-    }
-    sessionsStore.setTitle(sessionId, cleaned)
-  } catch (e) {
-    console.warn('[ai-title-gen] failed:', e)
-  }
-}
 
 /** 必要なら新規セッションを作って ID を返す。 */
 function ensureSession(): string {
@@ -521,8 +402,8 @@ async function sendMessage(
   // preset は retryLastSend からの再送で、入力欄のドラフトには触れない。
   const preset = typeof presetText === 'string' ? presetText : undefined
   const text = (preset ?? input.value).trim()
-  if (!text || aiChat.isStreaming.value) return
-  sendLoop.retryContext.value = null
+  if (!text || turn.isRunning.value) return
+  turn.retryContext.value = null
   // 継続 (#737): user メッセージを追加せず失敗ターンの続きを生成する
   const continuation = opts?.continuation === true
 
@@ -559,6 +440,9 @@ async function sendMessage(
   if (!before.title) {
     sessionsStore.setTitle(sessionId, timestampTitle(new Date()))
   }
+  // AI 生成タイトル (Rust 側で初回応答後に生成) が届く前にユーザーが手動
+  // rename していたら上書きしない
+  const titleBefore = sessionsStore.get(sessionId)?.title ?? ''
 
   // Persona (#491) — session 作成時 snapshot された personaSkillId を読む
   // (= 過去 session は当時の persona、新規 session は aiConfig 由来のデフォルト)。
@@ -600,34 +484,26 @@ async function sendMessage(
     ? deckStore.visibleNotesByColumn[focusedColumnId]
     : undefined
 
-  // Tool calling に使う tools 配列を provider に応じて組み立て。
-  // 登録済み capability のうち aiTool: true なものを変換。HEARTBEAT と同じく、
-  // ai.chat に許可されていない権限を要する capability は最初から見せない (#1106 §9)。
-  // 実行時の deny は dispatcher に残るので、これは「見えないが叩ける」ではなく
-  // 「見えないものは叩かない」に AI を誘導するための事前フィルタ。
-  const granted = resolveForProfiled('ai.chat')
-  const eligibleCaps = listCapabilities().filter(
-    (c) =>
-      c.aiTool && c.signature && (c.permissions ?? []).every((p) => granted[p]),
-  )
-  const toolsForProvider: unknown[] | undefined =
-    eligibleCaps.length === 0
-      ? undefined
-      : resolved.protocol === 'anthropic'
-        ? eligibleCaps.map(toAnthropicTool)
-        : eligibleCaps.map(toOpenAiTool)
-
-  const outcome = await sendLoop.runSend({
+  const outcome = await turn.run({
     sessionId,
     text,
+    principal: 'ai.chat',
+    // per-account の AI カラムはそのアカウントを呼び出し文脈にする。全アカウント
+    // のカラムは文脈なし = capability 側で accountId を明示させる (#941)
+    accountId: props.column.accountId ?? null,
     connectionId: resolved.connection.id,
     model: resolved.model,
-    tools: toolsForProvider,
     continuation,
     // 入力途中の空欄・範囲外がそのまま送られないよう、使う直前に必ず通す
     generation: normalizeGenerationConfig(aiConfig.value.generation),
-    // round ごとに context を組み直す (memos / vault 開示状態は round 間で
-    // 変わりうるため)。history は sendLoop が組み立てた wire history。
+    generateTitle: true,
+    onTitle: (title) => {
+      const cur = sessionsStore.get(sessionId)
+      if (cur && cur.title === titleBefore)
+        sessionsStore.setTitle(sessionId, title)
+    },
+    // デバイス文脈 (メモ / 可視ノート / vault 開示状態) はターン開始時の
+    // スナップショット。history は turn が組み立てた wire history
     buildSystem: async (history) => {
       // メモはアカウントに紐づかない (#1018) ので全件を context に含める。
       // AI カラム自体もアカウントなしなので、参照範囲が食い違わない。
@@ -676,19 +552,7 @@ async function sendMessage(
     },
   })
 
-  if (outcome.status === 'done') {
-    // 初回 round 完了後にバックグラウンドで AI にタイトルを再生成させる
-    if (outcome.wasFirstRound && outcome.finalText) {
-      void generateAiTitleAsync(sessionId, text, outcome.finalText)
-    } else if (outcome.wasFirstRound && !outcome.finalText) {
-      // #484 診断: 初回 round で本文テキストが空 (tool_use のみで完結等) のため
-      // タイトル生成を skip した。日付フォールバックがそのまま残るケース。
-      console.warn(
-        '[ai-title-gen] skip: first round produced no assistant text',
-        { sessionId },
-      )
-    }
-  } else if (
+  if (
     (outcome.status === 'error' || outcome.status === 'cancelled') &&
     outcome.wasFirstRound
   ) {
@@ -1253,7 +1117,7 @@ function onKeydown(e: KeyboardEvent) {
             v-if="isGenerating"
             :class="[$style.chatSend, $style.chatStop]"
             title="停止"
-            @click="aiChat.cancel()"
+            @click="turn.cancel()"
           >
             <i class="ti ti-player-stop" />
           </button>

@@ -26,8 +26,7 @@
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { dispatchCapability } from '@/capabilities/dispatcher'
-import { getCapability, listCapabilities } from '@/capabilities/registry'
-import { toAnthropicTool, toOpenAiTool } from '@/capabilities/toolSchema'
+import { getCapability } from '@/capabilities/registry'
 import { resolveForProfiled } from '@/permissions/store'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSession, useAiSessionsStore } from '@/stores/aiSessions'
@@ -49,12 +48,12 @@ import {
   resolveAiConnection,
   useAiConfig,
 } from './useAiConfig'
-import { type AiSendSessionPort, useAiSendLoop } from './useAiSendLoop'
 import {
   buildAiContextBlock,
   composeHeartbeatSystemPrompt,
   projectMemos,
 } from './useAiSystemContext'
+import { type AiTurnSessionPort, useAiTurn } from './useAiTurn'
 import { ensureMemosLoaded, loadAllMemos } from './useMemos'
 import { useVault } from './useVault'
 
@@ -105,16 +104,16 @@ export function applyHeartbeatSuppression(
   return body
 }
 
-/** useAiSendLoop に渡す heartbeat 専用の使い捨てセッション id */
+/** useAiTurn に渡す heartbeat 専用の使い捨てセッション id */
 export const HEARTBEAT_EPHEMERAL_SESSION_ID = 'heartbeat-ephemeral'
 
 /**
  * heartbeat の AI 推論は永続 session を持たず、tick ごとに使い捨ての wire
- * history で走る。send ループを DeckAiColumn と共有する (#707) ため、
- * useAiSendLoop の session port を in-memory で満たす。
+ * history で走る。ターンの投影を DeckAiColumn と共有する (#707 / #1133) ため、
+ * useAiTurn の session port を in-memory で満たす。
  */
 export function createEphemeralAiSession(): {
-  port: AiSendSessionPort
+  port: AiTurnSessionPort
   /** tick 開始時に履歴を空へ戻す */
   reset(): void
 } {
@@ -428,22 +427,16 @@ export function useHeartbeatDaemon() {
   const accountsStore = useAccountsStore()
   const skillsStore = useSkillsStore()
   const vault = useVault()
-  const aiChat = useAiChat()
-  // タイトル生成は本体 AI inference と並行実行されるため独立 instance。
-  // (chat session で同じパターンを採用している)
+  // 報告先 session のタイトル生成 (1 往復、tool なし)
   const titleGen = useAiChat()
   const toast = useToast()
 
-  // send ループ本体は DeckAiColumn と共有 (#707)。heartbeat の推論履歴は
+  // ループ本体は notecore のターン実行器 (#1133)。heartbeat の推論履歴は
   // 永続 session に残さず tick ごとに使い捨てる (報告は target session への
-  // append で別管理)。
+  // append で別管理)。tool の実行要求は apiBridge が `ai.heartbeat` principal
+  // で dispatcher を走らせる (確認が要るものは拒否される)。
   const ephemeral = createEphemeralAiSession()
-  const sendLoop = useAiSendLoop({
-    chat: aiChat,
-    sessions: ephemeral.port,
-    dispatch: (name, input) =>
-      dispatchCapability(name, input, { principal: { kind: 'ai.heartbeat' } }),
-  })
+  const turn = useAiTurn({ sessions: ephemeral.port })
 
   const isRunning = ref(false)
   /**
@@ -827,19 +820,6 @@ export function useHeartbeatDaemon() {
       return null
     }
 
-    const granted = resolveForProfiled('ai.heartbeat')
-    const eligibleCaps = listCapabilities().filter((c) => {
-      if (!c.aiTool || !c.signature) return false
-      // 全 required permission が granted か (= 1 つでも欠けたら除外)
-      return (c.permissions ?? []).every((p) => granted[p])
-    })
-    const tools: unknown[] | undefined =
-      eligibleCaps.length === 0
-        ? undefined
-        : resolved.protocol === 'anthropic'
-          ? eligibleCaps.map(toAnthropicTool)
-          : eligibleCaps.map(toOpenAiTool)
-
     // memos は active account のものだけを context に含める (#464)。
     // heartbeat は currentColumn=null だが memos は column 非依存なので
     // ds.memos が ON なら自律 tick からも参照される。
@@ -871,15 +851,15 @@ export function useHeartbeatDaemon() {
       HEARTBEAT_INSTRUCTION,
     )
 
-    // tool round / dispatch 結果の整形は useAiSendLoop の責務 (#707)。
-    // context は tick 開始時に一度組み立てた system を全 round で使い回す。
+    // tool round / dispatch 結果の整形と、`ai.heartbeat` に許可された tool
+    // だけを見せる絞り込みは notecore のターン実行器の責務 (#1133)。
     ephemeral.reset()
-    const outcome = await sendLoop.runSend({
+    const outcome = await turn.run({
       sessionId: HEARTBEAT_EPHEMERAL_SESSION_ID,
       text: `Heartbeat tick at ${new Date(payload.triggered_at_ms).toISOString()}`,
+      principal: 'ai.heartbeat',
       connectionId: resolved.connection.id,
       model: resolved.model,
-      tools,
       // 入力途中の空欄・範囲外がそのまま送られないよう、使う直前に必ず通す
       generation: normalizeGenerationConfig(config.value.generation),
       buildSystem: () => system,

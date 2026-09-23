@@ -38,8 +38,8 @@ pub enum PrincipalId {
 }
 
 impl PrincipalId {
-    /// golden vector の principal 名 → id。
-    #[cfg(test)]
+    /// principal 名 (JS 側の `Principal.kind`) → id。golden vector と
+    /// AI ループの要求 (#1133) が使う。
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "ai.chat" => Some(Self::AiChat),

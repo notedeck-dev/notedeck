@@ -2,7 +2,7 @@
  * AI 活動の集約状態 (#1080)。
  *
  * 「AI が今 生成中 / ツール実行中 / 承認待ち / 失敗した」を横断して見られる
- * 唯一のリアクティブ状態。発生源 (useAiChat / useAiSendLoop / capability
+ * 唯一のリアクティブ状態。発生源 (useAiChat / useAiTurn / capability
  * dispatcher / taskRunner) が begin / pulse で報告し、ペットが最初の消費者。
  * module スコープの単一状態 (stores/confirm と同じ作り)。stores に置くのは
  * taskRunner (store) からも報告するため (層の向き: stores → composables は禁止)。
