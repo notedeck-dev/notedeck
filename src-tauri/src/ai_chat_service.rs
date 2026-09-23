@@ -549,30 +549,8 @@ async fn run_anthropic_attempt(
     app: &tauri::AppHandle,
     has_emitted: &mut bool,
 ) -> std::result::Result<(), AttemptError> {
-    use serde_json::json;
-
     let url = format!("{}/v1/messages", endpoint.trim_end_matches('/'));
-    let messages: Vec<serde_json::Value> = req
-        .messages
-        .iter()
-        .filter(|m| !matches!(m.role, AiChatRole::System))
-        .map(anthropic_message)
-        .collect();
-
-    let mut body = json!({
-        "model": req.model,
-        "max_tokens": req.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
-        "messages": messages,
-        "stream": true,
-    });
-    if let Some(sys) = req.system.as_deref().filter(|s| !s.is_empty()) {
-        body["system"] = json!(sys);
-    }
-    if let Some(tools) = req.tools.as_ref() {
-        if !is_empty_array(tools) {
-            body["tools"] = tools.clone();
-        }
-    }
+    let body = anthropic_body(req);
 
     let resp = streaming_client(resolve_read_timeout(req))
         .post(&url)
@@ -697,6 +675,70 @@ fn handle_anthropic_block(
     }
 }
 
+/// Anthropic Messages API のリクエスト body。
+///
+/// tools を渡すときは `disable_parallel_tool_use` で 1 ターン 1 tool_use に固定する。
+/// 今のループ (`useAiSendLoop`) は 1 ターンに 1 つの tool_use しか扱えず、複数
+/// 返ると先頭を黙って捨てて tool_result の欠けた履歴を送り、次のターンで API
+/// エラーになる。並列 tool_use を本当に扱うのはループの Rust 移設 (#1133) で行う
+/// (#1106 §9)。
+fn anthropic_body(req: &AiChatRequest) -> serde_json::Value {
+    use serde_json::json;
+
+    let messages: Vec<serde_json::Value> = req
+        .messages
+        .iter()
+        .filter(|m| !matches!(m.role, AiChatRole::System))
+        .map(anthropic_message)
+        .collect();
+
+    let mut body = json!({
+        "model": req.model,
+        "max_tokens": req.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
+        "messages": messages,
+        "stream": true,
+    });
+    if let Some(sys) = req.system.as_deref().filter(|s| !s.is_empty()) {
+        body["system"] = json!(sys);
+    }
+    if let Some(tools) = req.tools.as_ref() {
+        if !is_empty_array(tools) {
+            body["tools"] = tools.clone();
+            body["tool_choice"] = json!({"type": "auto", "disable_parallel_tool_use": true});
+        }
+    }
+    body
+}
+
+/// OpenAI Chat Completions 互換のリクエスト body。tools 付きのときは
+/// `parallel_tool_calls: false` (理由は [`anthropic_body`] と同じ)。
+fn openai_body(req: &AiChatRequest) -> serde_json::Value {
+    use serde_json::json;
+
+    let mut messages: Vec<serde_json::Value> = Vec::new();
+    if let Some(sys) = req.system.as_deref().filter(|s| !s.is_empty()) {
+        messages.push(json!({"role": "system", "content": sys}));
+    }
+    for m in &req.messages {
+        messages.push(openai_message(m));
+    }
+    let mut body = json!({
+        "model": req.model,
+        "messages": messages,
+        "stream": true,
+    });
+    if let Some(mt) = req.max_tokens {
+        body["max_tokens"] = json!(mt);
+    }
+    if let Some(tools) = req.tools.as_ref() {
+        if !is_empty_array(tools) {
+            body["tools"] = tools.clone();
+            body["parallel_tool_calls"] = json!(false);
+        }
+    }
+    body
+}
+
 fn is_empty_array(v: &serde_json::Value) -> bool {
     v.as_array().map(|a| a.is_empty()).unwrap_or(false)
 }
@@ -740,29 +782,8 @@ async fn run_openai_compat_attempt(
     app: &tauri::AppHandle,
     has_emitted: &mut bool,
 ) -> std::result::Result<(), AttemptError> {
-    use serde_json::json;
-
     let url = format!("{}/chat/completions", endpoint.trim_end_matches('/'));
-    let mut messages: Vec<serde_json::Value> = Vec::new();
-    if let Some(sys) = req.system.as_deref().filter(|s| !s.is_empty()) {
-        messages.push(json!({"role": "system", "content": sys}));
-    }
-    for m in &req.messages {
-        messages.push(openai_message(m));
-    }
-    let mut body = json!({
-        "model": req.model,
-        "messages": messages,
-        "stream": true,
-    });
-    if let Some(mt) = req.max_tokens {
-        body["max_tokens"] = json!(mt);
-    }
-    if let Some(tools) = req.tools.as_ref() {
-        if !is_empty_array(tools) {
-            body["tools"] = tools.clone();
-        }
-    }
+    let body = openai_body(req);
 
     let mut request = streaming_client(resolve_read_timeout(req))
         .post(&url)
@@ -1157,6 +1178,58 @@ mod tests {
     fn format_http_error_omits_empty_body() {
         // ボディが空のときに ": " だけがぶら下がらない。
         assert_eq!(format_http_error(401, ""), "APIキーが無効です (HTTP 401)");
+    }
+
+    fn request_with_tools(tools: Option<serde_json::Value>) -> AiChatRequest {
+        AiChatRequest {
+            stream_id: "s".into(),
+            connection_id: "c".into(),
+            model: "m".into(),
+            messages: vec![text_message(AiChatRole::User, "hi")],
+            system: None,
+            max_tokens: None,
+            read_timeout_ms: None,
+            tools,
+        }
+    }
+
+    #[test]
+    fn anthropic_body_disables_parallel_tool_use_when_tools_present() {
+        // ループが 1 ターン 1 tool_use 前提なので、API 側で並列を止める (#1106 §9)
+        let tools = json!([{"name": "notes.create", "input_schema": {"type": "object"}}]);
+        let body = anthropic_body(&request_with_tools(Some(tools.clone())));
+        assert_eq!(body["tools"], tools);
+        assert_eq!(
+            body["tool_choice"],
+            json!({"type": "auto", "disable_parallel_tool_use": true})
+        );
+    }
+
+    #[test]
+    fn anthropic_body_omits_tool_choice_without_tools() {
+        // tools 無しで tool_choice を送ると API がエラーを返す
+        for tools in [None, Some(json!([]))] {
+            let body = anthropic_body(&request_with_tools(tools));
+            assert!(body.get("tools").is_none());
+            assert!(body.get("tool_choice").is_none());
+        }
+    }
+
+    #[test]
+    fn openai_body_disables_parallel_tool_calls_when_tools_present() {
+        let tools = json!([{"type": "function", "function": {"name": "notes.create"}}]);
+        let body = openai_body(&request_with_tools(Some(tools.clone())));
+        assert_eq!(body["tools"], tools);
+        assert_eq!(body["parallel_tool_calls"], json!(false));
+    }
+
+    #[test]
+    fn openai_body_omits_parallel_flag_without_tools() {
+        for tools in [None, Some(json!([]))] {
+            let body = openai_body(&request_with_tools(tools));
+            assert!(body.get("tools").is_none());
+            assert!(body.get("parallel_tool_calls").is_none());
+        }
     }
 
     #[test]
