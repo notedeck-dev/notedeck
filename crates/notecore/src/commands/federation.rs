@@ -1,8 +1,12 @@
+//! federation のデータ系コマンド本体 (#1106 段階 0b)。各関数は `&Core` と引数を取り、
+//! コマンド表 (commands/table.rs) から呼ばれる。
+
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri::State;
 
-use super::{typed_request, AppState, Result};
+use crate::commands::typed_request;
+use crate::context::Core;
+use crate::error::Result;
 
 /// Misskey `federation/instances` / `federation/show-instance` の 1 件分。
 /// 本家 schema (packages/backend/src/models/Instance.ts) に準拠。
@@ -40,26 +44,20 @@ pub struct FederationInstance {
     pub latest_status: Option<i64>,
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_federation_instances(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     params: serde_json::Value,
 ) -> Result<Vec<FederationInstance>> {
-    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     typed_request(&client, &host, &token, "federation/instances", params).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_federation_instance(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     params: serde_json::Value,
 ) -> Result<FederationInstance> {
-    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     typed_request(&client, &host, &token, "federation/show-instance", params).await
 }

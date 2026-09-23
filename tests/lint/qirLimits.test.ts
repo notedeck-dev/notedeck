@@ -28,7 +28,7 @@ function tsConstants(): Record<string, number> {
 
 function rustConstants(): Record<string, number> {
   const src = readFileSync(
-    resolve(ROOT, 'src-tauri/src/commands/column_query.rs'),
+    resolve(ROOT, 'crates/notecore/src/commands/column_query.rs'),
     'utf-8',
   )
   const out: Record<string, number> = {}

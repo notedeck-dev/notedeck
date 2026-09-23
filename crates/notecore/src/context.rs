@@ -10,6 +10,7 @@
 //! 手元側にしか無いもの (UI へのヒント通知) は trait で受ける (`HintSink`)。
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
 use notecli::api::MisskeyClient;
@@ -42,6 +43,8 @@ pub struct Core {
     ogp: OnceLock<OgpCache>,
     /// 手元側へのヒント通知。無ければ黙って捨てる (notecored の既定)
     hints: OnceLock<Arc<dyn HintSink>>,
+    /// アプリデータディレクトリ (notecli.db / notedeck/ 設定 / キャッシュの置き場)
+    app_dir: OnceLock<PathBuf>,
 }
 
 impl Default for Core {
@@ -61,6 +64,7 @@ impl Core {
             db_tx,
             ogp: OnceLock::new(),
             hints: OnceLock::new(),
+            app_dir: OnceLock::new(),
         }
     }
 
@@ -81,6 +85,19 @@ impl Core {
             client,
             server_info,
         })));
+    }
+
+    /// アプリデータディレクトリを差す (起動時 1 回)。
+    pub fn set_app_dir(&self, dir: PathBuf) {
+        let _ = self.app_dir.set(dir);
+    }
+
+    /// アプリデータディレクトリ。未設定なら Err (テストや初期化順の誤りを黙らせない)。
+    pub fn app_dir(&self) -> Result<&Path> {
+        self.app_dir
+            .get()
+            .map(PathBuf::as_path)
+            .ok_or_else(|| notecli::error::NoteDeckError::Internal("app dir is not set".into()))
     }
 
     /// OGP キャッシュを差す (初期化後 1 回)。2 回目以降は無視される。
@@ -170,6 +187,7 @@ pub(crate) mod test_support {
         let db = Arc::new(Database::open(&dir.path().join("test.db")).unwrap());
         let client = Arc::new(MisskeyClient::new().unwrap());
         let core = Core::new();
+        core.set_app_dir(dir.path().to_path_buf());
         core.initialize(db, client);
         (dir, core)
     }

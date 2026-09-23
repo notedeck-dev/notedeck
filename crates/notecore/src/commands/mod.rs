@@ -15,11 +15,23 @@
 //! 行の形: `<種別> [(window = main)] <名前>(<引数>: <型>, ...) -> <戻り型> = $crate::<本体>;`
 //! 型はこの表の外 (アプリ側) でも解決できるよう完全修飾で書く。
 
+pub mod admin;
+pub mod charts;
+pub mod clips;
+pub mod column_query;
+pub mod content;
+pub mod drafts;
+pub mod federation;
+pub mod lists;
+pub mod messaging;
 pub mod table;
 pub mod timeline;
+pub mod user;
 
 use std::sync::LazyLock;
 
+use notecli::api::MisskeyClient;
+use notecli::db::Database;
 use notecli::error::NoteDeckError;
 use serde_json::Value;
 
@@ -44,6 +56,119 @@ pub fn extract_ogp_urls(text: &str) -> Vec<String> {
         .map(|m| m.as_str().to_string())
         .filter(|u| !MEDIA_EXT_RE.is_match(u))
         .collect()
+}
+
+/// `client.request` + `serde_json::from_value::<T>` の型付き汎用ラッパ (#782 R2)。
+/// charts / clips / drafts / lists / federation 等の「生 request → 型へ
+/// デシリアライズ」定型を 1 行に畳む。
+pub async fn typed_request<T: serde::de::DeserializeOwned>(
+    client: &MisskeyClient,
+    host: &str,
+    token: &str,
+    endpoint: &str,
+    params: serde_json::Value,
+) -> Result<T> {
+    let raw = client.request(host, token, endpoint, params).await?;
+    Ok(serde_json::from_value(raw)?)
+}
+
+/// Write account list (non-secret metadata only) to a JSON file for background workers.
+/// The file contains host, account_id, and username — no tokens.
+pub fn export_account_list(core: &Core, db: &Database) {
+    let Ok(app_dir) = core.app_dir() else {
+        return;
+    };
+    let Ok(accounts) = db.load_accounts() else {
+        return;
+    };
+    let list: Vec<serde_json::Value> = accounts
+        .iter()
+        .map(|a| {
+            serde_json::json!({
+                "id": a.id,
+                "host": a.host,
+                "username": a.username,
+            })
+        })
+        .collect();
+    let _ = std::fs::write(
+        app_dir.join("poll_accounts.json"),
+        serde_json::to_string(&list).unwrap_or_default(),
+    );
+}
+
+pub fn validate_host(host: &str) -> Result<String> {
+    let normalized = host.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        return Err(NoteDeckError::InvalidInput(
+            "Host cannot be empty".to_string(),
+        ));
+    }
+    if normalized.len() > 253 {
+        return Err(NoteDeckError::InvalidInput("Host too long".to_string()));
+    }
+    if normalized.contains(['/', '?', '#', '@', ' ', '\n', '\r']) {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "Invalid host: {normalized}"
+        )));
+    }
+
+    // E2E テスト用 (#702): デバッグビルド限定で、環境変数に明示列挙された
+    // ホストだけ SSRF ガードをバイパスする (モック Misskey サーバーが
+    // 127.0.0.1 で動くため)。リリースビルドでは常に無効。
+    #[cfg(debug_assertions)]
+    if let Ok(allowed) = std::env::var("NOTEDECK_E2E_ALLOW_HOSTS") {
+        if allowed.split(',').any(|h| h.trim() == normalized) {
+            return Ok(normalized);
+        }
+    }
+
+    // SSRF prevention: block loopback, private, and link-local addresses
+    let ssrf_blocked = [
+        "localhost",
+        "127.",
+        "0.0.0.0",
+        "[::1]",
+        "::1",
+        "10.",
+        "192.168.",
+        "169.254.",
+        "[fc",      // IPv6 ULA (fc00::/7)
+        "[fd",      // IPv6 ULA (fd00::/8)
+        "[fe80:",   // IPv6 link-local
+        "[::ffff:", // IPv4-mapped IPv6
+    ];
+    if ssrf_blocked.iter().any(|p| normalized.starts_with(p)) {
+        return Err(NoteDeckError::InvalidInput(
+            "Loopback and private addresses are not allowed".to_string(),
+        ));
+    }
+    // 172.16.0.0/12
+    if normalized.starts_with("172.") {
+        if let Some(second) = normalized
+            .strip_prefix("172.")
+            .and_then(|s| s.split('.').next())
+        {
+            if let Ok(n) = second.parse::<u8>() {
+                if (16..=31).contains(&n) {
+                    return Err(NoteDeckError::InvalidInput(
+                        "Loopback and private addresses are not allowed".to_string(),
+                    ));
+                }
+            }
+        }
+    }
+    // Block reserved TLDs
+    if normalized.ends_with(".local")
+        || normalized.ends_with(".internal")
+        || normalized.ends_with(".localhost")
+    {
+        return Err(NoteDeckError::InvalidInput(
+            "Reserved domain names are not allowed".to_string(),
+        ));
+    }
+
+    Ok(normalized)
 }
 
 /// コマンドの種別 (仕様 §4.1)。表に載るのは data だけ。
@@ -178,6 +303,7 @@ macro_rules! define_table {
                     #[derive(serde::Deserialize)]
                     #[serde(rename_all = "camelCase")]
                     struct Params { $( $arg: $ty, )* }
+                    #[allow(unused_variables)]
                     let p: Params = serde_json::from_value(params).map_err(|e| invalid_params(name, e))?;
                     let out = $path(core, $( p.$arg, )*).await?;
                     Ok(serde_json::to_value(out)?)
@@ -256,6 +382,86 @@ mod tests {
         assert!(extract_ogp_urls("").is_empty());
         assert!(extract_ogp_urls("no urls here").is_empty());
     }
+
+    #[test]
+    fn valid_host() {
+        assert_eq!(validate_host("Misskey.IO").unwrap(), "misskey.io");
+    }
+
+    #[test]
+    fn valid_host_trims_whitespace() {
+        assert_eq!(validate_host("  example.com  ").unwrap(), "example.com");
+    }
+
+    #[test]
+    fn reject_empty_host() {
+        assert!(validate_host("").is_err());
+        assert!(validate_host("   ").is_err());
+    }
+
+    #[test]
+    fn reject_host_with_path() {
+        assert!(validate_host("example.com/path").is_err());
+    }
+
+    #[test]
+    fn reject_localhost() {
+        assert!(validate_host("localhost").is_err());
+        assert!(validate_host("localhost:3000").is_err());
+    }
+
+    #[test]
+    fn reject_loopback_ipv4() {
+        assert!(validate_host("127.0.0.1").is_err());
+        assert!(validate_host("127.0.0.1:8080").is_err());
+    }
+
+    #[test]
+    fn e2e_allowlist_bypasses_ssrf_guard_for_exact_match_only() {
+        // 他テストと衝突しない値を使う (env はプロセス全体で共有されるため)
+        // SAFETY: テスト専用。並行テストは別の値を検証しており影響しない。
+        unsafe { std::env::set_var("NOTEDECK_E2E_ALLOW_HOSTS", "127.0.0.1:39821") };
+        assert_eq!(validate_host("127.0.0.1:39821").unwrap(), "127.0.0.1:39821");
+        // 列挙外の loopback は引き続き拒否
+        assert!(validate_host("127.0.0.1:39999").is_err());
+        unsafe { std::env::remove_var("NOTEDECK_E2E_ALLOW_HOSTS") };
+    }
+
+    #[test]
+    fn reject_private_ranges() {
+        assert!(validate_host("10.0.0.1").is_err());
+        assert!(validate_host("192.168.1.1").is_err());
+        assert!(validate_host("172.16.0.1").is_err());
+        assert!(validate_host("172.31.255.255").is_err());
+    }
+
+    #[test]
+    fn allow_172_outside_private() {
+        // 172.15.x.x and 172.32.x.x are public
+        assert!(validate_host("172.15.0.1").is_ok());
+        assert!(validate_host("172.32.0.1").is_ok());
+    }
+
+    #[test]
+    fn reject_ipv6_loopback() {
+        assert!(validate_host("[::1]").is_err());
+        assert!(validate_host("::1").is_err());
+    }
+
+    #[test]
+    fn reject_reserved_tlds() {
+        assert!(validate_host("myserver.local").is_err());
+        assert!(validate_host("app.internal").is_err());
+        assert!(validate_host("test.localhost").is_err());
+    }
+
+    #[test]
+    fn reject_long_host() {
+        let long = "a".repeat(254);
+        assert!(validate_host(&long).is_err());
+    }
+
+    // --- AuthSessionTracker ---
 
     #[test]
     fn camel_case_matches_serde() {

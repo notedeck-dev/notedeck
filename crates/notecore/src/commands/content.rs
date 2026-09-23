@@ -1,37 +1,73 @@
-use std::collections::HashMap;
+//! content のデータ系コマンド本体 (#1106 段階 0b)。各関数は `&Core` と引数を取り、
+//! コマンド表 (commands/table.rs) から呼ばれる。
 
-use tauri::State;
+use std::collections::HashMap;
 
 use notecli::error::NoteDeckError;
 use notecli::models::{GalleryPost, Page, ServerEmoji};
 
-use super::{
-    get_credentials, get_credentials_or_anon, typed_request, validate_host, AppState, Result,
-};
+use crate::commands::{typed_request, validate_host};
+use crate::context::Core;
+use crate::credentials::{get_credentials, get_credentials_or_anon};
+use crate::error::Result;
 
 // --- Server metadata ---
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_get_endpoints(
-    app_state: State<'_, AppState>,
-    host: String,
-) -> Result<Vec<String>> {
-    let client = app_state.client().await;
+// --- Roles ---
+
+// --- Announcements ---
+
+// --- Pages ---
+
+/// `i/page-likes` のレスポンス 1 件分。`{ id, page: Page }` という wrapper で
+/// 返るため、Rust 側で剥がして TS 側に Vec<Page> として渡す。
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PageLikeWrapper {
+    page: Page,
+}
+
+// --- Gallery ---
+
+// --- Flash (Play) ---
+
+// --- Drive ---
+
+// --- Drive: 整理（フォルダ CRUD・ファイル移動/リネーム） ---
+
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatedDriveFolder {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub parent_id: Option<String>,
+}
+
+// --- Page / Flash / Note / Drive: 詳細取得 + エディタ更新 ---
+
+// --- Generic API proxy ---
+
+// --- Theme ---
+
+// --- Registry CRUD ---
+//
+// per-account 設定 (テーマ #339 / プラグイン #340 / ウィジット #387) で
+// 本家 Misskey Web UI と互換な scope/key を読み書きするための基盤コマンド群。
+// 実体は notecli の registry CRUD ラッパーを呼び出すだけの薄い Tauri command。
+
+pub async fn api_get_endpoints(core: &Core, host: String) -> Result<Vec<String>> {
+    let client = core.client().await;
     let host = validate_host(&host)?;
     client.get_endpoints(&host).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_endpoint_params(
-    app_state: State<'_, AppState>,
+    core: &Core,
     host: String,
     endpoint: String,
 ) -> Result<Vec<String>> {
-    let client = app_state.client().await;
+    let client = core.client().await;
     let host = validate_host(&host)?;
     if endpoint.len() > 100
         || !endpoint
@@ -45,27 +81,21 @@ pub async fn api_get_endpoint_params(
     client.get_endpoint_params(&host, &endpoint).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_user_policies(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
 ) -> Result<HashMap<String, bool>> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client.get_user_policies(&host, &token).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_update_user_setting(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     key: String,
     value: bool,
 ) -> Result<()> {
-    let (db, client) = app_state.ready().await;
+    let (db, client) = core.ready().await;
     // Only allow mode-flag toggles (e.g., isInYamiMode, isInHanamiMode)
     if !(key.starts_with("isIn") && key.ends_with("Mode") && key.len() <= 30) {
         return Err(NoteDeckError::InvalidInput(format!(
@@ -81,19 +111,14 @@ pub async fn api_update_user_setting(
 /// 待ちも省いて返す — 起動直後、DB キャッシュから描いたノートの絵文字を
 /// 辞書到着まで unknown で見せないため。`refresh=true` はフロントの miss
 /// 駆動 / 経年リフレッシュで、必ずサーバーへ取りに行く。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_server_emojis(
-    app: tauri::AppHandle,
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     refresh: bool,
 ) -> Result<Vec<ServerEmoji>> {
-    use notecore::emoji_cache_store as cache;
+    use crate::emoji_cache_store as cache;
 
-    let app_dir = crate::app_dir::resolve_app_dir(&app)
-        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+    let app_dir = core.app_dir()?.to_path_buf();
     let now_ms = || {
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -104,7 +129,7 @@ pub async fn api_get_server_emojis(
     if !refresh {
         // host の解決は DB (Stage 1) だけで済ませ、命中時は full-ready を待たない
         let host = {
-            let db = app_state.db().await;
+            let db = core.db().await;
             get_credentials_or_anon(&db, &account_id)?.0
         };
         let dir = app_dir.clone();
@@ -119,7 +144,7 @@ pub async fn api_get_server_emojis(
         }
     }
 
-    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     let emojis = client.get_server_emojis(&host, &token).await?;
     let snapshot = emojis.clone();
     let fetched_at_ms = now_ms();
@@ -131,66 +156,37 @@ pub async fn api_get_server_emojis(
     Ok(emojis)
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_get_pinned_reactions(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<Vec<String>> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+pub async fn api_get_pinned_reactions(core: &Core, account_id: String) -> Result<Vec<String>> {
+    let (client, host, token) = core.authed(&account_id).await?;
     client.get_pinned_reactions(&host, &token).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_get_server_stats(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+pub async fn api_get_server_stats(core: &Core, account_id: String) -> Result<serde_json::Value> {
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     client.get_server_stats(&host, &token).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_get_meta_detail(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+pub async fn api_get_meta_detail(core: &Core, account_id: String) -> Result<serde_json::Value> {
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     client.get_meta_detail(&host, &token).await
 }
 
-// --- Roles ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_get_roles(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<serde_json::Value> {
-    let (db, client) = app_state.ready().await;
+pub async fn api_get_roles(core: &Core, account_id: String) -> Result<serde_json::Value> {
+    let (db, client) = core.ready().await;
     // roles/list は本家 Misskey で requireCredential: true（roles/users は匿名可）。
     // 匿名トークンでは必ず 401 になるため認証必須として扱う。
     let (host, token) = get_credentials(&db, &account_id)?;
     client.get_roles(&host, &token).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_role_users(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     role_id: String,
     limit: Option<i64>,
     offset: Option<i64>,
 ) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     client
         .get_role_users(
             &host,
@@ -202,18 +198,13 @@ pub async fn api_get_role_users(
         .await
 }
 
-// --- Announcements ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_announcements(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     limit: Option<i64>,
     is_active: Option<bool>,
 ) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     client
         .get_announcements(
             &host,
@@ -224,40 +215,24 @@ pub async fn api_get_announcements(
         .await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_read_announcement(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     announcement_id: String,
 ) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client
         .read_announcement(&host, &token, &announcement_id)
         .await
 }
 
-// --- Pages ---
-
-/// `i/page-likes` のレスポンス 1 件分。`{ id, page: Page }` という wrapper で
-/// 返るため、Rust 側で剥がして TS 側に Vec<Page> として渡す。
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PageLikeWrapper {
-    page: Page,
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_pages(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     endpoint: String,
     limit: Option<i64>,
 ) -> Result<Vec<Page>> {
-    let (db, client) = app_state.ready().await;
+    let (db, client) = core.ready().await;
     // Validate endpoint to only allow page-related endpoints
     let allowed = ["pages/featured", "i/pages", "i/page-likes"];
     if !allowed.contains(&endpoint.as_str()) {
@@ -277,54 +252,32 @@ pub async fn api_get_pages(
     }
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_page(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     page_id: String,
 ) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     client.get_page(&host, &token, &page_id).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_like_page(
-    app_state: State<'_, AppState>,
-    account_id: String,
-    page_id: String,
-) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+pub async fn api_like_page(core: &Core, account_id: String, page_id: String) -> Result<()> {
+    let (client, host, token) = core.authed(&account_id).await?;
     client.like_page(&host, &token, &page_id).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_unlike_page(
-    app_state: State<'_, AppState>,
-    account_id: String,
-    page_id: String,
-) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+pub async fn api_unlike_page(core: &Core, account_id: String, page_id: String) -> Result<()> {
+    let (client, host, token) = core.authed(&account_id).await?;
     client.unlike_page(&host, &token, &page_id).await
 }
 
-// --- Gallery ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_gallery_posts(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     limit: Option<i64>,
     until_id: Option<String>,
 ) -> Result<Vec<GalleryPost>> {
-    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     let raw = client
         .get_gallery_posts(
             &host,
@@ -336,42 +289,27 @@ pub async fn api_get_gallery_posts(
     Ok(serde_json::from_value(raw)?)
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_like_gallery_post(
-    app_state: State<'_, AppState>,
-    account_id: String,
-    post_id: String,
-) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+pub async fn api_like_gallery_post(core: &Core, account_id: String, post_id: String) -> Result<()> {
+    let (client, host, token) = core.authed(&account_id).await?;
     client.like_gallery_post(&host, &token, &post_id).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_unlike_gallery_post(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     post_id: String,
 ) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client.unlike_gallery_post(&host, &token, &post_id).await
 }
 
-// --- Flash (Play) ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_flashes(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     endpoint: String,
     limit: Option<i64>,
 ) -> Result<serde_json::Value> {
-    let (db, client) = app_state.ready().await;
+    let (db, client) = core.ready().await;
     let allowed = ["flash/featured", "flash/my", "flash/my-likes"];
     if !allowed.contains(&endpoint.as_str()) {
         return Err(NoteDeckError::InvalidInput(
@@ -384,54 +322,32 @@ pub async fn api_get_flashes(
         .await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_flash(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     flash_id: String,
 ) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     client.get_flash(&host, &token, &flash_id).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_like_flash(
-    app_state: State<'_, AppState>,
-    account_id: String,
-    flash_id: String,
-) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+pub async fn api_like_flash(core: &Core, account_id: String, flash_id: String) -> Result<()> {
+    let (client, host, token) = core.authed(&account_id).await?;
     client.like_flash(&host, &token, &flash_id).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_unlike_flash(
-    app_state: State<'_, AppState>,
-    account_id: String,
-    flash_id: String,
-) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+pub async fn api_unlike_flash(core: &Core, account_id: String, flash_id: String) -> Result<()> {
+    let (client, host, token) = core.authed(&account_id).await?;
     client.unlike_flash(&host, &token, &flash_id).await
 }
 
-// --- Drive ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_drive_folders(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     folder_id: Option<String>,
     limit: Option<i64>,
 ) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client
         .get_drive_folders(
             &host,
@@ -442,17 +358,14 @@ pub async fn api_get_drive_folders(
         .await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_drive_files(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     folder_id: Option<String>,
     limit: Option<i64>,
     file_type: Option<String>,
 ) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client
         .get_drive_files(
             &host,
@@ -464,53 +377,29 @@ pub async fn api_get_drive_files(
         .await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_delete_drive_file(
-    app_state: State<'_, AppState>,
-    account_id: String,
-    file_id: String,
-) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+pub async fn api_delete_drive_file(core: &Core, account_id: String, file_id: String) -> Result<()> {
+    let (client, host, token) = core.authed(&account_id).await?;
     client.delete_drive_file(&host, &token, &file_id).await
 }
 
-// --- Drive: 整理（フォルダ CRUD・ファイル移動/リネーム） ---
-
-#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct CreatedDriveFolder {
-    pub id: String,
-    pub name: String,
-    #[serde(default)]
-    pub parent_id: Option<String>,
-}
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_create_drive_folder(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     name: String,
     parent_id: Option<String>,
 ) -> Result<CreatedDriveFolder> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let params = serde_json::json!({ "name": name, "parentId": parent_id });
     typed_request(&client, &host, &token, "drive/folders/create", params).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_update_drive_folder(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     folder_id: String,
     name: String,
 ) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let params = serde_json::json!({ "folderId": folder_id, "name": name });
     client
         .request(&host, &token, "drive/folders/update", params)
@@ -518,15 +407,12 @@ pub async fn api_update_drive_folder(
     Ok(())
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_delete_drive_folder(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     folder_id: String,
 ) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let params = serde_json::json!({ "folderId": folder_id });
     client
         .request(&host, &token, "drive/folders/delete", params)
@@ -536,18 +422,15 @@ pub async fn api_delete_drive_folder(
 
 /// drive/files/update。None のフィールドは送信されず変更されない。
 /// comment は空文字で null 送信 = alt テキストのクリア (#753)。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_update_drive_file(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     file_id: String,
     name: Option<String>,
     comment: Option<String>,
     is_sensitive: Option<bool>,
 ) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let mut params = serde_json::json!({ "fileId": file_id });
     let obj = params.as_object_mut().expect("params is an object");
     if let Some(name) = name {
@@ -570,16 +453,13 @@ pub async fn api_update_drive_file(
     Ok(())
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_move_drive_files(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     file_ids: Vec<String>,
     folder_id: Option<String>,
 ) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     // folder_id: None は JSON null（= ルートへ移動）として送る
     let params = serde_json::json!({ "fileIds": file_ids, "folderId": folder_id });
     client
@@ -588,70 +468,51 @@ pub async fn api_move_drive_files(
     Ok(())
 }
 
-// --- Page / Flash / Note / Drive: 詳細取得 + エディタ更新 ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_update_page(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     params: serde_json::Value,
 ) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client.request(&host, &token, "pages/update", params).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_update_flash(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     params: serde_json::Value,
 ) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client.request(&host, &token, "flash/update", params).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_note_raw(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     params: serde_json::Value,
 ) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed_or_anon(&account_id).await?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     client.request(&host, &token, "notes/show", params).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_drive_file(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     params: serde_json::Value,
 ) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client
         .request(&host, &token, "drive/files/show", params)
         .await
 }
 
-// --- Generic API proxy ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_request(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     endpoint: String,
     params: Option<serde_json::Value>,
 ) -> Result<serde_json::Value> {
-    let (db, client) = app_state.ready().await;
+    let (db, client) = core.ready().await;
     if endpoint.is_empty() || endpoint.len() > 100 {
         return Err(NoteDeckError::InvalidInput(
             "Invalid endpoint name".to_string(),
@@ -679,22 +540,14 @@ pub async fn api_request(
         .await
 }
 
-// --- Theme ---
-
 /// インスタンス管理者が Branding → Default Theme で設定したテーマを取得する。
 ///
 /// 本家 Misskey の "現在選択中のテーマ" (`darkTheme`/`lightTheme` Pref) はデバイス
 /// local 設定で registry に書かれない設計のため、サーバー側からは admin が設定した
 /// meta default のみを取得する。NoteDeck 内 per-column 適用 / MisStore からの
 /// インストールはすべて NoteDeck 内部 state (localStorage / settings.json) で完結。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_fetch_account_theme(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<serde_json::Value> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+pub async fn api_fetch_account_theme(core: &Core, account_id: String) -> Result<serde_json::Value> {
+    let (client, host, token) = core.authed(&account_id).await?;
 
     let mut result = serde_json::json!({});
 
@@ -711,39 +564,27 @@ pub async fn api_fetch_account_theme(
     Ok(result)
 }
 
-// --- Registry CRUD ---
-//
-// per-account 設定 (テーマ #339 / プラグイン #340 / ウィジット #387) で
-// 本家 Misskey Web UI と互換な scope/key を読み書きするための基盤コマンド群。
-// 実体は notecli の registry CRUD ラッパーを呼び出すだけの薄い Tauri command。
-
 /// Get a single registry value at the given scope/key.
 /// Returns None when the key does not exist (NO_SUCH_KEY) or the API errors.
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_registry_value(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     scope: Vec<String>,
     key: String,
 ) -> Result<Option<serde_json::Value>> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client.get_registry_value(&host, &token, &scope, &key).await
 }
 
 /// Set a registry value at the given scope/key.
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_set_registry_value(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     scope: Vec<String>,
     key: String,
     value: serde_json::Value,
 ) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client
         .set_registry_value(&host, &token, &scope, &key, value)
         .await
@@ -751,31 +592,25 @@ pub async fn api_set_registry_value(
 
 /// Remove a registry value at the given scope/key.
 /// Idempotent: returns Ok even if the key did not exist.
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_delete_registry_value(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     scope: Vec<String>,
     key: String,
 ) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client
         .remove_registry_value(&host, &token, &scope, &key)
         .await
 }
 
 /// List keys in a registry scope as `{ key: type }`.
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_list_registry_keys(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     scope: Vec<String>,
 ) -> Result<HashMap<String, String>> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client.list_registry_keys(&host, &token, &scope).await
 }
 

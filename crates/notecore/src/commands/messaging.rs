@@ -1,11 +1,14 @@
-use std::sync::Arc;
+//! messaging のデータ系コマンド本体 (#1106 段階 0b)。各関数は `&Core` と引数を取り、
+//! コマンド表 (commands/table.rs) から呼ばれる。
 
-use tauri::State;
+use std::sync::Arc;
 
 use notecli::db::Database;
 use notecli::models::{ChatMessage, NormalizedNotification, TimelineOptions};
 
-use super::{get_credentials, AppState, Result};
+use crate::context::Core;
+use crate::credentials::get_credentials;
+use crate::error::Result;
 
 /// REST レスポンスで取得した chat メッセージを fire-and-forget で DB に upsert する。
 /// `cache` フラグが false なら何もしない (`chat.cacheEnabled = false` 時の opt-out)。
@@ -40,66 +43,50 @@ fn cache_chat_response(
 
 // --- Notifications ---
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
+// --- Unread chat ---
+
+// --- Chat ---
+
+// --- Cached chat (offline-first hydrate / gap reconcile 用) ---
+
+// --- Chat reactions ---
+
+// --- Chat delete ---
+
 pub async fn api_get_notifications(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     options: Option<TimelineOptions>,
 ) -> Result<Vec<NormalizedNotification>> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client
         .get_notifications(&host, &token, &account_id, options.unwrap_or_default())
         .await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_notifications_grouped(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     options: Option<TimelineOptions>,
 ) -> Result<Vec<NormalizedNotification>> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client
         .get_notifications_grouped(&host, &token, &account_id, options.unwrap_or_default())
         .await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_get_unread_notification_count(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<i64> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+pub async fn api_get_unread_notification_count(core: &Core, account_id: String) -> Result<i64> {
+    let (client, host, token) = core.authed(&account_id).await?;
     client.get_unread_notification_count(&host, &token).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_mark_all_notifications_as_read(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+pub async fn api_mark_all_notifications_as_read(core: &Core, account_id: String) -> Result<()> {
+    let (client, host, token) = core.authed(&account_id).await?;
     client.mark_all_notifications_as_read(&host, &token).await
 }
 
-// --- Unread chat ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn api_get_unread_chat(
-    app_state: State<'_, AppState>,
-    account_id: String,
-) -> Result<bool> {
-    let (db, client) = app_state.ready().await;
+pub async fn api_get_unread_chat(core: &Core, account_id: String) -> Result<bool> {
+    let (db, client) = core.ready().await;
     let (host, token) = get_credentials(&db, &account_id)?;
     // notecli #9 (#469) で `messaging/unread` 廃止に伴い `chat/history` の
     // isRead 集計に切り替わったため、自分送信メッセージ除外用に user_id を渡す。
@@ -110,19 +97,14 @@ pub async fn api_get_unread_chat(
     client.get_unread_chat(&host, &token, &me_user_id).await
 }
 
-// --- Chat ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_chat_history(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     limit: Option<i64>,
     room: Option<bool>,
     cache: Option<bool>,
 ) -> Result<Vec<ChatMessage>> {
-    let (db, client) = app_state.ready().await;
+    let (db, client) = core.ready().await;
     let (host, token) = get_credentials(&db, &account_id)?;
     let msgs = client
         .get_chat_history(&host, &token, limit.unwrap_or(100), room.unwrap_or(false))
@@ -131,11 +113,8 @@ pub async fn api_get_chat_history(
     Ok(msgs)
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_chat_user_messages(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     user_id: String,
     limit: Option<i64>,
@@ -143,7 +122,7 @@ pub async fn api_get_chat_user_messages(
     until_id: Option<String>,
     cache: Option<bool>,
 ) -> Result<Vec<ChatMessage>> {
-    let (db, client) = app_state.ready().await;
+    let (db, client) = core.ready().await;
     let (host, token) = get_credentials(&db, &account_id)?;
     let msgs = client
         .get_chat_user_messages(
@@ -159,11 +138,8 @@ pub async fn api_get_chat_user_messages(
     Ok(msgs)
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_chat_room_messages(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     room_id: String,
     limit: Option<i64>,
@@ -171,7 +147,7 @@ pub async fn api_get_chat_room_messages(
     until_id: Option<String>,
     cache: Option<bool>,
 ) -> Result<Vec<ChatMessage>> {
-    let (db, client) = app_state.ready().await;
+    let (db, client) = core.ready().await;
     let (host, token) = get_credentials(&db, &account_id)?;
     let msgs = client
         .get_chat_room_messages(
@@ -191,18 +167,15 @@ pub async fn api_get_chat_room_messages(
 /// `text` / `file_id` は両方 Option で、どちらか一方は必須 (Misskey 側で
 /// バリデーション)。`user_id` / `room_id` も両方 Option で、どちらか一方は必須
 /// (こちらは本関数で先回り検証)。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_create_chat_message(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     user_id: Option<String>,
     room_id: Option<String>,
     text: Option<String>,
     file_id: Option<String>,
 ) -> Result<ChatMessage> {
-    let (db, client) = app_state.ready().await;
+    let (db, client) = core.ready().await;
     let (host, token) = get_credentials(&db, &account_id)?;
     let text_ref = text.as_deref();
     let file_id_ref = file_id.as_deref();
@@ -228,31 +201,23 @@ pub async fn api_create_chat_message(
     Ok(msg)
 }
 
-// --- Cached chat (offline-first hydrate / gap reconcile 用) ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_cached_chat_history(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     limit: Option<i64>,
 ) -> Result<Vec<ChatMessage>> {
-    let db = app_state.db().await;
+    let db = core.db().await;
     db.get_cached_chat_history(&account_id, limit.unwrap_or(100))
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_cached_chat_thread_messages(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     thread_id: String,
     until_id: Option<String>,
     limit: Option<i64>,
 ) -> Result<Vec<ChatMessage>> {
-    let db = app_state.db().await;
+    let db = core.db().await;
     db.get_cached_chat_thread_messages(
         &account_id,
         &thread_id,
@@ -261,51 +226,38 @@ pub async fn api_get_cached_chat_thread_messages(
     )
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_get_cached_chat_latest_message_id(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     thread_id: String,
 ) -> Result<Option<String>> {
-    let db = app_state.db().await;
+    let db = core.db().await;
     db.get_cached_chat_latest_message_id(&account_id, &thread_id)
 }
 
-// --- Chat reactions ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_react_chat_message(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     message_id: String,
     reaction: String,
 ) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client
         .react_chat_message(&host, &token, &message_id, &reaction)
         .await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_unreact_chat_message(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     message_id: String,
     reaction: String,
 ) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client
         .unreact_chat_message(&host, &token, &message_id, &reaction)
         .await
 }
-
-// --- Chat delete ---
 
 /// Misskey 新 Chat API の `chat/messages/delete` をラップする (#468)。
 /// Misskey はハード削除のみで、削除成功後 WS `chat:deleted` event が
@@ -314,14 +266,11 @@ pub async fn api_unreact_chat_message(
 /// `stream-chat-message-deleted` event が emit される。フロントの
 /// QuerySubscription はその event を受けて UI からも消すため、
 /// この command の呼び出し側で楽観更新は不要。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
 pub async fn api_delete_chat_message(
-    app_state: State<'_, AppState>,
+    core: &Core,
     account_id: String,
     message_id: String,
 ) -> Result<()> {
-    let (client, host, token) = app_state.authed(&account_id).await?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client.delete_chat_message(&host, &token, &message_id).await
 }

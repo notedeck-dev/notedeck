@@ -259,6 +259,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
         // AppState: empty wrapper — commands await until Phase 2 fills it
         let app_state = commands::AppState::new();
+        app_state.set_app_dir(app_dir.clone());
         app.manage(app_state);
 
         // Performance config: starts with defaults, updated dynamically via Tauri command
@@ -483,7 +484,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 });
             }
 
-            commands::export_account_list(&app_handle, &db);
+            commands::export_account_list(&app_state, &db);
 
             // Streaming manager (depends on DB)。
             // 必ず emit_accounts_early より前に manage する: アカウント一覧を
