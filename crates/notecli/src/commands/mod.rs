@@ -7,7 +7,7 @@ mod users;
 
 use crate::api::MisskeyClient;
 use crate::cli::Commands;
-use crate::db::Database;
+use crate::db::{Database, MigrationStatus};
 use crate::error::NoteDeckError;
 use crate::format::OutputFormat;
 use crate::models::Account;
@@ -30,10 +30,22 @@ pub async fn run_cli(
     std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
 
     let db_path = data_dir.join("notecli.db");
+
+    // Database::open は migration を走らせるので、検査だけの場合はその前で返す
+    if let Commands::Migrate { check: true } = cmd {
+        return run_migrate_check(&db_path, fmt);
+    }
+
     let db = Database::open(&db_path)?;
 
     // Commands that don't need credentials
     match cmd {
+        Commands::Migrate { .. } => {
+            // open が migration を適用済み。結果を表示して終わる
+            let status = Database::migration_status(&db_path)?;
+            print_migration_status(&db_path, &status, fmt);
+            return Ok(());
+        }
         Commands::Accounts => return auth::run_accounts(&db, fmt),
         Commands::Doctor => return doctor::run_doctor(&db, &db_path, account_spec, fmt).await,
         Commands::Login { host } => return auth::run_login(&db, host, fmt).await,
@@ -114,8 +126,61 @@ pub async fn run_cli(
         | Commands::Daemon { .. }
         | Commands::Login { .. }
         | Commands::Logout { .. }
-        | Commands::Cache(..) => {
+        | Commands::Cache(..)
+        | Commands::Migrate { .. } => {
             unreachable!()
+        }
+    }
+}
+
+/// `notecli migrate --check`: DB を変更せずに適用可否を報告する。
+/// 開けない (DbNewer / Divergent) なら終了コード 1。
+fn run_migrate_check(db_path: &std::path::Path, fmt: OutputFormat) -> Result<(), NoteDeckError> {
+    let status = Database::migration_status(db_path)?;
+    print_migration_status(db_path, &status, fmt);
+    if !status.is_openable() {
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+fn print_migration_status(db_path: &std::path::Path, status: &MigrationStatus, fmt: OutputFormat) {
+    match fmt {
+        OutputFormat::Json | OutputFormat::Jsonl => {
+            let mut v = serde_json::to_value(status).unwrap_or_default();
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert("path".into(), db_path.display().to_string().into());
+                obj.insert("openable".into(), status.is_openable().into());
+            }
+            println!("{v}");
+        }
+        _ => {
+            let path = db_path.display();
+            match status {
+                MigrationStatus::UpToDate { version } => {
+                    println!("{path}: up to date (V{version})");
+                }
+                MigrationStatus::Pending {
+                    applied,
+                    target,
+                    pending,
+                } => {
+                    println!(
+                        "{path}: V{applied} -> V{target}, {} pending: {}",
+                        pending.len(),
+                        pending.join(", ")
+                    );
+                }
+                MigrationStatus::DbNewer { applied, target } => {
+                    println!(
+                        "{path}: database is newer than this binary (db V{applied}, binary V{target}); \
+                         upgrade notecli or restore an older database"
+                    );
+                }
+                MigrationStatus::Divergent { version, reason } => {
+                    println!("{path}: migration history diverged at V{version}: {reason}");
+                }
+            }
         }
     }
 }
