@@ -42,6 +42,24 @@ describe('notecore (crates/notecore) の境界 (#1106)', () => {
     expect(offenders).toEqual([])
   })
 
+  it('commands/ (コマンド表の本体) に target 依存の #[cfg] を置かない', () => {
+    // 表の行は全 target で生成されるので、本体が cfg で消えると Android / macOS /
+    // Windows のビルドだけが落ちる (Linux の CI では見えない: v1.65.0 で踏んだ)。
+    // 端末依存の処理は手元側 (src-tauri) に置く
+    const violations: string[] = []
+    for (const path of files) {
+      if (!path.includes('/commands/')) continue
+      const lines = readFileSync(path, 'utf-8').split('\n')
+      lines.forEach((line, i) => {
+        const m = line.match(/^\s*#\[cfg\((.*)\)\]/)
+        if (!m) return
+        if (/^(test|debug_assertions)$/.test(m[1].trim())) return
+        violations.push(`${relative(ROOT, path)}:${i + 1}: ${line.trim()}`)
+      })
+    }
+    expect(violations).toEqual([])
+  })
+
   it('ソースで tauri を参照しない', () => {
     const violations: string[] = []
     for (const path of files) {

@@ -20,7 +20,6 @@ pub fn settings_base_dir(core: &Core) -> Result<PathBuf> {
     Ok(core.app_dir()?.join(SETTINGS_DIR))
 }
 
-#[cfg(target_os = "linux")]
 pub async fn list_settings_files(core: &Core, subdir: String) -> Result<Vec<String>> {
     store::list_files(&settings_base_dir(core)?, &subdir)
 }
