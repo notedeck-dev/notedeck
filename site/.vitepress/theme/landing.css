@@ -442,9 +442,9 @@
   color: var(--text-muted);
 }
 
-/* ===== Architecture — 含有関係で描く (縦 1 列) =====
-   手元の端末 (Tauri) がフロントとクライアント層を包み、その下に notecore。
-   notecored は notecore を包む点線の枠で、挟むかどうかが任意 (外せば Tauri → notecore) */
+/* ===== Architecture — 縦 1 列 =====
+   手元の端末 (Tauri) → notecore → notecli。Tauri と notecore の間は 2 経路で、
+   左の縦線が「素通り (既定)」、右が notecored (任意、点線) を経由する「中継」 */
 .arch-grid { display: flex; flex-direction: column; }
 .arch-box {
   border: 1px solid var(--border); border-radius: var(--radius);
@@ -452,7 +452,19 @@
 }
 .arch-box > .arch-desc { margin-bottom: var(--space-sm); }
 .arch-box-remote { border-style: dashed; }
-.arch-core { border: 2px solid var(--accent); }
+.arch-box-remote > .arch-desc { margin-bottom: 0; }
+.arch-highlight { box-shadow: inset 0 0 0 2px var(--accent); }
+.arch-fork {
+  display: grid; grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-md); padding: 0 var(--space-lg);
+}
+.arch-bypass {
+  display: flex; flex-direction: column; align-items: center;
+  padding: var(--space-2xs) 0; color: var(--text-muted);
+  font-size: var(--text-2xs); font-weight: 700; white-space: nowrap;
+}
+.arch-bypass-line { flex: 1; border-left: 2px solid var(--border); margin: var(--space-3xs) 0; }
+.arch-via { display: flex; flex-direction: column; }
 .arch-layer { padding: var(--space-md) var(--space-lg); }
 .arch-label {
   font-size: var(--text-2xs); font-weight: 700; color: var(--accent-text);
