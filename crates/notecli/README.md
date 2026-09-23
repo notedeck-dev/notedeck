@@ -121,6 +121,7 @@ impl FrontendEmitter for MyEmitter {
 `/api` と `/api/accounts` 以外の全リクエストに `Authorization: Bearer {token}` ヘッダーが必要です。
 
 アカウントの API トークンは OS のキーチェーン（Linux: Secret Service、macOS: Keychain、Windows: Credential Manager）に保存されます。
+Linux で Secret Service が使えない環境（サーバー / WSL2 / コンテナ）では、暗号化ファイル `{data_dir}/notecli/secrets.enc` に保存されます（鍵は `{config_dir}/notecli/secret.key`、どちらも 0600）。
 
 ## License
 

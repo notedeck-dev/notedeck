@@ -53,6 +53,8 @@ windows-native-keyring-store = { version = "0.5", optional = true }
 [target.'cfg(target_os = "linux")'.dependencies]
 linux-keyutils-keyring-store = { version = "0.2", optional = true }
 zbus-secret-service-keyring-store = { version = "0.3", features = ["rt-async-io-crypto-rust"], optional = true }
+# secret-service 不在時のファイル backend (file_keyring.rs, notedeck#1106)
+chacha20poly1305 = { version = "0.10", optional = true }
 
 [features]
 default = ["keyring"]
@@ -63,5 +65,6 @@ keyring = [
     "dep:windows-native-keyring-store",
     "dep:linux-keyutils-keyring-store",
     "dep:zbus-secret-service-keyring-store",
+    "dep:chacha20poly1305",
 ]
 specta = ["dep:specta"]

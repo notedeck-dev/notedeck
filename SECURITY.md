@@ -230,7 +230,8 @@ flowchart TB
 | メモリ | TTL 60秒キャッシュ + `Zeroize` trait | 同上 |
 | 破棄 | `Drop` 実装でメモリを即時ゼロ化 | 同上 |
 
-- DB にトークンが残っている場合、キーチェーン保存成功後に DB から削除する。ただし **再起動をまたいで永続しないキーチェーン実装 (Linux の keyutils 等) では DB フォールバックを消さない** — 消すと再起動のたびに再ログインが必要になるため (`keychain::is_persistent()` で判定)
+- DB にトークンが残っている場合、キーチェーン保存成功後に DB から削除する。ただし **再起動をまたいで永続しないキーチェーン実装では DB フォールバックを消さない** — 消すと再起動のたびに再ログインが必要になるため (`keychain::is_persistent()` で判定)
+- Linux で Secret Service が使えない環境は、暗号化ファイル (`crates/notecli/src/file_keyring.rs`、鍵はデータディレクトリの外) に劣化する。これは永続なので DB フォールバックを消せる。ファイルも作れない環境だけがカーネル keyutils (再起動非永続) に落ちる ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106))
 - アカウントエクスポート JSON にはトークンを含めない（`id`, `host`, `username` のみ）
 
 ### 外部サービスのシークレット (Secret Vault #564)
