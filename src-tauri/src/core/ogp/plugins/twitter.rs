@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 
 use super::{Plugin, PluginError, SummaryData};
-use crate::ogp::Player;
+use crate::core::ogp::Player;
 
 pub struct TwitterPlugin;
 pub const PLUGIN: TwitterPlugin = TwitterPlugin;

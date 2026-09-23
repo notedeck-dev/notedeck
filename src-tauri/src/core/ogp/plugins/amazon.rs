@@ -67,11 +67,11 @@ impl Plugin for AmazonPlugin {
             .await
             .map_err(|e| PluginError::FetchFailed(e.to_string()))?;
 
-        let mut data = crate::ogp::parser::parse_html(&html, &final_url);
+        let mut data = crate::core::ogp::parser::parse_html(&html, &final_url);
 
         if data.thumbnail.is_none() {
-            data.thumbnail = crate::ogp::parser::extract_amazon_product_image(&html)
-                .or_else(|| crate::ogp::parser::extract_amazon_jsonld_image(&html));
+            data.thumbnail = crate::core::ogp::parser::extract_amazon_product_image(&html)
+                .or_else(|| crate::core::ogp::parser::extract_amazon_jsonld_image(&html));
         }
         if let Some(ref title) = data.title {
             data.title = Some(clean_title(title));

@@ -19,6 +19,7 @@ const MAX_OGP_CONCURRENT: usize = 20;
 
 // --- Timelines ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_timeline(
@@ -87,23 +88,24 @@ fn spawn_ogp_prefetch(
         return;
     }
 
-    let ogp_cache: crate::ogp::OgpCache = (*app.state::<crate::ogp::OgpCache>()).clone();
+    let ogp_cache: crate::core::ogp::OgpCache =
+        (*app.state::<crate::core::ogp::OgpCache>()).clone();
     let app = app.clone();
     tokio::spawn(async move {
-        let hints: HashMap<String, crate::ogp::OgpData> = stream::iter(urls)
+        let hints: HashMap<String, crate::core::ogp::OgpData> = stream::iter(urls)
             .map(|url| {
                 let host = host.clone();
                 let token = token.clone();
                 let ogp = ogp_cache.clone();
                 async move {
-                    let result: std::result::Result<crate::ogp::OgpData, _> =
+                    let result: std::result::Result<crate::core::ogp::OgpData, _> =
                         ogp.get_ogp_via_server(&url, &host, &token).await;
                     (url, result.ok())
                 }
             })
             .buffer_unordered(MAX_OGP_CONCURRENT)
             .filter_map(
-                |(url, data): (String, Option<crate::ogp::OgpData>)| async move {
+                |(url, data): (String, Option<crate::core::ogp::OgpData>)| async move {
                     data.map(|d| (url, d))
                 },
             )
@@ -118,6 +120,7 @@ fn spawn_ogp_prefetch(
 
 // --- Lists / Antennas ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_lists(
@@ -128,6 +131,7 @@ pub async fn api_get_user_lists(
     client.get_user_lists(&host, &token).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_antennas(
@@ -139,6 +143,7 @@ pub async fn api_get_antennas(
 }
 
 /// 単一アンテナの設定を取得する (antennas/show)。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_antenna(
@@ -151,6 +156,7 @@ pub async fn api_get_antenna(
 }
 
 /// アンテナ設定を更新する (antennas/update)。変更済みの Antenna を全フィールド往復させる。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_update_antenna(
@@ -184,6 +190,7 @@ pub async fn api_update_antenna(
 /// サーバー削除する) の後始末: 死にバケットの membership を破棄する。
 /// これが無いと削除済みエンティティの membership が sweep 対象外のまま
 /// per-account cap まで残留する (issue notecli#30 仕様 v5 §6-7)。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_clear_timeline_cache(
@@ -200,6 +207,7 @@ pub async fn api_clear_timeline_cache(
     Ok(removed.min(u32::MAX as u64) as u32)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_antenna_notes(
@@ -234,6 +242,7 @@ pub async fn api_get_antenna_notes(
     Ok(notes)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_favorites(
@@ -261,6 +270,7 @@ pub async fn api_get_favorites(
     Ok(notes)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_featured_notes(
@@ -275,6 +285,7 @@ pub async fn api_get_featured_notes(
     Ok(notes)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_mentions(
@@ -313,6 +324,7 @@ pub async fn api_get_mentions(
 
 // --- Clips ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_clips(
@@ -323,6 +335,7 @@ pub async fn api_get_clips(
     client.get_clips(&host, &token).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_clip_notes(
@@ -359,6 +372,7 @@ pub async fn api_get_clip_notes(
 
 // --- Channels ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_channels(
@@ -369,6 +383,7 @@ pub async fn api_get_channels(
     client.get_channels(&host, &token).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_search_channels(
@@ -380,6 +395,7 @@ pub async fn api_search_channels(
     client.search_channels(&host, &token, &query).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_channel_notes(
@@ -416,6 +432,7 @@ pub async fn api_get_channel_notes(
 
 // --- Roles ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_role_notes(
@@ -452,6 +469,7 @@ pub async fn api_get_role_notes(
 
 // --- Notes ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_note(
@@ -463,6 +481,7 @@ pub async fn api_get_note(
     client.get_note(&host, &token, &account_id, &note_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_create_note(
@@ -534,6 +553,7 @@ fn build_create_note_body(
     body
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_update_note(
@@ -546,6 +566,7 @@ pub async fn api_update_note(
     client.update_note(&host, &token, &note_id, params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_delete_note(
@@ -559,6 +580,7 @@ pub async fn api_delete_note(
 
 // --- Reactions ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_create_reaction(
@@ -573,6 +595,7 @@ pub async fn api_create_reaction(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_delete_reaction(
@@ -586,6 +609,7 @@ pub async fn api_delete_reaction(
 
 // --- Poll vote ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_vote_poll(
@@ -598,6 +622,7 @@ pub async fn api_vote_poll(
     client.vote_poll(&host, &token, &note_id, choice).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_note_reactions(
@@ -623,6 +648,7 @@ pub async fn api_get_note_reactions(
 
 // --- Favorites ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_create_favorite(
@@ -634,6 +660,7 @@ pub async fn api_create_favorite(
     client.create_favorite(&host, &token, &note_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_delete_favorite(
@@ -654,6 +681,7 @@ pub async fn api_delete_favorite(
 
 // --- Pin/Unpin ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_pin_note(
@@ -665,6 +693,7 @@ pub async fn api_pin_note(
     client.pin_note(&host, &token, &note_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_unpin_note(
@@ -678,6 +707,7 @@ pub async fn api_unpin_note(
 
 // --- Clip operations ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_add_note_to_clip(
@@ -692,6 +722,7 @@ pub async fn api_add_note_to_clip(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_remove_note_from_clip(
@@ -719,6 +750,7 @@ pub async fn api_remove_note_from_clip(
 
 // --- Note thread ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_note_children(
@@ -739,6 +771,7 @@ pub async fn api_get_note_children(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_note_renotes(
@@ -763,6 +796,7 @@ pub async fn api_get_note_renotes(
         .collect())
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_note_conversation(
@@ -785,6 +819,7 @@ pub async fn api_get_note_conversation(
 
 // --- Search ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_search_notes(
@@ -815,6 +850,7 @@ pub async fn api_search_notes(
 /// 本家 `notes/search` はロールポリシーで無効化されているため、フォーク別
 /// アダプター (`src/adapters/hanamisskey/`) がこちらを呼ぶ。エンドポイントは
 /// 匿名アクセスでサーバー側が 500 になるので、認証必須として扱う。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_search_notes_hanami(
@@ -842,6 +878,7 @@ pub async fn api_search_notes_hanami(
 
 // --- Upload ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_upload_file(
@@ -870,6 +907,7 @@ pub async fn api_upload_file(
         .await
 }
 
+// nd-command: mixed
 #[tauri::command]
 #[specta::specta]
 pub async fn api_upload_file_from_path(
@@ -909,6 +947,7 @@ pub async fn api_upload_file_from_path(
 
 // --- Cache ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_cached_timeline(
@@ -923,6 +962,7 @@ pub async fn api_get_cached_timeline(
     db.get_cached_timeline(&account_id, &key, limit.unwrap_or(40).clamp(1, 200))
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_cached_timeline_before(
@@ -947,6 +987,7 @@ pub async fn api_get_cached_timeline_before(
     )
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_cache_date_range(
@@ -961,6 +1002,7 @@ pub async fn api_get_cache_date_range(
 
 /// identity (正規化 AP object id) でローカルキャッシュを account 横断で引く (#1058)。
 /// 引数は生の URI でもよい (notecli 側で同じ規則で正規化する)。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_find_notes_by_identity(
@@ -973,12 +1015,14 @@ pub async fn api_find_notes_by_identity(
 
 /// URI を identity に正規化する。導出規則は notecli 側の 1 か所に閉じ、
 /// フロントは結果を読むだけにする (#1058)。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn api_note_identity(uri: String) -> String {
     notecli::identity::identity_of(Some(&uri), "", "")
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_search_notes_local(
@@ -1008,6 +1052,7 @@ pub async fn api_search_notes_local(
 
 /// クライアント検索 (notedeck#945 / #958): 複数アカウントのキャッシュを横断して
 /// 引く。結果は取得元アカウントごとの variant のまま返し、束ねはフロントが行う。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 #[allow(clippy::too_many_arguments)]
@@ -1045,6 +1090,7 @@ pub async fn api_search_notes_cached_across(
     )
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_delete_cached_note(
@@ -1074,6 +1120,7 @@ pub struct VerifyNotesResult {
 }
 
 /// Bulk-verify cached notes against the server.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_verify_notes(

@@ -128,7 +128,7 @@ fn show_os_notification<R: tauri::Runtime>(
     {
         let _ = host;
         let cache = app
-            .try_state::<std::sync::Arc<crate::image_cache::ImageCache>>()
+            .try_state::<std::sync::Arc<crate::core::image_cache::ImageCache>>()
             .map(|s| s.inner().clone());
         crate::os_notify::show(title, body, context, media, cache);
     }
@@ -176,13 +176,13 @@ fn show_os_notification<R: tauri::Runtime>(
             // ImageCache は setup で manage される。未登録 (起動直後) なら
             // 画像なしで通知だけ出す
             let cache = app
-                .try_state::<std::sync::Arc<crate::image_cache::ImageCache>>()
+                .try_state::<std::sync::Arc<crate::core::image_cache::ImageCache>>()
                 .map(|s| s.inner().clone());
             let (icon_path, image_path) = match cache {
                 Some(cache) => {
                     let icon = match icon_url {
                         Some(u) => {
-                            crate::notify_media::ensure_local_file(
+                            crate::core::notify_media::ensure_local_file(
                                 &cache,
                                 &u,
                                 Some(AVATAR_MAX_WIDTH),
@@ -194,7 +194,9 @@ fn show_os_notification<R: tauri::Runtime>(
                     // 絵文字はアニメーション保持のため変換なし (原本)。decode の
                     // メモリ安全は Kotlin 側の inSampleSize が担保する
                     let image = match image_url {
-                        Some(u) => crate::notify_media::ensure_local_file(&cache, &u, None).await,
+                        Some(u) => {
+                            crate::core::notify_media::ensure_local_file(&cache, &u, None).await
+                        }
                         None => None,
                     };
                     (icon, image)
@@ -482,7 +484,9 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
             let image_url = (notif_type == "reaction")
                 .then_some(notification.reaction.as_deref())
                 .flatten()
-                .and_then(|r| crate::notify_media::emoji_image_url(&notification.server_host, r));
+                .and_then(|r| {
+                    crate::core::notify_media::emoji_image_url(&notification.server_host, r)
+                });
             (icon_url.is_some() || image_url.is_some()).then_some(NotifyMedia {
                 icon_url,
                 image_url,

@@ -18,8 +18,8 @@ use std::time::Duration;
 
 use tokio::sync::{Mutex, Notify};
 
-use crate::image_cache::ImageCache;
-use crate::media_proxy::{ensure_media_inner, MediaRequest};
+use crate::core::image_cache::ImageCache;
+use crate::core::media_proxy::{ensure_media_inner, MediaRequest};
 
 /// キューの上限。超えたら古い方から落とす (大規模サーバー 1 host 分 +
 /// 余裕。無制限にしない — #987)

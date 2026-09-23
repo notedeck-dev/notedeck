@@ -9,6 +9,7 @@ use super::{typed_request, AppState, Result};
 
 // チャート系エンドポイントは public (未ログインでも閲覧可)。
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_charts_user_notes(
@@ -20,6 +21,7 @@ pub async fn api_charts_user_notes(
     typed_request(&client, &host, &token, "charts/user/notes", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_charts_user_following(
@@ -31,6 +33,7 @@ pub async fn api_charts_user_following(
     typed_request(&client, &host, &token, "charts/user/following", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_charts_user_pv(
@@ -42,6 +45,7 @@ pub async fn api_charts_user_pv(
     typed_request(&client, &host, &token, "charts/user/pv", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_charts_active_users(
@@ -53,6 +57,7 @@ pub async fn api_charts_active_users(
     typed_request(&client, &host, &token, "charts/active-users", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_charts_notes(
@@ -64,6 +69,7 @@ pub async fn api_charts_notes(
     typed_request(&client, &host, &token, "charts/notes", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_charts_users(
@@ -75,6 +81,7 @@ pub async fn api_charts_users(
     typed_request(&client, &host, &token, "charts/users", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_charts_federation(
@@ -86,6 +93,7 @@ pub async fn api_charts_federation(
     typed_request(&client, &host, &token, "charts/federation", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_charts_ap_request(
@@ -97,6 +105,7 @@ pub async fn api_charts_ap_request(
     typed_request(&client, &host, &token, "charts/ap-request", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_charts_drive(

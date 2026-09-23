@@ -209,6 +209,7 @@ fn walk(node: &QirNode, depth: u32, w: &mut Walk) {
 ///
 /// IPC 受領時の Rust 側検証 (V18/V21)。Phase 1 では評価はフロントで完結する
 /// ため副作用はないが、bindings.ts に QIR 型契約を載せる役割を兼ねる。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn qir_validate(query: QirQuery) -> QirValidation {
@@ -273,6 +274,7 @@ pub struct QirSearchCursor {
 /// 走査上限に達したら打ち切って継続カーソルを返す。呼び出し側は必要なだけ
 /// 繰り返す (一度の呼び出しで巨大キャッシュを読み切らせない)。カーソルは
 /// 同じ timeline_key の続き読みにのみ使うこと。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn qir_search_cache(

@@ -1,4 +1,4 @@
-//! MiAuth 認証コマンド。実体は `crate::auth_service` (#782 R3)。
+//! MiAuth 認証コマンド。実体は `crate::core::auth_service` (#782 R3)。
 //! リプレイ防止のセッション追跡 (register/consume) のみここに残る。
 
 use tauri::State;
@@ -6,8 +6,9 @@ use tauri::State;
 use notecli::models::{AccountPublic, AuthSession};
 
 use super::{export_account_list, validate_host, AppState, AuthSessionTracker, Result};
-use crate::auth_service;
+use crate::core::auth_service;
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn auth_start(
@@ -33,6 +34,7 @@ pub async fn auth_start(
     })
 }
 
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn auth_complete_and_save(

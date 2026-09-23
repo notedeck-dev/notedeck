@@ -20,6 +20,7 @@ struct UpdateDraftResponse {
     updated_draft: NoteDraft,
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_drafts(
@@ -31,6 +32,7 @@ pub async fn api_get_drafts(
     typed_request(&client, &host, &token, "notes/drafts/list", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_create_draft(
@@ -46,6 +48,7 @@ pub async fn api_create_draft(
     Ok(response.created_draft)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_update_draft(
@@ -61,6 +64,7 @@ pub async fn api_update_draft(
     Ok(response.updated_draft)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_delete_draft(

@@ -9,6 +9,7 @@ use super::Result;
 /// Start a streaming chat completion request. Returns immediately;
 /// the actual request runs in a background task that emits events
 /// to `nd:ai-chat-event` keyed by `stream_id`.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn ai_chat_send(
@@ -21,6 +22,7 @@ pub async fn ai_chat_send(
 
 /// Cancel an in-flight streaming chat. Idempotent — silently no-ops if the
 /// stream has already completed or never existed.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn ai_chat_cancel(stream_id: String) -> Result<()> {

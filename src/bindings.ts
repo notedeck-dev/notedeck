@@ -2879,7 +2879,7 @@ async queryGetReadModelSnapshot(queryId: string, limit: number | null) : Promise
 /**
  * Tauri command: update performance config at runtime.
  *
- * @see src-tauri/src/perf_config.rs
+ * @see src-tauri/src/commands/settings.rs
  */
 async updatePerformanceConfig(config: PerformanceConfig) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
@@ -2892,7 +2892,7 @@ async updatePerformanceConfig(config: PerformanceConfig) : Promise<Result<null, 
 /**
  * Tauri command: get current performance config.
  *
- * @see src-tauri/src/perf_config.rs
+ * @see src-tauri/src/commands/settings.rs
  */
 async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string; message: string; apiCode: string | null }>> {
     try {

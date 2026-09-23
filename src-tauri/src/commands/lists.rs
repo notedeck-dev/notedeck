@@ -8,6 +8,7 @@ use super::{typed_request, AppState, Result};
 // `client.get_user_lists()` を経由する型化済みコマンド。ここでは
 // users/lists/show・他人用 users/lists/list・お気に入り操作を補完する。
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_list(
@@ -19,6 +20,7 @@ pub async fn api_get_list(
     typed_request(&client, &host, &token, "users/lists/show", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_lists_by(
@@ -30,6 +32,7 @@ pub async fn api_get_user_lists_by(
     typed_request(&client, &host, &token, "users/lists/list", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_favorite_list(
@@ -44,6 +47,7 @@ pub async fn api_favorite_list(
     Ok(())
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_unfavorite_list(

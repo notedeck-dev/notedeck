@@ -1,4 +1,4 @@
-//! 永続 API トークンの管理コマンド (#709)。ストア本体は [`crate::api_tokens`]。
+//! 永続 API トークンの管理コマンド (#709)。ストア本体は [`crate::core::api_tokens`]。
 
 use std::sync::Arc;
 
@@ -6,7 +6,7 @@ use notecli::error::NoteDeckError;
 use tauri::State;
 
 use super::Result;
-use crate::api_tokens::{ApiTokenMeta, ApiTokenStore};
+use crate::core::api_tokens::{ApiTokenMeta, ApiTokenStore};
 
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -17,12 +17,14 @@ pub struct CreatedApiToken {
     pub token: String,
 }
 
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub fn list_api_tokens(store: State<'_, Arc<ApiTokenStore>>) -> Vec<ApiTokenMeta> {
     store.list()
 }
 
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub fn create_api_token(
@@ -40,6 +42,7 @@ pub fn create_api_token(
     Ok(CreatedApiToken { meta, token })
 }
 
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub fn revoke_api_token(store: State<'_, Arc<ApiTokenStore>>, id: String) -> Result<bool> {

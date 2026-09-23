@@ -442,10 +442,18 @@
   color: var(--text-muted);
 }
 
-/* ===== Architecture — acrylic レイヤー ===== */
+/* ===== Architecture — 含有関係で描く (縦 1 列) =====
+   手元の端末 (Tauri) がフロントとクライアント層を包み、その下に notecore。
+   notecored は notecore を包む点線の枠で、挟むかどうかが任意 (外せば Tauri → notecore) */
 .arch-grid { display: flex; flex-direction: column; }
+.arch-box {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: var(--space-md) var(--space-lg);
+}
+.arch-box > .arch-desc { margin-bottom: var(--space-sm); }
+.arch-box-remote { border-style: dashed; }
+.arch-core { border: 2px solid var(--accent); }
 .arch-layer { padding: var(--space-md) var(--space-lg); }
-.arch-core { box-shadow: inset 0 0 0 2px var(--accent); }
 .arch-label {
   font-size: var(--text-2xs); font-weight: 700; color: var(--accent-text);
   text-transform: uppercase; letter-spacing: 0.1em; line-height: 1.4;
@@ -468,19 +476,10 @@
 }
 .arch-tags a:hover { border-color: var(--accent); text-decoration: none; }
 .arch-doc-links { margin-top: var(--space-lg); justify-content: center; }
-.arch-arrow { display: flex; justify-content: center; padding: var(--space-2xs) 0; color: var(--text-muted); }
-/* 殻の行だけ Tauri / notecored を横に並べ、その上下は 1 列。
-   Tauri を広く取り、上下の中央矢印が Tauri の箱にかかるようにする (既定の経路) */
-.arch-shells {
-  display: grid; grid-template-columns: minmax(0, 1.75fr) auto minmax(0, 1fr);
-  column-gap: var(--space-2xs); align-items: stretch;
-}
-.arch-shell-node { border: 1px dashed var(--border); }
-.arch-arrow-h { flex-direction: column; align-items: center; padding: 0 var(--space-2xs); font-size: var(--text-2xs); font-weight: 700; }
-@media (max-width: 800px) {
-  .arch-shells { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-2xs); }
-  .arch-arrow-h { padding: var(--space-2xs) 0; }
-  .arch-arrow-h svg { transform: rotate(90deg); }
+.arch-arrow {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-2xs);
+  padding: var(--space-2xs) 0; color: var(--text-muted);
+  font-size: var(--text-2xs); font-weight: 700;
 }
 
 /* ===== Fork CTA — tint カード (Hub donation 風) ===== */

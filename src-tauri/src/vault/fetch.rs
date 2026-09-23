@@ -23,8 +23,8 @@ use super::connections_store;
 use super::error::{VaultError, VaultResult};
 use super::model::validate_connection_id;
 use super::redaction::{make_nonce, redact_body, redact_headers};
-use super::ssrf::{host_in_allowed, validate_redirect_url, PinningResolver};
 use super::{KeychainBackend, SecretBackend};
+use crate::core::ssrf::{host_in_allowed, validate_redirect_url, PinningResolver};
 
 const DEFAULT_TIMEOUT_MS: u64 = 30_000;
 const MIN_TIMEOUT_MS: u64 = 1_000;
@@ -152,7 +152,7 @@ pub async fn vault_fetch(
             message: "resolved URL has no host".to_string(),
         })?
         .to_string();
-    crate::commands::validate_external_host(&host)
+    crate::core::ssrf::validate_external_host(&host)
         .map_err(|reason| VaultError::SsrfDenied { reason })?;
     if !host_in_allowed(&host, &connection.allowed_hosts) {
         return Err(VaultError::HostNotAllowed { host });

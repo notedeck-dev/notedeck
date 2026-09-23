@@ -5,7 +5,7 @@
 use base64::Engine;
 use notecli::error::NoteDeckError;
 
-use crate::pet_store::{self, PetHitMask, PetInfo};
+use crate::core::pet_store::{self, PetHitMask, PetInfo};
 
 use super::Result;
 
@@ -29,6 +29,7 @@ fn invalid(e: String) -> NoteDeckError {
 
 /// petdex から slug のペットを取得してキャッシュに置く。
 /// 他の slug のキャッシュは消える (保持は選択中の 1 体だけ)。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn pet_install(
@@ -48,6 +49,7 @@ pub async fn pet_install(
 }
 
 /// キャッシュ済みのペットを読む。無ければ None (呼び出し側が再取得する)
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn pet_load(app: tauri::AppHandle, slug: String) -> Result<Option<PetLoaded>> {
@@ -85,6 +87,7 @@ pub async fn pet_load(app: tauri::AppHandle, slug: String) -> Result<Option<PetL
 }
 
 /// キャッシュを全部消す (ペットを外したとき)
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn pet_clear(app: tauri::AppHandle) -> Result<()> {

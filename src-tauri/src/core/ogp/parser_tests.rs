@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::ogp::parser::*;
+    use crate::core::ogp::parser::*;
 
     // --- parse_html ---
 

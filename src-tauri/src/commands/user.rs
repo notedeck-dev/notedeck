@@ -11,6 +11,7 @@ use super::{get_credentials_or_anon, typed_request, validate_host, AppState, Res
 
 // --- User profile ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user(
@@ -22,6 +23,7 @@ pub async fn api_get_user(
     client.get_user(&host, &token, &user_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_detail(
@@ -35,6 +37,7 @@ pub async fn api_get_user_detail(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_notes(
@@ -65,6 +68,7 @@ pub async fn api_get_user_notes(
     Ok(notes)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_notes_filtered(
@@ -76,6 +80,7 @@ pub async fn api_get_user_notes_filtered(
     client.get_user_notes_filtered(&host, &token, params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_featured_notes(
@@ -97,6 +102,7 @@ pub async fn api_get_user_featured_notes(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_achievements(
@@ -108,6 +114,7 @@ pub async fn api_get_user_achievements(
     client.get_user_achievements(&host, &token, &user_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_lookup_user(
@@ -127,6 +134,7 @@ pub async fn api_lookup_user(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_self(
@@ -139,6 +147,7 @@ pub async fn api_get_self(
 
 // --- Follow / Unfollow ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_follow_user(
@@ -150,6 +159,7 @@ pub async fn api_follow_user(
     client.follow_user(&host, &token, &user_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_unfollow_user(
@@ -161,6 +171,7 @@ pub async fn api_unfollow_user(
     client.unfollow_user(&host, &token, &user_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_invalidate_follower(
@@ -174,6 +185,7 @@ pub async fn api_invalidate_follower(
 
 /// フォロー設定を更新する (following/update)。
 /// `notify` は "normal" | "none"、`with_replies` は TL に他者宛て返信を含めるか。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_update_following(
@@ -190,6 +202,7 @@ pub async fn api_update_following(
 }
 
 /// このユーザーに対する自分用メモを更新する (users/update-memo)。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_update_user_memo(
@@ -204,6 +217,7 @@ pub async fn api_update_user_memo(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_accept_follow_request(
@@ -215,6 +229,7 @@ pub async fn api_accept_follow_request(
     client.accept_follow_request(&host, &token, &user_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_reject_follow_request(
@@ -227,6 +242,7 @@ pub async fn api_reject_follow_request(
 }
 
 /// 自分が送ったフォローリクエストを取り消す (following/requests/cancel)。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_cancel_follow_request(
@@ -238,6 +254,7 @@ pub async fn api_cancel_follow_request(
     client.cancel_follow_request(&host, &token, &user_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_follow_requests(
@@ -251,6 +268,7 @@ pub async fn api_get_follow_requests(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_sent_follow_requests(
@@ -266,6 +284,7 @@ pub async fn api_get_sent_follow_requests(
 
 // --- Follow list & relations ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_following(
@@ -287,6 +306,7 @@ pub async fn api_get_following(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_followers(
@@ -308,6 +328,7 @@ pub async fn api_get_followers(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_relations(
@@ -321,6 +342,7 @@ pub async fn api_get_user_relations(
 
 // --- Mute / Block ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_mute_user(
@@ -332,6 +354,7 @@ pub async fn api_mute_user(
     client.mute_user(&host, &token, &user_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_unmute_user(
@@ -343,6 +366,7 @@ pub async fn api_unmute_user(
     client.unmute_user(&host, &token, &user_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_renote_mute_user(
@@ -354,6 +378,7 @@ pub async fn api_renote_mute_user(
     client.renote_mute_user(&host, &token, &user_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_unrenote_mute_user(
@@ -366,6 +391,7 @@ pub async fn api_unrenote_mute_user(
 }
 
 /// 自分がミュート中のユーザー ID 一覧を取得する（#574: 起動時の mute store hydrate）。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_muted_users(
@@ -378,6 +404,7 @@ pub async fn api_get_muted_users(
 
 /// 自分の mutedWords / hardMutedWords / mutedInstances を取得する
 /// （#610/#613: 起動時の word/instance mute store hydrate、read のみ）。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_muted_words(
@@ -389,6 +416,7 @@ pub async fn api_get_muted_words(
 }
 
 /// 自分が renote mute 中のユーザー ID 一覧を取得する（#614: 起動時の renote mute store hydrate）。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_renote_muted_users(
@@ -399,6 +427,7 @@ pub async fn api_get_renote_muted_users(
     client.renote_muted_user_ids(&host, &token).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_block_user(
@@ -410,6 +439,7 @@ pub async fn api_block_user(
     client.block_user(&host, &token, &user_id).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_unblock_user(
@@ -423,6 +453,7 @@ pub async fn api_unblock_user(
 
 // --- Report ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_report_user(
@@ -437,6 +468,7 @@ pub async fn api_report_user(
 
 // --- User list operations ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_add_user_to_list(
@@ -451,6 +483,7 @@ pub async fn api_add_user_to_list(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_remove_user_from_list(
@@ -483,6 +516,7 @@ pub async fn api_remove_user_from_list(
 
 // --- Search ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 #[allow(clippy::too_many_arguments)]
@@ -513,6 +547,7 @@ pub async fn api_search_users(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_search_users_by_query(
@@ -527,6 +562,7 @@ pub async fn api_search_users_by_query(
         .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_search_hashtags(
@@ -543,6 +579,7 @@ pub async fn api_search_hashtags(
 
 // --- ActivityPub resolve ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_ap_show(
@@ -559,6 +596,7 @@ pub async fn api_ap_show(
 // 既存の型付き `api_get_user` (NormalizedUser) とは別に、生 JSON が欲しい
 // インスペクタ系 UI 用の薄ラッパー。
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_raw(
@@ -585,6 +623,7 @@ pub struct UserSuspensionStatus {
 
 /// 凍結検知専用の `users/show`。応答から欠落した id は呼び出し側が凍結と
 /// みなすため、ここでは返ってきたものをそのまま畳んで返す。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_probe_users_suspended(
@@ -603,6 +642,7 @@ pub async fn api_probe_users_suspended(
     .await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_reactions(
@@ -614,6 +654,7 @@ pub async fn api_get_user_reactions(
     typed_request(&client, &host, &token, "users/reactions", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_pages_by(
@@ -625,6 +666,7 @@ pub async fn api_get_user_pages_by(
     typed_request(&client, &host, &token, "users/pages", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_flashs(
@@ -636,6 +678,7 @@ pub async fn api_get_user_flashs(
     typed_request(&client, &host, &token, "users/flashs", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_user_gallery_by(

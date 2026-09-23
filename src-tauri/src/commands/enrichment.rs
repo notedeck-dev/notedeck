@@ -7,14 +7,15 @@ use super::{get_credentials, AppState, Result};
 
 // --- OGP Preview ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn fetch_ogp(
-    ogp_cache: State<'_, crate::ogp::OgpCache>,
+    ogp_cache: State<'_, crate::core::ogp::OgpCache>,
     app_state: State<'_, AppState>,
     url: String,
     account_id: Option<String>,
-) -> Result<crate::ogp::OgpData> {
+) -> Result<crate::core::ogp::OgpData> {
     let db = app_state.db().await;
     if url.len() > 2048 {
         return Err(NoteDeckError::InvalidInput("URL too long".to_string()));
@@ -37,6 +38,7 @@ pub async fn fetch_ogp(
 
 // --- Server Discovery (unauthenticated, CORS-free) ---
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn fetch_server_meta(
@@ -47,6 +49,7 @@ pub async fn fetch_server_meta(
     client.fetch_server_meta(&host).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn fetch_image_base64(

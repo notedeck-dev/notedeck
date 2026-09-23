@@ -680,6 +680,7 @@ impl StreamChangeKind {
     }
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_subscribe_timeline(
@@ -722,6 +723,7 @@ pub async fn query_subscribe_timeline(
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_subscribe_antenna(
@@ -750,6 +752,7 @@ pub async fn query_subscribe_antenna(
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_subscribe_channel(
@@ -778,6 +781,7 @@ pub async fn query_subscribe_channel(
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_subscribe_role(
@@ -806,6 +810,7 @@ pub async fn query_subscribe_role(
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_subscribe_mentions(
@@ -834,6 +839,7 @@ pub async fn query_subscribe_mentions(
     runtime.attach_shared_stream_subscription(&opened.query_id, subscription_id)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_subscribe_notifications(
@@ -859,6 +865,7 @@ pub async fn query_subscribe_notifications(
     runtime.attach_shared_stream_subscription(&opened.query_id, subscription_id)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_subscribe_chat_user(
@@ -886,6 +893,7 @@ pub async fn query_subscribe_chat_user(
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_subscribe_chat_room(
@@ -916,6 +924,7 @@ pub async fn query_subscribe_chat_room(
 // 裏口になる上、フロント呼び出しもゼロだった。復活させる場合は
 // TimelineKey::parse による検証を必須とすること (issue notecli#30 仕様 v5 §6-5)。
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_set_runtime_state(
@@ -987,6 +996,7 @@ pub async fn query_set_runtime_state(
     Ok(result)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_close(
@@ -1001,6 +1011,7 @@ pub async fn query_close(
     Ok(())
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_get_snapshot(
@@ -1010,6 +1021,7 @@ pub async fn query_get_snapshot(
     runtime.snapshot(&query_id)
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn query_get_read_model_snapshot(
