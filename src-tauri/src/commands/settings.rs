@@ -54,6 +54,7 @@ pub fn get_log_dir(app: tauri::AppHandle) -> Result<String> {
 }
 
 /// WSL2 判定 (環境変数と /proc/version)。
+#[cfg(target_os = "linux")]
 fn is_wsl() -> bool {
     if std::env::var_os("WSL_DISTRO_NAME").is_some() {
         return true;
@@ -67,6 +68,7 @@ fn is_wsl() -> bool {
 }
 
 /// WSL2 から Windows 側の既定アプリで開く (wslpath + cmd.exe start)。
+#[cfg(target_os = "linux")]
 fn open_in_windows_host(path: &std::path::Path) -> Result<()> {
     use std::process::Command;
     let output = Command::new("wslpath")
