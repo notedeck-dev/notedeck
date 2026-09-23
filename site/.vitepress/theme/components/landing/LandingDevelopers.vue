@@ -55,13 +55,13 @@ const DOC_LINKS = [
           </div>
         </div>
       </div>
-      <div class="arch-box arch-core">
+      <div class="arch-box">
         <div class="arch-label">コア</div>
         <div class="arch-title">notecore</div>
         <div class="arch-desc">
           Tauri に依存しないドメイン。Vault、クエリランタイム、AI エージェントループ、設定、認可、キャッシュ。「端末が 1 台も繋がっていなくても意味を持つ処理」だけを持ち、どちらの殻に包まれても同じクレートです。
         </div>
-        <div class="arch-layer acrylic">
+        <div class="arch-layer acrylic arch-highlight">
           <div class="arch-label">Misskey クライアント</div>
           <div class="arch-title">notecli</div>
           <div class="arch-desc">

@@ -453,7 +453,7 @@
 .arch-box > .arch-desc { margin-bottom: var(--space-sm); }
 .arch-box-remote { border-style: dashed; }
 .arch-box-remote > .arch-desc { margin-bottom: 0; }
-.arch-core { border: 2px solid var(--accent); }
+.arch-highlight { box-shadow: inset 0 0 0 2px var(--accent); }
 .arch-fork {
   display: grid; grid-template-columns: auto minmax(0, 1fr);
   column-gap: var(--space-md); padding: 0 var(--space-lg);
