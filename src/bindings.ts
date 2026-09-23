@@ -1749,7 +1749,7 @@ async authCompleteAndSave(session: AuthSession, software: string) : Promise<Resu
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/streaming.rs */
+/** @see crates/notecore/src/commands/streaming.rs */
 async streamConnect(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_connect", { accountId }) };
@@ -1758,7 +1758,7 @@ async streamConnect(accountId: string) : Promise<Result<null, { code: string; me
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/streaming.rs */
+/** @see crates/notecore/src/commands/streaming.rs */
 async streamDisconnect(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_disconnect", { accountId }) };
@@ -1767,12 +1767,7 @@ async streamDisconnect(accountId: string) : Promise<Result<null, { code: string;
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Switch between realtime (WebSocket) and polling (HTTP) mode.
- * Subscriptions are preserved across the switch.
- *
- * @see src-tauri/src/commands/streaming.rs
- */
+/** @see crates/notecore/src/commands/streaming.rs */
 async streamSetMode(accountId: string, mode: string, intervalMs: number | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_set_mode", { accountId, mode, intervalMs }) };
@@ -1781,7 +1776,7 @@ async streamSetMode(accountId: string, mode: string, intervalMs: number | null) 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/streaming.rs */
+/** @see crates/notecore/src/commands/streaming.rs */
 async streamSubNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_sub_note", { accountId, noteId }) };
@@ -1790,7 +1785,7 @@ async streamSubNote(accountId: string, noteId: string) : Promise<Result<null, { 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/streaming.rs */
+/** @see crates/notecore/src/commands/streaming.rs */
 async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_unsub_note", { accountId, noteId }) };
@@ -1799,7 +1794,7 @@ async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/enrichment.rs */
+/** @see crates/notecore/src/commands/enrichment.rs */
 async fetchOgp(url: string, accountId: string | null) : Promise<Result<SummaryData, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_ogp", { url, accountId }) };
@@ -1808,7 +1803,7 @@ async fetchOgp(url: string, accountId: string | null) : Promise<Result<SummaryDa
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/enrichment.rs */
+/** @see crates/notecore/src/commands/enrichment.rs */
 async fetchServerMeta(host: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_server_meta", { host }) };
@@ -1817,7 +1812,7 @@ async fetchServerMeta(host: string) : Promise<Result<JsonValue, { code: string; 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/enrichment.rs */
+/** @see crates/notecore/src/commands/enrichment.rs */
 async fetchImageBase64(url: string) : Promise<Result<string | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_image_base64", { url }) };
@@ -1826,17 +1821,27 @@ async fetchImageBase64(url: string) : Promise<Result<string | null, { code: stri
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/utility.rs */
-async getCliCommands() : Promise<CliCommandInfo[]> {
-    return await TAURI_INVOKE("get_cli_commands");
+/** @see crates/notecore/src/commands/utility.rs */
+async getCliCommands() : Promise<Result<CliCommandInfo[], { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_cli_commands") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /** @see src-tauri/src/commands/utility.rs */
 async getRustcVersion() : Promise<string> {
     return await TAURI_INVOKE("get_rustc_version");
 },
-/** @see src-tauri/src/commands/utility.rs */
-async getOpenapiSpec() : Promise<JsonValue> {
-    return await TAURI_INVOKE("get_openapi_spec");
+/** @see crates/notecore/src/commands/utility.rs */
+async getOpenapiSpec() : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_openapi_spec") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /** @see src-tauri/src/commands/utility.rs */
 async openDevtools() : Promise<void> {
@@ -1917,7 +1922,7 @@ async saveImageToFile(url: string) : Promise<Result<boolean, { code: string; mes
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/utility.rs */
+/** @see crates/notecore/src/commands/utility.rs */
 async imageCacheStats() : Promise<Result<ImageCacheStats, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("image_cache_stats") };
@@ -1926,7 +1931,7 @@ async imageCacheStats() : Promise<Result<ImageCacheStats, { code: string; messag
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/utility.rs */
+/** @see crates/notecore/src/commands/utility.rs */
 async clearImageCache() : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("clear_image_cache") };
@@ -1935,12 +1940,7 @@ async clearImageCache() : Promise<Result<null, { code: string; message: string; 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * メディアの先行取得 (絵文字辞書の到着時など)。キューに積むだけで即返る。
- * 受理した件数を返す (重複・https 以外は数えない)
- *
- * @see src-tauri/src/commands/utility.rs
- */
+/** @see crates/notecore/src/commands/utility.rs */
 async warmMedia(urls: string[], h: number | null) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("warm_media", { urls, h }) };
@@ -1949,12 +1949,7 @@ async warmMedia(urls: string[], h: number | null) : Promise<Result<number, { cod
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * petdex から slug のペットを取得してキャッシュに置く。
- * 他の slug のキャッシュは消える (保持は選択中の 1 体だけ)。
- *
- * @see src-tauri/src/commands/pet.rs
- */
+/** @see crates/notecore/src/commands/pet.rs */
 async petInstall(slug: string) : Promise<Result<PetInfo, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("pet_install", { slug }) };
@@ -1963,11 +1958,7 @@ async petInstall(slug: string) : Promise<Result<PetInfo, { code: string; message
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * キャッシュ済みのペットを読む。無ければ None (呼び出し側が再取得する)
- *
- * @see src-tauri/src/commands/pet.rs
- */
+/** @see crates/notecore/src/commands/pet.rs */
 async petLoad(slug: string) : Promise<Result<PetLoaded | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("pet_load", { slug }) };
@@ -1976,11 +1967,7 @@ async petLoad(slug: string) : Promise<Result<PetLoaded | null, { code: string; m
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * キャッシュを全部消す (ペットを外したとき)
- *
- * @see src-tauri/src/commands/pet.rs
- */
+/** @see crates/notecore/src/commands/pet.rs */
 async petClear() : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("pet_clear") };
@@ -2053,11 +2040,7 @@ async exportFilesStart(taskId: string, segments: string[], items: ExportFileItem
 async exportFilesCancel(taskId: string) : Promise<void> {
     await TAURI_INVOKE("export_files_cancel", { taskId });
 },
-/**
- * 画像 URL から EXIF フィールド一覧を読み取る。EXIF が無い場合は空リスト。
- *
- * @see src-tauri/src/commands/utility.rs
- */
+/** @see crates/notecore/src/commands/utility.rs */
 async readImageExif(url: string) : Promise<Result<ExifField[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_image_exif", { url }) };
@@ -2598,7 +2581,7 @@ async aiMigrateProviderToVault(provider: string, name: string, baseUrl: string, 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async querySubscribeTimeline(accountId: string, timelineType: string, listId: string | null) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_timeline", { accountId, timelineType, listId }) };
@@ -2607,7 +2590,7 @@ async querySubscribeTimeline(accountId: string, timelineType: string, listId: st
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async querySubscribeAntenna(accountId: string, antennaId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_antenna", { accountId, antennaId }) };
@@ -2616,7 +2599,7 @@ async querySubscribeAntenna(accountId: string, antennaId: string) : Promise<Resu
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async querySubscribeChannel(accountId: string, channelId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_channel", { accountId, channelId }) };
@@ -2625,7 +2608,7 @@ async querySubscribeChannel(accountId: string, channelId: string) : Promise<Resu
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async querySubscribeRole(accountId: string, roleId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_role", { accountId, roleId }) };
@@ -2634,7 +2617,7 @@ async querySubscribeRole(accountId: string, roleId: string) : Promise<Result<Que
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async querySubscribeMentions(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_mentions", { accountId }) };
@@ -2643,7 +2626,7 @@ async querySubscribeMentions(accountId: string) : Promise<Result<QuerySnapshot, 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async querySubscribeNotifications(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_notifications", { accountId }) };
@@ -2652,7 +2635,7 @@ async querySubscribeNotifications(accountId: string) : Promise<Result<QuerySnaps
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async querySubscribeChatUser(accountId: string, otherId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_chat_user", { accountId, otherId }) };
@@ -2661,7 +2644,7 @@ async querySubscribeChatUser(accountId: string, otherId: string) : Promise<Resul
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async querySubscribeChatRoom(accountId: string, roomId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_chat_room", { accountId, roomId }) };
@@ -2670,7 +2653,7 @@ async querySubscribeChatRoom(accountId: string, roomId: string) : Promise<Result
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async querySetRuntimeState(queryId: string, state: QueryRuntimeState) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_set_runtime_state", { queryId, state }) };
@@ -2679,7 +2662,7 @@ async querySetRuntimeState(queryId: string, state: QueryRuntimeState) : Promise<
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async queryClose(queryId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_close", { queryId }) };
@@ -2688,7 +2671,7 @@ async queryClose(queryId: string) : Promise<Result<null, { code: string; message
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async queryGetSnapshot(queryId: string) : Promise<Result<QuerySnapshot | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_get_snapshot", { queryId }) };
@@ -2697,7 +2680,7 @@ async queryGetSnapshot(queryId: string) : Promise<Result<QuerySnapshot | null, {
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/query.rs */
+/** @see crates/notecore/src/commands/query.rs */
 async queryGetReadModelSnapshot(queryId: string, limit: number | null) : Promise<Result<QueryReadModelSnapshot | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_get_read_model_snapshot", { queryId, limit }) };

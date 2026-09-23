@@ -3333,11 +3333,13 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "axum",
+ "base64 0.22.1",
  "bytes",
  "encoding_rs",
  "futures-util",
  "image",
  "json5",
+ "kamadak-exif",
  "lru",
  "notecli",
  "rand 0.9.4",

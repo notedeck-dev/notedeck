@@ -1,22 +1,25 @@
+//! enrichment のデータ系コマンド本体 (#1106 段階 0b)。各関数は `&Core` と引数を取り、
+//! コマンド表 (commands/table.rs) から呼ばれる。
+
 use base64::Engine;
-use tauri::State;
 
 use notecli::error::NoteDeckError;
 
-use super::{get_credentials, AppState, Result};
+use crate::context::Core;
+use crate::credentials::get_credentials;
+use crate::error::Result;
 
 // --- OGP Preview ---
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
+// --- Server Discovery (unauthenticated, CORS-free) ---
+
 pub async fn fetch_ogp(
-    ogp_cache: State<'_, notecore::ogp::OgpCache>,
-    app_state: State<'_, AppState>,
+    core: &Core,
     url: String,
     account_id: Option<String>,
-) -> Result<notecore::ogp::OgpData> {
-    let db = app_state.db().await;
+) -> Result<crate::ogp::OgpData> {
+    let ogp_cache = core.ogp_cache()?;
+    let db = core.db().await;
     if url.len() > 2048 {
         return Err(NoteDeckError::InvalidInput("URL too long".to_string()));
     }
@@ -36,26 +39,13 @@ pub async fn fetch_ogp(
     result.map_err(|e| NoteDeckError::InvalidInput(format!("OGP: {e}")))
 }
 
-// --- Server Discovery (unauthenticated, CORS-free) ---
-
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn fetch_server_meta(
-    app_state: State<'_, AppState>,
-    host: String,
-) -> Result<serde_json::Value> {
-    let client = app_state.client().await;
+pub async fn fetch_server_meta(core: &Core, host: String) -> Result<serde_json::Value> {
+    let client = core.client().await;
     client.fetch_server_meta(&host).await
 }
 
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn fetch_image_base64(
-    http: State<'_, reqwest::Client>,
-    url: String,
-) -> Result<Option<String>> {
+pub async fn fetch_image_base64(core: &Core, url: String) -> Result<Option<String>> {
+    let http = core.http()?;
     if !url.starts_with("https://") {
         return Err(NoteDeckError::InvalidInput(
             "Only HTTPS URLs allowed".into(),

@@ -1,4 +1,4 @@
-import { commands } from '@/utils/tauriInvoke'
+import { commands, unwrap } from '@/utils/tauriInvoke'
 import { getCliIcon } from './cliIcons'
 
 /** Raw metadata returned by the Rust backend (matches notecli::cli::CliCommandInfo). */
@@ -70,7 +70,7 @@ function enrichCommand(raw: RawCliCommandInfo): CliCommandMeta {
 
 /** Load CLI command metadata from the Rust backend. Call once at startup. */
 export async function loadCliCommands(): Promise<CliCommandMeta[]> {
-  const raw = await commands.getCliCommands()
+  const raw = unwrap(await commands.getCliCommands())
   commandCache = raw
     .filter((c) => !EXCLUDED_COMMANDS.has(c.name))
     .map(enrichCommand)

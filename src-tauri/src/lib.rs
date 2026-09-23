@@ -260,6 +260,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // AppState: empty wrapper — commands await until Phase 2 fills it
         let app_state = commands::AppState::new();
         app_state.set_app_dir(app_dir.clone());
+        app_state.set_app_version(env!("CARGO_PKG_VERSION").to_string());
         app.manage(app_state);
 
         // Performance config: starts with defaults, updated dynamically via Tauri command
@@ -283,6 +284,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .dns_resolver(std::sync::Arc::new(notecore::ssrf::ValidatingResolver))
             .build()?;
         app.manage(shared_http.clone());
+        app.state::<commands::AppState>().set_http(shared_http.clone());
 
         // Image cache — 必ず Phase 1 で manage する (#921)。フロントは
         // nd:accounts-early を受けた瞬間にカラムを mount して絵文字を要求する
@@ -296,9 +298,11 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             shared_perf_bg.clone(),
         ));
         app.manage(image_cache.clone());
+        app.state::<commands::AppState>().set_image_cache(image_cache.clone());
         // 絵文字辞書到着時の先行取得キュー (worker は Phase 2 の runtime で起動)
         let media_warmer = notecore::media_warm::MediaWarmer::new(image_cache.clone());
         app.manage(media_warmer.clone());
+        app.state::<commands::AppState>().set_media_warmer(media_warmer.clone());
         tauri::async_runtime::spawn(async move { media_warmer.spawn_workers() });
 
         // 終了時のタスク所有 (#1098)。常駐ループはここ経由で spawn し、
@@ -355,7 +359,9 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
         // Query runtime: stream events から Read Model を materialize し、
         // pending を貯めて 16ms 間隔で query-delta event をバッチ emit する。
-        app.manage(notecore::query_runtime::QueryRuntime::default());
+        let query_runtime = std::sync::Arc::new(notecore::query_runtime::QueryRuntime::default());
+        app.manage(query_runtime.clone());
+        app.state::<commands::AppState>().set_query_runtime(query_runtime);
         // 常駐 flusher: notify_one を受けて DELTA_FLUSH_WINDOW スリープ後に
         // drain_pending() を emit。
         let flusher_app = app.app_handle().clone();
@@ -492,11 +498,13 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             // ため、後に置くと State 未登録で "state not managed" の即時エラー
             // になる race がある (query 購読は初回失敗すると再試行されない)。
             let emitter = std::sync::Arc::new(streaming::TauriEmitter::new(app_handle.clone()));
-            app_handle.manage(notecli::streaming::StreamingManager::new(
+            let streaming = std::sync::Arc::new(notecli::streaming::StreamingManager::new(
                 emitter,
                 event_bus.clone(),
                 db.clone(),
             ));
+            app_handle.manage(streaming.clone());
+            app_state.set_streaming(streaming);
 
             // Emit account list to frontend early — before full AppState.initialize() —
             // so the accounts store can populate without waiting for IPC readiness.

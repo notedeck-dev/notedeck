@@ -3,16 +3,13 @@ mod ai_chat;
 mod api_tokens;
 mod auth;
 mod backup;
-mod enrichment;
 mod export;
 mod health;
 mod heartbeat;
 mod http;
-mod pet;
 mod query;
 mod settings;
 pub(crate) use settings::SETTINGS_DIR;
-mod streaming;
 mod system_state;
 mod table;
 mod timeline;
@@ -25,15 +22,12 @@ pub use ai_chat::*;
 pub use api_tokens::*;
 pub use auth::*;
 pub use backup::*;
-pub use enrichment::*;
 pub use export::*;
 pub use health::*;
 pub use heartbeat::*;
 pub use http::*;
-pub use pet::*;
 pub use query::*;
 pub use settings::*;
-pub use streaming::*;
 pub use system_state::*;
 pub use table::*;
 pub use timeline::*;
@@ -118,7 +112,7 @@ impl notecore::context::HintSink for TauriHintSink {
     }
 }
 
-pub use notecore::credentials::{cleanup_expired_credentials, get_credentials};
+pub use notecore::credentials::cleanup_expired_credentials;
 
 /// Emit account list to frontend via Tauri event before AppState is initialized.
 /// This lets the accounts store populate early, bypassing the AppState readiness gate.
