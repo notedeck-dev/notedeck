@@ -1731,7 +1731,7 @@ async apiGetCachedChatLatestMessageId(accountId: string, threadId: string) : Pro
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/auth.rs */
+/** @see crates/notecore/src/commands/auth.rs */
 async authStart(host: string, permissions: string[] | null) : Promise<Result<AuthSession, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("auth_start", { host, permissions }) };
@@ -2049,11 +2049,7 @@ async readImageExif(url: string) : Promise<Result<ExifField[], { code: string; m
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * List files in a settings subdirectory.
- *
- * @see src-tauri/src/commands/settings.rs
- */
+/** @see crates/notecore/src/commands/settings.rs */
 async listSettingsFiles(subdir: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_settings_files", { subdir }) };
@@ -2062,11 +2058,7 @@ async listSettingsFiles(subdir: string) : Promise<Result<string[], { code: strin
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Read a settings file as a UTF-8 string.
- *
- * @see src-tauri/src/commands/settings.rs
- */
+/** @see crates/notecore/src/commands/settings.rs */
 async readSettingsFile(subdir: string, name: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_settings_file", { subdir, name }) };
@@ -2075,11 +2067,7 @@ async readSettingsFile(subdir: string, name: string) : Promise<Result<string, { 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Write a settings file (creates parent directories if needed).
- *
- * @see src-tauri/src/commands/settings.rs
- */
+/** @see crates/notecore/src/commands/settings.rs */
 async writeSettingsFile(subdir: string, name: string, content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("write_settings_file", { subdir, name, content }) };
@@ -2088,11 +2076,7 @@ async writeSettingsFile(subdir: string, name: string, content: string) : Promise
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Delete a settings file.
- *
- * @see src-tauri/src/commands/settings.rs
- */
+/** @see crates/notecore/src/commands/settings.rs */
 async deleteSettingsFile(subdir: string, name: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_settings_file", { subdir, name }) };
@@ -2101,11 +2085,7 @@ async deleteSettingsFile(subdir: string, name: string) : Promise<Result<null, { 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Rename a settings file within the same subdirectory.
- *
- * @see src-tauri/src/commands/settings.rs
- */
+/** @see crates/notecore/src/commands/settings.rs */
 async renameSettingsFile(subdir: string, oldName: string, newName: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("rename_settings_file", { subdir, oldName, newName }) };
@@ -2166,11 +2146,7 @@ async openSettingsFileInEditor(subdir: string | null, name: string) : Promise<Re
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Read a root-level settings file as a UTF-8 string.
- *
- * @see src-tauri/src/commands/settings.rs
- */
+/** @see crates/notecore/src/commands/settings.rs */
 async readRootSettingsFile(name: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_root_settings_file", { name }) };
@@ -2192,16 +2168,7 @@ async writeRootSettingsFile(name: string, content: string) : Promise<Result<null
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Read `settings.json5` (VSCode `settings.json` equivalent — single source of truth
- * for scalar preferences). Returns empty string if the file does not exist (first run).
- * 
- * Note: The Tauri command name stays `read_notedeck_json` for backwards-compatible
- * bindings. The file on disk is `settings.json5` to avoid collision with the export
- * bundle filename `notedeck.json`.
- *
- * @see src-tauri/src/commands/settings.rs
- */
+/** @see crates/notecore/src/commands/settings.rs */
 async readNotedeckJson() : Promise<Result<string, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_notedeck_json") };
@@ -2210,11 +2177,7 @@ async readNotedeckJson() : Promise<Result<string, { code: string; message: strin
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Write `settings.json5`. Creates the settings directory if missing.
- *
- * @see src-tauri/src/commands/settings.rs
- */
+/** @see crates/notecore/src/commands/settings.rs */
 async writeNotedeckJson(content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("write_notedeck_json", { content }) };
@@ -2249,13 +2212,7 @@ async importSettingsJson() : Promise<Result<ImportSettingsResult, { code: string
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Start a streaming chat completion request. Returns immediately;
- * the actual request runs in a background task that emits events
- * to `nd:ai-chat-event` keyed by `stream_id`.
- *
- * @see src-tauri/src/commands/ai_chat.rs
- */
+/** @see crates/notecore/src/commands/ai_chat.rs */
 async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_chat_send", { req }) };
@@ -2264,12 +2221,7 @@ async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; mess
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Cancel an in-flight streaming chat. Idempotent — silently no-ops if the
- * stream has already completed or never existed.
- *
- * @see src-tauri/src/commands/ai_chat.rs
- */
+/** @see crates/notecore/src/commands/ai_chat.rs */
 async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_chat_cancel", { streamId }) };
@@ -2278,14 +2230,8 @@ async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; mess
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * `http.fetch` capability 実装。
- * 
- * 検証 → reqwest 構築 → 送信 → response 整形 の単線。
- *
- * @see src-tauri/src/commands/http.rs
- */
-async httpFetch(request: HttpFetchRequest) : Promise<Result<HttpFetchResponse, string>> {
+/** @see crates/notecore/src/commands/http.rs */
+async httpFetch(request: HttpFetchRequest) : Promise<Result<HttpFetchResponse, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("http_fetch", { request }) };
 } catch (e) {
@@ -2388,11 +2334,7 @@ async revokeApiToken(id: string) : Promise<Result<boolean, { code: string; messa
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 全接続のメタデータ一覧を返す (secret は含まない)。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultListConnections() : Promise<Result<Connection[], VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_list_connections") };
@@ -2401,11 +2343,7 @@ async vaultListConnections() : Promise<Result<Connection[], VaultError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 単一接続のメタデータを返す。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultGetConnection(id: string) : Promise<Result<Connection | null, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_get_connection", { id }) };
@@ -2453,11 +2391,7 @@ async vaultSetSecret(id: string, slot: string, secret: string) : Promise<Result<
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 接続の secret 設定状況を返す (値そのものは決して返さない)。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultGetSecretStatus(id: string) : Promise<Result<SecretStatus, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_get_secret_status", { id }) };
@@ -2536,17 +2470,7 @@ async vaultSetTrustedPlugin(id: string, pluginId: string, name: string | null, t
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 登録済み接続を使って HTTP リクエストを実行する。
- * 
- * secret は Rust 側で注入され、フロントエンドには渡らない。SSRF 防御
- * (DNS pinning / redirect 再検証 / allowedHosts) とレスポンス redaction を通す。
- * 
- * Phase B 時点では main ウィンドウからのみ呼べる。AI tool 経路の許可
- * (`allowFromAiTool`) と confirmation は Phase D で capability registry 側に実装する。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultFetch(id: string, request: VaultFetchRequest) : Promise<Result<VaultFetchResponse, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_fetch", { id, request }) };
@@ -2555,11 +2479,7 @@ async vaultFetch(id: string, request: VaultFetchRequest) : Promise<Result<VaultF
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 接続の疎通テスト。baseUrl への GET (または指定パス) を 1 回実行する。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultTestConnection(id: string, testPath: string | null) : Promise<Result<VaultTestResult, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_test_connection", { id, testPath }) };
@@ -2689,11 +2609,7 @@ async queryGetReadModelSnapshot(queryId: string, limit: number | null) : Promise
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Tauri command: update performance config at runtime.
- *
- * @see src-tauri/src/commands/settings.rs
- */
+/** @see crates/notecore/src/commands/settings.rs */
 async updatePerformanceConfig(config: PerformanceConfig) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_performance_config", { config }) };
@@ -2702,11 +2618,7 @@ async updatePerformanceConfig(config: PerformanceConfig) : Promise<Result<null, 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Tauri command: get current performance config.
- *
- * @see src-tauri/src/commands/settings.rs
- */
+/** @see crates/notecore/src/commands/settings.rs */
 async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_performance_config") };
@@ -3110,6 +3022,9 @@ logDir: string | null;
  * ここから内容を読めるようにするのが主目的。無ければ null。
  */
 lastPanic: PanicReport | null }
+/**
+ * Serialize / Default はコマンド表のフィクスチャ用。
+ */
 export type HttpFetchRequest = { url: string; method: string | null; headers: Partial<{ [key in string]: string }> | null; body: string | null; timeoutMs: number | null }
 export type HttpFetchResponse = { status: number; headers: Partial<{ [key in string]: string }>; body: string }
 /**
@@ -3781,7 +3696,7 @@ export type VaultError =
  */
 { code: "request_failed"; message: string }
 /**
- * `vault_fetch` のリクエスト。
+ * `vault_fetch` のリクエスト。Serialize / Default はコマンド表のフィクスチャ用。
  */
 export type VaultFetchRequest = { 
 /**

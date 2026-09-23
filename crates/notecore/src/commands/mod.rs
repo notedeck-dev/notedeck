@@ -12,10 +12,14 @@
 //!
 //! 属性検査 [`check`] は型付き経路 (Tauri ラッパー) でも JSON 経路でも本体を呼ぶ前に通る。
 //!
-//! 行の形: `<種別> [(window = main)] <名前>(<引数>: <型>, ...) -> <戻り型> = $crate::<本体>;`
-//! 型はこの表の外 (アプリ側) でも解決できるよう完全修飾で書く。
+//! 行の形: `<種別> [(window = main)] <名前>(<引数>: <型>, ...) -> <戻り型> [| <エラー型>] = $crate::<本体>;`
+//! 型はこの表の外 (アプリ側) でも解決できるよう完全修飾で書く。エラー型を省くと
+//! NoteDeckError。独自エラー型 (Vault) は型付き経路ではそのまま返り、JSON 経路では
+//! 文字列化して NoteDeckError::InvalidInput に包む。
 
 pub mod admin;
+pub mod ai_chat;
+pub mod auth;
 pub mod charts;
 pub mod clips;
 pub mod column_query;
@@ -23,15 +27,18 @@ pub mod content;
 pub mod drafts;
 pub mod enrichment;
 pub mod federation;
+pub mod http;
 pub mod lists;
 pub mod messaging;
 pub mod pet;
 pub mod query;
+pub mod settings;
 pub mod streaming;
 pub mod table;
 pub mod timeline;
 pub mod user;
 pub mod utility;
+pub mod vault;
 
 use std::sync::LazyLock;
 
@@ -260,10 +267,20 @@ macro_rules! command_window {
     };
 }
 
+/// JSON 経路のエラー変換: 既定 (NoteDeckError) はそのまま、独自エラー型は文字列化して包む。
+macro_rules! command_json_err {
+    ($e:expr,) => {
+        $e
+    };
+    ($e:expr, $err:ty) => {
+        NoteDeckError::InvalidInput($e.to_string())
+    };
+}
+
 /// 表の行を受け取る側のマクロ。`$name(...)` の 1 行ごとに Tauri ラッパーや
 /// dispatch の腕を生成する。
 macro_rules! define_table {
-    ($( $kind:ident $( ( $($attr:tt)* ) )? $name:ident ( $( $arg:ident : $ty:ty ),* $(,)? ) -> $ret:ty = $path:path ; )*) => {
+    ($( $kind:ident $( ( $($attr:tt)* ) )? $name:ident ( $( $arg:ident : $ty:ty ),* $(,)? ) -> $ret:ty $( | $err:ty )? = $path:path ; )*) => {
         /// 表に載っている全コマンド。variant 名はコマンド名そのもの (snake_case)。
         #[allow(non_camel_case_types)]
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -310,7 +327,9 @@ macro_rules! define_table {
                     struct Params { $( $arg: $ty, )* }
                     #[allow(unused_variables)]
                     let p: Params = serde_json::from_value(params).map_err(|e| invalid_params(name, e))?;
-                    let out = $path(core, $( p.$arg, )*).await?;
+                    let out = $path(core, $( p.$arg, )*)
+                        .await
+                        .map_err(|e| command_json_err!(e, $($err)?))?;
                     Ok(serde_json::to_value(out)?)
                 } )*
             }

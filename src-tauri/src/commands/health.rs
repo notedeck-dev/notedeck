@@ -30,7 +30,8 @@ pub struct HealthReport {
     pub last_panic: Option<notecore::crash_report::PanicReport>,
 }
 
-// nd-command: data
+// 手元のランタイム状態 (ログ場所 / HEARTBEAT scheduler) を含むので local。HTTP API は FrontendBridge 経由で受ける
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn run_healthcheck(

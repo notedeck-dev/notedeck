@@ -34,8 +34,8 @@ const MAX_RESPONSE_BYTES: usize = 512 * 1024; // 500 KiB
 const MAX_REDIRECTS: usize = 5;
 const DEFAULT_USER_AGENT: &str = "NoteDeck";
 
-/// `vault_fetch` のリクエスト。
-#[derive(Debug, Deserialize, specta::Type)]
+/// `vault_fetch` のリクエスト。Serialize / Default はコマンド表のフィクスチャ用。
+#[derive(Debug, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultFetchRequest {
     /// baseUrl からの相対パス。絶対 URL は拒否。

@@ -16,11 +16,14 @@ use std::sync::{Arc, OnceLock};
 use notecli::api::MisskeyClient;
 use notecli::db::Database;
 
+use crate::ai_chat_service::AiChatSink;
+use crate::commands::auth::AuthSessionTracker;
 use crate::credentials::{get_credentials, get_credentials_or_anon};
 use crate::error::Result;
 use crate::image_cache::ImageCache;
 use crate::media_warm::MediaWarmer;
 use crate::ogp::{OgpCache, OgpData};
+use crate::perf_config::SharedPerfConfig;
 use crate::query_runtime::QueryRuntime;
 use notecli::error::NoteDeckError;
 use notecli::streaming::StreamingManager;
@@ -62,6 +65,12 @@ pub struct Core {
     streaming: OnceLock<Arc<StreamingManager>>,
     /// クエリランタイム (購読台帳 / 差分バッファ)
     query_runtime: OnceLock<Arc<QueryRuntime>>,
+    /// パフォーマンス設定 (実行時に更新される)
+    perf: OnceLock<SharedPerfConfig>,
+    /// AI チャットのイベントの届け先 (Tauri 側は WebView へ emit)
+    ai_chat_sink: OnceLock<Arc<dyn AiChatSink>>,
+    /// MiAuth セッションの追跡 (リプレイ防止)
+    auth_sessions: AuthSessionTracker,
 }
 
 impl Default for Core {
@@ -88,6 +97,9 @@ impl Core {
             media_warmer: OnceLock::new(),
             streaming: OnceLock::new(),
             query_runtime: OnceLock::new(),
+            perf: OnceLock::new(),
+            ai_chat_sink: OnceLock::new(),
+            auth_sessions: AuthSessionTracker::new(),
         }
     }
 
@@ -183,6 +195,31 @@ impl Core {
         self.query_runtime
             .get()
             .ok_or_else(|| NoteDeckError::Internal("query runtime is not set".into()))
+    }
+
+    pub fn set_perf(&self, perf: SharedPerfConfig) {
+        let _ = self.perf.set(perf);
+    }
+
+    pub fn perf(&self) -> Result<&SharedPerfConfig> {
+        self.perf
+            .get()
+            .ok_or_else(|| NoteDeckError::Internal("perf config is not set".into()))
+    }
+
+    pub fn set_ai_chat_sink(&self, sink: Arc<dyn AiChatSink>) {
+        let _ = self.ai_chat_sink.set(sink);
+    }
+
+    pub fn ai_chat_sink(&self) -> Result<Arc<dyn AiChatSink>> {
+        self.ai_chat_sink
+            .get()
+            .cloned()
+            .ok_or_else(|| NoteDeckError::Internal("ai chat sink is not set".into()))
+    }
+
+    pub fn auth_sessions(&self) -> &AuthSessionTracker {
+        &self.auth_sessions
     }
 
     /// OGP キャッシュ。未設定なら Err (先読みのような省略可能な用途は `ogp()` を使う)
@@ -282,6 +319,9 @@ pub(crate) mod test_support {
         core.set_app_dir(dir.path().to_path_buf());
         core.set_http(reqwest::Client::new());
         core.set_query_runtime(Arc::new(QueryRuntime::default()));
+        core.set_perf(Arc::new(tokio::sync::RwLock::new(
+            crate::perf_config::PerformanceConfig::default(),
+        )));
         core.initialize(db, client);
         (dir, core)
     }

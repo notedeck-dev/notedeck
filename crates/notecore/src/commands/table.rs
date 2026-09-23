@@ -240,6 +240,31 @@ macro_rules! with_command_table {
         data image_cache_stats() -> $crate::commands::utility::ImageCacheStats = $crate::commands::utility::image_cache_stats;
         data warm_media(urls: Vec<String>, h: Option<u32>) -> u32 = $crate::commands::utility::warm_media;
         data clear_image_cache() -> () = $crate::commands::utility::clear_image_cache;
+            // --- auth (crates/notecore/src/commands/auth.rs) ---
+        data auth_start(host: String, permissions: Option<Vec<String>>) -> notecli::models::AuthSession = $crate::commands::auth::auth_start;
+            // --- settings (crates/notecore/src/commands/settings.rs) ---
+        data list_settings_files(subdir: String) -> Vec<String> = $crate::commands::settings::list_settings_files;
+        data read_settings_file(subdir: String, name: String) -> String = $crate::commands::settings::read_settings_file;
+        data write_settings_file(subdir: String, name: String, content: String) -> () = $crate::commands::settings::write_settings_file;
+        data delete_settings_file(subdir: String, name: String) -> () = $crate::commands::settings::delete_settings_file;
+        data rename_settings_file(subdir: String, old_name: String, new_name: String) -> () = $crate::commands::settings::rename_settings_file;
+        data read_root_settings_file(name: String) -> String = $crate::commands::settings::read_root_settings_file;
+        data read_notedeck_json() -> String = $crate::commands::settings::read_notedeck_json;
+        data write_notedeck_json(content: String) -> () = $crate::commands::settings::write_notedeck_json;
+        data update_performance_config(config: $crate::perf_config::PerformanceConfig) -> () = $crate::commands::settings::update_performance_config;
+        data get_performance_config() -> $crate::perf_config::PerformanceConfig = $crate::commands::settings::get_performance_config;
+            // --- vault (crates/notecore/src/commands/vault.rs) — main ウィンドウ限定、エラーは VaultError (`| 型` で宣言) ---
+        data (window = main) vault_list_connections() -> Vec<$crate::vault::Connection> | $crate::vault::VaultError = $crate::commands::vault::vault_list_connections;
+        data (window = main) vault_get_connection(id: String) -> Option<$crate::vault::Connection> | $crate::vault::VaultError = $crate::commands::vault::vault_get_connection;
+        data (window = main) vault_get_secret_status(id: String) -> $crate::vault::connections_service::SecretStatus | $crate::vault::VaultError = $crate::commands::vault::vault_get_secret_status;
+        data (window = main) vault_fetch(id: String, request: $crate::vault::fetch::VaultFetchRequest) -> $crate::vault::fetch::VaultFetchResponse | $crate::vault::VaultError = $crate::commands::vault::vault_fetch;
+        data (window = main) vault_test_connection(id: String, test_path: Option<String>) -> $crate::vault::connections_service::VaultTestResult | $crate::vault::VaultError = $crate::commands::vault::vault_test_connection;
+
+            // --- http (crates/notecore/src/commands/http.rs) ---
+        data http_fetch(request: $crate::commands::http::HttpFetchRequest) -> $crate::commands::http::HttpFetchResponse = $crate::commands::http::http_fetch;
+            // --- ai_chat (crates/notecore/src/commands/ai_chat.rs) ---
+        data ai_chat_send(req: $crate::ai_chat_service::AiChatRequest) -> () = $crate::commands::ai_chat::ai_chat_send;
+        data ai_chat_cancel(stream_id: String) -> () = $crate::commands::ai_chat::ai_chat_cancel;
         }
     };
 }

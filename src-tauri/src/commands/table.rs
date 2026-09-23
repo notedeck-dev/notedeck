@@ -12,7 +12,7 @@
 /// 1 行ぶんのラッパー。属性の有無で腕を分ける。
 macro_rules! tauri_wrapper_one {
     // 許可ウィンドウあり: Window を注入して label を検査
-    ($kind:ident [window = $w:ident] $name:ident ( $( $arg:ident : $ty:ty ),* ) -> $ret:ty = $path:path) => {
+    ($kind:ident [window = $w:ident] $name:ident ( $( $arg:ident : $ty:ty ),* ) -> $ret:ty [$err:ty] = $path:path) => {
         #[tauri::command]
         #[specta::specta]
         #[allow(clippy::too_many_arguments)]
@@ -20,36 +20,48 @@ macro_rules! tauri_wrapper_one {
             window: tauri::Window,
             core: tauri::State<'_, notecore::context::Core>,
             $( $arg: $ty, )*
-        ) -> super::Result<$ret> {
+        ) -> std::result::Result<$ret, $err> {
             notecore::commands::check(
                 notecore::commands::CommandId::$name,
                 &notecore::commands::CallContext::window(window.label()),
-            )?;
+            )
+            .map_err(<$err>::from)?;
             $path(&core, $( $arg, )*).await
         }
     };
     // 属性なし
-    ($kind:ident [] $name:ident ( $( $arg:ident : $ty:ty ),* ) -> $ret:ty = $path:path) => {
+    ($kind:ident [] $name:ident ( $( $arg:ident : $ty:ty ),* ) -> $ret:ty [$err:ty] = $path:path) => {
         #[tauri::command]
         #[specta::specta]
         #[allow(clippy::too_many_arguments)]
         pub async fn $name(
             core: tauri::State<'_, notecore::context::Core>,
             $( $arg: $ty, )*
-        ) -> super::Result<$ret> {
+        ) -> std::result::Result<$ret, $err> {
             notecore::commands::check(
                 notecore::commands::CommandId::$name,
                 &notecore::commands::CallContext::default(),
-            )?;
+            )
+            .map_err(<$err>::from)?;
             $path(&core, $( $arg, )*).await
         }
     };
 }
 
+/// 省略時のエラー型は NoteDeckError。
+macro_rules! command_error_type {
+    () => {
+        notecli::error::NoteDeckError
+    };
+    ($err:ty) => {
+        $err
+    };
+}
+
 macro_rules! tauri_wrappers {
-    ($( $kind:ident $( ( $($attr:tt)* ) )? $name:ident ( $( $arg:ident : $ty:ty ),* $(,)? ) -> $ret:ty = $path:path ; )*) => {
+    ($( $kind:ident $( ( $($attr:tt)* ) )? $name:ident ( $( $arg:ident : $ty:ty ),* $(,)? ) -> $ret:ty $( | $err:ty )? = $path:path ; )*) => {
         $(
-            tauri_wrapper_one! { $kind [ $( $($attr)* )? ] $name ( $( $arg : $ty ),* ) -> $ret = $path }
+            tauri_wrapper_one! { $kind [ $( $($attr)* )? ] $name ( $( $arg : $ty ),* ) -> $ret [command_error_type!($($err)?)] = $path }
         )*
     };
 }
