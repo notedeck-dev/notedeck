@@ -181,6 +181,19 @@ pub fn resolve(content: Option<&str>, id: PrincipalId) -> Granted {
     }
 }
 
+/// permissions.json5 の `confirmSkips[scope]` に capability があるか (#714)。
+/// 形は `{ confirmSkips: { 'ai.chat': ['notes.create', ...] } }`。パース失敗は false。
+pub fn confirm_skipped(content: &str, scope: &str, capability_id: &str) -> bool {
+    let Ok(doc) = json5::from_str::<Value>(content) else {
+        return false;
+    };
+    doc.get("confirmSkips")
+        .and_then(|s| s.get(scope))
+        .and_then(Value::as_array)
+        .map(|list| list.iter().any(|v| v.as_str() == Some(capability_id)))
+        .unwrap_or(false)
+}
+
 /// ファイルが読めない / 壊れているときの最小権限 (store.ts `safeFallbackFile`
 /// #719)。既定プロファイルへ倒すと、権限を絞っていたユーザーが破損だけで
 /// 無言のうちに広がる。
@@ -191,6 +204,16 @@ pub fn resolve_fallback(id: PrincipalId) -> Granted {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn confirm_skipped_reads_scope_list() {
+        let content = "{ confirmSkips: { 'ai.chat': ['notes.create'], 'plugin:x': ['a.b'] } }";
+        assert!(confirm_skipped(content, "ai.chat", "notes.create"));
+        assert!(!confirm_skipped(content, "ai.chat", "a.b"));
+        assert!(!confirm_skipped(content, "ai.heartbeat", "notes.create"));
+        assert!(!confirm_skipped("{ broken", "ai.chat", "notes.create"));
+        assert!(!confirm_skipped("{}", "ai.chat", "notes.create"));
+    }
 
     #[test]
     fn missing_file_external_is_misskey_read_floor_only() {

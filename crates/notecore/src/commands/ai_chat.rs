@@ -38,8 +38,19 @@ pub async fn ai_turn_run(core: &Core, req: AiTurnRequest) -> Result<()> {
     .await
 }
 
-/// 進行中のターンを中断する。冪等。
+/// 進行中のターンを中断する。冪等。確認待ちなら要求を cancelled で閉じる。
 pub async fn ai_turn_cancel(_core: &Core, turn_id: String) -> Result<()> {
     ai_turn::cancel_turn(&turn_id);
     Ok(())
+}
+
+/// 確認要求への応答 (今回だけ許可 / 今回だけ拒否)。最初の 1 つだけが効き、
+/// 決着済みならエラー。
+pub async fn ai_confirm_respond(_core: &Core, request_id: String, accepted: bool) -> Result<()> {
+    ai_turn::confirm::respond(&request_id, accepted)
+}
+
+/// 確認要求を表示した (表示 TTL の起点)。
+pub async fn ai_confirm_shown(_core: &Core, request_id: String) -> Result<()> {
+    ai_turn::confirm::shown(&request_id)
 }

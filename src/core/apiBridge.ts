@@ -1,5 +1,8 @@
 import { emit } from '@tauri-apps/api/event'
-import { dispatchCapability } from '@/capabilities/dispatcher'
+import {
+  dispatchCapability,
+  previewConfirmation,
+} from '@/capabilities/dispatcher'
 import { sanitizeToolName } from '@/capabilities/identifier'
 import { listCapabilities } from '@/capabilities/registry'
 import { useCommandStore } from '@/commands/registry'
@@ -177,12 +180,11 @@ const handlers: Record<string, QueryHandler> = {
     )
   },
 
-  // --- notecore のターン実行器からの実行要求 (#1133 縦切り 1) ---
-  // AI principal の認可 (tool 一覧の絞り込みと呼び出しごとの権限検査) は
-  // Rust 側で済んでいる。ここでは既存の dispatcher を同じ principal で走らせ、
-  // 確認ダイアログ / capability 本体 / 記憶した決定はデバイス側のまま使う
-  // (確認要求の notecore 発は次の縦切り)。dispatcher の権限検査は Rust の
-  // 写しとして二重に通す。
+  // --- notecore のターン実行器からの実行要求 (#1133) ---
+  // AI principal の認可 (tool 一覧の絞り込みと呼び出しごとの権限検査) と
+  // 確認の要否・確認要求は Rust 側で済んでいる。ここでは既存の dispatcher を
+  // 同じ principal で走らせ、capability 本体はデバイス側のまま使う。dispatcher
+  // の権限検査は Rust の写しとして二重に通す。
   'ai/execute-capability': async (params) => {
     const kind = params.principal
     if (kind !== 'ai.chat' && kind !== 'ai.heartbeat') {
@@ -213,7 +215,9 @@ const handlers: Record<string, QueryHandler> = {
             (params.accountId as string | null | undefined) ?? undefined,
         },
         {
-          // ターン中断で、このターンのために待っている確認を閉じる
+          // notecore が確認要求で許可を得た実行。判定が食い違って dispatcher
+          // が確認を出す場合 (保険) は、ターン中断で閉じられるようにする
+          preConfirmed: params.confirmed === true,
           confirmFn: (opts) =>
             useConfirm().confirmWithDecision(opts, controller.signal),
         },
@@ -221,6 +225,24 @@ const handlers: Record<string, QueryHandler> = {
     } finally {
       endTurnExecution(turnId, controller)
     }
+  },
+
+  // notecore の確認要求に同梱する内容の組み立て (#1133 縦切り 2)。要否は
+  // notecore が決め、ここは capability の実装が組む表示内容を返すだけ
+  'ai/confirm-preview': async (params) => {
+    const kind = params.principal
+    if (kind !== 'ai.chat' && kind !== 'ai.heartbeat') {
+      return { needsConfirmation: false, allowRemember: false }
+    }
+    return await previewConfirmation(
+      params.capabilityId as string,
+      (params.params ?? undefined) as Record<string, unknown> | undefined,
+      {
+        principal: { kind },
+        accountId: (params.accountId as string | null | undefined) ?? undefined,
+      },
+      { crossAccount: params.crossAccount === true },
+    )
   },
 }
 

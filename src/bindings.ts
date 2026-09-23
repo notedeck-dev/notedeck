@@ -2251,6 +2251,24 @@ async aiTurnCancel(turnId: string) : Promise<Result<null, { code: string; messag
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notecore/src/commands/ai_chat.rs */
+async aiConfirmRespond(requestId: string, accepted: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_confirm_respond", { requestId, accepted }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/ai_chat.rs */
+async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_confirm_shown", { requestId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see crates/notecore/src/commands/http.rs */
 async httpFetch(request: HttpFetchRequest) : Promise<Result<HttpFetchResponse, { code: string; message: string; apiCode: string | null }>> {
     try {
@@ -2993,7 +3011,11 @@ export type DeviceTool = { id: string; description: string;
 /**
  * `ParameterDef` の map (`{ name: { type, description, optional?, enum? } }`)
  */
-params: JsonValue; permissions: string[] }
+params: JsonValue; permissions: string[]; 
+/**
+ * 実行前に確認が要りうるか (plugin の `requiresConfirmation`)
+ */
+confirm?: boolean }
 /**
  * broadcast チャネルの絵文字辞書変更の種別。
  */

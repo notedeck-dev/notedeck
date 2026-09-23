@@ -50,6 +50,15 @@ vi.mock('./aiTurnExecutions', () => ({
   cancelTurnExecutions: (id: string) => cancelTurnExecutions(id),
 }))
 
+const presentConfirmRequest = vi.fn(async (_p: unknown) => undefined)
+const closeConfirmRequest = vi.fn()
+const closeConfirmRequestsForTurn = vi.fn()
+vi.mock('./aiConfirmRequests', () => ({
+  presentConfirmRequest: (p: unknown) => presentConfirmRequest(p as never),
+  closeConfirmRequest: (id: string) => closeConfirmRequest(id),
+  closeConfirmRequestsForTurn: (id: string) => closeConfirmRequestsForTurn(id),
+}))
+
 // --- helpers ---
 
 function memorySessions(initial: ChatMessage[] = []): AiTurnSessionPort & {
@@ -91,6 +100,9 @@ beforeEach(() => {
   aiTurnRun.mockClear()
   aiTurnCancel.mockClear()
   cancelTurnExecutions.mockClear()
+  presentConfirmRequest.mockClear()
+  closeConfirmRequest.mockClear()
+  closeConfirmRequestsForTurn.mockClear()
 })
 
 describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
@@ -355,5 +367,49 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
     expect(req?.messages).toEqual([{ role: 'user', content: 'いま何時?' }])
     emit({ kind: 'done', text: 'ok', stop_reason: 'end' })
     await outcome
+  })
+
+  it('confirm_request は表示モジュールへ渡し、confirm_closed / 中断で畳む (#1133 縦切り 2)', async () => {
+    const sessions = memorySessions()
+    const turn = useAiTurn({ sessions })
+    const outcome = turn.run({ ...baseRequest(), accountId: 'acc-1' })
+    await flush()
+    const turnId = aiTurnRun.mock.calls[0]?.[0].turn_id
+    emit({ kind: 'delta', text: '投稿します' })
+    const items = [
+      {
+        toolUseId: 'tu1',
+        capabilityId: 'notes.create',
+        params: { text: 'hi' },
+        preview: { title: '投稿しますか?', message: 'hi' },
+        allowRemember: true,
+      },
+    ]
+    emit({
+      kind: 'confirm_request',
+      confirm_request_id: 'req-1',
+      confirm_items: items,
+      expires_at_ms: 1,
+    })
+    expect(presentConfirmRequest).toHaveBeenCalledWith({
+      requestId: 'req-1',
+      turnId,
+      principal: 'ai.chat',
+      accountId: 'acc-1',
+      items,
+    })
+    // 要求中も placeholder の本文はそのまま (実行結果は再開後に届く)
+    expect(sessions.messages().at(-1)?.content).toBe('投稿します')
+
+    emit({
+      kind: 'confirm_closed',
+      confirm_request_id: 'req-1',
+      reason: 'decided',
+    })
+    expect(closeConfirmRequest).toHaveBeenCalledWith('req-1')
+
+    await turn.cancel()
+    expect(closeConfirmRequestsForTurn).toHaveBeenCalledWith(turnId)
+    expect((await outcome).status).toBe('cancelled')
   })
 })

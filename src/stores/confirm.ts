@@ -119,6 +119,8 @@ export interface ConfirmOptions {
    * 操作の待機分へ波及させる」#716 の理想を満たす。
    */
   dedupKey?: string
+  /** 実際に表示された時に呼ばれる (待ち行列を抜けた時点。表示 TTL の起点 #1133) */
+  onShow?: () => void
 }
 
 /**
@@ -162,6 +164,11 @@ function show(entry: (typeof queue)[number]): void {
   options.value = entry.opts
   visible.value = true
   resolvePromise = entry.resolve
+  try {
+    entry.opts.onShow?.()
+  } catch (e) {
+    console.warn('[confirm] onShow failed:', e)
+  }
 }
 
 /** 表示中のダイアログを決定で閉じ、待ち行列の次を出す */

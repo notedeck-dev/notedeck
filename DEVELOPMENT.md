@@ -263,7 +263,7 @@ notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 
 - **切る基準**: 「その処理はデバイスが 1 台も繋がっていない状態で意味を持つか」。持つなら notecore、持たないなら手元 (ウィンドウ / トレイ / OS 通知 / クリップボード / dialog / OS キーチェーン)
 - **クライアント層**は手元の Rust の中の切替点 1 箇所。データ系コマンドはコマンド表 (型付き関数 + JSON アダプタを 1 つの宣言から生成) を通り、ローカル構成では in-process で埋め込み notecore を、リモート構成では notecored を呼ぶ。表に載っていないデータ系コマンドはどの構成でも存在しない
-- **AI エージェントループは Rust で notecore に置く** ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。WebView に残るのは UI、確認ダイアログ、UI 系 capability、AiScript (plugin / widget / scratchpad) の実行。チャット 1 ターンの状態機械 (ターン実行器) は移設済みで、tool の実行は全件デバイスへの実行要求 (詳細は [AI Chat Streaming](#ai-chat-streaming))。確認要求の notecore 発 / セッションの単一書き手 / `exec: core` の native 化 / HEARTBEAT の無人契約は後続
+- **AI エージェントループは Rust で notecore に置く** ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。WebView に残るのは UI、確認ダイアログ、UI 系 capability、AiScript (plugin / widget / scratchpad) の実行。チャット 1 ターンの状態機械 (ターン実行器) と確認要求は移設済みで、tool の実行は全件デバイスへの実行要求 (詳細は [AI Chat Streaming](#ai-chat-streaming))。セッションの単一書き手 / `exec: core` の native 化 / HEARTBEAT の無人契約は後続
 - notecli の役割 (Misskey 通信・DB・ストリーミング) は変えない。notecore はその消費者。**notecli は notedeck の workspace に取り込む** (リポジトリは 1 つ、クレートは notecli / notecore / notecored / アプリの 4 つ。`notecli` の CLI と `notecored` のデーモンはクレートからバイナリとして出す)
 - 段階と受け入れ条件、認証・ペアリング・イベント面・状態の所在の仕様は #1106 の仕様コメントが正本。ローカル構成は残り、リモート構成は追加の構成
 
@@ -1131,27 +1131,37 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 │   1 ラウンド (SSE) → delta を emit、tool_use を貯める          │
 │   tool_use が無ければ done                                     │
 │   ラウンド上限なら done (stop_reason: tool_round_limit)        │
+│   全件を認可 (宣言の権限 ⊆ granted。拒否はデバイスに投げない) │
+│   確認の要否を決める (宣言の confirm / クロスアカウント /      │
+│     confirmSkips の記憶。無人 HEARTBEAT は聞かずに拒否)        │
+│   要る項目があれば: プレビューをデバイスに組ませ               │
+│     ("ai/confirm-preview") → 1 枚の confirm_request を emit    │
+│     → turn をチェックポイントに書いて解放 (ここで戻る)        │
 │   for tool_use in 全件 {                                      │
-│     認可 (宣言の権限 ⊆ granted。拒否はデバイスに投げない)     │
-│     bridge.query("ai/execute-capability") → デバイスの dispatcher │
+│     bridge.query("ai/execute-capability", confirmed) → dispatcher │
 │     tool_use / tool_result を emit、履歴に足す                 │
 │   }                                                           │
 │ }                                                             │
 │ generate_title なら 1 往復でタイトルを作り title を emit      │
 │ 失敗は error (phase: before_tool / after_tool)                │
 └──────────────────────────────────────────────────────────────┘
-           │ query
+           │ query / event
            ▼
-┌─ Vue (apiBridge 'ai/execute-capability') ────────────────────┐
-│ 設定 / 権限を再読込 → dispatchCapability(id, params,          │
-│   { principal, accountId }, { confirmFn: AbortSignal 付き })  │
-│ 確認ダイアログ / capability 本体 / 記憶した決定はここ         │
+┌─ Vue ────────────────────────────────────────────────────────┐
+│ apiBridge 'ai/confirm-preview': capability の実装が組む       │
+│   確認内容 (diff / 引数 / 帰属 / 理由) を返す。実行はしない   │
+│ useAiTurn → aiConfirmRequests: confirm_request を 1 枚の       │
+│   ダイアログで出し、表示を伝え (aiConfirmShown)、決定を返す   │
+│   (aiConfirmRespond)。「次から確認しない」は権限ファイルへ    │
+│ apiBridge 'ai/execute-capability': 設定 / 権限を再読込 →      │
+│   dispatchCapability(..., { preConfirmed })。capability 本体  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 - **1 ラウンドの複数 tool_use は全部順に実行する** (以前の JS ループは先頭以外を捨てていたので provider 側で並列を禁止していた。今は禁止しない)
-- **認可は notecore で決める**: tool 一覧の絞り込みと呼び出しごとの権限検査は Rust。デバイス側の dispatcher は同じ判定を写しとして二重に通す (golden で一致を検査)。確認ダイアログはまだデバイス側 (確認要求の notecore 発は次の縦切り)
-- **中断** (`ai_turn_cancel`): Rust の task を止め、このターンのためにデバイスが待っている確認を `AbortSignal` で閉じる (`aiTurnExecutions.ts`)。Rust はイベントを出さず、デバイス側が partial を確定する
+- **認可は notecore で決める**: tool 一覧の絞り込みと呼び出しごとの権限検査は Rust。デバイス側の dispatcher は同じ判定を写しとして二重に通す (golden で一致を検査)
+- **確認要求は notecore 発** (`ai_turn/confirm.rs`): 要否 (宣言の `confirm` / クロスアカウント / `confirmSkips` の記憶) は Rust が決め、表示内容は capability の実装がデバイスで組む。1 ラウンドの複数の呼び出しは 1 枚の要求に束ね、決定は全項目に効く。要求を出したループは turn を**チェックポイント** (`<app dir>/notedeck/ai-turns/`、notecore 専有で生ファイル書込の対象外) に書いて解放し、応答で読み戻して再開する。表示してからの TTL と生成してからの絶対 TTL のどちらかを超えると拒否して理由を記録し、応答は compare-and-set で最初の 1 つだけが効く (遅れた応答は明示エラー)。起動時に停止中のまま残った turn は「再起動」の理由で閉じる。無人 HEARTBEAT は確認が要る呼び出しを聞かずに拒否する
+- **中断** (`ai_turn_cancel`): Rust の task を止め、確認待ちなら要求を cancelled で閉じて (デバイス側はダイアログを畳む)、デバイスが待っている実行要求の確認 (保険の経路) も `AbortSignal` で閉じる。Rust は turn のイベントを出さず、デバイス側が partial を確定する
 - **失敗の段階**: `before_tool` (tool 未実行) なら user + placeholder を外して再送、`after_tool` (実行済み) なら placeholder だけ外して継続モード (`continuation: true`、system 末尾に切断通知)。実行済み write capability を二重実行する経路は構造的に無い (#737)
 - **デバイス文脈はスナップショット**: メモ / 可視ノート / vault の開示状態はターン開始時に 1 回だけ組む (以前はラウンドごと)
 - **WebView なしのハーネス**: provider (`ProviderRound`) とデバイス (`FrontendBridge`) と権限 (`GrantedSource`) は trait で受けるので、`ai_turn.rs` のテストは偽 provider + 偽デバイスで複数ラウンドのターンを走らせる
@@ -1163,7 +1173,8 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 | ファイル | 役割 |
 |---------|------|
 | `src/composables/useAiTurn.ts` | ターンの投影: `run(req)` で `ai_turn_run` を開始し、`nd:ai-turn-event` を session の placeholder / tool_use / tool_result に投影する。`cancel()` / `retryContext` / `prepareRetry()`。チャットと HEARTBEAT が共用 |
-| `src/composables/aiTurnExecutions.ts` | ターン単位の実行要求の台帳。中断時に確認待ちを `AbortSignal` で閉じる |
+| `src/composables/aiConfirmRequests.ts` | notecore の確認要求の表示と応答。複数項目を 1 枚に束ね、表示を伝え、「次から確認しない」を権限ファイルへ減算してから応答する |
+| `src/composables/aiTurnExecutions.ts` | ターン単位の実行要求の台帳。中断時に実行要求側の確認 (保険) を `AbortSignal` で閉じる |
 | `src/capabilities/deviceTools.ts` | 宣言表に無い AI tool (plugin 由来) と実行時 enum をターン要求に同梱する |
 | `src/composables/useAiChat.ts` | `sendMessage(opts)` で 1 往復の chat 呼び出し (tool なし)。`currentText` ref が delta で更新される。`cancel()` で進行中 stream を中断 (Rust 側 `ai_chat_cancel` 経由) |
 | `src/composables/useAiConversation.ts` | 指定 sessionId のメッセージ配列に対する reactive な参照を返す薄いラッパー。本文の永続化と debounce は `useAiSessionsStore` 側で集中管理 |

@@ -70,6 +70,21 @@ export type DispatchResult =
  */
 export interface DispatchOptions {
   confirmFn?: (opts: ConfirmOptions) => Promise<ConfirmDecision>
+  /**
+   * notecore が確認要求を出して許可を得た実行 (#1133)。ここでは確認を出さない
+   * (要否の判定と要求は notecore、内容の組み立ては `previewConfirmation`)。
+   * 権限検査と preflight は写しとして通す。
+   */
+  preConfirmed?: boolean
+}
+
+/** notecore の確認要求に同梱する内容 (`ai/confirm-preview` の応答) */
+export interface ConfirmPreview {
+  /** false = この引数なら確認は要らない (no-op など)。notecore はそのまま実行する */
+  needsConfirmation: boolean
+  options?: ConfirmOptions
+  /** 「次から確認しない」を出してよいか (クロスアカウントでは出さない) */
+  allowRemember: boolean
 }
 
 /**
@@ -211,25 +226,15 @@ export async function dispatchCapability(
   }
   // 確認ダイアログ (write 系などで requiresConfirmation: true)。
   // クロスアカウント実行は requiresConfirmation 未宣言でも必ず確認する。
-  const confirmOpts = await buildConfirmOptions(cap, params, capCtx, {
-    force: crossAccount,
-  })
-  // 汎用「今後確認しない」(#714): capability 固有の remember (vault の接続
-  // 単位の信頼) を持たない capability に、scope × capability 単位のスキップを
-  // 適用する。scope は ai.chat / plugin 個体のみ — user (本人操作の confirm は
-  // 削らない)・ai.heartbeat (無人実行)・external は confirmSkipScope が null を
-  // 返し、常に確認される。
-  const skipScope = cap.onConfirmRemember
+  // notecore が既に許可を得ている実行 (#1133) では出さない。
+  const prepared = options?.preConfirmed
     ? null
-    : confirmSkipScope(ctx.principal)
-  // クロスアカウント実行 (#777) には「今後確認しない」記憶を適用しない —
-  // 同一アカウント操作への同意を別アカウントでの実行に波及させない。
-  const skipConfirmed =
-    confirmOpts !== null &&
-    !crossAccount &&
-    skipScope !== null &&
-    isConfirmSkipped(skipScope, cap.id)
-  if (confirmOpts && !skipConfirmed) {
+    : await prepareConfirmation(cap, params, capCtx, ctx, {
+        crossAccount,
+        crossAccountId,
+      })
+  if (prepared) {
+    const { confirmOpts, skipScope } = prepared
     // 無人実行 (HEARTBEAT) は承認を待たない (#1106 §4.8)。従来は誰も見ていない
     // モーダルを開いたまま run が止まり、後続 tick が already-running で
     // スキップされていた。確認が要る操作はその場で拒否して AI に返す。
@@ -240,45 +245,6 @@ export async function dispatchCapability(
         code: 'user_cancelled',
         error: `Unattended HEARTBEAT does not run operations that require confirmation: ${capabilityId}`,
       }
-    }
-    // クロスアカウント実行: どのアカウントとして実行するかを必ず明示する
-    if (crossAccount && crossAccountId) {
-      const acc = useAccountsStore().accounts.find(
-        (a) => a.id === crossAccountId,
-      )
-      const line = `実行アカウント: ${acc ? getAccountLabel(acc) : crossAccountId}`
-      confirmOpts.message = confirmOpts.message
-        ? `${line}\n${confirmOpts.message}`
-        : line
-    }
-    // 信頼マーカー (#720): これは NoteDeck 本体の権限確認である。プラグインの
-    // Mk:confirm はこのフラグを立てられないので、システム確認になりすませない。
-    confirmOpts.trusted = true
-    // 同一操作の dedup key (#720): 「今後確認しない」で許可したら、キューで
-    // 待機している同じ scope×capability の確認も自動承認させる (#716 の
-    // 「一度の同意を同一操作の待機分へ波及」)。skip 不可 scope とクロス
-    // アカウント実行では付けない。
-    if (skipScope !== null && !crossAccount) {
-      confirmOpts.dedupKey = `${skipScope}:${cap.id}`
-    }
-    // 帰属表示 (#712 §3.3): 誰の要求かをダイアログ冒頭に必須表示する。
-    // 無人 HEARTBEAT のモーダルが本人のチャット確認と誤認されないよう、
-    // capability 側実装に任せず dispatcher が一律で注入する。
-    // 操作名はタイトル行が示すので主語 (actor) のみ (長文化を避ける)。
-    const actor = principalActorLabel(ctx.principal)
-    if (actor) {
-      confirmOpts.attribution = actor
-    }
-    // 編集の理由 (#1052): write 系 capability が受け取った reason を、承認前に
-    // 「何を変えるか (diff)」と同じ画面で見せる。承認後は同じ文字列が編集履歴に
-    // 記録されるので、ここで見せていないものが履歴に残ることはない。
-    const reason =
-      typeof params?.reason === 'string' ? params.reason.trim() : ''
-    if (reason) {
-      confirmOpts.reason = reason
-    }
-    if (skipScope !== null && !crossAccount && !confirmOpts.rememberLabel) {
-      confirmOpts.rememberLabel = '今後この操作を確認しない'
     }
     const confirmFn = options?.confirmFn ?? useConfirm().confirmWithDecision
     // ペット (#1080): AI の要求で承認を待っている間は waiting
@@ -518,6 +484,148 @@ function emitSpotlightFromCapability(
  * - true → label + 引数 JSON で汎用モーダル
  * - 関数 → 関数の戻り値をそのまま使う (null 戻りは個別スキップ)
  */
+interface PreparedConfirmation {
+  confirmOpts: ConfirmOptions
+  /** 「次から確認しない」の記憶スコープ。null = 記憶しない (user / heartbeat / external / クロスアカウント) */
+  skipScope: string | null
+}
+
+/**
+ * 確認ダイアログの内容を組み立てる (dispatcher と notecore の確認要求で共通)。
+ * null = この呼び出しでは確認しない (宣言なし / no-op / 記憶済み)。
+ */
+async function prepareConfirmation(
+  cap: Command,
+  params: Record<string, unknown> | undefined,
+  capCtx: CapabilityContext,
+  ctx: DispatchContext,
+  cross: { crossAccount: boolean; crossAccountId: string | undefined },
+): Promise<PreparedConfirmation | null> {
+  const { crossAccount, crossAccountId } = cross
+  const confirmOpts = await buildConfirmOptions(cap, params, capCtx, {
+    force: crossAccount,
+  })
+  if (!confirmOpts) return null
+  // 汎用「今後確認しない」(#714): capability 固有の remember (vault の接続
+  // 単位の信頼) を持たない capability に、scope × capability 単位のスキップを
+  // 適用する。scope は ai.chat / plugin 個体のみ — user (本人操作の confirm は
+  // 削らない)・ai.heartbeat (無人実行)・external は confirmSkipScope が null を
+  // 返し、常に確認される。
+  // クロスアカウント実行 (#777) には「今後確認しない」記憶を適用しない —
+  // 同一アカウント操作への同意を別アカウントでの実行に波及させない。
+  const rawScope = cap.onConfirmRemember
+    ? null
+    : confirmSkipScope(ctx.principal)
+  if (
+    rawScope !== null &&
+    !crossAccount &&
+    isConfirmSkipped(rawScope, cap.id)
+  ) {
+    return null
+  }
+  const skipScope = crossAccount ? null : rawScope
+  // クロスアカウント実行: どのアカウントとして実行するかを必ず明示する
+  if (crossAccount && crossAccountId) {
+    const acc = useAccountsStore().accounts.find((a) => a.id === crossAccountId)
+    const line = `実行アカウント: ${acc ? getAccountLabel(acc) : crossAccountId}`
+    confirmOpts.message = confirmOpts.message
+      ? `${line}\n${confirmOpts.message}`
+      : line
+  }
+  // 信頼マーカー (#720): これは NoteDeck 本体の権限確認である。プラグインの
+  // Mk:confirm はこのフラグを立てられないので、システム確認になりすませない。
+  confirmOpts.trusted = true
+  // 同一操作の dedup key (#720): 「今後確認しない」で許可したら、キューで
+  // 待機している同じ scope×capability の確認も自動承認させる (#716 の
+  // 「一度の同意を同一操作の待機分へ波及」)。skip 不可 scope とクロス
+  // アカウント実行では付けない。
+  if (skipScope !== null) {
+    confirmOpts.dedupKey = `${skipScope}:${cap.id}`
+  }
+  // 帰属表示 (#712 §3.3): 誰の要求かをダイアログ冒頭に必須表示する。
+  // 無人 HEARTBEAT のモーダルが本人のチャット確認と誤認されないよう、
+  // capability 側実装に任せず dispatcher が一律で注入する。
+  // 操作名はタイトル行が示すので主語 (actor) のみ (長文化を避ける)。
+  const actor = principalActorLabel(ctx.principal)
+  if (actor) {
+    confirmOpts.attribution = actor
+  }
+  // 編集の理由 (#1052): write 系 capability が受け取った reason を、承認前に
+  // 「何を変えるか (diff)」と同じ画面で見せる。承認後は同じ文字列が編集履歴に
+  // 記録されるので、ここで見せていないものが履歴に残ることはない。
+  const reason = typeof params?.reason === 'string' ? params.reason.trim() : ''
+  if (reason) {
+    confirmOpts.reason = reason
+  }
+  if (skipScope !== null && !confirmOpts.rememberLabel) {
+    confirmOpts.rememberLabel = '今後この操作を確認しない'
+  }
+  return { confirmOpts, skipScope }
+}
+
+/**
+ * notecore の確認要求に同梱する内容を組み立てる (#1133)。要否の判定
+ * (宣言の confirm / 「次から確認しない」の記憶 / クロスアカウント) は notecore
+ * 側で済んでいるので、ここは capability の実装が組む表示内容と、この引数で
+ * 本当に確認が要るか (no-op なら要らない) だけを答える。実行はしない。
+ */
+export async function previewConfirmation(
+  capabilityId: string,
+  params: Record<string, unknown> | undefined,
+  ctx: DispatchContext,
+  opts: { crossAccount: boolean },
+): Promise<ConfirmPreview> {
+  await whenPermissionsReady()
+  const cap =
+    getCapability(capabilityId) ??
+    listCapabilities().find((c) => sanitizeToolName(c.id) === capabilityId)
+  if (!cap) return { needsConfirmation: false, allowRemember: false }
+  const capCtx: CapabilityContext = {
+    aiConfig: useAiConfig().config.value,
+    principal: ctx.principal,
+    ...(ctx.accountId ? { accountId: ctx.accountId } : {}),
+  }
+  const crossAccountId = opts.crossAccount
+    ? pickAccountId(params?.accountId)
+    : undefined
+  const prepared = await prepareConfirmation(cap, params, capCtx, ctx, {
+    crossAccount: opts.crossAccount,
+    crossAccountId,
+  })
+  if (!prepared) return { needsConfirmation: false, allowRemember: false }
+  return {
+    needsConfirmation: true,
+    options: prepared.confirmOpts,
+    allowRemember:
+      !opts.crossAccount &&
+      (prepared.skipScope !== null || Boolean(cap.onConfirmRemember)),
+  }
+}
+
+/**
+ * 確認要求で「次から確認しない」が ON のまま許可された (#1133)。dispatcher の
+ * 同名処理と同じく、capability 固有の remember があればそれへ、無ければ
+ * scope × capability 単位で permissions.json5 に記憶する。
+ */
+export async function rememberConfirmation(
+  capabilityId: string,
+  params: Record<string, unknown> | undefined,
+  ctx: DispatchContext,
+): Promise<void> {
+  const cap = getCapability(capabilityId)
+  if (!cap) return
+  if (cap.onConfirmRemember) {
+    await cap.onConfirmRemember(params, {
+      aiConfig: useAiConfig().config.value,
+      principal: ctx.principal,
+      ...(ctx.accountId ? { accountId: ctx.accountId } : {}),
+    })
+    return
+  }
+  const scope = confirmSkipScope(ctx.principal)
+  if (scope !== null) addConfirmSkip(scope, cap.id)
+}
+
 async function buildConfirmOptions(
   cap: Command,
   params: Record<string, unknown> | undefined,

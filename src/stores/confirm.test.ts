@@ -227,4 +227,20 @@ describe('useConfirm', () => {
       confirmWithDecision({ title: 'd', message: '' }, done.signal),
     ).resolves.toEqual({ accepted: false, remember: false })
   })
+
+  it('onShow は実際に表示された時点で呼ばれる (待ち行列を抜けた時) (#1133)', async () => {
+    const { confirmWithDecision, resolve } = useConfirm()
+    const shownA = vi.fn()
+    const shownB = vi.fn()
+    const a = confirmWithDecision({ title: 'a', message: '', onShow: shownA })
+    const b = confirmWithDecision({ title: 'b', message: '', onShow: shownB })
+    expect(shownA).toHaveBeenCalledOnce()
+    expect(shownB).not.toHaveBeenCalled()
+    resolve({ accepted: true, remember: false })
+    await a
+    vi.runAllTimers()
+    expect(shownB).toHaveBeenCalledOnce()
+    resolve({ accepted: false, remember: false })
+    await b
+  })
 })

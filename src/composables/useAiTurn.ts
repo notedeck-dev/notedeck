@@ -8,9 +8,15 @@ import {
 import { listCapabilities } from '@/capabilities/registry'
 import type { ChatMessage } from '@/composables/useAiChat'
 import { useAiActivity } from '@/stores/aiActivity'
+import type { ConfirmOptions } from '@/stores/confirm'
 import { extractErrorMessage } from '@/utils/errors'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import {
+  closeConfirmRequest,
+  closeConfirmRequestsForTurn,
+  presentConfirmRequest,
+} from './aiConfirmRequests'
 import { cancelTurnExecutions } from './aiTurnExecutions'
 
 /**
@@ -103,7 +109,15 @@ export interface AiRetryPlan {
 
 export interface AiTurnEventPayload {
   turn_id: string
-  kind: 'delta' | 'tool_use' | 'tool_result' | 'done' | 'error' | 'title'
+  kind:
+    | 'delta'
+    | 'tool_use'
+    | 'tool_result'
+    | 'done'
+    | 'error'
+    | 'title'
+    | 'confirm_request'
+    | 'confirm_closed'
   text?: string
   error?: string
   phase?: 'before_tool' | 'after_tool'
@@ -112,6 +126,19 @@ export interface AiTurnEventPayload {
   tool_use_name?: string
   tool_use_input?: Record<string, unknown>
   is_error?: boolean
+  confirm_request_id?: string
+  confirm_items?: AiConfirmItem[]
+  expires_at_ms?: number
+  reason?: 'decided' | 'cancelled' | 'expired_absolute' | 'expired_display'
+}
+
+/** notecore の確認要求 1 項目 (`confirm_items` の要素) */
+export interface AiConfirmItem {
+  toolUseId: string
+  capabilityId: string
+  params: Record<string, unknown>
+  preview: ConfirmOptions
+  allowRemember: boolean
 }
 
 export class AiTurnCancelledError extends Error {
@@ -174,6 +201,7 @@ export function useAiTurn(deps: AiTurnDeps) {
     const settle = activeCancel
     if (!id) return
     cancelTurnExecutions(id)
+    closeConfirmRequestsForTurn(id)
     settle?.()
     try {
       unwrap(await commands.aiTurnCancel(id))
@@ -357,6 +385,24 @@ export function useAiTurn(deps: AiTurnDeps) {
           }
           case 'title': {
             if (p.text) req.onTitle?.(p.text)
+            return
+          }
+          case 'confirm_request': {
+            // notecore 発の確認要求 (#1133 縦切り 2)。表示と応答は別モジュール。
+            // turn はチェックポイントに退避していて、応答で再開する
+            if (!p.confirm_request_id || !p.confirm_items) return
+            void presentConfirmRequest({
+              requestId: p.confirm_request_id,
+              turnId,
+              principal: req.principal,
+              accountId: req.accountId ?? undefined,
+              items: p.confirm_items,
+            })
+            return
+          }
+          case 'confirm_closed': {
+            // 期限切れ / 中断 / 別デバイスの応答で閉じた。表示中なら畳む
+            if (p.confirm_request_id) closeConfirmRequest(p.confirm_request_id)
             return
           }
         }
