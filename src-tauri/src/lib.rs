@@ -506,7 +506,10 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             stage("stage2-full-ready");
 
             // OGP cache (lazy-loaded on first access via ensure_loaded())
-            app_handle.manage(notecore::ogp::OgpCache::with_client(db.clone(), shared_http, shared_perf_bg.clone()));
+            let ogp_cache = notecore::ogp::OgpCache::with_client(db.clone(), shared_http, shared_perf_bg.clone());
+            app_state.set_ogp(ogp_cache.clone());
+            app_state.set_hint_sink(std::sync::Arc::new(commands::TauriHintSink(app_handle.clone())));
+            app_handle.manage(ogp_cache);
 
             // Start HTTP API server (attach routes to pre-bound listener)
             // Wait for the server to be ready before signalling the frontend,
@@ -1185,7 +1188,11 @@ fn annotate_bindings_with_impl_paths(
         return Ok(());
     }
     let generated = std::fs::read_to_string(target)?;
-    let locations = ipc_index::collect_command_locations(&src_root);
+    let mut locations = ipc_index::collect_command_locations(&src_root);
+    // コマンド表 (#1106) 経由のコマンドは本体が notecore にある
+    let table = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../crates/notecore/src/commands/table.rs");
+    ipc_index::collect_table_locations(&table, &mut locations);
     std::fs::write(target, ipc_index::annotate(&generated, &locations))?;
     Ok(())
 }

@@ -270,7 +270,8 @@ notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 **今すぐ守ること (段階 0a、機械検査あり)**:
 
 - notecore 側のモジュールは `crates/notecore` に置く (2026-09-23 にクレート化済み)。notecore は `tauri` を参照せず、Cargo.toml に tauri 系を足さない (`tests/lint/rustCoreBoundary.test.ts`)。手元側 (WebView / managed state / OS 統合) が要る処理は trait (`FrontendBridge` / `AiChatSink`) で受け取り、Tauri 側 (`src-tauri/`) が実装を渡す。app dir のような値は `&Path` で受ける
-- 全ての `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。リモート構成では橋がネイティブ確認してから通す) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
+- **データ系コマンドは notecore のコマンド表に載せる** (`crates/notecore/src/commands/table.rs`、#1106 §4.1)。本体は `&Core` と引数を取る関数として `crates/notecore/src/commands/<module>.rs` に書き、表に 1 行足す。表から Tauri ラッパー (`src-tauri/src/commands/table.rs`)、JSON アダプタ (`dispatch`)、フィクスチャが生成され、属性検査 (許可ウィンドウ) は型付き経路でも JSON 経路でも本体の前に通る。全コマンドを JSON 経路で往復させるテストが notecore にあり、引数の型は `Default` を要求する。手元側 (OS 統合) と認可境界のコマンドは従来どおり `#[tauri::command]` で書く
+- 表に載らない `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。リモート構成では橋がネイティブ確認してから通す) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
 
 ```
 src/                        # Vue 3 frontend
@@ -299,6 +300,8 @@ src/                        # Vue 3 frontend
 crates/notecore/src/        # notecore (Tauri 非依存のドメイン層、#1106)。アプリと notecored の両方で使う
 ├── lib.rs                  # モジュール一覧と境界の説明
 ├── error.rs                # Result alias (エラー型は notecli の NoteDeckError)
+├── context.rs              # Core: 実行文脈 (DB / Misskey クライアント / OGP、二段階初期化)。旧 AppState
+├── commands/               # コマンド表 (table.rs) とデータ系コマンドの本体 (timeline.rs, ...)
 ├── permissions_gate.rs # external principal gate (#712) — 永続トークンの per-route 権限判定
 ├── permissions_profile.rs # permissions.json5 → 実効権限の解決 (#1099) — JS と golden vector で一致検査
 ├── image_cache.rs      # 3-tier image cache (memory → disk → network)。host 単位の 429 throttle 窓と half-open circuit breaker で一時失敗を <img> のエラーにしない
@@ -320,9 +323,10 @@ crates/notecli/             # Misskey クライアントライブラリ + CLI (M
 
 src-tauri/src/              # Rust backend (Tauri 固有部分 = 手元側)
 ├── lib.rs                  # App setup (tray, plugins, state)
-├── commands/               # Tauri IPC command handlers (notecli 呼び出し)
-│   ├── mod.rs              # 共通ユーティリティ (validate_host, get_credentials 等)
-│   ├── timeline.rs         # タイムライン系コマンド
+├── commands/               # Tauri IPC command handlers (手元側 + 表からの生成)
+│   ├── mod.rs              # 共通ユーティリティ (validate_host, typed_request 等)
+│   ├── table.rs            # notecore のコマンド表から Tauri ラッパーを生成 (#1106)
+│   ├── timeline.rs         # タイムライン系のうち手元側に残るもの (データ系は notecore へ移行済み)
 │   ├── content.rs          # ノート操作系コマンド
 │   ├── user.rs             # ユーザー系コマンド
 │   ├── messaging.rs        # チャット・DM 系コマンド

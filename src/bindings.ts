@@ -282,7 +282,7 @@ async apiUpdateUserSetting(accountId: string, key: string, value: boolean) : Pro
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetTimeline(accountId: string, timelineType: string, options: TimelineOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_timeline", { accountId, timelineType, options }) };
@@ -291,7 +291,7 @@ async apiGetTimeline(accountId: string, timelineType: string, options: TimelineO
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetUserLists(accountId: string) : Promise<Result<UserList[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_lists", { accountId }) };
@@ -300,7 +300,7 @@ async apiGetUserLists(accountId: string) : Promise<Result<UserList[], { code: st
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetAntennas(accountId: string) : Promise<Result<Antenna[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_antennas", { accountId }) };
@@ -309,11 +309,7 @@ async apiGetAntennas(accountId: string) : Promise<Result<Antenna[], { code: stri
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 単一アンテナの設定を取得する (antennas/show)。
- *
- * @see src-tauri/src/commands/timeline.rs
- */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetAntenna(accountId: string, antennaId: string) : Promise<Result<Antenna, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_antenna", { accountId, antennaId }) };
@@ -322,11 +318,7 @@ async apiGetAntenna(accountId: string, antennaId: string) : Promise<Result<Anten
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * アンテナ設定を更新する (antennas/update)。変更済みの Antenna を全フィールド往復させる。
- *
- * @see src-tauri/src/commands/timeline.rs
- */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiUpdateAntenna(accountId: string, antenna: Antenna) : Promise<Result<Antenna, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_antenna", { accountId, antenna }) };
@@ -335,7 +327,7 @@ async apiUpdateAntenna(accountId: string, antenna: Antenna) : Promise<Result<Ant
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetAntennaNotes(accountId: string, antennaId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_antenna_notes", { accountId, antennaId, limit, sinceId, untilId }) };
@@ -344,7 +336,7 @@ async apiGetAntennaNotes(accountId: string, antennaId: string, limit: number | n
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetFavorites(accountId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_favorites", { accountId, limit, sinceId, untilId }) };
@@ -353,7 +345,7 @@ async apiGetFavorites(accountId: string, limit: number | null, sinceId: string |
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetFeaturedNotes(accountId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_featured_notes", { accountId, limit }) };
@@ -362,7 +354,7 @@ async apiGetFeaturedNotes(accountId: string, limit: number | null) : Promise<Res
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetMentions(accountId: string, limit: number | null, sinceId: string | null, untilId: string | null, visibility: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_mentions", { accountId, limit, sinceId, untilId, visibility }) };
@@ -371,7 +363,7 @@ async apiGetMentions(accountId: string, limit: number | null, sinceId: string | 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetClips(accountId: string) : Promise<Result<Clip[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_clips", { accountId }) };
@@ -380,7 +372,7 @@ async apiGetClips(accountId: string) : Promise<Result<Clip[], { code: string; me
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetClipNotes(accountId: string, clipId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_clip_notes", { accountId, clipId, limit, sinceId, untilId }) };
@@ -389,7 +381,7 @@ async apiGetClipNotes(accountId: string, clipId: string, limit: number | null, s
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetChannels(accountId: string) : Promise<Result<Channel[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_channels", { accountId }) };
@@ -398,7 +390,7 @@ async apiGetChannels(accountId: string) : Promise<Result<Channel[], { code: stri
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiSearchChannels(accountId: string, query: string) : Promise<Result<Channel[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_channels", { accountId, query }) };
@@ -407,7 +399,7 @@ async apiSearchChannels(accountId: string, query: string) : Promise<Result<Chann
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetChannelNotes(accountId: string, channelId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_channel_notes", { accountId, channelId, limit, sinceId, untilId }) };
@@ -416,7 +408,7 @@ async apiGetChannelNotes(accountId: string, channelId: string, limit: number | n
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetRoleNotes(accountId: string, roleId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_role_notes", { accountId, roleId, limit, sinceId, untilId }) };
@@ -425,7 +417,7 @@ async apiGetRoleNotes(accountId: string, roleId: string, limit: number | null, s
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetNote(accountId: string, noteId: string) : Promise<Result<NormalizedNote, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note", { accountId, noteId }) };
@@ -434,7 +426,7 @@ async apiGetNote(accountId: string, noteId: string) : Promise<Result<NormalizedN
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiCreateNote(accountId: string, params: CreateNoteParams, channelId: string | null) : Promise<Result<NormalizedNote, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_note", { accountId, params, channelId }) };
@@ -443,7 +435,7 @@ async apiCreateNote(accountId: string, params: CreateNoteParams, channelId: stri
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiCreateReaction(accountId: string, noteId: string, reaction: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_reaction", { accountId, noteId, reaction }) };
@@ -452,7 +444,7 @@ async apiCreateReaction(accountId: string, noteId: string, reaction: string) : P
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiDeleteReaction(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_reaction", { accountId, noteId }) };
@@ -461,7 +453,7 @@ async apiDeleteReaction(accountId: string, noteId: string) : Promise<Result<null
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiVotePoll(accountId: string, noteId: string, choice: number) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_vote_poll", { accountId, noteId, choice }) };
@@ -470,7 +462,7 @@ async apiVotePoll(accountId: string, noteId: string, choice: number) : Promise<R
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetNoteReactions(accountId: string, noteId: string, reactionType: string | null, limit: number | null, untilId: string | null) : Promise<Result<NormalizedNoteReaction[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_reactions", { accountId, noteId, reactionType, limit, untilId }) };
@@ -479,7 +471,7 @@ async apiGetNoteReactions(accountId: string, noteId: string, reactionType: strin
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiUpdateNote(accountId: string, noteId: string, params: CreateNoteParams) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_note", { accountId, noteId, params }) };
@@ -488,7 +480,7 @@ async apiUpdateNote(accountId: string, noteId: string, params: CreateNoteParams)
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiUploadFile(accountId: string, fileName: string, fileData: number[], contentType: string, isSensitive: boolean, folderId: string | null) : Promise<Result<NormalizedDriveFile, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_upload_file", { accountId, fileName, fileData, contentType, isSensitive, folderId }) };
@@ -506,7 +498,7 @@ async apiUploadFileFromPath(accountId: string, filePath: string, isSensitive: bo
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiCreateFavorite(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_favorite", { accountId, noteId }) };
@@ -515,7 +507,7 @@ async apiCreateFavorite(accountId: string, noteId: string) : Promise<Result<null
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiDeleteFavorite(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_favorite", { accountId, noteId }) };
@@ -524,7 +516,7 @@ async apiDeleteFavorite(accountId: string, noteId: string) : Promise<Result<null
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiDeleteNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_note", { accountId, noteId }) };
@@ -689,7 +681,7 @@ async apiGetNotificationsGrouped(accountId: string, options: TimelineOptions | n
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiSearchNotes(accountId: string, query: string, options: SearchOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_notes", { accountId, query, options }) };
@@ -698,15 +690,7 @@ async apiSearchNotes(accountId: string, query: string, options: SearchOptions | 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * はなみすきー専用のノート検索 (`notes/hanamisearch-v1`)。
- * 
- * 本家 `notes/search` はロールポリシーで無効化されているため、フォーク別
- * アダプター (`src/adapters/hanamisskey/`) がこちらを呼ぶ。エンドポイントは
- * 匿名アクセスでサーバー側が 500 になるので、認証必須として扱う。
- *
- * @see src-tauri/src/commands/timeline.rs
- */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiSearchNotesHanami(accountId: string, query: string, options: SearchOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_notes_hanami", { accountId, query, options }) };
@@ -715,7 +699,7 @@ async apiSearchNotesHanami(accountId: string, query: string, options: SearchOpti
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetNoteChildren(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_children", { accountId, noteId, limit }) };
@@ -724,7 +708,7 @@ async apiGetNoteChildren(accountId: string, noteId: string, limit: number | null
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetNoteRenotes(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_renotes", { accountId, noteId, limit }) };
@@ -733,7 +717,7 @@ async apiGetNoteRenotes(accountId: string, noteId: string, limit: number | null)
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetNoteConversation(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_conversation", { accountId, noteId, limit }) };
@@ -751,7 +735,7 @@ async apiLookupUser(accountId: string, username: string, host: string | null) : 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetCachedTimeline(accountId: string, timelineType: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_timeline", { accountId, timelineType, limit }) };
@@ -760,7 +744,7 @@ async apiGetCachedTimeline(accountId: string, timelineType: string, limit: numbe
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiDeleteCachedNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_cached_note", { accountId, noteId }) };
@@ -769,14 +753,7 @@ async apiDeleteCachedNote(accountId: string, noteId: string) : Promise<Result<nu
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * エンティティ削除 (antenna / clip / list — フロントは汎用 api_request で
- * サーバー削除する) の後始末: 死にバケットの membership を破棄する。
- * これが無いと削除済みエンティティの membership が sweep 対象外のまま
- * per-account cap まで残留する (issue notecli#30 仕様 v5 §6-7)。
- *
- * @see src-tauri/src/commands/timeline.rs
- */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiClearTimelineCache(accountId: string, timelineKey: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_clear_timeline_cache", { accountId, timelineKey }) };
@@ -785,11 +762,7 @@ async apiClearTimelineCache(accountId: string, timelineKey: string) : Promise<Re
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Bulk-verify cached notes against the server.
- *
- * @see src-tauri/src/commands/timeline.rs
- */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiVerifyNotes(accountId: string, noteIds: string[]) : Promise<Result<VerifyNotesResult, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_verify_notes", { accountId, noteIds }) };
@@ -798,7 +771,7 @@ async apiVerifyNotes(accountId: string, noteIds: string[]) : Promise<Result<Veri
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetCachedTimelineBefore(accountId: string, timelineType: string, before: string, beforeNoteId: string | null, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_timeline_before", { accountId, timelineType, before, beforeNoteId, limit }) };
@@ -807,7 +780,7 @@ async apiGetCachedTimelineBefore(accountId: string, timelineType: string, before
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetCacheDateRange(accountId: string, timelineType: string) : Promise<Result<[string, string] | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cache_date_range", { accountId, timelineType }) };
@@ -816,7 +789,7 @@ async apiGetCacheDateRange(accountId: string, timelineType: string) : Promise<Re
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiSearchNotesLocal(accountId: string, query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_notes_local", { accountId, query, limit, sinceDate, untilDate, ascending }) };
@@ -825,12 +798,7 @@ async apiSearchNotesLocal(accountId: string, query: string, limit: number | null
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * クライアント検索 (notedeck#945 / #958): 複数アカウントのキャッシュを横断して
- * 引く。結果は取得元アカウントごとの variant のまま返し、束ねはフロントが行う。
- *
- * @see src-tauri/src/commands/timeline.rs
- */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiSearchNotesCachedAcross(accountIds: string[], query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null, author: string | null, hasFiles: boolean | null, publicOnly: boolean | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_notes_cached_across", { accountIds, query, limit, sinceDate, untilDate, ascending, author, hasFiles, publicOnly }) };
@@ -839,12 +807,7 @@ async apiSearchNotesCachedAcross(accountIds: string[], query: string, limit: num
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * identity (正規化 AP object id) でローカルキャッシュを account 横断で引く (#1058)。
- * 引数は生の URI でもよい (notecli 側で同じ規則で正規化する)。
- *
- * @see src-tauri/src/commands/timeline.rs
- */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiFindNotesByIdentity(uri: string) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_find_notes_by_identity", { uri }) };
@@ -853,16 +816,16 @@ async apiFindNotesByIdentity(uri: string) : Promise<Result<NormalizedNote[], { c
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * URI を identity に正規化する。導出規則は notecli 側の 1 か所に閉じ、
- * フロントは結果を読むだけにする (#1058)。
- *
- * @see src-tauri/src/commands/timeline.rs
- */
-async apiNoteIdentity(uri: string) : Promise<string> {
-    return await TAURI_INVOKE("api_note_identity", { uri });
+/** @see crates/notecore/src/commands/timeline.rs */
+async apiNoteIdentity(uri: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_note_identity", { uri }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiPinNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_pin_note", { accountId, noteId }) };
@@ -871,7 +834,7 @@ async apiPinNote(accountId: string, noteId: string) : Promise<Result<null, { cod
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiUnpinNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unpin_note", { accountId, noteId }) };
@@ -983,7 +946,7 @@ async apiReportUser(accountId: string, userId: string, comment: string) : Promis
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiAddNoteToClip(accountId: string, clipId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_add_note_to_clip", { accountId, clipId, noteId }) };
@@ -992,7 +955,7 @@ async apiAddNoteToClip(accountId: string, clipId: string, noteId: string) : Prom
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/timeline.rs */
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiRemoveNoteFromClip(accountId: string, clipId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_remove_note_from_clip", { accountId, clipId, noteId }) };

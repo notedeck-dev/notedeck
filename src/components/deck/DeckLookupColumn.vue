@@ -366,7 +366,7 @@ async function performLookupCrossAccount(q: string) {
   }
 
   // 束ねのキーは identity (正規化 AP object id)。導出は notecli 側 1 か所 (#1058)
-  const focalUri = await commands.apiNoteIdentity(q)
+  const focalUri = unwrap(await commands.apiNoteIdentity(q))
   const allFragments: ThreadFragment[] = []
   // 主ビュー選択の文脈 (#1058 §5.2)。ゲスト取得の variant (Phase 1 のローカル
   // DB 由来) は最下位になる
