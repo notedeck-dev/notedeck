@@ -237,6 +237,23 @@ pub enum Commands {
     #[command(subcommand)]
     Cache(CacheCommands),
 
+    /// データベースの migration を適用、または適用可否を検査
+    #[command(
+        long_about = "データベースの schema migration を適用します。\n\
+            --check を付けると DB を変更せず、このバイナリで DB を開けるか\n\
+            (未適用の migration があるか / DB がバイナリより新しくないか) だけを検査します。\n\
+            起動前検査 (systemd の ExecStartPre 等) 向けで、開けない場合は終了コード 1 を返します。",
+        after_long_help = "使用例:\n\
+            \x20 notecli migrate --check\n\
+            \x20 notecli --json migrate --check\n\
+            \x20 notecli migrate"
+    )]
+    Migrate {
+        /// DB を変更せず適用可否だけを検査する
+        #[arg(long)]
+        check: bool,
+    },
+
     /// ノートを全文検索
     #[command(
         long_about = "キーワードでノートを全文検索します。\n\
