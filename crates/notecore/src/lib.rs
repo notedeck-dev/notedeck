@@ -13,6 +13,7 @@
 pub mod account_service;
 pub mod ai_chat_service;
 pub mod ai_keys;
+pub mod ai_turn;
 pub mod api_tokens;
 pub mod auth_service;
 pub mod backup_service;

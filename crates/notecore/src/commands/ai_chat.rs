@@ -2,6 +2,7 @@
 //! イベントの届け先 (AiChatSink) と app dir は Core から引く。
 
 use crate::ai_chat_service::{self, AiChatRequest};
+use crate::ai_turn::{self, AiTurnRequest};
 use crate::context::Core;
 use crate::error::Result;
 
@@ -22,5 +23,23 @@ pub async fn ai_chat_send(core: &Core, req: AiChatRequest) -> Result<()> {
 /// stream has already completed or never existed.
 pub async fn ai_chat_cancel(_core: &Core, stream_id: String) -> Result<()> {
     ai_chat_service::cancel_stream(&stream_id);
+    Ok(())
+}
+
+/// AI エージェントのターン (#1133) を開始する。即座に返り、以後のイベントは
+/// `nd:ai-turn-event` に流れる。tool の実行はデバイスへの実行要求 (橋) で行う。
+pub async fn ai_turn_run(core: &Core, req: AiTurnRequest) -> Result<()> {
+    ai_turn::start_turn(
+        req,
+        core.app_dir()?,
+        core.frontend_bridge()?,
+        core.ai_turn_sink()?,
+    )
+    .await
+}
+
+/// 進行中のターンを中断する。冪等。
+pub async fn ai_turn_cancel(_core: &Core, turn_id: String) -> Result<()> {
+    ai_turn::cancel_turn(&turn_id);
     Ok(())
 }

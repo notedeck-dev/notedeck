@@ -2233,6 +2233,24 @@ async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; mess
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notecore/src/commands/ai_chat.rs */
+async aiTurnRun(req: AiTurnRequest) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_turn_run", { req }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/ai_chat.rs */
+async aiTurnCancel(turnId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_turn_cancel", { turnId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see crates/notecore/src/commands/http.rs */
 async httpFetch(request: HttpFetchRequest) : Promise<Result<HttpFetchResponse, { code: string; message: string; apiCode: string | null }>> {
     try {
@@ -2711,6 +2729,40 @@ read_timeout_ms: number | null;
  */
 tools: JsonValue | null }
 export type AiChatRole = "system" | "user" | "assistant"
+export type AiTurnRequest = { turn_id: string; 
+/**
+ * イベントの帰属先。この段階ではデバイスが store への投影に使うだけ
+ */
+session_id: string; 
+/**
+ * `ai.chat` | `ai.heartbeat`
+ */
+principal: string; 
+/**
+ * 呼び出し文脈のアカウント (per-account の AI カラム)。無ければ None
+ */
+account_id: string | null; connection_id: string; model: string; 
+/**
+ * デバイスが組んだ system prompt (skill + デバイス文脈のスナップショット)
+ */
+system: string | null; 
+/**
+ * 履歴。今回のユーザー入力を含み、placeholder / heartbeat 由来を含まない
+ */
+messages: AiChatMessage[]; max_tokens: number | null; read_timeout_ms: number | null; max_tool_rounds: number | null; 
+/**
+ * 切断ターンの継続 (#737)。履歴末尾の実行済み tool_result から続きを生成する
+ */
+continuation: boolean; 
+/**
+ * 完了後にタイトルを生成して `title` イベントで返す (初回応答のセッション)
+ */
+generate_title: boolean; title_max_tokens: number | null; 
+/**
+ * 実行時に決まる enum (`{ capabilityId: { param: [values] } }`)。宣言表に
+ * 書けない値 (カラム種別など) をデバイスが足す
+ */
+tool_param_enums: JsonValue | null; device_tools: DeviceTool[] }
 export type Antenna = { id: string; name: string; 
 /**
  * 'home' | 'all' | 'users' | 'list' | 'users_blacklist'
@@ -2932,6 +2984,16 @@ export type CreatedApiToken = { meta: ApiTokenMeta;
  */
 token: string }
 export type CreatedDriveFolder = { id: string; name: string; parentId?: string | null }
+/**
+ * デバイス側だけが知っている AI tool (plugin が動的登録した capability)。
+ * 宣言表に無いので、デバイスが要求に同梱する。権限はデバイス側の dispatcher
+ * が「呼び出し元 ∩ 実行体」で改めて検査するが、ここでも事前フィルタに使う。
+ */
+export type DeviceTool = { id: string; description: string; 
+/**
+ * `ParameterDef` の map (`{ name: { type, description, optional?, enum? } }`)
+ */
+params: JsonValue; permissions: string[] }
 /**
  * broadcast チャネルの絵文字辞書変更の種別。
  */

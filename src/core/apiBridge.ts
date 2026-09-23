@@ -3,13 +3,21 @@ import { dispatchCapability } from '@/capabilities/dispatcher'
 import { sanitizeToolName } from '@/capabilities/identifier'
 import { listCapabilities } from '@/capabilities/registry'
 import { useCommandStore } from '@/commands/registry'
-import { useAiConfig } from '@/composables/useAiConfig'
+import {
+  beginTurnExecution,
+  endTurnExecution,
+} from '@/composables/aiTurnExecutions'
+import { reloadAiConfig, useAiConfig } from '@/composables/useAiConfig'
 import { heartbeatStatus } from '@/composables/useHeartbeatDaemon'
 import { listStreamHealth } from '@/core/streamHealth'
 import type { ProfiledPrincipalId } from '@/permissions/principal'
 import { PERMISSION_KEYS } from '@/permissions/schema'
-import { resolveForProfiled } from '@/permissions/store'
+import {
+  reloadPermissionsConfig,
+  resolveForProfiled,
+} from '@/permissions/store'
 import { listBoundedCacheStats } from '@/services/boundedCache'
+import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { useLogsStore } from '@/stores/logs'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
@@ -167,6 +175,52 @@ const handlers: Record<string, QueryHandler> = {
       (params.params ?? undefined) as Record<string, unknown> | undefined,
       { principal: { kind: 'external' } },
     )
+  },
+
+  // --- notecore のターン実行器からの実行要求 (#1133 縦切り 1) ---
+  // AI principal の認可 (tool 一覧の絞り込みと呼び出しごとの権限検査) は
+  // Rust 側で済んでいる。ここでは既存の dispatcher を同じ principal で走らせ、
+  // 確認ダイアログ / capability 本体 / 記憶した決定はデバイス側のまま使う
+  // (確認要求の notecore 発は次の縦切り)。dispatcher の権限検査は Rust の
+  // 写しとして二重に通す。
+  'ai/execute-capability': async (params) => {
+    const kind = params.principal
+    if (kind !== 'ai.chat' && kind !== 'ai.heartbeat') {
+      return {
+        ok: false,
+        code: 'permission_denied',
+        error: `AI ループの principal ではありません: ${String(kind)}`,
+      }
+    }
+    const turnId = String(params.turnId ?? '')
+    // 外部エディタで ai.json5 / permissions.json5 を変更した直後でも最新の
+    // 設定・権限で判定したいので、tool 実行直前に再読込する (= 再起動不要)。
+    // 失敗しても既存 cache で続行する。
+    try {
+      await reloadAiConfig()
+      await reloadPermissionsConfig()
+    } catch (e) {
+      console.warn('[ai-turn] config reload before dispatch failed:', e)
+    }
+    const controller = beginTurnExecution(turnId)
+    try {
+      return await dispatchCapability(
+        params.capabilityId as string,
+        (params.params ?? undefined) as Record<string, unknown> | undefined,
+        {
+          principal: { kind },
+          accountId:
+            (params.accountId as string | null | undefined) ?? undefined,
+        },
+        {
+          // ターン中断で、このターンのために待っている確認を閉じる
+          confirmFn: (opts) =>
+            useConfirm().confirmWithDecision(opts, controller.signal),
+        },
+      )
+    } finally {
+      endTurnExecution(turnId, controller)
+    }
   },
 }
 

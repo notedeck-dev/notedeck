@@ -266,6 +266,8 @@ macro_rules! with_command_table {
             // --- ai_chat (crates/notecore/src/commands/ai_chat.rs) ---
         data ai_chat_send(req: $crate::ai_chat_service::AiChatRequest) -> () = $crate::commands::ai_chat::ai_chat_send;
         data ai_chat_cancel(stream_id: String) -> () = $crate::commands::ai_chat::ai_chat_cancel;
+        data ai_turn_run(req: $crate::ai_turn::AiTurnRequest) -> () = $crate::commands::ai_chat::ai_turn_run;
+        data ai_turn_cancel(turn_id: String) -> () = $crate::commands::ai_chat::ai_turn_cancel;
         }
     };
 }
