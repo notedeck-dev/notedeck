@@ -276,7 +276,9 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
         config.api_token.clone(),
         config.token_path.clone(),
     );
-    let core_routes = notecli::http_server::build_core_routes(notecli_state);
+    // notecli 由来のルートにも NoteDeck の allowlist CORS を掛ける。以前は notecli 側の
+    // permissive が残っていて、#1099 の allowlist 化がここだけ効いていなかった (#1106 §9)
+    let core_routes = notecli::http_server::build_core_routes(notecli_state).layer(cors_layer());
 
     // NoteDeck-specific state
     let deck_state = DeckState {

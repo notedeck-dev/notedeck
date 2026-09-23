@@ -1,6 +1,9 @@
 use axum::{
     extract::{Path, Query, Request, State},
-    http::{header::AUTHORIZATION, StatusCode},
+    http::{
+        header::{AUTHORIZATION, CONTENT_TYPE},
+        HeaderValue, Method, StatusCode,
+    },
     middleware::{self, Next},
     response::{
         sse::{Event, KeepAlive, Sse},
@@ -17,7 +20,7 @@ use std::sync::Arc;
 use subtle::ConstantTimeEq;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use utoipa::{IntoParams, OpenApi, ToSchema};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -211,6 +214,36 @@ pub async fn start_on_port(
     }
 }
 
+/// 単体デーモン用の CORS。ループバック bind なので、ブラウザから叩けるのは同じマシンの
+/// localhost / 127.0.0.1 の origin (ポートは問わない) だけに限る。以前の permissive は
+/// 任意の origin に応答を返していた (notedeck#1106 §9)。
+fn localhost_cors_layer() -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _| {
+            is_localhost_origin(origin.to_str().unwrap_or(""))
+        }))
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::PATCH,
+        ])
+        .allow_headers([AUTHORIZATION, CONTENT_TYPE])
+}
+
+/// `http://localhost[:port]` と `http://127.0.0.1[:port]` だけを許す。
+fn is_localhost_origin(origin: &str) -> bool {
+    let Some(rest) = origin.strip_prefix("http://") else {
+        return false;
+    };
+    let host = rest.split(':').next().unwrap_or("");
+    (host == "localhost" || host == "127.0.0.1")
+        && rest[host.len()..]
+            .strip_prefix(':')
+            .is_none_or(|port| !port.is_empty() && port.chars().all(|c| c.is_ascii_digit()))
+}
+
 /// Full router with `/api` index, auth middleware, and CORS.
 /// Use this for standalone notecli server.
 pub fn build_router(state: AppState) -> Router {
@@ -222,13 +255,15 @@ pub fn build_router(state: AppState) -> Router {
 
     let index_route = Router::new()
         .route("/api", get(index))
-        .layer(CorsLayer::permissive())
         .with_state(IndexState {
             openapi: Arc::new(openapi),
             token_path,
         });
 
-    Router::new().merge(index_route).merge(core_router)
+    Router::new()
+        .merge(index_route)
+        .merge(core_router)
+        .layer(localhost_cors_layer())
 }
 
 /// Route registration for the core API — no state, no layers.
@@ -264,12 +299,15 @@ fn core_openapi_router() -> OpenApiRouter<AppState> {
 /// application that provides its own index endpoint and merges this into its
 /// own spec.
 pub fn build_core_routes(state: AppState) -> OpenApiRouter {
+    // CORS はここでは掛けない。埋め込む側 (notedeck) が自分の allowlist を、
+    // 単体デーモンは build_router が localhost 限定の layer を、それぞれ外側で掛ける。
+    // 以前はここに permissive が入っていて、notedeck の allowlist をすり抜けていた
+    // (notedeck#1106 §9)。
     core_openapi_router()
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
         ))
-        .layer(CorsLayer::permissive())
         .with_state(state)
 }
 
@@ -927,6 +965,29 @@ struct CreateNoteBody {
 mod tests {
     use super::*;
     use utoipa::Modify;
+
+    #[test]
+    fn localhost_origin_predicate() {
+        for ok in [
+            "http://localhost",
+            "http://localhost:5173",
+            "http://127.0.0.1",
+            "http://127.0.0.1:19820",
+        ] {
+            assert!(is_localhost_origin(ok), "{ok} should be allowed");
+        }
+        for ng in [
+            "https://evil.example",
+            "http://localhost.evil.example",
+            "http://localhost:abc",
+            "http://127.0.0.1:",
+            "https://localhost",
+            "http://[::1]:5173",
+            "",
+        ] {
+            assert!(!is_localhost_origin(ng), "{ng} should be rejected");
+        }
+    }
 
     /// Every core route must appear in the generated OpenAPI spec.
     /// `routes!` makes this structural — this test guards against the
