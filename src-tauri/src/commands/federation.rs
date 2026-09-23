@@ -40,6 +40,7 @@ pub struct FederationInstance {
     pub latest_status: Option<i64>,
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_federation_instances(
@@ -51,6 +52,7 @@ pub async fn api_get_federation_instances(
     typed_request(&client, &host, &token, "federation/instances", params).await
 }
 
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn api_get_federation_instance(

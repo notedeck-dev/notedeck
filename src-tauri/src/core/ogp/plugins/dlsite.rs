@@ -66,7 +66,9 @@ impl DLsitePlugin {
             .await
             .map_err(|e| PluginError::FetchFailed(e.to_string()))?;
 
-        Ok(Some(crate::ogp::parser::parse_html(&html, &final_url)))
+        Ok(Some(crate::core::ogp::parser::parse_html(
+            &html, &final_url,
+        )))
     }
 }
 

@@ -267,7 +267,10 @@ notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 - notecli の役割 (Misskey 通信・DB・ストリーミング) は変えない。notecore はその消費者。**notecli は notedeck の workspace に取り込む** (リポジトリは 1 つ、クレートは notecli / notecore / notecored / アプリの 4 つ。`notecli` の CLI と `notecored` のデーモンはクレートからバイナリとして出す)
 - 段階と受け入れ条件、認証・ペアリング・イベント面・状態の所在の仕様は #1106 の仕様コメントが正本。ローカル構成は残り、リモート構成は追加の構成
 
-**今すぐ守ること**: 新しいドメインを書くときは、上の基準で notecore 側か手元側かを決め、Tauri の型 (AppHandle / Window / State) を notecore 側に持ち込まない。
+**今すぐ守ること (段階 0a、機械検査あり)**:
+
+- notecore 側のモジュールは `src-tauri/src/core/` に置く。core/ の中では `tauri` を参照せず、`crate::` で参照してよいのは `crate::core` 自身と `crate::error` だけ (`tests/lint/rustCoreBoundary.test.ts`)。Tauri の型 (AppHandle / Window / State) を引数に取るモジュールは結合点を外してから core/ に移す。段階 0b で core/ をそのまま `crates/notecore` に切り出す
+- 全ての `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。リモート構成では橋がネイティブ確認してから通す) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
 
 ```
 src/                        # Vue 3 frontend
@@ -307,16 +310,19 @@ src-tauri/src/              # Rust backend (Tauri 固有部分)
 │   ├── auth.rs             # 認証系コマンド
 │   ├── enrichment.rs       # OGP・エンリッチメント系コマンド
 │   └── utility.rs          # ユーティリティ系コマンド
+├── core/                   # notecore 側 (Tauri 非依存、#1106 段階 0a)。段階 0b で crates/notecore に切り出す
+│   ├── permissions_gate.rs # external principal gate (#712) — 永続トークンの per-route 権限判定
+│   ├── permissions_profile.rs # permissions.json5 → 実効権限の解決 (#1099) — JS と golden vector で一致検査
+│   ├── image_cache.rs      # 3-tier image cache (memory → disk → network)。host 単位の 429 throttle 窓と half-open circuit breaker で一時失敗を <img> のエラーにしない
+│   ├── emoji_cache_store.rs # サーバー絵文字辞書のディスクキャッシュ (host 単位、鮮度内なら起動時の全件取得を省く)
+│   ├── media_warm.rs       # メディア先行取得キュー (辞書到着時に絵文字 variant を低優先で温める)
+│   ├── ogp/                # OGP metadata extraction & cache
+│   ├── ssrf.rs             # SSRF 防御 (URL / IP の一次検証 + DNS pinning)。汎用 fetch / 画像 / Vault / エクスポートが共用
+│   ├── settings_store.rs   # 設定ファイル store (allowlist が正本、export / import)
+│   └── perf_config.rs      # パフォーマンス設定 (Rust 側)
 ├── http_server.rs          # Axum HTTP API server (localhost:19820)
-├── permissions_gate.rs     # external principal gate (#712) — 永続トークンの per-route 権限判定
-├── permissions_profile.rs  # permissions.json5 → 実効権限の解決 (#1099) — JS と golden vector で一致検査
-├── image_cache.rs          # 3-tier image cache (memory → disk → network)。host 単位の 429 throttle 窓と half-open circuit breaker で一時失敗を <img> のエラーにしない
-├── emoji_cache_store.rs    # サーバー絵文字辞書のディスクキャッシュ (host 単位、鮮度内なら起動時の全件取得を省く)
-├── media_warm.rs           # メディア先行取得キュー (辞書到着時に絵文字 variant を低優先で温める)
-├── ogp/                    # OGP metadata extraction & cache
 ├── streaming.rs            # TauriEmitter adapter (FrontendEmitter trait impl)
 ├── query_bridge.rs         # HTTP API ↔ frontend (Pinia) bridge
-├── perf_config.rs          # パフォーマンス設定 (Rust 側)
 └── main.rs                 # Entry point
 ```
 

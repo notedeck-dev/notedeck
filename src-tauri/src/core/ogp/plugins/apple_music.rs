@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use super::{Plugin, PluginError, SummaryData};
-use crate::ogp::Player;
+use crate::core::ogp::Player;
 
 pub struct AppleMusicPlugin;
 pub const PLUGIN: AppleMusicPlugin = AppleMusicPlugin;
@@ -35,7 +35,7 @@ impl Plugin for AppleMusicPlugin {
             .await
             .map_err(|e| PluginError::FetchFailed(e.to_string()))?;
 
-        let mut data = crate::ogp::parser::parse_html(&html, &final_url);
+        let mut data = crate::core::ogp::parser::parse_html(&html, &final_url);
 
         // Build embed URL: music.apple.com → embed.music.apple.com
         let embed_url = format!("https://embed.music.apple.com{}", url.path());

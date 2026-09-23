@@ -1,15 +1,18 @@
 use async_trait::async_trait;
 
 use super::{extract_iframe_src, fetch_oembed, Plugin, PluginError, SummaryData};
-use crate::ogp::Player;
+use crate::core::ogp::Player;
 
-pub struct SpotifyPlugin;
-pub const PLUGIN: SpotifyPlugin = SpotifyPlugin;
+pub struct SoundCloudPlugin;
+pub const PLUGIN: SoundCloudPlugin = SoundCloudPlugin;
 
 #[async_trait]
-impl Plugin for SpotifyPlugin {
+impl Plugin for SoundCloudPlugin {
     fn test(&self, url: &url::Url) -> bool {
-        url.host_str() == Some("open.spotify.com")
+        matches!(
+            url.host_str(),
+            Some("soundcloud.com" | "www.soundcloud.com" | "on.soundcloud.com")
+        )
     }
 
     async fn summarize(
@@ -17,8 +20,11 @@ impl Plugin for SpotifyPlugin {
         url: &url::Url,
         client: &reqwest::Client,
     ) -> Result<SummaryData, PluginError> {
-        let mut endpoint = url::Url::parse("https://open.spotify.com/oembed").unwrap();
-        endpoint.query_pairs_mut().append_pair("url", url.as_str());
+        let mut endpoint = url::Url::parse("https://soundcloud.com/oembed").unwrap();
+        endpoint
+            .query_pairs_mut()
+            .append_pair("url", url.as_str())
+            .append_pair("format", "json");
         let oembed = fetch_oembed(client, endpoint.as_str()).await?;
 
         let player = oembed
@@ -29,16 +35,12 @@ impl Plugin for SpotifyPlugin {
                 url: src,
                 width: oembed.width,
                 height: oembed.height,
-                allow: vec![
-                    "autoplay".to_string(),
-                    "clipboard-write".to_string(),
-                    "encrypted-media".to_string(),
-                ],
+                allow: vec!["autoplay".to_string()],
             });
 
         Ok(SummaryData {
             title: oembed.title,
-            description: None,
+            description: oembed.author_name.map(|a| format!("by {a}")),
             icon: None,
             sitename: oembed.provider_name,
             thumbnail: oembed.thumbnail_url,

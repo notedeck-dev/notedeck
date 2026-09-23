@@ -22,8 +22,8 @@ use specta::Type;
 use tauri::Manager;
 use tauri_specta::Event;
 
-use crate::commands::validate_external_url;
-use crate::vault::ssrf::PinningResolver;
+use crate::core::ssrf::validate_external_url;
+use crate::core::ssrf::PinningResolver;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 /// chunk 間の無通信タイムアウト。総時間の上限は設けない (大きい動画を殺さない)
@@ -70,6 +70,7 @@ fn export_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 
 /// エクスポートルートを (無ければ作って) 返す。… メニューの
 /// 「ダウンロードフォルダを開く」用
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn get_export_dir(app: tauri::AppHandle) -> Result<String, String> {
@@ -78,6 +79,7 @@ pub async fn get_export_dir(app: tauri::AppHandle) -> Result<String, String> {
     Ok(root.to_string_lossy().into_owned())
 }
 
+// nd-command: mixed
 #[tauri::command]
 #[specta::specta]
 pub async fn export_files_cancel(task_id: String) {
@@ -86,6 +88,7 @@ pub async fn export_files_cancel(task_id: String) {
 
 /// エクスポートを開始し、解決済みの保存先ディレクトリを返す。
 /// 即座に返り、以後の進捗は `ExportProgress` に流れる
+// nd-command: mixed
 #[tauri::command]
 #[specta::specta]
 pub async fn export_files_start(

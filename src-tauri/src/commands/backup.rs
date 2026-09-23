@@ -18,7 +18,7 @@ use specta::Type;
 use tauri::Manager;
 
 use super::Result;
-use crate::settings_store as store;
+use crate::core::settings_store as store;
 
 const BACKUP_SUBDIR: &str = "backup";
 const SETTINGS_FILE: &str = "settings.json";
@@ -48,6 +48,7 @@ fn backup_root(app: &tauri::AppHandle) -> Result<PathBuf> {
 }
 
 /// バックアップ保存先を (無ければ作って) 返す。UI の「フォルダを開く」用
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn get_backup_dir(app: tauri::AppHandle) -> Result<String> {
@@ -106,6 +107,7 @@ fn rotate(root: &Path, keep: usize) -> usize {
 ///
 /// `stamp` は呼び出し側 (フロント) が生成した Zettelkasten 形式の日時文字列。
 /// Rust 側で時刻を持たないのは、AI セッションの命名と規則を揃えるため。
+// nd-command: mixed
 #[tauri::command]
 #[specta::specta]
 pub async fn backup_create(

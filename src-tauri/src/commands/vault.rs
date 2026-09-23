@@ -28,6 +28,7 @@ fn assert_main_window(window: &tauri::Window) -> VaultResult<()> {
 }
 
 /// 全接続のメタデータ一覧を返す (secret は含まない)。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_list_connections(
@@ -41,6 +42,7 @@ pub async fn vault_list_connections(
 }
 
 /// 単一接続のメタデータを返す。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_get_connection(
@@ -55,6 +57,7 @@ pub async fn vault_get_connection(
 }
 
 /// 接続のメタデータを作成 / 更新する (secret は別コマンド)。
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_upsert_connection(
@@ -67,6 +70,7 @@ pub async fn vault_upsert_connection(
 }
 
 /// 接続のメタデータと secret を 1 トランザクションで作成 / 更新する。
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_upsert_connection_with_secret(
@@ -81,6 +85,7 @@ pub async fn vault_upsert_connection_with_secret(
 }
 
 /// 既存接続の secret を設定 / 入れ替える。
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_set_secret(
@@ -95,6 +100,7 @@ pub async fn vault_set_secret(
 }
 
 /// 接続の secret 設定状況を返す (値そのものは決して返さない)。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_get_secret_status(
@@ -107,6 +113,7 @@ pub async fn vault_get_secret_status(
 }
 
 /// 接続の特定 slot の secret を削除する。
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_delete_secret(
@@ -120,6 +127,7 @@ pub async fn vault_delete_secret(
 }
 
 /// 接続を削除する。全 slot の secret を keychain から消し、メタデータも削除する。
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_delete_connection(
@@ -132,6 +140,7 @@ pub async fn vault_delete_connection(
 }
 
 /// 接続の開示先クラスを切り替える (#712 §6.1)。
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_set_exposed(
@@ -150,6 +159,7 @@ pub async fn vault_set_exposed(
 /// 接続を「信頼済み」(確認なしで利用可) にするクラスを切り替える (#712 §6.2)。
 /// 旧 `vault_set_ai_trusted(id, bool)` の置換 — クラスを明示することで
 /// 「外部アプリでの確認同意が AI の trust に化ける」経路が構造的に消える。
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_set_trusted(
@@ -169,6 +179,7 @@ pub async fn vault_set_trusted(
 ///
 /// plugin クラスの trust はクラス一括 (`trusted_for`) にせず個体単位で持つ —
 /// 1 つのウィジェットの確認同意が全プラグイン / Play / Page に波及しない。
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_set_trusted_plugin(
@@ -192,6 +203,7 @@ pub async fn vault_set_trusted_plugin(
 ///
 /// Phase B 時点では main ウィンドウからのみ呼べる。AI tool 経路の許可
 /// (`allowFromAiTool`) と confirmation は Phase D で capability registry 側に実装する。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_fetch(
@@ -207,6 +219,7 @@ pub async fn vault_fetch(
 }
 
 /// 接続の疎通テスト。baseUrl への GET (または指定パス) を 1 回実行する。
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub async fn vault_test_connection(
@@ -220,6 +233,7 @@ pub async fn vault_test_connection(
 }
 
 /// AI プロバイダーの API キーを Vault 接続へ移行する (#564 後続)。
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn ai_migrate_provider_to_vault(

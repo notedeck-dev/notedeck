@@ -13,7 +13,7 @@
 
 use futures_util::StreamExt;
 
-use crate::image_cache::{hex_hash, CacheEntry, ImageCache, StreamingFetchResult};
+use crate::core::image_cache::{hex_hash, CacheEntry, ImageCache, StreamingFetchResult};
 
 /// 変換パラメータ込みのメディアリクエスト。
 /// 変換は画像にしか効かないが、効果音は変換なしで同じ経路を通る。
@@ -507,7 +507,7 @@ mod tests {
     #[tokio::test]
     async fn ensure_media_inner_transforms_cached_original_and_persists_variant() {
         let dir = tempfile::tempdir().unwrap();
-        let cache = crate::image_cache::ImageCache::new(dir.path());
+        let cache = crate::core::image_cache::ImageCache::new(dir.path());
         let url = "https://e.com/a.png";
         // オリジナルをキャッシュ済みにしておく (key == url)
         cache

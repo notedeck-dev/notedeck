@@ -20,9 +20,9 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use subtle::ConstantTimeEq;
 
-use crate::image_cache::ImageCache;
+use crate::core::image_cache::ImageCache;
+use crate::core::rate_limit::{self, RateLimiter};
 use crate::query_bridge;
-use crate::rate_limit::{self, RateLimiter};
 use notecli::api::MisskeyClient;
 use notecli::db::Database;
 use notecli::event_bus::EventBus;
@@ -213,13 +213,13 @@ pub struct ServeConfig {
     pub client: Arc<MisskeyClient>,
     pub event_bus: Arc<EventBus>,
     pub api_token: String,
-    pub api_token_store: Arc<crate::api_tokens::ApiTokenStore>,
+    pub api_token_store: Arc<crate::core::api_tokens::ApiTokenStore>,
     pub token_path: String,
     pub log_dir: Option<String>,
     pub image_cache: Arc<ImageCache>,
     /// 画像プロキシ経路の起動毎トークン (#1099)
     pub media_proxy_token: MediaProxyToken,
-    pub perf: crate::perf_config::SharedPerfConfig,
+    pub perf: crate::core::perf_config::SharedPerfConfig,
     /// 終了通知 (#1098)。受けたら新規接続を止めて graceful に閉じる
     pub shutdown: crate::shutdown::ShutdownToken,
 }
@@ -227,7 +227,7 @@ pub struct ServeConfig {
 /// 永続トークン → ephemeral トークンのブリッジ用 state。
 #[derive(Clone)]
 struct TokenBridgeState {
-    store: Arc<crate::api_tokens::ApiTokenStore>,
+    store: Arc<crate::core::api_tokens::ApiTokenStore>,
     api_token: String,
 }
 
@@ -258,7 +258,7 @@ async fn persistent_token_middleware(
             // extension が付いたリクエストのみ enforce する — ephemeral 直用
             // (notecli CLI 等) は local trust として免除
             req.extensions_mut()
-                .insert(crate::permissions_gate::ExternalTokenMarker);
+                .insert(crate::core::permissions_gate::ExternalTokenMarker);
         }
     }
     next.run(req).await
@@ -343,7 +343,7 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
         // per-route 対応表で enforce する。persistent_token_middleware (外側)
         // が付けた marker を見るため、その内側に置く
         .layer(middleware::from_fn(
-            crate::permissions_gate::external_gate_middleware,
+            crate::core::permissions_gate::external_gate_middleware,
         ))
         .layer(middleware::from_fn_with_state(
             rate_limiter.clone(),
@@ -756,7 +756,7 @@ async fn execute_capability(
 )]
 async fn get_health(
     State(state): State<DeckState>,
-    external: Option<axum::Extension<crate::permissions_gate::ExternalTokenMarker>>,
+    external: Option<axum::Extension<crate::core::permissions_gate::ExternalTokenMarker>>,
 ) -> Result<Json<Value>, ApiError> {
     use tauri::Manager;
     let app = &state.app_handle;
@@ -781,7 +781,7 @@ async fn get_health(
     // 詳細 (接続先 host 等のローカルデータ) は応答から間引く (#712 §5.3)。
     // self-diagnosis の summary 部 (backendReady / frontendReady 等) は返す
     let may_read_streams =
-        external.is_none() || crate::permissions_gate::external_may_read_deck().await;
+        external.is_none() || crate::core::permissions_gate::external_may_read_deck().await;
 
     if let Value::Object(map) = &mut body {
         match query_bridge::query_frontend(app, "health/streams", json!({})).await {
@@ -978,8 +978,8 @@ async fn proxy_image(
     headers: axum::http::HeaderMap,
     Query(params): Query<ProxyImageParams>,
 ) -> Response {
-    use crate::image_cache::StreamingFetchResult;
-    use crate::media_proxy::MediaRequest;
+    use crate::core::image_cache::StreamingFetchResult;
+    use crate::core::media_proxy::MediaRequest;
 
     // 変換パラメータ込みのキー / ETag は custom protocol 側と同じ規則を使う
     let req = MediaRequest {
@@ -1038,7 +1038,7 @@ async fn proxy_image(
         if let Some(entry) = state.image_cache.check_cache_only(&req.cache_key()).await {
             return respond_from_cache!(entry, &etag);
         }
-        return match crate::media_proxy::ensure_media_inner(&state.image_cache, &req).await {
+        return match crate::core::media_proxy::ensure_media_inner(&state.image_cache, &req).await {
             Ok((bytes, content_type)) => ok_response(bytes, &content_type, &etag),
             Err(msg) => {
                 tracing::warn!(url = %params.url, error = %msg, "proxy_image: fetch failed");

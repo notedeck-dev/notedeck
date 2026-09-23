@@ -7,6 +7,7 @@ use tauri::State;
 use super::Result;
 use crate::system_state::{SharedSystemState, SystemState};
 
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn system_state_get(state: State<'_, SharedSystemState>) -> Result<SystemState> {

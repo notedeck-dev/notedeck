@@ -12,7 +12,7 @@ use tokio::sync::{watch, Mutex};
 
 const CACHE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 const CACHE_TTL_SECS: i64 = 24 * 60 * 60;
-use crate::perf_config::SharedPerfConfig;
+use crate::core::perf_config::SharedPerfConfig;
 
 const DEFAULT_MAX_ENTRIES: usize = 64;
 const MAX_HTML_SIZE: usize = 2 * 1024 * 1024;
@@ -133,7 +133,7 @@ impl OgpCache {
     #[allow(dead_code)]
     pub fn new(db: Arc<notecli::db::Database>) -> Self {
         let perf = Arc::new(tokio::sync::RwLock::new(
-            crate::perf_config::PerformanceConfig::default(),
+            crate::core::perf_config::PerformanceConfig::default(),
         ));
         Self::with_client(db, reqwest::Client::default(), perf)
     }

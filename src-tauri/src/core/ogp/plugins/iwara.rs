@@ -36,7 +36,7 @@ impl Plugin for IwaraPlugin {
             .await
             .map_err(|e| PluginError::ParseFailed(e.to_string()))?;
 
-        let mut data = crate::ogp::parser::parse_html(&html, &final_url);
+        let mut data = crate::core::ogp::parser::parse_html(&html, &final_url);
         data.sensitive = true;
         data.sitename = Some("Iwara".to_string());
         Ok(data)

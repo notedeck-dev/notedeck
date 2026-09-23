@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use super::{extract_iframe_src, fetch_oembed, Plugin, PluginError, SummaryData};
-use crate::ogp::Player;
+use crate::core::ogp::Player;
 
 pub struct YouTubePlugin;
 pub const PLUGIN: YouTubePlugin = YouTubePlugin;

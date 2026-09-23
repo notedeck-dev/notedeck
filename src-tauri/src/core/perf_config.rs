@@ -40,24 +40,3 @@ impl Default for PerformanceConfig {
 }
 
 pub type SharedPerfConfig = Arc<RwLock<PerformanceConfig>>;
-
-/// Tauri command: update performance config at runtime.
-#[tauri::command]
-#[specta::specta]
-pub async fn update_performance_config(
-    config: PerformanceConfig,
-    state: tauri::State<'_, SharedPerfConfig>,
-) -> crate::error::Result<()> {
-    let mut current = state.write().await;
-    *current = config;
-    Ok(())
-}
-
-/// Tauri command: get current performance config.
-#[tauri::command]
-#[specta::specta]
-pub async fn get_performance_config(
-    state: tauri::State<'_, SharedPerfConfig>,
-) -> crate::error::Result<PerformanceConfig> {
-    Ok(state.read().await.clone())
-}

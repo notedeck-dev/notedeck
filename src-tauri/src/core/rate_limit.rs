@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
-use crate::perf_config::SharedPerfConfig;
+use crate::core::perf_config::SharedPerfConfig;
 
 /// Sliding window duration
 const WINDOW_DURATION: Duration = Duration::from_secs(60);
@@ -139,7 +139,7 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiter_allows_within_limit() {
         let limiter = RateLimiter::new(std::sync::Arc::new(tokio::sync::RwLock::new(
-            crate::perf_config::PerformanceConfig::default(),
+            crate::core::perf_config::PerformanceConfig::default(),
         )));
         for _ in 0..DEFAULT_MAX_REQUESTS_PER_WINDOW {
             assert!(limiter.check("test.host").await);
@@ -151,7 +151,7 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiter_independent_hosts() {
         let limiter = RateLimiter::new(std::sync::Arc::new(tokio::sync::RwLock::new(
-            crate::perf_config::PerformanceConfig::default(),
+            crate::core::perf_config::PerformanceConfig::default(),
         )));
         for _ in 0..DEFAULT_MAX_REQUESTS_PER_WINDOW {
             limiter.check("host-a.example").await;
@@ -163,7 +163,7 @@ mod tests {
     #[tokio::test]
     async fn test_cleanup_removes_stale_entries() {
         let limiter = RateLimiter::new(std::sync::Arc::new(tokio::sync::RwLock::new(
-            crate::perf_config::PerformanceConfig::default(),
+            crate::core::perf_config::PerformanceConfig::default(),
         )));
         limiter.check("stale.host").await;
 

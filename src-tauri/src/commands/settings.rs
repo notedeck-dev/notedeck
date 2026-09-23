@@ -1,4 +1,4 @@
-//! 設定ファイル系コマンド。実体は `crate::settings_store` domain service (#782)。
+//! 設定ファイル系コマンド。実体は `crate::core::settings_store` domain service (#782)。
 //! ここに残るのは AppHandle からのパス解決・ダイアログ・OS 統合 (WSL エディタ
 //! 委譲) のみ。
 
@@ -8,7 +8,8 @@ use std::path::PathBuf;
 use notecli::error::NoteDeckError;
 use tauri::Manager;
 
-use crate::settings_store as store;
+use crate::core::perf_config::{PerformanceConfig, SharedPerfConfig};
+use crate::core::settings_store as store;
 
 use super::Result;
 
@@ -23,6 +24,7 @@ fn settings_base_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
 }
 
 /// List files in a settings subdirectory.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn list_settings_files(app: tauri::AppHandle, subdir: &str) -> Result<Vec<String>> {
@@ -30,6 +32,7 @@ pub fn list_settings_files(app: tauri::AppHandle, subdir: &str) -> Result<Vec<St
 }
 
 /// Read a settings file as a UTF-8 string.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn read_settings_file(app: tauri::AppHandle, subdir: &str, name: &str) -> Result<String> {
@@ -37,6 +40,7 @@ pub fn read_settings_file(app: tauri::AppHandle, subdir: &str, name: &str) -> Re
 }
 
 /// Write a settings file (creates parent directories if needed).
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn write_settings_file(
@@ -49,6 +53,7 @@ pub fn write_settings_file(
 }
 
 /// Delete a settings file.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn delete_settings_file(app: tauri::AppHandle, subdir: &str, name: &str) -> Result<()> {
@@ -56,6 +61,7 @@ pub fn delete_settings_file(app: tauri::AppHandle, subdir: &str, name: &str) -> 
 }
 
 /// Rename a settings file within the same subdirectory.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn rename_settings_file(
@@ -68,6 +74,7 @@ pub fn rename_settings_file(
 }
 
 /// Read a root-level settings file as a UTF-8 string.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn read_root_settings_file(app: tauri::AppHandle, name: &str) -> Result<String> {
@@ -75,6 +82,7 @@ pub fn read_root_settings_file(app: tauri::AppHandle, name: &str) -> Result<Stri
 }
 
 /// Write a root-level settings file.
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub fn write_root_settings_file(app: tauri::AppHandle, name: &str, content: &str) -> Result<()> {
@@ -82,6 +90,7 @@ pub fn write_root_settings_file(app: tauri::AppHandle, name: &str, content: &str
 }
 
 /// Get the settings directory path (so users can open it in file manager).
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn get_settings_dir(app: tauri::AppHandle) -> Result<String> {
@@ -91,6 +100,7 @@ pub fn get_settings_dir(app: tauri::AppHandle) -> Result<String> {
 /// Get the log directory path (`app_log_dir`, holds `notedeck.log` — #644).
 /// Separate from the settings dir, so the "ファイル → ログフォルダを開く" menu
 /// item can reveal it. Created if missing so it opens even when empty.
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn get_log_dir(app: tauri::AppHandle) -> Result<String> {
@@ -105,6 +115,7 @@ pub fn get_log_dir(app: tauri::AppHandle) -> Result<String> {
 /// Open a settings file in the OS default editor. WSL2 では xdg-open が GUI
 /// エディタへルーティングできないため、wslpath で Windows パスへ変換し
 /// cmd.exe start 経由で Windows 側の既定アプリに委譲する。
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn open_settings_file_in_editor(
@@ -176,6 +187,7 @@ fn open_in_windows_host(path: &std::path::Path) -> Result<()> {
 /// Note: The Tauri command name stays `read_notedeck_json` for backwards-compatible
 /// bindings. The file on disk is `settings.json5` to avoid collision with the export
 /// bundle filename `notedeck.json`.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn read_notedeck_json(app: tauri::AppHandle) -> Result<String> {
@@ -183,6 +195,7 @@ pub fn read_notedeck_json(app: tauri::AppHandle) -> Result<String> {
 }
 
 /// Write `settings.json5`. Creates the settings directory if missing.
+// nd-command: data
 #[tauri::command]
 #[specta::specta]
 pub fn write_notedeck_json(app: tauri::AppHandle, content: &str) -> Result<()> {
@@ -190,6 +203,7 @@ pub fn write_notedeck_json(app: tauri::AppHandle, content: &str) -> Result<()> {
 }
 
 /// Export all settings files to a JSON bundle via save dialog.
+// nd-command: mixed
 #[tauri::command]
 #[specta::specta]
 pub async fn export_settings_json(app: tauri::AppHandle) -> Result<bool> {
@@ -232,6 +246,7 @@ pub struct ImportSettingsResult {
 }
 
 /// Import settings from a JSON bundle via open dialog.
+// nd-command: authz
 #[tauri::command]
 #[specta::specta]
 pub async fn import_settings_json(app: tauri::AppHandle) -> Result<ImportSettingsResult> {
@@ -269,4 +284,27 @@ pub async fn import_settings_json(app: tauri::AppHandle) -> Result<ImportSetting
         imported: true,
         warnings,
     })
+}
+
+/// Tauri command: update performance config at runtime.
+// nd-command: data
+#[tauri::command]
+#[specta::specta]
+pub async fn update_performance_config(
+    config: PerformanceConfig,
+    state: tauri::State<'_, SharedPerfConfig>,
+) -> Result<()> {
+    let mut current = state.write().await;
+    *current = config;
+    Ok(())
+}
+
+/// Tauri command: get current performance config.
+// nd-command: data
+#[tauri::command]
+#[specta::specta]
+pub async fn get_performance_config(
+    state: tauri::State<'_, SharedPerfConfig>,
+) -> Result<PerformanceConfig> {
+    Ok(state.read().await.clone())
 }
