@@ -152,3 +152,76 @@ pub async fn detect_server(core: &Core, host: String) -> Result<ServerDetection>
     let svc = core.server_info().await;
     svc.detect_and_store(&host).await
 }
+
+/// Validate that a file has a valid SQLite header.
+pub fn validate_sqlite_file(path: &std::path::Path) -> Result<()> {
+    let header = std::fs::read(path)
+        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to read file: {e}")))?;
+    if header.len() < 16 || &header[..16] != b"SQLite format 3\0" {
+        return Err(NoteDeckError::InvalidInput(
+            "Not a valid SQLite database file".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// notecli.db の整合したスナップショットを `dest` に書く (トークンは常に除去)。
+/// 手元側の「DB をエクスポート」(保存 dialog) が呼ぶ。
+pub async fn snapshot_db_to(core: &Core, dest: &std::path::Path) -> Result<()> {
+    let db = core.db().await;
+    let dest = dest.to_path_buf();
+    tokio::task::spawn_blocking(move || db.backup_to(&dest, true))
+        .await
+        .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?
+}
+
+/// `src` を検証してから notecli.db として app dir に置き、WAL / SHM を消す
+/// (再起動後に新しい DB がきれいに開く)。手元側の「DB をインポート」(選択 dialog) が呼ぶ。
+pub fn replace_database_file(app_dir: &std::path::Path, src: &std::path::Path) -> Result<()> {
+    validate_sqlite_file(src)?;
+    std::fs::copy(src, app_dir.join("notecli.db"))
+        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to import database: {e}")))?;
+    let _ = std::fs::remove_file(app_dir.join("notecli.db-wal"));
+    let _ = std::fs::remove_file(app_dir.join("notecli.db-shm"));
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_sqlite_valid() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.db");
+        // Write valid SQLite header + padding
+        let mut data = b"SQLite format 3\0".to_vec();
+        data.resize(100, 0);
+        std::fs::write(&path, &data).unwrap();
+        assert!(validate_sqlite_file(&path).is_ok());
+    }
+
+    #[test]
+    fn validate_sqlite_invalid_header() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("not-a-db.txt");
+        std::fs::write(&path, "this is not a database").unwrap();
+        assert!(validate_sqlite_file(&path).is_err());
+    }
+
+    #[test]
+    fn validate_sqlite_too_small() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tiny.db");
+        std::fs::write(&path, "small").unwrap();
+        assert!(validate_sqlite_file(&path).is_err());
+    }
+
+    #[test]
+    fn validate_sqlite_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("empty.db");
+        std::fs::write(&path, "").unwrap();
+        assert!(validate_sqlite_file(&path).is_err());
+    }
+}

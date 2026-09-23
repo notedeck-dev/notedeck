@@ -9,7 +9,7 @@ use notecli::models::NormalizedDriveFile;
 use super::{AppState, Result};
 use notecore::commands::MAX_UPLOAD_BYTES;
 
-// nd-command: mixed
+// nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn api_upload_file_from_path(
@@ -33,16 +33,15 @@ pub async fn api_upload_file_from_path(
     let content_type = mime_guess::from_path(path)
         .first_or_octet_stream()
         .to_string();
-    let (client, host, token) = app_state.authed(&account_id).await?;
-    client
-        .upload_file(
-            &host,
-            &token,
-            &file_name,
-            file_data,
-            &content_type,
-            is_sensitive,
-            folder_id.as_deref(),
-        )
-        .await
+    // 端末のファイルを読んだあとはデータ系の api_upload_file と同じ経路 (型付き)
+    notecore::commands::timeline::api_upload_file(
+        &app_state,
+        account_id,
+        file_name,
+        file_data,
+        content_type,
+        is_sensitive,
+        folder_id,
+    )
+    .await
 }

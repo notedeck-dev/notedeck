@@ -65,3 +65,24 @@ pub async fn fetch_image_base64(core: &Core, url: String) -> Result<Option<Strin
     let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
     Ok(Some(format!("data:{content_type};base64,{b64}")))
 }
+
+/// 画像を取得して生のバイト列で返す。手元側の「画像を保存」(保存 dialog) が呼ぶ。
+/// 共有クライアント (SSRF 検証 resolver つき) を使う。
+pub async fn fetch_image_bytes(core: &Core, url: String) -> Result<Vec<u8>> {
+    if !url.starts_with("https://") {
+        return Err(NoteDeckError::InvalidInput(
+            "Only HTTPS URLs allowed".into(),
+        ));
+    }
+    let resp = core
+        .http()?
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to download image: {e}")))?;
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to read image data: {e}")))?;
+    Ok(bytes.to_vec())
+}

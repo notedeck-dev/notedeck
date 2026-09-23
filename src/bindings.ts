@@ -1821,6 +1821,15 @@ async fetchImageBase64(url: string) : Promise<Result<string | null, { code: stri
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notecore/src/commands/enrichment.rs */
+async fetchImageBytes(url: string) : Promise<Result<number[], { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("fetch_image_bytes", { url }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see crates/notecore/src/commands/utility.rs */
 async getCliCommands() : Promise<Result<CliCommandInfo[], { code: string; message: string; apiCode: string | null }>> {
     try {
@@ -1990,13 +1999,7 @@ async getBackupDir() : Promise<Result<string, { code: string; message: string; a
 }
 },
 /**
- * バックアップを 1 世代作成する。
- * 
- * DB と設定は独立して選べる (手動バックアップが別ボタンなのに合わせる)。
- * 既定は両方。どちらも false なら書くものが無いのでエラーにする。
- * 
- * `stamp` は呼び出し側 (フロント) が生成した Zettelkasten 形式の日時文字列。
- * Rust 側で時刻を持たないのは、AI セッションの命名と規則を揃えるため。
+ * バックアップを 1 世代作成する。`stamp` はフロントが生成した Zettelkasten 形式の日時。
  *
  * @see src-tauri/src/commands/backup.rs
  */
@@ -2633,7 +2636,7 @@ async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string;
 
 
 export const events = __makeEvents__<{
-exportProgress: ExportProgress,
+exportProgress: ExportProgressEvent,
 noteCaptureBatch: NoteCaptureBatchEvent,
 notificationClicked: NotificationClicked,
 queryDelta: QueryDeltaEvent,
@@ -2974,6 +2977,7 @@ status: string; error: string | null;
  * 完了 (done + skipped + failed) 件数
  */
 done: number; total: number }
+export type ExportProgressEvent = ExportProgress
 /**
  * `charts/federation`
  */

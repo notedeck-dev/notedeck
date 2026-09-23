@@ -210,6 +210,7 @@ macro_rules! with_command_table {
         data fetch_ogp(url: String, account_id: Option<String>) -> $crate::ogp::OgpData = $crate::commands::enrichment::fetch_ogp;
         data fetch_server_meta(host: String) -> serde_json::Value = $crate::commands::enrichment::fetch_server_meta;
         data fetch_image_base64(url: String) -> Option<String> = $crate::commands::enrichment::fetch_image_base64;
+        data fetch_image_bytes(url: String) -> Vec<u8> = $crate::commands::enrichment::fetch_image_bytes;
             // --- streaming (crates/notecore/src/commands/streaming.rs) ---
         data stream_connect(account_id: String) -> () = $crate::commands::streaming::stream_connect;
         data stream_disconnect(account_id: String) -> () = $crate::commands::streaming::stream_disconnect;
