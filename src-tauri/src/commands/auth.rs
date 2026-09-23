@@ -38,7 +38,6 @@ pub async fn auth_start(
 #[tauri::command]
 #[specta::specta]
 pub async fn auth_complete_and_save(
-    app: tauri::AppHandle,
     tracker: State<'_, AuthSessionTracker>,
     app_state: State<'_, AppState>,
     session: AuthSession,
@@ -53,7 +52,7 @@ pub async fn auth_complete_and_save(
         auth_service::complete_and_save(&db, &client, &session.host, &session.session_id, software)
             .await?;
 
-    export_account_list(&app, &db);
+    export_account_list(&app_state, &db);
 
     Ok(saved)
 }

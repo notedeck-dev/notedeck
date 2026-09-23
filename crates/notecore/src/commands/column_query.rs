@@ -1,3 +1,6 @@
+//! column_query のデータ系コマンド本体 (#1106 段階 0b)。各関数は `&Core` と引数を取り、
+//! コマンド表 (commands/table.rs) から呼ばれる。
+
 //! カラムクエリの QIR (typed Query IR) 型定義と検証コマンド (#783)。
 //!
 //! QIR 型は Rust が source of truth で、specta 経由で bindings.ts に載る (V21)。
@@ -8,7 +11,8 @@
 //! 意味論は AiScript 1.2.1 と同一 (不変条件 (a))。全評価器は共有 golden vector
 //! (src/services/columnQuery/golden/vectors.json) で一致を検証する。
 
-use super::{AppState, Result};
+use crate::context::Core;
+use crate::error::Result;
 use notecli::db::CachedNoteCursor;
 use notecli::error::NoteDeckError;
 use serde::{Deserialize, Serialize};
@@ -16,7 +20,6 @@ use serde_json::Value as JsonValue;
 use specta::Type;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use tauri::State;
 
 /// QIR スキーマ世代。互換性のない構造変更で上げる。
 pub const QIR_SCHEMA_VERSION: u32 = 1;
@@ -37,6 +40,16 @@ pub struct QirQuery {
     pub schema_version: u32,
     /// トップレベル式。コンパイラが静的に bool 型であることを保証する (V20)。
     pub root: QirNode,
+}
+
+/// フィクスチャ用 (コマンド表の JSON 往復テスト): 現行世代の `true` 1 個のクエリ。
+impl Default for QirQuery {
+    fn default() -> Self {
+        Self {
+            schema_version: QIR_SCHEMA_VERSION,
+            root: QirNode::Bool { value: true },
+        }
+    }
 }
 
 /// 数値比較演算子 (AiScript の `< <= > >=`、数値専用)。
@@ -205,40 +218,6 @@ fn walk(node: &QirNode, depth: u32, w: &mut Walk) {
     }
 }
 
-/// QIR の構造検証 (スキーマ世代 + ノード数/深さ上限)。
-///
-/// IPC 受領時の Rust 側検証 (V18/V21)。Phase 1 では評価はフロントで完結する
-/// ため副作用はないが、bindings.ts に QIR 型契約を載せる役割を兼ねる。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub fn qir_validate(query: QirQuery) -> QirValidation {
-    let mut errors = Vec::new();
-    if query.schema_version != QIR_SCHEMA_VERSION {
-        errors.push(format!(
-            "unsupported schemaVersion {} (expected {})",
-            query.schema_version, QIR_SCHEMA_VERSION
-        ));
-    }
-    let mut w = Walk {
-        count: 0,
-        max_depth: 0,
-    };
-    walk(&query.root, 1, &mut w);
-    if w.count > QIR_MAX_NODES {
-        errors.push(format!("node count exceeds {QIR_MAX_NODES}"));
-    }
-    if w.max_depth > QIR_MAX_DEPTH {
-        errors.push(format!("depth exceeds {QIR_MAX_DEPTH}"));
-    }
-    QirValidation {
-        ok: errors.is_empty(),
-        node_count: w.count,
-        max_depth: w.max_depth,
-        errors,
-    }
-}
-
 /// キャッシュ検索の結果 (Phase 3)。
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -258,145 +237,6 @@ pub struct QirSearchResult {
 pub struct QirSearchCursor {
     pub created_at: String,
     pub note_id: String,
-}
-
-/// ローカルキャッシュをクエリで検索する (#783 Phase 3)。
-///
-/// FTS5 で粗く絞ってから QIR 評価器で判定する。押し込むリテラルの抽出は
-/// 偽陰性を出さない規則に従うので (不変条件 (b))、FTS で落ちたノートが
-/// 本来マッチするということはない。
-///
-/// `timeline_key` (canonical 文字列) を渡すと当該バケット所属のみを母集合に
-/// する。実体/所属分離 (notecli#30) 以前は所属が後勝ち上書きで種別絞りが
-/// 取りこぼしになるため全体走査しかなかったが、その妥協は解消済み。
-/// null は従来どおりアカウントの全キャッシュを走査する。
-///
-/// 走査上限に達したら打ち切って継続カーソルを返す。呼び出し側は必要なだけ
-/// 繰り返す (一度の呼び出しで巨大キャッシュを読み切らせない)。カーソルは
-/// 同じ timeline_key の続き読みにのみ使うこと。
-// nd-command: data
-#[tauri::command]
-#[specta::specta]
-pub async fn qir_search_cache(
-    app_state: State<'_, AppState>,
-    account_id: String,
-    query: QirQuery,
-    timeline_key: Option<String>,
-    limit: Option<u32>,
-    max_scanned_rows: Option<u32>,
-    cursor: Option<QirSearchCursor>,
-) -> Result<QirSearchResult> {
-    let validation = qir_validate(query.clone());
-    if !validation.ok {
-        return Err(NoteDeckError::InvalidInput(validation.errors.join(", ")));
-    }
-    // 不正キーは黙殺せず Err で顕在化 (キャッシュ読み出し系と同方針)
-    let scope = timeline_key
-        .as_deref()
-        .map(notecli::models::TimelineKey::parse)
-        .transpose()?;
-    let literals = extract_fts_literals(&query);
-    let limit = limit.unwrap_or(40).clamp(1, 200) as usize;
-    let max_scanned = max_scanned_rows.unwrap_or(2000).clamp(1, 20_000) as usize;
-    let after = cursor.map(|c| CachedNoteCursor {
-        created_at: c.created_at,
-        note_id: c.note_id,
-    });
-
-    let db = app_state.db().await;
-    let scan = db.scan_cached_notes(
-        &account_id,
-        scope.as_ref(),
-        &literals,
-        limit,
-        max_scanned,
-        after.as_ref(),
-        |note| match serde_json::to_value(note) {
-            Ok(value) => match evaluate_qir(&query, &value) {
-                QirVerdict::Match => Some(true),
-                QirVerdict::Unmatch => Some(false),
-                QirVerdict::Error => None,
-            },
-            // 手元の値を JSON に戻せない = 評価対象の形にできない。
-            // None を返せば scan 側が per-note エラーとして数える
-            Err(_) => None,
-        },
-    )?;
-
-    Ok(QirSearchResult {
-        notes: scan.notes,
-        scanned: scan.scanned as u32,
-        errors: scan.errors as u32,
-        cursor: scan.cursor.map(|c| QirSearchCursor {
-            created_at: c.created_at,
-            note_id: c.note_id,
-        }),
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn leaf() -> QirNode {
-        QirNode::Bool { value: true }
-    }
-
-    #[test]
-    fn validates_simple_query() {
-        let v = qir_validate(QirQuery {
-            schema_version: QIR_SCHEMA_VERSION,
-            root: QirNode::And {
-                left: Box::new(leaf()),
-                right: Box::new(QirNode::Not {
-                    expr: Box::new(leaf()),
-                }),
-            },
-        });
-        assert!(v.ok);
-        assert_eq!(v.node_count, 4);
-        assert_eq!(v.max_depth, 3);
-    }
-
-    #[test]
-    fn rejects_unknown_schema_version() {
-        let v = qir_validate(QirQuery {
-            schema_version: QIR_SCHEMA_VERSION + 1,
-            root: leaf(),
-        });
-        assert!(!v.ok);
-    }
-
-    #[test]
-    fn rejects_excessive_depth() {
-        let mut node = leaf();
-        for _ in 0..(QIR_MAX_DEPTH + 5) {
-            node = QirNode::Not {
-                expr: Box::new(node),
-            };
-        }
-        let v = qir_validate(QirQuery {
-            schema_version: QIR_SCHEMA_VERSION,
-            root: node,
-        });
-        assert!(!v.ok);
-    }
-
-    #[test]
-    fn serde_shape_is_tagged_camel_case() {
-        let json = serde_json::to_value(QirNode::StrTest {
-            op: QirStrTestOp::StartsWith,
-            target: Box::new(QirNode::Field {
-                path: vec!["text".into()],
-            }),
-            needle: Box::new(QirNode::Str { value: "a".into() }),
-        })
-        .unwrap();
-        assert_eq!(json["kind"], "strTest");
-        assert_eq!(json["op"], "startsWith");
-        assert_eq!(json["target"]["kind"], "field");
-        assert_eq!(json["target"]["path"][0], "text");
-    }
 }
 
 // --- QIR 評価器 (Phase 3) ---------------------------------------------------
@@ -609,96 +449,6 @@ pub fn evaluate_qir(query: &QirQuery, note: &JsonValue) -> QirVerdict {
     }
 }
 
-#[cfg(test)]
-mod golden_tests {
-    use super::*;
-    use std::collections::BTreeMap;
-
-    /// 共有 golden vector (不変条件 (a) の Rust 面)。
-    ///
-    /// 期待値の正本は AiScript 1.2.1 の実挙動で、JS 側は同じ vectors.json を
-    /// 参照評価器と JS QIR eval の 2 面で検証している。ここは 3 面目。
-    /// QIR は JS のコンパイラが生成したスナップショット (`pnpm gen:golden-qir`)。
-    #[derive(serde::Deserialize)]
-    struct GoldenFile {
-        cases: Vec<GoldenCase>,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct GoldenCase {
-        name: String,
-        note: JsonValue,
-        expected: String,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct QirSnapshot {
-        cases: BTreeMap<String, QirQuery>,
-    }
-
-    fn read(rel: &str) -> String {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
-        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
-    }
-
-    #[test]
-    fn rust_eval_matches_golden_vectors() {
-        let golden: GoldenFile =
-            serde_json::from_str(&read("../src/services/columnQuery/golden/vectors.json"))
-                .expect("parse vectors.json");
-        let snapshot: QirSnapshot = serde_json::from_str(&read(
-            "../src/services/columnQuery/golden/qir.generated.json",
-        ))
-        .expect("parse qir.generated.json — run `pnpm gen:golden-qir`");
-
-        let mut checked = 0;
-        for case in &golden.cases {
-            // 静的型エラーで QIR にコンパイルされないケースは fallback 専用ベクタ
-            let Some(query) = snapshot.cases.get(&case.name) else {
-                continue;
-            };
-            let verdict = evaluate_qir(query, &case.note);
-            let expected = match case.expected.as_str() {
-                "match" => QirVerdict::Match,
-                "unmatch" => QirVerdict::Unmatch,
-                "error" => QirVerdict::Error,
-                other => panic!("unknown expected verdict: {other}"),
-            };
-            assert_eq!(verdict, expected, "golden case `{}`", case.name);
-            checked += 1;
-        }
-        assert!(checked > 0, "no golden case was evaluated");
-    }
-
-    /// スナップショットが古いと「評価されないケース」が黙って増える。
-    /// 静的拒否ケース以外はすべて QIR を持っているはず。
-    #[test]
-    fn qir_snapshot_covers_every_compilable_case() {
-        const STATIC_REJECT: &[&str] = &[
-            "non-bool-result-error",
-            "lt-on-string-error",
-            "and-non-bool-error",
-            "not-non-bool-error",
-        ];
-        let golden: GoldenFile =
-            serde_json::from_str(&read("../src/services/columnQuery/golden/vectors.json")).unwrap();
-        let snapshot: QirSnapshot = serde_json::from_str(&read(
-            "../src/services/columnQuery/golden/qir.generated.json",
-        ))
-        .unwrap();
-        let missing: Vec<&str> = golden
-            .cases
-            .iter()
-            .map(|c| c.name.as_str())
-            .filter(|n| !STATIC_REJECT.contains(n) && !snapshot.cases.contains_key(*n))
-            .collect();
-        assert!(
-            missing.is_empty(),
-            "QIR スナップショットが古いです。`pnpm gen:golden-qir` を実行してください: {missing:?}"
-        );
-    }
-}
-
 // --- FTS5 プリフィルタ (Phase 3b) --------------------------------------------
 
 /// FTS5 の trigram トークナイザが成立する最小文字数。これ未満は 0 件になるので
@@ -757,6 +507,270 @@ fn collect_conjunctive_literals(node: &QirNode, out: &mut Vec<String>) {
             }
         }
         _ => {}
+    }
+}
+
+/// QIR の構造検証 (スキーマ世代 + ノード数/深さ上限)。
+///
+/// IPC 受領時の Rust 側検証 (V18/V21)。Phase 1 では評価はフロントで完結する
+/// ため副作用はないが、bindings.ts に QIR 型契約を載せる役割を兼ねる。
+/// コマンド表からは [`qir_validate`] (Result で包む) が呼ぶ。
+pub fn validate_qir(query: QirQuery) -> QirValidation {
+    let mut errors = Vec::new();
+    if query.schema_version != QIR_SCHEMA_VERSION {
+        errors.push(format!(
+            "unsupported schemaVersion {} (expected {})",
+            query.schema_version, QIR_SCHEMA_VERSION
+        ));
+    }
+    let mut w = Walk {
+        count: 0,
+        max_depth: 0,
+    };
+    walk(&query.root, 1, &mut w);
+    if w.count > QIR_MAX_NODES {
+        errors.push(format!("node count exceeds {QIR_MAX_NODES}"));
+    }
+    if w.max_depth > QIR_MAX_DEPTH {
+        errors.push(format!("depth exceeds {QIR_MAX_DEPTH}"));
+    }
+    QirValidation {
+        ok: errors.is_empty(),
+        node_count: w.count,
+        max_depth: w.max_depth,
+        errors,
+    }
+}
+
+/// ローカルキャッシュをクエリで検索する (#783 Phase 3)。
+///
+/// FTS5 で粗く絞ってから QIR 評価器で判定する。押し込むリテラルの抽出は
+/// 偽陰性を出さない規則に従うので (不変条件 (b))、FTS で落ちたノートが
+/// 本来マッチするということはない。
+///
+/// `timeline_key` (canonical 文字列) を渡すと当該バケット所属のみを母集合に
+/// する。実体/所属分離 (notecli#30) 以前は所属が後勝ち上書きで種別絞りが
+/// 取りこぼしになるため全体走査しかなかったが、その妥協は解消済み。
+/// null は従来どおりアカウントの全キャッシュを走査する。
+///
+/// 走査上限に達したら打ち切って継続カーソルを返す。呼び出し側は必要なだけ
+/// 繰り返す (一度の呼び出しで巨大キャッシュを読み切らせない)。カーソルは
+/// 同じ timeline_key の続き読みにのみ使うこと。
+/// [`validate_qir`] のコマンド面。純関数だが表の規約どおり Result で返す。
+pub async fn qir_validate(_core: &Core, query: QirQuery) -> Result<QirValidation> {
+    Ok(validate_qir(query))
+}
+
+pub async fn qir_search_cache(
+    core: &Core,
+    account_id: String,
+    query: QirQuery,
+    timeline_key: Option<String>,
+    limit: Option<u32>,
+    max_scanned_rows: Option<u32>,
+    cursor: Option<QirSearchCursor>,
+) -> Result<QirSearchResult> {
+    let validation = validate_qir(query.clone());
+    if !validation.ok {
+        return Err(NoteDeckError::InvalidInput(validation.errors.join(", ")));
+    }
+    // 不正キーは黙殺せず Err で顕在化 (キャッシュ読み出し系と同方針)
+    let scope = timeline_key
+        .as_deref()
+        .map(notecli::models::TimelineKey::parse)
+        .transpose()?;
+    let literals = extract_fts_literals(&query);
+    let limit = limit.unwrap_or(40).clamp(1, 200) as usize;
+    let max_scanned = max_scanned_rows.unwrap_or(2000).clamp(1, 20_000) as usize;
+    let after = cursor.map(|c| CachedNoteCursor {
+        created_at: c.created_at,
+        note_id: c.note_id,
+    });
+
+    let db = core.db().await;
+    let scan = db.scan_cached_notes(
+        &account_id,
+        scope.as_ref(),
+        &literals,
+        limit,
+        max_scanned,
+        after.as_ref(),
+        |note| match serde_json::to_value(note) {
+            Ok(value) => match evaluate_qir(&query, &value) {
+                QirVerdict::Match => Some(true),
+                QirVerdict::Unmatch => Some(false),
+                QirVerdict::Error => None,
+            },
+            // 手元の値を JSON に戻せない = 評価対象の形にできない。
+            // None を返せば scan 側が per-note エラーとして数える
+            Err(_) => None,
+        },
+    )?;
+
+    Ok(QirSearchResult {
+        notes: scan.notes,
+        scanned: scan.scanned as u32,
+        errors: scan.errors as u32,
+        cursor: scan.cursor.map(|c| QirSearchCursor {
+            created_at: c.created_at,
+            note_id: c.note_id,
+        }),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn leaf() -> QirNode {
+        QirNode::Bool { value: true }
+    }
+
+    #[test]
+    fn validates_simple_query() {
+        let v = validate_qir(QirQuery {
+            schema_version: QIR_SCHEMA_VERSION,
+            root: QirNode::And {
+                left: Box::new(leaf()),
+                right: Box::new(QirNode::Not {
+                    expr: Box::new(leaf()),
+                }),
+            },
+        });
+        assert!(v.ok);
+        assert_eq!(v.node_count, 4);
+        assert_eq!(v.max_depth, 3);
+    }
+
+    #[test]
+    fn rejects_unknown_schema_version() {
+        let v = validate_qir(QirQuery {
+            schema_version: QIR_SCHEMA_VERSION + 1,
+            root: leaf(),
+        });
+        assert!(!v.ok);
+    }
+
+    #[test]
+    fn rejects_excessive_depth() {
+        let mut node = leaf();
+        for _ in 0..(QIR_MAX_DEPTH + 5) {
+            node = QirNode::Not {
+                expr: Box::new(node),
+            };
+        }
+        let v = validate_qir(QirQuery {
+            schema_version: QIR_SCHEMA_VERSION,
+            root: node,
+        });
+        assert!(!v.ok);
+    }
+
+    #[test]
+    fn serde_shape_is_tagged_camel_case() {
+        let json = serde_json::to_value(QirNode::StrTest {
+            op: QirStrTestOp::StartsWith,
+            target: Box::new(QirNode::Field {
+                path: vec!["text".into()],
+            }),
+            needle: Box::new(QirNode::Str { value: "a".into() }),
+        })
+        .unwrap();
+        assert_eq!(json["kind"], "strTest");
+        assert_eq!(json["op"], "startsWith");
+        assert_eq!(json["target"]["kind"], "field");
+        assert_eq!(json["target"]["path"][0], "text");
+    }
+}
+
+#[cfg(test)]
+mod golden_tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    /// 共有 golden vector (不変条件 (a) の Rust 面)。
+    ///
+    /// 期待値の正本は AiScript 1.2.1 の実挙動で、JS 側は同じ vectors.json を
+    /// 参照評価器と JS QIR eval の 2 面で検証している。ここは 3 面目。
+    /// QIR は JS のコンパイラが生成したスナップショット (`pnpm gen:golden-qir`)。
+    #[derive(serde::Deserialize)]
+    struct GoldenFile {
+        cases: Vec<GoldenCase>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct GoldenCase {
+        name: String,
+        note: JsonValue,
+        expected: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct QirSnapshot {
+        cases: BTreeMap<String, QirQuery>,
+    }
+
+    fn read(rel: &str) -> String {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel);
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
+    }
+
+    #[test]
+    fn rust_eval_matches_golden_vectors() {
+        let golden: GoldenFile =
+            serde_json::from_str(&read("../../src/services/columnQuery/golden/vectors.json"))
+                .expect("parse vectors.json");
+        let snapshot: QirSnapshot = serde_json::from_str(&read(
+            "../../src/services/columnQuery/golden/qir.generated.json",
+        ))
+        .expect("parse qir.generated.json — run `pnpm gen:golden-qir`");
+
+        let mut checked = 0;
+        for case in &golden.cases {
+            // 静的型エラーで QIR にコンパイルされないケースは fallback 専用ベクタ
+            let Some(query) = snapshot.cases.get(&case.name) else {
+                continue;
+            };
+            let verdict = evaluate_qir(query, &case.note);
+            let expected = match case.expected.as_str() {
+                "match" => QirVerdict::Match,
+                "unmatch" => QirVerdict::Unmatch,
+                "error" => QirVerdict::Error,
+                other => panic!("unknown expected verdict: {other}"),
+            };
+            assert_eq!(verdict, expected, "golden case `{}`", case.name);
+            checked += 1;
+        }
+        assert!(checked > 0, "no golden case was evaluated");
+    }
+
+    /// スナップショットが古いと「評価されないケース」が黙って増える。
+    /// 静的拒否ケース以外はすべて QIR を持っているはず。
+    #[test]
+    fn qir_snapshot_covers_every_compilable_case() {
+        const STATIC_REJECT: &[&str] = &[
+            "non-bool-result-error",
+            "lt-on-string-error",
+            "and-non-bool-error",
+            "not-non-bool-error",
+        ];
+        let golden: GoldenFile =
+            serde_json::from_str(&read("../../src/services/columnQuery/golden/vectors.json"))
+                .unwrap();
+        let snapshot: QirSnapshot = serde_json::from_str(&read(
+            "../../src/services/columnQuery/golden/qir.generated.json",
+        ))
+        .unwrap();
+        let missing: Vec<&str> = golden
+            .cases
+            .iter()
+            .map(|c| c.name.as_str())
+            .filter(|n| !STATIC_REJECT.contains(n) && !snapshot.cases.contains_key(*n))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "QIR スナップショットが古いです。`pnpm gen:golden-qir` を実行してください: {missing:?}"
+        );
     }
 }
 
