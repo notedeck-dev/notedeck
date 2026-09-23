@@ -324,10 +324,11 @@ src-tauri/src/              # Rust backend (Tauri 固有部分)
 │   ├── shutdown.rs         # 終了時のタスク所有。tokio Handle を受け取る
 │   ├── query_runtime.rs    # クエリランタイム本体 (購読台帳 / 差分バッファ / 読み取りモデル)。コマンドと flusher は commands/query.rs
 │   ├── vault/              # Secret Vault (#564)。app dir を &Path で受け、Tauri を知らない
+│   ├── http_server.rs      # Axum HTTP API server (localhost:19820)。手元側への問い合わせは FrontendBridge 経由
+│   ├── frontend_bridge.rs  # HTTP API → 手元側 (WebView / managed state) の問い合わせ口 trait
 │   └── perf_config.rs      # パフォーマンス設定 (Rust 側)
-├── http_server.rs          # Axum HTTP API server (localhost:19820)
 ├── streaming.rs            # TauriEmitter adapter (FrontendEmitter trait impl)
-├── query_bridge.rs         # HTTP API ↔ frontend (Pinia) bridge
+├── query_bridge.rs         # FrontendBridge の Tauri 実装 (Tauri イベントで Pinia store に問い合わせる)
 └── main.rs                 # Entry point
 ```
 

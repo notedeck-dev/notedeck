@@ -13,16 +13,15 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tauri::AppHandle;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use utoipa::{IntoParams, Modify, OpenApi, ToSchema};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use subtle::ConstantTimeEq;
 
+use crate::core::frontend_bridge::{self, FrontendBridge};
 use crate::core::image_cache::ImageCache;
 use crate::core::rate_limit::{self, RateLimiter};
-use crate::query_bridge;
 use notecli::api::MisskeyClient;
 use notecli::db::Database;
 use notecli::event_bus::EventBus;
@@ -87,7 +86,7 @@ const PORT: u16 = 19820;
 
 #[derive(Clone)]
 struct DeckState {
-    app_handle: AppHandle,
+    bridge: Arc<dyn FrontendBridge>,
     api_token: String,
     image_cache: Arc<ImageCache>,
 }
@@ -208,7 +207,8 @@ pub async fn bind() -> Option<BoundServer> {
 /// Configuration for starting the HTTP server (Phase 2).
 pub struct ServeConfig {
     pub server: BoundServer,
-    pub app_handle: AppHandle,
+    /// 手元側 (WebView / Tauri の managed state) への問い合わせ口 (#1106)
+    pub bridge: Arc<dyn FrontendBridge>,
     pub db: Arc<Database>,
     pub client: Arc<MisskeyClient>,
     pub event_bus: Arc<EventBus>,
@@ -282,7 +282,7 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
 
     // NoteDeck-specific state
     let deck_state = DeckState {
-        app_handle: config.app_handle,
+        bridge: config.bridge,
         api_token: config.api_token.clone(),
         image_cache: config.image_cache,
     };
@@ -476,7 +476,7 @@ async fn deck_auth_middleware(
     )
 )]
 async fn get_deck_columns(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = query_bridge::query_frontend(&state.app_handle, "deck/columns", json!({}))
+    let data = frontend_bridge::query(state.bridge.as_ref(), "deck/columns", json!({}))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -494,7 +494,7 @@ async fn get_deck_columns(State(state): State<DeckState>) -> Result<Json<Value>,
     )
 )]
 async fn get_deck_active(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = query_bridge::query_frontend(&state.app_handle, "deck/active", json!({}))
+    let data = frontend_bridge::query(state.bridge.as_ref(), "deck/active", json!({}))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -512,7 +512,7 @@ async fn get_deck_active(State(state): State<DeckState>) -> Result<Json<Value>, 
     )
 )]
 async fn list_commands(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = query_bridge::query_frontend(&state.app_handle, "commands/list", json!({}))
+    let data = frontend_bridge::query(state.bridge.as_ref(), "commands/list", json!({}))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -534,7 +534,7 @@ async fn list_commands(State(state): State<DeckState>) -> Result<Json<Value>, Ap
     )
 )]
 async fn get_startup_trace(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = query_bridge::query_frontend(&state.app_handle, "startup/trace", json!({}))
+    let data = frontend_bridge::query(state.bridge.as_ref(), "startup/trace", json!({}))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -552,7 +552,7 @@ async fn get_startup_trace(State(state): State<DeckState>) -> Result<Json<Value>
     )
 )]
 async fn get_perf_caches(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = query_bridge::query_frontend(&state.app_handle, "perf/caches", json!({}))
+    let data = frontend_bridge::query(state.bridge.as_ref(), "perf/caches", json!({}))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -570,7 +570,7 @@ async fn get_perf_caches(State(state): State<DeckState>) -> Result<Json<Value>, 
     )
 )]
 async fn get_logs_recent(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = query_bridge::query_frontend(&state.app_handle, "logs/recent", json!({}))
+    let data = frontend_bridge::query(state.bridge.as_ref(), "logs/recent", json!({}))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -588,7 +588,7 @@ async fn get_logs_recent(State(state): State<DeckState>) -> Result<Json<Value>, 
     )
 )]
 async fn get_querybridge_trace(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = query_bridge::query_frontend(&state.app_handle, "querybridge/trace", json!({}))
+    let data = frontend_bridge::query(state.bridge.as_ref(), "querybridge/trace", json!({}))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -606,7 +606,7 @@ async fn get_querybridge_trace(State(state): State<DeckState>) -> Result<Json<Va
     )
 )]
 async fn get_inspector_recent(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = query_bridge::query_frontend(&state.app_handle, "inspector/recent", json!({}))
+    let data = frontend_bridge::query(state.bridge.as_ref(), "inspector/recent", json!({}))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -624,7 +624,7 @@ async fn get_inspector_recent(State(state): State<DeckState>) -> Result<Json<Val
     )
 )]
 async fn get_heartbeat_status(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = query_bridge::query_frontend(&state.app_handle, "heartbeat/status", json!({}))
+    let data = frontend_bridge::query(state.bridge.as_ref(), "heartbeat/status", json!({}))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -642,7 +642,7 @@ async fn get_heartbeat_status(State(state): State<DeckState>) -> Result<Json<Val
     )
 )]
 async fn get_permissions_resolved(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = query_bridge::query_frontend(&state.app_handle, "permissions/resolved", json!({}))
+    let data = frontend_bridge::query(state.bridge.as_ref(), "permissions/resolved", json!({}))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -668,7 +668,7 @@ const CAPABILITY_EXECUTE_TIMEOUT: std::time::Duration = std::time::Duration::fro
     )
 )]
 async fn list_capabilities(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = query_bridge::query_frontend(&state.app_handle, "capabilities/list", json!({}))
+    let data = frontend_bridge::query(state.bridge.as_ref(), "capabilities/list", json!({}))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -697,13 +697,14 @@ async fn execute_capability(
     body: Option<Json<Value>>,
 ) -> (StatusCode, Json<Value>) {
     let params = body.map(|Json(v)| v).unwrap_or(Value::Null);
-    let data = match query_bridge::query_frontend_with_timeout(
-        &state.app_handle,
-        "capabilities/execute",
-        json!({ "capabilityId": capability_id, "params": params }),
-        CAPABILITY_EXECUTE_TIMEOUT,
-    )
-    .await
+    let data = match state
+        .bridge
+        .query(
+            "capabilities/execute",
+            json!({ "capabilityId": capability_id, "params": params }),
+            CAPABILITY_EXECUTE_TIMEOUT,
+        )
+        .await
     {
         Ok(data) => data,
         Err(e) => {
@@ -758,21 +759,10 @@ async fn get_health(
     State(state): State<DeckState>,
     external: Option<axum::Extension<crate::core::permissions_gate::ExternalTokenMarker>>,
 ) -> Result<Json<Value>, ApiError> {
-    use tauri::Manager;
-    let app = &state.app_handle;
-    let app_state = app.state::<crate::commands::AppState>();
-    let scheduler = app.state::<Arc<crate::commands::HeartbeatScheduler>>();
-    let report = crate::commands::build_health_report(app, &app_state, &scheduler)
-        .await
-        .map_err(|e| ApiError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            code: "HEALTHCHECK_FAILED".to_string(),
-            message: e.to_string(),
-        })?;
-    let mut body = serde_json::to_value(&report).map_err(|e| ApiError {
+    let mut body = state.bridge.health_report().await.map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         code: "HEALTHCHECK_FAILED".to_string(),
-        message: e.to_string(),
+        message: e,
     })?;
 
     // frontend 死活プローブ: WebView (query bridge) が応答するか + ストリーム状態。
@@ -784,7 +774,7 @@ async fn get_health(
         external.is_none() || crate::core::permissions_gate::external_may_read_deck().await;
 
     if let Value::Object(map) = &mut body {
-        match query_bridge::query_frontend(app, "health/streams", json!({})).await {
+        match frontend_bridge::query(state.bridge.as_ref(), "health/streams", json!({})).await {
             Ok(streams) => {
                 map.insert("frontendReady".into(), Value::Bool(true));
                 map.insert(
