@@ -38,7 +38,7 @@ nix profile install github:notedeck-dev/notecli
 ### Cargo（ソースからビルド）
 
 ```sh
-cargo install --git https://github.com/notedeck-dev/notecli.git
+cargo install --git https://github.com/notedeck-dev/notedeck notecli
 ```
 
 ## 使いかた

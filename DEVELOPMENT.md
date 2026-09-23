@@ -230,15 +230,15 @@ Stream Inspector カラムとの違い: Stream Inspector は**フロントのア
 
 ## Architecture
 
-NoteDeck は **notecli** と **notedeck** の 2 リポジトリで構成されています。
+NoteDeck は 1 つのリポジトリ (Cargo workspace) で、`crates/notecli` (Misskey クライアント + CLI) と `src-tauri` (アプリの Rust) を持ちます (notecli は 2026-09-23 に別リポジトリから取り込んだ、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106))。
 
-### notecli ([github.com/notedeck-dev/notecli](https://github.com/notedeck-dev/notecli))
+### notecli (`crates/notecli`)
 
 Tauri に依存しない Misskey ヘッドレスクライアント。Rust ライブラリ兼 CLI デーモン。
 
 - Misskey HTTP API クライアント、WebSocket ストリーミング、SQLite DB、REST API サーバー
 - 単体で `localhost:19820` の HTTP API デーモンとして動作（GUI 不要）
-- NoteDeck の Rust バックエンドとして `Cargo.toml` の git 依存で利用される
+- アプリの Rust (`src-tauri`) がパス依存で利用する。CLI バイナリはリリースの成果物として同じタグから出す
 
 ### notedeck (このリポジトリ)
 

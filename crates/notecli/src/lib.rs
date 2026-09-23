@@ -57,6 +57,7 @@ pub fn get_credentials(db: &Database, account_id: &str) -> Result<(String, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::keychain;
     use crate::models::Account;
 
     fn temp_db() -> (tempfile::TempDir, Database) {
@@ -65,9 +66,9 @@ mod tests {
         (dir, db)
     }
 
-    fn sample_account(token: &str) -> Account {
+    fn sample_account(id: &str, token: &str) -> Account {
         Account {
-            id: "acc1".into(),
+            id: id.into(),
             host: "misskey.io".into(),
             token: token.into(),
             user_id: "uid1".into(),
@@ -87,22 +88,28 @@ mod tests {
 
     #[test]
     fn get_credentials_no_token() {
+        // keyring feature が有効だと本物の OS キーチェーンを叩く。他のテストが同じ id で
+        // 保存した token を拾わないよう、テストごとに固有の id を使い、事前に消しておく
         let (_dir, db) = temp_db();
-        let account = sample_account("");
+        let _ = keychain::delete_token("acc-no-token");
+        let account = sample_account("acc-no-token", "");
         db.upsert_account(&account).unwrap();
-        // keychain will fail in test env, DB token is empty → Auth error
-        let err = get_credentials(&db, "acc1").unwrap_err();
+        // keychain に無く、DB token も空 → Auth error
+        let err = get_credentials(&db, "acc-no-token").unwrap_err();
         assert_eq!(err.code(), "AUTH_NO_TOKEN");
     }
 
     #[test]
     fn get_credentials_db_fallback() {
         let (_dir, db) = temp_db();
-        let account = sample_account("db-token-123");
+        let _ = keychain::delete_token("acc-db-fallback");
+        let account = sample_account("acc-db-fallback", "db-token-123");
         db.upsert_account(&account).unwrap();
-        // keychain unavailable in test → falls back to DB token
-        let (host, token) = get_credentials(&db, "acc1").unwrap();
+        // keychain に無い → DB token にフォールバックする (keyring 有効時はここで keychain に
+        // 移行されるので、テスト後に消して次回の実行に残さない)
+        let (host, token) = get_credentials(&db, "acc-db-fallback").unwrap();
         assert_eq!(host, "misskey.io");
         assert_eq!(token, "db-token-123");
+        let _ = keychain::delete_token("acc-db-fallback");
     }
 }

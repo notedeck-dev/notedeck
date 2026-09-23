@@ -53,7 +53,7 @@ check package.json "\"version\": \"$VERSION\""
 check src-tauri/Cargo.toml "^version = \"$VERSION\""
 check src-tauri/tauri.conf.json "\"version\": \"$VERSION\""
 
-echo "==> Cargo.lock を同期"
+echo "==> Cargo.lock (workspace root) を同期"
 cargo check --manifest-path src-tauri/Cargo.toml --quiet
 
 echo "==> openapi.json を再生成 (バージョン番号を埋め込んでいる)"

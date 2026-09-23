@@ -35,8 +35,8 @@ NoteDeck 側にコードを書かなくても、フォーク側の設定次第�
 | 静的な capability 宣言が要る | `src/adapters/<fork>/` で宣言 | リモート絵文字リアクション (misskey-tempura) |
 | 叩くエンドポイント自体が違う | notecli にメソッド追加 → Tauri コマンド → アダプターで差し替え | はなみすきーのノート検索 (`notes/hanamisearch-v1`) |
 
-API クライアントの実体は別リポジトリ [notecli](https://github.com/notedeck-dev/notecli) にあるため、
-3 番目のパターンは 2 リポジトリにまたがります。手順は [DEVELOPMENT.md — Fork support](DEVELOPMENT.md#fork-support) にあります。
+API クライアントの実体は `crates/notecli` (同じリポジトリの workspace メンバー) にあるため、
+3 番目のパターンは notecli クレートとアプリの両方に手が入ります。手順は [DEVELOPMENT.md — Fork support](DEVELOPMENT.md#fork-support) にあります。
 
 **PR に書いてほしいこと:** 対象サーバーのホスト名、`/api/meta` と nodeinfo の実測値（該当部分の抜粋）、
 なぜ動的検出では足りないか。実測値があると再現・検証がすぐできます。

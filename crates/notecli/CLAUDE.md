@@ -2,16 +2,15 @@
 
 ## プロジェクト概要
 
-Misskey クライアントライブラリ + CLI ツールの単一クレート。
-NoteDeck が最大の消費者で、Rust crate 依存としてコアモジュールを直接利用している。
+Misskey クライアントライブラリ + CLI ツールの単一クレート。notedeck リポジトリの workspace メンバー (`crates/notecli`) で、アプリの Rust (`src-tauri`) がパス依存で利用する (2026-09-23 に別リポジトリから取り込み、#1106)。役割は Misskey 通信・DB・ストリーミングに限り、NoteDeck 固有のドメインは notecore 側に置く。
 CLI は同じクレート内に同居する独立したフロントエンド。
 
 ## ビルド & テスト
 
 ```sh
-cargo build            # ビルド
-cargo clippy           # lint
-cargo test             # テスト（現状少ない）
+cargo build -p notecli     # ビルド (workspace root で)
+cargo clippy -p notecli    # lint
+cargo test -p notecli      # テスト
 ```
 
 ## アーキテクチャ原則

@@ -3,7 +3,7 @@ name = "notecli"
 version = "0.8.1"
 edition = "2021"
 description = "Headless Misskey client — CLI & library"
-repository = "https://github.com/notedeck-dev/notecli"
+repository = "https://github.com/notedeck-dev/notedeck"
 license = "MIT"
 
 [dependencies]
