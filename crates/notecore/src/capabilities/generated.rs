@@ -17,7 +17,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "呼び出し文脈のアカウント (per-account の AI カラムならそのアカウント) の情報を返す。全アカウントのカラムや HEARTBEAT では null。 Misskey サーバーの host や displayName, username 等が含まれる。 認証トークンは含まれない。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -38,7 +38,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "NoteDeck にログイン中の全アカウントを配列で返す。複数サーバーを 横断したい場合に使う。認証トークンは含まれない。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -374,7 +374,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "自分が定義した Misskey アンテナの一覧を返す。各要素は { id, name, keywords, users, ... }。antenna.notes で notes を取るときの起点。",
         params: &[
             ParamDecl {
@@ -403,7 +403,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定アンテナにマッチした note を返す。antennaId は antenna.list で取得。 projection された note (id / userId / username / text / createdAt) を最大 limit 件返す。",
         params: &[
             ParamDecl {
@@ -496,7 +496,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "自分がフォロー中の Misskey チャネル一覧を返す。各要素は { id, name, description, ... }。channel.notes で channelId を渡すときの起点。",
         params: &[
             ParamDecl {
@@ -525,7 +525,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定チャネルの note を返す。channelId は channel.list で取得。 projection された note (id / userId / username / text / createdAt) を最大 limit 件返す。",
         params: &[
             ParamDecl {
@@ -804,7 +804,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "アクティブアカウントのクリップ一覧を返す。各要素は  { id, name, description, isPublic, lastClippedAt, favoritedCount }。",
         params: &[
             ParamDecl {
@@ -833,7 +833,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 clipId に入っているノートを取得する。limit は 1〜100 (default 20)。 クリップは公開設定なら他人のものでも閲覧可能。",
         params: &[
             ParamDecl {
@@ -1424,7 +1424,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定アカウント (未指定なら active) の Misskey ドライブのファイル一覧を取得する。 folderId 省略でルート、fileType 指定 (例: `image/`) で MIME prefix フィルタ。返り値は raw な配列 (id / name / type / size / url 等)。 別サーバーのドライブを読むときは `<currentColumn>.accountId` を渡す。",
         params: &[
             ParamDecl {
@@ -2110,7 +2110,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "自分のユーザーリスト一覧を返す。各要素は { id, name, userIds, createdAt }。 リスト編集 (list.addUser / removeUser) で listId を渡すときの起点。",
         params: &[
             ParamDecl {
@@ -2752,7 +2752,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定ノートへの直接リプライ (= 子ノート) を取得する。会話のスレッドを 辿りたいときに使う。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
             ParamDecl {
@@ -2981,7 +2981,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "キーワードでノートを全文検索する。Misskey の /notes/search を使う。 結果は note projection (id / userId / username / text / createdAt) で返す。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
             ParamDecl {
@@ -3031,7 +3031,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "手元に貯めたノート (自分の画面に流れてきたもの) を、サーバーとアカウントを 跨いでまとめて検索する。「先週〇〇の話をしていた人は誰か」のような、 サーバー検索では引けない過去の記憶に答えるための道具。query / author / since / until / hasFiles は全部任意で、AND で絞る (全部省略すると新しい順に 並べるだけ)。既定では公開範囲が public のノートだけを返す。 結果は note projection に accountId (どのアカウントで見たか) と serverHost (そのサーバー) を足したもの。同じノートを複数サーバーで見ていれば複数行になる。 続きを取るときは最後のノートの createdAt を until に渡して再呼び出し。",
         params: &[
             ParamDecl {
@@ -3109,7 +3109,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "noteId で 1 件のノートを取得する。リプライ先や引用元の本文を見たい ときに使う。戻り値は単一の note projection (配列ではない)。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
             ParamDecl {
@@ -3145,7 +3145,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "タイムラインを取得する。home はログイン中のフォロー含むホーム、 local はサーバー内ローカル、social はホーム+ローカル混合、 global は連合宇宙全体。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
             ParamDecl {
@@ -3267,7 +3267,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "特定ユーザーの最近のノートを取得する。userId は Misskey の内部 ID (username ではなく)。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
             ParamDecl {
@@ -3317,7 +3317,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定アカウント (未指定なら active) の通知一覧を取得する。 type / userId / noteId / reaction / createdAt 等の projection が返る。 100 件を超えて取得したい場合は、最後の通知の id を untilId に渡して再呼び出し。 別サーバーの通知を読むときは `<currentColumn>.accountId` を渡す。",
         params: &[
             ParamDecl {
@@ -4207,7 +4207,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 role の所属ユーザーが投稿した note を返す。roleId はサーバーの role 設定で確認。 projection された note (id / userId / username / text / createdAt) を最大 limit 件返す。",
         params: &[
             ParamDecl {
@@ -5182,7 +5182,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "ユーザー環境の現在時刻を ISO 8601 形式で返す。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -5275,7 +5275,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 userId のフォロワー一覧を返す (read-only)。鍵垢の場合は本人 / 承認済みフォロワーのみ参照可 (= サーバー側で制御)。",
         params: &[
             ParamDecl {
@@ -5325,7 +5325,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 userId がフォローしているユーザー一覧を返す (read-only)。鍵垢の場合は本人 / 承認済みフォロワーのみ参照可。",
         params: &[
             ParamDecl {
@@ -5375,7 +5375,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "username (+ 任意で host) から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。",
         params: &[
             ParamDecl {
@@ -5490,7 +5490,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "username / display name の部分一致でユーザーを検索する (Misskey `users/search-by-username-and-name` 相当)。空 query なら最近やり取りしたユーザー一覧。完全一致での 1 件引きは user.lookup を使う。",
         params: &[
             ParamDecl {

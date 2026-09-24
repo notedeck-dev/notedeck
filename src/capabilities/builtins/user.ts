@@ -1,9 +1,7 @@
 import type { Command } from '@/commands/registry'
-import { stripCredentials } from '@/composables/useAiSystemContext'
 import { useMutesStore } from '@/stores/mutes'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import { getApiAdapter, resolveAccountId } from '../accountContext'
-import { implement } from '../declare'
+import { implement, implementCore } from '../declare'
 
 /**
  * `user.lookup` — username (+ optional host) から Misskey ユーザー情報を引く。
@@ -14,24 +12,7 @@ import { implement } from '../declare'
  * Misskey の `users/show` を使う。host は `@hitalin@yami.ski` の `yami.ski` 部分
  * (ローカル / 自インスタンスのときは省略可)。
  */
-export const userLookupCapability = implement('user.lookup', {
-  execute: async (params, ctx) => {
-    const rawUsername =
-      typeof params?.username === 'string' ? params.username.trim() : ''
-    if (!rawUsername) throw new Error('user.lookup: username is required')
-    // 入力の先頭 `@` を除去 (`@hitalin` → `hitalin`)
-    const username = rawUsername.startsWith('@')
-      ? rawUsername.slice(1)
-      : rawUsername
-    const host =
-      typeof params?.host === 'string' && params.host.trim().length > 0
-        ? params.host.trim()
-        : null
-    const api = await getApiAdapter(params?.accountId, ctx)
-    const user = await api.lookupUser(username, host)
-    return stripCredentials(user)
-  },
-})
+export const userLookupCapability = implementCore('user.lookup')
 
 /**
  * `user.search` — username / display name の部分一致でユーザーを探す。
@@ -41,17 +22,7 @@ export const userLookupCapability = implement('user.lookup', {
  * を使う。adapter 経由ではなく `apiSearchUsersByQuery` を直接叩く
  * (NormalizedUser 配列に正規化済み)。
  */
-export const userSearchCapability = implement('user.search', {
-  execute: async (params, ctx) => {
-    const query = typeof params?.query === 'string' ? params.query : ''
-    const limitRaw = typeof params?.limit === 'number' ? params.limit : 10
-    const limit = Math.max(1, Math.min(100, Math.floor(limitRaw)))
-    const id = resolveAccountId(params?.accountId, ctx)
-    const raw = unwrap(await commands.apiSearchUsersByQuery(id, query, limit))
-    if (!Array.isArray(raw)) return []
-    return raw.map((u) => stripCredentials(u as Record<string, unknown>))
-  },
-})
+export const userSearchCapability = implementCore('user.search')
 
 /**
  * Mute / RenoteMute 系 — 相手に通知されない静かな見え方制御。
@@ -81,16 +52,6 @@ function pickUserId(
   const userId = typeof params?.userId === 'string' ? params.userId : ''
   if (!userId) throw new Error(`${cap}: userId is required`)
   return userId
-}
-
-const _USER_ID_PARAM = {
-  type: 'string' as const,
-  description: '対象 userId (user.lookup / search で取得)',
-}
-const _ACCOUNT_ID_PARAM = {
-  type: 'string' as const,
-  description: '操作元アカウント。未指定なら active。',
-  optional: true,
 }
 
 export const userMuteCapability = implement('user.mute', {
@@ -188,58 +149,9 @@ export const userUnfollowCapability = implement('user.unfollow', {
   },
 })
 
-/**
- * `user.followers` / `user.following` — 指定ユーザーのフォロワー / フォロー一覧。
- *
- * Misskey の users/followers / users/following。read-only、公開設定 (= 鍵垢の
- * 場合は本人または承認済みフォロワーのみ) はサーバー側で制御される。
- * 軽量 read なので account.read で十分。
- */
-const _FOLLOW_LIMIT_PARAM = {
-  type: 'number' as const,
-  description: '取得件数 (default 30)',
-  optional: true,
-}
-const _UNTIL_ID_PARAM = {
-  type: 'string' as const,
-  description: 'untilId (古い方向のページング)',
-  optional: true,
-}
+export const userFollowersCapability = implementCore('user.followers')
 
-function pickLimit(params: Record<string, unknown> | undefined): number {
-  const v = params?.limit
-  return typeof v === 'number' && Number.isFinite(v) ? v : 30
-}
-
-function pickUntilId(
-  params: Record<string, unknown> | undefined,
-): string | undefined {
-  if (typeof params?.untilId !== 'string') return undefined
-  const t = params.untilId.trim()
-  return t.length > 0 ? t : undefined
-}
-
-export const userFollowersCapability = implement('user.followers', {
-  execute: async (params, ctx) => {
-    const userId = pickUserId(params, 'user.followers')
-    const api = await getApiAdapter(params?.accountId, ctx)
-    return await api.getFollowers(userId, {
-      limit: pickLimit(params),
-      untilId: pickUntilId(params),
-    })
-  },
-})
-
-export const userFollowingCapability = implement('user.following', {
-  execute: async (params, ctx) => {
-    const userId = pickUserId(params, 'user.following')
-    const api = await getApiAdapter(params?.accountId, ctx)
-    return await api.getFollowing(userId, {
-      limit: pickLimit(params),
-      untilId: pickUntilId(params),
-    })
-  },
-})
+export const userFollowingCapability = implementCore('user.following')
 
 export const USER_BUILTIN_CAPABILITIES: readonly Command[] = [
   userLookupCapability,

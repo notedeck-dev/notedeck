@@ -13,7 +13,9 @@
  * 実装が無い / 実装だけあって宣言が無い、は tests/lint/capabilityDeclarations.test.ts。
  */
 
+import type { JsonValue } from '@/bindings'
 import type { Command } from '@/commands/registry'
+import { commands, unwrap } from '@/utils/tauriInvoke'
 import {
   CAPABILITY_DECLARATIONS,
   type CapabilityId,
@@ -82,4 +84,41 @@ export function implement(id: CapabilityId, impl: CapabilityImpl): Command {
   if (impl.preflight) cmd.preflight = impl.preflight
   if (impl.enabled) cmd.enabled = impl.enabled
   return cmd
+}
+
+/**
+ * `exec: 'core'` な capability の本体は notecore にある (#1133 縦切り 4)。
+ * デバイス側の builtin は本人操作 (パレット / slash / HTTP API) のために
+ * 登録だけ残し、実行は RPC で notecore の本体を叩く。AI のターンはこの経路を
+ * 通らない (ターン実行器が直接呼ぶ)。
+ */
+export function implementCore(
+  id: CapabilityId,
+  impl: Omit<CapabilityImpl, 'execute'> = {},
+): Command {
+  const d = CAPABILITY_DECLARATIONS[id]
+  if (d.exec !== 'core') {
+    throw new Error(`${id}: exec が core ではないので implementCore は使えない`)
+  }
+  const cmd = implement(id, {
+    ...impl,
+    execute: async (params, ctx) =>
+      unwrap(
+        await commands.capabilityExecute(
+          id,
+          (params ?? {}) as JsonValue,
+          ctx?.principal?.kind ?? 'user',
+          ctx?.accountId ?? null,
+        ),
+      ),
+  })
+  CORE_DELEGATES.add(cmd)
+  return cmd
+}
+
+const CORE_DELEGATES = new WeakSet<Command>()
+
+/** builtin が notecore への委譲か (lint 用) */
+export function isCoreDelegate(cmd: Command): boolean {
+  return CORE_DELEGATES.has(cmd)
 }

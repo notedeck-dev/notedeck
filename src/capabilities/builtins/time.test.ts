@@ -11,18 +11,6 @@ describe('time.now capability', () => {
     expect(timeNowCapability.signature?.returns?.type).toBe('string')
   })
 
-  it('execute returns an ISO 8601 string close to now', () => {
-    const before = Date.now()
-    const result = timeNowCapability.execute()
-    const after = Date.now()
-    expect(typeof result).toBe('string')
-    const parsed = Date.parse(result as string)
-    expect(parsed).toBeGreaterThanOrEqual(before)
-    expect(parsed).toBeLessThanOrEqual(after)
-    // ISO 8601 (UTC, 'Z' suffix) を確認
-    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/)
-  })
-
   it('BUILTIN_CAPABILITIES includes time.now', () => {
     expect(BUILTIN_CAPABILITIES).toContain(timeNowCapability)
   })

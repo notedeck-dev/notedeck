@@ -7,6 +7,8 @@
 //! 同じ宣言から同じ tool schema になることを golden (`src/capabilities/golden/
 //! tools.json`、期待値の正本は JS 側) で検査する。
 
+pub mod exec;
+
 use serde_json::{json, Map, Value};
 
 /// capability の実行属性 (#1106 §4.8)。

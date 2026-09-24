@@ -34,6 +34,7 @@ pub async fn ai_turn_run(core: &Core, req: AiTurnRequest) -> Result<()> {
         core.app_dir()?,
         core.frontend_bridge()?,
         core.ai_turn_sink()?,
+        core.core_executor()?,
     )
     .await
 }
@@ -56,4 +57,21 @@ pub async fn ai_confirm_respond(_core: &Core, request_id: String, accepted: bool
 /// 確認要求を表示した (表示 TTL の起点)。
 pub async fn ai_confirm_shown(_core: &Core, request_id: String) -> Result<()> {
     ai_turn::confirm::shown(&request_id)
+}
+
+/// `exec: core` な capability を notecore で実行する (本人操作 / plugin / 外部の
+/// dispatcher からの RPC、#1133 縦切り 4)。認可は呼び出し側の dispatcher が
+/// 済ませている。AI のターンはこの経路を通らず、ターン実行器が直接呼ぶ。
+pub async fn capability_execute(
+    core: &Core,
+    id: String,
+    params: serde_json::Value,
+    principal: String,
+    account_id: Option<String>,
+) -> Result<serde_json::Value> {
+    let ctx = crate::capabilities::exec::ExecContext {
+        principal,
+        account_id,
+    };
+    crate::capabilities::exec::execute(core, &id, params, &ctx).await
 }

@@ -27,15 +27,6 @@ describe('notes.search capability', () => {
     expect(params?.query?.optional).not.toBe(true)
     expect(params?.limit?.optional).toBe(true)
   })
-
-  it('throws when query is missing or blank', async () => {
-    await expect(notesSearchCapability.execute({})).rejects.toThrow(
-      /query is required/,
-    )
-    await expect(
-      notesSearchCapability.execute({ query: '   ' }),
-    ).rejects.toThrow(/query is required/)
-  })
 })
 
 describe('notes.searchArchive capability (#947)', () => {
@@ -71,15 +62,6 @@ describe('notes.timeline capability', () => {
     const enums = notesTimelineCapability.signature?.params?.type?.enum
     expect(enums).toEqual(['home', 'local', 'social', 'global'])
   })
-
-  it('rejects invalid timeline types', async () => {
-    await expect(
-      notesTimelineCapability.execute({ type: 'mentions' }),
-    ).rejects.toThrow(/invalid type/)
-    await expect(notesTimelineCapability.execute({ type: '' })).rejects.toThrow(
-      /invalid type/,
-    )
-  })
 })
 
 describe('notes.user capability', () => {
@@ -92,15 +74,6 @@ describe('notes.user capability', () => {
   it('marks userId as required', () => {
     const params = notesUserCapability.signature?.params
     expect(params?.userId?.optional).not.toBe(true)
-  })
-
-  it('throws when userId is missing or blank', async () => {
-    await expect(notesUserCapability.execute({})).rejects.toThrow(
-      /userId is required/,
-    )
-    await expect(
-      notesUserCapability.execute({ userId: '   ' }),
-    ).rejects.toThrow(/userId is required/)
   })
 })
 
@@ -115,15 +88,6 @@ describe('notes.show capability', () => {
   it('marks noteId as required', () => {
     const params = notesShowCapability.signature?.params
     expect(params?.noteId?.optional).not.toBe(true)
-  })
-
-  it('throws when noteId is missing or blank', async () => {
-    await expect(notesShowCapability.execute({})).rejects.toThrow(
-      /noteId is required/,
-    )
-    await expect(
-      notesShowCapability.execute({ noteId: '   ' }),
-    ).rejects.toThrow(/noteId is required/)
   })
 })
 
@@ -140,15 +104,6 @@ describe('notes.children capability', () => {
     expect(params?.noteId?.optional).not.toBe(true)
     expect(params?.limit?.optional).toBe(true)
     expect(params?.untilId?.optional).toBe(true)
-  })
-
-  it('throws when noteId is missing or blank', async () => {
-    await expect(notesChildrenCapability.execute({})).rejects.toThrow(
-      /noteId is required/,
-    )
-    await expect(
-      notesChildrenCapability.execute({ noteId: '   ' }),
-    ).rejects.toThrow(/noteId is required/)
   })
 })
 
