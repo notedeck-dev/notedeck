@@ -50,6 +50,26 @@ impl notecore::context::HintSink for TauriHintSink {
     }
 }
 
+/// notecore が設定ファイルを書いたことを `nd:settings-file-changed` で WebView へ流す
+/// (#1133)。デバイスの store は該当ファイルの写しだけ読み直す。
+#[derive(Clone, serde::Serialize, specta::Type)]
+#[serde(transparent)]
+#[specta(transparent)]
+pub struct SettingsFileChangedEvent(pub notecore::settings_events::SettingsChange);
+
+impl tauri_specta::Event for SettingsFileChangedEvent {
+    const NAME: &'static str = "nd:settings-file-changed";
+}
+
+pub struct TauriSettingsSink(pub tauri::AppHandle);
+
+impl notecore::settings_events::SettingsSink for TauriSettingsSink {
+    fn settings_changed(&self, change: notecore::settings_events::SettingsChange) {
+        use tauri_specta::Event;
+        let _ = SettingsFileChangedEvent(change).emit(&self.0);
+    }
+}
+
 pub use notecore::credentials::cleanup_expired_credentials;
 
 /// Emit account list to frontend via Tauri event before AppState is initialized.
