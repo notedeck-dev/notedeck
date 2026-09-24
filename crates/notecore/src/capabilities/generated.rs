@@ -130,7 +130,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "保存されている AI セッションのメタ一覧 (updatedAt 降順) を返す。 各エントリは { id, kind, title, updatedAt, messageCount }。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -151,7 +151,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 id の AI セッションのメッセージ列を返す。",
         params: &[
             ParamDecl {
@@ -180,7 +180,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "保存されている AI セッションのメッセージ本文を全文 grep して、ヒットしたセッションを id + 周辺 snippet で返す。大文字小文字を無視。",
         params: &[
             ParamDecl {
@@ -2575,7 +2575,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "呼び出し元 (principal) 自身の permission preset と、解決済の permission map を返す。自分が何を許されているか把握するため。",
         params: &[],
         returns: Some(ReturnDecl {

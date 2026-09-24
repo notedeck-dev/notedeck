@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { defaultConfig } from '@/composables/useAiConfig'
-import { usePermissionsConfig } from '@/permissions/store'
 import {
   META_BUILTIN_CAPABILITIES,
   metaConfigCapability,
-  metaPermissionsCapability,
   metaPersonaCapability,
 } from './meta'
 
@@ -15,48 +13,6 @@ describe('meta capabilities — declaration', () => {
       expect(cap.permissions, `${cap.id}.permissions`).toEqual([])
       expect(cap.signature?.cheap, `${cap.id}.cheap`).toBe(true)
     }
-  })
-})
-
-describe('meta.permissions', () => {
-  it('returns principal + preset + resolved map for ai.chat', () => {
-    const { file } = usePermissionsConfig()
-    const result = metaPermissionsCapability.execute(
-      {},
-      { principal: { kind: 'ai.chat' } },
-    ) as {
-      principal: string
-      preset: string
-      resolved: Record<string, boolean>
-    }
-    expect(result.principal).toBe('ai.chat')
-    expect(result.preset).toBe(file.value.principals['ai.chat']?.preset)
-    expect(typeof result.resolved['ai.invoke']).toBe('boolean')
-    expect(typeof result.resolved['skills.write']).toBe('boolean')
-  })
-
-  it('returns external profile for external principal', () => {
-    const { file } = usePermissionsConfig()
-    const result = metaPermissionsCapability.execute(
-      {},
-      { principal: { kind: 'external' } },
-    ) as { principal: string; preset: string }
-    expect(result.principal).toBe('external')
-    expect(result.preset).toBe(file.value.principals.external?.preset)
-  })
-
-  it('returns all-true map with preset:null for user principal', () => {
-    const result = metaPermissionsCapability.execute(
-      {},
-      { principal: { kind: 'user' } },
-    ) as { principal: string; preset: null; resolved: Record<string, boolean> }
-    expect(result.principal).toBe('user')
-    expect(result.preset).toBeNull()
-    expect(Object.values(result.resolved).every((v) => v === true)).toBe(true)
-  })
-
-  it('throws without ctx.principal', () => {
-    expect(() => metaPermissionsCapability.execute({})).toThrow(/principal/)
   })
 })
 
