@@ -6,6 +6,7 @@ import {
 } from '@/composables/useMemos'
 import { extractMemoRefs } from '@/utils/memoLinks'
 import { implement } from '../declare'
+import type { CapabilityContext } from '../types'
 
 /**
  * memos.read 系 capability (#492) — AI がローカルメモを「列挙 / 検索」する
@@ -25,6 +26,8 @@ interface ProjectedMemoRow {
   updatedAt: string
   tags?: string[]
   author?: { id: string; displayName: string; avatarUrl?: string }
+  /** ラベル付き (tainted なセッションが書いた) メモ (#1103) */
+  tainted?: boolean
 }
 
 function pickString(input: unknown): string | undefined {
@@ -52,7 +55,17 @@ function projectRow(memoKey: string, memo: StoredMemo): ProjectedMemoRow {
   }
   if (memo.data.tags.length > 0) row.tags = memo.data.tags
   if (memo.data.author) row.author = { ...memo.data.author }
+  if (memo.data.tainted) row.tainted = true
   return row
+}
+
+/** 返す行にラベル付きメモが含まれたら申告する (読んだセッションが tainted になる) */
+function reportTaint(
+  rows: ProjectedMemoRow[],
+  ctx: CapabilityContext | undefined,
+): ProjectedMemoRow[] {
+  if (rows.some((r) => r.tainted)) ctx?.markTainted?.()
+  return rows
 }
 
 function compareUpdatedAtDesc(a: StoredMemo, b: StoredMemo): number {
@@ -63,7 +76,7 @@ function compareUpdatedAtDesc(a: StoredMemo, b: StoredMemo): number {
 
 /** `memos.list` — tag / 日付 / キーワードで絞り込んでメモを列挙 */
 export const memosListCapability = implement('memos.list', {
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     await ensureMemosLoaded()
     const tag = pickString(params?.tag)
     const authorIdFilter = pickString(params?.authorId)
@@ -95,13 +108,16 @@ export const memosListCapability = implement('memos.list', {
       return true
     })
     filtered.sort(([, a], [, b]) => compareUpdatedAtDesc(a, b))
-    return filtered.slice(0, limit).map(([key, memo]) => projectRow(key, memo))
+    return reportTaint(
+      filtered.slice(0, limit).map(([key, memo]) => projectRow(key, memo)),
+      ctx,
+    )
   },
 })
 
 /** `memos.search` — 部分一致 + recency boost で本文検索 */
 export const memosSearchCapability = implement('memos.search', {
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     await ensureMemosLoaded()
     const query = pickString(params?.query)
     if (!query) throw new Error('memos.search: query is required')
@@ -125,13 +141,16 @@ export const memosSearchCapability = implement('memos.search', {
     // recency boost: 単純に updatedAt 降順 (= 新しいほど上位)。
     // 本格的な BM25 / TF-IDF はオーバーキル、まず使い始めて必要なら拡張。
     hits.sort(([, a], [, b]) => compareUpdatedAtDesc(a, b))
-    return hits.slice(0, limit).map(([key, memo]) => projectRow(key, memo))
+    return reportTaint(
+      hits.slice(0, limit).map(([key, memo]) => projectRow(key, memo)),
+      ctx,
+    )
   },
 })
 
 /** `memos.backlinks` — 指定 memo を `[name](memo:<id>)` で参照しているメモを返す (#494) */
 export const memosBacklinksCapability = implement('memos.backlinks', {
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const targetId = pickString(params?.id)
     if (!targetId) throw new Error('memos.backlinks: id is required')
     // 対象 memo 自体の存在は要求しない (= 削除済 id でも参照側は返す)。ただ
@@ -150,7 +169,10 @@ export const memosBacklinksCapability = implement('memos.backlinks', {
       if (refs.includes(targetId)) hits.push([key, memo])
     }
     hits.sort(([, a], [, b]) => compareUpdatedAtDesc(a, b))
-    return hits.map(([key, memo]) => projectRow(key, memo))
+    return reportTaint(
+      hits.map(([key, memo]) => projectRow(key, memo)),
+      ctx,
+    )
   },
 })
 

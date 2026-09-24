@@ -195,4 +195,28 @@ describe('スキルの有効 / 無効はファイル (frontmatter) に持つ (#1
     store.add(makeSkill({ id: 'a', mode: 'manual' }))
     expect(store.isActive('a')).toBe(false)
   })
+
+  it('tainted ラベルは frontmatter に書き、読み戻し、合流判定に効く (#1103)', () => {
+    const base = {
+      ...makeSkill({ id: 'a', mode: 'always' }),
+      createdAt: 1,
+      updatedAt: 1,
+    }
+    expect('tainted' in _internal.frontmatterFromMeta(base)).toBe(false)
+    expect(
+      _internal.frontmatterFromMeta({ ...base, tainted: true }).tainted,
+    ).toBe(true)
+    expect(
+      _internal.metaFromFrontmatter({ id: 'a', tainted: true }, 'body', 'a')
+        .tainted,
+    ).toBe(true)
+    const store = useSkillsStore()
+    store.add(makeSkill({ id: 'clean', mode: 'always' }))
+    expect(store.composedSkillsTainted()).toBe(false)
+    store.add({ ...makeSkill({ id: 'dirty', mode: 'always' }), tainted: true })
+    expect(store.composedSkillsTainted()).toBe(true)
+    // ラベル付きでも本文が空なら合流しない
+    store.update('dirty', { body: '   ' })
+    expect(store.composedSkillsTainted()).toBe(false)
+  })
 })

@@ -50,12 +50,14 @@ export const skillsListCapability = implement('skills.list', {
 })
 
 export const skillsReadCapability = implement('skills.read', {
-  execute: (params) => {
+  execute: (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('skills.read: id is required')
     const store = useSkillsStore()
     const skill = store.skills.find((s) => s.id === id)
     if (!skill) throw new Error(`skills.read: skill "${id}" not found`)
+    // ラベル付き skill の本文を返す = 読んだセッションが tainted になる (#1103)
+    if (skill.tainted) ctx?.markTainted?.()
     return {
       id: skill.id,
       name: skill.name,
@@ -129,7 +131,7 @@ export const skillsCreateCapability = implement('skills.create', {
       type: mode === 'always' || mode === 'heartbeat' ? 'warning' : 'normal',
     }
   },
-  execute: (params) => {
+  execute: (params, ctx) => {
     const name = typeof params?.name === 'string' ? params.name.trim() : ''
     const body = typeof params?.body === 'string' ? params.body : ''
     if (!name) throw new Error('skills.create: name is required')
@@ -164,6 +166,8 @@ export const skillsCreateCapability = implement('skills.create', {
       triggers,
       body,
       cheapCheckCapabilities: toStringArray(params?.cheapCheckCapabilities),
+      // tainted なセッションが書いた skill にはラベルを付ける (#1103)
+      ...(ctx?.tainted ? { tainted: true } : {}),
     })
     return { id: skill.id, name: skill.name, mode: skill.mode }
   },
@@ -206,7 +210,11 @@ export const skillsAppendCapability = implement('skills.append', {
     const newBody = takeStagedEdit(ctx, 'skills.append', skill.body, () =>
       appendBlock(skill.body, content),
     )
-    store.update(id, { body: newBody }, editAttribution(ctx, params))
+    store.update(
+      id,
+      { body: newBody, ...(ctx?.tainted ? { tainted: true } : {}) },
+      editAttribution(ctx, params),
+    )
     return { id, length: newBody.length }
   },
 })
@@ -269,7 +277,11 @@ export const skillsReplaceSectionCapability = implement(
         skill.body,
         () => computed.body,
       )
-      store.update(id, { body }, editAttribution(ctx, params))
+      store.update(
+        id,
+        { body, ...(ctx?.tainted ? { tainted: true } : {}) },
+        editAttribution(ctx, params),
+      )
       return { id, replaced: computed.replaced, length: body.length }
     },
   },

@@ -65,10 +65,11 @@ export interface AiTurnRunRequest {
    */
   persist?: boolean
   /**
-   * デバイスが組んだ文脈に他人の内容 (可視ノートなど) が含まれる。true なら
-   * このセッションはこのターンから tainted (#1103)
+   * デバイスが組んだ文脈に他人の内容 (可視ノート / ラベル付きのメモ・skill) が
+   * 含まれる。true ならこのセッションはこのターンから tainted (#1103)。
+   * 関数なら buildSystem の後に評価する (文脈を組んで初めて分かるため)
    */
-  contextUntrusted?: boolean
+  contextUntrusted?: boolean | (() => boolean)
   /**
    * ユーザー入力テキスト (user メッセージとして追加される)。
    * continuation では追加されない (元ターンの user メッセージが履歴に残っている)。
@@ -163,6 +164,8 @@ export interface AiConfirmItem {
   params: Record<string, unknown>
   preview: ConfirmOptions
   allowRemember: boolean
+  /** 宛先が AI の読んだ他人の内容に由来する (プレビューに一文が添えてある) */
+  destinationUntrusted?: boolean
 }
 
 export class AiTurnCancelledError extends Error {
@@ -463,7 +466,10 @@ export function useAiTurn(deps: AiTurnDeps) {
           return commands.aiTurnRun({
             turn_id: turnId,
             session_id: req.persist === false ? null : req.sessionId,
-            context_untrusted: req.contextUntrusted === true,
+            context_untrusted:
+              typeof req.contextUntrusted === 'function'
+                ? req.contextUntrusted()
+                : req.contextUntrusted === true,
             principal: req.principal,
             account_id: req.accountId ?? null,
             connection_id: req.connectionId,

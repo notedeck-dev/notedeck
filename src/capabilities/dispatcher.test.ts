@@ -2238,4 +2238,48 @@ describe('notecore 発の確認要求 (#1133 縦切り 2)', () => {
       usePermissionsConfig().file.value.confirmSkips['ai.heartbeat'],
     ).toBeUndefined()
   })
+
+  it('previewConfirmation: 宛先が untrusted 由来なら一文を添え、remember を出さない (#1103)', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'notes.create',
+        permissions: ['notes.write'],
+        requiresConfirmation: true,
+        execute: () => 'ok',
+      }),
+    )
+    const preview = await previewConfirmation(
+      'notes.create',
+      { text: 'hi', replyId: 'n1' },
+      ctxWithPreset('full'),
+      { crossAccount: false, destinationUntrusted: true },
+    )
+    expect(preview.needsConfirmation).toBe(true)
+    expect(preview.allowRemember).toBe(false)
+    expect(preview.options?.message).toContain(
+      '宛先は AI が読んだ他人の内容に由来します',
+    )
+    expect(preview.options?.rememberLabel).toBeUndefined()
+  })
+
+  it('dispatch の tainted / markTainted は capability の ctx に届く (#1103)', async () => {
+    let seen: { tainted?: boolean; marked: boolean } = { marked: false }
+    registerCapability(
+      makeCapability({
+        id: 'memos.list',
+        execute: (_p, ctx) => {
+          ctx?.markTainted?.()
+          seen = { tainted: ctx?.tainted, marked: true }
+          return []
+        },
+      }),
+    )
+    const mark = vi.fn()
+    await dispatchCapability('memos.list', undefined, ctxWithPreset('full'), {
+      tainted: true,
+      markTainted: mark,
+    })
+    expect(seen).toEqual({ tainted: true, marked: true })
+    expect(mark).toHaveBeenCalledOnce()
+  })
 })

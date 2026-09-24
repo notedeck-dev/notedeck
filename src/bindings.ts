@@ -3109,7 +3109,11 @@ confirm?: boolean;
 /**
  * 結果に他人の内容を含みうるか (デバイス側の申告。宣言表の `untrusted` と同じ意味)
  */
-untrusted?: boolean }
+untrusted?: boolean; 
+/**
+ * 書き込みの宛先になる引数 (宣言表の `destinations` と同じ意味)
+ */
+destinations?: string[] }
 /**
  * broadcast チャネルの絵文字辞書変更の種別。
  */

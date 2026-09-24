@@ -76,6 +76,10 @@ export interface DispatchOptions {
    * 権限検査と preflight は写しとして通す。
    */
   preConfirmed?: boolean
+  /** 呼び出し元のセッションが tainted (notecore の判定) */
+  tainted?: boolean
+  /** 返す内容にラベル付きのメモ / skill が含まれる申告の受け口 */
+  markTainted?: () => void
 }
 
 /** notecore の確認要求に同梱する内容 (`ai/confirm-preview` の応答) */
@@ -223,6 +227,8 @@ export async function dispatchCapability(
     ...(ctx.accountId ? { accountId: ctx.accountId } : {}),
     // 内側の判定 (tasks.run / plugin handler) にも連鎖を渡す (#1099)
     ...(ctx.onBehalfOf?.length ? { onBehalfOf: ctx.onBehalfOf } : {}),
+    ...(options?.tainted ? { tainted: true } : {}),
+    ...(options?.markTainted ? { markTainted: options.markTainted } : {}),
   }
   // 確認ダイアログ (write 系などで requiresConfirmation: true)。
   // クロスアカウント実行は requiresConfirmation 未宣言でも必ず確認する。
@@ -573,7 +579,7 @@ export async function previewConfirmation(
   capabilityId: string,
   params: Record<string, unknown> | undefined,
   ctx: DispatchContext,
-  opts: { crossAccount: boolean },
+  opts: { crossAccount: boolean; destinationUntrusted?: boolean },
 ): Promise<ConfirmPreview> {
   await whenPermissionsReady()
   const cap =
@@ -593,14 +599,28 @@ export async function previewConfirmation(
     crossAccountId,
   })
   if (!prepared) return { needsConfirmation: false, allowRemember: false }
+  // 宛先が AI の読んだ他人の内容に由来する (#1103): 旗は足さず、一文だけ添える。
+  // 「次から確認しない」の対象外
+  if (opts.destinationUntrusted) {
+    const line = DESTINATION_UNTRUSTED_NOTE
+    prepared.confirmOpts.message = prepared.confirmOpts.message
+      ? `${prepared.confirmOpts.message}\n${line}`
+      : line
+    delete prepared.confirmOpts.rememberLabel
+  }
   return {
     needsConfirmation: true,
     options: prepared.confirmOpts,
     allowRemember:
       !opts.crossAccount &&
+      !opts.destinationUntrusted &&
       (prepared.skipScope !== null || Boolean(cap.onConfirmRemember)),
   }
 }
+
+/** 宛先の出所が untrusted なときに確認に添える一文 (#1103) */
+export const DESTINATION_UNTRUSTED_NOTE =
+  '宛先は AI が読んだ他人の内容に由来します。'
 
 /**
  * 確認要求で「次から確認しない」が ON のまま許可された (#1133)。dispatcher の

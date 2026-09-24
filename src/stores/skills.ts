@@ -59,6 +59,11 @@ export interface SkillMeta {
   /** スキル個別アイコン URL (MisStore registry の iconUrl 互換) */
   iconUrl?: string
   /**
+   * tainted なセッション (他人の内容を読んだ後の AI) が書いた (#1103)。
+   * 一度付いたら外れない。注入 / 読取したセッションを tainted にする
+   */
+  tainted?: boolean
+  /**
    * HEARTBEAT Cheap Check First (#411): tick 開始時に呼んで「変化検知」
    * に使う capability id 配列。指定された capability は cheap=true な
    * もののみ受け入れられる (重い API は無視)。
@@ -120,6 +125,7 @@ interface SkillFrontmatter {
   iconUrl?: string
   cheapCheckCapabilities?: string[]
   isPersona?: boolean
+  tainted?: boolean
 }
 
 function asArray(v: unknown): string[] {
@@ -150,6 +156,7 @@ function frontmatterFromMeta(skill: SkillMeta): Record<string, unknown> {
     out.cheapCheckCapabilities = skill.cheapCheckCapabilities
   }
   if (skill.isPersona) out.isPersona = true
+  if (skill.tainted) out.tainted = true
   return out
 }
 
@@ -185,6 +192,7 @@ function metaFromFrontmatter(
     iconUrl: fm.iconUrl,
     cheapCheckCapabilities: asArray(fm.cheapCheckCapabilities),
     isPersona: !!fm.isPersona,
+    ...(fm.tainted === true ? { tainted: true } : {}),
   }
 }
 
@@ -308,10 +316,11 @@ export const useSkillsStore = defineStore('skills', () => {
    * - `excludePersonaSkillsExcept`: 指定 id 以外の `isPersona: true` skill を
    *   除外 (= 複数 always-persona があるとき session の persona 以外を抑制)
    */
-  function composedSystemPrompt(
+  /** system prompt に合流する skill (composedSystemPrompt と同じ選び方) */
+  function composedSkills(
     extraSkillIds: readonly string[] = [],
     excludePersonaSkillsExcept?: string,
-  ): string {
+  ): SkillMeta[] {
     const set = new Set(effectiveActiveIds.value)
     for (const id of extraSkillIds) set.add(id)
     return skills.value
@@ -321,9 +330,29 @@ export const useSkillsStore = defineStore('skills', () => {
         if (!s.isPersona) return true
         return s.id === excludePersonaSkillsExcept
       })
+  }
+
+  function composedSystemPrompt(
+    extraSkillIds: readonly string[] = [],
+    excludePersonaSkillsExcept?: string,
+  ): string {
+    return composedSkills(extraSkillIds, excludePersonaSkillsExcept)
       .map((s) => s.body.trim())
       .filter((b) => b.length > 0)
       .join('\n\n')
+  }
+
+  /**
+   * system prompt に合流する skill にラベル付き (tainted) が含まれるか (#1103)。
+   * 含まれるなら、そのターンのセッションは文脈から tainted になる
+   */
+  function composedSkillsTainted(
+    extraSkillIds: readonly string[] = [],
+    excludePersonaSkillsExcept?: string,
+  ): boolean {
+    return composedSkills(extraSkillIds, excludePersonaSkillsExcept).some(
+      (s) => s.tainted === true && s.body.trim().length > 0,
+    )
   }
 
   /** ファイルへの直接反映 (初期化・seed 用。通常経路は ready ゲート越し)。 */
@@ -639,6 +668,7 @@ export const useSkillsStore = defineStore('skills', () => {
     isActive,
     setActive,
     composedSystemPrompt,
+    composedSkillsTainted,
     get,
     add,
     update,

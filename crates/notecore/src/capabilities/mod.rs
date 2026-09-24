@@ -98,6 +98,8 @@ pub struct CapabilityDecl {
     /// 結果に他人の内容 (投稿 / プロフィール / 通知 / fetch 結果) を含みうる読取。
     /// 読んだセッションは以後 tainted (#1103 / #1133)
     pub untrusted: bool,
+    /// 書き込みの宛先になる引数 (返信先 / 対象ユーザー / URL)。値の出所を判定する
+    pub destinations: &'static [&'static str],
     pub exec: Exec,
     pub description: &'static str,
     pub params: &'static [ParamDecl],
