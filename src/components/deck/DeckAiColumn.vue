@@ -483,6 +483,7 @@ async function sendMessage(
   const visibleNotesRaw = focusedColumnId
     ? deckStore.visibleNotesByColumn[focusedColumnId]
     : undefined
+  const visibleItems = projectVisibleItems(visibleNotesRaw, focusedColumn?.type)
 
   const outcome = await turn.run({
     sessionId,
@@ -496,6 +497,8 @@ async function sendMessage(
     continuation,
     // 入力途中の空欄・範囲外がそのまま送られないよう、使う直前に必ず通す
     generation: normalizeGenerationConfig(aiConfig.value.generation),
+    // 可視ノート (他人の投稿) を文脈に入れるなら、このセッションは tainted (#1103)
+    contextUntrusted: visibleItems.length > 0,
     generateTitle: true,
     onTitle: (title) => {
       const cur = sessionsStore.get(sessionId)
@@ -530,7 +533,7 @@ async function sendMessage(
           ? (accountsStore.accountMap.get(props.column.accountId) ?? null)
           : null,
         currentColumn: focusedColumn ?? props.column,
-        visibleNotes: projectVisibleItems(visibleNotesRaw, focusedColumn?.type),
+        visibleNotes: visibleItems,
         recentConversation: projectRecentConversation(history),
         memos: projectMemos(memoEntries, {
           excludeTags: memosCfg?.excludeTags,
@@ -592,11 +595,7 @@ async function appendAiSetupRequiredError(text: string): Promise<void> {
     content: AI_SETUP_REQUIRED_MESSAGE,
     timestamp: now,
   }
-  sessionsStore.updateMessages(sessionId, [
-    ...before.messages,
-    userMsg,
-    errorMsg,
-  ])
+  sessionsStore.appendMessages(sessionId, [userMsg, errorMsg])
   if (!before.title) {
     sessionsStore.setTitle(sessionId, timestampTitle(new Date(now)))
   }
@@ -622,7 +621,7 @@ async function runSlashAndAppend(text: string): Promise<void> {
     content: text,
     timestamp: now,
   }
-  sessionsStore.updateMessages(sessionId, [...before.messages, userMsg])
+  sessionsStore.appendMessages(sessionId, [userMsg])
   if (!before.title) {
     sessionsStore.setTitle(sessionId, timestampTitle(new Date(now)))
   }
@@ -655,13 +654,8 @@ async function runSlashAndAppend(text: string): Promise<void> {
     toolResultFor: result.slashUseId,
   }
 
-  const cur = sessionsStore.get(sessionId)
-  if (!cur) return
-  sessionsStore.updateMessages(sessionId, [
-    ...cur.messages,
-    assistantToolUse,
-    toolResultMsg,
-  ])
+  if (!sessionsStore.get(sessionId)) return
+  sessionsStore.appendMessages(sessionId, [assistantToolUse, toolResultMsg])
   // Slash 専用セッションには「/<cmd> の実行」形式でタイトルを付ける (#484)。
   // AI を呼ばないので入力テキスト先頭トークン (= /cmd 部分) から決定論的に命名。
   // ユーザーが手動 rename している場合 (= timestamp 形式でない) は触らない。

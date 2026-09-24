@@ -7,6 +7,7 @@ import {
 } from '@/capabilities/deviceTools'
 import { listCapabilities } from '@/capabilities/registry'
 import type { ChatMessage } from '@/composables/useAiChat'
+import { messageFromWire } from '@/services/aiSessionCodec'
 import { useAiActivity } from '@/stores/aiActivity'
 import type { ConfirmOptions } from '@/stores/confirm'
 import { extractErrorMessage } from '@/utils/errors'
@@ -33,10 +34,21 @@ import { cancelTurnExecutions } from './aiTurnExecutions'
  * dispatcher (確認 UI 込み) を走らせる。
  */
 
-/** session store の必要最小面 (useAiSessionsStore の部分型) */
+/**
+ * session store の必要最小面 (useAiSessionsStore の部分型)。
+ *
+ * 確定したメッセージは notecore が書く (#1133 縦切り 3)。ここが触るのは
+ * 表示用の写しだけ (`setLocalMessages`) で、ターンの終わりに `reload` で
+ * notecore の内容に揃える。失敗ターンの再試行だけは削除操作を送る。
+ */
 export interface AiTurnSessionPort {
   get(id: string): { title: string; messages: ChatMessage[] } | undefined
-  updateMessages(id: string, messages: ChatMessage[]): void
+  /** 写しだけを差し替える (notecore には書かない) */
+  setLocalMessages(id: string, messages: ChatMessage[]): void
+  /** 確定分を notecore から読み直して写しを揃える */
+  reload(id: string): Promise<void>
+  /** メッセージを id で取り除く (notecore にも送る) */
+  removeMessages(id: string, messageIds: readonly string[]): void
 }
 
 export interface AiTurnDeps {
@@ -47,6 +59,16 @@ export interface AiTurnDeps {
 
 export interface AiTurnRunRequest {
   sessionId: string
+  /**
+   * false なら notecore はセッションに書かない (HEARTBEAT の使い捨て履歴)。
+   * 省略時 true。
+   */
+  persist?: boolean
+  /**
+   * デバイスが組んだ文脈に他人の内容 (可視ノートなど) が含まれる。true なら
+   * このセッションはこのターンから tainted (#1103)
+   */
+  contextUntrusted?: boolean
   /**
    * ユーザー入力テキスト (user メッセージとして追加される)。
    * continuation では追加されない (元ターンの user メッセージが履歴に残っている)。
@@ -130,6 +152,8 @@ export interface AiTurnEventPayload {
   confirm_items?: AiConfirmItem[]
   expires_at_ms?: number
   reason?: 'decided' | 'cancelled' | 'expired_absolute' | 'expired_display'
+  /** notecore がセッションに書いたメッセージの id (写しの id をこれに揃える) */
+  message_id?: string
 }
 
 /** notecore の確認要求 1 項目 (`confirm_items` の要素) */
@@ -150,6 +174,11 @@ export class AiTurnCancelledError extends Error {
 
 function generateTurnId(): string {
   return `ai-turn-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/** ユーザー入力のメッセージ id。notecore と同じ規則 (`<turn>-u`) */
+export function userMessageId(turnId: string): string {
+  return `${turnId}-u`
 }
 
 function toReadTimeoutMs(seconds: number | undefined): number | null {
@@ -175,7 +204,7 @@ export function useAiTurn(deps: AiTurnDeps) {
 
   let activeTurnId: string | null = null
   let activeUnlisten: UnlistenFn | null = null
-  let activeCancel: (() => void) | null = null
+  let activeCancel: ((partial: ChatMessage | null) => void) | null = null
   let endActivity: (() => void) | null = null
 
   function cleanup() {
@@ -202,12 +231,16 @@ export function useAiTurn(deps: AiTurnDeps) {
     if (!id) return
     cancelTurnExecutions(id)
     closeConfirmRequestsForTurn(id)
-    settle?.()
+    // notecore が途中までの応答をセッションに書いて返す。それを写しに反映して
+    // から settle する (返る前に settle すると placeholder が消えた後に届く)
+    let partial: ChatMessage | null = null
     try {
-      unwrap(await commands.aiTurnCancel(id))
+      const written = unwrap(await commands.aiTurnCancel(id))
+      if (written) partial = messageFromWire(written)
     } catch (e) {
       console.warn('[ai-turn] cancel failed:', e)
     }
+    settle?.(partial)
   }
 
   async function run(req: AiTurnRunRequest): Promise<AiTurnOutcome> {
@@ -217,17 +250,22 @@ export function useAiTurn(deps: AiTurnDeps) {
     const now = Date.now()
     const before = deps.sessions.get(req.sessionId)
     if (!before) return { status: 'aborted' }
+    const turnId = generateTurnId()
 
+    // ユーザー入力は notecore が書く (id は両側で同じ規則)。写しには先に出す
     let userMsgId: string | undefined
     if (!req.continuation) {
       const userMsg: ChatMessage = {
-        id: `msg-${now}-u`,
+        id: userMessageId(turnId),
         role: 'user',
         content: req.text,
         timestamp: now,
       }
       userMsgId = userMsg.id
-      deps.sessions.updateMessages(req.sessionId, [...before.messages, userMsg])
+      deps.sessions.setLocalMessages(req.sessionId, [
+        ...before.messages,
+        userMsg,
+      ])
       deps.onUpdate?.()
     }
 
@@ -238,14 +276,14 @@ export function useAiTurn(deps: AiTurnDeps) {
     )
 
     const placeholder: ChatMessage = {
-      id: `msg-${now}-a`,
+      id: `${turnId}-placeholder`,
       role: 'assistant',
       content: '',
       timestamp: now,
     }
     const afterUser = deps.sessions.get(req.sessionId)
     if (!afterUser) return { status: 'aborted' }
-    deps.sessions.updateMessages(req.sessionId, [
+    deps.sessions.setLocalMessages(req.sessionId, [
       ...afterUser.messages,
       placeholder,
     ])
@@ -262,11 +300,9 @@ export function useAiTurn(deps: AiTurnDeps) {
     endActivity = activity.begin('running')
     activity.pulse('jumping')
 
-    const turnId = generateTurnId()
     activeTurnId = turnId
     let placeholderId = placeholder.id
     let toolExecuted = req.continuation === true
-    let roundIndex = 0
 
     const getSession = () => deps.sessions.get(req.sessionId)
     const replaceLast = (
@@ -277,7 +313,8 @@ export function useAiTurn(deps: AiTurnDeps) {
       const last = cur.messages[cur.messages.length - 1]
       if (last?.role !== 'assistant' || last.id !== placeholderId) return
       const next = patch(last)
-      deps.sessions.updateMessages(
+      if (next) placeholderId = next.id
+      deps.sessions.setLocalMessages(
         req.sessionId,
         next ? [...cur.messages.slice(0, -1), next] : cur.messages.slice(0, -1),
       )
@@ -297,11 +334,20 @@ export function useAiTurn(deps: AiTurnDeps) {
       const finish = (outcome: AiTurnOutcome) => {
         cleanup()
         deps.onUpdate?.()
+        // 確定分は notecore が書いているので、写しを読み直して揃える
+        if (req.persist !== false) void deps.sessions.reload(req.sessionId)
         resolve(outcome)
       }
-      // ユーザー中断: partial をそのまま確定、空 placeholder は残骸として残さない
-      activeCancel = () => {
-        replaceLast((last) => (last.content ? last : null))
+      // ユーザー中断: notecore が書いた partial を写しに載せ、空 placeholder は
+      // 残骸として残さない
+      activeCancel = (partial) => {
+        replaceLast((last) =>
+          partial
+            ? { ...last, id: partial.id, content: partial.content }
+            : last.content
+              ? last
+              : null,
+        )
         recordRetry()
         finish({ status: 'cancelled', wasFirstRound })
       }
@@ -315,10 +361,11 @@ export function useAiTurn(deps: AiTurnDeps) {
             return
           }
           case 'tool_use': {
-            // placeholder を「本文 + tool_use」として確定する
+            // placeholder を「本文 + tool_use」として確定する (id は notecore の)
             if (!p.tool_use_id || !p.tool_use_name) return
             replaceLast((last) => ({
               ...last,
+              id: p.message_id ?? last.id,
               content: p.text ?? last.content,
               timestamp: Date.now(),
               toolUseId: p.tool_use_id,
@@ -331,15 +378,14 @@ export function useAiTurn(deps: AiTurnDeps) {
             // tool_result + 次の placeholder を追加する
             if (!p.tool_use_id) return
             toolExecuted = true
-            roundIndex++
             const cur = getSession()
             if (!cur) return
             const ts = Date.now()
-            const nextPlaceholderId = `msg-${ts}-a${roundIndex}`
-            deps.sessions.updateMessages(req.sessionId, [
+            const nextPlaceholderId = `${turnId}-placeholder-${ts}`
+            deps.sessions.setLocalMessages(req.sessionId, [
               ...cur.messages,
               {
-                id: `msg-${ts}-r${roundIndex}`,
+                id: p.message_id ?? `${turnId}-r-${ts}`,
                 role: 'user',
                 content: p.text ?? '',
                 timestamp: ts,
@@ -359,9 +405,10 @@ export function useAiTurn(deps: AiTurnDeps) {
           case 'done': {
             const finalText = p.text ?? ''
             replaceLast((last) =>
-              last.content === finalText
-                ? last
-                : { ...last, content: finalText },
+              finalText
+                ? { ...last, id: p.message_id ?? last.id, content: finalText }
+                : // 本文なし (tool だけで完結) は notecore も書かない
+                  null,
             )
             activity.pulse('waving')
             finish({ status: 'done', finalText, wasFirstRound })
@@ -371,9 +418,10 @@ export function useAiTurn(deps: AiTurnDeps) {
             activity.pulse('failed')
             console.error('[ai-turn] error event:', p.error)
             const message = p.error ?? '不明なエラー'
-            // mid-stream 切断 (#508): placeholder に途中までの応答が入っていれば温存
+            // mid-stream 切断 (#508): 途中までの応答は温存 (notecore も同じ本文を書く)
             replaceLast((last) => ({
               ...last,
+              id: p.message_id ?? last.id,
               content: last.content
                 ? `${last.content}\n\n⚠️ ${message}`
                 : `⚠️ ${message}`,
@@ -414,7 +462,8 @@ export function useAiTurn(deps: AiTurnDeps) {
           activeUnlisten = un
           return commands.aiTurnRun({
             turn_id: turnId,
-            session_id: req.sessionId,
+            session_id: req.persist === false ? null : req.sessionId,
+            context_untrusted: req.contextUntrusted === true,
             principal: req.principal,
             account_id: req.accountId ?? null,
             connection_id: req.connectionId,
@@ -460,12 +509,11 @@ export function useAiTurn(deps: AiTurnDeps) {
     retryContext.value = null
     const cur = deps.sessions.get(r.sessionId)
     if (!cur) return null
-    const removeIds =
+    const removeIds = (
       r.mode === 'resend' ? [r.userMsgId, r.placeholderId] : [r.placeholderId]
-    deps.sessions.updateMessages(
-      r.sessionId,
-      cur.messages.filter((m) => !removeIds.includes(m.id)),
-    )
+    ).filter((id): id is string => typeof id === 'string')
+    // 失敗ターンの残骸は notecore が書いているので削除操作を送る
+    deps.sessions.removeMessages(r.sessionId, removeIds)
     return { mode: r.mode, text: r.userText }
   }
 

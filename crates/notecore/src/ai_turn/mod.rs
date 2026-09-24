@@ -15,16 +15,22 @@
 //!
 //! - 確認の要否の判定と確認要求の発行 (縦切り 2、`confirm.rs`)。要る操作は
 //!   チェックポイント (`checkpoint.rs`) に turn を書いて解放し、応答で再開する
+//! - セッションの書込 (縦切り 3、`ai_sessions`): ユーザー入力 / tool_use /
+//!   tool_result / 最終応答 / 失敗 / 中断の partial を notecore が書く。デバイスは
+//!   イベントの `message_id` で自分の写しを揃える
+//! - 汚染の記録 (縦切り 3、`taint.rs`): `untrusted` な capability の結果や
+//!   デバイスが申告した文脈を読んだセッションは tainted になり、書き込みは
+//!   「次から確認しない」を無視して確認する
 //!
 //! やらないこと (後続の縦切り): capability 本体の実行 (全件をデバイスへの
-//! 実行要求にする)、確認内容の組み立て (デバイスの capability 実装)、
-//! セッションの書込 (デバイスがイベントを store に投影する)。
+//! 実行要求にする)、確認内容の組み立て (デバイスの capability 実装)。
 //!
 //! provider とデバイスは trait で受けるので、WebView なしのハーネス (偽 provider
 //! + 偽デバイス) で同じループが走る (テスト参照)。
 
 pub mod checkpoint;
 pub mod confirm;
+pub mod taint;
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -41,6 +47,7 @@ use tokio::task::JoinHandle;
 use crate::ai_chat_service::{
     self, AiChatEvent, AiChatMessage, AiChatRequest, AiChatRole, AiChatSink, ResolvedConnection,
 };
+use crate::ai_sessions::{self, SessionMessage};
 use crate::capabilities;
 use crate::error::Result;
 use crate::frontend_bridge::FrontendBridge;
@@ -88,13 +95,16 @@ pub struct DeviceTool {
     /// 実行前に確認が要りうるか (plugin の `requiresConfirmation`)
     #[serde(default)]
     pub confirm: bool,
+    /// 結果に他人の内容を含みうるか (デバイス側の申告。宣言表の `untrusted` と同じ意味)
+    #[serde(default)]
+    pub untrusted: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Type, Default)]
 pub struct AiTurnRequest {
     pub turn_id: String,
-    /// イベントの帰属先。この段階ではデバイスが store への投影に使うだけ
-    pub session_id: String,
+    /// 書込先のセッション。None = 永続化しない (HEARTBEAT の使い捨て履歴)
+    pub session_id: Option<String>,
     /// `ai.chat` | `ai.heartbeat`
     pub principal: String,
     /// 呼び出し文脈のアカウント (per-account の AI カラム)。無ければ None
@@ -117,6 +127,10 @@ pub struct AiTurnRequest {
     /// 書けない値 (カラム種別など) をデバイスが足す
     pub tool_param_enums: Option<Value>,
     pub device_tools: Vec<DeviceTool>,
+    /// デバイスが組んだ文脈に他人の内容 (可視ノートなど) が含まれる。
+    /// true ならこのセッションはこのターンから tainted
+    #[serde(default)]
+    pub context_untrusted: bool,
 }
 
 /// `nd:ai-turn-event` の wire 形。specta 用に flat。
@@ -160,6 +174,10 @@ pub struct AiTurnEvent {
     /// confirm_closed: `decided` | `cancelled` | `expired_absolute` | `expired_display`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    /// tool_use / tool_result / done / error: notecore がセッションに書いた
+    /// メッセージの id (デバイスは写しの id をこれに揃える)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message_id: Option<String>,
 }
 
 impl AiTurnEvent {
@@ -179,7 +197,55 @@ impl AiTurnEvent {
             confirm_items: None,
             expires_at_ms: None,
             reason: None,
+            message_id: None,
         }
+    }
+}
+
+/// セッションのメッセージ id は turn id から決定的に振る。デバイスはユーザー
+/// 入力の id (`<turn>-u`) を同じ規則で先に作って表示する。
+pub fn user_message_id(turn_id: &str) -> String {
+    format!("{turn_id}-u")
+}
+fn assistant_message_id(turn_id: &str, rounds: u32) -> String {
+    format!("{turn_id}-a{rounds}")
+}
+fn tool_use_message_id(turn_id: &str, rounds: u32, i: usize) -> String {
+    format!("{turn_id}-a{rounds}-{i}")
+}
+fn tool_result_message_id(turn_id: &str, rounds: u32, i: usize) -> String {
+    format!("{turn_id}-r{rounds}-{i}")
+}
+
+/// セッションの書き手 (本番はファイル、テストはメモリ)。
+pub trait SessionSink: Send + Sync + 'static {
+    fn append(&self, session_id: &str, messages: Vec<SessionMessage>) -> Result<()>;
+}
+
+/// `notedeck/sessions/` に書く本番実装。
+pub struct FileSessions(pub PathBuf);
+
+impl SessionSink for FileSessions {
+    fn append(&self, session_id: &str, messages: Vec<SessionMessage>) -> Result<()> {
+        ai_sessions::append(&self.0, session_id, messages).map(|_| ())
+    }
+}
+
+fn session_message(id: String, role: &str, content: String) -> SessionMessage {
+    SessionMessage {
+        id,
+        role: role.into(),
+        content,
+        timestamp: ai_sessions::now_ms(),
+        ..Default::default()
+    }
+}
+
+/// セッションへ書く (書込先が無ければ何もしない)。失敗は warn (ターンは止めない)。
+fn persist(rt: &TurnRuntime, session_id: Option<&str>, messages: Vec<SessionMessage>) {
+    let Some(sid) = session_id else { return };
+    if let Err(e) = rt.sessions.append(sid, messages) {
+        tracing::warn!(session_id = sid, "ai session write failed: {e}");
     }
 }
 
@@ -269,24 +335,32 @@ struct ToolUse {
 struct RoundSink {
     turn_id: String,
     sink: Arc<dyn AiTurnSink>,
-    text: Mutex<String>,
+    /// 中断時に partial を書けるよう、本文は台帳と共有する
+    live: Arc<Mutex<LiveText>>,
     tool_uses: Mutex<Vec<ToolUse>>,
 }
 
+/// 進行中ラウンドの本文 (中断で partial をセッションに書くために台帳が見る)。
+#[derive(Default)]
+struct LiveText {
+    text: String,
+    /// この本文が属する assistant メッセージの id
+    message_id: String,
+    session_id: Option<String>,
+}
+
 impl RoundSink {
-    fn new(turn_id: &str, sink: Arc<dyn AiTurnSink>) -> Self {
+    fn new(turn_id: &str, sink: Arc<dyn AiTurnSink>, live: Arc<Mutex<LiveText>>) -> Self {
         Self {
             turn_id: turn_id.to_string(),
             sink,
-            text: Mutex::new(String::new()),
+            live,
             tool_uses: Mutex::new(Vec::new()),
         }
     }
     fn take(self) -> (String, Vec<ToolUse>) {
-        (
-            self.text.into_inner().unwrap_or_default(),
-            self.tool_uses.into_inner().unwrap_or_default(),
-        )
+        let text = self.live.lock().map(|l| l.text.clone()).unwrap_or_default();
+        (text, self.tool_uses.into_inner().unwrap_or_default())
     }
 }
 
@@ -295,8 +369,8 @@ impl AiChatSink for RoundSink {
         match event.kind.as_str() {
             "delta" => {
                 let Some(text) = event.text else { return };
-                if let Ok(mut buf) = self.text.lock() {
-                    buf.push_str(&text);
+                if let Ok(mut live) = self.live.lock() {
+                    live.text.push_str(&text);
                 }
                 let mut e = AiTurnEvent::new(&self.turn_id, "delta");
                 e.text = Some(text);
@@ -415,6 +489,8 @@ struct ResolvedTool {
     /// 宣言の「確認が要りうる」
     confirm: bool,
     acts_as_account: bool,
+    /// 結果に他人の内容を含みうる (読んだセッションを tainted にする)
+    untrusted: bool,
 }
 
 /// principal に見せてよい tool 一覧 (provider 形式) と、名前 → 認可情報の表。
@@ -441,6 +517,7 @@ fn build_tools(
                 permissions: d.permissions.iter().map(|p| p.to_string()).collect(),
                 confirm: d.confirm,
                 acts_as_account: d.acts_as_account,
+                untrusted: d.untrusted,
             },
         );
     }
@@ -462,6 +539,7 @@ fn build_tools(
                 permissions: t.permissions.clone(),
                 confirm: t.confirm,
                 acts_as_account: false,
+                untrusted: t.untrusted,
             },
         );
     }
@@ -653,6 +731,9 @@ pub struct PendingToolUse {
     pub needs_confirm: bool,
     /// 確認の結果。None = 未決 (needs_confirm のとき) / 不要
     pub decision: Option<bool>,
+    /// 結果を読むとセッションが tainted になる
+    #[serde(default)]
+    pub untrusted: bool,
 }
 
 /// turn の状態。確認で停止するときはこれをチェックポイントに書き、応答で
@@ -700,6 +781,8 @@ pub struct TurnRuntime {
     /// チェックポイントの置き場
     pub store_dir: PathBuf,
     pub policy: confirm::ConfirmPolicy,
+    pub sessions: Arc<dyn SessionSink>,
+    pub taint: Arc<dyn taint::TaintStore>,
 }
 
 /// クロスアカウント実行か (#777): actsAsAccount 付き capability で、呼び出し
@@ -727,6 +810,11 @@ async fn prepare_pending(
 ) -> Vec<PendingToolUse> {
     let granted = rt.granted.granted().await;
     let unattended = req.principal == "ai.heartbeat";
+    // tainted なセッション (#1103): 「次から確認しない」を無視して必ず確認する
+    let tainted = match req.session_id.as_deref() {
+        Some(sid) => rt.taint.is_tainted(sid).await,
+        None => false,
+    };
     let mut out = Vec::with_capacity(tool_uses.len());
     for tu in tool_uses {
         let mut p = PendingToolUse {
@@ -737,14 +825,16 @@ async fn prepare_pending(
             capability_id: None,
             needs_confirm: false,
             decision: None,
+            untrusted: false,
         };
         match authorize(&p.name, index, &granted) {
             Err(text) => p.deny = Some(text),
             Ok(tool) => {
                 p.capability_id = Some(tool.capability_id.clone());
+                p.untrusted = tool.untrusted;
                 let cross = is_cross_account(tool, &p.input, req.account_id.as_deref());
                 let mut needs = tool.confirm || cross;
-                if needs && !cross {
+                if needs && !cross && !tainted {
                     // 「次から確認しない」(権限ファイルへの減算) を尊重する
                     if rt.skips.skipped(CHAT_SKIP_SCOPE, &tool.capability_id).await {
                         needs = false;
@@ -786,6 +876,7 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
                     permissions: Vec::new(),
                     confirm: true,
                     acts_as_account: true,
+                    untrusted: false,
                 },
                 &p.input,
                 state.req.account_id.as_deref(),
@@ -857,11 +948,16 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
         } else {
             String::new()
         };
+        // ラウンド番号は本文 (assistant_message_id) と同じ 0 始まり
+        let round = state.rounds.saturating_sub(1);
+        let tool_use_msg_id = tool_use_message_id(&turn_id, round, i);
+        let tool_result_msg_id = tool_result_message_id(&turn_id, round, i);
         let mut e = AiTurnEvent::new(&turn_id, "tool_use");
         e.text = Some(assistant_text.clone());
         e.tool_use_id = Some(tu.id.clone());
         e.tool_use_name = Some(tu.name.clone());
         e.tool_use_input = Some(tu.input.clone());
+        e.message_id = Some(tool_use_msg_id.clone());
         rt.sink.emit(e);
 
         let (result, is_error) = if let Some(deny) = tu.deny.clone() {
@@ -897,11 +993,37 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
                 .await;
             result_text(outcome)
         };
+        if !is_error && tu.untrusted {
+            // 他人の内容を読んだ: 以後このセッションは tainted (ターンで消えない)
+            if let Some(sid) = state.req.session_id.as_deref() {
+                rt.taint
+                    .mark(sid, tu.capability_id.as_deref().unwrap_or(&tu.name))
+                    .await;
+            }
+        }
         let mut e = AiTurnEvent::new(&turn_id, "tool_result");
         e.tool_use_id = Some(tu.id.clone());
         e.text = Some(result.clone());
         e.is_error = Some(is_error);
+        e.message_id = Some(tool_result_msg_id.clone());
         rt.sink.emit(e);
+
+        persist(
+            rt,
+            state.req.session_id.as_deref(),
+            vec![
+                SessionMessage {
+                    tool_use_id: Some(tu.id.clone()),
+                    tool_use_name: Some(tu.name.clone()),
+                    tool_use_input: Some(tu.input.clone()),
+                    ..session_message(tool_use_msg_id, "assistant", assistant_text.clone())
+                },
+                SessionMessage {
+                    tool_result_for: Some(tu.id.clone()),
+                    ..session_message(tool_result_msg_id, "user", result.clone())
+                },
+            ],
+        );
 
         state.messages.push(AiChatMessage {
             role: AiChatRole::Assistant,
@@ -928,6 +1050,12 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
 /// `confirm::respond` が `spawn_drive` で行う)。
 pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
     let turn_id = state.req.turn_id.clone();
+    let live = live_text_of(&turn_id);
+    if state.req.context_untrusted {
+        if let Some(sid) = state.req.session_id.as_deref() {
+            rt.taint.mark(sid, "context").await;
+        }
+    }
     let (tools, index) = build_tools(
         &state.req,
         rt.provider.protocol(),
@@ -938,8 +1066,26 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
     let stop_reason = loop {
         if state.pending.is_empty() {
             let round_req = round_request(&state.req, state.rounds, &state.messages, &tools);
-            let round_sink = RoundSink::new(&turn_id, rt.sink.clone());
+            let message_id = assistant_message_id(&turn_id, state.rounds);
+            if let Ok(mut l) = live.lock() {
+                l.text.clear();
+                l.message_id = message_id.clone();
+                l.session_id = state.req.session_id.clone();
+            }
+            let round_sink = RoundSink::new(&turn_id, rt.sink.clone(), live.clone());
             if let Err(message) = rt.provider.run(&round_req, &round_sink).await {
+                // mid-stream の切断: 途中までの応答は温存して ⚠️ を添える
+                let partial = round_sink.take().0;
+                let content = if partial.is_empty() {
+                    format!("⚠️ {message}")
+                } else {
+                    format!("{partial}\n\n⚠️ {message}")
+                };
+                persist(
+                    &rt,
+                    state.req.session_id.as_deref(),
+                    vec![session_message(message_id.clone(), "assistant", content)],
+                );
                 let mut e = AiTurnEvent::new(&turn_id, "error");
                 e.error = Some(message);
                 e.phase = Some(
@@ -950,6 +1096,7 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                     }
                     .into(),
                 );
+                e.message_id = Some(message_id);
                 rt.sink.emit(e);
                 checkpoint::close(&rt.store_dir, &turn_id, "error");
                 return;
@@ -1006,9 +1153,22 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
         state.round_text.clear();
     };
 
+    let final_id = assistant_message_id(&turn_id, state.rounds);
+    if !state.final_text.is_empty() {
+        persist(
+            &rt,
+            state.req.session_id.as_deref(),
+            vec![session_message(
+                final_id.clone(),
+                "assistant",
+                state.final_text.clone(),
+            )],
+        );
+    }
     let mut e = AiTurnEvent::new(&turn_id, "done");
     e.text = Some(state.final_text.clone());
     e.stop_reason = Some(stop_reason.into());
+    e.message_id = Some(final_id);
     rt.sink.emit(e);
     checkpoint::close(&rt.store_dir, &turn_id, "done");
 
@@ -1025,26 +1185,55 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
 
 // --- 台帳 (中断用) ---
 
-fn active_turns() -> &'static Mutex<HashMap<String, JoinHandle<()>>> {
-    static TURNS: OnceLock<Mutex<HashMap<String, JoinHandle<()>>>> = OnceLock::new();
+struct ActiveTurn {
+    handle: JoinHandle<()>,
+    /// 進行中ラウンドの本文 (中断で partial を書くため)
+    live: Arc<Mutex<LiveText>>,
+    sessions: Arc<dyn SessionSink>,
+}
+
+fn active_turns() -> &'static Mutex<HashMap<String, ActiveTurn>> {
+    static TURNS: OnceLock<Mutex<HashMap<String, ActiveTurn>>> = OnceLock::new();
     TURNS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// 台帳に登録済みの live (再開でも同じものを使う)。未登録なら新規。
+fn live_text_of(turn_id: &str) -> Arc<Mutex<LiveText>> {
+    active_turns()
+        .lock()
+        .ok()
+        .and_then(|t| t.get(turn_id).map(|a| a.live.clone()))
+        .unwrap_or_default()
 }
 
 /// turn を background task で走らせ、台帳に登録する (開始と再開の両方)。
 pub(crate) fn spawn_drive(rt: Arc<TurnRuntime>, state: TurnState) {
     let turn_id = state.req.turn_id.clone();
     let turn_id_for_task = turn_id.clone();
+    let live = Arc::new(Mutex::new(LiveText::default()));
+    let sessions = rt.sessions.clone();
+    // drive は台帳から live を引くので、先に登録してから起動する
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     let handle = tokio::spawn(async move {
+        let _ = rx.await;
         drive(rt, state).await;
         if let Ok(mut turns) = active_turns().lock() {
             turns.remove(&turn_id_for_task);
         }
     });
     if let Ok(mut turns) = active_turns().lock() {
-        if let Some(prev) = turns.insert(turn_id, handle) {
-            prev.abort();
+        if let Some(prev) = turns.insert(
+            turn_id,
+            ActiveTurn {
+                handle,
+                live,
+                sessions,
+            },
+        ) {
+            prev.handle.abort();
         }
     }
+    let _ = tx.send(());
 }
 
 /// ターンを開始する。入力検証と接続解決はここで行い (エラーは呼び出し元へ)、
@@ -1077,7 +1266,29 @@ pub async fn start_turn(
         sink,
         store_dir: checkpoint::dir(app_dir),
         policy: confirm::ConfirmPolicy::default(),
+        sessions: Arc::new(FileSessions(
+            app_dir.join(crate::commands::settings::SETTINGS_DIR),
+        )),
+        taint: Arc::new(taint::FileTaint::new(app_dir)),
     });
+    begin_turn(rt, req)
+}
+
+/// ユーザー入力をセッションに書いてから turn を起動する (書けなければ始めない)。
+pub fn begin_turn(rt: Arc<TurnRuntime>, req: AiTurnRequest) -> Result<()> {
+    if !req.continuation {
+        if let (Some(sid), Some(text)) = (req.session_id.as_deref(), last_user_text(&req.messages))
+        {
+            rt.sessions.append(
+                sid,
+                vec![session_message(
+                    user_message_id(&req.turn_id),
+                    "user",
+                    text.to_string(),
+                )],
+            )?;
+        }
+    }
     spawn_drive(rt, TurnState::new(req));
     Ok(())
 }
@@ -1085,22 +1296,32 @@ pub async fn start_turn(
 /// 進行中のターンを中断する。冪等。イベントは出さない (中断した側が知っている)
 /// が、確認待ちなら要求を cancelled で閉じる。デバイスへ出した実行要求は
 /// 応答待ちごと捨てる。
-pub fn cancel_turn(turn_id: &str) {
-    let handle = active_turns()
+pub fn cancel_turn(turn_id: &str) -> Option<SessionMessage> {
+    let active = active_turns()
         .lock()
         .ok()
         .and_then(|mut t| t.remove(turn_id));
-    if let Some(h) = handle {
-        h.abort();
-    }
     confirm::cancel_for_turn(turn_id);
+    let active = active?;
+    active.handle.abort();
+    // 途中までの応答は温存する (⚠️ は付けない)。空なら何も書かない
+    let live = active.live.lock().ok()?;
+    if live.text.is_empty() {
+        return None;
+    }
+    let sid = live.session_id.clone()?;
+    let msg = session_message(live.message_id.clone(), "assistant", live.text.clone());
+    if let Err(e) = active.sessions.append(&sid, vec![msg.clone()]) {
+        tracing::warn!(session_id = sid, "ai session write on cancel failed: {e}");
+    }
+    Some(msg)
 }
 
 /// 終了処理: 進行中の全ターンと確認待ちを中断する。
 pub fn abort_all_turns() {
     let handles: Vec<JoinHandle<()>> = active_turns()
         .lock()
-        .map(|mut t| t.drain().map(|(_, h)| h).collect())
+        .map(|mut t| t.drain().map(|(_, a)| a.handle).collect())
         .unwrap_or_default();
     for h in handles {
         h.abort();
@@ -1276,6 +1497,31 @@ mod tests {
         }
     }
 
+    /// メモリ上のセッション書き手 (append の記録)。
+    #[derive(Default)]
+    struct MemorySessions(Mutex<Vec<(String, SessionMessage)>>);
+
+    impl SessionSink for MemorySessions {
+        fn append(&self, session_id: &str, messages: Vec<SessionMessage>) -> Result<()> {
+            let mut v = self.0.lock().unwrap();
+            for m in messages {
+                v.push((session_id.to_string(), m));
+            }
+            Ok(())
+        }
+    }
+
+    impl MemorySessions {
+        fn written(&self) -> Vec<SessionMessage> {
+            self.0
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|(_, m)| m.clone())
+                .collect()
+        }
+    }
+
     #[derive(Default)]
     struct RecordingSink(Mutex<Vec<AiTurnEvent>>);
 
@@ -1335,7 +1581,7 @@ mod tests {
         let n = NEXT_ID.fetch_add(1, Ordering::Relaxed);
         AiTurnRequest {
             turn_id: format!("t{n}-{}", std::process::id()),
-            session_id: "s1".into(),
+            session_id: Some("s1".into()),
             principal: "ai.chat".into(),
             connection_id: "c1".into(),
             model: "m".into(),
@@ -1351,6 +1597,7 @@ mod tests {
     struct Harness {
         rt: Arc<TurnRuntime>,
         sink: Arc<RecordingSink>,
+        written: Arc<MemorySessions>,
         _dir: tempfile::TempDir,
     }
 
@@ -1377,6 +1624,7 @@ mod tests {
     ) -> Harness {
         let dir = tempfile::tempdir().unwrap();
         let sink = Arc::new(RecordingSink::default());
+        let written = Arc::new(MemorySessions::default());
         let rt = Arc::new(TurnRuntime {
             provider,
             granted: Arc::new(granted(keys)),
@@ -1385,10 +1633,13 @@ mod tests {
             sink: sink.clone(),
             store_dir: checkpoint::dir(dir.path()),
             policy,
+            sessions: written.clone(),
+            taint: Arc::new(taint::MemoryTaint::default()),
         });
         Harness {
             rt,
             sink,
+            written,
             _dir: dir,
         }
     }
@@ -1544,6 +1795,7 @@ mod tests {
                 params: json!({"name": {"type": "string", "description": "n"}}),
                 permissions: vec![],
                 confirm: false,
+                untrusted: false,
             },
             DeviceTool {
                 // 宣言表にある id はデバイス側の申告で上書きできない
@@ -1552,6 +1804,7 @@ mod tests {
                 params: json!({}),
                 permissions: vec![],
                 confirm: false,
+                untrusted: false,
             },
         ];
         req.tool_param_enums = Some(json!({"column.add": {"type": ["timeline", "notifications"]}}));
@@ -1852,6 +2105,151 @@ mod tests {
             .to_string();
         assert!(err.contains("cancelled"), "{err}");
         assert!(device.executes().is_empty());
+    }
+
+    // --- セッションの書込と taint (縦切り 3) ---
+
+    fn sessions_of(h: &Harness) -> Vec<SessionMessage> {
+        // TurnRuntime の sessions は trait object なので、テスト用にダウンキャストせず
+        // MemorySessions を別に持たせる代わりにここで再構築する
+        h.written.written()
+    }
+
+    #[tokio::test]
+    async fn turn_writes_user_tool_rows_and_final_answer_to_the_session() {
+        let provider = ScriptedProvider::new(vec![
+            vec![delta("確認します"), tool_use("tu1", "time_now", json!({}))],
+            vec![delta("12 時です")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "12:00"}));
+        let h = harness(provider, &[], device);
+        let req = request();
+        begin_turn(h.rt.clone(), req.clone()).unwrap();
+        h.sink.wait_for("done").await;
+        let written = sessions_of(&h);
+        let ids: Vec<&str> = written.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                format!("{}-u", req.turn_id),
+                format!("{}-a0-0", req.turn_id),
+                format!("{}-r0-0", req.turn_id),
+                format!("{}-a1", req.turn_id),
+            ]
+        );
+        assert_eq!(written[0].role, "user");
+        assert_eq!(written[0].content, "いま何時?");
+        assert_eq!(written[1].tool_use_id.as_deref(), Some("tu1"));
+        assert_eq!(written[1].content, "確認します");
+        assert_eq!(written[2].tool_result_for.as_deref(), Some("tu1"));
+        assert_eq!(written[3].content, "12 時です");
+        // イベントの message_id は書いた id と一致する
+        let done = h.sink.find("done").unwrap();
+        assert_eq!(done.message_id.as_deref(), Some(ids[3]));
+        let tu = h.sink.find("tool_use").unwrap();
+        assert_eq!(tu.message_id.as_deref(), Some(ids[1]));
+    }
+
+    #[tokio::test]
+    async fn error_writes_partial_with_warning_and_cancel_writes_partial_without() {
+        let device = FakeDevice::new(Value::Null);
+        // 失敗: partial + ⚠️
+        let provider = ScriptedProvider::failing_at(vec![], 0);
+        let h = harness(provider, &[], device.clone());
+        let req = request();
+        drive(h.rt.clone(), TurnState::new(req.clone())).await;
+        let written = sessions_of(&h);
+        assert_eq!(written.len(), 1);
+        assert!(written[0].content.starts_with("⚠️ "));
+        assert_eq!(
+            h.sink.find("error").unwrap().message_id.as_deref(),
+            Some(written[0].id.as_str())
+        );
+
+        // 中断: 途中までの本文だけ (⚠️ なし)。何も無ければ書かない
+        let provider = ScriptedProvider::new(vec![vec![delta("途中まで")]]);
+        let h = harness(provider, &[], device);
+        let req = request();
+        // provider は即座に本文を流し終えるので、drive を直接回して live を再現する
+        let live = Arc::new(Mutex::new(LiveText {
+            text: "途中まで".into(),
+            message_id: assistant_message_id(&req.turn_id, 0),
+            session_id: Some("s1".into()),
+        }));
+        let handle = tokio::spawn(async {});
+        active_turns().lock().unwrap().insert(
+            req.turn_id.clone(),
+            ActiveTurn {
+                handle,
+                live,
+                sessions: h.rt.sessions.clone(),
+            },
+        );
+        let msg = cancel_turn(&req.turn_id).expect("partial written");
+        assert_eq!(msg.content, "途中まで");
+        assert_eq!(msg.id, assistant_message_id(&req.turn_id, 0));
+        assert_eq!(sessions_of(&h).len(), 1);
+        assert!(cancel_turn(&req.turn_id).is_none());
+    }
+
+    #[tokio::test]
+    async fn ephemeral_turn_writes_nothing() {
+        let provider = ScriptedProvider::new(vec![vec![delta("ok")]]);
+        let h = harness(provider, &[], FakeDevice::new(Value::Null));
+        let mut req = request();
+        req.session_id = None;
+        begin_turn(h.rt.clone(), req).unwrap();
+        h.sink.wait_for("done").await;
+        assert!(sessions_of(&h).is_empty());
+    }
+
+    #[tokio::test]
+    async fn reading_untrusted_content_taints_the_session_and_forces_confirmation() {
+        // ラウンド 1: notes.show (untrusted) を読む → tainted
+        // ラウンド 2: notes.create は記憶済みでも確認が要る
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu1", "notes_show", json!({"noteId": "n1"}))],
+            vec![tool_use("tu2", "notes_create", json!({"text": "reply"}))],
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "note"}));
+        let mut skips = HashSet::new();
+        skips.insert("ai.chat:notes.create".to_string());
+        let h = harness_with(
+            provider,
+            &["notes.read", "notes.write"],
+            device.clone(),
+            skips,
+            confirm::ConfirmPolicy::default(),
+        );
+        let req = request();
+        drive(h.rt.clone(), TurnState::new(req.clone())).await;
+        assert!(h.rt.taint.is_tainted("s1").await);
+        assert_eq!(h.sink.last().kind, "confirm_request");
+        assert_eq!(device.executes().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn device_context_with_others_content_taints_from_the_start() {
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu1", "notes_create", json!({"text": "x"}))],
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "note"}));
+        let mut skips = HashSet::new();
+        skips.insert("ai.chat:notes.create".to_string());
+        let h = harness_with(
+            provider,
+            &["notes.write"],
+            device,
+            skips,
+            confirm::ConfirmPolicy::default(),
+        );
+        let mut req = request();
+        req.context_untrusted = true;
+        drive(h.rt.clone(), TurnState::new(req)).await;
+        assert!(h.rt.taint.is_tainted("s1").await);
+        assert_eq!(h.sink.last().kind, "confirm_request");
     }
 
     #[test]

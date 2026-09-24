@@ -124,8 +124,15 @@ export function createEphemeralAiSession(): {
         id === HEARTBEAT_EPHEMERAL_SESSION_ID
           ? { title: '', messages }
           : undefined,
-      updateMessages: (id, next) => {
+      setLocalMessages: (id, next) => {
         if (id === HEARTBEAT_EPHEMERAL_SESSION_ID) messages = next
+      },
+      // 使い捨てなので notecore には書かない / 読み直さない
+      reload: async () => {},
+      removeMessages: (id, ids) => {
+        if (id === HEARTBEAT_EPHEMERAL_SESSION_ID) {
+          messages = messages.filter((m) => !ids.includes(m.id))
+        }
       },
     },
     reset: () => {
@@ -491,7 +498,7 @@ export function useHeartbeatDaemon() {
       timestamp: ts,
       heartbeat: true,
     }
-    sessionsStore.updateMessages(target.id, [...target.messages, message])
+    sessionsStore.appendMessages(target.id, [message])
   }
 
   /**
@@ -783,7 +790,7 @@ export function useHeartbeatDaemon() {
       timestamp: ts,
       heartbeat: true,
     }
-    sessionsStore.updateMessages(target.id, [...target.messages, message])
+    sessionsStore.appendMessages(target.id, [message])
 
     // OS デスクトップ通知 (#411 0.19.0): 「重要発見」を即気付ける。
     // - cfg.desktopNotification=false なら出さない (= ユーザー opt-out)
@@ -856,6 +863,7 @@ export function useHeartbeatDaemon() {
     ephemeral.reset()
     const outcome = await turn.run({
       sessionId: HEARTBEAT_EPHEMERAL_SESSION_ID,
+      persist: false,
       text: `Heartbeat tick at ${new Date(payload.triggered_at_ms).toISOString()}`,
       principal: 'ai.heartbeat',
       connectionId: resolved.connection.id,

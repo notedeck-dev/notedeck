@@ -387,35 +387,6 @@ export async function renameSkillFile(
   return renameSettingsFile(SKILLS_DIR, oldFilename, newFilename)
 }
 
-// --- AI session helpers (sessions/<sessionId>.json5) ---
-//
-// AI セッション（chat / 将来の command/task/HEARTBEAT）の永続化。
-// コード側の抽象は `AiSession` だが、on-disk のディレクトリ名は他トップレベル
-// 項目と深度を揃えるため `sessions/`。
-
-const SESSIONS_DIR = 'sessions'
-const AI_SESSION_EXT = '.json5'
-
-export function aiSessionFilename(sessionId: string): string {
-  return sanitizeFilename(sessionId) + AI_SESSION_EXT
-}
-
-export async function listAiSessionFiles(): Promise<string[]> {
-  const files = await listSettingsFiles(SESSIONS_DIR)
-  return files.filter((f) => f.endsWith(AI_SESSION_EXT))
-}
-
-export async function readAiSessionFile(filename: string): Promise<string> {
-  return readSettingsFile(SESSIONS_DIR, filename)
-}
-
-export async function writeAiSessionFile(
-  filename: string,
-  content: string,
-): Promise<void> {
-  return writeSettingsFile(SESSIONS_DIR, filename, content)
-}
-
 // --- Edit history sidecar helpers (skill / widget / plugin / theme) ---
 //
 // 各 kind の編集前 snapshot をリング 10 件で `<basename>.history.json5` に
@@ -508,10 +479,6 @@ export async function deleteHistorySidecar(
   } catch {
     // 存在しないだけのときは無視
   }
-}
-
-export async function deleteAiSessionFile(filename: string): Promise<void> {
-  return deleteSettingsFile(SESSIONS_DIR, filename)
 }
 
 // --- Widget helpers ---

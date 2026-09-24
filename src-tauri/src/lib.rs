@@ -1113,6 +1113,14 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::ai_turn_cancel,
             commands::ai_confirm_respond,
             commands::ai_confirm_shown,
+            commands::ai_sessions_load_all,
+            commands::ai_session_get,
+            commands::ai_session_create,
+            commands::ai_session_append,
+            commands::ai_session_remove_messages,
+            commands::ai_session_rename,
+            commands::ai_session_add_triggered_skills,
+            commands::ai_session_delete,
             // HTTP fetch (http.fetch capability / Nd:http)
             commands::http_fetch,
             // HEARTBEAT (#411 Phase 6) — per-column scheduler

@@ -15,6 +15,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "呼び出し文脈のアカウント (per-account の AI カラムならそのアカウント) の情報を返す。全アカウントのカラムや HEARTBEAT では null。 Misskey サーバーの host や displayName, username 等が含まれる。 認証トークンは含まれない。",
         params: &[],
@@ -34,6 +35,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "NoteDeck にログイン中の全アカウントを配列で返す。複数サーバーを 横断したい場合に使う。認証トークンは含まれない。",
         params: &[],
@@ -53,6 +55,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: true,
+        untrusted: false,
         exec: Exec::Device,
         description: "NoteDeck の AI に 1 ターンだけ問い合わせて応答テキストを得る。AiScript プラグインや外部 API / CLI から呼ぶ用途。AI チャット本体からの自己再帰呼出しは aiTool:false で塞がれている。",
         params: &[
@@ -101,6 +104,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "persona として選べる skill 一覧 (= isPersona:true な skill のみ)。 現在 active な persona は `active: true`。",
         params: &[],
@@ -120,6 +124,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "保存されている AI セッションのメタ一覧 (updatedAt 降順) を返す。 各エントリは { id, kind, title, updatedAt, messageCount }。",
         params: &[],
@@ -139,6 +144,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "指定 id の AI セッションのメッセージ列を返す。",
         params: &[
@@ -166,6 +172,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "保存されている AI セッションのメッセージ本文を全文 grep して、ヒットしたセッションを id + 周辺 snippet で返す。大文字小文字を無視。",
         params: &[
@@ -200,6 +207,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "AI の persona (= 同一性設定) を切り替える。skillId は isPersona:true な skill の id (ai.listPersonas で取得)、空文字を渡せば persona 解除。 chat / heartbeat / command / task すべての AI session に反映される。",
         params: &[
@@ -227,6 +235,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "AiScript (プラグイン/ウィジェット/Play/Page/スクラッチパッド) の実行ログを新しい順に返す。print 出力は level \"print\"、実行時エラーは \"error\"、起動 (started)・正常終了 (run completed)・parse 失敗・runtime abort は \"system\"。プラグイン/ウィジェットを保存して実行された後は必ずこれを source / sourceId で絞って確認し、error や parse 失敗があれば src を修正して再保存するループを回すこと。3 回試して直らないならログをユーザーに見せて相談する。",
         params: &[
@@ -275,6 +284,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "AiScript ソースを構文検証し、エラー一覧を返す。プラグイン/ウィジェットを `plugins.create` / `plugins.update` / `widgets.create` / `widgets.update`で保存する前に必ず通して、diagnostics が空でなければ src を修正して再度validate するループを回すこと。3 回試して直らないなら diagnostics をユーザーに見せて相談する。",
         params: &[
@@ -309,6 +319,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "Misskey サーバーのアナウンス一覧を返す (read-only)。isActive=true (default) で現在有効なアナウンスのみ、false で過去含む。既読化は副作用ありのため 本 capability では提供しない (取得のみ)。",
         params: &[
@@ -350,6 +361,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "自分が定義した Misskey アンテナの一覧を返す。各要素は { id, name, keywords, users, ... }。antenna.notes で notes を取るときの起点。",
         params: &[
@@ -377,6 +389,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "指定アンテナにマッチした note を返す。antennaId は antenna.list で取得。 projection された note (id / userId / username / text / createdAt) を最大 limit 件返す。",
         params: &[
@@ -425,6 +438,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "ローカル DB と設定のスナップショットを Downloads/notedeck/backup/ に 作成する。認証情報は含まれない。デッキ構成やプラグイン登録は対象外。 DB と設定はそれぞれ独立して選べる (既定は両方)。 世代は新しい順に keep 件だけ残る。",
         params: &[
@@ -466,6 +480,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "自分がフォロー中の Misskey チャネル一覧を返す。各要素は { id, name, description, ... }。channel.notes で channelId を渡すときの起点。",
         params: &[
@@ -493,6 +508,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "指定チャネルの note を返す。channelId は channel.list で取得。 projection された note (id / userId / username / text / createdAt) を最大 limit 件返す。",
         params: &[
@@ -541,6 +557,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "Misskey 新 Chat (v2025) のメッセージにリアクションを付ける。reaction は `:name:` 形式または Unicode 絵文字。messageId は chat カラム表示中のメッセージから取得する想定。",
         params: &[
@@ -582,6 +599,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "Misskey Chat メッセージから自分のリアクションを解除する。reaction は 付けたときと同じ値 (チャットでは複数 reaction を 1 ユーザーが付けられるため、 note のリアクションと違って種別指定が必要)。",
         params: &[
@@ -623,6 +641,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "OS クリップボードのテキストを返す。プラグインが「コピーしたテキストを AI で処理」のような flow を実現するために使う。",
         params: &[],
@@ -642,6 +661,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "OS クリップボードに文字列を書き込む。AI が生成した訳文・要約をユーザーが他アプリへ貼り付けやすくするための出力経路。",
         params: &[
@@ -669,6 +689,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定クリップに既存ノートを追加する。clipId は clips.list、noteId は visibleNotes / notes.search 等で取得した値を渡す。",
         params: &[
@@ -710,6 +731,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "新規クリップを作成する。AI が note 整理を提案するときに使う。",
         params: &[
@@ -758,6 +780,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "アクティブアカウントのクリップ一覧を返す。各要素は  { id, name, description, isPublic, lastClippedAt, favoritedCount }。",
         params: &[
@@ -785,6 +808,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "指定 clipId に入っているノートを取得する。limit は 1〜100 (default 20)。 クリップは公開設定なら他人のものでも閲覧可能。",
         params: &[
@@ -826,6 +850,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "クリップからノートを取り除く (ノート自体は削除されない)。",
         params: &[
@@ -867,6 +892,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "現在フォーカスされているカラム情報を返す。なければ { column: null }。column.list より軽量で、AI が「今ユーザーが見てる場所」を 1 呼び出しで把握できる。",
         params: &[],
@@ -886,6 +912,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "新しいカラムをデッキに追加する。type で種別を指定する。 list / antenna / channel / clip / user は対応する lookup ID (`listId` / `antennaId` / `channelId` / `clipId` / `userId`) が必要。",
         params: &[
@@ -983,6 +1010,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "現在 active なカラム内で focus 中のノートを返す。未 focus / activeカラムが none の場合は { note: null }。AI Actions が「これ翻訳」のような操作で使う。",
         params: &[],
@@ -1002,6 +1030,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。",
         params: &[],
@@ -1021,6 +1050,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "既存カラムを指定インデックスに移動する。targetIndex は 0 ベース (0 = 最左)。column.list の並び順 (= layout group 順) と一致。",
         params: &[
@@ -1055,6 +1085,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定したカラムをデッキから削除する。該当カラムが無ければ no-op。 削除対象 ID は `column.list` の戻り値から取得する。",
         params: &[
@@ -1082,6 +1113,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "既存カラムの表示プロパティ (name / width / query / soundMuted) を更新する。 identity 系 (type / accountId / listId 等) は触れない (= AI 経路で塞ぐ)。",
         params: &[
@@ -1137,6 +1169,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "新規下書きを作成する。投稿はされず、サーバーに下書きとして保存される。 text 必須。scheduledAt + isActuallyScheduled で予約投稿としても保存可能。",
         params: &[
@@ -1220,6 +1253,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 draftId の下書きを削除する。元に戻せない。",
         params: &[
@@ -1254,6 +1288,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "アカウントの下書きを一覧取得する (Misskey 2025.6+ サーバー保存)。 別サーバーから取得するときは accountId を指定する。",
         params: &[
@@ -1281,6 +1316,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "既存下書きを更新する。指定したフィールドだけ差し替え、他は現在値を維持。 draftId は drafts.list で取得した id を渡す。",
         params: &[
@@ -1350,6 +1386,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定アカウント (未指定なら active) の Misskey ドライブのファイル一覧を取得する。 folderId 省略でルート、fileType 指定 (例: `image/`) で MIME prefix フィルタ。返り値は raw な配列 (id / name / type / size / url 等)。 別サーバーのドライブを読むときは `<currentColumn>.accountId` を渡す。",
         params: &[
@@ -1398,6 +1435,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定ノートを自分のお気に入りに追加する。他人には通知されず、自分しか見えない private bookmark。リアクションとは別軸 (リアクションは公開)。",
         params: &[
@@ -1432,6 +1470,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定ノートをお気に入りから削除する。",
         params: &[
@@ -1466,6 +1505,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "自インスタンスの連合チャート (day/hour 単位の時系列) を返す。 インバウンド/アウトバウンドの送受信数、配送先サーバー数等を含む。",
         params: &[
@@ -1507,6 +1547,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 host の連合先インスタンス詳細を返す (read-only)。",
         params: &[
@@ -1541,6 +1582,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "連合済みインスタンスの一覧を返す (read-only)。sort で並べ替え可。 host を指定すると部分一致絞り込み。host filter で host = ホスト名そのもの。",
         params: &[
@@ -1638,6 +1680,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "ドライブファイル (fileIds) やノートの添付 (noteIds) をローカルの ダウンロードフォルダ (Downloads/notedeck/) に保存する。任意 URL の 取得はできない。同一ファイルの再保存はスキップされる (冪等)。 センシティブ設定のファイルも既定で保存する (本体のドライブ保存と同じ)。 除外したい場合は includeSensitive: false を指定する。",
         params: &[
@@ -1693,6 +1736,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "Misskey Play (Flash) 一覧を返す。endpoint で範囲を切替: `flash/featured` (注目) / `flash/my` (自分の) / `flash/my-likes` (自分が like)。 read-only。",
         params: &[
@@ -1734,6 +1778,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "指定 flashId の Misskey Play 詳細を返す。**AiScript ソース (`script`) も含む** ので、AI が既存 Play を読んで参考にできる。read-only。",
         params: &[
@@ -1768,6 +1813,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "Misskey Gallery 投稿一覧を返す (read-only)。 title / description / files / userId を含む。",
         params: &[
@@ -1809,6 +1855,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "外部 HTTP/HTTPS API にリクエストを送信する。Misskey 以外の API (翻訳・天気・RSS など) との連携に使う。loopback / private / link-local アドレスへの接続は SSRF 防御のため拒否される。",
         params: &[
@@ -1864,6 +1911,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "設定可能なコマンド ID 一覧と、それぞれの現在の shortcut を返す。 `customized: true` のものはユーザーが上書きしている。AI が 「Vim 風にして」と言われたときの起点。",
         params: &[],
@@ -1883,6 +1931,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 commandId のキーバインドを default に戻す (override 削除)。",
         params: &[
@@ -1910,6 +1959,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "全コマンドの override を破棄して default に戻す。",
         params: &[],
@@ -1929,6 +1979,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 commandId の shortcut を上書きする。Shortcut は  { key: string, scope: \"global\"|\"body\", ctrl?: boolean, shift?: boolean, alt?: boolean }。 `key` は KeyboardEvent.key の値 (\"k\" / \"p\" / \"Escape\" / \"ArrowDown\" 等)。 scope: \"global\" は修飾キー付き常時有効、\"body\" はテキスト入力中は無効。",
         params: &[
@@ -1963,6 +2014,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定リストに指定 user を追加する。listId は list.list、userId は user.lookup / search で取得。相手に通知は飛ばない (= 自分の整理用)。",
         params: &[
@@ -2004,6 +2056,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "自分のユーザーリスト一覧を返す。各要素は { id, name, userIds, createdAt }。 リスト編集 (list.addUser / removeUser) で listId を渡すときの起点。",
         params: &[
@@ -2031,6 +2084,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定リストから指定 user を削除する (= 自分の整理用、相手通知なし)。",
         params: &[
@@ -2072,6 +2126,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "アプリ内 console.warn / console.error のリング (最大 200 件) から 直近を返す。AI が自己修正・診断に使う。",
         params: &[
@@ -2106,6 +2161,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定したメモ id を `[name](memo:<id>)` 形式で参照しているメモを 返す (= バックリンク)。タグ整理 / 関連メモ把握に有用。本文に link が あるメモ全件を返す (limit / pagination なし、通常 backlinks は少数)。 検索範囲は accountId 指定のメモ空間のみ (cross-account はしない)。",
         params: &[
@@ -2133,6 +2189,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "NoteDeck のローカル markdown メモを新規作成する。 text + 任意の tags / authorId 指定可。CW / visibility / poll 等の投稿用フィールドは触らない (= デフォルト値で作成)。memoKey は Zettelkasten 形式 (`YYYYMMDDHHmmss`) で自動採番。 authorId を渡すと <persona> block の指示通り memo に author 埋め込みブロックが 記録される (skill / account の表示情報を作成時に snapshot)。 投稿前に確認モーダルが出る。",
         params: &[
@@ -2174,6 +2231,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "既存ローカルメモを削除する。削除前に確認モーダルが出る。 整理 skill の指示でユーザーが「古いメモを片付ける」フローで使う想定。 削除されたメモは復元できない (notedeck/memos/<id>.md ファイルが消える)。",
         params: &[
@@ -2201,6 +2259,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "NoteDeck のローカル memo を絞り込んで列挙する。 tag / 経過日数 / 部分一致クエリ / 作者でフィルタ可能。 updatedAt 降順、limit 件で打ち切り (default 10、最大 50)。 AI は memos.search でキーワード検索する前に memos.list で全体像を 把握するのが効率的。",
         params: &[
@@ -2256,6 +2315,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "メモを編集履歴の過去の状態に戻す。index は 0 が最新の履歴。",
         params: &[
@@ -2297,6 +2357,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "NoteDeck のローカル memo を本文部分一致で検索する。 大小無視の substring + 直近更新の recency boost で並べ、 limit 件 (default 10、最大 50) を返す。embedding 由来の semantic 検索はないので、ヒットしない場合は AI が言い換え (例:「旅行」→「出張」「バカンス」) で再試行することを想定。 authorId で persona / 本人別のメモ検索も可能。",
         params: &[
@@ -2338,6 +2399,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "既存ローカルメモの text / tags / authorId を更新する (すべて optional、未指定なら維持)。 CW / visibility 等の他のフィールドは既存値を保持。 id は <memos> ブロックで参照できる Zettelkasten 形式 memoKey。 投稿前に確認モーダルが出る。",
         params: &[
@@ -2386,6 +2448,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "現在 active な (= system prompt に乗っている) skill のメタ一覧。",
         params: &[],
@@ -2405,6 +2468,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "現在の AI 設定の機密でない部分 (protocol / model / dataSources flags) を返す。 API キー / endpoint / custom permissions の生 map は **明示的に除外**。",
         params: &[],
@@ -2424,6 +2488,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "HEARTBEAT daemon の現在設定 (enabled / intervalMinutes / target / dailyMaxAiRuns / onDailyLimit / desktopNotification / cheapCheck) を読み取り専用で返す。AI 自身の起動条件を理解するため。**編集は塞がれている** (AI が自分の interval を変えると暴走するため)。",
         params: &[],
@@ -2443,6 +2508,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "呼び出し元 (principal) 自身の permission preset と、解決済の permission map を返す。自分が何を許されているか把握するため。",
         params: &[],
@@ -2462,6 +2528,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "現在のセッションで AI が振る舞っている persona (= isPersona:true な skill) を返す。設定されていなければ null。",
         params: &[],
@@ -2481,6 +2548,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "現在の Frame Engine 実測値、適応品質、WebSocket 接続状態の匿名集約、起動フェーズ内訳、メモリ指標を point-in-time snapshot として返す。フレームサンプリングはアイドル時 (描画作業なし) に停止するため、frame.available=false の間は数値が null (未計測またはアイドル)。アカウント識別子や認証情報は含まない。",
         params: &[],
@@ -2500,6 +2568,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "MisStore (store.notedeck.io) のレジストリを検索する。 query は name / description / id の部分一致 (大小無視)。 kind 省略時は plugin / widget / skill / theme を全件横断検索。 エンドポイントは固定なので確認ダイアログは出ない。",
         params: &[
@@ -2541,6 +2610,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "現在のナビバー構成 (navItems) を返す。各要素は  { type, accountId, label? } または { type: \"divider\" }。 navbar.set で AI が新構成を提案するときの起点。",
         params: &[],
@@ -2560,6 +2630,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "ナビバー構成を NoteDeck の default に戻す。",
         params: &[],
@@ -2579,6 +2650,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "ナビバー構成 (navItems) を全置換する。差分編集ではなく完全上書きなので、 navbar.list で現状取得してから、追加/削除/並び替えを反映した完全配列を渡す。 columnProps 等の詳細項目は AI 経由では触らない (= type / accountId / label のみ)。",
         params: &[
@@ -2606,6 +2678,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "指定ノートへの直接リプライ (= 子ノート) を取得する。会話のスレッドを 辿りたいときに使う。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
@@ -2654,6 +2727,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "Misskey にノートを投稿する。text 必須。visibility のデフォルトは public。 投稿前に確認モーダルが出る。 別サーバーから投稿するときは accountId を指定する。",
         params: &[
@@ -2716,6 +2790,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "自分のノートを削除する。**元に戻せない**。リノート / 引用 / お気に入り / クリップに含まれている場合もすべて連鎖して見えなくなる。他人のノートは削除不可。 別サーバーで操作するときは accountId を指定する。",
         params: &[
@@ -2750,6 +2825,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "自分のプロファイル top に指定ノートを pin する。Misskey の上限は通常 5 件で、上限超過時はサーバー側でエラーになる。",
         params: &[
@@ -2784,6 +2860,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "Misskey ノートにリアクションを付ける。reaction は :name: 形式 (`:thinking_face:`) または Unicode 絵文字 (`👍`)。投稿前に確認モーダルが出る。 別サーバーで操作するときは accountId を指定する。",
         params: &[
@@ -2825,6 +2902,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "キーワードでノートを全文検索する。Misskey の /notes/search を使う。 結果は note projection (id / userId / username / text / createdAt) で返す。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
@@ -2873,6 +2951,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "手元に貯めたノート (自分の画面に流れてきたもの) を、サーバーとアカウントを 跨いでまとめて検索する。「先週〇〇の話をしていた人は誰か」のような、 サーバー検索では引けない過去の記憶に答えるための道具。query / author / since / until / hasFiles は全部任意で、AND で絞る (全部省略すると新しい順に 並べるだけ)。既定では公開範囲が public のノートだけを返す。 結果は note projection に accountId (どのアカウントで見たか) と serverHost (そのサーバー) を足したもの。同じノートを複数サーバーで見ていれば複数行になる。 続きを取るときは最後のノートの createdAt を until に渡して再呼び出し。",
         params: &[
@@ -2949,6 +3028,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "noteId で 1 件のノートを取得する。リプライ先や引用元の本文を見たい ときに使う。戻り値は単一の note projection (配列ではない)。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
@@ -2983,6 +3063,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "タイムラインを取得する。home はログイン中のフォロー含むホーム、 local はサーバー内ローカル、social はホーム+ローカル混合、 global は連合宇宙全体。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
@@ -3031,6 +3112,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "自分のプロファイル top に pin したノートを解除する。",
         params: &[
@@ -3065,6 +3147,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "Misskey ノートに付けた自分のリアクションを解除する。1 ノートに付けられる reaction は 1 つだけなので種別指定不要。 別サーバーで操作するときは accountId を指定する。",
         params: &[
@@ -3099,6 +3182,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "特定ユーザーの最近のノートを取得する。userId は Misskey の内部 ID (username ではなく)。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
@@ -3147,6 +3231,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "指定アカウント (未指定なら active) の通知一覧を取得する。 type / userId / noteId / reaction / createdAt 等の projection が返る。 100 件を超えて取得したい場合は、最後の通知の id を untilId に渡して再呼び出し。 別サーバーの通知を読むときは `<currentColumn>.accountId` を渡す。",
         params: &[
@@ -3188,6 +3273,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定アカウントの通知をすべて既読化する (= Misskey `notifications/mark-all-as-read`)。未読バッジが消える。 accountId を省略すると hasToken な全アカウントに対して実行する。",
         params: &[
@@ -3215,6 +3301,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "Misskey Pages 一覧を返す。endpoint で範囲を切替: `pages/featured` (注目記事) / `i/pages` (自分の記事) / `i/page-likes` (自分が like した記事)。read-only。",
         params: &[
@@ -3256,6 +3343,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "指定 pageId の Misskey Page 詳細を返す (本文・ブロック含む)。 pages.list で取得した id を渡す。read-only。",
         params: &[
@@ -3290,6 +3378,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "0..1 のスライダー位置 t に応じて全パフォーマンス値を線形補間で一括設定。 0 = 省電力寄り、1 = リッチ寄り。包括的チューニングプリセット。",
         params: &[
@@ -3317,6 +3406,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "全パフォーマンス設定 key と、その現在値 / default / min / max / unit / description / customized フラグを返す。AI がチューニング提案するときの起点。",
         params: &[],
@@ -3336,6 +3426,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 key の override を破棄して default に戻す。",
         params: &[
@@ -3363,6 +3454,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "全 key の override を破棄。",
         params: &[],
@@ -3382,6 +3474,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 key のパフォーマンス値を上書きする。範囲外の値は store 側で min..max に自動 clamp。default と同じ値を渡すと override 削除扱い。",
         params: &[
@@ -3416,6 +3509,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "AiScript ソースから新規プラグインを作成する。必ず `active: false` (= 無効化) で作成され、handler は走らない。有効化は plugins.setActive で別途ユーザー UI から行う (= AI が連鎖的に handler を走らせるのを防ぐ 二重承認境界)。permissions は Misskey 互換キー (read:account, write:notes 等)。",
         params: &[
@@ -3478,6 +3572,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "プラグインを削除する。AiScript ソース・メタ・Mk:save 領域すべて消える (= 不可逆)。confirm ダイアログで対象プラグインの name / version / permissions を表示してユーザー承認を取る。",
         params: &[
@@ -3505,6 +3600,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 installId のプラグインの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。",
         params: &[
@@ -3532,6 +3628,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "MisStore (store.notedeck.io) の既製プラグインをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 全体スコープ (全アカウント対象) でインストールされ、既に同 storeId の プラグインがあれば再インストールせず全体スコープへ追加するだけ。",
         params: &[
@@ -3559,6 +3656,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "インストール済みプラグインのメタデータ一覧を返す。 AiScript ソースは含まれない (= plugins.read で個別取得)。",
         params: &[],
@@ -3578,6 +3676,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 installId のプラグインの AiScript ソースを返す。",
         params: &[
@@ -3605,6 +3704,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "プラグイン src を編集履歴の index 番目に戻す。confirm ダイアログで 戻し先 snapshot の name / version / permissions / AiScript ソースを 表示してユーザー承認を取る。",
         params: &[
@@ -3646,6 +3746,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "プラグインの active 状態を切り替える。有効化 (true) すると handler が起動して Misskey API 介入の副作用が走り得るので、AI が 呼ぶときは確認ダイアログでユーザー承認を取る。無効化 (false) は 即実行 (= 可逆な停止操作)。有効化後は aiscript.logs (source: plugin) に \"started\" が記録されるので起動確認に使える。",
         params: &[
@@ -3680,6 +3781,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "インストール済みプラグインを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。 plugins.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。",
         params: &[
@@ -3714,6 +3816,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "プラグインの AiScript ソースを全文置換する。plugins.read で現状を取得してから差分判断する運用を推奨。アクティブなプラグインは保存後に新 src で自動再起動されるので、`aiscript.logs` で実行結果 (起動 / print / エラー) を確認し、エラーがあれば修正して再保存するループを回すこと。",
         params: &[
@@ -3755,6 +3858,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 id の名前付きクエリの編集前 snapshot 一覧 (新しい順) を返す。",
         params: &[
@@ -3782,6 +3886,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "名前付きクエリのソースを編集履歴の index 番目に戻す。",
         params: &[
@@ -3823,6 +3928,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 scope の key を削除する (Misskey `i/registry/remove`)。 Misskey 公式 Web Client と共有される設定エリア。",
         params: &[
@@ -3864,6 +3970,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 scope の key の値を取得する (Misskey `i/registry/get-detail`)。 存在しない key は null を返す。",
         params: &[
@@ -3905,6 +4012,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 scope 配下の key 一覧と各 key の型を返す (Misskey `i/registry/keys-with-type` 相当)。",
         params: &[
@@ -3939,6 +4047,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 scope の key に JsonValue を書込む (Misskey `i/registry/set`)。 Misskey 公式 Web Client と共有される設定エリアなので、変更は公式 UI にも反映される。",
         params: &[
@@ -3987,6 +4096,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "指定 role の所属ユーザーが投稿した note を返す。roleId はサーバーの role 設定で確認。 projection された note (id / userId / username / text / createdAt) を最大 limit 件返す。",
         params: &[
@@ -4035,6 +4145,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "サイドバースロットを指定タイプで開く (既に同タイプなら閉じる)。 navbar ボタンクリックと同じ動作。デッキへの新規追加ではない。",
         params: &[
@@ -4069,6 +4180,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "skill 本文の末尾に markdown を追記する。skill 全体を書き換えるのではなく追記のみ (= 学習が積み上がる)。frontmatter は触れない。",
         params: &[
@@ -4110,6 +4222,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "新規スキルを作成する。既存スキルの編集はできない (skills.append / skills.replaceSection を使う)。id は内部生成される。作成直後は mode=manual なら未有効 (skills.toggle で有効化)、trigger なら次ターンからマッチで自動ロード、always は常時注入される。body に frontmatter (---) を含めないこと (mode 等はパラメータで渡す)。",
         params: &[
@@ -4172,6 +4285,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 id の skill の編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。 各エントリは { at: 時刻 ms, snapshot: { body, name?, version?, mode? } }。",
         params: &[
@@ -4199,6 +4313,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "MisStore (store.notedeck.io) の既製スキルをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 既存の同 storeId / 同 id は上書き更新 (= 再インストール = アップデート)。",
         params: &[
@@ -4226,6 +4341,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "登録されている skill の一覧を返す。各要素は { id, name, mode, isPersona, builtIn, author?, description? }。body は含まれない (= 大きいため、skills.read で個別取得)。",
         params: &[],
@@ -4245,6 +4361,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 id の skill の markdown 本文を返す。",
         params: &[
@@ -4272,6 +4389,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "skill 本文の `## <heading>` セクションを置換する。該当 heading が無ければ末尾に新規セクションとして追加 (idempotent)。",
         params: &[
@@ -4320,6 +4438,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "skill を編集履歴の index 番目の snapshot に戻す。skills.history で index を取得。",
         params: &[
@@ -4361,6 +4480,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "skill の active 状態を切り替える。mode=\"always\" の skill は常時 active 扱いのため設定は無視される。mode=\"trigger\" の skill は triggers[] が user 入力に部分一致したターンだけ自動 active になる。",
         params: &[
@@ -4395,6 +4515,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "インストール済みスキルを完全削除する。frontmatter・本文・編集履歴ファイルが 消える (= 不可逆)。",
         params: &[
@@ -4422,6 +4543,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "custom.css の末尾に CSS を追記する。既存ルールには触らない (= 学習が積み上がる、skills.append と対称)。",
         params: &[
@@ -4456,6 +4578,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "custom.css の編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。 各エントリは { at: 時刻 ms, snapshot: { body } }。",
         params: &[],
@@ -4475,6 +4598,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "現在の custom.css の内容を返す。CSS 変数の上書きや独自ルール等を AI が確認するために使う。",
         params: &[],
@@ -4494,6 +4618,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "custom.css を編集履歴の index 番目の snapshot に戻す。 styles.history で index を取得。",
         params: &[
@@ -4528,6 +4653,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "custom.css の内容を `body` で全置換する。差分編集ではなく完全上書きなので、styles.read で現状を取得してからマージした内容を渡すこと。",
         params: &[
@@ -4562,6 +4688,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "tasks.json5 で定義済みのタスクを id で実行する。 inputs を渡すと UI prompt をスキップして値を直接 inject できる。 タスクの中身 (Misskey API method / params) は TaskDefinition 側で定義する。",
         params: &[
@@ -4596,6 +4723,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "インストール済みテーマを適用する。 theme.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。",
         params: &[
@@ -4630,6 +4758,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "新規テーマを作成して installedThemes に追加する。 props は Misskey 互換 CSS 変数 (例: { accent: \"#5f6\", panel: \"#0a0a0a\" })。 既存 id を指定した場合は theme.update と同等の挙動になる。",
         params: &[
@@ -4685,6 +4814,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 id のテーマの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。",
         params: &[
@@ -4712,6 +4842,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "MisStore (store.notedeck.io) の既製テーマをインストールする。 id は `misstore.search` で取得した値を渡す。 sha512 検証付き。インストール後は theme.apply で適用可能。",
         params: &[
@@ -4739,6 +4870,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "インストール済みテーマの一覧を返す。各要素は { id, name, base, author }",
         params: &[],
@@ -4758,6 +4890,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 id のテーマの全プロパティ (Misskey 互換 CSS 変数) を返す。 theme.update で差分編集する前の現状把握に使う。",
         params: &[
@@ -4785,6 +4918,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "テーマ props を編集履歴の index 番目に戻す。",
         params: &[
@@ -4826,6 +4960,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "インストール済みテーマを完全削除する。選択中だった場合は selection も解除され、 デフォルトテーマにフォールバックする。",
         params: &[
@@ -4853,6 +4988,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "既存テーマの props / name / base を部分更新する。指定されたフィールドだけ上書きされる。id は theme.list で取得した値を渡す。",
         params: &[
@@ -4908,6 +5044,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "ユーザー環境の現在時刻を ISO 8601 形式で返す。",
         params: &[],
@@ -4927,6 +5064,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "OS のデスクトップ通知を送る。アプリがフォアグラウンドの時は通知が抑制される (カラム内表示で十分なため)。",
         params: &[
@@ -4961,6 +5099,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 userId をフォローする (相手に通知が飛ぶ)。鍵アカウントの場合は フォローリクエスト送信 = 承認待ちになる。userId は user.lookup / search で取得。",
         params: &[
@@ -4995,6 +5134,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "指定 userId のフォロワー一覧を返す (read-only)。鍵垢の場合は本人 / 承認済みフォロワーのみ参照可 (= サーバー側で制御)。",
         params: &[
@@ -5043,6 +5183,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "指定 userId がフォローしているユーザー一覧を返す (read-only)。鍵垢の場合は本人 / 承認済みフォロワーのみ参照可。",
         params: &[
@@ -5091,6 +5232,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "username (+ 任意で host) から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。",
         params: &[
@@ -5132,6 +5274,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。",
         params: &[
@@ -5166,6 +5309,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 userId のリノートだけを非表示にする (オリジナル投稿は見える)。user.mute と独立に動作。",
         params: &[
@@ -5200,6 +5344,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "username / display name の部分一致でユーザーを検索する (Misskey `users/search-by-username-and-name` 相当)。空 query なら最近やり取りしたユーザー一覧。完全一致での 1 件引きは user.lookup を使う。",
         params: &[
@@ -5241,6 +5386,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 userId のフォローを解除する (相手にフォロワー減少の通知は飛ばない)。",
         params: &[
@@ -5275,6 +5421,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 userId のミュートを解除する。",
         params: &[
@@ -5309,6 +5456,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: true,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 userId のリノートミュートを解除する。",
         params: &[
@@ -5343,6 +5491,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: true,
         exec: Exec::Device,
         description: "登録済みの外部サービス接続を使って HTTP リクエストを送る。 secret (API キー等) は NoteDeck が Rust 側で注入するため、 connectionRef で接続を指定するだけでよい。利用可能な接続は system prompt の <available-connections> に列挙される。",
         params: &[
@@ -5405,6 +5554,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "AiScript ソースから新規ウィジェットを作成する。autoRun の default は false (= ユーザーが明示的に起動)。返り値の installId で以降 widgets.update / setAutoRun / delete を呼ぶ。",
         params: &[
@@ -5446,6 +5596,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "ウィジェットを削除する。AiScript ソース・メタ・Mk:save 領域すべて消える (= 不可逆)。",
         params: &[
@@ -5473,6 +5624,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 installId のウィジェットの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。",
         params: &[
@@ -5500,6 +5652,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "MisStore (store.notedeck.io) の既製ウィジェットをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 個体は storeId × 実行アカウントの組で 1 つ。同じ組が既にあれば更新して既存 installId を返す。",
         params: &[
@@ -5534,6 +5687,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "インストール済みウィジェットのメタデータ一覧を返す。 AiScript ソースは含まれない (src は widgets.read で個別取得)。",
         params: &[],
@@ -5553,6 +5707,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 installId のウィジェットの AiScript ソースを返す。",
         params: &[
@@ -5580,6 +5735,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "ウィジェット src を編集履歴の index 番目に戻す。",
         params: &[
@@ -5621,6 +5777,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "ウィジェットの autoRun フラグを切り替える (可逆操作)。",
         params: &[
@@ -5655,6 +5812,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "インストール済みウィジェットを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。storeId 指定は 実行アカウント別の全個体を消す。 widgets.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。",
         params: &[
@@ -5689,6 +5847,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "ウィジェットの AiScript ソースを全文置換する。意図しない上書きを防ぐため、事前に widgets.read で現状を取得してから差分判断してから渡すことを推奨。表示中のウィジェットは保存後に新 src で自動再実行されるので、`aiscript.logs` で実行結果 (print / エラー) を確認し、エラーがあれば修正して再保存するループを回すこと。表示されていないウィジェットは実行されない (rerunning=false)。",
         params: &[
@@ -5730,6 +5889,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 id の DeckWindow を閉じる。id は windows.list で取得した値を渡す。",
         params: &[
@@ -5757,6 +5917,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "現在開いている全 DeckWindow を一括で閉じる。",
         params: &[],
@@ -5776,6 +5937,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "指定 id の DeckWindow を最前面 (= 最大 zIndex) に持ってくる。",
         params: &[
@@ -5803,6 +5965,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: true,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "現在開いている DeckWindow 一覧を返す。各要素は  { id, type, props, x, y, zIndex, modal, minimized, maximized }。",
         params: &[],
@@ -5822,6 +5985,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         acts_as_account: false,
         cheap: false,
         visible: false,
+        untrusted: false,
         exec: Exec::Device,
         description: "DeckWindow を開く。type は note-detail / user-profile / aiSettings /  cssEditor / themeEditor / navEditor / performanceEditor / plugins /  keybinds 等 (詳細は windows.list の戻り値で type 一覧を参照)。 note-detail / user-profile 等は props に noteId / userId + accountId が必要。 同 props の既存ウィンドウは新規作成せず focus される (singleton 化)。",
         params: &[

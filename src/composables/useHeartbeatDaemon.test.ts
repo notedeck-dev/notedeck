@@ -134,7 +134,7 @@ describe('createEphemeralAiSession (#707 / #1133 ターン投影の共有)', () 
     ).toEqual([])
   })
 
-  it('updateMessages / reset で履歴を差し替え・破棄できる', () => {
+  it('setLocalMessages / reset で履歴を差し替え・破棄できる', () => {
     const ephemeral = createEphemeralAiSession()
     const m: ChatMessage = {
       id: 'u1',
@@ -142,12 +142,12 @@ describe('createEphemeralAiSession (#707 / #1133 ターン投影の共有)', () 
       content: 'x',
       timestamp: 0,
     }
-    ephemeral.port.updateMessages(HEARTBEAT_EPHEMERAL_SESSION_ID, [m])
+    ephemeral.port.setLocalMessages(HEARTBEAT_EPHEMERAL_SESSION_ID, [m])
     expect(
       ephemeral.port.get(HEARTBEAT_EPHEMERAL_SESSION_ID)?.messages,
     ).toEqual([m])
     // 専用 id 以外への書込は無視
-    ephemeral.port.updateMessages('other-session', [])
+    ephemeral.port.setLocalMessages('other-session', [])
     expect(
       ephemeral.port.get(HEARTBEAT_EPHEMERAL_SESSION_ID)?.messages,
     ).toEqual([m])
