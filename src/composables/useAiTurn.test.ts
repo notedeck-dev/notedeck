@@ -27,7 +27,7 @@ const aiTurnRun = vi.fn(async (_req: AiTurnRequest) => ({
 }))
 const aiTurnCancel = vi.fn(async (_id: string) => ({
   status: 'ok' as const,
-  data: null,
+  data: null as null | Record<string, unknown>,
 }))
 vi.mock('@/utils/tauriInvoke', async () => {
   const actual = await vi.importActual<typeof import('@/utils/tauriInvoke')>(
@@ -63,15 +63,28 @@ vi.mock('./aiConfirmRequests', () => ({
 
 function memorySessions(initial: ChatMessage[] = []): AiTurnSessionPort & {
   messages(): ChatMessage[]
+  removed: string[][]
+  reloads: number
 } {
   let messages = initial
-  return {
-    get: (id) => (id === 's1' ? { title: '', messages } : undefined),
-    updateMessages: (id, next) => {
+  const port = {
+    removed: [] as string[][],
+    reloads: 0,
+    get: (id: string) => (id === 's1' ? { title: '', messages } : undefined),
+    setLocalMessages: (id: string, next: ChatMessage[]) => {
       if (id === 's1') messages = next
+    },
+    reload: async () => {
+      port.reloads++
+    },
+    removeMessages: (id: string, ids: readonly string[]) => {
+      if (id !== 's1') return
+      port.removed.push([...ids])
+      messages = messages.filter((m) => !ids.includes(m.id))
     },
     messages: () => messages,
   }
+  return port
 }
 
 async function flush() {
@@ -120,6 +133,7 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
     const req = aiTurnRun.mock.calls[0]?.[0]
     expect(req).toMatchObject({
       session_id: 's1',
+      context_untrusted: false,
       principal: 'ai.chat',
       connection_id: 'conn-1',
       model: 'model-1',
@@ -140,19 +154,36 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
       tool_use_id: 'tu1',
       tool_use_name: 'time.now',
       tool_use_input: {},
+      message_id: 'm-a0-0',
     })
-    emit({ kind: 'tool_result', tool_use_id: 'tu1', text: '12:00' })
+    emit({
+      kind: 'tool_result',
+      tool_use_id: 'tu1',
+      text: '12:00',
+      message_id: 'm-r0-0',
+    })
     emit({
       kind: 'tool_use',
       text: '',
       tool_use_id: 'tu2',
       tool_use_name: 'account.list',
       tool_use_input: { limit: 1 },
+      message_id: 'm-a0-1',
     })
-    emit({ kind: 'tool_result', tool_use_id: 'tu2', text: '[]' })
+    emit({
+      kind: 'tool_result',
+      tool_use_id: 'tu2',
+      text: '[]',
+      message_id: 'm-r0-1',
+    })
     // ラウンド 2: 最終本文
     emit({ kind: 'delta', text: '12 時です' })
-    emit({ kind: 'done', text: '12 時です', stop_reason: 'end' })
+    emit({
+      kind: 'done',
+      text: '12 時です',
+      stop_reason: 'end',
+      message_id: 'm-a1',
+    })
 
     expect(await outcome).toEqual({
       status: 'done',
@@ -171,8 +202,20 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
       ['assistant', '12 時です', undefined, undefined],
     ])
     expect(msgs[3]?.toolUseInput).toEqual({ limit: 1 })
+    // 写しの id は notecore が書いたもの (ユーザー入力は `<turn>-u` の規則)
+    const turnId = aiTurnRun.mock.calls[0]?.[0].turn_id
+    expect(msgs.map((m) => m.id)).toEqual([
+      `${turnId}-u`,
+      'm-a0-0',
+      'm-r0-0',
+      'm-a0-1',
+      'm-r0-1',
+      'm-a1',
+    ])
     expect(turn.isRunning.value).toBe(false)
     expect(turn.retryContext.value).toBeNull()
+    // ターンの終わりに確定分を読み直す
+    expect(sessions.reloads).toBe(1)
     // listener は解除される
     expect(listeners).toHaveLength(0)
   })
@@ -205,7 +248,12 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
     let outcome = turn.run(baseRequest())
     await flush()
     emit({ kind: 'delta', text: '途中まで' })
-    emit({ kind: 'error', error: '接続が切断されました', phase: 'before_tool' })
+    emit({
+      kind: 'error',
+      error: '接続が切断されました',
+      phase: 'before_tool',
+      message_id: 'm-err',
+    })
     expect(await outcome).toEqual({
       status: 'error',
       message: '接続が切断されました',
@@ -216,10 +264,12 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
       '途中まで\n\n⚠️ 接続が切断されました',
     )
     expect(turn.retryContext.value?.mode).toBe('resend')
-    // prepareRetry: user + placeholder を取り除く
+    // prepareRetry: user + 失敗した assistant を取り除く (notecore にも送る)
     const plan = turn.prepareRetry('s1')
     expect(plan).toEqual({ mode: 'resend', text: 'いま何時?' })
     expect(sessions.messages()).toEqual([])
+    const turnId1 = aiTurnRun.mock.calls[0]?.[0].turn_id
+    expect(sessions.removed).toEqual([[`${turnId1}-u`, 'm-err']])
 
     // after_tool
     aiTurnRun.mockClear()
@@ -295,11 +345,29 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
     await flush()
     const turnId = aiTurnRun.mock.calls[0]?.[0].turn_id
     emit({ kind: 'delta', text: '途中' })
+    // notecore は途中までの本文をセッションに書いてそのメッセージを返す
+    aiTurnCancel.mockResolvedValueOnce({
+      status: 'ok',
+      data: {
+        id: 'm-partial',
+        role: 'assistant',
+        content: '途中',
+        timestamp: 5,
+        toolUseId: null,
+        toolUseName: null,
+        toolUseInput: null,
+        toolResultFor: null,
+        heartbeat: null,
+      },
+    })
     await turn.cancel()
     expect(await outcome).toEqual({ status: 'cancelled', wasFirstRound: true })
     expect(aiTurnCancel).toHaveBeenCalledWith(turnId)
     expect(cancelTurnExecutions).toHaveBeenCalledWith(turnId)
-    expect(sessions.messages().at(-1)?.content).toBe('途中')
+    expect(sessions.messages().at(-1)).toMatchObject({
+      id: 'm-partial',
+      content: '途中',
+    })
     expect(turn.retryContext.value?.mode).toBe('resend')
 
     // partial 無しなら placeholder は残らない
@@ -364,6 +432,7 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
     await flush()
     const req = aiTurnRun.mock.calls[0]?.[0]
     expect(req?.principal).toBe('ai.heartbeat')
+    expect(req?.session_id).toBe('s1')
     expect(req?.messages).toEqual([{ role: 'user', content: 'いま何時?' }])
     emit({ kind: 'done', text: 'ok', stop_reason: 'end' })
     await outcome
@@ -411,5 +480,16 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
     await turn.cancel()
     expect(closeConfirmRequestsForTurn).toHaveBeenCalledWith(turnId)
     expect((await outcome).status).toBe('cancelled')
+  })
+
+  it('persist: false のターンは notecore にセッションを書かせない (session_id は null)', async () => {
+    const sessions = memorySessions()
+    const turn = useAiTurn({ sessions })
+    const outcome = turn.run({ ...baseRequest(), persist: false })
+    await flush()
+    expect(aiTurnRun.mock.calls[0]?.[0].session_id).toBeNull()
+    emit({ kind: 'done', text: 'ok', stop_reason: 'end' })
+    await outcome
+    expect(sessions.reloads).toBe(0)
   })
 })

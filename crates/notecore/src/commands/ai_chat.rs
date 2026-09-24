@@ -39,9 +39,12 @@ pub async fn ai_turn_run(core: &Core, req: AiTurnRequest) -> Result<()> {
 }
 
 /// 進行中のターンを中断する。冪等。確認待ちなら要求を cancelled で閉じる。
-pub async fn ai_turn_cancel(_core: &Core, turn_id: String) -> Result<()> {
-    ai_turn::cancel_turn(&turn_id);
-    Ok(())
+/// 途中までの応答があればセッションに書き、そのメッセージを返す。
+pub async fn ai_turn_cancel(
+    _core: &Core,
+    turn_id: String,
+) -> Result<Option<crate::ai_sessions::SessionMessage>> {
+    Ok(ai_turn::cancel_turn(&turn_id))
 }
 
 /// 確認要求への応答 (今回だけ許可 / 今回だけ拒否)。最初の 1 つだけが効き、

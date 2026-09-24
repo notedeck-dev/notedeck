@@ -61,6 +61,8 @@
     // デッキ / ウィンドウ構成の変更 (#1098)。従来は無条件許可だったため readonly の heartbeat や外部トークンでもデッキを消せた。readonly のみ false
     'deck.write': { presets: ['safe'] },
   },
+  // untrusted: 結果に他人の内容 (投稿 / プロフィール / 通知 / fetch 結果) を含みうる読取。
+  //   読んだセッションは以後 tainted になり、書き込みは「次から確認しない」を無視して確認する (#1103 / #1133)
   capabilities: {
     'account.current': {
       label: '現在のアカウント情報',
@@ -160,6 +162,7 @@
       },
     },
     'ai.sessions.read': {
+      untrusted: true,
       label: 'AI セッションを読む',
       category: 'general',
       icon: 'ti-message-2',
@@ -181,6 +184,7 @@
       },
     },
     'ai.sessions.search': {
+      untrusted: true,
       label: 'AI セッション本文を検索',
       category: 'general',
       icon: 'ti-search',
@@ -303,6 +307,7 @@
       },
     },
     'announcements.list': {
+      untrusted: true,
       label: 'サーバーアナウンス一覧',
       category: 'account',
       icon: 'ti-megaphone',
@@ -357,6 +362,7 @@
       },
     },
     'antenna.notes': {
+      untrusted: true,
       label: 'アンテナの note',
       category: 'note',
       icon: 'ti-antenna-bars-5',
@@ -445,6 +451,7 @@
       },
     },
     'channel.notes': {
+      untrusted: true,
       label: 'チャネルの note',
       category: 'note',
       icon: 'ti-message-circle',
@@ -667,6 +674,7 @@
       },
     },
     'clips.notes': {
+      untrusted: true,
       label: 'クリップ内のノート一覧',
       category: 'note',
       icon: 'ti-paperclip',
@@ -814,6 +822,7 @@
       },
     },
     'column.focusedNote': {
+      untrusted: true,
       label: 'フォーカス中のノートを取得',
       category: 'column',
       icon: 'ti-target',
@@ -1419,6 +1428,7 @@
       },
     },
     'flash.show': {
+      untrusted: true,
       label: 'Misskey Play 詳細',
       category: 'note',
       icon: 'ti-script',
@@ -1444,6 +1454,7 @@
       },
     },
     'gallery.list': {
+      untrusted: true,
       label: 'Gallery 一覧',
       category: 'note',
       icon: 'ti-photo',
@@ -1476,6 +1487,7 @@
       },
     },
     'http.fetch': {
+      untrusted: true,
       label: '外部 HTTP リクエスト',
       category: 'general',
       icon: 'ti-world-www',
@@ -2009,6 +2021,7 @@
       },
     },
     'misstore.search': {
+      untrusted: true,
       label: 'MisStore を検索',
       category: 'general',
       icon: 'ti-shopping-bag',
@@ -2094,6 +2107,7 @@
       },
     },
     'notes.children': {
+      untrusted: true,
       label: 'リプライ取得',
       category: 'note',
       icon: 'ti-corner-down-right',
@@ -2267,6 +2281,7 @@
       },
     },
     'notes.search': {
+      untrusted: true,
       label: 'ノート検索',
       category: 'note',
       icon: 'ti-search',
@@ -2302,6 +2317,7 @@
       },
     },
     'notes.searchArchive': {
+      untrusted: true,
       label: '手元の索引を検索',
       category: 'note',
       icon: 'ti-archive',
@@ -2358,6 +2374,7 @@
       },
     },
     'notes.show': {
+      untrusted: true,
       label: 'ノート取得',
       category: 'note',
       icon: 'ti-note',
@@ -2383,6 +2400,7 @@
       },
     },
     'notes.timeline': {
+      untrusted: true,
       label: 'タイムライン取得',
       category: 'note',
       icon: 'ti-list',
@@ -2478,6 +2496,7 @@
       },
     },
     'notes.user': {
+      untrusted: true,
       label: 'ユーザーのノート取得',
       category: 'note',
       icon: 'ti-user',
@@ -2513,6 +2532,7 @@
       },
     },
     'notifications.list': {
+      untrusted: true,
       label: '通知一覧',
       category: 'general',
       icon: 'ti-bell',
@@ -2603,6 +2623,7 @@
       },
     },
     'pages.show': {
+      untrusted: true,
       label: 'Page 詳細',
       category: 'note',
       icon: 'ti-file-text',
@@ -3150,6 +3171,7 @@
       },
     },
     'role.notes': {
+      untrusted: true,
       label: 'ロールの note',
       category: 'note',
       icon: 'ti-badges',
@@ -3903,6 +3925,7 @@
       },
     },
     'user.followers': {
+      untrusted: true,
       label: 'フォロワー一覧',
       category: 'account',
       icon: 'ti-users',
@@ -3939,6 +3962,7 @@
       },
     },
     'user.following': {
+      untrusted: true,
       label: 'フォロー一覧',
       category: 'account',
       icon: 'ti-user-check',
@@ -3975,6 +3999,7 @@
       },
     },
     'user.lookup': {
+      untrusted: true,
       label: 'ユーザー検索',
       category: 'account',
       icon: 'ti-user-search',
@@ -4059,6 +4084,7 @@
       },
     },
     'user.search': {
+      untrusted: true,
       label: 'ユーザーをあいまい検索',
       category: 'account',
       icon: 'ti-search',
@@ -4171,6 +4197,7 @@
       },
     },
     'vault.fetch': {
+      untrusted: true,
       label: 'Vault 接続で HTTP リクエスト',
       category: 'general',
       icon: 'ti-plug-connected',

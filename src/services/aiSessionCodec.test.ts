@@ -1,121 +1,131 @@
-import JSON5 from 'json5'
-import { describe, expect, it, vi } from 'vitest'
-
+import { describe, expect, it } from 'vitest'
+import type { AiSession as WireSession } from '@/bindings'
 import {
-  type AiSession,
-  CURRENT_SCHEMA_VERSION,
-  deserialize,
-  serialize,
+  buildLastMessagePreview,
+  messageFromWire,
+  messageToWire,
+  sessionFromWire,
 } from '@/services/aiSessionCodec'
 
-function makeSession(partial: Partial<AiSession> = {}): AiSession {
+// ファイル形式の正本と round-trip の検査は Rust 側 (crates/notecore/src/ai_sessions.rs)。
+// ここは notecore の wire とフロントの ChatMessage の変換だけ。
+
+function wire(overrides: Partial<WireSession> = {}): WireSession {
   return {
-    schemaVersion: CURRENT_SCHEMA_VERSION,
-    id: '20260722120000',
+    schemaVersion: 1,
+    id: 's1',
     kind: 'chat',
-    title: 'test',
-    model: 'claude-fable-5',
-    connectionId: 'conn-1',
+    title: 't',
+    model: 'm',
+    connectionId: 'c',
     createdAt: 1,
     updatedAt: 2,
-    messageCount: 0,
     messages: [],
+    personaSkillId: null,
+    triggeredSkillIds: [],
+    messageCount: 0,
     lastMessagePreview: '',
-    ...partial,
+    ...overrides,
   }
 }
 
-describe('serialize', () => {
-  it('空値の optional フィールドはファイルに書かない', () => {
-    const raw = serialize(makeSession())
-    const parsed = JSON5.parse(raw)
-    expect(parsed).not.toHaveProperty('personaSkillId')
-    expect(parsed).not.toHaveProperty('triggeredSkillIds')
-    expect(parsed).not.toHaveProperty('unknownFields')
-  })
-
-  it('unknownFields はトップレベルに展開して書き戻す (forward-compat)', () => {
-    const raw = serialize(
-      makeSession({ unknownFields: { futureField: { nested: true } } }),
+describe('sessionFromWire', () => {
+  it('空の optional は undefined に落とし、未知の kind は chat に倒す', () => {
+    const s = sessionFromWire(wire({ kind: 'weird', triggeredSkillIds: [] }))
+    expect(s.kind).toBe('chat')
+    expect(s.personaSkillId).toBeUndefined()
+    expect(s.triggeredSkillIds).toBeUndefined()
+    const t = sessionFromWire(
+      wire({ personaSkillId: 'p', triggeredSkillIds: ['a'] }),
     )
-    const parsed = JSON5.parse(raw)
-    expect(parsed.futureField).toEqual({ nested: true })
-    expect(parsed).not.toHaveProperty('unknownFields')
-  })
-})
-
-describe('deserialize', () => {
-  it('serialize との round-trip で未知フィールドを保持する', () => {
-    const original = JSON.stringify({
-      schemaVersion: 1,
-      id: 's1',
-      kind: 'chat',
-      title: 't',
-      model: 'm',
-      connectionId: 'c',
-      createdAt: 1,
-      updatedAt: 2,
-      messages: [],
-      futureField: 'keep-me',
-    })
-    const session = deserialize(original)
-    expect(session?.unknownFields).toEqual({ futureField: 'keep-me' })
-
-    const rewritten = JSON5.parse(serialize(session as AiSession))
-    expect(rewritten.futureField).toBe('keep-me')
+    expect(t.personaSkillId).toBe('p')
+    expect(t.triggeredSkillIds).toEqual(['a'])
   })
 
-  it('空 content の assistant placeholder を落とす (tool_use 付きは残す)', () => {
-    const session = deserialize(
-      JSON.stringify({
-        schemaVersion: 1,
-        id: 's1',
-        kind: 'chat',
-        title: 't',
-        model: 'm',
-        connectionId: 'c',
-        createdAt: 1,
-        updatedAt: 2,
+  it('tool 系フィールドは存在するときだけ載せる', () => {
+    const s = sessionFromWire(
+      wire({
         messages: [
-          { id: 'u1', role: 'user', content: 'q', timestamp: 1 },
-          { id: 'a1', role: 'assistant', content: '', timestamp: 2 },
           {
-            id: 'a2',
+            id: 'a1',
             role: 'assistant',
             content: '',
             timestamp: 3,
-            toolUseId: 'toolu_1',
+            toolUseId: 'tu1',
+            toolUseName: 'time.now',
+            toolUseInput: { x: 1 },
+            toolResultFor: null,
+            heartbeat: null,
+          },
+          {
+            id: 'r1',
+            role: 'user',
+            content: '12:00',
+            timestamp: 4,
+            toolUseId: null,
+            toolUseName: null,
+            toolUseInput: null,
+            toolResultFor: 'tu1',
+            heartbeat: true,
           },
         ],
       }),
     )
-    expect(session?.messages.map((m) => m.id)).toEqual(['u1', 'a2'])
-    expect(session?.messageCount).toBe(2)
+    expect(s.messages[0]).toEqual({
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      timestamp: 3,
+      toolUseId: 'tu1',
+      toolUseName: 'time.now',
+      toolUseInput: { x: 1 },
+    })
+    expect(s.messages[1]).toEqual({
+      id: 'r1',
+      role: 'user',
+      content: '12:00',
+      timestamp: 4,
+      toolResultFor: 'tu1',
+      heartbeat: true,
+    })
   })
+})
 
-  it('パース不能な内容は warn して null を返す', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    expect(deserialize('{{{ broken')).toBeNull()
-    expect(deserialize('"just a string"')).toBeNull()
-    expect(warn).toHaveBeenCalled()
-    warn.mockRestore()
+describe('messageToWire / messageFromWire', () => {
+  it('round-trip で同じ ChatMessage に戻る', () => {
+    const m = {
+      id: 'x',
+      role: 'assistant' as const,
+      content: 'c',
+      timestamp: 10,
+      toolUseId: 'tu',
+      toolUseName: 'n',
+      toolUseInput: { a: 'b' },
+    }
+    expect(messageFromWire(messageToWire(m))).toEqual(m)
+    expect(messageToWire(m).heartbeat).toBeNull()
   })
+})
 
-  it('型が壊れたフィールドはデフォルトへフォールバックする', () => {
-    const session = deserialize(
-      JSON.stringify({
-        id: 's1',
-        kind: 'chat',
-        title: 42,
-        model: null,
-        messages: 'not-an-array',
-        triggeredSkillIds: ['ok', 42, '', null],
-      }),
-    )
-    expect(session?.schemaVersion).toBe(1)
-    expect(session?.title).toBe('')
-    expect(session?.model).toBe('')
-    expect(session?.messages).toEqual([])
-    expect(session?.triggeredSkillIds).toEqual(['ok'])
+describe('buildLastMessagePreview', () => {
+  it('tool 行を飛ばし、空白を潰し、上限で切る', () => {
+    expect(
+      buildLastMessagePreview([
+        { id: 'a', role: 'assistant', content: '  a\n b ', timestamp: 0 },
+        {
+          id: 'r',
+          role: 'user',
+          content: 'tool',
+          timestamp: 0,
+          toolResultFor: 't',
+        },
+      ]),
+    ).toBe('a b')
+    const long = buildLastMessagePreview([
+      { id: 'a', role: 'assistant', content: 'あ'.repeat(130), timestamp: 0 },
+    ])
+    expect([...long].length).toBe(121)
+    expect(long.endsWith('…')).toBe(true)
+    expect(buildLastMessagePreview([])).toBe('')
   })
 })

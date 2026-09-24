@@ -1,157 +1,114 @@
-/**
- * AI セッション (`sessions/<id>.json5`) の serialize / deserialize (#782 Phase 2)。
- *
- * forward-compat (未知フィールドの保持・書き戻し) と読込時浄化 (#770 の
- * streaming placeholder 除去) という壊れやすい正規化を store から分離し、
- * フレームワーク非依存の純関数として直接テストする。
- */
-
-import JSON5 from 'json5'
+import type {
+  SessionMessage as WireMessage,
+  AiSession as WireSession,
+} from '@/bindings'
 import type { ChatMessage } from '@/composables/useAiChat'
+
+/**
+ * AI セッションの型と wire 変換 (#782 Phase 2 / #1133 縦切り 3)。
+ *
+ * ファイル (`sessions/<id>.json5`) の書き手は notecore で、形式の正本も
+ * Rust 側 (`crates/notecore/src/ai_sessions.rs`)。ここは notecore が返す wire
+ * (bindings の `AiSession` / `SessionMessage`) とフロントの `ChatMessage` の
+ * 相互変換だけを持つ。
+ */
 
 export const CURRENT_SCHEMA_VERSION = 1
 
 export type AiSessionKind = 'chat' | 'command' | 'task' | 'heartbeat'
 
-/** セッション一覧 (ドロワー) で使う軽量メタ。 */
 export interface AiSessionMeta {
   id: string
   kind: AiSessionKind
   title: string
   model: string
-  /** 使用する Vault 接続の id (#564)。旧 session は空文字。 */
   connectionId: string
   createdAt: number
   updatedAt: number
   messageCount: number
-  /** 最後のメッセージ本文プレビュー (drawer 表示用、120 文字 trim)。空可。 */
   lastMessagePreview: string
-  /**
-   * このセッションが作成された時点の persona skill id (#491、snapshot)。
-   * `aiConfig.personaSkillId` (= 新規セッションのデフォルト) と独立に session
-   * 自身が値を保持するため、後でグローバル設定を変えても過去セッションの
-   * persona 表示は固定されたまま (Git commit の Author header と同じ
-   * immutable semantic)。空文字 / 未指定 = persona なしで作成された session。
-   */
   personaSkillId?: string
 }
 
-/** メタ + 本文。chat 以外の kind が増えたら discriminated union 化する。 */
 export interface AiSession extends AiSessionMeta {
   schemaVersion: number
   messages: ChatMessage[]
-  /**
-   * このセッションで一度でも発火した mode='trigger' skill の id 累積 (#725)。
-   * トリガー語を含まないフォローアップターンでも skill 本文を system prompt に
-   * 保ち続ける session-sticky 状態。セッション新規作成で自然に空になる。
-   * dangling id (後で削除された skill) は composedSystemPrompt 側が無視する
-   * ので掃除不要。
-   */
   triggeredSkillIds?: string[]
-  /** 知らないフィールドは forward-compat で保持して書き戻す。 */
-  unknownFields?: Record<string, unknown>
 }
 
-interface PersistShape {
-  schemaVersion: number
-  id: string
-  kind: AiSessionKind
-  title: string
-  model: string
-  connectionId: string
-  createdAt: number
-  updatedAt: number
-  messages: ChatMessage[]
-  [key: string]: unknown
+const KINDS = new Set<AiSessionKind>(['chat', 'command', 'task', 'heartbeat'])
+
+export function messageFromWire(m: WireMessage): ChatMessage {
+  const role =
+    m.role === 'user' || m.role === 'assistant' || m.role === 'system'
+      ? m.role
+      : 'assistant'
+  const out: ChatMessage = {
+    id: m.id,
+    role,
+    content: m.content,
+    timestamp: m.timestamp,
+  }
+  if (m.toolUseId) out.toolUseId = m.toolUseId
+  if (m.toolUseName) out.toolUseName = m.toolUseName
+  if (m.toolUseInput && typeof m.toolUseInput === 'object') {
+    out.toolUseInput = m.toolUseInput as Record<string, unknown>
+  }
+  if (m.toolResultFor) out.toolResultFor = m.toolResultFor
+  if (m.heartbeat) out.heartbeat = true
+  return out
 }
 
-const KNOWN_FIELDS = new Set([
-  'schemaVersion',
-  'id',
-  'kind',
-  'title',
-  'model',
-  'connectionId',
-  'createdAt',
-  'updatedAt',
-  'messages',
-  'personaSkillId',
-  'triggeredSkillIds',
-])
-
-export function serialize(session: AiSession): string {
-  const out: Record<string, unknown> = {
-    schemaVersion: session.schemaVersion,
-    id: session.id,
-    kind: session.kind,
-    title: session.title,
-    model: session.model,
-    connectionId: session.connectionId,
-    createdAt: session.createdAt,
-    updatedAt: session.updatedAt,
-    messages: session.messages,
-  }
-  if (session.personaSkillId) out.personaSkillId = session.personaSkillId
-  if (session.triggeredSkillIds?.length) {
-    out.triggeredSkillIds = session.triggeredSkillIds
-  }
-  if (session.unknownFields) {
-    for (const [k, v] of Object.entries(session.unknownFields)) {
-      out[k] = v
-    }
-  }
-  return `${JSON.stringify(out, null, 2)}\n`
-}
-
-export function deserialize(raw: string): AiSession | null {
-  let parsed: unknown
-  try {
-    parsed = JSON5.parse(raw)
-  } catch (e) {
-    console.warn('[ai-sessions] parse failed:', e)
-    return null
-  }
-  if (!parsed || typeof parsed !== 'object') {
-    console.warn('[ai-sessions] parse failed: not an object')
-    return null
-  }
-  const r = parsed as PersistShape
-  // 空 content の assistant はストリーミング placeholder の残骸 (#770 中断や
-  // 異常終了で永続化されたもの)。tool_use 付き (本文空で tool 呼び出しのみ) は
-  // 正当なターンなので残す。
-  const messages = (Array.isArray(r.messages) ? r.messages : []).filter(
-    (m) => !(m?.role === 'assistant' && !m.content && !m.toolUseId),
-  )
-  const triggeredSkillIds = Array.isArray(r.triggeredSkillIds)
-    ? r.triggeredSkillIds.filter(
-        (x): x is string => typeof x === 'string' && x.length > 0,
-      )
-    : []
-  const unknownFields: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(r)) {
-    if (!KNOWN_FIELDS.has(k)) unknownFields[k] = v
-  }
+export function messageToWire(m: ChatMessage): WireMessage {
   return {
-    schemaVersion: typeof r.schemaVersion === 'number' ? r.schemaVersion : 1,
-    id: typeof r.id === 'string' ? r.id : '',
-    kind: (r.kind as AiSessionKind) || 'chat',
-    title: typeof r.title === 'string' ? r.title : '',
-    model: typeof r.model === 'string' ? r.model : '',
-    connectionId: typeof r.connectionId === 'string' ? r.connectionId : '',
-    createdAt: typeof r.createdAt === 'number' ? r.createdAt : Date.now(),
-    updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : Date.now(),
-    messages,
-    messageCount: messages.length,
-    // drawer 表示用 preview は listSorted() 側で computed する。AiSession 自体には
-    // 永続化せず、空文字を入れて型を満たす。
-    lastMessagePreview: '',
-    personaSkillId:
-      typeof r.personaSkillId === 'string' && r.personaSkillId
-        ? r.personaSkillId
-        : undefined,
-    triggeredSkillIds:
-      triggeredSkillIds.length > 0 ? triggeredSkillIds : undefined,
-    unknownFields:
-      Object.keys(unknownFields).length > 0 ? unknownFields : undefined,
+    id: m.id,
+    role: m.role,
+    content: m.content,
+    timestamp: Math.round(m.timestamp),
+    toolUseId: m.toolUseId ?? null,
+    toolUseName: m.toolUseName ?? null,
+    toolUseInput: (m.toolUseInput ?? null) as WireMessage['toolUseInput'],
+    toolResultFor: m.toolResultFor ?? null,
+    heartbeat: m.heartbeat ? true : null,
   }
+}
+
+export function sessionFromWire(w: WireSession): AiSession {
+  const kind = KINDS.has(w.kind as AiSessionKind)
+    ? (w.kind as AiSessionKind)
+    : 'chat'
+  const session: AiSession = {
+    schemaVersion: w.schemaVersion,
+    id: w.id,
+    kind,
+    title: w.title,
+    model: w.model,
+    connectionId: w.connectionId,
+    createdAt: w.createdAt,
+    updatedAt: w.updatedAt,
+    messageCount: w.messageCount,
+    lastMessagePreview: w.lastMessagePreview,
+    messages: w.messages.map(messageFromWire),
+  }
+  if (w.personaSkillId) session.personaSkillId = w.personaSkillId
+  const triggered = w.triggeredSkillIds ?? []
+  if (triggered.length > 0) session.triggeredSkillIds = [...triggered]
+  return session
+}
+
+/**
+ * ドロワー用の preview (notecore と同じ規則)。ローカルの写しを更新した直後に
+ * サーバー往復を待たず表示するために持つ。
+ */
+export function buildLastMessagePreview(messages: ChatMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (!m) continue
+    if (m.toolResultFor || m.toolUseId) continue
+    const flat = (m.content ?? '').trim().replace(/\s+/g, ' ').trim()
+    if (flat.length === 0) continue
+    const chars = [...flat]
+    return chars.length > 120 ? `${chars.slice(0, 120).join('')}…` : flat
+  }
+  return ''
 }

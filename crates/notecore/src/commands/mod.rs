@@ -19,6 +19,7 @@
 
 pub mod admin;
 pub mod ai_chat;
+pub mod ai_sessions;
 pub mod auth;
 pub mod charts;
 pub mod clips;

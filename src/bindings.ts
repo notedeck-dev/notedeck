@@ -2243,7 +2243,7 @@ async aiTurnRun(req: AiTurnRequest) : Promise<Result<null, { code: string; messa
 }
 },
 /** @see crates/notecore/src/commands/ai_chat.rs */
-async aiTurnCancel(turnId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
+async aiTurnCancel(turnId: string) : Promise<Result<SessionMessage | null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_turn_cancel", { turnId }) };
 } catch (e) {
@@ -2264,6 +2264,78 @@ async aiConfirmRespond(requestId: string, accepted: boolean) : Promise<Result<nu
 async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_confirm_shown", { requestId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/ai_sessions.rs */
+async aiSessionsLoadAll() : Promise<Result<AiSession[], { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_sessions_load_all") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/ai_sessions.rs */
+async aiSessionGet(id: string) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_session_get", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/ai_sessions.rs */
+async aiSessionCreate(req: AiSessionCreate) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_session_create", { req }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/ai_sessions.rs */
+async aiSessionAppend(id: string, messages: SessionMessage[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_session_append", { id, messages }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/ai_sessions.rs */
+async aiSessionRemoveMessages(id: string, messageIds: string[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_session_remove_messages", { id, messageIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/ai_sessions.rs */
+async aiSessionRename(id: string, title: string) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_session_rename", { id, title }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/ai_sessions.rs */
+async aiSessionAddTriggeredSkills(id: string, skillIds: string[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_session_add_triggered_skills", { id, skillIds }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/ai_sessions.rs */
+async aiSessionDelete(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_session_delete", { id }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2747,11 +2819,24 @@ read_timeout_ms: number | null;
  */
 tools: JsonValue | null }
 export type AiChatRole = "system" | "user" | "assistant"
+/**
+ * セッション (wire)。`message_count` / `last_message_preview` は算出値。
+ */
+export type AiSession = { schemaVersion: number; id: string; 
+/**
+ * `chat` | `command` | `task` | `heartbeat`
+ */
+kind: string; title: string; model: string; connectionId: string; createdAt: number; updatedAt: number; messages: SessionMessage[]; personaSkillId?: string | null; triggeredSkillIds?: string[]; messageCount: number; lastMessagePreview: string }
+export type AiSessionCreate = { 
+/**
+ * デバイスが採番する (ローカル時刻の `YYYYMMDDhhmmss` + 衝突接尾辞)
+ */
+id: string; kind: string; title: string; model: string; connectionId: string; personaSkillId?: string | null }
 export type AiTurnRequest = { turn_id: string; 
 /**
- * イベントの帰属先。この段階ではデバイスが store への投影に使うだけ
+ * 書込先のセッション。None = 永続化しない (HEARTBEAT の使い捨て履歴)
  */
-session_id: string; 
+session_id: string | null; 
 /**
  * `ai.chat` | `ai.heartbeat`
  */
@@ -2780,7 +2865,12 @@ generate_title: boolean; title_max_tokens: number | null;
  * 実行時に決まる enum (`{ capabilityId: { param: [values] } }`)。宣言表に
  * 書けない値 (カラム種別など) をデバイスが足す
  */
-tool_param_enums: JsonValue | null; device_tools: DeviceTool[] }
+tool_param_enums: JsonValue | null; device_tools: DeviceTool[]; 
+/**
+ * デバイスが組んだ文脈に他人の内容 (可視ノートなど) が含まれる。
+ * true ならこのセッションはこのターンから tainted
+ */
+context_untrusted?: boolean }
 export type Antenna = { id: string; name: string; 
 /**
  * 'home' | 'all' | 'users' | 'list' | 'users_blacklist'
@@ -3015,7 +3105,11 @@ params: JsonValue; permissions: string[];
 /**
  * 実行前に確認が要りうるか (plugin の `requiresConfirmation`)
  */
-confirm?: boolean }
+confirm?: boolean; 
+/**
+ * 結果に他人の内容を含みうるか (デバイス側の申告。宣言表の `untrusted` と同じ意味)
+ */
+untrusted?: boolean }
 /**
  * broadcast チャネルの絵文字辞書変更の種別。
  */
@@ -3579,6 +3673,18 @@ export type ServerNotesChartSection = { total: number[]; inc: number[]; dec: num
  */
 export type ServerUsersChart = { local: ServerUsersChartSection; remote: ServerUsersChartSection }
 export type ServerUsersChartSection = { total: number[]; inc: number[]; dec: number[] }
+/**
+ * セッションの 1 メッセージ (wire。ファイルの未知フィールドは持たない)。
+ */
+export type SessionMessage = { id: string; 
+/**
+ * `user` | `assistant` | `system`
+ */
+role: string; content: string; timestamp: number; toolUseId?: string | null; toolUseName?: string | null; toolUseInput?: JsonValue | null; toolResultFor?: string | null; 
+/**
+ * HEARTBEAT の報告 (AI の履歴からは除く)
+ */
+heartbeat?: boolean | null }
 export type Status = "ok" | "warn" | "fail"
 export type StreamChatMessageDeletedEvent = { accountId: string; subscriptionId: string; messageId: string }
 export type StreamChatMessageEvent = { accountId: string; subscriptionId: string; message: ChatMessage }

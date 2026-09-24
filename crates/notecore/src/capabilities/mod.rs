@@ -95,6 +95,9 @@ pub struct CapabilityDecl {
     pub cheap: bool,
     /// コマンドパレットに並べるか
     pub visible: bool,
+    /// 結果に他人の内容 (投稿 / プロフィール / 通知 / fetch 結果) を含みうる読取。
+    /// 読んだセッションは以後 tainted (#1103 / #1133)
+    pub untrusted: bool,
     pub exec: Exec,
     pub description: &'static str,
     pub params: &'static [ParamDecl],

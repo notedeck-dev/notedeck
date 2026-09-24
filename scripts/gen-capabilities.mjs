@@ -133,6 +133,7 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
       actsAsAccount: d.actsAsAccount === true,
       cheap: d.cheap === true,
       visible: d.visible === true,
+      untrusted: d.untrusted === true,
       exec,
       description: expand(d.description ?? ''),
       params,
@@ -183,6 +184,8 @@ export function renderTs(decls) {
     '  cheap: boolean',
     '  /** コマンドパレットに並べるか */',
     '  visible: boolean',
+    '  /** 結果に他人の内容を含みうる読取 (読んだセッションを tainted にする) */',
+    '  untrusted: boolean',
     '  exec: CapabilityExec',
     '  description: string',
     '  params: Record<string, ParameterDef>',
@@ -212,6 +215,7 @@ export function renderTs(decls) {
     lines.push(`    actsAsAccount: ${d.actsAsAccount},`)
     lines.push(`    cheap: ${d.cheap},`)
     lines.push(`    visible: ${d.visible},`)
+    lines.push(`    untrusted: ${d.untrusted},`)
     lines.push(`    exec: ${ts(d.exec)},`)
     lines.push(`    description: ${ts(d.description)},`)
     lines.push(`    params: ${ts(d.params)},`)
@@ -263,6 +267,7 @@ export function renderRs(decls) {
       `        acts_as_account: ${d.actsAsAccount},`,
       `        cheap: ${d.cheap},`,
       `        visible: ${d.visible},`,
+      `        untrusted: ${d.untrusted},`,
       `        exec: Exec::${pascal(d.exec)},`,
       `        description: ${rs(d.description)},`,
     )

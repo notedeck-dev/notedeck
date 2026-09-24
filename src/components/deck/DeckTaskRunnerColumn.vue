@@ -214,7 +214,7 @@ async function runWithAi(def: TaskDefinition): Promise<void> {
     content: `Run task: ${def.label}`,
     timestamp: now,
   }
-  sessionsStore.updateMessages(session.id, [userMsg])
+  sessionsStore.appendMessages(session.id, [userMsg])
 
   // task も AI 駆動なので principal は ai.chat (#712 §3.2 — ai.task の細分化はしない)
   const result = await dispatchCapability(
@@ -248,13 +248,8 @@ async function runWithAi(def: TaskDefinition): Promise<void> {
     toolResultFor: toolUseId,
   }
 
-  const cur = sessionsStore.get(session.id)
-  if (!cur) return
-  sessionsStore.updateMessages(session.id, [
-    ...cur.messages,
-    assistantToolUse,
-    toolResultMsg,
-  ])
+  if (!sessionsStore.get(session.id)) return
+  sessionsStore.appendMessages(session.id, [assistantToolUse, toolResultMsg])
 }
 
 const defaultTask = computed<TaskDefinition | null>(
