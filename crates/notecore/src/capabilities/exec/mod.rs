@@ -11,6 +11,7 @@
 //! デバイスの dispatcher が済ませている)。
 
 mod account;
+mod meta;
 mod misc;
 mod net;
 mod notes;
@@ -177,6 +178,11 @@ pub async fn execute(core: &Core, id: &str, params: Value, ctx: &ExecContext) ->
         "federation.chart" => server::federation_chart(core, p, ctx).await,
         "federation.instance" => server::federation_instance(core, p, ctx).await,
         "federation.instances" => server::federation_instances(core, p, ctx).await,
+        // --- notecore が正本を持つローカル情報 ---
+        "ai.sessions.list" => meta::ai_sessions_list(core),
+        "ai.sessions.read" => meta::ai_sessions_read(core, p),
+        "ai.sessions.search" => meta::ai_sessions_search(core, p),
+        "meta.permissions" => meta::meta_permissions(ctx).await,
         // --- 外部ネットワーク ---
         "http.fetch" => net::http_fetch(core, p).await,
         "misstore.search" => net::misstore_search(core, p).await,
@@ -246,6 +252,10 @@ const HAS_BODY: &[&str] = &[
     "federation.instances",
     "http.fetch",
     "misstore.search",
+    "ai.sessions.list",
+    "ai.sessions.read",
+    "ai.sessions.search",
+    "meta.permissions",
 ];
 
 #[cfg(test)]

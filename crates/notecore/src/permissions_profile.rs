@@ -181,6 +181,36 @@ pub fn resolve(content: Option<&str>, id: PrincipalId) -> Granted {
     }
 }
 
+/// principal の preset 名 (store.ts `normalizeProfile` と同じ規則: 不明 / 欠損は
+/// readonly、ファイル無しは既定プロファイルの名前、破損は readonly)。
+/// `meta.permissions` が返す表示用の値で、実効 granted は [`resolve`] が決める。
+pub fn preset_of(content: Option<&str>, id: PrincipalId) -> &'static str {
+    const VALID: &[&str] = &["readonly", "safe", "full", "custom"];
+    let Some(text) = content else {
+        return match id {
+            PrincipalId::AiChat => "safe",
+            PrincipalId::AiHeartbeat | PrincipalId::Scratchpad => "readonly",
+            PrincipalId::Plugin | PrincipalId::External => "custom",
+        };
+    };
+    let Ok(doc) = json5::from_str::<Value>(text) else {
+        return "readonly";
+    };
+    match doc
+        .get("principals")
+        .and_then(|p| p.get(id.as_str()))
+        .and_then(|p| p.get("preset"))
+        .and_then(Value::as_str)
+    {
+        Some(name) => VALID
+            .iter()
+            .copied()
+            .find(|v| *v == name)
+            .unwrap_or("readonly"),
+        None => "readonly",
+    }
+}
+
 /// permissions.json5 の `confirmSkips[scope]` に capability があるか (#714)。
 /// 形は `{ confirmSkips: { 'ai.chat': ['notes.create', ...] } }`。パース失敗は false。
 pub fn confirm_skipped(content: &str, scope: &str, capability_id: &str) -> bool {
@@ -204,6 +234,28 @@ pub fn resolve_fallback(id: PrincipalId) -> Granted {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preset_of_follows_store_normalization() {
+        assert_eq!(preset_of(None, PrincipalId::AiChat), "safe");
+        assert_eq!(preset_of(None, PrincipalId::Plugin), "custom");
+        assert_eq!(preset_of(Some("{ broken"), PrincipalId::AiChat), "readonly");
+        assert_eq!(
+            preset_of(
+                Some("{ principals: { 'ai.chat': { preset: 'full' } } }"),
+                PrincipalId::AiChat
+            ),
+            "full"
+        );
+        assert_eq!(
+            preset_of(
+                Some("{ principals: { 'ai.chat': { preset: 'weird' } } }"),
+                PrincipalId::AiChat
+            ),
+            "readonly"
+        );
+        assert_eq!(preset_of(Some("{}"), PrincipalId::External), "readonly");
+    }
 
     #[test]
     fn confirm_skipped_reads_scope_list() {
