@@ -7,7 +7,7 @@ Misskey IDE (Integrated Deck Environment) with fork support — branded as "Miss
 | | |
 |---|---|
 | Frontend | Vue 3 + TypeScript（Vapor モード移行予定） |
-| Backend | Rust (Tauri v2) + [notecli](https://github.com/notedeck-dev/notecli) |
+| Backend | Rust (Tauri v2) + [notecli](crates/notecli/) |
 | Build | Vite 8 (Rolldown) + Cargo |
 | State | Pinia |
 | Local DB | SQLite (rusqlite, WAL mode, FTS5) |
