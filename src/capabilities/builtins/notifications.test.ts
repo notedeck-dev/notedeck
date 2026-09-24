@@ -34,21 +34,6 @@ describe('notifications.markRead capability', () => {
       notificationsMarkReadCapability.signature?.params?.accountId?.optional,
     ).toBe(true)
   })
-
-  it('confirm shows account-specific message when accountId provided', async () => {
-    const confirm = notificationsMarkReadCapability.requiresConfirmation
-    if (typeof confirm !== 'function') throw new Error('expected function')
-    const opts = await confirm({ accountId: 'acc-1' }, {})
-    expect(opts?.message).toContain('acc-1')
-    expect(opts?.type).toBe('warning')
-  })
-
-  it('confirm shows全アカウント message when accountId is empty', async () => {
-    const confirm = notificationsMarkReadCapability.requiresConfirmation
-    if (typeof confirm !== 'function') throw new Error('expected function')
-    const opts = await confirm({}, {})
-    expect(opts?.message).toContain('全アカウント')
-  })
 })
 
 describe('NOTIFICATIONS_BUILTIN_CAPABILITIES', () => {

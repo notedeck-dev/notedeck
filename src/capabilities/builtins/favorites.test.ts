@@ -12,18 +12,9 @@ describe('favorites capabilities — declaration', () => {
   ])('%s declares notes.react permission, confirmation, aiTool', (id, cap) => {
     expect(cap.id).toBe(id)
     expect(cap.permissions).toEqual(['notes.react'])
-    expect(cap.requiresConfirmation).toBe(true)
+    expect(cap.requiresConfirmation).toBeTruthy()
     expect(cap.aiTool).toBe(true)
     expect(cap.signature?.params?.noteId?.optional).not.toBe(true)
-  })
-
-  it('both throw when noteId is missing', async () => {
-    await expect(favoritesAddCapability.execute({})).rejects.toThrow(
-      /noteId is required/,
-    )
-    await expect(favoritesRemoveCapability.execute({})).rejects.toThrow(
-      /noteId is required/,
-    )
   })
 })
 

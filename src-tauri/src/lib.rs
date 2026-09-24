@@ -1116,6 +1116,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::ai_confirm_respond,
             commands::ai_confirm_shown,
             commands::capability_execute,
+            commands::capability_preview,
             commands::ai_sessions_load_all,
             commands::ai_session_get,
             commands::ai_session_create,

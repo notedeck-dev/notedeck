@@ -10,17 +10,8 @@ describe('notes.unreact capability', () => {
   it('declares notes.react permission, confirmation, aiTool', () => {
     expect(notesUnreactCapability.id).toBe('notes.unreact')
     expect(notesUnreactCapability.permissions).toEqual(['notes.react'])
-    expect(notesUnreactCapability.requiresConfirmation).toBe(true)
+    expect(notesUnreactCapability.requiresConfirmation).toBeTruthy()
     expect(notesUnreactCapability.aiTool).toBe(true)
-  })
-
-  it('requires noteId', async () => {
-    expect(notesUnreactCapability.signature?.params?.noteId?.optional).not.toBe(
-      true,
-    )
-    await expect(notesUnreactCapability.execute({})).rejects.toThrow(
-      /noteId is required/,
-    )
   })
 })
 
@@ -32,7 +23,7 @@ describe('notes.create capability', () => {
   })
 
   it('requires confirmation', () => {
-    expect(notesCreateCapability.requiresConfirmation).toBe(true)
+    expect(notesCreateCapability.requiresConfirmation).toBeTruthy()
   })
 
   it('marks text as required and others as optional', () => {
@@ -53,21 +44,6 @@ describe('notes.create capability', () => {
       'specified',
     ])
   })
-
-  it('throws when text and renoteId are both missing', async () => {
-    await expect(notesCreateCapability.execute({})).rejects.toThrow(
-      /text is required/,
-    )
-    await expect(
-      notesCreateCapability.execute({ text: '   ' }),
-    ).rejects.toThrow(/text is required/)
-  })
-
-  it('throws on invalid visibility', async () => {
-    await expect(
-      notesCreateCapability.execute({ text: 'hi', visibility: 'secret' }),
-    ).rejects.toThrow(/invalid visibility/)
-  })
 })
 
 describe('notes.react capability', () => {
@@ -78,7 +54,7 @@ describe('notes.react capability', () => {
   })
 
   it('requires confirmation', () => {
-    expect(notesReactCapability.requiresConfirmation).toBe(true)
+    expect(notesReactCapability.requiresConfirmation).toBeTruthy()
   })
 
   it('marks noteId and reaction as required, accountId as optional', () => {
@@ -86,44 +62,6 @@ describe('notes.react capability', () => {
     expect(params?.noteId?.optional).not.toBe(true)
     expect(params?.reaction?.optional).not.toBe(true)
     expect(params?.accountId?.optional).toBe(true)
-  })
-
-  it('throws when noteId is missing', async () => {
-    await expect(
-      notesReactCapability.execute({ reaction: '👍' }),
-    ).rejects.toThrow(/noteId is required/)
-  })
-
-  it('throws when reaction is missing', async () => {
-    await expect(
-      notesReactCapability.execute({ noteId: 'n1' }),
-    ).rejects.toThrow(/reaction is required/)
-  })
-})
-
-describe('notes.delete capability', () => {
-  it('declares notes.write permission, danger confirmation function, aiTool', async () => {
-    const cap = NOTES_WRITE_BUILTIN_CAPABILITIES.find(
-      (c) => c.id === 'notes.delete',
-    )
-    if (!cap) throw new Error('notes.delete not found')
-    expect(cap.permissions).toEqual(['notes.write'])
-    expect(cap.aiTool).toBe(true)
-    expect(typeof cap.requiresConfirmation).toBe('function')
-    const opts =
-      typeof cap.requiresConfirmation === 'function'
-        ? await cap.requiresConfirmation({ noteId: 'n1' }, {})
-        : null
-    expect(opts?.type).toBe('danger')
-    expect(opts?.message).toContain('元に戻せません')
-  })
-
-  it('requires noteId', async () => {
-    const cap = NOTES_WRITE_BUILTIN_CAPABILITIES.find(
-      (c) => c.id === 'notes.delete',
-    )
-    if (!cap) throw new Error('notes.delete not found')
-    await expect(cap.execute({})).rejects.toThrow(/noteId is required/)
   })
 })
 
@@ -135,17 +73,9 @@ describe('notes.pin / unpin', () => {
     const cap = NOTES_WRITE_BUILTIN_CAPABILITIES.find((c) => c.id === id)
     if (!cap) throw new Error(`${id} not found`)
     expect(cap.permissions).toEqual(['notes.write'])
-    expect(cap.requiresConfirmation).toBe(true)
+    expect(cap.requiresConfirmation).toBeTruthy()
     expect(cap.aiTool).toBe(true)
     expect(cap.signature?.params?.noteId?.optional).not.toBe(true)
-  })
-
-  it('throw when noteId is missing', async () => {
-    for (const id of ['notes.pin', 'notes.unpin']) {
-      const cap = NOTES_WRITE_BUILTIN_CAPABILITIES.find((c) => c.id === id)
-      if (!cap) throw new Error(`${id} not found`)
-      await expect(cap.execute({})).rejects.toThrow(/noteId is required/)
-    }
   })
 })
 

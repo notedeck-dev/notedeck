@@ -12,10 +12,14 @@
 
 mod account;
 mod misc;
+mod net;
 mod notes;
+mod preview;
 mod project;
+mod server;
 mod time;
 mod user;
+mod writes;
 
 use serde_json::Value;
 
@@ -81,6 +85,33 @@ pub fn is_core(id: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// 確認ダイアログに出す内容 (デバイスの `ConfirmOptions` と同じ JSON: title /
+/// message / code / codeLanguage / diff / type / okLabel / cancelLabel /
+/// rememberLabel)。None = この引数なら確認は要らない (no-op)。帰属 / 理由 /
+/// クロスアカウントの行はデバイスの dispatcher が足す。
+pub async fn preview(
+    core: &Core,
+    id: &str,
+    params: Value,
+    ctx: &ExecContext,
+) -> Result<Option<Value>> {
+    if !is_core(id) {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "{id} は notecore では実行できません (exec が core ではない)"
+        )));
+    }
+    let _ = (core, ctx);
+    let Some(decl) = super::find(id) else {
+        return Ok(None);
+    };
+    if !decl.confirm {
+        return Ok(None);
+    }
+    Ok(Some(
+        preview::custom(id, &params).unwrap_or_else(|| preview::generic(decl.label, &params)),
+    ))
+}
+
 /// capability を notecore で実行する。宣言表に無い / core でない id はエラー。
 pub async fn execute(core: &Core, id: &str, params: Value, ctx: &ExecContext) -> Result<Value> {
     if !is_core(id) {
@@ -113,6 +144,42 @@ pub async fn execute(core: &Core, id: &str, params: Value, ctx: &ExecContext) ->
         "clips.list" => misc::clips_list(core, p, ctx).await,
         "clips.notes" => misc::clips_notes(core, p, ctx).await,
         "drive.list" => misc::drive_list(core, p, ctx).await,
+        // --- 書込 (縦切り 4 第 2 弾) ---
+        "notes.create" => writes::notes_create(core, p, ctx).await,
+        "notes.delete" => writes::notes_delete(core, p, ctx).await,
+        "notes.pin" => writes::notes_pin(core, p, ctx).await,
+        "notes.unpin" => writes::notes_unpin(core, p, ctx).await,
+        "notes.react" => writes::notes_react(core, p, ctx).await,
+        "notes.unreact" => writes::notes_unreact(core, p, ctx).await,
+        "chat.react" => writes::chat_react(core, p, ctx).await,
+        "chat.unreact" => writes::chat_unreact(core, p, ctx).await,
+        "favorites.add" => writes::favorites_add(core, p, ctx).await,
+        "favorites.remove" => writes::favorites_remove(core, p, ctx).await,
+        "clips.create" => writes::clips_create(core, p, ctx).await,
+        "clips.addNote" => writes::clips_add_note(core, p, ctx).await,
+        "clips.removeNote" => writes::clips_remove_note(core, p, ctx).await,
+        "list.addUser" => writes::list_add_user(core, p, ctx).await,
+        "list.removeUser" => writes::list_remove_user(core, p, ctx).await,
+        "user.follow" => writes::user_follow(core, p, ctx).await,
+        "user.unfollow" => writes::user_unfollow(core, p, ctx).await,
+        "notifications.markRead" => writes::notifications_mark_read(core, p).await,
+        "registry.set" => writes::registry_set(core, p, ctx).await,
+        "registry.delete" => writes::registry_delete(core, p, ctx).await,
+        // --- サーバー側データの読取 ---
+        "registry.get" => server::registry_get(core, p, ctx).await,
+        "registry.listKeys" => server::registry_list_keys(core, p, ctx).await,
+        "announcements.list" => server::announcements_list(core, p, ctx).await,
+        "pages.list" => server::pages_list(core, p, ctx).await,
+        "pages.show" => server::pages_show(core, p, ctx).await,
+        "flash.list" => server::flash_list(core, p, ctx).await,
+        "flash.show" => server::flash_show(core, p, ctx).await,
+        "gallery.list" => server::gallery_list(core, p, ctx).await,
+        "federation.chart" => server::federation_chart(core, p, ctx).await,
+        "federation.instance" => server::federation_instance(core, p, ctx).await,
+        "federation.instances" => server::federation_instances(core, p, ctx).await,
+        // --- 外部ネットワーク ---
+        "http.fetch" => net::http_fetch(core, p).await,
+        "misstore.search" => net::misstore_search(core, p).await,
         other => Err(NoteDeckError::Internal(format!(
             "exec: core と宣言されているが本体が無い: {other}"
         ))),
@@ -146,6 +213,39 @@ const HAS_BODY: &[&str] = &[
     "clips.list",
     "clips.notes",
     "drive.list",
+    "notes.create",
+    "notes.delete",
+    "notes.pin",
+    "notes.unpin",
+    "notes.react",
+    "notes.unreact",
+    "chat.react",
+    "chat.unreact",
+    "favorites.add",
+    "favorites.remove",
+    "clips.create",
+    "clips.addNote",
+    "clips.removeNote",
+    "list.addUser",
+    "list.removeUser",
+    "user.follow",
+    "user.unfollow",
+    "notifications.markRead",
+    "registry.set",
+    "registry.delete",
+    "registry.get",
+    "registry.listKeys",
+    "announcements.list",
+    "pages.list",
+    "pages.show",
+    "flash.list",
+    "flash.show",
+    "gallery.list",
+    "federation.chart",
+    "federation.instance",
+    "federation.instances",
+    "http.fetch",
+    "misstore.search",
 ];
 
 #[cfg(test)]

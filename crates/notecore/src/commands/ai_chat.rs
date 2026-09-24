@@ -75,3 +75,20 @@ pub async fn capability_execute(
     };
     crate::capabilities::exec::execute(core, &id, params, &ctx).await
 }
+
+/// `exec: core` な capability の確認内容 (プレビュー) を組む。要否の判定は
+/// 呼び出し側 (ターン実行器 / デバイスの dispatcher) が済ませ、ここは表示内容
+/// だけを返す。None = この引数なら確認は要らない。
+pub async fn capability_preview(
+    core: &Core,
+    id: String,
+    params: serde_json::Value,
+    principal: String,
+    account_id: Option<String>,
+) -> Result<Option<serde_json::Value>> {
+    let ctx = crate::capabilities::exec::ExecContext {
+        principal,
+        account_id,
+    };
+    crate::capabilities::exec::preview(core, &id, params, &ctx).await
+}

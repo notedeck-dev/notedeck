@@ -106,48 +106,9 @@ export const userUnrenoteMuteCapability = implement('user.unrenoteMute', {
   },
 })
 
-/**
- * Follow / Unfollow — 相手に通知が飛ぶ慎重カテゴリ (memory:
- * feedback_ai_capability_scope の慎重リスト)。確認 UI は warning。
- *
- * 鍵アカウントなら follow リクエストが飛ぶ (= 承認待ち)。AI は承認状態を
- * 知らないので、エラーになっても無視するのではなく上位に伝播させる。
- */
-function followConfirm(action: '送る' | '解除') {
-  return (params: Record<string, unknown> | undefined) => {
-    const userId = typeof params?.userId === 'string' ? params.userId : ''
-    return {
-      title: `フォロー${action === '送る' ? 'を送る' : 'を解除'}`,
-      message:
-        action === '送る'
-          ? `userId \`${userId}\` にフォローリクエストを送ります (相手に「フォローされた」通知が飛びます)。鍵アカウントなら承認待ち。`
-          : `userId \`${userId}\` のフォローを解除します (相手に「フォロワー減少」通知は飛びません)。`,
-      okLabel: action === '送る' ? 'フォロー' : 'フォロー解除',
-      cancelLabel: 'やめる' as const,
-      type: 'warning' as const,
-    }
-  }
-}
+export const userFollowCapability = implementCore('user.follow')
 
-export const userFollowCapability = implement('user.follow', {
-  requiresConfirmation: followConfirm('送る'),
-  execute: async (params, ctx) => {
-    const userId = pickUserId(params, 'user.follow')
-    const api = await getApiAdapter(params?.accountId, ctx)
-    await api.followUser(userId)
-    return { followed: true, userId }
-  },
-})
-
-export const userUnfollowCapability = implement('user.unfollow', {
-  requiresConfirmation: followConfirm('解除'),
-  execute: async (params, ctx) => {
-    const userId = pickUserId(params, 'user.unfollow')
-    const api = await getApiAdapter(params?.accountId, ctx)
-    await api.unfollowUser(userId)
-    return { unfollowed: true, userId }
-  },
-})
+export const userUnfollowCapability = implementCore('user.unfollow')
 
 export const userFollowersCapability = implementCore('user.followers')
 

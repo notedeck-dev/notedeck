@@ -331,7 +331,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "Misskey サーバーのアナウンス一覧を返す (read-only)。isActive=true (default) で現在有効なアナウンスのみ、false で過去含む。既読化は副作用ありのため 本 capability では提供しない (取得のみ)。",
         params: &[
             ParamDecl {
@@ -575,7 +575,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &["messageId"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "Misskey 新 Chat (v2025) のメッセージにリアクションを付ける。reaction は `:name:` 形式または Unicode 絵文字。messageId は chat カラム表示中のメッセージから取得する想定。",
         params: &[
             ParamDecl {
@@ -618,7 +618,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &["messageId"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "Misskey Chat メッセージから自分のリアクションを解除する。reaction は 付けたときと同じ値 (チャットでは複数 reaction を 1 ユーザーが付けられるため、 note のリアクションと違って種別指定が必要)。",
         params: &[
             ParamDecl {
@@ -711,7 +711,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &["noteId"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定クリップに既存ノートを追加する。clipId は clips.list、noteId は visibleNotes / notes.search 等で取得した値を渡す。",
         params: &[
             ParamDecl {
@@ -754,7 +754,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "新規クリップを作成する。AI が note 整理を提案するときに使う。",
         params: &[
             ParamDecl {
@@ -876,7 +876,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &["noteId"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "クリップからノートを取り除く (ノート自体は削除されない)。",
         params: &[
             ParamDecl {
@@ -1474,7 +1474,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定ノートを自分のお気に入りに追加する。他人には通知されず、自分しか見えない private bookmark。リアクションとは別軸 (リアクションは公開)。",
         params: &[
             ParamDecl {
@@ -1510,7 +1510,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定ノートをお気に入りから削除する。",
         params: &[
             ParamDecl {
@@ -1546,7 +1546,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "自インスタンスの連合チャート (day/hour 単位の時系列) を返す。 インバウンド/アウトバウンドの送受信数、配送先サーバー数等を含む。",
         params: &[
             ParamDecl {
@@ -1589,7 +1589,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 host の連合先インスタンス詳細を返す (read-only)。",
         params: &[
             ParamDecl {
@@ -1625,7 +1625,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "連合済みインスタンスの一覧を返す (read-only)。sort で並べ替え可。 host を指定すると部分一致絞り込み。host filter で host = ホスト名そのもの。",
         params: &[
             ParamDecl {
@@ -1781,7 +1781,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "Misskey Play (Flash) 一覧を返す。endpoint で範囲を切替: `flash/featured` (注目) / `flash/my` (自分の) / `flash/my-likes` (自分が like)。 read-only。",
         params: &[
             ParamDecl {
@@ -1824,7 +1824,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 flashId の Misskey Play 詳細を返す。**AiScript ソース (`script`) も含む** ので、AI が既存 Play を読んで参考にできる。read-only。",
         params: &[
             ParamDecl {
@@ -1860,7 +1860,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "Misskey Gallery 投稿一覧を返す (read-only)。 title / description / files / userId を含む。",
         params: &[
             ParamDecl {
@@ -1903,7 +1903,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &["url"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "外部 HTTP/HTTPS API にリクエストを送信する。Misskey 以外の API (翻訳・天気・RSS など) との連携に使う。loopback / private / link-local アドレスへの接続は SSRF 防御のため拒否される。",
         params: &[
             ParamDecl {
@@ -2067,7 +2067,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &["userId"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定リストに指定 user を追加する。listId は list.list、userId は user.lookup / search で取得。相手に通知は飛ばない (= 自分の整理用)。",
         params: &[
             ParamDecl {
@@ -2139,7 +2139,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &["userId"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定リストから指定 user を削除する (= 自分の整理用、相手通知なし)。",
         params: &[
             ParamDecl {
@@ -2638,7 +2638,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "MisStore (store.notedeck.io) のレジストリを検索する。 query は name / description / id の部分一致 (大小無視)。 kind 省略時は plugin / widget / skill / theme を全件横断検索。 エンドポイントは固定なので確認ダイアログは出ない。",
         params: &[
             ParamDecl {
@@ -2802,7 +2802,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &["replyId", "renoteId"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "Misskey にノートを投稿する。text 必須。visibility のデフォルトは public。 投稿前に確認モーダルが出る。 別サーバーから投稿するときは accountId を指定する。",
         params: &[
             ParamDecl {
@@ -2866,7 +2866,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "自分のノートを削除する。**元に戻せない**。リノート / 引用 / お気に入り / クリップに含まれている場合もすべて連鎖して見えなくなる。他人のノートは削除不可。 別サーバーで操作するときは accountId を指定する。",
         params: &[
             ParamDecl {
@@ -2902,7 +2902,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "自分のプロファイル top に指定ノートを pin する。Misskey の上限は通常 5 件で、上限超過時はサーバー側でエラーになる。",
         params: &[
             ParamDecl {
@@ -2938,7 +2938,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &["noteId"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "Misskey ノートにリアクションを付ける。reaction は :name: 形式 (`:thinking_face:`) または Unicode 絵文字 (`👍`)。投稿前に確認モーダルが出る。 別サーバーで操作するときは accountId を指定する。",
         params: &[
             ParamDecl {
@@ -3195,7 +3195,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "自分のプロファイル top に pin したノートを解除する。",
         params: &[
             ParamDecl {
@@ -3231,7 +3231,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &["noteId"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "Misskey ノートに付けた自分のリアクションを解除する。1 ノートに付けられる reaction は 1 つだけなので種別指定不要。 別サーバーで操作するときは accountId を指定する。",
         params: &[
             ParamDecl {
@@ -3360,7 +3360,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定アカウントの通知をすべて既読化する (= Misskey `notifications/mark-all-as-read`)。未読バッジが消える。 accountId を省略すると hasToken な全アカウントに対して実行する。",
         params: &[
             ParamDecl {
@@ -3389,7 +3389,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "Misskey Pages 一覧を返す。endpoint で範囲を切替: `pages/featured` (注目記事) / `i/pages` (自分の記事) / `i/page-likes` (自分が like した記事)。read-only。",
         params: &[
             ParamDecl {
@@ -3432,7 +3432,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: true,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 pageId の Misskey Page 詳細を返す (本文・ブロック含む)。 pages.list で取得した id を渡す。read-only。",
         params: &[
             ParamDecl {
@@ -4035,7 +4035,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 scope の key を削除する (Misskey `i/registry/remove`)。 Misskey 公式 Web Client と共有される設定エリア。",
         params: &[
             ParamDecl {
@@ -4078,7 +4078,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 scope の key の値を取得する (Misskey `i/registry/get-detail`)。 存在しない key は null を返す。",
         params: &[
             ParamDecl {
@@ -4121,7 +4121,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 scope 配下の key 一覧と各 key の型を返す (Misskey `i/registry/keys-with-type` 相当)。",
         params: &[
             ParamDecl {
@@ -4157,7 +4157,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 scope の key に JsonValue を書込む (Misskey `i/registry/set`)。 Misskey 公式 Web Client と共有される設定エリアなので、変更は公式 UI にも反映される。",
         params: &[
             ParamDecl {
@@ -5239,7 +5239,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &["userId"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 userId をフォローする (相手に通知が飛ぶ)。鍵アカウントの場合は フォローリクエスト送信 = 承認待ちになる。userId は user.lookup / search で取得。",
         params: &[
             ParamDecl {
@@ -5533,7 +5533,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &["userId"],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 userId のフォローを解除する (相手にフォロワー減少の通知は飛ばない)。",
         params: &[
             ParamDecl {
