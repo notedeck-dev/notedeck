@@ -296,6 +296,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // HTTP サーバー (Phase 2) と同じ橋の実装
         app.state::<commands::AppState>()
             .set_frontend_bridge(std::sync::Arc::new(query_bridge::TauriBridge(app.handle().clone())));
+        app.state::<commands::AppState>()
+            .set_core_executor(std::sync::Arc::new(commands::TauriCoreExecutor(app.handle().clone())));
 
         // Image cache — 必ず Phase 1 で manage する (#921)。フロントは
         // nd:accounts-early を受けた瞬間にカラムを mount して絵文字を要求する
@@ -1113,6 +1115,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::ai_turn_cancel,
             commands::ai_confirm_respond,
             commands::ai_confirm_shown,
+            commands::capability_execute,
             commands::ai_sessions_load_all,
             commands::ai_session_get,
             commands::ai_session_create,

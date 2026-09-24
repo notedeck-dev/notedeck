@@ -17,7 +17,7 @@ use notecli::api::MisskeyClient;
 use notecli::db::Database;
 
 use crate::ai_chat_service::AiChatSink;
-use crate::ai_turn::AiTurnSink;
+use crate::ai_turn::{AiTurnSink, CoreExecutor};
 use crate::commands::auth::AuthSessionTracker;
 use crate::credentials::{get_credentials, get_credentials_or_anon};
 use crate::error::Result;
@@ -76,6 +76,8 @@ pub struct Core {
     /// 手元側 (WebView / managed state) への問い合わせ口。ターン実行器が
     /// capability の実行要求に使う
     frontend_bridge: OnceLock<Arc<dyn FrontendBridge>>,
+    /// `exec: core` な capability の本体を呼ぶ口 (#1133 縦切り 4)
+    core_executor: OnceLock<Arc<dyn CoreExecutor>>,
     /// MiAuth セッションの追跡 (リプレイ防止)
     auth_sessions: AuthSessionTracker,
 }
@@ -108,6 +110,7 @@ impl Core {
             ai_chat_sink: OnceLock::new(),
             ai_turn_sink: OnceLock::new(),
             frontend_bridge: OnceLock::new(),
+            core_executor: OnceLock::new(),
             auth_sessions: AuthSessionTracker::new(),
         }
     }
@@ -247,6 +250,17 @@ impl Core {
             .get()
             .cloned()
             .ok_or_else(|| NoteDeckError::Internal("frontend bridge is not set".into()))
+    }
+
+    pub fn set_core_executor(&self, executor: Arc<dyn CoreExecutor>) {
+        let _ = self.core_executor.set(executor);
+    }
+
+    pub fn core_executor(&self) -> Result<Arc<dyn CoreExecutor>> {
+        self.core_executor
+            .get()
+            .cloned()
+            .ok_or_else(|| NoteDeckError::Internal("core executor is not set".into()))
     }
 
     pub fn auth_sessions(&self) -> &AuthSessionTracker {

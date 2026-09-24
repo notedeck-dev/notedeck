@@ -23,12 +23,6 @@ describe('antenna capabilities — declaration', () => {
     ).not.toBe(true)
     expect(antennaNotesCapability.signature?.params?.limit?.optional).toBe(true)
   })
-
-  it('antenna.notes throws when antennaId is missing', async () => {
-    await expect(antennaNotesCapability.execute({})).rejects.toThrow(
-      /antennaId is required/,
-    )
-  })
 })
 
 describe('ANTENNA_BUILTIN_CAPABILITIES', () => {

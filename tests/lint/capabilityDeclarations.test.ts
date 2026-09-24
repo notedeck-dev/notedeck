@@ -18,6 +18,7 @@ import {
   CAPABILITY_DECLARATIONS,
   CAPABILITY_IDS,
 } from '@/capabilities/declarations.generated'
+import { isCoreDelegate } from '@/capabilities/declare'
 import { PERMISSION_KEYS } from '@/permissions/schema'
 import {
   CAPABILITIES_RS_PATH,
@@ -96,6 +97,21 @@ describe('capability 宣言 (#1133)', () => {
         !CAPABILITY_DECLARATIONS[c.id as keyof typeof CAPABILITY_DECLARATIONS]
           ?.confirm,
     ).map((c) => c.id)
+    expect(bad).toEqual([])
+  })
+
+  it('exec: core の宣言 ⇔ builtins は notecore への委譲 (本体を二重に持たない)', () => {
+    const bad: string[] = []
+    for (const c of ALL_BUILTIN_CAPABILITIES) {
+      const d =
+        CAPABILITY_DECLARATIONS[c.id as keyof typeof CAPABILITY_DECLARATIONS]
+      if (!d) continue
+      const delegate = isCoreDelegate(c)
+      if (d.exec === 'core' && !delegate)
+        bad.push(`${c.id}: core だがデバイスに本体がある`)
+      if (d.exec !== 'core' && delegate)
+        bad.push(`${c.id}: 委譲だが宣言が core ではない`)
+    }
     expect(bad).toEqual([])
   })
 

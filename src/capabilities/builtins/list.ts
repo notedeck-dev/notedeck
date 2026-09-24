@@ -1,6 +1,6 @@
 import type { Command } from '@/commands/registry'
 import { getApiAdapter } from '../accountContext'
-import { implement } from '../declare'
+import { implement, implementCore } from '../declare'
 
 /**
  * List (Misskey users/lists) 系 capability。自分のリスト編成を AI から
@@ -21,12 +21,7 @@ function pickString(v: unknown): string | undefined {
   return t.length > 0 ? t : undefined
 }
 
-export const listListCapability = implement('list.list', {
-  execute: async (params, ctx) => {
-    const api = await getApiAdapter(params?.accountId, ctx)
-    return await api.getUserLists()
-  },
-})
+export const listListCapability = implementCore('list.list')
 
 export const listAddUserCapability = implement('list.addUser', {
   execute: async (params, ctx) => {

@@ -1,42 +1,14 @@
 import type { Command } from '@/commands/registry'
-import { projectVisibleItems } from '@/composables/useAiSystemContext'
 import { useAccountsStore } from '@/stores/accounts'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { getApiAdapter } from '../accountContext'
-import { implement } from '../declare'
-
-/**
- * AI が 1 回の呼び出しで取得できる通知の上限 (Misskey API native 上限と一致)。
- * untilId で続きを引けるので「もっと取って」と AI に頼めばページング可能。
- */
-const MAX_NOTIFICATIONS_PER_CALL = 100
-const DEFAULT_LIMIT = 10
-
-function clampLimit(input: unknown, fallback = DEFAULT_LIMIT): number {
-  if (typeof input !== 'number' || !Number.isFinite(input)) return fallback
-  return Math.max(1, Math.min(MAX_NOTIFICATIONS_PER_CALL, Math.floor(input)))
-}
-
-function pickUntilId(input: unknown): string | undefined {
-  if (typeof input !== 'string') return undefined
-  const trimmed = input.trim()
-  return trimmed.length > 0 ? trimmed : undefined
-}
+import { implement, implementCore } from '../declare'
 
 /**
  * `notifications.list` — 通知一覧を取得する read 系 capability。
  * 通知本文 (リアクション元 / リプライ元のノート) は projectVisibleItems の
  * 'notifications' kind で軽量化された projection が返る。
  */
-export const notificationsListCapability = implement('notifications.list', {
-  execute: async (params, ctx) => {
-    const limit = clampLimit(params?.limit)
-    const untilId = pickUntilId(params?.untilId)
-    const api = await getApiAdapter(params?.accountId, ctx)
-    const notifications = await api.getNotifications({ limit, untilId })
-    return projectVisibleItems(notifications, 'notifications', limit)
-  },
-})
+export const notificationsListCapability = implementCore('notifications.list')
 
 /**
  * `notifications.markRead` — 指定アカウントの通知をすべて既読化する

@@ -18,15 +18,6 @@ describe('user.lookup capability', () => {
     expect(params?.username?.optional).not.toBe(true)
     expect(params?.host?.optional).toBe(true)
   })
-
-  it('throws when username is missing or blank', async () => {
-    await expect(userLookupCapability.execute({})).rejects.toThrow(
-      /username is required/,
-    )
-    await expect(
-      userLookupCapability.execute({ username: '   ' }),
-    ).rejects.toThrow(/username is required/)
-  })
 })
 
 describe('user.search capability', () => {
@@ -119,14 +110,6 @@ describe('user.followers / user.following', () => {
     expect(cap.signature?.cheap).toBe(true)
     expect(cap.signature?.params?.userId?.optional).not.toBe(true)
     expect(cap.signature?.params?.limit?.optional).toBe(true)
-  })
-
-  it('throw when userId is missing', async () => {
-    for (const id of ['user.followers', 'user.following']) {
-      const cap = USER_BUILTIN_CAPABILITIES.find((c) => c.id === id)
-      if (!cap) throw new Error(`${id} not found`)
-      await expect(cap.execute({})).rejects.toThrow(/userId is required/)
-    }
   })
 })
 

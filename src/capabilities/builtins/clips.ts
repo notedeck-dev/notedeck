@@ -1,8 +1,7 @@
 import type { Command } from '@/commands/registry'
-import { projectVisibleItems } from '@/composables/useAiSystemContext'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { getApiAdapter, resolveAccountId } from '../accountContext'
-import { implement } from '../declare'
+import { implement, implementCore } from '../declare'
 
 /**
  * Clips (Misskey クリップ) 系 capability。
@@ -26,32 +25,9 @@ function pickString(v: unknown): string | undefined {
   return t.length > 0 ? t : undefined
 }
 
-export const clipsListCapability = implement('clips.list', {
-  execute: async (params, ctx) => {
-    const api = await getApiAdapter(params?.accountId, ctx)
-    const clips = await api.getClips()
-    return clips.map((c) => ({
-      id: c.id,
-      name: c.name,
-      description: c.description,
-      isPublic: c.isPublic,
-      lastClippedAt: c.lastClippedAt,
-      favoritedCount: c.favoritedCount,
-    }))
-  },
-})
+export const clipsListCapability = implementCore('clips.list')
 
-export const clipsNotesCapability = implement('clips.notes', {
-  execute: async (params, ctx) => {
-    const clipId = pickString(params?.clipId)
-    if (!clipId) throw new Error('clips.notes: clipId is required')
-    const limitRaw = typeof params?.limit === 'number' ? params.limit : 20
-    const limit = Math.max(1, Math.min(100, Math.floor(limitRaw)))
-    const api = await getApiAdapter(params?.accountId, ctx)
-    const notes = await api.getClipNotes(clipId, { limit })
-    return projectVisibleItems(notes, 'search', limit)
-  },
-})
+export const clipsNotesCapability = implementCore('clips.notes')
 
 export const clipsCreateCapability = implement('clips.create', {
   execute: async (params, ctx) => {

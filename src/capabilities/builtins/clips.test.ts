@@ -4,7 +4,6 @@ import {
   clipsAddNoteCapability,
   clipsCreateCapability,
   clipsListCapability,
-  clipsNotesCapability,
   clipsRemoveNoteCapability,
 } from './clips'
 
@@ -17,21 +16,6 @@ describe('clips capabilities — declaration', () => {
     expect(clipsListCapability.permissions).toEqual(['clips.read'])
     expect(clipsListCapability.signature?.cheap).toBe(true)
     expect(clipsListCapability.signature?.returns?.type).toBe('array')
-  })
-
-  it('clips.notes: read + notes.read permission, requires clipId', async () => {
-    expect(clipsNotesCapability.id).toBe('clips.notes')
-    expect(clipsNotesCapability.permissions).toEqual([
-      'clips.read',
-      'notes.read',
-    ])
-    expect(clipsNotesCapability.signature?.params?.clipId?.optional).not.toBe(
-      true,
-    )
-    expect(clipsNotesCapability.signature?.params?.limit?.optional).toBe(true)
-    await expect(clipsNotesCapability.execute({})).rejects.toThrow(
-      /clipId is required/,
-    )
   })
 
   it('clips.create: write permission, confirmation, requires name', async () => {

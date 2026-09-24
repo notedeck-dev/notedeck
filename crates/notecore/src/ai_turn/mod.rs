@@ -285,6 +285,18 @@ impl ProviderRound for VaultProvider {
     }
 }
 
+/// `exec: core` な capability を notecore で実行する口。ローカル構成では
+/// Tauri 側が managed state の Core を引いて `capabilities::exec::execute` を呼ぶ
+/// 実装を渡し、notecored は Core を直接持つ実装を渡す。
+pub trait CoreExecutor: Send + Sync + 'static {
+    fn execute<'a>(
+        &'a self,
+        id: &'a str,
+        params: Value,
+        ctx: capabilities::exec::ExecContext,
+    ) -> BoxFuture<'a, std::result::Result<Value, String>>;
+}
+
 /// principal の実効 granted の供給元。tool 一覧の組み立てと tool 呼び出しごとに
 /// 引き直す (権限ファイルの外部編集を次の判定から効かせる)。
 pub trait GrantedSource: Send + Sync + 'static {
@@ -496,6 +508,8 @@ struct ResolvedTool {
     untrusted: bool,
     /// 書き込みの宛先になる引数
     destinations: Vec<String>,
+    /// notecore 単独で実行できる (宣言表の `exec: core`)
+    core: bool,
 }
 
 /// principal に見せてよい tool 一覧 (provider 形式) と、名前 → 認可情報の表。
@@ -524,6 +538,7 @@ fn build_tools(
                 acts_as_account: d.acts_as_account,
                 untrusted: d.untrusted,
                 destinations: d.destinations.iter().map(|x| x.to_string()).collect(),
+                core: d.exec == capabilities::Exec::Core,
             },
         );
     }
@@ -547,6 +562,7 @@ fn build_tools(
                 acts_as_account: false,
                 untrusted: t.untrusted,
                 destinations: t.destinations.clone(),
+                core: false,
             },
         );
     }
@@ -745,6 +761,9 @@ pub struct PendingToolUse {
     /// 確認に一文添え、記憶の対象外、無人実行では拒否
     #[serde(default)]
     pub destination_untrusted: bool,
+    /// notecore で実行する (デバイスに投げない)
+    #[serde(default)]
+    pub core: bool,
 }
 
 /// turn の状態。確認で停止するときはこれをチェックポイントに書き、応答で
@@ -794,6 +813,9 @@ pub struct TurnRuntime {
     pub policy: confirm::ConfirmPolicy,
     pub sessions: Arc<dyn SessionSink>,
     pub taint: Arc<dyn taint::TaintStore>,
+    /// `exec: core` の本体。None なら core の capability もデバイスに投げる
+    /// (ハーネスの既定)
+    pub core: Option<Arc<dyn CoreExecutor>>,
 }
 
 /// クロスアカウント実行か (#777): actsAsAccount 付き capability で、呼び出し
@@ -936,12 +958,14 @@ async fn prepare_pending(
             decision: None,
             untrusted: false,
             destination_untrusted: false,
+            core: false,
         };
         match authorize(&p.name, index, &granted) {
             Err(text) => p.deny = Some(text),
             Ok(tool) => {
                 p.capability_id = Some(tool.capability_id.clone());
                 p.untrusted = tool.untrusted;
+                p.core = tool.core;
                 let cross = is_cross_account(tool, &p.input, req.account_id.as_deref());
                 // 宛先の出所 (#1103): 他人の本文の中にだけ出てきた宛先は、記憶を
                 // 無視して確認し、無人実行では聞かずに拒否する
@@ -1002,6 +1026,7 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
                     acts_as_account: true,
                     untrusted: false,
                     destinations: Vec::new(),
+                    core: false,
                 },
                 &p.input,
                 state.req.account_id.as_deref(),
@@ -1101,6 +1126,26 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
                 },
                 true,
             )
+        } else if tu.core && rt.core.is_some() {
+            // notecore 単独で実行できる capability はデバイスに投げない
+            state.tool_executed = true;
+            let executor = rt.core.as_ref().expect("checked");
+            let ctx = capabilities::exec::ExecContext {
+                principal: state.req.principal.clone(),
+                account_id: state.req.account_id.clone(),
+            };
+            match executor
+                .execute(
+                    tu.capability_id.as_deref().unwrap_or(&tu.name),
+                    tu.input.clone(),
+                    ctx,
+                )
+                .await
+            {
+                Ok(Value::String(s)) => (s, false),
+                Ok(v) => (v.to_string(), false),
+                Err(e) => (format!("Error (execute_failed): {e}"), true),
+            }
         } else {
             state.tool_executed = true;
             let session_tainted = match state.req.session_id.as_deref() {
@@ -1387,6 +1432,7 @@ pub async fn start_turn(
     app_dir: &Path,
     bridge: Arc<dyn FrontendBridge>,
     sink: Arc<dyn AiTurnSink>,
+    core_executor: Arc<dyn CoreExecutor>,
 ) -> Result<()> {
     if req.turn_id.trim().is_empty() {
         return Err(NoteDeckError::InvalidInput("turn_id is empty".into()));
@@ -1414,6 +1460,7 @@ pub async fn start_turn(
             app_dir.join(crate::commands::settings::SETTINGS_DIR),
         )),
         taint: Arc::new(taint::FileTaint::new(app_dir)),
+        core: Some(core_executor),
     });
     begin_turn(rt, req)
 }
@@ -1666,6 +1713,37 @@ mod tests {
         }
     }
 
+    /// core 実行を持たない偽 executor (start_turn の入力検証テスト用)
+    struct NoCore;
+    impl CoreExecutor for NoCore {
+        fn execute<'a>(
+            &'a self,
+            _id: &'a str,
+            _params: Value,
+            _ctx: capabilities::exec::ExecContext,
+        ) -> BoxFuture<'a, std::result::Result<Value, String>> {
+            Box::pin(async { Err("no core".into()) })
+        }
+    }
+
+    /// 台本どおりに答える偽の core executor。
+    struct ScriptedCore {
+        calls: Mutex<Vec<(String, Value)>>,
+        reply: Value,
+    }
+    impl CoreExecutor for ScriptedCore {
+        fn execute<'a>(
+            &'a self,
+            id: &'a str,
+            params: Value,
+            _ctx: capabilities::exec::ExecContext,
+        ) -> BoxFuture<'a, std::result::Result<Value, String>> {
+            self.calls.lock().unwrap().push((id.to_string(), params));
+            let reply = self.reply.clone();
+            Box::pin(async move { Ok(reply) })
+        }
+    }
+
     #[derive(Default)]
     struct RecordingSink(Mutex<Vec<AiTurnEvent>>);
 
@@ -1779,6 +1857,7 @@ mod tests {
             policy,
             sessions: written.clone(),
             taint: Arc::new(taint::MemoryTaint::default()),
+            core: None,
         });
         Harness {
             rt,
@@ -2517,6 +2596,55 @@ mod tests {
         assert_eq!(h.sink.last().kind, "confirm_request");
     }
 
+    #[tokio::test]
+    async fn core_capabilities_run_in_notecore_and_never_reach_the_device() {
+        // time.now は exec: core。デバイス側 tool (time_now は宣言表にあるので
+        // デバイス申告で上書きできない) には投げず、core executor が答える
+        let provider = ScriptedProvider::new(vec![
+            vec![
+                tool_use("tu1", "time_now", json!({})),
+                tool_use("tu2", "column_list", json!({})),
+            ],
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "from-device"}));
+        let core = Arc::new(ScriptedCore {
+            calls: Mutex::new(Vec::new()),
+            reply: json!("2026-09-24T00:00:00.000Z"),
+        });
+        let mut h = harness(provider, &["deck.read"], device.clone());
+        h.rt = Arc::new(TurnRuntime {
+            provider: h.rt.provider.clone(),
+            granted: h.rt.granted.clone(),
+            skips: h.rt.skips.clone(),
+            bridge: h.rt.bridge.clone(),
+            sink: h.rt.sink.clone(),
+            store_dir: h.rt.store_dir.clone(),
+            policy: h.rt.policy,
+            sessions: h.rt.sessions.clone(),
+            taint: h.rt.taint.clone(),
+            core: Some(core.clone()),
+        });
+        drive(h.rt.clone(), TurnState::new(request())).await;
+        let core_calls = core.calls.lock().unwrap();
+        assert_eq!(core_calls.len(), 1);
+        assert_eq!(core_calls[0].0, "time.now");
+        // column.list (UI 系) は device
+        let device_calls = device.executes();
+        assert_eq!(device_calls.len(), 1);
+        assert_eq!(device_calls[0]["capabilityId"], "column.list");
+        let results: Vec<String> = h
+            .sink
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|e| e.kind == "tool_result")
+            .map(|e| e.text.clone().unwrap())
+            .collect();
+        assert_eq!(results, ["2026-09-24T00:00:00.000Z", "from-device"]);
+    }
+
     #[test]
     fn destination_values_collects_strings_and_arrays() {
         let v = destination_values(
@@ -2564,7 +2692,9 @@ mod tests {
         let sink = Arc::new(RecordingSink::default());
         let mut req = request();
         req.principal = "external".into();
-        let err = start_turn(req, dir.path(), device, sink).await.unwrap_err();
+        let err = start_turn(req, dir.path(), device, sink, Arc::new(NoCore))
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("principal"));
     }
 }

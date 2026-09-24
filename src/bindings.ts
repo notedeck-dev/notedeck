@@ -2269,6 +2269,15 @@ async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; m
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notecore/src/commands/ai_chat.rs */
+async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see crates/notecore/src/commands/ai_sessions.rs */
 async aiSessionsLoadAll() : Promise<Result<AiSession[], { code: string; message: string; apiCode: string | null }>> {
     try {

@@ -1,7 +1,5 @@
 import type { Command } from '@/commands/registry'
-import { stripCredentials } from '@/composables/useAiSystemContext'
-import { useAccountsStore } from '@/stores/accounts'
-import { implement } from '../declare'
+import { implementCore } from '../declare'
 
 /**
  * `account.current` — 呼び出し文脈のアカウント情報を返す read 系 capability。
@@ -14,22 +12,12 @@ import { implement } from '../declare'
  * 系フィールドを除去する (Account 型自体には現状 token は含まれないが、
  * 将来の漏洩シナリオ対策)。
  */
-export const accountCurrentCapability = implement('account.current', {
-  execute: (_params, ctx) => {
-    const id = ctx?.accountId
-    const account = id ? useAccountsStore().accountMap.get(id) : undefined
-    return account ? stripCredentials(account) : null
-  },
-})
+export const accountCurrentCapability = implementCore('account.current')
 
 /**
  * `account.list` — ログイン中の全アカウントを返す。
  */
-export const accountListCapability = implement('account.list', {
-  execute: () => {
-    return stripCredentials(useAccountsStore().accounts)
-  },
-})
+export const accountListCapability = implementCore('account.list')
 
 export const ACCOUNT_BUILTIN_CAPABILITIES: readonly Command[] = [
   accountCurrentCapability,

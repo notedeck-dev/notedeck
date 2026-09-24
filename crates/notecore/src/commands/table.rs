@@ -270,6 +270,7 @@ macro_rules! with_command_table {
         data ai_turn_cancel(turn_id: String) -> Option<$crate::ai_sessions::SessionMessage> = $crate::commands::ai_chat::ai_turn_cancel;
         data ai_confirm_respond(request_id: String, accepted: bool) -> () = $crate::commands::ai_chat::ai_confirm_respond;
         data ai_confirm_shown(request_id: String) -> () = $crate::commands::ai_chat::ai_confirm_shown;
+        data capability_execute(id: String, params: serde_json::Value, principal: String, account_id: Option<String>) -> serde_json::Value = $crate::commands::ai_chat::capability_execute;
             // --- ai_sessions (crates/notecore/src/commands/ai_sessions.rs) ---
         data ai_sessions_load_all() -> Vec<$crate::ai_sessions::AiSession> = $crate::commands::ai_sessions::ai_sessions_load_all;
         data ai_session_get(id: String) -> $crate::ai_sessions::AiSession = $crate::commands::ai_sessions::ai_session_get;
