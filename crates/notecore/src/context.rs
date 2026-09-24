@@ -76,6 +76,8 @@ pub struct Core {
     /// 手元側 (WebView / managed state) への問い合わせ口。ターン実行器が
     /// capability の実行要求に使う
     frontend_bridge: OnceLock<Arc<dyn FrontendBridge>>,
+    /// 設定ファイルの変更通知 (`settings_events`)。未設定なら黙って捨てる
+    settings_sink: OnceLock<Arc<dyn crate::settings_events::SettingsSink>>,
     /// `exec: core` な capability の本体を呼ぶ口 (#1133 縦切り 4)
     core_executor: OnceLock<Arc<dyn CoreExecutor>>,
     /// MiAuth セッションの追跡 (リプレイ防止)
@@ -110,6 +112,7 @@ impl Core {
             ai_chat_sink: OnceLock::new(),
             ai_turn_sink: OnceLock::new(),
             frontend_bridge: OnceLock::new(),
+            settings_sink: OnceLock::new(),
             core_executor: OnceLock::new(),
             auth_sessions: AuthSessionTracker::new(),
         }
@@ -228,6 +231,18 @@ impl Core {
             .get()
             .cloned()
             .ok_or_else(|| NoteDeckError::Internal("ai chat sink is not set".into()))
+    }
+
+    pub fn set_settings_sink(&self, sink: Arc<dyn crate::settings_events::SettingsSink>) {
+        let _ = self.settings_sink.set(sink);
+    }
+
+    /// notecore が設定ファイルを書いたことをデバイスに知らせる。sink が無い
+    /// (テスト / 未配線) なら no-op
+    pub fn notify_settings_change(&self, change: crate::settings_events::SettingsChange) {
+        if let Some(sink) = self.settings_sink.get() {
+            sink.settings_changed(change);
+        }
     }
 
     pub fn set_ai_turn_sink(&self, sink: Arc<dyn AiTurnSink>) {

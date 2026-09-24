@@ -17,6 +17,7 @@ import { useOsUnreadBadge } from '@/composables/useOsUnreadBadge'
 import { useOsWindowTitle } from '@/composables/useOsWindowTitle'
 import { listenPipEvents } from '@/composables/usePipWindow'
 import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
+import { startSettingsFileSync } from '@/composables/useSettingsFileSync'
 import { useTheme } from '@/composables/useTheme'
 import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { useLogsStore } from '@/stores/logs'
@@ -100,6 +101,10 @@ if (isTauri) {
 // コード面の明暗 (#1053) — 設定 + アプリのテーマから実効値を決めて root に
 // 出す。PiP ウィンドウも自分の document を持つので両方で mount する。
 useCodeScheme()
+
+// notecore が書いた設定ファイルの写しを読み直す購読 (#1133)。全ウィンドウで
+// 1 回ずつ (各ウィンドウの store が自分の面だけ追従する)
+startSettingsFileSync()
 
 // HEARTBEAT (#411) — App-level singleton daemon。AI カラムの有無に関係なく
 // アプリ起動中ずっと走る。manual trigger は AI 設定画面から

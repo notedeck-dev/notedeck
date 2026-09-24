@@ -2763,6 +2763,7 @@ async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string;
 
 export const events = __makeEvents__<{
 exportProgress: ExportProgressEvent,
+ndSettingsFileChanged: SettingsFileChangedEvent,
 noteCaptureBatch: NoteCaptureBatchEvent,
 notificationClicked: NotificationClicked,
 queryDelta: QueryDeltaEvent,
@@ -2774,6 +2775,7 @@ streamStatus: StreamStatus,
 systemState: SystemState
 }>({
 exportProgress: "export-progress",
+ndSettingsFileChanged: "nd:settings-file-changed",
 noteCaptureBatch: "note-capture-batch",
 notificationClicked: "notification-clicked",
 queryDelta: "query-delta",
@@ -3707,6 +3709,19 @@ role: string; content: string; timestamp: number; toolUseId?: string | null; too
  * HEARTBEAT の報告 (AI の履歴からは除く)
  */
 heartbeat?: boolean | null }
+/**
+ * 変わったファイル。`subdir` が `None` ならルート直下 (`settings.json5` 等)。
+ */
+export type SettingsChange = { subdir: string | null; name: string; op: SettingsChangeOp }
+/**
+ * 変更の種類。rename は「旧名の delete + 新名の write」の 2 件で表す。
+ */
+export type SettingsChangeOp = "write" | "delete"
+/**
+ * notecore が設定ファイルを書いたことを `nd:settings-file-changed` で WebView へ流す
+ * (#1133)。デバイスの store は該当ファイルの写しだけ読み直す。
+ */
+export type SettingsFileChangedEvent = SettingsChange
 export type Status = "ok" | "warn" | "fail"
 export type StreamChatMessageDeletedEvent = { accountId: string; subscriptionId: string; messageId: string }
 export type StreamChatMessageEvent = { accountId: string; subscriptionId: string; message: ChatMessage }
