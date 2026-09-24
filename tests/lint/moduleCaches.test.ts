@@ -52,6 +52,12 @@ const ALLOWED: Record<string, string> = {
   'src/services/boundedCache.ts:registry':
     'lifecycle: WeakRef 保持 — 参照切れは登録時と一覧読み取り時に掃除 (#977 観測レジストリ)',
   'src/utils/dedup.ts:inflight': 'lifecycle: finally で削除',
+  'src/composables/aiTurnExecutions.ts:controllers':
+    'lifecycle: 実行要求の完了 (finally) かターン中断で削除 (#1133)',
+  'src/composables/aiConfirmRequests.ts:open':
+    'lifecycle: 確認要求の決着 (finally) で削除 (#1133)',
+  'src/capabilities/declare.ts:CORE_DELEGATES':
+    'lifecycle: WeakSet — Command が参照されなくなれば消える (#1133)',
   'src/utils/highlight.ts:pendingLangs': 'lifecycle: ロード完了で削除',
   'src/composables/useOgpPreview.ts:pendingRequests':
     'lifecycle: 取得完了で削除',

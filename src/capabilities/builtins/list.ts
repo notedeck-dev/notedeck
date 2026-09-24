@@ -1,5 +1,6 @@
 import type { Command } from '@/commands/registry'
-import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
+import { getApiAdapter } from '../accountContext'
+import { implement, implementCore } from '../declare'
 
 /**
  * List (Misskey users/lists) 系 capability。自分のリスト編成を AI から
@@ -20,67 +21,9 @@ function pickString(v: unknown): string | undefined {
   return t.length > 0 ? t : undefined
 }
 
-export const listListCapability: Command = {
-  id: 'list.list',
-  label: '自分のリスト一覧',
-  icon: 'ti-list',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.read'],
-  signature: {
-    description:
-      '自分のユーザーリスト一覧を返す。各要素は { id, name, userIds, createdAt }。' +
-      ' リスト編集 (list.addUser / removeUser) で listId を渡すときの起点。',
-    params: {
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'array',
-      description: 'UserList の配列',
-    },
-    cheap: true,
-  },
-  visible: false,
-  execute: async (params, ctx) => {
-    const api = await getApiAdapter(params?.accountId, ctx)
-    return await api.getUserLists()
-  },
-}
+export const listListCapability = implementCore('list.list')
 
-export const listAddUserCapability: Command = {
-  id: 'list.addUser',
-  actsAsAccount: true,
-  label: 'リストにユーザーを追加',
-  icon: 'ti-user-plus',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.write'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      '指定リストに指定 user を追加する。listId は list.list、userId は ' +
-      'user.lookup / search で取得。相手に通知は飛ばない (= 自分の整理用)。',
-    params: {
-      listId: { type: 'string', description: '対象 listId' },
-      userId: { type: 'string', description: '追加する userId' },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ added: true, listId, userId }',
-    },
-  },
-  visible: false,
+export const listAddUserCapability = implement('list.addUser', {
   execute: async (params, ctx) => {
     const listId = pickString(params?.listId)
     const userId = pickString(params?.userId)
@@ -90,36 +33,9 @@ export const listAddUserCapability: Command = {
     await api.addUserToList(listId, userId)
     return { added: true, listId, userId }
   },
-}
+})
 
-export const listRemoveUserCapability: Command = {
-  id: 'list.removeUser',
-  actsAsAccount: true,
-  label: 'リストからユーザーを削除',
-  icon: 'ti-user-minus',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.write'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      '指定リストから指定 user を削除する (= 自分の整理用、相手通知なし)。',
-    params: {
-      listId: { type: 'string', description: '対象 listId' },
-      userId: { type: 'string', description: '削除する userId' },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ removed: true, listId, userId }',
-    },
-  },
-  visible: false,
+export const listRemoveUserCapability = implement('list.removeUser', {
   execute: async (params, ctx) => {
     const listId = pickString(params?.listId)
     const userId = pickString(params?.userId)
@@ -129,7 +45,7 @@ export const listRemoveUserCapability: Command = {
     await api.removeUserFromList(listId, userId)
     return { removed: true, listId, userId }
   },
-}
+})
 
 export const LIST_BUILTIN_CAPABILITIES: readonly Command[] = [
   listListCapability,

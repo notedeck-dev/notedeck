@@ -50,24 +50,43 @@ pub fn init(settings_dir: &Path) {
     let _ = PERMISSIONS_PATH.set(settings_dir.join(PERMISSIONS_FILE_NAME));
 }
 
-/// ファイル読取結果 → external の実効 granted。NotFound は「ファイル無し」
+/// ファイル読取結果 → principal の実効 granted。NotFound は「ファイル無し」
 /// (既定プロファイル)、その他の IO エラーは破損と同じ readonly に倒す。
-fn granted_from_read(result: std::io::Result<String>) -> Granted {
+fn granted_from_read(result: std::io::Result<String>, id: PrincipalId) -> Granted {
     match result {
-        Ok(content) => permissions_profile::resolve(Some(&content), PrincipalId::External),
+        Ok(content) => permissions_profile::resolve(Some(&content), id),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            permissions_profile::resolve(None, PrincipalId::External)
+            permissions_profile::resolve(None, id)
         }
-        Err(_) => permissions_profile::resolve_fallback(PrincipalId::External),
+        Err(_) => permissions_profile::resolve_fallback(id),
     }
 }
 
-/// external の実効 granted を permissions.json5 から解決する。`init` 前
-/// (HTTP サーバーは setup 後に起動するので通常は無い) は既定プロファイル。
-async fn external_granted() -> Granted {
+/// principal の実効 granted を permissions.json5 から解決する。呼ぶたびに
+/// ファイルを読むので、外部エディタでの変更は次の判定から効く (再起動不要)。
+/// `init` 前 (HTTP サーバーは setup 後に起動するので通常は無い) は既定プロファイル。
+/// AI ループ (#1133) は tool 一覧の組み立てと tool 呼び出しごとの認可に使う。
+pub async fn granted_for(id: PrincipalId) -> Granted {
     match PERMISSIONS_PATH.get() {
-        Some(path) => granted_from_read(tokio::fs::read_to_string(path).await),
-        None => permissions_profile::resolve(None, PrincipalId::External),
+        Some(path) => granted_from_read(tokio::fs::read_to_string(path).await, id),
+        None => permissions_profile::resolve(None, id),
+    }
+}
+
+async fn external_granted() -> Granted {
+    granted_for(PrincipalId::External).await
+}
+
+/// 「次から確認しない」(#714) の記憶を permissions.json5 の `confirmSkips`
+/// から引く。AI ループ (#1133) が確認の要否を決めるときに使う。読めない /
+/// 壊れている / `init` 前は「記憶なし」(= 確認する側に倒す)。
+pub async fn confirm_skipped(scope: &str, capability_id: &str) -> bool {
+    let Some(path) = PERMISSIONS_PATH.get() else {
+        return false;
+    };
+    match tokio::fs::read_to_string(path).await {
+        Ok(content) => permissions_profile::confirm_skipped(&content, scope, capability_id),
+        Err(_) => false,
     }
 }
 
@@ -341,7 +360,10 @@ mod tests {
 
     #[test]
     fn missing_file_grants_only_misskey_read_floor() {
-        let g = granted_from_read(Err(std::io::Error::from(std::io::ErrorKind::NotFound)));
+        let g = granted_from_read(
+            Err(std::io::Error::from(std::io::ErrorKind::NotFound)),
+            PrincipalId::External,
+        );
         assert!(g.contains("notes.read"));
         assert!(g.contains("account.read"));
         // floor 外は既定で拒否
@@ -352,10 +374,13 @@ mod tests {
 
     #[test]
     fn file_content_controls_non_floor_keys() {
-        let g = granted_from_read(Ok(
+        let g = granted_from_read(
+            Ok(
             "{ principals: { external: { preset: 'custom', custom: { 'notes.write': true, 'deck.read': false } } } }"
                 .to_string(),
-        ));
+            ),
+            PrincipalId::External,
+        );
         assert!(g.contains("notes.write"));
         assert!(!g.contains("deck.read"));
         // floor は保存値に関わらず true
@@ -365,9 +390,10 @@ mod tests {
     #[test]
     fn unreadable_file_falls_back_to_readonly_with_floor() {
         // 広い権限は届かず、readonly + floor に倒れる (旧 lockdown と同じ側)
-        let g = granted_from_read(Err(std::io::Error::from(
-            std::io::ErrorKind::PermissionDenied,
-        )));
+        let g = granted_from_read(
+            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)),
+            PrincipalId::External,
+        );
         assert!(!g.contains("notes.write"));
         assert!(!g.contains("notifications"));
         assert!(g.contains("notes.read"));
@@ -379,7 +405,10 @@ mod tests {
         let path = dir.path().join(PERMISSIONS_FILE_NAME);
         // このテストは OnceLock を触らず、ファイル読取 → 解決の経路だけを実機で確かめる
         std::fs::write(&path, "{ principals: { external: { preset: 'full' } } }").unwrap();
-        let g = granted_from_read(tokio::fs::read_to_string(&path).await);
+        let g = granted_from_read(
+            tokio::fs::read_to_string(&path).await,
+            PrincipalId::External,
+        );
         assert!(g.contains("notes.write"));
         assert!(
             !g.contains("tasks.run"),
@@ -390,7 +419,10 @@ mod tests {
             "{ principals: { external: { preset: 'readonly' } } }",
         )
         .unwrap();
-        let g = granted_from_read(tokio::fs::read_to_string(&path).await);
+        let g = granted_from_read(
+            tokio::fs::read_to_string(&path).await,
+            PrincipalId::External,
+        );
         assert!(!g.contains("notes.write"));
     }
 }

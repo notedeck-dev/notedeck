@@ -4,6 +4,7 @@ import { useVault } from '@/composables/useVault'
 import { PERMISSION_KEYS } from '@/permissions/schema'
 import { profileFor, resolveFor } from '@/permissions/store'
 import { useSkillsStore } from '@/stores/skills'
+import { implement } from '../declare'
 
 /**
  * Meta 系 capability — AI が「自分が今どういう状態か」を知る入口。
@@ -18,27 +19,7 @@ import { useSkillsStore } from '@/stores/skills'
  * - すべて cheap: true (ローカル参照のみ)
  */
 
-export const metaPermissionsCapability: Command = {
-  id: 'meta.permissions',
-  label: '現在の permission を取得',
-  icon: 'ti-shield-check',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      '呼び出し元 (principal) 自身の permission preset と、解決済の permission map' +
-      ' を返す。自分が何を許されているか把握するため。',
-    params: {},
-    returns: {
-      type: 'object',
-      description:
-        '{ principal: string, preset: "readonly"|"safe"|"full"|"custom"|null, resolved: { [key]: boolean } }',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const metaPermissionsCapability = implement('meta.permissions', {
   execute: (_params, ctx) => {
     // 呼んだ principal 自身の有効権限を返す (#712 §5.4)。chat プロファイルを
     // 一律で返すと external / heartbeat から呼ばれた側が自分の権限を誤認する。
@@ -65,27 +46,9 @@ export const metaPermissionsCapability: Command = {
       resolved: resolveFor(principal),
     }
   },
-}
+})
 
-export const metaActiveSkillsCapability: Command = {
-  id: 'meta.activeSkills',
-  label: 'active な skill 一覧',
-  icon: 'ti-book-2',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      '現在 active な (= system prompt に乗っている) skill のメタ一覧。',
-    params: {},
-    returns: {
-      type: 'array',
-      description: '[{ id, name, mode, isPersona }] の配列',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const metaActiveSkillsCapability = implement('meta.activeSkills', {
   execute: () => {
     const store = useSkillsStore()
     const activeIds = new Set(store.effectiveActiveIds)
@@ -98,28 +61,9 @@ export const metaActiveSkillsCapability: Command = {
         isPersona: s.isPersona ?? false,
       }))
   },
-}
+})
 
-export const metaPersonaCapability: Command = {
-  id: 'meta.persona',
-  label: '現在の AI persona',
-  icon: 'ti-user-circle',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      '現在のセッションで AI が振る舞っている persona (= isPersona:true な skill) ' +
-      'を返す。設定されていなければ null。',
-    params: {},
-    returns: {
-      type: 'object',
-      description: '{ id, name } | null',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const metaPersonaCapability = implement('meta.persona', {
   execute: (_params, ctx) => {
     const personaId = ctx?.aiConfig?.personaSkillId
     if (!personaId) return null
@@ -128,29 +72,9 @@ export const metaPersonaCapability: Command = {
     if (!skill) return null
     return { id: skill.id, name: skill.name }
   },
-}
+})
 
-export const metaConfigCapability: Command = {
-  id: 'meta.config',
-  label: '現在の AI 設定スナップショット',
-  icon: 'ti-settings',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      '現在の AI 設定の機密でない部分 (protocol / model / dataSources flags) を返す。' +
-      ' API キー / endpoint / custom permissions の生 map は **明示的に除外**。',
-    params: {},
-    returns: {
-      type: 'object',
-      description:
-        '{ protocol, model, dataSourcesEnabled: { [key]: boolean } }',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const metaConfigCapability = implement('meta.config', {
   execute: (_params, ctx) => {
     if (!ctx?.aiConfig) {
       throw new Error(
@@ -176,7 +100,7 @@ export const metaConfigCapability: Command = {
       },
     }
   },
-}
+})
 
 /**
  * `meta.heartbeat` — HEARTBEAT daemon の現在設定スナップショットを返す
@@ -185,29 +109,7 @@ export const metaConfigCapability: Command = {
  * 塞ぐリスト — AI が interval / dailyMaxAiRuns を変えると自己強化 loop で
  * コスト爆発する)。
  */
-export const metaHeartbeatCapability: Command = {
-  id: 'meta.heartbeat',
-  label: 'HEARTBEAT 設定スナップショット',
-  icon: 'ti-activity',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: [],
-  signature: {
-    description:
-      'HEARTBEAT daemon の現在設定 (enabled / intervalMinutes / target / ' +
-      'dailyMaxAiRuns / onDailyLimit / desktopNotification / cheapCheck) を' +
-      '読み取り専用で返す。AI 自身の起動条件を理解するため。' +
-      '**編集は塞がれている** (AI が自分の interval を変えると暴走するため)。',
-    params: {},
-    returns: {
-      type: 'object',
-      description:
-        '{ enabled, intervalMinutes, target, dailyMaxAiRuns, onDailyLimit, desktopNotification, cheapCheck: { enabled, maxSkipHours }, permissionsPreset }',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const metaHeartbeatCapability = implement('meta.heartbeat', {
   execute: (_params, ctx) => {
     if (!ctx?.aiConfig) {
       throw new Error(
@@ -231,7 +133,7 @@ export const metaHeartbeatCapability: Command = {
       permissionsPreset: profileFor({ kind: 'ai.heartbeat' })?.preset ?? null,
     }
   },
-}
+})
 
 export const META_BUILTIN_CAPABILITIES: readonly Command[] = [
   metaPermissionsCapability,

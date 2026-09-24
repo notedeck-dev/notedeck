@@ -16,6 +16,7 @@ import {
 } from '@/services/imageMemory'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
+import { implement } from '../declare'
 
 /**
  * 起動クリティカルパスの内訳 (#985 結線)。About の起動パフォーマンス
@@ -81,52 +82,7 @@ function readImageMemory(): ImageMemoryEstimate {
   )
 }
 
-export const metricsReadCapability: Command = {
-  id: 'metrics.read',
-  label: '実行時メトリクスを取得',
-  icon: 'ti-activity',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  // streaming セクションは接続数 (= アカウント数の cardinality) や切断時刻を
-  // 含むため、/api/health が streams 詳細を隠すのと同じ deck.read で gate する
-  permissions: ['deck.read'],
-  signature: {
-    description:
-      '現在の Frame Engine 実測値、適応品質、WebSocket 接続状態の匿名集約、' +
-      '起動フェーズ内訳、メモリ指標を point-in-time snapshot として返す。' +
-      'フレームサンプリングはアイドル時 (描画作業なし) に停止するため、' +
-      'frame.available=false の間は数値が null (未計測またはアイドル)。' +
-      'アカウント識別子や認証情報は含まない。',
-    params: {},
-    returns: {
-      type: 'object',
-      description:
-        '{ schemaVersion, capturedAt, frame: { available, lastSampleAt, ' +
-        'sampleCount, frameBudgetMs, jankDowngradeThreshold, fps, ' +
-        'frameTimeEmaMs, p95FrameTimeMs, jankCount }, ' +
-        'adaptiveQuality: { currentLevel, autoAdjustEnabled }, ' +
-        'streaming: { observedConnectionCount, byState, overallHealth, ' +
-        'lastTransitionAt }, startup: { webviewFixedCostMs, phases: ' +
-        '[{ name, atMs }] }, memory: { jsHeap: { usedBytes, totalBytes } | ' +
-        'null, images: { elementCount, uniqueCount, estimatedDecodedBytes } } }。' +
-        '時刻は epoch ms。frameBudgetMs は 1 フレームの時間予算 ' +
-        '(1000/リフレッシュレート) で、jank はその 2 倍超のフレーム数/秒。' +
-        'jankCount が jankDowngradeThreshold (実効設定値) を超えると' +
-        '自動調整が品質を 1 段下げる。' +
-        'fps は直近 1 秒に描画作業を実行した frame 数で、' +
-        '画面リフレッシュレートではない。p95FrameTimeMs は sampleCount が' +
-        '小さい間 (起動直後) はサンプル最大値に寄る。overallHealth は ' +
-        'unknown | initializing | healthy | degraded | offline | ' +
-        'manual-offline (manual-offline はユーザーが意図したオフラインモード)。' +
-        'startup はセッション中不変の起動計測 (atMs は navigation 起点、' +
-        'webviewFixedCostMs はプロセス起動→navigation でリロード後は null)。' +
-        'memory.jsHeap は Chromium 系 WebView のみ (WebKit は null)。' +
-        'memory.images はリモート画像のユニーク URL 単位のデコード済み推定 ' +
-        '(W×H×4)。プロセス全体の専有メモリは含まない。',
-    },
-  },
-  visible: false,
+export const metricsReadCapability = implement('metrics.read', {
   execute: (): MetricsSnapshot => ({
     schemaVersion: 1,
     capturedAt: Date.now(),
@@ -151,7 +107,7 @@ export const metricsReadCapability: Command = {
       images: readImageMemory(),
     },
   }),
-}
+})
 
 export const METRICS_BUILTIN_CAPABILITIES: readonly Command[] = [
   metricsReadCapability,

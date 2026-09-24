@@ -1,15 +1,26 @@
 import { emit } from '@tauri-apps/api/event'
-import { dispatchCapability } from '@/capabilities/dispatcher'
+import {
+  dispatchCapability,
+  previewConfirmation,
+} from '@/capabilities/dispatcher'
 import { sanitizeToolName } from '@/capabilities/identifier'
 import { listCapabilities } from '@/capabilities/registry'
 import { useCommandStore } from '@/commands/registry'
-import { useAiConfig } from '@/composables/useAiConfig'
+import {
+  beginTurnExecution,
+  endTurnExecution,
+} from '@/composables/aiTurnExecutions'
+import { reloadAiConfig, useAiConfig } from '@/composables/useAiConfig'
 import { heartbeatStatus } from '@/composables/useHeartbeatDaemon'
 import { listStreamHealth } from '@/core/streamHealth'
 import type { ProfiledPrincipalId } from '@/permissions/principal'
 import { PERMISSION_KEYS } from '@/permissions/schema'
-import { resolveForProfiled } from '@/permissions/store'
+import {
+  reloadPermissionsConfig,
+  resolveForProfiled,
+} from '@/permissions/store'
 import { listBoundedCacheStats } from '@/services/boundedCache'
+import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { useLogsStore } from '@/stores/logs'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
@@ -166,6 +177,82 @@ const handlers: Record<string, QueryHandler> = {
       // body 省略時に Rust 側から null が来る → capability には undefined で渡す
       (params.params ?? undefined) as Record<string, unknown> | undefined,
       { principal: { kind: 'external' } },
+    )
+  },
+
+  // --- notecore のターン実行器からの実行要求 (#1133) ---
+  // AI principal の認可 (tool 一覧の絞り込みと呼び出しごとの権限検査) と
+  // 確認の要否・確認要求は Rust 側で済んでいる。ここでは既存の dispatcher を
+  // 同じ principal で走らせ、capability 本体はデバイス側のまま使う。dispatcher
+  // の権限検査は Rust の写しとして二重に通す。
+  'ai/execute-capability': async (params) => {
+    const kind = params.principal
+    if (kind !== 'ai.chat' && kind !== 'ai.heartbeat') {
+      return {
+        ok: false,
+        code: 'permission_denied',
+        error: `AI ループの principal ではありません: ${String(kind)}`,
+      }
+    }
+    const turnId = String(params.turnId ?? '')
+    // 外部エディタで ai.json5 / permissions.json5 を変更した直後でも最新の
+    // 設定・権限で判定したいので、tool 実行直前に再読込する (= 再起動不要)。
+    // 失敗しても既存 cache で続行する。
+    try {
+      await reloadAiConfig()
+      await reloadPermissionsConfig()
+    } catch (e) {
+      console.warn('[ai-turn] config reload before dispatch failed:', e)
+    }
+    const controller = beginTurnExecution(turnId)
+    // 返す内容にラベル付きのメモ / skill が含まれたら結果に添える (notecore が
+    // 読んだセッションを tainted にする、#1103)
+    let taintedResult = false
+    try {
+      const result = await dispatchCapability(
+        params.capabilityId as string,
+        (params.params ?? undefined) as Record<string, unknown> | undefined,
+        {
+          principal: { kind },
+          accountId:
+            (params.accountId as string | null | undefined) ?? undefined,
+        },
+        {
+          // notecore が確認要求で許可を得た実行。判定が食い違って dispatcher
+          // が確認を出す場合 (保険) は、ターン中断で閉じられるようにする
+          preConfirmed: params.confirmed === true,
+          confirmFn: (opts) =>
+            useConfirm().confirmWithDecision(opts, controller.signal),
+          tainted: params.tainted === true,
+          markTainted: () => {
+            taintedResult = true
+          },
+        },
+      )
+      return taintedResult ? { ...result, tainted: true } : result
+    } finally {
+      endTurnExecution(turnId, controller)
+    }
+  },
+
+  // notecore の確認要求に同梱する内容の組み立て (#1133 縦切り 2)。要否は
+  // notecore が決め、ここは capability の実装が組む表示内容を返すだけ
+  'ai/confirm-preview': async (params) => {
+    const kind = params.principal
+    if (kind !== 'ai.chat' && kind !== 'ai.heartbeat') {
+      return { needsConfirmation: false, allowRemember: false }
+    }
+    return await previewConfirmation(
+      params.capabilityId as string,
+      (params.params ?? undefined) as Record<string, unknown> | undefined,
+      {
+        principal: { kind },
+        accountId: (params.accountId as string | null | undefined) ?? undefined,
+      },
+      {
+        crossAccount: params.crossAccount === true,
+        destinationUntrusted: params.destinationUntrusted === true,
+      },
     )
   },
 }

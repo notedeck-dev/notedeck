@@ -17,7 +17,12 @@ import {
 } from '@/permissions/store'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
-import { type DispatchContext, dispatchCapability } from './dispatcher'
+import {
+  type DispatchContext,
+  dispatchCapability,
+  previewConfirmation,
+  rememberConfirmation,
+} from './dispatcher'
 import { _clearCapabilitiesForTest, registerCapability } from './registry'
 
 function makeCapability(overrides: Partial<Command> = {}): Command {
@@ -2073,5 +2078,208 @@ describe('plugin 拒否の UI 操作起点 toast (#712 §8.4 補強)', () => {
     )
     expect(r.ok).toBe(false)
     expect(toasts.value).toHaveLength(1)
+  })
+})
+
+describe('notecore 発の確認要求 (#1133 縦切り 2)', () => {
+  it('previewConfirmation は実行せずに表示内容と remember 可否を返す', async () => {
+    let executed = false
+    registerCapability(
+      makeCapability({
+        id: 'notes.create',
+        permissions: ['notes.write'],
+        requiresConfirmation: (params) => ({
+          title: '投稿しますか?',
+          message: String(params?.text ?? ''),
+        }),
+        execute: () => {
+          executed = true
+          return 'ok'
+        },
+      }),
+    )
+    const preview = await previewConfirmation(
+      'notes_create',
+      { text: 'hi', reason: 'テスト' },
+      ctxWithPreset('full'),
+      { crossAccount: false },
+    )
+    expect(executed).toBe(false)
+    expect(preview.needsConfirmation).toBe(true)
+    expect(preview.allowRemember).toBe(true)
+    expect(preview.options).toMatchObject({
+      title: '投稿しますか?',
+      message: 'hi',
+      attribution: 'AI',
+      reason: 'テスト',
+      trusted: true,
+      rememberLabel: '今後この操作を確認しない',
+    })
+  })
+
+  it('previewConfirmation: 宣言なし / no-op / 記憶済み / 未登録は確認不要', async () => {
+    registerCapability(makeCapability({ id: 'a', execute: () => 'ok' }))
+    registerCapability(
+      makeCapability({
+        id: 'b',
+        requiresConfirmation: () => null,
+        execute: () => 'ok',
+      }),
+    )
+    registerCapability(
+      makeCapability({
+        id: 'c',
+        requiresConfirmation: true,
+        execute: () => 'ok',
+      }),
+    )
+    const ctx = ctxWithPreset('full')
+    for (const id of ['a', 'b', 'missing']) {
+      expect(
+        await previewConfirmation(id, undefined, ctx, { crossAccount: false }),
+      ).toEqual({ needsConfirmation: false, allowRemember: false })
+    }
+    addConfirmSkip('ai.chat', 'c')
+    expect(
+      (await previewConfirmation('c', undefined, ctx, { crossAccount: false }))
+        .needsConfirmation,
+    ).toBe(false)
+    removeConfirmSkip('ai.chat', 'c')
+    expect(
+      (await previewConfirmation('c', undefined, ctx, { crossAccount: false }))
+        .needsConfirmation,
+    ).toBe(true)
+  })
+
+  it('previewConfirmation: クロスアカウントは記憶を無視し、remember を出さず、実行アカウントを添える', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'notes.create',
+        actsAsAccount: true,
+        requiresConfirmation: true,
+        execute: () => 'ok',
+      }),
+    )
+    addConfirmSkip('ai.chat', 'notes.create')
+    const preview = await previewConfirmation(
+      'notes.create',
+      { accountId: 'acc-other' },
+      { principal: { kind: 'ai.chat' }, accountId: 'acc-self' },
+      { crossAccount: true },
+    )
+    expect(preview.needsConfirmation).toBe(true)
+    expect(preview.allowRemember).toBe(false)
+    expect(preview.options?.message).toContain('実行アカウント')
+    expect(preview.options?.rememberLabel).toBeUndefined()
+    removeConfirmSkip('ai.chat', 'notes.create')
+  })
+
+  it('preConfirmed の実行は確認を出さず、権限検査は通す', async () => {
+    let confirmCalls = 0
+    registerCapability(
+      makeCapability({
+        id: 'notes.create',
+        permissions: ['notes.write'],
+        requiresConfirmation: true,
+        execute: () => 'ok',
+      }),
+    )
+    const confirmFn = async () => {
+      confirmCalls++
+      return { accepted: true, remember: false }
+    }
+    const ok = await dispatchCapability(
+      'notes.create',
+      undefined,
+      ctxWithPreset('full'),
+      { preConfirmed: true, confirmFn },
+    )
+    expect(ok).toEqual({ ok: true, result: 'ok' })
+    expect(confirmCalls).toBe(0)
+    const denied = await dispatchCapability(
+      'notes.create',
+      undefined,
+      ctxWithPreset('readonly'),
+      { preConfirmed: true, confirmFn },
+    )
+    expect(denied.ok).toBe(false)
+    if (!denied.ok) expect(denied.code).toBe('permission_denied')
+  })
+
+  it('rememberConfirmation は capability 固有の remember があればそれへ、無ければ confirmSkips へ', async () => {
+    const custom = vi.fn()
+    registerCapability(
+      makeCapability({
+        id: 'vault.use',
+        requiresConfirmation: true,
+        onConfirmRemember: custom,
+        execute: () => 'ok',
+      }),
+    )
+    registerCapability(
+      makeCapability({
+        id: 'plain',
+        requiresConfirmation: true,
+        execute: () => 'ok',
+      }),
+    )
+    const ctx: DispatchContext = { principal: { kind: 'ai.chat' } }
+    await rememberConfirmation('vault.use', { x: 1 }, ctx)
+    expect(custom).toHaveBeenCalledOnce()
+    await rememberConfirmation('plain', undefined, ctx)
+    expect(usePermissionsConfig().file.value.confirmSkips['ai.chat']).toContain(
+      'plain',
+    )
+    // heartbeat は記憶しない
+    await rememberConfirmation('plain', undefined, {
+      principal: { kind: 'ai.heartbeat' },
+    })
+    expect(
+      usePermissionsConfig().file.value.confirmSkips['ai.heartbeat'],
+    ).toBeUndefined()
+  })
+
+  it('previewConfirmation: 宛先が untrusted 由来なら一文を添え、remember を出さない (#1103)', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'notes.create',
+        permissions: ['notes.write'],
+        requiresConfirmation: true,
+        execute: () => 'ok',
+      }),
+    )
+    const preview = await previewConfirmation(
+      'notes.create',
+      { text: 'hi', replyId: 'n1' },
+      ctxWithPreset('full'),
+      { crossAccount: false, destinationUntrusted: true },
+    )
+    expect(preview.needsConfirmation).toBe(true)
+    expect(preview.allowRemember).toBe(false)
+    expect(preview.options?.message).toContain(
+      '宛先は AI が読んだ他人の内容に由来します',
+    )
+    expect(preview.options?.rememberLabel).toBeUndefined()
+  })
+
+  it('dispatch の tainted / markTainted は capability の ctx に届く (#1103)', async () => {
+    let seen: { tainted?: boolean; marked: boolean } = { marked: false }
+    registerCapability(
+      makeCapability({
+        id: 'memos.list',
+        execute: (_p, ctx) => {
+          ctx?.markTainted?.()
+          seen = { tainted: ctx?.tainted, marked: true }
+          return []
+        },
+      }),
+    )
+    const mark = vi.fn()
+    await dispatchCapability('memos.list', undefined, ctxWithPreset('full'), {
+      tainted: true,
+      markTainted: mark,
+    })
+    expect(seen).toEqual({ tainted: true, marked: true })
+    expect(mark).toHaveBeenCalledOnce()
   })
 })

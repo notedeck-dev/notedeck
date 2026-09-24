@@ -23,12 +23,6 @@ describe('channel capabilities — declaration', () => {
     ).not.toBe(true)
     expect(channelNotesCapability.signature?.params?.limit?.optional).toBe(true)
   })
-
-  it('channel.notes throws when channelId is missing', async () => {
-    await expect(channelNotesCapability.execute({})).rejects.toThrow(
-      /channelId is required/,
-    )
-  })
 })
 
 describe('CHANNEL_BUILTIN_CAPABILITIES', () => {

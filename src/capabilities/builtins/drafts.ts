@@ -8,7 +8,8 @@ import {
   type StoredDraft,
   saveDraft,
 } from '@/composables/useDrafts'
-import { ACCOUNT_ID_PARAM_DESC, resolveAccountId } from '../accountContext'
+import { resolveAccountId } from '../accountContext'
+import { implement } from '../declare'
 
 /**
  * Drafts (Misskey notes/drafts/* — 2025.6+) 系 capability。
@@ -81,105 +82,16 @@ function emptyDraftData(): DraftData {
   }
 }
 
-export const draftsListCapability: Command = {
-  id: 'drafts.list',
-  label: '下書き一覧',
-  icon: 'ti-note',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['drafts.read'],
-  signature: {
-    description:
-      'アカウントの下書きを一覧取得する (Misskey 2025.6+ サーバー保存)。' +
-      ' 別サーバーから取得するときは accountId を指定する。',
-    params: {
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'array',
-      description:
-        '下書きの配列 (id / text / visibility / replyId 等の projection)',
-    },
-  },
-  visible: false,
+export const draftsListCapability = implement('drafts.list', {
   execute: async (params, ctx) => {
     const accountId = resolveAccountId(params?.accountId, ctx)
     await refreshDrafts(accountId)
     const all = loadAllDrafts(accountId)
     return Object.values(all).map(projectDraft)
   },
-}
+})
 
-export const draftsCreateCapability: Command = {
-  id: 'drafts.create',
-  actsAsAccount: true,
-  label: '下書きを作成',
-  icon: 'ti-edit',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['drafts.write'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      '新規下書きを作成する。投稿はされず、サーバーに下書きとして保存される。' +
-      ' text 必須。scheduledAt + isActuallyScheduled で予約投稿としても保存可能。',
-    params: {
-      text: { type: 'string', description: '下書き本文 (空文字は不可)' },
-      cw: {
-        type: 'string',
-        description: 'CW (内容警告)',
-        optional: true,
-      },
-      visibility: {
-        type: 'string',
-        description: '公開範囲 (default: public)',
-        enum: VALID_VISIBILITIES,
-        optional: true,
-      },
-      replyId: {
-        type: 'string',
-        description: 'リプライ先 noteId',
-        optional: true,
-      },
-      renoteId: {
-        type: 'string',
-        description: '引用 / リノート対象 noteId',
-        optional: true,
-      },
-      channelId: {
-        type: 'string',
-        description: 'チャンネル投稿先 id',
-        optional: true,
-      },
-      scheduledAt: {
-        type: 'string',
-        description: 'ISO8601 形式の予約日時 (省略時は通常下書き)',
-        optional: true,
-      },
-      isActuallyScheduled: {
-        type: 'boolean',
-        description:
-          'true で「時刻到来時に自動投稿」(Misskey 2025.10+)。default false',
-        optional: true,
-      },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '作成された下書き projection',
-    },
-  },
-  visible: false,
+export const draftsCreateCapability = implement('drafts.create', {
   execute: async (params, ctx) => {
     const text = pickString(params?.text)
     if (!text) throw new Error('drafts.create: text is required')
@@ -204,58 +116,9 @@ export const draftsCreateCapability: Command = {
     })
     return projectDraft(stored)
   },
-}
+})
 
-export const draftsUpdateCapability: Command = {
-  id: 'drafts.update',
-  actsAsAccount: true,
-  label: '下書きを更新',
-  icon: 'ti-edit',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['drafts.write'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      '既存下書きを更新する。指定したフィールドだけ差し替え、他は現在値を維持。' +
-      ' draftId は drafts.list で取得した id を渡す。',
-    params: {
-      draftId: { type: 'string', description: '対象 draftId' },
-      text: { type: 'string', description: '新しい本文', optional: true },
-      cw: {
-        type: 'string',
-        description: '新しい CW (空文字で CW 解除)',
-        optional: true,
-      },
-      visibility: {
-        type: 'string',
-        description: '公開範囲',
-        enum: VALID_VISIBILITIES,
-        optional: true,
-      },
-      scheduledAt: {
-        type: 'string',
-        description: 'ISO8601 予約日時 (空文字で予約解除)',
-        optional: true,
-      },
-      isActuallyScheduled: {
-        type: 'boolean',
-        description: '自動投稿フラグの切替',
-        optional: true,
-      },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '更新後の下書き projection',
-    },
-  },
-  visible: false,
+export const draftsUpdateCapability = implement('drafts.update', {
   execute: async (params, ctx) => {
     const draftId = pickString(params?.draftId)
     if (!draftId) throw new Error('drafts.update: draftId is required')
@@ -292,17 +155,9 @@ export const draftsUpdateCapability: Command = {
     })
     return projectDraft(stored)
   },
-}
+})
 
-export const draftsDeleteCapability: Command = {
-  id: 'drafts.delete',
-  actsAsAccount: true,
-  label: '下書きを削除',
-  icon: 'ti-trash',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['drafts.write'],
+export const draftsDeleteCapability = implement('drafts.delete', {
   requiresConfirmation: (params) => {
     const draftId = typeof params?.draftId === 'string' ? params.draftId : ''
     return {
@@ -313,22 +168,6 @@ export const draftsDeleteCapability: Command = {
       type: 'danger',
     }
   },
-  signature: {
-    description: '指定 draftId の下書きを削除する。元に戻せない。',
-    params: {
-      draftId: { type: 'string', description: '対象 draftId' },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '{ deleted: true, draftId }',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const draftId = pickString(params?.draftId)
     if (!draftId) throw new Error('drafts.delete: draftId is required')
@@ -336,7 +175,7 @@ export const draftsDeleteCapability: Command = {
     await deleteDraft(accountId, draftId)
     return { deleted: true, draftId }
   },
-}
+})
 
 export const DRAFTS_BUILTIN_CAPABILITIES: readonly Command[] = [
   draftsListCapability,

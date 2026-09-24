@@ -1,7 +1,8 @@
 import type { Command } from '@/commands/registry'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
-import { editAttribution, REASON_PARAM } from '../editAttribution'
+import { implement } from '../declare'
+import { editAttribution } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 interface QuerySnapshot {
@@ -28,27 +29,7 @@ function basenameOf(q: {
   return q.fileBase ?? (q.name || q.id)
 }
 
-export const queriesHistoryCapability: Command = {
-  id: 'queries.history',
-  label: 'クエリの編集履歴',
-  icon: 'ti-history',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['queries.read'],
-  signature: {
-    description:
-      '指定 id の名前付きクエリの編集前 snapshot 一覧 (新しい順) を返す。',
-    params: {
-      id: { type: 'string', description: '対象クエリの id' },
-    },
-    returns: {
-      type: 'array',
-      description: '編集前 snapshot の配列 (新しい順)',
-    },
-    cheap: true,
-  },
-  visible: false,
+export const queriesHistoryCapability = implement('queries.history', {
   execute: async (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('queries.history: id is required')
@@ -56,16 +37,9 @@ export const queriesHistoryCapability: Command = {
     if (!query) throw new Error(`queries.history: query "${id}" not found`)
     return await listSnapshots<QuerySnapshot>('query', basenameOf(query))
   },
-}
+})
 
-export const queriesRevertCapability: Command = {
-  id: 'queries.revert',
-  label: 'クエリを過去の状態に戻す',
-  icon: 'ti-arrow-back-up',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['queries.write'],
+export const queriesRevertCapability = implement('queries.revert', {
   requiresConfirmation: async (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const index = typeof params?.index === 'number' ? params.index : -1
@@ -89,19 +63,6 @@ export const queriesRevertCapability: Command = {
       type: 'warning',
     }
   },
-  signature: {
-    description: '名前付きクエリのソースを編集履歴の index 番目に戻す。',
-    params: {
-      id: { type: 'string', description: '対象クエリの id' },
-      index: { type: 'number', description: 'snapshot index (0 = 最新)' },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description: '{ id, reverted: boolean, at: number }',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const id = typeof params?.id === 'string' ? params.id : ''
     const index = typeof params?.index === 'number' ? params.index : -1
@@ -134,7 +95,7 @@ export const queriesRevertCapability: Command = {
     }
     return { id, reverted: true, at: entry.at }
   },
-}
+})
 
 export const QUERIES_BUILTIN_CAPABILITIES: readonly Command[] = [
   queriesHistoryCapability,

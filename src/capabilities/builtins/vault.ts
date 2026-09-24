@@ -3,6 +3,7 @@ import type { CapabilityContext } from '@/capabilities/types'
 import type { Command } from '@/commands/registry'
 import { type Principal, principalActorLabel } from '@/permissions/principal'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { implement } from '../declare'
 
 /**
  * principal → 開示先クラスのマッピング (#712 §6.1 / #759)。
@@ -89,14 +90,7 @@ function isTrusted(conn: Connection, principal: Principal): boolean {
  *   `onConfirmRemember` が **呼び出しクラス (plugin は呼び出し個体) だけ** に
  *   記憶する — 外部アプリでの同意が AI の trust に化けない。
  */
-export const vaultFetchCapability: Command = {
-  id: 'vault.fetch',
-  label: 'Vault 接続で HTTP リクエスト',
-  icon: 'ti-plug-connected',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['vault.use'],
+export const vaultFetchCapability = implement('vault.fetch', {
   requiresConfirmation: async (params, ctx) => {
     const principal = requirePrincipal(ctx)
     const cls = classOf(principal)
@@ -152,51 +146,6 @@ export const vaultFetchCapability: Command = {
       unwrap(await commands.vaultSetTrusted(conn.id, cls, true))
     }
   },
-  signature: {
-    description:
-      '登録済みの外部サービス接続を使って HTTP リクエストを送る。' +
-      ' secret (API キー等) は NoteDeck が Rust 側で注入するため、' +
-      ' connectionRef で接続を指定するだけでよい。利用可能な接続は' +
-      ' system prompt の <available-connections> に列挙される。',
-    params: {
-      connectionRef: {
-        type: 'string',
-        description: '接続の名前 (<available-connections> に出ているもの)。',
-      },
-      path: {
-        type: 'string',
-        description: '接続の baseUrl からの相対パス (例: /user/repos)',
-      },
-      method: {
-        type: 'string',
-        description: 'HTTP メソッド (default: GET)',
-        optional: true,
-        enum: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'],
-      },
-      headers: {
-        type: 'object',
-        description:
-          'リクエストヘッダ。Authorization / Cookie 等は無視される (secret は自動注入)。',
-        optional: true,
-      },
-      body: {
-        type: 'string',
-        description: 'リクエストボディ (文字列)',
-        optional: true,
-      },
-      timeoutMs: {
-        type: 'number',
-        description: 'タイムアウト ms (1000〜120000, default 30000)',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description:
-        '{ status, headers, body, redactedCount, bytesTotal, truncated }',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const principal = requirePrincipal(ctx)
     const ref =
@@ -225,7 +174,7 @@ export const vaultFetchCapability: Command = {
     }
     return unwrap(await commands.vaultFetch(conn.id, request))
   },
-}
+})
 
 function isStringRecord(v: unknown): v is Record<string, string> {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return false

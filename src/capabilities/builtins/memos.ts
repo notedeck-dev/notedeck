@@ -14,7 +14,8 @@ import {
 } from '@/permissions/principal'
 import { getSnapshotAt } from '@/utils/historyFs'
 import { resolveIdentity } from '@/utils/identity'
-import { editAttribution, REASON_PARAM } from '../editAttribution'
+import { implement } from '../declare'
+import { editAttribution } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 
 /**
@@ -107,53 +108,7 @@ function emptyMemoData(
 }
 
 /** `memos.create` — 新規メモを作成する */
-export const memosCreateCapability: Command = {
-  id: 'memos.create',
-  actsAsAccount: true,
-  label: 'メモを作成',
-  icon: 'ti-notes',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['memos.write'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      'NoteDeck のローカル markdown メモを新規作成する。' +
-      ' text + 任意の tags / authorId 指定可。CW / visibility / poll 等の投稿用フィールドは触らない' +
-      ' (= デフォルト値で作成)。memoKey は Zettelkasten 形式 (`YYYYMMDDHHmmss`) で自動採番。' +
-      ' authorId を渡すと <persona> block の指示通り memo に author 埋め込みブロックが' +
-      ' 記録される (skill / account の表示情報を作成時に snapshot)。' +
-      ' 投稿前に確認モーダルが出る。',
-    params: {
-      text: {
-        type: 'string',
-        description: 'メモ本文 (空文字は不可、markdown 可)',
-      },
-      tags: {
-        type: 'array',
-        description:
-          '任意の自由記述タグ (string[])。NoteDeck は値を enumerate しない。' +
-          ' ユーザーが skill body 等で意味付けするので AI は文脈に応じて分類タグを付ける',
-        optional: true,
-      },
-      authorId: {
-        type: 'string',
-        description:
-          '作者の Identity ID (`skill:<persona-id>` / Misskey accountId 等)。' +
-          ' 未指定 = ユーザー本人扱い。<persona> block で指示された persona の' +
-          ' authorId をここに渡すと、その persona のアイコン / 名前が memo に' +
-          ' 埋め込まれて UI で表示される',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description:
-        '`{ id, text, updatedAt, tags?, author? }` — id は Zettelkasten 形式',
-    },
-  },
-  visible: false,
+export const memosCreateCapability = implement('memos.create', {
   execute: async (params, ctx) => {
     const text = pickString(params?.text)
     if (!text) throw new Error('memos.create: text is required')
@@ -164,7 +119,11 @@ export const memosCreateCapability: Command = {
       : authorFromPrincipal(ctx?.principal)
     await ensureMemosLoaded()
     const memoKey = generateMemoKey()
-    const stored = saveMemo(memoKey, emptyMemoData(text, tags, author))
+    const stored = saveMemo(memoKey, {
+      ...emptyMemoData(text, tags, author),
+      // tainted なセッションが書いたメモにはラベルを付ける (#1103)
+      ...(ctx?.tainted ? { tainted: true } : {}),
+    })
     const result: Record<string, unknown> = {
       id: memoKey,
       text: stored.data.text,
@@ -174,57 +133,11 @@ export const memosCreateCapability: Command = {
     if (stored.data.author) result.author = stored.data.author
     return result
   },
-}
+})
 
 /** `memos.update` — 既存メモの text / tags を更新する */
-export const memosUpdateCapability: Command = {
-  id: 'memos.update',
-  actsAsAccount: true,
-  label: 'メモを更新',
-  icon: 'ti-edit',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['memos.write'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      '既存ローカルメモの text / tags / authorId を更新する (すべて optional、未指定なら維持)。' +
-      ' CW / visibility 等の他のフィールドは既存値を保持。' +
-      ' id は <memos> ブロックで参照できる Zettelkasten 形式 memoKey。' +
-      ' 投稿前に確認モーダルが出る。',
-    params: {
-      id: {
-        type: 'string',
-        description: '更新対象の memoKey (Zettelkasten id, `YYYYMMDDHHmmss`)',
-      },
-      text: {
-        type: 'string',
-        description: '新しい本文 (未指定なら既存維持、空文字 "" 不可)',
-        optional: true,
-      },
-      tags: {
-        type: 'array',
-        description:
-          '新しい tags 配列 (未指定なら既存維持)。空配列 [] を渡すと tags を全削除',
-        optional: true,
-      },
-      authorId: {
-        type: 'string',
-        description:
-          '作者を変更する場合の Identity ID (空文字 "" を渡すと author を消す)。' +
-          ' 通常は memo の作者を変える用途なし。AI が persona として書いた memo を' +
-          ' ユーザー本人に戻す等の特殊操作で使う',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '`{ id, text, updatedAt, tags?, author? }`',
-    },
-  },
-  visible: false,
-  execute: async (params) => {
+export const memosUpdateCapability = implement('memos.update', {
+  execute: async (params, ctx) => {
     const id = pickString(params?.id)
     if (!id) throw new Error('memos.update: id is required')
     const text = pickString(params?.text)
@@ -255,6 +168,8 @@ export const memosUpdateCapability: Command = {
       text: text ?? existing.data.text,
       tags: tags ?? existing.data.tags,
       author: authorPatch ? authorPatch.author : existing.data.author,
+      // 一度付いたラベルは外れない
+      ...(ctx?.tainted || existing.data.tainted ? { tainted: true } : {}),
     })
     const result: Record<string, unknown> = {
       id,
@@ -265,36 +180,10 @@ export const memosUpdateCapability: Command = {
     if (stored.data.author) result.author = stored.data.author
     return result
   },
-}
+})
 
 /** `memos.delete` — 既存メモを削除する */
-export const memosDeleteCapability: Command = {
-  id: 'memos.delete',
-  actsAsAccount: true,
-  label: 'メモを削除',
-  icon: 'ti-trash',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['memos.write'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      '既存ローカルメモを削除する。削除前に確認モーダルが出る。' +
-      ' 整理 skill の指示でユーザーが「古いメモを片付ける」フローで使う想定。' +
-      ' 削除されたメモは復元できない (notedeck/memos/<id>.md ファイルが消える)。',
-    params: {
-      id: {
-        type: 'string',
-        description: '削除対象の memoKey (Zettelkasten id, `YYYYMMDDHHmmss`)',
-      },
-    },
-    returns: {
-      type: 'object',
-      description: '`{ ok: true, id }`',
-    },
-  },
-  visible: false,
+export const memosDeleteCapability = implement('memos.delete', {
   execute: async (params) => {
     const id = pickString(params?.id)
     if (!id) throw new Error('memos.delete: id is required')
@@ -306,17 +195,10 @@ export const memosDeleteCapability: Command = {
     deleteMemo(id)
     return { ok: true, id }
   },
-}
+})
 
 /** `memos.revert` — メモを編集履歴の過去状態に戻す (#981 と同型) */
-export const memosRevertCapability: Command = {
-  id: 'memos.revert',
-  label: 'メモを過去の状態に戻す',
-  icon: 'ti-arrow-back-up',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['memos.write'],
+export const memosRevertCapability = implement('memos.revert', {
   requiresConfirmation: async (params, ctx) => {
     const id = pickString(params?.id) ?? ''
     const index = typeof params?.index === 'number' ? params.index : -1
@@ -334,19 +216,6 @@ export const memosRevertCapability: Command = {
         '現在の本文は上書きされます。',
     }
   },
-  signature: {
-    description: 'メモを編集履歴の過去の状態に戻す。index は 0 が最新の履歴。',
-    params: {
-      id: { type: 'string', description: 'メモ ID (Zettelkasten 形式)' },
-      index: { type: 'number', description: '履歴のインデックス (0 が最新)' },
-      reason: REASON_PARAM,
-    },
-    returns: {
-      type: 'object',
-      description: '`{ id, reverted: true, at }`',
-    },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const id = pickString(params?.id)
     const index = typeof params?.index === 'number' ? params.index : -1
@@ -366,7 +235,7 @@ export const memosRevertCapability: Command = {
     saveMemo(id, { ...cur.data, text: next }, editAttribution(ctx, params))
     return { id, reverted: true, at: entry.at }
   },
-}
+})
 
 export const MEMOS_BUILTIN_CAPABILITIES: readonly Command[] = [
   memosCreateCapability,

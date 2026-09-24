@@ -101,4 +101,15 @@ export interface CapabilityContext {
    * 読み書きは `capabilities/stagedEdit.ts` の stageEdit / takeStagedEdit 経由。
    */
   stagedEdit?: import('./stagedEdit').StagedEdit
+  /**
+   * 呼び出し元のセッションが tainted (他人の内容を読んだ後) か (#1103 / #1133)。
+   * notecore が実行要求に添える。メモ / skill を書く capability はラベルを付ける
+   */
+  tainted?: boolean
+  /**
+   * 返す内容にラベル付き (tainted) のメモ / skill が含まれると申告する。
+   * デバイス側の実行要求ハンドラが結果に添え、notecore が読んだセッションを
+   * tainted にする
+   */
+  markTainted?: () => void
 }

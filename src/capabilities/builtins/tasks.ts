@@ -2,6 +2,7 @@ import type { Command } from '@/commands/registry'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import { useTaskRunnerStore } from '@/stores/taskRunner'
 import { useTasksStore } from '@/stores/tasks'
+import { implement } from '../declare'
 
 /**
  * `tasks.run` — ユーザー定義タスク (tasks.json5) を id で実行する。
@@ -15,38 +16,7 @@ import { useTasksStore } from '@/stores/tasks'
  *   `notes.write: false` のまま `tasks.run: true` を持てるのはこの検査があるから
  * - 戻り値は TaskRun の projection (status / response / error / runId)
  */
-export const tasksRunCapability: Command = {
-  id: 'tasks.run',
-  label: 'タスク実行',
-  icon: 'ti-player-play',
-  category: 'general',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['tasks.run'],
-  signature: {
-    description:
-      'tasks.json5 で定義済みのタスクを id で実行する。' +
-      ' inputs を渡すと UI prompt をスキップして値を直接 inject できる。' +
-      ' タスクの中身 (Misskey API method / params) は TaskDefinition 側で定義する。',
-    params: {
-      taskId: {
-        type: 'string',
-        description: 'TaskDefinition.id (tasks.json5 の各タスクの id)',
-      },
-      inputs: {
-        type: 'object',
-        description:
-          'TaskInput.id をキーに値を持つオブジェクト。省略時は UI prompt が出る。',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description:
-        'TaskRun projection: { runId, status: "ok"|"error"|"running"|"cancelled", response?, error? }',
-    },
-  },
-  visible: false,
+export const tasksRunCapability = implement('tasks.run', {
   execute: async (params, ctx) => {
     const taskId =
       typeof params?.taskId === 'string' ? params.taskId.trim() : ''
@@ -77,7 +47,7 @@ export const tasksRunCapability: Command = {
       error: run.error,
     }
   },
-}
+})
 
 export const TASKS_BUILTIN_CAPABILITIES: readonly Command[] = [
   tasksRunCapability,

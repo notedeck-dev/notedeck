@@ -51,6 +51,11 @@ export interface MemoData {
     displayName: string
     avatarUrl?: string
   }
+  /**
+   * tainted なセッション (他人の内容を読んだ後の AI) が書いた (#1103)。
+   * 一度付いたら外れない。読んだセッションを tainted にする
+   */
+  tainted?: boolean
 }
 
 export interface StoredMemo {
@@ -183,6 +188,7 @@ function toFrontmatterSource(
   }
   if (d.scheduledAt) frontmatter.scheduledAt = d.scheduledAt
   if (d.tags.length > 0) frontmatter.tags = d.tags
+  if (d.tainted) frontmatter.tainted = true
   if (d.author) {
     const authorBlock: Record<string, unknown> = {
       id: d.author.id,
@@ -239,6 +245,7 @@ function parseMemoContent(fileContent: string): {
       ? fm.tags.filter((x): x is string => typeof x === 'string')
       : [],
     author: parseAuthorBlock(fm.author),
+    ...(fm.tainted === true ? { tainted: true } : {}),
   }
 
   return { stored: { updatedAt, data }, createdAt }

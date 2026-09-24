@@ -1,8 +1,7 @@
 import type { Command } from '@/commands/registry'
-import { stripCredentials } from '@/composables/useAiSystemContext'
 import { useMutesStore } from '@/stores/mutes'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import { getApiAdapter, resolveAccountId } from '../accountContext'
+import { implement, implementCore } from '../declare'
 
 /**
  * `user.lookup` — username (+ optional host) から Misskey ユーザー情報を引く。
@@ -13,63 +12,7 @@ import { getApiAdapter, resolveAccountId } from '../accountContext'
  * Misskey の `users/show` を使う。host は `@hitalin@yami.ski` の `yami.ski` 部分
  * (ローカル / 自インスタンスのときは省略可)。
  */
-export const userLookupCapability: Command = {
-  id: 'user.lookup',
-  label: 'ユーザー検索',
-  icon: 'ti-user-search',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.read'],
-  signature: {
-    description:
-      'username (+ 任意で host) から Misskey ユーザー情報を取得する。' +
-      ' `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。' +
-      ' 戻り値の id が Misskey 内部の user ID。' +
-      ' 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。',
-    params: {
-      username: {
-        type: 'string',
-        description: 'username (先頭の `@` は不要)',
-      },
-      host: {
-        type: 'string',
-        description:
-          'リモートホスト (例: `yami.ski`)。同インスタンス内ユーザーなら省略。',
-        optional: true,
-      },
-      accountId: {
-        type: 'string',
-        description:
-          'どのアカウントの adapter で lookup するか。未指定なら active アカウント。' +
-          ' 別サーバーのカラムを操作中なら `<currentColumn>.accountId` を渡す。',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'object',
-      description:
-        'NormalizedUser (id / username / host / name / avatarUrl 等)',
-    },
-  },
-  visible: false,
-  execute: async (params, ctx) => {
-    const rawUsername =
-      typeof params?.username === 'string' ? params.username.trim() : ''
-    if (!rawUsername) throw new Error('user.lookup: username is required')
-    // 入力の先頭 `@` を除去 (`@hitalin` → `hitalin`)
-    const username = rawUsername.startsWith('@')
-      ? rawUsername.slice(1)
-      : rawUsername
-    const host =
-      typeof params?.host === 'string' && params.host.trim().length > 0
-        ? params.host.trim()
-        : null
-    const api = await getApiAdapter(params?.accountId, ctx)
-    const user = await api.lookupUser(username, host)
-    return stripCredentials(user)
-  },
-}
+export const userLookupCapability = implementCore('user.lookup')
 
 /**
  * `user.search` — username / display name の部分一致でユーザーを探す。
@@ -79,54 +22,7 @@ export const userLookupCapability: Command = {
  * を使う。adapter 経由ではなく `apiSearchUsersByQuery` を直接叩く
  * (NormalizedUser 配列に正規化済み)。
  */
-export const userSearchCapability: Command = {
-  id: 'user.search',
-  label: 'ユーザーをあいまい検索',
-  icon: 'ti-search',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.read'],
-  signature: {
-    description:
-      'username / display name の部分一致でユーザーを検索する (Misskey ' +
-      '`users/search-by-username-and-name` 相当)。空 query なら最近やり取りした' +
-      'ユーザー一覧。完全一致での 1 件引きは user.lookup を使う。',
-    params: {
-      query: {
-        type: 'string',
-        description: '検索文字列 (空文字なら最近のユーザー一覧)',
-      },
-      limit: {
-        type: 'number',
-        description: '取得件数 (1-100, default 10)',
-        optional: true,
-      },
-      accountId: {
-        type: 'string',
-        description:
-          'どのアカウントの adapter で検索するか。未指定なら active アカウント。',
-        optional: true,
-      },
-    },
-    returns: {
-      type: 'array',
-      description:
-        'NormalizedUser の配列 (id / username / host / name / avatarUrl)',
-    },
-    cheap: true,
-  },
-  visible: false,
-  execute: async (params, ctx) => {
-    const query = typeof params?.query === 'string' ? params.query : ''
-    const limitRaw = typeof params?.limit === 'number' ? params.limit : 10
-    const limit = Math.max(1, Math.min(100, Math.floor(limitRaw)))
-    const id = resolveAccountId(params?.accountId, ctx)
-    const raw = unwrap(await commands.apiSearchUsersByQuery(id, query, limit))
-    if (!Array.isArray(raw)) return []
-    return raw.map((u) => stripCredentials(u as Record<string, unknown>))
-  },
-}
+export const userSearchCapability = implementCore('user.search')
 
 /**
  * Mute / RenoteMute 系 — 相手に通知されない静かな見え方制御。
@@ -158,34 +54,8 @@ function pickUserId(
   return userId
 }
 
-const USER_ID_PARAM = {
-  type: 'string' as const,
-  description: '対象 userId (user.lookup / search で取得)',
-}
-const ACCOUNT_ID_PARAM = {
-  type: 'string' as const,
-  description: '操作元アカウント。未指定なら active。',
-  optional: true,
-}
-
-export const userMuteCapability: Command = {
-  id: 'user.mute',
-  actsAsAccount: true,
-  label: 'ユーザーをミュート',
-  icon: 'ti-volume-off',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.write'],
+export const userMuteCapability = implement('user.mute', {
   requiresConfirmation: muteConfirm('ミュート', 'ノート + 通知'),
-  signature: {
-    description:
-      '指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は' +
-      '飛ばない。リノートだけ消したいなら user.renoteMute を使う。',
-    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
-    returns: { type: 'object', description: '{ muted: true, userId }' },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.mute')
     const accountId = resolveAccountId(params?.accountId, ctx)
@@ -195,24 +65,10 @@ export const userMuteCapability: Command = {
     useMutesStore().muteUser(accountId, userId)
     return { muted: true, userId }
   },
-}
+})
 
-export const userUnmuteCapability: Command = {
-  id: 'user.unmute',
-  actsAsAccount: true,
-  label: 'ユーザーのミュートを解除',
-  icon: 'ti-volume',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.write'],
+export const userUnmuteCapability = implement('user.unmute', {
   requiresConfirmation: muteConfirm('解除', 'ノート + 通知'),
-  signature: {
-    description: '指定 userId のミュートを解除する。',
-    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
-    returns: { type: 'object', description: '{ unmuted: true, userId }' },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.unmute')
     const accountId = resolveAccountId(params?.accountId, ctx)
@@ -222,26 +78,10 @@ export const userUnmuteCapability: Command = {
     useMutesStore().unmuteUser(accountId, userId)
     return { unmuted: true, userId }
   },
-}
+})
 
-export const userRenoteMuteCapability: Command = {
-  id: 'user.renoteMute',
-  actsAsAccount: true,
-  label: 'リノートだけミュート',
-  icon: 'ti-volume-3',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.write'],
+export const userRenoteMuteCapability = implement('user.renoteMute', {
   requiresConfirmation: muteConfirm('リノートミュート', 'リノートだけ'),
-  signature: {
-    description:
-      '指定 userId のリノートだけを非表示にする (オリジナル投稿は見える)。' +
-      'user.mute と独立に動作。',
-    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
-    returns: { type: 'object', description: '{ renoteMuted: true, userId }' },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.renoteMute')
     const accountId = resolveAccountId(params?.accountId, ctx)
@@ -251,24 +91,10 @@ export const userRenoteMuteCapability: Command = {
     useMutesStore().muteRenote(accountId, userId)
     return { renoteMuted: true, userId }
   },
-}
+})
 
-export const userUnrenoteMuteCapability: Command = {
-  id: 'user.unrenoteMute',
-  actsAsAccount: true,
-  label: 'リノートミュートを解除',
-  icon: 'ti-volume-2',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.write'],
+export const userUnrenoteMuteCapability = implement('user.unrenoteMute', {
   requiresConfirmation: muteConfirm('リノートミュート解除', 'リノートだけ'),
-  signature: {
-    description: '指定 userId のリノートミュートを解除する。',
-    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
-    returns: { type: 'object', description: '{ renoteUnmuted: true, userId }' },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.unrenoteMute')
     const accountId = resolveAccountId(params?.accountId, ctx)
@@ -278,7 +104,7 @@ export const userUnrenoteMuteCapability: Command = {
     useMutesStore().unmuteRenote(accountId, userId)
     return { renoteUnmuted: true, userId }
   },
-}
+})
 
 /**
  * Follow / Unfollow — 相手に通知が飛ぶ慎重カテゴリ (memory:
@@ -303,151 +129,29 @@ function followConfirm(action: '送る' | '解除') {
   }
 }
 
-export const userFollowCapability: Command = {
-  id: 'user.follow',
-  actsAsAccount: true,
-  label: 'ユーザーをフォロー',
-  icon: 'ti-user-plus',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.write'],
+export const userFollowCapability = implement('user.follow', {
   requiresConfirmation: followConfirm('送る'),
-  signature: {
-    description:
-      '指定 userId をフォローする (相手に通知が飛ぶ)。鍵アカウントの場合は ' +
-      'フォローリクエスト送信 = 承認待ちになる。userId は user.lookup / search で取得。',
-    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
-    returns: { type: 'object', description: '{ followed: true, userId }' },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.follow')
     const api = await getApiAdapter(params?.accountId, ctx)
     await api.followUser(userId)
     return { followed: true, userId }
   },
-}
+})
 
-export const userUnfollowCapability: Command = {
-  id: 'user.unfollow',
-  actsAsAccount: true,
-  label: 'ユーザーのフォローを解除',
-  icon: 'ti-user-minus',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.write'],
+export const userUnfollowCapability = implement('user.unfollow', {
   requiresConfirmation: followConfirm('解除'),
-  signature: {
-    description:
-      '指定 userId のフォローを解除する (相手にフォロワー減少の通知は飛ばない)。',
-    params: { userId: USER_ID_PARAM, accountId: ACCOUNT_ID_PARAM },
-    returns: { type: 'object', description: '{ unfollowed: true, userId }' },
-  },
-  visible: false,
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.unfollow')
     const api = await getApiAdapter(params?.accountId, ctx)
     await api.unfollowUser(userId)
     return { unfollowed: true, userId }
   },
-}
+})
 
-/**
- * `user.followers` / `user.following` — 指定ユーザーのフォロワー / フォロー一覧。
- *
- * Misskey の users/followers / users/following。read-only、公開設定 (= 鍵垢の
- * 場合は本人または承認済みフォロワーのみ) はサーバー側で制御される。
- * 軽量 read なので account.read で十分。
- */
-const FOLLOW_LIMIT_PARAM = {
-  type: 'number' as const,
-  description: '取得件数 (default 30)',
-  optional: true,
-}
-const UNTIL_ID_PARAM = {
-  type: 'string' as const,
-  description: 'untilId (古い方向のページング)',
-  optional: true,
-}
+export const userFollowersCapability = implementCore('user.followers')
 
-function pickLimit(params: Record<string, unknown> | undefined): number {
-  const v = params?.limit
-  return typeof v === 'number' && Number.isFinite(v) ? v : 30
-}
-
-function pickUntilId(
-  params: Record<string, unknown> | undefined,
-): string | undefined {
-  if (typeof params?.untilId !== 'string') return undefined
-  const t = params.untilId.trim()
-  return t.length > 0 ? t : undefined
-}
-
-export const userFollowersCapability: Command = {
-  id: 'user.followers',
-  label: 'フォロワー一覧',
-  icon: 'ti-users',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.read'],
-  signature: {
-    description:
-      '指定 userId のフォロワー一覧を返す (read-only)。鍵垢の場合は本人 / 承認済み' +
-      'フォロワーのみ参照可 (= サーバー側で制御)。',
-    params: {
-      userId: USER_ID_PARAM,
-      limit: FOLLOW_LIMIT_PARAM,
-      untilId: UNTIL_ID_PARAM,
-      accountId: ACCOUNT_ID_PARAM,
-    },
-    returns: { type: 'array', description: 'FollowRelation の配列' },
-    cheap: true,
-  },
-  visible: false,
-  execute: async (params, ctx) => {
-    const userId = pickUserId(params, 'user.followers')
-    const api = await getApiAdapter(params?.accountId, ctx)
-    return await api.getFollowers(userId, {
-      limit: pickLimit(params),
-      untilId: pickUntilId(params),
-    })
-  },
-}
-
-export const userFollowingCapability: Command = {
-  id: 'user.following',
-  label: 'フォロー一覧',
-  icon: 'ti-user-check',
-  category: 'account',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['account.read'],
-  signature: {
-    description:
-      '指定 userId がフォローしているユーザー一覧を返す (read-only)。' +
-      '鍵垢の場合は本人 / 承認済みフォロワーのみ参照可。',
-    params: {
-      userId: USER_ID_PARAM,
-      limit: FOLLOW_LIMIT_PARAM,
-      untilId: UNTIL_ID_PARAM,
-      accountId: ACCOUNT_ID_PARAM,
-    },
-    returns: { type: 'array', description: 'FollowRelation の配列' },
-    cheap: true,
-  },
-  visible: false,
-  execute: async (params, ctx) => {
-    const userId = pickUserId(params, 'user.following')
-    const api = await getApiAdapter(params?.accountId, ctx)
-    return await api.getFollowing(userId, {
-      limit: pickLimit(params),
-      untilId: pickUntilId(params),
-    })
-  },
-}
+export const userFollowingCapability = implementCore('user.following')
 
 export const USER_BUILTIN_CAPABILITIES: readonly Command[] = [
   userLookupCapability,

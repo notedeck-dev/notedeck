@@ -263,7 +263,7 @@ notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 
 - **切る基準**: 「その処理はデバイスが 1 台も繋がっていない状態で意味を持つか」。持つなら notecore、持たないなら手元 (ウィンドウ / トレイ / OS 通知 / クリップボード / dialog / OS キーチェーン)
 - **クライアント層**は手元の Rust の中の切替点 1 箇所。データ系コマンドはコマンド表 (型付き関数 + JSON アダプタを 1 つの宣言から生成) を通り、ローカル構成では in-process で埋め込み notecore を、リモート構成では notecored を呼ぶ。表に載っていないデータ系コマンドはどの構成でも存在しない
-- **AI エージェントループは Rust で notecore に置く** ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。WebView に残るのは UI、確認ダイアログ、UI 系 capability、AiScript (plugin / widget / scratchpad) の実行
+- **AI エージェントループは Rust で notecore に置く** ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。WebView に残るのは UI、確認ダイアログ、UI 系 capability、AiScript (plugin / widget / scratchpad) の実行。チャット 1 ターンの状態機械 (ターン実行器)、確認要求、セッションの書込 (単一の書き手) と汚染の記録は移設済み。純データ系の読取 capability (時刻 / アカウント / ノート / ユーザー / 通知 / アンテナ / チャンネル / ロール / リスト / クリップ / ドライブの一覧と検索) は `exec: core` で notecore が直接実行し、それ以外はデバイスへの実行要求 (詳細は [AI Chat Streaming](#ai-chat-streaming))。純データ系の書込と設定系の `exec: core` 化 / HEARTBEAT の無人契約は後続
 - notecli の役割 (Misskey 通信・DB・ストリーミング) は変えない。notecore はその消費者。**notecli は notedeck の workspace に取り込む** (リポジトリは 1 つ、クレートは notecli / notecore / notecored / アプリの 4 つ。`notecli` の CLI と `notecored` のデーモンはクレートからバイナリとして出す)
 - 段階と受け入れ条件、認証・ペアリング・イベント面・状態の所在の仕様は #1106 の仕様コメントが正本。ローカル構成は残り、リモート構成は追加の構成
 
@@ -796,11 +796,11 @@ const { activate, deactivate } = useMenuKeyboard({
 
 `Capability` は `Command` を拡張した構造 (`signature` / `permissions` / `requiresConfirmation` / `aiTool`) で、**コマンドパレット / HTTP API / CLI / AiScript (`Nd:call`) / AI tool calling** の 5 経路が同じ registry を共有する。
 
-**builtin capability の正本は `src/capabilities/builtins/` 配下**（subject ごとに `<subject>.ts`）。subject 別のグループは [SKILLS.md §4.0](SKILLS.md#40-capability-一覧) を参照。
+**builtin capability の宣言 (id / 権限 / 確認の要否 / cheap / 実行属性 / AI ツールスキーマ) の正本は `crates/notecore/capabilities.json5`** ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。`pnpm gen:capabilities` が `src/capabilities/declarations.generated.ts` (TS の宣言表と `CapabilityId` 型) と [SKILLS.md §4.0](SKILLS.md#40-capability-一覧) の表を生成し、最新かどうかは `tests/lint/capabilityDeclarations.test.ts` が検査する (openapi.json / bindings.ts と同じ運用)。実装は `src/capabilities/builtins/<subject>.ts` に `implement('<id>', { execute, requiresConfirmation?, preflight? })` で書く (振る舞いだけ。宣言に無い id はコンパイルで落ち、宣言と実装の不一致は lint で落ちる)。**`exec: 'core'` の capability は本体を notecore (`crates/notecore/src/capabilities/exec/`) に 1 実装だけ置き**、デバイス側は `implementCore('<id>')` で登録だけする (本人操作は `capability_execute` の RPC で notecore の本体を叩き、AI のターンはターン実行器が直接呼ぶ)。core の宣言 ⇔ 委譲の対応と、core と宣言した id に本体があることは lint (TS / Rust) で落ちる。実行時に決まる enum (カラム種別など) は `enumOf` で getter を差す。説明文の共通句は宣言ファイルの `placeholders` に置き `${name}` で参照する。**権限キーの語彙も同じファイルの `permissions` 節が正本**で、preset (readonly / safe) と floor / deny の集合をキーごとの属性で宣言し、同じ生成器が `src/permissions/keys.generated.ts` と `crates/notecore/src/permissions_keys.generated.rs` を出す (TS と Rust で語彙がずれない。`schema.ts` / `permissions_profile.rs` は生成物を読んで解決規則だけを持つ)。同じ生成器が **Rust の宣言表** `crates/notecore/src/capabilities/generated.rs` (型と tool schema の組み立ては同 `mod.rs`) も出し、AI に渡す tool schema が TS (`toolSchema.ts`) と Rust で一致することは `src/capabilities/golden/tools.json` (期待値の正本は JS 側、`pnpm gen:golden-tools`) で検査する。
 
 **API capability の実装方針**: 原則 `ApiAdapter` (`src/adapters/types.ts`) 経由で実装する (フォーク対応の抽象化を維持するため)。Tauri commands 直呼びは `registry.*` / `chat.*` のように Misskey 専用機能で他フォーク対応想定が無い場合のみ許容。詳細は [SKILLS.md §4.0.2](SKILLS.md#402-adapter-経由--tauri-直呼び-の使い分け) 参照。
 
-**AI 用 tool schema は `capability.signature` (zod) から自動変換**:
+**AI 用 tool schema は宣言の params / returns から自動変換**:
 - Anthropic `tools[]` / OpenAI `functions[]` block を `src/capabilities/toolSchema.ts` で生成
 - `.` を含む id は `^[a-zA-Z0-9_-]{1,128}$` 制約のため `_` に変換 (例: `time.now` → `time_now`)
 - dispatcher で逆引きするため AI / プラグイン作者は意識不要
@@ -1099,11 +1099,11 @@ file lock / rate limit / `vault.manage` 権限 / error 3 値正規化 / latency 
 
 ### AI Chat Streaming
 
-`DeckAiColumn` は `ai_chat_send` コマンド経由で実 LLM にリクエストを送り、サーバーからのストリーミング応答を `nd:ai-chat-event` でフロントへ流す。
+チャットの 1 ターン (ユーザー入力 → 応答、途中の tool 呼び出しを含む) は **notecore のターン実行器** (`crates/notecore/src/ai_turn.rs`) が回す ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133) 縦切り 1)。`DeckAiColumn` は `ai_turn_run` で開始し、`nd:ai-turn-event` をセッション store に投影するだけ。1 ラウンド (1 リクエスト分の SSE) の送受信は `ai_chat_service.rs` で、`ai_chat_send` (1 往復、tool なし) もこれを使う。
 
 #### 対応プロトコル (OpenAI 互換 / Anthropic Messages 互換)
 
-`ai_chat_send` は `connection_id` を受け取り、Vault 接続から endpoint / API キー / `protocol` を解決して dispatch する。
+`ai_turn_run` / `ai_chat_send` は `connection_id` を受け取り、Vault 接続から endpoint / API キー / `protocol` を解決して dispatch する。
 
 | `ConnectionProtocol` | URL パターン | 認証 | プロトコル |
 |----------------------|-------------|------|-----------|
@@ -1112,37 +1112,76 @@ file lock / rate limit / `vault.manage` 権限 / error 3 値正規化 / latency 
 
 endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` から Rust 側で取得する。フロントは決してキー本体を持たない (詳細は [AI Credentials](#ai-credentials))。
 
-#### イベントフロー
+#### ターンのフロー
 
 ```
-┌─ Vue (DeckAiColumn) ─────┐
-│ aiChat.sendMessage(req)  │
-│   stream_id = uuid()     │
-│   listen('nd:ai-chat-event')
-│   commands.aiChatSend(req)│
-└──────────┬───────────────┘
+┌─ Vue (DeckAiColumn / useAiTurn) ─────────────────────────────┐
+│ user + placeholder を session に積む                          │
+│ system prompt を組む (skill + デバイス文脈のスナップショット) │
+│ listen('nd:ai-turn-event') → commands.aiTurnRun(req)          │
+│   req: principal / 履歴 / system / 生成パラメータ /           │
+│        device_tools (plugin 由来) / tool_param_enums (実行時 enum) │
+└──────────┬────────────────────────────────────────────────────┘
            │ invoke
            ▼
-┌─ Rust (commands/ai_chat.rs) ────┐
-│ tauri::async_runtime::spawn {   │
-│   vault: 接続から endpoint/key/protocol を解決 │
-│   reqwest POST + SSE stream      │
-│   for chunk → emit("nd:ai-chat-event", { stream_id, kind: "delta", text }) │
-│   on done  → emit({kind: "done"})│
-│   on error → emit({kind: "error", error}) │
-│ }                                │
-└──────────────────────────────────┘
+┌─ Rust (notecore ai_turn::run_turn) ──────────────────────────┐
+│ granted = permissions.json5 の principal を解決               │
+│ tools = 宣言表 (capabilities/generated.rs) ∩ granted + device_tools │
+│ loop {                                                        │
+│   1 ラウンド (SSE) → delta を emit、tool_use を貯める          │
+│   tool_use が無ければ done                                     │
+│   ラウンド上限なら done (stop_reason: tool_round_limit)        │
+│   全件を認可 (宣言の権限 ⊆ granted。拒否はデバイスに投げない) │
+│   確認の要否を決める (宣言の confirm / クロスアカウント /      │
+│     confirmSkips の記憶。無人 HEARTBEAT は聞かずに拒否)        │
+│   要る項目があれば: プレビューをデバイスに組ませ               │
+│     ("ai/confirm-preview") → 1 枚の confirm_request を emit    │
+│     → turn をチェックポイントに書いて解放 (ここで戻る)        │
+│   for tool_use in 全件 {                                      │
+│     exec: core なら notecore の本体 (capabilities/exec) を直接 │
+│     それ以外は bridge.query("ai/execute-capability", confirmed) │
+│     tool_use / tool_result を emit、履歴に足す                 │
+│   }                                                           │
+│ }                                                             │
+│ generate_title なら 1 往復でタイトルを作り title を emit      │
+│ 失敗は error (phase: before_tool / after_tool)                │
+└──────────────────────────────────────────────────────────────┘
+           │ query / event
+           ▼
+┌─ Vue ────────────────────────────────────────────────────────┐
+│ apiBridge 'ai/confirm-preview': capability の実装が組む       │
+│   確認内容 (diff / 引数 / 帰属 / 理由) を返す。実行はしない   │
+│ useAiTurn → aiConfirmRequests: confirm_request を 1 枚の       │
+│   ダイアログで出し、表示を伝え (aiConfirmShown)、決定を返す   │
+│   (aiConfirmRespond)。「次から確認しない」は権限ファイルへ    │
+│ apiBridge 'ai/execute-capability': 設定 / 権限を再読込 →      │
+│   dispatchCapability(..., { preConfirmed })。capability 本体  │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-`stream_id` で複数列の並行ストリームを区別する。
+- **1 ラウンドの複数 tool_use は全部順に実行する** (以前の JS ループは先頭以外を捨てていたので provider 側で並列を禁止していた。今は禁止しない)
+- **認可は notecore で決める**: tool 一覧の絞り込みと呼び出しごとの権限検査は Rust。デバイス側の dispatcher は同じ判定を写しとして二重に通す (golden で一致を検査)
+- **確認要求は notecore 発** (`ai_turn/confirm.rs`): 要否 (宣言の `confirm` / クロスアカウント / `confirmSkips` の記憶) は Rust が決め、表示内容は capability の実装がデバイスで組む。1 ラウンドの複数の呼び出しは 1 枚の要求に束ね、決定は全項目に効く。要求を出したループは turn を**チェックポイント** (`<app dir>/notedeck/ai-turns/`、notecore 専有で生ファイル書込の対象外) に書いて解放し、応答で読み戻して再開する。表示してからの TTL と生成してからの絶対 TTL のどちらかを超えると拒否して理由を記録し、応答は compare-and-set で最初の 1 つだけが効く (遅れた応答は明示エラー)。起動時に停止中のまま残った turn は「再起動」の理由で閉じる。無人 HEARTBEAT は確認が要る呼び出しを聞かずに拒否する
+- **セッションは notecore が単一の書き手** (`ai_sessions.rs`): ターン実行器がユーザー入力 / tool_use / tool_result / 最終応答 / 失敗の partial をその場で書く。メッセージ id は turn id から決定的に振り (ユーザー入力は `<turn>-u`)、イベントの `message_id` でデバイスが写しを揃える。デバイスの表示用 placeholder はローカルだけで、ターンの終わりに読み直す。HEARTBEAT の使い捨て履歴は `session_id` 無しで書かない
+- **汚染 (taint)** (`ai_turn/taint.rs`、#1103 Phase 1): 宣言 `untrusted: true` の capability (他人の投稿 / プロフィール / 通知 / fetch 結果を返す読取) の結果を読んだセッションと、デバイスが「文脈に他人の内容 (可視ノート) を入れた」と申告したターンのセッションは以後 tainted (`<app dir>/notedeck/ai-turns/taint.json`、生ファイル書込の対象外)。tainted なセッションの書き込みは「次から確認しない」を無視して必ず確認する。**宛先の出所**: 宣言 `destinations` の引数 (返信先 / 対象ユーザー / URL など) の値がどこに出てきたかを 3 値で判定する (ユーザー入力 / 信頼済みの結果 / untrusted な本文の中だけ。どこにも無い値も 3 番目に倒す)。3 番目なら確認に「宛先は AI が読んだ他人の内容に由来します」と一文添え (旗は足さない)、記憶の対象外にし、無人実行は聞かずに拒否して理由を記録する。**メモ / skill のラベル**: tainted なセッションからの書込 (実行要求の `tainted`) で作った / 更新したメモと skill には `tainted: true` の frontmatter が付き (一度付いたら外れない)、それを返す読取 capability は `ctx.markTainted()` で申告して読んだセッションを tainted にし、system prompt に注入するときはデバイスが文脈の申告 (`contextUntrusted`) に含める
+- **中断** (`ai_turn_cancel`): Rust の task を止め、確認待ちなら要求を cancelled で閉じて (デバイス側はダイアログを畳む)、デバイスが待っている実行要求の確認 (保険の経路) も `AbortSignal` で閉じる。途中までの応答は notecore がセッションに書いて返し、デバイスは写しに載せる
+- **失敗の段階**: `before_tool` (tool 未実行) なら user + placeholder を外して再送、`after_tool` (実行済み) なら placeholder だけ外して継続モード (`continuation: true`、system 末尾に切断通知)。実行済み write capability を二重実行する経路は構造的に無い (#737)
+- **デバイス文脈はスナップショット**: メモ / 可視ノート / vault の開示状態はターン開始時に 1 回だけ組む (以前はラウンドごと)
+- **WebView なしのハーネス**: provider (`ProviderRound`) とデバイス (`FrontendBridge`) と権限 (`GrantedSource`) は trait で受けるので、`ai_turn.rs` のテストは偽 provider + 偽デバイスで複数ラウンドのターンを走らせる
+
+`turn_id` で複数列の並行ターンを区別する。1 往復だけの用途 (`ai.chat` capability、HEARTBEAT 報告先のタイトル) は `ai_chat_send` + `nd:ai-chat-event` (`stream_id`) のまま。
 
 #### Frontend composables
 
 | ファイル | 役割 |
 |---------|------|
-| `src/composables/useAiChat.ts` | `sendMessage(opts)` で 1 回の chat 呼び出し。`currentText` ref が delta で更新される。`cancel()` で進行中 stream を中断 (Rust 側 `ai_chat_cancel` 経由) |
+| `src/composables/useAiTurn.ts` | ターンの投影: `run(req)` で `ai_turn_run` を開始し、`nd:ai-turn-event` を session の placeholder / tool_use / tool_result に投影する。`cancel()` / `retryContext` / `prepareRetry()`。チャットと HEARTBEAT が共用 |
+| `src/composables/aiConfirmRequests.ts` | notecore の確認要求の表示と応答。複数項目を 1 枚に束ね、表示を伝え、「次から確認しない」を権限ファイルへ減算してから応答する |
+| `src/composables/aiTurnExecutions.ts` | ターン単位の実行要求の台帳。中断時に実行要求側の確認 (保険) を `AbortSignal` で閉じる |
+| `src/capabilities/deviceTools.ts` | 宣言表に無い AI tool (plugin 由来) と実行時 enum をターン要求に同梱する |
+| `src/composables/useAiChat.ts` | `sendMessage(opts)` で 1 往復の chat 呼び出し (tool なし)。`currentText` ref が delta で更新される。`cancel()` で進行中 stream を中断 (Rust 側 `ai_chat_cancel` 経由) |
 | `src/composables/useAiConversation.ts` | 指定 sessionId のメッセージ配列に対する reactive な参照を返す薄いラッパー。本文の永続化と debounce は `useAiSessionsStore` 側で集中管理 |
-| `src/stores/aiSessions.ts` | AI セッション (`notedeck/sessions/<YYYYMMDDhhmmss>.json5`) の集中管理。メタは全件常駐、本文は遅延ロード、debounce 500ms 永続化。`createNew` / `updateMessages` / `setTitle` / `deleteSession` / `listSorted` を提供 |
+| `src/stores/aiSessions.ts` | AI セッション (`notedeck/sessions/<YYYYMMDDhhmmss>.json5`) のデバイス側の写し。書き手は notecore (`crates/notecore/src/ai_sessions.rs`、#1133) で、ストアは「作成 / メッセージ追加 / メッセージ削除 / 改名 / trigger skill の累積 / 削除」の構造化された操作を送って写しを揃える (楽観的更新)。進行中のターンの表示は `setLocalMessages` (notecore には書かない)。汎用の設定ファイル操作は `sessions` を受け付けない |
 | `src/stores/skills.ts` の `composedSystemPrompt()` | `mode: 'always'` + active な `mode: 'manual'` + extraSkillIds (= session persona + そのターンの trigger マッチ) の skill body を結合した system prompt。trigger マッチは `triggerMatchingSkillIds(text)` が user 入力を部分一致検索して算出 |
 | `src/utils/aiSessionId.ts` | Zettelkasten ID (`YYYYMMDDhhmmss`) 生成。同一秒衝突は `a`, `b`, `c`, ... サフィックスで回避 |
 | `src/utils/aiSessionTitle.ts` | `timestampTitle(now)` 初期プレースホルダー / `generateSessionTitle()` 決定論的フォールバック |
@@ -1156,7 +1195,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 
 セッションはカラムから独立した**グローバル資産**で、`column.aiCurrentSessionId` が「現在表示中の sessionId」を保持する。`null` ならセッション一覧を表示。同じ sessionId を 2 カラムで開いても破綻しない (`useAiSessionsStore` 経由で書込先は 1 ファイル)。
 
-セッションタイトルは初回 round (user 発話 → assistant 応答) 完了後に AI で自動生成される。失敗時は `timestampTitle` (`<YYYY-MM-DD HH:mm> のチャット`) がそのまま残る。AI への依頼は別 `useAiChat` インスタンス (`titleGen`) で会話を 1 つの user メッセージに集約して投げる (Anthropic は last message が assistant role だと続行扱いになるため)。
+セッションタイトルは初回 round (user 発話 → assistant 応答) 完了後に AI で自動生成される (ターン実行器が `generate_title` で完了後に 1 往復し、`title` イベントで返す)。失敗時は `timestampTitle` (`<YYYY-MM-DD HH:mm> のチャット`) がそのまま残る。会話は 1 つの user メッセージに集約して投げる (Anthropic は last message が assistant role だと続行扱いになるため)。届く前にユーザーが手動 rename していたら上書きしない。
 
 #### エラー UI
 
@@ -1170,7 +1209,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 
 ### HEARTBEAT Daemon ([#411](https://github.com/notedeck-dev/notedeck/issues/411))
 
-OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://docs.openclaw.ai/gateway/heartbeat)) に倣った **アプリ起動中ずっと走る global daemon**。ループ本体は現状フロントにあり、[#1133](https://github.com/notedeck-dev/notedeck/issues/1133) で Rust の notecore に移す。無人時の契約 (承認を待たない、書き込み意図は下書きと受信箱カード) もそこで実装する。AI カラムの有無 / 開いているカラム数に依存しない (= per-column scope ではない)。
+OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://docs.openclaw.ai/gateway/heartbeat)) に倣った **アプリ起動中ずっと走る global daemon**。ターン (ラウンドの反復と tool の実行) は notecore のターン実行器 ([AI Chat Streaming](#ai-chat-streaming)) を `ai.heartbeat` principal で使う。tick の受付 / cheap check / suppression / 報告先への append はまだフロントにあり、[#1133](https://github.com/notedeck-dev/notedeck/issues/1133) の後続で Rust の notecore に移す。無人時の契約 (承認を待たない、書き込み意図は下書きと受信箱カード) もそこで実装する。AI カラムの有無 / 開いているカラム数に依存しない (= per-column scope ではない)。
 
 #### アーキテクチャ
 
@@ -1182,7 +1221,7 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 │    tick → emit('nd:ai-heartbeat-tick')                │
 │                                                        │
 │  [JS] useHeartbeatDaemon (App.vue で 1 mount)         │
-│    listen → AI inference → suppression → session append│
+│    listen → ターン (notecore) → suppression → session append│
 │                                                        │
 │  [出力先] AiSessionKind='heartbeat' な session 1 個   │
 │    AI カラムの session ドロワーに表示 (最上位 pin)    │
@@ -1194,7 +1233,7 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 | ファイル | 役割 |
 |---------|------|
 | `src-tauri/src/commands/heartbeat.rs` | global single scheduler (HashMap ではなく Option)。tokio::time::interval で tick を emit。column_id 引数なし |
-| `src/composables/useHeartbeatDaemon.ts` | App-level singleton。Rust scheduler 制御 + tick listener + AI inference + suppression + session append + AI タイトル要約 + silent fail UX |
+| `src/composables/useHeartbeatDaemon.ts` | App-level singleton。Rust scheduler 制御 + tick listener + ターン開始 (`useAiTurn`、使い捨て session) + suppression + session append + AI タイトル要約 + silent fail UX |
 | `src/composables/useAiConfig.ts` | `HeartbeatConfig`: enabled / intervalMinutes (1〜1440) / target / cheapCheck / dailyMaxAiRuns 等。HEARTBEAT 中の権限は permissions.json5 の `ai.heartbeat` principal (#712) |
 | `src/stores/skills.ts` | `SkillMeta.mode === 'heartbeat'` な skill が daemon で実行される (skillsStore.heartbeatSkills computed) |
 
@@ -1219,7 +1258,7 @@ OpenClaw `HEARTBEAT.md` の `tasks:` に相当するのが NoteDeck の `mode: h
 
 `permissions.json5` の `ai.heartbeat` principal で chat (`ai.chat`) とは独立管理 (#712)。default `'readonly'` preset で write 系 / external network 全部 deny。旧 `ai.json5` の `heartbeat.permissions` からは初回起動時に「chat との AND (交差)」で一度きり移行される — 旧実装は絞り込み = heartbeat / 実行時 enforce = chat の実装ずれがあり、実効権限は交差だったため (素朴な複製は権限拡大になる)。
 
-daemon の `runAiInference()` で `resolveForProfiled('ai.heartbeat')` した granted map と各 capability の `permissions: PermissionKey[]` (required) を照合し、満たさない capability を AI に渡す tool 一覧から除外する。実行時 enforce も dispatcher が同じ `resolveFor({ kind: 'ai.heartbeat' })` で判定するので、露出と実行の判定が一致する。
+AI に渡す tool 一覧の絞り込みと呼び出しごとの認可は notecore のターン実行器が `ai.heartbeat` の granted で行う (#1133)。デバイス側の dispatcher も同じ `resolveFor({ kind: 'ai.heartbeat' })` で判定するので、露出と実行の判定が一致する。確認が要る capability は dispatcher が拒否する (無人時に承認を待たない)。
 
 #### Silent Fail Prevention
 
@@ -1241,7 +1280,7 @@ session 一覧では `AiSessionKind` 別の icon 統一 (`chat` → `ti-message-
 - **配布物ではなく選択肢**: ギャラリー・審査・テイクダウンは petdex が持つので、NoteDeck のストアや管理カラムには載せない。同梱ペットも無し。設定 (`settings.json5` の `pet.*`) には「どれを選んだか・位置・倍率」だけを置き、本体 (スプライトシート + メタ) は `pet_store` (Rust) がキャッシュ領域に置く。消えても再取得できるのでバックアップ対象外で、保持は選択中の 1 体だけ
 - **取得は Rust**: petdex のアセット CDN は CORS ヘッダを返さないので、解決 API → スプライト取得 → 寸法からグリッド判定 (v1 / v2) → 保存 を `commands/pet.rs` が行う。フロントは base64 で受けて Blob URL を CSS 背景に敷く
 - **スプライトの表**: 行と状態の対応、コマ数、コマごとの表示時間は pet.json に無く描画側の固定表 (`services/petSprite.ts`、petdex desktop と同じ値)
-- **AI 活動の集約状態** (`stores/aiActivity.ts`): 「生成中 / ツール実行中 (読み取り系は review) / 承認待ち / 完了 / 失敗」を横断して見られる唯一のリアクティブ状態。`useAiChat` / `useAiSendLoop` / capability dispatcher (AI principal のみ) / `taskRunner` が `begin` / `pulse` で報告し、`services/petActivity.ts` が優先順位で 1 つに畳む。ペットはその最初の消費者で、Dev Dashboard や Spotlight も読める
+- **AI 活動の集約状態** (`stores/aiActivity.ts`): 「生成中 / ツール実行中 (読み取り系は review) / 承認待ち / 完了 / 失敗」を横断して見られる唯一のリアクティブ状態。`useAiChat` / `useAiTurn` / capability dispatcher (AI principal のみ) / `taskRunner` が `begin` / `pulse` で報告し、`services/petActivity.ts` が優先順位で 1 つに畳む。ペットはその最初の消費者で、Dev Dashboard や Spotlight も読める
 - **表示**: メインウィンドウのデッキ上に 1 体 (`DeckPetOverlay`)。PiP では出さない。コンパクトレイアウトでは下端の基準をモバイルナビの上端 (`--nd-mobileNavHeight`) に置き、位置未設定なら FAB の上に載せる。ドラッグで位置を変えられ (向きで running-left / right)、省電力の `staticEmoji` とウィンドウ非表示の間は 1 コマ目で止める
 - **当たり判定は不透明領域だけ**: 要素は矩形だが、透過画素の上のクリック・タップ・スクロールは下のデッキに届く (petdex desktop は別 OS ウィンドウなので矩形で困らないが、デッキの上に載せる NoteDeck では死に領域になる)。`pet_store::hit_mask` が読み込み時にスプライトの alpha から状態 (行) ごとのブロックマスクを作り (行内の全コマの和集合を透明側に膨らませたもの)、`services/petSprite.ts` の `petHitClipPath` が表示寸法の `clip-path: path()` にする。clip-path は描画も切るので「見える画素を必ず含む」が不変条件で、Rust テストで固定している。コマごとではなく状態ごとにしているのは、押した場所の判定が数百 ms で変わらないようにするため。マスクが作れない・`path()` 非対応なら矩形に戻る
 

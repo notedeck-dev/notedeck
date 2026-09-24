@@ -1,0 +1,4653 @@
+{
+  schemaVersion: 1,
+  placeholders: {
+    accountIdParamDesc: 'どのアカウントで実行するか。未指定なら呼び出し文脈のアカウント (per-account の AI カラムならそのアカウント)。全アカウントのカラムや HEARTBEAT には文脈アカウントが無いので、`account.list` か `<currentColumn>.accountId` から選んで必ず渡す。',
+    accountIdHint: '`accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。',
+    scopeParamDesc: 'registry の scope 配列 (= path components)。例: `["client"]` / `["client","misskey"]`。Misskey 公式 UI と共有される設定エリア。',
+  },
+  // 権限キーの語彙 (#712)。順序は UI / golden vector のキー順。TS (src/permissions/keys.generated.ts) と
+  // Rust (crates/notecore/src/permissions_keys.generated.rs) はここから生成する。
+  //   presets: どの preset で ON か (full は常に ON なので書かない)
+  //   highRisk: UI に warning を出す / aiInstruction: AI の指示チャネル (第三者に恒久 deny)
+  //   thirdPartyDeny: plugin / external に恒久 deny / externalReadFloor: external の read 下限 (常時 ON)
+  //   localRead: NoteDeck ローカル私的データの read (external の既定から落とす)
+  permissions: {
+    'notes.read': { presets: ['readonly', 'safe'], externalReadFloor: true },
+    // 手元の索引 (キャッシュ) の横断検索 (#947)。サーバー検索では見えないフォロワー限定 / ダイレクトも索引にあるので notes.read とは分け、既定は閉じる
+    'notes.readArchive': { presets: [], localRead: true },
+    'notes.write': { presets: [], highRisk: true },
+    'notes.react': { presets: ['safe'] },
+    'account.read': { presets: ['readonly', 'safe'], externalReadFloor: true },
+    'account.write': { presets: [], highRisk: true },
+    // クロスアカウント実行 (#777): 呼び出し文脈と異なるアカウントを明示指定して capability を実行する権利。actsAsAccount 宣言付き capability に対して dispatcher が検査する。user principal は対象外
+    'account.actAs': { presets: [], highRisk: true },
+    'drive.read': { presets: ['readonly', 'safe'], externalReadFloor: true },
+    'drive.write': { presets: [], highRisk: true },
+    'memos.read': { presets: ['readonly', 'safe'], localRead: true },
+    'memos.write': { presets: ['safe'], highRisk: true },
+    'clips.read': { presets: ['readonly', 'safe'], externalReadFloor: true },
+    'clips.write': { presets: ['safe'] },
+    'drafts.read': { presets: ['readonly', 'safe'], localRead: true },
+    'drafts.write': { presets: ['safe'] },
+    'network.external': { presets: [], highRisk: true },
+    'clipboard': { presets: ['safe'] },
+    'notifications': { presets: ['safe'] },
+    'tasks.run': { presets: ['safe'], highRisk: true, thirdPartyDeny: true },
+    'ai.invoke': { presets: ['safe'] },
+    'ai.persona.write': { presets: [], highRisk: true, aiInstruction: true, thirdPartyDeny: true },
+    'skills.read': { presets: ['readonly', 'safe'], localRead: true },
+    'skills.write': { presets: ['safe'], highRisk: true, aiInstruction: true, thirdPartyDeny: true },
+    'theme.write': { presets: [] },
+    'styles.write': { presets: [] },
+    'navbar.write': { presets: [] },
+    'keybinds.write': { presets: [] },
+    'performance.write': { presets: [] },
+    'widgets.read': { presets: ['readonly', 'safe'], localRead: true },
+    'widgets.write': { presets: ['safe'] },
+    'plugins.read': { presets: ['readonly', 'safe'], localRead: true },
+    'plugins.write': { presets: ['safe'] },
+    // カラムクエリ (#1117)。名前付きクエリの編集履歴の読取と、履歴からの復元
+    'queries.read': { presets: ['readonly', 'safe'], localRead: true },
+    'queries.write': { presets: ['safe'] },
+    'ai.sessions.read': { presets: ['readonly', 'safe'], localRead: true },
+    'logs.read': { presets: ['readonly', 'safe'], localRead: true },
+    'vault.use': { presets: [], highRisk: true },
+    // ローカルディスクへのファイル書き出し (#813)。Downloads/notedeck 配下に固定されるが、ユーザーのディスクに成果物を作る操作なので write 系
+    'files.export': { presets: [], highRisk: true },
+    // DB + 設定のバックアップ作成 (#816)。成果物にローカルのノートキャッシュ全量が含まれるため write 系かつ高リスク
+    'backup.create': { presets: [], highRisk: true, thirdPartyDeny: true },
+    // デッキ構成 (カラム一覧 = 検索クエリ / アンテナ名 / アカウント紐付け等のローカル私的データ) の read (#712 §5.3)。external のみ既定 OFF
+    'deck.read': { presets: ['readonly', 'safe'], localRead: true },
+    // デッキ / ウィンドウ構成の変更 (#1098)。従来は無条件許可だったため readonly の heartbeat や外部トークンでもデッキを消せた。readonly のみ false
+    'deck.write': { presets: ['safe'] },
+  },
+  // destinations: 書き込みの宛先になる引数 (返信先 / 対象ユーザー / URL など)。値の出所を
+  //   3 値 (ユーザー入力 / 信頼済み結果 / untrusted 本文中) で判定し、3 番目なら確認に一文添えて記憶の対象外にする
+  // untrusted: 結果に他人の内容 (投稿 / プロフィール / 通知 / fetch 結果) を含みうる読取。
+  //   読んだセッションは以後 tainted になり、書き込みは「次から確認しない」を無視して確認する (#1103 / #1133)
+  capabilities: {
+    'account.current': {
+      label: '現在のアカウント情報',
+      category: 'account',
+      icon: 'ti-user',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'core',
+      description: '呼び出し文脈のアカウント (per-account の AI カラムならそのアカウント) の情報を返す。全アカウントのカラムや HEARTBEAT では null。 Misskey サーバーの host や displayName, username 等が含まれる。 認証トークンは含まれない。',
+      returns: {
+        type: 'object',
+        description: '`{ id, host, userId, username, displayName, avatarUrl, software, hasToken }` (文脈アカウントが無いときは null)',
+      },
+    },
+    'account.list': {
+      label: 'アカウント一覧',
+      category: 'account',
+      icon: 'ti-users',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'core',
+      description: 'NoteDeck にログイン中の全アカウントを配列で返す。複数サーバーを 横断したい場合に使う。認証トークンは含まれない。',
+      returns: {
+        type: 'array',
+        description: 'Account の配列',
+      },
+    },
+    'ai.chat': {
+      label: 'AI に問い合わせる',
+      category: 'general',
+      icon: 'ti-sparkles',
+      permissions: [
+        'ai.invoke',
+      ],
+      aiTool: false,
+      visible: true,
+      exec: 'device',
+      description: 'NoteDeck の AI に 1 ターンだけ問い合わせて応答テキストを得る。AiScript プラグインや外部 API / CLI から呼ぶ用途。AI チャット本体からの自己再帰呼出しは aiTool:false で塞がれている。',
+      params: {
+        prompt: {
+          type: 'string',
+          description: 'ユーザー側プロンプト (= user role の content)',
+        },
+        system: {
+          type: 'string',
+          description: 'システムプロンプト (= AI に与える役割設定)',
+          optional: true,
+        },
+        model: {
+          type: 'string',
+          description: 'モデル override (省略時は現在の AI 設定を使う)',
+          optional: true,
+        },
+        maxTokens: {
+          type: 'number',
+          description: '最大トークン数 (省略時はプロバイダのデフォルト)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ response: string }',
+      },
+    },
+    'ai.listPersonas': {
+      label: 'persona 用 skill 一覧',
+      category: 'general',
+      icon: 'ti-user-circle',
+      permissions: [
+        'skills.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'persona として選べる skill 一覧 (= isPersona:true な skill のみ)。 現在 active な persona は `active: true`。',
+      returns: {
+        type: 'array',
+        description: '各要素は { id, name, description, mode, scope, active: boolean }',
+      },
+    },
+    'ai.sessions.list': {
+      label: 'AI セッション一覧',
+      category: 'general',
+      icon: 'ti-messages',
+      permissions: [
+        'ai.sessions.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '保存されている AI セッションのメタ一覧 (updatedAt 降順) を返す。 各エントリは { id, kind, title, updatedAt, messageCount }。',
+      returns: {
+        type: 'array',
+        description: 'AiSessionMeta の配列',
+      },
+    },
+    'ai.sessions.read': {
+      untrusted: true,
+      label: 'AI セッションを読む',
+      category: 'general',
+      icon: 'ti-message-2',
+      permissions: [
+        'ai.sessions.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定 id の AI セッションのメッセージ列を返す。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象セッションの id',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, kind, title, messages: [{ role, content }] }',
+      },
+    },
+    'ai.sessions.search': {
+      untrusted: true,
+      label: 'AI セッション本文を検索',
+      category: 'general',
+      icon: 'ti-search',
+      permissions: [
+        'ai.sessions.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '保存されている AI セッションのメッセージ本文を全文 grep して、ヒットしたセッションを id + 周辺 snippet で返す。大文字小文字を無視。',
+      params: {
+        query: {
+          type: 'string',
+          description: '検索クエリ (部分一致)',
+        },
+        limit: {
+          type: 'number',
+          description: '最大返却数 (default: 20)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '[{ id, title, snippet }] の配列',
+      },
+    },
+    'ai.setPersona': {
+      label: 'AI persona を切替',
+      category: 'general',
+      icon: 'ti-user-circle',
+      permissions: [
+        'ai.persona.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'AI の persona (= 同一性設定) を切り替える。skillId は isPersona:true な skill の id (ai.listPersonas で取得)、空文字を渡せば persona 解除。 chat / heartbeat / command / task すべての AI session に反映される。',
+      params: {
+        skillId: {
+          type: 'string',
+          description: '新しい persona skill id (空文字で解除 = 通常の汎用 AI)',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ personaSkillId: string, persona: { id, name } | null }',
+      },
+    },
+    'aiscript.logs': {
+      label: 'AiScript 実行ログを取得',
+      category: 'general',
+      icon: 'ti-bug',
+      permissions: [
+        'logs.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'AiScript (プラグイン/ウィジェット/Play/Page/スクラッチパッド) の実行ログを新しい順に返す。print 出力は level "print"、実行時エラーは "error"、起動 (started)・正常終了 (run completed)・parse 失敗・runtime abort は "system"。プラグイン/ウィジェットを保存して実行された後は必ずこれを source / sourceId で絞って確認し、error や parse 失敗があれば src を修正して再保存するループを回すこと。3 回試して直らないならログをユーザーに見せて相談する。',
+      params: {
+        source: {
+          type: 'string',
+          description: '"plugin" | "widget" | "play" | "page" | "playground" | "all" (default: "all")',
+          optional: true,
+          enum: [
+            'plugin',
+            'widget',
+            'play',
+            'page',
+            'playground',
+            'all',
+          ],
+        },
+        sourceId: {
+          type: 'string',
+          description: 'installId (plugin/widget) や Play/Page の id で絞り込む (省略可)',
+          optional: true,
+        },
+        level: {
+          type: 'string',
+          description: '"print" | "error" | "system" | "all" (default: "all")',
+          optional: true,
+          enum: [
+            'print',
+            'error',
+            'system',
+            'all',
+          ],
+        },
+        limit: {
+          type: 'number',
+          description: '最大返却数 (default: 50)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '{ at, source, sourceId, name?, runId, level, message } の配列 (新しい順)。runId は実行ごとの通し番号で、同じ runId = 同じ実行。',
+      },
+    },
+    'aiscript.validate': {
+      label: 'AiScript を構文検証する',
+      category: 'general',
+      icon: 'ti-check',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: 'AiScript ソースを構文検証し、エラー一覧を返す。プラグイン/ウィジェットを `plugins.create` / `plugins.update` / `widgets.create` / `widgets.update`で保存する前に必ず通して、diagnostics が空でなければ src を修正して再度validate するループを回すこと。3 回試して直らないなら diagnostics をユーザーに見せて相談する。',
+      params: {
+        src: {
+          type: 'string',
+          description: 'AiScript ソースコード',
+        },
+        entryPoint: {
+          type: 'string',
+          description: '\'plugin\' | \'widget\' (省略可)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ ok: boolean, diagnostics: Array<{severity, message, line, column, endLine, endColumn}> }。line / column は 1-based。',
+      },
+    },
+    'announcements.list': {
+      untrusted: true,
+      label: 'サーバーアナウンス一覧',
+      category: 'account',
+      icon: 'ti-megaphone',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'Misskey サーバーのアナウンス一覧を返す (read-only)。isActive=true (default) で現在有効なアナウンスのみ、false で過去含む。既読化は副作用ありのため 本 capability では提供しない (取得のみ)。',
+      params: {
+        limit: {
+          type: 'number',
+          description: '取得件数 (default 30, 1-100)',
+          optional: true,
+        },
+        isActive: {
+          type: 'boolean',
+          description: '現在有効なアナウンスのみ (default: true)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'Announcement の配列',
+      },
+    },
+    'antenna.list': {
+      label: '自分のアンテナ一覧',
+      category: 'account',
+      icon: 'ti-antenna',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'core',
+      description: '自分が定義した Misskey アンテナの一覧を返す。各要素は { id, name, keywords, users, ... }。antenna.notes で notes を取るときの起点。',
+      params: {
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'Antenna の配列',
+      },
+    },
+    'antenna.notes': {
+      untrusted: true,
+      label: 'アンテナの note',
+      category: 'note',
+      icon: 'ti-antenna-bars-5',
+      permissions: [
+        'notes.read',
+      ],
+      exec: 'core',
+      description: '指定アンテナにマッチした note を返す。antennaId は antenna.list で取得。 projection された note (id / userId / username / text / createdAt) を最大 limit 件返す。',
+      params: {
+        antennaId: {
+          type: 'string',
+          description: '対象 antennaId',
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (default 20)',
+          optional: true,
+        },
+        untilId: {
+          type: 'string',
+          description: 'untilId (古い方向のページング)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'projected note の配列',
+      },
+    },
+    'backup.create': {
+      label: 'バックアップを作成',
+      category: 'general',
+      icon: 'ti-database-export',
+      permissions: [
+        'backup.create',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'ローカル DB と設定のスナップショットを Downloads/notedeck/backup/ に 作成する。認証情報は含まれない。デッキ構成やプラグイン登録は対象外。 DB と設定はそれぞれ独立して選べる (既定は両方)。 世代は新しい順に keep 件だけ残る。',
+      params: {
+        includeDb: {
+          type: 'boolean',
+          description: 'ローカル DB を含める (default: true)',
+          optional: true,
+        },
+        includeSettings: {
+          type: 'boolean',
+          description: '設定ファイル一式を含める (default: true)',
+          optional: true,
+        },
+        keep: {
+          type: 'number',
+          description: '残す世代数 (1〜100、default: 10)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+      },
+    },
+    'channel.list': {
+      label: '自分のフォロー中チャネル',
+      category: 'account',
+      icon: 'ti-device-tv',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'core',
+      description: '自分がフォロー中の Misskey チャネル一覧を返す。各要素は { id, name, description, ... }。channel.notes で channelId を渡すときの起点。',
+      params: {
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'Channel の配列',
+      },
+    },
+    'channel.notes': {
+      untrusted: true,
+      label: 'チャネルの note',
+      category: 'note',
+      icon: 'ti-message-circle',
+      permissions: [
+        'notes.read',
+      ],
+      exec: 'core',
+      description: '指定チャネルの note を返す。channelId は channel.list で取得。 projection された note (id / userId / username / text / createdAt) を最大 limit 件返す。',
+      params: {
+        channelId: {
+          type: 'string',
+          description: '対象 channelId',
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (default 20)',
+          optional: true,
+        },
+        untilId: {
+          type: 'string',
+          description: 'untilId (古い方向のページング)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'projected note の配列',
+      },
+    },
+    'chat.react': {
+      destinations: ['messageId'],
+      label: 'チャットメッセージにリアクション',
+      category: 'note',
+      icon: 'ti-mood-smile',
+      permissions: [
+        'notes.react',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: 'Misskey 新 Chat (v2025) のメッセージにリアクションを付ける。reaction は `:name:` 形式または Unicode 絵文字。messageId は chat カラム表示中のメッセージから取得する想定。',
+      params: {
+        messageId: {
+          type: 'string',
+          description: '対象メッセージ id',
+        },
+        reaction: {
+          type: 'string',
+          description: 'リアクション (`:thinking_face:` / `👍` 等)',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ ok: true, messageId, reaction }',
+      },
+    },
+    'chat.unreact': {
+      destinations: ['messageId'],
+      label: 'チャットメッセージのリアクションを解除',
+      category: 'note',
+      icon: 'ti-mood-x',
+      permissions: [
+        'notes.react',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: 'Misskey Chat メッセージから自分のリアクションを解除する。reaction は 付けたときと同じ値 (チャットでは複数 reaction を 1 ユーザーが付けられるため、 note のリアクションと違って種別指定が必要)。',
+      params: {
+        messageId: {
+          type: 'string',
+          description: '対象メッセージ id',
+        },
+        reaction: {
+          type: 'string',
+          description: '解除する reaction 種別',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ ok: true, messageId, reaction }',
+      },
+    },
+    'clipboard.read': {
+      label: 'クリップボードを読む',
+      category: 'general',
+      icon: 'ti-clipboard',
+      permissions: [
+        'clipboard',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'OS クリップボードのテキストを返す。プラグインが「コピーしたテキストを AI で処理」のような flow を実現するために使う。',
+      returns: {
+        type: 'object',
+        description: '{ text: string }',
+      },
+    },
+    'clipboard.write': {
+      label: 'クリップボードに書き込む',
+      category: 'general',
+      icon: 'ti-clipboard-copy',
+      permissions: [
+        'clipboard',
+      ],
+      exec: 'device',
+      description: 'OS クリップボードに文字列を書き込む。AI が生成した訳文・要約をユーザーが他アプリへ貼り付けやすくするための出力経路。',
+      params: {
+        text: {
+          type: 'string',
+          description: 'クリップボードに書く文字列',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ written: boolean, length: number }',
+      },
+    },
+    'clips.addNote': {
+      destinations: ['noteId'],
+      label: 'クリップにノートを追加',
+      category: 'note',
+      icon: 'ti-paperclip',
+      permissions: [
+        'clips.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定クリップに既存ノートを追加する。clipId は clips.list、noteId は visibleNotes / notes.search 等で取得した値を渡す。',
+      params: {
+        clipId: {
+          type: 'string',
+          description: '対象 clipId',
+        },
+        noteId: {
+          type: 'string',
+          description: '追加する noteId',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ ok: true, clipId, noteId }',
+      },
+    },
+    'clips.create': {
+      label: 'クリップを作成',
+      category: 'note',
+      icon: 'ti-paperclip',
+      permissions: [
+        'clips.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '新規クリップを作成する。AI が note 整理を提案するときに使う。',
+      params: {
+        name: {
+          type: 'string',
+          description: 'クリップ名 (必須)',
+        },
+        description: {
+          type: 'string',
+          description: '説明文',
+          optional: true,
+        },
+        isPublic: {
+          type: 'boolean',
+          description: '公開クリップとして作成するか (default false)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '作成された clip の id / name / isPublic',
+      },
+    },
+    'clips.list': {
+      label: 'クリップ一覧',
+      category: 'note',
+      icon: 'ti-paperclip',
+      permissions: [
+        'clips.read',
+      ],
+      cheap: true,
+      exec: 'core',
+      description: 'アクティブアカウントのクリップ一覧を返す。各要素は  { id, name, description, isPublic, lastClippedAt, favoritedCount }。',
+      params: {
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'クリップの配列',
+      },
+    },
+    'clips.notes': {
+      untrusted: true,
+      label: 'クリップ内のノート一覧',
+      category: 'note',
+      icon: 'ti-paperclip',
+      permissions: [
+        'clips.read',
+        'notes.read',
+      ],
+      exec: 'core',
+      description: '指定 clipId に入っているノートを取得する。limit は 1〜100 (default 20)。 クリップは公開設定なら他人のものでも閲覧可能。',
+      params: {
+        clipId: {
+          type: 'string',
+          description: '対象 clipId',
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (default 20、最大 100)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'ノート projection の配列',
+      },
+    },
+    'clips.removeNote': {
+      destinations: ['noteId'],
+      label: 'クリップからノートを削除',
+      category: 'note',
+      icon: 'ti-paperclip',
+      permissions: [
+        'clips.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: 'クリップからノートを取り除く (ノート自体は削除されない)。',
+      params: {
+        clipId: {
+          type: 'string',
+          description: '対象 clipId',
+        },
+        noteId: {
+          type: 'string',
+          description: '取り除く noteId',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ ok: true, clipId, noteId }',
+      },
+    },
+    'column.active': {
+      label: 'アクティブなカラムを取得',
+      category: 'column',
+      icon: 'ti-columns',
+      permissions: [
+        'deck.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '現在フォーカスされているカラム情報を返す。なければ { column: null }。column.list より軽量で、AI が「今ユーザーが見てる場所」を 1 呼び出しで把握できる。',
+      returns: {
+        type: 'object',
+        description: '{ column: { id, type, name, accountId, tl?, query?, listId?, ... } | null }',
+      },
+    },
+    'column.add': {
+      label: 'カラムを追加',
+      category: 'column',
+      icon: 'ti-plus',
+      permissions: [
+        'deck.write',
+      ],
+      exec: 'device',
+      description: '新しいカラムをデッキに追加する。type で種別を指定する。 list / antenna / channel / clip / user は対応する lookup ID (`listId` / `antennaId` / `channelId` / `clipId` / `userId`) が必要。',
+      params: {
+        type: {
+          type: 'string',
+          description: '追加するカラムの種別',
+        },
+        name: {
+          type: 'string',
+          description: 'カラムのタイトル (空または省略時は自動)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: 'どのアカウントのカラムにするか (省略時は cross-account)',
+          optional: true,
+        },
+        width: {
+          type: 'number',
+          description: 'カラム幅 px (default 380)',
+          optional: true,
+        },
+        tl: {
+          type: 'string',
+          description: 'type=timeline のときのタイムライン種別 (home / local / social / global)',
+          optional: true,
+        },
+        query: {
+          type: 'string',
+          description: 'type=search のときの検索クエリ',
+          optional: true,
+        },
+        listId: {
+          type: 'string',
+          description: 'type=list のとき必須',
+          optional: true,
+        },
+        antennaId: {
+          type: 'string',
+          description: 'type=antenna のとき必須',
+          optional: true,
+        },
+        channelId: {
+          type: 'string',
+          description: 'type=channel のとき必須',
+          optional: true,
+        },
+        clipId: {
+          type: 'string',
+          description: 'type=clip のとき必須',
+          optional: true,
+        },
+        userId: {
+          type: 'string',
+          description: 'type=user のとき必須',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '追加されたカラムの { id, type }',
+      },
+    },
+    'column.focusedNote': {
+      untrusted: true,
+      label: 'フォーカス中のノートを取得',
+      category: 'column',
+      icon: 'ti-target',
+      permissions: [
+        'notes.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '現在 active なカラム内で focus 中のノートを返す。未 focus / activeカラムが none の場合は { note: null }。AI Actions が「これ翻訳」のような操作で使う。',
+      returns: {
+        type: 'object',
+        description: '{ columnId, noteId, accountId, note: { id, text, userId, ... } } | { note: null }',
+      },
+    },
+    'column.list': {
+      label: 'カラム一覧',
+      category: 'column',
+      icon: 'ti-columns',
+      permissions: [
+        'deck.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。',
+      returns: {
+        type: 'array',
+        description: 'DeckColumn 軽量 projection の配列 (id / type / name / accountId / accountHost)',
+      },
+    },
+    'column.move': {
+      label: 'カラムを移動',
+      category: 'column',
+      icon: 'ti-arrows-horizontal',
+      permissions: [
+        'deck.write',
+      ],
+      exec: 'device',
+      description: '既存カラムを指定インデックスに移動する。targetIndex は 0 ベース (0 = 最左)。column.list の並び順 (= layout group 順) と一致。',
+      params: {
+        columnId: {
+          type: 'string',
+          description: '対象 columnId',
+        },
+        targetIndex: {
+          type: 'number',
+          description: '移動先 index (0 = 最左、layout group 配列の位置)',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ moved: true, columnId, targetIndex }',
+      },
+    },
+    'column.remove': {
+      label: 'カラムを削除',
+      category: 'column',
+      icon: 'ti-trash',
+      permissions: [
+        'deck.write',
+      ],
+      exec: 'device',
+      description: '指定したカラムをデッキから削除する。該当カラムが無ければ no-op。 削除対象 ID は `column.list` の戻り値から取得する。',
+      params: {
+        id: {
+          type: 'string',
+          description: '削除対象カラム ID',
+        },
+      },
+      returns: {
+        type: 'void',
+      },
+    },
+    'column.updateSettings': {
+      label: 'カラム設定を更新',
+      category: 'column',
+      icon: 'ti-adjustments',
+      permissions: [
+        'deck.write',
+      ],
+      exec: 'device',
+      description: '既存カラムの表示プロパティ (name / width / query / soundMuted) を更新する。 identity 系 (type / accountId / listId 等) は触れない (= AI 経路で塞ぐ)。',
+      params: {
+        columnId: {
+          type: 'string',
+          description: '対象 columnId',
+        },
+        name: {
+          type: 'string',
+          description: 'カラム表示名 (空文字でリセット)',
+          optional: true,
+        },
+        width: {
+          type: 'number',
+          description: 'カラム幅 (px)',
+          optional: true,
+        },
+        query: {
+          type: 'string',
+          description: 'search カラムなどの検索クエリ',
+          optional: true,
+        },
+        soundMuted: {
+          type: 'boolean',
+          description: 'カラム単位のサウンドミュート',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ updated: true, columnId, applied: 適用したフィールド名の配列 }',
+      },
+    },
+    'drafts.create': {
+      destinations: ['replyId', 'renoteId', 'channelId'],
+      label: '下書きを作成',
+      category: 'note',
+      icon: 'ti-edit',
+      permissions: [
+        'drafts.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '新規下書きを作成する。投稿はされず、サーバーに下書きとして保存される。 text 必須。scheduledAt + isActuallyScheduled で予約投稿としても保存可能。',
+      params: {
+        text: {
+          type: 'string',
+          description: '下書き本文 (空文字は不可)',
+        },
+        cw: {
+          type: 'string',
+          description: 'CW (内容警告)',
+          optional: true,
+        },
+        visibility: {
+          type: 'string',
+          description: '公開範囲 (default: public)',
+          optional: true,
+          enum: [
+            'public',
+            'home',
+            'followers',
+            'specified',
+          ],
+        },
+        replyId: {
+          type: 'string',
+          description: 'リプライ先 noteId',
+          optional: true,
+        },
+        renoteId: {
+          type: 'string',
+          description: '引用 / リノート対象 noteId',
+          optional: true,
+        },
+        channelId: {
+          type: 'string',
+          description: 'チャンネル投稿先 id',
+          optional: true,
+        },
+        scheduledAt: {
+          type: 'string',
+          description: 'ISO8601 形式の予約日時 (省略時は通常下書き)',
+          optional: true,
+        },
+        isActuallyScheduled: {
+          type: 'boolean',
+          description: 'true で「時刻到来時に自動投稿」(Misskey 2025.10+)。default false',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '作成された下書き projection',
+      },
+    },
+    'drafts.delete': {
+      label: '下書きを削除',
+      category: 'note',
+      icon: 'ti-trash',
+      permissions: [
+        'drafts.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定 draftId の下書きを削除する。元に戻せない。',
+      params: {
+        draftId: {
+          type: 'string',
+          description: '対象 draftId',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ deleted: true, draftId }',
+      },
+    },
+    'drafts.list': {
+      label: '下書き一覧',
+      category: 'note',
+      icon: 'ti-note',
+      permissions: [
+        'drafts.read',
+      ],
+      exec: 'device',
+      description: 'アカウントの下書きを一覧取得する (Misskey 2025.6+ サーバー保存)。 別サーバーから取得するときは accountId を指定する。',
+      params: {
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '下書きの配列 (id / text / visibility / replyId 等の projection)',
+      },
+    },
+    'drafts.update': {
+      label: '下書きを更新',
+      category: 'note',
+      icon: 'ti-edit',
+      permissions: [
+        'drafts.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '既存下書きを更新する。指定したフィールドだけ差し替え、他は現在値を維持。 draftId は drafts.list で取得した id を渡す。',
+      params: {
+        draftId: {
+          type: 'string',
+          description: '対象 draftId',
+        },
+        text: {
+          type: 'string',
+          description: '新しい本文',
+          optional: true,
+        },
+        cw: {
+          type: 'string',
+          description: '新しい CW (空文字で CW 解除)',
+          optional: true,
+        },
+        visibility: {
+          type: 'string',
+          description: '公開範囲',
+          optional: true,
+          enum: [
+            'public',
+            'home',
+            'followers',
+            'specified',
+          ],
+        },
+        scheduledAt: {
+          type: 'string',
+          description: 'ISO8601 予約日時 (空文字で予約解除)',
+          optional: true,
+        },
+        isActuallyScheduled: {
+          type: 'boolean',
+          description: '自動投稿フラグの切替',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '更新後の下書き projection',
+      },
+    },
+    'drive.list': {
+      label: 'ドライブファイル一覧',
+      category: 'general',
+      icon: 'ti-cloud',
+      permissions: [
+        'drive.read',
+      ],
+      exec: 'core',
+      description: '指定アカウント (未指定なら active) の Misskey ドライブのファイル一覧を取得する。 folderId 省略でルート、fileType 指定 (例: `image/`) で MIME prefix フィルタ。返り値は raw な配列 (id / name / type / size / url 等)。 別サーバーのドライブを読むときは `<currentColumn>.accountId` を渡す。',
+      params: {
+        folderId: {
+          type: 'string',
+          description: 'フォルダー ID (省略でルート)',
+          optional: true,
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (1-100, default 30)',
+          optional: true,
+        },
+        fileType: {
+          type: 'string',
+          description: 'MIME prefix フィルタ (例: `image/` / `video/` / `application/pdf`)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'ドライブファイル (NormalizedDriveFile) の配列',
+      },
+    },
+    'favorites.add': {
+      label: 'お気に入りに追加',
+      category: 'note',
+      icon: 'ti-star',
+      permissions: [
+        'notes.react',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定ノートを自分のお気に入りに追加する。他人には通知されず、自分しか見えない private bookmark。リアクションとは別軸 (リアクションは公開)。',
+      params: {
+        noteId: {
+          type: 'string',
+          description: '対象 noteId',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ favorited: true, noteId }',
+      },
+    },
+    'favorites.remove': {
+      label: 'お気に入りから削除',
+      category: 'note',
+      icon: 'ti-star-off',
+      permissions: [
+        'notes.react',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定ノートをお気に入りから削除する。',
+      params: {
+        noteId: {
+          type: 'string',
+          description: '対象 noteId',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ unfavorited: true, noteId }',
+      },
+    },
+    'federation.chart': {
+      label: '連合チャート',
+      category: 'account',
+      icon: 'ti-chart-line',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '自インスタンスの連合チャート (day/hour 単位の時系列) を返す。 インバウンド/アウトバウンドの送受信数、配送先サーバー数等を含む。',
+      params: {
+        span: {
+          type: 'string',
+          description: 'チャート粒度: day / hour (default: day)',
+          optional: true,
+          enum: [
+            'day',
+            'hour',
+          ],
+        },
+        limit: {
+          type: 'number',
+          description: '時系列の長さ (default 30、最大 90)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: 'FederationChart',
+      },
+    },
+    'federation.instance': {
+      label: '連合先インスタンス詳細',
+      category: 'account',
+      icon: 'ti-server',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定 host の連合先インスタンス詳細を返す (read-only)。',
+      params: {
+        host: {
+          type: 'string',
+          description: 'ホスト名 (例: yami.ski)',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: 'FederationInstance',
+      },
+    },
+    'federation.instances': {
+      label: '連合先インスタンス一覧',
+      category: 'account',
+      icon: 'ti-network',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '連合済みインスタンスの一覧を返す (read-only)。sort で並べ替え可。 host を指定すると部分一致絞り込み。host filter で host = ホスト名そのもの。',
+      params: {
+        limit: {
+          type: 'number',
+          description: '取得件数 (default 30)',
+          optional: true,
+        },
+        offset: {
+          type: 'number',
+          description: 'offset (default 0)',
+          optional: true,
+        },
+        sort: {
+          type: 'string',
+          description: '並び順 (default -pubSub)',
+          optional: true,
+          enum: [
+            '+pubSub',
+            '-pubSub',
+            '+notes',
+            '-notes',
+            '+users',
+            '-users',
+            '+following',
+            '-following',
+            '+followers',
+            '-followers',
+            '+firstRetrievedAt',
+            '-firstRetrievedAt',
+            '+latestRequestSentAt',
+            '-latestRequestSentAt',
+          ],
+        },
+        host: {
+          type: 'string',
+          description: 'host 名で絞り込み (部分一致)',
+          optional: true,
+        },
+        blocked: {
+          type: 'boolean',
+          description: 'ブロック中のみ',
+          optional: true,
+        },
+        notResponding: {
+          type: 'boolean',
+          description: '応答なしのみ',
+          optional: true,
+        },
+        suspended: {
+          type: 'boolean',
+          description: 'suspended のみ',
+          optional: true,
+        },
+        federating: {
+          type: 'boolean',
+          description: '連合中のみ',
+          optional: true,
+        },
+        subscribing: {
+          type: 'boolean',
+          description: '購読中のみ',
+          optional: true,
+        },
+        publishing: {
+          type: 'boolean',
+          description: '配信中のみ',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'FederationInstance の配列',
+      },
+    },
+    'files.export': {
+      label: 'ファイルをローカルに保存',
+      category: 'general',
+      icon: 'ti-download',
+      permissions: [
+        'files.export',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: 'ドライブファイル (fileIds) やノートの添付 (noteIds) をローカルの ダウンロードフォルダ (Downloads/notedeck/) に保存する。任意 URL の 取得はできない。同一ファイルの再保存はスキップされる (冪等)。 センシティブ設定のファイルも既定で保存する (本体のドライブ保存と同じ)。 除外したい場合は includeSensitive: false を指定する。',
+      params: {
+        fileIds: {
+          type: 'array',
+          description: '保存するドライブファイルの ID 一覧',
+          optional: true,
+        },
+        noteIds: {
+          type: 'array',
+          description: '添付ファイルを保存するノートの ID 一覧',
+          optional: true,
+        },
+        subdir: {
+          type: 'string',
+          description: 'Downloads/notedeck/ 直下の保存先サブディレクトリ名 (1 段のみ、 default: \'export\')',
+          optional: true,
+        },
+        includeSensitive: {
+          type: 'boolean',
+          description: 'センシティブ設定のファイルを含めるか (default: true)。 false を指定した分は保存されず excludedSensitive に計上される',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '対象アカウント ID (省略時はアクティブアカウント)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+      },
+    },
+    'flash.list': {
+      label: 'Misskey Play 一覧',
+      category: 'note',
+      icon: 'ti-bolt',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'Misskey Play (Flash) 一覧を返す。endpoint で範囲を切替: `flash/featured` (注目) / `flash/my` (自分の) / `flash/my-likes` (自分が like)。 read-only。',
+      params: {
+        endpoint: {
+          type: 'string',
+          description: '対象 endpoint',
+          enum: [
+            'flash/featured',
+            'flash/my',
+            'flash/my-likes',
+          ],
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (default 30, 1-100)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'Flash の配列',
+      },
+    },
+    'flash.show': {
+      untrusted: true,
+      label: 'Misskey Play 詳細',
+      category: 'note',
+      icon: 'ti-script',
+      permissions: [
+        'account.read',
+      ],
+      exec: 'device',
+      description: '指定 flashId の Misskey Play 詳細を返す。**AiScript ソース (`script`) も含む** ので、AI が既存 Play を読んで参考にできる。read-only。',
+      params: {
+        flashId: {
+          type: 'string',
+          description: '対象 flashId',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: 'Flash 詳細 (title / summary / script / userId)',
+      },
+    },
+    'gallery.list': {
+      untrusted: true,
+      label: 'Gallery 一覧',
+      category: 'note',
+      icon: 'ti-photo',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'Misskey Gallery 投稿一覧を返す (read-only)。 title / description / files / userId を含む。',
+      params: {
+        limit: {
+          type: 'number',
+          description: '取得件数 (default 20, 1-100)',
+          optional: true,
+        },
+        untilId: {
+          type: 'string',
+          description: 'untilId (古い方向のページング)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'GalleryPost の配列',
+      },
+    },
+    'http.fetch': {
+      destinations: ['url'],
+      untrusted: true,
+      label: '外部 HTTP リクエスト',
+      category: 'general',
+      icon: 'ti-world-www',
+      permissions: [
+        'network.external',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '外部 HTTP/HTTPS API にリクエストを送信する。Misskey 以外の API (翻訳・天気・RSS など) との連携に使う。loopback / private / link-local アドレスへの接続は SSRF 防御のため拒否される。',
+      params: {
+        url: {
+          type: 'string',
+          description: 'リクエスト先 URL (http または https のみ)',
+        },
+        method: {
+          type: 'string',
+          description: 'HTTP メソッド (default: GET)',
+          optional: true,
+          enum: [
+            'GET',
+            'POST',
+            'PUT',
+            'DELETE',
+            'PATCH',
+            'HEAD',
+            'OPTIONS',
+          ],
+        },
+        headers: {
+          type: 'object',
+          description: 'リクエストヘッダ ({ key: string, value: string })',
+          optional: true,
+        },
+        body: {
+          type: 'string',
+          description: 'リクエストボディ (文字列)',
+          optional: true,
+        },
+        timeoutMs: {
+          type: 'number',
+          description: 'タイムアウト ms (1000〜120000, default 30000)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ status: number, headers: object, body: string }',
+      },
+    },
+    'keybinds.list': {
+      label: 'キーバインド一覧',
+      category: 'general',
+      icon: 'ti-keyboard',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: '設定可能なコマンド ID 一覧と、それぞれの現在の shortcut を返す。 `customized: true` のものはユーザーが上書きしている。AI が 「Vim 風にして」と言われたときの起点。',
+      returns: {
+        type: 'array',
+        description: '各要素は { commandId, shortcuts: Shortcut[], default: Shortcut[], customized: boolean }',
+      },
+    },
+    'keybinds.reset': {
+      label: 'キーバインドを default に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'keybinds.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '指定 commandId のキーバインドを default に戻す (override 削除)。',
+      params: {
+        commandId: {
+          type: 'string',
+          description: '対象コマンドの id',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ commandId, reset: true }',
+      },
+    },
+    'keybinds.resetAll': {
+      label: '全キーバインドを default に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'keybinds.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '全コマンドの override を破棄して default に戻す。',
+      returns: {
+        type: 'object',
+        description: '{ reset: true }',
+      },
+    },
+    'keybinds.set': {
+      label: 'キーバインドを設定',
+      category: 'general',
+      icon: 'ti-keyboard',
+      permissions: [
+        'keybinds.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '指定 commandId の shortcut を上書きする。Shortcut は  { key: string, scope: "global"|"body", ctrl?: boolean, shift?: boolean, alt?: boolean }。 `key` は KeyboardEvent.key の値 ("k" / "p" / "Escape" / "ArrowDown" 等)。 scope: "global" は修飾キー付き常時有効、"body" はテキスト入力中は無効。',
+      params: {
+        commandId: {
+          type: 'string',
+          description: '対象コマンドの id (keybinds.list で取得)',
+        },
+        shortcuts: {
+          type: 'array',
+          description: 'Shortcut[] (空配列を渡せば shortcut なしに上書き)',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ commandId, count: 設定後の shortcut 数 }',
+      },
+    },
+    'list.addUser': {
+      destinations: ['userId'],
+      label: 'リストにユーザーを追加',
+      category: 'account',
+      icon: 'ti-user-plus',
+      permissions: [
+        'account.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定リストに指定 user を追加する。listId は list.list、userId は user.lookup / search で取得。相手に通知は飛ばない (= 自分の整理用)。',
+      params: {
+        listId: {
+          type: 'string',
+          description: '対象 listId',
+        },
+        userId: {
+          type: 'string',
+          description: '追加する userId',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ added: true, listId, userId }',
+      },
+    },
+    'list.list': {
+      label: '自分のリスト一覧',
+      category: 'account',
+      icon: 'ti-list',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'core',
+      description: '自分のユーザーリスト一覧を返す。各要素は { id, name, userIds, createdAt }。 リスト編集 (list.addUser / removeUser) で listId を渡すときの起点。',
+      params: {
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'UserList の配列',
+      },
+    },
+    'list.removeUser': {
+      destinations: ['userId'],
+      label: 'リストからユーザーを削除',
+      category: 'account',
+      icon: 'ti-user-minus',
+      permissions: [
+        'account.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定リストから指定 user を削除する (= 自分の整理用、相手通知なし)。',
+      params: {
+        listId: {
+          type: 'string',
+          description: '対象 listId',
+        },
+        userId: {
+          type: 'string',
+          description: '削除する userId',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ removed: true, listId, userId }',
+      },
+    },
+    'logs.recent': {
+      label: '最近のログを取得',
+      category: 'general',
+      icon: 'ti-bug',
+      permissions: [
+        'logs.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'アプリ内 console.warn / console.error のリング (最大 200 件) から 直近を返す。AI が自己修正・診断に使う。',
+      params: {
+        level: {
+          type: 'string',
+          description: '"warn" | "error" | "all" (default: "error")',
+          optional: true,
+          enum: [
+            'warn',
+            'error',
+            'all',
+          ],
+        },
+        limit: {
+          type: 'number',
+          description: '最大返却数 (default: 20)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '{ at, level, scope?, message } の配列 (新しい順)',
+      },
+    },
+    'memos.backlinks': {
+      label: 'メモのバックリンク',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'memos.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定したメモ id を `[name](memo:<id>)` 形式で参照しているメモを 返す (= バックリンク)。タグ整理 / 関連メモ把握に有用。本文に link が あるメモ全件を返す (limit / pagination なし、通常 backlinks は少数)。 検索範囲は accountId 指定のメモ空間のみ (cross-account はしない)。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象 memoKey (Zettelkasten id, `YYYYMMDDHHmmss`)',
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '`[{ id, text, updatedAt, tags?, author? }]` — 参照元メモの一覧 (新しい順)',
+      },
+    },
+    'memos.create': {
+      label: 'メモを作成',
+      category: 'general',
+      icon: 'ti-notes',
+      permissions: [
+        'memos.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: 'NoteDeck のローカル markdown メモを新規作成する。 text + 任意の tags / authorId 指定可。CW / visibility / poll 等の投稿用フィールドは触らない (= デフォルト値で作成)。memoKey は Zettelkasten 形式 (`YYYYMMDDHHmmss`) で自動採番。 authorId を渡すと <persona> block の指示通り memo に author 埋め込みブロックが 記録される (skill / account の表示情報を作成時に snapshot)。 投稿前に確認モーダルが出る。',
+      params: {
+        text: {
+          type: 'string',
+          description: 'メモ本文 (空文字は不可、markdown 可)',
+        },
+        tags: {
+          type: 'array',
+          description: '任意の自由記述タグ (string[])。NoteDeck は値を enumerate しない。 ユーザーが skill body 等で意味付けするので AI は文脈に応じて分類タグを付ける',
+          optional: true,
+        },
+        authorId: {
+          type: 'string',
+          description: '作者の Identity ID (`skill:<persona-id>` / Misskey accountId 等)。 未指定 = ユーザー本人扱い。<persona> block で指示された persona の authorId をここに渡すと、その persona のアイコン / 名前が memo に 埋め込まれて UI で表示される',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '`{ id, text, updatedAt, tags?, author? }` — id は Zettelkasten 形式',
+      },
+    },
+    'memos.delete': {
+      label: 'メモを削除',
+      category: 'general',
+      icon: 'ti-trash',
+      permissions: [
+        'memos.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '既存ローカルメモを削除する。削除前に確認モーダルが出る。 整理 skill の指示でユーザーが「古いメモを片付ける」フローで使う想定。 削除されたメモは復元できない (notedeck/memos/<id>.md ファイルが消える)。',
+      params: {
+        id: {
+          type: 'string',
+          description: '削除対象の memoKey (Zettelkasten id, `YYYYMMDDHHmmss`)',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '`{ ok: true, id }`',
+      },
+    },
+    'memos.list': {
+      label: 'メモを列挙',
+      category: 'general',
+      icon: 'ti-list',
+      permissions: [
+        'memos.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'NoteDeck のローカル memo を絞り込んで列挙する。 tag / 経過日数 / 部分一致クエリ / 作者でフィルタ可能。 updatedAt 降順、limit 件で打ち切り (default 10、最大 50)。 AI は memos.search でキーワード検索する前に memos.list で全体像を 把握するのが効率的。',
+      params: {
+        tag: {
+          type: 'string',
+          description: '指定すると tags にこの値が含まれるメモのみ返す',
+          optional: true,
+        },
+        authorId: {
+          type: 'string',
+          description: '指定すると author.id がこの値のメモのみ返す (`skill:<id>` で persona 別のメモ抽出、ユーザー本人は author 未設定なので "self" を渡すと該当)',
+          optional: true,
+        },
+        olderThanDays: {
+          type: 'number',
+          description: '指定日数以上前に更新されたメモのみ返す (整理候補の発見に使える)',
+          optional: true,
+        },
+        query: {
+          type: 'string',
+          description: '本文に含まれる文字列 (大小無視の単純 substring 一致)',
+          optional: true,
+        },
+        limit: {
+          type: 'number',
+          description: '返す最大件数 (default 10、最大 50)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '`{ id, text, updatedAt, tags?, author? }` の配列。空配列なら一致なし',
+      },
+    },
+    'memos.revert': {
+      label: 'メモを過去の状態に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'memos.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'メモを編集履歴の過去の状態に戻す。index は 0 が最新の履歴。',
+      params: {
+        id: {
+          type: 'string',
+          description: 'メモ ID (Zettelkasten 形式)',
+        },
+        index: {
+          type: 'number',
+          description: '履歴のインデックス (0 が最新)',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '`{ id, reverted: true, at }`',
+      },
+    },
+    'memos.search': {
+      label: 'メモを検索',
+      category: 'general',
+      icon: 'ti-search',
+      permissions: [
+        'memos.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'NoteDeck のローカル memo を本文部分一致で検索する。 大小無視の substring + 直近更新の recency boost で並べ、 limit 件 (default 10、最大 50) を返す。embedding 由来の semantic 検索はないので、ヒットしない場合は AI が言い換え (例:「旅行」→「出張」「バカンス」) で再試行することを想定。 authorId で persona / 本人別のメモ検索も可能。',
+      params: {
+        query: {
+          type: 'string',
+          description: '検索文字列 (空文字不可、大小無視の部分一致)',
+        },
+        authorId: {
+          type: 'string',
+          description: '指定すると author.id がこの値のメモのみ検索 (`skill:<id>` / "self")',
+          optional: true,
+        },
+        limit: {
+          type: 'number',
+          description: '返す最大件数 (default 10、最大 50)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '`{ id, text, updatedAt, tags?, author? }` の配列',
+      },
+    },
+    'memos.update': {
+      label: 'メモを更新',
+      category: 'general',
+      icon: 'ti-edit',
+      permissions: [
+        'memos.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '既存ローカルメモの text / tags / authorId を更新する (すべて optional、未指定なら維持)。 CW / visibility 等の他のフィールドは既存値を保持。 id は <memos> ブロックで参照できる Zettelkasten 形式 memoKey。 投稿前に確認モーダルが出る。',
+      params: {
+        id: {
+          type: 'string',
+          description: '更新対象の memoKey (Zettelkasten id, `YYYYMMDDHHmmss`)',
+        },
+        text: {
+          type: 'string',
+          description: '新しい本文 (未指定なら既存維持、空文字 "" 不可)',
+          optional: true,
+        },
+        tags: {
+          type: 'array',
+          description: '新しい tags 配列 (未指定なら既存維持)。空配列 [] を渡すと tags を全削除',
+          optional: true,
+        },
+        authorId: {
+          type: 'string',
+          description: '作者を変更する場合の Identity ID (空文字 "" を渡すと author を消す)。 通常は memo の作者を変える用途なし。AI が persona として書いた memo を ユーザー本人に戻す等の特殊操作で使う',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '`{ id, text, updatedAt, tags?, author? }`',
+      },
+    },
+    'meta.activeSkills': {
+      label: 'active な skill 一覧',
+      category: 'general',
+      icon: 'ti-book-2',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: '現在 active な (= system prompt に乗っている) skill のメタ一覧。',
+      returns: {
+        type: 'array',
+        description: '[{ id, name, mode, isPersona }] の配列',
+      },
+    },
+    'meta.config': {
+      label: '現在の AI 設定スナップショット',
+      category: 'general',
+      icon: 'ti-settings',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: '現在の AI 設定の機密でない部分 (protocol / model / dataSources flags) を返す。 API キー / endpoint / custom permissions の生 map は **明示的に除外**。',
+      returns: {
+        type: 'object',
+        description: '{ protocol, model, dataSourcesEnabled: { [key]: boolean } }',
+      },
+    },
+    'meta.heartbeat': {
+      label: 'HEARTBEAT 設定スナップショット',
+      category: 'general',
+      icon: 'ti-activity',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: 'HEARTBEAT daemon の現在設定 (enabled / intervalMinutes / target / dailyMaxAiRuns / onDailyLimit / desktopNotification / cheapCheck) を読み取り専用で返す。AI 自身の起動条件を理解するため。**編集は塞がれている** (AI が自分の interval を変えると暴走するため)。',
+      returns: {
+        type: 'object',
+        description: '{ enabled, intervalMinutes, target, dailyMaxAiRuns, onDailyLimit, desktopNotification, cheapCheck: { enabled, maxSkipHours }, permissionsPreset }',
+      },
+    },
+    'meta.permissions': {
+      label: '現在の permission を取得',
+      category: 'general',
+      icon: 'ti-shield-check',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: '呼び出し元 (principal) 自身の permission preset と、解決済の permission map を返す。自分が何を許されているか把握するため。',
+      returns: {
+        type: 'object',
+        description: '{ principal: string, preset: "readonly"|"safe"|"full"|"custom"|null, resolved: { [key]: boolean } }',
+      },
+    },
+    'meta.persona': {
+      label: '現在の AI persona',
+      category: 'general',
+      icon: 'ti-user-circle',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: '現在のセッションで AI が振る舞っている persona (= isPersona:true な skill) を返す。設定されていなければ null。',
+      returns: {
+        type: 'object',
+        description: '{ id, name } | null',
+      },
+    },
+    'metrics.read': {
+      label: '実行時メトリクスを取得',
+      category: 'general',
+      icon: 'ti-activity',
+      permissions: [
+        'deck.read',
+      ],
+      exec: 'device',
+      description: '現在の Frame Engine 実測値、適応品質、WebSocket 接続状態の匿名集約、起動フェーズ内訳、メモリ指標を point-in-time snapshot として返す。フレームサンプリングはアイドル時 (描画作業なし) に停止するため、frame.available=false の間は数値が null (未計測またはアイドル)。アカウント識別子や認証情報は含まない。',
+      returns: {
+        type: 'object',
+        description: '{ schemaVersion, capturedAt, frame: { available, lastSampleAt, sampleCount, frameBudgetMs, jankDowngradeThreshold, fps, frameTimeEmaMs, p95FrameTimeMs, jankCount }, adaptiveQuality: { currentLevel, autoAdjustEnabled }, streaming: { observedConnectionCount, byState, overallHealth, lastTransitionAt }, startup: { webviewFixedCostMs, phases: [{ name, atMs }] }, memory: { jsHeap: { usedBytes, totalBytes } | null, images: { elementCount, uniqueCount, estimatedDecodedBytes } } }。時刻は epoch ms。frameBudgetMs は 1 フレームの時間予算 (1000/リフレッシュレート) で、jank はその 2 倍超のフレーム数/秒。jankCount が jankDowngradeThreshold (実効設定値) を超えると自動調整が品質を 1 段下げる。fps は直近 1 秒に描画作業を実行した frame 数で、画面リフレッシュレートではない。p95FrameTimeMs は sampleCount が小さい間 (起動直後) はサンプル最大値に寄る。overallHealth は unknown | initializing | healthy | degraded | offline | manual-offline (manual-offline はユーザーが意図したオフラインモード)。startup はセッション中不変の起動計測 (atMs は navigation 起点、webviewFixedCostMs はプロセス起動→navigation でリロード後は null)。memory.jsHeap は Chromium 系 WebView のみ (WebKit は null)。memory.images はリモート画像のユニーク URL 単位のデコード済み推定 (W×H×4)。プロセス全体の専有メモリは含まない。',
+      },
+    },
+    'misstore.search': {
+      untrusted: true,
+      label: 'MisStore を検索',
+      category: 'general',
+      icon: 'ti-shopping-bag',
+      permissions: [
+        'network.external',
+      ],
+      exec: 'device',
+      description: 'MisStore (store.notedeck.io) のレジストリを検索する。 query は name / description / id の部分一致 (大小無視)。 kind 省略時は plugin / widget / skill / theme を全件横断検索。 エンドポイントは固定なので確認ダイアログは出ない。',
+      params: {
+        query: {
+          type: 'string',
+          description: '検索クエリ (部分一致、大小無視)',
+        },
+        kind: {
+          type: 'string',
+          description: '検索する種別 (省略時は全種別)',
+          optional: true,
+          enum: [
+            'plugin',
+            'widget',
+            'skill',
+            'theme',
+          ],
+        },
+        limit: {
+          type: 'number',
+          description: '最大返却数 (default: 20)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '[{ id, name, description, category, kind, iconUrl? }]',
+      },
+    },
+    'navbar.list': {
+      label: 'ナビバー構成を読む',
+      category: 'general',
+      icon: 'ti-layout-sidebar',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: '現在のナビバー構成 (navItems) を返す。各要素は  { type, accountId, label? } または { type: "divider" }。 navbar.set で AI が新構成を提案するときの起点。',
+      returns: {
+        type: 'array',
+        description: '現在の NavItem 配列',
+      },
+    },
+    'navbar.reset': {
+      label: 'ナビバー構成を default に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'navbar.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'ナビバー構成を NoteDeck の default に戻す。',
+      returns: {
+        type: 'object',
+        description: '{ count: default 項目数 }',
+      },
+    },
+    'navbar.set': {
+      label: 'ナビバー構成を上書き',
+      category: 'general',
+      icon: 'ti-layout-sidebar',
+      permissions: [
+        'navbar.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'ナビバー構成 (navItems) を全置換する。差分編集ではなく完全上書きなので、 navbar.list で現状取得してから、追加/削除/並び替えを反映した完全配列を渡す。 columnProps 等の詳細項目は AI 経由では触らない (= type / accountId / label のみ)。',
+      params: {
+        items: {
+          type: 'array',
+          description: '新しい NavItem 配列。各要素は { type: ColumnType | "divider", accountId: string | null, label?: string }。 ColumnType は notifications / mentions / chat / search / lookup / widget / ai / memos / emoji 等 (詳細は navbar.list の戻り値を参照)',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ count: 書込後の項目数 }',
+      },
+    },
+    'notes.children': {
+      untrusted: true,
+      label: 'リプライ取得',
+      category: 'note',
+      icon: 'ti-corner-down-right',
+      permissions: [
+        'notes.read',
+      ],
+      exec: 'core',
+      description: '指定ノートへの直接リプライ (= 子ノート) を取得する。会話のスレッドを 辿りたいときに使う。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 ${accountIdHint}',
+      params: {
+        noteId: {
+          type: 'string',
+          description: '親ノートの Misskey 内部 ID',
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (1-100, default 10)',
+          optional: true,
+        },
+        untilId: {
+          type: 'string',
+          description: 'この ID より前のリプライを取得 (ページング用)。前回呼び出しの最後のノートの id を渡す。',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'ノート projection の配列',
+      },
+    },
+    'notes.create': {
+      destinations: ['replyId', 'renoteId'],
+      label: 'ノートを投稿',
+      category: 'note',
+      icon: 'ti-pencil',
+      permissions: [
+        'notes.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: 'Misskey にノートを投稿する。text 必須。visibility のデフォルトは public。 投稿前に確認モーダルが出る。 別サーバーから投稿するときは accountId を指定する。',
+      params: {
+        text: {
+          type: 'string',
+          description: '投稿本文 (空文字は不可)',
+        },
+        cw: {
+          type: 'string',
+          description: 'CW (内容警告)。空文字なし',
+          optional: true,
+        },
+        visibility: {
+          type: 'string',
+          description: '公開範囲: public / home / followers / specified (default: public)',
+          optional: true,
+          enum: [
+            'public',
+            'home',
+            'followers',
+            'specified',
+          ],
+        },
+        replyId: {
+          type: 'string',
+          description: 'リプライ先の noteId',
+          optional: true,
+        },
+        renoteId: {
+          type: 'string',
+          description: '引用 / リノートの対象 noteId (text 空ならただのリノート)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '投稿された note projection (id / userId / username / text / createdAt)',
+      },
+    },
+    'notes.delete': {
+      label: 'ノートを削除',
+      category: 'note',
+      icon: 'ti-trash',
+      permissions: [
+        'notes.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '自分のノートを削除する。**元に戻せない**。リノート / 引用 / お気に入り / クリップに含まれている場合もすべて連鎖して見えなくなる。他人のノートは削除不可。 別サーバーで操作するときは accountId を指定する。',
+      params: {
+        noteId: {
+          type: 'string',
+          description: '削除する noteId (自分のノートのみ)',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '`{ deleted: true, noteId }`',
+      },
+    },
+    'notes.pin': {
+      label: 'ノートをプロファイルに pin',
+      category: 'note',
+      icon: 'ti-pin',
+      permissions: [
+        'notes.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '自分のプロファイル top に指定ノートを pin する。Misskey の上限は通常 5 件で、上限超過時はサーバー側でエラーになる。',
+      params: {
+        noteId: {
+          type: 'string',
+          description: 'pin する noteId (自分のノートのみ)',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ pinned: true, noteId }',
+      },
+    },
+    'notes.react': {
+      destinations: ['noteId'],
+      label: 'リアクションする',
+      category: 'note',
+      icon: 'ti-mood-smile',
+      permissions: [
+        'notes.react',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: 'Misskey ノートにリアクションを付ける。reaction は :name: 形式 (`:thinking_face:`) または Unicode 絵文字 (`👍`)。投稿前に確認モーダルが出る。 別サーバーで操作するときは accountId を指定する。',
+      params: {
+        noteId: {
+          type: 'string',
+          description: '対象の noteId',
+        },
+        reaction: {
+          type: 'string',
+          description: 'リアクション (例: `:thinking_face:` / `👍`)',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '`{ ok: true, noteId, reaction }`',
+      },
+    },
+    'notes.search': {
+      untrusted: true,
+      label: 'ノート検索',
+      category: 'note',
+      icon: 'ti-search',
+      permissions: [
+        'notes.read',
+      ],
+      exec: 'core',
+      description: 'キーワードでノートを全文検索する。Misskey の /notes/search を使う。 結果は note projection (id / userId / username / text / createdAt) で返す。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 ${accountIdHint}',
+      params: {
+        query: {
+          type: 'string',
+          description: '検索キーワード (空文字は不可)',
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (1-100, default 10)',
+          optional: true,
+        },
+        untilId: {
+          type: 'string',
+          description: 'この ID より前のノートを取得 (ページング用)。前回呼び出しの最後のノートの id を渡す。',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'ノート projection の配列',
+      },
+    },
+    'notes.searchArchive': {
+      untrusted: true,
+      label: '手元の索引を検索',
+      category: 'note',
+      icon: 'ti-archive',
+      permissions: [
+        'notes.readArchive',
+      ],
+      exec: 'core',
+      description: '手元に貯めたノート (自分の画面に流れてきたもの) を、サーバーとアカウントを 跨いでまとめて検索する。「先週〇〇の話をしていた人は誰か」のような、 サーバー検索では引けない過去の記憶に答えるための道具。query / author / since / until / hasFiles は全部任意で、AND で絞る (全部省略すると新しい順に 並べるだけ)。既定では公開範囲が public のノートだけを返す。 結果は note projection に accountId (どのアカウントで見たか) と serverHost (そのサーバー) を足したもの。同じノートを複数サーバーで見ていれば複数行になる。 続きを取るときは最後のノートの createdAt を until に渡して再呼び出し。',
+      params: {
+        query: {
+          type: 'string',
+          description: '本文の検索語 (部分一致)。省略可',
+          optional: true,
+        },
+        author: {
+          type: 'string',
+          description: '投稿者。`name` または `name@host`。省略可',
+          optional: true,
+        },
+        since: {
+          type: 'string',
+          description: 'この日時 (ISO 8601) 以降。省略可',
+          optional: true,
+        },
+        until: {
+          type: 'string',
+          description: 'この日時 (ISO 8601) 以前。ページングにも使う。省略可',
+          optional: true,
+        },
+        hasFiles: {
+          type: 'boolean',
+          description: 'true = 添付あり、false = 添付なし。省略時は問わない',
+          optional: true,
+        },
+        includePrivate: {
+          type: 'boolean',
+          description: 'フォロワー限定・ダイレクトも含める。既定 false (public だけ)。 ユーザーが明示的に求めたときだけ true にする',
+          optional: true,
+        },
+        accountIds: {
+          type: 'array',
+          description: '検索対象のアカウント ID 列 (account.list で得られる)。省略時は全アカウント',
+          optional: true,
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (1-100, default 10)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'ノート projection (id / userId / username / text / createdAt) + accountId / serverHost の配列',
+      },
+    },
+    'notes.show': {
+      untrusted: true,
+      label: 'ノート取得',
+      category: 'note',
+      icon: 'ti-note',
+      permissions: [
+        'notes.read',
+      ],
+      exec: 'core',
+      description: 'noteId で 1 件のノートを取得する。リプライ先や引用元の本文を見たい ときに使う。戻り値は単一の note projection (配列ではない)。 ${accountIdHint}',
+      params: {
+        noteId: {
+          type: 'string',
+          description: 'Misskey 内部の note ID',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: 'note projection (id / userId / username / text / createdAt)',
+      },
+    },
+    'notes.timeline': {
+      untrusted: true,
+      label: 'タイムライン取得',
+      category: 'note',
+      icon: 'ti-list',
+      permissions: [
+        'notes.read',
+      ],
+      exec: 'core',
+      description: 'タイムラインを取得する。home はログイン中のフォロー含むホーム、 local はサーバー内ローカル、social はホーム+ローカル混合、 global は連合宇宙全体。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 ${accountIdHint}',
+      params: {
+        type: {
+          type: 'string',
+          description: 'タイムラインの種類',
+          enum: [
+            'home',
+            'local',
+            'social',
+            'global',
+          ],
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (1-100, default 10)',
+          optional: true,
+        },
+        untilId: {
+          type: 'string',
+          description: 'この ID より前のノートを取得 (ページング用)。前回呼び出しの最後のノートの id を渡す。',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'ノート projection の配列',
+      },
+    },
+    'notes.unpin': {
+      label: 'ノートの pin を解除',
+      category: 'note',
+      icon: 'ti-pinned-off',
+      permissions: [
+        'notes.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '自分のプロファイル top に pin したノートを解除する。',
+      params: {
+        noteId: {
+          type: 'string',
+          description: 'pin 解除する noteId',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ unpinned: true, noteId }',
+      },
+    },
+    'notes.unreact': {
+      destinations: ['noteId'],
+      label: 'リアクションを解除',
+      category: 'note',
+      icon: 'ti-mood-x',
+      permissions: [
+        'notes.react',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: 'Misskey ノートに付けた自分のリアクションを解除する。1 ノートに付けられる reaction は 1 つだけなので種別指定不要。 別サーバーで操作するときは accountId を指定する。',
+      params: {
+        noteId: {
+          type: 'string',
+          description: '対象の noteId',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '`{ ok: true, noteId }`',
+      },
+    },
+    'notes.user': {
+      untrusted: true,
+      label: 'ユーザーのノート取得',
+      category: 'note',
+      icon: 'ti-user',
+      permissions: [
+        'notes.read',
+      ],
+      exec: 'core',
+      description: '特定ユーザーの最近のノートを取得する。userId は Misskey の内部 ID (username ではなく)。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 ${accountIdHint}',
+      params: {
+        userId: {
+          type: 'string',
+          description: 'Misskey の内部 user ID',
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (1-100, default 10)',
+          optional: true,
+        },
+        untilId: {
+          type: 'string',
+          description: 'この ID より前のノートを取得 (ページング用)。前回呼び出しの最後のノートの id を渡す。',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'ノート projection の配列',
+      },
+    },
+    'notifications.list': {
+      untrusted: true,
+      label: '通知一覧',
+      category: 'general',
+      icon: 'ti-bell',
+      permissions: [
+        'notifications',
+      ],
+      exec: 'core',
+      description: '指定アカウント (未指定なら active) の通知一覧を取得する。 type / userId / noteId / reaction / createdAt 等の projection が返る。 100 件を超えて取得したい場合は、最後の通知の id を untilId に渡して再呼び出し。 別サーバーの通知を読むときは `<currentColumn>.accountId` を渡す。',
+      params: {
+        limit: {
+          type: 'number',
+          description: '取得件数 (1-100, default 10)',
+          optional: true,
+        },
+        untilId: {
+          type: 'string',
+          description: 'この ID より前の通知を取得 (ページング用)。前回呼び出しの最後の通知の id を渡す。',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '通知 projection の配列',
+      },
+    },
+    'notifications.markRead': {
+      label: '通知をすべて既読化',
+      category: 'general',
+      icon: 'ti-bell-check',
+      permissions: [
+        'notifications',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定アカウントの通知をすべて既読化する (= Misskey `notifications/mark-all-as-read`)。未読バッジが消える。 accountId を省略すると hasToken な全アカウントに対して実行する。',
+      params: {
+        accountId: {
+          type: 'string',
+          description: 'どのアカウントを既読化するか。省略時は全アカウント。 別サーバーのカラムから操作するときは `<currentColumn>.accountId` を渡す。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ markedAccounts: 既読化を実行したアカウント数 }',
+      },
+    },
+    'pages.list': {
+      label: 'Pages 一覧',
+      category: 'note',
+      icon: 'ti-news',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'Misskey Pages 一覧を返す。endpoint で範囲を切替: `pages/featured` (注目記事) / `i/pages` (自分の記事) / `i/page-likes` (自分が like した記事)。read-only。',
+      params: {
+        endpoint: {
+          type: 'string',
+          description: '対象 endpoint',
+          enum: [
+            'pages/featured',
+            'i/pages',
+            'i/page-likes',
+          ],
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (default 30, 1-100)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'Page の配列',
+      },
+    },
+    'pages.show': {
+      untrusted: true,
+      label: 'Page 詳細',
+      category: 'note',
+      icon: 'ti-file-text',
+      permissions: [
+        'account.read',
+      ],
+      exec: 'device',
+      description: '指定 pageId の Misskey Page 詳細を返す (本文・ブロック含む)。 pages.list で取得した id を渡す。read-only。',
+      params: {
+        pageId: {
+          type: 'string',
+          description: '対象 pageId',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: 'Page 詳細 (Misskey 生 JSON)',
+      },
+    },
+    'performance.applySlider': {
+      label: 'パフォーマンススライダーを適用',
+      category: 'general',
+      icon: 'ti-adjustments',
+      permissions: [
+        'performance.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '0..1 のスライダー位置 t に応じて全パフォーマンス値を線形補間で一括設定。 0 = 省電力寄り、1 = リッチ寄り。包括的チューニングプリセット。',
+      params: {
+        t: {
+          type: 'number',
+          description: 'スライダー位置 (0..1、範囲外は clamp)',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ applied: true, t: 適用された値 }',
+      },
+    },
+    'performance.list': {
+      label: 'パフォーマンス設定一覧',
+      category: 'general',
+      icon: 'ti-gauge',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: '全パフォーマンス設定 key と、その現在値 / default / min / max / unit / description / customized フラグを返す。AI がチューニング提案するときの起点。',
+      returns: {
+        type: 'array',
+        description: '各要素は { key, value, default, min, max, step, unit, category, label, description, customized }',
+      },
+    },
+    'performance.reset': {
+      label: 'パフォーマンス値を default に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'performance.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '指定 key の override を破棄して default に戻す。',
+      params: {
+        key: {
+          type: 'string',
+          description: '対象 key',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ key, reset: true, value: default 値 }',
+      },
+    },
+    'performance.resetAll': {
+      label: '全パフォーマンス値を default に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'performance.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '全 key の override を破棄。',
+      returns: {
+        type: 'object',
+        description: '{ reset: true }',
+      },
+    },
+    'performance.set': {
+      label: 'パフォーマンス値を設定',
+      category: 'general',
+      icon: 'ti-gauge',
+      permissions: [
+        'performance.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '指定 key のパフォーマンス値を上書きする。範囲外の値は store 側で min..max に自動 clamp。default と同じ値を渡すと override 削除扱い。',
+      params: {
+        key: {
+          type: 'string',
+          description: '対象 key (performance.list で取得)',
+        },
+        value: {
+          type: 'number',
+          description: '新しい値 (FIELD_META.min..max にクランプ)',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ key, value: clamp 後の実値 }',
+      },
+    },
+    'plugins.create': {
+      label: 'プラグインを作成',
+      category: 'general',
+      icon: 'ti-plus',
+      permissions: [
+        'plugins.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'AiScript ソースから新規プラグインを作成する。必ず `active: false` (= 無効化) で作成され、handler は走らない。有効化は plugins.setActive で別途ユーザー UI から行う (= AI が連鎖的に handler を走らせるのを防ぐ 二重承認境界)。permissions は Misskey 互換キー (read:account, write:notes 等)。',
+      params: {
+        name: {
+          type: 'string',
+          description: 'プラグイン名 (UI 表示用)',
+        },
+        src: {
+          type: 'string',
+          description: 'AiScript ソースコード',
+        },
+        version: {
+          type: 'string',
+          description: 'バージョン文字列 (default "1.0.0")',
+          optional: true,
+        },
+        author: {
+          type: 'string',
+          description: '作者表記',
+          optional: true,
+        },
+        description: {
+          type: 'string',
+          description: '概要',
+          optional: true,
+        },
+        permissions: {
+          type: 'array',
+          description: 'プラグインが要求する permission の配列 (Misskey 互換)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, name, active: false }',
+      },
+    },
+    'plugins.delete': {
+      label: 'プラグインを削除',
+      category: 'general',
+      icon: 'ti-trash',
+      permissions: [
+        'plugins.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'プラグインを削除する。AiScript ソース・メタ・Mk:save 領域すべて消える (= 不可逆)。confirm ダイアログで対象プラグインの name / version / permissions を表示してユーザー承認を取る。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象プラグインの installId',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, removed: boolean }',
+      },
+    },
+    'plugins.history': {
+      label: 'プラグインの編集履歴',
+      category: 'general',
+      icon: 'ti-history',
+      permissions: [
+        'plugins.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定 installId のプラグインの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象プラグインの installId',
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '編集前 snapshot の配列 (新しい順)',
+      },
+    },
+    'plugins.install': {
+      label: 'MisStore からプラグインを入れる',
+      category: 'general',
+      icon: 'ti-download',
+      permissions: [
+        'plugins.write',
+        'network.external',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'MisStore (store.notedeck.io) の既製プラグインをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 全体スコープ (全アカウント対象) でインストールされ、既に同 storeId の プラグインがあれば再インストールせず全体スコープへ追加するだけ。',
+      params: {
+        id: {
+          type: 'string',
+          description: 'MisStore registry 上の plugin id',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, name, installed: boolean }',
+      },
+    },
+    'plugins.list': {
+      label: 'プラグイン一覧',
+      category: 'general',
+      icon: 'ti-puzzle',
+      permissions: [
+        'plugins.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'インストール済みプラグインのメタデータ一覧を返す。 AiScript ソースは含まれない (= plugins.read で個別取得)。',
+      returns: {
+        type: 'array',
+        description: '{ installId, name, version, author?, description?, active, permissions?, storeId? } の配列',
+      },
+    },
+    'plugins.read': {
+      label: 'プラグインの AiScript を読む',
+      category: 'general',
+      icon: 'ti-code',
+      permissions: [
+        'plugins.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定 installId のプラグインの AiScript ソースを返す。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象プラグインの installId (plugins.list で取得)',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, name, version, src, active, permissions, configData }',
+      },
+    },
+    'plugins.revert': {
+      label: 'プラグインを過去の状態に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'plugins.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'プラグイン src を編集履歴の index 番目に戻す。confirm ダイアログで 戻し先 snapshot の name / version / permissions / AiScript ソースを 表示してユーザー承認を取る。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象プラグインの installId',
+        },
+        index: {
+          type: 'number',
+          description: 'snapshot index (0 = 最新)',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, reverted: boolean, at: number }',
+      },
+    },
+    'plugins.setActive': {
+      label: 'プラグインの有効/無効を切替',
+      category: 'general',
+      icon: 'ti-toggle-left',
+      permissions: [
+        'plugins.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'プラグインの active 状態を切り替える。有効化 (true) すると handler が起動して Misskey API 介入の副作用が走り得るので、AI が 呼ぶときは確認ダイアログでユーザー承認を取る。無効化 (false) は 即実行 (= 可逆な停止操作)。有効化後は aiscript.logs (source: plugin) に "started" が記録されるので起動確認に使える。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象プラグインの installId',
+        },
+        active: {
+          type: 'boolean',
+          description: 'true = 有効化 / false = 無効化',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, active }',
+      },
+    },
+    'plugins.uninstall': {
+      label: 'プラグインを削除',
+      category: 'general',
+      icon: 'ti-trash',
+      permissions: [
+        'plugins.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'インストール済みプラグインを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。 plugins.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象プラグインの installId (plugins.list で取得)',
+          optional: true,
+        },
+        storeId: {
+          type: 'string',
+          description: 'MisStore registry 上の id (= plugins.install で渡した id)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, removed: boolean }',
+      },
+    },
+    'plugins.update': {
+      label: 'プラグインの AiScript を更新',
+      category: 'general',
+      icon: 'ti-edit',
+      permissions: [
+        'plugins.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'プラグインの AiScript ソースを全文置換する。plugins.read で現状を取得してから差分判断する運用を推奨。アクティブなプラグインは保存後に新 src で自動再起動されるので、`aiscript.logs` で実行結果 (起動 / print / エラー) を確認し、エラーがあれば修正して再保存するループを回すこと。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象プラグインの installId',
+        },
+        src: {
+          type: 'string',
+          description: '新しい AiScript ソース全文',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, length: 新 src の文字数, relaunched: boolean }。relaunched=true ならアクティブなプラグインを新 src で再起動済み。',
+      },
+    },
+    'queries.history': {
+      label: 'クエリの編集履歴',
+      category: 'general',
+      icon: 'ti-history',
+      permissions: [
+        'queries.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定 id の名前付きクエリの編集前 snapshot 一覧 (新しい順) を返す。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象クエリの id',
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '編集前 snapshot の配列 (新しい順)',
+      },
+    },
+    'queries.revert': {
+      label: 'クエリを過去の状態に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'queries.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '名前付きクエリのソースを編集履歴の index 番目に戻す。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象クエリの id',
+        },
+        index: {
+          type: 'number',
+          description: 'snapshot index (0 = 最新)',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, reverted: boolean, at: number }',
+      },
+    },
+    'registry.delete': {
+      label: 'registry の値を削除',
+      category: 'account',
+      icon: 'ti-database-x',
+      permissions: [
+        'account.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定 scope の key を削除する (Misskey `i/registry/remove`)。 Misskey 公式 Web Client と共有される設定エリア。',
+      params: {
+        scope: {
+          type: 'array',
+          description: '${scopeParamDesc}',
+        },
+        key: {
+          type: 'string',
+          description: '削除する key',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ deleted: true, scope, key }',
+      },
+    },
+    'registry.get': {
+      label: 'registry の値を取得',
+      category: 'account',
+      icon: 'ti-database',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定 scope の key の値を取得する (Misskey `i/registry/get-detail`)。 存在しない key は null を返す。',
+      params: {
+        scope: {
+          type: 'array',
+          description: '${scopeParamDesc}',
+        },
+        key: {
+          type: 'string',
+          description: '取得する key',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '取得した JsonValue (型は scope/key 依存)',
+      },
+    },
+    'registry.listKeys': {
+      label: 'registry の key 一覧',
+      category: 'account',
+      icon: 'ti-database',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定 scope 配下の key 一覧と各 key の型を返す (Misskey `i/registry/keys-with-type` 相当)。',
+      params: {
+        scope: {
+          type: 'array',
+          description: '${scopeParamDesc}',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ [key]: typeString }',
+      },
+    },
+    'registry.set': {
+      label: 'registry に値を書込',
+      category: 'account',
+      icon: 'ti-database-edit',
+      permissions: [
+        'account.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定 scope の key に JsonValue を書込む (Misskey `i/registry/set`)。 Misskey 公式 Web Client と共有される設定エリアなので、変更は公式 UI にも反映される。',
+      params: {
+        scope: {
+          type: 'array',
+          description: '${scopeParamDesc}',
+        },
+        key: {
+          type: 'string',
+          description: '書込先 key',
+        },
+        value: {
+          type: 'object',
+          description: '書込む JsonValue (number / string / array / object / null 何でも可)',
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ ok: true, scope, key }',
+      },
+    },
+    'role.notes': {
+      untrusted: true,
+      label: 'ロールの note',
+      category: 'note',
+      icon: 'ti-badges',
+      permissions: [
+        'notes.read',
+      ],
+      exec: 'core',
+      description: '指定 role の所属ユーザーが投稿した note を返す。roleId はサーバーの role 設定で確認。 projection された note (id / userId / username / text / createdAt) を最大 limit 件返す。',
+      params: {
+        roleId: {
+          type: 'string',
+          description: '対象 roleId',
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (default 20)',
+          optional: true,
+        },
+        untilId: {
+          type: 'string',
+          description: 'untilId (古い方向のページング)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '${accountIdParamDesc}',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'projected note の配列',
+      },
+    },
+    'sidebar.toggle': {
+      label: 'サイドバーで開閉',
+      category: 'column',
+      icon: 'ti-layout-sidebar',
+      permissions: [
+        'deck.write',
+      ],
+      exec: 'device',
+      description: 'サイドバースロットを指定タイプで開く (既に同タイプなら閉じる)。 navbar ボタンクリックと同じ動作。デッキへの新規追加ではない。',
+      params: {
+        type: {
+          type: 'string',
+          description: 'カラム種別 (notifications / chat / search / ai / memos など)',
+        },
+        accountId: {
+          type: 'string',
+          description: 'アカウント ID。省略時は cross-account (null)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ type, opened: true 開いた / false 閉じた }',
+      },
+    },
+    'skills.append': {
+      label: 'スキル本文に追記',
+      category: 'general',
+      icon: 'ti-plus',
+      permissions: [
+        'skills.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'skill 本文の末尾に markdown を追記する。skill 全体を書き換えるのではなく追記のみ (= 学習が積み上がる)。frontmatter は触れない。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象 skill の id',
+        },
+        content: {
+          type: 'string',
+          description: '末尾に追記する markdown (改行は \\n)',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, length: 追記後の body 文字数 }',
+      },
+    },
+    'skills.create': {
+      label: 'スキルを作成',
+      category: 'general',
+      icon: 'ti-plus',
+      permissions: [
+        'skills.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '新規スキルを作成する。既存スキルの編集はできない (skills.append / skills.replaceSection を使う)。id は内部生成される。作成直後は mode=manual なら未有効 (skills.toggle で有効化)、trigger なら次ターンからマッチで自動ロード、always は常時注入される。body に frontmatter (---) を含めないこと (mode 等はパラメータで渡す)。',
+      params: {
+        name: {
+          type: 'string',
+          description: 'スキル名 (UI 表示用)',
+        },
+        body: {
+          type: 'string',
+          description: 'markdown 本文 (frontmatter は含めない)',
+        },
+        description: {
+          type: 'string',
+          description: 'スキル一覧に表示される 1 行説明',
+          optional: true,
+        },
+        mode: {
+          type: 'string',
+          description: '実行モード (default: manual)。always / heartbeat は影響が大きいのでユーザーが明示したときのみ',
+          optional: true,
+          enum: [
+            'manual',
+            'trigger',
+            'always',
+            'heartbeat',
+          ],
+        },
+        triggers: {
+          type: 'array',
+          description: 'mode=trigger のとき必須。user 入力への部分一致でロードされる語の配列 (大文字小文字無視)',
+          optional: true,
+        },
+        cheapCheckCapabilities: {
+          type: 'array',
+          description: 'mode=heartbeat 用。変化検知に使う cheap capability id の配列 (変化なしの tick は AI 呼び出しを skip)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, name, mode }',
+      },
+    },
+    'skills.history': {
+      label: 'スキルの編集履歴を取得',
+      category: 'general',
+      icon: 'ti-history',
+      permissions: [
+        'skills.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定 id の skill の編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。 各エントリは { at: 時刻 ms, snapshot: { body, name?, version?, mode? } }。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象 skill の id',
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '編集前 snapshot の配列 (新しい順)',
+      },
+    },
+    'skills.install': {
+      label: 'MisStore からスキルを入れる',
+      category: 'general',
+      icon: 'ti-download',
+      permissions: [
+        'skills.write',
+        'network.external',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'MisStore (store.notedeck.io) の既製スキルをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 既存の同 storeId / 同 id は上書き更新 (= 再インストール = アップデート)。',
+      params: {
+        id: {
+          type: 'string',
+          description: 'MisStore registry 上の skill id',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, name, mode, installed: boolean }',
+      },
+    },
+    'skills.list': {
+      label: 'スキル一覧',
+      category: 'general',
+      icon: 'ti-book',
+      permissions: [
+        'skills.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '登録されている skill の一覧を返す。各要素は { id, name, mode, isPersona, builtIn, author?, description? }。body は含まれない (= 大きいため、skills.read で個別取得)。',
+      returns: {
+        type: 'array',
+        description: 'skill メタデータの配列',
+      },
+    },
+    'skills.read': {
+      label: 'スキル本文を読む',
+      category: 'general',
+      icon: 'ti-book',
+      permissions: [
+        'skills.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定 id の skill の markdown 本文を返す。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象 skill の id (skills.list で取得)',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, name, body, mode }',
+      },
+    },
+    'skills.replaceSection': {
+      label: 'スキルのセクションを置換',
+      category: 'general',
+      icon: 'ti-edit',
+      permissions: [
+        'skills.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'skill 本文の `## <heading>` セクションを置換する。該当 heading が無ければ末尾に新規セクションとして追加 (idempotent)。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象 skill の id',
+        },
+        heading: {
+          type: 'string',
+          description: 'セクション見出しテキスト (`## ` を除いた本体)',
+        },
+        content: {
+          type: 'string',
+          description: 'セクション本体の新しい markdown (heading 行は含めない)',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, replaced: boolean (false = 新規追加), length }',
+      },
+    },
+    'skills.revert': {
+      label: 'スキルを過去の編集前状態に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'skills.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'skill を編集履歴の index 番目の snapshot に戻す。skills.history で index を取得。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象 skill の id',
+        },
+        index: {
+          type: 'number',
+          description: 'snapshot index (0 = 最新、skills.history の順序と一致)',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, reverted: boolean, at: number }',
+      },
+    },
+    'skills.toggle': {
+      label: 'スキルの有効/無効を切替',
+      category: 'general',
+      icon: 'ti-toggle-left',
+      permissions: [
+        'skills.write',
+      ],
+      exec: 'device',
+      description: 'skill の active 状態を切り替える。mode="always" の skill は常時 active 扱いのため設定は無視される。mode="trigger" の skill は triggers[] が user 入力に部分一致したターンだけ自動 active になる。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象 skill の id',
+        },
+        active: {
+          type: 'boolean',
+          description: 'true = 有効化 / false = 無効化',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, active }',
+      },
+    },
+    'skills.uninstall': {
+      label: 'スキルを削除',
+      category: 'general',
+      icon: 'ti-trash',
+      permissions: [
+        'skills.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'インストール済みスキルを完全削除する。frontmatter・本文・編集履歴ファイルが 消える (= 不可逆)。',
+      params: {
+        id: {
+          type: 'string',
+          description: '削除するスキルの id',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, removed: boolean }',
+      },
+    },
+    'styles.append': {
+      label: 'カスタム CSS に追記',
+      category: 'general',
+      icon: 'ti-plus',
+      permissions: [
+        'styles.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'custom.css の末尾に CSS を追記する。既存ルールには触らない (= 学習が積み上がる、skills.append と対称)。',
+      params: {
+        content: {
+          type: 'string',
+          description: '末尾に追記する CSS (改行は \\n)',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ length: 追記後の文字数 }',
+      },
+    },
+    'styles.history': {
+      label: 'カスタム CSS の編集履歴',
+      category: 'general',
+      icon: 'ti-history',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: 'custom.css の編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。 各エントリは { at: 時刻 ms, snapshot: { body } }。',
+      returns: {
+        type: 'array',
+        description: '編集前 snapshot の配列 (新しい順)',
+      },
+    },
+    'styles.read': {
+      label: 'カスタム CSS を読む',
+      category: 'general',
+      icon: 'ti-brush',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: '現在の custom.css の内容を返す。CSS 変数の上書きや独自ルール等を AI が確認するために使う。',
+      returns: {
+        type: 'object',
+        description: '{ body: string, length: number }',
+      },
+    },
+    'styles.revert': {
+      label: 'カスタム CSS を過去の状態に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'styles.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'custom.css を編集履歴の index 番目の snapshot に戻す。 styles.history で index を取得。',
+      params: {
+        index: {
+          type: 'number',
+          description: 'snapshot index (0 = 最新、styles.history の順序と一致)',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ reverted: boolean, at: number }',
+      },
+    },
+    'styles.write': {
+      label: 'カスタム CSS を全置換',
+      category: 'general',
+      icon: 'ti-brush',
+      permissions: [
+        'styles.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'custom.css の内容を `body` で全置換する。差分編集ではなく完全上書きなので、styles.read で現状を取得してからマージした内容を渡すこと。',
+      params: {
+        body: {
+          type: 'string',
+          description: '新しい custom.css 全文',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ length: 書込後の文字数 }',
+      },
+    },
+    'tasks.run': {
+      label: 'タスク実行',
+      category: 'general',
+      icon: 'ti-player-play',
+      permissions: [
+        'tasks.run',
+      ],
+      exec: 'device',
+      description: 'tasks.json5 で定義済みのタスクを id で実行する。 inputs を渡すと UI prompt をスキップして値を直接 inject できる。 タスクの中身 (Misskey API method / params) は TaskDefinition 側で定義する。',
+      params: {
+        taskId: {
+          type: 'string',
+          description: 'TaskDefinition.id (tasks.json5 の各タスクの id)',
+        },
+        inputs: {
+          type: 'object',
+          description: 'TaskInput.id をキーに値を持つオブジェクト。省略時は UI prompt が出る。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: 'TaskRun projection: { runId, status: "ok"|"error"|"running"|"cancelled", response?, error? }',
+      },
+    },
+    'theme.apply': {
+      label: 'テーマを適用',
+      category: 'general',
+      icon: 'ti-palette',
+      permissions: [
+        'deck.write',
+      ],
+      exec: 'device',
+      description: 'インストール済みテーマを適用する。 theme.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。',
+      params: {
+        id: {
+          type: 'string',
+          description: '適用するテーマの id (theme.list で取得)',
+        },
+        mode: {
+          type: 'string',
+          description: '明示的に dark / light どちらの slot に適用するか。省略時はテーマ自体の base を使う',
+          optional: true,
+          enum: [
+            'dark',
+            'light',
+          ],
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '`{ applied: boolean, id, mode }`',
+      },
+    },
+    'theme.create': {
+      label: 'テーマを作成',
+      category: 'general',
+      icon: 'ti-palette',
+      permissions: [
+        'theme.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '新規テーマを作成して installedThemes に追加する。 props は Misskey 互換 CSS 変数 (例: { accent: "#5f6", panel: "#0a0a0a" })。 既存 id を指定した場合は theme.update と同等の挙動になる。',
+      params: {
+        name: {
+          type: 'string',
+          description: 'テーマ名 (UI 表示用)',
+        },
+        base: {
+          type: 'string',
+          description: 'ダーク / ライト どちらの slot に置くか',
+          enum: [
+            'dark',
+            'light',
+          ],
+        },
+        props: {
+          type: 'object',
+          description: 'Misskey 互換 CSS 変数のマップ ({ key: string })',
+        },
+        id: {
+          type: 'string',
+          description: 'テーマ id (省略時は custom-<timestamp> で自動生成)',
+          optional: true,
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, name, base, installed: boolean }',
+      },
+    },
+    'theme.history': {
+      label: 'テーマの編集履歴',
+      category: 'general',
+      icon: 'ti-history',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: '指定 id のテーマの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象テーマの id',
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '編集前 snapshot の配列 (新しい順)',
+      },
+    },
+    'theme.install': {
+      label: 'MisStore からテーマを入れる',
+      category: 'general',
+      icon: 'ti-download',
+      permissions: [
+        'theme.write',
+        'network.external',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'MisStore (store.notedeck.io) の既製テーマをインストールする。 id は `misstore.search` で取得した値を渡す。 sha512 検証付き。インストール後は theme.apply で適用可能。',
+      params: {
+        id: {
+          type: 'string',
+          description: 'MisStore registry 上の theme id (例: "ame", "dracula")',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, name, base, installed: boolean }',
+      },
+    },
+    'theme.list': {
+      label: 'テーマ一覧',
+      category: 'general',
+      icon: 'ti-palette',
+      permissions: [],
+      exec: 'device',
+      description: 'インストール済みテーマの一覧を返す。各要素は { id, name, base, author }',
+      returns: {
+        type: 'array',
+        description: 'インストール済みテーマ一覧',
+      },
+    },
+    'theme.read': {
+      label: 'テーマの内容を読む',
+      category: 'general',
+      icon: 'ti-palette',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: '指定 id のテーマの全プロパティ (Misskey 互換 CSS 変数) を返す。 theme.update で差分編集する前の現状把握に使う。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象テーマの id (theme.list で取得)',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, name, base, props: Record<string,string> }',
+      },
+    },
+    'theme.revert': {
+      label: 'テーマを過去の状態に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'theme.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'テーマ props を編集履歴の index 番目に戻す。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象テーマの id',
+        },
+        index: {
+          type: 'number',
+          description: 'snapshot index (0 = 最新)',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, reverted: boolean, at: number }',
+      },
+    },
+    'theme.uninstall': {
+      label: 'テーマを削除',
+      category: 'general',
+      icon: 'ti-trash',
+      permissions: [
+        'theme.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'インストール済みテーマを完全削除する。選択中だった場合は selection も解除され、 デフォルトテーマにフォールバックする。',
+      params: {
+        id: {
+          type: 'string',
+          description: '削除するテーマの id',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, removed: boolean }',
+      },
+    },
+    'theme.update': {
+      label: 'テーマを更新',
+      category: 'general',
+      icon: 'ti-palette',
+      permissions: [
+        'theme.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '既存テーマの props / name / base を部分更新する。指定されたフィールドだけ上書きされる。id は theme.list で取得した値を渡す。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象テーマの id',
+        },
+        name: {
+          type: 'string',
+          description: '新しいテーマ名',
+          optional: true,
+        },
+        base: {
+          type: 'string',
+          description: 'ダーク / ライト',
+          optional: true,
+          enum: [
+            'dark',
+            'light',
+          ],
+        },
+        props: {
+          type: 'object',
+          description: '上書きする CSS 変数 ({ key: string })。既存とマージされる',
+          optional: true,
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id, updated: boolean }',
+      },
+    },
+    'time.now': {
+      label: '現在時刻を取得',
+      category: 'general',
+      icon: 'ti-clock',
+      permissions: [],
+      cheap: true,
+      exec: 'core',
+      description: 'ユーザー環境の現在時刻を ISO 8601 形式で返す。',
+      returns: {
+        type: 'string',
+        description: 'ISO 8601 形式の現在時刻 (例: 2026-05-01T12:34:56.789Z)',
+      },
+    },
+    'ui.notify': {
+      label: 'デスクトップ通知',
+      category: 'general',
+      icon: 'ti-bell',
+      permissions: [
+        'notifications',
+      ],
+      exec: 'device',
+      description: 'OS のデスクトップ通知を送る。アプリがフォアグラウンドの時は通知が抑制される (カラム内表示で十分なため)。',
+      params: {
+        title: {
+          type: 'string',
+          description: '通知のタイトル',
+        },
+        body: {
+          type: 'string',
+          description: '本文 (省略時は空)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'void',
+      },
+    },
+    'user.follow': {
+      destinations: ['userId'],
+      label: 'ユーザーをフォロー',
+      category: 'account',
+      icon: 'ti-user-plus',
+      permissions: [
+        'account.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定 userId をフォローする (相手に通知が飛ぶ)。鍵アカウントの場合は フォローリクエスト送信 = 承認待ちになる。userId は user.lookup / search で取得。',
+      params: {
+        userId: {
+          type: 'string',
+          description: '対象 userId (user.lookup / search で取得)',
+        },
+        accountId: {
+          type: 'string',
+          description: '操作元アカウント。未指定なら active。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ followed: true, userId }',
+      },
+    },
+    'user.followers': {
+      untrusted: true,
+      label: 'フォロワー一覧',
+      category: 'account',
+      icon: 'ti-users',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'core',
+      description: '指定 userId のフォロワー一覧を返す (read-only)。鍵垢の場合は本人 / 承認済みフォロワーのみ参照可 (= サーバー側で制御)。',
+      params: {
+        userId: {
+          type: 'string',
+          description: '対象 userId (user.lookup / search で取得)',
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (default 30)',
+          optional: true,
+        },
+        untilId: {
+          type: 'string',
+          description: 'untilId (古い方向のページング)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '操作元アカウント。未指定なら active。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'FollowRelation の配列',
+      },
+    },
+    'user.following': {
+      untrusted: true,
+      label: 'フォロー一覧',
+      category: 'account',
+      icon: 'ti-user-check',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'core',
+      description: '指定 userId がフォローしているユーザー一覧を返す (read-only)。鍵垢の場合は本人 / 承認済みフォロワーのみ参照可。',
+      params: {
+        userId: {
+          type: 'string',
+          description: '対象 userId (user.lookup / search で取得)',
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (default 30)',
+          optional: true,
+        },
+        untilId: {
+          type: 'string',
+          description: 'untilId (古い方向のページング)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: '操作元アカウント。未指定なら active。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'FollowRelation の配列',
+      },
+    },
+    'user.lookup': {
+      untrusted: true,
+      label: 'ユーザー検索',
+      category: 'account',
+      icon: 'ti-user-search',
+      permissions: [
+        'account.read',
+      ],
+      exec: 'core',
+      description: 'username (+ 任意で host) から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。',
+      params: {
+        username: {
+          type: 'string',
+          description: 'username (先頭の `@` は不要)',
+        },
+        host: {
+          type: 'string',
+          description: 'リモートホスト (例: `yami.ski`)。同インスタンス内ユーザーなら省略。',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: 'どのアカウントの adapter で lookup するか。未指定なら active アカウント。 別サーバーのカラムを操作中なら `<currentColumn>.accountId` を渡す。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: 'NormalizedUser (id / username / host / name / avatarUrl 等)',
+      },
+    },
+    'user.mute': {
+      destinations: ['userId'],
+      label: 'ユーザーをミュート',
+      category: 'account',
+      icon: 'ti-volume-off',
+      permissions: [
+        'account.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。',
+      params: {
+        userId: {
+          type: 'string',
+          description: '対象 userId (user.lookup / search で取得)',
+        },
+        accountId: {
+          type: 'string',
+          description: '操作元アカウント。未指定なら active。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ muted: true, userId }',
+      },
+    },
+    'user.renoteMute': {
+      destinations: ['userId'],
+      label: 'リノートだけミュート',
+      category: 'account',
+      icon: 'ti-volume-3',
+      permissions: [
+        'account.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定 userId のリノートだけを非表示にする (オリジナル投稿は見える)。user.mute と独立に動作。',
+      params: {
+        userId: {
+          type: 'string',
+          description: '対象 userId (user.lookup / search で取得)',
+        },
+        accountId: {
+          type: 'string',
+          description: '操作元アカウント。未指定なら active。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ renoteMuted: true, userId }',
+      },
+    },
+    'user.search': {
+      untrusted: true,
+      label: 'ユーザーをあいまい検索',
+      category: 'account',
+      icon: 'ti-search',
+      permissions: [
+        'account.read',
+      ],
+      cheap: true,
+      exec: 'core',
+      description: 'username / display name の部分一致でユーザーを検索する (Misskey `users/search-by-username-and-name` 相当)。空 query なら最近やり取りしたユーザー一覧。完全一致での 1 件引きは user.lookup を使う。',
+      params: {
+        query: {
+          type: 'string',
+          description: '検索文字列 (空文字なら最近のユーザー一覧)',
+        },
+        limit: {
+          type: 'number',
+          description: '取得件数 (1-100, default 10)',
+          optional: true,
+        },
+        accountId: {
+          type: 'string',
+          description: 'どのアカウントの adapter で検索するか。未指定なら active アカウント。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'array',
+        description: 'NormalizedUser の配列 (id / username / host / name / avatarUrl)',
+      },
+    },
+    'user.unfollow': {
+      destinations: ['userId'],
+      label: 'ユーザーのフォローを解除',
+      category: 'account',
+      icon: 'ti-user-minus',
+      permissions: [
+        'account.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定 userId のフォローを解除する (相手にフォロワー減少の通知は飛ばない)。',
+      params: {
+        userId: {
+          type: 'string',
+          description: '対象 userId (user.lookup / search で取得)',
+        },
+        accountId: {
+          type: 'string',
+          description: '操作元アカウント。未指定なら active。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ unfollowed: true, userId }',
+      },
+    },
+    'user.unmute': {
+      destinations: ['userId'],
+      label: 'ユーザーのミュートを解除',
+      category: 'account',
+      icon: 'ti-volume',
+      permissions: [
+        'account.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定 userId のミュートを解除する。',
+      params: {
+        userId: {
+          type: 'string',
+          description: '対象 userId (user.lookup / search で取得)',
+        },
+        accountId: {
+          type: 'string',
+          description: '操作元アカウント。未指定なら active。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ unmuted: true, userId }',
+      },
+    },
+    'user.unrenoteMute': {
+      destinations: ['userId'],
+      label: 'リノートミュートを解除',
+      category: 'account',
+      icon: 'ti-volume-2',
+      permissions: [
+        'account.write',
+      ],
+      confirm: true,
+      actsAsAccount: true,
+      exec: 'device',
+      description: '指定 userId のリノートミュートを解除する。',
+      params: {
+        userId: {
+          type: 'string',
+          description: '対象 userId (user.lookup / search で取得)',
+        },
+        accountId: {
+          type: 'string',
+          description: '操作元アカウント。未指定なら active。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ renoteUnmuted: true, userId }',
+      },
+    },
+    'vault.fetch': {
+      destinations: ['path'],
+      untrusted: true,
+      label: 'Vault 接続で HTTP リクエスト',
+      category: 'general',
+      icon: 'ti-plug-connected',
+      permissions: [
+        'vault.use',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '登録済みの外部サービス接続を使って HTTP リクエストを送る。 secret (API キー等) は NoteDeck が Rust 側で注入するため、 connectionRef で接続を指定するだけでよい。利用可能な接続は system prompt の <available-connections> に列挙される。',
+      params: {
+        connectionRef: {
+          type: 'string',
+          description: '接続の名前 (<available-connections> に出ているもの)。',
+        },
+        path: {
+          type: 'string',
+          description: '接続の baseUrl からの相対パス (例: /user/repos)',
+        },
+        method: {
+          type: 'string',
+          description: 'HTTP メソッド (default: GET)',
+          optional: true,
+          enum: [
+            'GET',
+            'POST',
+            'PUT',
+            'DELETE',
+            'PATCH',
+            'HEAD',
+            'OPTIONS',
+          ],
+        },
+        headers: {
+          type: 'object',
+          description: 'リクエストヘッダ。Authorization / Cookie 等は無視される (secret は自動注入)。',
+          optional: true,
+        },
+        body: {
+          type: 'string',
+          description: 'リクエストボディ (文字列)',
+          optional: true,
+        },
+        timeoutMs: {
+          type: 'number',
+          description: 'タイムアウト ms (1000〜120000, default 30000)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ status, headers, body, redactedCount, bytesTotal, truncated }',
+      },
+    },
+    'widgets.create': {
+      label: 'ウィジェットを作成',
+      category: 'general',
+      icon: 'ti-plus',
+      permissions: [
+        'widgets.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'AiScript ソースから新規ウィジェットを作成する。autoRun の default は false (= ユーザーが明示的に起動)。返り値の installId で以降 widgets.update / setAutoRun / delete を呼ぶ。',
+      params: {
+        name: {
+          type: 'string',
+          description: 'ウィジェット名 (UI 表示用)',
+        },
+        src: {
+          type: 'string',
+          description: 'AiScript ソースコード',
+        },
+        autoRun: {
+          type: 'boolean',
+          description: 'カラム表示時に自動実行するか (default: false)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, name, autoRun }',
+      },
+    },
+    'widgets.delete': {
+      label: 'ウィジェットを削除',
+      category: 'general',
+      icon: 'ti-trash',
+      permissions: [
+        'widgets.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'ウィジェットを削除する。AiScript ソース・メタ・Mk:save 領域すべて消える (= 不可逆)。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象ウィジェットの installId',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, removed: boolean }',
+      },
+    },
+    'widgets.history': {
+      label: 'ウィジェットの編集履歴',
+      category: 'general',
+      icon: 'ti-history',
+      permissions: [
+        'widgets.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定 installId のウィジェットの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象ウィジェットの installId',
+        },
+      },
+      returns: {
+        type: 'array',
+        description: '編集前 snapshot の配列 (新しい順)',
+      },
+    },
+    'widgets.install': {
+      label: 'MisStore からウィジェットを入れる',
+      category: 'general',
+      icon: 'ti-download',
+      permissions: [
+        'widgets.write',
+        'network.external',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'MisStore (store.notedeck.io) の既製ウィジェットをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 個体は storeId × 実行アカウントの組で 1 つ。同じ組が既にあれば更新して既存 installId を返す。',
+      params: {
+        id: {
+          type: 'string',
+          description: 'MisStore registry 上の widget id',
+        },
+        accountId: {
+          type: 'string',
+          description: 'どのアカウントで動かすか (全アカウントのウィジェットカラムに置く個体用)。 未指定なら実行アカウントを固定しない個体になる (per-account カラムに 置けばそのカラムのアカウントで動く)。呼び出し文脈のアカウントへは フォールバックしない。',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, name, autoRun, installed: boolean }',
+      },
+    },
+    'widgets.list': {
+      label: 'ウィジェット一覧',
+      category: 'general',
+      icon: 'ti-layout-grid',
+      permissions: [
+        'widgets.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: 'インストール済みウィジェットのメタデータ一覧を返す。 AiScript ソースは含まれない (src は widgets.read で個別取得)。',
+      returns: {
+        type: 'array',
+        description: '{ installId, name, autoRun, storeId?, accountId?, updatedAt } の配列。 accountId は個体に固定された実行アカウント (未固定は null)。 同じ storeId の個体が実行アカウント別に複数ありうる。',
+      },
+    },
+    'widgets.read': {
+      label: 'ウィジェットの AiScript を読む',
+      category: 'general',
+      icon: 'ti-code',
+      permissions: [
+        'widgets.read',
+      ],
+      cheap: true,
+      exec: 'device',
+      description: '指定 installId のウィジェットの AiScript ソースを返す。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象ウィジェットの installId (widgets.list で取得)',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, name, src, autoRun }',
+      },
+    },
+    'widgets.revert': {
+      label: 'ウィジェットを過去の状態に戻す',
+      category: 'general',
+      icon: 'ti-arrow-back-up',
+      permissions: [
+        'widgets.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'ウィジェット src を編集履歴の index 番目に戻す。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象ウィジェットの installId',
+        },
+        index: {
+          type: 'number',
+          description: 'snapshot index (0 = 最新)',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, reverted: boolean, at: number }',
+      },
+    },
+    'widgets.setAutoRun': {
+      label: 'ウィジェットの自動実行を切替',
+      category: 'general',
+      icon: 'ti-player-play',
+      permissions: [
+        'widgets.write',
+      ],
+      exec: 'device',
+      description: 'ウィジェットの autoRun フラグを切り替える (可逆操作)。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象ウィジェットの installId',
+        },
+        autoRun: {
+          type: 'boolean',
+          description: 'true = 自動実行有効 / false = 無効',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, autoRun }',
+      },
+    },
+    'widgets.uninstall': {
+      label: 'ウィジェットを削除',
+      category: 'general',
+      icon: 'ti-trash',
+      permissions: [
+        'widgets.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'インストール済みウィジェットを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。storeId 指定は 実行アカウント別の全個体を消す。 widgets.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象ウィジェットの installId (widgets.list で取得)',
+          optional: true,
+        },
+        storeId: {
+          type: 'string',
+          description: 'MisStore registry 上の id (= widgets.install で渡した id)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, installIds: string[], removed: boolean }。 storeId 指定は実行アカウント別の全個体が対象なので installIds に 消した個体をすべて返す。',
+      },
+    },
+    'widgets.update': {
+      label: 'ウィジェットの AiScript を更新',
+      category: 'general',
+      icon: 'ti-edit',
+      permissions: [
+        'widgets.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: 'ウィジェットの AiScript ソースを全文置換する。意図しない上書きを防ぐため、事前に widgets.read で現状を取得してから差分判断してから渡すことを推奨。表示中のウィジェットは保存後に新 src で自動再実行されるので、`aiscript.logs` で実行結果 (print / エラー) を確認し、エラーがあれば修正して再保存するループを回すこと。表示されていないウィジェットは実行されない (rerunning=false)。',
+      params: {
+        installId: {
+          type: 'string',
+          description: '対象ウィジェットの installId',
+        },
+        src: {
+          type: 'string',
+          description: '新しい AiScript ソース全文',
+        },
+        reason: {
+          type: 'string',
+          description: 'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ installId, length: 新 src の文字数, rerunning: boolean }。rerunning=true なら表示中インスタンスが新 src で再実行される。',
+      },
+    },
+    'windows.close': {
+      label: 'ウィンドウを閉じる',
+      category: 'window',
+      icon: 'ti-x',
+      permissions: [
+        'deck.write',
+      ],
+      exec: 'device',
+      description: '指定 id の DeckWindow を閉じる。id は windows.list で取得した値を渡す。',
+      params: {
+        id: {
+          type: 'string',
+          description: '閉じる window id',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ closed: true, id }',
+      },
+    },
+    'windows.closeAll': {
+      label: '全ウィンドウを閉じる',
+      category: 'window',
+      icon: 'ti-x',
+      permissions: [
+        'deck.write',
+      ],
+      confirm: true,
+      exec: 'device',
+      description: '現在開いている全 DeckWindow を一括で閉じる。',
+      returns: {
+        type: 'object',
+        description: '{ closedAll: true }',
+      },
+    },
+    'windows.focus': {
+      label: 'ウィンドウを前面に',
+      category: 'window',
+      icon: 'ti-stack-front',
+      permissions: [
+        'deck.write',
+      ],
+      exec: 'device',
+      description: '指定 id の DeckWindow を最前面 (= 最大 zIndex) に持ってくる。',
+      params: {
+        id: {
+          type: 'string',
+          description: '対象 window id',
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ focused: true, id }',
+      },
+    },
+    'windows.list': {
+      label: '開いているウィンドウ一覧',
+      category: 'window',
+      icon: 'ti-windows',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: '現在開いている DeckWindow 一覧を返す。各要素は  { id, type, props, x, y, zIndex, modal, minimized, maximized }。',
+      returns: {
+        type: 'array',
+        description: 'DeckWindow 配列',
+      },
+    },
+    'windows.open': {
+      label: 'ウィンドウを開く',
+      category: 'window',
+      icon: 'ti-window',
+      permissions: [
+        'deck.write',
+      ],
+      exec: 'device',
+      description: 'DeckWindow を開く。type は note-detail / user-profile / aiSettings /  cssEditor / themeEditor / navEditor / performanceEditor / plugins /  keybinds 等 (詳細は windows.list の戻り値で type 一覧を参照)。 note-detail / user-profile 等は props に noteId / userId + accountId が必要。 同 props の既存ウィンドウは新規作成せず focus される (singleton 化)。',
+      params: {
+        type: {
+          type: 'string',
+          description: '開く WindowType',
+          enum: [
+            'note-detail',
+            'note-inspector',
+            'notification-inspector',
+            'user-profile',
+            'federation-instance',
+            'follow-list',
+            'aiSettings',
+            'permissions',
+            'plugins',
+            'keybinds',
+            'cssEditor',
+            'themeEditor',
+            'profileEditor',
+            'login',
+            'about',
+            'navEditor',
+            'performanceEditor',
+            'appearanceEditor',
+            'backup',
+            'cacheEditor',
+            'tasksEditor',
+            'snippetsEditor',
+            'memoEditor',
+            'column-query-editor',
+            'page-detail',
+            'play-detail',
+            'gallery-detail',
+            'list-detail',
+            'clip-detail',
+            'drive-file-detail',
+            'page-edit',
+            'play-edit',
+            'widget-edit',
+            'skill-edit',
+            'edit-history',
+            'connections',
+            'connectionEdit',
+            'tutorial',
+            'tutorialEditor',
+          ],
+        },
+        props: {
+          type: 'object',
+          description: 'ウィンドウ固有の props (例: note-detail なら { noteId, accountId })',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ id: 開いた / focus された window id }',
+      },
+    },
+  },
+}

@@ -11,6 +11,7 @@ use crate::settings_store as store;
 
 use crate::context::Core;
 use crate::error::Result;
+use notecli::error::NoteDeckError;
 
 /// Settings subdirectory name under app_data_dir.
 pub const SETTINGS_DIR: &str = "notedeck";
@@ -20,12 +21,25 @@ pub fn settings_base_dir(core: &Core) -> Result<PathBuf> {
     Ok(core.app_dir()?.join(SETTINGS_DIR))
 }
 
+/// AI セッションは notecore が単一の書き手 (#1133)。汎用のファイル操作では
+/// 触らせず、`ai_session_*` の構造化された操作に限る。
+fn reject_sessions(subdir: &str) -> Result<()> {
+    if subdir == crate::ai_sessions::SUBDIR {
+        return Err(NoteDeckError::InvalidInput(
+            "sessions は notecore が書きます (ai_session_* を使ってください)".into(),
+        ));
+    }
+    Ok(())
+}
+
 pub async fn list_settings_files(core: &Core, subdir: String) -> Result<Vec<String>> {
+    reject_sessions(&subdir)?;
     store::list_files(&settings_base_dir(core)?, &subdir)
 }
 
 /// Read a settings file as a UTF-8 string.
 pub async fn read_settings_file(core: &Core, subdir: String, name: String) -> Result<String> {
+    reject_sessions(&subdir)?;
     store::read_file(&settings_base_dir(core)?, &subdir, &name)
 }
 
@@ -36,11 +50,13 @@ pub async fn write_settings_file(
     name: String,
     content: String,
 ) -> Result<()> {
+    reject_sessions(&subdir)?;
     store::write_file(&settings_base_dir(core)?, &subdir, &name, &content)
 }
 
 /// Delete a settings file.
 pub async fn delete_settings_file(core: &Core, subdir: String, name: String) -> Result<()> {
+    reject_sessions(&subdir)?;
     store::delete_file(&settings_base_dir(core)?, &subdir, &name)
 }
 
@@ -51,6 +67,7 @@ pub async fn rename_settings_file(
     old_name: String,
     new_name: String,
 ) -> Result<()> {
+    reject_sessions(&subdir)?;
     store::rename_file(&settings_base_dir(core)?, &subdir, &old_name, &new_name)
 }
 

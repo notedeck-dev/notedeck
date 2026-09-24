@@ -11,12 +11,6 @@ describe('role.notes capability', () => {
     )
     expect(roleNotesCapability.signature?.params?.limit?.optional).toBe(true)
   })
-
-  it('throws when roleId is missing', async () => {
-    await expect(roleNotesCapability.execute({})).rejects.toThrow(
-      /roleId is required/,
-    )
-  })
 })
 
 describe('ROLE_BUILTIN_CAPABILITIES', () => {

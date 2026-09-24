@@ -17,9 +17,11 @@ use notecli::api::MisskeyClient;
 use notecli::db::Database;
 
 use crate::ai_chat_service::AiChatSink;
+use crate::ai_turn::{AiTurnSink, CoreExecutor};
 use crate::commands::auth::AuthSessionTracker;
 use crate::credentials::{get_credentials, get_credentials_or_anon};
 use crate::error::Result;
+use crate::frontend_bridge::FrontendBridge;
 use crate::image_cache::ImageCache;
 use crate::media_warm::MediaWarmer;
 use crate::ogp::{OgpCache, OgpData};
@@ -69,6 +71,13 @@ pub struct Core {
     perf: OnceLock<SharedPerfConfig>,
     /// AI チャットのイベントの届け先 (Tauri 側は WebView へ emit)
     ai_chat_sink: OnceLock<Arc<dyn AiChatSink>>,
+    /// AI ターン実行器 (#1133) のイベントの届け先
+    ai_turn_sink: OnceLock<Arc<dyn AiTurnSink>>,
+    /// 手元側 (WebView / managed state) への問い合わせ口。ターン実行器が
+    /// capability の実行要求に使う
+    frontend_bridge: OnceLock<Arc<dyn FrontendBridge>>,
+    /// `exec: core` な capability の本体を呼ぶ口 (#1133 縦切り 4)
+    core_executor: OnceLock<Arc<dyn CoreExecutor>>,
     /// MiAuth セッションの追跡 (リプレイ防止)
     auth_sessions: AuthSessionTracker,
 }
@@ -99,6 +108,9 @@ impl Core {
             query_runtime: OnceLock::new(),
             perf: OnceLock::new(),
             ai_chat_sink: OnceLock::new(),
+            ai_turn_sink: OnceLock::new(),
+            frontend_bridge: OnceLock::new(),
+            core_executor: OnceLock::new(),
             auth_sessions: AuthSessionTracker::new(),
         }
     }
@@ -216,6 +228,39 @@ impl Core {
             .get()
             .cloned()
             .ok_or_else(|| NoteDeckError::Internal("ai chat sink is not set".into()))
+    }
+
+    pub fn set_ai_turn_sink(&self, sink: Arc<dyn AiTurnSink>) {
+        let _ = self.ai_turn_sink.set(sink);
+    }
+
+    pub fn ai_turn_sink(&self) -> Result<Arc<dyn AiTurnSink>> {
+        self.ai_turn_sink
+            .get()
+            .cloned()
+            .ok_or_else(|| NoteDeckError::Internal("ai turn sink is not set".into()))
+    }
+
+    pub fn set_frontend_bridge(&self, bridge: Arc<dyn FrontendBridge>) {
+        let _ = self.frontend_bridge.set(bridge);
+    }
+
+    pub fn frontend_bridge(&self) -> Result<Arc<dyn FrontendBridge>> {
+        self.frontend_bridge
+            .get()
+            .cloned()
+            .ok_or_else(|| NoteDeckError::Internal("frontend bridge is not set".into()))
+    }
+
+    pub fn set_core_executor(&self, executor: Arc<dyn CoreExecutor>) {
+        let _ = self.core_executor.set(executor);
+    }
+
+    pub fn core_executor(&self) -> Result<Arc<dyn CoreExecutor>> {
+        self.core_executor
+            .get()
+            .cloned()
+            .ok_or_else(|| NoteDeckError::Internal("core executor is not set".into()))
     }
 
     pub fn auth_sessions(&self) -> &AuthSessionTracker {

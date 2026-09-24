@@ -1,8 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
-import { ref } from 'vue'
-import type { AiChatSendOptions, ChatMessage } from './useAiChat'
+import { describe, expect, it } from 'vitest'
+import type { ChatMessage } from './useAiChat'
 import { defaultConfig } from './useAiConfig'
-import { useAiSendLoop } from './useAiSendLoop'
 import {
   _internal,
   applyHeartbeatSuppression,
@@ -127,7 +125,7 @@ describe('HEARTBEAT_INSTRUCTION', () => {
   })
 })
 
-describe('createEphemeralAiSession (#707 send ループ共有)', () => {
+describe('createEphemeralAiSession (#707 / #1133 ターン投影の共有)', () => {
   it('専用 id 以外の get は undefined を返す', () => {
     const ephemeral = createEphemeralAiSession()
     expect(ephemeral.port.get('other-session')).toBeUndefined()
@@ -136,7 +134,7 @@ describe('createEphemeralAiSession (#707 send ループ共有)', () => {
     ).toEqual([])
   })
 
-  it('updateMessages / reset で履歴を差し替え・破棄できる', () => {
+  it('setLocalMessages / reset で履歴を差し替え・破棄できる', () => {
     const ephemeral = createEphemeralAiSession()
     const m: ChatMessage = {
       id: 'u1',
@@ -144,12 +142,12 @@ describe('createEphemeralAiSession (#707 send ループ共有)', () => {
       content: 'x',
       timestamp: 0,
     }
-    ephemeral.port.updateMessages(HEARTBEAT_EPHEMERAL_SESSION_ID, [m])
+    ephemeral.port.setLocalMessages(HEARTBEAT_EPHEMERAL_SESSION_ID, [m])
     expect(
       ephemeral.port.get(HEARTBEAT_EPHEMERAL_SESSION_ID)?.messages,
     ).toEqual([m])
     // 専用 id 以外への書込は無視
-    ephemeral.port.updateMessages('other-session', [])
+    ephemeral.port.setLocalMessages('other-session', [])
     expect(
       ephemeral.port.get(HEARTBEAT_EPHEMERAL_SESSION_ID)?.messages,
     ).toEqual([m])
@@ -157,88 +155,6 @@ describe('createEphemeralAiSession (#707 send ループ共有)', () => {
     expect(
       ephemeral.port.get(HEARTBEAT_EPHEMERAL_SESSION_ID)?.messages,
     ).toEqual([])
-  })
-
-  it('useAiSendLoop と組み合わせ、tool round を経た finalText を得る (旧 runAiInference と同じ wire 形状)', async () => {
-    const ephemeral = createEphemeralAiSession()
-    const calls: AiChatSendOptions[] = []
-    const isStreaming = ref(false)
-    const currentText = ref('')
-    const script: Array<(opts: AiChatSendOptions) => string> = [
-      (opts) => {
-        opts.onToolUse?.({
-          toolUseId: 'toolu_1',
-          name: 'server.pulse',
-          input: {},
-        })
-        return ''
-      },
-      () => '重要な発見があります',
-    ]
-    const chat = {
-      isStreaming,
-      currentText,
-      sendMessage: async (opts: AiChatSendOptions) => {
-        calls.push(opts)
-        const step = script.shift()
-        if (!step) throw new Error('script exhausted')
-        return step(opts)
-      },
-    }
-    const dispatch = vi.fn(async () => ({ ok: true as const, result: 'pong' }))
-    const loop = useAiSendLoop({ chat, sessions: ephemeral.port, dispatch })
-
-    ephemeral.reset()
-    const outcome = await loop.runSend({
-      sessionId: HEARTBEAT_EPHEMERAL_SESSION_ID,
-      text: 'Heartbeat tick at 2026-07-12T00:00:00.000Z',
-      connectionId: 'conn-1',
-      model: 'model-1',
-      tools: [{ name: 'server.pulse' }],
-      buildSystem: () => 'HEARTBEAT SYSTEM',
-    })
-
-    expect(outcome).toMatchObject({
-      status: 'done',
-      finalText: '重要な発見があります',
-    })
-    expect(dispatch).toHaveBeenCalledExactlyOnceWith('server.pulse', {})
-    // system は round ごとに同一の定数が渡る (旧実装: 一度だけ組み立てて使い回し)
-    expect(calls.every((c) => c.system === 'HEARTBEAT SYSTEM')).toBe(true)
-    // round 2 の wire history に tool_use / tool_result のペアが入る
-    const round2 = calls[1]?.history ?? []
-    expect(round2.map((m) => m.toolUseId)).toContain('toolu_1')
-    expect(round2.map((m) => m.toolResultFor)).toContain('toolu_1')
-  })
-
-  it('ストリーム失敗は outcome status=error になる (daemon 側で throw に変換され連続失敗カウントに乗る)', async () => {
-    const ephemeral = createEphemeralAiSession()
-    const chat = {
-      isStreaming: ref(false),
-      currentText: ref(''),
-      sendMessage: async () => {
-        throw new Error('接続が切断されました')
-      },
-    }
-    const loop = useAiSendLoop({
-      chat,
-      sessions: ephemeral.port,
-      dispatch: vi.fn(async () => ({ ok: true as const, result: 'ok' })),
-    })
-
-    ephemeral.reset()
-    const outcome = await loop.runSend({
-      sessionId: HEARTBEAT_EPHEMERAL_SESSION_ID,
-      text: 'Heartbeat tick at 2026-07-12T00:00:00.000Z',
-      connectionId: 'conn-1',
-      model: 'model-1',
-      buildSystem: () => undefined,
-    })
-
-    expect(outcome).toMatchObject({
-      status: 'error',
-      message: '接続が切断されました',
-    })
   })
 })
 

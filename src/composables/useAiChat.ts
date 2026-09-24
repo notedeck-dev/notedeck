@@ -45,21 +45,6 @@ export interface AiChatSendOptions {
    * 空 / 省略時は tool calling 無効 (= 既存挙動)。
    */
   tools?: unknown[]
-  /**
-   * AI が tool_use を要求したときに呼ばれる。Phase 2 A-3.3 で実装する
-   * tool_result 返送ループの起点。本ターンでは呼ばれるだけ何もしない
-   * (= AI 応答は途中で止まる) のが正常動作。
-   */
-  onToolUse?: (event: ToolUseEvent) => void
-}
-
-export interface ToolUseEvent {
-  /** Anthropic `toolu_...` / OpenAI `call_...` 形式の id */
-  toolUseId: string
-  /** Capability id (= tool name) */
-  name: string
-  /** AI が渡した引数。空オブジェクトの可能性あり */
-  input: Record<string, unknown>
 }
 
 export interface AiChatEventPayload {
@@ -76,8 +61,8 @@ export interface AiChatEventPayload {
  * ユーザー操作 (停止ボタン / セッション切替 / unmount) によるストリーム中断 (#770)。
  * done / error と並ぶ sendMessage の正規の終端イベント。Rust 側は task を
  * abort するだけでイベントを emit しないため、JS 側で promise をこのエラーで
- * settle しないと useAiSendLoop が永久 pending になり placeholder の掃除が
- * 走らない。呼び出し側は instanceof でエラーと区別する。
+ * settle しないと呼び出し側が永久 pending になる。呼び出し側は instanceof で
+ * エラーと区別する。
  */
 export class AiChatCancelledError extends Error {
   constructor() {
@@ -108,55 +93,11 @@ function toWireMessage(m: ChatMessage): AiChatMessage {
 }
 
 /**
- * AI が呼び出した tool の応答を history に挿入するためのメッセージ。
- * Phase 2 A-3.3 で `useAiChat.sendMessage` の history パラメータ経由で渡される
- * 想定。本 PR (A-3.3a) では型のみ用意し、実 wiring は次の PR で行う。
- */
-export interface ToolUseTurn {
-  /** AI からの tool_use 呼び出し */
-  toolUseId: string
-  name: string
-  input: Record<string, unknown>
-  /** 呼び出しに添えられた assistant のテキスト (空可) */
-  assistantText?: string
-}
-
-export interface ToolResultTurn {
-  /** 対応する tool_use の id */
-  toolUseId: string
-  /** 実行結果のテキスト (JSON.stringify 済み) */
-  result: string
-}
-
-/**
- * 拡張版 wire message を組み立てるヘルパー。Phase 2 A-3.3b 以降で
- * tool_use ループ実装時に使う。今は import されていないが、A-3.3a の
- * wire format 拡張が動作することを test で保証する。
- */
-export function toolUseWireMessage(turn: ToolUseTurn): AiChatMessage {
-  return {
-    role: 'assistant',
-    content: turn.assistantText ?? '',
-    tool_use_id: turn.toolUseId,
-    tool_use_name: turn.name,
-    tool_use_input: turn.input as unknown as JsonValue,
-  }
-}
-
-export function toolResultWireMessage(turn: ToolResultTurn): AiChatMessage {
-  return {
-    role: 'user',
-    content: turn.result,
-    tool_result_for: turn.toolUseId,
-  }
-}
-
-/**
- * Single-shot streaming chat call. The accumulator ref is updated as deltas
- * arrive; the returned promise resolves with the final text on completion.
+ * Single-shot streaming chat call (1 ラウンド、tool なし)。エージェントの
+ * ターン (tool_use の反復) は notecore のターン実行器 (`useAiTurn`) が担う
+ * (#1133)。ここは HEARTBEAT のタイトル生成など 1 往復の用途に残る。
  *
- * Use `cancel()` to abort an in-flight stream (e.g. when the user switches
- * to a different AI session mid-response).
+ * Use `cancel()` to abort an in-flight stream.
  */
 export function useAiChat() {
   const isStreaming = ref(false)
@@ -234,14 +175,6 @@ export function useAiChat() {
         if (p.stream_id !== streamId) return
         if (p.kind === 'delta' && p.text) {
           currentText.value += p.text
-        } else if (p.kind === 'tool_use') {
-          if (opts.onToolUse && p.tool_use_id && p.tool_use_name) {
-            opts.onToolUse({
-              toolUseId: p.tool_use_id,
-              name: p.tool_use_name,
-              input: p.tool_use_input ?? {},
-            })
-          }
         } else if (p.kind === 'done') {
           const finalText = currentText.value
           cleanup()
@@ -306,7 +239,7 @@ export function useAiChat() {
  * 環境から呼ぶ用。挙動は `useAiChat.sendMessage` と同等だが、`onScopeDispose`
  * を使わないので component 外でも安全。
  *
- * - tool calling / onToolUse / cancel は未対応 (= 必要なら `useAiChat` を使う)
+ * - tool calling / cancel は未対応 (エージェントのターンは `useAiTurn`)
  * - 1 リクエストにつき 1 listener を作って done/error で必ず解除する
  */
 export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {

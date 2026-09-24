@@ -1,180 +1,224 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type {
+  AiSessionCreate,
+  SessionMessage,
+  AiSession as WireSession,
+} from '@/bindings'
 
-// in-memory 疑似ファイルシステム。settingsFs を差し替えて
-// serialize → 書込 → 読込 → deserialize の round-trip を store 越しに検証する。
-const files = new Map<string, string>()
+// notecore (単一の書き手) をメモリで模す。構造化された操作だけを受ける。
+const backend = new Map<string, WireSession>()
+const calls: string[] = []
 
-vi.mock('@/utils/settingsFs', () => ({
-  isTauri: true,
-  aiSessionFilename: (id: string) => `${id}.json5`,
-  listAiSessionFiles: async () => Array.from(files.keys()),
-  readAiSessionFile: async (f: string) => files.get(f) ?? '',
-  writeAiSessionFile: async (f: string, content: string) => {
-    files.set(f, content)
-  },
-  deleteAiSessionFile: async (f: string) => {
-    files.delete(f)
-  },
-}))
+function ok<T>(data: T) {
+  return { status: 'ok' as const, data }
+}
+function upd(id: string, patch: (s: WireSession) => void) {
+  const s = backend.get(id)
+  if (!s) throw new Error(`no session ${id}`)
+  patch(s)
+  s.updatedAt += 1
+  s.messageCount = s.messages.length
+  return ok(structuredClone(s))
+}
 
-import JSON5 from 'json5'
+vi.mock('@/utils/settingsFs', () => ({ isTauri: true }))
+vi.mock('@/utils/tauriInvoke', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/tauriInvoke')>(
+    '@/utils/tauriInvoke',
+  )
+  return {
+    unwrap: actual.unwrap,
+    commands: {
+      aiSessionsLoadAll: async () => {
+        calls.push('loadAll')
+        return ok([...backend.values()].map((s) => structuredClone(s)))
+      },
+      aiSessionGet: async (id: string) => {
+        calls.push(`get:${id}`)
+        const s = backend.get(id)
+        return s
+          ? ok(structuredClone(s))
+          : { status: 'error', error: { code: 'x', message: 'missing' } }
+      },
+      aiSessionCreate: async (req: AiSessionCreate) => {
+        calls.push(`create:${req.id}`)
+        const s: WireSession = {
+          schemaVersion: 1,
+          id: req.id,
+          kind: req.kind,
+          title: req.title,
+          model: req.model,
+          connectionId: req.connectionId,
+          createdAt: 100,
+          updatedAt: 100,
+          messages: [],
+          personaSkillId: req.personaSkillId ?? null,
+          triggeredSkillIds: [],
+          messageCount: 0,
+          lastMessagePreview: '',
+        }
+        backend.set(req.id, s)
+        return ok(structuredClone(s))
+      },
+      aiSessionAppend: async (id: string, messages: SessionMessage[]) => {
+        calls.push(`append:${id}:${messages.map((m) => m.id).join(',')}`)
+        return upd(id, (s) => {
+          for (const m of messages) {
+            const i = s.messages.findIndex((x) => x.id === m.id)
+            if (i >= 0) s.messages[i] = m
+            else s.messages.push(m)
+          }
+        })
+      },
+      aiSessionRemoveMessages: async (id: string, ids: string[]) => {
+        calls.push(`remove:${id}:${ids.join(',')}`)
+        return upd(id, (s) => {
+          s.messages = s.messages.filter((m) => !ids.includes(m.id))
+        })
+      },
+      aiSessionRename: async (id: string, title: string) => {
+        calls.push(`rename:${id}:${title}`)
+        return upd(id, (s) => {
+          s.title = title
+        })
+      },
+      aiSessionAddTriggeredSkills: async (id: string, skillIds: string[]) => {
+        calls.push(`skills:${id}:${skillIds.join(',')}`)
+        return upd(id, (s) => {
+          for (const sid of skillIds) {
+            if (!s.triggeredSkillIds?.includes(sid))
+              s.triggeredSkillIds?.push(sid)
+          }
+        })
+      },
+      aiSessionDelete: async (id: string) => {
+        calls.push(`delete:${id}`)
+        backend.delete(id)
+        return ok(null)
+      },
+    },
+  }
+})
 
 import { useAiSessionsStore } from '@/stores/aiSessions'
 
-describe('useAiSessionsStore.addTriggeredSkillIds (#725)', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    files.clear()
-    setActivePinia(createPinia())
+async function flush() {
+  for (let i = 0; i < 5; i++) await Promise.resolve()
+}
+
+beforeEach(() => {
+  backend.clear()
+  calls.length = 0
+  setActivePinia(createPinia())
+})
+
+describe('useAiSessionsStore (#1133: notecore が単一の書き手)', () => {
+  it('createNew は同期的に写しを返し、notecore に作成を送る', async () => {
+    const store = useAiSessionsStore()
+    const s = store.createNew({
+      model: 'm',
+      connectionId: 'c',
+      personaSkillId: 'p',
+    })
+    expect(store.get(s.id)?.personaSkillId).toBe('p')
+    await flush()
+    expect(calls).toEqual([`create:${s.id}`])
+    expect(backend.get(s.id)?.personaSkillId).toBe('p')
+    // 応答で写しが揃う (notecore の updatedAt)
+    expect(store.get(s.id)?.updatedAt).toBe(100)
   })
 
-  it('accumulates ids as a union across calls, preserving first-seen order', () => {
+  it('appendMessages は楽観的に写しへ足し、同じ id は差し替え、notecore に append を送る', async () => {
     const store = useAiSessionsStore()
     const s = store.createNew({ model: 'm', connectionId: 'c' })
+    store.appendMessages(s.id, [
+      { id: 'u1', role: 'user', content: 'q', timestamp: 1 },
+    ])
+    expect(store.get(s.id)?.messages.map((m) => m.id)).toEqual(['u1'])
+    store.appendMessages(s.id, [
+      { id: 'u1', role: 'user', content: 'q2', timestamp: 1 },
+      { id: 'a1', role: 'assistant', content: 'a', timestamp: 2 },
+    ])
+    expect(store.get(s.id)?.messages.map((m) => m.content)).toEqual(['q2', 'a'])
+    await flush()
+    expect(calls.slice(1)).toEqual([
+      `append:${s.id}:u1`,
+      `append:${s.id}:u1,a1`,
+    ])
+    expect(backend.get(s.id)?.messages).toHaveLength(2)
+    expect(store.listSorted()[0]?.lastMessagePreview).toBe('a')
+  })
+
+  it('setLocalMessages は notecore に書かず、reload で揃う', async () => {
+    const store = useAiSessionsStore()
+    const s = store.createNew({ model: 'm', connectionId: 'c' })
+    await flush()
+    store.setLocalMessages(s.id, [
+      { id: 'ph', role: 'assistant', content: '途中', timestamp: 1 },
+    ])
+    expect(store.get(s.id)?.messages).toHaveLength(1)
+    await flush()
+    expect(calls.filter((c) => c.startsWith('append'))).toEqual([])
+    await store.reload(s.id)
+    expect(store.get(s.id)?.messages).toEqual([])
+  })
+
+  it('removeMessages / setTitle / addTriggeredSkillIds / deleteSession は構造化操作を送る', async () => {
+    const store = useAiSessionsStore()
+    const s = store.createNew({ model: 'm', connectionId: 'c' })
+    store.appendMessages(s.id, [
+      { id: 'u1', role: 'user', content: 'q', timestamp: 1 },
+      { id: 'a1', role: 'assistant', content: 'a', timestamp: 2 },
+    ])
+    store.removeMessages(s.id, ['a1'])
+    expect(store.get(s.id)?.messages.map((m) => m.id)).toEqual(['u1'])
+    store.setTitle(s.id, '題名')
+    store.setTitle(s.id, '題名') // 同じなら送らない
     store.addTriggeredSkillIds(s.id, ['mfm-art'])
     store.addTriggeredSkillIds(s.id, ['translator', 'mfm-art'])
+    store.addTriggeredSkillIds(s.id, ['mfm-art']) // 新規なしは送らない
     expect(store.get(s.id)?.triggeredSkillIds).toEqual([
       'mfm-art',
       'translator',
     ])
-  })
-
-  it('is undefined for sessions that never triggered a skill', () => {
-    const store = useAiSessionsStore()
-    const s = store.createNew({ model: 'm', connectionId: 'c' })
-    expect(store.get(s.id)?.triggeredSkillIds).toBeUndefined()
-  })
-
-  it('no-ops (keeps the same session object) when nothing new is added', () => {
-    const store = useAiSessionsStore()
-    const s = store.createNew({ model: 'm', connectionId: 'c' })
-    store.addTriggeredSkillIds(s.id, ['mfm-art'])
-    const before = store.get(s.id)
-    store.addTriggeredSkillIds(s.id, [])
-    store.addTriggeredSkillIds(s.id, ['mfm-art'])
-    expect(store.get(s.id)).toBe(before)
-  })
-
-  it('ignores unknown session ids', () => {
-    const store = useAiSessionsStore()
-    expect(() => store.addTriggeredSkillIds('nope', ['a'])).not.toThrow()
-  })
-})
-
-describe('useAiSessionsStore triggeredSkillIds persistence (#725)', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    files.clear()
-    setActivePinia(createPinia())
-  })
-
-  it('round-trips triggeredSkillIds through file persistence', async () => {
-    const store = useAiSessionsStore()
-    const s = store.createNew({ model: 'm', connectionId: 'c' })
-    store.addTriggeredSkillIds(s.id, ['mfm-art', 'translator'])
-    await store.flush(s.id)
-
-    setActivePinia(createPinia())
-    const fresh = useAiSessionsStore()
-    await fresh.loadAllMeta()
-    expect(fresh.get(s.id)?.triggeredSkillIds).toEqual([
-      'mfm-art',
-      'translator',
+    await flush()
+    expect(calls.slice(2)).toEqual([
+      `remove:${s.id}:a1`,
+      `rename:${s.id}:題名`,
+      `skills:${s.id}:mfm-art`,
+      `skills:${s.id}:translator,mfm-art`,
     ])
+    await store.deleteSession(s.id)
+    expect(store.get(s.id)).toBeUndefined()
+    expect(backend.has(s.id)).toBe(false)
   })
 
-  it('omits the field from the file when no skill has triggered', async () => {
-    const store = useAiSessionsStore()
-    const s = store.createNew({ model: 'm', connectionId: 'c' })
-    await store.flush(s.id)
-    const raw = files.get(`${s.id}.json5`)
-    expect(raw).toBeTruthy()
-    expect(JSON5.parse(raw as string)).not.toHaveProperty('triggeredSkillIds')
-  })
-
-  it('treats legacy files without the field as undefined', async () => {
-    files.set(
-      'legacy.json5',
-      JSON.stringify({
-        schemaVersion: 1,
-        id: 'legacy',
-        kind: 'chat',
-        title: 't',
-        model: 'm',
-        connectionId: 'c',
-        createdAt: 1,
-        updatedAt: 1,
-        messages: [],
-      }),
-    )
+  it('loadAllMeta は notecore から全件を読み、未知の session id への操作は無視する', async () => {
+    backend.set('legacy', {
+      schemaVersion: 1,
+      id: 'legacy',
+      kind: 'heartbeat',
+      title: 't',
+      model: 'm',
+      connectionId: 'c',
+      createdAt: 1,
+      updatedAt: 1,
+      messages: [],
+      personaSkillId: null,
+      triggeredSkillIds: ['a'],
+      messageCount: 0,
+      lastMessagePreview: '',
+    })
     const store = useAiSessionsStore()
     await store.loadAllMeta()
-    expect(store.get('legacy')?.triggeredSkillIds).toBeUndefined()
-  })
-
-  it('drops non-string entries when reading a file', async () => {
-    files.set(
-      'weird.json5',
-      JSON.stringify({
-        schemaVersion: 1,
-        id: 'weird',
-        kind: 'chat',
-        title: 't',
-        model: 'm',
-        connectionId: 'c',
-        createdAt: 1,
-        updatedAt: 1,
-        messages: [],
-        triggeredSkillIds: ['ok', 42, '', null],
-      }),
-    )
-    const store = useAiSessionsStore()
-    await store.loadAllMeta()
-    expect(store.get('weird')?.triggeredSkillIds).toEqual(['ok'])
-  })
-})
-
-describe('中断残骸の読込時浄化 (#770)', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    files.clear()
-    setActivePinia(createPinia())
-  })
-
-  it('空 content の assistant placeholder を読込時に落とす (tool_use 付きは残す)', async () => {
-    files.set(
-      'residue.json5',
-      JSON.stringify({
-        schemaVersion: 1,
-        id: 'residue',
-        kind: 'chat',
-        title: 't',
-        model: 'm',
-        connectionId: 'c',
-        createdAt: 1,
-        updatedAt: 1,
-        messages: [
-          { id: 'u1', role: 'user', content: '質問', timestamp: 1 },
-          // 中断で残った streaming placeholder — 落とす
-          { id: 'a1', role: 'assistant', content: '', timestamp: 2 },
-          // tool_use のみで本文空の assistant — 正当なので残す
-          {
-            id: 'a2',
-            role: 'assistant',
-            content: '',
-            timestamp: 3,
-            toolUseId: 'toolu_1',
-            toolUseName: 'time.now',
-          },
-          { id: 'a3', role: 'assistant', content: '回答', timestamp: 4 },
-        ],
-      }),
-    )
-    const store = useAiSessionsStore()
-    await store.loadAllMeta()
-    const messages = store.get('residue')?.messages ?? []
-    expect(messages.map((m) => m.id)).toEqual(['u1', 'a2', 'a3'])
-    expect(store.get('residue')?.messageCount).toBe(3)
+    expect(store.get('legacy')?.kind).toBe('heartbeat')
+    expect(store.get('legacy')?.triggeredSkillIds).toEqual(['a'])
+    expect(() => store.addTriggeredSkillIds('nope', ['a'])).not.toThrow()
+    store.appendMessages('nope', [
+      { id: 'x', role: 'user', content: 'x', timestamp: 0 },
+    ])
+    await flush()
+    expect(calls).toEqual(['loadAll'])
   })
 })

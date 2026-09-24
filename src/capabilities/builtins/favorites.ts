@@ -1,5 +1,6 @@
 import type { Command } from '@/commands/registry'
-import { ACCOUNT_ID_PARAM_DESC, getApiAdapter } from '../accountContext'
+import { getApiAdapter } from '../accountContext'
+import { implement } from '../declare'
 
 /**
  * Favorites — Misskey の「お気に入り」(自分だけが見える private bookmark)。
@@ -15,31 +16,7 @@ function pickString(v: unknown): string | undefined {
   return t.length > 0 ? t : undefined
 }
 
-export const favoritesAddCapability: Command = {
-  id: 'favorites.add',
-  actsAsAccount: true,
-  label: 'お気に入りに追加',
-  icon: 'ti-star',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['notes.react'],
-  requiresConfirmation: true,
-  signature: {
-    description:
-      '指定ノートを自分のお気に入りに追加する。他人には通知されず、自分しか' +
-      '見えない private bookmark。リアクションとは別軸 (リアクションは公開)。',
-    params: {
-      noteId: { type: 'string', description: '対象 noteId' },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: { type: 'object', description: '{ favorited: true, noteId }' },
-  },
-  visible: false,
+export const favoritesAddCapability = implement('favorites.add', {
   execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('favorites.add: noteId is required')
@@ -47,31 +24,9 @@ export const favoritesAddCapability: Command = {
     await api.createFavorite(noteId)
     return { favorited: true, noteId }
   },
-}
+})
 
-export const favoritesRemoveCapability: Command = {
-  id: 'favorites.remove',
-  actsAsAccount: true,
-  label: 'お気に入りから削除',
-  icon: 'ti-star-off',
-  category: 'note',
-  shortcuts: [],
-  aiTool: true,
-  permissions: ['notes.react'],
-  requiresConfirmation: true,
-  signature: {
-    description: '指定ノートをお気に入りから削除する。',
-    params: {
-      noteId: { type: 'string', description: '対象 noteId' },
-      accountId: {
-        type: 'string',
-        description: ACCOUNT_ID_PARAM_DESC,
-        optional: true,
-      },
-    },
-    returns: { type: 'object', description: '{ unfavorited: true, noteId }' },
-  },
-  visible: false,
+export const favoritesRemoveCapability = implement('favorites.remove', {
   execute: async (params, ctx) => {
     const noteId = pickString(params?.noteId)
     if (!noteId) throw new Error('favorites.remove: noteId is required')
@@ -79,7 +34,7 @@ export const favoritesRemoveCapability: Command = {
     await api.deleteFavorite(noteId)
     return { unfavorited: true, noteId }
   },
-}
+})
 
 export const FAVORITES_BUILTIN_CAPABILITIES: readonly Command[] = [
   favoritesAddCapability,

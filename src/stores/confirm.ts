@@ -119,6 +119,8 @@ export interface ConfirmOptions {
    * 操作の待機分へ波及させる」#716 の理想を満たす。
    */
   dedupKey?: string
+  /** 実際に表示された時に呼ばれる (待ち行列を抜けた時点。表示 TTL の起点 #1133) */
+  onShow?: () => void
 }
 
 /**
@@ -162,6 +164,38 @@ function show(entry: (typeof queue)[number]): void {
   options.value = entry.opts
   visible.value = true
   resolvePromise = entry.resolve
+  try {
+    entry.opts.onShow?.()
+  } catch (e) {
+    console.warn('[confirm] onShow failed:', e)
+  }
+}
+
+/** 表示中のダイアログを決定で閉じ、待ち行列の次を出す */
+function settle(decision: ConfirmDecision): void {
+  visible.value = false
+  const dedupKey = options.value.dedupKey
+  resolvePromise?.(decision)
+  resolvePromise = null
+  // 「今後確認しない」で許可されたら、キューで待つ同一操作 (同じ dedupKey) を
+  // 同じ許可で自動解決する (#720/#716: 一度の同意を同一操作の待機分へ波及)。
+  // remember は記録済みなので重複記録を避けるため false で返す。
+  if (decision.accepted && decision.remember && dedupKey) {
+    for (let i = queue.length - 1; i >= 0; i--) {
+      if (queue[i]?.opts.dedupKey === dedupKey) {
+        const [removed] = queue.splice(i, 1)
+        removed?.resolve({ accepted: true, remember: false })
+      }
+    }
+  }
+  if (queue.length > 0) {
+    drainScheduled = true
+    setTimeout(() => {
+      drainScheduled = false
+      const next = queue.shift()
+      if (next) show(next)
+    }, NEXT_DIALOG_DELAY_MS)
+  }
 }
 
 export function useConfirm() {
@@ -177,10 +211,33 @@ export function useConfirm() {
    * 確認ダイアログを出し、OK/キャンセルと remember チェック状態を返す。
    * dispatcher が `rememberLabel` 付き capability の確認に使う。
    * 表示中のダイアログがあればキューに積まれ、順番が来るまで解決しない。
+   *
+   * `signal` が abort されたら (AI ターンの中断 #1133)、待ち行列にあれば外し、
+   * 表示中なら閉じて、キャンセル扱いで解決する。
    */
-  function confirmWithDecision(opts: ConfirmOptions): Promise<ConfirmDecision> {
+  function confirmWithDecision(
+    opts: ConfirmOptions,
+    signal?: AbortSignal,
+  ): Promise<ConfirmDecision> {
     return new Promise<ConfirmDecision>((resolve) => {
+      if (signal?.aborted) {
+        resolve({ accepted: false, remember: false })
+        return
+      }
       const entry = { opts, resolve }
+      signal?.addEventListener(
+        'abort',
+        () => {
+          const i = queue.indexOf(entry)
+          if (i >= 0) {
+            queue.splice(i, 1)
+            resolve({ accepted: false, remember: false })
+          } else if (resolvePromise === resolve) {
+            settle({ accepted: false, remember: false })
+          }
+        },
+        { once: true },
+      )
       if (resolvePromise || drainScheduled) {
         // キューが上限に達したら自動キャンセル (#720)。埋め尽くし DoS 防止。
         if (queue.length >= MAX_QUEUE) {
@@ -203,29 +260,7 @@ export function useConfirm() {
   }
 
   function resolve(decision: ConfirmDecision) {
-    visible.value = false
-    const dedupKey = options.value.dedupKey
-    resolvePromise?.(decision)
-    resolvePromise = null
-    // 「今後確認しない」で許可されたら、キューで待つ同一操作 (同じ dedupKey) を
-    // 同じ許可で自動解決する (#720/#716: 一度の同意を同一操作の待機分へ波及)。
-    // remember は記録済みなので重複記録を避けるため false で返す。
-    if (decision.accepted && decision.remember && dedupKey) {
-      for (let i = queue.length - 1; i >= 0; i--) {
-        if (queue[i]?.opts.dedupKey === dedupKey) {
-          const [removed] = queue.splice(i, 1)
-          removed?.resolve({ accepted: true, remember: false })
-        }
-      }
-    }
-    if (queue.length > 0) {
-      drainScheduled = true
-      setTimeout(() => {
-        drainScheduled = false
-        const next = queue.shift()
-        if (next) show(next)
-      }, NEXT_DIALOG_DELAY_MS)
-    }
+    settle(decision)
   }
 
   return {

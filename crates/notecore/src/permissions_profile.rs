@@ -16,114 +16,10 @@ use std::collections::BTreeSet;
 
 use serde_json::Value;
 
-/// 権限キーの語彙。正本はフロントの `PERMISSION_KEYS` (src/permissions/schema.ts)。
-/// 一致は golden の `keys` で検査する。
-pub const PERMISSION_KEYS: &[&str] = &[
-    "notes.read",
-    "notes.readArchive",
-    "notes.write",
-    "notes.react",
-    "account.read",
-    "account.write",
-    "account.actAs",
-    "drive.read",
-    "drive.write",
-    "memos.read",
-    "memos.write",
-    "clips.read",
-    "clips.write",
-    "drafts.read",
-    "drafts.write",
-    "network.external",
-    "clipboard",
-    "notifications",
-    "tasks.run",
-    "ai.invoke",
-    "ai.persona.write",
-    "skills.read",
-    "skills.write",
-    "theme.write",
-    "styles.write",
-    "navbar.write",
-    "keybinds.write",
-    "performance.write",
-    "widgets.read",
-    "widgets.write",
-    "plugins.read",
-    "plugins.write",
-    "queries.read",
-    "queries.write",
-    "ai.sessions.read",
-    "logs.read",
-    "vault.use",
-    "files.export",
-    "backup.create",
-    "deck.read",
-    "deck.write",
-];
-
-/// `readonly` preset で ON になるキー。
-const READONLY_KEYS: &[&str] = &[
-    "notes.read",
-    "account.read",
-    "drive.read",
-    "memos.read",
-    "clips.read",
-    "drafts.read",
-    "skills.read",
-    "widgets.read",
-    "plugins.read",
-    "queries.read",
-    "ai.sessions.read",
-    "logs.read",
-    "deck.read",
-];
-
-/// `safe` preset で readonly に加えて ON になるキー。
-const SAFE_EXTRA_KEYS: &[&str] = &[
-    "notes.react",
-    "memos.write",
-    "clips.write",
-    "drafts.write",
-    "clipboard",
-    "notifications",
-    "tasks.run",
-    "ai.invoke",
-    "skills.write",
-    "widgets.write",
-    "plugins.write",
-    "queries.write",
-    "deck.write",
-];
-
-/// 第三者 principal (plugin / external) への恒久 deny (#712 §3.7 / §3.8)。
-/// 保存値に関わらず OFF — `full` preset でも通らない。
-pub const THIRD_PARTY_DENY_KEYS: &[&str] = &[
-    "skills.write",
-    "ai.persona.write",
-    "tasks.run",
-    "backup.create",
-];
-
-/// external principal の Misskey コンテンツ read 下限 (#712 §5.3)。
-/// 「トークンを発行して渡す行為そのものが Misskey コンテンツ read への同意」。
-pub const EXTERNAL_READ_FLOOR: &[&str] =
-    &["notes.read", "account.read", "drive.read", "clips.read"];
-
-/// NoteDeck ローカル私的データの read キー (#712 §4.4)。external の既定は
-/// readonly からこれらを落とした縮小 custom。
-const LOCAL_READ_KEYS: &[&str] = &[
-    "notes.readArchive",
-    "memos.read",
-    "drafts.read",
-    "skills.read",
-    "widgets.read",
-    "plugins.read",
-    "queries.read",
-    "ai.sessions.read",
-    "logs.read",
-    "deck.read",
-];
+// 語彙と preset / floor / deny の集合は生成物 (正本は crates/notecore/capabilities.json5 の
+// permissions 節、`pnpm gen:capabilities`)。JS 側と同じ宣言から生成され、解決結果の一致は
+// golden vector で検査する。
+include!("permissions_keys.generated.rs");
 
 /// プロファイルを持つ principal。`user` はプロファイル無し (常時許可) なので
 /// ここには無い。
@@ -142,8 +38,8 @@ pub enum PrincipalId {
 }
 
 impl PrincipalId {
-    /// golden vector の principal 名 → id。
-    #[cfg(test)]
+    /// principal 名 (JS 側の `Principal.kind`) → id。golden vector と
+    /// AI ループの要求 (#1133) が使う。
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "ai.chat" => Some(Self::AiChat),
@@ -285,6 +181,19 @@ pub fn resolve(content: Option<&str>, id: PrincipalId) -> Granted {
     }
 }
 
+/// permissions.json5 の `confirmSkips[scope]` に capability があるか (#714)。
+/// 形は `{ confirmSkips: { 'ai.chat': ['notes.create', ...] } }`。パース失敗は false。
+pub fn confirm_skipped(content: &str, scope: &str, capability_id: &str) -> bool {
+    let Ok(doc) = json5::from_str::<Value>(content) else {
+        return false;
+    };
+    doc.get("confirmSkips")
+        .and_then(|s| s.get(scope))
+        .and_then(Value::as_array)
+        .map(|list| list.iter().any(|v| v.as_str() == Some(capability_id)))
+        .unwrap_or(false)
+}
+
 /// ファイルが読めない / 壊れているときの最小権限 (store.ts `safeFallbackFile`
 /// #719)。既定プロファイルへ倒すと、権限を絞っていたユーザーが破損だけで
 /// 無言のうちに広がる。
@@ -295,6 +204,16 @@ pub fn resolve_fallback(id: PrincipalId) -> Granted {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn confirm_skipped_reads_scope_list() {
+        let content = "{ confirmSkips: { 'ai.chat': ['notes.create'], 'plugin:x': ['a.b'] } }";
+        assert!(confirm_skipped(content, "ai.chat", "notes.create"));
+        assert!(!confirm_skipped(content, "ai.chat", "a.b"));
+        assert!(!confirm_skipped(content, "ai.heartbeat", "notes.create"));
+        assert!(!confirm_skipped("{ broken", "ai.chat", "notes.create"));
+        assert!(!confirm_skipped("{}", "ai.chat", "notes.create"));
+    }
 
     #[test]
     fn missing_file_external_is_misskey_read_floor_only() {
@@ -354,7 +273,7 @@ mod tests {
                 .iter()
                 .map(|k| k.to_string())
                 .collect::<Vec<_>>(),
-            "PERMISSION_KEYS が JS 側と一致しません (schema.ts を正本に直す)"
+            "PERMISSION_KEYS が JS 側と一致しません (capabilities.json5 の permissions 節から再生成する)"
         );
         assert!(!golden.cases.is_empty());
         for case in &golden.cases {

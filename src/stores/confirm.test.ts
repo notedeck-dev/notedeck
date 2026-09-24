@@ -194,4 +194,53 @@ describe('useConfirm', () => {
     resolve({ accepted: false, remember: false })
     await expect(same).resolves.toEqual({ accepted: false, remember: false })
   })
+
+  it('AbortSignal で待ち行列の確認を外し、表示中の確認を閉じる (#1133 ターン中断)', async () => {
+    const { confirmWithDecision, visible, resolve } = useConfirm()
+    const shown = new AbortController()
+    const queued = new AbortController()
+    const first = confirmWithDecision({ title: 'a', message: '' }, shown.signal)
+    const second = confirmWithDecision(
+      { title: 'b', message: '' },
+      queued.signal,
+    )
+    const third = confirmWithDecision({ title: 'c', message: '' })
+    expect(visible.value).toBe(true)
+
+    // 待ち行列にあるものは外れて即キャンセル。表示は変わらない
+    queued.abort()
+    await expect(second).resolves.toEqual({ accepted: false, remember: false })
+    expect(visible.value).toBe(true)
+
+    // 表示中のものは閉じてキャンセル。次 (c) が順番どおり出る
+    shown.abort()
+    await expect(first).resolves.toEqual({ accepted: false, remember: false })
+    vi.runAllTimers()
+    expect(visible.value).toBe(true)
+    resolve({ accepted: true, remember: false })
+    await expect(third).resolves.toEqual({ accepted: true, remember: false })
+
+    // 既に abort 済みの signal は表示せず即キャンセル
+    const done = new AbortController()
+    done.abort()
+    await expect(
+      confirmWithDecision({ title: 'd', message: '' }, done.signal),
+    ).resolves.toEqual({ accepted: false, remember: false })
+  })
+
+  it('onShow は実際に表示された時点で呼ばれる (待ち行列を抜けた時) (#1133)', async () => {
+    const { confirmWithDecision, resolve } = useConfirm()
+    const shownA = vi.fn()
+    const shownB = vi.fn()
+    const a = confirmWithDecision({ title: 'a', message: '', onShow: shownA })
+    const b = confirmWithDecision({ title: 'b', message: '', onShow: shownB })
+    expect(shownA).toHaveBeenCalledOnce()
+    expect(shownB).not.toHaveBeenCalled()
+    resolve({ accepted: true, remember: false })
+    await a
+    vi.runAllTimers()
+    expect(shownB).toHaveBeenCalledOnce()
+    resolve({ accepted: false, remember: false })
+    await b
+  })
 })
