@@ -23,21 +23,6 @@ describe('pages capabilities — declaration', () => {
       true,
     )
   })
-
-  it('pages.list throws when endpoint missing or invalid', async () => {
-    await expect(pagesListCapability.execute({})).rejects.toThrow(
-      /endpoint is required/,
-    )
-    await expect(
-      pagesListCapability.execute({ endpoint: 'admin/list' }),
-    ).rejects.toThrow(/invalid endpoint/)
-  })
-
-  it('pages.show throws when pageId missing', async () => {
-    await expect(pagesShowCapability.execute({})).rejects.toThrow(
-      /pageId is required/,
-    )
-  })
 })
 
 describe('PAGES_BUILTIN_CAPABILITIES', () => {

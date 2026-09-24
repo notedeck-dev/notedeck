@@ -15,6 +15,7 @@
 
 import type { JsonValue } from '@/bindings'
 import type { Command } from '@/commands/registry'
+import type { ConfirmOptions } from '@/stores/confirm'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import {
   CAPABILITY_DECLARATIONS,
@@ -102,6 +103,21 @@ export function implementCore(
   }
   const cmd = implement(id, {
     ...impl,
+    // 確認内容も本体と同じく notecore が組む (宣言が confirm のときだけ)。
+    // 帰属 / 理由 / クロスアカウントの行は dispatcher 側が足す
+    ...(d.confirm && !impl.requiresConfirmation
+      ? {
+          requiresConfirmation: async (params, ctx) =>
+            (unwrap(
+              await commands.capabilityPreview(
+                id,
+                (params ?? {}) as JsonValue,
+                ctx?.principal?.kind ?? 'user',
+                ctx?.accountId ?? null,
+              ),
+            ) as ConfirmOptions | null) ?? null,
+        }
+      : {}),
     execute: async (params, ctx) =>
       unwrap(
         await commands.capabilityExecute(

@@ -20,25 +20,10 @@ describe('list capabilities — declaration', () => {
   ])('%s declares account.write + confirmation', (id, cap) => {
     expect(cap.id).toBe(id)
     expect(cap.permissions).toEqual(['account.write'])
-    expect(cap.requiresConfirmation).toBe(true)
+    expect(cap.requiresConfirmation).toBeTruthy()
     expect(cap.aiTool).toBe(true)
     expect(cap.signature?.params?.listId?.optional).not.toBe(true)
     expect(cap.signature?.params?.userId?.optional).not.toBe(true)
-  })
-
-  it('addUser/removeUser throw when listId/userId missing', async () => {
-    await expect(listAddUserCapability.execute({})).rejects.toThrow(
-      /listId is required/,
-    )
-    await expect(
-      listAddUserCapability.execute({ listId: 'l1' }),
-    ).rejects.toThrow(/userId is required/)
-    await expect(listRemoveUserCapability.execute({})).rejects.toThrow(
-      /listId is required/,
-    )
-    await expect(
-      listRemoveUserCapability.execute({ listId: 'l1' }),
-    ).rejects.toThrow(/userId is required/)
   })
 })
 

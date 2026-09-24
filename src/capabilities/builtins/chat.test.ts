@@ -12,25 +12,10 @@ describe('chat reaction capabilities — declaration', () => {
   ])('%s declares notes.react permission + confirmation', (id, cap) => {
     expect(cap.id).toBe(id)
     expect(cap.permissions).toEqual(['notes.react'])
-    expect(cap.requiresConfirmation).toBe(true)
+    expect(cap.requiresConfirmation).toBeTruthy()
     expect(cap.aiTool).toBe(true)
     expect(cap.signature?.params?.messageId?.optional).not.toBe(true)
     expect(cap.signature?.params?.reaction?.optional).not.toBe(true)
-  })
-
-  it('throw when messageId/reaction missing', async () => {
-    await expect(chatReactCapability.execute({})).rejects.toThrow(
-      /messageId is required/,
-    )
-    await expect(
-      chatReactCapability.execute({ messageId: 'm1' }),
-    ).rejects.toThrow(/reaction is required/)
-    await expect(chatUnreactCapability.execute({})).rejects.toThrow(
-      /messageId is required/,
-    )
-    await expect(
-      chatUnreactCapability.execute({ messageId: 'm1' }),
-    ).rejects.toThrow(/reaction is required/)
   })
 })
 

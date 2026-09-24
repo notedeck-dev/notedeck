@@ -2278,6 +2278,15 @@ async capabilityExecute(id: string, params: JsonValue, principal: string, accoun
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notecore/src/commands/ai_chat.rs */
+async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see crates/notecore/src/commands/ai_sessions.rs */
 async aiSessionsLoadAll() : Promise<Result<AiSession[], { code: string; message: string; apiCode: string | null }>> {
     try {

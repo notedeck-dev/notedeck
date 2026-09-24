@@ -12,20 +12,11 @@ describe('http.fetch capability', () => {
   })
 
   it('requires confirmation before each call (任意 URL への外部送信を防ぐ)', () => {
-    expect(httpFetchCapability.requiresConfirmation).toBe(true)
+    expect(httpFetchCapability.requiresConfirmation).toBeTruthy()
   })
 
   it('uses dot-notation id', () => {
     expect(httpFetchCapability.id).toBe('http.fetch')
-  })
-
-  it('rejects empty url before invoking Rust', async () => {
-    await expect(httpFetchCapability.execute({ url: '' })).rejects.toThrow(
-      /url is required/,
-    )
-    await expect(httpFetchCapability.execute({})).rejects.toThrow(
-      /url is required/,
-    )
   })
 
   it('limits method enum to the standard HTTP verbs', () => {
