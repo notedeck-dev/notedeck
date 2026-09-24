@@ -205,8 +205,11 @@ const handlers: Record<string, QueryHandler> = {
       console.warn('[ai-turn] config reload before dispatch failed:', e)
     }
     const controller = beginTurnExecution(turnId)
+    // 返す内容にラベル付きのメモ / skill が含まれたら結果に添える (notecore が
+    // 読んだセッションを tainted にする、#1103)
+    let taintedResult = false
     try {
-      return await dispatchCapability(
+      const result = await dispatchCapability(
         params.capabilityId as string,
         (params.params ?? undefined) as Record<string, unknown> | undefined,
         {
@@ -220,8 +223,13 @@ const handlers: Record<string, QueryHandler> = {
           preConfirmed: params.confirmed === true,
           confirmFn: (opts) =>
             useConfirm().confirmWithDecision(opts, controller.signal),
+          tainted: params.tainted === true,
+          markTainted: () => {
+            taintedResult = true
+          },
         },
       )
+      return taintedResult ? { ...result, tainted: true } : result
     } finally {
       endTurnExecution(turnId, controller)
     }
@@ -241,7 +249,10 @@ const handlers: Record<string, QueryHandler> = {
         principal: { kind },
         accountId: (params.accountId as string | null | undefined) ?? undefined,
       },
-      { crossAccount: params.crossAccount === true },
+      {
+        crossAccount: params.crossAccount === true,
+        destinationUntrusted: params.destinationUntrusted === true,
+      },
     )
   },
 }

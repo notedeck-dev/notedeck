@@ -61,6 +61,8 @@
     // デッキ / ウィンドウ構成の変更 (#1098)。従来は無条件許可だったため readonly の heartbeat や外部トークンでもデッキを消せた。readonly のみ false
     'deck.write': { presets: ['safe'] },
   },
+  // destinations: 書き込みの宛先になる引数 (返信先 / 対象ユーザー / URL など)。値の出所を
+  //   3 値 (ユーザー入力 / 信頼済み結果 / untrusted 本文中) で判定し、3 番目なら確認に一文添えて記憶の対象外にする
   // untrusted: 結果に他人の内容 (投稿 / プロフィール / 通知 / fetch 結果) を含みうる読取。
   //   読んだセッションは以後 tainted になり、書き込みは「次から確認しない」を無視して確認する (#1103 / #1133)
   capabilities: {
@@ -487,6 +489,7 @@
       },
     },
     'chat.react': {
+      destinations: ['messageId'],
       label: 'チャットメッセージにリアクション',
       category: 'note',
       icon: 'ti-mood-smile',
@@ -518,6 +521,7 @@
       },
     },
     'chat.unreact': {
+      destinations: ['messageId'],
       label: 'チャットメッセージのリアクションを解除',
       category: 'note',
       icon: 'ti-mood-x',
@@ -584,6 +588,7 @@
       },
     },
     'clips.addNote': {
+      destinations: ['noteId'],
       label: 'クリップにノートを追加',
       category: 'note',
       icon: 'ti-paperclip',
@@ -706,6 +711,7 @@
       },
     },
     'clips.removeNote': {
+      destinations: ['noteId'],
       label: 'クリップからノートを削除',
       category: 'note',
       icon: 'ti-paperclip',
@@ -936,6 +942,7 @@
       },
     },
     'drafts.create': {
+      destinations: ['replyId', 'renoteId', 'channelId'],
       label: '下書きを作成',
       category: 'note',
       icon: 'ti-edit',
@@ -1487,6 +1494,7 @@
       },
     },
     'http.fetch': {
+      destinations: ['url'],
       untrusted: true,
       label: '外部 HTTP リクエスト',
       category: 'general',
@@ -1612,6 +1620,7 @@
       },
     },
     'list.addUser': {
+      destinations: ['userId'],
       label: 'リストにユーザーを追加',
       category: 'account',
       icon: 'ti-user-plus',
@@ -1665,6 +1674,7 @@
       },
     },
     'list.removeUser': {
+      destinations: ['userId'],
       label: 'リストからユーザーを削除',
       category: 'account',
       icon: 'ti-user-minus',
@@ -2143,6 +2153,7 @@
       },
     },
     'notes.create': {
+      destinations: ['replyId', 'renoteId'],
       label: 'ノートを投稿',
       category: 'note',
       icon: 'ti-pencil',
@@ -2250,6 +2261,7 @@
       },
     },
     'notes.react': {
+      destinations: ['noteId'],
       label: 'リアクションする',
       category: 'note',
       icon: 'ti-mood-smile',
@@ -2469,6 +2481,7 @@
       },
     },
     'notes.unreact': {
+      destinations: ['noteId'],
       label: 'リアクションを解除',
       category: 'note',
       icon: 'ti-mood-x',
@@ -3898,6 +3911,7 @@
       },
     },
     'user.follow': {
+      destinations: ['userId'],
       label: 'ユーザーをフォロー',
       category: 'account',
       icon: 'ti-user-plus',
@@ -4030,6 +4044,7 @@
       },
     },
     'user.mute': {
+      destinations: ['userId'],
       label: 'ユーザーをミュート',
       category: 'account',
       icon: 'ti-volume-off',
@@ -4057,6 +4072,7 @@
       },
     },
     'user.renoteMute': {
+      destinations: ['userId'],
       label: 'リノートだけミュート',
       category: 'account',
       icon: 'ti-volume-3',
@@ -4116,6 +4132,7 @@
       },
     },
     'user.unfollow': {
+      destinations: ['userId'],
       label: 'ユーザーのフォローを解除',
       category: 'account',
       icon: 'ti-user-minus',
@@ -4143,6 +4160,7 @@
       },
     },
     'user.unmute': {
+      destinations: ['userId'],
       label: 'ユーザーのミュートを解除',
       category: 'account',
       icon: 'ti-volume',
@@ -4170,6 +4188,7 @@
       },
     },
     'user.unrenoteMute': {
+      destinations: ['userId'],
       label: 'リノートミュートを解除',
       category: 'account',
       icon: 'ti-volume-2',
@@ -4197,6 +4216,7 @@
       },
     },
     'vault.fetch': {
+      destinations: ['path'],
       untrusted: true,
       label: 'Vault 接続で HTTP リクエスト',
       category: 'general',

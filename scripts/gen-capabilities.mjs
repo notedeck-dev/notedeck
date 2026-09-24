@@ -111,6 +111,10 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
         throw new Error(`${id}: unknown permission key ${p}`)
     const exec = d.exec ?? 'device'
     if (!EXEC_KINDS.has(exec)) throw new Error(`${id}: bad exec ${exec}`)
+    const destinations = [...(d.destinations ?? [])]
+    for (const name of destinations)
+      if (!(name in (d.params ?? {})))
+        throw new Error(`${id}: destination ${name} is not a param`)
     const params = {}
     for (const [k, p] of Object.entries(d.params ?? {})) {
       if (!PARAM_TYPES.has(p.type))
@@ -134,6 +138,7 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
       cheap: d.cheap === true,
       visible: d.visible === true,
       untrusted: d.untrusted === true,
+      destinations,
       exec,
       description: expand(d.description ?? ''),
       params,
@@ -186,6 +191,8 @@ export function renderTs(decls) {
     '  visible: boolean',
     '  /** 結果に他人の内容を含みうる読取 (読んだセッションを tainted にする) */',
     '  untrusted: boolean',
+    '  /** 書き込みの宛先になる引数 (値の出所を判定する) */',
+    '  destinations: readonly string[]',
     '  exec: CapabilityExec',
     '  description: string',
     '  params: Record<string, ParameterDef>',
@@ -216,6 +223,7 @@ export function renderTs(decls) {
     lines.push(`    cheap: ${d.cheap},`)
     lines.push(`    visible: ${d.visible},`)
     lines.push(`    untrusted: ${d.untrusted},`)
+    lines.push(`    destinations: ${ts(d.destinations)},`)
     lines.push(`    exec: ${ts(d.exec)},`)
     lines.push(`    description: ${ts(d.description)},`)
     lines.push(`    params: ${ts(d.params)},`)
@@ -268,6 +276,7 @@ export function renderRs(decls) {
       `        cheap: ${d.cheap},`,
       `        visible: ${d.visible},`,
       `        untrusted: ${d.untrusted},`,
+      `        destinations: &[${d.destinations.map(rs).join(', ')}],`,
       `        exec: Exec::${pascal(d.exec)},`,
       `        description: ${rs(d.description)},`,
     )

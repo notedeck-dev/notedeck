@@ -485,6 +485,7 @@ async function sendMessage(
     : undefined
   const visibleItems = projectVisibleItems(visibleNotesRaw, focusedColumn?.type)
 
+  let injectedMemosTainted = false
   const outcome = await turn.run({
     sessionId,
     text,
@@ -497,8 +498,12 @@ async function sendMessage(
     continuation,
     // 入力途中の空欄・範囲外がそのまま送られないよう、使う直前に必ず通す
     generation: normalizeGenerationConfig(aiConfig.value.generation),
-    // 可視ノート (他人の投稿) を文脈に入れるなら、このセッションは tainted (#1103)
-    contextUntrusted: visibleItems.length > 0,
+    // 可視ノート (他人の投稿) やラベル付きのメモ / skill を文脈に入れるなら、
+    // このセッションは tainted (#1103)。メモは buildSystem で決まる
+    contextUntrusted: () =>
+      visibleItems.length > 0 ||
+      injectedMemosTainted ||
+      skillsStore.composedSkillsTainted(extraSkillIds, effectivePersonaSkillId),
     generateTitle: true,
     onTitle: (title) => {
       const cur = sessionsStore.get(sessionId)
@@ -528,6 +533,16 @@ async function sendMessage(
           auth: describeAuthType(c.authType),
         }))
 
+      const injectedMemos = projectMemos(memoEntries, {
+        excludeTags: memosCfg?.excludeTags,
+        expandLinks: memosCfg?.expandLinks !== false,
+        includeBacklinks: memosCfg?.includeBacklinks !== false,
+        allMemosByAccount,
+      })
+      const memosAll = loadAllMemos()
+      injectedMemosTainted = injectedMemos.some(
+        (m) => memosAll[m.id]?.data.tainted === true,
+      )
       const contextBlock = buildAiContextBlock(aiConfig.value, {
         currentAccount: props.column.accountId
           ? (accountsStore.accountMap.get(props.column.accountId) ?? null)
@@ -535,12 +550,7 @@ async function sendMessage(
         currentColumn: focusedColumn ?? props.column,
         visibleNotes: visibleItems,
         recentConversation: projectRecentConversation(history),
-        memos: projectMemos(memoEntries, {
-          excludeTags: memosCfg?.excludeTags,
-          expandLinks: memosCfg?.expandLinks !== false,
-          includeBacklinks: memosCfg?.includeBacklinks !== false,
-          allMemosByAccount,
-        }),
+        memos: injectedMemos,
         accounts: accountsStore.accounts,
         persona: personaIdentity
           ? {

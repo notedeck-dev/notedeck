@@ -119,7 +119,11 @@ export const memosCreateCapability = implement('memos.create', {
       : authorFromPrincipal(ctx?.principal)
     await ensureMemosLoaded()
     const memoKey = generateMemoKey()
-    const stored = saveMemo(memoKey, emptyMemoData(text, tags, author))
+    const stored = saveMemo(memoKey, {
+      ...emptyMemoData(text, tags, author),
+      // tainted なセッションが書いたメモにはラベルを付ける (#1103)
+      ...(ctx?.tainted ? { tainted: true } : {}),
+    })
     const result: Record<string, unknown> = {
       id: memoKey,
       text: stored.data.text,
@@ -133,7 +137,7 @@ export const memosCreateCapability = implement('memos.create', {
 
 /** `memos.update` — 既存メモの text / tags を更新する */
 export const memosUpdateCapability = implement('memos.update', {
-  execute: async (params) => {
+  execute: async (params, ctx) => {
     const id = pickString(params?.id)
     if (!id) throw new Error('memos.update: id is required')
     const text = pickString(params?.text)
@@ -164,6 +168,8 @@ export const memosUpdateCapability = implement('memos.update', {
       text: text ?? existing.data.text,
       tags: tags ?? existing.data.tags,
       author: authorPatch ? authorPatch.author : existing.data.author,
+      // 一度付いたラベルは外れない
+      ...(ctx?.tainted || existing.data.tainted ? { tainted: true } : {}),
     })
     const result: Record<string, unknown> = {
       id,

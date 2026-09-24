@@ -838,16 +838,23 @@ export function useHeartbeatDaemon() {
     // 尊重 (#492 / #494)
     const heartbeatMemosCfg = config.value.dataSources.memosConfig
     const heartbeatAllMemos = new Map([['', loadAllMemos()]])
+    const heartbeatMemos = projectMemos(heartbeatMemoEntries, {
+      excludeTags: heartbeatMemosCfg?.excludeTags,
+      expandLinks: heartbeatMemosCfg?.expandLinks !== false,
+      includeBacklinks: heartbeatMemosCfg?.includeBacklinks !== false,
+      allMemosByAccount: heartbeatAllMemos,
+    })
+    const memosAll = loadAllMemos()
+    // ラベル付きのメモ / skill を文脈に入れたら、宛先の出所判定で system を
+    // untrusted 側に置く (#1103)。使い捨て履歴なのでセッションの汚染は無い
+    const contextUntrusted =
+      heartbeatMemos.some((m) => memosAll[m.id]?.data.tainted === true) ||
+      skillsStore.heartbeatSkills.some((s) => s.tainted === true)
     const notedeckContext = buildAiContextBlock(config.value, {
       // HEARTBEAT はカラムに属さないので文脈アカウントも無い
       currentAccount: null,
       currentColumn: null,
-      memos: projectMemos(heartbeatMemoEntries, {
-        excludeTags: heartbeatMemosCfg?.excludeTags,
-        expandLinks: heartbeatMemosCfg?.expandLinks !== false,
-        includeBacklinks: heartbeatMemosCfg?.includeBacklinks !== false,
-        allMemosByAccount: heartbeatAllMemos,
-      }),
+      memos: heartbeatMemos,
       accounts: accountsStore.accounts,
     })
     const heartbeatContext = `<heartbeat-skills>\n${skillBodies.join('\n\n---\n\n')}\n</heartbeat-skills>`
@@ -864,6 +871,7 @@ export function useHeartbeatDaemon() {
     const outcome = await turn.run({
       sessionId: HEARTBEAT_EPHEMERAL_SESSION_ID,
       persist: false,
+      contextUntrusted,
       text: `Heartbeat tick at ${new Date(payload.triggered_at_ms).toISOString()}`,
       principal: 'ai.heartbeat',
       connectionId: resolved.connection.id,
