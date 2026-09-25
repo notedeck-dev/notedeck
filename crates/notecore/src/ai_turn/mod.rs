@@ -140,7 +140,7 @@ pub struct AiTurnRequest {
 #[derive(Debug, Clone, Serialize, Type)]
 pub struct AiTurnEvent {
     pub turn_id: String,
-    /// `"delta" | "tool_use" | "tool_result" | "done" | "error" | "title"
+    /// `"delta" | "tool_use" | "tool_result" | "done" | "error" | "title" | "intent"
     /// | "confirm_request" | "confirm_closed"`
     pub kind: String,
     /// delta: 追記テキスト / tool_use: その assistant メッセージの本文 (ラウンド
@@ -768,6 +768,9 @@ pub struct PendingToolUse {
     /// notecore で実行する (デバイスに投げない)
     #[serde(default)]
     pub core: bool,
+    /// 無人実行で確認が要る操作: 走らせずに書込意図として残す (#1133 縦切り 5b)
+    #[serde(default)]
+    pub intent: bool,
 }
 
 /// turn の状態。確認で停止するときはこれをチェックポイントに書き、応答で
@@ -963,6 +966,7 @@ async fn prepare_pending(
             untrusted: false,
             destination_untrusted: false,
             core: false,
+            intent: false,
         };
         match authorize(&p.name, index, &granted) {
             Err(text) => p.deny = Some(text),
@@ -1000,10 +1004,11 @@ async fn prepare_pending(
                         tool.capability_id
                     ));
                 } else if needs && unattended {
-                    // 無人実行は承認を待たない (#1106 §4.8)。その場で拒否して
-                    // AI に返す。下書き / 受信箱カードに変えるのは後続
+                    // 無人実行は承認を待たない (#1106 §4.8)。走らせずに書込意図として
+                    // 残し (受信箱カード / 投稿系は下書き)、AI にはそう伝える
+                    p.intent = true;
                     p.deny = Some(format!(
-                        "Error (user_cancelled): Unattended HEARTBEAT does not run operations that require confirmation: {}",
+                        "Queued (unattended): Unattended HEARTBEAT does not run operations that require confirmation. The request was recorded for the user to review and run: {}",
                         tool.capability_id
                     ));
                 } else {
@@ -1125,6 +1130,19 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
         e.message_id = Some(tool_use_msg_id.clone());
         rt.sink.emit(e);
 
+        if tu.intent {
+            // 書込意図 (無人実行で確認が要った操作) を届ける。HEARTBEAT daemon が
+            // 受信箱カード / 下書きにする
+            let mut e = AiTurnEvent::new(&turn_id, "intent");
+            e.tool_use_id = Some(tu.id.clone());
+            e.tool_use_name = tu.capability_id.clone();
+            e.tool_use_input = Some(tu.input.clone());
+            e.reason = state
+                .req
+                .context_untrusted
+                .then(|| "context_untrusted".to_string());
+            rt.sink.emit(e);
+        }
         let (result, is_error) = if let Some(deny) = tu.deny.clone() {
             (deny, true)
         } else if tu.needs_confirm && tu.decision != Some(true) {
@@ -2242,7 +2260,11 @@ mod tests {
         assert!(device.previews().is_empty());
         assert!(device.executes().is_empty());
         let r = h.sink.find("tool_result").unwrap();
-        assert!(r.text.unwrap().contains("Unattended HEARTBEAT"));
+        assert!(r.text.unwrap().contains("Queued (unattended)"));
+        // 書込意図として届く
+        let intent = h.sink.find("intent").unwrap();
+        assert_eq!(intent.tool_use_name.as_deref(), Some("notes.create"));
+        assert!(intent.tool_use_input.is_some());
         assert_eq!(h.sink.last().kind, "done");
     }
 

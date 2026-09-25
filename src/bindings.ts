@@ -3726,7 +3726,12 @@ role: string; content: string; timestamp: number; toolUseId?: string | null; too
 /**
  * HEARTBEAT の報告 (AI の履歴からは除く)
  */
-heartbeat?: boolean | null }
+heartbeat?: boolean | null; 
+/**
+ * 無人実行の書込意図 (受信箱カード、#1133): `{ capabilityId, params, untrusted,
+ * status, draftId?, source, createdAt }`。人がボタンを押して確認を経てから走る
+ */
+intent?: JsonValue | null }
 /**
  * 変わったファイル。`subdir` が `None` ならルート直下 (`settings.json5` 等)。
  */

@@ -46,6 +46,10 @@ pub struct SessionMessage {
     /// HEARTBEAT の報告 (AI の履歴からは除く)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub heartbeat: Option<bool>,
+    /// 無人実行の書込意図 (受信箱カード、#1133): `{ capabilityId, params, untrusted,
+    /// status, draftId?, source, createdAt }`。人がボタンを押して確認を経てから走る
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intent: Option<Value>,
 }
 
 /// セッション (wire)。`message_count` / `last_message_preview` は算出値。
@@ -136,6 +140,7 @@ const KNOWN_MESSAGE_FIELDS: &[&str] = &[
     "toolUseInput",
     "toolResultFor",
     "heartbeat",
+    "intent",
 ];
 
 pub fn now_ms() -> u64 {
@@ -193,6 +198,7 @@ fn message_from_value(v: &Value) -> Option<MessageFile> {
             .get("toolResultFor")
             .and_then(Value::as_str)
             .map(str::to_string),
+        intent: obj.get("intent").filter(|v| !v.is_null()).cloned(),
         heartbeat: obj.get("heartbeat").and_then(Value::as_bool),
     };
     let extra: Map<String, Value> = obj

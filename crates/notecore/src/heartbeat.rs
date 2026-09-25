@@ -498,20 +498,12 @@ async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
     let Some(report) = report else {
         return Ok("skip:no-response".into());
     };
-    let Some(visible) = report.body else {
+    if report.body.is_none() && report.intents.is_empty() {
         return Ok("suppressed".into());
-    };
-    deliver(
-        core,
-        &cfg,
-        &visible,
-        report.notify,
-        report.local_stamp,
-        report.local_title_time,
-        now,
-    )
-    .await?;
-    Ok("reported".into())
+    }
+    let reported = report.body.is_some();
+    deliver(core, &cfg, report, now).await?;
+    Ok(if reported { "reported" } else { "queued" }.into())
 }
 
 /// cheap check: notecore 単独で実行できる cheap な capability だけ。
@@ -557,10 +549,19 @@ async fn collect_cheap_results(core: &Core, hb_skills: &[SkillMeta]) -> HashMap<
     out
 }
 
+/// 無人実行で確認が要った操作 (走らせずに残す)。
+struct Intent {
+    capability_id: String,
+    params: Value,
+    /// 他人の内容を読んだ文脈で作られた
+    untrusted: bool,
+}
+
 struct Report {
     /// None = 報告なし (抑制)
     body: Option<String>,
     notify: bool,
+    intents: Vec<Intent>,
     local_stamp: Option<String>,
     local_title_time: Option<String>,
 }
@@ -697,6 +698,17 @@ async fn run_inference(
         .filter(|e| e.kind == "tool_use" && e.tool_use_name.as_deref() == Some(&report_tool_name))
         .filter_map(|e| e.tool_use_input.clone())
         .next_back();
+    let intents: Vec<Intent> = events
+        .iter()
+        .filter(|e| e.kind == "intent")
+        .filter_map(|e| {
+            Some(Intent {
+                capability_id: e.tool_use_name.clone()?,
+                params: e.tool_use_input.clone().unwrap_or(json!({})),
+                untrusted: e.reason.as_deref() == Some("context_untrusted"),
+            })
+        })
+        .collect();
     let local_stamp = device
         .get("localStamp")
         .and_then(Value::as_str)
@@ -714,6 +726,7 @@ async fn run_inference(
         return Ok(Some(Report {
             body: (!body.is_empty()).then(|| body.to_string()),
             notify: input.get("notify").and_then(Value::as_bool) == Some(true),
+            intents,
             local_stamp,
             local_title_time,
         }));
@@ -726,6 +739,7 @@ async fn run_inference(
     Ok(Some(Report {
         body: apply_suppression(final_text.as_deref(), ACK_MAX_CHARS),
         notify: true,
+        intents,
         local_stamp,
         local_title_time,
     }))
@@ -796,43 +810,97 @@ fn hb_message(id: String, content: String, ts: u64) -> SessionMessage {
         tool_use_input: None,
         tool_result_for: None,
         heartbeat: Some(true),
+        intent: None,
     }
 }
 
-async fn deliver(
-    core: &Core,
-    cfg: &AiConfigLite,
-    visible: &str,
-    notify: bool,
-    local_stamp: Option<String>,
-    local_title_time: Option<String>,
-    now: u64,
-) -> Result<()> {
+/// 書込意図 → 受信箱カード (投稿系は下書きも作る)。
+async fn intent_message(core: &Core, intent: &Intent, now: u64, index: usize) -> SessionMessage {
+    let label = capabilities::find(&intent.capability_id)
+        .map(|d| d.label.to_string())
+        .unwrap_or_else(|| intent.capability_id.clone());
+    let mut status = "pending";
+    let mut draft_id: Option<String> = None;
+    let mut error: Option<String> = None;
+    if intent.capability_id == "notes.create" {
+        // 投稿系は下書きに落とす (#1106 §4.8)。アカウントは引数から
+        match intent.params.get("accountId").and_then(Value::as_str) {
+            Some(account_id) if !account_id.is_empty() => {
+                let p = &intent.params;
+                let body = json!({
+                    "text": p.get("text").cloned().unwrap_or(Value::Null),
+                    "cw": p.get("cw").cloned().unwrap_or(Value::Null),
+                    "visibility": p.get("visibility").cloned().unwrap_or(json!("public")),
+                    "replyId": p.get("replyId").cloned().unwrap_or(Value::Null),
+                    "renoteId": p.get("renoteId").cloned().unwrap_or(Value::Null),
+                    "channelId": p.get("channelId").cloned().unwrap_or(Value::Null),
+                });
+                match crate::commands::drafts::api_create_draft(core, account_id.to_string(), body)
+                    .await
+                {
+                    Ok(d) => {
+                        status = "drafted";
+                        draft_id = Some(d.id);
+                    }
+                    Err(e) => {
+                        tracing::warn!("heartbeat: draft creation failed: {e}");
+                        error = Some(e.to_string());
+                    }
+                }
+            }
+            _ => error = Some("accountId が無いので下書きにできません".into()),
+        }
+    }
+    let mut msg = hb_message(
+        format!("msg-{now}-hb-intent-{index}"),
+        format!("{label} の実行を提案しました"),
+        now,
+    );
+    msg.intent = Some(json!({
+        "capabilityId": intent.capability_id,
+        "params": intent.params,
+        "untrusted": intent.untrusted,
+        "status": status,
+        "draftId": draft_id,
+        "error": error,
+        "source": "heartbeat",
+        "createdAt": now,
+    }));
+    msg
+}
+
+async fn deliver(core: &Core, cfg: &AiConfigLite, report: Report, now: u64) -> Result<()> {
     let Some((session_id, created)) =
-        resolve_target(core, cfg, local_stamp, local_title_time, now).await?
+        resolve_target(core, cfg, report.local_stamp, report.local_title_time, now).await?
     else {
         tracing::debug!(
             target = %cfg.heartbeat.target,
             "heartbeat target resolved to null, log only: {}",
-            visible.chars().take(80).collect::<String>()
+            report.body.as_deref().unwrap_or("").chars().take(80).collect::<String>()
         );
         return Ok(());
     };
     let base = settings_base_dir(core)?;
-    ai_sessions::append(
-        &base,
-        &session_id,
-        vec![hb_message(
+    let mut messages = Vec::new();
+    for (i, intent) in report.intents.iter().enumerate() {
+        messages.push(intent_message(core, intent, now, i).await);
+    }
+    if let Some(visible) = report.body.as_deref() {
+        messages.push(hb_message(
             format!("msg-{now}-hb"),
             visible.to_string(),
             now,
-        )],
-    )?;
+        ));
+    }
+    ai_sessions::append(&base, &session_id, messages)?;
     let mut ev = HeartbeatEvent::new("report");
     ev.session_id = Some(session_id.clone());
     ev.created = Some(created);
     emit(core, ev);
-    if notify && cfg.heartbeat.desktop_notification {
+    let Some(visible) = report.body.as_deref() else {
+        return Ok(());
+    };
+    if report.notify && cfg.heartbeat.desktop_notification {
         let mut body: String = visible.chars().take(200).collect();
         if visible.chars().count() > 200 {
             body.push('…');

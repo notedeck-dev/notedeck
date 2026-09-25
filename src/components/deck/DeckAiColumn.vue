@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
+import type { CapabilityId } from '@/capabilities/declarations.generated'
+import { CAPABILITY_DECLARATIONS } from '@/capabilities/declarations.generated'
+import { dispatchCapability } from '@/capabilities/dispatcher'
 import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
-import type { ChatMessage } from '@/composables/useAiChat'
+import type { AiIntent, ChatMessage } from '@/composables/useAiChat'
 import {
   normalizeGenerationConfig,
   resolveAiConnection,
@@ -688,6 +691,66 @@ function toggleToolDetail(msgId: string) {
   }
 }
 
+// --- 受信箱カード (無人実行の書込意図, #1133) ---
+const intentBusy = ref<string | null>(null)
+
+function intentLabel(intent: AiIntent): string {
+  return (
+    CAPABILITY_DECLARATIONS[intent.capabilityId as CapabilityId]?.label ??
+    intent.capabilityId
+  )
+}
+
+function intentStatusLabel(intent: AiIntent): string {
+  switch (intent.status) {
+    case 'drafted':
+      return '下書きに保存済み'
+    case 'executed':
+      return '実行済み'
+    case 'dismissed':
+      return '却下'
+    default:
+      return '未処理'
+  }
+}
+
+function updateIntent(msg: ChatMessage, patch: Partial<AiIntent>): void {
+  if (!currentSessionId.value || !msg.intent) return
+  sessionsStore.replaceMessage(currentSessionId.value, {
+    ...msg,
+    intent: { ...msg.intent, ...patch },
+  })
+}
+
+/** 人がボタンを押した時点で、生成元と汚染を添えた確認を経てから走る */
+async function runIntent(msg: ChatMessage): Promise<void> {
+  const intent = msg.intent
+  if (!intent || intentBusy.value) return
+  intentBusy.value = msg.id
+  try {
+    const note = intent.untrusted
+      ? '無人実行 (HEARTBEAT) が他人の内容を読んで作った操作です。宛先と本文を確かめてから許可してください。'
+      : '無人実行 (HEARTBEAT) が提案した操作です。'
+    const res = await dispatchCapability(
+      intent.capabilityId as CapabilityId,
+      intent.params,
+      { principal: { kind: 'user' } },
+      { forceConfirm: true, confirmNote: note, tainted: intent.untrusted },
+    )
+    if (res.ok) {
+      updateIntent(msg, { status: 'executed' })
+    } else if (res.code !== 'user_cancelled') {
+      toast.show(`実行できませんでした: ${res.error}`, 'warning')
+    }
+  } finally {
+    intentBusy.value = null
+  }
+}
+
+function dismissIntent(msg: ChatMessage): void {
+  updateIntent(msg, { status: 'dismissed' })
+}
+
 function isToolUseMessage(msg: ChatMessage): boolean {
   return msg.role === 'assistant' && Boolean(msg.toolUseId && msg.toolUseName)
 }
@@ -1033,6 +1096,34 @@ function onKeydown(e: KeyboardEvent) {
               />
               <pre v-else :class="$style.toolEventBody">{{ msg.content }}</pre>
             </template>
+          </div>
+
+          <!-- 受信箱カード: 無人実行 (HEARTBEAT) の書込意図 (#1133) -->
+          <div v-else-if="msg.intent" :class="[$style.toolEvent, $style.intentCard]">
+            <div :class="$style.intentHeader">
+              <i class="ti ti-inbox" :class="$style.toolIcon" />
+              <span :class="$style.toolEventLabel">提案</span>
+              <span :class="$style.intentTitle">{{ intentLabel(msg.intent) }}</span>
+              <span :class="[$style.intentStatus, $style[`intentStatus_${msg.intent.status}`]]">{{ intentStatusLabel(msg.intent) }}</span>
+            </div>
+            <div :class="$style.intentNotes">
+              <div>無人実行 (HEARTBEAT) が提案した操作です。実行前に確認が出ます。</div>
+              <div v-if="msg.intent.untrusted" :class="$style.intentWarn">他人の内容を読んだ文脈で作られました。宛先と本文を確かめてください。</div>
+              <div v-if="msg.intent.error" :class="$style.intentWarn">下書きにできませんでした: {{ msg.intent.error }}</div>
+            </div>
+            <div
+              :key="`intent-${msg.id}-${highlightRevision}`"
+              :class="$style.toolEventBody"
+              v-html="renderToolJson(`in:${msg.id}`, formatToolInput(msg.intent.params))"
+            />
+            <div v-if="msg.intent.status === 'pending' || msg.intent.status === 'drafted'" :class="$style.intentActions">
+              <button class="_button" :class="$style.intentRun" :disabled="intentBusy === msg.id" @click="runIntent(msg)">
+                <i class="ti ti-player-play" /> 実行
+              </button>
+              <button class="_button" :class="$style.intentDismiss" :disabled="intentBusy === msg.id" @click="dismissIntent(msg)">
+                却下
+              </button>
+            </div>
           </div>
 
           <!-- 通常メッセージ -->
@@ -1529,6 +1620,65 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 // --- Tool call / result event (中央寄せの控えめバブル) ---
+
+// 受信箱カード (無人の書込意図, #1133)
+.intentCard {
+  border-left: 3px solid var(--accent);
+}
+
+.intentHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 0.85em;
+}
+
+.intentTitle {
+  font-weight: 600;
+}
+
+.intentStatus {
+  margin-left: auto;
+  font-size: 0.8em;
+  opacity: 0.75;
+}
+
+.intentStatus_executed {
+  color: var(--success, var(--accent));
+}
+
+.intentNotes {
+  padding: 0 8px 6px;
+  font-size: 0.8em;
+  opacity: 0.85;
+}
+
+.intentWarn {
+  color: var(--warn, var(--accent));
+}
+
+.intentActions {
+  display: flex;
+  gap: 8px;
+  padding: 6px 8px 8px;
+}
+
+.intentRun,
+.intentDismiss {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+
+.intentRun {
+  background: var(--accent);
+  color: var(--fgOnAccent);
+}
+
+.intentDismiss {
+  background: var(--buttonBg);
+}
 
 .toolEvent {
   display: flex;
