@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { emitNoteDeckEvent } from '@/aiscript/events'
 import { injectFrontmatterId } from '@/services/idFreeze'
+import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { createSingleFileCollection } from '@/services/singleFileCollection'
 import { planStoreMovedMigration } from '@/services/storeMovedSkills'
 import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
@@ -254,6 +255,43 @@ const skillFiles = createSingleFileCollection<SkillMeta, ParsedSkillFile>({
 export const useSkillsStore = defineStore('skills', () => {
   const skills = ref<SkillMeta[]>([])
   const initialized = ref(false)
+
+  // notecore が skill ファイルを書いた (AI の skills.* は notecore の本体が書く,
+  // #1133) → そのファイルだけ読み直して写しを揃える。履歴ファイルは写しを
+  // 持たないので無視する
+  registerSettingsFileHandler('skills', async (change) => {
+    if (!change.name.endsWith(settingsFs.SKILL_EXT)) return
+    const base = change.name.slice(0, -settingsFs.SKILL_EXT.length)
+    if (change.op === 'delete') {
+      skills.value = skills.value.filter((s) => s.fileBase !== base)
+      return
+    }
+    let raw: string
+    try {
+      raw = await settingsFs.readSkillFile(change.name)
+    } catch (e) {
+      console.warn(`[skills] reload ${change.name} failed:`, e)
+      return
+    }
+    const parsed = parseSkillFile(raw)
+    const id = typeof parsed.meta.id === 'string' ? parsed.meta.id : base
+    const next: SkillMeta = {
+      ...metaFromFrontmatter(
+        { ...(parsed.meta as SkillFrontmatter), id },
+        parsed.body,
+        base,
+      ),
+      fileBase: base,
+    }
+    const idx = skills.value.findIndex(
+      (s) => s.id === next.id || s.fileBase === base,
+    )
+    skills.value =
+      idx >= 0
+        ? skills.value.map((s, i) => (i === idx ? next : s))
+        : [...skills.value, next]
+    emitNoteDeckEvent('skill:edited', { id: next.id })
+  })
   let loaded = false
   // 変更系操作 (新規作成・リネーム・保存・削除) のファイル反映は
   // 「初回読込 (対応表確定) + 初回移行」の完了を待つゲート (#913)

@@ -58,7 +58,7 @@ const ALLOWED: Record<string, string> = {
     'lifecycle: 確認要求の決着 (finally) で削除 (#1133)',
   'src/capabilities/declare.ts:CORE_DELEGATES':
     'lifecycle: WeakSet — Command が参照されなくなれば消える (#1133)',
-  'src/composables/useSettingsFileSync.ts:handlers':
+  'src/services/settingsFileSync.ts:handlers':
     'bounded: scope ごとの store の登録。登録解除で消え、面の数を超えない (#1133)',
   'src/utils/highlight.ts:pendingLangs': 'lifecycle: ロード完了で削除',
   'src/composables/useOgpPreview.ts:pendingRequests':

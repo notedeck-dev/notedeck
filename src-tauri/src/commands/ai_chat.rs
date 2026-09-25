@@ -38,7 +38,7 @@ impl CoreExecutor for TauriCoreExecutor {
         id: &'a str,
         params: serde_json::Value,
         ctx: ExecContext,
-    ) -> BoxFuture<'a, Result<serde_json::Value, String>> {
+    ) -> BoxFuture<'a, Result<notecore::capabilities::exec::ExecOutcome, String>> {
         Box::pin(async move {
             let core = self.0.state::<notecore::context::Core>();
             notecore::capabilities::exec::execute(&core, id, params, &ctx)

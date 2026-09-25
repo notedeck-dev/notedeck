@@ -4293,7 +4293,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "skill 本文の末尾に markdown を追記する。skill 全体を書き換えるのではなく追記のみ (= 学習が積み上がる)。frontmatter は触れない。",
         params: &[
             ParamDecl {
@@ -4336,7 +4336,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "新規スキルを作成する。既存スキルの編集はできない (skills.append / skills.replaceSection を使う)。id は内部生成される。作成直後は mode=manual なら未有効 (skills.toggle で有効化)、trigger なら次ターンからマッチで自動ロード、always は常時注入される。body に frontmatter (---) を含めないこと (mode 等はパラメータで渡す)。",
         params: &[
             ParamDecl {
@@ -4400,7 +4400,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 id の skill の編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。 各エントリは { at: 時刻 ms, snapshot: { body, name?, version?, mode? } }。",
         params: &[
             ParamDecl {
@@ -4429,7 +4429,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "MisStore (store.notedeck.io) の既製スキルをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 既存の同 storeId / 同 id は上書き更新 (= 再インストール = アップデート)。",
         params: &[
             ParamDecl {
@@ -4458,7 +4458,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "登録されている skill の一覧を返す。各要素は { id, name, mode, isPersona, builtIn, author?, description? }。body は含まれない (= 大きいため、skills.read で個別取得)。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -4479,7 +4479,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 id の skill の markdown 本文を返す。",
         params: &[
             ParamDecl {
@@ -4508,7 +4508,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "skill 本文の `## <heading>` セクションを置換する。該当 heading が無ければ末尾に新規セクションとして追加 (idempotent)。",
         params: &[
             ParamDecl {
@@ -4558,7 +4558,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "skill を編集履歴の index 番目の snapshot に戻す。skills.history で index を取得。",
         params: &[
             ParamDecl {
@@ -4601,7 +4601,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "skill の active 状態を切り替える。mode=\"always\" の skill は常時 active 扱いのため設定は無視される。mode=\"trigger\" の skill は triggers[] が user 入力に部分一致したターンだけ自動 active になる。",
         params: &[
             ParamDecl {
@@ -4637,7 +4637,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         visible: false,
         untrusted: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みスキルを完全削除する。frontmatter・本文・編集履歴ファイルが 消える (= 不可逆)。",
         params: &[
             ParamDecl {

@@ -18,6 +18,8 @@ mod notes;
 mod preview;
 mod project;
 mod server;
+mod skills;
+mod staged;
 mod time;
 mod user;
 mod writes;
@@ -36,6 +38,18 @@ pub struct ExecContext {
     /// 呼び出し文脈のアカウント (per-account の AI カラムなど)。無ければ
     /// capability は `params.accountId` を必須にする (#941)
     pub account_id: Option<String>,
+    /// 呼び出し元のセッションが tainted (他人の内容を読んだ後) か (#1103)。
+    /// 書込にラベルを付けるのに使う
+    pub tainted: bool,
+}
+
+/// 実行結果。`tainted` は「ラベル付きの内容を返した」の申告 (呼び出し元の
+/// セッションを tainted にする)。
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecOutcome {
+    pub value: Value,
+    pub tainted: bool,
 }
 
 /// 引数の `accountId` → 文脈のアカウント、の順で解決する (#941)。
@@ -108,13 +122,33 @@ pub async fn preview(
     if !decl.confirm {
         return Ok(None);
     }
+    if id.starts_with("skills.") {
+        return skills::preview(core, id, &params, ctx).await;
+    }
     Ok(Some(
         preview::custom(id, &params).unwrap_or_else(|| preview::generic(decl.label, &params)),
     ))
 }
 
 /// capability を notecore で実行する。宣言表に無い / core でない id はエラー。
-pub async fn execute(core: &Core, id: &str, params: Value, ctx: &ExecContext) -> Result<Value> {
+pub async fn execute(
+    core: &Core,
+    id: &str,
+    params: Value,
+    ctx: &ExecContext,
+) -> Result<ExecOutcome> {
+    if id == "skills.read" {
+        let (value, tainted) = skills::read(core, &params)?;
+        return Ok(ExecOutcome { value, tainted });
+    }
+    let value = execute_value(core, id, params, ctx).await?;
+    Ok(ExecOutcome {
+        value,
+        tainted: false,
+    })
+}
+
+async fn execute_value(core: &Core, id: &str, params: Value, ctx: &ExecContext) -> Result<Value> {
     if !is_core(id) {
         return Err(NoteDeckError::InvalidInput(format!(
             "{id} は notecore では実行できません (exec が core ではない)"
@@ -183,6 +217,16 @@ pub async fn execute(core: &Core, id: &str, params: Value, ctx: &ExecContext) ->
         "ai.sessions.read" => meta::ai_sessions_read(core, p),
         "ai.sessions.search" => meta::ai_sessions_search(core, p),
         "meta.permissions" => meta::meta_permissions(ctx).await,
+        // --- skill (本体は crate::skills、書込は変更通知つき) ---
+        "skills.list" => skills::list(core),
+        "skills.history" => skills::history(core, p),
+        "skills.create" => skills::create(core, p, ctx),
+        "skills.append" => skills::append(core, p, ctx),
+        "skills.replaceSection" => skills::replace_section(core, p, ctx),
+        "skills.toggle" => skills::toggle(core, p),
+        "skills.revert" => skills::revert(core, p, ctx),
+        "skills.install" => skills::install(core, p).await,
+        "skills.uninstall" => skills::uninstall(core, p),
         // --- 外部ネットワーク ---
         "http.fetch" => net::http_fetch(core, p).await,
         "misstore.search" => net::misstore_search(core, p).await,
@@ -256,6 +300,16 @@ const HAS_BODY: &[&str] = &[
     "ai.sessions.read",
     "ai.sessions.search",
     "meta.permissions",
+    "skills.list",
+    "skills.read",
+    "skills.history",
+    "skills.create",
+    "skills.append",
+    "skills.replaceSection",
+    "skills.toggle",
+    "skills.revert",
+    "skills.install",
+    "skills.uninstall",
 ];
 
 #[cfg(test)]
@@ -285,6 +339,7 @@ mod tests {
         let ctx = ExecContext {
             principal: "ai.chat".into(),
             account_id: Some("ctx".into()),
+            tainted: false,
         };
         assert_eq!(
             resolve_account_id(&serde_json::json!({"accountId": " p "}), &ctx).unwrap(),

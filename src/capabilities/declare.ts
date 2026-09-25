@@ -114,19 +114,25 @@ export function implementCore(
                 (params ?? {}) as JsonValue,
                 ctx?.principal?.kind ?? 'user',
                 ctx?.accountId ?? null,
+                ctx?.tainted === true,
               ),
             ) as ConfirmOptions | null) ?? null,
         }
       : {}),
-    execute: async (params, ctx) =>
-      unwrap(
+    execute: async (params, ctx) => {
+      const outcome = unwrap(
         await commands.capabilityExecute(
           id,
           (params ?? {}) as JsonValue,
           ctx?.principal?.kind ?? 'user',
           ctx?.accountId ?? null,
+          ctx?.tainted === true,
         ),
-      ),
+      )
+      // notecore が「ラベル付き (tainted) の内容を返した」と申告したら呼び出し元へ
+      if (outcome.tainted) ctx?.markTainted?.()
+      return outcome.value
+    },
   })
   CORE_DELEGATES.add(cmd)
   return cmd

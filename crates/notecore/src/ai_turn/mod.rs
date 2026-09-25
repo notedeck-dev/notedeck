@@ -294,7 +294,7 @@ pub trait CoreExecutor: Send + Sync + 'static {
         id: &'a str,
         params: Value,
         ctx: capabilities::exec::ExecContext,
-    ) -> BoxFuture<'a, std::result::Result<Value, String>>;
+    ) -> BoxFuture<'a, std::result::Result<capabilities::exec::ExecOutcome, String>>;
 }
 
 /// principal の実効 granted の供給元。tool 一覧の組み立てと tool 呼び出しごとに
@@ -1130,9 +1130,14 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
             // notecore 単独で実行できる capability はデバイスに投げない
             state.tool_executed = true;
             let executor = rt.core.as_ref().expect("checked");
+            let session_tainted = match state.req.session_id.as_deref() {
+                Some(sid) => rt.taint.is_tainted(sid).await,
+                None => false,
+            };
             let ctx = capabilities::exec::ExecContext {
                 principal: state.req.principal.clone(),
                 account_id: state.req.account_id.clone(),
+                tainted: session_tainted,
             };
             match executor
                 .execute(
@@ -1142,8 +1147,20 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
                 )
                 .await
             {
-                Ok(Value::String(s)) => (s, false),
-                Ok(v) => (v.to_string(), false),
+                Ok(outcome) => {
+                    // ラベル付きの内容を返した (tainted なメモ / skill) → セッションを汚染
+                    if outcome.tainted {
+                        if let Some(sid) = state.req.session_id.as_deref() {
+                            rt.taint
+                                .mark(sid, tu.capability_id.as_deref().unwrap_or(&tu.name))
+                                .await;
+                        }
+                    }
+                    match outcome.value {
+                        Value::String(s) => (s, false),
+                        v => (v.to_string(), false),
+                    }
+                }
                 Err(e) => (format!("Error (execute_failed): {e}"), true),
             }
         } else {
@@ -1721,7 +1738,7 @@ mod tests {
             _id: &'a str,
             _params: Value,
             _ctx: capabilities::exec::ExecContext,
-        ) -> BoxFuture<'a, std::result::Result<Value, String>> {
+        ) -> BoxFuture<'a, std::result::Result<capabilities::exec::ExecOutcome, String>> {
             Box::pin(async { Err("no core".into()) })
         }
     }
@@ -1737,10 +1754,15 @@ mod tests {
             id: &'a str,
             params: Value,
             _ctx: capabilities::exec::ExecContext,
-        ) -> BoxFuture<'a, std::result::Result<Value, String>> {
+        ) -> BoxFuture<'a, std::result::Result<capabilities::exec::ExecOutcome, String>> {
             self.calls.lock().unwrap().push((id.to_string(), params));
             let reply = self.reply.clone();
-            Box::pin(async move { Ok(reply) })
+            Box::pin(async move {
+                Ok(capabilities::exec::ExecOutcome {
+                    value: reply,
+                    tainted: false,
+                })
+            })
         }
     }
 

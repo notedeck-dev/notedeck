@@ -2270,18 +2270,18 @@ async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; m
 }
 },
 /** @see crates/notecore/src/commands/ai_chat.rs */
-async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
+async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId }) };
+    return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /** @see crates/notecore/src/commands/ai_chat.rs */
-async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null }>> {
+async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId }) };
+    return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId, tainted }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -3157,6 +3157,11 @@ ttlDays: number | null;
  * トリムは membership とその対象限定の orphan entity のみを消す。
  */
 perTimelineLimit: number | null }
+/**
+ * 実行結果。`tainted` は「ラベル付きの内容を返した」の申告 (呼び出し元の
+ * セッションを tainted にする)。
+ */
+export type ExecOutcome = { value: JsonValue; tainted: boolean }
 /**
  * EXIF 1 フィールド。tag はタグ名 (例: "DateTimeOriginal", "GPSLatitude")。
  */

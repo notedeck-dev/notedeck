@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  _resetSettingsFileSyncForTest,
+  _resetSettingsFileHandlersForTest,
   dispatchSettingsChange,
   registerSettingsFileHandler,
   scopeOf,
-} from './useSettingsFileSync'
+} from './settingsFileSync'
 
-afterEach(() => _resetSettingsFileSyncForTest())
+afterEach(() => _resetSettingsFileHandlersForTest())
 
 describe('settings file sync registry', () => {
   it('subdir の変更はその scope の handler だけに届き、root は "root" に届く', async () => {
