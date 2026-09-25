@@ -973,8 +973,10 @@ async fn prepare_pending(
                     .iter()
                     .any(|v| corpus.origin_of(v) == Origin::Untrusted);
                 let mut needs = tool.confirm || cross || p.destination_untrusted;
-                if needs && !cross && !tainted && !p.destination_untrusted {
-                    // 「次から確認しない」(権限ファイルへの減算) を尊重する
+                if needs && !cross && !tainted && !p.destination_untrusted && !unattended {
+                    // 「次から確認しない」(権限ファイルへの減算) を尊重する。
+                    // 記憶はチャットの範囲だけ (#714)。無人の HEARTBEAT には波及
+                    // させない (デバイスの dispatcher と同じ)
                     if rt.skips.skipped(CHAT_SKIP_SCOPE, &tool.capability_id).await {
                         needs = false;
                     }
@@ -2219,6 +2221,29 @@ mod tests {
         let r = h.sink.find("tool_result").unwrap();
         assert!(r.text.unwrap().contains("Unattended HEARTBEAT"));
         assert_eq!(h.sink.last().kind, "done");
+    }
+
+    #[tokio::test]
+    async fn chat_confirm_skips_do_not_leak_into_unattended_heartbeat() {
+        // チャットで「次から確認しない」を記憶していても、無人の HEARTBEAT では
+        // 確認が要る操作として拒否する (dispatcher.test.ts の「ai.chat の remember は
+        // ai.heartbeat に波及しない」と同じ)
+        let device = FakeDevice::new(json!({"ok": true, "result": "never"}));
+        let mut skips = HashSet::new();
+        skips.insert("ai.chat:notes.create".to_string());
+        let h = harness_with(
+            confirm_script(),
+            &["notes.write"],
+            device.clone(),
+            skips,
+            confirm::ConfirmPolicy::default(),
+        );
+        let mut req = request();
+        req.principal = "ai.heartbeat".into();
+        drive(h.rt.clone(), TurnState::new(req)).await;
+        assert!(device.executes().is_empty());
+        let r = h.sink.find("tool_result").unwrap();
+        assert!(r.text.unwrap().contains("Unattended HEARTBEAT"));
     }
 
     #[tokio::test]
