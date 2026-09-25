@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { emitNoteDeckEvent } from '@/aiscript/events'
+import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { useSettingsStore } from '@/stores/settings'
 import * as themeFileSync from '@/stores/themeFileSync'
@@ -695,6 +696,85 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   const cssManager = new CustomCssManager()
+
+  // notecore がテーマファイル / custom.css を書いた (AI の theme.* / styles.* は
+  // notecore の本体が書く, #1133) → そのファイルだけ写しを揃え、画面に反映する。
+  // 履歴ファイルは写しを持たないので無視する
+  registerSettingsFileHandler('themes', async (change) => {
+    if (!change.name.endsWith(settingsFs.THEME_EXT)) return
+    const fileBase = change.name.slice(0, -settingsFs.THEME_EXT.length)
+    if (change.op === 'delete') {
+      const removed = installedThemes.value.find((t) => t.fileBase === fileBase)
+      if (!removed) return
+      installedThemes.value = installedThemes.value.filter(
+        (t) => t.fileBase !== fileBase,
+      )
+      if (selectedDarkThemeId.value === removed.id) {
+        selectedDarkThemeId.value = null
+      }
+      if (selectedLightThemeId.value === removed.id) {
+        selectedLightThemeId.value = null
+      }
+      setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+      applyCurrentTheme()
+      return
+    }
+    let raw: string
+    try {
+      raw = await settingsFs.readTheme(change.name)
+    } catch (e) {
+      console.warn(`[theme] reload ${change.name} failed:`, e)
+      return
+    }
+    const JSON5 = (await import('json5')).default
+    let parsed: unknown
+    try {
+      parsed = JSON5.parse(raw)
+    } catch {
+      return
+    }
+    if (!parsed || typeof parsed !== 'object') return
+    const p = parsed as Record<string, unknown>
+    if (!p.props || typeof p.props !== 'object') return
+    const theme: MisskeyTheme = {
+      id: typeof p.id === 'string' && p.id ? p.id : `custom-${change.name}`,
+      name: typeof p.name === 'string' && p.name ? p.name : change.name,
+      base: p.base === 'light' ? 'light' : 'dark',
+      props: p.props as Record<string, string>,
+      fileBase,
+    }
+    if (p.$notedeck && typeof p.$notedeck === 'object') {
+      theme.$notedeck = { ...(p.$notedeck as Record<string, unknown>) }
+    }
+    const idx = installedThemes.value.findIndex(
+      (t) => t.id === theme.id || t.fileBase === fileBase,
+    )
+    installedThemes.value =
+      idx >= 0
+        ? installedThemes.value.map((t, i) => (i === idx ? theme : t))
+        : [...installedThemes.value, theme]
+    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+    if (
+      selectedDarkThemeId.value === theme.id ||
+      selectedLightThemeId.value === theme.id
+    ) {
+      applyCurrentTheme()
+    }
+  })
+  registerSettingsFileHandler('root', async (change) => {
+    if (change.name !== 'custom.css') return
+    let css: string
+    try {
+      css = change.op === 'delete' ? '' : await settingsFs.readCustomCss()
+    } catch (e) {
+      console.warn('[theme] reload custom.css failed:', e)
+      return
+    }
+    if (css === customCss.value) return
+    customCss.value = css
+    setStorageString(STORAGE_KEYS.themeCustomCss, css || null)
+    applyCustomCss(css)
+  })
 
   function applyCustomCss(css: string): void {
     // セーフモード (#794) — 起動時復元だけでなく CSS エディタからの保存も

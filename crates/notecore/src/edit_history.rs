@@ -139,6 +139,72 @@ pub fn list(base_dir: &Path, subdir: &str, base: &str) -> Vec<HistoryEntry> {
         .unwrap_or_default()
 }
 
+/// ルート直下のファイル (custom.css) の履歴を読む。
+pub fn list_root(base_dir: &Path, base: &str) -> Vec<HistoryEntry> {
+    let Ok(text) = store::read_root_file(base_dir, &history_file_name(base)) else {
+        return Vec::new();
+    };
+    parse_entries(&text, base)
+}
+
+fn parse_entries(text: &str, base: &str) -> Vec<HistoryEntry> {
+    let Ok(doc) = json5::from_str::<Value>(text) else {
+        tracing::warn!(base, "history file is not valid JSON5, treated as empty");
+        return Vec::new();
+    };
+    doc.get("entries")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| serde_json::from_value::<HistoryEntry>(v.clone()).ok())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn with_snapshot(
+    mut entries: Vec<HistoryEntry>,
+    snapshot: Value,
+    attribution: Option<&Attribution>,
+    at: u64,
+) -> Option<String> {
+    let by = attribution.and_then(|a| a.by.clone());
+    if should_coalesce(entries.first(), at, by.as_ref()) {
+        return None;
+    }
+    entries.insert(
+        0,
+        HistoryEntry {
+            at,
+            snapshot,
+            by,
+            reason: attribution
+                .and_then(|a| a.reason.clone())
+                .filter(|r| !r.is_empty()),
+        },
+    );
+    let entries = evict(entries, HISTORY_LIMIT);
+    serde_json::to_string_pretty(&serde_json::json!({ "entries": entries }))
+        .ok()
+        .map(|s| s + "\n")
+}
+
+/// ルート直下のファイル (custom.css) 用の `push_snapshot`。
+pub fn push_snapshot_root(
+    core: &Core,
+    base_dir: &Path,
+    base: &str,
+    snapshot: Value,
+    attribution: Option<&Attribution>,
+    at: u64,
+) -> Result<()> {
+    let entries = list_root(base_dir, base);
+    match with_snapshot(entries, snapshot, attribution, at) {
+        Some(body) => settings_events::write_root_file(core, &history_file_name(base), &body),
+        None => Ok(()),
+    }
+}
+
 /// 編集前の snapshot を積む。まとめる条件に当たれば何もしない。
 pub fn push_snapshot(
     core: &Core,

@@ -21,6 +21,8 @@ mod project;
 mod server;
 mod skills;
 mod staged;
+mod styles;
+mod themes;
 mod time;
 mod user;
 mod writes;
@@ -135,6 +137,12 @@ pub async fn preview(
             return Ok(Some(v));
         }
     }
+    if id.starts_with("theme.") {
+        return themes::preview(core, id, &params, ctx).await;
+    }
+    if id.starts_with("styles.") {
+        return styles::preview(core, id, &params, ctx);
+    }
     Ok(Some(
         preview::custom(id, &params).unwrap_or_else(|| preview::generic(decl.label, &params)),
     ))
@@ -248,6 +256,20 @@ async fn execute_value(core: &Core, id: &str, params: Value, ctx: &ExecContext) 
         "memos.update" => memos::update(core, p, ctx).await,
         "memos.delete" => memos::delete(core, p),
         "memos.revert" => memos::revert(core, p, ctx),
+        // --- テーマ / カスタム CSS (本体は crate::themes) ---
+        "theme.list" => themes::list(core),
+        "theme.read" => themes::read(core, p),
+        "theme.history" => themes::history(core, p),
+        "theme.create" => themes::create(core, p, ctx).await,
+        "theme.update" => themes::update(core, p, ctx),
+        "theme.revert" => themes::revert(core, p, ctx),
+        "theme.install" => themes::install(core, p).await,
+        "theme.uninstall" => themes::uninstall(core, p),
+        "styles.read" => styles::read(core),
+        "styles.history" => styles::history(core),
+        "styles.write" => styles::write(core, p, ctx),
+        "styles.append" => styles::append(core, p, ctx),
+        "styles.revert" => styles::revert(core, p, ctx),
         // --- HEARTBEAT の応答契約 ---
         "heartbeat.report" => crate::heartbeat::report_tool(p, ctx),
         // --- 外部ネットワーク ---
@@ -341,6 +363,19 @@ const HAS_BODY: &[&str] = &[
     "memos.list",
     "memos.search",
     "memos.backlinks",
+    "theme.list",
+    "theme.read",
+    "theme.history",
+    "theme.create",
+    "theme.update",
+    "theme.revert",
+    "theme.install",
+    "theme.uninstall",
+    "styles.read",
+    "styles.history",
+    "styles.write",
+    "styles.append",
+    "styles.revert",
 ];
 
 #[cfg(test)]
