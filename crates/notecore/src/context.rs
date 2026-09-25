@@ -78,6 +78,8 @@ pub struct Core {
     frontend_bridge: OnceLock<Arc<dyn FrontendBridge>>,
     /// 設定ファイルの変更通知 (`settings_events`)。未設定なら黙って捨てる
     settings_sink: OnceLock<Arc<dyn crate::settings_events::SettingsSink>>,
+    /// HEARTBEAT の出来事 (`heartbeat`)。未設定なら黙って捨てる
+    heartbeat_sink: OnceLock<Arc<dyn crate::heartbeat::HeartbeatSink>>,
     /// `exec: core` な capability の本体を呼ぶ口 (#1133 縦切り 4)
     core_executor: OnceLock<Arc<dyn CoreExecutor>>,
     /// MiAuth セッションの追跡 (リプレイ防止)
@@ -113,6 +115,7 @@ impl Core {
             ai_turn_sink: OnceLock::new(),
             frontend_bridge: OnceLock::new(),
             settings_sink: OnceLock::new(),
+            heartbeat_sink: OnceLock::new(),
             core_executor: OnceLock::new(),
             auth_sessions: AuthSessionTracker::new(),
         }
@@ -231,6 +234,14 @@ impl Core {
             .get()
             .cloned()
             .ok_or_else(|| NoteDeckError::Internal("ai chat sink is not set".into()))
+    }
+
+    pub fn set_heartbeat_sink(&self, sink: Arc<dyn crate::heartbeat::HeartbeatSink>) {
+        let _ = self.heartbeat_sink.set(sink);
+    }
+
+    pub fn heartbeat_sink(&self) -> Option<Arc<dyn crate::heartbeat::HeartbeatSink>> {
+        self.heartbeat_sink.get().cloned()
     }
 
     pub fn set_settings_sink(&self, sink: Arc<dyn crate::settings_events::SettingsSink>) {

@@ -626,15 +626,8 @@ async fn get_inspector_recent(State(state): State<DeckState>) -> Result<Json<Val
         (status = 401, description = "Unauthorized", body = ApiErrorResponse),
     )
 )]
-async fn get_heartbeat_status(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    let data = frontend_bridge::query(state.bridge.as_ref(), "heartbeat/status", json!({}))
-        .await
-        .map_err(|e| ApiError {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            code: "QUERY_FAILED".to_string(),
-            message: e,
-        })?;
-    Ok(Json(data))
+async fn get_heartbeat_status() -> Result<Json<Value>, ApiError> {
+    Ok(Json(crate::heartbeat::status_json()))
 }
 
 #[utoipa::path(get, path = "/api/permissions/resolved", tag = "dev",

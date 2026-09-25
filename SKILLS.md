@@ -244,6 +244,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | flash | `flash.list` | Misskey Play 一覧 | `account.read` | — |
 | flash | `flash.show` | Misskey Play 詳細 | `account.read` | — |
 | gallery | `gallery.list` | Gallery 一覧 | `account.read` | — |
+| heartbeat | `heartbeat.report` | HEARTBEAT の報告 | — | — |
 | http | `http.fetch` | 外部 HTTP リクエスト | `network.external` | あり |
 | keybinds | `keybinds.list` | キーバインド一覧 | — | — |
 | keybinds | `keybinds.reset` | キーバインドを default に戻す | `keybinds.write` | あり |

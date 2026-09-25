@@ -56,6 +56,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'flash.list',
         'flash.show',
         'gallery.list',
+        'heartbeat.report',
         'http.fetch',
         'keybinds.list',
         'keybinds.reset',
@@ -222,6 +223,8 @@ const NOT_EXPOSED_TO_AI = ['ai.chat']
  * (例: cssEditor を開くのは自由だが CSS 書込には styles.write が要る)。
  */
 const WITHOUT_PERMISSIONS = [
+  // HEARTBEAT の応答契約 (報告を返すだけ。HEARTBEAT の実行中以外は記録しない)
+  'heartbeat.report',
   'aiscript.validate',
   'keybinds.list',
   'meta.activeSkills',

@@ -211,6 +211,7 @@ mod tests {
         let core = Core::new();
         core.set_app_dir(dir.path().to_path_buf());
         let base = settings_base_dir(&core).unwrap();
+        std::fs::create_dir_all(&base).unwrap();
         store::write_root_file(
             &base,
             FILE_NAME,
