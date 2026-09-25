@@ -10,7 +10,8 @@ pre-commit:
       run: npx vue-tsc -b --noEmit
 
     - name: docs-lint
-      glob: "*.md"
+      # site/ の訳 (#1145) は theme の辞書 (.ts) も原文ハッシュで照合する
+      glob: "{*.md,site/.vitepress/theme/i18n/*.ts}"
       run: node scripts/docs-lint.mjs
 
     - name: rustfmt

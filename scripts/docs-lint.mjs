@@ -9,8 +9,9 @@
 //   <!-- docs-lint-disable-next-line 理由 -->
 // を置く。理由は必須 (何も書けないなら、それは書くべきでない数値)。
 
+import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import GithubSlugger from 'github-slugger'
 
@@ -163,10 +164,64 @@ for (const file of files) {
   }
 }
 
+// ===== サイトの訳の腐り (#1145) =====
+// 訳は原文 (ja) の内容ハッシュを `sourceHash: <hash>` として持つ (.md は frontmatter、
+// theme の辞書はコメント)。原文が変わるとハッシュがずれるので、訳を置き去りにした
+// まま原文だけ更新できない。git の履歴に頼らないのは、CI の浅い clone でも同じ答えを出すため
+
+const SITE = join(ROOT, 'site')
+// 訳の置き場所 → 原文の置き場所。言語を足すときはここに並べる
+const TRANSLATIONS = [
+  { dir: join(SITE, 'en'), source: SITE },
+  {
+    dir: join(SITE, '.vitepress/theme/i18n/en.ts'),
+    source: join(SITE, '.vitepress/theme/i18n/ja.ts'),
+  },
+]
+const SOURCE_HASH = /sourceHash:\s*(\S+)/
+
+function hashOf(file) {
+  return createHash('sha256').update(readFileSync(file)).digest('hex').slice(0, 12)
+}
+
+function walk(dir) {
+  if (!dir.endsWith('.md') && !dir.endsWith('.ts')) {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      walk(join(dir, e.name)),
+    )
+  }
+  return [dir]
+}
+
+let staleCount = 0
+for (const { dir, source } of TRANSLATIONS) {
+  if (!existsSync(dir)) continue
+  for (const file of walk(dir)) {
+    const src = dir === file ? source : join(source, relative(dir, file))
+    const name = relative(ROOT, file)
+    if (!existsSync(src)) {
+      console.error(`${name}  原文 ${relative(ROOT, src)} が存在しない`)
+      staleCount++
+      continue
+    }
+    const current = hashOf(src)
+    const recorded = readFileSync(file, 'utf8').match(SOURCE_HASH)?.[1]
+    if (recorded === current) continue
+    console.error(
+      recorded
+        ? `${name}  原文 ${relative(ROOT, src)} が訳の後に更新された。訳を追従させてから sourceHash を ${current} にする`
+        : `${name}  sourceHash が無い。原文 ${relative(ROOT, src)} から訳したなら sourceHash: ${current} を書く`,
+    )
+    staleCount++
+  }
+}
 if (failed > 0) {
   console.error(`\n${failed} 件。数値と行番号は正本のファイルを指す形に書き換えてください (#883 / #895)。`)
   console.error('どうしても必要なら直前の行に <!-- docs-lint-disable-next-line 理由 --> を置きます。')
-  process.exit(1)
 }
+if (staleCount > 0) {
+  console.error(`\n訳の置き去り ${staleCount} 件 (#1145)。git diff で原文の差分を見て訳に反映する。`)
+}
+if (failed > 0 || staleCount > 0) process.exit(1)
 
 console.log(`docs-lint: ${files.length} ファイル、問題なし`)

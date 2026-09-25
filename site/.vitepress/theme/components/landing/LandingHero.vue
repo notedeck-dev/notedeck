@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useI18n } from '../../i18n'
 
 defineProps<{
   noticeText: string
   noticeHref: string
 }>()
+
+const { t } = useI18n()
 
 /** README が載せている最新スクショ。ここに書いてある URL で LCP を先に塗る。 */
 const DEFAULT_SCREENSHOT =
@@ -72,7 +75,7 @@ onMounted(async () => {
             <span>Note<b class="text-gradient">Deck</b></span>
           </h1>
           <span class="chip">Misskey Pro</span>
-          <p class="hero-desc">Misskey廃人のための 非公式クライアント。</p>
+          <p class="hero-desc">{{ t.hero.desc }}</p>
           <a class="notice" :href="noticeHref">
             <span class="notice-inner">
               <span class="notice-icon" aria-hidden="true">
@@ -83,14 +86,14 @@ onMounted(async () => {
             </span>
           </a>
           <div class="hero-buttons">
-            <a href="#download" class="btn btn-accent shadow">ダウンロード</a>
-            <a href="#guest" class="btn btn-plain">ログインせずに試す</a>
+            <a href="#download" class="btn btn-accent shadow">{{ t.hero.download }}</a>
+            <a href="#guest" class="btn btn-plain">{{ t.hero.tryGuest }}</a>
           </div>
         </div>
         <div class="hero-shot">
           <img
             :src="screenshot"
-            alt="NoteDeck のデッキ画面 — カラムを横に並べたレイアウト"
+            :alt="t.hero.screenshotAlt"
             width="1194"
             height="793"
             fetchpriority="high"
