@@ -494,8 +494,33 @@ fn allocate_base(base_dir: &Path, item: &SkillMeta, others: &[SkillMeta]) -> Str
     resolve_available(&candidate, |c| taken.contains(&casefold(c)))
 }
 
+/// `cheapCheckCapabilities` の検査 (#1133 縦切り 5): HEARTBEAT の cheap check は
+/// notecore 単独で実行できる cheap な capability だけ。それ以外を含む skill は
+/// 登録時 (AI の作成 / 更新 / MisStore からのインストール) に拒む。
+pub fn validate_cheap_checks(ids: &[String]) -> Result<()> {
+    for id in ids {
+        let Some(decl) = crate::capabilities::find(id) else {
+            return Err(NoteDeckError::InvalidInput(format!(
+                "cheapCheckCapabilities に未知の capability があります: {id}"
+            )));
+        };
+        if !decl.cheap {
+            return Err(NoteDeckError::InvalidInput(format!(
+                "cheapCheckCapabilities: {id} は cheap ではないので cheap check に使えません"
+            )));
+        }
+        if decl.exec != crate::capabilities::Exec::Core {
+            return Err(NoteDeckError::InvalidInput(format!(
+                "cheapCheckCapabilities: {id} は手元 (UI) 側の capability なので cheap check に使えません (notecore 単独で実行できるものだけ)"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// 追加 (`add`)。createdAt / updatedAt は now。
 pub fn create(core: &Core, mut item: SkillMeta) -> Result<SkillMeta> {
+    validate_cheap_checks(&item.cheap_check_capabilities)?;
     let dir = base_dir(core)?;
     let now = now_ms();
     item.created_at = now;
@@ -650,6 +675,7 @@ pub fn update(
         item.tainted = v.then_some(true);
     }
     if let Some(v) = patch.cheap_check_capabilities {
+        validate_cheap_checks(&v)?;
         item.cheap_check_capabilities = v;
     }
     if let Some(v) = patch.is_persona {
@@ -1048,6 +1074,39 @@ mod tests {
         assert!(!store::resolve_file(&base, SUBDIR, "beta.history.json5")
             .unwrap()
             .exists());
+    }
+
+    #[test]
+    fn cheap_checks_must_be_core_and_cheap() {
+        assert!(validate_cheap_checks(&["time.now".into(), "account.list".into()]).is_ok());
+        let unknown = validate_cheap_checks(&["nope.x".into()])
+            .unwrap_err()
+            .to_string();
+        assert!(unknown.contains("未知の capability"));
+        let device = validate_cheap_checks(&["column.list".into()])
+            .unwrap_err()
+            .to_string();
+        assert!(device.contains("手元 (UI) 側"));
+        let heavy = validate_cheap_checks(&["notes.create".into()])
+            .unwrap_err()
+            .to_string();
+        assert!(heavy.contains("cheap ではない"));
+        // create も拒む
+        let dir = tempfile::tempdir().unwrap();
+        let core = core_in(dir.path());
+        let err = create(
+            &core,
+            SkillMeta {
+                id: "x".into(),
+                name: "X".into(),
+                mode: "heartbeat".into(),
+                cheap_check_capabilities: vec!["column.list".into()],
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("cheap check"));
+        assert!(list(&core).unwrap().is_empty());
     }
 
     #[test]
