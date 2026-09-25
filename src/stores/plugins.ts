@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
+import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import {
   createSidecarCollection,
+  META_SUFFIX,
   type SidecarItemFile,
 } from '@/services/sidecarFileCollection'
 import { planStoreMovedPluginMigration } from '@/services/storeMovedPlugins'
@@ -657,6 +659,48 @@ export const usePluginsStore = defineStore('plugins', () => {
     ensureLoaded()
     return plugins.value.some((p) => p.name === name)
   }
+
+  // notecore がプラグインのファイルを書いた (AI の plugins.* は notecore の本体が
+  // 書く, #1133) → その個体だけ写しを揃え、有効 / ソース変更なら起動し直し、
+  // 無効化 / 削除なら止める (UI のトグル・削除と同じ後処理)。src だけの通知は
+  // meta の通知が続くので見ない。plugin-api は本 store を import するので遅延参照
+  registerSettingsFileHandler('plugins', async (change) => {
+    if (!change.name.endsWith(META_SUFFIX)) return
+    ensureLoaded()
+    await ready
+    const fileBase = change.name.slice(0, -META_SUFFIX.length)
+    const { abortPlugin, launchPlugin } = await import('@/aiscript/plugin-api')
+    if (change.op === 'delete') {
+      const removed = plugins.value.find((p) => p.fileBase === fileBase)
+      if (!removed) return
+      abortPlugin(removed.installId)
+      removeStorageByPrefix(STORAGE_KEYS.aiscriptPlugin(removed.installId))
+      plugins.value = plugins.value.filter((p) => p !== removed)
+      savePluginsToStorage(plugins.value)
+      return
+    }
+    let item: PluginMeta | undefined
+    try {
+      item = await pluginFiles.loadOne(change.name)
+    } catch (e) {
+      console.warn(`[plugins] reload ${change.name} failed:`, e)
+      return
+    }
+    if (!item) return
+    const next = item
+    const prev = plugins.value.find(
+      (p) => p.installId === next.installId || p.fileBase === fileBase,
+    )
+    plugins.value = prev
+      ? plugins.value.map((p) => (p === prev ? next : p))
+      : [...plugins.value, next]
+    savePluginsToStorage(plugins.value)
+    if (next.active && (!prev?.active || prev.src !== next.src)) {
+      await launchPlugin(next)
+    } else if (!next.active && prev?.active) {
+      abortPlugin(next.installId)
+    }
+  })
 
   return {
     plugins,

@@ -6,10 +6,8 @@ import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import {
   PLUGINS_BUILTIN_CAPABILITIES,
   pluginsCreateCapability,
-  pluginsDeleteCapability,
   pluginsInstallCapability,
   pluginsListCapability,
-  pluginsReadCapability,
   pluginsSetActiveCapability,
   pluginsUninstallCapability,
   pluginsUpdateCapability,
@@ -38,15 +36,6 @@ describe('plugin capabilities — declaration', () => {
     expect(pluginsListCapability.permissions).toEqual(['plugins.read'])
     expect(pluginsListCapability.aiTool).toBe(true)
     expect(pluginsListCapability.signature?.cheap).toBe(true)
-  })
-
-  it('plugins.read: read permission, requires installId', () => {
-    expect(pluginsReadCapability.id).toBe('plugins.read')
-    expect(pluginsReadCapability.permissions).toEqual(['plugins.read'])
-    expect(pluginsReadCapability.aiTool).toBe(true)
-    expect(() => pluginsReadCapability.execute({})).toThrow(
-      /installId is required/,
-    )
   })
 
   it('plugins.create: write permission, aiTool:true, install preview confirmation', () => {
@@ -108,16 +97,6 @@ describe('plugin capabilities — declaration', () => {
     )
   })
 
-  it('plugins.delete: write permission, aiTool:true, install preview confirmation (= 不可逆)', () => {
-    expect(pluginsDeleteCapability.id).toBe('plugins.delete')
-    expect(pluginsDeleteCapability.permissions).toEqual(['plugins.write'])
-    expect(pluginsDeleteCapability.aiTool).toBe(true)
-    expect(typeof pluginsDeleteCapability.requiresConfirmation).toBe('function')
-    expect(() => pluginsDeleteCapability.execute({})).toThrow(
-      /installId is required/,
-    )
-  })
-
   it('plugins.create: optional metadata fields (active param is removed — AI 経由で active true にできない)', () => {
     const params = pluginsCreateCapability.signature?.params
     expect(params?.name?.optional).not.toBe(true)
@@ -176,12 +155,6 @@ describe('plugins.install capability', () => {
     )
   })
 
-  it('throws when id is missing', async () => {
-    await expect(pluginsInstallCapability.execute({})).rejects.toThrow(
-      /id is required/,
-    )
-  })
-
   it('marks id as the only required param', () => {
     const params = pluginsInstallCapability.signature?.params
     expect(params?.id?.optional).not.toBe(true)
@@ -196,12 +169,6 @@ describe('plugins.uninstall capability', () => {
     expect(pluginsUninstallCapability.aiTool).toBe(true)
     expect(typeof pluginsUninstallCapability.requiresConfirmation).toBe(
       'function',
-    )
-  })
-
-  it('throws when neither installId nor storeId is provided', () => {
-    expect(() => pluginsUninstallCapability.execute({})).toThrow(
-      /installId or storeId is required/,
     )
   })
 
@@ -362,50 +329,5 @@ describe('plugins.update — アクティブなら再起動する (#744)', () =>
       {},
     )
     expect(oInactive?.message).not.toContain('再起動されます')
-  })
-})
-
-describe('plugins.setActive — 有効化で起動 / 無効化で停止する', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-    vi.mocked(launchPlugin).mockClear()
-  })
-
-  function addPlugin(active: boolean): PluginMeta {
-    const plugin: PluginMeta = {
-      installId: `p-setactive-${active}`,
-      name: 'test-plugin',
-      version: '1.0.0',
-      configData: {},
-      src: 'let x = 1',
-      active,
-    }
-    usePluginsStore().addPlugin(plugin)
-    return plugin
-  }
-
-  it('active: true でフラグ更新に加えて launchPlugin を呼ぶ', async () => {
-    const plugin = addPlugin(false)
-    const r = (await pluginsSetActiveCapability.execute({
-      installId: plugin.installId,
-      active: true,
-    })) as { active: boolean }
-    expect(r.active).toBe(true)
-    expect(usePluginsStore().getPlugin(plugin.installId)?.active).toBe(true)
-    expect(launchPlugin).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(launchPlugin).mock.calls[0]?.[0]?.installId).toBe(
-      plugin.installId,
-    )
-  })
-
-  it('active: false では launchPlugin を呼ばない (abort のみ)', async () => {
-    const plugin = addPlugin(true)
-    const r = (await pluginsSetActiveCapability.execute({
-      installId: plugin.installId,
-      active: false,
-    })) as { active: boolean }
-    expect(r.active).toBe(false)
-    expect(usePluginsStore().getPlugin(plugin.installId)?.active).toBe(false)
-    expect(launchPlugin).not.toHaveBeenCalled()
   })
 })
