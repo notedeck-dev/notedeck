@@ -44,8 +44,12 @@ fn string_list(v: Option<&Value>) -> Vec<String> {
 }
 
 fn attribution(ctx: &ExecContext, p: &Value) -> Attribution {
+    let mut by = json!({ "kind": ctx.principal });
+    if let Some(id) = ctx.plugin_id.as_deref().filter(|s| !s.is_empty()) {
+        by["pluginId"] = Value::String(id.to_string());
+    }
     Attribution {
-        by: Some(json!({ "kind": ctx.principal })),
+        by: Some(by),
         reason: Some(s(p, "reason").trim().to_string()).filter(|r| !r.is_empty()),
     }
 }
@@ -568,8 +572,13 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             } else {
                 format!(" (mode={})", if mode.is_empty() { "manual" } else { mode })
             };
-            Some(json!({
-                "title": "MisStore からスキルを入れる",
+            // 既存 (同じ storeId) の更新なら、本文の diff を 1 枚目に載せる
+            let store_id = s(&entry, "id");
+            let existing = skills::list(core)?
+                .into_iter()
+                .find(|sk| sk.store_id.as_deref() == Some(store_id));
+            let mut out = json!({
+                "title": if existing.is_some() { "MisStore からスキルを更新" } else { "MisStore からスキルを入れる" },
                 "message": format!(
                     "{} (v{} / by {}) を MisStore から取得します。{mode_note}",
                     s(&entry, "name"), s(&entry, "version"), s(&entry, "author")
@@ -583,10 +592,28 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 },
                 "code": s(&entry, "description"),
                 "codeLanguage": "plaintext",
-                "okLabel": "インストール",
+                "okLabel": if existing.is_some() { "更新" } else { "インストール" },
                 "cancelLabel": "やめる",
                 "type": "normal",
-            }))
+            });
+            if let Some(cur) = existing {
+                match fetch_verified_source(core, &entry).await {
+                    Ok((source, _)) => {
+                        let (_, body) = skills::parse_skill_file(&source);
+                        out["message"] = Value::String(format!(
+                            "{} 既存の「{}」を更新します。",
+                            out["message"].as_str().unwrap_or(""),
+                            cur.name
+                        ));
+                        out["diff"] =
+                            json!({ "old": cur.body, "new": body, "language": "markdown" });
+                    }
+                    Err(e) => {
+                        tracing::warn!(store_id, "MisStore source unavailable for preview: {e}")
+                    }
+                }
+            }
+            return Ok(Some(out));
         }
         "skills.uninstall" => {
             let Some(cur) = skills::get(core, s(p, "id"))? else {

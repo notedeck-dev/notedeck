@@ -69,11 +69,13 @@ pub async fn capability_execute(
     principal: String,
     account_id: Option<String>,
     tainted: bool,
+    plugin_id: Option<String>,
 ) -> Result<crate::capabilities::exec::ExecOutcome> {
     let ctx = crate::capabilities::exec::ExecContext {
         principal,
         account_id,
         tainted,
+        plugin_id,
     };
     crate::capabilities::exec::execute(core, &id, params, &ctx).await
 }
@@ -88,11 +90,13 @@ pub async fn capability_preview(
     principal: String,
     account_id: Option<String>,
     tainted: bool,
+    plugin_id: Option<String>,
 ) -> Result<Option<serde_json::Value>> {
     let ctx = crate::capabilities::exec::ExecContext {
         principal,
         account_id,
         tainted,
+        plugin_id,
     };
     crate::capabilities::exec::preview(core, &id, params, &ctx).await
 }
