@@ -103,6 +103,15 @@
   --z-sticky:   200;
 }
 
+/* 漢字の字形は言語で違う。和文フォントを先に当てると zh / ko の本文が日本の字形で
+ * 出るので、Latin (Nunito) の後ろに並べる CJK フォントを <html lang> で切り替える (#1145) */
+:root:lang(zh-Hans) {
+  --font-body: Nunito, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+}
+:root:lang(ko) {
+  --font-body: Nunito, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+}
+
 @media (max-width: 1200px) {
   :root { --nav-height: 58px; }
 }

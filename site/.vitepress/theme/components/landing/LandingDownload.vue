@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onUnmounted, ref } from 'vue'
+import { useI18n } from '../../i18n'
 import type { PlatformKey } from '../../composables/useLatestRelease'
 
 const props = defineProps<{
@@ -7,6 +8,8 @@ const props = defineProps<{
   downloadUrls: Partial<Record<PlatformKey, string>>
   releasesLatest: string
 }>()
+
+const { t } = useI18n()
 
 /** リリースアセットが引けていればその直リンク、駄目なら /releases/latest へ。 */
 function hrefFor(platform: PlatformKey) {
@@ -33,9 +36,9 @@ onUnmounted(() => clearTimeout(resetTimer))
   <section id="download" class="dots-section">
     <div class="w-secondary">
       <div class="section-head" data-fade>
-        <h2 class="section-title"><b class="u-line">ダウンロード</b></h2>
+        <h2 class="section-title"><b class="u-line">{{ t.download.title }}</b></h2>
         <p class="section-desc">
-          お使いの環境に合わせてインストール<br />
+          {{ t.download.desc }}<br />
           <span class="chip version-chip">{{ version }}</span>
         </p>
       </div>
@@ -64,22 +67,22 @@ onUnmounted(() => clearTimeout(resetTimer))
         <a href="#store-distribution" class="platform platform-soon acrylic punched">
           <svg viewBox="0 0 24 24"><path d="M3.609 1.814L13.792 12 3.61 22.186a.996.996 0 01-.61-.92V2.734a1 1 0 01.609-.92zm10.89 10.893l2.302 2.302-10.937 6.333 8.635-8.635zm3.199-3.198l2.807 1.626a1 1 0 010 1.73l-2.808 1.626L15.39 12l2.308-2.491zM5.864 2.658L16.802 8.99l-2.303 2.303-8.635-8.635z" /></svg>
           <div class="os">Google Play</div>
-          <div class="format">Coming soon</div>
+          <div class="format">{{ t.download.comingSoon }}</div>
         </a>
         <a href="#store-distribution" class="platform platform-soon acrylic punched">
           <svg viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" /></svg>
           <div class="os">App Store</div>
-          <div class="format">Coming soon</div>
+          <div class="format">{{ t.download.comingSoon }}</div>
         </a>
       </div>
 
       <p class="unsigned-note" data-fade>
-        Windows / macOS 版はまだコード署名なしで配布しているため、初回起動時に「発行元不明」の警告が出ます。
-        <a href="#store-distribution">警告をなくすために、協力をお願いしています</a>
+        {{ t.download.unsigned }}
+        <a href="#store-distribution">{{ t.download.unsignedLink }}</a>
       </p>
 
       <div class="install-alt acrylic" data-fade>
-        <h3>パッケージマネージャー</h3>
+        <h3>{{ t.download.packageManagers }}</h3>
         <button
           type="button"
           class="install-cmd"
@@ -89,7 +92,7 @@ onUnmounted(() => clearTimeout(resetTimer))
           <div class="label">winget</div>
           <code><span class="sh-prompt">$</span> <span class="sh-cmd">winget</span> <span class="sh-sub">install</span> <span class="sh-arg">NotedeckDev.NoteDeck</span></code>
           <span class="copy-hint">
-            {{ copied === 'winget install NotedeckDev.NoteDeck' ? 'copied!' : 'click to copy' }}
+            {{ copied === 'winget install NotedeckDev.NoteDeck' ? t.download.copied : t.download.clickToCopy }}
           </span>
         </button>
         <button
@@ -101,7 +104,7 @@ onUnmounted(() => clearTimeout(resetTimer))
           <div class="label">AUR</div>
           <code><span class="sh-prompt">$</span> <span class="sh-cmd">yay</span> <span class="sh-flag">-S</span> <span class="sh-arg">misskey-notedeck-bin</span></code>
           <span class="copy-hint">
-            {{ copied === 'yay -S misskey-notedeck-bin' ? 'copied!' : 'click to copy' }}
+            {{ copied === 'yay -S misskey-notedeck-bin' ? t.download.copied : t.download.clickToCopy }}
           </span>
         </button>
         <button
@@ -113,7 +116,7 @@ onUnmounted(() => clearTimeout(resetTimer))
           <div class="label">Nix</div>
           <code><span class="sh-prompt">$</span> <span class="sh-cmd">nix</span> <span class="sh-sub">run</span> <span class="sh-arg">github:notedeck-dev/notedeck</span></code>
           <span class="copy-hint">
-            {{ copied === 'nix run github:notedeck-dev/notedeck' ? 'copied!' : 'click to copy' }}
+            {{ copied === 'nix run github:notedeck-dev/notedeck' ? t.download.copied : t.download.clickToCopy }}
           </span>
         </button>
       </div>
@@ -121,47 +124,33 @@ onUnmounted(() => clearTimeout(resetTimer))
       <!-- 配布の壁（署名 / ストア）と、協力のお願い -->
       <div id="store-distribution" class="store-distribution" data-fade>
         <h3 class="store-distribution-title">
-          <b class="u-line">警告なしで、ストアから届けるために</b>
+          <b class="u-line">{{ t.download.storeTitle }}</b>
         </h3>
-        <p class="store-distribution-lead">
-          デスクトップ版の「発行元不明」警告も、Google Play / App
-          Store への正式配布も、残っているのは技術ではなく手続きの壁です。プロジェクトが知られていることと、開発者アカウントの費用。コミュニティの皆さんと一緒に越えたいと思っています。
-        </p>
+        <p class="store-distribution-lead">{{ t.download.storeLead }}</p>
         <div class="store-cta-grid">
           <div class="store-cta">
-            <h4>GitHub で Star をつける</h4>
-            <p>
-              Windows 向けの OSS 無料コード署名（SignPath
-              Foundation）は「誰も知らないソースコードには署名できない」として、実際に使われている実績を審査で見ています。Star
-              とダウンロード数がそのまま材料になります。クリック 1 回でできる、いちばん手軽な後押しです。
-            </p>
+            <h4>{{ t.download.star.title }}</h4>
+            <p>{{ t.download.star.body }}</p>
             <a href="https://github.com/notedeck-dev/notedeck" class="btn btn-accent shadow">
               <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.9 6.26 6.86.72-5.12 4.6 1.45 6.72L12 16.9l-6.09 3.4 1.45-6.72-5.12-4.6 6.86-.72L12 2z" /></svg>
-              GitHub で Star
+              {{ t.download.star.button }}
             </a>
           </div>
           <div class="store-cta">
-            <h4>ベータテスター募集</h4>
-            <p>
-              Google Play は、2023 年 11 月 13
-              日以降に作成した個人開発者アカウントに製品版アクセスを与える条件として、12 名以上が 14
-              日間続けて参加するクローズドテストを求めています。実機での動作確認やフィードバックにご協力いただける方を募集しています。
-            </p>
+            <h4>{{ t.download.beta.title }}</h4>
+            <p>{{ t.download.beta.body }}</p>
             <a
               href="https://github.com/notedeck-dev/notedeck/issues/new?template=beta_tester.yml"
               class="btn btn-plain shadow"
             >
-              テスターに応募
+              {{ t.download.beta.button }}
             </a>
           </div>
           <div class="store-cta">
-            <h4>開発を支援する</h4>
-            <p>
-              Google Play（登録費 $25）/ Apple Developer Program（$99/年）のアカウント費用、テスト機材の調達、継続的な配布作業の維持にあてさせていただきます。macOS
-              の Gatekeeper 警告をなくす公証（notarization）にも、同じ Apple Developer Program が要ります。
-            </p>
+            <h4>{{ t.download.sponsor.title }}</h4>
+            <p>{{ t.download.sponsor.body }}</p>
             <a href="https://github.com/sponsors/hitalin" class="btn btn-plain shadow">
-              GitHub Sponsor
+              {{ t.download.sponsor.button }}
             </a>
           </div>
         </div>

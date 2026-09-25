@@ -1,28 +1,70 @@
 <script setup lang="ts">
-import { useData, useRoute } from 'vitepress'
+import { type DefaultTheme, useData, useRoute } from 'vitepress'
 import VPNavBarSearch from 'vitepress/dist/client/theme-default/components/VPNavBarSearch.vue'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useI18n } from '../i18n'
 
 /** Misskey Hub の GNav 相当。VitePress の VPNav は site.css で隠し、こちらを使う。 */
 
-const { isDark } = useData()
+const { isDark, site, localeIndex } = useData()
 const route = useRoute()
+const { t, localePath } = useI18n()
 
 const navOpen = ref(false)
+const langOpen = ref(false)
 watch(
   () => route.path,
   () => {
     navOpen.value = false
+    langOpen.value = false
   },
 )
 
-const NAV_ITEMS = [
-  { text: 'ドキュメント', href: '/docs/' },
-  { text: '特長', href: '/#why' },
-  { text: '機能', href: '/#features' },
-  { text: 'ダウンロード', href: '/#download' },
+const NAV_ITEMS = computed(() => [
+  { text: t.value.nav.docs, href: localePath('/docs/') },
+  { text: t.value.nav.why, href: localePath('/#why') },
+  { text: t.value.nav.features, href: localePath('/#features') },
+  { text: t.value.nav.download, href: localePath('/#download') },
   { text: 'Store', href: 'https://store.notedeck.io' },
-]
+])
+
+function sidebarLinks(sidebar: DefaultTheme.Sidebar | undefined): Set<string> {
+  const links = new Set<string>()
+  const walk = (items: DefaultTheme.SidebarItem[]) => {
+    for (const item of items) {
+      if (item.link) links.add(item.link)
+      if (item.items) walk(item.items)
+    }
+  }
+  if (Array.isArray(sidebar)) walk(sidebar)
+  else if (sidebar) for (const items of Object.values(sidebar)) walk(Array.isArray(items) ? items : items.items)
+  return links
+}
+
+/**
+ * 他の言語の同じページ。訳はサイドバーに載せたページだけなので、
+ * 載っていなければその言語のドキュメント入口 (ランディングからならトップ) へ送る。
+ * 原文の root (ja) には必ず対応ページがある
+ */
+const LANG_LINKS = computed(() => {
+  const prefix = localeIndex.value === 'root' ? '' : `/${localeIndex.value}`
+  const base = route.path.slice(prefix.length) || '/'
+  return Object.entries(site.value.locales)
+    .filter(([key]) => key !== localeIndex.value)
+    .map(([key, locale]) => {
+      if (key === 'root') return { text: locale.label, lang: locale.lang, href: base }
+      const translated = sidebarLinks(locale.themeConfig?.sidebar)
+      const candidate = `/${key}${base}`
+      const href =
+        base === '/' || translated.has(candidate)
+          ? candidate
+          : base.startsWith('/docs/')
+            ? `/${key}/docs/`
+            : `/${key}/`
+      return { text: locale.label, lang: locale.lang, href }
+    })
+})
+const currentLangLabel = computed(() => site.value.locales[localeIndex.value]?.label)
 </script>
 
 <template>
@@ -34,14 +76,14 @@ const NAV_ITEMS = [
           type="button"
           class="nav-menu-button"
           :aria-expanded="navOpen"
-          aria-label="メニュー"
+          :aria-label="t.nav.menu"
           @click="navOpen = !navOpen"
         >
           <svg v-if="navOpen" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
           <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
         </button>
 
-        <a href="/" class="nav-brand">
+        <a :href="localePath('/')" class="nav-brand">
           <img src="/favicon.png" alt="" />
           <b>Note<span class="text-gradient">Deck</span></b>
         </a>
@@ -52,10 +94,25 @@ const NAV_ITEMS = [
 
         <div class="nav-right">
           <VPNavBarSearch class="nav-search" />
+          <div class="nav-lang">
+            <button
+              type="button"
+              class="nav-right-button nav-lang-button"
+              :aria-label="t.nav.language"
+              :aria-expanded="langOpen"
+              @click="langOpen = !langOpen"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" /></svg>
+              <span>{{ currentLangLabel }}</span>
+            </button>
+            <div v-if="langOpen" class="nav-lang-menu">
+              <a v-for="lang in LANG_LINKS" :key="lang.href" :href="lang.href" :lang="lang.lang">{{ lang.text }}</a>
+            </div>
+          </div>
           <button
             type="button"
             class="nav-right-button"
-            aria-label="カラーモード切り替え"
+            :aria-label="t.nav.colorMode"
             @click="isDark = !isDark"
           >
             <svg class="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg>
@@ -90,6 +147,16 @@ const NAV_ITEMS = [
         @click="navOpen = false"
       >
         GitHub
+      </a>
+      <a
+        v-for="lang in LANG_LINKS"
+        :key="lang.href"
+        :href="lang.href"
+        :lang="lang.lang"
+        class="nav-mobile-item"
+        @click="navOpen = false"
+      >
+        {{ lang.text }}
       </a>
     </div>
   </div>
