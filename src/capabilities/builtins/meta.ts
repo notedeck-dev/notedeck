@@ -1,10 +1,9 @@
 import type { Command } from '@/commands/registry'
 import { resolveAiConnection } from '@/composables/useAiConfig'
 import { useVault } from '@/composables/useVault'
-import { PERMISSION_KEYS } from '@/permissions/schema'
-import { profileFor, resolveFor } from '@/permissions/store'
+import { profileFor } from '@/permissions/store'
 import { useSkillsStore } from '@/stores/skills'
-import { implement } from '../declare'
+import { implement, implementCore } from '../declare'
 
 /**
  * Meta 系 capability — AI が「自分が今どういう状態か」を知る入口。
@@ -19,34 +18,7 @@ import { implement } from '../declare'
  * - すべて cheap: true (ローカル参照のみ)
  */
 
-export const metaPermissionsCapability = implement('meta.permissions', {
-  execute: (_params, ctx) => {
-    // 呼んだ principal 自身の有効権限を返す (#712 §5.4)。chat プロファイルを
-    // 一律で返すと external / heartbeat から呼ばれた側が自分の権限を誤認する。
-    const principal = ctx?.principal
-    if (!principal) {
-      throw new Error(
-        'meta.permissions: principal が ctx に渡される dispatchCapability 経由で呼ばれる必要があります',
-      )
-    }
-    const profile = profileFor(principal)
-    if (!profile) {
-      // user: プロファイル無し = 常時許可を明示した形で返す
-      return {
-        principal: principal.kind,
-        preset: null,
-        resolved: Object.fromEntries(
-          PERMISSION_KEYS.map((k: string) => [k, true]),
-        ),
-      }
-    }
-    return {
-      principal: principal.kind,
-      preset: profile.preset,
-      resolved: resolveFor(principal),
-    }
-  },
-})
+export const metaPermissionsCapability = implementCore('meta.permissions')
 
 export const metaActiveSkillsCapability = implement('meta.activeSkills', {
   execute: () => {

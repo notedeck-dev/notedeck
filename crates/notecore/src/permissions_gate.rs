@@ -73,6 +73,28 @@ pub async fn granted_for(id: PrincipalId) -> Granted {
     }
 }
 
+/// principal の preset 名と実効 granted (`meta.permissions`)。`granted_for` と同じ
+/// 読み方で、ファイル無し / 読取失敗の扱いも揃える。
+pub async fn profile_for(id: PrincipalId) -> (&'static str, Granted) {
+    let Some(path) = PERMISSIONS_PATH.get() else {
+        return (
+            permissions_profile::preset_of(None, id),
+            permissions_profile::resolve(None, id),
+        );
+    };
+    match tokio::fs::read_to_string(path).await {
+        Ok(content) => (
+            permissions_profile::preset_of(Some(&content), id),
+            permissions_profile::resolve(Some(&content), id),
+        ),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => (
+            permissions_profile::preset_of(None, id),
+            permissions_profile::resolve(None, id),
+        ),
+        Err(_) => ("readonly", permissions_profile::resolve_fallback(id)),
+    }
+}
+
 async fn external_granted() -> Granted {
     granted_for(PrincipalId::External).await
 }

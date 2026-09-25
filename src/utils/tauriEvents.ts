@@ -1,4 +1,5 @@
 import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
+import type { SettingsChange } from '@/bindings'
 import type { AiChatEventPayload } from '@/composables/useAiChat'
 import type { AiTurnEventPayload } from '@/composables/useAiTurn'
 import type { HeartbeatTickPayload } from '@/composables/useHeartbeatDaemon'
@@ -28,6 +29,8 @@ export interface TauriEventPayloads {
   'nd:ai-turn-event': AiTurnEventPayload
   'nd:ai-heartbeat-tick': HeartbeatTickPayload
   'nd:query-request': QueryRequest
+  /** notecore が設定ファイルを書いた (デバイスの store は該当面だけ読み直す, #1133) */
+  'nd:settings-file-changed': SettingsChange
   // JS ↔ JS (ウィンドウ間 IPC)
   'deck:move-column': { columnId: string; targetWindowId: string | null }
   'deck:window-closed': { windowId: string }

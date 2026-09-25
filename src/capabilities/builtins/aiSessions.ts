@@ -1,6 +1,5 @@
 import type { Command } from '@/commands/registry'
-import { useAiSessionsStore } from '@/stores/aiSessions'
-import { implement } from '../declare'
+import { implementCore } from '../declare'
 
 /**
  * AI Sessions 系 capability — 過去の AI 会話履歴へのアクセス。
@@ -14,74 +13,11 @@ import { implement } from '../declare'
  * できる)。
  */
 
-export const aiSessionsListCapability = implement('ai.sessions.list', {
-  execute: async () => {
-    const store = useAiSessionsStore()
-    await store.loadAllMeta()
-    return store.listSorted().map((m) => ({
-      id: m.id,
-      kind: m.kind,
-      title: m.title,
-      updatedAt: m.updatedAt,
-      messageCount: m.messageCount,
-    }))
-  },
-})
+export const aiSessionsListCapability = implementCore('ai.sessions.list')
 
-export const aiSessionsReadCapability = implement('ai.sessions.read', {
-  execute: async (params) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    if (!id) throw new Error('ai.sessions.read: id is required')
-    const store = useAiSessionsStore()
-    await store.loadAllMeta()
-    const session = store.get(id)
-    if (!session) {
-      throw new Error(`ai.sessions.read: session "${id}" not found`)
-    }
-    return {
-      id: session.id,
-      kind: session.kind,
-      title: session.title,
-      messages: session.messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-    }
-  },
-})
+export const aiSessionsReadCapability = implementCore('ai.sessions.read')
 
-export const aiSessionsSearchCapability = implement('ai.sessions.search', {
-  execute: async (params) => {
-    const query = typeof params?.query === 'string' ? params.query : ''
-    if (!query) throw new Error('ai.sessions.search: query is required')
-    const limit =
-      typeof params?.limit === 'number' && params.limit > 0 ? params.limit : 20
-    const store = useAiSessionsStore()
-    await store.loadAllMeta()
-    const needle = query.toLowerCase()
-    const results: { id: string; title: string; snippet: string }[] = []
-    for (const meta of store.listSorted()) {
-      if (results.length >= limit) break
-      const session = store.get(meta.id)
-      if (!session) continue
-      for (const m of session.messages) {
-        const hay = (m.content ?? '').toLowerCase()
-        const idx = hay.indexOf(needle)
-        if (idx >= 0) {
-          const start = Math.max(0, idx - 40)
-          const end = Math.min(m.content.length, idx + query.length + 40)
-          const snippet =
-            (start > 0 ? '…' : '') +
-            m.content.slice(start, end) +
-            (end < m.content.length ? '…' : '')
-          results.push({ id: meta.id, title: meta.title, snippet })
-          break
-        }
-      }
-    }
-    return results
-  },
-})
+export const aiSessionsSearchCapability = implementCore('ai.sessions.search')
 
 export const AI_SESSIONS_BUILTIN_CAPABILITIES: readonly Command[] = [
   aiSessionsListCapability,

@@ -23,21 +23,6 @@ describe('flash capabilities — declaration', () => {
       true,
     )
   })
-
-  it('flash.list throws when endpoint missing or invalid', async () => {
-    await expect(flashListCapability.execute({})).rejects.toThrow(
-      /endpoint is required/,
-    )
-    await expect(
-      flashListCapability.execute({ endpoint: 'admin/flash' }),
-    ).rejects.toThrow(/invalid endpoint/)
-  })
-
-  it('flash.show throws when flashId missing', async () => {
-    await expect(flashShowCapability.execute({})).rejects.toThrow(
-      /flashId is required/,
-    )
-  })
 })
 
 describe('FLASH_BUILTIN_CAPABILITIES', () => {

@@ -11,11 +11,18 @@
 //! デバイスの dispatcher が済ませている)。
 
 mod account;
+mod meta;
 mod misc;
+mod net;
 mod notes;
+mod preview;
 mod project;
+mod server;
+mod skills;
+mod staged;
 mod time;
 mod user;
+mod writes;
 
 use serde_json::Value;
 
@@ -31,6 +38,18 @@ pub struct ExecContext {
     /// 呼び出し文脈のアカウント (per-account の AI カラムなど)。無ければ
     /// capability は `params.accountId` を必須にする (#941)
     pub account_id: Option<String>,
+    /// 呼び出し元のセッションが tainted (他人の内容を読んだ後) か (#1103)。
+    /// 書込にラベルを付けるのに使う
+    pub tainted: bool,
+}
+
+/// 実行結果。`tainted` は「ラベル付きの内容を返した」の申告 (呼び出し元の
+/// セッションを tainted にする)。
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ExecOutcome {
+    pub value: Value,
+    pub tainted: bool,
 }
 
 /// 引数の `accountId` → 文脈のアカウント、の順で解決する (#941)。
@@ -81,8 +100,55 @@ pub fn is_core(id: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// 確認ダイアログに出す内容 (デバイスの `ConfirmOptions` と同じ JSON: title /
+/// message / code / codeLanguage / diff / type / okLabel / cancelLabel /
+/// rememberLabel)。None = この引数なら確認は要らない (no-op)。帰属 / 理由 /
+/// クロスアカウントの行はデバイスの dispatcher が足す。
+pub async fn preview(
+    core: &Core,
+    id: &str,
+    params: Value,
+    ctx: &ExecContext,
+) -> Result<Option<Value>> {
+    if !is_core(id) {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "{id} は notecore では実行できません (exec が core ではない)"
+        )));
+    }
+    let _ = (core, ctx);
+    let Some(decl) = super::find(id) else {
+        return Ok(None);
+    };
+    if !decl.confirm {
+        return Ok(None);
+    }
+    if id.starts_with("skills.") {
+        return skills::preview(core, id, &params, ctx).await;
+    }
+    Ok(Some(
+        preview::custom(id, &params).unwrap_or_else(|| preview::generic(decl.label, &params)),
+    ))
+}
+
 /// capability を notecore で実行する。宣言表に無い / core でない id はエラー。
-pub async fn execute(core: &Core, id: &str, params: Value, ctx: &ExecContext) -> Result<Value> {
+pub async fn execute(
+    core: &Core,
+    id: &str,
+    params: Value,
+    ctx: &ExecContext,
+) -> Result<ExecOutcome> {
+    if id == "skills.read" {
+        let (value, tainted) = skills::read(core, &params)?;
+        return Ok(ExecOutcome { value, tainted });
+    }
+    let value = execute_value(core, id, params, ctx).await?;
+    Ok(ExecOutcome {
+        value,
+        tainted: false,
+    })
+}
+
+async fn execute_value(core: &Core, id: &str, params: Value, ctx: &ExecContext) -> Result<Value> {
     if !is_core(id) {
         return Err(NoteDeckError::InvalidInput(format!(
             "{id} は notecore では実行できません (exec が core ではない)"
@@ -113,6 +179,57 @@ pub async fn execute(core: &Core, id: &str, params: Value, ctx: &ExecContext) ->
         "clips.list" => misc::clips_list(core, p, ctx).await,
         "clips.notes" => misc::clips_notes(core, p, ctx).await,
         "drive.list" => misc::drive_list(core, p, ctx).await,
+        // --- 書込 (縦切り 4 第 2 弾) ---
+        "notes.create" => writes::notes_create(core, p, ctx).await,
+        "notes.delete" => writes::notes_delete(core, p, ctx).await,
+        "notes.pin" => writes::notes_pin(core, p, ctx).await,
+        "notes.unpin" => writes::notes_unpin(core, p, ctx).await,
+        "notes.react" => writes::notes_react(core, p, ctx).await,
+        "notes.unreact" => writes::notes_unreact(core, p, ctx).await,
+        "chat.react" => writes::chat_react(core, p, ctx).await,
+        "chat.unreact" => writes::chat_unreact(core, p, ctx).await,
+        "favorites.add" => writes::favorites_add(core, p, ctx).await,
+        "favorites.remove" => writes::favorites_remove(core, p, ctx).await,
+        "clips.create" => writes::clips_create(core, p, ctx).await,
+        "clips.addNote" => writes::clips_add_note(core, p, ctx).await,
+        "clips.removeNote" => writes::clips_remove_note(core, p, ctx).await,
+        "list.addUser" => writes::list_add_user(core, p, ctx).await,
+        "list.removeUser" => writes::list_remove_user(core, p, ctx).await,
+        "user.follow" => writes::user_follow(core, p, ctx).await,
+        "user.unfollow" => writes::user_unfollow(core, p, ctx).await,
+        "notifications.markRead" => writes::notifications_mark_read(core, p).await,
+        "registry.set" => writes::registry_set(core, p, ctx).await,
+        "registry.delete" => writes::registry_delete(core, p, ctx).await,
+        // --- サーバー側データの読取 ---
+        "registry.get" => server::registry_get(core, p, ctx).await,
+        "registry.listKeys" => server::registry_list_keys(core, p, ctx).await,
+        "announcements.list" => server::announcements_list(core, p, ctx).await,
+        "pages.list" => server::pages_list(core, p, ctx).await,
+        "pages.show" => server::pages_show(core, p, ctx).await,
+        "flash.list" => server::flash_list(core, p, ctx).await,
+        "flash.show" => server::flash_show(core, p, ctx).await,
+        "gallery.list" => server::gallery_list(core, p, ctx).await,
+        "federation.chart" => server::federation_chart(core, p, ctx).await,
+        "federation.instance" => server::federation_instance(core, p, ctx).await,
+        "federation.instances" => server::federation_instances(core, p, ctx).await,
+        // --- notecore が正本を持つローカル情報 ---
+        "ai.sessions.list" => meta::ai_sessions_list(core),
+        "ai.sessions.read" => meta::ai_sessions_read(core, p),
+        "ai.sessions.search" => meta::ai_sessions_search(core, p),
+        "meta.permissions" => meta::meta_permissions(ctx).await,
+        // --- skill (本体は crate::skills、書込は変更通知つき) ---
+        "skills.list" => skills::list(core),
+        "skills.history" => skills::history(core, p),
+        "skills.create" => skills::create(core, p, ctx),
+        "skills.append" => skills::append(core, p, ctx),
+        "skills.replaceSection" => skills::replace_section(core, p, ctx),
+        "skills.toggle" => skills::toggle(core, p),
+        "skills.revert" => skills::revert(core, p, ctx),
+        "skills.install" => skills::install(core, p).await,
+        "skills.uninstall" => skills::uninstall(core, p),
+        // --- 外部ネットワーク ---
+        "http.fetch" => net::http_fetch(core, p).await,
+        "misstore.search" => net::misstore_search(core, p).await,
         other => Err(NoteDeckError::Internal(format!(
             "exec: core と宣言されているが本体が無い: {other}"
         ))),
@@ -146,6 +263,53 @@ const HAS_BODY: &[&str] = &[
     "clips.list",
     "clips.notes",
     "drive.list",
+    "notes.create",
+    "notes.delete",
+    "notes.pin",
+    "notes.unpin",
+    "notes.react",
+    "notes.unreact",
+    "chat.react",
+    "chat.unreact",
+    "favorites.add",
+    "favorites.remove",
+    "clips.create",
+    "clips.addNote",
+    "clips.removeNote",
+    "list.addUser",
+    "list.removeUser",
+    "user.follow",
+    "user.unfollow",
+    "notifications.markRead",
+    "registry.set",
+    "registry.delete",
+    "registry.get",
+    "registry.listKeys",
+    "announcements.list",
+    "pages.list",
+    "pages.show",
+    "flash.list",
+    "flash.show",
+    "gallery.list",
+    "federation.chart",
+    "federation.instance",
+    "federation.instances",
+    "http.fetch",
+    "misstore.search",
+    "ai.sessions.list",
+    "ai.sessions.read",
+    "ai.sessions.search",
+    "meta.permissions",
+    "skills.list",
+    "skills.read",
+    "skills.history",
+    "skills.create",
+    "skills.append",
+    "skills.replaceSection",
+    "skills.toggle",
+    "skills.revert",
+    "skills.install",
+    "skills.uninstall",
 ];
 
 #[cfg(test)]
@@ -175,6 +339,7 @@ mod tests {
         let ctx = ExecContext {
             principal: "ai.chat".into(),
             account_id: Some("ctx".into()),
+            tainted: false,
         };
         assert_eq!(
             resolve_account_id(&serde_json::json!({"accountId": " p "}), &ctx).unwrap(),

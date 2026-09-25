@@ -2270,9 +2270,18 @@ async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; m
 }
 },
 /** @see crates/notecore/src/commands/ai_chat.rs */
-async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null }>> {
+async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId }) };
+    return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/ai_chat.rs */
+async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId, tainted }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2754,6 +2763,7 @@ async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string;
 
 export const events = __makeEvents__<{
 exportProgress: ExportProgressEvent,
+ndSettingsFileChanged: SettingsFileChangedEvent,
 noteCaptureBatch: NoteCaptureBatchEvent,
 notificationClicked: NotificationClicked,
 queryDelta: QueryDeltaEvent,
@@ -2765,6 +2775,7 @@ streamStatus: StreamStatus,
 systemState: SystemState
 }>({
 exportProgress: "export-progress",
+ndSettingsFileChanged: "nd:settings-file-changed",
 noteCaptureBatch: "note-capture-batch",
 notificationClicked: "notification-clicked",
 queryDelta: "query-delta",
@@ -3146,6 +3157,11 @@ ttlDays: number | null;
  * トリムは membership とその対象限定の orphan entity のみを消す。
  */
 perTimelineLimit: number | null }
+/**
+ * 実行結果。`tainted` は「ラベル付きの内容を返した」の申告 (呼び出し元の
+ * セッションを tainted にする)。
+ */
+export type ExecOutcome = { value: JsonValue; tainted: boolean }
 /**
  * EXIF 1 フィールド。tag はタグ名 (例: "DateTimeOriginal", "GPSLatitude")。
  */
@@ -3698,6 +3714,19 @@ role: string; content: string; timestamp: number; toolUseId?: string | null; too
  * HEARTBEAT の報告 (AI の履歴からは除く)
  */
 heartbeat?: boolean | null }
+/**
+ * 変わったファイル。`subdir` が `None` ならルート直下 (`settings.json5` 等)。
+ */
+export type SettingsChange = { subdir: string | null; name: string; op: SettingsChangeOp }
+/**
+ * 変更の種類。rename は「旧名の delete + 新名の write」の 2 件で表す。
+ */
+export type SettingsChangeOp = "write" | "delete"
+/**
+ * notecore が設定ファイルを書いたことを `nd:settings-file-changed` で WebView へ流す
+ * (#1133)。デバイスの store は該当ファイルの写しだけ読み直す。
+ */
+export type SettingsFileChangedEvent = SettingsChange
 export type Status = "ok" | "warn" | "fail"
 export type StreamChatMessageDeletedEvent = { accountId: string; subscriptionId: string; messageId: string }
 export type StreamChatMessageEvent = { accountId: string; subscriptionId: string; message: ChatMessage }

@@ -8,32 +8,23 @@ GUI なしで Misskey の主要機能（タイムライン取得、投稿、リ�
 
 ### GitHub Releases（ビルド済みバイナリ）
 
-[Releases](https://github.com/notedeck-dev/notecli/releases) からプラットフォームに合ったバイナリをダウンロードできます。
+NoteDeck と同じタグの [Releases](https://github.com/notedeck-dev/notedeck/releases) に、プラットフォームごとのバイナリが `notecli-<version>-<platform>` の名前で載っています（`<version>` はリリースのバージョン。例: `notecli-1.66.0-linux-amd64`）。
 
 | ファイル名 | 対象 |
 |-----------|------|
-| `notecli-linux-amd64` | Linux x86_64 |
-| `notecli-linux-arm64` | Linux aarch64 |
-| `notecli-darwin-amd64` | macOS Intel |
-| `notecli-darwin-arm64` | macOS Apple Silicon |
-| `notecli-windows-amd64.exe` | Windows x86_64 |
+| `notecli-<version>-linux-amd64` | Linux x86_64 |
+| `notecli-<version>-linux-arm64` | Linux aarch64 |
+| `notecli-<version>-darwin-arm64` | macOS Apple Silicon |
+| `notecli-<version>-windows-amd64.exe` | Windows x86_64 |
 
 ```sh
-# 例: Linux x86_64
-curl -Lo notecli https://github.com/notedeck-dev/notecli/releases/latest/download/notecli-linux-amd64
+# 例: Linux x86_64 の最新版を GitHub CLI で取得
+gh release download --repo notedeck-dev/notedeck --pattern 'notecli-*-linux-amd64' --output notecli
 chmod +x notecli
 sudo mv notecli /usr/local/bin/
 ```
 
-### Nix Flake
-
-```sh
-# そのまま実行
-nix run github:notedeck-dev/notecli
-
-# プロファイルにインストール
-nix profile install github:notedeck-dev/notecli
-```
+配布バイナリは OS キーチェーン非対応（`--no-default-features`）でビルドされていて、トークンはローカル DB に保存されます。
 
 ### Cargo（ソースからビルド）
 
@@ -98,7 +89,7 @@ curl http://localhost:19820/api
 
 ```toml
 [dependencies]
-notecli = { git = "https://github.com/notedeck-dev/notecli.git" }
+notecli = { git = "https://github.com/notedeck-dev/notedeck" }
 ```
 
 ```rust

@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  CLIPS_BUILTIN_CAPABILITIES,
-  clipsAddNoteCapability,
-  clipsCreateCapability,
-  clipsListCapability,
-  clipsRemoveNoteCapability,
-} from './clips'
+import { CLIPS_BUILTIN_CAPABILITIES, clipsListCapability } from './clips'
 
 // Note: execute は adapter / Tauri command を経由するので unit 環境では走らない。
 // capability 定義と引数バリデーションのみ検証する。
@@ -16,39 +10,6 @@ describe('clips capabilities — declaration', () => {
     expect(clipsListCapability.permissions).toEqual(['clips.read'])
     expect(clipsListCapability.signature?.cheap).toBe(true)
     expect(clipsListCapability.signature?.returns?.type).toBe('array')
-  })
-
-  it('clips.create: write permission, confirmation, requires name', async () => {
-    expect(clipsCreateCapability.id).toBe('clips.create')
-    expect(clipsCreateCapability.permissions).toEqual(['clips.write'])
-    expect(clipsCreateCapability.requiresConfirmation).toBe(true)
-    await expect(clipsCreateCapability.execute({})).rejects.toThrow(
-      /name is required/,
-    )
-  })
-
-  it('clips.addNote: write permission, confirmation, requires clipId+noteId', async () => {
-    expect(clipsAddNoteCapability.id).toBe('clips.addNote')
-    expect(clipsAddNoteCapability.permissions).toEqual(['clips.write'])
-    expect(clipsAddNoteCapability.requiresConfirmation).toBe(true)
-    await expect(clipsAddNoteCapability.execute({})).rejects.toThrow(
-      /clipId is required/,
-    )
-    await expect(
-      clipsAddNoteCapability.execute({ clipId: 'c1' }),
-    ).rejects.toThrow(/noteId is required/)
-  })
-
-  it('clips.removeNote: write permission, confirmation, requires clipId+noteId', async () => {
-    expect(clipsRemoveNoteCapability.id).toBe('clips.removeNote')
-    expect(clipsRemoveNoteCapability.permissions).toEqual(['clips.write'])
-    expect(clipsRemoveNoteCapability.requiresConfirmation).toBe(true)
-    await expect(clipsRemoveNoteCapability.execute({})).rejects.toThrow(
-      /clipId is required/,
-    )
-    await expect(
-      clipsRemoveNoteCapability.execute({ clipId: 'c1' }),
-    ).rejects.toThrow(/noteId is required/)
   })
 })
 

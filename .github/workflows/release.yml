@@ -274,7 +274,9 @@ jobs:
   # keyring は OS 依存が重く cross でビルドしにくいので、配布物は --no-default-features (トークンは DB に残る)。
   notecli:
     # アプリの Release を notecli の成否で止めない: publish の後に、公開済みの Release へ
-    # 成果物を追加する (SHA256SUMS には含まれない)
+    # 成果物を追加する (SHA256SUMS には含まれない)。
+    # 成果物名はアプリと同じく notecli-<version>-<platform> (#1144): 手元に落とした
+    # ファイルがどのリリースのものか分かる。<version> はタグから取る (v を外す)
     needs: publish
     # softprops/action-gh-release が Release に成果物を載せるのに要る
     # (build job と同じ。無いと GITHUB_TOKEN が read-only で 403、v1.65.1 で踏んだ)
@@ -286,19 +288,19 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-24.04
-            artifact: notecli-linux-amd64
+            suffix: linux-amd64
             cross: false
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04
-            artifact: notecli-linux-arm64
+            suffix: linux-arm64
             cross: true
           - target: aarch64-apple-darwin
             os: macos-latest
-            artifact: notecli-darwin-arm64
+            suffix: darwin-arm64
             cross: false
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            artifact: notecli-windows-amd64.exe
+            suffix: windows-amd64.exe
             cross: false
     runs-on: ${{ matrix.os }}
     steps:
@@ -328,18 +330,23 @@ jobs:
         if: ${{ !matrix.cross }}
         run: cargo build --release -p notecli --no-default-features --target ${{ matrix.target }}
 
+      - name: Artifact name
+        id: artifact
+        shell: bash
+        run: echo "name=notecli-${GITHUB_REF#refs/tags/v}-${{ matrix.suffix }}" >> "$GITHUB_OUTPUT"
+
       - name: Rename binary (unix)
         if: runner.os != 'Windows'
-        run: cp target/${{ matrix.target }}/release/notecli ${{ matrix.artifact }}
+        run: cp target/${{ matrix.target }}/release/notecli ${{ steps.artifact.outputs.name }}
 
       - name: Rename binary (windows)
         if: runner.os == 'Windows'
-        run: cp target/${{ matrix.target }}/release/notecli.exe ${{ matrix.artifact }}
+        run: cp target/${{ matrix.target }}/release/notecli.exe ${{ steps.artifact.outputs.name }}
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.artifact }}
+          files: ${{ steps.artifact.outputs.name }}
 
   publish:
     needs: build

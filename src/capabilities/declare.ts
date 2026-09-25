@@ -15,6 +15,7 @@
 
 import type { JsonValue } from '@/bindings'
 import type { Command } from '@/commands/registry'
+import type { ConfirmOptions } from '@/stores/confirm'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import {
   CAPABILITY_DECLARATIONS,
@@ -102,15 +103,36 @@ export function implementCore(
   }
   const cmd = implement(id, {
     ...impl,
-    execute: async (params, ctx) =>
-      unwrap(
+    // 確認内容も本体と同じく notecore が組む (宣言が confirm のときだけ)。
+    // 帰属 / 理由 / クロスアカウントの行は dispatcher 側が足す
+    ...(d.confirm && !impl.requiresConfirmation
+      ? {
+          requiresConfirmation: async (params, ctx) =>
+            (unwrap(
+              await commands.capabilityPreview(
+                id,
+                (params ?? {}) as JsonValue,
+                ctx?.principal?.kind ?? 'user',
+                ctx?.accountId ?? null,
+                ctx?.tainted === true,
+              ),
+            ) as ConfirmOptions | null) ?? null,
+        }
+      : {}),
+    execute: async (params, ctx) => {
+      const outcome = unwrap(
         await commands.capabilityExecute(
           id,
           (params ?? {}) as JsonValue,
           ctx?.principal?.kind ?? 'user',
           ctx?.accountId ?? null,
+          ctx?.tainted === true,
         ),
-      ),
+      )
+      // notecore が「ラベル付き (tainted) の内容を返した」と申告したら呼び出し元へ
+      if (outcome.tainted) ctx?.markTainted?.()
+      return outcome.value
+    },
   })
   CORE_DELEGATES.add(cmd)
   return cmd
