@@ -2,9 +2,14 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { onScopeDispose, ref } from 'vue'
 import type { AiChatMessage, JsonValue } from '@/bindings'
 import {
+  CAPABILITY_DECLARATIONS,
+  type CapabilityId,
+} from '@/capabilities/declarations.generated'
+import {
   collectDeviceTools,
   collectRuntimeEnums,
 } from '@/capabilities/deviceTools'
+import { emitSpotlightFromCapability } from '@/capabilities/dispatcher'
 import { listCapabilities } from '@/capabilities/registry'
 import type { ChatMessage } from '@/composables/useAiChat'
 import { messageFromWire } from '@/services/aiSessionCodec'
@@ -383,6 +388,17 @@ export function useAiTurn(deps: AiTurnDeps) {
             toolExecuted = true
             const cur = getSession()
             if (!cur) return
+            // exec: core の tool は dispatcher を通らないので、AI Spotlight
+            // (誰が何をしたかの可視化) はここで出す。デバイス実行の tool は
+            // dispatcher が出している (二重に光らせない)
+            if (!p.is_error) {
+              const use = cur.messages.find(
+                (m) => m.toolUseId === p.tool_use_id,
+              )
+              if (use?.toolUseName) {
+                spotlightCoreTool(use, p.text ?? '', req.principal)
+              }
+            }
             const ts = Date.now()
             const nextPlaceholderId = `${turnId}-placeholder-${ts}`
             deps.sessions.setLocalMessages(req.sessionId, [
@@ -524,4 +540,26 @@ export function useAiTurn(deps: AiTurnDeps) {
   }
 
   return { run, cancel, isRunning, retryContext, prepareRetry }
+}
+
+/** core で実行された tool の結果を dispatcher と同じ Spotlight hook に渡す */
+function spotlightCoreTool(
+  use: { toolUseName?: string; toolUseInput?: unknown },
+  resultText: string,
+  principal: 'ai.chat' | 'ai.heartbeat',
+): void {
+  const capId = (use.toolUseName ?? '').replace(/_/g, '.')
+  if (CAPABILITY_DECLARATIONS[capId as CapabilityId]?.exec !== 'core') return
+  let result: unknown = resultText
+  try {
+    result = JSON.parse(resultText)
+  } catch {
+    // 文字列のままでよい
+  }
+  emitSpotlightFromCapability(
+    capId,
+    (use.toolUseInput ?? undefined) as Record<string, unknown> | undefined,
+    result,
+    { kind: principal },
+  )
 }

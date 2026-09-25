@@ -21,6 +21,7 @@ import {
   CAPABILITY_DECLARATIONS,
   type CapabilityId,
 } from './declarations.generated'
+import type { CapabilityContext } from './types'
 
 /** builtins が書く部分 = 振る舞いだけ */
 export interface CapabilityImpl {
@@ -115,6 +116,7 @@ export function implementCore(
                 ctx?.principal?.kind ?? 'user',
                 ctx?.accountId ?? null,
                 ctx?.tainted === true,
+                pluginIdOf(ctx),
               ),
             ) as ConfirmOptions | null) ?? null,
         }
@@ -127,6 +129,7 @@ export function implementCore(
           ctx?.principal?.kind ?? 'user',
           ctx?.accountId ?? null,
           ctx?.tainted === true,
+          pluginIdOf(ctx),
         ),
       )
       // notecore が「ラベル付き (tainted) の内容を返した」と申告したら呼び出し元へ
@@ -136,6 +139,12 @@ export function implementCore(
   })
   CORE_DELEGATES.add(cmd)
   return cmd
+}
+
+/** principal が plugin のときの id (編集履歴の帰属に残す)。それ以外は null */
+function pluginIdOf(ctx: CapabilityContext | undefined): string | null {
+  const p = ctx?.principal
+  return p?.kind === 'plugin' ? p.pluginId : null
 }
 
 const CORE_DELEGATES = new WeakSet<Command>()

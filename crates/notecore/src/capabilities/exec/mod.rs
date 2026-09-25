@@ -41,6 +41,8 @@ pub struct ExecContext {
     /// 呼び出し元のセッションが tainted (他人の内容を読んだ後) か (#1103)。
     /// 書込にラベルを付けるのに使う
     pub tainted: bool,
+    /// principal が plugin のときの id (編集履歴の帰属に残す)
+    pub plugin_id: Option<String>,
 }
 
 /// 実行結果。`tainted` は「ラベル付きの内容を返した」の申告 (呼び出し元の
@@ -340,6 +342,7 @@ mod tests {
             principal: "ai.chat".into(),
             account_id: Some("ctx".into()),
             tainted: false,
+            plugin_id: None,
         };
         assert_eq!(
             resolve_account_id(&serde_json::json!({"accountId": " p "}), &ctx).unwrap(),

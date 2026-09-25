@@ -1140,6 +1140,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
                 principal: state.req.principal.clone(),
                 account_id: state.req.account_id.clone(),
                 tainted: session_tainted,
+                plugin_id: None,
             };
             match executor
                 .execute(
