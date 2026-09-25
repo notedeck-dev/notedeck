@@ -11,6 +11,7 @@
 //! `AiChatSink` 等) で受け取る。tests/lint/rustCoreBoundary.test.ts が機械検査する。
 
 pub mod account_service;
+pub mod ai_budget;
 pub mod ai_chat_service;
 pub mod ai_config;
 pub mod ai_keys;

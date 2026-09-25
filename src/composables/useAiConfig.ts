@@ -217,6 +217,12 @@ export interface AiConfig {
   /** 生成まわりの調整値。詳細は {@link GenerationConfig}。 */
   generation: GenerationConfig
   /**
+   * Vault 接続ごとの日次 token 予算 (#1133)。`{ [connectionId]: tokens }`。
+   * 0 / 未指定 = 無制限。使用済み + 見込みが超えるターンは provider を呼ばずに
+   * 止まる (判定と台帳は notecore)。
+   */
+  budgets: Record<string, number>
+  /**
    * このアプリで AI が振る舞う persona (#491)。skill で `isPersona: true`
    * を設定したものから 1 つ選択する。空文字 / 未指定 = 通常の汎用 AI として
    * 動作 (chat / heartbeat / command / task すべて persona なし)。
@@ -315,6 +321,9 @@ export function defaultConfig(): AiConfig {
   return {
     activeConnectionId: defaultFileConfig.activeConnectionId ?? '',
     models: { ...(defaultFileConfig.models ?? {}) },
+    budgets: normalizeBudgets(
+      (defaultFileConfig as { budgets?: Record<string, unknown> }).budgets,
+    ),
     dataSources: {
       preset: defaultFileConfig.dataSources.preset,
       custom: { ...defaultFileConfig.dataSources.custom },
@@ -472,7 +481,24 @@ function mergeConfig(base: AiConfig, partial: Partial<AiConfig>): AiConfig {
     ...base.generation,
     ...(partial.generation ?? {}),
   })
+  result.budgets = normalizeBudgets({
+    ...base.budgets,
+    ...(partial.budgets ?? {}),
+  })
   return result
+}
+
+/** 予算は非負の整数だけ残す (壊れた値は落とす = 無制限扱い) */
+export function normalizeBudgets(
+  raw: Record<string, unknown> | undefined,
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const [id, v] of Object.entries(raw ?? {})) {
+    if (typeof v === 'number' && Number.isFinite(v) && v >= 0) {
+      out[id] = Math.floor(v)
+    }
+  }
+  return out
 }
 
 // --- Migration: legacy ai.<provider> keychain → Vault connections (#564) ---

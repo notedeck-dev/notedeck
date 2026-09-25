@@ -150,6 +150,8 @@ export interface AiTurnEventPayload {
   error?: string
   phase?: 'before_tool' | 'after_tool'
   stop_reason?: 'end' | 'tool_round_limit'
+  /** done: ターンの token 使用量 (provider が返さなければ推定) */
+  usage?: { inputTokens: number; outputTokens: number; estimated: boolean }
   tool_use_id?: string
   tool_use_name?: string
   tool_use_input?: Record<string, unknown>

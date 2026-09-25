@@ -75,6 +75,12 @@
     desktopNotification: true,
   },
 
+  // Vault 接続ごとの 1 日の token 予算 (#1133)。{ [connectionId]: tokens }。
+  // 0 / 未指定 = 無制限。使用済み + 見込みが超えるターンは provider を呼ばずに
+  // 止まる (チャットも HEARTBEAT も同じ勘定。日境界は UTC)。応答に usage が
+  // 無い provider では文字数から推定する。
+  budgets: {},
+
   // 生成まわりの調整値。既定のまま使えることを前提に、実行先のモデルに
   // よって既定が合わなくなるものだけを開けている。範囲外の値は読み込み時に
   // clamp される (useAiConfig の normalizeGenerationConfig)。
