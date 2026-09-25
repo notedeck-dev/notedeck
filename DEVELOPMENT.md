@@ -1249,7 +1249,7 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 
 #### Skill 駆動
 
-OpenClaw `HEARTBEAT.md` の `tasks:` に相当するのが NoteDeck の `mode: heartbeat` skill。MisStore 配布の skill は frontmatter で `mode: heartbeat` を宣言しておけば install 直後に daemon が拾う。tick ごとに全 heartbeat skill body を結合して 1 回の AI inference にまとめて投げる。skill の `cheapCheckCapabilities` は notecore 単独で実行できる cheap な capability だけが効き、それ以外は無視される (登録時の拒否は後続)。
+OpenClaw `HEARTBEAT.md` の `tasks:` に相当するのが NoteDeck の `mode: heartbeat` skill。MisStore 配布の skill は frontmatter で `mode: heartbeat` を宣言しておけば install 直後に daemon が拾う。tick ごとに全 heartbeat skill body を結合して 1 回の AI inference にまとめて投げる。skill の `cheapCheckCapabilities` は notecore 単独で実行できる cheap な capability だけ。notecore 経由の登録 (AI の作成 / 更新、MisStore からのインストール) では他を含む skill を拒み、外部エディタで直接書かれたものは実行時に無視する (warn)。
 
 #### 応答契約 (`heartbeat.report` tool と legacy の `HEARTBEAT_OK`)
 
