@@ -14,10 +14,13 @@ mod account;
 mod memos;
 mod meta;
 mod misc;
+mod misstore;
 mod net;
 mod notes;
+mod plugins;
 mod preview;
 mod project;
+mod queries;
 mod server;
 mod skills;
 mod staged;
@@ -25,6 +28,7 @@ mod styles;
 mod themes;
 mod time;
 mod user;
+mod widgets;
 mod writes;
 
 pub use time::iso_from_unix_ms;
@@ -142,6 +146,15 @@ pub async fn preview(
     }
     if id.starts_with("styles.") {
         return styles::preview(core, id, &params, ctx);
+    }
+    if id.starts_with("plugins.") {
+        return plugins::preview(core, id, &params, ctx).await;
+    }
+    if id.starts_with("widgets.") {
+        return widgets::preview(core, id, &params, ctx).await;
+    }
+    if id.starts_with("queries.") {
+        return queries::preview(core, id, &params, ctx);
     }
     Ok(Some(
         preview::custom(id, &params).unwrap_or_else(|| preview::generic(decl.label, &params)),
@@ -270,6 +283,24 @@ async fn execute_value(core: &Core, id: &str, params: Value, ctx: &ExecContext) 
         "styles.write" => styles::write(core, p, ctx),
         "styles.append" => styles::append(core, p, ctx),
         "styles.revert" => styles::revert(core, p, ctx),
+        "plugins.list" => plugins::list(core),
+        "plugins.read" => plugins::read(core, p),
+        "plugins.history" => plugins::history(core, p),
+        "plugins.setActive" => plugins::set_active(core, p),
+        "plugins.delete" => plugins::delete(core, p),
+        "plugins.revert" => plugins::revert(core, p, ctx),
+        "plugins.install" => plugins::install(core, p).await,
+        "plugins.uninstall" => plugins::uninstall(core, p),
+        "widgets.list" => widgets::list(core).await,
+        "widgets.read" => widgets::read(core, p),
+        "widgets.history" => widgets::history(core, p),
+        "widgets.setAutoRun" => widgets::set_auto_run(core, p),
+        "widgets.delete" => widgets::delete(core, p),
+        "widgets.revert" => widgets::revert(core, p, ctx),
+        "widgets.install" => widgets::install(core, p).await,
+        "widgets.uninstall" => widgets::uninstall(core, p),
+        "queries.history" => queries::history(core, p),
+        "queries.revert" => queries::revert(core, p, ctx),
         // --- HEARTBEAT の応答契約 ---
         "heartbeat.report" => crate::heartbeat::report_tool(p, ctx),
         // --- 外部ネットワーク ---
@@ -376,6 +407,24 @@ const HAS_BODY: &[&str] = &[
     "styles.write",
     "styles.append",
     "styles.revert",
+    "plugins.list",
+    "plugins.read",
+    "plugins.history",
+    "plugins.setActive",
+    "plugins.delete",
+    "plugins.revert",
+    "plugins.install",
+    "plugins.uninstall",
+    "widgets.list",
+    "widgets.read",
+    "widgets.history",
+    "widgets.setAutoRun",
+    "widgets.delete",
+    "widgets.revert",
+    "widgets.install",
+    "widgets.uninstall",
+    "queries.history",
+    "queries.revert",
 ];
 
 #[cfg(test)]

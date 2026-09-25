@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
+import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import {
   createSidecarCollection,
+  META_SUFFIX,
   type SidecarItemFile,
 } from '@/services/sidecarFileCollection'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
@@ -616,6 +618,49 @@ export const useWidgetsStore = defineStore('widgets', () => {
     ensureLoaded()
     return widgets.value.find((w) => w.installId === installId)
   }
+
+  // notecore がウィジェットのファイルを書いた (AI の widgets.* は notecore の本体が
+  // 書く, #1133) → その個体だけ写しを揃え、ソースが変わっていれば表示中の
+  // インスタンスに再実行を要求する。削除は Mk:save 領域とサイドバーの並びも掃除
+  registerSettingsFileHandler('widgets', async (change) => {
+    if (!change.name.endsWith(META_SUFFIX)) return
+    ensureLoaded()
+    await ready
+    const fileBase = change.name.slice(0, -META_SUFFIX.length)
+    if (change.op === 'delete') {
+      const removed = widgets.value.find((w) => w.fileBase === fileBase)
+      if (!removed) return
+      removeStorageByPrefix(
+        STORAGE_KEYS.aiscriptStorage(`app-${removed.installId}`),
+      )
+      widgets.value = widgets.value.filter((w) => w !== removed)
+      saveWidgetsToStorage(widgets.value)
+      if (sidebarWidgetIds.value.includes(removed.installId)) {
+        sidebarWidgetIds.value = sidebarWidgetIds.value.filter(
+          (id) => id !== removed.installId,
+        )
+        saveSidebarOrderToStorage(sidebarWidgetIds.value)
+      }
+      return
+    }
+    let item: WidgetMeta | undefined
+    try {
+      item = await widgetFiles.loadOne(change.name)
+    } catch (e) {
+      console.warn(`[widgets] reload ${change.name} failed:`, e)
+      return
+    }
+    if (!item) return
+    const next = item
+    const prev = widgets.value.find(
+      (w) => w.installId === next.installId || w.fileBase === fileBase,
+    )
+    widgets.value = prev
+      ? widgets.value.map((w) => (w === prev ? next : w))
+      : [...widgets.value, next]
+    saveWidgetsToStorage(widgets.value)
+    if (prev && prev.src !== next.src) requestRerun(next.installId)
+  })
 
   return {
     widgets,

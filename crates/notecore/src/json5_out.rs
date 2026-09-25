@@ -15,7 +15,164 @@ pub enum J5 {
     Obj(Vec<(String, J5)>),
 }
 
+impl<'de> serde::Deserialize<'de> for J5 {
+    /// json5 crate から順序を保って読む (オブジェクトは出現順)。
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        struct V;
+        impl<'de> serde::de::Visitor<'de> for V {
+            type Value = J5;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a JSON5 value")
+            }
+            fn visit_bool<E>(self, v: bool) -> std::result::Result<J5, E> {
+                Ok(J5::Bool(v))
+            }
+            fn visit_i64<E>(self, v: i64) -> std::result::Result<J5, E> {
+                Ok(J5::Num(v as f64))
+            }
+            fn visit_u64<E>(self, v: u64) -> std::result::Result<J5, E> {
+                Ok(J5::Num(v as f64))
+            }
+            fn visit_f64<E>(self, v: f64) -> std::result::Result<J5, E> {
+                Ok(J5::Num(v))
+            }
+            fn visit_str<E>(self, v: &str) -> std::result::Result<J5, E> {
+                Ok(J5::Str(v.to_string()))
+            }
+            fn visit_string<E>(self, v: String) -> std::result::Result<J5, E> {
+                Ok(J5::Str(v))
+            }
+            fn visit_none<E>(self) -> std::result::Result<J5, E> {
+                Ok(J5::Null)
+            }
+            fn visit_unit<E>(self) -> std::result::Result<J5, E> {
+                Ok(J5::Null)
+            }
+            fn visit_some<D2: serde::Deserializer<'de>>(
+                self,
+                d: D2,
+            ) -> std::result::Result<J5, D2::Error> {
+                <J5 as serde::Deserialize>::deserialize(d)
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> std::result::Result<J5, A::Error> {
+                let mut out = Vec::new();
+                while let Some(v) = seq.next_element::<J5>()? {
+                    out.push(v);
+                }
+                Ok(J5::Arr(out))
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(
+                self,
+                mut map: A,
+            ) -> std::result::Result<J5, A::Error> {
+                let mut out = Vec::new();
+                while let Some((k, v)) = map.next_entry::<String, J5>()? {
+                    out.push((k, v));
+                }
+                Ok(J5::Obj(out))
+            }
+        }
+        d.deserialize_any(V)
+    }
+}
+
 impl J5 {
+    pub fn get(&self, key: &str) -> Option<&J5> {
+        match self {
+            J5::Obj(pairs) => pairs.iter().rev().find(|(k, _)| k == key).map(|(_, v)| v),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            J5::Str(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            J5::Bool(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            J5::Num(n) => Some(*n),
+            _ => None,
+        }
+    }
+
+    pub fn as_arr(&self) -> Option<&[J5]> {
+        match self {
+            J5::Arr(a) => Some(a),
+            _ => None,
+        }
+    }
+
+    /// オブジェクトのキーを置く (あれば同じ位置で置換、無ければ末尾に追加)。
+    pub fn set(&mut self, key: &str, value: J5) {
+        if let J5::Obj(pairs) = self {
+            if let Some(slot) = pairs.iter_mut().find(|(k, _)| k == key) {
+                slot.1 = value;
+            } else {
+                pairs.push((key.to_string(), value));
+            }
+        }
+    }
+
+    pub fn remove(&mut self, key: &str) {
+        if let J5::Obj(pairs) = self {
+            pairs.retain(|(k, _)| k != key);
+        }
+    }
+
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            J5::Null => false,
+            J5::Bool(b) => *b,
+            J5::Num(n) => *n != 0.0 && !n.is_nan(),
+            J5::Str(s) => !s.is_empty(),
+            J5::Arr(_) | J5::Obj(_) => true,
+        }
+    }
+
+    /// 文字列の配列だけを残す。
+    pub fn string_list(&self) -> Vec<String> {
+        self.as_arr()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// serde_json の Value へ (順序は失われる)。
+    pub fn to_value(&self) -> Value {
+        match self {
+            J5::Null => Value::Null,
+            J5::Bool(b) => Value::Bool(*b),
+            J5::Num(n) => {
+                if n.fract() == 0.0 && n.abs() < 9.007_199_254_740_992e15 {
+                    Value::from(*n as i64)
+                } else {
+                    serde_json::Number::from_f64(*n)
+                        .map(Value::Number)
+                        .unwrap_or(Value::Null)
+                }
+            }
+            J5::Str(s) => Value::String(s.clone()),
+            J5::Arr(a) => Value::Array(a.iter().map(J5::to_value).collect()),
+            J5::Obj(p) => Value::Object(p.iter().map(|(k, v)| (k.clone(), v.to_value())).collect()),
+        }
+    }
+
     /// serde_json の Value から (オブジェクトはキーのソート順のまま)。
     pub fn from_value(v: &Value) -> J5 {
         match v {
@@ -254,6 +411,21 @@ mod tests {
         assert_eq!(quote_string("a\nb\tc\\"), "'a\\nb\\tc\\\\'");
         assert_eq!(quote_string("\"q\""), "'\"q\"'");
         assert_eq!(quote_string("it's \"x\""), "'it\\'s \"x\"'");
+    }
+
+    #[test]
+    fn deserializes_in_document_order() {
+        let j: J5 =
+            json5::from_str("{ b: 1, a: { z: true, y: [1, 'x'] }, // c\n c: null }").unwrap();
+        assert_eq!(stringify(&j), "{\n  b: 1,\n  a: {\n    z: true,\n    y: [\n      1,\n      'x',\n    ],\n  },\n  c: null,\n}");
+        assert_eq!(
+            j.get("a").and_then(|a| a.get("z")).and_then(J5::as_bool),
+            Some(true)
+        );
+        assert_eq!(
+            j.get("a").unwrap().get("y").unwrap().string_list(),
+            vec!["x"]
+        );
     }
 
     #[test]

@@ -91,7 +91,7 @@ export const READ_ONLY_REASON = 'ソースファイルが見つからないた�
 export const READ_ONLY_HINT =
   'ソースファイルが見つかりません。ソースを置き直せば次回起動で復帰します。ストア配布物はストアから再導入、不要なら削除してください'
 
-const META_SUFFIX = '.meta.json5'
+export const META_SUFFIX = '.meta.json5'
 const SRC_SUFFIX = '.is'
 const HISTORY_SUFFIX = '.history.json5'
 /** ID 凍結の欠損判定に使う上限長。制御文字含有は欠損に含めない (#913) */
@@ -236,6 +236,34 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
     const notice = formatDuplicateIdNotice(duplicates)
     if (notice) cfg.notify?.(notice)
     return { items, entryFileCount: metaFiles.length }
+  }
+
+  /**
+   * 1 個体だけ読む (notecore が書いた変更通知の写し更新用, #1133)。ID 凍結・
+   * ミラー復旧はしない (起動時の loadAll が担う)。メタが読めなければ undefined。
+   */
+  async function loadOneImpl(metaFile: string): Promise<T | undefined> {
+    if (!metaFile.endsWith(META_SUFFIX)) return undefined
+    const base = metaFile.slice(0, -META_SUFFIX.length)
+    let parsed: Record<string, unknown>
+    try {
+      parsed = JSON5.parse(await cfg.read(metaFile)) as Record<string, unknown>
+    } catch (e) {
+      console.warn(`[${cfg.logTag}] failed to parse ${metaFile}:`, e)
+      return undefined
+    }
+    if (!isValidId(parsed[cfg.idKey])) parsed[cfg.idKey] = metaFile
+    let src = ''
+    let readOnly = false
+    try {
+      src = await cfg.read(base + SRC_SUFFIX)
+    } catch {
+      readOnly = true
+    }
+    const item = cfg.fromFile(parsed as unknown as M, src, metaFile)
+    item.fileBase = base
+    if (readOnly) item.readOnly = true
+    return item
   }
 
   async function persistItemImpl(
@@ -535,6 +563,7 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
 
   return {
     loadAll: () => enqueue(loadAllImpl),
+    loadOne: (metaFile: string) => enqueue(() => loadOneImpl(metaFile)),
     persistItem: (item: T, allItems: readonly T[]) =>
       enqueue(() => persistItemImpl(item, allItems)),
     persistAll: (items: readonly T[], allItems: readonly T[]) =>

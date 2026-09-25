@@ -1,8 +1,10 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { releaseSharedSuspension } from '@/services/columnQuery/degradedRunner'
+import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import {
   createSidecarCollection,
+  META_SUFFIX,
   type SidecarItemFile,
 } from '@/services/sidecarFileCollection'
 import { useDeckStore } from '@/stores/deck'
@@ -606,6 +608,39 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
       }
     }
     return counts
+  })
+
+  // notecore がクエリのファイルを書いた (queries.revert は notecore の本体が書く,
+  // #1133) → その個体だけ写しを揃え、ソースが変わっていれば暴走サスペンドを解除する
+  registerSettingsFileHandler('queries', async (change) => {
+    if (!change.name.endsWith(META_SUFFIX)) return
+    ensureLoaded()
+    await ready
+    const fileBase = change.name.slice(0, -META_SUFFIX.length)
+    if (change.op === 'delete') {
+      const removed = queries.value.find((q) => q.fileBase === fileBase)
+      if (!removed) return
+      queries.value = queries.value.filter((q) => q !== removed)
+      persistMirror()
+      return
+    }
+    let item: NamedQueryMeta | undefined
+    try {
+      item = await queryFiles.loadOne(change.name)
+    } catch (e) {
+      console.warn(`[columnQueries] reload ${change.name} failed:`, e)
+      return
+    }
+    if (!item) return
+    const next = item
+    const prev = queries.value.find(
+      (q) => q.id === next.id || q.fileBase === fileBase,
+    )
+    queries.value = prev
+      ? queries.value.map((q) => (q === prev ? next : q))
+      : [...queries.value, next]
+    persistMirror()
+    if (prev && prev.src !== next.src) releaseSharedSuspension(next.id)
   })
 
   return {

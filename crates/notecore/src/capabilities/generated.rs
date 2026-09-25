@@ -3800,7 +3800,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "プラグインを削除する。AiScript ソース・メタ・Mk:save 領域すべて消える (= 不可逆)。confirm ダイアログで対象プラグインの name / version / permissions を表示してユーザー承認を取る。",
         params: &[
             ParamDecl {
@@ -3830,7 +3830,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 installId のプラグインの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。",
         params: &[
             ParamDecl {
@@ -3860,7 +3860,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "MisStore (store.notedeck.io) の既製プラグインをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 全体スコープ (全アカウント対象) でインストールされ、既に同 storeId の プラグインがあれば再インストールせず全体スコープへ追加するだけ。",
         params: &[
             ParamDecl {
@@ -3890,7 +3890,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みプラグインのメタデータ一覧を返す。 AiScript ソースは含まれない (= plugins.read で個別取得)。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -3912,7 +3912,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 installId のプラグインの AiScript ソースを返す。",
         params: &[
             ParamDecl {
@@ -3942,7 +3942,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "プラグイン src を編集履歴の index 番目に戻す。confirm ダイアログで 戻し先 snapshot の name / version / permissions / AiScript ソースを 表示してユーザー承認を取る。",
         params: &[
             ParamDecl {
@@ -3986,7 +3986,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "プラグインの active 状態を切り替える。有効化 (true) すると handler が起動して Misskey API 介入の副作用が走り得るので、AI が 呼ぶときは確認ダイアログでユーザー承認を取る。無効化 (false) は 即実行 (= 可逆な停止操作)。有効化後は aiscript.logs (source: plugin) に \"started\" が記録されるので起動確認に使える。",
         params: &[
             ParamDecl {
@@ -4023,7 +4023,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みプラグインを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。 plugins.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。",
         params: &[
             ParamDecl {
@@ -4104,7 +4104,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 id の名前付きクエリの編集前 snapshot 一覧 (新しい順) を返す。",
         params: &[
             ParamDecl {
@@ -4134,7 +4134,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "名前付きクエリのソースを編集履歴の index 番目に戻す。",
         params: &[
             ParamDecl {
@@ -5936,7 +5936,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "ウィジェットを削除する。AiScript ソース・メタ・Mk:save 領域すべて消える (= 不可逆)。",
         params: &[
             ParamDecl {
@@ -5966,7 +5966,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 installId のウィジェットの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。",
         params: &[
             ParamDecl {
@@ -5996,7 +5996,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "MisStore (store.notedeck.io) の既製ウィジェットをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 個体は storeId × 実行アカウントの組で 1 つ。同じ組が既にあれば更新して既存 installId を返す。",
         params: &[
             ParamDecl {
@@ -6033,7 +6033,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みウィジェットのメタデータ一覧を返す。 AiScript ソースは含まれない (src は widgets.read で個別取得)。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -6055,7 +6055,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 installId のウィジェットの AiScript ソースを返す。",
         params: &[
             ParamDecl {
@@ -6085,7 +6085,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "ウィジェット src を編集履歴の index 番目に戻す。",
         params: &[
             ParamDecl {
@@ -6129,7 +6129,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "ウィジェットの autoRun フラグを切り替える (可逆操作)。",
         params: &[
             ParamDecl {
@@ -6166,7 +6166,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みウィジェットを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。storeId 指定は 実行アカウント別の全個体を消す。 widgets.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。",
         params: &[
             ParamDecl {

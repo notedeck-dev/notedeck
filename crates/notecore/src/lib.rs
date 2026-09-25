@@ -50,6 +50,7 @@ pub mod settings_events;
 pub mod settings_slug;
 pub mod settings_store;
 pub mod shutdown;
+pub mod sidecar;
 pub mod skills;
 pub mod ssrf;
 pub mod themes;

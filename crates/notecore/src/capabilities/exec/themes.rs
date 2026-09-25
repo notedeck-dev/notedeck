@@ -3,18 +3,14 @@
 
 use indexmap::IndexMap;
 use serde_json::{json, Value};
-use sha2::{Digest, Sha512};
 
+use super::misstore::{fetch_verified_source, registry_entry};
 use super::{staged, ExecContext};
-use crate::commands::http::{self, HttpFetchRequest};
 use crate::context::Core;
 use crate::edit_history::Attribution;
 use crate::error::Result;
-use crate::settings_slug::casefold;
 use crate::themes::{self, Theme, ThemePatch};
 use notecli::error::NoteDeckError;
-
-const REGISTRY_URL: &str = "https://store.notedeck.io/registry/themes.json";
 
 fn s<'a>(p: &'a Value, k: &str) -> &'a str {
     p.get(k).and_then(Value::as_str).unwrap_or("")
@@ -194,58 +190,6 @@ pub fn uninstall(core: &Core, p: &Value) -> Result<Value> {
     Ok(json!({ "id": id, "removed": true }))
 }
 
-// --- MisStore ---
-
-async fn fetch_text(core: &Core, url: &str) -> Result<String> {
-    let res = http::http_fetch(
-        core,
-        HttpFetchRequest {
-            url: url.to_string(),
-            method: Some("GET".into()),
-            headers: None,
-            body: None,
-            timeout_ms: Some(15_000),
-        },
-    )
-    .await?;
-    if !(200..300).contains(&res.status) {
-        return Err(invalid(format!("HTTP {}", res.status)));
-    }
-    Ok(res.body)
-}
-
-async fn registry_entry(core: &Core, id: &str) -> Result<Option<Value>> {
-    let text = fetch_text(core, REGISTRY_URL).await?;
-    let doc: Value = serde_json::from_str(&text)
-        .map_err(|e| invalid(format!("MisStore registry parse failed: {e}")))?;
-    Ok(doc
-        .get("themes")
-        .and_then(Value::as_array)
-        .and_then(|a| {
-            a.iter()
-                .find(|e| e.get("id").and_then(Value::as_str) == Some(id))
-        })
-        .cloned())
-}
-
-async fn fetch_verified_source(core: &Core, entry: &Value) -> Result<(String, String)> {
-    let url = s(entry, "sourceUrl");
-    let expected = casefold(s(entry, "sha512"));
-    for _ in 0..2 {
-        let text = fetch_text(core, url).await?;
-        let hash = format!(
-            "{:x}",
-            Sha512::digest(text.replace("\r\n", "\n").as_bytes())
-        );
-        if hash == expected {
-            return Ok((text, hash));
-        }
-    }
-    Err(invalid(
-        "ハッシュ不一致: ソースが改ざんされている可能性があります".into(),
-    ))
-}
-
 /// `buildThemeWithMeta`: 配布ファイルに storeId / storeSha512 / storeVersion と installedFor を足す。
 fn theme_with_meta(
     mut parsed: Theme,
@@ -280,7 +224,7 @@ pub async fn install(core: &Core, p: &Value) -> Result<Value> {
     if id.is_empty() {
         return Err(invalid("theme.install: id is required".into()));
     }
-    let Some(entry) = registry_entry(core, id).await? else {
+    let Some(entry) = registry_entry(core, "themes", id).await? else {
         return Err(invalid(format!(
             "theme.install: theme \"{id}\" not found in MisStore (try misstore.search first)"
         )));
@@ -420,7 +364,7 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             if tid.is_empty() {
                 return Ok(None);
             }
-            let Some(entry) = registry_entry(core, tid).await? else {
+            let Some(entry) = registry_entry(core, "themes", tid).await? else {
                 return Ok(None);
             };
             let existing = themes::list(core)?
