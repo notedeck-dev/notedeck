@@ -2,6 +2,7 @@ import yaml from 'js-yaml'
 import { ref } from 'vue'
 import type { NoteVisibility } from '@/adapters/types'
 import { emitNoteDeckEvent } from '@/aiscript/events'
+import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
 import {
   deleteHistorySidecar,
@@ -159,7 +160,10 @@ function buildMemoSource(
   frontmatter: Record<string, unknown>,
 ): string {
   const yamlStr = yaml.dump(frontmatter, { lineWidth: -1, quotingType: '"' })
-  return `---\n${yamlStr}---\n\n${body}\n`
+  // 本文の末尾に LF が無ければ足す (読むときは先頭の LF を 1 つ除くだけなので、
+  // 無条件に足すと再保存のたびに末尾の LF が増える。notecore 側も同じ規則)
+  const tail = body.endsWith('\n') ? '' : '\n'
+  return `---\n${yamlStr}---\n\n${body}${tail}`
 }
 
 function toFrontmatterSource(
@@ -278,6 +282,41 @@ export async function ensureMemosLoaded(): Promise<void> {
   cache = next
   loaded = true
 }
+
+// notecore がメモファイルを書いた (AI の memos.* は notecore の本体が書く, #1133)
+// → そのファイルだけ読み直して写しを揃え、AiScript 向けのイベントも出す。
+// 履歴ファイルは写しを持たないので無視する
+registerSettingsFileHandler('memos', async (change) => {
+  const memoKey = memoKeyFromFilename(change.name)
+  if (!memoKey || change.name.endsWith('.history.json5')) return
+  if (change.op === 'delete') {
+    if (!(memoKey in cache)) return
+    const next = { ...cache }
+    delete next[memoKey]
+    cache = next
+    delete createdAtCache[memoKey]
+    cancelPendingWrite(memoKey)
+    memosVersion.value++
+    emitNoteDeckEvent('memo:deleted', { memoKey })
+    return
+  }
+  let content: string
+  try {
+    content = await readMemoFile(change.name)
+  } catch (e) {
+    console.warn(`[useMemos] reload ${change.name} failed:`, e)
+    return
+  }
+  if (!content) return
+  const isNew = !(memoKey in cache)
+  const { stored, createdAt } = parseMemoContent(content)
+  // 書きかけの debounce があれば捨てる (notecore の内容が新しい)
+  cancelPendingWrite(memoKey)
+  cache = { ...cache, [memoKey]: stored }
+  createdAtCache[memoKey] = createdAt
+  memosVersion.value++
+  emitNoteDeckEvent(isNew ? 'memo:created' : 'memo:updated', { memoKey })
+})
 
 /** 全メモ (#1018)。アカウントによる区分けは無い。 */
 export function loadAllMemos(): StoredMemos {
