@@ -42,29 +42,28 @@ function sidebarLinks(sidebar: DefaultTheme.Sidebar | undefined): Set<string> {
 }
 
 /**
- * 他の言語の同じページ。訳はサイドバーに載せたページだけなので、
+ * 各言語の同じページ (今の言語も含む)。訳はサイドバーに載せたページだけなので、
  * 載っていなければその言語のドキュメント入口 (ランディングからならトップ) へ送る。
  * 原文の root (ja) には必ず対応ページがある
  */
 const LANG_LINKS = computed(() => {
   const prefix = localeIndex.value === 'root' ? '' : `/${localeIndex.value}`
   const base = route.path.slice(prefix.length) || '/'
-  return Object.entries(site.value.locales)
-    .filter(([key]) => key !== localeIndex.value)
-    .map(([key, locale]) => {
-      if (key === 'root') return { text: locale.label, lang: locale.lang, href: base }
-      const translated = sidebarLinks(locale.themeConfig?.sidebar)
-      const candidate = `/${key}${base}`
-      const href =
-        base === '/' || translated.has(candidate)
-          ? candidate
-          : base.startsWith('/docs/')
-            ? `/${key}/docs/`
-            : `/${key}/`
-      return { text: locale.label, lang: locale.lang, href }
-    })
+  return Object.entries(site.value.locales).map(([key, locale]) => {
+    const current = key === localeIndex.value
+    if (current) return { text: locale.label, lang: locale.lang, href: route.path, current }
+    if (key === 'root') return { text: locale.label, lang: locale.lang, href: base, current }
+    const translated = sidebarLinks(locale.themeConfig?.sidebar)
+    const candidate = `/${key}${base}`
+    const href =
+      base === '/' || translated.has(candidate)
+        ? candidate
+        : base.startsWith('/docs/')
+          ? `/${key}/docs/`
+          : `/${key}/`
+    return { text: locale.label, lang: locale.lang, href, current }
+  })
 })
-const currentLangLabel = computed(() => site.value.locales[localeIndex.value]?.label)
 </script>
 
 <template>
@@ -97,16 +96,22 @@ const currentLangLabel = computed(() => site.value.locales[localeIndex.value]?.l
           <div class="nav-lang">
             <button
               type="button"
-              class="nav-right-button nav-lang-button"
+              class="nav-right-button"
               :aria-label="t.nav.language"
               :aria-expanded="langOpen"
               @click="langOpen = !langOpen"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" /></svg>
-              <span>{{ currentLangLabel }}</span>
             </button>
             <div v-if="langOpen" class="nav-lang-menu">
-              <a v-for="lang in LANG_LINKS" :key="lang.href" :href="lang.href" :lang="lang.lang">{{ lang.text }}</a>
+              <a
+                v-for="lang in LANG_LINKS"
+                :key="lang.lang"
+                :href="lang.href"
+                :lang="lang.lang"
+                :aria-current="lang.current ? 'page' : undefined"
+                :class="{ current: lang.current }"
+              >{{ lang.text }}</a>
             </div>
           </div>
           <button
@@ -149,8 +154,8 @@ const currentLangLabel = computed(() => site.value.locales[localeIndex.value]?.l
         GitHub
       </a>
       <a
-        v-for="lang in LANG_LINKS"
-        :key="lang.href"
+        v-for="lang in LANG_LINKS.filter((l) => !l.current)"
+        :key="lang.lang"
         :href="lang.href"
         :lang="lang.lang"
         class="nav-mobile-item"
