@@ -24,6 +24,8 @@ mod time;
 mod user;
 mod writes;
 
+pub use time::iso_from_unix_ms;
+
 use serde_json::Value;
 
 use crate::context::Core;
@@ -229,6 +231,8 @@ async fn execute_value(core: &Core, id: &str, params: Value, ctx: &ExecContext) 
         "skills.revert" => skills::revert(core, p, ctx),
         "skills.install" => skills::install(core, p).await,
         "skills.uninstall" => skills::uninstall(core, p),
+        // --- HEARTBEAT の応答契約 ---
+        "heartbeat.report" => crate::heartbeat::report_tool(p, ctx),
         // --- 外部ネットワーク ---
         "http.fetch" => net::http_fetch(core, p).await,
         "misstore.search" => net::misstore_search(core, p).await,
@@ -312,6 +316,7 @@ const HAS_BODY: &[&str] = &[
     "skills.revert",
     "skills.install",
     "skills.uninstall",
+    "heartbeat.report",
 ];
 
 #[cfg(test)]

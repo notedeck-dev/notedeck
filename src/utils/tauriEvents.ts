@@ -1,8 +1,7 @@
 import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
-import type { SettingsChange } from '@/bindings'
+import type { HeartbeatEvent, SettingsChange } from '@/bindings'
 import type { AiChatEventPayload } from '@/composables/useAiChat'
 import type { AiTurnEventPayload } from '@/composables/useAiTurn'
-import type { HeartbeatTickPayload } from '@/composables/useHeartbeatDaemon'
 import type { QueryRequest } from '@/core/apiBridge'
 import type { Account } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
@@ -27,7 +26,8 @@ export interface TauriEventPayloads {
   'nd:ogp-hints': Record<string, OgpData>
   'nd:ai-chat-event': AiChatEventPayload
   'nd:ai-turn-event': AiTurnEventPayload
-  'nd:ai-heartbeat-tick': HeartbeatTickPayload
+  /** HEARTBEAT daemon (notecore) の出来事: 開始 / 終了 / 報告 / 通知 / toast (#1133) */
+  'nd:ai-heartbeat-event': HeartbeatEvent
   'nd:query-request': QueryRequest
   /** notecore が設定ファイルを書いた (デバイスの store は該当面だけ読み直す, #1133) */
   'nd:settings-file-changed': SettingsChange

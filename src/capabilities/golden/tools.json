@@ -1045,6 +1045,26 @@
       }
     },
     {
+      "name": "heartbeat_report",
+      "description": "HEARTBEAT (定期チェック) の報告を返す。報告すべきことがあるときだけ呼ぶ。notify を true にすると OS のデスクトップ通知も出す。HEARTBEAT の実行中以外は記録しない。",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "報告の本文 (200 字以内推奨)"
+          },
+          "notify": {
+            "type": "boolean",
+            "description": "OS のデスクトップ通知を出すか (default: false)"
+          }
+        },
+        "required": [
+          "body"
+        ]
+      }
+    },
+    {
       "name": "http_fetch",
       "description": "外部 HTTP/HTTPS API にリクエストを送信する。Misskey 以外の API (翻訳・天気・RSS など) との連携に使う。loopback / private / link-local アドレスへの接続は SSRF 防御のため拒否される。",
       "input_schema": {

@@ -1210,41 +1210,50 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 
 ### HEARTBEAT Daemon ([#411](https://github.com/notedeck-dev/notedeck/issues/411))
 
-OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://docs.openclaw.ai/gateway/heartbeat)) に倣った **アプリ起動中ずっと走る global daemon**。ターン (ラウンドの反復と tool の実行) は notecore のターン実行器 ([AI Chat Streaming](#ai-chat-streaming)) を `ai.heartbeat` principal で使う。tick の受付 / cheap check / suppression / 報告先への append はまだフロントにあり、[#1133](https://github.com/notedeck-dev/notedeck/issues/1133) の後続で Rust の notecore に移す。無人時の契約 (承認を待たない、書き込み意図は下書きと受信箱カード) もそこで実装する。AI カラムの有無 / 開いているカラム数に依存しない (= per-column scope ではない)。
+OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://docs.openclaw.ai/gateway/heartbeat)) に倣った **アプリ起動中ずっと走る global daemon**。本体は notecore (`crates/notecore/src/heartbeat.rs`) にあり、WebView が無くても走る ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133) 縦切り 5)。tick の周期だけ手元側の timer (Tauri は `src-tauri/src/commands/heartbeat.rs`、notecored は自前) が持ち、tick ごとに notecore の `run_once` を呼ぶ。ターン (ラウンドの反復と tool の実行) は notecore のターン実行器 ([AI Chat Streaming](#ai-chat-streaming)) を `ai.heartbeat` principal で使う。AI カラムの有無 / 開いているカラム数に依存しない (= per-column scope ではない)。
 
 #### アーキテクチャ
 
 ```
-┌─ Tauri App プロセス ──────────────────────────────────┐
-│  [Rust] HeartbeatScheduler (Option<ScheduledTask>)    │
-│    heartbeat_configure(intervalMinutes)               │
-│    heartbeat_unconfigure() / heartbeat_trigger_now()  │
-│    tick → emit('nd:ai-heartbeat-tick')                │
-│                                                        │
-│  [JS] useHeartbeatDaemon (App.vue で 1 mount)         │
-│    listen → ターン (notecore) → suppression → session append│
-│                                                        │
-│  [出力先] AiSessionKind='heartbeat' な session 1 個   │
-│    AI カラムの session ドロワーに表示 (最上位 pin)    │
-└───────────────────────────────────────────────────────┘
+┌─ 手元側 ──────────────────────────────────────────────┐
+│  [Tauri] HeartbeatScheduler (Option<ScheduledTask>)    │
+│    heartbeat_configure / unconfigure / trigger_now     │
+│    tick → notecore::heartbeat::run_once(&core, source) │
+│  [JS] useHeartbeatDaemon (App.vue で 1 mount)          │
+│    設定 (enabled / interval) → timer                    │
+│    'nd:ai-heartbeat-event' → セッション写しの読み直し / │
+│      OS 通知 / toast / ペットの活動表示                  │
+│    橋 'heartbeat/context' → メモ等の文脈、ローカル時刻   │
+└────────────────────────────────────────────────────────┘
+┌─ notecore ─────────────────────────────────────────────┐
+│  run_once: 設定 (ai.json5) → skill (mode: heartbeat)   │
+│    → cheap check (core の cheap な capability だけ)     │
+│    → 日次上限 → ターン (session 無し) → 応答契約        │
+│    → 報告先 session に書く → HeartbeatSink で通知        │
+│  状態: ai-turns/heartbeat.json (日次 / cheap check /    │
+│    連続失敗)。連続失敗と日次上限の自動停止は ai.json5 の │
+│    heartbeat.enabled を notecore が書き換える            │
+└────────────────────────────────────────────────────────┘
 ```
 
 #### 主要ファイル
 
 | ファイル | 役割 |
 |---------|------|
-| `src-tauri/src/commands/heartbeat.rs` | global single scheduler (HashMap ではなく Option)。tokio::time::interval で tick を emit。column_id 引数なし |
-| `src/composables/useHeartbeatDaemon.ts` | App-level singleton。Rust scheduler 制御 + tick listener + ターン開始 (`useAiTurn`、使い捨て session) + suppression + session append + AI タイトル要約 + silent fail UX |
-| `src/composables/useAiConfig.ts` | `HeartbeatConfig`: enabled / intervalMinutes (1〜1440) / target / cheapCheck / dailyMaxAiRuns 等。HEARTBEAT 中の権限は permissions.json5 の `ai.heartbeat` principal (#712) |
-| `src/stores/skills.ts` | `SkillMeta.mode === 'heartbeat'` な skill が daemon で実行される (skillsStore.heartbeatSkills computed) |
+| `crates/notecore/src/heartbeat.rs` | daemon 本体。skill 選択 / cheap check / 日次上限 / system prompt / ターン / 応答契約 / 報告先の解決と書込 / タイトル生成 / 失敗の数え方と自動停止 / 観測用の状態 |
+| `crates/notecore/src/ai_config.rs` | ai.json5 の読取断面 (HEARTBEAT / 接続 / 生成の値、正規化はデバイスの `useAiConfig` と同じ規則) と `heartbeat.enabled` の書換 |
+| `src-tauri/src/commands/heartbeat.rs` | timer (global single scheduler)。tick で notecore を呼ぶ。`HeartbeatSink` の Tauri 実装は `commands/mod.rs` |
+| `src/composables/useHeartbeatDaemon.ts` | 設定を timer に伝え、notecore の出来事をデバイスに反映する |
+| `src/core/apiBridge.ts` | `heartbeat/context`: メモの文脈ブロックとローカル時刻の刻印 (無くても notecore は進む) |
+| `src/composables/useAiConfig.ts` | `HeartbeatConfig` の正本 (デバイス側)。notecore が ai.json5 を書いたら変更通知で読み直す |
 
 #### Skill 駆動
 
-OpenClaw `HEARTBEAT.md` の `tasks:` に相当するのが NoteDeck の `mode: heartbeat` skill。MisStore 配布の skill (例: `ai-cost-pulse` / `server-pulse` / `time-capsule` / `mindful-pulse`) は frontmatter で `mode: heartbeat` を宣言しておけば install 直後に daemon が拾う。tick ごとに全 heartbeat skill body を結合して 1 回の AI inference にまとめて投げる。
+OpenClaw `HEARTBEAT.md` の `tasks:` に相当するのが NoteDeck の `mode: heartbeat` skill。MisStore 配布の skill は frontmatter で `mode: heartbeat` を宣言しておけば install 直後に daemon が拾う。tick ごとに全 heartbeat skill body を結合して 1 回の AI inference にまとめて投げる。skill の `cheapCheckCapabilities` は notecore 単独で実行できる cheap な capability だけが効き、それ以外は無視される (登録時の拒否は後続)。
 
-#### Suppression (`HEARTBEAT_OK`)
+#### 応答契約 (`heartbeat.report` tool と legacy の `HEARTBEAT_OK`)
 
-`applyHeartbeatSuppression()` が AI 応答の先頭/末尾の `HEARTBEAT_OK` トークンを剥がし、残りが `HEARTBEAT_ACK_MAX_CHARS=300` 以下なら全体 drop (= 履歴に残さない)。発想元の OpenClaw では ack 文字列の契約は既に legacy で、現行はツール呼び出しで通知の有無を返す形になっている (2026-09 時点)。#1133 でツール呼び出しに改め、ack 文字列は legacy として受理を残す。長文 alert (>300 字) は通常の assistant message として heartbeat session に append される。
+AI は報告すべきことがあるときだけ `heartbeat.report` tool を呼び、本文と通知の有無を返す (発想元の OpenClaw と同じ形)。tool を呼ばない応答は legacy の ack として受理する: 先頭 / 末尾の `HEARTBEAT_OK` を剥がし、残りが短ければ (上限は `heartbeat.rs` の定数) 全体を捨てる。tool 経由の報告は `notify` が真のときだけ OS 通知を出す (legacy は常に出す)。報告は target session に `heartbeat: true` のメッセージとして書き、デバイスは変更を受けてそのセッションの写しを読み直す。
 
 #### Target Routing
 

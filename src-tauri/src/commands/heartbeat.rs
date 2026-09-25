@@ -9,35 +9,22 @@
 //! - Manual trigger は `heartbeat_trigger_now()`
 //!
 //! AI カラムの有無 / 何個開いているかには依存しない (= OpenClaw HEARTBEAT
-//! と同じ daemon モデル)。実際のチェック内容 (skill 取得 / AI 呼び出し /
-//! 結果表示) は **すべてフロント側** (`useHeartbeatDaemon`) で行う。
-//! Rust はただの time-keeper。
+//! と同じ daemon モデル)。tick の本体 (skill 取得 / cheap check / AI 呼び出し /
+//! 報告) は notecore の `heartbeat::run_once` (#1133 縦切り 5)。ここは timer と、
+//! notecore の出来事を WebView へ流す口だけ。
 
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
-use specta::Type;
-use tauri::{async_runtime::JoinHandle, Emitter, State};
+use tauri::{async_runtime::JoinHandle, Manager, State};
 
 use notecli::error::NoteDeckError;
 
 use super::Result;
 
-/// フロント (`useHeartbeatDaemon`) が listen する event 名。
-pub const HEARTBEAT_EVENT_NAME: &str = "nd:ai-heartbeat-tick";
-
 /// 上限/下限。`useAiConfig.ts` の HEARTBEAT_INTERVAL_*_MINUTES と揃える。
 const MIN_INTERVAL_MINUTES: u32 = 1;
 const MAX_INTERVAL_MINUTES: u32 = 24 * 60;
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct HeartbeatTickPayload {
-    /// Unix epoch ms。フロントの logging やデバッグ用。
-    pub triggered_at_ms: i64,
-    /// "scheduled" (interval 経由) or "manual" (trigger_now 経由)。
-    pub source: String,
-}
 
 struct ScheduledTask {
     interval_minutes: u32,
@@ -77,7 +64,7 @@ impl HeartbeatScheduler {
             ticker.tick().await;
             loop {
                 ticker.tick().await;
-                emit_tick(&app_for_task, "scheduled");
+                run_tick(&app_for_task, "scheduled").await;
             }
         });
 
@@ -109,21 +96,10 @@ impl HeartbeatScheduler {
     }
 }
 
-fn current_unix_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
-
-fn emit_tick(app: &tauri::AppHandle, source: &str) {
-    let payload = HeartbeatTickPayload {
-        triggered_at_ms: current_unix_ms(),
-        source: source.to_string(),
-    };
-    if let Err(e) = app.emit(HEARTBEAT_EVENT_NAME, payload) {
-        tracing::error!("[heartbeat] failed to emit tick: {e}");
-    }
+/// tick の本体は notecore。実行中なら notecore 側で捨てる
+async fn run_tick(app: &tauri::AppHandle, source: &str) {
+    let core = app.state::<notecore::context::Core>();
+    notecore::heartbeat::run_once(&core, source).await;
 }
 
 fn clamp_interval(minutes: u32) -> Result<u32> {
@@ -135,7 +111,7 @@ fn clamp_interval(minutes: u32) -> Result<u32> {
     Ok(minutes)
 }
 
-// HEARTBEAT の scheduler は WebView の daemon を起こす手元側の仕組み。Rust 化 (#1133) まで local。
+// HEARTBEAT の timer は手元側 (アプリの寿命に紐づく)。本体は notecore。
 /// global heartbeat を登録 / 更新する。既存があれば interval を
 /// 上書きする。同じ interval が既に動いていたとしても abort + 再 spawn
 /// するので、JS 側の reactive watch から idempotent に呼んで OK。
@@ -167,7 +143,9 @@ pub async fn heartbeat_unconfigure(scheduler: State<'_, Arc<HeartbeatScheduler>>
 #[tauri::command]
 #[specta::specta]
 pub async fn heartbeat_trigger_now(app: tauri::AppHandle) -> Result<()> {
-    emit_tick(&app, "manual");
+    tauri::async_runtime::spawn(async move {
+        run_tick(&app, "manual").await;
+    });
     Ok(())
 }
 

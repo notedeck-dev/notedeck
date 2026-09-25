@@ -510,6 +510,8 @@ struct ResolvedTool {
     destinations: Vec<String>,
     /// notecore 単独で実行できる (宣言表の `exec: core`)
     core: bool,
+    /// 無人実行でも確認なしで走ってよい (権限だけで gate。宣言表の `unattended`)
+    unattended: bool,
 }
 
 /// principal に見せてよい tool 一覧 (provider 形式) と、名前 → 認可情報の表。
@@ -539,6 +541,7 @@ fn build_tools(
                 untrusted: d.untrusted,
                 destinations: d.destinations.iter().map(|x| x.to_string()).collect(),
                 core: d.exec == capabilities::Exec::Core,
+                unattended: d.unattended,
             },
         );
     }
@@ -563,6 +566,7 @@ fn build_tools(
                 untrusted: t.untrusted,
                 destinations: t.destinations.clone(),
                 core: false,
+                unattended: false,
             },
         );
     }
@@ -973,6 +977,11 @@ async fn prepare_pending(
                     .iter()
                     .any(|v| corpus.origin_of(v) == Origin::Untrusted);
                 let mut needs = tool.confirm || cross || p.destination_untrusted;
+                if unattended && tool.unattended && !cross && !p.destination_untrusted {
+                    // 宣言で「無人でも確認なしで走ってよい」(backup.create 等、#816)。
+                    // 権限だけで gate する
+                    needs = false;
+                }
                 if needs && !cross && !tainted && !p.destination_untrusted && !unattended {
                     // 「次から確認しない」(権限ファイルへの減算) を尊重する。
                     // 記憶はチャットの範囲だけ (#714)。無人の HEARTBEAT には波及
@@ -1028,6 +1037,7 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
                     acts_as_account: true,
                     untrusted: false,
                     destinations: Vec::new(),
+                    unattended: false,
                     core: false,
                 },
                 &p.input,
@@ -1448,6 +1458,18 @@ pub(crate) fn spawn_drive(rt: Arc<TurnRuntime>, state: TurnState) {
 /// ターンを開始する。入力検証と接続解決はここで行い (エラーは呼び出し元へ)、
 /// 本体は background task。以後のイベントは sink に流れる。
 pub async fn start_turn(
+    req: AiTurnRequest,
+    app_dir: &Path,
+    bridge: Arc<dyn FrontendBridge>,
+    sink: Arc<dyn AiTurnSink>,
+    core_executor: Arc<dyn CoreExecutor>,
+) -> Result<()> {
+    start_turn_with_sink(req, app_dir, bridge, sink, core_executor).await
+}
+
+/// `start_turn` と同じだが、イベントの届け先を呼び出し側が差す (HEARTBEAT daemon
+/// のように notecore 内でターンの完了を待つ用途)。
+pub async fn start_turn_with_sink(
     req: AiTurnRequest,
     app_dir: &Path,
     bridge: Arc<dyn FrontendBridge>,
@@ -2222,6 +2244,26 @@ mod tests {
         let r = h.sink.find("tool_result").unwrap();
         assert!(r.text.unwrap().contains("Unattended HEARTBEAT"));
         assert_eq!(h.sink.last().kind, "done");
+    }
+
+    #[tokio::test]
+    async fn unattended_heartbeat_runs_unattended_capabilities_without_confirmation() {
+        // 宣言に `unattended` がある capability (backup.create, #816) は無人でも
+        // 確認なしで走る (権限だけで gate)
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu1", "backup_create", json!({}))],
+            vec![delta("ok")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": {"dir": "x"}}));
+        let h = harness(provider, &["backup.create"], device.clone());
+        let mut req = request();
+        req.principal = "ai.heartbeat".into();
+        drive(h.rt.clone(), TurnState::new(req)).await;
+        assert!(device.previews().is_empty());
+        assert_eq!(device.executes().len(), 1);
+        assert!(h.sink.find("confirm_request").is_none());
+        let r = h.sink.find("tool_result").unwrap();
+        assert!(!r.text.unwrap().contains("Unattended HEARTBEAT"));
     }
 
     #[tokio::test]

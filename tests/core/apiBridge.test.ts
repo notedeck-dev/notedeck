@@ -219,23 +219,6 @@ describe('handleQuery: permissions/resolved (#977)', () => {
   })
 })
 
-describe('handleQuery: heartbeat/status (#977)', () => {
-  it('daemon スナップショットと config を返す (テスト環境では未 mount)', async () => {
-    const result = (await handleQuery('heartbeat/status', {})) as {
-      mounted: boolean
-      running: boolean
-      consecutiveFailures: number
-      config: { enabled: boolean; intervalMinutes: number; target: string }
-    }
-    expect(result.mounted).toBe(false)
-    expect(result.running).toBe(false)
-    expect(typeof result.consecutiveFailures).toBe('number')
-    expect(typeof result.config.enabled).toBe('boolean')
-    expect(typeof result.config.intervalMinutes).toBe('number')
-    expect(typeof result.config.target).toBe('string')
-  })
-})
-
 describe('handleQuery: perf/caches (#977/#987)', () => {
   it('名前付き boundedCache の size/limit を返す', async () => {
     const cache = createBoundedCache<string, number>(7, 'test:api-bridge')

@@ -12,6 +12,7 @@
 
 pub mod account_service;
 pub mod ai_chat_service;
+pub mod ai_config;
 pub mod ai_keys;
 pub mod ai_sessions;
 pub mod ai_turn;
@@ -28,6 +29,7 @@ pub mod emoji_cache_store;
 pub mod error;
 pub mod export_service;
 pub mod frontend_bridge;
+pub mod heartbeat;
 pub mod http_server;
 pub mod image_cache;
 pub mod media_proxy;

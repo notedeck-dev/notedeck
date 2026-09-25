@@ -11,7 +11,11 @@ import {
   endTurnExecution,
 } from '@/composables/aiTurnExecutions'
 import { reloadAiConfig, useAiConfig } from '@/composables/useAiConfig'
-import { heartbeatStatus } from '@/composables/useHeartbeatDaemon'
+import {
+  buildAiContextBlock,
+  projectMemos,
+} from '@/composables/useAiSystemContext'
+import { ensureMemosLoaded, loadAllMemos } from '@/composables/useMemos'
 import { listStreamHealth } from '@/core/streamHealth'
 import type { ProfiledPrincipalId } from '@/permissions/principal'
 import { PERMISSION_KEYS } from '@/permissions/schema'
@@ -20,10 +24,13 @@ import {
   resolveForProfiled,
 } from '@/permissions/store'
 import { listBoundedCacheStats } from '@/services/boundedCache'
+import { useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { useLogsStore } from '@/stores/logs'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
+import { formatLocalTimestamp } from '@/utils/aiSessionId'
+import { timestampTitle } from '@/utils/aiSessionTitle'
 import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
 import { listenTauri } from '@/utils/tauriEvents'
 
@@ -97,20 +104,43 @@ const handlers: Record<string, QueryHandler> = {
     webviewFixedCost: getWebviewFixedCost(),
   }),
 
-  'heartbeat/status': () => {
+  // HEARTBEAT daemon (notecore) がデバイスに要るもの (#1133 縦切り 5): メモ等の
+  // 文脈ブロックと、セッション id / タイトル用のローカル時刻の刻印。届かなければ
+  // notecore は無しで進む (notecored)
+  'heartbeat/context': async (params) => {
     const { config } = useAiConfig()
-    const hb = config.value.heartbeat
+    const accountsStore = useAccountsStore()
+    await ensureMemosLoaded()
+    // メモはアカウントに紐づかない (#1018) ので全件見る。chat と同じく
+    // memosConfig の excludeTags / expandLinks / includeBacklinks を尊重 (#492 / #494)
+    const all = loadAllMemos()
+    const memosCfg = config.value.dataSources.memosConfig
+    const memos = projectMemos(Object.entries(all), {
+      excludeTags: memosCfg?.excludeTags,
+      expandLinks: memosCfg?.expandLinks !== false,
+      includeBacklinks: memosCfg?.includeBacklinks !== false,
+      allMemosByAccount: new Map([['', all]]),
+    })
+    // ラベル付きのメモを文脈に入れたら system を untrusted 側に置く (#1103)
+    const untrusted = memos.some((m) => all[m.id]?.data.tainted === true)
+    const system = buildAiContextBlock(config.value, {
+      currentAccount: null,
+      currentColumn: null,
+      memos,
+      accounts: accountsStore.accounts,
+    })
+    const now = new Date(
+      typeof params.triggeredAtMs === 'number'
+        ? params.triggeredAtMs
+        : Date.now(),
+    )
     return {
-      ...heartbeatStatus,
-      config: {
-        enabled: hb.enabled,
-        intervalMinutes: hb.intervalMinutes,
-        target: hb.target,
-        dailyMaxAiRuns: hb.dailyMaxAiRuns,
-      },
+      system,
+      untrusted,
+      localStamp: formatLocalTimestamp(now),
+      localTitleTime: timestampTitle(now, '').trim(),
     }
   },
-
   'permissions/resolved': () => {
     const principals: ProfiledPrincipalId[] = [
       'ai.chat',
