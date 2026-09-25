@@ -4825,7 +4825,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "custom.css の末尾に CSS を追記する。既存ルールには触らない (= 学習が積み上がる、skills.append と対称)。",
         params: &[
             ParamDecl {
@@ -4862,7 +4862,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "custom.css の編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。 各エントリは { at: 時刻 ms, snapshot: { body } }。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -4884,7 +4884,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "現在の custom.css の内容を返す。CSS 変数の上書きや独自ルール等を AI が確認するために使う。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -4906,7 +4906,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "custom.css を編集履歴の index 番目の snapshot に戻す。 styles.history で index を取得。",
         params: &[
             ParamDecl {
@@ -4943,7 +4943,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "custom.css の内容を `body` で全置換する。差分編集ではなく完全上書きなので、styles.read で現状を取得してからマージした内容を渡すこと。",
         params: &[
             ParamDecl {
@@ -5054,7 +5054,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "新規テーマを作成して installedThemes に追加する。 props は Misskey 互換 CSS 変数 (例: { accent: \"#5f6\", panel: \"#0a0a0a\" })。 既存 id を指定した場合は theme.update と同等の挙動になる。",
         params: &[
             ParamDecl {
@@ -5112,7 +5112,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 id のテーマの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。",
         params: &[
             ParamDecl {
@@ -5142,7 +5142,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "MisStore (store.notedeck.io) の既製テーマをインストールする。 id は `misstore.search` で取得した値を渡す。 sha512 検証付き。インストール後は theme.apply で適用可能。",
         params: &[
             ParamDecl {
@@ -5172,7 +5172,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みテーマの一覧を返す。各要素は { id, name, base, author }",
         params: &[],
         returns: Some(ReturnDecl {
@@ -5194,7 +5194,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 id のテーマの全プロパティ (Misskey 互換 CSS 変数) を返す。 theme.update で差分編集する前の現状把握に使う。",
         params: &[
             ParamDecl {
@@ -5224,7 +5224,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "テーマ props を編集履歴の index 番目に戻す。",
         params: &[
             ParamDecl {
@@ -5268,7 +5268,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みテーマを完全削除する。選択中だった場合は selection も解除され、 デフォルトテーマにフォールバックする。",
         params: &[
             ParamDecl {
@@ -5298,7 +5298,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "既存テーマの props / name / base を部分更新する。指定されたフィールドだけ上書きされる。id は theme.list で取得した値を渡す。",
         params: &[
             ParamDecl {

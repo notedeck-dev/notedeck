@@ -1,46 +1,12 @@
 import type { Command } from '@/commands/registry'
-import { themeFromSnapshot } from '@/services/editHistory'
-import {
-  mergeThemeUpdate,
-  serializeTheme,
-  type ThemeUpdatePatch,
-} from '@/services/selfEditApply'
-import { useAccountsStore } from '@/stores/accounts'
-import { useMisStoreStore } from '@/stores/misstore'
 import { useThemeStore } from '@/stores/theme'
-import type { MisskeyTheme } from '@/theme/types'
-import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
-import { implement } from '../declare'
-import { editAttribution } from '../editAttribution'
-import { stageEdit, takeStagedEdit } from '../stagedEdit'
-
-interface ThemeSnapshot {
-  id: string
-  name: string
-  base?: 'dark' | 'light'
-  props: Record<string, string>
-}
+import { implement, implementCore } from '../declare'
 
 /**
  * `theme.list` — インストール済みテーマの一覧を返す。
  * AI が `theme.apply` で渡す ID を確認するために使う。
  */
-export const themeListCapability = implement('theme.list', {
-  execute: () => {
-    const store = useThemeStore()
-    return store.installedThemes.map((t) => ({
-      id: t.id,
-      name: t.name,
-      base: t.base ?? null,
-      // Misskey 互換 JSON には author が入るが MisskeyTheme 型には未宣言。
-      // 値が存在すれば string として返す (なければ null)。
-      author:
-        typeof (t as unknown as { author?: unknown }).author === 'string'
-          ? (t as unknown as { author: string }).author
-          : null,
-    }))
-  },
-})
+export const themeListCapability = implementCore('theme.list')
 
 /**
  * `theme.apply` — 指定 id のテーマを適用する。
@@ -52,23 +18,7 @@ export const themeListCapability = implement('theme.list', {
  * AI が「現在の配色を見て調整」のように、theme.update を呼ぶ前の現状把握用。
  * 色情報は機密ではないため permission 不要 (theme.list / apply と同じ扱い)。
  */
-export const themeReadCapability = implement('theme.read', {
-  execute: (params) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    if (!id) throw new Error('theme.read: id is required')
-    const store = useThemeStore()
-    const theme = store.installedThemes.find((t) => t.id === id)
-    if (!theme) {
-      throw new Error(`theme.read: theme "${id}" is not installed`)
-    }
-    return {
-      id: theme.id,
-      name: theme.name,
-      base: theme.base ?? null,
-      props: { ...theme.props },
-    }
-  },
-})
+export const themeReadCapability = implementCore('theme.read')
 
 export const themeApplyCapability = implement('theme.apply', {
   execute: (params) => {
@@ -100,226 +50,18 @@ export const themeApplyCapability = implement('theme.apply', {
  * のように動的にテーマを作るための capability。frontmatter 相当の id は
  * 衝突しないよう自動生成 (`custom-<timestamp>`) でも、明示指定でも OK。
  */
-export const themeCreateCapability = implement('theme.create', {
-  requiresConfirmation: (params) => {
-    const name = typeof params?.name === 'string' ? params.name : ''
-    const base = typeof params?.base === 'string' ? params.base : ''
-    const props = isStringRecord(params?.props) ? params.props : null
-    const id = typeof params?.id === 'string' ? params.id : ''
-    return {
-      title: 'テーマをインストール',
-      message: `AI が生成した ${base === 'light' ? 'ライト' : 'ダーク'} テーマをインストールします。`,
-      installPreview: {
-        kind: 'theme',
-        name,
-        version: id || undefined,
-        description: props
-          ? `${Object.keys(props).length} 個の CSS 変数を含む ${base} テーマ`
-          : undefined,
-      },
-      code: props ? JSON.stringify(props, null, 2) : '',
-      codeLanguage: 'json',
-      okLabel: 'インストール',
-      cancelLabel: 'やめる',
-      type: 'normal',
-    }
-  },
-  execute: async (params, ctx) => {
-    const name = typeof params?.name === 'string' ? params.name : ''
-    const baseRaw = typeof params?.base === 'string' ? params.base : ''
-    const props = isStringRecord(params?.props) ? params.props : null
-    const explicitId = typeof params?.id === 'string' ? params.id : ''
-    if (!name) throw new Error('theme.create: name is required')
-    if (baseRaw !== 'dark' && baseRaw !== 'light') {
-      throw new Error('theme.create: base must be "dark" or "light"')
-    }
-    if (!props) {
-      throw new Error('theme.create: props must be an object of string values')
-    }
-    const theme: MisskeyTheme = {
-      id: explicitId || `custom-${Date.now()}`,
-      name,
-      base: baseRaw,
-      props,
-    }
-    const store = useThemeStore()
-    // テーママネージャーカラムは `$notedeck.installedFor` が現アカウントを
-    // 含むテーマだけを表示する (孤児テーマは非表示)。AI が作ったテーマも
-    // ユーザーから見えるよう、全 logged-in account を自動で installedFor に
-    // 入れる。
-    const accounts = useAccountsStore()
-    const forAccountIds = accounts.accounts.map((a) => a.id)
-    const installed = await store.installTheme(
-      JSON.stringify(theme),
-      forAccountIds,
-      editAttribution(ctx, params),
-    )
-    return { id: theme.id, name: theme.name, base: theme.base, installed }
-  },
-})
+export const themeCreateCapability = implementCore('theme.create')
 
 /**
  * `theme.update` — 既存テーマの props / name / base を部分更新する。
  * 内部的には installTheme (= upsert) を呼ぶので、id 不一致なら新規扱いに
  * ならないよう execute 側で必ず id 存在チェックを行う。
  */
-export const themeUpdateCapability = implement('theme.update', {
-  requiresConfirmation: (params, ctx) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    const cur = useThemeStore().installedThemes.find((t) => t.id === id)
-    if (!cur) return null
-    const patch = themeUpdatePatch(params, cur)
-    const newName = patch.name ?? cur.name
-    const newBase = patch.base ?? cur.base ?? 'dark'
-    // patch だけでは変化量を判断できない (#981)。現在値とマージ後を並べる
-    const baseline = serializeTheme(mergeThemeUpdate(cur, {}))
-    const next = stageEdit(
-      ctx,
-      baseline,
-      serializeTheme(mergeThemeUpdate(cur, patch)),
-    )
-    return {
-      title: 'テーマを更新',
-      message: patch.props
-        ? `${cur.name} の ${Object.keys(patch.props).length} 個の CSS 変数を更新します。`
-        : `${cur.name} のメタ情報を更新します。`,
-      installPreview: {
-        kind: 'theme',
-        name: newName,
-        version: id,
-        description: `${newBase} テーマ`,
-      },
-      diff: { old: baseline, new: next, language: 'json5' },
-      okLabel: '更新',
-      cancelLabel: 'やめる',
-      type: 'warning',
-    }
-  },
-  execute: async (params, ctx) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    if (!id) throw new Error('theme.update: id is required')
-    const store = useThemeStore()
-    const current = store.installedThemes.find((t) => t.id === id)
-    if (!current) {
-      throw new Error(`theme.update: theme "${id}" is not installed`)
-    }
-    const patch = themeUpdatePatch(params, current)
-    const text = takeStagedEdit(
-      ctx,
-      'theme.update',
-      serializeTheme(mergeThemeUpdate(current, {})),
-      () => serializeTheme(mergeThemeUpdate(current, patch)),
-    )
-    const updated = await store.installTheme(
-      text,
-      [],
-      editAttribution(ctx, params),
-    )
-    return { id, updated }
-  },
-})
+export const themeUpdateCapability = implementCore('theme.update')
 
-function isStringRecord(v: unknown): v is Record<string, string> {
-  if (!v || typeof v !== 'object' || Array.isArray(v)) return false
-  for (const value of Object.values(v as Record<string, unknown>)) {
-    if (typeof value !== 'string') return false
-  }
-  return true
-}
+export const themeHistoryCapability = implementCore('theme.history')
 
-/** `theme.update` の params を部分更新パッチへ正規化する。 */
-function themeUpdatePatch(
-  params: Record<string, unknown> | undefined,
-  current: MisskeyTheme,
-): ThemeUpdatePatch {
-  const patch: ThemeUpdatePatch = {}
-  if (typeof params?.name === 'string' && params.name.length > 0) {
-    patch.name = params.name
-  }
-  if (params?.base === 'dark' || params?.base === 'light') {
-    patch.base = params.base
-  } else if (current.base) {
-    patch.base = current.base
-  }
-  if (isStringRecord(params?.props)) patch.props = params.props
-  return patch
-}
-
-/** 履歴サイドカーのキーは対応表の fileBase (#913)。未割当なら id に落ちる。 */
-function themeHistoryBase(id: string): string {
-  const theme = useThemeStore().installedThemes.find((t) => t.id === id)
-  return theme?.fileBase ?? id
-}
-
-export const themeHistoryCapability = implement('theme.history', {
-  execute: async (params) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    if (!id) throw new Error('theme.history: id is required')
-    return await listSnapshots<ThemeSnapshot>('theme', themeHistoryBase(id))
-  },
-})
-
-export const themeRevertCapability = implement('theme.revert', {
-  requiresConfirmation: async (params, ctx) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    const index = typeof params?.index === 'number' ? params.index : -1
-    if (!id || index < 0) return null
-    const entry = await getSnapshotAt<ThemeSnapshot>(
-      'theme',
-      themeHistoryBase(id),
-      index,
-    )
-    if (!entry) return null
-    const snap = entry.snapshot
-    const cur = useThemeStore().installedThemes.find((t) => t.id === id)
-    const baseline = cur ? serializeTheme(mergeThemeUpdate(cur, {})) : ''
-    const next = stageEdit(
-      ctx,
-      baseline,
-      serializeTheme(themeFromSnapshot(snap)),
-    )
-    return {
-      title: 'テーマを過去の状態に戻す',
-      message:
-        `${snap.name} を編集履歴 #${index} ` +
-        `(${new Date(entry.at).toLocaleString()}) の状態に戻します。`,
-      installPreview: {
-        kind: 'theme',
-        name: snap.name,
-        version: snap.id,
-        description: `${snap.base ?? 'dark'} テーマ / ${Object.keys(snap.props).length} 変数`,
-      },
-      diff: { old: baseline, new: next, language: 'json5' },
-      okLabel: 'この状態に戻す',
-      cancelLabel: 'やめる',
-      type: 'warning',
-    }
-  },
-  execute: async (params, ctx) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    const index = typeof params?.index === 'number' ? params.index : -1
-    if (!id) throw new Error('theme.revert: id is required')
-    if (index < 0) throw new Error('theme.revert: index must be >= 0')
-    const entry = await getSnapshotAt<ThemeSnapshot>(
-      'theme',
-      themeHistoryBase(id),
-      index,
-    )
-    if (!entry) {
-      throw new Error(`theme.revert: no snapshot at index ${index}`)
-    }
-    const store = useThemeStore()
-    const cur = store.installedThemes.find((t) => t.id === id)
-    const text = takeStagedEdit(
-      ctx,
-      'theme.revert',
-      cur ? serializeTheme(mergeThemeUpdate(cur, {})) : '',
-      () => serializeTheme(themeFromSnapshot(entry.snapshot)),
-    )
-    await store.installTheme(text, [], editAttribution(ctx, params))
-    return { id, reverted: true, at: entry.at }
-  },
-})
+export const themeRevertCapability = implementCore('theme.revert')
 
 /**
  * `theme.install` — MisStore (store.notedeck.io) から既製テーマを取得して
@@ -330,53 +72,7 @@ export const themeRevertCapability = implement('theme.revert', {
  * sha512 検証・$notedeck.storeId 紐付け・既存 installedFor の union は
  * misstore store 側で実装済。
  */
-export const themeInstallCapability = implement('theme.install', {
-  requiresConfirmation: async (params) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    if (!id) return null
-    const misStore = useMisStoreStore()
-    await misStore.fetchThemes()
-    const entry = misStore.themes.find((t) => t.id === id)
-    if (!entry) return null
-    return {
-      title: 'MisStore からテーマを入れる',
-      message: `${entry.name} (${entry.base} / by ${entry.author}) を MisStore から取得してインストールします。`,
-      installPreview: {
-        kind: 'theme',
-        name: entry.name,
-        version: entry.version,
-        author: entry.author,
-        description: entry.description,
-      },
-      code: JSON.stringify(entry.themeProps, null, 2),
-      codeLanguage: 'json',
-      okLabel: 'インストール',
-      cancelLabel: 'やめる',
-      type: 'normal',
-    }
-  },
-  execute: async (params) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    if (!id) throw new Error('theme.install: id is required')
-    const misStore = useMisStoreStore()
-    await misStore.fetchThemes()
-    const entry = misStore.themes.find((t) => t.id === id)
-    if (!entry) {
-      throw new Error(
-        `theme.install: theme "${id}" not found in MisStore (try misstore.search first)`,
-      )
-    }
-    const accounts = useAccountsStore()
-    const forAccountIds = accounts.accounts.map((a) => a.id)
-    await misStore.installTheme(entry, forAccountIds)
-    return {
-      id: entry.id,
-      name: entry.name,
-      base: entry.base,
-      installed: true,
-    }
-  },
-})
+export const themeInstallCapability = implementCore('theme.install')
 
 /**
  * `theme.uninstall` — インストール済みテーマを完全削除する。
@@ -384,40 +80,7 @@ export const themeInstallCapability = implement('theme.install', {
  * applyCurrentTheme まで連動する。per-account 紐付けの解除は別途
  * 設計が必要なため、ここではシンプルに「完全削除」に統一する。
  */
-export const themeUninstallCapability = implement('theme.uninstall', {
-  requiresConfirmation: (params) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    if (!id) return null
-    const theme = useThemeStore().installedThemes.find((t) => t.id === id)
-    if (!theme) return null
-    return {
-      title: 'テーマを削除',
-      message: `${theme.name} (${theme.base ?? 'dark'}) を完全に削除します。元に戻すには再インストールが必要です。`,
-      installPreview: {
-        kind: 'theme',
-        name: theme.name,
-        version: id,
-        description: `${theme.base ?? 'dark'} テーマ / ${Object.keys(theme.props).length} 変数`,
-      },
-      code: JSON.stringify(theme.props, null, 2),
-      codeLanguage: 'json',
-      okLabel: '削除',
-      cancelLabel: 'やめる',
-      type: 'danger',
-    }
-  },
-  execute: (params) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    if (!id) throw new Error('theme.uninstall: id is required')
-    const store = useThemeStore()
-    const theme = store.installedThemes.find((t) => t.id === id)
-    if (!theme) {
-      throw new Error(`theme.uninstall: theme "${id}" is not installed`)
-    }
-    store.removeTheme(id)
-    return { id, removed: true }
-  },
-})
+export const themeUninstallCapability = implementCore('theme.uninstall')
 
 export const THEME_BUILTIN_CAPABILITIES: readonly Command[] = [
   themeListCapability,

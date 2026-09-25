@@ -3339,6 +3339,7 @@ dependencies = [
  "encoding_rs",
  "futures-util",
  "image",
+ "indexmap 2.14.0",
  "json5",
  "kamadak-exif",
  "lru",
