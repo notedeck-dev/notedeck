@@ -11,6 +11,7 @@
 //! デバイスの dispatcher が済ませている)。
 
 mod account;
+mod memos;
 mod meta;
 mod misc;
 mod net;
@@ -129,6 +130,11 @@ pub async fn preview(
     if id.starts_with("skills.") {
         return skills::preview(core, id, &params, ctx).await;
     }
+    if id.starts_with("memos.") {
+        if let Some(v) = memos::preview(core, id, &params, ctx)? {
+            return Ok(Some(v));
+        }
+    }
     Ok(Some(
         preview::custom(id, &params).unwrap_or_else(|| preview::generic(decl.label, &params)),
     ))
@@ -141,8 +147,14 @@ pub async fn execute(
     params: Value,
     ctx: &ExecContext,
 ) -> Result<ExecOutcome> {
-    if id == "skills.read" {
-        let (value, tainted) = skills::read(core, &params)?;
+    let read_with_taint = match id {
+        "skills.read" => Some(skills::read(core, &params)?),
+        "memos.list" => Some(memos::list(core, &params)?),
+        "memos.search" => Some(memos::search(core, &params)?),
+        "memos.backlinks" => Some(memos::backlinks(core, &params)?),
+        _ => None,
+    };
+    if let Some((value, tainted)) = read_with_taint {
         return Ok(ExecOutcome { value, tainted });
     }
     let value = execute_value(core, id, params, ctx).await?;
@@ -231,6 +243,11 @@ async fn execute_value(core: &Core, id: &str, params: Value, ctx: &ExecContext) 
         "skills.revert" => skills::revert(core, p, ctx),
         "skills.install" => skills::install(core, p).await,
         "skills.uninstall" => skills::uninstall(core, p),
+        // --- メモ (本体は crate::memos) ---
+        "memos.create" => memos::create(core, p, ctx).await,
+        "memos.update" => memos::update(core, p, ctx).await,
+        "memos.delete" => memos::delete(core, p),
+        "memos.revert" => memos::revert(core, p, ctx),
         // --- HEARTBEAT の応答契約 ---
         "heartbeat.report" => crate::heartbeat::report_tool(p, ctx),
         // --- 外部ネットワーク ---
@@ -317,6 +334,13 @@ const HAS_BODY: &[&str] = &[
     "skills.install",
     "skills.uninstall",
     "heartbeat.report",
+    "memos.create",
+    "memos.update",
+    "memos.delete",
+    "memos.revert",
+    "memos.list",
+    "memos.search",
+    "memos.backlinks",
 ];
 
 #[cfg(test)]

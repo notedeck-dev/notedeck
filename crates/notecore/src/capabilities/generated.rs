@@ -2311,7 +2311,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定したメモ id を `[name](memo:<id>)` 形式で参照しているメモを 返す (= バックリンク)。タグ整理 / 関連メモ把握に有用。本文に link が あるメモ全件を返す (limit / pagination なし、通常 backlinks は少数)。 検索範囲は accountId 指定のメモ空間のみ (cross-account はしない)。",
         params: &[
             ParamDecl {
@@ -2341,7 +2341,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "NoteDeck のローカル markdown メモを新規作成する。 text + 任意の tags / authorId 指定可。CW / visibility / poll 等の投稿用フィールドは触らない (= デフォルト値で作成)。memoKey は Zettelkasten 形式 (`YYYYMMDDHHmmss`) で自動採番。 authorId を渡すと <persona> block の指示通り memo に author 埋め込みブロックが 記録される (skill / account の表示情報を作成時に snapshot)。 投稿前に確認モーダルが出る。",
         params: &[
             ParamDecl {
@@ -2385,7 +2385,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "既存ローカルメモを削除する。削除前に確認モーダルが出る。 整理 skill の指示でユーザーが「古いメモを片付ける」フローで使う想定。 削除されたメモは復元できない (notedeck/memos/<id>.md ファイルが消える)。",
         params: &[
             ParamDecl {
@@ -2415,7 +2415,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "NoteDeck のローカル memo を絞り込んで列挙する。 tag / 経過日数 / 部分一致クエリ / 作者でフィルタ可能。 updatedAt 降順、limit 件で打ち切り (default 10、最大 50)。 AI は memos.search でキーワード検索する前に memos.list で全体像を 把握するのが効率的。",
         params: &[
             ParamDecl {
@@ -2473,7 +2473,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "メモを編集履歴の過去の状態に戻す。index は 0 が最新の履歴。",
         params: &[
             ParamDecl {
@@ -2517,7 +2517,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "NoteDeck のローカル memo を本文部分一致で検索する。 大小無視の substring + 直近更新の recency boost で並べ、 limit 件 (default 10、最大 50) を返す。embedding 由来の semantic 検索はないので、ヒットしない場合は AI が言い換え (例:「旅行」→「出張」「バカンス」) で再試行することを想定。 authorId で persona / 本人別のメモ検索も可能。",
         params: &[
             ParamDecl {
@@ -2561,7 +2561,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "既存ローカルメモの text / tags / authorId を更新する (すべて optional、未指定なら維持)。 CW / visibility 等の他のフィールドは既存値を保持。 id は <memos> ブロックで参照できる Zettelkasten 形式 memoKey。 投稿前に確認モーダルが出る。",
         params: &[
             ParamDecl {
