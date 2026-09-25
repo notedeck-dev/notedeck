@@ -1,4 +1,5 @@
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, type Ref, ref } from 'vue'
+import type { Messages } from '../i18n/ja'
 
 const RELEASES_LATEST =
   'https://github.com/notedeck-dev/notedeck/releases/latest'
@@ -21,9 +22,11 @@ export type PlatformKey = keyof typeof ASSET_SUFFIX
  * GitHub Releases API から最新版のタグと各プラットフォームの直リンクを引く。
  * 取れなければ /releases/latest のままにしておく (fallback)。
  */
-export function useLatestRelease() {
+export function useLatestRelease(t: Ref<Messages>) {
   const version = ref('')
-  const noticeText = ref('最新リリースを見る')
+  const noticeText = computed(() =>
+    version.value ? t.value.release.released(version.value) : t.value.release.latest,
+  )
   const noticeHref = ref(RELEASES_LATEST)
   const downloadUrls = ref<Partial<Record<PlatformKey, string>>>({})
 
@@ -36,7 +39,6 @@ export function useLatestRelease() {
 
       if (release.tag_name) {
         version.value = release.tag_name
-        noticeText.value = `${release.tag_name} をリリースしました`
         if (release.html_url) noticeHref.value = release.html_url
       }
 

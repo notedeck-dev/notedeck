@@ -1,34 +1,14 @@
 <script setup lang="ts">
-const KEY_FEATURES = [
-  {
-    icon: '🗂️',
-    title: '全部のサーバーが、ひとつの画面に',
-    lead: '通知・タイムライン・検索を',
-    leadStrong: 'アカウント横断でまとめて一覧。',
-    body: 'misskey.io、にじみす、すしすきー — 何鯖使っていても、ひとつのデッキにまとめて把握。カラムごとに別のアカウントを割り当てる使い方は、本家 Web のデッキにはできません。',
-  },
-  {
-    icon: '💾',
-    title: '見たノートは、手元に残る',
-    lead: '流れてきたノートを、',
-    leadStrong: 'アプリが自動で覚えている。',
-    body: '流れたタイムラインはローカル DB に自動保存。「あのノートどこだっけ？」も全文検索で一瞬。電波がなくても読み返せて、サーバーから消えても手元には残ります。',
-  },
-  {
-    icon: '⚡',
-    title: '軽くて、速い',
-    lead: 'ブラウザではなく、',
-    leadStrong: 'Rust 製のネイティブアプリ。',
-    body: 'コールドスタートは 1 秒未満、トレイからの復帰は一瞬。スクロールはなめらか、バッテリーにも優しい。開きっぱなしのブラウザタブや重いランタイムとは無縁です。',
-  },
-]
+import { useI18n } from '../../i18n'
+
+const { t } = useI18n()
 </script>
 
 <template>
   <!-- Hub .section_keyFeatures: ヒーローカード下端にオーバーラップする acrylic 3 枚 -->
   <section id="why" class="keyfeatures w-secondary">
     <div
-      v-for="feature in KEY_FEATURES"
+      v-for="feature in t.keyFeatures"
       :key="feature.title"
       class="keyfeature acrylic punched"
     >

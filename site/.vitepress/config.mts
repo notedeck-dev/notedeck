@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitepress'
+import { type DefaultTheme, defineConfig } from 'vitepress'
 
 const BASE_URL = 'https://notedeck.io'
 const REPO = 'https://github.com/notedeck-dev/notedeck'
@@ -7,12 +7,88 @@ const REPO = 'https://github.com/notedeck-dev/notedeck'
 // 版下は site/assets/ogp.svg。
 const OGP_IMAGE = `${BASE_URL}/ogp.png`
 
+const JA_SIDEBAR: DefaultTheme.Sidebar = {
+  '/docs/': [
+    {
+      text: 'はじめに',
+      collapsed: false,
+      items: [
+        { text: 'NoteDeck とは', link: '/docs/' },
+        { text: 'インストール', link: '/docs/install' },
+        { text: '最初のセットアップ', link: '/docs/first-run' },
+        { text: 'ログインせずに試す', link: '/docs/guest' },
+      ],
+    },
+    {
+      text: 'デッキを組む',
+      collapsed: false,
+      items: [
+        { text: 'カラムとウィンドウ', link: '/docs/deck/columns' },
+        { text: 'プロファイル', link: '/docs/deck/profiles' },
+        { text: 'ナビバー', link: '/docs/deck/navbar' },
+      ],
+    },
+    {
+      text: '使いこなす',
+      collapsed: false,
+      items: [
+        { text: 'キーボード操作', link: '/docs/guide/keyboard' },
+        { text: 'ノートを探す', link: '/docs/guide/search' },
+        { text: '見た目を変える', link: '/docs/guide/appearance' },
+        { text: 'ストアで拡張する', link: '/docs/guide/store' },
+        { text: 'AI と使う', link: '/docs/guide/ai' },
+        { text: '環境を育てる', link: '/docs/guide/grow' },
+      ],
+    },
+    {
+      text: '拡張をつくる',
+      collapsed: false,
+      items: [
+        { text: '拡張の全体像', link: '/docs/dev/' },
+        { text: 'プラグイン', link: '/docs/dev/plugin' },
+        { text: 'ウィジェット', link: '/docs/dev/widget' },
+        { text: 'テーマ', link: '/docs/dev/theme' },
+        { text: 'カラムクエリ', link: '/docs/dev/query' },
+        { text: 'スキル', link: '/docs/dev/skill' },
+      ],
+    },
+    {
+      text: '設定とデータ',
+      collapsed: false,
+      items: [
+        { text: '設定ファイル', link: '/docs/config/files' },
+        { text: 'バックアップ', link: '/docs/config/backup' },
+      ],
+    },
+    {
+      text: 'こまったとき',
+      collapsed: false,
+      items: [{ text: 'トラブルシューティング', link: '/docs/troubleshooting' }],
+    },
+  ],
+}
+
+// 訳したページだけを載せる。VitePress は未訳ページを原文に fallback せず 404 にするので、
+// ここに無いページへは本文から原文 (ja) の URL でリンクする (#1145)。
+// 訳の腐りは scripts/docs-lint.mjs が原文のハッシュで検出する
+const EN_SIDEBAR: DefaultTheme.Sidebar = {
+  '/en/docs/': [
+    {
+      text: 'Getting started',
+      collapsed: false,
+      items: [
+        { text: 'What is NoteDeck', link: '/en/docs/' },
+        { text: 'Installation', link: '/en/docs/install' },
+        { text: 'First-run setup', link: '/en/docs/first-run' },
+        { text: 'Try without logging in', link: '/en/docs/guest' },
+      ],
+    },
+  ],
+}
+
 export default defineConfig({
-  lang: 'ja',
   title: 'NoteDeck',
   titleTemplate: ':title | NoteDeck',
-  description:
-    'Misskey Pro — Misskey廃人のための Misskey 統合デッキ環境 (IDE)。',
   cleanUrls: true,
   lastUpdated: true,
   metaChunk: true,
@@ -25,13 +101,6 @@ export default defineConfig({
     ['meta', { property: 'og:image:type', content: 'image/png' }],
     ['meta', { property: 'og:image:width', content: '1200' }],
     ['meta', { property: 'og:image:height', content: '630' }],
-    [
-      'meta',
-      {
-        property: 'og:image:alt',
-        content: 'NoteDeck — Misskey廃人のための 非公式クライアント。',
-      },
-    ],
     ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     [
@@ -49,111 +118,104 @@ export default defineConfig({
 
   sitemap: { hostname: BASE_URL },
 
+  // 原文の ja は root のまま現行 URL を保つ (共有リンクと OGP を壊さない)。
+  // 他の言語は /<key>/ 配下。VitePress は themeConfig を浅くマージするので、
+  // 言語で変わるオブジェクトは言語ごとに丸ごと書く (#1145)
+  locales: {
+    root: {
+      label: '日本語',
+      lang: 'ja',
+      description:
+        'Misskey Pro — Misskey廃人のための Misskey 統合デッキ環境 (IDE)。',
+      head: [
+        [
+          'meta',
+          {
+            property: 'og:image:alt',
+            content: 'NoteDeck — Misskey廃人のための 非公式クライアント。',
+          },
+        ],
+      ],
+      themeConfig: {
+        sidebar: JA_SIDEBAR,
+        editLink: {
+          pattern: `${REPO}/edit/main/site/:path`,
+          text: 'このページを編集',
+        },
+        docFooter: { prev: '前へ', next: '次へ' },
+        outline: { level: [2, 3], label: 'このページの内容' },
+        lastUpdated: {
+          text: '最終更新',
+          formatOptions: { dateStyle: 'medium' },
+        },
+        darkModeSwitchLabel: 'カラーモード',
+        lightModeSwitchTitle: 'ライトモードに切り替え',
+        darkModeSwitchTitle: 'ダークモードに切り替え',
+        sidebarMenuLabel: 'メニュー',
+        returnToTopLabel: 'ページの先頭へ',
+      },
+    },
+    en: {
+      label: 'English',
+      lang: 'en',
+      description:
+        'Misskey Pro — the Misskey Integrated Deck Environment (IDE) for power users.',
+      head: [
+        [
+          'meta',
+          {
+            property: 'og:image:alt',
+            content: 'NoteDeck — the unofficial client for Misskey power users.',
+          },
+        ],
+      ],
+      themeConfig: {
+        sidebar: EN_SIDEBAR,
+        editLink: {
+          pattern: `${REPO}/edit/main/site/:path`,
+          text: 'Edit this page',
+        },
+        outline: { level: [2, 3], label: 'On this page' },
+        lastUpdated: {
+          text: 'Last updated',
+          formatOptions: { dateStyle: 'medium' },
+        },
+      },
+    },
+  },
+
   themeConfig: {
     // ナビとフッターは theme/components/HubNav.vue / HubFooter.vue が持つ。
     // VitePress の VPNav / VPFooter は site.css で隠しているので、
     // ここに nav / socialLinks / footer を書いても表示されない。
-    sidebar: {
-      '/docs/': [
-        {
-          text: 'はじめに',
-          collapsed: false,
-          items: [
-            { text: 'NoteDeck とは', link: '/docs/' },
-            { text: 'インストール', link: '/docs/install' },
-            { text: '最初のセットアップ', link: '/docs/first-run' },
-            { text: 'ログインせずに試す', link: '/docs/guest' },
-          ],
-        },
-        {
-          text: 'デッキを組む',
-          collapsed: false,
-          items: [
-            { text: 'カラムとウィンドウ', link: '/docs/deck/columns' },
-            { text: 'プロファイル', link: '/docs/deck/profiles' },
-            { text: 'ナビバー', link: '/docs/deck/navbar' },
-          ],
-        },
-        {
-          text: '使いこなす',
-          collapsed: false,
-          items: [
-            { text: 'キーボード操作', link: '/docs/guide/keyboard' },
-            { text: 'ノートを探す', link: '/docs/guide/search' },
-            { text: '見た目を変える', link: '/docs/guide/appearance' },
-            { text: 'ストアで拡張する', link: '/docs/guide/store' },
-            { text: 'AI と使う', link: '/docs/guide/ai' },
-            { text: '環境を育てる', link: '/docs/guide/grow' },
-          ],
-        },
-        {
-          text: '拡張をつくる',
-          collapsed: false,
-          items: [
-            { text: '拡張の全体像', link: '/docs/dev/' },
-            { text: 'プラグイン', link: '/docs/dev/plugin' },
-            { text: 'ウィジェット', link: '/docs/dev/widget' },
-            { text: 'テーマ', link: '/docs/dev/theme' },
-            { text: 'カラムクエリ', link: '/docs/dev/query' },
-            { text: 'スキル', link: '/docs/dev/skill' },
-          ],
-        },
-        {
-          text: '設定とデータ',
-          collapsed: false,
-          items: [
-            { text: '設定ファイル', link: '/docs/config/files' },
-            { text: 'バックアップ', link: '/docs/config/backup' },
-          ],
-        },
-        {
-          text: 'こまったとき',
-          collapsed: false,
-          items: [{ text: 'トラブルシューティング', link: '/docs/troubleshooting' }],
-        },
-      ],
-    },
-
     search: {
       provider: 'local',
       options: {
-        translations: {
-          button: { buttonText: '検索', buttonAriaLabel: '検索' },
-          modal: {
-            displayDetails: '詳細を表示',
-            resetButtonTitle: '検索をリセット',
-            backButtonTitle: '戻る',
-            noResultsText: '見つかりませんでした',
-            footer: {
-              selectText: '選択',
-              selectKeyAriaLabel: 'Enter',
-              navigateText: '移動',
-              navigateUpKeyAriaLabel: '上矢印',
-              navigateDownKeyAriaLabel: '下矢印',
-              closeText: '閉じる',
-              closeKeyAriaLabel: 'Escape',
+        locales: {
+          root: {
+            translations: {
+              button: { buttonText: '検索', buttonAriaLabel: '検索' },
+              modal: {
+                displayDetails: '詳細を表示',
+                resetButtonTitle: '検索をリセット',
+                backButtonTitle: '戻る',
+                noResultsText: '見つかりませんでした',
+                footer: {
+                  selectText: '選択',
+                  selectKeyAriaLabel: 'Enter',
+                  navigateText: '移動',
+                  navigateUpKeyAriaLabel: '上矢印',
+                  navigateDownKeyAriaLabel: '下矢印',
+                  closeText: '閉じる',
+                  closeKeyAriaLabel: 'Escape',
+                },
+              },
             },
           },
         },
       },
     },
 
-    editLink: {
-      pattern: `${REPO}/edit/main/site/:path`,
-      text: 'このページを編集',
-    },
-
-    docFooter: { prev: '前へ', next: '次へ' },
-    outline: { level: [2, 3], label: 'このページの内容' },
-    lastUpdated: {
-      text: '最終更新',
-      formatOptions: { dateStyle: 'medium' },
-    },
-    darkModeSwitchLabel: 'カラーモード',
-    lightModeSwitchTitle: 'ライトモードに切り替え',
-    darkModeSwitchTitle: 'ダークモードに切り替え',
-    sidebarMenuLabel: 'メニュー',
-    returnToTopLabel: 'ページの先頭へ',
     externalLinkIcon: true,
   },
 

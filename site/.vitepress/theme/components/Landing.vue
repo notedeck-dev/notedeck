@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from '../i18n'
 import { useLatestRelease } from '../composables/useLatestRelease'
 import { useScrollReveal } from '../composables/useScrollReveal'
 import LandingDevelopers from './landing/LandingDevelopers.vue'
@@ -11,8 +12,9 @@ import LandingKeyFeatures from './landing/LandingKeyFeatures.vue'
 import LandingMore from './landing/LandingMore.vue'
 
 // リリース情報の取得はここ 1 回だけ。ヒーローの告知とダウンロードカードで使い回す
+const { t } = useI18n()
 const { version, noticeText, noticeHref, downloadUrls, RELEASES_LATEST } =
-  useLatestRelease()
+  useLatestRelease(t)
 
 useScrollReveal()
 </script>

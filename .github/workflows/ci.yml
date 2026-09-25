@@ -47,6 +47,8 @@ jobs:
               - '.github/workflows/ci.yml'
             docs:
               - '*.md'
+              - 'site/**/*.md'
+              - 'site/.vitepress/theme/i18n/**'
               - 'scripts/docs-lint.mjs'
               - '.github/workflows/ci.yml'
 
