@@ -2763,6 +2763,7 @@ async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string;
 
 export const events = __makeEvents__<{
 exportProgress: ExportProgressEvent,
+ndAiHeartbeatEvent: HeartbeatEventWire,
 ndSettingsFileChanged: SettingsFileChangedEvent,
 noteCaptureBatch: NoteCaptureBatchEvent,
 notificationClicked: NotificationClicked,
@@ -2775,6 +2776,7 @@ streamStatus: StreamStatus,
 systemState: SystemState
 }>({
 exportProgress: "export-progress",
+ndAiHeartbeatEvent: "nd:ai-heartbeat-event",
 ndSettingsFileChanged: "nd:settings-file-changed",
 noteCaptureBatch: "note-capture-batch",
 notificationClicked: "notification-clicked",
@@ -3233,6 +3235,17 @@ logDir: string | null;
  * ここから内容を読めるようにするのが主目的。無ければ null。
  */
 lastPanic: PanicReport | null }
+/**
+ * デバイスへ流す出来事 (flat。Tauri は `nd:ai-heartbeat-event`)。
+ * kind: `started` (source) / `finished` (outcome) / `report` (session_id, created) /
+ * `titled` (session_id, title) / `notify` (title, body) / `toast` (level, text)
+ */
+export type HeartbeatEvent = { kind: string; source?: string | null; outcome?: string | null; sessionId?: string | null; created?: boolean | null; title?: string | null; body?: string | null; level?: string | null; text?: string | null }
+/**
+ * HEARTBEAT の出来事 (開始 / 終了 / 報告 / 通知 / toast) を `nd:ai-heartbeat-event` で
+ * WebView へ流す (#1133 縦切り 5)。
+ */
+export type HeartbeatEventWire = HeartbeatEvent
 /**
  * Serialize / Default はコマンド表のフィクスチャ用。
  */
@@ -3713,7 +3726,12 @@ role: string; content: string; timestamp: number; toolUseId?: string | null; too
 /**
  * HEARTBEAT の報告 (AI の履歴からは除く)
  */
-heartbeat?: boolean | null }
+heartbeat?: boolean | null; 
+/**
+ * 無人実行の書込意図 (受信箱カード、#1133): `{ capabilityId, params, untrusted,
+ * status, draftId?, source, createdAt }`。人がボタンを押して確認を経てから走る
+ */
+intent?: JsonValue | null }
 /**
  * 変わったファイル。`subdir` が `None` ならルート直下 (`settings.json5` 等)。
  */

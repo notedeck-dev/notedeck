@@ -407,6 +407,8 @@
         'backup.create',
       ],
       confirm: true,
+      // HEARTBEAT からは確認なしで定期実行できる (#816)。権限 (既定 false) だけで gate
+      unattended: true,
       exec: 'device',
       description: 'ローカル DB と設定のスナップショットを Downloads/notedeck/backup/ に 作成する。認証情報は含まれない。デッキ構成やプラグイン登録は対象外。 DB と設定はそれぞれ独立して選べる (既定は両方)。 世代は新しい順に keep 件だけ残る。',
       params: {
@@ -1491,6 +1493,29 @@
       returns: {
         type: 'array',
         description: 'GalleryPost の配列',
+      },
+    },
+    'heartbeat.report': {
+      label: 'HEARTBEAT の報告',
+      category: 'general',
+      icon: 'ti-heartbeat',
+      permissions: [],
+      exec: 'core',
+      description: 'HEARTBEAT (定期チェック) の報告を返す。報告すべきことがあるときだけ呼ぶ。notify を true にすると OS のデスクトップ通知も出す。HEARTBEAT の実行中以外は記録しない。',
+      params: {
+        body: {
+          type: 'string',
+          description: '報告の本文 (200 字以内推奨)',
+        },
+        notify: {
+          type: 'boolean',
+          description: 'OS のデスクトップ通知を出すか (default: false)',
+          optional: true,
+        },
+      },
+      returns: {
+        type: 'object',
+        description: '{ recorded: boolean }',
       },
     },
     'http.fetch': {

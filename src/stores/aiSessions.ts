@@ -189,6 +189,11 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
     )
   }
 
+  /** 1 件を差し替える (受信箱カードの状態更新など)。同じ id は notecore 側でも置換 */
+  function replaceMessage(id: string, message: ChatMessage): void {
+    appendMessages(id, [message])
+  }
+
   /** メッセージを id で取り除く (失敗ターンの再試行 #508 / #737)。 */
   function removeMessages(id: string, messageIds: readonly string[]): void {
     if (messageIds.length === 0) return
@@ -272,6 +277,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
     listSorted,
     createNew,
     appendMessages,
+    replaceMessage,
     removeMessages,
     setLocalMessages,
     reload,

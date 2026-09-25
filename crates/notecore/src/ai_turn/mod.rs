@@ -140,7 +140,7 @@ pub struct AiTurnRequest {
 #[derive(Debug, Clone, Serialize, Type)]
 pub struct AiTurnEvent {
     pub turn_id: String,
-    /// `"delta" | "tool_use" | "tool_result" | "done" | "error" | "title"
+    /// `"delta" | "tool_use" | "tool_result" | "done" | "error" | "title" | "intent"
     /// | "confirm_request" | "confirm_closed"`
     pub kind: String,
     /// delta: 追記テキスト / tool_use: その assistant メッセージの本文 (ラウンド
@@ -510,6 +510,8 @@ struct ResolvedTool {
     destinations: Vec<String>,
     /// notecore 単独で実行できる (宣言表の `exec: core`)
     core: bool,
+    /// 無人実行でも確認なしで走ってよい (権限だけで gate。宣言表の `unattended`)
+    unattended: bool,
 }
 
 /// principal に見せてよい tool 一覧 (provider 形式) と、名前 → 認可情報の表。
@@ -539,6 +541,7 @@ fn build_tools(
                 untrusted: d.untrusted,
                 destinations: d.destinations.iter().map(|x| x.to_string()).collect(),
                 core: d.exec == capabilities::Exec::Core,
+                unattended: d.unattended,
             },
         );
     }
@@ -563,6 +566,7 @@ fn build_tools(
                 untrusted: t.untrusted,
                 destinations: t.destinations.clone(),
                 core: false,
+                unattended: false,
             },
         );
     }
@@ -764,6 +768,9 @@ pub struct PendingToolUse {
     /// notecore で実行する (デバイスに投げない)
     #[serde(default)]
     pub core: bool,
+    /// 無人実行で確認が要る操作: 走らせずに書込意図として残す (#1133 縦切り 5b)
+    #[serde(default)]
+    pub intent: bool,
 }
 
 /// turn の状態。確認で停止するときはこれをチェックポイントに書き、応答で
@@ -959,6 +966,7 @@ async fn prepare_pending(
             untrusted: false,
             destination_untrusted: false,
             core: false,
+            intent: false,
         };
         match authorize(&p.name, index, &granted) {
             Err(text) => p.deny = Some(text),
@@ -973,6 +981,11 @@ async fn prepare_pending(
                     .iter()
                     .any(|v| corpus.origin_of(v) == Origin::Untrusted);
                 let mut needs = tool.confirm || cross || p.destination_untrusted;
+                if unattended && tool.unattended && !cross && !p.destination_untrusted {
+                    // 宣言で「無人でも確認なしで走ってよい」(backup.create 等、#816)。
+                    // 権限だけで gate する
+                    needs = false;
+                }
                 if needs && !cross && !tainted && !p.destination_untrusted && !unattended {
                     // 「次から確認しない」(権限ファイルへの減算) を尊重する。
                     // 記憶はチャットの範囲だけ (#714)。無人の HEARTBEAT には波及
@@ -991,10 +1004,11 @@ async fn prepare_pending(
                         tool.capability_id
                     ));
                 } else if needs && unattended {
-                    // 無人実行は承認を待たない (#1106 §4.8)。その場で拒否して
-                    // AI に返す。下書き / 受信箱カードに変えるのは後続
+                    // 無人実行は承認を待たない (#1106 §4.8)。走らせずに書込意図として
+                    // 残し (受信箱カード / 投稿系は下書き)、AI にはそう伝える
+                    p.intent = true;
                     p.deny = Some(format!(
-                        "Error (user_cancelled): Unattended HEARTBEAT does not run operations that require confirmation: {}",
+                        "Queued (unattended): Unattended HEARTBEAT does not run operations that require confirmation. The request was recorded for the user to review and run: {}",
                         tool.capability_id
                     ));
                 } else {
@@ -1028,6 +1042,7 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
                     acts_as_account: true,
                     untrusted: false,
                     destinations: Vec::new(),
+                    unattended: false,
                     core: false,
                 },
                 &p.input,
@@ -1115,6 +1130,19 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
         e.message_id = Some(tool_use_msg_id.clone());
         rt.sink.emit(e);
 
+        if tu.intent {
+            // 書込意図 (無人実行で確認が要った操作) を届ける。HEARTBEAT daemon が
+            // 受信箱カード / 下書きにする
+            let mut e = AiTurnEvent::new(&turn_id, "intent");
+            e.tool_use_id = Some(tu.id.clone());
+            e.tool_use_name = tu.capability_id.clone();
+            e.tool_use_input = Some(tu.input.clone());
+            e.reason = state
+                .req
+                .context_untrusted
+                .then(|| "context_untrusted".to_string());
+            rt.sink.emit(e);
+        }
         let (result, is_error) = if let Some(deny) = tu.deny.clone() {
             (deny, true)
         } else if tu.needs_confirm && tu.decision != Some(true) {
@@ -1448,6 +1476,18 @@ pub(crate) fn spawn_drive(rt: Arc<TurnRuntime>, state: TurnState) {
 /// ターンを開始する。入力検証と接続解決はここで行い (エラーは呼び出し元へ)、
 /// 本体は background task。以後のイベントは sink に流れる。
 pub async fn start_turn(
+    req: AiTurnRequest,
+    app_dir: &Path,
+    bridge: Arc<dyn FrontendBridge>,
+    sink: Arc<dyn AiTurnSink>,
+    core_executor: Arc<dyn CoreExecutor>,
+) -> Result<()> {
+    start_turn_with_sink(req, app_dir, bridge, sink, core_executor).await
+}
+
+/// `start_turn` と同じだが、イベントの届け先を呼び出し側が差す (HEARTBEAT daemon
+/// のように notecore 内でターンの完了を待つ用途)。
+pub async fn start_turn_with_sink(
     req: AiTurnRequest,
     app_dir: &Path,
     bridge: Arc<dyn FrontendBridge>,
@@ -2220,8 +2260,32 @@ mod tests {
         assert!(device.previews().is_empty());
         assert!(device.executes().is_empty());
         let r = h.sink.find("tool_result").unwrap();
-        assert!(r.text.unwrap().contains("Unattended HEARTBEAT"));
+        assert!(r.text.unwrap().contains("Queued (unattended)"));
+        // 書込意図として届く
+        let intent = h.sink.find("intent").unwrap();
+        assert_eq!(intent.tool_use_name.as_deref(), Some("notes.create"));
+        assert!(intent.tool_use_input.is_some());
         assert_eq!(h.sink.last().kind, "done");
+    }
+
+    #[tokio::test]
+    async fn unattended_heartbeat_runs_unattended_capabilities_without_confirmation() {
+        // 宣言に `unattended` がある capability (backup.create, #816) は無人でも
+        // 確認なしで走る (権限だけで gate)
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu1", "backup_create", json!({}))],
+            vec![delta("ok")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": {"dir": "x"}}));
+        let h = harness(provider, &["backup.create"], device.clone());
+        let mut req = request();
+        req.principal = "ai.heartbeat".into();
+        drive(h.rt.clone(), TurnState::new(req)).await;
+        assert!(device.previews().is_empty());
+        assert_eq!(device.executes().len(), 1);
+        assert!(h.sink.find("confirm_request").is_none());
+        let r = h.sink.find("tool_result").unwrap();
+        assert!(!r.text.unwrap().contains("Unattended HEARTBEAT"));
     }
 
     #[tokio::test]

@@ -107,6 +107,33 @@ describe('messageToWire / messageFromWire', () => {
   })
 })
 
+describe('intent (受信箱カード, #1133)', () => {
+  it('intent は wire と往復し、無ければ載せない', () => {
+    const intent = {
+      capabilityId: 'notes.create',
+      params: { text: 'x', accountId: 'a' },
+      untrusted: true,
+      status: 'drafted' as const,
+      draftId: 'd1',
+      source: 'heartbeat' as const,
+      createdAt: 5,
+    }
+    const m = {
+      id: 'i',
+      role: 'assistant' as const,
+      content: 'ノートを投稿 の実行を提案しました',
+      timestamp: 5,
+      heartbeat: true,
+      intent,
+    }
+    expect(messageFromWire(messageToWire(m))).toEqual(m)
+    expect(
+      messageToWire({ id: 'p', role: 'user', content: '', timestamp: 0 })
+        .intent,
+    ).toBeNull()
+  })
+})
+
 describe('buildLastMessagePreview', () => {
   it('tool 行を飛ばし、空白を潰し、上限で切る', () => {
     expect(

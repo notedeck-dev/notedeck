@@ -138,6 +138,7 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
       cheap: d.cheap === true,
       visible: d.visible === true,
       untrusted: d.untrusted === true,
+      unattended: d.unattended === true,
       destinations,
       exec,
       description: expand(d.description ?? ''),
@@ -191,6 +192,8 @@ export function renderTs(decls) {
     '  visible: boolean',
     '  /** 結果に他人の内容を含みうる読取 (読んだセッションを tainted にする) */',
     '  untrusted: boolean',
+    '  /** 無人実行 (HEARTBEAT) でも確認なしで走ってよい (権限だけで gate) */',
+    '  unattended: boolean',
     '  /** 書き込みの宛先になる引数 (値の出所を判定する) */',
     '  destinations: readonly string[]',
     '  exec: CapabilityExec',
@@ -223,6 +226,7 @@ export function renderTs(decls) {
     lines.push(`    cheap: ${d.cheap},`)
     lines.push(`    visible: ${d.visible},`)
     lines.push(`    untrusted: ${d.untrusted},`)
+    lines.push(`    unattended: ${d.unattended},`)
     lines.push(`    destinations: ${ts(d.destinations)},`)
     lines.push(`    exec: ${ts(d.exec)},`)
     lines.push(`    description: ${ts(d.description)},`)
@@ -276,6 +280,7 @@ export function renderRs(decls) {
       `        cheap: ${d.cheap},`,
       `        visible: ${d.visible},`,
       `        untrusted: ${d.untrusted},`,
+      `        unattended: ${d.unattended},`,
       `        destinations: &[${d.destinations.map(rs).join(', ')}],`,
       `        exec: Exec::${pascal(d.exec)},`,
       `        description: ${rs(d.description)},`,

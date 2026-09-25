@@ -300,6 +300,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .set_core_executor(std::sync::Arc::new(commands::TauriCoreExecutor(app.handle().clone())));
         app.state::<commands::AppState>()
             .set_settings_sink(std::sync::Arc::new(commands::TauriSettingsSink(app.handle().clone())));
+        app.state::<commands::AppState>()
+            .set_heartbeat_sink(std::sync::Arc::new(commands::TauriHeartbeatSink(app.handle().clone())));
 
         // Image cache — 必ず Phase 1 で manage する (#921)。フロントは
         // nd:accounts-early を受けた瞬間にカラムを mount して絵文字を要求する
@@ -1183,6 +1185,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             os_notify::NotificationClicked,
             commands::ExportProgressEvent,
             commands::SettingsFileChangedEvent,
+            commands::HeartbeatEventWire,
             system_state::SystemState,
         ])
 }

@@ -3,6 +3,7 @@ import { type Ref, ref } from 'vue'
 import type { Connection, ConnectionProtocol } from '@/bindings'
 import defaultAiJson5 from '@/defaults/ai.json5?raw'
 import type { PresetKey } from '@/permissions/schema'
+import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { isTauri, readAiSettings, writeAiSettings } from '@/utils/settingsFs'
 import { getStorageJson, removeStorage, STORAGE_KEYS } from '@/utils/storage'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -584,6 +585,9 @@ export const _internal = {
 // permission を変えても DeckAiColumn 側の ref に反映されないバグになる
 // (= 再起動しないと反映されない)。モジュールスコープで singleton 化する。
 
+/** notecore の変更通知で読み直す対象 (ルート直下のファイル名) */
+const AI_SETTINGS_FILE_NAME = 'ai.json5'
+
 const _config: Ref<AiConfig> = ref(defaultConfig())
 const _initialized: Ref<boolean> = ref(false)
 let _initStarted = false
@@ -642,6 +646,10 @@ export function useAiConfig() {
     _initStarted = true
     if (isTauri) {
       _initFileStorage()
+      // notecore が ai.json5 を書いた (HEARTBEAT の自動停止など) → 読み直す
+      registerSettingsFileHandler('root', (change) => {
+        if (change.name === AI_SETTINGS_FILE_NAME) void reloadAiConfig()
+      })
     }
   }
 

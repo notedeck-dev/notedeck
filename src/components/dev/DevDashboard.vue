@@ -190,12 +190,13 @@ interface HeartbeatStatusView {
   lastOutcome: string | null
   consecutiveFailures: number
   dailyCount: number
+  /** 直近の実行で notecore が読んだ設定の断面 (未実行なら null) */
   config: {
     enabled: boolean
     intervalMinutes: number
     target: string
     dailyMaxAiRuns: number
-  }
+  } | null
 }
 
 // heartbeat の中身は refreshStatus の 5 秒ポーリングが埋める
@@ -874,7 +875,7 @@ onUnmounted(() => {
               <i
                 v-if="
                   item.id === 'heartbeat' &&
-                  heartbeat?.config.enabled &&
+                  heartbeat?.config?.enabled &&
                   !navCollapsed
                 "
                 class="ti ti-heartbeat"
@@ -1050,7 +1051,7 @@ onUnmounted(() => {
           <header :class="$style.viewHead">
             <div>
               <h2 :class="$style.viewTitle">
-                <i class="ti ti-heartbeat" :class="heartbeat?.config.enabled && $style.beat" />
+                <i class="ti ti-heartbeat" :class="heartbeat?.config?.enabled && $style.beat" />
                 HEARTBEAT
               </h2>
               <p :class="$style.viewDesc">
@@ -1064,9 +1065,9 @@ onUnmounted(() => {
                 <span
                   :class="[
                     $style.statValue,
-                    heartbeat.mounted && heartbeat.config.enabled && $style.statusOk,
+                    heartbeat.mounted && heartbeat?.config?.enabled && $style.statusOk,
                   ]"
-                >{{ heartbeat.mounted ? (heartbeat.config.enabled ? 'ON' : 'OFF') : '—' }}</span>
+                >{{ heartbeat.mounted ? (heartbeat?.config?.enabled ? 'ON' : 'OFF') : '—' }}</span>
                 <span :class="$style.statLabel">daemon{{ heartbeat.running ? ' (tick 実行中)' : '' }}</span>
               </div>
               <div :class="$style.statCard">
@@ -1083,7 +1084,7 @@ onUnmounted(() => {
                 <span :class="$style.statLabel">連続失敗</span>
               </div>
               <div :class="$style.statCard">
-                <span :class="$style.statValue">{{ heartbeat.dailyCount }}<small>/{{ heartbeat.config.dailyMaxAiRuns }}</small></span>
+                <span :class="$style.statValue">{{ heartbeat.dailyCount }}<small>/{{ heartbeat?.config?.dailyMaxAiRuns }}</small></span>
                 <span :class="$style.statLabel">本日の AI 起動</span>
               </div>
             </div>
@@ -1094,7 +1095,7 @@ onUnmounted(() => {
                   <tbody>
                     <tr>
                       <td>interval / target</td>
-                      <td :class="$style.mono">{{ heartbeat.config.intervalMinutes }} 分 / {{ heartbeat.config.target }}</td>
+                      <td :class="$style.mono">{{ heartbeat?.config?.intervalMinutes }} 分 / {{ heartbeat?.config?.target }}</td>
                     </tr>
                     <tr>
                       <td>直近の結末</td>
