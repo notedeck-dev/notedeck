@@ -1,5 +1,5 @@
 ---
-sourceHash: eb0f9a99d361
+sourceHash: bf8edf26e679
 ---
 
 # Profiles
@@ -20,7 +20,7 @@ When what you want to see changes with the situation, you no longer have to add 
 
 Just pick one from the profile list and the whole deck is swapped. Creating, duplicating, deleting and reordering profiles are done from there too.
 
-What gets saved is which columns are lined up, in what order and at what width, plus the navbar's button layout. Accounts themselves are not tied to profiles; every account you have added is available in every profile.
+What gets saved is which columns are lined up, in what order and at what width. The [navbar](/en/docs/deck/navbar)'s button layout is independent of profiles and does not change when you switch. Accounts themselves are not tied to profiles; every account you have added is available in every profile.
 
 ## Relationship with windows
 
