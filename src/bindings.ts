@@ -2270,18 +2270,18 @@ async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; m
 }
 },
 /** @see crates/notecore/src/commands/ai_chat.rs */
-async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null }>> {
+async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted }) };
+    return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted, pluginId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /** @see crates/notecore/src/commands/ai_chat.rs */
-async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null }>> {
+async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId, tainted }) };
+    return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId, tainted, pluginId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

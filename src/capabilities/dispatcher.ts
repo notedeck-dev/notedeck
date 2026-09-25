@@ -324,7 +324,7 @@ function isAiPrincipal(principal: Principal): boolean {
  * user 以外の全 principal で発火し、帰属ラベル (誰がやったか) を正確に出す
  * (#712 §3.3)。user 本人の操作には帰属表示は不要なので発火しない。
  */
-function emitSpotlightFromCapability(
+export function emitSpotlightFromCapability(
   capId: string,
   params: Record<string, unknown> | undefined,
   result: unknown,
