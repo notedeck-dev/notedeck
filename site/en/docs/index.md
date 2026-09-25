@@ -26,23 +26,23 @@ Learn these three and you can read the NoteDeck screen.
 | **Window** | A small window opened for the moment: note details, profiles, settings, editors and so on | No. It disappears when closed |
 | **Profile** | A saved arrangement of columns. Switch between them per purpose | Yes |
 
-"Things that keep flowing are columns, things you only need right now are windows." For details, see [Columns and windows](/docs/deck/columns) (Japanese).
+"Things that keep flowing are columns, things you only need right now are windows." For details, see [Columns and windows](/en/docs/deck/columns).
 
 ## Where to start
 
 - First time → [Installation](/en/docs/install) → [First-run setup](/en/docs/first-run)
 - Want to try without creating an account → [Try without logging in](/en/docs/guest)
-- How to lay out the screen → [Columns and windows](/docs/deck/columns) (Japanese)
-- Want to work without a mouse → [Keyboard](/docs/guide/keyboard) (Japanese)
-- Want to edit the settings files directly → [Settings files](/docs/config/files) (Japanese)
+- How to lay out the screen → [Columns and windows](/en/docs/deck/columns)
+- Want to work without a mouse → [Keyboard](/en/docs/guide/keyboard)
+- Want to edit the settings files directly → [Settings files](/en/docs/config/files)
 
 ## Why we call it an "IDE"
 
 NoteDeck calls itself an Integrated Deck Environment. Just as an editor is more than a place to type text once it ships a debugger and a terminal, NoteDeck does not stop at being a tool for reading and writing Misskey.
 
-- An [inspector](/docs/deck/columns#ツール系のカラム) (Japanese) that shows traffic with the server as it is
-- Plugins, themes and widgets installed from the [store](/docs/guide/store) (Japanese)
+- An [inspector](/en/docs/deck/columns#tool-columns) that shows traffic with the server as it is
+- Plugins, themes and widgets installed from the [store](/en/docs/guide/store)
 - AiScript, which turns code you write into commands
-- A way to keep [AI](/docs/guide/ai) (Japanese) around as a partner
+- A way to keep [AI](/en/docs/guide/ai) around as a partner
 
 You can use it as an ordinary client without any of that, but the further you go, the more it becomes your own tool.

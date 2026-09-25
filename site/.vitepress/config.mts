@@ -83,6 +83,52 @@ const EN_SIDEBAR: DefaultTheme.Sidebar = {
         { text: 'Try without logging in', link: '/en/docs/guest' },
       ],
     },
+    {
+      text: 'Build your deck',
+      collapsed: false,
+      items: [
+        { text: 'Columns and windows', link: '/en/docs/deck/columns' },
+        { text: 'Profiles', link: '/en/docs/deck/profiles' },
+        { text: 'Navbar', link: '/en/docs/deck/navbar' },
+      ],
+    },
+    {
+      text: 'Make the most of it',
+      collapsed: false,
+      items: [
+        { text: 'Keyboard', link: '/en/docs/guide/keyboard' },
+        { text: 'Finding notes', link: '/en/docs/guide/search' },
+        { text: 'Appearance', link: '/en/docs/guide/appearance' },
+        { text: 'Extending from the store', link: '/en/docs/guide/store' },
+        { text: 'Using AI', link: '/en/docs/guide/ai' },
+        { text: 'Growing your environment', link: '/en/docs/guide/grow' },
+      ],
+    },
+    {
+      text: 'Building extensions',
+      collapsed: false,
+      items: [
+        { text: 'Extensions overview', link: '/en/docs/dev/' },
+        { text: 'Plugins', link: '/en/docs/dev/plugin' },
+        { text: 'Widgets', link: '/en/docs/dev/widget' },
+        { text: 'Themes', link: '/en/docs/dev/theme' },
+        { text: 'Column queries', link: '/en/docs/dev/query' },
+        { text: 'Skills', link: '/en/docs/dev/skill' },
+      ],
+    },
+    {
+      text: 'Settings and data',
+      collapsed: false,
+      items: [
+        { text: 'Settings files', link: '/en/docs/config/files' },
+        { text: 'Backup', link: '/en/docs/config/backup' },
+      ],
+    },
+    {
+      text: 'Troubleshooting',
+      collapsed: false,
+      items: [{ text: 'Troubleshooting', link: '/en/docs/troubleshooting' }],
+    },
   ],
 }
 
