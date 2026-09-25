@@ -62,4 +62,4 @@ The Android build has no auto-update. [Obtainium](#mobile) can notify you about 
 
 ## Your data stays after uninstalling
 
-Removing the app leaves the settings files and the note cache in your OS's application data folder. To erase everything, delete the whole folder described in [Settings files](/docs/config/files#設定はどこにあるか) (Japanese).
+Removing the app leaves the settings files and the note cache in your OS's application data folder. To erase everything, delete the whole folder described in [Settings files](/en/docs/config/files#where-settings-live).
