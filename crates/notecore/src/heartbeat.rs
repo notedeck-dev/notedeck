@@ -123,6 +123,65 @@ pub struct PersistedState {
     /// skill id → 前回 AI を起動した時刻 (ms)
     pub last_ai_run_at: HashMap<String, u64>,
     pub consecutive_failures: u32,
+    /// 直近の失敗 (理由の永続化、#1133 縦切り 6)。新しい順、上限あり
+    #[serde(default)]
+    pub failures: Vec<FailureRecord>,
+    /// 通知済みの失敗 signature → 最後に見た時刻 (同じ signature は初回だけ toast)
+    #[serde(default)]
+    pub notified_signatures: HashMap<String, u64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FailureRecord {
+    pub at: u64,
+    pub source: String,
+    pub signature: String,
+    pub message: String,
+}
+
+const FAILURES_LIMIT: usize = 20;
+
+/// 失敗の signature: 数字と空白の揺れを潰した先頭 (同じ原因を同じ鍵に)。
+pub fn failure_signature(message: &str) -> String {
+    let mut out = String::new();
+    let mut prev_digit = false;
+    for c in message.chars() {
+        if c.is_ascii_digit() {
+            if !prev_digit {
+                out.push('#');
+            }
+            prev_digit = true;
+            continue;
+        }
+        prev_digit = false;
+        if c.is_whitespace() {
+            if !out.ends_with(' ') {
+                out.push(' ');
+            }
+            continue;
+        }
+        out.push(c.to_ascii_lowercase());
+    }
+    out.trim().chars().take(80).collect()
+}
+
+/// 失敗を記録し、初めて見る signature なら通知する (`true`)。
+pub fn record_failure(state: &mut PersistedState, source: &str, message: &str, now: u64) -> bool {
+    let signature = failure_signature(message);
+    state.failures.insert(
+        0,
+        FailureRecord {
+            at: now,
+            source: source.to_string(),
+            signature: signature.clone(),
+            message: message.chars().take(500).collect(),
+        },
+    );
+    state.failures.truncate(FAILURES_LIMIT);
+    let first = !state.notified_signatures.contains_key(&signature);
+    state.notified_signatures.insert(signature, now);
+    first
 }
 
 fn state_path(app_dir: &Path) -> PathBuf {
@@ -163,6 +222,8 @@ pub struct Status {
     pub daily_count: u32,
     /// 直近の実行で読んだ設定の断面 (未実行なら None)
     pub config: Option<Value>,
+    /// 直近の失敗 (状態ファイルの写し)
+    pub recent_failures: Vec<FailureRecord>,
 }
 
 fn status_slot() -> &'static Mutex<Status> {
@@ -189,6 +250,7 @@ pub fn status_json() -> Value {
         "consecutiveFailures": st.consecutive_failures,
         "dailyCount": st.daily_count,
         "config": st.config.unwrap_or(Value::Null),
+        "recentFailures": st.recent_failures,
     })
 }
 
@@ -372,6 +434,7 @@ pub async fn run_once(core: &Core, source: &str) {
             let st = load_state(dir);
             s.consecutive_failures = st.consecutive_failures;
             s.daily_count = st.daily_count;
+            s.recent_failures = st.failures;
         }
     });
     if let Ok(mut r) = running_flag().lock() {
@@ -479,6 +542,11 @@ async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
             state.consecutive_failures += 1;
             let n = state.consecutive_failures;
             tracing::warn!("heartbeat inference failed ({n}/{MAX_CONSECUTIVE_FAILURES}): {e}");
+            // 理由を永続化し、同じ signature は初回だけ通知する
+            if record_failure(&mut state, source, &e.to_string(), now) {
+                let short: String = e.to_string().chars().take(120).collect();
+                toast(core, "warning", format!("HEARTBEAT 失敗: {short}"));
+            }
             append_error(core, &cfg, source, &e.to_string(), now).await;
             if n >= MAX_CONSECUTIVE_FAILURES {
                 state.consecutive_failures = 0;
@@ -1090,6 +1158,27 @@ mod tests {
             false
         );
         assert!(report_tool(&json!({"body": " "}), &hb).is_err());
+    }
+
+    #[test]
+    fn failure_signature_and_first_notification() {
+        assert_eq!(failure_signature("HTTP 503  from api"), "http # from api");
+        assert_eq!(failure_signature("HTTP 502 from api"), "http # from api");
+        let mut st = PersistedState::default();
+        assert!(record_failure(&mut st, "scheduled", "HTTP 503 from api", 1));
+        assert!(!record_failure(
+            &mut st,
+            "scheduled",
+            "HTTP 502 from api",
+            2
+        ));
+        assert!(record_failure(&mut st, "manual", "network error", 3));
+        assert_eq!(st.failures.len(), 3);
+        assert_eq!(st.failures[0].message, "network error");
+        for i in 0..30 {
+            record_failure(&mut st, "s", &format!("x{i}"), 10 + i);
+        }
+        assert_eq!(st.failures.len(), FAILURES_LIMIT);
     }
 
     #[test]

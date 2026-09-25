@@ -47,6 +47,7 @@ use tokio::task::JoinHandle;
 use crate::ai_chat_service::{
     self, AiChatEvent, AiChatMessage, AiChatRequest, AiChatRole, AiChatSink, ResolvedConnection,
 };
+use crate::ai_config;
 use crate::ai_sessions::{self, SessionMessage};
 use crate::capabilities;
 use crate::error::Result;
@@ -181,6 +182,9 @@ pub struct AiTurnEvent {
     /// メッセージの id (デバイスは写しの id をこれに揃える)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message_id: Option<String>,
+    /// ターンの token 使用量 (`done` に載る。provider が返さなければ推定)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<crate::ai_budget::TokenUsage>,
 }
 
 impl AiTurnEvent {
@@ -201,6 +205,7 @@ impl AiTurnEvent {
             expires_at_ms: None,
             reason: None,
             message_id: None,
+            usage: None,
         }
     }
 }
@@ -353,6 +358,8 @@ struct RoundSink {
     /// 中断時に partial を書けるよう、本文は台帳と共有する
     live: Arc<Mutex<LiveText>>,
     tool_uses: Mutex<Vec<ToolUse>>,
+    /// provider が返した usage (来なければ None → 推定)
+    usage: Mutex<Option<crate::ai_budget::TokenUsage>>,
 }
 
 /// 進行中ラウンドの本文 (中断で partial をセッションに書くために台帳が見る)。
@@ -371,17 +378,30 @@ impl RoundSink {
             sink,
             live,
             tool_uses: Mutex::new(Vec::new()),
+            usage: Mutex::new(None),
         }
     }
     fn take(self) -> (String, Vec<ToolUse>) {
         let text = self.live.lock().map(|l| l.text.clone()).unwrap_or_default();
         (text, self.tool_uses.into_inner().unwrap_or_default())
     }
+
+    fn usage(&self) -> Option<crate::ai_budget::TokenUsage> {
+        self.usage.lock().ok().and_then(|u| *u)
+    }
 }
 
 impl AiChatSink for RoundSink {
     fn emit(&self, event: AiChatEvent) {
         match event.kind.as_str() {
+            "usage" => {
+                if let (Some(u), Ok(mut slot)) = (event.usage, self.usage.lock()) {
+                    match slot.as_mut() {
+                        Some(cur) => cur.merge(u),
+                        None => *slot = Some(u),
+                    }
+                }
+            }
             "delta" => {
                 let Some(text) = event.text else { return };
                 if let Ok(mut live) = self.live.lock() {
@@ -635,6 +655,19 @@ fn result_text(outcome: std::result::Result<Value, String>) -> (String, bool) {
     }
 }
 
+/// 要求の文字数 (予算の事前推定用): system + 全メッセージ本文。
+fn request_chars(req: &AiChatRequest) -> usize {
+    req.system
+        .as_deref()
+        .map(|s| s.chars().count())
+        .unwrap_or(0)
+        + req
+            .messages
+            .iter()
+            .map(|m| m.content.chars().count())
+            .sum::<usize>()
+}
+
 fn round_request(
     req: &AiTurnRequest,
     round: u32,
@@ -790,6 +823,9 @@ pub struct TurnState {
     pub next_index: usize,
     /// 確認が拒否された理由 (期限切れ / 中断)。ユーザーの拒否は None
     pub reject_reason: Option<String>,
+    /// ターン累計の token 使用量 (ラウンドごとに精算して足す)
+    #[serde(default)]
+    pub usage: crate::ai_budget::TokenUsage,
 }
 
 impl TurnState {
@@ -804,6 +840,7 @@ impl TurnState {
             pending: Vec::new(),
             next_index: 0,
             reject_reason: None,
+            usage: crate::ai_budget::TokenUsage::default(),
         }
     }
 }
@@ -823,6 +860,8 @@ pub struct TurnRuntime {
     /// `exec: core` の本体。None なら core の capability もデバイスに投げる
     /// (ハーネスの既定)
     pub core: Option<Arc<dyn CoreExecutor>>,
+    /// 接続の日次 token 予算 (None = 無制限)。台帳は `store_dir` (#1133 縦切り 6)
+    pub budget: Option<u64>,
 }
 
 /// クロスアカウント実行か (#777): actsAsAccount 付き capability で、呼び出し
@@ -1310,7 +1349,67 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                 l.session_id = state.req.session_id.clone();
             }
             let round_sink = RoundSink::new(&turn_id, rt.sink.clone(), live.clone());
-            if let Err(message) = rt.provider.run(&round_req, &round_sink).await {
+            // token 予算 (#1133 縦切り 6): 使用済み + 見込みが予算を超えるなら
+            // provider を呼ばずに止める
+            let request_chars = request_chars(&round_req);
+            if let Some(budget) = rt.budget {
+                if let Err(exceeded) = crate::ai_budget::check(
+                    &rt.store_dir,
+                    &state.req.connection_id,
+                    budget,
+                    crate::ai_budget::estimate_tokens(request_chars),
+                    ai_sessions::now_ms(),
+                ) {
+                    let message = format!("Error (budget_exceeded): {exceeded}");
+                    persist(
+                        &rt,
+                        state.req.session_id.as_deref(),
+                        vec![session_message(
+                            message_id.clone(),
+                            "assistant",
+                            format!("⚠️ {message}"),
+                        )],
+                    );
+                    let mut e = AiTurnEvent::new(&turn_id, "error");
+                    e.error = Some(message);
+                    e.phase = Some(
+                        if state.tool_executed {
+                            "after_tool"
+                        } else {
+                            "before_tool"
+                        }
+                        .into(),
+                    );
+                    e.message_id = Some(message_id);
+                    rt.sink.emit(e);
+                    checkpoint::close(&rt.store_dir, &turn_id, "error");
+                    return;
+                }
+            }
+            let run_result = rt.provider.run(&round_req, &round_sink).await;
+            // 精算: 実測が無ければ推定 (入力は要求の文字数、出力は応答の文字数)
+            let round_usage = round_sink.usage().unwrap_or_else(|| {
+                let out_chars = round_sink
+                    .live
+                    .lock()
+                    .map(|l| l.text.chars().count())
+                    .unwrap_or(0);
+                crate::ai_budget::TokenUsage {
+                    input_tokens: crate::ai_budget::estimate_tokens(request_chars),
+                    output_tokens: crate::ai_budget::estimate_tokens(out_chars),
+                    estimated: true,
+                }
+            });
+            state.usage.add(round_usage);
+            if rt.budget.is_some() {
+                crate::ai_budget::settle(
+                    &rt.store_dir,
+                    &state.req.connection_id,
+                    round_usage,
+                    ai_sessions::now_ms(),
+                );
+            }
+            if let Err(message) = run_result {
                 // mid-stream の切断: 途中までの応答は温存して ⚠️ を添える
                 let partial = round_sink.take().0;
                 let content = if partial.is_empty() {
@@ -1405,6 +1504,7 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
     let mut e = AiTurnEvent::new(&turn_id, "done");
     e.text = Some(state.final_text.clone());
     e.stop_reason = Some(stop_reason.into());
+    e.usage = Some(state.usage);
     e.message_id = Some(final_id);
     rt.sink.emit(e);
     checkpoint::close(&rt.store_dir, &turn_id, "done");
@@ -1521,6 +1621,7 @@ pub async fn start_turn_with_sink(
         )),
         taint: Arc::new(taint::FileTaint::new(app_dir)),
         core: Some(core_executor),
+        budget: ai_config::load_from_app_dir(app_dir).daily_budget_for(&req.connection_id),
     });
     begin_turn(rt, req)
 }
@@ -1631,6 +1732,7 @@ mod tests {
             tool_use_id: None,
             tool_use_name: None,
             tool_use_input: None,
+            usage: None,
         }
     }
 
@@ -1643,6 +1745,7 @@ mod tests {
             tool_use_id: Some(id.into()),
             tool_use_name: Some(name.into()),
             tool_use_input: Some(input),
+            usage: None,
         }
     }
 
@@ -1923,6 +2026,7 @@ mod tests {
             sessions: written.clone(),
             taint: Arc::new(taint::MemoryTaint::default()),
             core: None,
+            budget: None,
         });
         Harness {
             rt,
@@ -2286,6 +2390,34 @@ mod tests {
         assert!(h.sink.find("confirm_request").is_none());
         let r = h.sink.find("tool_result").unwrap();
         assert!(!r.text.unwrap().contains("Unattended HEARTBEAT"));
+    }
+
+    #[tokio::test]
+    async fn budget_refuses_before_calling_the_provider_and_done_carries_usage() {
+        // 予算なし: 推定 usage が done に載る
+        let h = harness(
+            ScriptedProvider::new(vec![vec![delta("hello")]]),
+            &[],
+            FakeDevice::new(Value::Null),
+        );
+        drive(h.rt.clone(), TurnState::new(request())).await;
+        let done = h.sink.last();
+        assert_eq!(done.kind, "done");
+        let usage = done.usage.expect("usage on done");
+        assert!(usage.estimated);
+        assert!(usage.output_tokens >= 1);
+        // 予算あり (小さすぎる): provider を呼ばずに budget_exceeded
+        let provider = ScriptedProvider::new(vec![vec![delta("never")]]);
+        let device = FakeDevice::new(Value::Null);
+        let mut h = harness(provider, &[], device);
+        let mut rt = Arc::try_unwrap(h.rt).ok().expect("sole owner");
+        rt.budget = Some(1);
+        h.rt = Arc::new(rt);
+        drive(h.rt.clone(), TurnState::new(request())).await;
+        let last = h.sink.last();
+        assert_eq!(last.kind, "error");
+        assert!(last.error.unwrap().contains("budget_exceeded"));
+        assert!(h.sink.find("delta").is_none());
     }
 
     #[tokio::test]
@@ -2736,6 +2868,7 @@ mod tests {
             sessions: h.rt.sessions.clone(),
             taint: h.rt.taint.clone(),
             core: Some(core.clone()),
+            budget: None,
         });
         drive(h.rt.clone(), TurnState::new(request())).await;
         let core_calls = core.calls.lock().unwrap();

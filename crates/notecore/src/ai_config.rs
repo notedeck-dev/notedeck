@@ -47,9 +47,16 @@ pub struct AiConfigLite {
     pub models: std::collections::HashMap<String, String>,
     pub heartbeat: HeartbeatConfig,
     pub generation: GenerationConfig,
+    /// 接続 id → 日次 token 予算 (0 / 無し = 無制限、#1133 縦切り 6)
+    pub budgets: std::collections::HashMap<String, u64>,
 }
 
 impl AiConfigLite {
+    /// 接続の日次 token 予算。None = 無制限
+    pub fn daily_budget_for(&self, connection_id: &str) -> Option<u64> {
+        self.budgets.get(connection_id).copied().filter(|n| *n > 0)
+    }
+
     pub fn model_for_active(&self) -> Option<String> {
         if self.active_connection_id.is_empty() {
             return None;
@@ -121,6 +128,19 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
             },
             desktop_notification: hb("desktopNotification").and_then(Value::as_bool) != Some(false),
         },
+        budgets: doc
+            .get("budgets")
+            .and_then(Value::as_object)
+            .map(|m| {
+                m.iter()
+                    .filter_map(|(k, v)| {
+                        v.as_f64()
+                            .filter(|n| n.is_finite() && *n >= 0.0)
+                            .map(|n| (k.clone(), n.floor() as u64))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
         generation: GenerationConfig {
             max_tokens: clamp_int(get(doc, &["generation", "maxTokens"]), 4096, 1, 1_000_000),
             max_tool_rounds: clamp_int(get(doc, &["generation", "maxToolRounds"]), 10, 1, 100),
@@ -141,8 +161,17 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
 }
 
 fn read_document(core: &Core) -> Result<Value> {
-    let base = settings_base_dir(core)?;
-    match store::read_root_file(&base, FILE_NAME) {
+    read_document_in(&settings_base_dir(core)?)
+}
+
+/// 設定ディレクトリ (`<app dir>/notedeck`) から読む (Core を持たない呼び出し元用)。
+pub fn load_from_app_dir(app_dir: &std::path::Path) -> AiConfigLite {
+    let base = app_dir.join(crate::commands::settings::SETTINGS_DIR);
+    from_document(&read_document_in(&base).unwrap_or(Value::Object(Default::default())))
+}
+
+fn read_document_in(base: &std::path::Path) -> Result<Value> {
+    match store::read_root_file(base, FILE_NAME) {
         Ok(text) if !text.trim().is_empty() => {
             Ok(json5::from_str::<Value>(&text).unwrap_or_else(|e| {
                 tracing::warn!("ai.json5 parse failed, using defaults: {e}");
@@ -194,11 +223,15 @@ mod tests {
         assert_eq!(c.heartbeat.on_daily_limit, "warn");
         assert!(c.heartbeat.desktop_notification);
         assert_eq!(c.generation.max_tool_rounds, 10);
+        assert!(c.budgets.is_empty());
         let c = from_document(&json!({
-            "activeConnectionId": "c1", "models": {"c1": "m"},
+            "activeConnectionId": "c1", "models": {"c1": "m"}, "budgets": {"c1": 5000.7, "c2": 0, "c3": "x"},
             "heartbeat": {"enabled": true, "intervalMinutes": 99999, "target": "", "onDailyLimit": "disable", "cheapCheck": {"enabled": false}}
         }));
         assert_eq!(c.model_for_active().as_deref(), Some("m"));
+        assert_eq!(c.daily_budget_for("c1"), Some(5000));
+        assert_eq!(c.daily_budget_for("c2"), None);
+        assert_eq!(c.daily_budget_for("c3"), None);
         assert_eq!(c.heartbeat.interval_minutes, 1440);
         assert_eq!(c.heartbeat.target, "auto");
         assert_eq!(c.heartbeat.on_daily_limit, "disable");

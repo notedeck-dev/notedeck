@@ -99,7 +99,7 @@ pub struct AiChatRequest {
 #[derive(Debug, Clone, Serialize, Type)]
 pub struct AiChatEvent {
     pub stream_id: String,
-    /// `"delta" | "done" | "error" | "tool_use"`
+    /// `"delta" | "done" | "error" | "tool_use" | "usage"`
     pub kind: String,
     /// Present when `kind == "delta"`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -120,6 +120,10 @@ pub struct AiChatEvent {
     /// Present when `kind == "tool_use"`. Empty object if AI omitted args.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_use_input: Option<serde_json::Value>,
+    /// provider が返した token 使用量 (`kind == "usage"`。同じラウンドで複数回
+    /// 来うる: 入力が先、出力は累積)。返さない provider では来ない
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<crate::ai_budget::TokenUsage>,
 }
 
 /// ストリームのイベントの届け先。Tauri 側は `nd:ai-chat-event` へ emit する実装を渡す。
@@ -403,6 +407,20 @@ fn emit_delta(sink: &dyn AiChatSink, stream_id: &str, text: String) {
         tool_use_id: None,
         tool_use_name: None,
         tool_use_input: None,
+        usage: None,
+    });
+}
+
+fn emit_usage(sink: &dyn AiChatSink, stream_id: &str, usage: crate::ai_budget::TokenUsage) {
+    sink.emit(AiChatEvent {
+        stream_id: stream_id.to_string(),
+        kind: "usage".into(),
+        text: None,
+        error: None,
+        tool_use_id: None,
+        tool_use_name: None,
+        tool_use_input: None,
+        usage: Some(usage),
     });
 }
 
@@ -415,6 +433,7 @@ fn emit_done(sink: &dyn AiChatSink, stream_id: &str) {
         tool_use_id: None,
         tool_use_name: None,
         tool_use_input: None,
+        usage: None,
     });
 }
 
@@ -427,6 +446,7 @@ fn emit_error(sink: &dyn AiChatSink, stream_id: &str, message: String) {
         tool_use_id: None,
         tool_use_name: None,
         tool_use_input: None,
+        usage: None,
     });
 }
 
@@ -445,6 +465,7 @@ fn emit_tool_use(
         tool_use_id: Some(id),
         tool_use_name: Some(name),
         tool_use_input: Some(input),
+        usage: None,
     });
 }
 
@@ -699,6 +720,39 @@ fn handle_anthropic_block(
                 emit_error(sink, stream_id, format!("Anthropic: {msg}"));
             }
         }
+        // usage: message_start に入力、message_delta に累積出力 (#1133 予算)
+        "message_start" => {
+            if let Some(n) = value
+                .pointer("/message/usage/input_tokens")
+                .and_then(|v| v.as_u64())
+            {
+                emit_usage(
+                    sink,
+                    stream_id,
+                    crate::ai_budget::TokenUsage {
+                        input_tokens: n,
+                        output_tokens: 0,
+                        estimated: false,
+                    },
+                );
+            }
+        }
+        "message_delta" => {
+            if let Some(n) = value
+                .pointer("/usage/output_tokens")
+                .and_then(|v| v.as_u64())
+            {
+                emit_usage(
+                    sink,
+                    stream_id,
+                    crate::ai_budget::TokenUsage {
+                        input_tokens: 0,
+                        output_tokens: n,
+                        estimated: false,
+                    },
+                );
+            }
+        }
         _ => {}
     }
 }
@@ -849,6 +903,23 @@ async fn run_openai_compat_attempt(
                     emit_delta(sink, &req.stream_id, text.to_string());
                 }
                 accumulate_openai_tool_calls(&value, &mut tool_builders);
+                if let Some(u) = value.get("usage").filter(|u| u.is_object()) {
+                    emit_usage(
+                        sink,
+                        &req.stream_id,
+                        crate::ai_budget::TokenUsage {
+                            input_tokens: u
+                                .get("prompt_tokens")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(0),
+                            output_tokens: u
+                                .get("completion_tokens")
+                                .and_then(|v| v.as_u64())
+                                .unwrap_or(0),
+                            estimated: false,
+                        },
+                    );
+                }
                 if let Some(reason) = value
                     .pointer("/choices/0/finish_reason")
                     .and_then(|v| v.as_str())
