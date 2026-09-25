@@ -152,11 +152,6 @@ body {
 
 /* 言語スイッチャー (#1145)。標準の VPNav を隠しているので自前で持つ */
 .nav-lang { position: relative; }
-.nav-lang-button {
-  display: flex; align-items: center; gap: var(--space-xs);
-  width: auto; padding: 0 var(--space-sm);
-  font-size: var(--text-sm); font-weight: 600;
-}
 .nav-lang-menu {
   position: absolute; top: calc(100% + var(--space-xs)); right: 0;
   display: flex; flex-direction: column; min-width: 140px;
@@ -171,6 +166,7 @@ body {
   color: var(--text); font-size: var(--text-sm); font-weight: 600; text-decoration: none;
 }
 .nav-lang-menu a:hover { background: var(--surface-hover); }
+.nav-lang-menu a.current { color: var(--accent-text); }
 
 /* カラーモードは VitePress の appearance (html.dark) に委ねる。
  * SSR とズレないよう、アイコンの出し分けは JS ではなく CSS で行う */
