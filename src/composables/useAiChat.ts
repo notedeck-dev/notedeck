@@ -26,6 +26,25 @@ export interface ChatMessage {
    * - 次回 user 送信時の wire history からは除外する (AI を混乱させない)
    */
   heartbeat?: boolean
+  /**
+   * 無人実行 (HEARTBEAT) の書込意図 (#1133)。確認が要る操作は無人では走らせず
+   * 受信箱カードとして残し、人がボタンを押して確認を経てから走る。
+   */
+  intent?: AiIntent
+}
+
+/** 受信箱カード (無人の書込意図) */
+export interface AiIntent {
+  capabilityId: string
+  params: Record<string, unknown>
+  /** 他人の内容を読んだ文脈で作られた (確認に一文添える) */
+  untrusted: boolean
+  /** pending = 未処理 / drafted = 下書きにも保存済み / executed / dismissed */
+  status: 'pending' | 'drafted' | 'executed' | 'dismissed'
+  draftId?: string | null
+  error?: string | null
+  source: 'heartbeat'
+  createdAt: number
 }
 
 export interface AiChatSendOptions {

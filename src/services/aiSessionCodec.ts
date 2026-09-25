@@ -2,7 +2,7 @@ import type {
   SessionMessage as WireMessage,
   AiSession as WireSession,
 } from '@/bindings'
-import type { ChatMessage } from '@/composables/useAiChat'
+import type { AiIntent, ChatMessage } from '@/composables/useAiChat'
 
 /**
  * AI セッションの型と wire 変換 (#782 Phase 2 / #1133 縦切り 3)。
@@ -56,6 +56,9 @@ export function messageFromWire(m: WireMessage): ChatMessage {
   }
   if (m.toolResultFor) out.toolResultFor = m.toolResultFor
   if (m.heartbeat) out.heartbeat = true
+  if (m.intent && typeof m.intent === 'object') {
+    out.intent = m.intent as unknown as AiIntent
+  }
   return out
 }
 
@@ -70,6 +73,7 @@ export function messageToWire(m: ChatMessage): WireMessage {
     toolUseInput: (m.toolUseInput ?? null) as WireMessage['toolUseInput'],
     toolResultFor: m.toolResultFor ?? null,
     heartbeat: m.heartbeat ? true : null,
+    intent: (m.intent ?? null) as WireMessage['intent'],
   }
 }
 

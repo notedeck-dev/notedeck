@@ -80,6 +80,13 @@ export interface DispatchOptions {
   tainted?: boolean
   /** 返す内容にラベル付きのメモ / skill が含まれる申告の受け口 */
   markTainted?: () => void
+  /**
+   * 受信箱カード (無人の書込意図, #1133) の実行: 確認を必ず出し、「次から
+   * 確認しない」の記憶は見ない・出さない
+   */
+  forceConfirm?: boolean
+  /** 確認ダイアログの本文の先頭に添える一文 (生成元 / 汚染の明示) */
+  confirmNote?: string
 }
 
 /** notecore の確認要求に同梱する内容 (`ai/confirm-preview` の応答) */
@@ -238,6 +245,8 @@ export async function dispatchCapability(
     : await prepareConfirmation(cap, params, capCtx, ctx, {
         crossAccount,
         crossAccountId,
+        force: options?.forceConfirm === true,
+        note: options?.confirmNote,
       })
   if (prepared) {
     const { confirmOpts, skipScope } = prepared
@@ -505,13 +514,24 @@ async function prepareConfirmation(
   params: Record<string, unknown> | undefined,
   capCtx: CapabilityContext,
   ctx: DispatchContext,
-  cross: { crossAccount: boolean; crossAccountId: string | undefined },
+  cross: {
+    crossAccount: boolean
+    crossAccountId: string | undefined
+    force?: boolean
+    note?: string
+  },
 ): Promise<PreparedConfirmation | null> {
   const { crossAccount, crossAccountId } = cross
+  const force = crossAccount || cross.force === true
   const confirmOpts = await buildConfirmOptions(cap, params, capCtx, {
-    force: crossAccount,
+    force,
   })
   if (!confirmOpts) return null
+  if (cross.note) {
+    confirmOpts.message = confirmOpts.message
+      ? `${cross.note}\n${confirmOpts.message}`
+      : cross.note
+  }
   // 汎用「今後確認しない」(#714): capability 固有の remember (vault の接続
   // 単位の信頼) を持たない capability に、scope × capability 単位のスキップを
   // 適用する。scope は ai.chat / plugin 個体のみ — user (本人操作の confirm は
@@ -519,9 +539,10 @@ async function prepareConfirmation(
   // 返し、常に確認される。
   // クロスアカウント実行 (#777) には「今後確認しない」記憶を適用しない —
   // 同一アカウント操作への同意を別アカウントでの実行に波及させない。
-  const rawScope = cap.onConfirmRemember
-    ? null
-    : confirmSkipScope(ctx.principal)
+  const rawScope =
+    cap.onConfirmRemember || cross.force
+      ? null
+      : confirmSkipScope(ctx.principal)
   if (
     rawScope !== null &&
     !crossAccount &&
