@@ -1,0 +1,7 @@
+// 辞書のある言語 (#135)。name はその言語自身での名前で、訳さない。
+// published: false の言語は開発者モードでだけ選べ、OS 言語からの自動解決の
+// 対象にもならない (訳が揃う前に半訳の UI を見せないため)
+[
+  { code: 'ja-JP', name: '日本語', published: true },
+  { code: 'en-US', name: 'English', published: false },
+]

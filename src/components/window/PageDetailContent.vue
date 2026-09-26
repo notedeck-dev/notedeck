@@ -18,6 +18,7 @@ import { useAiScriptRunner } from '@/composables/useAiScriptRunner'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
@@ -211,7 +212,7 @@ async function loadPage() {
           USER_ID: account.value?.userId ?? '',
           USER_NAME: account.value?.displayName ?? '',
           USER_USERNAME: account.value?.username ?? '',
-          LOCALE: navigator.language,
+          LOCALE: i18n.lang,
           SERVER_URL: serverUrl.value,
         },
         dialog: () => dialogRef.value,

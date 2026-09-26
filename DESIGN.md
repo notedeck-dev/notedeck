@@ -194,6 +194,7 @@ appDataDir/
 ├── notecli.db          # SQLite（アカウント/サーバー情報・ノートキャッシュ）
 └── notedeck/
     ├── settings.json5      # スカラー preferences（後述）
+    ├── locale.json5        # 表示言語（端末ごとの値なので settings.json5 と分ける、#135）
     ├── keybinds.json5      # キーバインド
     ├── navbar.json5        # ナビバー構成（プロファイルから独立）
     ├── performance.json5   # パフォーマンス

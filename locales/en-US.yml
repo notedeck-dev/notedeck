@@ -1,0 +1,12 @@
+# Translated from ja-JP.yml. The ja source each key was translated from is
+# recorded in en-US.source.json; `pnpm gen:i18n --stamp en-US` updates it
+# after you translate (#135).
+
+_time:
+  justNow: "just now"
+
+_settings:
+  language: "Language"
+  languageAuto: "Match system"
+  languageUnpublished: "{name} (in progress)"
+  languageReloadNote: "Switching reloads every window"

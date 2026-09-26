@@ -8,7 +8,10 @@ import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import EmojiMuteSection from '@/components/window/EmojiMuteSection.vue'
 import PetSection from '@/components/window/PetSection.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useLocale } from '@/composables/useLocale'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
+import type { LocalePreference } from '@/services/localeSetting'
 import { isExposed } from '@/settings/exposure'
 import { CURRENT_SCHEMA_VERSION, parseSettings } from '@/settings/schema'
 import { useConfirm } from '@/stores/confirm'
@@ -87,6 +90,14 @@ function onFileSelected(e: Event) {
 function removeWallpaper() {
   deckStore.clearWallpaper()
 }
+
+// ── Visual tab: 表示言語 (#135) ──
+// 選べる言語が 1 つのうち (翻訳の公開前) は出さない。未公開の言語は開発者モードで出る
+const {
+  preference: localePreference,
+  choices: localeChoices,
+  setPreference: setLocalePreference,
+} = useLocale()
 
 // ── Visual tab: note view settings ──
 const nyaizeEnabled = computed(() => settingsStore.get('note.nyaize') !== false)
@@ -194,6 +205,25 @@ const statusClass = computed(() => {
           @toggle-dark="toggleDarkMode"
           @toggle-sync="(checked: boolean) => toggleSyncDevice(checked)"
         />
+      </div>
+
+      <!-- 表示言語 (#135) -->
+      <div v-if="localeChoices.length > 1" :class="$style.section">
+        <label :class="$style.languageRow">
+          <i class="ti ti-language" />
+          <span :class="$style.languageLabel">{{ i18n.ts._settings.language }}</span>
+          <select
+            :value="localePreference"
+            :class="$style.languageSelect"
+            @change="setLocalePreference(($event.target as HTMLSelectElement).value as LocalePreference)"
+          >
+            <option value="auto">{{ i18n.ts._settings.languageAuto }}</option>
+            <option v-for="lang in localeChoices" :key="lang.code" :value="lang.code">
+              {{ lang.published ? lang.name : i18n.tsx._settings.languageUnpublished({ name: lang.name }) }}
+            </option>
+          </select>
+        </label>
+        <p :class="$style.languageNote">{{ i18n.ts._settings.languageReloadNote }}</p>
       </div>
 
       <!-- テーマ選択 / 編集 / 削除 はテーマカラム (themeManager) に集約。
@@ -375,5 +405,31 @@ const statusClass = computed(() => {
 
 .statusSaved {
   color: var(--nd-accent);
+}
+
+.languageRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+}
+
+.languageLabel {
+  flex: 1;
+}
+
+.languageSelect {
+  padding: 6px 8px;
+  border-radius: var(--nd-radius-sm);
+  border: 1px solid var(--nd-divider);
+  background: var(--nd-bg);
+  color: var(--nd-fg);
+  font-size: 0.85em;
+}
+
+.languageNote {
+  margin: 0 4px;
+  font-size: 0.8em;
+  opacity: 0.7;
 }
 </style>

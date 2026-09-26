@@ -45,6 +45,11 @@ pnpm doctor       # 開発環境の診断（ツールチェーン・システム
 - グローバル CSS 変数: `src/styles/global.css`
 - モバイル/デスクトップ切り替えは `v-if`（CSS display ではない）
 
+## UI 文言（#135）
+
+- UI に出す文言は `locales/ja-JP.yml` に足して `i18n.ts` / `i18n.tsx` で引く。日本語の直書きは `pnpm lint:i18n` (CI / pre-push) が増えたら落とす
+- キーを足したら `pnpm gen:i18n`。語は `locales/GLOSSARY.md` に合わせる。詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の「UI 文言と多言語化」
+
 ## Vue Vapor モード（#52）— 移行準備完了
 
 既知のブロッカーはゼロ。Vue 3.6 リリース時に有効化可能。

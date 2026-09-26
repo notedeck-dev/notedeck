@@ -696,6 +696,31 @@ Vue 3.6 の Vapor モード（仮想DOMレス・コンパイル時DOM操作）�
 - `<Suspense>` / `<KeepAlive>`: 使用なし
 - `__VUE_OPTIONS_API__: false` 設定済み（vite.config.ts）
 
+### UI 文言と多言語化（[#135](https://github.com/notedeck-dev/notedeck/issues/135)）
+
+UI に出す文言は辞書に置き、コードに日本語を直書きしない。設計の正本は #135 の設計コメント。移行は段階的に進めていて、既存の直書きはまだ残っている。
+
+```vue
+<script setup lang="ts">
+import { i18n } from '@/i18n'
+</script>
+
+<template>
+  <span>{{ i18n.ts._settings.language }}</span>
+  <span>{{ i18n.tsx._settings.languageUnpublished({ name }) }}</span>
+</template>
+```
+
+- **正本は `locales/ja-JP.yml`**。キーを足したら `pnpm gen:i18n` で型 (`src/i18n/locale.generated.ts`) を再生成してコミットする。存在しないキーは型検査で落ちる
+- 補間は `{name}` で `i18n.tsx` から埋める。複数形はキー名を `_plural` で終え、値を CLDR カテゴリ (`other` 必須) で書く。数は `{count}`
+- 文の途中にリンクやタグが入る文言は `<I18n :src="...">` に param 名の slot を渡す。辞書の文言を `v-html` / `MkMfm` に渡さない (param に他人の文字列が入ると表示を偽装できる)
+- **モジュールのトップレベルで辞書を読まない**。辞書は起動待ちの中で読むので、import 時に評価される定数からは読めない。定数は getter か辞書のキーで持つ
+- 語は `locales/GLOSSARY.md` に合わせる。本家と揃えない語は理由をそこに書く
+- 訳は `locales/<lang>.yml` に書き、訳し終えたら `pnpm gen:i18n --stamp <lang>` で「どの原文から訳したか」を記録する。原文が後から変わると lint が訳の置き去りとして落とす。未訳のキーは実行時に en-US → ja-JP の順で埋まり、lint では落とさない
+- 表示言語は `locale.json5` (端末ごとの値なので `settings.json5` とは別) に `'auto'` か言語コードで持つ。`locales/languages.json5` で `published: false` の言語は開発者モードでだけ選べ、`'auto'` の解決対象にもならない。i18n 導入前からのインストールは日本語に固定される
+- 日付・数値の書式は `i18n.lang` を渡す。`'ja-JP'` の直書きと引数なしの `toLocale*()` は増やさない
+- 日本語の直書きは `pnpm lint:i18n` が検査する (CI と pre-push)。変更したファイルの合計で増えていなければ通るラチェット。辞書に置けない文字列 (AI プロンプト、MFM 仕様の変換表など) は行末に `i18n-ignore: <理由>` を書くか、`scripts/i18n-lint.ts` のファイル単位の免除に理由つきで足す
+
 ### Styling
 
 コンポーネントのスタイリングには **CSS Modules + SCSS** を使用しています。
