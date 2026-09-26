@@ -70,6 +70,17 @@ pub async fn fetch_verified_source(core: &Core, entry: &Value) -> Result<(String
     ))
 }
 
+/// 確認で見せた配布物 (sha512) と、実行時に取り直した配布物が同じかを確かめる。
+/// 確認は既存個体の現在の内容を baseline に、その時点の hash を staged に置く。
+/// 確認を経ていない (staged が無い) 場合は通す。
+pub fn ensure_approved_hash(capability: &str, key: &str, current: &str, hash: &str) -> Result<()> {
+    let approved = super::staged::take_or(capability, key, current, || hash.to_string())?;
+    if approved != hash {
+        return Err(invalid(format!("{capability}: 確認後に MisStore の配布内容が変わったため更新を中止しました (もう一度確認からやり直すこと)")));
+    }
+    Ok(())
+}
+
 /// `formatUpdatedAt`: ISO 日時を `Y/M/D` に (読めなければそのまま)。
 pub fn format_updated_at(iso: &str) -> String {
     match chrono::DateTime::parse_from_rfc3339(iso) {
@@ -89,4 +100,29 @@ pub fn update_confirm_message(name: &str, entry: &Value) -> String {
         format_updated_at(s(entry, "updatedAt")),
         s(entry, "version")
     )
+}
+
+#[cfg(test)]
+mod approved_hash_tests {
+    use super::*;
+    use crate::capabilities::exec::ExecContext;
+    use serde_json::json;
+
+    #[test]
+    fn install_aborts_when_the_distribution_changed_after_confirmation() {
+        let ctx = ExecContext::default();
+        let p = json!({ "id": "approved-hash-test" });
+        let key = super::super::staged::key("plugins.install", &ctx, &p);
+        // 確認なし (staged 無し) は通す
+        ensure_approved_hash("plugins.install", &key, "cur", "h1").unwrap();
+        // 確認時の hash と同じなら通す
+        super::super::staged::stage(key.clone(), "cur", "h1".into());
+        ensure_approved_hash("plugins.install", &key, "cur", "h1").unwrap();
+        // 確認後に配布物が変わっていれば中止
+        super::super::staged::stage(key.clone(), "cur", "h1".into());
+        assert!(ensure_approved_hash("plugins.install", &key, "cur", "h2")
+            .unwrap_err()
+            .to_string()
+            .contains("配布内容が変わった"));
+    }
 }

@@ -118,6 +118,14 @@ impl std::fmt::Display for BudgetExceeded {
 
 /// ラウンド前の検査: 使用済み + 見込みが予算を超えるなら拒む。`daily_tokens` が
 /// 0 なら無制限。
+/// 台帳の読み書きを直列化する (並行するターンの精算が互いを上書きしないように)。
+fn ledger_lock() -> std::sync::MutexGuard<'static, ()> {
+    static L: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+    L.get_or_init(|| std::sync::Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
 pub fn check(
     dir: &Path,
     connection_id: &str,
@@ -128,6 +136,7 @@ pub fn check(
     if daily_tokens == 0 {
         return Ok(());
     }
+    let _guard = ledger_lock();
     let spent = spent_today(dir, connection_id, now_ms).total();
     if spent + estimate > daily_tokens {
         return Err(BudgetExceeded {
@@ -141,6 +150,7 @@ pub fn check(
 
 /// ラウンド後の精算: 実測 (無ければ推定) を台帳に足す。
 pub fn settle(dir: &Path, connection_id: &str, usage: TokenUsage, now_ms: u64) {
+    let _guard = ledger_lock();
     let mut ledger = load(dir, now_ms);
     ledger
         .spent

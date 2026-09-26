@@ -428,13 +428,20 @@ impl AiChatSink for RoundSink {
 }
 
 /// タイトル生成用の受け皿 (本文だけ貯める)。
-struct CollectSink(Mutex<String>);
+struct CollectSink(Mutex<String>, Mutex<Option<crate::ai_budget::TokenUsage>>);
 
 impl AiChatSink for CollectSink {
     fn emit(&self, event: AiChatEvent) {
         if event.kind == "delta" {
             if let (Some(t), Ok(mut buf)) = (event.text, self.0.lock()) {
                 buf.push_str(&t);
+            }
+        } else if event.kind == "usage" {
+            if let (Some(u), Ok(mut slot)) = (event.usage, self.1.lock()) {
+                match slot.as_mut() {
+                    Some(cur) => cur.merge(u),
+                    None => *slot = Some(u),
+                }
             }
         }
     }
@@ -735,10 +742,12 @@ fn last_user_text(messages: &[AiChatMessage]) -> Option<&str> {
         .map(|m| m.content.as_str())
 }
 
+/// タイトル生成も予算の勘定に入れる (超過なら呼ばない)。
 async fn generate_title(
     req: &AiTurnRequest,
     provider: &dyn ProviderRound,
     final_text: &str,
+    budget: Option<(&std::path::Path, u64)>,
 ) -> Option<String> {
     let user_text = last_user_text(&req.messages)?;
     let prompt = format!(
@@ -761,12 +770,39 @@ async fn generate_title(
         read_timeout_ms: req.read_timeout_ms,
         tools: None,
     };
-    let sink = CollectSink(Mutex::new(String::new()));
-    if let Err(e) = provider.run(&title_req, &sink).await {
+    let chars = request_chars(&title_req);
+    if let Some((dir, daily)) = budget {
+        if let Err(exceeded) = crate::ai_budget::check(
+            dir,
+            &req.connection_id,
+            daily,
+            crate::ai_budget::estimate_tokens(chars),
+            ai_sessions::now_ms(),
+        ) {
+            tracing::info!("ai title generation skipped: {exceeded}");
+            return None;
+        }
+    }
+    let sink = CollectSink(Mutex::new(String::new()), Mutex::new(None));
+    let result = provider.run(&title_req, &sink).await;
+    let raw = sink.0.into_inner().unwrap_or_default();
+    if let Some((dir, _)) = budget {
+        let usage =
+            sink.1
+                .into_inner()
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| crate::ai_budget::TokenUsage {
+                    input_tokens: crate::ai_budget::estimate_tokens(chars),
+                    output_tokens: crate::ai_budget::estimate_tokens(raw.chars().count()),
+                    estimated: true,
+                });
+        crate::ai_budget::settle(dir, &req.connection_id, usage, ai_sessions::now_ms());
+    }
+    if let Err(e) = result {
         tracing::warn!("ai title generation failed: {e}");
         return None;
     }
-    let raw = sink.0.into_inner().unwrap_or_default();
     let cleaned = clean_title(&raw);
     if cleaned.is_empty() {
         None
@@ -1510,8 +1546,13 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
     checkpoint::close(&rt.store_dir, &turn_id, "done");
 
     if state.req.generate_title && !state.final_text.is_empty() {
-        if let Some(title) =
-            generate_title(&state.req, rt.provider.as_ref(), &state.final_text).await
+        if let Some(title) = generate_title(
+            &state.req,
+            rt.provider.as_ref(),
+            &state.final_text,
+            rt.budget.map(|b| (rt.store_dir.as_path(), b)),
+        )
+        .await
         {
             let mut e = AiTurnEvent::new(&turn_id, "title");
             e.text = Some(title);

@@ -258,6 +258,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         notecore::permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
         // 前回、確認待ちのまま残った AI ターンを閉じる (#1133)
         notecore::ai_turn::recover(&app_dir);
+        // HEARTBEAT の観測値 (直近の失敗など) を状態ファイルから戻す
+        notecore::heartbeat::restore_status(&app_dir);
 
         // AppState: empty wrapper — commands await until Phase 2 fills it
         let app_state = commands::AppState::new();

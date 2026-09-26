@@ -695,7 +695,14 @@ export const usePluginsStore = defineStore('plugins', () => {
       ? plugins.value.map((p) => (p === prev ? next : p))
       : [...plugins.value, next]
     savePluginsToStorage(plugins.value)
-    if (next.active && (!prev?.active || prev.src !== next.src)) {
+    // 起動し直す条件: 有効化 / ソース / 設定値 / 権限 (ストア更新で変わる) の変化
+    const changed =
+      !prev?.active ||
+      prev.src !== next.src ||
+      JSON.stringify(prev.configData) !== JSON.stringify(next.configData) ||
+      JSON.stringify(prev.permissions ?? []) !==
+        JSON.stringify(next.permissions ?? [])
+    if (next.active && changed) {
       await launchPlugin(next)
     } else if (!next.active && prev?.active) {
       abortPlugin(next.installId)

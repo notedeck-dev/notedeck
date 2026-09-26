@@ -4,7 +4,7 @@
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 
-use super::misstore::{fetch_verified_source, registry_entry};
+use super::misstore::{ensure_approved_hash, fetch_verified_source, registry_entry};
 use super::{staged, ExecContext};
 use crate::context::Core;
 use crate::edit_history::Attribution;
@@ -219,7 +219,7 @@ fn theme_with_meta(
     parsed
 }
 
-pub async fn install(core: &Core, p: &Value) -> Result<Value> {
+pub async fn install(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
     let id = s(p, "id");
     if id.is_empty() {
         return Err(invalid("theme.install: id is required".into()));
@@ -238,6 +238,15 @@ pub async fn install(core: &Core, p: &Value) -> Result<Value> {
     let existing = themes::list(core)?
         .into_iter()
         .find(|t| t.store_id() == Some(id));
+    if let Some(cur) = &existing {
+        let key = staged::key("theme.install", ctx, p);
+        ensure_approved_hash(
+            "theme.install",
+            &key,
+            &themes::serialize_theme_display(cur),
+            &hash,
+        )?;
+    }
     let keys = themes::account_scope_keys(core).await?;
     let with_meta = theme_with_meta(parsed, existing.as_ref(), &entry, &hash, &keys);
     themes::install_theme(
@@ -399,6 +408,11 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                             "new": themes::serialize_theme_display(&with_meta),
                             "language": "json5",
                         });
+                        staged::stage(
+                            staged::key(id, ctx, p),
+                            &themes::serialize_theme_display(&cur),
+                            hash,
+                        );
                     }
                 }
             }

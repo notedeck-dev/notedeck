@@ -121,22 +121,7 @@ pub fn list(base_dir: &Path, subdir: &str, base: &str) -> Vec<HistoryEntry> {
     let Ok(text) = store::read_file(base_dir, subdir, &history_file_name(base)) else {
         return Vec::new();
     };
-    let Ok(doc) = json5::from_str::<Value>(&text) else {
-        tracing::warn!(
-            subdir,
-            base,
-            "history file is not valid JSON5, treated as empty"
-        );
-        return Vec::new();
-    };
-    doc.get("entries")
-        .and_then(Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| serde_json::from_value::<HistoryEntry>(v.clone()).ok())
-                .collect()
-        })
-        .unwrap_or_default()
+    parse_entries(&text, base)
 }
 
 /// ルート直下のファイル (custom.css) の履歴を読む。
@@ -215,25 +200,11 @@ pub fn push_snapshot(
     attribution: Option<&Attribution>,
     at: u64,
 ) -> Result<()> {
-    let mut entries = list(base_dir, subdir, base);
-    let by = attribution.and_then(|a| a.by.clone());
-    if should_coalesce(entries.first(), at, by.as_ref()) {
-        return Ok(());
+    let entries = list(base_dir, subdir, base);
+    match with_snapshot(entries, snapshot, attribution, at) {
+        Some(body) => settings_events::write_file(core, subdir, &history_file_name(base), &body),
+        None => Ok(()),
     }
-    entries.insert(
-        0,
-        HistoryEntry {
-            at,
-            snapshot,
-            by,
-            reason: attribution
-                .and_then(|a| a.reason.clone())
-                .filter(|r| !r.is_empty()),
-        },
-    );
-    let entries = evict(entries, HISTORY_LIMIT);
-    let body = serde_json::to_string_pretty(&serde_json::json!({ "entries": entries }))? + "\n";
-    settings_events::write_file(core, subdir, &history_file_name(base), &body)
 }
 
 #[cfg(test)]

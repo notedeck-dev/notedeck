@@ -18,6 +18,8 @@ struct Line<'a> {
     indent: usize,
     /// インデントを除いた本文
     text: &'a str,
+    /// インデントを含む行全体 (block scalar は本文の基準より深い字下げを残す)
+    raw: &'a str,
 }
 
 fn split_lines(src: &str) -> Vec<Line<'_>> {
@@ -28,6 +30,7 @@ fn split_lines(src: &str) -> Vec<Line<'_>> {
             Line {
                 indent,
                 text: &raw[indent..],
+                raw,
             }
         })
         .collect()
@@ -197,7 +200,7 @@ fn parse_block_scalar(
         if l.indent <= parent_indent || l.indent < ci {
             break;
         }
-        body.push(lines[*i].text);
+        body.push(&lines[*i].raw[ci..]);
         *i += 1;
     }
     // 末尾の空行は chomping の対象
@@ -595,6 +598,13 @@ pub fn emit(pairs: &[(String, Value)]) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn block_literal_keeps_indentation_deeper_than_its_baseline() {
+        let m = parse("cw: |-\n  a\n    b\n  c\nx: 1\n");
+        assert_eq!(m["cw"], "a\n  b\nc");
+        assert!(m.contains_key("x"));
+    }
 
     #[test]
     fn parses_js_yaml_dump_output() {
