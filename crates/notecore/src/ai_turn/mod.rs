@@ -329,6 +329,47 @@ pub trait CoreExecutor: Send + Sync + 'static {
         params: Value,
         ctx: capabilities::exec::ExecContext,
     ) -> BoxFuture<'a, std::result::Result<capabilities::exec::ExecOutcome, String>>;
+
+    /// 確認内容 (デバイスが答えられないときの代替。None = この引数なら確認不要)。
+    fn preview<'a>(
+        &'a self,
+        _id: &'a str,
+        _params: Value,
+        _ctx: capabilities::exec::ExecContext,
+    ) -> BoxFuture<'a, std::result::Result<Option<Value>, String>> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+/// notecore が Core を所有する構成 (headless / notecored) の CoreExecutor。
+pub struct LocalCoreExecutor(pub Arc<crate::context::Core>);
+
+impl CoreExecutor for LocalCoreExecutor {
+    fn execute<'a>(
+        &'a self,
+        id: &'a str,
+        params: Value,
+        ctx: capabilities::exec::ExecContext,
+    ) -> BoxFuture<'a, std::result::Result<capabilities::exec::ExecOutcome, String>> {
+        Box::pin(async move {
+            capabilities::exec::execute(&self.0, id, params, &ctx)
+                .await
+                .map_err(|e| e.to_string())
+        })
+    }
+
+    fn preview<'a>(
+        &'a self,
+        id: &'a str,
+        params: Value,
+        ctx: capabilities::exec::ExecContext,
+    ) -> BoxFuture<'a, std::result::Result<Option<Value>, String>> {
+        Box::pin(async move {
+            capabilities::exec::preview(&self.0, id, params, &ctx)
+                .await
+                .map_err(|e| e.to_string())
+        })
+    }
 }
 
 /// principal の実効 granted の供給元。tool 一覧の組み立てと tool 呼び出しごとに
@@ -1186,8 +1227,35 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
                     && !p.destination_untrusted,
             ),
             Err(e) => {
+                // デバイスが居ない (headless / notecored) — core の capability なら
+                // notecore が自分で組む。帰属や理由の行は付かない
                 tracing::warn!(capability_id, "confirm preview unavailable: {e}");
-                (Value::Null, false)
+                match (&rt.core, capabilities::exec::is_core(&capability_id)) {
+                    (Some(core), true) => {
+                        let session_tainted = match state.req.session_id.as_deref() {
+                            Some(sid) => rt.taint.is_tainted(sid).await,
+                            None => false,
+                        };
+                        let ctx = capabilities::exec::ExecContext {
+                            principal: state.req.principal.clone(),
+                            account_id: state.req.account_id.clone(),
+                            tainted: session_tainted,
+                            plugin_id: None,
+                        };
+                        match core.preview(&capability_id, p.input.clone(), ctx).await {
+                            Ok(None) => {
+                                p.needs_confirm = false;
+                                continue;
+                            }
+                            Ok(Some(v)) => (v, false),
+                            Err(e) => {
+                                tracing::warn!(capability_id, "core preview failed: {e}");
+                                (Value::Null, false)
+                            }
+                        }
+                    }
+                    _ => (Value::Null, false),
+                }
             }
         };
         let preview = if preview.is_null() {
