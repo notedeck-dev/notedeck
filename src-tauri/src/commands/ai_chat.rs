@@ -46,4 +46,18 @@ impl CoreExecutor for TauriCoreExecutor {
                 .map_err(|e| e.to_string())
         })
     }
+
+    fn preview<'a>(
+        &'a self,
+        id: &'a str,
+        params: serde_json::Value,
+        ctx: ExecContext,
+    ) -> BoxFuture<'a, Result<Option<serde_json::Value>, String>> {
+        Box::pin(async move {
+            let core = self.0.state::<notecore::context::Core>();
+            notecore::capabilities::exec::preview(&core, id, params, &ctx)
+                .await
+                .map_err(|e| e.to_string())
+        })
+    }
 }
