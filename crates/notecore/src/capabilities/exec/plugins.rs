@@ -4,7 +4,9 @@
 
 use serde_json::{json, Value};
 
-use super::misstore::{fetch_verified_source, registry_entry, update_confirm_message};
+use super::misstore::{
+    ensure_approved_hash, fetch_verified_source, registry_entry, update_confirm_message,
+};
 use super::{staged, ExecContext};
 use crate::context::Core;
 use crate::edit_history::{Attribution, HistoryEntry};
@@ -183,7 +185,7 @@ pub fn uninstall(core: &Core, p: &Value) -> Result<Value> {
 
 /// `installPlugin(entry, {kind: 'global'})`: 既存 (同じ storeId) があればソースが
 /// 変わったときだけ本体を更新し、全体スコープに入れる。無ければ新規 (active=true)。
-pub async fn install(core: &Core, p: &Value) -> Result<Value> {
+pub async fn install(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
     let id = s(p, "id");
     if id.is_empty() {
         return Err(invalid("plugins.install: id is required".into()));
@@ -200,6 +202,8 @@ pub async fn install(core: &Core, p: &Value) -> Result<Value> {
     let icon = Some(s(&entry, "iconUrl")).filter(|u| !u.is_empty());
     if let Some(mut existing) = plugins::find_by_store_id(core, id)? {
         if existing.store_sha512() != Some(hash.as_str()) {
+            let key = staged::key("plugins.install", ctx, p);
+            ensure_approved_hash("plugins.install", &key, &existing.src, &hash)?;
             plugins::apply_store_update(
                 core,
                 &mut existing,
@@ -359,6 +363,7 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                         }
                         out["diff"] =
                             json!({ "old": cur.src, "new": source, "language": "aiscript" });
+                        staged::stage(staged::key(id, ctx, p), &cur.src, hash);
                     }
                 }
                 out["message"] = json!(message);

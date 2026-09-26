@@ -4,7 +4,9 @@
 
 use serde_json::{json, Value};
 
-use super::misstore::{fetch_verified_source, registry_entry, update_confirm_message};
+use super::misstore::{
+    ensure_approved_hash, fetch_verified_source, registry_entry, update_confirm_message,
+};
 use super::{staged, ExecContext};
 use crate::context::Core;
 use crate::edit_history::{Attribution, HistoryEntry};
@@ -204,7 +206,7 @@ fn installed(w: &Item) -> Value {
 
 /// `installWidget(entry, accountKey)`: 同じ storeId × 実行アカウントの既存があれば
 /// ソースが変わったときだけ更新、無ければ新規。
-pub async fn install(core: &Core, p: &Value) -> Result<Value> {
+pub async fn install(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
     let id = s(p, "id");
     if id.is_empty() {
         return Err(invalid("widgets.install: id is required".into()));
@@ -221,6 +223,8 @@ pub async fn install(core: &Core, p: &Value) -> Result<Value> {
     if let Some(existing) = widgets::find_instance(&all, id, account_key.as_deref()) {
         let mut existing = existing.clone();
         if existing.src != source {
+            let key = staged::key("widgets.install", ctx, p);
+            ensure_approved_hash("widgets.install", &key, &existing.src, &hash)?;
             widgets::apply_store_update(
                 core,
                 &mut existing,
@@ -358,13 +362,14 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 .flatten();
             let all = widgets::list(core)?;
             if let Some(cur) = widgets::find_instance(&all, wid, account_key.as_deref()) {
-                if let Ok((source, _)) = fetch_verified_source(core, &entry).await {
+                if let Ok((source, hash)) = fetch_verified_source(core, &entry).await {
                     if source != cur.src {
                         out["title"] = json!("ウィジェットを更新");
                         out["message"] = json!(update_confirm_message(&cur.name(), &entry));
                         out["okLabel"] = json!("更新");
                         out["diff"] =
                             json!({ "old": cur.src, "new": source, "language": "aiscript" });
+                        staged::stage(staged::key(id, ctx, p), &cur.src, hash);
                     } else {
                         out["message"] = json!(format!(
                             "{} は既にインストール済みで内容も最新です。",

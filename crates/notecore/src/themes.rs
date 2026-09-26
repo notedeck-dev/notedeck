@@ -67,21 +67,6 @@ impl Theme {
 // codec
 // ---------------------------------------------------------------------------
 
-/// JSON5 ファイル → テーマ (`parse` + `accepts` + `fromFile`)。props が無ければ None。
-#[derive(Deserialize)]
-struct RawTheme {
-    #[serde(default)]
-    id: Option<Value>,
-    #[serde(default)]
-    name: Option<Value>,
-    #[serde(default)]
-    base: Option<Value>,
-    #[serde(default)]
-    props: Option<IndexMap<String, Value>>,
-    #[serde(rename = "$notedeck", default)]
-    notedeck: Option<IndexMap<String, Value>>,
-}
-
 fn base_of(v: Option<&Value>) -> String {
     if v.and_then(Value::as_str) == Some("light") {
         "light".into()
@@ -102,29 +87,50 @@ fn props_of(m: IndexMap<String, Value>) -> IndexMap<String, String> {
         .collect()
 }
 
-/// テーマ本体の JSON5 (`installTheme` に渡す code) を読む。props が無ければ None。
+/// テーマ本体の JSON5 (`installTheme` に渡す code、ファイルも同じ) を読む。
+/// props が無ければ None。
 pub fn parse_theme_code(code: &str) -> Option<(Theme, Option<Value>)> {
-    let raw: RawTheme = json5::from_str(code).ok()?;
-    let props = raw.props?;
+    // J5 経由で読む: 同じキーが重なっても後の値を採る (JSON5.parse と同じ)。
+    // id の凍結は既存の不正な id の後ろに追記するので、構造体へ直接読むと
+    // 次の読込で重複キーのエラーになる
+    let raw: J5 = json5::from_str(code).ok()?;
+    let J5::Obj(_) = &raw else {
+        return None;
+    };
+    let props = match raw.get("props")? {
+        J5::Obj(pairs) => {
+            let mut m: IndexMap<String, Value> = IndexMap::new();
+            for (k, v) in pairs {
+                m.insert(k.clone(), v.to_value());
+            }
+            m
+        }
+        _ => return None,
+    };
+    let notedeck = match raw.get("$notedeck") {
+        Some(J5::Obj(pairs)) => {
+            let mut m: IndexMap<String, Value> = IndexMap::new();
+            for (k, v) in pairs {
+                m.insert(k.clone(), v.to_value());
+            }
+            Some(m)
+        }
+        _ => None,
+    };
+    let id = raw.get("id").map(J5::to_value);
     let theme = Theme {
-        id: raw
-            .id
-            .as_ref()
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string(),
+        id: raw.get("id").and_then(J5::as_str).unwrap_or("").to_string(),
         name: raw
-            .name
-            .as_ref()
-            .and_then(Value::as_str)
+            .get("name")
+            .and_then(J5::as_str)
             .unwrap_or("")
             .to_string(),
-        base: base_of(raw.base.as_ref()),
+        base: base_of(raw.get("base").map(J5::to_value).as_ref()),
         props: props_of(props),
-        notedeck: raw.notedeck,
+        notedeck,
         file_base: None,
     };
-    Some((theme, raw.id))
+    Some((theme, id))
 }
 
 fn theme_to_j5(t: &Theme, include_notedeck: bool) -> J5 {
@@ -471,6 +477,18 @@ pub fn css_history(core: &Core) -> Result<Vec<edit_history::HistoryEntry>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn duplicate_keys_take_the_last_value() {
+        // id 凍結は不正な id の後ろに有効な id を追記する
+        let (t, raw_id) =
+            parse_theme_code("{ id: '', name: 'X', props: { a: '#fff', b: 1 }, id: 'custom-x' }")
+                .unwrap();
+        assert_eq!(t.id, "custom-x");
+        assert_eq!(raw_id, Some(json!("custom-x")));
+        assert_eq!(t.props.keys().collect::<Vec<_>>(), vec!["a", "b"]);
+        assert_eq!(t.props["b"], "1");
+    }
 
     fn core_in(dir: &Path) -> Core {
         let core = Core::new();
