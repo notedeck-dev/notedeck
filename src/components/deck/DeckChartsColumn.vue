@@ -32,7 +32,7 @@ import { isExposed } from '@/settings/exposure'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
-import { formatCount } from '@/utils/format'
+import { formatBytes, formatCount } from '@/utils/format'
 import { applyAlpha } from '@/utils/initChart'
 // side-effect: Chart.register
 import '@/utils/initChart'
@@ -307,15 +307,6 @@ function buildConfig<T extends 'bar' | 'line'>(
   }
 }
 
-function formatBytesFromKb(kb: number): string {
-  const bytes = kb * 1000
-  if (bytes < 1000) return `${bytes.toFixed(0)} B`
-  if (bytes < 1000 * 1000) return `${(bytes / 1000).toFixed(1)} KB`
-  if (bytes < 1000 * 1000 * 1000)
-    return `${(bytes / 1000 / 1000).toFixed(1)} MB`
-  return `${(bytes / 1000 / 1000 / 1000).toFixed(2)} GB`
-}
-
 // ── セクションごとの chart.js config ビルダー ──────────────────
 
 // biome-ignore lint/suspicious/noExplicitAny: 返却型は bar/line union
@@ -477,7 +468,8 @@ function buildDrive(view: DriveView): any | null {
       ],
       {
         stacked: true,
-        yCallback: (v) => formatBytesFromKb(Number(v)),
+        // 本家のドライブチャートはサイズを KB (1000 バイト単位) で返す
+        yCallback: (v) => formatBytes(Number(v) * 1000),
       },
     )
   }

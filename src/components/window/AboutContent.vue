@@ -19,6 +19,7 @@ import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
+import { formatBytes } from '@/utils/format'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -479,19 +480,18 @@ const metricsRows = computed<MetricsRow[]>(() => {
           value: i18n.ts._aboutContent.frameIdle,
         },
       ]
-  const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)}MB`
   const memoryRows: MetricsRow[] = []
   // JS ヒープは Chromium 系 WebView のみ。取れない環境では行ごと出さない
   if (m.memory.jsHeap) {
     memoryRows.push({
       label: i18n.ts._aboutContent.jsHeap,
-      value: `${mb(m.memory.jsHeap.usedBytes)} / ${mb(m.memory.jsHeap.totalBytes)}`,
+      value: `${formatBytes(m.memory.jsHeap.usedBytes)} / ${formatBytes(m.memory.jsHeap.totalBytes)}`,
     })
   }
   memoryRows.push({
     label: i18n.ts._aboutContent.imageMemory,
     value: i18n.tsx._aboutContent.imageMemoryValue({
-      size: mb(m.memory.images.estimatedDecodedBytes),
+      size: formatBytes(m.memory.images.estimatedDecodedBytes),
       urls: m.memory.images.uniqueCount,
       elements: m.memory.images.elementCount,
     }),

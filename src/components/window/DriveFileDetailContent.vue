@@ -10,7 +10,6 @@ import MkDriveFolderSelectDialog from '@/components/common/MkDriveFolderSelectDi
 import MkMediaLightbox from '@/components/common/MkMediaLightbox.vue'
 import { useDriveActions } from '@/composables/useDriveActions'
 import {
-  formatFileSize,
   isAudio,
   isImage,
   isVideo,
@@ -19,6 +18,7 @@ import {
 import { i18n } from '@/i18n'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
+import { formatBytes } from '@/utils/format'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
@@ -214,7 +214,7 @@ fetchFile()
         </div>
         <div :class="$style.meta">
           <span>{{ file.type }}</span>
-          <span>{{ formatFileSize(file.size) }}</span>
+          <span>{{ formatBytes(file.size) }}</span>
           <span v-if="file.isSensitive" :class="$style.sensitiveBadge">
             <i class="ti ti-eye-off" /> NSFW
           </span>

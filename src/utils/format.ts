@@ -19,6 +19,28 @@ export function formatCount(n: number): string {
   return COMPACT.format(n)
 }
 
+let bytesLang = ''
+let DECIMAL: Intl.NumberFormat
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
+
+/**
+ * バイト数を「1.5 MB」の形にする (#135)。本家 (Misskey) のドライブ表示に
+ * 揃えて 1024 区切り。端数は小数 1 桁まで、数は表示言語の書式で出す
+ */
+export function formatBytes(bytes: number): string {
+  if (bytesLang !== i18n.lang) {
+    bytesLang = i18n.lang
+    DECIMAL = new Intl.NumberFormat(bytesLang, { maximumFractionDigits: 1 })
+  }
+  let value = bytes
+  let unit = 0
+  while (Math.abs(value) >= 1024 && unit < BYTE_UNITS.length - 1) {
+    value /= 1024
+    unit++
+  }
+  return `${DECIMAL.format(value)} ${BYTE_UNITS[unit]}`
+}
+
 /** Format an ISO date string to a localized date */
 export function formatDate(iso: string): string {
   if (!iso) return ''
