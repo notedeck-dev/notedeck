@@ -468,6 +468,8 @@ export function generateNative(): {
       [CAPABILITIES_SECTION]: composed[CAPABILITIES_SECTION] ?? {},
       // OS 通知の「実績獲得」の本文 (TS と同じ表を使い、二重に持たない)
       _achievementLabels: composed._achievementLabels ?? {},
+      // パフォーマンス設定の表示名・説明・単位 (notecore の performance.list が返す)
+      _performanceData: composed._performanceData ?? {},
     }
     files.set(code, `${JSON.stringify(sections, null, 2)}\n`)
   }
@@ -476,7 +478,7 @@ export function generateNative(): {
     .join('\n')
   const rs = `// 生成物 — 編集しない。locales/ から \`pnpm gen:i18n\` で作る (#135)
 
-/// (言語コード, その言語の \`_native\` / \`_capabilities\` / \`_achievementLabels\` 節の JSON)
+/// (言語コード, その言語の \`_native\` / \`_capabilities\` / \`_achievementLabels\` / \`_performanceData\` 節の JSON)
 pub const DICTIONARIES: &[(&str, &str)] = &[
 ${entries}
 ];

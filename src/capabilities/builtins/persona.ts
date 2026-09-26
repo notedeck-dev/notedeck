@@ -1,8 +1,5 @@
 import type { Command } from '@/commands/registry'
-import { useAiConfig } from '@/composables/useAiConfig'
-import { i18n } from '@/i18n'
-import { useSkillsStore } from '@/stores/skills'
-import { implement } from '../declare'
+import { implementCore } from '../declare'
 
 /**
  * Persona 系 capability。AI の「同一性設定」(memory:
@@ -23,66 +20,9 @@ import { implement } from '../declare'
  *   chat 側に即時反映
  */
 
-export const aiListPersonasCapability = implement('ai.listPersonas', {
-  execute: () => {
-    const skillsStore = useSkillsStore()
-    const { config } = useAiConfig()
-    const currentId = config.value.personaSkillId ?? ''
-    return skillsStore.skills
-      .filter((s) => s.isPersona === true)
-      .map((s) => ({
-        id: s.id,
-        name: s.name,
-        description: s.description ?? null,
-        mode: s.mode,
-        active: s.id === currentId,
-      }))
-  },
-})
+export const aiListPersonasCapability = implementCore('ai.listPersonas')
 
-export const aiSetPersonaCapability = implement('ai.setPersona', {
-  requiresConfirmation: (params) => {
-    const id = typeof params?.skillId === 'string' ? params.skillId : ''
-    const skillsStore = useSkillsStore()
-    const target = id ? skillsStore.skills.find((s) => s.id === id) : null
-    return {
-      title: i18n.ts._personaCapability.title,
-      message: id
-        ? target
-          ? i18n.tsx._personaCapability.switchMessage({ name: target.name })
-          : i18n.tsx._personaCapability.unknownMessage({ id })
-        : i18n.ts._personaCapability.clearMessage,
-      okLabel: i18n.ts._common.switch,
-      cancelLabel: i18n.ts._common.cancel,
-      type: 'warning',
-    }
-  },
-  execute: (params) => {
-    const skillId = typeof params?.skillId === 'string' ? params.skillId : ''
-    const skillsStore = useSkillsStore()
-    const { config, save } = useAiConfig()
-    if (skillId) {
-      const skill = skillsStore.skills.find((s) => s.id === skillId)
-      if (!skill) {
-        throw new Error(`ai.setPersona: skill "${skillId}" not found`)
-      }
-      if (skill.isPersona !== true) {
-        throw new Error(
-          `ai.setPersona: skill "${skillId}" (${skill.name}) is not flagged as persona`,
-        )
-      }
-      config.value.personaSkillId = skillId
-      save()
-      return {
-        personaSkillId: skillId,
-        persona: { id: skill.id, name: skill.name },
-      }
-    }
-    config.value.personaSkillId = ''
-    save()
-    return { personaSkillId: '', persona: null }
-  },
-})
+export const aiSetPersonaCapability = implementCore('ai.setPersona')
 
 export const PERSONA_BUILTIN_CAPABILITIES: readonly Command[] = [
   aiListPersonasCapability,

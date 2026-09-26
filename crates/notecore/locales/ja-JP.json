@@ -173,6 +173,69 @@
         "updateConfirm": "「{name}」をストアの内容で更新します。\nストア更新日: {date} / v{version}",
         "updateConfirmWithPermissions": "「{name}」をストアの内容で更新します。\nストア更新日: {date} / v{version}\n新しい権限: {permissions}"
       },
+      "common": {
+        "resetToDefault": "デフォルトに戻す",
+        "resetAllToDefault": "すべてデフォルトに戻す",
+        "switch": "切り替え"
+      },
+      "keybinds": {
+        "set": {
+          "title": "キーバインドを変更",
+          "message_plural": {
+            "other": "`{commandId}` の shortcut を {count} 個に変更します。keybinds.reset でデフォルトに戻せます。"
+          },
+          "ok": "変更"
+        },
+        "reset": {
+          "title": "キーバインドをデフォルトに戻す",
+          "message": "`{commandId}` のカスタム shortcut を破棄し、デフォルトに戻します。"
+        },
+        "resetAll": {
+          "title": "全キーバインドをデフォルトに戻す",
+          "message": "全コマンドのカスタム shortcut を破棄し、すべてデフォルトに戻します。"
+        }
+      },
+      "navbar": {
+        "reset": {
+          "title": "ナビバー構成をデフォルトに戻す",
+          "message_plural": {
+            "other": "現在のカスタム構成を破棄し、デフォルトの {count} 項目に戻します。"
+          }
+        }
+      },
+      "performance": {
+        "set": {
+          "title": "パフォーマンス値を変更",
+          "message": "{label} (`{key}`) を {value}{unit} に変更します。範囲外なら {min}..{max} に自動 clamp されます。",
+          "messageUnknown": "`{key}` を {value} に変更します。",
+          "ok": "変更"
+        },
+        "reset": {
+          "title": "パフォーマンス値をデフォルトに戻す",
+          "message": "{label} (`{key}`) をデフォルトに戻します。",
+          "messageUnknown": "`{key}` をデフォルトに戻します。"
+        },
+        "resetAll": {
+          "title": "全パフォーマンス値をデフォルトに戻す",
+          "message": "全 override を破棄し、すべてデフォルトに戻します (= 設定をクリーン状態に)。"
+        },
+        "applySlider": {
+          "title": "パフォーマンスプリセットを適用",
+          "message": "スライダー位置 t={t} ({label}) のプリセットを全 key に適用します。",
+          "ok": "適用",
+          "presetPowerSaving": "省電力寄り",
+          "presetRich": "リッチ寄り",
+          "presetBalanced": "バランス"
+        }
+      },
+      "persona": {
+        "set": {
+          "title": "AI persona を切り替え",
+          "switchMessage": "AI persona を「{name}」に切り替えます。chat / heartbeat / command / task すべての session に反映されます。",
+          "unknownMessage": "不明な skill id \"{id}\" を persona にしようとしています。",
+          "clearMessage": "AI persona を解除します (= 通常の汎用 AI として動作)。"
+        }
+      },
       "styles": {
         "write": {
           "title": "カスタム CSS を全置換",
@@ -624,5 +687,158 @@
     "tutorialCompleted": "チュートリアル完了",
     "bubbleGameExplodingHead": "バブルゲーム",
     "bubbleGameDoubleExplodingHead": "バブルゲーム (ダブル)"
+  },
+  "_performanceData": {
+    "units": {
+      "items": "件",
+      "hosts": "ホスト",
+      "parallel": "並列",
+      "times": "回",
+      "timesPerSecond": "回/秒",
+      "seconds": "秒",
+      "days": "日",
+      "minutes": "分",
+      "columns": "本",
+      "images": "枚",
+      "frames": "フレーム"
+    },
+    "categories": {
+      "emoji": {
+        "label": "絵文字キャッシュ"
+      },
+      "cache": {
+        "label": "パースキャッシュ",
+        "short": "パース"
+      },
+      "realtime": {
+        "label": "リアルタイム",
+        "short": "リアル"
+      },
+      "backend": {
+        "label": "バックエンド",
+        "short": "バック"
+      },
+      "css": {
+        "label": "CSS 描画",
+        "short": "CSS"
+      },
+      "polling": {
+        "short": "取得"
+      },
+      "telemetry": {
+        "label": "テレメトリ",
+        "short": "計測"
+      },
+      "interaction": {
+        "label": "インタラクション",
+        "short": "操作"
+      }
+    },
+    "labels": {
+      "emojiCacheHosts": "辞書保持ホスト数",
+      "emojiListHosts": "リスト保持ホスト数",
+      "emojiPersistPerHost": "localStorage 永続化/ホスト",
+      "noteStoreMax": "ノートストア上限",
+      "noteListMax": "DOM 表示上限/カラム",
+      "maxNotifications": "通知保持上限",
+      "chatMessageStoreMax": "チャットメッセージストア上限",
+      "mfmCacheMax": "MFM キャッシュ",
+      "blurhashCacheMax": "blurhash キャッシュ",
+      "imageProxyCacheMax": "プロキシ URL キャッシュ",
+      "ogpCacheMax": "OGP キャッシュ",
+      "noteCaptureMax": "Note Capture 上限",
+      "overscan": "Overscan",
+      "memoryCacheMaxMB": "メモリキャッシュ合計",
+      "memoryCacheMaxItemKB": "単一ファイル上限",
+      "maxConcurrentFetches": "並行フェッチ数",
+      "rustOgpCacheMax": "Rust OGP キャッシュ",
+      "maxRequestsPerWindow": "レート制限",
+      "circuitBreakerThreshold": "サーキットブレーカー閾値",
+      "circuitBreakerDuration": "サーキットブレーカー期間",
+      "imageCacheTTLDays": "画像キャッシュ有効期限",
+      "imageCacheMaxMB": "画像キャッシュ上限",
+      "imageCacheMaxFileMB": "1 ファイルの取得上限",
+      "prefetchAhead": "先読みプリフェッチ",
+      "prefetchBehind": "後方プリフェッチ",
+      "prefetchTrackedMax": "プリフェッチ追跡上限",
+      "lazyLoadMargin": "遅延読み込みマージン",
+      "nearViewportBuffer": "Viewport 近傍バッファ",
+      "ogpGalleryMax": "OGP ギャラリー上限",
+      "embedCacheMax": "埋め込みノートキャッシュ",
+      "cssBlurLevel": "ブラー強度",
+      "cssAnimationScale": "アニメーション速度",
+      "cssShadowLevel": "シャドウ強度",
+      "streamPollingInterval": "ストリームポーリング間隔",
+      "notificationPollInterval": "通知ポーリング間隔",
+      "chatPollInterval": "チャットポーリング間隔",
+      "maxLiveColumns": "同時 live カラム数",
+      "columnUnloadDelay": "カラムアンロード遅延",
+      "snapshotMaxNotes": "スナップショット保存数",
+      "snapshotTTL": "スナップショット有効期限",
+      "jankDowngradeThreshold": "ジャンク検出感度",
+      "stableUpgradeSeconds": "アップグレード待機",
+      "noteAnimationDuration": "ノート出現アニメーション",
+      "frameHistorySize": "P95 履歴サイズ",
+      "soundCacheMax": "通知音キャッシュ",
+      "cachedTimelineLimit": "タイムラインキャッシュ読み込み",
+      "pullFireThreshold": "プルリフレッシュ距離",
+      "swipeThreshold": "スワイプ切り替え距離",
+      "flingVelocity": "フリック速度",
+      "wheelCooldown": "ホイールクールダウン",
+      "scrollHideThreshold": "ナビバー非表示感度"
+    },
+    "descriptions": {
+      "emojiCacheHosts": "絵文字を解決するための辞書を保持するホスト数。連合先が増えるほど育つので上限で頭を打たせる",
+      "emojiListHosts": "リアクションピッカー用の絵文字リストを保持するホスト数",
+      "emojiPersistPerHost": "オフライン時の絵文字解決用に localStorage に保存するエントリ数",
+      "noteStoreMax": "グローバルノートストアの保持上限。長時間セッションのメモリ消費に影響",
+      "noteListMax": "カラムあたりのデータ配列上限。超過分はスクロール時に破棄",
+      "maxNotifications": "通知カラムに保持する通知の最大数",
+      "chatMessageStoreMax": "グローバル chatMessageStore の保持上限。長時間チャットしている場合のメモリに影響 (#460)",
+      "mfmCacheMax": "MFM パース結果の LRU キャッシュ上限",
+      "blurhashCacheMax": "画像ロード前のプレースホルダー (blurhash → data URL) の LRU キャッシュ上限",
+      "imageProxyCacheMax": "プロキシ URL 変換の LRU キャッシュ上限",
+      "ogpCacheMax": "OGP プレビューの LRU キャッシュ上限",
+      "noteCaptureMax": "リアルタイム更新の WebSocket 購読数。多いほどリアクション即時反映",
+      "overscan": "viewport 外に余分に描画するノート数。多いほどスクロールが滑らか",
+      "memoryCacheMaxMB": "画像のインメモリキャッシュ合計サイズ",
+      "memoryCacheMaxItemKB": "メモリキャッシュに載せる単一ファイルの最大サイズ",
+      "maxConcurrentFetches": "画像の同時ダウンロード数",
+      "rustOgpCacheMax": "Rust 側の OGP メタデータ LRU キャッシュ上限",
+      "maxRequestsPerWindow": "ホストあたりの 1 分間リクエスト上限",
+      "circuitBreakerThreshold": "この回数連続失敗でホストを一時遮断",
+      "circuitBreakerDuration": "遮断されたホストの復帰までの待機時間",
+      "imageCacheTTLDays": "ディスク上の画像キャッシュの保持日数",
+      "imageCacheMaxMB": "超過した分は古いものから削除される",
+      "imageCacheMaxFileMB": "これを超える画像はプロキシを通さない。上げるとピークメモリも増える",
+      "prefetchAhead": "viewport 下方向に先読みする画像プリフェッチ数",
+      "prefetchBehind": "viewport 上方向に遡って画像プリフェッチする数",
+      "prefetchTrackedMax": "プリフェッチ済み URL の記憶数。超過すると古い順に破棄",
+      "lazyLoadMargin": "OGP プレビューや埋め込みノートの読み込みを開始する viewport からの距離",
+      "nearViewportBuffer": "viewport 端から画像を eager 読み込みする余裕アイテム数",
+      "ogpGalleryMax": "OGP プレビューのギャラリー画像の最大表示枚数",
+      "embedCacheMax": "埋め込みノートの LRU キャッシュ上限",
+      "cssBlurLevel": "backdrop-filter ブラーの強度。0=無効、1=軽量 (1–2px)、2=フル (4px)。最も GPU 負荷が高い",
+      "cssAnimationScale": "トランジション・アニメーションの速度スケール。0%で即時描画、100%で通常速度",
+      "cssShadowLevel": "box-shadow の描画レベル。0=無効、1=軽量、2=フル (Misskey 準拠)",
+      "streamPollingInterval": "ポーリングモード時のタイムライン更新間隔。短いほどリアルタイムに近い",
+      "notificationPollInterval": "通知未読数の確認間隔。短いほどリアルタイム、長いほどバッテリー節約",
+      "chatPollInterval": "チャット未読の確認間隔",
+      "maxLiveColumns": "ストリーミング接続を維持するカラムの上限。超過分は一時停止される",
+      "columnUnloadDelay": "画面外カラムをアンマウントするまでの待機時間。短いほどメモリ節約",
+      "snapshotMaxNotes": "カラムスナップショットに保存するノート数。多いほど復帰が完全",
+      "snapshotTTL": "カラムスナップショットの保持期間。期限切れで再フェッチ",
+      "jankDowngradeThreshold": "この回数/秒を超えるジャンクで自動品質ダウングレード。低いほど敏感",
+      "stableUpgradeSeconds": "安定がこの秒数続くと自動品質アップグレードを試行",
+      "noteAnimationDuration": "新着ノートのスライドインアニメーション時間。0 で即時表示",
+      "frameHistorySize": "P95 フレーム時間計算用のリングバッファサイズ。大きいほど安定するが反応が遅い",
+      "soundCacheMax": "通知音の AudioBuffer キャッシュ数。多サーバー利用時は増やす",
+      "cachedTimelineLimit": "カラム復帰時に DB キャッシュから読み込むノート件数",
+      "pullFireThreshold": "プルトゥリフレッシュが発火するまでの引っ張り距離",
+      "swipeThreshold": "タブ切り替えに必要な最小スワイプ距離",
+      "flingVelocity": "この速度以上のフリックで即座にタブ切り替え",
+      "wheelCooldown": "マウスホイールによるタブ切り替え後の再発火防止時間",
+      "scrollHideThreshold": "スクロールでナビバーを非表示にする累積距離。小さいほど敏感"
+    }
   }
 }

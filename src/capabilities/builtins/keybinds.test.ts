@@ -3,8 +3,6 @@ import {
   KEYBINDS_BUILTIN_CAPABILITIES,
   keybindsListCapability,
   keybindsResetAllCapability,
-  keybindsResetCapability,
-  keybindsSetCapability,
 } from './keybinds'
 
 // Note: execute は useKeybindsStore (Pinia) を呼ぶため unit 環境では走らない。
@@ -16,48 +14,6 @@ describe('keybinds capabilities — declaration', () => {
     expect(keybindsListCapability.permissions).toEqual([])
     expect(keybindsListCapability.signature?.cheap).toBe(true)
     expect(keybindsListCapability.signature?.returns?.type).toBe('array')
-  })
-
-  it('keybinds.set: write permission, confirmation, requires commandId + shortcuts', () => {
-    expect(keybindsSetCapability.id).toBe('keybinds.set')
-    expect(keybindsSetCapability.permissions).toEqual(['keybinds.write'])
-    expect(typeof keybindsSetCapability.requiresConfirmation).toBe('function')
-    expect(() => keybindsSetCapability.execute({ shortcuts: [] })).toThrow(
-      /commandId is required/,
-    )
-    expect(() =>
-      keybindsSetCapability.execute({ commandId: 'x', shortcuts: 'no' }),
-    ).toThrow(/shortcuts must be an array/)
-  })
-
-  it('keybinds.set rejects invalid shortcut entries', () => {
-    expect(() =>
-      keybindsSetCapability.execute({
-        commandId: 'x',
-        shortcuts: [{ scope: 'global' }],
-      }),
-    ).toThrow(/missing string "key"/)
-    expect(() =>
-      keybindsSetCapability.execute({
-        commandId: 'x',
-        shortcuts: [{ key: 'k', scope: 'invalid' }],
-      }),
-    ).toThrow(/scope must be/)
-    expect(() =>
-      keybindsSetCapability.execute({
-        commandId: 'x',
-        shortcuts: [null],
-      }),
-    ).toThrow(/not an object/)
-  })
-
-  it('keybinds.reset: write permission, requires commandId', () => {
-    expect(keybindsResetCapability.id).toBe('keybinds.reset')
-    expect(keybindsResetCapability.permissions).toEqual(['keybinds.write'])
-    expect(typeof keybindsResetCapability.requiresConfirmation).toBe('function')
-    expect(() => keybindsResetCapability.execute({})).toThrow(
-      /commandId is required/,
-    )
   })
 
   it('keybinds.resetAll: write permission, no params', () => {

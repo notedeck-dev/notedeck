@@ -35,3 +35,23 @@ pub fn query<'a>(
 ) -> BridgeFuture<'a> {
     bridge.query(query_type, params, Duration::from_secs(5))
 }
+
+/// 「フロントなし」の実装 (headless / notecored)。問い合わせは全部
+/// `device_unavailable` で答え、ターン実行器はデバイス依存の capability を
+/// エラーにし、確認内容は core が組む。
+pub struct NoDeviceBridge;
+
+impl FrontendBridge for NoDeviceBridge {
+    fn query<'a>(
+        &'a self,
+        query_type: &'a str,
+        _params: Value,
+        _timeout: Duration,
+    ) -> BridgeFuture<'a> {
+        Box::pin(async move { Err(format!("no device is connected (query {query_type})")) })
+    }
+
+    fn health_report(&self) -> BridgeFuture<'_> {
+        Box::pin(async { Ok(Value::Null) })
+    }
+}

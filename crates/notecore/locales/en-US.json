@@ -179,6 +179,71 @@
         "updateConfirm": "Updates “{name}” with the content from the store.\nStore updated: {date} / v{version}",
         "updateConfirmWithPermissions": "Updates “{name}” with the content from the store.\nStore updated: {date} / v{version}\nNew permissions: {permissions}"
       },
+      "common": {
+        "resetToDefault": "Reset to default",
+        "resetAllToDefault": "Reset all to default",
+        "switch": "Switch"
+      },
+      "keybinds": {
+        "set": {
+          "title": "Change keybinding",
+          "message_plural": {
+            "one": "Sets {count} shortcut for `{commandId}`. keybinds.reset restores the default.",
+            "other": "Sets {count} shortcuts for `{commandId}`. keybinds.reset restores the default."
+          },
+          "ok": "Change"
+        },
+        "reset": {
+          "title": "Reset keybinding to default",
+          "message": "Discards the custom shortcuts of `{commandId}` and restores the default."
+        },
+        "resetAll": {
+          "title": "Reset all keybindings to default",
+          "message": "Discards the custom shortcuts of every command and restores all defaults."
+        }
+      },
+      "navbar": {
+        "reset": {
+          "title": "Reset navbar layout to default",
+          "message_plural": {
+            "one": "Discards the current custom layout and restores the {count} default item.",
+            "other": "Discards the current custom layout and restores the {count} default items."
+          }
+        }
+      },
+      "performance": {
+        "set": {
+          "title": "Change performance value",
+          "message": "Changes {label} (`{key}`) to {value}{unit}. Out-of-range values are clamped to {min}..{max}.",
+          "messageUnknown": "Changes `{key}` to {value}.",
+          "ok": "Change"
+        },
+        "reset": {
+          "title": "Reset performance value to default",
+          "message": "Resets {label} (`{key}`) to default.",
+          "messageUnknown": "Resets `{key}` to default."
+        },
+        "resetAll": {
+          "title": "Reset all performance values to default",
+          "message": "Discards every override and restores all defaults (a clean configuration)."
+        },
+        "applySlider": {
+          "title": "Apply performance preset",
+          "message": "Applies the preset at slider position t={t} ({label}) to every key.",
+          "ok": "Apply",
+          "presetPowerSaving": "power saving",
+          "presetRich": "rich",
+          "presetBalanced": "balanced"
+        }
+      },
+      "persona": {
+        "set": {
+          "title": "Switch AI persona",
+          "switchMessage": "Switches the AI persona to \"{name}\". This applies to every chat / heartbeat / command / task session.",
+          "unknownMessage": "Trying to set the unknown skill id \"{id}\" as the persona.",
+          "clearMessage": "Clears the AI persona (the AI works as a general-purpose assistant)."
+        }
+      },
       "styles": {
         "write": {
           "title": "Replace custom CSS",
@@ -635,5 +700,158 @@
     "tutorialCompleted": "Tutorial completed",
     "bubbleGameExplodingHead": "Bubble game",
     "bubbleGameDoubleExplodingHead": "Bubble game (double)"
+  },
+  "_performanceData": {
+    "units": {
+      "items": "items",
+      "hosts": "hosts",
+      "parallel": "parallel",
+      "times": "times",
+      "timesPerSecond": "per sec",
+      "seconds": "s",
+      "days": "days",
+      "minutes": "min",
+      "columns": "columns",
+      "images": "images",
+      "frames": "frames"
+    },
+    "categories": {
+      "emoji": {
+        "label": "Emoji cache"
+      },
+      "cache": {
+        "label": "Parse cache",
+        "short": "Parse"
+      },
+      "realtime": {
+        "label": "Real-time",
+        "short": "Live"
+      },
+      "backend": {
+        "label": "Backend",
+        "short": "Back"
+      },
+      "css": {
+        "label": "CSS rendering",
+        "short": "CSS"
+      },
+      "polling": {
+        "short": "Poll"
+      },
+      "telemetry": {
+        "label": "Telemetry",
+        "short": "Meter"
+      },
+      "interaction": {
+        "label": "Interaction",
+        "short": "Input"
+      }
+    },
+    "labels": {
+      "emojiCacheHosts": "Dictionary hosts",
+      "emojiListHosts": "List hosts",
+      "emojiPersistPerHost": "localStorage persistence / host",
+      "noteStoreMax": "Note store limit",
+      "noteListMax": "DOM display limit / column",
+      "maxNotifications": "Notification retention limit",
+      "chatMessageStoreMax": "Chat message store limit",
+      "mfmCacheMax": "MFM cache",
+      "blurhashCacheMax": "blurhash cache",
+      "imageProxyCacheMax": "Proxy URL cache",
+      "ogpCacheMax": "OGP cache",
+      "noteCaptureMax": "Note Capture limit",
+      "overscan": "Overscan",
+      "memoryCacheMaxMB": "Total memory cache",
+      "memoryCacheMaxItemKB": "Single file limit",
+      "maxConcurrentFetches": "Concurrent fetches",
+      "rustOgpCacheMax": "Rust OGP cache",
+      "maxRequestsPerWindow": "Rate limit",
+      "circuitBreakerThreshold": "Circuit breaker threshold",
+      "circuitBreakerDuration": "Circuit breaker duration",
+      "imageCacheTTLDays": "Image cache expiry",
+      "imageCacheMaxMB": "Image cache limit",
+      "imageCacheMaxFileMB": "Per-file fetch limit",
+      "prefetchAhead": "Prefetch ahead",
+      "prefetchBehind": "Prefetch behind",
+      "prefetchTrackedMax": "Prefetch tracking limit",
+      "lazyLoadMargin": "Lazy load margin",
+      "nearViewportBuffer": "Near-viewport buffer",
+      "ogpGalleryMax": "OGP gallery limit",
+      "embedCacheMax": "Embedded note cache",
+      "cssBlurLevel": "Blur strength",
+      "cssAnimationScale": "Animation speed",
+      "cssShadowLevel": "Shadow strength",
+      "streamPollingInterval": "Stream polling interval",
+      "notificationPollInterval": "Notification polling interval",
+      "chatPollInterval": "Chat polling interval",
+      "maxLiveColumns": "Simultaneous live columns",
+      "columnUnloadDelay": "Column unload delay",
+      "snapshotMaxNotes": "Snapshot size",
+      "snapshotTTL": "Snapshot expiry",
+      "jankDowngradeThreshold": "Jank detection sensitivity",
+      "stableUpgradeSeconds": "Upgrade wait",
+      "noteAnimationDuration": "Note appear animation",
+      "frameHistorySize": "P95 history size",
+      "soundCacheMax": "Notification sound cache",
+      "cachedTimelineLimit": "Timeline cache load",
+      "pullFireThreshold": "Pull-to-refresh distance",
+      "swipeThreshold": "Swipe switch distance",
+      "flingVelocity": "Fling velocity",
+      "wheelCooldown": "Wheel cooldown",
+      "scrollHideThreshold": "Navbar hide sensitivity"
+    },
+    "descriptions": {
+      "emojiCacheHosts": "Number of hosts whose emoji dictionaries are kept for resolving emoji. Grows as you federate with more servers, so it is capped here",
+      "emojiListHosts": "Number of hosts whose emoji lists are kept for the reaction picker",
+      "emojiPersistPerHost": "Number of entries saved to localStorage for resolving emoji while offline",
+      "noteStoreMax": "Retention limit of the global note store. Affects memory usage in long sessions",
+      "noteListMax": "Data array limit per column. Items beyond it are discarded while scrolling",
+      "maxNotifications": "Maximum number of notifications kept in a notification column",
+      "chatMessageStoreMax": "Retention limit of the global chatMessageStore. Affects memory when chatting for a long time (#460)",
+      "mfmCacheMax": "LRU cache limit for parsed MFM results",
+      "blurhashCacheMax": "LRU cache limit for placeholders shown before images load (blurhash → data URL)",
+      "imageProxyCacheMax": "LRU cache limit for proxy URL conversion",
+      "ogpCacheMax": "LRU cache limit for OGP previews",
+      "noteCaptureMax": "Number of WebSocket subscriptions for real-time updates. More means reactions show up instantly on more notes",
+      "overscan": "Number of extra notes rendered outside the viewport. More makes scrolling smoother",
+      "memoryCacheMaxMB": "Total size of the in-memory image cache",
+      "memoryCacheMaxItemKB": "Maximum size of a single file kept in the memory cache",
+      "maxConcurrentFetches": "Number of simultaneous image downloads",
+      "rustOgpCacheMax": "LRU cache limit for OGP metadata on the Rust side",
+      "maxRequestsPerWindow": "Maximum requests per minute per host",
+      "circuitBreakerThreshold": "A host is temporarily blocked after this many consecutive failures",
+      "circuitBreakerDuration": "How long a blocked host waits before it is retried",
+      "imageCacheTTLDays": "Number of days images are kept in the disk cache",
+      "imageCacheMaxMB": "Beyond this, the oldest images are deleted first",
+      "imageCacheMaxFileMB": "Images larger than this bypass the proxy. Raising it also raises peak memory",
+      "prefetchAhead": "Number of images prefetched below the viewport",
+      "prefetchBehind": "Number of images prefetched above the viewport",
+      "prefetchTrackedMax": "Number of prefetched URLs remembered. Beyond it, the oldest are discarded",
+      "lazyLoadMargin": "Distance from the viewport at which OGP previews and embedded notes start loading",
+      "nearViewportBuffer": "Number of extra items from the viewport edge whose images are loaded eagerly",
+      "ogpGalleryMax": "Maximum number of gallery images shown in an OGP preview",
+      "embedCacheMax": "LRU cache limit for embedded notes",
+      "cssBlurLevel": "Strength of backdrop-filter blur. 0 = off, 1 = light (1–2px), 2 = full (4px). The heaviest on the GPU",
+      "cssAnimationScale": "Speed scale of transitions and animations. 0% renders instantly, 100% is normal speed",
+      "cssShadowLevel": "Rendering level of box-shadow. 0 = off, 1 = light, 2 = full (same as Misskey)",
+      "streamPollingInterval": "Timeline update interval in polling mode. Shorter is closer to real time",
+      "notificationPollInterval": "Interval for checking unread notifications. Shorter is closer to real time, longer saves battery",
+      "chatPollInterval": "Interval for checking unread chats",
+      "maxLiveColumns": "Maximum number of columns that keep a streaming connection. The rest are paused",
+      "columnUnloadDelay": "Wait time before off-screen columns are unmounted. Shorter saves memory",
+      "snapshotMaxNotes": "Number of notes saved in a column snapshot. More makes restoring more complete",
+      "snapshotTTL": "How long column snapshots are kept. Expired snapshots are refetched",
+      "jankDowngradeThreshold": "Quality is downgraded automatically when jank exceeds this many times per second. Lower is more sensitive",
+      "stableUpgradeSeconds": "Automatic quality upgrade is tried after staying stable for this many seconds",
+      "noteAnimationDuration": "Duration of the slide-in animation for new notes. 0 shows them instantly",
+      "frameHistorySize": "Ring buffer size for computing P95 frame time. Larger is more stable but reacts more slowly",
+      "soundCacheMax": "Number of cached AudioBuffers for notification sounds. Increase it when using many servers",
+      "cachedTimelineLimit": "Number of notes loaded from the DB cache when a column is restored",
+      "pullFireThreshold": "How far you need to pull before pull-to-refresh fires",
+      "swipeThreshold": "Minimum swipe distance needed to switch tabs",
+      "flingVelocity": "A fling at or above this velocity switches tabs immediately",
+      "wheelCooldown": "Time that prevents re-firing after switching tabs with the mouse wheel",
+      "scrollHideThreshold": "Accumulated scroll distance that hides the navbar. Smaller is more sensitive"
+    }
   }
 }
