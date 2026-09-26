@@ -214,3 +214,47 @@ fn refuses_to_start_without_a_socket_location() {
         .unwrap();
     assert_eq!(out.status.code(), Some(12));
 }
+
+/// 移行パッケージ (順序 7): 停止中の CLI で status → export → import が回り、取り込んだら
+/// パッケージが消える。空の data-dir なので中身は空だが、経路と JSON の形はここで押さえる
+#[test]
+fn migrate_status_export_import_round_trip_with_the_daemon_stopped() {
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("data");
+    let package_dir = dir.path().join("run").join("notecored");
+    std::fs::create_dir_all(&data_dir).unwrap();
+    let key = data_dir.join("test-secret.key");
+    let run = |args: &[&str]| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_notecored"));
+        cmd.arg("migrate")
+            .args(args)
+            .arg("--data-dir")
+            .arg(&data_dir)
+            .arg("--package-dir")
+            .arg(&package_dir)
+            .arg("--secret-key-file")
+            .arg(&key);
+        cmd.output().expect("run notecored migrate")
+    };
+    let status = run(&["status"]);
+    assert!(status.status.success(), "{status:?}");
+    let v: Value = serde_json::from_slice(&status.stdout).unwrap();
+    assert_eq!(v["secretsPresent"], false);
+    assert_eq!(v["packagePresent"], false);
+    assert_eq!(v["packageDir"], package_dir.display().to_string());
+
+    let exported = run(&["export"]);
+    assert!(exported.status.success(), "{exported:?}");
+    let v: Value = serde_json::from_slice(&exported.stdout).unwrap();
+    assert_eq!(v["written"], json!([]));
+    assert!(package_dir.join("migration.json").exists());
+    let v: Value = serde_json::from_slice(&run(&["status"]).stdout).unwrap();
+    assert_eq!(v["packagePresent"], true);
+
+    let imported = run(&["import"]);
+    assert!(imported.status.success(), "{imported:?}");
+    assert!(!package_dir.join("migration.json").exists());
+    assert!(!package_dir.join("migration.key").exists());
+    // 二度目は無いので失敗する
+    assert!(!run(&["import"]).status.success());
+}

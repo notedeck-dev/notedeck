@@ -39,12 +39,16 @@ pub fn parse(raw: &str) -> ClientConfig {
     json5::from_str::<ClientConfig>(raw).unwrap_or_default()
 }
 
-pub fn serialize(cfg: &ClientConfig) -> String {
-    let backend = match cfg.backend {
+pub fn serialize_backend(backend: Backend) -> &'static str {
+    match backend {
         Backend::Embedded => "embedded",
         Backend::PendingResident => "pending-resident",
         Backend::Resident => "resident",
-    };
+    }
+}
+
+pub fn serialize(cfg: &ClientConfig) -> String {
+    let backend = serialize_backend(cfg.backend);
     format!(
         "// この端末の構成 (#1106)。embedded = アプリに埋め込んだ notecore、resident = 常駐の notecored に中継\n{{\n  backend: '{backend}',\n}}\n"
     )

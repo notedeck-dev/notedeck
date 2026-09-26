@@ -83,6 +83,24 @@ impl Store {
     }
 }
 
+impl Store {
+    /// 既定 store にせず、この store の 1 エントリを読む (移行パッケージ用、notedeck#1106)
+    pub fn read(&self, user: &str) -> Result<Option<String>> {
+        let entry = self.build(crate::keychain::SERVICE, user, None)?;
+        match entry.get_password() {
+            Ok(v) => Ok(Some(v)),
+            Err(Error::NoEntry) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// この store の 1 エントリに書く (移行パッケージ用)
+    pub fn write(&self, user: &str, value: &str) -> Result<()> {
+        self.build(crate::keychain::SERVICE, user, None)?
+            .set_password(value)
+    }
+}
+
 impl CredentialStoreApi for Store {
     fn vendor(&self) -> String {
         "notecli file store (XChaCha20-Poly1305)".to_string()

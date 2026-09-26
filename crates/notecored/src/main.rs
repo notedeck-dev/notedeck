@@ -7,6 +7,7 @@ mod exit;
 mod heartbeat_timer;
 mod lock;
 mod logging;
+mod migrate;
 mod rpc_server;
 mod run;
 mod secrets;
@@ -37,6 +38,9 @@ enum Command {
     /// secret の鍵と本体の面倒を見る
     #[command(subcommand)]
     Secrets(secrets::SecretsCommand),
+    /// 移行パッケージの取り込み / 書き出し (停止中限定)
+    #[command(subcommand)]
+    Migrate(migrate::MigrateCommand),
 }
 
 #[derive(clap::Args, Debug, Clone, Default)]
@@ -71,6 +75,7 @@ fn main() {
         Command::Status(args) => status::status(args),
         Command::Service(cmd) => service::run(cmd),
         Command::Secrets(cmd) => secrets::run(cmd),
+        Command::Migrate(cmd) => migrate::run(cmd),
     };
     std::process::exit(code);
 }

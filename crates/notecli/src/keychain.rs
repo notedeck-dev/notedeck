@@ -1,7 +1,8 @@
 use crate::error::NoteDeckError;
 
 #[cfg(feature = "keyring")]
-const SERVICE: &str = "notedeck";
+/// keychain の service 名。移行パッケージ (notecore::migration) も同じ名前空間を写す
+pub const SERVICE: &str = "notedeck";
 
 /// Initialize the platform-specific credential store.
 /// Must be called once before any keychain operations.

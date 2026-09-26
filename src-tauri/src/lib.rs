@@ -17,6 +17,7 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 mod app_dir;
 mod client_layer;
 mod commands;
+mod core_switch;
 mod error;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
 /// [`http_server::build_openapi`].
@@ -256,6 +257,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             tracing::warn!("keychain unavailable ({e})");
         }
         notecore::migrations::run_fs(&app_dir)?;
+        // 切替の途中 (pending-resident) なら、埋め込みを開く前に完了させる (#1106 順序 7)
+        let configured_backend = core_switch::resolve_pending(&app_dir);
         // external gate が permissions.json5 を直接読むための所在 (#1099)
         notecore::permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
         // 前回、確認待ちのまま残った AI ターンを閉じる (#1133)
@@ -272,12 +275,12 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // クライアント層 (#1106 段階 3a): この端末の構成が resident なら、データ系
         // コマンドは常駐の notecored に中継し、DB / ストリーム / HEARTBEAT は開かない。
         // notecored が出すイベントは同じ名前で WebView に流す
-        let client_config = notecore::client_config::load(&app_dir.join(commands::SETTINGS_DIR));
         let resident = matches!(
-            client_config.backend,
+            configured_backend,
             notecore::client_config::Backend::Resident
         );
         if resident {
+            core_switch::ensure_started();
             match notecore::rpc::default_socket_path() {
                 Some(socket) => {
                     let emit_handle = app.handle().clone();
@@ -1225,6 +1228,10 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // OS 状態 (#931 / #935 / #928)
             commands::system_state_get,
             client_layer::client_layer_state,
+            commands::core_status,
+            commands::core_switch_to_resident,
+            commands::core_switch_to_embedded,
+            commands::core_cancel_pending,
             // Healthcheck (#644) — notecli doctor + ランタイム状態の自己診断
             commands::run_healthcheck,
             // 永続 API トークン (#709) — 外部アプリ向け名前付きトークンの発行/失効

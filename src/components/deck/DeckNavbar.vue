@@ -23,6 +23,7 @@ import {
   isGuestAccount,
   useAccountsStore,
 } from '@/stores/accounts'
+import { useClientLayerStore } from '@/stores/clientLayer'
 import { useConfirm } from '@/stores/confirm'
 import { isNavDivider, type NavItem, useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
@@ -74,6 +75,9 @@ const navItems = computed(() =>
   ),
 )
 const offlineModeStore = useOfflineModeStore()
+// コアの状態 (常駐の notecored に中継中か、切替が完了していないか)。常設なのでここで始める (#1106)
+const clientLayerStore = useClientLayerStore()
+clientLayerStore.start()
 const realtimeModeStore = useRealtimeModeStore()
 const windowsStore = useWindowsStore()
 const isCompact = useIsCompactLayout()
@@ -430,6 +434,15 @@ defineExpose({
             @click="hapticLight(); toggleRealtimeMode()"
           >
             <i :class="realtimeModeStore.enabled ? 'ti ti-bolt' : 'ti ti-bolt-off'" />
+          </button>
+          <button
+            v-if="(!navCollapsed || isCompact) && clientLayerStore.needsAttention"
+            class="_button"
+            :class="[$style.topBtn, clientLayerStore.state?.connected ? $style.coreConnected : $style.coreTrouble]"
+            :title="clientLayerStore.state?.connected ? i18n.ts._deckNavbar.coreConnected : i18n.ts._deckNavbar.coreTrouble"
+            @click="hapticLight(); closeDrawerAndDo(() => windowsStore.open('core'))"
+          >
+            <i class="ti ti-server" />
           </button>
         </div>
 
@@ -870,6 +883,22 @@ defineExpose({
 
 .pollingActive {
   color: var(--nd-modePolling, #9c27b0);
+
+  :global(.ti) {
+    opacity: 1;
+  }
+}
+
+.coreConnected {
+  color: var(--nd-accent);
+
+  :global(.ti) {
+    opacity: 1;
+  }
+}
+
+.coreTrouble {
+  color: var(--nd-error, #ec4137);
 
   :global(.ti) {
     opacity: 1;

@@ -377,6 +377,14 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     width: 440,
     maxHeight: 650,
   },
+  core: {
+    get label() {
+      return i18n.ts._windows.core
+    },
+    icon: 'ti ti-server',
+    width: 460,
+    maxHeight: 640,
+  },
   connectionEdit: {
     get label() {
       return i18n.ts._windows.connectionEdit

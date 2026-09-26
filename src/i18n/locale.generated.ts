@@ -190,6 +190,8 @@ export interface Locale {
     readonly "tutorial": string
     /** チュートリアル */
     readonly "tutorialEditor": string
+    /** コア */
+    readonly "core": string
   }
   readonly "_commands": {
     /** コマンドパレット */
@@ -2866,6 +2868,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "openFolder": string
   }
   readonly "_deckNavbar": {
+    /** 常駐のコア (notecored) に接続中 */
+    readonly "coreConnected": string
+    /** コアの接続に問題があります */
+    readonly "coreTrouble": string
     /** オンラインモードに切り替え */
     readonly "switchToOnline": string
     /** オフラインモードに切り替え */
@@ -5784,6 +5790,76 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "eachLoop": string
     /** Misskey API 呼び出し */
     readonly "apiCall": string
+  }
+  readonly "_coreContent": {
+    /** 今のコア */
+    readonly "current": string
+    /** コアは Misskey との通信・保存・AI を担う部分です。アプリに埋め込む (アプリを閉じると止まる) か、常駐の notecored に任せる (アプリを閉じても動き続ける) かを選べます。切り替えはアプリの再起動で完了します。 */
+    readonly "description": string
+    /** アプリに埋め込み */
+    readonly "modeEmbedded": string
+    /** 常駐 (notecored) */
+    readonly "modeResident": string
+    /** 常駐へ切り替え中 (再起動待ち) */
+    readonly "modePending": string
+    /** 接続中 */
+    readonly "connected": string
+    /** 未接続 */
+    readonly "disconnected": string
+    /** notecored の版がこのアプリと一致していません。notecored を更新してください。 */
+    readonly "fingerprintMismatch": string
+    /** 前回の起動で切り替えを完了できませんでした: */
+    readonly "switchFailed": string
+    /** この OS では常駐に切り替えられません (Linux のみ)。 */
+    readonly "unsupported": string
+    /** notecored */
+    readonly "binary": string
+    /** notecored が見つかりません。インストールしてからもう一度開いてください: */
+    readonly "notFound": string
+    /** 常駐のコアに切り替える */
+    readonly "switchTitle": string
+    /** Misskey のトークンと接続の secret が notecored の暗号化ファイルに複製されます。保護は OS のキーチェーンより弱くなります。切り替えはアプリの再起動で完了します。 */
+    readonly "switchMessage": string
+    /** 常駐に切り替える */
+    readonly "switchOk": string
+    /** もう一度切り替える */
+    readonly "retry": string
+    /** やめて埋め込みのまま使う */
+    readonly "cancel": string
+    /** 切り替えをやめました。埋め込みのまま使います。 */
+    readonly "cancelled": string
+    /** アプリを再起動すると切り替えが完了します。 */
+    readonly "restartToFinish": string
+    /** {count} 件の secret を書き出しました。アプリを再起動すると常駐に切り替わります。 */
+    readonly "exportedRestart_plural": PluralString<'count'>
+    /** 埋め込みに戻す */
+    readonly "backTitle": string
+    /** 常駐の notecored を止め、secret をこのアプリの保管先に戻します。戻し終えたら notecored 側の secret は消します。切り替えはアプリの再起動で完了します。 */
+    readonly "backMessage": string
+    /** 埋め込みに戻す */
+    readonly "backOk": string
+    /** {count} 件の secret を戻しました。アプリを再起動すると埋め込みに切り替わります。 */
+    readonly "importedRestart_plural": PluralString<'count'>
+    /** {count} 件の secret がこのアプリの保管先に入りませんでした。notecored 側の secret は消していません。 */
+    readonly "backRemaining_plural": PluralString<'count'>
+    /** 診断 */
+    readonly "diagnostics": string
+    /** 常駐サービス */
+    readonly "serviceState": string
+    /** 動作中 */
+    readonly "serviceActive": string
+    /** 停止 */
+    readonly "serviceInactive": string
+    /** notecored 側の secret */
+    readonly "secrets": string
+    /** あり */
+    readonly "secretsPresent": string
+    /** なし */
+    readonly "secretsAbsent": string
+    /** ログを見るコマンドをコピー */
+    readonly "copyJournal": string
+    /** コピーしました */
+    readonly "copied": string
   }
   readonly "_capabilities": {
     readonly "account": {
