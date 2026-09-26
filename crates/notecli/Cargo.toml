@@ -29,7 +29,6 @@ keyring-core = { version = "0.7", optional = true }
 axum = "0.8"
 utoipa = "5"
 utoipa-axum = "0.2"
-tower-http = { version = "0.6", features = ["cors"] }
 dirs = "6"
 clap = { version = "4", features = ["derive"] }
 colored = "2"

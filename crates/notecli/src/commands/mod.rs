@@ -123,7 +123,6 @@ pub async fn run_cli(
         Commands::Unfollow { user_id } => users::run_unfollow(&ctx, user_id).await,
         Commands::Accounts
         | Commands::Doctor
-        | Commands::Daemon { .. }
         | Commands::Login { .. }
         | Commands::Logout { .. }
         | Commands::Cache(..)
