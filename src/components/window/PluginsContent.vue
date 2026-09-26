@@ -18,6 +18,7 @@ import {
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
@@ -416,15 +417,15 @@ async function importPlugin() {
         </div>
         <div v-else :class="$style.nameRow">
           <span :class="$style.headerName">{{ plugin.name }}</span>
-          <button class="_button" :class="$style.renameBtn" title="名前を変更" @click="startRename">
+          <button class="_button" :class="$style.renameBtn" :title="i18n.ts._common.rename" @click="startRename">
             <i class="ti ti-pencil" />
           </button>
         </div>
         <div :class="$style.headerSub">
           v{{ plugin.version }}
           <template v-if="plugin.author"> · {{ plugin.author }}</template>
-          <span v-if="plugin.active" :class="$style.statusBadge">有効</span>
-          <span v-else :class="[$style.statusBadge, $style.statusBadgeInactive]">無効</span>
+          <span v-if="plugin.active" :class="$style.statusBadge">{{ i18n.ts._pluginsContent.enabled }}</span>
+          <span v-else :class="[$style.statusBadge, $style.statusBadgeInactive]">{{ i18n.ts._common.disabled }}</span>
         </div>
         <div v-if="plugin.description" :class="$style.headerDesc">{{ plugin.description }}</div>
       </div>
@@ -451,7 +452,7 @@ async function importPlugin() {
               v-if="isConfigCustomized(key as string)"
               class="_button"
               :class="$style.configResetBtn"
-              title="デフォルトに戻す"
+              :title="i18n.ts._common.resetToDefault"
               @click="resetConfig(key as string)"
             >
               <i class="ti ti-rotate" />
@@ -496,17 +497,17 @@ async function importPlugin() {
         @click="handleResetAllConfig"
       >
         <i class="ti ti-rotate" />
-        {{ confirmingResetConfig ? '本当にリセット？' : 'すべてデフォルトに戻す' }}
+        {{ confirmingResetConfig ? i18n.ts._common.confirmReset : i18n.ts._pluginsContent.resetAllToDefault }}
       </button>
     </div>
 
     <!-- Code tab -->
     <div v-show="isNewInstall || tab === 'code'" :class="$style.codePanel">
       <p v-if="isNewInstall" :class="$style.codeHint">
-        AiScript プラグインコードを貼り付けてインストール
+        {{ i18n.ts._pluginsContent.installHint }}
       </p>
       <p v-else :class="$style.codeHint">
-        プラグインの AiScript ソースコード — 編集後「保存して再起動」で反映
+        {{ i18n.ts._pluginsContent.codeHint }}
       </p>
       <AiScriptEditor
         v-model="editingCode"
@@ -537,7 +538,7 @@ async function importPlugin() {
         </div>
       </div>
       <div v-else :class="$style.logsEmpty">
-        ログはありません
+        {{ i18n.ts._pluginsContent.noLogs }}
       </div>
     </div>
 

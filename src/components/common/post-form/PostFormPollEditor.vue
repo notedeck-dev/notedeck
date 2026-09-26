@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { i18n } from '@/i18n'
 
 /**
  * 投稿フォームのアンケート編集ブロック (#707 MkPostForm 分割)。
@@ -104,7 +105,7 @@ watch(
       <input
         v-model="choices[i]"
         :class="$style.pollChoiceInput"
-        :placeholder="`選択肢 ${i + 1}`"
+        :placeholder="i18n.tsx._postFormPollEditor.choicePlaceholder({ n: i + 1 })"
       />
       <button
         v-if="choices.length > 2"
@@ -122,24 +123,24 @@ watch(
         :class="$style.pollAddBtn"
         @click="addChoice"
       >
-        <i class="ti ti-plus" /> 選択肢を追加
+        <i class="ti ti-plus" /> {{ i18n.ts._postFormPollEditor.addChoice }}
       </button>
       <label :class="$style.pollMultipleLabel">
         <input v-model="multiple" type="checkbox" />
-        複数選択
+        {{ i18n.ts._postFormPollEditor.multiple }}
       </label>
       <label :class="$style.pollExpiryLabel">
-        期限
+        {{ i18n.ts._postFormPollEditor.expiry }}
         <select
           v-model="expiryMode"
           :class="$style.pollExpirySelect"
           @change="onExpiryModeChange"
         >
-          <option value="">無期限</option>
+          <option value="">{{ i18n.ts._postFormPollEditor.noExpiry }}</option>
           <option v-for="p in expiryPresets" :key="p.ms" :value="String(p.ms)">
             {{ p.label }}
           </option>
-          <option value="at">日時指定</option>
+          <option value="at">{{ i18n.ts._postFormPollEditor.specifyDate }}</option>
         </select>
       </label>
       <input

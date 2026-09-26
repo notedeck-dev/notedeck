@@ -29,6 +29,7 @@ import {
   mergeThreadFragments,
   type ThreadFragment,
 } from '@/engine/threadMerge'
+import { i18n } from '@/i18n'
 import { resolveNoteUriFor } from '@/services/entityResolution'
 import {
   nestedVariantKey,
@@ -562,7 +563,7 @@ async function handlePosted(editedNoteId?: string) {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? '照会'"
+    :title="column.name ?? i18n.ts._columns.lookup"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
@@ -581,7 +582,7 @@ async function handlePosted(editedNoteId?: string) {
           v-model="queryInput"
           :class="$style.lookupInput"
           type="text"
-          placeholder="URLまたは@ユーザー名@ホスト"
+          :placeholder="i18n.ts._deckLookupColumn.placeholder"
           @keydown="onKeydown"
         />
         <button
@@ -606,12 +607,12 @@ async function handlePosted(editedNoteId?: string) {
         :message="lookupError"
         is-error
         :image-url="serverErrorImageUrl"
-        cta-label="再試行"
+        :cta-label="i18n.ts._common.retry"
         cta-icon="ti-refresh"
         @cta="performLookup"
       />
 
-      <ColumnEmptyState v-else-if="!mergedThread" message="URLを入力して照会" :image-url="serverInfoImageUrl" />
+      <ColumnEmptyState v-else-if="!mergedThread" :message="i18n.ts._deckLookupColumn.emptyThread" :image-url="serverInfoImageUrl" />
 
       <div v-else ref="lookupResultRef" :class="$style.lookupResult">
         <div v-if="isProbing" :class="$style.probeProgress">
@@ -664,12 +665,12 @@ async function handlePosted(editedNoteId?: string) {
         :message="lookupError"
         is-error
         :image-url="serverErrorImageUrl"
-        cta-label="再試行"
+        :cta-label="i18n.ts._common.retry"
         cta-icon="ti-refresh"
         @cta="performLookup"
       />
 
-      <ColumnEmptyState v-else-if="!result" message="URLまたは@ユーザー名を入力して照会" :image-url="serverInfoImageUrl" />
+      <ColumnEmptyState v-else-if="!result" :message="i18n.ts._deckLookupColumn.emptyResult" :image-url="serverInfoImageUrl" />
 
       <div v-else-if="result.type === 'Note'" ref="lookupResultRef" :class="$style.lookupResult">
         <div v-if="visibleAncestors.length > 0" :class="$style.ancestors">

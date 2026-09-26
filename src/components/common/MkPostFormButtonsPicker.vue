@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from 'vue'
+import { i18n } from '@/i18n'
 
 const PostFormEditorContent = defineAsyncComponent(
   () => import('@/components/window/PostFormEditorContent.vue'),
@@ -15,9 +16,9 @@ const emit = defineEmits<{
     <div :class="$style.header">
       <span :class="$style.title">
         <i class="ti ti-forms" />
-        投稿フォームボタン
+        {{ i18n.ts._mkPostFormButtonsPicker.title }}
       </span>
-      <button class="_button" :class="$style.closeBtn" title="閉じる" @click="emit('close')">
+      <button class="_button" :class="$style.closeBtn" :title="i18n.ts._common.close" @click="emit('close')">
         <i class="ti ti-x" />
       </button>
     </div>

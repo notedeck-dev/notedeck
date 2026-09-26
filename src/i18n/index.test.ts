@@ -38,6 +38,15 @@ describe('i18n', () => {
     expect(tsx()._ns.hello({})).toBe('{name} さん、こんにちは')
   })
 
+  it('数値の param は表示言語の書式で桁区切りする', () => {
+    setLocale('en-US', fixture)
+    expect(tsx()._ns.items_plural({ count: 1234, place: 'box' })).toBe(
+      '1,234 items in box',
+    )
+    setLocale('ja-JP', fixture)
+    expect(tsx()._ns.hello({ name: 12345 })).toBe('12,345 さん、こんにちは')
+  })
+
   it('複数形は表示言語の規則でカテゴリを選ぶ', () => {
     setLocale('en-US', fixture)
     expect(tsx()._ns.items_plural({ count: 1, place: 'box' })).toBe(

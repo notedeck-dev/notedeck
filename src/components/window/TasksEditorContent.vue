@@ -18,6 +18,7 @@ import { useEditorTabs } from '@/composables/useEditorTabs'
 import { usePointerReorder } from '@/composables/usePointerReorder'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import defaultTasksJson5 from '@/defaults/tasks.json5?raw'
+import { i18n } from '@/i18n'
 import { useTasksStore } from '@/stores/tasks'
 import { useToast } from '@/stores/toast'
 import { parseTasks, TasksParseError } from '@/tasks/schema'
@@ -417,15 +418,15 @@ function handleReset() {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'list-check', label: 'ビジュアル' },
-        { value: 'code', icon: 'code', label: 'コード' },
+        { value: 'visual', icon: 'list-check', label: i18n.ts._common.visual },
+        { value: 'code', icon: 'code', label: i18n.ts._common.code },
       ]"
     />
 
     <!-- Visual tab -->
     <div v-show="tab === 'visual'" :class="$style.visualPanel">
       <div :class="$style.visualHint">
-        宣言したタスクはコマンドパレットと Task Runner カラムから実行できます。
+        {{ i18n.ts._tasksEditorContent.visualHint }}
       </div>
 
       <datalist id="nd-task-groups">
@@ -447,7 +448,7 @@ function handleReset() {
             <i
               class="ti ti-grip-vertical"
               :class="$style.grip"
-              title="ドラッグで並び替え"
+              :title="i18n.ts._tasksEditorContent.dragToReorder"
               @pointerdown="startDrag(i, $event)"
               @click.stop
             />
@@ -455,13 +456,13 @@ function handleReset() {
             <div :class="$style.taskHeaderBody">
               <span :class="$style.taskLabel">
                 <i v-if="t.pinned" class="ti ti-pin-filled" :class="$style.pinIcon" title="Pinned" />
-                <i v-if="t.isDefault" class="ti ti-player-play-filled" :class="$style.defaultIcon" title="デフォルト実行対象" />
-                {{ t.label || '(無題)' }}
+                <i v-if="t.isDefault" class="ti ti-player-play-filled" :class="$style.defaultIcon" :title="i18n.ts._tasksEditorContent.defaultTask" />
+                {{ t.label || i18n.ts._tasksEditorContent.untitled }}
               </span>
               <span :class="$style.taskMeta">
                 <code :class="$style.method">{{ t.action.method }}</code>
                 <span v-if="t.group" :class="$style.groupBadge">{{ t.group }}</span>
-                <span v-if="t.inputs?.length" :class="$style.inputsBadge" title="入力を求める">
+                <span v-if="t.inputs?.length" :class="$style.inputsBadge" :title="i18n.ts._tasksEditorContent.promptsForInput">
                   <i class="ti ti-keyboard" />{{ t.inputs.length }}
                 </span>
               </span>
@@ -470,7 +471,7 @@ function handleReset() {
               <button
                 class="_button"
                 :class="[$style.iconBtn, $style.dangerBtn]"
-                title="削除"
+                :title="i18n.ts._common.delete"
                 @click="removeTask(i)"
               >
                 <i class="ti ti-trash" />
@@ -490,21 +491,21 @@ function handleReset() {
               />
             </label>
             <label :class="$style.field">
-              <span :class="$style.fieldLabel">ラベル</span>
+              <span :class="$style.fieldLabel">{{ i18n.ts._tasksEditorContent.label }}</span>
               <input
                 v-model="t.label"
                 type="text"
                 :class="$style.input"
-                placeholder="UI 表示名"
+                :placeholder="i18n.ts._tasksEditorContent.labelPlaceholder"
               />
             </label>
             <label :class="$style.field">
-              <span :class="$style.fieldLabel">説明</span>
+              <span :class="$style.fieldLabel">{{ i18n.ts._tasksEditorContent.description }}</span>
               <input
                 :value="t.description ?? ''"
                 type="text"
                 :class="$style.input"
-                placeholder="任意 (ツールチップ用の長文)"
+                :placeholder="i18n.ts._tasksEditorContent.descriptionPlaceholder"
                 @input="(e) => {
                   const v = (e.target as HTMLInputElement).value
                   if (v) t.description = v
@@ -518,7 +519,7 @@ function handleReset() {
                 :value="t.detail ?? ''"
                 type="text"
                 :class="$style.input"
-                placeholder="ラベル下の 1 行補足 (任意)"
+                :placeholder="i18n.ts._tasksEditorContent.detailPlaceholder"
                 @input="(e) => setOptionalString(t, 'detail', (e.target as HTMLInputElement).value)"
               />
             </label>
@@ -531,7 +532,7 @@ function handleReset() {
                   type="text"
                   :class="$style.input"
                   list="nd-task-groups"
-                  placeholder="自由文字列 (任意)"
+                  :placeholder="i18n.ts._tasksEditorContent.groupPlaceholder"
                   @input="(e) => setOptionalString(t, 'group', (e.target as HTMLInputElement).value)"
                 />
               </label>
@@ -565,19 +566,19 @@ function handleReset() {
                   @change="(e) => setIsDefault(t, (e.target as HTMLInputElement).checked)"
                 />
                 <i class="ti ti-player-play-filled" :class="$style.inlineIcon" />
-                デフォルト実行対象 (1 件のみ)
+                {{ i18n.ts._tasksEditorContent.defaultTaskOnlyOne }}
               </label>
             </div>
 
             <fieldset :class="$style.fieldset">
-              <legend :class="$style.legend">アカウント</legend>
+              <legend :class="$style.legend">{{ i18n.ts._tasksEditorContent.account }}</legend>
               <label :class="$style.radioRow">
                 <input
                   type="radio"
                   :checked="accountIdMode(t) === 'active'"
                   @change="setAccountIdMode(t, 'active')"
                 />
-                現在アクティブ
+                {{ i18n.ts._tasksEditorContent.accountActive }}
               </label>
               <label :class="$style.radioRow">
                 <input
@@ -585,7 +586,7 @@ function handleReset() {
                   :checked="accountIdMode(t) === 'first'"
                   @change="setAccountIdMode(t, 'first')"
                 />
-                最初のログイン済み
+                {{ i18n.ts._tasksEditorContent.accountFirst }}
               </label>
               <label :class="$style.radioRow">
                 <input
@@ -593,7 +594,7 @@ function handleReset() {
                   :checked="accountIdMode(t) === 'specific'"
                   @change="setAccountIdMode(t, 'specific')"
                 />
-                指定 ID
+                {{ i18n.ts._tasksEditorContent.accountSpecific }}
                 <input
                   v-if="accountIdMode(t) === 'specific'"
                   v-model="t.accountId as string"
@@ -605,7 +606,7 @@ function handleReset() {
             </fieldset>
 
             <fieldset :class="$style.fieldset">
-              <legend :class="$style.legend">アクション (api)</legend>
+              <legend :class="$style.legend">{{ i18n.ts._tasksEditorContent.action }}</legend>
               <label :class="$style.field">
                 <span :class="$style.fieldLabel">method</span>
                 <input
@@ -628,14 +629,14 @@ function handleReset() {
             </fieldset>
 
             <fieldset :class="$style.fieldset">
-              <legend :class="$style.legend">表示オプション (presentation)</legend>
+              <legend :class="$style.legend">{{ i18n.ts._tasksEditorContent.presentation }}</legend>
               <label :class="$style.checkboxRow">
                 <input
                   type="checkbox"
                   :checked="t.presentation?.revealOnRun !== false"
                   @change="(e) => setPresentation(t, 'revealOnRun', (e.target as HTMLInputElement).checked ? null : false)"
                 />
-                実行時に履歴で自動選択する (revealOnRun)
+                {{ i18n.ts._tasksEditorContent.revealOnRun }}
               </label>
               <label :class="$style.checkboxRow">
                 <input
@@ -643,19 +644,19 @@ function handleReset() {
                   :checked="t.presentation?.clearHistoryOnRun === true"
                   @change="(e) => setPresentation(t, 'clearHistoryOnRun', (e.target as HTMLInputElement).checked ? true : null)"
                 />
-                実行時に過去履歴をクリア (clearHistoryOnRun)
+                {{ i18n.ts._tasksEditorContent.clearHistoryOnRun }}
               </label>
             </fieldset>
 
             <fieldset :class="$style.fieldset">
               <legend :class="$style.legend">
-                入力フィールド
+                {{ i18n.ts._tasksEditorContent.inputFields }}
                 <button
                   class="_button"
                   :class="$style.smallBtn"
                   @click="addInput(t)"
                 >
-                  <i class="ti ti-plus" /> 追加
+                  <i class="ti ti-plus" /> {{ i18n.ts._common.add }}
                 </button>
               </legend>
               <div
@@ -681,7 +682,7 @@ function handleReset() {
                   <button
                     class="_button"
                     :class="[$style.iconBtn, $style.dangerBtn]"
-                    title="削除"
+                    :title="i18n.ts._common.delete"
                     @click="removeInput(t, ii)"
                   >
                     <i class="ti ti-x" />
@@ -691,21 +692,21 @@ function handleReset() {
                   v-model="input.prompt"
                   type="text"
                   :class="$style.input"
-                  placeholder="プロンプト"
+                  :placeholder="i18n.ts._tasksEditorContent.prompt"
                 />
                 <textarea
                   v-if="input.type === 'pick'"
                   :value="pickOptionsToText(input)"
                   :class="[$style.input, $style.textarea]"
                   rows="3"
-                  placeholder="選択肢 (1行に1つ)"
+                  :placeholder="i18n.ts._tasksEditorContent.pickOptionsPlaceholder"
                   @input="(e) => setPickOptions(input, (e.target as HTMLTextAreaElement).value)"
                 />
                 <input
                   :value="input.default ?? ''"
                   type="text"
                   :class="$style.input"
-                  placeholder="default (任意)"
+                  :placeholder="i18n.ts._tasksEditorContent.defaultPlaceholder"
                   @input="(e) => {
                     const v = (e.target as HTMLInputElement).value
                     if (v) input.default = v
@@ -714,19 +715,19 @@ function handleReset() {
                 />
               </div>
               <div v-if="!t.inputs?.length" :class="$style.inputsEmpty">
-                入力なし — タスクは即座に実行されます
+                {{ i18n.ts._tasksEditorContent.noInputs }}
               </div>
             </fieldset>
           </div>
         </div>
 
         <div v-if="visualTasks.length === 0" :class="$style.emptyState">
-          タスクがまだありません
+          {{ i18n.ts._tasksEditorContent.empty }}
         </div>
 
         <button class="_button" :class="$style.addBtn" @click="addTask">
           <i class="ti ti-plus" />
-          タスクを追加
+          {{ i18n.ts._tasksEditorContent.addTask }}
         </button>
       </div>
     </div>
@@ -734,7 +735,7 @@ function handleReset() {
     <!-- Code tab -->
     <div v-show="tab === 'code'" :class="$style.codePanel">
       <div :class="$style.codeHint">
-        変数: <code>${'$'}{input:&lt;id&gt;}</code>
+        {{ i18n.ts._tasksEditorContent.variables }} <code>${'$'}{input:&lt;id&gt;}</code>
         <code>${'$'}{account.id}</code>
         <code>${'$'}{account.host}</code>
       </div>
@@ -751,7 +752,7 @@ function handleReset() {
       </div>
       <div v-else-if="loaded && code.trim()" :class="$style.codeSuccess">
         <i class="ti ti-check" />
-        {{ taskCount }} タスクを解析済み{{ saving ? ' · 保存中…' : '' }}
+        {{ i18n.tsx._tasksEditorContent.parsedTasks_plural({ count: taskCount }) }}{{ saving ? i18n.ts._tasksEditorContent.savingSuffix : '' }}
       </div>
       <button
         class="_button"
@@ -760,7 +761,7 @@ function handleReset() {
         @click="applyFromCode"
       >
         <i class="ti ti-refresh" />
-        ビジュアルに同期
+        {{ i18n.ts._common.syncToVisual }}
       </button>
     </div>
 
@@ -773,7 +774,7 @@ function handleReset() {
           @click="importTasks"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
+          {{ importError ? i18n.ts._tasksEditorContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"
@@ -781,7 +782,7 @@ function handleReset() {
           @click="exportTasks"
         >
           <i class="ti ti-clipboard-copy" />
-          {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+          {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
         </button>
       </div>
       <button
@@ -790,7 +791,7 @@ function handleReset() {
         @click="handleReset"
       >
         <i class="ti ti-trash" />
-        {{ confirmingReset ? '本当にリセット？' : 'サンプルに戻す' }}
+        {{ confirmingReset ? i18n.ts._common.confirmReset : i18n.ts._tasksEditorContent.resetToSample }}
       </button>
     </div>
   </div>

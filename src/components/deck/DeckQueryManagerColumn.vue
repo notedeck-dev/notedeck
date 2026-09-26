@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
 import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
@@ -311,7 +312,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'クエリ'"
+    :title="column.name ?? i18n.ts._columns.queryManager"
     :theme-vars="columnThemeVars"
   >
     <template #header-icon>
@@ -323,7 +324,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
         v-if="viewTab === 'installed' && canEdit"
         class="_button"
         :class="$style.headerBtn"
-        title="新規クエリを作成"
+        :title="i18n.ts._deckQueryManagerColumn.create"
         @click.stop="createNew"
       >
         <i class="ti ti-plus" />
@@ -331,7 +332,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
     </template>
 
     <div ref="columnContentRef" :class="$style.wrapper">
-      <SafeModeNotice subject="クエリ" />
+      <SafeModeNotice :subject="i18n.ts._deckQueryManagerColumn.safeModeSubject" />
 
       <ColumnTabs
         :tabs="tabDefs"
@@ -345,13 +346,13 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
           v-model="searchQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="クエリを探す"
+          :placeholder="i18n.ts._deckQueryManagerColumn.search"
         />
         <div v-if="viewTab === 'installed'" :class="$style.searchActions">
           <button
             class="_button"
             :class="[$style.filterBtn, activeFilter === 'enabled' && $style.filterBtnActive]"
-            title="有効なクエリ"
+            :title="i18n.ts._deckQueryManagerColumn.enabledQueries"
             @click="setFilter(activeFilter === 'enabled' ? 'all' : 'enabled')"
           >
             <i class="ti ti-check" />
@@ -359,7 +360,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
           <button
             class="_button"
             :class="[$style.filterBtn, activeFilter === 'disabled' && $style.filterBtnActive]"
-            title="無効なクエリ"
+            :title="i18n.ts._deckQueryManagerColumn.disabledQueries"
             @click="setFilter(activeFilter === 'disabled' ? 'all' : 'disabled')"
           >
             <i class="ti ti-circle-off" />
@@ -372,12 +373,11 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
         <div :class="$style.list">
           <div v-if="visibleQueries.length === 0" :class="$style.empty">
             <i class="ti ti-filter" :class="$style.emptyIcon" />
-            <span v-if="searchQuery">一致するクエリがありません</span>
+            <span v-if="searchQuery">{{ i18n.ts._deckQueryManagerColumn.noMatches }}</span>
             <template v-else>
-              <span>名前付きクエリはまだありません</span>
+              <span>{{ i18n.ts._deckQueryManagerColumn.empty }}</span>
               <span :class="$style.emptyHint">
-                クエリはカラムの視界を定義する AiScript 式です。作成すると
-                各ノートカラムのクエリ設定からトグルで適用できます。
+                {{ i18n.ts._deckQueryManagerColumn.emptyHint }}
               </span>
               <button
                 v-if="canEdit"
@@ -385,7 +385,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
                 :class="$style.emptyLink"
                 @click="createNew"
               >
-                クエリを作成
+                {{ i18n.ts._deckQueryManagerColumn.createQuery }}
               </button>
             </template>
           </div>
@@ -423,13 +423,13 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
               @click="showLibraryPicker = !showLibraryPicker"
             >
               <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? '閉じる' : 'ライブラリから追加' }}
+              {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._common.addFromLibrary }}
             </button>
           </div>
 
           <div v-if="showLibraryPicker" :class="$style.pickerWrap">
             <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              ライブラリに追加可能なクエリがありません。
+              {{ i18n.ts._deckQueryManagerColumn.noLibraryCandidates }}
             </div>
             <QueryCard
               v-for="query in libraryCandidates"
@@ -468,18 +468,18 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 
         <div v-if="misStore.queriesLoading" :class="$style.empty">
           <i class="ti ti-loader-2 nd-spin" />
-          読み込み中...
+          {{ i18n.ts._common.loading }}
         </div>
 
         <div v-else-if="misStore.queriesError" :class="$style.empty">
           <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>ストアに接続できません</span>
+          <span>{{ i18n.ts._common.storeUnavailable }}</span>
           <button
             class="_button"
             :class="$style.emptyLink"
             @click="misStore.refreshQueries()"
           >
-            再試行
+            {{ i18n.ts._common.retry }}
           </button>
         </div>
 
@@ -510,7 +510,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
             :class="$style.empty"
           >
             <i class="ti ti-filter" :class="$style.emptyIcon" />
-            <span>一致するクエリがありません</span>
+            <span>{{ i18n.ts._deckQueryManagerColumn.noMatches }}</span>
           </div>
         </div>
       </template>

@@ -10,7 +10,9 @@ import {
 } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type { NormalizedUserDetail, ServerAdapter } from '@/adapters/types'
+import I18n from '@/components/common/I18n.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useIsCompactLayout } from '@/stores/ui'
 import type { FollowState } from '@/utils/followAction'
@@ -189,12 +191,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         </div>
 
         <div class="user-stats" :class="$style.popupStats" :data-own="isOwnUser">
-          <span><b class="user-stat-count">{{ formatCount(user.notesCount) }}</b> ノート</span>
-          <span><b class="user-stat-count">{{ formatCount(user.followingCount) }}</b> フォロー</span>
-          <span><b class="user-stat-count">{{ formatCount(user.followersCount) }}</b> フォロワー</span>
+          <I18n :src="i18n.ts._mkUserPopup.notesCount"><template #count><b class="user-stat-count">{{ formatCount(user.notesCount) }}</b></template></I18n>
+          <I18n :src="i18n.ts._mkUserPopup.followingCount"><template #count><b class="user-stat-count">{{ formatCount(user.followingCount) }}</b></template></I18n>
+          <I18n :src="i18n.ts._mkUserPopup.followersCount"><template #count><b class="user-stat-count">{{ formatCount(user.followersCount) }}</b></template></I18n>
         </div>
 
-        <div v-if="user.isFollowed" :class="$style.popupBadge">フォローされています</div>
+        <div v-if="user.isFollowed" :class="$style.popupBadge">{{ i18n.ts._mkUserPopup.followsYou }}</div>
 
         <!-- ネイティブ action としてのフォローボタン (#752)。プラグイン action は
              引き続きメニュー面のみ (ポップアップ=プレビューの原則の例外判断) -->
@@ -214,7 +216,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
         <div v-if="user.host" :class="$style.remoteBadge">
           <i class="ti ti-info-circle" />
-          リモートユーザー
+          {{ i18n.ts._mkUserPopup.remoteUser }}
         </div>
 
       </div>

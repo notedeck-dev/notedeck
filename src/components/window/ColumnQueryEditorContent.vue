@@ -2,6 +2,7 @@
 import { Parser } from '@syuilo/aiscript'
 import { computed, ref } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
+import I18n from '@/components/common/I18n.vue'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
 import type { EditorAction } from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
@@ -10,6 +11,7 @@ import {
   historyBasename,
   openEditHistoryWindow,
 } from '@/composables/useEditHistoryWindow'
+import { i18n } from '@/i18n'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
 import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
@@ -192,8 +194,8 @@ async function save(): Promise<void> {
       :name="queryName || namedQuery.name"
     >
       <template #sub>
-        <span v-if="namedQuery.storeId" :class="$style.headerBadge">ストア</span>
-        <span v-else :class="$style.headerBadge">ローカル</span>
+        <span v-if="namedQuery.storeId" :class="$style.headerBadge">{{ i18n.ts._common.store }}</span>
+        <span v-else :class="$style.headerBadge">{{ i18n.ts._common.local }}</span>
       </template>
     </EditorItemHeader>
 
@@ -201,24 +203,24 @@ async function save(): Promise<void> {
       v-model="queryName"
       :class="$style.nameInput"
       type="text"
-      placeholder="クエリ名"
+      :placeholder="i18n.ts._columnQueryEditorContent.queryName"
     />
     <input
       v-model="queryDescription"
       :class="$style.descInput"
       type="text"
-      placeholder="説明 (任意)"
+      :placeholder="i18n.ts._columnQueryEditorContent.descriptionOptional"
     />
 
     <div :class="$style.hint">
-      AiScript 式でカラムに流すノートを定義します (true = 表示)。
-      例: <code>note.text != null && note.text.incl("misskey")</code>。
-      カラムへの適用はタイムラインカラムのフィルタメニューで切り替えます。
+      <I18n :src="i18n.ts._columnQueryEditorContent.hint">
+        <template #example><code>note.text != null && note.text.incl("misskey")</code></template>
+      </I18n>
     </div>
 
     <AiScriptEditor
       v-model="source"
-      placeholder="note.text != null && note.text.incl(&quot;キーワード&quot;)"
+      :placeholder="i18n.ts._columnQueryEditorContent.sourcePlaceholder"
       max-height="320px"
       auto-height
     />
@@ -227,38 +229,38 @@ async function save(): Promise<void> {
     <div v-if="source.trim() !== ''" :class="$style.status">
       <template v-if="compiled?.ok">
         <span :class="$style.statusFast">
-          <i class="ti ti-filter-check" />高速クエリ (QIR {{ compiled.nodeCount }} ノード)
+          <i class="ti ti-filter-check" />{{ i18n.tsx._columnQueryEditorContent.fastQuery_plural({ count: compiled.nodeCount }) }}
         </span>
         <span v-if="dryRun" :class="$style.dryRun">
-          直近の TL カラム {{ dryRun.total }} 件中 {{ dryRun.match }} 件通過<template
+          {{ i18n.tsx._columnQueryEditorContent.dryRun({ total: dryRun.total, match: dryRun.match }) }}<template
             v-if="dryRun.error > 0"
-          >・エラー {{ dryRun.error }} 件 (除外)</template>
+          >{{ i18n.tsx._columnQueryEditorContent.dryRunErrors_plural({ count: dryRun.error }) }}</template>
         </span>
         <!-- null ガード漏れ (V25): 保存はできるが、まず直す導線を出す -->
         <ul v-if="warnings.length > 0" :class="$style.warnings">
           <li v-for="w in warnings" :key="w.field">
             <i class="ti ti-alert-triangle" />
-            <span v-if="w.line != null" :class="$style.diagLoc">{{ w.line }}行:</span>
+            <span v-if="w.line != null" :class="$style.diagLoc">{{ i18n.tsx._columnQueryEditorContent.lineLabel({ line: w.line }) }}</span>
             {{ w.message }}
             <button
               v-if="buildGuarded(w.guard) !== null"
               class="_button"
               :class="$style.fixButton"
-              :title="`末尾の式を ${w.guard} で守ります`"
+              :title="i18n.tsx._columnQueryEditorContent.guardTitle({ guard: w.guard })"
               @click="applyGuard(w.guard)"
             >
-              ガードを入れる
+              {{ i18n.ts._columnQueryEditorContent.addGuard }}
             </button>
           </li>
         </ul>
       </template>
       <template v-else-if="isDegraded">
         <span :class="$style.statusSlow">
-          <i class="ti ti-hourglass" />逐次適用 (1 件ずつ判定するため検索では使えません)
+          <i class="ti ti-hourglass" />{{ i18n.ts._columnQueryEditorContent.sequential }}
         </span>
         <ul :class="$style.degradedReasons">
           <li v-for="(d, i) in diagnostics" :key="i">
-            <span v-if="d.line != null" :class="$style.diagLoc">{{ d.line }}行:</span>
+            <span v-if="d.line != null" :class="$style.diagLoc">{{ i18n.tsx._columnQueryEditorContent.lineLabel({ line: d.line }) }}</span>
             {{ d.message }}
           </li>
         </ul>
@@ -266,7 +268,7 @@ async function save(): Promise<void> {
       <ul v-else :class="$style.diagnostics">
         <li v-for="(d, i) in diagnostics" :key="i">
           <i class="ti ti-alert-triangle" />
-          <span v-if="d.line != null" :class="$style.diagLoc">{{ d.line }}行:</span>
+          <span v-if="d.line != null" :class="$style.diagLoc">{{ i18n.tsx._columnQueryEditorContent.lineLabel({ line: d.line }) }}</span>
           {{ d.message }}
         </li>
       </ul>
@@ -277,7 +279,7 @@ async function save(): Promise<void> {
       :actions="historyActions"
       :primary="{
         key: 'save',
-        label: warnings.length > 0 ? 'このまま保存' : '保存',
+        label: warnings.length > 0 ? i18n.ts._columnQueryEditorContent.saveAnyway : i18n.ts._common.save,
         icon: 'device-floppy',
         disabled: !canSave || !isDirty,
       }"

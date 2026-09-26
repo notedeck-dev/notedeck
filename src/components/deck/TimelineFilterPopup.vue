@@ -3,6 +3,7 @@ import { ref, toRef } from 'vue'
 import type { TimelineFilter } from '@/adapters/types'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 
 const props = defineProps<{
   show: boolean
@@ -68,7 +69,7 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
     @click.stop
   >
     <!-- 組込トグルが無いカラム (クエリトグルのみ) では見出しごと隠す (#841) -->
-    <div v-if="filterKeys.length > 0" :class="$style.filterPopupHeader">フィルター</div>
+    <div v-if="filterKeys.length > 0" :class="$style.filterPopupHeader">{{ i18n.ts._timelineFilterPopup.filter }}</div>
     <div
       v-for="key in filterKeys"
       :key="key"
@@ -88,7 +89,7 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
 
     <!-- 名前付きクエリのカスタムフィルタトグル (#783、AND 合成) -->
     <template v-if="namedQueries && namedQueries.length > 0">
-      <div :class="$style.filterPopupHeader">クエリ</div>
+      <div :class="$style.filterPopupHeader">{{ i18n.ts._columns.queryManager }}</div>
       <div
         v-for="q in namedQueries"
         :key="q.id"
@@ -103,9 +104,9 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
           v-if="q.disabled"
           class="_button"
           :class="$style.disabledChip"
-          title="このクエリは無効です — 押すとクエリ管理カラムを開きます"
+          :title="i18n.ts._timelineFilterPopup.disabledQueryHint"
           @click.stop="emit('openManager')"
-        >無効</button>
+        >{{ i18n.ts._common.disabled }}</button>
         <button
           class="nd-toggle-switch"
           :class="{ on: isQueryApplied(q.id) }"

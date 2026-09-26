@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
 import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES, faviconUrl } from '@/data/connectionTemplates'
+import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
 import AiSettingsSection from './AiSettingsSection.vue'
 
@@ -62,14 +63,14 @@ function openConnectionsWindow(): void {
 <template>
   <AiSettingsSection
     icon="ti-plug-connected"
-    title="AI 接続"
-    :badge="currentConnection ? currentConnection.name : '未選択'"
+    :title="i18n.ts._aiConnectionSection.title"
+    :badge="currentConnection ? currentConnection.name : i18n.ts._aiConnectionSection.notSelected"
     :badge-icon="currentConnection ? 'ti-shield-check' : 'ti-shield-off'"
     :badge-ok="!!currentConnection"
   >
     <div :class="$style.keyHint">
       <i class="ti ti-info-circle" />
-      API キーは Secret Vault (OS キーチェーン) に保管され、フロントエンドや AI には渡りません。接続の追加・編集は「接続」ウィンドウで行います。
+      {{ i18n.ts._aiConnectionSection.keyHint }}
     </div>
     <div v-if="aiConnections.length > 0" :class="$style.grid">
       <button
@@ -101,7 +102,7 @@ function openConnectionsWindow(): void {
     <div v-else :class="$style.connEmpty">
       <i class="ti ti-info-circle" />
       <span>
-        AI プロバイダー接続がありません。「接続」ウィンドウのテンプレートから接続を追加してください。
+        {{ i18n.ts._aiConnectionSection.noConnections }}
       </span>
     </div>
     <button
@@ -110,16 +111,16 @@ function openConnectionsWindow(): void {
       @click="openConnectionsWindow"
     >
       <i class="ti ti-plug" />
-      接続を追加 / 管理
+      {{ i18n.ts._aiConnectionSection.manageConnections }}
     </button>
   </AiSettingsSection>
 
-  <AiSettingsSection v-if="currentConnection" icon="ti-cube" title="モデル">
+  <AiSettingsSection v-if="currentConnection" icon="ti-cube" :title="i18n.ts._aiConnectionSection.model">
     <input
       v-model="currentModel"
       :class="$style.input"
       type="text"
-      placeholder="claude-sonnet-5, gpt-5.4-mini, moonshotai/kimi-k3 など"
+      :placeholder="i18n.ts._aiConnectionSection.modelPlaceholder"
     />
   </AiSettingsSection>
 </template>

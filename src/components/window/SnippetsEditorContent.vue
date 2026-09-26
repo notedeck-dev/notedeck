@@ -8,6 +8,7 @@ import { DEFAULT_AISCRIPT_SNIPPETS } from '@/aiscript/snippets/defaultSnippets'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { useToast } from '@/stores/toast'
 import {
   isTauri,
@@ -213,7 +214,7 @@ function handleReset() {
     <div :class="$style.editorPanel">
       <div :class="$style.codePanel">
         <div :class="$style.codeHint">
-          VSCode 互換のスニペット — prefix で補完に出ます
+          {{ i18n.ts._snippetsEditorContent.codeHint }}
         </div>
 
         <CodeEditor
@@ -243,7 +244,7 @@ function handleReset() {
             @click="importSnippets"
           >
             <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-            {{ importError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
+            {{ importError ? i18n.ts._snippetsEditorContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
           </button>
           <button
             class="_button"
@@ -251,7 +252,7 @@ function handleReset() {
             @click="exportSnippets"
           >
             <i class="ti ti-clipboard-copy" />
-            {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+            {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
           </button>
         </div>
         <button
@@ -260,7 +261,7 @@ function handleReset() {
           @click="handleReset"
         >
           <i class="ti ti-refresh" />
-          {{ confirmingReset ? '本当に戻す？' : 'デフォルトに戻す' }}
+          {{ confirmingReset ? i18n.ts._snippetsEditorContent.confirmReset : i18n.ts._common.resetToDefault }}
         </button>
       </div>
     </div>

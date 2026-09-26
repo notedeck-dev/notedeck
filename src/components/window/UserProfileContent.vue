@@ -33,6 +33,7 @@ import UserProfileNotesList from '@/components/window/user-profile/UserProfileNo
 import UserProfilePagesPane from '@/components/window/user-profile/UserProfilePagesPane.vue'
 import UserProfilePlayPane from '@/components/window/user-profile/UserProfilePlayPane.vue'
 import UserProfileQrCode from '@/components/window/user-profile/UserProfileQrCode.vue'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 
 const MkPostForm = defineAsyncComponent(
@@ -709,9 +710,9 @@ async function handlePosted(editedNoteId?: string) {
       <!-- Remote user caution -->
       <div v-if="user.host && topTab === 'overview'" :class="$style.remoteCaution">
         <i class="ti ti-alert-triangle" style="margin-right: 8px;" />
-        リモートユーザーのため、情報が不完全です。
+        {{ i18n.ts._userProfileContent.remoteCaution }}
         <a v-if="remoteProfileUrl" :class="$style.remoteCautionLink" href="#" @click.prevent="openRemoteProfile">
-          リモートで表示
+          {{ i18n.ts._userProfileContent.showOnRemote }}
         </a>
       </div>
 
@@ -735,7 +736,7 @@ async function handlePosted(editedNoteId?: string) {
         <div v-if="pinnedNotes.length > 0 && topTab === 'overview'" :class="$style.pinnedSection">
           <div :class="$style.pinnedHeader">
             <i class="ti ti-pin" />
-            ピン留め
+            {{ i18n.ts._userProfileContent.pinned }}
           </div>
           <MkNote
             v-for="note in pinnedNotes"
@@ -781,7 +782,7 @@ async function handlePosted(editedNoteId?: string) {
           </div>
           <ColumnEmptyState
             v-else-if="!hasFilesContent"
-            message="ファイルはありません"
+            :message="i18n.ts._userProfileContent.noFiles"
             :image-url="serverInfoImageUrl"
           />
         </div>
@@ -816,7 +817,7 @@ async function handlePosted(editedNoteId?: string) {
                   class="_emojiMuted"
                   role="img"
                   :aria-label="entry.type"
-                  :title="`${entry.type} (ミュート中)`"
+                  :title="i18n.tsx._userProfileContent.mutedReaction({ reaction: entry.type })"
                 />
                 <img
                   v-else-if="getReactionEntryUrl(entry)"
@@ -858,7 +859,7 @@ async function handlePosted(editedNoteId?: string) {
           />
           <ColumnEmptyState
             v-else-if="reactionEntries.length === 0"
-            message="リアクションはありません"
+            :message="i18n.ts._userProfileContent.noReactions"
             :image-url="serverInfoImageUrl"
           />
         </div>

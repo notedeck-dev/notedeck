@@ -6,6 +6,7 @@
  * 管理 UI 自体は塞がない — セーフモードは「暴走している拡張を直すために入る」
  * モードなので、直す手段まで消してしまうと脱出ハッチとして機能しない。
  */
+import { i18n } from '@/i18n'
 import { readSafeMode } from '@/utils/safeMode'
 
 defineProps<{
@@ -19,7 +20,7 @@ const isSafeMode = readSafeMode()
 <template>
   <div v-if="isSafeMode" :class="$style.notice">
     <i class="ti ti-shield-half" />
-    <span>セーフモードで起動中のため{{ subject }}は適用されていません。編集内容は保存され、通常起動で適用されます。</span>
+    <span>{{ i18n.tsx._safeModeNotice.notice({ subject }) }}</span>
   </div>
 </template>
 

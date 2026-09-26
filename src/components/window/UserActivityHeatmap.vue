@@ -10,6 +10,7 @@ import {
 } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type { UserNotesChart } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useServersStore } from '@/stores/servers'
 import { useThemeStore } from '@/stores/theme'
@@ -228,7 +229,7 @@ watch(
       <!-- canvas は常時マウント。状態表示は overlay で重ねる -->
       <canvas ref="canvasRef" />
       <div v-if="state !== 'ok'" :class="$style.overlay">
-        <span v-if="state === 'loading'">読み込み中...</span>
+        <span v-if="state === 'loading'">{{ i18n.ts._common.loading }}</span>
         <template v-else-if="state === 'error'">
           <img
             v-if="serverErrorImageUrl"
@@ -237,7 +238,7 @@ watch(
             alt=""
           />
           <span :class="$style.errorText">
-            アクティビティを表示できません
+            {{ i18n.ts._userActivityHeatmap.unavailable }}
           </span>
         </template>
       </div>

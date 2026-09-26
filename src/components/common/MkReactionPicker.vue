@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import type { ServerEmoji } from '@/adapters/types'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { emojiCharByCategory, unicodeEmojiCategories } from '@/data/emojilist'
+import { i18n } from '@/i18n'
 import { useEmojisStore } from '@/stores/emojis'
 import { usePinnedReactionsStore } from '@/stores/pinnedReactions'
 import { useRecentEmojisStore } from '@/stores/recentEmojis'
@@ -224,7 +225,7 @@ onMounted(() => {
         v-model="searchQuery"
         :class="$style.pickerSearchInput"
         type="text"
-        placeholder="絵文字を検索..."
+        :placeholder="i18n.ts._mkReactionPicker.searchPlaceholder"
         @click.stop
         @keydown="onSearchKeydown"
       />
@@ -235,7 +236,7 @@ onMounted(() => {
       <!-- Search results -->
       <template v-if="searchResults">
         <div v-if="searchResults.custom.length === 0 && searchResults.unicode.length === 0" :class="$style.pickerEmpty">
-          絵文字が見つかりません
+          {{ i18n.ts._mkReactionPicker.notFound }}
         </div>
         <template v-else>
           <div v-if="searchResults.custom.length > 0" :class="$style.pickerGrid">
@@ -297,7 +298,7 @@ onMounted(() => {
         <!-- Recently used -->
         <MkReactionPickerSection
           v-if="recentEmojis.length > 0"
-          label="最近使った絵文字"
+          :label="i18n.ts._mkReactionPicker.recent"
           :count="recentEmojis.length"
         >
           <div :class="$style.pickerGrid">

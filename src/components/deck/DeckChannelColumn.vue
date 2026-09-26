@@ -6,6 +6,7 @@ import {
 } from '@/adapters/misskey/query'
 import type { NormalizedNote } from '@/adapters/types'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
@@ -67,7 +68,7 @@ const noteColumnConfig: NoteColumnConfig = {
 <template>
   <DeckNoteColumn
     :column="column"
-    title="チャンネル"
+    :title="i18n.ts._columns.channel"
     icon="ti-device-tv"
     :web-ui-path="column.channelId ? `/channels/${column.channelId}` : undefined"
     sound-enabled

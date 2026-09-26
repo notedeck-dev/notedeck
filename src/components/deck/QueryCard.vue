@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { i18n } from '@/i18n'
 import { READ_ONLY_HINT } from '@/services/sidecarFileCollection'
 import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
@@ -130,28 +131,28 @@ function handlePrimaryClick() {
           v-if="!isStore && readOnly"
           :class="$style.incompatBadge"
           :title="READ_ONLY_HINT"
-        >ソース欠損</span>
+        >{{ i18n.ts._common.sourceMissing }}</span>
         <!-- 無効は実行形態より前に出す: 止まっているものの実行形態は二の次 (#1043) -->
         <span
           v-else-if="isDisabled"
           :class="$style.disabledBadge"
-          title="本体を無効にしています。適用先のカラムでは評価されません"
-        >無効</span>
+          :title="i18n.ts._queryCard.disabledHint"
+        >{{ i18n.ts._common.disabled }}</span>
         <span
           v-else-if="!isStore && execution === 'degraded'"
           :class="$style.degradedBadge"
-          title="1 件ずつ判定します。絞り込みは効きますが、キャッシュ検索には使えません"
-        >逐次適用</span>
+          :title="i18n.ts._queryCard.degradedHint"
+        >{{ i18n.ts._queryCard.degraded }}</span>
         <span
           v-else-if="!isStore && execution === 'invalid'"
           :class="$style.incompatBadge"
-          title="解釈できないため適用中のカラムは新着を停止します (編集して修正してください)"
-        >評価不能</span>
+          :title="i18n.ts._queryCard.invalidHint"
+        >{{ i18n.ts._queryCard.invalid }}</span>
         <span
           v-if="isStore && alreadyInstalled && hasUpdate"
           :class="$style.updateBadge"
           :title="updateTitle"
-        >更新あり</span>
+        >{{ i18n.ts._common.updateAvailable }}</span>
         <span :class="$style.spacer" />
         <span v-if="version" :class="$style.version">v{{ version }}</span>
       </div>
@@ -163,10 +164,10 @@ function handlePrimaryClick() {
         <span v-if="categoryLabel" :class="$style.categoryBadge">{{ categoryLabel }}</span>
         <!-- library mode: ストア/ローカル + 適用数 バッジ -->
         <template v-if="!isStore">
-          <span v-if="storeId" :class="$style.originBadge">ストア</span>
-          <span v-else :class="[$style.originBadge, $style.originBadgeLocal]">ローカル</span>
+          <span v-if="storeId" :class="$style.originBadge">{{ i18n.ts._common.store }}</span>
+          <span v-else :class="[$style.originBadge, $style.originBadgeLocal]">{{ i18n.ts._common.local }}</span>
           <span v-if="refCount > 0" :class="$style.originBadge">
-            {{ refCount }} カラムで適用中
+            {{ i18n.tsx._queryCard.appliedInColumns_plural({ count: refCount }) }}
           </span>
         </template>
         <span :class="$style.spacer" />
@@ -176,7 +177,7 @@ function handlePrimaryClick() {
             <button
               class="_button"
               :class="$style.iconBtn"
-              title="MisStore で詳細を開く"
+              :title="i18n.ts._common.openInMisStore"
               @click.stop="emit('open-detail')"
             >
               <i class="ti ti-external-link" />
@@ -191,7 +192,7 @@ function handlePrimaryClick() {
             >
               <i v-if="installing" class="ti ti-loader-2 nd-spin" />
               <i v-else class="ti ti-refresh" />
-              更新
+              {{ i18n.ts._queryCard.update }}
             </button>
             <button
               v-else-if="alreadyInstalled"
@@ -199,7 +200,7 @@ function handlePrimaryClick() {
               :class="$style.installedBadge"
               disabled
             >
-              インストール済み
+              {{ i18n.ts._common.installed }}
             </button>
             <button
               v-else
@@ -210,7 +211,7 @@ function handlePrimaryClick() {
             >
               <i v-if="installing" class="ti ti-loader-2 nd-spin" />
               <i v-else class="ti ti-download" />
-              インストール
+              {{ i18n.ts._common.install }}
             </button>
           </template>
           <!-- library mode (スコープ未参加のライブラリ本体) -->
@@ -218,7 +219,7 @@ function handlePrimaryClick() {
             <button
               class="_button"
               :class="[$style.iconBtn, $style.iconBtnDanger]"
-              title="ライブラリから削除 (本文も消えます)"
+              :title="i18n.ts._queryCard.deleteFromLibrary"
               @click.stop="emit('delete')"
             >
               <i class="ti ti-trash" />
@@ -236,7 +237,7 @@ function handlePrimaryClick() {
               :title="toggleTitle"
               @click.stop="emit('toggle')"
             >
-              {{ isDisabled ? '有効にする' : '無効にする' }}
+              {{ isDisabled ? i18n.ts._common.enable : i18n.ts._common.disable }}
             </button>
             <button
               class="_button"
@@ -244,7 +245,7 @@ function handlePrimaryClick() {
               @click.stop="emit('place')"
             >
               <i class="ti ti-plus" />
-              追加
+              {{ i18n.ts._common.add }}
             </button>
           </template>
 
@@ -263,7 +264,7 @@ function handlePrimaryClick() {
             <button
               class="_button"
               :class="[$style.iconBtn, $style.iconBtnDanger]"
-              title="ライブラリから削除 (本文も消えます)"
+              :title="i18n.ts._queryCard.deleteFromLibrary"
               @click.stop="emit('delete')"
             >
               <i class="ti ti-trash" />
@@ -275,7 +276,7 @@ function handlePrimaryClick() {
               :title="toggleTitle"
               @click.stop="emit('toggle')"
             >
-              {{ isDisabled ? '有効にする' : '無効にする' }}
+              {{ isDisabled ? i18n.ts._common.enable : i18n.ts._common.disable }}
             </button>
             <button
               v-if="canEdit"
@@ -284,7 +285,7 @@ function handlePrimaryClick() {
               @click.stop="emit('edit')"
             >
               <i class="ti ti-pencil" />
-              編集
+              {{ i18n.ts._common.edit }}
             </button>
           </template>
         </div>

@@ -9,6 +9,7 @@ import { useCommandStore } from '@/commands/registry'
 import { useAccountMode } from '@/composables/useAccountMode'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { i18n } from '@/i18n'
 import type { NoteGroup } from '@/services/noteGroup'
 import {
   getAccountAvatarUrl,
@@ -407,27 +408,27 @@ defineExpose({ open })
   <PopupMenu ref="popupMenuRef" @close="resetSubViews">
     <!-- Delete confirm -->
     <template v-if="currentView === 'deleteConfirm'">
-      <div class="_popupConfirmText">このノートを削除しますか？</div>
+      <div class="_popupConfirmText">{{ i18n.ts._noteMoreMenu.confirmDelete }}</div>
       <button class="_popupItem _popupItemDanger" @click="emit('delete', note); close()">
         <i class="ti ti-trash" />
-        削除
+        {{ i18n.ts._common.delete }}
       </button>
       <button class="_popupItem" @click="backToMain">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
 
     <!-- Delete and edit confirm -->
     <template v-else-if="currentView === 'deleteAndEditConfirm'">
-      <div class="_popupConfirmText">このノートを削除して再編集しますか？</div>
+      <div class="_popupConfirmText">{{ i18n.ts._noteMoreMenu.confirmDeleteAndEdit }}</div>
       <button class="_popupItem _popupItemDanger" @click="emit('deleteAndEdit', note); close()">
         <i class="ti ti-trash" />
-        削除して編集
+        {{ i18n.ts._noteMoreMenu.deleteAndEdit }}
       </button>
       <button class="_popupItem" @click="backToMain">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
 
@@ -435,12 +436,12 @@ defineExpose({ open })
 
     <!-- Report form -->
     <template v-else-if="currentView === 'reportForm'">
-      <div class="_popupConfirmText">@{{ note.user.username }} を通報</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._noteMoreMenu.reportUser({ username: note.user.username }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
           v-model="reportComment"
           class="_popupReportInput"
-          placeholder="通報理由を入力..."
+          :placeholder="i18n.ts._noteMoreMenu.reportReasonPlaceholder"
           rows="3"
         />
       </div>
@@ -450,11 +451,11 @@ defineExpose({ open })
         @click="submitReport"
       >
         <i class="ti ti-alert-triangle" />
-        送信
+        {{ i18n.ts._common.send }}
       </button>
       <button class="_popupItem" @click="backToMain">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
 
@@ -466,32 +467,32 @@ defineExpose({ open })
         @click="canInteract ? (localIsFavorited = !localIsFavorited, emit('bookmark', note), close()) : (showLoginPrompt(), close())"
       >
         <i class="ti ti-star" />
-        {{ localIsFavorited ? 'お気に入り解除' : 'お気に入り' }}
+        {{ localIsFavorited ? i18n.ts._noteMoreMenu.unfavorite : i18n.ts._noteMoreMenu.favorite }}
       </button>
       <button v-if="!isGuest" class="_popupItem" @click="canInteract ? openClipQuickPick() : (showLoginPrompt(), close())">
         <i class="ti ti-paperclip" />
-        クリップに追加
+        {{ i18n.ts._noteMoreMenu.addToClip }}
       </button>
       <button v-if="actAsCandidates.length > 0" class="_popupItem" @click="openActAs">
         <i class="ti ti-users" />
-        別のアカウントで…
+        {{ i18n.ts._noteMoreMenu.actAs }}
       </button>
       <button v-if="isWindowExposed('note-inspector')" class="_popupItem" @click="openInspector">
         <i class="ti ti-code" />
-        Raw JSON を表示
+        {{ i18n.ts._noteMoreMenu.showRawJson }}
       </button>
       <div class="_popupDivider" />
       <button v-if="note.text" class="_popupItem" @click="copyAndClose(note.text!)">
         <i class="ti ti-copy" />
-        内容をコピー
+        {{ i18n.ts._noteMoreMenu.copyContent }}
       </button>
       <button class="_popupItem" @click="copyAndClose(noteWebUrl)">
         <i class="ti ti-link" />
-        リンクをコピー
+        {{ i18n.ts._noteMoreMenu.copyLink }}
       </button>
       <button v-if="canShare" class="_popupItem" @click="shareNote">
         <i class="ti ti-share" />
-        共有
+        {{ i18n.ts._noteMoreMenu.share }}
       </button>
       <template v-if="noteActions.length > 0">
         <div class="_popupDivider" />
@@ -512,7 +513,7 @@ defineExpose({ open })
           @click="localIsPinned = !localIsPinned; emit('pin', note); close()"
         >
           <i :class="localIsPinned ? 'ti ti-pinned-off' : 'ti ti-pin'" />
-          {{ localIsPinned ? 'ピン留め解除' : 'ピン留め' }}
+          {{ localIsPinned ? i18n.ts._noteMoreMenu.unpin : i18n.ts._noteMoreMenu.pin }}
         </button>
         <!--
           「編集」は出さない (#954)。本家 Misskey にノートを更新する API は無く、
@@ -524,18 +525,18 @@ defineExpose({ open })
         -->
         <button class="_popupItem" @click="showDeleteAndEditConfirm = true">
           <i class="ti ti-eraser" />
-          削除して編集
+          {{ i18n.ts._noteMoreMenu.deleteAndEdit }}
         </button>
         <button class="_popupItem _popupItemDanger" @click="showDeleteConfirm = true">
           <i class="ti ti-trash" />
-          削除
+          {{ i18n.ts._common.delete }}
         </button>
       </template>
       <template v-if="!isOwnNote && !isGuest">
         <div class="_popupDivider" />
         <button class="_popupItem _popupItemDanger" @click="canInteract ? (showReportForm = true) : (showLoginPrompt(), close())">
           <i class="ti ti-alert-triangle" />
-          通報
+          {{ i18n.ts._noteMoreMenu.report }}
         </button>
       </template>
     </template>
@@ -545,8 +546,8 @@ defineExpose({ open })
   <AccountPickerSheet
     :show="showActAs"
     :accounts="actAsCandidates"
-    :title="actAsAccountId ? actAsAccountLabel : '別のアカウントで…'"
-    :description="actAsAccountId ? undefined : 'このノートを操作するアカウント'"
+    :title="actAsAccountId ? actAsAccountLabel : i18n.ts._noteMoreMenu.actAs"
+    :description="actAsAccountId ? undefined : i18n.ts._noteMoreMenu.actAsDescription"
     :stage="actAsAccountId ? 'detail' : 'accounts'"
     has-next
     @select="actAsAccountId = $event"
@@ -556,29 +557,29 @@ defineExpose({ open })
       <!-- 非公開 variant は desktop の actAsOperations と同じく全操作を出さない -->
       <div v-if="actAsAccountId && variantHidden(actAsAccountId)" class="_popupItem" aria-disabled="true" style="opacity: 0.6; cursor: default">
         <i class="ti ti-lock" />
-        このアカウントでは本文が非公開のため操作できません
+        {{ i18n.ts._noteMoreMenu.contentHiddenForAccount }}
       </div>
       <template v-else>
         <button v-if="actAsAccountId && variantReaction(actAsAccountId)" class="_popupItem" @click="actAs('unreactAs')">
           <i class="ti ti-mood-minus" />
-          リアクションを取り消す ({{ variantReaction(actAsAccountId) }})
+          {{ i18n.tsx._noteMoreMenu.unreactWith({ reaction: variantReaction(actAsAccountId) ?? '' }) }}
         </button>
         <button v-else class="_popupItem" @click="actAs('reactAs')">
           <i class="ti ti-mood-plus" />
-          リアクション
+          {{ i18n.ts._noteMoreMenu.react }}
         </button>
         <button class="_popupItem" @click="actAs('renoteAs')">
           <i class="ti ti-repeat" />
-          リノート
+          {{ i18n.ts._noteMoreMenu.renote }}
         </button>
         <button class="_popupItem" @click="actAs('quoteAs')">
           <i class="ti ti-quote" />
-          引用
+          {{ i18n.ts._noteMoreMenu.quote }}
         </button>
       </template>
       <button class="_popupItem" @click="actAsAccountId = null">
         <i class="ti ti-arrow-left" />
-        戻る
+        {{ i18n.ts._common.back }}
       </button>
     </template>
   </AccountPickerSheet>

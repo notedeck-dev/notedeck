@@ -3,10 +3,12 @@ import DOMPurify from 'dompurify'
 import { computed, onMounted, ref } from 'vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import I18n from '@/components/common/I18n.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
@@ -169,7 +171,7 @@ onMounted(() => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'サーバー情報'"
+    :title="column.name ?? i18n.ts._columns.serverInfo"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
@@ -189,7 +191,7 @@ onMounted(() => {
       :account-id="column.accountId"
       is-error
       :image-url="serverErrorImageUrl"
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="fetchServerInfo"
     />
@@ -222,10 +224,10 @@ onMounted(() => {
       <!-- Description -->
       <div :class="$style.formSection">
         <div :class="$style.formKvRow">
-          <div :class="$style.formKvKey">概要</div>
+          <div :class="$style.formKvKey">{{ i18n.ts._common.overview }}</div>
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div v-if="sanitizedDescription" :class="$style.description" v-html="sanitizedDescription" />
-          <div v-else :class="$style.muted">（説明なし）</div>
+          <div v-else :class="$style.muted">{{ i18n.ts._deckServerInfoColumn.noDescription }}</div>
         </div>
       </div>
 
@@ -244,7 +246,7 @@ onMounted(() => {
             :class="$style.formLink"
           >
             <i class="ti ti-code" :class="$style.formLinkIcon" />
-            <span>ソースコード</span>
+            <span>{{ i18n.ts._deckServerInfoColumn.sourceCode }}</span>
             <span :class="$style.formLinkSuffix">
               <i class="ti ti-external-link" />
             </span>
@@ -257,24 +259,24 @@ onMounted(() => {
         <div :class="$style.sectionContent">
           <div :class="$style.formSplit">
             <div :class="$style.formKvRow">
-              <div :class="$style.formKvKey">管理者</div>
+              <div :class="$style.formKvKey">{{ i18n.ts._deckServerInfoColumn.maintainer }}</div>
               <div :class="$style.formKvValue">
                 <template v-if="meta.maintainerName">{{ meta.maintainerName }}</template>
-                <span v-else :class="$style.muted">（なし）</span>
+                <span v-else :class="$style.muted">{{ i18n.ts._deckServerInfoColumn.none }}</span>
               </div>
             </div>
             <div :class="$style.formKvRow">
-              <div :class="$style.formKvKey">連絡先</div>
+              <div :class="$style.formKvKey">{{ i18n.ts._deckServerInfoColumn.contact }}</div>
               <div :class="$style.formKvValue">
                 <template v-if="meta.maintainerEmail">{{ meta.maintainerEmail }}</template>
-                <span v-else :class="$style.muted">（なし）</span>
+                <span v-else :class="$style.muted">{{ i18n.ts._deckServerInfoColumn.none }}</span>
               </div>
             </div>
             <div :class="$style.formKvRow">
-              <div :class="$style.formKvKey">問い合わせ</div>
+              <div :class="$style.formKvKey">{{ i18n.ts._deckServerInfoColumn.inquiry }}</div>
               <div :class="$style.formKvValue">
                 <a v-if="meta.inquiryUrl" :href="meta.inquiryUrl" target="_blank" rel="noopener" :class="$style.kvLink">{{ meta.inquiryUrl }}</a>
-                <span v-else :class="$style.muted">（なし）</span>
+                <span v-else :class="$style.muted">{{ i18n.ts._deckServerInfoColumn.none }}</span>
               </div>
             </div>
           </div>
@@ -286,7 +288,7 @@ onMounted(() => {
             :class="$style.formLink"
           >
             <i class="ti ti-user-shield" :class="$style.formLinkIcon" />
-            <span>運営情報</span>
+            <span>{{ i18n.ts._deckServerInfoColumn.impressum }}</span>
             <span :class="$style.formLinkSuffix"><i class="ti ti-external-link" /></span>
           </a>
 
@@ -294,7 +296,7 @@ onMounted(() => {
           <div v-if="meta.serverRules && meta.serverRules.length > 0" :class="[$style.rulesContainer, { [$style.rulesOpen]: rulesOpen }]">
             <div :class="[$style.formLink, $style.rulesToggle]" @click="rulesOpen = !rulesOpen">
               <i class="ti ti-checkup-list" :class="$style.formLinkIcon" />
-              <span>サーバールール</span>
+              <span>{{ i18n.ts._deckServerInfoColumn.serverRules }}</span>
               <span :class="$style.formLinkSuffix"><i class="ti ti-chevron-down" :class="$style.rulesChevron" /></span>
             </div>
             <ol :class="$style.rulesList">
@@ -317,7 +319,7 @@ onMounted(() => {
             :class="$style.formLink"
           >
             <i class="ti ti-license" :class="$style.formLinkIcon" />
-            <span>利用規約</span>
+            <span>{{ i18n.ts._deckServerInfoColumn.tos }}</span>
             <span :class="$style.formLinkSuffix"><i class="ti ti-external-link" /></span>
           </a>
           <a
@@ -328,7 +330,7 @@ onMounted(() => {
             :class="$style.formLink"
           >
             <i class="ti ti-shield-lock" :class="$style.formLinkIcon" />
-            <span>プライバシーポリシー</span>
+            <span>{{ i18n.ts._deckServerInfoColumn.privacyPolicy }}</span>
             <span :class="$style.formLinkSuffix"><i class="ti ti-external-link" /></span>
           </a>
           <a
@@ -339,7 +341,7 @@ onMounted(() => {
             :class="$style.formLink"
           >
             <i class="ti ti-message" :class="$style.formLinkIcon" />
-            <span>フィードバック</span>
+            <span>{{ i18n.ts._deckServerInfoColumn.feedback }}</span>
             <span :class="$style.formLinkSuffix"><i class="ti ti-external-link" /></span>
           </a>
         </div>
@@ -347,15 +349,15 @@ onMounted(() => {
 
       <!-- Statistics -->
       <div v-if="stats" :class="$style.formSection">
-        <div :class="$style.formSectionLabel">統計</div>
+        <div :class="$style.formSectionLabel">{{ i18n.ts._deckServerInfoColumn.stats }}</div>
         <div :class="$style.sectionContent">
           <div :class="$style.statsSplit">
             <div :class="$style.formKvRow">
-              <div :class="$style.formKvKey">ユーザー</div>
+              <div :class="$style.formKvKey">{{ i18n.ts._deckServerInfoColumn.users }}</div>
               <div :class="$style.formKvValue">{{ formatNumber(stats.originalUsersCount) }}</div>
             </div>
             <div :class="$style.formKvRow">
-              <div :class="$style.formKvKey">ノート</div>
+              <div :class="$style.formKvKey">{{ i18n.ts._deckServerInfoColumn.notes }}</div>
               <div :class="$style.formKvValue">{{ formatNumber(stats.originalNotesCount) }}</div>
             </div>
           </div>
@@ -399,16 +401,16 @@ onMounted(() => {
         <template #hint>
           <i class="ti ti-info-circle" />
           <template v-if="tab === 'meta'">
-            <code>/api/meta</code> の生レスポンス
+            <I18n :src="i18n.ts._deckServerInfoColumn.rawResponse"><template #endpoint><code>/api/meta</code></template></I18n>
           </template>
           <template v-else>
-            <code>/api/stats</code> の生レスポンス
+            <I18n :src="i18n.ts._deckServerInfoColumn.rawResponse"><template #endpoint><code>/api/stats</code></template></I18n>
           </template>
         </template>
       </RawJsonView>
     </div>
 
-    <ColumnEmptyState v-else message="サーバー情報を取得できませんでした" :image-url="serverInfoImageUrl" />
+    <ColumnEmptyState v-else :message="i18n.ts._deckServerInfoColumn.fetchFailed" :image-url="serverInfoImageUrl" />
   </DeckColumn>
 </template>
 

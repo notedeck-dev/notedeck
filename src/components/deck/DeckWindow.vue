@@ -4,6 +4,7 @@ import { useSpotlightStore, windowTargetId } from '@/composables/useSpotlight'
 import { provideWindowEditAction } from '@/composables/useWindowEditAction'
 import { provideWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { provideWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { useIsCompactLayout } from '@/stores/ui'
 import {
   type DeckWindow,
@@ -305,7 +306,7 @@ onBeforeUnmount(() => {
         class="_button"
         :class="$style.windowBtn"
         :disabled="editAction.disabled"
-        :title="editAction.title ?? '編集'"
+        :title="editAction.title ?? i18n.ts._common.edit"
         @click="runEditAction"
       >
         <i :class="`ti ti-${editAction.icon ?? 'pencil'}`" />
@@ -315,7 +316,7 @@ onBeforeUnmount(() => {
         class="_button"
         :class="$style.windowBtn"
         :disabled="externalLink.disabled"
-        :title="externalLink.title ?? 'Web UIで開く'"
+        :title="externalLink.title ?? i18n.ts._deckWindow.openInWebUi"
         @click="openExternalLink"
       >
         <i :class="`ti ti-${externalLink.icon ?? 'world'}`" />
@@ -325,18 +326,18 @@ onBeforeUnmount(() => {
         class="_button"
         :class="$style.windowBtn"
         :disabled="externalFile.disabled"
-        :title="`OS の既定エディタで ${externalFile.name} を開く`"
+        :title="i18n.tsx._deckWindow.openInDefaultEditor({ name: externalFile.name })"
         @click="openExternalFile"
       >
         <i class="ti ti-external-link" />
       </button>
-      <button class="_button" :class="$style.windowBtn" title="最小化" @click="windowsStore.toggleMinimize(window.id)">
+      <button class="_button" :class="$style.windowBtn" :title="i18n.ts._deckWindow.minimize" @click="windowsStore.toggleMinimize(window.id)">
         <i class="ti ti-minus" />
       </button>
-      <button class="_button" :class="$style.windowBtn" title="最大化" @click="windowsStore.toggleMaximize(window.id)">
+      <button class="_button" :class="$style.windowBtn" :title="i18n.ts._deckWindow.maximize" @click="windowsStore.toggleMaximize(window.id)">
         <i :class="isMaximized ? 'ti ti-picture-in-picture' : 'ti ti-square'" />
       </button>
-      <button class="_button" :class="[$style.windowBtn, $style.windowClose]" title="閉じる" @click="emit('close')">
+      <button class="_button" :class="[$style.windowBtn, $style.windowClose]" :title="i18n.ts._common.close" @click="emit('close')">
         <i class="ti ti-x" />
       </button>
     </div>

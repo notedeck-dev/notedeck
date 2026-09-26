@@ -7,6 +7,7 @@ import MkUserPopup from '@/components/common/MkUserPopup.vue'
 import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePortal } from '@/composables/usePortal'
+import { i18n } from '@/i18n'
 
 type UserForListItem = {
   id: string
@@ -137,12 +138,12 @@ function closePopup() {
           <span
             v-if="relation?.isBlocking"
             :class="[$style.relationBadge, $style.relationDanger]"
-          >ブロック中</span>
-          <span v-if="relation?.isMuted" :class="$style.relationBadge">ミュート中</span>
+          >{{ i18n.ts._mkUserListItem.blocking }}</span>
+          <span v-if="relation?.isMuted" :class="$style.relationBadge">{{ i18n.ts._mkUserListItem.muted }}</span>
           <span :class="$style.acct">@{{ user.username }}<template v-if="user.host">@{{ user.host }}</template></span>
         </div>
         <div v-if="relation?.isFollowed" :class="$style.relationBadgeRow">
-          <span :class="$style.relationBadge">フォローされています</span>
+          <span :class="$style.relationBadge">{{ i18n.ts._mkUserListItem.followsYou }}</span>
         </div>
         <slot name="meta">
           <div v-if="description" :class="$style.desc" :style="descStyle">

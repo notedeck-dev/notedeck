@@ -13,6 +13,7 @@
 import { computed } from 'vue'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { tutorialDocsUrl } from '@/data/tutorialSteps'
+import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
 
@@ -47,9 +48,9 @@ function openDocs(path: string): void {
     <!-- 走っていない状態で開かれた: 一覧へ送る -->
     <template v-if="idle">
       <div :class="$style.body">
-        <div :class="$style.title">チュートリアル</div>
+        <div :class="$style.title">{{ i18n.ts._windows.tutorial }}</div>
         <p :class="$style.description">
-          カテゴリを選んで始められます。一覧から進めてください。
+          {{ i18n.ts._tutorialContent.idleDescription }}
         </p>
       </div>
       <div :class="$style.actions">
@@ -59,7 +60,7 @@ function openDocs(path: string): void {
           :class="$style.primaryBtn"
           @click="openChecklist()"
         >
-          一覧を開く
+          {{ i18n.ts._tutorialContent.openList }}
         </button>
       </div>
     </template>
@@ -71,7 +72,7 @@ function openDocs(path: string): void {
       v-if="!idle"
       :class="$style.progress"
       role="tablist"
-      :aria-label="`チュートリアル ${stepIndex} / ${stepCount}`"
+      :aria-label="i18n.tsx._tutorialContent.progress({ current: stepIndex, total: stepCount })"
     >
       <button
         v-for="i in stepCount"
@@ -90,15 +91,15 @@ function openDocs(path: string): void {
         :aria-label="`Step ${i}`"
         @click="tutorial.goToStep(i - 1)"
       />
-      <span v-if="tutorial.replaying" :class="$style.replayLabel">見直し</span>
+      <span v-if="tutorial.replaying" :class="$style.replayLabel">{{ i18n.ts._tutorialContent.replaying }}</span>
       <span :class="$style.progressLabel">{{ stepIndex }} / {{ stepCount }}</span>
     </div>
 
     <!-- 走り切ったカテゴリの結果。黙って閉じずに、ここで手を止める -->
     <div v-if="!idle && tutorial.runCompleted" :class="$style.body">
-      <div :class="$style.title">ここまで完了しました</div>
+      <div :class="$style.title">{{ i18n.ts._tutorialContent.completedTitle }}</div>
       <p :class="$style.description">
-        チュートリアルの一覧から、続きのカテゴリを選べます。
+        {{ i18n.ts._tutorialContent.completedDescription }}
       </p>
     </div>
 
@@ -114,7 +115,7 @@ function openDocs(path: string): void {
         @click="openDocs(docsPath)"
       >
         <i class="ti ti-book" />
-        詳しく読む
+        {{ i18n.ts._tutorialContent.readMore }}
       </button>
     </div>
 
@@ -127,7 +128,7 @@ function openDocs(path: string): void {
           :class="$style.primaryBtn"
           @click="tutorial.cancel()"
         >
-          閉じる
+          {{ i18n.ts._common.close }}
         </button>
       </template>
       <template v-else-if="tutorial.currentStep?.isFinal">
@@ -137,13 +138,13 @@ function openDocs(path: string): void {
           :class="$style.primaryBtn"
           @click="tutorial.finish()"
         >
-          閉じる
+          {{ i18n.ts._common.close }}
         </button>
       </template>
       <template v-else>
         <span v-if="tutorial.stepCompleted" :class="$style.doneMark">
           <i class="ti ti-circle-check-filled" />
-          達成しました
+          {{ i18n.ts._tutorialContent.achieved }}
         </span>
         <button
           type="button"
@@ -151,7 +152,7 @@ function openDocs(path: string): void {
           :class="$style.linkBtn"
           @click="tutorial.skip()"
         >
-          スキップ
+          {{ i18n.ts._tutorialContent.skip }}
         </button>
         <button
           type="button"
@@ -159,7 +160,7 @@ function openDocs(path: string): void {
           :class="$style.primaryBtn"
           @click="tutorial.next()"
         >
-          次へ →
+          {{ i18n.ts._tutorialContent.next }}
         </button>
       </template>
     </div>

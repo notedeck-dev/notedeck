@@ -15,6 +15,7 @@ import {
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { usePointerReorder } from '@/composables/usePointerReorder'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
@@ -370,9 +371,9 @@ async function importFromClipboard() {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'layout-columns', label: 'ビジュアル' },
+        { value: 'visual', icon: 'layout-columns', label: i18n.ts._common.visual },
         ...(isExposed('developer')
-          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          ? [{ value: 'code', icon: 'code', label: i18n.ts._common.code }]
           : []),
       ]"
     />
@@ -382,14 +383,14 @@ async function importFromClipboard() {
       <!-- Other profile notice -->
       <div v-if="isOtherProfile && editingProfile" :class="$style.otherProfileNotice">
         <i class="ti ti-info-circle" />
-        <span>「{{ editingProfile.name }}」を編集中</span>
+        <span>{{ i18n.tsx._profileEditorContent.editingOther({ name: editingProfile.name }) }}</span>
       </div>
 
       <!-- Profile name -->
       <div :class="$style.nameSection">
         <button class="_button" :class="$style.nameLabel" @click="toggleSection('name')">
           <i class="ti ti-tag" />
-          プロファイル名
+          {{ i18n.ts._profileEditorContent.profileName }}
           <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.name }]" />
         </button>
         <input
@@ -397,7 +398,7 @@ async function importFromClipboard() {
           :value="editingName"
           :class="$style.nameInput"
           type="text"
-          placeholder="プロファイル名"
+          :placeholder="i18n.ts._profileEditorContent.profileName"
           spellcheck="false"
           @change="onProfileNameChange"
         />
@@ -407,7 +408,7 @@ async function importFromClipboard() {
       <div :class="$style.columnSection">
         <button class="_button" :class="$style.sectionLabel" @click="toggleSection('columns')">
           <i class="ti ti-columns" />
-          カラム
+          {{ i18n.ts._profileEditorContent.columns }}
           <span :class="$style.sectionBadge">{{ editingLayout.length }}</span>
           <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.columns }]" />
         </button>
@@ -418,7 +419,7 @@ async function importFromClipboard() {
           v-if="isCompact"
           :items="reorderableGroups"
           data-attr="group-idx"
-          empty-text="カラムがありません"
+          :empty-text="i18n.ts._profileEditorContent.noColumns"
           @reorder="onGroupReorder"
           @remove="removeGroup"
         />
@@ -452,14 +453,14 @@ async function importFromClipboard() {
           </div>
 
           <div v-if="editingLayout.length === 0" :class="$style.emptyMessage">
-            カラムがありません
+            {{ i18n.ts._profileEditorContent.noColumns }}
           </div>
 
           <!-- Add column button -->
           <div
             v-if="!isOtherProfile"
             :class="[$style.columnTab, $style.addColumnTab]"
-            title="カラムを追加"
+            :title="i18n.ts._profileEditorContent.addColumn"
             @click="showAddColumn = !showAddColumn"
           >
             <i class="ti ti-plus" />
@@ -470,7 +471,7 @@ async function importFromClipboard() {
         <div
           v-if="isCompact && !isOtherProfile"
           :class="[$style.columnTab, $style.addColumnTab]"
-          title="カラムを追加"
+          :title="i18n.ts._profileEditorContent.addColumn"
           @click="showAddColumn = !showAddColumn"
         >
           <i class="ti ti-plus" />
@@ -504,7 +505,7 @@ async function importFromClipboard() {
         @click="syncVisualFromCode"
       >
         <i class="ti ti-refresh" />
-        ビジュアルに同期
+        {{ i18n.ts._common.syncToVisual }}
       </button>
     </div>
 
@@ -517,7 +518,7 @@ async function importFromClipboard() {
           @click="importFromClipboard"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
+          {{ importError ? i18n.ts._profileEditorContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"
@@ -525,7 +526,7 @@ async function importFromClipboard() {
           @click="exportToClipboard"
         >
           <i class="ti ti-clipboard-copy" />
-          {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+          {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
         </button>
       </div>
     </div>

@@ -9,6 +9,7 @@ import MkNote from '@/components/common/MkNote.vue'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
@@ -197,7 +198,7 @@ onMounted(async () => {
             v-if="!clip.isPublic"
             class="ti ti-lock"
             :class="$style.privateIcon"
-            title="非公開"
+            :title="i18n.ts._clipDetailContent.private"
           />
           <div :class="$style.title">{{ clip.name }}</div>
         </div>
@@ -243,7 +244,7 @@ onMounted(async () => {
         />
         <ColumnEmptyState
           v-else-if="visibleNotes.length === 0"
-          message="クリップにノートがありません"
+          :message="i18n.ts._clipDetailContent.empty"
         />
       </div>
     </template>

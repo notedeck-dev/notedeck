@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import UserProfileContent from '@/components/window/UserProfileContent.vue'
+import { i18n } from '@/i18n'
 
 const props = defineProps<{
   accountId: string
@@ -25,7 +26,7 @@ const router = useRouter()
           />
         </svg>
       </router-link>
-      <h1 :class="$style.profileTitle">プロフィール</h1>
+      <h1 :class="$style.profileTitle">{{ i18n.ts._windows.userProfile }}</h1>
     </header>
 
     <UserProfileContent

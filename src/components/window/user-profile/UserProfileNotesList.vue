@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePaginatedList } from '@/composables/usePaginatedList'
+import { i18n } from '@/i18n'
 
 // プロフィールの notes 面 (#707): 内タブ (ハイライト/ノート/全て/ファイル付き)
 // とページングを所有する。MkNote のアクションは親へ forward する — post form・
@@ -176,7 +177,7 @@ defineExpose({ loadMore, removeNote, replaceNote, patchNote })
     </div>
 
     <div v-if="!isLoadingNotes && visibleNotes.length === 0" :class="$style.stateMessage">
-      ノートはありません
+      {{ i18n.ts._userProfileNotesList.empty }}
     </div>
   </div>
 </template>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import { usePrompt } from '@/stores/prompt'
 
 const { visible: show, options, resolve } = usePrompt()
@@ -67,7 +67,7 @@ function submit() {
         </div>
         <div :class="$style.actions">
           <button type="button" class="_button" :class="$style.btnCancel" @click="resolve(null)">
-            {{ options.cancelLabel || 'キャンセル' }}
+            {{ options.cancelLabel || i18n.ts._common.cancel }}
           </button>
           <button
             type="submit"

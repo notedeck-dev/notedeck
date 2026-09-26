@@ -17,6 +17,7 @@ import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { usePointerReorder } from '@/composables/usePointerReorder'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import {
   ALL_POST_FORM_BUTTONS,
@@ -206,9 +207,9 @@ async function importList() {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'adjustments', label: 'ビジュアル' },
+        { value: 'visual', icon: 'adjustments', label: i18n.ts._common.visual },
         ...(isExposed('developer')
-          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          ? [{ value: 'code', icon: 'code', label: i18n.ts._common.code }]
           : []),
       ]"
     />
@@ -217,7 +218,7 @@ async function importList() {
     <div v-show="tab === 'visual'" :class="$style.visualPanel">
       <div :class="$style.sectionHeader">
         <i class="ti ti-list" />
-        現在の並び
+        {{ i18n.ts._postFormEditorContent.currentOrder }}
         <span :class="$style.sectionBadge">{{ items.length }}</span>
       </div>
 
@@ -226,7 +227,7 @@ async function importList() {
         v-if="isCompact"
         :items="reorderableItems"
         data-attr="pf-idx"
-        empty-text="ボタンなし"
+        :empty-text="i18n.ts._postFormEditorContent.noButtons"
         @reorder="onReorder"
         @remove="removeItem"
       />
@@ -252,12 +253,12 @@ async function importList() {
             <i class="ti ti-x" />
           </button>
         </div>
-        <div v-if="items.length === 0" :class="$style.empty">ボタンなし</div>
+        <div v-if="items.length === 0" :class="$style.empty">{{ i18n.ts._postFormEditorContent.noButtons }}</div>
       </div>
 
       <div :class="$style.sectionHeader">
         <i class="ti ti-plus" />
-        追加できるボタン
+        {{ i18n.ts._postFormEditorContent.availableButtons }}
       </div>
 
       <div :class="$style.addGrid">
@@ -272,7 +273,7 @@ async function importList() {
           <span>{{ POST_FORM_BUTTON_META[id].label }}</span>
         </button>
         <div v-if="availableButtons.length === 0" :class="$style.empty">
-          すべてのボタンが追加済み
+          {{ i18n.ts._postFormEditorContent.allAdded }}
         </div>
       </div>
     </div>
@@ -280,7 +281,7 @@ async function importList() {
     <!-- Code tab -->
     <div v-show="tab === 'code'" :class="$style.codePanel">
       <div :class="$style.codeHint">
-        デフォルト値からの差分 — null はデフォルト設定を使用
+        {{ i18n.ts._postFormEditorContent.codeHint }}
       </div>
       <CodeEditor
         v-model="jsonCode"
@@ -297,11 +298,11 @@ async function importList() {
         :class="$style.codeSuccess"
       >
         <i class="ti ti-check" />
-        適用中
+        {{ i18n.ts._common.active }}
       </div>
       <button class="_button" :class="$style.codeApplyBtn" @click="applyFromCode">
         <i class="ti ti-refresh" />
-        ビジュアルに同期
+        {{ i18n.ts._common.syncToVisual }}
       </button>
     </div>
 
@@ -314,7 +315,7 @@ async function importList() {
           @click="importList"
         >
           <i class="ti ti-clipboard-text" />
-          インポート
+          {{ i18n.ts._common.import }}
         </button>
         <button
           class="_button"
@@ -322,7 +323,7 @@ async function importList() {
           @click="exportList"
         >
           <i class="ti ti-clipboard-copy" />
-          {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+          {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
         </button>
       </div>
       <button
@@ -331,7 +332,7 @@ async function importList() {
         @click="handleReset"
       >
         <i class="ti ti-trash" />
-        {{ confirmingReset ? '本当にリセット？' : 'デフォルトに戻す' }}
+        {{ confirmingReset ? i18n.ts._common.confirmReset : i18n.ts._common.resetToDefault }}
       </button>
     </div>
   </div>

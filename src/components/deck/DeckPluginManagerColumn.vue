@@ -6,6 +6,7 @@ import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import { getPluginDenial } from '@/permissions/pluginDenials'
 import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
@@ -364,7 +365,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'プラグイン'"
+    :title="column.name ?? i18n.ts._columns.pluginManager"
     :theme-vars="columnThemeVars"
     @header-click="() => {}"
   >
@@ -377,7 +378,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
         v-if="viewTab === 'installed' && canCreate"
         class="_button"
         :class="$style.headerBtn"
-        title="新規プラグインを作成"
+        :title="i18n.ts._deckPluginManagerColumn.create"
         @click.stop="openNewPlugin"
       >
         <i class="ti ti-plus" />
@@ -385,7 +386,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
     </template>
 
     <div ref="columnContentRef" :class="$style.wrapper">
-      <SafeModeNotice subject="プラグイン" />
+      <SafeModeNotice :subject="i18n.ts._deckPluginManagerColumn.safeModeSubject" />
 
       <ColumnTabs
         :tabs="tabDefs"
@@ -401,20 +402,20 @@ async function deleteFromLibrary(plugin: PluginMeta) {
           v-model="searchQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="インストール済みを探す"
+          :placeholder="i18n.ts._deckPluginManagerColumn.searchInstalled"
         />
         <input
           v-else
           v-model="storeQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="ストアを探す"
+          :placeholder="i18n.ts._common.browseStore"
         />
         <div v-if="viewTab === 'installed'" :class="$style.searchActions">
           <button
             class="_button"
             :class="[$style.filterBtn, activeFilter === 'enabled' && $style.filterBtnActive]"
-            title="有効なプラグイン"
+            :title="i18n.ts._deckPluginManagerColumn.enabledPlugins"
             @click="setFilter('enabled')"
           >
             <i class="ti ti-check" />
@@ -422,7 +423,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
           <button
             class="_button"
             :class="[$style.filterBtn, activeFilter === 'disabled' && $style.filterBtnActive]"
-            title="無効なプラグイン"
+            :title="i18n.ts._deckPluginManagerColumn.disabledPlugins"
             @click="setFilter('disabled')"
           >
             <i class="ti ti-circle-off" />
@@ -463,11 +464,11 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 
           <template v-if="visiblePluginCount === 0">
             <div v-if="textQuery || activeFilter !== 'all'" :class="$style.empty">
-              一致するプラグインがありません
+              {{ i18n.ts._deckPluginManagerColumn.noMatches }}
             </div>
             <ColumnEmptyState
               v-else
-              message="このカラムに追加されたプラグインはありません"
+              :message="i18n.ts._deckPluginManagerColumn.emptyInColumn"
               :image-url="serverInfoImageUrl"
             />
           </template>
@@ -479,13 +480,13 @@ async function deleteFromLibrary(plugin: PluginMeta) {
               @click="showLibraryPicker = !showLibraryPicker"
             >
               <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? '閉じる' : 'ライブラリから追加' }}
+              {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._common.addFromLibrary }}
             </button>
           </div>
 
           <div v-if="showLibraryPicker" :class="$style.pickerWrap">
             <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              ライブラリに追加可能なプラグインがありません。
+              {{ i18n.ts._deckPluginManagerColumn.noLibraryCandidates }}
             </div>
             <PluginCard
               v-for="plugin in libraryCandidates"
@@ -518,14 +519,14 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 
         <div v-if="misStore.loading" :class="$style.storeLoading">
           <i class="ti ti-loader-2 nd-spin" />
-          読み込み中...
+          {{ i18n.ts._common.loading }}
         </div>
 
         <div v-else-if="misStore.error" :class="$style.empty">
           <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>ストアに接続できません</span>
+          <span>{{ i18n.ts._common.storeUnavailable }}</span>
           <button class="_button" :class="$style.emptyLink" @click="misStore.refresh()">
-            再試行
+            {{ i18n.ts._common.retry }}
           </button>
         </div>
 
@@ -555,7 +556,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
           />
 
           <div v-if="filteredStorePlugins.length === 0 && !misStore.loading" :class="$style.empty">
-            一致するプラグインがありません
+            {{ i18n.ts._deckPluginManagerColumn.noMatches }}
           </div>
         </div>
       </template>

@@ -382,3 +382,1504 @@ _capabilities:
     focus: "Bring window to front"
     list: "List open windows"
     open: "Open window"
+
+_common:
+  retry: "Retry"
+  cancel: "Cancel"
+  delete: "Delete"
+  close: "Close"
+  disabled: "Disabled"
+  loading: "Loading..."
+  import: "Import"
+  export: "Export"
+  copied: "Copied"
+  copiedToClipboard: "Copied to clipboard"
+  code: "Code"
+  visual: "Visual"
+  back: "Back"
+  menu: "Menu"
+  loaded: "Loaded"
+  confirmReset: "Really reset?"
+  hide: "Hide"
+  save: "Save"
+  saved: "Saved"
+  rename: "Rename"
+  resetToDefault: "Reset to default"
+  resetAll: "Reset all"
+  edit: "Edit"
+  add: "Add"
+  send: "Send"
+  clear: "Clear"
+  settings: "Settings"
+  overview: "Overview"
+  enable: "Enable"
+  disable: "Disable"
+  install: "Install"
+  installed: "Installed"
+  updateAvailable: "Update available"
+  active: "Active"
+  syncToVisual: "Sync to visual"
+  local: "Local"
+  offline: "Offline"
+  polling: "Polling"
+  store: "Store"
+  storeUnavailable: "Can’t connect to the store"
+  browseStore: "Browse the store"
+  openInMisStore: "Open in MisStore"
+  sourceMissing: "Source missing"
+  addFromLibrary: "Add from library"
+  releaseToRefresh: "Release to refresh"
+  refreshing: "Refreshing…"
+
+_appConfirm:
+  trustedHeader: "NoteDeck permission check"
+
+_commandPalette:
+  noMatchingItems: "No matching items"
+  enterToOpen: "↵ Enter to open:"
+  enterToRun: "↵ Enter to run:"
+  noMatchingCommands: "No matching commands"
+
+_crossAccountProgress:
+  waiting: "Waiting on {pending} of {total} accounts"
+
+_driveItemMenu:
+  open: "Open"
+  rename: "Rename"
+  move: "Move"
+
+_galleryItemMenu:
+  open: "Open"
+  copyLink: "Copy link"
+  openInBrowser: "Open in browser"
+
+_memoCard:
+  showMore: "Show more"
+  chars_plural:
+    one: "({count} character)"
+    other: "({count} characters)"
+
+_mkAchievementsGrid:
+  unlock: "Unlock"
+
+_mkAd:
+  showLess: "Show this ad less often"
+
+_mkAutocompletePopup:
+  searching: "Searching..."
+
+_mkChatMessageMoreMenu:
+  confirmDelete: "Delete this message?"
+  reportUser: "Report @{username}"
+  reportReasonPlaceholder: "Enter a reason for the report..."
+  react: "React"
+  copyContent: "Copy content"
+  report: "Report"
+
+_mkDraftsPicker:
+  deleteAll: "Delete all drafts"
+  noScheduled: "No scheduled notes"
+  noDrafts: "No drafts"
+  restoreThis: "Restore this draft"
+  editContentAndTime: "Edit content and time"
+  restoreToForm: "Restore to the post form"
+  cancelSchedule: "Cancel schedule"
+
+_mkDriveFolderSelectDialog:
+  root: "Root"
+  newFolder: "New folder"
+  moveTo: "Move to “{name}”"
+  moveToRoot: "Move to root"
+
+_mkDrivePicker:
+  upload: "Upload"
+  selectFiles: "Select files"
+  attachCount_plural:
+    one: "Attach {count} file"
+    other: "Attach {count} files"
+  attach: "Attach"
+
+_mkEmoji:
+  mutedTitle: "{emoji} (muted)"
+
+_mkFileGrid:
+  menuFor: "Menu for “{name}”"
+
+_mkFolderGrid:
+  menuFor: "Menu for “{name}”"
+
+_mkMediaGrid:
+  tapToLoadVideo: "Tap to load video"
+  tapToLoadImage: "Tap to load image"
+
+_mkMediaLightbox:
+  copyImage: "Copy image"
+  downloadImage: "Download image"
+  copyImageLink: "Copy image link"
+  shareImage: "Share image"
+  openInBrowser: "Open in browser"
+
+_mkNote:
+  pinned: "Pinned note"
+  renotedSuffix: "renoted"
+  modeTitle: "{mode} mode"
+  localOnly: "Local only"
+  saidSomething: "{name} said something"
+  showMore: "Show more"
+  contentHidden: "This note is private"
+  chars_plural:
+    one: "({count} character)"
+    other: "({count} characters)"
+  mutedTitle: "{emoji} (muted)"
+  unreact: "Remove reaction"
+  react: "React"
+  unrenote: "Undo renote"
+  renote: "Renote"
+  quote: "Quote"
+
+_mkNoteTree:
+  continueThread: "Continue thread"
+
+_mkPoll:
+  votes_plural:
+    one: "{count} vote"
+    other: "{count} votes"
+  multiple: "Multiple choice"
+  ended: "Ended"
+  until: "Until {date}"
+
+_mkPostForm:
+  guest: "Guest"
+  localOnly: "Local only (no federation)"
+  federated: "Federated"
+  more: "More"
+  preview: "Preview"
+  rememberVisibility: "Remember visibility"
+  scheduledPost: "Scheduled note"
+  submitMemo: "Memo"
+  reply: "Reply"
+  quote: "Quote"
+  schedule: "Schedule"
+  note: "Note"
+  withQuote: "With quote"
+  postToChannel: "Posting to channel"
+  cw: "Content warning"
+  replyPlaceholder: "Reply..."
+  quotePlaceholder: "Quote..."
+  placeholder: "What’s on your mind?"
+  unschedule: "Unschedule"
+  noAccountSelected: "No account selected"
+  emoji: "Emoji"
+  attachFile: "Attach file"
+  poll: "Poll"
+  hashtag: "Hashtag"
+  mention: "Mention"
+  drafts: "Drafts"
+  plugins: "Plugins"
+  reorderButtons: "Reorder buttons"
+
+_mkPostFormButtonsPicker:
+  title: "Post form buttons"
+
+_mkReactionPicker:
+  searchPlaceholder: "Search emoji..."
+  notFound: "No emoji found"
+  recent: "Recently used emoji"
+
+_mkReactionUsersPopup:
+  copyCode: "Copy code"
+  unmute: "Unmute"
+  muteEmoji: "Mute this emoji"
+  mutedTitle: "{emoji} (muted)"
+
+_mkUserListItem:
+  blocking: "Blocking"
+  muted: "Muted"
+  followsYou: "Follows you"
+
+_mkUserPopup:
+  notesCount: "{count} notes"
+  followingCount: "{count} following"
+  followersCount: "{count} followers"
+  followsYou: "Follows you"
+  remoteUser: "Remote user"
+
+_noteMoreMenu:
+  confirmDelete: "Delete this note?"
+  confirmDeleteAndEdit: "Delete this note and edit it again?"
+  deleteAndEdit: "Delete and edit"
+  reportUser: "Report @{username}"
+  reportReasonPlaceholder: "Enter a reason for the report..."
+  unfavorite: "Remove from favorites"
+  favorite: "Favorite"
+  addToClip: "Add to clip"
+  actAs: "As another account…"
+  showRawJson: "Show Raw JSON"
+  copyContent: "Copy content"
+  copyLink: "Copy link"
+  share: "Share"
+  unpin: "Unpin"
+  pin: "Pin"
+  report: "Report"
+  actAsDescription: "Account to act on this note with"
+  contentHiddenForAccount: "Can’t act from this account because the note’s content is private to it"
+  unreactWith: "Remove reaction ({reaction})"
+  react: "React"
+  renote: "Renote"
+  quote: "Quote"
+
+_noteReactionPickerPopup:
+  actingAs: "As {account}"
+
+_noteReactionUsersModal:
+  mutedTitle: "{emoji} (muted)"
+  noReactions: "No reactions"
+
+_noteVariantsPopup:
+  ariaLabel: "Accounts that can see this note"
+  title: "Visible to"
+  primaryTitle: "The viewpoint currently shown"
+  primary: "Shown"
+  originTitle: "The server this note was originally posted on"
+  contentHiddenTitle: "The content is private to this account"
+  contentHidden: "Private"
+  reactedTitle: "Reacted from this account"
+
+_rawJsonView:
+  hideSensitive: "Hide sensitive data"
+  showSensitive: "Show sensitive data"
+  copyJson: "Copy the displayed JSON"
+  copy: "Copy"
+  noData: "No data"
+
+_regexGuide:
+  filterConditions: "Filter conditions"
+  wordsPlaceholder: "Enter words separated by commas"
+  addCondition: "Add condition"
+  apply: "Apply"
+
+_renoteMoreMenu:
+  confirmDelete: "Delete this renote?"
+  reportUser: "Report @{username}"
+  reportReasonPlaceholder: "Enter a reason for the report..."
+  details: "Renote details"
+  copyLink: "Copy renote link"
+  deleteRenote: "Delete renote"
+  reportRenote: "Report renote"
+
+_reorderableList:
+  empty: "No items"
+
+_safeModeNotice:
+  notice: "{subject} isn’t applied because NoteDeck started in safe mode. Your edits are saved and will apply after a normal start."
+
+_titleBar:
+  forward: "Forward"
+  reload: "Reload"
+  newWindow: "New window"
+  pip: "Picture-in-picture"
+  desktopSize: "Desktop size"
+  mobileSize: "Mobile size"
+  minimize: "Minimize"
+  maximize: "Maximize"
+
+_titleBarMenu:
+  file: "File"
+  openSettingsFolder: "Open settings folder"
+  openLogFolder: "Open log folder"
+  openDownloadFolder: "Open downloads folder"
+  openBackupFolder: "Open backup folder"
+  launchAtStartup: "Launch at OS startup"
+  view: "View"
+  zoomIn: "Zoom in"
+  zoomOut: "Zoom out"
+  reload: "Reload"
+
+_postFormFilePreviews:
+  discard: "Discard"
+  renameFile: "Rename file"
+  unmarkSensitive: "Unmark as sensitive"
+  markSensitive: "Mark as sensitive"
+  editCaption: "Edit caption"
+  addCaption: "Add caption"
+  preview: "Preview"
+  removeAttachment: "Remove attachment"
+
+_postFormPollEditor:
+  choicePlaceholder: "Choice {n}"
+  addChoice: "Add choice"
+  multiple: "Multiple choice"
+  expiry: "Deadline"
+  noExpiry: "No deadline"
+  specifyDate: "Specific date and time"
+
+_mkMfm:
+  mutedTitle: "{emoji} (muted)"
+  search: "Search"
+
+_app:
+  safeModeNotice: "Running in safe mode — plugins, widgets, custom CSS, themes and HEARTBEAT are disabled"
+  exitSafeMode: "Turn off"
+
+_devWelcome:
+  tagline: "Misskey Pro — the Misskey IDE for Misskey power users"
+  launchAsDesktopApp: "Launch it as the desktop app"
+  autoSwitchHint: "Switches to the Dev Dashboard automatically once the app is detected"
+
+_devDashboard:
+  appDisconnected: "App not connected — waiting to reconnect…"
+  expandNav: "Expand navigation"
+  collapseNav: "Collapse navigation"
+  resources: "Resources"
+  apiDocs: "API docs"
+  overviewDesc: "Health check of the running app — 127.0.0.1:19820"
+  refresh: "Refresh"
+  deckColumns_plural:
+    one: "Deck — {count} column"
+    other: "Deck — {count} columns"
+  rawData: "Raw data"
+  startup: "Startup timing"
+  startupDesc: "Frontend startup marks and the fixed WebView startup cost (#985). The fixed cost is only measured on the first navigation"
+  untilLastMark: "Until last mark"
+  webviewFixedCost: "WebView fixed startup cost"
+  waterfall: "Waterfall"
+  noStartupData: "No timing data — press Refresh after the app starts"
+  heartbeatDesc: "Observation panel for the global daemon (#411). Auto-disables after 3 consecutive failures to prevent silent failure"
+  daemonTickRunning: "daemon (tick running)"
+  lastTick: "Last tick"
+  lastTickWithSource: "Last tick ({source})"
+  consecutiveFailures: "Consecutive failures"
+  aiRunsToday: "AI runs today"
+  configAndLastOutcome: "Config and last outcome"
+  intervalAndTarget: "{minutes} min / {target}"
+  lastOutcome: "Last outcome"
+  noHeartbeatState: "No state yet — fills in once the app connects"
+  caches: "Cache monitor"
+  cachesDesc: "Measured sizes of bounded caches (#987). Check here that the \"always bounded\" invariant holds"
+  noCaches: "No registered caches — they appear once a named cache is created"
+  qbTrace: "Query Bridge trace"
+  qbTraceDesc: "HTTP → WebView query round trips and their durations (#897 IPC visualization). Error responses in red, slow round trips highlighted"
+  noQbTrace: "Nothing recorded yet — entries accumulate as queries run through the external API"
+  inspector: "Inspector comparison"
+  inspectorDesc: "Compares per-type counts from the adapter layer (Misskey WS raw) and SSE (Rust event bus) to find which layer events reach"
+  adapterLayer: "Adapter layer (WS raw)"
+  adapterLayerCount_plural:
+    one: "Adapter layer (WS raw) — {count} event"
+    other: "Adapter layer (WS raw) — {count} events"
+  bufferEmpty: "Buffer empty — open a Stream Inspector column to start the flow"
+  sseEventBusCount_plural:
+    one: "SSE (event bus) — {count} event"
+    other: "SSE (event bus) — {count} events"
+  nothingReceived: "Nothing received"
+  sseEvents: "SSE events"
+  sseDesc: "/api/events — live stream of the Rust event bus · {count} events · {rate}/min"
+  last60sRate: "Rate over the last 60 seconds"
+  sseFilterPlaceholder: "Filter by type prefix (e.g. note,notification,main-)"
+  applyReconnect: "Apply / reconnect"
+  stop: "Stop"
+  downloadJsonl: "Download the buffer as JSON Lines"
+  filterByType: "Click to filter by this type"
+  waitingForEvents: "Waiting for events — they appear as notes and notifications flow through the deck"
+  capsDesc_plural:
+    one: "Manual runner that goes through the dispatcher as the external principal — visually test the permission gate (#712) denials and confirmation dialogs · {count} capability"
+    other: "Manual runner that goes through the dispatcher as the external principal — visually test the permission gate (#712) denials and confirmation dialogs · {count} capabilities"
+  selectCapability: "Select a capability…"
+  requiresConfirmation: "Requires confirmation (shown in the app)"
+  paramsSchema: "params schema"
+  paramsAndRun: "Parameters and run"
+  running: "Running…"
+  run: "Run"
+  runHistory: "Run history"
+  restoreResult: "Click to restore the result"
+  effectivePermissions: "Effective permissions"
+  permsDesc: "Granted matrix per principal (#712). Select a capability under Capabilities to highlight the keys it requires"
+  permsDescSelected: "Granted matrix per principal (#712). Highlighting the keys required by the selected capability ({id})"
+  unifiedTimeline: "Unified timeline"
+  unifiedTimelineDesc: "Merges Rust logs, SSE events and frontend logs into one timeline — trace on one screen where an event got lost"
+  logFilterPlaceholder: "Filter (substring)"
+  warnOnly: "Show WARN and above only (hides SSE events too)"
+  reconnect: "Reconnect"
+  rustLog: "Rust logs"
+  front: "Frontend"
+  waitingForLogs: "Waiting — Rust logs, SSE events and frontend logs stream here in time order"
+
+_tutorialContent:
+  idleDescription: "Pick a category to get started. Continue from the list."
+  openList: "Open list"
+  progress: "Tutorial {current} / {total}"
+  replaying: "Reviewing"
+  completedTitle: "All done here"
+  completedDescription: "Pick the next category from the tutorial list."
+  readMore: "Read more"
+  achieved: "Done"
+  skip: "Skip"
+  next: "Next →"
+
+_aiConnectionSection:
+  title: "AI connection"
+  notSelected: "Not selected"
+  keyHint: "API keys are stored in the Secret Vault (OS keychain) and never passed to the frontend or the AI. Add and edit connections in the Connections window."
+  noConnections: "No AI provider connections. Add one from a template in the Connections window."
+  manageConnections: "Add / manage connections"
+  model: "Model"
+  modelPlaceholder: "claude-sonnet-5, gpt-5.4-mini, moonshotai/kimi-k3, etc."
+
+_aiDataSourcesSection:
+  title: "Data sources"
+  memosTitle: "How memos are passed"
+  expandLinks: "Expand linked memos"
+  expandLinksDescription: "Automatically passes memos referenced as `[name](memo:<id>)` in the body to the AI, one level deep. When OFF, the AI does not see referenced memos unless it explicitly calls `memos.backlinks` or similar."
+  includeBacklinks: "Attach backlinks"
+  includeBacklinksDescription: "Adds `referencedBy: [...]` to each memo to tell the AI which memos reference it."
+
+_aiGenerationSection:
+  title: "Generation"
+  changedFromDefault: "Changed from default"
+  default: "Default"
+  note: "The defaults work as is. Only change them when they don't suit the model you run."
+  maxTokens: "Max response tokens"
+  maxTokensHint: "Raise this when long responses get cut off. 0 leaves it to the provider's default (Anthropic requires a limit, so {maxTokens} is sent)"
+  maxToolRounds: "Tool call limit"
+  rounds: "rounds"
+  maxToolRoundsHint: "How many times the AI can call tools in a row for one request. Higher values let it finish more involved work, but cost and the damage from a runaway grow with it"
+  titleMaxTokens: "Max title generation tokens"
+  titleMaxTokensHint: "Raise this when session names stay as dates. The limit also covers thinking, while only the body is used as the title, so models that think more need more headroom"
+  readTimeout: "Response timeout"
+  seconds: "s"
+  readTimeoutHint: "How long to wait after the response stops arriving. Output keeps arriving while generating, so long thinking is not cut off. Increase it for backends that are slow to produce the first character (such as local LLMs)"
+
+_aiHeartbeatSection:
+  enabledWithInterval: "On · {minutes} min"
+  enable: "Enable HEARTBEAT"
+  tickInterval: "Tick interval"
+  minutes: "min"
+  desktopNotification: "Desktop notifications"
+  desktopNotificationDescription: "Shows important findings (anything other than HEARTBEAT_OK) as OS notifications. Suppressed while the app has focus"
+  cheapCheckDescription: "If nothing changed, treat it as HEARTBEAT_OK without starting the AI (the skill must declare cheapCheckCapabilities)"
+  maxSkipHours: "Max consecutive skip time"
+  hours: "hours"
+  dailyMaxAiRuns: "Daily AI run limit"
+  runsPerDay: "runs / day"
+  disableOnDailyLimit: "Stop automatically at the limit"
+  disableOnDailyLimitDescription: "OFF = keep going with a warning / ON = disable HEARTBEAT automatically"
+  dailyTokenBudget: "Daily token budget (current connection)"
+  tokensPerDay: "tokens / day (0 = unlimited)"
+  permissions: "Permissions during HEARTBEAT"
+  changeInPermissions: "Change in permission settings"
+
+_aiPersonaSection:
+  title: "Persona"
+  none: "None"
+  hint: "Default for new sessions. Existing sessions keep the persona they were created with."
+  noCandidates: "No persona candidates. Skills with \"Persona\" turned ON in the Skill edit window appear here."
+
+_userProfileAchievementsPane:
+  empty: "No achievements"
+
+_userProfileClipsPane:
+  empty: "No clips"
+
+_userProfileGalleryPane:
+  empty: "No gallery posts"
+
+_userProfileListsPane:
+  empty: "No lists"
+
+_userProfileNotesList:
+  empty: "No notes"
+
+_userProfilePagesPane:
+  empty: "No pages"
+
+_userProfilePlayPane:
+  empty: "No Play"
+
+_userProfileHero:
+  followsYou: "Follows you"
+  more: "More"
+  qrCode: "QR code"
+  followedMessage: "Message to followers"
+  memoHeading: "Memo (only visible to you)"
+  memoPlaceholder: "Add a memo about this user..."
+  notes: "Notes"
+  following: "Following"
+  followers: "Followers"
+
+_userProfileMenu:
+  composeToUser: "Write a note to this user"
+  searchUserNotes: "Search this user's notes"
+  directMessage: "Direct message"
+  copyUsername: "Copy username"
+  copyProfileUrl: "Copy user profile URL"
+  copyRss: "Copy RSS"
+  embed: "Embed"
+  addToList: "Add to list"
+  addToAntenna: "Add to antenna"
+  withReplies: "Include replies to others in timeline"
+  notifyPosts: "Notify on new notes"
+  mute: "Mute"
+  unmute: "Unmute"
+  muteRenotes: "Mute renotes"
+  unmuteRenotes: "Unmute renotes"
+  block: "Block"
+  unblock: "Unblock"
+  invalidateFollower: "Remove follower"
+  report: "Report"
+  muteConfirm: "Mute @{username}?"
+  blockConfirm: "Block @{username}?"
+  invalidateFollowerConfirm: "Remove @{username} from your followers?"
+  invalidate: "Remove"
+  reportTitle: "Report @{username}"
+  reportPlaceholder: "Enter a reason for the report..."
+  noLists: "No lists"
+  noUserAntennas: "No antennas with a user source"
+
+_notFoundPage:
+  message: "Page not found"
+  backToHome: "Back to home"
+
+_pipPage:
+  unpin: "Unpin from top"
+  pin: "Keep on top"
+  addColumn: "Add column"
+
+_aiSettingsContent:
+  rawHint: "Edit ai.json5 directly. API keys are stored in the keychain and never appear in the raw file."
+  invalid: "Invalid"
+
+_appearanceEditorContent:
+  setWallpaper: "Set wallpaper"
+  removeWallpaper: "Remove wallpaper"
+  nyaize: "Nyaize cat users' notes"
+  nyaizeDescription: "Displayed the same way as the Misskey web UI. Copying and search use the original text"
+  codeHint: "Shows only differences from the defaults — changes are saved automatically"
+
+_backupContent:
+  settingsFiles: "Settings files"
+  settingsHint: "Export or import themes, plugins, widgets, skills, profiles, and all settings as a single notedeck.json."
+  processing: "Processing..."
+  database: "Database"
+  databaseHint: "Back up or restore the local cache database of notes, notifications, follows, and more."
+  databaseCredentialsNote: "Credentials are not included, so log in to each account again after restoring."
+  backup: "Back up"
+  restore: "Restore"
+
+_clipDetailContent:
+  private: "Private"
+  empty: "This clip has no notes"
+
+_connectionsContent:
+  chooseService: "Choose a service to connect"
+  addConnection: "Add connection"
+  addManually: "Add manually"
+  registered: "Registered connections"
+  aiActive: "Available to AI"
+  aiPending: "Shared with AI (not usable yet: vault.use is disabled or the secret is not set)"
+  pluginActive: "Available to plugins and widgets"
+  pluginPending: "Shared with plugins (not usable yet: vault.use is disabled or the secret is not set)"
+  externalActive: "Available to external apps"
+  externalPending: "Shared with external apps (not usable yet: vault.use is disabled or the secret is not set)"
+
+_driveFileDetailContent:
+  exif: "EXIF data"
+  exifHasGps: "Contains location data (GPS)"
+  exifEmpty: "No EXIF data"
+
+_editHistoryContent:
+  subtitle: "Edit history of {label}"
+  loading: "Loading…"
+  empty: "No edit history yet"
+  latest: "Latest"
+  restore: "Restore to #{n}"
+
+_emojiMuteSection:
+  hideMutedUserReactions: "Hide reactions from muted and suspended users"
+  hideMutedUserReactionsDescription: "Removes them from reaction counts. Notes with a very large number of reactions are excluded"
+  mutedEmojis: "Muted emojis"
+  empty: "None — add them by right-clicking a reaction or in the emoji column"
+  clickToUnmute: "{emoji} — click to unmute"
+
+_followListContent:
+  following: "Following"
+  followers: "Followers"
+  noFollowing: "Not following anyone"
+  noFollowers: "No followers"
+
+_instanceProfileContent:
+  unknown: "Unknown"
+  firstRetrieved: "First seen {date}"
+  infoUpdated: "Updated {time}"
+  latestRequestReceived: "Last request received {time}"
+  latestRequestSent: "Last request sent {time}"
+  registrationOpen: "Registration open"
+  registrationClosed: "Registration closed"
+  users: "Users"
+  notes: "Notes"
+  rawResponse: "Raw response from {endpoint}"
+
+_keybindsContent:
+  recording: "Press keys..."
+  addShortcut: "Add shortcut"
+  codeHint: "Your customizations as JSON (differences from the defaults only)"
+  invalid: "Invalid"
+
+_listDetailContent:
+  private: "Private"
+  members_plural:
+    one: "{count} member"
+    other: "{count} members"
+  noMembers: "No members"
+
+_memoEditorContent:
+  loading: "Loading…"
+  notFound: "This memo was not found"
+
+_navEditorContent:
+  currentItems: "Current items"
+  addItem: "Add item"
+  noItems: "No items"
+  codeHint: "Differences from the defaults — null uses the default"
+
+_noteDetailContent:
+  noReplies: "No replies"
+  noRenotes: "No renotes"
+  mutedReaction: "{reaction} (muted)"
+  noReactions: "No reactions"
+
+_noteInspectorContent:
+  view: "View"
+  rawResponse: "Raw response from {endpoint}"
+  activityPubObject: "ActivityPub object resolved via {endpoint}"
+
+_notificationInspectorContent:
+  inMemoryObject: "Notification object in memory"
+  activityPubObject: "ActivityPub object resolved via {endpoint}"
+
+_pageEditContent:
+  title: "Title"
+  summary: "Summary"
+  saving: "Saving..."
+
+_permissionProfileEditor:
+  highRisk: "High-risk operation"
+
+_petSection:
+  title: "Pet"
+  openPage: "View on petdex.dev"
+  remove: "Remove pet"
+  size: "Pet size"
+  inputPlaceholder: "Slug or petdex.dev pet URL"
+  replace: "Switch"
+  use: "Use"
+  browse: "Browse petdex.dev"
+
+_playDetailContent:
+  showSource: "Show source"
+  reload: "Reload"
+
+_playEditContent:
+  title: "Title"
+  summary: "Summary"
+  saving: "Saving..."
+
+_pluginsContent:
+  enabled: "Enabled"
+  resetAllToDefault: "Reset all to default"
+  installHint: "Paste AiScript plugin code to install"
+  codeHint: "The plugin's AiScript source — changes apply after \"Save and restart\""
+  noLogs: "No logs"
+
+_postFormEditorContent:
+  currentOrder: "Current order"
+  noButtons: "No buttons"
+  availableButtons: "Available buttons"
+  allAdded: "All buttons have been added"
+  codeHint: "Differences from the defaults — null uses the default"
+
+_profileEditorContent:
+  editingOther: "Editing \"{name}\""
+  profileName: "Profile name"
+  columns: "Columns"
+  noColumns: "No columns"
+  addColumn: "Add column"
+  invalid: "Invalid"
+
+_snippetsEditorContent:
+  codeHint: "VSCode-compatible snippets — they appear in completion by prefix"
+  invalid: "Invalid"
+  confirmReset: "Really reset?"
+
+_tutorialEditorContent:
+  lead: "Items get checked as you use them. Finishing a category earns an achievement, delivered to your notifications."
+  readDocs: "Read the docs"
+  readStepDocs: "Read the guide for this step"
+  read: "Read"
+  showGuide: "Show guide"
+  unlockDescription: "Show the features this category covers"
+  unlock: "Unlock with developer mode"
+  again: "Again"
+  start: "Start"
+  resume: "Continue"
+  confirmReset: "Press again to erase"
+  reset: "Erase progress"
+
+_userActivityFollowingChart:
+  unavailable: "Couldn’t load follow data"
+
+_userActivityHeatmap:
+  unavailable: "Couldn’t show activity"
+
+_userActivityNotesChart:
+  unavailable: "Couldn’t load note data"
+
+_userActivityPvChart:
+  unavailable: "Couldn’t load PV data"
+
+_userProfileContent:
+  remoteCaution: "This is a remote user, so the information may be incomplete."
+  showOnRemote: "View on remote"
+  pinned: "Pinned"
+  noFiles: "No files"
+  mutedReaction: "{reaction} (muted)"
+  noReactions: "No reactions"
+
+_widgetEditContent:
+  autoRunOnTitle: "Auto-run: on (click to toggle)"
+  autoRunOffTitle: "Auto-run: off (click to toggle)"
+  autoRunOn: "Auto-run ON"
+  autoRunOff: "Auto-run OFF"
+  notFound: "Widget not found"
+  runHint: "Run the widget with the run button at the top right"
+  output: "Output ({n})"
+
+_aboutContent:
+  openOfficialSite: "Open the official site"
+  checkForUpdate: "Check for updates"
+  upToDate: "Up to date"
+  update: "Update"
+  updateReady: "Update ready to install"
+  downloading: "Downloading v{version}"
+  restart: "Restart"
+  updateNow: "Update"
+  developerMode: "Developer mode"
+  developer: "Developer"
+  versionInfo: "Version info"
+  copyInfo: "Copy info"
+  reportBug: "Report a bug"
+  selfDiagnosis: "Self-diagnosis"
+  noProblems: "No problems found"
+  rediagnose: "Run again"
+  startupPerformance: "Startup performance"
+  phase: "Phase"
+  segment: "Step"
+  cumulative: "Total"
+  webviewStartupNote: "WebView startup is only measured on the process’s first navigation (totals start from page load)"
+  runtimePerformance: "Runtime performance"
+  measuring: "Measuring..."
+  openPerformanceSettings: "Open performance settings"
+
+_cacheEditorContent:
+  usage: "Usage"
+  notes: "Notes"
+  dbSize: "DB size"
+  imageCache: "Image cache"
+  maxSize: "Limit"
+  retention: "Retention"
+  days: "days"
+  processing: "Working..."
+  clearImages: "Clear image cache"
+  clearImagesWithCount_plural:
+    one: "Clear image cache ({count} file)"
+    other: "Clear image cache ({count} files)"
+  granularity: "Storage level"
+  searchIndexNote: "This cache is also the index for client search. Every note you have seen, including followers-only and direct notes, is stored unencrypted."
+  perAccountLimit: "Limit per account"
+  manualClear: "Clear manually"
+  manualClearNote: "Deletes all cached notes and OGP data. They come back when fetched again from the server."
+
+_columnQueryEditorContent:
+  queryName: "Query name"
+  descriptionOptional: "Description (optional)"
+  hint: "Define which notes flow into a column with an AiScript expression (true = show). Example: {example}. Turn it on for a column from the timeline column’s filter menu."
+  sourcePlaceholder: "note.text != null && note.text.incl(\"keyword\")"
+  fastQuery_plural:
+    one: "Fast query (QIR, {count} node)"
+    other: "Fast query (QIR, {count} nodes)"
+  dryRun: "{match} of {total} notes in recent TL columns pass"
+  dryRunErrors_plural:
+    one: " · {count} error (excluded)"
+    other: " · {count} errors (excluded)"
+  lineLabel: "Line {line}:"
+  guardTitle: "Guard the final expression with {guard}"
+  addGuard: "Add guard"
+  sequential: "Applied one by one (checks each note individually, so it can’t be used for search)"
+  saveAnyway: "Save anyway"
+
+_connectionEditContent:
+  name: "Name"
+  authMethod: "Authentication"
+  customHeader: "Custom header"
+  headerNamePlaceholder: "Header name (e.g. x-api-key)"
+  queryParam: "Query parameter"
+  paramNamePlaceholder: "Parameter name (e.g. api_key)"
+  basicAuth: "Basic authentication"
+  username: "Username"
+  secret: "Secret"
+  secretSet: "Set"
+  rotateSecret: "Replace key"
+  secretPlaceholder: "16 characters or more"
+  openIssueGuide: "How to get one"
+  advanced: "Advanced"
+  allowedHosts: "Allowed hosts (comma-separated)"
+  allowedHostsPlaceholder: "Auto: host of baseUrl"
+  notes: "Notes"
+  notesPlaceholder: "Don’t put secrets here"
+  exposeAi: "Show to AI"
+  exposeAiHint: "When off, AI (chat / HEARTBEAT) can’t even see that this connection exists"
+  aiVaultUseDisabled: "AI’s vault.use is disabled, so it can’t see this connection yet — open the permissions window to allow it"
+  trustAi: "Use without confirmation (AI)"
+  trustAiHint: "No confirmation dialog when AI uses this connection"
+  exposePlugin: "Show to plugins and widgets"
+  exposePluginHint: "Let AiScript plugins / widgets use this connection"
+  pluginVaultUseDisabled: "Plugins’ vault.use is disabled, so they can’t see this connection yet — open the permissions window to allow it"
+  trustedPlugins: "Plugins and widgets that can use it without confirmation (added via “Don’t ask again” in the confirmation dialog)"
+  revokeTrust: "Revoke trust (the confirmation dialog will appear next time)"
+  exposeExternal: "Show to external apps"
+  exposeExternalHint: "Let external apps use this connection through the HTTP API (persistent token)"
+  externalVaultUseDisabled: "External apps’ vault.use is disabled, so they can’t see this connection yet — open the permission settings to allow it"
+  trustExternal: "Use without confirmation (external apps)"
+  trustExternalHint: "No confirmation dialog when an external app uses this connection"
+  testing: "Testing..."
+  test: "Test"
+  saving: "Saving..."
+
+_cssEditorContent:
+  customCss: "custom CSS"
+  presets: "Presets"
+  font: "Font"
+  fontPreview: "あいうえお 漢字 ABCabc 123 Il1 O0"
+  monoFont: "Monospace font"
+  monoFontPreview: "const 変数 = 0; // Il1 O0"
+  monoFontNote: "Applies to code blocks, the JSON viewer and editors"
+  fontSize: "Font size"
+  small: "Small"
+  large: "Large"
+  reset: "Reset"
+  visibilityBg: "Color by visibility"
+  hideNoteCounts: "Hide note counts"
+  hideNoteCountsNote: "Hides reaction and renote counts (reply counts stay, since they reflect the conversation)"
+  hideUserStats: "Hide user profile counts"
+  hideUserStatsNote: "Note, following and follower counts become “-” (still clickable)"
+  freeformCss: "Additional CSS"
+  cssErrorHint: "Not applied because the CSS has errors"
+  codeHint: "The full CSS, combining presets and additional CSS"
+  syncToPresets: "Sync to presets"
+  invalid: "Invalid"
+  history: "History"
+  confirmClear: "Really clear?"
+  clearAll: "Clear all"
+
+_loginContent:
+  checking: "Checking..."
+  serverReachable: "Server is reachable"
+  connectToServer: "Connect to a Misskey server"
+  serverAddress: "Server address"
+  enterHost: "Enter a host name"
+  login: "Log in"
+  browseAsGuest: "Browse as guest"
+  connecting: "Connecting to server..."
+  waitingForAuth: "Waiting for authorization..."
+  authOpened: "The authorization page opened in your browser."
+  authInstruction: "Once you’ve authorized, click the button below."
+  authDone: "I’ve authorized"
+  startOver: "Start over"
+
+_performanceEditorContent:
+  autoAdapt: "Adapt automatically to power, network and window state"
+  autoAdaptDescription: "On battery or in power-saving mode, stops image prefetching and animated emoji; on metered connections, loads images and videos on tap; while the window is hidden, pauses timeline subscriptions"
+  lowMemory: "Low memory"
+  highPerformance: "High performance"
+  masterTitle: "Raise or lower everything while keeping the overall balance"
+  defaultValue: "Default: {value}"
+  codeHint: "Only differences from the defaults are saved as JSON"
+  invalid: "Invalid"
+
+_permissionsContent:
+  noExposedConnections: "No connections are exposed yet —"
+  openConnections: "Open connections"
+  confirmSkipTitle: "Actions that run without confirmation"
+  confirmSkipHint: "Actions for which you chose “Don’t ask again for this action” in the confirmation dialog. Revoke one to be asked again next time."
+  revoke: "Revoke"
+  apiTokens: "Persistent API tokens"
+  apiTokensHint: "Named tokens that survive restarts. Only a hash is stored; the token is shown once when issued."
+  revokeToken: "Revoke"
+  tokenNamePlaceholder: "Token name (e.g. Raycast, Claude Cowork)"
+  issueToken: "Issue"
+  createdTokenNotice: "Token for “{name}” — it can’t be shown again once you close this"
+  copy: "Copy"
+  codeHint: "Edit permissions.json5 directly. Each principal (ai.chat / ai.heartbeat / plugin / external) has a preset and a custom map."
+  invalid: "Invalid"
+
+_skillEditContent:
+  notFound: "Skill not found"
+  meta: "Meta"
+  instructions: "Instructions"
+  name: "Name"
+  namePlaceholder: "Skill name"
+  description: "Description"
+  descriptionPlaceholder: "When to use it"
+  author: "Author"
+  optional: "Optional"
+  version: "Version"
+  mode: "Mode"
+  modeAlways: "Always"
+  modeManual: "Manual"
+  modeTrigger: "Auto"
+  modeHeartbeat: "HEARTBEAT (scheduled)"
+  heartbeatHint: "When HEARTBEAT is on, AI reads this skill body on every tick (#411 / equivalent to OpenClaw HEARTBEAT.md)."
+  triggerHint: "Auto: this skill body is injected into the system prompt only on turns where your input contains one of the trigger words below (case-insensitive partial match)."
+  triggers: "Trigger words (one per line)"
+  triggersPlaceholder: "where\nhow to\nhelp"
+  triggersOnlyInTriggerMode: "Trigger words only work when the mode is “Auto”"
+  personaToggle: "Offer this skill as a persona for AI sessions"
+  personaHint: "When on, this skill appears in the persona selector in the AI session header. In the selected session, AI acts as this persona and is recorded as the author of memos (#491)."
+  fromStoreNote: "Skill from the store — edits are saved to a local file (reinstalling may overwrite them)"
+
+_tasksEditorContent:
+  visualHint: "Declared tasks can be run from the command palette and the Task Runner column."
+  dragToReorder: "Drag to reorder"
+  defaultTask: "Default task"
+  untitled: "(Untitled)"
+  promptsForInput: "Asks for input"
+  label: "Label"
+  labelPlaceholder: "Display name in the UI"
+  description: "Description"
+  descriptionPlaceholder: "Optional (longer text for the tooltip)"
+  detailPlaceholder: "One-line note under the label (optional)"
+  groupPlaceholder: "Any text (optional)"
+  defaultTaskOnlyOne: "Default task (only one)"
+  account: "Account"
+  accountActive: "Currently active"
+  accountFirst: "First logged-in account"
+  accountSpecific: "Specific ID"
+  action: "Action (api)"
+  presentation: "Display options (presentation)"
+  revealOnRun: "Select in history automatically when run (revealOnRun)"
+  clearHistoryOnRun: "Clear past history when run (clearHistoryOnRun)"
+  inputFields: "Input fields"
+  prompt: "Prompt"
+  pickOptionsPlaceholder: "Options (one per line)"
+  defaultPlaceholder: "default (optional)"
+  noInputs: "No inputs — the task runs immediately"
+  empty: "No tasks yet"
+  addTask: "Add task"
+  variables: "Variables:"
+  parsedTasks_plural:
+    one: "Parsed {count} task"
+    other: "Parsed {count} tasks"
+  savingSuffix: " · Saving…"
+  invalid: "Invalid"
+  resetToSample: "Reset to sample"
+
+_themeEditorContent:
+  light: "Light"
+  dark: "Dark"
+  themeInfo: "Theme info"
+  themeName: "Theme name"
+  existingThemes: "Existing themes"
+  selectTheme: "Select a theme..."
+  primaryColors: "Base colors"
+  extraProperties: "Additional properties"
+  addProperty: "Add property ({n})"
+  search: "Search..."
+  noMatchingProperties: "No matching properties"
+  applyFromCode: "Apply from code"
+
+_deckAiColumn:
+  personaIndicator: "Persona: {name} (change in agent settings)"
+  backToSessions: "Back to sessions"
+  searchSessions: "Search sessions..."
+  noSessions: "No sessions yet"
+  noMatchingSessions: "No matching sessions"
+  untitledChat: "Untitled chat"
+  inputPlaceholder: "Ask a question, or /help for commands"
+  inputPlaceholderNoApiKey: "/help for commands (no API key set)"
+  apiKeyRequired: "Asking the AI requires an API key (commands such as /help still work)"
+  aiSetupGuide: "Guide me through AI setup"
+  hideDetails: "Hide details"
+  showDetails: "Show details"
+  toolCall: "Tool call"
+  toolResult: "Result"
+  intent: "Proposal"
+  intentNote: "Proposed by an unattended run (HEARTBEAT). You’ll be asked to confirm before it runs."
+  intentUntrusted: "Created in a context that read other people’s content. Check the recipient and the text."
+  intentDraftFailed: "Couldn’t save as a draft: {error}"
+  run: "Run"
+  dismiss: "Dismiss"
+  copy: "Copy"
+  stop: "Stop"
+
+_deckClientSearchColumn:
+  searchPlaceholder: "Search local notes..."
+  filter: "Filter"
+  oldestFirst: "Oldest first"
+  newestFirst: "Newest first"
+  scope: "Scope"
+  allAccounts: "All accounts"
+  serverOption: "{host} (server)"
+  author: "Author"
+  authorPlaceholder: "name or name@host"
+  period: "Date range"
+  since: "Start date"
+  until: "End date"
+  attachments: "Attachments"
+  attachmentsAny: "Any"
+  attachmentsYes: "With attachments"
+  attachmentsNo: "Without attachments"
+  clearFilters: "Clear filters"
+
+_deckColumn:
+  allAccounts: "All accounts"
+  unmute: "Unmute"
+  mute: "Mute"
+  loggedOut: "Logged out"
+  pullToRefresh: "Pull down to refresh"
+  accountNotFound: "Account not found"
+  unpinOnTop: "Stop keeping on top"
+  pinOnTop: "Keep on top"
+  returnToDeck: "Return to deck"
+  openWebUi: "Open in Web UI"
+  unstack: "Unstack"
+  popOut: "Open in new window"
+  openAsPip: "Open as PiP window"
+  recallToMain: "Return to main window"
+
+_deckDriveColumn:
+  root: "Root"
+  select: "Select"
+  newFolder: "New folder"
+  upload: "Upload"
+  deselectFolder: "Deselect this folder"
+  selectFolder: "Select all in this folder"
+  selectedCount_plural:
+    one: "{count} item"
+    other: "{count} items"
+  selectedOutside: " (+{n} elsewhere)"
+  deselectAll: "Deselect all"
+  move: "Move"
+  moveSelected: "Move selected files"
+  exporting: "Saving {done}/{total}"
+  exportSelected: "Save selected files locally"
+  deleteSelected: "Delete selected files"
+
+_deckNavbar:
+  switchToOnline: "Switch to online mode"
+  switchToOffline: "Switch to offline mode"
+  switchToPolling: "Switch to polling mode"
+  switchToRealtime: "Switch to real-time mode"
+  more: "More"
+  profile: "Profile"
+  online: "Online"
+  realtime: "Real-time"
+  note: "Note"
+  account: "Account"
+  editNavbar: "Edit navbar"
+
+_deckNotificationColumn:
+  empty: "No notifications"
+  mutedReaction: "{reaction} (muted)"
+  othersCount_plural:
+    one: "and {count} other"
+    other: "and {count} others"
+  accepted: "Accepted"
+  rejected: "Rejected"
+  accept: "Accept"
+  reject: "Reject"
+  createTokenWarning: "If you don’t recognize this, delete the access token from {link}."
+  manageAccessTokens: "Manage access tokens"
+  openUserProfile: "User profile"
+  openNote: "Show note"
+  noteRawJson: "Note Raw JSON"
+  notificationRawJson: "Notification Raw JSON"
+
+_deckPluginManagerColumn:
+  create: "Create new plugin"
+  safeModeSubject: "plugins"
+  searchInstalled: "Search installed"
+  enabledPlugins: "Enabled plugins"
+  disabledPlugins: "Disabled plugins"
+  noMatches: "No matching plugins"
+  emptyInColumn: "No plugins have been added to this column"
+  noLibraryCandidates: "No plugins in the library can be added."
+
+_deckQueryManagerColumn:
+  create: "Create new query"
+  safeModeSubject: "queries"
+  search: "Search queries"
+  enabledQueries: "Enabled queries"
+  disabledQueries: "Disabled queries"
+  noMatches: "No matching queries"
+  empty: "No named queries yet"
+  emptyHint: "A query is an AiScript expression that defines what a column shows. Once created, you can toggle it on from each note column’s query settings."
+  createQuery: "Create query"
+  noLibraryCandidates: "No queries in the library can be added."
+
+_deckServerInfoColumn:
+  noDescription: "(No description)"
+  sourceCode: "Source code"
+  maintainer: "Administrator"
+  contact: "Contact"
+  inquiry: "Inquiries"
+  none: "(None)"
+  impressum: "Impressum"
+  serverRules: "Server rules"
+  tos: "Terms of service"
+  privacyPolicy: "Privacy policy"
+  feedback: "Feedback"
+  stats: "Statistics"
+  users: "Users"
+  notes: "Notes"
+  rawResponse: "Raw response from {endpoint}"
+  fetchFailed: "Couldn’t fetch server info"
+
+_deckSkillColumn:
+  create: "Create new skill"
+  search: "Search skills"
+  removeFromHeartbeat: "Remove from HEARTBEAT"
+  addToHeartbeat: "Run periodically with HEARTBEAT"
+  deleteFromLibrary: "Delete from library (the content is deleted too)"
+  deactivate: "Deactivate"
+  activate: "Activate"
+  alwaysActive: "mode=always is always active"
+  noMatches: "No matching skills"
+  empty: "No skills installed"
+  installedMark: "Installed"
+  update: "Update"
+  storeEmpty: "No skills in the store"
+
+_deckTaskRunnerColumn:
+  clearHistory: "Clear history"
+  editTasksFile: "Edit tasks.json5"
+  runTask: "Run {label}"
+  defaultRun: "Default task"
+  search: "Search tasks"
+  empty: "Define tasks in tasks.json5 to run them from here with one click."
+  noMatches: "No tasks match \"{query}\""
+  error: "Error"
+  lastRun: "Last run: {status} · {duration}"
+  requiresInput: "Asks for input"
+  runWithAi: "Run in an AI session (creates a new kind=task session and runs it once right away)"
+  history: "History"
+  runningCount: "{n} running"
+  noHistory: "No run history yet"
+
+_queryCard:
+  disabledHint: "The query itself is disabled. Columns that use it won’t evaluate it"
+  degraded: "Per-note"
+  degradedHint: "Evaluated one note at a time. Filtering works, but it can’t be used for cache search"
+  invalid: "Can’t evaluate"
+  invalidHint: "Can’t be interpreted, so columns using it stop receiving new notes (edit it to fix)"
+  appliedInColumns_plural:
+    one: "Applied in {count} column"
+    other: "Applied in {count} columns"
+  update: "Update"
+  deleteFromLibrary: "Delete from library (the content is deleted too)"
+
+_addColumnDialog:
+  selectItem: "Select {label}"
+  selectAccount: "Select account"
+  addColumn: "Add column"
+  searchItem: "Search {label}..."
+  itemNamePlaceholder: "Enter {label} name..."
+  create: "Create"
+  createNew: "Create new {label}"
+  notFound: "No {label} found"
+  allAccounts: "All accounts"
+  noAccount: "No account"
+  guestUnavailable: "This column isn't available for guest accounts"
+
+_columnErrorBoundary:
+  title: "Something went wrong while displaying this column"
+  reload: "Reload"
+
+_columnFilterButton:
+  filter: "Filter"
+
+_columnPullFrame:
+  pullToRefresh: "Pull down to refresh"
+
+_columnQueryBanners:
+  queryDeletedHint: "The query this column references has been deleted. Detach it to resume loading new notes"
+  queryNotFound: "Referenced query not found"
+  detach: "Detach"
+  queryInvalid: "New notes paused because the query couldn't be parsed"
+  suspendedHint: "Stopped because the query didn't finish. Resume to fetch again"
+  pending_plural:
+    one: "{count} item on hold"
+    other: "{count} items on hold"
+  querySuspended: "Query paused"
+  resume: "Resume"
+
+_columnTombstone:
+  notLoaded: "Extension column \"{type}\" isn't loaded"
+  bodyReason: "The plugin that provides it is disabled, removed, or hasn't started yet."
+  bodyAuto: "It will appear automatically once the plugin starts."
+  removeColumn: "Remove this column"
+
+_dayNightToggle:
+  switchToLight: "Switch to light mode"
+  switchToDark: "Switch to dark mode"
+  light: "Light"
+  dark: "Dark"
+  syncWithDevice: "Sync with the device's dark mode"
+
+_deckAboutMisskeyColumn:
+  description: "Misskey is an open-source, decentralized social networking platform."
+  learnMore: "Learn more"
+  sourceCodeOriginal: "Source code (original)"
+  translation: "Translation"
+  donate: "Donate"
+  modifiedNotice: "This server runs a modified version of Misskey."
+  sourceCode: "Source code"
+  projectMembers: "Project members"
+  fetchFailed: "Couldn't load information"
+
+_deckAchievementsColumn:
+  pendingHint: "Enable developer mode to unlock"
+  empty: "No achievements"
+
+_deckAdsColumn:
+  empty: "No ads"
+
+_deckAiScriptColumn:
+  running: "Running..."
+  runWithShortcut: "Run (Ctrl+Enter)"
+  output: "Output"
+  runHint: "Press Ctrl+Enter to run"
+  noUiComponents: "No UI components"
+
+_deckAnnouncementsColumn:
+  empty: "No announcements"
+  markAsRead: "Mark as read"
+
+_deckAntennaColumn:
+  deleteItem: "Delete {label}"
+
+_deckClipColumn:
+  deleteItem: "Delete {label}"
+
+_deckListColumn:
+  deleteItem: "Delete {label}"
+
+_deckApiConsoleColumn:
+  params: "Parameters (JSON)"
+  noAccount: "No account set"
+  loggedOut: "Logged out"
+  sendHint: "Press Ctrl+Enter to send"
+
+_deckBottomBar:
+  addColumn: "Add column"
+  deckSettings: "Deck settings"
+
+_deckChartsColumn:
+  hour: "Hour"
+  day: "Day"
+  breakdown: "Breakdown"
+
+_deckChatColumn:
+  closeSearch: "Close search"
+  searchMessages: "Search messages"
+  searchChatsPlaceholder: "Search chats..."
+  noConversations: "No conversations"
+  noMatchingChats: "No matching chats"
+  fileOnly: "(File)"
+  searchMessagesPlaceholder: "Search messages..."
+  noMatchingMessages: "No matching messages"
+  emoji: "Emoji"
+  messagePlaceholder: "Message..."
+
+_deckColumnsArea:
+  noColumns: "No columns"
+  startWithDefault: "Start with the default layout"
+  addColumn: "Add column"
+
+_deckEmojiColumn:
+  searchPlaceholder: "Search emoji..."
+  count_plural:
+    one: "{count} result"
+    other: "{count} results"
+  all: "All"
+  noEmoji: "No emoji found"
+  emojiMuted: "{name} (muted)"
+  uncategorized: "Uncategorized"
+  muted: "Muted"
+  copyCode: "Copy code"
+  unmute: "Unmute"
+  muteEmoji: "Mute this emoji"
+
+_deckExploreColumn:
+  pullToRefresh: "Pull down to refresh"
+  noNotes: "No notes found"
+  userInfo: "user info"
+  noUsers: "No users found"
+  noRoleUsers: "No users"
+  noRoles: "No roles found"
+
+_deckFavoritesColumn:
+  empty: "No favorites"
+
+_deckFederationColumn:
+  searchPlaceholder: "Search by hostname..."
+  federationInfo: "federation info"
+  empty: "No federated servers found"
+  instanceTooltip: "{host}\n{software}\nUsers: {users} / Notes: {notes}\nLast contact: {lastSent}"
+  suspended: "Suspended"
+  notResponding: "Not responding"
+
+_deckFollowRequestsColumn:
+  accepted: "Accepted"
+  rejected: "Rejected"
+  canceled: "Canceled"
+  cancelRequest: "Cancel"
+  accept: "Accept"
+  reject: "Reject"
+
+_deckGalleryColumn:
+  empty: "No gallery posts"
+  postMenu: "Menu for \"{title}\""
+
+_deckLayout:
+  newNote: "New note"
+  dropToUpload: "Drop files to upload"
+  moveColumnHere: "Move column here"
+
+_deckLookupColumn:
+  placeholder: "URL or @username@host"
+  emptyThread: "Enter a URL to look up"
+  emptyResult: "Enter a URL or @username to look up"
+
+_deckMemoColumn:
+  empty: "No memos"
+  openInEditor: "Open this memo in the editor"
+  restoreToPostForm: "Restore to post form"
+
+_deckMentionsColumn:
+  newNotes: "New notes"
+
+_deckNoteColumn:
+  newNotes: "New notes"
+
+_deckTimelineColumn:
+  newNotes: "New notes"
+
+_deckMobileNav:
+  addColumn: "Add column"
+
+_deckPageColumn:
+  empty: "No pages found"
+
+_deckPlayColumn:
+  empty: "No Plays found"
+
+_deckProfileMenu:
+  openInEditor: "Open in editor"
+  noProfiles: "No saved profiles"
+  newProfile: "New profile"
+
+_deckSearchColumn:
+  regexPlaceholder: "Search with regex..."
+  placeholder: "Search notes..."
+  regexMode: "Regex mode"
+  regexGuide: "Regex guide"
+  dateFilter: "Date filter"
+  oldestFirst: "Oldest first"
+  newestFirst: "Newest first"
+  startDate: "Start date"
+  endDate: "End date"
+  clearDate: "Clear dates"
+  enterQuery: "Enter a search query"
+  noResults: "No results found"
+  enterToSearch: "Press Enter to search the server"
+
+_deckStreamInspectorColumn:
+  resume: "Resume"
+  pause: "Pause"
+  waiting: "Waiting for events..."
+
+_deckThemeManagerColumn:
+  createTheme: "Create new theme"
+  safeModeSubject: "themes"
+  searchInstalled: "Search installed"
+  noLibraryThemes: "No themes in the library to add."
+  noMatches: "No matching themes"
+  noThemes: "No themes"
+  installFromStore: "Install from the store..."
+
+_deckWidgetColumn:
+  createLocal: "Create new local widget"
+  empty: "Add widgets to customize this column"
+  addWidget: "Add widget"
+  noLibraryWidgets: "No widgets in the library to place."
+  emptyCode: "Empty code"
+  noMatches: "No matching widgets"
+  selectAccount: "Select account"
+
+_deckWindow:
+  openInWebUi: "Open in Web UI"
+  openInDefaultEditor: "Open {name} in the OS's default editor"
+  minimize: "Minimize"
+  maximize: "Maximize"
+
+_logoutDialog:
+  removeGuest: "Remove guest"
+  logout: "Log out"
+  confirmRemoveGuest: "Remove this guest account?"
+  keepDataQuestion: "Keep local data on this device?"
+  keptDataHint: "Kept data can be viewed offline."
+  deleteAll: "Delete all"
+  keepData: "Keep data"
+
+_navAccountMenu:
+  controlPanel: "Control panel"
+  clearCache: "Clear cache"
+  logout: "Log out"
+  deleteData: "Delete data"
+  relogin: "Log in again"
+
+_pluginCard:
+  incompatible: "Incompatible"
+  denied_plural:
+    one: "Denied for lack of permission: {target} (requested: {keys} / {count} time). Click to open plugin permissions"
+    other: "Denied for lack of permission: {target} (requested: {keys} / {count} times). Click to open plugin permissions"
+  detachFromColumn: "Remove from this column"
+  deleteFromLibrary: "Delete from library (the code is removed too)"
+  update: "Update"
+
+_widgetCard:
+  incompatible: "Incompatible"
+  update: "Update"
+  deleteFromLibrary: "Delete from library (the code is removed too)"
+  editWidget: "Edit widget"
+  place: "Place"
+
+_themeCard:
+  clearAccount: "Clear the setting for this account"
+  detachFromAccount: "Remove from this account"
+  deleteFromLibrary: "Delete from library (the theme is removed too)"
+  addToAccount: "Add to this account"
+  update: "Update"
+  viewInMisStore: "View details in MisStore"
+  installing: "Installing"
+
+_timelineFilterPopup:
+  filter: "Filters"
+  disabledQueryHint: "This query is disabled — click to open the query manager column"
+
+_widgetAiScript:
+  editCode: "Edit code"
+  running: "Running..."
+  run: "Run"
+  dragToReorder: "Drag to reorder"
+  removeFromSidebar: "Remove from sidebar"
+  removeFromColumn: "Remove from this column"
+  outputCount: "Output ({n})"

@@ -22,6 +22,7 @@ import { openEditHistoryWindow } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
@@ -614,16 +615,16 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
           <ThemePreview :theme="previewTheme" :class="$style.headerPreview" />
         </template>
         <template #sub>
-          <span :class="$style.headerBadge">{{ baseMode === 'light' ? 'ライト' : 'ダーク' }}</span>
+          <span :class="$style.headerBadge">{{ baseMode === 'light' ? i18n.ts._themeEditorContent.light : i18n.ts._themeEditorContent.dark }}</span>
         </template>
       </EditorItemHeader>
 
       <EditorTabs
         v-model="tab"
         :tabs="[
-          { value: 'visual', icon: 'palette', label: 'ビジュアル' },
+          { value: 'visual', icon: 'palette', label: i18n.ts._common.visual },
           ...(isExposed('developer')
-            ? [{ value: 'code', icon: 'code', label: 'コード' }]
+            ? [{ value: 'code', icon: 'code', label: i18n.ts._common.code }]
             : []),
         ]"
       />
@@ -634,7 +635,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
         <div :class="$style.section">
           <button class="_button" :class="$style.sectionLabel" @click="toggleSection('info')">
             <i class="ti ti-tag" />
-            テーマ情報
+            {{ i18n.ts._themeEditorContent.themeInfo }}
             <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.info }]" />
           </button>
           <template v-if="expandedSections.info">
@@ -642,7 +643,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
               v-model="themeName"
               :class="$style.nameInput"
               type="text"
-              placeholder="テーマ名"
+              :placeholder="i18n.ts._themeEditorContent.themeName"
               spellcheck="false"
             />
             <div :class="$style.baseToggle">
@@ -670,7 +671,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
         <div v-if="themeStore.installedThemes.length" :class="$style.section">
           <button class="_button" :class="$style.sectionLabel" @click="toggleSection('existing')">
             <i class="ti ti-folder-open" />
-            既存テーマ
+            {{ i18n.ts._themeEditorContent.existingThemes }}
             <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.existing }]" />
           </button>
           <div v-if="expandedSections.existing" :class="$style.dropdown">
@@ -679,7 +680,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
               :class="$style.dropdownTrigger"
               @click="showLoadDropdown = !showLoadDropdown"
             >
-              <span>テーマを選択...</span>
+              <span>{{ i18n.ts._themeEditorContent.selectTheme }}</span>
               <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
             </button>
             <div v-if="showLoadDropdown" :class="$style.dropdownPanel">
@@ -698,7 +699,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                 <button
                   class="_button"
                   :class="$style.dropdownItemDelete"
-                  title="削除"
+                  :title="i18n.ts._common.delete"
                   @click="deleteInstalledTheme(t, $event)"
                 >
                   <i class="ti ti-trash" />
@@ -716,7 +717,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
             @click="toggleSection('primary')"
           >
             <i class="ti ti-palette" />
-            基本色
+            {{ i18n.ts._themeEditorContent.primaryColors }}
             <span v-if="primaryOverrideCount > 0" :class="$style.sectionValue">
               {{ primaryOverrideCount }}/{{ PRIMARY_PROPS.length }}
             </span>
@@ -749,7 +750,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                   v-if="isOverridden(prop.key)"
                   class="_button"
                   :class="$style.resetBtn"
-                  title="デフォルトに戻す"
+                  :title="i18n.ts._common.resetToDefault"
                   @click="resetProp(prop.key)"
                 >
                   <i class="ti ti-x" />
@@ -781,7 +782,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
             @click="toggleSection('secondary')"
           >
             <i class="ti ti-adjustments" />
-            追加プロパティ
+            {{ i18n.ts._themeEditorContent.extraProperties }}
             <span :class="$style.sectionValue">{{ secondaryOverrides.length }}</span>
             <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.secondary }]" />
           </button>
@@ -810,7 +811,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                 <button
                   class="_button"
                   :class="$style.resetBtn"
-                  title="削除"
+                  :title="i18n.ts._common.delete"
                   @click="resetProp(key)"
                 >
                   <i class="ti ti-x" />
@@ -842,7 +843,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
               @click="showAddPropDropdown = !showAddPropDropdown"
             >
               <i class="ti ti-plus" />
-              <span>プロパティを追加 ({{ availableSecondaryProps.length }})</span>
+              <span>{{ i18n.tsx._themeEditorContent.addProperty({ n: availableSecondaryProps.length }) }}</span>
               <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
             </button>
             <div v-if="showAddPropDropdown" :class="$style.dropdownPanel">
@@ -852,7 +853,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                   v-model="addPropSearch"
                   :class="$style.searchInput"
                   type="text"
-                  placeholder="検索..."
+                  :placeholder="i18n.ts._themeEditorContent.search"
                   spellcheck="false"
                   @click.stop
                 />
@@ -871,7 +872,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                 <span :class="$style.dropdownItemLabel">{{ key }}</span>
               </button>
               <div v-if="filteredSecondaryProps.length === 0" :class="$style.dropdownEmpty">
-                一致するプロパティがありません
+                {{ i18n.ts._themeEditorContent.noMatchingProperties }}
               </div>
             </div>
           </div>
@@ -893,7 +894,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
           @click="syncVisualFromCode"
         >
           <i class="ti ti-check" />
-          コードから反映
+          {{ i18n.ts._themeEditorContent.applyFromCode }}
         </button>
       </div>
 

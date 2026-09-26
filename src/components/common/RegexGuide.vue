@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive } from 'vue'
+import { i18n } from '@/i18n'
 import {
   buildRegexFromConditions,
   FILTER_CONDITION_LABELS,
@@ -46,7 +47,7 @@ function apply() {
 
 <template>
   <div :class="$style.filterBuilder" class="_popup" @click.stop>
-    <div :class="$style.builderHeader">フィルタ条件</div>
+    <div :class="$style.builderHeader">{{ i18n.ts._regexGuide.filterConditions }}</div>
 
     <div :class="$style.conditions">
       <div v-for="(cond, i) in conditions" :key="i" :class="$style.conditionRow">
@@ -57,7 +58,7 @@ function apply() {
           v-model="cond.words"
           :class="$style.conditionWords"
           type="text"
-          placeholder="カンマ区切りで単語を入力"
+          :placeholder="i18n.ts._regexGuide.wordsPlaceholder"
           @keydown.enter="apply"
         />
         <button
@@ -74,7 +75,7 @@ function apply() {
     <div :class="$style.builderFooter">
       <button class="_button" :class="$style.addBtn" @click="addCondition">
         <i class="ti ti-plus" />
-        条件を追加
+        {{ i18n.ts._regexGuide.addCondition }}
       </button>
       <button
         class="_button"
@@ -82,7 +83,7 @@ function apply() {
         :disabled="!hasWords"
         @click="apply"
       >
-        適用
+        {{ i18n.ts._regexGuide.apply }}
       </button>
     </div>
 

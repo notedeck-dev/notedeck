@@ -9,6 +9,7 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
+import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import {
@@ -97,7 +98,7 @@ watch(
   <DeckColumn
     v-if="isCrossAccount"
     :column-id="column.id"
-    :title="column.name || 'お気に入り'"
+    :title="column.name || i18n.ts._columns.favorites"
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
     @refresh="connectCrossAccount"
@@ -112,7 +113,7 @@ watch(
       :account-id="column.accountId"
       is-error
       :image-url="serverErrorImageUrl"
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="connectCrossAccount"
     />
@@ -120,7 +121,7 @@ watch(
     <div v-else :class="$style.tlBody">
       <ColumnEmptyState
         v-if="notes.length === 0 && !isLoading"
-        message="お気に入りはありません"
+        :message="i18n.ts._deckFavoritesColumn.empty"
         :image-url="serverInfoImageUrl"
       />
 
@@ -166,7 +167,7 @@ watch(
   <DeckNoteColumn
     v-else
     :column="column"
-    title="お気に入り"
+    :title="i18n.ts._columns.favorites"
     icon="ti-star"
     :note-column-config="noteColumnConfig"
   />

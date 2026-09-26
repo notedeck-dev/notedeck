@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef } from 'vue'
 import type { NormalizedDriveFile } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { useSystemStateStore } from '@/stores/systemState'
 import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
 import { proxyUrl } from '@/utils/mediaProxy'
@@ -211,7 +212,7 @@ function closeLightbox() {
         @click.stop="toggleSensitive(file, $event)"
       >
         <i class="ti ti-download" />
-        <span>{{ isVideo(file) ? '動画をタップで読み込み' : '画像をタップで読み込み' }}</span>
+        <span>{{ isVideo(file) ? i18n.ts._mkMediaGrid.tapToLoadVideo : i18n.ts._mkMediaGrid.tapToLoadImage }}</span>
       </button>
 
       <!-- NSFW overlay -->

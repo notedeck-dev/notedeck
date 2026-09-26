@@ -2,6 +2,7 @@
 import { computed, watch } from 'vue'
 import type { JsonValue, Page } from '@/bindings'
 import { usePaginatedList } from '@/composables/usePaginatedList'
+import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import ProfileItemCards from './ProfileItemCards.vue'
@@ -68,7 +69,7 @@ function openUserPage(pageId: string) {
       :cards="cards"
       :is-loading="isLoading"
       :error="error"
-      empty-message="ページがありません"
+      :empty-message="i18n.ts._userProfilePagesPane.empty"
       :info-image-url="infoImageUrl"
       :error-image-url="errorImageUrl"
       @select="openUserPage"

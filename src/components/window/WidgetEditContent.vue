@@ -395,28 +395,28 @@ function toggleAutoRun() {
         </div>
         <div v-else :class="$style.nameRow">
           <span :class="$style.headerName">{{ widget.name }}</span>
-          <button class="_button" :class="$style.renameBtn" title="名前を変更" @click="startRename">
+          <button class="_button" :class="$style.renameBtn" :title="i18n.ts._common.rename" @click="startRename">
             <i class="ti ti-pencil" />
           </button>
         </div>
         <div :class="$style.headerSub">
-          <span v-if="widget.storeId" :class="$style.statusBadge">ストア</span>
-          <span v-else :class="[$style.statusBadge, $style.statusBadgeLocal]">ローカル</span>
+          <span v-if="widget.storeId" :class="$style.statusBadge">{{ i18n.ts._common.store }}</span>
+          <span v-else :class="[$style.statusBadge, $style.statusBadgeLocal]">{{ i18n.ts._common.local }}</span>
           <button
             class="_button"
             :class="[$style.autoRunBtn, widget.autoRun && $style.autoRunBtnActive]"
-            :title="widget.autoRun ? '自動実行: 有効 (クリックで切替)' : '自動実行: 無効 (クリックで切替)'"
+            :title="widget.autoRun ? i18n.ts._widgetEditContent.autoRunOnTitle : i18n.ts._widgetEditContent.autoRunOffTitle"
             @click="toggleAutoRun"
           >
             <i :class="widget.autoRun ? 'ti ti-clock-play' : 'ti ti-clock-off'" />
-            <span>{{ widget.autoRun ? '自動実行 ON' : '自動実行 OFF' }}</span>
+            <span>{{ widget.autoRun ? i18n.ts._widgetEditContent.autoRunOn : i18n.ts._widgetEditContent.autoRunOff }}</span>
           </button>
         </div>
       </div>
     </div>
     <div v-else :class="$style.notFound">
       <i class="ti ti-alert-circle" />
-      ウィジェットが見つかりません
+      {{ i18n.ts._widgetEditContent.notFound }}
     </div>
 
     <EditorTabs v-if="widget" v-model="tab" :tabs="tabDefs" />
@@ -438,10 +438,10 @@ function toggleAutoRun() {
         />
         <div v-else-if="!error" :class="$style.visualEmpty">
           <i class="ti ti-player-play" :class="$style.visualEmptyIcon" />
-          <span>右上の実行ボタンでウィジェットを実行</span>
+          <span>{{ i18n.ts._widgetEditContent.runHint }}</span>
         </div>
         <details v-if="output.length" :class="$style.outputPanel">
-          <summary>出力 ({{ output.length }})</summary>
+          <summary>{{ i18n.tsx._widgetEditContent.output({ n: output.length }) }}</summary>
           <div
             v-for="(line, i) in output"
             :key="i"
@@ -459,7 +459,7 @@ function toggleAutoRun() {
       :actions="historyActions"
       :primary="{
         key: 'save',
-        label: '保存',
+        label: i18n.ts._common.save,
         icon: 'device-floppy',
         disabled: !dirty,
       }"

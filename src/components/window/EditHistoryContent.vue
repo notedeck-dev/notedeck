@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { dispatchCapability } from '@/capabilities/dispatcher'
 import { useEditTargetText } from '@/composables/useEditTargetText'
+import { i18n } from '@/i18n'
 import {
   EDIT_HISTORY_SPECS,
   historyActorLabel,
@@ -112,15 +113,15 @@ function isSelfEdit(entry: HistoryEntry): boolean {
     <div :class="$style.header">
       <i class="ti ti-history" />
       <span :class="$style.title">{{ name || spec.label }}</span>
-      <span :class="$style.sub">{{ spec.label }}の編集履歴</span>
+      <span :class="$style.sub">{{ i18n.tsx._editHistoryContent.subtitle({ label: spec.label }) }}</span>
     </div>
 
     <div v-if="loading" :class="$style.empty">
-      <span>読み込み中…</span>
+      <span>{{ i18n.ts._editHistoryContent.loading }}</span>
     </div>
     <div v-else-if="entries.length === 0" :class="$style.empty">
       <i class="ti ti-history-off" />
-      <span>編集履歴はまだありません</span>
+      <span>{{ i18n.ts._editHistoryContent.empty }}</span>
     </div>
 
     <template v-else>
@@ -138,7 +139,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
           <span
             :class="[$style.entryActor, !isSelfEdit(entry) && $style.entryActorOther]"
           >{{ historyActorLabel(entry.by) }}</span>
-          <span v-if="i === 0" :class="$style.entryTag">直前</span>
+          <span v-if="i === 0" :class="$style.entryTag">{{ i18n.ts._editHistoryContent.latest }}</span>
           <span :class="$style.entryReason">{{ entry.reason }}</span>
         </button>
       </div>
@@ -171,7 +172,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
           @click="revert(selected)"
         >
           <i class="ti ti-arrow-back-up" />
-          <span>#{{ selected }} の状態に戻す</span>
+          <span>{{ i18n.tsx._editHistoryContent.restore({ n: selected }) }}</span>
         </button>
       </div>
     </template>

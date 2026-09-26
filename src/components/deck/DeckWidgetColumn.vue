@@ -8,6 +8,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { usePointerReorder } from '@/composables/usePointerReorder'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import {
   findWidgetInstance,
   isStoreWidgetInstalled,
@@ -397,7 +398,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 </script>
 
 <template>
-  <DeckColumn :column-id="column.id" :title="column.name ?? 'ウィジェット'" :theme-vars="columnThemeVars" data-column-type="widget" @header-click="scrollToTop">
+  <DeckColumn :column-id="column.id" :title="column.name ?? i18n.ts._columns.widget" :theme-vars="columnThemeVars" data-column-type="widget" @header-click="scrollToTop">
     <template #header-icon>
       <i class="ti ti-layout-dashboard" />
     </template>
@@ -407,7 +408,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
         v-if="viewTab === 'installed' && isWindowExposed('widget-edit')"
         class="_button"
         :class="$style.headerBtn"
-        title="新規ローカルウィジェットを作成"
+        :title="i18n.ts._deckWidgetColumn.createLocal"
         @click.stop="openNewWidgetEditor"
       >
         <i class="ti ti-plus" />
@@ -427,7 +428,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
         <div ref="widgetBodyRef" :class="$style.widgetColumnBody">
           <ColumnEmptyState
             v-if="showEmptyState"
-            message="ウィジェットを追加してカスタマイズしよう"
+            :message="i18n.ts._deckWidgetColumn.empty"
             :image-url="serverInfoImageUrl"
           />
 
@@ -457,21 +458,21 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
               @click="toggleLibraryPicker"
             >
               <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? '閉じる' : 'ウィジェットを追加' }}
+              {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._deckWidgetColumn.addWidget }}
             </button>
           </div>
 
           <!-- ===== Library picker ===== -->
           <div v-if="showLibraryPicker" :class="$style.pickerWrap">
             <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              ライブラリに配置可能なウィジェットがありません。
+              {{ i18n.ts._deckWidgetColumn.noLibraryWidgets }}
             </div>
             <WidgetCard
               v-for="w in libraryCandidates"
               :key="w.installId"
               mode="library"
               :name="w.name"
-              :description="w.src ? `${w.src.length} chars` : '空のコード'"
+              :description="w.src ? `${w.src.length} chars` : i18n.ts._deckWidgetColumn.emptyCode"
               :store-id="w.storeId"
               :icon-url="w.iconUrl"
               :account-label="ownAccountLabelOf(w)"
@@ -491,7 +492,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
             v-model="storeQuery"
             :class="$style.searchInput"
             type="text"
-            placeholder="ストアを探す"
+            :placeholder="i18n.ts._common.browseStore"
           />
         </div>
 
@@ -505,14 +506,14 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 
         <div v-if="misStore.widgetsLoading" :class="$style.storeLoading">
           <i class="ti ti-loader-2 nd-spin" />
-          読み込み中...
+          {{ i18n.ts._common.loading }}
         </div>
 
         <div v-else-if="misStore.widgetsError" :class="$style.empty">
           <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>ストアに接続できません</span>
+          <span>{{ i18n.ts._common.storeUnavailable }}</span>
           <button class="_button" :class="$style.emptyLink" @click="misStore.refreshWidgets()">
-            再試行
+            {{ i18n.ts._common.retry }}
           </button>
         </div>
 
@@ -539,7 +540,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
           />
 
           <div v-if="filteredStoreWidgets.length === 0 && !misStore.widgetsLoading" :class="$style.empty">
-            一致するウィジェットがありません
+            {{ i18n.ts._deckWidgetColumn.noMatches }}
           </div>
         </div>
       </template>
@@ -550,7 +551,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
   <AccountPickerSheet
     :show="sheetPurpose !== null"
     :accounts="pickableAccounts"
-    title="アカウントを選択"
+    :title="i18n.ts._deckWidgetColumn.selectAccount"
     :description="sheetPurpose ?? undefined"
     @select="resolveSheet($event)"
     @close="resolveSheet(null)"

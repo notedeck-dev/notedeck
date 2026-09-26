@@ -5,10 +5,12 @@ import { initAdapterFor } from '@/adapters/factory'
 import type { FederationInstance } from '@/adapters/types'
 import AppTime from '@/components/common/AppTime.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import I18n from '@/components/common/I18n.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { AppError } from '@/utils/errors'
@@ -289,7 +291,7 @@ const statusBadges = computed(() => {
               <div :class="$style.profileInfoItem">
                 <i class="ti ti-server-2" />
                 <span>
-                  {{ instance.softwareName || '不明' }}
+                  {{ instance.softwareName || i18n.ts._instanceProfileContent.unknown }}
                   <span v-if="instance.softwareVersion" :class="$style.dim">
                     / {{ instance.softwareVersion }}
                   </span>
@@ -307,28 +309,28 @@ const statusBadges = computed(() => {
               <div :class="$style.profileInfoItem" :title="formatAbsolute(instance.firstRetrievedAt)">
                 <i class="ti ti-calendar-plus" />
                 <span>
-                  初観測 {{ formatDate(instance.firstRetrievedAt) }}
+                  {{ i18n.tsx._instanceProfileContent.firstRetrieved({ date: formatDate(instance.firstRetrievedAt) }) }}
                   <span :class="$style.dim">(<AppTime :at="instance.firstRetrievedAt" />)</span>
                 </span>
               </div>
               <div v-if="instance.infoUpdatedAt" :class="$style.profileInfoItem" :title="formatAbsolute(instance.infoUpdatedAt)">
                 <i class="ti ti-refresh" />
                 <span>
-                  更新 <AppTime :at="instance.infoUpdatedAt" />
+                  <I18n :src="i18n.ts._instanceProfileContent.infoUpdated"><template #time><AppTime :at="instance.infoUpdatedAt" /></template></I18n>
                 </span>
               </div>
               <div v-if="instance.latestRequestReceivedAt" :class="$style.profileInfoItem" :title="formatAbsolute(instance.latestRequestReceivedAt)">
                 <i class="ti ti-arrow-down-to-arc" />
-                <span>直近リクエスト受信 <AppTime :at="instance.latestRequestReceivedAt" /></span>
+                <I18n :src="i18n.ts._instanceProfileContent.latestRequestReceived"><template #time><AppTime :at="instance.latestRequestReceivedAt" /></template></I18n>
               </div>
               <div v-if="instance.latestRequestSentAt" :class="$style.profileInfoItem" :title="formatAbsolute(instance.latestRequestSentAt)">
                 <i class="ti ti-arrow-up-from-arc" />
-                <span>直近リクエスト送信 <AppTime :at="instance.latestRequestSentAt" /></span>
+                <I18n :src="i18n.ts._instanceProfileContent.latestRequestSent"><template #time><AppTime :at="instance.latestRequestSentAt" /></template></I18n>
               </div>
               <div v-if="instance.openRegistrations !== null" :class="$style.profileInfoItem">
                 <i :class="instance.openRegistrations ? 'ti ti-door-enter' : 'ti ti-lock'" />
                 <span>
-                  {{ instance.openRegistrations ? '新規登録オープン' : '新規登録クローズ' }}
+                  {{ instance.openRegistrations ? i18n.ts._instanceProfileContent.registrationOpen : i18n.ts._instanceProfileContent.registrationClosed }}
                 </span>
               </div>
             </div>
@@ -337,11 +339,11 @@ const statusBadges = computed(() => {
             <div :class="$style.stats">
               <div :class="$style.stat">
                 <b>{{ formatCount(instance.usersCount) }}</b>
-                <span>ユーザー</span>
+                <span>{{ i18n.ts._instanceProfileContent.users }}</span>
               </div>
               <div :class="$style.stat">
                 <b>{{ formatCount(instance.notesCount) }}</b>
-                <span>ノート</span>
+                <span>{{ i18n.ts._instanceProfileContent.notes }}</span>
               </div>
               <div :class="$style.stat">
                 <b>{{ formatCount(instance.followingCount) }}</b>
@@ -424,7 +426,7 @@ const statusBadges = computed(() => {
           <RawJsonView :json="rawJson" :loading="isLoading" :error="error">
             <template #hint>
               <i class="ti ti-info-circle" />
-              <code>/api/federation/show-instance</code> の生レスポンス
+              <I18n :src="i18n.ts._instanceProfileContent.rawResponse"><template #endpoint><code>/api/federation/show-instance</code></template></I18n>
             </template>
           </RawJsonView>
         </div>

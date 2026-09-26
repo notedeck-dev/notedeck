@@ -228,7 +228,7 @@ onMounted(loadFlash)
               @click="showSource = !showSource"
             >
               <i class="ti ti-code" :class="$style.sourceToggleLeadIcon" />
-              <span :class="$style.sourceToggleLabel">ソースを表示</span>
+              <span :class="$style.sourceToggleLabel">{{ i18n.ts._playDetailContent.showSource }}</span>
               <i :class="showSource ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
             </button>
             <div v-if="showSource" :class="$style.sourceWrap">
@@ -290,7 +290,7 @@ onMounted(loadFlash)
 
         <div v-if="!running" :class="$style.startedActions">
           <div :class="$style.actionsRow">
-            <button class="_button" :class="$style.actionBtn" title="リロード" @click="reload">
+            <button class="_button" :class="$style.actionBtn" :title="i18n.ts._playDetailContent.reload" @click="reload">
               <i class="ti ti-reload" />
             </button>
           </div>

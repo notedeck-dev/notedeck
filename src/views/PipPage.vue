@@ -16,6 +16,7 @@ import AddColumnDialog from '@/components/deck/AddColumnDialog.vue'
 import ColumnTombstone from '@/components/deck/ColumnTombstone.vue'
 import { COLUMN_COMPONENTS } from '@/components/deck/columnComponents'
 import { usePipAlwaysOnTop } from '@/composables/usePipAlwaysOnTop'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { useThemeStore } from '@/stores/theme'
@@ -262,12 +263,12 @@ onMounted(async () => {
         <span :class="$style.pipDragTitle" data-tauri-drag-region>{{ windowTitle }}</span>
         <button
           :class="[$style.pipDragBtn, alwaysOnTop && $style.pipDragBtnActive]"
-          :title="alwaysOnTop ? '最前面固定を解除' : '最前面に固定'"
+          :title="alwaysOnTop ? i18n.ts._pipPage.unpin : i18n.ts._pipPage.pin"
           @click="toggleAlwaysOnTop"
         >
           <i :class="alwaysOnTop ? 'ti ti-pin-filled' : 'ti ti-pin'" />
         </button>
-        <button :class="$style.pipDragBtn" title="閉じる" @click="closeWindow">
+        <button :class="$style.pipDragBtn" :title="i18n.ts._common.close" @click="closeWindow">
           <i class="ti ti-x" />
         </button>
       </div>
@@ -432,15 +433,15 @@ onMounted(async () => {
     <template v-else-if="!selectedColumn">
       <!-- Drag bar for selector state -->
       <div :class="$style.pipDragBar" data-tauri-drag-region>
-        <span :class="$style.pipDragTitle" data-tauri-drag-region>カラムを追加</span>
+        <span :class="$style.pipDragTitle" data-tauri-drag-region>{{ i18n.ts._pipPage.addColumn }}</span>
         <button
           :class="[$style.pipDragBtn, alwaysOnTop && $style.pipDragBtnActive]"
-          :title="alwaysOnTop ? '最前面固定を解除' : '最前面に固定'"
+          :title="alwaysOnTop ? i18n.ts._pipPage.unpin : i18n.ts._pipPage.pin"
           @click="toggleAlwaysOnTop"
         >
           <i :class="alwaysOnTop ? 'ti ti-pin-filled' : 'ti ti-pin'" />
         </button>
-        <button :class="$style.pipDragBtn" title="閉じる" @click="closeWindow">
+        <button :class="$style.pipDragBtn" :title="i18n.ts._common.close" @click="closeWindow">
           <i class="ti ti-x" />
         </button>
       </div>

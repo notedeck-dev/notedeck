@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import NoteDetailContent from '@/components/window/NoteDetailContent.vue'
+import { i18n } from '@/i18n'
 
 const props = defineProps<{
   accountId: string
@@ -29,7 +30,7 @@ function onClose() {
           />
         </svg>
       </router-link>
-      <h1 :class="$style.detailTitle">ノート</h1>
+      <h1 :class="$style.detailTitle">{{ i18n.ts._windows.noteDetail }}</h1>
     </header>
 
     <NoteDetailContent

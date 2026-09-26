@@ -38,6 +38,7 @@ import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import { useNoteSound } from '@/composables/useNoteSound'
+import { i18n } from '@/i18n'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useChatMessageStore } from '@/stores/chatMessageStore'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
@@ -1007,7 +1008,7 @@ onBeforeUnmount(() => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="viewMode === 'conversation' ? conversationTitle : (column.name || 'チャット')"
+    :title="viewMode === 'conversation' ? conversationTitle : (column.name || i18n.ts._columns.chat)"
     :theme-vars="columnThemeVars"
     sound-enabled
     require-account
@@ -1028,7 +1029,7 @@ onBeforeUnmount(() => {
       <button
         v-if="viewMode === 'conversation'"
         :class="[$style.headerActionBtn, { [$style.active]: showConvSearch }]"
-        :title="showConvSearch ? '検索を閉じる' : 'メッセージを検索'"
+        :title="showConvSearch ? i18n.ts._deckChatColumn.closeSearch : i18n.ts._deckChatColumn.searchMessages"
         @click.stop="toggleConvSearch"
       >
         <i :class="showConvSearch ? 'ti ti-x' : 'ti ti-search'" />
@@ -1044,7 +1045,7 @@ onBeforeUnmount(() => {
           v-model="searchQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="チャットを検索..."
+          :placeholder="i18n.ts._deckChatColumn.searchChatsPlaceholder"
         />
       </div>
     </template>
@@ -1060,12 +1061,12 @@ onBeforeUnmount(() => {
     <div v-if="isCrossAccount && viewMode === 'history'" :class="$style.chatBody">
       <ColumnEmptyState
         v-if="historyEntries.length === 0 && !isLoading"
-        message="会話はありません"
+        :message="i18n.ts._deckChatColumn.noConversations"
         :image-url="serverInfoImageUrl"
       />
       <ColumnEmptyState
         v-else-if="hasNoSearchHits"
-        message="一致するチャットがありません"
+        :message="i18n.ts._deckChatColumn.noMatchingChats"
         :image-url="serverInfoImageUrl"
       />
 
@@ -1105,7 +1106,7 @@ onBeforeUnmount(() => {
               />
               <template v-else>{{ entry.name }}</template>
             </div>
-            <div :class="$style.historyPreview">{{ entry.message.text || '(ファイル)' }}</div>
+            <div :class="$style.historyPreview">{{ entry.message.text || i18n.ts._deckChatColumn.fileOnly }}</div>
           </div>
           <div :class="$style.historyMeta">
             <AppTime :class="$style.historyTime" :at="entry.message.createdAt" />
@@ -1118,12 +1119,12 @@ onBeforeUnmount(() => {
     <div v-else-if="!isCrossAccount && viewMode === 'history'" :class="$style.chatBody">
       <ColumnEmptyState
         v-if="chatHistory.length === 0 && !isLoading"
-        message="会話はありません"
+        :message="i18n.ts._deckChatColumn.noConversations"
         :image-url="serverInfoImageUrl"
       />
       <ColumnEmptyState
         v-else-if="hasNoSearchHits"
-        message="一致するチャットがありません"
+        :message="i18n.ts._deckChatColumn.noMatchingChats"
         :image-url="serverInfoImageUrl"
       />
 
@@ -1154,7 +1155,7 @@ onBeforeUnmount(() => {
               />
               <template v-else>{{ entry.name }}</template>
             </div>
-            <div :class="$style.historyPreview">{{ entry.message.text || '(ファイル)' }}</div>
+            <div :class="$style.historyPreview">{{ entry.message.text || i18n.ts._deckChatColumn.fileOnly }}</div>
           </div>
         </button>
       </div>
@@ -1170,14 +1171,14 @@ onBeforeUnmount(() => {
           v-model="convSearchQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="メッセージを検索..."
+          :placeholder="i18n.ts._deckChatColumn.searchMessagesPlaceholder"
           @keydown.escape="closeConvSearch"
         />
       </div>
 
       <ColumnEmptyState
         v-if="hasNoConvSearchHits"
-        message="一致するメッセージがありません"
+        :message="i18n.ts._deckChatColumn.noMatchingMessages"
         :image-url="serverInfoImageUrl"
       />
 
@@ -1238,12 +1239,12 @@ onBeforeUnmount(() => {
           <div :class="$style.chatInputActions">
             <button
               :class="[$style.chatActionBtn, { [$style.active]: showDrivePicker }]"
-              title="ドライブ"
+              :title="i18n.ts._columns.drive"
               @click.stop="toggleDrivePicker"
             >
               <i class="ti ti-photo" />
             </button>
-            <button :class="$style.chatActionBtn" title="絵文字" @click.stop="showEmojiPicker = !showEmojiPicker">
+            <button :class="$style.chatActionBtn" :title="i18n.ts._deckChatColumn.emoji" @click.stop="showEmojiPicker = !showEmojiPicker">
               <i class="ti ti-mood-happy" />
             </button>
           </div>
@@ -1251,7 +1252,7 @@ onBeforeUnmount(() => {
             ref="textareaRef"
             v-model="messageText"
             :class="$style.chatTextarea"
-            placeholder="メッセージ..."
+            :placeholder="i18n.ts._deckChatColumn.messagePlaceholder"
             rows="1"
             @keydown="handleKeydown"
           />

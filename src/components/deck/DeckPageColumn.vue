@@ -8,6 +8,7 @@ import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
@@ -97,7 +98,7 @@ function scrollToTop() {
 </script>
 
 <template>
-  <DeckColumn :column-id="column.id" :title="column.name ?? 'ページ'" :theme-vars="columnThemeVars" :pull-refresh="fetchList" @header-click="scrollToTop" @refresh="fetchList()">
+  <DeckColumn :column-id="column.id" :title="column.name ?? i18n.ts._columns.page" :theme-vars="columnThemeVars" :pull-refresh="fetchList" @header-click="scrollToTop" @refresh="fetchList()">
     <template #header-icon>
       <i class="ti ti-note" :class="$style.tlHeaderIcon" />
     </template>
@@ -121,11 +122,11 @@ function scrollToTop() {
           :account-id="column.accountId"
           is-error
           :image-url="serverErrorImageUrl"
-          cta-label="再試行"
+          :cta-label="i18n.ts._common.retry"
           cta-icon="ti-refresh"
           @cta="fetchList()"
         />
-        <ColumnEmptyState v-else-if="listItems.length === 0" message="ページが見つかりません" :image-url="serverInfoImageUrl" />
+        <ColumnEmptyState v-else-if="listItems.length === 0" :message="i18n.ts._deckPageColumn.empty" :image-url="serverInfoImageUrl" />
         <button
           v-for="item in listItems"
           :key="item.id"

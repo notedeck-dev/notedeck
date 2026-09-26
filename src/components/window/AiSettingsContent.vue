@@ -19,6 +19,7 @@ import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 
 const jsonLang = json()
@@ -195,7 +196,7 @@ function handleReset() {
     <!-- ai.json5 raw editor tab -->
     <div v-show="tab === 'json'" :class="$style.codePanel">
       <div :class="$style.codeHint">
-        ai.json5 を直接編集できます。API キーはキーチェーン管理のため raw には現れません。
+        {{ i18n.ts._aiSettingsContent.rawHint }}
       </div>
       <CodeEditor
         v-model="rawJson"
@@ -211,7 +212,7 @@ function handleReset() {
         </div>
         <div v-else-if="rawSaved" :class="$style.codeSuccess">
           <i class="ti ti-check" />
-          保存しました
+          {{ i18n.ts._common.saved }}
         </div>
       </div>
     </div>
@@ -225,7 +226,7 @@ function handleReset() {
           @click="importConfig"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
+          {{ importError ? i18n.ts._aiSettingsContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"
@@ -233,7 +234,7 @@ function handleReset() {
           @click="exportConfig"
         >
           <i class="ti ti-clipboard-copy" />
-          {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+          {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
         </button>
       </div>
       <button
@@ -242,7 +243,7 @@ function handleReset() {
         @click="handleReset"
       >
         <i class="ti ti-trash" />
-        {{ confirmingReset ? '本当にリセット？' : 'すべてリセット' }}
+        {{ confirmingReset ? i18n.ts._common.confirmReset : i18n.ts._common.resetAll }}
       </button>
     </div>
   </div>

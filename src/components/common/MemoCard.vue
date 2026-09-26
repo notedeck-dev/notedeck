@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import AppTime from '@/components/common/AppTime.vue'
 import type { StoredMemo } from '@/composables/useMemos'
 import { useNavigation } from '@/composables/useNavigation'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useEmojisStore } from '@/stores/emojis'
 import { useWindowsStore } from '@/stores/windows'
@@ -172,8 +173,8 @@ function onMemoLinkClick(memoId: string) {
           class="_button"
           @click.stop="cwExpanded = !cwExpanded"
         >
-          {{ cwExpanded ? '隠す' : 'もっと見る' }}
-          <span v-if="!cwExpanded && text" :class="$style.toggleChars">({{ text.length }}文字)</span>
+          {{ cwExpanded ? i18n.ts._common.hide : i18n.ts._memoCard.showMore }}
+          <span v-if="!cwExpanded && text" :class="$style.toggleChars">{{ i18n.tsx._memoCard.chars_plural({ count: text.length }) }}</span>
         </button>
       </div>
 
@@ -201,8 +202,8 @@ function onMemoLinkClick(memoId: string) {
           class="_button"
           @click.stop="longTextExpanded = !longTextExpanded"
         >
-          {{ longTextExpanded ? '隠す' : 'もっと見る' }}
-          <span v-if="!longTextExpanded && text" :class="$style.toggleChars">({{ text.length }}文字)</span>
+          {{ longTextExpanded ? i18n.ts._common.hide : i18n.ts._memoCard.showMore }}
+          <span v-if="!longTextExpanded && text" :class="$style.toggleChars">{{ i18n.tsx._memoCard.chars_plural({ count: text.length }) }}</span>
         </button>
       </div>
     </div>

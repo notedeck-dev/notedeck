@@ -12,6 +12,7 @@ import {
   withPluginAccountContext,
 } from '@/aiscript/plugin-api'
 import PopupMenu from '@/components/common/PopupMenu.vue'
+import { i18n } from '@/i18n'
 import { useDeckStore } from '@/stores/deck'
 import { useMutesStore } from '@/stores/mutes'
 import { useToast } from '@/stores/toast'
@@ -426,28 +427,28 @@ async function addToAntenna(antenna: Antenna) {
     <template v-if="userMenuView === 'main'">
       <button class="_popupItem" @click="composeNoteToUser">
         <i class="ti ti-pencil" />
-        ユーザー指定ノートを作成
+        {{ i18n.ts._userProfileMenu.composeToUser }}
       </button>
       <button class="_popupItem" @click="searchUserNotes">
         <i class="ti ti-search" />
-        ユーザーのノートを検索
+        {{ i18n.ts._userProfileMenu.searchUserNotes }}
       </button>
       <button class="_popupItem" @click="openDirectMessage">
         <i class="ti ti-message" />
-        ダイレクトメッセージ
+        {{ i18n.ts._userProfileMenu.directMessage }}
       </button>
       <div class="_popupDivider" />
       <button class="_popupItem" @click="handleCopyUsername">
         <i class="ti ti-at" />
-        ユーザー名をコピー
+        {{ i18n.ts._userProfileMenu.copyUsername }}
       </button>
       <button class="_popupItem" @click="handleCopyProfileUrl">
         <i class="ti ti-share" />
-        プロフィール URL をコピー
+        {{ i18n.ts._userProfileMenu.copyProfileUrl }}
       </button>
       <button class="_popupItem" @click="handleCopyRss">
         <i class="ti ti-rss" />
-        RSS をコピー
+        {{ i18n.ts._userProfileMenu.copyRss }}
       </button>
       <button
         v-if="!user?.host"
@@ -455,16 +456,16 @@ async function addToAntenna(antenna: Antenna) {
         @click="handleCopyEmbedCode"
       >
         <i class="ti ti-code" />
-        埋め込み
+        {{ i18n.ts._userProfileMenu.embed }}
       </button>
       <div class="_popupDivider" />
       <button class="_popupItem" @click="openListPicker">
         <i class="ti ti-list" />
-        リストに追加
+        {{ i18n.ts._userProfileMenu.addToList }}
       </button>
       <button class="_popupItem" @click="openAntennaPicker">
         <i class="ti ti-antenna" />
-        アンテナに追加
+        {{ i18n.ts._userProfileMenu.addToAntenna }}
       </button>
       <template v-if="user?.isFollowing">
         <div class="_popupDivider" />
@@ -474,7 +475,7 @@ async function addToAntenna(antenna: Antenna) {
               user?.withReplies ? 'ti ti-checkbox' : 'ti ti-square'
             "
           />
-          TLに他の人への返信を含める
+          {{ i18n.ts._userProfileMenu.withReplies }}
         </button>
         <button class="_popupItem" @click="toggleNotify">
           <i
@@ -482,7 +483,7 @@ async function addToAntenna(antenna: Antenna) {
               user?.notify === 'normal' ? 'ti ti-bell-ringing' : 'ti ti-bell'
             "
           />
-          投稿を通知
+          {{ i18n.ts._userProfileMenu.notifyPosts }}
         </button>
       </template>
       <template v-if="user && userActions.length > 0">
@@ -505,7 +506,7 @@ async function addToAntenna(antenna: Antenna) {
         "
       >
         <i :class="userRelation?.isMuted ? 'ti ti-eye' : 'ti ti-eye-off'" />
-        {{ userRelation?.isMuted ? 'ミュート解除' : 'ミュート' }}
+        {{ userRelation?.isMuted ? i18n.ts._userProfileMenu.unmute : i18n.ts._userProfileMenu.mute }}
       </button>
       <button
         class="_popupItem"
@@ -520,7 +521,7 @@ async function addToAntenna(antenna: Antenna) {
             userRelation?.isRenoteMuted ? 'ti ti-repeat' : 'ti ti-repeat-off'
           "
         />
-        {{ userRelation?.isRenoteMuted ? 'リノートミュート解除' : 'リノートをミュート' }}
+        {{ userRelation?.isRenoteMuted ? i18n.ts._userProfileMenu.unmuteRenotes : i18n.ts._userProfileMenu.muteRenotes }}
       </button>
       <button
         class="_popupItem _popupItemDanger"
@@ -531,7 +532,7 @@ async function addToAntenna(antenna: Antenna) {
         "
       >
         <i class="ti ti-ban" />
-        {{ userRelation?.isBlocking ? 'ブロック解除' : 'ブロック' }}
+        {{ userRelation?.isBlocking ? i18n.ts._userProfileMenu.unblock : i18n.ts._userProfileMenu.block }}
       </button>
       <button
         v-if="userRelation?.isFollowed"
@@ -539,63 +540,63 @@ async function addToAntenna(antenna: Antenna) {
         @click="showInvalidateFollowerConfirm = true"
       >
         <i class="ti ti-link-off" />
-        フォロワーを解除
+        {{ i18n.ts._userProfileMenu.invalidateFollower }}
       </button>
       <div class="_popupDivider" />
       <button class="_popupItem _popupItemDanger" @click="showReportForm = true">
         <i class="ti ti-alert-triangle" />
-        通報
+        {{ i18n.ts._userProfileMenu.report }}
       </button>
     </template>
     <!-- Mute confirm -->
     <template v-else-if="userMenuView === 'muteConfirm'">
-      <div class="_popupConfirmText">@{{ user?.username }} をミュートしますか？</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._userProfileMenu.muteConfirm({ username: user?.username ?? '' }) }}</div>
       <button class="_popupItem _popupItemDanger" @click="handleMuteUser">
         <i class="ti ti-eye-off" />
-        ミュート
+        {{ i18n.ts._userProfileMenu.mute }}
       </button>
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
     <!-- Block confirm -->
     <template v-else-if="userMenuView === 'blockConfirm'">
-      <div class="_popupConfirmText">@{{ user?.username }} をブロックしますか？</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._userProfileMenu.blockConfirm({ username: user?.username ?? '' }) }}</div>
       <button class="_popupItem _popupItemDanger" @click="handleBlockUser">
         <i class="ti ti-ban" />
-        ブロック
+        {{ i18n.ts._userProfileMenu.block }}
       </button>
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
     <!-- Invalidate follower confirm -->
     <template v-else-if="userMenuView === 'invalidateFollowerConfirm'">
       <div class="_popupConfirmText">
-        @{{ user?.username }} のフォロワーを解除しますか？
+        {{ i18n.tsx._userProfileMenu.invalidateFollowerConfirm({ username: user?.username ?? '' }) }}
       </div>
       <button
         class="_popupItem _popupItemDanger"
         @click="handleInvalidateFollower"
       >
         <i class="ti ti-link-off" />
-        解除
+        {{ i18n.ts._userProfileMenu.invalidate }}
       </button>
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
     <!-- Report form -->
     <template v-else-if="userMenuView === 'reportForm'">
-      <div class="_popupConfirmText">@{{ user?.username }} を通報</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._userProfileMenu.reportTitle({ username: user?.username ?? '' }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
           v-model="reportComment"
           class="_popupReportInput"
-          placeholder="通報理由を入力..."
+          :placeholder="i18n.ts._userProfileMenu.reportPlaceholder"
           rows="3"
         />
       </div>
@@ -605,18 +606,18 @@ async function addToAntenna(antenna: Antenna) {
         @click="handleReportUser"
       >
         <i class="ti ti-alert-triangle" />
-        送信
+        {{ i18n.ts._common.send }}
       </button>
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
     <!-- List picker -->
     <template v-else-if="userMenuView === 'listPicker'">
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-arrow-left" />
-        戻る
+        {{ i18n.ts._common.back }}
       </button>
       <div class="_popupDivider" />
       <template v-if="userLists.length > 0">
@@ -630,13 +631,13 @@ async function addToAntenna(antenna: Antenna) {
           {{ list.name }}
         </button>
       </template>
-      <div v-else class="_popupConfirmText">リストがありません</div>
+      <div v-else class="_popupConfirmText">{{ i18n.ts._userProfileMenu.noLists }}</div>
     </template>
     <!-- Antenna picker -->
     <template v-else-if="userMenuView === 'antennaPicker'">
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-arrow-left" />
-        戻る
+        {{ i18n.ts._common.back }}
       </button>
       <div class="_popupDivider" />
       <template v-if="userAntennas.length > 0">
@@ -652,7 +653,7 @@ async function addToAntenna(antenna: Antenna) {
         </button>
       </template>
       <div v-else class="_popupConfirmText">
-        ユーザーソースのアンテナがありません
+        {{ i18n.ts._userProfileMenu.noUserAntennas }}
       </div>
     </template>
   </PopupMenu>

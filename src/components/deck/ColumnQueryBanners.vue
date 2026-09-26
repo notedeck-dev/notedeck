@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { i18n } from '@/i18n'
 import {
   type ColumnQueryBadgeState,
   queryBadgeTitle,
@@ -31,12 +32,12 @@ const invalidTitle = computed(() =>
     v-if="missingIds.length > 0"
     class="_button"
     :class="$style.queryInvalidBanner"
-    title="このカラムが参照しているクエリは削除されています。外すと新着の取り込みが戻ります"
+    :title="i18n.ts._columnQueryBanners.queryDeletedHint"
     @click="emit('dropMissing')"
   >
     <i class="ti ti-unlink" />
-    参照しているクエリが見つかりません
-    <span :class="$style.querySuspendedAction">参照を外す</span>
+    {{ i18n.ts._columnQueryBanners.queryNotFound }}
+    <span :class="$style.querySuspendedAction">{{ i18n.ts._columnQueryBanners.detach }}</span>
   </button>
 
   <!-- クエリ評価不能 = fail-closed 中 (#783 不変条件 (f)) -->
@@ -45,7 +46,7 @@ const invalidTitle = computed(() =>
     :class="$style.queryInvalidBanner"
     :title="invalidTitle"
   >
-    <i class="ti ti-alert-triangle" />クエリを解釈できないため新着を停止中
+    <i class="ti ti-alert-triangle" />{{ i18n.ts._columnQueryBanners.queryInvalid }}
   </div>
 
   <!-- 暴走で打ち切ったクエリ: 明示操作でのみ再開する (#783 V15) -->
@@ -53,13 +54,13 @@ const invalidTitle = computed(() =>
     v-else-if="suspendedKeys.length > 0"
     class="_button"
     :class="$style.querySuspendedBanner"
-    title="クエリの処理が終わらなかったため停止しました。再開すると取得し直します"
+    :title="i18n.ts._columnQueryBanners.suspendedHint"
     @click="emit('resume')"
   >
     <i class="ti ti-player-pause" />
-    <span v-if="suspendedCount > 0">{{ suspendedCount }} 件保留中</span>
-    <span v-else>クエリを停止中</span>
-    <span :class="$style.querySuspendedAction">再開</span>
+    <span v-if="suspendedCount > 0">{{ i18n.tsx._columnQueryBanners.pending_plural({ count: suspendedCount }) }}</span>
+    <span v-else>{{ i18n.ts._columnQueryBanners.querySuspended }}</span>
+    <span :class="$style.querySuspendedAction">{{ i18n.ts._columnQueryBanners.resume }}</span>
   </button>
 </template>
 

@@ -16,6 +16,7 @@ import {
   type StoredDraft,
 } from '@/composables/useDrafts'
 import { usePortal } from '@/composables/usePortal'
+import { i18n } from '@/i18n'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useServersStore } from '@/stores/servers'
@@ -365,7 +366,7 @@ async function onDeleteAll() {
             v-if="activeTab === 'drafts' && regularCount > 0"
             class="_button"
             :class="$style.dpHeaderBtn"
-            title="下書きをすべて削除"
+            :title="i18n.ts._mkDraftsPicker.deleteAll"
             @click="onDeleteAll"
           >
             <i class="ti ti-trash" />
@@ -373,7 +374,7 @@ async function onDeleteAll() {
           <button
             class="_button"
             :class="$style.dpHeaderBtn"
-            title="閉じる"
+            :title="i18n.ts._common.close"
             @click="emit('close')"
           >
             <i class="ti ti-x" />
@@ -384,10 +385,10 @@ async function onDeleteAll() {
 
     <!-- Body -->
     <div ref="bodyRef" :class="$style.dpBody">
-      <div v-if="!loaded" :class="$style.dpEmpty">読み込み中...</div>
+      <div v-if="!loaded" :class="$style.dpEmpty">{{ i18n.ts._common.loading }}</div>
       <ColumnEmptyState
         v-else-if="entries.length === 0"
-        :message="activeTab === 'scheduled' ? '予約投稿はありません' : '下書きはありません'"
+        :message="activeTab === 'scheduled' ? i18n.ts._mkDraftsPicker.noScheduled : i18n.ts._mkDraftsPicker.noDrafts"
         :image-url="serverInfoImage"
       />
       <div v-else :class="$style.dpList">
@@ -425,7 +426,7 @@ async function onDeleteAll() {
             :class="$style.itemNoteBtn"
             role="button"
             tabindex="0"
-            title="この下書きを復元"
+            :title="i18n.ts._mkDraftsPicker.restoreThis"
             @click.capture.prevent.stop="onPick(entry)"
             @keydown.enter="onPick(entry)"
           >
@@ -477,7 +478,7 @@ async function onDeleteAll() {
         @click="onPick(menuState.entry); closeMenu()"
       >
         <i :class="menuState.entry.draft.data.scheduledAt ? 'ti ti-pencil' : 'ti ti-arrow-back-up'" />
-        {{ menuState.entry.draft.data.scheduledAt ? '内容・時刻を編集' : '復元して投稿フォームに反映' }}
+        {{ menuState.entry.draft.data.scheduledAt ? i18n.ts._mkDraftsPicker.editContentAndTime : i18n.ts._mkDraftsPicker.restoreToForm }}
       </button>
       <div :class="$style.menuDivider" />
       <button
@@ -486,7 +487,7 @@ async function onDeleteAll() {
         @click="onDelete(menuState.entry); closeMenu()"
       >
         <i class="ti ti-trash" />
-        {{ menuState.entry.draft.data.scheduledAt ? '予約を取消' : '削除' }}
+        {{ menuState.entry.draft.data.scheduledAt ? i18n.ts._mkDraftsPicker.cancelSchedule : i18n.ts._common.delete }}
       </button>
     </div>
   </div>

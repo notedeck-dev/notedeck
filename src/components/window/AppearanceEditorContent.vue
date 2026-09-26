@@ -188,25 +188,15 @@ const statusClass = computed(() => {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'adjustments', label: 'ビジュアル' },
+        { value: 'visual', icon: 'adjustments', label: i18n.ts._common.visual },
         ...(isExposed('developer')
-          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          ? [{ value: 'code', icon: 'code', label: i18n.ts._common.code }]
           : []),
       ]"
     />
 
     <!-- Visual tab -->
     <div v-show="tab === 'visual'" :class="$style.visualPanel">
-      <!-- Dark/Light toggle -->
-      <div :class="$style.section">
-        <DayNightToggle
-          :is-dark="isDark"
-          :is-following-system="isFollowingSystem"
-          @toggle-dark="toggleDarkMode"
-          @toggle-sync="(checked: boolean) => toggleSyncDevice(checked)"
-        />
-      </div>
-
       <!-- 表示言語 (#135) -->
       <div v-if="localeChoices.length > 1" :class="$style.section">
         <label :class="$style.languageRow">
@@ -226,6 +216,16 @@ const statusClass = computed(() => {
         <p :class="$style.languageNote">{{ i18n.ts._settings.languageReloadNote }}</p>
       </div>
 
+      <!-- Dark/Light toggle -->
+      <div :class="$style.section">
+        <DayNightToggle
+          :is-dark="isDark"
+          :is-following-system="isFollowingSystem"
+          @toggle-dark="toggleDarkMode"
+          @toggle-sync="(checked: boolean) => toggleSyncDevice(checked)"
+        />
+      </div>
+
       <!-- テーマ選択 / 編集 / 削除 はテーマカラム (themeManager) に集約。
            コマンドパレット → 「テーマを管理」で開ける。 -->
 
@@ -238,19 +238,19 @@ const statusClass = computed(() => {
       <div :class="$style.section">
         <button v-if="deckStore.wallpaper == null" :class="$style.menuItem" @click="pickWallpaper">
           <i class="ti ti-photo" />
-          <span>壁紙を設定</span>
+          <span>{{ i18n.ts._appearanceEditorContent.setWallpaper }}</span>
         </button>
         <button v-else :class="$style.menuItem" @click="removeWallpaper">
           <i class="ti ti-photo-off" />
-          <span>壁紙を削除</span>
+          <span>{{ i18n.ts._appearanceEditorContent.removeWallpaper }}</span>
         </button>
       </div>
 
       <!-- Note view -->
       <div :class="$style.section">
         <AiSwitchRow
-          label="Catユーザーの語尾をにゃ化"
-          sub-label="本家 Web UI と同じ表示。コピー・検索は原文のまま"
+          :label="i18n.ts._appearanceEditorContent.nyaize"
+          :sub-label="i18n.ts._appearanceEditorContent.nyaizeDescription"
           icon="ti-cat"
           :on="nyaizeEnabled"
           @toggle="toggleNyaize"
@@ -275,7 +275,7 @@ const statusClass = computed(() => {
     <div v-show="tab === 'code'" :class="$style.codePanel">
       <div :class="$style.codeHint">
         <i class="ti ti-braces" />
-        デフォルト値からの差分のみ表示 — 変更は自動保存されます
+        {{ i18n.ts._appearanceEditorContent.codeHint }}
       </div>
 
       <CodeEditor

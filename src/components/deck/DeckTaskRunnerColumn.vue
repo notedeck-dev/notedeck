@@ -11,6 +11,7 @@ import { useSensitiveMask } from '@/composables/useSensitiveMask'
 import { useServerImages } from '@/composables/useServerImages'
 import { useVault } from '@/composables/useVault'
 import { useVerticalResize } from '@/composables/useVerticalResize'
+import { i18n } from '@/i18n'
 import { useAiSessionsStore } from '@/stores/aiSessions'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useKeybindsStore } from '@/stores/keybinds'
@@ -287,7 +288,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 <template>
   <DeckColumn
     :column-id="column.id"
-    title="タスク"
+    :title="i18n.ts._columns.taskRunner"
     :theme-vars="columnThemeVars"
   >
     <template #header-icon>
@@ -299,7 +300,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
         v-if="runnerStore.runs.length > 0"
         class="_button"
         :class="$style.headerBtn"
-        title="履歴をクリア"
+        :title="i18n.ts._deckTaskRunnerColumn.clearHistory"
         @click.stop="clearHistory()"
       >
         <i class="ti ti-trash" />
@@ -307,7 +308,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
       <button
         class="_button"
         :class="$style.headerBtn"
-        title="tasks.json5 を編集"
+        :title="i18n.ts._deckTaskRunnerColumn.editTasksFile"
         @click.stop="openEditor()"
       >
         <i class="ti ti-pencil" />
@@ -319,12 +320,12 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
         v-if="defaultTask"
         class="_button"
         :class="$style.defaultBar"
-        :title="`${defaultTask.label} を実行`"
+        :title="i18n.tsx._deckTaskRunnerColumn.runTask({ label: defaultTask.label })"
         @click="runDefault()"
       >
         <i :class="[iconClass(defaultTask), $style.defaultBarIcon]" />
         <span :class="$style.defaultBarText">
-          <span :class="$style.defaultBarKicker">デフォルト実行</span>
+          <span :class="$style.defaultBarKicker">{{ i18n.ts._deckTaskRunnerColumn.defaultRun }}</span>
           <span :class="$style.defaultBarLabel">{{ defaultTask.label }}</span>
         </span>
         <span
@@ -340,7 +341,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
             v-model="query"
             type="text"
             :class="$style.search"
-            placeholder="タスクを検索"
+            :placeholder="i18n.ts._deckTaskRunnerColumn.search"
           />
           <button
             v-if="query"
@@ -356,15 +357,15 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
       <div :class="$style.scroll">
         <ColumnEmptyState
           v-if="tasksStore.definitions.length === 0"
-          message="tasks.json5 を編集してタスクを定義すると、ここから 1-click で実行できます。"
+          :message="i18n.ts._deckTaskRunnerColumn.empty"
           :image-url="serverInfoImageUrl"
-          cta-label="tasks.json5 を編集"
+          :cta-label="i18n.ts._deckTaskRunnerColumn.editTasksFile"
           cta-icon="ti-pencil"
           @cta="openEditor()"
         />
         <ColumnEmptyState
           v-else-if="filteredDefinitions.length === 0"
-          :message="`&quot;${query}&quot; に一致するタスクはありません`"
+          :message="i18n.tsx._deckTaskRunnerColumn.noMatches({ query })"
         />
         <template v-else>
           <section
@@ -387,7 +388,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
                 :class="$style.errorBadge"
                 :title="tasksStore.lastError"
               >
-                <i class="ti ti-alert-triangle" /> エラー
+                <i class="ti ti-alert-triangle" /> {{ i18n.ts._deckTaskRunnerColumn.error }}
               </span>
             </div>
             <div
@@ -416,19 +417,19 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
                     [$style.statusError]: latestRunByTaskId.get(def.id)!.status === 'error',
                     [$style.statusRunning]: latestRunByTaskId.get(def.id)!.status === 'running',
                   }]"
-                  :title="`最終実行: ${latestRunByTaskId.get(def.id)!.status} · ${runDuration(latestRunByTaskId.get(def.id)!)}`"
+                  :title="i18n.tsx._deckTaskRunnerColumn.lastRun({ status: latestRunByTaskId.get(def.id)!.status, duration: runDuration(latestRunByTaskId.get(def.id)!) })"
                 >
                   <i :class="['ti', statusIcon(latestRunByTaskId.get(def.id)!.status)]" />
                   <AppTime :at="latestRunByTaskId.get(def.id)!.startedAt" :now="now" />
                 </span>
-                <span v-if="def.inputs?.length" :class="$style.runBadge" title="入力を求める">
+                <span v-if="def.inputs?.length" :class="$style.runBadge" :title="i18n.ts._deckTaskRunnerColumn.requiresInput">
                   <i class="ti ti-keyboard" />{{ def.inputs.length }}
                 </span>
               </button>
               <button
                 class="_button"
                 :class="$style.aiTrigger"
-                title="AI セッションで実行 (kind=task の新規セッションを作成し、即 1 回実行)"
+                :title="i18n.ts._deckTaskRunnerColumn.runWithAi"
                 @click="runWithAi(def)"
               >
                 <i class="ti ti-brain" />
@@ -439,15 +440,15 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
           <section :class="$style.section">
             <div :class="$style.sectionHeader">
               <span :class="$style.sectionTitle">
-                履歴
+                {{ i18n.ts._deckTaskRunnerColumn.history }}
                 <span :class="$style.countSub">{{ runnerStore.runs.length }}</span>
                 <span v-if="runningCount > 0" :class="$style.runningPill">
-                  <i class="ti ti-loader-2 nd-spin" />{{ runningCount }} 実行中
+                  <i class="ti ti-loader-2 nd-spin" />{{ i18n.tsx._deckTaskRunnerColumn.runningCount({ n: runningCount }) }}
                 </span>
               </span>
             </div>
             <div v-if="runnerStore.runs.length === 0" :class="$style.emptyHint">
-              実行履歴はまだありません
+              {{ i18n.ts._deckTaskRunnerColumn.noHistory }}
             </div>
             <button
               v-for="run in runnerStore.runs"

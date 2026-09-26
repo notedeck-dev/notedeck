@@ -15,6 +15,7 @@ import { useDriveActions } from '@/composables/useDriveActions'
 import { useDriveFolder } from '@/composables/useDriveFolder'
 import { useFileExport } from '@/composables/useFileExport'
 import { useServerImages } from '@/composables/useServerImages'
+import { i18n } from '@/i18n'
 import { getAccountAvatarUrl } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
@@ -361,25 +362,25 @@ fetchDrive()
 <template>
   <!-- data-drive-folder-id: OS ファイルドロップの投入先フォルダを DeckLayout が
        elementFromPoint 経由で読むために公開する (#796)。空文字 = ルート -->
-  <DeckColumn :column-id="column.id" :title="column.name ?? 'ドライブ'" :theme-vars="columnThemeVars" :pull-refresh="fetchDrive" :data-drive-folder-id="currentFolderId ?? ''" @header-click="scrollToTop" @refresh="fetchDrive()">
+  <DeckColumn :column-id="column.id" :title="column.name ?? i18n.ts._columns.drive" :theme-vars="columnThemeVars" :pull-refresh="fetchDrive" :data-drive-folder-id="currentFolderId ?? ''" @header-click="scrollToTop" @refresh="fetchDrive()">
     <template #header-icon>
       <i class="ti ti-cloud" :class="$style.tlHeaderIcon" />
     </template>
 
     <template #header-meta>
-      <button v-if="canGoUp" class="_button" :class="$style.headerRefresh" title="戻る" @click.stop="goUp">
+      <button v-if="canGoUp" class="_button" :class="$style.headerRefresh" :title="i18n.ts._common.back" @click.stop="goUp">
         <i class="ti ti-arrow-left" />
       </button>
-      <button v-if="folderStack.length > 1" class="_button" :class="$style.headerRefresh" title="ルート" @click.stop="goRoot">
+      <button v-if="folderStack.length > 1" class="_button" :class="$style.headerRefresh" :title="i18n.ts._deckDriveColumn.root" @click.stop="goRoot">
         <i class="ti ti-home" />
       </button>
-      <button v-if="canWrite" class="_button" :class="[$style.headerRefresh, { [$style.headerBtnActive]: selectMode }]" title="選択" @click.stop="toggleSelectMode">
+      <button v-if="canWrite" class="_button" :class="[$style.headerRefresh, { [$style.headerBtnActive]: selectMode }]" :title="i18n.ts._deckDriveColumn.select" @click.stop="toggleSelectMode">
         <i class="ti ti-checkbox" />
       </button>
-      <button v-if="!selectMode && canWrite" class="_button" :class="$style.headerRefresh" title="新規フォルダ" aria-label="新規フォルダ" @click.stop="onCreateFolder">
+      <button v-if="!selectMode && canWrite" class="_button" :class="$style.headerRefresh" :title="i18n.ts._deckDriveColumn.newFolder" :aria-label="i18n.ts._deckDriveColumn.newFolder" @click.stop="onCreateFolder">
         <i class="ti ti-folder-plus" />
       </button>
-      <button v-if="!selectMode && canWrite" class="_button" :class="$style.headerRefresh" title="アップロード" aria-label="アップロード" :disabled="uploading" @click.stop="openFilePicker">
+      <button v-if="!selectMode && canWrite" class="_button" :class="$style.headerRefresh" :title="i18n.ts._deckDriveColumn.upload" :aria-label="i18n.ts._deckDriveColumn.upload" :disabled="uploading" @click.stop="openFilePicker">
         <i :class="uploading ? 'ti ti-loader-2 nd-spin' : 'ti ti-upload'" />
       </button>
     </template>
@@ -428,7 +429,7 @@ fetchDrive()
         :account-id="column.accountId"
         is-error
         :image-url="serverErrorImageUrl"
-        cta-label="再試行"
+        :cta-label="i18n.ts._common.retry"
         cta-icon="ti-refresh"
         @cta="fetchDrive()"
       />
@@ -465,21 +466,21 @@ fetchDrive()
         class="_button"
         :class="$style.driveActionBtn"
         :disabled="files.length === 0"
-        :aria-label="allCurrentSelected ? 'このフォルダの選択を解除' : 'このフォルダを全選択'"
-        :title="allCurrentSelected ? 'このフォルダの選択を解除' : 'このフォルダを全選択'"
+        :aria-label="allCurrentSelected ? i18n.ts._deckDriveColumn.deselectFolder : i18n.ts._deckDriveColumn.selectFolder"
+        :title="allCurrentSelected ? i18n.ts._deckDriveColumn.deselectFolder : i18n.ts._deckDriveColumn.selectFolder"
         @click="toggleCurrentSelection"
       >
         <i :class="allCurrentSelected ? 'ti ti-square-off' : 'ti ti-checks'" />
       </button>
       <span :class="$style.driveActionCount">
-        {{ selectedIds.size }} 件<template v-if="selectedOutsideCount > 0">（他 {{ selectedOutsideCount }}）</template>
+        {{ i18n.tsx._deckDriveColumn.selectedCount_plural({ count: selectedIds.size }) }}<template v-if="selectedOutsideCount > 0">{{ i18n.tsx._deckDriveColumn.selectedOutside({ n: selectedOutsideCount }) }}</template>
       </span>
       <button
         v-if="selectedIds.size > 0"
         class="_button"
         :class="$style.driveActionBtn"
-        aria-label="すべて解除"
-        title="すべて解除"
+        :aria-label="i18n.ts._deckDriveColumn.deselectAll"
+        :title="i18n.ts._deckDriveColumn.deselectAll"
         @click="deselectAll"
       >
         <i class="ti ti-x" />
@@ -488,8 +489,8 @@ fetchDrive()
         class="_button"
         :class="$style.driveActionBtn"
         :disabled="selectedIds.size === 0 || moving"
-        aria-label="移動"
-        title="選択したファイルを移動"
+        :aria-label="i18n.ts._deckDriveColumn.move"
+        :title="i18n.ts._deckDriveColumn.moveSelected"
         @click="openMoveDialogForSelection"
       >
         <i :class="moving ? 'ti ti-loader-2 nd-spin' : 'ti ti-folder-symlink'" />
@@ -498,8 +499,8 @@ fetchDrive()
         class="_button"
         :class="$style.driveActionBtn"
         :disabled="selectedIds.size === 0 || fileExport.running.value"
-        aria-label="保存"
-        :title="fileExport.running.value ? `保存中 ${fileExport.completedCount.value}/${fileExport.total.value}` : '選択したファイルをローカルに保存'"
+        :aria-label="i18n.ts._common.save"
+        :title="fileExport.running.value ? i18n.tsx._deckDriveColumn.exporting({ done: fileExport.completedCount.value, total: fileExport.total.value }) : i18n.ts._deckDriveColumn.exportSelected"
         @click="exportSelection"
       >
         <i :class="fileExport.running.value ? 'ti ti-loader-2 nd-spin' : 'ti ti-download'" />
@@ -509,8 +510,8 @@ fetchDrive()
         class="_button"
         :class="[$style.driveActionBtn, $style.driveActionDanger]"
         :disabled="selectedIds.size === 0 || batchDeleting"
-        aria-label="削除"
-        title="選択したファイルを削除"
+        :aria-label="i18n.ts._common.delete"
+        :title="i18n.ts._deckDriveColumn.deleteSelected"
         @click="batchDelete"
       >
         <i :class="batchDeleting ? 'ti ti-loader-2 nd-spin' : 'ti ti-trash'" />

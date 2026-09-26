@@ -13,6 +13,7 @@ import {
   normalizeGenerationConfig,
   useAiConfig,
 } from '@/composables/useAiConfig'
+import { i18n } from '@/i18n'
 import AiSettingsSection from './AiSettingsSection.vue'
 
 const { config } = useAiConfig()
@@ -44,17 +45,17 @@ const changed = computed(() =>
 <template>
   <AiSettingsSection
     icon="ti-adjustments"
-    title="生成"
-    :badge="changed ? '既定から変更あり' : '既定'"
+    :title="i18n.ts._aiGenerationSection.title"
+    :badge="changed ? i18n.ts._aiGenerationSection.changedFromDefault : i18n.ts._aiGenerationSection.default"
     :badge-ok="changed"
   >
     <p :class="$style.note">
-      既定のまま使える値です。実行先のモデルによって既定が合わないときだけ触ってください。
+      {{ i18n.ts._aiGenerationSection.note }}
     </p>
 
     <div :class="$style.field">
       <div :class="$style.fieldHeader">
-        <span :class="$style.fieldLabel">応答の最大トークン</span>
+        <span :class="$style.fieldLabel">{{ i18n.ts._aiGenerationSection.maxTokens }}</span>
         <div :class="$style.fieldValue">
           <input
             v-model.number="config.generation.maxTokens"
@@ -68,14 +69,13 @@ const changed = computed(() =>
         </div>
       </div>
       <p :class="$style.fieldHint">
-        長い応答が途中で切れるときに上げます。0 でプロバイダーの既定に任せます
-        (Anthropic は上限必須のため {{ defaults.maxTokens }} を送ります)
+        {{ i18n.tsx._aiGenerationSection.maxTokensHint({ maxTokens: defaults.maxTokens }) }}
       </p>
     </div>
 
     <div :class="$style.field">
       <div :class="$style.fieldHeader">
-        <span :class="$style.fieldLabel">ツール呼び出しの上限</span>
+        <span :class="$style.fieldLabel">{{ i18n.ts._aiGenerationSection.maxToolRounds }}</span>
         <div :class="$style.fieldValue">
           <input
             v-model.number="config.generation.maxToolRounds"
@@ -85,18 +85,17 @@ const changed = computed(() =>
             :class="$style.numberInput"
             @change="commit"
           />
-          <span :class="$style.fieldUnit">ラウンド</span>
+          <span :class="$style.fieldUnit">{{ i18n.ts._aiGenerationSection.rounds }}</span>
         </div>
       </div>
       <p :class="$style.fieldHint">
-        1 回の依頼で AI が続けてツールを呼べる回数。上げるほど込み入った作業を
-        最後まで進められますが、費用と暴走したときの被害も比例して増えます
+        {{ i18n.ts._aiGenerationSection.maxToolRoundsHint }}
       </p>
     </div>
 
     <div :class="$style.field">
       <div :class="$style.fieldHeader">
-        <span :class="$style.fieldLabel">タイトル生成の最大トークン</span>
+        <span :class="$style.fieldLabel">{{ i18n.ts._aiGenerationSection.titleMaxTokens }}</span>
         <div :class="$style.fieldValue">
           <input
             v-model.number="config.generation.titleMaxTokens"
@@ -110,14 +109,13 @@ const changed = computed(() =>
         </div>
       </div>
       <p :class="$style.fieldHint">
-        セッション名が日付のまま残るときに上げます。この上限は思考にもかかる
-        一方、タイトルとして使うのは本文だけなので、よく考えるモデルほど余裕が要ります
+        {{ i18n.ts._aiGenerationSection.titleMaxTokensHint }}
       </p>
     </div>
 
     <div :class="$style.field">
       <div :class="$style.fieldHeader">
-        <span :class="$style.fieldLabel">応答待ちのタイムアウト</span>
+        <span :class="$style.fieldLabel">{{ i18n.ts._aiGenerationSection.readTimeout }}</span>
         <div :class="$style.fieldValue">
           <input
             v-model.number="config.generation.readTimeoutSeconds"
@@ -127,12 +125,11 @@ const changed = computed(() =>
             :class="$style.numberInput"
             @change="commit"
           />
-          <span :class="$style.fieldUnit">秒</span>
+          <span :class="$style.fieldUnit">{{ i18n.ts._aiGenerationSection.seconds }}</span>
         </div>
       </div>
       <p :class="$style.fieldHint">
-        応答が届かなくなってからの待ち時間です。生成中は届き続けるので長考は
-        切りません。最初の 1 文字までが遅い実行先 (ローカルの LLM など) で伸ばします
+        {{ i18n.ts._aiGenerationSection.readTimeoutHint }}
       </p>
     </div>
   </AiSettingsSection>
