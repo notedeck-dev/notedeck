@@ -13,7 +13,7 @@ use crate::pet_store::{self, PetHitMask, PetInfo};
 use crate::context::Core;
 use crate::error::Result;
 
-#[derive(serde::Serialize, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PetLoaded {
     pub info: PetInfo,

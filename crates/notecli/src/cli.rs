@@ -14,7 +14,7 @@ pub enum ColorWhen {
 }
 
 /// Metadata for a CLI subcommand (exposed to external consumers like notedeck).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct CliCommandInfo {
     pub name: String,
@@ -23,7 +23,7 @@ pub struct CliCommandInfo {
 }
 
 /// Metadata for a single CLI argument.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct CliArgInfo {
     pub name: String,
@@ -64,7 +64,7 @@ pub fn command_metadata() -> Vec<CliCommandInfo> {
 #[derive(Parser)]
 #[command(
     name = "notecli",
-    about = "Headless Misskey client (CLI & HTTP API)",
+    about = "Headless Misskey client (CLI)",
     long_about = "Headless Misskey client for humans and AI agents.\n\n\
         Misskey インスタンスへの投稿、タイムライン取得、リアクション、\n\
         ユーザー操作などを CLI から実行できます。\n\n\
@@ -118,18 +118,6 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// HTTP APIサーバーを起動
-    #[command(
-        long_about = "HTTP APIサーバー（REST + SSE）をバックグラウンドで起動します。\n\
-            外部アプリや Web フロントエンドからの連携に使用します。\n\
-            起動時にランダムなAPIトークンが生成され、ファイルに保存されます。"
-    )]
-    Daemon {
-        /// 待ち受けポート番号
-        #[arg(long, default_value_t = 19820)]
-        port: u16,
-    },
-
     /// 登録済みアカウント一覧を表示
     #[command(
         long_about = "データベースに登録されている全アカウントを一覧表示します。\n\
@@ -619,28 +607,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_daemon_default_port() {
-        let cli = Cli::parse_from(["notecli", "daemon"]);
-        match cli.command.unwrap() {
-            Commands::Daemon { port } => {
-                assert_eq!(port, 19820);
-            }
-            _ => panic!("Expected Daemon command"),
-        }
-    }
-
-    #[test]
-    fn parse_daemon_custom_port() {
-        let cli = Cli::parse_from(["notecli", "daemon", "--port", "8080"]);
-        match cli.command.unwrap() {
-            Commands::Daemon { port } => {
-                assert_eq!(port, 8080);
-            }
-            _ => panic!("Expected Daemon command"),
-        }
-    }
-
-    #[test]
     fn parse_no_command() {
         let cli = Cli::parse_from(["notecli"]);
         assert!(cli.command.is_none());
@@ -650,7 +616,6 @@ mod tests {
     fn command_metadata_returns_all_subcommands() {
         let meta = command_metadata();
         let names: Vec<&str> = meta.iter().map(|c| c.name.as_str()).collect();
-        assert!(names.contains(&"daemon"));
         assert!(names.contains(&"accounts"));
         assert!(names.contains(&"login"));
         assert!(names.contains(&"post"));

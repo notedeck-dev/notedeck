@@ -4,12 +4,14 @@
 // settingsFs をモックして読込を保留し、whenPermissionsReady の待機を検証する。
 import { describe, expect, it, vi } from 'vitest'
 
-let resolveRead: ((content: string) => void) | undefined
+let resolveRead:
+  | ((file: { content: string; version: string }) => void)
+  | undefined
 
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: true,
-  readPermissionsSettings: () =>
-    new Promise<string>((resolve) => {
+  readPermissionsSettingsVersioned: () =>
+    new Promise<{ content: string; version: string }>((resolve) => {
       resolveRead = resolve
     }),
   readAiSettings: () => Promise.resolve(''),
@@ -33,11 +35,12 @@ describe('whenPermissionsReady (#716)', () => {
     // この時点で判定するとデフォルト値 (confirmSkips 空) — これがバグの再現
     expect(isConfirmSkipped('plugin:widget:w1', 'http.fetch')).toBe(false)
 
-    resolveRead?.(
-      JSON.stringify({
+    resolveRead?.({
+      version: 'v1',
+      content: JSON.stringify({
         confirmSkips: { 'plugin:widget:w1': ['http.fetch'] },
       }),
-    )
+    })
     await p
     expect(ready).toBe(true)
     expect(isConfirmSkipped('plugin:widget:w1', 'http.fetch')).toBe(true)
@@ -61,11 +64,12 @@ describe('whenPermissionsReady (#716)', () => {
     await Promise.resolve()
     expect(settled).toBe(false)
 
-    resolveRead?.(
-      JSON.stringify({
+    resolveRead?.({
+      version: 'v1',
+      content: JSON.stringify({
         principals: { plugin: { preset: 'readonly', custom: {} } },
       }),
-    )
+    })
     await expect(p).rejects.toThrow(/permission_denied.*notes\.react/)
   })
 
@@ -86,7 +90,7 @@ describe('whenPermissionsReady (#716)', () => {
     const ready = whenPermissionsReady()
     await Promise.resolve()
     await Promise.resolve()
-    resolveRead?.('{ this is not valid json5 ,,,')
+    resolveRead?.({ content: '{ this is not valid json5 ,,,', version: 'v1' })
     await ready
 
     // デフォルト (plugin=safe) なら notes.react は許可されるが、破損時は

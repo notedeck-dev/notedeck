@@ -38,6 +38,8 @@ echo "==> $CURRENT -> $VERSION"
 # (sed ではなく perl なのは -i の書式が GNU と BSD で違うため)
 perl -0pi -e "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" package.json
 perl -0pi -e "s/^version = \"[^\"]*\"/version = \"$VERSION\"/m" src-tauri/Cargo.toml
+# notecored はアプリと同版でなければ繋げない (マニフェストの指紋) ので一緒に上げる (#1106)
+perl -0pi -e "s/^version = \"[^\"]*\"/version = \"$VERSION\"/m" crates/notecored/Cargo.toml
 perl -0pi -e "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
 
 # perl は一致が無くても成功で終わるので、置換されたことを確かめる
@@ -51,6 +53,7 @@ check() {
 echo "==> バージョンを更新"
 check package.json "\"version\": \"$VERSION\""
 check src-tauri/Cargo.toml "^version = \"$VERSION\""
+check crates/notecored/Cargo.toml "^version = \"$VERSION\""
 check src-tauri/tauri.conf.json "\"version\": \"$VERSION\""
 
 echo "==> Cargo.lock (workspace root) を同期"

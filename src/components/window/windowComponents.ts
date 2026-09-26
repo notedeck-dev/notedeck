@@ -54,6 +54,7 @@ const WINDOW_LOADERS: Record<WindowType, Loader> = {
   'skill-edit': () => import('@/components/window/SkillEditContent.vue'),
   'edit-history': () => import('@/components/window/EditHistoryContent.vue'),
   connections: () => import('@/components/window/ConnectionsContent.vue'),
+  core: () => import('@/components/window/CoreContent.vue'),
   connectionEdit: () => import('@/components/window/ConnectionEditContent.vue'),
   tutorial: () => import('@/components/tutorial/TutorialContent.vue'),
   tutorialEditor: () => import('@/components/window/TutorialEditorContent.vue'),

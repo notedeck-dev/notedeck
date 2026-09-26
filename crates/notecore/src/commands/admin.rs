@@ -14,7 +14,7 @@ use crate::error::Result;
 
 // --- Cache management ---
 
-#[derive(serde::Serialize, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CacheStats {
     pub note_count: i64,
@@ -36,7 +36,7 @@ async fn run_blocking<T: Send + 'static>(
 
 // --- Chat cache management ---
 
-#[derive(serde::Serialize, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatCacheStats {
     pub message_count: i64,

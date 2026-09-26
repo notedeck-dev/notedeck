@@ -1,6 +1,8 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useUiStore } from '@/stores/ui'
+import { isTauri } from '@/utils/settingsFs'
 import { startSleepDetector } from '@/utils/sleepDetector'
+import { listenTauri } from '@/utils/tauriEvents'
 
 /**
  * デッキ復帰シグナル (deckResumeSignal) の発生源を一元管理する。
@@ -16,10 +18,13 @@ import { startSleepDetector } from '@/utils/sleepDetector'
  * 3. nd-app-resumed — Android ネイティブ (MainActivity.onResume) (#506)。
  *    pin 済み tauri-runtime-wry 2.10 が Event::Resumed を握り潰す間の
  *    暫定経路で、windowing 層の pin (#678) 解除後に削除できる
+ * 4. nd:client-layer-resumed — 常駐の notecored に繋ぎ直して購読を出し直した
+ *    (#1106)。切断中の差分は再送されないので、同じ catch-up で埋める
  */
 export function useDeckResume() {
   const uiStore = useUiStore()
   let stopSleepDetector: (() => void) | null = null
+  let unlistenRelay: (() => void) | null = null
 
   function onVisibilityChange() {
     if (!document.hidden) uiStore.emitDeckResume()
@@ -37,11 +42,21 @@ export function useDeckResume() {
       // visibilitychange に任せる
       if (!document.hidden) uiStore.emitDeckResume()
     })
+    if (isTauri) {
+      listenTauri('nd:client-layer-resumed', () => {
+        uiStore.emitDeckResume()
+      })
+        .then((unlisten) => {
+          unlistenRelay = unlisten
+        })
+        .catch((e) => console.warn('[deck-resume] relay listen failed:', e))
+    }
   })
 
   onUnmounted(() => {
     document.removeEventListener('visibilitychange', onVisibilityChange)
     window.removeEventListener('nd-app-resumed', onNativeResume)
     stopSleepDetector?.()
+    unlistenRelay?.()
   })
 }

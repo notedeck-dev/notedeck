@@ -14,9 +14,9 @@ export function useUnreadChat() {
   const { totalUnread, counts, fetchAll, resetAll } = useUnreadCounter('chat', {
     pollIntervalKey: 'chatPollInterval',
     fetchCount: fetchUnreadCount,
-    onStreamEvent: (event, current) => {
-      if (event.kind === 'stream-chat-message') return current + 1
-      return null
+    onUnread: (event, current) => {
+      if (event.kind !== 'chat' || event.op !== 'increment') return null
+      return current + 1
     },
   })
 

@@ -22,14 +22,6 @@ fn settings_base_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
     Ok(app_dir.join(SETTINGS_DIR))
 }
 
-/// Write a root-level settings file.
-// nd-command: authz
-#[tauri::command]
-#[specta::specta]
-pub fn write_root_settings_file(app: tauri::AppHandle, name: &str, content: &str) -> Result<()> {
-    store::write_root_file(&settings_base_dir(&app)?, name, content)
-}
-
 /// Get the settings directory path (so users can open it in file manager).
 // nd-command: local
 #[tauri::command]

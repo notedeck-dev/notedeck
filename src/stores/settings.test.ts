@@ -15,7 +15,7 @@ vi.mock('@/utils/settingsFs', () => ({
 
 vi.mock('@/utils/tauriInvoke', () => ({
   commands: {
-    readNotedeckJson: vi.fn(),
+    readNotedeckJsonVersioned: vi.fn(),
     writeNotedeckJson: vi.fn(),
   },
   unwrap: (result: { status: string; data?: unknown; error?: unknown }) => {
@@ -77,9 +77,9 @@ describe('useSettingsStore', () => {
   })
 
   it('load() uses defaults when file is empty (first run)', async () => {
-    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+    vi.mocked(commands.readNotedeckJsonVersioned).mockResolvedValue({
       status: 'ok',
-      data: '',
+      data: { content: '', version: 'v1' },
     } as never)
 
     const store = useSettingsStore()
@@ -91,13 +91,16 @@ describe('useSettingsStore', () => {
   })
 
   it('load() parses existing settings.json content', async () => {
-    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+    vi.mocked(commands.readNotedeckJsonVersioned).mockResolvedValue({
       status: 'ok',
-      data: JSON.stringify({
-        _schema: 1,
-        'modes.realtime': false,
-        'theme.manual': 'dark',
-      }),
+      data: {
+        content: JSON.stringify({
+          _schema: 1,
+          'modes.realtime': false,
+          'theme.manual': 'dark',
+        }),
+        version: 'v1',
+      },
     } as never)
 
     const store = useSettingsStore()
@@ -108,9 +111,9 @@ describe('useSettingsStore', () => {
   })
 
   it('load() falls back to defaults on invalid JSON', async () => {
-    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+    vi.mocked(commands.readNotedeckJsonVersioned).mockResolvedValue({
       status: 'ok',
-      data: 'not valid json {',
+      data: { content: 'not valid json {', version: 'v1' },
     } as never)
 
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {
@@ -125,22 +128,22 @@ describe('useSettingsStore', () => {
   })
 
   it('load() is idempotent — second call is a no-op', async () => {
-    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+    vi.mocked(commands.readNotedeckJsonVersioned).mockResolvedValue({
       status: 'ok',
-      data: '',
+      data: { content: '', version: 'v1' },
     } as never)
 
     const store = useSettingsStore()
     await store.load()
     await store.load()
 
-    expect(commands.readNotedeckJson).toHaveBeenCalledTimes(1)
+    expect(commands.readNotedeckJsonVersioned).toHaveBeenCalledTimes(1)
   })
 
   it('set() updates the value reactively', async () => {
-    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+    vi.mocked(commands.readNotedeckJsonVersioned).mockResolvedValue({
       status: 'ok',
-      data: '',
+      data: { content: '', version: 'v1' },
     } as never)
     vi.mocked(commands.writeNotedeckJson).mockResolvedValue({
       status: 'ok',
@@ -158,9 +161,9 @@ describe('useSettingsStore', () => {
   })
 
   it('set() schedules a debounced persist after 300ms', async () => {
-    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+    vi.mocked(commands.readNotedeckJsonVersioned).mockResolvedValue({
       status: 'ok',
-      data: '',
+      data: { content: '', version: 'v1' },
     } as never)
     vi.mocked(commands.writeNotedeckJson).mockResolvedValue({
       status: 'ok',
@@ -187,9 +190,9 @@ describe('useSettingsStore', () => {
   })
 
   it('multiple set() calls within the debounce window collapse into one write', async () => {
-    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+    vi.mocked(commands.readNotedeckJsonVersioned).mockResolvedValue({
       status: 'ok',
-      data: '',
+      data: { content: '', version: 'v1' },
     } as never)
     vi.mocked(commands.writeNotedeckJson).mockResolvedValue({
       status: 'ok',
@@ -208,9 +211,9 @@ describe('useSettingsStore', () => {
   })
 
   it('空ファイル (新規インストール) は読み込み失敗として扱わない', async () => {
-    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+    vi.mocked(commands.readNotedeckJsonVersioned).mockResolvedValue({
       status: 'ok',
-      data: '',
+      data: { content: '', version: 'v1' },
     } as never)
 
     const store = useSettingsStore()
@@ -220,9 +223,9 @@ describe('useSettingsStore', () => {
   })
 
   it('パース失敗時は loadFailed を立てる', async () => {
-    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+    vi.mocked(commands.readNotedeckJsonVersioned).mockResolvedValue({
       status: 'ok',
-      data: 'not valid json {',
+      data: { content: 'not valid json {', version: 'v1' },
     } as never)
     vi.spyOn(console, 'warn').mockImplementation(() => {
       // silence expected warning during test
@@ -235,9 +238,9 @@ describe('useSettingsStore', () => {
   })
 
   it('読み込み失敗後は書き戻さない — defaults による上書き消失を防ぐ', async () => {
-    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+    vi.mocked(commands.readNotedeckJsonVersioned).mockResolvedValue({
       status: 'ok',
-      data: 'not valid json {',
+      data: { content: 'not valid json {', version: 'v1' },
     } as never)
     vi.mocked(commands.writeNotedeckJson).mockResolvedValue({
       status: 'ok',
@@ -261,9 +264,9 @@ describe('useSettingsStore', () => {
   })
 
   it('flush() immediately persists pending changes', async () => {
-    vi.mocked(commands.readNotedeckJson).mockResolvedValue({
+    vi.mocked(commands.readNotedeckJsonVersioned).mockResolvedValue({
       status: 'ok',
-      data: '',
+      data: { content: '', version: 'v1' },
     } as never)
     vi.mocked(commands.writeNotedeckJson).mockResolvedValue({
       status: 'ok',

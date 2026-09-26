@@ -5,9 +5,13 @@ import defaultAiJson5 from '@/defaults/ai.json5?raw'
 import { i18n } from '@/i18n'
 import type { PresetKey } from '@/permissions/schema'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
-import { isTauri, readAiSettings, writeAiSettings } from '@/utils/settingsFs'
+import {
+  isTauri,
+  readAiSettingsVersioned,
+  writeAiSettings,
+} from '@/utils/settingsFs'
 import { getStorageJson, removeStorage, STORAGE_KEYS } from '@/utils/storage'
-import { commands, unwrap } from '@/utils/tauriInvoke'
+import { commands, isConflictError, unwrap } from '@/utils/tauriInvoke'
 
 // --- Type definitions ---
 //
@@ -620,10 +624,13 @@ const AI_SETTINGS_FILE_NAME = 'ai.json5'
 const _config: Ref<AiConfig> = ref(defaultConfig())
 const _initialized: Ref<boolean> = ref(false)
 let _initStarted = false
+/** 最後に読んだ / 書いたときの版 (条件付き書込に添える, #1106) */
+let _version: string | null = null
 
 async function _initFileStorage(): Promise<void> {
   dropLegacyLocalStorageAiConfig()
-  const aiContent = await readAiSettings()
+  const { content: aiContent, version } = await readAiSettingsVersioned()
+  _version = version
   if (aiContent) {
     try {
       const parsed = JSON5.parse(aiContent) as Partial<AiConfig> &
@@ -647,7 +654,10 @@ async function _initFileStorage(): Promise<void> {
         // 移行後の形 (provider 系フィールドを含まない) で書き戻し、
         // 次回起動以降は移行をスキップする。
         try {
-          await writeAiSettings(`${JSON5.stringify(_config.value, null, 2)}\n`)
+          _version = await writeAiSettings(
+            `${JSON5.stringify(_config.value, null, 2)}\n`,
+            _version,
+          )
         } catch (e) {
           console.warn('[ai-settings] failed to persist migrated config:', e)
         }
@@ -683,9 +693,21 @@ export function useAiConfig() {
   }
 
   function save(): void {
-    writeAiSettings(`${JSON5.stringify(_config.value, null, 2)}\n`).catch((e) =>
-      console.warn('[ai-settings] failed to write ai.json5:', e),
-    )
+    writeAiSettings(`${JSON5.stringify(_config.value, null, 2)}\n`, _version)
+      .then((v) => {
+        _version = v
+      })
+      .catch(async (e) => {
+        if (isConflictError(e)) {
+          // notecore (HEARTBEAT の自動停止など) が先に書いた: 最新に揃える
+          console.warn(
+            '[ai-settings] ai.json5 changed by another writer; reloading',
+          )
+          await reloadAiConfig()
+          return
+        }
+        console.warn('[ai-settings] failed to write ai.json5:', e)
+      })
   }
 
   return {

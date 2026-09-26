@@ -348,6 +348,70 @@ jobs:
         with:
           files: ${{ steps.artifact.outputs.name }}
 
+  # notecored (常駐コア, #1106) も notecli と同じ形で同じタグから配布する。
+  # Unix socket の RPC 面を持つので Windows は対象外。keyring 系はファイル backend に
+  # 要るので default features のまま (cross でも純 Rust)。
+  notecored:
+    needs: publish
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-24.04
+            suffix: linux-amd64
+            cross: false
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04
+            suffix: linux-arm64
+            cross: true
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            suffix: darwin-arm64
+            cross: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+          prefix-key: notecored-v1
+
+      - name: Install cross
+        if: matrix.cross
+        run: cargo install cross --locked
+
+      - name: Build (cross)
+        if: matrix.cross
+        run: cross build --release -p notecored --target ${{ matrix.target }}
+
+      - name: Build (native)
+        if: ${{ !matrix.cross }}
+        run: cargo build --release -p notecored --target ${{ matrix.target }}
+
+      - name: Artifact name
+        id: artifact
+        shell: bash
+        run: echo "name=notecored-${GITHUB_REF#refs/tags/v}-${{ matrix.suffix }}" >> "$GITHUB_OUTPUT"
+
+      - name: Rename binary
+        run: cp target/${{ matrix.target }}/release/notecored ${{ steps.artifact.outputs.name }}
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.artifact.outputs.name }}
+
   publish:
     needs: build
     runs-on: ubuntu-latest

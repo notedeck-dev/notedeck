@@ -38,6 +38,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { window: 'aiSettings' },
   { window: 'permissions' },
   { window: 'connections' },
+  // このデバイスが使うコア (埋め込み / 常駐の notecored)。接続の隣 (#1106)
+  { window: 'core' },
   { window: 'keybinds' },
   {
     window: 'performanceEditor',

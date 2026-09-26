@@ -18,11 +18,15 @@ use crate::os_notify::{NotificationClicked, NotifyMedia};
 // (serde/specta とも透過なのでワイヤ形・TS 型は中身そのもの)。
 
 /// 統合チャネル (イベント名 "stream-envelope")。全イベントを { kind, payload }
-/// の tagged union で流す。Inspector の raw tap と未読カウンタが購読する。
-/// 名前が notecli::streaming::StreamEvent と衝突すると specta の TS 出力が
-/// 壊れるため、newtype は別名にしている。
+/// の tagged union で流す。Inspector の raw tap だけが購読し、観測が開いている
+/// ときしか流れない (#1106)。名前が notecli::streaming::StreamEvent と衝突すると
+/// specta の TS 出力が壊れるため、newtype は別名にしている。
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct StreamEnvelope(pub notecli::streaming::StreamEvent);
+
+/// 未読カウンタへの合図 (イベント名 "stream-unread")。生封筒に頼らない (#1106)
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct StreamUnread(pub notecore::stream_fanout::StreamUnreadEvent);
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct StreamStatus(pub notecli::streaming::StreamStatusEvent);
@@ -328,6 +332,8 @@ fn next_notification_id() -> i32 {
 // のみで、挙動は非 generic 時と同一。
 pub struct TauriEmitter<R: tauri::Runtime = tauri::Wry> {
     app: AppHandle<R>,
+    /// 生封筒を流すかどうか (Stream Inspector の観測、Core と共有)
+    observation: Arc<notecore::stream_fanout::StreamObservation>,
     /// Tracks recently shown notification IDs to prevent duplicate OS notifications
     /// when multiple subscriptions exist for the same account.
     recent_notif_ids: Mutex<HashSet<String>>,
@@ -340,7 +346,10 @@ pub struct TauriEmitter<R: tauri::Runtime = tauri::Wry> {
 }
 
 impl<R: tauri::Runtime> TauriEmitter<R> {
-    pub fn new(app: AppHandle<R>) -> Self {
+    pub fn new(
+        app: AppHandle<R>,
+        observation: Arc<notecore::stream_fanout::StreamObservation>,
+    ) -> Self {
         #[cfg(target_os = "android")]
         {
             use tauri_plugin_notification::{Channel, Importance};
@@ -354,6 +363,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         }
         Self {
             app,
+            observation,
             recent_notif_ids: Mutex::new(HashSet::new()),
             #[cfg(not(target_os = "android"))]
             last_os_notif: Mutex::new(None),
@@ -642,8 +652,18 @@ impl<R: tauri::Runtime> FrontendEmitter for TauriEmitter<R> {
             tracing::warn!("[stream] dedicated emit failed: {e}");
         }
 
-        // 統合チャネル: { kind, payload } の tagged union。Inspector の raw tap
-        // と未読カウンタが購読する
+        // 未読カウンタへの合図は専用チャネル (生封筒に依存しない)
+        if let Some(unread) = notecore::stream_fanout::unread_signal(&event) {
+            if let Err(e) = StreamUnread(unread).emit(&self.app) {
+                tracing::warn!("[stream] emit stream-unread failed: {e}");
+            }
+        }
+
+        // 統合チャネル: { kind, payload } の tagged union。Inspector の raw tap が
+        // 観測を開いている間だけ流す
+        if !self.observation.is_on() {
+            return;
+        }
         let kind = event.kind();
         if let Err(e) = StreamEnvelope(event).emit(&self.app) {
             tracing::warn!("[stream] emit {kind} failed: {e}");
@@ -679,12 +699,51 @@ mod tests {
         tauri_specta::Builder::<MockRuntime>::new()
             .events(tauri_specta::collect_events![
                 StreamEnvelope,
+                StreamUnread,
                 StreamStatus,
                 StreamChatMessageReacted,
                 StreamChatMessageUnreacted
             ])
             .mount_events(&app);
         app
+    }
+
+    /// 観測が開いた状態 (既存のテストは生封筒が届く前提)
+    fn observing() -> Arc<notecore::stream_fanout::StreamObservation> {
+        let o = Arc::new(notecore::stream_fanout::StreamObservation::default());
+        o.start();
+        o
+    }
+
+    /// 観測が閉じていれば生封筒は流れず、未読の合図は専用チャネルに流れる
+    #[test]
+    fn envelope_is_gated_by_observation_and_unread_has_its_own_channel() {
+        let app = mock_app();
+        let env_rx = envelope_rx(&app);
+        let (unread_tx, unread_rx) = mpsc::channel();
+        StreamUnread::listen(&app, move |ev| {
+            let _ = unread_tx.send(ev.payload);
+        });
+        let observation = Arc::new(notecore::stream_fanout::StreamObservation::default());
+        let emitter = TauriEmitter::new(app.handle().clone(), observation.clone());
+
+        emitter.emit(notification_event("n1", "follow"));
+        let unread = unread_rx
+            .recv_timeout(RECV_TIMEOUT)
+            .expect("stream-unread should arrive");
+        assert_eq!(unread.0.account_id, "acct-1");
+        assert_eq!(
+            unread.0.kind,
+            notecore::stream_fanout::UnreadKind::Notification
+        );
+        assert!(env_rx.recv_timeout(Duration::from_millis(200)).is_err());
+
+        observation.start();
+        emitter.emit(status_event(StreamConnectionState::Connected));
+        let envelope = env_rx
+            .recv_timeout(RECV_TIMEOUT)
+            .expect("stream-envelope should arrive while observing");
+        assert_eq!(envelope.0.kind(), "stream-status");
     }
 
     /// 統合チャネル (StreamEnvelope) の受信を channel に集める。
@@ -766,7 +825,7 @@ mod tests {
             let _ = status_tx.send(ev.payload);
         });
 
-        let emitter = TauriEmitter::new(app.handle().clone());
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
         emitter.emit(status_event(StreamConnectionState::Reconnecting));
 
         let status = status_rx
@@ -789,7 +848,7 @@ mod tests {
         app.manage(std::sync::Arc::new(QueryRuntime::default()));
         let env_rx = envelope_rx(&app);
 
-        let emitter = TauriEmitter::new(app.handle().clone());
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
         emitter.emit(StreamEvent::NoteCaptureUpdated(Box::new(
             StreamNoteCaptureEvent {
                 account_id: "acct-1".into(),
@@ -836,7 +895,7 @@ mod tests {
         };
         let env_rx = envelope_rx(&app);
 
-        let emitter = TauriEmitter::new(app.handle().clone());
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
         emitter.emit(note_event("sub-A", "n1"));
 
         let deltas = app.state::<std::sync::Arc<QueryRuntime>>().drain_pending();
@@ -858,7 +917,7 @@ mod tests {
         app.manage(std::sync::Arc::new(QueryRuntime::default()));
         let env_rx = envelope_rx(&app);
 
-        let emitter = TauriEmitter::new(app.handle().clone());
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
         emitter.emit(note_event("sub-unknown", "n1"));
 
         assert!(app
@@ -879,7 +938,7 @@ mod tests {
         let app = mock_app();
         let env_rx = envelope_rx(&app);
 
-        let emitter = TauriEmitter::new(app.handle().clone());
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
         emitter.emit(notification_event("notif-1", "someFutureType"));
         emitter.emit(notification_event("notif-1", "someFutureType"));
 
@@ -899,7 +958,7 @@ mod tests {
     #[test]
     fn dedup_set_clears_when_exceeding_max() {
         let app = mock_app();
-        let emitter = TauriEmitter::new(app.handle().clone());
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
 
         for i in 0..DEDUP_MAX_IDS {
             emitter
@@ -956,7 +1015,7 @@ mod tests {
     #[test]
     fn burst_notifications_are_buffered_after_first() {
         let app = mock_app();
-        let emitter = TauriEmitter::new(app.handle().clone());
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
 
         let plan1 =
             emitter.plan_os_notification(&test_notification_with_user("n1", "reaction", "alice"));
@@ -987,7 +1046,7 @@ mod tests {
     #[test]
     fn notification_after_window_shows_immediately() {
         let app = mock_app();
-        let emitter = TauriEmitter::new(app.handle().clone());
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
 
         let _ =
             emitter.plan_os_notification(&test_notification_with_user("n1", "reaction", "alice"));
@@ -1056,7 +1115,7 @@ mod tests {
     #[test]
     fn plan_carries_click_context() {
         let app = mock_app();
-        let emitter = TauriEmitter::new(app.handle().clone());
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
 
         let notification: NormalizedNotification = serde_json::from_value(json!({
             "id": "n-ctx",
@@ -1113,7 +1172,7 @@ mod tests {
     #[test]
     fn plan_uses_app_notification_header_body_icon() {
         let app = mock_app();
-        let emitter = TauriEmitter::new(app.handle().clone());
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
 
         match emitter.plan_os_notification(&app_notification(
             "a1",
@@ -1168,7 +1227,7 @@ mod tests {
     #[test]
     fn plan_builds_media_for_custom_emoji_reaction() {
         let app = mock_app();
-        let emitter = TauriEmitter::new(app.handle().clone());
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
 
         let media = |n: &NormalizedNotification| match emitter.plan_os_notification(n) {
             OsNotifPlan::ShowNow { media, .. } => media,

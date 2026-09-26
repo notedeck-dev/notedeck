@@ -21,6 +21,7 @@ const DEVELOPER_WINDOWS = [
   'edit-history',
   'tasksEditor',
   'snippetsEditor',
+  'core',
 ]
 
 describe('ウィンドウの帰属タグ', () => {

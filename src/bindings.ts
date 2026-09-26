@@ -1794,6 +1794,24 @@ async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, 
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notecore/src/commands/streaming.rs */
+async streamObserveStart() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stream_observe_start") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/streaming.rs */
+async streamObserveStop() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stream_observe_stop") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see crates/notecore/src/commands/enrichment.rs */
 async fetchOgp(url: string, accountId: string | null) : Promise<Result<SummaryData, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
@@ -2077,9 +2095,9 @@ async readSettingsFile(subdir: string, name: string) : Promise<Result<string, { 
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async writeSettingsFile(subdir: string, name: string, content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async writeSettingsFile(subdir: string, name: string, content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("write_settings_file", { subdir, name, content }) };
+    return { status: "ok", data: await TAURI_INVOKE("write_settings_file", { subdir, name, content, expected }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2164,14 +2182,19 @@ async readRootSettingsFile(name: string) : Promise<Result<string, { code: string
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Write a root-level settings file.
- *
- * @see src-tauri/src/commands/settings.rs
- */
-async writeRootSettingsFile(name: string, content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+/** @see crates/notecore/src/commands/settings.rs */
+async readRootSettingsFileVersioned(name: string) : Promise<Result<VersionedText, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("write_root_settings_file", { name, content }) };
+    return { status: "ok", data: await TAURI_INVOKE("read_root_settings_file_versioned", { name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/settings.rs */
+async writeRootSettingsFile(name: string, content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("write_root_settings_file", { name, content, expected }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2187,9 +2210,18 @@ async readNotedeckJson() : Promise<Result<string, { code: string; message: strin
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async writeNotedeckJson(content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async readNotedeckJsonVersioned() : Promise<Result<VersionedText, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("write_notedeck_json", { content }) };
+    return { status: "ok", data: await TAURI_INVOKE("read_notedeck_json_versioned") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/settings.rs */
+async writeNotedeckJson(content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("write_notedeck_json", { content, expected }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2433,6 +2465,66 @@ async heartbeatStatus() : Promise<Result<number | null, { code: string; message:
 async systemStateGet() : Promise<Result<SystemState, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("system_state_get") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * この端末の構成 (状態面用)
+ *
+ * @see src-tauri/src/client_layer.rs
+ */
+async clientLayerState() : Promise<ClientLayerState> {
+    return await TAURI_INVOKE("client_layer_state");
+},
+/**
+ * 状態面。WebView の「コア」設定がこれから文言を組む
+ *
+ * @see src-tauri/src/commands/core_switch.rs
+ */
+async coreStatus() : Promise<Result<CoreStatus, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("core_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 常駐へ切り替える (unit の用意 + 移行パッケージ + pending)。完了は再起動
+ *
+ * @see src-tauri/src/commands/core_switch.rs
+ */
+async coreSwitchToResident() : Promise<Result<MigrationSummary, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("core_switch_to_resident") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 埋め込みへ戻す (常駐を止めて secret を取り戻す)。完了は再起動
+ *
+ * @see src-tauri/src/commands/core_switch.rs
+ */
+async coreSwitchToEmbedded() : Promise<Result<SwitchBack, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("core_switch_to_embedded") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 切替の途中をやめる
+ *
+ * @see src-tauri/src/commands/core_switch.rs
+ */
+async coreCancelPending() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("core_cancel_pending") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2779,6 +2871,7 @@ streamChatMessageUnreacted: StreamChatMessageUnreacted,
 streamEmojiChanged: StreamEmojiChanged,
 streamEnvelope: StreamEnvelope,
 streamStatus: StreamStatus,
+streamUnread: StreamUnread,
 systemState: SystemState
 }>({
 exportProgress: "export-progress",
@@ -2792,6 +2885,7 @@ streamChatMessageUnreacted: "stream-chat-message-unreacted",
 streamEmojiChanged: "stream-emoji-changed",
 streamEnvelope: "stream-envelope",
 streamStatus: "stream-status",
+streamUnread: "stream-unread",
 systemState: "system-state"
 })
 
@@ -3002,6 +3096,30 @@ export type CliArgInfo = { name: string; help: string | null; required: boolean;
  */
 export type CliCommandInfo = { name: string; about: string | null; args: CliArgInfo[] }
 /**
+ * 状態面 (`nd:client-layer-state` と `client_layer_state` コマンド)
+ */
+export type ClientLayerState = { 
+/**
+ * `embedded` | `resident`
+ */
+backend: string; connected: boolean; socket: string | null; daemonVersion: string | null; 
+/**
+ * 接続先のマニフェストの指紋がこのアプリと一致するか (未接続なら None)
+ */
+fingerprintMatch: boolean | null; lastError: string | null; 
+/**
+ * 再接続の回数 (購読を再宣言した回数)
+ */
+reconnects: number; 
+/**
+ * イベントの連番に欠落を見た回数 (再送はしない。復帰の catch-up が埋める)
+ */
+eventGaps: number; 
+/**
+ * 前回の起動で切替 (pending-resident) を完了できなかった理由 (#1106 順序 7)
+ */
+switchError: string | null }
+/**
  * Misskey `clips/*` (clips/list, clips/show, clips/create, users/clips,
  * clips/my-favorites) の共通レスポンス。本家 schema
  * (packages/backend/src/models/json-schema/clip.ts) に準拠。
@@ -3120,6 +3238,38 @@ origin?: ConnectionOrigin | null;
  * `origin = External` の詳細 (`ai-provider` 等)。
  */
 externalSource?: string | null }
+/**
+ * 状態面 (`core_status` コマンド)。WebView はこれから文言を組む
+ */
+export type CoreStatus = { 
+/**
+ * この OS で常駐に切り替えられるか (同一ホストの 3a は Linux だけ)
+ */
+platformSupported: boolean; 
+/**
+ * `client.json5` の望む構成: `embedded` | `pending-resident` | `resident`
+ */
+configured: string; 
+/**
+ * 見つかった notecored のパス (パッケージなら /usr/bin、それ以外は PATH)
+ */
+notecoredPath: string | null; notecoredVersion: string | null; 
+/**
+ * user unit が動いているか (notecored が見つからなければ None)
+ */
+serviceActive: boolean | null; 
+/**
+ * notecored 側の secret store に中身があるか
+ */
+secretsPresent: boolean | null; 
+/**
+ * 書き出した移行パッケージが残っているか (再起動待ち)
+ */
+packagePresent: boolean | null; 
+/**
+ * 前回の起動で切替を完了できなかった理由
+ */
+switchError: string | null }
 export type CreateNoteParams = { text: string | null; cw: string | null; visibility: string | null; localOnly: boolean | null; modeFlags: Partial<{ [key in string]: boolean }> | null; replyId: string | null; renoteId: string | null; fileIds: string[] | null; poll: CreateNotePoll | null; scheduledAt: string | null }
 export type CreateNotePoll = { choices: string[]; multiple: boolean | null; expiresAt: number | null }
 export type CreatedApiToken = { meta: ApiTokenMeta; 
@@ -3286,6 +3436,10 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | Partial
  * の形で、TS は `nativeField(line, 'text')` で表示言語の文にする
  */
 export type LocalizedLine = { text: string; i18n: JsonValue }
+/**
+ * 移した結果。`missing` は読めなかった名前 (必須なら呼び出し側が失敗にする)
+ */
+export type MigrationSummary = { written: string[]; missing: string[] }
 /**
  * Misskey の `mutedWords` / `hardMutedWords` の 1 要素。
  * 文字列配列なら AND 語群（全語含むとマッチ）、文字列なら `/regex/flags` 形式の正規表現。
@@ -3802,9 +3956,9 @@ export type StreamEmojiChangedEvent = { accountId: string;
 host: string; change: EmojiChangeKind; emojis: ServerEmoji[] }
 /**
  * 統合チャネル (イベント名 "stream-envelope")。全イベントを { kind, payload }
- * の tagged union で流す。Inspector の raw tap と未読カウンタが購読する。
- * 名前が notecli::streaming::StreamEvent と衝突すると specta の TS 出力が
- * 壊れるため、newtype は別名にしている。
+ * の tagged union で流す。Inspector の raw tap だけが購読し、観測が開いている
+ * ときしか流れない (#1106)。名前が notecli::streaming::StreamEvent と衝突すると
+ * specta の TS 出力が壊れるため、newtype は別名にしている。
  */
 export type StreamEnvelope = StreamEvent
 /**
@@ -3826,7 +3980,19 @@ export type StreamNoteUpdatedEvent =
 export type StreamNotificationEvent = { accountId: string; subscriptionId: string; notification: NormalizedNotification }
 export type StreamStatus = StreamStatusEvent
 export type StreamStatusEvent = { accountId: string; state: StreamConnectionState }
+/**
+ * 未読カウンタへの合図 (イベント名 "stream-unread")。生封筒に頼らない (#1106)
+ */
+export type StreamUnread = StreamUnreadEvent
+/**
+ * 未読カウンタへの合図。件数そのものは持たない (正は REST の取得)
+ */
+export type StreamUnreadEvent = { accountId: string; kind: UnreadKind; op: UnreadOp }
 export type SummaryData = { title: string | null; description: string | null; icon: string | null; sitename: string | null; thumbnail: string | null; medias: string[]; player: Player | null; url: string; sensitive: boolean }
+/**
+ * 戻した結果。`remaining` が空でなければ notecored 側の secret は消していない
+ */
+export type SwitchBack = { imported: string[]; remaining: string[] }
 /**
  * OS 状態のスナップショット。`None` = その項目をこのプラットフォームでは
  * 取得できない (または取得に失敗した)。
@@ -3868,6 +4034,16 @@ id: string;
  * 帰属表示用の配布名スナップショット (記憶時点の名前)。
  */
 name?: string | null }
+export type UnreadKind = "notification" | "chat"
+export type UnreadOp = 
+/**
+ * 1 件増えた
+ */
+"increment" | 
+/**
+ * サーバー側で既読になった (0 に戻す)
+ */
+"clear"
 export type UserField = { name: string; value: string }
 /**
  * `charts/user/following`
@@ -4058,6 +4234,10 @@ verified: Partial<{ [key in string]: NormalizedNote }>;
  * (issue notecli#30 仕様 v5 §6-8)。
  */
 missing: string[] }
+/**
+ * 読んだ内容と、その版 (次の条件付き書込に添える)
+ */
+export type VersionedText = { content: string; version: string }
 
 /** tauri-specta globals **/
 

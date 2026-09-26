@@ -10,6 +10,7 @@ use notecore::account_service;
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_account(app_state: State<'_, AppState>, id: String) -> Result<()> {
+    crate::client_layer::ensure_embedded("delete_account")?;
     let db = app_state.db().await;
     account_service::delete(&db, &id)?;
     export_account_list(&app_state, &db);
@@ -21,6 +22,7 @@ pub async fn delete_account(app_state: State<'_, AppState>, id: String) -> Resul
 #[tauri::command]
 #[specta::specta]
 pub async fn logout_account(app_state: State<'_, AppState>, id: String) -> Result<()> {
+    crate::client_layer::ensure_embedded("logout_account")?;
     let db = app_state.db().await;
     account_service::logout(&db, &id)?;
     export_account_list(&app_state, &db);

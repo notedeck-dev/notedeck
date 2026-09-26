@@ -26,6 +26,15 @@ macro_rules! tauri_wrapper_one {
                 &notecore::commands::CallContext::window(window.label()),
             )
             .map_err(<$err>::from)?;
+            // クライアント層の切替点 (#1106 §4.1): 常駐構成なら中継、それ以外は埋め込み
+            if let Some(relay) = crate::client_layer::relay() {
+                #[allow(unused_mut)]
+                let mut params = crate::client_layer::Params::default();
+                $( params.push(stringify!($arg), &$arg); )*
+                return relay
+                    .call::<$ret, $err>(stringify!($name), params.into_value(), Some(window.label().to_string()))
+                    .await;
+            }
             $path(&core, $( $arg, )*).await
         }
     };
@@ -43,6 +52,14 @@ macro_rules! tauri_wrapper_one {
                 &notecore::commands::CallContext::default(),
             )
             .map_err(<$err>::from)?;
+            if let Some(relay) = crate::client_layer::relay() {
+                #[allow(unused_mut)]
+                let mut params = crate::client_layer::Params::default();
+                $( params.push(stringify!($arg), &$arg); )*
+                return relay
+                    .call::<$ret, $err>(stringify!($name), params.into_value(), None)
+                    .await;
+            }
             $path(&core, $( $arg, )*).await
         }
     };

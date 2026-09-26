@@ -49,6 +49,7 @@ pub async fn build_health_report(
     app_state: &AppState,
     scheduler: &HeartbeatScheduler,
 ) -> Result<HealthReport> {
+    crate::client_layer::ensure_embedded("run_healthcheck")?;
     let db = app_state.db().await;
     let db_path = crate::app_dir::resolve_app_dir(app)
         .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?

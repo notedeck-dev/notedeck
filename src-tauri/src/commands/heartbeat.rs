@@ -124,6 +124,11 @@ pub async fn heartbeat_configure(
     interval_minutes: u32,
 ) -> Result<()> {
     let interval = clamp_interval(interval_minutes)?;
+    if crate::client_layer::relay().is_some() {
+        // 常駐構成では notecored が timer を持つ (ai.json5 から組む)
+        tracing::info!("[heartbeat] resident backend: timer is owned by notecored");
+        return Ok(());
+    }
     scheduler.replace(interval, app);
     Ok(())
 }
@@ -143,6 +148,7 @@ pub async fn heartbeat_unconfigure(scheduler: State<'_, Arc<HeartbeatScheduler>>
 #[tauri::command]
 #[specta::specta]
 pub async fn heartbeat_trigger_now(app: tauri::AppHandle) -> Result<()> {
+    crate::client_layer::ensure_embedded("heartbeat_trigger_now")?;
     tauri::async_runtime::spawn(async move {
         run_tick(&app, "manual").await;
     });

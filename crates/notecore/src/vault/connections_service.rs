@@ -96,7 +96,7 @@ pub struct ConnectionUpsert {
 }
 
 /// secret slot の設定状況。
-#[derive(Debug, Serialize, specta::Type)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SecretSlotStatus {
     pub name: String,
@@ -104,14 +104,14 @@ pub struct SecretSlotStatus {
 }
 
 /// 接続の全 slot の設定状況。
-#[derive(Debug, Serialize, specta::Type)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SecretStatus {
     pub slots: Vec<SecretSlotStatus>,
 }
 
 /// 接続の疎通テスト結果。
-#[derive(Debug, Serialize, specta::Type)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultTestResult {
     /// HTTP ステータス (リクエストが届いた場合)。

@@ -217,6 +217,8 @@ macro_rules! with_command_table {
         data stream_set_mode(account_id: String, mode: String, interval_ms: Option<u64>) -> () = $crate::commands::streaming::stream_set_mode;
         data stream_sub_note(account_id: String, note_id: String) -> () = $crate::commands::streaming::stream_sub_note;
         data stream_unsub_note(account_id: String, note_id: String) -> () = $crate::commands::streaming::stream_unsub_note;
+        data stream_observe_start() -> () = $crate::commands::streaming::stream_observe_start;
+        data stream_observe_stop() -> () = $crate::commands::streaming::stream_observe_stop;
             // --- pet (crates/notecore/src/commands/pet.rs) ---
         data pet_install(slug: String) -> $crate::pet_store::PetInfo = $crate::commands::pet::pet_install;
         data pet_load(slug: String) -> Option<$crate::commands::pet::PetLoaded> = $crate::commands::pet::pet_load;
@@ -246,12 +248,15 @@ macro_rules! with_command_table {
             // --- settings (crates/notecore/src/commands/settings.rs) ---
         data list_settings_files(subdir: String) -> Vec<String> = $crate::commands::settings::list_settings_files;
         data read_settings_file(subdir: String, name: String) -> String = $crate::commands::settings::read_settings_file;
-        data write_settings_file(subdir: String, name: String, content: String) -> () = $crate::commands::settings::write_settings_file;
+        data write_settings_file(subdir: String, name: String, content: String, expected: Option<String>) -> String = $crate::commands::settings::write_settings_file;
         data delete_settings_file(subdir: String, name: String) -> () = $crate::commands::settings::delete_settings_file;
         data rename_settings_file(subdir: String, old_name: String, new_name: String) -> () = $crate::commands::settings::rename_settings_file;
         data read_root_settings_file(name: String) -> String = $crate::commands::settings::read_root_settings_file;
+        data read_root_settings_file_versioned(name: String) -> $crate::settings_store::VersionedText = $crate::commands::settings::read_root_settings_file_versioned;
+        data write_root_settings_file(name: String, content: String, expected: Option<String>) -> String = $crate::commands::settings::write_root_settings_file;
         data read_notedeck_json() -> String = $crate::commands::settings::read_notedeck_json;
-        data write_notedeck_json(content: String) -> () = $crate::commands::settings::write_notedeck_json;
+        data read_notedeck_json_versioned() -> $crate::settings_store::VersionedText = $crate::commands::settings::read_notedeck_json_versioned;
+        data write_notedeck_json(content: String, expected: Option<String>) -> String = $crate::commands::settings::write_notedeck_json;
         data update_performance_config(config: $crate::perf_config::PerformanceConfig) -> () = $crate::commands::settings::update_performance_config;
         data get_performance_config() -> $crate::perf_config::PerformanceConfig = $crate::commands::settings::get_performance_config;
             // --- vault (crates/notecore/src/commands/vault.rs) — main ウィンドウ限定、エラーは VaultError (`| 型` で宣言) ---
