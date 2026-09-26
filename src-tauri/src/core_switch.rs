@@ -76,16 +76,32 @@ fn invalid(msg: impl Into<String>) -> NoteDeckError {
     NoteDeckError::InvalidInput(msg.into())
 }
 
-/// notecored の所在: パッケージ同梱なら /usr/bin、それ以外は PATH
+/// notecored の所在: パッケージ同梱なら /usr/bin、次に Nix の profile
+/// (デスクトップから起動したアプリの PATH には無いことがある)、最後に PATH。
+/// 返すのは見つけたパスそのもの (profile の symlink は更新後も同じパスで新しい世代を指す)
 pub fn find_notecored() -> Option<PathBuf> {
-    let packaged = PathBuf::from("/usr/bin/notecored");
-    if packaged.is_file() {
-        return Some(packaged);
+    let mut candidates = vec![PathBuf::from("/usr/bin/notecored")];
+    if let Some(home) = std::env::var_os("HOME") {
+        candidates.push(
+            PathBuf::from(home)
+                .join(".nix-profile")
+                .join("bin")
+                .join("notecored"),
+        );
     }
-    let path = std::env::var_os("PATH")?;
-    std::env::split_paths(&path)
-        .map(|d| d.join("notecored"))
-        .find(|p| p.is_file())
+    if let Ok(user) = std::env::var("USER") {
+        candidates.push(
+            PathBuf::from("/etc/profiles/per-user")
+                .join(user)
+                .join("bin")
+                .join("notecored"),
+        );
+    }
+    candidates.push(PathBuf::from("/run/current-system/sw/bin/notecored"));
+    if let Some(path) = std::env::var_os("PATH") {
+        candidates.extend(std::env::split_paths(&path).map(|d| d.join("notecored")));
+    }
+    candidates.into_iter().find(|p| p.is_file())
 }
 
 struct Cli(PathBuf);

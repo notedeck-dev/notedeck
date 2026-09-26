@@ -5794,7 +5794,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_coreContent": {
     /** 今のコア */
     readonly "current": string
-    /** コアは Misskey との通信・保存・AI を担う部分です。アプリに埋め込む (アプリを閉じると止まる) か、常駐の notecored に任せる (アプリを閉じても動き続ける) かを選べます。切り替えはアプリの再起動で完了します。 */
+    /** コアは Misskey との通信・データの保存・AI を担う部分です。「アプリに埋め込み」はアプリと一緒に起動して終了します。「常駐 (notecored)」は systemd の user サービスとして動き続け、アプリを閉じても通知の受信や HEARTBEAT が止まりません。どちらも同じデータを使い、切り替えはアプリの再起動で完了します。 */
     readonly "description": string
     /** アプリに埋め込み */
     readonly "modeEmbedded": string
@@ -5814,11 +5814,11 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "unsupported": string
     /** notecored */
     readonly "binary": string
-    /** notecored が見つかりません。インストールしてからもう一度開いてください: */
+    /** notecored が見つかりません。次のコマンドで入れてから、このウィンドウを開き直してください: */
     readonly "notFound": string
     /** 常駐のコアに切り替える */
     readonly "switchTitle": string
-    /** Misskey のトークンと接続の secret が notecored の暗号化ファイルに複製されます。保護は OS のキーチェーンより弱くなります。切り替えはアプリの再起動で完了します。 */
+    /** notecored の user サービスを用意し、Misskey のトークンと接続の secret を notecored の暗号化ファイルに複製します。保護は OS のキーチェーンより弱くなります。切り替えはアプリの再起動で完了します。 */
     readonly "switchMessage": string
     /** 常駐に切り替える */
     readonly "switchOk": string
@@ -5828,13 +5828,13 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "cancel": string
     /** 切り替えをやめました。埋め込みのまま使います。 */
     readonly "cancelled": string
-    /** アプリを再起動すると切り替えが完了します。 */
+    /** アプリを再起動すると切り替えが完了します (再起動時に secret を取り込み、常駐サービスを有効化します)。 */
     readonly "restartToFinish": string
     /** {count} 件の secret を書き出しました。アプリを再起動すると常駐に切り替わります。 */
     readonly "exportedRestart_plural": PluralString<'count'>
     /** 埋め込みに戻す */
     readonly "backTitle": string
-    /** 常駐の notecored を止め、secret をこのアプリの保管先に戻します。戻し終えたら notecored 側の secret は消します。切り替えはアプリの再起動で完了します。 */
+    /** 常駐の notecored を止め、secret をこのアプリの保管先に戻します。全部戻せたら notecored 側の複製は消します。切り替えはアプリの再起動で完了します。 */
     readonly "backMessage": string
     /** 埋め込みに戻す */
     readonly "backOk": string
