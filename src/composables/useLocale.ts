@@ -2,9 +2,9 @@
  * 表示言語の決定と切り替え (#135)。
  *
  * 起動時に locale.json5 を読んで言語を決め、その 1 言語分の辞書を読む
- * (main.ts の起動待ちに相乗り)。切り替えはリロードで反映する (辞書を
- * リアクティブにしない)。サブデッキ / PiP も同じ辞書を持つ必要があるので、
- * 全ウィンドウに変更を知らせてリロードさせる。
+ * (main.ts の起動待ちに相乗り)。切り替えはその場で辞書を差し替える (辞書は
+ * リアクティブなので、辞書を読んだ描画が描き直される)。サブデッキ / PiP も
+ * 同じ言語で揃える必要があるので、全ウィンドウに変更を知らせる。
  */
 
 import { computed, readonly, ref } from 'vue'
@@ -60,14 +60,17 @@ export async function initLocale(): Promise<void> {
     } catch (e) {
       console.warn('[i18n] locale.json5 unavailable, using auto:', e)
     }
-    void listenTauri('nd:locale-changed', ({ sourceId }) => {
-      if (sourceId !== WINDOW_SOURCE_ID) location.reload()
+    void listenTauri('nd:locale-changed', ({ sourceId, preference }) => {
+      if (sourceId !== WINDOW_SOURCE_ID)
+        void applyPreference(preference as LocalePreference)
     })
   }
-  preference.value = setting.locale
-  await loadLocale(
-    resolveLanguage(setting.locale, systemLanguages(), LANGUAGES),
-  )
+  await applyPreference(setting.locale)
+}
+
+async function applyPreference(value: LocalePreference): Promise<void> {
+  preference.value = value
+  await loadLocale(resolveLanguage(value, systemLanguages(), LANGUAGES))
 }
 
 export function useLocale() {
@@ -88,8 +91,11 @@ export function useLocale() {
     if (!isTauri || value === preference.value) return
     // 自分で選んだので、移行由来の印 (migrated) は外す
     await writeLocaleSettingFile(serializeLocaleSetting({ locale: value }))
-    await emitTauri('nd:locale-changed', { sourceId: WINDOW_SOURCE_ID })
-    location.reload()
+    await applyPreference(value)
+    await emitTauri('nd:locale-changed', {
+      sourceId: WINDOW_SOURCE_ID,
+      preference: value,
+    })
   }
 
   return { preference: readonly(preference), choices, setPreference }

@@ -9,8 +9,14 @@
  * `i18n.ts` を触るのはバグなので throw する。モジュールのトップレベルで
  * 辞書を読む書き方は tests/lint/i18nDictionary.test.ts が禁止している
  * (定数は getter か key で持つ)。
+ *
+ * 辞書と表示言語はリアクティブで、言語を切り替えると辞書を読んだ描画や
+ * computed が描き直される (リロード不要)。逆に、辞書の文言を一度だけ
+ * 取り出して変数やオブジェクトに保存すると、切り替えに追従しない。
+ * 文言は描画のたびに引く (getter / computed で持つ)。
  */
 
+import { shallowRef } from 'vue'
 import {
   type LanguageCode,
   LOCALE_LOADERS,
@@ -26,9 +32,12 @@ const PLURAL_SUFFIX = '_plural'
 
 type Tree = { [key: string]: string | Tree }
 
-let dictionary: Locale | null = null
-let lang: LanguageCode = 'ja-JP'
+const dictionary = shallowRef<Locale | null>(null)
+const lang = shallowRef<LanguageCode>('ja-JP')
+// tsx は辞書と言語 (複数形の規則) ごとに組み直す
 let tsxCache: Tsx<Locale> | null = null
+let tsxSource: Locale | null = null
+let tsxLang: LanguageCode | null = null
 
 // 数値の param は表示言語の書式で出す (桁区切り)。toLocaleString() を
 // 呼び出し側に書かせると、複数形の数の判定に文字列が渡ってしまうため
@@ -39,7 +48,7 @@ function fill(template: string, args: Record<string, unknown>): string {
     if (!Object.hasOwn(args, name)) return whole
     const value = args[name]
     if (typeof value !== 'number') return String(value)
-    numberFormat ??= new Intl.NumberFormat(lang)
+    numberFormat ??= new Intl.NumberFormat(lang.value)
     return numberFormat.format(value)
   })
 }
@@ -61,9 +70,10 @@ function buildTsx(tree: Tree, rules: Intl.PluralRules): unknown {
 }
 
 function loaded(): Locale {
-  if (!dictionary)
+  const current = dictionary.value
+  if (!current)
     throw new Error('[i18n] accessed the dictionary before it was loaded')
-  return dictionary
+  return current
 }
 
 export const i18n = {
@@ -71,25 +81,27 @@ export const i18n = {
     return loaded()
   },
   get tsx(): Tsx<Locale> {
-    if (!tsxCache) {
+    const current = loaded()
+    if (!tsxCache || tsxSource !== current || tsxLang !== lang.value) {
       tsxCache = buildTsx(
-        loaded() as unknown as Tree,
-        new Intl.PluralRules(lang),
+        current as unknown as Tree,
+        new Intl.PluralRules(lang.value),
       ) as Tsx<Locale>
+      tsxSource = current
+      tsxLang = lang.value
     }
     return tsxCache
   },
   get lang(): LanguageCode {
-    return lang
+    return lang.value
   },
 }
 
 /** 読み込み済みの辞書を差し込む (テストの setup と loadLocale から) */
 export function setLocale(code: LanguageCode, locale: Locale): void {
-  dictionary = locale
-  lang = code
-  tsxCache = null
   numberFormat = null
+  lang.value = code
+  dictionary.value = locale
   if (typeof document !== 'undefined') document.documentElement.lang = code
 }
 
