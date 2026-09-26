@@ -326,7 +326,7 @@ function pushRow(type: string, data: string) {
   sseRows.value.unshift({
     seq: ++sseSeq,
     ts: now,
-    time: new Date(now).toLocaleTimeString('ja-JP', { hour12: false }),
+    time: new Date(now).toLocaleTimeString(i18n.lang, { hour12: false }),
     type,
     data,
     expanded: false,
@@ -540,7 +540,7 @@ async function executeCap() {
     capRunning.value = false
     capHistory.value.unshift({
       seq: ++capHistSeq,
-      time: new Date().toLocaleTimeString('ja-JP', { hour12: false }),
+      time: new Date().toLocaleTimeString(i18n.lang, { hour12: false }),
       capId: cap.id,
       status: capStatus.value,
       result: capResult.value,
@@ -1234,7 +1234,7 @@ onUnmounted(() => {
                 </thead>
                 <tbody>
                   <tr v-for="(t, i) in qbTrace" :key="`${t.at}-${i}`">
-                    <td :class="$style.mono">{{ new Date(t.at).toLocaleTimeString('ja-JP', { hour12: false }) }}</td>
+                    <td :class="$style.mono">{{ new Date(t.at).toLocaleTimeString(i18n.lang, { hour12: false }) }}</td>
                     <td :class="[$style.mono, t.error && $style.logError]">{{ t.type }}</td>
                     <td
                       :class="[
@@ -1619,7 +1619,7 @@ onUnmounted(() => {
               @click="toggleUnifiedRow(row)"
             >
               <span :class="[$style.sourceBadge, $style.sourceSse]">{{ row.source }}</span>
-              <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span>
+              <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString(i18n.lang, { hour12: false }) }}</span>
               <span :class="$style.sseType" :style="{ color: typeColor(row.label) }">{{ row.label }}</span>
               <span :class="$style.unifiedSseText">{{ row.text }}</span>
             </button>
@@ -1629,7 +1629,7 @@ onUnmounted(() => {
                   $style.sourceBadge,
                   row.source === 'front' ? $style.sourceFront : $style.sourceRust,
                 ]"
-              >{{ row.source }}</span> <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span> <span :class="$style.sseType">{{ row.label }}</span> {{ row.text }}
+              >{{ row.source }}</span> <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString(i18n.lang, { hour12: false }) }}</span> <span :class="$style.sseType">{{ row.label }}</span> {{ row.text }}
             </template>
             <CodeEditor
               v-if="row.source === 'sse' && expandedUnified.has(row.key)"

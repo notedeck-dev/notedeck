@@ -200,8 +200,10 @@ function openEditor(query: NamedQueryMeta): void {
 
 async function createNew(): Promise<void> {
   const query = await queriesStore.createQuery({
-    name: `新しいクエリ ${queriesStore.queries.length + 1}`,
-    src: 'note.text != null && note.text.incl("キーワード")',
+    name: i18n.tsx._deckQueryManagerColumn.newQueryName({
+      n: queriesStore.queries.length + 1,
+    }),
+    src: `note.text != null && note.text.incl("${i18n.ts._deckQueryManagerColumn.newQueryKeyword}")`,
     // このカラムの文脈で作る = そのスコープに参加した状態で始める
     ...(columnScope.value ? { scope: columnScope.value } : {}),
   })

@@ -151,12 +151,12 @@ function createNewSkill() {
   const id = generateSkillId('skill')
   const skill = skillsStore.add({
     id,
-    name: '新規スキル',
+    name: i18n.ts._deckSkillColumn.newSkillName,
     version: '0.1.0',
     description: '',
     mode: 'manual',
     triggers: [],
-    body: '指示文をここに記述します。\n',
+    body: `${i18n.ts._deckSkillColumn.newSkillBody}\n`,
     cheapCheckCapabilities: [],
   })
   windowsStore.open('skill-edit', { skillId: skill.id })

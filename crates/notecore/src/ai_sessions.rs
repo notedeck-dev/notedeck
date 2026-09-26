@@ -50,6 +50,11 @@ pub struct SessionMessage {
     /// status, draftId?, source, createdAt }`。人がボタンを押して確認を経てから走る
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub intent: Option<Value>,
+    /// 本文を表示言語で描き直す手がかり `{ content: { key, params } }` (#135)。
+    /// notecore が書く定型の本文 (HEARTBEAT の失敗や受信箱カード) にだけ付く。
+    /// `content` は英語の正本文
+    #[serde(default, rename = "i18n", skip_serializing_if = "Option::is_none")]
+    pub i18n: Option<Value>,
 }
 
 /// セッション (wire)。`message_count` / `last_message_preview` は算出値。
@@ -72,6 +77,10 @@ pub struct AiSession {
     pub triggered_skill_ids: Vec<String>,
     pub message_count: u64,
     pub last_message_preview: String,
+    /// タイトルを表示言語で描き直す手がかり `{ title: { key, params } }` (#135)。
+    /// notecore が付けた定型のタイトルにだけ付き、利用者が名前を変えたら消える
+    #[serde(default, rename = "i18n", skip_serializing_if = "Option::is_none")]
+    pub i18n: Option<Value>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, Type)]
@@ -85,6 +94,9 @@ pub struct AiSessionCreate {
     pub connection_id: String,
     #[serde(default)]
     pub persona_skill_id: Option<String>,
+    /// タイトルの手がかり (`AiSession::i18n` と同じ形)
+    #[serde(default, rename = "i18n")]
+    pub i18n: Option<Value>,
 }
 
 /// ファイル上の形。既知フィールドは宣言順に書き、未知フィールドは末尾に保持する。
@@ -104,6 +116,8 @@ struct SessionFile {
     persona_skill_id: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     triggered_skill_ids: Vec<String>,
+    #[serde(rename = "i18n", skip_serializing_if = "Option::is_none")]
+    i18n: Option<Value>,
     #[serde(flatten)]
     extra: Map<String, Value>,
 }
@@ -129,6 +143,7 @@ const KNOWN_SESSION_FIELDS: &[&str] = &[
     "messages",
     "personaSkillId",
     "triggeredSkillIds",
+    "i18n",
 ];
 const KNOWN_MESSAGE_FIELDS: &[&str] = &[
     "id",
@@ -141,6 +156,7 @@ const KNOWN_MESSAGE_FIELDS: &[&str] = &[
     "toolResultFor",
     "heartbeat",
     "intent",
+    "i18n",
 ];
 
 pub fn now_ms() -> u64 {
@@ -156,14 +172,14 @@ fn file_name(id: &str) -> String {
 
 fn validate_id(id: &str) -> Result<()> {
     if id.is_empty() || id.len() > 64 {
-        return Err(NoteDeckError::InvalidInput("session id が不正です".into()));
+        return Err(NoteDeckError::InvalidInput("invalid session id".into()));
     }
     if !id
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
         return Err(NoteDeckError::InvalidInput(format!(
-            "session id に使えない文字があります: {id}"
+            "session id contains characters that are not allowed: {id}"
         )));
     }
     Ok(())
@@ -200,6 +216,7 @@ fn message_from_value(v: &Value) -> Option<MessageFile> {
             .map(str::to_string),
         intent: obj.get("intent").filter(|v| !v.is_null()).cloned(),
         heartbeat: obj.get("heartbeat").and_then(Value::as_bool),
+        i18n: obj.get("i18n").filter(|v| v.is_object()).cloned(),
     };
     let extra: Map<String, Value> = obj
         .iter()
@@ -268,6 +285,7 @@ fn parse(text: &str) -> Option<SessionFile> {
             .filter(|s| !s.is_empty())
             .map(str::to_string),
         triggered_skill_ids,
+        i18n: obj.get("i18n").filter(|v| v.is_object()).cloned(),
         extra,
     })
 }
@@ -312,6 +330,7 @@ impl SessionFile {
             messages,
             persona_skill_id: self.persona_skill_id.clone(),
             triggered_skill_ids: self.triggered_skill_ids.clone(),
+            i18n: self.i18n.clone(),
         }
     }
 }
@@ -319,7 +338,7 @@ impl SessionFile {
 fn load(base: &Path, id: &str) -> Result<SessionFile> {
     validate_id(id)?;
     let text = store::read_file(base, SUBDIR, &file_name(id))?;
-    parse(&text).ok_or_else(|| NoteDeckError::InvalidInput(format!("セッション {id} を読めません")))
+    parse(&text).ok_or_else(|| NoteDeckError::InvalidInput(format!("cannot read session {id}")))
 }
 
 fn save(base: &Path, file: &SessionFile) -> Result<()> {
@@ -378,7 +397,7 @@ pub fn create(base: &Path, req: AiSessionCreate) -> Result<AiSession> {
     validate_id(&req.id)?;
     if exists(base, &req.id) {
         return Err(NoteDeckError::InvalidInput(format!(
-            "セッション {} は既にあります",
+            "session {} already exists",
             req.id
         )));
     }
@@ -399,6 +418,7 @@ pub fn create(base: &Path, req: AiSessionCreate) -> Result<AiSession> {
         messages: Vec::new(),
         persona_skill_id: req.persona_skill_id.filter(|s| !s.is_empty()),
         triggered_skill_ids: Vec::new(),
+        i18n: req.i18n,
         extra: Map::new(),
     };
     save(base, &file)?;
@@ -428,7 +448,11 @@ pub fn remove_messages(base: &Path, id: &str, ids: &[String]) -> Result<AiSessio
 }
 
 pub fn rename(base: &Path, id: &str, title: &str) -> Result<AiSession> {
-    mutate(base, id, |file| file.title = title.to_string())
+    // 利用者が付けた名前なので、定型タイトルの手がかりは捨てる (#135)
+    mutate(base, id, |file| {
+        file.title = title.to_string();
+        file.i18n = None;
+    })
 }
 
 /// trigger skill の id を初出順で累積する (#725)。
@@ -465,6 +489,20 @@ mod tests {
         }
     }
 
+    #[test]
+    fn rename_drops_the_template_title_hint() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut req = create_req("20260101000000");
+        req.title = "HEARTBEAT 2026".into();
+        req.i18n =
+            Some(serde_json::json!({ "title": { "key": "_native.heartbeat.sessionTitle" } }));
+        let created = create(dir.path(), req).unwrap();
+        assert!(created.i18n.is_some());
+        let renamed = rename(dir.path(), &created.id, "mine").unwrap();
+        assert_eq!(renamed.title, "mine");
+        assert!(renamed.i18n.is_none());
+    }
+
     fn create_req(id: &str) -> AiSessionCreate {
         AiSessionCreate {
             id: id.into(),
@@ -473,6 +511,7 @@ mod tests {
             model: "m".into(),
             connection_id: "c".into(),
             persona_skill_id: None,
+            i18n: None,
         }
     }
 

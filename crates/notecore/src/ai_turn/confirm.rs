@@ -180,9 +180,9 @@ pub fn shown(request_id: &str) -> Result<()> {
     let mut map = requests()
         .lock()
         .map_err(|_| NoteDeckError::Internal("confirm registry poisoned".into()))?;
-    let r = map
-        .get_mut(request_id)
-        .ok_or_else(|| NoteDeckError::InvalidInput("確認要求は既に決着しています".into()))?;
+    let r = map.get_mut(request_id).ok_or_else(|| {
+        NoteDeckError::InvalidInput("the confirmation request is already settled".into())
+    })?;
     if r.shown.is_none() {
         r.shown = Some(Instant::now());
         r.notify.notify_one();
@@ -198,7 +198,7 @@ pub fn respond(request_id: &str, accepted: bool) -> Result<()> {
         .remove(request_id)
         .ok_or_else(|| {
             NoteDeckError::InvalidInput(
-                "確認要求は既に決着しています (別の応答、期限切れ、または中断)".into(),
+                "the confirmation request is already settled (another response, expired, or cancelled)".into(),
             )
         })?;
     if let Some(h) = &record.watchdog {
@@ -218,7 +218,12 @@ fn resume(record: Record, request_id: &str, accepted: bool, reason: Option<&'sta
         Err(e) => {
             tracing::warn!(turn_id, "cannot resume ai turn: {e}");
             let mut ev = AiTurnEvent::new(&turn_id, "error");
-            ev.error = Some(format!("ターンを再開できません: {e}"));
+            let t = crate::i18n::text(
+                "_native.ai.resumeFailed",
+                serde_json::json!({ "error": e.to_string() }),
+            );
+            ev.error = Some(t.text);
+            ev.error_i18n = Some(t.i18n);
             ev.phase = Some("after_tool".into());
             rt.sink.emit(ev);
             return;

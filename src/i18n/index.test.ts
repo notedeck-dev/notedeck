@@ -97,6 +97,27 @@ describe('i18n', () => {
     expect(text.value).toBe('X (in progress)')
   })
 
+  it('byKey はキー文字列で引き、param と複数形を埋め、無いキーは undefined', async () => {
+    await loadLocale('en-US')
+    expect(i18n.byKey('_native.preview.generic.title', { label: 'X' })).toBe(
+      'Run X?',
+    )
+    expect(i18n.byKey('_native.no.such', {})).toBeUndefined()
+    setLocale('en-US', fixture)
+    expect(i18n.byKey('_ns.items_plural', { count: 2, place: 'box' })).toBe(
+      '2 items in box',
+    )
+  })
+
+  it('param が { key, params } なら、それも同じ言語で組む', async () => {
+    await loadLocale('ja-JP')
+    expect(
+      i18n.byKey('_native.preview.generic.title', {
+        label: { key: '_native.preview.generic.ok', params: {} },
+      }),
+    ).toBe('実行 を実行しますか？')
+  })
+
   it('loadLocale は合成済みの辞書を読み、欠けたキーは原文で埋まっている', async () => {
     await loadLocale('en-US')
     expect(i18n.ts._time.justNow).toBe('just now')

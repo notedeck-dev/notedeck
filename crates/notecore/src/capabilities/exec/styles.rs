@@ -3,10 +3,12 @@
 
 use serde_json::{json, Value};
 
+use super::preview::confirm;
 use super::{staged, ExecContext};
 use crate::context::Core;
 use crate::edit_history::Attribution;
 use crate::error::Result;
+use crate::i18n::text;
 use crate::skills::append_block;
 use crate::themes;
 use notecli::error::NoteDeckError;
@@ -98,26 +100,30 @@ pub fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Result<Op
         "styles.write" => {
             let body = s(p, "body").to_string();
             let next = staged::stage(staged::key(id, ctx, p), &cur, body.clone());
-            Some(json!({
-                "title": "カスタム CSS を全置換",
-                "message": format!("custom.css の内容を {} 文字に全置換します。 現在の CSS は履歴に保存され、styles.revert で戻せます。", len_of(&body)),
-                "diff": { "old": cur, "new": next, "language": "css" },
-                "okLabel": "上書き",
-                "cancelLabel": "やめる",
-                "type": "warning",
-            }))
+            Some(confirm(
+                "warning",
+                text("_native.preview.styles.write.title", json!({})),
+                Some(text(
+                    "_native.preview.styles.write.message_plural",
+                    json!({ "count": len_of(&body) }),
+                )),
+                text("_native.preview.styles.write.ok", json!({})),
+                json!({ "diff": { "old": cur, "new": next, "language": "css" } }),
+            ))
         }
         "styles.append" => {
             let content = s(p, "content");
             let next = staged::stage(staged::key(id, ctx, p), &cur, append_block(&cur, content));
-            Some(json!({
-                "title": "カスタム CSS に追記",
-                "message": format!("custom.css の末尾に {} 文字を追記します。 既存ルールは保持されます。", len_of(content)),
-                "diff": { "old": cur, "new": next, "language": "css" },
-                "okLabel": "追記",
-                "cancelLabel": "やめる",
-                "type": "normal",
-            }))
+            Some(confirm(
+                "normal",
+                text("_native.preview.styles.append.title", json!({})),
+                Some(text(
+                    "_native.preview.styles.append.message_plural",
+                    json!({ "count": len_of(content) }),
+                )),
+                text("_native.preview.styles.append.ok", json!({})),
+                json!({ "diff": { "old": cur, "new": next, "language": "css" } }),
+            ))
         }
         "styles.revert" => {
             let index = index_of(p);
@@ -135,17 +141,19 @@ pub fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Result<Op
                 .unwrap_or("")
                 .to_string();
             let next = staged::stage(staged::key(id, ctx, p), &cur, body);
-            Some(json!({
-                "title": "カスタム CSS を過去の状態に戻す",
-                "message": format!(
-                    "custom.css を編集履歴 #{index} ({}) の状態に戻します。 現在の CSS は上書きされます (戻す操作自体も履歴に残ります)。",
-                    super::time::iso_from_unix_ms(entry.at as i64)
-                ),
-                "diff": { "old": cur, "new": next, "language": "css" },
-                "okLabel": "この状態に戻す",
-                "cancelLabel": "やめる",
-                "type": "warning",
-            }))
+            Some(confirm(
+                "warning",
+                text("_native.preview.styles.revert.title", json!({})),
+                Some(text(
+                    "_native.preview.styles.revert.message",
+                    json!({
+                        "index": index,
+                        "at": super::time::iso_from_unix_ms(entry.at as i64),
+                    }),
+                )),
+                text("_native.preview.styles.revert.ok", json!({})),
+                json!({ "diff": { "old": cur, "new": next, "language": "css" } }),
+            ))
         }
         _ => None,
     })
@@ -197,7 +205,7 @@ mod tests {
         assert!(append(&core, &p, &ctx)
             .unwrap_err()
             .to_string()
-            .contains("確認後に対象が変更された"));
+            .contains("changed after confirmation"));
         // revert
         assert!(preview(&core, "styles.revert", &json!({}), &ctx)
             .unwrap()

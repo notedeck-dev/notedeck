@@ -81,7 +81,7 @@ pub fn read(dir: &Path, turn_id: &str) -> Result<TurnState> {
     match serde_json::from_str::<Stored>(&text)? {
         Stored::Open(state) => Ok(*state),
         Stored::Closed(c) => Err(NoteDeckError::InvalidInput(format!(
-            "turn {turn_id} は既に閉じています ({})",
+            "turn {turn_id} is already closed ({})",
             c.reason
         ))),
     }

@@ -15,8 +15,8 @@
 // vitest.config.ts からも import する。
 
 import { createHash } from 'node:crypto'
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import yaml from 'js-yaml'
 import JSON5 from 'json5'
 import type { Plugin } from 'vite'
@@ -28,6 +28,17 @@ export const GENERATED_PATH = join(ROOT, 'src/i18n/locale.generated.ts')
 /** capability の表示名の正本。辞書の `_capabilities` 節はここから作る */
 const CAPABILITIES_PATH = join(ROOT, 'crates/notecore/capabilities.json5')
 const CAPABILITIES_SECTION = '_capabilities'
+
+/**
+ * Rust (notecore / src-tauri) が描く文言の節 (#135 段 4)。この節だけを言語ごとの
+ * JSON に書き出し、Rust は include_str! で埋め込む。英語の正本文も英語の辞書から
+ * 組むので、Rust のソースに英文を二重に持たない
+ */
+export const NATIVE_SECTION = '_native'
+export const NATIVE_DIR = join(ROOT, 'crates/notecore/locales')
+export const NATIVE_RS_PATH = join(ROOT, 'crates/notecore/src/i18n/dictionaries.generated.rs')
+/** Android の文字列リソース (`_native.android` 節)。sync.sh が gen/android へコピーする */
+export const ANDROID_RES_DIR = join(ROOT, 'src-tauri/android/res')
 
 /** 正本の言語 */
 export const SOURCE_LANG = 'ja-JP'
@@ -302,6 +313,20 @@ function renderType(tree: LocaleTree, indent: string): string {
   return lines.join('\n')
 }
 
+function columnLabelsByType(): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const { code } of loadLanguages()) {
+    const columns = compose(code)._columns
+    if (!columns || typeof columns === 'string') continue
+    for (const [type, label] of Object.entries(columns)) {
+      if (typeof label !== 'string') continue
+      const labels = (out[type] ??= [])
+      if (!labels.includes(label)) labels.push(label)
+    }
+  }
+  return out
+}
+
 export function generate(): string {
   const languages = loadLanguages()
   const loaders = languages
@@ -321,11 +346,11 @@ export interface Locale ${body}
 export const LANGUAGES = ${JSON.stringify(languages, null, 2)} as const
 
 /**
- * カラム種別の原文 (${SOURCE_LANG}) の表示名。以前のバージョンは既定の表示名を
+ * カラム種別ごとの既定の表示名 (全言語)。以前のバージョンは既定の表示名を
  * カラムの name に保存していたので、それを「名前なし」と見分けるのに使う
  * (表示中の言語に関係なく判定するため、辞書ではなくここに持つ)
  */
-export const SOURCE_COLUMN_LABELS: Readonly<Record<string, string>> = ${JSON.stringify(loadLocale(SOURCE_LANG)._columns ?? {}, null, 2)}
+export const COLUMN_LABELS_BY_TYPE: Readonly<Record<string, readonly string[]>> = ${JSON.stringify(columnLabelsByType(), null, 2)}
 
 export type LanguageCode = (typeof LANGUAGES)[number]['code']
 
@@ -336,6 +361,101 @@ export const LOCALE_LOADERS: Record<
 ${loaders}
 }
 `
+}
+
+function xmlText(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll("'", "\\'")
+    .replaceAll('"', '\\"')
+    .replace(/\{count\}/g, '%1$d')
+}
+
+const snake = (key: string) =>
+  key
+    .replace(PLURAL_SUFFIX, '')
+    .replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
+
+/**
+ * Android の文字列リソース。Kotlin の通知ワーカーは Rust を通らずに通知を出すので
+ * 辞書を Android の形で渡す。言語は端末の言語で選ばれる。param は `{count}` だけ
+ */
+function androidResources(): Map<string, string> {
+  const files = new Map<string, string>()
+  for (const { code } of loadLanguages()) {
+    const tree = (compose(code)[NATIVE_SECTION] as LocaleTree | undefined)?.android
+    if (!tree || typeof tree === 'string') continue
+    const lines: string[] = []
+    for (const [key, value] of Object.entries(tree)) {
+      const name = `nd_${snake(key)}`
+      if (typeof value === 'string') {
+        lines.push(`    <string name="${name}">${xmlText(value)}</string>`)
+      } else {
+        lines.push(`    <plurals name="${name}">`)
+        for (const [q, v] of Object.entries(value))
+          lines.push(`        <item quantity="${q}">${xmlText(v as string)}</item>`)
+        lines.push('    </plurals>')
+      }
+    }
+    const dir = code === FALLBACK_LANG ? 'values' : `values-${code.split('-')[0]}`
+    files.set(
+      join(ANDROID_RES_DIR, dir, 'nd_strings.xml'),
+      `<?xml version="1.0" encoding="utf-8"?>\n<!-- 生成物 — 編集しない。locales/ の _native.android から \`pnpm gen:i18n\` で作る (#135) -->\n<resources>\n${lines.join('\n')}\n</resources>\n`,
+    )
+  }
+  return files
+}
+
+/** Rust に埋め込む辞書 (言語ごとの `_native` 節。欠けたキーは fallback で埋まっている) */
+export function generateNative(): {
+  files: Map<string, string>
+  rs: string
+  android: Map<string, string>
+} {
+  const files = new Map<string, string>()
+  const languages = loadLanguages()
+  for (const { code } of languages) {
+    const composed = compose(code)
+    // capability の表示名も要る (確認プレビューの「{label} を実行しますか？」)
+    const sections = {
+      [NATIVE_SECTION]: composed[NATIVE_SECTION] ?? {},
+      [CAPABILITIES_SECTION]: composed[CAPABILITIES_SECTION] ?? {},
+      // OS 通知の「実績獲得」の本文 (TS と同じ表を使い、二重に持たない)
+      _achievementLabels: composed._achievementLabels ?? {},
+    }
+    files.set(code, `${JSON.stringify(sections, null, 2)}\n`)
+  }
+  const entries = languages
+    .map((l) => `    ("${l.code}", include_str!("../../locales/${l.code}.json")),`)
+    .join('\n')
+  const rs = `// 生成物 — 編集しない。locales/ から \`pnpm gen:i18n\` で作る (#135)
+
+/// (言語コード, その言語の \`_native\` / \`_capabilities\` / \`_achievementLabels\` 節の JSON)
+pub const DICTIONARIES: &[(&str, &str)] = &[
+${entries}
+];
+
+/// 公開済みの言語 (OS の言語から自動で選んでよい言語)
+pub const PUBLISHED: &[&str] = &[${languages
+    .filter((l) => l.published)
+    .map((l) => `"${l.code}"`)
+    .join(', ')}];
+`
+  return { files, rs, android: androidResources() }
+}
+
+function writeNative(): void {
+  const { files, rs, android } = generateNative()
+  for (const [path, text] of android) {
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, text)
+  }
+  mkdirSync(NATIVE_DIR, { recursive: true })
+  for (const [code, text] of files) writeFileSync(join(NATIVE_DIR, `${code}.json`), text)
+  mkdirSync(dirname(NATIVE_RS_PATH), { recursive: true })
+  writeFileSync(NATIVE_RS_PATH, rs)
 }
 
 if (import.meta.main) {
@@ -350,6 +470,7 @@ if (import.meta.main) {
     console.log(`locales/${lang}.source.json を更新した`)
   }
   writeFileSync(GENERATED_PATH, generate())
+  writeNative()
   const { errors, missing } = check()
   for (const [lang, keys] of missing)
     console.warn(`${lang}: 未訳 ${keys.length} キー (原文で表示される)`)

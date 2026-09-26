@@ -29,7 +29,7 @@ function percentage(votes: number): number {
 
 function formatExpiry(iso: string): string {
   const d = new Date(iso)
-  return d.toLocaleString()
+  return d.toLocaleString(i18n.lang)
 }
 
 function canVote(isVoted: boolean): boolean {

@@ -25,6 +25,7 @@ import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { describeAuthType, useVault } from '@/composables/useVault'
 import { i18n } from '@/i18n'
+import { nativeField } from '@/i18n/native'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSessionMeta, useAiSessionsStore } from '@/stores/aiSessions'
 import { useConfirm } from '@/stores/confirm'
@@ -202,7 +203,7 @@ const filteredGroupedSessions = computed<SessionGroup[]>(() => {
     .map((g) => ({
       label: g.label,
       items: g.items.filter((s) =>
-        (s.title || i18n.ts._deckAiColumn.untitledChat)
+        (nativeField(s, 'title') || i18n.ts._deckAiColumn.untitledChat)
           .toLowerCase()
           .includes(q),
       ),
@@ -321,12 +322,6 @@ function checkProvider(): void {
   // 設定が済んだら導線は用済み
   if (ready) needsAiSetup.value = false
 }
-
-const AI_SETUP_REQUIRED_MESSAGE =
-  'AI の API キーが設定されていないため、この質問には応答できません。\n\n' +
-  'AI プロバイダの API キーを登録すると使えるようになります。' +
-  '下の「AI 設定を案内」からチュートリアルを開けます。\n\n' +
-  '`/help` などの / コマンドは API キーなしで実行できます。'
 
 /** API キー未設定で AI 応答を断った直後か (= 設定チュートリアルへ誘導する) */
 const needsAiSetup = ref(false)
@@ -618,7 +613,9 @@ async function appendAiSetupRequiredError(text: string): Promise<void> {
   const errorMsg: ChatMessage = {
     id: `msg-${now}-e`,
     role: 'assistant',
-    content: AI_SETUP_REQUIRED_MESSAGE,
+    content: i18n.tsx._deckAiColumn.setupRequiredMessage({
+      button: i18n.ts._deckAiColumn.aiSetupGuide,
+    }),
     timestamp: now,
   }
   sessionsStore.appendMessages(sessionId, [userMsg, errorMsg])
@@ -687,8 +684,11 @@ async function runSlashAndAppend(text: string): Promise<void> {
   // ユーザーが手動 rename している場合 (= timestamp 形式でない) は触らない。
   const afterRun = sessionsStore.get(sessionId)
   if (afterRun && isTimestampTitle(afterRun.title)) {
-    const cmdToken = text.split(/\s+/)[0]
-    sessionsStore.setTitle(sessionId, `${cmdToken} の実行`)
+    const cmdToken = text.split(/\s+/)[0] ?? text
+    sessionsStore.setTitle(
+      sessionId,
+      i18n.tsx._deckAiColumn.slashRunTitle({ command: cmdToken }),
+    )
   }
   scrollToBottom()
 }
@@ -800,7 +800,7 @@ const copiedMessageId = ref<string | null>(null)
 
 async function copyMessage(msg: ChatMessage) {
   try {
-    await navigator.clipboard.writeText(msg.content)
+    await navigator.clipboard.writeText(nativeField(msg, 'content'))
     copiedMessageId.value = msg.id
     setTimeout(() => {
       if (copiedMessageId.value === msg.id) copiedMessageId.value = null
@@ -982,7 +982,7 @@ function onKeydown(e: KeyboardEvent) {
             </div>
             <div :class="$style.rowMain">
               <div :class="$style.rowTitle">
-                {{ session.title || i18n.ts._deckAiColumn.untitledChat }}
+                {{ nativeField(session, 'title') || i18n.ts._deckAiColumn.untitledChat }}
               </div>
               <div v-if="session.lastMessagePreview" :class="$style.rowPreview">
                 {{ session.lastMessagePreview }}
@@ -1125,7 +1125,7 @@ function onKeydown(e: KeyboardEvent) {
             <div :class="$style.intentNotes">
               <div>{{ i18n.ts._deckAiColumn.intentNote }}</div>
               <div v-if="msg.intent.untrusted" :class="$style.intentWarn">{{ i18n.ts._deckAiColumn.intentUntrusted }}</div>
-              <div v-if="msg.intent.error" :class="$style.intentWarn">{{ i18n.tsx._deckAiColumn.intentDraftFailed({ error: msg.intent.error }) }}</div>
+              <div v-if="msg.intent.error" :class="$style.intentWarn">{{ i18n.tsx._deckAiColumn.intentDraftFailed({ error: nativeField(msg.intent, 'error') }) }}</div>
             </div>
             <div
               :key="`intent-${msg.id}-${highlightRevision}`"
@@ -1170,10 +1170,10 @@ function onKeydown(e: KeyboardEvent) {
                   v-else-if="msg.role === 'assistant'"
                   :key="`md-${msg.id}-${highlightRevision}`"
                   :class="$style.markdownContent"
-                  v-html="renderAssistant(msg.id, msg.content)"
+                  v-html="renderAssistant(msg.id, nativeField(msg, 'content'))"
                   @click="onAssistantContentClick"
                 />
-                <div v-else :class="$style.chatText">{{ msg.content }}</div>
+                <div v-else :class="$style.chatText">{{ nativeField(msg, 'content') }}</div>
               </div>
               <button
                 v-if="msg.content && (msg.role === 'user' || (msg.role === 'assistant' && !isGenerating))"

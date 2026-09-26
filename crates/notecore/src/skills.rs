@@ -501,17 +501,17 @@ pub fn validate_cheap_checks(ids: &[String]) -> Result<()> {
     for id in ids {
         let Some(decl) = crate::capabilities::find(id) else {
             return Err(NoteDeckError::InvalidInput(format!(
-                "cheapCheckCapabilities に未知の capability があります: {id}"
+                "cheapCheckCapabilities has an unknown capability: {id}"
             )));
         };
         if !decl.cheap {
             return Err(NoteDeckError::InvalidInput(format!(
-                "cheapCheckCapabilities: {id} は cheap ではないので cheap check に使えません"
+                "cheapCheckCapabilities: {id} is not cheap, so it cannot be used for a cheap check"
             )));
         }
         if decl.exec != crate::capabilities::Exec::Core {
             return Err(NoteDeckError::InvalidInput(format!(
-                "cheapCheckCapabilities: {id} は手元 (UI) 側の capability なので cheap check に使えません (notecore 単独で実行できるものだけ)"
+                "cheapCheckCapabilities: {id} runs on the device (UI) side, so it cannot be used for a cheap check (only capabilities notecore can run on its own)"
             )));
         }
     }
@@ -1082,15 +1082,15 @@ mod tests {
         let unknown = validate_cheap_checks(&["nope.x".into()])
             .unwrap_err()
             .to_string();
-        assert!(unknown.contains("未知の capability"));
+        assert!(unknown.contains("unknown capability"));
         let device = validate_cheap_checks(&["column.list".into()])
             .unwrap_err()
             .to_string();
-        assert!(device.contains("手元 (UI) 側"));
+        assert!(device.contains("device (UI) side"));
         let heavy = validate_cheap_checks(&["notes.create".into()])
             .unwrap_err()
             .to_string();
-        assert!(heavy.contains("cheap ではない"));
+        assert!(heavy.contains("is not cheap"));
         // create も拒む
         let dir = tempfile::tempdir().unwrap();
         let core = core_in(dir.path());

@@ -101,6 +101,12 @@ describe('カラムレジストリの実行時登録 (#794 W2)', () => {
     expect(() => unregisterColumnType('x:never-registered')).not.toThrow()
   })
 
+  it('組込種別の既定値は name を持たない (表示名は辞書から引くので保存しない, #135)', () => {
+    // 保存すると作った時点の言語の表示名が残り、言語を切り替えても変わらない
+    expect(buildColumnDefaults('mentions', null).name).toBeNull()
+    expect(buildColumnDefaults('timeline', null).name).toBeNull()
+  })
+
   it('buildColumnDefaults が登録種別にも効く', () => {
     registerColumnType('x:demo', spec({ defaultWidth: 480 }))
     const defaults = buildColumnDefaults('x:demo', null)

@@ -816,7 +816,9 @@ export function buildColumnDefaults(
   // 描画する)。ここで throw すると、プラグイン起動前のデッキ復元が壊れる
   const spec = COLUMN_REGISTRY[type]
   return {
-    name: spec?.label ?? type,
+    // 組込種別は表示名を辞書から引くので保存しない (保存すると作った時点の言語の
+    // 表示名が残る, #135)。プラグインの種別は外されたあとの tombstone のために残す
+    name: BUILTIN_TYPES.has(type) ? null : (spec?.label ?? type),
     width: spec?.defaultWidth ?? DEFAULT_COLUMN_WIDTH,
     accountId,
     active: true,

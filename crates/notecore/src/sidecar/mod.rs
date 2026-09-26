@@ -31,7 +31,7 @@ pub const SRC_SUFFIX: &str = ".is";
 const ID_MAX_LENGTH: usize = 256;
 
 /// 読取専用 (メタあり・ソース無し) の個体に対する変更を拒否するときの理由 (#1111)。
-pub const READ_ONLY_REASON: &str = "ソースファイルが見つからないため変更できません";
+pub const READ_ONLY_REASON: &str = "cannot change it because its source file is missing";
 
 #[derive(Clone, Copy, Debug)]
 pub struct Kind {

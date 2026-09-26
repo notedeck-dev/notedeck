@@ -491,6 +491,7 @@ _common:
   update: "Update"
   updateFailed: "Update failed"
   users: "Users"
+  unknownError: "Unknown error"
 
 _appConfirm:
   trustedHeader: "NoteDeck permission check"
@@ -740,6 +741,9 @@ _regexGuide:
   wordsPlaceholder: "Enter words separated by commas"
   addCondition: "Add condition"
   apply: "Apply"
+  containsAny: "Contains any"
+  containsAll: "Contains all"
+  excludes: "Excludes"
 
 _renoteMoreMenu:
   confirmDelete: "Delete this renote?"
@@ -1069,6 +1073,7 @@ _userProfileMenu:
   alreadyAdded: "Already added"
   addedToAntenna: "Added to {name}"
   addToAntennaFailed: "Couldn’t add to antenna ({code})"
+  searchColumnName: "Search {acct}"
 
 _notFoundPage:
   message: "Page not found"
@@ -1429,6 +1434,19 @@ _aboutContent:
   adviceRoomAuto: "Rendering has headroom. Auto-adjust will raise the quality if it stays stable"
   adviceRoom: "Rendering has headroom. It should stay smooth even if you raise the quality in the performance settings"
   adviceGood: "Rendering is good"
+  notAvailableAfterReload: "N/A (after reload)"
+  startupTotal: "Total: {time}"
+  infoStartup: "Startup"
+  infoDiagnostics: "Diagnostics"
+  issueWhat: "What happened"
+  issueWhatHint: "Describe what happened"
+  issueSteps: "Steps to reproduce"
+  issueExpected: "Expected behavior"
+  issueExpectedHint: "What should have happened"
+  issueEnvironment: "Environment"
+  issueScreenshot: "Screenshots"
+  issueScreenshotHint: "Attach if available"
+  issuePanicNote: "Get the crash backtrace with \"{copyInfo}\" and paste it here"
 
 _cacheEditorContent:
   usage: "Usage"
@@ -1664,6 +1682,8 @@ _tasksEditorContent:
   saveFailed: "Couldn’t save: {error}"
   objectRequired: "An object ({}) is required"
   resetFailed: "Couldn’t reset: {error}"
+  newTaskLabel: "New task"
+  newInputPrompt: "Enter a value"
 
 _themeEditorContent:
   light: "Light"
@@ -1734,6 +1754,8 @@ _deckAiColumn:
   intentConfirmNoteUntrusted: "This action was created by an unattended run (HEARTBEAT) after reading other people's content. Check the recipient and the text before allowing it."
   intentConfirmNote: "This action was proposed by an unattended run (HEARTBEAT)."
   intentRunFailed: "Could not run: {error}"
+  setupRequiredMessage: "This question can't be answered because no AI API key is set.\n\nRegister an API key for an AI provider to start using it. You can open the tutorial from \"{button}\" below.\n\nSlash commands such as `/help` work without an API key."
+  slashRunTitle: "Run {command}"
 
 _deckClientSearchColumn:
   searchPlaceholder: "Search local notes..."
@@ -1905,6 +1927,8 @@ _deckQueryManagerColumn:
   deleteTitle: "Delete query"
   deleteConfirm: "Delete \"{name}\"? The query body will also be deleted."
   deleted: "Query deleted"
+  newQueryName: "New query {n}"
+  newQueryKeyword: "keyword"
 
 _deckServerInfoColumn:
   noDescription: "(No description)"
@@ -1941,6 +1965,8 @@ _deckSkillColumn:
   modeAlways: "Always"
   modeManual: "Manual"
   modeTrigger: "Auto"
+  newSkillName: "New skill"
+  newSkillBody: "Write the instructions here."
 
 _deckTaskRunnerColumn:
   clearHistory: "Clear history"
@@ -3105,6 +3131,7 @@ _deckProfile:
   consoleWidgetsRemoved_plural:
     one: "Removed {count} legacy AiScript Console widget. Its code is lost (the scratchpad column offers the same functionality)."
     other: "Removed {count} legacy AiScript Console widgets. Their code is lost (the scratchpad column offers the same functionality)."
+  defaultName: "Profile {n}"
 
 _misstore:
   updateConfirm: "Update \"{name}\" with the store version.\nStore updated: {date} / v{version}"
@@ -3176,3 +3203,254 @@ _scheduleFormat:
   tomorrow9: "Tomorrow 9:00"
   in1Week: "In 1 week"
 
+_native:
+  preview:
+    generic:
+      title: "Run {label}?"
+      ok: "Run"
+    notesDelete:
+      title: "Delete note"
+      message: "Deletes noteId `{noteId}`. This can’t be undone (renotes, quotes, favorites, clips and so on go with it)."
+      ok: "Delete"
+    userFollow:
+      title: "Send follow"
+      message: "Sends a follow request to userId `{userId}` (they get a “followed you” notification). Locked accounts need to approve it."
+      ok: "Follow"
+    userUnfollow:
+      title: "Unfollow"
+      message: "Unfollows userId `{userId}` (they are not notified)."
+      ok: "Unfollow"
+    markRead:
+      title: "Mark all notifications as read"
+      messageAll: "Marks every notification of all logged-in accounts as read."
+      messageAccount: "Marks every notification of account `{accountId}` as read."
+      ok: "Mark as read"
+    registrySet:
+      title: "Write to registry"
+      message: "Writes a value to `{path}` in the Misskey server-side registry. **This area is shared with the official Misskey web client**, so it may change how the official UI behaves (themes / settings and so on)."
+      ok: "Write"
+    registryDelete:
+      title: "Delete registry value"
+      message: "Deletes `{path}` from the Misskey server-side registry. **This area is shared with the official Misskey web client**, so the setting is reset in the official UI too."
+      ok: "Delete"
+    skills:
+      create:
+        title: "Create skill"
+        messageAlways: "Saves the AI-generated skill “{name}” as a new skill. mode=always: once saved, it is always injected into the system prompt."
+        messageHeartbeat: "Saves the AI-generated skill “{name}” as a new skill. mode=heartbeat: runs automatically on every tick while HEARTBEAT is on."
+        messageTrigger: "Saves the AI-generated skill “{name}” as a new skill (mode=trigger: loads automatically on {triggers})."
+        messageManual: "Saves the AI-generated skill “{name}” as a new skill (mode=manual: not used until you enable it)."
+        ok: "Create"
+      append:
+        title: "Append to skill body"
+        message_plural:
+          one: "Appends {count} character to the body of {name}. The frontmatter is left untouched."
+          other: "Appends {count} characters to the body of {name}. The frontmatter is left untouched."
+        ok: "Append"
+      replaceSection:
+        title: "Replace skill section"
+        message_plural:
+          one: "Replaces the `## {heading}` section of {name} with {count} character. If there is no such heading, it is added at the end (idempotent)."
+          other: "Replaces the `## {heading}` section of {name} with {count} characters. If there is no such heading, it is added at the end (idempotent)."
+        ok: "Replace"
+      revert:
+        title: "Restore skill to an earlier state"
+        message: "Restores the body of {name} to edit history #{index} ({at}). The current body will be overwritten."
+        ok: "Restore this state"
+      install:
+        titleNew: "Install skill from MisStore"
+        titleUpdate: "Update skill from MisStore"
+        message: "Fetches {name} (v{version} / by {author}) from MisStore (mode={mode})."
+        messageAlways: "Fetches {name} (v{version} / by {author}) from MisStore (mode=always: always injected into the system prompt)."
+        messageUpdate: "Fetches {name} (v{version} / by {author}) from MisStore (mode={mode}). Updates the existing “{current}”."
+        messageUpdateAlways: "Fetches {name} (v{version} / by {author}) from MisStore (mode=always: always injected into the system prompt). Updates the existing “{current}”."
+        okNew: "Install"
+        okUpdate: "Update"
+      uninstall:
+        title: "Delete skill"
+        message: "Permanently deletes {name} (v{version} / {mode} mode). Its frontmatter, body and edit history file are all removed. This can’t be undone."
+        ok: "Delete"
+    themes:
+      create:
+        title: "Install theme"
+        messageLight: "Installs the AI-generated light theme."
+        messageDark: "Installs the AI-generated dark theme."
+        description_plural:
+          one: "{base} theme with {count} CSS variable"
+          other: "{base} theme with {count} CSS variables"
+        ok: "Install"
+      update:
+        title: "Update theme"
+        messageProps_plural:
+          one: "Updates {count} CSS variable of {name}."
+          other: "Updates {count} CSS variables of {name}."
+        messageMeta: "Updates the metadata of {name}."
+        description: "{base} theme"
+        ok: "Update"
+      revert:
+        title: "Restore theme to an earlier state"
+        message: "Restores {name} to edit history #{index} ({at})."
+        ok: "Restore this state"
+      install:
+        titleNew: "Install theme from MisStore"
+        titleUpdate: "Update theme from MisStore"
+        message: "Fetches {name} ({base} / by {author}) from MisStore and installs it."
+        okNew: "Install"
+        okUpdate: "Update"
+      uninstall:
+        title: "Delete theme"
+        message: "Permanently deletes {name} ({base}). You’ll need to reinstall it to get it back."
+        ok: "Delete"
+      summary_plural:
+        one: "{base} theme / {count} variable"
+        other: "{base} theme / {count} variables"
+    plugins:
+      setActive:
+        title: "Enable plugin"
+        message: "Enables {name}. Its handlers start, and operations covered by the permissions below may run."
+        ok: "Enable"
+      delete:
+        title: "Delete plugin"
+        message: "Deletes {name}. Its AiScript source, metadata and Mk:save storage are all removed. This can’t be undone."
+        ok: "Delete"
+      revert:
+        title: "Restore plugin to an earlier state"
+        message: "Restores {name} to edit history #{index} ({at}). The current AiScript source will be overwritten."
+        ok: "Restore this state"
+      install:
+        titleNew: "Install plugin from MisStore"
+        titleUpdate: "Update plugin from MisStore"
+        message: "Fetches {name} (v{version} / by {author}) from MisStore. It starts automatically with active=true right after installation."
+        upToDate: "{name} is already installed and up to date. Only a reference from the global scope will be added."
+        okNew: "Install"
+        okUpdate: "Update"
+    widgets:
+      delete:
+        title: "Delete widget"
+        message: "Deletes {name}. Its AiScript source, metadata and Mk:save storage are all removed. This can’t be undone."
+        messageMany_plural:
+          one: "Deletes {name} and {count} other. Their AiScript source, metadata and Mk:save storage are all removed. This can’t be undone."
+          other: "Deletes {name} and {count} others. Their AiScript source, metadata and Mk:save storage are all removed. This can’t be undone."
+        ok: "Delete"
+      revert:
+        title: "Restore widget to an earlier state"
+        message: "Restores {name} to edit history #{index} ({at}). The current AiScript source will be overwritten."
+        ok: "Restore this state"
+      install:
+        title: "Install widget from MisStore"
+        titleUpdate: "Update widget"
+        messageAutoRun: "Fetches {name} (v{version} / by {author}) from MisStore. It runs automatically when its column is shown."
+        messageManual: "Fetches {name} (v{version} / by {author}) from MisStore. Auto-run is off (start it manually)."
+        upToDate: "{name} is already installed and up to date."
+        ok: "Install"
+        okUpdate: "Update"
+    misstore:
+      updateConfirm: "Updates “{name}” with the content from the store.\nStore updated: {date} / v{version}"
+      updateConfirmWithPermissions: "Updates “{name}” with the content from the store.\nStore updated: {date} / v{version}\nNew permissions: {permissions}"
+    styles:
+      write:
+        title: "Replace custom CSS"
+        message_plural:
+          one: "Replaces the whole content of custom.css with {count} character. The current CSS is saved to the history and can be restored with styles.revert."
+          other: "Replaces the whole content of custom.css with {count} characters. The current CSS is saved to the history and can be restored with styles.revert."
+        ok: "Overwrite"
+      append:
+        title: "Append to custom CSS"
+        message_plural:
+          one: "Appends {count} character to the end of custom.css. Existing rules are kept."
+          other: "Appends {count} characters to the end of custom.css. Existing rules are kept."
+        ok: "Append"
+      revert:
+        title: "Restore custom CSS to an earlier state"
+        message: "Restores custom.css to edit history #{index} ({at}). The current CSS will be overwritten (the restore itself is also recorded in the history)."
+        ok: "Restore this state"
+    memos:
+      revert:
+        title: "Restore memo to an earlier state"
+        message: "Restores memo {key} to edit history #{index} ({at}). The current body will be overwritten."
+        ok: "Restore this state"
+    queries:
+      revert:
+        title: "Restore query to an earlier state"
+        message: "Restores {name} to edit history #{index} ({at}). The current source will be overwritten."
+        ok: "Restore this state"
+    cancel: "Cancel"
+  heartbeat:
+    stoppedDailyLimit: "HEARTBEAT stopped (reached today’s limit of {limit} AI runs)"
+    overDailyLimit: "HEARTBEAT: exceeded today’s limit of {limit} AI runs (still running)"
+    failed: "HEARTBEAT failed: {error}"
+    stoppedFailures: "HEARTBEAT stopped (failed {count} times in a row)"
+    sessionTitle: "HEARTBEAT {time}"
+    intentProposed: "Proposed running “{label}”"
+    draftNeedsAccount: "Can’t make a draft without an accountId"
+    failedMessage: "⚠ HEARTBEAT failed (source={source}): {error}"
+  ai:
+    httpUnauthorized: "Invalid API key (HTTP {status}){detail}"
+    httpForbidden: "Problem with the API key’s permissions or billing (HTTP {status}){detail} — check the balance and the API key’s permissions in the provider’s console"
+    rateLimited: "Rate limit reached. Wait a moment and try again"
+    serverError: "Server error (HTTP {status}){detail}"
+    connectionNotFound: "AI connection not found"
+    notAiProvider: "The selected connection is not an AI provider"
+    apiKeyMissing: "No API key is set for the connection “{name}”"
+    requestTooLarge: "The request is too large ({size} KB / limit {max} KB). Split long text or delete unneeded history."
+    budgetExceeded: "Exceeds the token budget ({budget} tokens today): used {spent} + estimated {estimate}"
+    resumeFailed: "Can’t resume the turn: {error}"
+    errorContent: "⚠️ {error}"
+    errorContentAfter: "{partial}\n\n⚠️ {error}"
+    roundLimit: "{partial}\n\n⚠️ Reached the limit of {max} tool calls."
+  backup:
+    skippedSame: "Skipped (same as existing): {items}"
+    restoredRenamed: "Restored under another name (conflicts with existing): {items} → {renamed}"
+    skippedBadFilename: "Skipped (invalid file name): {key}"
+    skippedBadKey: "Skipped (invalid key): {key}"
+  notification:
+    someone: "Someone"
+    reaction: "Reaction"
+    reactionWith: "Reaction {reaction}"
+    reply: "Reply"
+    renote: "Renote"
+    quote: "Quote"
+    mention: "Mention"
+    follow: "Follow"
+    followRequestAccepted: "Follow request accepted"
+    receiveFollowRequest: "Follow request"
+    achievementEarned: "Achievement unlocked"
+    login: "New login"
+    pollEnded: "Poll ended"
+    generic: "Notification"
+    test: "Test notification"
+    groupTitle_plural:
+      one: "{count} new notification"
+      other: "{count} new notifications"
+    groupOthers: "{names} and others"
+    listSeparator: ", "
+    channelName: "Notifications"
+  tray:
+    unread_plural:
+      one: "NoteDeck — {count} unread"
+      other: "NoteDeck — {count} unread"
+  apiTokens:
+    nameRequired: "Enter a token name"
+  android:
+    newNotifications_plural:
+      one: "{count} new notification"
+      other: "{count} new notifications"
+    newNotification: "You have a new notification"
+    multipleAccounts: "New notifications on multiple accounts"
+    channelName: "Misskey notifications"
+    channelDescription: "Follows, reactions, mentions and other notifications"
+
+_useAiConfig:
+  customProviderName: "Custom (OpenAI-compatible)"
+
+_aiSessionTitle:
+  chatSuffix: "chat"
+
+_defaultSnippets:
+  headerTitle: "AiScript snippets — same schema as VSCode's *.code-snippets"
+  headerSchema: "prefix: completion trigger  body: expanded code  description: description (optional)"
+  headerTabStops: "{placeholder} is a tab stop, {end} is the final cursor position."
+  dialog: "Show a dialog"
+  forLoop: "for loop"
+  eachLoop: "Iterate over an array with each"
+  apiCall: "Call the Misskey API"

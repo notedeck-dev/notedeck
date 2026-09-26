@@ -26,7 +26,7 @@ pub fn settings_base_dir(core: &Core) -> Result<PathBuf> {
 fn reject_sessions(subdir: &str) -> Result<()> {
     if subdir == crate::ai_sessions::SUBDIR {
         return Err(NoteDeckError::InvalidInput(
-            "sessions は notecore が書きます (ai_session_* を使ってください)".into(),
+            "sessions are written by notecore (use ai_session_*)".into(),
         ));
     }
     Ok(())

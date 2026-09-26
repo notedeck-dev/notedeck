@@ -2,6 +2,7 @@
 import { relaunch } from '@tauri-apps/plugin-process'
 import { ref } from 'vue'
 import { i18n } from '@/i18n'
+import { nativeField } from '@/i18n/native'
 import { type ConfirmOptions, useConfirm } from '@/stores/confirm'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -56,7 +57,7 @@ const importSettings = () =>
           message: i18n.tsx._backupContent.importDoneMessage_plural({
             count: result.warnings.length,
           }),
-          code: result.warnings.join('\n'),
+          code: result.warnings.map((w) => nativeField(w, 'text')).join('\n'),
           codeLanguage: 'text',
           type: 'warning',
           hideCancel: true,

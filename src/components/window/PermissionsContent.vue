@@ -272,7 +272,7 @@ function copyCreatedToken(): void {
 }
 
 function formatTokenDate(t: ApiTokenMeta): string {
-  return new Date(t.createdAtMs).toLocaleDateString()
+  return new Date(t.createdAtMs).toLocaleDateString(i18n.lang)
 }
 
 onMounted(refreshApiTokens)

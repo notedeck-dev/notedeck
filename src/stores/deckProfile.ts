@@ -324,7 +324,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
   function nextProfileName(profiles: DeckProfile[]): string {
     const names = new Set(profiles.map((p) => p.name))
     for (let i = 1; ; i++) {
-      const candidate = `プロファイル ${i}`
+      const candidate = i18n.tsx._deckProfile.defaultName({ n: i })
       if (!names.has(candidate)) return candidate
     }
   }
@@ -564,16 +564,17 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     let needsSave = false
     for (const [i, profile] of profiles.entries()) {
       if (!profile.name || profile.name.trim() === '') {
-        profile.name = `プロファイル ${i + 1}`
+        profile.name = i18n.tsx._deckProfile.defaultName({ n: i + 1 })
         needsSave = true
       }
     }
     if (needsSave) saveProfiles(profiles)
 
     if (profiles.length === 0) {
+      const name = i18n.tsx._deckProfile.defaultName({ n: 1 })
       const profile: DeckProfile = {
-        id: generateProfileId('プロファイル 1'),
-        name: 'プロファイル 1',
+        id: generateProfileId(name),
+        name,
         columns: deepClone(fallbackColumns),
         layout: deepClone(fallbackLayout),
         createdAt: Date.now(),

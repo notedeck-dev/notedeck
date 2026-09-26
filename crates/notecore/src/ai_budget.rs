@@ -106,13 +106,19 @@ pub struct BudgetExceeded {
     pub budget: u64,
 }
 
+impl BudgetExceeded {
+    /// 利用者に見せる文言 (英語の正本文 + 表示言語で描き直す手がかり, #135)
+    pub fn text(&self) -> crate::i18n::Text {
+        crate::i18n::text(
+            "_native.ai.budgetExceeded",
+            serde_json::json!({ "budget": self.budget, "spent": self.spent, "estimate": self.estimate }),
+        )
+    }
+}
+
 impl std::fmt::Display for BudgetExceeded {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "token 予算 (本日 {} tokens) を超えます: 使用済み {} + 見込み {}",
-            self.budget, self.spent, self.estimate
-        )
+        f.write_str(&self.text().text)
     }
 }
 

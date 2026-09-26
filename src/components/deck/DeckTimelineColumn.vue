@@ -111,8 +111,8 @@ const noteColumnConfig: NoteColumnConfig = {
     } catch (e) {
       // Promote server errors that mean "this tab is unreachable" into
       // runtime-denied state. Server error codes (LTL_DISABLED, GTL_DISABLED,
-      // CREDENTIAL_REQUIRED) arrive structured; the legacy "disabled" substring
-      // is still honored for servers that only put it in the message.
+      // CREDENTIAL_REQUIRED) arrive structured. Other *_DISABLED codes
+      // (STL_DISABLED, fork-specific timelines) disable the current tab.
       const err = AppError.from(e)
       const apiCode = err.displayCode
       const credentialRequired = apiCode === 'CREDENTIAL_REQUIRED'
@@ -125,7 +125,7 @@ const noteColumnConfig: NoteColumnConfig = {
       const isUnreachable =
         explicitTarget !== null ||
         credentialRequired ||
-        err.message.includes('disabled')
+        err.apiCode?.endsWith('_DISABLED') === true
       if (isUnreachable) {
         const target = explicitTarget ?? tlType.value
         const aid = props.column.accountId

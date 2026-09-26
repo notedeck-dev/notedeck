@@ -31,6 +31,25 @@ export function authErrorMessage(): string {
 /** サーバーが「この資格情報では通せない」と返すときの Misskey エラーコード */
 const AUTH_API_CODES = new Set(['AUTHENTICATION_FAILED', 'CREDENTIAL_REQUIRED'])
 
+/**
+ * Rust の利用者向けエラー (`NoteDeckError::Localized`) は、英語の正本文と
+ * 表示言語で描き直す手がかり `{ key, params }` を持つ (#135)。辞書を読む前
+ * (起動の途中) や辞書に無いキーでは英語の正本文のまま使う
+ */
+function localizedMessage(hint: unknown, fallback: string): string {
+  if (typeof hint !== 'object' || hint === null) return fallback
+  const { key, params } = hint as {
+    key?: unknown
+    params?: Record<string, unknown>
+  }
+  if (typeof key !== 'string') return fallback
+  try {
+    return i18n.byKey(key, params ?? {}) ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
 export class AppError extends Error {
   readonly code: ErrorCode
   /** Misskey が返した `error.code`。API エラー以外では null */
@@ -66,9 +85,10 @@ export class AppError extends Error {
     if (e instanceof AppError) return e
     if (typeof e === 'object' && e !== null && 'code' in e && 'message' in e) {
       const apiCode = (e as { apiCode?: unknown }).apiCode
+      const message = extractErrorMessage((e as { message: unknown }).message)
       return new AppError(
         (e as { code: string }).code as ErrorCode,
-        extractErrorMessage((e as { message: unknown }).message),
+        localizedMessage((e as { i18n?: unknown }).i18n, message),
         typeof apiCode === 'string' ? apiCode : null,
       )
     }

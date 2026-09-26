@@ -361,7 +361,9 @@ function searchUserNotes() {
     type: 'search',
     accountId: props.accountId,
     userId: props.user.id,
-    name: `${userAcct.value ?? props.user.username} の検索`,
+    name: i18n.tsx._userProfileMenu.searchColumnName({
+      acct: userAcct.value ?? props.user.username,
+    }),
     width: 360,
   })
   closeUserMenu()

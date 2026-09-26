@@ -101,10 +101,14 @@ function closePostForm() {
 }
 
 const flashCreatedDate = computed(() =>
-  flash.value ? new Date(flash.value.createdAt).toLocaleDateString() : '',
+  flash.value
+    ? new Date(flash.value.createdAt).toLocaleDateString(i18n.lang)
+    : '',
 )
 const flashUpdatedDate = computed(() =>
-  flash.value ? new Date(flash.value.updatedAt).toLocaleDateString() : '',
+  flash.value
+    ? new Date(flash.value.updatedAt).toLocaleDateString(i18n.lang)
+    : '',
 )
 
 const isOwnPlay = computed(

@@ -2,6 +2,7 @@ import JSON5 from 'json5'
 import { type Ref, ref } from 'vue'
 import type { Connection, ConnectionProtocol } from '@/bindings'
 import defaultAiJson5 from '@/defaults/ai.json5?raw'
+import { i18n } from '@/i18n'
 import type { PresetKey } from '@/permissions/schema'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { isTauri, readAiSettings, writeAiSettings } from '@/utils/settingsFs'
@@ -552,7 +553,9 @@ const LEGACY_PROVIDER_META: Record<
     fallbackBaseUrl: 'https://api.openai.com/v1',
   },
   custom: {
-    name: 'Custom (OpenAI 互換)',
+    get name() {
+      return i18n.ts._useAiConfig.customProviderName
+    },
     protocol: 'openai-compat',
     fallbackBaseUrl: '',
   },

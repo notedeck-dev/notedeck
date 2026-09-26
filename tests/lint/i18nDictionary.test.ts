@@ -21,7 +21,11 @@ import {
   flatten,
   GENERATED_PATH,
   generate,
+  generateNative,
   loadLocale,
+  NATIVE_DIR,
+  NATIVE_RS_PATH,
+  NATIVE_SECTION,
   SOURCE_LANG,
 } from '../../scripts/gen-i18n.ts'
 
@@ -32,6 +36,8 @@ const SRC = join(ROOT, 'src')
 const DYNAMIC_SECTIONS = [
   // capability id から引く (capabilityLabel)。正本は capabilities.json5
   '_capabilities',
+  // Kotlin の通知ワーカーが Android の文字列リソース (gen:i18n が書き出す) で引く
+  '_native.android',
 ]
 
 function collect(dir: string, exts: string[]): string[] {
@@ -45,6 +51,19 @@ function collect(dir: string, exts: string[]): string[] {
 const sources = collect(SRC, ['.ts', '.vue']).filter(
   (f) => !f.endsWith('.test.ts') && !f.endsWith('.generated.ts'),
 )
+
+/** Rust のソース (辞書の `_native` 節を引く側)。生成物とテストを除く */
+const rustSources = ['crates', 'src-tauri/src']
+  .flatMap((dir) => collect(join(ROOT, dir), ['.rs']))
+  .filter((f) => !f.includes('generated'))
+  .map((f) => {
+    const text = readFileSync(f, 'utf8')
+    const cut = text.search(/^\s*#\[cfg\(test\)\]/m)
+    return cut === -1 ? text : text.slice(0, cut)
+  })
+  .join('\n')
+
+const NATIVE_KEY = new RegExp(`"(${NATIVE_SECTION}\\.[\\w.]+)"`, 'g')
 
 const FUNCTION_LIKE = new Set([
   ts.SyntaxKind.FunctionDeclaration,
@@ -94,12 +113,36 @@ describe('UI 文言の辞書 (#135)', () => {
     expect(check().errors).toEqual([])
   })
 
+  it('Rust 用の辞書 (crates/notecore/locales) は辞書から再生成したものと一致する', () => {
+    const { files, rs, android } = generateNative()
+    for (const [path, text] of android)
+      expect(
+        readFileSync(path, 'utf8'),
+        `${path} が古い — \`pnpm gen:i18n\``,
+      ).toBe(text)
+    for (const [code, text] of files)
+      expect(
+        readFileSync(join(NATIVE_DIR, `${code}.json`), 'utf8'),
+        `${code}.json が古い — \`pnpm gen:i18n\``,
+      ).toBe(text)
+    expect(readFileSync(NATIVE_RS_PATH, 'utf8')).toBe(rs)
+  })
+
+  it('Rust が引くキーは辞書にある', () => {
+    const keys = new Set(flatten(loadLocale(SOURCE_LANG)).keys())
+    const missing = [...rustSources.matchAll(NATIVE_KEY)]
+      .map((m) => m[1] as string)
+      .filter((key) => !keys.has(key))
+    expect(missing).toEqual([])
+  })
+
   it('正本のキーはすべてコードから参照されている', () => {
     const code = sources.map((f) => readFileSync(f, 'utf8')).join('\n')
     const dead = [...flatten(loadLocale(SOURCE_LANG)).keys()].filter(
       (key) =>
         !DYNAMIC_SECTIONS.some((s) => key.startsWith(`${s}.`)) &&
-        !code.includes(`.${key}`),
+        !code.includes(`.${key}`) &&
+        !rustSources.includes(`"${key}"`),
     )
     expect(dead, '使われていないキーは辞書から消す').toEqual([])
   })

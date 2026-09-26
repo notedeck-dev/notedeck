@@ -47,7 +47,7 @@ const TARGETS: { dir: string; exts: string[] }[] = [
   { dir: 'src', exts: ['.ts', '.vue'] },
   { dir: 'src-tauri/src', exts: ['.rs'] },
   { dir: 'crates', exts: ['.rs'] },
-  { dir: 'src-tauri/gen/android', exts: ['.kt'] },
+  { dir: 'src-tauri/android', exts: ['.kt'] },
 ]
 
 const JAPANESE = /[　-ヿ㐀-鿿ｦ-ﾟ]/

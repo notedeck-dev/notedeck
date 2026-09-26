@@ -110,10 +110,14 @@ function closePostForm() {
 }
 
 const pageCreatedDate = computed(() =>
-  page.value ? new Date(page.value.createdAt).toLocaleDateString() : '',
+  page.value
+    ? new Date(page.value.createdAt).toLocaleDateString(i18n.lang)
+    : '',
 )
 const pageUpdatedDate = computed(() =>
-  page.value ? new Date(page.value.updatedAt).toLocaleDateString() : '',
+  page.value
+    ? new Date(page.value.updatedAt).toLocaleDateString(i18n.lang)
+    : '',
 )
 
 const isOwnPage = computed(

@@ -4,11 +4,13 @@
 use serde_json::{json, Value};
 use sha2::{Digest, Sha512};
 
+use super::preview::confirm;
 use super::{staged, ExecContext};
 use crate::commands::http::{self, HttpFetchRequest};
 use crate::context::Core;
 use crate::edit_history::Attribution;
 use crate::error::Result;
+use crate::i18n::{localize_fields, text};
 use crate::settings_slug::{casefold, resolve_available};
 use crate::skills::{self, SkillMeta, SkillPatch, DEFAULT_VERSION};
 use notecli::error::NoteDeckError;
@@ -122,14 +124,14 @@ fn create_input(p: &Value, ctx: &ExecContext) -> Result<SkillMeta> {
     }
     if body.starts_with("---\n") || body.starts_with("---\r\n") {
         return Err(NoteDeckError::InvalidInput(
-            "skills.create: body must not start with a frontmatter block (---). mode / triggers / description はパラメータで渡すこと".into(),
+            "skills.create: body must not start with a frontmatter block (---). Pass mode / triggers / description as parameters".into(),
         ));
     }
     let mode = skills::normalize_mode(p.get("mode").and_then(Value::as_str));
     let triggers = string_list(p.get("triggers"));
     if mode == "trigger" && triggers.is_empty() {
         return Err(NoteDeckError::InvalidInput(
-            "skills.create: mode=\"trigger\" requires non-empty triggers (= 永久に発火しないスキルになる)".into(),
+            "skills.create: mode=\"trigger\" requires non-empty triggers (otherwise the skill never fires)".into(),
         ));
     }
     Ok(SkillMeta {
@@ -358,7 +360,7 @@ async fn fetch_verified_source(core: &Core, entry: &Value) -> Result<(String, St
         }
     }
     Err(NoteDeckError::InvalidInput(
-        "ハッシュ不一致: ソースが改ざんされている可能性があります".into(),
+        "hash mismatch: the source may have been tampered with".into(),
     ))
 }
 
@@ -468,24 +470,30 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             }
             let mode = skills::normalize_mode(p.get("mode").and_then(Value::as_str));
             let triggers = string_list(p.get("triggers"));
-            let mode_note = match mode.as_str() {
-                "always" => " mode=always: 保存後は常に system prompt に注入されます。".to_string(),
-                "heartbeat" => {
-                    " mode=heartbeat: HEARTBEAT 有効中、tick ごとに自動実行されます。".to_string()
-                }
-                "trigger" => format!(" (mode=trigger: 「{}」で自動ロード)", triggers.join("」「")),
-                _ => " (mode=manual: 有効化するまで使われません)".to_string(),
+            let message = match mode.as_str() {
+                "always" => "_native.preview.skills.create.messageAlways",
+                "heartbeat" => "_native.preview.skills.create.messageHeartbeat",
+                "trigger" => "_native.preview.skills.create.messageTrigger",
+                _ => "_native.preview.skills.create.messageManual",
             };
-            Some(json!({
-                "title": "スキルを作成",
-                "message": format!("AI が生成したスキル「{name}」を新規保存します。{mode_note}"),
-                "installPreview": { "kind": "skill", "name": name, "version": DEFAULT_VERSION, "description": format!("{mode} mode") },
-                "code": body,
-                "codeLanguage": "markdown",
-                "okLabel": "作成",
-                "cancelLabel": "やめる",
-                "type": if mode == "always" || mode == "heartbeat" { "warning" } else { "normal" },
-            }))
+            Some(confirm(
+                if mode == "always" || mode == "heartbeat" {
+                    "warning"
+                } else {
+                    "normal"
+                },
+                text("_native.preview.skills.create.title", json!({})),
+                Some(text(
+                    message,
+                    json!({ "name": name, "triggers": triggers.join(", ") }),
+                )),
+                text("_native.preview.skills.create.ok", json!({})),
+                json!({
+                    "installPreview": { "kind": "skill", "name": name, "version": DEFAULT_VERSION, "description": format!("{mode} mode") },
+                    "code": body,
+                    "codeLanguage": "markdown",
+                }),
+            ))
         }
         "skills.append" | "skills.replaceSection" => {
             let Some(cur) = skills::get(core, s(p, "id"))? else {
@@ -495,39 +503,38 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             let (next, title, message, ok, kind) = if id == "skills.append" {
                 (
                     skills::append_block(&cur.body, content),
-                    "スキル本文に追記",
-                    format!(
-                        "{} の本文に {} 文字を追記します。 frontmatter は触れません。",
-                        cur.name,
-                        char_len(content)
+                    text("_native.preview.skills.append.title", json!({})),
+                    text(
+                        "_native.preview.skills.append.message_plural",
+                        json!({ "name": cur.name, "count": char_len(content) }),
                     ),
-                    "追記",
+                    text("_native.preview.skills.append.ok", json!({})),
                     "normal",
                 )
             } else {
                 let heading = s(p, "heading");
                 (
                     skills::replace_markdown_section(&cur.body, heading, content).0,
-                    "スキルのセクションを置換",
-                    format!(
-                        "{} の `## {heading}` セクションを {} 文字に置換します。 該当 heading が無ければ末尾に新規追加します (idempotent)。",
-                        cur.name,
-                        char_len(content)
+                    text("_native.preview.skills.replaceSection.title", json!({})),
+                    text(
+                        "_native.preview.skills.replaceSection.message_plural",
+                        json!({ "name": cur.name, "heading": heading, "count": char_len(content) }),
                     ),
-                    "置換",
+                    text("_native.preview.skills.replaceSection.ok", json!({})),
                     "warning",
                 )
             };
             let next = staged::stage(staged::key(id, ctx, p), &cur.body, next);
-            Some(json!({
-                "title": title,
-                "message": message,
-                "installPreview": install_preview(&cur),
-                "diff": { "old": cur.body, "new": next, "language": "markdown" },
-                "okLabel": ok,
-                "cancelLabel": "やめる",
-                "type": kind,
-            }))
+            Some(confirm(
+                kind,
+                title,
+                Some(message),
+                ok,
+                json!({
+                    "installPreview": install_preview(&cur),
+                    "diff": { "old": cur.body, "new": next, "language": "markdown" },
+                }),
+            ))
         }
         "skills.revert" => {
             let Some(cur) = skills::get(core, s(p, "id"))? else {
@@ -548,63 +555,93 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 .unwrap_or("")
                 .to_string();
             let next = staged::stage(staged::key(id, ctx, p), &cur.body, snapshot_body);
-            Some(json!({
-                "title": "スキルを過去の状態に戻す",
-                "message": format!(
-                    "{} を編集履歴 #{index} ({}) の本文に戻します。 現在の body は上書きされます。",
-                    cur.name,
-                    super::time::iso_from_unix_ms(entry.at as i64)
-                ),
-                "installPreview": install_preview(&cur),
-                "diff": { "old": cur.body, "new": next, "language": "markdown" },
-                "okLabel": "この状態に戻す",
-                "cancelLabel": "やめる",
-                "type": "warning",
-            }))
+            Some(confirm(
+                "warning",
+                text("_native.preview.skills.revert.title", json!({})),
+                Some(text(
+                    "_native.preview.skills.revert.message",
+                    json!({
+                        "name": cur.name,
+                        "index": index,
+                        "at": super::time::iso_from_unix_ms(entry.at as i64),
+                    }),
+                )),
+                text("_native.preview.skills.revert.ok", json!({})),
+                json!({
+                    "installPreview": install_preview(&cur),
+                    "diff": { "old": cur.body, "new": next, "language": "markdown" },
+                }),
+            ))
         }
         "skills.install" => {
             let Some(entry) = registry_entry(core, s(p, "id")).await? else {
                 return Ok(None);
             };
-            let mode = s(&entry, "mode");
-            let mode_note = if mode == "always" {
-                " (mode=always: 常に system prompt に注入されます)".to_string()
-            } else {
-                format!(" (mode={})", if mode.is_empty() { "manual" } else { mode })
+            let mode = match s(&entry, "mode") {
+                "" => "manual",
+                m => m,
+            };
+            let always = mode == "always";
+            let message_params = |current: Option<&str>| {
+                json!({
+                    "name": s(&entry, "name"),
+                    "version": s(&entry, "version"),
+                    "author": s(&entry, "author"),
+                    "mode": mode,
+                    "current": current.unwrap_or(""),
+                })
             };
             // 既存 (同じ storeId) の更新なら、本文の diff を 1 枚目に載せる
             let store_id = s(&entry, "id");
             let existing = skills::list(core)?
                 .into_iter()
                 .find(|sk| sk.store_id.as_deref() == Some(store_id));
-            let mut out = json!({
-                "title": if existing.is_some() { "MisStore からスキルを更新" } else { "MisStore からスキルを入れる" },
-                "message": format!(
-                    "{} (v{} / by {}) を MisStore から取得します。{mode_note}",
-                    s(&entry, "name"), s(&entry, "version"), s(&entry, "author")
-                ),
-                "installPreview": {
-                    "kind": "skill",
-                    "name": s(&entry, "name"),
-                    "version": s(&entry, "version"),
-                    "author": s(&entry, "author"),
-                    "description": s(&entry, "description"),
-                },
-                "code": s(&entry, "description"),
-                "codeLanguage": "plaintext",
-                "okLabel": if existing.is_some() { "更新" } else { "インストール" },
-                "cancelLabel": "やめる",
-                "type": "normal",
-            });
+            let (title, ok) = if existing.is_some() {
+                (
+                    "_native.preview.skills.install.titleUpdate",
+                    "_native.preview.skills.install.okUpdate",
+                )
+            } else {
+                (
+                    "_native.preview.skills.install.titleNew",
+                    "_native.preview.skills.install.okNew",
+                )
+            };
+            let message = if always {
+                "_native.preview.skills.install.messageAlways"
+            } else {
+                "_native.preview.skills.install.message"
+            };
+            let mut out = confirm(
+                "normal",
+                text(title, json!({})),
+                Some(text(message, message_params(None))),
+                text(ok, json!({})),
+                json!({
+                    "installPreview": {
+                        "kind": "skill",
+                        "name": s(&entry, "name"),
+                        "version": s(&entry, "version"),
+                        "author": s(&entry, "author"),
+                        "description": s(&entry, "description"),
+                    },
+                    "code": s(&entry, "description"),
+                    "codeLanguage": "plaintext",
+                }),
+            );
             if let Some(cur) = existing {
                 match fetch_verified_source(core, &entry).await {
                     Ok((source, _)) => {
                         let (_, body) = skills::parse_skill_file(&source);
-                        out["message"] = Value::String(format!(
-                            "{} 既存の「{}」を更新します。",
-                            out["message"].as_str().unwrap_or(""),
-                            cur.name
-                        ));
+                        let message = if always {
+                            "_native.preview.skills.install.messageUpdateAlways"
+                        } else {
+                            "_native.preview.skills.install.messageUpdate"
+                        };
+                        localize_fields(
+                            &mut out,
+                            vec![("message", text(message, message_params(Some(&cur.name))))],
+                        );
                         out["diff"] =
                             json!({ "old": cur.body, "new": body, "language": "markdown" });
                     }
@@ -619,17 +656,16 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             let Some(cur) = skills::get(core, s(p, "id"))? else {
                 return Ok(None);
             };
-            Some(json!({
-                "title": "スキルを削除",
-                "message": format!(
-                    "{} (v{} / {} mode) を完全に削除します。 frontmatter・本文・編集履歴ファイルは残りません (= 不可逆)。",
-                    cur.name, cur.version, cur.mode
-                ),
-                "installPreview": install_preview(&cur),
-                "okLabel": "削除",
-                "cancelLabel": "やめる",
-                "type": "danger",
-            }))
+            Some(confirm(
+                "danger",
+                text("_native.preview.skills.uninstall.title", json!({})),
+                Some(text(
+                    "_native.preview.skills.uninstall.message",
+                    json!({ "name": cur.name, "version": cur.version, "mode": cur.mode }),
+                )),
+                text("_native.preview.skills.uninstall.ok", json!({})),
+                json!({ "installPreview": install_preview(&cur) }),
+            ))
         }
         _ => None,
     })
@@ -690,6 +726,14 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(pv["diff"]["new"], "# 見出し\n\n既存の本文\n追記した行");
+        assert_eq!(
+            pv["message"],
+            "Appends 5 characters to the body of A. The frontmatter is left untouched."
+        );
+        assert_eq!(
+            pv["i18n"]["message"]["key"],
+            "_native.preview.skills.append.message_plural"
+        );
         let out = append(&core, &p, &ctx).unwrap();
         assert_eq!(
             out["length"],
@@ -717,7 +761,7 @@ mod tests {
         )
         .unwrap();
         let err = append(&core, &p2, &ctx).unwrap_err().to_string();
-        assert!(err.contains("確認後に対象が変更された"));
+        assert!(err.contains("changed after confirmation"));
         // revert は index 0 (直前) に戻す
         let rv = revert(&core, &json!({"id": id, "index": 0}), &ctx).unwrap();
         assert_eq!(rv["reverted"], true);

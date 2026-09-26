@@ -3,11 +3,13 @@
 
 use serde_json::{json, Value};
 
+use super::preview::confirm;
 use super::{staged, ExecContext};
 use crate::account_service;
 use crate::context::Core;
 use crate::edit_history::Attribution;
 use crate::error::Result;
+use crate::i18n::text;
 use crate::memos::{self, MemoAuthor, MemoData, StoredMemo};
 use crate::skills;
 use notecli::error::NoteDeckError;
@@ -355,17 +357,20 @@ pub fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Result<Op
         .unwrap_or("")
         .to_string();
     let next = staged::stage(staged::key(id, ctx, p), &cur.data.text, body);
-    Ok(Some(json!({
-        "title": "メモを過去の状態に戻す",
-        "message": format!(
-            "メモ {key} を編集履歴 #{index} ({}) の状態に戻します。現在の本文は上書きされます。",
-            super::time::iso_from_unix_ms(entry.at as i64)
-        ),
-        "diff": { "old": cur.data.text, "new": next, "language": "markdown" },
-        "okLabel": "この状態に戻す",
-        "cancelLabel": "やめる",
-        "type": "warning",
-    })))
+    Ok(Some(confirm(
+        "warning",
+        text("_native.preview.memos.revert.title", json!({})),
+        Some(text(
+            "_native.preview.memos.revert.message",
+            json!({
+                "key": key,
+                "index": index,
+                "at": super::time::iso_from_unix_ms(entry.at as i64),
+            }),
+        )),
+        text("_native.preview.memos.revert.ok", json!({})),
+        json!({ "diff": { "old": cur.data.text, "new": next, "language": "markdown" } }),
+    )))
 }
 
 #[cfg(test)]

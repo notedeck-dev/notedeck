@@ -35,6 +35,7 @@ mod os_notify;
 mod query_bridge;
 mod streaming;
 mod system_state;
+mod ui_lang;
 mod win_chrome;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -515,6 +516,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             // 受けた JS は即カラムを mount して query_subscribe_* を invoke する
             // ため、後に置くと State 未登録で "state not managed" の即時エラー
             // になる race がある (query 購読は初回失敗すると再試行されない)。
+            // 端末側の表示言語 (#135)。通知チャネルを作る前に決める
+            ui_lang::init(&app_handle);
             let emitter = std::sync::Arc::new(streaming::TauriEmitter::new(app_handle.clone()));
             let streaming = std::sync::Arc::new(notecli::streaming::StreamingManager::new(
                 emitter,
@@ -1079,6 +1082,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::fetch_image_bytes,
             commands::get_cli_commands,
             commands::get_rustc_version,
+            ui_lang::set_ui_language,
             commands::get_openapi_spec,
             commands::open_devtools,
             commands::notification_take_pending_click,

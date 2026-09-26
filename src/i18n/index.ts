@@ -43,10 +43,22 @@ let tsxLang: LanguageCode | null = null
 // 呼び出し側に書かせると、複数形の数の判定に文字列が渡ってしまうため
 let numberFormat: Intl.NumberFormat | null = null
 
+function isHint(
+  value: unknown,
+): value is { key: string; params?: Record<string, unknown> } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { key?: unknown }).key === 'string'
+  )
+}
+
 function fill(template: string, args: Record<string, unknown>): string {
   return template.replace(PARAM, (whole, name: string) => {
     if (!Object.hasOwn(args, name)) return whole
     const value = args[name]
+    // Rust から届く param は、それ自体が辞書の手がかり { key, params } のことがある
+    if (isHint(value)) return i18n.byKey(value.key, value.params) ?? ''
     if (typeof value !== 'number') return String(value)
     numberFormat ??= new Intl.NumberFormat(lang.value)
     return numberFormat.format(value)
@@ -94,6 +106,25 @@ export const i18n = {
   },
   get lang(): LanguageCode {
     return lang.value
+  },
+  /**
+   * キー文字列 (`_native.preview.generic.title` など) で引く。Rust から届く
+   * `{ key, params }` を表示言語で描き直すための口で、型の付かない経路なので
+   * コードから直接使うのは避ける (`i18n.ts` / `i18n.tsx` を使う)。無ければ undefined
+   */
+  byKey(key: string, params: Record<string, unknown> = {}): string | undefined {
+    let node: unknown = loaded()
+    for (const part of key.split('.')) {
+      node = (node as Record<string, unknown> | undefined)?.[part]
+    }
+    if (typeof node === 'string') return fill(node, params)
+    if (node && typeof node === 'object' && key.endsWith(PLURAL_SUFFIX)) {
+      const forms = node as Record<string, string>
+      const rules = new Intl.PluralRules(lang.value)
+      const form = forms[rules.select(Number(params.count))] ?? forms.other
+      return form === undefined ? undefined : fill(form, params)
+    }
+    return undefined
   },
 }
 

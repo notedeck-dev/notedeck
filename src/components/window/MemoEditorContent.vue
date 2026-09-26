@@ -88,7 +88,7 @@ const author = computed(() => {
 const updatedAt = computed(() => {
   const iso = memo.value?.updatedAt
   if (!iso) return null
-  return new Date(iso).toLocaleString()
+  return new Date(iso).toLocaleString(i18n.lang)
 })
 
 const notFound = computed(() => loaded.value && !memo.value)

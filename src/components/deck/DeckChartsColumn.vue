@@ -775,7 +775,7 @@ watch(driveView, (v) => {
                   </div>
                   <div :class="$style.statBody">
                     <div :class="$style.statValue">
-                      {{ federationStats.subActive.toLocaleString() }}
+                      {{ federationStats.subActive.toLocaleString(i18n.lang) }}
                       <span
                         :class="[
                           $style.statDiff,
@@ -795,7 +795,7 @@ watch(driveView, (v) => {
                   </div>
                   <div :class="$style.statBody">
                     <div :class="$style.statValue">
-                      {{ federationStats.pubActive.toLocaleString() }}
+                      {{ federationStats.pubActive.toLocaleString(i18n.lang) }}
                       <span
                         :class="[
                           $style.statDiff,

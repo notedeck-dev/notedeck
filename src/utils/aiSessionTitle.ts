@@ -4,6 +4,8 @@
  * 純粋関数として切り出してある。
  */
 
+import { i18n } from '@/i18n'
+
 const MAX_TITLE_LEN = 40
 const MIN_MEANINGFUL_LEN = 4
 
@@ -25,7 +27,10 @@ function normalize(text: string): string {
  * 「初期プレースホルダー」「AI タイトル生成失敗時のフォールバック」「短すぎる
  * 発話のフォールバック」「HEARTBEAT 専用 session の自動 title」等で利用される。
  */
-export function timestampTitle(now: Date, suffix = 'のチャット'): string {
+export function timestampTitle(
+  now: Date,
+  suffix: string = i18n.ts._aiSessionTitle.chatSuffix,
+): string {
   const pad = (n: number) => n.toString().padStart(2, '0')
   const y = now.getFullYear()
   const m = pad(now.getMonth() + 1)

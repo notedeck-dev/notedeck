@@ -7,10 +7,12 @@ use serde_json::{json, Value};
 use super::misstore::{
     ensure_approved_hash, fetch_verified_source, registry_entry, update_confirm_message,
 };
+use super::preview::confirm;
 use super::{staged, ExecContext};
 use crate::context::Core;
 use crate::edit_history::{Attribution, HistoryEntry};
 use crate::error::Result;
+use crate::i18n::{localize_fields, text};
 use crate::sidecar::plugin_meta::parse_plugin_meta;
 use crate::sidecar::plugins::{self, PluginView};
 use crate::sidecar::Item;
@@ -197,7 +199,7 @@ pub async fn install(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value>
     };
     let (source, hash) = fetch_verified_source(core, &entry).await?;
     let Some(meta) = parse_plugin_meta(&source) else {
-        return Err(invalid("プラグインメタデータの解析に失敗しました".into()));
+        return Err(invalid("failed to parse the plugin metadata".into()));
     };
     let icon = Some(s(&entry, "iconUrl")).filter(|u| !u.is_empty());
     if let Some(mut existing) = plugins::find_by_store_id(core, id)? {
@@ -234,14 +236,16 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             let Some(cur) = plugins::get(core, s(p, "installId"))? else {
                 return Ok(None);
             };
-            Some(json!({
-                "title": "プラグインを有効化",
-                "message": format!("{} を有効化します。handler が起動し、以下の permissions の操作が走り得ます。", cur.name()),
-                "installPreview": install_preview(&cur),
-                "okLabel": "有効化",
-                "cancelLabel": "やめる",
-                "type": "warning",
-            }))
+            Some(confirm(
+                "warning",
+                text("_native.preview.plugins.setActive.title", json!({})),
+                Some(text(
+                    "_native.preview.plugins.setActive.message",
+                    json!({ "name": cur.name() }),
+                )),
+                text("_native.preview.plugins.setActive.ok", json!({})),
+                json!({ "installPreview": install_preview(&cur) }),
+            ))
         }
         "plugins.delete" | "plugins.uninstall" => {
             let cur = if id == "plugins.delete" {
@@ -252,14 +256,16 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             let Some(cur) = cur else {
                 return Ok(None);
             };
-            Some(json!({
-                "title": "プラグインを削除",
-                "message": format!("{} を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます (= 不可逆)。", cur.name()),
-                "installPreview": install_preview(&cur),
-                "okLabel": "削除",
-                "cancelLabel": "やめる",
-                "type": "danger",
-            }))
+            Some(confirm(
+                "danger",
+                text("_native.preview.plugins.delete.title", json!({})),
+                Some(text(
+                    "_native.preview.plugins.delete.message",
+                    json!({ "name": cur.name() }),
+                )),
+                text("_native.preview.plugins.delete.ok", json!({})),
+                json!({ "installPreview": install_preview(&cur) }),
+            ))
         }
         "plugins.revert" => {
             let index = index_of(p);
@@ -289,19 +295,23 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             if let Some(perms) = snap.get("permissions") {
                 pv["permissions"] = perms.clone();
             }
-            Some(json!({
-                "title": "プラグインを過去の状態に戻す",
-                "message": format!(
-                    "{} を編集履歴 #{index} ({}) の状態に戻します。現在の AiScript ソースは上書きされます。",
-                    cur.name(),
-                    super::time::iso_from_unix_ms(entry.at as i64)
-                ),
-                "installPreview": pv,
-                "diff": { "old": cur.src, "new": next, "language": "aiscript" },
-                "okLabel": "この状態に戻す",
-                "cancelLabel": "やめる",
-                "type": "warning",
-            }))
+            Some(confirm(
+                "warning",
+                text("_native.preview.plugins.revert.title", json!({})),
+                Some(text(
+                    "_native.preview.plugins.revert.message",
+                    json!({
+                        "name": cur.name(),
+                        "index": index,
+                        "at": super::time::iso_from_unix_ms(entry.at as i64),
+                    }),
+                )),
+                text("_native.preview.plugins.revert.ok", json!({})),
+                json!({
+                    "installPreview": pv,
+                    "diff": { "old": cur.src, "new": next, "language": "aiscript" },
+                }),
+            ))
         }
         "plugins.install" => {
             let pid = s(p, "id");
@@ -312,52 +322,62 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 return Ok(None);
             };
             let existing = plugins::find_by_store_id(core, pid)?;
-            let mut out = json!({
-                "title": if existing.is_some() { "MisStore からプラグインを更新" } else { "MisStore からプラグインを入れる" },
-                "message": format!(
-                    "{} (v{} / by {}) を MisStore から取得します。 インストール直後に自動で active=true で起動されます。",
-                    s(&entry, "name"), s(&entry, "version"), s(&entry, "author")
-                ),
-                "installPreview": {
-                    "kind": "plugin",
-                    "name": s(&entry, "name"),
-                    "version": s(&entry, "version"),
-                    "author": s(&entry, "author"),
-                    "description": s(&entry, "description"),
-                },
-                "code": s(&entry, "description"),
-                "codeLanguage": "plaintext",
-                "okLabel": if existing.is_some() { "更新" } else { "インストール" },
-                "cancelLabel": "やめる",
-                "type": "normal",
-            });
+            let (title, ok) = if existing.is_some() {
+                (
+                    "_native.preview.plugins.install.titleUpdate",
+                    "_native.preview.plugins.install.okUpdate",
+                )
+            } else {
+                (
+                    "_native.preview.plugins.install.titleNew",
+                    "_native.preview.plugins.install.okNew",
+                )
+            };
+            let mut out = confirm(
+                "normal",
+                text(title, json!({})),
+                Some(text(
+                    "_native.preview.plugins.install.message",
+                    json!({
+                        "name": s(&entry, "name"),
+                        "version": s(&entry, "version"),
+                        "author": s(&entry, "author"),
+                    }),
+                )),
+                text(ok, json!({})),
+                json!({
+                    "installPreview": {
+                        "kind": "plugin",
+                        "name": s(&entry, "name"),
+                        "version": s(&entry, "version"),
+                        "author": s(&entry, "author"),
+                        "description": s(&entry, "description"),
+                    },
+                    "code": s(&entry, "description"),
+                    "codeLanguage": "plaintext",
+                }),
+            );
             if let Some(cur) = existing {
                 // 既存の更新: 本文の diff と新しい権限を 1 枚目に載せる (移設前は 2 枚目の確認)
-                let mut message = update_confirm_message(&cur.name(), &entry);
+                let mut message = update_confirm_message(&cur.name(), &entry, &[]);
                 if let Ok((source, hash)) = fetch_verified_source(core, &entry).await {
                     if cur.store_sha512() == Some(hash.as_str()) {
-                        message = format!(
-                            "{} は既にインストール済みで内容も最新です。全体スコープへの参照だけ追加します。",
-                            cur.name()
+                        message = text(
+                            "_native.preview.plugins.install.upToDate",
+                            json!({ "name": cur.name() }),
                         );
                     } else {
                         if let Some(meta) = parse_plugin_meta(&source) {
                             let before = cur.permissions();
-                            let added: Vec<&String> = meta
+                            let added: Vec<&str> = meta
                                 .permissions
                                 .iter()
                                 .flatten()
                                 .filter(|x| !before.contains(x))
+                                .map(String::as_str)
                                 .collect();
                             if !added.is_empty() {
-                                message.push_str(&format!(
-                                    "\n新しい権限: {}",
-                                    added
-                                        .iter()
-                                        .map(|x| x.as_str())
-                                        .collect::<Vec<_>>()
-                                        .join(", ")
-                                ));
+                                message = update_confirm_message(&cur.name(), &entry, &added);
                                 out["type"] = json!("warning");
                             }
                         }
@@ -366,7 +386,7 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                         staged::stage(staged::key(id, ctx, p), &cur.src, hash);
                     }
                 }
-                out["message"] = json!(message);
+                localize_fields(&mut out, vec![("message", message)]);
             }
             Some(out)
         }
@@ -469,7 +489,7 @@ mod tests {
         assert!(revert(&core, &json!({"installId": "p", "index": 0}), &ctx)
             .unwrap_err()
             .to_string()
-            .contains("確認後"));
+            .contains("changed after confirmation"));
         assert!(revert(&core, &json!({"installId": "p", "index": -1}), &ctx)
             .unwrap_err()
             .to_string()

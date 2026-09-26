@@ -185,7 +185,7 @@ function addTask() {
   const id = uniqueId('new-task')
   visualTasks.value.push({
     id,
-    label: '新しいタスク',
+    label: i18n.ts._tasksEditorContent.newTaskLabel,
     action: { type: 'api', method: 'i' },
   })
   expanded[id] = true
@@ -253,7 +253,7 @@ function addInput(t: TaskDefinition) {
   t.inputs.push({
     id: `input${t.inputs.length + 1}`,
     type: 'text',
-    prompt: '入力してください',
+    prompt: i18n.ts._tasksEditorContent.newInputPrompt,
   })
 }
 

@@ -60,7 +60,7 @@ async function toggleAccountMode(
     )
   } catch (e) {
     const err = AppError.from(e)
-    if (err.isAuth || String(err.message).includes('permission')) {
+    if (err.isAuth || err.apiCode === 'PERMISSION_DENIED') {
       show(i18n.ts._definitions.permissionDenied, 'error')
     } else {
       show(err.message, 'error')

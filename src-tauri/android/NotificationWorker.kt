@@ -187,7 +187,11 @@ class NotificationWorker(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val text = if (count == 1) "新しい通知があります" else "${count}件の新しい通知があります"
+        val text = if (count == 1) {
+            applicationContext.getString(R.string.nd_new_notification)
+        } else {
+            applicationContext.resources.getQuantityString(R.plurals.nd_new_notifications, count, count)
+        }
 
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -220,7 +224,7 @@ class NotificationWorker(
         val summary = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("NoteDeck")
-            .setContentText("複数のアカウントに新しい通知があります")
+            .setContentText(applicationContext.getString(R.string.nd_multiple_accounts))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
@@ -238,10 +242,10 @@ class NotificationWorker(
             if (manager.getNotificationChannel(CHANNEL_ID) == null) {
                 val channel = NotificationChannel(
                     CHANNEL_ID,
-                    "Misskey通知",
+                    applicationContext.getString(R.string.nd_channel_name),
                     NotificationManager.IMPORTANCE_DEFAULT,
                 ).apply {
-                    description = "フォロー、リアクション、メンションなどの通知"
+                    description = applicationContext.getString(R.string.nd_channel_description)
                     setShowBadge(true)
                 }
                 manager.createNotificationChannel(channel)

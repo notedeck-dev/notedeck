@@ -534,6 +534,8 @@ export interface Locale {
     readonly "updateFailed": string
     /** ユーザー */
     readonly "users": string
+    /** 不明なエラー */
+    readonly "unknownError": string
   }
   readonly "_appConfirm": {
     /** NoteDeck の権限確認 */
@@ -938,6 +940,12 @@ export interface Locale {
     readonly "addCondition": string
     /** 適用 */
     readonly "apply": string
+    /** いずれかを含む */
+    readonly "containsAny": string
+    /** すべてを含む */
+    readonly "containsAll": string
+    /** 除外する */
+    readonly "excludes": string
   }
   readonly "_renoteMoreMenu": {
     /** このリノートを削除しますか？ */
@@ -1520,6 +1528,8 @@ export interface Locale {
     readonly "addedToAntenna": ParameterizedString<'name'>
     /** アンテナへの追加に失敗しました ({code}) */
     readonly "addToAntennaFailed": ParameterizedString<'code'>
+    /** {acct} の検索 */
+    readonly "searchColumnName": ParameterizedString<'acct'>
   }
   readonly "_notFoundPage": {
     /** ページが見つかりません */
@@ -2144,6 +2154,32 @@ export interface Locale {
     readonly "adviceRoom": string
     /** 描画は良好です */
     readonly "adviceGood": string
+    /** N/A (リロード後) */
+    readonly "notAvailableAfterReload": string
+    /** 合計: {time} */
+    readonly "startupTotal": ParameterizedString<'time'>
+    /** 起動 */
+    readonly "infoStartup": string
+    /** 診断 */
+    readonly "infoDiagnostics": string
+    /** 現象 */
+    readonly "issueWhat": string
+    /** 何が起きたか */
+    readonly "issueWhatHint": string
+    /** 再現手順 */
+    readonly "issueSteps": string
+    /** 期待する動作 */
+    readonly "issueExpected": string
+    /** 本来どうなるべきか */
+    readonly "issueExpectedHint": string
+    /** 環境 */
+    readonly "issueEnvironment": string
+    /** スクリーンショット */
+    readonly "issueScreenshot": string
+    /** あれば添付 */
+    readonly "issueScreenshotHint": string
+    /** 異常終了の backtrace は「{copyInfo}」で取得して貼り付けてください */
+    readonly "issuePanicNote": ParameterizedString<'copyInfo'>
   }
   readonly "_cacheEditorContent": {
     /** 使用状況 */
@@ -2574,6 +2610,10 @@ help */
     readonly "objectRequired": string
     /** リセットに失敗しました: {error} */
     readonly "resetFailed": ParameterizedString<'error'>
+    /** 新しいタスク */
+    readonly "newTaskLabel": string
+    /** 入力してください */
+    readonly "newInputPrompt": string
   }
   readonly "_themeEditorContent": {
     /** ライト */
@@ -2710,6 +2750,14 @@ help */
     readonly "intentConfirmNote": string
     /** 実行できませんでした: {error} */
     readonly "intentRunFailed": ParameterizedString<'error'>
+    /** AI の API キーが設定されていないため、この質問には応答できません。
+
+AI プロバイダーの API キーを登録すると使えるようになります。下の「{button}」からチュートリアルを開けます。
+
+`/help` などの / コマンドは API キーなしで実行できます。 */
+    readonly "setupRequiredMessage": ParameterizedString<'button'>
+    /** {command} の実行 */
+    readonly "slashRunTitle": ParameterizedString<'command'>
   }
   readonly "_deckClientSearchColumn": {
     /** 手元のノートを検索... */
@@ -2998,6 +3046,10 @@ help */
     readonly "deleteConfirm": ParameterizedString<'name'>
     /** クエリを削除しました */
     readonly "deleted": string
+    /** 新しいクエリ {n} */
+    readonly "newQueryName": ParameterizedString<'n'>
+    /** キーワード */
+    readonly "newQueryKeyword": string
   }
   readonly "_deckServerInfoColumn": {
     /** (説明なし) */
@@ -3066,6 +3118,10 @@ help */
     readonly "modeManual": string
     /** 自動 */
     readonly "modeTrigger": string
+    /** 新規スキル */
+    readonly "newSkillName": string
+    /** 指示文をここに記述します。 */
+    readonly "newSkillBody": string
   }
   readonly "_deckTaskRunnerColumn": {
     /** 履歴をクリア */
@@ -5098,6 +5154,8 @@ help */
   readonly "_deckProfile": {
     /** 旧 AiScript Console widget を {count} 件削除しました。コードは失われています (スクラッチパッドカラムで同等の機能が使えます)。 */
     readonly "consoleWidgetsRemoved_plural": PluralString<'count'>
+    /** プロファイル {n} */
+    readonly "defaultName": ParameterizedString<'n'>
   }
   readonly "_misstore": {
     /** 「{name}」をストアの内容で更新します。
@@ -5219,6 +5277,465 @@ help */
     readonly "tomorrow9": string
     /** 1 週間後 */
     readonly "in1Week": string
+  }
+  readonly "_native": {
+    readonly "preview": {
+      readonly "generic": {
+        /** {label} を実行しますか？ */
+        readonly "title": ParameterizedString<'label'>
+        /** 実行 */
+        readonly "ok": string
+      }
+      readonly "notesDelete": {
+        /** ノートを削除 */
+        readonly "title": string
+        /** noteId `{noteId}` を削除します。この操作は取り消せません (リノート・引用・お気に入り・クリップなども同時に消えます)。 */
+        readonly "message": ParameterizedString<'noteId'>
+        /** 削除 */
+        readonly "ok": string
+      }
+      readonly "userFollow": {
+        /** フォローを送る */
+        readonly "title": string
+        /** userId `{userId}` にフォローリクエストを送ります (相手に「フォローされた」通知が飛びます)。鍵アカウントなら承認待ちになります。 */
+        readonly "message": ParameterizedString<'userId'>
+        /** フォロー */
+        readonly "ok": string
+      }
+      readonly "userUnfollow": {
+        /** フォローを解除 */
+        readonly "title": string
+        /** userId `{userId}` のフォローを解除します (相手に「フォロワー減少」の通知は飛びません)。 */
+        readonly "message": ParameterizedString<'userId'>
+        /** フォロー解除 */
+        readonly "ok": string
+      }
+      readonly "markRead": {
+        /** 通知をすべて既読にする */
+        readonly "title": string
+        /** ログイン中の全アカウントの通知をすべて既読にします。 */
+        readonly "messageAll": string
+        /** アカウント `{accountId}` の通知をすべて既読にします。 */
+        readonly "messageAccount": ParameterizedString<'accountId'>
+        /** 既読にする */
+        readonly "ok": string
+      }
+      readonly "registrySet": {
+        /** registry に書き込み */
+        readonly "title": string
+        /** Misskey サーバー側の registry の `{path}` に値を書き込みます。**Misskey 公式 Web Client と共有される設定エリア**なので、公式 UI の挙動 (テーマ / 設定など) にも影響する可能性があります。 */
+        readonly "message": ParameterizedString<'path'>
+        /** 書き込み */
+        readonly "ok": string
+      }
+      readonly "registryDelete": {
+        /** registry の値を削除 */
+        readonly "title": string
+        /** Misskey サーバー側の registry の `{path}` を削除します。**Misskey 公式 Web Client と共有される設定エリア**なので、公式 UI でも該当する設定が初期化されます。 */
+        readonly "message": ParameterizedString<'path'>
+        /** 削除 */
+        readonly "ok": string
+      }
+      readonly "skills": {
+        readonly "create": {
+          /** スキルを作成 */
+          readonly "title": string
+          /** AI が生成したスキル「{name}」を新規保存します。mode=always: 保存後は常に system prompt に注入されます。 */
+          readonly "messageAlways": ParameterizedString<'name'>
+          /** AI が生成したスキル「{name}」を新規保存します。mode=heartbeat: HEARTBEAT 有効中、tick ごとに自動実行されます。 */
+          readonly "messageHeartbeat": ParameterizedString<'name'>
+          /** AI が生成したスキル「{name}」を新規保存します (mode=trigger: {triggers} で自動ロード)。 */
+          readonly "messageTrigger": ParameterizedString<'name' | 'triggers'>
+          /** AI が生成したスキル「{name}」を新規保存します (mode=manual: 有効化するまで使われません)。 */
+          readonly "messageManual": ParameterizedString<'name'>
+          /** 作成 */
+          readonly "ok": string
+        }
+        readonly "append": {
+          /** スキル本文に追記 */
+          readonly "title": string
+          /** {name} の本文に {count} 文字を追記します。frontmatter は触れません。 */
+          readonly "message_plural": PluralString<'count' | 'name'>
+          /** 追記 */
+          readonly "ok": string
+        }
+        readonly "replaceSection": {
+          /** スキルのセクションを置換 */
+          readonly "title": string
+          /** {name} の `## {heading}` セクションを {count} 文字に置換します。該当する heading が無ければ末尾に新規追加します (idempotent)。 */
+          readonly "message_plural": PluralString<'count' | 'heading' | 'name'>
+          /** 置換 */
+          readonly "ok": string
+        }
+        readonly "revert": {
+          /** スキルを過去の状態に戻す */
+          readonly "title": string
+          /** {name} を編集履歴 #{index} ({at}) の本文に戻します。現在の body は上書きされます。 */
+          readonly "message": ParameterizedString<'at' | 'index' | 'name'>
+          /** この状態に戻す */
+          readonly "ok": string
+        }
+        readonly "install": {
+          /** MisStore からスキルを入れる */
+          readonly "titleNew": string
+          /** MisStore からスキルを更新 */
+          readonly "titleUpdate": string
+          /** {name} (v{version} / by {author}) を MisStore から取得します (mode={mode})。 */
+          readonly "message": ParameterizedString<'author' | 'mode' | 'name' | 'version'>
+          /** {name} (v{version} / by {author}) を MisStore から取得します (mode=always: 常に system prompt に注入されます)。 */
+          readonly "messageAlways": ParameterizedString<'author' | 'name' | 'version'>
+          /** {name} (v{version} / by {author}) を MisStore から取得します (mode={mode})。既存の「{current}」を更新します。 */
+          readonly "messageUpdate": ParameterizedString<'author' | 'current' | 'mode' | 'name' | 'version'>
+          /** {name} (v{version} / by {author}) を MisStore から取得します (mode=always: 常に system prompt に注入されます)。既存の「{current}」を更新します。 */
+          readonly "messageUpdateAlways": ParameterizedString<'author' | 'current' | 'name' | 'version'>
+          /** インストール */
+          readonly "okNew": string
+          /** 更新 */
+          readonly "okUpdate": string
+        }
+        readonly "uninstall": {
+          /** スキルを削除 */
+          readonly "title": string
+          /** {name} (v{version} / {mode} mode) を完全に削除します。frontmatter・本文・編集履歴ファイルは残りません。この操作は取り消せません。 */
+          readonly "message": ParameterizedString<'mode' | 'name' | 'version'>
+          /** 削除 */
+          readonly "ok": string
+        }
+      }
+      readonly "themes": {
+        readonly "create": {
+          /** テーマをインストール */
+          readonly "title": string
+          /** AI が生成したライトテーマをインストールします。 */
+          readonly "messageLight": string
+          /** AI が生成したダークテーマをインストールします。 */
+          readonly "messageDark": string
+          /** {count} 個の CSS 変数を含む {base} テーマ */
+          readonly "description_plural": PluralString<'base' | 'count'>
+          /** インストール */
+          readonly "ok": string
+        }
+        readonly "update": {
+          /** テーマを更新 */
+          readonly "title": string
+          /** {name} の {count} 個の CSS 変数を更新します。 */
+          readonly "messageProps_plural": PluralString<'count' | 'name'>
+          /** {name} のメタ情報を更新します。 */
+          readonly "messageMeta": ParameterizedString<'name'>
+          /** {base} テーマ */
+          readonly "description": ParameterizedString<'base'>
+          /** 更新 */
+          readonly "ok": string
+        }
+        readonly "revert": {
+          /** テーマを過去の状態に戻す */
+          readonly "title": string
+          /** {name} を編集履歴 #{index} ({at}) の状態に戻します。 */
+          readonly "message": ParameterizedString<'at' | 'index' | 'name'>
+          /** この状態に戻す */
+          readonly "ok": string
+        }
+        readonly "install": {
+          /** MisStore からテーマを入れる */
+          readonly "titleNew": string
+          /** MisStore からテーマを更新 */
+          readonly "titleUpdate": string
+          /** {name} ({base} / by {author}) を MisStore から取得してインストールします。 */
+          readonly "message": ParameterizedString<'author' | 'base' | 'name'>
+          /** インストール */
+          readonly "okNew": string
+          /** 更新 */
+          readonly "okUpdate": string
+        }
+        readonly "uninstall": {
+          /** テーマを削除 */
+          readonly "title": string
+          /** {name} ({base}) を完全に削除します。元に戻すには再インストールが必要です。 */
+          readonly "message": ParameterizedString<'base' | 'name'>
+          /** 削除 */
+          readonly "ok": string
+        }
+        /** {base} テーマ / {count} 変数 */
+        readonly "summary_plural": PluralString<'base' | 'count'>
+      }
+      readonly "plugins": {
+        readonly "setActive": {
+          /** プラグインを有効化 */
+          readonly "title": string
+          /** {name} を有効化します。handler が起動し、以下の permissions の操作が走り得ます。 */
+          readonly "message": ParameterizedString<'name'>
+          /** 有効化 */
+          readonly "ok": string
+        }
+        readonly "delete": {
+          /** プラグインを削除 */
+          readonly "title": string
+          /** {name} を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。 */
+          readonly "message": ParameterizedString<'name'>
+          /** 削除 */
+          readonly "ok": string
+        }
+        readonly "revert": {
+          /** プラグインを過去の状態に戻す */
+          readonly "title": string
+          /** {name} を編集履歴 #{index} ({at}) の状態に戻します。現在の AiScript ソースは上書きされます。 */
+          readonly "message": ParameterizedString<'at' | 'index' | 'name'>
+          /** この状態に戻す */
+          readonly "ok": string
+        }
+        readonly "install": {
+          /** MisStore からプラグインを入れる */
+          readonly "titleNew": string
+          /** MisStore からプラグインを更新 */
+          readonly "titleUpdate": string
+          /** {name} (v{version} / by {author}) を MisStore から取得します。インストール直後に自動で active=true で起動されます。 */
+          readonly "message": ParameterizedString<'author' | 'name' | 'version'>
+          /** {name} は既にインストール済みで内容も最新です。全体スコープへの参照だけ追加します。 */
+          readonly "upToDate": ParameterizedString<'name'>
+          /** インストール */
+          readonly "okNew": string
+          /** 更新 */
+          readonly "okUpdate": string
+        }
+      }
+      readonly "widgets": {
+        readonly "delete": {
+          /** ウィジェットを削除 */
+          readonly "title": string
+          /** {name} を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。 */
+          readonly "message": ParameterizedString<'name'>
+          /** {name} ほか {count} 件を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。 */
+          readonly "messageMany_plural": PluralString<'count' | 'name'>
+          /** 削除 */
+          readonly "ok": string
+        }
+        readonly "revert": {
+          /** ウィジェットを過去の状態に戻す */
+          readonly "title": string
+          /** {name} を編集履歴 #{index} ({at}) の状態に戻します。現在の AiScript ソースは上書きされます。 */
+          readonly "message": ParameterizedString<'at' | 'index' | 'name'>
+          /** この状態に戻す */
+          readonly "ok": string
+        }
+        readonly "install": {
+          /** MisStore からウィジェットを入れる */
+          readonly "title": string
+          /** ウィジェットを更新 */
+          readonly "titleUpdate": string
+          /** {name} (v{version} / by {author}) を MisStore から取得します。カラム表示時に自動実行されます。 */
+          readonly "messageAutoRun": ParameterizedString<'author' | 'name' | 'version'>
+          /** {name} (v{version} / by {author}) を MisStore から取得します。自動実行は無効です (手動で起動)。 */
+          readonly "messageManual": ParameterizedString<'author' | 'name' | 'version'>
+          /** {name} は既にインストール済みで内容も最新です。 */
+          readonly "upToDate": ParameterizedString<'name'>
+          /** インストール */
+          readonly "ok": string
+          /** 更新 */
+          readonly "okUpdate": string
+        }
+      }
+      readonly "misstore": {
+        /** 「{name}」をストアの内容で更新します。
+ストア更新日: {date} / v{version} */
+        readonly "updateConfirm": ParameterizedString<'date' | 'name' | 'version'>
+        /** 「{name}」をストアの内容で更新します。
+ストア更新日: {date} / v{version}
+新しい権限: {permissions} */
+        readonly "updateConfirmWithPermissions": ParameterizedString<'date' | 'name' | 'permissions' | 'version'>
+      }
+      readonly "styles": {
+        readonly "write": {
+          /** カスタム CSS を全置換 */
+          readonly "title": string
+          /** custom.css の内容を {count} 文字に全置換します。現在の CSS は履歴に保存され、styles.revert で戻せます。 */
+          readonly "message_plural": PluralString<'count'>
+          /** 上書き */
+          readonly "ok": string
+        }
+        readonly "append": {
+          /** カスタム CSS に追記 */
+          readonly "title": string
+          /** custom.css の末尾に {count} 文字を追記します。既存ルールは保持されます。 */
+          readonly "message_plural": PluralString<'count'>
+          /** 追記 */
+          readonly "ok": string
+        }
+        readonly "revert": {
+          /** カスタム CSS を過去の状態に戻す */
+          readonly "title": string
+          /** custom.css を編集履歴 #{index} ({at}) の状態に戻します。現在の CSS は上書きされます (戻す操作自体も履歴に残ります)。 */
+          readonly "message": ParameterizedString<'at' | 'index'>
+          /** この状態に戻す */
+          readonly "ok": string
+        }
+      }
+      readonly "memos": {
+        readonly "revert": {
+          /** メモを過去の状態に戻す */
+          readonly "title": string
+          /** メモ {key} を編集履歴 #{index} ({at}) の状態に戻します。現在の本文は上書きされます。 */
+          readonly "message": ParameterizedString<'at' | 'index' | 'key'>
+          /** この状態に戻す */
+          readonly "ok": string
+        }
+      }
+      readonly "queries": {
+        readonly "revert": {
+          /** クエリを過去の状態に戻す */
+          readonly "title": string
+          /** {name} を編集履歴 #{index} ({at}) の状態に戻します。現在のソースは上書きされます。 */
+          readonly "message": ParameterizedString<'at' | 'index' | 'name'>
+          /** この状態に戻す */
+          readonly "ok": string
+        }
+      }
+      /** キャンセル */
+      readonly "cancel": string
+    }
+    readonly "heartbeat": {
+      /** HEARTBEAT を停止しました (本日の AI 起動が上限の {limit} 回に達しました) */
+      readonly "stoppedDailyLimit": ParameterizedString<'limit'>
+      /** HEARTBEAT: 本日の AI 起動が上限の {limit} 回を超えました (継続中) */
+      readonly "overDailyLimit": ParameterizedString<'limit'>
+      /** HEARTBEAT に失敗しました: {error} */
+      readonly "failed": ParameterizedString<'error'>
+      /** HEARTBEAT を停止しました ({count} 回連続で失敗しました) */
+      readonly "stoppedFailures": ParameterizedString<'count'>
+      /** {time} の HEARTBEAT */
+      readonly "sessionTitle": ParameterizedString<'time'>
+      /** 「{label}」の実行を提案しました */
+      readonly "intentProposed": ParameterizedString<'label'>
+      /** accountId が無いので下書きにできません */
+      readonly "draftNeedsAccount": string
+      /** ⚠ HEARTBEAT に失敗しました (source={source}): {error} */
+      readonly "failedMessage": ParameterizedString<'error' | 'source'>
+    }
+    readonly "ai": {
+      /** API キーが無効です (HTTP {status}){detail} */
+      readonly "httpUnauthorized": ParameterizedString<'detail' | 'status'>
+      /** API キーの権限または課金状態に問題があります (HTTP {status}){detail} — プロバイダーのコンソールで残高と API キーの権限を確認してください */
+      readonly "httpForbidden": ParameterizedString<'detail' | 'status'>
+      /** レート制限に達しました。少し待ってから再試行してください */
+      readonly "rateLimited": string
+      /** サーバーエラー (HTTP {status}){detail} */
+      readonly "serverError": ParameterizedString<'detail' | 'status'>
+      /** AI 接続が見つかりません */
+      readonly "connectionNotFound": string
+      /** 選択された接続は AI プロバイダーではありません */
+      readonly "notAiProvider": string
+      /** 接続「{name}」の API キーが設定されていません */
+      readonly "apiKeyMissing": ParameterizedString<'name'>
+      /** リクエストが大きすぎます ({size} KB / 上限 {max} KB)。長文は分割するか、不要な履歴を削除してください。 */
+      readonly "requestTooLarge": ParameterizedString<'max' | 'size'>
+      /** token 予算 (本日 {budget} tokens) を超えます: 使用済み {spent} + 見込み {estimate} */
+      readonly "budgetExceeded": ParameterizedString<'budget' | 'estimate' | 'spent'>
+      /** ターンを再開できません: {error} */
+      readonly "resumeFailed": ParameterizedString<'error'>
+      /** ⚠️ {error} */
+      readonly "errorContent": ParameterizedString<'error'>
+      /** {partial}
+
+⚠️ {error} */
+      readonly "errorContentAfter": ParameterizedString<'error' | 'partial'>
+      /** {partial}
+
+⚠️ tool 呼び出しが上限 ({max} 回) に達しました。 */
+      readonly "roundLimit": ParameterizedString<'max' | 'partial'>
+    }
+    readonly "backup": {
+      /** スキップ (既存と内容が同じ): {items} */
+      readonly "skippedSame": ParameterizedString<'items'>
+      /** 別名で復元 (既存と衝突): {items} → {renamed} */
+      readonly "restoredRenamed": ParameterizedString<'items' | 'renamed'>
+      /** スキップ (不正なファイル名): {key} */
+      readonly "skippedBadFilename": ParameterizedString<'key'>
+      /** スキップ (不正なキー): {key} */
+      readonly "skippedBadKey": ParameterizedString<'key'>
+    }
+    readonly "notification": {
+      /** 誰か */
+      readonly "someone": string
+      /** リアクション */
+      readonly "reaction": string
+      /** リアクション {reaction} */
+      readonly "reactionWith": ParameterizedString<'reaction'>
+      /** リプライ */
+      readonly "reply": string
+      /** リノート */
+      readonly "renote": string
+      /** 引用 */
+      readonly "quote": string
+      /** メンション */
+      readonly "mention": string
+      /** フォロー */
+      readonly "follow": string
+      /** フォローリクエスト承認 */
+      readonly "followRequestAccepted": string
+      /** フォローリクエスト */
+      readonly "receiveFollowRequest": string
+      /** 実績獲得 */
+      readonly "achievementEarned": string
+      /** ログイン検知 */
+      readonly "login": string
+      /** 投票終了 */
+      readonly "pollEnded": string
+      /** 通知 */
+      readonly "generic": string
+      /** テスト通知 */
+      readonly "test": string
+      /** 新着通知 {count} 件 */
+      readonly "groupTitle_plural": PluralString<'count'>
+      /** {names} ほか */
+      readonly "groupOthers": ParameterizedString<'names'>
+      /** 、 */
+      readonly "listSeparator": string
+      /** 通知 */
+      readonly "channelName": string
+    }
+    readonly "tray": {
+      /** NoteDeck — 未読 {count} 件 */
+      readonly "unread_plural": PluralString<'count'>
+    }
+    readonly "apiTokens": {
+      /** トークン名を入力してください */
+      readonly "nameRequired": string
+    }
+    readonly "android": {
+      /** {count} 件の新しい通知があります */
+      readonly "newNotifications_plural": PluralString<'count'>
+      /** 新しい通知があります */
+      readonly "newNotification": string
+      /** 複数のアカウントに新しい通知があります */
+      readonly "multipleAccounts": string
+      /** Misskey の通知 */
+      readonly "channelName": string
+      /** フォロー、リアクション、メンションなどの通知 */
+      readonly "channelDescription": string
+    }
+  }
+  readonly "_useAiConfig": {
+    /** Custom (OpenAI 互換) */
+    readonly "customProviderName": string
+  }
+  readonly "_aiSessionTitle": {
+    /** のチャット */
+    readonly "chatSuffix": string
+  }
+  readonly "_defaultSnippets": {
+    /** AiScript スニペット — VSCode の *.code-snippets と同じスキーマ */
+    readonly "headerTitle": string
+    /** prefix: 補完のトリガー文字列  body: 展開後のコード  description: 説明 (任意) */
+    readonly "headerSchema": string
+    /** {placeholder} でタブストップ、{end} で終了位置。 */
+    readonly "headerTabStops": ParameterizedString<'end' | 'placeholder'>
+    /** ダイアログを表示 */
+    readonly "dialog": string
+    /** for ループ */
+    readonly "forLoop": string
+    /** 配列を each で走査 */
+    readonly "eachLoop": string
+    /** Misskey API 呼び出し */
+    readonly "apiCall": string
   }
   readonly "_capabilities": {
     readonly "account": {
@@ -5664,52 +6181,173 @@ export const LANGUAGES = [
 ] as const
 
 /**
- * カラム種別の原文 (ja-JP) の表示名。以前のバージョンは既定の表示名を
+ * カラム種別ごとの既定の表示名 (全言語)。以前のバージョンは既定の表示名を
  * カラムの name に保存していたので、それを「名前なし」と見分けるのに使う
  * (表示中の言語に関係なく判定するため、辞書ではなくここに持つ)
  */
-export const SOURCE_COLUMN_LABELS: Readonly<Record<string, string>> = {
-  "timeline": "タイムライン",
-  "notifications": "通知",
-  "drive": "ドライブ",
-  "followRequests": "フォローリクエスト",
-  "list": "リスト",
-  "antenna": "アンテナ",
-  "favorites": "お気に入り",
-  "clip": "クリップ",
-  "mentions": "メンション",
-  "specified": "ダイレクト",
-  "chat": "チャット",
-  "achievements": "実績",
-  "serverInfo": "サーバー情報",
-  "aboutMisskey": "Misskey について",
-  "emoji": "カスタム絵文字",
-  "ads": "広告",
-  "explore": "みつける",
-  "announcements": "お知らせ",
-  "search": "サーバー検索",
-  "clientSearch": "クライアント検索",
-  "lookup": "照会",
-  "channel": "チャンネル",
-  "role": "ロール",
-  "gallery": "ギャラリー",
-  "play": "Misskey Play",
-  "page": "ページ",
-  "user": "ユーザー",
-  "charts": "チャート",
-  "federation": "連合",
-  "themeManager": "テーマ",
-  "pluginManager": "プラグイン",
-  "widget": "ウィジェット",
-  "queryManager": "クエリ",
-  "memos": "メモ",
-  "ai": "AI",
-  "skill": "スキル",
-  "aiscript": "スクラッチパッド",
-  "apiConsole": "API コンソール",
-  "apiDocs": "API ドキュメント",
-  "streamInspector": "ストリーム",
-  "taskRunner": "タスク"
+export const COLUMN_LABELS_BY_TYPE: Readonly<Record<string, readonly string[]>> = {
+  "timeline": [
+    "タイムライン",
+    "Timeline"
+  ],
+  "notifications": [
+    "通知",
+    "Notifications"
+  ],
+  "drive": [
+    "ドライブ",
+    "Drive"
+  ],
+  "followRequests": [
+    "フォローリクエスト",
+    "Follow requests"
+  ],
+  "list": [
+    "リスト",
+    "List"
+  ],
+  "antenna": [
+    "アンテナ",
+    "Antenna"
+  ],
+  "favorites": [
+    "お気に入り",
+    "Favorites"
+  ],
+  "clip": [
+    "クリップ",
+    "Clip"
+  ],
+  "mentions": [
+    "メンション",
+    "Mentions"
+  ],
+  "specified": [
+    "ダイレクト",
+    "Direct"
+  ],
+  "chat": [
+    "チャット",
+    "Chat"
+  ],
+  "achievements": [
+    "実績",
+    "Achievements"
+  ],
+  "serverInfo": [
+    "サーバー情報",
+    "Server info"
+  ],
+  "aboutMisskey": [
+    "Misskey について",
+    "About Misskey"
+  ],
+  "emoji": [
+    "カスタム絵文字",
+    "Custom emoji"
+  ],
+  "ads": [
+    "広告",
+    "Ads"
+  ],
+  "explore": [
+    "みつける",
+    "Explore"
+  ],
+  "announcements": [
+    "お知らせ",
+    "Announcements"
+  ],
+  "search": [
+    "サーバー検索",
+    "Server search"
+  ],
+  "clientSearch": [
+    "クライアント検索",
+    "Client search"
+  ],
+  "lookup": [
+    "照会",
+    "Lookup"
+  ],
+  "channel": [
+    "チャンネル",
+    "Channel"
+  ],
+  "role": [
+    "ロール",
+    "Role"
+  ],
+  "gallery": [
+    "ギャラリー",
+    "Gallery"
+  ],
+  "play": [
+    "Misskey Play"
+  ],
+  "page": [
+    "ページ",
+    "Page"
+  ],
+  "user": [
+    "ユーザー",
+    "User"
+  ],
+  "charts": [
+    "チャート",
+    "Charts"
+  ],
+  "federation": [
+    "連合",
+    "Federation"
+  ],
+  "themeManager": [
+    "テーマ",
+    "Themes"
+  ],
+  "pluginManager": [
+    "プラグイン",
+    "Plugins"
+  ],
+  "widget": [
+    "ウィジェット",
+    "Widget"
+  ],
+  "queryManager": [
+    "クエリ",
+    "Queries"
+  ],
+  "memos": [
+    "メモ",
+    "Memos"
+  ],
+  "ai": [
+    "AI"
+  ],
+  "skill": [
+    "スキル",
+    "Skills"
+  ],
+  "aiscript": [
+    "スクラッチパッド",
+    "Scratchpad"
+  ],
+  "apiConsole": [
+    "API コンソール",
+    "API console"
+  ],
+  "apiDocs": [
+    "API ドキュメント",
+    "API docs"
+  ],
+  "streamInspector": [
+    "ストリーム",
+    "Stream"
+  ],
+  "taskRunner": [
+    "タスク",
+    "Tasks"
+  ]
 }
 
 export type LanguageCode = (typeof LANGUAGES)[number]['code']

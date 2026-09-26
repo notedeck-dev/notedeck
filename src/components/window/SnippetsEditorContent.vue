@@ -4,7 +4,7 @@ import { type Diagnostic, linter } from '@codemirror/lint'
 import JSON5 from 'json5'
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { reloadSnippets } from '@/aiscript/snippets/cache'
-import { DEFAULT_AISCRIPT_SNIPPETS } from '@/aiscript/snippets/defaultSnippets'
+import { defaultAiscriptSnippets } from '@/aiscript/snippets/defaultSnippets'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
@@ -79,7 +79,7 @@ async function refreshFiles() {
   }
   const list = await listSnippetFiles()
   if (list.length === 0) {
-    await writeSnippetFile(DEFAULT_FILE, DEFAULT_AISCRIPT_SNIPPETS)
+    await writeSnippetFile(DEFAULT_FILE, defaultAiscriptSnippets())
     files.value = [DEFAULT_FILE]
   } else {
     files.value = list
@@ -88,13 +88,13 @@ async function refreshFiles() {
 
 async function loadCurrent() {
   if (!isTauri) {
-    code.value = DEFAULT_AISCRIPT_SNIPPETS
+    code.value = defaultAiscriptSnippets()
     dirty.value = false
     return
   }
   try {
     const raw = await readSnippetFile(currentFile.value)
-    code.value = raw || DEFAULT_AISCRIPT_SNIPPETS
+    code.value = raw || defaultAiscriptSnippets()
     dirty.value = false
     error.value = null
   } catch (e) {
@@ -195,7 +195,7 @@ const { confirming: confirmingReset, trigger: triggerReset } =
 
 function handleReset() {
   triggerReset(() => {
-    code.value = DEFAULT_AISCRIPT_SNIPPETS
+    code.value = defaultAiscriptSnippets()
     error.value = null
   })
 }
