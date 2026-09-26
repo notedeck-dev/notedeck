@@ -261,7 +261,7 @@ describe('fetchWidgetSource', () => {
     fetchMock.mockResolvedValue(okText('tampered'))
     const entry = widgetEntry({ sha512: sha512Hex('original') })
     await expect(store.fetchWidgetSource(entry)).rejects.toThrow(
-      /ハッシュ不一致/,
+      /ハッシュが一致しません/,
     )
   })
 })
@@ -387,7 +387,7 @@ describe('installSkill', () => {
     fetchMock.mockResolvedValue(okText(source))
     await expect(
       store.installSkill(skillEntry({ sha512: 'deadbeef' })),
-    ).rejects.toThrow(/ハッシュ不一致/)
+    ).rejects.toThrow(/ハッシュが一致しません/)
     expect(h.skillsStore.add).not.toHaveBeenCalled()
     expect(store.installingSkill).toBeNull()
   })
@@ -585,7 +585,7 @@ describe('installPlugin', () => {
       store.installPlugin(pluginEntry({ sha512: sha512Hex(source) }), {
         kind: 'global',
       }),
-    ).rejects.toThrow(/メタデータの解析に失敗/)
+    ).rejects.toThrow(/メタデータを読み取れませんでした/)
   })
 
   it('既存への追加インストールで権限が拡大するなら再同意を取る (#1040)', async () => {
@@ -1096,7 +1096,7 @@ describe('ハッシュ不一致の 1 回リトライ (#1040)', () => {
       .mockResolvedValueOnce(okJson({ widgets: [entry] }))
       .mockResolvedValueOnce(okText('tampered'))
     await expect(store.fetchWidgetSource(entry)).rejects.toThrow(
-      /ハッシュ不一致/,
+      /ハッシュが一致しません/,
     )
     // ソース → index → ソースの 3 回で打ち止め (2 回目のリトライはしない)
     expect(fetchMock).toHaveBeenCalledTimes(3)

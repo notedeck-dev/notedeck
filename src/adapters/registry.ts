@@ -90,7 +90,7 @@ const FORKS: ForkDefinition[] = [
   },
   {
     id: 'hanamisskey/misskey',
-    displayName: 'はなみすきー',
+    displayName: 'はなみすきー', // i18n-ignore: data
     supported: true,
     names: [],
   },

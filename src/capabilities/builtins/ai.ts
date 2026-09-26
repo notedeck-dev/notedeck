@@ -25,7 +25,7 @@ export const aiChatCapability = implement('ai.chat', {
 
     if (!ctx?.aiConfig) {
       throw new Error(
-        'ai.chat は dispatchCapability 経由で呼び出されている必要があります (AiConfig が必要)',
+        'ai.chat must be called through dispatchCapability (AiConfig is required)',
       )
     }
     const cfg = ctx.aiConfig
@@ -34,7 +34,7 @@ export const aiChatCapability = implement('ai.chat', {
     const resolved = resolveAiConnection(cfg, vault.connections.value)
     if (!resolved) {
       throw new Error(
-        'AI 接続が未選択です。エージェント設定で Vault 接続を選んでください',
+        'No AI connection is selected. Choose a Vault connection in the agent settings',
       )
     }
     const model =

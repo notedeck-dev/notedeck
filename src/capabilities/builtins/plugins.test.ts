@@ -132,7 +132,7 @@ describe('plugins.create / plugins.update — preflight (#553)', () => {
       src: 'let x = (',
     })
     expect(r).not.toBeNull()
-    expect(r?.error).toMatch(/構文エラー/)
+    expect(r?.error).toMatch(/syntax errors/)
     expect(r?.error).toMatch(/diagnostics:/)
   })
 
@@ -306,7 +306,7 @@ describe('plugins.update — アクティブなら再起動する (#744)', () =>
     }
     await expect(
       pluginsUpdateCapability.execute({ installId, src: 'let y = 2' }, ctx),
-    ).rejects.toThrow(/確認後/)
+    ).rejects.toThrow(/changed after confirmation/)
     expect(store.getPlugin(installId)?.src).toBe(
       'ユーザーがエディタで書き換えた',
     )

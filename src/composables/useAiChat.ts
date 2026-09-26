@@ -94,7 +94,7 @@ export interface AiChatEventPayload {
  */
 export class AiChatCancelledError extends Error {
   constructor() {
-    super('応答の生成を中断しました')
+    super('response generation was cancelled')
     this.name = 'AiChatCancelledError'
   }
 }
@@ -186,7 +186,7 @@ export function useAiChat() {
 
   async function sendMessage(opts: AiChatSendOptions): Promise<string> {
     if (isStreaming.value) {
-      throw new Error('既に応答生成中です')
+      throw new Error('a response is already being generated')
     }
     isStreaming.value = true
     lastError.value = null

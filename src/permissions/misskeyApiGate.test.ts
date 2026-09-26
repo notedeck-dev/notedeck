@@ -58,13 +58,13 @@ describe('assertMisskeyApiAllowed (#712 §5.5)', () => {
         { kind: 'plugin', pluginId: 'p1' },
         'admin/accounts/delete',
       ),
-    ).rejects.toThrow(/開放されません/)
+    ).rejects.toThrow(/is not open to/)
     await expect(
       assertMisskeyApiAllowed(
         { kind: 'plugin', pluginId: 'p1' },
         'i/regenerate-token',
       ),
-    ).rejects.toThrow(/開放されません/)
+    ).rejects.toThrow(/is not open to/)
   })
 
   it('ai.chat も自分のプロファイルで判定される (tasks.run 経由 #1099)', async () => {
@@ -105,7 +105,7 @@ describe('assertMisskeyApiAllowed (#712 §5.5)', () => {
       assertMisskeyApiAllowed(plugin, 'notes/create', {
         onBehalfOf: [{ kind: 'ai.chat' }],
       }),
-    ).rejects.toThrow(/ai\.chat プロファイル/)
+    ).rejects.toThrow(/ai\.chat profile/)
     // user の呼び出し元は制限にならない
     await expect(
       assertMisskeyApiAllowed(plugin, 'notes/create', {

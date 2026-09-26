@@ -182,7 +182,7 @@ export interface AiConfirmItem {
 
 export class AiTurnCancelledError extends Error {
   constructor() {
-    super('応答の生成を中断しました')
+    super('response generation was cancelled')
     this.name = 'AiTurnCancelledError'
   }
 }
@@ -259,7 +259,8 @@ export function useAiTurn(deps: AiTurnDeps) {
   }
 
   async function run(req: AiTurnRunRequest): Promise<AiTurnOutcome> {
-    if (isRunning.value) throw new Error('既に応答生成中です')
+    if (isRunning.value)
+      throw new Error('a response is already being generated')
     retryContext.value = null
 
     const now = Date.now()

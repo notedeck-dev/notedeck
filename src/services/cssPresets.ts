@@ -53,14 +53,14 @@ export const FONT_OPTIONS: FontOption[] = [
   { value: 'Yusei Magic', label: 'Yusei Magic' },
   { value: 'DotGothic16', label: 'Dot Gothic 16' },
   {
-    value: '手書き雑フォント',
-    label: '手書き雑フォント',
-    customCss: `@font-face { font-family: '手書き雑フォント'; src: url('https://cdn.leafscape.be/tegaki_zatsu/851tegaki_zatsu_web.woff2') format("woff2"); font-display: swap; }`,
+    value: '手書き雑フォント', // i18n-ignore: data
+    label: '手書き雑フォント', // i18n-ignore: data
+    customCss: `@font-face { font-family: '手書き雑フォント'; src: url('https://cdn.leafscape.be/tegaki_zatsu/851tegaki_zatsu_web.woff2') format("woff2"); font-display: swap; }`, // i18n-ignore: data
   },
   {
-    value: '瀬戸フォント',
-    label: '瀬戸フォント',
-    customCss: `@font-face { font-family: '瀬戸フォント'; src: url('https://cdn.leafscape.be/setofont/setofont_web.woff2') format("woff2"); font-display: swap; }`,
+    value: '瀬戸フォント', // i18n-ignore: data
+    label: '瀬戸フォント', // i18n-ignore: data
+    customCss: `@font-face { font-family: '瀬戸フォント'; src: url('https://cdn.leafscape.be/setofont/setofont_web.woff2') format("woff2"); font-display: swap; }`, // i18n-ignore: data
   },
 ]
 

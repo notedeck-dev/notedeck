@@ -58,7 +58,7 @@ export function getAccountAvatarUrl(account: Account): string {
 export function guestDisplayName(account: Account): string {
   const name = account.displayName
   if (!name) return i18n.ts._accounts.guest
-  const numbered = /^(?:ゲスト|Guest) ?(\d+)$/.exec(name)
+  const numbered = /^(?:ゲスト|Guest) ?(\d+)$/.exec(name) // i18n-ignore: data
   return numbered
     ? i18n.tsx._accounts.guestNumbered({ n: Number(numbered[1]) })
     : name

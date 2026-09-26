@@ -246,7 +246,7 @@ describe('vaultFetchCapability.execute — 開示クラスのフィルタ (#712 
         { connectionRef: 'Habitica', path: '/status' },
         EXTERNAL_CTX,
       ),
-    ).rejects.toThrow(/利用できません/)
+    ).rejects.toThrow(/is not available/)
   })
 
   it('plugin principal は Plugin 開示の無い接続に到達できない (default 非開示 #759)', async () => {
@@ -256,7 +256,7 @@ describe('vaultFetchCapability.execute — 開示クラスのフィルタ (#712 
         { connectionRef: 'Habitica', path: '/status' },
         PLUGIN_CTX,
       ),
-    ).rejects.toThrow(/利用できません/)
+    ).rejects.toThrow(/is not available/)
   })
 
   it('Plugin 開示 opt-in された接続は plugin principal から解決できる (#759)', async () => {

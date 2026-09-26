@@ -751,8 +751,8 @@ pub fn clean_title(raw: &str) -> String {
             in_newline = false;
         }
     }
-    let leading: &[char] = &['「', '『', '"', '\'', '“', '”'];
-    let trailing: &[char] = &['」', '』', '"', '\'', '“', '”', '。', '．', '、'];
+    let leading: &[char] = &['「', '『', '"', '\'', '“', '”']; // i18n-ignore: data
+    let trailing: &[char] = &['」', '』', '"', '\'', '“', '”', '。', '．', '、']; // i18n-ignore: data
     let t = joined
         .trim()
         .trim_start_matches(|c: char| c.is_whitespace() || leading.contains(&c))

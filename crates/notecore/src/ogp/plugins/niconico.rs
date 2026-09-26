@@ -69,7 +69,7 @@ impl Plugin for NiconicoPlugin {
             title,
             description,
             icon,
-            sitename: Some("ニコニコ動画".to_string()),
+            sitename: Some("ニコニコ動画".to_string()), // i18n-ignore: data
             thumbnail,
             medias: Vec::new(),
             player,

@@ -75,7 +75,7 @@ async fn http_fetch_inner(
         .unwrap_or(DEFAULT_TIMEOUT_SECS);
     if !(MIN_TIMEOUT_SECS..=MAX_TIMEOUT_SECS).contains(&timeout_secs) {
         return Err(format!(
-            "timeoutMs must correspond to {}〜{}s (got {}s)",
+            "timeoutMs must correspond to {}-{}s (got {}s)",
             MIN_TIMEOUT_SECS, MAX_TIMEOUT_SECS, timeout_secs
         ));
     }

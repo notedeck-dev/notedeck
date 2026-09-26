@@ -1,4 +1,4 @@
-import { AppError } from '@/utils/errors'
+import { AppError, authErrorMessage } from '@/utils/errors'
 import { unwrap } from '@/utils/tauriInvoke'
 
 /**
@@ -20,7 +20,7 @@ export function createContext(
     accountId,
     hasToken,
     requireAuth() {
-      if (!hasToken) throw new AppError('AUTH_NO_TOKEN', 'ログインが必要です')
+      if (!hasToken) throw new AppError('AUTH_NO_TOKEN', authErrorMessage())
     },
   }
 }

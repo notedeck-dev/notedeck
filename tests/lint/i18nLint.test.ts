@@ -40,6 +40,15 @@ describe('i18n-lint の数え方', () => {
     expect(count('crates/x/src/a.rs', text).japanese).toBe(1)
   })
 
+  it('Rust は条件つきのテストモジュール (#[cfg(all(test, ...))]) 以降も数えない', () => {
+    const text = [
+      'fn a() -> &str { "本番" }',
+      '#[cfg(all(test, feature = "keyring"))]',
+      'mod tests { const X: &str = "テスト"; }',
+    ].join('\n')
+    expect(count('crates/x/src/a.rs', text).japanese).toBe(1)
+  })
+
   it('i18n-ignore の行は免除として別に数え、語彙に無い理由を報告する', () => {
     const text = [
       "const a = 'にゃ' // i18n-ignore: mfm-spec",

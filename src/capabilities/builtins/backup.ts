@@ -30,7 +30,7 @@ export const backupCreateCapability = implement('backup.create', {
   preflight: (params) => {
     if (params?.includeDb === false && params?.includeSettings === false) {
       return {
-        error: 'includeDb か includeSettings のどちらかは有効にしてください',
+        error: 'enable at least one of includeDb or includeSettings',
       }
     }
     return null
