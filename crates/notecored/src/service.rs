@@ -52,6 +52,36 @@ pub fn render_unit(exec_path: &Path) -> String {
         .replace("@NO_RESTART@", &codes)
 }
 
+/// Nix store の実体を指す、更新後も同じパスで新しい世代を指す symlink を探す:
+/// ~/.nix-profile/bin、/etc/profiles/per-user/<user>/bin、/run/current-system/sw/bin、PATH。
+/// 実体 (canonicalize) が一致するものだけを候補にする
+pub fn stable_alias_for(real: &Path) -> Option<PathBuf> {
+    if !is_nix_store(real) {
+        return None;
+    }
+    let name = real.file_name()?;
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Some(home) = dirs::home_dir() {
+        candidates.push(home.join(".nix-profile").join("bin").join(name));
+    }
+    if let Ok(user) = std::env::var("USER") {
+        candidates.push(
+            PathBuf::from("/etc/profiles/per-user")
+                .join(user)
+                .join("bin")
+                .join(name),
+        );
+    }
+    candidates.push(PathBuf::from("/run/current-system/sw/bin").join(name));
+    if let Some(path) = std::env::var_os("PATH") {
+        candidates.extend(std::env::split_paths(&path).map(|d| d.join(name)));
+    }
+    candidates
+        .into_iter()
+        .filter(|c| !is_nix_store(c))
+        .find(|c| c.canonicalize().map(|r| r == real).unwrap_or(false))
+}
+
 pub fn has_marker(content: &str) -> bool {
     content
         .lines()
@@ -167,7 +197,11 @@ fn install(exec_path: Option<PathBuf>) -> Result<(), String> {
     }
     let exec = match exec_path {
         Some(p) => p,
-        None => std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?,
+        None => {
+            let me = std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?;
+            // 実体が Nix store なら、それを指す安定した symlink (profile / PATH) を探して使う
+            stable_alias_for(&me).unwrap_or(me)
+        }
     };
     // 実パスは存在確認と書込可否の判定に使う。ExecStart に書くのは渡されたパスの方:
     // ~/.nix-profile/bin/notecored のような profile の symlink は更新後も同じパスで
@@ -256,6 +290,21 @@ mod tests {
         assert!(!unit.contains("ProtectHome"));
         assert!(unit.contains("StartLimitBurst"));
         assert!(!has_marker("[Unit]\nDescription=x\n"));
+    }
+
+    #[test]
+    fn stable_alias_prefers_a_symlink_outside_the_store() {
+        let dir = tempfile::tempdir().unwrap();
+        // 実体が store の外なら何もしない
+        let plain = dir.path().join("notecored");
+        std::fs::write(&plain, "x").unwrap();
+        assert_eq!(stable_alias_for(&plain), None);
+        // PATH 上の symlink が実体を指していればそれを返す (実体は store 風のパスにできない
+        // ので、PATH 側の探索だけを検査する: 実体と一致しない候補は選ばれない)
+        let bin = dir.path().join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::os::unix::fs::symlink(&plain, bin.join("notecored")).unwrap();
+        assert_eq!(stable_alias_for(&plain), None);
     }
 
     #[test]

@@ -157,13 +157,14 @@ async function copyJournalHint(): Promise<void> {
         </p>
         <template v-else>
           <p :class="$style.hint">{{ i18n.ts._coreContent.notFound }}</p>
-          <pre :class="$style.code">nix profile install 'github:notedeck-dev/notedeck#notecored'</pre>
+          <pre :class="$style.code">nix profile add 'github:notedeck-dev/notedeck#notecored'</pre>
         </template>
       </section>
 
       <section :class="$style.section">
         <div :class="$style.btnRow">
           <button
+            class="_button"
             v-if="configured === 'embedded'"
             type="button"
             :class="$style.actionBtn"
@@ -173,14 +174,15 @@ async function copyJournalHint(): Promise<void> {
             {{ i18n.ts._coreContent.switchOk }}
           </button>
           <template v-else-if="configured === 'pending-resident'">
-            <button type="button" :class="$style.actionBtn" :disabled="busy || !found" @click="switchToResident">
+            <button class="_button" type="button" :class="$style.actionBtn" :disabled="busy || !found" @click="switchToResident">
               {{ i18n.ts._coreContent.retry }}
             </button>
-            <button type="button" :class="$style.secondaryBtn" :disabled="busy" @click="cancelPending">
+            <button class="_button" type="button" :class="$style.secondaryBtn" :disabled="busy" @click="cancelPending">
               {{ i18n.ts._coreContent.cancel }}
             </button>
           </template>
           <button
+            class="_button"
             v-else
             type="button"
             :class="$style.dangerBtn"
@@ -209,7 +211,7 @@ async function copyJournalHint(): Promise<void> {
           {{ core?.secretsPresent ? i18n.ts._coreContent.secretsPresent : i18n.ts._coreContent.secretsAbsent }}
         </p>
         <div :class="$style.btnRow">
-          <button type="button" :class="$style.secondaryBtn" @click="copyJournalHint">
+          <button class="_button" type="button" :class="$style.secondaryBtn" @click="copyJournalHint">
             {{ i18n.ts._coreContent.copyJournal }}
           </button>
         </div>
