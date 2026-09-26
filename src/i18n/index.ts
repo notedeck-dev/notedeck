@@ -30,10 +30,18 @@ let dictionary: Locale | null = null
 let lang: LanguageCode = 'ja-JP'
 let tsxCache: Tsx<Locale> | null = null
 
+// 数値の param は表示言語の書式で出す (桁区切り)。toLocaleString() を
+// 呼び出し側に書かせると、複数形の数の判定に文字列が渡ってしまうため
+let numberFormat: Intl.NumberFormat | null = null
+
 function fill(template: string, args: Record<string, unknown>): string {
-  return template.replace(PARAM, (whole, name: string) =>
-    Object.hasOwn(args, name) ? String(args[name]) : whole,
-  )
+  return template.replace(PARAM, (whole, name: string) => {
+    if (!Object.hasOwn(args, name)) return whole
+    const value = args[name]
+    if (typeof value !== 'number') return String(value)
+    numberFormat ??= new Intl.NumberFormat(lang)
+    return numberFormat.format(value)
+  })
 }
 
 function buildTsx(tree: Tree, rules: Intl.PluralRules): unknown {
@@ -81,6 +89,7 @@ export function setLocale(code: LanguageCode, locale: Locale): void {
   dictionary = locale
   lang = code
   tsxCache = null
+  numberFormat = null
   if (typeof document !== 'undefined') document.documentElement.lang = code
 }
 

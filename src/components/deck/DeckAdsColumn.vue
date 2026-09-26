@@ -6,6 +6,7 @@ import { useAds } from '@/composables/useAds'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
@@ -62,7 +63,7 @@ onMounted(() => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? '広告'"
+    :title="column.name ?? i18n.ts._columns.ads"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
@@ -76,7 +77,7 @@ onMounted(() => {
     <template #header-meta>
     </template>
 
-    <ColumnEmptyState v-if="ads.length === 0 && !isLoading" message="広告はありません" :image-url="serverInfoImageUrl" />
+    <ColumnEmptyState v-if="ads.length === 0 && !isLoading" :message="i18n.ts._deckAdsColumn.empty" :image-url="serverInfoImageUrl" />
 
     <div v-else ref="scrollContainer" :class="$style.adsBody">
       <MkAd

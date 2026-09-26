@@ -4,6 +4,7 @@ import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import {
   accountScopeKey,
   getAccountAvatarUrl,
@@ -485,7 +486,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'テーマ'"
+    :title="column.name ?? i18n.ts._columns.themeManager"
     :theme-vars="columnThemeVars"
     @header-click="() => {}"
   >
@@ -498,7 +499,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
         v-if="viewTab === 'installed'"
         class="_button"
         :class="$style.headerBtn"
-        title="新規テーマを作成"
+        :title="i18n.ts._deckThemeManagerColumn.createTheme"
         @click.stop="openNewTheme"
       >
         <i class="ti ti-plus" />
@@ -506,7 +507,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
     </template>
 
     <div ref="columnContentRef" :class="$style.wrapper">
-      <SafeModeNotice subject="テーマ" />
+      <SafeModeNotice :subject="i18n.ts._deckThemeManagerColumn.safeModeSubject" />
 
       <ColumnTabs
         :tabs="tabDefs"
@@ -521,14 +522,14 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
           v-model="searchQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="インストール済みを探す"
+          :placeholder="i18n.ts._deckThemeManagerColumn.searchInstalled"
         />
         <input
           v-else
           v-model="storeQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="ストアを探す"
+          :placeholder="i18n.ts._common.browseStore"
         />
       </div>
 
@@ -569,12 +570,12 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
               @click="showLibraryPicker = !showLibraryPicker"
             >
               <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? '閉じる' : 'ライブラリから追加' }}
+              {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._common.addFromLibrary }}
             </button>
           </div>
           <div v-if="!isCrossAccount && showLibraryPicker" :class="$style.pickerWrap">
             <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              ライブラリに追加可能なテーマがありません。
+              {{ i18n.ts._deckThemeManagerColumn.noLibraryThemes }}
             </div>
             <div v-else :class="$style.grid">
               <ThemeCard
@@ -590,13 +591,13 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
 
           <div v-if="totalFilteredCount === 0" :class="$style.empty">
             <template v-if="searchQuery">
-              一致するテーマがありません
+              {{ i18n.ts._deckThemeManagerColumn.noMatches }}
             </template>
             <template v-else>
               <i class="ti ti-palette" :class="$style.emptyIcon" />
-              <span>テーマがありません</span>
+              <span>{{ i18n.ts._deckThemeManagerColumn.noThemes }}</span>
               <button class="_button" :class="$style.emptyLink" @click="viewTab = 'store'">
-                ストアからインストール...
+                {{ i18n.ts._deckThemeManagerColumn.installFromStore }}
               </button>
             </template>
           </div>
@@ -615,14 +616,14 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
 
         <div v-if="misStore.themesLoading" :class="$style.storeLoading">
           <i class="ti ti-loader-2 nd-spin" />
-          読み込み中...
+          {{ i18n.ts._common.loading }}
         </div>
 
         <div v-else-if="misStore.themesError" :class="$style.empty">
           <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>ストアに接続できません</span>
+          <span>{{ i18n.ts._common.storeUnavailable }}</span>
           <button class="_button" :class="$style.emptyLink" @click="misStore.refreshThemes()">
-            再試行
+            {{ i18n.ts._common.retry }}
           </button>
         </div>
 
@@ -646,7 +647,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
           </div>
 
           <div v-if="filteredStoreThemes.length === 0 && !misStore.themesLoading" :class="$style.empty">
-            一致するテーマがありません
+            {{ i18n.ts._deckThemeManagerColumn.noMatches }}
           </div>
         </div>
       </template>

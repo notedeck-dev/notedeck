@@ -8,6 +8,7 @@ import {
   useAiConfig,
 } from '@/composables/useAiConfig'
 import { useClickOutside } from '@/composables/useClickOutside'
+import { i18n } from '@/i18n'
 import { FALLBACK_PRESET_OPTION, PRESET_OPTIONS } from '@/permissions/labels'
 import type { PresetKey } from '@/permissions/schema'
 import AiSettingsSection from './AiSettingsSection.vue'
@@ -127,7 +128,7 @@ function toggleMemoIncludeBacklinks() {
 <template>
   <AiSettingsSection
     icon="ti-database-export"
-    title="データソース"
+    :title="i18n.ts._aiDataSourcesSection.title"
     :badge="currentPreset.label"
   >
     <div ref="presetRef" :class="$style.dropdown">
@@ -170,20 +171,20 @@ function toggleMemoIncludeBacklinks() {
   </AiSettingsSection>
 
   <!-- Memos (#494) — link expand / backlinks の詳細設定 -->
-  <AiSettingsSection icon="ti-notes" title="メモの渡し方" :badge="memosChip">
+  <AiSettingsSection icon="ti-notes" :title="i18n.ts._aiDataSourcesSection.memosTitle" :badge="memosChip">
     <div :class="$style.toggleList">
       <AiSwitchRow
         icon="ti-link"
-        label="リンク先メモを展開"
-        sub-label="本文の `[name](memo:<id>)` で参照されているメモを 1 階層自動で AI に渡す。OFF にすると AI は明示的に `memos.backlinks` 等を呼ばない限り参照先を見ない。"
+        :label="i18n.ts._aiDataSourcesSection.expandLinks"
+        :sub-label="i18n.ts._aiDataSourcesSection.expandLinksDescription"
         :on="memoExpandLinks"
         :disabled="!resolvedDataSources.memos"
         @toggle="toggleMemoExpandLinks"
       />
       <AiSwitchRow
         icon="ti-arrow-back-up"
-        label="バックリンクを添付"
-        sub-label="各メモに `referencedBy: [...]` を付けて「どのメモから参照されているか」を AI に伝える。"
+        :label="i18n.ts._aiDataSourcesSection.includeBacklinks"
+        :sub-label="i18n.ts._aiDataSourcesSection.includeBacklinksDescription"
         :on="memoIncludeBacklinks"
         :disabled="!resolvedDataSources.memos"
         @toggle="toggleMemoIncludeBacklinks"

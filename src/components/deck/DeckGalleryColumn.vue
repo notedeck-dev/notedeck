@@ -9,6 +9,7 @@ import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { safeUrl } from '@/composables/useDriveFolder'
 import { useServerImages } from '@/composables/useServerImages'
+import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
@@ -117,7 +118,7 @@ fetchGallery()
 </script>
 
 <template>
-  <DeckColumn :column-id="column.id" :title="column.name ?? 'ギャラリー'" :theme-vars="columnThemeVars" :pull-refresh="fetchGallery" @header-click="scrollToTop" @refresh="fetchGallery()">
+  <DeckColumn :column-id="column.id" :title="column.name ?? i18n.ts._columns.gallery" :theme-vars="columnThemeVars" :pull-refresh="fetchGallery" @header-click="scrollToTop" @refresh="fetchGallery()">
     <template #header-icon>
       <i class="ti ti-icons" :class="$style.tlHeaderIcon" />
     </template>
@@ -133,11 +134,11 @@ fetchGallery()
         :account-id="column.accountId"
         is-error
         :image-url="serverErrorImageUrl"
-        cta-label="再試行"
+        :cta-label="i18n.ts._common.retry"
         cta-icon="ti-refresh"
         @cta="fetchGallery()"
       />
-      <ColumnEmptyState v-else-if="posts.length === 0" message="ギャラリーの投稿がありません" :image-url="serverInfoImageUrl" />
+      <ColumnEmptyState v-else-if="posts.length === 0" :message="i18n.ts._deckGalleryColumn.empty" :image-url="serverInfoImageUrl" />
       <template v-else>
         <div :class="$style.galleryGrid">
           <div v-for="post in posts" :key="post.id" :class="$style.cellWrap">
@@ -187,8 +188,8 @@ fetchGallery()
           <button
             class="_button"
             :class="$style.cellMenuBtn"
-            :aria-label="`「${post.title}」のメニュー`"
-            title="メニュー"
+            :aria-label="i18n.tsx._deckGalleryColumn.postMenu({ title: post.title })"
+            :title="i18n.ts._common.menu"
             @click.stop="onPostMenu(post, $event)"
           >
             <i class="ti ti-dots" />

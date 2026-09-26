@@ -15,6 +15,7 @@ import {
   navbarTargetId,
   useSpotlightStore,
 } from '@/composables/useSpotlight'
+import { i18n } from '@/i18n'
 import {
   type Account,
   getAccountAvatarUrl,
@@ -400,7 +401,7 @@ defineExpose({
           <button
             class="_button"
             :class="$style.instanceBtn"
-            title="NoteDeck について"
+            :title="i18n.ts._windows.about"
             @click="closeDrawerAndDo(() => windowsStore.open('about'))"
           >
             <img src="/favicon.svg" :class="$style.instanceIcon" alt="NoteDeck" />
@@ -410,7 +411,7 @@ defineExpose({
             v-if="!navCollapsed || isCompact"
             class="_button"
             :class="[$style.topBtn, offlineModeStore.isOfflineMode ? $style.offlineActive : $style.onlineActive]"
-            :title="offlineModeStore.isOfflineMode ? 'オンラインモードに切り替え' : 'オフラインモードに切り替え'"
+            :title="offlineModeStore.isOfflineMode ? i18n.ts._deckNavbar.switchToOnline : i18n.ts._deckNavbar.switchToOffline"
             @click="hapticLight(); toggleOfflineMode()"
           >
             <i :class="offlineModeStore.isOfflineMode ? 'ti ti-wifi-off' : 'ti ti-wifi'" />
@@ -420,7 +421,7 @@ defineExpose({
             class="_button"
             :class="[$style.topBtn, realtimeModeStore.enabled ? $style.realtimeActive : $style.pollingActive, { [$style.itemDisabled]: offlineModeStore.isOfflineMode }]"
             :disabled="offlineModeStore.isOfflineMode"
-            :title="realtimeModeStore.enabled ? 'ポーリングモードに切り替え' : 'リアルタイムモードに切り替え'"
+            :title="realtimeModeStore.enabled ? i18n.ts._deckNavbar.switchToPolling : i18n.ts._deckNavbar.switchToRealtime"
             @click="hapticLight(); toggleRealtimeMode()"
           >
             <i :class="realtimeModeStore.enabled ? 'ti ti-bolt' : 'ti ti-bolt-off'" />
@@ -455,13 +456,13 @@ defineExpose({
               v-if="!isCompact"
               class="_button"
               :class="$style.item"
-              title="もっと"
+              :title="i18n.ts._deckNavbar.more"
               @click="hapticLight(); openLaunchPad($event)"
             >
               <div :class="$style.iconWrap">
                 <i class="ti ti-grid-dots" />
               </div>
-              <span :class="$style.label">もっと</span>
+              <span :class="$style.label">{{ i18n.ts._deckNavbar.more }}</span>
             </button>
           </div>
         </div>
@@ -473,22 +474,22 @@ defineExpose({
             <button
               class="_button"
               :class="$style.item"
-              title="もっと"
+              :title="i18n.ts._deckNavbar.more"
               @click="hapticLight(); openLaunchPad($event)"
             >
               <i class="ti ti-grid-dots" />
-              <span :class="$style.label">もっと</span>
+              <span :class="$style.label">{{ i18n.ts._deckNavbar.more }}</span>
             </button>
             <div :class="$style.menuWrap">
               <button
                 class="_button"
                 :class="$style.item"
-                title="プロファイル"
+                :title="i18n.ts._deckNavbar.profile"
                 @pointerdown.stop
                 @click.stop="toggleProfileMenu()"
               >
                 <i class="ti ti-layout" />
-                <span :class="$style.label">プロファイル</span>
+                <span :class="$style.label">{{ i18n.ts._deckNavbar.profile }}</span>
               </button>
               <DeckProfileMenu :show="props.showProfileMenu" @close="emit('update:showProfileMenu', false)" />
             </div>
@@ -496,12 +497,12 @@ defineExpose({
               <button
                 class="_button"
                 :class="$style.item"
-                title="設定"
+                :title="i18n.ts._common.settings"
                 @pointerdown.stop
                 @click.stop="toggleSettingsMenu()"
               >
                 <i class="ti ti-settings" />
-                <span :class="$style.label">設定</span>
+                <span :class="$style.label">{{ i18n.ts._common.settings }}</span>
               </button>
               <DeckSettingsMenu :show="props.showSettingsMenu" @close="emit('update:showSettingsMenu', false)" />
             </div>
@@ -513,25 +514,25 @@ defineExpose({
             <button
               class="_button"
               :class="[$style.item, offlineModeStore.isOfflineMode ? $style.offlineActive : $style.onlineActive]"
-              :title="offlineModeStore.isOfflineMode ? 'オンラインモードに切り替え' : 'オフラインモードに切り替え'"
+              :title="offlineModeStore.isOfflineMode ? i18n.ts._deckNavbar.switchToOnline : i18n.ts._deckNavbar.switchToOffline"
               @click="hapticLight(); toggleOfflineMode()"
             >
               <div :class="$style.iconWrap">
                 <i :class="offlineModeStore.isOfflineMode ? 'ti ti-wifi-off' : 'ti ti-wifi'" />
               </div>
-              <span :class="$style.label">{{ offlineModeStore.isOfflineMode ? 'オフライン' : 'オンライン' }}</span>
+              <span :class="$style.label">{{ offlineModeStore.isOfflineMode ? i18n.ts._common.offline : i18n.ts._deckNavbar.online }}</span>
             </button>
             <button
               class="_button"
               :class="[$style.item, realtimeModeStore.enabled ? $style.realtimeActive : $style.pollingActive, { [$style.itemDisabled]: offlineModeStore.isOfflineMode }]"
               :disabled="offlineModeStore.isOfflineMode"
-              :title="realtimeModeStore.enabled ? 'ポーリングモードに切り替え' : 'リアルタイムモードに切り替え'"
+              :title="realtimeModeStore.enabled ? i18n.ts._deckNavbar.switchToPolling : i18n.ts._deckNavbar.switchToRealtime"
               @click="hapticLight(); toggleRealtimeMode()"
             >
               <div :class="$style.iconWrap">
                 <i :class="realtimeModeStore.enabled ? 'ti ti-bolt' : 'ti ti-bolt-off'" />
               </div>
-              <span :class="$style.label">{{ realtimeModeStore.enabled ? 'リアルタイム' : 'ポーリング' }}</span>
+              <span :class="$style.label">{{ realtimeModeStore.enabled ? i18n.ts._deckNavbar.realtime : i18n.ts._common.polling }}</span>
             </button>
           </template>
 
@@ -539,11 +540,11 @@ defineExpose({
           <button
             class="_button"
             :class="$style.postBtn"
-            title="ノート作成"
+            :title="i18n.ts._commands.compose"
             @click="hapticMedium(); closeDrawerAndDo(() => emit('open-compose'))"
           >
             <i class="ti ti-pencil" />
-            <span :class="$style.label">ノート</span>
+            <span :class="$style.label">{{ i18n.ts._deckNavbar.note }}</span>
           </button>
 
           <!-- Account button -->
@@ -551,7 +552,7 @@ defineExpose({
             <button
               class="_button"
               :class="$style.item"
-              title="アカウント"
+              :title="i18n.ts._deckNavbar.account"
               @pointerdown.stop
               @click.stop="isCompact ? toggleAccountPopup() : commandStore.execute('account-menu')"
             >
@@ -559,7 +560,7 @@ defineExpose({
                 <i class="ti ti-user" />
                 <span v-if="accountAttentionCount > 0" :key="accountAttentionCount" :class="$style.badge">{{ accountAttentionCount > 99 ? '99+' : accountAttentionCount }}</span>
               </div>
-              <span :class="$style.label">アカウント</span>
+              <span :class="$style.label">{{ i18n.ts._deckNavbar.account }}</span>
             </button>
             <!-- Mobile: bottom sheet (アカウント選択の共通シート #1018) -->
             <AccountPickerSheet
@@ -593,7 +594,7 @@ defineExpose({
                   @click="showAccountPopup = false; closeDrawerAndDo(navigateToLogin)"
                 >
                   <div :class="$style.accountPopupIcon"><i class="ti ti-plus" /></div>
-                  <span>アカウント追加</span>
+                  <span>{{ i18n.ts._commands.login }}</span>
                 </button>
               </template>
             </AccountPickerSheet>
@@ -624,7 +625,7 @@ defineExpose({
               <path d="M47.488,7.995C47.79,10.11 47.943,12.266 47.943,14.429C47.997,26.989 47.997,84 47.997,84C47.997,84 44.018,118.246 23.997,133.5C-0.374,152.07 -0.003,192 -0.003,192L-0.003,-96C-0.003,-96 0.151,-56.216 23.997,-37.5C40.861,-24.265 46.043,-1.243 47.488,7.995Z" fill="currentColor" />
             </g>
           </svg>
-          <button class="_button" :class="$style.subButtonClickable" title="ナビバー編集" @click="windowsStore.open('navEditor')">
+          <button class="_button" :class="$style.subButtonClickable" :title="i18n.ts._deckNavbar.editNavbar" @click="windowsStore.open('navEditor')">
             <i class="ti ti-settings-2" :class="$style.subButtonIcon" />
           </button>
         </div>
@@ -636,7 +637,7 @@ defineExpose({
               <path d="M47.488,7.995C47.79,10.11 47.943,12.266 47.943,14.429C47.997,26.989 47.997,84 47.997,84C47.997,84 44.018,118.246 23.997,133.5C-0.374,152.07 -0.003,192 -0.003,192L-0.003,-96C-0.003,-96 0.151,-56.216 23.997,-37.5C40.861,-24.265 46.043,-1.243 47.488,7.995Z" fill="currentColor" />
             </g>
           </svg>
-          <button class="_button" :class="$style.subButtonClickable" title="サイドバー切替" @click="toggleNav">
+          <button class="_button" :class="$style.subButtonClickable" :title="i18n.ts._commands.toggleSidebar" @click="toggleNav">
             <i :class="[navCollapsed ? 'ti ti-chevron-right' : 'ti ti-chevron-left', $style.subButtonIcon]" />
           </button>
         </div>
@@ -649,7 +650,7 @@ defineExpose({
             <path d="M47.488,7.995C47.79,10.11 47.943,12.266 47.943,14.429C47.997,26.989 47.997,84 47.997,84C47.997,84 44.018,118.246 23.997,133.5C-0.374,152.07 -0.003,192 -0.003,192L-0.003,-96C-0.003,-96 0.151,-56.216 23.997,-37.5C40.861,-24.265 46.043,-1.243 47.488,7.995Z" fill="currentColor" />
           </g>
         </svg>
-        <button class="_button" :class="$style.subButtonClickable" title="ナビバー編集" @click="closeDrawerAndDo(() => windowsStore.open('navEditor'))">
+        <button class="_button" :class="$style.subButtonClickable" :title="i18n.ts._deckNavbar.editNavbar" @click="closeDrawerAndDo(() => windowsStore.open('navEditor'))">
           <i class="ti ti-settings-2" :class="$style.subButtonIcon" />
         </button>
       </div>

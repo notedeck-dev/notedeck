@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DriveFolder } from '@/adapters/types'
+import { i18n } from '@/i18n'
 
 const props = withDefaults(
   defineProps<{
@@ -48,8 +49,8 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
         v-if="showItemMenu && !selectMode"
         class="_button"
         :class="$style.cellMenuBtn"
-        :aria-label="`「${folder.name}」のメニュー`"
-        title="メニュー"
+        :aria-label="i18n.tsx._mkFolderGrid.menuFor({ name: folder.name })"
+        :title="i18n.ts._common.menu"
         @click.stop="emit('folder-menu', folder, $event)"
       >
         <i class="ti ti-dots" />

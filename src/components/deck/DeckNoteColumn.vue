@@ -12,6 +12,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import ReadMarkerDivider from '@/components/common/ReadMarkerDivider.vue'
+import { i18n } from '@/i18n'
 import { variantKeyOf } from '@/services/noteKey'
 
 const MkPostForm = defineAsyncComponent(
@@ -239,7 +240,7 @@ defineExpose({
       :account-id="column.accountId"
       :image-url="serverErrorImageUrl"
       is-error
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="refresh"
     />
@@ -259,10 +260,10 @@ defineExpose({
         :title="offlineDetail"
         @click="showOfflineDetail"
       >
-        <i class="ti ti-cloud-off" />オフライン
+        <i class="ti ti-cloud-off" />{{ i18n.ts._common.offline }}
       </div>
       <div v-else-if="isPollingMode && !isLoggedOut" :class="$style.pollingBanner">
-        <i class="ti ti-bolt-off" />ポーリング
+        <i class="ti ti-bolt-off" />{{ i18n.ts._common.polling }}
       </div>
 
       <ColumnQueryBanners
@@ -295,7 +296,7 @@ defineExpose({
           class="_button"
           @click="scrollToTop()"
         >
-          <i class="ti ti-arrow-up" />新しいノート
+          <i class="ti ti-arrow-up" />{{ i18n.ts._deckNoteColumn.newNotes }}
         </button>
 
         <NoteScroller

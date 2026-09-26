@@ -10,6 +10,7 @@ import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { useKeybindsStore } from '@/stores/keybinds'
 import { STORAGE_KEYS, setStorageJson } from '@/utils/storage'
@@ -378,9 +379,9 @@ function handleReset() {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'adjustments', label: 'ビジュアル' },
+        { value: 'visual', icon: 'adjustments', label: i18n.ts._common.visual },
         ...(isExposed('developer')
-          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          ? [{ value: 'code', icon: 'code', label: i18n.ts._common.code }]
           : []),
       ]"
     />
@@ -411,7 +412,7 @@ function handleReset() {
                   @keydown="onKeyDown($event, cmdId, idx)"
                 >
                   <template v-if="recordingCommandId === cmdId && recordingIndex === idx">
-                    <span :class="$style.recordingText">入力待ち...</span>
+                    <span :class="$style.recordingText">{{ i18n.ts._keybindsContent.recording }}</span>
                   </template>
                   <template v-else>
                     {{ formatShortcut(shortcut) }}
@@ -428,9 +429,9 @@ function handleReset() {
                 tabindex="0"
                 @keydown="onKeyDown($event, cmdId, recordingIndex)"
               >
-                <span :class="$style.recordingText">入力待ち...</span>
+                <span :class="$style.recordingText">{{ i18n.ts._keybindsContent.recording }}</span>
               </button>
-              <button class="_button" :class="$style.addShortcutBtn" title="ショートカットを追加" @click="addShortcut(cmdId)">
+              <button class="_button" :class="$style.addShortcutBtn" :title="i18n.ts._keybindsContent.addShortcut" @click="addShortcut(cmdId)">
                 <i class="ti ti-plus" />
               </button>
             </div>
@@ -438,7 +439,7 @@ function handleReset() {
               v-if="keybindsStore.isCustomized(cmdId)"
               class="_button"
               :class="$style.resetBtn"
-              title="デフォルトに戻す"
+              :title="i18n.ts._common.resetToDefault"
               @click="resetCommand(cmdId)"
             >
               <i class="ti ti-restore" />
@@ -451,7 +452,7 @@ function handleReset() {
     <!-- Code tab -->
     <div v-show="tab === 'code'" :class="$style.codePanel">
       <div :class="$style.codeHint">
-        ユーザーカスタマイズの JSON（デフォルトからの差分のみ）
+        {{ i18n.ts._keybindsContent.codeHint }}
       </div>
       <CodeEditor
         v-model="jsonCode"
@@ -466,7 +467,7 @@ function handleReset() {
       </div>
       <div v-if="!codeError && jsonCode.trim() && jsonCode.trim() !== '{}'" :class="$style.codeSuccess">
         <i class="ti ti-check" />
-        適用中
+        {{ i18n.ts._common.active }}
       </div>
       <button
         class="_button"
@@ -474,7 +475,7 @@ function handleReset() {
         @click="applyFromCode"
       >
         <i class="ti ti-refresh" />
-        ビジュアルに同期
+        {{ i18n.ts._common.syncToVisual }}
       </button>
     </div>
 
@@ -487,7 +488,7 @@ function handleReset() {
           @click="importKeybinds"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
+          {{ importError ? i18n.ts._keybindsContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"
@@ -495,7 +496,7 @@ function handleReset() {
           @click="exportKeybinds"
         >
           <i class="ti ti-clipboard-copy" />
-          {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+          {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
         </button>
       </div>
       <button
@@ -504,7 +505,7 @@ function handleReset() {
         @click="handleReset"
       >
         <i class="ti ti-trash" />
-        {{ confirmingReset ? '本当にリセット？' : 'すべてリセット' }}
+        {{ confirmingReset ? i18n.ts._common.confirmReset : i18n.ts._common.resetAll }}
       </button>
     </div>
   </div>

@@ -5,6 +5,7 @@ import ColumnBadges from '@/components/common/ColumnBadges.vue'
 import { useColumnBadge } from '@/composables/useColumnBadge'
 import { useColumnTabs } from '@/composables/useColumnTabs'
 import { columnTargetId, useSpotlightStore } from '@/composables/useSpotlight'
+import { i18n } from '@/i18n'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
@@ -79,7 +80,7 @@ const {
       <button
         class="_button"
         :class="$style.profileIndicator"
-        title="プロファイル切替"
+        :title="i18n.ts._commands.profileMenu"
         @click="onProfileClick()"
       >
         <i class="ti ti-layout" />
@@ -113,7 +114,7 @@ const {
       <button
         class="_button"
         :class="$style.tab"
-        title="カラムを追加"
+        :title="i18n.ts._deckBottomBar.addColumn"
         @click="onAddColumnClick()"
       >
         <i class="ti ti-plus" />
@@ -124,7 +125,7 @@ const {
       <button
         class="_button"
         :class="[$style.actionBtn, $style.settingsBtn]"
-        title="デッキ設定"
+        :title="i18n.ts._deckBottomBar.deckSettings"
         @click="onSettingsClick()"
       >
         <i class="ti ti-settings" />

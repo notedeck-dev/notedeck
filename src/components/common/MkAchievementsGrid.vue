@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { i18n } from '@/i18n'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import {
   ACHIEVEMENT_TYPES,
@@ -472,7 +473,7 @@ function formatDate(ts: number): string {
       <div :class="$style.achievementInfo">
         <div :class="$style.achievementName">{{ item.unlockedAt ? getLabel(item.name) : '???' }}</div>
         <div v-if="item.unlockedAt" :class="$style.achievementDate">{{ formatDate(item.unlockedAt) }}</div>
-        <div v-else-if="pendingSet.has(item.name)" :class="$style.achievementDate">開放する</div>
+        <div v-else-if="pendingSet.has(item.name)" :class="$style.achievementDate">{{ i18n.ts._mkAchievementsGrid.unlock }}</div>
       </div>
     </component>
   </div>

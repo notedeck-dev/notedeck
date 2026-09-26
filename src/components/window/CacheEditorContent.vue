@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { i18n } from '@/i18n'
 import { useConfirm } from '@/stores/confirm'
 import { usePerformanceStore } from '@/stores/performance'
 import { useSettingsStore } from '@/stores/settings'
@@ -185,23 +186,23 @@ onMounted(refreshStats)
     <div :class="$style.section">
       <div :class="$style.sectionHeader">
         <i class="ti ti-chart-bar" :class="$style.sectionIcon" />
-        <span :class="$style.sectionTitle">使用状況</span>
+        <span :class="$style.sectionTitle">{{ i18n.ts._cacheEditorContent.usage }}</span>
       </div>
       <div :class="$style.statsRow">
         <div :class="$style.statBox">
-          <span :class="$style.statLabel">ノート</span>
+          <span :class="$style.statLabel">{{ i18n.ts._cacheEditorContent.notes }}</span>
           <span :class="$style.statValue">
             {{ noteCount == null ? '—' : noteCount.toLocaleString() }}
           </span>
         </div>
         <div :class="$style.statBox">
-          <span :class="$style.statLabel">DB サイズ</span>
+          <span :class="$style.statLabel">{{ i18n.ts._cacheEditorContent.dbSize }}</span>
           <span :class="$style.statValue">
             {{ dbBytes == null ? '—' : formatBytes(dbBytes) }}
           </span>
         </div>
         <div :class="$style.statBox">
-          <span :class="$style.statLabel">画像キャッシュ</span>
+          <span :class="$style.statLabel">{{ i18n.ts._cacheEditorContent.imageCache }}</span>
           <span :class="$style.statValue">
             {{ imageBytes == null ? '—' : formatBytes(imageBytes) }}
           </span>
@@ -215,11 +216,11 @@ onMounted(refreshStats)
     <div :class="$style.section">
       <div :class="$style.sectionHeader">
         <i class="ti ti-photo" :class="$style.sectionIcon" />
-        <span :class="$style.sectionTitle">画像キャッシュ</span>
+        <span :class="$style.sectionTitle">{{ i18n.ts._cacheEditorContent.imageCache }}</span>
       </div>
       <div :class="$style.fieldRow">
         <label :class="$style.field">
-          <span :class="$style.fieldLabel">上限</span>
+          <span :class="$style.fieldLabel">{{ i18n.ts._cacheEditorContent.maxSize }}</span>
           <input
             v-model.number="imageCacheMaxMB"
             type="number"
@@ -231,7 +232,7 @@ onMounted(refreshStats)
           <span :class="$style.fieldUnit">MB</span>
         </label>
         <label :class="$style.field">
-          <span :class="$style.fieldLabel">保持期間</span>
+          <span :class="$style.fieldLabel">{{ i18n.ts._cacheEditorContent.retention }}</span>
           <input
             v-model.number="imageCacheTTLDays"
             type="number"
@@ -240,7 +241,7 @@ onMounted(refreshStats)
             step="1"
             :class="$style.numberInput"
           />
-          <span :class="$style.fieldUnit">日</span>
+          <span :class="$style.fieldUnit">{{ i18n.ts._cacheEditorContent.days }}</span>
         </label>
       </div>
       <div :class="$style.btnRow">
@@ -251,7 +252,7 @@ onMounted(refreshStats)
           @click="clearImages"
         >
           <i class="ti ti-trash" />
-          {{ isClearingImages ? '処理中...' : `画像キャッシュ削除${imageFiles ? ` (${imageFiles.toLocaleString()} 件)` : ''}` }}
+          {{ isClearingImages ? i18n.ts._cacheEditorContent.processing : imageFiles ? i18n.tsx._cacheEditorContent.clearImagesWithCount_plural({ count: imageFiles }) : i18n.ts._cacheEditorContent.clearImages }}
         </button>
       </div>
     </div>
@@ -262,11 +263,11 @@ onMounted(refreshStats)
     <div :class="$style.section">
       <div :class="$style.sectionHeader">
         <i class="ti ti-recycle" :class="$style.sectionIcon" />
-        <span :class="$style.sectionTitle">保存粒度</span>
+        <span :class="$style.sectionTitle">{{ i18n.ts._cacheEditorContent.granularity }}</span>
       </div>
       <p :class="$style.hint">{{ presetHint }}</p>
       <p :class="$style.hint">
-        このキャッシュはクライアント検索の索引でもあります。フォロワー限定やダイレクトを含む、自分の目を通った全ノートが暗号化されずに保存されます。
+        {{ i18n.ts._cacheEditorContent.searchIndexNote }}
       </p>
       <div :class="$style.presetRow">
         <button
@@ -283,7 +284,7 @@ onMounted(refreshStats)
       <!-- custom: 詳細スライダー -->
       <div v-if="preset === 'custom'" :class="$style.customGrid">
         <label :class="$style.customLabel">
-          <span>アカウントあたり上限</span>
+          <span>{{ i18n.ts._cacheEditorContent.perAccountLimit }}</span>
           <select
             :value="String(customLimit)"
             :class="$style.select"
@@ -323,10 +324,10 @@ onMounted(refreshStats)
     <div :class="$style.section">
       <div :class="$style.sectionHeader">
         <i class="ti ti-eraser" :class="$style.sectionIcon" />
-        <span :class="$style.sectionTitle">手動削除</span>
+        <span :class="$style.sectionTitle">{{ i18n.ts._cacheEditorContent.manualClear }}</span>
       </div>
       <p :class="$style.hint">
-        ノートと OGP のキャッシュをすべて削除します。サーバーから再取得すれば復元されます。
+        {{ i18n.ts._cacheEditorContent.manualClearNote }}
       </p>
       <div :class="$style.btnRow">
         <button
@@ -336,7 +337,7 @@ onMounted(refreshStats)
           @click="clearAll"
         >
           <i class="ti ti-trash" />
-          {{ isClearing ? '処理中...' : '全キャッシュ削除' }}
+          {{ isClearing ? i18n.ts._cacheEditorContent.processing : i18n.ts._commands.clearAllCache }}
         </button>
       </div>
     </div>

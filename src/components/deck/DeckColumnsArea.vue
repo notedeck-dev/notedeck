@@ -7,6 +7,7 @@ import { useColumnResize } from '@/composables/useColumnResize'
 import { useColumnScroll } from '@/composables/useColumnScroll'
 import { useHorizontalWheel } from '@/composables/useHorizontalWheel'
 import * as snapshotStore from '@/composables/useSnapshotStore'
+import { i18n } from '@/i18n'
 import { useDeckStore } from '@/stores/deck'
 import { useIsCompactLayout } from '@/stores/ui'
 import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
@@ -253,15 +254,15 @@ defineExpose({
     <div v-if="deckStore.windowLayout.length === 0" :class="$style.emptyDeck">
       <ColumnEmptyState
         v-if="!deckStore.currentWindowId"
-        message="カラムがありません"
-        cta-label="既定の構成で始める"
+        :message="i18n.ts._deckColumnsArea.noColumns"
+        :cta-label="i18n.ts._deckColumnsArea.startWithDefault"
         cta-icon="ti-layout-columns"
         @cta="deckStore.applyDefaultDeck()"
       />
       <ColumnEmptyState
         v-else
-        message="カラムがありません"
-        cta-label="カラムを追加"
+        :message="i18n.ts._deckColumnsArea.noColumns"
+        :cta-label="i18n.ts._deckColumnsArea.addColumn"
         cta-icon="ti-plus"
         @cta="emit('add-column')"
       />

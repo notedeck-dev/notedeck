@@ -14,6 +14,7 @@ import { useLongPress } from '@/composables/useLongPress'
 import { usePinchZoom } from '@/composables/usePinchZoom'
 import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
+import { i18n } from '@/i18n'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { isSafeUrl, openSafeUrl } from '@/utils/url'
 import PopupMenu from './PopupMenu.vue'
@@ -321,23 +322,23 @@ async function openInBrowser() {
       <PopupMenu ref="menuRef" @click.stop>
         <button class="_popupItem" @click="copyImage">
           <i class="ti ti-copy" />
-          画像をコピー
+          {{ i18n.ts._mkMediaLightbox.copyImage }}
         </button>
         <button class="_popupItem" @click="downloadImage">
           <i class="ti ti-download" />
-          画像をダウンロード
+          {{ i18n.ts._mkMediaLightbox.downloadImage }}
         </button>
         <button class="_popupItem" @click="copyImageLink">
           <i class="ti ti-link" />
-          画像のリンクをコピー
+          {{ i18n.ts._mkMediaLightbox.copyImageLink }}
         </button>
         <button v-if="canShare" class="_popupItem" @click="shareImage">
           <i class="ti ti-share" />
-          画像を共有
+          {{ i18n.ts._mkMediaLightbox.shareImage }}
         </button>
         <button class="_popupItem" @click="openInBrowser">
           <i class="ti ti-external-link" />
-          ブラウザで開く
+          {{ i18n.ts._mkMediaLightbox.openInBrowser }}
         </button>
       </PopupMenu>
   </div>

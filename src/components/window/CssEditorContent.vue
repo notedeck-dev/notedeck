@@ -12,6 +12,7 @@ import { openEditHistoryWindow } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import {
   buildPresetCss,
   type CssPresets,
@@ -307,13 +308,13 @@ const { isSyncing } = useExternalEditSync<string>({
 
 <template>
   <div ref="editorRef" :class="$style.cssContent">
-    <SafeModeNotice subject="カスタム CSS" />
+    <SafeModeNotice :subject="i18n.ts._cssEditorContent.customCss" />
 
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'presets', icon: 'adjustments', label: 'プリセット' },
-        { value: 'code', icon: 'code', label: 'コード' },
+        { value: 'presets', icon: 'adjustments', label: i18n.ts._cssEditorContent.presets },
+        { value: 'code', icon: 'code', label: i18n.ts._common.code },
       ]"
     />
 
@@ -323,7 +324,7 @@ const { isSyncing } = useExternalEditSync<string>({
       <div :class="$style.section">
         <button class="_button" :class="$style.sectionLabel" @click="toggleSection('font')">
           <i class="ti ti-typography" />
-          フォント
+          {{ i18n.ts._cssEditorContent.font }}
           <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.font }]" />
         </button>
         <template v-if="expandedSections.font">
@@ -333,7 +334,7 @@ const { isSyncing } = useExternalEditSync<string>({
             font-preview
           />
           <div v-if="presets.customFont" :class="$style.preview" :style="{ fontFamily: `'${presets.customFont}', sans-serif` }">
-            あいうえお 漢字 ABCabc 123 Il1 O0
+            {{ i18n.ts._cssEditorContent.fontPreview }}
           </div>
         </template>
       </div>
@@ -342,7 +343,7 @@ const { isSyncing } = useExternalEditSync<string>({
       <div :class="$style.section">
         <button class="_button" :class="$style.sectionLabel" @click="toggleSection('monoFont')">
           <i class="ti ti-code" />
-          等幅フォント
+          {{ i18n.ts._cssEditorContent.monoFont }}
           <span :class="$style.sectionValue">{{ selectedMonoFontLabel }}</span>
           <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.monoFont }]" />
         </button>
@@ -354,10 +355,10 @@ const { isSyncing } = useExternalEditSync<string>({
             font-fallback="monospace"
           />
           <div v-if="presets.monoFont" :class="$style.preview" :style="{ fontFamily: `'${presets.monoFont}', monospace` }">
-            const 変数 = 0; // Il1 O0
+            {{ i18n.ts._cssEditorContent.monoFontPreview }}
           </div>
           <div :class="$style.hideCountNote">
-            コードブロック・JSON ビューア・エディタ系に反映されます
+            {{ i18n.ts._cssEditorContent.monoFontNote }}
           </div>
         </template>
       </div>
@@ -366,13 +367,13 @@ const { isSyncing } = useExternalEditSync<string>({
       <div :class="$style.section">
         <button class="_button" :class="$style.sectionLabel" @click="toggleSection('fontSize')">
           <i class="ti ti-text-resize" />
-          フォントサイズ
+          {{ i18n.ts._cssEditorContent.fontSize }}
           <span :class="$style.sectionValue">{{ fontSizeLabel }}</span>
           <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.fontSize }]" />
         </button>
         <template v-if="expandedSections.fontSize">
           <div :class="$style.sliderRow">
-            <span :class="$style.sliderLabel">小</span>
+            <span :class="$style.sliderLabel">{{ i18n.ts._cssEditorContent.small }}</span>
             <input
               v-model.number="presets.fontSize"
               type="range"
@@ -382,7 +383,7 @@ const { isSyncing } = useExternalEditSync<string>({
               :class="$style.slider"
               :style="{ '--fill': sliderFill(presets.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX) }"
             />
-            <span :class="$style.sliderLabel">大</span>
+            <span :class="$style.sliderLabel">{{ i18n.ts._cssEditorContent.large }}</span>
           </div>
           <button
             v-if="presets.fontSize !== 0"
@@ -390,7 +391,7 @@ const { isSyncing } = useExternalEditSync<string>({
             :class="$style.resetBtn"
             @click="presets.fontSize = 0"
           >
-            リセット
+            {{ i18n.ts._cssEditorContent.reset }}
           </button>
         </template>
       </div>
@@ -399,7 +400,7 @@ const { isSyncing } = useExternalEditSync<string>({
       <div :class="$style.section">
         <button class="_button" :class="$style.sectionLabel" @click="toggleSection('visibilityBg')">
           <i class="ti ti-eye" />
-          公開範囲の色分け
+          {{ i18n.ts._cssEditorContent.visibilityBg }}
           <span :class="$style.sectionValue">{{ selectedVisibilityBgLabel }}</span>
           <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.visibilityBg }]" />
         </button>
@@ -425,7 +426,7 @@ const { isSyncing } = useExternalEditSync<string>({
       <div :class="$style.section">
         <button class="_button" :class="$style.sectionLabel" @click="toggleSection('noteCounts')">
           <i class="ti ti-mood-smile" />
-          ノートの数字を隠す
+          {{ i18n.ts._cssEditorContent.hideNoteCounts }}
           <span :class="$style.sectionValue">{{ hideCountLabel(presets.hideNoteCounts) }}</span>
           <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.noteCounts }]" />
         </button>
@@ -435,7 +436,7 @@ const { isSyncing } = useExternalEditSync<string>({
             :options="HIDE_COUNT_OPTIONS"
           />
           <div :class="$style.hideCountNote">
-            リアクション数とリノート数が消えます (返信数は会話の量なので残ります)
+            {{ i18n.ts._cssEditorContent.hideNoteCountsNote }}
           </div>
         </template>
       </div>
@@ -444,7 +445,7 @@ const { isSyncing } = useExternalEditSync<string>({
       <div :class="$style.section">
         <button class="_button" :class="$style.sectionLabel" @click="toggleSection('userStats')">
           <i class="ti ti-chart-bar" />
-          プロフィールの数字を隠す
+          {{ i18n.ts._cssEditorContent.hideUserStats }}
           <span :class="$style.sectionValue">{{ hideCountLabel(presets.hideUserStats) }}</span>
           <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.userStats }]" />
         </button>
@@ -454,7 +455,7 @@ const { isSyncing } = useExternalEditSync<string>({
             :options="HIDE_COUNT_OPTIONS"
           />
           <div :class="$style.hideCountNote">
-            ノート数・フォロー数・フォロワー数が「-」になります (クリック導線は残ります)
+            {{ i18n.ts._cssEditorContent.hideUserStatsNote }}
           </div>
         </template>
       </div>
@@ -463,7 +464,7 @@ const { isSyncing } = useExternalEditSync<string>({
       <div :class="$style.section">
         <button class="_button" :class="$style.sectionLabel" @click="toggleSection('css')">
           <i class="ti ti-pencil" />
-          追加CSS
+          {{ i18n.ts._cssEditorContent.freeformCss }}
           <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.css }]" />
         </button>
         <template v-if="expandedSections.css">
@@ -479,7 +480,7 @@ const { isSyncing } = useExternalEditSync<string>({
             {{ cssError }}
           </div>
           <div v-if="cssError" :class="$style.errorHint">
-            CSSにエラーがあるため適用されません
+            {{ i18n.ts._cssEditorContent.cssErrorHint }}
           </div>
         </template>
       </div>
@@ -488,7 +489,7 @@ const { isSyncing } = useExternalEditSync<string>({
     <!-- Code Editor -->
     <div v-show="tab === 'code'" :class="$style.codePanel">
       <div :class="$style.codeHint">
-        プリセットと追加CSSを結合した全体のCSSです
+        {{ i18n.ts._cssEditorContent.codeHint }}
       </div>
       <CodeEditor
         v-model="cssCode"
@@ -503,7 +504,7 @@ const { isSyncing } = useExternalEditSync<string>({
       </div>
       <div v-if="!codeError && cssCode.trim()" :class="$style.codeSuccess">
         <i class="ti ti-check" />
-        適用中
+        {{ i18n.ts._common.active }}
       </div>
       <button
         class="_button"
@@ -511,7 +512,7 @@ const { isSyncing } = useExternalEditSync<string>({
         @click="applyFromCode"
       >
         <i class="ti ti-refresh" />
-        プリセットに同期
+        {{ i18n.ts._cssEditorContent.syncToPresets }}
       </button>
     </div>
 
@@ -524,7 +525,7 @@ const { isSyncing } = useExternalEditSync<string>({
           @click="importCss"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
+          {{ importError ? i18n.ts._cssEditorContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"
@@ -532,7 +533,7 @@ const { isSyncing } = useExternalEditSync<string>({
           @click="exportCss"
         >
           <i class="ti ti-clipboard-copy" />
-          {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+          {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
         </button>
         <button
           v-if="historyExposed"
@@ -541,7 +542,7 @@ const { isSyncing } = useExternalEditSync<string>({
           @click="openHistory"
         >
           <i class="ti ti-history" />
-          履歴
+          {{ i18n.ts._cssEditorContent.history }}
         </button>
       </div>
       <button
@@ -550,7 +551,7 @@ const { isSyncing } = useExternalEditSync<string>({
         @click="handleClear"
       >
         <i class="ti ti-trash" />
-        {{ confirmingClear ? '本当にクリア？' : 'すべてクリア' }}
+        {{ confirmingClear ? i18n.ts._cssEditorContent.confirmClear : i18n.ts._cssEditorContent.clearAll }}
       </button>
     </div>
   </div>

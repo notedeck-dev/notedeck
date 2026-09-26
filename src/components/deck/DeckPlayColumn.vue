@@ -7,6 +7,7 @@ import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
@@ -141,11 +142,11 @@ function scrollToTop() {
           :account-id="column.accountId"
           is-error
           :image-url="serverErrorImageUrl"
-          cta-label="再試行"
+          :cta-label="i18n.ts._common.retry"
           cta-icon="ti-refresh"
           @cta="fetchList()"
         />
-        <ColumnEmptyState v-else-if="listItems.length === 0" message="Playが見つかりません" :image-url="serverInfoImageUrl" />
+        <ColumnEmptyState v-else-if="listItems.length === 0" :message="i18n.ts._deckPlayColumn.empty" :image-url="serverInfoImageUrl" />
         <button
           v-for="item in listItems"
           :key="item.id"

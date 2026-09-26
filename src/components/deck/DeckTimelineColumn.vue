@@ -23,6 +23,7 @@ import { provideNoteFrame } from '@/composables/useNoteFrame'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import type { VariantKey } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
@@ -624,7 +625,7 @@ onMounted(async () => {
   <DeckColumn
     v-if="isCrossAccount"
     :column-id="column.id"
-    :title="column.name || 'タイムライン'"
+    :title="column.name || i18n.ts._columns.timeline"
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
     @refresh="connectCrossAccount"
@@ -664,7 +665,7 @@ onMounted(async () => {
       :account-id="column.accountId"
       is-error
       :image-url="serverErrorImageUrl"
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="connectCrossAccount"
     />
@@ -698,7 +699,7 @@ onMounted(async () => {
           class="_button"
           @click="scrollToTop()"
         >
-          <i class="ti ti-arrow-up" />新しいノート
+          <i class="ti ti-arrow-up" />{{ i18n.ts._deckTimelineColumn.newNotes }}
         </button>
 
         <NoteScroller
@@ -746,7 +747,7 @@ onMounted(async () => {
     v-else
     ref="noteColumnRef"
     :column="column"
-    title="タイムライン"
+    :title="i18n.ts._columns.timeline"
     icon="ti-home"
     sound-enabled
     :note-column-config="noteColumnConfig"

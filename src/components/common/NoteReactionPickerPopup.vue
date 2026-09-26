@@ -5,6 +5,7 @@ import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import {
   getAccountAvatarUrl,
   getAccountLabel,
@@ -131,7 +132,7 @@ defineExpose({ open })
   >
     <div v-if="actingAccount" :class="$style.actingAccount">
       <AccountAvatar :src="proxyThumbUrl(getAccountAvatarUrl(actingAccount), 40) ?? ''" :host="actingAccount.host" :size="18" :show-server="false" />
-      <span>{{ getAccountLabel(actingAccount) }} として</span>
+      <span>{{ i18n.tsx._noteReactionPickerPopup.actingAs({ account: getAccountLabel(actingAccount) }) }}</span>
     </div>
     <MkReactionPicker
       :server-host="serverHost"
@@ -158,7 +159,7 @@ defineExpose({ open })
     >
       <div v-if="actingAccount" :class="$style.actingAccount">
         <AccountAvatar :src="proxyThumbUrl(getAccountAvatarUrl(actingAccount), 40) ?? ''" :host="actingAccount.host" :size="18" :show-server="false" />
-        <span>{{ getAccountLabel(actingAccount) }} として</span>
+        <span>{{ i18n.tsx._noteReactionPickerPopup.actingAs({ account: getAccountLabel(actingAccount) }) }}</span>
       </div>
       <MkReactionPicker
         :server-host="serverHost"

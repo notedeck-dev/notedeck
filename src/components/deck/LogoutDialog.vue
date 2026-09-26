@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, toRef } from 'vue'
-
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 
 const props = defineProps<{
   show: boolean
@@ -40,27 +40,27 @@ useNativeDialog(dialogRef, visible, {
       >
         <div :class="$style.header">
           <i :class="[$style.icon, isGuest ? 'ti ti-user-off' : 'ti ti-logout']" />
-          <div :class="$style.title">{{ isGuest ? 'ゲストを削除' : 'ログアウト' }}</div>
+          <div :class="$style.title">{{ isGuest ? i18n.ts._logoutDialog.removeGuest : i18n.ts._logoutDialog.logout }}</div>
         </div>
 
         <div :class="$style.body">
           <p :class="$style.message">
-            {{ isGuest ? 'このゲストアカウントを削除しますか？' : 'ローカルデータをこのデバイスに残しますか？' }}
+            {{ isGuest ? i18n.ts._logoutDialog.confirmRemoveGuest : i18n.ts._logoutDialog.keepDataQuestion }}
           </p>
           <p v-if="!isGuest" :class="$style.hint">
-            残したデータはオフラインで閲覧できます。
+            {{ i18n.ts._logoutDialog.keptDataHint }}
           </p>
         </div>
 
         <div :class="$style.actions">
           <button class="_button" :class="$style.btnCancel" @click="emit('cancel')">
-            キャンセル
+            {{ i18n.ts._common.cancel }}
           </button>
           <button class="_button" :class="$style.btnDelete" @click="emit('delete-all')">
-            {{ isGuest ? '削除' : 'すべて削除' }}
+            {{ isGuest ? i18n.ts._common.delete : i18n.ts._logoutDialog.deleteAll }}
           </button>
           <button v-if="!isGuest" class="_button" :class="$style.btnKeep" @click="emit('keep-data')">
-            データを残す
+            {{ i18n.ts._logoutDialog.keepData }}
           </button>
         </div>
       </div>

@@ -23,6 +23,7 @@ import type {
   NoteTreeNode,
 } from '@/components/common/MkNoteTree.vue'
 import MkNoteTree from '@/components/common/MkNoteTree.vue'
+import { i18n } from '@/i18n'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -521,7 +522,7 @@ async function handlePosted(editedNoteId?: string) {
           :handlers="treeHandlers"
         />
         <div v-if="children.length === 0" :class="$style.stateMessage">
-          返信はありません
+          {{ i18n.ts._noteDetailContent.noReplies }}
         </div>
       </div>
 
@@ -559,7 +560,7 @@ async function handlePosted(editedNoteId?: string) {
           </div>
         </div>
         <div v-else :class="$style.stateMessage">
-          リノートはありません
+          {{ i18n.ts._noteDetailContent.noRenotes }}
         </div>
       </div>
 
@@ -580,7 +581,7 @@ async function handlePosted(editedNoteId?: string) {
                 :class="$style.reactionChipEmoji"
                 role="img"
                 :aria-label="rt"
-                :title="`${rt} (ミュート中)`"
+                :title="i18n.tsx._noteDetailContent.mutedReaction({ reaction: rt })"
               />
               <img
                 v-else-if="reactionTypeUrl(rt)"
@@ -625,10 +626,10 @@ async function handlePosted(editedNoteId?: string) {
         </div>
         <!-- 数え直しの保留中に「ありません」と誤断言しない (#1084 レビュー) -->
         <div v-else-if="recountPending" :class="$style.stateMessage">
-          <i class="ti ti-loader-2 nd-spin" /> 読み込み中...
+          <i class="ti ti-loader-2 nd-spin" /> {{ i18n.ts._common.loading }}
         </div>
         <div v-else :class="$style.stateMessage">
-          リアクションはありません
+          {{ i18n.ts._noteDetailContent.noReactions }}
         </div>
       </div>
     </div>

@@ -16,6 +16,7 @@ import {
   saveMemo,
 } from '@/composables/useMemos'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useServersStore } from '@/stores/servers'
@@ -186,8 +187,8 @@ async function onDelete() {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'eye', label: 'ビジュアル' },
-        { value: 'code', icon: 'code', label: 'コード' },
+        { value: 'visual', icon: 'eye', label: i18n.ts._common.visual },
+        { value: 'code', icon: 'code', label: i18n.ts._common.code },
       ]"
     />
 
@@ -208,10 +209,10 @@ async function onDelete() {
 
     <!-- Visual tab: rendered preview -->
     <div v-show="tab === 'visual'" :class="$style.visualPanel">
-      <div v-if="!loaded" :class="$style.placeholder">読み込み中…</div>
+      <div v-if="!loaded" :class="$style.placeholder">{{ i18n.ts._memoEditorContent.loading }}</div>
       <ColumnEmptyState
         v-else-if="notFound"
-        message="このメモは見つかりません"
+        :message="i18n.ts._memoEditorContent.notFound"
         :image-url="serverNotFoundImageUrl"
         fallback-kind="notFound"
       />
@@ -228,10 +229,10 @@ async function onDelete() {
 
     <!-- Code tab: raw Markdown editor -->
     <div v-show="tab === 'code'" :class="$style.codePanel">
-      <div v-if="!loaded" :class="$style.placeholder">読み込み中…</div>
+      <div v-if="!loaded" :class="$style.placeholder">{{ i18n.ts._memoEditorContent.loading }}</div>
       <ColumnEmptyState
         v-else-if="notFound"
-        message="このメモは見つかりません"
+        :message="i18n.ts._memoEditorContent.notFound"
         :image-url="serverNotFoundImageUrl"
         fallback-kind="notFound"
       />
@@ -247,12 +248,12 @@ async function onDelete() {
     <PopupMenu ref="popupMenuRef">
       <button class="_popupItem" @click="openHistory">
         <i class="ti ti-history" />
-        編集履歴
+        {{ i18n.ts._windows.editHistory }}
       </button>
       <div class="_popupDivider" />
       <button class="_popupItem _popupItemDanger" @click="onDelete">
         <i class="ti ti-trash" />
-        削除
+        {{ i18n.ts._common.delete }}
       </button>
     </PopupMenu>
   </div>

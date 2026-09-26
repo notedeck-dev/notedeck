@@ -10,6 +10,7 @@ import {
 } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type { UserPvChart } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useServersStore } from '@/stores/servers'
 // side-effect: Chart.register
@@ -178,7 +179,7 @@ watch(
     <div :class="$style.canvasWrap">
       <canvas ref="canvasRef" />
       <div v-if="state !== 'ok'" :class="$style.overlay">
-        <span v-if="state === 'loading'">読み込み中...</span>
+        <span v-if="state === 'loading'">{{ i18n.ts._common.loading }}</span>
         <template v-else-if="state === 'error'">
           <img
             v-if="serverErrorImageUrl"
@@ -187,7 +188,7 @@ watch(
             alt=""
           />
           <span :class="$style.errorText">
-            PV データを取得できません
+            {{ i18n.ts._userActivityPvChart.unavailable }}
           </span>
         </template>
       </div>

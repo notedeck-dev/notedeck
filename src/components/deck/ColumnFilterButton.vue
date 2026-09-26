@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import type { TimelineFilter } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   isQueryActive,
@@ -116,7 +117,7 @@ function openQueryManager(): void {
     ref="filterBtnRef"
     class="_button"
     :class="[$style.filterBtn, { [$style.filterBtnActive]: hasActiveFilter }]"
-    title="フィルター"
+    :title="i18n.ts._columnFilterButton.filter"
     @click.stop="toggleFilterMenu"
   >
     <i class="ti ti-filter" />

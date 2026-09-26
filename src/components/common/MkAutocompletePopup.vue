@@ -6,6 +6,7 @@ import type {
   AutocompleteCandidate,
   TriggerType,
 } from '@/composables/useAutocomplete'
+import { i18n } from '@/i18n'
 
 const props = defineProps<{
   type: TriggerType
@@ -95,7 +96,7 @@ function candidateKey(candidate: AutocompleteCandidate): string {
         </template>
       </button>
     </div>
-    <div v-else-if="isSearching" :class="$style.autocompleteStatus">検索中...</div>
+    <div v-else-if="isSearching" :class="$style.autocompleteStatus">{{ i18n.ts._mkAutocompletePopup.searching }}</div>
   </div>
 </template>
 

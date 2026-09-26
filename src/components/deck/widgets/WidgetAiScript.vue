@@ -312,7 +312,7 @@ onMounted(() => {
         <button
           v-if="isWindowExposed('widget-edit')"
           :class="$style.toolBtn"
-          title="コードを編集"
+          :title="i18n.ts._widgetAiScript.editCode"
           @click="openEditor"
         >
           <i class="ti ti-code" />
@@ -320,7 +320,7 @@ onMounted(() => {
         <button
           :class="[$style.toolBtn, $style.run]"
           :disabled="running"
-          :title="running ? '実行中...' : '実行'"
+          :title="running ? i18n.ts._widgetAiScript.running : i18n.ts._widgetAiScript.run"
           @click="run"
         >
           <i class="ti ti-player-play" />
@@ -328,14 +328,14 @@ onMounted(() => {
       </div>
       <div
         :class="$style.dragHandle"
-        title="ドラッグして並び替え"
+        :title="i18n.ts._widgetAiScript.dragToReorder"
         @pointerdown="emit('drag-start', $event)"
       >
         <i class="ti ti-grip-vertical" />
       </div>
       <button
         :class="$style.widgetRemove"
-        :title="isSidebar ? 'サイドバーから外す' : 'このカラムから外す'"
+        :title="isSidebar ? i18n.ts._widgetAiScript.removeFromSidebar : i18n.ts._widgetAiScript.removeFromColumn"
         @click="emit('remove')"
       >
         <i class="ti ti-circle-minus" />
@@ -356,7 +356,7 @@ onMounted(() => {
       />
 
       <details v-if="output.length" :class="$style.outputPanel">
-        <summary>出力 ({{ output.length }})</summary>
+        <summary>{{ i18n.tsx._widgetAiScript.outputCount({ n: output.length }) }}</summary>
         <div
           v-for="(line, i) in output"
           :key="i"

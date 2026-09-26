@@ -31,6 +31,7 @@ import {
   useVaporTransitionGroup,
 } from '@/composables/useVaporTransition'
 import { useVisibleReactionCounts } from '@/composables/useVisibleReactionCounts'
+import { i18n } from '@/i18n'
 import { displayAcct, tickerInfo } from '@/services/noteFrame'
 import type { NoteGroup } from '@/services/noteGroup'
 import { variantKeyOf } from '@/services/noteKey'
@@ -848,7 +849,7 @@ function handlePickerReaction(reaction: string) {
     <!-- Pinned indicator -->
     <div v-if="pinnedNoteIds?.includes(note.id)" :class="$style.pinnedInfo">
       <i class="ti ti-pin" :class="$style.pinnedIcon" />
-      <span :class="$style.pinnedLabel">ピン留めされたノート</span>
+      <span :class="$style.pinnedLabel">{{ i18n.ts._mkNote.pinned }}</span>
     </div>
 
     <!-- Renote info bar -->
@@ -878,7 +879,7 @@ function handlePickerReaction(reaction: string) {
         />
         <template v-else>{{ note.user.username }}</template>
       </span>
-      <span :class="$style.renoteLabel">がリノート</span>
+      <span :class="$style.renoteLabel">{{ i18n.ts._mkNote.renotedSuffix }}</span>
       <button :class="$style.renoteMoreButton" @click.stop="renoteMoreMenuRef?.open($event)">
         <i class="ti ti-dots" />
       </button>
@@ -973,13 +974,13 @@ function handlePickerReaction(reaction: string) {
               :key="mode.key"
               class="ti"
               :class="[`ti-${mode.icon}`, $style.visibilityIcon]"
-              :title="mode.label + 'モード'"
+              :title="i18n.tsx._mkNote.modeTitle({ mode: mode.label })"
             />
             <i
               v-if="effectiveNote.localOnly"
               class="ti ti-rocket-off"
               :class="$style.visibilityIcon"
-              title="ローカルのみ"
+              :title="i18n.ts._mkNote.localOnly"
             />
             <svg
               v-if="effectiveNote.visibility !== 'public'"
@@ -1013,9 +1014,9 @@ function handlePickerReaction(reaction: string) {
 
         <!-- Word mute (soft, #610) -->
         <div v-if="softMuteCollapsed" :class="$style.cw">
-          <p :class="$style.cwText">{{ effectiveNote.user.name || effectiveNote.user.username }}が何かを言いました</p>
+          <p :class="$style.cwText">{{ i18n.tsx._mkNote.saidSomething({ name: effectiveNote.user.name || effectiveNote.user.username }) }}</p>
           <button :class="$style.cwToggle" class="_button" @click.stop="wordMuteRevealed = true">
-            もっと見る
+            {{ i18n.ts._mkNote.showMore }}
           </button>
         </div>
 
@@ -1024,7 +1025,7 @@ function handlePickerReaction(reaction: string) {
              本家と同じく本文・添付・投票を出さず理由だけ出す (#1058 §5.2) -->
         <div v-if="effectiveNote.contentHidden && !softMuteCollapsed" :class="$style.hiddenPlaceholder">
           <i class="ti ti-lock" />
-          このノートは非公開です
+          {{ i18n.ts._mkNote.contentHidden }}
         </div>
         <div v-if="effectiveNote.cw !== null && !softMuteCollapsed && !effectiveNote.contentHidden" :class="$style.cw">
           <p :class="$style.cwText">
@@ -1041,8 +1042,8 @@ function handlePickerReaction(reaction: string) {
             />
           </p>
           <button :class="$style.cwToggle" class="_button" @click.stop="cwExpanded = !cwExpanded">
-            {{ cwExpanded ? '隠す' : 'もっと見る' }}
-            <span v-if="!cwExpanded && effectiveNote.text" :class="$style.cwChars">({{ effectiveNote.text.length }}文字)</span>
+            {{ cwExpanded ? i18n.ts._common.hide : i18n.ts._mkNote.showMore }}
+            <span v-if="!cwExpanded && effectiveNote.text" :class="$style.cwChars">{{ i18n.tsx._mkNote.chars_plural({ count: effectiveNote.text.length }) }}</span>
           </button>
         </div>
 
@@ -1066,8 +1067,8 @@ function handlePickerReaction(reaction: string) {
             <div v-if="isLongText && !longTextExpanded" :class="$style.longTextFade" />
           </div>
           <button v-if="isLongText" :class="$style.cwToggle" class="_button" @click.stop="longTextExpanded = !longTextExpanded">
-            {{ longTextExpanded ? '隠す' : 'もっと見る' }}
-            <span v-if="!longTextExpanded && effectiveNote.text" :class="$style.cwChars">({{ effectiveNote.text.length }}文字)</span>
+            {{ longTextExpanded ? i18n.ts._common.hide : i18n.ts._mkNote.showMore }}
+            <span v-if="!longTextExpanded && effectiveNote.text" :class="$style.cwChars">{{ i18n.tsx._mkNote.chars_plural({ count: effectiveNote.text.length }) }}</span>
           </button>
 
           <MkMediaGrid
@@ -1133,7 +1134,7 @@ function handlePickerReaction(reaction: string) {
               @mouseenter="reactionUsersRef?.show($event, r.reaction, urlFor(r), r.count)"
               @mouseleave="reactionUsersRef?.hide()"
             >
-              <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.customEmoji" role="img" :aria-label="r.reaction" :title="`${r.reaction} (ミュート中)`" />
+              <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.customEmoji" role="img" :aria-label="r.reaction" :title="i18n.tsx._mkNote.mutedTitle({ emoji: r.reaction })" />
               <img v-else-if="urlFor(r)" :src="proxyEmojiUrl(urlFor(r)!)" :alt="r.reaction" :class="$style.customEmoji" decoding="async" loading="lazy" @error="onCustomEmojiImgError" />
               <img v-else-if="r.reaction.startsWith(':')" src="/emoji-unknown.svg" :alt="r.reaction" :title="r.reaction" :class="$style.customEmoji" />
               <MkEmoji v-else :emoji="r.reaction" :class="$style.reactionEmoji" />
@@ -1155,7 +1156,7 @@ function handlePickerReaction(reaction: string) {
         >
           <i class="ti ti-device-tv" :class="$style.channelBadgeIcon" />
           <span :class="$style.channelBadgeName">
-            {{ channelInfo.name ?? 'チャンネル' }}
+            {{ channelInfo.name ?? i18n.ts._columns.channel }}
           </span>
         </button>
 
@@ -1179,7 +1180,7 @@ function handlePickerReaction(reaction: string) {
           <button
             :class="[$style.footerButton, $style.reactionButton, { [$style.reacted]: effectiveNote.myReaction != null, [$style.footerDisabled]: isGuest || effectiveNote.contentHidden }]"
             :disabled="isGuest || effectiveNote.contentHidden"
-            :title="effectiveNote.myReaction != null ? 'リアクションを取り消す' : 'リアクション'"
+            :title="effectiveNote.myReaction != null ? i18n.ts._mkNote.unreact : i18n.ts._mkNote.react"
             @click.stop="canInteract ? toggleFooterReaction($event) : showLoginPrompt()"
           >
             <i :class="effectiveNote.myReaction != null ? 'ti ti-minus' : 'ti ti-plus'" />
@@ -1211,15 +1212,15 @@ function handlePickerReaction(reaction: string) {
       >
         <button v-if="myRenoteId" :class="[$style.renotePopupItem, $style.renotePopupItemActive]" @click="handleUnrenote()">
           <i class="ti ti-trash" />
-          リノート解除
+          {{ i18n.ts._mkNote.unrenote }}
         </button>
         <button v-else :class="$style.renotePopupItem" @click="emit('renote', effectiveNote); closeRenoteMenu(); isRenoted = true">
           <i class="ti ti-repeat" />
-          リノート
+          {{ i18n.ts._mkNote.renote }}
         </button>
         <button :class="$style.renotePopupItem" @click="emit('quote', effectiveNote); closeRenoteMenu()">
           <i class="ti ti-quote" />
-          引用
+          {{ i18n.ts._mkNote.quote }}
         </button>
       </div>
     </div>

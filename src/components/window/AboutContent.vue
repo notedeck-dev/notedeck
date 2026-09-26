@@ -13,6 +13,7 @@ import {
   type OverallStreamHealth,
 } from '@/core/streamHealth'
 import type { QualityLevel } from '@/engine/telemetry/frameTelemetry'
+import { i18n } from '@/i18n'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
@@ -589,7 +590,7 @@ function reportBug() {
         type="button"
         class="_button"
         :class="$style.aboutTitle"
-        title="公式サイトを開く"
+        :title="i18n.ts._aboutContent.openOfficialSite"
         @click="openSafeUrl(SITE_URL)"
       >
         NoteDeck
@@ -602,7 +603,7 @@ function reportBug() {
         type="button"
         class="_button"
         :class="[$style.aboutVersion, isUpToDate && $style.versionOk]"
-        title="アップデートを確認"
+        :title="i18n.ts._aboutContent.checkForUpdate"
         :disabled="isChecking"
         @click="checkForUpdate(true)"
       >
@@ -613,7 +614,7 @@ function reportBug() {
             $style.versionIcon,
           ]"
         />
-        <span v-if="isUpToDate">最新</span>
+        <span v-if="isUpToDate">{{ i18n.ts._aboutContent.upToDate }}</span>
       </button>
       <div v-else :class="$style.aboutVersion">v{{ appVersion }}</div>
     </div>
@@ -622,13 +623,13 @@ function reportBug() {
          「バッジで気づく → 明示的な行で実行」モデル)。hero にアクションを
          置かないことでチュートリアルとの誤タップも防ぐ -->
     <div v-if="showUpdateSection" :class="$style.formSection">
-      <div :class="$style.formSectionLabel">アップデート</div>
+      <div :class="$style.formSectionLabel">{{ i18n.ts._aboutContent.update }}</div>
       <div :class="$style.sectionBody">
         <div :class="$style.updateRow">
           <i :class="[updateIcon, $style.updateIcon]" />
           <span :class="$style.updateText">
-            <template v-if="updateReady">更新の準備ができました</template>
-            <template v-else-if="isInstalling">v{{ updateVersion }} をダウンロード中</template>
+            <template v-if="updateReady">{{ i18n.ts._aboutContent.updateReady }}</template>
+            <template v-else-if="isInstalling">{{ i18n.tsx._aboutContent.downloading({ version: updateVersion }) }}</template>
             <template v-else>{{ appVersion }} → {{ updateVersion }}</template>
           </span>
           <span v-if="isInstalling && downloadProgress !== null" :class="$style.updatePercent">
@@ -641,7 +642,7 @@ function reportBug() {
             :class="$style.updateAction"
             @click="updateReady ? restartToUpdate() : installUpdate()"
           >
-            {{ updateReady ? '再起動' : '更新' }}
+            {{ updateReady ? i18n.ts._aboutContent.restart : i18n.ts._aboutContent.updateNow }}
           </button>
         </div>
         <div v-if="isInstalling" :class="$style.progressTrack">
@@ -659,7 +660,7 @@ function reportBug() {
     <div :class="$style.formSection">
       <div :class="$style.sectionBody">
         <AiSwitchRow
-          label="開発者モード"
+          :label="i18n.ts._aboutContent.developerMode"
           icon="ti-code"
           :on="developerMode"
           @toggle="toggleDeveloperMode"
@@ -670,7 +671,7 @@ function reportBug() {
     <!-- 本家 about-misskey の projectMembers 踏襲 (行の型は formLink に統一)。
          飛び先を Sponsors にすることで寄付導線を兼ねる -->
     <div :class="$style.formSection">
-      <div :class="$style.formSectionLabel">開発者</div>
+      <div :class="$style.formSectionLabel">{{ i18n.ts._aboutContent.developer }}</div>
       <div :class="$style.sectionBody">
         <button type="button" class="_button" :class="$style.formLink" @click="openSafeUrl(SPONSOR_URL)">
           <img src="https://github.com/hitalin.png?size=48" :class="$style.devAvatar" alt="" />
@@ -689,14 +690,14 @@ function reportBug() {
           :class="[$style.formSectionLabel, $style.infoToggle, infoOpen && $style.infoOpen]"
           @click="infoOpen = !infoOpen"
         >
-          バージョン情報
+          {{ i18n.ts._aboutContent.versionInfo }}
           <i class="ti ti-chevron-down" :class="$style.infoChevron" />
         </button>
         <!-- コピーされる本体はこのセクションの infoRows なのでここに置く -->
         <button
           class="_button"
           :class="[$style.infoCopy, copied && $style.infoCopied]"
-          :title="copied ? 'コピーしました' : '情報をコピー'"
+          :title="copied ? i18n.ts._common.copiedToClipboard : i18n.ts._aboutContent.copyInfo"
           @click="copyInfo"
         >
           <i :class="copied ? 'ti ti-check' : 'ti ti-copy'" />
@@ -712,7 +713,7 @@ function reportBug() {
       <div :class="$style.sectionBody">
         <button type="button" class="_button" :class="$style.formLink" @click="reportBug">
           <i class="ti ti-bug" :class="$style.formLinkIcon" />
-          <span>バグを報告</span>
+          <span>{{ i18n.ts._aboutContent.reportBug }}</span>
           <span :class="$style.formLinkSuffix">GitHub Issues <i class="ti ti-external-link" /></span>
         </button>
       </div>
@@ -729,7 +730,7 @@ function reportBug() {
           :class="[$style.formSectionLabel, $style.infoToggle, diagOpen && $style.infoOpen]"
           @click="diagOpen = !diagOpen"
         >
-          自己診断
+          {{ i18n.ts._aboutContent.selfDiagnosis }}
           <i class="ti ti-chevron-down" :class="$style.infoChevron" />
         </button>
         <span :class="$style.headBadge">
@@ -746,8 +747,8 @@ function reportBug() {
       </div>
       <div v-if="diagOpen" :class="$style.diag">
         <div :class="$style.diagHead">
-          <span :class="$style.diagSummary">{{ problemChecks.length === 0 && !healthError ? '問題は見つかりませんでした' : healthSummary }}</span>
-          <button class="_button" :class="$style.diagRefresh" :disabled="healthLoading" title="再診断" @click="runHealthcheck">
+          <span :class="$style.diagSummary">{{ problemChecks.length === 0 && !healthError ? i18n.ts._aboutContent.noProblems : healthSummary }}</span>
+          <button class="_button" :class="$style.diagRefresh" :disabled="healthLoading" :title="i18n.ts._aboutContent.rediagnose" @click="runHealthcheck">
             <i class="ti ti-refresh" />
           </button>
         </div>
@@ -774,17 +775,17 @@ function reportBug() {
           :class="[$style.formSectionLabel, $style.infoToggle, startupOpen && $style.infoOpen]"
           @click="startupOpen = !startupOpen"
         >
-          起動パフォーマンス
+          {{ i18n.ts._aboutContent.startupPerformance }}
           <i class="ti ti-chevron-down" :class="$style.infoChevron" />
         </button>
         <span v-if="startupTotalMs !== null" :class="[$style.headBadge, $style.startupTotal]">{{ fmtMs(startupTotalMs) }}</span>
       </div>
       <div v-if="startupOpen" :class="$style.startupTable">
         <div :class="[$style.startupRow, $style.startupHeader]" aria-hidden="true">
-          <span :class="$style.startupLabel">フェーズ</span>
+          <span :class="$style.startupLabel">{{ i18n.ts._aboutContent.phase }}</span>
           <span :class="$style.startupTrack" />
-          <span :class="$style.startupDelta">区間</span>
-          <span :class="$style.startupAt">累計</span>
+          <span :class="$style.startupDelta">{{ i18n.ts._aboutContent.segment }}</span>
+          <span :class="$style.startupAt">{{ i18n.ts._aboutContent.cumulative }}</span>
         </div>
         <div
           v-for="row in startupRows"
@@ -803,7 +804,7 @@ function reportBug() {
           <span :class="$style.startupAt">{{ row.cum !== null ? fmtMs(row.cum) : '—' }}</span>
         </div>
         <div v-if="webviewFixedCost === null" :class="$style.startupNote">
-          WebView 起動はプロセス初回のナビゲーションでのみ計測されます (累計は画面読み込み起点)
+          {{ i18n.ts._aboutContent.webviewStartupNote }}
         </div>
       </div>
     </div>
@@ -820,14 +821,14 @@ function reportBug() {
           :class="[$style.formSectionLabel, $style.infoToggle, metricsOpen && $style.infoOpen]"
           @click="metricsOpen = !metricsOpen"
         >
-          実行時パフォーマンス
+          {{ i18n.ts._aboutContent.runtimePerformance }}
           <i class="ti ti-chevron-down" :class="$style.infoChevron" />
         </button>
         <span v-if="metricsOpen && metrics?.frame.available" :class="$style.headBadge">{{ metrics.frame.fps }}fps</span>
       </div>
       <div v-if="metricsOpen" :class="$style.aboutInfo">
         <div v-if="metricsError" :class="$style.diagError">{{ metricsError }}</div>
-        <div v-else-if="!metrics">計測中...</div>
+        <div v-else-if="!metrics">{{ i18n.ts._aboutContent.measuring }}</div>
         <template v-else>
           <div v-for="row in metricsRows" :key="row.label" :class="$style.aboutRow">
             <span :class="$style.aboutLabel">{{ row.label }}:</span>
@@ -855,7 +856,7 @@ function reportBug() {
           @click="windowsStore.open('performanceEditor')"
         >
           <i class="ti ti-gauge" :class="$style.formLinkIcon" />
-          <span>パフォーマンス設定を開く</span>
+          <span>{{ i18n.ts._aboutContent.openPerformanceSettings }}</span>
         </button>
       </div>
     </div>

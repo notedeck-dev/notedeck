@@ -5,6 +5,7 @@
  * 表示だけの部品で、数え方は各面の取得経路 (mapWithConcurrency の
  * onSettled) が持つ。
  */
+import { i18n } from '@/i18n'
 import type { SettleProgress } from '@/utils/concurrency'
 import LoadingSpinner from './LoadingSpinner.vue'
 
@@ -19,7 +20,7 @@ defineProps<{
   <div :class="$style.root">
     <LoadingSpinner :size="size" />
     <span :class="$style.text">
-      {{ progress.total }} アカウントのうち {{ progress.total - progress.done }} 件待ち
+      {{ i18n.tsx._crossAccountProgress.waiting({ total: progress.total, pending: progress.total - progress.done }) }}
     </span>
   </div>
 </template>

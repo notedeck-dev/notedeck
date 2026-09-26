@@ -5,6 +5,7 @@ import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useSettingsStore } from '@/stores/settings'
 import { useToast } from '@/stores/toast'
@@ -162,14 +163,14 @@ onMounted(loadList)
             v-if="!list.isPublic"
             class="ti ti-lock"
             :class="$style.privateIcon"
-            title="非公開"
+            :title="i18n.ts._listDetailContent.private"
           />
           <div :class="$style.title">{{ list.name }}</div>
         </div>
         <div :class="$style.meta">
           <span>
             <i class="ti ti-users" />
-            {{ list.userIds?.length ?? 0 }} メンバー
+            {{ i18n.tsx._listDetailContent.members_plural({ count: list.userIds?.length ?? 0 }) }}
           </span>
           <button
             v-if="!isOwnList"
@@ -202,7 +203,7 @@ onMounted(loadList)
         />
         <ColumnEmptyState
           v-else-if="members.length === 0"
-          message="メンバーがいません"
+          :message="i18n.ts._listDetailContent.noMembers"
         />
         <template v-else>
           <MkUserListItem

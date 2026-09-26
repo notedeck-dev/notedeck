@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
+import { i18n } from '@/i18n'
 import { char2twemojiUrl } from '@/utils/twemoji'
 
 const props = defineProps<{ emoji: string; ignoreMuted?: boolean }>()
@@ -19,7 +20,7 @@ const failed = ref(false)
 </script>
 
 <template>
-  <span v-if="isMuted" class="twemoji _emojiMuted" :class="$style.twemoji" role="img" :aria-label="emoji" :title="`${emoji} (ミュート中)`" />
+  <span v-if="isMuted" class="twemoji _emojiMuted" :class="$style.twemoji" role="img" :aria-label="emoji" :title="i18n.tsx._mkEmoji.mutedTitle({ emoji })" />
   <img v-else-if="isUnresolvedCustom" class="twemoji" :class="$style.twemoji" src="/emoji-unknown.svg" :alt="emoji" :title="emoji" width="20" height="20" decoding="async" loading="lazy" />
   <img v-else-if="!failed" class="twemoji" :class="$style.twemoji" :src="url" :alt="emoji" width="20" height="20" decoding="async" loading="lazy" @error="failed = true" />
   <span v-else :class="$style.nativeEmoji">{{ emoji }}</span>

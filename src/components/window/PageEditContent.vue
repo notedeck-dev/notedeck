@@ -7,6 +7,7 @@ import EditorTabs, {
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
@@ -171,11 +172,11 @@ onMounted(load)
 
       <div v-show="tab === 'meta'" :class="$style.metaPanel">
         <div :class="$style.field">
-          <label :class="$style.label">タイトル</label>
+          <label :class="$style.label">{{ i18n.ts._pageEditContent.title }}</label>
           <input v-model="editingTitle" :class="$style.input" type="text" />
         </div>
         <div :class="$style.field">
-          <label :class="$style.label">概要</label>
+          <label :class="$style.label">{{ i18n.ts._pageEditContent.summary }}</label>
           <textarea v-model="editingSummary" :class="$style.textarea" />
         </div>
       </div>
@@ -194,7 +195,7 @@ onMounted(load)
           @click="save"
         >
           <i class="ti ti-device-floppy" />
-          {{ saving ? '保存中...' : saved ? '保存しました' : '保存' }}
+          {{ saving ? i18n.ts._pageEditContent.saving : saved ? i18n.ts._common.saved : i18n.ts._common.save }}
         </button>
       </div>
     </template>

@@ -19,6 +19,7 @@ import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { usePointerReorder } from '@/composables/usePointerReorder'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
@@ -253,9 +254,9 @@ async function importNav() {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'adjustments', label: 'ビジュアル' },
+        { value: 'visual', icon: 'adjustments', label: i18n.ts._common.visual },
         ...(isExposed('developer')
-          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          ? [{ value: 'code', icon: 'code', label: i18n.ts._common.code }]
           : []),
       ]"
     />
@@ -266,7 +267,7 @@ async function importNav() {
       <div v-if="isCompact" :class="$style.mobilePanel">
         <div :class="$style.mobileSectionHeader">
           <i class="ti ti-list" />
-          現在のアイテム
+          {{ i18n.ts._navEditorContent.currentItems }}
           <span :class="$style.mobileSectionBadge">{{ items.length }}</span>
         </div>
 
@@ -279,7 +280,7 @@ async function importNav() {
 
         <div :class="$style.mobileSectionHeader">
           <i class="ti ti-plus" />
-          アイテムを追加
+          {{ i18n.ts._navEditorContent.addItem }}
         </div>
 
         <AddColumnDialog
@@ -310,7 +311,7 @@ async function importNav() {
                 <i class="ti ti-x" />
               </button>
             </div>
-            <div v-if="items.length === 0" :class="$style.empty">項目なし</div>
+            <div v-if="items.length === 0" :class="$style.empty">{{ i18n.ts._navEditorContent.noItems }}</div>
           </div>
         </div>
 
@@ -327,7 +328,7 @@ async function importNav() {
     <!-- Code tab -->
     <div v-show="tab === 'code'" :class="$style.codePanel">
       <div :class="$style.codeHint">
-        デフォルト値からの差分 — null はデフォルト設定を使用
+        {{ i18n.ts._navEditorContent.codeHint }}
       </div>
       <CodeEditor
         v-model="jsonCode"
@@ -341,11 +342,11 @@ async function importNav() {
       </div>
       <div v-if="!codeError && jsonCode.trim() && jsonCode.trim() !== '[]' && jsonCode.trim() !== 'null'" :class="$style.codeSuccess">
         <i class="ti ti-check" />
-        適用中
+        {{ i18n.ts._common.active }}
       </div>
       <button class="_button" :class="$style.codeApplyBtn" @click="applyFromCode">
         <i class="ti ti-refresh" />
-        ビジュアルに同期
+        {{ i18n.ts._common.syncToVisual }}
       </button>
     </div>
 
@@ -358,7 +359,7 @@ async function importNav() {
           @click="importNav"
         >
           <i class="ti ti-clipboard-text" />
-          インポート
+          {{ i18n.ts._common.import }}
         </button>
         <button
           class="_button"
@@ -366,7 +367,7 @@ async function importNav() {
           @click="exportNav"
         >
           <i class="ti ti-clipboard-copy" />
-          {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+          {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
         </button>
       </div>
       <button
@@ -375,7 +376,7 @@ async function importNav() {
         @click="handleReset"
       >
         <i class="ti ti-trash" />
-        {{ confirmingReset ? '本当にリセット？' : 'デフォルトに戻す' }}
+        {{ confirmingReset ? i18n.ts._common.confirmReset : i18n.ts._common.resetToDefault }}
       </button>
     </div>
   </div>

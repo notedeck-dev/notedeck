@@ -11,6 +11,7 @@ import {
   memosVersion,
   type StoredMemo,
 } from '@/composables/useMemos'
+import { i18n } from '@/i18n'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
@@ -216,7 +217,7 @@ function closeMenu() {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'メモ'"
+    :title="column.name ?? i18n.ts._columns.memos"
     :theme-vars="columnThemeVars"
   >
     <template #header-icon>
@@ -245,7 +246,7 @@ function closeMenu() {
          (メモはアカウント / サーバーに紐づかない — #1018) -->
     <ColumnEmptyState
       v-if="loaded && memoCount === 0"
-      message="メモはありません"
+      :message="i18n.ts._deckMemoColumn.empty"
     />
 
     <div v-else :class="$style.list">
@@ -296,7 +297,7 @@ function closeMenu() {
           :class="$style.itemNoteBtn"
           role="button"
           tabindex="0"
-          title="このメモをエディタで開く"
+          :title="i18n.ts._deckMemoColumn.openInEditor"
           @click.stop="onOpenEditor(entry)"
           @keydown.enter="onOpenEditor(entry)"
         >
@@ -312,7 +313,7 @@ function closeMenu() {
           @click="onRestoreToForm(activeEntry)"
         >
           <i class="ti ti-arrow-back-up" />
-          投稿フォームに復元
+          {{ i18n.ts._deckMemoColumn.restoreToPostForm }}
         </button>
         <div class="_popupDivider" />
         <button
@@ -320,7 +321,7 @@ function closeMenu() {
           @click="onDelete(activeEntry)"
         >
           <i class="ti ti-trash" />
-          削除
+          {{ i18n.ts._common.delete }}
         </button>
       </template>
     </PopupMenu>

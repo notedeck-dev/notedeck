@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 
 const show = ref(false)
 const title = ref('')
@@ -74,7 +74,7 @@ useNativeDialog(dialogRef, visible, {
         <div :class="$style.aisDialogActions">
           <template v-if="mode === 'confirm'">
             <button :class="[$style.aisDialogBtn, $style.cancel]" @click="close(false)">
-              キャンセル
+              {{ i18n.ts._common.cancel }}
             </button>
             <button :class="[$style.aisDialogBtn, $style.ok]" @click="close(true)">OK</button>
           </template>

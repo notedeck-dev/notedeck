@@ -2,9 +2,11 @@
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import type { NormalizedNotification } from '@/adapters/types'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import I18n from '@/components/common/I18n.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useSensitiveMask } from '@/composables/useSensitiveMask'
+import { i18n } from '@/i18n'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -99,10 +101,10 @@ const currentError = computed(() => {
       <template #hint>
         <i class="ti ti-info-circle" />
         <template v-if="tab === 'misskey'">
-          メモリ上の通知オブジェクト
+          {{ i18n.ts._notificationInspectorContent.inMemoryObject }}
         </template>
         <template v-else>
-          <code>/api/ap/show</code> 経由で解決した ActivityPub オブジェクト
+          <I18n :src="i18n.ts._notificationInspectorContent.activityPubObject"><template #endpoint><code>/api/ap/show</code></template></I18n>
         </template>
       </template>
     </RawJsonView>

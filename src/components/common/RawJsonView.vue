@@ -3,6 +3,7 @@ import { json as jsonLang } from '@codemirror/lang-json'
 import { defineAsyncComponent } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
+import { i18n } from '@/i18n'
 
 const CodeEditor = defineAsyncComponent(
   () => import('@/components/deck/widgets/CodeEditor.vue'),
@@ -36,21 +37,21 @@ const lang = jsonLang()
           v-if="canReveal"
           class="_button"
           :class="[$style.btn, { [$style.active]: showSensitive }]"
-          :title="showSensitive ? '機密を隠す' : '機密を表示'"
+          :title="showSensitive ? i18n.ts._rawJsonView.hideSensitive : i18n.ts._rawJsonView.showSensitive"
           @click="showSensitive = !showSensitive"
         >
           <i :class="showSensitive ? 'ti ti-eye-off' : 'ti ti-eye'" />
-          {{ showSensitive ? '隠す' : '機密を表示' }}
+          {{ showSensitive ? i18n.ts._common.hide : i18n.ts._rawJsonView.showSensitive }}
         </button>
         <button
           class="_button"
           :class="$style.btn"
           :disabled="!json || loading"
-          :title="copied ? 'コピーしました' : '表示中の JSON をコピー'"
+          :title="copied ? i18n.ts._common.copiedToClipboard : i18n.ts._rawJsonView.copyJson"
           @click="copyToClipboard(json)"
         >
           <i :class="copied ? 'ti ti-check' : 'ti ti-copy'" />
-          {{ copied ? 'コピー済み' : 'コピー' }}
+          {{ copied ? i18n.ts._common.copied : i18n.ts._rawJsonView.copy }}
         </button>
       </div>
     </div>
@@ -70,7 +71,7 @@ const lang = jsonLang()
         :auto-height="true"
         :class="$style.editor"
       />
-      <div v-else :class="$style.state">データがありません</div>
+      <div v-else :class="$style.state">{{ i18n.ts._rawJsonView.noData }}</div>
     </div>
   </div>
 </template>

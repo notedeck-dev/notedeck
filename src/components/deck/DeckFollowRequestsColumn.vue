@@ -9,6 +9,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useNavigation } from '@/composables/useNavigation'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
@@ -240,7 +241,7 @@ onMounted(() => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name || 'フォローリクエスト'"
+    :title="column.name || i18n.ts._columns.followRequests"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
@@ -268,7 +269,7 @@ onMounted(() => {
       :account-id="column.accountId"
       is-error
       :image-url="serverErrorImageUrl"
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="fetchRequests"
     />
@@ -319,20 +320,20 @@ onMounted(() => {
           <div :class="$style.frActions">
             <template v-if="actionStates[req.id]">
               <span :class="$style.frDone">
-                {{ actionStates[req.id] === 'accepted' ? '承認済み' : actionStates[req.id] === 'rejected' ? '拒否済み' : '取り消し済み' }}
+                {{ actionStates[req.id] === 'accepted' ? i18n.ts._deckFollowRequestsColumn.accepted : actionStates[req.id] === 'rejected' ? i18n.ts._deckFollowRequestsColumn.rejected : i18n.ts._deckFollowRequestsColumn.canceled }}
               </span>
             </template>
             <template v-else-if="activeTab === 'sent'">
               <button :class="[$style.frBtn, $style.cancelBtn]" @click="handleAction(req, 'canceled')">
-                <i class="ti ti-x" /> 取り消し
+                <i class="ti ti-x" /> {{ i18n.ts._deckFollowRequestsColumn.cancelRequest }}
               </button>
             </template>
             <template v-else>
               <button :class="[$style.frBtn, $style.acceptBtn]" @click="handleAction(req, 'accepted')">
-                <i class="ti ti-check" /> 承認
+                <i class="ti ti-check" /> {{ i18n.ts._deckFollowRequestsColumn.accept }}
               </button>
               <button :class="[$style.frBtn, $style.rejectBtn]" @click="handleAction(req, 'rejected')">
-                <i class="ti ti-x" /> 拒否
+                <i class="ti ti-x" /> {{ i18n.ts._deckFollowRequestsColumn.reject }}
               </button>
             </template>
           </div>

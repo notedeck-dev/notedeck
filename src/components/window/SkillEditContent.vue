@@ -14,6 +14,7 @@ import {
 } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { type SkillMode, useSkillsStore } from '@/stores/skills'
 import { SKILL_EXT } from '@/utils/settingsFs'
@@ -176,7 +177,7 @@ const barStatus = computed<EditorActionStatus | null>(() => {
   <div ref="containerRef" :class="$style.content">
     <div v-if="!skill" :class="$style.empty">
       <i class="ti ti-sparkles" />
-      <span>スキルが見つかりません</span>
+      <span>{{ i18n.ts._skillEditContent.notFound }}</span>
     </div>
     <template v-else>
       <EditorItemHeader
@@ -188,48 +189,48 @@ const barStatus = computed<EditorActionStatus | null>(() => {
           <span :class="$style.headerVersion">v{{ version || skill.version }}</span>
           <template v-if="author"> · {{ author }}</template>
           <span :class="$style.headerBadge">{{ headerModeLabel }}</span>
-          <span v-if="skill.storeId" :class="$style.headerBadge">ストア</span>
+          <span v-if="skill.storeId" :class="$style.headerBadge">{{ i18n.ts._common.store }}</span>
         </template>
       </EditorItemHeader>
 
       <EditorTabs
         v-model="tab"
         :tabs="[
-          { value: 'meta', icon: 'forms', label: 'メタ' },
-          { value: 'code', icon: 'code', label: '指示文' },
+          { value: 'meta', icon: 'forms', label: i18n.ts._skillEditContent.meta },
+          { value: 'code', icon: 'code', label: i18n.ts._skillEditContent.instructions },
         ]"
       />
       <div v-show="tab === 'meta'" :class="$style.metaForm">
         <div :class="$style.row">
-          <label :class="$style.label">名前</label>
+          <label :class="$style.label">{{ i18n.ts._skillEditContent.name }}</label>
           <input
             v-model="name"
             type="text"
             :class="$style.input"
-            placeholder="スキル名"
+            :placeholder="i18n.ts._skillEditContent.namePlaceholder"
           />
         </div>
         <div :class="$style.row">
-          <label :class="$style.label">説明</label>
+          <label :class="$style.label">{{ i18n.ts._skillEditContent.description }}</label>
           <input
             v-model="description"
             type="text"
             :class="$style.input"
-            placeholder="どんな時に使うか"
+            :placeholder="i18n.ts._skillEditContent.descriptionPlaceholder"
           />
         </div>
         <div :class="$style.rowGroup">
           <div :class="[$style.row, $style.flex2]">
-            <label :class="$style.label">作者</label>
+            <label :class="$style.label">{{ i18n.ts._skillEditContent.author }}</label>
             <input
               v-model="author"
               type="text"
               :class="$style.input"
-              placeholder="任意"
+              :placeholder="i18n.ts._skillEditContent.optional"
             />
           </div>
           <div :class="[$style.row, $style.flex1]">
-            <label :class="$style.label">バージョン</label>
+            <label :class="$style.label">{{ i18n.ts._skillEditContent.version }}</label>
             <input
               v-model="version"
               type="text"
@@ -238,61 +239,56 @@ const barStatus = computed<EditorActionStatus | null>(() => {
             />
           </div>
           <div :class="[$style.row, $style.flex1]">
-            <label :class="$style.label">モード</label>
+            <label :class="$style.label">{{ i18n.ts._skillEditContent.mode }}</label>
             <select v-model="mode" :class="$style.input">
-              <option value="always">常時</option>
-              <option value="manual">手動</option>
-              <option value="trigger">自動</option>
-              <option value="heartbeat">HEARTBEAT (定期実行)</option>
+              <option value="always">{{ i18n.ts._skillEditContent.modeAlways }}</option>
+              <option value="manual">{{ i18n.ts._skillEditContent.modeManual }}</option>
+              <option value="trigger">{{ i18n.ts._skillEditContent.modeTrigger }}</option>
+              <option value="heartbeat">{{ i18n.ts._skillEditContent.modeHeartbeat }}</option>
             </select>
           </div>
         </div>
         <div v-if="mode === 'heartbeat'" :class="$style.modeHint">
           <i class="ti ti-activity-heartbeat" />
           <span>
-            HEARTBEAT 有効時、tick ごとにこの skill body を AI に読ませます
-            (#411 / OpenClaw HEARTBEAT.md 相当)。
+            {{ i18n.ts._skillEditContent.heartbeatHint }}
           </span>
         </div>
         <div v-if="mode === 'trigger'" :class="$style.modeHint">
           <i class="ti ti-bolt" />
           <span>
-            自動起動: ユーザーの入力に下のトリガー語のいずれかが含まれた
-            ターンだけ、この skill body が system prompt に注入されます
-            (大文字小文字無視の部分一致)。
+            {{ i18n.ts._skillEditContent.triggerHint }}
           </span>
         </div>
         <div :class="$style.row">
-          <label :class="$style.label">トリガー語（1 行に 1 つ）</label>
+          <label :class="$style.label">{{ i18n.ts._skillEditContent.triggers }}</label>
           <textarea
             v-model="triggersText"
             :class="[$style.input, $style.textarea]"
             rows="6"
-            placeholder="どこ&#10;使い方&#10;help"
+            :placeholder="i18n.ts._skillEditContent.triggersPlaceholder"
           />
         </div>
         <div v-if="mode !== 'trigger' && triggersText.trim()" :class="$style.note">
           <i class="ti ti-info-circle" />
-          <span>トリガー語はモードを「自動」にしたときだけ反応します</span>
+          <span>{{ i18n.ts._skillEditContent.triggersOnlyInTriggerMode }}</span>
         </div>
         <div :class="$style.row">
           <label :class="$style.label">Persona</label>
           <label :class="$style.toggleRow">
             <input v-model="isPersona" type="checkbox" />
-            <span>このスキルを AI セッションの persona 候補にする</span>
+            <span>{{ i18n.ts._skillEditContent.personaToggle }}</span>
           </label>
         </div>
         <div v-if="isPersona" :class="$style.modeHint">
           <i class="ti ti-user-circle" />
           <span>
-            ON にすると、AI セッションヘッダの persona セレクタにこのスキルが
-            表示されます。選択中のセッションで AI はこの persona として振る舞い、
-            memo の作者として記録されます (#491)。
+            {{ i18n.ts._skillEditContent.personaHint }}
           </span>
         </div>
         <div v-if="isFromStore" :class="$style.note">
           <i class="ti ti-info-circle" />
-          <span>ストア由来のスキル — 編集内容はローカルファイルに保存されます (再インストールで上書きされる可能性あり)</span>
+          <span>{{ i18n.ts._skillEditContent.fromStoreNote }}</span>
         </div>
       </div>
 
@@ -309,7 +305,7 @@ const barStatus = computed<EditorActionStatus | null>(() => {
         :actions="historyActions"
         :primary="{
           key: 'save',
-          label: '保存',
+          label: i18n.ts._common.save,
           icon: 'device-floppy',
           disabled: !dirty,
         }"

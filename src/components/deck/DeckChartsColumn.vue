@@ -27,6 +27,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
@@ -692,7 +693,7 @@ watch(driveView, (v) => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name || 'チャート'"
+    :title="column.name || i18n.ts._columns.charts"
     :theme-vars="columnThemeVars"
     require-account
     @refresh="fetchAll"
@@ -720,14 +721,14 @@ watch(driveView, (v) => {
             :class="[$style.pill, span === 'hour' && $style.pillActive]"
             @click="span = 'hour'"
           >
-            時
+            {{ i18n.ts._deckChartsColumn.hour }}
           </button>
           <button
             class="_button"
             :class="[$style.pill, span === 'day' && $style.pillActive]"
             @click="span = 'day'"
           >
-            日
+            {{ i18n.ts._deckChartsColumn.day }}
           </button>
         </div>
       </div>
@@ -741,7 +742,7 @@ watch(driveView, (v) => {
           :message="errorMessage"
           :image-url="serverErrorImageUrl"
           is-error
-          cta-label="再試行"
+          :cta-label="i18n.ts._common.retry"
           cta-icon="ti-refresh"
           @cta="fetchAll"
         />
@@ -873,7 +874,7 @@ watch(driveView, (v) => {
                     :class="[$style.pill, notesView === 'breakdown' && $style.pillActive]"
                     @click="notesView = 'breakdown'"
                   >
-                    内訳
+                    {{ i18n.ts._deckChartsColumn.breakdown }}
                   </button>
                   <button
                     class="_button"

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { i18n } from '@/i18n'
+
 defineProps<{
   isDark: boolean
   isFollowingSystem: boolean
@@ -18,9 +20,9 @@ function onSyncChange(e: Event) {
   <div :class="$style.themePanel">
     <div :class="$style.toggleArea">
       <div :class="$style.toggleInner">
-        <button :class="[$style.dayNightToggle, { [$style.checked]: isDark }]" :aria-label="isDark ? 'ライトモードに切替' : 'ダークモードに切替'" @click="emit('toggle-dark')">
-          <span :class="$style.labelBefore">ライト</span>
-          <span :class="$style.labelAfter">ダーク</span>
+        <button :class="[$style.dayNightToggle, { [$style.checked]: isDark }]" :aria-label="isDark ? i18n.ts._dayNightToggle.switchToLight : i18n.ts._dayNightToggle.switchToDark" @click="emit('toggle-dark')">
+          <span :class="$style.labelBefore">{{ i18n.ts._dayNightToggle.light }}</span>
+          <span :class="$style.labelAfter">{{ i18n.ts._dayNightToggle.dark }}</span>
           <span :class="$style.toggleHandler">
             <span :class="[$style.crater, $style.crater1]" />
             <span :class="[$style.crater, $style.crater2]" />
@@ -43,7 +45,7 @@ function onSyncChange(e: Event) {
             <span :class="$style.syncToggleKnob" />
           </span>
         </span>
-        <span :class="$style.syncText">デバイスのダークモードに同期</span>
+        <span :class="$style.syncText">{{ i18n.ts._dayNightToggle.syncWithDevice }}</span>
       </label>
     </div>
   </div>

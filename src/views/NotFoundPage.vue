@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { i18n } from '@/i18n'
 
 const router = useRouter()
 </script>
@@ -7,9 +8,9 @@ const router = useRouter()
 <template>
   <div :class="$style.notFound">
     <h1>404</h1>
-    <p>ページが見つかりません</p>
+    <p>{{ i18n.ts._notFoundPage.message }}</p>
     <button class="_buttonPrimary" :class="$style.backBtn" @click="router.push('/')">
-      ホームに戻る
+      {{ i18n.ts._notFoundPage.backToHome }}
     </button>
   </div>
 </template>

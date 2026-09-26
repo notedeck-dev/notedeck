@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import ThemePreview from '@/components/ThemePreview.vue'
+import { i18n } from '@/i18n'
 import type { MisskeyTheme } from '@/theme/types'
 import { formatDate } from '@/utils/format'
 
@@ -105,7 +106,7 @@ function handleClick() {
           v-if="perAccount && isAppliedAccount"
           class="_button"
           :class="$style.clearBtn"
-          title="このアカウントの設定を解除"
+          :title="i18n.ts._themeCard.clearAccount"
           @click.stop="emit('clear-account')"
         >
           <i class="ti ti-user-x" />
@@ -114,7 +115,7 @@ function handleClick() {
           v-if="source === 'local'"
           class="_button"
           :class="$style.editBtn"
-          title="編集"
+          :title="i18n.ts._common.edit"
           @click.stop="emit('edit')"
         >
           <i class="ti ti-pencil" />
@@ -123,7 +124,7 @@ function handleClick() {
           v-if="removable"
           class="_button"
           :class="[$style.removeBtn, removeMode === 'detach' && $style.removeBtnDetach]"
-          :title="removeMode === 'detach' ? 'このアカウントから外す' : 'ライブラリから削除 (テーマも消えます)'"
+          :title="removeMode === 'detach' ? i18n.ts._themeCard.detachFromAccount : i18n.ts._themeCard.deleteFromLibrary"
           @click.stop="emit('remove')"
         >
           <i :class="removeMode === 'detach' ? 'ti ti-circle-minus' : 'ti ti-trash'" />
@@ -134,7 +135,7 @@ function handleClick() {
         <button
           class="_button"
           :class="$style.editBtn"
-          title="このアカウントに追加"
+          :title="i18n.ts._themeCard.addToAccount"
           @click.stop="emit('place')"
         >
           <i class="ti ti-plus" />
@@ -146,7 +147,7 @@ function handleClick() {
           class="_button"
           :class="$style.updateBtn"
           :disabled="installing"
-          title="更新"
+          :title="i18n.ts._themeCard.update"
           @click.stop="emit('update')"
         >
           <i class="ti ti-refresh" />
@@ -154,7 +155,7 @@ function handleClick() {
         <button
           class="_button"
           :class="$style.detailBtn"
-          title="MisStore で詳細を見る"
+          :title="i18n.ts._themeCard.viewInMisStore"
           @click.stop="emit('open-detail')"
         >
           <i class="ti ti-external-link" />
@@ -167,7 +168,7 @@ function handleClick() {
       <span
         v-if="mode === 'store' && installing"
         :class="$style.installingOverlay"
-        title="インストール中"
+        :title="i18n.ts._themeCard.installing"
       >
         <i class="ti ti-loader-2 nd-spin" />
       </span>
@@ -175,7 +176,7 @@ function handleClick() {
         v-else-if="mode === 'store' && alreadyInstalled && hasUpdate"
         :class="$style.updateBadge"
         :title="updateTitle"
-      >更新あり</span>
+      >{{ i18n.ts._common.updateAvailable }}</span>
     </div>
     <div :class="$style.name" :title="theme.name">{{ theme.name }}</div>
   </button>

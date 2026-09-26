@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import type { PrincipalClass } from '@/bindings'
 import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES, faviconUrl } from '@/data/connectionTemplates'
+import { i18n } from '@/i18n'
 import { resolveForProfiled } from '@/permissions/store'
 import { useWindowsStore } from '@/stores/windows'
 
@@ -51,7 +52,7 @@ function classBadge(
   <div :class="$style.content">
     <!-- 追加パネル: テンプレートと「＋ 手動追加」を同じグリッドで表示。 -->
     <p :class="$style.sectionTitle">
-      {{ isEmpty ? '接続したいサービスを選んでください' : '接続を追加' }}
+      {{ isEmpty ? i18n.ts._connectionsContent.chooseService : i18n.ts._connectionsContent.addConnection }}
     </p>
     <div :class="$style.grid">
       <button
@@ -79,13 +80,13 @@ function classBadge(
         @click="openEdit({})"
       >
         <i class="ti ti-plus" :class="$style.logoFallback" />
-        <span>手動で追加</span>
+        <span>{{ i18n.ts._connectionsContent.addManually }}</span>
       </button>
     </div>
 
     <!-- 登録済みの接続: 同じグリッド UI で表示。 -->
     <template v-if="connections.length > 0">
-      <p :class="$style.sectionTitle">登録済みの接続</p>
+      <p :class="$style.sectionTitle">{{ i18n.ts._connectionsContent.registered }}</p>
       <div :class="$style.grid">
         <button
           v-for="conn in connections"
@@ -99,8 +100,8 @@ function classBadge(
             :class="[$style.connBadge, $style[`cls_${classBadge(conn, 'ai')}`]]"
             :title="
               classBadge(conn, 'ai') === 'active'
-                ? 'AI から利用可能'
-                : 'AI に開示中 (vault.use が無効か secret 未設定でまだ使えません)'
+                ? i18n.ts._connectionsContent.aiActive
+                : i18n.ts._connectionsContent.aiPending
             "
           >
             <i class="ti ti-robot" />
@@ -110,8 +111,8 @@ function classBadge(
             :class="[$style.connBadge, $style[`cls_${classBadge(conn, 'plugin')}`]]"
             :title="
               classBadge(conn, 'plugin') === 'active'
-                ? 'プラグイン・ウィジェットから利用可能'
-                : 'プラグインに開示中 (vault.use が無効か secret 未設定でまだ使えません)'
+                ? i18n.ts._connectionsContent.pluginActive
+                : i18n.ts._connectionsContent.pluginPending
             "
           >
             <i class="ti ti-puzzle" />
@@ -121,8 +122,8 @@ function classBadge(
             :class="[$style.connBadge, $style[`cls_${classBadge(conn, 'external')}`]]"
             :title="
               classBadge(conn, 'external') === 'active'
-                ? '外部アプリから利用可能'
-                : '外部アプリに開示中 (vault.use が無効か secret 未設定でまだ使えません)'
+                ? i18n.ts._connectionsContent.externalActive
+                : i18n.ts._connectionsContent.externalPending
             "
           >
             <i class="ti ti-plug" />

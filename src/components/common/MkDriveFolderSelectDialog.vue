@@ -8,6 +8,7 @@ import { useDriveActions } from '@/composables/useDriveActions'
 import { useDriveFolder } from '@/composables/useDriveFolder'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import { useThemeStore } from '@/stores/theme'
 import { AUTH_ERROR_MESSAGE } from '@/utils/errors'
 
@@ -105,17 +106,17 @@ fetchDrive()
     >
       <!-- Header: 戻る + ルート + 現在フォルダ名 + 新規フォルダ -->
       <div :class="$style.header">
-        <button v-if="folderStack.length > 0" class="_button" :class="$style.headerBtn" title="戻る" @click="goUp">
+        <button v-if="folderStack.length > 0" class="_button" :class="$style.headerBtn" :title="i18n.ts._common.back" @click="goUp">
           <i class="ti ti-arrow-left" />
         </button>
-        <button v-if="folderStack.length > 0" class="_button" :class="$style.headerBtn" title="ルート" @click="goRoot">
+        <button v-if="folderStack.length > 0" class="_button" :class="$style.headerBtn" :title="i18n.ts._mkDriveFolderSelectDialog.root" @click="goRoot">
           <i class="ti ti-home" />
         </button>
         <span :class="$style.title">
           <i :class="currentName ? 'ti ti-folder' : 'ti ti-cloud'" />
-          {{ currentName ?? 'ドライブ' }}
+          {{ currentName ?? i18n.ts._columns.drive }}
         </span>
-        <button class="_button" :class="$style.headerBtn" title="新規フォルダ" aria-label="新規フォルダ" @click="onCreateFolder">
+        <button class="_button" :class="$style.headerBtn" :title="i18n.ts._mkDriveFolderSelectDialog.newFolder" :aria-label="i18n.ts._mkDriveFolderSelectDialog.newFolder" @click="onCreateFolder">
           <i class="ti ti-folder-plus" />
         </button>
       </div>
@@ -130,10 +131,10 @@ fetchDrive()
       <!-- Footer: 押す前に行き先がわかる確定ラベル -->
       <div :class="$style.actions">
         <button type="button" class="_button" :class="$style.btnCancel" @click="close('cancel')">
-          キャンセル
+          {{ i18n.ts._common.cancel }}
         </button>
         <button type="button" class="_button" :class="$style.btnOk" @click="close('confirm')">
-          <span :class="$style.btnOkLabel">{{ currentName ? `「${currentName}」に移動` : 'ルートに移動' }}</span>
+          <span :class="$style.btnOkLabel">{{ currentName ? i18n.tsx._mkDriveFolderSelectDialog.moveTo({ name: currentName }) : i18n.ts._mkDriveFolderSelectDialog.moveToRoot }}</span>
         </button>
       </div>
     </div>

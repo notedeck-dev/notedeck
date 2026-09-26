@@ -3,5 +3,5 @@
 // 対象にもならない (訳が揃う前に半訳の UI を見せないため)
 [
   { code: 'ja-JP', name: '日本語', published: true },
-  { code: 'en-US', name: 'English', published: false },
+  { code: 'en-US', name: 'English', published: true },
 ]

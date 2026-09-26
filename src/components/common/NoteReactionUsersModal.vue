@@ -8,6 +8,7 @@ import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useUiStore } from '@/stores/ui'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
@@ -133,7 +134,7 @@ defineExpose({ open })
             :class="[$style.tab, { [$style.tabActive]: selectedReaction === r.reaction }]"
             @click="selectedReaction = r.reaction"
           >
-            <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.tabEmoji" role="img" :aria-label="r.reaction" :title="`${r.reaction} (ミュート中)`" />
+            <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.tabEmoji" role="img" :aria-label="r.reaction" :title="i18n.tsx._noteReactionUsersModal.mutedTitle({ emoji: r.reaction })" />
             <img v-else-if="reactionUrls[r.reaction]" :src="proxyEmojiUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.tabEmoji" decoding="async" loading="lazy" />
             <MkEmoji v-else :emoji="r.reaction" :class="$style.tabEmoji" />
             <span :class="$style.tabCount">{{ r.count }}</span>
@@ -144,7 +145,7 @@ defineExpose({ open })
         <div ref="scrollRef" :class="$style.userList" @scroll.passive="onScroll">
           <div v-if="isLoading && users.length === 0" :class="$style.loading"><LoadingSpinner /></div>
           <template v-else>
-            <div v-if="users.length === 0" :class="$style.loading">リアクションなし</div>
+            <div v-if="users.length === 0" :class="$style.loading">{{ i18n.ts._noteReactionUsersModal.noReactions }}</div>
             <button
               v-for="u in users"
               :key="u.id"

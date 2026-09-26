@@ -19,6 +19,7 @@ import {
   commandItemTargetId,
   useSpotlightStore,
 } from '@/composables/useSpotlight'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
@@ -502,7 +503,7 @@ function primaryShortcut(cmd: Command): string | null {
         </button>
         <span :class="$style.quickPickTitle">{{ currentQuickPickStep.title }}</span>
       </div>
-      <div v-if="currentQuickPickStep?.loading" :class="$style.empty">読み込み中...</div>
+      <div v-if="currentQuickPickStep?.loading" :class="$style.empty">{{ i18n.ts._common.loading }}</div>
       <div v-else-if="flatQuickPickList.length" ref="listRef" :class="$style.list">
         <template v-for="(group, gi) in filteredQuickPickGroups" :key="group.group">
           <div v-if="gi > 0" :class="$style.separator" />
@@ -539,7 +540,7 @@ function primaryShortcut(cmd: Command): string | null {
           </button>
         </template>
       </div>
-      <div v-else :class="$style.empty">一致する項目がありません</div>
+      <div v-else :class="$style.empty">{{ i18n.ts._commandPalette.noMatchingItems }}</div>
     </template>
 
     <!-- Deep link URI mode -->
@@ -547,7 +548,7 @@ function primaryShortcut(cmd: Command): string | null {
       <div :class="$style.cliRow">
         <i :class="['ti ti-link', $style.itemIcon]" />
         <span :class="$style.cliAction">
-          ↵ Enterで開く:
+          {{ i18n.ts._commandPalette.enterToOpen }}
           <strong>{{ query }}</strong>
         </span>
       </div>
@@ -564,7 +565,7 @@ function primaryShortcut(cmd: Command): string | null {
           {{ cliMeta.usage }}
         </span>
         <span v-else :class="$style.cliAction">
-          ↵ Enterで実行:
+          {{ i18n.ts._commandPalette.enterToRun }}
           <strong>{{ cliMatch.name }}</strong>
           {{ cliMatch.args }}
         </span>
@@ -594,7 +595,7 @@ function primaryShortcut(cmd: Command): string | null {
       </template>
     </div>
 
-    <div v-else :class="$style.empty">一致するコマンドがありません</div>
+    <div v-else :class="$style.empty">{{ i18n.ts._commandPalette.noMatchingCommands }}</div>
   </div>
 </template>
 

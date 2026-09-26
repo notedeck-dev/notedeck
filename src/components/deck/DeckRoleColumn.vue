@@ -5,6 +5,7 @@ import {
 } from '@/adapters/misskey/query'
 import type { NormalizedNote } from '@/adapters/types'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
+import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -55,7 +56,7 @@ const noteColumnConfig: NoteColumnConfig = {
 <template>
   <DeckNoteColumn
     :column="column"
-    title="ロール"
+    :title="i18n.ts._columns.role"
     icon="ti-badge"
     :web-ui-path="column.roleId ? `/roles/${column.roleId}` : undefined"
     sound-enabled

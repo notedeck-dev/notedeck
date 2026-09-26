@@ -5,6 +5,7 @@ import type { NoteReaction } from '@/adapters/types'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useNavigation } from '@/composables/useNavigation'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { normalizeEmojiMuteKey } from '@/utils/emojiMute'
 import { proxyEmojiUrl } from '@/utils/mediaProxy'
@@ -162,8 +163,8 @@ onUnmounted(() => {
           <button
             class="_button"
             :class="$style.actionBtn"
-            :data-tooltip="copiedCode ? 'コピーしました' : 'コードをコピー'"
-            :aria-label="copiedCode ? 'コピーしました' : 'コードをコピー'"
+            :data-tooltip="copiedCode ? i18n.ts._common.copiedToClipboard : i18n.ts._mkReactionUsersPopup.copyCode"
+            :aria-label="copiedCode ? i18n.ts._common.copiedToClipboard : i18n.ts._mkReactionUsersPopup.copyCode"
             @click.stop="copyReactionCode"
           >
             <i :class="copiedCode ? 'ti ti-check' : 'ti ti-copy'" />
@@ -171,8 +172,8 @@ onUnmounted(() => {
           <button
             class="_button"
             :class="$style.actionBtn"
-            :data-tooltip="isEmojiMuted(reaction) ? 'ミュートを解除' : 'この絵文字をミュート'"
-            :aria-label="isEmojiMuted(reaction) ? 'ミュートを解除' : 'この絵文字をミュート'"
+            :data-tooltip="isEmojiMuted(reaction) ? i18n.ts._mkReactionUsersPopup.unmute : i18n.ts._mkReactionUsersPopup.muteEmoji"
+            :aria-label="isEmojiMuted(reaction) ? i18n.ts._mkReactionUsersPopup.unmute : i18n.ts._mkReactionUsersPopup.muteEmoji"
             @click.stop="toggleMute"
           >
             <i :class="isEmojiMuted(reaction) ? 'ti ti-mood-smile' : 'ti ti-mood-off'" />
@@ -184,7 +185,7 @@ onUnmounted(() => {
           :class="$style.reactionIcon"
           role="img"
           :aria-label="reaction"
-          :title="`${reaction} (ミュート中)`"
+          :title="i18n.tsx._mkReactionUsersPopup.mutedTitle({ emoji: reaction })"
         />
         <img
           v-else-if="reactionUrl"

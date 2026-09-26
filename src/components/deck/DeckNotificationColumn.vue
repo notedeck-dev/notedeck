@@ -24,6 +24,7 @@ import type {
 import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
+import I18n from '@/components/common/I18n.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkEmoji from '@/components/common/MkEmoji.vue'
@@ -47,6 +48,7 @@ import { useReadMarker } from '@/composables/useReadMarker'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { getStreamHealth } from '@/core/streamHealth'
+import { i18n } from '@/i18n'
 import { createBoundedCache } from '@/services/boundedCache'
 import { parseVariantKey, variantKey } from '@/services/noteKey'
 import { mergeNotifications as mergeNotificationLists } from '@/services/notificationMerge'
@@ -1190,7 +1192,7 @@ onUnmounted(() => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    title="通知"
+    :title="i18n.ts._columns.notifications"
     :theme-vars="columnThemeVars"
     sound-enabled
     require-account
@@ -1221,14 +1223,14 @@ onUnmounted(() => {
       :account-id="column.accountId"
       :image-url="serverErrorImageUrl"
       is-error
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="pullRefresh"
     />
 
     <div v-else :class="$style.notifBody">
       <div v-if="isPollingMode && hasAuthenticatedAccount" :class="$style.pollingBanner">
-        <i class="ti ti-bolt-off" />ポーリング
+        <i class="ti ti-bolt-off" />{{ i18n.ts._common.polling }}
       </div>
 
       <div v-if="isLoading && notifications.length === 0" :class="$style.columnLoading">
@@ -1238,7 +1240,7 @@ onUnmounted(() => {
 
       <ColumnEmptyState
         v-if="!isLoading && filteredNotifications.length === 0"
-        message="通知はありません"
+        :message="i18n.ts._deckNotificationColumn.empty"
         :image-url="serverInfoImageUrl"
       />
 
@@ -1280,7 +1282,7 @@ onUnmounted(() => {
                       @mouseleave="onNotifAvatarMouseLeave"
                     />
                     <template v-if="entry.reaction">
-                      <span v-if="isEmojiMuted(entry.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="entry.reaction" :title="`${entry.reaction} (ミュート中)`" />
+                      <span v-if="isEmojiMuted(entry.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="entry.reaction" :title="i18n.tsx._deckNotificationColumn.mutedReaction({ reaction: entry.reaction })" />
                       <img v-else-if="getCachedReactionUrl(entry.reaction, notif)" :src="getCachedReactionUrl(entry.reaction, notif)!" :alt="entry.reaction" :title="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
                       <img v-else-if="getCachedTwemojiUrl(entry.reaction)" :src="getCachedTwemojiUrl(entry.reaction)!" :alt="entry.reaction" :title="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
                       <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
@@ -1303,12 +1305,12 @@ onUnmounted(() => {
                           <MkMfm v-if="u.name" :text="u.name" :emojis="u.emojis" :server-host="notif._serverHost" plain />
                           <template v-else>{{ u.username }}</template>
                         </template>
-                        <template v-if="groupedUsers(notif).length > 2"> 他{{ groupedUsers(notif).length - 2 }}人</template>
+                        <template v-if="groupedUsers(notif).length > 2"> {{ i18n.tsx._deckNotificationColumn.othersCount_plural({ count: groupedUsers(notif).length - 2 }) }}</template>
                       </span>
                       <span :class="$style.notifLabel">{{ notificationLabel(notif.type) }}</span>
                       <template v-if="notif.type === 'reaction:grouped' && notif.reactions?.length">
                         <span v-for="reaction in uniqueReactions(notif.reactions)" :key="reaction" :class="$style.notifReaction">
-                          <span v-if="isEmojiMuted(reaction)" class="_emojiMuted" :class="$style.notifReactionEmoji" role="img" :aria-label="reaction" :title="`${reaction} (ミュート中)`" />
+                          <span v-if="isEmojiMuted(reaction)" class="_emojiMuted" :class="$style.notifReactionEmoji" role="img" :aria-label="reaction" :title="i18n.tsx._deckNotificationColumn.mutedReaction({ reaction: reaction })" />
                           <img v-else-if="getCachedReactionUrl(reaction, notif)" :src="getCachedReactionUrl(reaction, notif)!" :alt="reaction" :title="reaction" :class="$style.notifReactionEmoji" decoding="async" loading="lazy" @error="onReactionImgError" />
                           <MkEmoji v-else :emoji="reaction" :class="$style.notifReactionEmoji" />
                         </span>
@@ -1369,7 +1371,7 @@ onUnmounted(() => {
                     :title="resolveNotifBadgeTitle(notif)"
                   />
                   <template v-if="notif.type === 'reaction' && notif.reaction">
-                    <span v-if="isEmojiMuted(notif.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="notif.reaction" :title="`${notif.reaction} (ミュート中)`" />
+                    <span v-if="isEmojiMuted(notif.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="notif.reaction" :title="i18n.tsx._deckNotificationColumn.mutedReaction({ reaction: notif.reaction })" />
                     <img v-else-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
                     <img v-else-if="getCachedTwemojiUrl(notif.reaction)" :src="getCachedTwemojiUrl(notif.reaction)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
                     <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
@@ -1388,7 +1390,7 @@ onUnmounted(() => {
                       <span v-if="appHeader(notif)" :class="$style.notifUserName">{{ appHeader(notif) }}</span>
                       <span v-else :class="$style.notifLabel">{{ notificationLabel(notif.type) }}</span>
                       <span v-if="notif.type === 'reaction' && notif.reaction" :class="$style.notifReaction">
-                        <span v-if="isEmojiMuted(notif.reaction)" class="_emojiMuted" :class="$style.notifReactionEmoji" role="img" :aria-label="notif.reaction" :title="`${notif.reaction} (ミュート中)`" />
+                        <span v-if="isEmojiMuted(notif.reaction)" class="_emojiMuted" :class="$style.notifReactionEmoji" role="img" :aria-label="notif.reaction" :title="i18n.tsx._deckNotificationColumn.mutedReaction({ reaction: notif.reaction })" />
                         <img v-else-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifReactionEmoji" decoding="async" loading="lazy" @error="onReactionImgError" />
                         <MkEmoji v-else :emoji="notif.reaction" :class="$style.notifReactionEmoji" />
                       </span>
@@ -1419,15 +1421,15 @@ onUnmounted(() => {
                   >
                     <template v-if="followRequestStates[notificationKey(notif)]">
                       <span :class="$style.followRequestDone">
-                        {{ followRequestStates[notificationKey(notif)] === 'accepted' ? '承認済み' : '拒否済み' }}
+                        {{ followRequestStates[notificationKey(notif)] === 'accepted' ? i18n.ts._deckNotificationColumn.accepted : i18n.ts._deckNotificationColumn.rejected }}
                       </span>
                     </template>
                     <template v-else>
                       <button :class="[$style.followRequestBtn, $style.acceptBtn]" @click="handleFollowRequest(notif, 'accepted')">
-                        <i class="ti ti-check" /> 承認
+                        <i class="ti ti-check" /> {{ i18n.ts._deckNotificationColumn.accept }}
                       </button>
                       <button :class="[$style.followRequestBtn, $style.rejectBtn]" @click="handleFollowRequest(notif, 'rejected')">
-                        <i class="ti ti-x" /> 拒否
+                        <i class="ti ti-x" /> {{ i18n.ts._deckNotificationColumn.reject }}
                       </button>
                     </template>
                   </div>
@@ -1439,7 +1441,9 @@ onUnmounted(() => {
 
                   <!-- createToken warning -->
                   <div v-if="notif.type === 'createToken'" :class="$style.notifMessage">
-                    心当たりがない場合は<a :href="`https://${notif._serverHost}/settings/connect`" target="_blank" rel="noopener noreferrer" :class="$style.notifMessageLink">アクセストークンの管理</a>を通じてアクセストークンを削除してください。
+                    <I18n :src="i18n.ts._deckNotificationColumn.createTokenWarning">
+                      <template #link><a :href="`https://${notif._serverHost}/settings/connect`" target="_blank" rel="noopener noreferrer" :class="$style.notifMessageLink">{{ i18n.ts._deckNotificationColumn.manageAccessTokens }}</a></template>
+                    </I18n>
                   </div>
 
                   <!-- Attached note (for reaction, reply, renote, quote, mention) -->
@@ -1504,19 +1508,19 @@ onUnmounted(() => {
   <PopupMenu ref="notifMenuRef">
     <button v-if="notifMenuTarget?.user" class="_popupItem" @click="notifMenuOpenUser">
       <i class="ti ti-user" />
-      ユーザープロフィール
+      {{ i18n.ts._deckNotificationColumn.openUserProfile }}
     </button>
     <button v-if="notifMenuTarget?.note" class="_popupItem" @click="notifMenuOpenNote">
       <i class="ti ti-message" />
-      ノートを表示
+      {{ i18n.ts._deckNotificationColumn.openNote }}
     </button>
     <button v-if="notifMenuTarget?.note && isWindowExposed('note-inspector')" class="_popupItem" @click="notifMenuOpenNoteInspector">
       <i class="ti ti-code" />
-      ノートの Raw JSON
+      {{ i18n.ts._deckNotificationColumn.noteRawJson }}
     </button>
     <button v-if="isWindowExposed('notification-inspector')" class="_popupItem" @click="notifMenuOpenNotifInspector">
       <i class="ti ti-code" />
-      通知の Raw JSON
+      {{ i18n.ts._deckNotificationColumn.notificationRawJson }}
     </button>
   </PopupMenu>
 </template>

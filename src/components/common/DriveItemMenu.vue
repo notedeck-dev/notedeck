@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import type { DriveFolder, NormalizedDriveFile } from '@/adapters/types'
 import { useDriveActions } from '@/composables/useDriveActions'
+import { i18n } from '@/i18n'
 import PopupMenu from './PopupMenu.vue'
 
 const props = defineProps<{
@@ -72,20 +73,20 @@ defineExpose({ open, close })
   <PopupMenu ref="popupMenuRef">
     <button v-if="context === 'grid'" class="_popupItem" @click="onOpen">
       <i :class="kind === 'folder' ? 'ti ti-folder-open' : 'ti ti-external-link'" />
-      開く
+      {{ i18n.ts._driveItemMenu.open }}
     </button>
     <button class="_popupItem" @click="onRename">
       <i class="ti ti-pencil" />
-      リネーム
+      {{ i18n.ts._driveItemMenu.rename }}
     </button>
     <button v-if="kind === 'file'" class="_popupItem" @click="onMove">
       <i class="ti ti-folder-symlink" />
-      移動
+      {{ i18n.ts._driveItemMenu.move }}
     </button>
     <div class="_popupDivider" />
     <button class="_popupItem _popupItemDanger" @click="onDelete">
       <i class="ti ti-trash" />
-      削除
+      {{ i18n.ts._common.delete }}
     </button>
     <!-- 将来の register_drive_file_action はここに getPluginHandlers computed +
          v-for セクションを足す（NoteMoreMenu と同型の拡張点） -->

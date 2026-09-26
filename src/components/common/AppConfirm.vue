@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import CodeDiffView from '@/components/common/CodeDiffView.vue'
 import SystemIcon from '@/components/common/SystemIcon.vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import { type ConfirmIcon, useConfirm } from '@/stores/confirm'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
 
@@ -94,7 +94,7 @@ useNativeDialog(dialogRef, visible, {
         <div :class="$style.header">
           <div v-if="options.trusted" :class="$style.trusted">
             <i class="ti ti-shield-lock" />
-            <span>NoteDeck の権限確認</span>
+            <span>{{ i18n.ts._appConfirm.trustedHeader }}</span>
           </div>
           <div v-if="iconType" :class="$style.icon">
             <SystemIcon :type="iconType" />
@@ -194,7 +194,7 @@ useNativeDialog(dialogRef, visible, {
           </template>
           <template v-else>
             <button v-if="!options.hideCancel" class="_button" :class="$style.btnCancel" @click="cancel">
-              {{ options.cancelLabel || 'キャンセル' }}
+              {{ options.cancelLabel || i18n.ts._common.cancel }}
             </button>
             <button
               class="_button"

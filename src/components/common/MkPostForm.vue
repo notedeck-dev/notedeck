@@ -21,6 +21,7 @@ import { useMfmInsert } from '@/composables/useMfmInsert'
 import { usePopupControl } from '@/composables/usePopupControl'
 import { usePostFormState } from '@/composables/usePostFormState'
 import { useScheduleDialog } from '@/composables/useScheduleDialog'
+import { i18n } from '@/i18n'
 import {
   getAccountAvatarUrl,
   getAccountLabel,
@@ -534,7 +535,7 @@ function onPaste(e: ClipboardEvent) {
       <!-- Header -->
       <header :class="$style.header">
         <div v-if="!inline" :class="$style.headerLeft">
-          <button class="_button" :class="$style.headerBtn" title="閉じる" @click="requestClose">
+          <button class="_button" :class="$style.headerBtn" :title="i18n.ts._common.close" @click="requestClose">
             <i class="ti ti-x" />
           </button>
           <div v-if="account" :class="$style.accountWrapper">
@@ -581,7 +582,7 @@ function onPaste(e: ClipboardEvent) {
                   />
                 </span>
                 <div :class="$style.accountOptionInfo">
-                  <span :class="$style.accountOptionName">{{ isGuestAccount(acc) ? (acc.displayName || 'ゲスト') : acc.username }}</span>
+                  <span :class="$style.accountOptionName">{{ isGuestAccount(acc) ? (acc.displayName || i18n.ts._mkPostForm.guest) : acc.username }}</span>
                   <span :class="$style.accountOptionHost">@{{ acc.host }}</span>
                 </div>
               </button>
@@ -651,7 +652,7 @@ function onPaste(e: ClipboardEvent) {
             v-if="!inline && visibility !== 'specified'"
             class="_button"
             :class="[$style.headerBtn, $style.localOnlyBtn, { [$style.active]: localOnly }]"
-            :title="localOnly ? 'ローカルのみ (連合なし)' : '連合あり'"
+            :title="localOnly ? i18n.ts._mkPostForm.localOnly : i18n.ts._mkPostForm.federated"
             @click="localOnly = !localOnly"
           >
             <i :class="localOnly ? 'ti ti-rocket-off' : 'ti ti-rocket'" />
@@ -662,7 +663,7 @@ function onPaste(e: ClipboardEvent) {
             <button
               class="_button"
               :class="$style.headerBtn"
-              title="その他"
+              :title="i18n.ts._mkPostForm.more"
               @click.stop="toggleMoreMenu"
             >
               <i class="ti ti-dots" />
@@ -677,7 +678,7 @@ function onPaste(e: ClipboardEvent) {
                 @click="showPreview = !showPreview"
               >
                 <i class="ti ti-eye" />
-                プレビュー
+                {{ i18n.ts._mkPostForm.preview }}
                 <span
                   class="nd-toggle-switch"
                   :class="{ on: showPreview }"
@@ -715,7 +716,7 @@ function onPaste(e: ClipboardEvent) {
                 @click="rememberVisibilityEnabled = !rememberVisibilityEnabled"
               >
                 <i class="ti ti-bookmark" />
-                公開範囲を記憶
+                {{ i18n.ts._mkPostForm.rememberVisibility }}
                 <span
                   class="nd-toggle-switch"
                   :class="{ on: rememberVisibilityEnabled }"
@@ -735,7 +736,7 @@ function onPaste(e: ClipboardEvent) {
                   @click.stop="openScheduleDialog(); showMoreMenu = false"
                 >
                   <i class="ti ti-clock" />
-                  予約投稿
+                  {{ i18n.ts._mkPostForm.scheduledPost }}
                   <span v-if="scheduledAt" :class="$style.moreMenuScheduleBadge">
                     {{ formatScheduleAbsolute(scheduledAt, scheduleNow) }}
                   </span>
@@ -759,7 +760,7 @@ function onPaste(e: ClipboardEvent) {
               <span :class="$style.postingDots">...</span>
             </template>
             <template v-else>
-              {{ memoMode ? 'メモ' : editNote ? '編集' : activeReplyId ? '返信' : activeRenoteId ? '引用' : scheduledAt ? '予約' : 'ノート' }}
+              {{ memoMode ? i18n.ts._mkPostForm.submitMemo : editNote ? i18n.ts._common.edit : activeReplyId ? i18n.ts._mkPostForm.reply : activeRenoteId ? i18n.ts._mkPostForm.quote : scheduledAt ? i18n.ts._mkPostForm.schedule : i18n.ts._mkPostForm.note }}
               <svg viewBox="0 0 24 24" width="16" height="16" :class="$style.submitIcon">
                 <!-- メモはノートではないので送信アイコンにしない (#1018) -->
                 <template v-if="memoMode">
@@ -804,7 +805,7 @@ function onPaste(e: ClipboardEvent) {
         <svg viewBox="0 0 24 24" width="14" height="14">
           <path d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 010 11H11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
         </svg>
-        返信
+        {{ i18n.ts._mkPostForm.reply }}
       </div>
 
       <!-- Quote preview (#753)。取得前・取得失敗時はインジケータのみ -->
@@ -827,7 +828,7 @@ function onPaste(e: ClipboardEvent) {
         <svg viewBox="0 0 24 24" width="14" height="14">
           <path d="M10 11h6m-3-3v6M3 8V6a2 2 0 012-2h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
         </svg>
-        引用付き
+        {{ i18n.ts._mkPostForm.withQuote }}
       </div>
 
       <!-- チャンネル投稿の表示。埋め込みフォーム (inline) はカラム自体が
@@ -835,7 +836,7 @@ function onPaste(e: ClipboardEvent) {
            分かるように (#1073) -->
       <div v-if="effectiveChannelId && !inline" :class="$style.quoteIndicator">
         <i class="ti ti-device-tv" />
-        チャンネルに投稿
+        {{ i18n.ts._mkPostForm.postToChannel }}
       </div>
 
       <!-- CW input -->
@@ -843,7 +844,7 @@ function onPaste(e: ClipboardEvent) {
         <input
           v-model="cw"
           :class="$style.cwInput"
-          placeholder="閲覧注意"
+          :placeholder="i18n.ts._mkPostForm.cw"
           autocomplete="off"
         />
       </div>
@@ -855,7 +856,7 @@ function onPaste(e: ClipboardEvent) {
           v-model="text"
           :class="$style.textArea"
           :maxlength="maxTextLength"
-          :placeholder="activeReplyId ? '返信...' : activeRenoteId ? '引用...' : '今どんな気分？'"
+          :placeholder="activeReplyId ? i18n.ts._mkPostForm.replyPlaceholder : activeRenoteId ? i18n.ts._mkPostForm.quotePlaceholder : i18n.ts._mkPostForm.placeholder"
           autocomplete="off"
           autocorrect="off"
           autocapitalize="sentences"
@@ -901,7 +902,7 @@ function onPaste(e: ClipboardEvent) {
           <button
             class="_button"
             :class="$style.scheduleClear"
-            :title="'予約を解除'"
+            :title="i18n.ts._mkPostForm.unschedule"
             @click="scheduledAt = null"
           >
             <i class="ti ti-x" />
@@ -917,7 +918,7 @@ function onPaste(e: ClipboardEvent) {
         >
           <MkNote :note="previewNote" embedded />
         </div>
-        <div v-else-if="!memoMode" :class="$style.previewEmpty">アカウントが選択されていません</div>
+        <div v-else-if="!memoMode" :class="$style.previewEmpty">{{ i18n.ts._mkPostForm.noAccountSelected }}</div>
       </div>
 
       <!-- Poll editor -->
@@ -958,7 +959,7 @@ function onPaste(e: ClipboardEvent) {
               v-if="btnId === 'emoji'"
               class="_button"
               :class="[$style.footerBtn, { [$style.active]: showEmojiPopup }]"
-              title="絵文字"
+              :title="i18n.ts._mkPostForm.emoji"
               @click.stop="toggleEmojiPopup"
             >
               <i class="ti ti-mood-happy" />
@@ -969,7 +970,7 @@ function onPaste(e: ClipboardEvent) {
               v-else-if="btnId === 'attach'"
               class="_button"
               :class="[$style.footerBtn, { [$style.active]: showDrivePicker }]"
-              title="ファイルを添付"
+              :title="i18n.ts._mkPostForm.attachFile"
               :disabled="isUploading"
               @click.stop="toggleDrivePicker"
             >
@@ -981,7 +982,7 @@ function onPaste(e: ClipboardEvent) {
               v-else-if="btnId === 'poll'"
               class="_button"
               :class="[$style.footerBtn, { [$style.active]: showPoll }]"
-              title="投票"
+              :title="i18n.ts._mkPostForm.poll"
               @click="showPoll = !showPoll"
             >
               <i class="ti ti-chart-arrows" />
@@ -992,7 +993,7 @@ function onPaste(e: ClipboardEvent) {
               v-else-if="btnId === 'cw'"
               class="_button"
               :class="[$style.footerBtn, { [$style.active]: showCw }]"
-              title="閲覧注意"
+              :title="i18n.ts._mkPostForm.cw"
               @click="showCw = !showCw"
             >
               <i class="ti ti-eye-off" />
@@ -1003,7 +1004,7 @@ function onPaste(e: ClipboardEvent) {
               v-else-if="btnId === 'hashtag'"
               class="_button"
               :class="$style.footerBtn"
-              title="ハッシュタグ"
+              :title="i18n.ts._mkPostForm.hashtag"
               @click="insertHashtag"
             >
               <i class="ti ti-hash" />
@@ -1014,7 +1015,7 @@ function onPaste(e: ClipboardEvent) {
               v-else-if="btnId === 'mention'"
               class="_button"
               :class="$style.footerBtn"
-              title="メンション"
+              :title="i18n.ts._mkPostForm.mention"
               @click="insertMention"
             >
               <i class="ti ti-at" />
@@ -1043,7 +1044,7 @@ function onPaste(e: ClipboardEvent) {
               v-else-if="btnId === 'draft' && !memoMode"
               class="_button"
               :class="[$style.footerBtn, { [$style.active]: showDraftsPicker }]"
-              title="下書き一覧"
+              :title="i18n.ts._mkPostForm.drafts"
               @click.stop="toggleDraftsPicker"
             >
               <i class="ti ti-notes" />
@@ -1054,7 +1055,7 @@ function onPaste(e: ClipboardEvent) {
               v-else-if="btnId === 'clear'"
               class="_button"
               :class="$style.footerBtn"
-              title="クリア"
+              :title="i18n.ts._common.clear"
               @click="resetForm"
             >
               <i class="ti ti-trash" />
@@ -1063,7 +1064,7 @@ function onPaste(e: ClipboardEvent) {
 
           <!-- Plugin post_form_action (#731) — 登録があるときだけ表示 -->
           <div v-if="postFormActions.length > 0" :class="$style.footerPopupWrapper">
-            <button class="_button" :class="$style.footerBtn" title="プラグイン" @click.stop="togglePluginActionsMenu">
+            <button class="_button" :class="$style.footerBtn" :title="i18n.ts._mkPostForm.plugins" @click.stop="togglePluginActionsMenu">
               <i class="ti ti-plug" />
             </button>
             <div v-if="showPluginActionsMenu" :class="[$style.footerPopup, $style.mfmMenu]" @click.stop>
@@ -1084,7 +1085,7 @@ function onPaste(e: ClipboardEvent) {
           <button
             class="_button"
             :class="[$style.footerBtn, { [$style.active]: showPostFormButtonsPicker }]"
-            title="ボタン並び替え"
+            :title="i18n.ts._mkPostForm.reorderButtons"
             @click.stop="togglePostFormButtonsPicker"
           >
             <i class="ti ti-settings" />
@@ -1123,9 +1124,9 @@ function onPaste(e: ClipboardEvent) {
       <div :class="$style.emojiPickerHeader">
         <span :class="$style.emojiPickerTitle">
           <i class="ti ti-mood-happy" />
-          絵文字
+          {{ i18n.ts._mkPostForm.emoji }}
         </span>
-        <button class="_button" :class="$style.emojiPickerCloseBtn" title="閉じる" @click="showEmojiPopup = false">
+        <button class="_button" :class="$style.emojiPickerCloseBtn" :title="i18n.ts._common.close" @click="showEmojiPopup = false">
           <i class="ti ti-x" />
         </button>
       </div>
@@ -1150,7 +1151,7 @@ function onPaste(e: ClipboardEvent) {
         @submit.prevent="confirmSchedule"
       >
         <div :class="$style.scheduleHeader">
-          <div :class="$style.scheduleTitle">予約投稿</div>
+          <div :class="$style.scheduleTitle">{{ i18n.ts._mkPostForm.scheduledPost }}</div>
         </div>
         <div :class="$style.scheduleBody">
           <div :class="$style.scheduleRow">
@@ -1175,7 +1176,7 @@ function onPaste(e: ClipboardEvent) {
             :class="$style.scheduleBtnClear"
             @click="clearSchedule"
           >
-            予約を解除
+            {{ i18n.ts._mkPostForm.unschedule }}
           </button>
           <button
             type="button"
@@ -1183,7 +1184,7 @@ function onPaste(e: ClipboardEvent) {
             :class="$style.scheduleBtnCancel"
             @click="showScheduleDialog = false"
           >
-            キャンセル
+            {{ i18n.ts._common.cancel }}
           </button>
           <button
             type="submit"

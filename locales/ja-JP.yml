@@ -173,3 +173,1486 @@ _commands:
   devtools: "開発者ツール"
   profileEditor: "プロファイルエディタ"
   switchProfile: "{name} に切替"
+
+# 複数の画面で同じ意味で使う語 (#135)。画面ごとの語はその画面の節に置く
+_common:
+  retry: "再試行"
+  cancel: "キャンセル"
+  delete: "削除"
+  close: "閉じる"
+  disabled: "無効"
+  loading: "読み込み中..."
+  import: "インポート"
+  export: "エクスポート"
+  copied: "コピー済み"
+  copiedToClipboard: "コピーしました"
+  code: "コード"
+  visual: "ビジュアル"
+  back: "戻る"
+  menu: "メニュー"
+  loaded: "読込済み"
+  confirmReset: "本当にリセット？"
+  hide: "隠す"
+  save: "保存"
+  saved: "保存しました"
+  rename: "名前を変更"
+  resetToDefault: "デフォルトに戻す"
+  resetAll: "すべてリセット"
+  edit: "編集"
+  add: "追加"
+  send: "送信"
+  clear: "クリア"
+  settings: "設定"
+  overview: "概要"
+  enable: "有効にする"
+  disable: "無効にする"
+  install: "インストール"
+  installed: "インストール済み"
+  updateAvailable: "更新あり"
+  active: "適用中"
+  syncToVisual: "ビジュアルに同期"
+  local: "ローカル"
+  offline: "オフライン"
+  polling: "ポーリング"
+  store: "ストア"
+  storeUnavailable: "ストアに接続できません"
+  browseStore: "ストアを探す"
+  openInMisStore: "MisStore で詳細を開く"
+  sourceMissing: "ソース欠損"
+  addFromLibrary: "ライブラリから追加"
+  releaseToRefresh: "離してリフレッシュ"
+  refreshing: "リフレッシュ中…"
+
+_appConfirm:
+  trustedHeader: "NoteDeck の権限確認"
+
+_commandPalette:
+  noMatchingItems: "一致する項目がありません"
+  enterToOpen: "↵ Enterで開く:"
+  enterToRun: "↵ Enterで実行:"
+  noMatchingCommands: "一致するコマンドがありません"
+
+_crossAccountProgress:
+  waiting: "{total} アカウントのうち {pending} 件待ち"
+
+_driveItemMenu:
+  open: "開く"
+  rename: "リネーム"
+  move: "移動"
+
+_galleryItemMenu:
+  open: "開く"
+  copyLink: "リンクをコピー"
+  openInBrowser: "ブラウザで開く"
+
+_memoCard:
+  showMore: "もっと見る"
+  chars_plural:
+    other: "({count}文字)"
+
+_mkAchievementsGrid:
+  unlock: "開放する"
+
+_mkAd:
+  showLess: "この広告の表示頻度を下げる"
+
+_mkAutocompletePopup:
+  searching: "検索中..."
+
+_mkChatMessageMoreMenu:
+  confirmDelete: "このメッセージを削除しますか？"
+  reportUser: "@{username} を通報"
+  reportReasonPlaceholder: "通報理由を入力..."
+  react: "リアクション"
+  copyContent: "内容をコピー"
+  report: "通報"
+
+_mkDraftsPicker:
+  deleteAll: "下書きをすべて削除"
+  noScheduled: "予約投稿はありません"
+  noDrafts: "下書きはありません"
+  restoreThis: "この下書きを復元"
+  editContentAndTime: "内容・時刻を編集"
+  restoreToForm: "復元して投稿フォームに反映"
+  cancelSchedule: "予約を取消"
+
+_mkDriveFolderSelectDialog:
+  root: "ルート"
+  newFolder: "新規フォルダ"
+  moveTo: "「{name}」に移動"
+  moveToRoot: "ルートに移動"
+
+_mkDrivePicker:
+  upload: "アップロード"
+  selectFiles: "ファイルを選択"
+  attachCount_plural:
+    other: "{count}件を添付"
+  attach: "添付"
+
+_mkEmoji:
+  mutedTitle: "{emoji} (ミュート中)"
+
+_mkFileGrid:
+  menuFor: "「{name}」のメニュー"
+
+_mkFolderGrid:
+  menuFor: "「{name}」のメニュー"
+
+_mkMediaGrid:
+  tapToLoadVideo: "動画をタップで読み込み"
+  tapToLoadImage: "画像をタップで読み込み"
+
+_mkMediaLightbox:
+  copyImage: "画像をコピー"
+  downloadImage: "画像をダウンロード"
+  copyImageLink: "画像のリンクをコピー"
+  shareImage: "画像を共有"
+  openInBrowser: "ブラウザで開く"
+
+_mkNote:
+  pinned: "ピン留めされたノート"
+  renotedSuffix: "がリノート"
+  modeTitle: "{mode}モード"
+  localOnly: "ローカルのみ"
+  saidSomething: "{name}が何かを言いました"
+  showMore: "もっと見る"
+  contentHidden: "このノートは非公開です"
+  chars_plural:
+    other: "({count}文字)"
+  mutedTitle: "{emoji} (ミュート中)"
+  unreact: "リアクションを取り消す"
+  react: "リアクション"
+  unrenote: "リノート解除"
+  renote: "リノート"
+  quote: "引用"
+
+_mkNoteTree:
+  continueThread: "スレッドを続ける"
+
+_mkPoll:
+  votes_plural:
+    other: "{count}票"
+  multiple: "複数選択"
+  ended: "終了"
+  until: "{date}まで"
+
+_mkPostForm:
+  guest: "ゲスト"
+  localOnly: "ローカルのみ (連合なし)"
+  federated: "連合あり"
+  more: "その他"
+  preview: "プレビュー"
+  rememberVisibility: "公開範囲を記憶"
+  scheduledPost: "予約投稿"
+  submitMemo: "メモ"
+  reply: "返信"
+  quote: "引用"
+  schedule: "予約"
+  note: "ノート"
+  withQuote: "引用付き"
+  postToChannel: "チャンネルに投稿"
+  cw: "閲覧注意"
+  replyPlaceholder: "返信..."
+  quotePlaceholder: "引用..."
+  placeholder: "今どんな気分？"
+  unschedule: "予約を解除"
+  noAccountSelected: "アカウントが選択されていません"
+  emoji: "絵文字"
+  attachFile: "ファイルを添付"
+  poll: "投票"
+  hashtag: "ハッシュタグ"
+  mention: "メンション"
+  drafts: "下書き一覧"
+  plugins: "プラグイン"
+  reorderButtons: "ボタン並び替え"
+
+_mkPostFormButtonsPicker:
+  title: "投稿フォームボタン"
+
+_mkReactionPicker:
+  searchPlaceholder: "絵文字を検索..."
+  notFound: "絵文字が見つかりません"
+  recent: "最近使った絵文字"
+
+_mkReactionUsersPopup:
+  copyCode: "コードをコピー"
+  unmute: "ミュートを解除"
+  muteEmoji: "この絵文字をミュート"
+  mutedTitle: "{emoji} (ミュート中)"
+
+_mkUserListItem:
+  blocking: "ブロック中"
+  muted: "ミュート中"
+  followsYou: "フォローされています"
+
+_mkUserPopup:
+  notesCount: "{count} ノート"
+  followingCount: "{count} フォロー"
+  followersCount: "{count} フォロワー"
+  followsYou: "フォローされています"
+  remoteUser: "リモートユーザー"
+
+_noteMoreMenu:
+  confirmDelete: "このノートを削除しますか？"
+  confirmDeleteAndEdit: "このノートを削除して再編集しますか？"
+  deleteAndEdit: "削除して編集"
+  reportUser: "@{username} を通報"
+  reportReasonPlaceholder: "通報理由を入力..."
+  unfavorite: "お気に入り解除"
+  favorite: "お気に入り"
+  addToClip: "クリップに追加"
+  actAs: "別のアカウントで…"
+  showRawJson: "Raw JSON を表示"
+  copyContent: "内容をコピー"
+  copyLink: "リンクをコピー"
+  share: "共有"
+  unpin: "ピン留め解除"
+  pin: "ピン留め"
+  report: "通報"
+  actAsDescription: "このノートを操作するアカウント"
+  contentHiddenForAccount: "このアカウントでは本文が非公開のため操作できません"
+  unreactWith: "リアクションを取り消す ({reaction})"
+  react: "リアクション"
+  renote: "リノート"
+  quote: "引用"
+
+_noteReactionPickerPopup:
+  actingAs: "{account} として"
+
+_noteReactionUsersModal:
+  mutedTitle: "{emoji} (ミュート中)"
+  noReactions: "リアクションなし"
+
+_noteVariantsPopup:
+  ariaLabel: "このノートが見えているアカウント"
+  title: "見えているアカウント"
+  primaryTitle: "表示中の視点"
+  primary: "表示中"
+  originTitle: "このノートが最初に投稿されたサーバー"
+  contentHiddenTitle: "このアカウントでは本文が非公開"
+  contentHidden: "非公開"
+  reactedTitle: "このアカウントで反応済み"
+
+_rawJsonView:
+  hideSensitive: "機密を隠す"
+  showSensitive: "機密を表示"
+  copyJson: "表示中の JSON をコピー"
+  copy: "コピー"
+  noData: "データがありません"
+
+_regexGuide:
+  filterConditions: "フィルタ条件"
+  wordsPlaceholder: "カンマ区切りで単語を入力"
+  addCondition: "条件を追加"
+  apply: "適用"
+
+_renoteMoreMenu:
+  confirmDelete: "このリノートを削除しますか？"
+  reportUser: "@{username} を通報"
+  reportReasonPlaceholder: "通報理由を入力..."
+  details: "リノートの詳細"
+  copyLink: "リノートのリンクをコピー"
+  deleteRenote: "リノート削除"
+  reportRenote: "リノートを通報"
+
+_reorderableList:
+  empty: "項目なし"
+
+_safeModeNotice:
+  notice: "セーフモードで起動中のため{subject}は適用されていません。編集内容は保存され、通常起動で適用されます。"
+
+_titleBar:
+  forward: "進む"
+  reload: "リロード"
+  newWindow: "新しいウィンドウ"
+  pip: "ピクチャーインピクチャー"
+  desktopSize: "デスクトップサイズ"
+  mobileSize: "モバイルサイズ"
+  minimize: "最小化"
+  maximize: "最大化"
+
+_titleBarMenu:
+  file: "ファイル"
+  openSettingsFolder: "設定フォルダを開く"
+  openLogFolder: "ログフォルダを開く"
+  openDownloadFolder: "ダウンロードフォルダを開く"
+  openBackupFolder: "バックアップフォルダを開く"
+  launchAtStartup: "OS起動時に自動起動"
+  view: "表示"
+  zoomIn: "拡大"
+  zoomOut: "縮小"
+  reload: "再読み込み"
+
+_postFormFilePreviews:
+  discard: "破棄"
+  renameFile: "ファイル名を変更"
+  unmarkSensitive: "センシティブを解除"
+  markSensitive: "センシティブとして設定"
+  editCaption: "キャプションを編集"
+  addCaption: "キャプションを付ける"
+  preview: "プレビュー"
+  removeAttachment: "添付を取り消す"
+
+_postFormPollEditor:
+  choicePlaceholder: "選択肢 {n}"
+  addChoice: "選択肢を追加"
+  multiple: "複数選択"
+  expiry: "期限"
+  noExpiry: "無期限"
+  specifyDate: "日時指定"
+
+_mkMfm:
+  mutedTitle: "{emoji} (ミュート中)"
+  search: "検索"
+
+_app:
+  safeModeNotice: "セーフモードで起動中 — プラグイン・ウィジェット・カスタム CSS・テーマ・HEARTBEAT は無効です"
+  exitSafeMode: "オフにする"
+
+_devWelcome:
+  tagline: "Misskey Pro — Misskey廃人のための Misskey IDE"
+  launchAsDesktopApp: "デスクトップアプリとして起動してください"
+  autoSwitchHint: "起動を検知すると自動で Dev Dashboard に切り替わります"
+
+_devDashboard:
+  appDisconnected: "アプリ接続なし — 再接続待ち…"
+  expandNav: "ナビゲーションを開く"
+  collapseNav: "ナビゲーションを畳む"
+  resources: "リソース"
+  apiDocs: "API ドキュメント"
+  overviewDesc: "実行中アプリのヘルスチェック — 127.0.0.1:19820"
+  refresh: "更新"
+  deckColumns_plural:
+    other: "デッキ — カラム {count} 本"
+  rawData: "Raw データ"
+  startup: "起動計測"
+  startupDesc: "フロントの起動マークと WebView 起動固定費 (#985)。固定費は初回ナビゲーションのみ計測される"
+  untilLastMark: "最終マークまで"
+  webviewFixedCost: "WebView 起動固定費"
+  waterfall: "ウォーターフォール"
+  noStartupData: "計測データなし — アプリ起動後に「更新」で取得します"
+  heartbeatDesc: "global daemon の観測面 (#411)。連続 3 回失敗で自動 disable する silent fail 防止機構つき"
+  daemonTickRunning: "daemon (tick 実行中)"
+  lastTick: "最終 tick"
+  lastTickWithSource: "最終 tick ({source})"
+  consecutiveFailures: "連続失敗"
+  aiRunsToday: "本日の AI 起動"
+  configAndLastOutcome: "設定と直近の結末"
+  intervalAndTarget: "{minutes} 分 / {target}"
+  lastOutcome: "直近の結末"
+  noHeartbeatState: "状態未取得 — アプリ接続後に自動で埋まります"
+  caches: "キャッシュ観測"
+  cachesDesc: "上限つきキャッシュの実測 (#987)。「必ず上限」の不変条件が守られているかをここで確かめる"
+  noCaches: "登録済みキャッシュなし — 名前付きキャッシュが生成されると現れます"
+  qbTrace: "Query Bridge トレース"
+  qbTraceDesc: "HTTP → WebView の query 往復と所要時間 (#897 の IPC 可視化)。エラー応答は赤、遅い往復は色付き"
+  noQbTrace: "まだ記録なし — external API 経由の query が走ると溜まります"
+  inspector: "Inspector 照合"
+  inspectorDesc: "アダプタ層 (Misskey WS raw) と SSE (Rust イベントバス) の種別別カウントを突き合わせ、どの層までイベントが届いているかを切り分ける"
+  adapterLayer: "アダプタ層 (WS raw)"
+  adapterLayerCount_plural:
+    other: "アダプタ層 (WS raw) — {count} 件"
+  bufferEmpty: "バッファ空 — Stream Inspector カラムを開くと流入します"
+  sseEventBusCount_plural:
+    other: "SSE (イベントバス) — {count} 件"
+  nothingReceived: "受信なし"
+  sseEvents: "SSE イベント"
+  sseDesc: "/api/events — Rust イベントバスのライブストリーム · {count} events · {rate}/min"
+  last60sRate: "直近 60 秒の流量"
+  sseFilterPlaceholder: "type prefix フィルタ (例: note,notification,main-)"
+  applyReconnect: "適用 / 再接続"
+  stop: "停止"
+  downloadJsonl: "バッファを JSON Lines でダウンロード"
+  filterByType: "クリックでこの種別に絞る"
+  waitingForEvents: "イベント待機中 — デッキにノートや通知が流れると表示されます"
+  capsDesc_plural:
+    other: "external principal として dispatcher を通す手動実行盤 — 権限ゲート (#712) の deny / 確認ダイアログを目視テストできる · {count} 件"
+  selectCapability: "capability を選択…"
+  requiresConfirmation: "確認ダイアログあり (アプリ側に表示)"
+  paramsSchema: "params スキーマ"
+  paramsAndRun: "パラメータと実行"
+  running: "実行中…"
+  run: "実行"
+  runHistory: "実行履歴"
+  restoreResult: "クリックで結果を呼び戻す"
+  effectivePermissions: "実効権限"
+  permsDesc: "principal 別の granted マトリクス (#712)。Capabilities で選択すると要求キー行がハイライトされる"
+  permsDescSelected: "principal 別の granted マトリクス (#712)。選択中の capability ({id}) の要求キー行をハイライト"
+  unifiedTimeline: "統合タイムライン"
+  unifiedTimelineDesc: "Rust ログ + SSE イベント + フロントログを単一時系列にマージ — どの層でイベントが消えたかを 1 画面で追う"
+  logFilterPlaceholder: "絞り込み (部分一致)"
+  warnOnly: "WARN 以上のみ表示 (SSE イベントも隠れる)"
+  reconnect: "再接続"
+  rustLog: "Rust ログ"
+  front: "フロント"
+  waitingForLogs: "待機中 — Rust ログ / SSE イベント / フロントログがここに時系列で流れます"
+
+_tutorialContent:
+  idleDescription: "カテゴリを選んで始められます。一覧から進めてください。"
+  openList: "一覧を開く"
+  progress: "チュートリアル {current} / {total}"
+  replaying: "見直し"
+  completedTitle: "ここまで完了しました"
+  completedDescription: "チュートリアルの一覧から、続きのカテゴリを選べます。"
+  readMore: "詳しく読む"
+  achieved: "達成しました"
+  skip: "スキップ"
+  next: "次へ →"
+
+_aiConnectionSection:
+  title: "AI 接続"
+  notSelected: "未選択"
+  keyHint: "API キーは Secret Vault (OS キーチェーン) に保管され、フロントエンドや AI には渡りません。接続の追加・編集は「接続」ウィンドウで行います。"
+  noConnections: "AI プロバイダー接続がありません。「接続」ウィンドウのテンプレートから接続を追加してください。"
+  manageConnections: "接続を追加 / 管理"
+  model: "モデル"
+  modelPlaceholder: "claude-sonnet-5, gpt-5.4-mini, moonshotai/kimi-k3 など"
+
+_aiDataSourcesSection:
+  title: "データソース"
+  memosTitle: "メモの渡し方"
+  expandLinks: "リンク先メモを展開"
+  expandLinksDescription: "本文の `[name](memo:<id>)` で参照されているメモを 1 階層自動で AI に渡す。OFF にすると AI は明示的に `memos.backlinks` 等を呼ばない限り参照先を見ない。"
+  includeBacklinks: "バックリンクを添付"
+  includeBacklinksDescription: "各メモに `referencedBy: [...]` を付けて「どのメモから参照されているか」を AI に伝える。"
+
+_aiGenerationSection:
+  title: "生成"
+  changedFromDefault: "既定から変更あり"
+  default: "既定"
+  note: "既定のまま使える値です。実行先のモデルによって既定が合わないときだけ触ってください。"
+  maxTokens: "応答の最大トークン"
+  maxTokensHint: "長い応答が途中で切れるときに上げます。0 でプロバイダーの既定に任せます (Anthropic は上限必須のため {maxTokens} を送ります)"
+  maxToolRounds: "ツール呼び出しの上限"
+  rounds: "ラウンド"
+  maxToolRoundsHint: "1 回の依頼で AI が続けてツールを呼べる回数。上げるほど込み入った作業を最後まで進められますが、費用と暴走したときの被害も比例して増えます"
+  titleMaxTokens: "タイトル生成の最大トークン"
+  titleMaxTokensHint: "セッション名が日付のまま残るときに上げます。この上限は思考にもかかる一方、タイトルとして使うのは本文だけなので、よく考えるモデルほど余裕が要ります"
+  readTimeout: "応答待ちのタイムアウト"
+  seconds: "秒"
+  readTimeoutHint: "応答が届かなくなってからの待ち時間です。生成中は届き続けるので長考は切りません。最初の 1 文字までが遅い実行先 (ローカルの LLM など) で伸ばします"
+
+_aiHeartbeatSection:
+  enabledWithInterval: "有効・{minutes} 分"
+  enable: "HEARTBEAT を有効化"
+  tickInterval: "tick 間隔"
+  minutes: "分"
+  desktopNotification: "デスクトップ通知"
+  desktopNotificationDescription: "重要発見 (HEARTBEAT_OK 以外) を OS 通知で表示。アプリにフォーカスがあれば自動抑制"
+  cheapCheckDescription: "変化なしなら AI を起動せず HEARTBEAT_OK 扱い (skill 側で cheapCheckCapabilities の宣言が必要)"
+  maxSkipHours: "最大連続 skip 時間"
+  hours: "時間"
+  dailyMaxAiRuns: "1 日の AI 起動上限"
+  runsPerDay: "回 / 日"
+  disableOnDailyLimit: "上限到達時に自動停止"
+  disableOnDailyLimitDescription: "OFF = 警告のみで継続 / ON = HEARTBEAT を自動 disable"
+  dailyTokenBudget: "1 日の token 予算 (現在の接続)"
+  tokensPerDay: "tokens / 日 (0 = 無制限)"
+  permissions: "HEARTBEAT 中の権限"
+  changeInPermissions: "権限設定で変更"
+
+_aiPersonaSection:
+  title: "ペルソナ"
+  none: "なし"
+  hint: "新規セッションのデフォルトです。過去のセッションは作成時のペルソナを保持します。"
+  noCandidates: "ペルソナ候補がありません。Skill 編集ウィンドウで「Persona」を ON にしたスキルがここに表示されます。"
+
+_userProfileAchievementsPane:
+  empty: "実績がありません"
+
+_userProfileClipsPane:
+  empty: "クリップがありません"
+
+_userProfileGalleryPane:
+  empty: "ギャラリー投稿がありません"
+
+_userProfileListsPane:
+  empty: "リストがありません"
+
+_userProfileNotesList:
+  empty: "ノートはありません"
+
+_userProfilePagesPane:
+  empty: "ページがありません"
+
+_userProfilePlayPane:
+  empty: "Playがありません"
+
+_userProfileHero:
+  followsYou: "フォローされています"
+  more: "その他"
+  qrCode: "QRコード"
+  followedMessage: "フォロワーへのメッセージ"
+  memoHeading: "メモ（自分のみ）"
+  memoPlaceholder: "このユーザーへのメモを追加..."
+  notes: "ノート"
+  following: "フォロー"
+  followers: "フォロワー"
+
+_userProfileMenu:
+  composeToUser: "ユーザー指定ノートを作成"
+  searchUserNotes: "ユーザーのノートを検索"
+  directMessage: "ダイレクトメッセージ"
+  copyUsername: "ユーザー名をコピー"
+  copyProfileUrl: "プロフィール URL をコピー"
+  copyRss: "RSS をコピー"
+  embed: "埋め込み"
+  addToList: "リストに追加"
+  addToAntenna: "アンテナに追加"
+  withReplies: "TLに他の人への返信を含める"
+  notifyPosts: "投稿を通知"
+  mute: "ミュート"
+  unmute: "ミュート解除"
+  muteRenotes: "リノートをミュート"
+  unmuteRenotes: "リノートミュート解除"
+  block: "ブロック"
+  unblock: "ブロック解除"
+  invalidateFollower: "フォロワーを解除"
+  report: "通報"
+  muteConfirm: "@{username} をミュートしますか？"
+  blockConfirm: "@{username} をブロックしますか？"
+  invalidateFollowerConfirm: "@{username} のフォロワーを解除しますか？"
+  invalidate: "解除"
+  reportTitle: "@{username} を通報"
+  reportPlaceholder: "通報理由を入力..."
+  noLists: "リストがありません"
+  noUserAntennas: "ユーザーソースのアンテナがありません"
+
+_notFoundPage:
+  message: "ページが見つかりません"
+  backToHome: "ホームに戻る"
+
+_pipPage:
+  unpin: "最前面固定を解除"
+  pin: "最前面に固定"
+  addColumn: "カラムを追加"
+
+_aiSettingsContent:
+  rawHint: "ai.json5 を直接編集できます。API キーはキーチェーン管理のため raw には現れません。"
+  invalid: "無効"
+
+_appearanceEditorContent:
+  setWallpaper: "壁紙を設定"
+  removeWallpaper: "壁紙を削除"
+  nyaize: "Catユーザーの語尾をにゃ化"
+  nyaizeDescription: "本家 Web UI と同じ表示。コピー・検索は原文のまま"
+  codeHint: "デフォルト値からの差分のみ表示 — 変更は自動保存されます"
+
+_backupContent:
+  settingsFiles: "設定ファイル"
+  settingsHint: "テーマ・プラグイン・ウィジェット・スキル・プロファイル・各設定をひとつの notedeck.json にまとめてエクスポート / インポートします。"
+  processing: "処理中..."
+  database: "データベース"
+  databaseHint: "ノート・通知・フォロー情報などのローカルキャッシュDBをバックアップ / リストアします。"
+  databaseCredentialsNote: "認証情報は含まれないため、リストア後は各アカウントで再ログインしてください。"
+  backup: "バックアップ"
+  restore: "リストア"
+
+_clipDetailContent:
+  private: "非公開"
+  empty: "クリップにノートがありません"
+
+_connectionsContent:
+  chooseService: "接続したいサービスを選んでください"
+  addConnection: "接続を追加"
+  addManually: "手動で追加"
+  registered: "登録済みの接続"
+  aiActive: "AI から利用可能"
+  aiPending: "AI に開示中 (vault.use が無効か secret 未設定でまだ使えません)"
+  pluginActive: "プラグイン・ウィジェットから利用可能"
+  pluginPending: "プラグインに開示中 (vault.use が無効か secret 未設定でまだ使えません)"
+  externalActive: "外部アプリから利用可能"
+  externalPending: "外部アプリに開示中 (vault.use が無効か secret 未設定でまだ使えません)"
+
+_driveFileDetailContent:
+  exif: "EXIF 情報"
+  exifHasGps: "位置情報 (GPS) が含まれています"
+  exifEmpty: "EXIF 情報は含まれていません"
+
+_editHistoryContent:
+  subtitle: "{label}の編集履歴"
+  loading: "読み込み中…"
+  empty: "編集履歴はまだありません"
+  latest: "直前"
+  restore: "#{n} の状態に戻す"
+
+_emojiMuteSection:
+  hideMutedUserReactions: "ミュート・凍結ユーザーのリアクションを隠す"
+  hideMutedUserReactionsDescription: "リアクション集計から抹消する。リアクションが非常に多いノートは対象外"
+  mutedEmojis: "ミュート中の絵文字"
+  empty: "なし — リアクションや絵文字カラムの右クリックから追加できます"
+  clickToUnmute: "{emoji} — クリックで解除"
+
+_followListContent:
+  following: "フォロー"
+  followers: "フォロワー"
+  noFollowing: "フォローしているユーザーはいません"
+  noFollowers: "フォロワーはいません"
+
+_instanceProfileContent:
+  unknown: "不明"
+  firstRetrieved: "初観測 {date}"
+  infoUpdated: "更新 {time}"
+  latestRequestReceived: "直近リクエスト受信 {time}"
+  latestRequestSent: "直近リクエスト送信 {time}"
+  registrationOpen: "新規登録オープン"
+  registrationClosed: "新規登録クローズ"
+  users: "ユーザー"
+  notes: "ノート"
+  rawResponse: "{endpoint} の生レスポンス"
+
+_keybindsContent:
+  recording: "入力待ち..."
+  addShortcut: "ショートカットを追加"
+  codeHint: "ユーザーカスタマイズの JSON（デフォルトからの差分のみ）"
+  invalid: "無効"
+
+_listDetailContent:
+  private: "非公開"
+  members_plural:
+    other: "{count} メンバー"
+  noMembers: "メンバーがいません"
+
+_memoEditorContent:
+  loading: "読み込み中…"
+  notFound: "このメモは見つかりません"
+
+_navEditorContent:
+  currentItems: "現在のアイテム"
+  addItem: "アイテムを追加"
+  noItems: "項目なし"
+  codeHint: "デフォルト値からの差分 — null はデフォルト設定を使用"
+
+_noteDetailContent:
+  noReplies: "返信はありません"
+  noRenotes: "リノートはありません"
+  mutedReaction: "{reaction} (ミュート中)"
+  noReactions: "リアクションはありません"
+
+_noteInspectorContent:
+  view: "ビュー"
+  rawResponse: "{endpoint} の生レスポンス"
+  activityPubObject: "{endpoint} 経由で解決した ActivityPub オブジェクト"
+
+_notificationInspectorContent:
+  inMemoryObject: "メモリ上の通知オブジェクト"
+  activityPubObject: "{endpoint} 経由で解決した ActivityPub オブジェクト"
+
+_pageEditContent:
+  title: "タイトル"
+  summary: "概要"
+  saving: "保存中..."
+
+_permissionProfileEditor:
+  highRisk: "高リスク操作"
+
+_petSection:
+  title: "ペット"
+  openPage: "petdex.dev で見る"
+  remove: "ペットを外す"
+  size: "ペットの大きさ"
+  inputPlaceholder: "slug か petdex.dev のペット URL"
+  replace: "替える"
+  use: "使う"
+  browse: "petdex.dev で探す"
+
+_playDetailContent:
+  showSource: "ソースを表示"
+  reload: "リロード"
+
+_playEditContent:
+  title: "タイトル"
+  summary: "概要"
+  saving: "保存中..."
+
+_pluginsContent:
+  enabled: "有効"
+  resetAllToDefault: "すべてデフォルトに戻す"
+  installHint: "AiScript プラグインコードを貼り付けてインストール"
+  codeHint: "プラグインの AiScript ソースコード — 編集後「保存して再起動」で反映"
+  noLogs: "ログはありません"
+
+_postFormEditorContent:
+  currentOrder: "現在の並び"
+  noButtons: "ボタンなし"
+  availableButtons: "追加できるボタン"
+  allAdded: "すべてのボタンが追加済み"
+  codeHint: "デフォルト値からの差分 — null はデフォルト設定を使用"
+
+_profileEditorContent:
+  editingOther: "「{name}」を編集中"
+  profileName: "プロファイル名"
+  columns: "カラム"
+  noColumns: "カラムがありません"
+  addColumn: "カラムを追加"
+  invalid: "無効"
+
+_snippetsEditorContent:
+  codeHint: "VSCode 互換のスニペット — prefix で補完に出ます"
+  invalid: "無効"
+  confirmReset: "本当に戻す？"
+
+_tutorialEditorContent:
+  lead: "操作するとチェックが付きます。カテゴリを終えると実績になり、通知に届きます。"
+  readDocs: "ドキュメントを読む"
+  readStepDocs: "このステップの解説を読む"
+  read: "読む"
+  showGuide: "案内を表示"
+  unlockDescription: "このカテゴリで案内する機能を表示する"
+  unlock: "開発者モードで開放"
+  again: "もう一度"
+  start: "はじめる"
+  resume: "続きから"
+  confirmReset: "もう一度押すと消えます"
+  reset: "達成記録を消す"
+
+_userActivityFollowingChart:
+  unavailable: "フォローデータを取得できません"
+
+_userActivityHeatmap:
+  unavailable: "アクティビティを表示できません"
+
+_userActivityNotesChart:
+  unavailable: "投稿データを取得できません"
+
+_userActivityPvChart:
+  unavailable: "PV データを取得できません"
+
+_userProfileContent:
+  remoteCaution: "リモートユーザーのため、情報が不完全です。"
+  showOnRemote: "リモートで表示"
+  pinned: "ピン留め"
+  noFiles: "ファイルはありません"
+  mutedReaction: "{reaction} (ミュート中)"
+  noReactions: "リアクションはありません"
+
+_widgetEditContent:
+  autoRunOnTitle: "自動実行: 有効 (クリックで切替)"
+  autoRunOffTitle: "自動実行: 無効 (クリックで切替)"
+  autoRunOn: "自動実行 ON"
+  autoRunOff: "自動実行 OFF"
+  notFound: "ウィジェットが見つかりません"
+  runHint: "右上の実行ボタンでウィジェットを実行"
+  output: "出力 ({n})"
+
+_aboutContent:
+  openOfficialSite: "公式サイトを開く"
+  checkForUpdate: "アップデートを確認"
+  upToDate: "最新"
+  update: "アップデート"
+  updateReady: "更新の準備ができました"
+  downloading: "v{version} をダウンロード中"
+  restart: "再起動"
+  updateNow: "更新"
+  developerMode: "開発者モード"
+  developer: "開発者"
+  versionInfo: "バージョン情報"
+  copyInfo: "情報をコピー"
+  reportBug: "バグを報告"
+  selfDiagnosis: "自己診断"
+  noProblems: "問題は見つかりませんでした"
+  rediagnose: "再診断"
+  startupPerformance: "起動パフォーマンス"
+  phase: "フェーズ"
+  segment: "区間"
+  cumulative: "累計"
+  webviewStartupNote: "WebView 起動はプロセス初回のナビゲーションでのみ計測されます (累計は画面読み込み起点)"
+  runtimePerformance: "実行時パフォーマンス"
+  measuring: "計測中..."
+  openPerformanceSettings: "パフォーマンス設定を開く"
+
+_cacheEditorContent:
+  usage: "使用状況"
+  notes: "ノート"
+  dbSize: "DB サイズ"
+  imageCache: "画像キャッシュ"
+  maxSize: "上限"
+  retention: "保持期間"
+  days: "日"
+  processing: "処理中..."
+  clearImages: "画像キャッシュ削除"
+  clearImagesWithCount_plural:
+    other: "画像キャッシュ削除 ({count} 件)"
+  granularity: "保存粒度"
+  searchIndexNote: "このキャッシュはクライアント検索の索引でもあります。フォロワー限定やダイレクトを含む、自分の目を通った全ノートが暗号化されずに保存されます。"
+  perAccountLimit: "アカウントあたり上限"
+  manualClear: "手動削除"
+  manualClearNote: "ノートと OGP のキャッシュをすべて削除します。サーバーから再取得すれば復元されます。"
+
+_columnQueryEditorContent:
+  queryName: "クエリ名"
+  descriptionOptional: "説明 (任意)"
+  hint: "AiScript 式でカラムに流すノートを定義します (true = 表示)。例: {example}。カラムへの適用はタイムラインカラムのフィルタメニューで切り替えます。"
+  sourcePlaceholder: "note.text != null && note.text.incl(\"キーワード\")"
+  fastQuery_plural:
+    other: "高速クエリ (QIR {count} ノード)"
+  dryRun: "直近の TL カラム {total} 件中 {match} 件通過"
+  dryRunErrors_plural:
+    other: "・エラー {count} 件 (除外)"
+  lineLabel: "{line}行:"
+  guardTitle: "末尾の式を {guard} で守ります"
+  addGuard: "ガードを入れる"
+  sequential: "逐次適用 (1 件ずつ判定するため検索では使えません)"
+  saveAnyway: "このまま保存"
+
+_connectionEditContent:
+  name: "名前"
+  authMethod: "認証方式"
+  customHeader: "任意ヘッダー"
+  headerNamePlaceholder: "ヘッダー名 (例: x-api-key)"
+  queryParam: "クエリパラメータ"
+  paramNamePlaceholder: "パラメータ名 (例: api_key)"
+  basicAuth: "ベーシック認証"
+  username: "ユーザー名"
+  secret: "シークレット"
+  secretSet: "設定済み"
+  rotateSecret: "鍵を入れ替える"
+  secretPlaceholder: "16 文字以上"
+  openIssueGuide: "発行手順を開く"
+  advanced: "詳細"
+  allowedHosts: "許可するホスト (カンマ区切り)"
+  allowedHostsPlaceholder: "自動: baseUrl のホスト"
+  notes: "メモ"
+  notesPlaceholder: "ここにシークレットを書かないでください"
+  exposeAi: "AI に見せる"
+  exposeAiHint: "OFF だと AI (チャット / HEARTBEAT) には接続の存在自体が見えません"
+  aiVaultUseDisabled: "AI の vault.use が無効のため、この接続はまだ見えません — 権限ウィンドウを開いて許可してください"
+  trustAi: "確認なしで使う (AI)"
+  trustAiHint: "AI がこの接続を使うとき確認ダイアログを出しません"
+  exposePlugin: "プラグイン・ウィジェットに見せる"
+  exposePluginHint: "AiScript プラグイン / ウィジェットからこの接続を使えるようにします"
+  pluginVaultUseDisabled: "プラグインの vault.use が無効のため、この接続はまだ見えません — 権限ウィンドウを開いて許可してください"
+  trustedPlugins: "確認なしで使えるプラグイン・ウィジェット (確認ダイアログの「今後確認なし」で追加されます)"
+  revokeTrust: "信頼を取り消す (次回から確認ダイアログが出ます)"
+  exposeExternal: "外部アプリに見せる"
+  exposeExternalHint: "HTTP API (永続トークン) 経由の外部アプリから使えるようにします"
+  externalVaultUseDisabled: "外部アプリの vault.use が無効のため、この接続はまだ見えません — 権限設定を開いて許可してください"
+  trustExternal: "確認なしで使う (外部アプリ)"
+  trustExternalHint: "外部アプリがこの接続を使うとき確認ダイアログを出しません"
+  testing: "テスト中..."
+  test: "テスト"
+  saving: "保存中..."
+
+_cssEditorContent:
+  customCss: "カスタム CSS"
+  presets: "プリセット"
+  font: "フォント"
+  fontPreview: "あいうえお 漢字 ABCabc 123 Il1 O0"
+  monoFont: "等幅フォント"
+  monoFontPreview: "const 変数 = 0; // Il1 O0"
+  monoFontNote: "コードブロック・JSON ビューア・エディタ系に反映されます"
+  fontSize: "フォントサイズ"
+  small: "小"
+  large: "大"
+  reset: "リセット"
+  visibilityBg: "公開範囲の色分け"
+  hideNoteCounts: "ノートの数字を隠す"
+  hideNoteCountsNote: "リアクション数とリノート数が消えます (返信数は会話の量なので残ります)"
+  hideUserStats: "プロフィールの数字を隠す"
+  hideUserStatsNote: "ノート数・フォロー数・フォロワー数が「-」になります (クリック導線は残ります)"
+  freeformCss: "追加CSS"
+  cssErrorHint: "CSSにエラーがあるため適用されません"
+  codeHint: "プリセットと追加CSSを結合した全体のCSSです"
+  syncToPresets: "プリセットに同期"
+  invalid: "無効"
+  history: "履歴"
+  confirmClear: "本当にクリア？"
+  clearAll: "すべてクリア"
+
+_loginContent:
+  checking: "確認中..."
+  serverReachable: "サーバーに接続できます"
+  connectToServer: "Misskeyサーバーに接続"
+  serverAddress: "サーバーアドレス"
+  enterHost: "ホスト名を入力してください"
+  login: "ログイン"
+  browseAsGuest: "ゲストとして閲覧"
+  connecting: "サーバーに接続中..."
+  waitingForAuth: "認証待ち..."
+  authOpened: "ブラウザで認証画面が開きました。"
+  authInstruction: "認証が完了したら、下のボタンをクリックしてください。"
+  authDone: "認証しました"
+  startOver: "やり直す"
+
+_performanceEditorContent:
+  autoAdapt: "電源・回線・ウィンドウの状態に合わせて自動調整する"
+  autoAdaptDescription: "バッテリー駆動・省電力モードでは画像の先読みとアニメーション絵文字を止め、従量制回線では画像・動画をタップで読み込み、ウィンドウを隠している間はタイムラインの購読を休止する"
+  lowMemory: "省メモリ"
+  highPerformance: "高性能"
+  masterTitle: "全体のバランスを保ったまま上下させる"
+  defaultValue: "デフォルト: {value}"
+  codeHint: "デフォルト値からの差分のみがJSON形式で保存されます"
+  invalid: "無効"
+
+_permissionsContent:
+  noExposedConnections: "開示された接続がまだありません —"
+  openConnections: "接続一覧を開く"
+  confirmSkipTitle: "確認なしで実行できる操作"
+  confirmSkipHint: "確認ダイアログで「今後この操作を確認しない」を選んだ操作。取り消すと次回から再び確認されます。"
+  revoke: "取り消す"
+  apiTokens: "永続 API トークン"
+  apiTokensHint: "再起動を跨いで使える名前付きトークン。本体はハッシュのみ保存され、発行時に一度だけ表示されます。"
+  revokeToken: "失効"
+  tokenNamePlaceholder: "トークン名 (例: Raycast, Claude Cowork)"
+  issueToken: "発行"
+  createdTokenNotice: "「{name}」のトークン — この表示を閉じると再表示できません"
+  copy: "コピー"
+  codeHint: "permissions.json5 を直接編集できます。principal (ai.chat / ai.heartbeat / plugin / external) ごとの preset と custom マップを持ちます。"
+  invalid: "無効"
+
+_skillEditContent:
+  notFound: "スキルが見つかりません"
+  meta: "メタ"
+  instructions: "指示文"
+  name: "名前"
+  namePlaceholder: "スキル名"
+  description: "説明"
+  descriptionPlaceholder: "どんな時に使うか"
+  author: "作者"
+  optional: "任意"
+  version: "バージョン"
+  mode: "モード"
+  modeAlways: "常時"
+  modeManual: "手動"
+  modeTrigger: "自動"
+  modeHeartbeat: "HEARTBEAT (定期実行)"
+  heartbeatHint: "HEARTBEAT 有効時、tick ごとにこの skill body を AI に読ませます (#411 / OpenClaw HEARTBEAT.md 相当)。"
+  triggerHint: "自動起動: ユーザーの入力に下のトリガー語のいずれかが含まれたターンだけ、この skill body が system prompt に注入されます (大文字小文字無視の部分一致)。"
+  triggers: "トリガー語（1 行に 1 つ）"
+  triggersPlaceholder: "どこ\n使い方\nhelp"
+  triggersOnlyInTriggerMode: "トリガー語はモードを「自動」にしたときだけ反応します"
+  personaToggle: "このスキルを AI セッションの persona 候補にする"
+  personaHint: "ON にすると、AI セッションヘッダの persona セレクタにこのスキルが表示されます。選択中のセッションで AI はこの persona として振る舞い、memo の作者として記録されます (#491)。"
+  fromStoreNote: "ストア由来のスキル — 編集内容はローカルファイルに保存されます (再インストールで上書きされる可能性あり)"
+
+_tasksEditorContent:
+  visualHint: "宣言したタスクはコマンドパレットと Task Runner カラムから実行できます。"
+  dragToReorder: "ドラッグで並び替え"
+  defaultTask: "デフォルト実行対象"
+  untitled: "(無題)"
+  promptsForInput: "入力を求める"
+  label: "ラベル"
+  labelPlaceholder: "UI 表示名"
+  description: "説明"
+  descriptionPlaceholder: "任意 (ツールチップ用の長文)"
+  detailPlaceholder: "ラベル下の 1 行補足 (任意)"
+  groupPlaceholder: "自由文字列 (任意)"
+  defaultTaskOnlyOne: "デフォルト実行対象 (1 件のみ)"
+  account: "アカウント"
+  accountActive: "現在アクティブ"
+  accountFirst: "最初のログイン済み"
+  accountSpecific: "指定 ID"
+  action: "アクション (api)"
+  presentation: "表示オプション (presentation)"
+  revealOnRun: "実行時に履歴で自動選択する (revealOnRun)"
+  clearHistoryOnRun: "実行時に過去履歴をクリア (clearHistoryOnRun)"
+  inputFields: "入力フィールド"
+  prompt: "プロンプト"
+  pickOptionsPlaceholder: "選択肢 (1行に1つ)"
+  defaultPlaceholder: "default (任意)"
+  noInputs: "入力なし — タスクは即座に実行されます"
+  empty: "タスクがまだありません"
+  addTask: "タスクを追加"
+  variables: "変数:"
+  parsedTasks_plural:
+    other: "{count} タスクを解析済み"
+  savingSuffix: " · 保存中…"
+  invalid: "無効"
+  resetToSample: "サンプルに戻す"
+
+_themeEditorContent:
+  light: "ライト"
+  dark: "ダーク"
+  themeInfo: "テーマ情報"
+  themeName: "テーマ名"
+  existingThemes: "既存テーマ"
+  selectTheme: "テーマを選択..."
+  primaryColors: "基本色"
+  extraProperties: "追加プロパティ"
+  addProperty: "プロパティを追加 ({n})"
+  search: "検索..."
+  noMatchingProperties: "一致するプロパティがありません"
+  applyFromCode: "コードから反映"
+
+_deckAiColumn:
+  personaIndicator: "Persona: {name} (エージェント設定で変更)"
+  backToSessions: "セッション一覧へ戻る"
+  searchSessions: "セッションを検索..."
+  noSessions: "セッションはまだありません"
+  noMatchingSessions: "一致するセッションがありません"
+  untitledChat: "無題のチャット"
+  inputPlaceholder: "質問するか /help でコマンド一覧"
+  inputPlaceholderNoApiKey: "/help でコマンド一覧 (API キー未設定)"
+  apiKeyRequired: "AI に質問するには API キーの設定が必要です (/help などのコマンドはそのまま使えます)"
+  aiSetupGuide: "AI 設定を案内"
+  hideDetails: "詳細を閉じる"
+  showDetails: "詳細を開く"
+  toolCall: "ツール呼び出し"
+  toolResult: "結果"
+  intent: "提案"
+  intentNote: "無人実行 (HEARTBEAT) が提案した操作です。実行前に確認が出ます。"
+  intentUntrusted: "他人の内容を読んだ文脈で作られました。宛先と本文を確かめてください。"
+  intentDraftFailed: "下書きにできませんでした: {error}"
+  run: "実行"
+  dismiss: "却下"
+  copy: "コピー"
+  stop: "停止"
+
+_deckClientSearchColumn:
+  searchPlaceholder: "手元のノートを検索..."
+  filter: "絞り込み"
+  oldestFirst: "古い順"
+  newestFirst: "新しい順"
+  scope: "範囲"
+  allAccounts: "すべてのアカウント"
+  serverOption: "{host}（サーバー）"
+  author: "投稿者"
+  authorPlaceholder: "name または name@host"
+  period: "期間"
+  since: "開始日"
+  until: "終了日"
+  attachments: "添付"
+  attachmentsAny: "問わない"
+  attachmentsYes: "あり"
+  attachmentsNo: "なし"
+  clearFilters: "絞り込みをクリア"
+
+_deckColumn:
+  allAccounts: "全アカウント"
+  unmute: "ミュート解除"
+  mute: "ミュート"
+  loggedOut: "ログアウト中"
+  pullToRefresh: "下に引いてリフレッシュ"
+  accountNotFound: "アカウントが見つかりません"
+  unpinOnTop: "最前面固定を解除"
+  pinOnTop: "最前面に固定"
+  returnToDeck: "デッキに戻す"
+  openWebUi: "Web UIで開く"
+  unstack: "分割を解除"
+  popOut: "別ウィンドウで開く"
+  openAsPip: "PiPウィンドウとして開く"
+  recallToMain: "メインウィンドウに戻す"
+
+_deckDriveColumn:
+  root: "ルート"
+  select: "選択"
+  newFolder: "新規フォルダ"
+  upload: "アップロード"
+  deselectFolder: "このフォルダの選択を解除"
+  selectFolder: "このフォルダを全選択"
+  selectedCount_plural:
+    other: "{count} 件"
+  selectedOutside: "（他 {n}）"
+  deselectAll: "すべて解除"
+  move: "移動"
+  moveSelected: "選択したファイルを移動"
+  exporting: "保存中 {done}/{total}"
+  exportSelected: "選択したファイルをローカルに保存"
+  deleteSelected: "選択したファイルを削除"
+
+_deckNavbar:
+  switchToOnline: "オンラインモードに切り替え"
+  switchToOffline: "オフラインモードに切り替え"
+  switchToPolling: "ポーリングモードに切り替え"
+  switchToRealtime: "リアルタイムモードに切り替え"
+  more: "もっと"
+  profile: "プロファイル"
+  online: "オンライン"
+  realtime: "リアルタイム"
+  note: "ノート"
+  account: "アカウント"
+  editNavbar: "ナビバー編集"
+
+_deckNotificationColumn:
+  empty: "通知はありません"
+  mutedReaction: "{reaction} (ミュート中)"
+  othersCount_plural:
+    other: "他{count}人"
+  accepted: "承認済み"
+  rejected: "拒否済み"
+  accept: "承認"
+  reject: "拒否"
+  createTokenWarning: "心当たりがない場合は{link}を通じてアクセストークンを削除してください。"
+  manageAccessTokens: "アクセストークンの管理"
+  openUserProfile: "ユーザープロフィール"
+  openNote: "ノートを表示"
+  noteRawJson: "ノートの Raw JSON"
+  notificationRawJson: "通知の Raw JSON"
+
+_deckPluginManagerColumn:
+  create: "新規プラグインを作成"
+  safeModeSubject: "プラグイン"
+  searchInstalled: "インストール済みを探す"
+  enabledPlugins: "有効なプラグイン"
+  disabledPlugins: "無効なプラグイン"
+  noMatches: "一致するプラグインがありません"
+  emptyInColumn: "このカラムに追加されたプラグインはありません"
+  noLibraryCandidates: "ライブラリに追加可能なプラグインがありません。"
+
+_deckQueryManagerColumn:
+  create: "新規クエリを作成"
+  safeModeSubject: "クエリ"
+  search: "クエリを探す"
+  enabledQueries: "有効なクエリ"
+  disabledQueries: "無効なクエリ"
+  noMatches: "一致するクエリがありません"
+  empty: "名前付きクエリはまだありません"
+  emptyHint: "クエリはカラムの視界を定義する AiScript 式です。作成すると 各ノートカラムのクエリ設定からトグルで適用できます。"
+  createQuery: "クエリを作成"
+  noLibraryCandidates: "ライブラリに追加可能なクエリがありません。"
+
+_deckServerInfoColumn:
+  noDescription: "（説明なし）"
+  sourceCode: "ソースコード"
+  maintainer: "管理者"
+  contact: "連絡先"
+  inquiry: "問い合わせ"
+  none: "（なし）"
+  impressum: "運営情報"
+  serverRules: "サーバールール"
+  tos: "利用規約"
+  privacyPolicy: "プライバシーポリシー"
+  feedback: "フィードバック"
+  stats: "統計"
+  users: "ユーザー"
+  notes: "ノート"
+  rawResponse: "{endpoint} の生レスポンス"
+  fetchFailed: "サーバー情報を取得できませんでした"
+
+_deckSkillColumn:
+  create: "新規スキルを作成"
+  search: "スキルを探す"
+  removeFromHeartbeat: "HEARTBEAT 対象から外す"
+  addToHeartbeat: "HEARTBEAT で定期実行する"
+  deleteFromLibrary: "ライブラリから削除 (本文も消えます)"
+  deactivate: "無効化"
+  activate: "有効化"
+  alwaysActive: "mode=always は常時有効"
+  noMatches: "一致するスキルがありません"
+  empty: "スキルがインストールされていません"
+  installedMark: "インストール済"
+  update: "更新"
+  storeEmpty: "ストアに登録済みのスキルはありません"
+
+_deckTaskRunnerColumn:
+  clearHistory: "履歴をクリア"
+  editTasksFile: "tasks.json5 を編集"
+  runTask: "{label} を実行"
+  defaultRun: "デフォルト実行"
+  search: "タスクを検索"
+  empty: "tasks.json5 を編集してタスクを定義すると、ここから 1-click で実行できます。"
+  noMatches: "\"{query}\" に一致するタスクはありません"
+  error: "エラー"
+  lastRun: "最終実行: {status} · {duration}"
+  requiresInput: "入力を求める"
+  runWithAi: "AI セッションで実行 (kind=task の新規セッションを作成し、即 1 回実行)"
+  history: "履歴"
+  runningCount: "{n} 実行中"
+  noHistory: "実行履歴はまだありません"
+
+_queryCard:
+  disabledHint: "本体を無効にしています。適用先のカラムでは評価されません"
+  degraded: "逐次適用"
+  degradedHint: "1 件ずつ判定します。絞り込みは効きますが、キャッシュ検索には使えません"
+  invalid: "評価不能"
+  invalidHint: "解釈できないため適用中のカラムは新着を停止します (編集して修正してください)"
+  appliedInColumns_plural:
+    other: "{count} カラムで適用中"
+  update: "更新"
+  deleteFromLibrary: "ライブラリから削除 (本文も消えます)"
+
+_addColumnDialog:
+  selectItem: "{label}を選択"
+  selectAccount: "アカウントを選択"
+  addColumn: "カラムを追加"
+  searchItem: "{label}を検索..."
+  itemNamePlaceholder: "{label}名を入力..."
+  create: "作成"
+  createNew: "新しい{label}を作成"
+  notFound: "{label}が見つかりません"
+  allAccounts: "全アカウント"
+  noAccount: "アカウントなし"
+  guestUnavailable: "ゲストアカウントではこのカラムを使えません"
+
+_columnErrorBoundary:
+  title: "カラムの表示中に問題が発生しました"
+  reload: "再読み込み"
+
+_columnFilterButton:
+  filter: "フィルター"
+
+_columnPullFrame:
+  pullToRefresh: "下に引いてリフレッシュ"
+
+_columnQueryBanners:
+  queryDeletedHint: "このカラムが参照しているクエリは削除されています。外すと新着の取り込みが戻ります"
+  queryNotFound: "参照しているクエリが見つかりません"
+  detach: "参照を外す"
+  queryInvalid: "クエリを解釈できないため新着を停止中"
+  suspendedHint: "クエリの処理が終わらなかったため停止しました。再開すると取得し直します"
+  pending_plural:
+    other: "{count} 件保留中"
+  querySuspended: "クエリを停止中"
+  resume: "再開"
+
+_columnTombstone:
+  notLoaded: "拡張カラム「{type}」は読み込まれていません"
+  bodyReason: "提供元のプラグインが無効・削除されているか、まだ起動していません。"
+  bodyAuto: "プラグインが起動すると自動的に表示されます。"
+  removeColumn: "このカラムを削除"
+
+_dayNightToggle:
+  switchToLight: "ライトモードに切替"
+  switchToDark: "ダークモードに切替"
+  light: "ライト"
+  dark: "ダーク"
+  syncWithDevice: "デバイスのダークモードに同期"
+
+_deckAboutMisskeyColumn:
+  description: "Misskeyはオープンソースの分散型ソーシャルネットワーキングプラットフォームです。"
+  learnMore: "もっと詳しく"
+  sourceCodeOriginal: "ソースコード (オリジナル)"
+  translation: "翻訳"
+  donate: "寄付"
+  modifiedNotice: "このサーバーはMisskeyの改変版を使用しています。"
+  sourceCode: "ソースコード"
+  projectMembers: "プロジェクトメンバー"
+  fetchFailed: "情報を取得できませんでした"
+
+_deckAchievementsColumn:
+  pendingHint: "開発者モードを有効にすると挑戦できます"
+  empty: "実績がありません"
+
+_deckAdsColumn:
+  empty: "広告はありません"
+
+_deckAiScriptColumn:
+  running: "実行中..."
+  runWithShortcut: "実行 (Ctrl+Enter)"
+  output: "出力"
+  runHint: "Ctrl+Enterで実行"
+  noUiComponents: "UIコンポーネントなし"
+
+_deckAnnouncementsColumn:
+  empty: "お知らせはありません"
+  markAsRead: "既読にする"
+
+_deckAntennaColumn:
+  deleteItem: "{label}を削除"
+
+_deckClipColumn:
+  deleteItem: "{label}を削除"
+
+_deckListColumn:
+  deleteItem: "{label}を削除"
+
+_deckApiConsoleColumn:
+  params: "パラメータ (JSON)"
+  noAccount: "アカウントが設定されていません"
+  loggedOut: "ログアウト中"
+  sendHint: "Ctrl+Enterで送信"
+
+_deckBottomBar:
+  addColumn: "カラムを追加"
+  deckSettings: "デッキ設定"
+
+_deckChartsColumn:
+  hour: "時"
+  day: "日"
+  breakdown: "内訳"
+
+_deckChatColumn:
+  closeSearch: "検索を閉じる"
+  searchMessages: "メッセージを検索"
+  searchChatsPlaceholder: "チャットを検索..."
+  noConversations: "会話はありません"
+  noMatchingChats: "一致するチャットがありません"
+  fileOnly: "(ファイル)"
+  searchMessagesPlaceholder: "メッセージを検索..."
+  noMatchingMessages: "一致するメッセージがありません"
+  emoji: "絵文字"
+  messagePlaceholder: "メッセージ..."
+
+_deckColumnsArea:
+  noColumns: "カラムがありません"
+  startWithDefault: "既定の構成で始める"
+  addColumn: "カラムを追加"
+
+_deckEmojiColumn:
+  searchPlaceholder: "絵文字を検索..."
+  count_plural:
+    other: "{count}件"
+  all: "すべて"
+  noEmoji: "絵文字が見つかりません"
+  emojiMuted: "{name} (ミュート中)"
+  uncategorized: "未分類"
+  muted: "ミュート中"
+  copyCode: "コードをコピー"
+  unmute: "ミュートを解除"
+  muteEmoji: "この絵文字をミュート"
+
+_deckExploreColumn:
+  pullToRefresh: "下に引いてリフレッシュ"
+  noNotes: "ノートが見つかりません"
+  userInfo: "ユーザー情報"
+  noUsers: "ユーザーが見つかりません"
+  noRoleUsers: "ユーザーがいません"
+  noRoles: "ロールが見つかりません"
+
+_deckFavoritesColumn:
+  empty: "お気に入りはありません"
+
+_deckFederationColumn:
+  searchPlaceholder: "ホスト名で検索..."
+  federationInfo: "連合情報"
+  empty: "連合中のサーバーが見つかりません"
+  instanceTooltip: "{host}\n{software}\nユーザー: {users} / ノート: {notes}\n最終通信: {lastSent}"
+  suspended: "停止中"
+  notResponding: "無応答"
+
+_deckFollowRequestsColumn:
+  accepted: "承認済み"
+  rejected: "拒否済み"
+  canceled: "取り消し済み"
+  cancelRequest: "取り消し"
+  accept: "承認"
+  reject: "拒否"
+
+_deckGalleryColumn:
+  empty: "ギャラリーの投稿がありません"
+  postMenu: "「{title}」のメニュー"
+
+_deckLayout:
+  newNote: "新しいノート"
+  dropToUpload: "ファイルをドロップしてアップロード"
+  moveColumnHere: "ここにカラムを移動"
+
+_deckLookupColumn:
+  placeholder: "URLまたは@ユーザー名@ホスト"
+  emptyThread: "URLを入力して照会"
+  emptyResult: "URLまたは@ユーザー名を入力して照会"
+
+_deckMemoColumn:
+  empty: "メモはありません"
+  openInEditor: "このメモをエディタで開く"
+  restoreToPostForm: "投稿フォームに復元"
+
+_deckMentionsColumn:
+  newNotes: "新しいノート"
+
+_deckNoteColumn:
+  newNotes: "新しいノート"
+
+_deckTimelineColumn:
+  newNotes: "新しいノート"
+
+_deckMobileNav:
+  addColumn: "カラムを追加"
+
+_deckPageColumn:
+  empty: "ページが見つかりません"
+
+_deckPlayColumn:
+  empty: "Playが見つかりません"
+
+_deckProfileMenu:
+  openInEditor: "エディタで開く"
+  noProfiles: "保存されたプロファイルはありません"
+  newProfile: "新規プロファイル"
+
+_deckSearchColumn:
+  regexPlaceholder: "正規表現で検索..."
+  placeholder: "ノートを検索..."
+  regexMode: "正規表現モード"
+  regexGuide: "正規表現ガイド"
+  dateFilter: "日付フィルター"
+  oldestFirst: "古い順"
+  newestFirst: "新しい順"
+  startDate: "開始日"
+  endDate: "終了日"
+  clearDate: "日付クリア"
+  enterQuery: "検索クエリを入力"
+  noResults: "結果が見つかりませんでした"
+  enterToSearch: "Enterキーでサーバーを検索"
+
+_deckStreamInspectorColumn:
+  resume: "再開"
+  pause: "一時停止"
+  waiting: "イベント待機中..."
+
+_deckThemeManagerColumn:
+  createTheme: "新規テーマを作成"
+  safeModeSubject: "テーマ"
+  searchInstalled: "インストール済みを探す"
+  noLibraryThemes: "ライブラリに追加可能なテーマがありません。"
+  noMatches: "一致するテーマがありません"
+  noThemes: "テーマがありません"
+  installFromStore: "ストアからインストール..."
+
+_deckWidgetColumn:
+  createLocal: "新規ローカルウィジェットを作成"
+  empty: "ウィジェットを追加してカスタマイズしよう"
+  addWidget: "ウィジェットを追加"
+  noLibraryWidgets: "ライブラリに配置可能なウィジェットがありません。"
+  emptyCode: "空のコード"
+  noMatches: "一致するウィジェットがありません"
+  selectAccount: "アカウントを選択"
+
+_deckWindow:
+  openInWebUi: "Web UIで開く"
+  openInDefaultEditor: "OS の既定エディタで {name} を開く"
+  minimize: "最小化"
+  maximize: "最大化"
+
+_logoutDialog:
+  removeGuest: "ゲストを削除"
+  logout: "ログアウト"
+  confirmRemoveGuest: "このゲストアカウントを削除しますか？"
+  keepDataQuestion: "ローカルデータをこのデバイスに残しますか？"
+  keptDataHint: "残したデータはオフラインで閲覧できます。"
+  deleteAll: "すべて削除"
+  keepData: "データを残す"
+
+_navAccountMenu:
+  controlPanel: "コントロールパネル"
+  clearCache: "キャッシュ削除"
+  logout: "ログアウト"
+  deleteData: "データを削除"
+  relogin: "再ログイン"
+
+_pluginCard:
+  incompatible: "非対応"
+  denied_plural:
+    other: "権限がないため拒否されました: {target} (要求: {keys} / {count} 回)。クリックでプラグイン権限を開く"
+  detachFromColumn: "このカラムから外す"
+  deleteFromLibrary: "ライブラリから削除 (コードも消えます)"
+  update: "更新"
+
+_widgetCard:
+  incompatible: "非対応"
+  update: "更新"
+  deleteFromLibrary: "ライブラリから削除 (コードも消えます)"
+  editWidget: "ウィジェットを編集"
+  place: "配置"
+
+_themeCard:
+  clearAccount: "このアカウントの設定を解除"
+  detachFromAccount: "このアカウントから外す"
+  deleteFromLibrary: "ライブラリから削除 (テーマも消えます)"
+  addToAccount: "このアカウントに追加"
+  update: "更新"
+  viewInMisStore: "MisStore で詳細を見る"
+  installing: "インストール中"
+
+_timelineFilterPopup:
+  filter: "フィルター"
+  disabledQueryHint: "このクエリは無効です — 押すとクエリ管理カラムを開きます"
+
+_widgetAiScript:
+  editCode: "コードを編集"
+  running: "実行中..."
+  run: "実行"
+  dragToReorder: "ドラッグして並び替え"
+  removeFromSidebar: "サイドバーから外す"
+  removeFromColumn: "このカラムから外す"
+  outputCount: "出力 ({n})"

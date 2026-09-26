@@ -2,6 +2,7 @@
 import { computed, ref, useTemplateRef } from 'vue'
 import type { JsonValue } from '@/bindings'
 import { useColumnTheme } from '@/composables/useColumnTheme'
+import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -79,7 +80,7 @@ function onKeydown(e: KeyboardEvent) {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'APIコンソール'"
+    :title="column.name ?? i18n.ts._columns.apiConsole"
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
   >
@@ -113,7 +114,7 @@ function onKeydown(e: KeyboardEvent) {
         </div>
 
         <div :class="$style.paramsSection">
-          <label :class="$style.paramsLabel">パラメータ (JSON)</label>
+          <label :class="$style.paramsLabel">{{ i18n.ts._deckApiConsoleColumn.params }}</label>
           <textarea
             v-model="params"
             :class="$style.paramsTextarea"
@@ -126,15 +127,15 @@ function onKeydown(e: KeyboardEvent) {
 
       <div :class="$style.responseSection">
         <div v-if="!column.accountId" :class="$style.responseEmpty">
-          アカウントが設定されていません
+          {{ i18n.ts._deckApiConsoleColumn.noAccount }}
         </div>
-        <div v-else-if="isLoggedOut" :class="$style.responseError"><i class="ti ti-logout" />ログアウト中</div>
+        <div v-else-if="isLoggedOut" :class="$style.responseError"><i class="ti ti-logout" />{{ i18n.ts._deckApiConsoleColumn.loggedOut }}</div>
         <div v-else-if="error" :class="$style.responseError">{{ error }}</div>
         <div v-else-if="response !== null" :class="$style.responseBody">
           <pre>{{ response }}</pre>
         </div>
         <div v-else :class="$style.responseEmpty">
-          Ctrl+Enterで送信
+          {{ i18n.ts._deckApiConsoleColumn.sendHint }}
         </div>
       </div>
     </div>

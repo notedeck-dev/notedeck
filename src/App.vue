@@ -20,6 +20,7 @@ import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
 import { startSettingsFileSync } from '@/composables/useSettingsFileSync'
 import { useTheme } from '@/composables/useTheme'
 import { useWordMuteSync } from '@/composables/useWordMuteSync'
+import { i18n } from '@/i18n'
 import { useLogsStore } from '@/stores/logs'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
@@ -225,8 +226,8 @@ onUnmounted(() => {
       <TitleBar v-if="(isDesktop || !isCompact) && !isPipWindow" />
       <div v-if="isSafeMode && !isPipWindow" :class="$style.safeModeBar">
         <i class="ti ti-shield-half" />
-        <span :class="$style.safeModeText">セーフモードで起動中 — プラグイン・ウィジェット・カスタム CSS・テーマ・HEARTBEAT は無効です</span>
-        <button type="button" :class="$style.safeModeExit" @click="exitSafeMode">オフにする</button>
+        <span :class="$style.safeModeText">{{ i18n.ts._app.safeModeNotice }}</span>
+        <button type="button" :class="$style.safeModeExit" @click="exitSafeMode">{{ i18n.ts._app.exitSafeMode }}</button>
       </div>
       <div :class="$style.content">
         <router-view />
