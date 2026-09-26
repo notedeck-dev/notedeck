@@ -115,8 +115,15 @@ pub enum Frame {
         #[serde(flatten)]
         outcome: Outcome,
     },
+    /// セッション単位の連番 `seq` は購読で絞った後にサーバーが振る (仕様 §4.4)。
+    /// 再送はしないが、端末は欠落を検知できる
     #[serde(rename_all = "camelCase")]
-    Event { name: String, payload: Value },
+    Event {
+        name: String,
+        payload: Value,
+        #[serde(default)]
+        seq: u64,
+    },
     /// notecored → 端末: 橋の問い合わせ (確認内容の組み立て / 実行要求 / HEARTBEAT の文脈)。
     /// 端末は `query_response` で答える (仕様 §4.4 の「確認要求」「実行要求」の運び方)
     #[serde(rename_all = "camelCase")]

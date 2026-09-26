@@ -3020,7 +3020,15 @@ backend: string; connected: boolean; socket: string | null; daemonVersion: strin
 /**
  * 接続先のマニフェストの指紋がこのアプリと一致するか (未接続なら None)
  */
-fingerprintMatch: boolean | null; lastError: string | null }
+fingerprintMatch: boolean | null; lastError: string | null; 
+/**
+ * 再接続の回数 (購読を再宣言した回数)
+ */
+reconnects: number; 
+/**
+ * イベントの連番に欠落を見た回数 (再送はしない。復帰の catch-up が埋める)
+ */
+eventGaps: number }
 /**
  * Misskey `clips/*` (clips/list, clips/show, clips/create, users/clips,
  * clips/my-favorites) の共通レスポンス。本家 schema

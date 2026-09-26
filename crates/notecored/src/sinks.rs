@@ -32,6 +32,7 @@ impl Events {
                 let _ = self.0.send(Frame::Event {
                     name: name.to_string(),
                     payload,
+                    seq: 0,
                 });
             }
             Err(e) => tracing::warn!(name, "event serialize failed: {e}"),
