@@ -1,10 +1,11 @@
 import { useAccountActions } from '@/composables/useAccountActions'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 
 export function showLoginPrompt(): void {
   const toast = useToast()
-  toast.show('再ログインすると操作できます', 'info')
+  toast.show(i18n.ts._useLoginPrompt.reloginToContinue, 'info')
 }
 
 // 短時間に複数カラムが同時に失効エラーを出すため、
@@ -30,13 +31,13 @@ export function showReloginPrompt(accountId?: string): void {
     : undefined
   if (account) {
     const { relogin } = useAccountActions()
-    toast.show('ログインの有効期限が切れました', 'warning', {
-      action: { label: '再ログイン', onClick: () => relogin(account) },
+    toast.show(i18n.ts._useLoginPrompt.sessionExpired, 'warning', {
+      action: {
+        label: i18n.ts._useLoginPrompt.relogin,
+        onClick: () => relogin(account),
+      },
     })
   } else {
-    toast.show(
-      'ログインの有効期限が切れました。アカウントメニューから再ログインしてください。',
-      'warning',
-    )
+    toast.show(i18n.ts._useLoginPrompt.sessionExpiredUseMenu, 'warning')
   }
 }

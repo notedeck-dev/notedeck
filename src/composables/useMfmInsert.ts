@@ -1,4 +1,5 @@
 import { nextTick, type Ref, ref } from 'vue'
+import { i18n } from '@/i18n'
 
 export interface MfmFunction {
   label: string
@@ -7,8 +8,20 @@ export interface MfmFunction {
 }
 
 export const mfmFunctions: MfmFunction[] = [
-  { label: 'Flip (横)', insert: '$[flip ', suffix: ']' },
-  { label: 'Flip (縦)', insert: '$[flip.v ', suffix: ']' },
+  {
+    get label() {
+      return i18n.ts._useMfmInsert.flipHorizontal
+    },
+    insert: '$[flip ',
+    suffix: ']',
+  },
+  {
+    get label() {
+      return i18n.ts._useMfmInsert.flipVertical
+    },
+    insert: '$[flip.v ',
+    suffix: ']',
+  },
   { label: 'Spin', insert: '$[spin ', suffix: ']' },
   { label: 'Shake', insert: '$[shake ', suffix: ']' },
   { label: 'Jump', insert: '$[jump ', suffix: ']' },

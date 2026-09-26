@@ -111,7 +111,7 @@ function openCompose() {
     if (accounts.some((a) => !isGuestAccount(a))) {
       showLoginPrompt()
     } else {
-      useToast().show('ログインすると投稿できます', 'info')
+      useToast().show(i18n.ts._deckLayout.loginToPost, 'info')
     }
     return
   }

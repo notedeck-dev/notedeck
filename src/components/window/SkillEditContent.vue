@@ -66,9 +66,9 @@ const triggersText = ref('')
 const headerModeLabel = computed(
   () =>
     ({
-      always: '常時',
-      manual: '手動',
-      trigger: '自動',
+      always: i18n.ts._skillEditContent.modeAlways,
+      manual: i18n.ts._skillEditContent.modeManual,
+      trigger: i18n.ts._skillEditContent.modeTrigger,
       heartbeat: 'HEARTBEAT',
     })[mode.value] ?? mode.value,
 )
@@ -162,13 +162,21 @@ function openHistory() {
 // 履歴は開発者向けの面 (#1034)。入口だけ隠す
 const historyActions = computed<EditorAction[]>(() =>
   isExposed('developer')
-    ? [{ key: 'history', label: '履歴', icon: 'history' }]
+    ? [
+        {
+          key: 'history',
+          label: i18n.ts._skillEditContent.history,
+          icon: 'history',
+        },
+      ]
     : [],
 )
 
 const barStatus = computed<EditorActionStatus | null>(() => {
-  if (saved.value) return { text: '保存しました', icon: 'check', tone: 'ok' }
-  if (dirty.value) return { text: '未保存の変更', icon: 'pencil' }
+  if (saved.value)
+    return { text: i18n.ts._common.saved, icon: 'check', tone: 'ok' }
+  if (dirty.value)
+    return { text: i18n.ts._skillEditContent.unsavedChanges, icon: 'pencil' }
   return null
 })
 </script>

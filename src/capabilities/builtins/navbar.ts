@@ -1,5 +1,6 @@
 import { isColumnType } from '@/columns/registry'
 import type { Command } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import {
   type ColumnType,
   DEFAULT_NAV_ITEMS,
@@ -79,14 +80,12 @@ export const navbarSetCapability = implement('navbar.set', {
     let count = 0
     if (Array.isArray(params?.items)) count = params.items.length
     return {
-      title: 'ナビバー構成を上書き',
-      message:
-        `ナビバーを ${count} 項目で全置換します。` +
-        ' 現在の構成は失われます (navbar.reset で default に戻せます)。',
+      title: i18n.ts._navbarCapability.setTitle,
+      message: i18n.tsx._navbarCapability.setMessage_plural({ count }),
       code: JSON.stringify(params?.items ?? [], null, 2),
       codeLanguage: 'json',
-      okLabel: '上書き',
-      cancelLabel: 'やめる',
+      okLabel: i18n.ts._navbarCapability.setOk,
+      cancelLabel: i18n.ts._navbarCapability.cancel,
       type: 'warning',
     }
   },
@@ -100,8 +99,10 @@ export const navbarSetCapability = implement('navbar.set', {
 
 export const navbarResetCapability = implement('navbar.reset', {
   requiresConfirmation: () => ({
-    title: 'ナビバー構成を default に戻す',
-    message: `現在のカスタム構成を破棄し、デフォルトの ${DEFAULT_NAV_ITEMS.length} 項目に戻します。`,
+    title: i18n.ts._navbarCapability.resetTitle,
+    message: i18n.tsx._navbarCapability.resetMessage_plural({
+      count: DEFAULT_NAV_ITEMS.length,
+    }),
     code: JSON.stringify(
       DEFAULT_NAV_ITEMS.map((i) =>
         isNavDivider(i)
@@ -112,8 +113,8 @@ export const navbarResetCapability = implement('navbar.reset', {
       2,
     ),
     codeLanguage: 'json',
-    okLabel: 'default に戻す',
-    cancelLabel: 'やめる',
+    okLabel: i18n.ts._navbarCapability.resetOk,
+    cancelLabel: i18n.ts._navbarCapability.cancel,
     type: 'warning',
   }),
   execute: () => {

@@ -194,7 +194,9 @@ const autoSaveEnabled = computed<boolean>({
   },
 })
 const autoSaveLabel = computed(() =>
-  props.memoMode ? 'メモを自動保存' : '下書きを自動保存',
+  props.memoMode
+    ? i18n.ts._mkPostForm.autoSaveMemo
+    : i18n.ts._mkPostForm.autoSaveDraft,
 )
 
 const rememberVisibilityEnabled = computed<boolean>({
@@ -486,16 +488,20 @@ async function requestClose() {
   try {
     const choice = await confirmWithAction({
       title: props.memoMode
-        ? '書きかけのメモがあります'
-        : '書きかけの投稿があります',
+        ? i18n.ts._mkPostForm.unsavedMemoTitle
+        : i18n.ts._mkPostForm.unsavedPostTitle,
       message: props.memoMode
-        ? '閉じる前にメモとして保存しますか？'
-        : '閉じる前に下書きとして保存しますか？',
+        ? i18n.ts._mkPostForm.saveAsMemoBeforeClose
+        : i18n.ts._mkPostForm.saveAsDraftBeforeClose,
       icon: 'question',
       actions: [
-        { value: 'save', label: '保存して閉じる', primary: true },
-        { value: 'discard', label: '破棄' },
-        { value: 'cancel', label: 'キャンセル', cancel: true },
+        {
+          value: 'save',
+          label: i18n.ts._mkPostForm.saveAndClose,
+          primary: true,
+        },
+        { value: 'discard', label: i18n.ts._mkPostForm.discard },
+        { value: 'cancel', label: i18n.ts._common.cancel, cancel: true },
       ],
     })
     if (choice === 'save') {

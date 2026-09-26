@@ -103,12 +103,14 @@ const accountAttentionCount = computed(
 async function toggleOfflineMode() {
   const isOn = offlineModeStore.isOfflineMode
   const ok = await confirm({
-    title: isOn ? 'オフラインモードを解除' : 'オフラインモードに切替',
+    title: isOn
+      ? i18n.ts._deckNavbar.disableOfflineTitle
+      : i18n.ts._deckNavbar.enableOfflineTitle,
     message: isOn
-      ? 'サーバーに再接続します。'
-      : 'すべての通信を停止し、キャッシュ済みデータのみ表示します。',
-    okLabel: isOn ? '解除' : '切替',
-    cancelLabel: 'キャンセル',
+      ? i18n.ts._deckNavbar.disableOfflineMessage
+      : i18n.ts._deckNavbar.enableOfflineMessage,
+    okLabel: isOn ? i18n.ts._deckNavbar.turnOff : i18n.ts._deckNavbar.switch,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'question',
   })
   if (ok) await offlineModeStore.toggle()
@@ -117,12 +119,14 @@ async function toggleOfflineMode() {
 async function toggleRealtimeMode() {
   const isRealtime = realtimeModeStore.isRealtime
   const ok = await confirm({
-    title: isRealtime ? 'ポーリングモードに切替' : 'リアルタイムモードに切替',
+    title: isRealtime
+      ? i18n.ts._deckNavbar.pollingTitle
+      : i18n.ts._deckNavbar.realtimeTitle,
     message: isRealtime
-      ? 'WebSocket接続を切断し、定期的なHTTPポーリングに切り替えます。'
-      : 'リアルタイム更新に切り替えます。',
-    okLabel: '切替',
-    cancelLabel: 'キャンセル',
+      ? i18n.ts._deckNavbar.pollingMessage
+      : i18n.ts._deckNavbar.realtimeMessage,
+    okLabel: i18n.ts._deckNavbar.switch,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'question',
   })
   if (ok) realtimeModeStore.toggle()
@@ -322,8 +326,7 @@ async function toggleAccountMode(accountId: string, key: string) {
   } catch (e) {
     const err = AppError.from(e)
     if (err.isAuth || String(err.message).includes('permission')) {
-      modeError.value =
-        '権限がありません。write:account の権限を付与するために再ログインしてください。'
+      modeError.value = i18n.ts._deckNavbar.permissionDenied
     } else {
       modeError.value = err.message
     }
@@ -357,9 +360,11 @@ async function clearAccountCache(accountId: string) {
   const acc = accountsStore.accountMap.get(accountId)
   if (!acc) return
   const ok = await confirm({
-    title: 'キャッシュ削除',
-    message: `${getAccountLabel(acc)} のキャッシュを削除しますか？`,
-    okLabel: '削除',
+    title: i18n.ts._deckNavbar.clearCacheTitle,
+    message: i18n.tsx._deckNavbar.clearCacheConfirm({
+      account: getAccountLabel(acc),
+    }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return

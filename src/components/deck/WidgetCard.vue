@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { i18n } from '@/i18n'
-import { READ_ONLY_HINT } from '@/services/sidecarFileCollection'
+import { readOnlyHint } from '@/services/sidecarFileCollection'
 import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { isWindowExposed } from '@/windows/exposure'
@@ -74,8 +74,11 @@ const updateTitle = computed(() => {
   if (!props.updatedAt) return ''
   const date = formatDate(props.updatedAt)
   return props.version
-    ? `ストア更新日: ${date} / v${props.version}`
-    : `ストア更新日: ${date}`
+    ? i18n.tsx._widgetCard.storeUpdatedWithVersion({
+        date,
+        version: props.version,
+      })
+    : i18n.tsx._widgetCard.storeUpdated({ date })
 })
 
 function handlePrimaryClick() {
@@ -116,7 +119,7 @@ function handlePrimaryClick() {
         <span
           v-else-if="isLibrary && readOnly"
           :class="$style.incompatBadge"
-          :title="READ_ONLY_HINT"
+          :title="readOnlyHint()"
         >{{ i18n.ts._common.sourceMissing }}</span>
         <span
           v-if="isStore && alreadyInstalled && hasUpdate"

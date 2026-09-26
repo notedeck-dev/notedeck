@@ -150,7 +150,7 @@ async function selectQuickPickItem(item: QuickPickItem) {
     if (!commandStore.isOpen || children.length === 0) return
     commandStore.pushQuickPick({
       title: item.label,
-      placeholder: `${item.label}を検索...`,
+      placeholder: i18n.tsx._commandPalette.searchIn({ label: item.label }),
       items: children,
     })
     selectedIndex.value = 0
@@ -189,11 +189,21 @@ interface CommandGroup {
 }
 
 const categoryLabels: Record<string, string> = {
-  general: '全般',
-  note: 'ノート',
-  navigation: 'ナビゲーション',
-  column: 'カラム',
-  account: 'アカウント',
+  get general() {
+    return i18n.ts._commandPalette.categoryGeneral
+  },
+  get note() {
+    return i18n.ts._commandPalette.categoryNote
+  },
+  get navigation() {
+    return i18n.ts._commandPalette.categoryNavigation
+  },
+  get column() {
+    return i18n.ts._commandPalette.categoryColumn
+  },
+  get account() {
+    return i18n.ts._commandPalette.categoryAccount
+  },
 }
 
 const categoryOrder = ['general', 'note', 'navigation', 'column', 'account']
@@ -433,7 +443,7 @@ watch(
 
 const inputPlaceholder = computed(() => {
   if (currentQuickPickStep.value) return currentQuickPickStep.value.placeholder
-  return 'コマンドを入力...'
+  return i18n.ts._commandPalette.inputPlaceholder
 })
 
 /** グループ内インデックス → ヒントキー文字（1-9, 0, a-z） */

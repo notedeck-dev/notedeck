@@ -28,12 +28,42 @@ const MINUTE = 60_000
 const HOUR = 3_600_000
 const DAY = 86_400_000
 const expiryPresets = [
-  { label: '30分', ms: 30 * MINUTE },
-  { label: '1時間', ms: HOUR },
-  { label: '6時間', ms: 6 * HOUR },
-  { label: '1日', ms: DAY },
-  { label: '3日', ms: 3 * DAY },
-  { label: '7日', ms: 7 * DAY },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry30m
+    },
+    ms: 30 * MINUTE,
+  },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry1h
+    },
+    ms: HOUR,
+  },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry6h
+    },
+    ms: 6 * HOUR,
+  },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry1d
+    },
+    ms: DAY,
+  },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry3d
+    },
+    ms: 3 * DAY,
+  },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry7d
+    },
+    ms: 7 * DAY,
+  },
 ]
 
 // '' = 無期限 / '<ms>' = 期間プリセット / 'at' = 日時指定

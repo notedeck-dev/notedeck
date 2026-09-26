@@ -8,6 +8,7 @@ import {
   type StoredDraft,
   saveDraft,
 } from '@/composables/useDrafts'
+import { i18n } from '@/i18n'
 import { resolveAccountId } from '../accountContext'
 import { implement } from '../declare'
 
@@ -161,10 +162,10 @@ export const draftsDeleteCapability = implement('drafts.delete', {
   requiresConfirmation: (params) => {
     const draftId = typeof params?.draftId === 'string' ? params.draftId : ''
     return {
-      title: '下書きを削除',
-      message: `下書き ${draftId} を削除します。この操作は元に戻せません。`,
-      okLabel: '削除',
-      cancelLabel: 'やめる',
+      title: i18n.ts._draftsCapability.deleteTitle,
+      message: i18n.tsx._draftsCapability.deleteMessage({ draftId }),
+      okLabel: i18n.ts._common.delete,
+      cancelLabel: i18n.ts._draftsCapability.cancel,
       type: 'danger',
     }
   },

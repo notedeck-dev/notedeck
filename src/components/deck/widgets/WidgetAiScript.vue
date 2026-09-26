@@ -155,7 +155,7 @@ async function run() {
   // 自動実行 / 再実行シグナル / 手動実行が全部ここを通る。
   // 無言の空白にせず理由を出す (silent no-op はユーザーが原因を追えない)
   if (readSafeMode()) {
-    error.value = 'セーフモードのため実行されません'
+    error.value = i18n.ts._widgetAiScript.safeModeBlocked
     return
   }
   running.value = true

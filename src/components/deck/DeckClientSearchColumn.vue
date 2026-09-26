@@ -209,8 +209,8 @@ function scrollToTop() {
 
 const emptyMessage = computed(() =>
   hasSearched.value
-    ? '手元のキャッシュに一致するノートはありません'
-    : '検索語か絞り込みを入れると、手元に貯めたノートから引きます',
+    ? i18n.ts._deckClientSearchColumn.noMatches
+    : i18n.ts._deckClientSearchColumn.emptyHint,
 )
 
 onMounted(async () => {

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
+import { i18n } from '@/i18n'
 import { migrateWidgetColumns } from '@/services/deckProfileCodec'
 import {
   createProfileFiles,
@@ -681,7 +682,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     import('@/stores/toast')
       .then(({ useToast }) => {
         useToast().show(
-          `旧 AiScript Console widget を ${count} 件削除しました。コードは失われています (スクラッチパッドカラムで同等の機能が使えます)。`,
+          i18n.tsx._deckProfile.consoleWidgetsRemoved_plural({ count }),
           'info',
         )
       })

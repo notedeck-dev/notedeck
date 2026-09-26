@@ -87,7 +87,10 @@ async function onRename() {
   const file = menuFile.value
   if (!file) return
   const name = (
-    await prompt({ title: 'ファイル名を変更', defaultValue: file.name })
+    await prompt({
+      title: i18n.ts._postFormFilePreviews.renameFile,
+      defaultValue: file.name,
+    })
   )?.trim()
   if (!name || name === file.name) return
   emit('updateMeta', file.id, { name })
@@ -105,9 +108,9 @@ async function onEditCaption() {
   const file = menuFile.value
   if (!file) return
   const caption = await prompt({
-    title: 'キャプション',
-    message: '視覚に障害のあるユーザーなどに向けたファイルの説明を設定できます',
-    placeholder: 'ファイルの説明',
+    title: i18n.ts._postFormFilePreviews.caption,
+    message: i18n.ts._postFormFilePreviews.captionDescription,
+    placeholder: i18n.ts._postFormFilePreviews.captionPlaceholder,
     defaultValue: file.comment ?? '',
     multiline: true,
     allowEmpty: true,

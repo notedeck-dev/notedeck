@@ -64,18 +64,18 @@ const { confirm } = useConfirm()
 
 async function remove(id: string) {
   const ok = await confirm({
-    title: 'プロファイルを削除',
-    message: 'このプロファイルを削除しますか？',
-    okLabel: '削除',
+    title: i18n.ts._deckProfileMenu.deleteTitle,
+    message: i18n.ts._deckProfileMenu.deleteConfirm,
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   const undo = deckStore.deleteProfile(id)
   refreshProfileCommands()
   if (undo) {
-    useToast().show('プロファイルを削除しました', 'info', {
+    useToast().show(i18n.ts._deckProfileMenu.deleted, 'info', {
       action: {
-        label: '元に戻す',
+        label: i18n.ts._deckProfileMenu.undo,
         onClick: () => {
           undo()
           refreshProfileCommands()

@@ -127,7 +127,7 @@ const themeSections = computed<ThemeSection[]>(() => {
   if (isCrossAccount.value) {
     sections.push({
       key: 'default',
-      label: 'デフォルト',
+      label: i18n.ts._deckThemeManagerColumn.default,
       items: [
         {
           theme: mode === 'dark' ? MI_DARK : MI_LIGHT,
@@ -161,7 +161,7 @@ const themeSections = computed<ThemeSection[]>(() => {
     }))
   sections.push({
     key: 'sideload',
-    label: 'サイドロード',
+    label: i18n.ts._deckThemeManagerColumn.sideload,
     items: sideloadedThemes,
   })
 
@@ -186,13 +186,13 @@ const themeSections = computed<ThemeSection[]>(() => {
       }))
     sections.push({
       key: 'store',
-      label: 'ストア配布',
+      label: i18n.ts._deckThemeManagerColumn.storeDistributed,
       items: storeThemes,
     })
 
     sections.push({
       key: 'server',
-      label: 'サーバー',
+      label: i18n.ts._deckThemeManagerColumn.server,
       items: metaTheme
         ? [{ theme: metaTheme, source: 'server', removable: false }]
         : [],
@@ -214,7 +214,7 @@ const themeSections = computed<ThemeSection[]>(() => {
       }))
     sections.push({
       key: 'store',
-      label: 'ストア配布',
+      label: i18n.ts._deckThemeManagerColumn.storeDistributed,
       items: storeThemes,
     })
   }
@@ -230,9 +230,11 @@ const installedTotalCount = computed(() =>
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: `インストール済み ${installedTotalCount.value}`,
+    label: i18n.tsx._deckThemeManagerColumn.installedTab({
+      count: installedTotalCount.value,
+    }),
   },
-  { value: 'store', label: 'ストア' },
+  { value: 'store', label: i18n.ts._common.store },
 ])
 
 function switchTab(tab: string) {
@@ -381,9 +383,11 @@ async function removeTheme(entry: ThemeEntry) {
     const deletesBody = isLastAccountForTheme(entry.theme)
     if (deletesBody) {
       const ok = await confirm({
-        title: 'テーマを削除',
-        message: `「${entry.theme.name}」はこのアカウントにのみ紐付いています。外すとテーマ自体が削除されます。削除しますか？`,
-        okLabel: '削除',
+        title: i18n.ts._deckThemeManagerColumn.deleteTitle,
+        message: i18n.tsx._deckThemeManagerColumn.deleteLastAccountConfirm({
+          name: entry.theme.name,
+        }),
+        okLabel: i18n.ts._common.delete,
         type: 'danger',
       })
       if (!ok) return
@@ -395,10 +399,15 @@ async function removeTheme(entry: ThemeEntry) {
     themeStore.clearAccountTheme(mode, accountId.value)
     if (undo) {
       useToast().show(
-        deletesBody ? 'テーマを削除しました' : 'テーマを外しました',
+        deletesBody
+          ? i18n.ts._deckThemeManagerColumn.deleted
+          : i18n.ts._deckThemeManagerColumn.detached,
         'info',
         {
-          action: { label: '元に戻す', onClick: undo },
+          action: {
+            label: i18n.ts._deckThemeManagerColumn.undo,
+            onClick: undo,
+          },
         },
       )
     }
@@ -406,16 +415,18 @@ async function removeTheme(entry: ThemeEntry) {
     // cross-account (Global) からは完全削除。他の配布物 (skill / widget /
     // plugin / query) と同じく confirm → 元に戻せるトースト (#988)
     const ok = await confirm({
-      title: 'テーマを削除',
-      message: `「${entry.theme.name}」を削除しますか？テーマの設定も消えます。`,
-      okLabel: '削除',
+      title: i18n.ts._deckThemeManagerColumn.deleteTitle,
+      message: i18n.tsx._deckThemeManagerColumn.deleteConfirm({
+        name: entry.theme.name,
+      }),
+      okLabel: i18n.ts._common.delete,
       type: 'danger',
     })
     if (!ok) return
     const undo = themeStore.removeTheme(entry.theme.id)
     if (undo) {
-      useToast().show('テーマを削除しました', 'info', {
-        action: { label: '元に戻す', onClick: undo },
+      useToast().show(i18n.ts._deckThemeManagerColumn.deleted, 'info', {
+        action: { label: i18n.ts._deckThemeManagerColumn.undo, onClick: undo },
       })
     }
   }
@@ -431,7 +442,10 @@ async function handleStoreInstall(entry: StoreThemeEntry) {
     //   per-account カラムにも反映される (集約 viewer の semantics)
     await misStore.installTheme(entry, contextAccountKeys())
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : 'インストール失敗'
+    installError.value =
+      e instanceof Error
+        ? e.message
+        : i18n.ts._deckThemeManagerColumn.installFailed
   }
 }
 
@@ -441,7 +455,10 @@ async function handleStoreUpdate(entry: StoreThemeEntry) {
     // 更新はスコープ (installedFor) に触れない — 既存の適用範囲を維持する
     await misStore.updateTheme(entry)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : '更新失敗'
+    installError.value =
+      e instanceof Error
+        ? e.message
+        : i18n.ts._deckThemeManagerColumn.updateFailed
   }
 }
 

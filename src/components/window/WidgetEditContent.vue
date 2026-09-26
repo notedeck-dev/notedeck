@@ -45,7 +45,7 @@ import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { i18n } from '@/i18n'
 import type { Principal } from '@/permissions/principal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
-import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
+import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
@@ -94,7 +94,7 @@ function commitSave(src: string) {
   if (!widget.value) return
   if (!widgetsStore.updateSrc(widget.value.installId, src)) {
     // 読取専用 (ソース欠損) は保存されない。「保存しました」を出さない (#1111)
-    showToast(READ_ONLY_REASON, 'warning')
+    showToast(readOnlyReason(), 'warning')
     return
   }
   dirty.value = false
@@ -157,13 +157,21 @@ function openHistory() {
 // 履歴は開発者向けの面 (#1034)。入口だけ隠す
 const historyActions = computed<EditorAction[]>(() =>
   isExposed('developer')
-    ? [{ key: 'history', label: '履歴', icon: 'history' }]
+    ? [
+        {
+          key: 'history',
+          label: i18n.ts._widgetEditContent.history,
+          icon: 'history',
+        },
+      ]
     : [],
 )
 
 const barStatus = computed<EditorActionStatus | null>(() => {
-  if (saved.value) return { text: '保存しました', icon: 'check', tone: 'ok' }
-  if (dirty.value) return { text: '未保存の変更', icon: 'pencil' }
+  if (saved.value)
+    return { text: i18n.ts._common.saved, icon: 'check', tone: 'ok' }
+  if (dirty.value)
+    return { text: i18n.ts._widgetEditContent.unsaved, icon: 'pencil' }
   return null
 })
 
@@ -171,8 +179,8 @@ const barStatus = computed<EditorActionStatus | null>(() => {
 const tabs = ['code', 'visual'] as const
 const { tab, containerRef } = useEditorTabs(tabs, 'code')
 const tabDefs = computed(() => [
-  { value: 'code', icon: 'code', label: 'コード' },
-  { value: 'visual', icon: 'eye', label: 'ビジュアル' },
+  { value: 'code', icon: 'code', label: i18n.ts._common.code },
+  { value: 'visual', icon: 'eye', label: i18n.ts._common.visual },
 ])
 
 // --- Run ---
@@ -334,7 +342,7 @@ useWindowEditAction(() =>
   widget.value
     ? {
         onClick: () => run(),
-        title: '実行',
+        title: i18n.ts._widgetEditContent.run,
         icon: 'player-play',
         disabled: running.value,
       }
@@ -354,7 +362,7 @@ function commitRename() {
   const v = renamingValue.value.trim()
   if (v && v !== widget.value.name) {
     if (!widgetsStore.renameWidget(widget.value.installId, v)) {
-      showToast(READ_ONLY_REASON, 'warning')
+      showToast(readOnlyReason(), 'warning')
     }
   }
   isRenaming.value = false

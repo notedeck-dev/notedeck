@@ -101,7 +101,7 @@ async function render(): Promise<void> {
     data: {
       datasets: [
         {
-          label: 'アクティビティ',
+          label: i18n.ts._userActivityHeatmap.activity,
           // biome-ignore lint/suspicious/noExplicitAny: chartjs-chart-matrix の型定義が弱いためキャスト
           data: data as any,
           borderWidth: 0,

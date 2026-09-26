@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n'
 import { type Principal, principalActorLabel } from '@/permissions/principal'
 import type { MisskeyTheme } from '@/theme/types'
 import type { HistoryKind } from '@/utils/settingsFs'
@@ -47,28 +48,36 @@ export function themeFromSnapshot(snapshot: unknown): MisskeyTheme {
 
 export const EDIT_HISTORY_SPECS: Record<HistoryKind, EditHistorySpec> = {
   skill: {
-    label: 'スキル',
+    get label() {
+      return i18n.ts._editHistory.skill
+    },
     language: 'markdown',
     snapshotText: (s) => field(s, 'body'),
     revertCapabilityId: 'skills.revert',
     revertParams: (id, index) => ({ id, index }),
   },
   plugin: {
-    label: 'プラグイン',
+    get label() {
+      return i18n.ts._editHistory.plugin
+    },
     language: 'aiscript',
     snapshotText: (s) => field(s, 'src'),
     revertCapabilityId: 'plugins.revert',
     revertParams: (installId, index) => ({ installId, index }),
   },
   widget: {
-    label: 'ウィジェット',
+    get label() {
+      return i18n.ts._editHistory.widget
+    },
     language: 'aiscript',
     snapshotText: (s) => field(s, 'src'),
     revertCapabilityId: 'widgets.revert',
     revertParams: (installId, index) => ({ installId, index }),
   },
   theme: {
-    label: 'テーマ',
+    get label() {
+      return i18n.ts._editHistory.theme
+    },
     language: 'json5',
     // props だけでは名前・base の変化が見えないのでテーマ全体を並べる
     snapshotText: (s) =>
@@ -77,21 +86,27 @@ export const EDIT_HISTORY_SPECS: Record<HistoryKind, EditHistorySpec> = {
     revertParams: (id, index) => ({ id, index }),
   },
   query: {
-    label: 'クエリ',
+    get label() {
+      return i18n.ts._editHistory.query
+    },
     language: 'aiscript',
     snapshotText: (s) => field(s, 'src'),
     revertCapabilityId: 'queries.revert',
     revertParams: (id, index) => ({ id, index }),
   },
   memo: {
-    label: 'メモ',
+    get label() {
+      return i18n.ts._editHistory.memo
+    },
     language: 'markdown',
     snapshotText: (s) => field(s, 'body'),
     revertCapabilityId: 'memos.revert',
     revertParams: (id, index) => ({ id, index }),
   },
   css: {
-    label: 'カスタム CSS',
+    get label() {
+      return i18n.ts._editHistory.css
+    },
     language: 'css',
     snapshotText: (s) => field(s, 'body'),
     revertCapabilityId: 'styles.revert',
@@ -123,8 +138,8 @@ export interface HistoryMeta {
  * 倒すと、記録開始前の AI の編集が本人のものに見えるため別ラベルにする。
  */
 export function historyActorLabel(by?: Principal): string {
-  if (!by) return '記録なし'
-  return principalActorLabel(by) ?? '自分'
+  if (!by) return i18n.ts._editHistory.unrecorded
+  return principalActorLabel(by) ?? i18n.ts._editHistory.self
 }
 
 /** 連続した自動保存を 1 つの区切りとみなす窓 (#1052)。 */

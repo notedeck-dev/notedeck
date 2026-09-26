@@ -124,28 +124,60 @@ interface TopTabDef {
 const publicReactions = ref(false)
 const topTabDefs = computed<TopTabDef[]>(() => {
   const defs: TopTabDef[] = [
-    { value: 'overview', icon: 'home', label: '概要' },
-    { value: 'notes', icon: 'pencil', label: 'ノート' },
-    { value: 'files', icon: 'photo', label: 'ファイル' },
-    { value: 'activity', icon: 'chart-line', label: 'アクティビティ' },
+    { value: 'overview', icon: 'home', label: i18n.ts._common.overview },
+    {
+      value: 'notes',
+      icon: 'pencil',
+      label: i18n.ts._userProfileContent.tabNotes,
+    },
+    {
+      value: 'files',
+      icon: 'photo',
+      label: i18n.ts._userProfileContent.tabFiles,
+    },
+    {
+      value: 'activity',
+      icon: 'chart-line',
+      label: i18n.ts._userProfileContent.tabActivity,
+    },
   ]
   if (publicReactions.value || isOwnProfile.value) {
     defs.push({
       value: 'reactions',
       icon: 'mood-smile',
-      label: 'リアクション',
+      label: i18n.ts._userProfileContent.tabReactions,
     })
   }
-  defs.push({ value: 'pages', icon: 'note', label: 'ページ' })
+  defs.push({
+    value: 'pages',
+    icon: 'note',
+    label: i18n.ts._userProfileContent.tabPages,
+  })
   defs.push({ value: 'play', icon: 'player-play', label: 'Play' })
-  defs.push({ value: 'gallery', icon: 'icons', label: 'ギャラリー' })
+  defs.push({
+    value: 'gallery',
+    icon: 'icons',
+    label: i18n.ts._userProfileContent.tabGallery,
+  })
   // users/lists/list はリモートユーザーの userId を渡すと
   // REMOTE_USER_NOT_ALLOWED を返すため、リモートユーザーではタブごと出さない。
   if (!user.value?.host) {
-    defs.push({ value: 'lists', icon: 'list', label: 'リスト' })
+    defs.push({
+      value: 'lists',
+      icon: 'list',
+      label: i18n.ts._userProfileContent.tabLists,
+    })
   }
-  defs.push({ value: 'clips', icon: 'paperclip', label: 'クリップ' })
-  defs.push({ value: 'achievements', icon: 'medal', label: '実績' })
+  defs.push({
+    value: 'clips',
+    icon: 'paperclip',
+    label: i18n.ts._userProfileContent.tabClips,
+  })
+  defs.push({
+    value: 'achievements',
+    icon: 'medal',
+    label: i18n.ts._userProfileContent.tabAchievements,
+  })
   // Raw JSON はプロトコルが見える面 (#1034)
   if (isExposed('developer')) {
     defs.push({ value: 'raw', icon: 'code', label: 'Raw' })
@@ -185,7 +217,7 @@ useWindowEditAction(() => {
   if (!isOwnProfile.value || !host) return null
   return {
     onClick: () => openSafeUrl(webUiUrl(host, '/settings/profile')),
-    title: 'プロフィールを編集',
+    title: i18n.ts._userProfileContent.editProfile,
   }
 })
 
@@ -346,7 +378,7 @@ onMounted(async () => {
   if (!account) {
     error.value = new AppError(
       'ACCOUNT_NOT_FOUND',
-      'アカウントが見つかりません',
+      i18n.ts._userProfileContent.accountNotFound,
     )
     isLoading.value = false
     return

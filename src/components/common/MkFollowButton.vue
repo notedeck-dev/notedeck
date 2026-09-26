@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { i18n } from '@/i18n'
 import { useConfirm } from '@/stores/confirm'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
@@ -54,13 +55,17 @@ const toast = useToast()
 
 const label = computed(() => {
   if (props.hasPendingRequest) {
-    return hover.value ? 'リクエスト取消' : 'フォロー許可待ち'
+    return hover.value
+      ? i18n.ts._mkFollowButton.cancelRequest
+      : i18n.ts._mkFollowButton.pending
   }
   if (props.isFollowing) {
-    if (hover.value) return 'フォロー解除'
-    return props.isFollowed ? '相互フォロー' : 'フォロー中'
+    if (hover.value) return i18n.ts._mkFollowButton.unfollow
+    return props.isFollowed
+      ? i18n.ts._mkFollowButton.mutual
+      : i18n.ts._mkFollowButton.following
   }
-  return 'フォロー'
+  return i18n.ts._mkFollowButton.follow
 })
 
 async function onClick() {
@@ -68,9 +73,11 @@ async function onClick() {
   // フォロー解除だけは誤タップに備えて確認を挟む (リクエスト取消は再申請可能)
   if (props.isFollowing && !props.hasPendingRequest) {
     const ok = await confirm({
-      title: 'フォロー解除',
-      message: `@${props.username} のフォローを解除しますか？`,
-      okLabel: '解除',
+      title: i18n.ts._mkFollowButton.unfollow,
+      message: i18n.tsx._mkFollowButton.confirmUnfollow({
+        username: props.username,
+      }),
+      okLabel: i18n.ts._mkFollowButton.unfollowOk,
       type: 'danger',
     })
     if (!ok) return
@@ -93,7 +100,10 @@ async function onClick() {
   } catch (e) {
     const err = AppError.from(e)
     console.error('[follow:toggle]', err.code, err.message)
-    toast.show(`操作に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._mkFollowButton.failed({ code: err.displayCode }),
+      'error',
+    )
   } finally {
     loading.value = false
   }

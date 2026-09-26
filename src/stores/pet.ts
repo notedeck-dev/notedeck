@@ -6,9 +6,11 @@
  * 受け取り Blob URL にして CSS 背景に敷く (アセット CDN に CORS が無いため
  * 直接は参照できない)。
  */
+
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
 import type { PetHitMask, PetInfo } from '@/bindings'
+import { i18n } from '@/i18n'
 import { parsePetSlugInput } from '@/services/petSprite'
 import { useSettingsStore } from '@/stores/settings'
 import { extractErrorMessage } from '@/utils/errors'
@@ -75,7 +77,7 @@ export const usePetStore = defineStore('pet', () => {
   async function select(input: string): Promise<boolean> {
     const parsed = parsePetSlugInput(input)
     if (!parsed) {
-      error.value = 'slug か petdex.dev のペット URL を入れてください'
+      error.value = i18n.ts._pet.invalidInput
       return false
     }
     loading.value = true

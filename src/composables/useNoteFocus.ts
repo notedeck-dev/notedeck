@@ -1,6 +1,7 @@
 import type { ShallowRef } from 'vue'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { type VariantKey, variantKeyOf } from '@/services/noteKey'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
@@ -167,9 +168,9 @@ export function useNoteFocus(
         if (!note || !handlers.delete) break
         const { confirm } = useConfirm()
         confirm({
-          title: 'ノートを削除',
-          message: 'このノートを削除しますか？',
-          okLabel: '削除',
+          title: i18n.ts._commands.noteDelete,
+          message: i18n.ts._useNoteFocus.confirmDelete,
+          okLabel: i18n.ts._common.delete,
           type: 'danger',
         }).then((ok) => {
           if (ok) handlers.delete?.(note)
@@ -186,7 +187,7 @@ export function useNoteFocus(
         if (note) {
           const url = getNoteShareUrl(note)
           navigator.clipboard.writeText(url).catch(() => undefined)
-          useToast().show('リンクをコピーしました', 'info')
+          useToast().show(i18n.ts._useNoteFocus.linkCopied, 'info')
         }
         break
       }
@@ -194,7 +195,7 @@ export function useNoteFocus(
         const note = getFocusedNote()
         if (note?.text) {
           navigator.clipboard.writeText(note.text).catch(() => undefined)
-          useToast().show('内容をコピーしました', 'info')
+          useToast().show(i18n.ts._useNoteFocus.contentCopied, 'info')
         }
         break
       }

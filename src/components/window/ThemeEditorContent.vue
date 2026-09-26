@@ -89,20 +89,90 @@ useWindowExternalFile(() => {
 
 // Primary color props that users typically want to edit directly
 const PRIMARY_PROPS: { key: string; label: string }[] = [
-  { key: 'accent', label: 'アクセント' },
-  { key: 'bg', label: '背景' },
-  { key: 'fg', label: '文字色' },
-  { key: 'panel', label: 'パネル' },
-  { key: 'navBg', label: 'ナビバー背景' },
-  { key: 'love', label: 'いいね' },
-  { key: 'link', label: 'リンク' },
-  { key: 'hashtag', label: 'ハッシュタグ' },
-  { key: 'mention', label: 'メンション' },
-  { key: 'renote', label: 'リノート' },
-  { key: 'divider', label: '区切り線' },
-  { key: 'success', label: '成功' },
-  { key: 'error', label: 'エラー' },
-  { key: 'warn', label: '警告' },
+  {
+    key: 'accent',
+    get label() {
+      return i18n.ts._themeEditorContent.propAccent
+    },
+  },
+  {
+    key: 'bg',
+    get label() {
+      return i18n.ts._themeEditorContent.propBg
+    },
+  },
+  {
+    key: 'fg',
+    get label() {
+      return i18n.ts._themeEditorContent.propFg
+    },
+  },
+  {
+    key: 'panel',
+    get label() {
+      return i18n.ts._themeEditorContent.propPanel
+    },
+  },
+  {
+    key: 'navBg',
+    get label() {
+      return i18n.ts._themeEditorContent.propNavBg
+    },
+  },
+  {
+    key: 'love',
+    get label() {
+      return i18n.ts._themeEditorContent.propLove
+    },
+  },
+  {
+    key: 'link',
+    get label() {
+      return i18n.ts._themeEditorContent.propLink
+    },
+  },
+  {
+    key: 'hashtag',
+    get label() {
+      return i18n.ts._themeEditorContent.propHashtag
+    },
+  },
+  {
+    key: 'mention',
+    get label() {
+      return i18n.ts._themeEditorContent.propMention
+    },
+  },
+  {
+    key: 'renote',
+    get label() {
+      return i18n.ts._themeEditorContent.propRenote
+    },
+  },
+  {
+    key: 'divider',
+    get label() {
+      return i18n.ts._themeEditorContent.propDivider
+    },
+  },
+  {
+    key: 'success',
+    get label() {
+      return i18n.ts._themeEditorContent.propSuccess
+    },
+  },
+  {
+    key: 'error',
+    get label() {
+      return i18n.ts._themeEditorContent.propError
+    },
+  },
+  {
+    key: 'warn',
+    get label() {
+      return i18n.ts._themeEditorContent.propWarn
+    },
+  },
 ]
 
 // Working props: only user overrides (not base theme defaults)
@@ -175,7 +245,7 @@ function syncVisualFromCode() {
   try {
     const parsed = JSON5.parse(codeContent.value)
     if (!parsed || typeof parsed !== 'object' || !parsed.props) {
-      codeError.value = 'テーマオブジェクトに props がありません'
+      codeError.value = i18n.ts._themeEditorContent.noProps
       return
     }
     themeName.value = parsed.name || 'Untitled'
@@ -191,7 +261,10 @@ function syncVisualFromCode() {
     overrides.value = filtered
     codeError.value = null
   } catch (e) {
-    codeError.value = e instanceof Error ? e.message : 'JSONパースエラー'
+    codeError.value =
+      e instanceof Error
+        ? e.message
+        : i18n.ts._themeEditorContent.jsonParseError
   }
 }
 
@@ -347,24 +420,34 @@ const barActions = computed<EditorAction[]>(() => {
     {
       key: 'import',
       label: importError.value
-        ? '無効'
+        ? i18n.ts._common.disabled
         : importedMessage.value
-          ? '読込済み'
-          : 'インポート',
+          ? i18n.ts._common.loaded
+          : i18n.ts._common.import,
       icon: importError.value ? 'alert-circle' : 'clipboard-text',
     },
     {
       key: 'export',
-      label: copiedMessage.value ? 'コピー済み' : 'エクスポート',
+      label: copiedMessage.value
+        ? i18n.ts._common.copied
+        : i18n.ts._common.export,
       icon: 'clipboard-copy',
     },
   ]
   // 履歴は開発者向けの面 (#1034)。入口だけ隠す
   if (editingThemeId.value && isExposed('developer')) {
-    list.push({ key: 'history', label: '履歴', icon: 'history' })
+    list.push({
+      key: 'history',
+      label: i18n.ts._themeEditorContent.history,
+      icon: 'history',
+    })
   }
   if (hasChangesFromSnapshot.value) {
-    list.push({ key: 'reset', icon: 'arrow-back-up', title: '元に戻す' })
+    list.push({
+      key: 'reset',
+      icon: 'arrow-back-up',
+      title: i18n.ts._themeEditorContent.undo,
+    })
   }
   return list
 })
@@ -372,10 +455,10 @@ const barActions = computed<EditorAction[]>(() => {
 const barPrimary = computed<EditorAction>(() => ({
   key: 'install',
   label: installedMessage.value
-    ? '保存しました'
+    ? i18n.ts._common.saved
     : editingThemeId.value
-      ? '上書き保存'
-      : 'インストール',
+      ? i18n.ts._themeEditorContent.overwriteSave
+      : i18n.ts._common.install,
   icon: installedMessage.value ? 'check' : 'device-floppy',
 }))
 
@@ -496,16 +579,16 @@ useExternalEditSync<string>({
 async function deleteInstalledTheme(theme: MisskeyTheme, e: Event) {
   e.stopPropagation()
   const ok = await confirm({
-    title: 'テーマを削除',
-    message: `「${theme.name}」を削除しますか？テーマの設定も消えます。`,
-    okLabel: '削除',
+    title: i18n.ts._themeEditorContent.deleteTitle,
+    message: i18n.tsx._themeEditorContent.deleteMessage({ name: theme.name }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   const undo = themeStore.removeTheme(theme.id)
   if (undo) {
-    useToast().show('テーマを削除しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._themeEditorContent.deleted, 'info', {
+      action: { label: i18n.ts._themeEditorContent.undo, onClick: undo },
     })
   }
 }

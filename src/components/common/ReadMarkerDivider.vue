@@ -1,18 +1,20 @@
 <script setup lang="ts">
-withDefaults(
-  defineProps<{
-    text?: string
-  }>(),
-  {
-    text: 'ここまで読みました',
-  },
+import { computed } from 'vue'
+import { i18n } from '@/i18n'
+
+const props = defineProps<{
+  text?: string
+}>()
+
+const label = computed(
+  () => props.text ?? i18n.ts._readMarkerDivider.readUpToHere,
 )
 </script>
 
 <template>
-  <div :class="$style.root" role="separator" :aria-label="text">
+  <div :class="$style.root" role="separator" :aria-label="label">
     <span :class="$style.line" aria-hidden="true" />
-    <span :class="$style.text">{{ text }}</span>
+    <span :class="$style.text">{{ label }}</span>
     <span :class="$style.line" aria-hidden="true" />
   </div>
 </template>

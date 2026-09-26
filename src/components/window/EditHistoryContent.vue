@@ -75,8 +75,8 @@ const diff = computed(() =>
 
 const compareLabel = computed(() =>
   selected.value > 0
-    ? `編集履歴 #${selected.value - 1} との差分`
-    : '現在の内容との差分',
+    ? i18n.tsx._editHistoryContent.compareWithEntry({ n: selected.value - 1 })
+    : i18n.ts._editHistoryContent.compareWithCurrent,
 )
 
 const reverting = ref(false)

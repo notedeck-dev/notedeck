@@ -90,7 +90,10 @@ async function handleReaction(reaction: string, target: NormalizedNote) {
     )
   } catch (e) {
     const err = AppError.from(e)
-    toast.show(`リアクションに失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._clipDetailContent.reactionFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -103,7 +106,10 @@ async function handleVote(choice: number, target: NormalizedNote) {
     )
   } catch (e) {
     const err = AppError.from(e)
-    toast.show(`投票に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._clipDetailContent.voteFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -157,7 +163,9 @@ async function toggleFavorite() {
     clip.value.favoritedCount += wasFav ? -1 : 1
   } catch (e) {
     toast.show(
-      `お気に入り操作に失敗しました（${AppError.from(e).displayCode}）`,
+      i18n.tsx._clipDetailContent.favoriteFailed({
+        code: AppError.from(e).displayCode,
+      }),
       'error',
     )
   } finally {
@@ -168,7 +176,7 @@ async function toggleFavorite() {
 onMounted(async () => {
   const acc = accountsStore.accounts.find((a) => a.id === props.accountId)
   if (!acc) {
-    clipError.value = 'アカウントが見つかりません'
+    clipError.value = i18n.ts._clipDetailContent.accountNotFound
     clipLoading.value = false
     return
   }

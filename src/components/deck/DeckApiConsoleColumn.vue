@@ -4,7 +4,7 @@ import type { JsonValue } from '@/bindings'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
+import { AppError, authErrorMessage } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
@@ -22,10 +22,11 @@ const error = ref<string | null>(null)
 const loading = ref(false)
 
 const runBtnTitle = computed(() => {
-  if (loading.value) return '送信中...'
-  if (!endpoint.value.trim()) return 'エンドポイントを入力してください'
-  if (!props.column.accountId) return 'アカウントを選択してください'
-  return '送信 (Ctrl+Enter)'
+  if (loading.value) return i18n.ts._deckApiConsoleColumn.sending
+  if (!endpoint.value.trim()) return i18n.ts._deckApiConsoleColumn.enterEndpoint
+  if (!props.column.accountId)
+    return i18n.ts._deckApiConsoleColumn.selectAccount
+  return i18n.ts._deckApiConsoleColumn.sendWithShortcut
 })
 
 async function execute() {
@@ -41,7 +42,7 @@ async function execute() {
       parsedParams = JSON.parse(trimmed)
     }
   } catch {
-    error.value = 'パラメータのJSONが不正です'
+    error.value = i18n.ts._deckApiConsoleColumn.invalidParamsJson
     loading.value = false
     return
   }
@@ -57,7 +58,7 @@ async function execute() {
     response.value = JSON.stringify(result, null, 2)
   } catch (e) {
     const appErr = AppError.from(e)
-    error.value = appErr.isAuth ? AUTH_ERROR_MESSAGE : appErr.message
+    error.value = appErr.isAuth ? authErrorMessage() : appErr.message
   } finally {
     loading.value = false
   }

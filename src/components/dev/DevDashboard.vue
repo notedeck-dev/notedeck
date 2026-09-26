@@ -67,27 +67,75 @@ const NAV_GROUPS: {
   items: { id: ViewId; icon: string; label: string }[]
 }[] = [
   {
-    label: '観測',
+    get label() {
+      return i18n.ts._devDashboard.navObserve
+    },
     items: [
-      { id: 'overview', icon: 'ti ti-layout-columns', label: '概要' },
-      { id: 'sse', icon: 'ti ti-broadcast', label: 'SSE イベント' },
-      { id: 'timeline', icon: 'ti ti-terminal-2', label: '統合タイムライン' },
-      { id: 'inspector', icon: 'ti ti-search', label: 'Inspector 照合' },
+      {
+        id: 'overview',
+        icon: 'ti ti-layout-columns',
+        get label() {
+          return i18n.ts._common.overview
+        },
+      },
+      {
+        id: 'sse',
+        icon: 'ti ti-broadcast',
+        get label() {
+          return i18n.ts._devDashboard.sseEvents
+        },
+      },
+      {
+        id: 'timeline',
+        icon: 'ti ti-terminal-2',
+        get label() {
+          return i18n.ts._devDashboard.unifiedTimeline
+        },
+      },
+      {
+        id: 'inspector',
+        icon: 'ti ti-search',
+        get label() {
+          return i18n.ts._devDashboard.inspector
+        },
+      },
     ],
   },
   {
-    label: '実行',
+    get label() {
+      return i18n.ts._devDashboard.navRun
+    },
     items: [
       { id: 'caps', icon: 'ti ti-bolt', label: 'Capabilities' },
-      { id: 'perms', icon: 'ti ti-shield-lock', label: '実効権限' },
+      {
+        id: 'perms',
+        icon: 'ti ti-shield-lock',
+        get label() {
+          return i18n.ts._devDashboard.effectivePermissions
+        },
+      },
     ],
   },
   {
-    label: '診断',
+    get label() {
+      return i18n.ts._devDashboard.navDiagnose
+    },
     items: [
-      { id: 'startup', icon: 'ti ti-rocket', label: '起動計測' },
+      {
+        id: 'startup',
+        icon: 'ti ti-rocket',
+        get label() {
+          return i18n.ts._devDashboard.startup
+        },
+      },
       { id: 'heartbeat', icon: 'ti ti-heartbeat', label: 'HEARTBEAT' },
-      { id: 'caches', icon: 'ti ti-database', label: 'キャッシュ' },
+      {
+        id: 'caches',
+        icon: 'ti ti-database',
+        get label() {
+          return i18n.ts._devDashboard.navCaches
+        },
+      },
       { id: 'qbtrace', icon: 'ti ti-arrows-left-right', label: 'Query Bridge' },
     ],
   },
@@ -207,9 +255,13 @@ const heartbeat = ref<HeartbeatStatusView | null>(null)
 function relativeTime(epochMs: number | null): string {
   if (epochMs === null) return '—'
   const mins = Math.floor((Date.now() - epochMs) / 60_000)
-  if (mins >= 60) return `${Math.floor(mins / 60)} 時間前`
-  if (mins >= 1) return `${mins} 分前`
-  return 'たった今'
+  if (mins >= 60)
+    return i18n.tsx._devDashboard.hoursAgo_plural({
+      count: Math.floor(mins / 60),
+    })
+  if (mins >= 1)
+    return i18n.tsx._devDashboard.minutesAgo_plural({ count: mins })
+  return i18n.ts._time.justNow
 }
 
 // SSE ビューア。EventSource は event: 名ごとの addEventListener が必要で

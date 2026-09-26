@@ -36,6 +36,7 @@ import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useReadMarker } from '@/composables/useReadMarker'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
+import { i18n } from '@/i18n'
 import { variantKey, variantKeyOf } from '@/services/noteKey'
 import { hasGap as hasTimelineGap } from '@/services/timelineGap'
 import { isGuestAccount } from '@/stores/accounts'
@@ -197,7 +198,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
           }
         },
         onOverflow: () => {
-          toast.show('新着が多すぎるため一部をスキップしました', 'warning')
+          toast.show(i18n.ts._useNoteColumn.overflowSkipped, 'warning')
         },
       })
     : null

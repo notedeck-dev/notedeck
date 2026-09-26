@@ -140,7 +140,7 @@ function openEditWindow() {
 
 useWindowEditAction(() =>
   isOwnPage.value && page.value
-    ? { onClick: openEditWindow, title: '編集' }
+    ? { onClick: openEditWindow, title: i18n.ts._common.edit }
     : null,
 )
 

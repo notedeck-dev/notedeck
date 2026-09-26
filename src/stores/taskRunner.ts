@@ -3,6 +3,7 @@ import { shallowRef } from 'vue'
 import type { JsonValue } from '@/bindings'
 import { useCommandStore } from '@/commands/registry'
 import { TASK_COMMAND_PREFIX } from '@/commands/taskCommandPrefix'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useAiActivity } from '@/stores/aiActivity'
 import { usePrompt } from '@/stores/prompt'
@@ -70,7 +71,11 @@ export const useTaskRunnerStore = defineStore('taskRunner', () => {
       if (val === null) return null
       if (i.type === 'pick' && !i.options.includes(val)) {
         useToast().show(
-          `${i.prompt}: "${val}" は選択肢に含まれません (${i.options.join(', ')})`,
+          i18n.tsx._taskRunner.notInOptions({
+            prompt: i.prompt,
+            value: val,
+            options: i.options.join(', '),
+          }),
           'error',
         )
         return null
@@ -89,8 +94,10 @@ export const useTaskRunnerStore = defineStore('taskRunner', () => {
     if (!resolved.ok) {
       useToast().show(
         resolved.reason === 'not-found'
-          ? `タスク: アカウント "${resolved.requestedId}" が見つかりません`
-          : 'タスク: 利用可能なアカウントがありません',
+          ? i18n.tsx._taskRunner.accountNotFound({
+              id: String(resolved.requestedId),
+            })
+          : i18n.ts._taskRunner.noAccount,
         'error',
       )
       return null
@@ -113,7 +120,10 @@ export const useTaskRunnerStore = defineStore('taskRunner', () => {
     const tasksStore = useTasksStore()
     const def = tasksStore.getById(taskId)
     if (!def) {
-      useToast().show(`タスク "${taskId}" が見つかりません`, 'error')
+      useToast().show(
+        i18n.tsx._taskRunner.taskNotFound({ id: taskId }),
+        'error',
+      )
       return null
     }
     ensurePruneTimer()
@@ -177,7 +187,10 @@ export const useTaskRunnerStore = defineStore('taskRunner', () => {
         finishedAt: Date.now(),
         response: result,
       })
-      useToast().show(`タスク完了: ${def.label}`, 'success')
+      useToast().show(
+        i18n.tsx._taskRunner.completed({ label: def.label }),
+        'success',
+      )
     } catch (e) {
       activity.pulse('failed')
       const msg = AppError.from(e).message
@@ -186,7 +199,10 @@ export const useTaskRunnerStore = defineStore('taskRunner', () => {
         finishedAt: Date.now(),
         error: msg,
       })
-      useToast().show(`タスク失敗: ${def.label} — ${msg}`, 'error')
+      useToast().show(
+        i18n.tsx._taskRunner.failed({ label: def.label, error: msg }),
+        'error',
+      )
     } finally {
       endRunning()
     }
@@ -205,10 +221,7 @@ export const useTaskRunnerStore = defineStore('taskRunner', () => {
     // コマンドパレットで選ばせる
     const commandStore = useCommandStore()
     if (tasksStore.definitions.length === 0) {
-      useToast().show(
-        'デフォルトタスクがありません。tasks.json5 で isDefault: true を設定してください。',
-        'info',
-      )
+      useToast().show(i18n.ts._taskRunner.noDefaultTask, 'info')
       return
     }
     commandStore.openWithFilter((c) => c.id.startsWith(TASK_COMMAND_PREFIX))

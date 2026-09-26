@@ -76,46 +76,47 @@ const commandIds = computed(() =>
     .filter((id) => isExposed(commandStore.commands.get(id)?.exposure)),
 )
 
-const COMMAND_LABELS: Record<string, string> = {
-  'command-palette': 'コマンドパレット',
-  search: 'サーバー検索',
-  notifications: '通知',
-  compose: 'ノート作成',
-  'add-column': 'カラム追加',
-  'toggle-sidebar': 'サイドバー切替',
-  'boss-key': 'ウィンドウを隠す',
-  'account-menu': 'アカウントメニュー',
-  'toggle-dark-mode': 'ダークモード切替',
-  'note-next': '次のノート',
-  'note-prev': '前のノート',
-  'note-reply': '返信',
-  'note-react': 'リアクション',
-  'note-renote': 'リノート / 引用',
-  'note-bookmark': 'ブックマーク',
-  'note-open': 'ノートを開く',
-  'note-cw': 'CW切替',
-  'column-next': '次のカラム',
-  'column-prev': '前のカラム',
-  'pop-out-column': 'カラムを別ウィンドウ',
-  'new-window': '新規ウィンドウ',
-  'close-all-windows': '全ウィンドウを閉じる',
-  'pip-window': 'PiPウィンドウ',
+// 文言は表示言語の切り替えに追従するよう、引くたびに辞書を読む (#135)
+const COMMAND_LABELS: Record<string, () => string> = {
+  'command-palette': () => i18n.ts._commands.commandPalette,
+  search: () => i18n.ts._commands.search,
+  notifications: () => i18n.ts._commands.notifications,
+  compose: () => i18n.ts._commands.compose,
+  'add-column': () => i18n.ts._commands.addColumn,
+  'toggle-sidebar': () => i18n.ts._commands.toggleSidebar,
+  'boss-key': () => i18n.ts._commands.bossKey,
+  'account-menu': () => i18n.ts._commands.accountMenu,
+  'toggle-dark-mode': () => i18n.ts._keybindsContent.toggleDarkMode,
+  'note-next': () => i18n.ts._commands.noteNext,
+  'note-prev': () => i18n.ts._commands.notePrev,
+  'note-reply': () => i18n.ts._commands.noteReply,
+  'note-react': () => i18n.ts._commands.noteReact,
+  'note-renote': () => i18n.ts._commands.noteRenote,
+  'note-bookmark': () => i18n.ts._commands.noteBookmark,
+  'note-open': () => i18n.ts._commands.noteOpen,
+  'note-cw': () => i18n.ts._commands.noteCw,
+  'column-next': () => i18n.ts._commands.columnNext,
+  'column-prev': () => i18n.ts._commands.columnPrev,
+  'pop-out-column': () => i18n.ts._keybindsContent.popOutColumn,
+  'new-window': () => i18n.ts._keybindsContent.newWindow,
+  'close-all-windows': () => i18n.ts._keybindsContent.closeAllWindows,
+  'pip-window': () => i18n.ts._keybindsContent.pipWindow,
   ...Object.fromEntries(
     Array.from({ length: 9 }, (_, i) => [
       `column-${i + 1}`,
-      `カラム ${i + 1} に移動`,
+      () => i18n.tsx._commands.focusColumn({ n: i + 1 }),
     ]),
   ),
   ...Object.fromEntries(
     Array.from({ length: 9 }, (_, i) => [
       `quick-react-${i + 1}`,
-      `クイックリアクション ${i + 1}`,
+      () => i18n.tsx._commands.quickReact({ n: i + 1 }),
     ]),
   ),
   ...Object.fromEntries(
     Array.from({ length: 9 }, (_, i) => [
       `profile-${i + 1}`,
-      `プロファイル ${i + 1}`,
+      () => i18n.tsx._keybindsContent.profileN({ n: i + 1 }),
     ]),
   ),
 }
@@ -166,13 +167,48 @@ const COMMAND_CATEGORIES: Record<string, string> = {
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
-  general: { label: '全般', icon: 'ti-settings' },
-  navigation: { label: 'ナビゲーション', icon: 'ti-compass' },
-  account: { label: 'アカウント', icon: 'ti-user' },
-  column: { label: 'カラム', icon: 'ti-columns' },
-  note: { label: 'ノート', icon: 'ti-note' },
-  window: { label: 'ウィンドウ', icon: 'ti-app-window' },
-  profile: { label: 'プロファイル', icon: 'ti-id-badge-2' },
+  general: {
+    get label() {
+      return i18n.ts._keybindsContent.categoryGeneral
+    },
+    icon: 'ti-settings',
+  },
+  navigation: {
+    get label() {
+      return i18n.ts._keybindsContent.categoryNavigation
+    },
+    icon: 'ti-compass',
+  },
+  account: {
+    get label() {
+      return i18n.ts._keybindsContent.categoryAccount
+    },
+    icon: 'ti-user',
+  },
+  column: {
+    get label() {
+      return i18n.ts._keybindsContent.categoryColumn
+    },
+    icon: 'ti-columns',
+  },
+  note: {
+    get label() {
+      return i18n.ts._keybindsContent.categoryNote
+    },
+    icon: 'ti-note',
+  },
+  window: {
+    get label() {
+      return i18n.ts._keybindsContent.categoryWindow
+    },
+    icon: 'ti-app-window',
+  },
+  profile: {
+    get label() {
+      return i18n.ts._keybindsContent.categoryProfile
+    },
+    icon: 'ti-id-badge-2',
+  },
 }
 
 const expandedSections = reactive<Record<string, boolean>>({})
@@ -310,7 +346,8 @@ watch(jsonCode, (code) => {
       JSON.parse(code)
       codeError.value = null
     } catch (e) {
-      codeError.value = e instanceof Error ? e.message : 'JSONパースエラー'
+      codeError.value =
+        e instanceof Error ? e.message : i18n.ts._keybindsContent.jsonParseError
     }
   }, 400)
 })
@@ -324,7 +361,8 @@ function applyFromCode() {
     keybindsStore.overrides = parsed
     setStorageJson(STORAGE_KEYS.keybinds, parsed)
   } catch (e) {
-    codeError.value = e instanceof Error ? e.message : 'JSONパースエラー'
+    codeError.value =
+      e instanceof Error ? e.message : i18n.ts._keybindsContent.jsonParseError
   }
 }
 
@@ -401,7 +439,7 @@ function handleReset() {
             :class="[$style.keybindRow, { [$style.customized]: keybindsStore.isCustomized(cmdId) }]"
           >
             <div :class="$style.keybindLabel">
-              {{ COMMAND_LABELS[cmdId] ?? cmdId }}
+              {{ COMMAND_LABELS[cmdId]?.() ?? cmdId }}
             </div>
             <div :class="$style.keybindShortcuts">
               <template v-for="(shortcut, idx) in keybindsStore.getShortcuts(cmdId)" :key="idx">

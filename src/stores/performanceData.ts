@@ -4,6 +4,7 @@
  */
 
 import defaultsJson from '@/defaults/performance.json5'
+import { i18n } from '@/i18n'
 import type { PerformanceConfig, PerformanceKey } from '@/stores/performance'
 
 /** Metadata for each setting (used by the editor UI and validation). */
@@ -22,124 +23,196 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     min: 4,
     max: 200,
     step: 4,
-    unit: 'ホスト',
+    get unit() {
+      return i18n.ts._performanceData.units.hosts
+    },
     category: 'emoji',
-    label: '辞書保持ホスト数',
-    description:
-      '絵文字を解決するための辞書を保持するホスト数。連合先が増えるほど育つので上限で頭を打たせる',
+    get label() {
+      return i18n.ts._performanceData.labels.emojiCacheHosts
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.emojiCacheHosts
+    },
   },
   emojiListHosts: {
     min: 1,
     max: 10,
     step: 1,
-    unit: 'ホスト',
+    get unit() {
+      return i18n.ts._performanceData.units.hosts
+    },
     category: 'emoji',
-    label: 'リスト保持ホスト数',
-    description: 'リアクションピッカー用の絵文字リストを保持するホスト数',
+    get label() {
+      return i18n.ts._performanceData.labels.emojiListHosts
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.emojiListHosts
+    },
   },
   emojiPersistPerHost: {
     min: 50,
     max: 1000,
     step: 50,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'emoji',
-    label: 'localStorage永続化/ホスト',
-    description: 'オフライン時の絵文字解決用にlocalStorageに保存するエントリ数',
+    get label() {
+      return i18n.ts._performanceData.labels.emojiPersistPerHost
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.emojiPersistPerHost
+    },
   },
   noteStoreMax: {
     min: 500,
     max: 10000,
     step: 500,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'note',
-    label: 'ノートストア上限',
-    description:
-      'グローバルノートストアの保持上限。長時間セッションのメモリ消費に影響',
+    get label() {
+      return i18n.ts._performanceData.labels.noteStoreMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.noteStoreMax
+    },
   },
   noteListMax: {
     min: 50,
     max: 1000,
     step: 50,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'note',
-    label: 'DOM表示上限/カラム',
-    description: 'カラムあたりのデータ配列上限。超過分はスクロール時に破棄',
+    get label() {
+      return i18n.ts._performanceData.labels.noteListMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.noteListMax
+    },
   },
   maxNotifications: {
     min: 100,
     max: 1000,
     step: 100,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'note',
-    label: '通知保持上限',
-    description: '通知カラムに保持する通知の最大数',
+    get label() {
+      return i18n.ts._performanceData.labels.maxNotifications
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.maxNotifications
+    },
   },
   chatMessageStoreMax: {
     min: 500,
     max: 50000,
     step: 500,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'note',
-    label: 'チャットメッセージストア上限',
-    description:
-      'グローバル chatMessageStore の保持上限。長時間チャットしている場合のメモリに影響 (#460)',
+    get label() {
+      return i18n.ts._performanceData.labels.chatMessageStoreMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.chatMessageStoreMax
+    },
   },
   mfmCacheMax: {
     min: 32,
     max: 2048,
     step: 32,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'cache',
-    label: 'MFMキャッシュ',
-    description: 'MFMパース結果のLRUキャッシュ上限',
+    get label() {
+      return i18n.ts._performanceData.labels.mfmCacheMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.mfmCacheMax
+    },
   },
   blurhashCacheMax: {
     min: 64,
     max: 2048,
     step: 64,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'cache',
-    label: 'blurhashキャッシュ',
-    description:
-      '画像ロード前のプレースホルダ (blurhash → data URL) のLRUキャッシュ上限',
+    get label() {
+      return i18n.ts._performanceData.labels.blurhashCacheMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.blurhashCacheMax
+    },
   },
   imageProxyCacheMax: {
     min: 32,
     max: 2048,
     step: 32,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'cache',
-    label: 'プロキシURLキャッシュ',
-    description: 'プロキシURL変換のLRUキャッシュ上限',
+    get label() {
+      return i18n.ts._performanceData.labels.imageProxyCacheMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.imageProxyCacheMax
+    },
   },
   ogpCacheMax: {
     min: 32,
     max: 1024,
     step: 32,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'cache',
-    label: 'OGPキャッシュ',
-    description: 'OGPプレビューのLRUキャッシュ上限',
+    get label() {
+      return i18n.ts._performanceData.labels.ogpCacheMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.ogpCacheMax
+    },
   },
   noteCaptureMax: {
     min: 10,
     max: 200,
     step: 10,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'realtime',
-    label: 'Note Capture上限',
-    description:
-      'リアルタイム更新のWebSocket購読数。多いほどリアクション即時反映',
+    get label() {
+      return i18n.ts._performanceData.labels.noteCaptureMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.noteCaptureMax
+    },
   },
   overscan: {
     min: 2,
     max: 20,
     step: 1,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'realtime',
-    label: 'Overscan',
-    description:
-      'viewport外に余分に描画するノート数。多いほどスクロールが滑らか',
+    get label() {
+      return i18n.ts._performanceData.labels.overscan
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.overscan
+    },
   },
   memoryCacheMaxMB: {
     min: 1,
@@ -147,8 +220,12 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 1,
     unit: 'MB',
     category: 'backend',
-    label: 'メモリキャッシュ合計',
-    description: '画像のインメモリキャッシュ合計サイズ',
+    get label() {
+      return i18n.ts._performanceData.labels.memoryCacheMaxMB
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.memoryCacheMaxMB
+    },
   },
   memoryCacheMaxItemKB: {
     min: 16,
@@ -156,26 +233,42 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 16,
     unit: 'KB',
     category: 'backend',
-    label: '単一ファイル上限',
-    description: 'メモリキャッシュに載せる単一ファイルの最大サイズ',
+    get label() {
+      return i18n.ts._performanceData.labels.memoryCacheMaxItemKB
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.memoryCacheMaxItemKB
+    },
   },
   maxConcurrentFetches: {
     min: 5,
     max: 100,
     step: 5,
-    unit: '並列',
+    get unit() {
+      return i18n.ts._performanceData.units.parallel
+    },
     category: 'backend',
-    label: '並行フェッチ数',
-    description: '画像の同時ダウンロード数',
+    get label() {
+      return i18n.ts._performanceData.labels.maxConcurrentFetches
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.maxConcurrentFetches
+    },
   },
   rustOgpCacheMax: {
     min: 16,
     max: 512,
     step: 16,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'backend',
-    label: 'Rust OGPキャッシュ',
-    description: 'Rust側のOGPメタデータLRUキャッシュ上限',
+    get label() {
+      return i18n.ts._performanceData.labels.rustOgpCacheMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.rustOgpCacheMax
+    },
   },
   maxRequestsPerWindow: {
     min: 50,
@@ -183,35 +276,57 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 50,
     unit: 'req/min',
     category: 'backend',
-    label: 'レート制限',
-    description: 'ホストあたりの1分間リクエスト上限',
+    get label() {
+      return i18n.ts._performanceData.labels.maxRequestsPerWindow
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.maxRequestsPerWindow
+    },
   },
   circuitBreakerThreshold: {
     min: 2,
     max: 10,
     step: 1,
-    unit: '回',
+    get unit() {
+      return i18n.ts._performanceData.units.times
+    },
     category: 'backend',
-    label: 'サーキットブレーカー閾値',
-    description: 'この回数連続失敗でホストを一時遮断',
+    get label() {
+      return i18n.ts._performanceData.labels.circuitBreakerThreshold
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.circuitBreakerThreshold
+    },
   },
   circuitBreakerDuration: {
     min: 10,
     max: 300,
     step: 10,
-    unit: '秒',
+    get unit() {
+      return i18n.ts._performanceData.units.seconds
+    },
     category: 'backend',
-    label: 'サーキットブレーカー期間',
-    description: '遮断されたホストの復帰までの待機時間',
+    get label() {
+      return i18n.ts._performanceData.labels.circuitBreakerDuration
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.circuitBreakerDuration
+    },
   },
   imageCacheTTLDays: {
     min: 1,
     max: 30,
     step: 1,
-    unit: '日',
+    get unit() {
+      return i18n.ts._performanceData.units.days
+    },
     category: 'backend',
-    label: '画像キャッシュ有効期限',
-    description: 'ディスク上の画像キャッシュの保持日数',
+    get label() {
+      return i18n.ts._performanceData.labels.imageCacheTTLDays
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.imageCacheTTLDays
+    },
   },
   imageCacheMaxMB: {
     min: 64,
@@ -219,8 +334,12 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 64,
     unit: 'MB',
     category: 'backend',
-    label: '画像キャッシュ上限',
-    description: '超過した分は古いものから削除される',
+    get label() {
+      return i18n.ts._performanceData.labels.imageCacheMaxMB
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.imageCacheMaxMB
+    },
   },
   imageCacheMaxFileMB: {
     min: 1,
@@ -228,36 +347,57 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 1,
     unit: 'MB',
     category: 'backend',
-    label: '1 ファイルの取得上限',
-    description:
-      'これを超える画像はプロキシを通さない。上げるとピークメモリも増える',
+    get label() {
+      return i18n.ts._performanceData.labels.imageCacheMaxFileMB
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.imageCacheMaxFileMB
+    },
   },
   prefetchAhead: {
     min: 0,
     max: 60,
     step: 5,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'realtime',
-    label: '先読みプリフェッチ',
-    description: 'viewport下方向に先読みする画像プリフェッチ数',
+    get label() {
+      return i18n.ts._performanceData.labels.prefetchAhead
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.prefetchAhead
+    },
   },
   prefetchBehind: {
     min: 0,
     max: 30,
     step: 5,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'realtime',
-    label: '後方プリフェッチ',
-    description: 'viewport上方向に遡って画像プリフェッチする数',
+    get label() {
+      return i18n.ts._performanceData.labels.prefetchBehind
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.prefetchBehind
+    },
   },
   prefetchTrackedMax: {
     min: 100,
     max: 2000,
     step: 100,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'realtime',
-    label: 'プリフェッチ追跡上限',
-    description: 'プリフェッチ済みURLの記憶数。超過すると古い順に破棄',
+    get label() {
+      return i18n.ts._performanceData.labels.prefetchTrackedMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.prefetchTrackedMax
+    },
   },
   lazyLoadMargin: {
     min: 0,
@@ -265,36 +405,57 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 50,
     unit: 'px',
     category: 'realtime',
-    label: '遅延読み込みマージン',
-    description:
-      'OGPプレビューや埋め込みノートの読み込みを開始するviewportからの距離',
+    get label() {
+      return i18n.ts._performanceData.labels.lazyLoadMargin
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.lazyLoadMargin
+    },
   },
   nearViewportBuffer: {
     min: 1,
     max: 10,
     step: 1,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'realtime',
-    label: 'Viewport近傍バッファ',
-    description: 'viewport端から画像をeager読み込みする余裕アイテム数',
+    get label() {
+      return i18n.ts._performanceData.labels.nearViewportBuffer
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.nearViewportBuffer
+    },
   },
   ogpGalleryMax: {
     min: 0,
     max: 8,
     step: 1,
-    unit: '枚',
+    get unit() {
+      return i18n.ts._performanceData.units.images
+    },
     category: 'cache',
-    label: 'OGPギャラリー上限',
-    description: 'OGPプレビューのギャラリー画像の最大表示枚数',
+    get label() {
+      return i18n.ts._performanceData.labels.ogpGalleryMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.ogpGalleryMax
+    },
   },
   embedCacheMax: {
     min: 16,
     max: 256,
     step: 16,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'cache',
-    label: '埋め込みノートキャッシュ',
-    description: '埋め込みノートのLRUキャッシュ上限',
+    get label() {
+      return i18n.ts._performanceData.labels.embedCacheMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.embedCacheMax
+    },
   },
   cssBlurLevel: {
     min: 0,
@@ -302,9 +463,12 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 1,
     unit: '',
     category: 'css',
-    label: 'ブラー強度',
-    description:
-      'backdrop-filterブラーの強度。0=無効、1=軽量(1–2px)、2=フル(4px)。最もGPU負荷が高い',
+    get label() {
+      return i18n.ts._performanceData.labels.cssBlurLevel
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.cssBlurLevel
+    },
   },
   cssAnimationScale: {
     min: 0,
@@ -312,9 +476,12 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 25,
     unit: '%',
     category: 'css',
-    label: 'アニメーション速度',
-    description:
-      'トランジション・アニメーションの速度スケール。0%で即時描画、100%で通常速度',
+    get label() {
+      return i18n.ts._performanceData.labels.cssAnimationScale
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.cssAnimationScale
+    },
   },
   cssShadowLevel: {
     min: 0,
@@ -322,47 +489,72 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 1,
     unit: '',
     category: 'css',
-    label: 'シャドウ強度',
-    description: 'box-shadowの描画レベル。0=無効、1=軽量、2=フル(Misskey準拠)',
+    get label() {
+      return i18n.ts._performanceData.labels.cssShadowLevel
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.cssShadowLevel
+    },
   },
   streamPollingInterval: {
     min: 3,
     max: 60,
     step: 1,
-    unit: '秒',
+    get unit() {
+      return i18n.ts._performanceData.units.seconds
+    },
     category: 'polling',
-    label: 'ストリームポーリング間隔',
-    description:
-      'ポーリングモード時のタイムライン更新間隔。短いほどリアルタイムに近い',
+    get label() {
+      return i18n.ts._performanceData.labels.streamPollingInterval
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.streamPollingInterval
+    },
   },
   notificationPollInterval: {
     min: 30,
     max: 600,
     step: 30,
-    unit: '秒',
+    get unit() {
+      return i18n.ts._performanceData.units.seconds
+    },
     category: 'polling',
-    label: '通知ポーリング間隔',
-    description:
-      '通知未読数の確認間隔。短いほどリアルタイム、長いほどバッテリー節約',
+    get label() {
+      return i18n.ts._performanceData.labels.notificationPollInterval
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.notificationPollInterval
+    },
   },
   chatPollInterval: {
     min: 30,
     max: 600,
     step: 30,
-    unit: '秒',
+    get unit() {
+      return i18n.ts._performanceData.units.seconds
+    },
     category: 'polling',
-    label: 'チャットポーリング間隔',
-    description: 'チャット未読の確認間隔',
+    get label() {
+      return i18n.ts._performanceData.labels.chatPollInterval
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.chatPollInterval
+    },
   },
   maxLiveColumns: {
     min: 1,
     max: 10,
     step: 1,
-    unit: '本',
+    get unit() {
+      return i18n.ts._performanceData.units.columns
+    },
     category: 'realtime',
-    label: '同時 live カラム数',
-    description:
-      'ストリーミング接続を維持するカラムの上限。超過分は一時停止される',
+    get label() {
+      return i18n.ts._performanceData.labels.maxLiveColumns
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.maxLiveColumns
+    },
   },
   columnUnloadDelay: {
     min: 1000,
@@ -370,46 +562,72 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 1000,
     unit: 'ms',
     category: 'realtime',
-    label: 'カラムアンロード遅延',
-    description:
-      '画面外カラムをアンマウントするまでの待機時間。短いほどメモリ節約',
+    get label() {
+      return i18n.ts._performanceData.labels.columnUnloadDelay
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.columnUnloadDelay
+    },
   },
   snapshotMaxNotes: {
     min: 10,
     max: 100,
     step: 10,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'realtime',
-    label: 'スナップショット保存数',
-    description: 'カラムスナップショットに保存するノート数。多いほど復帰が完全',
+    get label() {
+      return i18n.ts._performanceData.labels.snapshotMaxNotes
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.snapshotMaxNotes
+    },
   },
   snapshotTTL: {
     min: 1,
     max: 30,
     step: 1,
-    unit: '分',
+    get unit() {
+      return i18n.ts._performanceData.units.minutes
+    },
     category: 'realtime',
-    label: 'スナップショット有効期限',
-    description: 'カラムスナップショットの保持期間。期限切れで再フェッチ',
+    get label() {
+      return i18n.ts._performanceData.labels.snapshotTTL
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.snapshotTTL
+    },
   },
   jankDowngradeThreshold: {
     min: 1,
     max: 15,
     step: 1,
-    unit: '回/秒',
+    get unit() {
+      return i18n.ts._performanceData.units.timesPerSecond
+    },
     category: 'telemetry',
-    label: 'ジャンク検出感度',
-    description:
-      'この回数/秒を超えるジャンクで自動品質ダウングレード。低いほど敏感',
+    get label() {
+      return i18n.ts._performanceData.labels.jankDowngradeThreshold
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.jankDowngradeThreshold
+    },
   },
   stableUpgradeSeconds: {
     min: 5,
     max: 30,
     step: 5,
-    unit: '秒',
+    get unit() {
+      return i18n.ts._performanceData.units.seconds
+    },
     category: 'telemetry',
-    label: 'アップグレード待機',
-    description: '安定がこの秒数続くと自動品質アップグレードを試行',
+    get label() {
+      return i18n.ts._performanceData.labels.stableUpgradeSeconds
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.stableUpgradeSeconds
+    },
   },
   noteAnimationDuration: {
     min: 0,
@@ -417,36 +635,57 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 50,
     unit: 'ms',
     category: 'telemetry',
-    label: 'ノート出現アニメーション',
-    description: '新着ノートのスライドインアニメーション時間。0で即時表示',
+    get label() {
+      return i18n.ts._performanceData.labels.noteAnimationDuration
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.noteAnimationDuration
+    },
   },
   frameHistorySize: {
     min: 30,
     max: 500,
     step: 10,
-    unit: 'フレーム',
+    get unit() {
+      return i18n.ts._performanceData.units.frames
+    },
     category: 'telemetry',
-    label: 'P95履歴サイズ',
-    description:
-      'P95フレーム時間計算用のリングバッファサイズ。大きいほど安定するが反応が遅い',
+    get label() {
+      return i18n.ts._performanceData.labels.frameHistorySize
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.frameHistorySize
+    },
   },
   soundCacheMax: {
     min: 2,
     max: 32,
     step: 2,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'cache',
-    label: '通知音キャッシュ',
-    description: '通知音のAudioBufferキャッシュ数。多サーバー利用時は増やす',
+    get label() {
+      return i18n.ts._performanceData.labels.soundCacheMax
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.soundCacheMax
+    },
   },
   cachedTimelineLimit: {
     min: 10,
     max: 200,
     step: 10,
-    unit: '件',
+    get unit() {
+      return i18n.ts._performanceData.units.items
+    },
     category: 'cache',
-    label: 'タイムラインキャッシュ読み込み',
-    description: 'カラム復帰時にDBキャッシュから読み込むノート件数',
+    get label() {
+      return i18n.ts._performanceData.labels.cachedTimelineLimit
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.cachedTimelineLimit
+    },
   },
   pullFireThreshold: {
     min: 80,
@@ -454,8 +693,12 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 20,
     unit: 'px',
     category: 'interaction',
-    label: 'プルリフレッシュ距離',
-    description: 'プルトゥリフレッシュが発火するまでの引っ張り距離',
+    get label() {
+      return i18n.ts._performanceData.labels.pullFireThreshold
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.pullFireThreshold
+    },
   },
   swipeThreshold: {
     min: 20,
@@ -463,8 +706,12 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 10,
     unit: 'px',
     category: 'interaction',
-    label: 'スワイプ切り替え距離',
-    description: 'タブ切り替えに必要な最小スワイプ距離',
+    get label() {
+      return i18n.ts._performanceData.labels.swipeThreshold
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.swipeThreshold
+    },
   },
   flingVelocity: {
     min: 0.1,
@@ -472,8 +719,12 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 0.1,
     unit: 'px/ms',
     category: 'interaction',
-    label: 'フリック速度',
-    description: 'この速度以上のフリックで即座にタブ切り替え',
+    get label() {
+      return i18n.ts._performanceData.labels.flingVelocity
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.flingVelocity
+    },
   },
   wheelCooldown: {
     min: 100,
@@ -481,8 +732,12 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 50,
     unit: 'ms',
     category: 'interaction',
-    label: 'ホイールクールダウン',
-    description: 'マウスホイールによるタブ切り替え後の再発火防止時間',
+    get label() {
+      return i18n.ts._performanceData.labels.wheelCooldown
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.wheelCooldown
+    },
   },
   scrollHideThreshold: {
     min: 10,
@@ -490,8 +745,12 @@ export const FIELD_META: Record<PerformanceKey, FieldMeta> = {
     step: 10,
     unit: 'px',
     category: 'interaction',
-    label: 'ナビバー非表示感度',
-    description: 'スクロールでナビバーを非表示にする累積距離。小さいほど敏感',
+    get label() {
+      return i18n.ts._performanceData.labels.scrollHideThreshold
+    },
+    get description() {
+      return i18n.ts._performanceData.descriptions.scrollHideThreshold
+    },
   },
 }
 
@@ -500,17 +759,85 @@ export const CATEGORY_LABELS: Record<
   string,
   { label: string; short: string; icon: string }
 > = {
-  emoji: { label: '絵文字キャッシュ', short: '絵文字', icon: 'ti-mood-smile' },
-  note: { label: 'ノート', short: 'ノート', icon: 'ti-note' },
-  cache: { label: 'パースキャッシュ', short: 'パース', icon: 'ti-database' },
-  realtime: { label: 'リアルタイム', short: 'リアル', icon: 'ti-bolt' },
-  backend: { label: 'バックエンド', short: 'バック', icon: 'ti-server' },
-  css: { label: 'CSS描画', short: 'CSS', icon: 'ti-palette' },
-  polling: { label: 'ポーリング', short: '取得', icon: 'ti-refresh' },
-  telemetry: { label: 'テレメトリ', short: '計測', icon: 'ti-chart-line' },
+  emoji: {
+    get label() {
+      return i18n.ts._performanceData.categories.emoji.label
+    },
+    get short() {
+      return i18n.ts._performanceData.categories.emoji.short
+    },
+    icon: 'ti-mood-smile',
+  },
+  note: {
+    get label() {
+      return i18n.ts._performanceData.categories.note.label
+    },
+    get short() {
+      return i18n.ts._performanceData.categories.note.short
+    },
+    icon: 'ti-note',
+  },
+  cache: {
+    get label() {
+      return i18n.ts._performanceData.categories.cache.label
+    },
+    get short() {
+      return i18n.ts._performanceData.categories.cache.short
+    },
+    icon: 'ti-database',
+  },
+  realtime: {
+    get label() {
+      return i18n.ts._performanceData.categories.realtime.label
+    },
+    get short() {
+      return i18n.ts._performanceData.categories.realtime.short
+    },
+    icon: 'ti-bolt',
+  },
+  backend: {
+    get label() {
+      return i18n.ts._performanceData.categories.backend.label
+    },
+    get short() {
+      return i18n.ts._performanceData.categories.backend.short
+    },
+    icon: 'ti-server',
+  },
+  css: {
+    get label() {
+      return i18n.ts._performanceData.categories.css.label
+    },
+    get short() {
+      return i18n.ts._performanceData.categories.css.short
+    },
+    icon: 'ti-palette',
+  },
+  polling: {
+    get label() {
+      return i18n.ts._common.polling
+    },
+    get short() {
+      return i18n.ts._performanceData.categories.polling.short
+    },
+    icon: 'ti-refresh',
+  },
+  telemetry: {
+    get label() {
+      return i18n.ts._performanceData.categories.telemetry.label
+    },
+    get short() {
+      return i18n.ts._performanceData.categories.telemetry.short
+    },
+    icon: 'ti-chart-line',
+  },
   interaction: {
-    label: 'インタラクション',
-    short: '操作',
+    get label() {
+      return i18n.ts._performanceData.categories.interaction.label
+    },
+    get short() {
+      return i18n.ts._performanceData.categories.interaction.short
+    },
     icon: 'ti-hand-finger',
   },
 }

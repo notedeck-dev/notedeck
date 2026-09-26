@@ -14,7 +14,7 @@ import {
 import { i18n } from '@/i18n'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
 import { evaluateQirQuery } from '@/services/columnQuery/evaluator'
-import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
+import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { useDeckStore } from '@/stores/deck'
@@ -162,7 +162,13 @@ function openHistory(): void {
 // 履歴は開発者向けの面 (#1034)。入口だけ隠す (他の配布物のエディタと同じ)
 const historyActions = computed<EditorAction[]>(() =>
   isExposed('developer')
-    ? [{ key: 'history', label: '履歴', icon: 'history' }]
+    ? [
+        {
+          key: 'history',
+          label: i18n.ts._columnQueryEditorContent.history,
+          icon: 'history',
+        },
+      ]
     : [],
 )
 
@@ -175,10 +181,10 @@ async function save(): Promise<void> {
   })
   // 読取専用 (ソース欠損) は保存されない。成功トーストを出さず理由を見せる (#1111)
   if (!ok) {
-    toast.show(READ_ONLY_REASON, 'warning')
+    toast.show(readOnlyReason(), 'warning')
     return
   }
-  toast.show('クエリを保存しました', 'success')
+  toast.show(i18n.ts._columnQueryEditorContent.saved, 'success')
   emit('close')
 }
 </script>

@@ -35,7 +35,10 @@ const jsonLinter = linter(
         from: 0,
         to: src.length,
         severity: 'error',
-        message: e instanceof Error ? e.message : 'JSON5 パースエラー',
+        message:
+          e instanceof Error
+            ? e.message
+            : i18n.ts._snippetsEditorContent.json5ParseError,
       })
     }
     return diagnostics
@@ -60,8 +63,8 @@ useWindowExternalFile(() =>
 
 const statusText = computed(() => {
   if (error.value) return error.value
-  if (saved.value) return '保存しました'
-  if (dirty.value) return '編集中...'
+  if (saved.value) return i18n.ts._common.saved
+  if (dirty.value) return i18n.ts._snippetsEditorContent.editing
   return ''
 })
 
@@ -98,7 +101,10 @@ async function loadCurrent() {
     error.value = null
   } catch (e) {
     toast.show(
-      `${currentFile.value} 読込失敗: ${(e as Error).message}`,
+      i18n.tsx._snippetsEditorContent.loadFailed({
+        file: currentFile.value,
+        error: (e as Error).message,
+      }),
       'error',
     )
   }
@@ -132,7 +138,10 @@ async function save() {
   try {
     if (code.value.trim()) JSON5.parse(code.value)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '不正な JSON5'
+    error.value =
+      e instanceof Error
+        ? e.message
+        : i18n.ts._snippetsEditorContent.invalidJson5
     return
   }
   try {
@@ -145,7 +154,8 @@ async function save() {
       saved.value = false
     }, 2000)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '保存失敗'
+    error.value =
+      e instanceof Error ? e.message : i18n.ts._snippetsEditorContent.saveFailed
   }
 }
 

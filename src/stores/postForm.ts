@@ -2,6 +2,7 @@ import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import defaultPostFormJson5 from '@/defaults/postform.json5?raw'
+import { i18n } from '@/i18n'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri, readPostForm, writePostForm } from '@/utils/settingsFs'
 
@@ -20,15 +21,55 @@ export const POST_FORM_BUTTON_META: Record<
   PostFormButtonId,
   { icon: string; label: string }
 > = {
-  emoji: { icon: 'mood-happy', label: '絵文字' },
-  attach: { icon: 'photo-plus', label: '添付' },
-  poll: { icon: 'chart-arrows', label: '投票' },
-  cw: { icon: 'eye-off', label: '閲覧注意' },
-  hashtag: { icon: 'hash', label: 'ハッシュタグ' },
-  mention: { icon: 'at', label: 'メンション' },
+  emoji: {
+    icon: 'mood-happy',
+    get label() {
+      return i18n.ts._postForm.emoji
+    },
+  },
+  attach: {
+    icon: 'photo-plus',
+    get label() {
+      return i18n.ts._postForm.attach
+    },
+  },
+  poll: {
+    icon: 'chart-arrows',
+    get label() {
+      return i18n.ts._postForm.poll
+    },
+  },
+  cw: {
+    icon: 'eye-off',
+    get label() {
+      return i18n.ts._postForm.cw
+    },
+  },
+  hashtag: {
+    icon: 'hash',
+    get label() {
+      return i18n.ts._postForm.hashtag
+    },
+  },
+  mention: {
+    icon: 'at',
+    get label() {
+      return i18n.ts._postForm.mention
+    },
+  },
   mfm: { icon: 'palette', label: 'MFM' },
-  draft: { icon: 'notes', label: '下書き' },
-  clear: { icon: 'trash', label: 'クリア' },
+  draft: {
+    icon: 'notes',
+    get label() {
+      return i18n.ts._postForm.draft
+    },
+  },
+  clear: {
+    icon: 'trash',
+    get label() {
+      return i18n.ts._postForm.clear
+    },
+  },
 }
 
 export const ALL_POST_FORM_BUTTONS = Object.keys(

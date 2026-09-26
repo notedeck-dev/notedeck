@@ -208,14 +208,20 @@ const tabs = computed<ColumnTabDef[]>(() => {
   const out: ColumnTabDef[] = [
     {
       value: 'drafts',
-      label: regularCount.value ? `下書き ${regularCount.value}` : '下書き',
+      label: regularCount.value
+        ? i18n.tsx._mkDraftsPicker.draftsTabCount({ count: regularCount.value })
+        : i18n.ts._mkDraftsPicker.draftsTab,
       icon: 'notes',
     },
   ]
   if (showScheduledTab.value) {
     out.push({
       value: 'scheduled',
-      label: scheduledCount.value ? `予約 ${scheduledCount.value}` : '予約',
+      label: scheduledCount.value
+        ? i18n.tsx._mkDraftsPicker.scheduledTabCount({
+            count: scheduledCount.value,
+          })
+        : i18n.ts._mkDraftsPicker.scheduledTab,
       icon: 'calendar-time',
     })
   }
@@ -239,11 +245,11 @@ watch(
 function contextLabel(ctx: DraftContext): string {
   switch (ctx.kind) {
     case 'reply':
-      return '返信'
+      return i18n.ts._mkDraftsPicker.contextReply
     case 'renote':
-      return '引用'
+      return i18n.ts._mkDraftsPicker.contextQuote
     case 'channel-note':
-      return 'チャンネル投稿'
+      return i18n.ts._mkDraftsPicker.contextChannel
     default:
       return ''
   }
@@ -305,23 +311,35 @@ function closeMenu() {
 async function onDelete(entry: DraftEntry) {
   const isScheduled = entry.draft.data.scheduledAt != null
   const ok = await confirm({
-    title: isScheduled ? '予約投稿を取消' : '下書きを削除',
+    title: isScheduled
+      ? i18n.ts._mkDraftsPicker.cancelScheduledTitle
+      : i18n.ts._mkDraftsPicker.deleteDraftTitle,
     message: isScheduled
-      ? '選択した予約投稿を取消しますか？'
-      : '選択した下書きを削除しますか？',
-    okLabel: isScheduled ? '取消' : '削除',
+      ? i18n.ts._mkDraftsPicker.confirmCancelScheduled
+      : i18n.ts._mkDraftsPicker.confirmDeleteDraft,
+    okLabel: isScheduled
+      ? i18n.ts._mkDraftsPicker.cancelOk
+      : i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   try {
     await deleteDraft(props.accountId, entry.key)
     toast.show(
-      isScheduled ? '予約投稿を取消しました' : '下書きを削除しました',
+      isScheduled
+        ? i18n.ts._mkDraftsPicker.scheduledCancelled
+        : i18n.ts._mkDraftsPicker.draftDeleted,
       'info',
     )
   } catch (e) {
     toast.show(
-      `${isScheduled ? '取消' : '削除'}に失敗しました: ${e instanceof Error ? e.message : String(e)}`,
+      isScheduled
+        ? i18n.tsx._mkDraftsPicker.cancelFailed({
+            error: e instanceof Error ? e.message : String(e),
+          })
+        : i18n.tsx._mkDraftsPicker.deleteFailed({
+            error: e instanceof Error ? e.message : String(e),
+          }),
       'error',
     )
   }
@@ -330,9 +348,11 @@ async function onDelete(entry: DraftEntry) {
 async function onDeleteAll() {
   if (regularCount.value === 0) return
   const ok = await confirm({
-    title: 'すべての下書きを削除',
-    message: `下書き ${regularCount.value} 件をすべて削除しますか？（予約投稿は対象外）`,
-    okLabel: 'すべて削除',
+    title: i18n.ts._mkDraftsPicker.deleteAll,
+    message: i18n.tsx._mkDraftsPicker.confirmDeleteAll_plural({
+      count: regularCount.value,
+    }),
+    okLabel: i18n.ts._mkDraftsPicker.deleteAllOk,
     type: 'danger',
   })
   if (!ok) return
@@ -341,10 +361,12 @@ async function onDeleteAll() {
     await Promise.allSettled(
       regularEntries.value.map((e) => deleteDraft(props.accountId, e.key)),
     )
-    toast.show('下書きをすべて削除しました', 'info')
+    toast.show(i18n.ts._mkDraftsPicker.allDeleted, 'info')
   } catch (e) {
     toast.show(
-      `削除に失敗しました: ${e instanceof Error ? e.message : String(e)}`,
+      i18n.tsx._mkDraftsPicker.deleteFailed({
+        error: e instanceof Error ? e.message : String(e),
+      }),
       'error',
     )
   }

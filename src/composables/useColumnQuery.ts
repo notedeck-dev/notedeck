@@ -2,6 +2,7 @@ import type { Ref } from 'vue'
 import { computed, nextTick, onScopeDispose, ref, watch } from 'vue'
 import type { NormalizedNote, NoteUpdateEvent } from '@/adapters/types'
 import type { QirQuery } from '@/bindings'
+import { i18n } from '@/i18n'
 import {
   type CompileResult,
   compileColumnQuery,
@@ -150,7 +151,7 @@ export function useColumnQuery(deps: ColumnQueryDeps) {
     const diagnostics: { message: string }[] = []
     for (const id of compiled.missing) {
       diagnostics.push({
-        message: `参照している名前付きクエリ (${id}) が見つかりません`,
+        message: i18n.tsx._useColumnQuery.missingNamedQuery({ id }),
       })
     }
     for (const part of compiled.rejected) {

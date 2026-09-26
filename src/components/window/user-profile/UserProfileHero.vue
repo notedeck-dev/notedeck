@@ -104,7 +104,10 @@ async function saveMemo() {
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:memo]', err.code, err.message)
-    toast.show(`メモの保存に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileHero.memoSaveFailed({ code: err.displayCode }),
+      'error',
+    )
     memoDraft.value = props.user.memo ?? '' // 失敗時は元に戻す
   }
 }

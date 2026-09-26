@@ -33,14 +33,14 @@ const cacheKeyDeps = accountsCacheKeyDeps()
 const config = computed(() =>
   isSpecified.value
     ? {
-        title: 'ダイレクト',
+        title: i18n.ts._columns.specified,
         icon: 'ti-mail',
-        emptyText: 'ダイレクトメッセージはありません',
+        emptyText: i18n.ts._deckMentionsColumn.directEmpty,
       }
     : {
-        title: 'あなた宛て',
+        title: i18n.ts._deckMentionsColumn.toYou,
         icon: 'ti-at',
-        emptyText: 'メンションはありません',
+        emptyText: i18n.ts._deckMentionsColumn.mentionsEmpty,
       },
 )
 

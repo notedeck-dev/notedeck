@@ -59,7 +59,7 @@ const unicodeEmojisByCategory = computed(() => {
 const customEmojisByCategory = computed(() => {
   const groups = new Map<string, ServerEmoji[]>()
   for (const emoji of customEmojis.value) {
-    const cat = emoji.category || 'その他'
+    const cat = emoji.category || i18n.ts._mkReactionPicker.uncategorized
     const list = groups.get(cat)
     if (list) list.push(emoji)
     else groups.set(cat, [emoji])

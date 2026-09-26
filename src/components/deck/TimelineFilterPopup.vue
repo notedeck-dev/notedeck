@@ -45,11 +45,19 @@ useNativePopover(popoverRef, visible, {
 })
 
 const FILTER_LABELS: Record<keyof TimelineFilter, string> = {
-  withRenotes: 'リノート',
-  withReplies: 'リプライ',
-  withFiles: 'ファイル付きのみ',
+  get withRenotes() {
+    return i18n.ts._timelineFilterPopup.withRenotes
+  },
+  get withReplies() {
+    return i18n.ts._timelineFilterPopup.withReplies
+  },
+  get withFiles() {
+    return i18n.ts._timelineFilterPopup.withFiles
+  },
   withBots: 'Bot',
-  withSensitive: 'センシティブ',
+  get withSensitive() {
+    return i18n.ts._timelineFilterPopup.withSensitive
+  },
 }
 
 function isFilterActive(key: keyof TimelineFilter): boolean {

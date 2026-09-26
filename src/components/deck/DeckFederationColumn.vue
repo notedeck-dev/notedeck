@@ -40,10 +40,30 @@ const serverIconUrl = computed(() => {
 // 全バージョン共通の `-firstRetrievedAt` (初回取得日時) に集約する。
 type SortKey = '-pubSub' | '-users' | '-notes' | '-firstRetrievedAt'
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: '-pubSub', label: 'アクティブ' },
-  { key: '-users', label: 'ユーザー' },
-  { key: '-notes', label: 'ノート' },
-  { key: '-firstRetrievedAt', label: '新着' },
+  {
+    key: '-pubSub',
+    get label() {
+      return i18n.ts._deckFederationColumn.sortActive
+    },
+  },
+  {
+    key: '-users',
+    get label() {
+      return i18n.ts._deckFederationColumn.sortUsers
+    },
+  },
+  {
+    key: '-notes',
+    get label() {
+      return i18n.ts._deckFederationColumn.sortNotes
+    },
+  },
+  {
+    key: '-firstRetrievedAt',
+    get label() {
+      return i18n.ts._deckFederationColumn.sortNewest
+    },
+  },
 ]
 const PAGE_SIZE = 30
 const COLS = 3
@@ -116,7 +136,10 @@ function softwareLabel(inst: FederationInstance): string {
 async function fetchInstances(reset: boolean): Promise<void> {
   const acc = account.value
   if (!acc) {
-    error.value = new AppError('UNKNOWN', 'アカウントが見つかりません')
+    error.value = new AppError(
+      'UNKNOWN',
+      i18n.ts._deckFederationColumn.accountNotFound,
+    )
     return
   }
 

@@ -52,22 +52,24 @@ const importSettings = () =>
       // 再起動後では警告が失われるのでここで見せるしかない
       if (result.warnings.length > 0) {
         await confirm({
-          title: '設定インポート完了',
-          message: `${result.warnings.length} 件のエントリをスキップまたは別名で復元しました。アプリを再起動します。`,
+          title: i18n.ts._backupContent.importDoneTitle,
+          message: i18n.tsx._backupContent.importDoneMessage_plural({
+            count: result.warnings.length,
+          }),
           code: result.warnings.join('\n'),
           codeLanguage: 'text',
           type: 'warning',
           hideCancel: true,
-          okLabel: '再起動',
+          okLabel: i18n.ts._backupContent.restart,
         })
       }
       return true
     },
     {
       confirmOpts: {
-        title: '設定インポート',
-        message: '現在の設定が上書きされます。アプリを再起動します。',
-        okLabel: 'インポート',
+        title: i18n.ts._backupContent.importSettingsTitle,
+        message: i18n.ts._backupContent.importSettingsMessage,
+        okLabel: i18n.ts._common.import,
         type: 'danger',
       },
       relaunch: true,
@@ -83,9 +85,9 @@ const importDb = () =>
     () => commands.importDb().then((r) => unwrap(r)),
     {
       confirmOpts: {
-        title: 'DBインポート',
-        message: '現在のDBが上書きされます。アプリを再起動します。',
-        okLabel: 'インポート',
+        title: i18n.ts._backupContent.importDbTitle,
+        message: i18n.ts._backupContent.importDbMessage,
+        okLabel: i18n.ts._common.import,
         type: 'danger',
       },
       relaunch: true,

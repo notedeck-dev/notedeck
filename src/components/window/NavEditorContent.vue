@@ -196,7 +196,7 @@ function applyFromCode() {
       return
     }
     if (!Array.isArray(parsed)) {
-      codeError.value = '配列または null が必要です'
+      codeError.value = i18n.ts._navEditorContent.arrayOrNullRequired
       return
     }
     items.value = (parsed as NavItem[]).filter(
@@ -204,7 +204,8 @@ function applyFromCode() {
     )
     codeError.value = null
   } catch (e) {
-    codeError.value = e instanceof Error ? e.message : '無効な JSON5'
+    codeError.value =
+      e instanceof Error ? e.message : i18n.ts._navEditorContent.invalidJson5
   }
 }
 

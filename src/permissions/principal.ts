@@ -6,6 +6,8 @@
  * 「呼び出し側が permissions セットをすり替えて渡す」暗黙表現を置換する。
  */
 
+import { i18n } from '@/i18n'
+
 export type Principal =
   /** ユーザー本人の直接操作 (権限プロファイルを持たず常時許可) */
   | { kind: 'user' }
@@ -59,21 +61,21 @@ export function principalActorLabel(principal: Principal): string | null {
       return 'HEARTBEAT'
     case 'plugin': {
       const { pluginId, name } = principal
-      const noun = pluginId.startsWith('widget:')
-        ? 'ウィジェット'
+      const actor = pluginId.startsWith('widget:')
+        ? i18n.tsx._principal.widget
         : pluginId.startsWith('play:')
-          ? 'Play'
+          ? i18n.tsx._principal.play
           : pluginId.startsWith('page:')
-            ? 'ページ'
-            : 'プラグイン'
+            ? i18n.tsx._principal.page
+            : i18n.tsx._principal.plugin
       // 配布名があればそれを、無ければ prefix を落とした id を出す
       const display = name || pluginId.replace(/^(widget|play|page):/, '')
-      return `${noun}「${display}」`
+      return actor({ name: display })
     }
     case 'external':
-      return '外部アプリ'
+      return i18n.ts._principal.externalApp
     case 'scratchpad':
-      return 'スクラッチパッド'
+      return i18n.ts._columns.aiscript
   }
 }
 

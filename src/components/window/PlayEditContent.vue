@@ -58,8 +58,20 @@ const { tab, containerRef: editorRef } = useEditorTabs(
 )
 
 const tabDefs: EditorTabDef[] = [
-  { value: 'meta', icon: 'info-circle', label: '概要' },
-  { value: 'code', icon: 'code', label: 'コード' },
+  {
+    value: 'meta',
+    icon: 'info-circle',
+    get label() {
+      return i18n.ts._common.overview
+    },
+  },
+  {
+    value: 'code',
+    icon: 'code',
+    get label() {
+      return i18n.ts._common.code
+    },
+  },
 ]
 
 const dirty = computed(() => {
@@ -117,7 +129,7 @@ async function save() {
     original.value.summary = editingSummary.value
     original.value.script = editingScript.value
     saved.value = true
-    toast.show('保存しました', 'success')
+    toast.show(i18n.ts._common.saved, 'success')
     setTimeout(() => {
       saved.value = false
     }, 2000)

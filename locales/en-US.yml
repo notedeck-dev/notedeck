@@ -438,6 +438,13 @@ _commandPalette:
   enterToOpen: "↵ Enter to open:"
   enterToRun: "↵ Enter to run:"
   noMatchingCommands: "No matching commands"
+  searchIn: "Search {label}..."
+  categoryGeneral: "General"
+  categoryNote: "Note"
+  categoryNavigation: "Navigation"
+  categoryColumn: "Column"
+  categoryAccount: "Account"
+  inputPlaceholder: "Type a command..."
 
 _crossAccountProgress:
   waiting: "Waiting on {pending} of {total} accounts"
@@ -457,6 +464,7 @@ _memoCard:
   chars_plural:
     one: "({count} character)"
     other: "({count} characters)"
+  defaultAuthor: "Memo"
 
 _mkAchievementsGrid:
   unlock: "Unlock"
@@ -474,6 +482,8 @@ _mkChatMessageMoreMenu:
   react: "React"
   copyContent: "Copy content"
   report: "Report"
+  reported: "Reported"
+  reportFailed: "Failed to report ({code})"
 
 _mkDraftsPicker:
   deleteAll: "Delete all drafts"
@@ -483,6 +493,27 @@ _mkDraftsPicker:
   editContentAndTime: "Edit content and time"
   restoreToForm: "Restore to the post form"
   cancelSchedule: "Cancel schedule"
+  draftsTab: "Drafts"
+  draftsTabCount: "Drafts {count}"
+  scheduledTab: "Scheduled"
+  scheduledTabCount: "Scheduled {count}"
+  contextReply: "Reply"
+  contextQuote: "Quote"
+  contextChannel: "Channel post"
+  cancelScheduledTitle: "Cancel scheduled post"
+  deleteDraftTitle: "Delete draft"
+  confirmCancelScheduled: "Cancel the selected scheduled post?"
+  confirmDeleteDraft: "Delete the selected draft?"
+  cancelOk: "Cancel post"
+  scheduledCancelled: "Scheduled post cancelled"
+  draftDeleted: "Draft deleted"
+  cancelFailed: "Failed to cancel: {error}"
+  deleteFailed: "Failed to delete: {error}"
+  confirmDeleteAll_plural:
+    one: "Delete {count} draft? (Scheduled posts are not affected)"
+    other: "Delete all {count} drafts? (Scheduled posts are not affected)"
+  deleteAllOk: "Delete all"
+  allDeleted: "All drafts deleted"
 
 _mkDriveFolderSelectDialog:
   root: "Root"
@@ -535,6 +566,16 @@ _mkNote:
   unrenote: "Undo renote"
   renote: "Renote"
   quote: "Quote"
+  shownOnServers_plural:
+    one: "Shown on {count} server"
+    other: "Shown on {count} servers"
+  shownOnAccounts_plural:
+    one: "Shown on {count} account"
+    other: "Shown on {count} accounts"
+  reactedBy: "Reacted by {names}"
+  joinBlockedUnsupportedServer: "This server does not support reacting with remote emoji"
+  joinBlockedEmojiUnavailable: "You can't react with this emoji because it isn't on your server"
+  reactionFailed: "Failed to react"
 
 _mkNoteTree:
   continueThread: "Continue thread"
@@ -576,6 +617,14 @@ _mkPostForm:
   drafts: "Drafts"
   plugins: "Plugins"
   reorderButtons: "Reorder buttons"
+  autoSaveMemo: "Auto-save memo"
+  autoSaveDraft: "Auto-save draft"
+  unsavedMemoTitle: "You have an unfinished memo"
+  unsavedPostTitle: "You have an unfinished post"
+  saveAsMemoBeforeClose: "Save it as a memo before closing?"
+  saveAsDraftBeforeClose: "Save it as a draft before closing?"
+  saveAndClose: "Save and close"
+  discard: "Discard"
 
 _mkPostFormButtonsPicker:
   title: "Post form buttons"
@@ -584,6 +633,7 @@ _mkReactionPicker:
   searchPlaceholder: "Search emoji..."
   notFound: "No emoji found"
   recent: "Recently used emoji"
+  uncategorized: "Other"
 
 _mkReactionUsersPopup:
   copyCode: "Copy code"
@@ -626,6 +676,21 @@ _noteMoreMenu:
   react: "React"
   renote: "Renote"
   quote: "Quote"
+  addedToClip: "Added to clip"
+  removeFromClipTitle: "Remove from clip"
+  confirmRemoveFromClip: "This note is already in \"{clip}\". Remove it from the clip?"
+  removeFromClipOk: "Remove"
+  removedFromClip: "Removed from clip"
+  removeFromClipFailed: "Failed to remove from clip ({code})"
+  addToClipFailed: "Failed to add to clip ({code})"
+  createClip: "Create new clip"
+  clipNamePlaceholder: "Enter a clip name..."
+  createClipFailed: "Failed to create clip ({code})"
+  selectAccountPlaceholder: "Select an account…"
+  selectClipPlaceholder: "Select a clip..."
+  fetchClipsFailed: "Failed to load clips ({code})"
+  reported: "Reported"
+  reportFailed: "Failed to report ({code})"
 
 _noteReactionPickerPopup:
   actingAs: "As {account}"
@@ -665,6 +730,9 @@ _renoteMoreMenu:
   copyLink: "Copy renote link"
   deleteRenote: "Delete renote"
   reportRenote: "Report renote"
+  deleteFailed: "Failed to delete ({code})"
+  reported: "Reported"
+  reportFailed: "Failed to report ({code})"
 
 _reorderableList:
   empty: "No items"
@@ -703,6 +771,9 @@ _postFormFilePreviews:
   addCaption: "Add caption"
   preview: "Preview"
   removeAttachment: "Remove attachment"
+  caption: "Caption"
+  captionDescription: "Describe the file for users with visual impairments and others"
+  captionPlaceholder: "File description"
 
 _postFormPollEditor:
   choicePlaceholder: "Choice {n}"
@@ -711,6 +782,12 @@ _postFormPollEditor:
   expiry: "Deadline"
   noExpiry: "No deadline"
   specifyDate: "Specific date and time"
+  expiry30m: "30 minutes"
+  expiry1h: "1 hour"
+  expiry6h: "6 hours"
+  expiry1d: "1 day"
+  expiry3d: "3 days"
+  expiry7d: "7 days"
 
 _mkMfm:
   mutedTitle: "{emoji} (muted)"
@@ -801,6 +878,16 @@ _devDashboard:
   rustLog: "Rust logs"
   front: "Frontend"
   waitingForLogs: "Waiting — Rust logs, SSE events and frontend logs stream here in time order"
+  navObserve: "Observe"
+  navRun: "Run"
+  navDiagnose: "Diagnose"
+  navCaches: "Caches"
+  hoursAgo_plural:
+    one: "{count} hour ago"
+    other: "{count} hours ago"
+  minutesAgo_plural:
+    one: "{count} minute ago"
+    other: "{count} minutes ago"
 
 _tutorialContent:
   idleDescription: "Pick a category to get started. Continue from the list."
@@ -830,6 +917,20 @@ _aiDataSourcesSection:
   expandLinksDescription: "Automatically passes memos referenced as `[name](memo:<id>)` in the body to the AI, one level deep. When OFF, the AI does not see referenced memos unless it explicitly calls `memos.backlinks` or similar."
   includeBacklinks: "Attach backlinks"
   includeBacklinksDescription: "Adds `referencedBy: [...]` to each memo to tell the AI which memos reference it."
+  currentAccount: "Current account"
+  currentAccountDescription: "Pass the signed-in account’s info to the AI (tokens and the like are excluded)"
+  currentColumn: "Current column"
+  currentColumnDescription: "Pass the type and settings of the focused column"
+  visibleNotes: "Visible items (up to 10)"
+  visibleNotesDescription: "Include the items on screen (notes / notifications / drive files, etc.) in the context"
+  recentConversation: "AI conversation history (up to 20 turns)"
+  recentConversationDescription: "Include the recent conversation in the context"
+  memos: "Local memos (up to 20)"
+  memosDescription: "Include Zettelkasten-style local memos in the context (current account only)"
+  memosStandard: "Standard"
+  memosLinksOnly: "Expand links only"
+  memosBacklinksOnly: "Backlinks only"
+  memosBodyOnly: "Body only"
 
 _aiGenerationSection:
   title: "Generation"
@@ -886,6 +987,10 @@ _userProfileListsPane:
 
 _userProfileNotesList:
   empty: "No notes"
+  tabHighlight: "Highlights"
+  tabNotes: "Notes"
+  tabAll: "All"
+  tabFiles: "With files"
 
 _userProfilePagesPane:
   empty: "No pages"
@@ -903,6 +1008,7 @@ _userProfileHero:
   notes: "Notes"
   following: "Following"
   followers: "Followers"
+  memoSaveFailed: "Failed to save the memo ({code})"
 
 _userProfileMenu:
   composeToUser: "Write a note to this user"
@@ -932,6 +1038,39 @@ _userProfileMenu:
   reportPlaceholder: "Enter a reason for the report..."
   noLists: "No lists"
   noUserAntennas: "No antennas with a user source"
+  muted: "Muted"
+  muteFailed: "Couldn’t mute ({code})"
+  unmuted: "Unmuted"
+  unmuteFailed: "Couldn’t unmute ({code})"
+  blocked: "Blocked"
+  blockFailed: "Couldn’t block ({code})"
+  unblocked: "Unblocked"
+  unblockFailed: "Couldn’t unblock ({code})"
+  renotesMuted: "Renotes muted"
+  renoteMuteFailed: "Couldn’t mute renotes ({code})"
+  renotesUnmuted: "Renotes unmuted"
+  renoteUnmuteFailed: "Couldn’t unmute renotes ({code})"
+  followerInvalidated: "Follower removed"
+  invalidateFollowerFailed: "Couldn’t remove follower ({code})"
+  reported: "Reported"
+  reportFailed: "Couldn’t report ({code})"
+  copyFailed: "Couldn’t copy"
+  usernameCopied: "Username copied"
+  profileUrlCopied: "User profile URL copied"
+  rssUrlCopied: "RSS URL copied"
+  embedCodeCopied: "Embed code copied"
+  fetchListsFailed: "Couldn’t fetch lists ({code})"
+  addedToList: "Added to list"
+  addToListFailed: "Couldn’t add to list ({code})"
+  withRepliesOn: "Replies will be included in the timeline"
+  withRepliesOff: "Replies won’t be included in the timeline"
+  updateSettingsFailed: "Couldn’t update settings ({code})"
+  notifyOn: "You’ll be notified of new notes"
+  notifyOff: "You won’t be notified of new notes"
+  fetchAntennasFailed: "Couldn’t fetch antennas ({code})"
+  alreadyAdded: "Already added"
+  addedToAntenna: "Added to {name}"
+  addToAntennaFailed: "Couldn’t add to antenna ({code})"
 
 _notFoundPage:
   message: "Page not found"
@@ -941,10 +1080,21 @@ _pipPage:
   unpin: "Unpin from top"
   pin: "Keep on top"
   addColumn: "Add column"
+  noteInspector: "Note Inspector"
+  notificationInspector: "Notification Inspector"
+  login: "Log in"
+  cssEditor: "Custom CSS"
+  profileEditor: "Profile"
+  appearanceEditor: "Appearance"
+  tasksEditor: "Tasks"
+  pageEdit: "Edit page"
+  playEdit: "Edit Play"
 
 _aiSettingsContent:
   rawHint: "Edit ai.json5 directly. API keys are stored in the keychain and never appear in the raw file."
   invalid: "Invalid"
+  json5ParseError: "JSON5 parse error"
+  invalidJson5: "Invalid JSON5"
 
 _appearanceEditorContent:
   setWallpaper: "Set wallpaper"
@@ -952,6 +1102,9 @@ _appearanceEditorContent:
   nyaize: "Nyaize cat users' notes"
   nyaizeDescription: "Displayed the same way as the Misskey web UI. Copying and search use the original text"
   codeHint: "Shows only differences from the defaults — changes are saved automatically"
+  topLevelMustBeObject: "The top level must be a JSON object {}"
+  invalidJson: "Invalid JSON"
+  editing: "Editing..."
 
 _backupContent:
   settingsFiles: "Settings files"
@@ -962,10 +1115,23 @@ _backupContent:
   databaseCredentialsNote: "Credentials are not included, so log in to each account again after restoring."
   backup: "Back up"
   restore: "Restore"
+  importDoneTitle: "Settings import complete"
+  importDoneMessage_plural:
+    one: "{count} entry was skipped or restored under a different name. The app will restart."
+    other: "{count} entries were skipped or restored under a different name. The app will restart."
+  restart: "Restart"
+  importSettingsTitle: "Import settings"
+  importSettingsMessage: "Your current settings will be overwritten. The app will restart."
+  importDbTitle: "Import DB"
+  importDbMessage: "Your current DB will be overwritten. The app will restart."
 
 _clipDetailContent:
   private: "Private"
   empty: "This clip has no notes"
+  reactionFailed: "Couldn’t react ({code})"
+  voteFailed: "Couldn’t vote ({code})"
+  favoriteFailed: "Couldn’t update favorites ({code})"
+  accountNotFound: "Account not found"
 
 _connectionsContent:
   chooseService: "Choose a service to connect"
@@ -990,6 +1156,8 @@ _editHistoryContent:
   empty: "No edit history yet"
   latest: "Latest"
   restore: "Restore to #{n}"
+  compareWithEntry: "Changes compared with history #{n}"
+  compareWithCurrent: "Changes compared with the current content"
 
 _emojiMuteSection:
   hideMutedUserReactions: "Hide reactions from muted and suspended users"
@@ -1003,6 +1171,8 @@ _followListContent:
   followers: "Followers"
   noFollowing: "Not following anyone"
   noFollowers: "No followers"
+  fetchFailed: "Failed to fetch ({code})"
+  loadFailed: "Failed to load ({code})"
 
 _instanceProfileContent:
   unknown: "Unknown"
@@ -1015,12 +1185,32 @@ _instanceProfileContent:
   users: "Users"
   notes: "Notes"
   rawResponse: "Raw response from {endpoint}"
+  accountNotFound: "Account not found"
+  suspended: "Suspended"
+  blocked: "Blocked"
+  notResponding: "Not responding"
+  silenced: "Silenced"
+  mediaSilenced: "Media silenced"
 
 _keybindsContent:
   recording: "Press keys..."
   addShortcut: "Add shortcut"
   codeHint: "Your customizations as JSON (differences from the defaults only)"
   invalid: "Invalid"
+  toggleDarkMode: "Toggle dark mode"
+  popOutColumn: "Pop out column to a window"
+  newWindow: "New window"
+  closeAllWindows: "Close all windows"
+  pipWindow: "PiP window"
+  profileN: "Profile {n}"
+  categoryGeneral: "General"
+  categoryNavigation: "Navigation"
+  categoryAccount: "Account"
+  categoryColumn: "Column"
+  categoryNote: "Note"
+  categoryWindow: "Window"
+  categoryProfile: "Profile"
+  jsonParseError: "JSON parse error"
 
 _listDetailContent:
   private: "Private"
@@ -1028,31 +1218,44 @@ _listDetailContent:
     one: "{count} member"
     other: "{count} members"
   noMembers: "No members"
+  favoriteFailed: "Couldn’t update favorites ({code})"
 
 _memoEditorContent:
   loading: "Loading…"
   notFound: "This memo was not found"
+  deleteTitle: "Delete memo"
+  deleteMessage: "Delete the selected memo?"
+  deleted: "Memo deleted"
 
 _navEditorContent:
   currentItems: "Current items"
   addItem: "Add item"
   noItems: "No items"
   codeHint: "Differences from the defaults — null uses the default"
+  arrayOrNullRequired: "An array or null is required"
+  invalidJson5: "Invalid JSON5"
 
 _noteDetailContent:
   noReplies: "No replies"
   noRenotes: "No renotes"
   mutedReaction: "{reaction} (muted)"
   noReactions: "No reactions"
+  replies: "Replies"
+  renotes: "Renotes"
+  reactions: "Reactions"
+  accountNotFound: "Account not found"
 
 _noteInspectorContent:
   view: "View"
   rawResponse: "Raw response from {endpoint}"
   activityPubObject: "ActivityPub object resolved via {endpoint}"
+  uriNotFound: "Couldn't determine the URI"
 
 _notificationInspectorContent:
   inMemoryObject: "Notification object in memory"
   activityPubObject: "ActivityPub object resolved via {endpoint}"
+  noApUri: "This notification has no ActivityPub URI"
+  noNote: "This notification has no associated note, so ActivityPub can't be resolved"
 
 _pageEditContent:
   title: "Title"
@@ -1087,6 +1290,13 @@ _pluginsContent:
   installHint: "Paste AiScript plugin code to install"
   codeHint: "The plugin's AiScript source — changes apply after \"Save and restart\""
   noLogs: "No logs"
+  logs: "Logs"
+  codeRequired: "Enter the code"
+  invalidHeader: "Invalid header. The code must start with /// @ 1.2.1 (AiScript >= 0.12) and ### { name: \"...\", version: \"...\" }"
+  alreadyInstalled: "\"{name}\" is already installed"
+  invalid: "Invalid"
+  history: "History"
+  saveAndRestart: "Save and restart"
 
 _postFormEditorContent:
   currentOrder: "Current order"
@@ -1094,6 +1304,8 @@ _postFormEditorContent:
   availableButtons: "Available buttons"
   allAdded: "All buttons have been added"
   codeHint: "Differences from the defaults — null uses the default"
+  arrayOrNullRequired: "An array or null is required"
+  invalidJson5: "Invalid JSON5"
 
 _profileEditorContent:
   editingOther: "Editing \"{name}\""
@@ -1102,11 +1314,18 @@ _profileEditorContent:
   noColumns: "No columns"
   addColumn: "Add column"
   invalid: "Invalid"
+  notJsonObject: "Not a valid JSON object"
+  json5ParseError: "JSON5 parse error"
 
 _snippetsEditorContent:
   codeHint: "VSCode-compatible snippets — they appear in completion by prefix"
   invalid: "Invalid"
   confirmReset: "Really reset?"
+  json5ParseError: "JSON5 parse error"
+  editing: "Editing..."
+  loadFailed: "Failed to load {file}: {error}"
+  invalidJson5: "Invalid JSON5"
+  saveFailed: "Save failed"
 
 _tutorialEditorContent:
   lead: "Items get checked as you use them. Finishing a category earns an achievement, delivered to your notifications."
@@ -1127,6 +1346,7 @@ _userActivityFollowingChart:
 
 _userActivityHeatmap:
   unavailable: "Couldn’t show activity"
+  activity: "Activity"
 
 _userActivityNotesChart:
   unavailable: "Couldn’t load note data"
@@ -1141,6 +1361,17 @@ _userProfileContent:
   noFiles: "No files"
   mutedReaction: "{reaction} (muted)"
   noReactions: "No reactions"
+  tabNotes: "Notes"
+  tabFiles: "Files"
+  tabActivity: "Activity"
+  tabReactions: "Reactions"
+  tabPages: "Pages"
+  tabGallery: "Gallery"
+  tabLists: "Lists"
+  tabClips: "Clips"
+  tabAchievements: "Achievements"
+  editProfile: "Edit user profile"
+  accountNotFound: "Account not found"
 
 _widgetEditContent:
   autoRunOnTitle: "Auto-run: on (click to toggle)"
@@ -1150,6 +1381,9 @@ _widgetEditContent:
   notFound: "Widget not found"
   runHint: "Run the widget with the run button at the top right"
   output: "Output ({n})"
+  history: "History"
+  unsaved: "Unsaved changes"
+  run: "Run"
 
 _aboutContent:
   openOfficialSite: "Open the official site"
@@ -1176,6 +1410,68 @@ _aboutContent:
   runtimePerformance: "Runtime performance"
   measuring: "Measuring..."
   openPerformanceSettings: "Open performance settings"
+  streamDisconnected: "Stream disconnected ({duration})"
+  streamReconnecting: "Stream reconnecting ({duration})"
+  streamFix: "Check the network and server status"
+  unknownTime: "Unknown time"
+  crashed: "Crashed at {when}: {headline}"
+  crashFix: "Copy the diagnostic log below and report it"
+  diagnosing: "Diagnosing..."
+  diagnosisFailed: "Diagnosis failed"
+  problems_plural:
+    one: "{count} problem"
+    other: "{count} problems"
+  warnings_plural:
+    one: "{count} warning"
+    other: "{count} warnings"
+  statusOk: "OK"
+  startupWebview: "WebView startup"
+  startupMainEval: "Script loading"
+  startupSettingsAwait: "Initialization"
+  startupSettingsLoaded: "Settings loading"
+  startupMounted: "Vue mount"
+  startupWindowShown: "Window shown"
+  startupDeckMounted: "Deck shown"
+  startupColumnSetup: "Column setup"
+  startupColumnConnect: "Column connection start"
+  startupCacheLoaded: "DB cache arrived"
+  startupFirstNotes: "First notes shown"
+  qualityLow: "Low"
+  qualityBalanced: "Balanced"
+  qualityHigh: "High"
+  streamUnknown: "No connection"
+  streamInitializing: "Connecting"
+  streamHealthy: "Healthy"
+  streamDegraded: "Partially disconnected"
+  streamOffline: "Disconnected"
+  streamManualOffline: "Offline mode"
+  frameTime: "Frame time"
+  frameTimeValue: "{time} (budget {budget})"
+  p95FrameTime: "p95 frame time"
+  p95FrameTimeValue_plural:
+    one: "{time} ({count} sample)"
+    other: "{time} ({count} samples)"
+  frameDrops: "Dropped frames"
+  frameDropsValue: "{count}/s"
+  frameMeasurement: "Frame measurement"
+  frameIdle: "Idle (no rendering work)"
+  jsHeap: "JS heap"
+  imageMemory: "Image memory (estimated)"
+  imageMemoryValue: "{size} ({urls} URLs / {elements} elements)"
+  renderQuality: "Rendering quality"
+  renderQualityAuto: "{level} (auto-adjust on)"
+  renderQualityManual: "{level} (auto-adjust off)"
+  streamConnection: "Stream connection"
+  streamConnectionValue_plural:
+    one: "{health} ({count} connection)"
+    other: "{health} ({count} connections)"
+  adviceIdle: "Idle. Measurement starts when you interact with the deck"
+  adviceFailAuto: "Rendering can't keep up. Auto-adjust will lower the quality to catch up. If it doesn't improve, shift the performance settings toward power saving"
+  adviceFail: "Rendering can't keep up. Lowering the quality in the performance settings reduces stutter"
+  adviceWarn: "Rendering is under some load. If you notice stutter, lower the quality in the performance settings"
+  adviceRoomAuto: "Rendering has headroom. Auto-adjust will raise the quality if it stays stable"
+  adviceRoom: "Rendering has headroom. It should stay smooth even if you raise the quality in the performance settings"
+  adviceGood: "Rendering is good"
 
 _cacheEditorContent:
   usage: "Usage"
@@ -1195,6 +1491,17 @@ _cacheEditorContent:
   perAccountLimit: "Limit per account"
   manualClear: "Clear manually"
   manualClearNote: "Deletes all cached notes and OGP data. They come back when fetched again from the server."
+  clearCacheTitle: "Clear cache"
+  clearCacheConfirm: "Delete all cached notes and OGP data?"
+  clearImagesConfirm: "Delete the entire image cache on disk? Images will be fetched from the server again when shown."
+  noteCount_plural:
+    one: "{count} note"
+    other: "{count} notes"
+  unlimited: "Unlimited"
+  dayCount_plural:
+    one: "{count} day"
+    other: "{count} days"
+  noExpiry: "Forever"
 
 _columnQueryEditorContent:
   queryName: "Query name"
@@ -1213,6 +1520,8 @@ _columnQueryEditorContent:
   addGuard: "Add guard"
   sequential: "Applied one by one (checks each note individually, so it can’t be used for search)"
   saveAnyway: "Save anyway"
+  history: "History"
+  saved: "Query saved"
 
 _connectionEditContent:
   name: "Name"
@@ -1251,6 +1560,17 @@ _connectionEditContent:
   testing: "Testing..."
   test: "Test"
   saving: "Saving..."
+  nameRequired: "Enter a name"
+  urlRequired: "Enter a URL"
+  headerNameRequired: "Enter a header name"
+  queryParamRequired: "Enter a query parameter name"
+  secretTooShort: "The secret must be at least 16 characters"
+  secretRequired: "Enter a secret"
+  saveBeforeTest: "Save the connection before testing it"
+  deleteTitle: "Delete connection"
+  deleteMessage: "Delete \"{name}\"? The secret will also be permanently removed from the OS keychain."
+  testSuccess: "✓ Connection succeeded (HTTP {status})"
+  testFailed: "Failed"
 
 _cssEditorContent:
   customCss: "custom CSS"
@@ -1277,6 +1597,9 @@ _cssEditorContent:
   history: "History"
   confirmClear: "Really clear?"
   clearAll: "Clear all"
+  default: "Default"
+  defaultFontSize: "Default (15px)"
+  cssParseError: "CSS parse error"
 
 _loginContent:
   checking: "Checking..."
@@ -1302,6 +1625,8 @@ _performanceEditorContent:
   defaultValue: "Default: {value}"
   codeHint: "Only differences from the defaults are saved as JSON"
   invalid: "Invalid"
+  unknownKey: "Unknown key: {key}"
+  jsonParseError: "JSON parse error"
 
 _permissionsContent:
   noExposedConnections: "No connections are exposed yet —"
@@ -1318,6 +1643,18 @@ _permissionsContent:
   copy: "Copy"
   codeHint: "Edit permissions.json5 directly. Each principal (ai.chat / ai.heartbeat / plugin / external) has a preset and a custom map."
   invalid: "Invalid"
+  json5ParseError: "JSON5 parse error"
+  invalidJson5: "Invalid JSON5"
+  instructionRuleReason: "Instruction channels to the AI can't be opened to third parties"
+  tasksRuleReason: "Only you and the AI can run tasks"
+  externalFloorReason: "Misskey read access is always allowed in a shared profile — revoke the token to block it"
+  aiChat: "AI chat"
+  aiChatHint: "Operations allowed for AI tool calling (chat / commands / tasks)"
+  heartbeatHint: "Operations allowed for the AI daemon that runs unattended on a schedule (independent of chat)"
+  pluginHint: "Operations allowed for AiScript plugins / widgets / Play"
+  external: "External apps"
+  externalHint: "Operations allowed for external apps via the HTTP API (persistent tokens)"
+  scratchpadHint: "Operations allowed for code you write and run in the scratchpad column (read-only by default)"
 
 _skillEditContent:
   notFound: "Skill not found"
@@ -1343,6 +1680,8 @@ _skillEditContent:
   personaToggle: "Offer this skill as a persona for AI sessions"
   personaHint: "When on, this skill appears in the persona selector in the AI session header. In the selected session, AI acts as this persona and is recorded as the author of memos (#491)."
   fromStoreNote: "Skill from the store — edits are saved to a local file (reinstalling may overwrite them)"
+  history: "History"
+  unsavedChanges: "Unsaved changes"
 
 _tasksEditorContent:
   visualHint: "Declared tasks can be run from the command palette and the Task Runner column."
@@ -1379,6 +1718,10 @@ _tasksEditorContent:
   savingSuffix: " · Saving…"
   invalid: "Invalid"
   resetToSample: "Reset to sample"
+  loadFailed: "Couldn’t load tasks.json5: {error}"
+  saveFailed: "Couldn’t save: {error}"
+  objectRequired: "An object ({}) is required"
+  resetFailed: "Couldn’t reset: {error}"
 
 _themeEditorContent:
   light: "Light"
@@ -1393,6 +1736,28 @@ _themeEditorContent:
   search: "Search..."
   noMatchingProperties: "No matching properties"
   applyFromCode: "Apply from code"
+  propAccent: "Accent"
+  propBg: "Background"
+  propFg: "Text color"
+  propPanel: "Panel"
+  propNavBg: "Navbar background"
+  propLove: "Like"
+  propLink: "Link"
+  propHashtag: "Hashtag"
+  propMention: "Mention"
+  propRenote: "Renote"
+  propDivider: "Divider"
+  propSuccess: "Success"
+  propError: "Error"
+  propWarn: "Warning"
+  noProps: "The theme object has no props"
+  jsonParseError: "JSON parse error"
+  history: "History"
+  undo: "Undo"
+  overwriteSave: "Save"
+  deleteTitle: "Delete theme"
+  deleteMessage: "Delete \"{name}\"? Its theme settings will also be removed."
+  deleted: "Theme deleted"
 
 _deckAiColumn:
   personaIndicator: "Persona: {name} (change in agent settings)"
@@ -1417,6 +1782,23 @@ _deckAiColumn:
   dismiss: "Dismiss"
   copy: "Copy"
   stop: "Stop"
+  today: "Today"
+  yesterday: "Yesterday"
+  last7Days: "Previous 7 days"
+  older: "Older"
+  renameTitle: "Rename session"
+  renamePlaceholder: "Session name"
+  renamed: "Session renamed"
+  deleteSessionTitle: "Delete session"
+  deleteSessionConfirm: "Delete \"{title}\"? This cannot be undone."
+  sessionDeleted: "Session deleted"
+  intentDrafted: "Saved as draft"
+  intentExecuted: "Done"
+  intentDismissed: "Dismissed"
+  intentPending: "Pending"
+  intentConfirmNoteUntrusted: "This action was created by an unattended run (HEARTBEAT) after reading other people's content. Check the recipient and the text before allowing it."
+  intentConfirmNote: "This action was proposed by an unattended run (HEARTBEAT)."
+  intentRunFailed: "Could not run: {error}"
 
 _deckClientSearchColumn:
   searchPlaceholder: "Search local notes..."
@@ -1436,6 +1818,8 @@ _deckClientSearchColumn:
   attachmentsYes: "With attachments"
   attachmentsNo: "Without attachments"
   clearFilters: "Clear filters"
+  noMatches: "No notes in the local cache match"
+  emptyHint: "Enter a search term or a filter to search the notes stored on this device"
 
 _deckColumn:
   allAccounts: "All accounts"
@@ -1452,6 +1836,10 @@ _deckColumn:
   popOut: "Open in new window"
   openAsPip: "Open as PiP window"
   recallToMain: "Return to main window"
+  deleteTitle: "Delete column"
+  deleteConfirm: "Delete this column?"
+  deleted: "Column deleted"
+  undo: "Undo"
 
 _deckDriveColumn:
   root: "Root"
@@ -1470,6 +1858,27 @@ _deckDriveColumn:
   exporting: "Saving {done}/{total}"
   exportSelected: "Save selected files locally"
   deleteSelected: "Delete selected files"
+  bulkDeleteTitle: "Delete files"
+  bulkDeleteConfirm_plural:
+    one: "Delete the {count} selected file from the drive? It will also be removed from notes it is attached to. This cannot be undone."
+    other: "Delete the {count} selected files from the drive? They will also be removed from notes they are attached to. This cannot be undone."
+  bulkDeleteConfirmWithOutside_plural:
+    one: "Delete the {count} selected file from the drive? (including {outside} selected outside the current folder) It will also be removed from notes it is attached to. This cannot be undone."
+    other: "Delete the {count} selected files from the drive? (including {outside} selected outside the current folder) They will also be removed from notes they are attached to. This cannot be undone."
+  exportMissing_plural:
+    one: "Could not fetch {count} file, so it was skipped"
+    other: "Could not fetch {count} files, so they were skipped"
+  exportCancelled: "Saving was cancelled"
+  exportFailed_plural:
+    one: "Failed to save {count} file"
+    other: "Failed to save {count} files"
+  exported_plural:
+    one: "Saved {count} file"
+    other: "Saved {count} files"
+  exportedWithSkipped_plural:
+    one: "Saved {count} file ({skipped} already saved)"
+    other: "Saved {count} files ({skipped} already saved)"
+  openFolder: "Open folder"
 
 _deckNavbar:
   switchToOnline: "Switch to online mode"
@@ -1483,6 +1892,19 @@ _deckNavbar:
   note: "Note"
   account: "Account"
   editNavbar: "Edit navbar"
+  disableOfflineTitle: "Turn off offline mode"
+  enableOfflineTitle: "Switch to offline mode"
+  disableOfflineMessage: "Reconnects to the servers."
+  enableOfflineMessage: "Stops all network traffic and shows only cached data."
+  turnOff: "Turn off"
+  switch: "Switch"
+  pollingTitle: "Switch to polling mode"
+  realtimeTitle: "Switch to realtime mode"
+  pollingMessage: "Closes the WebSocket connection and switches to periodic HTTP polling."
+  realtimeMessage: "Switches to realtime updates."
+  permissionDenied: "Permission denied. Log in again to grant the write:account permission."
+  clearCacheTitle: "Clear cache"
+  clearCacheConfirm: "Clear the cache for {account}?"
 
 _deckNotificationColumn:
   empty: "No notifications"
@@ -1500,6 +1922,31 @@ _deckNotificationColumn:
   openNote: "Show note"
   noteRawJson: "Note Raw JSON"
   notificationRawJson: "Notification Raw JSON"
+  filterAll: "All"
+  filterReaction: "Reactions"
+  filterReply: "Replies"
+  filterRenote: "Renotes"
+  filterQuote: "Quotes"
+  filterMention: "Mentions"
+  filterFollow: "Follows"
+  filterPollEnded: "Polls"
+  filterAchievementEarned: "Achievements"
+  filterCreateToken: "Tokens"
+  labelReaction: "reacted"
+  labelReply: "replied"
+  labelRenote: "renoted"
+  labelQuote: "quoted"
+  labelMention: "mentioned you"
+  labelFollow: "followed you"
+  labelFollowRequestAccepted: "accepted your follow request"
+  labelReceiveFollowRequest: "requested to follow you"
+  labelPollEnded: "Poll results are in"
+  labelAchievementEarned: "Achievement earned"
+  labelRoleAssigned: "Role assigned"
+  labelApp: "Notification"
+  labelLogin: "New login"
+  labelCreateToken: "Access token created"
+  labelTest: "Test notification"
 
 _deckPluginManagerColumn:
   create: "Create new plugin"
@@ -1510,6 +1957,18 @@ _deckPluginManagerColumn:
   noMatches: "No matching plugins"
   emptyInColumn: "No plugins have been added to this column"
   noLibraryCandidates: "No plugins in the library can be added."
+  installedTab: "Installed {count}"
+  sideload: "Sideloaded"
+  storeDistributed: "From store"
+  installFailed: "Install failed"
+  updateFailed: "Update failed"
+  detached: "Plugin removed"
+  undo: "Undo"
+  detachFromAllAccounts: "Remove from all accounts"
+  detachFromAccount: "Remove from this account"
+  deleteTitle: "Delete plugin"
+  deleteConfirm: "Delete \"{name}\" from the library? The plugin code will also be deleted."
+  deleted: "Plugin deleted"
 
 _deckQueryManagerColumn:
   create: "Create new query"
@@ -1522,6 +1981,24 @@ _deckQueryManagerColumn:
   emptyHint: "A query is an AiScript expression that defines what a column shows. Once created, you can toggle it on from each note column’s query settings."
   createQuery: "Create query"
   noLibraryCandidates: "No queries in the library can be added."
+  installedTab: "Installed {count}"
+  sideload: "Sideloaded"
+  storeDistributed: "From store"
+  detached: "Query removed"
+  undo: "Undo"
+  detachFromAllAccounts: "Remove from all accounts"
+  detachFromAccount: "Remove from this account"
+  deleteConfirmInUse_plural:
+    one: "\"{name}\" is applied to {count} column. Deleting it makes that column unevaluable (fail-closed). Delete it?"
+    other: "\"{name}\" is applied to {count} columns. Deleting it makes those columns unevaluable (fail-closed). Delete it?"
+  deleteConfirmInUseDisabled_plural:
+    one: "\"{name}\" is disabled but applied to {count} column. Deleting it makes that column unevaluable (fail-closed). Delete it?"
+    other: "\"{name}\" is disabled but applied to {count} columns. Deleting it makes those columns unevaluable (fail-closed). Delete it?"
+  deleteTitle: "Delete query"
+  deleteConfirm: "Delete \"{name}\"? The query body will also be deleted."
+  deleted: "Query deleted"
+  installFailed: "Install failed"
+  updateFailed: "Update failed"
 
 _deckServerInfoColumn:
   noDescription: "(No description)"
@@ -1540,6 +2017,7 @@ _deckServerInfoColumn:
   notes: "Notes"
   rawResponse: "Raw response from {endpoint}"
   fetchFailed: "Couldn’t fetch server info"
+  info: "Info"
 
 _deckSkillColumn:
   create: "Create new skill"
@@ -1555,6 +2033,19 @@ _deckSkillColumn:
   installedMark: "Installed"
   update: "Update"
   storeEmpty: "No skills in the store"
+  installedTab: "Installed {count}"
+  sideload: "Sideloaded"
+  storeDistributed: "From store"
+  deleteTitle: "Delete skill"
+  deleteConfirm: "Delete \"{name}\"? The skill body will also be deleted."
+  deleted: "Skill deleted"
+  undo: "Undo"
+  modeAlways: "Always"
+  modeManual: "Manual"
+  modeTrigger: "Auto"
+  installFailed: "Install failed"
+  updateFailed: "Update failed"
+  storeUpdatedWithVersion: "Store updated: {date} / v{version}"
 
 _deckTaskRunnerColumn:
   clearHistory: "Clear history"
@@ -1571,6 +2062,7 @@ _deckTaskRunnerColumn:
   history: "History"
   runningCount: "{n} running"
   noHistory: "No run history yet"
+  aiNotConfigured: "Cannot run with AI: no AI connection is selected or no model is set"
 
 _queryCard:
   disabledHint: "The query itself is disabled. Columns that use it won’t evaluate it"
@@ -1583,6 +2075,9 @@ _queryCard:
     other: "Applied in {count} columns"
   update: "Update"
   deleteFromLibrary: "Delete from library (the content is deleted too)"
+  readOnlyHint: "Cannot be changed because the source file is missing"
+  storeUpdated: "Store updated: {date}"
+  storeUpdatedWithVersion: "Store updated: {date} / v{version}"
 
 _addColumnDialog:
   selectItem: "Select {label}"
@@ -1596,6 +2091,7 @@ _addColumnDialog:
   allAccounts: "All accounts"
   noAccount: "No account"
   guestUnavailable: "This column isn't available for guest accounts"
+  loginRequired: "Log in to use this"
 
 _columnErrorBoundary:
   title: "Something went wrong while displaying this column"
@@ -1646,6 +2142,7 @@ _deckAboutMisskeyColumn:
 _deckAchievementsColumn:
   pendingHint: "Enable developer mode to unlock"
   empty: "No achievements"
+  server: "Server"
 
 _deckAdsColumn:
   empty: "No ads"
@@ -1675,15 +2172,25 @@ _deckApiConsoleColumn:
   noAccount: "No account set"
   loggedOut: "Logged out"
   sendHint: "Press Ctrl+Enter to send"
+  sending: "Sending..."
+  enterEndpoint: "Enter an endpoint"
+  selectAccount: "Select an account"
+  sendWithShortcut: "Send (Ctrl+Enter)"
+  invalidParamsJson: "The parameters are not valid JSON"
 
 _deckBottomBar:
   addColumn: "Add column"
   deckSettings: "Deck settings"
+  profile: "Profile"
 
 _deckChartsColumn:
   hour: "Hour"
   day: "Day"
   breakdown: "Breakdown"
+  fetchFailed: "Could not fetch server statistics"
+  accountNotFound: "Account not found"
+  loginRequired: "Charts on this server are only available to logged-in users"
+  chartsDisabled: "This server has disabled the charts API"
 
 _deckChatColumn:
   closeSearch: "Close search"
@@ -1723,6 +2230,9 @@ _deckExploreColumn:
   noUsers: "No users found"
   noRoleUsers: "No users"
   noRoles: "No roles found"
+  tabNotes: "Notes"
+  tabUsers: "Users"
+  tabRoles: "Roles"
 
 _deckFavoritesColumn:
   empty: "No favorites"
@@ -1734,6 +2244,11 @@ _deckFederationColumn:
   instanceTooltip: "{host}\n{software}\nUsers: {users} / Notes: {notes}\nLast contact: {lastSent}"
   suspended: "Suspended"
   notResponding: "Not responding"
+  sortActive: "Active"
+  sortUsers: "Users"
+  sortNotes: "Notes"
+  sortNewest: "Newest"
+  accountNotFound: "Account not found"
 
 _deckFollowRequestsColumn:
   accepted: "Accepted"
@@ -1742,6 +2257,10 @@ _deckFollowRequestsColumn:
   cancelRequest: "Cancel"
   accept: "Accept"
   reject: "Reject"
+  received: "Received"
+  sent: "Sent"
+  noSentRequests: "No pending sent follow requests"
+  noRequests: "No follow requests"
 
 _deckGalleryColumn:
   empty: "No gallery posts"
@@ -1751,39 +2270,82 @@ _deckLayout:
   newNote: "New note"
   dropToUpload: "Drop files to upload"
   moveColumnHere: "Move column here"
+  loginToPost: "Log in to post"
 
 _deckLookupColumn:
   placeholder: "URL or @username@host"
   emptyThread: "Enter a URL to look up"
   emptyResult: "Enter a URL or @username to look up"
+  accountNotFound: "Account not found"
+  adapterInitFailed: "Failed to initialize the adapter"
+  lookupFailed: "Lookup failed"
+  noLoggedInAccount: "No logged-in accounts"
+  userLookupSingleAccountOnly: "Look up users in single-account mode"
 
 _deckMemoColumn:
   empty: "No memos"
   openInEditor: "Open this memo in the editor"
   restoreToPostForm: "Restore to post form"
+  contextReply: "Reply"
+  contextQuote: "Quote"
+  contextChannelNote: "Channel note"
+  deleteTitle: "Delete memo"
+  deleteConfirm: "Delete the selected memo?"
+  deleted: "Memo deleted"
 
 _deckMentionsColumn:
   newNotes: "New notes"
+  directEmpty: "No direct messages"
+  toYou: "Mentions"
+  mentionsEmpty: "No mentions"
 
 _deckNoteColumn:
   newNotes: "New notes"
+  noNotesYet: "No notes yet"
+  offlineMode: "Offline mode"
+  offlineRequestFailed: "Offline (request to the server failed)"
+  reconnectingSince: "Reconnecting ({duration})"
+  disconnectedSince: "Disconnected ({duration})"
+  queryInvalid: "Display is paused because the query cannot be interpreted"
+  queryExcludedAll_plural:
+    one: "No notes match the query ({count} excluded)"
+    other: "No notes match the query ({count} excluded)"
 
 _deckTimelineColumn:
   newNotes: "New notes"
+  home: "Home"
+  local: "Local"
+  social: "Social"
+  global: "Global"
+  queryInvalid: "Display is paused because the query cannot be interpreted"
+  queryExcludedAll_plural:
+    one: "No notes match the query ({count} excluded)"
+    other: "No notes match the query ({count} excluded)"
+  noNotes: "No notes"
 
 _deckMobileNav:
   addColumn: "Add column"
 
 _deckPageColumn:
   empty: "No pages found"
+  featured: "Featured"
+  my: "Mine"
+  likes: "Liked"
 
 _deckPlayColumn:
   empty: "No Plays found"
+  featured: "Featured"
+  my: "Mine"
+  likes: "Liked"
 
 _deckProfileMenu:
   openInEditor: "Open in editor"
   noProfiles: "No saved profiles"
   newProfile: "New profile"
+  deleteTitle: "Delete profile"
+  deleteConfirm: "Delete this profile?"
+  deleted: "Profile deleted"
+  undo: "Undo"
 
 _deckSearchColumn:
   regexPlaceholder: "Search with regex..."
@@ -1799,6 +2361,7 @@ _deckSearchColumn:
   enterQuery: "Enter a search query"
   noResults: "No results found"
   enterToSearch: "Press Enter to search the server"
+  invalidRegex: "Invalid regular expression"
 
 _deckStreamInspectorColumn:
   resume: "Resume"
@@ -1813,6 +2376,19 @@ _deckThemeManagerColumn:
   noMatches: "No matching themes"
   noThemes: "No themes"
   installFromStore: "Install from the store..."
+  default: "Default"
+  sideload: "Sideloaded"
+  storeDistributed: "From store"
+  server: "Server"
+  installedTab: "Installed {count}"
+  deleteTitle: "Delete theme"
+  deleteLastAccountConfirm: "\"{name}\" is linked only to this account. Removing it deletes the theme itself. Delete it?"
+  deleted: "Theme deleted"
+  detached: "Theme removed"
+  undo: "Undo"
+  deleteConfirm: "Delete \"{name}\"? The theme settings will also be deleted."
+  installFailed: "Install failed"
+  updateFailed: "Update failed"
 
 _deckWidgetColumn:
   createLocal: "Create new local widget"
@@ -1822,12 +2398,23 @@ _deckWidgetColumn:
   emptyCode: "Empty code"
   noMatches: "No matching widgets"
   selectAccount: "Select account"
+  detached: "Widget removed"
+  undo: "Undo"
+  pickAccountForNew: "Which account should run the widget?"
+  pickAccountFor: "Which account should run \"{name}\"?"
+  deleteTitle: "Delete widget"
+  deleteConfirm: "Delete \"{name}\" from the library? The widget code will also be deleted."
+  deleted: "Widget deleted"
+  installedTab: "Installed {count}"
+  installFailed: "Install failed"
+  updateFailed: "Update failed"
 
 _deckWindow:
   openInWebUi: "Open in Web UI"
   openInDefaultEditor: "Open {name} in the OS's default editor"
   minimize: "Minimize"
   maximize: "Maximize"
+  followListTitle: "@{username}'s following / followers"
 
 _logoutDialog:
   removeGuest: "Remove guest"
@@ -1853,6 +2440,8 @@ _pluginCard:
   detachFromColumn: "Remove from this column"
   deleteFromLibrary: "Delete from library (the code is removed too)"
   update: "Update"
+  storeUpdated: "Store updated: {date}"
+  storeUpdatedWithVersion: "Store updated: {date} / v{version}"
 
 _widgetCard:
   incompatible: "Incompatible"
@@ -1860,6 +2449,8 @@ _widgetCard:
   deleteFromLibrary: "Delete from library (the code is removed too)"
   editWidget: "Edit widget"
   place: "Place"
+  storeUpdated: "Store updated: {date}"
+  storeUpdatedWithVersion: "Store updated: {date} / v{version}"
 
 _themeCard:
   clearAccount: "Clear the setting for this account"
@@ -1869,10 +2460,16 @@ _themeCard:
   update: "Update"
   viewInMisStore: "View details in MisStore"
   installing: "Installing"
+  storeUpdated: "Store updated: {date}"
+  storeUpdatedWithVersion: "Store updated: {date} / v{version}"
 
 _timelineFilterPopup:
   filter: "Filters"
   disabledQueryHint: "This query is disabled — click to open the query manager column"
+  withRenotes: "Renotes"
+  withReplies: "Replies"
+  withFiles: "With files only"
+  withSensitive: "Sensitive"
 
 _widgetAiScript:
   editCode: "Edit code"
@@ -1882,3 +2479,930 @@ _widgetAiScript:
   removeFromSidebar: "Remove from sidebar"
   removeFromColumn: "Remove from this column"
   outputCount: "Output ({n})"
+  safeModeBlocked: "Not run because safe mode is on"
+
+_performanceData:
+  units:
+    items: "items"
+    hosts: "hosts"
+    parallel: "parallel"
+    times: "times"
+    timesPerSecond: "per sec"
+    seconds: "s"
+    days: "days"
+    minutes: "min"
+    columns: "columns"
+    images: "images"
+    frames: "frames"
+  categories:
+    emoji:
+      label: "Emoji cache"
+      short: "Emoji"
+    note:
+      label: "Notes"
+      short: "Notes"
+    cache:
+      label: "Parse cache"
+      short: "Parse"
+    realtime:
+      label: "Real-time"
+      short: "Live"
+    backend:
+      label: "Backend"
+      short: "Back"
+    css:
+      label: "CSS rendering"
+      short: "CSS"
+    polling:
+      short: "Poll"
+    telemetry:
+      label: "Telemetry"
+      short: "Meter"
+    interaction:
+      label: "Interaction"
+      short: "Input"
+  labels:
+    emojiCacheHosts: "Dictionary hosts"
+    emojiListHosts: "List hosts"
+    emojiPersistPerHost: "localStorage persistence / host"
+    noteStoreMax: "Note store limit"
+    noteListMax: "DOM display limit / column"
+    maxNotifications: "Notification retention limit"
+    chatMessageStoreMax: "Chat message store limit"
+    mfmCacheMax: "MFM cache"
+    blurhashCacheMax: "blurhash cache"
+    imageProxyCacheMax: "Proxy URL cache"
+    ogpCacheMax: "OGP cache"
+    noteCaptureMax: "Note Capture limit"
+    overscan: "Overscan"
+    memoryCacheMaxMB: "Total memory cache"
+    memoryCacheMaxItemKB: "Single file limit"
+    maxConcurrentFetches: "Concurrent fetches"
+    rustOgpCacheMax: "Rust OGP cache"
+    maxRequestsPerWindow: "Rate limit"
+    circuitBreakerThreshold: "Circuit breaker threshold"
+    circuitBreakerDuration: "Circuit breaker duration"
+    imageCacheTTLDays: "Image cache expiry"
+    imageCacheMaxMB: "Image cache limit"
+    imageCacheMaxFileMB: "Per-file fetch limit"
+    prefetchAhead: "Prefetch ahead"
+    prefetchBehind: "Prefetch behind"
+    prefetchTrackedMax: "Prefetch tracking limit"
+    lazyLoadMargin: "Lazy load margin"
+    nearViewportBuffer: "Near-viewport buffer"
+    ogpGalleryMax: "OGP gallery limit"
+    embedCacheMax: "Embedded note cache"
+    cssBlurLevel: "Blur strength"
+    cssAnimationScale: "Animation speed"
+    cssShadowLevel: "Shadow strength"
+    streamPollingInterval: "Stream polling interval"
+    notificationPollInterval: "Notification polling interval"
+    chatPollInterval: "Chat polling interval"
+    maxLiveColumns: "Simultaneous live columns"
+    columnUnloadDelay: "Column unload delay"
+    snapshotMaxNotes: "Snapshot size"
+    snapshotTTL: "Snapshot expiry"
+    jankDowngradeThreshold: "Jank detection sensitivity"
+    stableUpgradeSeconds: "Upgrade wait"
+    noteAnimationDuration: "Note appear animation"
+    frameHistorySize: "P95 history size"
+    soundCacheMax: "Notification sound cache"
+    cachedTimelineLimit: "Timeline cache load"
+    pullFireThreshold: "Pull-to-refresh distance"
+    swipeThreshold: "Swipe switch distance"
+    flingVelocity: "Fling velocity"
+    wheelCooldown: "Wheel cooldown"
+    scrollHideThreshold: "Navbar hide sensitivity"
+  descriptions:
+    emojiCacheHosts: "Number of hosts whose emoji dictionaries are kept for resolving emoji. Grows as you federate with more servers, so it is capped here"
+    emojiListHosts: "Number of hosts whose emoji lists are kept for the reaction picker"
+    emojiPersistPerHost: "Number of entries saved to localStorage for resolving emoji while offline"
+    noteStoreMax: "Retention limit of the global note store. Affects memory usage in long sessions"
+    noteListMax: "Data array limit per column. Items beyond it are discarded while scrolling"
+    maxNotifications: "Maximum number of notifications kept in a notification column"
+    chatMessageStoreMax: "Retention limit of the global chatMessageStore. Affects memory when chatting for a long time (#460)"
+    mfmCacheMax: "LRU cache limit for parsed MFM results"
+    blurhashCacheMax: "LRU cache limit for placeholders shown before images load (blurhash → data URL)"
+    imageProxyCacheMax: "LRU cache limit for proxy URL conversion"
+    ogpCacheMax: "LRU cache limit for OGP previews"
+    noteCaptureMax: "Number of WebSocket subscriptions for real-time updates. More means reactions show up instantly on more notes"
+    overscan: "Number of extra notes rendered outside the viewport. More makes scrolling smoother"
+    memoryCacheMaxMB: "Total size of the in-memory image cache"
+    memoryCacheMaxItemKB: "Maximum size of a single file kept in the memory cache"
+    maxConcurrentFetches: "Number of simultaneous image downloads"
+    rustOgpCacheMax: "LRU cache limit for OGP metadata on the Rust side"
+    maxRequestsPerWindow: "Maximum requests per minute per host"
+    circuitBreakerThreshold: "A host is temporarily blocked after this many consecutive failures"
+    circuitBreakerDuration: "How long a blocked host waits before it is retried"
+    imageCacheTTLDays: "Number of days images are kept in the disk cache"
+    imageCacheMaxMB: "Beyond this, the oldest images are deleted first"
+    imageCacheMaxFileMB: "Images larger than this bypass the proxy. Raising it also raises peak memory"
+    prefetchAhead: "Number of images prefetched below the viewport"
+    prefetchBehind: "Number of images prefetched above the viewport"
+    prefetchTrackedMax: "Number of prefetched URLs remembered. Beyond it, the oldest are discarded"
+    lazyLoadMargin: "Distance from the viewport at which OGP previews and embedded notes start loading"
+    nearViewportBuffer: "Number of extra items from the viewport edge whose images are loaded eagerly"
+    ogpGalleryMax: "Maximum number of gallery images shown in an OGP preview"
+    embedCacheMax: "LRU cache limit for embedded notes"
+    cssBlurLevel: "Strength of backdrop-filter blur. 0 = off, 1 = light (1–2px), 2 = full (4px). The heaviest on the GPU"
+    cssAnimationScale: "Speed scale of transitions and animations. 0% renders instantly, 100% is normal speed"
+    cssShadowLevel: "Rendering level of box-shadow. 0 = off, 1 = light, 2 = full (same as Misskey)"
+    streamPollingInterval: "Timeline update interval in polling mode. Shorter is closer to real time"
+    notificationPollInterval: "Interval for checking unread notifications. Shorter is closer to real time, longer saves battery"
+    chatPollInterval: "Interval for checking unread chats"
+    maxLiveColumns: "Maximum number of columns that keep a streaming connection. The rest are paused"
+    columnUnloadDelay: "Wait time before off-screen columns are unmounted. Shorter saves memory"
+    snapshotMaxNotes: "Number of notes saved in a column snapshot. More makes restoring more complete"
+    snapshotTTL: "How long column snapshots are kept. Expired snapshots are refetched"
+    jankDowngradeThreshold: "Quality is downgraded automatically when jank exceeds this many times per second. Lower is more sensitive"
+    stableUpgradeSeconds: "Automatic quality upgrade is tried after staying stable for this many seconds"
+    noteAnimationDuration: "Duration of the slide-in animation for new notes. 0 shows them instantly"
+    frameHistorySize: "Ring buffer size for computing P95 frame time. Larger is more stable but reacts more slowly"
+    soundCacheMax: "Number of cached AudioBuffers for notification sounds. Increase it when using many servers"
+    cachedTimelineLimit: "Number of notes loaded from the DB cache when a column is restored"
+    pullFireThreshold: "How far you need to pull before pull-to-refresh fires"
+    swipeThreshold: "Minimum swipe distance needed to switch tabs"
+    flingVelocity: "A fling at or above this velocity switches tabs immediately"
+    wheelCooldown: "Time that prevents re-firing after switching tabs with the mouse wheel"
+    scrollHideThreshold: "Accumulated scroll distance that hides the navbar. Smaller is more sensitive"
+
+_achievementLabels:
+  notes1: "First note"
+  notes10: "10 notes"
+  notes100: "100 notes"
+  notes500: "500 notes"
+  notes1000: "1,000 notes"
+  notes5000: "5,000 notes"
+  notes10000: "10,000 notes"
+  notes20000: "20,000 notes"
+  notes30000: "30,000 notes"
+  notes40000: "40,000 notes"
+  notes50000: "50,000 notes"
+  notes60000: "60,000 notes"
+  notes70000: "70,000 notes"
+  notes80000: "80,000 notes"
+  notes90000: "90,000 notes"
+  notes100000: "100,000 notes"
+  login3: "Logged in 3 days"
+  login7: "Logged in 7 days"
+  login15: "Logged in 15 days"
+  login30: "Logged in 30 days"
+  login60: "Logged in 60 days"
+  login100: "Logged in 100 days"
+  login200: "Logged in 200 days"
+  login300: "Logged in 300 days"
+  login400: "Logged in 400 days"
+  login500: "Logged in 500 days"
+  login600: "Logged in 600 days"
+  login700: "Logged in 700 days"
+  login800: "Logged in 800 days"
+  login900: "Logged in 900 days"
+  login1000: "Logged in 1,000 days"
+  passedSinceAccountCreated1: "1 year since account creation"
+  passedSinceAccountCreated2: "2 years since account creation"
+  passedSinceAccountCreated3: "3 years since account creation"
+  loggedInOnBirthday: "Logged in on your birthday"
+  loggedInOnNewYearsDay: "Logged in on New Year's Day"
+  noteClipped1: "First clip"
+  noteFavorited1: "First favorite"
+  myNoteFavorited1: "Got favorited"
+  profileFilled: "User profile set up"
+  markedAsCat: "Cat"
+  following1: "First follow"
+  following10: "10 follows"
+  following50: "50 follows"
+  following100: "100 follows"
+  following300: "300 follows"
+  followers1: "First follower"
+  followers10: "10 followers"
+  followers50: "50 followers"
+  followers100: "100 followers"
+  followers300: "300 followers"
+  followers500: "500 followers"
+  followers1000: "1,000 followers"
+  collectAchievements30: "Achievement collector"
+  viewAchievements3min: "Admiring achievements"
+  iLoveMisskey: "I Love Misskey"
+  foundTreasure: "Hidden treasure"
+  client30min: "Used for 30 minutes"
+  client60min: "Used for 60 minutes"
+  noteDeletedWithin1min: "Deleted within 1 minute"
+  postedAtLateNight: "Late-night post"
+  postedAt0min0sec: "Exactly 0 min 0 sec"
+  selfQuote: "Self quote"
+  htl20npm: "Fast timeline"
+  viewInstanceChart: "Viewed the server chart"
+  outputHelloWorldOnScratchpad: "Hello, World!"
+  open3windows: "3 windows"
+  driveFolderCircularReference: "Circular reference"
+  reactWithoutRead: "Reacted without reading"
+  clickedClickHere: "Click here"
+  justPlainLucky: "Just plain lucky"
+  setNameToSyuilo: "Syuilo's name"
+  cookieClicked: "Cookie clicker"
+  brainDiver: "Brain Diver"
+  smashTestNotificationButton: "Test notification spam"
+  tutorialCompleted: "Tutorial completed"
+  bubbleGameExplodingHead: "Bubble game"
+  bubbleGameDoubleExplodingHead: "Bubble game (double)"
+
+_labels:
+  presets:
+    readonly: "Read-only (default)"
+    safe: "Safe (reactions allowed)"
+    full: "Full (allow all)"
+    custom: "Custom"
+  permissions:
+    notesRead: "Read notes"
+    notesReadArchive: "Search the local index (including non-public notes)"
+    notesWrite: "Post / edit / delete notes"
+    notesReact: "Reactions / favorites"
+    accountRead: "Read account info"
+    accountWrite: "Follow / block / mute"
+    accountActAs: "Act as another account (cross-account)"
+    driveRead: "Read drive"
+    driveWrite: "Write / delete in drive"
+    memosRead: "Read / search local memos"
+    memosWrite: "Create / edit / delete local memos"
+    clipsRead: "Read clips"
+    clipsWrite: "Create clips / add and remove notes"
+    draftsRead: "Read drafts"
+    draftsWrite: "Create / edit / delete drafts"
+    networkExternal: "External network access"
+    filesExport: "Save files locally (download)"
+    backupCreate: "Create backups"
+    clipboard: "Clipboard"
+    notifications: "Desktop notifications"
+    tasksRun: "Run user-defined tasks"
+    aiInvoke: "Invoke AI (from plugins / external routes)"
+    aiPersonaWrite: "Switch AI persona"
+    skillsRead: "Read skills"
+    skillsWrite: "Append to / edit skills"
+    themeWrite: "Create / edit themes"
+    stylesWrite: "Edit custom CSS"
+    navbarWrite: "Edit navbar layout"
+    keybindsWrite: "Edit keybindings"
+    performanceWrite: "Edit performance settings"
+    widgetsRead: "Read widgets"
+    widgetsWrite: "Create / edit widgets (AiScript)"
+    pluginsRead: "Read plugins"
+    queriesRead: "Read query edit history"
+    queriesWrite: "Restore queries from edit history"
+    pluginsWrite: "Create / edit plugins (AiScript) — AI cannot call this directly"
+    aiSessionsRead: "Read AI session history"
+    logsRead: "Read app logs (warn/error)"
+    vaultUse: "Use external service connections (Secret Vault)"
+    deckRead: "Read deck layout (column list / search queries, etc.)"
+    deckWrite: "Change deck layout (columns / windows / sidebar / applying themes)"
+  categories:
+    misskey: "Misskey (server side)"
+    local: "Local data"
+    uiApp: "UI / app"
+  standardExternal: "Standard — Misskey read only"
+  standardPlugin: "Standard — safe + external network"
+  customGranted: "Custom — {granted} / {total} allowed"
+
+_pluginDenials:
+  separator: ", "
+  defaultName: "Plugin"
+  denied: "\"{name}\": permission \"{permissions}\" is not allowed"
+
+_principal:
+  widget: "Widget \"{name}\""
+  play: "Play \"{name}\""
+  page: "Page \"{name}\""
+  plugin: "Plugin \"{name}\""
+  externalApp: "External app"
+
+_store:
+  loadFailedMinimal: "Could not load the permission settings, so NoteDeck started with minimal permissions for safety. Check the permissions in settings."
+  saveFailed: "Failed to save permissions. Your changes were not applied."
+
+_cssPresetDropdown:
+  default: "Default"
+
+_widgetCapabilities:
+  needsUpdate: "Update required"
+  unsupported: "Unsupported feature: {capability} (NoteDeck needs to be updated)"
+  needsAccount: "Account required"
+  accountRequired: "An account is required (set an account on the column)"
+  needsLogin: "Login required"
+  loginRequired: "A logged-in account is required"
+
+_columnEmptyState:
+  networkError: "Can't connect to the server. Check your network connection."
+  loadFailed: "Failed to load ({code})"
+  defaultSubject: "information"
+
+_readMarkerDivider:
+  readUpToHere: "You've read up to here"
+
+_aiConfirmRequests:
+  bundleTitle_plural:
+    one: "Asking permission for {count} action"
+    other: "Asking permission for {count} actions"
+  runAll: "Run all"
+  stop: "Don't run"
+  rememberAll: "Don't ask again for these actions"
+
+_postFormConstants:
+  public: "Public"
+  home: "Home"
+  followers: "Followers"
+  specified: "Direct"
+
+_useAccountActions:
+  deleteAccountFailed: "Failed to delete the account: {error}"
+  deleteVaultFailed: "Failed to delete Vault connections: {error}"
+  deleteGuestTitle: "Remove guest"
+  confirmDeleteGuest: "Remove this guest account?"
+  logout: "Log out"
+  confirmLogout: "Log out of {account}?\nLocal data stays on this device."
+  deleteDataTitle: "Delete data"
+  confirmDeleteData: "Delete all local data for {account}?"
+
+_useAccountPicker:
+  title: "Select an account"
+
+_useColumnQuery:
+  missingNamedQuery: "The referenced named query ({id}) was not found"
+
+_useColumnSetup:
+  notLoggedIn: "This account can't do that (not logged in)"
+  connectFailed: "Can't connect to the server ({code})"
+  reactionFailed: "Failed to react ({code})"
+  voteFailed: "Failed to vote ({code})"
+  renoteFailed: "Failed to renote ({code})"
+  deleteFailed: "Failed to delete ({code})"
+  unfavoriteTitle: "Remove from favorites"
+  confirmUnfavorite: "This note is already in your favorites. Remove it from favorites?"
+  unfavoriteOk: "Remove"
+  unfavoriteFailed: "Failed to remove from favorites ({code})"
+  favoriteFailed: "Failed to bookmark ({code})"
+
+_useCrossAccountNoteActions:
+  notLoggedIn: "This account can't do that (not logged in)"
+  noteNotFound: "Couldn't find this note on the server of {account}"
+  resolveFailed: "Failed to resolve the note. Please try again later"
+  reacted: "Reacted as {account}"
+  unreactTitle: "Remove reaction"
+  confirmUnreact: "{account} has already reacted to this note. Remove the reaction?"
+  unreactOk: "Remove"
+  unreacted: "Removed the reaction of {account}"
+  unreactFailed: "Failed to remove the reaction ({code})"
+  reactionFailed: "Failed to react ({code})"
+  renoted: "Renoted as {account}"
+  renoteFailed: "Failed to renote ({code})"
+
+_useCrossAccountNotes:
+  overflowSkipped: "Some new notes were skipped because there were too many"
+
+_useDriveActions:
+  rateLimitExceeded: "You've hit the folder creation limit. Please wait a while and try again"
+  folderNotEmpty: "The folder can't be deleted because it isn't empty"
+  invalidFileName: "This file name can't be used"
+  newFolder: "New folder"
+  folderNamePlaceholder: "Folder name"
+  renameFolder: "Rename folder"
+  deleteFolderTitle: "Delete folder"
+  confirmDeleteFolder: "Delete the folder \"{name}\"?"
+  renameFile: "Rename file"
+  deleteFileTitle: "Delete file"
+  confirmDeleteFile: "Delete \"{name}\" from your drive? It will also disappear from notes it is attached to. This can't be undone."
+
+_useEmojiMute:
+  unmuteTitle: "Unmute emoji"
+  confirmUnmute: "Unmute {emoji}?"
+  muteTitle: "Mute emoji"
+  confirmMute: "Mute {emoji}? It will be shown as a placeholder in note text and reactions."
+
+_useEntityCrud:
+  clip: "clip"
+  list: "list"
+  antenna: "antenna"
+  renameTitle: "Rename {label}"
+  renamed: "Renamed the {label}"
+  renameFailed: "Failed to rename the {label} ({code})"
+  deleteTitle: "Delete {label}"
+  confirmDelete: "Delete this {label} from the server? This can't be undone."
+  deleted: "Deleted the {label}"
+  deleteFailed: "Failed to delete the {label} ({code})"
+
+_useLoginPrompt:
+  reloginToContinue: "Log in again to continue"
+  sessionExpired: "Your login has expired"
+  relogin: "Log in again"
+  sessionExpiredUseMenu: "Your login has expired. Log in again from the account menu."
+
+_useMfmInsert:
+  flipHorizontal: "Flip (horizontal)"
+  flipVertical: "Flip (vertical)"
+
+_useNoteColumn:
+  overflowSkipped: "Some new notes were skipped because there were too many"
+
+_useNoteFocus:
+  confirmDelete: "Delete this note?"
+  linkCopied: "Link copied"
+  contentCopied: "Content copied"
+
+_useOsWindowTitle:
+  withOthers: "{first} +{count} — NoteDeck"
+
+_usePostFormState:
+  annoyingTitle: "This post may be disruptive"
+  annoyingMessage: "It contains MFM that enlarges or positions text."
+  postToHome: "Post to Home"
+  stop: "Cancel"
+  postAnyway: "Post anyway"
+  draftSaveFailed: "Saving the draft also failed: {error}"
+
+_useServerPreview:
+  unsupportedSoftware: "{name} is not supported"
+  notMisskey: "Not supported because this is not a Misskey server"
+  notFound: "Server not found"
+
+_useUpdater:
+  installFailed: "The update failed. Please try again later."
+
+_mkFollowButton:
+  cancelRequest: "Cancel request"
+  pending: "Follow request pending"
+  unfollow: "Unfollow"
+  mutual: "Mutual"
+  following: "Following"
+  follow: "Follow"
+  confirmUnfollow: "Unfollow @{username}?"
+  unfollowOk: "Unfollow"
+  failed: "Operation failed ({code})"
+
+_backupCapability:
+  targetsBoth: "a snapshot of the local DB and settings"
+  targetsDb: "a snapshot of the local DB"
+  targetsSettings: "a snapshot of the settings"
+  confirmTitle: "Create backup"
+  confirmMessage: "Creates {targets} in Downloads/notedeck/backup/. Credentials are not included."
+  confirmOk: "Create"
+
+_draftsCapability:
+  deleteTitle: "Delete draft"
+  deleteMessage: "Deletes draft {draftId}. This cannot be undone."
+  cancel: "Cancel"
+
+_filesCapability:
+  targetsFiles_plural:
+    one: "{count} file"
+    other: "{count} files"
+  targetsNotes_plural:
+    one: "the attachments of {count} note"
+    other: "the attachments of {count} notes"
+  targetsBoth: "{files} file(s) and the attachments of {notes} note(s)"
+  confirmTitle: "Save files locally"
+  confirmMessage: "Saves {targets} to Downloads/notedeck/{subdir}/."
+  confirmMessageExcludeSensitive: "Saves {targets} to Downloads/notedeck/{subdir}/. Files marked as sensitive are excluded."
+
+_keybindsCapability:
+  setTitle: "Change keybinding"
+  setMessage_plural:
+    one: "Sets {count} shortcut for `{commandId}`. keybinds.reset restores the default."
+    other: "Sets {count} shortcuts for `{commandId}`. keybinds.reset restores the default."
+  setOk: "Change"
+  resetTitle: "Reset keybinding to default"
+  resetMessage: "Discards the custom shortcuts of `{commandId}` and restores the default."
+  resetOk: "Reset to default"
+  resetAllTitle: "Reset all keybindings to default"
+  resetAllMessage: "Discards the custom shortcuts of every command and restores all defaults."
+  resetAllOk: "Reset all to default"
+  cancel: "Cancel"
+
+_navbarCapability:
+  setTitle: "Overwrite navbar layout"
+  setMessage_plural:
+    one: "Replaces the whole navbar with {count} item. The current layout will be lost (navbar.reset restores the default)."
+    other: "Replaces the whole navbar with {count} items. The current layout will be lost (navbar.reset restores the default)."
+  setOk: "Overwrite"
+  resetTitle: "Reset navbar layout to default"
+  resetMessage_plural:
+    one: "Discards the current custom layout and restores the {count} default item."
+    other: "Discards the current custom layout and restores the {count} default items."
+  resetOk: "Reset to default"
+  cancel: "Cancel"
+
+_performanceCapability:
+  setTitle: "Change performance value"
+  setMessage: "Changes {label} (`{key}`) to {value}{unit}. Out-of-range values are clamped to {min}..{max}."
+  setMessageUnknown: "Changes `{key}` to {value}."
+  setOk: "Change"
+  resetTitle: "Reset performance value to default"
+  resetMessage: "Resets {label} (`{key}`) to default."
+  resetMessageUnknown: "Resets `{key}` to default."
+  resetOk: "Reset to default"
+  resetAllTitle: "Reset all performance values to default"
+  resetAllMessage: "Discards every override and restores all defaults (a clean configuration)."
+  resetAllOk: "Reset all to default"
+  presetPowerSaving: "power saving"
+  presetRich: "rich"
+  presetBalanced: "balanced"
+  applyTitle: "Apply performance preset"
+  applyMessage: "Applies the preset at slider position t={t} ({label}) to every key."
+  applyOk: "Apply"
+  cancel: "Cancel"
+
+_personaCapability:
+  title: "Switch AI persona"
+  switchMessage: "Switches the AI persona to \"{name}\". This applies to every chat / heartbeat / command / task session."
+  unknownMessage: "Trying to set the unknown skill id \"{id}\" as the persona."
+  clearMessage: "Clears the AI persona (the AI works as a general-purpose assistant)."
+  ok: "Switch"
+  cancel: "Cancel"
+
+_pluginsCapability:
+  createTitle: "Install plugin"
+  createMessage: "Installs a plugin generated by AI. It starts disabled, so enable it manually from the plugins column."
+  updateTitle: "Update plugin"
+  updateMessage: "Replaces the AiScript of {name} ({from} → {to} characters)."
+  updateMessageActive: "Replaces the AiScript of {name} ({from} → {to} characters). It is active, so it restarts with the new code right after saving."
+  updateOk: "Update"
+  cancel: "Cancel"
+
+_userCapability:
+  muteTitle: "Mute notes + notifications"
+  muteMessage: "Mutes notes and notifications from userId `{userId}` (they are not notified)."
+  muteOk: "Mute"
+  unmuteTitle: "Unmute notes + notifications"
+  unmuteMessage: "Unmutes notes and notifications from userId `{userId}` (they are not notified)."
+  unmuteOk: "Unmute"
+  renoteMuteTitle: "Mute renotes only"
+  renoteMuteMessage: "Mutes only the renotes from userId `{userId}` (they are not notified)."
+  renoteMuteOk: "Mute renotes"
+  unrenoteMuteTitle: "Unmute renotes"
+  unrenoteMuteMessage: "Unmutes the renotes from userId `{userId}` (they are not notified)."
+  unrenoteMuteOk: "Unmute renotes"
+  cancel: "Cancel"
+
+_vaultCapability:
+  confirmTitle: "Allow a request to an external connection?"
+  confirmMessage: "Sends an HTTP request to the connection \"{name}\" ({baseUrl})."
+  confirmMessageUnknown: "Sends an HTTP request to a registered external service connection."
+  allow: "Allow"
+  rememberForActor: "Let {actor} use this connection without asking from now on"
+  remember: "Use this connection without asking from now on"
+  cancel: "Cancel"
+
+_widgetsCapability:
+  createTitle: "Install widget"
+  createMessageAutoRun: "Installs a widget generated by AI. It runs automatically when the column is shown."
+  createMessageManual: "Installs a widget generated by AI. Auto-run is off (start it manually)."
+  updateTitle: "Update widget"
+  updateMessage: "Replaces the AiScript of {name} ({from} → {to} characters)."
+  updateMessageMounted: "Replaces the AiScript of {name} ({from} → {to} characters). Widgets on screen rerun with the new code right after saving."
+  updateOk: "Update"
+  cancel: "Cancel"
+
+_windowsCapability:
+  closeAllTitle: "Close all windows"
+  closeAllMessage: "Closes every open DeckWindow."
+  closeAllOk: "Close all"
+  cancel: "Cancel"
+
+_dispatcher:
+  columnAdded: "{actor} added the {label} column"
+  columnOpenedInSidebar: "{actor} opened the {label} column in the sidebar"
+  columnRemoved: "{actor} removed a column"
+  columnFallback: "column"
+  columnMoved: "{actor} moved the {label} column"
+  settingsFallback: "settings"
+  columnSettingsUpdated: "{actor} updated {fields} of the {label} column"
+  notificationsRead: "{actor} marked notifications as read"
+  windowFallback: "window"
+  windowOpened: "{actor} opened the {label} window"
+  windowFocused: "{actor} brought the {label} window to the front"
+  windowClosed: "{actor} closed a window"
+  allWindowsClosed: "{actor} closed all windows"
+  noteReactedWith: "{actor} reacted to a note with {reaction}"
+  noteReacted: "{actor} reacted to a note"
+  noteUnreacted: "{actor} removed a reaction from a note"
+  notePinned: "{actor} pinned a note"
+  noteUnpinned: "{actor} unpinned a note"
+  noteCreated: "{actor} posted a note"
+  noteDeleted: "{actor} deleted a note"
+  accountSwitched: "{actor} switched the active account to {label}"
+  executingAccount: "Run as: {account}"
+  rememberOperation: "Don't ask again for this operation"
+  destinationUntrusted: "The destination comes from someone else's content that the AI read."
+  confirmTitle: "Run {label}?"
+  run: "Run"
+  cancel: "Cancel"
+
+_cliHandlers:
+  pickPost: "Account to post from"
+  pickSearch: "Account to search with"
+  pickTimeline: "Account to open the timeline for"
+  pickNotifications: "Account to open notifications for"
+  pickMentions: "Account to open mentions for"
+  pickFavorites: "Account to open favorites for"
+  pickNote: "Account to open the note with"
+  pickDelete: "Account to delete with"
+  pickEdit: "Account to edit with"
+  pickReact: "Account to react with"
+  pickUnreact: "Account to remove the reaction with"
+  pickRenote: "Account to renote with"
+  pickUser: "Account to open the user with"
+  pickUserNotes: "Account to open the user's notes with"
+  pickCommand: "Account to run this command with"
+  pickEmojis: "Account to open emojis for"
+
+_definitions:
+  modeTurnedOn: "Turned {mode} on"
+  modeTurnedOff: "Turned {mode} off"
+  permissionDenied: "Permission denied. Log in again to grant write:account."
+  account: "Account"
+  selectAccount: "Select an account…"
+  profile: "User profile"
+  logout: "Log out"
+  deleteData: "Delete data"
+  relogin: "Log in again"
+  clearCache: "Clear cache"
+  clearAccountCacheMessage: "Clear the cache of {account}?"
+  clearAllCacheMessage: "Clear all note and OGP caches?"
+  closeColumnMessage: "Delete this column?"
+  developerModeOn: "Developer mode enabled"
+  developerModeOff: "Developer mode disabled"
+  pickPluginsAccount: "Account to manage plugins for"
+  pickThemesAccount: "Account to manage themes for"
+
+_quickPickProviders:
+  currentProfile: "Current profile"
+  newProfile: "Create new profile"
+  switch: "Switch"
+  deleteProfileTitle: "Delete profile"
+  deleteProfileMessage: "Delete this profile?"
+  loginRequired: "Log in to use this"
+  allAccounts: "All accounts"
+  noAccount: "No account"
+  createNew: "Create new {label}"
+  selectItem: "Select {label}"
+  searchItem: "Search {label}..."
+  selectUser: "Select a user"
+  searchUser: "Search users..."
+  namePlaceholder: "Enter {label} name..."
+
+_taskCommands:
+  label: "Task: {label}"
+
+_accountScope:
+  selectable: "This is chosen per server, so there is no defined way to combine it across all accounts"
+  server: "This is a per-server view, so spanning accounts has no meaning"
+  unsupported: "This column does not support all accounts yet"
+
+_streamHealth:
+  sinceHours_plural:
+    one: "for {count} hour"
+    other: "for {count} hours"
+  sinceMinutes_plural:
+    one: "for {count} minute"
+    other: "for {count} minutes"
+  sinceSeconds_plural:
+    one: "for {count} second"
+    other: "for {count} seconds"
+
+_connectionTemplates:
+  deeplAuthHeader: "Authorization header value (DeepL-Auth-Key <API key>)"
+  apiToken: "API token"
+  apiTokenRaw: "API token (raw value)"
+  apiKey: "API key"
+  apiKeyMewk: "API key (mewk_...)"
+
+_tutorialSteps:
+  pointingItem: "The tutorial is pointing at the {label} item"
+  openedWindow: "The tutorial opened {name}"
+  pointingNotificationsButton: "The tutorial is pointing at the notifications column button"
+  pointingAiButton: "The tutorial is pointing at the AI column button"
+  columnQueryItem: "Column queries"
+  gettingStartedTitle: "Getting started"
+  gettingStartedDescription: "Connect an account, arrange columns, and start using NoteDeck"
+  gettingStartedAchievementName: "First steps"
+  masteryTitle: "Mastering NoteDeck"
+  masteryDescription: "Connect an external AI and let it drive your environment"
+  masteryAchievementName: "Power user"
+  extendTitle: "Building extensions"
+  extendDescription: "Build your own plugins, themes, and queries"
+  extendAchievementName: "Extension author"
+  welcomeTitle: "Welcome to NoteDeck"
+  welcomeDescription: "NoteDeck brings Misskey together in a deck of columns and a command palette. This walks you through the basics in a few steps. If you stop partway, anything you have set up is kept."
+  accountLoginTitle: "Add a Misskey account"
+  accountLoginDescription: "In the login window, enter the host name of your Misskey server (e.g. misskey.io) and authenticate. Once login completes, the tutorial moves on automatically."
+  customizeDeckTitle: "Make the deck your own"
+  customizeDeckDescription: "NoteDeck is used by arranging columns. The column you start with shows all the accounts you have added together. You can reorder or remove columns from their headers, and add notifications, search, chat and more from Add column (+). Change the arrangement once and the tutorial moves on automatically."
+  openNotificationsTitle: "Open notifications in the sidebar"
+  openNotificationsDescription: "Try pressing the notifications button on the navbar (it is glowing). Navbar buttons open and close columns in the sidebar. Open it and the tutorial moves on automatically."
+  createProfileTitle: "Create a profile"
+  createProfileDescription: "Profiles switch your whole column layout at once. Making one per purpose lets you move between them quickly."
+  createPluginTitle: "Create a plugin"
+  createPluginDescription: "Open plugin management and add one. With AiScript you can customize how notes are shown and what actions they have."
+  createWidgetTitle: "Create a widget"
+  createWidgetDescription: "Open the widget column and add one. You can keep a small AiScript running at all times."
+  createThemeTitle: "Create a theme"
+  createThemeDescription: "Open theme management and create one. A color scheme is defined as a set of variables."
+  createQueryTitle: "Create a column query"
+  createQueryDescription: "Open column queries and create one. With AiScript you can build a timeline of your own."
+  createSkillTitle: "Create a skill"
+  createSkillDescription: "Open skill management and create one. You can collect instructions to give to the AI."
+  aiSetupTitle: "Add an AI connection"
+  aiSetupDescription: "In the connections window, register an API key for an AI provider such as Anthropic or OpenAI in the Vault. Once registered, the tutorial moves on automatically."
+  aiSelectProviderTitle: "Choose an AI provider"
+  aiSelectProviderDescription: "The agent settings are open. Choose the connection you registered as the AI provider. Once chosen, the tutorial moves on automatically."
+  aiColumnTitle: "Open the AI column"
+  aiColumnDescription: "Open the AI column from the AI button on the navbar (it is glowing). You can talk with the AI there."
+  completeTitle: "Setup complete"
+  completeDescription: "You are ready to use NoteDeck. Feel free to explore."
+
+_main:
+  backendInitFailed: "Failed to initialize the backend: {error}"
+
+_badge:
+  safeMode: "Queries are paused in safe mode — showing everything unfiltered. Click to open the query management column"
+  invalid: "The query could not be interpreted — click to open the query management column"
+  allDisabled: "All applied queries are disabled — showing everything unfiltered. Click to open the query management column"
+  excludedErrors_plural:
+    one: " ({count} evaluation error excluded)"
+    other: " ({count} evaluation errors excluded)"
+  disabledNames: " (disabled: {names})"
+  degraded: "Query applied — it checks notes one at a time, so it cannot be used with search{errors}{disabled} — click to open the query management column"
+  active: "Query applied{errors}{disabled} — click to open the query management column"
+
+_compiler:
+  tooLarge: "The expression is too large (over {max} nodes after function expansion)"
+  syntaxError: "Syntax error: {error}"
+  tooDeep: "The expression is too deep (over depth {max})"
+  notReferable: "{name} cannot be referenced from a filter"
+  emptyFilter: "The filter expression is empty"
+  filterFnParams: "A filter function takes exactly one parameter, (note)"
+  emptyBody: "The body is empty"
+  lastMustBeExpr: "The last statement must be an expression"
+  unsupportedSyntax: "Syntax outside the subset: {type}"
+  resultMustBeBool: "The expression must evaluate to a bool (true = show)"
+  noTrailingExpr: "There is no trailing expression"
+  varUnsupported: "var is outside the subset (use let)"
+  typeAnnotationUnsupported: "Type annotations are outside the subset"
+  attrUnsupported: "Attributes are outside the subset"
+  nullableField: "{field} can be null. Without a guard, the whole note is excluded"
+  comparisonNumericOnly: "Comparison {op} works on numbers only"
+  eqScalarOnly: "== / != can only compare scalars with each other or with null (reference equality of arrays and objects cannot be reproduced in QIR)"
+  operandMustBeBool: "The operands of {op} must be bool"
+  unknownIdentifier: "Unknown identifier: {name} (a filter can only reference note and the let bindings and functions you define)"
+  fnCallOnly: "Function {name} can only be used as a call"
+  lenArrayOnly: ".len works on array fields only (str.len is outside the subset)"
+  propertyUnsupported: "Property {name} is outside the subset"
+  fieldNotAllowed: "note.{path} is not in the field allowlist"
+  indexReactionsOnly: "Indexing is only allowed as note.reactions[...] with a literal key"
+  indexKeyStringOnly: "An index key must be a string literal"
+  unknownFunction: "Unknown function: {name}"
+  callFormUnsupported: "This form of call is outside the subset"
+  noArgs: "{name}() takes no arguments"
+  stringOnlyCall: "{name}() works on strings only"
+  inclOneArg: "incl takes one argument"
+  strInclArgString: "The argument of str.incl must be a string"
+  arrInclArgScalar: "The argument of arr.incl must be a scalar"
+  inclStringOrArray: "incl works on strings or arrays only"
+  oneArgFormOnly: "Only the one-argument form of {name} is in the subset (the index argument depends on UTF-16, so it falls back)"
+  stringOnly: "{name} works on strings only"
+  argMustBeString: "The argument of {name} must be a string"
+  methodUnsupported: "Method {name} is outside the subset"
+  recursive: "Function {name} is recursive (recursion is outside the subset)"
+  fnArgCount_plural:
+    one: "Function {name} takes {count} argument"
+    other: "Function {name} takes {count} arguments"
+  optionalParamUnsupported: "Optional parameters and default values are outside the subset"
+  emptyFnBody: "The function body is empty"
+  fnBodySyntax: "Syntax not allowed in a function body: {type} (a body is a sequence of let bindings plus a trailing expression)"
+  destructuringUnsupported: "Destructuring assignment is outside the subset"
+
+_purity:
+  syntaxName: "(syntax: {type})"
+
+_cssPresets:
+  default: "Default"
+  mPlus1Code: "M PLUS 1 Code (Japanese)"
+  msGothic: "MS Gothic (system)"
+  systemFont: "{name} (system)"
+  visibilityHome: "Home"
+  visibilityFollowers: "Followers"
+  visibilitySpecified: "Direct"
+  tintByVisibility: "Tint the background by visibility"
+  hideSelf: "Hide mine only"
+  hideOthers: "Hide others' only"
+  hideAll: "Hide all"
+
+_duplicateIdNotice:
+  single: "There are multiple settings files with the same ID \"{id}\". {file} was not loaded (the file is kept — delete it manually if you do not need it)"
+  entry: "\"{id}\": {files}"
+  multiple_plural:
+    one: "There is {count} settings file with a duplicate ID ({detail}). It was not loaded (the file is kept — delete it manually if you do not need it)"
+    other: "There are {count} settings files with duplicate IDs ({detail}). They were not loaded (the files are kept — delete them manually if you do not need them)"
+
+_editHistory:
+  skill: "Skill"
+  plugin: "Plugin"
+  widget: "Widget"
+  theme: "Theme"
+  query: "Query"
+  memo: "Memo"
+  css: "Custom CSS"
+  unrecorded: "Not recorded"
+  self: "You"
+
+_sidecarFileCollection:
+  readOnlyReason: "Cannot change this because its source file was not found"
+  readOnlyHint: "The source file was not found. Put the source back and it will recover on the next launch. Reinstall store items from the store, or delete it if you do not need it"
+
+_systemAdaptation:
+  meteredDeferMedia: "On a metered connection, so images and videos now load when tapped"
+  lowPowerStaticEmoji: "In low power mode, so image preloading and animated emoji are paused"
+  batteryStaticEmoji: "On battery power, so image preloading and animated emoji are paused"
+
+_accounts:
+  guest: "Guest"
+
+_deckProfile:
+  consoleWidgetsRemoved_plural:
+    one: "Removed {count} legacy AiScript Console widget. Its code is lost (the scratchpad column offers the same functionality)."
+    other: "Removed {count} legacy AiScript Console widgets. Their code is lost (the scratchpad column offers the same functionality)."
+
+_misstore:
+  updateConfirm: "Update \"{name}\" with the store version.\nStore updated: {date} / v{version}"
+  newPermissions: "New permissions: {permissions}"
+  update: "Update"
+  updateWidget: "Update widget"
+  updatePlugin: "Update plugin"
+  updateSkill: "Update skill"
+  updateQuery: "Update query"
+  updateTheme: "Update theme"
+
+_pet:
+  invalidInput: "Enter a slug or a pet URL from petdex.dev"
+
+_postForm:
+  emoji: "Emoji"
+  attach: "Attach"
+  poll: "Poll"
+  cw: "Content warning"
+  hashtag: "Hashtag"
+  mention: "Mention"
+  draft: "Drafts"
+  clear: "Clear"
+
+_taskRunner:
+  notInOptions: "{prompt}: \"{value}\" is not one of the options ({options})"
+  accountNotFound: "Task: account \"{id}\" was not found"
+  noAccount: "Task: no account is available"
+  taskNotFound: "Task \"{id}\" was not found"
+  completed: "Task completed: {label}"
+  failed: "Task failed: {label} — {error}"
+  noDefaultTask: "There is no default task. Set isDefault: true in tasks.json5."
+
+_theme:
+  quotedName: "\"{name}\""
+  adoptedDropIns: "Imported theme {names} from themes/"
+
+_cacheEviction:
+  searchPriority: "Search first"
+  searchPriorityHint: "Keep forever. Search past notes in full text at any time"
+  balanced: "Balanced"
+  balancedHint: "Effectively permanent (hard cap of 1,000,000 notes per account)"
+  storagePriority: "Storage first"
+  storagePriorityHint: "Deleted automatically after 90 days / 50,000 notes. Keeps disk usage down"
+  custom: "Custom"
+  customHint: "Set the limit and TTL individually"
+
+_customTimelines:
+  modeLabel: "{name} mode"
+
+_errors:
+  authRequired: "You need to log in. Log in again from the account menu."
+
+_restrictedAccess:
+  notPublic: "This server does not make {subject} public"
+  noPermission: "You do not have permission to view {subject}"
+
+_scheduleFormat:
+  dayAt: "{day} {time}"
+  expired: "Expired"
+  soon: "Soon"
+  inMinutes: "in {minutes}m"
+  minutesAgo: "{minutes}m ago"
+  inHours: "in {hours}h"
+  hoursAgo: "{hours}h ago"
+  inHoursMinutes: "in {hours}h {minutes}m"
+  hoursMinutesAgo: "{hours}h {minutes}m ago"
+  inDays: "in {days}d"
+  daysAgo: "{days}d ago"
+  in30Minutes: "In 30 min"
+  in1Hour: "In 1 hour"
+  in3Hours: "In 3 hours"
+  tomorrow9: "Tomorrow 9:00"
+  in1Week: "In 1 week"
+
+_simpleMarkdown:
+  copyCode: "Copy code"
+  copy: "Copy"

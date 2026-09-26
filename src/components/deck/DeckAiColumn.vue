@@ -175,12 +175,20 @@ const groupedSessions = computed<SessionGroup[]>(() => {
   const groups: SessionGroup[] = []
   if (heartbeatItems.length)
     groups.push({ label: '💓 HEARTBEAT', items: heartbeatItems })
-  if (todayItems.length) groups.push({ label: '今日', items: todayItems })
+  if (todayItems.length)
+    groups.push({ label: i18n.ts._deckAiColumn.today, items: todayItems })
   if (yesterdayItems.length)
-    groups.push({ label: '昨日', items: yesterdayItems })
+    groups.push({
+      label: i18n.ts._deckAiColumn.yesterday,
+      items: yesterdayItems,
+    })
   if (lastWeekItems.length)
-    groups.push({ label: '過去 7 日', items: lastWeekItems })
-  if (olderItems.length) groups.push({ label: 'それ以前', items: olderItems })
+    groups.push({
+      label: i18n.ts._deckAiColumn.last7Days,
+      items: lastWeekItems,
+    })
+  if (olderItems.length)
+    groups.push({ label: i18n.ts._deckAiColumn.older, items: olderItems })
   return groups
 })
 
@@ -194,7 +202,9 @@ const filteredGroupedSessions = computed<SessionGroup[]>(() => {
     .map((g) => ({
       label: g.label,
       items: g.items.filter((s) =>
-        (s.title || '無題のチャット').toLowerCase().includes(q),
+        (s.title || i18n.ts._deckAiColumn.untitledChat)
+          .toLowerCase()
+          .includes(q),
       ),
     }))
     .filter((g) => g.items.length > 0)
@@ -209,7 +219,7 @@ const hasNoSearchHits = computed(
 const currentSessionTitle = computed(() => {
   const id = currentSessionId.value
   if (!id) return null
-  return sessionsStore.get(id)?.title || '無題のチャット'
+  return sessionsStore.get(id)?.title || i18n.ts._deckAiColumn.untitledChat
 })
 
 const headerTitle = computed(() => {
@@ -251,13 +261,13 @@ async function onRenameSession(
   const cur = sessionsStore.get(sessionId)
   if (!cur) return
   const next = await prompt({
-    title: 'セッション名を変更',
+    title: i18n.ts._deckAiColumn.renameTitle,
     defaultValue: cur.title,
-    placeholder: 'セッション名',
+    placeholder: i18n.ts._deckAiColumn.renamePlaceholder,
   })
   if (next == null) return
   sessionsStore.setTitle(sessionId, next.trim())
-  toast.show('セッション名を変更しました')
+  toast.show(i18n.ts._deckAiColumn.renamed)
 }
 
 async function onDeleteSession(
@@ -269,9 +279,11 @@ async function onDeleteSession(
   const cur = sessionsStore.get(sessionId)
   if (!cur) return
   const ok = await confirm({
-    title: 'セッションを削除',
-    message: `「${cur.title || '無題のチャット'}」を削除しますか？この操作は取り消せません。`,
-    okLabel: '削除',
+    title: i18n.ts._deckAiColumn.deleteSessionTitle,
+    message: i18n.tsx._deckAiColumn.deleteSessionConfirm({
+      title: cur.title || i18n.ts._deckAiColumn.untitledChat,
+    }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
@@ -283,7 +295,7 @@ async function onDeleteSession(
     deckStore.updateColumn(props.column.id, { aiCurrentSessionId: null })
   }
   await sessionsStore.deleteSession(sessionId)
-  toast.show('セッションを削除しました')
+  toast.show(i18n.ts._deckAiColumn.sessionDeleted)
 }
 
 // --- プロバイダー接続チェック ---
@@ -705,13 +717,13 @@ function intentLabel(intent: AiIntent): string {
 function intentStatusLabel(intent: AiIntent): string {
   switch (intent.status) {
     case 'drafted':
-      return '下書きに保存済み'
+      return i18n.ts._deckAiColumn.intentDrafted
     case 'executed':
-      return '実行済み'
+      return i18n.ts._deckAiColumn.intentExecuted
     case 'dismissed':
-      return '却下'
+      return i18n.ts._deckAiColumn.intentDismissed
     default:
-      return '未処理'
+      return i18n.ts._deckAiColumn.intentPending
   }
 }
 
@@ -730,8 +742,8 @@ async function runIntent(msg: ChatMessage): Promise<void> {
   intentBusy.value = msg.id
   try {
     const note = intent.untrusted
-      ? '無人実行 (HEARTBEAT) が他人の内容を読んで作った操作です。宛先と本文を確かめてから許可してください。'
-      : '無人実行 (HEARTBEAT) が提案した操作です。'
+      ? i18n.ts._deckAiColumn.intentConfirmNoteUntrusted
+      : i18n.ts._deckAiColumn.intentConfirmNote
     const res = await dispatchCapability(
       intent.capabilityId as CapabilityId,
       intent.params,
@@ -741,7 +753,10 @@ async function runIntent(msg: ChatMessage): Promise<void> {
     if (res.ok) {
       updateIntent(msg, { status: 'executed' })
     } else if (res.code !== 'user_cancelled') {
-      toast.show(`実行できませんでした: ${res.error}`, 'warning')
+      toast.show(
+        i18n.tsx._deckAiColumn.intentRunFailed({ error: res.error }),
+        'warning',
+      )
     }
   } finally {
     intentBusy.value = null
@@ -836,10 +851,10 @@ function onAssistantContentClick(e: MouseEvent) {
       // 表示はメッセージ単位のコピーボタンと同じアイコン切替に揃える
       const icon = btn.querySelector('i')
       if (icon) icon.className = 'ti ti-check'
-      btn.title = 'コピーしました'
+      btn.title = i18n.ts._common.copiedToClipboard
       window.setTimeout(() => {
         if (icon) icon.className = 'ti ti-copy'
-        btn.title = 'コピー'
+        btn.title = i18n.ts._deckAiColumn.copy
       }, 1500)
     })
     .catch((err) => {

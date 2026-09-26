@@ -131,7 +131,7 @@ function openEditWindow() {
 
 useWindowEditAction(() =>
   isOwnPlay.value && flash.value
-    ? { onClick: openEditWindow, title: '編集' }
+    ? { onClick: openEditWindow, title: i18n.ts._common.edit }
     : null,
 )
 

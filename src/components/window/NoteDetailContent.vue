@@ -121,9 +121,27 @@ type DetailTab = 'replies' | 'renotes' | 'reactions'
 const activeTab = ref<DetailTab>('replies')
 
 const DETAIL_TABS: { key: DetailTab; label: string; icon: string }[] = [
-  { key: 'replies', label: '返信', icon: 'ti ti-arrow-back-up' },
-  { key: 'renotes', label: 'リノート', icon: 'ti ti-repeat' },
-  { key: 'reactions', label: 'リアクション', icon: 'ti ti-mood-happy' },
+  {
+    key: 'replies',
+    get label() {
+      return i18n.ts._noteDetailContent.replies
+    },
+    icon: 'ti ti-arrow-back-up',
+  },
+  {
+    key: 'renotes',
+    get label() {
+      return i18n.ts._noteDetailContent.renotes
+    },
+    icon: 'ti ti-repeat',
+  },
+  {
+    key: 'reactions',
+    get label() {
+      return i18n.ts._noteDetailContent.reactions
+    },
+    icon: 'ti ti-mood-happy',
+  },
 ]
 
 let adapter: ServerAdapter | null = null
@@ -133,7 +151,7 @@ onMounted(async () => {
   if (!account) {
     error.value = new AppError(
       'ACCOUNT_NOT_FOUND',
-      'アカウントが見つかりません',
+      i18n.ts._noteDetailContent.accountNotFound,
     )
     isLoading.value = false
     return

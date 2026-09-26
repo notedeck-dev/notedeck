@@ -108,15 +108,16 @@ const filteredEmojis = computed(() => {
 // Group emojis by category for display
 const emojiGroups = computed<GridGroup<ServerEmoji>[]>(() => {
   const groups = new Map<string, ServerEmoji[]>()
+  const uncategorized = i18n.ts._deckEmojiColumn.uncategorized
   for (const e of filteredEmojis.value) {
-    const cat = e.category || '未分類'
+    const cat = e.category || uncategorized
     if (!groups.has(cat)) groups.set(cat, [])
     groups.get(cat)?.push(e)
   }
   return [...groups.entries()]
     .sort((a, b) => {
-      if (a[0] === '未分類') return 1
-      if (b[0] === '未分類') return -1
+      if (a[0] === uncategorized) return 1
+      if (b[0] === uncategorized) return -1
       return a[0].localeCompare(b[0])
     })
     .map(([label, items]) => ({ label: `${label} (${items.length})`, items }))

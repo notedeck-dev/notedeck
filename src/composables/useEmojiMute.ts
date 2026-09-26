@@ -1,4 +1,5 @@
 import { computed } from 'vue'
+import { i18n } from '@/i18n'
 import { useConfirm } from '@/stores/confirm'
 import { useSettingsStore } from '@/stores/settings'
 import { normalizeEmojiMuteKey } from '@/utils/emojiMute'
@@ -70,14 +71,14 @@ export function useEmojiMute() {
     const key = normalizeEmojiMuteKey(emoji)
     if (isEmojiMuted(emoji)) {
       const ok = await confirm({
-        title: '絵文字ミュートを解除',
-        message: `${key} のミュートを解除しますか？`,
+        title: i18n.ts._useEmojiMute.unmuteTitle,
+        message: i18n.tsx._useEmojiMute.confirmUnmute({ emoji: key }),
       })
       if (ok) unmuteEmoji(emoji)
     } else {
       const ok = await confirm({
-        title: '絵文字をミュート',
-        message: `${key} をミュートしますか？本文とリアクションでプレースホルダー表示になります。`,
+        title: i18n.ts._useEmojiMute.muteTitle,
+        message: i18n.tsx._useEmojiMute.confirmMute({ emoji: key }),
       })
       if (ok) muteEmoji(emoji, url)
     }

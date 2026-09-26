@@ -74,7 +74,11 @@ type ServerTab = 'info' | 'meta' | 'stats'
 // meta / stats は API の生レスポンスを見る面 (#1034)
 const TAB_DEFS = computed<{ value: ServerTab; icon: string; label: string }[]>(
   () => [
-    { value: 'info', icon: 'info-circle', label: '情報' },
+    {
+      value: 'info',
+      icon: 'info-circle',
+      label: i18n.ts._deckServerInfoColumn.info,
+    },
     ...(isExposed('developer')
       ? [
           { value: 'meta' as const, icon: 'code', label: 'meta' },

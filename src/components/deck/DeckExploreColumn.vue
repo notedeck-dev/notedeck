@@ -36,9 +36,24 @@ const cacheKeyDeps = accountsCacheKeyDeps()
 // --- Tab ---
 type Tab = 'notes' | 'users' | 'roles'
 const ALL_TAB_DEFS: ColumnTabDef[] = [
-  { value: 'notes', label: 'ノート' },
-  { value: 'users', label: 'ユーザー' },
-  { value: 'roles', label: 'ロール' },
+  {
+    value: 'notes',
+    get label() {
+      return i18n.ts._deckExploreColumn.tabNotes
+    },
+  },
+  {
+    value: 'users',
+    get label() {
+      return i18n.ts._deckExploreColumn.tabUsers
+    },
+  },
+  {
+    value: 'roles',
+    get label() {
+      return i18n.ts._deckExploreColumn.tabRoles
+    },
+  },
 ]
 const activeTab = ref<Tab>('notes')
 const columnContentRef = ref<HTMLElement | null>(null)

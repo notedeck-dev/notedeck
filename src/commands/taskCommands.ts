@@ -1,6 +1,7 @@
 import { watch } from 'vue'
 import { useCommandStore } from '@/commands/registry'
 import { TASK_COMMAND_PREFIX } from '@/commands/taskCommandPrefix'
+import { i18n } from '@/i18n'
 import { useTaskRunnerStore } from '@/stores/taskRunner'
 import { useTasksStore } from '@/stores/tasks'
 
@@ -22,7 +23,9 @@ function syncCommands(): void {
     const id = TASK_COMMAND_PREFIX + t.id
     commandStore.register({
       id,
-      label: `タスク: ${t.label}`,
+      get label() {
+        return i18n.tsx._taskCommands.label({ label: t.label })
+      },
       icon: 'player-play',
       category: 'general',
       // タスクは開発者向けの面 (#1034)。定義があってもパレットには並べない

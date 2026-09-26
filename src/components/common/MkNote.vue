@@ -449,8 +449,10 @@ const bundleCount = computed(() =>
 )
 const bundleLabel = computed(() =>
   bundleHostCount.value >= 2
-    ? `${bundleHostCount.value} サーバーで表示中`
-    : `${groupAccountIds.value.length} アカウントで表示中`,
+    ? i18n.tsx._mkNote.shownOnServers_plural({ count: bundleHostCount.value })
+    : i18n.tsx._mkNote.shownOnAccounts_plural({
+        count: groupAccountIds.value.length,
+      }),
 )
 /** 主ビュー以外のアカウントが押している反応: 正規キー → アカウント */
 const othersReactedBy = computed(() => {
@@ -479,7 +481,9 @@ function describeOthers(reaction: string): string {
     const acc = accountsStore.accountMap.get(id)
     return acc ? `@${acc.username}@${acc.host}` : id
   })
-  return names.length > 0 ? `${names.join(', ')} が反応済み` : ''
+  return names.length > 0
+    ? i18n.tsx._mkNote.reactedBy({ names: names.join(', ') })
+    : ''
 }
 /** 描画される側 (純粋 Renote なら renote 元) */
 function effectiveOf(n: NormalizedNote): NormalizedNote {
@@ -683,9 +687,12 @@ const JOIN_BLOCKED_MESSAGE: Record<
   Exclude<ReactionJoinability, 'ok'>,
   string
 > = {
-  'unsupported-server':
-    'このサーバーではリモートの絵文字でリアクションできません',
-  'emoji-unavailable': 'この絵文字はサーバーにないためリアクションできません',
+  get 'unsupported-server'() {
+    return i18n.ts._mkNote.joinBlockedUnsupportedServer
+  },
+  get 'emoji-unavailable'() {
+    return i18n.ts._mkNote.joinBlockedEmojiUnavailable
+  },
 }
 
 function handleReactionClick(
@@ -772,7 +779,7 @@ async function reactOnVariant(variant: NormalizedNote, reaction: string) {
     })
   } catch (e) {
     console.error('[reactOnVariant]', e)
-    useToast().show('リアクションに失敗しました', 'error')
+    useToast().show(i18n.ts._mkNote.reactionFailed, 'error')
   }
 }
 

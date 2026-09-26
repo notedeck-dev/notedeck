@@ -53,9 +53,11 @@ const columnContentRef = ref<HTMLElement | null>(null)
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: `インストール済み ${skillsStore.skills.length}`,
+    label: i18n.tsx._deckSkillColumn.installedTab({
+      count: skillsStore.skills.length,
+    }),
   },
-  { value: 'store', label: 'ストア' },
+  { value: 'store', label: i18n.ts._common.store },
 ])
 
 function switchTab(tab: string) {
@@ -107,8 +109,16 @@ const installedSections = computed<SkillSection[]>(() => {
   const sideloaded = visibleSkills.value.filter((s) => !s.storeId)
   const store = visibleSkills.value.filter((s) => !!s.storeId)
   const sections: SkillSection[] = [
-    { key: 'sideload', label: 'サイドロード', items: sideloaded },
-    { key: 'store', label: 'ストア配布', items: store },
+    {
+      key: 'sideload',
+      label: i18n.ts._deckSkillColumn.sideload,
+      items: sideloaded,
+    },
+    {
+      key: 'store',
+      label: i18n.ts._deckSkillColumn.storeDistributed,
+      items: store,
+    },
   ]
   return sections.filter((s) => s.items.length > 0)
 })
@@ -156,24 +166,30 @@ const { confirm } = useConfirm()
 
 async function uninstall(skill: SkillMeta) {
   const ok = await confirm({
-    title: 'スキルを削除',
-    message: `「${skill.name}」を削除しますか？スキルの本文も消えます。`,
-    okLabel: '削除',
+    title: i18n.ts._deckSkillColumn.deleteTitle,
+    message: i18n.tsx._deckSkillColumn.deleteConfirm({ name: skill.name }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   const undo = skillsStore.remove(skill.id)
   if (undo) {
-    useToast().show('スキルを削除しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._deckSkillColumn.deleted, 'info', {
+      action: { label: i18n.ts._deckSkillColumn.undo, onClick: undo },
     })
   }
 }
 
 const modeLabel: Record<string, string> = {
-  always: '常時',
-  manual: '手動',
-  trigger: '自動',
+  get always() {
+    return i18n.ts._deckSkillColumn.modeAlways
+  },
+  get manual() {
+    return i18n.ts._deckSkillColumn.modeManual
+  },
+  get trigger() {
+    return i18n.ts._deckSkillColumn.modeTrigger
+  },
   heartbeat: 'HEARTBEAT',
 }
 
@@ -198,7 +214,8 @@ async function handleStoreInstall(entry: StoreSkillEntry) {
   try {
     await misStore.installSkill(entry)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : 'インストール失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._deckSkillColumn.installFailed
   }
 }
 
@@ -207,13 +224,17 @@ async function handleStoreUpdate(entry: StoreSkillEntry) {
   try {
     await misStore.updateSkill(entry)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : '更新失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._deckSkillColumn.updateFailed
   }
 }
 
 /** 更新の主表示は updatedAt、version は補助 (#1040) */
 function storeUpdateTitle(entry: StoreSkillEntry): string {
-  return `ストア更新日: ${formatDate(entry.updatedAt)} / v${entry.version}`
+  return i18n.tsx._deckSkillColumn.storeUpdatedWithVersion({
+    date: formatDate(entry.updatedAt),
+    version: entry.version,
+  })
 }
 
 function handleOpenStoreDetail(entry: StoreSkillEntry) {

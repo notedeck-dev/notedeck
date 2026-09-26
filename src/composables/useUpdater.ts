@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { i18n } from '@/i18n'
 import { useUiStore } from '@/stores/ui'
 
 const isChecking = ref(false)
@@ -70,8 +71,7 @@ async function installUpdate() {
     updateReady.value = true
   } catch (e) {
     console.error('[updater] install failed:', e)
-    updateError.value =
-      'アップデートに失敗しました。時間をおいて再試行してください。'
+    updateError.value = i18n.ts._useUpdater.installFailed
     isInstalling.value = false
     downloadProgress.value = null
   }

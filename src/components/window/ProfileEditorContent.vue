@@ -294,13 +294,16 @@ function syncVisualFromCode() {
   try {
     const parsed = JSON5.parse(codeContent.value)
     if (!parsed || typeof parsed !== 'object') {
-      codeError.value = '有効なJSONオブジェクトではありません'
+      codeError.value = i18n.ts._profileEditorContent.notJsonObject
       return
     }
     applyParsedProfile(parsed as Record<string, unknown>)
     codeError.value = null
   } catch (e) {
-    codeError.value = e instanceof Error ? e.message : 'JSON5パースエラー'
+    codeError.value =
+      e instanceof Error
+        ? e.message
+        : i18n.ts._profileEditorContent.json5ParseError
   }
 }
 

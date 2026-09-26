@@ -34,10 +34,34 @@ const emit = defineEmits<{
 
 type ProfileTab = 'highlight' | 'notes' | 'all' | 'files'
 const PROFILE_TABS: { key: ProfileTab; label: string; icon: string }[] = [
-  { key: 'highlight', label: 'ハイライト', icon: 'ti ti-bolt' },
-  { key: 'notes', label: 'ノート', icon: 'ti ti-pencil' },
-  { key: 'all', label: '全て', icon: 'ti ti-notebook' },
-  { key: 'files', label: 'ファイル付き', icon: 'ti ti-photo' },
+  {
+    key: 'highlight',
+    get label() {
+      return i18n.ts._userProfileNotesList.tabHighlight
+    },
+    icon: 'ti ti-bolt',
+  },
+  {
+    key: 'notes',
+    get label() {
+      return i18n.ts._userProfileNotesList.tabNotes
+    },
+    icon: 'ti ti-pencil',
+  },
+  {
+    key: 'all',
+    get label() {
+      return i18n.ts._userProfileNotesList.tabAll
+    },
+    icon: 'ti ti-notebook',
+  },
+  {
+    key: 'files',
+    get label() {
+      return i18n.ts._userProfileNotesList.tabFiles
+    },
+    icon: 'ti ti-photo',
+  },
 ]
 const activeTab = ref<ProfileTab>('highlight')
 

@@ -105,10 +105,14 @@ const streamChecks = computed<Check[]>(() => {
       status: h.state === 'disconnected' ? 'fail' : 'warn',
       message:
         h.state === 'disconnected'
-          ? `ストリーム切断 (${formatHealthDuration(h.since)})`
-          : `ストリーム再接続中 (${formatHealthDuration(h.since)})`,
+          ? i18n.tsx._aboutContent.streamDisconnected({
+              duration: formatHealthDuration(h.since),
+            })
+          : i18n.tsx._aboutContent.streamReconnecting({
+              duration: formatHealthDuration(h.since),
+            }),
       account: getAccountLabel(acc),
-      fix: 'ネットワークとサーバーの状態を確認',
+      fix: i18n.ts._aboutContent.streamFix,
     })
   }
   return checks
@@ -124,13 +128,16 @@ const crashChecks = computed<Check[]>(() => {
   if (!panic) return []
   // 1 行目に "panicked at <file>:<line>: <msg>" が入る。詳細は診断ログ側で見る
   const headline = panic.message.split('\n')[0]?.trim() ?? 'panic'
-  const when = panic.at > 0 ? new Date(panic.at).toLocaleString() : '時刻不明'
+  const when =
+    panic.at > 0
+      ? new Date(panic.at).toLocaleString()
+      : i18n.ts._aboutContent.unknownTime
   return [
     {
       name: 'crash',
       status: 'warn',
-      message: `${when} に異常終了しました: ${headline}`,
-      fix: '下の診断ログをコピーして報告',
+      message: i18n.tsx._aboutContent.crashed({ when, headline }),
+      fix: i18n.ts._aboutContent.crashFix,
     },
   ]
 })
@@ -149,14 +156,14 @@ const overallStatus = computed<Status>(() => {
 })
 
 const healthSummary = computed(() => {
-  if (healthLoading.value) return '診断中...'
-  if (healthError.value) return '診断に失敗しました'
+  if (healthLoading.value) return i18n.ts._aboutContent.diagnosing
+  if (healthError.value) return i18n.ts._aboutContent.diagnosisFailed
   if (!health.value) return ''
   const fails = problemChecks.value.filter((c) => c.status === 'fail').length
   const warns = problemChecks.value.filter((c) => c.status === 'warn').length
-  if (fails > 0) return `${fails} 件の問題`
-  if (warns > 0) return `${warns} 件の警告`
-  return '正常'
+  if (fails > 0) return i18n.tsx._aboutContent.problems_plural({ count: fails })
+  if (warns > 0) return i18n.tsx._aboutContent.warnings_plural({ count: warns })
+  return i18n.ts._aboutContent.statusOk
 })
 
 async function runHealthcheck() {
@@ -235,16 +242,36 @@ const gitCommit = __GIT_COMMIT__
 // 例: main-eval の mark は評価開始点なので、区間の実体は「そこに到達する
 // までのモジュール読み込み + 依存の評価」(dev では vite の変換時間が乗る)
 const STARTUP_LABELS: Record<string, string> = {
-  'main-eval': 'スクリプト読み込み',
-  'settings-await': '初期化処理',
-  'settings-loaded': '設定読み込み',
-  mounted: 'Vue マウント',
-  'window-shown': 'ウィンドウ表示',
-  'deck-mounted': 'デッキ表示',
-  'column-setup': 'カラム setup',
-  'column-connect': 'カラム接続開始',
-  'cache-loaded': 'DB キャッシュ到着',
-  'first-notes': '初回ノート表示',
+  get 'main-eval'() {
+    return i18n.ts._aboutContent.startupMainEval
+  },
+  get 'settings-await'() {
+    return i18n.ts._aboutContent.startupSettingsAwait
+  },
+  get 'settings-loaded'() {
+    return i18n.ts._aboutContent.startupSettingsLoaded
+  },
+  get mounted() {
+    return i18n.ts._aboutContent.startupMounted
+  },
+  get 'window-shown'() {
+    return i18n.ts._aboutContent.startupWindowShown
+  },
+  get 'deck-mounted'() {
+    return i18n.ts._aboutContent.startupDeckMounted
+  },
+  get 'column-setup'() {
+    return i18n.ts._aboutContent.startupColumnSetup
+  },
+  get 'column-connect'() {
+    return i18n.ts._aboutContent.startupColumnConnect
+  },
+  get 'cache-loaded'() {
+    return i18n.ts._aboutContent.startupCacheLoaded
+  },
+  get 'first-notes'() {
+    return i18n.ts._aboutContent.startupFirstNotes
+  },
 }
 
 interface StartupRow {
@@ -275,7 +302,7 @@ const startupRows = computed<StartupRow[]>(() => {
   })
   const rows: StartupRow[] = [
     {
-      label: 'WebView 起動',
+      label: i18n.ts._aboutContent.startupWebview,
       delta: webviewFixedCost,
       cum: webviewFixedCost,
       ...(webviewFixedCost !== null
@@ -358,18 +385,36 @@ watch(developerMode, (on) => {
 })
 
 const QUALITY_LABELS: Record<QualityLevel, string> = {
-  low: '低',
-  balanced: 'バランス',
-  high: '高',
+  get low() {
+    return i18n.ts._aboutContent.qualityLow
+  },
+  get balanced() {
+    return i18n.ts._aboutContent.qualityBalanced
+  },
+  get high() {
+    return i18n.ts._aboutContent.qualityHigh
+  },
 }
 
 const STREAM_HEALTH_LABELS: Record<OverallStreamHealth, string> = {
-  unknown: '接続なし',
-  initializing: '接続中',
-  healthy: '正常',
-  degraded: '一部切断',
-  offline: '切断',
-  'manual-offline': 'オフラインモード',
+  get unknown() {
+    return i18n.ts._aboutContent.streamUnknown
+  },
+  get initializing() {
+    return i18n.ts._aboutContent.streamInitializing
+  },
+  get healthy() {
+    return i18n.ts._aboutContent.streamHealthy
+  },
+  get degraded() {
+    return i18n.ts._aboutContent.streamDegraded
+  },
+  get offline() {
+    return i18n.ts._aboutContent.streamOffline
+  },
+  get 'manual-offline'() {
+    return i18n.ts._aboutContent.streamManualOffline
+  },
 }
 
 interface MetricsRow {
@@ -400,18 +445,24 @@ const metricsRows = computed<MetricsRow[]>(() => {
     ? [
         { label: 'FPS', value: String(f.fps ?? '—') },
         {
-          label: 'フレーム時間',
-          value: `${ms(f.frameTimeEmaMs)} (予算 ${ms(f.frameBudgetMs)})`,
+          label: i18n.ts._aboutContent.frameTime,
+          value: i18n.tsx._aboutContent.frameTimeValue({
+            time: ms(f.frameTimeEmaMs),
+            budget: ms(f.frameBudgetMs),
+          }),
           status: timeStatus(f.frameTimeEmaMs),
         },
         {
-          label: 'p95 フレーム時間',
-          value: `${ms(f.p95FrameTimeMs)} (${f.sampleCount} サンプル)`,
+          label: i18n.ts._aboutContent.p95FrameTime,
+          value: i18n.tsx._aboutContent.p95FrameTimeValue_plural({
+            time: ms(f.p95FrameTimeMs),
+            count: f.sampleCount,
+          }),
           status: timeStatus(f.p95FrameTimeMs),
         },
         {
-          label: 'フレーム落ち',
-          value: `${jank} 回/秒`,
+          label: i18n.ts._aboutContent.frameDrops,
+          value: i18n.tsx._aboutContent.frameDropsValue({ count: jank }),
           // 閾値は snapshot が返す実効値 (performance.json5 で変更可能) を
           // 使い、自動調整の判定と診断がずれないようにする
           status:
@@ -422,29 +473,45 @@ const metricsRows = computed<MetricsRow[]>(() => {
                 : 'fail',
         },
       ]
-    : [{ label: 'フレーム計測', value: 'アイドル (描画作業なし)' }]
+    : [
+        {
+          label: i18n.ts._aboutContent.frameMeasurement,
+          value: i18n.ts._aboutContent.frameIdle,
+        },
+      ]
   const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)}MB`
   const memoryRows: MetricsRow[] = []
   // JS ヒープは Chromium 系 WebView のみ。取れない環境では行ごと出さない
   if (m.memory.jsHeap) {
     memoryRows.push({
-      label: 'JS ヒープ',
+      label: i18n.ts._aboutContent.jsHeap,
       value: `${mb(m.memory.jsHeap.usedBytes)} / ${mb(m.memory.jsHeap.totalBytes)}`,
     })
   }
   memoryRows.push({
-    label: '画像メモリ (推定)',
-    value: `${mb(m.memory.images.estimatedDecodedBytes)} (${m.memory.images.uniqueCount} URL / ${m.memory.images.elementCount} 要素)`,
+    label: i18n.ts._aboutContent.imageMemory,
+    value: i18n.tsx._aboutContent.imageMemoryValue({
+      size: mb(m.memory.images.estimatedDecodedBytes),
+      urls: m.memory.images.uniqueCount,
+      elements: m.memory.images.elementCount,
+    }),
   })
   return [
     ...frameRows,
     {
-      label: '描画品質',
-      value: `${QUALITY_LABELS[m.adaptiveQuality.currentLevel]} (自動調整${m.adaptiveQuality.autoAdjustEnabled ? 'あり' : 'なし'})`,
+      label: i18n.ts._aboutContent.renderQuality,
+      value: (m.adaptiveQuality.autoAdjustEnabled
+        ? i18n.tsx._aboutContent.renderQualityAuto
+        : i18n.tsx._aboutContent.renderQualityManual)({
+        level: QUALITY_LABELS[m.adaptiveQuality.currentLevel],
+      }),
     },
     {
-      label: 'ストリーム接続',
-      value: `${STREAM_HEALTH_LABELS[m.streaming.overallHealth]} (${m.streaming.observedConnectionCount} 接続)`,
+      label: i18n.ts._aboutContent.streamConnection,
+      value: i18n.tsx._aboutContent.streamConnectionValue_plural({
+        health: STREAM_HEALTH_LABELS[m.streaming.overallHealth],
+        count: m.streaming.observedConnectionCount,
+      }),
     },
     ...memoryRows,
   ]
@@ -459,7 +526,7 @@ const metricsAdvice = computed<{ status: Status; text: string } | null>(() => {
   if (!m.frame.available) {
     return {
       status: 'ok',
-      text: 'アイドル中です。デッキを操作すると計測が始まります',
+      text: i18n.ts._aboutContent.adviceIdle,
     }
   }
   const statuses = metricsRows.value.map((r) => r.status)
@@ -468,25 +535,25 @@ const metricsAdvice = computed<{ status: Status; text: string } | null>(() => {
     return {
       status: 'fail',
       text: auto
-        ? '描画が追いついていません。自動調整が品質を下げて追従します。改善しない場合はパフォーマンス設定を省電力寄りにしてください'
-        : '描画が追いついていません。パフォーマンス設定で品質を下げるとカクつきが減ります',
+        ? i18n.ts._aboutContent.adviceFailAuto
+        : i18n.ts._aboutContent.adviceFail,
     }
   }
   if (statuses.includes('warn')) {
     return {
       status: 'warn',
-      text: '描画にやや負荷がかかっています。カクつきを感じる場合はパフォーマンス設定で品質を下げてください',
+      text: i18n.ts._aboutContent.adviceWarn,
     }
   }
   if (m.adaptiveQuality.currentLevel !== 'high') {
     return {
       status: 'ok',
       text: auto
-        ? '描画に余裕があります。安定が続けば自動調整が品質を上げます'
-        : '描画に余裕があります。パフォーマンス設定で品質を上げても快適に動く見込みです',
+        ? i18n.ts._aboutContent.adviceRoomAuto
+        : i18n.ts._aboutContent.adviceRoom,
     }
   }
-  return { status: 'ok', text: '描画は良好です' }
+  return { status: 'ok', text: i18n.ts._aboutContent.adviceGood }
 })
 
 const fmtMs = (ms: number) => `${ms.toLocaleString()}ms`

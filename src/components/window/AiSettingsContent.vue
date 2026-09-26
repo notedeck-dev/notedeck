@@ -36,7 +36,10 @@ const json5Linter = linter(
         from: 0,
         to: src.length,
         severity: 'error',
-        message: e instanceof Error ? e.message : 'JSON5 パースエラー',
+        message:
+          e instanceof Error
+            ? e.message
+            : i18n.ts._aiSettingsContent.json5ParseError,
       })
     }
     return diagnostics
@@ -122,7 +125,8 @@ watch(rawJson, (v) => {
         rawSaved.value = false
       }, 1500)
     } catch (e) {
-      rawError.value = e instanceof Error ? e.message : '不正な JSON5'
+      rawError.value =
+        e instanceof Error ? e.message : i18n.ts._aiSettingsContent.invalidJson5
     }
   }, 500)
 })

@@ -24,31 +24,49 @@ interface DataSourceLabel {
 
 const DATA_SOURCE_LABELS: Record<DataSourceKey, DataSourceLabel> = {
   currentAccount: {
-    label: '現在のアカウント',
+    get label() {
+      return i18n.ts._aiDataSourcesSection.currentAccount
+    },
     icon: 'ti-user',
-    description: 'ログイン中のアカウント情報を AI に渡す (トークン等は除外)',
+    get description() {
+      return i18n.ts._aiDataSourcesSection.currentAccountDescription
+    },
   },
   currentColumn: {
-    label: '現在のカラム',
+    get label() {
+      return i18n.ts._aiDataSourcesSection.currentColumn
+    },
     icon: 'ti-columns',
-    description: 'フォーカス中のカラムの種別と設定を渡す',
+    get description() {
+      return i18n.ts._aiDataSourcesSection.currentColumnDescription
+    },
   },
   visibleNotes: {
-    label: '可視アイテム (上限 10 件)',
+    get label() {
+      return i18n.ts._aiDataSourcesSection.visibleNotes
+    },
     icon: 'ti-list',
-    description:
-      '画面に表示中のアイテム (ノート / 通知 / ドライブファイル等) を context に含める',
+    get description() {
+      return i18n.ts._aiDataSourcesSection.visibleNotesDescription
+    },
   },
   recentConversation: {
-    label: 'AI 会話履歴 (上限 20 ターン)',
+    get label() {
+      return i18n.ts._aiDataSourcesSection.recentConversation
+    },
     icon: 'ti-messages',
-    description: '直近の会話を context に含める',
+    get description() {
+      return i18n.ts._aiDataSourcesSection.recentConversationDescription
+    },
   },
   memos: {
-    label: 'ローカルメモ (上限 20 件)',
+    get label() {
+      return i18n.ts._aiDataSourcesSection.memos
+    },
     icon: 'ti-notes',
-    description:
-      'Zettelkasten 形式のローカルメモを context に含める (現在のアカウントのみ)',
+    get description() {
+      return i18n.ts._aiDataSourcesSection.memosDescription
+    },
   },
 }
 
@@ -94,13 +112,13 @@ const memoIncludeBacklinks = computed(
 // セクションヘッダーの現在値 chip (ペルソナ / データソースと同じ流儀)。
 // 両方 ON がデフォルトなので「標準」、変更時のみ内訳を出す
 const memosChip = computed(() => {
-  if (!resolvedDataSources.value.memos) return '無効'
+  if (!resolvedDataSources.value.memos) return i18n.ts._common.disabled
   const expand = memoExpandLinks.value
   const back = memoIncludeBacklinks.value
-  if (expand && back) return '標準'
-  if (expand) return 'リンク展開のみ'
-  if (back) return 'バックリンクのみ'
-  return '本文のみ'
+  if (expand && back) return i18n.ts._aiDataSourcesSection.memosStandard
+  if (expand) return i18n.ts._aiDataSourcesSection.memosLinksOnly
+  if (back) return i18n.ts._aiDataSourcesSection.memosBacklinksOnly
+  return i18n.ts._aiDataSourcesSection.memosBodyOnly
 })
 
 function ensureMemosConfig(): { excludeTags: string[] } & Record<

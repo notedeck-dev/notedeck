@@ -27,6 +27,7 @@ import {
   type StoredMemo,
   saveMemo,
 } from '@/composables/useMemos'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useSettingsStore } from '@/stores/settings'
@@ -472,13 +473,21 @@ export function usePostFormState(
       if (isAnnoying(textToCheck)) {
         const { confirmWithAction } = useConfirm()
         const result = await confirmWithAction({
-          title: 'この投稿は迷惑になる可能性があります',
-          message: 'テキストの拡大や位置指定の MFM が含まれています。',
+          title: i18n.ts._usePostFormState.annoyingTitle,
+          message: i18n.ts._usePostFormState.annoyingMessage,
           type: 'warning',
           actions: [
-            { value: 'home', label: 'ホームに投稿', primary: true },
-            { value: 'cancel', label: 'やめる', cancel: true },
-            { value: 'ignore', label: 'このまま投稿' },
+            {
+              value: 'home',
+              label: i18n.ts._usePostFormState.postToHome,
+              primary: true,
+            },
+            {
+              value: 'cancel',
+              label: i18n.ts._usePostFormState.stop,
+              cancel: true,
+            },
+            { value: 'ignore', label: i18n.ts._usePostFormState.postAnyway },
           ],
         })
         if (!result) return
@@ -625,7 +634,9 @@ export function usePostFormState(
         )
       } catch (saveErr) {
         show(
-          `下書き保存にも失敗しました: ${AppError.from(saveErr).message}`,
+          i18n.tsx._usePostFormState.draftSaveFailed({
+            error: AppError.from(saveErr).message,
+          }),
           'error',
         )
       }

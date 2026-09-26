@@ -6,6 +6,7 @@
  * データソースピッカーが共有する。
  */
 
+import { i18n } from '@/i18n'
 import {
   EXTERNAL_DEFAULT_PROFILE,
   PERMISSION_KEYS,
@@ -23,15 +24,41 @@ export interface PresetOption {
 }
 
 export const PRESET_OPTIONS: readonly PresetOption[] = [
-  { value: 'readonly', label: '読取のみ (デフォルト)', icon: 'ti-eye' },
-  { value: 'safe', label: '安全 (リアクション可)', icon: 'ti-shield-check' },
-  { value: 'full', label: 'フル (全許可)', icon: 'ti-bolt' },
-  { value: 'custom', label: 'カスタム', icon: 'ti-adjustments' },
+  {
+    value: 'readonly',
+    get label() {
+      return i18n.ts._labels.presets.readonly
+    },
+    icon: 'ti-eye',
+  },
+  {
+    value: 'safe',
+    get label() {
+      return i18n.ts._labels.presets.safe
+    },
+    icon: 'ti-shield-check',
+  },
+  {
+    value: 'full',
+    get label() {
+      return i18n.ts._labels.presets.full
+    },
+    icon: 'ti-bolt',
+  },
+  {
+    value: 'custom',
+    get label() {
+      return i18n.ts._labels.presets.custom
+    },
+    icon: 'ti-adjustments',
+  },
 ]
 
 export const FALLBACK_PRESET_OPTION: PresetOption = {
   value: 'readonly',
-  label: '読取のみ (デフォルト)',
+  get label() {
+    return i18n.ts._labels.presets.readonly
+  },
   icon: 'ti-eye',
 }
 
@@ -41,126 +68,250 @@ export interface PermissionLabel {
 }
 
 export const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
-  'notes.read': { label: 'ノートの読取', icon: 'ti-eye' },
+  'notes.read': {
+    get label() {
+      return i18n.ts._labels.permissions.notesRead
+    },
+    icon: 'ti-eye',
+  },
   'notes.readArchive': {
-    label: '手元の索引の検索 (非公開ノートを含む)',
+    get label() {
+      return i18n.ts._labels.permissions.notesReadArchive
+    },
     icon: 'ti-archive',
   },
-  'notes.write': { label: 'ノートの投稿/編集/削除', icon: 'ti-pencil' },
-  'notes.react': { label: 'リアクション/お気に入り', icon: 'ti-heart' },
-  'account.read': { label: 'アカウント情報の読取', icon: 'ti-user' },
+  'notes.write': {
+    get label() {
+      return i18n.ts._labels.permissions.notesWrite
+    },
+    icon: 'ti-pencil',
+  },
+  'notes.react': {
+    get label() {
+      return i18n.ts._labels.permissions.notesReact
+    },
+    icon: 'ti-heart',
+  },
+  'account.read': {
+    get label() {
+      return i18n.ts._labels.permissions.accountRead
+    },
+    icon: 'ti-user',
+  },
   'account.write': {
-    label: 'フォロー/ブロック/ミュート',
+    get label() {
+      return i18n.ts._labels.permissions.accountWrite
+    },
     icon: 'ti-user-plus',
   },
   'account.actAs': {
-    label: '別アカウントとしての実行 (クロスアカウント)',
+    get label() {
+      return i18n.ts._labels.permissions.accountActAs
+    },
     icon: 'ti-users',
   },
-  'drive.read': { label: 'ドライブの読取', icon: 'ti-folder' },
-  'drive.write': { label: 'ドライブの書込/削除', icon: 'ti-folder-plus' },
-  'memos.read': { label: 'ローカルメモの読取/検索', icon: 'ti-eye' },
-  'memos.write': { label: 'ローカルメモの作成/編集/削除', icon: 'ti-notes' },
-  'clips.read': { label: 'クリップの読取', icon: 'ti-paperclip' },
-  'clips.write': {
-    label: 'クリップの作成/ノート追加・削除',
+  'drive.read': {
+    get label() {
+      return i18n.ts._labels.permissions.driveRead
+    },
+    icon: 'ti-folder',
+  },
+  'drive.write': {
+    get label() {
+      return i18n.ts._labels.permissions.driveWrite
+    },
+    icon: 'ti-folder-plus',
+  },
+  'memos.read': {
+    get label() {
+      return i18n.ts._labels.permissions.memosRead
+    },
+    icon: 'ti-eye',
+  },
+  'memos.write': {
+    get label() {
+      return i18n.ts._labels.permissions.memosWrite
+    },
+    icon: 'ti-notes',
+  },
+  'clips.read': {
+    get label() {
+      return i18n.ts._labels.permissions.clipsRead
+    },
     icon: 'ti-paperclip',
   },
-  'drafts.read': { label: '下書きの読取', icon: 'ti-note' },
-  'drafts.write': { label: '下書きの作成/編集/削除', icon: 'ti-edit' },
-  'network.external': { label: '外部ネットワークアクセス', icon: 'ti-world' },
+  'clips.write': {
+    get label() {
+      return i18n.ts._labels.permissions.clipsWrite
+    },
+    icon: 'ti-paperclip',
+  },
+  'drafts.read': {
+    get label() {
+      return i18n.ts._labels.permissions.draftsRead
+    },
+    icon: 'ti-note',
+  },
+  'drafts.write': {
+    get label() {
+      return i18n.ts._labels.permissions.draftsWrite
+    },
+    icon: 'ti-edit',
+  },
+  'network.external': {
+    get label() {
+      return i18n.ts._labels.permissions.networkExternal
+    },
+    icon: 'ti-world',
+  },
   'files.export': {
-    label: 'ファイルのローカル保存 (ダウンロード)',
+    get label() {
+      return i18n.ts._labels.permissions.filesExport
+    },
     icon: 'ti-download',
   },
   'backup.create': {
-    label: 'バックアップの作成',
+    get label() {
+      return i18n.ts._labels.permissions.backupCreate
+    },
     icon: 'ti-database-export',
   },
-  clipboard: { label: 'クリップボード', icon: 'ti-clipboard' },
-  notifications: { label: 'デスクトップ通知', icon: 'ti-bell' },
+  clipboard: {
+    get label() {
+      return i18n.ts._labels.permissions.clipboard
+    },
+    icon: 'ti-clipboard',
+  },
+  notifications: {
+    get label() {
+      return i18n.ts._labels.permissions.notifications
+    },
+    icon: 'ti-bell',
+  },
   'tasks.run': {
-    label: 'ユーザー定義タスクの実行',
+    get label() {
+      return i18n.ts._labels.permissions.tasksRun
+    },
     icon: 'ti-player-play',
   },
   'ai.invoke': {
-    label: 'AI 呼び出し (プラグイン / 外部経路から)',
+    get label() {
+      return i18n.ts._labels.permissions.aiInvoke
+    },
     icon: 'ti-sparkles',
   },
   'ai.persona.write': {
-    label: 'AI persona の切替',
+    get label() {
+      return i18n.ts._labels.permissions.aiPersonaWrite
+    },
     icon: 'ti-user-circle',
   },
   'skills.read': {
-    label: 'スキルの読取',
+    get label() {
+      return i18n.ts._labels.permissions.skillsRead
+    },
     icon: 'ti-book',
   },
   'skills.write': {
-    label: 'スキルの追記/編集',
+    get label() {
+      return i18n.ts._labels.permissions.skillsWrite
+    },
     icon: 'ti-edit',
   },
   'theme.write': {
-    label: 'テーマの作成/編集',
+    get label() {
+      return i18n.ts._labels.permissions.themeWrite
+    },
     icon: 'ti-palette',
   },
   'styles.write': {
-    label: 'カスタム CSS の編集',
+    get label() {
+      return i18n.ts._labels.permissions.stylesWrite
+    },
     icon: 'ti-brush',
   },
   'navbar.write': {
-    label: 'ナビバー構成の編集',
+    get label() {
+      return i18n.ts._labels.permissions.navbarWrite
+    },
     icon: 'ti-layout-sidebar',
   },
   'keybinds.write': {
-    label: 'キーバインドの編集',
+    get label() {
+      return i18n.ts._labels.permissions.keybindsWrite
+    },
     icon: 'ti-keyboard',
   },
   'performance.write': {
-    label: 'パフォーマンス設定の編集',
+    get label() {
+      return i18n.ts._labels.permissions.performanceWrite
+    },
     icon: 'ti-gauge',
   },
   'widgets.read': {
-    label: 'ウィジェットの読取',
+    get label() {
+      return i18n.ts._labels.permissions.widgetsRead
+    },
     icon: 'ti-layout-grid',
   },
   'widgets.write': {
-    label: 'ウィジェットの作成/編集 (AiScript)',
+    get label() {
+      return i18n.ts._labels.permissions.widgetsWrite
+    },
     icon: 'ti-code',
   },
   'plugins.read': {
-    label: 'プラグインの読取',
+    get label() {
+      return i18n.ts._labels.permissions.pluginsRead
+    },
     icon: 'ti-puzzle',
   },
   'queries.read': {
-    label: 'クエリの編集履歴の読取',
+    get label() {
+      return i18n.ts._labels.permissions.queriesRead
+    },
     icon: 'ti-filter',
   },
   'queries.write': {
-    label: 'クエリを編集履歴から復元',
+    get label() {
+      return i18n.ts._labels.permissions.queriesWrite
+    },
     icon: 'ti-arrow-back-up',
   },
   'plugins.write': {
-    label: 'プラグインの作成/編集 (AiScript) — AI 直接呼出しは不可',
+    get label() {
+      return i18n.ts._labels.permissions.pluginsWrite
+    },
     icon: 'ti-puzzle',
   },
   'ai.sessions.read': {
-    label: 'AI セッション履歴の読取',
+    get label() {
+      return i18n.ts._labels.permissions.aiSessionsRead
+    },
     icon: 'ti-messages',
   },
   'logs.read': {
-    label: 'アプリログの読取 (warn/error)',
+    get label() {
+      return i18n.ts._labels.permissions.logsRead
+    },
     icon: 'ti-bug',
   },
   'vault.use': {
-    label: '外部サービス接続の利用 (Secret Vault)',
+    get label() {
+      return i18n.ts._labels.permissions.vaultUse
+    },
     icon: 'ti-plug-connected',
   },
   'deck.read': {
-    label: 'デッキ構成の読取 (カラム一覧 / 検索クエリ等)',
+    get label() {
+      return i18n.ts._labels.permissions.deckRead
+    },
     icon: 'ti-columns',
   },
   'deck.write': {
-    label: 'デッキ構成の変更 (カラム / ウィンドウ / サイドバー / テーマ適用)',
+    get label() {
+      return i18n.ts._labels.permissions.deckWrite
+    },
     icon: 'ti-layout-columns',
   },
 }
@@ -174,7 +325,9 @@ export const PERMISSION_CATEGORIES: readonly {
   keys: readonly PermissionKey[]
 }[] = [
   {
-    label: 'Misskey (サーバー側)',
+    get label() {
+      return i18n.ts._labels.categories.misskey
+    },
     keys: [
       'notes.read',
       'notes.write',
@@ -190,7 +343,9 @@ export const PERMISSION_CATEGORIES: readonly {
     ],
   },
   {
-    label: 'ローカルデータ',
+    get label() {
+      return i18n.ts._labels.categories.local
+    },
     keys: [
       'notes.readArchive',
       'memos.read',
@@ -220,7 +375,9 @@ export const PERMISSION_CATEGORIES: readonly {
     ],
   },
   {
-    label: 'UI / アプリ',
+    get label() {
+      return i18n.ts._labels.categories.uiApp
+    },
     keys: [
       'theme.write',
       'styles.write',
@@ -254,11 +411,14 @@ export function presetChipLabel(profile: PermissionsConfig): string {
   const isStandardExternal = PERMISSION_KEYS.every(
     (k) => resolved[k] === EXTERNAL_DEFAULT_PROFILE.custom[k],
   )
-  if (isStandardExternal) return '標準 — Misskey read のみ'
+  if (isStandardExternal) return i18n.ts._labels.standardExternal
   const isStandardPlugin = PERMISSION_KEYS.every(
     (k) => resolved[k] === PLUGIN_DEFAULT_PROFILE.custom[k],
   )
-  if (isStandardPlugin) return '標準 — 安全 + 外部ネットワーク'
+  if (isStandardPlugin) return i18n.ts._labels.standardPlugin
   const granted = PERMISSION_KEYS.filter((k) => resolved[k]).length
-  return `カスタム — 許可 ${granted} / ${PERMISSION_KEYS.length}`
+  return i18n.tsx._labels.customGranted({
+    granted,
+    total: PERMISSION_KEYS.length,
+  })
 }

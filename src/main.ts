@@ -2,6 +2,7 @@ import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 import { initDeveloperMode } from '@/composables/useDeveloperMode'
 import { initLocale } from '@/composables/useLocale'
+import { i18n } from '@/i18n'
 import App from './App.vue'
 import { ALL_BUILTIN_CAPABILITIES } from './capabilities/builtins'
 import { registerCapability } from './capabilities/registry'
@@ -45,7 +46,12 @@ if (isTauri) {
   // Pinia 初期化前に届いても安全
   void listenTauri('nd:backend-fatal', async (message) => {
     const { useToast } = await import('./stores/toast')
-    useToast().show(`バックエンドの初期化に失敗しました: ${message}`, 'error')
+    // 起動直後に届くことがあるので、辞書を読み終えてから文言を引く
+    await localeReady
+    useToast().show(
+      i18n.tsx._main.backendInitFailed({ error: message }),
+      'error',
+    )
   })
 
   // Pre-warm Tauri API module (critical path in App.vue onMounted)

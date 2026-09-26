@@ -133,7 +133,7 @@ function selectColumnType(type: ColumnType) {
   // ログイン誘導を返す (#693 と同原則、クイックピックと同挙動)
   if (accounts.length === 0 && !CROSS_ACCOUNT_TYPES.has(type)) {
     addColumnType.value = null
-    useToast().show('ログインすると利用できます', 'info')
+    useToast().show(i18n.ts._addColumnDialog.loginRequired, 'info')
     return
   }
   // Auto-select if only one valid account

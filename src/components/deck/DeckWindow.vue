@@ -72,7 +72,9 @@ function runEditAction() {
 const windowTitle = computed(() => {
   const base = WINDOW_LABELS[props.window.type] ?? ''
   if (props.window.type === 'follow-list' && props.window.props.username) {
-    return `@${props.window.props.username} のフォロー / フォロワー`
+    return i18n.tsx._deckWindow.followListTitle({
+      username: String(props.window.props.username),
+    })
   }
   return base
 })

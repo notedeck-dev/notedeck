@@ -16,6 +16,7 @@
  */
 
 import { reactive } from 'vue'
+import { i18n } from '@/i18n'
 import { PERMISSION_LABELS } from '@/permissions/labels'
 import type { PermissionKey } from '@/permissions/schema'
 import { useToast } from '@/stores/toast'
@@ -60,9 +61,12 @@ export function notifyPluginDenialInteraction(
 ): void {
   const labels = keys
     .map((k) => PERMISSION_LABELS[k as PermissionKey]?.label ?? k)
-    .join('、')
-  const name = pluginName ?? 'プラグイン'
-  useToast().show(`「${name}」: 権限「${labels}」が未許可です`, 'error')
+    .join(i18n.ts._pluginDenials.separator)
+  const name = pluginName ?? i18n.ts._pluginDenials.defaultName
+  useToast().show(
+    i18n.tsx._pluginDenials.denied({ name, permissions: labels }),
+    'error',
+  )
 }
 
 /** バッジ表示用。無ければ null。 */

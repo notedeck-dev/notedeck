@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { i18n } from '@/i18n'
-import { READ_ONLY_HINT } from '@/services/sidecarFileCollection'
+import { readOnlyHint } from '@/services/sidecarFileCollection'
 import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 
@@ -74,8 +74,11 @@ const updateTitle = computed(() => {
   if (!props.updatedAt) return ''
   const date = formatDate(props.updatedAt)
   return props.version
-    ? `ストア更新日: ${date} / v${props.version}`
-    : `ストア更新日: ${date}`
+    ? i18n.tsx._pluginCard.storeUpdatedWithVersion({
+        date,
+        version: props.version,
+      })
+    : i18n.tsx._pluginCard.storeUpdated({ date })
 })
 </script>
 
@@ -101,7 +104,7 @@ const updateTitle = computed(() => {
         <span
           v-else-if="mode !== 'store' && readOnly"
           :class="$style.incompatBadge"
-          :title="READ_ONLY_HINT"
+          :title="readOnlyHint()"
         >{{ i18n.ts._common.sourceMissing }}</span>
         <span v-else-if="disabled" :class="$style.disabledBadge">{{ i18n.ts._common.disabled }}</span>
         <span
