@@ -3479,7 +3479,7 @@ _defaultSnippets:
 
 _coreContent:
   current: "Current core"
-  description: "The core talks to Misskey, stores data and runs the AI. It can run inside the app (it stops when the app closes) or as the resident notecored (it keeps running after the app closes). Switching completes when the app restarts."
+  description: "The core talks to Misskey, stores your data and runs the AI. 'Embedded in the app' starts and stops with the app. 'Resident (notecored)' keeps running as a systemd user service, so notifications and HEARTBEAT continue after the app closes. Both use the same data, and switching completes when the app restarts."
   modeEmbedded: "Embedded in the app"
   modeResident: "Resident (notecored)"
   modePending: "Switching to resident (restart pending)"
@@ -3489,18 +3489,18 @@ _coreContent:
   switchFailed: "The switch could not be completed at the last start:"
   unsupported: "The resident core is not available on this OS (Linux only)."
   binary: "notecored"
-  notFound: "notecored was not found. Install it and open this window again:"
+  notFound: "notecored was not found. Install it with the command below, then open this window again:"
   switchTitle: "Switch to the resident core"
-  switchMessage: "Your Misskey tokens and connection secrets will be copied into notecored's encrypted file. That is weaker protection than the OS keychain. The switch completes when the app restarts."
+  switchMessage: "Sets up the notecored user service and copies your Misskey tokens and connection secrets into notecored's encrypted file. That is weaker protection than the OS keychain. The switch completes when the app restarts."
   switchOk: "Switch to resident"
   retry: "Switch again"
   cancel: "Stop and stay embedded"
   cancelled: "The switch was cancelled. Staying embedded."
-  restartToFinish: "Restart the app to finish the switch."
+  restartToFinish: "Restart the app to finish the switch (the secrets are imported and the resident service is enabled at that restart)."
   exportedRestart_plural:
     other: "Exported {count} secrets. Restart the app to switch to the resident core."
   backTitle: "Go back to embedded"
-  backMessage: "Stops the resident notecored and moves the secrets back into this app's store. Once they are back, notecored's copy is deleted. The switch completes when the app restarts."
+  backMessage: "Stops the resident notecored and moves the secrets back into this app's store. Once all of them are back, notecored's copy is deleted. The switch completes when the app restarts."
   backOk: "Go back to embedded"
   importedRestart_plural:
     other: "Restored {count} secrets. Restart the app to switch back to embedded."
