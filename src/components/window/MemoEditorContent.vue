@@ -17,6 +17,7 @@ import {
 } from '@/composables/useMemos'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { i18n } from '@/i18n'
+import { memoAuthorDisplayName } from '@/permissions/principal'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useServersStore } from '@/stores/servers'
@@ -78,7 +79,7 @@ const author = computed(() => {
   const embedded = memo.value?.data.author
   if (embedded) {
     const handle = embedded.id.replace(/^skill:/, '')
-    return `${embedded.displayName} (@${handle})`
+    return `${memoAuthorDisplayName(embedded)} (@${handle})`
   }
   const acc = account.value
   if (!acc) return null

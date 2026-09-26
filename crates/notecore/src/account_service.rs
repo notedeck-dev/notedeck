@@ -47,10 +47,11 @@ pub fn logout(db: &Database, id: &str) -> Result<()> {
     Ok(())
 }
 
-/// 既存アカウント一覧からゲストの連番表示名 (「ゲスト N」) を決める。
+/// 既存アカウント一覧からゲストの連番表示名 (「Guest N」) を決める。保存値は
+/// 英語の正本で、表示するときにデバイスが表示言語で組み直す (#135)。
 pub fn next_guest_display_name(accounts: &[Account]) -> String {
     let guest_count = accounts.iter().filter(|a| is_guest(a)).count();
-    format!("ゲスト{}", guest_count + 1)
+    format!("Guest {}", guest_count + 1)
 }
 
 /// ゲスト (未認証) アカウントを作成して保存する。host は検証済みであること。
@@ -93,11 +94,11 @@ mod tests {
 
     #[test]
     fn guest_display_name_is_sequential() {
-        assert_eq!(next_guest_display_name(&[]), "ゲスト1");
-        assert_eq!(next_guest_display_name(&[guest(1)]), "ゲスト2");
+        assert_eq!(next_guest_display_name(&[]), "Guest 1");
+        assert_eq!(next_guest_display_name(&[guest(1)]), "Guest 2");
         // 通常アカウントは数えない
         let mut normal = guest(9);
         normal.user_id = "u1".into();
-        assert_eq!(next_guest_display_name(&[normal, guest(1)]), "ゲスト2");
+        assert_eq!(next_guest_display_name(&[normal, guest(1)]), "Guest 2");
     }
 }

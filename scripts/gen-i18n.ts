@@ -60,10 +60,52 @@ export interface LanguageEntry {
   name: string
   /** 言語選択に出し、OS 言語からの自動解決の対象にするか */
   published: boolean
+  /**
+   * 疑似ロケールの元の言語。辞書ファイルを持たず、元の言語の文を
+   * pseudoize で変えて作る。画面だけのもので、Rust / Android には渡さない
+   */
+  pseudo?: string
 }
 
 export function loadLanguages(): LanguageEntry[] {
   return JSON5.parse(readFileSync(LANGUAGES_PATH, 'utf8')) as LanguageEntry[]
+}
+
+/** 辞書ファイルを持つ言語 (疑似ロケールを除く) */
+function realLanguages(): LanguageEntry[] {
+  return loadLanguages().filter((l) => !l.pseudo)
+}
+
+const ACCENTED: Record<string, string> = Object.fromEntries(
+  [...'abcdeghiklmnoprstuwyzABCDEGHIKLNORSTUWYZ'].map((c, i) => [
+    c,
+    [...'áƀçđéğĥíķĺḿñóƥŕšťúŵýžÁƁÇĐÉĞĤÍĶĹÑÓŔŠŤÚŴÝŽ'][i],
+  ]),
+)
+const PSEUDO_FILLER = ' ĺóŕéḿ íƥšúḿ đóĺóŕ šíť áḿéť ćóñšéćťéťúŕ'
+
+/**
+ * 疑似ロケールの文 (#135)。英語化での崩れを目で見つけるため、文字を
+ * アクセント付きにして (直書きの文字列と見分ける) 1.4 倍程度に伸ばし、
+ * 切り詰められたら分かるよう括弧で囲む。param はそのまま残す
+ */
+export function pseudoize(text: string): string {
+  const body = text
+    .split(/(\{\w+\})/)
+    .map((part, i) =>
+      i % 2 === 1 ? part : [...part].map((c) => ACCENTED[c] ?? c).join(''),
+    )
+    .join('')
+  const pad = Math.ceil(text.length * 0.4)
+  const filler = PSEUDO_FILLER.repeat(Math.ceil(pad / PSEUDO_FILLER.length))
+  return `[${body}${filler.slice(0, pad)}]`
+}
+
+function pseudoizeTree(tree: LocaleTree): LocaleTree {
+  const out: LocaleTree = {}
+  for (const [key, value] of Object.entries(tree))
+    out[key] = typeof value === 'string' ? pseudoize(value) : pseudoizeTree(value)
+  return out
 }
 
 /**
@@ -92,6 +134,8 @@ export function capabilityLabels(): LocaleTree {
 }
 
 export function loadLocale(lang: string): LocaleTree {
+  const base = loadLanguages().find((l) => l.code === lang)?.pseudo
+  if (base) return pseudoizeTree(compose(base))
   const parsed = (yaml.load(
     readFileSync(join(LOCALES_DIR, `${lang}.yml`), 'utf8'),
   ) ?? {}) as LocaleTree
@@ -160,7 +204,7 @@ export interface CheckResult {
 export function check(): CheckResult {
   const errors: string[] = []
   const missing = new Map<string, string[]>()
-  const languages = loadLanguages()
+  const languages = realLanguages()
   const source = flatten(loadLocale(SOURCE_LANG))
 
   const files = readdirSync(LOCALES_DIR)
@@ -384,7 +428,7 @@ const snake = (key: string) =>
  */
 function androidResources(): Map<string, string> {
   const files = new Map<string, string>()
-  for (const { code } of loadLanguages()) {
+  for (const { code } of realLanguages()) {
     const tree = (compose(code)[NATIVE_SECTION] as LocaleTree | undefined)?.android
     if (!tree || typeof tree === 'string') continue
     const lines: string[] = []
@@ -415,7 +459,7 @@ export function generateNative(): {
   android: Map<string, string>
 } {
   const files = new Map<string, string>()
-  const languages = loadLanguages()
+  const languages = realLanguages()
   for (const { code } of languages) {
     const composed = compose(code)
     // capability の表示名も要る (確認プレビューの「{label} を実行しますか？」)

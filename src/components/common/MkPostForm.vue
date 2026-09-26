@@ -25,6 +25,7 @@ import { i18n } from '@/i18n'
 import {
   getAccountAvatarUrl,
   getAccountLabel,
+  guestDisplayName,
   isGuestAccount,
 } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
@@ -588,7 +589,7 @@ function onPaste(e: ClipboardEvent) {
                   />
                 </span>
                 <div :class="$style.accountOptionInfo">
-                  <span :class="$style.accountOptionName">{{ isGuestAccount(acc) ? (acc.displayName || i18n.ts._mkPostForm.guest) : acc.username }}</span>
+                  <span :class="$style.accountOptionName">{{ isGuestAccount(acc) ? guestDisplayName(acc) : acc.username }}</span>
                   <span :class="$style.accountOptionHost">@{{ acc.host }}</span>
                 </div>
               </button>

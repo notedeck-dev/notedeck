@@ -8,6 +8,7 @@ import {
   ref,
 } from 'vue'
 import { i18n } from '@/i18n'
+import { formatTime } from '@/utils/formatTime'
 
 /**
  * Dev Dashboard (#977) — ブラウザ (5173) から実行中アプリの内蔵 HTTP サーバー
@@ -254,14 +255,7 @@ const heartbeat = ref<HeartbeatStatusView | null>(null)
 
 function relativeTime(epochMs: number | null): string {
   if (epochMs === null) return '—'
-  const mins = Math.floor((Date.now() - epochMs) / 60_000)
-  if (mins >= 60)
-    return i18n.tsx._devDashboard.hoursAgo_plural({
-      count: Math.floor(mins / 60),
-    })
-  if (mins >= 1)
-    return i18n.tsx._devDashboard.minutesAgo_plural({ count: mins })
-  return i18n.ts._time.justNow
+  return formatTime(epochMs)
 }
 
 // SSE ビューア。EventSource は event: 名ごとの addEventListener が必要で

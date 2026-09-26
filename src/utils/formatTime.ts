@@ -11,7 +11,7 @@
 
 import { i18n } from '@/i18n'
 
-// 表示言語が変わるのはリロード時だけなので、言語ごとに 1 つ作って使い回す
+// 表示言語が変わったときだけ作り直して使い回す
 let formatLang = ''
 let RELATIVE: Intl.RelativeTimeFormat
 let ABSOLUTE: Intl.DateTimeFormat

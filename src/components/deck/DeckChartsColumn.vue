@@ -32,6 +32,7 @@ import { isExposed } from '@/settings/exposure'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
+import { formatCount } from '@/utils/format'
 import { applyAlpha } from '@/utils/initChart'
 // side-effect: Chart.register
 import '@/utils/initChart'
@@ -271,8 +272,7 @@ function buildConfig<T extends 'bar' | 'line'>(
           border: { display: false },
           ticks: (() => {
             const cb =
-              opts.yCallback ??
-              ((v: number | string) => formatCompactNumber(Number(v)))
+              opts.yCallback ?? ((v: number | string) => formatCount(Number(v)))
             return {
               display: true,
               font: { size: 10 },
@@ -314,17 +314,6 @@ function formatBytesFromKb(kb: number): string {
   if (bytes < 1000 * 1000 * 1000)
     return `${(bytes / 1000 / 1000).toFixed(1)} MB`
   return `${(bytes / 1000 / 1000 / 1000).toFixed(2)} GB`
-}
-
-const compactNumberFormat = new Intl.NumberFormat(undefined, {
-  notation: 'compact',
-  maximumFractionDigits: 1,
-})
-
-/** 数値を 1.2K / 3.4M 形式に (narrow column の y 軸/tooltip 用)。 */
-function formatCompactNumber(v: number): string {
-  if (Math.abs(v) < 1000) return String(v)
-  return compactNumberFormat.format(v)
 }
 
 // ── セクションごとの chart.js config ビルダー ──────────────────

@@ -746,8 +746,6 @@ export interface Locale {
     readonly "until": ParameterizedString<'date'>
   }
   readonly "_mkPostForm": {
-    /** ゲスト */
-    readonly "guest": string
     /** ローカルのみ (連合なし) */
     readonly "localOnly": string
     /** 連合あり */
@@ -1212,10 +1210,6 @@ export interface Locale {
     readonly "navDiagnose": string
     /** キャッシュ */
     readonly "navCaches": string
-    /** {count} 時間前 */
-    readonly "hoursAgo_plural": PluralString<'count'>
-    /** {count} 分前 */
-    readonly "minutesAgo_plural": PluralString<'count'>
   }
   readonly "_tutorialContent": {
     /** カテゴリを選んで始められます。一覧から進めてください。 */
@@ -5150,6 +5144,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_accounts": {
     /** ゲスト */
     readonly "guest": string
+    /** ゲスト {n} */
+    readonly "guestNumbered": ParameterizedString<'n'>
   }
   readonly "_deckProfile": {
     /** 旧 AiScript Console widget を {count} 件削除しました。コードは失われています (スクラッチパッドカラムで同等の機能が使えます)。 */
@@ -6177,6 +6173,12 @@ export const LANGUAGES = [
     "code": "en-US",
     "name": "English",
     "published": true
+  },
+  {
+    "code": "en-XA",
+    "name": "Pseudo (en-XA)",
+    "published": false,
+    "pseudo": "en-US"
   }
 ] as const
 
@@ -6188,165 +6190,206 @@ export const LANGUAGES = [
 export const COLUMN_LABELS_BY_TYPE: Readonly<Record<string, readonly string[]>> = {
   "timeline": [
     "タイムライン",
-    "Timeline"
+    "Timeline",
+    "[Ťíḿéĺíñé ĺóŕ]"
   ],
   "notifications": [
     "通知",
-    "Notifications"
+    "Notifications",
+    "[Ñóťífíçáťíóñš ĺóŕéḿ]"
   ],
   "drive": [
     "ドライブ",
-    "Drive"
+    "Drive",
+    "[Đŕívé ĺ]"
   ],
   "followRequests": [
     "フォローリクエスト",
-    "Follow requests"
+    "Follow requests",
+    "[Fóĺĺóŵ ŕéqúéšťš ĺóŕéḿ]"
   ],
   "list": [
     "リスト",
-    "List"
+    "List",
+    "[Ĺíšť ĺ]"
   ],
   "antenna": [
     "アンテナ",
-    "Antenna"
+    "Antenna",
+    "[Áñťéññá ĺó]"
   ],
   "favorites": [
     "お気に入り",
-    "Favorites"
+    "Favorites",
+    "[Fávóŕíťéš ĺóŕ]"
   ],
   "clip": [
     "クリップ",
-    "Clip"
+    "Clip",
+    "[Çĺíƥ ĺ]"
   ],
   "mentions": [
     "メンション",
-    "Mentions"
+    "Mentions",
+    "[Méñťíóñš ĺóŕ]"
   ],
   "specified": [
     "ダイレクト",
-    "Direct"
+    "Direct",
+    "[Đíŕéçť ĺó]"
   ],
   "chat": [
     "チャット",
-    "Chat"
+    "Chat",
+    "[Çĥáť ĺ]"
   ],
   "achievements": [
     "実績",
-    "Achievements"
+    "Achievements",
+    "[Áçĥíévéḿéñťš ĺóŕé]"
   ],
   "serverInfo": [
     "サーバー情報",
-    "Server info"
+    "Server info",
+    "[Šéŕvéŕ íñfó ĺóŕé]"
   ],
   "aboutMisskey": [
     "Misskey について",
-    "About Misskey"
+    "About Misskey",
+    "[Áƀóúť Míššķéý ĺóŕéḿ]"
   ],
   "emoji": [
     "カスタム絵文字",
-    "Custom emoji"
+    "Custom emoji",
+    "[Çúšťóḿ éḿójí ĺóŕé]"
   ],
   "ads": [
     "広告",
-    "Ads"
+    "Ads",
+    "[Áđš ĺ]"
   ],
   "explore": [
     "みつける",
-    "Explore"
+    "Explore",
+    "[Éxƥĺóŕé ĺó]"
   ],
   "announcements": [
     "お知らせ",
-    "Announcements"
+    "Announcements",
+    "[Áññóúñçéḿéñťš ĺóŕéḿ]"
   ],
   "search": [
     "サーバー検索",
-    "Server search"
+    "Server search",
+    "[Šéŕvéŕ šéáŕçĥ ĺóŕéḿ]"
   ],
   "clientSearch": [
     "クライアント検索",
-    "Client search"
+    "Client search",
+    "[Çĺíéñť šéáŕçĥ ĺóŕéḿ]"
   ],
   "lookup": [
     "照会",
-    "Lookup"
+    "Lookup",
+    "[Ĺóóķúƥ ĺó]"
   ],
   "channel": [
     "チャンネル",
-    "Channel"
+    "Channel",
+    "[Çĥáññéĺ ĺó]"
   ],
   "role": [
     "ロール",
-    "Role"
+    "Role",
+    "[Ŕóĺé ĺ]"
   ],
   "gallery": [
     "ギャラリー",
-    "Gallery"
+    "Gallery",
+    "[Ğáĺĺéŕý ĺó]"
   ],
   "play": [
-    "Misskey Play"
+    "Misskey Play",
+    "[Míššķéý Pĺáý ĺóŕé]"
   ],
   "page": [
     "ページ",
-    "Page"
+    "Page",
+    "[Páğé ĺ]"
   ],
   "user": [
     "ユーザー",
-    "User"
+    "User",
+    "[Úšéŕ ĺ]"
   ],
   "charts": [
     "チャート",
-    "Charts"
+    "Charts",
+    "[Çĥáŕťš ĺó]"
   ],
   "federation": [
     "連合",
-    "Federation"
+    "Federation",
+    "[Féđéŕáťíóñ ĺóŕ]"
   ],
   "themeManager": [
     "テーマ",
-    "Themes"
+    "Themes",
+    "[Ťĥéḿéš ĺó]"
   ],
   "pluginManager": [
     "プラグイン",
-    "Plugins"
+    "Plugins",
+    "[Pĺúğíñš ĺó]"
   ],
   "widget": [
     "ウィジェット",
-    "Widget"
+    "Widget",
+    "[Ŵíđğéť ĺó]"
   ],
   "queryManager": [
     "クエリ",
-    "Queries"
+    "Queries",
+    "[Qúéŕíéš ĺó]"
   ],
   "memos": [
     "メモ",
-    "Memos"
+    "Memos",
+    "[Méḿóš ĺ]"
   ],
   "ai": [
-    "AI"
+    "AI",
+    "[ÁÍ ]"
   ],
   "skill": [
     "スキル",
-    "Skills"
+    "Skills",
+    "[Šķíĺĺš ĺó]"
   ],
   "aiscript": [
     "スクラッチパッド",
-    "Scratchpad"
+    "Scratchpad",
+    "[Šçŕáťçĥƥáđ ĺóŕ]"
   ],
   "apiConsole": [
     "API コンソール",
-    "API console"
+    "API console",
+    "[ÁPÍ çóñšóĺé ĺóŕé]"
   ],
   "apiDocs": [
     "API ドキュメント",
-    "API docs"
+    "API docs",
+    "[ÁPÍ đóçš ĺóŕ]"
   ],
   "streamInspector": [
     "ストリーム",
-    "Stream"
+    "Stream",
+    "[Šťŕéáḿ ĺó]"
   ],
   "taskRunner": [
     "タスク",
-    "Tasks"
+    "Tasks",
+    "[Ťášķš ĺ]"
   ]
 }
 
@@ -6358,4 +6401,5 @@ export const LOCALE_LOADERS: Record<
 > = {
   'ja-JP': () => import('virtual:nd-locale/ja-JP'),
   'en-US': () => import('virtual:nd-locale/en-US'),
+  'en-XA': () => import('virtual:nd-locale/en-XA'),
 }
