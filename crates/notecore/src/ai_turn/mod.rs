@@ -1158,15 +1158,7 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
             }
         };
         let preview = if preview.is_null() {
-            json!({
-                "title": format!("{capability_id} を実行しますか?"),
-                "message": "",
-                "code": serde_json::to_string_pretty(&p.input).unwrap_or_default(),
-                "codeLanguage": "json",
-                "okLabel": "実行",
-                "cancelLabel": "やめる",
-                "type": "danger",
-            })
+            crate::capabilities::exec::preview::generic(&capability_id, &p.input)
         } else {
             preview
         };

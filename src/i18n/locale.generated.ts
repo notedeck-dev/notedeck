@@ -5220,6 +5220,68 @@ help */
     /** 1 週間後 */
     readonly "in1Week": string
   }
+  readonly "_native": {
+    readonly "preview": {
+      readonly "generic": {
+        /** {label} を実行しますか？ */
+        readonly "title": ParameterizedString<'label'>
+        /** 実行 */
+        readonly "ok": string
+      }
+      readonly "notesDelete": {
+        /** ノートを削除 */
+        readonly "title": string
+        /** noteId `{noteId}` を削除します。この操作は取り消せません (リノート・引用・お気に入り・クリップなども同時に消えます)。 */
+        readonly "message": ParameterizedString<'noteId'>
+        /** 削除 */
+        readonly "ok": string
+      }
+      readonly "userFollow": {
+        /** フォローを送る */
+        readonly "title": string
+        /** userId `{userId}` にフォローリクエストを送ります (相手に「フォローされた」通知が飛びます)。鍵アカウントなら承認待ちになります。 */
+        readonly "message": ParameterizedString<'userId'>
+        /** フォロー */
+        readonly "ok": string
+      }
+      readonly "userUnfollow": {
+        /** フォローを解除 */
+        readonly "title": string
+        /** userId `{userId}` のフォローを解除します (相手に「フォロワー減少」の通知は飛びません)。 */
+        readonly "message": ParameterizedString<'userId'>
+        /** フォロー解除 */
+        readonly "ok": string
+      }
+      readonly "markRead": {
+        /** 通知をすべて既読にする */
+        readonly "title": string
+        /** ログイン中の全アカウントの通知をすべて既読にします。 */
+        readonly "messageAll": string
+        /** アカウント `{accountId}` の通知をすべて既読にします。 */
+        readonly "messageAccount": ParameterizedString<'accountId'>
+        /** 既読にする */
+        readonly "ok": string
+      }
+      readonly "registrySet": {
+        /** registry に書き込み */
+        readonly "title": string
+        /** Misskey サーバー側の registry の `{path}` に値を書き込みます。**Misskey 公式 Web Client と共有される設定エリア**なので、公式 UI の挙動 (テーマ / 設定など) にも影響する可能性があります。 */
+        readonly "message": ParameterizedString<'path'>
+        /** 書き込み */
+        readonly "ok": string
+      }
+      readonly "registryDelete": {
+        /** registry の値を削除 */
+        readonly "title": string
+        /** Misskey サーバー側の registry の `{path}` を削除します。**Misskey 公式 Web Client と共有される設定エリア**なので、公式 UI でも該当する設定が初期化されます。 */
+        readonly "message": ParameterizedString<'path'>
+        /** 削除 */
+        readonly "ok": string
+      }
+      /** キャンセル */
+      readonly "cancel": string
+    }
+  }
   readonly "_capabilities": {
     readonly "account": {
       /** 現在のアカウント情報 */

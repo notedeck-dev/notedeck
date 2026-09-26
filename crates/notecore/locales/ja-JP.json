@@ -1,0 +1,305 @@
+{
+  "_native": {
+    "preview": {
+      "generic": {
+        "title": "{label} を実行しますか？",
+        "ok": "実行"
+      },
+      "notesDelete": {
+        "title": "ノートを削除",
+        "message": "noteId `{noteId}` を削除します。この操作は取り消せません (リノート・引用・お気に入り・クリップなども同時に消えます)。",
+        "ok": "削除"
+      },
+      "userFollow": {
+        "title": "フォローを送る",
+        "message": "userId `{userId}` にフォローリクエストを送ります (相手に「フォローされた」通知が飛びます)。鍵アカウントなら承認待ちになります。",
+        "ok": "フォロー"
+      },
+      "userUnfollow": {
+        "title": "フォローを解除",
+        "message": "userId `{userId}` のフォローを解除します (相手に「フォロワー減少」の通知は飛びません)。",
+        "ok": "フォロー解除"
+      },
+      "markRead": {
+        "title": "通知をすべて既読にする",
+        "messageAll": "ログイン中の全アカウントの通知をすべて既読にします。",
+        "messageAccount": "アカウント `{accountId}` の通知をすべて既読にします。",
+        "ok": "既読にする"
+      },
+      "registrySet": {
+        "title": "registry に書き込み",
+        "message": "Misskey サーバー側の registry の `{path}` に値を書き込みます。**Misskey 公式 Web Client と共有される設定エリア**なので、公式 UI の挙動 (テーマ / 設定など) にも影響する可能性があります。",
+        "ok": "書き込み"
+      },
+      "registryDelete": {
+        "title": "registry の値を削除",
+        "message": "Misskey サーバー側の registry の `{path}` を削除します。**Misskey 公式 Web Client と共有される設定エリア**なので、公式 UI でも該当する設定が初期化されます。",
+        "ok": "削除"
+      },
+      "cancel": "キャンセル"
+    }
+  },
+  "_capabilities": {
+    "account": {
+      "current": "現在のアカウント情報",
+      "list": "アカウント一覧"
+    },
+    "ai": {
+      "chat": "AI に問い合わせる",
+      "listPersonas": "persona 用 skill 一覧",
+      "sessions": {
+        "list": "AI セッション一覧",
+        "read": "AI セッションを読む",
+        "search": "AI セッション本文を検索"
+      },
+      "setPersona": "AI persona を切替"
+    },
+    "aiscript": {
+      "logs": "AiScript 実行ログを取得",
+      "validate": "AiScript を構文検証する"
+    },
+    "announcements": {
+      "list": "サーバーアナウンス一覧"
+    },
+    "antenna": {
+      "list": "自分のアンテナ一覧",
+      "notes": "アンテナの note"
+    },
+    "backup": {
+      "create": "バックアップを作成"
+    },
+    "channel": {
+      "list": "自分のフォロー中チャネル",
+      "notes": "チャネルの note"
+    },
+    "chat": {
+      "react": "チャットメッセージにリアクション",
+      "unreact": "チャットメッセージのリアクションを解除"
+    },
+    "clipboard": {
+      "read": "クリップボードを読む",
+      "write": "クリップボードに書き込む"
+    },
+    "clips": {
+      "addNote": "クリップにノートを追加",
+      "create": "クリップを作成",
+      "list": "クリップ一覧",
+      "notes": "クリップ内のノート一覧",
+      "removeNote": "クリップからノートを削除"
+    },
+    "column": {
+      "active": "アクティブなカラムを取得",
+      "add": "カラムを追加",
+      "focusedNote": "フォーカス中のノートを取得",
+      "list": "カラム一覧",
+      "move": "カラムを移動",
+      "remove": "カラムを削除",
+      "updateSettings": "カラム設定を更新"
+    },
+    "drafts": {
+      "create": "下書きを作成",
+      "delete": "下書きを削除",
+      "list": "下書き一覧",
+      "update": "下書きを更新"
+    },
+    "drive": {
+      "list": "ドライブファイル一覧"
+    },
+    "favorites": {
+      "add": "お気に入りに追加",
+      "remove": "お気に入りから削除"
+    },
+    "federation": {
+      "chart": "連合チャート",
+      "instance": "連合先インスタンス詳細",
+      "instances": "連合先インスタンス一覧"
+    },
+    "files": {
+      "export": "ファイルをローカルに保存"
+    },
+    "flash": {
+      "list": "Misskey Play 一覧",
+      "show": "Misskey Play 詳細"
+    },
+    "gallery": {
+      "list": "Gallery 一覧"
+    },
+    "heartbeat": {
+      "report": "HEARTBEAT の報告"
+    },
+    "http": {
+      "fetch": "外部 HTTP リクエスト"
+    },
+    "keybinds": {
+      "list": "キーバインド一覧",
+      "reset": "キーバインドを default に戻す",
+      "resetAll": "全キーバインドを default に戻す",
+      "set": "キーバインドを設定"
+    },
+    "list": {
+      "addUser": "リストにユーザーを追加",
+      "list": "自分のリスト一覧",
+      "removeUser": "リストからユーザーを削除"
+    },
+    "logs": {
+      "recent": "最近のログを取得"
+    },
+    "memos": {
+      "backlinks": "メモのバックリンク",
+      "create": "メモを作成",
+      "delete": "メモを削除",
+      "list": "メモを列挙",
+      "revert": "メモを過去の状態に戻す",
+      "search": "メモを検索",
+      "update": "メモを更新"
+    },
+    "meta": {
+      "activeSkills": "active な skill 一覧",
+      "config": "現在の AI 設定スナップショット",
+      "heartbeat": "HEARTBEAT 設定スナップショット",
+      "permissions": "現在の permission を取得",
+      "persona": "現在の AI persona"
+    },
+    "metrics": {
+      "read": "実行時メトリクスを取得"
+    },
+    "misstore": {
+      "search": "MisStore を検索"
+    },
+    "navbar": {
+      "list": "ナビバー構成を読む",
+      "reset": "ナビバー構成を default に戻す",
+      "set": "ナビバー構成を上書き"
+    },
+    "notes": {
+      "children": "リプライ取得",
+      "create": "ノートを投稿",
+      "delete": "ノートを削除",
+      "pin": "ノートをプロファイルに pin",
+      "react": "リアクションする",
+      "search": "ノート検索",
+      "searchArchive": "手元の索引を検索",
+      "show": "ノート取得",
+      "timeline": "タイムライン取得",
+      "unpin": "ノートの pin を解除",
+      "unreact": "リアクションを解除",
+      "user": "ユーザーのノート取得"
+    },
+    "notifications": {
+      "list": "通知一覧",
+      "markRead": "通知をすべて既読化"
+    },
+    "pages": {
+      "list": "Pages 一覧",
+      "show": "Page 詳細"
+    },
+    "performance": {
+      "applySlider": "パフォーマンススライダーを適用",
+      "list": "パフォーマンス設定一覧",
+      "reset": "パフォーマンス値を default に戻す",
+      "resetAll": "全パフォーマンス値を default に戻す",
+      "set": "パフォーマンス値を設定"
+    },
+    "plugins": {
+      "create": "プラグインを作成",
+      "delete": "プラグインを削除",
+      "history": "プラグインの編集履歴",
+      "install": "MisStore からプラグインを入れる",
+      "list": "プラグイン一覧",
+      "read": "プラグインの AiScript を読む",
+      "revert": "プラグインを過去の状態に戻す",
+      "setActive": "プラグインの有効/無効を切替",
+      "uninstall": "プラグインを削除",
+      "update": "プラグインの AiScript を更新"
+    },
+    "queries": {
+      "history": "クエリの編集履歴",
+      "revert": "クエリを過去の状態に戻す"
+    },
+    "registry": {
+      "delete": "registry の値を削除",
+      "get": "registry の値を取得",
+      "listKeys": "registry の key 一覧",
+      "set": "registry に値を書込"
+    },
+    "role": {
+      "notes": "ロールの note"
+    },
+    "sidebar": {
+      "toggle": "サイドバーで開閉"
+    },
+    "skills": {
+      "append": "スキル本文に追記",
+      "create": "スキルを作成",
+      "history": "スキルの編集履歴を取得",
+      "install": "MisStore からスキルを入れる",
+      "list": "スキル一覧",
+      "read": "スキル本文を読む",
+      "replaceSection": "スキルのセクションを置換",
+      "revert": "スキルを過去の編集前状態に戻す",
+      "toggle": "スキルの有効/無効を切替",
+      "uninstall": "スキルを削除"
+    },
+    "styles": {
+      "append": "カスタム CSS に追記",
+      "history": "カスタム CSS の編集履歴",
+      "read": "カスタム CSS を読む",
+      "revert": "カスタム CSS を過去の状態に戻す",
+      "write": "カスタム CSS を全置換"
+    },
+    "tasks": {
+      "run": "タスク実行"
+    },
+    "theme": {
+      "apply": "テーマを適用",
+      "create": "テーマを作成",
+      "history": "テーマの編集履歴",
+      "install": "MisStore からテーマを入れる",
+      "list": "テーマ一覧",
+      "read": "テーマの内容を読む",
+      "revert": "テーマを過去の状態に戻す",
+      "uninstall": "テーマを削除",
+      "update": "テーマを更新"
+    },
+    "time": {
+      "now": "現在時刻を取得"
+    },
+    "ui": {
+      "notify": "デスクトップ通知"
+    },
+    "user": {
+      "follow": "ユーザーをフォロー",
+      "followers": "フォロワー一覧",
+      "following": "フォロー一覧",
+      "lookup": "ユーザー検索",
+      "mute": "ユーザーをミュート",
+      "renoteMute": "リノートだけミュート",
+      "search": "ユーザーをあいまい検索",
+      "unfollow": "ユーザーのフォローを解除",
+      "unmute": "ユーザーのミュートを解除",
+      "unrenoteMute": "リノートミュートを解除"
+    },
+    "vault": {
+      "fetch": "Vault 接続で HTTP リクエスト"
+    },
+    "widgets": {
+      "create": "ウィジェットを作成",
+      "delete": "ウィジェットを削除",
+      "history": "ウィジェットの編集履歴",
+      "install": "MisStore からウィジェットを入れる",
+      "list": "ウィジェット一覧",
+      "read": "ウィジェットの AiScript を読む",
+      "revert": "ウィジェットを過去の状態に戻す",
+      "setAutoRun": "ウィジェットの自動実行を切替",
+      "uninstall": "ウィジェットを削除",
+      "update": "ウィジェットの AiScript を更新"
+    },
+    "windows": {
+      "close": "ウィンドウを閉じる",
+      "closeAll": "全ウィンドウを閉じる",
+      "focus": "ウィンドウを前面に",
+      "list": "開いているウィンドウ一覧",
+      "open": "ウィンドウを開く"
+    }
+  }
+}

@@ -15,8 +15,8 @@
 // vitest.config.ts からも import する。
 
 import { createHash } from 'node:crypto'
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import yaml from 'js-yaml'
 import JSON5 from 'json5'
 import type { Plugin } from 'vite'
@@ -28,6 +28,15 @@ export const GENERATED_PATH = join(ROOT, 'src/i18n/locale.generated.ts')
 /** capability の表示名の正本。辞書の `_capabilities` 節はここから作る */
 const CAPABILITIES_PATH = join(ROOT, 'crates/notecore/capabilities.json5')
 const CAPABILITIES_SECTION = '_capabilities'
+
+/**
+ * Rust (notecore / src-tauri) が描く文言の節 (#135 段 4)。この節だけを言語ごとの
+ * JSON に書き出し、Rust は include_str! で埋め込む。英語の正本文も英語の辞書から
+ * 組むので、Rust のソースに英文を二重に持たない
+ */
+export const NATIVE_SECTION = '_native'
+export const NATIVE_DIR = join(ROOT, 'crates/notecore/locales')
+export const NATIVE_RS_PATH = join(ROOT, 'crates/notecore/src/i18n/dictionaries.generated.rs')
 
 /** 正本の言語 */
 export const SOURCE_LANG = 'ja-JP'
@@ -338,6 +347,40 @@ ${loaders}
 `
 }
 
+/** Rust に埋め込む辞書 (言語ごとの `_native` 節。欠けたキーは fallback で埋まっている) */
+export function generateNative(): { files: Map<string, string>; rs: string } {
+  const files = new Map<string, string>()
+  const languages = loadLanguages()
+  for (const { code } of languages) {
+    const composed = compose(code)
+    // capability の表示名も要る (確認プレビューの「{label} を実行しますか？」)
+    const sections = {
+      [NATIVE_SECTION]: composed[NATIVE_SECTION] ?? {},
+      [CAPABILITIES_SECTION]: composed[CAPABILITIES_SECTION] ?? {},
+    }
+    files.set(code, `${JSON.stringify(sections, null, 2)}\n`)
+  }
+  const entries = languages
+    .map((l) => `    ("${l.code}", include_str!("../../locales/${l.code}.json")),`)
+    .join('\n')
+  const rs = `// 生成物 — 編集しない。locales/ から \`pnpm gen:i18n\` で作る (#135)
+
+/// (言語コード, その言語の \`_native\` 節と \`_capabilities\` 節の JSON)
+pub const DICTIONARIES: &[(&str, &str)] = &[
+${entries}
+];
+`
+  return { files, rs }
+}
+
+function writeNative(): void {
+  const { files, rs } = generateNative()
+  mkdirSync(NATIVE_DIR, { recursive: true })
+  for (const [code, text] of files) writeFileSync(join(NATIVE_DIR, `${code}.json`), text)
+  mkdirSync(dirname(NATIVE_RS_PATH), { recursive: true })
+  writeFileSync(NATIVE_RS_PATH, rs)
+}
+
 if (import.meta.main) {
   const stampIndex = process.argv.indexOf('--stamp')
   if (stampIndex !== -1) {
@@ -350,6 +393,7 @@ if (import.meta.main) {
     console.log(`locales/${lang}.source.json を更新した`)
   }
   writeFileSync(GENERATED_PATH, generate())
+  writeNative()
   const { errors, missing } = check()
   for (const [lang, keys] of missing)
     console.warn(`${lang}: 未訳 ${keys.length} キー (原文で表示される)`)

@@ -3176,3 +3176,34 @@ _scheduleFormat:
   tomorrow9: "Tomorrow 9:00"
   in1Week: "In 1 week"
 
+_native:
+  preview:
+    generic:
+      title: "Run {label}?"
+      ok: "Run"
+    notesDelete:
+      title: "Delete note"
+      message: "Deletes noteId `{noteId}`. This can’t be undone (renotes, quotes, favorites, clips and so on go with it)."
+      ok: "Delete"
+    userFollow:
+      title: "Send follow"
+      message: "Sends a follow request to userId `{userId}` (they get a “followed you” notification). Locked accounts need to approve it."
+      ok: "Follow"
+    userUnfollow:
+      title: "Unfollow"
+      message: "Unfollows userId `{userId}` (they are not notified)."
+      ok: "Unfollow"
+    markRead:
+      title: "Mark all notifications as read"
+      messageAll: "Marks every notification of all logged-in accounts as read."
+      messageAccount: "Marks every notification of account `{accountId}` as read."
+      ok: "Mark as read"
+    registrySet:
+      title: "Write to registry"
+      message: "Writes a value to `{path}` in the Misskey server-side registry. **This area is shared with the official Misskey web client**, so it may change how the official UI behaves (themes / settings and so on)."
+      ok: "Write"
+    registryDelete:
+      title: "Delete registry value"
+      message: "Deletes `{path}` from the Misskey server-side registry. **This area is shared with the official Misskey web client**, so the setting is reset in the official UI too."
+      ok: "Delete"
+    cancel: "Cancel"

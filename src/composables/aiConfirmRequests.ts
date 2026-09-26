@@ -1,6 +1,7 @@
 import { rememberConfirmation } from '@/capabilities/dispatcher'
 import type { AiConfirmItem } from '@/composables/useAiTurn'
 import { i18n } from '@/i18n'
+import { localizeNative } from '@/i18n/native'
 import { useAiActivity } from '@/stores/aiActivity'
 import { type ConfirmOptions, useConfirm } from '@/stores/confirm'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -36,9 +37,14 @@ const open = new Map<string, OpenRequest>()
 
 /** 束ねた項目を 1 枚のダイアログにする */
 export function bundleConfirmOptions(
-  items: AiConfirmItem[],
+  rawItems: AiConfirmItem[],
   onShow: () => void,
 ): ConfirmOptions {
+  // notecore が組んだプレビューは英語の正本文 + 辞書の手がかり。表示言語で描き直す
+  const items = rawItems.map((it) => ({
+    ...it,
+    preview: localizeNative(it.preview),
+  }))
   const allowRemember = items.some((it) => it.allowRemember)
   if (items.length === 1 && items[0]) {
     const single = { ...items[0].preview, onShow }

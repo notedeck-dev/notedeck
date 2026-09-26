@@ -32,6 +32,7 @@ pub mod export_service;
 pub mod frontend_bridge;
 pub mod heartbeat;
 pub mod http_server;
+pub mod i18n;
 pub mod image_cache;
 pub mod json5_out;
 pub mod media_proxy;

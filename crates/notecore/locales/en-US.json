@@ -1,0 +1,305 @@
+{
+  "_native": {
+    "preview": {
+      "generic": {
+        "title": "Run {label}?",
+        "ok": "Run"
+      },
+      "notesDelete": {
+        "title": "Delete note",
+        "message": "Deletes noteId `{noteId}`. This can’t be undone (renotes, quotes, favorites, clips and so on go with it).",
+        "ok": "Delete"
+      },
+      "userFollow": {
+        "title": "Send follow",
+        "message": "Sends a follow request to userId `{userId}` (they get a “followed you” notification). Locked accounts need to approve it.",
+        "ok": "Follow"
+      },
+      "userUnfollow": {
+        "title": "Unfollow",
+        "message": "Unfollows userId `{userId}` (they are not notified).",
+        "ok": "Unfollow"
+      },
+      "markRead": {
+        "title": "Mark all notifications as read",
+        "messageAll": "Marks every notification of all logged-in accounts as read.",
+        "messageAccount": "Marks every notification of account `{accountId}` as read.",
+        "ok": "Mark as read"
+      },
+      "registrySet": {
+        "title": "Write to registry",
+        "message": "Writes a value to `{path}` in the Misskey server-side registry. **This area is shared with the official Misskey web client**, so it may change how the official UI behaves (themes / settings and so on).",
+        "ok": "Write"
+      },
+      "registryDelete": {
+        "title": "Delete registry value",
+        "message": "Deletes `{path}` from the Misskey server-side registry. **This area is shared with the official Misskey web client**, so the setting is reset in the official UI too.",
+        "ok": "Delete"
+      },
+      "cancel": "Cancel"
+    }
+  },
+  "_capabilities": {
+    "account": {
+      "current": "Current account info",
+      "list": "List accounts"
+    },
+    "ai": {
+      "chat": "Ask AI",
+      "listPersonas": "List persona skills",
+      "sessions": {
+        "list": "List AI sessions",
+        "read": "Read AI session",
+        "search": "Search AI session contents"
+      },
+      "setPersona": "Switch AI persona"
+    },
+    "aiscript": {
+      "logs": "Get AiScript logs",
+      "validate": "Validate AiScript syntax"
+    },
+    "announcements": {
+      "list": "List server announcements"
+    },
+    "antenna": {
+      "list": "List my antennas",
+      "notes": "Antenna notes"
+    },
+    "backup": {
+      "create": "Create backup"
+    },
+    "channel": {
+      "list": "Followed channels",
+      "notes": "Channel notes"
+    },
+    "chat": {
+      "react": "React to chat message",
+      "unreact": "Remove chat message reaction"
+    },
+    "clipboard": {
+      "read": "Read clipboard",
+      "write": "Write to clipboard"
+    },
+    "clips": {
+      "addNote": "Add note to clip",
+      "create": "Create clip",
+      "list": "List clips",
+      "notes": "Notes in clip",
+      "removeNote": "Remove note from clip"
+    },
+    "column": {
+      "active": "Get active column",
+      "add": "Add column",
+      "focusedNote": "Get focused note",
+      "list": "List columns",
+      "move": "Move column",
+      "remove": "Remove column",
+      "updateSettings": "Update column settings"
+    },
+    "drafts": {
+      "create": "Create draft",
+      "delete": "Delete draft",
+      "list": "List drafts",
+      "update": "Update draft"
+    },
+    "drive": {
+      "list": "List drive files"
+    },
+    "favorites": {
+      "add": "Add to favorites",
+      "remove": "Remove from favorites"
+    },
+    "federation": {
+      "chart": "Federation chart",
+      "instance": "Federated server details",
+      "instances": "List federated servers"
+    },
+    "files": {
+      "export": "Save file locally"
+    },
+    "flash": {
+      "list": "List Misskey Play",
+      "show": "Misskey Play details"
+    },
+    "gallery": {
+      "list": "List gallery"
+    },
+    "heartbeat": {
+      "report": "HEARTBEAT report"
+    },
+    "http": {
+      "fetch": "External HTTP request"
+    },
+    "keybinds": {
+      "list": "List keybindings",
+      "reset": "Reset keybinding to default",
+      "resetAll": "Reset all keybindings to default",
+      "set": "Set keybinding"
+    },
+    "list": {
+      "addUser": "Add user to list",
+      "list": "List my lists",
+      "removeUser": "Remove user from list"
+    },
+    "logs": {
+      "recent": "Get recent logs"
+    },
+    "memos": {
+      "backlinks": "Memo backlinks",
+      "create": "Create memo",
+      "delete": "Delete memo",
+      "list": "List memos",
+      "revert": "Revert memo to a past state",
+      "search": "Search memos",
+      "update": "Update memo"
+    },
+    "meta": {
+      "activeSkills": "List active skills",
+      "config": "Current AI settings snapshot",
+      "heartbeat": "HEARTBEAT settings snapshot",
+      "permissions": "Get current permissions",
+      "persona": "Current AI persona"
+    },
+    "metrics": {
+      "read": "Get runtime metrics"
+    },
+    "misstore": {
+      "search": "Search MisStore"
+    },
+    "navbar": {
+      "list": "Read navbar layout",
+      "reset": "Reset navbar layout to default",
+      "set": "Overwrite navbar layout"
+    },
+    "notes": {
+      "children": "Get replies",
+      "create": "Post note",
+      "delete": "Delete note",
+      "pin": "Pin note to user profile",
+      "react": "React",
+      "search": "Search notes",
+      "searchArchive": "Search local index",
+      "show": "Get note",
+      "timeline": "Get timeline",
+      "unpin": "Unpin note",
+      "unreact": "Remove reaction",
+      "user": "Get user's notes"
+    },
+    "notifications": {
+      "list": "List notifications",
+      "markRead": "Mark all notifications as read"
+    },
+    "pages": {
+      "list": "List pages",
+      "show": "Page details"
+    },
+    "performance": {
+      "applySlider": "Apply performance slider",
+      "list": "List performance settings",
+      "reset": "Reset performance value to default",
+      "resetAll": "Reset all performance values to default",
+      "set": "Set performance value"
+    },
+    "plugins": {
+      "create": "Create plugin",
+      "delete": "Delete plugin",
+      "history": "Plugin edit history",
+      "install": "Install plugin from MisStore",
+      "list": "List plugins",
+      "read": "Read plugin AiScript",
+      "revert": "Revert plugin to a past state",
+      "setActive": "Enable / disable plugin",
+      "uninstall": "Uninstall plugin",
+      "update": "Update plugin AiScript"
+    },
+    "queries": {
+      "history": "Query edit history",
+      "revert": "Revert query to a past state"
+    },
+    "registry": {
+      "delete": "Delete registry value",
+      "get": "Get registry value",
+      "listKeys": "List registry keys",
+      "set": "Write registry value"
+    },
+    "role": {
+      "notes": "Role notes"
+    },
+    "sidebar": {
+      "toggle": "Toggle in sidebar"
+    },
+    "skills": {
+      "append": "Append to skill",
+      "create": "Create skill",
+      "history": "Get skill edit history",
+      "install": "Install skill from MisStore",
+      "list": "List skills",
+      "read": "Read skill",
+      "replaceSection": "Replace skill section",
+      "revert": "Revert skill to a past state",
+      "toggle": "Enable / disable skill",
+      "uninstall": "Uninstall skill"
+    },
+    "styles": {
+      "append": "Append to custom CSS",
+      "history": "Custom CSS edit history",
+      "read": "Read custom CSS",
+      "revert": "Revert custom CSS to a past state",
+      "write": "Replace custom CSS"
+    },
+    "tasks": {
+      "run": "Run task"
+    },
+    "theme": {
+      "apply": "Apply theme",
+      "create": "Create theme",
+      "history": "Theme edit history",
+      "install": "Install theme from MisStore",
+      "list": "List themes",
+      "read": "Read theme",
+      "revert": "Revert theme to a past state",
+      "uninstall": "Uninstall theme",
+      "update": "Update theme"
+    },
+    "time": {
+      "now": "Get current time"
+    },
+    "ui": {
+      "notify": "Desktop notification"
+    },
+    "user": {
+      "follow": "Follow user",
+      "followers": "List followers",
+      "following": "List following",
+      "lookup": "Look up user",
+      "mute": "Mute user",
+      "renoteMute": "Mute renotes only",
+      "search": "Fuzzy search users",
+      "unfollow": "Unfollow user",
+      "unmute": "Unmute user",
+      "unrenoteMute": "Unmute renotes"
+    },
+    "vault": {
+      "fetch": "HTTP request via Vault connection"
+    },
+    "widgets": {
+      "create": "Create widget",
+      "delete": "Delete widget",
+      "history": "Widget edit history",
+      "install": "Install widget from MisStore",
+      "list": "List widgets",
+      "read": "Read widget AiScript",
+      "revert": "Revert widget to a past state",
+      "setAutoRun": "Toggle widget auto-run",
+      "uninstall": "Uninstall widget",
+      "update": "Update widget AiScript"
+    },
+    "windows": {
+      "close": "Close window",
+      "closeAll": "Close all windows",
+      "focus": "Bring window to front",
+      "list": "List open windows",
+      "open": "Open window"
+    }
+  }
+}

@@ -2914,3 +2914,35 @@ _scheduleFormat:
   tomorrow9: "明日 9:00"
   in1Week: "1 週間後"
 
+# Rust (notecore / src-tauri) が描く文言。この節は Rust に埋め込まれる (#135 段 4)
+_native:
+  preview:
+    generic:
+      title: "{label} を実行しますか？"
+      ok: "実行"
+    notesDelete:
+      title: "ノートを削除"
+      message: "noteId `{noteId}` を削除します。この操作は取り消せません (リノート・引用・お気に入り・クリップなども同時に消えます)。"
+      ok: "削除"
+    userFollow:
+      title: "フォローを送る"
+      message: "userId `{userId}` にフォローリクエストを送ります (相手に「フォローされた」通知が飛びます)。鍵アカウントなら承認待ちになります。"
+      ok: "フォロー"
+    userUnfollow:
+      title: "フォローを解除"
+      message: "userId `{userId}` のフォローを解除します (相手に「フォロワー減少」の通知は飛びません)。"
+      ok: "フォロー解除"
+    markRead:
+      title: "通知をすべて既読にする"
+      messageAll: "ログイン中の全アカウントの通知をすべて既読にします。"
+      messageAccount: "アカウント `{accountId}` の通知をすべて既読にします。"
+      ok: "既読にする"
+    registrySet:
+      title: "registry に書き込み"
+      message: "Misskey サーバー側の registry の `{path}` に値を書き込みます。**Misskey 公式 Web Client と共有される設定エリア**なので、公式 UI の挙動 (テーマ / 設定など) にも影響する可能性があります。"
+      ok: "書き込み"
+    registryDelete:
+      title: "registry の値を削除"
+      message: "Misskey サーバー側の registry の `{path}` を削除します。**Misskey 公式 Web Client と共有される設定エリア**なので、公式 UI でも該当する設定が初期化されます。"
+      ok: "削除"
+    cancel: "キャンセル"

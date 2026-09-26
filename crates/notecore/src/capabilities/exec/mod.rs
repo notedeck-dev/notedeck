@@ -18,7 +18,7 @@ mod misstore;
 mod net;
 mod notes;
 mod plugins;
-mod preview;
+pub(crate) mod preview;
 mod project;
 mod queries;
 mod server;
@@ -157,7 +157,7 @@ pub async fn preview(
         return queries::preview(core, id, &params, ctx);
     }
     Ok(Some(
-        preview::custom(id, &params).unwrap_or_else(|| preview::generic(decl.label, &params)),
+        preview::custom(id, &params).unwrap_or_else(|| preview::generic(id, &params)),
     ))
 }
 
