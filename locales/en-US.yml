@@ -9,7 +9,6 @@ _settings:
   language: "Language"
   languageAuto: "Match system"
   languageUnpublished: "{name} (in progress)"
-  languageReloadNote: "Switching reloads every window"
 
 _columns:
   timeline: "Timeline"

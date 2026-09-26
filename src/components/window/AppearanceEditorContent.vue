@@ -213,7 +213,6 @@ const statusClass = computed(() => {
             </option>
           </select>
         </label>
-        <p :class="$style.languageNote">{{ i18n.ts._settings.languageReloadNote }}</p>
       </div>
 
       <!-- Dark/Light toggle -->
@@ -425,11 +424,5 @@ const statusClass = computed(() => {
   background: var(--nd-bg);
   color: var(--nd-fg);
   font-size: 0.85em;
-}
-
-.languageNote {
-  margin: 0 4px;
-  font-size: 0.8em;
-  opacity: 0.7;
 }
 </style>

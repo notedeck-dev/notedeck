@@ -14,8 +14,6 @@ export interface Locale {
     readonly "languageAuto": string
     /** {name} (翻訳中) */
     readonly "languageUnpublished": ParameterizedString<'name'>
-    /** 切り替えるとすべてのウィンドウを再読み込みします */
-    readonly "languageReloadNote": string
   }
   readonly "_columns": {
     /** タイムライン */

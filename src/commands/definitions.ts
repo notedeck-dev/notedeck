@@ -83,7 +83,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'command-palette',
-    label: i18n.ts._commands.commandPalette,
+    get label() {
+      return i18n.ts._commands.commandPalette
+    },
     icon: 'search',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('command-palette'),
@@ -93,7 +95,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'search',
-    label: i18n.ts._commands.search,
+    get label() {
+      return i18n.ts._commands.search
+    },
     icon: 'search',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('search'),
@@ -102,7 +106,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'client-search',
-    label: i18n.ts._commands.clientSearch,
+    get label() {
+      return i18n.ts._commands.clientSearch
+    },
     icon: 'archive',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('client-search'),
@@ -111,7 +117,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'notifications',
-    label: i18n.ts._commands.notifications,
+    get label() {
+      return i18n.ts._commands.notifications
+    },
     icon: 'bell',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('notifications'),
@@ -120,7 +128,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'compose',
-    label: i18n.ts._commands.compose,
+    get label() {
+      return i18n.ts._commands.compose
+    },
     icon: 'pencil',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('compose'),
@@ -129,7 +139,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'add-column',
-    label: i18n.ts._commands.addColumn,
+    get label() {
+      return i18n.ts._commands.addColumn
+    },
     icon: 'plus',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('add-column'),
@@ -138,7 +150,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'move-column-left',
-    label: i18n.ts._commands.moveColumnLeft,
+    get label() {
+      return i18n.ts._commands.moveColumnLeft
+    },
     icon: 'arrow-bar-left',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('move-column-left'),
@@ -151,7 +165,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'move-column-right',
-    label: i18n.ts._commands.moveColumnRight,
+    get label() {
+      return i18n.ts._commands.moveColumnRight
+    },
     icon: 'arrow-bar-right',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('move-column-right'),
@@ -164,7 +180,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'toggle-sidebar',
-    label: i18n.ts._commands.toggleSidebar,
+    get label() {
+      return i18n.ts._commands.toggleSidebar
+    },
     icon: 'layout-sidebar-left-collapse',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('toggle-sidebar'),
@@ -174,7 +192,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   if (useUiStore().isDesktop) {
     commandStore.register({
       id: 'boss-key',
-      label: i18n.ts._commands.bossKey,
+      get label() {
+        return i18n.ts._commands.bossKey
+      },
       icon: 'eye-off',
       category: 'general',
       shortcuts: keybindsStore.getShortcuts('boss-key'),
@@ -187,7 +207,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'account-menu',
-    label: i18n.ts._commands.accountMenu,
+    get label() {
+      return i18n.ts._commands.accountMenu
+    },
     icon: 'user',
     category: 'account',
     shortcuts: keybindsStore.getShortcuts('account-menu'),
@@ -329,7 +351,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'profile-menu',
-    label: i18n.ts._commands.profileMenu,
+    get label() {
+      return i18n.ts._commands.profileMenu
+    },
     icon: 'layout',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('profile-menu'),
@@ -338,7 +362,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'settings-menu',
-    label: i18n.ts._commands.settingsMenu,
+    get label() {
+      return i18n.ts._commands.settingsMenu
+    },
     icon: 'settings',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('settings-menu'),
@@ -352,7 +378,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // 自動 popup なし、カラムでもなくユーザー明示起動)。
   commandStore.register({
     id: 'tutorial',
-    label: i18n.ts._commands.tutorial,
+    get label() {
+      return i18n.ts._commands.tutorial
+    },
     icon: 'presentation-analytics',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('tutorial'),
@@ -363,7 +391,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'toggle-dark-mode',
-    label: i18n.ts._commands.toggleDarkMode,
+    get label() {
+      return i18n.ts._commands.toggleDarkMode
+    },
     icon: 'sun-moon',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('toggle-dark-mode'),
@@ -372,7 +402,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'toggle-offline-mode',
-    label: i18n.ts._commands.toggleOfflineMode,
+    get label() {
+      return i18n.ts._commands.toggleOfflineMode
+    },
     icon: 'wifi-off',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('toggle-offline-mode'),
@@ -381,7 +413,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'toggle-realtime-mode',
-    label: i18n.ts._commands.toggleRealtimeMode,
+    get label() {
+      return i18n.ts._commands.toggleRealtimeMode
+    },
     icon: 'bolt',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('toggle-realtime-mode'),
@@ -390,7 +424,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'clear-all-cache',
-    label: i18n.ts._commands.clearAllCache,
+    get label() {
+      return i18n.ts._commands.clearAllCache
+    },
     icon: 'eraser',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('clear-all-cache'),
@@ -412,7 +448,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // Note-level shortcuts (dispatched as CustomEvents to active column)
   commandStore.register({
     id: 'note-next',
-    label: i18n.ts._commands.noteNext,
+    get label() {
+      return i18n.ts._commands.noteNext
+    },
     icon: 'arrow-down',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-next'),
@@ -421,7 +459,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-prev',
-    label: i18n.ts._commands.notePrev,
+    get label() {
+      return i18n.ts._commands.notePrev
+    },
     icon: 'arrow-up',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-prev'),
@@ -430,7 +470,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-reply',
-    label: i18n.ts._commands.noteReply,
+    get label() {
+      return i18n.ts._commands.noteReply
+    },
     icon: 'arrow-back-up',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-reply'),
@@ -439,7 +481,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-react',
-    label: i18n.ts._commands.noteReact,
+    get label() {
+      return i18n.ts._commands.noteReact
+    },
     icon: 'mood-plus',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-react'),
@@ -448,7 +492,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-renote',
-    label: i18n.ts._commands.noteRenote,
+    get label() {
+      return i18n.ts._commands.noteRenote
+    },
     icon: 'repeat',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-renote'),
@@ -457,7 +503,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-bookmark',
-    label: i18n.ts._commands.noteBookmark,
+    get label() {
+      return i18n.ts._commands.noteBookmark
+    },
     icon: 'star',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-bookmark'),
@@ -466,7 +514,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-open',
-    label: i18n.ts._commands.noteOpen,
+    get label() {
+      return i18n.ts._commands.noteOpen
+    },
     icon: 'external-link',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-open'),
@@ -475,7 +525,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-cw',
-    label: i18n.ts._commands.noteCw,
+    get label() {
+      return i18n.ts._commands.noteCw
+    },
     icon: 'eye',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-cw'),
@@ -484,7 +536,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-delete',
-    label: i18n.ts._commands.noteDelete,
+    get label() {
+      return i18n.ts._commands.noteDelete
+    },
     icon: 'trash',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-delete'),
@@ -496,7 +550,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-copy-link',
-    label: i18n.ts._commands.noteCopyLink,
+    get label() {
+      return i18n.ts._commands.noteCopyLink
+    },
     icon: 'link',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-copy-link'),
@@ -505,7 +561,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-copy-content',
-    label: i18n.ts._commands.noteCopyContent,
+    get label() {
+      return i18n.ts._commands.noteCopyContent
+    },
     icon: 'copy',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-copy-content'),
@@ -517,7 +575,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'column-next',
-    label: i18n.ts._commands.columnNext,
+    get label() {
+      return i18n.ts._commands.columnNext
+    },
     icon: 'arrow-right',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('column-next'),
@@ -526,7 +586,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'column-prev',
-    label: i18n.ts._commands.columnPrev,
+    get label() {
+      return i18n.ts._commands.columnPrev
+    },
     icon: 'arrow-left',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('column-prev'),
@@ -536,7 +598,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   for (let i = 1; i <= 9; i++) {
     commandStore.register({
       id: `column-${i}`,
-      label: i18n.tsx._commands.focusColumn({ n: i }),
+      get label() {
+        return i18n.tsx._commands.focusColumn({ n: i })
+      },
       icon: 'columns',
       category: 'column',
       shortcuts: keybindsStore.getShortcuts(`column-${i}`),
@@ -548,7 +612,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   for (let i = 0; i <= 9; i++) {
     commandStore.register({
       id: `quick-react-${i}`,
-      label: i18n.tsx._commands.quickReact({ n: i || 10 }),
+      get label() {
+        return i18n.tsx._commands.quickReact({ n: i || 10 })
+      },
       icon: 'mood-plus',
       category: 'note',
       shortcuts: keybindsStore.getShortcuts(`quick-react-${i}`),
@@ -558,7 +624,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'profile-new',
-    label: i18n.ts._commands.profileNew,
+    get label() {
+      return i18n.ts._commands.profileNew
+    },
     icon: 'plus',
     category: 'general',
     shortcuts: [],
@@ -572,7 +640,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // Close active column
   commandStore.register({
     id: 'close-column',
-    label: i18n.ts._commands.closeColumn,
+    get label() {
+      return i18n.ts._commands.closeColumn
+    },
     icon: 'trash',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('close-column'),
@@ -602,7 +672,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'rename-entity',
-    label: i18n.ts._commands.renameEntity,
+    get label() {
+      return i18n.ts._commands.renameEntity
+    },
     icon: 'edit',
     category: 'column',
     shortcuts: [],
@@ -619,7 +691,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'delete-entity',
-    label: i18n.ts._commands.deleteEntity,
+    get label() {
+      return i18n.ts._commands.deleteEntity
+    },
     icon: 'trash',
     category: 'column',
     shortcuts: [],
@@ -637,7 +711,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // Column mute toggle
   commandStore.register({
     id: 'toggle-column-mute',
-    label: i18n.ts._commands.toggleColumnMute,
+    get label() {
+      return i18n.ts._commands.toggleColumnMute
+    },
     icon: 'volume-off',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('toggle-column-mute'),
@@ -653,7 +729,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // Tool windows
   commandStore.register({
     id: 'keybinds',
-    label: i18n.ts._commands.keybinds,
+    get label() {
+      return i18n.ts._commands.keybinds
+    },
     icon: 'keyboard',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('keybinds'),
@@ -662,7 +740,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'css-editor',
-    label: i18n.ts._commands.cssEditor,
+    get label() {
+      return i18n.ts._commands.cssEditor
+    },
     icon: 'code',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('css-editor'),
@@ -673,7 +753,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // 唯一の入口なので、off の状態からも必ず見つかる必要がある
   commandStore.register({
     id: 'developer-mode',
-    label: i18n.ts._commands.developerMode,
+    get label() {
+      return i18n.ts._commands.developerMode
+    },
     icon: 'code',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('developer-mode'),
@@ -691,7 +773,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'tasks-editor',
-    label: i18n.ts._commands.tasksEditor,
+    get label() {
+      return i18n.ts._commands.tasksEditor
+    },
     icon: 'player-play',
     category: 'general',
     exposure: 'developer',
@@ -701,7 +785,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'snippets-editor',
-    label: i18n.ts._commands.snippetsEditor,
+    get label() {
+      return i18n.ts._commands.snippetsEditor
+    },
     icon: 'code-plus',
     category: 'general',
     exposure: 'developer',
@@ -711,7 +797,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'tasks.run-default',
-    label: i18n.ts._commands.tasksRunDefault,
+    get label() {
+      return i18n.ts._commands.tasksRunDefault
+    },
     icon: 'player-play-filled',
     category: 'general',
     exposure: 'developer',
@@ -723,7 +811,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'plugins',
-    label: i18n.ts._commands.plugins,
+    get label() {
+      return i18n.ts._commands.plugins
+    },
     icon: 'puzzle',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('plugins'),
@@ -738,7 +828,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'plugins-global',
-    label: i18n.ts._commands.pluginsGlobal,
+    get label() {
+      return i18n.ts._commands.pluginsGlobal
+    },
     icon: 'puzzle',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('plugins-global'),
@@ -747,7 +839,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'theme-manager',
-    label: i18n.ts._commands.themeManager,
+    get label() {
+      return i18n.ts._commands.themeManager
+    },
     icon: 'palette',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('theme-manager'),
@@ -762,7 +856,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'theme-manager-global',
-    label: i18n.ts._commands.themeManagerGlobal,
+    get label() {
+      return i18n.ts._commands.themeManagerGlobal
+    },
     icon: 'palette',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('theme-manager-global'),
@@ -771,7 +867,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'settings-editor',
-    label: i18n.ts._commands.settingsEditor,
+    get label() {
+      return i18n.ts._commands.settingsEditor
+    },
     icon: 'brush',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('settings-editor'),
@@ -780,7 +878,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'login',
-    label: i18n.ts._commands.login,
+    get label() {
+      return i18n.ts._commands.login
+    },
     icon: 'user-plus',
     category: 'account',
     shortcuts: keybindsStore.getShortcuts('login'),
@@ -789,7 +889,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'chat',
-    label: i18n.ts._commands.chat,
+    get label() {
+      return i18n.ts._commands.chat
+    },
     icon: 'message-circle',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('chat'),
@@ -798,7 +900,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'ai',
-    label: i18n.ts._commands.ai,
+    get label() {
+      return i18n.ts._commands.ai
+    },
     icon: 'robot',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('ai'),
@@ -807,7 +911,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'close-all-floating-windows',
-    label: i18n.ts._commands.closeAllFloatingWindows,
+    get label() {
+      return i18n.ts._commands.closeAllFloatingWindows
+    },
     icon: 'x',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('close-all-floating-windows'),
@@ -818,7 +924,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   if (useUiStore().isDesktop) {
     commandStore.register({
       id: 'pop-out-column',
-      label: i18n.ts._commands.popOutColumn,
+      get label() {
+        return i18n.ts._commands.popOutColumn
+      },
       icon: 'external-link',
       category: 'window',
       shortcuts: keybindsStore.getShortcuts('pop-out-column'),
@@ -836,7 +944,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
     commandStore.register({
       id: 'new-window',
-      label: i18n.ts._commands.newWindow,
+      get label() {
+        return i18n.ts._commands.newWindow
+      },
       icon: 'app-window',
       category: 'window',
       shortcuts: keybindsStore.getShortcuts('new-window'),
@@ -852,7 +962,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
     commandStore.register({
       id: 'close-all-windows',
-      label: i18n.ts._commands.closeAllWindows,
+      get label() {
+        return i18n.ts._commands.closeAllWindows
+      },
       icon: 'x',
       category: 'window',
       shortcuts: keybindsStore.getShortcuts('close-all-windows'),
@@ -865,7 +977,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
     commandStore.register({
       id: 'pip-window',
-      label: i18n.ts._commands.pipWindow,
+      get label() {
+        return i18n.ts._commands.pipWindow
+      },
       icon: 'picture-in-picture',
       category: 'window',
       shortcuts: keybindsStore.getShortcuts('pip-window'),
@@ -878,7 +992,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
     commandStore.register({
       id: 'devtools',
-      label: i18n.ts._commands.devtools,
+      get label() {
+        return i18n.ts._commands.devtools
+      },
       icon: 'code',
       category: 'general',
       exposure: 'developer',
@@ -895,7 +1011,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
     commandStore.register({
       id: 'profile-editor',
-      label: i18n.ts._commands.profileEditor,
+      get label() {
+        return i18n.ts._commands.profileEditor
+      },
       icon: 'layout-columns',
       category: 'column',
       shortcuts: keybindsStore.getShortcuts('profile-editor'),
@@ -931,7 +1049,9 @@ export function refreshProfileCommands() {
     const profileName = profile.name
     commandStore.register({
       id: `profile-${i}`,
-      label: i18n.tsx._commands.switchProfile({ name: profileName }),
+      get label() {
+        return i18n.tsx._commands.switchProfile({ name: profileName })
+      },
       icon: 'layout',
       category: 'general',
       shortcuts: keybindsStore.getShortcuts(`profile-${i}`),

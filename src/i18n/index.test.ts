@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { computed } from 'vue'
 import { i18n, type Locale, loadLocale, setLocale } from '.'
 
 // 複数形はまだ正本に無いので、形だけの辞書で振る舞いを確かめる
@@ -74,6 +75,26 @@ describe('i18n', () => {
     } as unknown as Locale)
     expect(tsx()._ns.hello({ name: 'a' })).toBe('Hi a')
     expect(i18n.lang).toBe('en-US')
+  })
+
+  it('辞書を差し替えると、辞書を読んだ computed が計算し直される', async () => {
+    await loadLocale('ja-JP')
+    const label = computed(() => i18n.ts._time.justNow)
+    const lang = computed(() => i18n.lang)
+    expect(label.value).toBe('たった今')
+    await loadLocale('en-US')
+    expect(label.value).toBe('just now')
+    expect(lang.value).toBe('en-US')
+  })
+
+  it('tsx も差し替え後の辞書で埋める', async () => {
+    await loadLocale('ja-JP')
+    const text = computed(() =>
+      i18n.tsx._settings.languageUnpublished({ name: 'X' }),
+    )
+    expect(text.value).toBe('X (翻訳中)')
+    await loadLocale('en-US')
+    expect(text.value).toBe('X (in progress)')
   })
 
   it('loadLocale は合成済みの辞書を読み、欠けたキーは原文で埋まっている', async () => {

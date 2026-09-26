@@ -16,7 +16,6 @@ _settings:
   language: "表示言語"
   languageAuto: "システムに合わせる"
   languageUnpublished: "{name} (翻訳中)"
-  languageReloadNote: "切り替えるとすべてのウィンドウを再読み込みします"
 
 _columns:
   timeline: "タイムライン"
