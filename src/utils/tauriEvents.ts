@@ -1,5 +1,9 @@
 import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
-import type { HeartbeatEvent, SettingsChange } from '@/bindings'
+import type {
+  ClientLayerState,
+  HeartbeatEvent,
+  SettingsChange,
+} from '@/bindings'
 import type { AiChatEventPayload } from '@/composables/useAiChat'
 import type { AiTurnEventPayload } from '@/composables/useAiTurn'
 import type { QueryRequest } from '@/core/apiBridge'
@@ -31,6 +35,10 @@ export interface TauriEventPayloads {
   'nd:query-request': QueryRequest
   /** notecore が設定ファイルを書いた (デバイスの store は該当面だけ読み直す, #1133) */
   'nd:settings-file-changed': SettingsChange
+  /** クライアント層の状態 (常駐の notecored への接続 / 版 / 指紋の一致, #1106) */
+  'nd:client-layer-state': ClientLayerState
+  /** 常駐の notecored に繋ぎ直して購読を出し直した。デッキは復帰の catch-up を走らせる (#1106) */
+  'nd:client-layer-resumed': undefined
   // JS ↔ JS (ウィンドウ間 IPC)
   'deck:move-column': { columnId: string; targetWindowId: string | null }
   'deck:window-closed': { windowId: string }

@@ -31,6 +31,10 @@ pub struct ClientLayerState {
     /// 接続先のマニフェストの指紋がこのアプリと一致するか (未接続なら None)
     pub fingerprint_match: Option<bool>,
     pub last_error: Option<String>,
+    /// 再接続の回数 (購読を再宣言した回数)
+    pub reconnects: u32,
+    /// イベントの連番に欠落を見た回数 (再送はしない。復帰の catch-up が埋める)
+    pub event_gaps: u32,
 }
 
 type EventHook = Arc<dyn Fn(&str, Value) + Send + Sync>;
@@ -43,6 +47,20 @@ pub type QueryHook = Arc<
         + Sync,
 >;
 
+/// WebView が持っている購読 1 つ。再接続時に同じ要求を出し直し、返ってきた新しい
+/// query id を WebView の id (public id) に付け替える
+#[derive(Clone, Debug)]
+struct OpenQuery {
+    name: String,
+    params: Value,
+    window: Option<String>,
+    /// notecored 側の今の id (再宣言で変わる)
+    daemon_id: String,
+}
+
+/// 再接続で購読を出し直したときのイベント名
+pub const RESUMED_EVENT: &str = "nd:client-layer-resumed";
+
 pub struct RelayClient {
     socket: PathBuf,
     tx: Mutex<Option<mpsc::Sender<Frame>>>,
@@ -50,6 +68,17 @@ pub struct RelayClient {
     next_id: AtomicU64,
     secret: Mutex<Option<String>>,
     state: Mutex<ClientLayerState>,
+    /// public id (WebView が持つ) → 購読。順序は開いた順
+    queries: Mutex<Vec<(String, OpenQuery)>>,
+    /// notecored 側の id → public id (delta の付け替え用)
+    aliases: Mutex<HashMap<String, String>>,
+    /// 再宣言中の要求 id → WebView の id。応答を読んだその場で付け替える
+    /// (応答の直後に届く delta を取りこぼさないため)
+    renewing: Mutex<HashMap<u64, String>>,
+    /// stream_sub_note の (accountId, noteId)
+    captures: Mutex<Vec<(String, String)>>,
+    last_seq: Mutex<u64>,
+    had_session: Mutex<bool>,
     on_event: EventHook,
     on_state: StateHook,
     on_query: QueryHook,
@@ -112,6 +141,12 @@ impl RelayClient {
             pending: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
             secret: Mutex::new(None),
+            queries: Mutex::new(Vec::new()),
+            aliases: Mutex::new(HashMap::new()),
+            renewing: Mutex::new(HashMap::new()),
+            captures: Mutex::new(Vec::new()),
+            last_seq: Mutex::new(0),
+            had_session: Mutex::new(false),
             on_event,
             on_state,
             on_query,
@@ -176,7 +211,7 @@ impl RelayClient {
         });
     }
 
-    async fn session(&self, stream: UnixStream) {
+    async fn session(self: &Arc<Self>, stream: UnixStream) {
         let (reader, mut writer) = stream.into_split();
         let (tx, mut rx) = mpsc::channel::<Frame>(1024);
         let writer_task = tokio::spawn(async move {
@@ -218,14 +253,32 @@ impl RelayClient {
                         s.fingerprint_match = Some(matches);
                         s.last_error = None;
                     });
+                    *self.last_seq.lock().unwrap_or_else(|e| e.into_inner()) = 0;
+                    let first = {
+                        let mut h = self.had_session.lock().unwrap_or_else(|e| e.into_inner());
+                        let first = !*h;
+                        *h = true;
+                        first
+                    };
+                    if !first {
+                        // 再宣言は要求と応答の往復なので、応答を読むこのループを
+                        // 塞がないよう別 task で回す
+                        let me = self.clone();
+                        tokio::spawn(async move { me.redeclare().await });
+                    }
                 }
                 Frame::Response { id, outcome } => {
+                    self.apply_renewal(id, &outcome);
                     let tx = self.pending.lock().ok().and_then(|mut p| p.remove(&id));
                     if let Some(tx) = tx {
                         let _ = tx.send(outcome);
                     }
                 }
-                Frame::Event { name, payload } => (self.on_event)(&name, payload),
+                Frame::Event { name, payload, seq } => {
+                    self.note_seq(seq);
+                    let payload = self.public_payload(&name, payload);
+                    (self.on_event)(&name, payload)
+                }
                 Frame::Query {
                     id,
                     query_type,
@@ -247,12 +300,213 @@ impl RelayClient {
                 Frame::Request { .. } | Frame::Batch { .. } | Frame::QueryResponse { .. } => {}
             }
         }
+        // 書き手は送り口が全部落ちるまで生きるので、自分が握っている分も手放す
+        *self.tx.lock().unwrap_or_else(|e| e.into_inner()) = None;
         drop(tx);
         let _ = writer_task.await;
     }
 
-    /// 生の要求 (コマンド表の名前 + camelCase の引数)
+    /// 連番の欠落を数える (再送はしない)
+    fn note_seq(&self, seq: u64) {
+        if seq == 0 {
+            return;
+        }
+        let mut last = self.last_seq.lock().unwrap_or_else(|e| e.into_inner());
+        if *last != 0 && seq != *last + 1 {
+            tracing::warn!(
+                expected = *last + 1,
+                got = seq,
+                "[relay] event sequence gap"
+            );
+            self.update_state(|s| s.event_gaps += 1);
+        }
+        *last = seq;
+    }
+
+    /// notecored 側の query id を WebView の id に戻す
+    fn public_payload(&self, name: &str, mut payload: Value) -> Value {
+        if name == "query-delta" {
+            if let Some(daemon_id) = payload.get("queryId").and_then(Value::as_str) {
+                let public = self
+                    .aliases
+                    .lock()
+                    .ok()
+                    .and_then(|a| a.get(daemon_id).cloned());
+                if let Some(public) = public {
+                    payload["queryId"] = Value::String(public);
+                }
+            }
+        }
+        payload
+    }
+
+    /// WebView の query id を notecored 側の今の id に (再宣言の後だけ違う)
+    fn daemon_params(&self, params: Value) -> Value {
+        let mut params = params;
+        if let Some(public) = params.get("queryId").and_then(Value::as_str) {
+            let daemon_id = self.queries.lock().ok().and_then(|q| {
+                q.iter()
+                    .find(|(p, _)| p == public)
+                    .map(|(_, o)| o.daemon_id.clone())
+            });
+            if let Some(daemon_id) = daemon_id {
+                params["queryId"] = Value::String(daemon_id);
+            }
+        }
+        params
+    }
+
+    /// 購読の帳簿 (再接続で出し直すため)。public id = 最初に返った id
+    fn record(&self, name: &str, params: &Value, window: &Option<String>, outcome: &Outcome) {
+        if !outcome.ok {
+            return;
+        }
+        let s = |k: &str| {
+            params
+                .get(k)
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string()
+        };
+        if name.starts_with("query_subscribe_") {
+            if let Some(qid) = outcome
+                .result
+                .as_ref()
+                .and_then(|r| r.get("queryId"))
+                .and_then(Value::as_str)
+            {
+                self.queries
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .push((
+                        qid.to_string(),
+                        OpenQuery {
+                            name: name.to_string(),
+                            params: params.clone(),
+                            window: window.clone(),
+                            daemon_id: qid.to_string(),
+                        },
+                    ));
+            }
+        } else if name == "query_close" {
+            let public = s("queryId");
+            let mut q = self.queries.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(i) = q.iter().position(|(p, _)| *p == public) {
+                let (_, open) = q.remove(i);
+                if !q.iter().any(|(_, o)| o.daemon_id == open.daemon_id) {
+                    self.aliases
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .remove(&open.daemon_id);
+                }
+            }
+        } else if name == "stream_sub_note" {
+            self.captures
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push((s("accountId"), s("noteId")));
+        } else if name == "stream_unsub_note" {
+            let key = (s("accountId"), s("noteId"));
+            let mut c = self.captures.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(i) = c.iter().position(|k| *k == key) {
+                c.remove(i);
+            }
+        }
+    }
+
+    /// 再宣言の応答が読めた時点で、新しい id を WebView の id に結びつける。
+    /// 読み取りループから呼ぶので、続く delta より必ず先に付け替わる
+    fn apply_renewal(&self, request_id: u64, outcome: &Outcome) {
+        let public = self
+            .renewing
+            .lock()
+            .ok()
+            .and_then(|mut r| r.remove(&request_id));
+        let Some(public) = public else {
+            return;
+        };
+        let daemon_id = outcome
+            .result
+            .as_ref()
+            .filter(|_| outcome.ok)
+            .and_then(|r| r.get("queryId"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let mut queries = self.queries.lock().unwrap_or_else(|e| e.into_inner());
+        let Some((_, open)) = queries.iter_mut().find(|(p, _)| *p == public) else {
+            return;
+        };
+        let mut aliases = self.aliases.lock().unwrap_or_else(|e| e.into_inner());
+        match daemon_id {
+            Some(daemon_id) => {
+                aliases.insert(daemon_id.clone(), public);
+                open.daemon_id = daemon_id;
+            }
+            None => {
+                tracing::warn!(
+                    public,
+                    "[relay] re-declare failed: {:?}; keeping the old id",
+                    outcome.error
+                );
+                aliases.insert(open.daemon_id.clone(), public);
+            }
+        }
+    }
+
+    /// 再接続後: WebView が持つ購読を全量、冪等に出し直し、新しい id を付け替える。
+    /// 終わったら復帰イベントを出して WebView に catch-up させる (仕様 §4.4)
+    async fn redeclare(&self) {
+        let opens: Vec<(String, OpenQuery)> =
+            self.queries.lock().map(|q| q.clone()).unwrap_or_default();
+        let captures: Vec<(String, String)> =
+            self.captures.lock().map(|c| c.clone()).unwrap_or_default();
+        self.aliases
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
+        for (public, open) in opens {
+            let _ = self
+                .raw_request_renewing(
+                    &open.name,
+                    open.params.clone(),
+                    open.window.clone(),
+                    Some(public),
+                )
+                .await;
+        }
+        for (account_id, note_id) in &captures {
+            let _ = self
+                .raw_request(
+                    "stream_sub_note",
+                    serde_json::json!({ "accountId": account_id, "noteId": note_id }),
+                    None,
+                )
+                .await;
+        }
+        self.update_state(|s| s.reconnects += 1);
+        (self.on_event)(RESUMED_EVENT, Value::Null);
+    }
+
+    /// 生の要求 (コマンド表の名前 + camelCase の引数)。query id の付け替えと購読の帳簿つき
     pub async fn request(&self, name: &str, params: Value, window: Option<String>) -> Outcome {
+        let params = self.daemon_params(params);
+        let outcome = self.raw_request(name, params.clone(), window.clone()).await;
+        self.record(name, &params, &window, &outcome);
+        outcome
+    }
+
+    async fn raw_request(&self, name: &str, params: Value, window: Option<String>) -> Outcome {
+        self.raw_request_renewing(name, params, window, None).await
+    }
+
+    /// `renewing` が Some なら、この要求は再宣言で、応答時にその WebView id へ付け替える
+    async fn raw_request_renewing(
+        &self,
+        name: &str,
+        params: Value,
+        window: Option<String>,
+        renewing: Option<String>,
+    ) -> Outcome {
         let (tx, secret) = {
             let tx = self.tx.lock().unwrap_or_else(|e| e.into_inner()).clone();
             let secret = self
@@ -271,6 +525,12 @@ impl RelayClient {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .insert(id, reply_tx);
+        if let Some(public) = renewing {
+            self.renewing
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(id, public);
+        }
         let frame = Frame::Request {
             id,
             secret,
@@ -280,6 +540,10 @@ impl RelayClient {
         };
         if tx.send(frame).await.is_err() {
             self.pending
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&id);
+            self.renewing
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .remove(&id);
@@ -402,6 +666,7 @@ mod tests {
         let ev = Frame::Event {
             name: "nd:settings-file-changed".into(),
             payload: json!({ "name": "ai.json5", "op": "write" }),
+            seq: 1,
         };
         let mut line = serde_json::to_string(&ev).unwrap();
         line.push('\n');
@@ -424,6 +689,7 @@ mod tests {
                 let ev = Frame::Event {
                     name: "nd:query-answered".into(),
                     payload: json!({}),
+                    seq: 2,
                 };
                 let mut line = serde_json::to_string(&ev).unwrap();
                 line.push('\n');
@@ -538,5 +804,119 @@ mod tests {
         let r: Result<String, notecli::error::NoteDeckError> =
             client.call("api_note_identity", json!({}), None).await;
         assert_eq!(r.unwrap_err().code(), "NO_CONNECTION");
+    }
+
+    /// 切れて繋ぎ直したら、購読を出し直して id を付け替え、復帰イベントを出す
+    async fn reconnecting_daemon(socket: PathBuf) {
+        let listener = tokio::net::UnixListener::bind(&socket).unwrap();
+        for round in 0..2u32 {
+            let (stream, _) = listener.accept().await.unwrap();
+            let (reader, mut writer) = stream.into_split();
+            let hello = Frame::Hello {
+                protocol: notecore::rpc::PROTOCOL_VERSION,
+                secret: "s".into(),
+                version: "1".into(),
+                fingerprint: notecore::rpc::manifest_fingerprint(),
+            };
+            let mut line = serde_json::to_string(&hello).unwrap();
+            line.push('\n');
+            writer.write_all(line.as_bytes()).await.unwrap();
+            let mut lines = BufReader::new(reader).lines();
+            let mut served = 0;
+            while let Ok(Some(l)) = lines.next_line().await {
+                let Ok(Frame::Request {
+                    id, name, params, ..
+                }) = serde_json::from_str::<Frame>(&l)
+                else {
+                    continue;
+                };
+                let outcome = match name.as_str() {
+                    "query_subscribe_timeline" => {
+                        assert_eq!(params["accountId"], "a");
+                        Outcome::success(json!({ "queryId": format!("q:{round}"), "revision": 1 }))
+                    }
+                    "query_close" => {
+                        // 2 回目の接続では付け替え後の id で届く
+                        assert_eq!(params["queryId"], format!("q:{round}"));
+                        Outcome::success(Value::Null)
+                    }
+                    _ => Outcome::success(Value::Null),
+                };
+                let mut line = serde_json::to_string(&Frame::Response { id, outcome }).unwrap();
+                line.push('\n');
+                writer.write_all(line.as_bytes()).await.unwrap();
+                served += 1;
+                if round == 0 && served == 1 {
+                    // 1 回目: 購読を 1 つ受けたら切る
+                    break;
+                }
+                if round == 1 && name == "query_subscribe_timeline" {
+                    // 2 回目: 再宣言の後、新しい id で delta を流す
+                    let ev = Frame::Event {
+                        name: "query-delta".into(),
+                        payload: json!({ "queryId": "q:1", "revision": 5, "inserts": [], "deletes": [], "updates": [] }),
+                        seq: 1,
+                    };
+                    let mut line = serde_json::to_string(&ev).unwrap();
+                    line.push('\n');
+                    writer.write_all(line.as_bytes()).await.unwrap();
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn redeclares_subscriptions_after_reconnect_and_aliases_ids() {
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("r.sock");
+        tokio::spawn(reconnecting_daemon(socket.clone()));
+        let events: Arc<Mutex<Vec<(String, Value)>>> = Arc::new(Mutex::new(Vec::new()));
+        let ev = events.clone();
+        let client = Arc::new(RelayClient::new(
+            socket,
+            Arc::new(move |name, payload| ev.lock().unwrap().push((name.to_string(), payload))),
+            Arc::new(|_| {}),
+            Arc::new(|_, _, _| Box::pin(async { Err("none".into()) })),
+        ));
+        let runner = client.clone();
+        tokio::spawn(async move { runner.run().await });
+        for _ in 0..200 {
+            if client.is_connected() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let first = client
+            .request(
+                "query_subscribe_timeline",
+                json!({ "accountId": "a", "timelineType": "home" }),
+                None,
+            )
+            .await;
+        assert_eq!(first.result.unwrap()["queryId"], "q:0");
+        // 偽 daemon が切る → 再接続 → 再宣言 (q:1) → 復帰イベント
+        for _ in 0..400 {
+            if client.state_snapshot().reconnects >= 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(client.state_snapshot().reconnects, 1);
+        for _ in 0..200 {
+            if events.lock().unwrap().len() >= 2 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let got = events.lock().unwrap().clone();
+        assert!(got.iter().any(|(n, _)| n == RESUMED_EVENT));
+        // 新しい id の delta は WebView の id (q:0) に付け替わる
+        let delta = got.iter().find(|(n, _)| n == "query-delta").unwrap();
+        assert_eq!(delta.1["queryId"], "q:0");
+        // WebView が q:0 を閉じると daemon には q:1 で届く
+        let closed = client
+            .request("query_close", json!({ "queryId": "q:0" }), None)
+            .await;
+        assert!(closed.ok);
     }
 }
