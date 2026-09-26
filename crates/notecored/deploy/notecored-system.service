@@ -1,0 +1,30 @@
+# notedeck:notecored-unit v1 (system unit sample, 3b: external hosts)
+# 専用ユーザーで動かすサンプル。DynamicUser は uid が一致しないので同一ホストの
+# アプリ (SO_PEERCRED で uid を照合する) からは繋げない。外向きの構成 (3b) 専用。
+# 鍵は `notecored secrets keygen --out <path>` で作り、credential で渡す。
+[Unit]
+Description=NoteDeck resident core (notecored, system)
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+DynamicUser=yes
+StateDirectory=notecored
+RuntimeDirectory=notecored
+LoadCredential=secret.key:/etc/notecored/secret.key
+ExecStart=/usr/bin/notecored run --data-dir /var/lib/notecored --socket /run/notecored/notecored.sock --secret-key-file %d/secret.key --log stdout
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=10 11 12 13
+KillSignal=SIGTERM
+TimeoutStopSec=10
+NoNewPrivileges=yes
+UMask=0077
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
