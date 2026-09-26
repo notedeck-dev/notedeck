@@ -40,9 +40,22 @@ pub struct GenerationConfig {
     pub read_timeout_seconds: u32,
 }
 
+/// system prompt に含める情報の選択 (`dataSources.custom`)
+#[derive(Clone, Debug, PartialEq)]
+pub struct DataSources {
+    pub current_account: bool,
+    pub current_column: bool,
+    pub visible_notes: bool,
+    pub recent_conversation: bool,
+    pub memos: bool,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct AiConfigLite {
     pub active_connection_id: String,
+    /// persona として立てる skill の id (空 = persona なし)
+    pub persona_skill_id: String,
+    pub data_sources: DataSources,
     /// 接続 id → モデル名
     pub models: std::collections::HashMap<String, String>,
     pub heartbeat: HeartbeatConfig,
@@ -91,12 +104,29 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
         Some(t) if !t.is_empty() => t.to_string(),
         _ => "auto".to_string(),
     };
+    let ds = |k: &str, default: bool| {
+        get(doc, &["dataSources", "custom", k])
+            .and_then(Value::as_bool)
+            .unwrap_or(default)
+    };
     AiConfigLite {
         active_connection_id: doc
             .get("activeConnectionId")
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string(),
+        persona_skill_id: doc
+            .get("personaSkillId")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string(),
+        data_sources: DataSources {
+            current_account: ds("currentAccount", true),
+            current_column: ds("currentColumn", true),
+            visible_notes: ds("visibleNotes", false),
+            recent_conversation: ds("recentConversation", false),
+            memos: ds("memos", true),
+        },
         models: doc
             .get("models")
             .and_then(Value::as_object)
@@ -187,6 +217,19 @@ pub fn load(core: &Core) -> Result<AiConfigLite> {
 }
 
 /// `heartbeat.enabled` だけを書き換える (他のキーは保つ)。書けたら変更通知。
+/// persona の切替 (`ai.setPersona`)。空文字 = persona なし。
+pub fn set_persona_skill_id(core: &Core, skill_id: &str) -> Result<()> {
+    let mut doc = read_document(core)?;
+    if !doc.is_object() {
+        doc = Value::Object(Default::default());
+    }
+    doc.as_object_mut()
+        .expect("object")
+        .insert("personaSkillId".into(), Value::String(skill_id.to_string()));
+    let text = serde_json::to_string_pretty(&doc)? + "\n";
+    settings_events::write_root_file(core, FILE_NAME, &text)
+}
+
 pub fn set_heartbeat_enabled(core: &Core, enabled: bool) -> Result<()> {
     let mut doc = read_document(core)?;
     if !doc.is_object() {
@@ -214,6 +257,14 @@ mod tests {
     #[test]
     fn defaults_and_clamps_match_use_ai_config() {
         let c = from_document(&json!({}));
+        assert_eq!(c.persona_skill_id, "");
+        assert!(c.data_sources.current_account && c.data_sources.memos);
+        assert!(!c.data_sources.visible_notes);
+        let c2 = from_document(
+            &json!({ "personaSkillId": "p", "dataSources": { "custom": { "memos": false } } }),
+        );
+        assert_eq!(c2.persona_skill_id, "p");
+        assert!(!c2.data_sources.memos);
         assert!(!c.heartbeat.enabled);
         assert_eq!(c.heartbeat.interval_minutes, 30);
         assert_eq!(c.heartbeat.target, "auto");

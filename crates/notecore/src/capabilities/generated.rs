@@ -113,7 +113,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "persona として選べる skill 一覧 (= isPersona:true な skill のみ)。 現在 active な persona は `active: true`。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -224,7 +224,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "AI の persona (= 同一性設定) を切り替える。skillId は isPersona:true な skill の id (ai.listPersonas で取得)、空文字を渡せば persona 解除。 chat / heartbeat / command / task すべての AI session に反映される。",
         params: &[
             ParamDecl {
@@ -2045,7 +2045,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "設定可能なコマンド ID 一覧と、それぞれの現在の shortcut を返す。 `customized: true` のものはユーザーが上書きしている。AI が 「Vim 風にして」と言われたときの起点。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -2067,7 +2067,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 commandId のキーバインドを default に戻す (override 削除)。",
         params: &[
             ParamDecl {
@@ -2097,7 +2097,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "全コマンドの override を破棄して default に戻す。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -2119,7 +2119,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 commandId の shortcut を上書きする。Shortcut は  { key: string, scope: \"global\"|\"body\", ctrl?: boolean, shift?: boolean, alt?: boolean }。 `key` は KeyboardEvent.key の値 (\"k\" / \"p\" / \"Escape\" / \"ArrowDown\" 等)。 scope: \"global\" は修飾キー付き常時有効、\"body\" はテキスト入力中は無効。",
         params: &[
             ParamDecl {
@@ -2612,7 +2612,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "現在 active な (= system prompt に乗っている) skill のメタ一覧。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -2634,7 +2634,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "現在の AI 設定の機密でない部分 (protocol / model / dataSources flags) を返す。 API キー / endpoint / custom permissions の生 map は **明示的に除外**。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -2656,7 +2656,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "HEARTBEAT daemon の現在設定 (enabled / intervalMinutes / target / dailyMaxAiRuns / onDailyLimit / desktopNotification / cheapCheck) を読み取り専用で返す。AI 自身の起動条件を理解するため。**編集は塞がれている** (AI が自分の interval を変えると暴走するため)。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -2700,7 +2700,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "現在のセッションで AI が振る舞っている persona (= isPersona:true な skill) を返す。設定されていなければ null。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -2788,7 +2788,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "現在のナビバー構成 (navItems) を返す。各要素は  { type, accountId, label? } または { type: \"divider\" }。 navbar.set で AI が新構成を提案するときの起点。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -2810,7 +2810,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "ナビバー構成を NoteDeck の default に戻す。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -3594,7 +3594,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "0..1 のスライダー位置 t に応じて全パフォーマンス値を線形補間で一括設定。 0 = 省電力寄り、1 = リッチ寄り。包括的チューニングプリセット。",
         params: &[
             ParamDecl {
@@ -3624,7 +3624,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "全パフォーマンス設定 key と、その現在値 / default / min / max / unit / description / customized フラグを返す。AI がチューニング提案するときの起点。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -3646,7 +3646,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 key の override を破棄して default に戻す。",
         params: &[
             ParamDecl {
@@ -3676,7 +3676,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "全 key の override を破棄。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -3698,7 +3698,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 key のパフォーマンス値を上書きする。範囲外の値は store 側で min..max に自動 clamp。default と同じ値を渡すと override 削除扱い。",
         params: &[
             ParamDecl {

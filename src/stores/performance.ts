@@ -7,6 +7,7 @@ import {
   frameTelemetry,
   type QualityLevel,
 } from '@/engine/telemetry/frameTelemetry'
+import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri, readPerformance, writePerformance } from '@/utils/settingsFs'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -388,6 +389,21 @@ export const usePerformanceStore = defineStore('performance', () => {
   function isCustomized(key: PerformanceKey): boolean {
     return key in overrides.value
   }
+
+  // notecore が performance.json5 を書いた (AI の performance.* は notecore の
+  // 本体が書く, #1133) → 写しを読み直し、CSS 変数と Rust 側へ反映する
+  registerSettingsFileHandler('root', async (change) => {
+    if (change.name !== 'performance.json5' || !isTauri) return
+    try {
+      const content = await readPerformance()
+      overrides.value = content
+        ? (JSON5.parse(content) as Partial<PerformanceConfig>)
+        : {}
+      applySideEffects()
+    } catch (e) {
+      console.warn('[performance] reload failed:', e)
+    }
+  })
 
   return {
     overrides,

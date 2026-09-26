@@ -4573,22 +4573,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     /** {targets}を ダウンロード/notedeck/{subdir}/ に保存します。センシティブ設定のファイルは除きます。 */
     readonly "confirmMessageExcludeSensitive": ParameterizedString<'subdir' | 'targets'>
   }
-  readonly "_keybindsCapability": {
-    /** キーバインドを変更 */
-    readonly "setTitle": string
-    /** `{commandId}` の shortcut を {count} 個に変更します。keybinds.reset でデフォルトに戻せます。 */
-    readonly "setMessage_plural": PluralString<'commandId' | 'count'>
-    /** 変更 */
-    readonly "setOk": string
-    /** キーバインドをデフォルトに戻す */
-    readonly "resetTitle": string
-    /** `{commandId}` のカスタム shortcut を破棄し、デフォルトに戻します。 */
-    readonly "resetMessage": ParameterizedString<'commandId'>
-    /** 全キーバインドをデフォルトに戻す */
-    readonly "resetAllTitle": string
-    /** 全コマンドのカスタム shortcut を破棄し、すべてデフォルトに戻します。 */
-    readonly "resetAllMessage": string
-  }
   readonly "_navbarCapability": {
     /** ナビバー構成を上書き */
     readonly "setTitle": string
@@ -4596,52 +4580,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "setMessage_plural": PluralString<'count'>
     /** 上書き */
     readonly "setOk": string
-    /** ナビバー構成をデフォルトに戻す */
-    readonly "resetTitle": string
-    /** 現在のカスタム構成を破棄し、デフォルトの {count} 項目に戻します。 */
-    readonly "resetMessage_plural": PluralString<'count'>
-  }
-  readonly "_performanceCapability": {
-    /** パフォーマンス値を変更 */
-    readonly "setTitle": string
-    /** {label} (`{key}`) を {value}{unit} に変更します。範囲外なら {min}..{max} に自動 clamp されます。 */
-    readonly "setMessage": ParameterizedString<'key' | 'label' | 'max' | 'min' | 'unit' | 'value'>
-    /** `{key}` を {value} に変更します。 */
-    readonly "setMessageUnknown": ParameterizedString<'key' | 'value'>
-    /** 変更 */
-    readonly "setOk": string
-    /** パフォーマンス値をデフォルトに戻す */
-    readonly "resetTitle": string
-    /** {label} (`{key}`) をデフォルトに戻します。 */
-    readonly "resetMessage": ParameterizedString<'key' | 'label'>
-    /** `{key}` をデフォルトに戻します。 */
-    readonly "resetMessageUnknown": ParameterizedString<'key'>
-    /** 全パフォーマンス値をデフォルトに戻す */
-    readonly "resetAllTitle": string
-    /** 全 override を破棄し、すべてデフォルトに戻します (= 設定をクリーン状態に)。 */
-    readonly "resetAllMessage": string
-    /** 省電力寄り */
-    readonly "presetPowerSaving": string
-    /** リッチ寄り */
-    readonly "presetRich": string
-    /** バランス */
-    readonly "presetBalanced": string
-    /** パフォーマンスプリセットを適用 */
-    readonly "applyTitle": string
-    /** スライダー位置 t={t} ({label}) のプリセットを全 key に適用します。 */
-    readonly "applyMessage": ParameterizedString<'label' | 't'>
-    /** 適用 */
-    readonly "applyOk": string
-  }
-  readonly "_personaCapability": {
-    /** AI persona を切り替え */
-    readonly "title": string
-    /** AI persona を「{name}」に切り替えます。chat / heartbeat / command / task すべての session に反映されます。 */
-    readonly "switchMessage": ParameterizedString<'name'>
-    /** 不明な skill id "{id}" を persona にしようとしています。 */
-    readonly "unknownMessage": ParameterizedString<'id'>
-    /** AI persona を解除します (= 通常の汎用 AI として動作)。 */
-    readonly "clearMessage": string
   }
   readonly "_pluginsCapability": {
     /** プラグインをインストール */
@@ -5562,6 +5500,96 @@ AI プロバイダーの API キーを登録すると使えるようになりま
 ストア更新日: {date} / v{version}
 新しい権限: {permissions} */
         readonly "updateConfirmWithPermissions": ParameterizedString<'date' | 'name' | 'permissions' | 'version'>
+      }
+      readonly "common": {
+        /** デフォルトに戻す */
+        readonly "resetToDefault": string
+        /** すべてデフォルトに戻す */
+        readonly "resetAllToDefault": string
+        /** 切り替え */
+        readonly "switch": string
+      }
+      readonly "keybinds": {
+        readonly "set": {
+          /** キーバインドを変更 */
+          readonly "title": string
+          /** `{commandId}` の shortcut を {count} 個に変更します。keybinds.reset でデフォルトに戻せます。 */
+          readonly "message_plural": PluralString<'commandId' | 'count'>
+          /** 変更 */
+          readonly "ok": string
+        }
+        readonly "reset": {
+          /** キーバインドをデフォルトに戻す */
+          readonly "title": string
+          /** `{commandId}` のカスタム shortcut を破棄し、デフォルトに戻します。 */
+          readonly "message": ParameterizedString<'commandId'>
+        }
+        readonly "resetAll": {
+          /** 全キーバインドをデフォルトに戻す */
+          readonly "title": string
+          /** 全コマンドのカスタム shortcut を破棄し、すべてデフォルトに戻します。 */
+          readonly "message": string
+        }
+      }
+      readonly "navbar": {
+        readonly "reset": {
+          /** ナビバー構成をデフォルトに戻す */
+          readonly "title": string
+          /** 現在のカスタム構成を破棄し、デフォルトの {count} 項目に戻します。 */
+          readonly "message_plural": PluralString<'count'>
+        }
+      }
+      readonly "performance": {
+        readonly "set": {
+          /** パフォーマンス値を変更 */
+          readonly "title": string
+          /** {label} (`{key}`) を {value}{unit} に変更します。範囲外なら {min}..{max} に自動 clamp されます。 */
+          readonly "message": ParameterizedString<'key' | 'label' | 'max' | 'min' | 'unit' | 'value'>
+          /** `{key}` を {value} に変更します。 */
+          readonly "messageUnknown": ParameterizedString<'key' | 'value'>
+          /** 変更 */
+          readonly "ok": string
+        }
+        readonly "reset": {
+          /** パフォーマンス値をデフォルトに戻す */
+          readonly "title": string
+          /** {label} (`{key}`) をデフォルトに戻します。 */
+          readonly "message": ParameterizedString<'key' | 'label'>
+          /** `{key}` をデフォルトに戻します。 */
+          readonly "messageUnknown": ParameterizedString<'key'>
+        }
+        readonly "resetAll": {
+          /** 全パフォーマンス値をデフォルトに戻す */
+          readonly "title": string
+          /** 全 override を破棄し、すべてデフォルトに戻します (= 設定をクリーン状態に)。 */
+          readonly "message": string
+        }
+        readonly "applySlider": {
+          /** パフォーマンスプリセットを適用 */
+          readonly "title": string
+          /** スライダー位置 t={t} ({label}) のプリセットを全 key に適用します。 */
+          readonly "message": ParameterizedString<'label' | 't'>
+          /** 適用 */
+          readonly "ok": string
+          /** 省電力寄り */
+          readonly "presetPowerSaving": string
+          /** リッチ寄り */
+          readonly "presetRich": string
+          /** バランス */
+          readonly "presetBalanced": string
+        }
+      }
+      readonly "persona": {
+        readonly "set": {
+          /** AI persona を切り替え */
+          readonly "title": string
+          /** AI persona を「{name}」に切り替えます。chat / heartbeat / command / task すべての session に反映されます。 */
+          readonly "switchMessage": ParameterizedString<'name'>
+          /** 不明な skill id "{id}" を persona にしようとしています。 */
+          readonly "unknownMessage": ParameterizedString<'id'>
+          /** AI persona を解除します (= 通常の汎用 AI として動作)。 */
+          readonly "clearMessage": string
+        }
       }
       readonly "styles": {
         readonly "write": {

@@ -1,0 +1,514 @@
+{
+  "fields": {
+    "emojiCacheHosts": {
+      "min": 4,
+      "max": 200,
+      "step": 4,
+      "category": "emoji",
+      "unit": "ホスト",
+      "unitKey": "hosts",
+      "low": 8,
+      "high": 64
+    },
+    "emojiListHosts": {
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "category": "emoji",
+      "unit": "ホスト",
+      "unitKey": "hosts",
+      "low": 2,
+      "high": 6
+    },
+    "emojiPersistPerHost": {
+      "min": 50,
+      "max": 1000,
+      "step": 50,
+      "category": "emoji",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 200,
+      "high": 700
+    },
+    "noteStoreMax": {
+      "min": 500,
+      "max": 10000,
+      "step": 500,
+      "category": "note",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 800,
+      "high": 3000
+    },
+    "noteListMax": {
+      "min": 50,
+      "max": 1000,
+      "step": 50,
+      "category": "note",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 150,
+      "high": 300
+    },
+    "chatMessageStoreMax": {
+      "min": 500,
+      "max": 50000,
+      "step": 500,
+      "category": "note",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 2000,
+      "high": 10000
+    },
+    "maxNotifications": {
+      "min": 100,
+      "max": 1000,
+      "step": 100,
+      "category": "note",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 100,
+      "high": 500
+    },
+    "mfmCacheMax": {
+      "min": 32,
+      "max": 2048,
+      "step": 32,
+      "category": "cache",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 128,
+      "high": 512
+    },
+    "blurhashCacheMax": {
+      "min": 64,
+      "max": 2048,
+      "step": 64,
+      "category": "cache",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 128,
+      "high": 512
+    },
+    "imageProxyCacheMax": {
+      "min": 32,
+      "max": 2048,
+      "step": 32,
+      "category": "cache",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 64,
+      "high": 512
+    },
+    "ogpCacheMax": {
+      "min": 32,
+      "max": 1024,
+      "step": 32,
+      "category": "cache",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 128,
+      "high": 512
+    },
+    "noteCaptureMax": {
+      "min": 10,
+      "max": 200,
+      "step": 10,
+      "category": "realtime",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 40,
+      "high": 150
+    },
+    "overscan": {
+      "min": 2,
+      "max": 20,
+      "step": 1,
+      "category": "realtime",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 5,
+      "high": 10
+    },
+    "memoryCacheMaxMB": {
+      "min": 1,
+      "max": 64,
+      "step": 1,
+      "category": "backend",
+      "unit": "MB",
+      "unitKey": null,
+      "low": 16,
+      "high": 64
+    },
+    "memoryCacheMaxItemKB": {
+      "min": 16,
+      "max": 512,
+      "step": 16,
+      "category": "backend",
+      "unit": "KB",
+      "unitKey": null,
+      "low": 128,
+      "high": 256
+    },
+    "maxConcurrentFetches": {
+      "min": 5,
+      "max": 100,
+      "step": 5,
+      "category": "backend",
+      "unit": "並列",
+      "unitKey": "parallel",
+      "low": 15,
+      "high": 40
+    },
+    "rustOgpCacheMax": {
+      "min": 16,
+      "max": 512,
+      "step": 16,
+      "category": "backend",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 128,
+      "high": 512
+    },
+    "maxRequestsPerWindow": {
+      "min": 50,
+      "max": 500,
+      "step": 50,
+      "category": "backend",
+      "unit": "req/min",
+      "unitKey": null,
+      "low": 100,
+      "high": 300
+    },
+    "circuitBreakerThreshold": {
+      "min": 2,
+      "max": 10,
+      "step": 1,
+      "category": "backend",
+      "unit": "回",
+      "unitKey": "times",
+      "low": 3,
+      "high": 5
+    },
+    "circuitBreakerDuration": {
+      "min": 10,
+      "max": 300,
+      "step": 10,
+      "category": "backend",
+      "unit": "秒",
+      "unitKey": "seconds",
+      "low": 90,
+      "high": 30
+    },
+    "imageCacheTTLDays": {
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "category": "backend",
+      "unit": "日",
+      "unitKey": "days",
+      "low": 3,
+      "high": 14
+    },
+    "imageCacheMaxMB": {
+      "min": 64,
+      "max": 4096,
+      "step": 64,
+      "category": "backend",
+      "unit": "MB",
+      "unitKey": null,
+      "low": 128,
+      "high": 2048
+    },
+    "imageCacheMaxFileMB": {
+      "min": 1,
+      "max": 128,
+      "step": 1,
+      "category": "backend",
+      "unit": "MB",
+      "unitKey": null,
+      "low": 8,
+      "high": 40
+    },
+    "prefetchAhead": {
+      "min": 0,
+      "max": 60,
+      "step": 5,
+      "category": "realtime",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 15,
+      "high": 40
+    },
+    "prefetchBehind": {
+      "min": 0,
+      "max": 30,
+      "step": 5,
+      "category": "realtime",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 5,
+      "high": 15
+    },
+    "prefetchTrackedMax": {
+      "min": 100,
+      "max": 2000,
+      "step": 100,
+      "category": "realtime",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 150,
+      "high": 1000
+    },
+    "lazyLoadMargin": {
+      "min": 0,
+      "max": 500,
+      "step": 50,
+      "category": "realtime",
+      "unit": "px",
+      "unitKey": null,
+      "low": 100,
+      "high": 300
+    },
+    "ogpGalleryMax": {
+      "min": 0,
+      "max": 8,
+      "step": 1,
+      "category": "cache",
+      "unit": "枚",
+      "unitKey": "images",
+      "low": 2,
+      "high": 6
+    },
+    "embedCacheMax": {
+      "min": 16,
+      "max": 256,
+      "step": 16,
+      "category": "cache",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 16,
+      "high": 128
+    },
+    "nearViewportBuffer": {
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "category": "realtime",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 2,
+      "high": 6
+    },
+    "cssBlurLevel": {
+      "min": 0,
+      "max": 2,
+      "step": 1,
+      "category": "css",
+      "unit": "",
+      "unitKey": null,
+      "low": 0,
+      "high": 2
+    },
+    "cssAnimationScale": {
+      "min": 0,
+      "max": 100,
+      "step": 25,
+      "category": "css",
+      "unit": "%",
+      "unitKey": null,
+      "low": 50,
+      "high": 100
+    },
+    "cssShadowLevel": {
+      "min": 0,
+      "max": 2,
+      "step": 1,
+      "category": "css",
+      "unit": "",
+      "unitKey": null,
+      "low": 1,
+      "high": 2
+    },
+    "streamPollingInterval": {
+      "min": 3,
+      "max": 60,
+      "step": 1,
+      "category": "polling",
+      "unit": "秒",
+      "unitKey": "seconds",
+      "low": 30,
+      "high": 5
+    },
+    "notificationPollInterval": {
+      "min": 30,
+      "max": 600,
+      "step": 30,
+      "category": "polling",
+      "unit": "秒",
+      "unitKey": "seconds",
+      "low": 300,
+      "high": 60
+    },
+    "chatPollInterval": {
+      "min": 30,
+      "max": 600,
+      "step": 30,
+      "category": "polling",
+      "unit": "秒",
+      "unitKey": "seconds",
+      "low": 300,
+      "high": 60
+    },
+    "maxLiveColumns": {
+      "min": 1,
+      "max": 10,
+      "step": 1,
+      "category": "realtime",
+      "unit": "本",
+      "unitKey": "columns",
+      "low": 2,
+      "high": 5
+    },
+    "columnUnloadDelay": {
+      "min": 1000,
+      "max": 30000,
+      "step": 1000,
+      "category": "realtime",
+      "unit": "ms",
+      "unitKey": null,
+      "low": 1500,
+      "high": 15000
+    },
+    "snapshotMaxNotes": {
+      "min": 10,
+      "max": 100,
+      "step": 10,
+      "category": "realtime",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 15,
+      "high": 80
+    },
+    "snapshotTTL": {
+      "min": 1,
+      "max": 30,
+      "step": 1,
+      "category": "realtime",
+      "unit": "分",
+      "unitKey": "minutes",
+      "low": 3,
+      "high": 20
+    },
+    "jankDowngradeThreshold": {
+      "min": 1,
+      "max": 15,
+      "step": 1,
+      "category": "telemetry",
+      "unit": "回/秒",
+      "unitKey": "timesPerSecond",
+      "low": 3,
+      "high": 8
+    },
+    "stableUpgradeSeconds": {
+      "min": 5,
+      "max": 30,
+      "step": 5,
+      "category": "telemetry",
+      "unit": "秒",
+      "unitKey": "seconds",
+      "low": 15,
+      "high": 5
+    },
+    "noteAnimationDuration": {
+      "min": 0,
+      "max": 800,
+      "step": 50,
+      "category": "telemetry",
+      "unit": "ms",
+      "unitKey": null,
+      "low": 200,
+      "high": 500
+    },
+    "frameHistorySize": {
+      "min": 30,
+      "max": 500,
+      "step": 10,
+      "category": "telemetry",
+      "unit": "フレーム",
+      "unitKey": "frames",
+      "low": 30,
+      "high": 200
+    },
+    "soundCacheMax": {
+      "min": 2,
+      "max": 32,
+      "step": 2,
+      "category": "cache",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 2,
+      "high": 16
+    },
+    "cachedTimelineLimit": {
+      "min": 10,
+      "max": 200,
+      "step": 10,
+      "category": "cache",
+      "unit": "件",
+      "unitKey": "items",
+      "low": 15,
+      "high": 80
+    },
+    "pullFireThreshold": {
+      "min": 80,
+      "max": 400,
+      "step": 20,
+      "category": "interaction",
+      "unit": "px",
+      "unitKey": null,
+      "low": 200,
+      "high": 200
+    },
+    "swipeThreshold": {
+      "min": 20,
+      "max": 120,
+      "step": 10,
+      "category": "interaction",
+      "unit": "px",
+      "unitKey": null,
+      "low": 50,
+      "high": 50
+    },
+    "flingVelocity": {
+      "min": 0.1,
+      "max": 1,
+      "step": 0.1,
+      "category": "interaction",
+      "unit": "px/ms",
+      "unitKey": null,
+      "low": 0.4,
+      "high": 0.4
+    },
+    "wheelCooldown": {
+      "min": 100,
+      "max": 1000,
+      "step": 50,
+      "category": "interaction",
+      "unit": "ms",
+      "unitKey": null,
+      "low": 300,
+      "high": 300
+    },
+    "scrollHideThreshold": {
+      "min": 10,
+      "max": 100,
+      "step": 10,
+      "category": "interaction",
+      "unit": "px",
+      "unitKey": null,
+      "low": 30,
+      "high": 30
+    }
+  }
+}

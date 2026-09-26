@@ -13,6 +13,7 @@ import {
   expandDefaultDeckColumns,
 } from '@/services/defaultDeck'
 import type { VariantKey } from '@/services/noteKey'
+import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useDeckWallpaperStore } from '@/stores/deckWallpaper'
@@ -297,6 +298,15 @@ export const useDeckStore = defineStore('deck', () => {
       console.warn('[deck] failed to init navbar:', e)
     }
   }
+
+  // notecore が navbar.json5 を書いた (navbar.reset は空にする, #1133) → 写しを
+  // 読み直す。空なら既定に戻す
+  registerSettingsFileHandler('root', async (change) => {
+    if (change.name !== 'navbar.json5' || !isTauri) return
+    navItems.value = [...DEFAULT_NAV_ITEMS]
+    isNavCustomized.value = false
+    await initNavbar()
+  })
 
   const activeColumnId = ref<string | null>(null)
   /**

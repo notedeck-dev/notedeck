@@ -2538,47 +2538,11 @@ _filesCapability:
   confirmMessage: "{targets}を ダウンロード/notedeck/{subdir}/ に保存します。"
   confirmMessageExcludeSensitive: "{targets}を ダウンロード/notedeck/{subdir}/ に保存します。センシティブ設定のファイルは除きます。"
 
-_keybindsCapability:
-  setTitle: "キーバインドを変更"
-  setMessage_plural:
-    other: "`{commandId}` の shortcut を {count} 個に変更します。keybinds.reset でデフォルトに戻せます。"
-  setOk: "変更"
-  resetTitle: "キーバインドをデフォルトに戻す"
-  resetMessage: "`{commandId}` のカスタム shortcut を破棄し、デフォルトに戻します。"
-  resetAllTitle: "全キーバインドをデフォルトに戻す"
-  resetAllMessage: "全コマンドのカスタム shortcut を破棄し、すべてデフォルトに戻します。"
-
 _navbarCapability:
   setTitle: "ナビバー構成を上書き"
   setMessage_plural:
     other: "ナビバーを {count} 項目で全置換します。現在の構成は失われます (navbar.reset でデフォルトに戻せます)。"
   setOk: "上書き"
-  resetTitle: "ナビバー構成をデフォルトに戻す"
-  resetMessage_plural:
-    other: "現在のカスタム構成を破棄し、デフォルトの {count} 項目に戻します。"
-
-_performanceCapability:
-  setTitle: "パフォーマンス値を変更"
-  setMessage: "{label} (`{key}`) を {value}{unit} に変更します。範囲外なら {min}..{max} に自動 clamp されます。"
-  setMessageUnknown: "`{key}` を {value} に変更します。"
-  setOk: "変更"
-  resetTitle: "パフォーマンス値をデフォルトに戻す"
-  resetMessage: "{label} (`{key}`) をデフォルトに戻します。"
-  resetMessageUnknown: "`{key}` をデフォルトに戻します。"
-  resetAllTitle: "全パフォーマンス値をデフォルトに戻す"
-  resetAllMessage: "全 override を破棄し、すべてデフォルトに戻します (= 設定をクリーン状態に)。"
-  presetPowerSaving: "省電力寄り"
-  presetRich: "リッチ寄り"
-  presetBalanced: "バランス"
-  applyTitle: "パフォーマンスプリセットを適用"
-  applyMessage: "スライダー位置 t={t} ({label}) のプリセットを全 key に適用します。"
-  applyOk: "適用"
-
-_personaCapability:
-  title: "AI persona を切り替え"
-  switchMessage: "AI persona を「{name}」に切り替えます。chat / heartbeat / command / task すべての session に反映されます。"
-  unknownMessage: "不明な skill id \"{id}\" を persona にしようとしています。"
-  clearMessage: "AI persona を解除します (= 通常の汎用 AI として動作)。"
 
 _pluginsCapability:
   createTitle: "プラグインをインストール"
@@ -3090,6 +3054,53 @@ _native:
     misstore:
       updateConfirm: "「{name}」をストアの内容で更新します。\nストア更新日: {date} / v{version}"
       updateConfirmWithPermissions: "「{name}」をストアの内容で更新します。\nストア更新日: {date} / v{version}\n新しい権限: {permissions}"
+    common:
+      resetToDefault: "デフォルトに戻す"
+      resetAllToDefault: "すべてデフォルトに戻す"
+      switch: "切り替え"
+    keybinds:
+      set:
+        title: "キーバインドを変更"
+        message_plural:
+          other: "`{commandId}` の shortcut を {count} 個に変更します。keybinds.reset でデフォルトに戻せます。"
+        ok: "変更"
+      reset:
+        title: "キーバインドをデフォルトに戻す"
+        message: "`{commandId}` のカスタム shortcut を破棄し、デフォルトに戻します。"
+      resetAll:
+        title: "全キーバインドをデフォルトに戻す"
+        message: "全コマンドのカスタム shortcut を破棄し、すべてデフォルトに戻します。"
+    navbar:
+      reset:
+        title: "ナビバー構成をデフォルトに戻す"
+        message_plural:
+          other: "現在のカスタム構成を破棄し、デフォルトの {count} 項目に戻します。"
+    performance:
+      set:
+        title: "パフォーマンス値を変更"
+        message: "{label} (`{key}`) を {value}{unit} に変更します。範囲外なら {min}..{max} に自動 clamp されます。"
+        messageUnknown: "`{key}` を {value} に変更します。"
+        ok: "変更"
+      reset:
+        title: "パフォーマンス値をデフォルトに戻す"
+        message: "{label} (`{key}`) をデフォルトに戻します。"
+        messageUnknown: "`{key}` をデフォルトに戻します。"
+      resetAll:
+        title: "全パフォーマンス値をデフォルトに戻す"
+        message: "全 override を破棄し、すべてデフォルトに戻します (= 設定をクリーン状態に)。"
+      applySlider:
+        title: "パフォーマンスプリセットを適用"
+        message: "スライダー位置 t={t} ({label}) のプリセットを全 key に適用します。"
+        ok: "適用"
+        presetPowerSaving: "省電力寄り"
+        presetRich: "リッチ寄り"
+        presetBalanced: "バランス"
+    persona:
+      set:
+        title: "AI persona を切り替え"
+        switchMessage: "AI persona を「{name}」に切り替えます。chat / heartbeat / command / task すべての session に反映されます。"
+        unknownMessage: "不明な skill id \"{id}\" を persona にしようとしています。"
+        clearMessage: "AI persona を解除します (= 通常の汎用 AI として動作)。"
     styles:
       write:
         title: "カスタム CSS を全置換"

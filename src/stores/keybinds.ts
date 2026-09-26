@@ -4,6 +4,7 @@ import { ref, watch } from 'vue'
 
 import type { Shortcut } from '@/commands/registry'
 import defaultKeybindsJson5 from '@/defaults/keybindings.json5?raw'
+import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri, readKeybinds, writeKeybinds } from '@/utils/settingsFs'
 
@@ -85,6 +86,20 @@ export const useKeybindsStore = defineStore('keybinds', () => {
   function getAllCommandIds(): string[] {
     return DEFAULT_KEYBINDS.map((e) => e.commandId)
   }
+
+  // notecore が keybinds.json5 を書いた (AI の keybinds.* は notecore の本体が
+  // 書く, #1133) → 写しを読み直す
+  registerSettingsFileHandler('root', async (change) => {
+    if (change.name !== 'keybinds.json5' || !isTauri) return
+    try {
+      const content = await readKeybinds()
+      overrides.value = content
+        ? (JSON5.parse(content) as Record<string, Shortcut[]>)
+        : {}
+    } catch (e) {
+      console.warn('[keybinds] reload failed:', e)
+    }
+  })
 
   return {
     overrides,

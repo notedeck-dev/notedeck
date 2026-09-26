@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultConfig } from '@/composables/useAiConfig'
-import {
-  META_BUILTIN_CAPABILITIES,
-  metaConfigCapability,
-  metaPersonaCapability,
-} from './meta'
+import { META_BUILTIN_CAPABILITIES } from './meta'
 
 describe('meta capabilities — declaration', () => {
   it('all are aiTool:true with no permissions (= 機密なし)', () => {
@@ -13,37 +8,6 @@ describe('meta capabilities — declaration', () => {
       expect(cap.permissions, `${cap.id}.permissions`).toEqual([])
       expect(cap.signature?.cheap, `${cap.id}.cheap`).toBe(true)
     }
-  })
-})
-
-describe('meta.persona', () => {
-  it('returns null when personaSkillId is not set', () => {
-    const cfg = defaultConfig()
-    const result = metaPersonaCapability.execute({}, { aiConfig: cfg })
-    expect(result).toBeNull()
-  })
-})
-
-describe('meta.config', () => {
-  it('returns protocol/model/dataSourcesEnabled but NEVER endpoint or API key', () => {
-    const cfg = defaultConfig()
-    const result = metaConfigCapability.execute({}, { aiConfig: cfg }) as {
-      protocol: string
-      model: string
-      dataSourcesEnabled: Record<string, boolean>
-      endpoint?: unknown
-      apiKey?: unknown
-    }
-    expect(typeof result.protocol).toBe('string')
-    expect(typeof result.model).toBe('string')
-    expect(result.dataSourcesEnabled.currentAccount).toBeDefined()
-    // 機密フィールドが漏れていないこと
-    expect(result).not.toHaveProperty('endpoint')
-    expect(result).not.toHaveProperty('apiKey')
-  })
-
-  it('throws without ctx.aiConfig', () => {
-    expect(() => metaConfigCapability.execute({})).toThrow(/aiConfig/)
   })
 })
 
