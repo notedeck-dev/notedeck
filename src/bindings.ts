@@ -2478,6 +2478,58 @@ async systemStateGet() : Promise<Result<SystemState, { code: string; message: st
 async clientLayerState() : Promise<ClientLayerState> {
     return await TAURI_INVOKE("client_layer_state");
 },
+/**
+ * 状態面。WebView の「コア」設定がこれから文言を組む
+ *
+ * @see src-tauri/src/commands/core_switch.rs
+ */
+async coreStatus() : Promise<Result<CoreStatus, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("core_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 常駐へ切り替える (unit の用意 + 移行パッケージ + pending)。完了は再起動
+ *
+ * @see src-tauri/src/commands/core_switch.rs
+ */
+async coreSwitchToResident() : Promise<Result<MigrationSummary, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("core_switch_to_resident") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 埋め込みへ戻す (常駐を止めて secret を取り戻す)。完了は再起動
+ *
+ * @see src-tauri/src/commands/core_switch.rs
+ */
+async coreSwitchToEmbedded() : Promise<Result<SwitchBack, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("core_switch_to_embedded") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 切替の途中をやめる
+ *
+ * @see src-tauri/src/commands/core_switch.rs
+ */
+async coreCancelPending() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("core_cancel_pending") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see src-tauri/src/commands/health.rs */
 async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
@@ -3062,7 +3114,11 @@ reconnects: number;
 /**
  * イベントの連番に欠落を見た回数 (再送はしない。復帰の catch-up が埋める)
  */
-eventGaps: number }
+eventGaps: number; 
+/**
+ * 前回の起動で切替 (pending-resident) を完了できなかった理由 (#1106 順序 7)
+ */
+switchError: string | null }
 /**
  * Misskey `clips/*` (clips/list, clips/show, clips/create, users/clips,
  * clips/my-favorites) の共通レスポンス。本家 schema
@@ -3182,6 +3238,38 @@ origin?: ConnectionOrigin | null;
  * `origin = External` の詳細 (`ai-provider` 等)。
  */
 externalSource?: string | null }
+/**
+ * 状態面 (`core_status` コマンド)。WebView はこれから文言を組む
+ */
+export type CoreStatus = { 
+/**
+ * この OS で常駐に切り替えられるか (同一ホストの 3a は Linux だけ)
+ */
+platformSupported: boolean; 
+/**
+ * `client.json5` の望む構成: `embedded` | `pending-resident` | `resident`
+ */
+configured: string; 
+/**
+ * 見つかった notecored のパス (パッケージなら /usr/bin、それ以外は PATH)
+ */
+notecoredPath: string | null; notecoredVersion: string | null; 
+/**
+ * user unit が動いているか (notecored が見つからなければ None)
+ */
+serviceActive: boolean | null; 
+/**
+ * notecored 側の secret store に中身があるか
+ */
+secretsPresent: boolean | null; 
+/**
+ * 書き出した移行パッケージが残っているか (再起動待ち)
+ */
+packagePresent: boolean | null; 
+/**
+ * 前回の起動で切替を完了できなかった理由
+ */
+switchError: string | null }
 export type CreateNoteParams = { text: string | null; cw: string | null; visibility: string | null; localOnly: boolean | null; modeFlags: Partial<{ [key in string]: boolean }> | null; replyId: string | null; renoteId: string | null; fileIds: string[] | null; poll: CreateNotePoll | null; scheduledAt: string | null }
 export type CreateNotePoll = { choices: string[]; multiple: boolean | null; expiresAt: number | null }
 export type CreatedApiToken = { meta: ApiTokenMeta; 
@@ -3348,6 +3436,10 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | Partial
  * の形で、TS は `nativeField(line, 'text')` で表示言語の文にする
  */
 export type LocalizedLine = { text: string; i18n: JsonValue }
+/**
+ * 移した結果。`missing` は読めなかった名前 (必須なら呼び出し側が失敗にする)
+ */
+export type MigrationSummary = { written: string[]; missing: string[] }
 /**
  * Misskey の `mutedWords` / `hardMutedWords` の 1 要素。
  * 文字列配列なら AND 語群（全語含むとマッチ）、文字列なら `/regex/flags` 形式の正規表現。
@@ -3897,6 +3989,10 @@ export type StreamUnread = StreamUnreadEvent
  */
 export type StreamUnreadEvent = { accountId: string; kind: UnreadKind; op: UnreadOp }
 export type SummaryData = { title: string | null; description: string | null; icon: string | null; sitename: string | null; thumbnail: string | null; medias: string[]; player: Player | null; url: string; sensitive: boolean }
+/**
+ * 戻した結果。`remaining` が空でなければ notecored 側の secret は消していない
+ */
+export type SwitchBack = { imported: string[]; remaining: string[] }
 /**
  * OS 状態のスナップショット。`None` = その項目をこのプラットフォームでは
  * 取得できない (または取得に失敗した)。

@@ -41,6 +41,8 @@ pub mod keybinds;
 pub mod media_proxy;
 pub mod media_warm;
 pub mod memos;
+#[cfg(target_os = "linux")]
+pub mod migration;
 pub mod migrations;
 pub mod navbar;
 pub mod notify_media;

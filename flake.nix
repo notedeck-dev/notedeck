@@ -57,6 +57,38 @@
           pkg-config
         ] ++ desktopDeps;
 
+        # 配布 (#1106 段階 3a): notecored (常駐コア) と notecli (CLI) を flake の
+        # packages として出す。どちらも Tauri 非依存の純 Rust なので WebKit 等は要らない。
+        # `nix profile install github:notedeck-dev/notedeck#notecored` で ~/.nix-profile/bin に
+        # 安定したパスで入り、`notecored service install --exec-path ~/.nix-profile/bin/notecored`
+        # で user unit を用意できる (/nix/store の実パスは GC で消えうるので unit に書かない)。
+        # ソースは Rust のワークスペースに要るものだけ (node_modules / target / dist / site は除く)
+        rustSource = pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter = path: type:
+            let base = baseNameOf path;
+            in !(builtins.elem base [ "node_modules" "target" "dist" "site" ".direnv" ]);
+        };
+        workspaceVersion = (builtins.fromTOML (builtins.readFile ./src-tauri/Cargo.toml)).package.version;
+        rustCrate = { pname, description }:
+          pkgs.rustPlatform.buildRustPackage {
+            inherit pname;
+            version = workspaceVersion;
+            src = rustSource;
+            cargoLock.lockFile = ./Cargo.lock;
+            cargoBuildFlags = [ "-p" pname ];
+            # テストはワークスペースの CI が回す。ここは配布物を作るだけ
+            doCheck = false;
+            nativeBuildInputs = with pkgs; [ pkg-config ];
+            meta = {
+              inherit description;
+              homepage = "https://github.com/notedeck-dev/notedeck";
+              license = pkgs.lib.licenses.agpl3Plus;
+              mainProgram = pname;
+              platforms = pkgs.lib.platforms.linux ++ pkgs.lib.platforms.darwin;
+            };
+          };
+
         commonEnv = {
           # WSL2: WebKitGTK EGL workaround (software rendering fallback)
           WEBKIT_DISABLE_DMABUF_RENDERER = "1";
@@ -89,6 +121,18 @@
         '';
       in
       {
+        packages = {
+          notecored = rustCrate {
+            pname = "notecored";
+            description = "NoteDeck resident core daemon (headless notecore)";
+          };
+          notecli = rustCrate {
+            pname = "notecli";
+            description = "Misskey CLI from NoteDeck";
+          };
+          default = self.packages.${system}.notecored;
+        };
+
         devShells = {
           # デスクトップ開発用（direnv / `nix develop` はこれ）。
           # Android SDK/NDK は store に 2.7GB 積むため入れない。

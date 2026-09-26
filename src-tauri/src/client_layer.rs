@@ -35,6 +35,8 @@ pub struct ClientLayerState {
     pub reconnects: u32,
     /// イベントの連番に欠落を見た回数 (再送はしない。復帰の catch-up が埋める)
     pub event_gaps: u32,
+    /// 前回の起動で切替 (pending-resident) を完了できなかった理由 (#1106 順序 7)
+    pub switch_error: Option<String>,
 }
 
 type EventHook = Arc<dyn Fn(&str, Value) + Send + Sync>;
@@ -94,13 +96,15 @@ pub fn relay() -> Option<&'static Arc<RelayClient>> {
 }
 
 pub fn state() -> ClientLayerState {
-    match RELAY.get() {
+    let mut s = match RELAY.get() {
         Some(r) => r.state_snapshot(),
         None => ClientLayerState {
             backend: "embedded".into(),
             ..Default::default()
         },
-    }
+    };
+    s.switch_error = crate::core_switch::switch_error();
+    s
 }
 
 /// 常駐構成で起動: 接続を始め、以後のデータ系コマンドは中継に流れる

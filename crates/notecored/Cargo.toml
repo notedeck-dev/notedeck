@@ -1,6 +1,6 @@
 [package]
 name = "notecored"
-version = "0.1.0"
+version = "1.71.0"
 edition = "2021"
 description = "NoteDeck の常駐デーモン: notecore を WebView なしで動かし、同一ホストのアプリに Unix socket で RPC 面を公開する (#1106 段階 3a)"
 license = "MIT"
