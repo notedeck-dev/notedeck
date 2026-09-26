@@ -107,7 +107,7 @@ export function buildRegexFromConditions(
 
   for (const cond of conditions) {
     const words = cond.words
-      .split(/[,、\s]+/)
+      .split(/[,、\s]+/) // i18n-ignore: data
       .map((w) => w.trim())
       .filter(Boolean)
     if (words.length === 0) continue
@@ -159,7 +159,7 @@ export function extractHintFromConditions(
   for (const cond of conditions) {
     if (cond.type === 'excludes') continue
     const ws = cond.words
-      .split(/[,、\s]+/)
+      .split(/[,、\s]+/) // i18n-ignore: data
       .map((w) => w.trim())
       .filter(Boolean)
     words.push(...ws)

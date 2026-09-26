@@ -68,6 +68,6 @@ export function logStartupSummary(): void {
     .map(({ name, at }) => `${name}=${Math.round(at)}ms`)
     .join(' ')
   console.info(
-    `[startup] ${points}${webviewFixedCost !== null ? ` (webview 起動固定費 ~${webviewFixedCost}ms)` : ''}`,
+    `[startup] ${points}${webviewFixedCost !== null ? ` (webview fixed startup cost ~${webviewFixedCost}ms)` : ''}`,
   )
 }

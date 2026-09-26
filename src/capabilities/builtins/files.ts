@@ -139,21 +139,23 @@ export const filesExportCapability = implement('files.export', {
     const noteIds = asStringArray(params?.noteIds)
     if (fileIds.length === 0 && noteIds.length === 0) {
       return {
-        error: 'fileIds か noteIds のどちらかを 1 件以上指定してください',
+        error: 'specify at least one fileIds or noteIds entry',
       }
     }
     if (fileIds.length + noteIds.length > MAX_ITEMS_PER_CALL) {
       return {
-        error: `1 回の呼び出しで指定できるのは合計 ${MAX_ITEMS_PER_CALL} 件までです`,
+        error: `at most ${MAX_ITEMS_PER_CALL} items in total per call`,
       }
     }
     const subdir = params?.subdir
     if (subdir !== undefined) {
       if (typeof subdir !== 'string' || subdir.length === 0) {
-        return { error: 'subdir は空でない文字列で指定してください' }
+        return { error: 'subdir must be a non-empty string' }
       }
       if (/[/\\]/.test(subdir) || subdir === '..' || subdir === '.') {
-        return { error: 'subdir に階層やパス表現は使えません (1 段の名前のみ)' }
+        return {
+          error: 'subdir cannot contain nested paths (a single name only)',
+        }
       }
     }
     return null
@@ -213,7 +215,7 @@ export const filesExportCapability = implement('files.export', {
         failed: 0,
         excludedSensitive,
         unresolved,
-        message: '保存対象がありません',
+        message: 'nothing to save',
       }
     }
     const result = await runExportAndWait([subdir], items)

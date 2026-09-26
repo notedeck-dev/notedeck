@@ -84,8 +84,8 @@ export function preflightValidateSrc(
   if (result.ok) return null
   return {
     error:
-      'AiScript の構文エラーがあります。diagnostics を読んで src を修正し、' +
-      '修正後の src で再度この capability を呼び出してください。\n' +
+      'The AiScript has syntax errors. Read the diagnostics, fix src, ' +
+      'and call this capability again with the fixed src.\n' +
       `diagnostics: ${JSON.stringify(result.diagnostics)}`,
   }
 }

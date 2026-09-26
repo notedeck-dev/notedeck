@@ -141,7 +141,7 @@ describe('runSlashCommand', () => {
     const r = await runSlashCommand('/')
     expect(r.ok).toBe(true)
     if (r.ok && r.kind === 'help') {
-      expect(r.result).toContain('利用可能な')
+      expect(r.result).toContain('使える /コマンド')
       expect(r.result).toContain('/time.now')
     } else {
       throw new Error('expected help result')

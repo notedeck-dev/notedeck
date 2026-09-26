@@ -71,15 +71,15 @@ export async function assertMisskeyApiAllowed(
   if (!rule) {
     denyForPlugin(principal, target, [])
     throw new Error(
-      `${source}: unknown endpoint "${endpoint}" — 対応表に無い endpoint は許可されません (deny-by-default)。` +
-        ' fork 独自 / 本家新設の endpoint は対応表の再生成が必要です',
+      `${source}: unknown endpoint "${endpoint}" — endpoints missing from the table are denied (deny-by-default).` +
+        ' Fork-specific or newly added upstream endpoints need the table to be regenerated',
     )
   }
   if (rule === 'allow') return
   if (rule.startsWith('deny:')) {
     denyForPlugin(principal, target, [])
     throw new Error(
-      `${source}: endpoint "${endpoint}" は ${principal.kind} には開放されません (${rule.slice('deny:'.length)})`,
+      `${source}: endpoint "${endpoint}" is not open to ${principal.kind} (${rule.slice('deny:'.length)})`,
     )
   }
 
@@ -89,7 +89,7 @@ export async function assertMisskeyApiAllowed(
     denyForPlugin(principal, target, [requiredKey])
     throw new Error(
       `${source}: permission_denied for "${endpoint}" — requires "${requiredKey}"` +
-        ` (permissions.json5 の ${blocked.principal.kind} プロファイルで許可すると使えます)`,
+        ` (allow it in the ${blocked.principal.kind} profile of permissions.json5)`,
     )
   }
 }

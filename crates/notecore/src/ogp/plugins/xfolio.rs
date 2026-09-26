@@ -36,7 +36,7 @@ impl Plugin for XfolioPlugin {
         // reCAPTCHA bot protection: OGP tags are present but all empty
         if html.contains("/system/recaptcha") {
             return Ok(SummaryData {
-                title: Some("xfolio - Bot保護によりプレビューできません".to_string()),
+                title: Some("xfolio".to_string()),
                 description: None,
                 icon: None,
                 sitename: Some("xfolio".to_string()),

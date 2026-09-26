@@ -113,7 +113,7 @@ export function implementCore(
 ): Command {
   const d = CAPABILITY_DECLARATIONS[id]
   if (d.exec !== 'core') {
-    throw new Error(`${id}: exec が core ではないので implementCore は使えない`)
+    throw new Error(`${id}: implementCore requires exec: core`)
   }
   const cmd = implement(id, {
     ...impl,

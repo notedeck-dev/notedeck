@@ -50,6 +50,6 @@ describe('takeStagedEdit', () => {
         'changed',
         () => 'recomputed',
       ),
-    ).toThrow(/確認後/)
+    ).toThrow(/changed after confirmation/)
   })
 })

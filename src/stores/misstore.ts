@@ -525,7 +525,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
         return { source: retried, hash: retriedHash, entry: fresh }
       }
     }
-    throw new Error('ハッシュ不一致: ソースが改ざんされている可能性があります')
+    throw new Error(i18n.ts._misstore.hashMismatch)
   }
 
   async function fetchWidgetSource(entry: StoreWidgetEntry): Promise<string> {
@@ -711,7 +711,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
       const meta = parsePluginMeta(source)
       if (!meta) {
-        throw new Error('プラグインメタデータの解析に失敗しました')
+        throw new Error(i18n.ts._misstore.pluginMetaParseFailed)
       }
 
       if (existing) {
@@ -889,7 +889,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       )
       const ok = await themeStore.installTheme(JSON.stringify(withMeta))
       if (!ok) {
-        throw new Error('テーマのインストールに失敗しました')
+        throw new Error(i18n.ts._misstore.themeInstallFailed)
       }
     } finally {
       installingTheme.value = null
@@ -1029,7 +1029,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       )
       const meta = parsePluginMeta(fetched.source)
       if (!meta) {
-        throw new Error('プラグインメタデータの解析に失敗しました')
+        throw new Error(i18n.ts._misstore.pluginMetaParseFailed)
       }
       // 更新はスコープに触れない (linkScope しない — 有効範囲はローカル値)
       return await confirmPluginUpdate(existing, fetched, meta, {
@@ -1191,7 +1191,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
     // 不変条件: 確認に使った全文をそのまま書き込む (#981)
     const applied = await useThemeStore().installTheme(newJson)
     if (!applied) {
-      throw new Error('テーマのインストールに失敗しました')
+      throw new Error(i18n.ts._misstore.themeInstallFailed)
     }
     return true
   }

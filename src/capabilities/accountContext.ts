@@ -19,10 +19,10 @@ import type { CapabilityContext } from './types'
  * カラムを操作したいときは `<currentColumn>.accountId` を渡せるよう示唆する。
  */
 export const ACCOUNT_ID_PARAM_DESC =
-  'どのアカウントで実行するか。未指定なら呼び出し文脈のアカウント' +
-  ' (per-account の AI カラムならそのアカウント)。全アカウントのカラムや' +
-  ' HEARTBEAT には文脈アカウントが無いので、`account.list` か' +
-  ' `<currentColumn>.accountId` から選んで必ず渡す。'
+  'Which account to run as. Defaults to the account of the calling context' +
+  ' (the account of a per-account AI column). All-accounts columns and' +
+  ' HEARTBEAT have no context account, so always pick one from `account.list`' +
+  ' or `<currentColumn>.accountId` and pass it.'
 
 /** 入力から空白除去済みの accountId を取り出す (空文字・非文字列は undefined)。 */
 export function pickAccountId(input: unknown): string | undefined {

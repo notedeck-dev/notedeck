@@ -135,7 +135,7 @@ const sponsors = [
     logo: 'https://assets.misskey-hub.net/sponsors/purple-dot-digital.jpg',
   },
   {
-    name: '合同会社サッズ',
+    name: '合同会社サッズ', // i18n-ignore: data
     url: 'https://sads-llc.co.jp/',
     logo: 'https://assets.misskey-hub.net/sponsors/sads-llc.png',
   },

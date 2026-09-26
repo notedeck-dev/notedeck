@@ -393,10 +393,10 @@ pub fn clean_report_title(raw: &str) -> String {
         .chars()
         .map(|c| if c == '\r' || c == '\n' { ' ' } else { c })
         .collect();
-    let is_lead = |c: char| c.is_whitespace() || matches!(c, '「' | '『' | '"' | '\'' | '“' | '”');
-    let is_trail = |c: char| {
-        c.is_whitespace() || matches!(c, '」' | '』' | '"' | '\'' | '“' | '”' | '。' | '．' | '、')
-    };
+    const LEADING: &[char] = &['「', '『', '"', '\'', '“', '”']; // i18n-ignore: data
+    const TRAILING: &[char] = &['」', '』', '"', '\'', '“', '”', '。', '．', '、']; // i18n-ignore: data
+    let is_lead = |c: char| c.is_whitespace() || LEADING.contains(&c);
+    let is_trail = |c: char| c.is_whitespace() || TRAILING.contains(&c);
     joined
         .trim_start_matches(is_lead)
         .trim_end_matches(is_trail)

@@ -34,7 +34,7 @@ function requirePrincipal(ctx: CapabilityContext | undefined): Principal {
   const principal = ctx?.principal
   if (!principal) {
     throw new Error(
-      'vault.fetch: principal が ctx に渡される dispatchCapability 経由で呼ばれる必要があります',
+      'vault.fetch: must be called through dispatchCapability with principal in ctx',
     )
   }
   return principal
@@ -164,8 +164,8 @@ export const vaultFetchCapability = implement('vault.fetch', {
     const conn = await resolveVisibleConnection(ref, principal)
     if (!conn) {
       throw new Error(
-        `connection "${ref}" は利用できません (存在しないか、この呼び出し元に開示されていません)。` +
-          '設定 → Secret Vault で接続を作成し、呼び出し元への開示を有効にしてください',
+        `connection "${ref}" is not available (it does not exist or is not disclosed to this caller). ` +
+          'Create the connection in Settings → Secret Vault and enable disclosure to this caller',
       )
     }
 

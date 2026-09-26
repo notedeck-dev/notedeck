@@ -38,10 +38,16 @@ const EXEMPT_FILES: Record<string, string> = {
   'src/utils/nyaize.ts': 'mfm-spec: 本家の にゃ化 の変換表',
   'src/utils/selfXssWarning.ts':
     'data: 辞書のロード前に出る警告で、dist 予算の検査も文言を見ている',
+  'crates/notecli/src/cli.rs': 'notecli の CLI は端末の利用者向けで、#135 の範囲外',
+  'crates/notecli/src/commands/auth.rs':
+    'notecli の CLI (ログインの手順表示) は #135 の範囲外',
 }
 
-/** 移行が済んだディレクトリ (ROOT 相対の前方一致)。直書きゼロ必須 */
-const MIGRATED_DIRS = ['src/i18n/']
+/**
+ * 移行が済んだディレクトリ (ROOT 相対の前方一致)。直書きゼロ必須。
+ * #135 で対象のすべてを移行したので、対象ディレクトリ全体を指す
+ */
+const MIGRATED_DIRS = ['src/', 'src-tauri/src/', 'crates/', 'src-tauri/android/']
 
 const TARGETS: { dir: string; exts: string[] }[] = [
   { dir: 'src', exts: ['.ts', '.vue'] },
@@ -78,9 +84,9 @@ function stripComments(path: string, text: string): string {
   let out = text
   if (path.endsWith('.vue'))
     out = out.replace(/<style[\s\S]*?<\/style>/g, blank).replace(/<!--[\s\S]*?-->/g, blank)
-  // Rust の #[cfg(test)] 以降はテスト
+  // Rust の #[cfg(test)] (#[cfg(all(test, ...))] を含む) 以降はテスト
   if (path.endsWith('.rs')) {
-    const at = out.search(/^\s*#\[cfg\(test\)\]/m)
+    const at = out.search(/^\s*#\[cfg\((?:all\()?test\b/m)
     if (at !== -1) out = out.slice(0, at)
   }
   out = out.replace(/\/\*[\s\S]*?\*\//g, blank)
@@ -191,7 +197,8 @@ function main(argv: string[]): number {
     problems.push(
       `日本語の直書きが ${delta.japanese} 行増えた。文言は locales/ja-JP.yml に足して i18n.ts / i18n.tsx で引く:\n${grew.join('\n')}`,
     )
-  if (delta.ignored > 0)
+  // 既存の直書きを理由つきの免除に付け替えた分は許す (直書き + 免除の合計で見る)
+  if (delta.ignored > 0 && delta.ignored + delta.japanese > 0)
     problems.push(
       `i18n-ignore が ${delta.ignored} 行増えた。AI プロンプトなどは専用ファイルに隔離し、scripts/i18n-lint.ts の EXEMPT_FILES に理由つきで足す`,
     )

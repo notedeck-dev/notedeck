@@ -221,7 +221,7 @@ const handlers: Record<string, QueryHandler> = {
       return {
         ok: false,
         code: 'permission_denied',
-        error: `AI ループの principal ではありません: ${String(kind)}`,
+        error: `not an AI loop principal: ${String(kind)}`,
       }
     }
     const turnId = String(params.turnId ?? '')

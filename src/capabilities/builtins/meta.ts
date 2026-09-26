@@ -50,7 +50,7 @@ export const metaConfigCapability = implement('meta.config', {
   execute: (_params, ctx) => {
     if (!ctx?.aiConfig) {
       throw new Error(
-        'meta.config: aiConfig が ctx に渡される dispatchCapability 経由で呼ばれる必要があります',
+        'meta.config: must be called through dispatchCapability with aiConfig in ctx',
       )
     }
     const cfg = ctx.aiConfig
@@ -85,7 +85,7 @@ export const metaHeartbeatCapability = implement('meta.heartbeat', {
   execute: (_params, ctx) => {
     if (!ctx?.aiConfig) {
       throw new Error(
-        'meta.heartbeat: aiConfig が ctx に渡される dispatchCapability 経由で呼ばれる必要があります',
+        'meta.heartbeat: must be called through dispatchCapability with aiConfig in ctx',
       )
     }
     const hb = ctx.aiConfig.heartbeat

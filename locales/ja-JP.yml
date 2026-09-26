@@ -2868,6 +2868,9 @@ _deckProfile:
   defaultName: "プロファイル {n}"
 
 _misstore:
+  hashMismatch: "ハッシュが一致しません。ソースが改ざんされている可能性があります"
+  pluginMetaParseFailed: "プラグインのメタデータを読み取れませんでした"
+  themeInstallFailed: "テーマのインストールに失敗しました"
   updateConfirm: "「{name}」をストアの内容で更新します。\nストア更新日: {date} / v{version}"
   newPermissions: "新しい権限: {permissions}"
   updateWidget: "ウィジェットを更新"
@@ -2911,6 +2914,17 @@ _cacheEviction:
 
 _customTimelines:
   modeLabel: "{name}モード"
+
+_useSlashCommand:
+  noCommands: "使えるコマンドはありません。"
+  availableCommands: "使える /コマンド:"
+  args: "引数: {signature}"
+  syntaxError: "コマンドの書き方が正しくありません。例: {example}"
+
+_useVault:
+  authHeader: "ヘッダー: {name}"
+  authQuery: "クエリ: ?{param}="
+  authBasic: "Basic 認証 ({username})"
 
 _errors:
   authRequired: "ログインが必要です。アカウントメニューから再ログインしてください。"

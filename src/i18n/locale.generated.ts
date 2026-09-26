@@ -5154,6 +5154,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "defaultName": ParameterizedString<'n'>
   }
   readonly "_misstore": {
+    /** ハッシュが一致しません。ソースが改ざんされている可能性があります */
+    readonly "hashMismatch": string
+    /** プラグインのメタデータを読み取れませんでした */
+    readonly "pluginMetaParseFailed": string
+    /** テーマのインストールに失敗しました */
+    readonly "themeInstallFailed": string
     /** 「{name}」をストアの内容で更新します。
 ストア更新日: {date} / v{version} */
     readonly "updateConfirm": ParameterizedString<'date' | 'name' | 'version'>
@@ -5229,6 +5235,24 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_customTimelines": {
     /** {name}モード */
     readonly "modeLabel": ParameterizedString<'name'>
+  }
+  readonly "_useSlashCommand": {
+    /** 使えるコマンドはありません。 */
+    readonly "noCommands": string
+    /** 使える /コマンド: */
+    readonly "availableCommands": string
+    /** 引数: {signature} */
+    readonly "args": ParameterizedString<'signature'>
+    /** コマンドの書き方が正しくありません。例: {example} */
+    readonly "syntaxError": ParameterizedString<'example'>
+  }
+  readonly "_useVault": {
+    /** ヘッダー: {name} */
+    readonly "authHeader": ParameterizedString<'name'>
+    /** クエリ: ?{param}= */
+    readonly "authQuery": ParameterizedString<'param'>
+    /** Basic 認証 ({username}) */
+    readonly "authBasic": ParameterizedString<'username'>
   }
   readonly "_errors": {
     /** ログインが必要です。アカウントメニューから再ログインしてください。 */

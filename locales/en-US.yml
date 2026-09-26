@@ -3128,6 +3128,9 @@ _deckProfile:
   defaultName: "Profile {n}"
 
 _misstore:
+  hashMismatch: "Hash mismatch. The source may have been tampered with"
+  pluginMetaParseFailed: "Couldn't read the plugin metadata"
+  themeInstallFailed: "Failed to install the theme"
   updateConfirm: "Update \"{name}\" with the store version.\nStore updated: {date} / v{version}"
   newPermissions: "New permissions: {permissions}"
   updateWidget: "Update widget"
@@ -3171,6 +3174,17 @@ _cacheEviction:
 
 _customTimelines:
   modeLabel: "{name} mode"
+
+_useSlashCommand:
+  noCommands: "No commands are available."
+  availableCommands: "Available /commands:"
+  args: "Arguments: {signature}"
+  syntaxError: "Invalid command syntax. Example: {example}"
+
+_useVault:
+  authHeader: "Header: {name}"
+  authQuery: "Query: ?{param}="
+  authBasic: "Basic auth ({username})"
 
 _errors:
   authRequired: "You need to log in. Log in again from the account menu."

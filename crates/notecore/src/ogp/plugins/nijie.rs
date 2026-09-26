@@ -69,7 +69,7 @@ impl Plugin for NijiePlugin {
         }
 
         data.sensitive = true;
-        data.sitename = Some("ニジエ".to_string());
+        data.sitename = Some("ニジエ".to_string()); // i18n-ignore: data
         Ok(data)
     }
 }
