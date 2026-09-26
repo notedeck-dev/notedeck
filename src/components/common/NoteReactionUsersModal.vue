@@ -134,7 +134,7 @@ defineExpose({ open })
             :class="[$style.tab, { [$style.tabActive]: selectedReaction === r.reaction }]"
             @click="selectedReaction = r.reaction"
           >
-            <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.tabEmoji" role="img" :aria-label="r.reaction" :title="i18n.tsx._noteReactionUsersModal.mutedTitle({ emoji: r.reaction })" />
+            <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.tabEmoji" role="img" :aria-label="r.reaction" :title="i18n.tsx._common.mutedEmoji({ emoji: r.reaction })" />
             <img v-else-if="reactionUrls[r.reaction]" :src="proxyEmojiUrl(reactionUrls[r.reaction]!)" :alt="r.reaction" :class="$style.tabEmoji" decoding="async" loading="lazy" />
             <MkEmoji v-else :emoji="r.reaction" :class="$style.tabEmoji" />
             <span :class="$style.tabCount">{{ r.count }}</span>

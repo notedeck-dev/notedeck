@@ -702,7 +702,7 @@ export const COLUMN_TYPE_GROUPS: ColumnGroupInfo[] = reactive([
   {
     group: 'account',
     get label() {
-      return i18n.ts._columnGroups.account
+      return i18n.ts._common.account
     },
     icon: 'user',
     types: [],
@@ -710,7 +710,7 @@ export const COLUMN_TYPE_GROUPS: ColumnGroupInfo[] = reactive([
   {
     group: 'server',
     get label() {
-      return i18n.ts._columnGroups.server
+      return i18n.ts._common.server
     },
     icon: 'server',
     types: [],

@@ -109,7 +109,7 @@ async function toggleOfflineMode() {
     message: isOn
       ? i18n.ts._deckNavbar.disableOfflineMessage
       : i18n.ts._deckNavbar.enableOfflineMessage,
-    okLabel: isOn ? i18n.ts._deckNavbar.turnOff : i18n.ts._deckNavbar.switch,
+    okLabel: isOn ? i18n.ts._deckNavbar.turnOff : i18n.ts._common.switch,
     cancelLabel: i18n.ts._common.cancel,
     type: 'question',
   })
@@ -125,7 +125,7 @@ async function toggleRealtimeMode() {
     message: isRealtime
       ? i18n.ts._deckNavbar.pollingMessage
       : i18n.ts._deckNavbar.realtimeMessage,
-    okLabel: i18n.ts._deckNavbar.switch,
+    okLabel: i18n.ts._common.switch,
     cancelLabel: i18n.ts._common.cancel,
     type: 'question',
   })
@@ -360,7 +360,7 @@ async function clearAccountCache(accountId: string) {
   const acc = accountsStore.accountMap.get(accountId)
   if (!acc) return
   const ok = await confirm({
-    title: i18n.ts._deckNavbar.clearCacheTitle,
+    title: i18n.ts._common.clearCache,
     message: i18n.tsx._deckNavbar.clearCacheConfirm({
       account: getAccountLabel(acc),
     }),
@@ -489,12 +489,12 @@ defineExpose({
               <button
                 class="_button"
                 :class="$style.item"
-                :title="i18n.ts._deckNavbar.profile"
+                :title="i18n.ts._common.profile"
                 @pointerdown.stop
                 @click.stop="toggleProfileMenu()"
               >
                 <i class="ti ti-layout" />
-                <span :class="$style.label">{{ i18n.ts._deckNavbar.profile }}</span>
+                <span :class="$style.label">{{ i18n.ts._common.profile }}</span>
               </button>
               <DeckProfileMenu :show="props.showProfileMenu" @close="emit('update:showProfileMenu', false)" />
             </div>
@@ -549,7 +549,7 @@ defineExpose({
             @click="hapticMedium(); closeDrawerAndDo(() => emit('open-compose'))"
           >
             <i class="ti ti-pencil" />
-            <span :class="$style.label">{{ i18n.ts._deckNavbar.note }}</span>
+            <span :class="$style.label">{{ i18n.ts._common.note }}</span>
           </button>
 
           <!-- Account button -->
@@ -557,7 +557,7 @@ defineExpose({
             <button
               class="_button"
               :class="$style.item"
-              :title="i18n.ts._deckNavbar.account"
+              :title="i18n.ts._common.account"
               @pointerdown.stop
               @click.stop="isCompact ? toggleAccountPopup() : commandStore.execute('account-menu')"
             >
@@ -565,7 +565,7 @@ defineExpose({
                 <i class="ti ti-user" />
                 <span v-if="accountAttentionCount > 0" :key="accountAttentionCount" :class="$style.badge">{{ accountAttentionCount > 99 ? '99+' : accountAttentionCount }}</span>
               </div>
-              <span :class="$style.label">{{ i18n.ts._deckNavbar.account }}</span>
+              <span :class="$style.label">{{ i18n.ts._common.account }}</span>
             </button>
             <!-- Mobile: bottom sheet (アカウント選択の共通シート #1018) -->
             <AccountPickerSheet

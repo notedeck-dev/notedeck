@@ -96,7 +96,7 @@ export const EDIT_HISTORY_SPECS: Record<HistoryKind, EditHistorySpec> = {
   },
   memo: {
     get label() {
-      return i18n.ts._editHistory.memo
+      return i18n.ts._common.memo
     },
     language: 'markdown',
     snapshotText: (s) => field(s, 'body'),

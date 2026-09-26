@@ -35,7 +35,7 @@ const platformLabel: Record<string, string> = {
 }
 
 const profileIndicatorLabel = computed(() => {
-  const profile = deckStore.currentProfileName ?? i18n.ts._deckBottomBar.profile
+  const profile = deckStore.currentProfileName ?? i18n.ts._common.profile
   const os = platformName ? (platformLabel[platformName] ?? platformName) : null
   return os ? `${os}: ${profile}` : profile
 })
@@ -114,7 +114,7 @@ const {
       <button
         class="_button"
         :class="$style.tab"
-        :title="i18n.ts._deckBottomBar.addColumn"
+        :title="i18n.ts._commands.addColumn"
         @click="onAddColumnClick()"
       >
         <i class="ti ti-plus" />

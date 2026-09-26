@@ -157,7 +157,7 @@ async function close() {
   const undo = deckStore.removeColumn(props.columnId)
   if (undo) {
     useToast().show(i18n.ts._deckColumn.deleted, 'info', {
-      action: { label: i18n.ts._deckColumn.undo, onClick: undo },
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
@@ -288,7 +288,7 @@ function openAsPip() {
       <i
         v-else-if="isAllAccountsColumn && !isPipMode"
         :class="['ti ti-user', $style.headerAllAccounts]"
-        :title="i18n.ts._deckColumn.allAccounts"
+        :title="i18n.ts._common.allAccounts"
       />
       <slot name="header-icon" />
       <span :class="$style.headerTitle" :data-tauri-drag-region="isPipMode ? '' : undefined">{{ title }}</span>
@@ -302,7 +302,7 @@ function openAsPip() {
         v-if="soundEnabled"
         :class="[$style.headerBtn, isMuted && $style.headerBtnActive]"
         class="_button"
-        :title="isMuted ? i18n.ts._deckColumn.unmute : i18n.ts._deckColumn.mute"
+        :title="isMuted ? i18n.ts._common.unmute : i18n.ts._common.mute"
         @pointerdown.stop
         @click.stop="toggleMute"
       >
@@ -340,13 +340,13 @@ function openAsPip() {
           <div :class="$style.pullText">
             <template v-if="isPulledEnough">{{ i18n.ts._common.releaseToRefresh }}</template>
             <template v-else-if="isRefreshing">{{ i18n.ts._common.refreshing }}</template>
-            <template v-else>{{ i18n.ts._deckColumn.pullToRefresh }}</template>
+            <template v-else>{{ i18n.ts._common.pullToRefresh }}</template>
           </div>
         </div>
       </div>
       <ColumnEmptyState
         v-if="shouldShowAccountNotFound"
-        :message="i18n.ts._deckColumn.accountNotFound"
+        :message="i18n.ts._common.accountNotFound"
         :image-url="serverNotFoundImageUrl"
         fallback-kind="notFound"
       />

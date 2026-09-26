@@ -181,7 +181,7 @@ const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
   },
   account: {
     get label() {
-      return i18n.ts._keybindsContent.categoryAccount
+      return i18n.ts._common.account
     },
     icon: 'ti-user',
   },
@@ -193,7 +193,7 @@ const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
   },
   note: {
     get label() {
-      return i18n.ts._keybindsContent.categoryNote
+      return i18n.ts._common.note
     },
     icon: 'ti-note',
   },
@@ -205,7 +205,7 @@ const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
   },
   profile: {
     get label() {
-      return i18n.ts._keybindsContent.categoryProfile
+      return i18n.ts._common.profile
     },
     icon: 'ti-id-badge-2',
   },
@@ -526,7 +526,7 @@ function handleReset() {
           @click="importKeybinds"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? i18n.ts._keybindsContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
+          {{ importError ? i18n.ts._common.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"

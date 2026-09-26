@@ -57,11 +57,11 @@ const updateTitle = computed(() => {
   if (!props.updatedAt) return ''
   const date = formatDate(props.updatedAt)
   return props.version
-    ? i18n.tsx._themeCard.storeUpdatedWithVersion({
+    ? i18n.tsx._common.storeUpdatedWithVersion({
         date,
         version: props.version,
       })
-    : i18n.tsx._themeCard.storeUpdated({ date })
+    : i18n.tsx._common.storeUpdated({ date })
 })
 
 function handleClick() {
@@ -127,7 +127,7 @@ function handleClick() {
           v-if="removable"
           class="_button"
           :class="[$style.removeBtn, removeMode === 'detach' && $style.removeBtnDetach]"
-          :title="removeMode === 'detach' ? i18n.ts._themeCard.detachFromAccount : i18n.ts._themeCard.deleteFromLibrary"
+          :title="removeMode === 'detach' ? i18n.ts._common.detachFromAccount : i18n.ts._themeCard.deleteFromLibrary"
           @click.stop="emit('remove')"
         >
           <i :class="removeMode === 'detach' ? 'ti ti-circle-minus' : 'ti ti-trash'" />
@@ -150,7 +150,7 @@ function handleClick() {
           class="_button"
           :class="$style.updateBtn"
           :disabled="installing"
-          :title="i18n.ts._themeCard.update"
+          :title="i18n.ts._common.update"
           @click.stop="emit('update')"
         >
           <i class="ti ti-refresh" />

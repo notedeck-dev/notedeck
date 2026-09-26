@@ -192,7 +192,7 @@ function resolvePendingFor(userId: string) {
         :class="[$style.tab, { [$style.tabActive]: activeTab === 'followers' }]"
         @click="activeTab = 'followers'"
       >
-        {{ i18n.ts._followListContent.followers }}
+        {{ i18n.ts._common.followers }}
       </button>
     </div>
 

@@ -103,7 +103,7 @@ const NAV_GROUPS: {
   },
   {
     get label() {
-      return i18n.ts._devDashboard.navRun
+      return i18n.ts._common.run
     },
     items: [
       { id: 'caps', icon: 'ti ti-bolt', label: 'Capabilities' },
@@ -1460,7 +1460,7 @@ onUnmounted(() => {
                 :disabled="capRunning"
                 @click="executeCap"
               >
-                <i class="ti ti-player-play" /> {{ capRunning ? i18n.ts._devDashboard.running : i18n.ts._devDashboard.run }}
+                <i class="ti ti-player-play" /> {{ capRunning ? i18n.ts._devDashboard.running : i18n.ts._common.run }}
               </button>
               <span
                 v-if="capStatus !== null"

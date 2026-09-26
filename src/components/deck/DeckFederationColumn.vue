@@ -49,13 +49,13 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   {
     key: '-users',
     get label() {
-      return i18n.ts._deckFederationColumn.sortUsers
+      return i18n.ts._common.users
     },
   },
   {
     key: '-notes',
     get label() {
-      return i18n.ts._deckFederationColumn.sortNotes
+      return i18n.ts._common.notes
     },
   },
   {
@@ -136,10 +136,7 @@ function softwareLabel(inst: FederationInstance): string {
 async function fetchInstances(reset: boolean): Promise<void> {
   const acc = account.value
   if (!acc) {
-    error.value = new AppError(
-      'UNKNOWN',
-      i18n.ts._deckFederationColumn.accountNotFound,
-    )
+    error.value = new AppError('UNKNOWN', i18n.ts._common.accountNotFound)
     return
   }
 

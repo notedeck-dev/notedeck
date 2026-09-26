@@ -24,7 +24,7 @@ export const POST_FORM_BUTTON_META: Record<
   emoji: {
     icon: 'mood-happy',
     get label() {
-      return i18n.ts._postForm.emoji
+      return i18n.ts._common.emoji
     },
   },
   attach: {
@@ -48,13 +48,13 @@ export const POST_FORM_BUTTON_META: Record<
   hashtag: {
     icon: 'hash',
     get label() {
-      return i18n.ts._postForm.hashtag
+      return i18n.ts._common.hashtag
     },
   },
   mention: {
     icon: 'at',
     get label() {
-      return i18n.ts._postForm.mention
+      return i18n.ts._common.mention
     },
   },
   mfm: { icon: 'palette', label: 'MFM' },

@@ -167,7 +167,7 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
         </button>
         <button
           :class="$style.navBtn"
-          :title="i18n.ts._titleBar.reload"
+          :title="i18n.ts._common.reload"
           @click="deckStore.refreshActiveColumn()"
         >
           <i class="ti ti-reload" />

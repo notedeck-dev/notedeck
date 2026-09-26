@@ -50,7 +50,7 @@ export const pluginsCreateCapability = implement('plugins.create', {
     code: typeof params?.src === 'string' ? params.src : '',
     codeLanguage: 'is',
     okLabel: i18n.ts._common.install,
-    cancelLabel: i18n.ts._pluginsCapability.cancel,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'normal',
   }),
   execute: (params) => {
@@ -119,8 +119,8 @@ export const pluginsUpdateCapability = implement('plugins.update', {
         permissions: newMeta?.permissions ?? cur.permissions ?? [],
       },
       diff: { old: cur.src, new: src, language: 'aiscript' },
-      okLabel: i18n.ts._pluginsCapability.updateOk,
-      cancelLabel: i18n.ts._pluginsCapability.cancel,
+      okLabel: i18n.ts._common.update,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'warning',
     }
   },

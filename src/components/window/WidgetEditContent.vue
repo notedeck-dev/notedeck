@@ -160,7 +160,7 @@ const historyActions = computed<EditorAction[]>(() =>
     ? [
         {
           key: 'history',
-          label: i18n.ts._widgetEditContent.history,
+          label: i18n.ts._common.history,
           icon: 'history',
         },
       ]
@@ -342,7 +342,7 @@ useWindowEditAction(() =>
   widget.value
     ? {
         onClick: () => run(),
-        title: i18n.ts._widgetEditContent.run,
+        title: i18n.ts._common.run,
         icon: 'player-play',
         disabled: running.value,
       }

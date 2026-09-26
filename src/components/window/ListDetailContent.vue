@@ -165,7 +165,7 @@ onMounted(loadList)
             v-if="!list.isPublic"
             class="ti ti-lock"
             :class="$style.privateIcon"
-            :title="i18n.ts._listDetailContent.private"
+            :title="i18n.ts._common.private"
           />
           <div :class="$style.title">{{ list.name }}</div>
         </div>

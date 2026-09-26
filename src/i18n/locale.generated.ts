@@ -42,7 +42,7 @@ export interface Locale {
     readonly "achievements": string
     /** サーバー情報 */
     readonly "serverInfo": string
-    /** Misskeyについて */
+    /** Misskey について */
     readonly "aboutMisskey": string
     /** カスタム絵文字 */
     readonly "emoji": string
@@ -90,9 +90,9 @@ export interface Locale {
     readonly "skill": string
     /** スクラッチパッド */
     readonly "aiscript": string
-    /** APIコンソール */
+    /** API コンソール */
     readonly "apiConsole": string
-    /** APIドキュメント */
+    /** API ドキュメント */
     readonly "apiDocs": string
     /** ストリーム */
     readonly "streamInspector": string
@@ -100,10 +100,6 @@ export interface Locale {
     readonly "taskRunner": string
   }
   readonly "_columnGroups": {
-    /** アカウント */
-    readonly "account": string
-    /** サーバー */
-    readonly "server": string
     /** ツール */
     readonly "tool": string
   }
@@ -136,11 +132,11 @@ export interface Locale {
     readonly "plugins": string
     /** キーバインド */
     readonly "keybinds": string
-    /** カスタムCSS */
+    /** カスタム CSS */
     readonly "cssEditor": string
     /** テーマ */
     readonly "themeEditor": string
-    /** プロファイルエディタ */
+    /** プロファイルエディター */
     readonly "profileEditor": string
     /** アカウント追加 */
     readonly "login": string
@@ -206,29 +202,29 @@ export interface Locale {
     readonly "notifications": string
     /** ノート作成 */
     readonly "compose": string
-    /** カラム追加 */
+    /** カラムを追加 */
     readonly "addColumn": string
     /** カラムを左に移動 */
     readonly "moveColumnLeft": string
     /** カラムを右に移動 */
     readonly "moveColumnRight": string
-    /** サイドバー切替 */
+    /** サイドバー切り替え */
     readonly "toggleSidebar": string
     /** ウィンドウを隠す */
     readonly "bossKey": string
     /** アカウントメニュー */
     readonly "accountMenu": string
-    /** プロファイル切替 */
+    /** プロファイル切り替え */
     readonly "profileMenu": string
     /** 設定メニュー */
     readonly "settingsMenu": string
     /** チュートリアル */
     readonly "tutorial": string
-    /** ダーク/ライトモード切替 */
+    /** ダーク/ライトモード切り替え */
     readonly "toggleDarkMode": string
-    /** オフラインモード切替 */
+    /** オフラインモード切り替え */
     readonly "toggleOfflineMode": string
-    /** リアルタイムモード切替 */
+    /** リアルタイムモード切り替え */
     readonly "toggleRealtimeMode": string
     /** 全キャッシュ削除 */
     readonly "clearAllCache": string
@@ -242,11 +238,11 @@ export interface Locale {
     readonly "noteReact": string
     /** リノート / 引用 */
     readonly "noteRenote": string
-    /** ブックマーク */
+    /** お気に入り */
     readonly "noteBookmark": string
     /** ノートを開く */
     readonly "noteOpen": string
-    /** CW切替 */
+    /** CW 切り替え */
     readonly "noteCw": string
     /** ノートを削除 */
     readonly "noteDelete": string
@@ -270,11 +266,11 @@ export interface Locale {
     readonly "renameEntity": string
     /** サーバーから削除 */
     readonly "deleteEntity": string
-    /** カラムのミュート切替 */
+    /** カラムのミュート切り替え */
     readonly "toggleColumnMute": string
     /** キーバインド設定 */
     readonly "keybinds": string
-    /** カスタムCSS */
+    /** カスタム CSS */
     readonly "cssEditor": string
     /** 開発者モードを切り替え */
     readonly "developerMode": string
@@ -298,7 +294,7 @@ export interface Locale {
     readonly "login": string
     /** チャット */
     readonly "chat": string
-    /** AIアシスタント */
+    /** AI アシスタント */
     readonly "ai": string
     /** フローティングウィンドウをすべて閉じる */
     readonly "closeAllFloatingWindows": string
@@ -308,13 +304,13 @@ export interface Locale {
     readonly "newWindow": string
     /** すべてのサブウィンドウを閉じる */
     readonly "closeAllWindows": string
-    /** PiPウィンドウを開く */
+    /** PiP ウィンドウを開く */
     readonly "pipWindow": string
     /** 開発者ツール */
     readonly "devtools": string
-    /** プロファイルエディタ */
+    /** プロファイルエディター */
     readonly "profileEditor": string
-    /** {name} に切替 */
+    /** {name} に切り替え */
     readonly "switchProfile": ParameterizedString<'name'>
   }
   readonly "_common": {
@@ -346,9 +342,9 @@ export interface Locale {
     readonly "back": string
     /** メニュー */
     readonly "menu": string
-    /** 読込済み */
+    /** 読み込み済み */
     readonly "loaded": string
-    /** 本当にリセット？ */
+    /** リセットしますか？ */
     readonly "confirmReset": string
     /** 隠す */
     readonly "hide": string
@@ -408,8 +404,136 @@ export interface Locale {
     readonly "addFromLibrary": string
     /** 離してリフレッシュ */
     readonly "releaseToRefresh": string
-    /** リフレッシュ中… */
+    /** リフレッシュ中... */
     readonly "refreshing": string
+    /** アカウント */
+    readonly "account": string
+    /** アカウントが見つかりません */
+    readonly "accountNotFound": string
+    /** 全アカウント */
+    readonly "allAccounts": string
+    /** キャッシュ削除 */
+    readonly "clearCache": string
+    /** コピー */
+    readonly "copy": string
+    /** コードをコピー */
+    readonly "copyCode": string
+    /** デフォルト */
+    readonly "default": string
+    /** データを削除 */
+    readonly "deleteData": string
+    /** {label}を削除 */
+    readonly "deleteItem": ParameterizedString<'label'>
+    /** このアカウントから外す */
+    readonly "detachFromAccount": string
+    /** 絵文字 */
+    readonly "emoji": string
+    /** フォロワー */
+    readonly "followers": string
+    /** フォローされています */
+    readonly "followsYou": string
+    /** ハッシュタグ */
+    readonly "hashtag": string
+    /** 履歴 */
+    readonly "history": string
+    /** ホーム */
+    readonly "home": string
+    /** インストールに失敗しました */
+    readonly "installFailed": string
+    /** インストール済み {count} */
+    readonly "installedTab": ParameterizedString<'count'>
+    /** 無効 */
+    readonly "invalid": string
+    /** 不正な JSON5 */
+    readonly "invalidJson5": string
+    /** JSON5 パースエラー */
+    readonly "json5ParseError": string
+    /** ログアウト */
+    readonly "logout": string
+    /** メモ */
+    readonly "memo": string
+    /** メンション */
+    readonly "mention": string
+    /** ミュート */
+    readonly "mute": string
+    /** {emoji} (ミュート中) */
+    readonly "mutedEmoji": ParameterizedString<'emoji'>
+    /** {reaction} (ミュート中) */
+    readonly "mutedReaction": ParameterizedString<'reaction'>
+    /** 新規フォルダ */
+    readonly "newFolder": string
+    /** 新しいノート */
+    readonly "newNotes": string
+    /** ノート */
+    readonly "note": string
+    /** ノート */
+    readonly "notes": string
+    /** 非公開 */
+    readonly "private": string
+    /** プロファイル */
+    readonly "profile": string
+    /** 下に引いてリフレッシュ */
+    readonly "pullToRefresh": string
+    /** 引用 */
+    readonly "quote": string
+    /** {endpoint} の生レスポンス */
+    readonly "rawResponse": ParameterizedString<'endpoint'>
+    /** リアクション */
+    readonly "react": string
+    /** リアクション */
+    readonly "reactions": string
+    /** リロード */
+    readonly "reload": string
+    /** 再ログイン */
+    readonly "relogin": string
+    /** 解除 */
+    readonly "remove": string
+    /** リノート */
+    readonly "renote": string
+    /** リノート */
+    readonly "renotes": string
+    /** 返信 */
+    readonly "reply": string
+    /** 通報 */
+    readonly "report": string
+    /** 通報に失敗しました ({code}) */
+    readonly "reportFailed": ParameterizedString<'code'>
+    /** 通報理由を入力... */
+    readonly "reportReasonPlaceholder": string
+    /** @{username} を通報 */
+    readonly "reportUser": ParameterizedString<'username'>
+    /** 通報しました */
+    readonly "reported": string
+    /** すべてデフォルトに戻す */
+    readonly "resetAllToDefault": string
+    /** 実行 */
+    readonly "run": string
+    /** 保存中... */
+    readonly "saving": string
+    /** {label}を検索... */
+    readonly "searchItem": ParameterizedString<'label'>
+    /** サーバー */
+    readonly "server": string
+    /** サイドロード */
+    readonly "sideload": string
+    /** ストア配布 */
+    readonly "storeDistributed": string
+    /** ストア更新日: {date} */
+    readonly "storeUpdated": ParameterizedString<'date'>
+    /** ストア更新日: {date} / v{version} */
+    readonly "storeUpdatedWithVersion": ParameterizedString<'date' | 'version'>
+    /** 切り替え */
+    readonly "switch": string
+    /** 元に戻す */
+    readonly "undo": string
+    /** ミュート解除 */
+    readonly "unmute": string
+    /** 更新 */
+    readonly "update": string
+    /** 更新に失敗しました */
+    readonly "updateFailed": string
+    /** ユーザー */
+    readonly "users": string
   }
   readonly "_appConfirm": {
     /** NoteDeck の権限確認 */
@@ -418,24 +542,18 @@ export interface Locale {
   readonly "_commandPalette": {
     /** 一致する項目がありません */
     readonly "noMatchingItems": string
-    /** ↵ Enterで開く: */
+    /** ↵ Enter で開く: */
     readonly "enterToOpen": string
-    /** ↵ Enterで実行: */
+    /** ↵ Enter で実行: */
     readonly "enterToRun": string
     /** 一致するコマンドがありません */
     readonly "noMatchingCommands": string
-    /** {label}を検索... */
-    readonly "searchIn": ParameterizedString<'label'>
     /** 全般 */
     readonly "categoryGeneral": string
-    /** ノート */
-    readonly "categoryNote": string
     /** ナビゲーション */
     readonly "categoryNavigation": string
     /** カラム */
     readonly "categoryColumn": string
-    /** アカウント */
-    readonly "categoryAccount": string
     /** コマンドを入力... */
     readonly "inputPlaceholder": string
   }
@@ -456,16 +574,14 @@ export interface Locale {
     readonly "open": string
     /** リンクをコピー */
     readonly "copyLink": string
-    /** ブラウザで開く */
+    /** ブラウザーで開く */
     readonly "openInBrowser": string
   }
   readonly "_memoCard": {
     /** もっと見る */
     readonly "showMore": string
-    /** ({count}文字) */
+    /** ({count} 文字) */
     readonly "chars_plural": PluralString<'count'>
-    /** メモ */
-    readonly "defaultAuthor": string
   }
   readonly "_mkAchievementsGrid": {
     /** 開放する */
@@ -482,20 +598,8 @@ export interface Locale {
   readonly "_mkChatMessageMoreMenu": {
     /** このメッセージを削除しますか？ */
     readonly "confirmDelete": string
-    /** @{username} を通報 */
-    readonly "reportUser": ParameterizedString<'username'>
-    /** 通報理由を入力... */
-    readonly "reportReasonPlaceholder": string
-    /** リアクション */
-    readonly "react": string
     /** 内容をコピー */
     readonly "copyContent": string
-    /** 通報 */
-    readonly "report": string
-    /** 通報しました */
-    readonly "reported": string
-    /** 通報に失敗しました（{code}） */
-    readonly "reportFailed": ParameterizedString<'code'>
   }
   readonly "_mkDraftsPicker": {
     /** 下書きをすべて削除 */
@@ -510,7 +614,7 @@ export interface Locale {
     readonly "editContentAndTime": string
     /** 復元して投稿フォームに反映 */
     readonly "restoreToForm": string
-    /** 予約を取消 */
+    /** 予約を取り消す */
     readonly "cancelSchedule": string
     /** 下書き */
     readonly "draftsTab": string
@@ -520,31 +624,27 @@ export interface Locale {
     readonly "scheduledTab": string
     /** 予約 {count} */
     readonly "scheduledTabCount": ParameterizedString<'count'>
-    /** 返信 */
-    readonly "contextReply": string
-    /** 引用 */
-    readonly "contextQuote": string
     /** チャンネル投稿 */
     readonly "contextChannel": string
-    /** 予約投稿を取消 */
+    /** 予約投稿を取り消す */
     readonly "cancelScheduledTitle": string
     /** 下書きを削除 */
     readonly "deleteDraftTitle": string
-    /** 選択した予約投稿を取消しますか？ */
+    /** 選択した予約投稿を取り消しますか？ */
     readonly "confirmCancelScheduled": string
     /** 選択した下書きを削除しますか？ */
     readonly "confirmDeleteDraft": string
-    /** 取消 */
+    /** 取り消す */
     readonly "cancelOk": string
-    /** 予約投稿を取消しました */
+    /** 予約投稿を取り消しました */
     readonly "scheduledCancelled": string
     /** 下書きを削除しました */
     readonly "draftDeleted": string
-    /** 取消に失敗しました: {error} */
+    /** 取り消しに失敗しました: {error} */
     readonly "cancelFailed": ParameterizedString<'error'>
     /** 削除に失敗しました: {error} */
     readonly "deleteFailed": ParameterizedString<'error'>
-    /** 下書き {count} 件をすべて削除しますか？（予約投稿は対象外） */
+    /** 下書き {count} 件をすべて削除しますか？ (予約投稿は対象外) */
     readonly "confirmDeleteAll_plural": PluralString<'count'>
     /** すべて削除 */
     readonly "deleteAllOk": string
@@ -554,8 +654,6 @@ export interface Locale {
   readonly "_mkDriveFolderSelectDialog": {
     /** ルート */
     readonly "root": string
-    /** 新規フォルダ */
-    readonly "newFolder": string
     /** 「{name}」に移動 */
     readonly "moveTo": ParameterizedString<'name'>
     /** ルートに移動 */
@@ -566,14 +664,10 @@ export interface Locale {
     readonly "upload": string
     /** ファイルを選択 */
     readonly "selectFiles": string
-    /** {count}件を添付 */
+    /** {count} 件を添付 */
     readonly "attachCount_plural": PluralString<'count'>
     /** 添付 */
     readonly "attach": string
-  }
-  readonly "_mkEmoji": {
-    /** {emoji} (ミュート中) */
-    readonly "mutedTitle": ParameterizedString<'emoji'>
   }
   readonly "_mkFileGrid": {
     /** 「{name}」のメニュー */
@@ -598,7 +692,7 @@ export interface Locale {
     readonly "copyImageLink": string
     /** 画像を共有 */
     readonly "shareImage": string
-    /** ブラウザで開く */
+    /** ブラウザーで開く */
     readonly "openInBrowser": string
   }
   readonly "_mkNote": {
@@ -616,20 +710,12 @@ export interface Locale {
     readonly "showMore": string
     /** このノートは非公開です */
     readonly "contentHidden": string
-    /** ({count}文字) */
+    /** ({count} 文字) */
     readonly "chars_plural": PluralString<'count'>
-    /** {emoji} (ミュート中) */
-    readonly "mutedTitle": ParameterizedString<'emoji'>
     /** リアクションを取り消す */
     readonly "unreact": string
-    /** リアクション */
-    readonly "react": string
     /** リノート解除 */
     readonly "unrenote": string
-    /** リノート */
-    readonly "renote": string
-    /** 引用 */
-    readonly "quote": string
     /** {count} サーバーで表示中 */
     readonly "shownOnServers_plural": PluralString<'count'>
     /** {count} アカウントで表示中 */
@@ -648,7 +734,7 @@ export interface Locale {
     readonly "continueThread": string
   }
   readonly "_mkPoll": {
-    /** {count}票 */
+    /** {count} 票 */
     readonly "votes_plural": PluralString<'count'>
     /** 複数選択 */
     readonly "multiple": string
@@ -672,16 +758,8 @@ export interface Locale {
     readonly "rememberVisibility": string
     /** 予約投稿 */
     readonly "scheduledPost": string
-    /** メモ */
-    readonly "submitMemo": string
-    /** 返信 */
-    readonly "reply": string
-    /** 引用 */
-    readonly "quote": string
     /** 予約 */
     readonly "schedule": string
-    /** ノート */
-    readonly "note": string
     /** 引用付き */
     readonly "withQuote": string
     /** チャンネルに投稿 */
@@ -694,20 +772,14 @@ export interface Locale {
     readonly "quotePlaceholder": string
     /** 今どんな気分？ */
     readonly "placeholder": string
-    /** 予約を解除 */
+    /** 予約を取り消す */
     readonly "unschedule": string
     /** アカウントが選択されていません */
     readonly "noAccountSelected": string
-    /** 絵文字 */
-    readonly "emoji": string
     /** ファイルを添付 */
     readonly "attachFile": string
     /** 投票 */
     readonly "poll": string
-    /** ハッシュタグ */
-    readonly "hashtag": string
-    /** メンション */
-    readonly "mention": string
     /** 下書き一覧 */
     readonly "drafts": string
     /** プラグイン */
@@ -746,22 +818,14 @@ export interface Locale {
     readonly "uncategorized": string
   }
   readonly "_mkReactionUsersPopup": {
-    /** コードをコピー */
-    readonly "copyCode": string
-    /** ミュートを解除 */
-    readonly "unmute": string
     /** この絵文字をミュート */
     readonly "muteEmoji": string
-    /** {emoji} (ミュート中) */
-    readonly "mutedTitle": ParameterizedString<'emoji'>
   }
   readonly "_mkUserListItem": {
     /** ブロック中 */
     readonly "blocking": string
     /** ミュート中 */
     readonly "muted": string
-    /** フォローされています */
-    readonly "followsYou": string
   }
   readonly "_mkUserPopup": {
     /** {count} ノート */
@@ -770,8 +834,6 @@ export interface Locale {
     readonly "followingCount": ParameterizedString<'count'>
     /** {count} フォロワー */
     readonly "followersCount": ParameterizedString<'count'>
-    /** フォローされています */
-    readonly "followsYou": string
     /** リモートユーザー */
     readonly "remoteUser": string
   }
@@ -782,17 +844,13 @@ export interface Locale {
     readonly "confirmDeleteAndEdit": string
     /** 削除して編集 */
     readonly "deleteAndEdit": string
-    /** @{username} を通報 */
-    readonly "reportUser": ParameterizedString<'username'>
-    /** 通報理由を入力... */
-    readonly "reportReasonPlaceholder": string
     /** お気に入り解除 */
     readonly "unfavorite": string
     /** お気に入り */
     readonly "favorite": string
     /** クリップに追加 */
     readonly "addToClip": string
-    /** 別のアカウントで… */
+    /** 別のアカウントで... */
     readonly "actAs": string
     /** Raw JSON を表示 */
     readonly "showRawJson": string
@@ -806,58 +864,42 @@ export interface Locale {
     readonly "unpin": string
     /** ピン留め */
     readonly "pin": string
-    /** 通報 */
-    readonly "report": string
     /** このノートを操作するアカウント */
     readonly "actAsDescription": string
     /** このアカウントでは本文が非公開のため操作できません */
     readonly "contentHiddenForAccount": string
     /** リアクションを取り消す ({reaction}) */
     readonly "unreactWith": ParameterizedString<'reaction'>
-    /** リアクション */
-    readonly "react": string
-    /** リノート */
-    readonly "renote": string
-    /** 引用 */
-    readonly "quote": string
     /** クリップに追加しました */
     readonly "addedToClip": string
     /** クリップ解除 */
     readonly "removeFromClipTitle": string
     /** このノートは既に「{clip}」にクリップされています。クリップを解除しますか？ */
     readonly "confirmRemoveFromClip": ParameterizedString<'clip'>
-    /** 解除 */
-    readonly "removeFromClipOk": string
     /** クリップから解除しました */
     readonly "removedFromClip": string
-    /** クリップの解除に失敗しました（{code}） */
+    /** クリップの解除に失敗しました ({code}) */
     readonly "removeFromClipFailed": ParameterizedString<'code'>
-    /** クリップへの追加に失敗しました（{code}） */
+    /** クリップへの追加に失敗しました ({code}) */
     readonly "addToClipFailed": ParameterizedString<'code'>
     /** 新しいクリップを作成 */
     readonly "createClip": string
     /** クリップ名を入力... */
     readonly "clipNamePlaceholder": string
-    /** クリップの作成に失敗しました（{code}） */
+    /** クリップの作成に失敗しました ({code}) */
     readonly "createClipFailed": ParameterizedString<'code'>
-    /** アカウントを選択… */
+    /** アカウントを選択... */
     readonly "selectAccountPlaceholder": string
     /** クリップを選択... */
     readonly "selectClipPlaceholder": string
-    /** クリップの取得に失敗しました（{code}） */
+    /** クリップの取得に失敗しました ({code}) */
     readonly "fetchClipsFailed": ParameterizedString<'code'>
-    /** 通報しました */
-    readonly "reported": string
-    /** 通報に失敗しました（{code}） */
-    readonly "reportFailed": ParameterizedString<'code'>
   }
   readonly "_noteReactionPickerPopup": {
     /** {account} として */
     readonly "actingAs": ParameterizedString<'account'>
   }
   readonly "_noteReactionUsersModal": {
-    /** {emoji} (ミュート中) */
-    readonly "mutedTitle": ParameterizedString<'emoji'>
     /** リアクションなし */
     readonly "noReactions": string
   }
@@ -874,8 +916,6 @@ export interface Locale {
     readonly "originTitle": string
     /** このアカウントでは本文が非公開 */
     readonly "contentHiddenTitle": string
-    /** 非公開 */
-    readonly "contentHidden": string
     /** このアカウントで反応済み */
     readonly "reactedTitle": string
   }
@@ -886,13 +926,11 @@ export interface Locale {
     readonly "showSensitive": string
     /** 表示中の JSON をコピー */
     readonly "copyJson": string
-    /** コピー */
-    readonly "copy": string
     /** データがありません */
     readonly "noData": string
   }
   readonly "_regexGuide": {
-    /** フィルタ条件 */
+    /** フィルター条件 */
     readonly "filterConditions": string
     /** カンマ区切りで単語を入力 */
     readonly "wordsPlaceholder": string
@@ -904,10 +942,6 @@ export interface Locale {
   readonly "_renoteMoreMenu": {
     /** このリノートを削除しますか？ */
     readonly "confirmDelete": string
-    /** @{username} を通報 */
-    readonly "reportUser": ParameterizedString<'username'>
-    /** 通報理由を入力... */
-    readonly "reportReasonPlaceholder": string
     /** リノートの詳細 */
     readonly "details": string
     /** リノートのリンクをコピー */
@@ -916,12 +950,8 @@ export interface Locale {
     readonly "deleteRenote": string
     /** リノートを通報 */
     readonly "reportRenote": string
-    /** 削除に失敗しました（{code}） */
+    /** 削除に失敗しました ({code}) */
     readonly "deleteFailed": ParameterizedString<'code'>
-    /** 通報しました */
-    readonly "reported": string
-    /** 通報に失敗しました（{code}） */
-    readonly "reportFailed": ParameterizedString<'code'>
   }
   readonly "_reorderableList": {
     /** 項目なし */
@@ -934,8 +964,6 @@ export interface Locale {
   readonly "_titleBar": {
     /** 進む */
     readonly "forward": string
-    /** リロード */
-    readonly "reload": string
     /** 新しいウィンドウ */
     readonly "newWindow": string
     /** ピクチャーインピクチャー */
@@ -960,7 +988,7 @@ export interface Locale {
     readonly "openDownloadFolder": string
     /** バックアップフォルダを開く */
     readonly "openBackupFolder": string
-    /** OS起動時に自動起動 */
+    /** OS 起動時に自動起動 */
     readonly "launchAtStartup": string
     /** 表示 */
     readonly "view": string
@@ -968,8 +996,6 @@ export interface Locale {
     readonly "zoomIn": string
     /** 縮小 */
     readonly "zoomOut": string
-    /** 再読み込み */
-    readonly "reload": string
   }
   readonly "_postFormFilePreviews": {
     /** 破棄 */
@@ -1008,22 +1034,20 @@ export interface Locale {
     readonly "noExpiry": string
     /** 日時指定 */
     readonly "specifyDate": string
-    /** 30分 */
+    /** 30 分 */
     readonly "expiry30m": string
-    /** 1時間 */
+    /** 1 時間 */
     readonly "expiry1h": string
-    /** 6時間 */
+    /** 6 時間 */
     readonly "expiry6h": string
-    /** 1日 */
+    /** 1 日 */
     readonly "expiry1d": string
-    /** 3日 */
+    /** 3 日 */
     readonly "expiry3d": string
-    /** 7日 */
+    /** 7 日 */
     readonly "expiry7d": string
   }
   readonly "_mkMfm": {
-    /** {emoji} (ミュート中) */
-    readonly "mutedTitle": ParameterizedString<'emoji'>
     /** 検索 */
     readonly "search": string
   }
@@ -1034,7 +1058,7 @@ export interface Locale {
     readonly "exitSafeMode": string
   }
   readonly "_devWelcome": {
-    /** Misskey Pro — Misskey廃人のための Misskey IDE */
+    /** Misskey Pro — Misskey 廃人のための Misskey IDE */
     readonly "tagline": string
     /** デスクトップアプリとして起動してください */
     readonly "launchAsDesktopApp": string
@@ -1042,7 +1066,7 @@ export interface Locale {
     readonly "autoSwitchHint": string
   }
   readonly "_devDashboard": {
-    /** アプリ接続なし — 再接続待ち… */
+    /** アプリ接続なし — 再接続待ち... */
     readonly "appDisconnected": string
     /** ナビゲーションを開く */
     readonly "expandNav": string
@@ -1124,7 +1148,7 @@ export interface Locale {
     readonly "sseDesc": ParameterizedString<'count' | 'rate'>
     /** 直近 60 秒の流量 */
     readonly "last60sRate": string
-    /** type prefix フィルタ (例: note,notification,main-) */
+    /** type prefix フィルター (例: note,notification,main-) */
     readonly "sseFilterPlaceholder": string
     /** 適用 / 再接続 */
     readonly "applyReconnect": string
@@ -1138,18 +1162,16 @@ export interface Locale {
     readonly "waitingForEvents": string
     /** external principal として dispatcher を通す手動実行盤 — 権限ゲート (#712) の deny / 確認ダイアログを目視テストできる · {count} 件 */
     readonly "capsDesc_plural": PluralString<'count'>
-    /** capability を選択… */
+    /** capability を選択... */
     readonly "selectCapability": string
     /** 確認ダイアログあり (アプリ側に表示) */
     readonly "requiresConfirmation": string
     /** params スキーマ */
     readonly "paramsSchema": string
-    /** パラメータと実行 */
+    /** パラメーターと実行 */
     readonly "paramsAndRun": string
-    /** 実行中… */
+    /** 実行中... */
     readonly "running": string
-    /** 実行 */
-    readonly "run": string
     /** 実行履歴 */
     readonly "runHistory": string
     /** クリックで結果を呼び戻す */
@@ -1178,8 +1200,6 @@ export interface Locale {
     readonly "waitingForLogs": string
     /** 観測 */
     readonly "navObserve": string
-    /** 実行 */
-    readonly "navRun": string
     /** 診断 */
     readonly "navDiagnose": string
     /** キャッシュ */
@@ -1272,15 +1292,13 @@ export interface Locale {
   readonly "_aiGenerationSection": {
     /** 生成 */
     readonly "title": string
-    /** 既定から変更あり */
+    /** デフォルトから変更あり */
     readonly "changedFromDefault": string
-    /** 既定 */
-    readonly "default": string
-    /** 既定のまま使える値です。実行先のモデルによって既定が合わないときだけ触ってください。 */
+    /** デフォルトのまま使える値です。実行先のモデルによってデフォルトが合わないときだけ触ってください。 */
     readonly "note": string
     /** 応答の最大トークン */
     readonly "maxTokens": string
-    /** 長い応答が途中で切れるときに上げます。0 でプロバイダーの既定に任せます (Anthropic は上限必須のため {maxTokens} を送ります) */
+    /** 長い応答が途中で切れるときに上げます。0 でプロバイダーのデフォルトに任せます (Anthropic は上限必須のため {maxTokens} を送ります) */
     readonly "maxTokensHint": ParameterizedString<'maxTokens'>
     /** ツール呼び出しの上限 */
     readonly "maxToolRounds": string
@@ -1366,8 +1384,6 @@ export interface Locale {
     readonly "empty": string
     /** ハイライト */
     readonly "tabHighlight": string
-    /** ノート */
-    readonly "tabNotes": string
     /** 全て */
     readonly "tabAll": string
     /** ファイル付き */
@@ -1378,29 +1394,23 @@ export interface Locale {
     readonly "empty": string
   }
   readonly "_userProfilePlayPane": {
-    /** Playがありません */
+    /** Play がありません */
     readonly "empty": string
   }
   readonly "_userProfileHero": {
-    /** フォローされています */
-    readonly "followsYou": string
     /** その他 */
     readonly "more": string
-    /** QRコード */
+    /** QR コード */
     readonly "qrCode": string
     /** フォロワーへのメッセージ */
     readonly "followedMessage": string
-    /** メモ（自分のみ） */
+    /** メモ (自分のみ) */
     readonly "memoHeading": string
     /** このユーザーへのメモを追加... */
     readonly "memoPlaceholder": string
-    /** ノート */
-    readonly "notes": string
     /** フォロー */
     readonly "following": string
-    /** フォロワー */
-    readonly "followers": string
-    /** メモの保存に失敗しました（{code}） */
+    /** メモの保存に失敗しました ({code}) */
     readonly "memoSaveFailed": ParameterizedString<'code'>
   }
   readonly "_userProfileMenu": {
@@ -1422,14 +1432,10 @@ export interface Locale {
     readonly "addToList": string
     /** アンテナに追加 */
     readonly "addToAntenna": string
-    /** TLに他の人への返信を含める */
+    /** TL に他の人への返信を含める */
     readonly "withReplies": string
     /** 投稿を通知 */
     readonly "notifyPosts": string
-    /** ミュート */
-    readonly "mute": string
-    /** ミュート解除 */
-    readonly "unmute": string
     /** リノートをミュート */
     readonly "muteRenotes": string
     /** リノートミュート解除 */
@@ -1440,55 +1446,45 @@ export interface Locale {
     readonly "unblock": string
     /** フォロワーを解除 */
     readonly "invalidateFollower": string
-    /** 通報 */
-    readonly "report": string
     /** @{username} をミュートしますか？ */
     readonly "muteConfirm": ParameterizedString<'username'>
     /** @{username} をブロックしますか？ */
     readonly "blockConfirm": ParameterizedString<'username'>
     /** @{username} のフォロワーを解除しますか？ */
     readonly "invalidateFollowerConfirm": ParameterizedString<'username'>
-    /** 解除 */
-    readonly "invalidate": string
-    /** @{username} を通報 */
-    readonly "reportTitle": ParameterizedString<'username'>
-    /** 通報理由を入力... */
-    readonly "reportPlaceholder": string
     /** リストがありません */
     readonly "noLists": string
     /** ユーザーソースのアンテナがありません */
     readonly "noUserAntennas": string
     /** ミュートしました */
     readonly "muted": string
-    /** ミュートに失敗しました（{code}） */
+    /** ミュートに失敗しました ({code}) */
     readonly "muteFailed": ParameterizedString<'code'>
     /** ミュートを解除しました */
     readonly "unmuted": string
-    /** ミュート解除に失敗しました（{code}） */
+    /** ミュート解除に失敗しました ({code}) */
     readonly "unmuteFailed": ParameterizedString<'code'>
     /** ブロックしました */
     readonly "blocked": string
-    /** ブロックに失敗しました（{code}） */
+    /** ブロックに失敗しました ({code}) */
     readonly "blockFailed": ParameterizedString<'code'>
     /** ブロックを解除しました */
     readonly "unblocked": string
-    /** ブロック解除に失敗しました（{code}） */
+    /** ブロック解除に失敗しました ({code}) */
     readonly "unblockFailed": ParameterizedString<'code'>
     /** リノートをミュートしました */
     readonly "renotesMuted": string
-    /** リノートミュートに失敗しました（{code}） */
+    /** リノートミュートに失敗しました ({code}) */
     readonly "renoteMuteFailed": ParameterizedString<'code'>
     /** リノートのミュートを解除しました */
     readonly "renotesUnmuted": string
-    /** リノートミュート解除に失敗しました（{code}） */
+    /** リノートミュート解除に失敗しました ({code}) */
     readonly "renoteUnmuteFailed": ParameterizedString<'code'>
     /** フォロワーを解除しました */
     readonly "followerInvalidated": string
-    /** フォロワー解除に失敗しました（{code}） */
+    /** フォロワー解除に失敗しました ({code}) */
     readonly "invalidateFollowerFailed": ParameterizedString<'code'>
-    /** 通報しました */
-    readonly "reported": string
-    /** 通報に失敗しました（{code}） */
+    /** 通報に失敗しました ({code}) */
     readonly "reportFailed": ParameterizedString<'code'>
     /** コピーに失敗しました */
     readonly "copyFailed": string
@@ -1500,29 +1496,29 @@ export interface Locale {
     readonly "rssUrlCopied": string
     /** 埋め込みコードをコピーしました */
     readonly "embedCodeCopied": string
-    /** リストの取得に失敗しました（{code}） */
+    /** リストの取得に失敗しました ({code}) */
     readonly "fetchListsFailed": ParameterizedString<'code'>
     /** リストに追加しました */
     readonly "addedToList": string
-    /** リストへの追加に失敗しました（{code}） */
+    /** リストへの追加に失敗しました ({code}) */
     readonly "addToListFailed": ParameterizedString<'code'>
-    /** TLに返信を含めます */
+    /** TL に返信を含めます */
     readonly "withRepliesOn": string
-    /** TLに返信を含めません */
+    /** TL に返信を含めません */
     readonly "withRepliesOff": string
-    /** 設定の更新に失敗しました（{code}） */
+    /** 設定の更新に失敗しました ({code}) */
     readonly "updateSettingsFailed": ParameterizedString<'code'>
     /** 投稿を通知します */
     readonly "notifyOn": string
     /** 投稿を通知しません */
     readonly "notifyOff": string
-    /** アンテナの取得に失敗しました（{code}） */
+    /** アンテナの取得に失敗しました ({code}) */
     readonly "fetchAntennasFailed": ParameterizedString<'code'>
     /** すでに追加されています */
     readonly "alreadyAdded": string
     /** {name} に追加しました */
     readonly "addedToAntenna": ParameterizedString<'name'>
-    /** アンテナへの追加に失敗しました（{code}） */
+    /** アンテナへの追加に失敗しました ({code}) */
     readonly "addToAntennaFailed": ParameterizedString<'code'>
   }
   readonly "_notFoundPage": {
@@ -1536,8 +1532,6 @@ export interface Locale {
     readonly "unpin": string
     /** 最前面に固定 */
     readonly "pin": string
-    /** カラムを追加 */
-    readonly "addColumn": string
     /** ノート Inspector */
     readonly "noteInspector": string
     /** 通知 Inspector */
@@ -1546,8 +1540,6 @@ export interface Locale {
     readonly "login": string
     /** カスタム CSS */
     readonly "cssEditor": string
-    /** プロファイル */
-    readonly "profileEditor": string
     /** 外観 */
     readonly "appearanceEditor": string
     /** タスク */
@@ -1560,19 +1552,13 @@ export interface Locale {
   readonly "_aiSettingsContent": {
     /** ai.json5 を直接編集できます。API キーはキーチェーン管理のため raw には現れません。 */
     readonly "rawHint": string
-    /** 無効 */
-    readonly "invalid": string
-    /** JSON5 パースエラー */
-    readonly "json5ParseError": string
-    /** 不正な JSON5 */
-    readonly "invalidJson5": string
   }
   readonly "_appearanceEditorContent": {
     /** 壁紙を設定 */
     readonly "setWallpaper": string
     /** 壁紙を削除 */
     readonly "removeWallpaper": string
-    /** Catユーザーの語尾をにゃ化 */
+    /** Cat ユーザーの語尾をにゃ化 */
     readonly "nyaize": string
     /** 本家 Web UI と同じ表示。コピー・検索は原文のまま */
     readonly "nyaizeDescription": string
@@ -1594,7 +1580,7 @@ export interface Locale {
     readonly "processing": string
     /** データベース */
     readonly "database": string
-    /** ノート・通知・フォロー情報などのローカルキャッシュDBをバックアップ / リストアします。 */
+    /** ノート・通知・フォロー情報などのローカルキャッシュ DB をバックアップ / リストアします。 */
     readonly "databaseHint": string
     /** 認証情報は含まれないため、リストア後は各アカウントで再ログインしてください。 */
     readonly "databaseCredentialsNote": string
@@ -1612,24 +1598,20 @@ export interface Locale {
     readonly "importSettingsTitle": string
     /** 現在の設定が上書きされます。アプリを再起動します。 */
     readonly "importSettingsMessage": string
-    /** DBインポート */
+    /** DB インポート */
     readonly "importDbTitle": string
-    /** 現在のDBが上書きされます。アプリを再起動します。 */
+    /** 現在の DB が上書きされます。アプリを再起動します。 */
     readonly "importDbMessage": string
   }
   readonly "_clipDetailContent": {
-    /** 非公開 */
-    readonly "private": string
     /** クリップにノートがありません */
     readonly "empty": string
-    /** リアクションに失敗しました（{code}） */
+    /** リアクションに失敗しました ({code}) */
     readonly "reactionFailed": ParameterizedString<'code'>
-    /** 投票に失敗しました（{code}） */
+    /** 投票に失敗しました ({code}) */
     readonly "voteFailed": ParameterizedString<'code'>
-    /** お気に入り操作に失敗しました（{code}） */
+    /** お気に入り操作に失敗しました ({code}) */
     readonly "favoriteFailed": ParameterizedString<'code'>
-    /** アカウントが見つかりません */
-    readonly "accountNotFound": string
   }
   readonly "_connectionsContent": {
     /** 接続したいサービスを選んでください */
@@ -1664,7 +1646,7 @@ export interface Locale {
   readonly "_editHistoryContent": {
     /** {label}の編集履歴 */
     readonly "subtitle": ParameterizedString<'label'>
-    /** 読み込み中… */
+    /** 読み込み中... */
     readonly "loading": string
     /** 編集履歴はまだありません */
     readonly "empty": string
@@ -1692,15 +1674,13 @@ export interface Locale {
   readonly "_followListContent": {
     /** フォロー */
     readonly "following": string
-    /** フォロワー */
-    readonly "followers": string
     /** フォローしているユーザーはいません */
     readonly "noFollowing": string
     /** フォロワーはいません */
     readonly "noFollowers": string
-    /** 取得に失敗しました（{code}） */
+    /** 取得に失敗しました ({code}) */
     readonly "fetchFailed": ParameterizedString<'code'>
-    /** 読み込みに失敗しました（{code}） */
+    /** 読み込みに失敗しました ({code}) */
     readonly "loadFailed": ParameterizedString<'code'>
   }
   readonly "_instanceProfileContent": {
@@ -1718,14 +1698,6 @@ export interface Locale {
     readonly "registrationOpen": string
     /** 新規登録クローズ */
     readonly "registrationClosed": string
-    /** ユーザー */
-    readonly "users": string
-    /** ノート */
-    readonly "notes": string
-    /** {endpoint} の生レスポンス */
-    readonly "rawResponse": ParameterizedString<'endpoint'>
-    /** アカウントが見つかりません */
-    readonly "accountNotFound": string
     /** 停止中 */
     readonly "suspended": string
     /** ブロック */
@@ -1742,11 +1714,9 @@ export interface Locale {
     readonly "recording": string
     /** ショートカットを追加 */
     readonly "addShortcut": string
-    /** ユーザーカスタマイズの JSON（デフォルトからの差分のみ） */
+    /** ユーザーカスタマイズの JSON (デフォルトからの差分のみ) */
     readonly "codeHint": string
-    /** 無効 */
-    readonly "invalid": string
-    /** ダークモード切替 */
+    /** ダークモード切り替え */
     readonly "toggleDarkMode": string
     /** カラムを別ウィンドウ */
     readonly "popOutColumn": string
@@ -1754,7 +1724,7 @@ export interface Locale {
     readonly "newWindow": string
     /** 全ウィンドウを閉じる */
     readonly "closeAllWindows": string
-    /** PiPウィンドウ */
+    /** PiP ウィンドウ */
     readonly "pipWindow": string
     /** プロファイル {n} */
     readonly "profileN": ParameterizedString<'n'>
@@ -1762,31 +1732,23 @@ export interface Locale {
     readonly "categoryGeneral": string
     /** ナビゲーション */
     readonly "categoryNavigation": string
-    /** アカウント */
-    readonly "categoryAccount": string
     /** カラム */
     readonly "categoryColumn": string
-    /** ノート */
-    readonly "categoryNote": string
     /** ウィンドウ */
     readonly "categoryWindow": string
-    /** プロファイル */
-    readonly "categoryProfile": string
-    /** JSONパースエラー */
+    /** JSON パースエラー */
     readonly "jsonParseError": string
   }
   readonly "_listDetailContent": {
-    /** 非公開 */
-    readonly "private": string
     /** {count} メンバー */
     readonly "members_plural": PluralString<'count'>
     /** メンバーがいません */
     readonly "noMembers": string
-    /** お気に入り操作に失敗しました（{code}） */
+    /** お気に入り操作に失敗しました ({code}) */
     readonly "favoriteFailed": ParameterizedString<'code'>
   }
   readonly "_memoEditorContent": {
-    /** 読み込み中… */
+    /** 読み込み中... */
     readonly "loading": string
     /** このメモは見つかりません */
     readonly "notFound": string
@@ -1816,24 +1778,14 @@ export interface Locale {
     readonly "noReplies": string
     /** リノートはありません */
     readonly "noRenotes": string
-    /** {reaction} (ミュート中) */
-    readonly "mutedReaction": ParameterizedString<'reaction'>
     /** リアクションはありません */
     readonly "noReactions": string
     /** 返信 */
     readonly "replies": string
-    /** リノート */
-    readonly "renotes": string
-    /** リアクション */
-    readonly "reactions": string
-    /** アカウントが見つかりません */
-    readonly "accountNotFound": string
   }
   readonly "_noteInspectorContent": {
     /** ビュー */
     readonly "view": string
-    /** {endpoint} の生レスポンス */
-    readonly "rawResponse": ParameterizedString<'endpoint'>
     /** {endpoint} 経由で解決した ActivityPub オブジェクト */
     readonly "activityPubObject": ParameterizedString<'endpoint'>
     /** URI を特定できませんでした */
@@ -1854,8 +1806,6 @@ export interface Locale {
     readonly "title": string
     /** 概要 */
     readonly "summary": string
-    /** 保存中... */
-    readonly "saving": string
   }
   readonly "_permissionProfileEditor": {
     /** 高リスク操作 */
@@ -1882,22 +1832,16 @@ export interface Locale {
   readonly "_playDetailContent": {
     /** ソースを表示 */
     readonly "showSource": string
-    /** リロード */
-    readonly "reload": string
   }
   readonly "_playEditContent": {
     /** タイトル */
     readonly "title": string
     /** 概要 */
     readonly "summary": string
-    /** 保存中... */
-    readonly "saving": string
   }
   readonly "_pluginsContent": {
     /** 有効 */
     readonly "enabled": string
-    /** すべてデフォルトに戻す */
-    readonly "resetAllToDefault": string
     /** AiScript プラグインコードを貼り付けてインストール */
     readonly "installHint": string
     /** プラグインの AiScript ソースコード — 編集後「保存して再起動」で反映 */
@@ -1912,10 +1856,6 @@ export interface Locale {
     readonly "invalidHeader": string
     /** "{name}" は既にインストールされています */
     readonly "alreadyInstalled": ParameterizedString<'name'>
-    /** 無効 */
-    readonly "invalid": string
-    /** 履歴 */
-    readonly "history": string
     /** 保存して再起動 */
     readonly "saveAndRestart": string
   }
@@ -1944,31 +1884,19 @@ export interface Locale {
     readonly "columns": string
     /** カラムがありません */
     readonly "noColumns": string
-    /** カラムを追加 */
-    readonly "addColumn": string
-    /** 無効 */
-    readonly "invalid": string
-    /** 有効なJSONオブジェクトではありません */
+    /** 有効な JSON オブジェクトではありません */
     readonly "notJsonObject": string
-    /** JSON5パースエラー */
-    readonly "json5ParseError": string
   }
   readonly "_snippetsEditorContent": {
     /** VSCode 互換のスニペット — prefix で補完に出ます */
     readonly "codeHint": string
-    /** 無効 */
-    readonly "invalid": string
-    /** 本当に戻す？ */
+    /** 元に戻しますか？ */
     readonly "confirmReset": string
-    /** JSON5 パースエラー */
-    readonly "json5ParseError": string
     /** 編集中... */
     readonly "editing": string
-    /** {file} 読込失敗: {error} */
+    /** {file} の読み込みに失敗しました: {error} */
     readonly "loadFailed": ParameterizedString<'error' | 'file'>
-    /** 不正な JSON5 */
-    readonly "invalidJson5": string
-    /** 保存失敗 */
+    /** 保存に失敗しました */
     readonly "saveFailed": string
   }
   readonly "_tutorialEditorContent": {
@@ -2024,18 +1952,12 @@ export interface Locale {
     readonly "pinned": string
     /** ファイルはありません */
     readonly "noFiles": string
-    /** {reaction} (ミュート中) */
-    readonly "mutedReaction": ParameterizedString<'reaction'>
     /** リアクションはありません */
     readonly "noReactions": string
-    /** ノート */
-    readonly "tabNotes": string
     /** ファイル */
     readonly "tabFiles": string
     /** アクティビティ */
     readonly "tabActivity": string
-    /** リアクション */
-    readonly "tabReactions": string
     /** ページ */
     readonly "tabPages": string
     /** ギャラリー */
@@ -2048,13 +1970,11 @@ export interface Locale {
     readonly "tabAchievements": string
     /** プロフィールを編集 */
     readonly "editProfile": string
-    /** アカウントが見つかりません */
-    readonly "accountNotFound": string
   }
   readonly "_widgetEditContent": {
-    /** 自動実行: 有効 (クリックで切替) */
+    /** 自動実行: 有効 (クリックで切り替え) */
     readonly "autoRunOnTitle": string
-    /** 自動実行: 無効 (クリックで切替) */
+    /** 自動実行: 無効 (クリックで切り替え) */
     readonly "autoRunOffTitle": string
     /** 自動実行 ON */
     readonly "autoRunOn": string
@@ -2066,12 +1986,8 @@ export interface Locale {
     readonly "runHint": string
     /** 出力 ({n}) */
     readonly "output": ParameterizedString<'n'>
-    /** 履歴 */
-    readonly "history": string
     /** 未保存の変更 */
     readonly "unsaved": string
-    /** 実行 */
-    readonly "run": string
   }
   readonly "_aboutContent": {
     /** 公式サイトを開く */
@@ -2088,8 +2004,6 @@ export interface Locale {
     readonly "downloading": ParameterizedString<'version'>
     /** 再起動 */
     readonly "restart": string
-    /** 更新 */
-    readonly "updateNow": string
     /** 開発者モード */
     readonly "developerMode": string
     /** 開発者 */
@@ -2234,8 +2148,6 @@ export interface Locale {
   readonly "_cacheEditorContent": {
     /** 使用状況 */
     readonly "usage": string
-    /** ノート */
-    readonly "notes": string
     /** DB サイズ */
     readonly "dbSize": string
     /** 画像キャッシュ */
@@ -2262,9 +2174,7 @@ export interface Locale {
     readonly "manualClear": string
     /** ノートと OGP のキャッシュをすべて削除します。サーバーから再取得すれば復元されます。 */
     readonly "manualClearNote": string
-    /** キャッシュ削除 */
-    readonly "clearCacheTitle": string
-    /** ノートキャッシュとOGPキャッシュをすべて削除しますか？ */
+    /** ノートキャッシュと OGP キャッシュをすべて削除しますか？ */
     readonly "clearCacheConfirm": string
     /** ディスク上の画像キャッシュをすべて削除しますか？表示のたびにサーバーから再取得されます。 */
     readonly "clearImagesConfirm": string
@@ -2282,7 +2192,7 @@ export interface Locale {
     readonly "queryName": string
     /** 説明 (任意) */
     readonly "descriptionOptional": string
-    /** AiScript 式でカラムに流すノートを定義します (true = 表示)。例: {example}。カラムへの適用はタイムラインカラムのフィルタメニューで切り替えます。 */
+    /** AiScript 式でカラムに流すノートを定義します (true = 表示)。例: {example}。カラムへの適用はタイムラインカラムのフィルターメニューで切り替えます。 */
     readonly "hint": ParameterizedString<'example'>
     /** note.text != null && note.text.incl("キーワード") */
     readonly "sourcePlaceholder": string
@@ -2302,8 +2212,6 @@ export interface Locale {
     readonly "sequential": string
     /** このまま保存 */
     readonly "saveAnyway": string
-    /** 履歴 */
-    readonly "history": string
     /** クエリを保存しました */
     readonly "saved": string
   }
@@ -2316,9 +2224,9 @@ export interface Locale {
     readonly "customHeader": string
     /** ヘッダー名 (例: x-api-key) */
     readonly "headerNamePlaceholder": string
-    /** クエリパラメータ */
+    /** クエリパラメーター */
     readonly "queryParam": string
-    /** パラメータ名 (例: api_key) */
+    /** パラメーター名 (例: api_key) */
     readonly "paramNamePlaceholder": string
     /** ベーシック認証 */
     readonly "basicAuth": string
@@ -2378,15 +2286,13 @@ export interface Locale {
     readonly "testing": string
     /** テスト */
     readonly "test": string
-    /** 保存中... */
-    readonly "saving": string
     /** 名前を入力してください */
     readonly "nameRequired": string
     /** URL を入力してください */
     readonly "urlRequired": string
     /** ヘッダー名を入力してください */
     readonly "headerNameRequired": string
-    /** クエリパラメータ名を入力してください */
+    /** クエリパラメーター名を入力してください */
     readonly "queryParamRequired": string
     /** secret は 16 文字以上にしてください */
     readonly "secretTooShort": string
@@ -2416,7 +2322,7 @@ export interface Locale {
     readonly "monoFont": string
     /** const 変数 = 0; // Il1 O0 */
     readonly "monoFontPreview": string
-    /** コードブロック・JSON ビューア・エディタ系に反映されます */
+    /** コードブロック・JSON ビューアー・エディター系に反映されます */
     readonly "monoFontNote": string
     /** フォントサイズ */
     readonly "fontSize": string
@@ -2436,27 +2342,21 @@ export interface Locale {
     readonly "hideUserStats": string
     /** ノート数・フォロー数・フォロワー数が「-」になります (クリック導線は残ります) */
     readonly "hideUserStatsNote": string
-    /** 追加CSS */
+    /** 追加 CSS */
     readonly "freeformCss": string
-    /** CSSにエラーがあるため適用されません */
+    /** CSS にエラーがあるため適用されません */
     readonly "cssErrorHint": string
-    /** プリセットと追加CSSを結合した全体のCSSです */
+    /** プリセットと追加 CSS を結合した全体の CSS です */
     readonly "codeHint": string
     /** プリセットに同期 */
     readonly "syncToPresets": string
-    /** 無効 */
-    readonly "invalid": string
-    /** 履歴 */
-    readonly "history": string
-    /** 本当にクリア？ */
+    /** クリアしますか？ */
     readonly "confirmClear": string
     /** すべてクリア */
     readonly "clearAll": string
-    /** デフォルト */
-    readonly "default": string
     /** デフォルト (15px) */
     readonly "defaultFontSize": string
-    /** CSSパースエラー */
+    /** CSS パースエラー */
     readonly "cssParseError": string
   }
   readonly "_loginContent": {
@@ -2464,7 +2364,7 @@ export interface Locale {
     readonly "checking": string
     /** サーバーに接続できます */
     readonly "serverReachable": string
-    /** Misskeyサーバーに接続 */
+    /** Misskey サーバーに接続 */
     readonly "connectToServer": string
     /** サーバーアドレス */
     readonly "serverAddress": string
@@ -2478,7 +2378,7 @@ export interface Locale {
     readonly "connecting": string
     /** 認証待ち... */
     readonly "waitingForAuth": string
-    /** ブラウザで認証画面が開きました。 */
+    /** ブラウザーで認証画面が開きました。 */
     readonly "authOpened": string
     /** 認証が完了したら、下のボタンをクリックしてください。 */
     readonly "authInstruction": string
@@ -2500,13 +2400,11 @@ export interface Locale {
     readonly "masterTitle": string
     /** デフォルト: {value} */
     readonly "defaultValue": ParameterizedString<'value'>
-    /** デフォルト値からの差分のみがJSON形式で保存されます */
+    /** デフォルト値からの差分のみが JSON 形式で保存されます */
     readonly "codeHint": string
-    /** 無効 */
-    readonly "invalid": string
     /** 不明なキー: {key} */
     readonly "unknownKey": ParameterizedString<'key'>
-    /** JSON解析エラー */
+    /** JSON 解析エラー */
     readonly "jsonParseError": string
   }
   readonly "_permissionsContent": {
@@ -2532,16 +2430,8 @@ export interface Locale {
     readonly "issueToken": string
     /** 「{name}」のトークン — この表示を閉じると再表示できません */
     readonly "createdTokenNotice": ParameterizedString<'name'>
-    /** コピー */
-    readonly "copy": string
     /** permissions.json5 を直接編集できます。principal (ai.chat / ai.heartbeat / plugin / external) ごとの preset と custom マップを持ちます。 */
     readonly "codeHint": string
-    /** 無効 */
-    readonly "invalid": string
-    /** JSON5 パースエラー */
-    readonly "json5ParseError": string
-    /** 不正な JSON5 */
-    readonly "invalidJson5": string
     /** AI への指示チャネルは第三者には開放できません */
     readonly "instructionRuleReason": string
     /** タスクは本人と AI のみが実行できます */
@@ -2560,7 +2450,7 @@ export interface Locale {
     readonly "external": string
     /** HTTP API (永続トークン) 経由の外部アプリに許可する操作 */
     readonly "externalHint": string
-    /** スクラッチパッドカラムで自分が書いて実行するコードに許可する操作 (既定は読み取りのみ) */
+    /** スクラッチパッドカラムで自分が書いて実行するコードに許可する操作 (デフォルトは読み取りのみ) */
     readonly "scratchpadHint": string
   }
   readonly "_skillEditContent": {
@@ -2598,7 +2488,7 @@ export interface Locale {
     readonly "heartbeatHint": string
     /** 自動起動: ユーザーの入力に下のトリガー語のいずれかが含まれたターンだけ、この skill body が system prompt に注入されます (大文字小文字無視の部分一致)。 */
     readonly "triggerHint": string
-    /** トリガー語（1 行に 1 つ） */
+    /** トリガー語 (1 行に 1 つ) */
     readonly "triggers": string
     /** どこ
 使い方
@@ -2608,12 +2498,10 @@ help */
     readonly "triggersOnlyInTriggerMode": string
     /** このスキルを AI セッションの persona 候補にする */
     readonly "personaToggle": string
-    /** ON にすると、AI セッションヘッダの persona セレクタにこのスキルが表示されます。選択中のセッションで AI はこの persona として振る舞い、memo の作者として記録されます (#491)。 */
+    /** ON にすると、AI セッションヘッダーの persona セレクターにこのスキルが表示されます。選択中のセッションで AI はこの persona として振る舞い、memo の作者として記録されます (#491)。 */
     readonly "personaHint": string
     /** ストア由来のスキル — 編集内容はローカルファイルに保存されます (再インストールで上書きされる可能性あり) */
     readonly "fromStoreNote": string
-    /** 履歴 */
-    readonly "history": string
     /** 未保存の変更 */
     readonly "unsavedChanges": string
   }
@@ -2642,8 +2530,6 @@ help */
     readonly "groupPlaceholder": string
     /** デフォルト実行対象 (1 件のみ) */
     readonly "defaultTaskOnlyOne": string
-    /** アカウント */
-    readonly "account": string
     /** 現在アクティブ */
     readonly "accountActive": string
     /** 最初のログイン済み */
@@ -2662,9 +2548,9 @@ help */
     readonly "inputFields": string
     /** プロンプト */
     readonly "prompt": string
-    /** 選択肢 (1行に1つ) */
+    /** 選択肢 (1 行に 1 つ) */
     readonly "pickOptionsPlaceholder": string
-    /** default (任意) */
+    /** デフォルト (任意) */
     readonly "defaultPlaceholder": string
     /** 入力なし — タスクは即座に実行されます */
     readonly "noInputs": string
@@ -2676,19 +2562,17 @@ help */
     readonly "variables": string
     /** {count} タスクを解析済み */
     readonly "parsedTasks_plural": PluralString<'count'>
-    /**  · 保存中… */
+    /**  · 保存中... */
     readonly "savingSuffix": string
-    /** 無効 */
-    readonly "invalid": string
     /** サンプルに戻す */
     readonly "resetToSample": string
-    /** tasks.json5 読込失敗: {error} */
+    /** tasks.json5 の読み込みに失敗しました: {error} */
     readonly "loadFailed": ParameterizedString<'error'>
-    /** 保存失敗: {error} */
+    /** 保存に失敗しました: {error} */
     readonly "saveFailed": ParameterizedString<'error'>
     /** オブジェクト ({}) が必要です */
     readonly "objectRequired": string
-    /** リセット失敗: {error} */
+    /** リセットに失敗しました: {error} */
     readonly "resetFailed": ParameterizedString<'error'>
   }
   readonly "_themeEditorContent": {
@@ -2730,12 +2614,6 @@ help */
     readonly "propLove": string
     /** リンク */
     readonly "propLink": string
-    /** ハッシュタグ */
-    readonly "propHashtag": string
-    /** メンション */
-    readonly "propMention": string
-    /** リノート */
-    readonly "propRenote": string
     /** 区切り線 */
     readonly "propDivider": string
     /** 成功 */
@@ -2746,12 +2624,8 @@ help */
     readonly "propWarn": string
     /** テーマオブジェクトに props がありません */
     readonly "noProps": string
-    /** JSONパースエラー */
+    /** JSON パースエラー */
     readonly "jsonParseError": string
-    /** 履歴 */
-    readonly "history": string
-    /** 元に戻す */
-    readonly "undo": string
     /** 上書き保存 */
     readonly "overwriteSave": string
     /** テーマを削除 */
@@ -2798,12 +2672,8 @@ help */
     readonly "intentUntrusted": string
     /** 下書きにできませんでした: {error} */
     readonly "intentDraftFailed": ParameterizedString<'error'>
-    /** 実行 */
-    readonly "run": string
     /** 却下 */
     readonly "dismiss": string
-    /** コピー */
-    readonly "copy": string
     /** 停止 */
     readonly "stop": string
     /** 今日 */
@@ -2854,7 +2724,7 @@ help */
     readonly "scope": string
     /** すべてのアカウント */
     readonly "allAccounts": string
-    /** {host}（サーバー） */
+    /** {host} (サーバー) */
     readonly "serverOption": ParameterizedString<'host'>
     /** 投稿者 */
     readonly "author": string
@@ -2882,31 +2752,21 @@ help */
     readonly "emptyHint": string
   }
   readonly "_deckColumn": {
-    /** 全アカウント */
-    readonly "allAccounts": string
-    /** ミュート解除 */
-    readonly "unmute": string
-    /** ミュート */
-    readonly "mute": string
     /** ログアウト中 */
     readonly "loggedOut": string
-    /** 下に引いてリフレッシュ */
-    readonly "pullToRefresh": string
-    /** アカウントが見つかりません */
-    readonly "accountNotFound": string
     /** 最前面固定を解除 */
     readonly "unpinOnTop": string
     /** 最前面に固定 */
     readonly "pinOnTop": string
     /** デッキに戻す */
     readonly "returnToDeck": string
-    /** Web UIで開く */
+    /** Web UI で開く */
     readonly "openWebUi": string
     /** 分割を解除 */
     readonly "unstack": string
     /** 別ウィンドウで開く */
     readonly "popOut": string
-    /** PiPウィンドウとして開く */
+    /** PiP ウィンドウとして開く */
     readonly "openAsPip": string
     /** メインウィンドウに戻す */
     readonly "recallToMain": string
@@ -2916,16 +2776,12 @@ help */
     readonly "deleteConfirm": string
     /** カラムを削除しました */
     readonly "deleted": string
-    /** 元に戻す */
-    readonly "undo": string
   }
   readonly "_deckDriveColumn": {
     /** ルート */
     readonly "root": string
     /** 選択 */
     readonly "select": string
-    /** 新規フォルダ */
-    readonly "newFolder": string
     /** アップロード */
     readonly "upload": string
     /** このフォルダの選択を解除 */
@@ -2934,7 +2790,7 @@ help */
     readonly "selectFolder": string
     /** {count} 件 */
     readonly "selectedCount_plural": PluralString<'count'>
-    /** （他 {n}） */
+    /** (他 {n}) */
     readonly "selectedOutside": ParameterizedString<'n'>
     /** すべて解除 */
     readonly "deselectAll": string
@@ -2952,7 +2808,7 @@ help */
     readonly "bulkDeleteTitle": string
     /** 選択中の {count} 件のファイルをドライブから削除しますか？添付したノートからも消えます。この操作は取り消せません。 */
     readonly "bulkDeleteConfirm_plural": PluralString<'count'>
-    /** 選択中の {count} 件のファイルをドライブから削除しますか？（現在のフォルダ外で選択した {outside} 件を含む）添付したノートからも消えます。この操作は取り消せません。 */
+    /** 選択中の {count} 件のファイルをドライブから削除しますか？ (現在のフォルダ外で選択した {outside} 件を含む) 添付したノートからも消えます。この操作は取り消せません。 */
     readonly "bulkDeleteConfirmWithOutside_plural": PluralString<'count' | 'outside'>
     /** {count} 件は情報を取得できず保存対象から外れました */
     readonly "exportMissing_plural": PluralString<'count'>
@@ -2962,7 +2818,7 @@ help */
     readonly "exportFailed_plural": PluralString<'count'>
     /** {count} 件を保存しました */
     readonly "exported_plural": PluralString<'count'>
-    /** {count} 件を保存しました（{skipped} 件は保存済み） */
+    /** {count} 件を保存しました ({skipped} 件は保存済み) */
     readonly "exportedWithSkipped_plural": PluralString<'count' | 'skipped'>
     /** フォルダを開く */
     readonly "openFolder": string
@@ -2978,21 +2834,15 @@ help */
     readonly "switchToRealtime": string
     /** もっと */
     readonly "more": string
-    /** プロファイル */
-    readonly "profile": string
     /** オンライン */
     readonly "online": string
     /** リアルタイム */
     readonly "realtime": string
-    /** ノート */
-    readonly "note": string
-    /** アカウント */
-    readonly "account": string
     /** ナビバー編集 */
     readonly "editNavbar": string
     /** オフラインモードを解除 */
     readonly "disableOfflineTitle": string
-    /** オフラインモードに切替 */
+    /** オフラインモードに切り替え */
     readonly "enableOfflineTitle": string
     /** サーバーに再接続します。 */
     readonly "disableOfflineMessage": string
@@ -3000,29 +2850,23 @@ help */
     readonly "enableOfflineMessage": string
     /** 解除 */
     readonly "turnOff": string
-    /** 切替 */
-    readonly "switch": string
-    /** ポーリングモードに切替 */
+    /** ポーリングモードに切り替え */
     readonly "pollingTitle": string
-    /** リアルタイムモードに切替 */
+    /** リアルタイムモードに切り替え */
     readonly "realtimeTitle": string
-    /** WebSocket接続を切断し、定期的なHTTPポーリングに切り替えます。 */
+    /** WebSocket 接続を切断し、定期的な HTTP ポーリングに切り替えます。 */
     readonly "pollingMessage": string
     /** リアルタイム更新に切り替えます。 */
     readonly "realtimeMessage": string
     /** 権限がありません。write:account の権限を付与するために再ログインしてください。 */
     readonly "permissionDenied": string
-    /** キャッシュ削除 */
-    readonly "clearCacheTitle": string
     /** {account} のキャッシュを削除しますか？ */
     readonly "clearCacheConfirm": ParameterizedString<'account'>
   }
   readonly "_deckNotificationColumn": {
     /** 通知はありません */
     readonly "empty": string
-    /** {reaction} (ミュート中) */
-    readonly "mutedReaction": ParameterizedString<'reaction'>
-    /** 他{count}人 */
+    /** 他 {count} 人 */
     readonly "othersCount_plural": PluralString<'count'>
     /** 承認済み */
     readonly "accepted": string
@@ -3046,12 +2890,8 @@ help */
     readonly "notificationRawJson": string
     /** すべて */
     readonly "filterAll": string
-    /** リアクション */
-    readonly "filterReaction": string
     /** リプライ */
     readonly "filterReply": string
-    /** リノート */
-    readonly "filterRenote": string
     /** 引用 */
     readonly "filterQuote": string
     /** メンション */
@@ -3112,24 +2952,10 @@ help */
     readonly "emptyInColumn": string
     /** ライブラリに追加可能なプラグインがありません。 */
     readonly "noLibraryCandidates": string
-    /** インストール済み {count} */
-    readonly "installedTab": ParameterizedString<'count'>
-    /** サイドロード */
-    readonly "sideload": string
-    /** ストア配布 */
-    readonly "storeDistributed": string
-    /** インストール失敗 */
-    readonly "installFailed": string
-    /** 更新失敗 */
-    readonly "updateFailed": string
     /** プラグインを外しました */
     readonly "detached": string
-    /** 元に戻す */
-    readonly "undo": string
     /** 全アカウント対象から外す */
     readonly "detachFromAllAccounts": string
-    /** このアカウントから外す */
-    readonly "detachFromAccount": string
     /** プラグインを削除 */
     readonly "deleteTitle": string
     /** 「{name}」をライブラリから削除しますか？プラグインのコードも消えます。 */
@@ -3158,20 +2984,10 @@ help */
     readonly "createQuery": string
     /** ライブラリに追加可能なクエリがありません。 */
     readonly "noLibraryCandidates": string
-    /** インストール済み {count} */
-    readonly "installedTab": ParameterizedString<'count'>
-    /** サイドロード */
-    readonly "sideload": string
-    /** ストア配布 */
-    readonly "storeDistributed": string
     /** クエリを外しました */
     readonly "detached": string
-    /** 元に戻す */
-    readonly "undo": string
     /** 全アカウント対象から外す */
     readonly "detachFromAllAccounts": string
-    /** このアカウントから外す */
-    readonly "detachFromAccount": string
     /** 「{name}」は {count} 個のカラムに適用中です。削除するとそれらのカラムは評価不能 (fail-closed) になります。削除しますか？ */
     readonly "deleteConfirmInUse_plural": PluralString<'count' | 'name'>
     /** 「{name}」は無効ですが、{count} 個のカラムに適用中です。削除するとそれらのカラムは評価不能 (fail-closed) になります。削除しますか？ */
@@ -3182,13 +2998,9 @@ help */
     readonly "deleteConfirm": ParameterizedString<'name'>
     /** クエリを削除しました */
     readonly "deleted": string
-    /** インストール失敗 */
-    readonly "installFailed": string
-    /** 更新失敗 */
-    readonly "updateFailed": string
   }
   readonly "_deckServerInfoColumn": {
-    /** （説明なし） */
+    /** (説明なし) */
     readonly "noDescription": string
     /** ソースコード */
     readonly "sourceCode": string
@@ -3198,7 +3010,7 @@ help */
     readonly "contact": string
     /** 問い合わせ */
     readonly "inquiry": string
-    /** （なし） */
+    /** (なし) */
     readonly "none": string
     /** 運営情報 */
     readonly "impressum": string
@@ -3212,12 +3024,6 @@ help */
     readonly "feedback": string
     /** 統計 */
     readonly "stats": string
-    /** ユーザー */
-    readonly "users": string
-    /** ノート */
-    readonly "notes": string
-    /** {endpoint} の生レスポンス */
-    readonly "rawResponse": ParameterizedString<'endpoint'>
     /** サーバー情報を取得できませんでした */
     readonly "fetchFailed": string
     /** 情報 */
@@ -3244,38 +3050,22 @@ help */
     readonly "noMatches": string
     /** スキルがインストールされていません */
     readonly "empty": string
-    /** インストール済 */
+    /** インストール済み */
     readonly "installedMark": string
-    /** 更新 */
-    readonly "update": string
     /** ストアに登録済みのスキルはありません */
     readonly "storeEmpty": string
-    /** インストール済み {count} */
-    readonly "installedTab": ParameterizedString<'count'>
-    /** サイドロード */
-    readonly "sideload": string
-    /** ストア配布 */
-    readonly "storeDistributed": string
     /** スキルを削除 */
     readonly "deleteTitle": string
     /** 「{name}」を削除しますか？スキルの本文も消えます。 */
     readonly "deleteConfirm": ParameterizedString<'name'>
     /** スキルを削除しました */
     readonly "deleted": string
-    /** 元に戻す */
-    readonly "undo": string
     /** 常時 */
     readonly "modeAlways": string
     /** 手動 */
     readonly "modeManual": string
     /** 自動 */
     readonly "modeTrigger": string
-    /** インストール失敗 */
-    readonly "installFailed": string
-    /** 更新失敗 */
-    readonly "updateFailed": string
-    /** ストア更新日: {date} / v{version} */
-    readonly "storeUpdatedWithVersion": ParameterizedString<'date' | 'version'>
   }
   readonly "_deckTaskRunnerColumn": {
     /** 履歴をクリア */
@@ -3300,8 +3090,6 @@ help */
     readonly "requiresInput": string
     /** AI セッションで実行 (kind=task の新規セッションを作成し、即 1 回実行) */
     readonly "runWithAi": string
-    /** 履歴 */
-    readonly "history": string
     /** {n} 実行中 */
     readonly "runningCount": ParameterizedString<'n'>
     /** 実行履歴はまだありません */
@@ -3322,26 +3110,16 @@ help */
     readonly "invalidHint": string
     /** {count} カラムで適用中 */
     readonly "appliedInColumns_plural": PluralString<'count'>
-    /** 更新 */
-    readonly "update": string
     /** ライブラリから削除 (本文も消えます) */
     readonly "deleteFromLibrary": string
     /** ソースファイルが見つからないため変更できません */
     readonly "readOnlyHint": string
-    /** ストア更新日: {date} */
-    readonly "storeUpdated": ParameterizedString<'date'>
-    /** ストア更新日: {date} / v{version} */
-    readonly "storeUpdatedWithVersion": ParameterizedString<'date' | 'version'>
   }
   readonly "_addColumnDialog": {
     /** {label}を選択 */
     readonly "selectItem": ParameterizedString<'label'>
     /** アカウントを選択 */
     readonly "selectAccount": string
-    /** カラムを追加 */
-    readonly "addColumn": string
-    /** {label}を検索... */
-    readonly "searchItem": ParameterizedString<'label'>
     /** {label}名を入力... */
     readonly "itemNamePlaceholder": ParameterizedString<'label'>
     /** 作成 */
@@ -3350,8 +3128,6 @@ help */
     readonly "createNew": ParameterizedString<'label'>
     /** {label}が見つかりません */
     readonly "notFound": ParameterizedString<'label'>
-    /** 全アカウント */
-    readonly "allAccounts": string
     /** アカウントなし */
     readonly "noAccount": string
     /** ゲストアカウントではこのカラムを使えません */
@@ -3362,16 +3138,10 @@ help */
   readonly "_columnErrorBoundary": {
     /** カラムの表示中に問題が発生しました */
     readonly "title": string
-    /** 再読み込み */
-    readonly "reload": string
   }
   readonly "_columnFilterButton": {
     /** フィルター */
     readonly "filter": string
-  }
-  readonly "_columnPullFrame": {
-    /** 下に引いてリフレッシュ */
-    readonly "pullToRefresh": string
   }
   readonly "_columnQueryBanners": {
     /** このカラムが参照しているクエリは削除されています。外すと新着の取り込みが戻ります */
@@ -3402,9 +3172,9 @@ help */
     readonly "removeColumn": string
   }
   readonly "_dayNightToggle": {
-    /** ライトモードに切替 */
+    /** ライトモードに切り替え */
     readonly "switchToLight": string
-    /** ダークモードに切替 */
+    /** ダークモードに切り替え */
     readonly "switchToDark": string
     /** ライト */
     readonly "light": string
@@ -3414,7 +3184,7 @@ help */
     readonly "syncWithDevice": string
   }
   readonly "_deckAboutMisskeyColumn": {
-    /** Misskeyはオープンソースの分散型ソーシャルネットワーキングプラットフォームです。 */
+    /** Misskey はオープンソースの分散型ソーシャルネットワーキングプラットフォームです。 */
     readonly "description": string
     /** もっと詳しく */
     readonly "learnMore": string
@@ -3424,7 +3194,7 @@ help */
     readonly "translation": string
     /** 寄付 */
     readonly "donate": string
-    /** このサーバーはMisskeyの改変版を使用しています。 */
+    /** このサーバーは Misskey の改変版を使用しています。 */
     readonly "modifiedNotice": string
     /** ソースコード */
     readonly "sourceCode": string
@@ -3438,8 +3208,6 @@ help */
     readonly "pendingHint": string
     /** 実績がありません */
     readonly "empty": string
-    /** サーバー */
-    readonly "server": string
   }
   readonly "_deckAdsColumn": {
     /** 広告はありません */
@@ -3452,9 +3220,9 @@ help */
     readonly "runWithShortcut": string
     /** 出力 */
     readonly "output": string
-    /** Ctrl+Enterで実行 */
+    /** Ctrl+Enter で実行 */
     readonly "runHint": string
-    /** UIコンポーネントなし */
+    /** UI コンポーネントなし */
     readonly "noUiComponents": string
   }
   readonly "_deckAnnouncementsColumn": {
@@ -3463,26 +3231,14 @@ help */
     /** 既読にする */
     readonly "markAsRead": string
   }
-  readonly "_deckAntennaColumn": {
-    /** {label}を削除 */
-    readonly "deleteItem": ParameterizedString<'label'>
-  }
-  readonly "_deckClipColumn": {
-    /** {label}を削除 */
-    readonly "deleteItem": ParameterizedString<'label'>
-  }
-  readonly "_deckListColumn": {
-    /** {label}を削除 */
-    readonly "deleteItem": ParameterizedString<'label'>
-  }
   readonly "_deckApiConsoleColumn": {
-    /** パラメータ (JSON) */
+    /** パラメーター (JSON) */
     readonly "params": string
     /** アカウントが設定されていません */
     readonly "noAccount": string
     /** ログアウト中 */
     readonly "loggedOut": string
-    /** Ctrl+Enterで送信 */
+    /** Ctrl+Enter で送信 */
     readonly "sendHint": string
     /** 送信中... */
     readonly "sending": string
@@ -3492,16 +3248,12 @@ help */
     readonly "selectAccount": string
     /** 送信 (Ctrl+Enter) */
     readonly "sendWithShortcut": string
-    /** パラメータのJSONが不正です */
+    /** パラメーターの JSON が不正です */
     readonly "invalidParamsJson": string
   }
   readonly "_deckBottomBar": {
-    /** カラムを追加 */
-    readonly "addColumn": string
     /** デッキ設定 */
     readonly "deckSettings": string
-    /** プロファイル */
-    readonly "profile": string
   }
   readonly "_deckChartsColumn": {
     /** 時 */
@@ -3512,8 +3264,6 @@ help */
     readonly "breakdown": string
     /** サーバー統計を取得できません */
     readonly "fetchFailed": string
-    /** アカウントが見つかりません */
-    readonly "accountNotFound": string
     /** このサーバーのチャートはログインユーザー限定です */
     readonly "loginRequired": string
     /** このサーバーはチャート API を無効にしています */
@@ -3536,23 +3286,19 @@ help */
     readonly "searchMessagesPlaceholder": string
     /** 一致するメッセージがありません */
     readonly "noMatchingMessages": string
-    /** 絵文字 */
-    readonly "emoji": string
     /** メッセージ... */
     readonly "messagePlaceholder": string
   }
   readonly "_deckColumnsArea": {
     /** カラムがありません */
     readonly "noColumns": string
-    /** 既定の構成で始める */
+    /** デフォルトの構成で始める */
     readonly "startWithDefault": string
-    /** カラムを追加 */
-    readonly "addColumn": string
   }
   readonly "_deckEmojiColumn": {
     /** 絵文字を検索... */
     readonly "searchPlaceholder": string
-    /** {count}件 */
+    /** {count} 件 */
     readonly "count_plural": PluralString<'count'>
     /** すべて */
     readonly "all": string
@@ -3564,16 +3310,10 @@ help */
     readonly "uncategorized": string
     /** ミュート中 */
     readonly "muted": string
-    /** コードをコピー */
-    readonly "copyCode": string
-    /** ミュートを解除 */
-    readonly "unmute": string
     /** この絵文字をミュート */
     readonly "muteEmoji": string
   }
   readonly "_deckExploreColumn": {
-    /** 下に引いてリフレッシュ */
-    readonly "pullToRefresh": string
     /** ノートが見つかりません */
     readonly "noNotes": string
     /** ユーザー情報 */
@@ -3584,10 +3324,6 @@ help */
     readonly "noRoleUsers": string
     /** ロールが見つかりません */
     readonly "noRoles": string
-    /** ノート */
-    readonly "tabNotes": string
-    /** ユーザー */
-    readonly "tabUsers": string
     /** ロール */
     readonly "tabRoles": string
   }
@@ -3613,14 +3349,8 @@ help */
     readonly "notResponding": string
     /** アクティブ */
     readonly "sortActive": string
-    /** ユーザー */
-    readonly "sortUsers": string
-    /** ノート */
-    readonly "sortNotes": string
     /** 新着 */
     readonly "sortNewest": string
-    /** アカウントが見つかりません */
-    readonly "accountNotFound": string
   }
   readonly "_deckFollowRequestsColumn": {
     /** 承認済み */
@@ -3661,14 +3391,12 @@ help */
     readonly "loginToPost": string
   }
   readonly "_deckLookupColumn": {
-    /** URLまたは@ユーザー名@ホスト */
+    /** URL または @ユーザー名@ホスト */
     readonly "placeholder": string
-    /** URLを入力して照会 */
+    /** URL を入力して照会 */
     readonly "emptyThread": string
-    /** URLまたは@ユーザー名を入力して照会 */
+    /** URL または @ユーザー名を入力して照会 */
     readonly "emptyResult": string
-    /** アカウントが見つかりません */
-    readonly "accountNotFound": string
     /** アダプターの初期化に失敗しました */
     readonly "adapterInitFailed": string
     /** 照会できませんでした */
@@ -3681,14 +3409,10 @@ help */
   readonly "_deckMemoColumn": {
     /** メモはありません */
     readonly "empty": string
-    /** このメモをエディタで開く */
+    /** このメモをエディターで開く */
     readonly "openInEditor": string
     /** 投稿フォームに復元 */
     readonly "restoreToPostForm": string
-    /** 返信 */
-    readonly "contextReply": string
-    /** 引用 */
-    readonly "contextQuote": string
     /** チャンネル投稿 */
     readonly "contextChannelNote": string
     /** メモを削除 */
@@ -3699,8 +3423,6 @@ help */
     readonly "deleted": string
   }
   readonly "_deckMentionsColumn": {
-    /** 新しいノート */
-    readonly "newNotes": string
     /** ダイレクトメッセージはありません */
     readonly "directEmpty": string
     /** あなた宛て */
@@ -3709,8 +3431,6 @@ help */
     readonly "mentionsEmpty": string
   }
   readonly "_deckNoteColumn": {
-    /** 新しいノート */
-    readonly "newNotes": string
     /** まだノートがありません */
     readonly "noNotesYet": string
     /** オフラインモード */
@@ -3727,10 +3447,6 @@ help */
     readonly "queryExcludedAll_plural": PluralString<'count'>
   }
   readonly "_deckTimelineColumn": {
-    /** 新しいノート */
-    readonly "newNotes": string
-    /** ホーム */
-    readonly "home": string
     /** ローカル */
     readonly "local": string
     /** ソーシャル */
@@ -3744,10 +3460,6 @@ help */
     /** ノートはありません */
     readonly "noNotes": string
   }
-  readonly "_deckMobileNav": {
-    /** カラムを追加 */
-    readonly "addColumn": string
-  }
   readonly "_deckPageColumn": {
     /** ページが見つかりません */
     readonly "empty": string
@@ -3759,7 +3471,7 @@ help */
     readonly "likes": string
   }
   readonly "_deckPlayColumn": {
-    /** Playが見つかりません */
+    /** Play が見つかりません */
     readonly "empty": string
     /** 人気 */
     readonly "featured": string
@@ -3769,7 +3481,7 @@ help */
     readonly "likes": string
   }
   readonly "_deckProfileMenu": {
-    /** エディタで開く */
+    /** エディターで開く */
     readonly "openInEditor": string
     /** 保存されたプロファイルはありません */
     readonly "noProfiles": string
@@ -3781,8 +3493,6 @@ help */
     readonly "deleteConfirm": string
     /** プロファイルを削除しました */
     readonly "deleted": string
-    /** 元に戻す */
-    readonly "undo": string
   }
   readonly "_deckSearchColumn": {
     /** 正規表現で検索... */
@@ -3809,7 +3519,7 @@ help */
     readonly "enterQuery": string
     /** 結果が見つかりませんでした */
     readonly "noResults": string
-    /** Enterキーでサーバーを検索 */
+    /** Enter キーでサーバーを検索 */
     readonly "enterToSearch": string
     /** 無効な正規表現です */
     readonly "invalidRegex": string
@@ -3837,16 +3547,6 @@ help */
     readonly "noThemes": string
     /** ストアからインストール... */
     readonly "installFromStore": string
-    /** デフォルト */
-    readonly "default": string
-    /** サイドロード */
-    readonly "sideload": string
-    /** ストア配布 */
-    readonly "storeDistributed": string
-    /** サーバー */
-    readonly "server": string
-    /** インストール済み {count} */
-    readonly "installedTab": ParameterizedString<'count'>
     /** テーマを削除 */
     readonly "deleteTitle": string
     /** 「{name}」はこのアカウントにのみ紐付いています。外すとテーマ自体が削除されます。削除しますか？ */
@@ -3855,14 +3555,8 @@ help */
     readonly "deleted": string
     /** テーマを外しました */
     readonly "detached": string
-    /** 元に戻す */
-    readonly "undo": string
     /** 「{name}」を削除しますか？テーマの設定も消えます。 */
     readonly "deleteConfirm": ParameterizedString<'name'>
-    /** インストール失敗 */
-    readonly "installFailed": string
-    /** 更新失敗 */
-    readonly "updateFailed": string
   }
   readonly "_deckWidgetColumn": {
     /** 新規ローカルウィジェットを作成 */
@@ -3881,8 +3575,6 @@ help */
     readonly "selectAccount": string
     /** ウィジェットを外しました */
     readonly "detached": string
-    /** 元に戻す */
-    readonly "undo": string
     /** ウィジェットをどのアカウントで動かしますか？ */
     readonly "pickAccountForNew": string
     /** 「{name}」をどのアカウントで動かしますか？ */
@@ -3893,17 +3585,11 @@ help */
     readonly "deleteConfirm": ParameterizedString<'name'>
     /** ウィジェットを削除しました */
     readonly "deleted": string
-    /** インストール済み {count} */
-    readonly "installedTab": ParameterizedString<'count'>
-    /** インストール失敗 */
-    readonly "installFailed": string
-    /** 更新失敗 */
-    readonly "updateFailed": string
   }
   readonly "_deckWindow": {
-    /** Web UIで開く */
+    /** Web UI で開く */
     readonly "openInWebUi": string
-    /** OS の既定エディタで {name} を開く */
+    /** OS のデフォルトエディターで {name} を開く */
     readonly "openInDefaultEditor": ParameterizedString<'name'>
     /** 最小化 */
     readonly "minimize": string
@@ -3915,8 +3601,6 @@ help */
   readonly "_logoutDialog": {
     /** ゲストを削除 */
     readonly "removeGuest": string
-    /** ログアウト */
-    readonly "logout": string
     /** このゲストアカウントを削除しますか？ */
     readonly "confirmRemoveGuest": string
     /** ローカルデータをこのデバイスに残しますか？ */
@@ -3931,14 +3615,6 @@ help */
   readonly "_navAccountMenu": {
     /** コントロールパネル */
     readonly "controlPanel": string
-    /** キャッシュ削除 */
-    readonly "clearCache": string
-    /** ログアウト */
-    readonly "logout": string
-    /** データを削除 */
-    readonly "deleteData": string
-    /** 再ログイン */
-    readonly "relogin": string
   }
   readonly "_pluginCard": {
     /** 非対応 */
@@ -3949,56 +3625,34 @@ help */
     readonly "detachFromColumn": string
     /** ライブラリから削除 (コードも消えます) */
     readonly "deleteFromLibrary": string
-    /** 更新 */
-    readonly "update": string
-    /** ストア更新日: {date} */
-    readonly "storeUpdated": ParameterizedString<'date'>
-    /** ストア更新日: {date} / v{version} */
-    readonly "storeUpdatedWithVersion": ParameterizedString<'date' | 'version'>
   }
   readonly "_widgetCard": {
     /** 非対応 */
     readonly "incompatible": string
-    /** 更新 */
-    readonly "update": string
     /** ライブラリから削除 (コードも消えます) */
     readonly "deleteFromLibrary": string
     /** ウィジェットを編集 */
     readonly "editWidget": string
     /** 配置 */
     readonly "place": string
-    /** ストア更新日: {date} */
-    readonly "storeUpdated": ParameterizedString<'date'>
-    /** ストア更新日: {date} / v{version} */
-    readonly "storeUpdatedWithVersion": ParameterizedString<'date' | 'version'>
   }
   readonly "_themeCard": {
     /** このアカウントの設定を解除 */
     readonly "clearAccount": string
-    /** このアカウントから外す */
-    readonly "detachFromAccount": string
     /** ライブラリから削除 (テーマも消えます) */
     readonly "deleteFromLibrary": string
     /** このアカウントに追加 */
     readonly "addToAccount": string
-    /** 更新 */
-    readonly "update": string
     /** MisStore で詳細を見る */
     readonly "viewInMisStore": string
     /** インストール中 */
     readonly "installing": string
-    /** ストア更新日: {date} */
-    readonly "storeUpdated": ParameterizedString<'date'>
-    /** ストア更新日: {date} / v{version} */
-    readonly "storeUpdatedWithVersion": ParameterizedString<'date' | 'version'>
   }
   readonly "_timelineFilterPopup": {
     /** フィルター */
     readonly "filter": string
     /** このクエリは無効です — 押すとクエリ管理カラムを開きます */
     readonly "disabledQueryHint": string
-    /** リノート */
-    readonly "withRenotes": string
     /** リプライ */
     readonly "withReplies": string
     /** ファイル付きのみ */
@@ -4011,8 +3665,6 @@ help */
     readonly "editCode": string
     /** 実行中... */
     readonly "running": string
-    /** 実行 */
-    readonly "run": string
     /** ドラッグして並び替え */
     readonly "dragToReorder": string
     /** サイドバーから外す */
@@ -4053,14 +3705,6 @@ help */
       readonly "emoji": {
         /** 絵文字キャッシュ */
         readonly "label": string
-        /** 絵文字 */
-        readonly "short": string
-      }
-      readonly "note": {
-        /** ノート */
-        readonly "label": string
-        /** ノート */
-        readonly "short": string
       }
       readonly "cache": {
         /** パースキャッシュ */
@@ -4081,7 +3725,7 @@ help */
         readonly "short": string
       }
       readonly "css": {
-        /** CSS描画 */
+        /** CSS 描画 */
         readonly "label": string
         /** CSS */
         readonly "short": string
@@ -4108,25 +3752,25 @@ help */
       readonly "emojiCacheHosts": string
       /** リスト保持ホスト数 */
       readonly "emojiListHosts": string
-      /** localStorage永続化/ホスト */
+      /** localStorage 永続化/ホスト */
       readonly "emojiPersistPerHost": string
       /** ノートストア上限 */
       readonly "noteStoreMax": string
-      /** DOM表示上限/カラム */
+      /** DOM 表示上限/カラム */
       readonly "noteListMax": string
       /** 通知保持上限 */
       readonly "maxNotifications": string
       /** チャットメッセージストア上限 */
       readonly "chatMessageStoreMax": string
-      /** MFMキャッシュ */
+      /** MFM キャッシュ */
       readonly "mfmCacheMax": string
-      /** blurhashキャッシュ */
+      /** blurhash キャッシュ */
       readonly "blurhashCacheMax": string
-      /** プロキシURLキャッシュ */
+      /** プロキシ URL キャッシュ */
       readonly "imageProxyCacheMax": string
-      /** OGPキャッシュ */
+      /** OGP キャッシュ */
       readonly "ogpCacheMax": string
-      /** Note Capture上限 */
+      /** Note Capture 上限 */
       readonly "noteCaptureMax": string
       /** Overscan */
       readonly "overscan": string
@@ -4136,7 +3780,7 @@ help */
       readonly "memoryCacheMaxItemKB": string
       /** 並行フェッチ数 */
       readonly "maxConcurrentFetches": string
-      /** Rust OGPキャッシュ */
+      /** Rust OGP キャッシュ */
       readonly "rustOgpCacheMax": string
       /** レート制限 */
       readonly "maxRequestsPerWindow": string
@@ -4158,9 +3802,9 @@ help */
       readonly "prefetchTrackedMax": string
       /** 遅延読み込みマージン */
       readonly "lazyLoadMargin": string
-      /** Viewport近傍バッファ */
+      /** Viewport 近傍バッファ */
       readonly "nearViewportBuffer": string
-      /** OGPギャラリー上限 */
+      /** OGP ギャラリー上限 */
       readonly "ogpGalleryMax": string
       /** 埋め込みノートキャッシュ */
       readonly "embedCacheMax": string
@@ -4190,7 +3834,7 @@ help */
       readonly "stableUpgradeSeconds": string
       /** ノート出現アニメーション */
       readonly "noteAnimationDuration": string
-      /** P95履歴サイズ */
+      /** P95 履歴サイズ */
       readonly "frameHistorySize": string
       /** 通知音キャッシュ */
       readonly "soundCacheMax": string
@@ -4212,7 +3856,7 @@ help */
       readonly "emojiCacheHosts": string
       /** リアクションピッカー用の絵文字リストを保持するホスト数 */
       readonly "emojiListHosts": string
-      /** オフライン時の絵文字解決用にlocalStorageに保存するエントリ数 */
+      /** オフライン時の絵文字解決用に localStorage に保存するエントリ数 */
       readonly "emojiPersistPerHost": string
       /** グローバルノートストアの保持上限。長時間セッションのメモリ消費に影響 */
       readonly "noteStoreMax": string
@@ -4222,17 +3866,17 @@ help */
       readonly "maxNotifications": string
       /** グローバル chatMessageStore の保持上限。長時間チャットしている場合のメモリに影響 (#460) */
       readonly "chatMessageStoreMax": string
-      /** MFMパース結果のLRUキャッシュ上限 */
+      /** MFM パース結果の LRU キャッシュ上限 */
       readonly "mfmCacheMax": string
-      /** 画像ロード前のプレースホルダ (blurhash → data URL) のLRUキャッシュ上限 */
+      /** 画像ロード前のプレースホルダー (blurhash → data URL) の LRU キャッシュ上限 */
       readonly "blurhashCacheMax": string
-      /** プロキシURL変換のLRUキャッシュ上限 */
+      /** プロキシ URL 変換の LRU キャッシュ上限 */
       readonly "imageProxyCacheMax": string
-      /** OGPプレビューのLRUキャッシュ上限 */
+      /** OGP プレビューの LRU キャッシュ上限 */
       readonly "ogpCacheMax": string
-      /** リアルタイム更新のWebSocket購読数。多いほどリアクション即時反映 */
+      /** リアルタイム更新の WebSocket 購読数。多いほどリアクション即時反映 */
       readonly "noteCaptureMax": string
-      /** viewport外に余分に描画するノート数。多いほどスクロールが滑らか */
+      /** viewport 外に余分に描画するノート数。多いほどスクロールが滑らか */
       readonly "overscan": string
       /** 画像のインメモリキャッシュ合計サイズ */
       readonly "memoryCacheMaxMB": string
@@ -4240,9 +3884,9 @@ help */
       readonly "memoryCacheMaxItemKB": string
       /** 画像の同時ダウンロード数 */
       readonly "maxConcurrentFetches": string
-      /** Rust側のOGPメタデータLRUキャッシュ上限 */
+      /** Rust 側の OGP メタデータ LRU キャッシュ上限 */
       readonly "rustOgpCacheMax": string
-      /** ホストあたりの1分間リクエスト上限 */
+      /** ホストあたりの 1 分間リクエスト上限 */
       readonly "maxRequestsPerWindow": string
       /** この回数連続失敗でホストを一時遮断 */
       readonly "circuitBreakerThreshold": string
@@ -4254,25 +3898,25 @@ help */
       readonly "imageCacheMaxMB": string
       /** これを超える画像はプロキシを通さない。上げるとピークメモリも増える */
       readonly "imageCacheMaxFileMB": string
-      /** viewport下方向に先読みする画像プリフェッチ数 */
+      /** viewport 下方向に先読みする画像プリフェッチ数 */
       readonly "prefetchAhead": string
-      /** viewport上方向に遡って画像プリフェッチする数 */
+      /** viewport 上方向に遡って画像プリフェッチする数 */
       readonly "prefetchBehind": string
-      /** プリフェッチ済みURLの記憶数。超過すると古い順に破棄 */
+      /** プリフェッチ済み URL の記憶数。超過すると古い順に破棄 */
       readonly "prefetchTrackedMax": string
-      /** OGPプレビューや埋め込みノートの読み込みを開始するviewportからの距離 */
+      /** OGP プレビューや埋め込みノートの読み込みを開始する viewport からの距離 */
       readonly "lazyLoadMargin": string
-      /** viewport端から画像をeager読み込みする余裕アイテム数 */
+      /** viewport 端から画像を eager 読み込みする余裕アイテム数 */
       readonly "nearViewportBuffer": string
-      /** OGPプレビューのギャラリー画像の最大表示枚数 */
+      /** OGP プレビューのギャラリー画像の最大表示枚数 */
       readonly "ogpGalleryMax": string
-      /** 埋め込みノートのLRUキャッシュ上限 */
+      /** 埋め込みノートの LRU キャッシュ上限 */
       readonly "embedCacheMax": string
-      /** backdrop-filterブラーの強度。0=無効、1=軽量(1–2px)、2=フル(4px)。最もGPU負荷が高い */
+      /** backdrop-filter ブラーの強度。0=無効、1=軽量 (1–2px)、2=フル (4px)。最も GPU 負荷が高い */
       readonly "cssBlurLevel": string
       /** トランジション・アニメーションの速度スケール。0%で即時描画、100%で通常速度 */
       readonly "cssAnimationScale": string
-      /** box-shadowの描画レベル。0=無効、1=軽量、2=フル(Misskey準拠) */
+      /** box-shadow の描画レベル。0=無効、1=軽量、2=フル (Misskey 準拠) */
       readonly "cssShadowLevel": string
       /** ポーリングモード時のタイムライン更新間隔。短いほどリアルタイムに近い */
       readonly "streamPollingInterval": string
@@ -4292,13 +3936,13 @@ help */
       readonly "jankDowngradeThreshold": string
       /** 安定がこの秒数続くと自動品質アップグレードを試行 */
       readonly "stableUpgradeSeconds": string
-      /** 新着ノートのスライドインアニメーション時間。0で即時表示 */
+      /** 新着ノートのスライドインアニメーション時間。0 で即時表示 */
       readonly "noteAnimationDuration": string
-      /** P95フレーム時間計算用のリングバッファサイズ。大きいほど安定するが反応が遅い */
+      /** P95 フレーム時間計算用のリングバッファサイズ。大きいほど安定するが反応が遅い */
       readonly "frameHistorySize": string
-      /** 通知音のAudioBufferキャッシュ数。多サーバー利用時は増やす */
+      /** 通知音の AudioBuffer キャッシュ数。多サーバー利用時は増やす */
       readonly "soundCacheMax": string
-      /** カラム復帰時にDBキャッシュから読み込むノート件数 */
+      /** カラム復帰時に DB キャッシュから読み込むノート件数 */
       readonly "cachedTimelineLimit": string
       /** プルトゥリフレッシュが発火するまでの引っ張り距離 */
       readonly "pullFireThreshold": string
@@ -4315,71 +3959,71 @@ help */
   readonly "_achievementLabels": {
     /** はじめてのノート */
     readonly "notes1": string
-    /** 10ノート */
+    /** 10 ノート */
     readonly "notes10": string
-    /** 100ノート */
+    /** 100 ノート */
     readonly "notes100": string
-    /** 500ノート */
+    /** 500 ノート */
     readonly "notes500": string
-    /** 1,000ノート */
+    /** 1,000 ノート */
     readonly "notes1000": string
-    /** 5,000ノート */
+    /** 5,000 ノート */
     readonly "notes5000": string
-    /** 10,000ノート */
+    /** 10,000 ノート */
     readonly "notes10000": string
-    /** 20,000ノート */
+    /** 20,000 ノート */
     readonly "notes20000": string
-    /** 30,000ノート */
+    /** 30,000 ノート */
     readonly "notes30000": string
-    /** 40,000ノート */
+    /** 40,000 ノート */
     readonly "notes40000": string
-    /** 50,000ノート */
+    /** 50,000 ノート */
     readonly "notes50000": string
-    /** 60,000ノート */
+    /** 60,000 ノート */
     readonly "notes60000": string
-    /** 70,000ノート */
+    /** 70,000 ノート */
     readonly "notes70000": string
-    /** 80,000ノート */
+    /** 80,000 ノート */
     readonly "notes80000": string
-    /** 90,000ノート */
+    /** 90,000 ノート */
     readonly "notes90000": string
-    /** 100,000ノート */
+    /** 100,000 ノート */
     readonly "notes100000": string
-    /** ログイン3日 */
+    /** ログイン 3 日 */
     readonly "login3": string
-    /** ログイン7日 */
+    /** ログイン 7 日 */
     readonly "login7": string
-    /** ログイン15日 */
+    /** ログイン 15 日 */
     readonly "login15": string
-    /** ログイン30日 */
+    /** ログイン 30 日 */
     readonly "login30": string
-    /** ログイン60日 */
+    /** ログイン 60 日 */
     readonly "login60": string
-    /** ログイン100日 */
+    /** ログイン 100 日 */
     readonly "login100": string
-    /** ログイン200日 */
+    /** ログイン 200 日 */
     readonly "login200": string
-    /** ログイン300日 */
+    /** ログイン 300 日 */
     readonly "login300": string
-    /** ログイン400日 */
+    /** ログイン 400 日 */
     readonly "login400": string
-    /** ログイン500日 */
+    /** ログイン 500 日 */
     readonly "login500": string
-    /** ログイン600日 */
+    /** ログイン 600 日 */
     readonly "login600": string
-    /** ログイン700日 */
+    /** ログイン 700 日 */
     readonly "login700": string
-    /** ログイン800日 */
+    /** ログイン 800 日 */
     readonly "login800": string
-    /** ログイン900日 */
+    /** ログイン 900 日 */
     readonly "login900": string
-    /** ログイン1,000日 */
+    /** ログイン 1,000 日 */
     readonly "login1000": string
-    /** アカウント作成から1年 */
+    /** アカウント作成から 1 年 */
     readonly "passedSinceAccountCreated1": string
-    /** アカウント作成から2年 */
+    /** アカウント作成から 2 年 */
     readonly "passedSinceAccountCreated2": string
-    /** アカウント作成から3年 */
+    /** アカウント作成から 3 年 */
     readonly "passedSinceAccountCreated3": string
     /** 誕生日にログイン */
     readonly "loggedInOnBirthday": string
@@ -4397,27 +4041,27 @@ help */
     readonly "markedAsCat": string
     /** はじめてのフォロー */
     readonly "following1": string
-    /** 10フォロー */
+    /** 10 フォロー */
     readonly "following10": string
-    /** 50フォロー */
+    /** 50 フォロー */
     readonly "following50": string
-    /** 100フォロー */
+    /** 100 フォロー */
     readonly "following100": string
-    /** 300フォロー */
+    /** 300 フォロー */
     readonly "following300": string
     /** はじめてのフォロワー */
     readonly "followers1": string
-    /** 10フォロワー */
+    /** 10 フォロワー */
     readonly "followers10": string
-    /** 50フォロワー */
+    /** 50 フォロワー */
     readonly "followers50": string
-    /** 100フォロワー */
+    /** 100 フォロワー */
     readonly "followers100": string
-    /** 300フォロワー */
+    /** 300 フォロワー */
     readonly "followers300": string
-    /** 500フォロワー */
+    /** 500 フォロワー */
     readonly "followers500": string
-    /** 1,000フォロワー */
+    /** 1,000 フォロワー */
     readonly "followers1000": string
     /** 実績コレクター */
     readonly "collectAchievements30": string
@@ -4427,25 +4071,25 @@ help */
     readonly "iLoveMisskey": string
     /** 隠された宝物 */
     readonly "foundTreasure": string
-    /** 30分利用 */
+    /** 30 分利用 */
     readonly "client30min": string
-    /** 60分利用 */
+    /** 60 分利用 */
     readonly "client60min": string
-    /** 1分以内に削除 */
+    /** 1 分以内に削除 */
     readonly "noteDeletedWithin1min": string
     /** 深夜の投稿 */
     readonly "postedAtLateNight": string
-    /** ジャスト0分0秒 */
+    /** ジャスト 0 分 0 秒 */
     readonly "postedAt0min0sec": string
     /** セルフ引用 */
     readonly "selfQuote": string
-    /** TLが速い */
+    /** TL が速い */
     readonly "htl20npm": string
     /** インスタンスチャートを見る */
     readonly "viewInstanceChart": string
     /** Hello, World! */
     readonly "outputHelloWorldOnScratchpad": string
-    /** 3つのウィンドウ */
+    /** 3 つのウィンドウ */
     readonly "open3windows": string
     /** 循環参照 */
     readonly "driveFolderCircularReference": string
@@ -4467,7 +4111,7 @@ help */
     readonly "tutorialCompleted": string
     /** バブルゲーム */
     readonly "bubbleGameExplodingHead": string
-    /** バブルゲーム(ダブル) */
+    /** バブルゲーム (ダブル) */
     readonly "bubbleGameDoubleExplodingHead": string
   }
   readonly "_labels": {
@@ -4526,7 +4170,7 @@ help */
       readonly "tasksRun": string
       /** AI 呼び出し (プラグイン / 外部経路から) */
       readonly "aiInvoke": string
-      /** AI persona の切替 */
+      /** AI persona の切り替え */
       readonly "aiPersonaWrite": string
       /** スキルの読取 */
       readonly "skillsRead": string
@@ -4606,10 +4250,6 @@ help */
     /** 権限の保存に失敗しました。変更は反映されていません。 */
     readonly "saveFailed": string
   }
-  readonly "_cssPresetDropdown": {
-    /** デフォルト */
-    readonly "default": string
-  }
   readonly "_widgetCapabilities": {
     /** 要アップデート */
     readonly "needsUpdate": string
@@ -4627,7 +4267,7 @@ help */
   readonly "_columnEmptyState": {
     /** サーバーに接続できません。ネットワークを確認してください。 */
     readonly "networkError": string
-    /** 読み込みに失敗しました（{code}） */
+    /** 読み込みに失敗しました ({code}) */
     readonly "loadFailed": ParameterizedString<'code'>
     /** 情報 */
     readonly "defaultSubject": string
@@ -4641,18 +4281,12 @@ help */
     readonly "bundleTitle_plural": PluralString<'count'>
     /** すべて実行 */
     readonly "runAll": string
-    /** やめる */
-    readonly "stop": string
     /** 今後これらの操作を確認しない */
     readonly "rememberAll": string
   }
   readonly "_postFormConstants": {
     /** パブリック */
     readonly "public": string
-    /** ホーム */
-    readonly "home": string
-    /** フォロワー */
-    readonly "followers": string
     /** ダイレクト */
     readonly "specified": string
   }
@@ -4665,13 +4299,9 @@ help */
     readonly "deleteGuestTitle": string
     /** このゲストアカウントを削除しますか？ */
     readonly "confirmDeleteGuest": string
-    /** ログアウト */
-    readonly "logout": string
     /** {account} からログアウトしますか？
 ローカルデータはこのデバイスに残ります。 */
     readonly "confirmLogout": ParameterizedString<'account'>
-    /** データを削除 */
-    readonly "deleteDataTitle": string
     /** {account} のローカルデータをすべて削除しますか？ */
     readonly "confirmDeleteData": ParameterizedString<'account'>
   }
@@ -4684,31 +4314,29 @@ help */
     readonly "missingNamedQuery": ParameterizedString<'id'>
   }
   readonly "_useColumnSetup": {
-    /** このアカウントでは操作できません（未ログイン） */
+    /** このアカウントでは操作できません (未ログイン) */
     readonly "notLoggedIn": string
-    /** サーバーに接続できません（{code}） */
+    /** サーバーに接続できません ({code}) */
     readonly "connectFailed": ParameterizedString<'code'>
-    /** リアクションに失敗しました（{code}） */
+    /** リアクションに失敗しました ({code}) */
     readonly "reactionFailed": ParameterizedString<'code'>
-    /** 投票に失敗しました（{code}） */
+    /** 投票に失敗しました ({code}) */
     readonly "voteFailed": ParameterizedString<'code'>
-    /** リノートに失敗しました（{code}） */
+    /** リノートに失敗しました ({code}) */
     readonly "renoteFailed": ParameterizedString<'code'>
-    /** 削除に失敗しました（{code}） */
+    /** 削除に失敗しました ({code}) */
     readonly "deleteFailed": ParameterizedString<'code'>
     /** お気に入り解除 */
     readonly "unfavoriteTitle": string
     /** このノートは既にお気に入りに追加されています。お気に入りを解除しますか？ */
     readonly "confirmUnfavorite": string
-    /** 解除 */
-    readonly "unfavoriteOk": string
-    /** お気に入り解除に失敗しました（{code}） */
+    /** お気に入り解除に失敗しました ({code}) */
     readonly "unfavoriteFailed": ParameterizedString<'code'>
-    /** ブックマークに失敗しました（{code}） */
+    /** お気に入りへの追加に失敗しました ({code}) */
     readonly "favoriteFailed": ParameterizedString<'code'>
   }
   readonly "_useCrossAccountNoteActions": {
-    /** このアカウントでは操作できません（未ログイン） */
+    /** このアカウントでは操作できません (未ログイン) */
     readonly "notLoggedIn": string
     /** {account} のサーバーからこのノートを見つけられませんでした */
     readonly "noteNotFound": ParameterizedString<'account'>
@@ -4720,17 +4348,15 @@ help */
     readonly "unreactTitle": string
     /** {account} は既にこのノートにリアクションしています。リアクションを解除しますか？ */
     readonly "confirmUnreact": ParameterizedString<'account'>
-    /** 解除 */
-    readonly "unreactOk": string
     /** {account} のリアクションを解除しました */
     readonly "unreacted": ParameterizedString<'account'>
-    /** リアクションの解除に失敗しました（{code}） */
+    /** リアクションの解除に失敗しました ({code}) */
     readonly "unreactFailed": ParameterizedString<'code'>
-    /** リアクションに失敗しました（{code}） */
+    /** リアクションに失敗しました ({code}) */
     readonly "reactionFailed": ParameterizedString<'code'>
     /** {account} でリノートしました */
     readonly "renoted": ParameterizedString<'account'>
-    /** リノートに失敗しました（{code}） */
+    /** リノートに失敗しました ({code}) */
     readonly "renoteFailed": ParameterizedString<'code'>
   }
   readonly "_useCrossAccountNotes": {
@@ -4744,8 +4370,6 @@ help */
     readonly "folderNotEmpty": string
     /** 使用できないファイル名です */
     readonly "invalidFileName": string
-    /** 新規フォルダ */
-    readonly "newFolder": string
     /** フォルダ名 */
     readonly "folderNamePlaceholder": string
     /** フォルダ名を変更 */
@@ -4782,15 +4406,13 @@ help */
     readonly "renameTitle": ParameterizedString<'label'>
     /** {label}名を変更しました */
     readonly "renamed": ParameterizedString<'label'>
-    /** {label}名の変更に失敗しました（{code}） */
+    /** {label}名の変更に失敗しました ({code}) */
     readonly "renameFailed": ParameterizedString<'code' | 'label'>
-    /** {label}を削除 */
-    readonly "deleteTitle": ParameterizedString<'label'>
     /** この{label}をサーバーから削除しますか？この操作は取り消せません。 */
     readonly "confirmDelete": ParameterizedString<'label'>
     /** {label}を削除しました */
     readonly "deleted": ParameterizedString<'label'>
-    /** {label}の削除に失敗しました（{code}） */
+    /** {label}の削除に失敗しました ({code}) */
     readonly "deleteFailed": ParameterizedString<'code' | 'label'>
   }
   readonly "_useLoginPrompt": {
@@ -4798,8 +4420,6 @@ help */
     readonly "reloginToContinue": string
     /** ログインの有効期限が切れました */
     readonly "sessionExpired": string
-    /** 再ログイン */
-    readonly "relogin": string
     /** ログインの有効期限が切れました。アカウントメニューから再ログインしてください。 */
     readonly "sessionExpiredUseMenu": string
   }
@@ -4822,7 +4442,7 @@ help */
     readonly "contentCopied": string
   }
   readonly "_useOsWindowTitle": {
-    /** {first} 他{count} — NoteDeck */
+    /** {first} 他 {count} — NoteDeck */
     readonly "withOthers": ParameterizedString<'count' | 'first'>
   }
   readonly "_usePostFormState": {
@@ -4832,8 +4452,6 @@ help */
     readonly "annoyingMessage": string
     /** ホームに投稿 */
     readonly "postToHome": string
-    /** やめる */
-    readonly "stop": string
     /** このまま投稿 */
     readonly "postAnyway": string
     /** 下書き保存にも失敗しました: {error} */
@@ -4852,7 +4470,7 @@ help */
     readonly "installFailed": string
   }
   readonly "_mkFollowButton": {
-    /** リクエスト取消 */
+    /** リクエストを取り消す */
     readonly "cancelRequest": string
     /** フォロー許可待ち */
     readonly "pending": string
@@ -4868,7 +4486,7 @@ help */
     readonly "confirmUnfollow": ParameterizedString<'username'>
     /** 解除 */
     readonly "unfollowOk": string
-    /** 操作に失敗しました（{code}） */
+    /** 操作に失敗しました ({code}) */
     readonly "failed": ParameterizedString<'code'>
   }
   readonly "_backupCapability": {
@@ -4888,10 +4506,8 @@ help */
   readonly "_draftsCapability": {
     /** 下書きを削除 */
     readonly "deleteTitle": string
-    /** 下書き {draftId} を削除します。この操作は元に戻せません。 */
+    /** 下書き {draftId} を削除します。この操作は取り消せません。 */
     readonly "deleteMessage": ParameterizedString<'draftId'>
-    /** やめる */
-    readonly "cancel": string
   }
   readonly "_filesCapability": {
     /** ファイル {count} 件 */
@@ -4910,64 +4526,50 @@ help */
   readonly "_keybindsCapability": {
     /** キーバインドを変更 */
     readonly "setTitle": string
-    /** `{commandId}` の shortcut を {count} 個に変更します。 keybinds.reset で default に戻せます。 */
+    /** `{commandId}` の shortcut を {count} 個に変更します。keybinds.reset でデフォルトに戻せます。 */
     readonly "setMessage_plural": PluralString<'commandId' | 'count'>
     /** 変更 */
     readonly "setOk": string
-    /** キーバインドを default に戻す */
+    /** キーバインドをデフォルトに戻す */
     readonly "resetTitle": string
-    /** `{commandId}` のカスタム shortcut を破棄し、default に戻します。 */
+    /** `{commandId}` のカスタム shortcut を破棄し、デフォルトに戻します。 */
     readonly "resetMessage": ParameterizedString<'commandId'>
-    /** default に戻す */
-    readonly "resetOk": string
-    /** 全キーバインドを default に戻す */
+    /** 全キーバインドをデフォルトに戻す */
     readonly "resetAllTitle": string
-    /** 全コマンドのカスタム shortcut を破棄し、すべて default に戻します。 */
+    /** 全コマンドのカスタム shortcut を破棄し、すべてデフォルトに戻します。 */
     readonly "resetAllMessage": string
-    /** すべて default に戻す */
-    readonly "resetAllOk": string
-    /** やめる */
-    readonly "cancel": string
   }
   readonly "_navbarCapability": {
     /** ナビバー構成を上書き */
     readonly "setTitle": string
-    /** ナビバーを {count} 項目で全置換します。 現在の構成は失われます (navbar.reset で default に戻せます)。 */
+    /** ナビバーを {count} 項目で全置換します。現在の構成は失われます (navbar.reset でデフォルトに戻せます)。 */
     readonly "setMessage_plural": PluralString<'count'>
     /** 上書き */
     readonly "setOk": string
-    /** ナビバー構成を default に戻す */
+    /** ナビバー構成をデフォルトに戻す */
     readonly "resetTitle": string
     /** 現在のカスタム構成を破棄し、デフォルトの {count} 項目に戻します。 */
     readonly "resetMessage_plural": PluralString<'count'>
-    /** default に戻す */
-    readonly "resetOk": string
-    /** やめる */
-    readonly "cancel": string
   }
   readonly "_performanceCapability": {
     /** パフォーマンス値を変更 */
     readonly "setTitle": string
-    /** {label} (`{key}`) を {value}{unit} に変更します。 範囲外なら {min}..{max} に自動 clamp されます。 */
+    /** {label} (`{key}`) を {value}{unit} に変更します。範囲外なら {min}..{max} に自動 clamp されます。 */
     readonly "setMessage": ParameterizedString<'key' | 'label' | 'max' | 'min' | 'unit' | 'value'>
     /** `{key}` を {value} に変更します。 */
     readonly "setMessageUnknown": ParameterizedString<'key' | 'value'>
     /** 変更 */
     readonly "setOk": string
-    /** パフォーマンス値を default に戻す */
+    /** パフォーマンス値をデフォルトに戻す */
     readonly "resetTitle": string
-    /** {label} (`{key}`) を default に戻します。 */
+    /** {label} (`{key}`) をデフォルトに戻します。 */
     readonly "resetMessage": ParameterizedString<'key' | 'label'>
-    /** `{key}` を default に戻します。 */
+    /** `{key}` をデフォルトに戻します。 */
     readonly "resetMessageUnknown": ParameterizedString<'key'>
-    /** default に戻す */
-    readonly "resetOk": string
-    /** 全パフォーマンス値を default に戻す */
+    /** 全パフォーマンス値をデフォルトに戻す */
     readonly "resetAllTitle": string
-    /** 全 override を破棄し、すべて default に戻します (= 設定をクリーン状態に)。 */
+    /** 全 override を破棄し、すべてデフォルトに戻します (= 設定をクリーン状態に)。 */
     readonly "resetAllMessage": string
-    /** すべて default に戻す */
-    readonly "resetAllOk": string
     /** 省電力寄り */
     readonly "presetPowerSaving": string
     /** リッチ寄り */
@@ -4980,11 +4582,9 @@ help */
     readonly "applyMessage": ParameterizedString<'label' | 't'>
     /** 適用 */
     readonly "applyOk": string
-    /** やめる */
-    readonly "cancel": string
   }
   readonly "_personaCapability": {
-    /** AI persona を切替 */
+    /** AI persona を切り替え */
     readonly "title": string
     /** AI persona を「{name}」に切り替えます。chat / heartbeat / command / task すべての session に反映されます。 */
     readonly "switchMessage": ParameterizedString<'name'>
@@ -4992,10 +4592,6 @@ help */
     readonly "unknownMessage": ParameterizedString<'id'>
     /** AI persona を解除します (= 通常の汎用 AI として動作)。 */
     readonly "clearMessage": string
-    /** 切替 */
-    readonly "ok": string
-    /** やめる */
-    readonly "cancel": string
   }
   readonly "_pluginsCapability": {
     /** プラグインをインストール */
@@ -5008,18 +4604,12 @@ help */
     readonly "updateMessage": ParameterizedString<'from' | 'name' | 'to'>
     /** {name} の AiScript を {from} → {to} 文字に置換します。アクティブなため、保存後すぐ新しいコードで再起動されます。 */
     readonly "updateMessageActive": ParameterizedString<'from' | 'name' | 'to'>
-    /** 更新 */
-    readonly "updateOk": string
-    /** やめる */
-    readonly "cancel": string
   }
   readonly "_userCapability": {
     /** ノート + 通知をミュート */
     readonly "muteTitle": string
     /** userId `{userId}` を ノート + 通知ミュートします (相手に通知は飛びません)。 */
     readonly "muteMessage": ParameterizedString<'userId'>
-    /** ミュート */
-    readonly "muteOk": string
     /** ノート + 通知を解除 */
     readonly "unmuteTitle": string
     /** userId `{userId}` を ノート + 通知解除します (相手に通知は飛びません)。 */
@@ -5038,11 +4628,9 @@ help */
     readonly "unrenoteMuteMessage": ParameterizedString<'userId'>
     /** リノートミュート解除 */
     readonly "unrenoteMuteOk": string
-    /** やめる */
-    readonly "cancel": string
   }
   readonly "_vaultCapability": {
-    /** 外部接続へのリクエストを許可しますか? */
+    /** 外部接続へのリクエストを許可しますか？ */
     readonly "confirmTitle": string
     /** 接続「{name}」({baseUrl}) に HTTP リクエストを送ります。 */
     readonly "confirmMessage": ParameterizedString<'baseUrl' | 'name'>
@@ -5054,8 +4642,6 @@ help */
     readonly "rememberForActor": ParameterizedString<'actor'>
     /** 今後この接続を確認なしで使う */
     readonly "remember": string
-    /** やめる */
-    readonly "cancel": string
   }
   readonly "_widgetsCapability": {
     /** ウィジェットをインストール */
@@ -5070,10 +4656,6 @@ help */
     readonly "updateMessage": ParameterizedString<'from' | 'name' | 'to'>
     /** {name} の AiScript を {from} → {to} 文字に置換します。表示中のウィジェットは保存後すぐ新しいコードで再実行されます。 */
     readonly "updateMessageMounted": ParameterizedString<'from' | 'name' | 'to'>
-    /** 更新 */
-    readonly "updateOk": string
-    /** やめる */
-    readonly "cancel": string
   }
   readonly "_windowsCapability": {
     /** 全ウィンドウを閉じる */
@@ -5082,7 +4664,7 @@ help */
     readonly "closeAllMessage": string
     /** すべて閉じる */
     readonly "closeAllOk": string
-    /** やめる */
+    /** キャンセル */
     readonly "cancel": string
   }
   readonly "_dispatcher": {
@@ -5134,12 +4716,8 @@ help */
     readonly "rememberOperation": string
     /** 宛先は AI が読んだ他人の内容に由来します。 */
     readonly "destinationUntrusted": string
-    /** {label} を実行しますか? */
+    /** {label} を実行しますか？ */
     readonly "confirmTitle": ParameterizedString<'label'>
-    /** 実行 */
-    readonly "run": string
-    /** やめる */
-    readonly "cancel": string
   }
   readonly "_cliHandlers": {
     /** 投稿するアカウント */
@@ -5182,23 +4760,13 @@ help */
     readonly "modeTurnedOff": ParameterizedString<'mode'>
     /** 権限がありません。write:account を付与するため再ログインしてください。 */
     readonly "permissionDenied": string
-    /** アカウント */
-    readonly "account": string
-    /** アカウントを選択… */
+    /** アカウントを選択... */
     readonly "selectAccount": string
     /** プロフィール */
     readonly "profile": string
-    /** ログアウト */
-    readonly "logout": string
-    /** データを削除 */
-    readonly "deleteData": string
-    /** 再ログイン */
-    readonly "relogin": string
-    /** キャッシュ削除 */
-    readonly "clearCache": string
     /** {account} のキャッシュを削除しますか？ */
     readonly "clearAccountCacheMessage": ParameterizedString<'account'>
-    /** ノートキャッシュとOGPキャッシュをすべて削除しますか？ */
+    /** ノートキャッシュと OGP キャッシュをすべて削除しますか？ */
     readonly "clearAllCacheMessage": string
     /** このカラムを削除しますか？ */
     readonly "closeColumnMessage": string
@@ -5216,24 +4784,18 @@ help */
     readonly "currentProfile": string
     /** 新規プロファイル作成 */
     readonly "newProfile": string
-    /** 切替 */
-    readonly "switch": string
     /** プロファイルを削除 */
     readonly "deleteProfileTitle": string
     /** このプロファイルを削除しますか？ */
     readonly "deleteProfileMessage": string
     /** ログインすると利用できます */
     readonly "loginRequired": string
-    /** 全アカウント */
-    readonly "allAccounts": string
     /** アカウントなし */
     readonly "noAccount": string
     /** 新しい{label}を作成 */
     readonly "createNew": ParameterizedString<'label'>
     /** {label}を選択 */
     readonly "selectItem": ParameterizedString<'label'>
-    /** {label}を検索... */
-    readonly "searchItem": ParameterizedString<'label'>
     /** ユーザーを選択 */
     readonly "selectUser": string
     /** ユーザーを検索... */
@@ -5254,15 +4816,15 @@ help */
     readonly "unsupported": string
   }
   readonly "_streamHealth": {
-    /** {count}時間前から */
+    /** {count} 時間前から */
     readonly "sinceHours_plural": PluralString<'count'>
-    /** {count}分前から */
+    /** {count} 分前から */
     readonly "sinceMinutes_plural": PluralString<'count'>
-    /** {count}秒前から */
+    /** {count} 秒前から */
     readonly "sinceSeconds_plural": PluralString<'count'>
   }
   readonly "_connectionTemplates": {
-    /** Authorization ヘッダ値 (DeepL-Auth-Key <API キー>) */
+    /** Authorization ヘッダー値 (DeepL-Auth-Key <API キー>) */
     readonly "deeplAuthHeader": string
     /** API トークン */
     readonly "apiToken": string
@@ -5328,7 +4890,7 @@ help */
     readonly "createPluginDescription": string
     /** ウィジェットを作る */
     readonly "createWidgetTitle": string
-    /** ウィジェットカラムを開いて 1 つ追加してみましょう。小さなAiScript を常に走らせておけます。 */
+    /** ウィジェットカラムを開いて 1 つ追加してみましょう。小さな AiScript を常に走らせておけます。 */
     readonly "createWidgetDescription": string
     /** テーマを作る */
     readonly "createThemeTitle": string
@@ -5344,11 +4906,11 @@ help */
     readonly "createSkillDescription": string
     /** AI 接続を追加 */
     readonly "aiSetupTitle": string
-    /** 接続管理ウィンドウで、Anthropic / OpenAI など AI プロバイダの API キーを Vault に登録してください。登録すると自動で次へ進みます。 */
+    /** 接続管理ウィンドウで、Anthropic / OpenAI など AI プロバイダーの API キーを Vault に登録してください。登録すると自動で次へ進みます。 */
     readonly "aiSetupDescription": string
-    /** AI プロバイダを選択 */
+    /** AI プロバイダーを選択 */
     readonly "aiSelectProviderTitle": string
-    /** エージェント設定を開きました。登録した接続を AI プロバイダとして選んでください。選ぶと自動で次へ進みます。 */
+    /** エージェント設定を開きました。登録した接続を AI プロバイダーとして選んでください。選ぶと自動で次へ進みます。 */
     readonly "aiSelectProviderDescription": string
     /** AI カラムを開く */
     readonly "aiColumnTitle": string
@@ -5386,11 +4948,11 @@ help */
     readonly "syntaxError": ParameterizedString<'error'>
     /** 式が深すぎます (深さ {max} 超) */
     readonly "tooDeep": ParameterizedString<'max'>
-    /** {name} はフィルタから参照できません */
+    /** {name} はフィルターから参照できません */
     readonly "notReferable": ParameterizedString<'name'>
-    /** フィルタ式が空です */
+    /** フィルター式が空です */
     readonly "emptyFilter": string
-    /** フィルタ関数の引数は (note) の 1 つだけです */
+    /** フィルター関数の引数は (note) の 1 つだけです */
     readonly "filterFnParams": string
     /** 本体が空です */
     readonly "emptyBody": string
@@ -5416,7 +4978,7 @@ help */
     readonly "eqScalarOnly": string
     /** {op} の項は bool である必要があります */
     readonly "operandMustBeBool": ParameterizedString<'op'>
-    /** 未知の識別子です: {name} (フィルタから参照できるのは note と自分で定義した let/関数のみ) */
+    /** 未知の識別子です: {name} (フィルターから参照できるのは note と自分で定義した let/関数のみ) */
     readonly "unknownIdentifier": ParameterizedString<'name'>
     /** 関数 {name} は呼び出しの形でのみ使えます */
     readonly "fnCallOnly": ParameterizedString<'name'>
@@ -5472,18 +5034,12 @@ help */
     readonly "syntaxName": ParameterizedString<'type'>
   }
   readonly "_cssPresets": {
-    /** デフォルト */
-    readonly "default": string
     /** M PLUS 1 Code (日本語) */
     readonly "mPlus1Code": string
     /** MS ゴシック (システム) */
     readonly "msGothic": string
     /** {name} (システム) */
     readonly "systemFont": ParameterizedString<'name'>
-    /** ホーム */
-    readonly "visibilityHome": string
-    /** フォロワー */
-    readonly "visibilityFollowers": string
     /** ダイレクト */
     readonly "visibilitySpecified": string
     /** 背景色で色分け */
@@ -5514,8 +5070,6 @@ help */
     readonly "theme": string
     /** クエリ */
     readonly "query": string
-    /** メモ */
-    readonly "memo": string
     /** カスタム CSS */
     readonly "css": string
     /** 記録なし */
@@ -5551,8 +5105,6 @@ help */
     readonly "updateConfirm": ParameterizedString<'date' | 'name' | 'version'>
     /** 新しい権限: {permissions} */
     readonly "newPermissions": ParameterizedString<'permissions'>
-    /** 更新 */
-    readonly "update": string
     /** ウィジェットを更新 */
     readonly "updateWidget": string
     /** プラグインを更新 */
@@ -5569,18 +5121,12 @@ help */
     readonly "invalidInput": string
   }
   readonly "_postForm": {
-    /** 絵文字 */
-    readonly "emoji": string
     /** 添付 */
     readonly "attach": string
     /** 投票 */
     readonly "poll": string
     /** 閲覧注意 */
     readonly "cw": string
-    /** ハッシュタグ */
-    readonly "hashtag": string
-    /** メンション */
-    readonly "mention": string
     /** 下書き */
     readonly "draft": string
     /** クリア */
@@ -5597,7 +5143,7 @@ help */
     readonly "taskNotFound": ParameterizedString<'id'>
     /** タスク完了: {label} */
     readonly "completed": ParameterizedString<'label'>
-    /** タスク失敗: {label} — {error} */
+    /** タスクに失敗しました: {label} — {error} */
     readonly "failed": ParameterizedString<'error' | 'label'>
     /** デフォルトタスクがありません。tasks.json5 で isDefault: true を設定してください。 */
     readonly "noDefaultTask": string
@@ -5663,22 +5209,16 @@ help */
     readonly "inDays": ParameterizedString<'days'>
     /** {days}日前 */
     readonly "daysAgo": ParameterizedString<'days'>
-    /** 30分後 */
+    /** 30 分後 */
     readonly "in30Minutes": string
-    /** 1時間後 */
+    /** 1 時間後 */
     readonly "in1Hour": string
-    /** 3時間後 */
+    /** 3 時間後 */
     readonly "in3Hours": string
-    /** 明日9:00 */
+    /** 明日 9:00 */
     readonly "tomorrow9": string
-    /** 1週間後 */
+    /** 1 週間後 */
     readonly "in1Week": string
-  }
-  readonly "_simpleMarkdown": {
-    /** コードをコピー */
-    readonly "copyCode": string
-    /** コピー */
-    readonly "copy": string
   }
   readonly "_capabilities": {
     readonly "account": {
@@ -6142,7 +5682,7 @@ export const SOURCE_COLUMN_LABELS: Readonly<Record<string, string>> = {
   "chat": "チャット",
   "achievements": "実績",
   "serverInfo": "サーバー情報",
-  "aboutMisskey": "Misskeyについて",
+  "aboutMisskey": "Misskey について",
   "emoji": "カスタム絵文字",
   "ads": "広告",
   "explore": "みつける",
@@ -6166,8 +5706,8 @@ export const SOURCE_COLUMN_LABELS: Readonly<Record<string, string>> = {
   "ai": "AI",
   "skill": "スキル",
   "aiscript": "スクラッチパッド",
-  "apiConsole": "APIコンソール",
-  "apiDocs": "APIドキュメント",
+  "apiConsole": "API コンソール",
+  "apiDocs": "API ドキュメント",
   "streamInspector": "ストリーム",
   "taskRunner": "タスク"
 }

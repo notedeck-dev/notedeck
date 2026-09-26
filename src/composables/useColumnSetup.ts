@@ -402,7 +402,7 @@ export function useColumnSetup(
           title: i18n.ts._useColumnSetup.unfavoriteTitle,
           message: i18n.ts._useColumnSetup.confirmUnfavorite,
           type: 'danger',
-          okLabel: i18n.ts._useColumnSetup.unfavoriteOk,
+          okLabel: i18n.ts._common.remove,
         })
         if (ok) {
           try {

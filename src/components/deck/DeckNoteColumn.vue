@@ -298,7 +298,7 @@ defineExpose({
           class="_button"
           @click="scrollToTop()"
         >
-          <i class="ti ti-arrow-up" />{{ i18n.ts._deckNoteColumn.newNotes }}
+          <i class="ti ti-arrow-up" />{{ i18n.ts._common.newNotes }}
         </button>
 
         <NoteScroller

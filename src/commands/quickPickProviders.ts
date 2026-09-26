@@ -101,7 +101,7 @@ function getProfileActions(
   if (!isActive) {
     items.push({
       id: `profile-switch-${profileId}`,
-      label: i18n.ts._quickPickProviders.switch,
+      label: i18n.ts._common.switch,
       icon: 'switch-horizontal',
       action: () => switchProfileWithWindows(profileId),
     })
@@ -199,7 +199,7 @@ async function buildAccountStep(type: ColumnType): Promise<QuickPickItem[]> {
   if (CROSS_ACCOUNT_TYPES.has(type)) {
     items.push({
       id: 'account-all',
-      label: i18n.ts._quickPickProviders.allAccounts,
+      label: i18n.ts._common.allAccounts,
       icon: 'users',
       children: () => buildDetailStep(type, null),
     })
@@ -336,7 +336,7 @@ function buildSearchableStep(config: QPSelectable, accountId: string) {
     title: i18n.tsx._quickPickProviders.selectItem({
       label: COLUMN_LABELS[config.type] ?? config.type,
     }),
-    placeholder: i18n.tsx._quickPickProviders.searchItem({
+    placeholder: i18n.tsx._common.searchItem({
       label: COLUMN_LABELS[config.type] ?? config.type,
     }),
     items: [] as QuickPickItem[],

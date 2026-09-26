@@ -57,7 +57,7 @@ async function refreshStats() {
 
 async function clearAll() {
   const ok = await confirm({
-    title: i18n.ts._cacheEditorContent.clearCacheTitle,
+    title: i18n.ts._common.clearCache,
     message: i18n.ts._cacheEditorContent.clearCacheConfirm,
     okLabel: i18n.ts._common.delete,
     type: 'danger',
@@ -239,7 +239,7 @@ onMounted(refreshStats)
       </div>
       <div :class="$style.statsRow">
         <div :class="$style.statBox">
-          <span :class="$style.statLabel">{{ i18n.ts._cacheEditorContent.notes }}</span>
+          <span :class="$style.statLabel">{{ i18n.ts._common.notes }}</span>
           <span :class="$style.statValue">
             {{ noteCount == null ? '—' : noteCount.toLocaleString() }}
           </span>

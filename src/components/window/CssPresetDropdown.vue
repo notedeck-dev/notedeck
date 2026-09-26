@@ -32,7 +32,7 @@ const rootRef = ref<HTMLElement | null>(null)
 const selectedLabel = computed(
   () =>
     props.options.find((o) => o.value === model.value)?.label ??
-    i18n.ts._cssPresetDropdown.default,
+    i18n.ts._common.default,
 )
 
 function fontStyle(value: string) {

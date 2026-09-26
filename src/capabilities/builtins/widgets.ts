@@ -49,7 +49,7 @@ export const widgetsCreateCapability = implement('widgets.create', {
       code: src,
       codeLanguage: 'is',
       okLabel: i18n.ts._common.install,
-      cancelLabel: i18n.ts._widgetsCapability.cancel,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'normal',
     }
   },
@@ -101,8 +101,8 @@ export const widgetsUpdateCapability = implement('widgets.update', {
         name: cur.name,
       },
       diff: { old: cur.src, new: src, language: 'aiscript' },
-      okLabel: i18n.ts._widgetsCapability.updateOk,
-      cancelLabel: i18n.ts._widgetsCapability.cancel,
+      okLabel: i18n.ts._common.update,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'warning',
     }
   },

@@ -163,8 +163,8 @@ onUnmounted(() => {
           <button
             class="_button"
             :class="$style.actionBtn"
-            :data-tooltip="copiedCode ? i18n.ts._common.copiedToClipboard : i18n.ts._mkReactionUsersPopup.copyCode"
-            :aria-label="copiedCode ? i18n.ts._common.copiedToClipboard : i18n.ts._mkReactionUsersPopup.copyCode"
+            :data-tooltip="copiedCode ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copyCode"
+            :aria-label="copiedCode ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copyCode"
             @click.stop="copyReactionCode"
           >
             <i :class="copiedCode ? 'ti ti-check' : 'ti ti-copy'" />
@@ -172,8 +172,8 @@ onUnmounted(() => {
           <button
             class="_button"
             :class="$style.actionBtn"
-            :data-tooltip="isEmojiMuted(reaction) ? i18n.ts._mkReactionUsersPopup.unmute : i18n.ts._mkReactionUsersPopup.muteEmoji"
-            :aria-label="isEmojiMuted(reaction) ? i18n.ts._mkReactionUsersPopup.unmute : i18n.ts._mkReactionUsersPopup.muteEmoji"
+            :data-tooltip="isEmojiMuted(reaction) ? i18n.ts._common.unmute : i18n.ts._mkReactionUsersPopup.muteEmoji"
+            :aria-label="isEmojiMuted(reaction) ? i18n.ts._common.unmute : i18n.ts._mkReactionUsersPopup.muteEmoji"
             @click.stop="toggleMute"
           >
             <i :class="isEmojiMuted(reaction) ? 'ti ti-mood-smile' : 'ti ti-mood-off'" />
@@ -185,7 +185,7 @@ onUnmounted(() => {
           :class="$style.reactionIcon"
           role="img"
           :aria-label="reaction"
-          :title="i18n.tsx._mkReactionUsersPopup.mutedTitle({ emoji: reaction })"
+          :title="i18n.tsx._common.mutedEmoji({ emoji: reaction })"
         />
         <img
           v-else-if="reactionUrl"

@@ -85,7 +85,7 @@ export const navbarSetCapability = implement('navbar.set', {
       code: JSON.stringify(params?.items ?? [], null, 2),
       codeLanguage: 'json',
       okLabel: i18n.ts._navbarCapability.setOk,
-      cancelLabel: i18n.ts._navbarCapability.cancel,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'warning',
     }
   },
@@ -113,8 +113,8 @@ export const navbarResetCapability = implement('navbar.reset', {
       2,
     ),
     codeLanguage: 'json',
-    okLabel: i18n.ts._navbarCapability.resetOk,
-    cancelLabel: i18n.ts._navbarCapability.cancel,
+    okLabel: i18n.ts._common.resetToDefault,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'warning',
   }),
   execute: () => {

@@ -131,14 +131,14 @@ const DETAIL_TABS: { key: DetailTab; label: string; icon: string }[] = [
   {
     key: 'renotes',
     get label() {
-      return i18n.ts._noteDetailContent.renotes
+      return i18n.ts._common.renotes
     },
     icon: 'ti ti-repeat',
   },
   {
     key: 'reactions',
     get label() {
-      return i18n.ts._noteDetailContent.reactions
+      return i18n.ts._common.reactions
     },
     icon: 'ti ti-mood-happy',
   },
@@ -151,7 +151,7 @@ onMounted(async () => {
   if (!account) {
     error.value = new AppError(
       'ACCOUNT_NOT_FOUND',
-      i18n.ts._noteDetailContent.accountNotFound,
+      i18n.ts._common.accountNotFound,
     )
     isLoading.value = false
     return
@@ -599,7 +599,7 @@ async function handlePosted(editedNoteId?: string) {
                 :class="$style.reactionChipEmoji"
                 role="img"
                 :aria-label="rt"
-                :title="i18n.tsx._noteDetailContent.mutedReaction({ reaction: rt })"
+                :title="i18n.tsx._common.mutedReaction({ reaction: rt })"
               />
               <img
                 v-else-if="reactionTypeUrl(rt)"

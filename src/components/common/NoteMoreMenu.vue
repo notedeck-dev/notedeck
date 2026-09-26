@@ -215,7 +215,7 @@ async function addToClip(clipId: string, clipName: string) {
           clip: clipName,
         }),
         type: 'danger',
-        okLabel: i18n.ts._noteMoreMenu.removeFromClipOk,
+        okLabel: i18n.ts._common.remove,
       })
       if (ok) {
         try {
@@ -305,7 +305,7 @@ function actAsOperations(accountId: string) {
         }
       : {
           id: `${accountId}-react`,
-          label: i18n.ts._noteMoreMenu.react,
+          label: i18n.ts._common.react,
           icon: 'mood-plus',
           action: () => {
             commandStore.close()
@@ -314,7 +314,7 @@ function actAsOperations(accountId: string) {
         },
     {
       id: `${accountId}-renote`,
-      label: i18n.ts._noteMoreMenu.renote,
+      label: i18n.ts._common.renote,
       icon: 'repeat',
       action: () => {
         commandStore.close()
@@ -323,7 +323,7 @@ function actAsOperations(accountId: string) {
     },
     {
       id: `${accountId}-quote`,
-      label: i18n.ts._noteMoreMenu.quote,
+      label: i18n.ts._common.quote,
       icon: 'quote',
       action: () => {
         commandStore.close()
@@ -402,13 +402,13 @@ async function submitReport() {
     const adapter = await getOrCreate(props.note._accountId)
     if (!adapter) return
     await adapter.api.reportUser(props.note.user.id, reportComment.value)
-    toast.show(i18n.ts._noteMoreMenu.reported)
+    toast.show(i18n.ts._common.reported)
     close()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:report]', err.code, err.message)
     toast.show(
-      i18n.tsx._noteMoreMenu.reportFailed({ code: err.displayCode }),
+      i18n.tsx._common.reportFailed({ code: err.displayCode }),
       'error',
     )
   }
@@ -449,12 +449,12 @@ defineExpose({ open })
 
     <!-- Report form -->
     <template v-else-if="currentView === 'reportForm'">
-      <div class="_popupConfirmText">{{ i18n.tsx._noteMoreMenu.reportUser({ username: note.user.username }) }}</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._common.reportUser({ username: note.user.username }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
           v-model="reportComment"
           class="_popupReportInput"
-          :placeholder="i18n.ts._noteMoreMenu.reportReasonPlaceholder"
+          :placeholder="i18n.ts._common.reportReasonPlaceholder"
           rows="3"
         />
       </div>
@@ -549,7 +549,7 @@ defineExpose({ open })
         <div class="_popupDivider" />
         <button class="_popupItem _popupItemDanger" @click="canInteract ? (showReportForm = true) : (showLoginPrompt(), close())">
           <i class="ti ti-alert-triangle" />
-          {{ i18n.ts._noteMoreMenu.report }}
+          {{ i18n.ts._common.report }}
         </button>
       </template>
     </template>
@@ -579,15 +579,15 @@ defineExpose({ open })
         </button>
         <button v-else class="_popupItem" @click="actAs('reactAs')">
           <i class="ti ti-mood-plus" />
-          {{ i18n.ts._noteMoreMenu.react }}
+          {{ i18n.ts._common.react }}
         </button>
         <button class="_popupItem" @click="actAs('renoteAs')">
           <i class="ti ti-repeat" />
-          {{ i18n.ts._noteMoreMenu.renote }}
+          {{ i18n.ts._common.renote }}
         </button>
         <button class="_popupItem" @click="actAs('quoteAs')">
           <i class="ti ti-quote" />
-          {{ i18n.ts._noteMoreMenu.quote }}
+          {{ i18n.ts._common.quote }}
         </button>
       </template>
       <button class="_popupItem" @click="actAsAccountId = null">

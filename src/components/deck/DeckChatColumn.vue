@@ -1244,7 +1244,7 @@ onBeforeUnmount(() => {
             >
               <i class="ti ti-photo" />
             </button>
-            <button :class="$style.chatActionBtn" :title="i18n.ts._deckChatColumn.emoji" @click.stop="showEmojiPicker = !showEmojiPicker">
+            <button :class="$style.chatActionBtn" :title="i18n.ts._common.emoji" @click.stop="showEmojiPicker = !showEmojiPicker">
               <i class="ti ti-mood-happy" />
             </button>
           </div>

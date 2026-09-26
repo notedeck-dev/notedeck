@@ -357,11 +357,11 @@ onMounted(() => {
         <div :class="$style.sectionContent">
           <div :class="$style.statsSplit">
             <div :class="$style.formKvRow">
-              <div :class="$style.formKvKey">{{ i18n.ts._deckServerInfoColumn.users }}</div>
+              <div :class="$style.formKvKey">{{ i18n.ts._common.users }}</div>
               <div :class="$style.formKvValue">{{ formatNumber(stats.originalUsersCount) }}</div>
             </div>
             <div :class="$style.formKvRow">
-              <div :class="$style.formKvKey">{{ i18n.ts._deckServerInfoColumn.notes }}</div>
+              <div :class="$style.formKvKey">{{ i18n.ts._common.notes }}</div>
               <div :class="$style.formKvValue">{{ formatNumber(stats.originalNotesCount) }}</div>
             </div>
           </div>
@@ -405,10 +405,10 @@ onMounted(() => {
         <template #hint>
           <i class="ti ti-info-circle" />
           <template v-if="tab === 'meta'">
-            <I18n :src="i18n.ts._deckServerInfoColumn.rawResponse"><template #endpoint><code>/api/meta</code></template></I18n>
+            <I18n :src="i18n.ts._common.rawResponse"><template #endpoint><code>/api/meta</code></template></I18n>
           </template>
           <template v-else>
-            <I18n :src="i18n.ts._deckServerInfoColumn.rawResponse"><template #endpoint><code>/api/stats</code></template></I18n>
+            <I18n :src="i18n.ts._common.rawResponse"><template #endpoint><code>/api/stats</code></template></I18n>
           </template>
         </template>
       </RawJsonView>

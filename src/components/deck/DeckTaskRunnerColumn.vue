@@ -437,7 +437,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
           <section :class="$style.section">
             <div :class="$style.sectionHeader">
               <span :class="$style.sectionTitle">
-                {{ i18n.ts._deckTaskRunnerColumn.history }}
+                {{ i18n.ts._common.history }}
                 <span :class="$style.countSub">{{ runnerStore.runs.length }}</span>
                 <span v-if="runningCount > 0" :class="$style.runningPill">
                   <i class="ti ti-loader-2 nd-spin" />{{ i18n.tsx._deckTaskRunnerColumn.runningCount({ n: runningCount }) }}

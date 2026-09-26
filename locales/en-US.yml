@@ -54,8 +54,6 @@ _columns:
   taskRunner: "Tasks"
 
 _columnGroups:
-  account: "Account"
-  server: "Server"
   tool: "Tools"
 
 _columnPicker:
@@ -128,7 +126,7 @@ _commands:
   noteReply: "Reply"
   noteReact: "React"
   noteRenote: "Renote / Quote"
-  noteBookmark: "Bookmark"
+  noteBookmark: "Favorite"
   noteOpen: "Open note"
   noteCw: "Toggle CW"
   noteDelete: "Delete note"
@@ -398,7 +396,7 @@ _common:
   back: "Back"
   menu: "Menu"
   loaded: "Loaded"
-  confirmReset: "Really reset?"
+  confirmReset: "Reset?"
   hide: "Hide"
   save: "Save"
   saved: "Saved"
@@ -429,6 +427,70 @@ _common:
   addFromLibrary: "Add from library"
   releaseToRefresh: "Release to refresh"
   refreshing: "Refreshing…"
+  account: "Account"
+  accountNotFound: "Account not found"
+  allAccounts: "All accounts"
+  clearCache: "Clear cache"
+  copy: "Copy"
+  copyCode: "Copy code"
+  default: "Default"
+  deleteData: "Delete data"
+  deleteItem: "Delete {label}"
+  detachFromAccount: "Remove from this account"
+  emoji: "Emoji"
+  followers: "Followers"
+  followsYou: "Follows you"
+  hashtag: "Hashtag"
+  history: "History"
+  home: "Home"
+  installFailed: "Install failed"
+  installedTab: "Installed {count}"
+  invalid: "Invalid"
+  invalidJson5: "Invalid JSON5"
+  json5ParseError: "JSON5 parse error"
+  logout: "Log out"
+  memo: "Memo"
+  mention: "Mention"
+  mute: "Mute"
+  mutedEmoji: "{emoji} (muted)"
+  mutedReaction: "{reaction} (muted)"
+  newFolder: "New folder"
+  newNotes: "New notes"
+  note: "Note"
+  notes: "Notes"
+  private: "Private"
+  profile: "Profile"
+  pullToRefresh: "Pull down to refresh"
+  quote: "Quote"
+  rawResponse: "Raw response from {endpoint}"
+  react: "React"
+  reactions: "Reactions"
+  reload: "Reload"
+  relogin: "Log in again"
+  remove: "Remove"
+  renote: "Renote"
+  renotes: "Renotes"
+  reply: "Reply"
+  report: "Report"
+  reportFailed: "Failed to report ({code})"
+  reportReasonPlaceholder: "Enter a reason for the report..."
+  reportUser: "Report @{username}"
+  reported: "Reported"
+  resetAllToDefault: "Reset all to default"
+  run: "Run"
+  saving: "Saving..."
+  searchItem: "Search {label}..."
+  server: "Server"
+  sideload: "Sideloaded"
+  storeDistributed: "From store"
+  storeUpdated: "Store updated: {date}"
+  storeUpdatedWithVersion: "Store updated: {date} / v{version}"
+  switch: "Switch"
+  undo: "Undo"
+  unmute: "Unmute"
+  update: "Update"
+  updateFailed: "Update failed"
+  users: "Users"
 
 _appConfirm:
   trustedHeader: "NoteDeck permission check"
@@ -438,12 +500,9 @@ _commandPalette:
   enterToOpen: "↵ Enter to open:"
   enterToRun: "↵ Enter to run:"
   noMatchingCommands: "No matching commands"
-  searchIn: "Search {label}..."
   categoryGeneral: "General"
-  categoryNote: "Note"
   categoryNavigation: "Navigation"
   categoryColumn: "Column"
-  categoryAccount: "Account"
   inputPlaceholder: "Type a command..."
 
 _crossAccountProgress:
@@ -464,7 +523,6 @@ _memoCard:
   chars_plural:
     one: "({count} character)"
     other: "({count} characters)"
-  defaultAuthor: "Memo"
 
 _mkAchievementsGrid:
   unlock: "Unlock"
@@ -477,13 +535,7 @@ _mkAutocompletePopup:
 
 _mkChatMessageMoreMenu:
   confirmDelete: "Delete this message?"
-  reportUser: "Report @{username}"
-  reportReasonPlaceholder: "Enter a reason for the report..."
-  react: "React"
   copyContent: "Copy content"
-  report: "Report"
-  reported: "Reported"
-  reportFailed: "Failed to report ({code})"
 
 _mkDraftsPicker:
   deleteAll: "Delete all drafts"
@@ -497,14 +549,12 @@ _mkDraftsPicker:
   draftsTabCount: "Drafts {count}"
   scheduledTab: "Scheduled"
   scheduledTabCount: "Scheduled {count}"
-  contextReply: "Reply"
-  contextQuote: "Quote"
   contextChannel: "Channel post"
   cancelScheduledTitle: "Cancel scheduled post"
   deleteDraftTitle: "Delete draft"
   confirmCancelScheduled: "Cancel the selected scheduled post?"
   confirmDeleteDraft: "Delete the selected draft?"
-  cancelOk: "Cancel post"
+  cancelOk: "Cancel schedule"
   scheduledCancelled: "Scheduled post cancelled"
   draftDeleted: "Draft deleted"
   cancelFailed: "Failed to cancel: {error}"
@@ -517,7 +567,6 @@ _mkDraftsPicker:
 
 _mkDriveFolderSelectDialog:
   root: "Root"
-  newFolder: "New folder"
   moveTo: "Move to “{name}”"
   moveToRoot: "Move to root"
 
@@ -529,8 +578,6 @@ _mkDrivePicker:
     other: "Attach {count} files"
   attach: "Attach"
 
-_mkEmoji:
-  mutedTitle: "{emoji} (muted)"
 
 _mkFileGrid:
   menuFor: "Menu for “{name}”"
@@ -560,12 +607,8 @@ _mkNote:
   chars_plural:
     one: "({count} character)"
     other: "({count} characters)"
-  mutedTitle: "{emoji} (muted)"
   unreact: "Remove reaction"
-  react: "React"
   unrenote: "Undo renote"
-  renote: "Renote"
-  quote: "Quote"
   shownOnServers_plural:
     one: "Shown on {count} server"
     other: "Shown on {count} servers"
@@ -596,24 +639,17 @@ _mkPostForm:
   preview: "Preview"
   rememberVisibility: "Remember visibility"
   scheduledPost: "Scheduled note"
-  submitMemo: "Memo"
-  reply: "Reply"
-  quote: "Quote"
   schedule: "Schedule"
-  note: "Note"
   withQuote: "With quote"
   postToChannel: "Posting to channel"
   cw: "Content warning"
   replyPlaceholder: "Reply..."
   quotePlaceholder: "Quote..."
   placeholder: "What’s on your mind?"
-  unschedule: "Unschedule"
+  unschedule: "Cancel schedule"
   noAccountSelected: "No account selected"
-  emoji: "Emoji"
   attachFile: "Attach file"
   poll: "Poll"
-  hashtag: "Hashtag"
-  mention: "Mention"
   drafts: "Drafts"
   plugins: "Plugins"
   reorderButtons: "Reorder buttons"
@@ -636,29 +672,22 @@ _mkReactionPicker:
   uncategorized: "Other"
 
 _mkReactionUsersPopup:
-  copyCode: "Copy code"
-  unmute: "Unmute"
   muteEmoji: "Mute this emoji"
-  mutedTitle: "{emoji} (muted)"
 
 _mkUserListItem:
   blocking: "Blocking"
   muted: "Muted"
-  followsYou: "Follows you"
 
 _mkUserPopup:
   notesCount: "{count} notes"
   followingCount: "{count} following"
   followersCount: "{count} followers"
-  followsYou: "Follows you"
   remoteUser: "Remote user"
 
 _noteMoreMenu:
   confirmDelete: "Delete this note?"
   confirmDeleteAndEdit: "Delete this note and edit it again?"
   deleteAndEdit: "Delete and edit"
-  reportUser: "Report @{username}"
-  reportReasonPlaceholder: "Enter a reason for the report..."
   unfavorite: "Remove from favorites"
   favorite: "Favorite"
   addToClip: "Add to clip"
@@ -669,17 +698,12 @@ _noteMoreMenu:
   share: "Share"
   unpin: "Unpin"
   pin: "Pin"
-  report: "Report"
   actAsDescription: "Account to act on this note with"
   contentHiddenForAccount: "Can’t act from this account because the note’s content is private to it"
   unreactWith: "Remove reaction ({reaction})"
-  react: "React"
-  renote: "Renote"
-  quote: "Quote"
   addedToClip: "Added to clip"
   removeFromClipTitle: "Remove from clip"
   confirmRemoveFromClip: "This note is already in \"{clip}\". Remove it from the clip?"
-  removeFromClipOk: "Remove"
   removedFromClip: "Removed from clip"
   removeFromClipFailed: "Failed to remove from clip ({code})"
   addToClipFailed: "Failed to add to clip ({code})"
@@ -689,14 +713,11 @@ _noteMoreMenu:
   selectAccountPlaceholder: "Select an account…"
   selectClipPlaceholder: "Select a clip..."
   fetchClipsFailed: "Failed to load clips ({code})"
-  reported: "Reported"
-  reportFailed: "Failed to report ({code})"
 
 _noteReactionPickerPopup:
   actingAs: "As {account}"
 
 _noteReactionUsersModal:
-  mutedTitle: "{emoji} (muted)"
   noReactions: "No reactions"
 
 _noteVariantsPopup:
@@ -706,14 +727,12 @@ _noteVariantsPopup:
   primary: "Shown"
   originTitle: "The server this note was originally posted on"
   contentHiddenTitle: "The content is private to this account"
-  contentHidden: "Private"
   reactedTitle: "Reacted from this account"
 
 _rawJsonView:
   hideSensitive: "Hide sensitive data"
   showSensitive: "Show sensitive data"
   copyJson: "Copy the displayed JSON"
-  copy: "Copy"
   noData: "No data"
 
 _regexGuide:
@@ -724,15 +743,11 @@ _regexGuide:
 
 _renoteMoreMenu:
   confirmDelete: "Delete this renote?"
-  reportUser: "Report @{username}"
-  reportReasonPlaceholder: "Enter a reason for the report..."
   details: "Renote details"
   copyLink: "Copy renote link"
   deleteRenote: "Delete renote"
   reportRenote: "Report renote"
   deleteFailed: "Failed to delete ({code})"
-  reported: "Reported"
-  reportFailed: "Failed to report ({code})"
 
 _reorderableList:
   empty: "No items"
@@ -742,7 +757,6 @@ _safeModeNotice:
 
 _titleBar:
   forward: "Forward"
-  reload: "Reload"
   newWindow: "New window"
   pip: "Picture-in-picture"
   desktopSize: "Desktop size"
@@ -760,7 +774,6 @@ _titleBarMenu:
   view: "View"
   zoomIn: "Zoom in"
   zoomOut: "Zoom out"
-  reload: "Reload"
 
 _postFormFilePreviews:
   discard: "Discard"
@@ -790,7 +803,6 @@ _postFormPollEditor:
   expiry7d: "7 days"
 
 _mkMfm:
-  mutedTitle: "{emoji} (muted)"
   search: "Search"
 
 _app:
@@ -864,7 +876,6 @@ _devDashboard:
   paramsSchema: "params schema"
   paramsAndRun: "Parameters and run"
   running: "Running…"
-  run: "Run"
   runHistory: "Run history"
   restoreResult: "Click to restore the result"
   effectivePermissions: "Effective permissions"
@@ -879,7 +890,6 @@ _devDashboard:
   front: "Frontend"
   waitingForLogs: "Waiting — Rust logs, SSE events and frontend logs stream here in time order"
   navObserve: "Observe"
-  navRun: "Run"
   navDiagnose: "Diagnose"
   navCaches: "Caches"
   hoursAgo_plural:
@@ -935,7 +945,6 @@ _aiDataSourcesSection:
 _aiGenerationSection:
   title: "Generation"
   changedFromDefault: "Changed from default"
-  default: "Default"
   note: "The defaults work as is. Only change them when they don't suit the model you run."
   maxTokens: "Max response tokens"
   maxTokensHint: "Raise this when long responses get cut off. 0 leaves it to the provider's default (Anthropic requires a limit, so {maxTokens} is sent)"
@@ -988,7 +997,6 @@ _userProfileListsPane:
 _userProfileNotesList:
   empty: "No notes"
   tabHighlight: "Highlights"
-  tabNotes: "Notes"
   tabAll: "All"
   tabFiles: "With files"
 
@@ -999,15 +1007,12 @@ _userProfilePlayPane:
   empty: "No Play"
 
 _userProfileHero:
-  followsYou: "Follows you"
   more: "More"
   qrCode: "QR code"
   followedMessage: "Message to followers"
   memoHeading: "Memo (only visible to you)"
   memoPlaceholder: "Add a memo about this user..."
-  notes: "Notes"
   following: "Following"
-  followers: "Followers"
   memoSaveFailed: "Failed to save the memo ({code})"
 
 _userProfileMenu:
@@ -1022,20 +1027,14 @@ _userProfileMenu:
   addToAntenna: "Add to antenna"
   withReplies: "Include replies to others in timeline"
   notifyPosts: "Notify on new notes"
-  mute: "Mute"
-  unmute: "Unmute"
   muteRenotes: "Mute renotes"
   unmuteRenotes: "Unmute renotes"
   block: "Block"
   unblock: "Unblock"
   invalidateFollower: "Remove follower"
-  report: "Report"
   muteConfirm: "Mute @{username}?"
   blockConfirm: "Block @{username}?"
   invalidateFollowerConfirm: "Remove @{username} from your followers?"
-  invalidate: "Remove"
-  reportTitle: "Report @{username}"
-  reportPlaceholder: "Enter a reason for the report..."
   noLists: "No lists"
   noUserAntennas: "No antennas with a user source"
   muted: "Muted"
@@ -1052,7 +1051,6 @@ _userProfileMenu:
   renoteUnmuteFailed: "Couldn’t unmute renotes ({code})"
   followerInvalidated: "Follower removed"
   invalidateFollowerFailed: "Couldn’t remove follower ({code})"
-  reported: "Reported"
   reportFailed: "Couldn’t report ({code})"
   copyFailed: "Couldn’t copy"
   usernameCopied: "Username copied"
@@ -1079,12 +1077,10 @@ _notFoundPage:
 _pipPage:
   unpin: "Unpin from top"
   pin: "Keep on top"
-  addColumn: "Add column"
   noteInspector: "Note Inspector"
   notificationInspector: "Notification Inspector"
   login: "Log in"
   cssEditor: "Custom CSS"
-  profileEditor: "Profile"
   appearanceEditor: "Appearance"
   tasksEditor: "Tasks"
   pageEdit: "Edit page"
@@ -1092,9 +1088,6 @@ _pipPage:
 
 _aiSettingsContent:
   rawHint: "Edit ai.json5 directly. API keys are stored in the keychain and never appear in the raw file."
-  invalid: "Invalid"
-  json5ParseError: "JSON5 parse error"
-  invalidJson5: "Invalid JSON5"
 
 _appearanceEditorContent:
   setWallpaper: "Set wallpaper"
@@ -1126,12 +1119,10 @@ _backupContent:
   importDbMessage: "Your current DB will be overwritten. The app will restart."
 
 _clipDetailContent:
-  private: "Private"
   empty: "This clip has no notes"
   reactionFailed: "Couldn’t react ({code})"
   voteFailed: "Couldn’t vote ({code})"
   favoriteFailed: "Couldn’t update favorites ({code})"
-  accountNotFound: "Account not found"
 
 _connectionsContent:
   chooseService: "Choose a service to connect"
@@ -1168,7 +1159,6 @@ _emojiMuteSection:
 
 _followListContent:
   following: "Following"
-  followers: "Followers"
   noFollowing: "Not following anyone"
   noFollowers: "No followers"
   fetchFailed: "Failed to fetch ({code})"
@@ -1182,10 +1172,6 @@ _instanceProfileContent:
   latestRequestSent: "Last request sent {time}"
   registrationOpen: "Registration open"
   registrationClosed: "Registration closed"
-  users: "Users"
-  notes: "Notes"
-  rawResponse: "Raw response from {endpoint}"
-  accountNotFound: "Account not found"
   suspended: "Suspended"
   blocked: "Blocked"
   notResponding: "Not responding"
@@ -1196,7 +1182,6 @@ _keybindsContent:
   recording: "Press keys..."
   addShortcut: "Add shortcut"
   codeHint: "Your customizations as JSON (differences from the defaults only)"
-  invalid: "Invalid"
   toggleDarkMode: "Toggle dark mode"
   popOutColumn: "Pop out column to a window"
   newWindow: "New window"
@@ -1205,15 +1190,11 @@ _keybindsContent:
   profileN: "Profile {n}"
   categoryGeneral: "General"
   categoryNavigation: "Navigation"
-  categoryAccount: "Account"
   categoryColumn: "Column"
-  categoryNote: "Note"
   categoryWindow: "Window"
-  categoryProfile: "Profile"
   jsonParseError: "JSON parse error"
 
 _listDetailContent:
-  private: "Private"
   members_plural:
     one: "{count} member"
     other: "{count} members"
@@ -1238,16 +1219,11 @@ _navEditorContent:
 _noteDetailContent:
   noReplies: "No replies"
   noRenotes: "No renotes"
-  mutedReaction: "{reaction} (muted)"
   noReactions: "No reactions"
   replies: "Replies"
-  renotes: "Renotes"
-  reactions: "Reactions"
-  accountNotFound: "Account not found"
 
 _noteInspectorContent:
   view: "View"
-  rawResponse: "Raw response from {endpoint}"
   activityPubObject: "ActivityPub object resolved via {endpoint}"
   uriNotFound: "Couldn't determine the URI"
 
@@ -1260,7 +1236,6 @@ _notificationInspectorContent:
 _pageEditContent:
   title: "Title"
   summary: "Summary"
-  saving: "Saving..."
 
 _permissionProfileEditor:
   highRisk: "High-risk operation"
@@ -1277,16 +1252,13 @@ _petSection:
 
 _playDetailContent:
   showSource: "Show source"
-  reload: "Reload"
 
 _playEditContent:
   title: "Title"
   summary: "Summary"
-  saving: "Saving..."
 
 _pluginsContent:
   enabled: "Enabled"
-  resetAllToDefault: "Reset all to default"
   installHint: "Paste AiScript plugin code to install"
   codeHint: "The plugin's AiScript source — changes apply after \"Save and restart\""
   noLogs: "No logs"
@@ -1294,8 +1266,6 @@ _pluginsContent:
   codeRequired: "Enter the code"
   invalidHeader: "Invalid header. The code must start with /// @ 1.2.1 (AiScript >= 0.12) and ### { name: \"...\", version: \"...\" }"
   alreadyInstalled: "\"{name}\" is already installed"
-  invalid: "Invalid"
-  history: "History"
   saveAndRestart: "Save and restart"
 
 _postFormEditorContent:
@@ -1312,19 +1282,13 @@ _profileEditorContent:
   profileName: "Profile name"
   columns: "Columns"
   noColumns: "No columns"
-  addColumn: "Add column"
-  invalid: "Invalid"
   notJsonObject: "Not a valid JSON object"
-  json5ParseError: "JSON5 parse error"
 
 _snippetsEditorContent:
   codeHint: "VSCode-compatible snippets — they appear in completion by prefix"
-  invalid: "Invalid"
-  confirmReset: "Really reset?"
-  json5ParseError: "JSON5 parse error"
+  confirmReset: "Revert?"
   editing: "Editing..."
   loadFailed: "Failed to load {file}: {error}"
-  invalidJson5: "Invalid JSON5"
   saveFailed: "Save failed"
 
 _tutorialEditorContent:
@@ -1359,19 +1323,15 @@ _userProfileContent:
   showOnRemote: "View on remote"
   pinned: "Pinned"
   noFiles: "No files"
-  mutedReaction: "{reaction} (muted)"
   noReactions: "No reactions"
-  tabNotes: "Notes"
   tabFiles: "Files"
   tabActivity: "Activity"
-  tabReactions: "Reactions"
   tabPages: "Pages"
   tabGallery: "Gallery"
   tabLists: "Lists"
   tabClips: "Clips"
   tabAchievements: "Achievements"
   editProfile: "Edit user profile"
-  accountNotFound: "Account not found"
 
 _widgetEditContent:
   autoRunOnTitle: "Auto-run: on (click to toggle)"
@@ -1381,9 +1341,7 @@ _widgetEditContent:
   notFound: "Widget not found"
   runHint: "Run the widget with the run button at the top right"
   output: "Output ({n})"
-  history: "History"
   unsaved: "Unsaved changes"
-  run: "Run"
 
 _aboutContent:
   openOfficialSite: "Open the official site"
@@ -1393,7 +1351,6 @@ _aboutContent:
   updateReady: "Update ready to install"
   downloading: "Downloading v{version}"
   restart: "Restart"
-  updateNow: "Update"
   developerMode: "Developer mode"
   developer: "Developer"
   versionInfo: "Version info"
@@ -1475,7 +1432,6 @@ _aboutContent:
 
 _cacheEditorContent:
   usage: "Usage"
-  notes: "Notes"
   dbSize: "DB size"
   imageCache: "Image cache"
   maxSize: "Limit"
@@ -1491,7 +1447,6 @@ _cacheEditorContent:
   perAccountLimit: "Limit per account"
   manualClear: "Clear manually"
   manualClearNote: "Deletes all cached notes and OGP data. They come back when fetched again from the server."
-  clearCacheTitle: "Clear cache"
   clearCacheConfirm: "Delete all cached notes and OGP data?"
   clearImagesConfirm: "Delete the entire image cache on disk? Images will be fetched from the server again when shown."
   noteCount_plural:
@@ -1520,7 +1475,6 @@ _columnQueryEditorContent:
   addGuard: "Add guard"
   sequential: "Applied one by one (checks each note individually, so it can’t be used for search)"
   saveAnyway: "Save anyway"
-  history: "History"
   saved: "Query saved"
 
 _connectionEditContent:
@@ -1559,7 +1513,6 @@ _connectionEditContent:
   trustExternalHint: "No confirmation dialog when an external app uses this connection"
   testing: "Testing..."
   test: "Test"
-  saving: "Saving..."
   nameRequired: "Enter a name"
   urlRequired: "Enter a URL"
   headerNameRequired: "Enter a header name"
@@ -1593,11 +1546,8 @@ _cssEditorContent:
   cssErrorHint: "Not applied because the CSS has errors"
   codeHint: "The full CSS, combining presets and additional CSS"
   syncToPresets: "Sync to presets"
-  invalid: "Invalid"
-  history: "History"
-  confirmClear: "Really clear?"
+  confirmClear: "Clear?"
   clearAll: "Clear all"
-  default: "Default"
   defaultFontSize: "Default (15px)"
   cssParseError: "CSS parse error"
 
@@ -1624,7 +1574,6 @@ _performanceEditorContent:
   masterTitle: "Raise or lower everything while keeping the overall balance"
   defaultValue: "Default: {value}"
   codeHint: "Only differences from the defaults are saved as JSON"
-  invalid: "Invalid"
   unknownKey: "Unknown key: {key}"
   jsonParseError: "JSON parse error"
 
@@ -1640,11 +1589,7 @@ _permissionsContent:
   tokenNamePlaceholder: "Token name (e.g. Raycast, Claude Cowork)"
   issueToken: "Issue"
   createdTokenNotice: "Token for “{name}” — it can’t be shown again once you close this"
-  copy: "Copy"
   codeHint: "Edit permissions.json5 directly. Each principal (ai.chat / ai.heartbeat / plugin / external) has a preset and a custom map."
-  invalid: "Invalid"
-  json5ParseError: "JSON5 parse error"
-  invalidJson5: "Invalid JSON5"
   instructionRuleReason: "Instruction channels to the AI can't be opened to third parties"
   tasksRuleReason: "Only you and the AI can run tasks"
   externalFloorReason: "Misskey read access is always allowed in a shared profile — revoke the token to block it"
@@ -1680,7 +1625,6 @@ _skillEditContent:
   personaToggle: "Offer this skill as a persona for AI sessions"
   personaHint: "When on, this skill appears in the persona selector in the AI session header. In the selected session, AI acts as this persona and is recorded as the author of memos (#491)."
   fromStoreNote: "Skill from the store — edits are saved to a local file (reinstalling may overwrite them)"
-  history: "History"
   unsavedChanges: "Unsaved changes"
 
 _tasksEditorContent:
@@ -1696,7 +1640,6 @@ _tasksEditorContent:
   detailPlaceholder: "One-line note under the label (optional)"
   groupPlaceholder: "Any text (optional)"
   defaultTaskOnlyOne: "Default task (only one)"
-  account: "Account"
   accountActive: "Currently active"
   accountFirst: "First logged-in account"
   accountSpecific: "Specific ID"
@@ -1716,7 +1659,6 @@ _tasksEditorContent:
     one: "Parsed {count} task"
     other: "Parsed {count} tasks"
   savingSuffix: " · Saving…"
-  invalid: "Invalid"
   resetToSample: "Reset to sample"
   loadFailed: "Couldn’t load tasks.json5: {error}"
   saveFailed: "Couldn’t save: {error}"
@@ -1743,17 +1685,12 @@ _themeEditorContent:
   propNavBg: "Navbar background"
   propLove: "Like"
   propLink: "Link"
-  propHashtag: "Hashtag"
-  propMention: "Mention"
-  propRenote: "Renote"
   propDivider: "Divider"
   propSuccess: "Success"
   propError: "Error"
   propWarn: "Warning"
   noProps: "The theme object has no props"
   jsonParseError: "JSON parse error"
-  history: "History"
-  undo: "Undo"
   overwriteSave: "Save"
   deleteTitle: "Delete theme"
   deleteMessage: "Delete \"{name}\"? Its theme settings will also be removed."
@@ -1778,9 +1715,7 @@ _deckAiColumn:
   intentNote: "Proposed by an unattended run (HEARTBEAT). You’ll be asked to confirm before it runs."
   intentUntrusted: "Created in a context that read other people’s content. Check the recipient and the text."
   intentDraftFailed: "Couldn’t save as a draft: {error}"
-  run: "Run"
   dismiss: "Dismiss"
-  copy: "Copy"
   stop: "Stop"
   today: "Today"
   yesterday: "Yesterday"
@@ -1822,12 +1757,7 @@ _deckClientSearchColumn:
   emptyHint: "Enter a search term or a filter to search the notes stored on this device"
 
 _deckColumn:
-  allAccounts: "All accounts"
-  unmute: "Unmute"
-  mute: "Mute"
   loggedOut: "Logged out"
-  pullToRefresh: "Pull down to refresh"
-  accountNotFound: "Account not found"
   unpinOnTop: "Stop keeping on top"
   pinOnTop: "Keep on top"
   returnToDeck: "Return to deck"
@@ -1839,12 +1769,10 @@ _deckColumn:
   deleteTitle: "Delete column"
   deleteConfirm: "Delete this column?"
   deleted: "Column deleted"
-  undo: "Undo"
 
 _deckDriveColumn:
   root: "Root"
   select: "Select"
-  newFolder: "New folder"
   upload: "Upload"
   deselectFolder: "Deselect this folder"
   selectFolder: "Select all in this folder"
@@ -1886,29 +1814,23 @@ _deckNavbar:
   switchToPolling: "Switch to polling mode"
   switchToRealtime: "Switch to real-time mode"
   more: "More"
-  profile: "Profile"
   online: "Online"
   realtime: "Real-time"
-  note: "Note"
-  account: "Account"
   editNavbar: "Edit navbar"
   disableOfflineTitle: "Turn off offline mode"
   enableOfflineTitle: "Switch to offline mode"
   disableOfflineMessage: "Reconnects to the servers."
   enableOfflineMessage: "Stops all network traffic and shows only cached data."
   turnOff: "Turn off"
-  switch: "Switch"
   pollingTitle: "Switch to polling mode"
   realtimeTitle: "Switch to realtime mode"
   pollingMessage: "Closes the WebSocket connection and switches to periodic HTTP polling."
   realtimeMessage: "Switches to realtime updates."
   permissionDenied: "Permission denied. Log in again to grant the write:account permission."
-  clearCacheTitle: "Clear cache"
   clearCacheConfirm: "Clear the cache for {account}?"
 
 _deckNotificationColumn:
   empty: "No notifications"
-  mutedReaction: "{reaction} (muted)"
   othersCount_plural:
     one: "and {count} other"
     other: "and {count} others"
@@ -1923,9 +1845,7 @@ _deckNotificationColumn:
   noteRawJson: "Note Raw JSON"
   notificationRawJson: "Notification Raw JSON"
   filterAll: "All"
-  filterReaction: "Reactions"
   filterReply: "Replies"
-  filterRenote: "Renotes"
   filterQuote: "Quotes"
   filterMention: "Mentions"
   filterFollow: "Follows"
@@ -1957,15 +1877,8 @@ _deckPluginManagerColumn:
   noMatches: "No matching plugins"
   emptyInColumn: "No plugins have been added to this column"
   noLibraryCandidates: "No plugins in the library can be added."
-  installedTab: "Installed {count}"
-  sideload: "Sideloaded"
-  storeDistributed: "From store"
-  installFailed: "Install failed"
-  updateFailed: "Update failed"
   detached: "Plugin removed"
-  undo: "Undo"
   detachFromAllAccounts: "Remove from all accounts"
-  detachFromAccount: "Remove from this account"
   deleteTitle: "Delete plugin"
   deleteConfirm: "Delete \"{name}\" from the library? The plugin code will also be deleted."
   deleted: "Plugin deleted"
@@ -1981,13 +1894,8 @@ _deckQueryManagerColumn:
   emptyHint: "A query is an AiScript expression that defines what a column shows. Once created, you can toggle it on from each note column’s query settings."
   createQuery: "Create query"
   noLibraryCandidates: "No queries in the library can be added."
-  installedTab: "Installed {count}"
-  sideload: "Sideloaded"
-  storeDistributed: "From store"
   detached: "Query removed"
-  undo: "Undo"
   detachFromAllAccounts: "Remove from all accounts"
-  detachFromAccount: "Remove from this account"
   deleteConfirmInUse_plural:
     one: "\"{name}\" is applied to {count} column. Deleting it makes that column unevaluable (fail-closed). Delete it?"
     other: "\"{name}\" is applied to {count} columns. Deleting it makes those columns unevaluable (fail-closed). Delete it?"
@@ -1997,8 +1905,6 @@ _deckQueryManagerColumn:
   deleteTitle: "Delete query"
   deleteConfirm: "Delete \"{name}\"? The query body will also be deleted."
   deleted: "Query deleted"
-  installFailed: "Install failed"
-  updateFailed: "Update failed"
 
 _deckServerInfoColumn:
   noDescription: "(No description)"
@@ -2013,9 +1919,6 @@ _deckServerInfoColumn:
   privacyPolicy: "Privacy policy"
   feedback: "Feedback"
   stats: "Statistics"
-  users: "Users"
-  notes: "Notes"
-  rawResponse: "Raw response from {endpoint}"
   fetchFailed: "Couldn’t fetch server info"
   info: "Info"
 
@@ -2031,21 +1934,13 @@ _deckSkillColumn:
   noMatches: "No matching skills"
   empty: "No skills installed"
   installedMark: "Installed"
-  update: "Update"
   storeEmpty: "No skills in the store"
-  installedTab: "Installed {count}"
-  sideload: "Sideloaded"
-  storeDistributed: "From store"
   deleteTitle: "Delete skill"
   deleteConfirm: "Delete \"{name}\"? The skill body will also be deleted."
   deleted: "Skill deleted"
-  undo: "Undo"
   modeAlways: "Always"
   modeManual: "Manual"
   modeTrigger: "Auto"
-  installFailed: "Install failed"
-  updateFailed: "Update failed"
-  storeUpdatedWithVersion: "Store updated: {date} / v{version}"
 
 _deckTaskRunnerColumn:
   clearHistory: "Clear history"
@@ -2059,7 +1954,6 @@ _deckTaskRunnerColumn:
   lastRun: "Last run: {status} · {duration}"
   requiresInput: "Asks for input"
   runWithAi: "Run in an AI session (creates a new kind=task session and runs it once right away)"
-  history: "History"
   runningCount: "{n} running"
   noHistory: "No run history yet"
   aiNotConfigured: "Cannot run with AI: no AI connection is selected or no model is set"
@@ -2073,35 +1967,26 @@ _queryCard:
   appliedInColumns_plural:
     one: "Applied in {count} column"
     other: "Applied in {count} columns"
-  update: "Update"
   deleteFromLibrary: "Delete from library (the content is deleted too)"
   readOnlyHint: "Cannot be changed because the source file is missing"
-  storeUpdated: "Store updated: {date}"
-  storeUpdatedWithVersion: "Store updated: {date} / v{version}"
 
 _addColumnDialog:
   selectItem: "Select {label}"
   selectAccount: "Select account"
-  addColumn: "Add column"
-  searchItem: "Search {label}..."
   itemNamePlaceholder: "Enter {label} name..."
   create: "Create"
   createNew: "Create new {label}"
   notFound: "No {label} found"
-  allAccounts: "All accounts"
   noAccount: "No account"
   guestUnavailable: "This column isn't available for guest accounts"
   loginRequired: "Log in to use this"
 
 _columnErrorBoundary:
   title: "Something went wrong while displaying this column"
-  reload: "Reload"
 
 _columnFilterButton:
   filter: "Filter"
 
-_columnPullFrame:
-  pullToRefresh: "Pull down to refresh"
 
 _columnQueryBanners:
   queryDeletedHint: "The query this column references has been deleted. Detach it to resume loading new notes"
@@ -2142,7 +2027,6 @@ _deckAboutMisskeyColumn:
 _deckAchievementsColumn:
   pendingHint: "Enable developer mode to unlock"
   empty: "No achievements"
-  server: "Server"
 
 _deckAdsColumn:
   empty: "No ads"
@@ -2158,14 +2042,8 @@ _deckAnnouncementsColumn:
   empty: "No announcements"
   markAsRead: "Mark as read"
 
-_deckAntennaColumn:
-  deleteItem: "Delete {label}"
 
-_deckClipColumn:
-  deleteItem: "Delete {label}"
 
-_deckListColumn:
-  deleteItem: "Delete {label}"
 
 _deckApiConsoleColumn:
   params: "Parameters (JSON)"
@@ -2179,16 +2057,13 @@ _deckApiConsoleColumn:
   invalidParamsJson: "The parameters are not valid JSON"
 
 _deckBottomBar:
-  addColumn: "Add column"
   deckSettings: "Deck settings"
-  profile: "Profile"
 
 _deckChartsColumn:
   hour: "Hour"
   day: "Day"
   breakdown: "Breakdown"
   fetchFailed: "Could not fetch server statistics"
-  accountNotFound: "Account not found"
   loginRequired: "Charts on this server are only available to logged-in users"
   chartsDisabled: "This server has disabled the charts API"
 
@@ -2201,13 +2076,11 @@ _deckChatColumn:
   fileOnly: "(File)"
   searchMessagesPlaceholder: "Search messages..."
   noMatchingMessages: "No matching messages"
-  emoji: "Emoji"
   messagePlaceholder: "Message..."
 
 _deckColumnsArea:
   noColumns: "No columns"
   startWithDefault: "Start with the default layout"
-  addColumn: "Add column"
 
 _deckEmojiColumn:
   searchPlaceholder: "Search emoji..."
@@ -2219,19 +2092,14 @@ _deckEmojiColumn:
   emojiMuted: "{name} (muted)"
   uncategorized: "Uncategorized"
   muted: "Muted"
-  copyCode: "Copy code"
-  unmute: "Unmute"
   muteEmoji: "Mute this emoji"
 
 _deckExploreColumn:
-  pullToRefresh: "Pull down to refresh"
   noNotes: "No notes found"
   userInfo: "user info"
   noUsers: "No users found"
   noRoleUsers: "No users"
   noRoles: "No roles found"
-  tabNotes: "Notes"
-  tabUsers: "Users"
   tabRoles: "Roles"
 
 _deckFavoritesColumn:
@@ -2245,10 +2113,7 @@ _deckFederationColumn:
   suspended: "Suspended"
   notResponding: "Not responding"
   sortActive: "Active"
-  sortUsers: "Users"
-  sortNotes: "Notes"
   sortNewest: "Newest"
-  accountNotFound: "Account not found"
 
 _deckFollowRequestsColumn:
   accepted: "Accepted"
@@ -2276,7 +2141,6 @@ _deckLookupColumn:
   placeholder: "URL or @username@host"
   emptyThread: "Enter a URL to look up"
   emptyResult: "Enter a URL or @username to look up"
-  accountNotFound: "Account not found"
   adapterInitFailed: "Failed to initialize the adapter"
   lookupFailed: "Lookup failed"
   noLoggedInAccount: "No logged-in accounts"
@@ -2286,21 +2150,17 @@ _deckMemoColumn:
   empty: "No memos"
   openInEditor: "Open this memo in the editor"
   restoreToPostForm: "Restore to post form"
-  contextReply: "Reply"
-  contextQuote: "Quote"
   contextChannelNote: "Channel note"
   deleteTitle: "Delete memo"
   deleteConfirm: "Delete the selected memo?"
   deleted: "Memo deleted"
 
 _deckMentionsColumn:
-  newNotes: "New notes"
   directEmpty: "No direct messages"
   toYou: "Mentions"
   mentionsEmpty: "No mentions"
 
 _deckNoteColumn:
-  newNotes: "New notes"
   noNotesYet: "No notes yet"
   offlineMode: "Offline mode"
   offlineRequestFailed: "Offline (request to the server failed)"
@@ -2312,8 +2172,6 @@ _deckNoteColumn:
     other: "No notes match the query ({count} excluded)"
 
 _deckTimelineColumn:
-  newNotes: "New notes"
-  home: "Home"
   local: "Local"
   social: "Social"
   global: "Global"
@@ -2323,8 +2181,6 @@ _deckTimelineColumn:
     other: "No notes match the query ({count} excluded)"
   noNotes: "No notes"
 
-_deckMobileNav:
-  addColumn: "Add column"
 
 _deckPageColumn:
   empty: "No pages found"
@@ -2345,7 +2201,6 @@ _deckProfileMenu:
   deleteTitle: "Delete profile"
   deleteConfirm: "Delete this profile?"
   deleted: "Profile deleted"
-  undo: "Undo"
 
 _deckSearchColumn:
   regexPlaceholder: "Search with regex..."
@@ -2376,19 +2231,11 @@ _deckThemeManagerColumn:
   noMatches: "No matching themes"
   noThemes: "No themes"
   installFromStore: "Install from the store..."
-  default: "Default"
-  sideload: "Sideloaded"
-  storeDistributed: "From store"
-  server: "Server"
-  installedTab: "Installed {count}"
   deleteTitle: "Delete theme"
   deleteLastAccountConfirm: "\"{name}\" is linked only to this account. Removing it deletes the theme itself. Delete it?"
   deleted: "Theme deleted"
   detached: "Theme removed"
-  undo: "Undo"
   deleteConfirm: "Delete \"{name}\"? The theme settings will also be deleted."
-  installFailed: "Install failed"
-  updateFailed: "Update failed"
 
 _deckWidgetColumn:
   createLocal: "Create new local widget"
@@ -2399,15 +2246,11 @@ _deckWidgetColumn:
   noMatches: "No matching widgets"
   selectAccount: "Select account"
   detached: "Widget removed"
-  undo: "Undo"
   pickAccountForNew: "Which account should run the widget?"
   pickAccountFor: "Which account should run \"{name}\"?"
   deleteTitle: "Delete widget"
   deleteConfirm: "Delete \"{name}\" from the library? The widget code will also be deleted."
   deleted: "Widget deleted"
-  installedTab: "Installed {count}"
-  installFailed: "Install failed"
-  updateFailed: "Update failed"
 
 _deckWindow:
   openInWebUi: "Open in Web UI"
@@ -2418,7 +2261,6 @@ _deckWindow:
 
 _logoutDialog:
   removeGuest: "Remove guest"
-  logout: "Log out"
   confirmRemoveGuest: "Remove this guest account?"
   keepDataQuestion: "Keep local data on this device?"
   keptDataHint: "Kept data can be viewed offline."
@@ -2427,10 +2269,6 @@ _logoutDialog:
 
 _navAccountMenu:
   controlPanel: "Control panel"
-  clearCache: "Clear cache"
-  logout: "Log out"
-  deleteData: "Delete data"
-  relogin: "Log in again"
 
 _pluginCard:
   incompatible: "Incompatible"
@@ -2439,34 +2277,23 @@ _pluginCard:
     other: "Denied for lack of permission: {target} (requested: {keys} / {count} times). Click to open plugin permissions"
   detachFromColumn: "Remove from this column"
   deleteFromLibrary: "Delete from library (the code is removed too)"
-  update: "Update"
-  storeUpdated: "Store updated: {date}"
-  storeUpdatedWithVersion: "Store updated: {date} / v{version}"
 
 _widgetCard:
   incompatible: "Incompatible"
-  update: "Update"
   deleteFromLibrary: "Delete from library (the code is removed too)"
   editWidget: "Edit widget"
   place: "Place"
-  storeUpdated: "Store updated: {date}"
-  storeUpdatedWithVersion: "Store updated: {date} / v{version}"
 
 _themeCard:
   clearAccount: "Clear the setting for this account"
-  detachFromAccount: "Remove from this account"
   deleteFromLibrary: "Delete from library (the theme is removed too)"
   addToAccount: "Add to this account"
-  update: "Update"
   viewInMisStore: "View details in MisStore"
   installing: "Installing"
-  storeUpdated: "Store updated: {date}"
-  storeUpdatedWithVersion: "Store updated: {date} / v{version}"
 
 _timelineFilterPopup:
   filter: "Filters"
   disabledQueryHint: "This query is disabled — click to open the query manager column"
-  withRenotes: "Renotes"
   withReplies: "Replies"
   withFiles: "With files only"
   withSensitive: "Sensitive"
@@ -2474,7 +2301,6 @@ _timelineFilterPopup:
 _widgetAiScript:
   editCode: "Edit code"
   running: "Running..."
-  run: "Run"
   dragToReorder: "Drag to reorder"
   removeFromSidebar: "Remove from sidebar"
   removeFromColumn: "Remove from this column"
@@ -2497,10 +2323,6 @@ _performanceData:
   categories:
     emoji:
       label: "Emoji cache"
-      short: "Emoji"
-    note:
-      label: "Notes"
-      short: "Notes"
     cache:
       label: "Parse cache"
       short: "Parse"
@@ -2778,8 +2600,6 @@ _store:
   loadFailedMinimal: "Could not load the permission settings, so NoteDeck started with minimal permissions for safety. Check the permissions in settings."
   saveFailed: "Failed to save permissions. Your changes were not applied."
 
-_cssPresetDropdown:
-  default: "Default"
 
 _widgetCapabilities:
   needsUpdate: "Update required"
@@ -2802,13 +2622,10 @@ _aiConfirmRequests:
     one: "Asking permission for {count} action"
     other: "Asking permission for {count} actions"
   runAll: "Run all"
-  stop: "Don't run"
   rememberAll: "Don't ask again for these actions"
 
 _postFormConstants:
   public: "Public"
-  home: "Home"
-  followers: "Followers"
   specified: "Direct"
 
 _useAccountActions:
@@ -2816,9 +2633,7 @@ _useAccountActions:
   deleteVaultFailed: "Failed to delete Vault connections: {error}"
   deleteGuestTitle: "Remove guest"
   confirmDeleteGuest: "Remove this guest account?"
-  logout: "Log out"
   confirmLogout: "Log out of {account}?\nLocal data stays on this device."
-  deleteDataTitle: "Delete data"
   confirmDeleteData: "Delete all local data for {account}?"
 
 _useAccountPicker:
@@ -2836,9 +2651,8 @@ _useColumnSetup:
   deleteFailed: "Failed to delete ({code})"
   unfavoriteTitle: "Remove from favorites"
   confirmUnfavorite: "This note is already in your favorites. Remove it from favorites?"
-  unfavoriteOk: "Remove"
   unfavoriteFailed: "Failed to remove from favorites ({code})"
-  favoriteFailed: "Failed to bookmark ({code})"
+  favoriteFailed: "Failed to add to favorites ({code})"
 
 _useCrossAccountNoteActions:
   notLoggedIn: "This account can't do that (not logged in)"
@@ -2847,7 +2661,6 @@ _useCrossAccountNoteActions:
   reacted: "Reacted as {account}"
   unreactTitle: "Remove reaction"
   confirmUnreact: "{account} has already reacted to this note. Remove the reaction?"
-  unreactOk: "Remove"
   unreacted: "Removed the reaction of {account}"
   unreactFailed: "Failed to remove the reaction ({code})"
   reactionFailed: "Failed to react ({code})"
@@ -2861,7 +2674,6 @@ _useDriveActions:
   rateLimitExceeded: "You've hit the folder creation limit. Please wait a while and try again"
   folderNotEmpty: "The folder can't be deleted because it isn't empty"
   invalidFileName: "This file name can't be used"
-  newFolder: "New folder"
   folderNamePlaceholder: "Folder name"
   renameFolder: "Rename folder"
   deleteFolderTitle: "Delete folder"
@@ -2883,7 +2695,6 @@ _useEntityCrud:
   renameTitle: "Rename {label}"
   renamed: "Renamed the {label}"
   renameFailed: "Failed to rename the {label} ({code})"
-  deleteTitle: "Delete {label}"
   confirmDelete: "Delete this {label} from the server? This can't be undone."
   deleted: "Deleted the {label}"
   deleteFailed: "Failed to delete the {label} ({code})"
@@ -2891,7 +2702,6 @@ _useEntityCrud:
 _useLoginPrompt:
   reloginToContinue: "Log in again to continue"
   sessionExpired: "Your login has expired"
-  relogin: "Log in again"
   sessionExpiredUseMenu: "Your login has expired. Log in again from the account menu."
 
 _useMfmInsert:
@@ -2913,7 +2723,6 @@ _usePostFormState:
   annoyingTitle: "This post may be disruptive"
   annoyingMessage: "It contains MFM that enlarges or positions text."
   postToHome: "Post to Home"
-  stop: "Cancel"
   postAnyway: "Post anyway"
   draftSaveFailed: "Saving the draft also failed: {error}"
 
@@ -2947,7 +2756,6 @@ _backupCapability:
 _draftsCapability:
   deleteTitle: "Delete draft"
   deleteMessage: "Deletes draft {draftId}. This cannot be undone."
-  cancel: "Cancel"
 
 _filesCapability:
   targetsFiles_plural:
@@ -2969,11 +2777,8 @@ _keybindsCapability:
   setOk: "Change"
   resetTitle: "Reset keybinding to default"
   resetMessage: "Discards the custom shortcuts of `{commandId}` and restores the default."
-  resetOk: "Reset to default"
   resetAllTitle: "Reset all keybindings to default"
   resetAllMessage: "Discards the custom shortcuts of every command and restores all defaults."
-  resetAllOk: "Reset all to default"
-  cancel: "Cancel"
 
 _navbarCapability:
   setTitle: "Overwrite navbar layout"
@@ -2985,8 +2790,6 @@ _navbarCapability:
   resetMessage_plural:
     one: "Discards the current custom layout and restores the {count} default item."
     other: "Discards the current custom layout and restores the {count} default items."
-  resetOk: "Reset to default"
-  cancel: "Cancel"
 
 _performanceCapability:
   setTitle: "Change performance value"
@@ -2996,25 +2799,20 @@ _performanceCapability:
   resetTitle: "Reset performance value to default"
   resetMessage: "Resets {label} (`{key}`) to default."
   resetMessageUnknown: "Resets `{key}` to default."
-  resetOk: "Reset to default"
   resetAllTitle: "Reset all performance values to default"
   resetAllMessage: "Discards every override and restores all defaults (a clean configuration)."
-  resetAllOk: "Reset all to default"
   presetPowerSaving: "power saving"
   presetRich: "rich"
   presetBalanced: "balanced"
   applyTitle: "Apply performance preset"
   applyMessage: "Applies the preset at slider position t={t} ({label}) to every key."
   applyOk: "Apply"
-  cancel: "Cancel"
 
 _personaCapability:
   title: "Switch AI persona"
   switchMessage: "Switches the AI persona to \"{name}\". This applies to every chat / heartbeat / command / task session."
   unknownMessage: "Trying to set the unknown skill id \"{id}\" as the persona."
   clearMessage: "Clears the AI persona (the AI works as a general-purpose assistant)."
-  ok: "Switch"
-  cancel: "Cancel"
 
 _pluginsCapability:
   createTitle: "Install plugin"
@@ -3022,13 +2820,10 @@ _pluginsCapability:
   updateTitle: "Update plugin"
   updateMessage: "Replaces the AiScript of {name} ({from} → {to} characters)."
   updateMessageActive: "Replaces the AiScript of {name} ({from} → {to} characters). It is active, so it restarts with the new code right after saving."
-  updateOk: "Update"
-  cancel: "Cancel"
 
 _userCapability:
   muteTitle: "Mute notes + notifications"
   muteMessage: "Mutes notes and notifications from userId `{userId}` (they are not notified)."
-  muteOk: "Mute"
   unmuteTitle: "Unmute notes + notifications"
   unmuteMessage: "Unmutes notes and notifications from userId `{userId}` (they are not notified)."
   unmuteOk: "Unmute"
@@ -3038,7 +2833,6 @@ _userCapability:
   unrenoteMuteTitle: "Unmute renotes"
   unrenoteMuteMessage: "Unmutes the renotes from userId `{userId}` (they are not notified)."
   unrenoteMuteOk: "Unmute renotes"
-  cancel: "Cancel"
 
 _vaultCapability:
   confirmTitle: "Allow a request to an external connection?"
@@ -3047,7 +2841,6 @@ _vaultCapability:
   allow: "Allow"
   rememberForActor: "Let {actor} use this connection without asking from now on"
   remember: "Use this connection without asking from now on"
-  cancel: "Cancel"
 
 _widgetsCapability:
   createTitle: "Install widget"
@@ -3056,8 +2849,6 @@ _widgetsCapability:
   updateTitle: "Update widget"
   updateMessage: "Replaces the AiScript of {name} ({from} → {to} characters)."
   updateMessageMounted: "Replaces the AiScript of {name} ({from} → {to} characters). Widgets on screen rerun with the new code right after saving."
-  updateOk: "Update"
-  cancel: "Cancel"
 
 _windowsCapability:
   closeAllTitle: "Close all windows"
@@ -3091,8 +2882,6 @@ _dispatcher:
   rememberOperation: "Don't ask again for this operation"
   destinationUntrusted: "The destination comes from someone else's content that the AI read."
   confirmTitle: "Run {label}?"
-  run: "Run"
-  cancel: "Cancel"
 
 _cliHandlers:
   pickPost: "Account to post from"
@@ -3116,13 +2905,8 @@ _definitions:
   modeTurnedOn: "Turned {mode} on"
   modeTurnedOff: "Turned {mode} off"
   permissionDenied: "Permission denied. Log in again to grant write:account."
-  account: "Account"
   selectAccount: "Select an account…"
   profile: "User profile"
-  logout: "Log out"
-  deleteData: "Delete data"
-  relogin: "Log in again"
-  clearCache: "Clear cache"
   clearAccountCacheMessage: "Clear the cache of {account}?"
   clearAllCacheMessage: "Clear all note and OGP caches?"
   closeColumnMessage: "Delete this column?"
@@ -3134,15 +2918,12 @@ _definitions:
 _quickPickProviders:
   currentProfile: "Current profile"
   newProfile: "Create new profile"
-  switch: "Switch"
   deleteProfileTitle: "Delete profile"
   deleteProfileMessage: "Delete this profile?"
   loginRequired: "Log in to use this"
-  allAccounts: "All accounts"
   noAccount: "No account"
   createNew: "Create new {label}"
   selectItem: "Select {label}"
-  searchItem: "Search {label}..."
   selectUser: "Select a user"
   searchUser: "Search users..."
   namePlaceholder: "Enter {label} name..."
@@ -3282,12 +3063,9 @@ _purity:
   syntaxName: "(syntax: {type})"
 
 _cssPresets:
-  default: "Default"
   mPlus1Code: "M PLUS 1 Code (Japanese)"
   msGothic: "MS Gothic (system)"
   systemFont: "{name} (system)"
-  visibilityHome: "Home"
-  visibilityFollowers: "Followers"
   visibilitySpecified: "Direct"
   tintByVisibility: "Tint the background by visibility"
   hideSelf: "Hide mine only"
@@ -3307,7 +3085,6 @@ _editHistory:
   widget: "Widget"
   theme: "Theme"
   query: "Query"
-  memo: "Memo"
   css: "Custom CSS"
   unrecorded: "Not recorded"
   self: "You"
@@ -3332,7 +3109,6 @@ _deckProfile:
 _misstore:
   updateConfirm: "Update \"{name}\" with the store version.\nStore updated: {date} / v{version}"
   newPermissions: "New permissions: {permissions}"
-  update: "Update"
   updateWidget: "Update widget"
   updatePlugin: "Update plugin"
   updateSkill: "Update skill"
@@ -3343,12 +3119,9 @@ _pet:
   invalidInput: "Enter a slug or a pet URL from petdex.dev"
 
 _postForm:
-  emoji: "Emoji"
   attach: "Attach"
   poll: "Poll"
   cw: "Content warning"
-  hashtag: "Hashtag"
-  mention: "Mention"
   draft: "Drafts"
   clear: "Clear"
 
@@ -3403,6 +3176,3 @@ _scheduleFormat:
   tomorrow9: "Tomorrow 9:00"
   in1Week: "In 1 week"
 
-_simpleMarkdown:
-  copyCode: "Copy code"
-  copy: "Copy"

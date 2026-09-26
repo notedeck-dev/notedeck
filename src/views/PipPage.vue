@@ -38,7 +38,7 @@ const WINDOW_TITLES: Partial<Record<WindowType, () => string>> = {
   keybinds: () => i18n.ts._windows.keybinds,
   cssEditor: () => i18n.ts._pipPage.cssEditor,
   themeEditor: () => i18n.ts._windows.themeEditor,
-  profileEditor: () => i18n.ts._pipPage.profileEditor,
+  profileEditor: () => i18n.ts._common.profile,
   aiSettings: () => i18n.ts._windows.aiSettings,
   permissions: () => i18n.ts._windows.permissions,
   about: () => i18n.ts._windows.about,
@@ -434,7 +434,7 @@ onMounted(async () => {
     <template v-else-if="!selectedColumn">
       <!-- Drag bar for selector state -->
       <div :class="$style.pipDragBar" data-tauri-drag-region>
-        <span :class="$style.pipDragTitle" data-tauri-drag-region>{{ i18n.ts._pipPage.addColumn }}</span>
+        <span :class="$style.pipDragTitle" data-tauri-drag-region>{{ i18n.ts._commands.addColumn }}</span>
         <button
           :class="[$style.pipDragBtn, alwaysOnTop && $style.pipDragBtnActive]"
           :title="alwaysOnTop ? i18n.ts._pipPage.unpin : i18n.ts._pipPage.pin"

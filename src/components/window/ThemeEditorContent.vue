@@ -134,19 +134,19 @@ const PRIMARY_PROPS: { key: string; label: string }[] = [
   {
     key: 'hashtag',
     get label() {
-      return i18n.ts._themeEditorContent.propHashtag
+      return i18n.ts._common.hashtag
     },
   },
   {
     key: 'mention',
     get label() {
-      return i18n.ts._themeEditorContent.propMention
+      return i18n.ts._common.mention
     },
   },
   {
     key: 'renote',
     get label() {
-      return i18n.ts._themeEditorContent.propRenote
+      return i18n.ts._common.renote
     },
   },
   {
@@ -438,7 +438,7 @@ const barActions = computed<EditorAction[]>(() => {
   if (editingThemeId.value && isExposed('developer')) {
     list.push({
       key: 'history',
-      label: i18n.ts._themeEditorContent.history,
+      label: i18n.ts._common.history,
       icon: 'history',
     })
   }
@@ -446,7 +446,7 @@ const barActions = computed<EditorAction[]>(() => {
     list.push({
       key: 'reset',
       icon: 'arrow-back-up',
-      title: i18n.ts._themeEditorContent.undo,
+      title: i18n.ts._common.undo,
     })
   }
   return list
@@ -588,7 +588,7 @@ async function deleteInstalledTheme(theme: MisskeyTheme, e: Event) {
   const undo = themeStore.removeTheme(theme.id)
   if (undo) {
     useToast().show(i18n.ts._themeEditorContent.deleted, 'info', {
-      action: { label: i18n.ts._themeEditorContent.undo, onClick: undo },
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }

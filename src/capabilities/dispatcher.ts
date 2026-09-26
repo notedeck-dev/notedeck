@@ -707,8 +707,8 @@ async function buildConfirmOptions(
           codeLanguage: 'json',
         }
       : {}),
-    okLabel: i18n.ts._dispatcher.run,
-    cancelLabel: i18n.ts._dispatcher.cancel,
+    okLabel: i18n.ts._common.run,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'danger',
   }
 }

@@ -47,7 +47,7 @@ const { rename, deleteEntity, config } = useEntityCrud(
       </button>
       <button class="_popupItem" style="color: var(--nd-love, #ff6b6b);" @click="deleteEntity(closeMenu)">
         <i class="ti ti-trash" style="opacity: 1;" />
-        <span>{{ i18n.tsx._deckClipColumn.deleteItem({ label: config.label }) }}</span>
+        <span>{{ i18n.tsx._common.deleteItem({ label: config.label }) }}</span>
       </button>
     </template>
   </DeckNoteColumn>

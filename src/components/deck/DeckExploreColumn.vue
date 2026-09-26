@@ -39,13 +39,13 @@ const ALL_TAB_DEFS: ColumnTabDef[] = [
   {
     value: 'notes',
     get label() {
-      return i18n.ts._deckExploreColumn.tabNotes
+      return i18n.ts._common.notes
     },
   },
   {
     value: 'users',
     get label() {
-      return i18n.ts._deckExploreColumn.tabUsers
+      return i18n.ts._common.users
     },
   },
   {
@@ -326,7 +326,7 @@ usePortal(postPortalRef)
               <div :class="$style.pullText">
                 <template v-if="isPulledEnough">{{ i18n.ts._common.releaseToRefresh }}</template>
                 <template v-else-if="isRefreshing">{{ i18n.ts._common.refreshing }}</template>
-                <template v-else>{{ i18n.ts._deckExploreColumn.pullToRefresh }}</template>
+                <template v-else>{{ i18n.ts._common.pullToRefresh }}</template>
               </div>
             </div>
           </div>

@@ -165,7 +165,7 @@ export const draftsDeleteCapability = implement('drafts.delete', {
       title: i18n.ts._draftsCapability.deleteTitle,
       message: i18n.tsx._draftsCapability.deleteMessage({ draftId }),
       okLabel: i18n.ts._common.delete,
-      cancelLabel: i18n.ts._draftsCapability.cancel,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'danger',
     }
   },

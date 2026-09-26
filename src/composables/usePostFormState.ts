@@ -484,7 +484,7 @@ export function usePostFormState(
             },
             {
               value: 'cancel',
-              label: i18n.ts._usePostFormState.stop,
+              label: i18n.ts._common.cancel,
               cancel: true,
             },
             { value: 'ignore', label: i18n.ts._usePostFormState.postAnyway },

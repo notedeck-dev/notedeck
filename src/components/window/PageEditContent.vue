@@ -207,7 +207,7 @@ onMounted(load)
           @click="save"
         >
           <i class="ti ti-device-floppy" />
-          {{ saving ? i18n.ts._pageEditContent.saving : saved ? i18n.ts._common.saved : i18n.ts._common.save }}
+          {{ saving ? i18n.ts._common.saving : saved ? i18n.ts._common.saved : i18n.ts._common.save }}
         </button>
       </div>
     </template>

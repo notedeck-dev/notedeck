@@ -36,9 +36,7 @@ const jsonLinter = linter(
         to: src.length,
         severity: 'error',
         message:
-          e instanceof Error
-            ? e.message
-            : i18n.ts._snippetsEditorContent.json5ParseError,
+          e instanceof Error ? e.message : i18n.ts._common.json5ParseError,
       })
     }
     return diagnostics
@@ -138,10 +136,7 @@ async function save() {
   try {
     if (code.value.trim()) JSON5.parse(code.value)
   } catch (e) {
-    error.value =
-      e instanceof Error
-        ? e.message
-        : i18n.ts._snippetsEditorContent.invalidJson5
+    error.value = e instanceof Error ? e.message : i18n.ts._common.invalidJson5
     return
   }
   try {
@@ -254,7 +249,7 @@ function handleReset() {
             @click="importSnippets"
           >
             <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-            {{ importError ? i18n.ts._snippetsEditorContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
+            {{ importError ? i18n.ts._common.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
           </button>
           <button
             class="_button"

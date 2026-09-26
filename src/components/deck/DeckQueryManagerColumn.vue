@@ -95,7 +95,7 @@ const scopeCount = computed(
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: i18n.tsx._deckQueryManagerColumn.installedTab({
+    label: i18n.tsx._common.installedTab({
       count: scopeCount.value,
     }),
   },
@@ -165,12 +165,12 @@ const installedSections = computed<QuerySection[]>(() => {
   const sections: QuerySection[] = [
     {
       key: 'sideload',
-      label: i18n.ts._deckQueryManagerColumn.sideload,
+      label: i18n.ts._common.sideload,
       items: sideloaded,
     },
     {
       key: 'store',
-      label: i18n.ts._deckQueryManagerColumn.storeDistributed,
+      label: i18n.ts._common.storeDistributed,
       items: store,
     },
   ]
@@ -221,7 +221,7 @@ function detachFromScope(query: NamedQueryMeta): void {
   }
   useToast().show(i18n.ts._deckQueryManagerColumn.detached, 'info', {
     action: {
-      label: i18n.ts._deckQueryManagerColumn.undo,
+      label: i18n.ts._common.undo,
       onClick: () => queriesStore.linkScope(query.id, scope),
     },
   })
@@ -230,7 +230,7 @@ function detachFromScope(query: NamedQueryMeta): void {
 const detachTitle = computed(() =>
   isCrossAccount.value
     ? i18n.ts._deckQueryManagerColumn.detachFromAllAccounts
-    : i18n.ts._deckQueryManagerColumn.detachFromAccount,
+    : i18n.ts._common.detachFromAccount,
 )
 
 // --- Library picker (スコープ未参加のライブラリ本体の追加) ---
@@ -285,7 +285,7 @@ async function remove(query: NamedQueryMeta): Promise<void> {
   const undo = await queriesStore.removeQuery(query.id)
   if (undo) {
     useToast().show(i18n.ts._deckQueryManagerColumn.deleted, 'info', {
-      action: { label: i18n.ts._deckQueryManagerColumn.undo, onClick: undo },
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
@@ -310,9 +310,7 @@ async function handleInstall(entry: StoreQueryEntry): Promise<void> {
     await misStore.installQuery(entry, columnScope.value ?? undefined)
   } catch (e) {
     installError.value =
-      e instanceof Error
-        ? e.message
-        : i18n.ts._deckQueryManagerColumn.installFailed
+      e instanceof Error ? e.message : i18n.ts._common.installFailed
   }
 }
 
@@ -322,9 +320,7 @@ async function handleUpdate(entry: StoreQueryEntry): Promise<void> {
     await misStore.updateQuery(entry)
   } catch (e) {
     installError.value =
-      e instanceof Error
-        ? e.message
-        : i18n.ts._deckQueryManagerColumn.updateFailed
+      e instanceof Error ? e.message : i18n.ts._common.updateFailed
   }
 }
 

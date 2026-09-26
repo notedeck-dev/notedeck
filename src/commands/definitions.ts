@@ -221,7 +221,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
       commandStore.open()
       commandStore.pushQuickPick({
-        title: i18n.ts._definitions.account,
+        title: i18n.ts._common.account,
         placeholder: i18n.ts._definitions.selectAccount,
         items: [
           ...accountsStore.accounts.map((acc) => ({
@@ -276,7 +276,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               if (acc.hasToken) {
                 items.push({
                   id: `${acc.id}-logout`,
-                  label: i18n.ts._definitions.logout,
+                  label: i18n.ts._common.logout,
                   icon: 'logout',
                   action: () => {
                     commandStore.close()
@@ -286,7 +286,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               } else if (actions.isGuestAccount(acc)) {
                 items.push({
                   id: `${acc.id}-delete`,
-                  label: i18n.ts._definitions.deleteData,
+                  label: i18n.ts._common.deleteData,
                   icon: 'trash',
                   action: () => {
                     commandStore.close()
@@ -296,7 +296,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               } else {
                 items.push({
                   id: `${acc.id}-relogin`,
-                  label: i18n.ts._definitions.relogin,
+                  label: i18n.ts._common.relogin,
                   icon: 'login',
                   action: () => {
                     commandStore.close()
@@ -305,7 +305,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
                 })
                 items.push({
                   id: `${acc.id}-delete`,
-                  label: i18n.ts._definitions.deleteData,
+                  label: i18n.ts._common.deleteData,
                   icon: 'trash',
                   action: () => {
                     commandStore.close()
@@ -315,13 +315,13 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               }
               items.push({
                 id: `${acc.id}-clear-cache`,
-                label: i18n.ts._definitions.clearCache,
+                label: i18n.ts._common.clearCache,
                 icon: 'eraser',
                 action: async () => {
                   commandStore.close()
                   const { confirm } = useConfirm()
                   const ok = await confirm({
-                    title: i18n.ts._definitions.clearCache,
+                    title: i18n.ts._common.clearCache,
                     message: i18n.tsx._definitions.clearAccountCacheMessage({
                       account: actions.getAccountLabel(acc),
                     }),
@@ -437,7 +437,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     execute: async () => {
       const { confirm } = useConfirm()
       const ok = await confirm({
-        title: i18n.ts._definitions.clearCache,
+        title: i18n.ts._common.clearCache,
         message: i18n.ts._definitions.clearAllCacheMessage,
         okLabel: i18n.ts._common.delete,
         type: 'danger',

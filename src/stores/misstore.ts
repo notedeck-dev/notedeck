@@ -917,7 +917,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const ok = await useConfirm().confirm({
         title: i18n.ts._misstore.updateWidget,
         message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: i18n.ts._misstore.update,
+        okLabel: i18n.ts._common.update,
         diff: { old: existing.src, new: source, language: 'aiscript' },
       })
       if (!ok) return false
@@ -997,7 +997,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const ok = await useConfirm().confirm({
         title: i18n.ts._misstore.updatePlugin,
         message,
-        okLabel: i18n.ts._misstore.update,
+        okLabel: i18n.ts._common.update,
         ...(added.length > 0 ? { type: 'warning' as const } : {}),
         diff: { old: existing.src, new: source, language: 'aiscript' },
       })
@@ -1061,7 +1061,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const ok = await useConfirm().confirm({
         title: i18n.ts._misstore.updateSkill,
         message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: i18n.ts._misstore.update,
+        okLabel: i18n.ts._common.update,
         // 本体 = frontmatter を除いた body 同士で比較する (ローカルは body
         // しか保持しない。frontmatter 由来メタは patch 側が反映する)
         diff: { old: existing.body, new: body, language: 'markdown' },
@@ -1109,7 +1109,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const ok = await useConfirm().confirm({
         title: i18n.ts._misstore.updateQuery,
         message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: i18n.ts._misstore.update,
+        okLabel: i18n.ts._common.update,
         diff: { old: existing.src, new: source, language: 'aiscript' },
       })
       if (!ok) return false
@@ -1183,7 +1183,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       const ok = await useConfirm().confirm({
         title: i18n.ts._misstore.updateTheme,
         message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: i18n.ts._misstore.update,
+        okLabel: i18n.ts._common.update,
         diff: { old: currentJson, new: newJson, language: 'json5' },
       })
       if (!ok) return false

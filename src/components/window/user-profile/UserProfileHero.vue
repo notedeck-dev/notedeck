@@ -143,7 +143,7 @@ onMounted(() => {
       <div :class="$style.bannerFade" />
 
       <!-- "Follows you" badge on banner -->
-      <div v-if="user.isFollowed" :class="$style.followedBadge">{{ i18n.ts._userProfileHero.followsYou }}</div>
+      <div v-if="user.isFollowed" :class="$style.followedBadge">{{ i18n.ts._common.followsYou }}</div>
 
       <!-- Name overlay on banner (desktop) -->
       <div :class="$style.bannerTitle">
@@ -297,7 +297,7 @@ onMounted(() => {
     <div class="user-stats" :class="$style.stats" :data-own="isOwnProfile">
       <div :class="$style.stat">
         <b class="user-stat-count">{{ formatCount(user.notesCount) }}</b>
-        <span>{{ i18n.ts._userProfileHero.notes }}</span>
+        <span>{{ i18n.ts._common.notes }}</span>
       </div>
       <button v-if="canSeeFollowing" :class="[$style.stat, $style.statLink]" class="_button" @click="openFollowList('following')">
         <b class="user-stat-count">{{ formatCount(user.followingCount) }}</b>
@@ -305,7 +305,7 @@ onMounted(() => {
       </button>
       <button v-if="canSeeFollowers" :class="[$style.stat, $style.statLink]" class="_button" @click="openFollowList('followers')">
         <b class="user-stat-count">{{ formatCount(user.followersCount) }}</b>
-        <span>{{ i18n.ts._userProfileHero.followers }}</span>
+        <span>{{ i18n.ts._common.followers }}</span>
       </button>
     </div>
   </div>

@@ -176,7 +176,7 @@ async function toggleFavorite() {
 onMounted(async () => {
   const acc = accountsStore.accounts.find((a) => a.id === props.accountId)
   if (!acc) {
-    clipError.value = i18n.ts._clipDetailContent.accountNotFound
+    clipError.value = i18n.ts._common.accountNotFound
     clipLoading.value = false
     return
   }
@@ -206,7 +206,7 @@ onMounted(async () => {
             v-if="!clip.isPublic"
             class="ti ti-lock"
             :class="$style.privateIcon"
-            :title="i18n.ts._clipDetailContent.private"
+            :title="i18n.ts._common.private"
           />
           <div :class="$style.title">{{ clip.name }}</div>
         </div>

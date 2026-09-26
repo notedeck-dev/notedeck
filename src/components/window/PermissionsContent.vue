@@ -104,9 +104,7 @@ const json5Linter = linter(
         to: src.length,
         severity: 'error',
         message:
-          e instanceof Error
-            ? e.message
-            : i18n.ts._permissionsContent.json5ParseError,
+          e instanceof Error ? e.message : i18n.ts._common.json5ParseError,
       })
     }
     return diagnostics
@@ -151,9 +149,7 @@ watch(rawJson, (v) => {
       }, 1500)
     } catch (e) {
       rawError.value =
-        e instanceof Error
-          ? e.message
-          : i18n.ts._permissionsContent.invalidJson5
+        e instanceof Error ? e.message : i18n.ts._common.invalidJson5
     }
   }, 500)
 })
@@ -557,7 +553,7 @@ function handleReset() {
               <code :class="$style.tokenValue">{{ createdToken.token }}</code>
               <button class="_button" :class="$style.tokenCreateButton" @click="copyCreatedToken">
                 <i class="ti ti-copy" />
-                {{ copied ? i18n.ts._common.copiedToClipboard : i18n.ts._permissionsContent.copy }}
+                {{ copied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
               </button>
             </div>
           </div>
@@ -603,7 +599,7 @@ function handleReset() {
           @click="importConfig"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? i18n.ts._permissionsContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
+          {{ importError ? i18n.ts._common.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"

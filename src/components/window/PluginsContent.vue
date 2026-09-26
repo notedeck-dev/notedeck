@@ -331,7 +331,7 @@ const barActions = computed<EditorAction[]>(() => {
     {
       key: 'import',
       label: importClipError.value
-        ? i18n.ts._pluginsContent.invalid
+        ? i18n.ts._common.invalid
         : importedMessage.value
           ? i18n.ts._common.loaded
           : i18n.ts._common.import,
@@ -349,7 +349,7 @@ const barActions = computed<EditorAction[]>(() => {
       ? [
           {
             key: 'history',
-            label: i18n.ts._pluginsContent.history,
+            label: i18n.ts._common.history,
             icon: 'history',
           },
         ]
@@ -510,7 +510,7 @@ async function importPlugin() {
         @click="handleResetAllConfig"
       >
         <i class="ti ti-rotate" />
-        {{ confirmingResetConfig ? i18n.ts._common.confirmReset : i18n.ts._pluginsContent.resetAllToDefault }}
+        {{ confirmingResetConfig ? i18n.ts._common.confirmReset : i18n.ts._common.resetAllToDefault }}
       </button>
     </div>
 

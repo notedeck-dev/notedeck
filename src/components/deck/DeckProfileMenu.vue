@@ -75,7 +75,7 @@ async function remove(id: string) {
   if (undo) {
     useToast().show(i18n.ts._deckProfileMenu.deleted, 'info', {
       action: {
-        label: i18n.ts._deckProfileMenu.undo,
+        label: i18n.ts._common.undo,
         onClick: () => {
           undo()
           refreshProfileCommands()

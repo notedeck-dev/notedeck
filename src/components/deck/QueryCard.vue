@@ -86,11 +86,11 @@ const updateTitle = computed(() => {
   if (!props.updatedAt) return ''
   const date = formatDate(props.updatedAt)
   return props.version
-    ? i18n.tsx._queryCard.storeUpdatedWithVersion({
+    ? i18n.tsx._common.storeUpdatedWithVersion({
         date,
         version: props.version,
       })
-    : i18n.tsx._queryCard.storeUpdated({ date })
+    : i18n.tsx._common.storeUpdated({ date })
 })
 
 function handlePrimaryClick() {
@@ -195,7 +195,7 @@ function handlePrimaryClick() {
             >
               <i v-if="installing" class="ti ti-loader-2 nd-spin" />
               <i v-else class="ti ti-refresh" />
-              {{ i18n.ts._queryCard.update }}
+              {{ i18n.ts._common.update }}
             </button>
             <button
               v-else-if="alreadyInstalled"

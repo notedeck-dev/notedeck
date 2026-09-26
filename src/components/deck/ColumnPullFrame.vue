@@ -27,7 +27,7 @@ defineProps<{
       <div :class="$style.pullText">
         <template v-if="isPulledEnough">{{ i18n.ts._common.releaseToRefresh }}</template>
         <template v-else-if="isRefreshing">{{ i18n.ts._common.refreshing }}</template>
-        <template v-else>{{ i18n.ts._columnPullFrame.pullToRefresh }}</template>
+        <template v-else>{{ i18n.ts._common.pullToRefresh }}</template>
       </div>
     </div>
   </div>

@@ -108,7 +108,7 @@ defineExpose({ open, close })
         <span :class="$style.marks">
           <span v-if="row.isPrimary" :class="$style.mark" :title="i18n.ts._noteVariantsPopup.primaryTitle">{{ i18n.ts._noteVariantsPopup.primary }}</span>
           <span v-if="row.isOrigin" :class="$style.mark" :title="i18n.ts._noteVariantsPopup.originTitle">origin</span>
-          <span v-if="row.contentHidden" :class="[$style.mark, $style.muted]" :title="i18n.ts._noteVariantsPopup.contentHiddenTitle">{{ i18n.ts._noteVariantsPopup.contentHidden }}</span>
+          <span v-if="row.contentHidden" :class="[$style.mark, $style.muted]" :title="i18n.ts._noteVariantsPopup.contentHiddenTitle">{{ i18n.ts._common.private }}</span>
           <i v-if="row.reacted" class="ti ti-mood-smile" :class="$style.reacted" :title="i18n.ts._noteVariantsPopup.reactedTitle" />
         </span>
       </li>

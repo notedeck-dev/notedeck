@@ -371,7 +371,7 @@ describe('dispatchCapability — confirmation flow', () => {
     )
     expect(r).toEqual({ ok: true, result: 'posted' })
     // confirm が execute より先に呼ばれている
-    expect(calls).toEqual(['confirm:test を実行しますか?', 'execute'])
+    expect(calls).toEqual(['confirm:test を実行しますか？', 'execute'])
   })
 
   it('injects trusted marker on the confirm options (#720)', async () => {
