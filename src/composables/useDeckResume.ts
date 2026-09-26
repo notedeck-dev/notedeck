@@ -1,5 +1,6 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useUiStore } from '@/stores/ui'
+import { isTauri } from '@/utils/settingsFs'
 import { startSleepDetector } from '@/utils/sleepDetector'
 import { listenTauri } from '@/utils/tauriEvents'
 
@@ -41,11 +42,15 @@ export function useDeckResume() {
       // visibilitychange に任せる
       if (!document.hidden) uiStore.emitDeckResume()
     })
-    void listenTauri('nd:client-layer-resumed', () => {
-      uiStore.emitDeckResume()
-    }).then((unlisten) => {
-      unlistenRelay = unlisten
-    })
+    if (isTauri) {
+      listenTauri('nd:client-layer-resumed', () => {
+        uiStore.emitDeckResume()
+      })
+        .then((unlisten) => {
+          unlistenRelay = unlisten
+        })
+        .catch((e) => console.warn('[deck-resume] relay listen failed:', e))
+    }
   })
 
   onUnmounted(() => {
