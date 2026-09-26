@@ -317,6 +317,8 @@ pub fn switch_to_embedded(_app_dir: &Path) -> Result<SwitchBack> {
 
 /// 切替の途中 (`pending-resident`) をやめて埋め込みのまま使う。unit とパッケージを消す
 pub fn cancel_pending(app_dir: &Path) -> Result<()> {
+    // 移行パッケージは Linux 限定 (Android は target_os が違うのでモジュール自体が無い)
+    #[cfg(target_os = "linux")]
     if let Some(dir) = notecore::migration::default_package_dir() {
         notecore::migration::remove_package(&dir);
     }
