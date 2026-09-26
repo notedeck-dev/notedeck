@@ -155,7 +155,7 @@ function closeMenu() {
   popupMenuRef.value?.close()
 }
 
-/** 他のテキスト (スキル・ウィジット・テーマ・CSS) と同じ編集履歴を開く */
+/** 他のテキスト (スキル・ウィジェット・テーマ・CSS) と同じ編集履歴を開く */
 function openHistory() {
   closeMenu()
   openEditHistoryWindow({

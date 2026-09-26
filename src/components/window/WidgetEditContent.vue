@@ -416,7 +416,7 @@ function toggleAutoRun() {
     </div>
     <div v-else :class="$style.notFound">
       <i class="ti ti-alert-circle" />
-      ウィジットが見つかりません
+      ウィジェットが見つかりません
     </div>
 
     <EditorTabs v-if="widget" v-model="tab" :tabs="tabDefs" />
@@ -438,7 +438,7 @@ function toggleAutoRun() {
         />
         <div v-else-if="!error" :class="$style.visualEmpty">
           <i class="ti ti-player-play" :class="$style.visualEmptyIcon" />
-          <span>右上の実行ボタンでウィジットを実行</span>
+          <span>右上の実行ボタンでウィジェットを実行</span>
         </div>
         <details v-if="output.length" :class="$style.outputPanel">
           <summary>出力 ({{ output.length }})</summary>

@@ -28,8 +28,11 @@ import {
 const ROOT = resolve(import.meta.dirname, '../..')
 const SRC = join(ROOT, 'src')
 
-/** キーを動的に組み立てて引く節。死にキー検出の対象外 (今は無い) */
-const DYNAMIC_SECTIONS: string[] = []
+/** キーを動的に組み立てて引く節。死にキー検出の対象外 */
+const DYNAMIC_SECTIONS = [
+  // capability id から引く (capabilityLabel)。正本は capabilities.json5
+  '_capabilities',
+]
 
 function collect(dir: string, exts: string[]): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

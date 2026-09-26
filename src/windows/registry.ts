@@ -1,3 +1,5 @@
+import { i18n } from '@/i18n'
+import { labelTable } from '@/i18n/labelTable'
 import type { ExposureTag } from '@/settings/exposure'
 import type { DeckWindow, WindowType } from '@/stores/windows'
 
@@ -38,7 +40,9 @@ export interface WindowSpec {
 
 export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
   'note-detail': {
-    label: 'ノート',
+    get label() {
+      return i18n.ts._windows.noteDetail
+    },
     icon: 'ti ti-note',
     width: 500,
     maxHeight: 600,
@@ -48,7 +52,9 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
         : null,
   },
   'note-inspector': {
-    label: 'ノートインスペクタ',
+    get label() {
+      return i18n.ts._windows.noteInspector
+    },
     icon: 'ti ti-code',
     exposure: 'developer',
     width: 620,
@@ -59,14 +65,18 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
         : null,
   },
   'notification-inspector': {
-    label: '通知インスペクタ',
+    get label() {
+      return i18n.ts._windows.notificationInspector
+    },
     icon: 'ti ti-code',
     exposure: 'developer',
     width: 620,
     maxHeight: 720,
   },
   'user-profile': {
-    label: 'プロフィール',
+    get label() {
+      return i18n.ts._windows.userProfile
+    },
     icon: 'ti ti-user',
     width: 620,
     maxHeight: 650,
@@ -76,7 +86,9 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
         : null,
   },
   'federation-instance': {
-    label: 'サーバー',
+    get label() {
+      return i18n.ts._windows.federationInstance
+    },
     icon: 'ti ti-planet',
     width: 500,
     maxHeight: 650,
@@ -86,7 +98,9 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
         : null,
   },
   'follow-list': {
-    label: 'フォロー / フォロワー',
+    get label() {
+      return i18n.ts._windows.followList
+    },
     icon: 'ti ti-users',
     width: 500,
     maxHeight: 650,
@@ -98,118 +112,156 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     },
   },
   aiSettings: {
-    label: 'エージェント',
+    get label() {
+      return i18n.ts._windows.aiSettings
+    },
     icon: 'ti ti-robot',
     width: 400,
     maxHeight: 700,
   },
   permissions: {
-    label: '権限',
+    get label() {
+      return i18n.ts._windows.permissions
+    },
     icon: 'ti ti-shield-lock',
     width: 420,
     maxHeight: 700,
   },
   plugins: {
-    label: 'プラグイン',
+    get label() {
+      return i18n.ts._windows.plugins
+    },
     icon: 'ti ti-plug',
     width: 500,
     maxHeight: 720,
   },
   keybinds: {
-    label: 'キーバインド',
+    get label() {
+      return i18n.ts._windows.keybinds
+    },
     icon: 'ti ti-keyboard',
     width: 400,
     maxHeight: 650,
   },
   cssEditor: {
-    label: 'カスタムCSS',
+    get label() {
+      return i18n.ts._windows.cssEditor
+    },
     icon: 'ti ti-code',
     width: 400,
     maxHeight: 650,
   },
   themeEditor: {
-    label: 'テーマ',
+    get label() {
+      return i18n.ts._windows.themeEditor
+    },
     icon: 'ti ti-palette',
     width: 400,
     maxHeight: 720,
   },
   profileEditor: {
-    label: 'プロファイルエディタ',
+    get label() {
+      return i18n.ts._windows.profileEditor
+    },
     icon: 'ti ti-layout-columns',
     width: 400,
     maxHeight: 700,
   },
   login: {
-    label: 'アカウント追加',
+    get label() {
+      return i18n.ts._windows.login
+    },
     icon: 'ti ti-login-2',
     width: 380,
     maxHeight: 480,
   },
   about: {
-    label: 'NoteDeck について',
+    get label() {
+      return i18n.ts._windows.about
+    },
     icon: 'ti ti-info-circle',
     width: 380,
     maxHeight: 640,
   },
   navEditor: {
-    label: 'ナビバー',
+    get label() {
+      return i18n.ts._windows.navEditor
+    },
     icon: 'ti ti-layout-sidebar-left-collapse',
     width: 400,
     maxHeight: 700,
   },
   performanceEditor: {
-    label: 'パフォーマンス',
+    get label() {
+      return i18n.ts._windows.performanceEditor
+    },
     icon: 'ti ti-gauge',
     width: 420,
     maxHeight: 750,
   },
   appearanceEditor: {
-    label: 'アピアランス',
+    get label() {
+      return i18n.ts._windows.appearanceEditor
+    },
     icon: 'ti ti-brush',
     width: 400,
     maxHeight: 700,
   },
   backup: {
-    label: 'バックアップ',
+    get label() {
+      return i18n.ts._windows.backup
+    },
     icon: 'ti ti-package-export',
     width: 440,
     maxHeight: 550,
   },
   cacheEditor: {
-    label: 'キャッシュ',
+    get label() {
+      return i18n.ts._windows.cacheEditor
+    },
     icon: 'ti ti-eraser',
     width: 440,
     maxHeight: 550,
   },
   tasksEditor: {
-    label: 'タスク設定',
+    get label() {
+      return i18n.ts._windows.tasksEditor
+    },
     exposure: 'developer',
     icon: 'ti ti-player-play',
     width: 500,
     maxHeight: 700,
   },
   snippetsEditor: {
-    label: 'スニペット',
+    get label() {
+      return i18n.ts._windows.snippetsEditor
+    },
     exposure: 'developer',
     icon: 'ti ti-code-plus',
     width: 500,
     maxHeight: 700,
   },
   memoEditor: {
-    label: 'メモ',
+    get label() {
+      return i18n.ts._windows.memoEditor
+    },
     icon: 'ti ti-notes',
     width: 500,
     maxHeight: 600,
   },
   'column-query-editor': {
-    label: 'カラムクエリ',
+    get label() {
+      return i18n.ts._windows.columnQueryEditor
+    },
     icon: 'ti ti-filter',
     exposure: 'developer',
     width: 560,
     maxHeight: 720,
   },
   'page-detail': {
-    label: 'ページ',
+    get label() {
+      return i18n.ts._windows.pageDetail
+    },
     icon: 'ti ti-note',
     width: 500,
     maxHeight: 720,
@@ -219,7 +271,9 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
         : null,
   },
   'play-detail': {
-    label: 'Play',
+    get label() {
+      return i18n.ts._windows.playDetail
+    },
     icon: 'ti ti-player-play',
     width: 500,
     maxHeight: 720,
@@ -229,7 +283,9 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
         : null,
   },
   'gallery-detail': {
-    label: 'ギャラリー',
+    get label() {
+      return i18n.ts._windows.galleryDetail
+    },
     icon: 'ti ti-icons',
     width: 500,
     maxHeight: 720,
@@ -239,7 +295,9 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
         : null,
   },
   'list-detail': {
-    label: 'リスト',
+    get label() {
+      return i18n.ts._windows.listDetail
+    },
     icon: 'ti ti-list',
     width: 500,
     maxHeight: 720,
@@ -249,7 +307,9 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
         : null,
   },
   'clip-detail': {
-    label: 'クリップ',
+    get label() {
+      return i18n.ts._windows.clipDetail
+    },
     icon: 'ti ti-paperclip',
     width: 500,
     maxHeight: 720,
@@ -259,65 +319,85 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
         : null,
   },
   'drive-file-detail': {
-    label: 'ファイル',
+    get label() {
+      return i18n.ts._windows.driveFileDetail
+    },
     icon: 'ti ti-file',
     width: 500,
     maxHeight: 720,
   },
   'page-edit': {
-    label: 'ページを編集',
+    get label() {
+      return i18n.ts._windows.pageEdit
+    },
     icon: 'ti ti-pencil',
     width: 500,
     maxHeight: 720,
   },
   'play-edit': {
-    label: 'Play を編集',
+    get label() {
+      return i18n.ts._windows.playEdit
+    },
     icon: 'ti ti-pencil',
     width: 500,
     maxHeight: 720,
   },
   'widget-edit': {
-    label: 'ウィジット編集',
+    get label() {
+      return i18n.ts._windows.widgetEdit
+    },
     icon: 'ti ti-layout-dashboard',
     exposure: 'developer',
     width: 500,
     maxHeight: 720,
   },
   'skill-edit': {
-    label: 'スキル編集',
+    get label() {
+      return i18n.ts._windows.skillEdit
+    },
     icon: 'ti ti-sparkles',
     exposure: 'developer',
     width: 500,
     maxHeight: 720,
   },
   'edit-history': {
-    label: '編集履歴',
+    get label() {
+      return i18n.ts._windows.editHistory
+    },
     icon: 'ti ti-history',
     exposure: 'developer',
     width: 620,
     maxHeight: 720,
   },
   connections: {
-    label: '接続',
+    get label() {
+      return i18n.ts._windows.connections
+    },
     icon: 'ti ti-plug-connected',
     width: 440,
     maxHeight: 650,
   },
   connectionEdit: {
-    label: '接続を編集',
+    get label() {
+      return i18n.ts._windows.connectionEdit
+    },
     icon: 'ti ti-plug-connected',
     width: 440,
     maxHeight: 720,
   },
   tutorial: {
-    label: 'チュートリアル',
+    get label() {
+      return i18n.ts._windows.tutorial
+    },
     icon: 'ti ti-presentation-analytics',
     width: 380,
     maxHeight: 420,
     anchor: 'top-right',
   },
   tutorialEditor: {
-    label: 'チュートリアル',
+    get label() {
+      return i18n.ts._windows.tutorialEditor
+    },
     icon: 'ti ti-checkbox',
     width: 500,
     maxHeight: 700,
@@ -332,8 +412,10 @@ export const ALL_WINDOW_TYPES = Object.keys(
   WINDOW_REGISTRY,
 ) as readonly WindowType[]
 
-export const WINDOW_LABELS: Record<string, string> = Object.fromEntries(
-  ALL_WINDOW_TYPES.map((t) => [t, WINDOW_REGISTRY[t].label]),
+/** 種別 → 表示名。表示名は辞書から引くので、参照した時点で引く (#135) */
+export const WINDOW_LABELS: Record<string, string> = labelTable(
+  () => ALL_WINDOW_TYPES,
+  (type) => WINDOW_REGISTRY[type as WindowType]?.label,
 )
 
 export const WINDOW_ICONS: Record<string, string> = Object.fromEntries(

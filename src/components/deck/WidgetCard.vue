@@ -196,7 +196,7 @@ function handlePrimaryClick() {
               v-if="isWindowExposed('widget-edit')"
               class="_button"
               :class="$style.iconBtn"
-              title="ウィジットを編集"
+              title="ウィジェットを編集"
               @click.stop="emit('edit')"
             >
               <i class="ti ti-pencil" />
