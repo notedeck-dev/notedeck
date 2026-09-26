@@ -157,7 +157,7 @@ async function copyJournalHint(): Promise<void> {
         </p>
         <template v-else>
           <p :class="$style.hint">{{ i18n.ts._coreContent.notFound }}</p>
-          <pre :class="$style.code">nix profile install github:notedeck-dev/notedeck#notecored</pre>
+          <pre :class="$style.code">nix profile install 'github:notedeck-dev/notedeck#notecored'</pre>
         </template>
       </section>
 
