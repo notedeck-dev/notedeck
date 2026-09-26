@@ -67,6 +67,8 @@ pub struct Core {
     streaming: OnceLock<Arc<StreamingManager>>,
     /// クエリランタイム (購読台帳 / 差分バッファ)
     query_runtime: OnceLock<Arc<QueryRuntime>>,
+    /// Stream Inspector の観測の口 (開いている間だけ生封筒を流す)
+    stream_observation: Arc<crate::stream_fanout::StreamObservation>,
     /// パフォーマンス設定 (実行時に更新される)
     perf: OnceLock<SharedPerfConfig>,
     /// AI チャットのイベントの届け先 (Tauri 側は WebView へ emit)
@@ -103,6 +105,7 @@ impl Core {
             db_tx,
             ogp: OnceLock::new(),
             hints: OnceLock::new(),
+            stream_observation: Arc::default(),
             app_dir: OnceLock::new(),
             app_version: OnceLock::new(),
             http: OnceLock::new(),
@@ -203,6 +206,10 @@ impl Core {
         self.streaming
             .get()
             .ok_or_else(|| NoteDeckError::Internal("streaming is not ready".into()))
+    }
+
+    pub fn stream_observation(&self) -> &Arc<crate::stream_fanout::StreamObservation> {
+        &self.stream_observation
     }
 
     pub fn set_query_runtime(&self, runtime: Arc<QueryRuntime>) {

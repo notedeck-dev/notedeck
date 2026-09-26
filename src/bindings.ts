@@ -1794,6 +1794,24 @@ async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, 
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notecore/src/commands/streaming.rs */
+async streamObserveStart() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stream_observe_start") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/streaming.rs */
+async streamObserveStop() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stream_observe_stop") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see crates/notecore/src/commands/enrichment.rs */
 async fetchOgp(url: string, accountId: string | null) : Promise<Result<SummaryData, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
@@ -2787,6 +2805,7 @@ streamChatMessageUnreacted: StreamChatMessageUnreacted,
 streamEmojiChanged: StreamEmojiChanged,
 streamEnvelope: StreamEnvelope,
 streamStatus: StreamStatus,
+streamUnread: StreamUnread,
 systemState: SystemState
 }>({
 exportProgress: "export-progress",
@@ -2800,6 +2819,7 @@ streamChatMessageUnreacted: "stream-chat-message-unreacted",
 streamEmojiChanged: "stream-emoji-changed",
 streamEnvelope: "stream-envelope",
 streamStatus: "stream-status",
+streamUnread: "stream-unread",
 systemState: "system-state"
 })
 
@@ -3830,9 +3850,9 @@ export type StreamEmojiChangedEvent = { accountId: string;
 host: string; change: EmojiChangeKind; emojis: ServerEmoji[] }
 /**
  * 統合チャネル (イベント名 "stream-envelope")。全イベントを { kind, payload }
- * の tagged union で流す。Inspector の raw tap と未読カウンタが購読する。
- * 名前が notecli::streaming::StreamEvent と衝突すると specta の TS 出力が
- * 壊れるため、newtype は別名にしている。
+ * の tagged union で流す。Inspector の raw tap だけが購読し、観測が開いている
+ * ときしか流れない (#1106)。名前が notecli::streaming::StreamEvent と衝突すると
+ * specta の TS 出力が壊れるため、newtype は別名にしている。
  */
 export type StreamEnvelope = StreamEvent
 /**
@@ -3854,6 +3874,14 @@ export type StreamNoteUpdatedEvent =
 export type StreamNotificationEvent = { accountId: string; subscriptionId: string; notification: NormalizedNotification }
 export type StreamStatus = StreamStatusEvent
 export type StreamStatusEvent = { accountId: string; state: StreamConnectionState }
+/**
+ * 未読カウンタへの合図 (イベント名 "stream-unread")。生封筒に頼らない (#1106)
+ */
+export type StreamUnread = StreamUnreadEvent
+/**
+ * 未読カウンタへの合図。件数そのものは持たない (正は REST の取得)
+ */
+export type StreamUnreadEvent = { accountId: string; kind: UnreadKind; op: UnreadOp }
 export type SummaryData = { title: string | null; description: string | null; icon: string | null; sitename: string | null; thumbnail: string | null; medias: string[]; player: Player | null; url: string; sensitive: boolean }
 /**
  * OS 状態のスナップショット。`None` = その項目をこのプラットフォームでは
@@ -3896,6 +3924,16 @@ id: string;
  * 帰属表示用の配布名スナップショット (記憶時点の名前)。
  */
 name?: string | null }
+export type UnreadKind = "notification" | "chat"
+export type UnreadOp = 
+/**
+ * 1 件増えた
+ */
+"increment" | 
+/**
+ * サーバー側で既読になった (0 に戻す)
+ */
+"clear"
 export type UserField = { name: string; value: string }
 /**
  * `charts/user/following`

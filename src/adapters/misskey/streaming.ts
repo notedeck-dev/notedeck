@@ -88,8 +88,9 @@ export class MisskeyStream implements StreamAdapter {
     const gen = ++this._listenerGeneration
 
     // 統合チャネル (stream-envelope) は Inspector 用の raw tap としてのみ
-    // 購読する。個別の消費 (status / capture / chat reaction) は専用の
-    // typed イベントに移行済み (#781)。Inspector は意図的に raw 表示なので、
+    // 購読する。個別の消費 (status / capture / chat reaction / 未読) は専用の
+    // typed イベントに移行済み (#781, #1106)。Rust は Inspector が観測を
+    // 開いている間しか流さない。Inspector は意図的に raw 表示なので、
     // typed union → Record への cast はこの raw 境界 1 箇所に閉じる。
     events.streamEnvelope
       .listen(({ payload: e }) => {

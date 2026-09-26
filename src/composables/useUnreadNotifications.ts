@@ -16,14 +16,9 @@ export function useUnreadNotifications() {
     {
       pollIntervalKey: 'notificationPollInterval',
       fetchCount: fetchUnreadCount,
-      onStreamEvent: (event, current) => {
-        if (event.kind === 'stream-notification') return current + 1
-        if (
-          event.kind === 'stream-main-event' &&
-          event.payload.eventType === 'readAllNotifications'
-        )
-          return 0
-        return null
+      onUnread: (event, current) => {
+        if (event.kind !== 'notification') return null
+        return event.op === 'clear' ? 0 : current + 1
       },
     },
   )

@@ -77,6 +77,8 @@ pub struct RelayClient {
     renewing: Mutex<HashMap<u64, String>>,
     /// stream_sub_note の (accountId, noteId)
     captures: Mutex<Vec<(String, String)>>,
+    /// 開いている観測 (`stream_observe_start`) の数。再接続で同じ数だけ開き直す
+    observing: Mutex<u32>,
     last_seq: Mutex<u64>,
     had_session: Mutex<bool>,
     on_event: EventHook,
@@ -145,6 +147,7 @@ impl RelayClient {
             aliases: Mutex::new(HashMap::new()),
             renewing: Mutex::new(HashMap::new()),
             captures: Mutex::new(Vec::new()),
+            observing: Mutex::new(0),
             last_seq: Mutex::new(0),
             had_session: Mutex::new(false),
             on_event,
@@ -411,6 +414,11 @@ impl RelayClient {
             if let Some(i) = c.iter().position(|k| *k == key) {
                 c.remove(i);
             }
+        } else if name == "stream_observe_start" {
+            *self.observing.lock().unwrap_or_else(|e| e.into_inner()) += 1;
+        } else if name == "stream_observe_stop" {
+            let mut o = self.observing.lock().unwrap_or_else(|e| e.into_inner());
+            *o = o.saturating_sub(1);
         }
     }
 
@@ -481,6 +489,12 @@ impl RelayClient {
                     serde_json::json!({ "accountId": account_id, "noteId": note_id }),
                     None,
                 )
+                .await;
+        }
+        let observing = self.observing.lock().map(|o| *o).unwrap_or(0);
+        for _ in 0..observing {
+            let _ = self
+                .raw_request("stream_observe_start", serde_json::json!({}), None)
                 .await;
         }
         self.update_state(|s| s.reconnects += 1);
