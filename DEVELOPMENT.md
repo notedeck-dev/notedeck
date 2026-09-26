@@ -725,7 +725,9 @@ import { i18n } from '@/i18n'
   - notecore が返す値は「英語の正本文 + 表示言語で描き直す手がかり `{ key, params }`」(`i18n::text` / `localize_fields`、エラーは `i18n::error` = `NoteDeckError::Localized`)。英語の正本文は AI・HTTP・CLI、版ずれのときの fallback に使う。デバイスは `localizeNative` / `nativeField` / `AppError` で表示言語に描き直す。保存される定型の文言 (セッションタイトル、HEARTBEAT の受信箱カードなど) も同じ形で保存し、表示するときに描き直す
   - 端末側 (OS 通知・トレイ・Android の通知チャネル) は `ui_lang` の表示言語で直接組む。表示言語は起動時に `locale.json5` と OS の言語から決め、切り替えたときはデバイスが `setUiLanguage` で知らせる
   - AI にだけ渡る文字列 (プロンプト、tool の結果やエラー) は辞書に入れず英語で書く。利用者の表示言語はシステムプロンプトの `<user-language>` で渡す
-- 日付・数値の書式は `i18n.lang` を渡す。`'ja-JP'` の直書きと引数なしの `toLocale*()` は増やさない
+- 日付・数値の書式は `i18n.lang` を渡す。`'ja-JP'` の直書きと引数なしの `toLocale*()` は増やさない。経過時刻は `formatTime` (`src/utils/formatTime.ts`)、件数の短縮表記 (「1.2万」/「1.2K」) は `formatCount` (`src/utils/format.ts`) を使い、画面ごとに手組みしない
+- 保存する定型の名前 (ゲストの連番名、principal が書いたメモの作者名) は英語の正本で保存し、表示するときに組み直す (`guestDisplayName` / `memoAuthorDisplayName`)。利用者が付けた名前はそのまま出す
+- 英語化での崩れは疑似ロケール `en-XA` (開発者モードの言語選択に出る) で見る。英語の文をアクセント付きにして 1.4 倍程度に伸ばし、`[ ]` で囲む。括弧が欠けていれば切り詰め、アクセントの無い文字列は直書き。辞書ファイルは持たず `languages.json5` の `pseudo` から作り、Rust / Android には渡さない (端末側は英語になる)
 - 日本語の直書きは `pnpm lint:i18n` が検査する (CI と pre-push)。変更したファイルの合計で増えていなければ通るラチェット。辞書に置けない文字列 (AI プロンプト、MFM 仕様の変換表など) は行末に `i18n-ignore: <理由>` を書くか、`scripts/i18n-lint.ts` のファイル単位の免除に理由つきで足す
 
 ### Styling

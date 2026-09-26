@@ -44,7 +44,7 @@ vi.mock('@/composables/useMemos', () => ({
   deleteAllMemos: vi.fn(),
 }))
 
-import { type Account, useAccountsStore } from './accounts'
+import { type Account, guestDisplayName, useAccountsStore } from './accounts'
 
 function makeAccount(id: string): Account {
   return {
@@ -83,5 +83,26 @@ describe('accounts store: 削除/ログアウトの操作順序 (#700)', () => {
 
     expect(callOrder).toEqual(['logoutAccount', 'destroyAdapter'])
     expect(store.accounts[0]?.hasToken).toBe(false)
+  })
+})
+
+describe('guestDisplayName (#135)', () => {
+  const guest = (displayName: string | null) =>
+    ({
+      userId: '__guest__',
+      hasToken: false,
+      displayName,
+      host: 'misskey.io',
+      username: 'guest_x',
+    }) as unknown as Account
+
+  it('連番の既定名 (ゲストN / Guest N) は表示言語で組み直す', () => {
+    expect(guestDisplayName(guest('ゲスト2'))).toBe('ゲスト 2')
+    expect(guestDisplayName(guest('Guest 3'))).toBe('ゲスト 3')
+  })
+
+  it('利用者が付けた名前はそのまま、無ければ「ゲスト」', () => {
+    expect(guestDisplayName(guest('観覧用'))).toBe('観覧用')
+    expect(guestDisplayName(guest(null))).toBe('ゲスト')
   })
 })

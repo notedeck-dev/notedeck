@@ -418,7 +418,6 @@ _mkPoll:
   until: "{date}まで"
 
 _mkPostForm:
-  guest: "ゲスト"
   localOnly: "ローカルのみ (連合なし)"
   federated: "連合あり"
   more: "その他"
@@ -677,10 +676,6 @@ _devDashboard:
   navObserve: "観測"
   navDiagnose: "診断"
   navCaches: "キャッシュ"
-  hoursAgo_plural:
-    other: "{count} 時間前"
-  minutesAgo_plural:
-    other: "{count} 分前"
 
 _tutorialContent:
   idleDescription: "カテゴリを選んで始められます。一覧から進めてください。"
@@ -2865,6 +2860,7 @@ _systemAdaptation:
 
 _accounts:
   guest: "ゲスト"
+  guestNumbered: "ゲスト {n}"
 
 _deckProfile:
   consoleWidgetsRemoved_plural:

@@ -4,6 +4,7 @@ import AppTime from '@/components/common/AppTime.vue'
 import type { StoredMemo } from '@/composables/useMemos'
 import { useNavigation } from '@/composables/useNavigation'
 import { i18n } from '@/i18n'
+import { memoAuthorDisplayName } from '@/permissions/principal'
 import { useAccountsStore } from '@/stores/accounts'
 import { useEmojisStore } from '@/stores/emojis'
 import { useWindowsStore } from '@/stores/windows'
@@ -41,8 +42,8 @@ const author = computed(() => props.memo.data.author ?? null)
 
 const isPersona = computed(() => author.value?.id.startsWith('skill:') ?? false)
 
-const displayName = computed(
-  () => author.value?.displayName ?? i18n.ts._common.memo,
+const displayName = computed(() =>
+  author.value ? memoAuthorDisplayName(author.value) : i18n.ts._common.memo,
 )
 
 const avatarUrl = computed(() => author.value?.avatarUrl ?? '')

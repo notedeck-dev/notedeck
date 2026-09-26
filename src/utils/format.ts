@@ -1,10 +1,22 @@
 import { i18n } from '@/i18n'
 
-/** Format a large number with K/M suffix */
+let compactLang = ''
+let COMPACT: Intl.NumberFormat
+
+/**
+ * 件数を表示言語の compact 表記で短くする (「1.2万」/「1.2K」、#704)。
+ * 端数は小数 1 桁まで、0 なら付けない。正確な数が要る面は辞書の引数に数を
+ * そのまま渡す (桁区切りは i18n が表示言語の書式で入れる)。
+ */
 export function formatCount(n: number): string {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
-  return String(n)
+  if (compactLang !== i18n.lang) {
+    compactLang = i18n.lang
+    COMPACT = new Intl.NumberFormat(compactLang, {
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    })
+  }
+  return COMPACT.format(n)
 }
 
 /** Format an ISO date string to a localized date */

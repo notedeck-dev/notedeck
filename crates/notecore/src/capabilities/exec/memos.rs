@@ -53,6 +53,7 @@ fn invalid(msg: String) -> NoteDeckError {
 // --- author ---
 
 /// `authorFromPrincipal`: user は author なし、plugin は `plugin:<id>`、他は kind。
+/// 表示名は英語の正本で、表示するときにデバイスが id から組み直す (#135)。
 fn author_from_principal(ctx: &ExecContext) -> Option<MemoAuthor> {
     let kind = ctx.principal.as_str();
     match kind {
@@ -60,17 +61,17 @@ fn author_from_principal(ctx: &ExecContext) -> Option<MemoAuthor> {
         "plugin" => {
             let raw = ctx.plugin_id.clone().unwrap_or_default();
             let (noun, bare) = if let Some(r) = raw.strip_prefix("widget:") {
-                ("ウィジェット", r)
+                ("Widget", r)
             } else if let Some(r) = raw.strip_prefix("play:") {
                 ("Play", r)
             } else if let Some(r) = raw.strip_prefix("page:") {
-                ("ページ", r)
+                ("Page", r)
             } else {
-                ("プラグイン", raw.as_str())
+                ("Plugin", raw.as_str())
             };
             Some(MemoAuthor {
                 id: format!("plugin:{raw}"),
-                display_name: format!("{noun}「{bare}」"),
+                display_name: format!("{noun} \"{bare}\""),
                 avatar_url: None,
             })
         }
@@ -78,8 +79,8 @@ fn author_from_principal(ctx: &ExecContext) -> Option<MemoAuthor> {
             let label = match other {
                 "ai.chat" => "AI",
                 "ai.heartbeat" => "HEARTBEAT",
-                "external" => "外部アプリ",
-                "scratchpad" => "スクラッチパッド",
+                "external" => "External app",
+                "scratchpad" => "Scratchpad",
                 _ => other,
             };
             Some(MemoAuthor {
@@ -405,7 +406,7 @@ mod tests {
         };
         let a = author_from_principal(&pl).unwrap();
         assert_eq!(a.id, "plugin:widget:clock");
-        assert_eq!(a.display_name, "ウィジェット「clock」");
+        assert_eq!(a.display_name, "Widget \"clock\"");
         assert_eq!(clamp_limit(&json!({})), 10);
         assert_eq!(clamp_limit(&json!({"limit": 500})), 50);
         assert_eq!(clamp_limit(&json!({"limit": 0})), 1);

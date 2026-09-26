@@ -633,7 +633,6 @@ _mkPoll:
   until: "Until {date}"
 
 _mkPostForm:
-  guest: "Guest"
   localOnly: "Local only (no federation)"
   federated: "Federated"
   more: "More"
@@ -896,12 +895,6 @@ _devDashboard:
   navObserve: "Observe"
   navDiagnose: "Diagnose"
   navCaches: "Caches"
-  hoursAgo_plural:
-    one: "{count} hour ago"
-    other: "{count} hours ago"
-  minutesAgo_plural:
-    one: "{count} minute ago"
-    other: "{count} minutes ago"
 
 _tutorialContent:
   idleDescription: "Pick a category to get started. Continue from the list."
@@ -3126,6 +3119,7 @@ _systemAdaptation:
 
 _accounts:
   guest: "Guest"
+  guestNumbered: "Guest {n}"
 
 _deckProfile:
   consoleWidgetsRemoved_plural:

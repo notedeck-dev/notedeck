@@ -94,3 +94,30 @@ export function principalAuthorId(principal: Principal): string | null {
       return principal.kind
   }
 }
+
+/**
+ * メモの著者名 (#135)。principal が書いたメモの表示名は書いた時点の言語で
+ * 保存されているので、id から表示言語で組み直す。persona (`skill:`) と
+ * アカウントの著者は保存された表示名のまま。
+ */
+export function memoAuthorDisplayName(author: {
+  id: string
+  displayName: string
+}): string {
+  const { id } = author
+  if (id.startsWith('plugin:')) {
+    return (
+      principalActorLabel({ kind: 'plugin', pluginId: id.slice(7) }) ??
+      author.displayName
+    )
+  }
+  switch (id) {
+    case 'ai.chat':
+    case 'ai.heartbeat':
+    case 'external':
+    case 'scratchpad':
+      return principalActorLabel({ kind: id }) ?? author.displayName
+    default:
+      return author.displayName
+  }
+}
